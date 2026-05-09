@@ -1,0 +1,418 @@
+import { execFileSync } from "node:child_process";
+import { visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
+import type { RuntimeTab } from "../../agent/runtime.js";
+import { isPendingEscapeActive } from "../../core/escape.js";
+import { renderGoalSummary } from "../../core/goal.js";
+import type { MouseHitRegion } from "../../core/mouse.js";
+import type { MixCodeState, MixCodeTabInfo } from "../../core/types.js";
+import { tabHasPendingUserInteraction } from "../../core/user-interactions.js";
+import type { MixCodeTheme } from "../themes.js";
+import { activeRenderTheme, renderWithTheme } from "./context.js";
+import { box, padLine, sanitizeTerminalText } from "./primitives.js";
+
+const GIT_BRANCH_CACHE_TTL_MS = 2_000;
+const DEFAULT_WORKING_INDICATOR_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+const DEFAULT_WORKING_INDICATOR_INTERVAL_MS = 80;
+const gitBranchCache = new Map<string, { value: string; expiresAt: number }>();
+
+export function renderHeader(width: number, theme: MixCodeTheme = activeRenderTheme): string[] {
+  void width;
+  void theme;
+  return [];
+}
+
+export function renderExtensionHeader(tab: MixCodeTabInfo | undefined, width: number): string[] {
+  const header = tab?.extensionUi.header;
+  return renderExtensionSlot(header?.render ? header.render(width) : header?.lines, width);
+}
+
+export function renderTabBar(
+  state: MixCodeState,
+  width: number,
+  theme: MixCodeTheme = activeRenderTheme,
+): string[] {
+  return renderWithTheme(theme, () => {
+    const line = activeRenderTheme.text(
+      padLine(
+        tabBarSegments(state)
+          .map((segment) => segment.text)
+          .join(" "),
+        width,
+      ),
+    );
+    return [line];
+  });
+}
+
+export function tabBarHitRegions(state: MixCodeState): MouseHitRegion[] {
+  let cursor = 1;
+  return tabBarSegments(state).map((segment) => {
+    const startX = cursor;
+    const endX = cursor + visibleWidth(segment.text) - 1;
+    cursor = endX + 2;
+    return { id: segment.id, startX, endX };
+  });
+}
+
+export function renderStatus(
+  tab: MixCodeTabInfo | undefined,
+  width: number,
+  theme: MixCodeTheme = activeRenderTheme,
+): string[] {
+  return renderWithTheme(theme, () => renderStatusInner(tab, width));
+}
+
+function renderStatusInner(tab: MixCodeTabInfo | undefined, width: number): string[] {
+  if (!tab) return [padLine(activeRenderTheme.dim("MixCode Home | no active agent"), width)];
+  const goal = renderGoalSummary(tab.goal, 42);
+  return goal ? [padLine(activeRenderTheme.dim(goal), width)] : [];
+}
+
+function renderCompactContextUsage(tab: MixCodeTabInfo): string {
+  const tokens = tab.currentContextTokens;
+  const limit = tab.contextLimit;
+  if (tokens === undefined) return `?/${formatCompactTokenCount(limit)}`;
+  const percent =
+    limit > 0 ? Math.min(999, Math.max(0, Math.round((tokens / limit) * 100))) : undefined;
+  const text =
+    percent === undefined
+      ? `${formatCompactTokenCount(tokens)}/${formatCompactTokenCount(limit)}`
+      : `${formatCompactTokenCount(tokens)}/${formatCompactTokenCount(limit)} (${percent}%)`;
+  if (percent === undefined) return text;
+  if (percent >= 80) return activeRenderTheme.danger(text);
+  if (percent >= 50) return activeRenderTheme.accent(text);
+  return activeRenderTheme.success(text);
+}
+
+function formatCompactTokenCount(tokens: number): string {
+  const value = tokens / 1_000;
+  if (Number.isInteger(value)) return `${value.toFixed(0)}k`;
+  return `${tokens < 10_000 ? value.toFixed(2) : value.toFixed(1)}k`;
+}
+
+export function renderSidebar(
+  tab: MixCodeTabInfo,
+  width: number,
+  runtimeTab?: RuntimeTab,
+  theme: MixCodeTheme = activeRenderTheme,
+): string[] {
+  return renderWithTheme(theme, () => renderSidebarInner(tab, width, runtimeTab));
+}
+
+export function renderSidebarInner(
+  tab: MixCodeTabInfo,
+  width: number,
+  runtimeTab?: RuntimeTab,
+): string[] {
+  void runtimeTab;
+  const sections: string[] = [];
+  if (tab.todoVisible) sections.push(...renderTodoSidebar(tab, width));
+  return sections;
+}
+
+function renderTodoSidebar(tab: MixCodeTabInfo, width: number): string[] {
+  const todoLines = tab.todos.length
+    ? tab.todos.map(
+        (todo) =>
+          `${todo.status === "completed" ? "[x]" : todo.status === "in_progress" ? "[~]" : "[ ]"} ${todo.priority ? `${todo.priority}: ` : ""}${todo.content}`,
+      )
+    : ["No todos"];
+  return box("TODO Board", ["status  content", "──────  ───────", ...todoLines], width);
+}
+
+export function renderInputMeta(
+  tab: MixCodeTabInfo,
+  width: number,
+  row = 0,
+  theme: MixCodeTheme = activeRenderTheme,
+  updateHitRegions = true,
+): string[] {
+  return renderWithTheme(theme, () => renderInputMetaInner(tab, width, row, updateHitRegions));
+}
+
+function renderInputMetaInner(
+  tab: MixCodeTabInfo,
+  width: number,
+  row = 0,
+  updateHitRegions = true,
+): string[] {
+  const lineWidth = Math.max(0, width - 1);
+  const queue = tab.pendingMessages.length ? ` | queued: ${tab.pendingMessages.length}` : "";
+  const escapeHint = isPendingEscapeActive(tab, "abort-agent") ? " | Esc again: stop" : "";
+  const workdir = shortWorkdir(tab.workdir);
+  const model = tab.model.displayName || "-";
+  const thinking = tab.thinkingLevel[0]!.toUpperCase() + tab.thinkingLevel.slice(1);
+  const modelBadge = ` 󰚩 ${model} `;
+  const thinkingBadge = ` ✦ ${thinking} `;
+  const gitBadge = `  ${gitBranchForWorkdir(tab.workdir) || "-"} `;
+  const left = [
+    "  ",
+    activeRenderTheme.accent(activeRenderTheme.bold(modelBadge)),
+    "  ",
+    activeRenderTheme.accent(activeRenderTheme.bold(thinkingBadge)),
+    "  ",
+    activeRenderTheme.accent(workdir),
+    queue ? activeRenderTheme.dim(queue) : "",
+    escapeHint ? activeRenderTheme.dim(escapeHint) : "",
+  ].join("");
+  const extensionStatus = extensionStatusText(tab);
+  const contextBadge = ` ${renderCompactContextUsage(tab)} `;
+  const git = activeRenderTheme.accent(activeRenderTheme.bold(gitBadge));
+  const extension = extensionStatus ? activeRenderTheme.dim(`${extensionStatus}  `) : "";
+  const right = chooseInputMetaRight(left, lineWidth, [
+    `${extension}${contextBadge} ${git}`,
+    `${contextBadge} ${git}`,
+    contextBadge,
+  ]);
+  const gap = Math.max(1, lineWidth - visibleWidth(left) - visibleWidth(right));
+  const metaRow =
+    visibleWidth(left) + visibleWidth(right) + 1 <= lineWidth
+      ? `${left}${" ".repeat(gap)}${right}`
+      : `${left} ${right}`;
+  if (updateHitRegions) {
+    tab.inputMetaHitRegions = [
+      { action: "models", row, startX: 3, endX: 2 + visibleWidth(modelBadge) },
+      {
+        action: "thinking",
+        row,
+        startX: 5 + visibleWidth(modelBadge),
+        endX: 4 + visibleWidth(modelBadge) + visibleWidth(thinkingBadge),
+      },
+      {
+        action: "workdir",
+        row,
+        startX: 7 + visibleWidth(modelBadge) + visibleWidth(thinkingBadge),
+        endX: 6 + visibleWidth(modelBadge) + visibleWidth(thinkingBadge) + visibleWidth(workdir),
+      },
+    ];
+  }
+  return [padLine(metaRow, lineWidth)];
+}
+
+function chooseInputMetaRight(left: string, lineWidth: number, candidates: string[]): string {
+  return (
+    candidates.find((candidate) => visibleWidth(left) + visibleWidth(candidate) + 1 <= lineWidth) ??
+    candidates.at(-1) ??
+    ""
+  );
+}
+
+export function renderWorkingIndicator(
+  tab: MixCodeTabInfo,
+  width: number,
+  now = new Date(),
+  theme: MixCodeTheme = activeRenderTheme,
+): string[] {
+  return renderWithTheme(theme, () => renderWorkingIndicatorInner(tab, width, now));
+}
+
+function renderWorkingIndicatorInner(
+  tab: MixCodeTabInfo,
+  width: number,
+  now = new Date(),
+): string[] {
+  if (!tab.extensionUi.workingVisible) return [];
+  if (tab.status !== "running" && tab.status !== "thinking") {
+    if (tab.lastWorkedDurationSeconds === undefined) return [];
+    return [
+      padLine(
+        activeRenderTheme.dim(`Worked for ${formatDuration(tab.lastWorkedDurationSeconds)}`),
+        width,
+      ),
+    ];
+  }
+  const elapsed = formatElapsed(tab.workingStartedAt, now);
+  const detail = isPendingEscapeActive(tab, "abort-agent", now.getTime())
+    ? "esc again to interrupt"
+    : "esc to interrupt";
+  const message = tab.extensionUi.workingMessage?.trim() || "Working";
+  const indicator = workingIndicatorFrame(tab, now);
+  if (indicator === "") return [];
+  const prefix = indicator ? `${indicator} ` : "";
+  return [
+    padLine(`${prefix}${activeRenderTheme.dim(`${message} (${elapsed} • ${detail})`)}`, width),
+  ];
+}
+
+function workingIndicatorFrame(tab: MixCodeTabInfo, now: Date): string | undefined {
+  const frames = tab.extensionUi.workingIndicatorFrames;
+  if (frames === undefined) {
+    const startedAt = tab.workingStartedAt ? Date.parse(tab.workingStartedAt) : now.getTime();
+    const elapsed = Math.max(
+      0,
+      now.getTime() - (Number.isFinite(startedAt) ? startedAt : now.getTime()),
+    );
+    return DEFAULT_WORKING_INDICATOR_FRAMES[
+      Math.floor(elapsed / DEFAULT_WORKING_INDICATOR_INTERVAL_MS) %
+        DEFAULT_WORKING_INDICATOR_FRAMES.length
+    ];
+  }
+  if (frames.length === 0) return "";
+  const interval = Math.max(1, tab.extensionUi.workingIndicatorIntervalMs ?? DEFAULT_WORKING_INDICATOR_INTERVAL_MS);
+  return frames[Math.floor(now.getTime() / interval) % frames.length] ?? "";
+}
+
+export function renderExtensionWidgets(
+  tab: MixCodeTabInfo,
+  width: number,
+  placement: "aboveEditor" | "belowEditor",
+  theme: MixCodeTheme = activeRenderTheme,
+): string[] {
+  return renderWithTheme(theme, () => renderExtensionWidgetsInner(tab, width, placement));
+}
+
+function renderExtensionWidgetsInner(
+  tab: MixCodeTabInfo,
+  width: number,
+  placement: "aboveEditor" | "belowEditor",
+): string[] {
+  const widgets = tab.extensionUi.widgets.filter((widget) => widget.placement === placement);
+  if (!widgets.length) return [];
+  const lines: string[] = [];
+  widgets.forEach((widget, index) => {
+    if (index > 0) lines.push(padLine("", width));
+    const widgetLines = widget.render?.(Math.max(1, width - 2)) ?? widget.lines;
+    lines.push(
+      ...widgetLines.flatMap((line) =>
+        wrapTextWithAnsi(sanitizeWidgetLine(line), Math.max(1, width - 2)).map((part) =>
+          padLine(` ${activeRenderTheme.dim(part)}`, width),
+        ),
+      ),
+    );
+  });
+  return lines;
+}
+
+export function renderFooter(width: number): string[] {
+  void width;
+  return [];
+}
+
+export function renderExtensionFooter(tab: MixCodeTabInfo | undefined, width: number): string[] {
+  const footer = tab?.extensionUi.footer;
+  return renderExtensionSlot(footer?.render ? footer.render(width) : footer?.lines, width);
+}
+
+function extensionStatusText(tab: MixCodeTabInfo): string {
+  return tab.extensionUi.statuses
+    .slice()
+    .sort((a, b) => a.key.localeCompare(b.key))
+    .map((status) => `${cleanStatusText(status.key)}: ${cleanStatusText(status.text)}`)
+    .filter((status) => status.trim())
+    .join("  ");
+}
+
+function renderExtensionSlot(lines: string[] | undefined, width: number): string[] {
+  if (!lines?.length) return [];
+  return lines.flatMap((line) =>
+    wrapTextWithAnsi(sanitizeWidgetLine(line), Math.max(1, width - 2)).map((part) =>
+      padLine(` ${activeRenderTheme.dim(part)}`, width),
+    ),
+  );
+}
+
+function cleanStatusText(text: string): string {
+  return text
+    .replace(/[\r\n\t]+/g, " ")
+    .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function sanitizeWidgetLine(text: string): string {
+  return sanitizeTerminalText(text)
+    .replace(/[\r\n\t]+/g, " ")
+    .trimEnd();
+}
+
+function tabBarSegments(state: MixCodeState): Array<{ id: string; text: string }> {
+  const configText = " MixCode Home ";
+  const isHomeActive = state.activeTabId === "config";
+  const config = isHomeActive
+    ? activeRenderTheme.homeTabActive(configText)
+    : activeRenderTheme.homeTab(configText);
+  return [
+    { id: "config", text: config },
+    ...state.tabs.map((tab) => {
+      const status = statusGlyph(tab);
+      const text = ` ${status} ${tab.title} `;
+      return {
+        id: tab.sessionId,
+        text: renderTabSegmentText(tab, text, state.activeTabId === tab.sessionId),
+      };
+    }),
+  ];
+}
+
+function renderTabSegmentText(tab: MixCodeTabInfo, text: string, active: boolean): string {
+  const statusColor = tabHasPendingUserInteraction(tab)
+    ? activeRenderTheme.tool
+    : tab.status === "running" || tab.status === "thinking"
+      ? activeRenderTheme.accent
+      : tab.status !== "error" && tab.unreadDone
+        ? activeRenderTheme.done
+        : undefined;
+  const colored = statusColor ? statusColor(text) : text;
+  return active ? activeRenderTheme.activeTab(colored) : activeRenderTheme.tab(colored);
+}
+
+function statusGlyph(tab: MixCodeTabInfo): string {
+  if (tab.status === "error") return "x";
+  if (tabHasPendingUserInteraction(tab)) return "?";
+  if (tab.status === "running" || tab.status === "thinking") return "*";
+  if (tab.status === "done" || tab.unreadDone) return "!";
+  return "-";
+}
+
+function shortWorkdir(workdir: string): string {
+  const home = process.env.HOME;
+  if (home && workdir.startsWith(home)) return `~${workdir.slice(home.length)}`;
+  return workdir;
+}
+
+function formatElapsed(startedAt: string | undefined, now: Date): string {
+  const start = startedAt ? Date.parse(startedAt) : NaN;
+  const elapsedSeconds = Number.isFinite(start)
+    ? Math.max(0, Math.floor((now.getTime() - start) / 1000))
+    : 0;
+  return formatDuration(elapsedSeconds);
+}
+
+function formatDuration(elapsedSeconds: number): string {
+  const hours = Math.floor(elapsedSeconds / 3600);
+  const minutes = Math.floor((elapsedSeconds % 3600) / 60);
+  const seconds = elapsedSeconds % 60;
+  if (hours > 0)
+    return `${hours}h ${String(minutes).padStart(2, "0")}m ${String(seconds).padStart(2, "0")}s`;
+  if (minutes === 0) return `${seconds}s`;
+  return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
+}
+
+function gitBranchForWorkdir(workdir: string): string {
+  const path = workdir.trim();
+  if (!path) return "";
+  const cached = gitBranchCache.get(path);
+  const now = Date.now();
+  if (cached && cached.expiresAt > now) return cached.value;
+  let value = "";
+  try {
+    value = execFileSync("git", ["branch", "--show-current"], {
+      cwd: path,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+      timeout: 1_000,
+    }).trim();
+    if (!value) {
+      value = execFileSync("git", ["rev-parse", "--short", "HEAD"], {
+        cwd: path,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+        timeout: 1_000,
+      }).trim();
+    }
+  } catch {
+    value = "";
+  }
+  gitBranchCache.set(path, { value, expiresAt: now + GIT_BRANCH_CACHE_TTL_MS });
+  return value;
+}

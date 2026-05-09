@@ -1,0 +1,380 @@
+import { wrapTextWithAnsi } from "@earendil-works/pi-tui";
+import type { ChatLine } from "../../agent/runtime.js";
+import type { MixCodeTabInfo } from "../../core/types.js";
+import { activeRenderTheme, renderWithTheme } from "./context.js";
+import { renderMarkdown } from "./markdown.js";
+import { padLine } from "./primitives.js";
+
+const TOOL_BACKGROUNDS = {
+  pending: { start: "\x1b[48;2;47;42;34m", end: "\x1b[49m" },
+  success: { start: "\x1b[48;2;38;38;36m", end: "\x1b[49m" },
+  error: { start: "\x1b[48;2;58;32;32m", end: "\x1b[49m" },
+} as const;
+const SYSTEM_BACKGROUND = { start: "\x1b[48;2;35;35;33m", end: "\x1b[49m" } as const;
+const USER_BASH_PREVIEW_LINES = 20;
+const chatLineRenderCache = new WeakMap<
+  ChatLine,
+  { key: string; lines: string[] }
+>();
+
+export function renderChat(
+  chat: ChatLine[],
+  width: number,
+  theme = activeRenderTheme,
+  tab?: MixCodeTabInfo,
+): string[] {
+  return renderWithTheme(theme, () => renderChatStream(chat, width, tab));
+}
+
+export function renderThinking(
+  reasoning: string[],
+  width: number,
+  theme = activeRenderTheme,
+): string[] {
+  return renderWithTheme(theme, () => renderReasoningSummary(reasoning, width));
+}
+
+export function renderConversation(
+  chat: ChatLine[],
+  reasoning: string[],
+  width: number,
+  tab?: MixCodeTabInfo,
+): string[] {
+  if (!chat.length && !reasoning.length) {
+    return [
+      padLine(activeRenderTheme.dim("No messages yet. Type a prompt and press Enter."), width),
+      padLine("", width),
+    ];
+  }
+  const reasoningSummary = chat.some((line) => line.role === "thinking")
+    ? []
+    : renderReasoningSummary(reasoning, width, tab);
+  return [...reasoningSummary, ...renderChatStream(chat, width, tab)];
+}
+
+function renderReasoningSummary(
+  reasoning: string[],
+  width: number,
+  tab?: MixCodeTabInfo,
+): string[] {
+  if (!reasoning.length) return [];
+  const entries = reasoning
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .slice(-3);
+  const label = tab?.extensionUi.hiddenThinkingLabel?.trim();
+  const labeledEntries = label ? [`${label} ${entries.at(-1) ?? ""}`.trim()] : entries;
+  const lines = labeledEntries.flatMap((line) =>
+    renderMarkdown(line, width, { color: activeRenderTheme.thinking, italic: true }),
+  );
+  return [...lines, padLine("", width)];
+}
+
+function renderChatStream(chat: ChatLine[], width: number, tab?: MixCodeTabInfo): string[] {
+  if (!chat.length) return [padLine(activeRenderTheme.dim("No messages yet."), width)];
+  const lines: string[] = [];
+  chat.forEach((line, index) => {
+    if (index > 0) lines.push(padLine("", width));
+    lines.push(...renderMessageBlock(line, width, tab));
+  });
+  return lines;
+}
+
+function renderMessageBlock(line: ChatLine, width: number, tab?: MixCodeTabInfo): string[] {
+  const cacheKey = chatLineRenderCacheKey(line, width, tab);
+  if (cacheKey) {
+    const cached = chatLineRenderCache.get(line);
+    if (cached?.key === cacheKey) return cached.lines;
+    const rendered = renderMessageBlockUncached(line, width, tab);
+    chatLineRenderCache.set(line, { key: cacheKey, lines: rendered });
+    return rendered;
+  }
+  return renderMessageBlockUncached(line, width, tab);
+}
+
+function renderMessageBlockUncached(line: ChatLine, width: number, tab?: MixCodeTabInfo): string[] {
+  const text = line.text.trimEnd();
+  if (line.role === "user") {
+    if (!text.trim()) return [];
+    const innerWidth = Math.max(1, width - 2);
+    const body = wrapPlainLine(text, innerWidth).map((part) =>
+      activeRenderTheme.userMessage(padLine(` ${part}`, width)),
+    );
+    return [
+      activeRenderTheme.userMessage(padLine("", width)),
+      ...body,
+      activeRenderTheme.userMessage(padLine("", width)),
+    ];
+  }
+  if (line.role === "assistant") {
+    if (!text.trim()) return [];
+    return renderMarkdown(text.trim(), width);
+  }
+  if (line.role === "thinking") {
+    if (!text.trim()) return [];
+    return renderMarkdown(text.trim(), width, { color: activeRenderTheme.thinking, italic: true });
+  }
+  if (line.role === "tool") {
+    return renderToolBlock(line, width, tab);
+  }
+  if (line.role === "extension") {
+    return renderExtensionBlock(line, width);
+  }
+  if (line.role === "startup") {
+    return renderStartupBlock(text, width);
+  }
+  return renderSystemBlock(text, width);
+}
+
+function chatLineRenderCacheKey(
+  line: ChatLine,
+  width: number,
+  tab?: MixCodeTabInfo,
+): string | undefined {
+  void tab;
+  if (line.renderExtension || line.renderToolCall || line.renderToolResult) return undefined;
+  if (
+    line.role !== "assistant" &&
+    line.role !== "thinking" &&
+    line.role !== "user" &&
+    line.role !== "system" &&
+    line.role !== "startup"
+  )
+    return undefined;
+  if (
+    line.title !== undefined ||
+    line.variant !== undefined ||
+    line.customType !== undefined ||
+    line.status !== undefined ||
+    line.toolCallId !== undefined ||
+    line.args !== undefined ||
+    line.toolResult !== undefined ||
+    line.toolIsPartial !== undefined ||
+    line.toolExpanded !== undefined ||
+    line.excludeFromContext !== undefined ||
+    line.bashExitCode !== undefined ||
+    line.bashCancelled !== undefined ||
+    line.bashTruncated !== undefined ||
+    line.bashFullOutputPath !== undefined
+  )
+    return undefined;
+  return JSON.stringify([
+    activeRenderTheme.name,
+    width,
+    line.role,
+    line.text,
+  ]);
+}
+
+function renderToolBlock(line: ChatLine, width: number, tab?: MixCodeTabInfo): string[] {
+  if (line.variant === "user-bash") return renderUserBashBlock(line, width, tab);
+  if (line.renderToolCall || line.renderToolResult) {
+    const selfRendered = line.toolRenderShell === "self";
+    const renderedWidth = selfRendered ? width : Math.max(1, width - 2);
+    const renderedResult = line.renderToolResult?.(renderedWidth) ?? [];
+    const rendered = [...(line.renderToolCall?.(renderedWidth) ?? []), ...renderedResult];
+    if (rendered.length) {
+      if (selfRendered) return rendered.flatMap((part) => normalizeRenderedToolLine(part, width));
+      return ["", ...rendered, ""].flatMap((part) => renderToolRenderedLine(line, part, width));
+    }
+  }
+  const status = line.status ?? "success";
+  const background =
+    status === "error"
+      ? TOOL_BACKGROUNDS.error
+      : status === "success"
+        ? TOOL_BACKGROUNDS.success
+        : TOOL_BACKGROUNDS.pending;
+  const innerWidth = Math.max(1, width - 2);
+  const titleColor =
+    status === "error"
+      ? activeRenderTheme.danger
+      : status === "success"
+        ? activeRenderTheme.success
+        : activeRenderTheme.tool;
+  const title = titleColor(activeRenderTheme.bold(toolDisplayTitle(line)));
+  const body = toolBodyLines(line);
+  const lines = [
+    "",
+    ` ${title}`,
+    ...body.flatMap((item) =>
+      wrapTextWithAnsi(item || " ", innerWidth).map((part) => ` ${activeRenderTheme.dim(part)}`),
+    ),
+    "",
+  ];
+  return lines.map((part) => renderToolBackgroundLine(part, width, background));
+}
+
+function renderUserBashBlock(line: ChatLine, width: number, tab?: MixCodeTabInfo): string[] {
+  const innerWidth = Math.max(1, width - 1);
+  const color = line.excludeFromContext ? activeRenderTheme.dim : activeRenderTheme.shellBorder;
+  const title = color(activeRenderTheme.bold(toolDisplayTitle(line)));
+  const output = line.text.trimEnd();
+  const outputLines = output ? output.split(/\r?\n/) : [];
+  const expanded = tab?.extensionUi.toolsExpanded ?? line.toolExpanded === true;
+  const visibleOutput = outputLines.slice(
+    expanded ? 0 : Math.max(0, outputLines.length - USER_BASH_PREVIEW_LINES),
+  );
+  const hiddenLineCount = Math.max(0, outputLines.length - visibleOutput.length);
+  const body: string[] = [userBashRule(width, color), ` ${title}`];
+  if (visibleOutput.length) {
+    body.push(
+      "",
+      ...visibleOutput.flatMap((item) =>
+        wrapTextWithAnsi(item || " ", innerWidth).map((part) => ` ${activeRenderTheme.dim(part)}`),
+      ),
+    );
+  }
+  const statusLines = userBashStatusLines(line, hiddenLineCount, expanded);
+  if (statusLines.length) body.push("", ...statusLines.map((part) => ` ${part}`));
+  body.push(userBashRule(width, color));
+  return body.map((part) => padLine(part, width));
+}
+
+function userBashRule(width: number, color = activeRenderTheme.tool): string {
+  return color("─".repeat(Math.max(1, width)));
+}
+
+function userBashStatusLines(line: ChatLine, hiddenLineCount: number, expanded: boolean): string[] {
+  const lines: string[] = [];
+  if (hiddenLineCount > 0) {
+    const label = expanded
+      ? "(ctrl+o to collapse)"
+      : `... ${hiddenLineCount} more lines (ctrl+o to expand)`;
+    lines.push(activeRenderTheme.dim(label));
+  }
+  if (line.status === "running") lines.push(activeRenderTheme.dim("Running..."));
+  if (line.status !== "running" && line.bashCancelled === true) {
+    lines.push(activeRenderTheme.warning("(cancelled)"));
+  } else if (
+    line.status !== "running" &&
+    line.bashExitCode !== undefined &&
+    line.bashExitCode !== 0
+  ) {
+    lines.push(activeRenderTheme.danger(`(exit ${line.bashExitCode})`));
+  }
+  if (line.status !== "running" && line.bashTruncated === true && line.bashFullOutputPath) {
+    lines.push(
+      activeRenderTheme.warning(`Output truncated. Full output: ${line.bashFullOutputPath}`),
+    );
+  }
+  return lines;
+}
+
+function renderExtensionBlock(line: ChatLine, width: number): string[] {
+  if (line.renderExtension) {
+    const rendered = line.renderExtension(width);
+    if (rendered.length)
+      return rendered.flatMap((part) => normalizeRenderedExtensionLine(part, width));
+  }
+  const title = line.title || (line.customType ? `extension ${line.customType}` : "extension");
+  const header = activeRenderTheme.accent(activeRenderTheme.bold(title));
+  const body = line.text.trim() ? line.text.trim() : " ";
+  return [
+    padLine(` ${header}`, width),
+    ...body
+      .split(/\r?\n/)
+      .flatMap((rawLine) =>
+        wrapTextWithAnsi(rawLine || " ", Math.max(1, width - 2)).map((part) =>
+          padLine(` ${activeRenderTheme.dim(part)}`, width),
+        ),
+      ),
+  ];
+}
+
+function renderSystemBlock(text: string, width: number): string[] {
+  const body = text.trim() ? text.trim() : " ";
+  const title = activeRenderTheme.accent(activeRenderTheme.bold("[System]:"));
+  const lines = [
+    "",
+    ` ${title}`,
+    ...renderMarkdown(body, Math.max(1, width - 1)).map((line) => ` ${line}`),
+    "",
+  ];
+  return lines.map((part) => renderToolBackgroundLine(part, width, SYSTEM_BACKGROUND));
+}
+
+function renderStartupBlock(text: string, width: number): string[] {
+  return text.split(/\r?\n/).map((line) => {
+    if (/^\[[^\]]+\]$/.test(line.trim())) {
+      return padLine(activeRenderTheme.tool(line.trim()), width);
+    }
+    return padLine(activeRenderTheme.dim(line), width);
+  });
+}
+
+function normalizeRenderedExtensionLine(line: string, width: number): string[] {
+  return String(line)
+    .split(/\r?\n/)
+    .map((part) => padLine(part.replace(/\t/g, "  "), width));
+}
+
+function renderToolRenderedLine(line: ChatLine, text: string, width: number): string[] {
+  const status = line.status ?? "success";
+  const background =
+    status === "error"
+      ? TOOL_BACKGROUNDS.error
+      : status === "success"
+        ? TOOL_BACKGROUNDS.success
+        : TOOL_BACKGROUNDS.pending;
+  return String(text)
+    .split(/\r?\n/)
+    .map((part) => renderToolBackgroundLine(` ${part}`, width, background));
+}
+
+function normalizeRenderedToolLine(text: string, width: number): string[] {
+  return String(text)
+    .split(/\r?\n/)
+    .map((part) => padLine(part.replace(/\t/g, "  "), width));
+}
+
+function renderToolBackgroundLine(
+  part: string,
+  width: number,
+  background: { start: string; end: string },
+): string {
+  const padded = padLine(part.replace(/\t/g, "  "), width);
+  return `${background.start}${reapplyBackgroundAfterSgr(padded, background.start)}${background.end}`;
+}
+
+function reapplyBackgroundAfterSgr(text: string, backgroundStart: string): string {
+  return text.replace(/\x1b\[[0-?]*[ -/]*m/g, (sequence) => `${sequence}${backgroundStart}`);
+}
+
+function toolDisplayTitle(line: ChatLine): string {
+  const name = line.title?.trim() || "tool";
+  const args = objectRecord(line.args);
+  if (name === "bash" && typeof args.command === "string" && args.command.trim())
+    return `$ ${args.command.trim()}`;
+  if (name === "read" && typeof args.path === "string" && args.path.trim())
+    return `read ${args.path.trim()}`;
+  if (name === "todo_write") return "todo_write";
+  return name;
+}
+
+function toolBodyLines(line: ChatLine): string[] {
+  const lines: string[] = [];
+  const args = objectRecord(line.args);
+  if (Object.keys(args).length > 0 && line.title !== "bash" && line.title !== "read") {
+    lines.push("", ...prettyJson(args).split(/\r?\n/));
+  }
+  const text = line.text.trim();
+  if (text) {
+    lines.push(...(lines.length ? [""] : []), ...text.split(/\r?\n/));
+  }
+  return lines;
+}
+
+function objectRecord(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function prettyJson(value: unknown): string {
+  return JSON.stringify(value, null, 2);
+}
+
+function wrapPlainLine(text: string, width: number): string[] {
+  return text.split(/\r?\n/).flatMap((line) => wrapTextWithAnsi(line || " ", Math.max(1, width)));
+}

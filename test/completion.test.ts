@@ -1,0 +1,325 @@
+import assert from "node:assert/strict";
+import { homedir } from "node:os";
+import { test } from "node:test";
+import { MixCodeCompletionProvider } from "../src/index.js";
+
+test("completion provider suggests slash commands, skills, and files", async () => {
+  const provider = new MixCodeCompletionProvider({
+    skills: [
+      {
+        name: "review",
+        path: `${homedir()}/.agents/skills/review/SKILL.md`,
+        description: "Review code",
+      },
+      "refactor",
+      "waveform-debug",
+    ],
+    files: ["dir with spaces/", "src/", "src/index.ts", "test/runtime-ui.test.ts"],
+    commands: [
+      {
+        name: "inspect",
+        description: "Inspect extension context",
+        sourceInfo: { source: "npm:pi-subagents@0.24.0" },
+      },
+    ],
+  });
+  const signal = new AbortController().signal;
+  const slash = await provider.getSuggestions(["/th"], 0, 3, { signal });
+  assert.equal(slash?.prefix, "/th");
+  assert.equal(slash?.items[0]?.value, "/thinking");
+  assert.equal(slash?.items[0]?.label, "thinking (built-in)");
+  assert.equal(slash?.items[0]?.description, "Select thinking level");
+  const reloadSlash = await provider.getSuggestions(["/rel"], 0, 4, { signal });
+  assert.equal(reloadSlash?.items[0]?.value, "/reload");
+  assert.equal(
+    reloadSlash?.items[0]?.description,
+    "Reload keybindings, extensions, skills, prompts, and themes",
+  );
+  const hotkeysSlash = await provider.getSuggestions(["/hot"], 0, 4, { signal });
+  assert.equal(hotkeysSlash?.items[0]?.value, "/hotkeys");
+  assert.equal(hotkeysSlash?.items[0]?.description, "Show all keyboard shortcuts");
+  const extensionSlash = await provider.getSuggestions(["/ins"], 0, 4, { signal });
+  assert.equal(extensionSlash?.items[0]?.value, "/inspect");
+  assert.equal(extensionSlash?.items[0]?.label, "inspect (ext:pi-subagents)");
+  assert.equal(extensionSlash?.items[0]?.description, "Inspect extension context");
+  const skill = await provider.getSuggestions(["use $rv"], 0, 7, { signal });
+  assert.equal(skill?.items[0]?.value, "$review");
+  assert.equal(skill?.items[0]?.label, "review");
+  assert.equal(
+    skill?.items[0]?.description,
+    "[Skill] (~/.agents/skills/review/SKILL.md) Review code",
+  );
+  const file = await provider.getSuggestions(["see @runtime"], 0, 12, { signal });
+  assert.equal(file?.items[0]?.value, "@test/runtime-ui.test.ts");
+  assert.equal(file?.items[0]?.description, undefined);
+  const directory = await provider.getSuggestions(["see @src"], 0, 8, { signal });
+  assert.equal(directory?.items[0]?.value, "@src/");
+  const spacedDirectory = await provider.getSuggestions(["see @spaces"], 0, 11, { signal });
+  assert.equal(spacedDirectory?.items[0]?.value, '@"dir with spaces/"');
+  const quotedDirectory = await provider.getSuggestions(['see @"spaces'], 0, 12, { signal });
+  assert.equal(quotedDirectory?.prefix, '@"spaces');
+  assert.equal(quotedDirectory?.items[0]?.value, '@"dir with spaces/"');
+  assert.equal(await provider.getSuggestions(["plain"], 0, 5, { signal }), null);
+  const missingLine = await provider.getSuggestions([], 0, 0, { signal });
+  assert.equal(missingLine, null);
+});
+
+test("completion provider compacts skill descriptions before paths are truncated", async () => {
+  const provider = new MixCodeCompletionProvider({
+    skills: [
+      {
+        name: "caveman",
+        path: `${homedir()}/.agents/skills/caveman/SKILL.md`,
+        description:
+          "Ultra-compressed communication mode. Cuts token usage by speaking briefly while keeping accuracy. Extra text that should be truncated because it is too long for the picker.",
+      },
+    ],
+    files: [],
+  });
+  const signal = new AbortController().signal;
+  const skill = await provider.getSuggestions(["$c"], 0, 2, { signal });
+
+  assert.equal(skill?.items[0]?.label, "caveman");
+  assert.match(
+    skill?.items[0]?.description ?? "",
+    /^\[Skill\] \(~\/\.agents\/skills\/caveman\/SKILL\.md\) Ultra-compressed communication mode\./,
+  );
+  assert.doesNotMatch(skill?.items[0]?.description ?? "", />\s*>/);
+  assert.ok((skill?.items[0]?.description ?? "").length < 160);
+});
+
+test("completion provider delegates extension slash argument completions", async () => {
+  const calls: string[] = [];
+  const provider = new MixCodeCompletionProvider({
+    skills: [],
+    files: [],
+    commands: [
+      {
+        name: "run",
+        description: "Run extension command",
+        getArgumentCompletions: async (prefix) => {
+          calls.push(prefix);
+          return prefix === "rev" ? [{ value: "reviewer", label: "reviewer" }] : null;
+        },
+      },
+      {
+        name: "chain",
+        description: "Run chain",
+        getArgumentCompletions: (prefix) =>
+          prefix === "scout -> rev" ? [{ value: "scout -> reviewer", label: "reviewer" }] : null,
+      },
+    ],
+  });
+  const signal = new AbortController().signal;
+
+  const commandName = await provider.getSuggestions(["/ru"], 0, 3, { signal });
+  assert.equal(commandName?.items[0]?.value, "/run");
+  assert.equal(commandName?.items[0]?.label, "run (ext:extension)");
+  assert.equal(commandName?.items[0]?.description, "Run extension command");
+  assert.deepEqual(calls, []);
+
+  const runArgs = await provider.getSuggestions(["/run rev"], 0, 8, { signal });
+  assert.equal(runArgs?.prefix, "rev");
+  assert.equal(runArgs?.items[0]?.value, "reviewer");
+  assert.deepEqual(calls, ["rev"]);
+  assert.deepEqual(
+    provider.applyCompletion(["/run rev"], 0, 8, runArgs!.items[0]!, runArgs!.prefix),
+    {
+      lines: ["/run reviewer"],
+      cursorLine: 0,
+      cursorCol: 13,
+    },
+  );
+
+  const chainArgs = await provider.getSuggestions(["/chain scout -> rev"], 0, 19, { signal });
+  assert.equal(chainArgs?.prefix, "scout -> rev");
+  assert.equal(chainArgs?.items[0]?.value, "scout -> reviewer");
+  assert.deepEqual(
+    provider.applyCompletion(
+      ["/chain scout -> rev"],
+      0,
+      19,
+      chainArgs!.items[0]!,
+      chainArgs!.prefix,
+    ),
+    {
+      lines: ["/chain scout -> reviewer"],
+      cursorLine: 0,
+      cursorCol: 24,
+    },
+  );
+});
+
+test("completion provider suggests local theme arguments", async () => {
+  const provider = new MixCodeCompletionProvider({ skills: [], files: [] });
+  const signal = new AbortController().signal;
+
+  const light = await provider.getSuggestions(["/theme li"], 0, 9, { signal });
+  assert.equal(light?.prefix, "/theme li");
+  assert.equal(light?.items[0]?.value, "/theme light");
+  assert.deepEqual(provider.applyCompletion(["/theme li"], 0, 9, light!.items[0]!, light!.prefix), {
+    lines: ["/theme light"],
+    cursorLine: 0,
+    cursorCol: 12,
+  });
+  assert.equal(await provider.getSuggestions(["/theme light"], 0, 12, { signal }), null);
+
+  const mixcode = await provider.getSuggestions(["/theme mix"], 0, 10, { signal });
+  assert.equal(
+    mixcode?.items.some((item) => item.value === "/theme mixcode-light"),
+    true,
+  );
+  assert.equal(
+    mixcode?.items.some((item) => item.value === "/theme mixcode-dark"),
+    true,
+  );
+});
+
+test("completion provider reads extension commands dynamically", async () => {
+  let commandName = "first";
+  const provider = new MixCodeCompletionProvider({
+    skills: [],
+    files: [],
+    commands: () => [{ name: commandName, description: "dynamic" }],
+  });
+  const signal = new AbortController().signal;
+
+  assert.equal(
+    (await provider.getSuggestions(["/fi"], 0, 3, { signal }))?.items[0]?.value,
+    "/first",
+  );
+  assert.equal(
+    (await provider.getSuggestions(["/fi"], 0, 3, { signal }))?.items[0]?.label,
+    "first (ext:extension)",
+  );
+  commandName = "second";
+  assert.equal(
+    (await provider.getSuggestions(["/sec"], 0, 4, { signal }))?.items[0]?.value,
+    "/second",
+  );
+});
+
+test("completion provider reads file sources dynamically", async () => {
+  let files = ["old/"];
+  const provider = new MixCodeCompletionProvider({
+    skills: [],
+    files: () => files,
+  });
+  const signal = new AbortController().signal;
+
+  assert.equal(
+    (await provider.getSuggestions(["see @old"], 0, 8, { signal }))?.items[0]?.value,
+    "@old/",
+  );
+
+  files = ["new/"];
+  assert.equal(
+    (await provider.getSuggestions(["see @new"], 0, 8, { signal }))?.items[0]?.value,
+    "@new/",
+  );
+  assert.equal((await provider.getSuggestions(["see @old"], 0, 8, { signal }))?.items.length, 0);
+});
+
+test("completion provider formats extension slash command sources", async () => {
+  const provider = new MixCodeCompletionProvider({
+    skills: [],
+    files: [],
+    commands: [
+      {
+        name: "scoped",
+        description: "Scoped package",
+        sourceInfo: { source: "npm:@scope/toolkit@1.2.3" },
+      },
+      {
+        name: "local",
+        description: "Local command",
+        sourceInfo: { path: "/repo/extensions/local-tool.ts" },
+      },
+    ],
+  });
+  const signal = new AbortController().signal;
+
+  assert.equal(
+    (await provider.getSuggestions(["/sco"], 0, 4, { signal }))?.items[0]?.label,
+    "scoped (ext:@scope/toolkit)",
+  );
+  assert.equal(
+    (await provider.getSuggestions(["/loc"], 0, 4, { signal }))?.items[0]?.label,
+    "local (ext:local-tool)",
+  );
+});
+
+test("completion provider keeps local slash commands ahead of conflicting extension commands", async () => {
+  const provider = new MixCodeCompletionProvider({
+    skills: [],
+    files: [],
+    commands: [
+      {
+        name: "clear",
+        description: "extension clear",
+        getArgumentCompletions: () => [{ value: "extension", label: "extension" }],
+      },
+    ],
+  });
+  const signal = new AbortController().signal;
+
+  const command = await provider.getSuggestions(["/cle"], 0, 4, { signal });
+  assert.equal(command?.items[0]?.value, "/clear");
+  assert.equal(command?.items[0]?.label, "clear (built-in)");
+  assert.doesNotMatch(command?.items[0]?.description ?? "", /extension clear/);
+  assert.equal(await provider.getSuggestions(["/clear x"], 0, 8, { signal }), null);
+});
+
+test("completion provider covers command descriptions and empty argument results", async () => {
+  const provider = new MixCodeCompletionProvider({
+    skills: [],
+    files: ['quote"file.ts'],
+    commands: [
+      { name: "argonly", argumentHint: "<name>" },
+      {
+        name: "emptyargs",
+        argumentHint: "<name>",
+        description: "Empty args",
+        getArgumentCompletions: () => [],
+      },
+      { name: "notarray", description: "Bad args", getArgumentCompletions: () => null },
+    ],
+  });
+  const signal = new AbortController().signal;
+
+  const argOnly = await provider.getSuggestions(["/argo"], 0, 5, { signal });
+  assert.equal(argOnly?.items[0]?.label, "argonly (ext:extension)");
+  assert.equal(argOnly?.items[0]?.description, "<name>");
+
+  const emptyArgs = await provider.getSuggestions(["/emptyargs value"], 0, 16, { signal });
+  assert.equal(emptyArgs, null);
+  const notArray = await provider.getSuggestions(["/notarray value"], 0, 15, { signal });
+  assert.equal(notArray, null);
+
+  const quotedFile = await provider.getSuggestions(['see @"quote'], 0, 11, { signal });
+  assert.equal(quotedFile?.items[0]?.value, '@"quote\\"file.ts"');
+});
+
+test("completion provider applies selected item and detects file trigger", () => {
+  const provider = new MixCodeCompletionProvider({ skills: [], files: [] });
+  const applied = provider.applyCompletion(
+    ["use $rv now"],
+    0,
+    7,
+    { value: "$review", label: "review" },
+    "$rv",
+  );
+  assert.deepEqual(applied, { lines: ["use $review now"], cursorLine: 0, cursorCol: 11 });
+  const appliedMissingLine = provider.applyCompletion(
+    [],
+    0,
+    0,
+    { value: "/help", label: "help" },
+    "",
+  );
+  assert.deepEqual(appliedMissingLine, { lines: ["/help"], cursorLine: 0, cursorCol: 5 });
+  assert.equal(provider.shouldTriggerFileCompletion(["see @src"], 0, 8), true);
+  assert.equal(provider.shouldTriggerFileCompletion(["use $review"], 0, 11), true);
+  assert.equal(provider.shouldTriggerFileCompletion([], 0, 0), false);
+  assert.equal(provider.shouldTriggerFileCompletion(["plain"], 0, 5), false);
+});

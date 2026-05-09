@@ -1,0 +1,351 @@
+import assert from "node:assert/strict";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { test } from "node:test";
+import {
+  Type,
+  createAssistantMessageEventStream,
+  type AssistantMessage,
+  type Context,
+  type Model,
+  type SimpleStreamOptions,
+} from "@earendil-works/pi-ai";
+import {
+  AuthStorage,
+  getMarkdownTheme,
+  ModelRegistry,
+  SettingsManager,
+  type ExtensionFactory,
+} from "@earendil-works/pi-coding-agent";
+import {
+  Markdown,
+  Text,
+  TUI,
+  visibleWidth,
+  type AutocompleteProvider,
+  type Component,
+  type OverlayOptions,
+  type Terminal,
+} from "@earendil-works/pi-tui";
+import {
+  MIXCODE_FAUX_MODEL,
+  MixCodeCompletionProvider,
+  MixCodeRoot,
+  MixCodeRuntime,
+  box,
+  createInitialState,
+  createTab,
+  createMixCodeTui,
+  MIXCODE_KEYMAP,
+  describeScopedKeymap,
+  describeKeymap,
+  handleSubmittedInput,
+  mixcodeFauxStream,
+  padLine,
+  renderChat,
+  renderCommandPalette,
+  renderConfig,
+  renderExportChooser,
+  renderExportText,
+  renderSystemToolsText,
+  renderExtensionFooter,
+  renderExtensionHeader,
+  renderExtensionWidgets,
+  renderHeader,
+  renderInputMeta,
+  renderAgentSurface,
+  renderPickerOverlay,
+  renderQueuePreview,
+  renderSidebar,
+  renderStatus,
+  renderTabBar,
+  renderTabJumpOverlay,
+  renderThinking,
+  renderWorkingIndicator,
+  fitHeadLines,
+  fitTailLines,
+  titledBox,
+  themeForId,
+} from "../src/index.js";
+
+function delayedAssistantStream(text: string, ready: Promise<void>, options?: SimpleStreamOptions) {
+  const stream = createAssistantMessageEventStream();
+  queueMicrotask(async () => {
+    const message = runtimeAssistantMessage(`Echo: ${text}`);
+    await ready;
+    if (options?.signal?.aborted) {
+      const aborted = {
+        ...message,
+        content: [],
+        stopReason: "aborted" as const,
+        errorMessage: "Request was aborted",
+      };
+      stream.push({ type: "error", reason: "aborted", error: aborted });
+      stream.end(aborted);
+      return;
+    }
+    stream.push({ type: "start", partial: { ...message, content: [] } });
+    stream.push({
+      type: "text_start",
+      contentIndex: 0,
+      partial: { ...message, content: [{ type: "text", text: "" }] },
+    });
+    stream.push({
+      type: "text_delta",
+      contentIndex: 0,
+      delta: message.content[0]!.text,
+      partial: message,
+    });
+    stream.push({
+      type: "text_end",
+      contentIndex: 0,
+      content: message.content[0]!.text,
+      partial: message,
+    });
+    stream.push({ type: "done", reason: "stop", message });
+    stream.end(message);
+  });
+  return stream;
+}
+
+function runtimeAssistantMessage(text: string): AssistantMessage {
+  return {
+    role: "assistant",
+    content: [{ type: "text", text }],
+    api: "queue-test",
+    provider: "queue-test",
+    model: "queue-test-model",
+    usage: {
+      input: 1,
+      output: 1,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 2,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+    },
+    stopReason: "stop",
+    timestamp: Date.now(),
+  };
+}
+
+function lastRuntimeUserText(context: Context): string {
+  for (const message of [...context.messages].reverse()) {
+    if (message.role !== "user") continue;
+    if (typeof message.content === "string") return message.content;
+    return message.content
+      .map((block) => (block.type === "text" ? block.text : "[image]"))
+      .join("\n");
+  }
+  return "";
+}
+
+async function waitForRuntime(predicate: () => boolean, attempts = 25): Promise<void> {
+  for (let i = 0; i < attempts; i += 1) {
+    if (predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  assert.equal(predicate(), true);
+}
+
+async function waitFor(predicate: () => boolean, attempts = 25): Promise<void> {
+  await waitForRuntime(predicate, attempts);
+}
+
+function stripAnsi(text: string): string {
+  return text
+    .replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "")
+    .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, "")
+    .replace(/\x1b_[^\x07]*(?:\x07|\x1b\\)/g, "");
+}
+
+function silentTerminal(): Terminal {
+  return {
+    start: () => undefined,
+    stop: () => undefined,
+    drainInput: async () => undefined,
+    write: () => undefined,
+    get columns() {
+      return 80;
+    },
+    get rows() {
+      return 24;
+    },
+    get kittyProtocolActive() {
+      return false;
+    },
+    moveBy: () => undefined,
+    hideCursor: () => undefined,
+    showCursor: () => undefined,
+    clearLine: () => undefined,
+    clearFromCursor: () => undefined,
+    clearScreen: () => undefined,
+    setTitle: () => undefined,
+    setProgress: () => undefined,
+  };
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+test("rendering exposes input metadata and tab bar landmarks", () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo", {
+    pendingQuestions: [
+      {
+        requestId: "q",
+        sessionId: "s1",
+        questions: [],
+        currentQuestionIndex: 0,
+        highlightedOptionIndices: [],
+        selectedAnswers: [],
+        customAnswers: [],
+        dirty: false,
+      },
+    ],
+    unreadDone: true,
+    todoVisible: true,
+    todos: [{ id: "t1", content: "Fix bug", status: "completed" }],
+    pendingMessages: ["queued extension work"],
+    extensionUi: {
+      statuses: [{ key: "extension", text: "ready" }],
+      widgets: [],
+      toolsExpanded: true,
+      workingVisible: true,
+    },
+  });
+  state.tabs.push(tab);
+  tab.goal = {
+    objective: "ship goal",
+    status: "active",
+    createdAt: new Date("2026-05-10T00:00:00.000Z").toISOString(),
+    updatedAt: new Date("2026-05-10T00:00:00.000Z").toISOString(),
+    lastError: "",
+    lastErrorAt: "",
+  };
+  const many = Array.from({ length: 16 }, (_, index) => ({
+    role: "user" as const,
+    text: `line-${index}`,
+  }));
+  tab.pendingEscapeAction = "abort-agent";
+  tab.pendingEscapeArmedAt = Date.now();
+  assert.match(renderInputMeta(tab, 100).join("\n"), /Esc again: stop/);
+  tab.pendingEscapeAction = undefined;
+  tab.pendingEscapeArmedAt = undefined;
+  assert.match(
+    titledBox("Title", ["meta", "with a very long right side"], ["body"], 24).join("\n"),
+    /Title/,
+  );
+  const agentSurface = renderAgentSurface(
+    tab,
+    { reasoning: ["tool started"], chat: many } as never,
+    100,
+  ).join("\n");
+  assert.match(agentSurface, /tool started/);
+  assert.match(agentSurface, /TODO Board/);
+  assert.match(agentSurface, /\[x\] Fix bug/);
+  assert.match(renderStatus(tab, 120)[0] ?? "", /Goal active: ship goal/);
+  assert.match(agentSurface, /line-15/);
+  const piThinkingSurface = renderAgentSurface(
+    createTab(18, "s18", "/repo"),
+    {
+      reasoning: ["same thought"],
+      chat: [
+        { role: "thinking", text: "same thought" },
+        { role: "assistant", text: "done" },
+      ],
+    } as never,
+    100,
+  ).join("\n");
+  assert.equal((piThinkingSurface.match(/same thought/g) ?? []).length, 1);
+  const hiddenThinkingTab = createTab(25, "s25", "/repo", {
+    extensionUi: {
+      statuses: [],
+      widgets: [],
+      toolsExpanded: false,
+      workingVisible: true,
+      hiddenThinkingLabel: "Analyzing...",
+    },
+  });
+  assert.match(
+    renderAgentSurface(
+      hiddenThinkingTab,
+      { reasoning: ["private chain"], chat: [{ role: "assistant", text: "done" }] } as never,
+      100,
+    ).join("\n"),
+    /Analyzing\.\.\. private chain/,
+  );
+  const narrowAgentSurfaceLines = renderAgentSurface(
+    createTab(14, "s14", "/repo", {
+      todoVisible: true,
+      todos: [{ id: "t14", content: "wide todo", status: "pending" }],
+    }),
+    { reasoning: [], chat: [{ role: "assistant", text: "main" }] } as never,
+    55,
+  );
+  const narrowAgentSurface = narrowAgentSurfaceLines.join("\n");
+  assert.doesNotMatch(narrowAgentSurface, /TODO Board/);
+  assert.match(narrowAgentSurface, /main/);
+  assert.equal(
+    narrowAgentSurfaceLines.every((line) => visibleWidth(line) <= 55),
+    true,
+  );
+  assert.doesNotMatch(
+    renderAgentSurface(createTab(6, "s6", "/repo"), undefined, 80).join("\n"),
+    /badges:/,
+  );
+  const noSidebarSurface = renderAgentSurface(
+    createTab(7, "s7", "/repo"),
+    { reasoning: [], chat: [] } as never,
+    100,
+  ).join("\n");
+  assert.doesNotMatch(noSidebarSurface, /badges:/);
+  const queuedSurface = renderAgentSurface(
+    createTab(11, "s11", "/repo", { pendingMessages: ["first queued message"] }),
+    { reasoning: [], chat: [] } as never,
+    80,
+  ).join("\n");
+  assert.match(queuedSurface, /Queue \(1\)/);
+  assert.match(queuedSurface, /first queued message/);
+  assert.match(
+    renderQueuePreview(
+      createTab(12, "s12", "/repo", { pendingMessages: ["1", "2", "3", "4", "5", "6"] }),
+      80,
+    ).join("\n"),
+    /Queue \(6, latest 5\)/,
+  );
+  const scrollTab = createTab(19, "s19", "/repo", { chatScrollOffset: 32 });
+  const scrollChat = Array.from({ length: 30 }, (_, index) => ({
+    role: "assistant" as const,
+    text: `scroll-${index}`,
+  }));
+  const scrolledSurface = renderAgentSurface(
+    scrollTab,
+    { reasoning: [], chat: scrollChat } as never,
+    80,
+    6,
+  ).join("\n");
+  assert.match(scrolledSurface, /scroll-1[0-9]/);
+  assert.doesNotMatch(scrolledSurface, /scroll-29/);
+  assert.ok(scrolledSurface.split("\n").some((line) => /█\x1b\[39m$/.test(line)));
+  const latestSurface = renderAgentSurface(
+    createTab(20, "s20", "/repo"),
+    { reasoning: [], chat: scrollChat } as never,
+    80,
+    6,
+  );
+  assert.ok(latestSurface.some((line) => /scroll-29/.test(line)));
+  assert.ok(latestSurface.at(-1)?.includes("█"));
+  assert.equal(latestSurface.every((line) => visibleWidth(line) === 80), true);
+  const strippedLatestSurface = latestSurface.map(stripAnsi);
+  assert.equal(strippedLatestSurface.every((line) => !line.slice(0, 79).endsWith("...")), true);
+  assert.deepEqual(renderQueuePreview(createTab(12, "s12", "/repo"), 80), []);
+  assert.match(
+    renderQueuePreview(
+      createTab(13, "s13", "/repo", { pendingMessages: ["queued\nwith spacing"] }),
+      80,
+    ).join("\n"),
+    /queued with spacing/,
+  );
+});
