@@ -18,7 +18,7 @@ test("buildModelPrompt combines user text, skills, and file refs without workdir
     const userText = "Check $review @src/index.ts";
     const prompt = await buildModelPrompt(userText, dir);
     assert.equal(prompt.startsWith(`${userText}\n\n`), true);
-    assert.match(prompt, /<skills>/);
+    assert.match(prompt, /<skill name=/);
     assert.doesNotMatch(prompt, /<files>/);
     assert.doesNotMatch(prompt, /workdir-instructions|Project Context|Use tests/);
   } finally {

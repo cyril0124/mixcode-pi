@@ -28,15 +28,66 @@ export class SkillError extends Error {
   }
 }
 
-const SKILL_REF_RE = /(?:^|(?<![\w/.-]))\$([A-Za-z0-9_-]+)/g;
+// Skill names must start with a letter and contain only alphanumeric, underscore, hyphen, or colon.
+const SKILL_REF_RE = /(?:^|(?<![\w/.-]))\$([A-Za-z][A-Za-z0-9_:-]*)/g;
 const FENCED_CODE_RE = /^[ \t]*```[^\n]*\n.*?^[ \t]*```/gms;
 
+// Common environment variable names that should never be treated as skill references.
+const COMMON_ENV_VARS = new Set([
+  "PATH",
+  "HOME",
+  "USER",
+  "SHELL",
+  "PWD",
+  "TMPDIR",
+  "TEMP",
+  "TMP",
+  "LANG",
+  "TERM",
+  "XDG_CONFIG_HOME",
+  "GOPATH",
+  "GOROOT",
+  "JAVA_HOME",
+  "NODE_PATH",
+  "PYTHONPATH",
+  "CARGO_HOME",
+  "RUSTUP_HOME",
+  "NVM_DIR",
+  "EDITOR",
+  "VISUAL",
+  "DISPLAY",
+  "HOSTNAME",
+  "LOGNAME",
+  "OLDPWD",
+  "SHLVL",
+  "LC_ALL",
+  "LC_CTYPE",
+]);
+
+function isCommonEnvVar(name: string): boolean {
+  return COMMON_ENV_VARS.has(name.toUpperCase());
+}
+
+// Marker used to separate user input from injected skill content in the prompt.
+// This allows history restoration to strip the injected portion.
+export const SKILL_INJECTION_SEPARATOR = "\n\n<!-- mixcode-pi:skills -->\n";
+
 export const FORCE_SKILLS_INSTRUCTION = [
-  "Before responding, you MUST:",
-  "1. Read each SKILL.md from its <location> in the listed order.",
-  "2. Follow the skill instructions for this request.",
-  "3. If a skill file cannot be read, surface the error explicitly instead of silently continuing.",
+  "The user explicitly invoked the following skills via `$SkillName`.",
+  "1. Read each SKILL.md from its <location>. Read only enough to follow the workflow.",
+  "2. When SKILL.md references relative paths, resolve them against the <base> directory.",
+  "3. Follow the skill instructions for this request.",
+  "4. If a skill file cannot be read, say so briefly and continue with the best fallback.",
 ].join("\n");
+
+/**
+ * Strip injected skill content from a prompt, returning only the user's original input.
+ * Used by history restoration to avoid showing expanded skill content in Up/Down recall.
+ */
+export function stripSkillInjection(text: string): string {
+  const index = text.indexOf(SKILL_INJECTION_SEPARATOR);
+  return index === -1 ? text : text.slice(0, index);
+}
 
 function withoutFencedCode(text: string): string {
   return text.replace(FENCED_CODE_RE, "");
@@ -56,7 +107,9 @@ function uniqueInOrder(values: Iterable<string>): string[] {
 
 export function extractSkillRefs(text: string): string[] {
   return uniqueInOrder(
-    [...withoutFencedCode(text).matchAll(SKILL_REF_RE)].map((match) => match[1] as string),
+    [...withoutFencedCode(text).matchAll(SKILL_REF_RE)]
+      .map((match) => match[1] as string)
+      .filter((name) => !isCommonEnvVar(name)),
   );
 }
 
@@ -217,9 +270,14 @@ export async function resolveSkills(
 ): Promise<SkillMeta[]> {
   const skills: SkillMeta[] = [];
   for (const name of names) {
-    const location = await resolveSkillFile(name, baseWorkdir, homeDir);
-    const content = await readFile(location, "utf8");
-    skills.push({ name, description: parseSkillDescription(content), location });
+    try {
+      const location = await resolveSkillFile(name, baseWorkdir, homeDir);
+      const content = await readFile(location, "utf8");
+      skills.push({ name, description: parseSkillDescription(content), location });
+    } catch {
+      // Unknown or unreadable skill: silently skip.
+      continue;
+    }
   }
   return skills;
 }
@@ -294,12 +352,12 @@ export async function buildPrompt(
     const skillXml = skills
       .map(
         (skill) =>
-          `<skill name="${escapeXmlAttr(skill.name)}"><location>${escapeXmlText(skill.location)}</location><description>${escapeXmlText(skill.description)}</description><base>${escapeXmlText(dirname(skill.location))}</base></skill>`,
+          `<skill name="${escapeXmlText(skill.name)}">\n  <location>${escapeXmlText(skill.location)}</location>\n  <description>${escapeXmlText(skill.description)}</description>\n  <base>${escapeXmlText(dirname(skill.location))}</base>\n</skill>`,
       )
       .join("\n");
     parts.push({
       type: "text",
-      text: `${FORCE_SKILLS_INSTRUCTION}\n<skills>\n${skillXml}\n</skills>`,
+      text: `${FORCE_SKILLS_INSTRUCTION}\n${skillXml}`,
     });
   }
   return { text, parts, skills, files };
@@ -309,6 +367,3 @@ function escapeXmlText(value: string): string {
   return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 }
 
-function escapeXmlAttr(value: string): string {
-  return escapeXmlText(value).replaceAll('"', "&quot;").replaceAll("'", "&apos;");
-}

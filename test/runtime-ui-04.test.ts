@@ -343,7 +343,7 @@ test("submitted input handles prompt, shell, local commands, clear, and missing 
       tui,
     );
     await handleSubmittedInput(state, runtime, "/run worker task", tui);
-    assert.match(prompts[0] ?? "", /<skills>/);
+    assert.match(prompts[0] ?? "", /<skill name=/);
     assert.doesNotMatch(prompts[0] ?? "", /workdir-instructions|Follow repo rules/);
     assert.deepEqual(prompts.slice(1), ["/run worker task"]);
     assert.deepEqual(shellCommands, [{ command: "pwd", excludeFromContext: false }]);

@@ -18,6 +18,7 @@ import { join } from "node:path";
 import { rm, writeFile } from "node:fs/promises";
 import type { AgentRuntimeConfig, MixCodeTabInfo } from "../core/types.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
+import { stripSkillInjection } from "../core/attachments.js";
 import { activateMixCodeTools, getActiveToolInfos } from "./tools.js";
 import { MIXCODE_EXTENSION_KEYBINDINGS } from "./runtime-extension-theme.js";
 export { MIXCODE_EXTENSION_KEYBINDINGS_MANAGER } from "./runtime-extension-theme.js";
@@ -257,7 +258,9 @@ export class MixCodeRuntime {
     if (!runtimeTab) return [];
     const history: string[] = [];
     for (const line of runtimeTab.chat) {
-      if (line.role === "user" && line.text.trim()) history.push(line.text);
+      if (line.role === "user" && line.text.trim()) {
+        history.push(stripSkillInjection(line.text));
+      }
     }
     return history;
   }
