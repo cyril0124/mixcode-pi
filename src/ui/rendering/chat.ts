@@ -70,14 +70,62 @@ function renderReasoningSummary(
   return [...lines, padLine("", width)];
 }
 
+// Cache rendered lines for all messages except the last one.
+// During streaming, only the last message changes, so the prefix is stable.
+interface ChatPrefixCache {
+  lines: string[];
+  // Invalidation keys
+  chatRef: ChatLine[];
+  prefixLength: number; // chat.length - 1
+  width: number;
+  themeName: string;
+}
+
+const chatPrefixCacheMap = new WeakMap<ChatLine[], ChatPrefixCache>();
+
 function renderChatStream(chat: ChatLine[], width: number, tab?: MixCodeTabInfo): string[] {
   if (!chat.length) return [padLine(activeRenderTheme.dim("No messages yet."), width)];
-  const lines: string[] = [];
-  chat.forEach((line, index) => {
-    if (index > 0) lines.push(padLine("", width));
-    lines.push(...renderMessageBlock(line, width, tab));
-  });
-  return lines;
+  if (chat.length === 1) {
+    return renderMessageBlock(chat[0]!, width, tab);
+  }
+
+  // Try to reuse cached prefix (all messages except the last)
+  const prefixLength = chat.length - 1;
+  const cached = chatPrefixCacheMap.get(chat);
+  let prefixLines: string[];
+
+  if (
+    cached &&
+    cached.chatRef === chat &&
+    cached.prefixLength === prefixLength &&
+    cached.width === width &&
+    cached.themeName === activeRenderTheme.name
+  ) {
+    prefixLines = cached.lines;
+  } else {
+    // Render all messages except the last
+    prefixLines = [];
+    for (let i = 0; i < prefixLength; i++) {
+      if (i > 0) prefixLines.push(padLine("", width));
+      const block = renderMessageBlock(chat[i]!, width, tab);
+      for (let j = 0; j < block.length; j++) prefixLines.push(block[j]!);
+    }
+    chatPrefixCacheMap.set(chat, {
+      lines: prefixLines,
+      chatRef: chat,
+      prefixLength,
+      width,
+      themeName: activeRenderTheme.name,
+    });
+  }
+
+  // Render the last message (may be streaming)
+  const lastBlock = renderMessageBlock(chat[prefixLength]!, width, tab);
+  const result = new Array(prefixLines.length + 1 + lastBlock.length);
+  for (let i = 0; i < prefixLines.length; i++) result[i] = prefixLines[i];
+  result[prefixLines.length] = padLine("", width); // separator
+  for (let i = 0; i < lastBlock.length; i++) result[prefixLines.length + 1 + i] = lastBlock[i];
+  return result;
 }
 
 function renderMessageBlock(line: ChatLine, width: number, tab?: MixCodeTabInfo): string[] {
