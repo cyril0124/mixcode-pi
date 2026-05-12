@@ -18,7 +18,6 @@ export function createInitialState(workdir: string): MixCodeState {
     packageUpdates: [],
     exportChooserOpen: false,
     exportChooserIndex: 0,
-    helpOpen: false,
     quitConfirmOpen: false,
     commandPaletteOpen: false,
     commandPalette: { query: "", selectedIndex: 0 },

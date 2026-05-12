@@ -88,28 +88,6 @@ export function renderQuitConfirm(width: number): string[] {
   );
 }
 
-export function renderHelpOverlay(width: number): string[] {
-  return overlayPanel(
-    "MixCode Help",
-    [
-      "Ctrl+Q: quit",
-      "Tab / Shift+Tab: switch tabs",
-      "Ctrl+P: command palette",
-      "Ctrl+L: export",
-      "Ctrl+T: tab jump",
-      "Ctrl+E: external editor",
-      "Ctrl+C: clear input",
-      "Ctrl+J: insert newline",
-      "Ctrl+R: rename",
-      "@: editor file autocomplete",
-      "Alt+Up / Ctrl+U: pop queued message",
-      "Ctrl+/ / Ctrl+_: show / hide this help",
-      "Esc: close overlay",
-    ],
-    width,
-  );
-}
-
 export function showTransientTextOverlay(tui: OverlayTui, text: string): void {
   showTextOverlay(tui, text, compactToastOverlayOptions(text));
 }

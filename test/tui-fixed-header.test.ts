@@ -679,13 +679,6 @@ test("key handling covers app overlay handles", () => {
     undefined,
   );
   assert.equal(overlayOpen, false);
-  const hidesBeforeHelp = hides;
-
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x1f", tui), { consume: true });
-  assert.equal(overlayOpen, true);
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x1f", tui), { consume: true });
-  assert.equal(hides, hidesBeforeHelp + 1);
-  assert.equal(overlayOpen, false);
 });
 
 test("rendering overlay defaults cover closed and fallback branches", () => {

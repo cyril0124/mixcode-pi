@@ -25,12 +25,7 @@ import type {
   RuntimeToolInfo,
 } from "./app-types.js";
 import { createTuiDebugState } from "./app-debug.js";
-import {
-  editTextWithTuiPaused,
-  renderHelpOverlay,
-  showLinesOverlay,
-  showTextOverlay,
-} from "./app-overlays.js";
+import { editTextWithTuiPaused, showLinesOverlay, showTextOverlay } from "./app-overlays.js";
 import {
   appendActiveSystemMessage,
   applyModelSelection,
@@ -237,8 +232,8 @@ export async function handleSubmittedInput(
     }
     applyThinkingLevel(state, active!, parsed.args.trim(), runtime);
   } else if (parsed.command === "help") {
-    state.helpOpen = true;
-    showLinesOverlay(tui, renderHelpOverlay);
+    const shortcuts = active ? getExtensionShortcuts(runtime, active.sessionId) : [];
+    showSystemMessageOrToast(state, runtime, tui, renderHotkeysText(shortcuts));
   } else if (parsed.command === "hotkeys") {
     const shortcuts = active ? getExtensionShortcuts(runtime, active.sessionId) : [];
     showSystemMessageOrToast(state, runtime, tui, renderHotkeysText(shortcuts));
@@ -409,15 +404,15 @@ function getExtensionShortcuts(
 ): RuntimeShortcutInfo[] {
   const runtimeTab = runtime.getTab(sessionId);
   if (!runtimeTab) throw new Error(`Unknown tab session: ${sessionId}`);
-  return [
-    ...runtimeTab.agentSession.extensionRunner
-      .getShortcuts(MIXCODE_EXTENSION_KEYBINDINGS)
-      .entries(),
-  ].map(([key, shortcut]) => ({
-    key,
-    description: shortcut.description,
-    source: shortcut.extensionPath,
-  }));
+  const runner = runtimeTab.agentSession?.extensionRunner;
+  if (!runner) return [];
+  return [...runner.getShortcuts(MIXCODE_EXTENSION_KEYBINDINGS).entries()].map(
+    ([key, shortcut]) => ({
+      key,
+      description: shortcut.description,
+      source: shortcut.extensionPath,
+    }),
+  );
 }
 
 export function renderSystemToolsText(tools: RuntimeToolInfo[]): string {
@@ -569,7 +564,8 @@ export function renderSessionInfoText(
     `Input: ${info.tokens.input.toLocaleString()}`,
     `Output: ${info.tokens.output.toLocaleString()}`,
   );
-  if (info.tokens.cacheRead > 0) lines.push(`Cache Read: ${info.tokens.cacheRead.toLocaleString()}`);
+  if (info.tokens.cacheRead > 0)
+    lines.push(`Cache Read: ${info.tokens.cacheRead.toLocaleString()}`);
   if (info.tokens.cacheWrite > 0)
     lines.push(`Cache Write: ${info.tokens.cacheWrite.toLocaleString()}`);
   lines.push(`Total: ${info.tokens.total.toLocaleString()}`);

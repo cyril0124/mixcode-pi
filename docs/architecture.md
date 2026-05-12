@@ -118,7 +118,6 @@ Config tab 只渲染配置面板和可点击操作，不渲染 prompt editor；�
 | `Ctrl+R` | 预填 `/rename 当前标题`，复用 slash command 重命名 |
 | `Alt+Up` / `Ctrl+U` | 将最后一条 queued prompt 弹回编辑器；没有队列时不抢占 Editor |
 | `Ctrl+V` | Markdown preview |
-| `Ctrl+/` / `Ctrl+_` | 显示/隐藏 help overlay；help 打开时普通键不穿透到全局绑定 |
 | `@` | 打开 mixcode 风格全局文件 picker，选择后插入 `@path ` |
 | `Esc` | 关闭 overlay、preview 或 tab jump；question 场景第一次显示确认提示，第二次拒绝问题；shell 场景单次关闭 shell |
 | `Ctrl+Q` | 打开退出确认；`y` 确认、`n`/`Esc` 取消；`/quit` 和 `/exit` 直接退出，不弹确认 |

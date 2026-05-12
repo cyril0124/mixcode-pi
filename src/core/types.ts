@@ -262,7 +262,6 @@ export interface MixCodeState {
   packageUpdates: string[];
   exportChooserOpen: boolean;
   exportChooserIndex: number;
-  helpOpen: boolean;
   quitConfirmOpen: boolean;
   commandPaletteOpen: boolean;
   commandPalette: CommandPaletteState;

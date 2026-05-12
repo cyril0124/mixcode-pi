@@ -49,8 +49,7 @@ export const MIXCODE_KEYMAP: KeyAction[] = [
   },
   { key: "ctrl+j", action: "newline", description: "Insert newline", scope: "global" },
   { key: "shift+enter", action: "newline", description: "Insert newline", scope: "global" },
-  { key: "ctrl+/", action: "help", description: "Open help overlay", scope: "global" },
-  { key: "ctrl+_", action: "help", description: "Open help overlay", scope: "global" },
+
   { key: "escape", action: "close-overlay", description: "Close active overlay", scope: "global" },
   { key: "ctrl+q", action: "quit", description: "Quit MixCode", scope: "global" },
   {

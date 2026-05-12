@@ -358,7 +358,7 @@ test("submitted input handles prompt, shell, local commands, clear, and missing 
     assert.equal(tab.title, "Renamed");
     assert.equal(tab.model.modelId, "faux-1");
     assert.equal(state.theme, "mixcode-dark");
-    assert.ok(overlays.some((line) => line.includes("MixCode Help")));
+    assert.ok(tab.previewMessages.some((msg: { text: string }) => msg.text.includes("Keyboard Shortcuts")));
     assert.ok(overlays.some((line) => line.includes("Runtime system prompt")));
     state.tabs.length = 0;
     await handleSubmittedInput(state, runtime, "ignored", tui);

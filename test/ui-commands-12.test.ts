@@ -198,7 +198,7 @@ test("global key input covers extension input transforms picker errors and shell
     undefined,
   );
   overlayOpen = false;
-  state.helpOpen = true;
+  state.tabJumpOpen = true;
   assert.equal(
     handleMixCodeKeyInput(
       state,
@@ -212,7 +212,7 @@ test("global key input covers extension input transforms picker errors and shell
     ),
     undefined,
   );
-  state.helpOpen = false;
+  state.tabJumpOpen = false;
   assert.equal(
     handleMixCodeKeyInput(
       state,

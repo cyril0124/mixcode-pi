@@ -49,7 +49,6 @@ export function openQuitConfirm(state: MixCodeState, tui: OverlayTui): void {
   state.quitConfirmOpen = true;
   state.exportChooserOpen = false;
   state.exportChooserIndex = 0;
-  state.helpOpen = false;
   closeCommandPalette(state);
   closeTabJump(state);
   state.picker = undefined;

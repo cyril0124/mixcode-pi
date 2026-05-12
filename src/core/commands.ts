@@ -78,7 +78,7 @@ export const LOCAL_COMMANDS: Array<{
   { name: "mark-done", description: "Mark active tab done" },
   { name: "vim", description: "Enter Vim mode for chat scrolling" },
   { name: "new-session", description: "Create a session" },
-  { name: "help", description: "Open help overlay" },
+  { name: "help", description: "Show all keyboard shortcuts" },
   { name: "hotkeys", description: "Show all keyboard shortcuts" },
   { name: "rename", description: "Rename active tab" },
   { name: "tui-state", description: "Show current TUI state JSON" },

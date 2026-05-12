@@ -12,7 +12,6 @@ import {
   editTextWithTuiPaused,
   hasAnyOverlay,
   hasAppOverlay,
-  renderHelpOverlay,
   showErrorOverlay,
   showLinesOverlay,
 } from "./app-overlays.js";
@@ -130,7 +129,6 @@ export function handleMixCodeKeyInput(
     closeAppOverlay(tui);
     state.exportChooserOpen = false;
     state.exportChooserIndex = 0;
-    state.helpOpen = false;
     state.quitConfirmOpen = false;
     state.extensionManager.open = false;
     closeCommandPalette(state);
@@ -138,27 +136,7 @@ export function handleMixCodeKeyInput(
     state.picker = undefined;
     return { consume: true };
   }
-  if (isHelpKey(data)) {
-    if (active) clearPendingEscape(active, "abort-agent");
-    if (state.helpOpen) {
-      state.helpOpen = false;
-      closeAppOverlay(tui);
-    } else {
-      state.exportChooserOpen = false;
-      state.exportChooserIndex = 0;
-      closeCommandPalette(state);
-      closeTabJump(state);
-      state.picker = undefined;
-      state.quitConfirmOpen = false;
-      state.helpOpen = true;
-      showLinesOverlay(tui, (width) => renderHelpOverlay(width));
-    }
-    tui.requestRender();
-    return { consume: true };
-  }
-  if (state.helpOpen && hasAnyOverlay(tui)) {
-    return { consume: true };
-  }
+
   if (
     state.exportChooserOpen &&
     handleExportChooserKey(state, data, tui, runtime, exportChooserActions)
@@ -360,7 +338,6 @@ function handleBatchedSubmitInput(
     state.commandPaletteOpen ||
     state.tabJumpOpen ||
     state.quitConfirmOpen ||
-    state.helpOpen ||
     state.exportChooserOpen
   )
     return false;
@@ -380,7 +357,6 @@ function hasFocusedAppControl(
       state.commandPaletteOpen ||
       state.tabJumpOpen ||
       state.quitConfirmOpen ||
-      state.helpOpen ||
       state.exportChooserOpen ||
       active?.shellOpen ||
       active?.previewOpen ||
@@ -407,6 +383,3 @@ function inlineSubmitText(data: string): string | undefined {
   return body;
 }
 
-function isHelpKey(data: string): boolean {
-  return matchesKey(data, "ctrl+/") || matchesKey(data, "ctrl+_");
-}

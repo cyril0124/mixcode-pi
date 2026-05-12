@@ -236,7 +236,7 @@ test(undefined, () => {
   assert.match(fitHeadLines(["a", "b"], 1, 10)[0] ?? "", /\.\.\./);
   assert.match(fitHeadLines(["a", "b", "c"], 2, 10).join("\n"), /a[\s\S]*\.\.\./);
   assert.ok(describeKeymap().some((line) => line.includes("ctrl")));
-  assert.ok(describeKeymap().some((line) => line.startsWith("ctrl+_:")));
+  assert.ok(describeKeymap().some((line) => line.startsWith("ctrl+q:")));
   assert.deepEqual(
     new Set(MIXCODE_KEYMAP.map((item) => item.scope ?? "global")).has("global"),
     true,
