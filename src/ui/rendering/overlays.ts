@@ -322,8 +322,11 @@ function renderTabJumpOverlayInner(state: MixCodeState, width: number): string[]
   } else {
     entries.forEach((entry, index) => {
       const marker = entry.question ? "?" : entry.busy ? "*" : entry.done ? "!" : " ";
+      const line = `${index === state.tabJumpIndex ? ">" : " "} ${marker} ${entry.label} (${entry.id})`;
       lines.push(
-        `${index === state.tabJumpIndex ? ">" : " "} ${marker} ${entry.label} (${entry.id})`,
+        index === state.tabJumpIndex
+          ? activeRenderTheme.selection(padLine(line, Math.max(1, width - 2)))
+          : line,
       );
     });
   }
