@@ -216,22 +216,34 @@ export function createMixCodeTui(
   return tui;
 }
 
-function createActiveFileCompletionSource(
+export function createActiveFileCompletionSource(
   state: MixCodeState,
   initialFiles: MixCodeCompletionSources["files"] | undefined,
 ): () => string[] | Promise<string[]> {
-  const cache = new Map<string, string[] | Promise<string[]>>();
-  if (Array.isArray(initialFiles)) cache.set(state.workdir, initialFiles);
+  const cache = new Map<string, { files: string[]; timestamp: number }>();
+  const pending = new Map<string, Promise<string[]>>();
+  const FILE_CACHE_TTL_MS = 10_000; // Background refresh after 10 seconds
+  if (Array.isArray(initialFiles))
+    cache.set(state.workdir, { files: initialFiles, timestamp: Date.now() });
   return () => {
     const workdir = activeCompletionWorkdir(state);
     const cached = cache.get(workdir);
-    if (cached) return cached;
-    const pending = scanProjectFiles(workdir).then((files) => {
-      cache.set(workdir, files);
-      return files;
-    });
-    cache.set(workdir, pending);
-    return pending;
+    if (cached && Date.now() - cached.timestamp < FILE_CACHE_TTL_MS) return cached.files;
+    // Stale-while-revalidate: return old results immediately, refresh in background.
+    if (!pending.has(workdir)) {
+      const refresh = scanProjectFiles(workdir)
+        .then((files) => {
+          cache.set(workdir, { files, timestamp: Date.now() });
+          return files;
+        })
+        .finally(() => pending.delete(workdir));
+      pending.set(workdir, refresh);
+      if (cached) void refresh.catch(() => undefined);
+    }
+    // If we have stale data, return it without waiting.
+    if (cached) return cached.files;
+    // First load ever — must wait.
+    return pending.get(workdir)!;
   };
 }
 

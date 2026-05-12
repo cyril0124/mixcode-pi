@@ -7,6 +7,7 @@ import type { Component, Terminal } from "@earendil-works/pi-tui";
 import {
   createInitialState,
   createMixCodeTui,
+  createActiveFileCompletionSource,
   createTab,
   type MixCodeRuntime,
 } from "../src/index.js";
@@ -44,6 +45,35 @@ function stripAnsi(text: string): string {
     .replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "")
     .replace(/\x1b[ -/]*[@-~]/g, "");
 }
+
+test("active file completion source retries stale refresh after scan failures", async () => {
+  const originalNow = Date.now;
+  let now = 0;
+  Date.now = () => now;
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-completion-retry-"));
+  try {
+    const missingDir = join(dir, "missing");
+    const state = createInitialState(missingDir);
+    const tab = createTab(1, "s1", missingDir);
+    state.tabs.push(tab);
+    state.activeTabId = "s1";
+    const files = createActiveFileCompletionSource(state, ["old-only.ts"]);
+
+    now = 10_001;
+    assert.deepEqual(files(), ["old-only.ts"]);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    await mkdir(missingDir, { recursive: true });
+    await writeFile(join(missingDir, "new-only.ts"), "");
+    assert.deepEqual(files(), ["old-only.ts"]);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const refreshed = await files();
+    assert.ok(refreshed.includes("new-only.ts"));
+  } finally {
+    Date.now = originalNow;
+    await rm(dir, { recursive: true, force: true });
+  }
+});
 
 test("createMixCodeTui rescans at-completion files after workdir changes", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-completion-workdir-"));
