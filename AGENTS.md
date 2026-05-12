@@ -15,5 +15,5 @@
 - Every TypeScript source file must not exceed 700 lines. If it exceeds, split it into smaller focused modules before adding more code.
 - Add code comments in TypeScript source files at important or non-obvious places to explain intent, edge cases, and complex logic. Prioritize clarity for future readers over verbosity.
 - Coverage gates should preserve high signal: keep lines/statements/functions at 95%, keep global branch coverage at 90%, and prefer targeted tests for meaningful behavior over tests that only exercise incidental defensive branches.
-- For TypeScript code changes, run `npm run typecheck`, `npm run test`, and `npm run check` before finishing. Use `npm run format` or `./format.sh` only when formatting is intentionally requested or scoped, and do not claim formatting was run unless the command succeeds.
+- For TypeScript code changes, run `./test-all.sh` (parallel: typecheck, build, lint) before finishing. Fallback to sequential `npm run check` if parallel execution has issues. Use `npm run format` or `./format.sh` only when formatting is intentionally requested or scoped, and do not claim formatting was run unless the command succeeds.
 - Keep formatting changes intentional and scoped. Do not mix broad reformatting with behavioral changes unless the formatter requires it.
