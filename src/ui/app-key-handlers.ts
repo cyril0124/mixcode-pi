@@ -253,7 +253,20 @@ export function handleTabJumpKey(state: MixCodeState, data: string, tui: Overlay
     return true;
   }
   if (matchesKey(data, "enter")) {
-    acceptTabJumpSelection(state);
+    const prev = state.tabs.find((tab) => tab.sessionId === state.activeTabId);
+    const targetId = acceptTabJumpSelection(state);
+    // Transfer vim mode to the target tab when jumping
+    if (prev?.vimMode && targetId && targetId !== prev.sessionId) {
+      prev.vimMode = false;
+      prev.vimPendingEscapeAt = undefined;
+      prev.vimPendingHome = false;
+      const next = state.tabs.find((tab) => tab.sessionId === targetId);
+      if (next) {
+        next.vimMode = true;
+        next.vimPendingEscapeAt = undefined;
+        next.vimPendingHome = false;
+      }
+    }
     closeAppOverlay(tui);
     tui.requestRender();
     return true;
@@ -623,6 +636,7 @@ export function handlePreviewKey(active: MixCodeState["tabs"][number], data: str
 export function handleVimModeKey(active: MixCodeState["tabs"][number], data: string): boolean {
   if (!active.vimMode) return false;
   if (matchesKey(data, "tab") || matchesKey(data, "shift+tab")) return false;
+  if (matchesKey(data, "ctrl+t")) return false;
   if (data === "q") {
     active.vimMode = false;
     active.vimPendingEscapeAt = undefined;
