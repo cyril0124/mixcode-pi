@@ -121,8 +121,8 @@ function runtimeQueuedMessageCount(
 ): number {
   const queuedPromptCount =
     typeof runtimeTab?.queuedPromptCount === "number" ? runtimeTab.queuedPromptCount : 0;
-  const followUpCount = runtimeTab?.agentSession?.getFollowUpMessages().length ?? 0;
-  return Math.max(queuedPromptCount, followUpCount);
+  const steeringCount = runtimeTab?.agentSession?.getSteeringMessages().length ?? 0;
+  return Math.max(queuedPromptCount, steeringCount);
 }
 
 export function handleQuitConfirmKey(

@@ -425,7 +425,7 @@ export class MixCodeRuntime {
     if (!trimmed) return;
     runtimeTab.tab.redoSessionId = undefined;
     if (runtimeTab.agentSession.isStreaming) {
-      await runtimeTab.agentSession.prompt(trimmed, { streamingBehavior: "followUp" });
+      await runtimeTab.agentSession.prompt(trimmed, { streamingBehavior: "steer" });
       return;
     }
     await runtimeTab.agentSession.prompt(text);

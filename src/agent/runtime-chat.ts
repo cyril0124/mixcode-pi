@@ -1,6 +1,6 @@
-import type { Agent, AgentMessage } from "@earendil-works/pi-agent-core";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { AssistantMessage, Model, Usage } from "@earendil-works/pi-ai";
-import type { AgentSession, MessageRenderer, SessionEntry } from "@earendil-works/pi-coding-agent";
+import type { MessageRenderer, SessionEntry } from "@earendil-works/pi-coding-agent";
 import {
   getKeybindings,
   setKeybindings,
@@ -491,36 +491,4 @@ export function drainPendingMessages(
   if (count === undefined) return { start: 0, items: messages.splice(0) };
   const start = Math.max(0, messages.length - count);
   return { start, items: messages.splice(start, count) };
-}
-
-export function agentMessageText(message: AgentMessage): string {
-  if (message.role === "assistant") return assistantText(message.content);
-  if (message.role === "user") return contentText(message.content);
-  if (message.role === "toolResult") return contentText(message.content);
-  if (message.role === "compactionSummary" || message.role === "branchSummary")
-    return message.summary;
-  if (message.role === "custom")
-    return typeof message.content === "string" ? message.content : contentText(message.content);
-  if (message.role === "bashExecution") return message.output;
-  return "";
-}
-
-export function getMutableFollowUpMessages(agentSession: AgentSession): string[] {
-  const state = agentSession as unknown as { _followUpMessages?: string[] };
-  if (!Array.isArray(state._followUpMessages)) {
-    throw new Error(
-      "Pi AgentSession follow-up queue internals changed; MixCode queue flush cannot safely remove sent messages.",
-    );
-  }
-  return state._followUpMessages;
-}
-
-export function getMutableAgentFollowUpQueue(agent: Agent): AgentMessage[] {
-  const state = agent as unknown as { followUpQueue?: { messages?: AgentMessage[] } };
-  if (!Array.isArray(state.followUpQueue?.messages)) {
-    throw new Error(
-      "Pi Agent follow-up queue internals changed; MixCode queue flush cannot safely remove sent messages.",
-    );
-  }
-  return state.followUpQueue.messages;
 }

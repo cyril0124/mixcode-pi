@@ -371,7 +371,7 @@ test("escape flushes runtime queued messages even before tab queue state catches
     getTab: () => ({
       queuedPromptCount: 1,
       agent: { state: { isStreaming: true } },
-      agentSession: { getFollowUpMessages: () => ["queued request"] },
+      agentSession: { getSteeringMessages: () => ["queued request"] },
     }),
     abortTab: (sessionId: string) => {
       events.push(`abort:${sessionId}`);

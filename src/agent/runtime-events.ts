@@ -28,7 +28,7 @@ export function applyEvent(
   emitChange: (event: RuntimeEvent, runtimeTab: RuntimeTab) => void,
 ): void {
   if (event.type === "queue_update") {
-    syncQueueState(runtimeTab, event.followUp);
+    syncQueueState(runtimeTab, event.steering);
     emitChange(event, runtimeTab);
     return;
   }
@@ -156,17 +156,13 @@ export function applyEvent(
   emitChange(event, runtimeTab);
 }
 
-export function syncQueueState(runtimeTab: RuntimeTab, followUp: readonly string[]): void {
+export function syncQueueState(runtimeTab: RuntimeTab, steering: readonly string[]): void {
   const preserved = runtimeTab.tab.pendingMessages.slice(
     0,
     Math.max(0, runtimeTab.tab.pendingMessages.length - runtimeTab.queuedPromptCount),
   );
-  runtimeTab.tab.pendingMessages = [...preserved, ...followUp];
-  runtimeTab.queuedPromptCount = followUp.length;
-  const queued = followUp.at(-1);
-  if (queued) {
-    runtimeTab.chat.push({ role: "system", text: `queued (${followUp.length}) ${queued}` });
-  }
+  runtimeTab.tab.pendingMessages = [...preserved, ...steering];
+  runtimeTab.queuedPromptCount = steering.length;
 }
 
 export function appendMessageStart(runtimeTab: RuntimeTab, message: AgentMessage): void {

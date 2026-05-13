@@ -1,10 +1,5 @@
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
-import {
-  agentMessageText,
-  drainPendingMessages,
-  getMutableAgentFollowUpQueue,
-  getMutableFollowUpMessages,
-} from "./runtime-chat.js";
+import { drainPendingMessages } from "./runtime-chat.js";
 import { syncQueueState } from "./runtime-events.js";
 import type { RuntimeTab } from "./runtime-types.js";
 
@@ -15,17 +10,20 @@ export async function flushRuntimePendingMessage(
   if (runtimeTab.agentSession.isStreaming) {
     await runtimeTab.agentSession.agent.waitForIdle();
   }
-  syncPendingMessagesFromFollowUp(runtimeTab);
+  syncPendingMessagesFromSteering(runtimeTab);
+  const steeringBeforeFlush = [...getMutableSteeringMessages(runtimeTab.agentSession)];
   const queued = drainPendingMessages(runtimeTab.tab.pendingMessages, count);
   runtimeTab.queuedPromptCount = Math.max(0, runtimeTab.queuedPromptCount - queued.items.length);
   try {
-    removeFlushedFollowUpMessages(runtimeTab.agentSession, queued.items);
+    // Remove only MixCode-managed steering messages; Pi follow-up messages must survive.
+    removeSteeringMessages(runtimeTab.agentSession, queued.items);
     const text = queued.items.filter((item) => item.trim()).join("\n\n");
     if (!text) return;
     await runtimeTab.agentSession.prompt(text);
   } catch (error) {
     runtimeTab.tab.pendingMessages.splice(queued.start, 0, ...queued.items);
     runtimeTab.queuedPromptCount += queued.items.length;
+    rebuildSteeringQueue(runtimeTab.agentSession, steeringBeforeFlush);
     throw error;
   }
 }
@@ -48,41 +46,51 @@ export function popRuntimePendingMessage(runtimeTab: RuntimeTab): string | undef
   const wasRuntimeQueued = runtimeTab.queuedPromptCount > 0;
   const message = runtimeTab.tab.pendingMessages.pop();
   if (message !== undefined && wasRuntimeQueued) {
-    removeSingleFollowUpMessage(runtimeTab.agentSession, message);
+    removeSteeringMessages(runtimeTab.agentSession, [message]);
     runtimeTab.queuedPromptCount = Math.max(0, runtimeTab.queuedPromptCount - 1);
-    clearFollowUpQueueIfEmpty(runtimeTab.agentSession);
   }
   return message;
 }
 
-function syncPendingMessagesFromFollowUp(runtimeTab: RuntimeTab): void {
-  const followUp = getMutableFollowUpMessages(runtimeTab.agentSession);
-  if (followUp.length <= runtimeTab.queuedPromptCount) return;
-  syncQueueState(runtimeTab, followUp);
+type SteeringQueueInternals = {
+  _steeringMessages?: string[];
+};
+
+function getMutableSteeringMessages(agentSession: AgentSession): string[] {
+  const state = agentSession as unknown as SteeringQueueInternals;
+  if (!Array.isArray(state._steeringMessages)) {
+    throw new Error(
+      "Pi AgentSession steering queue internals changed; MixCode queue flush cannot safely remove sent messages.",
+    );
+  }
+  return state._steeringMessages;
 }
 
-function removeFlushedFollowUpMessages(
-  agentSession: AgentSession,
-  messages: readonly string[],
-): void {
+function removeSteeringMessages(agentSession: AgentSession, messages: readonly string[]): void {
+  if (messages.length === 0) return;
+  const remaining = [...getMutableSteeringMessages(agentSession)];
   for (const message of messages) {
-    removeSingleFollowUpMessage(agentSession, message);
+    const index = remaining.indexOf(message);
+    if (index !== -1) remaining.splice(index, 1);
   }
-  if (messages.length > 0) {
-    clearFollowUpQueueIfEmpty(agentSession);
+  rebuildSteeringQueue(agentSession, remaining);
+}
+
+function rebuildSteeringQueue(agentSession: AgentSession, steering: readonly string[]): void {
+  const messages = getMutableSteeringMessages(agentSession);
+  messages.splice(0, messages.length, ...steering);
+  agentSession.agent.clearSteeringQueue();
+  for (const text of steering) {
+    agentSession.agent.steer({
+      role: "user",
+      content: [{ type: "text", text }],
+      timestamp: Date.now(),
+    });
   }
 }
 
-function removeSingleFollowUpMessage(agentSession: AgentSession, message: string): void {
-  const list = getMutableFollowUpMessages(agentSession);
-  const index = list.indexOf(message);
-  if (index !== -1) list.splice(index, 1);
-  const queue = getMutableAgentFollowUpQueue(agentSession.agent);
-  const queueIndex = queue.findIndex((queued) => agentMessageText(queued) === message);
-  if (queueIndex !== -1) queue.splice(queueIndex, 1);
-}
-
-function clearFollowUpQueueIfEmpty(agentSession: AgentSession): void {
-  if (agentSession.getFollowUpMessages().length > 0) return;
-  agentSession.agent.clearFollowUpQueue();
+function syncPendingMessagesFromSteering(runtimeTab: RuntimeTab): void {
+  const steering = runtimeTab.agentSession.getSteeringMessages();
+  if (steering.length <= runtimeTab.queuedPromptCount) return;
+  syncQueueState(runtimeTab, steering);
 }

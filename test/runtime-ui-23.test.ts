@@ -260,8 +260,6 @@ test("runtime queues prompts while busy, pops them, and flushes when idle", asyn
     await runtime.prompt("s1", "second queued");
     await runtime.prompt("s1", "  ");
     assert.deepEqual(tab.pendingMessages, ["first queued", "second queued"]);
-    assert.match(runtimeTab.chat.at(-1)?.text ?? "", /queued \(2\)/);
-    assert.equal(runtimeTab.chat.at(-1)?.role, "system");
 
     assert.equal(runtime.popPendingMessage("s1"), "second queued");
     assert.deepEqual(tab.pendingMessages, ["first queued"]);
@@ -284,8 +282,8 @@ test("runtime queues prompts while busy, pops them, and flushes when idle", asyn
   }
 });
 
-test("runtime pop removes matching Pi follow-up queue entries", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-queue-pop-follow-up-"));
+test("runtime pop removes matching Pi steering queue entries", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-queue-pop-steer-"));
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir });
     const tab = createTab(1, "s1", process.cwd());
@@ -294,19 +292,44 @@ test("runtime pop removes matching Pi follow-up queue entries", async () => {
       thinkingLevel: "medium",
       workdir: process.cwd(),
     });
-    await runtimeTab.agentSession.followUp("first queued");
-    await runtimeTab.agentSession.followUp("second queued");
+    const anyAgent = runtimeTab.agent as unknown as { _state: { isStreaming: boolean } };
+    anyAgent._state.isStreaming = true;
+    await runtime.prompt("s1", "first queued");
+    await runtime.prompt("s1", "second queued");
 
     assert.equal(runtime.popPendingMessage("s1"), "second queued");
 
     assert.deepEqual(tab.pendingMessages, ["first queued"]);
     assert.equal(runtimeTab.queuedPromptCount, 1);
-    assert.deepEqual(runtimeTab.agentSession.getFollowUpMessages(), ["first queued"]);
-    assert.equal(
-      (runtimeTab.agent as unknown as { followUpQueue: { messages: unknown[] } }).followUpQueue
-        .messages.length,
-      1,
-    );
+    assert.deepEqual([...runtimeTab.agentSession.getSteeringMessages()], ["first queued"]);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("runtime pop preserves unrelated Pi follow-up queue entries", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-queue-pop-preserve-follow-up-"));
+  try {
+    const runtime = new MixCodeRuntime({ sessionsRoot: dir });
+    const tab = createTab(1, "s1", process.cwd());
+    const runtimeTab = await runtime.createTab(tab, {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+    });
+    const anyAgent = runtimeTab.agent as unknown as { _state: { isStreaming: boolean } };
+    anyAgent._state.isStreaming = true;
+    await runtime.prompt("s1", "steer queued");
+    await runtimeTab.agentSession.followUp("follow-up from extension");
+
+    assert.equal(runtime.popPendingMessage("s1"), "steer queued");
+
+    assert.deepEqual(tab.pendingMessages, []);
+    assert.equal(runtimeTab.queuedPromptCount, 0);
+    assert.deepEqual([...runtimeTab.agentSession.getSteeringMessages()], []);
+    assert.deepEqual([...runtimeTab.agentSession.getFollowUpMessages()], [
+      "follow-up from extension",
+    ]);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -356,6 +379,40 @@ test("runtime waits for idle before flushing queued prompts", async () => {
   }
 });
 
+test("runtime flush preserves unrelated Pi follow-up queue entries", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-queue-flush-preserve-follow-up-"));
+  try {
+    const runtime = new MixCodeRuntime({ sessionsRoot: dir });
+    const tab = createTab(1, "s1", process.cwd());
+    const runtimeTab = await runtime.createTab(tab, {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+    });
+    const anyAgent = runtimeTab.agent as unknown as { _state: { isStreaming: boolean } };
+    anyAgent._state.isStreaming = true;
+    await runtime.prompt("s1", "steer queued");
+    await runtimeTab.agentSession.followUp("follow-up from extension");
+    anyAgent._state.isStreaming = false;
+    (
+      runtimeTab.agent as unknown as {
+        prompt: (messages: Array<{ content: Array<{ text?: string }> }>) => Promise<void>;
+      }
+    ).prompt = async () => {};
+
+    await runtime.flushPendingMessage("s1", 1);
+
+    assert.deepEqual(tab.pendingMessages, []);
+    assert.equal(runtimeTab.queuedPromptCount, 0);
+    assert.deepEqual([...runtimeTab.agentSession.getSteeringMessages()], []);
+    assert.deepEqual([...runtimeTab.agentSession.getFollowUpMessages()], [
+      "follow-up from extension",
+    ]);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("runtime keeps queued prompts when flush prompt fails", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-queue-fail-"));
   try {
@@ -393,7 +450,7 @@ test("runtime keeps queued prompts when flush prompt fails", async () => {
   }
 });
 
-test("runtime flush syncs pending messages from Pi follow-up queue first", async () => {
+test("runtime flush syncs pending messages from Pi steering queue first", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-queue-sync-"));
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir });
@@ -403,10 +460,14 @@ test("runtime flush syncs pending messages from Pi follow-up queue first", async
       thinkingLevel: "medium",
       workdir: process.cwd(),
     });
-    await runtimeTab.agentSession.followUp("queued prompt");
+    const anyAgent = runtimeTab.agent as unknown as { _state: { isStreaming: boolean } };
+    anyAgent._state.isStreaming = true;
+    await runtime.prompt("s1", "queued prompt");
     assert.deepEqual(tab.pendingMessages, ["queued prompt"]);
+    // Simulate local state getting out of sync.
     tab.pendingMessages = [];
     runtimeTab.queuedPromptCount = 0;
+    anyAgent._state.isStreaming = false;
     let promptText = "";
     (
       runtimeTab.agent as unknown as {
@@ -423,59 +484,6 @@ test("runtime flush syncs pending messages from Pi follow-up queue first", async
     assert.equal(promptText, "queued prompt");
     assert.deepEqual(tab.pendingMessages, []);
     assert.equal(runtimeTab.queuedPromptCount, 0);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-});
-
-test("runtime exposes Pi follow-up queue internal changes instead of silently dropping sent queue items", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-queue-internals-"));
-  try {
-    const runtime = new MixCodeRuntime({ sessionsRoot: dir });
-    const tab = createTab(1, "s1", process.cwd());
-    const runtimeTab = await runtime.createTab(tab, {
-      systemPrompt: "system",
-      thinkingLevel: "medium",
-      workdir: process.cwd(),
-    });
-    tab.pendingMessages.push("queued prompt");
-    runtimeTab.queuedPromptCount = 1;
-    (runtimeTab.agentSession as unknown as { _followUpMessages?: unknown })._followUpMessages =
-      undefined;
-
-    await assert.rejects(
-      runtime.flushPendingMessage("s1", runtimeTab.queuedPromptCount),
-      /follow-up queue internals changed/,
-    );
-
-    assert.deepEqual(tab.pendingMessages, ["queued prompt"]);
-    assert.equal(runtimeTab.queuedPromptCount, 1);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-});
-
-test("runtime restores queued prompts when Pi agent follow-up queue internals change", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-agent-queue-internals-"));
-  try {
-    const runtime = new MixCodeRuntime({ sessionsRoot: dir });
-    const tab = createTab(1, "s1", process.cwd());
-    const runtimeTab = await runtime.createTab(tab, {
-      systemPrompt: "system",
-      thinkingLevel: "medium",
-      workdir: process.cwd(),
-    });
-    tab.pendingMessages.push("queued prompt");
-    runtimeTab.queuedPromptCount = 1;
-    (runtimeTab.agent as unknown as { followUpQueue?: unknown }).followUpQueue = undefined;
-
-    await assert.rejects(
-      runtime.flushPendingMessage("s1", runtimeTab.queuedPromptCount),
-      /Agent follow-up queue internals changed/,
-    );
-
-    assert.deepEqual(tab.pendingMessages, ["queued prompt"]);
-    assert.equal(runtimeTab.queuedPromptCount, 1);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
