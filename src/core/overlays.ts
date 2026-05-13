@@ -1,6 +1,6 @@
-import type { CommandPaletteEntry, MixCodeState, MixCodeTabInfo } from "./types.js";
 import { fuzzyMatchBatch } from "./fuzzy.js";
 import { activateTab } from "./tabs.js";
+import type { CommandPaletteEntry, MixCodeState, MixCodeTabInfo } from "./types.js";
 import { tabHasPendingUserInteraction } from "./user-interactions.js";
 
 export function toggleShell(tab: MixCodeTabInfo): void {
@@ -228,6 +228,12 @@ function configCommandPaletteEntries(state: MixCodeState): CommandPaletteEntry[]
       "Create a new pi agent session",
     ),
     commandEntry(
+      "config.resume",
+      "Resume Session",
+      "/resume",
+      "Resume a different session",
+    ),
+    commandEntry(
       "config.save-workspace",
       "Save Workspace",
       "/save-workspace",
@@ -363,6 +369,14 @@ function agentCommandPaletteEntries(
       noSessionReason,
     ),
     commandEntry(
+      "agent.resume",
+      "Resume Session",
+      "/resume",
+      "Resume a different session",
+      hasSession,
+      noSessionReason,
+    ),
+    commandEntry(
       "agent.close-session",
       "Close Session",
       "/close-session",
@@ -420,6 +434,7 @@ function commandPaletteLocalCommands(): string[] {
     "mark-done",
     "vim",
     "new-session",
+    "resume",
     "close-session",
     "delete-session",
     "delete-all-sessions",

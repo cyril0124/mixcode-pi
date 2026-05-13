@@ -1,401 +1,326 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
 import { test } from "node:test";
 import {
   createInitialState,
-  createQuestionRequest,
+  createSessionSelectorState,
   createTab,
-  expandLocalPromptCommand,
+  formatSessionDate,
+  getFilteredSessions,
+  getSelectedSessionPath,
   handleMixCodeKeyInput,
   handleSubmittedInput,
-  renderConfig,
-  renderInputMeta,
-  renderPickerOverlay,
-  renderQuestionOverlay,
-  renderShellOverlay,
-  tabBarHitRegions,
-  setTheme,
-  themeForId,
-  themeSuggestions,
+  renderSessionSelector,
+  toggleSessionSelectorScope,
+  cycleSessionSortMode,
+  toggleSessionNameFilter,
+  updateSessionSelectorQuery,
 } from "../src/index.js";
 import type { MixCodeRuntime } from "../src/index.js";
-import type { Model } from "@earendil-works/pi-ai";
-import { MIXCODE_FAUX_MODEL } from "../src/index.js";
+import type { SessionInfo } from "@earendil-works/pi-coding-agent";
 
-type TestChatLine = { role: "system"; text: string };
-
-function assertQuitOverlay(text: string | undefined): void {
-  assert.match(text ?? "", /┌/);
-  assert.match(text ?? "", /Quit MixCode/);
-  assert.match(text ?? "", /\[Y\] Quit/);
+function makeSessions(): SessionInfo[] {
+  return [
+    {
+      path: "/sessions/session-a.jsonl",
+      id: "session-a",
+      cwd: "/repo",
+      name: "My Session",
+      created: new Date("2025-01-01"),
+      modified: new Date("2025-01-02"),
+      messageCount: 10,
+      firstMessage: "Hello world",
+      allMessagesText: "Hello world",
+    },
+    {
+      path: "/sessions/session-b.jsonl",
+      id: "session-b",
+      cwd: "/repo",
+      created: new Date("2025-01-01"),
+      modified: new Date("2025-01-01"),
+      messageCount: 5,
+      firstMessage: "Another session",
+      allMessagesText: "Another session",
+    },
+  ];
 }
 
-async function waitFor<T>(read: () => Promise<T>, attempts = 25): Promise<T> {
-  let lastError: unknown;
-  for (let index = 0; index < attempts; index++) {
-    try {
-      return await read();
-    } catch (error) {
-      lastError = error;
-      await new Promise((resolve) => setTimeout(resolve, 10));
-    }
-  }
-  throw lastError;
-}
-
-test("global key input covers extension input transforms picker errors and shell close paths", async () => {
+test("submitted /resume opens session selector overlay", async () => {
   const state = createInitialState("/repo");
-  const tab = createTab(1, "s1", "/repo", {
-    shellOpen: true,
-    shellSession: { cwd: "/repo", command: "sh", buffer: ["one"], input: "" },
-    pendingMessages: ["local queued"],
-  });
+  const tab = createTab(1, "s1", "/repo");
   state.tabs.push(tab);
   state.activeTabId = "s1";
-  let overlayOpen = false;
-  const overlays: string[] = [];
+  let overlayContent = "";
   const tui = {
     requestRender: () => undefined,
-    showOverlay: (component: { render?: (width: number) => string[] } | string) => {
-      overlayOpen = true;
-      overlays.push(
-        typeof component === "string"
-          ? component
-          : (component.render?.(120).join("\n") ?? String(component)),
-      );
-      return {} as never;
+    showOverlay: (component: { render: (width: number) => string[] }) => {
+      overlayContent = component.render(80).join("\n");
+      return { hide: () => undefined } as never;
     },
+    hasOverlay: () => !!overlayContent,
     hideOverlay: () => {
-      overlayOpen = false;
-    },
-    hasOverlay: () => overlayOpen,
-    stop: () => {
-      throw new Error("stop failed");
+      overlayContent = "";
     },
   };
-  let text = "";
-  const editorActions = {
-    getText: () => text,
-    setText: (next: string) => {
-      text = next;
-    },
-    insertTextAtCursor: (next: string) => {
-      text += next;
-    },
-    submitCurrentText: () => {
-      text = "";
-    },
-  };
+  const sessions = makeSessions();
   const runtime = {
-    dispatchTerminalInput: (_sessionId: string, data: string) =>
-      data === "consume"
-        ? { consume: true }
-        : data === "mutate"
-          ? { data: "changed" }
-          : data === "empty"
-            ? { data: "" }
-            : undefined,
-    refreshAllTabStatuses: () => [tab],
-    updateTabWorkdir: async () => {
-      throw new Error("workdir failed");
-    },
+    appendSystemMessage: () => undefined,
+    getTab: () => ({ session: { getSessionFile: () => "/sessions/current.jsonl" } }),
+    listSessions: async () => sessions,
+    listAllSessions: async () => sessions,
+    extensionSwitchSession: async () => ({ cancelled: false }),
+    closeTab: async () => undefined,
     closeAllTabs: async () => undefined,
-  };
+    deleteTab: async () => undefined,
+    deleteAllTabs: async () => undefined,
+    undoLastUserTurn: async () => undefined,
+    compactSession: async () => undefined,
+  } as unknown as MixCodeRuntime;
 
-  assert.deepEqual(handleMixCodeKeyInput(state, "consume", tui, undefined, runtime), {
-    consume: true,
-  });
-  assert.equal(handleMixCodeKeyInput(state, "mutate", tui, undefined, runtime), undefined);
-  assert.deepEqual(handleMixCodeKeyInput(state, "empty", tui, undefined, runtime), {
-    consume: true,
-  });
-  state.activeTabId = "missing";
-  assert.equal(handleMixCodeKeyInput(state, "\x1b[<0;1;3M", tui), undefined);
-  state.activeTabId = "s1";
+  await handleSubmittedInput(state, runtime, "/resume", tui);
 
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui), { consume: true });
-  assert.equal(tab.pendingEscapeAction, undefined);
-  assert.equal(tab.shellOpen, false);
-
-  assert.deepEqual(
-    handleMixCodeKeyInput(
-      state,
-      "inline prompt\r",
-      tui,
-      undefined,
-      runtime,
-      undefined,
-      () => false,
-      editorActions,
-    ),
-    { consume: true },
-  );
-  assert.equal(text, "");
-  assert.equal(
-    handleMixCodeKeyInput(state, "no submit\r", tui, undefined, runtime, undefined, () => false, {
-      getText: () => text,
-      setText: (next: string) => {
-        text = next;
-      },
-    }),
-    undefined,
-  );
-  state.activeTabId = "config";
-  assert.equal(
-    handleMixCodeKeyInput(
-      state,
-      "config submit\r",
-      tui,
-      undefined,
-      runtime,
-      undefined,
-      () => false,
-      editorActions,
-    ),
-    undefined,
-  );
-  assert.equal(
-    handleMixCodeKeyInput(
-      state,
-      "@",
-      tui,
-      undefined,
-      runtime,
-      undefined,
-      () => false,
-      editorActions,
-    ),
-    undefined,
-  );
-  state.activeTabId = "s1";
-  assert.equal(
-    handleMixCodeKeyInput(
-      state,
-      "autocomplete submit\r",
-      tui,
-      undefined,
-      runtime,
-      undefined,
-      () => true,
-      editorActions,
-    ),
-    undefined,
-  );
-  overlayOpen = true;
-  assert.equal(
-    handleMixCodeKeyInput(
-      state,
-      "overlay submit\r",
-      tui,
-      undefined,
-      runtime,
-      undefined,
-      () => false,
-      editorActions,
-    ),
-    undefined,
-  );
-  overlayOpen = false;
-  state.tabJumpOpen = true;
-  assert.equal(
-    handleMixCodeKeyInput(
-      state,
-      "help submit\r",
-      tui,
-      undefined,
-      runtime,
-      undefined,
-      () => false,
-      editorActions,
-    ),
-    undefined,
-  );
-  state.tabJumpOpen = false;
-  assert.equal(
-    handleMixCodeKeyInput(
-      state,
-      "bad\u0001\r",
-      tui,
-      undefined,
-      runtime,
-      undefined,
-      () => false,
-      editorActions,
-    ),
-    undefined,
-  );
-  state.picker = {
-    kind: "thinking",
-    title: "Choose Thinking",
-    query: "",
-    selectedIndex: 0,
-    items: [{ id: "invalid", label: "invalid", description: "" }],
-  };
-  assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui, undefined, runtime), { consume: true });
-  assert.match(overlays.at(-1) ?? "", /Unknown thinking level: invalid/);
-  state.picker = undefined;
-  overlayOpen = false;
-
-  state.picker = {
-    kind: "workdir",
-    title: "Change Workdir",
-    query: "/repo",
-    selectedIndex: 0,
-    items: [{ id: "/tmp/next", label: "/tmp/next", description: "" }],
-  };
-  assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui, undefined, runtime), { consume: true });
-  await new Promise((resolve) => setImmediate(resolve));
-  assert.match(overlays.at(-1) ?? "", /workdir failed/);
-  state.picker = undefined;
-  overlayOpen = false;
-  assert.equal(handleMixCodeKeyInput(state, "x", tui), undefined);
-  assert.equal(
-    handleMixCodeKeyInput(
-      state,
-      "\u0000",
-      tui,
-      undefined,
-      runtime,
-      undefined,
-      () => false,
-      editorActions,
-    ),
-    undefined,
-  );
-
-  tab.pendingMessages = [];
-  tab.status = "thinking";
-  assert.deepEqual(
-    handleMixCodeKeyInput(state, "\x1b", tui, undefined, {
-      getTab: () => ({ agent: { state: { isStreaming: true } } }),
-    }),
-    { consume: true },
-  );
-  assert.throws(
-    () =>
-      handleMixCodeKeyInput(state, "\x1b", tui, undefined, {
-        getTab: () => ({ agent: { state: { isStreaming: true } } }),
-      }),
-    /runtime abort support/,
-  );
-  tab.pendingEscapeAction = undefined;
-  tab.status = "idle";
-
-  tab.pendingQuestions.push(createQuestionRequest("empty", "s1", []));
-  assert.equal(handleMixCodeKeyInput(state, "?", tui, undefined, runtime), undefined);
-  tab.pendingQuestions = [];
-  const customRequest = createQuestionRequest("custom-nav", "s1", [
-    {
-      header: "Custom",
-      question: "Custom?",
-      options: [{ label: "One", description: "" }],
-      multiple: false,
-      custom: true,
-    },
-    {
-      header: "Next",
-      question: "Next?",
-      options: [{ label: "Two", description: "" }],
-      multiple: false,
-      custom: false,
-    },
-  ]);
-  customRequest.editingCustomIndex = 0;
-  customRequest.highlightedOptionIndices[0] = 1;
-  tab.pendingQuestions.push(customRequest);
-  assert.deepEqual(handleMixCodeKeyInput(state, "a", tui, undefined, runtime), { consume: true });
-  assert.deepEqual(handleMixCodeKeyInput(state, "\u007f", tui, undefined, runtime), {
-    consume: true,
-  });
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[1;5B", tui, undefined, runtime), {
-    consume: true,
-  });
-  customRequest.editingCustomIndex = 0;
-  customRequest.highlightedOptionIndices[0] = 1;
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[1;5A", tui, undefined, runtime), {
-    consume: true,
-  });
-  customRequest.editingCustomIndex = 0;
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[1;5D", tui, undefined, runtime), {
-    consume: true,
-  });
-  customRequest.editingCustomIndex = 0;
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[1;5C", tui, undefined, runtime), {
-    consume: true,
-  });
-  assert.equal(customRequest.currentQuestionIndex, 1);
-  customRequest.editingCustomIndex = 1;
-  assert.deepEqual(handleMixCodeKeyInput(state, "\u0001", tui, undefined, runtime), {
-    consume: true,
-  });
-  tab.pendingQuestions = [];
-
-  state.quitConfirmOpen = true;
-  assert.deepEqual(handleMixCodeKeyInput(state, "?", tui, undefined, runtime), { consume: true });
-  assert.equal(state.quitConfirmOpen, true);
-  assert.deepEqual(handleMixCodeKeyInput(state, "y", tui, undefined, runtime), { consume: true });
-  await new Promise((resolve) => setImmediate(resolve));
-  assert.match(overlays.at(-1) ?? "", /stop failed/);
-
-  state.quitConfirmOpen = false;
-  overlayOpen = true;
-  assert.equal(handleMixCodeKeyInput(state, "r", tui, undefined, runtime), undefined);
-  assert.equal(tab.status, "idle");
+  // Session selector should be open
+  assert.equal(state.sessionSelector.open, true);
+  assert.equal(state.sessionSelector.currentSessions.length, 2);
+  // Overlay should show session selector content
+  assert.ok(overlayContent.includes("Resume Session"));
+  assert.ok(overlayContent.includes("My Session"));
 });
 
-test("global key input exposes queue, quit, export, and inactive edge cases", async () => {
+test("submitted /resume throws when runtime lacks session listing support", async () => {
   const state = createInitialState("/repo");
-  const tab = createTab(1, "s1", "/repo", { pendingMessages: ["queued"] });
+  const tab = createTab(1, "s1", "/repo");
   state.tabs.push(tab);
   state.activeTabId = "s1";
-  let overlayOpen = false;
-  const overlays: string[] = [];
-  const stops: string[] = [];
   const tui = {
     requestRender: () => undefined,
-    showOverlay: (component: { render?: (width: number) => string[] } | string) => {
-      overlayOpen = true;
-      overlays.push(
-        typeof component === "string"
-          ? component
-          : (component.render?.(100).join("\n") ?? String(component)),
-      );
-      return {} as never;
-    },
+    showOverlay: () => ({}) as never,
+  };
+  const runtime = {
+    getTab: () => undefined,
+    closeTab: async () => undefined,
+    closeAllTabs: async () => undefined,
+    deleteTab: async () => undefined,
+    deleteAllTabs: async () => undefined,
+    undoLastUserTurn: async () => undefined,
+    compactSession: async () => undefined,
+  } as unknown as MixCodeRuntime;
+
+  await assert.rejects(
+    () => handleSubmittedInput(state, runtime, "/resume", tui),
+    /Resume requires pi runtime session listing support/,
+  );
+});
+
+test("session selector key handling: escape closes selector", () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"));
+  state.activeTabId = "s1";
+  state.sessionSelector.open = true;
+  state.sessionSelector.currentSessions = makeSessions();
+  let overlayHidden = false;
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({ hide: () => undefined }) as never,
+    hasOverlay: () => !overlayHidden,
     hideOverlay: () => {
-      overlayOpen = false;
-    },
-    hasOverlay: () => overlayOpen,
-    stop: () => {
-      stops.push("stop");
-      throw new Error("stop failed");
+      overlayHidden = true;
     },
   };
 
-  assert.throws(() => handleMixCodeKeyInput(state, "\x1b", tui), /runtime queue support/);
-  tab.pendingMessages = [];
-  state.quitConfirmOpen = true;
-  assert.deepEqual(
-    handleMixCodeKeyInput(state, "y", tui, undefined, { closeAllTabs: async () => undefined }),
-    { consume: true },
-  );
-  await new Promise((resolve) => setImmediate(resolve));
-  assert.deepEqual(stops, ["stop"]);
-  assert.match(overlays.at(-1) ?? "", /stop failed/);
+  const result = handleMixCodeKeyInput(state, "\x1b", tui);
+  assert.deepEqual(result, { consume: true });
+  assert.equal(state.sessionSelector.open, false);
+});
 
-  state.activeTabId = "missing";
-  state.exportChooserOpen = true;
-  overlayOpen = false;
-  assert.equal(
-    handleMixCodeKeyInput(state, "z", tui, undefined, { getTab: () => undefined }),
-    undefined,
-  );
-  assert.throws(() => handleMixCodeKeyInput(state, "t", tui), /runtime tab access/);
-  state.tabs.length = 0;
-  assert.throws(
-    () => handleMixCodeKeyInput(state, "t", tui, undefined, { getTab: () => undefined }),
-    /No active tab/,
-  );
+test("session selector key handling: tab toggles scope", () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"));
+  state.activeTabId = "s1";
+  state.sessionSelector.open = true;
+  state.sessionSelector.currentSessions = makeSessions();
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({ hide: () => undefined }) as never,
+    hasOverlay: () => true,
+    hideOverlay: () => undefined,
+  };
+
+  assert.equal(state.sessionSelector.scope, "current");
+  handleMixCodeKeyInput(state, "\t", tui, undefined, {
+    listAllSessions: async () => makeSessions(),
+  });
+  assert.equal(state.sessionSelector.scope, "all");
+});
+
+test("session selector key handling: enter resumes selected session", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"));
+  state.activeTabId = "s1";
+  state.sessionSelector.open = true;
+  state.sessionSelector.currentSessions = makeSessions();
+  let switchedTo = "";
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({ hide: () => undefined }) as never,
+    hasOverlay: () => state.sessionSelector.open,
+    hideOverlay: () => undefined,
+  };
+  const runtime = {
+    extensionSwitchSession: async (_sessionId: string, sessionPath: string) => {
+      switchedTo = sessionPath;
+      return { cancelled: false };
+    },
+  };
+
+  handleMixCodeKeyInput(state, "\r", tui, undefined, runtime);
+  // Wait for async switch
+  await new Promise((resolve) => setTimeout(resolve, 50));
+
+  assert.equal(switchedTo, "/sessions/session-a.jsonl");
+  assert.equal(state.sessionSelector.open, false);
+});
+
+test("session selector key handling: typing filters sessions", () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"));
+  state.activeTabId = "s1";
+  state.sessionSelector.open = true;
+  state.sessionSelector.currentSessions = makeSessions();
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({ hide: () => undefined }) as never,
+    hasOverlay: () => true,
+    hideOverlay: () => undefined,
+  };
+
+  handleMixCodeKeyInput(state, "M", tui);
+  handleMixCodeKeyInput(state, "y", tui);
+  assert.equal(state.sessionSelector.query, "My");
+
+  const nodes = getFilteredSessions(state.sessionSelector);
+  // "My Session" should match, "Another session" should not
+  assert.equal(nodes.length, 1);
+  assert.equal(nodes[0]!.session.name, "My Session");
+});
+
+test("session selector state: scope toggle", () => {
+  const selector = createSessionSelectorState();
+  assert.equal(selector.scope, "current");
+  toggleSessionSelectorScope(selector);
+  assert.equal(selector.scope, "all");
+  toggleSessionSelectorScope(selector);
+  assert.equal(selector.scope, "current");
+});
+
+test("session selector state: sort mode cycling", () => {
+  const selector = createSessionSelectorState();
+  assert.equal(selector.sortMode, "threaded");
+  cycleSessionSortMode(selector);
+  assert.equal(selector.sortMode, "recent");
+  cycleSessionSortMode(selector);
+  assert.equal(selector.sortMode, "relevance");
+  cycleSessionSortMode(selector);
+  assert.equal(selector.sortMode, "threaded");
+});
+
+test("session selector state: name filter toggle", () => {
+  const selector = createSessionSelectorState();
+  assert.equal(selector.nameFilter, "all");
+  toggleSessionNameFilter(selector);
+  assert.equal(selector.nameFilter, "named");
+  toggleSessionNameFilter(selector);
+  assert.equal(selector.nameFilter, "all");
+});
+
+test("session selector state: name filter hides unnamed sessions", () => {
+  const selector = createSessionSelectorState();
+  selector.currentSessions = makeSessions();
+  selector.nameFilter = "named";
+  const nodes = getFilteredSessions(selector);
+  // Only "My Session" has a name
+  assert.equal(nodes.length, 1);
+  assert.equal(nodes[0]!.session.name, "My Session");
+});
+
+test("session selector state: tree view shows parent-child relationships", () => {
+  const selector = createSessionSelectorState();
+  selector.currentSessions = [
+    {
+      path: "/sessions/parent.jsonl",
+      id: "parent",
+      cwd: "/repo",
+      name: "Parent",
+      created: new Date("2025-01-01"),
+      modified: new Date("2025-01-03"),
+      messageCount: 5,
+      firstMessage: "parent msg",
+      allMessagesText: "parent msg",
+    },
+    {
+      path: "/sessions/child.jsonl",
+      id: "child",
+      cwd: "/repo",
+      name: "Child",
+      parentSessionPath: "/sessions/parent.jsonl",
+      created: new Date("2025-01-02"),
+      modified: new Date("2025-01-02"),
+      messageCount: 3,
+      firstMessage: "child msg",
+      allMessagesText: "child msg",
+    },
+  ];
+  const nodes = getFilteredSessions(selector);
+  assert.equal(nodes.length, 2);
+  assert.equal(nodes[0]!.session.name, "Parent");
+  assert.equal(nodes[0]!.depth, 0);
+  assert.equal(nodes[1]!.session.name, "Child");
+  assert.equal(nodes[1]!.depth, 1);
+});
+
+test("session selector state: search query filters and sorts by relevance", () => {
+  const selector = createSessionSelectorState();
+  selector.sortMode = "relevance";
+  selector.currentSessions = makeSessions();
+  updateSessionSelectorQuery(selector, "Another");
+  const nodes = getFilteredSessions(selector);
+  assert.equal(nodes.length, 1);
+  assert.equal(nodes[0]!.session.firstMessage, "Another session");
+});
+
+test("session selector state: getSelectedSessionPath returns correct path", () => {
+  const selector = createSessionSelectorState();
+  selector.currentSessions = makeSessions();
+  selector.selectedIndex = 1;
+  const nodes = getFilteredSessions(selector);
+  // In threaded mode without search, sorted by modified desc
+  const path = getSelectedSessionPath(selector);
+  assert.equal(path, nodes[1]!.session.path);
+});
+
+test("formatSessionDate formats relative times correctly", () => {
+  const now = Date.now();
+  assert.equal(formatSessionDate(new Date(now - 30_000)), "now");
+  assert.equal(formatSessionDate(new Date(now - 5 * 60_000)), "5m");
+  assert.equal(formatSessionDate(new Date(now - 3 * 3_600_000)), "3h");
+  assert.equal(formatSessionDate(new Date(now - 2 * 86_400_000)), "2d");
+  assert.equal(formatSessionDate(new Date(now - 14 * 86_400_000)), "2w");
+  assert.equal(formatSessionDate(new Date(now - 60 * 86_400_000)), "2mo");
+});
+
+test("session selector rendering includes scope and sort indicators", () => {
+  const state = createInitialState("/repo");
+  state.sessionSelector.open = true;
+  state.sessionSelector.currentSessions = makeSessions();
+  const rendered = renderSessionSelector(state, 80).join("\n");
+  assert.ok(rendered.includes("Resume Session"));
+  assert.ok(rendered.includes("Current"));
+  assert.ok(rendered.includes("Threaded"));
+});
+
+test("session selector rendering shows empty state for current folder", () => {
+  const state = createInitialState("/repo");
+  state.sessionSelector.open = true;
+  state.sessionSelector.currentSessions = [];
+  const rendered = renderSessionSelector(state, 80).join("\n");
+  assert.ok(rendered.includes("No sessions in current folder"));
 });

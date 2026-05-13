@@ -1,5 +1,4 @@
 import { matchesKey, type TUI as TuiType } from "@earendil-works/pi-tui";
-import type { MixCodeState, PendingEscapeAction } from "../core/types.js";
 import {
   acceptCommandPaletteSelection,
   acceptTabJumpSelection,
@@ -26,15 +25,13 @@ import {
   moveQuestionOption,
   toggleCurrentQuestionOption,
 } from "../core/questions.js";
-import { renderCommandPalette, renderExportChooser, renderTabJumpOverlay } from "./rendering.js";
-import type {
-  CommandPaletteActions,
-  ExportChooserActions,
-  MixCodeEditorActions,
-  MixCodeKeyRuntime,
-  OverlayTui,
-  ShellKeyManager,
-} from "./app-types.js";
+import type { MixCodeState, PendingEscapeAction } from "../core/types.js";
+import {
+  armPendingEscape,
+  clearPendingEscape,
+  closeRuntimeAndStop,
+  hasPendingEscape,
+} from "./app-actions.js";
 import { insertEditorText } from "./app-editor.js";
 import {
   closeAppOverlay,
@@ -45,14 +42,17 @@ import {
   showTransientTextOverlay,
 } from "./app-overlays.js";
 import { renderExportText } from "./app-submit.js";
-import {
-  armPendingEscape,
-  clearPendingEscape,
-  closeRuntimeAndStop,
-  hasPendingEscape,
-} from "./app-actions.js";
-export { handleMouseInput } from "./app-mouse.js";
-export { handleChromeMouseInput } from "./app-mouse.js";
+import type {
+  CommandPaletteActions,
+  ExportChooserActions,
+  MixCodeEditorActions,
+  MixCodeKeyRuntime,
+  OverlayTui,
+  ShellKeyManager,
+} from "./app-types.js";
+import { renderCommandPalette, renderExportChooser, renderTabJumpOverlay } from "./rendering.js";
+
+export { handleChromeMouseInput, handleMouseInput } from "./app-mouse.js";
 export function handleStreamingAbortKey(
   active: MixCodeState["tabs"][number],
   tui: Pick<TuiType, "requestRender">,
@@ -157,7 +157,8 @@ export function canOpenCommandPalette(
 ): boolean {
   if (isEditorAutocompleteOpen()) return false;
   if (hasAnyOverlay(tui)) return false;
-  if (state.picker || state.tabJumpOpen || state.exportChooserOpen) return false;
+  if (state.picker || state.sessionSelector.open || state.tabJumpOpen || state.exportChooserOpen)
+    return false;
   if (active?.previewOpen || active?.pendingQuestions.length) return false;
   return commandPaletteEntriesWithExtensions(state, extensionCommands).length > 0;
 }

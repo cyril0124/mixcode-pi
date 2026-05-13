@@ -1,31 +1,21 @@
 import type { TUI as TuiType } from "@earendil-works/pi-tui";
+import type { MixCodeRuntime } from "../agent/runtime.js";
 import { MIXCODE_EXTENSION_KEYBINDINGS } from "../agent/runtime-extension-theme.js";
 import { parseInput } from "../core/commands.js";
 import { createTab } from "../core/defaults.js";
+import { stringifyJson } from "../core/json.js";
 import { MIXCODE_KEYMAP } from "../core/keymap.js";
+import { findModelRef } from "../core/models.js";
+import { createPicker } from "../core/pickers.js";
 import { buildModelPrompt } from "../core/prompt-build.js";
 import { expandLocalPromptCommand } from "../core/prompt-templates.js";
 import type { ShellManager } from "../core/shell-session.js";
-import { resolveThemeInput, setTheme } from "../core/theme-registry.js";
-import { stringifyJson } from "../core/json.js";
 import { deleteWorkspace, loadWorkspaces, saveWorkspaces } from "../core/state-store.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
-import { restoreWorkspaceOrder, snapshotWorkspace, upsertWorkspace } from "../core/workspace.js";
 import { activateTab, closeAgentTab, renameAgentTab } from "../core/tabs.js";
-import { findModelRef } from "../core/models.js";
-import { createPicker } from "../core/pickers.js";
-import type { MixCodeRuntime } from "../agent/runtime.js";
+import { resolveThemeInput, setTheme } from "../core/theme-registry.js";
 import type { MixCodeState } from "../core/types.js";
-import { renderPickerOverlay } from "./rendering.js";
-import type {
-  ExportRequest,
-  MixCodeSubmitRuntime,
-  OverlayTui,
-  RuntimeShortcutInfo,
-  RuntimeToolInfo,
-} from "./app-types.js";
-import { createTuiDebugState } from "./app-debug.js";
-import { editTextWithTuiPaused, showLinesOverlay, showTextOverlay } from "./app-overlays.js";
+import { restoreWorkspaceOrder, snapshotWorkspace, upsertWorkspace } from "../core/workspace.js";
 import {
   appendActiveSystemMessage,
   applyModelSelection,
@@ -33,7 +23,18 @@ import {
   applyWorkdirSelection,
   showSystemMessageOrToast,
 } from "./app-actions.js";
+import { createTuiDebugState } from "./app-debug.js";
+import { editTextWithTuiPaused, showLinesOverlay, showTextOverlay } from "./app-overlays.js";
+import type {
+  ExportRequest,
+  MixCodeSubmitRuntime,
+  OverlayTui,
+  RuntimeShortcutInfo,
+  RuntimeToolInfo,
+} from "./app-types.js";
 import { openExtensionManager } from "./extension-manager.js";
+import { renderPickerOverlay } from "./rendering.js";
+import { openSessionSelector, type SessionSelectorRuntime } from "./session-selector.js";
 export async function handleSubmittedInput(
   state: MixCodeState,
   runtime: MixCodeSubmitRuntime,
@@ -108,6 +109,29 @@ export async function handleSubmittedInput(
       thinkingLevel: state.thinkingLevel,
       workdir: state.workdir,
     });
+  } else if (parsed.command === "resume") {
+    if (!runtime.listSessions) {
+      throw new Error("Resume requires pi runtime session listing support");
+    }
+    if (!runtime.extensionSwitchSession) {
+      throw new Error("Resume requires pi runtime session switch support");
+    }
+    const cwd = active?.workdir ?? state.workdir;
+    const runtimeTab = active ? runtime.getTab(active.sessionId) : undefined;
+    const currentSessionPath =
+      (
+        runtimeTab as { session?: { getSessionFile?: () => string | null } } | undefined
+      )?.session?.getSessionFile?.() ?? null;
+    await openSessionSelector(
+      state,
+      runtime as unknown as SessionSelectorRuntime,
+      tui,
+      cwd,
+      currentSessionPath,
+    );
+    await onStateChanged?.(state);
+    tui.requestRender();
+    return;
   } else if (parsed.command === "close-session") {
     await runtime.closeTab(active!.sessionId);
     closeAgentTab(state, active!.sessionId);
@@ -313,6 +337,7 @@ function configScopedCommand(command: string | undefined): boolean {
     command === "theme" ||
     command === "tui-state" ||
     command === "new-session" ||
+    command === "resume" ||
     command === "delete-all-sessions" ||
     command === "save-workspace" ||
     command === "restore-workspace" ||

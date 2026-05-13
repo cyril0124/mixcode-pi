@@ -1,6 +1,7 @@
-import { SessionManager, type SessionInfo } from "@earendil-works/pi-coding-agent";
+import { existsSync, readdirSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { type SessionInfo, SessionManager } from "@earendil-works/pi-coding-agent";
 import { closeExtensionCustomOverlays, disposeExtensionWidgets } from "./runtime-extension-ui.js";
 import type { ExtensionCustomUiHost, RuntimeTab } from "./runtime-types.js";
 
@@ -106,4 +107,67 @@ async function createReplacementSession(
   const lines = [header, ...source.getBranch()].map((entry) => JSON.stringify(entry)).join("\n");
   await writeFile(file, `${lines}\n`, "utf8");
   return SessionManager.open(file, sessionsRoot, cwd);
+}
+
+/**
+ * List sessions for a specific working directory.
+ * Filters results to only include sessions whose cwd matches.
+ */
+export async function listSessionsForCwd(
+  cwd: string,
+  sessionsRoot: string,
+): Promise<SessionInfo[]> {
+  const all = await SessionManager.list(cwd, sessionsRoot);
+  // SessionManager.list with explicit sessionsRoot returns all sessions in that dir.
+  // Filter to only sessions matching the requested cwd.
+  const normalizedCwd = cwd.replace(/\/+$/, "");
+  return all.filter((session) => session.cwd.replace(/\/+$/, "") === normalizedCwd);
+}
+
+/**
+ * List all sessions across all working directories.
+ * Scans the current sessionsRoot plus all sibling workdir session directories
+ * under rootStateDir.
+ */
+export async function listAllSessionsGlobal(
+  sessionsRoot: string,
+  rootStateDir?: string,
+): Promise<SessionInfo[]> {
+  // Always include the current sessionsRoot
+  const dirs = new Set<string>([sessionsRoot]);
+
+  if (rootStateDir) {
+    // All workdir session directories: rootStateDir/workdirs/*/sessions
+    const workdirsDir = join(rootStateDir, "workdirs");
+    if (existsSync(workdirsDir)) {
+      try {
+        const entries = readdirSync(workdirsDir, { withFileTypes: true });
+        for (const entry of entries) {
+          if (!entry.isDirectory()) continue;
+          const candidate = join(workdirsDir, entry.name, "sessions");
+          if (existsSync(candidate)) dirs.add(candidate);
+        }
+      } catch {
+        // Ignore read errors on workdirs directory
+      }
+    }
+  }
+
+  // Collect sessions from all directories, dedup by path
+  const seen = new Set<string>();
+  const all: SessionInfo[] = [];
+  for (const dir of dirs) {
+    try {
+      const sessions = await SessionManager.list("/", dir);
+      for (const session of sessions) {
+        if (seen.has(session.path)) continue;
+        seen.add(session.path);
+        all.push(session);
+      }
+    } catch {
+      // Skip unreadable directories
+    }
+  }
+  all.sort((a, b) => b.modified.getTime() - a.modified.getTime());
+  return all;
 }

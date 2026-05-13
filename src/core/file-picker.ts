@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { readdir, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
+import { promisify } from "node:util";
 import { fuzzyMatchBatch } from "./fuzzy.js";
 
 const EXCLUDED_DIRS = new Set([".git", "node_modules", ".cache", ".venv", "dist", "coverage"]);

@@ -1,17 +1,17 @@
 import { matchesKey } from "@earendil-works/pi-tui";
-import type { MixCodeState } from "../core/types.js";
 import { findModelRef } from "../core/models.js";
-import { setTheme } from "../core/theme-registry.js";
 import {
   acceptPickerSelection,
   completeWorkdirPickerSelection,
   movePickerSelection,
   updatePickerQuery,
 } from "../core/pickers.js";
-import { renderPickerOverlay } from "./rendering.js";
-import type { MixCodeKeyRuntime, OverlayTui } from "./app-types.js";
-import { closeAppOverlay, showErrorOverlay, showLinesOverlay } from "./app-overlays.js";
+import { setTheme } from "../core/theme-registry.js";
+import type { MixCodeState } from "../core/types.js";
 import { applyModelSelection, applyThinkingLevel, applyWorkdirSelection } from "./app-actions.js";
+import { closeAppOverlay, showErrorOverlay, showLinesOverlay } from "./app-overlays.js";
+import type { MixCodeKeyRuntime, OverlayTui } from "./app-types.js";
+import { renderPickerOverlay } from "./rendering.js";
 
 export function handlePickerKey(
   state: MixCodeState,

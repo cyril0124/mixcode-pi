@@ -1,3 +1,4 @@
+import { createSessionSelectorState } from "./session-selector.js";
 import type { MixCodeModelRef, MixCodeState, MixCodeTabInfo } from "./types.js";
 
 export const DEFAULT_THEME_ID = "mixcode-dark";
@@ -30,6 +31,7 @@ export function createInitialState(workdir: string): MixCodeState {
       error: "",
       working: false,
     },
+    sessionSelector: createSessionSelectorState(),
     tabJumpOpen: false,
     tabJumpQuery: "",
     tabJumpIndex: 0,

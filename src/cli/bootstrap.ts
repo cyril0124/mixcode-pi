@@ -1,9 +1,18 @@
 import { mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import type {
+  CreateAgentSessionServicesOptions,
+  ExtensionFactory,
+} from "@earendil-works/pi-coding-agent";
 import { MixCodeRuntime } from "../agent/runtime.js";
 import { scanSkillEntries } from "../core/attachments.js";
 import { createInitialState, createTab, DEFAULT_MODEL_REF } from "../core/defaults.js";
+import {
+  extensionManagerFile,
+  loadExtensionManagerConfig,
+  saveExtensionManagerConfig,
+} from "../core/extension-manager.js";
 import { scanProjectFiles } from "../core/file-picker.js";
 import {
   modelRefId,
@@ -12,13 +21,8 @@ import {
   setStateModel,
   setTabModel,
 } from "../core/models.js";
-import { createPiModelRegistryBundle } from "../core/pi-models.js";
 import { checkPiPackageUpdates } from "../core/package-updates.js";
-import {
-  extensionManagerFile,
-  loadExtensionManagerConfig,
-  saveExtensionManagerConfig,
-} from "../core/extension-manager.js";
+import { createPiModelRegistryBundle } from "../core/pi-models.js";
 import {
   loadStateFile,
   saveStateFile,
@@ -28,10 +32,6 @@ import {
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import type { MixCodeState } from "../core/types.js";
 import type { MixCodeCompletionSources } from "../ui/completion.js";
-import type {
-  CreateAgentSessionServicesOptions,
-  ExtensionFactory,
-} from "@earendil-works/pi-coding-agent";
 
 export interface BootstrapOptions {
   workdir: string;
@@ -103,6 +103,7 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
   state.connected = true;
   const runtime = new MixCodeRuntime({
     sessionsRoot: join(stateDir, "sessions"),
+    rootStateDir,
     agentDir: options.agentDir,
     authStorage: modelBundle.authStorage,
     modelRegistry: modelBundle.registry,

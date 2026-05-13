@@ -1,9 +1,8 @@
-import { AuthStorage, getAgentDir, ModelRegistry } from "@earendil-works/pi-coding-agent";
-import type { Model, SimpleStreamOptions } from "@earendil-works/pi-ai";
-import { streamSimple } from "@earendil-works/pi-ai";
-import type { Context } from "@earendil-works/pi-ai";
 import { stat } from "node:fs/promises";
 import { join } from "node:path";
+import type { Context, Model, SimpleStreamOptions } from "@earendil-works/pi-ai";
+import { streamSimple } from "@earendil-works/pi-ai";
+import { AuthStorage, getAgentDir, ModelRegistry } from "@earendil-works/pi-coding-agent";
 
 export interface PiModelSource {
   provider: string;

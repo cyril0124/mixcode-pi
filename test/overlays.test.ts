@@ -231,6 +231,7 @@ test("command palette state filters, moves, accepts, and closes", () => {
       "/mark-done",
       "/vim",
       "/new-session",
+      "/resume",
       "/close-session",
       "/delete-session",
       "/delete-all-sessions",

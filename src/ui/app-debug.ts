@@ -1,4 +1,5 @@
 import type { MixCodeState, PendingEscapeAction } from "../core/types.js";
+
 interface MixCodeTuiDebugState {
   version: 1;
   workdir: string;

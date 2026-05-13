@@ -1,16 +1,16 @@
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { MixCodeRuntime } from "../agent/runtime.js";
-import type { MixCodeState } from "../core/types.js";
 import { setTabModel } from "../core/models.js";
 import { closeCommandPalette, closeTabJump } from "../core/overlays.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
-import type { MixCodeKeyRuntime, OverlayTui } from "./app-types.js";
+import type { MixCodeState } from "../core/types.js";
 import {
-  renderQuitConfirm,
   quitOverlayOptions,
+  renderQuitConfirm,
   showLinesOverlay,
   showTransientTextOverlay,
 } from "./app-overlays.js";
+import type { MixCodeKeyRuntime, OverlayTui } from "./app-types.js";
 
 export {
   armPendingEscape,

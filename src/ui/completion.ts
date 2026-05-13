@@ -7,8 +7,8 @@ import type {
   SlashCommand,
 } from "@earendil-works/pi-tui";
 import { LOCAL_COMMANDS } from "../core/commands.js";
-import { fuzzyMatchBatch } from "../core/fuzzy.js";
 import { searchProjectFiles } from "../core/file-picker.js";
+import { fuzzyMatchBatch } from "../core/fuzzy.js";
 
 export interface MixCodeCompletionSourceInfo {
   source?: string;
@@ -124,9 +124,7 @@ export class MixCodeCompletionProvider implements AutocompleteProvider {
   }
 }
 
-async function resolveCompletionFiles(
-  files: MixCodeCompletionSources["files"],
-): Promise<string[]> {
+async function resolveCompletionFiles(files: MixCodeCompletionSources["files"]): Promise<string[]> {
   return typeof files === "function" ? await files() : files;
 }
 

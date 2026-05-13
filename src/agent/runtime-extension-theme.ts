@@ -1,16 +1,16 @@
 import {
+  type KeybindingsManager as ExtensionKeybindingsManager,
   initTheme,
   Theme,
-  type KeybindingsManager as ExtensionKeybindingsManager,
 } from "@earendil-works/pi-coding-agent";
-import { normalizeThemeId, THEMES } from "../core/theme-registry.js";
-import type { ExtensionThemeHost } from "./runtime-types.js";
 import {
-  KeybindingsManager as PiTuiKeybindingsManager,
-  TUI_KEYBINDINGS,
   type KeybindingDefinitions,
   type KeybindingsConfig,
+  KeybindingsManager as PiTuiKeybindingsManager,
+  TUI_KEYBINDINGS,
 } from "@earendil-works/pi-tui";
+import { normalizeThemeId, THEMES } from "../core/theme-registry.js";
+import type { ExtensionThemeHost } from "./runtime-types.js";
 
 export const MIXCODE_EXTENSION_THEME = new Theme(
   {

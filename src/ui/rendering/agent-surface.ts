@@ -84,16 +84,9 @@ function getCachedConversationLines(
   // Skip cache when the tab is actively running or any tool is mid-execution.
   // Tool renderers may have component lifecycle side effects (dispose/create)
   // that require re-invocation on each render frame.
-  if (
-    tab.status === "running" ||
-    tab.status === "thinking" ||
-    hasRunningTool(chat)
-  ) {
+  if (tab.status === "running" || tab.status === "thinking" || hasRunningTool(chat)) {
     conversationCacheMap.delete(tab.sessionId);
-    return [
-      ...renderConversation(chat, reasoning, width, tab),
-      ...renderQueuePreview(tab, width),
-    ];
+    return [...renderConversation(chat, reasoning, width, tab), ...renderQueuePreview(tab, width)];
   }
 
   const lastChat = chat[chat.length - 1];
@@ -159,7 +152,11 @@ function hasRunningTool(chat: ChatLine[]): boolean {
   return false;
 }
 
-function appendChatScrollbar(result: ScrolledLinesResult, width: number, hasNewContent = false): string[] {
+function appendChatScrollbar(
+  result: ScrolledLinesResult,
+  width: number,
+  hasNewContent = false,
+): string[] {
   if (!result.scrollable || width < 2 || result.lines.length === 0)
     return result.lines.map((line) => padLine(line, width));
   const contentWidth = Math.max(1, width - 1);

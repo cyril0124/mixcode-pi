@@ -248,7 +248,10 @@ function workingIndicatorFrame(tab: MixCodeTabInfo, now: Date): string | undefin
     ];
   }
   if (frames.length === 0) return "";
-  const interval = Math.max(1, tab.extensionUi.workingIndicatorIntervalMs ?? DEFAULT_WORKING_INDICATOR_INTERVAL_MS);
+  const interval = Math.max(
+    1,
+    tab.extensionUi.workingIndicatorIntervalMs ?? DEFAULT_WORKING_INDICATOR_INTERVAL_MS,
+  );
   return frames[Math.floor(now.getTime() / interval) % frames.length] ?? "";
 }
 

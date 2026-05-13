@@ -1,9 +1,9 @@
 import { ExtensionEditorComponent } from "@earendil-works/pi-coding-agent";
 import type { Component, OverlayHandle, OverlayOptions } from "@earendil-works/pi-tui";
 import {
+  ensureExtensionThemeInitialized,
   MIXCODE_EXTENSION_KEYBINDINGS_MANAGER,
   MIXCODE_EXTENSION_THEME,
-  ensureExtensionThemeInitialized,
 } from "./runtime-extension-theme.js";
 import type {
   ExtensionCustomComponent,

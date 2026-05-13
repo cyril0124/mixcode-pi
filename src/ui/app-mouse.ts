@@ -1,12 +1,12 @@
-import type { MixCodeState } from "../core/types.js";
 import { hitMouseRegion, parseSgrMouseInput } from "../core/mouse.js";
 import { scrollChat, scrollPreview, scrollShell } from "../core/overlays.js";
 import { createPicker } from "../core/pickers.js";
 import { activateTab } from "../core/tabs.js";
-import { renderCommandPalette, renderPickerOverlay, tabBarHitRegions } from "./rendering.js";
-import type { OverlayTui, ShellKeyManager } from "./app-types.js";
+import type { MixCodeState } from "../core/types.js";
 import { hasAnyOverlay, showLinesOverlay } from "./app-overlays.js";
 import { activeExtensionCommands } from "./app-runtime.js";
+import type { OverlayTui, ShellKeyManager } from "./app-types.js";
+import { renderCommandPalette, renderPickerOverlay, tabBarHitRegions } from "./rendering.js";
 
 export function handleMouseInput(
   state: MixCodeState,

@@ -1,11 +1,12 @@
+import type { Model } from "@earendil-works/pi-ai";
 import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import {
-  type AuthStorage,
-  createAgentSessionFromServices,
-  createAgentSessionServices,
   type AgentSessionServices,
+  type AuthStorage,
   type CreateAgentSessionResult,
   type CreateAgentSessionServicesOptions,
+  createAgentSessionFromServices,
+  createAgentSessionServices,
   type ExtensionFactory,
   type LoadExtensionsResult,
   type ModelRegistry,
@@ -14,19 +15,18 @@ import {
   type SessionStartEvent,
   type SettingsManager,
 } from "@earendil-works/pi-coding-agent";
-import type { Model } from "@earendil-works/pi-ai";
 import {
   type ExtensionManagerEntry,
   extensionManagerEntriesFromResult,
   filterDisabledExtensions,
 } from "../core/extension-manager.js";
-import type { AgentRuntimeConfig, MixCodeTabInfo } from "../core/types.js";
 import {
   buildMixCodeSystemPromptFromParts,
   buildMixCodeSystemPromptOptionsFromSession,
   MIXCODE_SYSTEM_PROMPT,
 } from "../core/system-prompt.js";
-import { activateMixCodeTools, ToolLog } from "./tools.js";
+import type { AgentRuntimeConfig, MixCodeTabInfo } from "../core/types.js";
+import type { MixCodeRuntime } from "./runtime.js";
 import {
   applyRuntimeTabModel,
   disposeChatRenderers,
@@ -42,12 +42,11 @@ import {
   createMixCodeExtensionUiContext,
   disposeExtensionWidgets,
 } from "./runtime-extension-ui.js";
-import { resetExtensionHostState } from "./runtime-session.js";
 import {
   buildMixCodeSystemPromptOverride,
   registerMixCodeRuntimeProvider,
 } from "./runtime-provider.js";
-import type { MixCodeRuntime } from "./runtime.js";
+import { resetExtensionHostState } from "./runtime-session.js";
 import type {
   ChatLine,
   ExtensionCustomUiHost,
@@ -57,6 +56,7 @@ import type {
   RuntimeTab,
   SessionReplacementReason,
 } from "./runtime-types.js";
+import { activateMixCodeTools, ToolLog } from "./tools.js";
 
 export type RuntimeTabConfig = Omit<AgentRuntimeConfig, "sessionId" | "model"> & {
   model?: Model<any>;

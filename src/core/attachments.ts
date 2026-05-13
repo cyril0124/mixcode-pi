@@ -274,10 +274,7 @@ export async function resolveSkills(
       const location = await resolveSkillFile(name, baseWorkdir, homeDir);
       const content = await readFile(location, "utf8");
       skills.push({ name, description: parseSkillDescription(content), location });
-    } catch {
-      // Unknown or unreadable skill: silently skip.
-      continue;
-    }
+    } catch {}
   }
   return skills;
 }
@@ -366,4 +363,3 @@ export async function buildPrompt(
 function escapeXmlText(value: string): string {
   return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 }
-

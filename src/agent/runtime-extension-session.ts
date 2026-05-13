@@ -1,7 +1,7 @@
-import { SessionManager, type SessionEntry } from "@earendil-works/pi-coding-agent";
 import { existsSync } from "node:fs";
 import { copyFile, mkdir } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
+import { type SessionEntry, SessionManager } from "@earendil-works/pi-coding-agent";
 import {
   assertImportHasCwd,
   emitBeforeFork,

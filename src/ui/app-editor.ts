@@ -1,19 +1,19 @@
 import {
-  Editor,
-  matchesKey,
-  truncateToWidth,
-  visibleWidth,
   type AutocompleteProvider,
   type Component,
+  Editor,
   type EditorComponent,
   type EditorTheme,
+  matchesKey,
   type TUI as TuiType,
+  truncateToWidth,
+  visibleWidth,
 } from "@earendil-works/pi-tui";
-import { MIXCODE_EXTENSION_KEYBINDINGS_MANAGER, type EditorFactory } from "../agent/runtime.js";
+import { type EditorFactory, MIXCODE_EXTENSION_KEYBINDINGS_MANAGER } from "../agent/runtime.js";
 import type { MixCodeState } from "../core/types.js";
-import { padLine } from "./rendering.js";
-import { themeForId, type MixCodeTheme } from "./themes.js";
 import type { MixCodeEditorActions } from "./app-types.js";
+import { padLine } from "./rendering.js";
+import { type MixCodeTheme, themeForId } from "./themes.js";
 export class CompactPromptEditor extends Editor {
   private readonly rootTui: Pick<TuiType, "requestRender">;
 
@@ -72,16 +72,16 @@ export class CompactPromptEditor extends Editor {
         ? body.map((line, index) =>
             index === 0
               ? renderPlaceholderLine(line, editorPlaceholder(this.mixState), width, theme)
-            : padLine(line, width),
-        )
-      : body.map((line, index) => {
-          const prefix = index === 0 ? "> " : "  ";
-          const content = line.replace(/ +$/u, "");
-          return padLine(
-            `${theme.dim(prefix)}${truncateToWidth(content, Math.max(1, width - 2))}`,
-            width,
-          );
-        });
+              : padLine(line, width),
+          )
+        : body.map((line, index) => {
+            const prefix = index === 0 ? "> " : "  ";
+            const content = line.replace(/ +$/u, "");
+            return padLine(
+              `${theme.dim(prefix)}${truncateToWidth(content, Math.max(1, width - 2))}`,
+              width,
+            );
+          });
     const blank = surface(padLine("", width));
     return [blank, ...lines.map((line) => surface(line)), blank];
   }

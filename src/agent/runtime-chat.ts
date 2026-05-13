@@ -1,14 +1,14 @@
+import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { AssistantMessage, Model, Usage } from "@earendil-works/pi-ai";
 import type { MessageRenderer, SessionEntry } from "@earendil-works/pi-coding-agent";
 import {
-  getKeybindings,
-  setKeybindings,
-  TUI as PiTui,
   type Component,
+  getKeybindings,
+  TUI as PiTui,
+  setKeybindings,
 } from "@earendil-works/pi-tui";
-import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
 import { consumeGoalCompletionMarker } from "../core/goal.js";
 import type { MixCodeTabInfo, PreviewMessageRole } from "../core/types.js";
 import {

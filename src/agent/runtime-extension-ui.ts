@@ -1,7 +1,6 @@
 import type { AgentToolResult, ExtensionUIContext } from "@earendil-works/pi-coding-agent";
 import type { AutocompleteProvider } from "@earendil-works/pi-tui";
 import { LOCAL_COMMANDS } from "../core/commands.js";
-import { PI_BUILTIN_TOOL_NAMES } from "./tools.js";
 import {
   createExtensionCustomOverlay,
   createExtensionEditorOverlay,
@@ -22,6 +21,7 @@ import {
   setExtensionWidget,
 } from "./runtime-extension-widgets.js";
 import type { ExtensionCustomUiHost, RuntimeTab } from "./runtime-types.js";
+import { PI_BUILTIN_TOOL_NAMES } from "./tools.js";
 
 export { createExtensionCommandActions } from "./runtime-extension-actions.js";
 export { closeExtensionCustomOverlays } from "./runtime-extension-custom.js";

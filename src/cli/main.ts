@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-import { cwd } from "node:process";
 import { dirname, resolve } from "node:path";
+import { cwd } from "node:process";
 import { fileURLToPath } from "node:url";
-import { bootstrapMixCode, DEFAULT_STATE_PORT } from "./bootstrap.js";
 import { saveStateFile } from "../core/state-store.js";
 import { createMixCodeTui } from "../ui/app.js";
+import { bootstrapMixCode, DEFAULT_STATE_PORT } from "./bootstrap.js";
 
 export async function main(): Promise<void> {
   exposeLocalPiCli();

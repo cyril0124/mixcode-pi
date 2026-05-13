@@ -1,7 +1,8 @@
-import { Loader, type Component, type TUI as TuiType } from "@earendil-works/pi-tui";
+import { type Component, Loader, type TUI as TuiType } from "@earendil-works/pi-tui";
 import type { MixCodeRuntime } from "../agent/runtime.js";
 import { isPendingEscapeActive } from "../core/escape.js";
 import type { MixCodeState } from "../core/types.js";
+import type { EditorSlot } from "./app-editor.js";
 import {
   fitHeadLines,
   padLine,
@@ -21,7 +22,6 @@ import {
   renderWorkingIndicator,
 } from "./rendering.js";
 import { themeForId } from "./themes.js";
-import type { EditorSlot } from "./app-editor.js";
 
 export const TERMINAL_SCROLL_GUARD_ROWS = 0;
 const WORKING_GAP_ROWS = 1;

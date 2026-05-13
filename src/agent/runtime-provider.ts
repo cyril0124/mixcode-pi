@@ -1,6 +1,6 @@
 import {
-  createAssistantMessageEventStream,
   type AssistantMessage,
+  createAssistantMessageEventStream,
   type Model,
 } from "@earendil-works/pi-ai";
 import type { ModelRegistry } from "@earendil-works/pi-coding-agent";

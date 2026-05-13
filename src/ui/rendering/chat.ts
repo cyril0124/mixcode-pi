@@ -12,10 +12,7 @@ const TOOL_BACKGROUNDS = {
 } as const;
 const SYSTEM_BACKGROUND = { start: "\x1b[48;2;35;35;33m", end: "\x1b[49m" } as const;
 const USER_BASH_PREVIEW_LINES = 20;
-const chatLineRenderCache = new WeakMap<
-  ChatLine,
-  { key: string; lines: string[] }
->();
+const chatLineRenderCache = new WeakMap<ChatLine, { key: string; lines: string[] }>();
 
 export function renderChat(
   chat: ChatLine[],
@@ -206,12 +203,7 @@ function chatLineRenderCacheKey(
     line.bashFullOutputPath !== undefined
   )
     return undefined;
-  return JSON.stringify([
-    activeRenderTheme.name,
-    width,
-    line.role,
-    line.text,
-  ]);
+  return JSON.stringify([activeRenderTheme.name, width, line.role, line.text]);
 }
 
 function renderToolBlock(line: ChatLine, width: number, tab?: MixCodeTabInfo): string[] {

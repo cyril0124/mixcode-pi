@@ -1,8 +1,8 @@
 import {
+  type BuildSystemPromptOptions,
   DefaultResourceLoader,
   formatSkillsForPrompt,
   getAgentDir,
-  type BuildSystemPromptOptions,
 } from "@earendil-works/pi-coding-agent";
 
 export const MIXCODE_SYSTEM_PROMPT =

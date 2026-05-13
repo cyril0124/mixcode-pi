@@ -1,13 +1,13 @@
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { isPendingEscapeActive } from "../../core/escape.js";
 import {
   commandPaletteEntriesWithExtensions,
   filterTabJumpEntries,
   previewTitle,
 } from "../../core/overlays.js";
-import { isPendingEscapeActive } from "../../core/escape.js";
 import { filteredPickerItems } from "../../core/pickers.js";
 import type { ConfigAction, MixCodeState, MixCodeTabInfo } from "../../core/types.js";
-import { themeForId, type MixCodeTheme } from "../themes.js";
+import { type MixCodeTheme, themeForId } from "../themes.js";
 import { activeRenderTheme, renderWithTheme } from "./context.js";
 import { centerLine } from "./layout.js";
 import { box, overlayPanel, padLine, panelBox } from "./primitives.js";
@@ -46,10 +46,9 @@ function renderQuestionOverlayInner(tab: MixCodeTabInfo, width: number): string[
   const custom = question.custom
     ? [customSelected ? activeRenderTheme.selection(padLine(customLine, innerWidth)) : customLine]
     : [];
-  const escapeHint =
-    isPendingEscapeActive(tab, "reject-question")
-      ? "Esc again: reject question"
-      : "Esc: arm reject";
+  const escapeHint = isPendingEscapeActive(tab, "reject-question")
+    ? "Esc again: reject question"
+    : "Esc: arm reject";
   const hints = [
     activeRenderTheme.dim(
       "h/l: question  up/down: option/custom  space/enter: toggle/edit  y: send  n: reject",

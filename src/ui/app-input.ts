@@ -1,35 +1,15 @@
 import { matchesKey } from "@earendil-works/pi-tui";
-import { activateTab, nextTabId } from "../core/tabs.js";
+import { MIXCODE_EXTENSION_KEYBINDINGS_MANAGER } from "../agent/runtime.js";
 import {
   closeCommandPalette,
   closeTabJump,
   openCommandPalette,
   openTabJump,
 } from "../core/overlays.js";
+import { activateTab, nextTabId } from "../core/tabs.js";
 import type { MixCodeState } from "../core/types.js";
-import {
-  closeAppOverlay,
-  editTextWithTuiPaused,
-  hasAnyOverlay,
-  hasAppOverlay,
-  showErrorOverlay,
-  showLinesOverlay,
-} from "./app-overlays.js";
-import { renderCommandPalette, renderExportChooser, renderTabJumpOverlay } from "./rendering.js";
-import type {
-  CommandPaletteActions,
-  ExportChooserActions,
-  MixCodeEditorActions,
-  MixCodeKeyRuntime,
-  OverlayTui,
-  ShellKeyManager,
-} from "./app-types.js";
-import { insertEditorText } from "./app-editor.js";
-import { activeExtensionCommands } from "./app-runtime.js";
 import { clearPendingEscape, openQuitConfirm } from "./app-actions.js";
-import { handlePickerKey } from "./app-picker-keys.js";
-import { handleExtensionManagerKey } from "./extension-manager.js";
-import { MIXCODE_EXTENSION_KEYBINDINGS_MANAGER } from "../agent/runtime.js";
+import { insertEditorText } from "./app-editor.js";
 import {
   canOpenCommandPalette,
   handleChatScrollKey,
@@ -46,6 +26,27 @@ import {
   handleTabJumpKey,
   handleVimModeKey,
 } from "./app-key-handlers.js";
+import {
+  closeAppOverlay,
+  editTextWithTuiPaused,
+  hasAnyOverlay,
+  hasAppOverlay,
+  showErrorOverlay,
+  showLinesOverlay,
+} from "./app-overlays.js";
+import { handlePickerKey } from "./app-picker-keys.js";
+import { activeExtensionCommands } from "./app-runtime.js";
+import type {
+  CommandPaletteActions,
+  ExportChooserActions,
+  MixCodeEditorActions,
+  MixCodeKeyRuntime,
+  OverlayTui,
+  ShellKeyManager,
+} from "./app-types.js";
+import { handleExtensionManagerKey } from "./extension-manager.js";
+import { renderCommandPalette, renderExportChooser, renderTabJumpOverlay } from "./rendering.js";
+import { handleSessionSelectorKey } from "./session-selector.js";
 export function handleMixCodeKeyInput(
   state: MixCodeState,
   data: string,
@@ -72,6 +73,12 @@ export function handleMixCodeKeyInput(
     return { consume: true };
   }
   if (state.picker && handlePickerKey(state, data, tui, runtime, onStateChanged)) {
+    return { consume: true };
+  }
+  if (
+    state.sessionSelector.open &&
+    handleSessionSelectorKey(state, data, tui, runtime, onStateChanged)
+  ) {
     return { consume: true };
   }
   if (
@@ -335,6 +342,7 @@ function handleBatchedSubmitInput(
   if (isEditorAutocompleteOpen() || hasAnyOverlay(tui)) return false;
   if (
     state.picker ||
+    state.sessionSelector.open ||
     state.commandPaletteOpen ||
     state.tabJumpOpen ||
     state.quitConfirmOpen ||
@@ -354,6 +362,7 @@ function hasFocusedAppControl(
 ): boolean {
   return Boolean(
     state.picker ||
+      state.sessionSelector.open ||
       state.commandPaletteOpen ||
       state.tabJumpOpen ||
       state.quitConfirmOpen ||
@@ -382,4 +391,3 @@ function inlineSubmitText(data: string): string | undefined {
   }
   return body;
 }
-

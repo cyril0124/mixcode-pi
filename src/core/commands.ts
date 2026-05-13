@@ -26,6 +26,7 @@ export type LocalCommand =
   | "mark-done"
   | "vim"
   | "new-session"
+  | "resume"
   | "help"
   | "hotkeys"
   | "rename"
@@ -78,6 +79,7 @@ export const LOCAL_COMMANDS: Array<{
   { name: "mark-done", description: "Mark active tab done" },
   { name: "vim", description: "Enter Vim mode for chat scrolling" },
   { name: "new-session", description: "Create a session" },
+  { name: "resume", description: "Resume a different session" },
   { name: "help", description: "Show all keyboard shortcuts" },
   { name: "hotkeys", description: "Show all keyboard shortcuts" },
   { name: "rename", description: "Rename active tab" },

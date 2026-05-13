@@ -2,10 +2,10 @@ import { readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
+import { fuzzyMatch } from "./fuzzy.js";
 import { modelRefId } from "./models.js";
 import { THEMES } from "./theme-registry.js";
 import type { MixCodeState, MixCodeTabInfo, PickerItem, PickerKind, PickerState } from "./types.js";
-import { fuzzyMatch } from "./fuzzy.js";
 
 export const THINKING_LEVELS: ThinkingLevel[] = [
   "off",

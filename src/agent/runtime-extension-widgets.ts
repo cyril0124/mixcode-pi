@@ -1,13 +1,13 @@
 import type { ReadonlyFooterDataProvider, Theme } from "@earendil-works/pi-coding-agent";
-import { TUI as PiTui, type Component } from "@earendil-works/pi-tui";
+import { type Component, TUI as PiTui } from "@earendil-works/pi-tui";
 import type {
   ExtensionDynamicLines,
   ExtensionWidgetPlacement,
   MixCodeTabInfo,
 } from "../core/types.js";
 import {
-  MIXCODE_EXTENSION_THEME,
   ensureExtensionThemeInitialized,
+  MIXCODE_EXTENSION_THEME,
 } from "./runtime-extension-theme.js";
 import { NullTerminal } from "./runtime-null-terminal.js";
 import type {

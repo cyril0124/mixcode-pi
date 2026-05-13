@@ -5,7 +5,9 @@ import { activeRenderTheme } from "./context.js";
 const FULL_RESET = "\x1b[0m";
 
 export function padLine(text: string, width: number): string {
-  const singleLine = sanitizeTerminalText(text).replace(/\t/g, "  ").replace(/[\r\n]+/g, " ");
+  const singleLine = sanitizeTerminalText(text)
+    .replace(/\t/g, "  ")
+    .replace(/[\r\n]+/g, " ");
   const clipped =
     visibleWidth(singleLine) <= width
       ? singleLine

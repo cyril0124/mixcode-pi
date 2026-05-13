@@ -1,10 +1,26 @@
-import { ProcessTerminal, TUI, matchesKey, type TUI as TuiType } from "@earendil-works/pi-tui";
+import { matchesKey, ProcessTerminal, TUI, type TUI as TuiType } from "@earendil-works/pi-tui";
 import type { ExtensionCustomUiHost, MixCodeRuntime } from "../agent/runtime.js";
-import type { MixCodeState } from "../core/types.js";
-import { ShellManager } from "../core/shell-session.js";
 import { scanProjectFiles } from "../core/file-picker.js";
+import { ShellManager } from "../core/shell-session.js";
 import { setTheme } from "../core/theme-registry.js";
-import { withMouseReporting } from "./terminal.js";
+import type { MixCodeState } from "../core/types.js";
+import { appendActiveSystemMessage } from "./app-actions.js";
+import { CompactPromptEditor, EditorSlot, editorThemeFor } from "./app-editor.js";
+import { handleMixCodeKeyInput } from "./app-input.js";
+import {
+  MixCodeFooterRoot,
+  MixCodeLayoutRoot,
+  MixCodeRoot,
+  TERMINAL_SCROLL_GUARD_ROWS,
+} from "./app-layout.js";
+import { editTextWithTuiPaused, errorMessage, showErrorOverlay } from "./app-overlays.js";
+import {
+  activeExtensionCommands,
+  bindRuntimeRendering,
+  createActiveAutocompleteProvider,
+  hydrateTabPromptHistory,
+} from "./app-runtime.js";
+import { handleSubmittedInput } from "./app-submit.js";
 import { MixCodeCompletionProvider, type MixCodeCompletionSources } from "./completion.js";
 import {
   renderExtensionHeader,
@@ -13,28 +29,12 @@ import {
   renderStatus,
   renderTabBar,
 } from "./rendering.js";
+import { withMouseReporting } from "./terminal.js";
 import { themeForId } from "./themes.js";
-import { CompactPromptEditor, EditorSlot, editorThemeFor } from "./app-editor.js";
-import {
-  MixCodeFooterRoot,
-  MixCodeLayoutRoot,
-  MixCodeRoot,
-  TERMINAL_SCROLL_GUARD_ROWS,
-} from "./app-layout.js";
-import {
-  activeExtensionCommands,
-  bindRuntimeRendering,
-  createActiveAutocompleteProvider,
-  hydrateTabPromptHistory,
-} from "./app-runtime.js";
-import { handleMixCodeKeyInput } from "./app-input.js";
-import { handleSubmittedInput } from "./app-submit.js";
-import { appendActiveSystemMessage } from "./app-actions.js";
-import { editTextWithTuiPaused, errorMessage, showErrorOverlay } from "./app-overlays.js";
 
+export { handleMixCodeKeyInput } from "./app-input.js";
 export { MixCodeRoot } from "./app-layout.js";
 export { bindRuntimeRendering, bindWorkingRedraw } from "./app-runtime.js";
-export { handleMixCodeKeyInput } from "./app-input.js";
 export {
   handleSubmittedInput,
   renderExportText,

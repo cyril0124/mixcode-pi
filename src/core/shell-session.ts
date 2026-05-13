@@ -1,7 +1,7 @@
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
 import { EOL } from "node:os";
-import type { MixCodeTabInfo, ShellSessionInfo } from "./types.js";
 import type { SgrMouseInput } from "./mouse.js";
+import type { MixCodeTabInfo, ShellSessionInfo } from "./types.js";
 
 export class ShellManager {
   private readonly processes = new Map<string, ChildProcessWithoutNullStreams>();

@@ -1,10 +1,10 @@
 import { matchesKey, truncateToWidth } from "@earendil-works/pi-tui";
 import type { ExtensionReloadResult } from "../core/extension-manager.js";
 import type { ExtensionManagerEntryInfo, MixCodeState } from "../core/types.js";
+import { closeAppOverlay, showErrorOverlay, showLinesOverlay } from "./app-overlays.js";
 import type { MixCodeKeyRuntime, MixCodeSubmitRuntime, OverlayTui } from "./app-types.js";
 import { activeRenderTheme, renderWithTheme } from "./rendering/context.js";
 import { overlayPanel, padLine } from "./rendering/primitives.js";
-import { closeAppOverlay, showErrorOverlay, showLinesOverlay } from "./app-overlays.js";
 import { themeForId } from "./themes.js";
 
 export function openExtensionManager(

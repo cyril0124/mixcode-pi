@@ -1,27 +1,34 @@
+import { rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { Agent, AgentMessage, ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { AssistantMessage, Model, Usage } from "@earendil-works/pi-ai";
 import {
-  type AuthStorage,
-  createAgentSessionFromServices,
-  getAgentDir,
-  type SessionManager,
-  type SettingsManager,
   type AgentSession,
   type AgentSessionServices,
+  type AuthStorage,
   type CreateAgentSessionServicesOptions,
+  createAgentSessionFromServices,
   type ExtensionFactory,
+  getAgentDir,
+  type SessionInfo,
+  type SessionManager,
   type SessionShutdownEvent,
+  type SettingsManager,
 } from "@earendil-works/pi-coding-agent";
-import { matchesKey as matchesPiKey, type AutocompleteProvider } from "@earendil-works/pi-tui";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { rm, writeFile } from "node:fs/promises";
-import type { AgentRuntimeConfig, MixCodeTabInfo } from "../core/types.js";
-import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
+import { type AutocompleteProvider, matchesKey as matchesPiKey } from "@earendil-works/pi-tui";
 import { stripSkillInjection } from "../core/attachments.js";
-import { activateMixCodeTools, getActiveToolInfos } from "./tools.js";
+import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
+import type { AgentRuntimeConfig, MixCodeTabInfo } from "../core/types.js";
 import { MIXCODE_EXTENSION_KEYBINDINGS } from "./runtime-extension-theme.js";
+import { activateMixCodeTools, getActiveToolInfos } from "./tools.js";
+
 export { MIXCODE_EXTENSION_KEYBINDINGS_MANAGER } from "./runtime-extension-theme.js";
+
+import {
+  defaultExtensionManagerConfig,
+  type ExtensionManagerConfig,
+} from "../core/extension-manager.js";
 import {
   appendSystemMessage,
   disposeChatRenderers,
@@ -29,6 +36,17 @@ import {
   syncContextUsage,
   syncPreviewFromChat,
 } from "./runtime-chat.js";
+import { applyEvent } from "./runtime-events.js";
+import {
+  extensionNewRuntimeSession,
+  forkRuntimeSession,
+  importRuntimeJsonl,
+  navigateRuntimeTree,
+  type RuntimeExtensionSessionContext,
+  redoRuntimeUserTurn,
+  switchRuntimeSession,
+  undoRuntimeUserTurn,
+} from "./runtime-extension-session.js";
 import {
   appendExtensionConflictDiagnostics,
   appendExtensionLoadErrors,
@@ -36,48 +54,39 @@ import {
   closeExtensionCustomOverlays,
   surfaceShortcutError,
 } from "./runtime-extension-ui.js";
-import { applyEvent } from "./runtime-events.js";
-import {
-  copySession,
-  createSession,
-  openOrCreateSession,
-  reopenSessionInWorkdir,
-  resetExtensionHostState,
-} from "./runtime-session.js";
-import { registerMixCodeRuntimeProvider } from "./runtime-provider.js";
-import {
-  bindRuntimeExtensions,
-  createRuntimeServices,
-  createRuntimeTab,
-  getExtensionManagerEntriesForServices,
-  rebuildRuntimeChat,
-  replaceRuntimeTabSession,
-  shutdownRuntimeTab,
-  syncRuntimeChatFromSession,
-  type RuntimeLifecycleContext,
-} from "./runtime-lifecycle.js";
 import {
   flushRuntimePendingMessage,
   popRuntimePendingMessage,
   scheduleRuntimePendingMessageFlush,
 } from "./runtime-follow-up.js";
-import { resolveRuntimeModel, resolveRuntimeModelFromSession } from "./runtime-model.js";
 import {
-  extensionNewRuntimeSession,
-  forkRuntimeSession,
-  importRuntimeJsonl,
-  navigateRuntimeTree,
-  redoRuntimeUserTurn,
-  switchRuntimeSession,
-  undoRuntimeUserTurn,
-  type RuntimeExtensionSessionContext,
-} from "./runtime-extension-session.js";
+  bindRuntimeExtensions,
+  createRuntimeServices,
+  createRuntimeTab,
+  getExtensionManagerEntriesForServices,
+  type RuntimeLifecycleContext,
+  rebuildRuntimeChat,
+  replaceRuntimeTabSession,
+  shutdownRuntimeTab,
+  syncRuntimeChatFromSession,
+} from "./runtime-lifecycle.js";
+import { resolveRuntimeModel, resolveRuntimeModelFromSession } from "./runtime-model.js";
+import { registerMixCodeRuntimeProvider } from "./runtime-provider.js";
+import {
+  copySession,
+  createSession,
+  listAllSessionsGlobal,
+  listSessionsForCwd,
+  openOrCreateSession,
+  reopenSessionInWorkdir,
+  resetExtensionHostState,
+} from "./runtime-session.js";
 import type {
   ChatLine,
-  ExtensionManagerStore,
   ExtensionArgumentCompleter,
   ExtensionCustomUiHost,
   ExtensionForkOptions,
+  ExtensionManagerStore,
   ExtensionNavigateTreeOptions,
   ExtensionNewSessionOptions,
   ExtensionSwitchSessionOptions,
@@ -90,10 +99,8 @@ import type {
   SessionReplacementReason,
   TerminalInputResult,
 } from "./runtime-types.js";
-import {
-  defaultExtensionManagerConfig,
-  type ExtensionManagerConfig,
-} from "../core/extension-manager.js";
+
+export type { SessionInfo } from "@earendil-works/pi-coding-agent";
 export type {
   ChatLine,
   EditorFactory,
@@ -105,6 +112,7 @@ type BashResult = Awaited<ReturnType<AgentSession["executeBash"]>>;
 
 export class MixCodeRuntime {
   private readonly sessionsRoot: string;
+  private readonly rootStateDir: string | undefined;
   private readonly agentDir: string;
   private readonly tabs = new Map<string, RuntimeTab>();
   private readonly changeListeners = new Set<
@@ -162,6 +170,7 @@ export class MixCodeRuntime {
   constructor(
     options: {
       sessionsRoot?: string;
+      rootStateDir?: string;
       agentDir?: string;
       authStorage?: AuthStorage;
       modelRegistry?: RuntimeModelRegistry;
@@ -175,6 +184,7 @@ export class MixCodeRuntime {
     } = {},
   ) {
     this.sessionsRoot = options.sessionsRoot ?? join(tmpdir(), "mixcode-pi-sessions");
+    this.rootStateDir = options.rootStateDir;
     this.agentDir = options.agentDir ?? getAgentDir();
     this.authStorage = options.authStorage;
     this.modelRegistry = options.modelRegistry;
@@ -613,6 +623,23 @@ export class MixCodeRuntime {
   async forkSession(sourceSessionId: string, newSessionId: string): Promise<SessionManager> {
     const source = this.requireTab(sourceSessionId);
     return copySession(source.session, source.tab.workdir, newSessionId, this.sessionsRoot);
+  }
+
+  /**
+   * List sessions for a specific working directory.
+   * Uses the runtime's sessionsRoot as the session directory.
+   */
+  async listSessions(cwd: string): Promise<SessionInfo[]> {
+    return listSessionsForCwd(cwd, this.sessionsRoot);
+  }
+
+  /**
+   * List all sessions across all working directories.
+   * Scans every workdir's sessions directory under rootStateDir,
+   * plus the legacy root sessions directory.
+   */
+  async listAllSessions(): Promise<SessionInfo[]> {
+    return listAllSessionsGlobal(this.sessionsRoot, this.rootStateDir);
   }
 
   async extensionNewSession(

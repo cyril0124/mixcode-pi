@@ -1,7 +1,7 @@
 import { getModel, type Model } from "@earendil-works/pi-ai";
 import type { SessionManager } from "@earendil-works/pi-coding-agent";
-import type { MixCodeTabInfo } from "../core/types.js";
 import { resolveRegisteredModel } from "../core/models.js";
+import type { MixCodeTabInfo } from "../core/types.js";
 import { MIXCODE_FAUX_MODEL } from "./faux-stream.js";
 import type { RuntimeModelRegistry } from "./runtime-types.js";
 

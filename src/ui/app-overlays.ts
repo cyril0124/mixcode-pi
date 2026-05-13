@@ -1,14 +1,14 @@
 import {
-  visibleWidth,
   type Component,
   type OverlayHandle,
   type OverlayOptions,
+  visibleWidth,
 } from "@earendil-works/pi-tui";
 import { editTextInExternalEditor } from "../core/external-editor.js";
 import { closeCommandPalette, closeTabJump } from "../core/overlays.js";
 import type { MixCodeState } from "../core/types.js";
-import { overlayPanel, padLine } from "./rendering.js";
 import type { OverlayTui } from "./app-types.js";
+import { overlayPanel, padLine } from "./rendering.js";
 
 const activeOverlayHandles = new WeakMap<object, OverlayHandle>();
 
