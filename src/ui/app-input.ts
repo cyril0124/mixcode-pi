@@ -10,6 +10,7 @@ import { activateTab, nextTabId } from "../core/tabs.js";
 import type { MixCodeState } from "../core/types.js";
 import { clearPendingEscape, openQuitConfirm } from "./app-actions.js";
 import { insertEditorText } from "./app-editor.js";
+import { pasteDetector } from "./paste-detect.js";
 import {
   canOpenCommandPalette,
   handleChatScrollKey,
@@ -60,6 +61,7 @@ export function handleMixCodeKeyInput(
   commandPaletteActions?: CommandPaletteActions,
   exportChooserActions: ExportChooserActions = {},
 ): { consume?: boolean; data?: string } | undefined {
+  pasteDetector.recordInput(data);
   const active = state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];
   if (handleChromeMouseInput(state, active, data, tui)) {
     return { consume: true };
@@ -276,6 +278,9 @@ export function handleMixCodeKeyInput(
     tui.requestRender();
     return { consume: true };
   }
+  if (handlePasteNewline(data, editorActions, tui, active)) {
+    return { consume: true };
+  }
   if (handleBatchedSubmitInput(state, active, data, tui, isEditorAutocompleteOpen, editorActions)) {
     return { consume: true };
   }
@@ -308,6 +313,33 @@ export function handleMixCodeKeyInput(
     return { consume: true };
   }
   return undefined;
+}
+
+/**
+ * Intercept Enter (\r) during rapid input (paste without bracketed paste markers)
+ * and insert a newline instead of letting the editor submit.
+ */
+function handlePasteNewline(
+  data: string,
+  editorActions: MixCodeEditorActions | undefined,
+  tui: OverlayTui,
+  active: MixCodeState["tabs"][number] | undefined,
+): boolean {
+  if (!editorActions) return false;
+  if (!pasteDetector.isLikelyPaste()) return false;
+  if (active?.vimMode) return false;
+  const text = pasteNewlineText(data);
+  if (text === undefined) return false;
+  insertEditorText(editorActions, text);
+  tui.requestRender();
+  return true;
+}
+
+function pasteNewlineText(data: string): string | undefined {
+  if (data === "\r" || data === "\n") return "\n";
+  const text = inlineSubmitText(data);
+  if (text === undefined) return undefined;
+  return `${text}\n`;
 }
 
 function handleVimModeTabCycle(
