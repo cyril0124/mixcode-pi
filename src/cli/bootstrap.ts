@@ -124,6 +124,9 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
       thinkingLevel: tab.thinkingLevel,
       workdir: tab.workdir,
     });
+    // Sync tab title from session file name (persisted via /rename or Ctrl+R)
+    const sessionName = runtimeTab.session.getSessionName();
+    if (sessionName) tab.title = sessionName;
     const repair = modelRepairs.get(tab.sessionId);
     if (repair) {
       runtimeTab.chat.push({

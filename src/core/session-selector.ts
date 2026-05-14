@@ -31,6 +31,10 @@ export interface SessionSelectorState {
   confirmingDeletePath: string | null;
   /** Current session file path (to prevent deleting active session) */
   currentSessionPath: string | null;
+  /** Rename mode */
+  renameMode: boolean;
+  renameTargetPath: string | null;
+  renameInput: string;
 }
 
 export function createSessionSelectorState(): SessionSelectorState {
@@ -50,6 +54,9 @@ export function createSessionSelectorState(): SessionSelectorState {
     statusType: "info",
     confirmingDeletePath: null,
     currentSessionPath: null,
+    renameMode: false,
+    renameTargetPath: null,
+    renameInput: "",
   };
 }
 

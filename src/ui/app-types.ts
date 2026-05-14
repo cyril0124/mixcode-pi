@@ -8,6 +8,8 @@ export type MixCodeKeyRuntime = Partial<
     MixCodeRuntime,
     | "abortTab"
     | "appendSystemMessage"
+    | "closeTab"
+    | "createTab"
     | "closeAllTabs"
     | "dispatchExtensionShortcut"
     | "dispatchTerminalInput"
@@ -50,6 +52,7 @@ type OptionalSubmitRuntime = Partial<
     | "reloadExtensionManagerTab"
     | "reloadExtensionManagerWorkdir"
     | "redoLastUndo"
+    | "renameSession"
     | "resolveModel"
     | "updateTabModel"
     | "updateTabThinkingLevel"

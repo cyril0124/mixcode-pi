@@ -4,6 +4,7 @@ import { unlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import { matchesKey, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
+import { createTab } from "../core/defaults.js";
 import {
   createSessionSelectorState,
   cycleSessionSortMode,
@@ -17,6 +18,8 @@ import {
   toggleSessionSelectorScope,
   updateSessionSelectorQuery,
 } from "../core/session-selector.js";
+import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
+import { activateTab, closeAgentTab } from "../core/tabs.js";
 import type { MixCodeState } from "../core/types.js";
 import { closeAppOverlay, showErrorOverlay, showLinesOverlay } from "./app-overlays.js";
 import type { MixCodeKeyRuntime, OverlayTui } from "./app-types.js";
@@ -33,6 +36,12 @@ export interface SessionSelectorRuntime {
     sessionId: string,
     sessionPath: string,
   ) => Promise<{ cancelled: boolean }>;
+  createTab: (
+    tab: import("../core/types.js").MixCodeTabInfo,
+    config: { systemPrompt: string; thinkingLevel: string; workdir: string },
+  ) => Promise<unknown>;
+  getTab: (sessionId: string) => { session: { getSessionFile: () => string | null } } | undefined;
+  closeTab: (sessionId: string) => Promise<void>;
 }
 
 export async function openSessionSelector(
@@ -100,6 +109,52 @@ export function handleSessionSelectorKey(
     return true; // Consume all keys during confirmation
   }
 
+  // Rename mode: separate input handling
+  if (selector.renameMode) {
+    if (matchesKey(data, "escape")) {
+      selector.renameMode = false;
+      selector.renameTargetPath = null;
+      selector.renameInput = "";
+      showLinesOverlay(tui, (width) => renderSessionSelector(state, width));
+      tui.requestRender();
+      return true;
+    }
+    if (matchesKey(data, "enter")) {
+      const name = selector.renameInput.trim();
+      const targetPath = selector.renameTargetPath;
+      selector.renameMode = false;
+      selector.renameTargetPath = null;
+      selector.renameInput = "";
+      if (name && targetPath) {
+        void confirmRenameSession(state, tui, targetPath, name, runtime);
+      } else {
+        showLinesOverlay(tui, (width) => renderSessionSelector(state, width));
+        tui.requestRender();
+      }
+      return true;
+    }
+    if (data === "\u007f") {
+      selector.renameInput = selector.renameInput.slice(0, -1);
+      showLinesOverlay(tui, (width) => renderSessionSelector(state, width));
+      tui.requestRender();
+      return true;
+    }
+    if (matchesKey(data, "ctrl+u")) {
+      selector.renameInput = "";
+      showLinesOverlay(tui, (width) => renderSessionSelector(state, width));
+      tui.requestRender();
+      return true;
+    }
+    // Accept any printable input
+    if (data.length > 0 && !/^[\x00-\x1f\x7f]$/.test(data)) {
+      selector.renameInput += data;
+      showLinesOverlay(tui, (width) => renderSessionSelector(state, width));
+      tui.requestRender();
+      return true;
+    }
+    return true;
+  }
+
   if (matchesKey(data, "escape")) {
     closeSessionSelector(state, tui);
     return true;
@@ -138,6 +193,12 @@ export function handleSessionSelectorKey(
     tui.requestRender();
     return true;
   }
+  if (matchesKey(data, "ctrl+r")) {
+    enterRenameMode(selector);
+    showLinesOverlay(tui, (width) => renderSessionSelector(state, width));
+    tui.requestRender();
+    return true;
+  }
   if (matchesKey(data, "up")) {
     moveSessionSelectorSelection(selector, -1);
     showLinesOverlay(tui, (width) => renderSessionSelector(state, width));
@@ -163,9 +224,17 @@ export function handleSessionSelectorKey(
     return true;
   }
   if (matchesKey(data, "enter")) {
-    const sessionPath = getSelectedSessionPath(selector);
-    if (sessionPath) {
-      resumeSelectedSession(state, tui, sessionPath, runtime, onStateChanged);
+    const nodes = getFilteredSessions(selector);
+    const selected = nodes[selector.selectedIndex];
+    if (selected) {
+      resumeSelectedSession(
+        state,
+        tui,
+        selected.session.path,
+        selected.session.name,
+        runtime,
+        onStateChanged,
+      );
     }
     return true;
   }
@@ -184,7 +253,13 @@ export function handleSessionSelectorKey(
     return true;
   }
   // Printable characters (ASCII + multibyte like CJK)
-  if (data.length > 0 && !matchesKey(data, "escape") && !/^[\x00-\x1f\x7f]$/.test(data)) {
+  // Exclude escape sequences (start with \x1b) which are special key combos
+  if (
+    data.length > 0 &&
+    !data.startsWith("\x1b") &&
+    !matchesKey(data, "escape") &&
+    !/^[\x00-\x1f\x7f]$/.test(data)
+  ) {
     updateSessionSelectorQuery(selector, selector.query + data);
     showLinesOverlay(tui, (width) => renderSessionSelector(state, width));
     tui.requestRender();
@@ -204,6 +279,47 @@ function startDeleteConfirmation(selector: SessionSelectorState): void {
     return;
   }
   selector.confirmingDeletePath = path;
+}
+
+function enterRenameMode(selector: SessionSelectorState): void {
+  const nodes = getFilteredSessions(selector);
+  const selected = nodes[selector.selectedIndex];
+  if (!selected) return;
+  selector.renameMode = true;
+  selector.renameTargetPath = selected.session.path;
+  selector.renameInput = selected.session.name ?? "";
+}
+
+async function confirmRenameSession(
+  state: MixCodeState,
+  tui: OverlayTui,
+  sessionPath: string,
+  name: string,
+  runtime?: MixCodeKeyRuntime,
+): Promise<void> {
+  const selector = state.sessionSelector;
+  try {
+    // Open the session file and append session_info
+    const { SessionManager: SM } = await import("@earendil-works/pi-coding-agent");
+    const mgr = SM.open(sessionPath);
+    mgr.appendSessionInfo(name);
+    // Refresh the session list to reflect the new name
+    const sessions = selector.scope === "all" ? selector.allSessions : selector.currentSessions;
+    const session = sessions.find((s) => s.path === sessionPath);
+    if (session) session.name = name;
+    // Sync tab title if the renamed session is the active one
+    if (selector.currentSessionPath && sessionPath === selector.currentSessionPath) {
+      const activeTab = state.tabs.find((tab) => tab.sessionId === state.activeTabId);
+      if (activeTab) activeTab.title = name;
+    }
+    selector.statusMessage = `Renamed: ${name}`;
+    selector.statusType = "info";
+  } catch (error) {
+    selector.statusMessage = `Rename failed: ${error instanceof Error ? error.message : String(error)}`;
+    selector.statusType = "error";
+  }
+  showLinesOverlay(tui, (width) => renderSessionSelector(state, width));
+  tui.requestRender();
 }
 
 async function deleteSessionAndRefresh(
@@ -281,36 +397,102 @@ function resumeSelectedSession(
   state: MixCodeState,
   tui: OverlayTui,
   sessionPath: string,
+  sessionName: string | undefined,
   runtime?: MixCodeKeyRuntime,
   onStateChanged?: (state: MixCodeState) => void | Promise<void>,
 ): void {
   const runtimeRef = runtime as unknown as SessionSelectorRuntime | undefined;
-  if (!runtimeRef?.extensionSwitchSession) {
+  if (
+    !runtimeRef?.extensionSwitchSession ||
+    !runtimeRef.createTab ||
+    !runtimeRef.getTab ||
+    !runtimeRef.closeTab
+  ) {
     showErrorOverlay(tui, new Error("Resume requires runtime session switch support"));
     tui.requestRender();
     return;
   }
   const active = state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];
-  if (!active) {
-    showErrorOverlay(tui, new Error("No active session to resume into"));
+  // Prevent resuming the already-active session
+  const selector = state.sessionSelector;
+  if (selector.currentSessionPath && sessionPath === selector.currentSessionPath) {
+    selector.statusMessage = "Already the active session";
+    selector.statusType = "info";
+    showLinesOverlay(tui, (width) => renderSessionSelector(state, width));
+    tui.requestRender();
+    return;
+  }
+  // If the target session is already open in another tab, just switch to that tab
+  const existingTab = state.tabs.find((tab) => {
+    const rt = runtimeRef.getTab(tab.sessionId);
+    return rt?.session.getSessionFile() === sessionPath;
+  });
+  if (existingTab) {
+    closeSessionSelector(state, tui);
+    activateTab(state, existingTab.sessionId);
+    void onStateChanged?.(state);
     tui.requestRender();
     return;
   }
   closeSessionSelector(state, tui);
-  void runtimeRef
-    .extensionSwitchSession(active.sessionId, sessionPath)
-    .then(async (result) => {
+  // Create a new tab and switch its session to the target.
+  const previousActiveTabId = state.activeTabId;
+  const newSessionId = `session-${Date.now()}`;
+  const newTab = createTab(state.tabs.length + 1, newSessionId, active?.workdir ?? state.workdir, {
+    model: { ...(active?.model ?? state.model) },
+    contextLimit: active?.contextLimit ?? state.model.contextWindow,
+    thinkingLevel: active?.thinkingLevel ?? state.thinkingLevel,
+  });
+  state.tabs.push(newTab);
+  activateTab(state, newSessionId);
+  void (async () => {
+    let runtimeTabCreated = false;
+    try {
+      await runtimeRef.createTab(newTab, {
+        systemPrompt: MIXCODE_SYSTEM_PROMPT,
+        thinkingLevel: newTab.thinkingLevel,
+        workdir: newTab.workdir,
+      });
+      runtimeTabCreated = true;
+      const result = await runtimeRef.extensionSwitchSession(newSessionId, sessionPath);
       if (result.cancelled) {
+        await runtimeRef.closeTab(newSessionId);
+        discardResumeTabState(state, newSessionId, previousActiveTabId);
         state.sessionSelector.statusMessage = "Resume cancelled";
         state.sessionSelector.statusType = "info";
+        await onStateChanged?.(state);
+        tui.requestRender();
+        return;
       }
+      // Sync tab title from session name
+      if (sessionName) newTab.title = sessionName;
       await onStateChanged?.(state);
       tui.requestRender();
-    })
-    .catch((error: unknown) => {
+    } catch (error: unknown) {
+      if (runtimeTabCreated) {
+        await runtimeRef.closeTab(newSessionId);
+      }
+      discardResumeTabState(state, newSessionId, previousActiveTabId);
       showErrorOverlay(tui, error);
       tui.requestRender();
-    });
+    }
+  })();
+}
+
+function discardResumeTabState(
+  state: MixCodeState,
+  sessionId: string,
+  previousActiveTabId: string,
+): void {
+  if (state.tabs.some((tab) => tab.sessionId === sessionId)) {
+    closeAgentTab(state, sessionId);
+  }
+  if (
+    previousActiveTabId === "config" ||
+    state.tabs.some((tab) => tab.sessionId === previousActiveTabId)
+  ) {
+    activateTab(state, previousActiveTabId);
+  }
 }
 
 // --- Rendering ---
@@ -326,6 +508,18 @@ const MAX_VISIBLE = 12;
 function renderSessionSelectorInner(selector: SessionSelectorState, width: number): string[] {
   const panelWidth = Math.min(Math.max(70, width - 4), width);
   const bodyWidth = Math.max(1, panelWidth - 4);
+
+  // Rename mode: show a simple rename panel
+  if (selector.renameMode) {
+    const lines = [
+      activeRenderTheme.bold("Rename Session"),
+      "",
+      `name: ${selector.renameInput}`,
+      "",
+      activeRenderTheme.dim("Enter: save  Esc: cancel  Ctrl+U: clear"),
+    ];
+    return overlayPanel("Rename Session", lines, panelWidth);
+  }
 
   // Header line: title + scope + sort + name filter
   const title =
@@ -354,7 +548,7 @@ function renderSessionSelectorInner(selector: SessionSelectorState, width: numbe
     hintLine = activeRenderTheme[color](selector.statusMessage);
   } else {
     hintLine = activeRenderTheme.dim(
-      'Tab: scope  Ctrl+S: sort  Ctrl+N: named  Ctrl+D: delete  Ctrl+P: path  re:<pat> regex  "phrase" exact',
+      "Tab: scope  Ctrl+S: sort  Ctrl+N: named  Ctrl+D: delete  Ctrl+R: rename  Ctrl+P: path",
     );
   }
 

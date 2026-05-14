@@ -642,6 +642,15 @@ export class MixCodeRuntime {
     return listAllSessionsGlobal(this.sessionsRoot, this.rootStateDir);
   }
 
+  /**
+   * Persist a session display name into the session file.
+   * Appends a session_info entry so the name survives restarts and shows in /resume.
+   */
+  renameSession(sessionId: string, name: string): void {
+    const runtimeTab = this.requireTab(sessionId);
+    runtimeTab.session.appendSessionInfo(name);
+  }
+
   async extensionNewSession(
     sessionId: string,
     options?: ExtensionNewSessionOptions,

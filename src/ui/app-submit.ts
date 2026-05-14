@@ -217,6 +217,7 @@ export async function handleSubmittedInput(
     });
   } else if (parsed.command === "rename") {
     renameAgentTab(state, active!.sessionId, parsed.args);
+    runtime.renameSession?.(active!.sessionId, parsed.args);
   } else if (parsed.command === "models") {
     if (!parsed.args.trim()) {
       state.picker = createPicker("models", state, active);
