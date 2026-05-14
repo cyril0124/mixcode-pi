@@ -76,6 +76,7 @@ interface ChatPrefixCache {
   prefixLength: number; // chat.length - 1
   width: number;
   themeName: string;
+  toolsExpanded: boolean;
 }
 
 const chatPrefixCacheMap = new WeakMap<ChatLine[], ChatPrefixCache>();
@@ -88,6 +89,7 @@ function renderChatStream(chat: ChatLine[], width: number, tab?: MixCodeTabInfo)
 
   // Try to reuse cached prefix (all messages except the last)
   const prefixLength = chat.length - 1;
+  const toolsExpanded = tab?.extensionUi.toolsExpanded ?? false;
   const cached = chatPrefixCacheMap.get(chat);
   let prefixLines: string[];
 
@@ -96,7 +98,8 @@ function renderChatStream(chat: ChatLine[], width: number, tab?: MixCodeTabInfo)
     cached.chatRef === chat &&
     cached.prefixLength === prefixLength &&
     cached.width === width &&
-    cached.themeName === activeRenderTheme.name
+    cached.themeName === activeRenderTheme.name &&
+    cached.toolsExpanded === toolsExpanded
   ) {
     prefixLines = cached.lines;
   } else {
@@ -113,6 +116,7 @@ function renderChatStream(chat: ChatLine[], width: number, tab?: MixCodeTabInfo)
       prefixLength,
       width,
       themeName: activeRenderTheme.name,
+      toolsExpanded,
     });
   }
 

@@ -1,4 +1,4 @@
-import { matchesKey } from "@earendil-works/pi-tui";
+import { isKeyRelease, matchesKey, type EditorComponent } from "@earendil-works/pi-tui";
 
 import type { SessionTreeNode } from "../core/tree-selector.js";
 
@@ -24,12 +24,90 @@ import {
   updateTreeSearchQuery,
 } from "../core/tree-selector.js";
 import type { MixCodeState } from "../core/types.js";
-import type { MixCodeKeyRuntime, OverlayTui } from "./app-types.js";
-import { closeAppOverlay, showErrorOverlay, showLinesOverlay } from "./app-overlays.js";
+import type { MixCodeKeyRuntime, OverlayTui, TreeSelectorDisplayHost } from "./app-types.js";
+import { showErrorOverlay } from "./app-overlays.js";
 import { renderTreeSelector } from "./tree-selector-render.js";
 
+function refreshTreeSelectorDisplay(tui: OverlayTui): void {
+  getTreeSelectorDisplayHost(tui)?.refresh();
+}
+
+function closeTreeSelectorDisplay(tui: OverlayTui, sessionId?: string): void {
+  getTreeSelectorDisplayHost(tui)?.close(sessionId);
+}
+
+function getTreeSelectorDisplayHost(tui: OverlayTui): TreeSelectorDisplayHost | undefined {
+  return tui.treeSelectorDisplay;
+}
+
 function getMaxVisible(): number {
-  return Math.max(8, Math.floor((process.stdout.rows || 24) / 2));
+  return Math.max(5, Math.floor((process.stdout.rows || 24) / 2));
+}
+
+export class TreeSelectorEditorComponent implements EditorComponent {
+  onSubmit?: (text: string) => void;
+  onChange?: (text: string) => void;
+
+  constructor(
+    private readonly state: MixCodeState,
+    private readonly tui: OverlayTui,
+    private readonly runtime?: unknown,
+    private readonly onStateChanged?: (state: MixCodeState) => void | Promise<void>,
+  ) {}
+
+  render(width: number): string[] {
+    return renderTreeSelector(this.state, width);
+  }
+
+  invalidate(): void {}
+
+  handleInput(data: string): void {
+    if (isKeyRelease(data)) return;
+    handleTreeSelectorKey(
+      this.state,
+      data,
+      this.tui,
+      this.runtime as MixCodeKeyRuntime | undefined,
+      this.onStateChanged,
+    );
+  }
+
+  getText(): string {
+    return "";
+  }
+
+  setText(_text: string): void {}
+
+  getExpandedText(): string {
+    return "";
+  }
+
+  addToHistory(_text: string): void {}
+
+  insertTextAtCursor(_text: string): void {}
+}
+
+export function attachTreeSelectorDisplayHost(
+  tui: OverlayTui,
+  state: MixCodeState,
+  setEditorComponent: (factory: (() => EditorComponent) | undefined, sessionId?: string) => void,
+): void {
+  const displayTui = tui as OverlayTui & {
+    treeSelectorDisplay?: TreeSelectorDisplayHost;
+  };
+  displayTui.treeSelectorDisplay = {
+    open: (sessionId, runtime, onStateChanged) => {
+      setEditorComponent(
+        () => new TreeSelectorEditorComponent(state, tui, runtime, onStateChanged),
+        sessionId,
+      );
+    },
+    refresh: () => tui.requestRender(),
+    close: (sessionId) => {
+      setEditorComponent(undefined, sessionId);
+      state.treeSelector.open = false;
+    },
+  };
 }
 
 // --- Runtime interface ---
@@ -79,13 +157,15 @@ export function openTreeSelector(
   }
 
   initTreeSelector(state.treeSelector, tree, leafId, initialSelectedId);
-  showLinesOverlay(tui, (width) => renderTreeSelector(state, width));
+  const display = getTreeSelectorDisplayHost(tui);
+  if (!display) throw new Error("Tree selector requires editor display host support");
+  display.open(sessionId, runtime, undefined);
   tui.requestRender();
 }
 
 export function closeTreeSelector(state: MixCodeState, tui: OverlayTui): void {
   state.treeSelector.open = false;
-  closeAppOverlay(tui);
+  closeTreeSelectorDisplay(tui);
   tui.requestRender();
 }
 
@@ -105,7 +185,7 @@ export function handleTreeSelectorKey(
   if (selector.labelEditEntryId !== null) {
     if (matchesKey(data, "escape")) {
       cancelLabelEdit(selector);
-      showLinesOverlay(tui, (width) => renderTreeSelector(state, width));
+      refreshTreeSelectorDisplay(tui);
       tui.requestRender();
       return true;
     }
@@ -119,26 +199,26 @@ export function handleTreeSelectorKey(
           runtimeRef.getTab(active.sessionId)?.session.appendLabelChange(result.entryId, result.label);
         }
       }
-      showLinesOverlay(tui, (width) => renderTreeSelector(state, width));
+      refreshTreeSelectorDisplay(tui);
       tui.requestRender();
       return true;
     }
     if (data === "\u007f") {
       selector.labelEditInput = selector.labelEditInput.slice(0, -1);
-      showLinesOverlay(tui, (width) => renderTreeSelector(state, width));
+      refreshTreeSelectorDisplay(tui);
       tui.requestRender();
       return true;
     }
     if (matchesKey(data, "ctrl+u")) {
       selector.labelEditInput = "";
-      showLinesOverlay(tui, (width) => renderTreeSelector(state, width));
+      refreshTreeSelectorDisplay(tui);
       tui.requestRender();
       return true;
     }
     // Accept printable input
     if (data.length > 0 && !data.startsWith("\x1b") && !/^[\x00-\x1f\x7f]$/.test(data)) {
       selector.labelEditInput += data;
-      showLinesOverlay(tui, (width) => renderTreeSelector(state, width));
+      refreshTreeSelectorDisplay(tui);
       tui.requestRender();
       return true;
     }
@@ -152,7 +232,7 @@ export function handleTreeSelectorKey(
       // Custom instructions input
       if (matchesKey(data, "escape")) {
         cancelCustomInstructions(selector);
-        showLinesOverlay(tui, (width) => renderTreeSelector(state, width));
+        refreshTreeSelectorDisplay(tui);
         tui.requestRender();
         return true;
       }
@@ -173,19 +253,19 @@ export function handleTreeSelectorKey(
       }
       if (data === "\u007f") {
         prompt.customInput = prompt.customInput.slice(0, -1);
-        showLinesOverlay(tui, (width) => renderTreeSelector(state, width));
+        refreshTreeSelectorDisplay(tui);
         tui.requestRender();
         return true;
       }
       if (matchesKey(data, "ctrl+u")) {
         prompt.customInput = "";
-        showLinesOverlay(tui, (width) => renderTreeSelector(state, width));
+        refreshTreeSelectorDisplay(tui);
         tui.requestRender();
         return true;
       }
       if (data.length > 0 && !data.startsWith("\x1b") && !/^[\x00-\x1f\x7f]$/.test(data)) {
         prompt.customInput += data;
-        showLinesOverlay(tui, (width) => renderTreeSelector(state, width));
+        refreshTreeSelectorDisplay(tui);
         tui.requestRender();
         return true;
       }
@@ -195,19 +275,19 @@ export function handleTreeSelectorKey(
     // Summarize option selection
     if (matchesKey(data, "escape")) {
       cancelSummarizePrompt(selector);
-      showLinesOverlay(tui, (width) => renderTreeSelector(state, width));
+      refreshTreeSelectorDisplay(tui);
       tui.requestRender();
       return true;
     }
     if (matchesKey(data, "up")) {
       moveSummarizeSelection(selector, -1);
-      showLinesOverlay(tui, (width) => renderTreeSelector(state, width));
+      refreshTreeSelectorDisplay(tui);
       tui.requestRender();
       return true;
     }
     if (matchesKey(data, "down")) {
       moveSummarizeSelection(selector, 1);
-      showLinesOverlay(tui, (width) => renderTreeSelector(state, width));
+      refreshTreeSelectorDisplay(tui);
       tui.requestRender();
       return true;
     }
@@ -225,7 +305,7 @@ export function handleTreeSelectorKey(
         }
       } else {
         // Entered custom mode, re-render
-        showLinesOverlay(tui, (width) => renderTreeSelector(state, width));
+        refreshTreeSelectorDisplay(tui);
         tui.requestRender();
       }
       return true;
@@ -237,7 +317,7 @@ export function handleTreeSelectorKey(
   if (matchesKey(data, "escape")) {
     if (selector.searchQuery) {
       updateTreeSearchQuery(selector, "");
-      showLinesOverlay(tui, (width) => renderTreeSelector(state, width));
+      refreshTreeSelectorDisplay(tui);
       tui.requestRender();
     } else {
       closeTreeSelector(state, tui);
@@ -246,39 +326,37 @@ export function handleTreeSelectorKey(
   }
   if (matchesKey(data, "up")) {
     moveTreeSelection(selector, -1);
-    showLinesOverlay(tui, (width) => renderTreeSelector(state, width));
+    refreshTreeSelectorDisplay(tui);
     tui.requestRender();
     return true;
   }
   if (matchesKey(data, "down")) {
     moveTreeSelection(selector, 1);
-    showLinesOverlay(tui, (width) => renderTreeSelector(state, width));
+    refreshTreeSelectorDisplay(tui);
     tui.requestRender();
     return true;
   }
   if (matchesKey(data, "left") || matchesKey(data, "pageUp")) {
     pageTreeSelection(selector, -1, getMaxVisible());
-    showLinesOverlay(tui, (width) => renderTreeSelector(state, width));
+    refreshTreeSelectorDisplay(tui);
     tui.requestRender();
     return true;
   }
   if (matchesKey(data, "right") || matchesKey(data, "pageDown")) {
     pageTreeSelection(selector, 1, getMaxVisible());
-    showLinesOverlay(tui, (width) => renderTreeSelector(state, width));
+    refreshTreeSelectorDisplay(tui);
     tui.requestRender();
     return true;
   }
-  if (matchesKey(data, "ctrl+h")) {
-    // Fold or navigate up
+  if (matchesKey(data, "ctrl+left") || matchesKey(data, "alt+left")) {
     foldOrUp(selector);
-    showLinesOverlay(tui, (width) => renderTreeSelector(state, width));
+    refreshTreeSelectorDisplay(tui);
     tui.requestRender();
     return true;
   }
-  if (matchesKey(data, "ctrl+l")) {
-    // Unfold or navigate down
+  if (matchesKey(data, "ctrl+right") || matchesKey(data, "alt+right")) {
     unfoldOrDown(selector);
-    showLinesOverlay(tui, (width) => renderTreeSelector(state, width));
+    refreshTreeSelectorDisplay(tui);
     tui.requestRender();
     return true;
   }
@@ -298,7 +376,7 @@ export function handleTreeSelectorKey(
         if (runtimeRef?.extensionNavigateTree) {
           // Show summarize prompt
           showSummarizePrompt(selector, entry.id);
-          showLinesOverlay(tui, (width) => renderTreeSelector(state, width));
+          refreshTreeSelectorDisplay(tui);
           tui.requestRender();
         }
       }
@@ -308,51 +386,49 @@ export function handleTreeSelectorKey(
   // Filter shortcuts
   if (matchesKey(data, "ctrl+a")) {
     setTreeFilter(selector, selector.filterMode === "all" ? "default" : "all");
-    showLinesOverlay(tui, (width) => renderTreeSelector(state, width));
+    refreshTreeSelectorDisplay(tui);
     tui.requestRender();
     return true;
   }
   if (matchesKey(data, "ctrl+t")) {
     setTreeFilter(selector, selector.filterMode === "no-tools" ? "default" : "no-tools");
-    showLinesOverlay(tui, (width) => renderTreeSelector(state, width));
+    refreshTreeSelectorDisplay(tui);
     tui.requestRender();
     return true;
   }
   if (matchesKey(data, "ctrl+u")) {
     setTreeFilter(selector, selector.filterMode === "user-only" ? "default" : "user-only");
-    showLinesOverlay(tui, (width) => renderTreeSelector(state, width));
+    refreshTreeSelectorDisplay(tui);
     tui.requestRender();
     return true;
   }
-  if (matchesKey(data, "ctrl+b")) {
+  if (matchesKey(data, "ctrl+l")) {
     setTreeFilter(selector, selector.filterMode === "labeled-only" ? "default" : "labeled-only");
-    showLinesOverlay(tui, (width) => renderTreeSelector(state, width));
+    refreshTreeSelectorDisplay(tui);
     tui.requestRender();
     return true;
   }
-  if (matchesKey(data, "ctrl+n")) {
+  if (matchesKey(data, "ctrl+o")) {
     cycleTreeFilter(selector, 1);
-    showLinesOverlay(tui, (width) => renderTreeSelector(state, width));
+    refreshTreeSelectorDisplay(tui);
     tui.requestRender();
     return true;
   }
-  if (matchesKey(data, "ctrl+p")) {
+  if (matchesKey(data, "shift+ctrl+o")) {
     cycleTreeFilter(selector, -1);
-    showLinesOverlay(tui, (width) => renderTreeSelector(state, width));
+    refreshTreeSelectorDisplay(tui);
     tui.requestRender();
     return true;
   }
-  if (matchesKey(data, "ctrl+e")) {
-    // Edit label
+  if (matchesKey(data, "shift+l")) {
     startLabelEdit(selector);
-    showLinesOverlay(tui, (width) => renderTreeSelector(state, width));
+    refreshTreeSelectorDisplay(tui);
     tui.requestRender();
     return true;
   }
-  if (matchesKey(data, "ctrl+d")) {
-    // Toggle label timestamps
+  if (matchesKey(data, "shift+t")) {
     selector.showLabelTimestamps = !selector.showLabelTimestamps;
-    showLinesOverlay(tui, (width) => renderTreeSelector(state, width));
+    refreshTreeSelectorDisplay(tui);
     tui.requestRender();
     return true;
   }
@@ -360,7 +436,7 @@ export function handleTreeSelectorKey(
   if (data === "\u007f") {
     if (selector.searchQuery.length > 0) {
       updateTreeSearchQuery(selector, selector.searchQuery.slice(0, -1));
-      showLinesOverlay(tui, (width) => renderTreeSelector(state, width));
+      refreshTreeSelectorDisplay(tui);
       tui.requestRender();
     }
     return true;
@@ -373,7 +449,7 @@ export function handleTreeSelectorKey(
     !/^[\x00-\x1f\x7f]$/.test(data)
   ) {
     updateTreeSearchQuery(selector, selector.searchQuery + data);
-    showLinesOverlay(tui, (width) => renderTreeSelector(state, width));
+    refreshTreeSelectorDisplay(tui);
     tui.requestRender();
     return true;
   }

@@ -1,4 +1,3 @@
-import type { TUI as TuiType } from "@earendil-works/pi-tui";
 import type { MixCodeRuntime } from "../agent/runtime.js";
 import { MIXCODE_EXTENSION_KEYBINDINGS } from "../agent/runtime-extension-theme.js";
 import { parseInput } from "../core/commands.js";
@@ -40,7 +39,7 @@ export async function handleSubmittedInput(
   state: MixCodeState,
   runtime: MixCodeSubmitRuntime,
   text: string,
-  tui: Pick<TuiType, "requestRender" | "showOverlay"> & Partial<Pick<TuiType, "stop">>,
+  tui: OverlayTui,
   onStateChanged?: (state: MixCodeState) => void | Promise<void>,
   shellManager?: Pick<ShellManager, "open" | "close">,
   workspaceFile?: string,
@@ -220,12 +219,7 @@ export async function handleSubmittedInput(
     if (!runtime.extensionNavigateTree) {
       throw new Error("Tree navigation requires pi runtime tree support");
     }
-    openTreeSelector(
-      state,
-      runtime as unknown as TreeSelectorRuntime,
-      tui,
-      active!.sessionId,
-    );
+    openTreeSelector(state, runtime as unknown as TreeSelectorRuntime, tui, active!.sessionId);
     await onStateChanged?.(state);
     tui.requestRender();
     return;

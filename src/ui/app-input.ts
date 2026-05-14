@@ -66,6 +66,11 @@ export function handleMixCodeKeyInput(
   if (handleChromeMouseInput(state, active, data, tui)) {
     return { consume: true };
   }
+  if (state.treeSelector.open) {
+    if (handleTreeSelectorKey(state, data, tui, runtime, onStateChanged)) {
+      return { consume: true };
+    }
+  }
   if (active && !hasAnyOverlay(tui)) {
     const extensionInput = runtime?.dispatchTerminalInput?.(active.sessionId, data);
     if (extensionInput?.consume) return { consume: true };
@@ -81,12 +86,6 @@ export function handleMixCodeKeyInput(
   if (
     state.sessionSelector.open &&
     handleSessionSelectorKey(state, data, tui, runtime, onStateChanged)
-  ) {
-    return { consume: true };
-  }
-  if (
-    state.treeSelector.open &&
-    handleTreeSelectorKey(state, data, tui, runtime, onStateChanged)
   ) {
     return { consume: true };
   }

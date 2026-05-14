@@ -83,8 +83,20 @@ export type MixCodeSubmitRuntime = Pick<
 export type RuntimeChangeSource = Pick<MixCodeRuntime, "onChange">;
 export type ShellKeyManager = Pick<ShellManager, "write"> &
   Partial<Pick<ShellManager, "close" | "writeMouse">>;
+export interface TreeSelectorDisplayHost {
+  open: (
+    sessionId: string,
+    runtime?: unknown,
+    onStateChanged?: (state: MixCodeState) => void | Promise<void>,
+  ) => void;
+  refresh: () => void;
+  close: (sessionId?: string) => void;
+}
+
 export type OverlayTui = Pick<TuiType, "requestRender" | "showOverlay"> &
-  Partial<Pick<TuiType, "hideOverlay" | "hasOverlay" | "setFocus" | "start" | "stop">>;
+  Partial<Pick<TuiType, "hideOverlay" | "hasOverlay" | "setFocus" | "start" | "stop">> & {
+    treeSelectorDisplay?: TreeSelectorDisplayHost;
+  };
 
 export interface MixCodeEditorActions {
   getText: () => string;

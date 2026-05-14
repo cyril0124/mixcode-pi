@@ -21,6 +21,7 @@ import {
   hydrateTabPromptHistory,
 } from "./app-runtime.js";
 import { handleSubmittedInput } from "./app-submit.js";
+import { attachTreeSelectorDisplayHost } from "./tree-selector.js";
 import { MixCodeCompletionProvider, type MixCodeCompletionSources } from "./completion.js";
 import {
   renderExtensionHeader,
@@ -79,6 +80,9 @@ export function createMixCodeTui(
   );
   defaultEditor.setAutocompleteMaxVisible(8);
   const editor = new EditorSlot(tui, defaultEditor, state);
+  attachTreeSelectorDisplayHost(tui, state, (factory, sessionId) =>
+    editor.setEditorComponent(factory, sessionId),
+  );
   hydrateTabPromptHistory(state, runtime);
   editor.onSubmit = (text) => {
     const activeSessionId = state.activeTabId;
