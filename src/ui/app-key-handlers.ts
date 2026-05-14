@@ -59,10 +59,13 @@ export function handleStreamingAbortKey(
   runtime?: MixCodeKeyRuntime,
 ): boolean {
   const runtimeTab = runtime?.getTab?.(active.sessionId);
+  const isAgentStreaming = runtimeTab?.agent.state.isStreaming;
   const streaming =
-    runtimeTab?.agent.state.isStreaming ??
-    (active.status === "running" || active.status === "thinking");
-  if (!streaming) return false;
+    isAgentStreaming ?? (active.status === "running" || active.status === "thinking");
+  // Also treat tab as "working" if status is running even when agent is not streaming
+  // (e.g., branch summarization in progress)
+  const working = streaming || (isAgentStreaming === false && active.status === "running");
+  if (!working) return false;
   if (!hasPendingEscape(active, "abort-agent")) {
     armPendingEscape(active, "abort-agent");
     tui.requestRender();
@@ -157,7 +160,7 @@ export function canOpenCommandPalette(
 ): boolean {
   if (isEditorAutocompleteOpen()) return false;
   if (hasAnyOverlay(tui)) return false;
-  if (state.picker || state.sessionSelector.open || state.tabJumpOpen || state.exportChooserOpen)
+  if (state.picker || state.sessionSelector.open || state.treeSelector.open || state.tabJumpOpen || state.exportChooserOpen)
     return false;
   if (active?.previewOpen || active?.pendingQuestions.length) return false;
   return commandPaletteEntriesWithExtensions(state, extensionCommands).length > 0;

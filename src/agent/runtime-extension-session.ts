@@ -96,7 +96,7 @@ export async function navigateRuntimeTree(
   targetId: string,
   options: ExtensionNavigateTreeOptions | undefined,
   context: RuntimeExtensionSessionContext,
-): Promise<{ cancelled: boolean }> {
+): Promise<{ cancelled: boolean; aborted?: boolean }> {
   const runtimeTab = context.requireTab(sessionId);
   const result = await runtimeTab.agentSession.navigateTree(targetId, {
     summarize: options?.summarize,
@@ -104,7 +104,7 @@ export async function navigateRuntimeTree(
     replaceInstructions: options?.replaceInstructions,
     label: options?.label,
   });
-  if (result.cancelled) return { cancelled: true };
+  if (result.cancelled) return { cancelled: true, aborted: result.aborted };
   await context.syncChatFromSession(runtimeTab);
   if (result.editorText && !context.extensionUiHost()?.editor?.getText().trim()) {
     context.setLiveEditorText(result.editorText);

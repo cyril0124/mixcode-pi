@@ -377,6 +377,14 @@ function agentCommandPaletteEntries(
       noSessionReason,
     ),
     commandEntry(
+      "agent.tree",
+      "Session Tree",
+      "/tree",
+      "Navigate session tree (switch branches)",
+      hasSession,
+      noSessionReason,
+    ),
+    commandEntry(
       "agent.close-session",
       "Close Session",
       "/close-session",

@@ -2,6 +2,7 @@ import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { Model } from "@earendil-works/pi-ai";
 
 import type { SessionSelectorState } from "./session-selector.js";
+import type { TreeSelectorState } from "./tree-selector.js";
 
 export type TabStatus = "Not Ready" | "idle" | "running" | "thinking" | "error" | "done";
 
@@ -269,6 +270,7 @@ export interface MixCodeState {
   commandPalette: CommandPaletteState;
   extensionManager: ExtensionManagerPanelState;
   sessionSelector: SessionSelectorState;
+  treeSelector: TreeSelectorState;
   tabJumpOpen: boolean;
   tabJumpQuery: string;
   tabJumpIndex: number;

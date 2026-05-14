@@ -40,6 +40,7 @@ type OptionalSubmitRuntime = Partial<
   Pick<
     MixCodeRuntime,
     | "clearTab"
+    | "extensionNavigateTree"
     | "getExtensionCommands"
     | "getExtensionManagerEntries"
     | "getExtensionTools"

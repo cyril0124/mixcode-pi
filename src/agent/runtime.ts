@@ -542,7 +542,11 @@ export class MixCodeRuntime {
 
   abortTab(sessionId: string): boolean {
     const runtimeTab = this.requireTab(sessionId);
-    if (!runtimeTab.agentSession.isStreaming) return false;
+    if (!runtimeTab.agentSession.isStreaming) {
+      // Try aborting branch summarization (no-op if not summarizing)
+      runtimeTab.agentSession.abortBranchSummary();
+      return false;
+    }
     void runtimeTab.agentSession.abort();
     runtimeTab.tab.pendingEscapeAction = undefined;
     runtimeTab.tab.pendingEscapeArmedAt = undefined;
@@ -670,7 +674,7 @@ export class MixCodeRuntime {
     sessionId: string,
     targetId: string,
     options?: ExtensionNavigateTreeOptions,
-  ): Promise<{ cancelled: boolean }> {
+  ): Promise<{ cancelled: boolean; aborted?: boolean }> {
     return navigateRuntimeTree(sessionId, targetId, options, this.extensionSessionContext());
   }
 

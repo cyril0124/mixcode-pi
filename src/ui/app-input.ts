@@ -47,6 +47,7 @@ import type {
 import { handleExtensionManagerKey } from "./extension-manager.js";
 import { renderCommandPalette, renderExportChooser, renderTabJumpOverlay } from "./rendering.js";
 import { handleSessionSelectorKey } from "./session-selector.js";
+import { handleTreeSelectorKey } from "./tree-selector.js";
 export function handleMixCodeKeyInput(
   state: MixCodeState,
   data: string,
@@ -78,6 +79,12 @@ export function handleMixCodeKeyInput(
   if (
     state.sessionSelector.open &&
     handleSessionSelectorKey(state, data, tui, runtime, onStateChanged)
+  ) {
+    return { consume: true };
+  }
+  if (
+    state.treeSelector.open &&
+    handleTreeSelectorKey(state, data, tui, runtime, onStateChanged)
   ) {
     return { consume: true };
   }

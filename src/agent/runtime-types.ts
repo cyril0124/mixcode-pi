@@ -79,6 +79,7 @@ export interface ChatLine {
   toolResult?: ToolResultLike;
   toolIsPartial?: boolean;
   toolExpanded?: boolean;
+  branchSummary?: boolean;
   excludeFromContext?: boolean;
   bashExitCode?: number;
   bashCancelled?: boolean;

@@ -168,6 +168,9 @@ function renderMessageBlockUncached(line: ChatLine, width: number, tab?: MixCode
   if (line.role === "startup") {
     return renderStartupBlock(text, width);
   }
+  if (line.branchSummary) {
+    return renderBranchSummaryBlock(text, width, tab);
+  }
   return renderSystemBlock(text, width);
 }
 
@@ -200,7 +203,8 @@ function chatLineRenderCacheKey(
     line.bashExitCode !== undefined ||
     line.bashCancelled !== undefined ||
     line.bashTruncated !== undefined ||
-    line.bashFullOutputPath !== undefined
+    line.bashFullOutputPath !== undefined ||
+    line.branchSummary !== undefined
   )
     return undefined;
   return JSON.stringify([activeRenderTheme.name, width, line.role, line.text]);
@@ -331,6 +335,28 @@ function renderSystemBlock(text: string, width: number): string[] {
     ...renderMarkdown(body, Math.max(1, width - 1)).map((line) => ` ${line}`),
     "",
   ];
+  return lines.map((part) => renderToolBackgroundLine(part, width, SYSTEM_BACKGROUND));
+}
+
+function renderBranchSummaryBlock(
+  text: string,
+  width: number,
+  tab?: MixCodeTabInfo,
+): string[] {
+  const expanded = tab?.extensionUi.toolsExpanded ?? false;
+  const title = activeRenderTheme.accent(activeRenderTheme.bold("[branch]"));
+  const lines: string[] = ["", ` ${title}`];
+  if (expanded) {
+    lines.push(
+      "",
+      ...renderMarkdown(text.trim(), Math.max(1, width - 1)).map((line) => ` ${line}`),
+    );
+  } else {
+    lines.push(
+      ` ${activeRenderTheme.dim("Branch summary (ctrl+o to expand)")}`
+    );
+  }
+  lines.push("");
   return lines.map((part) => renderToolBackgroundLine(part, width, SYSTEM_BACKGROUND));
 }
 

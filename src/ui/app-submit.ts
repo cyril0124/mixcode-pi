@@ -35,6 +35,7 @@ import type {
 import { openExtensionManager } from "./extension-manager.js";
 import { renderPickerOverlay } from "./rendering.js";
 import { openSessionSelector, type SessionSelectorRuntime } from "./session-selector.js";
+import { openTreeSelector, type TreeSelectorRuntime } from "./tree-selector.js";
 export async function handleSubmittedInput(
   state: MixCodeState,
   runtime: MixCodeSubmitRuntime,
@@ -215,6 +216,19 @@ export async function handleSubmittedInput(
       thinkingLevel: tab.thinkingLevel,
       workdir: tab.workdir,
     });
+  } else if (parsed.command === "tree") {
+    if (!runtime.extensionNavigateTree) {
+      throw new Error("Tree navigation requires pi runtime tree support");
+    }
+    openTreeSelector(
+      state,
+      runtime as unknown as TreeSelectorRuntime,
+      tui,
+      active!.sessionId,
+    );
+    await onStateChanged?.(state);
+    tui.requestRender();
+    return;
   } else if (parsed.command === "rename") {
     renameAgentTab(state, active!.sessionId, parsed.args);
     runtime.renameSession?.(active!.sessionId, parsed.args);

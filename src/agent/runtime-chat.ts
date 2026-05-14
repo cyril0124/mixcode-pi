@@ -185,6 +185,11 @@ function entryToChatLines(entry: SessionEntry, runtimeTab: RuntimeTab): ChatLine
       { role: "system", text: `Compacted from ${entry.tokensBefore.toLocaleString()} tokens.` },
     ];
   }
+  if (entry.type === "branch_summary") {
+    return [
+      { role: "system", text: entry.summary, branchSummary: true },
+    ];
+  }
   if (entry.type === "custom_message") {
     const line = customMessageToChatLine(
       {

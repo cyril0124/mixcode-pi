@@ -6,6 +6,7 @@ export type LocalCommand =
   | "workdir"
   | "theme"
   | "fork"
+  | "tree"
   | "close-session"
   | "delete-session"
   | "delete-all-sessions"
@@ -59,6 +60,7 @@ export const LOCAL_COMMANDS: Array<{
     getArgumentCompletions: themeArgumentCompletions,
   },
   { name: "fork", description: "Fork the active session" },
+  { name: "tree", description: "Navigate session tree (switch branches)" },
   { name: "close-session", description: "Close active tab" },
   { name: "delete-session", description: "Delete active session" },
   { name: "delete-all-sessions", description: "Delete all open agent tabs" },
