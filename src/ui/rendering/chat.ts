@@ -5,12 +5,40 @@ import { activeRenderTheme, renderWithTheme } from "./context.js";
 import { renderMarkdown } from "./markdown.js";
 import { padLine } from "./primitives.js";
 
+/**
+ * Parsed skill block from a user message.
+ * Matches the format produced by expandSkillCommand:
+ * `<skill name="..." location="...">\n...\n</skill>[\n\nuserMessage]`
+ */
+interface ParsedSkillBlock {
+  name: string;
+  location: string;
+  content: string;
+  userMessage: string | undefined;
+}
+
+const SKILL_BLOCK_RE =
+  /^<skill name="([^"]+)" location="([^"]+)">\n([\s\S]*?)\n<\/skill>(?:\n\n([\s\S]+))?$/;
+
+function parseSkillBlock(text: string): ParsedSkillBlock | null {
+  const match = text.match(SKILL_BLOCK_RE);
+  if (!match) return null;
+  return {
+    name: match[1]!,
+    location: match[2]!,
+    content: match[3]!,
+    userMessage: match[4]?.trim() || undefined,
+  };
+}
+
 const TOOL_BACKGROUNDS = {
   pending: { start: "\x1b[48;2;47;42;34m", end: "\x1b[49m" },
   success: { start: "\x1b[48;2;38;38;36m", end: "\x1b[49m" },
   error: { start: "\x1b[48;2;58;32;32m", end: "\x1b[49m" },
 } as const;
 const SYSTEM_BACKGROUND = { start: "\x1b[48;2;35;35;33m", end: "\x1b[49m" } as const;
+// Skill block background: dark purple-tinted (#2d2838), matching Pi reference customMessageBg
+const SKILL_BACKGROUND = { start: "\x1b[48;2;45;40;56m", end: "\x1b[49m" } as const;
 const USER_BASH_PREVIEW_LINES = 20;
 const chatLineRenderCache = new WeakMap<ChatLine, { key: string; lines: string[] }>();
 
@@ -145,6 +173,11 @@ function renderMessageBlockUncached(line: ChatLine, width: number, tab?: MixCode
   const text = line.text.trimEnd();
   if (line.role === "user") {
     if (!text.trim()) return [];
+    // Detect skill block and render collapsed/expanded
+    const skillBlock = parseSkillBlock(text);
+    if (skillBlock) {
+      return renderSkillUserMessage(skillBlock, width, tab);
+    }
     const innerWidth = Math.max(1, width - 2);
     const body = wrapPlainLine(text, innerWidth).map((part) =>
       activeRenderTheme.userMessage(padLine(` ${part}`, width)),
@@ -183,7 +216,6 @@ function chatLineRenderCacheKey(
   width: number,
   tab?: MixCodeTabInfo,
 ): string | undefined {
-  void tab;
   if (line.renderExtension || line.renderToolCall || line.renderToolResult) return undefined;
   if (
     line.role !== "assistant" &&
@@ -211,7 +243,9 @@ function chatLineRenderCacheKey(
     line.branchSummary !== undefined
   )
     return undefined;
-  return JSON.stringify([activeRenderTheme.name, width, line.role, line.text]);
+  // Include toolsExpanded for user messages that may contain skill blocks
+  const expanded = tab?.extensionUi.toolsExpanded ?? false;
+  return JSON.stringify([activeRenderTheme.name, width, line.role, line.text, expanded]);
 }
 
 function renderToolBlock(line: ChatLine, width: number, tab?: MixCodeTabInfo): string[] {
@@ -439,6 +473,55 @@ function objectRecord(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
+}
+
+/**
+ * Render a skill invocation user message with a background box.
+ * Collapsed: [skill] name (ctrl+o to expand)
+ * Expanded: [skill] name + full skill content as markdown
+ * User args (if any) are rendered as a separate user message block below.
+ */
+function renderSkillUserMessage(
+  skillBlock: ParsedSkillBlock,
+  width: number,
+  tab?: MixCodeTabInfo,
+): string[] {
+  const expanded = tab?.extensionUi.toolsExpanded ?? false;
+  const innerWidth = Math.max(1, width - 2);
+  const lines: string[] = [];
+
+  // Skill block with background box
+  const boxLines: string[] = [];
+  if (expanded) {
+    // Expanded: [skill] label + name + full content
+    const label = ` ${activeRenderTheme.bold("[skill]")} ${activeRenderTheme.bold(skillBlock.name)}`;
+    boxLines.push("", label, "");
+    const contentLines = renderMarkdown(skillBlock.content.trim(), innerWidth);
+    for (const line of contentLines) boxLines.push(` ${line}`);
+    boxLines.push("");
+  } else {
+    // Collapsed: [skill] name (ctrl+o to expand)
+    const label = ` ${activeRenderTheme.bold("[skill]")} ${skillBlock.name} ${activeRenderTheme.dim("(ctrl+o to expand)")}`;
+    boxLines.push("", label, "");
+  }
+  for (const part of boxLines) {
+    lines.push(renderToolBackgroundLine(part, width, SKILL_BACKGROUND));
+  }
+
+  // Render user message (args) as a separate user block below
+  if (skillBlock.userMessage) {
+    lines.push(padLine("", width));
+    const body = wrapPlainLine(skillBlock.userMessage, innerWidth).map((part) =>
+      activeRenderTheme.userMessage(padLine(` ${part}`, width)),
+    );
+    lines.push(
+      activeRenderTheme.userMessage(padLine("", width)),
+      ...body,
+      activeRenderTheme.userMessage(padLine("", width)),
+    );
+  }
+
+  return lines;
 }
 
 function prettyJson(value: unknown): string {
