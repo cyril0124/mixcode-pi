@@ -103,6 +103,7 @@ export function createMixCodeExtensionUiContext(
       createExtensionDialog(
         runtimeTab,
         requestRender,
+        getCustomUiHost,
         "select",
         title,
         title,
@@ -115,6 +116,7 @@ export function createMixCodeExtensionUiContext(
       createExtensionDialog(
         runtimeTab,
         requestRender,
+        getCustomUiHost,
         "confirm",
         title,
         message,
@@ -130,6 +132,7 @@ export function createMixCodeExtensionUiContext(
       createExtensionDialog(
         runtimeTab,
         requestRender,
+        getCustomUiHost,
         "input",
         title,
         placeholder || title,

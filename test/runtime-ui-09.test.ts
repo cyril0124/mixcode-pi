@@ -189,7 +189,7 @@ function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-test("runtime maps extension select, confirm, and input UI primitives into pending question overlays", async () => {
+test("runtime maps extension select, confirm, and input UI primitives into editor component", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-dialogs-"));
   const events: string[] = [];
   let abortController: AbortController | undefined;
@@ -242,75 +242,95 @@ test("runtime maps extension select, confirm, and input UI primitives into pendi
     });
   };
 
+  // Mock editor host that captures setEditorComponent calls
+  type EditorComponentLike = { render(w: number): string[]; handleInput(d: string): void };
+  let activeEditorComponent: EditorComponentLike | undefined;
+  const mockEditorHost = {
+    tui: {} as any,
+    editor: {
+      getText: () => "",
+      getExpandedText: () => "",
+      setText: () => undefined,
+      pasteToEditor: () => undefined,
+      setEditorComponent: (factory: (() => EditorComponentLike) | undefined) => {
+        activeEditorComponent = factory?.();
+      },
+      getEditorComponent: () => undefined,
+    },
+  };
+
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir, extensionFactories: [extension] });
+    runtime.setExtensionUiHost(mockEditorHost as any);
     const runtimeTab = await runtime.createTab(createTab(1, "s1", process.cwd()), {
       systemPrompt: "system",
       thinkingLevel: "medium",
       workdir: process.cwd(),
     });
 
+    // Test select dialog
     const dialogTask = runtime.prompt("s1", "/dialog-smoke");
-    await waitFor(() => runtimeTab.tab.pendingQuestions.length === 1);
-    let request = runtimeTab.tab.pendingQuestions[0]!;
-    assert.equal(request.extensionUiKind, "select");
-    assert.equal(request.questions[0]?.header, "Pick Target");
-    assert.deepEqual(
-      request.questions[0]?.options.map((option) => option.label),
-      ["alpha", "beta"],
-    );
-    request.selectedAnswers[0] = ["beta"];
-    assert.equal(runtime.resolveExtensionDialog("s1", request.extensionResolverId!, "beta"), true);
-    await waitFor(
-      () =>
-        runtimeTab.tab.pendingQuestions.length === 1 &&
-        runtimeTab.tab.pendingQuestions[0]?.extensionUiKind === "confirm",
-    );
-    request = runtimeTab.tab.pendingQuestions[0]!;
-    assert.equal(request.questions[0]?.question, "Proceed?");
-    assert.equal(runtime.resolveExtensionDialog("s1", request.extensionResolverId!, "Yes"), true);
-    await waitFor(
-      () =>
-        runtimeTab.tab.pendingQuestions.length === 1 &&
-        runtimeTab.tab.pendingQuestions[0]?.extensionUiKind === "input",
-    );
-    request = runtimeTab.tab.pendingQuestions[0]!;
-    assert.equal(request.editingCustomIndex, 0);
-    assert.equal(request.questions[0]?.question, "Type name");
-    assert.equal(
-      runtime.resolveExtensionDialog("s1", request.extensionResolverId!, "MixCode"),
-      true,
-    );
+    await waitFor(() => activeEditorComponent !== undefined);
+    // Verify render shows options
+    const rendered = activeEditorComponent!.render(80);
+    const plain = rendered.map(stripAnsi).join("\n");
+    assert.match(plain, /Pick Target/);
+    assert.match(plain, /alpha/);
+    assert.match(plain, /beta/);
+    // Move down to "beta" and press enter
+    activeEditorComponent!.handleInput("\x1b[B"); // down arrow
+    activeEditorComponent!.handleInput("\r"); // enter
+    await waitFor(() => activeEditorComponent !== undefined && events.length >= 1);
+
+    // Confirm dialog: select "Yes" (first option, already highlighted)
+    await waitFor(() => {
+      if (!activeEditorComponent) return false;
+      const r = activeEditorComponent.render(80).map(stripAnsi).join("\n");
+      return r.includes("Yes");
+    });
+    activeEditorComponent!.handleInput("\r"); // enter selects "Yes"
+    await waitFor(() => events.length >= 2);
+
+    // Input dialog: type "MixCode" and press enter
+    await waitFor(() => {
+      if (!activeEditorComponent) return false;
+      const r = activeEditorComponent.render(80).map(stripAnsi).join("\n");
+      return r.includes("submit");
+    });
+    for (const ch of "MixCode") activeEditorComponent!.handleInput(ch);
+    activeEditorComponent!.handleInput("\r"); // enter
     await dialogTask;
     assert.deepEqual(events, ["select:beta", "confirm:true", "input:MixCode"]);
-    assert.equal(runtimeTab.tab.pendingQuestions.length, 0);
 
+    // Test abort
     const abortTask = runtime.prompt("s1", "/dialog-abort");
-    await waitFor(() => runtimeTab.tab.pendingQuestions.length === 1);
+    await waitFor(() => activeEditorComponent !== undefined && events.length === 3);
+    await waitFor(() => {
+      if (!activeEditorComponent) return false;
+      const r = activeEditorComponent.render(80).map(stripAnsi).join("\n");
+      return r.includes("Abort Pick");
+    });
     abortController?.abort();
     await abortTask;
     assert.equal(events.at(-1), "abort:none");
-    assert.equal(runtimeTab.tab.pendingQuestions.length, 0);
 
+    // Test timeout
     await runtime.prompt("s1", "/dialog-timeout");
     assert.equal(events.at(-1), "timeout:none");
-    assert.equal(runtimeTab.tab.pendingQuestions.length, 0);
 
+    // Test already-aborted
     await runtime.prompt("s1", "/dialog-already-aborted");
     assert.equal(events.at(-1), "already-aborted:none");
-    assert.equal(runtimeTab.tab.pendingQuestions.length, 0);
-    assert.equal(runtime.resolveExtensionDialog("s1", "missing", "x"), false);
-    assert.equal(runtime.resolveExtensionDialog("missing", "missing", "x"), false);
 
+    // Test input with title fallback
     const inputTitleTask = runtime.prompt("s1", "/dialog-input-title");
-    await waitFor(() => runtimeTab.tab.pendingQuestions.length === 1);
-    request = runtimeTab.tab.pendingQuestions[0]!;
-    assert.equal(request.questions[0]?.question, "Fallback Name");
-    assert.equal(runtime.resolveExtensionDialog("s1", request.extensionResolverId!, "Named"), true);
-    assert.equal(
-      runtime.resolveExtensionDialog("s1", request.extensionResolverId!, "Again"),
-      false,
-    );
+    await waitFor(() => {
+      if (!activeEditorComponent) return false;
+      const r = activeEditorComponent.render(80).map(stripAnsi).join("\n");
+      return r.includes("Fallback Name");
+    });
+    for (const ch of "Named") activeEditorComponent!.handleInput(ch);
+    activeEditorComponent!.handleInput("\r");
     await inputTitleTask;
     assert.equal(events.at(-1), "input-title:Named");
   } finally {
@@ -331,8 +351,22 @@ test("runtime resolves pending extension dialogs when closing a tab", async () =
     });
   };
 
+  // Mock editor host
+  const mockEditorHost = {
+    tui: {} as any,
+    editor: {
+      getText: () => "",
+      getExpandedText: () => "",
+      setText: () => undefined,
+      pasteToEditor: () => undefined,
+      setEditorComponent: () => undefined,
+      getEditorComponent: () => undefined,
+    },
+  };
+
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir, extensionFactories: [extension] });
+    runtime.setExtensionUiHost(mockEditorHost as any);
     await runtime.createTab(createTab(1, "s1", process.cwd()), {
       systemPrompt: "system",
       thinkingLevel: "medium",
@@ -340,7 +374,10 @@ test("runtime resolves pending extension dialogs when closing a tab", async () =
     });
 
     const prompt = runtime.prompt("s1", "/wait-dialog");
-    await waitForRuntime(() => runtime.getTab("s1")?.tab.pendingQuestions.length === 1);
+    // Wait for the dialog to be installed (pending user interaction)
+    await waitForRuntime(
+      () => runtime.getTab("s1")?.tab.extensionUi.pendingUserInteractions.length === 1,
+    );
     await runtime.deleteTab("s1");
     await prompt;
 
