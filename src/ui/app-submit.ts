@@ -7,7 +7,8 @@ import { MIXCODE_KEYMAP } from "../core/keymap.js";
 import { findModelRef } from "../core/models.js";
 import { createPicker } from "../core/pickers.js";
 import { buildModelPrompt } from "../core/prompt-build.js";
-import { expandLocalPromptCommand } from "../core/prompt-templates.js";
+import type { PromptTemplate } from "../core/prompt-templates.js";
+import type { KnownSkill } from "../core/skill-command.js";
 import type { ShellManager } from "../core/shell-session.js";
 import { deleteWorkspace, loadWorkspaces, saveWorkspaces } from "../core/state-store.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
@@ -51,7 +52,9 @@ export async function handleSubmittedInput(
   if (!active && requiresActive) return;
   if (parsed.kind === "prompt") {
     clearRedoSession(active);
-    await runtime.prompt(active!.sessionId, await buildModelPrompt(parsed.args, active!.workdir));
+    const knownSkills = getKnownSkillsFromTab(runtime, active!.sessionId);
+    const promptTemplates = getPromptTemplatesFromTab(runtime, active!.sessionId);
+    await runtime.prompt(active!.sessionId, await buildModelPrompt(parsed.args, active!.workdir, { knownSkills, promptTemplates }));
   } else if (parsed.kind === "shell") {
     clearRedoSession(active);
     if (!runtime.executeShellCommand) {
@@ -321,6 +324,13 @@ export async function handleSubmittedInput(
   } else if (isExtensionCommand(runtime, active!.sessionId, parsed.command)) {
     clearRedoSession(active);
     await runtime.prompt(active!.sessionId, `/${parsed.command} ${parsed.args}`.trim());
+  } else if (isPromptTemplate(runtime, active!.sessionId, parsed.command)) {
+    // Route prompt template commands through buildModelPrompt for expansion
+    clearRedoSession(active);
+    const knownSkills = getKnownSkillsFromTab(runtime, active!.sessionId);
+    const promptTemplates = getPromptTemplatesFromTab(runtime, active!.sessionId);
+    const fullText = `/${parsed.command} ${parsed.args}`.trim();
+    await runtime.prompt(active!.sessionId, await buildModelPrompt(fullText, active!.workdir, { knownSkills, promptTemplates }));
   } else {
     appendActiveSystemMessage(state, runtime, `Unknown slash command: /${parsed.command}`.trim());
   }
@@ -337,8 +347,59 @@ function isExtensionCommand(
   return runtime.getExtensionCommands(sessionId).some((item) => item.name === command);
 }
 
+function isPromptTemplate(
+  runtime: MixCodeSubmitRuntime,
+  sessionId: string,
+  command: string | undefined,
+): boolean {
+  if (!command) return false;
+  const runtimeTab = runtime.getTab(sessionId);
+  if (!runtimeTab?.services?.resourceLoader) return false;
+  return runtimeTab.services.resourceLoader.getPrompts().prompts.some((p) => p.name === command);
+}
+
 function clearRedoSession(tab: MixCodeState["tabs"][number] | undefined): void {
   if (tab) tab.redoSessionId = undefined;
+}
+
+/**
+ * Extract known skills from the runtime tab's resource loader.
+ * Returns undefined if the tab or resource loader is unavailable.
+ */
+function getKnownSkillsFromTab(
+  runtime: MixCodeSubmitRuntime,
+  sessionId: string,
+): KnownSkill[] | undefined {
+  const runtimeTab = runtime.getTab(sessionId);
+  if (!runtimeTab?.services?.resourceLoader) return undefined;
+  return runtimeTab.services.resourceLoader.getSkills().skills.map((skill) => ({
+    name: skill.name,
+    filePath: skill.filePath,
+    baseDir: skill.baseDir,
+  }));
+}
+
+/**
+ * Extract prompt templates from the runtime tab's resource loader.
+ * Returns undefined if the tab or resource loader is unavailable.
+ */
+function getPromptTemplatesFromTab(
+  runtime: MixCodeSubmitRuntime,
+  sessionId: string,
+): PromptTemplate[] | undefined {
+  const runtimeTab = runtime.getTab(sessionId);
+  if (!runtimeTab?.services?.resourceLoader) return undefined;
+  const { prompts } = runtimeTab.services.resourceLoader.getPrompts();
+  return prompts.map((p) => ({
+    name: p.name,
+    description: p.description,
+    argumentHint: p.argumentHint,
+    content: p.content,
+    filePath: p.filePath,
+    sourceInfo: p.sourceInfo
+      ? { scope: p.sourceInfo.scope, source: p.sourceInfo.source }
+      : undefined,
+  }));
 }
 
 function configScopedCommand(command: string | undefined): boolean {

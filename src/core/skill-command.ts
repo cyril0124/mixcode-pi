@@ -3,6 +3,17 @@ import { dirname } from "node:path";
 import { resolveSkillFile } from "./attachments.js";
 
 /**
+ * A pre-resolved skill entry from the resource loader.
+ * Used to find extension-contributed skills that aren't on the filesystem
+ * in the standard skill directories.
+ */
+export interface KnownSkill {
+  name: string;
+  filePath: string;
+  baseDir: string;
+}
+
+/**
  * Strip YAML frontmatter from a SKILL.md file content.
  * Returns the body after the closing `---` delimiter.
  */
@@ -19,12 +30,17 @@ export interface ExpandSkillCommandResult {
   skillName?: string;
 }
 
+export interface ExpandSkillCommandOptions {
+  /** Pre-resolved skills from the resource loader (includes extension-contributed skills). */
+  knownSkills?: KnownSkill[];
+}
+
 /**
  * Expand `/skill:<name> [args]` commands into full skill content blocks.
  *
  * Follows the Pi reference implementation pattern:
  * - Parses the skill name from the `/skill:` prefix
- * - Resolves the SKILL.md file from standard skill directories
+ * - Resolves the SKILL.md file: first from knownSkills (resource loader), then filesystem
  * - Reads the file, strips frontmatter, and wraps in a `<skill>` XML block
  * - Appends any user arguments after the skill block
  *
@@ -36,6 +52,7 @@ export interface ExpandSkillCommandResult {
 export async function expandSkillCommand(
   text: string,
   workdir: string,
+  options?: ExpandSkillCommandOptions,
 ): Promise<ExpandSkillCommandResult> {
   if (!text.startsWith("/skill:")) return { expanded: false, text };
 
@@ -45,23 +62,30 @@ export async function expandSkillCommand(
 
   if (!skillName) return { expanded: false, text };
 
+  // Try resource loader skills first (includes extension-contributed skills)
+  const known = options?.knownSkills?.find((s) => s.name === skillName);
   let filePath: string;
-  try {
-    filePath = await resolveSkillFile(skillName, workdir);
-  } catch {
-    // Unknown skill — pass through unchanged
-    return { expanded: false, text };
+  let baseDir: string;
+
+  if (known) {
+    filePath = known.filePath;
+    baseDir = known.baseDir;
+  } else {
+    try {
+      filePath = await resolveSkillFile(skillName, workdir);
+      baseDir = dirname(filePath);
+    } catch {
+      return { expanded: false, text };
+    }
   }
 
   try {
     const content = readFileSync(filePath, "utf-8");
     const body = stripFrontmatter(content).trim();
-    const baseDir = dirname(filePath);
     const skillBlock = `<skill name="${skillName}" location="${filePath}">\nReferences are relative to ${baseDir}.\n\n${body}\n</skill>`;
     const expandedText = args ? `${skillBlock}\n\n${args}` : skillBlock;
     return { expanded: true, text: expandedText, skillName };
   } catch {
-    // File read error — pass through unchanged
     return { expanded: false, text };
   }
 }

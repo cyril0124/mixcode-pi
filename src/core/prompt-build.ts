@@ -1,12 +1,32 @@
 import { buildPrompt, SKILL_INJECTION_SEPARATOR } from "./attachments.js";
-import { expandSkillCommand } from "./skill-command.js";
+import { expandPromptTemplate, type PromptTemplate } from "./prompt-templates.js";
+import { expandSkillCommand, type KnownSkill } from "./skill-command.js";
 
-export async function buildModelPrompt(text: string, workdir: string): Promise<string> {
-  // Expand /skill:<name> commands before $skill processing (matches Pi reference behavior).
-  const skillResult = await expandSkillCommand(text, workdir);
-  const effectiveText = skillResult.text;
+export interface BuildModelPromptOptions {
+  /** Pre-resolved skills from the resource loader (includes extension-contributed skills). */
+  knownSkills?: KnownSkill[];
+  /** Prompt templates from the resource loader (includes extension-contributed templates). */
+  promptTemplates?: PromptTemplate[];
+}
 
-  const built = await buildPrompt(effectiveText, workdir);
+export async function buildModelPrompt(
+  text: string,
+  workdir: string,
+  options?: BuildModelPromptOptions,
+): Promise<string> {
+  const knownSkills = options?.knownSkills;
+  const promptTemplates = options?.promptTemplates;
+
+  // Expansion order matches Pi reference: /skill: → /template → $skill processing
+  const skillResult = await expandSkillCommand(text, workdir, { knownSkills });
+  let effectiveText = skillResult.text;
+
+  // Expand prompt templates (/templateName args)
+  if (promptTemplates && promptTemplates.length > 0) {
+    effectiveText = expandPromptTemplate(effectiveText, promptTemplates);
+  }
+
+  const built = await buildPrompt(effectiveText, workdir, undefined, knownSkills);
   if (built.parts.length <= 1) {
     return built.parts[0]?.text ?? "";
   }

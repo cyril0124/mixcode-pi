@@ -34,12 +34,22 @@ export interface MixCodeSkillCompletionSource {
   sourceInfo?: MixCodeSkillSourceInfo;
 }
 
+export interface MixCodePromptTemplateCompletionSource {
+  name: string;
+  description?: string;
+  argumentHint?: string;
+  sourceInfo?: MixCodeSkillSourceInfo;
+}
+
 export interface MixCodeCompletionSources {
   skills:
     | Array<string | MixCodeSkillCompletionSource>
     | (() => Array<string | MixCodeSkillCompletionSource>);
   files: string[] | (() => string[] | Promise<string[]>);
   commands?: MixCodeCompletionCommand[] | (() => MixCodeCompletionCommand[]);
+  promptTemplates?:
+    | MixCodePromptTemplateCompletionSource[]
+    | (() => MixCodePromptTemplateCompletionSource[]);
 }
 
 export class MixCodeCompletionProvider implements AutocompleteProvider {
@@ -54,7 +64,7 @@ export class MixCodeCompletionProvider implements AutocompleteProvider {
     const before = line.slice(0, cursorCol);
     const token = currentToken(before);
     const skills = resolveCompletionSkills(this.sources.skills);
-    const commands = mergedSlashCommands(this.sources.commands, skills);
+    const commands = mergedSlashCommands(this.sources.commands, skills, resolvePromptTemplates(this.sources.promptTemplates));
     if (token.startsWith("/") && isSlashCommandNameContext(before, token)) {
       const prefix = token.slice(1);
       if (commands.some((command) => command.name === prefix)) return null;
@@ -137,6 +147,13 @@ function resolveCompletionSkills(
   skills: MixCodeCompletionSources["skills"],
 ): Array<string | MixCodeSkillCompletionSource> {
   return typeof skills === "function" ? skills() : skills;
+}
+
+function resolvePromptTemplates(
+  templates: MixCodeCompletionSources["promptTemplates"],
+): MixCodePromptTemplateCompletionSource[] {
+  if (!templates) return [];
+  return typeof templates === "function" ? templates() : templates;
 }
 
 async function resolveCompletionFiles(files: MixCodeCompletionSources["files"]): Promise<string[]> {
@@ -298,6 +315,7 @@ function formatExtensionSourceName(source: string): string {
 function mergedSlashCommands(
   extensionCommands: MixCodeCompletionSources["commands"] = [],
   skills: Array<string | MixCodeSkillCompletionSource> = [],
+  promptTemplates: MixCodePromptTemplateCompletionSource[] = [],
 ): SourcedCompletionCommand[] {
   const commands = new Map<string, SourcedCompletionCommand>();
   for (const command of LOCAL_COMMANDS)
@@ -307,6 +325,17 @@ function mergedSlashCommands(
   for (const command of resolvedExtensionCommands) {
     if (!commands.has(command.name))
       commands.set(command.name, { ...command, source: "extension" });
+  }
+  // Register prompt templates as slash commands (matches Pi reference behavior)
+  for (const template of promptTemplates) {
+    if (!commands.has(template.name)) {
+      commands.set(template.name, {
+        name: template.name,
+        description: prefixSkillDescription(template.description, template.sourceInfo),
+        argumentHint: template.argumentHint,
+        source: "built-in",
+      });
+    }
   }
   // Register skills as /skill:<name> commands (matches Pi reference behavior)
   for (const skill of skillCompletionSources(skills)) {

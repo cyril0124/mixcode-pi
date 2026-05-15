@@ -61,13 +61,13 @@ test("theme registry validates and suggests themes", () => {
 });
 
 test("prompt templates expand supported local slash commands", () => {
+  // expandLocalPromptCommand is a legacy no-op stub.
+  // /compact and /undo are handled as local commands directly in app-submit.
+  // Prompt template expansion is now handled by the full template system.
   assert.equal(expandLocalPromptCommand("goal", ""), undefined);
   assert.equal(expandLocalPromptCommand("goal", "ship"), undefined);
-  assert.match(
-    expandLocalPromptCommand("compact", "") ?? "",
-    /Compact the current session context/,
-  );
-  assert.match(expandLocalPromptCommand("undo", "") ?? "", /Undo the latest user turn/);
+  assert.equal(expandLocalPromptCommand("compact", ""), undefined);
+  assert.equal(expandLocalPromptCommand("undo", ""), undefined);
   assert.equal(expandLocalPromptCommand("brainstorm", ""), undefined);
   assert.equal(expandLocalPromptCommand("brainstorm-3", "topic"), undefined);
   assert.equal(expandLocalPromptCommand("brainstorm-4", "topic"), undefined);

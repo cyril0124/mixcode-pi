@@ -129,3 +129,66 @@ test("parseInput still routes other / commands as local-command", () => {
   assert.equal(result.kind, "local-command");
   assert.equal(result.command, "models");
 });
+
+test("expandSkillCommand resolves from knownSkills before filesystem", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "skill-cmd-"));
+  try {
+    // Create a skill file at a non-standard location (simulating extension-contributed skill)
+    await mkdir(join(dir, "ext-skills", "ext-review"), { recursive: true });
+    await writeFile(
+      join(dir, "ext-skills", "ext-review", "SKILL.md"),
+      "---\ndescription: Extension review skill\n---\n# Ext Review\n\nReview from extension.",
+      "utf8",
+    );
+    const knownSkills = [
+      {
+        name: "ext-review",
+        filePath: join(dir, "ext-skills", "ext-review", "SKILL.md"),
+        baseDir: join(dir, "ext-skills", "ext-review"),
+      },
+    ];
+    // This skill is NOT in standard directories, so without knownSkills it would fail
+    const withoutKnown = await expandSkillCommand("/skill:ext-review", dir);
+    assert.equal(withoutKnown.expanded, false);
+
+    // With knownSkills it should resolve
+    const withKnown = await expandSkillCommand("/skill:ext-review do stuff", dir, { knownSkills });
+    assert.equal(withKnown.expanded, true);
+    assert.equal(withKnown.skillName, "ext-review");
+    assert.match(withKnown.text, /<skill name="ext-review"/);
+    assert.match(withKnown.text, /Review from extension\./);
+    assert.match(withKnown.text, /do stuff$/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("buildModelPrompt resolves $SkillName from knownSkills", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "skill-cmd-"));
+  try {
+    // Create a skill file at a non-standard location
+    await mkdir(join(dir, "ext-skills", "ext-lint"), { recursive: true });
+    await writeFile(
+      join(dir, "ext-skills", "ext-lint", "SKILL.md"),
+      "description: Extension lint skill\n\nLint from extension.",
+      "utf8",
+    );
+    const knownSkills = [
+      {
+        name: "ext-lint",
+        filePath: join(dir, "ext-skills", "ext-lint", "SKILL.md"),
+        baseDir: join(dir, "ext-skills", "ext-lint"),
+      },
+    ];
+    // Without knownSkills, $ext-lint would not resolve
+    const withoutKnown = await buildModelPrompt("check $ext-lint", dir);
+    assert.doesNotMatch(withoutKnown, /<skill name="ext-lint"/);
+
+    // With knownSkills, $ext-lint should resolve
+    const withKnown = await buildModelPrompt("check $ext-lint", dir, { knownSkills });
+    assert.match(withKnown, /ext-lint/);
+    assert.match(withKnown, /Extension lint skill/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

@@ -134,6 +134,28 @@ export function createMixCodeTui(
         ? runtime.getExtensionCommands(active.sessionId)
         : runtime.getAllExtensionCommands();
     },
+    promptTemplates: () => {
+      // Dynamically resolve prompt templates from the active tab's resource loader,
+      // which includes extension-contributed templates.
+      const active =
+        state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];
+      if (active && state.activeTabId !== "config") {
+        const runtimeTab = runtime.getTab(active.sessionId);
+        if (runtimeTab?.services?.resourceLoader) {
+          return runtimeTab.services.resourceLoader
+            .getPrompts()
+            .prompts.map((p) => ({
+              name: p.name,
+              description: p.description,
+              argumentHint: p.argumentHint,
+              sourceInfo: p.sourceInfo
+                ? { scope: p.sourceInfo.scope, source: p.sourceInfo.source }
+                : undefined,
+            }));
+        }
+      }
+      return [];
+    },
   });
   const activeCompletionProvider = createActiveAutocompleteProvider(
     state,

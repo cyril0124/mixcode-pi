@@ -2,6 +2,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
+import type { KnownSkill } from "./skill-command.js";
 
 export interface SkillMeta {
   name: string;
@@ -267,11 +268,19 @@ export async function resolveSkills(
   names: string[],
   baseWorkdir: string,
   homeDir = homedir(),
+  knownSkills?: KnownSkill[],
 ): Promise<SkillMeta[]> {
   const skills: SkillMeta[] = [];
   for (const name of names) {
     try {
-      const location = await resolveSkillFile(name, baseWorkdir, homeDir);
+      // Try resource loader skills first (includes extension-contributed skills)
+      const known = knownSkills?.find((s) => s.name === name);
+      let location: string;
+      if (known) {
+        location = known.filePath;
+      } else {
+        location = await resolveSkillFile(name, baseWorkdir, homeDir);
+      }
       const content = await readFile(location, "utf8");
       skills.push({ name, description: parseSkillDescription(content), location });
     } catch {}
@@ -340,9 +349,10 @@ export async function buildPrompt(
   text: string,
   baseWorkdir: string,
   homeDir = homedir(),
+  knownSkills?: KnownSkill[],
 ): Promise<BuiltPrompt> {
   const skillNames = extractSkillRefs(text);
-  const skills = await resolveSkills(skillNames, baseWorkdir, homeDir);
+  const skills = await resolveSkills(skillNames, baseWorkdir, homeDir, knownSkills);
   const files = extractFileRefs(text).map((ref) => resolvePromptPath(ref, baseWorkdir));
   const parts: PromptPart[] = [{ type: "text", text }];
   if (skills.length > 0) {
