@@ -1,4 +1,5 @@
 import type { MixCodeRuntime } from "../agent/runtime.js";
+import { disposeChatRenderers } from "../agent/runtime-chat.js";
 import { MIXCODE_EXTENSION_KEYBINDINGS } from "../agent/runtime-extension-theme.js";
 import { parseInput } from "../core/commands.js";
 import { createTab } from "../core/defaults.js";
@@ -33,7 +34,7 @@ import type {
   RuntimeToolInfo,
 } from "./app-types.js";
 import { openExtensionManager } from "./extension-manager.js";
-import { renderPickerOverlay } from "./rendering.js";
+import { clearConversationCache, renderPickerOverlay } from "./rendering.js";
 import { openSessionSelector, type SessionSelectorRuntime } from "./session-selector.js";
 import { openTreeSelector, type TreeSelectorRuntime } from "./tree-selector.js";
 export async function handleSubmittedInput(
@@ -77,27 +78,47 @@ export async function handleSubmittedInput(
     clearRedoSession(active);
     if (!runtime.clearTab) throw new Error("Clear requires runtime session replacement support");
     const oldSessionId = active!.sessionId;
-    const previousStatus = active!.status;
-    const previousWorkingStartedAt = active!.workingStartedAt;
-    const previousLastWorkedDurationSeconds = active!.lastWorkedDurationSeconds;
-    active!.status = "running";
-    active!.workingStartedAt = new Date().toISOString();
+    // Immediately clear the visible conversation so the UI feels responsive.
+    // Dispose renderers before discarding the chat array to avoid leaks.
+    const runtimeTab = runtime.getTab?.(oldSessionId);
+    if (runtimeTab) {
+      disposeChatRenderers(runtimeTab.chat);
+      runtimeTab.chat = [];
+      runtimeTab.reasoning = [];
+    }
+    active!.previewMessages = [];
+    active!.previewIndex = 0;
+    active!.chatScrollOffset = 0;
+    // Set status to "idle" rather than "running" — clearTab blocks the event loop
+    // with synchronous extension loading so a spinner cannot animate anyway.
+    // An idle-looking empty chat is less jarring than a frozen spinner.
+    active!.status = "idle";
+    active!.workingStartedAt = undefined;
     active!.lastWorkedDurationSeconds = undefined;
+    clearConversationCache(oldSessionId);
     tui.requestRender();
-    await waitForTuiRenderFrame();
-    try {
-      const cleared = await runtime.clearTab(oldSessionId, {
+    // Defer the heavy session replacement until after the TUI paints the cleared state.
+    // requestRender() schedules a frame via process.nextTick → setTimeout(doRender, ≤16ms).
+    // 32ms guarantees the render completes before clearTab starts blocking.
+    setTimeout(() => {
+      runtime.clearTab!(oldSessionId, {
         systemPrompt: MIXCODE_SYSTEM_PROMPT,
         thinkingLevel: active!.thinkingLevel,
         workdir: active!.workdir,
-      });
-      activateTab(state, cleared.tab.sessionId);
-    } catch (error) {
-      active!.status = previousStatus;
-      active!.workingStartedAt = previousWorkingStartedAt;
-      active!.lastWorkedDurationSeconds = previousLastWorkedDurationSeconds;
-      throw error;
-    }
+      })
+        .then((cleared) => {
+          activateTab(state, cleared.tab.sessionId);
+          tui.requestRender();
+        })
+        .catch((error: unknown) => {
+          appendActiveSystemMessage(
+            state,
+            runtime,
+            `Clear failed: ${error instanceof Error ? error.message : String(error)}`,
+          );
+          tui.requestRender();
+        });
+    }, 32);
   } else if (parsed.command === "new-session") {
     const sessionId = parsed.args.trim() || `session-${Date.now()}`;
     const tab = createTab(state.tabs.length + 1, sessionId, state.workdir, {
@@ -736,12 +757,6 @@ function displayToolSource(source: string): string {
 
 function displayToolSourcePath(path: string): string {
   return path.replace(/^<builtin:/, "<pi-builtin:").replace(/^<sdk:/, "<mixcode-custom:");
-}
-
-function waitForTuiRenderFrame(): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, 17);
-  });
 }
 
 function parseExportRequest(args: string): ExportRequest {

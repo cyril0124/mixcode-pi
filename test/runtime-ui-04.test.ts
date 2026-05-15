@@ -263,7 +263,7 @@ test("submitted input handles prompt, shell, local commands, clear, and missing 
       tab.previewMessages.push({ role: "system", text });
       tab.previewIndex = tab.previewMessages.length - 1;
     },
-    getTab: () => ({ chat: [{ role: "user", text: "old" }] }),
+    getTab: () => ({ chat: [{ role: "user", text: "old" }], reasoning: [] }),
     clearTab: async (sessionId: string) => {
       cleared.push(sessionId);
       tab.sessionId = "cleared";
@@ -316,6 +316,8 @@ test("submitted input handles prompt, shell, local commands, clear, and missing 
     );
     await handleSubmittedInput(state, runtime, "!pwd", tui);
     await handleSubmittedInput(state, runtime, "/clear", tui);
+    // clearTab is deferred via setTimeout; wait for it to complete.
+    await new Promise((resolve) => setTimeout(resolve, 50));
     await handleSubmittedInput(state, runtime, "/thinking high", tui);
     await handleSubmittedInput(state, runtime, "/workdir /tmp/work", tui);
     await handleSubmittedInput(state, runtime, "/theme mixcode-light", tui);
@@ -403,14 +405,14 @@ test("submitted input requires clear runtime replacement support", async () => {
   );
 });
 
-test("submitted clear shows working state before session replacement finishes", async () => {
+test("submitted clear fires session replacement without blocking the caller", async () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo");
   state.tabs.push(tab);
   state.activeTabId = "s1";
   let finishClear!: () => void;
   let clearStarted = false;
-  const renderStates: string[] = [];
+  const renderCalled: boolean[] = [];
   const runtime = {
     clearTab: async () => {
       clearStarted = true;
@@ -420,25 +422,32 @@ test("submitted clear shows working state before session replacement finishes", 
       tab.sessionId = "cleared";
       return { tab };
     },
+    getTab: () => ({ chat: [], reasoning: [] }),
   } as unknown as MixCodeRuntime;
-  const submitted = handleSubmittedInput(state, runtime, "/clear", {
+  await handleSubmittedInput(state, runtime, "/clear", {
     requestRender: () => {
-      renderStates.push(`${tab.status}:${Boolean(tab.workingStartedAt)}`);
+      renderCalled.push(true);
     },
     showOverlay: () => ({}) as never,
   });
-  assert.deepEqual(renderStates, ["running:true"]);
-  assert.equal(tab.status, "running");
-  assert.ok(tab.workingStartedAt);
+  // handleSubmittedInput returns immediately; clearTab is deferred via setTimeout.
+  // Status is idle (no spinner) because clearTab blocks the event loop anyway.
+  assert.ok(renderCalled.length > 0);
+  assert.equal(tab.status, "idle");
+  assert.equal(tab.workingStartedAt, undefined);
   assert.equal(clearStarted, false);
-  await new Promise((resolve) => setTimeout(resolve, 20));
+  // Let the setTimeout(32) fire and clearTab start.
+  await new Promise((resolve) => setTimeout(resolve, 50));
   assert.equal(clearStarted, true);
+  // clearTab is still pending.
+  assert.notEqual(state.activeTabId, "cleared");
   finishClear();
-  await submitted;
+  // Let the .then() microtask run.
+  await new Promise((resolve) => setTimeout(resolve, 0));
   assert.equal(state.activeTabId, "cleared");
 });
 
-test("submitted clear restores tab state when replacement fails", async () => {
+test("submitted clear resets tab state when replacement fails", async () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo", {
     status: "done",
@@ -447,25 +456,28 @@ test("submitted clear restores tab state when replacement fails", async () => {
   });
   state.tabs.push(tab);
   state.activeTabId = "s1";
-  await assert.rejects(
-    handleSubmittedInput(
-      state,
-      {
-        clearTab: async () => {
-          throw new Error("clear failed");
-        },
-      } as unknown as MixCodeRuntime,
-      "/clear",
-      {
-        requestRender: () => undefined,
-        showOverlay: () => ({}) as never,
+  const systemMessages: string[] = [];
+  await handleSubmittedInput(
+    state,
+    {
+      clearTab: async () => {
+        throw new Error("clear failed");
       },
-    ),
-    /clear failed/,
+      appendSystemMessage: (_sessionId: string, text: string) => {
+        systemMessages.push(text);
+      },
+    } as unknown as MixCodeRuntime,
+    "/clear",
+    {
+      requestRender: () => undefined,
+      showOverlay: () => ({}) as never,
+    },
   );
-  assert.equal(tab.status, "done");
-  assert.equal(tab.workingStartedAt, "2026-05-10T00:00:00.000Z");
-  assert.equal(tab.lastWorkedDurationSeconds, 12);
+  // Let the setTimeout(32) fire and the .catch() run.
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  // Status remains idle (set during clear); error is shown as system message.
+  assert.equal(tab.status, "idle");
+  assert.ok(systemMessages.some((msg) => msg.includes("clear failed")));
 });
 
 test("runtime enables Pi builtin tools", async () => {
