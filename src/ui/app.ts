@@ -103,6 +103,30 @@ export function createMixCodeTui(
   };
   const baseCompletionProvider = new MixCodeCompletionProvider({
     ...(options.completionSources ?? { skills: [], files: [] }),
+    skills: () => {
+      // Dynamically resolve skills from the active tab's resource loader,
+      // which includes extension-contributed skills (not just filesystem-scanned ones).
+      const active =
+        state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];
+      if (active && state.activeTabId !== "config") {
+        const runtimeTab = runtime.getTab(active.sessionId);
+        if (runtimeTab?.services?.resourceLoader) {
+          return runtimeTab.services.resourceLoader
+            .getSkills()
+            .skills.map((skill) => ({
+              name: skill.name,
+              path: skill.filePath,
+              description: skill.description,
+              sourceInfo: skill.sourceInfo
+                ? { scope: skill.sourceInfo.scope, source: skill.sourceInfo.source }
+                : undefined,
+            }));
+        }
+      }
+      // Fallback to static bootstrap skills
+      const fallback = options.completionSources?.skills;
+      return fallback ? (typeof fallback === "function" ? fallback() : fallback) : [];
+    },
     files: createActiveFileCompletionSource(state, options.completionSources?.files),
     commands: () => {
       const active = state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];

@@ -20,6 +20,7 @@ export * from "./core/pi-models.js";
 export * from "./core/pickers.js";
 export * from "./core/prompt-build.js";
 export * from "./core/prompt-templates.js";
+export * from "./core/skill-command.js";
 export * from "./core/questions.js";
 export * from "./core/session-selector.js";
 export * from "./core/shell-session.js";

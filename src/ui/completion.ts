@@ -22,14 +22,22 @@ export type MixCodeCompletionCommand = Pick<
   sourceInfo?: MixCodeCompletionSourceInfo;
 };
 type SourcedCompletionCommand = MixCodeCompletionCommand & { source: "built-in" | "extension" };
+export interface MixCodeSkillSourceInfo {
+  scope?: "user" | "project" | "temporary";
+  source?: string;
+}
+
 export interface MixCodeSkillCompletionSource {
   name: string;
   path?: string;
   description?: string;
+  sourceInfo?: MixCodeSkillSourceInfo;
 }
 
 export interface MixCodeCompletionSources {
-  skills: Array<string | MixCodeSkillCompletionSource>;
+  skills:
+    | Array<string | MixCodeSkillCompletionSource>
+    | (() => Array<string | MixCodeSkillCompletionSource>);
   files: string[] | (() => string[] | Promise<string[]>);
   commands?: MixCodeCompletionCommand[] | (() => MixCodeCompletionCommand[]);
 }
@@ -45,7 +53,8 @@ export class MixCodeCompletionProvider implements AutocompleteProvider {
     const line = lines[cursorLine] ?? "";
     const before = line.slice(0, cursorCol);
     const token = currentToken(before);
-    const commands = mergedSlashCommands(this.sources.commands);
+    const skills = resolveCompletionSkills(this.sources.skills);
+    const commands = mergedSlashCommands(this.sources.commands, skills);
     if (token.startsWith("/") && isSlashCommandNameContext(before, token)) {
       const prefix = token.slice(1);
       if (commands.some((command) => command.name === prefix)) return null;
@@ -62,14 +71,14 @@ export class MixCodeCompletionProvider implements AutocompleteProvider {
     }
     if (token.startsWith("$")) {
       const prefix = token.slice(1);
-      const skills = skillCompletionSources(this.sources.skills);
+      const skillItems = skillCompletionSources(skills);
       return {
         prefix: token,
         items: fuzzyMatchBatch(
           prefix,
-          skills.map((skill) => skill.name),
+          skillItems.map((skill) => skill.name),
         ).map(([, skillName]) => {
-          const skill = skills.find((item) => item.name === skillName)!;
+          const skill = skillItems.find((item) => item.name === skillName)!;
           return {
             value: `$${skill.name}`,
             label: skill.name,
@@ -109,7 +118,7 @@ export class MixCodeCompletionProvider implements AutocompleteProvider {
       cursorCol,
       item,
       prefix,
-      skillCompletionSources(this.sources.skills).map((skill) => skill.name),
+      skillCompletionSources(resolveCompletionSkills(this.sources.skills)).map((skill) => skill.name),
     );
     const start = cursorCol - effective.prefix.length;
     const nextLine = `${line.slice(0, start)}${effective.value}${line.slice(cursorCol)}`;
@@ -124,6 +133,12 @@ export class MixCodeCompletionProvider implements AutocompleteProvider {
   }
 }
 
+function resolveCompletionSkills(
+  skills: MixCodeCompletionSources["skills"],
+): Array<string | MixCodeSkillCompletionSource> {
+  return typeof skills === "function" ? skills() : skills;
+}
+
 async function resolveCompletionFiles(files: MixCodeCompletionSources["files"]): Promise<string[]> {
   return typeof files === "function" ? await files() : files;
 }
@@ -134,7 +149,7 @@ function currentToken(text: string): string {
 }
 
 function skillCompletionSources(
-  skills: MixCodeCompletionSources["skills"],
+  skills: Array<string | MixCodeSkillCompletionSource>,
 ): MixCodeSkillCompletionSource[] {
   return skills.map((skill) => (typeof skill === "string" ? { name: skill } : skill));
 }
@@ -143,6 +158,31 @@ function skillDescription(skill: MixCodeSkillCompletionSource): string {
   const location = skill.path ? ` (${compactHomePath(skill.path)})` : "";
   const summary = compactSkillSummary(skill.description);
   return summary ? `[Skill]${location} ${summary}` : `[Skill]${location}`;
+}
+
+/**
+ * Format skill description for /skill: slash commands with a source scope tag prefix.
+ * Matches the Pi reference `prefixAutocompleteDescription` + `getAutocompleteSourceTag` pattern.
+ * Examples: "[u] Description", "[p:npm:@foo/bar] Description"
+ */
+function prefixSkillDescription(
+  description: string | undefined,
+  sourceInfo: MixCodeSkillSourceInfo | undefined,
+): string {
+  const sourceTag = getSkillSourceTag(sourceInfo);
+  const desc = description ? compactSkillSummary(description) : undefined;
+  if (!sourceTag) return desc ?? "Invoke skill";
+  return desc ? `[${sourceTag}] ${desc}` : `[${sourceTag}]`;
+}
+
+function getSkillSourceTag(sourceInfo: MixCodeSkillSourceInfo | undefined): string | undefined {
+  if (!sourceInfo) return undefined;
+  const scopePrefix =
+    sourceInfo.scope === "user" ? "u" : sourceInfo.scope === "project" ? "p" : "t";
+  const source = sourceInfo.source?.trim();
+  if (!source || source === "auto" || source === "local" || source === "cli") return scopePrefix;
+  if (source.startsWith("npm:")) return `${scopePrefix}:${source}`;
+  return scopePrefix;
 }
 
 function compactHomePath(value: string): string {
@@ -257,6 +297,7 @@ function formatExtensionSourceName(source: string): string {
 
 function mergedSlashCommands(
   extensionCommands: MixCodeCompletionSources["commands"] = [],
+  skills: Array<string | MixCodeSkillCompletionSource> = [],
 ): SourcedCompletionCommand[] {
   const commands = new Map<string, SourcedCompletionCommand>();
   for (const command of LOCAL_COMMANDS)
@@ -266,6 +307,17 @@ function mergedSlashCommands(
   for (const command of resolvedExtensionCommands) {
     if (!commands.has(command.name))
       commands.set(command.name, { ...command, source: "extension" });
+  }
+  // Register skills as /skill:<name> commands (matches Pi reference behavior)
+  for (const skill of skillCompletionSources(skills)) {
+    const commandName = `skill:${skill.name}`;
+    if (!commands.has(commandName)) {
+      commands.set(commandName, {
+        name: commandName,
+        description: prefixSkillDescription(skill.description, skill.sourceInfo),
+        source: "built-in",
+      });
+    }
   }
   return [...commands.values()];
 }

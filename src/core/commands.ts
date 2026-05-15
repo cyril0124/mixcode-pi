@@ -109,6 +109,8 @@ export function parseInput(text: string): ParsedInput {
       excludeFromContext: false,
     };
   if (!trimmed.startsWith("/")) return { kind: "prompt", args: text };
+  // /skill:<name> is a prompt expansion, not a local command
+  if (trimmed.startsWith("/skill:")) return { kind: "prompt", args: trimmed };
   const [rawCommand = "", ...rest] = trimmed.slice(1).split(/\s+/);
   const args = rest.join(" ");
   return {

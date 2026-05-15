@@ -1,7 +1,12 @@
 import { buildPrompt, SKILL_INJECTION_SEPARATOR } from "./attachments.js";
+import { expandSkillCommand } from "./skill-command.js";
 
 export async function buildModelPrompt(text: string, workdir: string): Promise<string> {
-  const built = await buildPrompt(text, workdir);
+  // Expand /skill:<name> commands before $skill processing (matches Pi reference behavior).
+  const skillResult = await expandSkillCommand(text, workdir);
+  const effectiveText = skillResult.text;
+
+  const built = await buildPrompt(effectiveText, workdir);
   if (built.parts.length <= 1) {
     return built.parts[0]?.text ?? "";
   }
