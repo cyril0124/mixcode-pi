@@ -67,6 +67,12 @@ function renderAgentSurfaceInner(
     ? joinColumns(main, renderSidebarInner(tab, sidebarWidth, runtimeTab), mainWidth, sidebarWidth)
     : main;
   if (maxHeight === undefined) return lines;
+  // Clamp chatScrollOffset to the actual scrollable range so that sentinel
+  // values (e.g. 1_000_000 from chatHome) don't leave the offset far above
+  // the content, which would make subsequent small scroll deltas (j / ctrl+d)
+  // appear to do nothing.
+  const maxOffset = Math.max(0, lines.length - Math.max(0, Math.floor(maxHeight)));
+  if (tab.chatScrollOffset > maxOffset) tab.chatScrollOffset = maxOffset;
   const fitted = fitScrolledLinesWithInfo(lines, maxHeight, surfaceWidth, tab.chatScrollOffset);
   const hasNewContent =
     tab.chatScrollOffset > 0 && (tab.status === "running" || tab.status === "thinking");
