@@ -227,12 +227,13 @@ export async function handleSubmittedInput(
     clearRedoSession(active);
     const sessionId = parsed.args.trim() || `${active!.sessionId}-fork-${Date.now()}`;
     await runtime.forkSession(active!.sessionId, sessionId);
+    const activeIndex = state.tabs.findIndex((t) => t.sessionId === state.activeTabId);
     const tab = createTab(state.tabs.length + 1, sessionId, active!.workdir, {
       model: { ...active!.model },
       thinkingLevel: active!.thinkingLevel,
       title: `${active!.title}-fork`,
     });
-    state.tabs.push(tab);
+    state.tabs.splice(activeIndex + 1, 0, tab);
     activateTab(state, sessionId);
     await runtime.createTab(tab, {
       systemPrompt: MIXCODE_SYSTEM_PROMPT,
