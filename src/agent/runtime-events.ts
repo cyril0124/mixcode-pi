@@ -9,6 +9,7 @@ import {
   customMessageToChatLine,
   elapsedSeconds,
   surfaceAssistantStopReason,
+  syncContextUsage,
   updatePreviewMessage,
 } from "./runtime-chat.js";
 import { contentText } from "./runtime-text.js";
@@ -126,7 +127,10 @@ export function applyEvent(
         new Date(),
       );
       runtimeTab.tab.workingStartedAt = undefined;
-      if (!event.errorMessage) runtimeTab.tab.unreadDone = true;
+      if (!event.errorMessage) {
+        runtimeTab.tab.unreadDone = true;
+        syncContextUsage(runtimeTab);
+      }
       if (event.errorMessage)
         runtimeTab.chat.push({
           role: "system",

@@ -765,6 +765,7 @@ export class MixCodeRuntime {
       disposeChatRenderers(runtimeTab.chat);
       runtimeTab.chat = await this.rebuildChat(runtimeTab);
       syncPreviewFromChat(runtimeTab.tab, runtimeTab.chat);
+      syncContextUsage(runtimeTab);
       runtimeTab.chat.push({ role: "system", text: "Compaction complete." });
       runtimeTab.tab.status = "idle";
       runtimeTab.tab.unreadDone = true;
