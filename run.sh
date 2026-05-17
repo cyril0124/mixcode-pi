@@ -33,7 +33,7 @@ if [ "${MIXCODE_DEV:-0}" = "1" ]; then
 fi
 
 if needs_build; then
-  npm run build
+  tsgo
 fi
 
 exec node "$dist_entry" --workdir "$workdir" "$@"

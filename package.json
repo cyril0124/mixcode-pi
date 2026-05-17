@@ -23,6 +23,7 @@
     "@earendil-works/pi-ai": "^0.74.0",
     "@earendil-works/pi-coding-agent": "^0.74.0",
     "@earendil-works/pi-tui": "^0.74.0",
+    "@typescript/native-preview": "^7.0.0-dev.20260513.1",
     "yaml": "^2.8.4"
   },
   "devDependencies": {
