@@ -1,5 +1,6 @@
 import { homedir } from "node:os";
 import path from "node:path";
+import { fuzzyFilter } from "@earendil-works/pi-tui";
 import type {
   AutocompleteItem,
   AutocompleteProvider,
@@ -68,15 +69,15 @@ export class MixCodeCompletionProvider implements AutocompleteProvider {
     if (token.startsWith("/") && isSlashCommandNameContext(before, token)) {
       const prefix = token.slice(1);
       if (commands.some((command) => command.name === prefix)) return null;
+      const matchedCommands = fuzzyFilter(commands, prefix, (command) => command.name);
+      if (matchedCommands.length === 0) return null;
       return {
         prefix: token,
-        items: commands
-          .filter((command) => command.name.startsWith(prefix))
-          .map((command) => ({
-            value: `/${command.name}`,
-            label: commandLabel(command),
-            description: commandDescription(command),
-          })),
+        items: matchedCommands.map((command) => ({
+          value: `/${command.name}`,
+          label: commandLabel(command),
+          description: commandDescription(command),
+        })),
       };
     }
     if (token.startsWith("$")) {

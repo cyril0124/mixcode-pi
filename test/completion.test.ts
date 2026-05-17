@@ -38,6 +38,9 @@ test("completion provider suggests slash commands, skills, and files", async () 
   const hotkeysSlash = await provider.getSuggestions(["/hot"], 0, 4, { signal });
   assert.equal(hotkeysSlash?.items[0]?.value, "/hotkeys");
   assert.equal(hotkeysSlash?.items[0]?.description, "Show all keyboard shortcuts");
+  const fuzzySlash = await provider.getSuggestions(["/md"], 0, 3, { signal });
+  assert.equal(fuzzySlash?.items[0]?.value, "/mark-done");
+  assert.equal(fuzzySlash?.items[0]?.label, "mark-done (built-in)");
   const extensionSlash = await provider.getSuggestions(["/ins"], 0, 4, { signal });
   assert.equal(extensionSlash?.items[0]?.value, "/inspect");
   assert.equal(extensionSlash?.items[0]?.label, "inspect (ext:pi-subagents)");

@@ -177,19 +177,19 @@ test("mouse reporting terminal enables and disables SGR mouse events", async () 
   ]);
 });
 
-test("fuzzy matching mirrors strict subsequence semantics", () => {
+test("fuzzy matching mirrors Pi TUI scoring semantics", () => {
   assert.equal(fuzzyContains("mc", "MixCode"), true);
   assert.equal(fuzzyContains("cm", "MixCode"), false);
   assert.equal(fuzzyContains("", ""), true);
   assert.equal(fuzzyMatch("", "abc"), 0);
   assert.equal(fuzzyMatch("a", ""), undefined);
-  assert.equal(fuzzyMatch("mc", "MixCode"), 5);
+  assert.equal(fuzzyMatch("mc", "MixCode"), -10.7);
   assert.equal(fuzzyMatch("abcdef", "abc"), undefined);
   assert.deepEqual(fuzzyMatchBatch("ab", ["ab", "alphabet", "cab"], 2), [
-    [0, "ab"],
-    [1, "cab"],
+    [-124.9, "ab"],
+    [-6.5, "alphabet"],
   ]);
-  assert.deepEqual([...fuzzyMatchBatchScored("mc", ["MixCode", "abc"]).entries()], [[0, 5]]);
+  assert.deepEqual([...fuzzyMatchBatchScored("mc", ["MixCode", "abc"]).entries()], [[0, -10.7]]);
 });
 
 test("commands parse prompts, slash commands, shell commands, and suggestions", () => {

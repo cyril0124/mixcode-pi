@@ -1,20 +1,16 @@
+import { fuzzyFilter, fuzzyMatch as piFuzzyMatch } from "@earendil-works/pi-tui";
+
+/**
+ * Compatibility wrapper around Pi TUI fuzzy matching.
+ * MixCode keeps its historical number/undefined API while sharing Pi's scoring semantics.
+ */
 export function fuzzyContains(query: string, text: string): boolean {
-  if (!query) return true;
-  if (!text) return false;
-  let qi = 0;
-  const q = query.toLowerCase();
-  const t = text.toLowerCase();
-  for (const ch of t) {
-    if (ch === q[qi]) qi += 1;
-    if (qi === q.length) return true;
-  }
-  return false;
+  return piFuzzyMatch(query, text).matches;
 }
 
 export function fuzzyMatch(query: string, name: string): number | undefined {
-  if (!query) return 0;
-  if (!name || query.length > name.length) return undefined;
-  return fuzzyContains(query, name) ? name.length - query.length : undefined;
+  const match = piFuzzyMatch(query, name);
+  return match.matches ? match.score : undefined;
 }
 
 export function fuzzyMatchBatch(
@@ -22,19 +18,31 @@ export function fuzzyMatchBatch(
   candidates: string[],
   limit = 20,
 ): Array<[number, string]> {
-  const scored: Array<[number, string]> = [];
-  for (const candidate of candidates) {
-    const score = fuzzyMatch(query, candidate);
-    if (score !== undefined) scored.push([score, candidate]);
-  }
-  return scored.sort((a, b) => a[0] - b[0] || a[1].localeCompare(b[1])).slice(0, limit);
+  return fuzzyFilter(candidates, query, (candidate) => candidate)
+    .slice(0, limit)
+    .map((candidate) => [fuzzyFilterScore(query, candidate) ?? 0, candidate]);
 }
 
 export function fuzzyMatchBatchScored(query: string, candidates: string[]): Map<number, number> {
   const result = new Map<number, number>();
   candidates.forEach((candidate, index) => {
-    const score = fuzzyMatch(query, candidate);
+    const score = fuzzyFilterScore(query, candidate);
     if (score !== undefined) result.set(index, score);
   });
   return result;
+}
+
+function fuzzyFilterScore(query: string, text: string): number | undefined {
+  const tokens = query
+    .trim()
+    .split(/\s+/)
+    .filter((token) => token.length > 0);
+  if (tokens.length === 0) return 0;
+  let total = 0;
+  for (const token of tokens) {
+    const match = piFuzzyMatch(token, text);
+    if (!match.matches) return undefined;
+    total += match.score;
+  }
+  return total;
 }
