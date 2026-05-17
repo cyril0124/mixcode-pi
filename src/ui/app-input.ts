@@ -111,7 +111,7 @@ export function handleMixCodeKeyInput(
     return { consume: true };
   }
   if (
-    active?.pendingQuestions.length &&
+    active?.pendingDialogs.length &&
     handleQuestionKey(state, active, data, tui, runtime, onStateChanged)
   ) {
     clearPendingEscape(active, "abort-agent");
@@ -385,7 +385,7 @@ function handleBatchedSubmitInput(
     state.exportChooserOpen
   )
     return false;
-  if (active?.shellOpen || active?.previewOpen || active?.pendingQuestions.length) return false;
+  if (active?.shellOpen || active?.previewOpen || active?.pendingDialogs.length) return false;
   insertEditorText(editorActions, text);
   editorActions.submitCurrentText();
   tui.requestRender();
@@ -405,7 +405,7 @@ function hasFocusedAppControl(
       state.exportChooserOpen ||
       active?.shellOpen ||
       active?.previewOpen ||
-      active?.pendingQuestions.length,
+      active?.pendingDialogs.length,
   );
 }
 

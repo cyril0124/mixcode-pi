@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { test } from "node:test";
 import {
   createInitialState,
-  createQuestionRequest,
+  createDialogRequest,
   createTab,
   expandLocalPromptCommand,
   handleMixCodeKeyInput,

@@ -193,7 +193,7 @@ function escapeRegExp(text: string): string {
 test("rendering exposes chat, tool, extension, and agent surface landmarks", () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo", {
-    pendingQuestions: [
+    pendingDialogs: [
       {
         requestId: "q",
         sessionId: "s1",

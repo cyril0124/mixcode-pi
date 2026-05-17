@@ -19,7 +19,7 @@ export interface QuestionInfo {
   custom: boolean;
 }
 
-export interface QuestionRequestState {
+export interface DialogRequestState {
   requestId: string;
   sessionId: string;
   questions: QuestionInfo[];
@@ -130,7 +130,7 @@ export interface MixCodeTabInfo {
   alias: string;
   todoVisible: boolean;
   todos: TodoItem[];
-  pendingQuestions: QuestionRequestState[];
+  pendingDialogs: DialogRequestState[];
   pendingMessages: string[];
   promptHistory: string[];
   draftInput: string;

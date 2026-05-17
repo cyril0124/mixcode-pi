@@ -19,12 +19,12 @@ import {
   updateTabJumpQuery,
 } from "../core/overlays.js";
 import {
-  buildQuestionAnswerPrompt,
-  buildQuestionRejectionPrompt,
+  buildDialogAnswerPrompt,
+  buildDialogRejectionPrompt,
   moveQuestion,
   moveQuestionOption,
   toggleCurrentQuestionOption,
-} from "../core/questions.js";
+} from "../core/dialogs.js";
 import type { MixCodeState } from "../core/types.js";
 import {
   armPendingEscape,
@@ -88,7 +88,7 @@ export function handleQueuedFlushKey(
   if (!matchesKey(data, "escape")) return false;
   if (state.activeTabId === "config") return false;
   if (hasAnyOverlay(tui) || isEditorAutocompleteOpen()) return false;
-  if (active.shellOpen || active.previewOpen || active.pendingQuestions.length > 0) return false;
+  if (active.shellOpen || active.previewOpen || active.pendingDialogs.length > 0) return false;
   const runtimeTab = runtime?.getTab?.(active.sessionId);
   const runtimeQueuedCount = runtimeQueuedMessageCount(runtimeTab);
   if (active.pendingMessages.length === 0 && runtimeQueuedCount === 0) return false;
@@ -160,7 +160,7 @@ export function canOpenCommandPalette(
   if (hasAnyOverlay(tui)) return false;
   if (state.picker || state.sessionSelector.open || state.treeSelector.open || state.tabJumpOpen || state.exportChooserOpen)
     return false;
-  if (active?.previewOpen || active?.pendingQuestions.length) return false;
+  if (active?.previewOpen || active?.pendingDialogs.length) return false;
   return commandPaletteEntriesWithExtensions(state, extensionCommands).length > 0;
 }
 
@@ -373,7 +373,7 @@ export function handleQuestionKey(
   runtime?: MixCodeKeyRuntime,
   onStateChanged?: (state: MixCodeState) => void | Promise<void>,
 ): boolean {
-  const request = active.pendingQuestions[0];
+  const request = active.pendingDialogs[0];
   if (!request) return false;
   if (request.editingCustomIndex !== undefined) {
     return handleQuestionCustomEditKey(request, data, tui);
@@ -438,7 +438,7 @@ export function handleQuestionKey(
 }
 
 function handleQuestionCustomEditKey(
-  request: NonNullable<MixCodeState["tabs"][number]["pendingQuestions"][number]>,
+  request: NonNullable<MixCodeState["tabs"][number]["pendingDialogs"][number]>,
   data: string,
   tui: Pick<TuiType, "requestRender">,
 ): boolean {
@@ -508,7 +508,7 @@ function matchesQuestionArrowKey(data: string, key: "up" | "down" | "left" | "ri
 }
 
 function moveQuestionCustomEditSelection(
-  request: NonNullable<MixCodeState["tabs"][number]["pendingQuestions"][number]>,
+  request: NonNullable<MixCodeState["tabs"][number]["pendingDialogs"][number]>,
   index: number,
   delta: number,
 ): void {
@@ -531,7 +531,7 @@ function submitQuestionResponse(
   runtime?: MixCodeKeyRuntime,
   onStateChanged?: (state: MixCodeState) => void | Promise<void>,
 ): void {
-  const request = active.pendingQuestions[0];
+  const request = active.pendingDialogs[0];
   if (!request) return;
   if (request.extensionResolverId) {
     if (!runtime?.resolveExtensionDialog)
@@ -545,11 +545,11 @@ function submitQuestionResponse(
   }
   if (!runtime?.prompt) throw new Error("Question submission requires runtime prompt support");
   const prompt =
-    mode === "answer" ? buildQuestionAnswerPrompt(request) : buildQuestionRejectionPrompt(request);
+    mode === "answer" ? buildDialogAnswerPrompt(request) : buildDialogRejectionPrompt(request);
   void runtime
     .prompt(active.sessionId, prompt)
     .then(async () => {
-      active.pendingQuestions.shift();
+      active.pendingDialogs.shift();
       clearPendingEscape(active, "reject-question");
       await onStateChanged?.(state);
       tui.requestRender();
@@ -561,7 +561,7 @@ function submitQuestionResponse(
 }
 
 function extensionDialogResult(
-  request: NonNullable<MixCodeState["tabs"][number]["pendingQuestions"][number]>,
+  request: NonNullable<MixCodeState["tabs"][number]["pendingDialogs"][number]>,
 ): string | boolean | undefined {
   const index = request.currentQuestionIndex;
   const selected = request.selectedAnswers[index] ?? [];

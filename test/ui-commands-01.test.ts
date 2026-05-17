@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { test } from "node:test";
 import {
   createInitialState,
-  createQuestionRequest,
+  createDialogRequest,
   createTab,
   expandLocalPromptCommand,
   handleMixCodeKeyInput,
@@ -83,9 +83,9 @@ test("prompt templates expand supported local slash commands", () => {
 test("question overlay renders pending request details and empty states", () => {
   const tab = createTab(1, "s1", "/repo");
   assert.deepEqual(renderQuestionOverlay(tab, 80), []);
-  tab.pendingQuestions.push(createQuestionRequest("r1", "s1", []));
+  tab.pendingDialogs.push(createDialogRequest("r1", "s1", []));
   assert.match(renderQuestionOverlay(tab, 80).join("\n"), /No pending question details/);
-  tab.pendingQuestions[0] = createQuestionRequest("r2", "s1", [
+  tab.pendingDialogs[0] = createDialogRequest("r2", "s1", [
     {
       header: "Confirm",
       question: "Proceed?",
@@ -98,14 +98,14 @@ test("question overlay renders pending request details and empty states", () => 
   assert.match(rendered, /Proceed/);
   assert.match(rendered, /> \[ \] Yes/);
   assert.match(rendered, / {2}\[ \] Custom: \(empty\)/);
-  tab.pendingQuestions[0].selectedAnswers[0] = ["Yes"];
-  tab.pendingQuestions[0].customAnswers[0] = "Go";
+  tab.pendingDialogs[0].selectedAnswers[0] = ["Yes"];
+  tab.pendingDialogs[0].customAnswers[0] = "Go";
   assert.match(renderQuestionOverlay(tab, 80).join("\n"), /> \[x\] Yes/);
   assert.match(renderQuestionOverlay(tab, 80).join("\n"), / {2}\[ \] Custom: Go/);
-  tab.pendingQuestions[0].highlightedOptionIndices[0] = 1;
-  tab.pendingQuestions[0].editingCustomIndex = 0;
+  tab.pendingDialogs[0].highlightedOptionIndices[0] = 1;
+  tab.pendingDialogs[0].editingCustomIndex = 0;
   assert.match(renderQuestionOverlay(tab, 80).join("\n"), /> \[\*\] Custom: Go/);
-  tab.pendingQuestions[0] = createQuestionRequest("r2b", "s1", [
+  tab.pendingDialogs[0] = createDialogRequest("r2b", "s1", [
     {
       header: "Confirm",
       question: "Which?",
@@ -117,10 +117,10 @@ test("question overlay renders pending request details and empty states", () => 
       custom: false,
     },
   ]);
-  tab.pendingQuestions[0].highlightedOptionIndices[0] = 1;
+  tab.pendingDialogs[0].highlightedOptionIndices[0] = 1;
   assert.match(renderQuestionOverlay(tab, 80).join("\n"), / {2}\[ \] Yes/);
   assert.match(renderQuestionOverlay(tab, 80).join("\n"), /> \[ \] No/);
-  tab.pendingQuestions[0] = createQuestionRequest("r3", "s1", [
+  tab.pendingDialogs[0] = createDialogRequest("r3", "s1", [
     { header: "Empty", question: "Explain?", options: [], multiple: false, custom: false },
   ]);
   assert.match(renderQuestionOverlay(tab, 80).join("\n"), /No options/);

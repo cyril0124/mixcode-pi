@@ -377,7 +377,7 @@ test("runtime maps tool and thinking events into tab UI state", async () => {
   });
   assert.equal(tab.status, "thinking");
   assert.equal(tab.todoVisible, false);
-  assert.equal(tab.pendingQuestions.length, 0);
+  assert.equal(tab.pendingDialogs.length, 0);
   assert.equal(runtimeTab.reasoning.filter((line) => line.includes("think")).length, 1);
   assert.ok(runtimeTab.reasoning.join("\n").includes("think more"));
   assert.ok(

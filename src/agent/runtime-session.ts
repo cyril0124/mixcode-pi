@@ -19,7 +19,7 @@ export function resetExtensionHostState(
   runtimeTab.tab.extensionUi.pendingUserInteractions = [];
   runtimeTab.extensionAutocompleteProviderFactories = [];
   runtimeTab.extensionAutocompleteProviderCache = undefined;
-  runtimeTab.tab.pendingQuestions = runtimeTab.tab.pendingQuestions.filter(
+  runtimeTab.tab.pendingDialogs = runtimeTab.tab.pendingDialogs.filter(
     (request) => !request.extensionResolverId,
   );
   disposeExtensionWidgets(runtimeTab.tab);

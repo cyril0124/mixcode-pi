@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { test } from "node:test";
 import {
   createInitialState,
-  createQuestionRequest,
+  createDialogRequest,
   createTab,
   expandLocalPromptCommand,
   handleMixCodeKeyInput,
@@ -415,7 +415,7 @@ test("config-scoped submitted input runs without an active agent tab", async () 
     workingStartedAt: "2026-05-10T00:00:00.000Z",
     lastWorkedDurationSeconds: 12,
     todos: ["one", "two"],
-    pendingQuestions: [
+    pendingDialogs: [
       {
         requestId: "q1",
         sessionId: "debug",

@@ -118,7 +118,7 @@ test("tab jump entries expose busy, done, question, and fuzzy filtering", () => 
     createTab(1, "s1", "/repo", { alias: "alpha", status: "running", unreadDone: true }),
     createTab(2, "s2", "/repo", {
       title: "Beta",
-      pendingQuestions: [
+      pendingDialogs: [
         {
           requestId: "q",
           sessionId: "s2",
@@ -182,7 +182,7 @@ test("tab jump state opens, filters, moves, accepts, and closes", () => {
   updateTabJumpQuery(state, "");
   state.tabs[0]!.unreadDone = true;
   state.tabs[0]!.status = "idle";
-  state.tabs[1]!.pendingQuestions = [];
+  state.tabs[1]!.pendingDialogs = [];
   state.tabs[1]!.unreadDone = true;
   state.tabs[1]!.status = "done";
   assert.match(renderTabJumpOverlay(state, 80).join("\n"), /! Beta/);

@@ -684,7 +684,7 @@ test("key handling covers app overlay handles", () => {
 test("rendering overlay defaults cover closed and fallback branches", () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo", {
-    pendingQuestions: [
+    pendingDialogs: [
       {
         requestId: "q",
         sessionId: "s1",

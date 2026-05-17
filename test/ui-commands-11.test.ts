@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { test } from "node:test";
 import {
   createInitialState,
-  createQuestionRequest,
+  createDialogRequest,
   createTab,
   expandLocalPromptCommand,
   handleMixCodeKeyInput,
@@ -48,8 +48,8 @@ async function waitFor<T>(read: () => Promise<T>, attempts = 25): Promise<T> {
 test("global key input resolves extension dialog questions without prompting the model", async () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo");
-  tab.pendingQuestions.push(
-    createQuestionRequest(
+  tab.pendingDialogs.push(
+    createDialogRequest(
       "extension-ui-select-1",
       "s1",
       [
@@ -78,8 +78,8 @@ test("global key input resolves extension dialog questions without prompting the
     },
     resolveExtensionDialog: (_sessionId: string, requestId: string, result: unknown) => {
       resolved = result;
-      const index = tab.pendingQuestions.findIndex((request) => request.requestId === requestId);
-      if (index !== -1) tab.pendingQuestions.splice(index, 1);
+      const index = tab.pendingDialogs.findIndex((request) => request.requestId === requestId);
+      if (index !== -1) tab.pendingDialogs.splice(index, 1);
       return true;
     },
   };
@@ -97,18 +97,18 @@ test("global key input resolves extension dialog questions without prompting the
   );
   assert.equal(resolved, "B");
   assert.equal(prompted, false);
-  assert.equal(tab.pendingQuestions.length, 0);
+  assert.equal(tab.pendingDialogs.length, 0);
   assert.deepEqual(changes, ["changed"]);
 
-  tab.pendingQuestions.push(
-    createQuestionRequest(
+  tab.pendingDialogs.push(
+    createDialogRequest(
       "extension-ui-input-1",
       "s1",
       [{ header: "Name", question: "Type name", options: [], multiple: false, custom: true }],
       { extensionResolverId: "extension-ui-input-1", extensionUiKind: "input" },
     ),
   );
-  tab.pendingQuestions[0]!.editingCustomIndex = 0;
+  tab.pendingDialogs[0]!.editingCustomIndex = 0;
   for (const char of "Neo") {
     assert.deepEqual(handleMixCodeKeyInput(state, char, tui, undefined, runtime), {
       consume: true,
@@ -118,8 +118,8 @@ test("global key input resolves extension dialog questions without prompting the
   assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui, undefined, runtime), { consume: true });
   assert.equal(resolved, "Neo");
 
-  tab.pendingQuestions.push(
-    createQuestionRequest(
+  tab.pendingDialogs.push(
+    createDialogRequest(
       "extension-ui-input-empty",
       "s1",
       [{ header: "Name", question: "Type name", options: [], multiple: false, custom: true }],
@@ -129,8 +129,8 @@ test("global key input resolves extension dialog questions without prompting the
   assert.deepEqual(handleMixCodeKeyInput(state, "y", tui, undefined, runtime), { consume: true });
   assert.equal(resolved, "");
 
-  tab.pendingQuestions.push(
-    createQuestionRequest(
+  tab.pendingDialogs.push(
+    createDialogRequest(
       "extension-ui-select-empty",
       "s1",
       [{ header: "Pick", question: "Choose", options: [], multiple: false, custom: false }],
@@ -140,21 +140,21 @@ test("global key input resolves extension dialog questions without prompting the
   assert.deepEqual(handleMixCodeKeyInput(state, "y", tui, undefined, runtime), { consume: true });
   assert.equal(resolved, undefined);
 
-  tab.pendingQuestions.push(
-    createQuestionRequest(
+  tab.pendingDialogs.push(
+    createDialogRequest(
       "extension-ui-select-sparse",
       "s1",
       [{ header: "Pick", question: "Choose", options: [], multiple: false, custom: false }],
       { extensionResolverId: "extension-ui-select-sparse", extensionUiKind: "select" },
     ),
   );
-  tab.pendingQuestions[0]!.selectedAnswers = [];
-  tab.pendingQuestions[0]!.customAnswers = [];
+  tab.pendingDialogs[0]!.selectedAnswers = [];
+  tab.pendingDialogs[0]!.customAnswers = [];
   assert.deepEqual(handleMixCodeKeyInput(state, "y", tui, undefined, runtime), { consume: true });
   assert.equal(resolved, undefined);
 
-  tab.pendingQuestions.push(
-    createQuestionRequest(
+  tab.pendingDialogs.push(
+    createDialogRequest(
       "extension-ui-input-sparse-index",
       "s1",
       [
@@ -170,15 +170,15 @@ test("global key input resolves extension dialog questions without prompting the
       { extensionResolverId: "extension-ui-input-sparse-index", extensionUiKind: "input" },
     ),
   );
-  tab.pendingQuestions[0]!.selectedAnswers = [["A"]];
-  tab.pendingQuestions[0]!.customAnswers = ["ignored"];
+  tab.pendingDialogs[0]!.selectedAnswers = [["A"]];
+  tab.pendingDialogs[0]!.customAnswers = ["ignored"];
   assert.deepEqual(handleMixCodeKeyInput(state, "l", tui, undefined, runtime), { consume: true });
-  assert.equal(tab.pendingQuestions[0]?.currentQuestionIndex, 1);
+  assert.equal(tab.pendingDialogs[0]?.currentQuestionIndex, 1);
   assert.deepEqual(handleMixCodeKeyInput(state, "y", tui, undefined, runtime), { consume: true });
   assert.equal(resolved, "");
 
-  tab.pendingQuestions.push(
-    createQuestionRequest(
+  tab.pendingDialogs.push(
+    createDialogRequest(
       "extension-ui-missing-runtime",
       "s1",
       [{ header: "Pick", question: "Choose", options: [], multiple: false, custom: false }],
@@ -186,10 +186,10 @@ test("global key input resolves extension dialog questions without prompting the
     ),
   );
   assert.throws(() => handleMixCodeKeyInput(state, "y", tui), /runtime resolver support/);
-  tab.pendingQuestions = [];
+  tab.pendingDialogs = [];
 
-  tab.pendingQuestions.push(
-    createQuestionRequest(
+  tab.pendingDialogs.push(
+    createDialogRequest(
       "extension-ui-confirm-1",
       "s1",
       [
@@ -209,10 +209,10 @@ test("global key input resolves extension dialog questions without prompting the
   );
   assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui, undefined, runtime), { consume: true });
   assert.equal(resolved, "Yes");
-  assert.equal(tab.pendingQuestions.length, 0);
+  assert.equal(tab.pendingDialogs.length, 0);
 
-  tab.pendingQuestions.push(
-    createQuestionRequest(
+  tab.pendingDialogs.push(
+    createDialogRequest(
       "extension-ui-confirm-esc",
       "s1",
       [
@@ -237,11 +237,11 @@ test("global key input resolves extension dialog questions without prompting the
     consume: true,
   });
   assert.equal(resolved, undefined);
-  assert.equal(tab.pendingQuestions.length, 0);
+  assert.equal(tab.pendingDialogs.length, 0);
 
   tab.status = "thinking";
-  tab.pendingQuestions.push(
-    createQuestionRequest(
+  tab.pendingDialogs.push(
+    createDialogRequest(
       "extension-ui-confirm-running-esc",
       "s1",
       [
@@ -278,7 +278,7 @@ test("global key input resolves extension dialog questions without prompting the
     consume: true,
   });
   assert.equal(resolved, undefined);
-  assert.equal(tab.pendingQuestions.length, 0);
+  assert.equal(tab.pendingDialogs.length, 0);
   assert.equal(tab.pendingEscapeAction, undefined);
   assert.equal(aborts, 0);
 });

@@ -28,7 +28,7 @@ interface MixCodeTuiDebugState {
     thinkingLevel: string;
     todoVisible: boolean;
     todoCount: number;
-    pendingQuestionCount: number;
+    pendingDialogCount: number;
     chatScrollOffset: number;
     previewOpen: boolean;
     previewIndex: number;
@@ -94,7 +94,7 @@ export function createTuiDebugState(state: MixCodeState): MixCodeTuiDebugState {
       thinkingLevel: tab.thinkingLevel,
       todoVisible: tab.todoVisible,
       todoCount: tab.todos.length,
-      pendingQuestionCount: tab.pendingQuestions.length,
+      pendingDialogCount: tab.pendingDialogs.length,
       chatScrollOffset: tab.chatScrollOffset,
       previewOpen: tab.previewOpen,
       previewIndex: tab.previewIndex,

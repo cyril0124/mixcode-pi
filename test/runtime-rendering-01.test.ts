@@ -192,7 +192,7 @@ function escapeRegExp(text: string): string {
 test("rendering exposes header, status, working indicator, and sidebar landmarks", () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo", {
-    pendingQuestions: [
+    pendingDialogs: [
       {
         requestId: "q",
         sessionId: "s1",

@@ -1,11 +1,11 @@
-import type { QuestionInfo, QuestionRequestState } from "./types.js";
+import type { QuestionInfo, DialogRequestState } from "./types.js";
 
-export function createQuestionRequest(
+export function createDialogRequest(
   requestId: string,
   sessionId: string,
   questions: QuestionInfo[],
-  options: Pick<QuestionRequestState, "extensionResolverId" | "extensionUiKind"> = {},
-): QuestionRequestState {
+  options: Pick<DialogRequestState, "extensionResolverId" | "extensionUiKind"> = {},
+): DialogRequestState {
   return {
     requestId,
     sessionId,
@@ -21,7 +21,7 @@ export function createQuestionRequest(
 }
 
 export function answerCurrentQuestion(
-  state: QuestionRequestState,
+  state: DialogRequestState,
   answers: string[],
   customAnswer = "",
 ): void {
@@ -32,14 +32,14 @@ export function answerCurrentQuestion(
   state.dirty = true;
 }
 
-export function moveQuestion(state: QuestionRequestState, delta: number): void {
+export function moveQuestion(state: DialogRequestState, delta: number): void {
   const next = state.currentQuestionIndex + delta;
   if (next < 0 || next >= state.questions.length)
     throw new Error(`Question index out of range: ${next}`);
   state.currentQuestionIndex = next;
 }
 
-export function moveQuestionOption(state: QuestionRequestState, delta: number): void {
+export function moveQuestionOption(state: DialogRequestState, delta: number): void {
   const index = state.currentQuestionIndex;
   const question = state.questions[index];
   if (!question) throw new Error(`Question index out of range: ${index}`);
@@ -50,7 +50,7 @@ export function moveQuestionOption(state: QuestionRequestState, delta: number): 
   state.highlightedOptionIndices[index] = next;
 }
 
-export function toggleCurrentQuestionOption(state: QuestionRequestState): void {
+export function toggleCurrentQuestionOption(state: DialogRequestState): void {
   const index = state.currentQuestionIndex;
   const question = state.questions[index];
   if (!question) throw new Error(`Question index out of range: ${index}`);
@@ -77,14 +77,14 @@ export function toggleCurrentQuestionOption(state: QuestionRequestState): void {
   state.dirty = true;
 }
 
-export function questionProgress(state: QuestionRequestState): string {
+export function questionProgress(state: DialogRequestState): string {
   const total = state.questions.length;
   if (total === 0) return "0/0";
   return `${state.currentQuestionIndex + 1}/${total}`;
 }
 
-export function finalizeQuestionRequest(
-  state: QuestionRequestState,
+export function finalizeDialogRequest(
+  state: DialogRequestState,
 ): Array<{ question: string; answers: string[]; customAnswer: string }> {
   return state.questions.map((question, index) => ({
     question: question.question,
@@ -93,8 +93,8 @@ export function finalizeQuestionRequest(
   }));
 }
 
-export function buildQuestionAnswerPrompt(state: QuestionRequestState): string {
-  const answers = finalizeQuestionRequest(state).map((item, index) => {
+export function buildDialogAnswerPrompt(state: DialogRequestState): string {
+  const answers = finalizeDialogRequest(state).map((item, index) => {
     const selected = item.answers.length ? item.answers.join(", ") : "(no selected option)";
     const custom = item.customAnswer ? `\nCustom answer: ${item.customAnswer}` : "";
     return `${index + 1}. ${item.question}\nSelected answers: ${selected}${custom}`;
@@ -102,6 +102,6 @@ export function buildQuestionAnswerPrompt(state: QuestionRequestState): string {
   return [`Question request ${state.requestId} answered by user:`, ...answers].join("\n");
 }
 
-export function buildQuestionRejectionPrompt(state: QuestionRequestState): string {
+export function buildDialogRejectionPrompt(state: DialogRequestState): string {
   return `Question request ${state.requestId} was rejected by user.`;
 }

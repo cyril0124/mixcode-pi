@@ -75,8 +75,8 @@ test("runtime rendering rings terminal bell when a new user interaction appears"
     tui,
   );
 
-  // Simulate a new pendingQuestion appearing
-  tab.pendingQuestions.push({
+  // Simulate a new pendingDialog appearing
+  tab.pendingDialogs.push({
     requestId: "q1",
     sessionId: "s1",
     questions: [{ header: "Pick", question: "Choose", options: [], multiple: false, custom: false }],
@@ -86,7 +86,7 @@ test("runtime rendering rings terminal bell when a new user interaction appears"
     customAnswers: [""],
   });
   listener?.({ type: "extension_ui_update" }, { tab });
-  assert.deepEqual(writes, ["\x07"], "bell should ring for new pendingQuestion");
+  assert.deepEqual(writes, ["\x07"], "bell should ring for new pendingDialog");
 
   // Same count — no additional bell
   listener?.({ type: "extension_ui_update" }, { tab });

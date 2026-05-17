@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { test } from "node:test";
 import {
   createInitialState,
-  createQuestionRequest,
+  createDialogRequest,
   createTab,
   expandLocalPromptCommand,
   handleMixCodeKeyInput,
@@ -95,8 +95,8 @@ test("export chooser exposes missing runtime and active tab errors", () => {
 test("global key input answers and rejects pending questions through runtime prompt", async () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo");
-  tab.pendingQuestions.push(
-    createQuestionRequest("r1", "s1", [
+  tab.pendingDialogs.push(
+    createDialogRequest("r1", "s1", [
       {
         header: "Choice",
         question: "Pick one",
@@ -148,156 +148,156 @@ test("global key input answers and rejects pending questions through runtime pro
     handleMixCodeKeyInput(state, "j", tui, undefined, runtime, () => changes.push("changed")),
     { consume: true },
   );
-  assert.equal(tab.pendingQuestions[0]?.highlightedOptionIndices[0], 1);
+  assert.equal(tab.pendingDialogs[0]?.highlightedOptionIndices[0], 1);
   assert.deepEqual(handleMixCodeKeyInput(state, "k", tui, undefined, runtime), { consume: true });
-  assert.equal(tab.pendingQuestions[0]?.highlightedOptionIndices[0], 0);
+  assert.equal(tab.pendingDialogs[0]?.highlightedOptionIndices[0], 0);
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[A", tui, undefined, runtime), {
     consume: true,
   });
-  assert.equal(tab.pendingQuestions[0]?.highlightedOptionIndices[0], 0);
+  assert.equal(tab.pendingDialogs[0]?.highlightedOptionIndices[0], 0);
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[B", tui, undefined, runtime), {
     consume: true,
   });
-  assert.equal(tab.pendingQuestions[0]?.highlightedOptionIndices[0], 1);
+  assert.equal(tab.pendingDialogs[0]?.highlightedOptionIndices[0], 1);
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[1A", tui, undefined, runtime), {
     consume: true,
   });
-  assert.equal(tab.pendingQuestions[0]?.highlightedOptionIndices[0], 0);
+  assert.equal(tab.pendingDialogs[0]?.highlightedOptionIndices[0], 0);
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[1B", tui, undefined, runtime), {
     consume: true,
   });
-  assert.equal(tab.pendingQuestions[0]?.highlightedOptionIndices[0], 1);
+  assert.equal(tab.pendingDialogs[0]?.highlightedOptionIndices[0], 1);
   assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui, undefined, runtime), { consume: true });
-  assert.deepEqual(tab.pendingQuestions[0]?.selectedAnswers[0], ["B"]);
+  assert.deepEqual(tab.pendingDialogs[0]?.selectedAnswers[0], ["B"]);
   assert.deepEqual(handleMixCodeKeyInput(state, " ", tui, undefined, runtime), { consume: true });
-  assert.deepEqual(tab.pendingQuestions[0]?.selectedAnswers[0], []);
+  assert.deepEqual(tab.pendingDialogs[0]?.selectedAnswers[0], []);
   assert.deepEqual(handleMixCodeKeyInput(state, " ", tui, undefined, runtime), { consume: true });
-  assert.deepEqual(tab.pendingQuestions[0]?.selectedAnswers[0], ["B"]);
+  assert.deepEqual(tab.pendingDialogs[0]?.selectedAnswers[0], ["B"]);
   assert.deepEqual(handleMixCodeKeyInput(state, "l", tui, undefined, runtime), { consume: true });
-  assert.equal(tab.pendingQuestions[0]?.currentQuestionIndex, 1);
+  assert.equal(tab.pendingDialogs[0]?.currentQuestionIndex, 1);
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[C", tui, undefined, runtime), {
     consume: true,
   });
-  assert.equal(tab.pendingQuestions[0]?.currentQuestionIndex, 1);
+  assert.equal(tab.pendingDialogs[0]?.currentQuestionIndex, 1);
   assert.deepEqual(handleMixCodeKeyInput(state, " ", tui, undefined, runtime), { consume: true });
   assert.deepEqual(handleMixCodeKeyInput(state, "j", tui, undefined, runtime), { consume: true });
   assert.deepEqual(handleMixCodeKeyInput(state, " ", tui, undefined, runtime), { consume: true });
-  assert.deepEqual(tab.pendingQuestions[0]?.selectedAnswers[1], ["C", "D"]);
+  assert.deepEqual(tab.pendingDialogs[0]?.selectedAnswers[1], ["C", "D"]);
   assert.deepEqual(handleMixCodeKeyInput(state, "j", tui, undefined, runtime), { consume: true });
-  assert.equal(tab.pendingQuestions[0]?.highlightedOptionIndices[1], 2);
+  assert.equal(tab.pendingDialogs[0]?.highlightedOptionIndices[1], 2);
   assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui, undefined, runtime), { consume: true });
-  assert.equal(tab.pendingQuestions[0]?.editingCustomIndex, 1);
+  assert.equal(tab.pendingDialogs[0]?.editingCustomIndex, 1);
   assert.match(renderQuestionOverlay(tab, 80).join("\n"), /> \[\*\] Custom: \(empty\)/);
   for (const char of "because") {
     assert.deepEqual(handleMixCodeKeyInput(state, char, tui, undefined, runtime), {
       consume: true,
     });
   }
-  assert.equal(tab.pendingQuestions[0]?.customAnswers[1], "because");
+  assert.equal(tab.pendingDialogs[0]?.customAnswers[1], "because");
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[1A", tui, undefined, runtime), {
     consume: true,
   });
-  assert.equal(tab.pendingQuestions[0]?.editingCustomIndex, undefined);
-  assert.equal(tab.pendingQuestions[0]?.highlightedOptionIndices[1], 1);
+  assert.equal(tab.pendingDialogs[0]?.editingCustomIndex, undefined);
+  assert.equal(tab.pendingDialogs[0]?.highlightedOptionIndices[1], 1);
   assert.deepEqual(handleMixCodeKeyInput(state, "j", tui, undefined, runtime), { consume: true });
-  assert.equal(tab.pendingQuestions[0]?.highlightedOptionIndices[1], 2);
+  assert.equal(tab.pendingDialogs[0]?.highlightedOptionIndices[1], 2);
   assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui, undefined, runtime), { consume: true });
-  assert.equal(tab.pendingQuestions[0]?.editingCustomIndex, 1);
+  assert.equal(tab.pendingDialogs[0]?.editingCustomIndex, 1);
   assert.deepEqual(handleMixCodeKeyInput(state, "j", tui, undefined, runtime), { consume: true });
-  assert.equal(tab.pendingQuestions[0]?.customAnswers[1], "becausej");
+  assert.equal(tab.pendingDialogs[0]?.customAnswers[1], "becausej");
   assert.deepEqual(handleMixCodeKeyInput(state, "\u007f", tui, undefined, runtime), {
     consume: true,
   });
-  assert.equal(tab.pendingQuestions[0]?.customAnswers[1], "because");
+  assert.equal(tab.pendingDialogs[0]?.customAnswers[1], "because");
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[A", tui, undefined, runtime), {
     consume: true,
   });
-  assert.equal(tab.pendingQuestions[0]?.editingCustomIndex, undefined);
-  assert.equal(tab.pendingQuestions[0]?.highlightedOptionIndices[1], 1);
+  assert.equal(tab.pendingDialogs[0]?.editingCustomIndex, undefined);
+  assert.equal(tab.pendingDialogs[0]?.highlightedOptionIndices[1], 1);
   assert.deepEqual(handleMixCodeKeyInput(state, "j", tui, undefined, runtime), { consume: true });
-  assert.equal(tab.pendingQuestions[0]?.highlightedOptionIndices[1], 2);
+  assert.equal(tab.pendingDialogs[0]?.highlightedOptionIndices[1], 2);
   assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui, undefined, runtime), { consume: true });
-  assert.equal(tab.pendingQuestions[0]?.editingCustomIndex, 1);
+  assert.equal(tab.pendingDialogs[0]?.editingCustomIndex, 1);
   assert.deepEqual(handleMixCodeKeyInput(state, "q", tui, undefined, runtime), { consume: true });
-  assert.equal(tab.pendingQuestions[0]?.customAnswers[1], "becauseq");
+  assert.equal(tab.pendingDialogs[0]?.customAnswers[1], "becauseq");
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[1B", tui, undefined, runtime), {
     consume: true,
   });
-  assert.equal(tab.pendingQuestions[0]?.editingCustomIndex, undefined);
-  assert.equal(tab.pendingQuestions[0]?.highlightedOptionIndices[1], 0);
+  assert.equal(tab.pendingDialogs[0]?.editingCustomIndex, undefined);
+  assert.equal(tab.pendingDialogs[0]?.highlightedOptionIndices[1], 0);
   assert.deepEqual(handleMixCodeKeyInput(state, "j", tui, undefined, runtime), { consume: true });
   assert.deepEqual(handleMixCodeKeyInput(state, "j", tui, undefined, runtime), { consume: true });
   assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui, undefined, runtime), { consume: true });
-  assert.equal(tab.pendingQuestions[0]?.editingCustomIndex, 1);
+  assert.equal(tab.pendingDialogs[0]?.editingCustomIndex, 1);
   assert.deepEqual(handleMixCodeKeyInput(state, "\t", tui, undefined, runtime), { consume: true });
-  assert.equal(tab.pendingQuestions[0]?.editingCustomIndex, undefined);
-  assert.equal(tab.pendingQuestions[0]?.highlightedOptionIndices[1], 2);
+  assert.equal(tab.pendingDialogs[0]?.editingCustomIndex, undefined);
+  assert.equal(tab.pendingDialogs[0]?.highlightedOptionIndices[1], 2);
   assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui, undefined, runtime), { consume: true });
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[Z", tui, undefined, runtime), {
     consume: true,
   });
-  assert.equal(tab.pendingQuestions[0]?.editingCustomIndex, undefined);
-  assert.equal(tab.pendingQuestions[0]?.highlightedOptionIndices[1], 1);
+  assert.equal(tab.pendingDialogs[0]?.editingCustomIndex, undefined);
+  assert.equal(tab.pendingDialogs[0]?.highlightedOptionIndices[1], 1);
   assert.deepEqual(handleMixCodeKeyInput(state, "j", tui, undefined, runtime), { consume: true });
-  assert.equal(tab.pendingQuestions[0]?.highlightedOptionIndices[1], 2);
+  assert.equal(tab.pendingDialogs[0]?.highlightedOptionIndices[1], 2);
   assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui, undefined, runtime), { consume: true });
-  assert.equal(tab.pendingQuestions[0]?.editingCustomIndex, 1);
+  assert.equal(tab.pendingDialogs[0]?.editingCustomIndex, 1);
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[C", tui, undefined, runtime), {
     consume: true,
   });
-  assert.equal(tab.pendingQuestions[0]?.editingCustomIndex, undefined);
-  assert.equal(tab.pendingQuestions[0]?.currentQuestionIndex, 1);
+  assert.equal(tab.pendingDialogs[0]?.editingCustomIndex, undefined);
+  assert.equal(tab.pendingDialogs[0]?.currentQuestionIndex, 1);
   assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui, undefined, runtime), { consume: true });
-  assert.equal(tab.pendingQuestions[0]?.editingCustomIndex, 1);
+  assert.equal(tab.pendingDialogs[0]?.editingCustomIndex, 1);
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[1D", tui, undefined, runtime), {
     consume: true,
   });
-  assert.equal(tab.pendingQuestions[0]?.editingCustomIndex, undefined);
-  assert.equal(tab.pendingQuestions[0]?.currentQuestionIndex, 0);
+  assert.equal(tab.pendingDialogs[0]?.editingCustomIndex, undefined);
+  assert.equal(tab.pendingDialogs[0]?.currentQuestionIndex, 0);
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[1C", tui, undefined, runtime), {
     consume: true,
   });
-  assert.equal(tab.pendingQuestions[0]?.currentQuestionIndex, 1);
+  assert.equal(tab.pendingDialogs[0]?.currentQuestionIndex, 1);
   assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui, undefined, runtime), { consume: true });
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[D", tui, undefined, runtime), {
     consume: true,
   });
-  assert.equal(tab.pendingQuestions[0]?.editingCustomIndex, undefined);
-  assert.equal(tab.pendingQuestions[0]?.currentQuestionIndex, 0);
+  assert.equal(tab.pendingDialogs[0]?.editingCustomIndex, undefined);
+  assert.equal(tab.pendingDialogs[0]?.currentQuestionIndex, 0);
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[C", tui, undefined, runtime), {
     consume: true,
   });
-  assert.equal(tab.pendingQuestions[0]?.currentQuestionIndex, 1);
+  assert.equal(tab.pendingDialogs[0]?.currentQuestionIndex, 1);
   assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui, undefined, runtime), { consume: true });
   assert.deepEqual(handleMixCodeKeyInput(state, "\u007f", tui, undefined, runtime), {
     consume: true,
   });
-  assert.equal(tab.pendingQuestions[0]?.customAnswers[1], "because");
+  assert.equal(tab.pendingDialogs[0]?.customAnswers[1], "because");
   assert.deepEqual(handleMixCodeKeyInput(state, "\u007f", tui, undefined, runtime), {
     consume: true,
   });
-  assert.equal(tab.pendingQuestions[0]?.customAnswers[1], "becaus");
+  assert.equal(tab.pendingDialogs[0]?.customAnswers[1], "becaus");
   assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui, undefined, runtime), { consume: true });
-  assert.equal(tab.pendingQuestions[0]?.editingCustomIndex, undefined);
+  assert.equal(tab.pendingDialogs[0]?.editingCustomIndex, undefined);
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[D", tui, undefined, runtime), {
     consume: true,
   });
-  assert.equal(tab.pendingQuestions[0]?.currentQuestionIndex, 0);
+  assert.equal(tab.pendingDialogs[0]?.currentQuestionIndex, 0);
   assert.deepEqual(handleMixCodeKeyInput(state, "h", tui, undefined, runtime), { consume: true });
-  assert.equal(tab.pendingQuestions[0]?.currentQuestionIndex, 0);
+  assert.equal(tab.pendingDialogs[0]?.currentQuestionIndex, 0);
   assert.deepEqual(
     handleMixCodeKeyInput(state, "y", tui, undefined, runtime, () => changes.push("changed")),
     { consume: true },
   );
   await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(tab.pendingQuestions.length, 0);
+  assert.equal(tab.pendingDialogs.length, 0);
   assert.match(prompts[0] ?? "", /Selected answers: B/);
   assert.match(prompts[0] ?? "", /Selected answers: C, D/);
   assert.match(prompts[0] ?? "", /Custom answer: becaus/);
   assert.deepEqual(changes, ["changed"]);
 
-  tab.pendingQuestions.push(
-    createQuestionRequest("r2", "s1", [
+  tab.pendingDialogs.push(
+    createDialogRequest("r2", "s1", [
       { header: "Again", question: "Reject?", options: [], multiple: false, custom: false },
     ]),
   );
@@ -306,7 +306,7 @@ test("global key input answers and rejects pending questions through runtime pro
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime), {
     consume: true,
   });
-  assert.equal(tab.pendingQuestions.length, 1);
+  assert.equal(tab.pendingDialogs.length, 1);
   assert.equal(tab.pendingEscapeAction, "reject-question");
   assert.match(renderQuestionOverlay(tab, 80).join("\n"), /Esc again: reject question/);
   assert.deepEqual(handleMixCodeKeyInput(state, "j", tui, undefined, runtime), { consume: true });
@@ -319,17 +319,17 @@ test("global key input answers and rejects pending questions through runtime pro
     { consume: true },
   );
   await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(tab.pendingQuestions.length, 0);
+  assert.equal(tab.pendingDialogs.length, 0);
   assert.match(prompts[1] ?? "", /rejected by user/);
 
-  tab.pendingQuestions.push(
-    createQuestionRequest("r2b", "s1", [
+  tab.pendingDialogs.push(
+    createDialogRequest("r2b", "s1", [
       { header: "Again", question: "Reject again?", options: [], multiple: false, custom: false },
     ]),
   );
   assert.deepEqual(handleMixCodeKeyInput(state, "n", tui, undefined, runtime), { consume: true });
   await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(tab.pendingQuestions.length, 0);
+  assert.equal(tab.pendingDialogs.length, 0);
   assert.equal(tab.pendingEscapeAction, undefined);
   assert.match(prompts[2] ?? "", /rejected by user/);
 
@@ -338,8 +338,8 @@ test("global key input answers and rejects pending questions through runtime pro
       throw new Error("submit failed");
     },
   };
-  tab.pendingQuestions.push(
-    createQuestionRequest("r3", "s1", [
+  tab.pendingDialogs.push(
+    createDialogRequest("r3", "s1", [
       { header: "Fail", question: "Keep?", options: [], multiple: false, custom: false },
     ]),
   );
@@ -347,7 +347,7 @@ test("global key input answers and rejects pending questions through runtime pro
     consume: true,
   });
   await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(tab.pendingQuestions.length, 1);
+  assert.equal(tab.pendingDialogs.length, 1);
   assert.match(overlays.at(-1) ?? "", /submit failed/);
 
   const stringFailingRuntime = {
@@ -355,8 +355,8 @@ test("global key input answers and rejects pending questions through runtime pro
       throw "string submit failed";
     },
   };
-  tab.pendingQuestions = [
-    createQuestionRequest("r4", "s1", [
+  tab.pendingDialogs = [
+    createDialogRequest("r4", "s1", [
       { header: "String Fail", question: "Keep?", options: [], multiple: false, custom: false },
     ]),
   ];
@@ -364,7 +364,7 @@ test("global key input answers and rejects pending questions through runtime pro
     consume: true,
   });
   await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(tab.pendingQuestions.length, 1);
+  assert.equal(tab.pendingDialogs.length, 1);
   assert.match(overlays.at(-1) ?? "", /string submit failed/);
   assert.ok(renders >= 9);
 });

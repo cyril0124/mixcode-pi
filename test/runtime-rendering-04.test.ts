@@ -192,7 +192,7 @@ function escapeRegExp(text: string): string {
 test("rendering exposes config, command, picker, and chooser overlays", () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo", {
-    pendingQuestions: [
+    pendingDialogs: [
       {
         requestId: "q",
         sessionId: "s1",

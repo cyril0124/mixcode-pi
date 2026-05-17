@@ -66,7 +66,7 @@ export function createTab(
     alias: "",
     todoVisible: false,
     todos: [],
-    pendingQuestions: [],
+    pendingDialogs: [],
     pendingMessages: [],
     promptHistory: [],
     draftInput: "",

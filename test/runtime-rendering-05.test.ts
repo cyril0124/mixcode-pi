@@ -192,7 +192,7 @@ function escapeRegExp(text: string): string {
 test("rendering sanitizes terminal text and paints tool blocks", () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo", {
-    pendingQuestions: [
+    pendingDialogs: [
       {
         requestId: "q",
         sessionId: "s1",

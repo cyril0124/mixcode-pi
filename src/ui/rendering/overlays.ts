@@ -21,7 +21,7 @@ export function renderQuestionOverlay(
 }
 
 function renderQuestionOverlayInner(tab: MixCodeTabInfo, width: number): string[] {
-  const request = tab.pendingQuestions[0];
+  const request = tab.pendingDialogs[0];
   if (!request) return [];
   const innerWidth = Math.max(1, width - 2);
   const question = request.questions[request.currentQuestionIndex];

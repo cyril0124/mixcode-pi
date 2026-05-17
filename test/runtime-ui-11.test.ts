@@ -458,7 +458,7 @@ test("runtime maps pi extension custom overlay into a live TUI overlay", async (
     assert.equal(runtime.hasExtensionCustomOverlay("missing"), false);
     assert.ok(events.includes("dispose"));
     assert.ok(events.includes("result:updated"));
-    assert.equal(runtimeTab.tab.pendingQuestions.length, 0);
+    assert.equal(runtimeTab.tab.pendingDialogs.length, 0);
   } finally {
     tui.stop();
     await rm(dir, { recursive: true, force: true });

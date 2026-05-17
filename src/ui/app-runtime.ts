@@ -62,7 +62,7 @@ export function bindRuntimeRendering(
     // if the terminal is in the background.
     const prevCount = previousInteractionCount.get(sessionId) ?? 0;
     const currentCount =
-      runtimeTab.tab.pendingQuestions.length +
+      runtimeTab.tab.pendingDialogs.length +
       runtimeTab.tab.extensionUi.pendingUserInteractions.length;
     if (currentCount > prevCount) {
       tui.terminal?.write("\x07");

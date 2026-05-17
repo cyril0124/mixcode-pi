@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { test } from "node:test";
 import {
   createInitialState,
-  createQuestionRequest,
+  createDialogRequest,
   createTab,
   expandLocalPromptCommand,
   handleMixCodeKeyInput,
@@ -230,14 +230,14 @@ test("ctrl-p does not open command palette while another input mode owns focus",
   assert.equal(state.commandPaletteOpen, false);
   tab.previewOpen = false;
 
-  tab.pendingQuestions.push(
-    createQuestionRequest("r1", "s1", [
+  tab.pendingDialogs.push(
+    createDialogRequest("r1", "s1", [
       { header: "Question", question: "Pick?", options: [], multiple: false, custom: false },
     ]),
   );
   assert.equal(handleMixCodeKeyInput(state, "\x10", tui), undefined);
   assert.equal(state.commandPaletteOpen, false);
-  tab.pendingQuestions = [];
+  tab.pendingDialogs = [];
 
   overlayOpen = true;
   assert.equal(handleMixCodeKeyInput(state, "\x10", tui), undefined);

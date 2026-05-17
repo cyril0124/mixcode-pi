@@ -207,8 +207,8 @@ Question overlay
   Enter/Space ──> toggle highlighted option
   Esc #1 ──> pendingEscapeAction = reject-question
              UI: Esc again: reject question
-  Esc #2 ──> runtime.prompt(buildQuestionRejectionPrompt)
-             pendingQuestions.shift()
+  Esc #2 ──> runtime.prompt(buildDialogRejectionPrompt)
+             pendingDialogs.shift()
 
 Shell overlay
   Esc ──> ShellManager.close(tab)
