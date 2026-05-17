@@ -1,11 +1,5 @@
 import type { SessionEntry, SessionManager } from "@earendil-works/pi-coding-agent";
-import {
-  extractContent,
-  formatToolCall,
-  getSearchableText,
-  hasTextContent,
-  type ToolCallInfo,
-} from "./tree-content.js";
+import { getSearchableText, hasTextContent, type ToolCallInfo } from "./tree-content.js";
 
 export { extractContent, formatToolCall } from "./tree-content.js";
 export type { ToolCallInfo } from "./tree-content.js";

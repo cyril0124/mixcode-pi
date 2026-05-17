@@ -187,7 +187,7 @@ export function commandPaletteEntriesWithExtensions(
   if (!query) return entries;
   const searchKeys = entries.map((entry) => `${entry.label} ${entry.command}`);
   const matched = new Set(fuzzyMatchBatch(query, searchKeys, entries.length).map(([, key]) => key));
-  return entries.filter((entry, index) => matched.has(searchKeys[index] ?? ""));
+  return entries.filter((_, index) => matched.has(searchKeys[index] ?? ""));
 }
 
 function commandPaletteBaseEntries(

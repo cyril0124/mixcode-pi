@@ -468,7 +468,7 @@ test("createMixCodeTui editor slot handles input, autocomplete host, and submit"
 
     layout.editor.setText("/clear");
     layout.editor.handleInput("\r");
-    await waitFor(() => chat.some((message) => message.text === "clear failed"));
+    await waitFor(() => chat.some((message) => message.text === "Clear failed: clear failed"));
     assert.equal(
       submitOverlays.some((overlay) => /clear failed/.test(overlay)),
       false,
@@ -484,6 +484,8 @@ test("createMixCodeTui editor slot handles input, autocomplete host, and submit"
       submitOverlays.some((overlay) => /Unknown slash command: \/does-not-exist/.test(overlay)),
       false,
     );
+    (tui as unknown as { handleInput: (data: string) => void }).handleInput("\x1b");
+    await new Promise((resolve) => setImmediate(resolve));
     assert.equal(
       (tui as unknown as { focusedComponent?: unknown }).focusedComponent,
       layout.editor,

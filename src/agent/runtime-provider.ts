@@ -4,7 +4,7 @@ import {
   type Model,
 } from "@earendil-works/pi-ai";
 import type { ModelRegistry } from "@earendil-works/pi-coding-agent";
-import { MIXCODE_FAUX_MODEL, mixcodeFauxStream } from "./faux-stream.js";
+import { mixcodeFauxStream } from "./faux-stream.js";
 import type { MixCodeStreamFn, SystemPromptOverride } from "./runtime-types.js";
 
 export function registerMixCodeRuntimeProvider(

@@ -25,14 +25,13 @@ import {
   moveQuestionOption,
   toggleCurrentQuestionOption,
 } from "../core/questions.js";
-import type { MixCodeState, PendingEscapeAction } from "../core/types.js";
+import type { MixCodeState } from "../core/types.js";
 import {
   armPendingEscape,
   clearPendingEscape,
   closeRuntimeAndStop,
   hasPendingEscape,
 } from "./app-actions.js";
-import { insertEditorText } from "./app-editor.js";
 import {
   closeAppOverlay,
   editTextWithTuiPaused,
@@ -45,7 +44,6 @@ import { renderExportText } from "./app-submit.js";
 import type {
   CommandPaletteActions,
   ExportChooserActions,
-  MixCodeEditorActions,
   MixCodeKeyRuntime,
   OverlayTui,
   ShellKeyManager,

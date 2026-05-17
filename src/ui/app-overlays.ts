@@ -5,8 +5,6 @@ import {
   visibleWidth,
 } from "@earendil-works/pi-tui";
 import { editTextInExternalEditor } from "../core/external-editor.js";
-import { closeCommandPalette, closeTabJump } from "../core/overlays.js";
-import type { MixCodeState } from "../core/types.js";
 import type { OverlayTui } from "./app-types.js";
 import { overlayPanel, padLine } from "./rendering.js";
 

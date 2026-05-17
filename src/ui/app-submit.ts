@@ -43,7 +43,7 @@ export async function handleSubmittedInput(
   text: string,
   tui: OverlayTui,
   onStateChanged?: (state: MixCodeState) => void | Promise<void>,
-  shellManager?: Pick<ShellManager, "open" | "close">,
+  _shellManager?: Pick<ShellManager, "open" | "close">,
   workspaceFile?: string,
 ): Promise<void> {
   const parsed = parseInput(text);

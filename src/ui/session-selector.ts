@@ -126,7 +126,7 @@ export function handleSessionSelectorKey(
       selector.renameTargetPath = null;
       selector.renameInput = "";
       if (name && targetPath) {
-        void confirmRenameSession(state, tui, targetPath, name, runtime);
+        void confirmRenameSession(state, tui, targetPath, name);
       } else {
         showLinesOverlay(tui, (width) => renderSessionSelector(state, width));
         tui.requestRender();
@@ -295,7 +295,6 @@ async function confirmRenameSession(
   tui: OverlayTui,
   sessionPath: string,
   name: string,
-  runtime?: MixCodeKeyRuntime,
 ): Promise<void> {
   const selector = state.sessionSelector;
   try {

@@ -29,10 +29,8 @@ import {
 } from "./app-key-handlers.js";
 import {
   closeAppOverlay,
-  editTextWithTuiPaused,
   hasAnyOverlay,
   hasAppOverlay,
-  showErrorOverlay,
   showLinesOverlay,
 } from "./app-overlays.js";
 import { handlePickerKey } from "./app-picker-keys.js";

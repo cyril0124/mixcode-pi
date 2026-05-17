@@ -1,4 +1,4 @@
-import type { AgentToolResult, ExtensionUIContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionUIContext } from "@earendil-works/pi-coding-agent";
 import type { AutocompleteProvider } from "@earendil-works/pi-tui";
 import { LOCAL_COMMANDS } from "../core/commands.js";
 import {
@@ -84,9 +84,6 @@ export function createMixCodeExtensionUiContext(
   requestRender: () => void,
   getCustomUiHost: () => ExtensionCustomUiHost | undefined,
 ): ExtensionUIContext & { requestRender: () => void } {
-  const unsupported = (name: string) => () => {
-    throw new Error(`Pi extension UI primitive is not wired in MixCode yet: ${name}`);
-  };
   const notify = (message: string, type?: "info" | "warning" | "error") => {
     const prefix =
       type === "error" ? "Extension error" : type === "warning" ? "Extension warning" : "Extension";

@@ -137,7 +137,7 @@ function renderPersistentExtensionMessage(
     }
     line.extensionRendererLastComponent = component;
     line.extensionRendererExpanded = expanded;
-    if (!component) return defaultExtensionMessageLines(message, width);
+    if (!component) return defaultExtensionMessageLines(message);
     return component.render(terminal.columns);
   } catch (error) {
     line.extensionRendererLastComponent?.dispose?.();
@@ -150,7 +150,7 @@ function renderPersistentExtensionMessage(
   }
 }
 
-function defaultExtensionMessageLines(message: CustomMessageLike, width: number): string[] {
+function defaultExtensionMessageLines(message: CustomMessageLike): string[] {
   const title = message.customType ? `[${message.customType}]` : "[extension]";
   const text = contentText(message.content).trim();
   return text ? [title, ...text.split(/\r?\n/)] : [title || "extension message"];

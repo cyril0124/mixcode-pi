@@ -19,7 +19,6 @@ import {
   setTreeFilter,
   showSummarizePrompt,
   startLabelEdit,
-  type TreeSelectorState,
   unfoldOrDown,
   updateTreeSearchQuery,
 } from "../core/tree-selector.js";
