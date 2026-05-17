@@ -323,3 +323,52 @@ test("completion provider applies selected item and detects file trigger", () =>
   assert.equal(provider.shouldTriggerFileCompletion([], 0, 0), false);
   assert.equal(provider.shouldTriggerFileCompletion(["plain"], 0, 5), false);
 });
+
+test("skill completion source refreshes when cache is stale", async () => {
+  const { createActiveSkillCompletionSource } = await import("../src/ui/app.js");
+  const mockSkills = [
+    { name: "alpha", filePath: "/skills/alpha/SKILL.md", description: "Alpha skill" },
+  ];
+  const mockResourceLoader = {
+    getSkills: () => ({ skills: mockSkills, diagnostics: [] }),
+    reload: async () => {},
+  };
+  const mockState = {
+    activeTabId: "tab1",
+    workdir: "/tmp/test-workdir",
+    tabs: [{ sessionId: "tab1", workdir: "/tmp/test-workdir" }],
+  } as any;
+  const mockRuntime = {
+    getTab: (_id: string) => ({
+      services: { resourceLoader: mockResourceLoader },
+      agentSession: { isStreaming: false, isCompacting: false },
+    }),
+  } as any;
+
+  const getSkills = createActiveSkillCompletionSource(mockState, mockRuntime, undefined);
+
+  // First call: returns skills from loader, sets cache
+  const first = getSkills();
+  assert.equal(first.length, 1);
+  assert.deepEqual(first[0], {
+    name: "alpha",
+    path: "/skills/alpha/SKILL.md",
+    description: "Alpha skill",
+    sourceInfo: undefined,
+  });
+
+  // Second call within TTL: returns cached (same reference)
+  const second = getSkills();
+  assert.equal(second, first);
+
+  // Simulate adding a new skill to the loader after background rescan
+  mockSkills.push({
+    name: "beta",
+    filePath: "/skills/beta/SKILL.md",
+    description: "Beta skill",
+  });
+
+  // Still within TTL — should return stale cache
+  const third = getSkills();
+  assert.equal(third.length, 1);
+});

@@ -1,5 +1,6 @@
 import { matchesKey, ProcessTerminal, TUI, type TUI as TuiType } from "@earendil-works/pi-tui";
 import type { ExtensionCustomUiHost, MixCodeRuntime } from "../agent/runtime.js";
+import { scanSkillEntries } from "../core/attachments.js";
 import { scanProjectFiles } from "../core/file-picker.js";
 import { ShellManager } from "../core/shell-session.js";
 import { setTheme } from "../core/theme-registry.js";
@@ -22,7 +23,11 @@ import {
 } from "./app-runtime.js";
 import { handleSubmittedInput } from "./app-submit.js";
 import { attachTreeSelectorDisplayHost } from "./tree-selector.js";
-import { MixCodeCompletionProvider, type MixCodeCompletionSources } from "./completion.js";
+import {
+  MixCodeCompletionProvider,
+  type MixCodeCompletionSources,
+  type MixCodeSkillCompletionSource,
+} from "./completion.js";
 import {
   renderExtensionHeader,
   renderFooter,
@@ -103,30 +108,7 @@ export function createMixCodeTui(
   };
   const baseCompletionProvider = new MixCodeCompletionProvider({
     ...(options.completionSources ?? { skills: [], files: [] }),
-    skills: () => {
-      // Dynamically resolve skills from the active tab's resource loader,
-      // which includes extension-contributed skills (not just filesystem-scanned ones).
-      const active =
-        state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];
-      if (active && state.activeTabId !== "config") {
-        const runtimeTab = runtime.getTab(active.sessionId);
-        if (runtimeTab?.services?.resourceLoader) {
-          return runtimeTab.services.resourceLoader
-            .getSkills()
-            .skills.map((skill) => ({
-              name: skill.name,
-              path: skill.filePath,
-              description: skill.description,
-              sourceInfo: skill.sourceInfo
-                ? { scope: skill.sourceInfo.scope, source: skill.sourceInfo.source }
-                : undefined,
-            }));
-        }
-      }
-      // Fallback to static bootstrap skills
-      const fallback = options.completionSources?.skills;
-      return fallback ? (typeof fallback === "function" ? fallback() : fallback) : [];
-    },
+    skills: createActiveSkillCompletionSource(state, runtime, options.completionSources?.skills),
     files: createActiveFileCompletionSource(state, options.completionSources?.files),
     commands: () => {
       const active = state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];
@@ -264,6 +246,95 @@ export function createMixCodeTui(
   tui.addChild(root);
   tui.setFocus(editor);
   return tui;
+}
+
+const SKILL_CACHE_TTL_MS = 10_000; // Background refresh after 10 seconds
+
+/**
+ * Stale-while-revalidate skill completion source.
+ * Returns cached skills immediately and triggers a background filesystem re-scan
+ * when the cache is stale, so newly added skills appear within ~10s.
+ */
+export function createActiveSkillCompletionSource(
+  state: MixCodeState,
+  runtime: Pick<MixCodeRuntime, "getTab">,
+  fallbackSkills: MixCodeCompletionSources["skills"] | undefined,
+): () => Array<string | MixCodeSkillCompletionSource> {
+  let cachedSkills: Array<string | MixCodeSkillCompletionSource> = [];
+  let cacheTimestamp = 0;
+  let pendingRescan: Promise<void> | undefined;
+
+  function readSkillsFromLoader(): Array<string | MixCodeSkillCompletionSource> | undefined {
+    const active =
+      state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];
+    if (active && state.activeTabId !== "config") {
+      const runtimeTab = runtime.getTab(active.sessionId);
+      if (runtimeTab?.services?.resourceLoader) {
+        return runtimeTab.services.resourceLoader
+          .getSkills()
+          .skills.map((skill) => ({
+            name: skill.name,
+            path: skill.filePath,
+            description: skill.description,
+            sourceInfo: skill.sourceInfo
+              ? { scope: skill.sourceInfo.scope, source: skill.sourceInfo.source }
+              : undefined,
+          }));
+      }
+    }
+    return undefined;
+  }
+
+  function triggerBackgroundRescan(): void {
+    if (pendingRescan) return;
+    const workdir = activeCompletionWorkdir(state);
+    pendingRescan = scanSkillEntries(workdir)
+      .then((entries) => {
+        // Merge filesystem-scanned skills with resource loader skills.
+        // Resource loader skills (extension-contributed) take precedence for duplicates.
+        const loaderSkills = readSkillsFromLoader();
+        const loaderNames = new Set(
+          (loaderSkills ?? []).map((s) => (typeof s === "string" ? s : s.name)),
+        );
+        const newSkills: Array<string | MixCodeSkillCompletionSource> = [
+          ...(loaderSkills ?? []),
+        ];
+        for (const entry of entries) {
+          if (!loaderNames.has(entry.name)) {
+            newSkills.push({
+              name: entry.name,
+              path: entry.path,
+              description: entry.description,
+            });
+          }
+        }
+        cachedSkills = newSkills;
+        cacheTimestamp = Date.now();
+      })
+      .catch(() => {
+        // Silently ignore rescan errors for background refresh
+      })
+      .finally(() => {
+        pendingRescan = undefined;
+      });
+  }
+
+  return () => {
+    const fresh = readSkillsFromLoader();
+    if (fresh) {
+      // If cache is fresh, return it directly
+      if (cacheTimestamp > 0 && Date.now() - cacheTimestamp < SKILL_CACHE_TTL_MS) {
+        return cachedSkills;
+      }
+      // Cache is stale or first load — update cache and trigger background rescan
+      cachedSkills = fresh;
+      cacheTimestamp = Date.now();
+      triggerBackgroundRescan();
+      return cachedSkills;
+    }
+    // Fallback to static bootstrap skills
+    return fallbackSkills ? (typeof fallbackSkills === "function" ? fallbackSkills() : fallbackSkills) : [];
+  };
 }
 
 export function createActiveFileCompletionSource(
