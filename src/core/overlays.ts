@@ -254,6 +254,12 @@ function configCommandPaletteEntries(state: MixCodeState): CommandPaletteEntry[]
       "Delete a saved workspace",
     ),
     commandEntry(
+      "config.reload",
+      "Reload",
+      "/reload",
+      "Reload keybindings, extensions, skills, prompts, and themes",
+    ),
+    commandEntry(
       "config.delete-all-sessions",
       "Delete All Sessions",
       "/delete-all-sessions",
@@ -401,6 +407,20 @@ function agentCommandPaletteEntries(
       noSessionReason,
     ),
     commandEntry(
+      "agent.reload",
+      "Reload",
+      "/reload",
+      "Reload keybindings, extensions, skills, prompts, and themes",
+    ),
+    commandEntry(
+      "agent.session",
+      "Session Info",
+      "/session",
+      "Show session info and stats",
+      hasSession,
+      noSessionReason,
+    ),
+    commandEntry(
       "agent.delete-all-sessions",
       "Delete All Sessions",
       "/delete-all-sessions",
@@ -446,6 +466,8 @@ function commandPaletteLocalCommands(): string[] {
     "close-session",
     "delete-session",
     "delete-all-sessions",
+    "reload",
+    "session",
   ];
 }
 
