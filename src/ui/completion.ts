@@ -234,12 +234,12 @@ function effectiveCompletion(
   cursorCol: number,
   item: AutocompleteItem,
   prefix: string,
-  skills: string[],
+  _skills: string[],
 ): { prefix: string; value: string } {
   const token = currentToken((lines[cursorLine] ?? "").slice(0, cursorCol));
   if (!token.startsWith("$")) return { prefix, value: item.value };
-  const matched = fuzzyMatchBatch(token.slice(1), skills, 1)[0]?.[1];
-  return { prefix: token, value: matched ? `$${matched}` : item.value };
+  // Use the full token as prefix so the entire $query is replaced by the selected item
+  return { prefix: token, value: item.value };
 }
 
 function isSlashCommandNameContext(before: string, token: string): boolean {
