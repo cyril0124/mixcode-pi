@@ -77,6 +77,71 @@ export function renderConversation(
   return [...reasoningSummary, ...renderChatStream(chat, width, tab)];
 }
 
+/**
+ * Render a single chat block with caching. Exposed for windowed rendering
+ * paths that drive block rendering on demand instead of all-at-once.
+ */
+export function renderChatBlock(
+  line: ChatLine,
+  width: number,
+  tab?: MixCodeTabInfo,
+  theme = activeRenderTheme,
+): string[] {
+  return renderWithTheme(theme, () => renderMessageBlock(line, width, tab));
+}
+
+/**
+ * Return the cached rendered height for a chat block under the current
+ * (theme, width, tab) context, or undefined if it hasn't been rendered yet.
+ * Used by the windowed renderer to estimate total scroll height without
+ * forcing every block to render.
+ */
+export function cachedChatBlockHeight(
+  line: ChatLine,
+  width: number,
+  tab?: MixCodeTabInfo,
+  theme = activeRenderTheme,
+): number | undefined {
+  const expectedKey = renderWithTheme(theme, () => chatLineRenderCacheKey(line, width, tab));
+  if (!expectedKey) return undefined;
+  const cached = chatLineRenderCache.get(line);
+  if (cached?.key === expectedKey) return cached.lines.length;
+  return undefined;
+}
+
+/**
+ * Render the reasoning summary lines used as a prefix before the chat stream.
+ * Mirrors what renderConversation does internally so windowed renderers can
+ * include reasoning lines in their height accounting.
+ */
+export function renderReasoningSummaryLines(
+  chat: ChatLine[],
+  reasoning: string[],
+  width: number,
+  tab?: MixCodeTabInfo,
+  theme = activeRenderTheme,
+): string[] {
+  if (chat.some((line) => line.role === "thinking")) return [];
+  return renderWithTheme(theme, () => renderReasoningSummary(reasoning, width, tab));
+}
+
+/**
+ * Render the empty-state placeholder shown when both chat and reasoning are
+ * empty. Pulled out so windowed renderers can short-circuit with the same
+ * output as renderConversation for that edge case.
+ */
+export function renderConversationEmptyState(width: number): string[] {
+  return [
+    padLine(activeRenderTheme.dim("No messages yet. Type a prompt and press Enter."), width),
+    padLine("", width),
+  ];
+}
+
+/** Standard blank separator row used between non-empty chat blocks. */
+export function chatBlockSeparator(width: number): string {
+  return padLine("", width);
+}
+
 function renderReasoningSummary(
   reasoning: string[],
   width: number,
@@ -95,19 +160,15 @@ function renderReasoningSummary(
   return [...lines, padLine("", width)];
 }
 
-// Cache rendered lines for all messages except the last one.
-// During streaming, only the last message changes, so the prefix is stable.
-interface ChatPrefixCache {
-  lines: string[];
-  // Invalidation keys
-  chatRef: ChatLine[];
-  prefixLength: number; // chat.length - 1
-  width: number;
-  themeName: string;
-  toolsExpanded: boolean;
-}
-
-const chatPrefixCacheMap = new WeakMap<ChatLine[], ChatPrefixCache>();
+// Per-line render cache strategy:
+// Each ChatLine is rendered in isolation and the result is cached on the line
+// object itself (via the WeakMap below in renderMessageBlock). On re-render we
+// walk the chat array and reuse cached blocks for any line whose reference and
+// content key are unchanged. This makes the common case (one line at the end
+// mutated, or N lines appended) cost roughly "only the changed lines" instead
+// of "the entire chat". Lines that depend on dynamic side-effecting renderers
+// (extensions, tool renderers) opt out via chatLineRenderCacheKey returning
+// undefined and are re-rendered each frame.
 
 function renderChatStream(chat: ChatLine[], width: number, tab?: MixCodeTabInfo): string[] {
   if (!chat.length) return [padLine(activeRenderTheme.dim("No messages yet."), width)];
@@ -115,45 +176,29 @@ function renderChatStream(chat: ChatLine[], width: number, tab?: MixCodeTabInfo)
     return renderMessageBlock(chat[0]!, width, tab);
   }
 
-  // Try to reuse cached prefix (all messages except the last)
-  const prefixLength = chat.length - 1;
-  const toolsExpanded = tab?.extensionUi.toolsExpanded ?? false;
-  const cached = chatPrefixCacheMap.get(chat);
-  let prefixLines: string[];
-
-  if (
-    cached &&
-    cached.chatRef === chat &&
-    cached.prefixLength === prefixLength &&
-    cached.width === width &&
-    cached.themeName === activeRenderTheme.name &&
-    cached.toolsExpanded === toolsExpanded
-  ) {
-    prefixLines = cached.lines;
-  } else {
-    // Render all messages except the last
-    prefixLines = [];
-    for (let i = 0; i < prefixLength; i++) {
-      if (i > 0) prefixLines.push(padLine("", width));
-      const block = renderMessageBlock(chat[i]!, width, tab);
-      for (let j = 0; j < block.length; j++) prefixLines.push(block[j]!);
-    }
-    chatPrefixCacheMap.set(chat, {
-      lines: prefixLines,
-      chatRef: chat,
-      prefixLength,
-      width,
-      themeName: activeRenderTheme.name,
-      toolsExpanded,
-    });
+  // Render each block (per-line cache hits keep this cheap for unchanged lines).
+  const blocks = new Array<string[]>(chat.length);
+  let totalLength = 0;
+  let nonEmptyCount = 0;
+  for (let i = 0; i < chat.length; i++) {
+    const block = renderMessageBlock(chat[i]!, width, tab);
+    blocks[i] = block;
+    totalLength += block.length;
+    if (block.length > 0) nonEmptyCount++;
   }
 
-  // Render the last message (may be streaming)
-  const lastBlock = renderMessageBlock(chat[prefixLength]!, width, tab);
-  const result = new Array(prefixLines.length + 1 + lastBlock.length);
-  for (let i = 0; i < prefixLines.length; i++) result[i] = prefixLines[i];
-  result[prefixLines.length] = padLine("", width); // separator
-  for (let i = 0; i < lastBlock.length; i++) result[prefixLines.length + 1 + i] = lastBlock[i];
+  // One blank-line separator between every pair of non-empty blocks.
+  const separator = padLine("", width);
+  const result = new Array<string>(totalLength + Math.max(0, nonEmptyCount - 1));
+  let cursor = 0;
+  let seenNonEmpty = false;
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i]!;
+    if (block.length === 0) continue;
+    if (seenNonEmpty) result[cursor++] = separator;
+    seenNonEmpty = true;
+    for (let j = 0; j < block.length; j++) result[cursor++] = block[j]!;
+  }
   return result;
 }
 
@@ -211,41 +256,81 @@ function renderMessageBlockUncached(line: ChatLine, width: number, tab?: MixCode
   return renderSystemBlock(text, width);
 }
 
+// Field separator used when concatenating cache key components. Picked
+// because content fields render as ANSI/printable text and never contain
+// raw \u0001 bytes (those are stripped by sanitizeTerminalText upstream).
+// Using string concat instead of JSON.stringify is ~5-10x faster on the
+// hot per-line cache key path.
+const KEY_SEP = "\u0001";
+
+/**
+ * Build a cache key for a chat line. Returning undefined opts out of caching
+ * (used for lines that depend on dynamic side-effecting renderers, where the
+ * renderer call must run on every frame so component lifecycle hooks fire).
+ *
+ * The key includes every input that affects the rendered output for the
+ * specific render branch the line falls into. Roles are partitioned by branch
+ * so we don't accidentally hash unrelated fields.
+ */
 function chatLineRenderCacheKey(
   line: ChatLine,
   width: number,
   tab?: MixCodeTabInfo,
 ): string | undefined {
+  // Dynamic renderers must execute every frame for lifecycle correctness.
   if (line.renderExtension || line.renderToolCall || line.renderToolResult) return undefined;
-  if (
-    line.role !== "assistant" &&
-    line.role !== "thinking" &&
-    line.role !== "user" &&
-    line.role !== "system" &&
-    line.role !== "startup"
-  )
-    return undefined;
-  if (
-    line.title !== undefined ||
-    line.variant !== undefined ||
-    line.customType !== undefined ||
-    line.status !== undefined ||
-    line.toolCallId !== undefined ||
-    line.args !== undefined ||
-    line.toolResult !== undefined ||
-    line.toolIsPartial !== undefined ||
-    line.toolExpanded !== undefined ||
-    line.excludeFromContext !== undefined ||
-    line.bashExitCode !== undefined ||
-    line.bashCancelled !== undefined ||
-    line.bashTruncated !== undefined ||
-    line.bashFullOutputPath !== undefined ||
-    line.branchSummary !== undefined
-  )
-    return undefined;
-  // Include toolsExpanded for user messages that may contain skill blocks
+  const themeName = activeRenderTheme.name;
+  const role = line.role;
+
+  // Hot paths first (assistant/thinking dominate any long chat).
+  if (role === "assistant" || role === "thinking") {
+    return `${role[0]}${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${line.text}`;
+  }
   const expanded = tab?.extensionUi.toolsExpanded ?? false;
-  return JSON.stringify([activeRenderTheme.name, width, line.role, line.text, expanded]);
+  if (role === "user") {
+    // Skill blocks switch on toolsExpanded; safe to include unconditionally.
+    return `u${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${expanded ? 1 : 0}${KEY_SEP}${line.text}`;
+  }
+  if (role === "startup") {
+    return `st${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${line.text}`;
+  }
+  if (role === "extension") {
+    return `e${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${line.title ?? ""}${KEY_SEP}${line.customType ?? ""}${KEY_SEP}${line.text}`;
+  }
+  if (role === "tool") {
+    if (line.variant === "user-bash") {
+      // user-bash branch reads almost every bash-related field plus the
+      // global toolsExpanded toggle and per-line toolExpanded fallback.
+      return `ub${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${line.status ?? ""}${KEY_SEP}${line.title ?? ""}${KEY_SEP}${commandFromArgs(line.args)}${KEY_SEP}${line.excludeFromContext === true ? 1 : 0}${KEY_SEP}${line.bashExitCode ?? ""}${KEY_SEP}${line.bashCancelled === true ? 1 : 0}${KEY_SEP}${line.bashTruncated === true ? 1 : 0}${KEY_SEP}${line.bashFullOutputPath ?? ""}${KEY_SEP}${line.toolExpanded === true ? 1 : 0}${KEY_SEP}${expanded ? 1 : 0}${KEY_SEP}${line.text}`;
+    }
+    // Generic (non-renderer) tool block: depends on status/title/args/text.
+    return `t${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${line.status ?? ""}${KEY_SEP}${line.title ?? ""}${KEY_SEP}${stableArgs(line.args)}${KEY_SEP}${line.text}`;
+  }
+  // role === "system" path can also surface branch-summary blocks.
+  if (line.branchSummary) {
+    return `bs${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${expanded ? 1 : 0}${KEY_SEP}${line.text}`;
+  }
+  return `s${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${line.text}`;
+}
+
+function commandFromArgs(args: unknown): string {
+  if (args && typeof args === "object" && !Array.isArray(args)) {
+    const command = (args as { command?: unknown }).command;
+    if (typeof command === "string") return command;
+  }
+  return "";
+}
+
+// Args may include unhashable values (functions, cycles) but in practice the
+// agent runtime only writes JSON-safe args. JSON.stringify with a try/catch
+// guards the rare bad-input case so caching just disables silently.
+function stableArgs(args: unknown): string {
+  if (args === undefined) return "";
+  try {
+    return JSON.stringify(args);
+  } catch {
+    return "";
+  }
 }
 
 function renderToolBlock(line: ChatLine, width: number, tab?: MixCodeTabInfo): string[] {

@@ -2,7 +2,14 @@ import { truncateToWidth } from "@earendil-works/pi-tui";
 import type { ChatLine, RuntimeTab } from "../../agent/runtime.js";
 import type { MixCodeTabInfo } from "../../core/types.js";
 import type { MixCodeTheme } from "../themes.js";
-import { renderConversation } from "./chat.js";
+import {
+  cachedChatBlockHeight,
+  chatBlockSeparator,
+  renderChatBlock,
+  renderConversation,
+  renderConversationEmptyState,
+  renderReasoningSummaryLines,
+} from "./chat.js";
 import { renderSidebarInner } from "./chrome.js";
 import { activeRenderTheme, renderWithTheme } from "./context.js";
 import { fitScrolledLinesWithInfo, joinColumns, type ScrolledLinesResult } from "./layout.js";
@@ -10,6 +17,19 @@ import { box, padLine } from "./primitives.js";
 
 const MIN_MAIN_WIDTH_WITH_SIDEBAR = 40;
 const MIN_SIDEBAR_WIDTH = 28;
+
+// Above this many chat blocks we switch from "render everything, then slice"
+// to the windowed renderer. The windowed path has more bookkeeping overhead
+// per call, so for short chats it's faster to just render the whole thing.
+// Picked via the perf-tab-switch benchmark — at ~100 blocks both paths cross.
+const WINDOW_RENDER_BLOCK_THRESHOLD = 60;
+// Extra rendered lines above and below the visible viewport. Larger overscan
+// makes scroll-up smoother (fewer cache misses while paging) at the cost of
+// extra block renders per frame.
+const WINDOW_OVERSCAN_LINES = 20;
+// Default per-block height assumption used before any block has been rendered
+// once. Roughly matches a typical assistant paragraph at 120 cols.
+const BLOCK_HEIGHT_FALLBACK = 4;
 
 // Cache the expensive renderConversation + renderQueuePreview result per tab.
 // Invalidated when chat content, reasoning, width, theme, or relevant UI state changes.
@@ -62,6 +82,28 @@ function renderAgentSurfaceInner(
     ? Math.min(42, Math.max(MIN_SIDEBAR_WIDTH, Math.floor(surfaceWidth * 0.34)))
     : 0;
   const mainWidth = sidebarVisible ? surfaceWidth - sidebarWidth - 1 : surfaceWidth;
+
+  // Windowed path: only viable when the caller is going to clip to maxHeight
+  // anyway and chat is long enough that rendering every block hurts. Falls
+  // through to the legacy full-render path otherwise (legacy callers pass
+  // maxHeight=undefined, e.g. tests measuring full layout).
+  if (
+    maxHeight !== undefined &&
+    runtimeTab &&
+    canUseWindowedRender(tab, runtimeTab)
+  ) {
+    return renderAgentSurfaceWindowed(
+      tab,
+      runtimeTab,
+      width,
+      maxHeight,
+      surfaceWidth,
+      mainWidth,
+      sidebarVisible,
+      sidebarWidth,
+    );
+  }
+
   const main = getCachedConversationLines(tab, runtimeTab, mainWidth);
   const lines = sidebarVisible
     ? joinColumns(main, renderSidebarInner(tab, sidebarWidth, runtimeTab), mainWidth, sidebarWidth)
@@ -77,6 +119,236 @@ function renderAgentSurfaceInner(
   const hasNewContent =
     tab.chatScrollOffset > 0 && (tab.status === "running" || tab.status === "thinking");
   return appendChatScrollbar(fitted, width, hasNewContent);
+}
+
+/**
+ * Pick between the windowed and full-render path. Windowed path is only safe
+ * when chat is long enough to dominate render cost AND it doesn't contain any
+ * dynamic-renderer blocks in regions we wouldn't otherwise visit (those
+ * renderers have lifecycle hooks that must run every frame).
+ *
+ * For a typical "long quiet chat" tab switch the dynamic-renderer check is
+ * cheap because such tabs have few/none of those blocks.
+ */
+function canUseWindowedRender(tab: MixCodeTabInfo, runtimeTab: RuntimeTab): boolean {
+  const chat = runtimeTab.chat;
+  if (chat.length < WINDOW_RENDER_BLOCK_THRESHOLD) return false;
+  // Tools that are still running drive their own renderer lifecycle every frame.
+  // The legacy full path already handles this case via cache invalidation, so
+  // bail out and let it run.
+  if (tab.status === "running" || tab.status === "thinking") return false;
+  for (let i = chat.length - 1; i >= 0; i--) {
+    const line = chat[i]!;
+    if (line.role === "tool" && (line.status === "running" || line.status === "pending")) {
+      return false;
+    }
+    if (line.role !== "tool") break;
+  }
+  return true;
+}
+
+/**
+ * Windowed renderer.
+ *
+ * Algorithm (backward walk):
+ *   1. Materialize the queue preview (always emitted at the bottom).
+ *   2. Walk chat blocks from the newest to the oldest, prepending each
+ *      rendered block (and its leading separator) to a line buffer. Stop
+ *      once we've collected enough rows to cover viewport + scrollOffset
+ *      + overscan (so adjacent boundary markers can be placed).
+ *   3. Materialize the reasoning prefix only if the visible window may
+ *      reach the top of the chat (i.e. we walked all the way back).
+ *   4. Slice the visible viewport out of the assembled lines.
+ *
+ * Trade-off: the scrollbar thumb position uses estimated heights for the
+ * blocks we did NOT render, since we don't know their actual size. This
+ * gives a slightly imprecise but stable thumb. The visible content is
+ * always exact because actual heights drive the slicing.
+ */
+function renderAgentSurfaceWindowed(
+  tab: MixCodeTabInfo,
+  runtimeTab: RuntimeTab,
+  width: number,
+  maxHeight: number,
+  surfaceWidth: number,
+  mainWidth: number,
+  sidebarVisible: boolean,
+  sidebarWidth: number,
+): string[] {
+  const chat = runtimeTab.chat;
+  const reasoning = runtimeTab.reasoning ?? [];
+  const viewport = Math.max(0, Math.floor(maxHeight));
+  const scrollOffset = Math.max(0, tab.chatScrollOffset);
+
+  // Bottom-anchored content.
+  const queueLines = renderQueuePreview(tab, mainWidth);
+
+  // Walk chat blocks newest-to-oldest, prepending rendered output to `lines`
+  // until we've covered the visible window plus overscan.
+  const targetRows = viewport + scrollOffset + WINDOW_OVERSCAN_LINES;
+  const lines: string[] = [...queueLines];
+  let oldestEmittedIndex = chat.length;
+  let nextIsNonEmpty = queueLines.length > 0;
+  for (let i = chat.length - 1; i >= 0; i--) {
+    if (lines.length >= targetRows) break;
+    const block = renderChatBlock(chat[i]!, mainWidth, tab);
+    if (block.length === 0) {
+      // Empty block contributes nothing visually; just record visit.
+      oldestEmittedIndex = i;
+      continue;
+    }
+    if (nextIsNonEmpty) {
+      // Prepend a separator between this block and whatever is below it.
+      lines.unshift(chatBlockSeparator(mainWidth));
+    }
+    for (let j = block.length - 1; j >= 0; j--) lines.unshift(block[j]!);
+    nextIsNonEmpty = true;
+    oldestEmittedIndex = i;
+  }
+
+  // If we walked to the start, prepend reasoning summary so the very top of
+  // the chat is reachable. Reasoning suppresses itself when chat already
+  // contains a thinking block.
+  const reachedTop = oldestEmittedIndex === 0;
+  if (reachedTop) {
+    const reasoningLines = renderReasoningSummaryLines(chat, reasoning, mainWidth, tab);
+    if (reasoningLines.length > 0) {
+      // Walk newest-to-oldest because reasoning sits above the very first
+      // block; preserve order on prepend.
+      for (let i = reasoningLines.length - 1; i >= 0; i--) lines.unshift(reasoningLines[i]!);
+    }
+  }
+
+  // Empty-state placeholder mirrors what renderConversation would produce.
+  if (lines.length === 0 && reasoning.length === 0) {
+    const placeholder = renderConversationEmptyState(mainWidth);
+    const composed = sidebarVisible
+      ? joinColumns(
+          placeholder,
+          renderSidebarInner(tab, sidebarWidth, runtimeTab),
+          mainWidth,
+          sidebarWidth,
+        )
+      : placeholder;
+    const fitted = fitScrolledLinesWithInfo(composed, maxHeight, surfaceWidth, 0);
+    return appendChatScrollbar(fitted, width, false);
+  }
+
+  // Estimated total: sum of cached heights (for blocks we already rendered)
+  // and BLOCK_HEIGHT_FALLBACK for blocks we skipped. The thumb position is
+  // approximate for the un-rendered prefix, exact for what's on screen.
+  const total = estimateTotalHeight(
+    chat,
+    reasoning,
+    queueLines.length,
+    mainWidth,
+    tab,
+    reachedTop,
+  );
+
+  // Clamp scrollOffset against the estimate so chatHome's 1_000_000 sentinel
+  // settles into a sensible value (treated as "all the way up").
+  const maxOffset = Math.max(0, total - viewport);
+  if (tab.chatScrollOffset > maxOffset) tab.chatScrollOffset = maxOffset;
+  const clampedOffset = Math.max(0, Math.min(scrollOffset, maxOffset));
+
+  // Pick the visible window from the bottom. `lines` is ordered top-to-bottom
+  // and ends with the queue preview / latest content. Bottom of window sits
+  // at lines.length - clampedOffset.
+  const windowEnd = Math.max(0, lines.length - clampedOffset);
+  const windowStart = Math.max(0, windowEnd - viewport);
+  let visible = lines.slice(windowStart, windowEnd);
+  // If the window extends below the materialized lines (clampedOffset is
+  // larger than what we collected because of imprecise estimates), pad with
+  // blanks at the bottom rather than show stale content.
+  while (visible.length < viewport) visible.push(chatBlockSeparator(mainWidth));
+
+  // Determine virtual start row for boundary markers / scrollbar.
+  // Rows above `lines` (un-rendered prefix) contribute total - lines.length.
+  const linesAboveBuffer = Math.max(0, total - lines.length);
+  const start = linesAboveBuffer + windowStart;
+
+  const decorated = decorateWindow(visible, start, total, viewport, mainWidth);
+
+  const composed = sidebarVisible
+    ? joinColumns(
+        decorated,
+        renderSidebarInner(tab, sidebarWidth, runtimeTab),
+        mainWidth,
+        sidebarWidth,
+      )
+    : decorated;
+
+  const fitted: ScrolledLinesResult = {
+    lines: composed,
+    total,
+    height: viewport,
+    start,
+    end: Math.min(total, start + viewport),
+    scrollable: total > viewport,
+  };
+  const hasNewContent =
+    tab.chatScrollOffset > 0 && (tab.status === "running" || tab.status === "thinking");
+  return appendChatScrollbar(fitted, width, hasNewContent);
+}
+
+/**
+ * Estimate total virtual height. Uses cached heights for blocks already
+ * rendered, BLOCK_HEIGHT_FALLBACK for blocks not yet rendered. Ignores
+ * separator rows for the un-rendered prefix to keep the estimate simple
+ * (±few rows error is acceptable for scrollbar thumb only).
+ */
+function estimateTotalHeight(
+  chat: ChatLine[],
+  reasoning: string[],
+  queueRows: number,
+  width: number,
+  tab: MixCodeTabInfo,
+  reasoningCounted: boolean,
+): number {
+  let total = queueRows;
+  let nonEmpty = 0;
+  for (let i = 0; i < chat.length; i++) {
+    const cached = cachedChatBlockHeight(chat[i]!, width, tab);
+    const h = cached ?? BLOCK_HEIGHT_FALLBACK;
+    total += h;
+    if (h > 0) nonEmpty++;
+  }
+  total += Math.max(0, nonEmpty - 1);
+  if (reasoningCounted) {
+    // Include reasoning summary rows once we know we actually emitted them.
+    const reasoningLines = renderReasoningSummaryLines(chat, reasoning, width, tab);
+    total += reasoningLines.length;
+  } else if (!chat.some((line) => line.role === "thinking")) {
+    // We didn't emit reasoning yet, but it does occupy rows in virtual space.
+    // Estimate by re-using its actual length (cheap, just a few markdown wraps).
+    const reasoningLines = renderReasoningSummaryLines(chat, reasoning, width, tab);
+    total += reasoningLines.length;
+  }
+  return total;
+}
+
+/**
+ * Apply the same boundary markers fitScrolledLinesWithInfo applies (... older
+ * above / ... newer below) so the windowed output is visually identical.
+ */
+function decorateWindow(
+  visible: string[],
+  start: number,
+  total: number,
+  viewport: number,
+  width: number,
+): string[] {
+  if (visible.length === 0) return visible;
+  const out = visible.slice();
+  if (viewport <= 1) return out;
+  if (start > 0) {
+    out[0] = padLine(activeRenderTheme.dim("... older above"), width);
+  }
+  if (start + visible.length < total) {
+    out[out.length - 1] = padLine(activeRenderTheme.dim("... newer below"), width);
+  }
+  return out;
 }
 
 function getCachedConversationLines(
