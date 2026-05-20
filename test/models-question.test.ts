@@ -7,6 +7,8 @@ import {
   createAssistantMessageEventStream,
   fauxAssistantMessage,
   registerFauxProvider,
+  registerApiProvider,
+  getApiProvider,
 } from "@earendil-works/pi-ai";
 import type { AssistantMessage, Context, Model, SimpleStreamOptions } from "@earendil-works/pi-ai";
 import {
@@ -249,9 +251,7 @@ test("pi model runtime auth merges request headers and surfaces auth errors", as
     const pendingResponses: Array<
       (context: Context, options?: SimpleStreamOptions) => ReturnType<typeof fauxAssistantMessage>
     > = [];
-    bundle.registry.registerProvider("mixcode-auth-test", {
-      api: "mixcode-auth-test-api",
-      streamSimple: (requestModel: Model<any>, context: Context, options?: SimpleStreamOptions) => {
+    const authTestStreamSimple = (requestModel: Model<any>, context: Context, options?: SimpleStreamOptions) => {
         const response = pendingResponses.shift();
         const message = response
           ? response(context, options)
@@ -265,8 +265,18 @@ test("pi model runtime auth merges request headers and surfaces auth errors", as
           provider: requestModel.provider,
           model: requestModel.id,
         });
-      },
+      };
+    bundle.registry.registerProvider("mixcode-auth-test", {
+      api: "mixcode-auth-test-api",
+      streamSimple: authTestStreamSimple,
     });
+    if (!getApiProvider("mixcode-auth-test-api")) {
+      registerApiProvider({
+        api: "mixcode-auth-test-api",
+        stream: authTestStreamSimple as any,
+        streamSimple: authTestStreamSimple as any,
+      });
+    }
     const model = bundle.registry.find("mixcode-auth-test", "auth-model");
     assert.ok(model);
     const auth = await bundle.registry.getApiKeyAndHeaders(model);

@@ -235,6 +235,8 @@ test("command palette state filters, moves, accepts, and closes", () => {
       "/tree",
       "/close-session",
       "/delete-session",
+      "/reload",
+      "/session",
       "/delete-all-sessions",
     ],
   );

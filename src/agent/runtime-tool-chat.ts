@@ -1,16 +1,11 @@
 import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
 import type { AgentToolResult, ToolDefinition } from "@earendil-works/pi-coding-agent";
-import {
-  type Component,
-  getKeybindings,
-  TUI as PiTui,
-  setKeybindings,
-} from "@earendil-works/pi-tui";
+import { type Component, TUI as PiTui } from "@earendil-works/pi-tui";
 import {
   ensureExtensionThemeInitialized,
-  MIXCODE_EXTENSION_KEYBINDINGS_MANAGER,
   MIXCODE_EXTENSION_THEME,
 } from "./runtime-extension-theme.js";
+import { applyMixCodeKeybindings } from "./runtime-pi-tui-bridge.js";
 import { NullTerminal } from "./runtime-null-terminal.js";
 import { contentText } from "./runtime-text.js";
 import type { ChatLine, RuntimeTab, ToolResultLike } from "./runtime-types.js";
@@ -67,10 +62,9 @@ function renderToolCall(
   const previousComponent = line.toolCallRendererLastComponent as
     | (Component & { dispose?(): void })
     | undefined;
-  const previousKeybindings = getKeybindings();
-  setKeybindings(
-    MIXCODE_EXTENSION_KEYBINDINGS_MANAGER as unknown as Parameters<typeof setKeybindings>[0],
-  );
+  // Apply mixcode keybindings on every pi-tui copy (top-level + nested) so
+  // upstream renderers resolve keyText against the same manager we do.
+  const restoreKeybindings = applyMixCodeKeybindings();
   try {
     const component = definition.renderCall?.(
       line.args as never,
@@ -92,7 +86,7 @@ function renderToolCall(
     const detail = error instanceof Error ? error.message : String(error);
     return [`tool call renderer error (${line.title ?? "tool"}): ${detail}`];
   } finally {
-    setKeybindings(previousKeybindings);
+    restoreKeybindings();
     tui.stop();
   }
 }
@@ -111,10 +105,7 @@ function renderToolResult(
   const previousComponent = line.toolResultRendererLastComponent as
     | (Component & { dispose?(): void })
     | undefined;
-  const previousKeybindings = getKeybindings();
-  setKeybindings(
-    MIXCODE_EXTENSION_KEYBINDINGS_MANAGER as unknown as Parameters<typeof setKeybindings>[0],
-  );
+  const restoreKeybindings = applyMixCodeKeybindings();
   try {
     const component = definition.renderResult?.(
       { content: result.content, details: result.details } as AgentToolResult<unknown>,
@@ -132,7 +123,7 @@ function renderToolResult(
     const detail = error instanceof Error ? error.message : String(error);
     return [`tool renderer error (${line.title ?? "tool"}): ${detail}`];
   } finally {
-    setKeybindings(previousKeybindings);
+    restoreKeybindings();
     tui.stop();
   }
 }

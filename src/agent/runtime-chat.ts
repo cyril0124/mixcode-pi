@@ -3,18 +3,11 @@ import { readFile } from "node:fs/promises";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { AssistantMessage, Model, Usage } from "@earendil-works/pi-ai";
 import type { MessageRenderer, SessionEntry } from "@earendil-works/pi-coding-agent";
-import {
-  type Component,
-  getKeybindings,
-  TUI as PiTui,
-  setKeybindings,
-} from "@earendil-works/pi-tui";
+import { type Component, TUI as PiTui } from "@earendil-works/pi-tui";
 import { consumeGoalCompletionMarker } from "../core/goal.js";
 import type { MixCodeTabInfo, PreviewMessageRole } from "../core/types.js";
-import {
-  MIXCODE_EXTENSION_KEYBINDINGS_MANAGER,
-  MIXCODE_EXTENSION_THEME,
-} from "./runtime-extension-theme.js";
+import { MIXCODE_EXTENSION_THEME } from "./runtime-extension-theme.js";
+import { applyMixCodeKeybindings } from "./runtime-pi-tui-bridge.js";
 import { NullTerminal } from "./runtime-null-terminal.js";
 import { contentText } from "./runtime-text.js";
 import {
@@ -120,10 +113,9 @@ function renderPersistentExtensionMessage(
 ): string[] {
   const terminal = new NullTerminal(Math.max(1, Math.floor(width)));
   const tui = new PiTui(terminal);
-  const previousKeybindings = getKeybindings();
-  setKeybindings(
-    MIXCODE_EXTENSION_KEYBINDINGS_MANAGER as unknown as Parameters<typeof setKeybindings>[0],
-  );
+  // Mirror mixcode keybindings to every pi-tui module instance so upstream
+  // extension renderers see the same manager we do.
+  const restoreKeybindings = applyMixCodeKeybindings();
   try {
     const expanded = false;
     if (line.extensionRendererLastComponent && line.extensionRendererExpanded === expanded) {
@@ -145,7 +137,7 @@ function renderPersistentExtensionMessage(
     const detail = error instanceof Error ? error.message : String(error);
     return [`extension renderer error (${message.customType}): ${detail}`];
   } finally {
-    setKeybindings(previousKeybindings);
+    restoreKeybindings();
     tui.stop();
   }
 }
