@@ -133,12 +133,13 @@ function renderAgentSurfaceInner(
 function canUseWindowedRender(tab: MixCodeTabInfo, runtimeTab: RuntimeTab): boolean {
   const chat = runtimeTab.chat;
   if (chat.length < WINDOW_RENDER_BLOCK_THRESHOLD) return false;
-  // Streaming assistant text mutates the newest plain chat block repeatedly.
-  // Windowing that path keeps input responsive on long chats by avoiding the
-  // full conversation flatten/slice work on every frame. Dynamic renderers and
-  // active tools still use the legacy full path so their lifecycle hooks keep
-  // running every frame.
-  if (tab.status === "running" || tab.status === "thinking") return isPlainStreamingChat(chat);
+  // Streaming assistant text mutates the newest chat block repeatedly. Pi's
+  // native UI keeps historical tool/custom renderers as stable components and
+  // only updates the active streaming/tool component; mirror that boundary by
+  // letting completed historical renderers stay outside the visible window.
+  // Active tool renderers still use the legacy full path so their lifecycle
+  // hooks keep running every frame while they are pending/running.
+  if (tab.status === "running" || tab.status === "thinking") return !hasActiveToolRenderer(chat);
   for (let i = chat.length - 1; i >= 0; i--) {
     const line = chat[i]!;
     if (line.role === "tool" && (line.status === "running" || line.status === "pending")) {
@@ -149,14 +150,23 @@ function canUseWindowedRender(tab: MixCodeTabInfo, runtimeTab: RuntimeTab): bool
   return true;
 }
 
-function isPlainStreamingChat(chat: ChatLine[]): boolean {
-  for (const line of chat) {
-    if (line.renderExtension || line.renderToolCall || line.renderToolResult) return false;
-    if (line.role === "tool" && (line.status === "running" || line.status === "pending")) {
-      return false;
+function hasActiveToolRenderer(chat: ChatLine[]): boolean {
+  for (let i = chat.length - 1; i >= 0; i--) {
+    const line = chat[i]!;
+    if (line.role !== "tool") {
+      // Tool execution lines are appended around the current assistant stream;
+      // once we walk past the trailing tool cluster, older completed renderers
+      // cannot require per-frame lifecycle updates.
+      break;
+    }
+    if (
+      (line.status === "running" || line.status === "pending") &&
+      (line.renderToolCall || line.renderToolResult)
+    ) {
+      return true;
     }
   }
-  return true;
+  return false;
 }
 
 /**

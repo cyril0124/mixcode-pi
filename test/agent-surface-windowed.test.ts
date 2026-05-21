@@ -179,6 +179,31 @@ test("running plain streaming chats use windowed rendering", () => {
   assert.doesNotMatch(text, /block-0\b/);
 });
 
+test("running chats with historical tool renderers still use windowed rendering", () => {
+  let rendered = 0;
+  const chat = buildStreamingAssistantChat(180);
+  chat.splice(20, 0, {
+    role: "tool",
+    title: "historical",
+    toolCallId: "historical-1",
+    status: "success",
+    text: "",
+    renderToolCall: () => {
+      rendered++;
+      return ["historical tool frame"];
+    },
+  });
+  const tab = createTab(10, "s10", "/repo", { status: "running", chatScrollOffset: 0 });
+  const lines = renderAgentSurface(tab, { chat, reasoning: [] } as never, WIDTH, HEIGHT);
+  const text = lines.map(stripAnsi).join("\n");
+
+  assert.equal(rendered, 0);
+  assert.equal(lines.length, HEIGHT);
+  assert.match(text, /block-179/);
+  assert.match(text, /\.\.\. older above/);
+  assert.doesNotMatch(text, /historical tool frame/);
+});
+
 test("running chats with active tool renderers keep legacy full rendering", () => {
   let rendered = 0;
   const chat = buildStreamingAssistantChat(180);
@@ -193,7 +218,7 @@ test("running chats with active tool renderers keep legacy full rendering", () =
       return ["dynamic tool frame"];
     },
   });
-  const tab = createTab(10, "s10", "/repo", { status: "running", chatScrollOffset: 0 });
+  const tab = createTab(11, "s11", "/repo", { status: "running", chatScrollOffset: 0 });
   const lines = renderAgentSurface(tab, { chat, reasoning: [] } as never, WIDTH, HEIGHT);
   const text = lines.map(stripAnsi).join("\n");
 
@@ -202,13 +227,17 @@ test("running chats with active tool renderers keep legacy full rendering", () =
 });
 
 test("running plain streaming render is faster than forced legacy rendering", () => {
-  const chat = buildPerformanceChat(2400);
-  const windowedTab = createTab(11, "s11", "/repo", { status: "running", chatScrollOffset: 0 });
-  const legacyTab = createTab(12, "s12", "/repo", { status: "running", chatScrollOffset: 0 });
+  // Keep enough blocks to make the timing signal larger than per-run noise.
+  const chat = buildPerformanceChat(5000);
+  const windowedTab = createTab(12, "s12", "/repo", { status: "running", chatScrollOffset: 0 });
+  const legacyTab = createTab(13, "s13", "/repo", { status: "running", chatScrollOffset: 0 });
   const dynamicTail: ChatLine = {
-    role: "extension",
-    text: "legacy marker",
-    renderExtension: () => ["legacy marker"],
+    role: "tool",
+    title: "active-renderer",
+    toolCallId: "active-renderer-1",
+    status: "running",
+    text: "",
+    renderToolCall: () => ["active renderer marker"],
   };
   const legacyChat = [...chat, dynamicTail];
 
