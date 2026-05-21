@@ -133,16 +133,28 @@ function renderAgentSurfaceInner(
 function canUseWindowedRender(tab: MixCodeTabInfo, runtimeTab: RuntimeTab): boolean {
   const chat = runtimeTab.chat;
   if (chat.length < WINDOW_RENDER_BLOCK_THRESHOLD) return false;
-  // Tools that are still running drive their own renderer lifecycle every frame.
-  // The legacy full path already handles this case via cache invalidation, so
-  // bail out and let it run.
-  if (tab.status === "running" || tab.status === "thinking") return false;
+  // Streaming assistant text mutates the newest plain chat block repeatedly.
+  // Windowing that path keeps input responsive on long chats by avoiding the
+  // full conversation flatten/slice work on every frame. Dynamic renderers and
+  // active tools still use the legacy full path so their lifecycle hooks keep
+  // running every frame.
+  if (tab.status === "running" || tab.status === "thinking") return isPlainStreamingChat(chat);
   for (let i = chat.length - 1; i >= 0; i--) {
     const line = chat[i]!;
     if (line.role === "tool" && (line.status === "running" || line.status === "pending")) {
       return false;
     }
     if (line.role !== "tool") break;
+  }
+  return true;
+}
+
+function isPlainStreamingChat(chat: ChatLine[]): boolean {
+  for (const line of chat) {
+    if (line.renderExtension || line.renderToolCall || line.renderToolResult) return false;
+    if (line.role === "tool" && (line.status === "running" || line.status === "pending")) {
+      return false;
+    }
   }
   return true;
 }

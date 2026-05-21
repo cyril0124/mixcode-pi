@@ -40,12 +40,18 @@ test("substituteArgs replaces $ARGUMENTS with all args", () => {
   assert.equal(substituteArgs("Do: $ARGUMENTS", ["a", "b"]), "Do: a b");
 });
 
-test("substituteArgs replaces ${@:N} with args from N onwards", () => {
-  assert.equal(substituteArgs("First: $1, rest: ${@:2}", ["a", "b", "c"]), "First: a, rest: b c");
+test(`substituteArgs replaces ${"$" + "{@:N}"} with args from N onwards`, () => {
+  assert.equal(
+    substituteArgs(`First: $1, rest: ${"$" + "{@:2}"}`, ["a", "b", "c"]),
+    "First: a, rest: b c",
+  );
 });
 
-test("substituteArgs replaces ${@:N:L} with L args from N", () => {
-  assert.equal(substituteArgs("Slice: ${@:2:2}", ["a", "b", "c", "d"]), "Slice: b c");
+test(`substituteArgs replaces ${"$" + "{@:N:L}"} with L args from N`, () => {
+  assert.equal(
+    substituteArgs(`Slice: ${"$" + "{@:2:2}"}`, ["a", "b", "c", "d"]),
+    "Slice: b c",
+  );
 });
 
 test("substituteArgs handles missing positional args as empty string", () => {

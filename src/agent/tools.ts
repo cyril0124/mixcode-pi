@@ -117,10 +117,13 @@ function patchBashDefinition(definition: AnyToolDefinition): AnyToolDefinition {
   // Patch renderCall so the UI always shows the effective timeout.
   const originalRenderCall = definition.renderCall;
   if (originalRenderCall) {
-    definition.renderCall = (args: unknown, ...rest: unknown[]) => {
+    definition.renderCall = (args, theme, context) => {
       const argsObj = (args ?? {}) as Record<string, unknown>;
-      const patched = { ...argsObj, timeout: argsObj.timeout ?? BASH_DEFAULT_TIMEOUT_SECONDS };
-      return (originalRenderCall as Function)(patched, ...rest);
+      const patched = {
+        ...argsObj,
+        timeout: argsObj.timeout ?? BASH_DEFAULT_TIMEOUT_SECONDS,
+      } as Parameters<typeof originalRenderCall>[0];
+      return originalRenderCall(patched, theme, context);
     };
   }
   return definition;

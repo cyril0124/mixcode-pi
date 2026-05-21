@@ -6,6 +6,7 @@
 // markers, same scrollbar presence.
 
 import assert from "node:assert/strict";
+import { performance } from "node:perf_hooks";
 import { test } from "node:test";
 import { createTab, type ChatLine } from "../src/index.js";
 import { renderAgentSurface } from "../src/ui/rendering/agent-surface.js";
@@ -32,6 +33,40 @@ function buildLongChat(count: number): ChatLine[] {
         args: { command: `echo ${i}` },
       });
     } else chat.push({ role: "system", text: `system-${i}` });
+  }
+  return chat;
+}
+
+function buildStreamingAssistantChat(count: number): ChatLine[] {
+  const paragraph = "Streaming assistant text with enough words to wrap across lines. ".repeat(8);
+  return Array.from({ length: count }, (_, index) => ({
+    role: "assistant",
+    text: `${paragraph} block-${index}`,
+  }));
+}
+
+function buildPerformanceChat(count: number): ChatLine[] {
+  const chat: ChatLine[] = [];
+  for (let i = 0; i < count; i++) {
+    if (i % 4 === 0) {
+      chat.push({
+        role: "assistant",
+        text: `assistant-${i} ${"assistant words wrap markdown **bold** ".repeat(30)}`,
+      });
+    } else if (i % 4 === 1) {
+      chat.push({ role: "user", text: `user-${i} ${"user words wrap ".repeat(30)}` });
+    } else if (i % 4 === 2) {
+      chat.push({
+        role: "tool",
+        title: "bash",
+        toolCallId: `t-${i}`,
+        status: "success",
+        text: `output-${i} ${"tool output ".repeat(30)}`,
+        args: { command: `echo ${i}` },
+      });
+    } else {
+      chat.push({ role: "system", text: `system-${i} ${"system words ".repeat(30)}` });
+    }
   }
   return chat;
 }
@@ -131,3 +166,74 @@ test("windowed renderer renders queue preview when present", () => {
   assert.match(text, /next prompt waiting/);
   assert.equal(lines.length, HEIGHT);
 });
+
+test("running plain streaming chats use windowed rendering", () => {
+  const chat = buildStreamingAssistantChat(180);
+  const tab = createTab(9, "s9", "/repo", { status: "running", chatScrollOffset: 0 });
+  const lines = renderAgentSurface(tab, { chat, reasoning: [] } as never, WIDTH, HEIGHT);
+  const text = lines.map(stripAnsi).join("\n");
+
+  assert.equal(lines.length, HEIGHT);
+  assert.match(text, /block-179/);
+  assert.match(text, /\.\.\. older above/);
+  assert.doesNotMatch(text, /block-0\b/);
+});
+
+test("running chats with active tool renderers keep legacy full rendering", () => {
+  let rendered = 0;
+  const chat = buildStreamingAssistantChat(180);
+  chat.push({
+    role: "tool",
+    title: "dynamic",
+    toolCallId: "dynamic-1",
+    status: "running",
+    text: "",
+    renderToolCall: () => {
+      rendered++;
+      return ["dynamic tool frame"];
+    },
+  });
+  const tab = createTab(10, "s10", "/repo", { status: "running", chatScrollOffset: 0 });
+  const lines = renderAgentSurface(tab, { chat, reasoning: [] } as never, WIDTH, HEIGHT);
+  const text = lines.map(stripAnsi).join("\n");
+
+  assert.equal(rendered, 1);
+  assert.match(text, /dynamic tool frame/);
+});
+
+test("running plain streaming render is faster than forced legacy rendering", () => {
+  const chat = buildPerformanceChat(2400);
+  const windowedTab = createTab(11, "s11", "/repo", { status: "running", chatScrollOffset: 0 });
+  const legacyTab = createTab(12, "s12", "/repo", { status: "running", chatScrollOffset: 0 });
+  const dynamicTail: ChatLine = {
+    role: "extension",
+    text: "legacy marker",
+    renderExtension: () => ["legacy marker"],
+  };
+  const legacyChat = [...chat, dynamicTail];
+
+  const windowedMs = measureRenderMs(windowedTab, chat, 50);
+  const legacyMs = measureRenderMs(legacyTab, legacyChat, 50);
+
+  assert.ok(
+    windowedMs < legacyMs * 0.75,
+    `expected windowed render to be at least 25% faster; windowed=${windowedMs.toFixed(
+      3,
+    )}ms legacy=${legacyMs.toFixed(3)}ms`,
+  );
+});
+
+function measureRenderMs(
+  tab: ReturnType<typeof createTab>,
+  chat: ChatLine[],
+  iterations: number,
+): number {
+  for (let i = 0; i < 5; i++) {
+    renderAgentSurface(tab, { chat, reasoning: [] } as never, 120, 30);
+  }
+  const start = performance.now();
+  for (let i = 0; i < iterations; i++) {
+    renderAgentSurface(tab, { chat, reasoning: [] } as never, 120, 30);
+  }
+  return (performance.now() - start) / iterations;
+}
