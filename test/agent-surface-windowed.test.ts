@@ -226,6 +226,32 @@ test("running chats with active tool renderers keep legacy full rendering", () =
   assert.match(text, /dynamic tool frame/);
 });
 
+test("running tool behind extension message still triggers legacy rendering", () => {
+  let rendered = 0;
+  const chat = buildStreamingAssistantChat(180);
+  chat.push({
+    role: "tool",
+    title: "active",
+    toolCallId: "active-1",
+    status: "running",
+    text: "",
+    renderToolCall: () => {
+      rendered++;
+      return ["active tool frame"];
+    },
+  });
+  // Extension pushes a message after the running tool (simulates extension
+  // emitting a custom message during tool execution).
+  chat.push({ role: "extension", text: "extension notification" });
+  const tab = createTab(14, "s14", "/repo", { status: "running", chatScrollOffset: 0 });
+  const lines = renderAgentSurface(tab, { chat, reasoning: [] } as never, WIDTH, HEIGHT);
+  const text = lines.map(stripAnsi).join("\n");
+
+  // The running tool renderer must still be invoked (legacy path).
+  assert.equal(rendered, 1);
+  assert.match(text, /active tool frame/);
+});
+
 test("running plain streaming render is faster than forced legacy rendering", () => {
   // Keep enough blocks to make the timing signal larger than per-run noise.
   const chat = buildPerformanceChat(5000);

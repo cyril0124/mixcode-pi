@@ -153,12 +153,12 @@ function canUseWindowedRender(tab: MixCodeTabInfo, runtimeTab: RuntimeTab): bool
 function hasActiveToolRenderer(chat: ChatLine[]): boolean {
   for (let i = chat.length - 1; i >= 0; i--) {
     const line = chat[i]!;
-    if (line.role !== "tool") {
-      // Tool execution lines are appended around the current assistant stream;
-      // once we walk past the trailing tool cluster, older completed renderers
-      // cannot require per-frame lifecycle updates.
-      break;
-    }
+    // Skip non-structural lines (extension, system) that may be pushed after
+    // tool blocks by extensions during execution.
+    if (line.role === "extension" || line.role === "system" || line.role === "startup") continue;
+    // Once we hit a user or assistant line, all tools above belong to a
+    // previous turn and are guaranteed complete by the agent event loop.
+    if (line.role !== "tool") break;
     if (
       (line.status === "running" || line.status === "pending") &&
       (line.renderToolCall || line.renderToolResult)
