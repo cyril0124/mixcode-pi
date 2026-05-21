@@ -1,6 +1,7 @@
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import {
   type AgentSession,
+  type BashOperations,
   createBashTool,
   createBashToolDefinition,
   createEditTool,
@@ -9,6 +10,7 @@ import {
   createFindToolDefinition,
   createGrepTool,
   createGrepToolDefinition,
+  createLocalBashOperations,
   createLsTool,
   createLsToolDefinition,
   createReadTool,
@@ -20,6 +22,9 @@ import {
   type ToolDefinition,
   type ToolInfo,
 } from "@earendil-works/pi-coding-agent";
+
+/** Default timeout (seconds) applied when the AI does not specify one. */
+export const BASH_DEFAULT_TIMEOUT_SECONDS = 300;
 
 export type PiBuiltinToolName = "read" | "bash" | "edit" | "write" | "grep" | "find" | "ls";
 
@@ -69,13 +74,29 @@ function restorePiBuiltinTools(agentSession: AgentSession): void {
   }
 }
 
+/**
+ * Wrap BashOperations to enforce a default timeout when the caller omits one.
+ */
+function withDefaultTimeout(ops: BashOperations): BashOperations {
+  return {
+    exec: (command, cwd, options) => {
+      const timeout = options.timeout ?? BASH_DEFAULT_TIMEOUT_SECONDS;
+      return ops.exec(command, cwd, { ...options, timeout });
+    },
+  };
+}
+
 function createPiBuiltinTools(agentSession: AgentSession): Record<PiBuiltinToolName, AgentTool> {
   const writableSession = agentSession as unknown as AgentSessionToolInternals;
   const cwd = writableSession._cwd;
   const settings = agentSession.settingsManager;
+  const bashOps = withDefaultTimeout(
+    createLocalBashOperations({ shellPath: settings.getShellPath() }),
+  );
   return {
     read: createReadTool(cwd, { autoResizeImages: settings.getImageAutoResize() }),
     bash: createBashTool(cwd, {
+      operations: bashOps,
       commandPrefix: settings.getShellCommandPrefix(),
       shellPath: settings.getShellPath(),
     }),
@@ -87,18 +108,42 @@ function createPiBuiltinTools(agentSession: AgentSession): Record<PiBuiltinToolN
   };
 }
 
+function patchBashDefinition(definition: AnyToolDefinition): AnyToolDefinition {
+  // Patch the schema property description so the AI sees the actual default.
+  const timeoutProp = definition.parameters?.properties?.timeout;
+  if (timeoutProp) {
+    timeoutProp.description = `Timeout in seconds (default: ${BASH_DEFAULT_TIMEOUT_SECONDS}s if omitted)`;
+  }
+  // Patch renderCall so the UI always shows the effective timeout.
+  const originalRenderCall = definition.renderCall;
+  if (originalRenderCall) {
+    definition.renderCall = (args: unknown, ...rest: unknown[]) => {
+      const argsObj = (args ?? {}) as Record<string, unknown>;
+      const patched = { ...argsObj, timeout: argsObj.timeout ?? BASH_DEFAULT_TIMEOUT_SECONDS };
+      return (originalRenderCall as Function)(patched, ...rest);
+    };
+  }
+  return definition;
+}
+
 function createPiBuiltinToolDefinitions(
   agentSession: AgentSession,
 ): Record<PiBuiltinToolName, AnyToolDefinition> {
   const writableSession = agentSession as unknown as AgentSessionToolInternals;
   const cwd = writableSession._cwd;
   const settings = agentSession.settingsManager;
+  const bashOps = withDefaultTimeout(
+    createLocalBashOperations({ shellPath: settings.getShellPath() }),
+  );
   return {
     read: createReadToolDefinition(cwd, { autoResizeImages: settings.getImageAutoResize() }),
-    bash: createBashToolDefinition(cwd, {
-      commandPrefix: settings.getShellCommandPrefix(),
-      shellPath: settings.getShellPath(),
-    }),
+    bash: patchBashDefinition(
+      createBashToolDefinition(cwd, {
+        operations: bashOps,
+        commandPrefix: settings.getShellCommandPrefix(),
+        shellPath: settings.getShellPath(),
+      }),
+    ),
     edit: createEditToolDefinition(cwd),
     write: createWriteToolDefinition(cwd),
     grep: createGrepToolDefinition(cwd),
