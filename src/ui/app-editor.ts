@@ -60,7 +60,8 @@ export class CompactPromptEditor extends Editor {
     const currentText = this.getExpandedText?.() ?? this.getText();
     const isEmpty = currentText.length === 0;
     const isShellMode = currentText.trimStart().startsWith("!");
-    const body = super.render(width).filter((line) => !isPlainEditorRule(line));
+    const editorWidth = Math.max(1, width - visibleWidth("> "));
+    const body = super.render(editorWidth).filter((line) => !isPlainEditorRule(line));
     const surface = isVimMode
       ? theme.vimPromptSurface
       : isShellMode
@@ -77,8 +78,9 @@ export class CompactPromptEditor extends Editor {
         : body.map((line, index) => {
             const prefix = index === 0 ? "> " : "  ";
             const content = line.replace(/ +$/u, "");
+            const available = Math.max(1, width - visibleWidth(prefix));
             return padLine(
-              `${theme.dim(prefix)}${truncateToWidth(content, Math.max(1, width - 2))}`,
+              `${theme.dim(prefix)}${truncateToWidth(content, available, "")}`,
               width,
             );
           });

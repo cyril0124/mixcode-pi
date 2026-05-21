@@ -701,6 +701,16 @@ test("createMixCodeTui editor slot renders the input cursor while focused", () =
   const textSurface = layout.editor.render(80).join("\n");
   assert.equal(textSurface.includes(CURSOR_MARKER), true);
   assert.match(textSurface, /a\x1b_pi:c\x07\x1b\[7m \x1b\[0m/);
+
+  layout.editor.setText("x".repeat(120));
+  const wrappedSurface = stripAnsi(layout.editor.render(40).join("\n"));
+  assert.doesNotMatch(wrappedSurface, /\.\.\./);
+  assert.match(wrappedSurface, /xxx\s*$/m);
+  assert.equal(
+    wrappedSurface.split("\n").every((line) => visibleWidth(line) <= 40),
+    true,
+  );
+
   layout.editor.setText("!pwd");
   const shellSurface = layout.editor.render(80).join("\n");
   assert.equal(shellSurface.includes(CURSOR_MARKER), true);
