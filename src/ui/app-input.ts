@@ -69,6 +69,29 @@ export function handleMixCodeKeyInput(
       return { consume: true };
     }
   }
+  // Escape-owned app interrupts must run before extension terminal handlers,
+  // otherwise broad terminal handlers can consume Esc and make abort unreachable.
+  if (
+    active &&
+    state.activeTabId !== "config" &&
+    matchesKey(data, "escape") &&
+    runtime?.hasExtensionCustomOverlay?.(active.sessionId)
+  ) {
+    clearPendingEscape(active, "abort-agent");
+    runtime.focusExtensionCustomOverlay?.(active.sessionId);
+    return undefined;
+  }
+  if (active && handleQueuedFlushKey(state, active, data, tui, runtime, isEditorAutocompleteOpen)) {
+    return { consume: true };
+  }
+  if (
+    active &&
+    matchesKey(data, "escape") &&
+    !hasAnyOverlay(tui) &&
+    handleStreamingAbortKey(active, tui, runtime)
+  ) {
+    return { consume: true };
+  }
   if (active && !hasAnyOverlay(tui)) {
     const extensionInput = runtime?.dispatchTerminalInput?.(active.sessionId, data);
     if (extensionInput?.consume) return { consume: true };
@@ -115,27 +138,6 @@ export function handleMixCodeKeyInput(
     handleQuestionKey(state, active, data, tui, runtime, onStateChanged)
   ) {
     clearPendingEscape(active, "abort-agent");
-    return { consume: true };
-  }
-  if (
-    active &&
-    state.activeTabId !== "config" &&
-    matchesKey(data, "escape") &&
-    runtime?.hasExtensionCustomOverlay?.(active.sessionId)
-  ) {
-    clearPendingEscape(active, "abort-agent");
-    runtime.focusExtensionCustomOverlay?.(active.sessionId);
-    return undefined;
-  }
-  if (active && handleQueuedFlushKey(state, active, data, tui, runtime, isEditorAutocompleteOpen)) {
-    return { consume: true };
-  }
-  if (
-    active &&
-    matchesKey(data, "escape") &&
-    !hasAnyOverlay(tui) &&
-    handleStreamingAbortKey(active, tui, runtime)
-  ) {
     return { consume: true };
   }
   if (matchesKey(data, "escape") && hasAppOverlay(tui)) {

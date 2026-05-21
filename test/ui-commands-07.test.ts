@@ -80,6 +80,42 @@ test("double escape stops an active agent run", () => {
   assert.equal(renders, 2);
 });
 
+test("double escape stop takes priority over extension terminal input handlers", () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo", { status: "thinking" });
+  state.tabs.push(tab);
+  state.activeTabId = "s1";
+  let aborts = 0;
+  let dispatched = 0;
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({}) as never,
+    hasOverlay: () => false,
+  };
+  const runtime = {
+    getTab: () => ({ agent: { state: { isStreaming: true } } }),
+    dispatchTerminalInput: () => {
+      dispatched++;
+      return { consume: true };
+    },
+    abortTab: (sessionId: string) => {
+      assert.equal(sessionId, "s1");
+      aborts++;
+      return true;
+    },
+  };
+
+  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime), {
+    consume: true,
+  });
+  assert.equal(tab.pendingEscapeAction, "abort-agent");
+  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime), {
+    consume: true,
+  });
+  assert.equal(dispatched, 0);
+  assert.equal(aborts, 1);
+});
+
 test("expired double escape arm resets before stopping an active run", () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo", { status: "thinking" });
