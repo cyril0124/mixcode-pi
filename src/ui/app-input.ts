@@ -46,7 +46,7 @@ import type {
 import { handleExtensionManagerKey } from "./extension-manager.js";
 import { renderCommandPalette, renderExportChooser, renderTabJumpOverlay } from "./rendering.js";
 import { handleSessionSelectorKey } from "./session-selector.js";
-import { handleTreeSelectorKey } from "./tree-selector.js";
+import { handleTreeSelectorKey, openTreeSelector, type TreeSelectorRuntime } from "./tree-selector.js";
 export function handleMixCodeKeyInput(
   state: MixCodeState,
   data: string,
@@ -147,6 +147,31 @@ export function handleMixCodeKeyInput(
     closeCommandPalette(state);
     closeTabJump(state);
     state.picker = undefined;
+    return { consume: true };
+  }
+
+  // Double-escape with empty editor opens tree selector (mirrors pi agent behavior)
+  if (
+    active &&
+    state.activeTabId !== "config" &&
+    matchesKey(data, "escape") &&
+    !hasAnyOverlay(tui) &&
+    !state.exportChooserOpen &&
+    !state.commandPaletteOpen &&
+    !active.shellOpen &&
+    !active.previewOpen &&
+    !active.pendingDialogs.length &&
+    !editorActions?.getText()?.trim()
+  ) {
+    const now = Date.now();
+    if (active.lastEscapeTime && now - active.lastEscapeTime < 500) {
+      active.lastEscapeTime = undefined;
+      openTreeSelector(state, runtime as unknown as TreeSelectorRuntime, tui, active.sessionId);
+      tui.requestRender();
+      return { consume: true };
+    }
+    active.lastEscapeTime = now;
+    tui.requestRender();
     return { consume: true };
   }
 

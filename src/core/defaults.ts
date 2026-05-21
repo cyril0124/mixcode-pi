@@ -85,6 +85,7 @@ export function createTab(
     redoSessionId: undefined,
     pendingEscapeAction: undefined,
     pendingEscapeArmedAt: undefined,
+    lastEscapeTime: undefined,
     unreadDone: false,
     workingStartedAt: undefined,
     lastWorkedDurationSeconds: undefined,

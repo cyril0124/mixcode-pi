@@ -151,6 +151,8 @@ export interface MixCodeTabInfo {
   redoSessionId?: string;
   pendingEscapeAction?: PendingEscapeAction;
   pendingEscapeArmedAt?: number;
+  /** Timestamp of last Escape press for double-escape tree detection */
+  lastEscapeTime?: number;
   unreadDone: boolean;
   workingStartedAt?: string;
   lastWorkedDurationSeconds?: number;
