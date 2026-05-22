@@ -10,6 +10,7 @@ import {
   TUI_KEYBINDINGS,
 } from "@earendil-works/pi-tui";
 import {
+  MIXCODE_EXTENSION_CLAUDE_WARM_THEME,
   MIXCODE_EXTENSION_LIGHT_THEME,
   MIXCODE_EXTENSION_TERMINAL_THEME,
   MIXCODE_EXTENSION_THEME,
@@ -20,6 +21,7 @@ import {
 import type { ExtensionThemeHost } from "./runtime-types.js";
 
 export {
+  MIXCODE_EXTENSION_CLAUDE_WARM_THEME,
   MIXCODE_EXTENSION_LIGHT_THEME,
   MIXCODE_EXTENSION_TERMINAL_THEME,
   MIXCODE_EXTENSION_THEME,
@@ -92,7 +94,7 @@ export function availableExtensionThemes(): Array<{ name: string; path: string |
 export function extensionThemeByName(name: string): Theme | undefined {
   const themeId = normalizeExtensionThemeId(name);
   if (themeId === "mixcode-dark") return MIXCODE_EXTENSION_THEME;
-  if (themeId === "claude-warm") return MIXCODE_EXTENSION_THEME;
+  if (themeId === "claude-warm") return MIXCODE_EXTENSION_CLAUDE_WARM_THEME;
   if (themeId === "tokyo-night") return MIXCODE_EXTENSION_TOKYO_NIGHT_THEME;
   if (themeId === "mixcode-light") return MIXCODE_EXTENSION_LIGHT_THEME;
   if (themeId === "terminal") return MIXCODE_EXTENSION_TERMINAL_THEME;

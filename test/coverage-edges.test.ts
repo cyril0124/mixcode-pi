@@ -14,6 +14,7 @@ import {
   availableExtensionThemes,
   currentExtensionTheme,
   extensionThemeByName,
+  MIXCODE_EXTENSION_CLAUDE_WARM_THEME,
   MIXCODE_EXTENSION_LIGHT_THEME,
   MIXCODE_EXTENSION_THEME,
   MIXCODE_EXTENSION_TOKYO_NIGHT_THEME,
@@ -45,7 +46,7 @@ test("extension theme helpers cover host, alias, and error branches", () => {
   const names = availableExtensionThemes().map((theme) => theme.name);
   assert.equal(new Set(names).size, names.length);
   assert.equal(extensionThemeByName("mixcode-dark"), MIXCODE_EXTENSION_THEME);
-  assert.equal(extensionThemeByName("claude-warm"), MIXCODE_EXTENSION_THEME);
+  assert.equal(extensionThemeByName("claude-warm"), MIXCODE_EXTENSION_CLAUDE_WARM_THEME);
   assert.equal(extensionThemeByName("tokyo-night"), MIXCODE_EXTENSION_TOKYO_NIGHT_THEME);
   assert.equal(extensionThemeByName("mixcode-light"), MIXCODE_EXTENSION_LIGHT_THEME);
   assert.equal(extensionThemeByName("terminal"), MIXCODE_EXTENSION_THEME);

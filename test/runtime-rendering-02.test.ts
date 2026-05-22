@@ -242,7 +242,7 @@ test("rendering exposes chat, tool, extension, and agent surface landmarks", () 
   );
   assert.match(
     renderInputMeta({ ...tab, currentContextTokens: 80_000, contextLimit: 100_000 }, 80).join("\n"),
-    /\x1b\[38;2;204;102;102m80k\/100k \(80%\)/,
+    /\x1b\[38;2;212;106;106m80k\/100k \(80%\)/,
   );
   assert.match(renderChat(many, 80).join("\n"), /line-0[\s\S]*line-15/);
   const userChat = stripAnsi(renderChat([{ role: "user", text: "hello" }], 40).join("\n"));

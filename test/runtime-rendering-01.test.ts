@@ -219,7 +219,7 @@ test("rendering exposes header, status, working indicator, and sidebar landmarks
   assert.deepEqual(renderHeader(80), []);
   assert.match(
     renderInputMeta(tab, 100, 0, themeForId("mixcode-light")).join("\n"),
-    /\x1b\[38;2;90;128;128m/,
+    /\x1b\[38;2;77;112;112m/,
   );
   assert.doesNotMatch(
     renderConfig({ ...state, theme: "mixcode-light" }, 100, themeForId("mixcode-light")).join("\n"),
