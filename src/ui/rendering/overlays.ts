@@ -184,17 +184,23 @@ function renderPackageUpdateNotice(packages: string[], width: number): string[] 
   const innerWidth = Math.max(0, width - 2);
   const title = activeRenderTheme.bold(activeRenderTheme.tool("Package Updates Available"));
   const action = activeRenderTheme.accent("pi update");
+  const packageLimit = 3;
+  const visiblePackages = packages.slice(0, packageLimit);
+  const hiddenCount = Math.max(0, packages.length - visiblePackages.length);
   const lines = [
     title,
     `${activeRenderTheme.dim("Package updates are available. Run ")}${action}`,
     activeRenderTheme.dim("Packages:"),
-    ...packages.map((pkg) => `- ${pkg}`),
+    ...visiblePackages.map((pkg) => `- ${pkg}`),
+    ...(hiddenCount > 0 ? [activeRenderTheme.dim(`... ${hiddenCount} more`)] : []),
   ];
   return [
     `${activeRenderTheme.tool("┌")}${activeRenderTheme.tool("─".repeat(innerWidth))}${activeRenderTheme.tool("┐")}`,
     ...lines.map(
-      (line) =>
-        `${activeRenderTheme.tool("│")}${activeRenderTheme.surface(padLine(` ${line}`, innerWidth))}${activeRenderTheme.tool("│")}`,
+      (line) => {
+        const body = truncateToWidth(` ${line}`, innerWidth, "...");
+        return `${activeRenderTheme.tool("│")}${activeRenderTheme.surface(padLine(body, innerWidth))}${activeRenderTheme.tool("│")}`;
+      },
     ),
     `${activeRenderTheme.tool("└")}${activeRenderTheme.tool("─".repeat(innerWidth))}${activeRenderTheme.tool("┘")}`,
     "",

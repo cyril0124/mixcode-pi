@@ -20,9 +20,10 @@ export class CompactPromptEditor extends Editor {
   constructor(
     tui: TuiType,
     options: ConstructorParameters<typeof Editor>[1],
+    editorOptions: ConstructorParameters<typeof Editor>[2],
     private readonly mixState: MixCodeState,
   ) {
-    super(tui, options);
+    super(tui, options, editorOptions);
     this.rootTui = tui;
   }
 
@@ -60,32 +61,13 @@ export class CompactPromptEditor extends Editor {
     const currentText = this.getExpandedText?.() ?? this.getText();
     const isEmpty = currentText.length === 0;
     const isShellMode = currentText.trimStart().startsWith("!");
-    const editorWidth = Math.max(1, width - visibleWidth("> "));
-    const body = super.render(editorWidth).filter((line) => !isPlainEditorRule(line));
-    const surface = isVimMode
-      ? theme.vimPromptSurface
-      : isShellMode
-        ? theme.shellPromptSurface
-        : theme.promptSurface;
-    const lines = isVimMode
-      ? renderVimModeLines(width, theme)
-      : isEmpty
-        ? body.map((line, index) =>
-            index === 0
-              ? renderPlaceholderLine(line, editorPlaceholder(this.mixState), width, theme)
-              : padLine(line, width),
-          )
-        : body.map((line, index) => {
-            const prefix = index === 0 ? "> " : "  ";
-            const content = line.replace(/ +$/u, "");
-            const available = Math.max(1, width - visibleWidth(prefix));
-            return padLine(
-              `${theme.dim(prefix)}${truncateToWidth(content, available, "")}`,
-              width,
-            );
-          });
-    const blank = surface(padLine("", width));
-    return [blank, ...lines.map((line) => surface(line)), blank];
+    this.borderColor = isShellMode ? theme.shellBorder : theme.thinkingBorder(this.activeTab()?.thinkingLevel);
+    if (isVimMode) return renderVimModeLines(width, theme);
+    const lines = super.render(width);
+    if (!isEmpty) return lines;
+    return lines.map((line, index) =>
+      index === 1 ? renderPlaceholderLine(line, editorPlaceholder(this.mixState), width, theme) : line,
+    );
   }
 
   private triggerSymbolAutocomplete(data: string): void {
@@ -181,6 +163,7 @@ export class EditorSlot implements Component {
   render(width: number): string[] {
     this.syncActiveTab();
     if (this.mixState.activeTabId === "config") return [];
+    this.syncActiveEditorBorder();
     return this.activeEditor.render(width);
   }
 
@@ -319,6 +302,7 @@ export class EditorSlot implements Component {
       if (sessionId === this.mixState.activeTabId) {
         this.defaultEditor.setText(currentText);
         this.activeEditor = this.defaultEditor;
+        this.syncActiveEditorBorder();
       }
       this.applyDefaultEditorBindings();
       this.tui.setFocus(this);
@@ -334,12 +318,13 @@ export class EditorSlot implements Component {
     nextEditor.onChange = this.changeHandler;
     nextEditor.setText(currentText);
     if (nextEditor.borderColor !== undefined)
-      nextEditor.borderColor = this.defaultEditor.borderColor;
+      nextEditor.borderColor = this.borderColorForSession(sessionId, nextEditor);
     nextEditor.setPaddingX?.(this.defaultEditor.getPaddingX());
     if (this.autocompleteProvider) nextEditor.setAutocompleteProvider?.(this.autocompleteProvider);
     this.editorReplacements.set(sessionId, { factory, editor: nextEditor });
     if (sessionId === this.mixState.activeTabId) {
       this.activeEditor = nextEditor;
+      this.syncActiveEditorBorder();
       this.syncEditorFocus();
       this.tui.setFocus(this);
     }
@@ -423,6 +408,28 @@ export class EditorSlot implements Component {
       );
     }
   }
+
+  private syncActiveEditorBorder(): void {
+    if (this.activeEditor.borderColor === undefined) return;
+    this.activeEditor.borderColor = this.borderColorForSession(
+      this.activeTabId,
+      this.activeEditor,
+    );
+  }
+
+  private borderColorForSession(
+    sessionId: string,
+    editor: EditorComponent,
+  ): (text: string) => string {
+    const theme = themeForId(this.mixState.theme);
+    const text =
+      sessionId === this.mixState.activeTabId
+        ? (editor.getExpandedText?.() ?? editor.getText())
+        : this.textForSession(sessionId, true);
+    if (text.trimStart().startsWith("!")) return theme.shellBorder;
+    const tab = this.mixState.tabs.find((item) => item.sessionId === sessionId);
+    return theme.thinkingBorder(tab?.thinkingLevel);
+  }
 }
 
 export function addPromptHistory(
@@ -454,23 +461,17 @@ function currentEditorToken(text: string): string {
   return match?.[1] ?? "";
 }
 
-function isPlainEditorRule(line: string): boolean {
-  const plain = stripAnsi(line);
-  return plain.length > 0 && /^─+$/.test(plain);
-}
-
 function renderPlaceholderLine(
   editorCursorLine: string,
   placeholder: string,
   width: number,
   theme: MixCodeTheme,
 ): string {
-  const cursor = editorCursorLine.trimEnd();
-  const available = Math.max(0, width - visibleWidth("> ") - visibleWidth(cursor));
-  return padLine(
-    `${theme.dim("> ")}${cursor}${theme.dim(truncateToWidth(placeholder, available))}`,
-    width,
-  );
+  const trailingWidth = width - visibleWidth(editorCursorLine.trimEnd());
+  const cursorPadding = trailingWidth > 0 ? " ".repeat(trailingWidth) : "";
+  const cursor = editorCursorLine.slice(0, editorCursorLine.length - cursorPadding.length);
+  const available = Math.max(0, width - visibleWidth(cursor));
+  return padLine(`${cursor}${theme.dim(truncateToWidth(placeholder, available))}`, width);
 }
 
 function setFocusableState(component: EditorComponent, focused: boolean): void {
@@ -490,11 +491,4 @@ export function editorThemeFor(theme: MixCodeTheme): EditorTheme {
       noMatch: theme.danger,
     },
   };
-}
-
-function stripAnsi(text: string): string {
-  return text
-    .replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "")
-    .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, "")
-    .replace(/\x1b_[^\x07]*(?:\x07|\x1b\\)/g, "");
 }

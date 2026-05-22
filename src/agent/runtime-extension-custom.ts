@@ -5,6 +5,7 @@ import {
   MIXCODE_EXTENSION_KEYBINDINGS_MANAGER,
   MIXCODE_EXTENSION_THEME,
 } from "./runtime-extension-theme.js";
+import { applyMixCodeKeybindings } from "./runtime-pi-tui-bridge.js";
 import type {
   ExtensionCustomComponent,
   ExtensionCustomFactory,
@@ -169,13 +170,24 @@ function createExtensionCustomEditor<T>(
 
 function customComponentEditor(component: ExtensionCustomComponent) {
   return {
-    render: (width: number) => component.render(width),
-    handleInput: (data: string) => component.handleInput?.(data),
-    invalidate: () => component.invalidate(),
+    render: (width: number) => renderWithPiExtensionContext(() => component.render(width)),
+    handleInput: (data: string) =>
+      renderWithPiExtensionContext(() => component.handleInput?.(data)),
+    invalidate: () => renderWithPiExtensionContext(() => component.invalidate()),
     getText: () => "",
     setText: () => undefined,
     wantsKeyRelease: component.wantsKeyRelease,
   };
+}
+
+function renderWithPiExtensionContext<T>(render: () => T): T {
+  const restoreKeybindings = applyMixCodeKeybindings();
+  try {
+    ensureExtensionThemeInitialized();
+    return render();
+  } finally {
+    restoreKeybindings();
+  }
 }
 
 export function createExtensionEditorOverlay(

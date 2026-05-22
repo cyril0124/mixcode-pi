@@ -213,18 +213,16 @@ test("createMixCodeTui renders the combined layout with codex-like editor block 
   try {
     const lines = tui.render(80);
     const plainLines = lines.map(stripAnsi);
-    const inputLine = plainLines.findIndex((line) => /^\s*> /.test(line));
+    const inputLine = plainLines.findIndex((line) => /Send message to Agent-01/.test(line));
     assert.match(plainLines[0] ?? "", /extension header/);
     assert.match(plainLines.join("\n"), /extension footer/);
     assert.match(lines.join("\n"), /hello/);
     assert.notEqual(inputLine, -1);
+    assert.equal(plainLines[inputLine - 1], "─".repeat(80));
+    assert.equal(plainLines[inputLine + 1], "─".repeat(80));
     assert.match(plainLines[inputLine - 3] ?? "", /Working/);
     assert.equal(plainLines[inputLine - 2]?.trim(), "");
-    assert.equal(lines[inputLine - 2]?.includes("\x1b[48;2;28;28;26m"), false);
-    assert.equal(plainLines[inputLine - 1]?.trim(), "");
-    assert.equal(lines[inputLine - 1]?.includes("\x1b[48;2;28;28;26m"), true);
-    assert.equal(plainLines[inputLine + 1]?.trim(), "");
-    assert.equal(lines[inputLine]?.includes("\x1b[48;2;28;28;26m"), true);
+    assert.match(lines[inputLine - 1] ?? "", /\x1b\[38;2;129;162;190m─/);
     assert.match(plainLines[inputLine + 2] ?? "", /faux\/faux-1/);
     assert.match(plainLines.join("\n"), /Send message to Agent-01\.\.\./);
     assert.doesNotMatch(plainLines.join("\n"), /▊|▔|▁/);
@@ -297,13 +295,12 @@ test("createMixCodeTui keeps a blank line between above-editor widgets and edito
   const lines = tui.render(80);
   const plainLines = lines.map(stripAnsi);
   const widgetLine = plainLines.findIndex((line) => /task five/.test(line));
-  const inputLine = plainLines.findIndex((line) => /^\s*> /.test(line));
+  const inputLine = plainLines.findIndex((line) => /Send message to Agent-01/.test(line));
   assert.notEqual(widgetLine, -1);
   assert.notEqual(inputLine, -1);
-  assert.equal(plainLines[inputLine - 1]?.trim(), "");
+  assert.equal(plainLines[inputLine - 1], "─".repeat(80));
   assert.equal(plainLines[inputLine - 2]?.trim(), "");
-  assert.equal(lines[inputLine - 2]?.includes("\x1b[48;2;28;28;26m"), false);
-  assert.equal(lines[inputLine - 1]?.includes("\x1b[48;2;28;28;26m"), true);
+  assert.match(lines[inputLine - 1] ?? "", /\x1b\[38;2;129;162;190m─/);
   assert.equal(inputLine, widgetLine + 3);
 });
 
@@ -319,10 +316,11 @@ test("createMixCodeTui keeps a blank line between idle content and editor", () =
   const tui = createMixCodeTui(state, runtime, { terminal: silentTerminal() });
 
   const plainLines = tui.render(80).map(stripAnsi);
-  const inputLine = plainLines.findIndex((line) => /^\s*> /.test(line));
+  const inputLine = plainLines.findIndex((line) => /Send message to Agent-01/.test(line));
   assert.notEqual(inputLine, -1);
   assert.match(plainLines.slice(0, inputLine).join("\n"), /last visible answer/);
-  assert.equal(plainLines[inputLine - 1]?.trim(), "");
+  assert.equal(plainLines[inputLine - 1], "─".repeat(80));
+  assert.equal(plainLines[inputLine - 2]?.trim(), "");
 });
 
 test("createMixCodeTui does not stack two blank rows above worked status", () => {
@@ -389,6 +387,49 @@ test("createMixCodeTui pins input meta to the bottom without a trailing blank ro
   );
 });
 
+test("extension chrome truncates narrow terminal rows instead of wrapping", () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo");
+  tab.extensionUi = {
+    ...tab.extensionUi,
+    widgets: [
+      {
+        key: "long",
+        placement: "aboveEditor",
+        lines: [
+          "Warning: tmux extended-keys is off. Modified Enter keys may not work. Add set -g extended-keys on to ~/.tmux.conf and restart tmux.",
+        ],
+      },
+    ],
+    header: {
+      lines: ["pi-web-access with a very long status line that should stay one row"],
+    },
+    footer: {
+      lines: ["footer with a very long status line that should stay one row"],
+    },
+  };
+  state.tabs.push(tab);
+  state.activeTabId = tab.sessionId;
+  const runtime = {
+    getTab: () => ({ chat: [{ role: "assistant", text: "ok" }], reasoning: [] }),
+    onChange: () => () => undefined,
+    getAllExtensionCommands: () => [],
+  } as unknown as MixCodeRuntime;
+  const tui = createMixCodeTui(state, runtime, {
+    completionSources: { skills: [], files: [] },
+    terminal: silentTerminal(),
+  });
+
+  const lines = tui.render(55);
+  const plain = lines.map(stripAnsi);
+
+  assert.equal(plain.filter((line) => line.includes("pi-web-access")).length, 1);
+  assert.equal(plain.filter((line) => line.includes("Warning: tmux")).length, 1);
+  assert.equal(plain.filter((line) => line.includes("footer with")).length, 1);
+  assert.equal(lines.every((line) => visibleWidth(line) <= 55), true);
+  assert.match(plain.join("\n"), /\.\.\./);
+});
+
 test("createMixCodeTui accounts for config and multiline editor row reservations", () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"));
@@ -402,7 +443,7 @@ test("createMixCodeTui accounts for config and multiline editor row reservations
     terminal: silentTerminal(),
   });
 
-  assert.doesNotMatch(tui.render(80).join("\n"), /> a/);
+  assert.doesNotMatch(tui.render(80).join("\n"), /^a/m);
   state.activeTabId = "s1";
   const layout = (
     tui as unknown as { children: Array<{ editor: { setText: (text: string) => void } }> }
@@ -410,8 +451,8 @@ test("createMixCodeTui accounts for config and multiline editor row reservations
   layout.editor.setText("a\nb");
   const output = stripAnsi(tui.render(80).join("\n"));
 
-  assert.match(output, /> a/);
-  assert.match(output, / {2}b/);
+  assert.match(output, /^ a/m);
+  assert.match(output, /^ b/m);
 });
 
 test("runtime changes request a differential render without keyboard or mouse input", () => {

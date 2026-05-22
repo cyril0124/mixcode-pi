@@ -243,9 +243,9 @@ test("rendering exposes input metadata and tab bar landmarks", () => {
     100,
   ).join("\n");
   assert.match(agentSurface, /tool started/);
-  assert.match(agentSurface, /TODO Board/);
-  assert.match(agentSurface, /\[x\] Fix bug/);
-  assert.match(renderStatus(tab, 120)[0] ?? "", /Goal active: ship goal/);
+  assert.doesNotMatch(agentSurface, /TODO Board/);
+  assert.doesNotMatch(agentSurface, /\[x\] Fix bug/);
+  assert.deepEqual(renderStatus(tab, 120), []);
   assert.match(agentSurface, /line-15/);
   const piThinkingSurface = renderAgentSurface(
     createTab(18, "s18", "/repo"),
@@ -306,15 +306,15 @@ test("rendering exposes input metadata and tab bar landmarks", () => {
     { reasoning: [], chat: [] } as never,
     80,
   ).join("\n");
-  assert.match(queuedSurface, /Queue \(1\)/);
+  assert.match(queuedSurface, /Steering: first queued message/);
+  assert.match(queuedSurface, /Ctrl\+U to edit all queued messages/);
   assert.match(queuedSurface, /first queued message/);
-  assert.match(
-    renderQueuePreview(
-      createTab(12, "s12", "/repo", { pendingMessages: ["1", "2", "3", "4", "5", "6"] }),
-      80,
-    ).join("\n"),
-    /Queue \(6, latest 5\)/,
-  );
+  const multiQueue = renderQueuePreview(
+    createTab(12, "s12", "/repo", { pendingMessages: ["1", "2", "3", "4", "5", "6"] }),
+    80,
+  ).join("\n");
+  assert.match(multiQueue, /Steering: 1/);
+  assert.match(multiQueue, /Steering: 6/);
   const scrollTab = createTab(19, "s19", "/repo", { chatScrollOffset: 32 });
   const scrollChat = Array.from({ length: 30 }, (_, index) => ({
     role: "assistant" as const,

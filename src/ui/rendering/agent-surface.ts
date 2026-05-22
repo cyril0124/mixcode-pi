@@ -13,10 +13,7 @@ import {
 import { renderSidebarInner } from "./chrome.js";
 import { activeRenderTheme, renderWithTheme } from "./context.js";
 import { fitScrolledLinesWithInfo, joinColumns, type ScrolledLinesResult } from "./layout.js";
-import { box, padLine } from "./primitives.js";
-
-const MIN_MAIN_WIDTH_WITH_SIDEBAR = 40;
-const MIN_SIDEBAR_WIDTH = 28;
+import { padLine } from "./primitives.js";
 
 // Above this many chat blocks we switch from "render everything, then slice"
 // to the windowed renderer. The windowed path has more bookkeeping overhead
@@ -76,12 +73,9 @@ function renderAgentSurfaceInner(
   maxHeight?: number,
 ): string[] {
   const surfaceWidth = maxHeight === undefined || width < 2 ? width : width - 1;
-  const sidebarVisible =
-    tab.todoVisible && surfaceWidth >= MIN_MAIN_WIDTH_WITH_SIDEBAR + 1 + MIN_SIDEBAR_WIDTH;
-  const sidebarWidth = sidebarVisible
-    ? Math.min(42, Math.max(MIN_SIDEBAR_WIDTH, Math.floor(surfaceWidth * 0.34)))
-    : 0;
-  const mainWidth = sidebarVisible ? surfaceWidth - sidebarWidth - 1 : surfaceWidth;
+  const sidebarVisible = false;
+  const sidebarWidth = 0;
+  const mainWidth = surfaceWidth;
 
   // Windowed path: only viable when the caller is going to clip to maxHeight
   // anyway and chat is long enough that rendering every block hurts. Falls
@@ -494,19 +488,14 @@ export function renderQueuePreview(
 
 function renderQueuePreviewInner(tab: MixCodeTabInfo, width: number): string[] {
   if (!tab.pendingMessages.length) return [];
-  const maxQueue = 5;
-  const innerWidth = Math.max(12, width - 2);
-  const itemWidth = Math.max(8, innerWidth - 2);
-  const messages = tab.pendingMessages.slice(-maxQueue);
-  const queueTitle =
-    tab.pendingMessages.length > maxQueue
-      ? `Queue (${tab.pendingMessages.length}, latest ${maxQueue})`
-      : `Queue (${tab.pendingMessages.length})`;
-  const lines = [
-    `${queueTitle}  Esc->send now  Ctrl+U->edit`,
-    ...messages.map(
-      (message) => `↳ ${truncateToWidth(message.replace(/\s+/g, " ").trim(), itemWidth)}`,
-    ),
-  ];
-  return box("Queue", lines, width);
+  const itemWidth = Math.max(8, width - 2);
+  const lines = tab.pendingMessages.flatMap((message) => [
+    padLine(activeRenderTheme.dim(` Steering: ${normalizePendingMessage(message, itemWidth)}`), width),
+  ]);
+  lines.push(padLine(activeRenderTheme.dim(" ↳ Ctrl+U to edit all queued messages"), width));
+  return [padLine("", width), ...lines];
+}
+
+function normalizePendingMessage(message: string, width: number): string {
+  return truncateToWidth(message.replace(/\s+/g, " ").trim(), width);
 }

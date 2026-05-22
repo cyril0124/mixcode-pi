@@ -332,7 +332,7 @@ test("createMixCodeTui editor slot handles input, autocomplete host, and submit"
     await new Promise((resolve) => setImmediate(resolve));
     assert.deepEqual(customHistory, ["custom-history", "custom-text"]);
     assert.deepEqual(prompts, ["custom-text"]);
-    assert.deepEqual(submitted, ["handler-set", "padding:0", "autocomplete-set"]);
+    assert.deepEqual(submitted, ["handler-set", "padding:1", "autocomplete-set"]);
     layout.editor.setText("restore-text");
     layout.editor.setEditorComponent(undefined);
     assert.equal(layout.editor.getEditorComponent(), undefined);
@@ -696,6 +696,10 @@ test("createMixCodeTui editor slot renders the input cursor while focused", () =
   assert.equal(emptySurface.includes(CURSOR_MARKER), true);
   assert.match(emptySurface, /\x1b\[7m \x1b\[0m/);
   assert.match(stripAnsi(emptySurface), /Send message to Agent-01/);
+  assert.equal(stripAnsi(emptySurface).split("\n")[0], "─".repeat(80));
+  assert.equal(stripAnsi(emptySurface).split("\n").at(-1), "─".repeat(80));
+  assert.doesNotMatch(stripAnsi(emptySurface), /^\s*> /m);
+  assert.match(emptySurface, /\x1b\[38;2;129;162;190m─/);
 
   layout.editor.handleInput("a");
   const textSurface = layout.editor.render(80).join("\n");
@@ -714,14 +718,12 @@ test("createMixCodeTui editor slot renders the input cursor while focused", () =
   layout.editor.setText("!pwd");
   const shellSurface = layout.editor.render(80).join("\n");
   assert.equal(shellSurface.includes(CURSOR_MARKER), true);
-  assert.match(shellSurface, /\x1b\[48;2;29;42;51m/);
-  assert.doesNotMatch(shellSurface, /\x1b\[48;2;28;28;26m/);
+  assert.match(shellSurface, /\x1b\[38;2;181;189;104m─/);
 
   layout.editor.setText("draft");
   tab.vimMode = true;
   const vimSurface = layout.editor.render(80).join("\n");
   assert.match(stripAnsi(vimSurface), /^ Vim mode, q to exit/m);
-  assert.match(vimSurface, /\x1b\[48;2;45;37;56m/);
   layout.editor.handleInput("x");
   assert.equal(layout.editor.current.getText(), "draft");
 });

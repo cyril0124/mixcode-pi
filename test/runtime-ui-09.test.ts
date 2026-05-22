@@ -277,6 +277,11 @@ test("runtime maps extension select, confirm, and input UI primitives into edito
     assert.match(plain, /Pick Target/);
     assert.match(plain, /alpha/);
     assert.match(plain, /beta/);
+    assert.match(plain, /↑↓ navigate\s+enter select\s+escape\/ctrl\+c cancel/);
+    assert.doesNotMatch(plain, /up\/down: select/);
+    assert.doesNotMatch(plain, /enter: choose/);
+    assert.equal(plain.includes("Pick Target\n─"), false);
+    assert.equal(plain.includes("→ alpha"), true);
     // Move down to "beta" and press enter
     activeEditorComponent!.handleInput("\x1b[B"); // down arrow
     activeEditorComponent!.handleInput("\r"); // enter

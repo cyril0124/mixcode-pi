@@ -9,6 +9,7 @@ import {
   ensureExtensionThemeInitialized,
   MIXCODE_EXTENSION_THEME,
 } from "./runtime-extension-theme.js";
+import { applyMixCodeKeybindings } from "./runtime-pi-tui-bridge.js";
 import { NullTerminal } from "./runtime-null-terminal.js";
 import type {
   ExtensionFooterFactory,
@@ -79,10 +80,10 @@ function createLiveExtensionLines(
   if (requestRender) tui.requestRender = () => requestRender();
   const component = factory(tui);
   return {
-    lines: limitExtensionWidgetLines(component.render(terminal.columns)),
+    lines: renderExtensionLines(component, terminal.columns),
     render: (width) => {
       terminal.columns = Math.max(1, Math.floor(width));
-      return limitExtensionWidgetLines(component.render(terminal.columns));
+      return renderExtensionLines(component, terminal.columns);
     },
     dispose: () => {
       component.dispose?.();
@@ -145,10 +146,10 @@ function createLiveExtensionWidget(
   return {
     key,
     placement,
-    lines: limitExtensionWidgetLines(component.render(terminal.columns)),
+    lines: renderExtensionLines(component, terminal.columns),
     render: (width) => {
       terminal.columns = Math.max(1, Math.floor(width));
-      return limitExtensionWidgetLines(component.render(terminal.columns));
+      return renderExtensionLines(component, terminal.columns);
     },
     dispose: () => {
       component.dispose?.();
@@ -163,6 +164,16 @@ export function disposeExtensionWidgets(tab: MixCodeTabInfo): void {
   }
   tab.extensionUi.header?.dispose?.();
   tab.extensionUi.footer?.dispose?.();
+}
+
+function renderExtensionLines(component: Component, width: number): string[] {
+  const restoreKeybindings = applyMixCodeKeybindings();
+  try {
+    ensureExtensionThemeInitialized();
+    return limitExtensionWidgetLines(component.render(width));
+  } finally {
+    restoreKeybindings();
+  }
 }
 
 function limitExtensionWidgetLines(lines: string[]): string[] {

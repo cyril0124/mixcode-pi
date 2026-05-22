@@ -51,8 +51,8 @@ test("tmux TUI smoke starts, switches theme, rejects OpenCode UI, and exits", {
     await delay(800);
 
     const light = await capturePane(tmux, session);
-    assert.equal(light.ansi.includes("\x1b[48;2;236;231;220m"), true);
-    assert.equal(light.ansi.includes("\x1b[48;2;196;93;61m"), true);
+    assert.equal(light.ansi.includes("\x1b[48;2;208;208;224m"), true);
+    assert.equal(light.ansi.includes("\x1b[38;2;90;128;128m"), true);
     assert.doesNotMatch(light.plain, /> \/theme li/);
 
     await sendLiteral(tmux, session, "\x10");
@@ -65,7 +65,8 @@ test("tmux TUI smoke starts, switches theme, rejects OpenCode UI, and exits", {
     assert.match(tabJump.plain, /Tab Jump/);
     await sendEscape(tmux, session);
 
-    await sendLiteral(tmux, session, "/new-session Smoke\r");
+    await sendLiteral(tmux, session, "/new-session Smoke");
+    await tmuxRun(tmux, session, ["send-keys", "-t", "0", "Enter"]);
     const twoTabs = await waitForPane(tmux, session, /^ MixCode Home.*Agent-01.*Agent-02/m, 5_000);
     assert.match(twoTabs.plain, /Send message to Agent-02/);
     await sendSgrMouse(tmux, session, 20, 1);

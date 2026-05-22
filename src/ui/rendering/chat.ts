@@ -31,14 +31,9 @@ function parseSkillBlock(text: string): ParsedSkillBlock | null {
   };
 }
 
-const TOOL_BACKGROUNDS = {
-  pending: { start: "\x1b[48;2;47;42;34m", end: "\x1b[49m" },
-  success: { start: "\x1b[48;2;38;38;36m", end: "\x1b[49m" },
-  error: { start: "\x1b[48;2;58;32;32m", end: "\x1b[49m" },
-} as const;
-const SYSTEM_BACKGROUND = { start: "\x1b[48;2;35;35;33m", end: "\x1b[49m" } as const;
-// Skill block background: dark purple-tinted (#2d2838), matching Pi reference customMessageBg
-const SKILL_BACKGROUND = { start: "\x1b[48;2;45;40;56m", end: "\x1b[49m" } as const;
+const OSC133_ZONE_START = "\x1b]133;A\x07";
+const OSC133_ZONE_END = "\x1b]133;B\x07";
+const OSC133_ZONE_FINAL = "\x1b]133;C\x07";
 const USER_BASH_PREVIEW_LINES = 20;
 const chatLineRenderCache = new WeakMap<ChatLine, { key: string; lines: string[] }>();
 
@@ -228,14 +223,14 @@ function renderMessageBlockUncached(line: ChatLine, width: number, tab?: MixCode
       activeRenderTheme.userMessage(padLine(` ${part}`, width)),
     );
     return [
-      activeRenderTheme.userMessage(padLine("", width)),
+      OSC133_ZONE_START + activeRenderTheme.userMessage(padLine("", width)),
       ...body,
-      activeRenderTheme.userMessage(padLine("", width)),
+      activeRenderTheme.userMessage(padLine("", width)) + OSC133_ZONE_END + OSC133_ZONE_FINAL,
     ];
   }
   if (line.role === "assistant") {
     if (!text.trim()) return [];
-    return renderMarkdown(text.trim(), width);
+    return withOsc133Zone(renderMarkdown(text.trim(), width));
   }
   if (line.role === "thinking") {
     if (!text.trim()) return [];
@@ -254,6 +249,14 @@ function renderMessageBlockUncached(line: ChatLine, width: number, tab?: MixCode
     return renderBranchSummaryBlock(text, width, tab);
   }
   return renderSystemBlock(text, width);
+}
+
+function withOsc133Zone(lines: string[]): string[] {
+  if (lines.length === 0) return lines;
+  const result = lines.slice();
+  result[0] = OSC133_ZONE_START + result[0]!;
+  result[result.length - 1] = `${result[result.length - 1]!}${OSC133_ZONE_END}${OSC133_ZONE_FINAL}`;
+  return result;
 }
 
 // Field separator used when concatenating cache key components. Picked
@@ -348,10 +351,10 @@ function renderToolBlock(line: ChatLine, width: number, tab?: MixCodeTabInfo): s
   const status = line.status ?? "success";
   const background =
     status === "error"
-      ? TOOL_BACKGROUNDS.error
+      ? activeRenderTheme.toolErrorBackground
       : status === "success"
-        ? TOOL_BACKGROUNDS.success
-        : TOOL_BACKGROUNDS.pending;
+        ? activeRenderTheme.toolSuccessBackground
+        : activeRenderTheme.toolPendingBackground;
   const innerWidth = Math.max(1, width - 2);
   const titleColor =
     status === "error"
@@ -458,7 +461,7 @@ function renderSystemBlock(text: string, width: number): string[] {
     ...renderMarkdown(body, Math.max(1, width - 1)).map((line) => ` ${line}`),
     "",
   ];
-  return lines.map((part) => renderToolBackgroundLine(part, width, SYSTEM_BACKGROUND));
+  return lines.map((part) => renderToolBackgroundLine(part, width, activeRenderTheme.systemBackground));
 }
 
 function renderBranchSummaryBlock(
@@ -480,7 +483,7 @@ function renderBranchSummaryBlock(
     );
   }
   lines.push("");
-  return lines.map((part) => renderToolBackgroundLine(part, width, SYSTEM_BACKGROUND));
+  return lines.map((part) => renderToolBackgroundLine(part, width, activeRenderTheme.systemBackground));
 }
 
 function renderStartupBlock(text: string, width: number): string[] {
@@ -502,10 +505,10 @@ function renderToolRenderedLine(line: ChatLine, text: string, width: number): st
   const status = line.status ?? "success";
   const background =
     status === "error"
-      ? TOOL_BACKGROUNDS.error
+      ? activeRenderTheme.toolErrorBackground
       : status === "success"
-        ? TOOL_BACKGROUNDS.success
-        : TOOL_BACKGROUNDS.pending;
+        ? activeRenderTheme.toolSuccessBackground
+        : activeRenderTheme.toolPendingBackground;
   return String(text)
     .split(/\r?\n/)
     .map((part) => renderToolBackgroundLine(` ${part}`, width, background));
@@ -590,7 +593,7 @@ function renderSkillUserMessage(
     boxLines.push("", label, "");
   }
   for (const part of boxLines) {
-    lines.push(renderToolBackgroundLine(part, width, SKILL_BACKGROUND));
+    lines.push(renderToolBackgroundLine(part, width, activeRenderTheme.customMessageBackground));
   }
 
   // Render user message (args) as a separate user block below
@@ -600,9 +603,9 @@ function renderSkillUserMessage(
       activeRenderTheme.userMessage(padLine(` ${part}`, width)),
     );
     lines.push(
-      activeRenderTheme.userMessage(padLine("", width)),
+      OSC133_ZONE_START + activeRenderTheme.userMessage(padLine("", width)),
       ...body,
-      activeRenderTheme.userMessage(padLine("", width)),
+      activeRenderTheme.userMessage(padLine("", width)) + OSC133_ZONE_END + OSC133_ZONE_FINAL,
     );
   }
 

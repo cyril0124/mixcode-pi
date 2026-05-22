@@ -81,6 +81,7 @@ export function createMixCodeTui(
     {
       ...editorThemeFor(themeForId(state.theme)),
     },
+    { paddingX: 1 },
     state,
   );
   defaultEditor.setAutocompleteMaxVisible(8);

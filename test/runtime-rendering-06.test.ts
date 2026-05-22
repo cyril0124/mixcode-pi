@@ -288,11 +288,12 @@ test("rendering exposes fitting helpers and keymap export text", () => {
     toolBlock.every((line) => visibleWidth(line) === 48),
     true,
   );
-  assert.equal(toolBlock.join("\n").includes("\x1b[48;2;22;26;31m"), false);
-  assert.equal(toolBlock.join("\n").includes("\x1b[48;2;29;33;41m"), false);
-  assert.equal(toolBlock.join("\n").includes("\x1b[48;2;38;38;36m"), true);
-  assert.equal(toolBlock.join("\n").includes("\x1b[39m\x1b[48;2;38;38;36m"), true);
-  assert.match(toolBlock.join("\n"), /\x1b\[38;2;143;168;122m/);
+  const toolText = toolBlock.join("\n");
+  assert.equal(toolText.includes("\x1b[48;2;22;26;31m"), false);
+  assert.equal(toolText.includes("\x1b[48;2;29;33;41m"), false);
+  assert.equal(toolText.includes("\x1b[48;2;40;50;40m"), true);
+  assert.equal(toolText.includes("\x1b[39m\x1b[48;2;40;50;40m"), true);
+  assert.match(toolText, /\x1b\[38;2;181;189;104m/);
   const capturedCustomToolWidths: number[] = [];
   const customRendererBlock = renderChat(
     [
@@ -325,7 +326,7 @@ test("rendering exposes fitting helpers and keymap export text", () => {
   assert.doesNotMatch(customRendererText, /\u00a0/);
   assert.match(stripAnsi(customRendererText), /call {2}one/);
   assert.match(customRendererText, /call two/);
-  assert.match(customRendererText, /\x1b\[48;2;38;38;36m/);
+  assert.match(customRendererText, /\x1b\[48;2;40;50;40m/);
   assert.match(stripAnsi(customRendererText), /result {2}one/);
   const selfRendererBlock = renderChat(
     [
@@ -343,7 +344,7 @@ test("rendering exposes fitting helpers and keymap export text", () => {
   );
   assert.match(stripAnsi(selfRendererBlock[0] ?? ""), /^self call/);
   assert.match(stripAnsi(selfRendererBlock.at(-1) ?? ""), /^self result/);
-  assert.doesNotMatch(selfRendererBlock.join("\n"), /\x1b\[48;2;38;38;36m/);
+  assert.doesNotMatch(selfRendererBlock.join("\n"), /\x1b\[48;2;40;50;40m/);
   const extensionFallback = renderChat(
     [{ role: "extension", text: "", customType: "empty" }],
     40,
@@ -366,7 +367,25 @@ test("rendering exposes fitting helpers and keymap export text", () => {
   });
   const narrowMetaLine = renderInputMeta(narrowMetaTab, 28).join("\n");
   assert.equal(visibleWidth(narrowMetaLine), 27);
-  assert.equal(narrowMetaTab.inputMetaHitRegions.length, 3);
+  assert.deepEqual(
+    narrowMetaTab.inputMetaHitRegions.map((region) => region.action),
+    ["models"],
+  );
+  assert.match(stripAnsi(narrowMetaLine), /\?\//);
+  const wideMetaLine = renderInputMeta(
+    createTab(32, "s32", "/repo", {
+      model: {
+        provider: "jw",
+        modelId: "proxy-gpt-5.4-high",
+        displayName: "jw-proxy-gpt-5.4-high",
+        contextWindow: 256_000,
+      },
+      thinkingLevel: "high",
+      contextLimit: 256_000,
+    }),
+    120,
+  ).join("\n");
+  assert.match(stripAnsi(wideMetaLine), /jw-proxy-gpt-5\.4-high/);
   assert.match(
     stripAnsi(
       renderWorkingIndicator(

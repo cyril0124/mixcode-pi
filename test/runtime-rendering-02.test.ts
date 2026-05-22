@@ -234,15 +234,15 @@ test("rendering exposes chat, tool, extension, and agent surface landmarks", () 
   );
   assert.match(
     renderInputMeta({ ...tab, currentContextTokens: 49_000, contextLimit: 100_000 }, 80).join("\n"),
-    /\x1b\[38;2;143;168;122m49k\/100k \(49%\)/,
+    /\x1b\[38;2;181;189;104m49k\/100k \(49%\)/,
   );
   assert.match(
     renderInputMeta({ ...tab, currentContextTokens: 50_000, contextLimit: 100_000 }, 80).join("\n"),
-    /\x1b\[38;2;217;119;87m50k\/100k \(50%\)/,
+    /\x1b\[38;2;138;190;183m50k\/100k \(50%\)/,
   );
   assert.match(
     renderInputMeta({ ...tab, currentContextTokens: 80_000, contextLimit: 100_000 }, 80).join("\n"),
-    /\x1b\[38;2;181;51;51m80k\/100k \(80%\)/,
+    /\x1b\[38;2;204;102;102m80k\/100k \(80%\)/,
   );
   assert.match(renderChat(many, 80).join("\n"), /line-0[\s\S]*line-15/);
   const userChat = stripAnsi(renderChat([{ role: "user", text: "hello" }], 40).join("\n"));
@@ -421,6 +421,12 @@ test("rendering exposes chat, tool, extension, and agent surface landmarks", () 
   assert.match(extensionBlocks, /fallback after empty render/);
   assert.equal(renderChat([{ role: "assistant", text: "" }], 80).join("\n"), "");
   assert.equal(renderChat([{ role: "user", text: "" }], 80).join("\n"), "");
+  const assistantZone = renderChat([{ role: "assistant", text: "zoned assistant" }], 80);
+  assert.ok(assistantZone[0]?.startsWith("\x1b]133;A\x07"));
+  assert.ok(assistantZone.at(-1)?.includes("\x1b]133;B\x07\x1b]133;C\x07"));
+  const userZone = renderChat([{ role: "user", text: "zoned user" }], 80);
+  assert.ok(userZone[0]?.startsWith("\x1b]133;A\x07"));
+  assert.ok(userZone.at(-1)?.includes("\x1b]133;B\x07\x1b]133;C\x07"));
   const markdownRendered = renderChat(
     [
       {

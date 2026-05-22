@@ -85,6 +85,13 @@ export function handleMixCodeKeyInput(
     return { consume: true };
   }
   if (
+    active?.pendingDialogs.length &&
+    handleQuestionKey(state, active, data, tui, runtime, onStateChanged)
+  ) {
+    clearPendingEscape(active, "abort-agent");
+    return { consume: true };
+  }
+  if (
     active &&
     matchesKey(data, "escape") &&
     !hasAnyOverlay(tui) &&
@@ -131,13 +138,6 @@ export function handleMixCodeKeyInput(
   if (matchesKey(data, "ctrl+q")) {
     if (active) clearPendingEscape(active, "abort-agent");
     openQuitConfirm(state, tui);
-    return { consume: true };
-  }
-  if (
-    active?.pendingDialogs.length &&
-    handleQuestionKey(state, active, data, tui, runtime, onStateChanged)
-  ) {
-    clearPendingEscape(active, "abort-agent");
     return { consume: true };
   }
   if (matchesKey(data, "escape") && hasAppOverlay(tui)) {

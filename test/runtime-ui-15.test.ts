@@ -299,10 +299,13 @@ test("runtime maps supported pi extension UI primitives into MixCode tab state",
       runtimeTab.tab.extensionUi.footer?.lines.map((line) => stripAnsi(line).trim()),
       ["footer 120 status=ready"],
     );
-    assert.match(stripAnsi(renderExtensionHeader(runtimeTab.tab, 8).join("\n")), /header[\s\S]*8/);
+    const narrowHeader = renderExtensionHeader(runtimeTab.tab, 8);
+    assert.equal(narrowHeader.length, 1);
+    assert.equal(visibleWidth(narrowHeader[0] ?? ""), 8);
+    assert.match(stripAnsi(narrowHeader.join("\n")), /hea\.\.\./);
     assert.match(
       stripAnsi(renderExtensionFooter(runtimeTab.tab, 8).join("\n")),
-      /footer[\s\S]*8[\s\S]*status[\s\S]*=ready/,
+      /foo\.\.\./,
     );
     assert.match(renderInputMeta(runtimeTab.tab, 100).join("\n"), /status: ready/);
     assert.match(

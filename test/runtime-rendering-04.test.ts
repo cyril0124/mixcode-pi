@@ -292,7 +292,7 @@ test("rendering exposes config, command, picker, and chooser overlays", () => {
   );
   if (oldHome === undefined) delete process.env.HOME;
   else process.env.HOME = oldHome;
-  assert.match(
+  assert.doesNotMatch(
     renderInputMeta({ ...tab, pendingMessages: ["queued"] }, 100).join("\n"),
     /queued: 1/,
   );

@@ -1,14 +1,13 @@
 import { execFileSync } from "node:child_process";
-import { visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
+import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import type { RuntimeTab } from "../../agent/runtime.js";
 import { isPendingEscapeActive } from "../../core/escape.js";
-import { renderGoalSummary } from "../../core/goal.js";
 import type { MouseHitRegion } from "../../core/mouse.js";
 import type { MixCodeState, MixCodeTabInfo } from "../../core/types.js";
 import { tabHasPendingUserInteraction } from "../../core/user-interactions.js";
 import type { MixCodeTheme } from "../themes.js";
 import { activeRenderTheme, renderWithTheme } from "./context.js";
-import { box, padLine, sanitizeTerminalText } from "./primitives.js";
+import { padLine, sanitizeTerminalText } from "./primitives.js";
 
 const GIT_BRANCH_CACHE_TTL_MS = 2_000;
 const DEFAULT_WORKING_INDICATOR_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
@@ -64,8 +63,7 @@ export function renderStatus(
 
 function renderStatusInner(tab: MixCodeTabInfo | undefined, width: number): string[] {
   if (!tab) return [padLine(activeRenderTheme.dim("MixCode Home | no active agent"), width)];
-  const goal = renderGoalSummary(tab.goal, 42);
-  return goal ? [padLine(activeRenderTheme.dim(goal), width)] : [];
+  return [];
 }
 
 function renderCompactContextUsage(tab: MixCodeTabInfo): string {
@@ -104,20 +102,10 @@ export function renderSidebarInner(
   width: number,
   runtimeTab?: RuntimeTab,
 ): string[] {
+  void tab;
+  void width;
   void runtimeTab;
-  const sections: string[] = [];
-  if (tab.todoVisible) sections.push(...renderTodoSidebar(tab, width));
-  return sections;
-}
-
-function renderTodoSidebar(tab: MixCodeTabInfo, width: number): string[] {
-  const todoLines = tab.todos.length
-    ? tab.todos.map(
-        (todo) =>
-          `${todo.status === "completed" ? "[x]" : todo.status === "in_progress" ? "[~]" : "[ ]"} ${todo.priority ? `${todo.priority}: ` : ""}${todo.content}`,
-      )
-    : ["No todos"];
-  return box("TODO Board", ["status  content", "──────  ───────", ...todoLines], width);
+  return [];
 }
 
 export function renderInputMeta(
@@ -137,64 +125,113 @@ function renderInputMetaInner(
   updateHitRegions = true,
 ): string[] {
   const lineWidth = Math.max(0, width - 1);
-  const queue = tab.pendingMessages.length ? ` | queued: ${tab.pendingMessages.length}` : "";
   const escapeHint = isPendingEscapeActive(tab, "abort-agent") ? " | Esc again: stop" : "";
-  const workdir = shortWorkdir(tab.workdir);
   const model = tab.model.displayName || "-";
   const thinking = tab.thinkingLevel[0]!.toUpperCase() + tab.thinkingLevel.slice(1);
-  const modelBadge = ` 󰚩 ${model} `;
-  const thinkingBadge = ` ✦ ${thinking} `;
-  const gitBadge = `  ${gitBranchForWorkdir(tab.workdir) || "-"} `;
-  const left = [
-    "  ",
-    activeRenderTheme.accent(activeRenderTheme.bold(modelBadge)),
-    "  ",
-    activeRenderTheme.accent(activeRenderTheme.bold(thinkingBadge)),
-    "  ",
-    activeRenderTheme.accent(workdir),
-    queue ? activeRenderTheme.dim(queue) : "",
-    escapeHint ? activeRenderTheme.dim(escapeHint) : "",
-  ].join("");
-  const extensionStatus = extensionStatusText(tab);
   const contextBadge = ` ${renderCompactContextUsage(tab)} `;
-  const git = activeRenderTheme.accent(activeRenderTheme.bold(gitBadge));
-  const extension = extensionStatus ? activeRenderTheme.dim(`${extensionStatus}  `) : "";
-  const right = chooseInputMetaRight(left, lineWidth, [
-    `${extension}${contextBadge} ${git}`,
-    `${contextBadge} ${git}`,
-    contextBadge,
+  const right = chooseInputMetaRight(contextBadge, lineWidth, [
+    () => {
+      const extensionStatus = extensionStatusText(tab);
+      const extension = extensionStatus ? activeRenderTheme.dim(`${extensionStatus}  `) : "";
+      const gitBadge = `  ${gitBranchForWorkdir(tab.workdir) || "-"} `;
+      const git = activeRenderTheme.accent(activeRenderTheme.bold(gitBadge));
+      return `${extension}${contextBadge} ${git}`;
+    },
+    () => {
+      const gitBadge = `  ${gitBranchForWorkdir(tab.workdir) || "-"} `;
+      const git = activeRenderTheme.accent(activeRenderTheme.bold(gitBadge));
+      return `${contextBadge} ${git}`;
+    },
+    () => contextBadge,
   ]);
-  const gap = Math.max(1, lineWidth - visibleWidth(left) - visibleWidth(right));
+  const leftBudget = Math.max(0, lineWidth - visibleWidth(right) - 1);
+  const left = renderInputMetaLeft(tab.workdir, model, thinking, escapeHint, leftBudget);
+  const gap = Math.max(1, lineWidth - visibleWidth(left.text) - visibleWidth(right));
   const metaRow =
-    visibleWidth(left) + visibleWidth(right) + 1 <= lineWidth
-      ? `${left}${" ".repeat(gap)}${right}`
-      : `${left} ${right}`;
+    visibleWidth(left.text) + visibleWidth(right) + 1 <= lineWidth
+      ? `${left.text}${" ".repeat(gap)}${right}`
+      : `${left.text} ${right}`;
   if (updateHitRegions) {
-    tab.inputMetaHitRegions = [
-      { action: "models", row, startX: 3, endX: 2 + visibleWidth(modelBadge) },
-      {
-        action: "thinking",
-        row,
-        startX: 5 + visibleWidth(modelBadge),
-        endX: 4 + visibleWidth(modelBadge) + visibleWidth(thinkingBadge),
-      },
-      {
-        action: "workdir",
-        row,
-        startX: 7 + visibleWidth(modelBadge) + visibleWidth(thinkingBadge),
-        endX: 6 + visibleWidth(modelBadge) + visibleWidth(thinkingBadge) + visibleWidth(workdir),
-      },
-    ];
+    tab.inputMetaHitRegions = left.regions.map((region) => ({ ...region, row }));
   }
   return [padLine(metaRow, lineWidth)];
 }
 
-function chooseInputMetaRight(left: string, lineWidth: number, candidates: string[]): string {
-  return (
-    candidates.find((candidate) => visibleWidth(left) + visibleWidth(candidate) + 1 <= lineWidth) ??
-    candidates.at(-1) ??
-    ""
-  );
+function renderInputMetaLeft(
+  workdirPath: string,
+  model: string,
+  thinking: string,
+  escapeHint: string,
+  width: number,
+): {
+  text: string;
+  regions: Array<{ action: "models" | "thinking" | "workdir"; startX: number; endX: number }>;
+} {
+  if (width <= 0) return { text: "", regions: [] };
+  const pieces: Array<{ action?: "models" | "thinking" | "workdir"; text: string }> = [];
+  let remaining = Math.max(0, width - 2);
+  const escapeText = escapeHint ? activeRenderTheme.dim(escapeHint) : "";
+  const escapeWidth = visibleWidth(escapeText);
+  const thinkingText = ` ✦ ${thinking} `;
+  const thinkingWidth = visibleWidth(thinkingText);
+  const modelFullWidth = visibleWidth(` 󰚩 ${model} `);
+  const fixedWidth = thinkingWidth + escapeWidth + (escapeText ? 1 : 0);
+  const modelWidth = Math.max(5, Math.min(modelFullWidth, remaining - fixedWidth));
+  const modelText = truncateToWidth(` 󰚩 ${model} `, modelWidth, "...");
+  pieces.push({
+    action: "models",
+    text: activeRenderTheme.accent(activeRenderTheme.bold(modelText)),
+  });
+  remaining -= visibleWidth(modelText);
+  if (remaining >= thinkingWidth + escapeWidth + (escapeText ? 1 : 0)) {
+    pieces.push({ text: "  " });
+    pieces.push({
+      action: "thinking",
+      text: activeRenderTheme.accent(activeRenderTheme.bold(thinkingText)),
+    });
+    remaining -= 2 + thinkingWidth;
+  }
+  const escapeGap = escapeText ? 1 + escapeWidth : 0;
+  const workdirBudget = Math.max(0, remaining - escapeGap - 2);
+  if (workdirBudget >= 4) {
+    pieces.push({ text: "  " });
+    const workdir = truncateToWidth(shortWorkdir(workdirPath), workdirBudget, "...");
+    pieces.push({ action: "workdir", text: activeRenderTheme.accent(workdir) });
+    remaining -= 2 + visibleWidth(workdir);
+  }
+  if (escapeText && remaining >= escapeGap) {
+    pieces.push({ text: " " });
+    pieces.push({ text: escapeText });
+  }
+  const regions: Array<{
+    action: "models" | "thinking" | "workdir";
+    startX: number;
+    endX: number;
+  }> = [];
+  let cursor = 1;
+  let text = "";
+  for (const piece of pieces) {
+    const pieceWidth = visibleWidth(piece.text);
+    if (piece.action && pieceWidth > 0) {
+      regions.push({ action: piece.action, startX: cursor, endX: cursor + pieceWidth - 1 });
+    }
+    text += piece.text;
+    cursor += pieceWidth;
+  }
+  return { text, regions };
+}
+
+function chooseInputMetaRight(
+  required: string,
+  lineWidth: number,
+  candidates: Array<() => string>,
+): string {
+  const minLeftWidth = 8;
+  for (const candidate of candidates) {
+    const text = candidate();
+    if (visibleWidth(text) + minLeftWidth + 1 <= lineWidth) return text;
+  }
+  return visibleWidth(required) <= lineWidth ? required : truncateToWidth(required, lineWidth, "...");
 }
 
 export function renderWorkingIndicator(
@@ -275,13 +312,7 @@ function renderExtensionWidgetsInner(
   widgets.forEach((widget, index) => {
     if (index > 0) lines.push(padLine("", width));
     const widgetLines = widget.render?.(Math.max(1, width - 2)) ?? widget.lines;
-    lines.push(
-      ...widgetLines.flatMap((line) =>
-        wrapTextWithAnsi(sanitizeWidgetLine(line), Math.max(1, width - 2)).map((part) =>
-          padLine(` ${activeRenderTheme.dim(part)}`, width),
-        ),
-      ),
-    );
+    lines.push(...widgetLines.map((line) => renderSingleLineExtensionSlot(line, width)));
   });
   return lines;
 }
@@ -307,11 +338,13 @@ function extensionStatusText(tab: MixCodeTabInfo): string {
 
 function renderExtensionSlot(lines: string[] | undefined, width: number): string[] {
   if (!lines?.length) return [];
-  return lines.flatMap((line) =>
-    wrapTextWithAnsi(sanitizeWidgetLine(line), Math.max(1, width - 2)).map((part) =>
-      padLine(` ${activeRenderTheme.dim(part)}`, width),
-    ),
-  );
+  return lines.map((line) => renderSingleLineExtensionSlot(line, width));
+}
+
+function renderSingleLineExtensionSlot(line: string, width: number): string {
+  const bodyWidth = Math.max(1, width - 2);
+  const text = truncateToWidth(sanitizeWidgetLine(line), bodyWidth, "...");
+  return padLine(` ${activeRenderTheme.dim(text)}`, width);
 }
 
 function cleanStatusText(text: string): string {

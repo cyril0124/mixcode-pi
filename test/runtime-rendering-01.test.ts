@@ -219,24 +219,34 @@ test("rendering exposes header, status, working indicator, and sidebar landmarks
   assert.deepEqual(renderHeader(80), []);
   assert.match(
     renderInputMeta(tab, 100, 0, themeForId("mixcode-light")).join("\n"),
-    /\x1b\[38;2;196;93;61m/,
+    /\x1b\[38;2;90;128;128m/,
   );
   assert.match(
     renderConfig({ ...state, theme: "mixcode-light" }, 100, themeForId("mixcode-light")).join("\n"),
-    /\x1b\[48;2;235;229;216m/,
+    /\x1b\[48;2;232;232;240m/,
   );
   const configSurfaceLine =
     renderConfig(state, 100).find((line) => stripAnsi(line).includes("Workdir")) ?? "";
-  assert.match(configSurfaceLine, /\x1b\[49m\x1b\[48;2;42;42;39m/);
+  assert.match(configSurfaceLine, /\x1b\[48;2;40;40;50m/);
+  assert.match(configSurfaceLine, /\x1b\[48;2;30;30;36m/);
   assert.throws(() => themeForId("missing-theme"), /Unknown theme: missing-theme/);
   assert.match(renderTabBar({ ...state, activeTabId: "config" }, 80)[0] ?? "", /MixCode Home/);
   assert.match(
     renderTabBar({ ...state, activeTabId: "config" }, 80)[0] ?? "",
-    /\x1b\[48;2;166;61;32m/,
+    /\x1b\[48;2;58;58;74m/,
+  );
+  const agentActiveState = { ...state, activeTabId: tab.sessionId };
+  assert.match(
+    renderTabBar(agentActiveState, 80)[0] ?? "",
+    /\x1b\[48;2;95;135;255m\x1b\[38;2;24;24;30m MixCode Home /,
   );
   assert.match(
     renderTabBar({ ...state, activeTabId: "config" }, 80, themeForId("mixcode-light"))[0] ?? "",
-    /\x1b\[48;2;143;53;32m/,
+    /\x1b\[48;2;208;208;224m/,
+  );
+  assert.match(
+    renderTabBar(agentActiveState, 80, themeForId("mixcode-light"))[0] ?? "",
+    /\x1b\[48;2;84;125;167m\x1b\[38;2;255;255;255m MixCode Home /,
   );
   assert.match(renderTabBar(state, 80)[0] ?? "", /\? Agent-01 /);
   assert.doesNotMatch(stripAnsi(renderTabBar(state, 80)[0] ?? ""), /\? Agent-01[!?]/);
@@ -455,31 +465,28 @@ test("rendering exposes header, status, working indicator, and sidebar landmarks
     lastError: "",
     lastErrorAt: "",
   };
-  assert.match(renderStatus(tab, 120)[0] ?? "", /Goal active: ship goal/);
+  assert.deepEqual(renderStatus(tab, 120), []);
   assert.match(renderStatus(undefined, 80)[0] ?? "", /no active agent/);
-  assert.match(renderSidebar(tab, 40).join("\n"), /\[x\] Fix bug/);
-  assert.match(
+  assert.deepEqual(renderSidebar(tab, 40), []);
+  assert.deepEqual(
     renderSidebar(
       createTab(3, "s3", "/repo", {
         todoVisible: true,
         todos: [{ id: "t2", content: "Todo", status: "pending" }],
       }),
       40,
-    ).join("\n"),
-    /\[ \] Todo/,
+    ),
+    [],
   );
-  assert.match(
+  assert.deepEqual(
     renderSidebar(
       createTab(4, "s4", "/repo", {
         todoVisible: true,
         todos: [{ id: "t3", content: "Doing", status: "in_progress", priority: "high" }],
       }),
       40,
-    ).join("\n"),
-    /\[~\] high: Doing/,
+    ),
+    [],
   );
-  assert.match(
-    renderSidebar(createTab(5, "s5", "/repo", { todoVisible: true }), 40).join("\n"),
-    /No todos/,
-  );
+  assert.deepEqual(renderSidebar(createTab(5, "s5", "/repo", { todoVisible: true }), 40), []);
 });

@@ -19,6 +19,12 @@ export interface MixCodeTheme {
   shellPromptSurface: (text: string) => string;
   vimPromptSurface: (text: string) => string;
   shellBorder: (text: string) => string;
+  thinkingBorder: (thinkingLevel?: string) => (text: string) => string;
+  toolPendingBackground: { start: string; end: string };
+  toolSuccessBackground: { start: string; end: string };
+  toolErrorBackground: { start: string; end: string };
+  systemBackground: { start: string; end: string };
+  customMessageBackground: { start: string; end: string };
   tab: (text: string) => string;
   activeTab: (text: string) => string;
   homeTab: (text: string) => string;
@@ -44,6 +50,13 @@ const bgRgb = (hex: string) => {
   const b = Number.parseInt(value.slice(4, 6), 16);
   return (text: string) => `\x1b[48;2;${r};${g};${b}m${text}\x1b[49m`;
 };
+const bgPair = (hex: string) => {
+  const value = hex.replace(/^#/, "");
+  const r = Number.parseInt(value.slice(0, 2), 16);
+  const g = Number.parseInt(value.slice(2, 4), 16);
+  const b = Number.parseInt(value.slice(4, 6), 16);
+  return { start: `\x1b[48;2;${r};${g};${b}m`, end: "\x1b[49m" };
+};
 const persistentBgRgb = (hex: string) => {
   const value = hex.replace(/^#/, "");
   const r = Number.parseInt(value.slice(0, 2), 16);
@@ -57,66 +70,102 @@ const persistentBgRgb = (hex: string) => {
 };
 const identity = (text: string) => text;
 
+const MIXCODE_DARK_THINKING_BORDERS: Record<string, (text: string) => string> = {
+  off: rgb("#505050"),
+  minimal: rgb("#6e6e6e"),
+  low: rgb("#5f87af"),
+  medium: rgb("#81a2be"),
+  high: rgb("#b294bb"),
+  xhigh: rgb("#d183e8"),
+};
+
+const MIXCODE_LIGHT_THINKING_BORDERS: Record<string, (text: string) => string> = {
+  off: rgb("#b0b0b0"),
+  minimal: rgb("#767676"),
+  low: rgb("#547da7"),
+  medium: rgb("#5a8080"),
+  high: rgb("#875f87"),
+  xhigh: rgb("#8b008b"),
+};
+
+function thinkingBorderFor(
+  palette: Record<string, (text: string) => string>,
+): (thinkingLevel?: string) => (text: string) => string {
+  return (thinkingLevel = "off") => palette[thinkingLevel] ?? palette.off ?? identity;
+}
+
 export const MIXCODE_DARK_THEME: MixCodeTheme = {
-  name: "claude-warm",
-  border: rgb("#4d4c48"),
-  borderDim: rgb("#3d3d3a"),
-  text: rgb("#faf9f5"),
-  dim: rgb("#87867f"),
-  subtle: rgb("#7a7a72"),
-  accent: rgb("#d97757"),
-  danger: rgb("#b53333"),
+  name: "pi-dark",
+  border: rgb("#5f87ff"),
+  borderDim: rgb("#505050"),
+  text: rgb("#d4d4d4"),
+  dim: rgb("#666666"),
+  subtle: rgb("#808080"),
+  accent: rgb("#8abeb7"),
+  danger: rgb("#cc6666"),
   warning: rgb("#ffff00"),
-  success: rgb("#8fa87a"),
-  done: rgb("#a8c896"),
-  background: persistentBgRgb("#141413"),
-  surface: persistentBgRgb("#1c1c1a"),
-  panel: persistentBgRgb("#232321"),
-  setupPanel: persistentBgRgb("#2a2a27"),
-  selection: persistentBgRgb("#5e392f"),
-  promptSurface: persistentBgRgb("#1c1c1a"),
-  shellPromptSurface: persistentBgRgb("#1d2a33"),
-  vimPromptSurface: persistentBgRgb("#2d2538"),
-  shellBorder: rgb("#dcecf4"),
-  tab: (text: string) => `${bgRgb("#232321")(rgb("#87867f")(text))}`,
-  activeTab: (text: string) => `${bgRgb("#3d3d3a")(rgb("#faf9f5")(text))}`,
-  homeTab: (text: string) => `${bgRgb("#d97757")(rgb("#141413")(text))}`,
-  homeTabActive: (text: string) => `${bgRgb("#a63d20")(rgb("#ffe8dc")(text))}`,
-  userMessage: persistentBgRgb("#221d1a"),
-  thinking: rgb("#87867f"),
-  tool: rgb("#d6b25e"),
+  success: rgb("#b5bd68"),
+  done: rgb("#b5bd68"),
+  background: persistentBgRgb("#18181e"),
+  surface: persistentBgRgb("#1e1e24"),
+  panel: persistentBgRgb("#282832"),
+  setupPanel: persistentBgRgb("#282832"),
+  selection: persistentBgRgb("#3a3a4a"),
+  promptSurface: identity,
+  shellPromptSurface: identity,
+  vimPromptSurface: identity,
+  shellBorder: rgb("#b5bd68"),
+  thinkingBorder: thinkingBorderFor(MIXCODE_DARK_THINKING_BORDERS),
+  toolPendingBackground: bgPair("#282832"),
+  toolSuccessBackground: bgPair("#283228"),
+  toolErrorBackground: bgPair("#3c2828"),
+  systemBackground: bgPair("#232321"),
+  customMessageBackground: bgPair("#2d2838"),
+  tab: (text: string) => `${bgRgb("#282832")(rgb("#808080")(text))}`,
+  activeTab: (text: string) => `${bgRgb("#3a3a4a")(rgb("#d4d4d4")(text))}`,
+  homeTab: (text: string) => `${bgRgb("#5f87ff")(rgb("#18181e")(text))}`,
+  homeTabActive: (text: string) => `${bgRgb("#3a3a4a")(rgb("#8abeb7")(text))}`,
+  userMessage: persistentBgRgb("#343541"),
+  thinking: rgb("#808080"),
+  tool: rgb("#ffff00"),
   bold: (text: string) => `\x1b[1m${text}\x1b[22m`,
   italic: (text: string) => `\x1b[3m${text}\x1b[23m`,
 };
 
 export const MIXCODE_LIGHT_THEME: MixCodeTheme = {
-  name: "mixcode-light",
-  border: rgb("#b8b1a5"),
-  borderDim: rgb("#d2cabd"),
-  text: rgb("#1f1e1c"),
-  dim: rgb("#6f6a60"),
-  subtle: rgb("#8a8377"),
-  accent: rgb("#c45d3d"),
-  danger: rgb("#9f2d2d"),
+  name: "pi-light",
+  border: rgb("#547da7"),
+  borderDim: rgb("#b0b0b0"),
+  text: rgb("#1f2328"),
+  dim: rgb("#767676"),
+  subtle: rgb("#6c6c6c"),
+  accent: rgb("#5a8080"),
+  danger: rgb("#aa5555"),
   warning: rgb("#9a7326"),
-  success: rgb("#557a4e"),
-  done: rgb("#4f8a46"),
-  background: persistentBgRgb("#f4f2ec"),
-  surface: persistentBgRgb("#ece7dc"),
-  panel: persistentBgRgb("#e3ded2"),
-  setupPanel: persistentBgRgb("#ebe5d8"),
-  selection: persistentBgRgb("#ead1c5"),
-  promptSurface: persistentBgRgb("#ece7dc"),
-  shellPromptSurface: persistentBgRgb("#dcecf4"),
-  vimPromptSurface: persistentBgRgb("#eadff4"),
-  shellBorder: rgb("#1d2a33"),
-  tab: (text: string) => `${bgRgb("#e3ded2")(rgb("#6f6a60")(text))}`,
-  activeTab: (text: string) => `${bgRgb("#d2cabd")(rgb("#1f1e1c")(text))}`,
-  homeTab: (text: string) => `${bgRgb("#c45d3d")(rgb("#fffaf0")(text))}`,
-  homeTabActive: (text: string) => `${bgRgb("#8f3520")(rgb("#fff5ee")(text))}`,
-  userMessage: persistentBgRgb("#f3e7dd"),
-  thinking: rgb("#6f6a60"),
-  tool: rgb("#8f6b2f"),
+  success: rgb("#588458"),
+  done: rgb("#588458"),
+  background: persistentBgRgb("#f8f8f8"),
+  surface: persistentBgRgb("#ffffff"),
+  panel: persistentBgRgb("#e8e8f0"),
+  setupPanel: persistentBgRgb("#e8e8f0"),
+  selection: persistentBgRgb("#d0d0e0"),
+  promptSurface: identity,
+  shellPromptSurface: identity,
+  vimPromptSurface: identity,
+  shellBorder: rgb("#588458"),
+  thinkingBorder: thinkingBorderFor(MIXCODE_LIGHT_THINKING_BORDERS),
+  toolPendingBackground: bgPair("#e8e8f0"),
+  toolSuccessBackground: bgPair("#e8f0e8"),
+  toolErrorBackground: bgPair("#f0e8e8"),
+  systemBackground: bgPair("#e8e8f0"),
+  customMessageBackground: bgPair("#ede7f6"),
+  tab: (text: string) => `${bgRgb("#e8e8f0")(rgb("#6c6c6c")(text))}`,
+  activeTab: (text: string) => `${bgRgb("#d0d0e0")(rgb("#1f2328")(text))}`,
+  homeTab: (text: string) => `${bgRgb("#547da7")(rgb("#ffffff")(text))}`,
+  homeTabActive: (text: string) => `${bgRgb("#d0d0e0")(rgb("#5a8080")(text))}`,
+  userMessage: persistentBgRgb("#e8e8e8"),
+  thinking: rgb("#6c6c6c"),
+  tool: rgb("#9a7326"),
   bold: (text: string) => `\x1b[1m${text}\x1b[22m`,
   italic: (text: string) => `\x1b[3m${text}\x1b[23m`,
 };
@@ -142,6 +191,12 @@ export const TERMINAL_THEME: MixCodeTheme = {
   shellPromptSurface: identity,
   vimPromptSurface: identity,
   shellBorder: identity,
+  thinkingBorder: () => identity,
+  toolPendingBackground: { start: "", end: "" },
+  toolSuccessBackground: { start: "", end: "" },
+  toolErrorBackground: { start: "", end: "" },
+  systemBackground: { start: "", end: "" },
+  customMessageBackground: { start: "", end: "" },
   tab: identity,
   activeTab: (text: string) => `\x1b[7m${text}\x1b[27m`,
   homeTab: (text: string) => `\x1b[7m${text}\x1b[27m`,

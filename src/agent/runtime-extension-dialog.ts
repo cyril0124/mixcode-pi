@@ -1,8 +1,10 @@
-import { matchesKey } from "@earendil-works/pi-tui";
 import {
-  ensureExtensionThemeInitialized,
-  MIXCODE_EXTENSION_THEME,
-} from "./runtime-extension-theme.js";
+  ExtensionInputComponent,
+  ExtensionSelectorComponent,
+} from "@earendil-works/pi-coding-agent";
+import type { Component, TUI as PiTui } from "@earendil-works/pi-tui";
+import { ensureExtensionThemeInitialized } from "./runtime-extension-theme.js";
+import { applyMixCodeKeybindings } from "./runtime-pi-tui-bridge.js";
 import type { ExtensionCustomUiHost, RuntimeTab } from "./runtime-types.js";
 
 /**
@@ -35,9 +37,7 @@ export function createExtensionDialog(
   return new Promise<string | undefined>((resolve) => {
     let settled = false;
     let timeout: NodeJS.Timeout | undefined;
-    let highlightedIndex = 0;
-    // For input kind, track the custom text being typed
-    let inputText = "";
+    let component: (Component & { dispose?(): void }) | undefined;
 
     const finish = (result: string | undefined) => {
       if (settled) return;
@@ -46,11 +46,15 @@ export function createExtensionDialog(
       opts?.signal?.removeEventListener("abort", abort);
       runtimeTab.extensionCustomOverlayClosers.delete(abort);
       removeDialogInteraction(runtimeTab, interactionId);
-      // Restore previous editor
-      host.editor?.setEditorComponent?.(previousFactory, sessionId);
-      host.editor?.setText(previousText, sessionId);
-      resolve(result);
-      requestRender();
+      try {
+        component?.dispose?.();
+        // Restore previous editor
+        host.editor?.setEditorComponent?.(previousFactory, sessionId);
+        host.editor?.setText(previousText, sessionId);
+      } finally {
+        resolve(result);
+        requestRender();
+      }
     };
 
     const abort = () => finish(undefined);
@@ -75,124 +79,68 @@ export function createExtensionDialog(
       timeout.unref?.();
     }
 
-    const theme = MIXCODE_EXTENSION_THEME;
-
-    const render = (width: number): string[] => {
-      const innerWidth = Math.max(1, width - 2);
-      const border = theme.fg("border", "─".repeat(Math.max(1, width)));
-      const lines: string[] = [];
-
-      lines.push("");
-      lines.push(border);
-      lines.push(`  ${theme.fg("accent", title)}`);
-
-      if (kind === "input") {
-        // Input mode: show a text input area
-        lines.push(border);
-        lines.push("");
-        const cursor = inputText + "█";
-        lines.push(`  ${cursor}`);
-        lines.push("");
-        lines.push(theme.fg("dim", "  enter: submit  esc: cancel"));
-      } else {
-        // Select/confirm mode: show options list
-        lines.push(border);
-        lines.push("");
-        for (let i = 0; i < options.length; i++) {
-          const marker = i === highlightedIndex ? theme.fg("accent", "›") : " ";
-          const label = options[i].label;
-          const desc = options[i].description
-            ? `  ${theme.fg("dim", options[i].description)}`
-            : "";
-          const line = `${marker} ${label}${desc}`;
-          if (i === highlightedIndex) {
-            lines.push(theme.bg("selectedBg", padTo(`  ${line}`, innerWidth)));
-          } else {
-            lines.push(`  ${line}`);
-          }
-        }
-        lines.push("");
-        lines.push(theme.fg("dim", "  up/down: select  enter: choose  esc: cancel"));
-      }
-
-      lines.push("");
-      lines.push(border);
-      return lines;
-    };
-
-    const handleInput = (data: string): void => {
-      if (settled) return;
-
-      if (matchesKey(data, "escape")) {
-        finish(undefined);
-        return;
-      }
-
-      if (kind === "input") {
-        // Input mode key handling
-        if (matchesKey(data, "enter")) {
-          finish(inputText || undefined);
-          return;
-        }
-        // Backspace
-        if (data === "\u007f" || matchesKey(data, "backspace")) {
-          inputText = inputText.slice(0, -1);
-          requestRender();
-          return;
-        }
-        // Printable characters
-        if (data.length === 1 && data >= "\x20" && data <= "\x7e") {
-          inputText += data;
-          requestRender();
-          return;
-        }
-        // Paste sequences
-        if (data.startsWith("\x1b[200~") && data.endsWith("\x1b[201~")) {
-          inputText += data.slice(6, -6);
-          requestRender();
-          return;
-        }
-        return;
-      }
-
-      // Select/confirm mode key handling
-      if (matchesKey(data, "enter") || data === " ") {
-        const selected = options[highlightedIndex];
-        finish(selected?.label ?? undefined);
-        return;
-      }
-
-      if (matchesKey(data, "up") || data === "k") {
-        highlightedIndex = Math.max(0, highlightedIndex - 1);
-        requestRender();
-        return;
-      }
-
-      if (matchesKey(data, "down") || data === "j") {
-        highlightedIndex = Math.min(options.length - 1, highlightedIndex + 1);
-        requestRender();
-        return;
-      }
-    };
-
-    // Set the editor component
-    host.editor!.setEditorComponent!(() => ({
-      render,
-      handleInput,
-      invalidate: () => {},
-      getText: () => "",
-      setText: () => undefined,
-    }), sessionId);
+    host.editor!.setEditorComponent!(
+      (tui, _theme, _keybindings) => {
+        component =
+          kind === "input"
+            ? new ExtensionInputComponent(
+                title,
+                _question,
+                (value) => finish(value || undefined),
+                abort,
+                {
+                  tui,
+                  timeout: opts?.timeout,
+                },
+              )
+            : new ExtensionSelectorComponent(
+                title,
+                options.map((option) => option.label),
+                finish,
+                abort,
+                {
+                  tui,
+                  timeout: opts?.timeout,
+                  onToggleToolsExpanded: () => {
+                    runtimeTab.tab.extensionUi.toolsExpanded =
+                      !runtimeTab.tab.extensionUi.toolsExpanded;
+                    requestRender();
+                  },
+                },
+              );
+        return extensionComponentEditor(component, tui);
+      },
+      sessionId,
+    );
     requestRender();
   });
 }
 
-function padTo(text: string, width: number): string {
-  // Simple padding without ANSI-aware width calculation
-  // The visual width may differ from string length due to ANSI codes,
-  // but this is sufficient for the selector UI
-  if (text.length >= width) return text;
-  return text + " ".repeat(width - text.length);
+function extensionComponentEditor(component: Component, tui: PiTui | undefined) {
+  return {
+    render: (width: number) => {
+      const restoreKeybindings = applyMixCodeKeybindings();
+      try {
+        ensureExtensionThemeInitialized();
+        return component.render(width);
+      } finally {
+        restoreKeybindings();
+      }
+    },
+    handleInput: (data: string) => {
+      const restoreKeybindings = applyMixCodeKeybindings();
+      try {
+        ensureExtensionThemeInitialized();
+        (component as Component & { handleInput?: (input: string) => void }).handleInput?.(data);
+        tui?.requestRender();
+      } finally {
+        restoreKeybindings();
+      }
+    },
+    invalidate: () => component.invalidate(),
+    getText: () => "",
+    setText: () => undefined,
+  };
 }
 
 function nextDialogInteractionId(runtimeTab: RuntimeTab): string {
