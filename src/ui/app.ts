@@ -17,6 +17,7 @@ import { editTextWithTuiPaused, errorMessage, showErrorOverlay } from "./app-ove
 import {
   activeExtensionCommands,
   bindRuntimeRendering,
+  bindWorkingRedraw,
   createActiveAutocompleteProvider,
   hydrateTabPromptHistory,
 } from "./app-runtime.js";
@@ -62,6 +63,7 @@ export function createMixCodeTui(
 ): TuiType {
   const tui = new TUI(withMouseReporting(options.terminal ?? new ProcessTerminal()));
   bindRuntimeRendering(runtime, tui, state, options.onStateChanged);
+  const stopWorkingRedraw = bindWorkingRedraw(state, tui);
   const shellManager = options.shellManager ?? new ShellManager();
   let editorRows = 0;
   let metaRows = state.activeTabId === "config" ? 0 : 1;
@@ -240,6 +242,7 @@ export function createMixCodeTui(
   );
   const originalStop = tui.stop.bind(tui);
   tui.stop = () => {
+    stopWorkingRedraw();
     root.dispose();
     originalStop();
   };

@@ -43,6 +43,7 @@ export function createInitialState(workdir: string): MixCodeState {
     thinkingLevel: "medium",
     theme: DEFAULT_THEME_ID,
     availableModels: [{ ...DEFAULT_MODEL_REF }],
+    homeSelectedTabIndex: 0,
   };
 }
 

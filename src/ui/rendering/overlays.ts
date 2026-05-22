@@ -6,11 +6,13 @@ import {
   previewTitle,
 } from "../../core/overlays.js";
 import { filteredPickerItems } from "../../core/pickers.js";
-import type { ConfigAction, MixCodeState, MixCodeTabInfo } from "../../core/types.js";
+import type { MixCodeState, MixCodeTabInfo } from "../../core/types.js";
+import { tabHasPendingUserInteraction } from "../../core/user-interactions.js";
 import { type MixCodeTheme, themeForId } from "../themes.js";
+import { tabStatusGlyph } from "./chrome.js";
 import { activeRenderTheme, renderWithTheme } from "./context.js";
 import { centerLine } from "./layout.js";
-import { box, overlayPanel, padLine, panelBox } from "./primitives.js";
+import { box, overlayPanel, padLine, panelBox, renderBoxTop } from "./primitives.js";
 
 export function renderQuestionOverlay(
   tab: MixCodeTabInfo,
@@ -136,11 +138,17 @@ export function renderConfig(
   width: number,
   theme: MixCodeTheme = activeRenderTheme,
   rowOffset = 0,
+  maxRows?: number,
 ): string[] {
-  return renderWithTheme(theme, () => renderConfigInner(state, width, rowOffset));
+  return renderWithTheme(theme, () => renderConfigInner(state, width, rowOffset, maxRows));
 }
 
-function renderConfigInner(state: MixCodeState, width: number, rowOffset: number): string[] {
+function renderConfigInner(
+  state: MixCodeState,
+  width: number,
+  rowOffset: number,
+  maxRows?: number,
+): string[] {
   const logo = [
     "███╗   ███╗██╗██╗  ██╗ ██████╗ ██████╗ ██████╗ ███████╗",
     "████╗ ████║██║╚██╗██╔╝██╔════╝██╔═══██╗██╔══██╗██╔════╝",
@@ -149,108 +157,192 @@ function renderConfigInner(state: MixCodeState, width: number, rowOffset: number
     "██║ ╚═╝ ██║██║██╔╝ ██╗╚██████╗╚██████╔╝██████╔╝███████╗",
     "╚═╝     ╚═╝╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚═════╝ ╚══════╝",
   ];
-  const tabs = state.tabs.length ? state.tabs.map((tab) => tab.title).join(", ") : "none";
-  const actionButtons = [
-    { action: "new-session" as const, label: "New Session" },
-    { action: "theme" as const, label: "Theme" },
-    { action: "save-workspace" as const, label: "Save Workspace" },
-    { action: "restore-workspace" as const, label: "Restore Workspace" },
-    { action: "delete-workspace" as const, label: "Delete Workspace" },
-  ];
   const bodyWidth = Math.max(1, width - 6);
-  const fieldRows = [
-    ...renderConfigField("Workdir", state.workdir, bodyWidth),
-    ...renderConfigField("Sessions", tabs, bodyWidth),
-  ];
   const updateRows = renderPackageUpdateNotice(state.packageUpdates, bodyWidth);
+  const staticBodyRows = 1 + logo.length + 1 + updateRows.length;
+  // configPanelBox adds a leading spacer, top border, and bottom border around body rows.
+  const maxAgentRows = maxRows === undefined ? undefined : Math.max(0, maxRows - 3 - staticBodyRows);
+  const agentTableRows = renderAgentViewTable(state, bodyWidth, maxAgentRows);
   state.configActionHitRegions = [];
-  const buttonRow = rowOffset + 4 + logo.length + updateRows.length + 1 + fieldRows.length + 1;
   const lines = [
     "",
     ...logo.map((line) => centerLine(activeRenderTheme.accent(line), Math.max(1, width - 2))),
     "",
     ...updateRows.map((line) => `  ${line}`),
-    ...fieldRows.map((line) => `  ${line}`),
-    "",
-    `  ${renderConfigButtonBand(state, actionButtons, bodyWidth, buttonRow)}`,
-    "",
-    `  ${renderConfigStatusLine(state, bodyWidth)}`,
+    ...agentTableRows.map((line) => `  ${line}`),
   ];
-  return panelBox("", lines, width);
+  return configPanelBox("", lines, width);
 }
+
+function configPanelBox(title: string, lines: string[], width: number): string[] {
+  const innerWidth = Math.max(0, width - 2);
+  const top = renderBoxTop(title, [], innerWidth, {
+    ...activeRenderTheme,
+    border: activeRenderTheme.borderDim,
+  });
+  const body = lines.map(
+    (line) => `${activeRenderTheme.borderDim("│")}${padLine(line, innerWidth)}${activeRenderTheme.borderDim("│")}`,
+  );
+  const bottom = `${activeRenderTheme.borderDim("└")}${activeRenderTheme.borderDim("─".repeat(innerWidth))}${activeRenderTheme.borderDim("┘")}`;
+  return [padLine("", width), top, ...body, bottom];
+}
+
+const AGENT_CARD_HEIGHT = 4;
+const AGENT_CARD_CHROME_ROWS = 3;
+const AGENT_VIEW_SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+const AGENT_VIEW_SPINNER_INTERVAL_MS = 80;
+
+function renderAgentViewTable(
+  state: MixCodeState,
+  width: number,
+  maxRows?: number,
+): string[] {
+  if (state.tabs.length === 0) {
+    return [
+      "",
+      activeRenderTheme.bold(" Agents"),
+      activeRenderTheme.dim("  No agent sessions. Use the command palette to start one."),
+    ];
+  }
+  const lines: string[] = ["", activeRenderTheme.bold(" Agents")];
+  const selectedIndex = Math.min(state.homeSelectedTabIndex, state.tabs.length - 1);
+  const now = Date.now();
+  const maxCards = maxRows === undefined
+    ? state.tabs.length
+    : Math.max(0, Math.floor((maxRows - AGENT_CARD_CHROME_ROWS) / AGENT_CARD_HEIGHT));
+  const { start, end } = agentCardWindow(state.tabs.length, selectedIndex, maxCards);
+  for (let i = start; i < end; i++) {
+    lines.push(...renderAgentCard(state.tabs[i]!, width, i === selectedIndex, now));
+  }
+  lines.push(activeRenderTheme.dim("  ↑/↓: select  →/Enter: attach  Tab: cycle tabs"));
+  return lines;
+}
+
+function agentCardWindow(total: number, selectedIndex: number, visibleCount: number): { start: number; end: number } {
+  if (visibleCount <= 0) return { start: selectedIndex, end: selectedIndex };
+  const count = Math.min(total, visibleCount);
+  const half = Math.floor(count / 2);
+  const start = Math.min(Math.max(0, selectedIndex - half), Math.max(0, total - count));
+  return { start, end: start + count };
+}
+
+function renderAgentCard(
+  tab: MixCodeState["tabs"][number],
+  width: number,
+  selected: boolean,
+  now: number,
+): string[] {
+  const border = selected ? activeRenderTheme.accent : activeRenderTheme.borderDim;
+  const innerWidth = Math.max(0, width - 2);
+  const marker = selected ? "› " : "";
+  const status = formatTabStatusChip(tab);
+  const spinner = formatAgentSpinner(tab, now);
+  const statusGroup = spinner ? `${spinner} ${status}` : status;
+  const titleBudget = Math.max(
+    1,
+    innerWidth - visibleWidth(marker) - 2 - visibleWidth(statusGroup) - 3,
+  );
+  const titleSegment = formatAgentCardTitleSegment(
+    tab,
+    `${tabStatusGlyph(tab)} ${truncateToWidth(tab.title, titleBudget, "...")}`,
+  );
+  const title = `${marker}${titleSegment}`;
+  const titleFill = Math.max(0, innerWidth - visibleWidth(title) - visibleWidth(statusGroup) - 2);
+  const top = `${border("┌")}${title} ${border("─".repeat(titleFill))} ${statusGroup}${border("┐")}`;
+  const meta = truncateToWidth(
+    ` Project ${projectName(tab)}   Updated ${formatTabUpdated(tab)}`,
+    innerWidth,
+    "...",
+  );
+  const preview = truncateToWidth(` ⎿ ${latestAssistantPreview(tab)}`, innerWidth, "...");
+  return [
+    top,
+    `${border("│")}${padLine(meta, innerWidth)}${border("│")}`,
+    `${border("│")}${activeRenderTheme.dim(padLine(preview, innerWidth))}${border("│")}`,
+    `${border("└")}${border("─".repeat(innerWidth))}${border("┘")}`,
+  ];
+}
+
+function formatAgentCardTitleSegment(tab: MixCodeState["tabs"][number], text: string): string {
+  if (tab.status === "error") return activeRenderTheme.danger(text);
+  if (tabHasPendingUserInteraction(tab)) return activeRenderTheme.tool(text);
+  if (tab.status === "running" || tab.status === "thinking") return activeRenderTheme.accent(text);
+  if (tab.status === "done" || tab.unreadDone) return activeRenderTheme.done(text);
+  return text;
+}
+
+function formatAgentSpinner(tab: MixCodeState["tabs"][number], now: number): string {
+  if (tab.status !== "running" && tab.status !== "thinking") return "";
+  const start = tab.workingStartedAt ? Date.parse(tab.workingStartedAt) : NaN;
+  // If startedAt is unavailable, use wall-clock time so the spinner still animates.
+  const elapsed = Number.isFinite(start) ? Math.max(0, now - start) : now;
+  const frame = AGENT_VIEW_SPINNER_FRAMES[
+    Math.floor(elapsed / AGENT_VIEW_SPINNER_INTERVAL_MS) % AGENT_VIEW_SPINNER_FRAMES.length
+  ];
+  return activeRenderTheme.accent(frame ?? AGENT_VIEW_SPINNER_FRAMES[0]!);
+}
+
+function formatTabStatusChip(tab: MixCodeState["tabs"][number]): string {
+  const text = `[${tab.status}]`;
+  switch (tab.status) {
+    case "running":
+    case "thinking":
+      return activeRenderTheme.accent(text);
+    case "error":
+      return activeRenderTheme.danger(text);
+    case "done":
+      return activeRenderTheme.tool(text);
+    default:
+      return activeRenderTheme.dim(text);
+  }
+}
+
+function projectName(tab: MixCodeState["tabs"][number]): string {
+  return tab.workdir.split("/").filter(Boolean).pop() ?? tab.workdir;
+}
+
+function formatTabUpdated(tab: MixCodeState["tabs"][number]): string {
+  if (tab.lastWorkedDurationSeconds !== undefined && tab.lastWorkedDurationSeconds > 0) {
+    const secs = tab.lastWorkedDurationSeconds;
+    if (secs < 60) return `${secs}s ago`;
+    return `${Math.floor(secs / 60)}m ago`;
+  }
+  if (tab.status === "running" || tab.status === "thinking") return "now";
+  return "—";
+}
+
+function latestAssistantPreview(tab: MixCodeState["tabs"][number]): string {
+  const latest = [...tab.previewMessages].reverse().find((message) => message.role === "assistant");
+  return singleLinePreview(latest?.text) || "No output yet";
+}
+
+function singleLinePreview(text: string | undefined): string {
+  return (text ?? "").replace(/\s+/g, " ").trim();
+}
+
 
 function renderPackageUpdateNotice(packages: string[], width: number): string[] {
   if (!packages.length) return [];
   const innerWidth = Math.max(0, width - 2);
   const title = activeRenderTheme.bold(activeRenderTheme.tool("Package Updates Available"));
   const action = activeRenderTheme.accent("pi update");
-  const packageLimit = 3;
-  const visiblePackages = packages.slice(0, packageLimit);
-  const hiddenCount = Math.max(0, packages.length - visiblePackages.length);
   const lines = [
     title,
     `${activeRenderTheme.dim("Package updates are available. Run ")}${action}`,
     activeRenderTheme.dim("Packages:"),
-    ...visiblePackages.map((pkg) => `- ${pkg}`),
-    ...(hiddenCount > 0 ? [activeRenderTheme.dim(`... ${hiddenCount} more`)] : []),
+    ...packages.map((pkg) => `- ${pkg}`),
   ];
   return [
     `${activeRenderTheme.tool("┌")}${activeRenderTheme.tool("─".repeat(innerWidth))}${activeRenderTheme.tool("┐")}`,
     ...lines.map(
       (line) => {
         const body = truncateToWidth(` ${line}`, innerWidth, "...");
-        return `${activeRenderTheme.tool("│")}${activeRenderTheme.surface(padLine(body, innerWidth))}${activeRenderTheme.tool("│")}`;
+        return `${activeRenderTheme.tool("│")}${padLine(body, innerWidth)}${activeRenderTheme.tool("│")}`;
       },
     ),
     `${activeRenderTheme.tool("└")}${activeRenderTheme.tool("─".repeat(innerWidth))}${activeRenderTheme.tool("┘")}`,
     "",
   ];
-}
-
-function renderConfigButtonBand(
-  state: MixCodeState,
-  buttons: Array<{ action: ConfigAction; label: string }>,
-  width: number,
-  row: number,
-): string {
-  let cursor = 1;
-  const parts = buttons.map((button) => {
-    const text = ` ${activeRenderTheme.bold(button.label)} `;
-    const startX = 3 + cursor;
-    const endX = startX + visibleWidth(` ${button.label} `) - 1;
-    state.configActionHitRegions ??= [];
-    state.configActionHitRegions.push({ action: button.action, row, startX, endX });
-    cursor += visibleWidth(` ${button.label} `) + 1;
-    return text;
-  });
-  const content = parts.join(" ");
-  return activeRenderTheme.surface(padLine(content, width));
-}
-
-function renderConfigStatusLine(state: MixCodeState, width: number): string {
-  const working = state.tabs.filter(
-    (tab) => tab.status === "running" || tab.status === "thinking",
-  ).length;
-  const errored = state.tabs.filter((tab) => tab.status === "error").length;
-  const unread = state.tabs.filter((tab) => tab.unreadDone).length;
-  const parts = [
-    activeRenderTheme.dim("Pi-native ready"),
-    `tabs: ${state.tabs.length}`,
-    `working: ${working}`,
-    `errors: ${errored}`,
-    `unread: ${unread}`,
-  ];
-  return activeRenderTheme.panel(padLine(` ${parts.join("  ·  ")}`, width));
-}
-
-function renderConfigField(title: string, value: string, width: number): string[] {
-  const innerWidth = Math.max(0, width - 2);
-  const safeTitle = truncateToWidth(title, Math.max(1, innerWidth - 2));
-  const safeValue = truncateToWidth(value || " ", Math.max(1, innerWidth - 4));
-  const top = `${activeRenderTheme.borderDim("▊")}${activeRenderTheme.surface(activeRenderTheme.borderDim("▔".repeat(innerWidth)))}${activeRenderTheme.borderDim("▎")}`;
-  const body = `${activeRenderTheme.borderDim("▊")}${activeRenderTheme.surface(padLine(`  ${activeRenderTheme.dim(safeTitle)} ${safeValue}`, innerWidth))}${activeRenderTheme.borderDim("▎")}`;
-  const bottom = `${activeRenderTheme.borderDim("▊")}${activeRenderTheme.surface(activeRenderTheme.borderDim("▁".repeat(innerWidth)))}${activeRenderTheme.borderDim("▎")}`;
-  return [top, body, bottom];
 }
 
 export function renderCommandPalette(

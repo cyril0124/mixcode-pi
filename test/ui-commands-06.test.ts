@@ -551,62 +551,10 @@ test("global key input toggles MixCode overlays and passes through regular input
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui), { consume: true });
   state.activeTabId = "config";
   renderConfig(state, 100);
-  assert.deepEqual(
-    state.configActionHitRegions?.map((region) => region.action),
-    ["new-session", "theme", "save-workspace", "restore-workspace", "delete-workspace"],
-  );
-  const themeRegion = state.configActionHitRegions?.find((region) => region.action === "theme");
-  assert.ok(themeRegion);
-  assert.equal(
-    handleMixCodeKeyInput(state, `\x1b[<0;${themeRegion.startX - 1};${themeRegion.row}M`, tui),
-    undefined,
-  );
-  assert.equal(
-    handleMixCodeKeyInput(state, `\x1b[<0;${themeRegion.endX + 1};${themeRegion.row}M`, tui),
-    undefined,
-  );
+  assert.deepEqual(state.configActionHitRegions, []);
+  assert.equal(handleMixCodeKeyInput(state, "\x1b[<0;10;10M", tui), undefined);
   assert.equal(state.picker, undefined);
-  assert.deepEqual(
-    handleMixCodeKeyInput(state, `\x1b[<0;${themeRegion.startX};${themeRegion.row}M`, tui),
-    { consume: true },
-  );
-  assert.equal(state.picker?.kind, "theme");
-  assert.match(overlays.at(-1) ?? "", /Choose Theme/);
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui), { consume: true });
-  renderConfig(state, 100);
-  const saveWorkspaceRegion = state.configActionHitRegions?.find(
-    (region) => region.action === "save-workspace",
-  );
-  assert.ok(saveWorkspaceRegion);
-  assert.deepEqual(
-    handleMixCodeKeyInput(
-      state,
-      `\x1b[<0;${saveWorkspaceRegion.startX};${saveWorkspaceRegion.row}M`,
-      tui,
-    ),
-    { consume: true },
-  );
-  assert.equal(state.commandPaletteOpen, true);
-  assert.equal(state.commandPalette.query, "/save-workspace");
-  assert.match(overlays.at(-1) ?? "", /Command Palette/);
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui), { consume: true });
   assert.equal(state.commandPaletteOpen, false);
-  state.configActionHitRegions = undefined;
-  renderConfig(state, 100, undefined, 3);
-  const rootThemeRegion = state.configActionHitRegions?.find((region) => region.action === "theme");
-  assert.ok(rootThemeRegion);
-  assert.equal(rootThemeRegion.row, themeRegion.row + 3);
-  assert.equal(
-    handleMixCodeKeyInput(state, `\x1b[<0;${rootThemeRegion.startX};${themeRegion.row}M`, tui),
-    undefined,
-  );
-  assert.deepEqual(
-    handleMixCodeKeyInput(state, `\x1b[<0;${rootThemeRegion.startX};${rootThemeRegion.row}M`, tui),
-    { consume: true },
-  );
-  assert.equal(state.picker?.kind, "theme");
-  assert.match(overlays.at(-1) ?? "", /Choose Theme/);
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui), { consume: true });
   state.activeTabId = "s1";
   assert.equal(state.activeTabId, "s1");
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[Z", tui), { consume: true });

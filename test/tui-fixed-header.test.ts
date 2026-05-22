@@ -557,13 +557,40 @@ test("working indicator requests periodic renders while the active tab is busy",
   const runningRenders = renders;
   state.activeTabId = "config";
   await sleep(95);
-  assert.equal(renders, runningRenders);
+  assert.equal(renders > runningRenders, true);
+  const homeRenders = renders;
+  state.tabs[0]!.status = "idle";
+  await sleep(95);
+  assert.equal(renders, homeRenders);
   tui.stop();
   assert.equal(stops, 1);
   state.activeTabId = "s1";
+  state.tabs[0]!.status = "running";
   await sleep(95);
-  assert.equal(renders, runningRenders);
+  assert.equal(renders, homeRenders);
   dispose();
+});
+
+test("createMixCodeTui binds working redraw for Home Agent View spinners", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo", { status: "running" }));
+  state.activeTabId = "config";
+  const runtime = {
+    getTab: () => ({ chat: [], reasoning: [] }),
+    onChange: () => () => undefined,
+    getAllExtensionCommands: () => [],
+  } as unknown as MixCodeRuntime;
+  const tui = createMixCodeTui(state, runtime, { terminal: silentTerminal() });
+  let renders = 0;
+  tui.requestRender = () => {
+    renders++;
+  };
+  try {
+    await sleep(95);
+    assert.equal(renders > 0, true);
+  } finally {
+    tui.stop();
+  }
 });
 
 test("differential renders do not force full redraws after the first paint", async () => {

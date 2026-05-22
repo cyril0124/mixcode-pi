@@ -370,7 +370,7 @@ function tabBarSegments(state: MixCodeState): Array<{ id: string; text: string }
   return [
     { id: "config", text: config },
     ...state.tabs.map((tab) => {
-      const status = statusGlyph(tab);
+      const status = tabStatusGlyph(tab);
       const text = ` ${status} ${tab.title} `;
       return {
         id: tab.sessionId,
@@ -392,7 +392,7 @@ function renderTabSegmentText(tab: MixCodeTabInfo, text: string, active: boolean
   return active ? activeRenderTheme.activeTab(colored) : activeRenderTheme.tab(colored);
 }
 
-function statusGlyph(tab: MixCodeTabInfo): string {
+export function tabStatusGlyph(tab: MixCodeTabInfo): string {
   if (tab.status === "error") return "x";
   if (tabHasPendingUserInteraction(tab)) return "?";
   if (tab.status === "running" || tab.status === "thinking") return "*";

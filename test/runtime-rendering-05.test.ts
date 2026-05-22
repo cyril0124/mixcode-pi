@@ -217,23 +217,20 @@ test("rendering sanitizes terminal text and paints tool blocks", () => {
   });
   state.tabs.push(tab);
   const config = renderConfig(state, 100).join("\n");
-  assert.match(config, /▔/);
-  assert.match(config, /▁/);
-  assert.match(config, /Workdir/);
-  assert.match(config, /\/repo/);
+  assert.doesNotMatch(config, /Workdir/);
+  assert.doesNotMatch(config, /\/repo/);
   assert.doesNotMatch(config, /Model/);
   assert.doesNotMatch(config, /faux\/faux-1/);
   assert.doesNotMatch(config, /Thinking/);
   assert.doesNotMatch(config, /medium/i);
-  assert.match(config, /Sessions/);
+  assert.match(config, /Agents/);
   assert.match(config, /Agent-01/);
-  assert.match(config, /New Session/);
-  assert.match(config, /Theme/);
-  assert.match(config, /Save Workspace/);
-  assert.match(config, /Restore Workspace/);
-  assert.match(config, /Delete Workspace/);
-  assert.match(config, /Pi-native ready/);
-  assert.match(config, /tabs: 1/);
+  assert.doesNotMatch(config, /New Session/);
+  assert.doesNotMatch(config, /Save Workspace/);
+  assert.doesNotMatch(config, /Restore Workspace/);
+  assert.doesNotMatch(config, /Delete Workspace/);
+  assert.doesNotMatch(config, /Pi-native ready/);
+  assert.doesNotMatch(config, /tabs: 1/);
   assert.doesNotMatch(config, /Package Updates Available/);
   assert.doesNotMatch(config, /Runtime|Pi agent-core local session repository/);
   assert.doesNotMatch(config, /\/new-session/);
@@ -244,13 +241,21 @@ test("rendering sanitizes terminal text and paints tool blocks", () => {
   assert.doesNotMatch(config, /\/restore-workspace <name>/);
   assert.doesNotMatch(config, /\/delete-workspace <name>/);
   assert.doesNotMatch(config, /Connect|Reconnect|Attach Session|opencode/i);
-  state.packageUpdates = ["@juicesharp/rpiv-todo", "@juicesharp/rpiv-ask-user-question"];
+  state.packageUpdates = [
+    "@juicesharp/rpiv-todo",
+    "@juicesharp/rpiv-ask-user-question",
+    "pi-codex-goal",
+    "pi-codex-extra",
+  ];
   const updateConfig = renderConfig(state, 100).join("\n");
   assert.match(updateConfig, /Package Updates Available/);
   assert.match(updateConfig, /Package updates are available\. Run/);
   assert.match(updateConfig, /pi update/);
   assert.match(updateConfig, /@juicesharp\/rpiv-todo/);
   assert.match(updateConfig, /@juicesharp\/rpiv-ask-user-question/);
+  assert.match(updateConfig, /pi-codex-goal/);
+  assert.match(updateConfig, /pi-codex-extra/);
+  assert.doesNotMatch(updateConfig, /more/);
   state.commandPaletteOpen = true;
   assert.match(renderCommandPalette(state, 100).join("\n"), /Choose Theme/);
   assert.match(renderCommandPalette(state, 100).join("\n"), /Extension Manager/);

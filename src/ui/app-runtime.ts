@@ -39,9 +39,9 @@ export function bindWorkingRedraw(
 }
 
 function activeTabNeedsWorkingRedraw(state: MixCodeState): boolean {
-  if (state.activeTabId === "config") return false;
+  if (state.activeTabId === "config") return state.tabs.some((tab) => isWorkingStatus(tab.status));
   const active = state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];
-  return active?.status === "running" || active?.status === "thinking";
+  return isWorkingStatus(active?.status);
 }
 export function bindRuntimeRendering(
   runtime: RuntimeChangeSource,

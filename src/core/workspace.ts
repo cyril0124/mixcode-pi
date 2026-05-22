@@ -1,3 +1,4 @@
+import { clampHomeSelectedTabIndex } from "./tabs.js";
 import type { MixCodeState, WorkspaceSnapshot } from "./types.js";
 
 export const AUTO_SAVED_WORKSPACE = "[auto-saved]";
@@ -42,4 +43,5 @@ export function restoreWorkspaceOrder(state: MixCodeState, workspace: WorkspaceS
     tab.index = index + 1;
   });
   state.activeTabId = state.tabs[0]?.sessionId ?? "config";
+  clampHomeSelectedTabIndex(state);
 }

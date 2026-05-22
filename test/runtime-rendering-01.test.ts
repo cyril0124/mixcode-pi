@@ -221,9 +221,9 @@ test("rendering exposes header, status, working indicator, and sidebar landmarks
     renderInputMeta(tab, 100, 0, themeForId("mixcode-light")).join("\n"),
     /\x1b\[38;2;90;128;128m/,
   );
-  assert.match(
+  assert.doesNotMatch(
     renderConfig({ ...state, theme: "mixcode-light" }, 100, themeForId("mixcode-light")).join("\n"),
-    /\x1b\[48;2;232;232;240m/,
+    /\x1b\[48;/,
   );
   assert.match(
     renderTabBar({ ...state, activeTabId: "config" }, 80, themeForId("claude-warm"))[0] ?? "",
@@ -234,9 +234,8 @@ test("rendering exposes header, status, working indicator, and sidebar landmarks
     /\x1b\[48;2;47;65;117m\x1b\[38;2;125;207;255m MixCode Home /,
   );
   const configSurfaceLine =
-    renderConfig(state, 100).find((line) => stripAnsi(line).includes("Workdir")) ?? "";
-  assert.match(configSurfaceLine, /\x1b\[48;2;40;40;50m/);
-  assert.match(configSurfaceLine, /\x1b\[48;2;30;30;36m/);
+    renderConfig(state, 100).find((line) => stripAnsi(line).includes("Agents")) ?? "";
+  assert.doesNotMatch(configSurfaceLine, /\x1b\[48;/);
   assert.throws(() => themeForId("missing-theme"), /Unknown theme: missing-theme/);
   assert.match(renderTabBar({ ...state, activeTabId: "config" }, 80)[0] ?? "", /MixCode Home/);
   assert.match(

@@ -93,13 +93,37 @@ export function handleMixCodeKeyInput(
   }
   if (
     active &&
+    state.activeTabId !== "config" &&
     matchesKey(data, "escape") &&
     !hasAnyOverlay(tui) &&
     handleStreamingAbortKey(active, tui, runtime)
   ) {
     return { consume: true };
   }
-  if (active && !hasAnyOverlay(tui)) {
+  // Agent View table navigation on MixCode Home must run before per-session
+  // extension terminal handlers because Home is not an agent input surface.
+  if (state.activeTabId === "config" && !hasAnyOverlay(tui) && state.tabs.length > 0) {
+    if (matchesKey(data, "up")) {
+      state.homeSelectedTabIndex =
+        (state.homeSelectedTabIndex - 1 + state.tabs.length) % state.tabs.length;
+      tui.requestRender();
+      return { consume: true };
+    }
+    if (matchesKey(data, "down")) {
+      state.homeSelectedTabIndex = (state.homeSelectedTabIndex + 1) % state.tabs.length;
+      tui.requestRender();
+      return { consume: true };
+    }
+    if (matchesKey(data, "right") || matchesKey(data, "enter")) {
+      const target = state.tabs[state.homeSelectedTabIndex];
+      if (target) {
+        activateTab(state, target.sessionId);
+        tui.requestRender();
+        return { consume: true };
+      }
+    }
+  }
+  if (active && state.activeTabId !== "config" && !hasAnyOverlay(tui)) {
     const extensionInput = runtime?.dispatchTerminalInput?.(active.sessionId, data);
     if (extensionInput?.consume) return { consume: true };
     if (extensionInput?.data !== undefined) data = extensionInput.data;
@@ -293,6 +317,28 @@ export function handleMixCodeKeyInput(
     handleChatScrollKey(active, data)
   ) {
     clearPendingEscape(active, "abort-agent");
+    tui.requestRender();
+    return { consume: true };
+  }
+  // Left on empty input returns to MixCode Home (Agent View)
+  if (
+    active &&
+    state.activeTabId !== "config" &&
+    matchesKey(data, "left") &&
+    !hasAnyOverlay(tui) &&
+    !isEditorAutocompleteOpen() &&
+    !active.shellOpen &&
+    !active.previewOpen &&
+    !active.pendingDialogs.length &&
+    !active.vimMode &&
+    editorActions &&
+    editorActions.getText().length === 0
+  ) {
+    clearPendingEscape(active, "abort-agent");
+    // Remember which agent we came from so Home highlights it
+    const tabIndex = state.tabs.findIndex((tab) => tab.sessionId === active.sessionId);
+    if (tabIndex >= 0) state.homeSelectedTabIndex = tabIndex;
+    activateTab(state, "config");
     tui.requestRender();
     return { consume: true };
   }

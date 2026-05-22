@@ -46,8 +46,11 @@ export class MixCodeRoot implements Component {
     ];
     this.state.tabBarHitRow = top.length;
     if (!active || this.state.activeTabId === "config") {
+      const viewportRows = this.getViewportRows?.();
+      const limit = viewportRows ? Math.max(0, viewportRows - this.getReservedRows()) : undefined;
+      const configRows = limit === undefined ? undefined : Math.max(0, limit - top.length);
       return this.fitRootLines(
-        [...top, ...renderConfig(this.state, width, theme, top.length)],
+        [...top, ...renderConfig(this.state, width, theme, top.length, configRows)],
         width,
       );
     }

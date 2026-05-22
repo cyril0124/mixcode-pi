@@ -284,6 +284,8 @@ export interface MixCodeState {
   availableModels: MixCodeModelRef[];
   tabBarHitRow?: number;
   configActionHitRegions?: ConfigActionHitRegion[];
+  /** Non-persisted: selected row index in the Agent View table on MixCode Home. */
+  homeSelectedTabIndex: number;
 }
 
 export interface WorkspaceSnapshot {

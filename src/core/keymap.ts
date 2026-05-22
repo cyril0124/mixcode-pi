@@ -175,6 +175,24 @@ export const MIXCODE_KEYMAP: KeyAction[] = [
     scope: "shell",
   },
   { key: "escape", action: "shell-close", description: "Close shell overlay", scope: "shell" },
+  {
+    key: "left",
+    action: "return-home",
+    description: "Return to Agent View when input is empty",
+    scope: "agent",
+  },
+  {
+    key: "up/down",
+    action: "home-select",
+    description: "Select agent row in Agent View table",
+    scope: "home",
+  },
+  {
+    key: "right/enter",
+    action: "home-attach",
+    description: "Attach to selected agent session",
+    scope: "home",
+  },
 ];
 
 export function describeKeymap(): string[] {

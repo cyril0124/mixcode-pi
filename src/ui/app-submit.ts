@@ -13,7 +13,7 @@ import type { KnownSkill } from "../core/skill-command.js";
 import type { ShellManager } from "../core/shell-session.js";
 import { deleteWorkspace, loadWorkspaces, saveWorkspaces } from "../core/state-store.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
-import { activateTab, closeAgentTab, renameAgentTab } from "../core/tabs.js";
+import { activateTab, clampHomeSelectedTabIndex, closeAgentTab, renameAgentTab } from "../core/tabs.js";
 import type { MixCodeState } from "../core/types.js";
 import { restoreWorkspaceOrder, snapshotWorkspace, upsertWorkspace } from "../core/workspace.js";
 import {
@@ -166,6 +166,7 @@ export async function handleSubmittedInput(
     await runtime.deleteAllTabs();
     state.tabs.length = 0;
     activateTab(state, "config");
+    clampHomeSelectedTabIndex(state);
   } else if (parsed.command === "save-workspace") {
     if (!workspaceFile) throw new Error("Workspace file is not configured");
     const name = requireCommandArg(parsed.args, "workspace name");

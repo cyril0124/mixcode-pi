@@ -25,6 +25,7 @@ export function closeAgentTab(state: MixCodeState, sessionId: string): MixCodeTa
   if (state.activeTabId === sessionId) {
     activateTab(state, state.tabs[Math.min(index, state.tabs.length - 1)]?.sessionId ?? "config");
   }
+  clampHomeSelectedTabIndex(state);
   return removed!;
 }
 
@@ -46,4 +47,16 @@ export function nextTabId(state: MixCodeState, delta: number): string {
   const ids = ["config", ...state.tabs.map((tab) => tab.sessionId)];
   const current = Math.max(0, ids.indexOf(state.activeTabId));
   return ids[(current + delta + ids.length) % ids.length]!;
+}
+
+/** Clamp homeSelectedTabIndex to valid range after tab mutations. */
+export function clampHomeSelectedTabIndex(state: MixCodeState): void {
+  if (state.tabs.length === 0) {
+    state.homeSelectedTabIndex = 0;
+    return;
+  }
+  state.homeSelectedTabIndex = Math.max(
+    0,
+    Math.min(state.homeSelectedTabIndex, state.tabs.length - 1),
+  );
 }
