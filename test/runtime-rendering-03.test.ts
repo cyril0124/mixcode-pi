@@ -306,15 +306,16 @@ test("rendering exposes input metadata and tab bar landmarks", () => {
     { reasoning: [], chat: [] } as never,
     80,
   ).join("\n");
-  assert.match(queuedSurface, /Steering: first queued message/);
-  assert.match(queuedSurface, /Ctrl\+U to edit all queued messages/);
+  assert.match(queuedSurface, /Queue \(1\)/);
+  assert.match(queuedSurface, /Esc->send now {2}Ctrl\+U->edit/);
   assert.match(queuedSurface, /first queued message/);
   const multiQueue = renderQueuePreview(
     createTab(12, "s12", "/repo", { pendingMessages: ["1", "2", "3", "4", "5", "6"] }),
     80,
   ).join("\n");
-  assert.match(multiQueue, /Steering: 1/);
-  assert.match(multiQueue, /Steering: 6/);
+  assert.match(multiQueue, /Queue \(6, latest 5\)/);
+  assert.doesNotMatch(multiQueue, /↳ 1/);
+  assert.match(multiQueue, /↳ 6/);
   const scrollTab = createTab(19, "s19", "/repo", { chatScrollOffset: 32 });
   const scrollChat = Array.from({ length: 30 }, (_, index) => ({
     role: "assistant" as const,
