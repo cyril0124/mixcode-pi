@@ -3,7 +3,6 @@ import type { ExtensionCustomUiHost, MixCodeRuntime } from "../agent/runtime.js"
 import { scanSkillEntries } from "../core/attachments.js";
 import { scanProjectFiles } from "../core/file-picker.js";
 import { ShellManager } from "../core/shell-session.js";
-import { setTheme } from "../core/theme-registry.js";
 import type { MixCodeState } from "../core/types.js";
 import { appendActiveSystemMessage } from "./app-actions.js";
 import { CompactPromptEditor, EditorSlot, editorThemeFor } from "./app-editor.js";
@@ -36,7 +35,7 @@ import {
   renderTabBar,
 } from "./rendering.js";
 import { withMouseReporting } from "./terminal.js";
-import { themeForId } from "./themes.js";
+import { setTheme, themeForId } from "./themes.js";
 
 export { handleMixCodeKeyInput } from "./app-input.js";
 export { MixCodeRoot } from "./app-layout.js";

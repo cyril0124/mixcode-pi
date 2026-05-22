@@ -16,6 +16,7 @@ import {
   extensionThemeByName,
   MIXCODE_EXTENSION_LIGHT_THEME,
   MIXCODE_EXTENSION_THEME,
+  MIXCODE_EXTENSION_TOKYO_NIGHT_THEME,
 } from "../src/agent/runtime-extension-theme.js";
 import {
   appendActiveSystemMessage,
@@ -44,6 +45,8 @@ test("extension theme helpers cover host, alias, and error branches", () => {
   const names = availableExtensionThemes().map((theme) => theme.name);
   assert.equal(new Set(names).size, names.length);
   assert.equal(extensionThemeByName("mixcode-dark"), MIXCODE_EXTENSION_THEME);
+  assert.equal(extensionThemeByName("claude-warm"), MIXCODE_EXTENSION_THEME);
+  assert.equal(extensionThemeByName("tokyo-night"), MIXCODE_EXTENSION_TOKYO_NIGHT_THEME);
   assert.equal(extensionThemeByName("mixcode-light"), MIXCODE_EXTENSION_LIGHT_THEME);
   assert.equal(extensionThemeByName("terminal"), MIXCODE_EXTENSION_THEME);
   assert.equal(extensionThemeByName("mixcode-extension"), MIXCODE_EXTENSION_THEME);

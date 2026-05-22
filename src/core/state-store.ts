@@ -1,9 +1,9 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { setTheme } from "../ui/themes.js";
 import { createInitialState, createTab } from "./defaults.js";
 import { normalizeGoal } from "./goal.js";
-import { setTheme } from "./theme-registry.js";
 import type {
   MixCodeState,
   PreviewMessage,

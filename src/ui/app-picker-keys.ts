@@ -6,12 +6,12 @@ import {
   movePickerSelection,
   updatePickerQuery,
 } from "../core/pickers.js";
-import { setTheme } from "../core/theme-registry.js";
 import type { MixCodeState } from "../core/types.js";
 import { applyModelSelection, applyThinkingLevel, applyWorkdirSelection } from "./app-actions.js";
 import { closeAppOverlay, showErrorOverlay, showLinesOverlay } from "./app-overlays.js";
 import type { MixCodeKeyRuntime, OverlayTui } from "./app-types.js";
 import { renderPickerOverlay } from "./rendering.js";
+import { setTheme } from "./themes.js";
 
 export function handlePickerKey(
   state: MixCodeState,

@@ -1,4 +1,5 @@
 import { Theme } from "@earendil-works/pi-coding-agent";
+import type { MixCodeState } from "../core/types.js";
 
 export interface MixCodeTheme {
   name: string;
@@ -37,6 +38,13 @@ export interface MixCodeTheme {
   tool: (text: string) => string;
   bold: (text: string) => string;
   italic: (text: string) => string;
+}
+
+export interface ThemeInfo {
+  id: string;
+  label: string;
+  dark: boolean;
+  aliases?: string[];
 }
 
 const rgb = (hex: string) => {
@@ -97,6 +105,24 @@ function thinkingBorderFor(
   return (thinkingLevel = "off") => palette[thinkingLevel] ?? palette.off ?? identity;
 }
 
+const CLAUDE_WARM_THINKING_BORDERS: Record<string, (text: string) => string> = {
+  off: rgb("#3d3d3a"),
+  minimal: rgb("#87867f"),
+  low: rgb("#8f6b2f"),
+  medium: rgb("#d97757"),
+  high: rgb("#c45d3d"),
+  xhigh: rgb("#a63d20"),
+};
+
+const TOKYO_NIGHT_THINKING_BORDERS: Record<string, (text: string) => string> = {
+  off: rgb("#3b4261"),
+  minimal: rgb("#565f89"),
+  low: rgb("#7aa2f7"),
+  medium: rgb("#bb9af7"),
+  high: rgb("#ff9e64"),
+  xhigh: rgb("#f7768e"),
+};
+
 export const MIXCODE_DARK_THEME: MixCodeTheme = {
   name: "pi-dark",
   border: rgb("#5f87ff"),
@@ -132,6 +158,84 @@ export const MIXCODE_DARK_THEME: MixCodeTheme = {
   userMessage: persistentBgRgb("#343541"),
   thinking: rgb("#808080"),
   tool: rgb("#ffff00"),
+  bold: (text: string) => `\x1b[1m${text}\x1b[22m`,
+  italic: (text: string) => `\x1b[3m${text}\x1b[23m`,
+};
+
+export const CLAUDE_WARM_THEME: MixCodeTheme = {
+  name: "claude-warm",
+  border: rgb("#4d4c48"),
+  borderDim: rgb("#3d3d3a"),
+  text: rgb("#faf9f5"),
+  dim: rgb("#87867f"),
+  subtle: rgb("#7a7a72"),
+  accent: rgb("#d97757"),
+  danger: rgb("#b53333"),
+  warning: rgb("#ffff00"),
+  success: rgb("#8fa87a"),
+  done: rgb("#a8c896"),
+  background: persistentBgRgb("#141413"),
+  surface: persistentBgRgb("#1c1c1a"),
+  panel: persistentBgRgb("#232321"),
+  setupPanel: persistentBgRgb("#2a2a27"),
+  selection: persistentBgRgb("#5e392f"),
+  promptSurface: persistentBgRgb("#1c1c1a"),
+  shellPromptSurface: persistentBgRgb("#1d2a33"),
+  vimPromptSurface: persistentBgRgb("#2d2538"),
+  shellBorder: rgb("#dcecf4"),
+  vimBorder: rgb("#d97757"),
+  thinkingBorder: thinkingBorderFor(CLAUDE_WARM_THINKING_BORDERS),
+  toolPendingBackground: bgPair("#232321"),
+  toolSuccessBackground: bgPair("#253020"),
+  toolErrorBackground: bgPair("#34211e"),
+  systemBackground: bgPair("#232321"),
+  customMessageBackground: bgPair("#2d2538"),
+  tab: (text: string) => `${bgRgb("#232321")(rgb("#87867f")(text))}`,
+  activeTab: (text: string) => `${bgRgb("#3d3d3a")(rgb("#faf9f5")(text))}`,
+  homeTab: (text: string) => `${bgRgb("#d97757")(rgb("#141413")(text))}`,
+  homeTabActive: (text: string) => `${bgRgb("#a63d20")(rgb("#ffe8dc")(text))}`,
+  userMessage: persistentBgRgb("#221d1a"),
+  thinking: rgb("#87867f"),
+  tool: rgb("#d6b25e"),
+  bold: (text: string) => `\x1b[1m${text}\x1b[22m`,
+  italic: (text: string) => `\x1b[3m${text}\x1b[23m`,
+};
+
+export const TOKYO_NIGHT_THEME: MixCodeTheme = {
+  name: "tokyo-night",
+  border: rgb("#7aa2f7"),
+  borderDim: rgb("#3b4261"),
+  text: rgb("#c0caf5"),
+  dim: rgb("#565f89"),
+  subtle: rgb("#737aa2"),
+  accent: rgb("#7dcfff"),
+  danger: rgb("#f7768e"),
+  warning: rgb("#e0af68"),
+  success: rgb("#9ece6a"),
+  done: rgb("#9ece6a"),
+  background: persistentBgRgb("#1a1b26"),
+  surface: persistentBgRgb("#1f2335"),
+  panel: persistentBgRgb("#24283b"),
+  setupPanel: persistentBgRgb("#292e42"),
+  selection: persistentBgRgb("#33467c"),
+  promptSurface: persistentBgRgb("#1f2335"),
+  shellPromptSurface: persistentBgRgb("#1b2a3a"),
+  vimPromptSurface: persistentBgRgb("#2a2440"),
+  shellBorder: rgb("#9ece6a"),
+  vimBorder: rgb("#bb9af7"),
+  thinkingBorder: thinkingBorderFor(TOKYO_NIGHT_THINKING_BORDERS),
+  toolPendingBackground: bgPair("#24283b"),
+  toolSuccessBackground: bgPair("#203326"),
+  toolErrorBackground: bgPair("#3a202c"),
+  systemBackground: bgPair("#202436"),
+  customMessageBackground: bgPair("#29243d"),
+  tab: (text: string) => `${bgRgb("#24283b")(rgb("#737aa2")(text))}`,
+  activeTab: (text: string) => `${bgRgb("#33467c")(rgb("#c0caf5")(text))}`,
+  homeTab: (text: string) => `${bgRgb("#7aa2f7")(rgb("#1a1b26")(text))}`,
+  homeTabActive: (text: string) => `${bgRgb("#2f4175")(rgb("#7dcfff")(text))}`,
+  userMessage: persistentBgRgb("#25293c"),
+  thinking: rgb("#565f89"),
+  tool: rgb("#e0af68"),
   bold: (text: string) => `\x1b[1m${text}\x1b[22m`,
   italic: (text: string) => `\x1b[3m${text}\x1b[23m`,
 };
@@ -334,11 +438,144 @@ export const MIXCODE_EXTENSION_LIGHT_THEME = new Theme(
   { name: "mixcode-light" },
 );
 
+export const MIXCODE_EXTENSION_TOKYO_NIGHT_THEME = new Theme(
+  {
+    accent: "#7dcfff",
+    border: "#7aa2f7",
+    borderAccent: "#bb9af7",
+    borderMuted: "#3b4261",
+    success: "#9ece6a",
+    error: "#f7768e",
+    warning: "#e0af68",
+    muted: "#737aa2",
+    dim: "#565f89",
+    text: "#c0caf5",
+    thinkingText: "#565f89",
+    userMessageText: "#c0caf5",
+    customMessageText: "#c0caf5",
+    customMessageLabel: "#bb9af7",
+    toolTitle: "#c0caf5",
+    toolOutput: "#737aa2",
+    mdHeading: "#e0af68",
+    mdLink: "#7aa2f7",
+    mdLinkUrl: "#565f89",
+    mdCode: "#7dcfff",
+    mdCodeBlock: "#9ece6a",
+    mdCodeBlockBorder: "#565f89",
+    mdQuote: "#737aa2",
+    mdQuoteBorder: "#3b4261",
+    mdHr: "#3b4261",
+    mdListBullet: "#7dcfff",
+    toolDiffAdded: "#9ece6a",
+    toolDiffRemoved: "#f7768e",
+    toolDiffContext: "#737aa2",
+    syntaxComment: "#565f89",
+    syntaxKeyword: "#bb9af7",
+    syntaxFunction: "#7aa2f7",
+    syntaxVariable: "#c0caf5",
+    syntaxString: "#9ece6a",
+    syntaxNumber: "#ff9e64",
+    syntaxType: "#2ac3de",
+    syntaxOperator: "#89ddff",
+    syntaxPunctuation: "#c0caf5",
+    thinkingOff: "#3b4261",
+    thinkingMinimal: "#565f89",
+    thinkingLow: "#7aa2f7",
+    thinkingMedium: "#bb9af7",
+    thinkingHigh: "#ff9e64",
+    thinkingXhigh: "#f7768e",
+    bashMode: "#9ece6a",
+  },
+  {
+    selectedBg: "#33467c",
+    userMessageBg: "#25293c",
+    customMessageBg: "#29243d",
+    toolPendingBg: "#24283b",
+    toolSuccessBg: "#203326",
+    toolErrorBg: "#3a202c",
+  },
+  "truecolor",
+  { name: "tokyo-night" },
+);
+
 export const MIXCODE_EXTENSION_TERMINAL_THEME = MIXCODE_EXTENSION_THEME;
+
+export const THEMES: ThemeInfo[] = [
+  { id: "mixcode-dark", label: "MixCode Dark", dark: true, aliases: ["dark", "mixcode"] },
+  { id: "claude-warm", label: "Claude Warm", dark: true, aliases: ["claude", "warm"] },
+  { id: "tokyo-night", label: "Tokyo Night", dark: true, aliases: ["tokyo", "toyko"] },
+  { id: "mixcode-light", label: "MixCode Light", dark: false, aliases: ["light"] },
+  { id: "terminal", label: "Terminal", dark: true },
+];
 
 export function themeForId(themeId: string): MixCodeTheme {
   if (themeId === "mixcode-dark") return MIXCODE_DARK_THEME;
+  if (themeId === "claude-warm") return CLAUDE_WARM_THEME;
+  if (themeId === "tokyo-night") return TOKYO_NIGHT_THEME;
   if (themeId === "mixcode-light") return MIXCODE_LIGHT_THEME;
   if (themeId === "terminal") return TERMINAL_THEME;
   throw new Error(`Unknown theme: ${themeId}`);
+}
+
+export function setTheme(state: MixCodeState, themeId: string): void {
+  const normalized = normalizeThemeId(themeId);
+  if (!normalized) {
+    throw new Error(`Unknown theme: ${themeId}`);
+  }
+  state.theme = normalized;
+}
+
+export function themeSuggestions(prefix: string): ThemeInfo[] {
+  const query = prefix.trim().toLowerCase();
+  return THEMES.filter(
+    (theme) =>
+      !query ||
+      theme.id.startsWith(query) ||
+      theme.label.toLowerCase().includes(query) ||
+      (theme.aliases ?? []).some((alias) => alias.startsWith(query)),
+  );
+}
+
+export function normalizeThemeId(themeId: string): string | undefined {
+  const normalized = themeId.trim().toLowerCase();
+  return THEMES.find(
+    (theme) => theme.id === normalized || (theme.aliases ?? []).includes(normalized),
+  )?.id;
+}
+
+export function resolveThemeInput(themeId: string): string {
+  const exact = normalizeThemeId(themeId);
+  if (exact) return exact;
+  const query = themeId.trim().toLowerCase();
+  const matches = THEMES.filter(
+    (theme) =>
+      theme.id.startsWith(query) || (theme.aliases ?? []).some((alias) => alias.startsWith(query)),
+  );
+  if (matches.length === 1) return matches[0]!.id;
+  if (matches.length > 1) {
+    throw new Error(`Ambiguous theme: ${themeId} (${matches.map((theme) => theme.id).join(", ")})`);
+  }
+  throw new Error(`Unknown theme: ${themeId}`);
+}
+
+export function themeArgumentCompletions(
+  prefix: string,
+): Array<{ value: string; label: string; description: string }> {
+  const query = prefix.trim().toLowerCase();
+  if (query && normalizeThemeId(query)) return [];
+  const prefixMatches = new Map<string, { value: string; label: string; description: string }>();
+  const labelMatches = new Map<string, { value: string; label: string; description: string }>();
+  for (const theme of THEMES) {
+    const description = theme.dark ? "dark theme" : "light theme";
+    const names = [theme.id, ...(theme.aliases ?? [])];
+    for (const name of names) {
+      const item = { value: name, label: name, description };
+      if (!query || name.startsWith(query)) {
+        prefixMatches.set(name, item);
+      } else if (theme.label.toLowerCase().includes(query)) {
+        labelMatches.set(name, item);
+      }
+    }
+  }
+  return [...prefixMatches.values(), ...labelMatches.values()];
 }

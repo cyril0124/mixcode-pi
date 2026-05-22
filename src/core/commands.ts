@@ -1,4 +1,4 @@
-import { themeArgumentCompletions } from "./theme-registry.js";
+import { themeArgumentCompletions } from "../ui/themes.js";
 
 export type LocalCommand =
   | "models"

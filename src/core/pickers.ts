@@ -4,8 +4,8 @@ import { isAbsolute, join, resolve } from "node:path";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { fuzzyMatch } from "./fuzzy.js";
 import { modelRefId } from "./models.js";
-import { THEMES } from "./theme-registry.js";
 import type { MixCodeState, MixCodeTabInfo, PickerItem, PickerKind, PickerState } from "./types.js";
+import { THEMES } from "../ui/themes.js";
 
 export const THINKING_LEVELS: ThinkingLevel[] = [
   "off",

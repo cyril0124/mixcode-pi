@@ -14,7 +14,6 @@ import type { ShellManager } from "../core/shell-session.js";
 import { deleteWorkspace, loadWorkspaces, saveWorkspaces } from "../core/state-store.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import { activateTab, closeAgentTab, renameAgentTab } from "../core/tabs.js";
-import { resolveThemeInput, setTheme } from "../core/theme-registry.js";
 import type { MixCodeState } from "../core/types.js";
 import { restoreWorkspaceOrder, snapshotWorkspace, upsertWorkspace } from "../core/workspace.js";
 import {
@@ -36,6 +35,7 @@ import type {
 import { openExtensionManager } from "./extension-manager.js";
 import { clearConversationCache, renderPickerOverlay } from "./rendering.js";
 import { openSessionSelector, type SessionSelectorRuntime } from "./session-selector.js";
+import { resolveThemeInput, setTheme } from "./themes.js";
 import { openTreeSelector, type TreeSelectorRuntime } from "./tree-selector.js";
 export async function handleSubmittedInput(
   state: MixCodeState,

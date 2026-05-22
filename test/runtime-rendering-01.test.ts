@@ -225,6 +225,14 @@ test("rendering exposes header, status, working indicator, and sidebar landmarks
     renderConfig({ ...state, theme: "mixcode-light" }, 100, themeForId("mixcode-light")).join("\n"),
     /\x1b\[48;2;232;232;240m/,
   );
+  assert.match(
+    renderTabBar({ ...state, activeTabId: "config" }, 80, themeForId("claude-warm"))[0] ?? "",
+    /\x1b\[48;2;166;61;32m\x1b\[38;2;255;232;220m MixCode Home /,
+  );
+  assert.match(
+    renderTabBar({ ...state, activeTabId: "config" }, 80, themeForId("tokyo-night"))[0] ?? "",
+    /\x1b\[48;2;47;65;117m\x1b\[38;2;125;207;255m MixCode Home /,
+  );
   const configSurfaceLine =
     renderConfig(state, 100).find((line) => stripAnsi(line).includes("Workdir")) ?? "";
   assert.match(configSurfaceLine, /\x1b\[48;2;40;40;50m/);
