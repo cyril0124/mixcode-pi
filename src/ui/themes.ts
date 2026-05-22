@@ -19,6 +19,7 @@ export interface MixCodeTheme {
   shellPromptSurface: (text: string) => string;
   vimPromptSurface: (text: string) => string;
   shellBorder: (text: string) => string;
+  vimBorder: (text: string) => string;
   thinkingBorder: (thinkingLevel?: string) => (text: string) => string;
   toolPendingBackground: { start: string; end: string };
   toolSuccessBackground: { start: string; end: string };
@@ -115,6 +116,7 @@ export const MIXCODE_DARK_THEME: MixCodeTheme = {
   shellPromptSurface: identity,
   vimPromptSurface: identity,
   shellBorder: rgb("#b5bd68"),
+  vimBorder: rgb("#8abeb7"),
   thinkingBorder: thinkingBorderFor(MIXCODE_DARK_THINKING_BORDERS),
   toolPendingBackground: bgPair("#282832"),
   toolSuccessBackground: bgPair("#283228"),
@@ -153,6 +155,7 @@ export const MIXCODE_LIGHT_THEME: MixCodeTheme = {
   shellPromptSurface: identity,
   vimPromptSurface: identity,
   shellBorder: rgb("#588458"),
+  vimBorder: rgb("#5a8080"),
   thinkingBorder: thinkingBorderFor(MIXCODE_LIGHT_THINKING_BORDERS),
   toolPendingBackground: bgPair("#e8e8f0"),
   toolSuccessBackground: bgPair("#e8f0e8"),
@@ -191,6 +194,7 @@ export const TERMINAL_THEME: MixCodeTheme = {
   shellPromptSurface: identity,
   vimPromptSurface: identity,
   shellBorder: identity,
+  vimBorder: identity,
   thinkingBorder: () => identity,
   toolPendingBackground: { start: "", end: "" },
   toolSuccessBackground: { start: "", end: "" },

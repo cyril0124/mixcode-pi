@@ -61,12 +61,22 @@ export class CompactPromptEditor extends Editor {
     const currentText = this.getExpandedText?.() ?? this.getText();
     const isEmpty = currentText.length === 0;
     const isShellMode = currentText.trimStart().startsWith("!");
-    this.borderColor = isShellMode ? theme.shellBorder : theme.thinkingBorder(this.activeTab()?.thinkingLevel);
-    if (isVimMode) return renderVimModeLines(width, theme);
+    this.borderColor = isVimMode
+      ? theme.vimBorder
+      : isShellMode
+        ? theme.shellBorder
+        : theme.thinkingBorder(this.activeTab()?.thinkingLevel);
     const lines = super.render(width);
     if (!isEmpty) return lines;
+    if (isVimMode) {
+      return lines.map((line, index) =>
+        index === 1 ? renderStaticPlaceholderLine("Vim mode, q to exit", width, theme) : line,
+      );
+    }
     return lines.map((line, index) =>
-      index === 1 ? renderPlaceholderLine(line, editorPlaceholder(this.mixState), width, theme) : line,
+      index === 1
+        ? renderPlaceholderLine(line, editorPlaceholder(this.mixState), width, theme)
+        : line,
     );
   }
 
@@ -102,11 +112,6 @@ export class CompactPromptEditor extends Editor {
 function editorPlaceholder(state: MixCodeState): string {
   const active = state.tabs.find((tab) => tab.sessionId === state.activeTabId);
   return `Send message to ${active?.title ?? "agent"}...`;
-}
-
-function renderVimModeLines(width: number, theme: MixCodeTheme): string[] {
-  const text = " Vim mode, q to exit";
-  return [padLine(theme.dim(text), width)];
 }
 
 export class EditorSlot implements Component {
@@ -426,8 +431,9 @@ export class EditorSlot implements Component {
       sessionId === this.mixState.activeTabId
         ? (editor.getExpandedText?.() ?? editor.getText())
         : this.textForSession(sessionId, true);
-    if (text.trimStart().startsWith("!")) return theme.shellBorder;
     const tab = this.mixState.tabs.find((item) => item.sessionId === sessionId);
+    if (tab?.vimMode) return theme.vimBorder;
+    if (text.trimStart().startsWith("!")) return theme.shellBorder;
     return theme.thinkingBorder(tab?.thinkingLevel);
   }
 }
@@ -472,6 +478,10 @@ function renderPlaceholderLine(
   const cursor = editorCursorLine.slice(0, editorCursorLine.length - cursorPadding.length);
   const available = Math.max(0, width - visibleWidth(cursor));
   return padLine(`${cursor}${theme.dim(truncateToWidth(placeholder, available))}`, width);
+}
+
+function renderStaticPlaceholderLine(placeholder: string, width: number, theme: MixCodeTheme): string {
+  return padLine(theme.dim(truncateToWidth(placeholder, width)), width);
 }
 
 function setFocusableState(component: EditorComponent, focused: boolean): void {
