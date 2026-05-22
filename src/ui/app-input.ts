@@ -17,6 +17,7 @@ import {
   handleChromeMouseInput,
   handleCommandPaletteKey,
   handleExportChooserKey,
+  handleChatSelectionMouseInput,
   handleMouseInput,
   handlePreviewKey,
   handleQuestionKey,
@@ -123,13 +124,16 @@ export function handleMixCodeKeyInput(
       }
     }
   }
+  if (handleChatSelectionMouseInput(state, active, data, tui, runtime)) {
+    return { consume: true };
+  }
   if (active && state.activeTabId !== "config" && !hasAnyOverlay(tui)) {
     const extensionInput = runtime?.dispatchTerminalInput?.(active.sessionId, data);
     if (extensionInput?.consume) return { consume: true };
     if (extensionInput?.data !== undefined) data = extensionInput.data;
     if (data.length === 0) return { consume: true };
   }
-  if (handleMouseInput(state, active, data, tui, shellManager)) {
+  if (handleMouseInput(state, active, data, tui, shellManager, runtime)) {
     return { consume: true };
   }
   if (state.picker && handlePickerKey(state, data, tui, runtime, onStateChanged)) {

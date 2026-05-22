@@ -1,5 +1,7 @@
-import { truncateToWidth } from "@earendil-works/pi-tui";
+import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import type { ChatLine, RuntimeTab } from "../../agent/runtime.js";
+import { highlightChatSelectionLine } from "../../core/chat-selection.js";
+import { activeToast } from "../../core/toast.js";
 import type { MixCodeTabInfo } from "../../core/types.js";
 import type { MixCodeTheme } from "../themes.js";
 import {
@@ -110,9 +112,10 @@ function renderAgentSurfaceInner(
   const maxOffset = Math.max(0, lines.length - Math.max(0, Math.floor(maxHeight)));
   if (tab.chatScrollOffset > maxOffset) tab.chatScrollOffset = maxOffset;
   const fitted = fitScrolledLinesWithInfo(lines, maxHeight, surfaceWidth, tab.chatScrollOffset);
+  const highlighted = highlightVisibleChatLines(fitted.lines, tab);
   const hasNewContent =
     tab.chatScrollOffset > 0 && (tab.status === "running" || tab.status === "thinking");
-  return appendChatScrollbar(fitted, width, hasNewContent);
+  return appendChatScrollbar({ ...fitted, lines: highlighted }, width, hasNewContent);
 }
 
 /**
@@ -247,7 +250,8 @@ function renderAgentSurfaceWindowed(
         )
       : placeholder;
     const fitted = fitScrolledLinesWithInfo(composed, maxHeight, surfaceWidth, 0);
-    return appendChatScrollbar(fitted, width, false);
+    const highlighted = highlightVisibleChatLines(fitted.lines, tab);
+    return appendChatScrollbar({ ...fitted, lines: highlighted }, width, false);
   }
 
   // Estimated total: sum of cached heights (for blocks we already rendered)
@@ -296,7 +300,7 @@ function renderAgentSurfaceWindowed(
     : decorated;
 
   const fitted: ScrolledLinesResult = {
-    lines: composed,
+    lines: highlightVisibleChatLines(composed, tab),
     total,
     height: viewport,
     start,
@@ -444,6 +448,57 @@ function hasRunningTool(chat: ChatLine[]): boolean {
     if (line.role !== "tool") break;
   }
   return false;
+}
+
+function highlightVisibleChatLines(lines: string[], tab: MixCodeTabInfo): string[] {
+  tab.lastRenderedChatLines = lines;
+  const result = applyToastOverlay(lines, tab);
+  const selection = tab.chatSelection;
+  if (!selection) return result;
+  return result.map((line, row) =>
+    highlightChatSelectionLine(line, row, selection, activeRenderTheme.selection),
+  );
+}
+
+function applyToastOverlay(lines: string[], tab: MixCodeTabInfo): string[] {
+  const toast = activeToast(tab);
+  if (!toast || lines.length < 3) return lines;
+  const lineWidth = visibleWidth(lines[0] ?? "");
+  if (lineWidth < 16) return lines;
+  const maxInner = Math.min(38, Math.max(10, Math.floor(lineWidth * 0.4)));
+  const text = truncateToWidth(toast.message, maxInner, "…");
+  const textWidth = visibleWidth(text);
+  const innerWidth = textWidth + 2;
+  const boxWidth = innerWidth + 2;
+  if (boxWidth > lineWidth) return lines;
+  const border = activeRenderTheme.borderDim;
+  const topBox = `${border("┌")}${border("─".repeat(innerWidth))}${border("┐")}`;
+  const midBox = `${border("│")} ${activeRenderTheme.dim(text)} ${border("│")}`;
+  const botBox = `${border("└")}${border("─".repeat(innerWidth))}${border("┘")}`;
+  const startCol = lineWidth - boxWidth;
+  const result = lines.slice();
+  const overlay = [topBox, midBox, botBox];
+  for (let i = 0; i < 3; i++) {
+    result[i] = spliceVisibleLine(result[i]!, startCol, boxWidth, overlay[i]!, lineWidth);
+  }
+  return result;
+}
+
+/**
+ * Replace a visible-column range [startCol, startCol+replaceWidth) in a line
+ * with the overlay string, preserving content outside that range.
+ */
+function spliceVisibleLine(
+  line: string,
+  startCol: number,
+  replaceWidth: number,
+  overlay: string,
+  totalWidth: number,
+): string {
+  const left = truncateToWidth(line, startCol, "");
+  const leftActual = visibleWidth(left);
+  const gap = startCol - leftActual;
+  return padLine(`${left}${" ".repeat(gap)}${overlay}`, totalWidth);
 }
 
 function appendChatScrollbar(

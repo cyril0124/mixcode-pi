@@ -1,7 +1,9 @@
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { Model } from "@earendil-works/pi-ai";
 
+import type { ChatSelectionState, ChatSurfaceBounds } from "./chat-selection.js";
 import type { SessionSelectorState } from "./session-selector.js";
+import type { ToastNotification } from "./toast.js";
 import type { TreeSelectorState } from "./tree-selector.js";
 
 export type TabStatus = "Not Ready" | "idle" | "running" | "thinking" | "error" | "done";
@@ -158,6 +160,14 @@ export interface MixCodeTabInfo {
   lastWorkedDurationSeconds?: number;
   extensionUi: ExtensionUiState;
   inputMetaHitRegions?: InputMetaHitRegion[];
+  /** Non-persisted: screen bounds for the visible Agent message surface. */
+  chatSurfaceBounds?: ChatSurfaceBounds;
+  /** Non-persisted: active application-level text selection in the Agent message surface. */
+  chatSelection?: ChatSelectionState;
+  /** Non-persisted: raw rendered Agent message rows before selection highlighting. */
+  lastRenderedChatLines?: string[];
+  /** Non-persisted: transient toast notification shown in the top-right corner. */
+  toast?: ToastNotification;
 }
 
 export type PendingEscapeAction = "abort-agent" | "close-shell" | "reject-question";

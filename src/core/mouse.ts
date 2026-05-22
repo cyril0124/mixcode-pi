@@ -3,6 +3,7 @@ export interface SgrMouseInput {
   x: number;
   y: number;
   release: boolean;
+  motion?: boolean;
   wheel?: "up" | "down";
 }
 
@@ -17,17 +18,23 @@ const SGR_MOUSE_PATTERN = /^\x1b\[<(\d+);(\d+);(\d+)([mM])$/;
 export function parseSgrMouseInput(data: string): SgrMouseInput | undefined {
   const match = SGR_MOUSE_PATTERN.exec(data);
   if (!match) return undefined;
-  const button = Number(match[1]);
+  const rawButton = Number(match[1]);
   const x = Number(match[2]);
   const y = Number(match[3]);
   const release = match[4] === "m";
   return {
-    button,
+    button: normalizeSgrButton(rawButton),
     x,
     y,
     release,
-    wheel: parseSgrWheel(button),
+    motion: (rawButton & 32) !== 0 || undefined,
+    wheel: parseSgrWheel(rawButton),
   };
+}
+
+function normalizeSgrButton(button: number): number {
+  if ((button & 32) !== 0) return button & ~32;
+  return button;
 }
 
 function parseSgrWheel(button: number): SgrMouseInput["wheel"] {

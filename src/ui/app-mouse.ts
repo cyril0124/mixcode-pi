@@ -1,12 +1,32 @@
+import {
+  pointInChatSurface,
+  screenToChatSelectionPoint,
+  selectedChatText,
+} from "../core/chat-selection.js";
+import { copyTextToClipboard, type ClipboardWriter } from "../core/clipboard.js";
 import { hitMouseRegion, parseSgrMouseInput } from "../core/mouse.js";
 import { scrollChat, scrollPreview, scrollShell } from "../core/overlays.js";
+import { pushToast } from "../core/toast.js";
 import { createPicker } from "../core/pickers.js";
 import { activateTab } from "../core/tabs.js";
 import type { MixCodeState } from "../core/types.js";
 import { hasAnyOverlay, showLinesOverlay } from "./app-overlays.js";
 import { activeExtensionCommands } from "./app-runtime.js";
-import type { OverlayTui, ShellKeyManager } from "./app-types.js";
+import type { MixCodeKeyRuntime, OverlayTui, ShellKeyManager } from "./app-types.js";
 import { renderCommandPalette, renderPickerOverlay, tabBarHitRegions } from "./rendering.js";
+
+export function handleChatSelectionMouseInput(
+  state: MixCodeState,
+  active: MixCodeState["tabs"][number] | undefined,
+  data: string,
+  tui: OverlayTui,
+  _runtime?: Pick<MixCodeKeyRuntime, "appendSystemMessage">,
+  copyToClipboard: ClipboardWriter = copyTextToClipboard,
+): boolean {
+  const mouse = parseSgrMouseInput(data);
+  if (!mouse || !active || state.activeTabId === "config" || active.shellOpen) return false;
+  return handleChatSelectionMouse(active, mouse, tui, copyToClipboard);
+}
 
 export function handleMouseInput(
   state: MixCodeState,
@@ -14,6 +34,8 @@ export function handleMouseInput(
   data: string,
   tui: OverlayTui,
   shellManager?: ShellKeyManager,
+  runtime?: Pick<MixCodeKeyRuntime, "appendSystemMessage">,
+  copyToClipboard: ClipboardWriter = copyTextToClipboard,
 ): boolean {
   const mouse = parseSgrMouseInput(data);
   if (!mouse) return false;
@@ -37,6 +59,10 @@ export function handleMouseInput(
       tui.requestRender();
       return true;
     }
+    return false;
+  }
+  if (handleChatSelectionMouseInput(state, active, data, tui, runtime, copyToClipboard)) {
+    return true;
   }
   if (mouse.wheel && state.activeTabId !== "config") {
     scrollChat(active, mouse.wheel === "up" ? 3 : -3);
@@ -123,6 +149,66 @@ function handleChromeMouse(
     }
   }
   return false;
+}
+
+function handleChatSelectionMouse(
+  active: MixCodeState["tabs"][number],
+  mouse: NonNullable<ReturnType<typeof parseSgrMouseInput>>,
+  tui: OverlayTui,
+  copyToClipboard: ClipboardWriter,
+): boolean {
+  const bounds = active.chatSurfaceBounds;
+  const screenPoint = { row: mouse.y, col: mouse.x };
+  if (mouse.wheel) return false;
+  if (
+    mouse.button === 0 &&
+    !mouse.release &&
+    !mouse.motion &&
+    bounds !== undefined &&
+    pointInChatSurface(bounds, screenPoint)
+  ) {
+    const point = screenToChatSelectionPoint(bounds, mouse.y, mouse.x);
+    active.chatSelection = { anchor: point, focus: point, dragging: true };
+    tui.requestRender();
+    return true;
+  }
+  if (
+    active.chatSelection?.dragging &&
+    mouse.button === 0 &&
+    mouse.motion &&
+    !mouse.release &&
+    bounds
+  ) {
+    active.chatSelection.focus = screenToChatSelectionPoint(bounds, mouse.y, mouse.x);
+    tui.requestRender();
+    return true;
+  }
+  if (active.chatSelection?.dragging && mouse.release) {
+    active.chatSelection.dragging = false;
+    const text = selectedChatText(active.lastRenderedChatLines ?? [], active.chatSelection);
+    const chars = text.length;
+    active.chatSelection = undefined;
+    if (!text) {
+      tui.requestRender();
+      return true;
+    }
+    void copyToClipboard(text)
+      .then(() => {
+        pushToast(active, `Copied ${chars} chars.`);
+        tui.requestRender();
+      })
+      .catch((error: unknown) => {
+        pushToast(active, `Copy failed: ${errorMessage(error)}`);
+        tui.requestRender();
+      });
+    tui.requestRender();
+    return true;
+  }
+  return false;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function tabBarMouseRow(

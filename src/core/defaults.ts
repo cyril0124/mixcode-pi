@@ -97,6 +97,9 @@ export function createTab(
       pendingUserInteractions: [],
       workingVisible: true,
     },
+    chatSurfaceBounds: undefined,
+    chatSelection: undefined,
+    lastRenderedChatLines: [],
     ...overrides,
   };
 }

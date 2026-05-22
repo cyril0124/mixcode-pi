@@ -50,7 +50,11 @@ import type {
 } from "./app-types.js";
 import { renderCommandPalette, renderExportChooser, renderTabJumpOverlay } from "./rendering.js";
 
-export { handleChromeMouseInput, handleMouseInput } from "./app-mouse.js";
+export {
+  handleChatSelectionMouseInput,
+  handleChromeMouseInput,
+  handleMouseInput,
+} from "./app-mouse.js";
 export function handleStreamingAbortKey(
   active: MixCodeState["tabs"][number],
   tui: Pick<TuiType, "requestRender">,

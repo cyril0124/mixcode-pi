@@ -74,6 +74,12 @@ export class MixCodeRoot implements Component {
     const placeholderBottom = bottomBeforeMeta;
     const visibleBottom = placeholderBottom.slice(0, maxBottomRows);
     const middleHeight = Math.max(0, limit - fixedTop.length - visibleBottom.length);
+    active.chatSurfaceBounds = {
+      top: fixedTop.length + 1,
+      left: 1,
+      width: Math.max(1, width - 1),
+      height: middleHeight,
+    };
     const middle = renderAgentSurface(active, runtimeTab, width, middleHeight, theme);
     return [...fixedTop, ...middle, ...visibleBottom];
   }

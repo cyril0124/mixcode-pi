@@ -65,6 +65,7 @@ test("SGR mouse parser recognizes wheel and leaves non-mouse input untouched", (
     x: 10,
     y: 5,
     release: false,
+    motion: undefined,
     wheel: "up",
   });
   assert.deepEqual(parseSgrMouseInput("\x1b[<65;11;6M"), {
@@ -72,6 +73,7 @@ test("SGR mouse parser recognizes wheel and leaves non-mouse input untouched", (
     x: 11,
     y: 6,
     release: false,
+    motion: undefined,
     wheel: "down",
   });
   assert.deepEqual(parseSgrMouseInput("\x1b[<0;12;7m"), {
@@ -79,6 +81,7 @@ test("SGR mouse parser recognizes wheel and leaves non-mouse input untouched", (
     x: 12,
     y: 7,
     release: true,
+    motion: undefined,
     wheel: undefined,
   });
   assert.deepEqual(parseSgrMouseInput("\x1b[<66;13;8M"), {
@@ -86,6 +89,15 @@ test("SGR mouse parser recognizes wheel and leaves non-mouse input untouched", (
     x: 13,
     y: 8,
     release: false,
+    motion: undefined,
+    wheel: undefined,
+  });
+  assert.deepEqual(parseSgrMouseInput("\x1b[<32;14;9M"), {
+    button: 0,
+    x: 14,
+    y: 9,
+    release: false,
+    motion: true,
     wheel: undefined,
   });
   assert.equal(parseSgrMouseInput("\x1b[A"), undefined);
