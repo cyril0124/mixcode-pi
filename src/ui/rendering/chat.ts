@@ -1,9 +1,9 @@
-import { wrapTextWithAnsi } from "@earendil-works/pi-tui";
+import { truncateToWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import type { ChatLine } from "../../agent/runtime.js";
 import type { MixCodeTabInfo } from "../../core/types.js";
 import { activeRenderTheme, renderWithTheme } from "./context.js";
 import { renderMarkdown } from "./markdown.js";
-import { padLine } from "./primitives.js";
+import { padLine, sanitizeTerminalText } from "./primitives.js";
 
 /**
  * Parsed skill block from a user message.
@@ -496,9 +496,7 @@ function renderStartupBlock(text: string, width: number): string[] {
 }
 
 function normalizeRenderedExtensionLine(line: string, width: number): string[] {
-  return String(line)
-    .split(/\r?\n/)
-    .map((part) => padLine(part.replace(/\t/g, "  "), width));
+  return normalizeExternalRendererLines(line, width).map((part) => padLine(part, width));
 }
 
 function renderToolRenderedLine(line: ChatLine, text: string, width: number): string[] {
@@ -509,15 +507,20 @@ function renderToolRenderedLine(line: ChatLine, text: string, width: number): st
       : status === "success"
         ? activeRenderTheme.toolSuccessBackground
         : activeRenderTheme.toolPendingBackground;
-  return String(text)
-    .split(/\r?\n/)
-    .map((part) => renderToolBackgroundLine(` ${part}`, width, background));
+  const innerWidth = Math.max(1, width - 1);
+  return normalizeExternalRendererLines(text, innerWidth).map((part) =>
+    renderToolBackgroundLine(` ${part}`, width, background),
+  );
 }
 
 function normalizeRenderedToolLine(text: string, width: number): string[] {
+  return normalizeExternalRendererLines(text, width).map((part) => padLine(part, width));
+}
+
+function normalizeExternalRendererLines(text: string, width: number): string[] {
   return String(text)
     .split(/\r?\n/)
-    .map((part) => padLine(part.replace(/\t/g, "  "), width));
+    .map((part) => truncateToWidth(sanitizeTerminalText(part), Math.max(0, width), "..."));
 }
 
 function renderToolBackgroundLine(

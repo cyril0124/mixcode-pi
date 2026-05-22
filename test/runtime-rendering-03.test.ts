@@ -350,3 +350,31 @@ test("rendering exposes input metadata and tab bar landmarks", () => {
     /queued with spacing/,
   );
 });
+
+test("agent surface clamps extension-rendered tool lines with tabs to terminal width", () => {
+  const width = 136;
+  const tab = createTab(21, "s21", "/repo");
+  const lines = renderAgentSurface(
+    tab,
+    {
+      reasoning: [],
+      chat: [
+        {
+          role: "tool",
+          title: "grep",
+          text: "",
+          status: "success",
+          renderToolResult: () => [
+            `ZhuJiang/src/test/lua/common/CHI.lua:11: \t${"MakeReadUnique = 0x01 + lshift(1, 6),".repeat(8)}`,
+          ],
+        },
+      ],
+    } as never,
+    width,
+  );
+
+  assert.equal(
+    lines.every((line) => visibleWidth(line) <= width),
+    true,
+  );
+});
