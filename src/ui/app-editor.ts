@@ -481,7 +481,9 @@ function renderPlaceholderLine(
 }
 
 function renderStaticPlaceholderLine(placeholder: string, width: number, theme: MixCodeTheme): string {
-  return padLine(theme.dim(truncateToWidth(placeholder, width)), width);
+  const prefix = " ";
+  const available = Math.max(0, width - prefix.length);
+  return padLine(`${prefix}${theme.dim(truncateToWidth(placeholder, available))}`, width);
 }
 
 function setFocusableState(component: EditorComponent, focused: boolean): void {

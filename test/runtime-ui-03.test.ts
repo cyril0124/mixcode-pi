@@ -724,7 +724,7 @@ test("createMixCodeTui editor slot renders the input cursor while focused", () =
   tab.vimMode = true;
   const vimSurface = layout.editor.render(80).join("\n");
   assert.equal(vimSurface.includes(CURSOR_MARKER), false);
-  assert.match(stripAnsi(vimSurface), /Vim mode, q to exit/);
+  assert.match(stripAnsi(vimSurface), /^ Vim mode, q to exit/m);
   assert.doesNotMatch(stripAnsi(vimSurface), /Send message to Agent-01/);
   assert.equal(stripAnsi(vimSurface).split("\n")[0], "─".repeat(80));
   assert.equal(stripAnsi(vimSurface).split("\n").at(-1), "─".repeat(80));
