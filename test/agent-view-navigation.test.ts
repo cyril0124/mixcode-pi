@@ -141,7 +141,7 @@ test("Left on empty input does NOT trigger when preview is open", () => {
   assert.equal(state.activeTabId, "s1");
 });
 
-test("Left on empty input does NOT trigger in vim mode", () => {
+test("Left on empty input returns to MixCode Home in vim mode and preserves vimMode", () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo", { vimMode: true });
   state.tabs.push(tab);
@@ -150,8 +150,26 @@ test("Left on empty input does NOT trigger in vim mode", () => {
   const editorActions = makeEditorActions("");
 
   const result = handleMixCodeKeyInput(state, "\x1b[D", tui, undefined, undefined, undefined, () => false, editorActions);
-  // Vim mode handler consumes keys; should not navigate to Home
+
+  assert.deepEqual(result, { consume: true });
+  assert.equal(state.activeTabId, "config");
+  assert.equal(state.homeSelectedTabIndex, 0);
+  assert.equal(tab.vimMode, true);
+});
+
+test("Left on non-empty input does NOT return to Home in vim mode", () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo", { vimMode: true });
+  state.tabs.push(tab);
+  state.activeTabId = "s1";
+  const tui = makeTui();
+  const editorActions = makeEditorActions("draft");
+
+  const result = handleMixCodeKeyInput(state, "\x1b[D", tui, undefined, undefined, undefined, () => false, editorActions);
+
+  assert.deepEqual(result, { consume: true });
   assert.equal(state.activeTabId, "s1");
+  assert.equal(tab.vimMode, true);
 });
 
 test("Left on empty input does NOT trigger when already on config", () => {
@@ -238,6 +256,51 @@ test("Home Enter activates selected agent", () => {
 
   assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui), { consume: true }); // Enter
   assert.equal(state.activeTabId, "s1");
+});
+
+test("Home attach transfers vimMode to selected agent", () => {
+  const state = createInitialState("/repo");
+  const first = createTab(1, "s1", "/repo", {
+    vimMode: true,
+    vimPendingEscapeAt: 123,
+    vimPendingHome: true,
+  });
+  const second = createTab(2, "s2", "/repo");
+  state.tabs.push(first, second);
+  state.activeTabId = "s1";
+  const tui = makeTui();
+  const editorActions = makeEditorActions("");
+
+  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[D", tui, undefined, undefined, undefined, () => false, editorActions), {
+    consume: true,
+  });
+  assert.equal(state.activeTabId, "config");
+  assert.equal(first.vimMode, true);
+  state.homeSelectedTabIndex = 1;
+
+  assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui), { consume: true });
+  assert.equal(state.activeTabId, "s2");
+  assert.equal(first.vimMode, false);
+  assert.equal(first.vimPendingEscapeAt, undefined);
+  assert.equal(first.vimPendingHome, false);
+  assert.equal(second.vimMode, true);
+  assert.equal(second.vimPendingEscapeAt, undefined);
+  assert.equal(second.vimPendingHome, false);
+});
+
+test("Home attach does not create vimMode when none is active", () => {
+  const state = createInitialState("/repo");
+  const first = createTab(1, "s1", "/repo");
+  const second = createTab(2, "s2", "/repo");
+  state.tabs.push(first, second);
+  state.activeTabId = "config";
+  state.homeSelectedTabIndex = 1;
+  const tui = makeTui();
+
+  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[C", tui), { consume: true });
+  assert.equal(state.activeTabId, "s2");
+  assert.equal(first.vimMode, false);
+  assert.equal(second.vimMode, false);
 });
 
 test("Home Right/Enter does NOT consume when no tabs exist", () => {

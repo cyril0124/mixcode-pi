@@ -135,6 +135,7 @@ export function handleMixCodeKeyInput(
     if (matchesKey(data, "right") || matchesKey(data, "enter")) {
       const target = state.tabs[state.homeSelectedTabIndex];
       if (target) {
+        transferVimModeForHomeAttach(state, target);
         activateTab(state, target.sessionId);
         tui.requestRender();
         return { consume: true };
@@ -251,6 +252,27 @@ export function handleMixCodeKeyInput(
     tui.requestRender();
     return { consume: true };
   }
+  // Left on empty input returns to MixCode Home (Agent View), including vim mode.
+  // Keep this before vim key handling so vim mode does not consume Left first.
+  if (
+    active &&
+    state.activeTabId !== "config" &&
+    matchesKey(data, "left") &&
+    !hasAnyOverlay(tui) &&
+    !isEditorAutocompleteOpen() &&
+    !active.shellOpen &&
+    !active.previewOpen &&
+    !active.pendingDialogs.length &&
+    editorActions &&
+    editorActions.getText().length === 0
+  ) {
+    clearPendingEscape(active, "abort-agent");
+    const tabIndex = state.tabs.findIndex((tab) => tab.sessionId === active.sessionId);
+    if (tabIndex >= 0) state.homeSelectedTabIndex = tabIndex;
+    activateTab(state, "config");
+    tui.requestRender();
+    return { consume: true };
+  }
   if (
     active &&
     state.activeTabId !== "config" &&
@@ -342,28 +364,6 @@ export function handleMixCodeKeyInput(
     tui.requestRender();
     return { consume: true };
   }
-  // Left on empty input returns to MixCode Home (Agent View)
-  if (
-    active &&
-    state.activeTabId !== "config" &&
-    matchesKey(data, "left") &&
-    !hasAnyOverlay(tui) &&
-    !isEditorAutocompleteOpen() &&
-    !active.shellOpen &&
-    !active.previewOpen &&
-    !active.pendingDialogs.length &&
-    !active.vimMode &&
-    editorActions &&
-    editorActions.getText().length === 0
-  ) {
-    clearPendingEscape(active, "abort-agent");
-    // Remember which agent we came from so Home highlights it
-    const tabIndex = state.tabs.findIndex((tab) => tab.sessionId === active.sessionId);
-    if (tabIndex >= 0) state.homeSelectedTabIndex = tabIndex;
-    activateTab(state, "config");
-    tui.requestRender();
-    return { consume: true };
-  }
   if (matchesKey(data, "shift+enter") && editorActions) {
     if (active) clearPendingEscape(active, "abort-agent");
     insertEditorText(editorActions, "\n");
@@ -432,6 +432,20 @@ function pasteNewlineText(data: string): string | undefined {
   const text = inlineSubmitText(data);
   if (text === undefined) return undefined;
   return `${text}\n`;
+}
+
+function transferVimModeForHomeAttach(
+  state: MixCodeState,
+  target: MixCodeState["tabs"][number],
+): void {
+  const source = state.tabs.find((tab) => tab.vimMode);
+  if (!source || source.sessionId === target.sessionId) return;
+  source.vimMode = false;
+  source.vimPendingEscapeAt = undefined;
+  source.vimPendingHome = false;
+  target.vimMode = true;
+  target.vimPendingEscapeAt = undefined;
+  target.vimPendingHome = false;
 }
 
 function handleVimModeTabCycle(
