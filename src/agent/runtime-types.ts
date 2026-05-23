@@ -80,6 +80,8 @@ export interface ChatLine {
   toolIsPartial?: boolean;
   toolExpanded?: boolean;
   branchSummary?: boolean;
+  compactionSummary?: boolean;
+  compactionTokensBefore?: number;
   excludeFromContext?: boolean;
   bashExitCode?: number;
   bashCancelled?: boolean;

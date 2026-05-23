@@ -339,7 +339,7 @@ test("runtime creates pi agent sessions, streams default response, and records s
         : "",
       /Extractive summary/,
     );
-    assert.ok(runtimeTab.chat.some((line) => line.text.includes("Compaction complete.")));
+    assert.ok(runtimeTab.chat.some((line) => line.compactionSummary === true));
     const forked = await runtime.forkSession("s1", "s2");
     assert.equal(forked.getSessionId(), "s2");
     assert.equal(runtime.resolveModel("faux", "").id, "faux-1");

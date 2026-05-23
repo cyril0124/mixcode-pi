@@ -7,9 +7,12 @@ import {
   assistantDisplayText,
   contextTokensFromUsage,
   customMessageToChatLine,
+  disposeChatRenderers,
   elapsedSeconds,
+  entriesToChatLines,
   surfaceAssistantStopReason,
   syncContextUsage,
+  syncPreviewFromChat,
   updatePreviewMessage,
 } from "./runtime-chat.js";
 import { contentText } from "./runtime-text.js";
@@ -127,15 +130,19 @@ export function applyEvent(
         new Date(),
       );
       runtimeTab.tab.workingStartedAt = undefined;
-      if (!event.errorMessage) {
-        runtimeTab.tab.unreadDone = true;
+      if (event.result) {
+        // Rebuild chat from session entries (which now include the compaction entry)
+        disposeChatRenderers(runtimeTab.chat);
+        runtimeTab.chat = entriesToChatLines(runtimeTab.session.getBranch(), runtimeTab);
+        syncPreviewFromChat(runtimeTab.tab, runtimeTab.chat);
         syncContextUsage(runtimeTab);
-      }
-      if (event.errorMessage)
+        runtimeTab.tab.unreadDone = true;
+      } else if (event.errorMessage) {
         runtimeTab.chat.push({
           role: "system",
           text: `Compaction failed: ${event.errorMessage}`,
         });
+      }
       break;
     case "session_info_changed":
       if (event.name) runtimeTab.tab.title = event.name;

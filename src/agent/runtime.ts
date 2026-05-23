@@ -761,16 +761,8 @@ export class MixCodeRuntime {
     runtimeTab.tab.pendingEscapeArmedAt = undefined;
     this.emitChange({ type: "extension_ui_update" }, runtimeTab);
     try {
+      // compact() emits compaction_end which triggers applyEvent to rebuild chat
       await runtimeTab.agentSession.compact(customInstructions);
-      disposeChatRenderers(runtimeTab.chat);
-      runtimeTab.chat = await this.rebuildChat(runtimeTab);
-      syncPreviewFromChat(runtimeTab.tab, runtimeTab.chat);
-      syncContextUsage(runtimeTab);
-      runtimeTab.chat.push({ role: "system", text: "Compaction complete." });
-      runtimeTab.tab.status = "idle";
-      runtimeTab.tab.unreadDone = true;
-      runtimeTab.tab.workingStartedAt = undefined;
-      this.emitChange({ type: "extension_ui_update" }, runtimeTab);
     } catch (error) {
       runtimeTab.tab.status = "error";
       runtimeTab.tab.workingStartedAt = undefined;

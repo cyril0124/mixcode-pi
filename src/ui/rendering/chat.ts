@@ -248,6 +248,9 @@ function renderMessageBlockUncached(line: ChatLine, width: number, tab?: MixCode
   if (line.branchSummary) {
     return renderBranchSummaryBlock(text, width, tab);
   }
+  if (line.compactionSummary) {
+    return renderCompactionSummaryBlock(text, width, line.compactionTokensBefore, tab);
+  }
   return renderSystemBlock(text, width);
 }
 
@@ -309,9 +312,12 @@ function chatLineRenderCacheKey(
     // Generic (non-renderer) tool block: depends on status/title/args/text.
     return `t${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${line.status ?? ""}${KEY_SEP}${line.title ?? ""}${KEY_SEP}${stableArgs(line.args)}${KEY_SEP}${line.text}`;
   }
-  // role === "system" path can also surface branch-summary blocks.
+  // role === "system" path can also surface branch-summary and compaction-summary blocks.
   if (line.branchSummary) {
     return `bs${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${expanded ? 1 : 0}${KEY_SEP}${line.text}`;
+  }
+  if (line.compactionSummary) {
+    return `cs${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${expanded ? 1 : 0}${KEY_SEP}${line.compactionTokensBefore ?? 0}${KEY_SEP}${line.text}`;
   }
   return `s${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${line.text}`;
 }
@@ -480,6 +486,35 @@ function renderBranchSummaryBlock(
   } else {
     lines.push(
       ` ${activeRenderTheme.dim("Branch summary (ctrl+o to expand)")}`
+    );
+  }
+  lines.push("");
+  return lines.map((part) => renderToolBackgroundLine(part, width, activeRenderTheme.systemBackground));
+}
+
+function renderCompactionSummaryBlock(
+  text: string,
+  width: number,
+  tokensBefore: number | undefined,
+  tab?: MixCodeTabInfo,
+): string[] {
+  const expanded = tab?.extensionUi.toolsExpanded ?? false;
+  const title = activeRenderTheme.accent(activeRenderTheme.bold("[compaction]"));
+  const lines: string[] = ["", ` ${title}`];
+  if (expanded) {
+    const header = tokensBefore
+      ? `**Compacted from ${tokensBefore.toLocaleString()} tokens**\n\n`
+      : "";
+    lines.push(
+      "",
+      ...renderMarkdown((header + text).trim(), Math.max(1, width - 1)).map((line) => ` ${line}`),
+    );
+  } else {
+    const tokenInfo = tokensBefore
+      ? `Compacted from ${tokensBefore.toLocaleString()} tokens`
+      : "Compacted";
+    lines.push(
+      ` ${activeRenderTheme.dim(`${tokenInfo} (ctrl+o to expand)`)}`
     );
   }
   lines.push("");

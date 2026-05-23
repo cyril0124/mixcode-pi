@@ -174,7 +174,12 @@ export function assistantText(
 function entryToChatLines(entry: SessionEntry, runtimeTab: RuntimeTab): ChatLine[] {
   if (entry.type === "compaction") {
     return [
-      { role: "system", text: `Compacted from ${entry.tokensBefore.toLocaleString()} tokens.` },
+      {
+        role: "system",
+        text: entry.summary,
+        compactionSummary: true,
+        compactionTokensBefore: entry.tokensBefore,
+      },
     ];
   }
   if (entry.type === "branch_summary") {
