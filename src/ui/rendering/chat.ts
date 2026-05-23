@@ -35,6 +35,13 @@ const OSC133_ZONE_START = "\x1b]133;A\x07";
 const OSC133_ZONE_END = "\x1b]133;B\x07";
 const OSC133_ZONE_FINAL = "\x1b]133;C\x07";
 const USER_BASH_PREVIEW_LINES = 20;
+// Max chars to render for an explicitly active streaming assistant/thinking block.
+// Complete messages render in full. At ~120 chars/line, 8000 chars produces
+// ~67 lines, which is enough for any viewport + overscan.
+export const STREAMING_MARKDOWN_CHAR_LIMIT = 8000;
+
+export interface RenderChatBlockOptions { streamingMarkdownCharLimit?: number }
+
 const chatLineRenderCache = new WeakMap<ChatLine, { key: string; lines: string[] }>();
 
 export function renderChat(
@@ -81,8 +88,9 @@ export function renderChatBlock(
   width: number,
   tab?: MixCodeTabInfo,
   theme = activeRenderTheme,
+  options: RenderChatBlockOptions = {},
 ): string[] {
-  return renderWithTheme(theme, () => renderMessageBlock(line, width, tab));
+  return renderWithTheme(theme, () => renderMessageBlock(line, width, tab, options));
 }
 
 /**
@@ -197,19 +205,30 @@ function renderChatStream(chat: ChatLine[], width: number, tab?: MixCodeTabInfo)
   return result;
 }
 
-function renderMessageBlock(line: ChatLine, width: number, tab?: MixCodeTabInfo): string[] {
+function renderMessageBlock(
+  line: ChatLine,
+  width: number,
+  tab?: MixCodeTabInfo,
+  options: RenderChatBlockOptions = {},
+): string[] {
   const cacheKey = chatLineRenderCacheKey(line, width, tab);
-  if (cacheKey) {
+  const truncatesStreamingText = shouldTruncateStreamingMarkdown(line, options);
+  if (cacheKey && !truncatesStreamingText) {
     const cached = chatLineRenderCache.get(line);
     if (cached?.key === cacheKey) return cached.lines;
-    const rendered = renderMessageBlockUncached(line, width, tab);
+    const rendered = renderMessageBlockUncached(line, width, tab, options);
     chatLineRenderCache.set(line, { key: cacheKey, lines: rendered });
     return rendered;
   }
-  return renderMessageBlockUncached(line, width, tab);
+  return renderMessageBlockUncached(line, width, tab, options);
 }
 
-function renderMessageBlockUncached(line: ChatLine, width: number, tab?: MixCodeTabInfo): string[] {
+function renderMessageBlockUncached(
+  line: ChatLine,
+  width: number,
+  tab?: MixCodeTabInfo,
+  options: RenderChatBlockOptions = {},
+): string[] {
   const text = line.text.trimEnd();
   if (line.role === "user") {
     if (!text.trim()) return [];
@@ -230,11 +249,16 @@ function renderMessageBlockUncached(line: ChatLine, width: number, tab?: MixCode
   }
   if (line.role === "assistant") {
     if (!text.trim()) return [];
-    return withOsc133Zone(renderMarkdown(text.trim(), width));
+    const trimmed = text.trim();
+    return withOsc133Zone(renderMarkdown(streamingMarkdownText(trimmed, options), width));
   }
   if (line.role === "thinking") {
     if (!text.trim()) return [];
-    return renderMarkdown(text.trim(), width, { color: activeRenderTheme.thinking, italic: true });
+    const trimmed = text.trim();
+    return renderMarkdown(streamingMarkdownText(trimmed, options), width, {
+      color: activeRenderTheme.thinking,
+      italic: true,
+    });
   }
   if (line.role === "tool") {
     return renderToolBlock(line, width, tab);
@@ -252,6 +276,22 @@ function renderMessageBlockUncached(line: ChatLine, width: number, tab?: MixCode
     return renderCompactionSummaryBlock(text, width, line.compactionTokensBefore, tab);
   }
   return renderSystemBlock(text, width);
+}
+
+function shouldTruncateStreamingMarkdown(line: ChatLine, options: RenderChatBlockOptions): boolean {
+  const limit = options.streamingMarkdownCharLimit;
+  return (
+    limit !== undefined &&
+    (line.role === "assistant" || line.role === "thinking") &&
+    line.text.trim().length > limit
+  );
+}
+
+function streamingMarkdownText(text: string, options: RenderChatBlockOptions): string {
+  const limit = options.streamingMarkdownCharLimit;
+  if (limit === undefined || limit <= 0 || text.length <= limit) return text;
+  // Only active streaming blocks use this path; complete messages render fully.
+  return text.slice(-limit);
 }
 
 function withOsc133Zone(lines: string[]): string[] {

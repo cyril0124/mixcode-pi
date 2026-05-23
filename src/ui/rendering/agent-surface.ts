@@ -5,12 +5,14 @@ import { activeToast } from "../../core/toast.js";
 import type { MixCodeTabInfo } from "../../core/types.js";
 import type { MixCodeTheme } from "../themes.js";
 import {
+  STREAMING_MARKDOWN_CHAR_LIMIT,
   cachedChatBlockHeight,
   chatBlockSeparator,
   renderChatBlock,
   renderConversation,
   renderConversationEmptyState,
   renderReasoningSummaryLines,
+  type RenderChatBlockOptions,
 } from "./chat.js";
 import { renderSidebarInner } from "./chrome.js";
 import { activeRenderTheme, renderWithTheme } from "./context.js";
@@ -22,6 +24,10 @@ import { box, padLine } from "./primitives.js";
 // per call, so for short chats it's faster to just render the whole thing.
 // Picked via the perf-tab-switch benchmark — at ~100 blocks both paths cross.
 const WINDOW_RENDER_BLOCK_THRESHOLD = 60;
+// During streaming, the threshold is lower because the streaming block's
+// markdown re-parse dominates frame cost and windowed rendering avoids
+// iterating all blocks in the legacy path.
+const WINDOW_RENDER_STREAMING_THRESHOLD = 20;
 // Extra rendered lines above and below the visible viewport. Larger overscan
 // makes scroll-up smoother (fewer cache misses while paging) at the cost of
 // extra block renders per frame.
@@ -129,14 +135,15 @@ function renderAgentSurfaceInner(
  */
 function canUseWindowedRender(tab: MixCodeTabInfo, runtimeTab: RuntimeTab): boolean {
   const chat = runtimeTab.chat;
+  // During streaming, active tool renderers are always at the tail of the
+  // chat (current turn). The windowed renderer walks backward from the tail,
+  // so it naturally includes them in the viewport. Allow windowed rendering
+  // with a lower threshold during streaming to avoid the expensive legacy
+  // full-render path that blocks the event loop.
+  if (tab.status === "running" || tab.status === "thinking") {
+    return chat.length >= WINDOW_RENDER_STREAMING_THRESHOLD;
+  }
   if (chat.length < WINDOW_RENDER_BLOCK_THRESHOLD) return false;
-  // Streaming assistant text mutates the newest chat block repeatedly. Pi's
-  // native UI keeps historical tool/custom renderers as stable components and
-  // only updates the active streaming/tool component; mirror that boundary by
-  // letting completed historical renderers stay outside the visible window.
-  // Active tool renderers still use the legacy full path so their lifecycle
-  // hooks keep running every frame while they are pending/running.
-  if (tab.status === "running" || tab.status === "thinking") return !hasActiveToolRenderer(chat);
   for (let i = chat.length - 1; i >= 0; i--) {
     const line = chat[i]!;
     if (line.role === "tool" && (line.status === "running" || line.status === "pending")) {
@@ -145,25 +152,6 @@ function canUseWindowedRender(tab: MixCodeTabInfo, runtimeTab: RuntimeTab): bool
     if (line.role !== "tool") break;
   }
   return true;
-}
-
-function hasActiveToolRenderer(chat: ChatLine[]): boolean {
-  for (let i = chat.length - 1; i >= 0; i--) {
-    const line = chat[i]!;
-    // Skip non-structural lines (extension, system) that may be pushed after
-    // tool blocks by extensions during execution.
-    if (line.role === "extension" || line.role === "system" || line.role === "startup") continue;
-    // Once we hit a user or assistant line, all tools above belong to a
-    // previous turn and are guaranteed complete by the agent event loop.
-    if (line.role !== "tool") break;
-    if (
-      (line.status === "running" || line.status === "pending") &&
-      (line.renderToolCall || line.renderToolResult)
-    ) {
-      return true;
-    }
-  }
-  return false;
 }
 
 /**
@@ -210,7 +198,13 @@ function renderAgentSurfaceWindowed(
   let nextIsNonEmpty = queueLines.length > 0;
   for (let i = chat.length - 1; i >= 0; i--) {
     if (lines.length >= targetRows) break;
-    const block = renderChatBlock(chat[i]!, mainWidth, tab);
+    const block = renderChatBlock(
+      chat[i]!,
+      mainWidth,
+      tab,
+      activeRenderTheme,
+      streamingTextRenderOptions(runtimeTab, i),
+    );
     if (block.length === 0) {
       // Empty block contributes nothing visually; just record visit.
       oldestEmittedIndex = i;
@@ -310,6 +304,25 @@ function renderAgentSurfaceWindowed(
   const hasNewContent =
     tab.chatScrollOffset > 0 && (tab.status === "running" || tab.status === "thinking");
   return appendChatScrollbar(fitted, width, hasNewContent);
+}
+
+function streamingTextRenderOptions(
+  runtimeTab: RuntimeTab,
+  chatIndex: number,
+): RenderChatBlockOptions | undefined {
+  const streaming = runtimeTab.streamingAssistant;
+  if (!streaming) return undefined;
+  const line = runtimeTab.chat[chatIndex];
+  if (line?.role !== "assistant" && line?.role !== "thinking") return undefined;
+  if (streaming.chatIndex === chatIndex) {
+    return { streamingMarkdownCharLimit: STREAMING_MARKDOWN_CHAR_LIMIT };
+  }
+  for (const index of streaming.blockIndices.values()) {
+    if (index === chatIndex) {
+      return { streamingMarkdownCharLimit: STREAMING_MARKDOWN_CHAR_LIMIT };
+    }
+  }
+  return undefined;
 }
 
 /**

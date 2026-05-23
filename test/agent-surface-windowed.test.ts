@@ -10,6 +10,7 @@ import { performance } from "node:perf_hooks";
 import { test } from "node:test";
 import { createTab, type ChatLine } from "../src/index.js";
 import { renderAgentSurface } from "../src/ui/rendering/agent-surface.js";
+import { renderChat } from "../src/ui/rendering/chat.js";
 
 const WIDTH = 100;
 const HEIGHT = 20;
@@ -204,7 +205,15 @@ test("running chats with historical tool renderers still use windowed rendering"
   assert.doesNotMatch(text, /historical tool frame/);
 });
 
-test("running chats with active tool renderers keep legacy full rendering", () => {
+test("complete long assistant messages render full text outside streaming window", () => {
+  const text = `START ${"x".repeat(9000)} END`;
+  const rendered = renderChat([{ role: "assistant", text }], WIDTH).map(stripAnsi).join("\n");
+
+  assert.match(rendered, /START/);
+  assert.match(rendered, /END/);
+});
+
+test("running chats with active tool renderers use windowed rendering and still invoke renderer", () => {
   let rendered = 0;
   const chat = buildStreamingAssistantChat(180);
   chat.push({
@@ -222,11 +231,12 @@ test("running chats with active tool renderers keep legacy full rendering", () =
   const lines = renderAgentSurface(tab, { chat, reasoning: [] } as never, WIDTH, HEIGHT);
   const text = lines.map(stripAnsi).join("\n");
 
+  // Active tool renderer at the tail is within the viewport and gets invoked
   assert.equal(rendered, 1);
   assert.match(text, /dynamic tool frame/);
 });
 
-test("running tool behind extension message still triggers legacy rendering", () => {
+test("running tool behind extension message still renders correctly", () => {
   let rendered = 0;
   const chat = buildStreamingAssistantChat(180);
   chat.push({
@@ -247,34 +257,29 @@ test("running tool behind extension message still triggers legacy rendering", ()
   const lines = renderAgentSurface(tab, { chat, reasoning: [] } as never, WIDTH, HEIGHT);
   const text = lines.map(stripAnsi).join("\n");
 
-  // The running tool renderer must still be invoked (legacy path).
+  // The running tool renderer must still be invoked (it's within the viewport).
   assert.equal(rendered, 1);
   assert.match(text, /active tool frame/);
 });
 
-test("running plain streaming render is faster than forced legacy rendering", () => {
-  // Keep enough blocks to make the timing signal larger than per-run noise.
-  const chat = buildPerformanceChat(5000);
-  const windowedTab = createTab(12, "s12", "/repo", { status: "running", chatScrollOffset: 0 });
-  const legacyTab = createTab(13, "s13", "/repo", { status: "running", chatScrollOffset: 0 });
-  const dynamicTail: ChatLine = {
-    role: "tool",
-    title: "active-renderer",
-    toolCallId: "active-renderer-1",
-    status: "running",
-    text: "",
-    renderToolCall: () => ["active renderer marker"],
-  };
-  const legacyChat = [...chat, dynamicTail];
+test("windowed rendering scales sublinearly with block count", () => {
+  // Verify that windowed rendering with 5000 blocks is not dramatically
+  // slower than with 100 blocks (both use windowed path during streaming).
+  const smallChat = buildPerformanceChat(100);
+  const largeChat = buildPerformanceChat(5000);
+  const smallTab = createTab(12, "s12", "/repo", { status: "running", chatScrollOffset: 0 });
+  const largeTab = createTab(13, "s13", "/repo", { status: "running", chatScrollOffset: 0 });
 
-  const windowedMs = measureRenderMs(windowedTab, chat, 50);
-  const legacyMs = measureRenderMs(legacyTab, legacyChat, 50);
+  const smallMs = measureRenderMs(smallTab, smallChat, 50);
+  const largeMs = measureRenderMs(largeTab, largeChat, 50);
 
+  // Windowed rendering should make 5000 blocks at most 10x slower than 100
+  // blocks (not 50x which would indicate linear scaling).
   assert.ok(
-    windowedMs < legacyMs * 0.75,
-    `expected windowed render to be at least 25% faster; windowed=${windowedMs.toFixed(
+    largeMs < smallMs * 10,
+    `expected 5000-block render to be within 10x of 100-block; 5000=${largeMs.toFixed(
       3,
-    )}ms legacy=${legacyMs.toFixed(3)}ms`,
+    )}ms 100=${smallMs.toFixed(3)}ms ratio=${(largeMs / smallMs).toFixed(1)}x`,
   );
 });
 
