@@ -254,6 +254,8 @@ export async function handleSubmittedInput(
       thinkingLevel: tab.thinkingLevel,
       workdir: tab.workdir,
     });
+    // Persist the fork title into the session file so it survives restarts.
+    runtime.renameSession?.(sessionId, tab.title);
   } else if (parsed.command === "tree") {
     if (!runtime.extensionNavigateTree) {
       throw new Error("Tree navigation requires pi runtime tree support");
