@@ -27,6 +27,26 @@ import { MIXCODE_FAUX_MODEL } from "../src/index.js";
 
 type TestChatLine = { role: "system"; text: string };
 
+function createOverlayCaptureTui() {
+  const overlays: string[] = [];
+  let visible = false;
+  return {
+    overlays,
+    requestRender: () => undefined,
+    showOverlay: (component: { render?: (width: number) => string[] } | string) => {
+      visible = true;
+      overlays.push(
+        typeof component === "string"
+          ? component
+          : (component.render?.(100).join("\n") ?? String(component)),
+      );
+      return { hide: () => { visible = false; } };
+    },
+    hasOverlay: () => visible,
+    hideOverlay: () => { visible = false; },
+  };
+}
+
 function assertQuitOverlay(text: string | undefined): void {
   assert.match(text ?? "", /┌/);
   assert.match(text ?? "", /Quit MixCode/);
@@ -265,7 +285,7 @@ test("submitted input saves, restores, and deletes workspaces", async () => {
       state.tabs.map((tab) => tab.sessionId),
       ["s1", "s2"],
     );
-    assert.equal(state.activeTabId, "s1");
+    assert.equal(state.activeTabId, "s2");
     await handleSubmittedInput(
       state,
       runtime,
@@ -275,11 +295,8 @@ test("submitted input saves, restores, and deletes workspaces", async () => {
       undefined,
       workspaceFile,
     );
-    assert.deepEqual(systemMessages, [
-      "Workspace saved: main",
-      "Workspace restored: main",
-      "Workspace deleted: main",
-    ]);
+    assert.deepEqual(systemMessages, []);
+    assert.equal(state.tabs.find((tab) => tab.sessionId === state.activeTabId)?.toast?.message, "Workspace deleted: main");
     assert.doesNotMatch(
       overlays.join("\n"),
       /Workspace saved: main|Workspace restored: main|Workspace deleted: main/,
@@ -324,19 +341,17 @@ test("workspace commands expose missing configuration and arguments", async () =
     () => handleSubmittedInput(state, runtime, "/delete-workspace main", tui),
     /Workspace file is not configured/,
   );
-  await assert.rejects(
-    () =>
-      handleSubmittedInput(
-        state,
-        runtime,
-        "/save-workspace",
-        tui,
-        undefined,
-        undefined,
-        join(tmpdir(), "unused-workspaces.json"),
-      ),
-    /Missing workspace name/,
+  const overlayTui = createOverlayCaptureTui();
+  await handleSubmittedInput(
+    state,
+    runtime,
+    "/save-workspace",
+    overlayTui,
+    undefined,
+    undefined,
+    join(tmpdir(), "unused-workspaces.json"),
   );
+  assert.equal(state.workspaceOverlay.mode, "save");
 });
 
 test("workspace save surfaces invalid workspace files instead of treating them as missing", async () => {

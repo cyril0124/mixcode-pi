@@ -83,6 +83,10 @@ export type MixCodeSubmitRuntime = Pick<
 export type RuntimeChangeSource = Pick<MixCodeRuntime, "onChange">;
 export type ShellKeyManager = Pick<ShellManager, "write"> &
   Partial<Pick<ShellManager, "close" | "writeMouse">>;
+export interface WorkspaceKeyOptions {
+  workspaceFile?: string;
+}
+
 export interface TreeSelectorDisplayHost {
   open: (
     sessionId: string,

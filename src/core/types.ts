@@ -5,6 +5,7 @@ import type { ChatSelectionState, ChatSurfaceBounds } from "./chat-selection.js"
 import type { SessionSelectorState } from "./session-selector.js";
 import type { ToastNotification } from "./toast.js";
 import type { TreeSelectorState } from "./tree-selector.js";
+import type { WorkspaceOverlayState } from "./workspace-ui.js";
 
 export type TabStatus = "Not Ready" | "idle" | "running" | "thinking" | "error" | "done";
 
@@ -283,6 +284,7 @@ export interface MixCodeState {
   extensionManager: ExtensionManagerPanelState;
   sessionSelector: SessionSelectorState;
   treeSelector: TreeSelectorState;
+  workspaceOverlay: WorkspaceOverlayState;
   tabJumpOpen: boolean;
   tabJumpQuery: string;
   tabJumpIndex: number;
@@ -298,11 +300,22 @@ export interface MixCodeState {
   homeSelectedTabIndex: number;
 }
 
+export interface WorkspaceTabSnapshot {
+  sessionId: string;
+  sessionPath?: string;
+  title: string;
+  workdir: string;
+  model?: MixCodeModelRef;
+  thinkingLevel?: ThinkingLevel;
+}
+
 export interface WorkspaceSnapshot {
   name: string;
   children: string[];
   startupWorkdir: string;
   updatedAt: string;
+  activeSessionId?: string;
+  tabs: WorkspaceTabSnapshot[];
 }
 
 export interface AgentRuntimeConfig {

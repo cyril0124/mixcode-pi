@@ -43,11 +43,13 @@ import type {
   MixCodeKeyRuntime,
   OverlayTui,
   ShellKeyManager,
+  WorkspaceKeyOptions,
 } from "./app-types.js";
 import { handleExtensionManagerKey } from "./extension-manager.js";
 import { renderCommandPalette, renderExportChooser, renderTabJumpOverlay } from "./rendering.js";
 import { handleSessionSelectorKey } from "./session-selector.js";
 import { handleTreeSelectorKey, openTreeSelector, type TreeSelectorRuntime } from "./tree-selector.js";
+import { handleWorkspaceOverlayKey } from "./workspace-overlay.js";
 export function handleMixCodeKeyInput(
   state: MixCodeState,
   data: string,
@@ -59,9 +61,24 @@ export function handleMixCodeKeyInput(
   editorActions?: MixCodeEditorActions,
   commandPaletteActions?: CommandPaletteActions,
   exportChooserActions: ExportChooserActions = {},
+  workspaceOptions: WorkspaceKeyOptions = {},
 ): { consume?: boolean; data?: string } | undefined {
   pasteDetector.recordInput(data);
   const active = state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];
+  if (state.workspaceOverlay.open) {
+    if (
+      handleWorkspaceOverlayKey(
+        state,
+        data,
+        tui,
+        runtime,
+        onStateChanged,
+        workspaceOptions.workspaceFile,
+      )
+    ) {
+      return { consume: true };
+    }
+  }
   if (handleChromeMouseInput(state, active, data, tui)) {
     return { consume: true };
   }
@@ -177,6 +194,7 @@ export function handleMixCodeKeyInput(
     closeCommandPalette(state);
     closeTabJump(state);
     state.picker = undefined;
+    state.workspaceOverlay.open = false;
     return { consume: true };
   }
 

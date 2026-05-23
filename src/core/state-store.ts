@@ -285,6 +285,24 @@ export async function saveWorkspaces(
       children: item.children.filter((child) => child.trim()),
       startup_workdir: normalizeStartupWorkdir(item.startupWorkdir),
       updated_at: item.updatedAt,
+      active_session_id: item.activeSessionId,
+      tabs: (item.tabs ?? [])
+        .filter((tab) => tab.sessionId.trim())
+        .map((tab) => ({
+          session_id: tab.sessionId.trim(),
+          session_path: tab.sessionPath?.trim() || undefined,
+          title: tab.title,
+          workdir: normalizeStartupWorkdir(tab.workdir),
+          model: tab.model
+            ? {
+                provider: tab.model.provider,
+                model_id: tab.model.modelId,
+                display_name: tab.model.displayName,
+                context_window: tab.model.contextWindow,
+              }
+            : undefined,
+          thinking_level: tab.thinkingLevel,
+        })),
     }));
   const temp = tempFilePath(filePath);
   await writeFile(temp, `${JSON.stringify(cleaned, null, 2)}\n`, "utf8");
@@ -305,14 +323,59 @@ export async function loadWorkspaces(filePath: string): Promise<WorkspaceSnapsho
         Boolean(item) && typeof item === "object" && !Array.isArray(item),
     )
     .filter((item) => typeof item.name === "string" && Array.isArray(item.children))
-    .map((item) => ({
-      name: String(item.name).trim(),
-      children: (item.children as unknown[]).map(String).filter((child) => child.trim()),
-      startupWorkdir: normalizeStartupWorkdir(
-        typeof item.startup_workdir === "string" ? item.startup_workdir : "",
-      ),
-      updatedAt: typeof item.updated_at === "string" ? item.updated_at : "",
-    }));
+    .map((item) => {
+      const children = (item.children as unknown[]).map(String).filter((child) => child.trim());
+      return {
+        name: String(item.name).trim(),
+        children,
+        startupWorkdir: normalizeStartupWorkdir(
+          typeof item.startup_workdir === "string" ? item.startup_workdir : "",
+        ),
+        updatedAt: typeof item.updated_at === "string" ? item.updated_at : "",
+        ...(typeof item.active_session_id === "string" && item.active_session_id.trim()
+          ? { activeSessionId: item.active_session_id.trim() }
+          : {}),
+        tabs: Array.isArray(item.tabs)
+          ? item.tabs.flatMap((tab) => deserializeWorkspaceTab(tab))
+          : [],
+      };
+    });
+}
+
+function deserializeWorkspaceTab(item: unknown): WorkspaceSnapshot["tabs"] {
+  if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+  const raw = item as Record<string, unknown>;
+  const sessionId = typeof raw.session_id === "string" ? raw.session_id.trim() : "";
+  if (!sessionId) return [];
+  const model = deserializeWorkspaceModel(raw.model);
+  return [
+    {
+      sessionId,
+      sessionPath:
+        typeof raw.session_path === "string" && raw.session_path.trim()
+          ? raw.session_path.trim()
+          : undefined,
+      title: typeof raw.title === "string" ? raw.title : sessionId,
+      workdir: normalizeStartupWorkdir(typeof raw.workdir === "string" ? raw.workdir : ""),
+      model,
+      thinkingLevel:
+        typeof raw.thinking_level === "string"
+          ? normalizeThinkingLevel(raw.thinking_level, "medium")
+          : undefined,
+    },
+  ];
+}
+
+function deserializeWorkspaceModel(item: unknown): WorkspaceSnapshot["tabs"][number]["model"] {
+  if (!item || typeof item !== "object" || Array.isArray(item)) return undefined;
+  const raw = item as Record<string, unknown>;
+  if (typeof raw.provider !== "string" || typeof raw.model_id !== "string") return undefined;
+  return {
+    provider: raw.provider,
+    modelId: raw.model_id,
+    displayName: typeof raw.display_name === "string" ? raw.display_name : raw.model_id,
+    contextWindow: typeof raw.context_window === "number" ? raw.context_window : 0,
+  };
 }
 
 export async function deleteWorkspace(filePath: string, name: string): Promise<void> {

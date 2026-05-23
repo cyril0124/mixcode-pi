@@ -427,7 +427,7 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
       { name: "", children: ["bad"], startupWorkdir: "", updatedAt: "" },
     ]);
     assert.deepEqual(await loadWorkspaces(workspaceFile), [
-      { name: "main", children: ["s1"], startupWorkdir: "/repo", updatedAt: "now" },
+      { name: "main", children: ["s1"], startupWorkdir: "/repo", updatedAt: "now", tabs: [] },
     ]);
     await writeFile(
       workspaceFile,
@@ -439,7 +439,7 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
       "utf8",
     );
     assert.deepEqual(await loadWorkspaces(workspaceFile), [
-      { name: "partial", children: ["x"], startupWorkdir: "", updatedAt: "" },
+      { name: "partial", children: ["x"], startupWorkdir: "", updatedAt: "", tabs: [] },
     ]);
     assert.equal(normalizeStartupWorkdir(" /tmp/// "), "/tmp");
     await assert.rejects(

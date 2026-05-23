@@ -11,11 +11,9 @@ import { buildModelPrompt } from "../core/prompt-build.js";
 import type { PromptTemplate } from "../core/prompt-templates.js";
 import type { KnownSkill } from "../core/skill-command.js";
 import type { ShellManager } from "../core/shell-session.js";
-import { deleteWorkspace, loadWorkspaces, saveWorkspaces } from "../core/state-store.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import { activateTab, clampHomeSelectedTabIndex, closeAgentTab, renameAgentTab } from "../core/tabs.js";
 import type { MixCodeState } from "../core/types.js";
-import { restoreWorkspaceOrder, snapshotWorkspace, upsertWorkspace } from "../core/workspace.js";
 import {
   appendActiveSystemMessage,
   applyModelSelection,
@@ -37,6 +35,13 @@ import { clearConversationCache, renderPickerOverlay } from "./rendering.js";
 import { openSessionSelector, type SessionSelectorRuntime } from "./session-selector.js";
 import { resolveThemeInput, setTheme } from "./themes.js";
 import { openTreeSelector, type TreeSelectorRuntime } from "./tree-selector.js";
+import {
+  deleteWorkspaceByName,
+  openSaveWorkspaceOverlay,
+  openWorkspaceSelector,
+  restoreWorkspaceByName,
+  saveWorkspaceByName,
+} from "./workspace-overlay.js";
 export async function handleSubmittedInput(
   state: MixCodeState,
   runtime: MixCodeSubmitRuntime,
@@ -169,24 +174,31 @@ export async function handleSubmittedInput(
     clampHomeSelectedTabIndex(state);
   } else if (parsed.command === "save-workspace") {
     if (!workspaceFile) throw new Error("Workspace file is not configured");
-    const name = requireCommandArg(parsed.args, "workspace name");
-    await saveWorkspaces(
-      workspaceFile,
-      upsertWorkspace(await loadOptionalWorkspaces(workspaceFile), snapshotWorkspace(state, name)),
-    );
-    showSystemMessageOrToast(state, runtime, tui, `Workspace saved: ${name}`);
+    const name = parsed.args.trim();
+    if (!name) {
+      await openSaveWorkspaceOverlay(state, tui, workspaceFile);
+      await onStateChanged?.(state);
+      return;
+    }
+    await saveWorkspaceByName(state, runtime, tui, workspaceFile, name);
   } else if (parsed.command === "restore-workspace") {
     if (!workspaceFile) throw new Error("Workspace file is not configured");
-    const name = requireCommandArg(parsed.args, "workspace name");
-    const workspace = (await loadWorkspaces(workspaceFile)).find((item) => item.name === name);
-    if (!workspace) throw new Error(`Unknown workspace: ${name}`);
-    restoreWorkspaceOrder(state, workspace);
-    showSystemMessageOrToast(state, runtime, tui, `Workspace restored: ${name}`);
+    const name = parsed.args.trim();
+    if (!name) {
+      await openWorkspaceSelector(state, tui, workspaceFile, "restore");
+      await onStateChanged?.(state);
+      return;
+    }
+    await restoreWorkspaceByName(state, runtime, tui, workspaceFile, name, onStateChanged);
   } else if (parsed.command === "delete-workspace") {
     if (!workspaceFile) throw new Error("Workspace file is not configured");
-    const name = requireCommandArg(parsed.args, "workspace name");
-    await deleteWorkspace(workspaceFile, name);
-    showSystemMessageOrToast(state, runtime, tui, `Workspace deleted: ${name}`);
+    const name = parsed.args.trim();
+    if (!name) {
+      await openWorkspaceSelector(state, tui, workspaceFile, "delete");
+      await onStateChanged?.(state);
+      return;
+    }
+    await deleteWorkspaceByName(state, tui, workspaceFile, name);
   } else if (parsed.command === "export") {
     const runtimeTab = runtime.getTab(active!.sessionId);
     if (!runtimeTab) throw new Error(`Unknown tab session: ${active!.sessionId}`);
@@ -443,21 +455,6 @@ function configScopedCommand(command: string | undefined): boolean {
     command === "hotkeys"
   );
 }
-async function loadOptionalWorkspaces(workspaceFile: string) {
-  try {
-    return await loadWorkspaces(workspaceFile);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
-    throw error;
-  }
-}
-
-function requireCommandArg(args: string, label: string): string {
-  const value = args.trim();
-  if (!value) throw new Error(`Missing ${label}`);
-  return value;
-}
-
 function parseImportRequest(args: string): { path: string; cwdOverride?: string } {
   const parts = args.trim().split(/\s+/).filter(Boolean);
   const path = parts[0];

@@ -37,6 +37,7 @@ import {
 } from "./rendering.js";
 import { withMouseReporting } from "./terminal.js";
 import { setTheme, themeForId } from "./themes.js";
+import { workspaceNameCompletions } from "./workspace-overlay.js";
 
 export { handleMixCodeKeyInput } from "./app-input.js";
 export { MixCodeRoot } from "./app-layout.js";
@@ -114,9 +115,25 @@ export function createMixCodeTui(
     files: createActiveFileCompletionSource(state, options.completionSources?.files),
     commands: () => {
       const active = state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];
-      return active && state.activeTabId !== "config"
-        ? runtime.getExtensionCommands(active.sessionId)
-        : runtime.getAllExtensionCommands();
+      const extensionCommands =
+        active && state.activeTabId !== "config"
+          ? runtime.getExtensionCommands(active.sessionId)
+          : runtime.getAllExtensionCommands();
+      return [
+        ...extensionCommands,
+        {
+          name: "restore-workspace",
+          argumentHint: "<workspace>",
+          getArgumentCompletions: (prefix: string) =>
+            workspaceNameCompletions(options.workspaceFile, prefix),
+        },
+        {
+          name: "delete-workspace",
+          argumentHint: "<workspace>",
+          getArgumentCompletions: (prefix: string) =>
+            workspaceNameCompletions(options.workspaceFile, prefix),
+        },
+      ];
     },
     promptTemplates: () => {
       // Dynamically resolve prompt templates from the active tab's resource loader,
@@ -210,6 +227,7 @@ export function createMixCodeTui(
         extensionCommands: () => activeExtensionCommands(state, runtime),
       },
       { editor: options.externalEditor },
+      { workspaceFile: options.workspaceFile },
     );
     if (result?.consume) return result;
     if (matchesKey(data, "ctrl+e")) {

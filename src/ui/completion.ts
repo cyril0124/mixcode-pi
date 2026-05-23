@@ -293,6 +293,10 @@ function commandSourceLabel(command: SourcedCompletionCommand): string {
   return `ext:${extensionSourceName(command.sourceInfo)}`;
 }
 
+function canAugmentBuiltInCommand(name: string): boolean {
+  return name === "restore-workspace" || name === "delete-workspace";
+}
+
 function extensionSourceName(sourceInfo: MixCodeCompletionSourceInfo | undefined): string {
   if (sourceInfo?.source) return formatExtensionSourceName(sourceInfo.source);
   if (sourceInfo?.path) {
@@ -324,8 +328,22 @@ function mergedSlashCommands(
   const resolvedExtensionCommands =
     typeof extensionCommands === "function" ? extensionCommands() : extensionCommands;
   for (const command of resolvedExtensionCommands) {
-    if (!commands.has(command.name))
+    const existing = commands.get(command.name);
+    if (!existing) {
       commands.set(command.name, { ...command, source: "extension" });
+      continue;
+    }
+    if (
+      existing.source === "built-in" &&
+      command.getArgumentCompletions &&
+      canAugmentBuiltInCommand(command.name)
+    ) {
+      commands.set(command.name, {
+        ...existing,
+        argumentHint: command.argumentHint ?? existing.argumentHint,
+        getArgumentCompletions: command.getArgumentCompletions,
+      });
+    }
   }
   // Register prompt templates as slash commands (matches Pi reference behavior)
   for (const template of promptTemplates) {
