@@ -38,8 +38,8 @@ import {
   hasAnyOverlay,
   showErrorOverlay,
   showLinesOverlay,
-  showTransientTextOverlay,
 } from "./app-overlays.js";
+import { pushToast } from "../core/toast.js";
 import { renderExportText } from "./app-submit.js";
 import type {
   CommandPaletteActions,
@@ -195,7 +195,8 @@ export function handleCommandPaletteKey(
     if (selected && !selected.enabled) {
       closeCommandPalette(state);
       closeAppOverlay(tui);
-      showTransientTextOverlay(tui, selected.disabledReason || "Command unavailable");
+      const active = state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];
+      if (active) pushToast(active, selected.disabledReason || "Command unavailable");
       tui.requestRender();
       return true;
     }

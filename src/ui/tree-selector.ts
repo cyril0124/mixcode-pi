@@ -23,6 +23,7 @@ import {
   updateTreeSearchQuery,
 } from "../core/tree-selector.js";
 import type { MixCodeState } from "../core/types.js";
+import { pushToast } from "../core/toast.js";
 import type { MixCodeKeyRuntime, OverlayTui, TreeSelectorDisplayHost } from "./app-types.js";
 import { showErrorOverlay } from "./app-overlays.js";
 import { renderTreeSelector } from "./tree-selector-render.js";
@@ -150,7 +151,8 @@ export function openTreeSelector(
   const leafId = runtimeTab.session.getLeafId();
 
   if (tree.length === 0) {
-    runtime.appendSystemMessage(sessionId, "No entries in session");
+    const tab = state.tabs.find((t) => t.sessionId === sessionId);
+    if (tab) pushToast(tab, "No entries in session");
     tui.requestRender();
     return;
   }
@@ -367,8 +369,7 @@ export function handleTreeSelectorKey(
         // If selecting the current leaf, show status and close
         if (entry.id === selector.currentLeafId) {
           closeTreeSelector(state, tui);
-          const runtimeRef = runtime as unknown as TreeSelectorRuntime | undefined;
-          runtimeRef?.appendSystemMessage(active.sessionId, "Already at this point");
+          pushToast(active, "Already at this point");
           return true;
         }
         const runtimeRef = runtime as unknown as TreeSelectorRuntime | undefined;
@@ -485,14 +486,14 @@ async function navigateToEntry(
     });
     if (result.aborted) {
       // Re-show tree selector with same selection on abort
-      runtime.appendSystemMessage(sessionId, "Branch summarization cancelled");
+      if (active) pushToast(active, "Branch summarization cancelled");
       openTreeSelector(state, runtime, tui, sessionId, entryId);
       return;
     }
     if (result.cancelled) {
-      runtime.appendSystemMessage(sessionId, "Navigation cancelled");
+      if (active) pushToast(active, "Navigation cancelled");
     } else {
-      runtime.appendSystemMessage(sessionId, "Navigated to selected point");
+      if (active) pushToast(active, "Navigated to selected point");
     }
   } catch (error) {
     showErrorOverlay(tui, error);

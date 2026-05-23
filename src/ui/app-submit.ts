@@ -12,6 +12,7 @@ import type { PromptTemplate } from "../core/prompt-templates.js";
 import type { KnownSkill } from "../core/skill-command.js";
 import type { ShellManager } from "../core/shell-session.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
+import { pushToast } from "../core/toast.js";
 import { activateTab, clampHomeSelectedTabIndex, closeAgentTab, renameAgentTab } from "../core/tabs.js";
 import type { MixCodeState } from "../core/types.js";
 import {
@@ -220,10 +221,10 @@ export async function handleSubmittedInput(
       request.cwdOverride,
     );
     if (result.cancelled) {
-      showSystemMessageOrToast(state, runtime, tui, "Import cancelled.");
+      pushToast(active!, "Import cancelled.");
     } else {
       activateTab(state, active!.sessionId);
-      showSystemMessageOrToast(state, runtime, tui, `Imported session: ${request.path}`);
+      pushToast(active!, `Imported session: ${request.path}`);
     }
   } else if (parsed.command === "extension-manager") {
     openExtensionManager(state, runtime, tui);

@@ -442,14 +442,14 @@ test("submitted input marks done, exports state, imports sessions, and exits dir
   assert.deepEqual(lifecycle, ["stop", "start"]);
   await handleSubmittedInput(state, runtime, "/import ./session.jsonl /repo", tui);
   assert.equal(overlays.at(-1), "import:./session.jsonl:/repo");
-  assert.equal(tab.previewMessages.at(-1)?.text, "Imported session: ./session.jsonl");
+  assert.equal(tab.toast?.message, "Imported session: ./session.jsonl");
   runtime.importFromJsonl = async (_sessionId: string, path: string, cwdOverride?: string) => {
     overlays.push(`cancelled-import:${path}:${cwdOverride ?? ""}`);
     return { cancelled: true };
   };
   await handleSubmittedInput(state, runtime, "/import ./cancelled.jsonl", tui);
   assert.equal(overlays.at(-1), "cancelled-import:./cancelled.jsonl:");
-  assert.equal(tab.previewMessages.at(-1)?.text, "Import cancelled.");
+  assert.equal(tab.toast?.message, "Import cancelled.");
   await handleSubmittedInput(state, runtime, "/exit", tui);
   assert.equal(stopped, true);
   assert.equal(closedAll, 1);
