@@ -55,10 +55,17 @@ export interface PiTuiKeybindingsModule {
 const nestedPiTui: PiTuiKeybindingsModule | undefined = await resolveNestedPiTui();
 
 async function resolveNestedPiTui(): Promise<PiTuiKeybindingsModule | undefined> {
-  // pi-coding-agent is a direct dependency; if its main entry cannot be
-  // resolved, the rest of mixcode is broken too, so let any error from
-  // import.meta.resolve propagate.
-  const codingAgentEntry = fileURLToPath(import.meta.resolve("@earendil-works/pi-coding-agent"));
+  // Resolve the pi-coding-agent entry to locate its nested pi-tui copy.
+  // In any bundled/compiled binary (bun --compile, Node SEA, etc.),
+  // import.meta.resolve will fail because node_modules don't exist on disk.
+  // Treat that as "no nested copy" — all modules are already unified in the
+  // bundle so there's no dual-instance problem to fix.
+  let codingAgentEntry: string;
+  try {
+    codingAgentEntry = fileURLToPath(import.meta.resolve("@earendil-works/pi-coding-agent"));
+  } catch {
+    return undefined;
+  }
   // pi-coding-agent's main is at <pkgDir>/dist/index.js. The nested pi-tui
   // copy lives at <pkgDir>/node_modules/@earendil-works/pi-tui when the
   // upstream shrinkwrap is in effect.
