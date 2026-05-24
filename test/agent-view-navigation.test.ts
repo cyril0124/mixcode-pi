@@ -41,12 +41,12 @@ function makeEditorActions(text = "") {
   };
 }
 
-// --- Left on empty input returns to Home ---
+// --- Left on empty input returns to Home (vim mode only) ---
 
-test("Left on empty input returns to MixCode Home and selects source agent", () => {
+test("Left on empty input returns to MixCode Home and selects source agent in vim mode", () => {
   const state = createInitialState("/repo");
   const tab1 = createTab(1, "s1", "/repo");
-  const tab2 = createTab(2, "s2", "/repo");
+  const tab2 = createTab(2, "s2", "/repo", { vimMode: true });
   state.tabs.push(tab1, tab2);
   state.activeTabId = "s2";
   const tui = makeTui();
@@ -66,6 +66,29 @@ test("Left on empty input returns to MixCode Home and selects source agent", () 
   assert.deepEqual(result, { consume: true });
   assert.equal(state.activeTabId, "config");
   assert.equal(state.homeSelectedTabIndex, 1); // s2 is at index 1
+});
+
+test("Left on empty input does NOT return to Home without vim mode", () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo");
+  state.tabs.push(tab);
+  state.activeTabId = "s1";
+  const tui = makeTui();
+  const editorActions = makeEditorActions("");
+
+  const result = handleMixCodeKeyInput(
+    state,
+    "\x1b[D", // Left arrow
+    tui,
+    undefined,
+    undefined,
+    undefined,
+    () => false,
+    editorActions,
+  );
+
+  assert.equal(result, undefined);
+  assert.equal(state.activeTabId, "s1");
 });
 
 test("Left on non-empty input does NOT return to Home", () => {
@@ -512,12 +535,12 @@ test("homeSelectedTabIndex clamps when workspace restore removes selected tab", 
 
 test("Left from agent then Right from Home returns to same agent", () => {
   const state = createInitialState("/repo");
-  state.tabs.push(createTab(1, "s1", "/repo"), createTab(2, "s2", "/repo"));
+  state.tabs.push(createTab(1, "s1", "/repo"), createTab(2, "s2", "/repo", { vimMode: true }));
   state.activeTabId = "s2";
   const tui = makeTui();
   const editorActions = makeEditorActions("");
 
-  // Left from s2
+  // Left from s2 (vim mode)
   handleMixCodeKeyInput(state, "\x1b[D", tui, undefined, undefined, undefined, () => false, editorActions);
   assert.equal(state.activeTabId, "config");
   assert.equal(state.homeSelectedTabIndex, 1);
