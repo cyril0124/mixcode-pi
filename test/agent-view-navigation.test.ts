@@ -41,12 +41,12 @@ function makeEditorActions(text = "") {
   };
 }
 
-// --- Left on empty input returns to Home (vim mode only) ---
+// --- Left on empty input returns to Home ---
 
-test("Left on empty input returns to MixCode Home and selects source agent in vim mode", () => {
+test("Left on empty input returns to MixCode Home and selects source agent", () => {
   const state = createInitialState("/repo");
   const tab1 = createTab(1, "s1", "/repo");
-  const tab2 = createTab(2, "s2", "/repo", { vimMode: true });
+  const tab2 = createTab(2, "s2", "/repo");
   state.tabs.push(tab1, tab2);
   state.activeTabId = "s2";
   const tui = makeTui();
@@ -68,9 +68,10 @@ test("Left on empty input returns to MixCode Home and selects source agent in vi
   assert.equal(state.homeSelectedTabIndex, 1); // s2 is at index 1
 });
 
-test("Left on empty input does NOT return to Home without vim mode", () => {
+test("Left on empty input does NOT return to Home when extension UI interaction is pending", () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo");
+  tab.extensionUi.pendingUserInteractions.push({ id: "ext-1", kind: "custom" });
   state.tabs.push(tab);
   state.activeTabId = "s1";
   const tui = makeTui();
@@ -150,7 +151,7 @@ test("Left on empty input does NOT trigger when preview is open", () => {
   assert.equal(state.activeTabId, "s1");
 });
 
-test("Left on empty input returns to MixCode Home in vim mode and preserves vimMode", () => {
+test("Left on empty input returns to MixCode Home and preserves vimMode", () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo", { vimMode: true });
   state.tabs.push(tab);
@@ -164,6 +165,21 @@ test("Left on empty input returns to MixCode Home in vim mode and preserves vimM
   assert.equal(state.activeTabId, "config");
   assert.equal(state.homeSelectedTabIndex, 0);
   assert.equal(tab.vimMode, true);
+});
+
+test("Left on empty input returns to MixCode Home without vim mode", () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo");
+  state.tabs.push(tab);
+  state.activeTabId = "s1";
+  const tui = makeTui();
+  const editorActions = makeEditorActions("");
+
+  const result = handleMixCodeKeyInput(state, "\x1b[D", tui, undefined, undefined, undefined, () => false, editorActions);
+
+  assert.deepEqual(result, { consume: true });
+  assert.equal(state.activeTabId, "config");
+  assert.equal(state.homeSelectedTabIndex, 0);
 });
 
 test("Left on non-empty input does NOT return to Home in vim mode", () => {

@@ -24,6 +24,8 @@
     "@earendil-works/pi-coding-agent": "^0.75.0",
     "@earendil-works/pi-tui": "^0.75.0",
     "@typescript/native-preview": "^7.0.0-dev.20260513.1",
+    "fengari": "^0.1.5",
+    "fengari-interop": "^0.1.4",
     "yaml": "^2.8.4"
   },
   "devDependencies": {

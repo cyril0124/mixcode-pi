@@ -2,6 +2,7 @@ export * from "./agent/faux-stream.js";
 export * from "./agent/runtime.js";
 export * from "./cli/bootstrap.js";
 export * from "./core/attachments.js";
+export * from "./core/batch-lua.js";
 export * from "./core/chat-selection.js";
 export * from "./core/clipboard.js";
 export * from "./core/commands.js";

@@ -2,8 +2,23 @@
 import { dirname, resolve } from "node:path";
 import { cwd } from "node:process";
 import { fileURLToPath } from "node:url";
+import {
+  applyBatchRequests,
+  loadBatchRequests,
+  validateBatchRequests,
+  type BatchExecutorHost,
+} from "../core/batch-lua.js";
+import { disposeChatRenderers } from "../agent/runtime-chat.js";
+import { parseInput } from "../core/commands.js";
+import { createTab } from "../core/defaults.js";
+import { findModelRef } from "../core/models.js";
+import { buildModelPrompt } from "../core/prompt-build.js";
 import { saveStateFile } from "../core/state-store.js";
+import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
+import { activateTab } from "../core/tabs.js";
 import { createMixCodeTui } from "../ui/app.js";
+import { applyModelSelection, applyThinkingLevel } from "../ui/app-actions.js";
+import { clearConversationCache } from "../ui/rendering.js";
 import { bootstrapMixCode, DEFAULT_STATE_PORT } from "./bootstrap.js";
 
 export async function main(): Promise<void> {
@@ -13,6 +28,8 @@ export async function main(): Promise<void> {
     await bootstrapMixCode({
       workdir: args.workdir,
     });
+  const batchRequests = args.batch ? await loadBatchRequests(args.batch) : undefined;
+  if (batchRequests) validateBatchRequests(batchRequests, (query) => findModelRef(state.availableModels, query));
   const tui = createMixCodeTui(state, runtime, {
     completionSources,
     workspaceFile,
@@ -25,13 +42,139 @@ export async function main(): Promise<void> {
       tui.requestRender();
     })
     .catch(() => undefined);
+
+  // Execute batch script after TUI is ready
+  if (args.batch) {
+    const batchHost: BatchExecutorHost = {
+      state,
+      findTabByTitle(title) {
+        const tab = state.tabs.find((t) => t.title === title);
+        return tab ? { sessionId: tab.sessionId } : undefined;
+      },
+      async createNewTab(request) {
+        const sessionId = `batch-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const model = request.model ? findModelRef(state.availableModels, request.model) : state.model;
+        const thinking = (request.thinking as any) ?? state.thinkingLevel;
+        const workdir = request.workdir ?? state.workdir;
+        const tab = createTab(state.tabs.length + 1, sessionId, workdir, {
+          title: request.name,
+          model: { ...model },
+          contextLimit: model.contextWindow,
+          thinkingLevel: thinking,
+        });
+        state.tabs.push(tab);
+        activateTab(state, sessionId);
+        await runtime.createTab(tab, {
+          systemPrompt: MIXCODE_SYSTEM_PROMPT,
+          thinkingLevel: thinking,
+          workdir,
+          model: runtime.resolveModel(model.provider, model.modelId),
+        });
+        // Persist the tab name so bootstrap restores it correctly
+        runtime.renameSession(sessionId, request.name);
+        return sessionId;
+      },
+      async configureTab(sessionId, options) {
+        const tab = state.tabs.find((t) => t.sessionId === sessionId);
+        if (!tab) throw new Error(`Cannot configure unknown tab: ${sessionId}`);
+        if (options.model) applyModelSelection(state, tab, options.model, runtime);
+        if (options.thinking) applyThinkingLevel(state, tab, options.thinking, runtime);
+      },
+      async clearTab(sessionId) {
+        const tab = state.tabs.find((t) => t.sessionId === sessionId);
+        if (!tab) throw new Error(`Cannot clear unknown tab: ${sessionId}`);
+        const runtimeTab = runtime.getTab(sessionId);
+        if (runtimeTab) {
+          disposeChatRenderers(runtimeTab.chat);
+          runtimeTab.chat = [];
+          runtimeTab.reasoning = [];
+        }
+        tab.previewMessages = [];
+        tab.previewIndex = 0;
+        tab.chatScrollOffset = 0;
+        tab.status = "idle";
+        tab.workingStartedAt = undefined;
+        tab.lastWorkedDurationSeconds = undefined;
+        clearConversationCache(sessionId);
+        tui.requestRender();
+        const originalTitle = tab.title;
+        const cleared = await runtime.clearTab!(sessionId, {
+          systemPrompt: MIXCODE_SYSTEM_PROMPT,
+          thinkingLevel: tab.thinkingLevel,
+          workdir: tab.workdir,
+        });
+        runtime.renameSession(cleared.tab.sessionId, originalTitle);
+        activateTab(state, cleared.tab.sessionId);
+        clearConversationCache(cleared.tab.sessionId);
+        tui.requestRender();
+        return cleared.tab.sessionId;
+      },
+      async submitInput(sessionId, input) {
+        const parsed = parseInput(input);
+        if (parsed.kind === "prompt") {
+          const runtimeTab = runtime.getTab(sessionId);
+          const knownSkills = runtimeTab?.services?.resourceLoader
+            ?.getSkills()
+            .skills.map((s: any) => ({ name: s.name, filePath: s.filePath, baseDir: s.baseDir }))
+            ?? undefined;
+          const promptTemplates = runtimeTab?.services?.resourceLoader
+            ?.getPrompts()
+            .prompts.map((p: any) => ({
+              name: p.name, description: p.description, argumentHint: p.argumentHint,
+              content: p.content, filePath: p.filePath,
+              sourceInfo: p.sourceInfo ? { scope: p.sourceInfo.scope, source: p.sourceInfo.source } : undefined,
+            }))
+            ?? undefined;
+          const tab = state.tabs.find((t) => t.sessionId === sessionId);
+          const workdir = tab?.workdir ?? state.workdir;
+          const built = await buildModelPrompt(parsed.args, workdir, { knownSkills, promptTemplates });
+          // Fire-and-forget: don't await agent completion
+          void runtime.prompt(sessionId, built);
+        } else if (parsed.kind === "shell") {
+          void runtime.executeShellCommand(sessionId, parsed.args, {
+            excludeFromContext: parsed.excludeFromContext === true,
+          });
+        } else {
+          void runtime.prompt(sessionId, input);
+        }
+      },
+      resolveModel(query) {
+        return findModelRef(state.availableModels, query);
+      },
+    };
+    void applyBatchRequests(batchRequests ?? [], batchHost)
+      .then(() => saveStateFile(stateFile, state, DEFAULT_STATE_PORT))
+      .catch((error: unknown) => {
+        const msg = error instanceof Error ? error.message : String(error);
+        process.stderr.write(`Batch error: ${msg}\n`);
+        process.exitCode = 1;
+      });
+  }
 }
 
-export function parseMainArgs(args: string[], fallbackWorkdir: string): { workdir: string } {
+export interface MainArgs {
+  workdir: string;
+  batch?: string;
+}
+
+const HELP_TEXT = `Usage: mixcode-pi [options]
+
+Options:
+  --workdir <path>   Set working directory (default: cwd)
+  --batch <file>     Execute a Lua batch script after TUI startup
+  --help, -h         Show this help message
+`;
+
+export function parseMainArgs(args: string[], fallbackWorkdir: string): MainArgs {
   const baseWorkdir = resolve(fallbackWorkdir);
   let workdir = baseWorkdir;
+  let batchPath: string | undefined;
   for (let index = 0; index < args.length; index++) {
     const arg = args[index];
+    if (arg === "--help" || arg === "-h") {
+      process.stdout.write(HELP_TEXT);
+      process.exit(0);
+    }
     if (arg === "--workdir") {
       const value = args[++index];
       if (!value) throw new Error("--workdir requires a path");
@@ -44,9 +187,21 @@ export function parseMainArgs(args: string[], fallbackWorkdir: string): { workdi
       workdir = resolve(baseWorkdir, value);
       continue;
     }
+    if (arg === "--batch") {
+      const value = args[++index];
+      if (!value) throw new Error("--batch requires a file path");
+      batchPath = value;
+      continue;
+    }
+    if (arg?.startsWith("--batch=")) {
+      const value = arg.slice("--batch=".length);
+      if (!value) throw new Error("--batch requires a file path");
+      batchPath = value;
+      continue;
+    }
     throw new Error(`Unknown argument: ${arg}`);
   }
-  return { workdir };
+  return { workdir, batch: batchPath ? resolve(workdir, batchPath) : undefined };
 }
 
 export function exposeLocalPiCli(
