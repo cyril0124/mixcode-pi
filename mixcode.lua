@@ -13,6 +13,14 @@ mixcode = {}
 ---@field thinking? "off"|"minimal"|"low"|"medium"|"high"|"xhigh" Thinking level
 ---@field mode? "append"|"clear" Reuse behavior when tab exists (default: "append")
 
+---@class mixcode.TabInfo
+---@field name string Tab title
+---@field session_id string Runtime session id
+---@field workdir string Tab working directory
+---@field model string Model display name
+---@field thinking "off"|"minimal"|"low"|"medium"|"high"|"xhigh" Thinking level
+---@field status string Tab status
+
 ---Open a new agent tab or reuse an existing one by exact title match.
 ---If a tab with the same `name` already exists:
 ---  - mode="append" (default): prompt is appended to the existing session
@@ -22,3 +30,16 @@ mixcode = {}
 ---Throws on failure (missing fields, unknown model, invalid thinking level).
 ---@param opts mixcode.OpenTabOptions
 function mixcode.open_tab(opts) end
+
+---Return the current MixCode workdir.
+---@return string
+function mixcode.current_workdir() end
+
+---Return whether a tab with the exact title exists at batch startup.
+---@param name string
+---@return boolean
+function mixcode.tab_exists(name) end
+
+---List tabs visible at batch startup.
+---@return mixcode.TabInfo[]
+function mixcode.list_tabs() end

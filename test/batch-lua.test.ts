@@ -5,13 +5,14 @@ import { tmpdir } from "node:os";
 import { test } from "node:test";
 import {
   applyBatchRequests,
+  contextFromState,
   executeBatchScript,
   runLuaScript,
   type BatchExecutorHost,
   type BatchTabRequest,
 } from "../src/core/batch-lua.js";
 import { parseMainArgs } from "../src/cli/main.js";
-import { createInitialState } from "../src/index.js";
+import { createInitialState, createTab } from "../src/index.js";
 
 // --- parseMainArgs --batch tests ---
 
@@ -110,6 +111,51 @@ test("runLuaScript returns empty array when no open_tab calls", async () => {
   const script = `local x = 1 + 2`;
   const requests = await runLuaScript(script, "test.lua");
   assert.equal(requests.length, 0);
+});
+
+test("runLuaScript exposes current_workdir", async () => {
+  const script = `
+    mixcode.open_tab({ name = "wd", prompt = mixcode.current_workdir() })
+  `;
+  const requests = await runLuaScript(script, "test.lua", { workdir: "/repo", tabs: [] });
+  assert.equal(requests[0]!.prompt, "/repo");
+});
+
+test("runLuaScript exposes tab_exists", async () => {
+  const script = `
+    if mixcode.tab_exists("known") then
+      mixcode.open_tab({ name = "known", prompt = "exists" })
+    else
+      mixcode.open_tab({ name = "known", prompt = "missing" })
+    end
+  `;
+  const requests = await runLuaScript(script, "test.lua", {
+    workdir: "/repo",
+    tabs: [{ name: "known", sessionId: "s1", workdir: "/repo", model: "m", thinking: "high", status: "idle" }],
+  });
+  assert.equal(requests[0]!.prompt, "exists");
+});
+
+test("runLuaScript exposes list_tabs", async () => {
+  const script = `
+    local tabs = mixcode.list_tabs()
+    mixcode.open_tab({ name = "summary", prompt = tabs[1].name .. ":" .. tabs[1].model .. ":" .. tabs[1].thinking })
+  `;
+  const requests = await runLuaScript(script, "test.lua", {
+    workdir: "/repo",
+    tabs: [{ name: "agent", sessionId: "s1", workdir: "/repo", model: "provider/model", thinking: "low", status: "idle" }],
+  });
+  assert.equal(requests[0]!.prompt, "agent:provider/model:low");
+});
+
+test("contextFromState exposes batch Lua context from state tabs", () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo/pkg", { title: "agent" }));
+  const context = contextFromState(state);
+  assert.equal(context.workdir, "/repo");
+  assert.equal(context.tabs[0]!.name, "agent");
+  assert.equal(context.tabs[0]!.sessionId, "s1");
+  assert.equal(context.tabs[0]!.workdir, "/repo/pkg");
 });
 
 // --- applyBatchRequests tests ---

@@ -9,6 +9,20 @@ import type { MixCodeModelRef, MixCodeState } from "./types.js";
  */
 export type BatchReuseMode = "append" | "clear";
 
+export interface BatchLuaTabInfo {
+  name: string;
+  sessionId: string;
+  workdir: string;
+  model: string;
+  thinking: ThinkingLevel;
+  status: string;
+}
+
+export interface BatchLuaContext {
+  workdir: string;
+  tabs: BatchLuaTabInfo[];
+}
+
 export interface BatchTabRequest {
   name: string;
   prompt: string;
@@ -50,17 +64,20 @@ export interface BatchExecutorHost {
  * Throws on any failure (file not found, Lua syntax error, runtime error,
  * tab not found for reuse, unknown model, etc.).
  */
-export async function loadBatchRequests(scriptPath: string): Promise<BatchTabRequest[]> {
+export async function loadBatchRequests(
+  scriptPath: string,
+  context?: BatchLuaContext,
+): Promise<BatchTabRequest[]> {
   const absPath = resolve(scriptPath);
   const source = await readFile(absPath, "utf-8");
-  return runLuaScript(source, absPath);
+  return runLuaScript(source, absPath, context);
 }
 
 export async function executeBatchScript(
   scriptPath: string,
   host: BatchExecutorHost,
 ): Promise<void> {
-  const requests = await loadBatchRequests(scriptPath);
+  const requests = await loadBatchRequests(scriptPath, contextFromState(host.state));
   await applyBatchRequests(requests, host);
 }
 
@@ -71,6 +88,7 @@ export async function executeBatchScript(
 export async function runLuaScript(
   source: string,
   scriptPath: string,
+  context: BatchLuaContext = { workdir: "", tabs: [] },
 ): Promise<BatchTabRequest[]> {
   // Dynamic import because fengari is CJS-only
   const fengari = await import("fengari");
@@ -111,6 +129,36 @@ export async function runLuaScript(
     return 0;
   });
   lua.lua_setfield(L, -2, to_luastring("open_tab"));
+
+  lua.lua_pushcfunction(L, () => {
+    lua.lua_pushstring(L, to_luastring(context.workdir));
+    return 1;
+  });
+  lua.lua_setfield(L, -2, to_luastring("current_workdir"));
+
+  lua.lua_pushcfunction(L, (L: any) => {
+    const name = lua.lua_isnoneornil(L, 1) ? "" : to_jsstring(lua.lua_tostring(L, 1));
+    lua.lua_pushboolean(L, context.tabs.some((tab) => tab.name === name));
+    return 1;
+  });
+  lua.lua_setfield(L, -2, to_luastring("tab_exists"));
+
+  lua.lua_pushcfunction(L, (L: any) => {
+    lua.lua_createtable(L, context.tabs.length, 0);
+    context.tabs.forEach((tab, index) => {
+      lua.lua_createtable(L, 0, 6);
+      setStringField(L, "name", tab.name, lua, to_luastring);
+      setStringField(L, "session_id", tab.sessionId, lua, to_luastring);
+      setStringField(L, "workdir", tab.workdir, lua, to_luastring);
+      setStringField(L, "model", tab.model, lua, to_luastring);
+      setStringField(L, "thinking", tab.thinking, lua, to_luastring);
+      setStringField(L, "status", tab.status, lua, to_luastring);
+      lua.lua_rawseti(L, -2, index + 1);
+    });
+    return 1;
+  });
+  lua.lua_setfield(L, -2, to_luastring("list_tabs"));
+
   lua.lua_setglobal(L, to_luastring("mixcode"));
 
   // Execute the script
@@ -213,6 +261,20 @@ export async function applyBatchRequests(
   await Promise.all(operations);
 }
 
+export function contextFromState(state: MixCodeState): BatchLuaContext {
+  return {
+    workdir: state.workdir,
+    tabs: state.tabs.map((tab) => ({
+      name: tab.title,
+      sessionId: tab.sessionId,
+      workdir: tab.workdir,
+      model: tab.model.displayName,
+      thinking: tab.thinkingLevel,
+      status: tab.status,
+    })),
+  };
+}
+
 // Helper to read a string field from a Lua table at the given stack index
 function getStringField(
   L: any,
@@ -231,4 +293,15 @@ function getStringField(
   const value = to_jsstring(lua.lua_tostring(L, -1));
   lua.lua_pop(L, 1);
   return value;
+}
+
+function setStringField(
+  L: any,
+  field: string,
+  value: string,
+  lua: any,
+  to_luastring: (s: string) => Uint8Array,
+): void {
+  lua.lua_pushstring(L, to_luastring(value));
+  lua.lua_setfield(L, -2, to_luastring(field));
 }

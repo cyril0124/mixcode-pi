@@ -4,6 +4,7 @@ import { cwd } from "node:process";
 import { fileURLToPath } from "node:url";
 import {
   applyBatchRequests,
+  contextFromState,
   loadBatchRequests,
   validateBatchRequests,
   type BatchExecutorHost,
@@ -28,7 +29,9 @@ export async function main(): Promise<void> {
     await bootstrapMixCode({
       workdir: args.workdir,
     });
-  const batchRequests = args.batch ? await loadBatchRequests(args.batch) : undefined;
+  const batchRequests = args.batch
+    ? await loadBatchRequests(args.batch, contextFromState(state))
+    : undefined;
   if (batchRequests) validateBatchRequests(batchRequests, (query) => findModelRef(state.availableModels, query));
   const tui = createMixCodeTui(state, runtime, {
     completionSources,
