@@ -372,8 +372,6 @@ export function resetTabForNewSession(tab: MixCodeTabInfo, sessionId: string): v
   tab.tokenInput = 0;
   tab.tokenOutput = 0;
   tab.currentContextTokens = undefined;
-  tab.todoVisible = false;
-  tab.todos = [];
   tab.pendingDialogs = [];
   tab.pendingMessages = [];
   tab.chatScrollOffset = 0;
@@ -381,9 +379,6 @@ export function resetTabForNewSession(tab: MixCodeTabInfo, sessionId: string): v
   tab.previewIndex = 0;
   tab.previewScrollOffset = 0;
   tab.previewHint = "";
-  tab.shellOpen = false;
-  tab.shellSession = undefined;
-  tab.shellScrollOffset = 0;
   tab.pendingEscapeAction = undefined;
   tab.pendingEscapeArmedAt = undefined;
   tab.goal = undefined;

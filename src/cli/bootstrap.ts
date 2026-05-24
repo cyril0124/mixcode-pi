@@ -100,7 +100,6 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
   }
   state.activeTabId = "config";
   const modelRepairs = repairUnavailableTabModels(state);
-  state.connected = true;
   const runtime = new MixCodeRuntime({
     sessionsRoot: join(stateDir, "sessions"),
     rootStateDir,

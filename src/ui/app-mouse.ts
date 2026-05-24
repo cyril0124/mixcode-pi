@@ -5,14 +5,14 @@ import {
 } from "../core/chat-selection.js";
 import { copyTextToClipboard, type ClipboardWriter } from "../core/clipboard.js";
 import { hitMouseRegion, parseSgrMouseInput } from "../core/mouse.js";
-import { scrollChat, scrollPreview, scrollShell } from "../core/overlays.js";
+import { scrollChat, scrollPreview } from "../core/overlays.js";
 import { pushToast } from "../core/toast.js";
 import { createPicker } from "../core/pickers.js";
 import { activateTab } from "../core/tabs.js";
 import type { MixCodeState } from "../core/types.js";
 import { hasAnyOverlay, showLinesOverlay } from "./app-overlays.js";
 import { activeExtensionCommands } from "./app-runtime.js";
-import type { MixCodeKeyRuntime, OverlayTui, ShellKeyManager } from "./app-types.js";
+import type { MixCodeKeyRuntime, OverlayTui } from "./app-types.js";
 import { renderCommandPalette, renderPickerOverlay, tabBarHitRegions } from "./rendering.js";
 
 export function handleChatSelectionMouseInput(
@@ -24,7 +24,7 @@ export function handleChatSelectionMouseInput(
   copyToClipboard: ClipboardWriter = copyTextToClipboard,
 ): boolean {
   const mouse = parseSgrMouseInput(data);
-  if (!mouse || !active || state.activeTabId === "config" || active.shellOpen) return false;
+  if (!mouse || !active || state.activeTabId === "config") return false;
   return handleChatSelectionMouse(active, mouse, tui, copyToClipboard);
 }
 
@@ -33,7 +33,7 @@ export function handleMouseInput(
   active: MixCodeState["tabs"][number] | undefined,
   data: string,
   tui: OverlayTui,
-  shellManager?: ShellKeyManager,
+  _shellManager?: unknown,
   runtime?: Pick<MixCodeKeyRuntime, "appendSystemMessage">,
   copyToClipboard: ClipboardWriter = copyTextToClipboard,
 ): boolean {
@@ -47,20 +47,6 @@ export function handleMouseInput(
     return true;
   }
   if (hasAnyOverlay(tui)) return false;
-  if (active.shellOpen) {
-    if (active.shellSession?.sgrMouse || (mouse.wheel && active.shellSession?.alternateScreen)) {
-      const forwarded = shellManager?.writeMouse?.(active, mouse) ?? false;
-      if (forwarded) {
-        tui.requestRender();
-        return true;
-      }
-    }
-    if (mouse.wheel && scrollShell(active, mouse.wheel === "up" ? -3 : 3)) {
-      tui.requestRender();
-      return true;
-    }
-    return false;
-  }
   if (handleChatSelectionMouseInput(state, active, data, tui, runtime, copyToClipboard)) {
     return true;
   }
@@ -100,36 +86,6 @@ function handleChromeMouse(
       tui.requestRender();
       return true;
     }
-  }
-  if (state.activeTabId === "config" && mouse.button === 0 && !mouse.release && !mouse.wheel) {
-    const action = state.configActionHitRegions?.find(
-      (region) => region.row === mouse.y && mouse.x >= region.startX && mouse.x <= region.endX,
-    )?.action;
-    if (!action) return false;
-    if (action === "theme") {
-      state.picker = createPicker(action, state, active);
-      showLinesOverlay(tui, (width) => renderPickerOverlay(state, width));
-      tui.requestRender();
-      return true;
-    }
-    const commands: Record<
-      NonNullable<MixCodeState["configActionHitRegions"]>[number]["action"],
-      string
-    > = {
-      "new-session": "/new-session",
-      theme: "/theme",
-      "save-workspace": "/save-workspace",
-      "restore-workspace": "/restore-workspace",
-      "delete-workspace": "/delete-workspace",
-    };
-    state.commandPaletteOpen = true;
-    state.commandPalette.query = commands[action];
-    state.commandPalette.selectedIndex = 0;
-    showLinesOverlay(tui, (width) =>
-      renderCommandPalette(state, width, activeExtensionCommands(state, undefined)),
-    );
-    tui.requestRender();
-    return true;
   }
   if (
     active &&

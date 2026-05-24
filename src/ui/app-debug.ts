@@ -4,7 +4,6 @@ interface MixCodeTuiDebugState {
   version: 1;
   workdir: string;
   activeTabId: string;
-  connected: boolean;
   theme: string;
   overlays: {
     exportChooserOpen: boolean;
@@ -26,16 +25,12 @@ interface MixCodeTuiDebugState {
     workdir: string;
     alias: string;
     thinkingLevel: string;
-    todoVisible: boolean;
-    todoCount: number;
     pendingDialogCount: number;
     chatScrollOffset: number;
     previewOpen: boolean;
     previewIndex: number;
     previewScrollOffset: number;
     previewHint: string;
-    shellOpen: boolean;
-    shellScrollOffset: number;
     unreadDone: boolean;
     pendingEscapeAction?: PendingEscapeAction;
     workingStartedAt?: string;
@@ -61,7 +56,6 @@ export function createTuiDebugState(state: MixCodeState): MixCodeTuiDebugState {
     version: 1,
     workdir: state.workdir,
     activeTabId: state.activeTabId,
-    connected: state.connected,
     theme: state.theme,
     overlays: {
       exportChooserOpen: state.exportChooserOpen,
@@ -92,16 +86,12 @@ export function createTuiDebugState(state: MixCodeState): MixCodeTuiDebugState {
       workdir: tab.workdir,
       alias: tab.alias,
       thinkingLevel: tab.thinkingLevel,
-      todoVisible: tab.todoVisible,
-      todoCount: tab.todos.length,
       pendingDialogCount: tab.pendingDialogs.length,
       chatScrollOffset: tab.chatScrollOffset,
       previewOpen: tab.previewOpen,
       previewIndex: tab.previewIndex,
       previewScrollOffset: tab.previewScrollOffset,
       previewHint: tab.previewHint,
-      shellOpen: tab.shellOpen,
-      shellScrollOffset: tab.shellScrollOffset,
       unreadDone: tab.unreadDone,
       pendingEscapeAction: tab.pendingEscapeAction,
       workingStartedAt: tab.workingStartedAt,

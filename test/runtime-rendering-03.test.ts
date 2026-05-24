@@ -205,8 +205,6 @@ test("rendering exposes input metadata and tab bar landmarks", () => {
       },
     ],
     unreadDone: true,
-    todoVisible: true,
-    todos: [{ id: "t1", content: "Fix bug", status: "completed" }],
     pendingMessages: ["queued extension work"],
     extensionUi: {
       statuses: [{ key: "extension", text: "ready" }],
@@ -277,10 +275,7 @@ test("rendering exposes input metadata and tab bar landmarks", () => {
     /Analyzing\.\.\. private chain/,
   );
   const narrowAgentSurfaceLines = renderAgentSurface(
-    createTab(14, "s14", "/repo", {
-      todoVisible: true,
-      todos: [{ id: "t14", content: "wide todo", status: "pending" }],
-    }),
+    createTab(14, "s14", "/repo"),
     { reasoning: [], chat: [{ role: "assistant", text: "main" }] } as never,
     55,
   );

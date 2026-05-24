@@ -14,7 +14,6 @@ import {
   renderInputMeta,
   renderPickerOverlay,
   renderQuestionOverlay,
-  renderShellOverlay,
   tabBarHitRegions,
   setTheme,
   themeForId,
@@ -248,76 +247,6 @@ test("global key input toggles MixCode overlays and passes through regular input
   assert.equal(handleMixCodeKeyInput(state, "\x1b[<0;30;1M", tui), undefined);
   assert.equal(state.activeTabId, "s1");
   tab.extensionUi.header = undefined;
-  tab.shellOpen = true;
-  tab.shellSession = {
-    cwd: "/repo",
-    command: "sh",
-    buffer: Array.from({ length: 20 }, (_, index) => `shell-${index}`),
-    input: "",
-  };
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[<0;30;1M", tui), { consume: true });
-  assert.equal(state.activeTabId, "s2");
-  state.activeTabId = "s1";
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[<65;20;6M", tui), { consume: true });
-  assert.equal(tab.shellScrollOffset, 3);
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[<64;20;6M", tui), { consume: true });
-  assert.equal(tab.shellScrollOffset, 0);
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[B", tui), { consume: true });
-  assert.equal(tab.shellScrollOffset, 3);
-  tab.chatScrollOffset = 44;
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[5~", tui), { consume: true });
-  assert.equal(tab.shellScrollOffset, 0);
-  assert.equal(tab.chatScrollOffset, 44);
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[6~", tui), { consume: true });
-  assert.equal(tab.shellScrollOffset, 4);
-  assert.equal(tab.chatScrollOffset, 44);
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[F", tui), { consume: true });
-  assert.equal(tab.shellScrollOffset, 4);
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[A", tui), { consume: true });
-  assert.equal(tab.shellScrollOffset, 1);
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[H", tui), { consume: true });
-  assert.equal(tab.shellScrollOffset, 0);
-  assert.equal(tab.chatScrollOffset, 44);
-  assert.equal(handleMixCodeKeyInput(state, "j", tui), undefined);
-  let shellWrites: string[] = [];
-  const shellManager = {
-    write: (_tab: typeof tab, data: string) => {
-      shellWrites.push(data);
-      return true;
-    },
-  };
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x16", tui, shellManager), { consume: true });
-  assert.equal(tab.previewOpen, false);
-  assert.deepEqual(shellWrites, ["\x16"]);
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x0c", tui, shellManager), { consume: true });
-  assert.equal(state.exportChooserOpen, false);
-  assert.deepEqual(
-    handleMixCodeKeyInput(state, "\x05", tui, shellManager, undefined, undefined, () => false, {
-      getText: () => "",
-      setText: () => undefined,
-    }),
-    { consume: true },
-  );
-  assert.deepEqual(shellWrites, ["\x16", "\x0c", "\x05"]);
-  assert.deepEqual(
-    handleMixCodeKeyInput(
-      state,
-      "\x10",
-      tui,
-      shellManager,
-      undefined,
-      undefined,
-      () => false,
-      undefined,
-      { executeCommand: async () => undefined, extensionCommands: () => [] },
-    ),
-    { consume: true },
-  );
-  assert.equal(state.commandPaletteOpen, true);
-  state.commandPaletteOpen = false;
-  overlayOpen = false;
-  tab.shellOpen = false;
-  shellWrites = [];
   tab.chatScrollOffset = 0;
   assert.equal(handleMixCodeKeyInput(state, "\x16", tui), undefined);
   assert.equal(tab.previewOpen, false);
@@ -551,7 +480,6 @@ test("global key input toggles MixCode overlays and passes through regular input
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui), { consume: true });
   state.activeTabId = "config";
   renderConfig(state, 100);
-  assert.deepEqual(state.configActionHitRegions, []);
   assert.equal(handleMixCodeKeyInput(state, "\x1b[<0;10;10M", tui), undefined);
   assert.equal(state.picker, undefined);
   assert.equal(state.commandPaletteOpen, false);

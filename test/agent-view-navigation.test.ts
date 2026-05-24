@@ -115,20 +115,6 @@ test("Left on empty input does NOT trigger when autocomplete is open", () => {
   assert.equal(state.activeTabId, "s1");
 });
 
-test("Left on empty input does NOT trigger when shell is open", () => {
-  const state = createInitialState("/repo");
-  const tab = createTab(1, "s1", "/repo", { shellOpen: true });
-  state.tabs.push(tab);
-  state.activeTabId = "s1";
-  const tui = makeTui();
-  const editorActions = makeEditorActions("");
-
-  // Shell key handler will consume this before our check, but verify state
-  const result = handleMixCodeKeyInput(state, "\x1b[D", tui, undefined, undefined, undefined, () => false, editorActions);
-  // Shell is open so shell handler or our guard prevents Home navigation
-  assert.equal(state.activeTabId, "s1");
-});
-
 test("Left on empty input does NOT trigger when preview is open", () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo", { previewOpen: true });

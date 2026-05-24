@@ -88,10 +88,7 @@ test("MixCodeRoot caps agent view to keep header and tabs in the terminal viewpo
 
 test("MixCodeRoot keeps every rendered row within a narrow terminal width", () => {
   const state = createInitialState("/repo");
-  const tab = createTab(1, "s1", "/repo", {
-    todoVisible: true,
-    todos: [{ id: "t1", content: "wide todo should not force wrap", status: "pending" }],
-  });
+  const tab = createTab(1, "s1", "/repo");
   state.tabs.push(tab);
   state.activeTabId = "s1";
   const chat = [

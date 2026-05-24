@@ -353,7 +353,6 @@ test("runtime maps tool and thinking events into tab UI state", async () => {
     },
     isError: false,
   });
-  assert.deepEqual(tab.todos, []);
   anyRuntime.applyEvent(runtimeTab, {
     type: "tool_execution_end",
     toolCallId: "2",
@@ -376,7 +375,6 @@ test("runtime maps tool and thinking events into tab UI state", async () => {
     isError: false,
   });
   assert.equal(tab.status, "thinking");
-  assert.equal(tab.todoVisible, false);
   assert.equal(tab.pendingDialogs.length, 0);
   assert.equal(runtimeTab.reasoning.filter((line) => line.includes("think")).length, 1);
   assert.ok(runtimeTab.reasoning.join("\n").includes("think more"));

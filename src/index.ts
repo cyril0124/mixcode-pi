@@ -25,7 +25,6 @@ export * from "./core/prompt-templates.js";
 export * from "./core/skill-command.js";
 export * from "./core/dialogs.js";
 export * from "./core/session-selector.js";
-export * from "./core/shell-session.js";
 export * from "./core/state-store.js";
 export * from "./core/status.js";
 export * from "./core/system-prompt.js";

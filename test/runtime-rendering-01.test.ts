@@ -205,8 +205,6 @@ test("rendering exposes header, status, working indicator, and sidebar landmarks
       },
     ],
     unreadDone: true,
-    todoVisible: true,
-    todos: [{ id: "t1", content: "Fix bug", status: "completed" }],
     pendingMessages: ["queued extension work"],
     extensionUi: {
       statuses: [{ key: "extension", text: "ready" }],
@@ -477,23 +475,17 @@ test("rendering exposes header, status, working indicator, and sidebar landmarks
   assert.deepEqual(renderSidebar(tab, 40), []);
   assert.deepEqual(
     renderSidebar(
-      createTab(3, "s3", "/repo", {
-        todoVisible: true,
-        todos: [{ id: "t2", content: "Todo", status: "pending" }],
-      }),
+      createTab(3, "s3", "/repo"),
       40,
     ),
     [],
   );
   assert.deepEqual(
     renderSidebar(
-      createTab(4, "s4", "/repo", {
-        todoVisible: true,
-        todos: [{ id: "t3", content: "Doing", status: "in_progress", priority: "high" }],
-      }),
+      createTab(4, "s4", "/repo"),
       40,
     ),
     [],
   );
-  assert.deepEqual(renderSidebar(createTab(5, "s5", "/repo", { todoVisible: true }), 40), []);
+  assert.deepEqual(renderSidebar(createTab(5, "s5", "/repo"), 40), []);
 });

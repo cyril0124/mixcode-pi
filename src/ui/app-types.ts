@@ -1,6 +1,5 @@
 import type { AutocompleteProvider, TUI as TuiType } from "@earendil-works/pi-tui";
 import type { MixCodeRuntime } from "../agent/runtime.js";
-import type { ShellManager } from "../core/shell-session.js";
 import type { MixCodeState } from "../core/types.js";
 
 export type MixCodeKeyRuntime = Partial<
@@ -81,8 +80,6 @@ export type MixCodeSubmitRuntime = Pick<
   OptionalSubmitRuntime;
 
 export type RuntimeChangeSource = Pick<MixCodeRuntime, "onChange">;
-export type ShellKeyManager = Pick<ShellManager, "write"> &
-  Partial<Pick<ShellManager, "close" | "writeMouse">>;
 export interface WorkspaceKeyOptions {
   workspaceFile?: string;
 }

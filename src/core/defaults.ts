@@ -15,7 +15,6 @@ export const DEFAULT_MODEL_REF: MixCodeModelRef = {
 export function createInitialState(workdir: string): MixCodeState {
   return {
     workdir,
-    mainSessionId: "",
     tabs: [],
     activeTabId: "config",
     packageUpdates: [],
@@ -40,7 +39,6 @@ export function createInitialState(workdir: string): MixCodeState {
     tabJumpQuery: "",
     tabJumpIndex: 0,
     picker: undefined,
-    connected: false,
     model: { ...DEFAULT_MODEL_REF },
     thinkingLevel: "medium",
     theme: DEFAULT_THEME_ID,
@@ -67,8 +65,6 @@ export function createTab(
     thinkingLevel: "medium",
     workdir,
     alias: "",
-    todoVisible: false,
-    todos: [],
     pendingDialogs: [],
     pendingMessages: [],
     promptHistory: [],
@@ -83,8 +79,6 @@ export function createTab(
     vimMode: false,
     vimPendingEscapeAt: undefined,
     vimPendingHome: false,
-    shellOpen: false,
-    shellScrollOffset: 0,
     redoSessionId: undefined,
     pendingEscapeAction: undefined,
     pendingEscapeArmedAt: undefined,

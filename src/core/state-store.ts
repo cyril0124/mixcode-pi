@@ -30,7 +30,6 @@ export function normalizeStartupWorkdir(workdir: string): string {
 export function serializeState(state: MixCodeState, port: number): Record<string, unknown> {
   return {
     port,
-    main_session_id: state.mainSessionId,
     children: state.tabs.map((tab) => tab.sessionId),
     model: state.model,
     variant: state.thinkingLevel,
@@ -74,11 +73,6 @@ export function serializeState(state: MixCodeState, port: number): Record<string
         .filter((tab) => tab.chatScrollOffset > 0)
         .map((tab) => [tab.sessionId, tab.chatScrollOffset]),
     ),
-    shell_scroll_offsets: Object.fromEntries(
-      state.tabs
-        .filter((tab) => tab.shellScrollOffset > 0)
-        .map((tab) => [tab.sessionId, tab.shellScrollOffset]),
-    ),
     pending_messages: Object.fromEntries(
       state.tabs
         .filter((tab) => tab.pendingMessages.length > 0)
@@ -105,7 +99,6 @@ export function deserializeState(
   const state = createInitialState(
     typeof data.startup_workdir === "string" ? data.startup_workdir : fallbackWorkdir,
   );
-  state.mainSessionId = typeof data.main_session_id === "string" ? data.main_session_id : "";
   state.activeTabId = typeof data.active_tab === "string" ? data.active_tab : "config";
   if (typeof data.theme === "string") setTheme(state, data.theme);
   if (data.model && typeof data.model === "object" && !Array.isArray(data.model)) {
@@ -130,7 +123,6 @@ export function deserializeState(
   const previewIndices = objectRecord(data.preview_indices);
   const previewScrollOffsets = objectRecord(data.preview_scroll_offsets);
   const chatScrollOffsets = objectRecord(data.chat_scroll_offsets);
-  const shellScrollOffsets = objectRecord(data.shell_scroll_offsets);
   const pendingMessages = objectRecord(data.pending_messages);
   const goals = objectRecord(data.goals);
   const redoSessions = objectRecord(data.redo_sessions);
@@ -154,8 +146,6 @@ export function deserializeState(
               : 0,
           chatScrollOffset:
             typeof chatScrollOffsets[sessionId] === "number" ? chatScrollOffsets[sessionId] : 0,
-          shellScrollOffset:
-            typeof shellScrollOffsets[sessionId] === "number" ? shellScrollOffsets[sessionId] : 0,
           pendingMessages: normalizeStringList(pendingMessages[sessionId]),
           goal: normalizeGoal(goals[sessionId]),
           redoSessionId:

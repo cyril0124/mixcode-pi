@@ -14,7 +14,6 @@ import {
   renderInputMeta,
   renderPickerOverlay,
   renderQuestionOverlay,
-  renderShellOverlay,
   tabBarHitRegions,
   setTheme,
   themeForId,
@@ -105,21 +104,6 @@ test("global key input submits batched inline text ending with enter", () => {
       text = "";
     },
   };
-  state.tabs[0]!.shellOpen = true;
-  assert.equal(
-    handleMixCodeKeyInput(
-      state,
-      "blocked\r",
-      tui,
-      undefined,
-      undefined,
-      undefined,
-      () => false,
-      editor,
-    ),
-    undefined,
-  );
-  state.tabs[0]!.shellOpen = false;
   state.exportChooserOpen = true;
   assert.equal(
     handleMixCodeKeyInput(

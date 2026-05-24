@@ -354,7 +354,6 @@ test("submitted input handles prompt, shell, local commands, clear, and missing 
     assert.equal(state.activeTabId, "cleared");
     assert.equal(tab.previewMessages.some((message) => message.role === "shell"), false);
     assert.ok(changes.length > 0);
-    assert.equal(tab.todoVisible, false);
     assert.equal(tab.thinkingLevel, "high");
     assert.equal(tab.workdir, "/tmp/work");
     assert.equal(tab.title, "Renamed");

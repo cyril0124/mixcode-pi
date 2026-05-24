@@ -290,7 +290,6 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
   const dir = await mkdtemp(join(tmpdir(), "mixcode-state-"));
   try {
     const state = createInitialState("/repo/");
-    state.mainSessionId = "main";
     state.activeTabId = "s1";
     const tabTwoModel = {
       provider: "custom",
@@ -306,7 +305,6 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
         previewMessages: [{ role: "assistant", text: "preview" }],
         previewIndex: 0,
         previewScrollOffset: 2,
-        shellScrollOffset: 3,
         pendingMessages: ["queued"],
         goal: {
           objective: "ship goal",
@@ -333,7 +331,6 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
     assert.deepEqual((serialized.tab_models as Record<string, unknown>).s2, tabTwoModel);
     assert.equal((serialized.tab_variants as Record<string, string>).s2, "xhigh");
     const restored = deserializeState(serialized, "/fallback");
-    assert.equal(restored.mainSessionId, "main");
     assert.equal(restored.theme, "mixcode-dark");
     assert.equal(restored.activeTabId, "s1");
     assert.equal(restored.tabs[0]?.sessionId, "s1");
@@ -343,7 +340,7 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
     assert.equal(restored.tabs[0]?.unreadDone, true);
     assert.deepEqual(restored.tabs[0]?.previewMessages, [{ role: "assistant", text: "preview" }]);
     assert.equal(restored.tabs[0]?.previewScrollOffset, 2);
-    assert.equal(restored.tabs[0]?.shellScrollOffset, 3);
+
     assert.deepEqual(restored.tabs[0]?.pendingMessages, ["queued"]);
     assert.equal(restored.tabs[0]?.goal?.objective, "ship goal");
     assert.equal(restored.tabs[0]?.redoSessionId, "redo-s1");
@@ -358,14 +355,13 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
 
     const stateFile = stateFileForPort(dir, 3010);
     await saveStateFile(stateFile, state, 3010);
-    assert.equal((await loadStateFile(stateFile, "/fallback")).mainSessionId, "main");
+    assert.equal((await loadStateFile(stateFile, "/fallback")).workdir, "/repo/");
     const concurrentState = createInitialState("/repo");
-    concurrentState.mainSessionId = "concurrent";
     const concurrentFile = stateFileForPort(dir, 4010);
     await Promise.all(
       Array.from({ length: 8 }, () => saveStateFile(concurrentFile, concurrentState, 4010)),
     );
-    assert.equal((await loadStateFile(concurrentFile, "/fallback")).mainSessionId, "concurrent");
+    assert.equal((await loadStateFile(concurrentFile, "/fallback")).workdir, "/repo");
     await assert.rejects(
       writeFile(stateFile, "[]").then(() => loadStateFile(stateFile, "/fallback")),
       /Invalid state file/,

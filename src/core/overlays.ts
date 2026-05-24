@@ -3,13 +3,6 @@ import { activateTab } from "./tabs.js";
 import type { CommandPaletteEntry, MixCodeState, MixCodeTabInfo } from "./types.js";
 import { tabHasPendingUserInteraction } from "./user-interactions.js";
 
-export function toggleShell(tab: MixCodeTabInfo): void {
-  tab.shellOpen = !tab.shellOpen;
-  tab.pendingEscapeAction = undefined;
-  tab.pendingEscapeArmedAt = undefined;
-  tab.shellScrollOffset = 0;
-}
-
 export function togglePreview(tab: MixCodeTabInfo): void {
   tab.previewOpen = !tab.previewOpen;
   if (tab.previewOpen) {
@@ -81,13 +74,6 @@ export function previewTitle(tab: MixCodeTabInfo): string {
   const index = clampPreviewIndex(tab);
   const role = tab.previewMessages[index]?.role ?? "empty";
   return `${previewRoleLabel(role)} Message ${index + 1} / ${tab.previewMessages.length}`;
-}
-
-export function scrollShell(tab: MixCodeTabInfo, delta: number, visibleLines = 16): boolean {
-  if (!tab.shellOpen || !tab.shellSession) return false;
-  const maxOffset = Math.max(0, tab.shellSession.buffer.length - visibleLines);
-  tab.shellScrollOffset = Math.min(maxOffset, Math.max(0, tab.shellScrollOffset + delta));
-  return true;
 }
 
 function clampPreviewIndex(tab: MixCodeTabInfo): number {

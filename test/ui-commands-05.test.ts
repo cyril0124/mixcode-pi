@@ -14,7 +14,6 @@ import {
   renderInputMeta,
   renderPickerOverlay,
   renderQuestionOverlay,
-  renderShellOverlay,
   tabBarHitRegions,
   setTheme,
   themeForId,
@@ -223,102 +222,6 @@ test("submitted input shows session info from pi runtime", async () => {
   );
 });
 
-test("submitted input and key input route interactive shell sessions", async () => {
-  const state = createInitialState("/repo");
-  const tab = createTab(1, "s1", "/repo");
-  state.tabs.push(tab);
-  state.activeTabId = "s1";
-  let renders = 0;
-  const opened: string[] = [];
-  const closed: string[] = [];
-  const written: string[] = [];
-  const shellManager = {
-    open: (target: typeof tab) => {
-      opened.push(target.sessionId);
-      target.shellOpen = true;
-      target.shellSession = { cwd: target.workdir, command: "sh", buffer: [], input: "" };
-      return target.shellSession;
-    },
-    close: (target: typeof tab) => {
-      closed.push(target.sessionId);
-      target.shellOpen = false;
-    },
-    write: (target: typeof tab, data: string) => {
-      written.push(`${target.sessionId}:${data}`);
-      if (data === "\u007f") target.shellSession!.input = target.shellSession!.input.slice(0, -1);
-      if (data === "\u0003") target.shellSession!.input = "";
-      return true;
-    },
-    writeMouse: (
-      target: typeof tab,
-      mouse: { button: number; x: number; y: number; release: boolean; wheel?: "up" | "down" },
-    ) => {
-      written.push(
-        `${target.sessionId}:mouse:${mouse.button};${mouse.x};${mouse.y};${mouse.wheel ?? ""}`,
-      );
-      return true;
-    },
-  };
-  const runtime = {
-    getTab: () => undefined,
-  } as unknown as MixCodeRuntime;
-  const tui = {
-    requestRender: () => renders++,
-    showOverlay: () => ({}) as never,
-    hideOverlay: () => undefined,
-    hasOverlay: () => false,
-  };
-
-  shellManager.open(tab);
-  assert.deepEqual(opened, ["s1"]);
-  assert.equal(tab.shellOpen, true);
-  assert.deepEqual(handleMixCodeKeyInput(state, "a", tui, shellManager), { consume: true });
-  assert.deepEqual(handleMixCodeKeyInput(state, "\u007f", tui, shellManager), { consume: true });
-  assert.deepEqual(
-    handleMixCodeKeyInput(state, "\u0003", tui, shellManager, undefined, undefined, () => false, {
-      getText: () => "should not clear",
-      setText: () => written.push("editor-cleared"),
-    }),
-    { consume: true },
-  );
-  assert.deepEqual(written, ["s1:a", "s1:\u007f", "s1:\u0003"]);
-  tab.shellSession!.sgrMouse = true;
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[<64;4;5M", tui, shellManager), {
-    consume: true,
-  });
-  assert.equal(tab.shellScrollOffset, 0);
-  assert.equal(written.at(-1), "s1:mouse:64;4;5;up");
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[<0;4;5M", tui, shellManager), {
-    consume: true,
-  });
-  assert.equal(written.at(-1), "s1:mouse:0;4;5;");
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[<3;4;5m", tui, shellManager), {
-    consume: true,
-  });
-  assert.equal(written.at(-1), "s1:mouse:3;4;5;");
-  tab.shellSession!.sgrMouse = false;
-  tab.shellSession!.alternateScreen = true;
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[<65;4;5M", tui, shellManager), {
-    consume: true,
-  });
-  assert.equal(written.at(-1), "s1:mouse:65;4;5;down");
-  tab.shellSession!.alternateScreen = false;
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui, shellManager), { consume: true });
-  assert.deepEqual(closed, ["s1"]);
-  assert.equal(tab.shellOpen, false);
-  assert.equal(tab.pendingEscapeAction, undefined);
-  shellManager.open(tab);
-  assert.equal(tab.shellOpen, true);
-  assert.equal(tab.pendingEscapeAction, undefined);
-  assert.deepEqual(handleMixCodeKeyInput(state, "b", tui, shellManager), { consume: true });
-  assert.equal(tab.pendingEscapeAction, undefined);
-  assert.equal(handleMixCodeKeyInput(state, "c", tui, { write: () => false }), undefined);
-  shellManager.close(tab);
-  assert.deepEqual(closed, ["s1", "s1"]);
-  assert.equal(tab.shellOpen, false);
-  assert.equal(renders, 9);
-});
-
 test("submitted input deletes a single session or all sessions through runtime", async () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"), createTab(2, "s2", "/repo"));
@@ -402,14 +305,11 @@ test("config-scoped submitted input runs without an active agent tab", async () 
   const debugTab = createTab(1, "debug", "/repo", {
     status: "running",
     alias: "debugger",
-    todoVisible: true,
     chatScrollOffset: 2,
     previewOpen: true,
     previewIndex: 1,
     previewScrollOffset: 3,
     previewHint: "preview",
-    shellOpen: true,
-    shellScrollOffset: 4,
     unreadDone: true,
     pendingEscapeAction: "abort",
     workingStartedAt: "2026-05-10T00:00:00.000Z",

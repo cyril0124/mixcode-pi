@@ -64,45 +64,6 @@ function renderQuestionOverlayInner(tab: MixCodeTabInfo, width: number): string[
   );
 }
 
-export function renderShellOverlay(
-  tab: MixCodeTabInfo,
-  width: number,
-  theme: MixCodeTheme = activeRenderTheme,
-): string[] {
-  return renderWithTheme(theme, () => renderShellOverlayInner(tab, width));
-}
-
-function renderShellOverlayInner(tab: MixCodeTabInfo, width: number): string[] {
-  if (!tab.shellOpen) return [];
-  const session = tab.shellSession;
-  const escapeHint = isPendingEscapeActive(tab, "close-shell")
-    ? "Esc again: close shell"
-    : "Esc: arm close";
-  if (!session)
-    return box(
-      "Shell",
-      [`workdir: ${tab.workdir}`, "Interactive shell overlay", escapeHint],
-      width,
-    );
-  const state =
-    session.exitCode === undefined && session.signal === undefined
-      ? `pid: ${session.pid ?? "?"}`
-      : `exited: ${session.exitCode ?? session.signal ?? "unknown"}`;
-  const visibleLines = 16;
-  const maxOffset = Math.max(0, session.buffer.length - visibleLines);
-  const offset = Math.min(Math.max(tab.shellScrollOffset, 0), maxOffset);
-  const lines = [
-    `workdir: ${session.cwd}`,
-    `${session.command} | ${state}`,
-    `scroll: ${offset + 1}/${maxOffset + 1}`,
-    escapeHint,
-    "",
-    ...session.buffer.slice(offset, offset + visibleLines),
-    `$ ${session.input}`,
-  ];
-  return box("Shell", lines, width);
-}
-
 export function renderPreviewOverlay(
   tab: MixCodeTabInfo,
   width: number,
@@ -163,7 +124,6 @@ function renderConfigInner(
   // configPanelBox adds a leading spacer, top border, and bottom border around body rows.
   const maxAgentRows = maxRows === undefined ? undefined : Math.max(0, maxRows - 3 - staticBodyRows);
   const agentTableRows = renderAgentViewTable(state, bodyWidth, maxAgentRows);
-  state.configActionHitRegions = [];
   const lines = [
     "",
     ...logo.map((line) => centerLine(activeRenderTheme.accent(line), Math.max(1, width - 2))),

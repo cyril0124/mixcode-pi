@@ -15,7 +15,6 @@ import {
   renderInputMeta,
   renderPickerOverlay,
   renderQuestionOverlay,
-  renderShellOverlay,
   tabBarHitRegions,
   setTheme,
   themeForId,

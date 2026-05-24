@@ -92,16 +92,6 @@ export interface ExtensionManagerPanelState {
   working: boolean;
 }
 
-export interface UsageSnapshot {
-  totalInput: number;
-  totalOutput: number;
-  totalReasoning: number;
-  totalCacheRead: number;
-  totalCacheWrite: number;
-  currentContextTokens?: number;
-  version: string;
-}
-
 export interface GoalState {
   objective: string;
   status: "active" | "paused" | "complete" | "error";
@@ -131,8 +121,6 @@ export interface MixCodeTabInfo {
   thinkingLevel: ThinkingLevel;
   workdir: string;
   alias: string;
-  todoVisible: boolean;
-  todos: TodoItem[];
   pendingDialogs: DialogRequestState[];
   pendingMessages: string[];
   promptHistory: string[];
@@ -147,9 +135,6 @@ export interface MixCodeTabInfo {
   vimMode: boolean;
   vimPendingEscapeAt?: number;
   vimPendingHome?: boolean;
-  shellOpen: boolean;
-  shellSession?: ShellSessionInfo;
-  shellScrollOffset: number;
   goal?: GoalState;
   redoSessionId?: string;
   pendingEscapeAction?: PendingEscapeAction;
@@ -171,15 +156,9 @@ export interface MixCodeTabInfo {
   toast?: ToastNotification;
 }
 
-export type PendingEscapeAction = "abort-agent" | "close-shell" | "reject-question";
+export type PendingEscapeAction = "abort-agent" | "reject-question";
 
 export type InputMetaAction = "workdir" | "models" | "thinking";
-export type ConfigAction =
-  | "new-session"
-  | "theme"
-  | "save-workspace"
-  | "restore-workspace"
-  | "delete-workspace";
 
 export type ExtensionWidgetPlacement = "aboveEditor" | "belowEditor";
 
@@ -229,12 +208,6 @@ export interface InputMetaHitRegion {
   endX: number;
 }
 
-export interface ConfigActionHitRegion {
-  action: ConfigAction;
-  row: number;
-  startX: number;
-  endX: number;
-}
 
 export type PreviewMessageRole =
   | "user"
@@ -250,29 +223,9 @@ export interface PreviewMessage {
   text: string;
 }
 
-export interface ShellSessionInfo {
-  cwd: string;
-  pid?: number;
-  command: string;
-  buffer: string[];
-  input: string;
-  alternateScreen?: boolean;
-  normalMouse?: boolean;
-  sgrMouse?: boolean;
-  exitCode?: number;
-  signal?: string;
-}
-
-export interface TodoItem {
-  id: string;
-  content: string;
-  status: "pending" | "in_progress" | "completed";
-  priority?: "low" | "medium" | "high";
-}
 
 export interface MixCodeState {
   workdir: string;
-  mainSessionId: string;
   tabs: MixCodeTabInfo[];
   activeTabId: string;
   packageUpdates: string[];
@@ -289,13 +242,11 @@ export interface MixCodeState {
   tabJumpQuery: string;
   tabJumpIndex: number;
   picker?: PickerState;
-  connected: boolean;
   model: MixCodeModelRef;
   thinkingLevel: ThinkingLevel;
   theme: string;
   availableModels: MixCodeModelRef[];
   tabBarHitRow?: number;
-  configActionHitRegions?: ConfigActionHitRegion[];
   /** Non-persisted: selected row index in the Agent View table on MixCode Home. */
   homeSelectedTabIndex: number;
 }

@@ -25,7 +25,6 @@ test("bootstrap creates initial state and persists it when no state exists", asy
       port: 7,
       modelConfigPath: join(dir, "missing.jsonc"),
     });
-    assert.equal(state.connected, true);
     assert.equal(state.tabs.length, 1);
     assert.ok(runtime.getTab(state.tabs[0]!.sessionId));
     assert.equal(stateFile, stateFileForPort(scopedStateDir(dir, dir), 7));

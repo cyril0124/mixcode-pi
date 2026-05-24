@@ -16,7 +16,6 @@ import {
   renderInputMeta,
   renderPreviewOverlay,
   renderQuestionOverlay,
-  renderShellOverlay,
   renderStatus,
   renderTabBar,
   renderWorkingIndicator,
@@ -57,10 +56,9 @@ export class MixCodeRoot implements Component {
     const runtimeTab = this.runtime.getTab(active.sessionId);
     top.push(...renderStatus(active, width, theme));
     const contentGap = [padLine("", width)];
-    const shell = renderShellOverlay(active, width, theme);
     const preview = renderPreviewOverlay(active, width, theme);
     const question = renderQuestionOverlay(active, width, theme);
-    const bottomBeforeMeta = [...shell, ...preview, ...question];
+    const bottomBeforeMeta = [...preview, ...question];
     const viewportRows = this.getViewportRows?.();
     if (!viewportRows) {
       const middle = renderAgentSurface(active, runtimeTab, width, undefined, theme);

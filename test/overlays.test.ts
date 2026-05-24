@@ -19,28 +19,22 @@ import {
   previewTitle,
   renderCommandPalette,
   renderPreviewOverlay,
-  renderShellOverlay,
   renderTabJumpOverlay,
   chatEnd,
   chatHome,
   scrollChat,
   scrollPreview,
-  scrollShell,
   tabJumpEntries,
   togglePreview,
-  toggleShell,
   updateCommandPaletteQuery,
   commandPaletteEntriesWithExtensions,
   updateTabJumpQuery,
 } from "../src/index.js";
 
-test("shell and preview overlays toggle and render", () => {
+test("preview overlay toggles and renders", () => {
   const tab = createTab(1, "s1", "/repo");
-  assert.deepEqual(renderShellOverlay(tab, 80), []);
   assert.deepEqual(renderPreviewOverlay(tab, 80), []);
-  toggleShell(tab);
   togglePreview(tab);
-  assert.equal(tab.shellOpen, true);
   assert.equal(tab.previewOpen, true);
   assert.equal(navigatePreview(tab, 1), false);
   assert.equal(scrollPreview(tab, 1), true);
@@ -49,22 +43,6 @@ test("shell and preview overlays toggle and render", () => {
   assert.equal(previewHome(tab), false);
   assert.equal(previewEnd(tab), false);
   togglePreview(tab);
-  assert.match(renderShellOverlay(tab, 80).join("\n"), /Shell/);
-  tab.shellSession = { cwd: "/repo", command: "sh", pid: 123, buffer: ["hello"], input: "ec" };
-  assert.match(renderShellOverlay(tab, 80).join("\n"), /hello/);
-  assert.match(renderShellOverlay(tab, 80).join("\n"), /\$ ec/);
-  tab.shellSession.buffer = Array.from({ length: 20 }, (_, index) => `shell-${index}`);
-  assert.equal(scrollShell(tab, 3), true);
-  assert.equal(tab.shellScrollOffset, 3);
-  assert.match(renderShellOverlay(tab, 80).join("\n"), /scroll: 4\/5/);
-  assert.doesNotMatch(renderShellOverlay(tab, 80).join("\n"), /shell-0/);
-  assert.match(renderShellOverlay(tab, 80).join("\n"), /shell-3/);
-  assert.equal(scrollShell(tab, Number.POSITIVE_INFINITY), true);
-  assert.equal(tab.shellScrollOffset, 4);
-  assert.equal(scrollShell(tab, Number.NEGATIVE_INFINITY), true);
-  assert.equal(tab.shellScrollOffset, 0);
-  tab.shellSession.exitCode = 0;
-  assert.match(renderShellOverlay(tab, 80).join("\n"), /exited: 0/);
   assert.match(renderPreviewOverlay(tab, 80).join("\n"), /No preview messages yet/);
   tab.previewMessages.push(
     { role: "user", text: "Prompt" },
@@ -101,7 +79,6 @@ test("shell and preview overlays toggle and render", () => {
   assert.equal(scrollPreview(createTab(2, "s2", "/repo"), 2), false);
   assert.equal(previewHome(createTab(3, "s3", "/repo")), false);
   assert.equal(previewEnd(createTab(4, "s4", "/repo")), false);
-  assert.equal(scrollShell(createTab(5, "s5", "/repo"), 1), false);
   assert.equal(scrollChat(tab, 5), true);
   assert.equal(tab.chatScrollOffset, 5);
   assert.equal(scrollChat(tab, -99), true);

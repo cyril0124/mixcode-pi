@@ -14,7 +14,6 @@ import {
   previewHome,
   scrollChat,
   scrollPreview,
-  scrollShell,
   updateCommandPaletteQueryWithExtensions,
   updateTabJumpQuery,
 } from "../core/overlays.js";
@@ -46,7 +45,6 @@ import type {
   ExportChooserActions,
   MixCodeKeyRuntime,
   OverlayTui,
-  ShellKeyManager,
 } from "./app-types.js";
 import { renderCommandPalette, renderExportChooser, renderTabJumpOverlay } from "./rendering.js";
 
@@ -92,7 +90,7 @@ export function handleQueuedFlushKey(
   if (!matchesKey(data, "escape")) return false;
   if (state.activeTabId === "config") return false;
   if (hasAnyOverlay(tui) || isEditorAutocompleteOpen()) return false;
-  if (active.shellOpen || active.previewOpen || active.pendingDialogs.length > 0) return false;
+  if (active.previewOpen || active.pendingDialogs.length > 0) return false;
   const runtimeTab = runtime?.getTab?.(active.sessionId);
   const runtimeQueuedCount = runtimeQueuedMessageCount(runtimeTab);
   if (active.pendingMessages.length === 0 && runtimeQueuedCount === 0) return false;
@@ -580,27 +578,6 @@ function extensionDialogResult(
       request.questions[index]?.options[request.highlightedOptionIndices[index] ?? 0]?.label
     );
   return selected[0];
-}
-
-export function handleShellKey(
-  active: MixCodeState["tabs"][number],
-  data: string,
-  shellManager?: ShellKeyManager,
-): boolean {
-  if (matchesKey(data, "escape")) {
-    shellManager?.close?.(active);
-    if (!shellManager?.close) active.shellOpen = false;
-    clearPendingEscape(active, "close-shell");
-    return true;
-  }
-  if (matchesKey(data, "up")) return scrollShell(active, -3);
-  if (matchesKey(data, "down")) return scrollShell(active, 3);
-  if (matchesKey(data, "pageUp")) return scrollShell(active, -10);
-  if (matchesKey(data, "pageDown")) return scrollShell(active, 10);
-  if (matchesKey(data, "home")) return scrollShell(active, Number.NEGATIVE_INFINITY);
-  if (matchesKey(data, "end")) return scrollShell(active, Number.POSITIVE_INFINITY);
-  clearPendingEscape(active, "close-shell");
-  return shellManager?.write(active, data) ?? false;
 }
 
 export function handlePreviewKey(active: MixCodeState["tabs"][number], data: string): boolean {

@@ -23,7 +23,6 @@ import {
   handleQuestionKey,
   handleQueuedFlushKey,
   handleQuitConfirmKey,
-  handleShellKey,
   handleStreamingAbortKey,
   handleTabJumpKey,
   handleVimModeKey,
@@ -42,7 +41,6 @@ import type {
   MixCodeEditorActions,
   MixCodeKeyRuntime,
   OverlayTui,
-  ShellKeyManager,
   WorkspaceKeyOptions,
 } from "./app-types.js";
 import { handleExtensionManagerKey } from "./extension-manager.js";
@@ -54,7 +52,7 @@ export function handleMixCodeKeyInput(
   state: MixCodeState,
   data: string,
   tui: OverlayTui,
-  shellManager?: ShellKeyManager,
+  _shellManager?: unknown,
   runtime?: MixCodeKeyRuntime,
   onStateChanged?: (state: MixCodeState) => void | Promise<void>,
   isEditorAutocompleteOpen: () => boolean = () => false,
@@ -151,7 +149,7 @@ export function handleMixCodeKeyInput(
     if (extensionInput?.data !== undefined) data = extensionInput.data;
     if (data.length === 0) return { consume: true };
   }
-  if (handleMouseInput(state, active, data, tui, shellManager, runtime)) {
+  if (handleMouseInput(state, active, data, tui, undefined, runtime)) {
     return { consume: true };
   }
   if (state.picker && handlePickerKey(state, data, tui, runtime, onStateChanged)) {
@@ -207,7 +205,6 @@ export function handleMixCodeKeyInput(
     !hasAnyOverlay(tui) &&
     !state.exportChooserOpen &&
     !state.commandPaletteOpen &&
-    !active.shellOpen &&
     !active.previewOpen &&
     !active.pendingDialogs.length &&
     !editorActions?.getText()?.trim()
@@ -232,16 +229,6 @@ export function handleMixCodeKeyInput(
     return { consume: true };
   }
   if (
-    active?.shellOpen &&
-    !hasAnyOverlay(tui) &&
-    !matchesKey(data, "ctrl+p") &&
-    handleShellKey(active, data, shellManager)
-  ) {
-    clearPendingEscape(active, "abort-agent");
-    tui.requestRender();
-    return { consume: true };
-  }
-  if (
     active &&
     state.activeTabId !== "config" &&
     !hasAnyOverlay(tui) &&
@@ -260,7 +247,6 @@ export function handleMixCodeKeyInput(
     matchesKey(data, "left") &&
     !hasAnyOverlay(tui) &&
     !isEditorAutocompleteOpen() &&
-    !active.shellOpen &&
     !active.previewOpen &&
     !active.pendingDialogs.length &&
     editorActions &&
@@ -346,11 +332,6 @@ export function handleMixCodeKeyInput(
     state.exportChooserOpen = true;
     state.exportChooserIndex = 0;
     showLinesOverlay(tui, (width) => renderExportChooser(state, width));
-    return { consume: true };
-  }
-  if (active?.shellOpen && handleShellKey(active, data, shellManager)) {
-    clearPendingEscape(active, "abort-agent");
-    tui.requestRender();
     return { consume: true };
   }
   if (
@@ -494,7 +475,7 @@ function handleBatchedSubmitInput(
     state.exportChooserOpen
   )
     return false;
-  if (active?.shellOpen || active?.previewOpen || active?.pendingDialogs.length) return false;
+  if (active?.previewOpen || active?.pendingDialogs.length) return false;
   insertEditorText(editorActions, text);
   editorActions.submitCurrentText();
   tui.requestRender();
@@ -512,7 +493,6 @@ function hasFocusedAppControl(
       state.tabJumpOpen ||
       state.quitConfirmOpen ||
       state.exportChooserOpen ||
-      active?.shellOpen ||
       active?.previewOpen ||
       active?.pendingDialogs.length,
   );

@@ -161,20 +161,6 @@ export const MIXCODE_KEYMAP: KeyAction[] = [
     scope: "preview",
   },
   { key: "escape", action: "preview-close", description: "Close preview", scope: "preview" },
-  { key: "up/down", action: "shell-scroll", description: "Scroll shell overlay", scope: "shell" },
-  {
-    key: "pageUp/pageDown",
-    action: "shell-page-scroll",
-    description: "Page shell overlay",
-    scope: "shell",
-  },
-  {
-    key: "home/end",
-    action: "shell-boundary",
-    description: "Jump shell overlay to top or bottom",
-    scope: "shell",
-  },
-  { key: "escape", action: "shell-close", description: "Close shell overlay", scope: "shell" },
   {
     key: "left",
     action: "return-home",

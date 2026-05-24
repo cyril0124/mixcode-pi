@@ -2,7 +2,6 @@ import { matchesKey, ProcessTerminal, TUI, type TUI as TuiType } from "@earendil
 import type { ExtensionCustomUiHost, MixCodeRuntime } from "../agent/runtime.js";
 import { scanSkillEntries } from "../core/attachments.js";
 import { scanProjectFiles } from "../core/file-picker.js";
-import { ShellManager } from "../core/shell-session.js";
 import type { MixCodeState } from "../core/types.js";
 import { appendActiveSystemMessage } from "./app-actions.js";
 import { CompactPromptEditor, EditorSlot, editorThemeFor } from "./app-editor.js";
@@ -52,7 +51,6 @@ export {
 export interface MixCodeTuiOptions {
   completionSources?: MixCodeCompletionSources;
   onStateChanged?: (state: MixCodeState) => void | Promise<void>;
-  shellManager?: ShellManager;
   workspaceFile?: string;
   externalEditor?: string;
   terminal?: ConstructorParameters<typeof TUI>[0];
@@ -65,7 +63,6 @@ export function createMixCodeTui(
   const tui = new TUI(withMouseReporting(options.terminal ?? new ProcessTerminal()));
   bindRuntimeRendering(runtime, tui, state, options.onStateChanged);
   const stopWorkingRedraw = bindWorkingRedraw(state, tui);
-  const shellManager = options.shellManager ?? new ShellManager();
   let editorRows = 0;
   let metaRows = state.activeTabId === "config" ? 0 : 1;
   const main = new MixCodeRoot(
@@ -101,7 +98,7 @@ export function createMixCodeTui(
       text,
       tui,
       options.onStateChanged,
-      shellManager,
+      undefined,
       options.workspaceFile,
     ).catch((error: unknown) => {
       appendActiveSystemMessage(state, runtime, errorMessage(error));
@@ -202,7 +199,7 @@ export function createMixCodeTui(
       state,
       data,
       tui,
-      shellManager,
+      undefined,
       runtime,
       options.onStateChanged,
       () => editor.isShowingAutocomplete(),
@@ -221,7 +218,7 @@ export function createMixCodeTui(
             command,
             tui,
             options.onStateChanged,
-            shellManager,
+            undefined,
             options.workspaceFile,
           ),
         extensionCommands: () => activeExtensionCommands(state, runtime),

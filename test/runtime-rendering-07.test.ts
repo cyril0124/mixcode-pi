@@ -205,8 +205,6 @@ test(undefined, () => {
       },
     ],
     unreadDone: true,
-    todoVisible: true,
-    todos: [{ id: "t1", content: "Fix bug", status: "completed" }],
     pendingMessages: ["queued extension work"],
     extensionUi: {
       statuses: [{ key: "extension", text: "ready" }],
@@ -248,7 +246,6 @@ test(undefined, () => {
     "export",
     "question",
     "preview",
-    "shell",
   ]) {
     assert.equal(
       MIXCODE_KEYMAP.some((item) => item.scope === scope),
@@ -265,9 +262,6 @@ test(undefined, () => {
       (item) =>
         item.scope === "question" && item.key === "escape" && item.action === "question-reject",
     ),
-  );
-  assert.ok(
-    MIXCODE_KEYMAP.some((item) => item.scope === "shell" && item.key === "pageUp/pageDown"),
   );
   assert.ok(MIXCODE_KEYMAP.some((item) => item.scope === "preview" && item.key === "g/G"));
   assert.match(

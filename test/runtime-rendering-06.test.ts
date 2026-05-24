@@ -205,8 +205,6 @@ test("rendering exposes fitting helpers and keymap export text", () => {
       },
     ],
     unreadDone: true,
-    todoVisible: true,
-    todos: [{ id: "t1", content: "Fix bug", status: "completed" }],
     pendingMessages: ["queued extension work"],
     extensionUi: {
       statuses: [{ key: "extension", text: "ready" }],

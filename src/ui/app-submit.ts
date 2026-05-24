@@ -10,7 +10,6 @@ import { createPicker } from "../core/pickers.js";
 import { buildModelPrompt } from "../core/prompt-build.js";
 import type { PromptTemplate } from "../core/prompt-templates.js";
 import type { KnownSkill } from "../core/skill-command.js";
-import type { ShellManager } from "../core/shell-session.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import { pushToast } from "../core/toast.js";
 import { activateTab, clampHomeSelectedTabIndex, closeAgentTab, renameAgentTab } from "../core/tabs.js";
@@ -49,7 +48,7 @@ export async function handleSubmittedInput(
   text: string,
   tui: OverlayTui,
   onStateChanged?: (state: MixCodeState) => void | Promise<void>,
-  _shellManager?: Pick<ShellManager, "open" | "close">,
+  _shellManager?: unknown,
   workspaceFile?: string,
 ): Promise<void> {
   const parsed = parseInput(text);
@@ -562,8 +561,6 @@ export function renderHotkeysText(extensionShortcuts: RuntimeShortcutInfo[] = []
     ...formatHotkeyGroup("Question", hotkeysForScope("question")),
     "",
     ...formatHotkeyGroup("Preview", hotkeysForScope("preview")),
-    "",
-    ...formatHotkeyGroup("Shell", hotkeysForScope("shell")),
     "",
     "Other",
     "| Key | Action |",
