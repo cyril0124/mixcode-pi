@@ -5,6 +5,7 @@ import { addPromptHistory } from "./app-editor.js";
 import type { RuntimeChangeSource } from "./app-types.js";
 
 export const WORKING_REDRAW_INTERVAL_MS = 80;
+export const LIVE_EXTENSION_REDRAW_INTERVAL_MS = 1_000;
 export function hydrateTabPromptHistory(
   state: MixCodeState,
   runtime: Pick<MixCodeRuntime, "getPromptHistory">,
@@ -20,9 +21,26 @@ export function bindWorkingRedraw(
   state: MixCodeState,
   tui: Pick<TuiType, "requestRender" | "stop">,
 ): () => void {
+  return bindConditionalRedraw(state, tui, WORKING_REDRAW_INTERVAL_MS, activeTabNeedsWorkingRedraw);
+}
+
+export function bindLiveExtensionRedraw(
+  state: MixCodeState,
+  tui: Pick<TuiType, "requestRender" | "stop">,
+  intervalMs = LIVE_EXTENSION_REDRAW_INTERVAL_MS,
+): () => void {
+  return bindConditionalRedraw(state, tui, intervalMs, activeTabNeedsLiveExtensionRedraw);
+}
+
+function bindConditionalRedraw(
+  state: MixCodeState,
+  tui: Pick<TuiType, "requestRender" | "stop">,
+  intervalMs: number,
+  shouldRedraw: (state: MixCodeState) => boolean,
+): () => void {
   const interval = setInterval(() => {
-    if (activeTabNeedsWorkingRedraw(state)) tui.requestRender();
-  }, WORKING_REDRAW_INTERVAL_MS);
+    if (shouldRedraw(state)) tui.requestRender();
+  }, intervalMs);
   interval.unref?.();
   const originalStop = tui.stop.bind(tui);
   let stopped = false;
@@ -42,6 +60,21 @@ function activeTabNeedsWorkingRedraw(state: MixCodeState): boolean {
   if (state.activeTabId === "config") return state.tabs.some((tab) => isWorkingStatus(tab.status));
   const active = state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];
   return isWorkingStatus(active?.status);
+}
+
+function activeTabNeedsLiveExtensionRedraw(state: MixCodeState): boolean {
+  if (state.activeTabId === "config") return state.tabs.some(tabHasLiveExtensionUi);
+  const active = state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];
+  return active ? tabHasLiveExtensionUi(active) : false;
+}
+
+function tabHasLiveExtensionUi(tab: MixCodeState["tabs"][number]): boolean {
+  return Boolean(
+    tab.extensionUi.header?.render ||
+      tab.extensionUi.footer?.render ||
+      tab.extensionUi.widgets.some((widget) => widget.render) ||
+      tab.extensionUi.pendingUserInteractions.length > 0,
+  );
 }
 export function bindRuntimeRendering(
   runtime: RuntimeChangeSource,

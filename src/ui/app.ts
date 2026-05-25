@@ -15,6 +15,7 @@ import {
 import { editTextWithTuiPaused, errorMessage, showErrorOverlay } from "./app-overlays.js";
 import {
   activeExtensionCommands,
+  bindLiveExtensionRedraw,
   bindRuntimeRendering,
   bindWorkingRedraw,
   createActiveAutocompleteProvider,
@@ -40,7 +41,7 @@ import { workspaceNameCompletions } from "./workspace-overlay.js";
 
 export { handleMixCodeKeyInput } from "./app-input.js";
 export { MixCodeRoot } from "./app-layout.js";
-export { bindRuntimeRendering, bindWorkingRedraw } from "./app-runtime.js";
+export { bindLiveExtensionRedraw, bindRuntimeRendering, bindWorkingRedraw } from "./app-runtime.js";
 export {
   handleSubmittedInput,
   renderExportText,
@@ -63,6 +64,7 @@ export function createMixCodeTui(
   const tui = new TUI(withMouseReporting(options.terminal ?? new ProcessTerminal()));
   bindRuntimeRendering(runtime, tui, state, options.onStateChanged);
   const stopWorkingRedraw = bindWorkingRedraw(state, tui);
+  const stopLiveExtensionRedraw = bindLiveExtensionRedraw(state, tui);
   let editorRows = 0;
   let metaRows = state.activeTabId === "config" ? 0 : 1;
   const main = new MixCodeRoot(
@@ -258,6 +260,7 @@ export function createMixCodeTui(
   const originalStop = tui.stop.bind(tui);
   tui.stop = () => {
     stopWorkingRedraw();
+    stopLiveExtensionRedraw();
     root.dispose();
     originalStop();
   };
