@@ -7,6 +7,7 @@ import {
   applyBatchRequests,
   contextFromState,
   executeBatchScript,
+  renderTemplate,
   runLuaScript,
   type BatchExecutorHost,
   type BatchTabRequest,
@@ -146,6 +147,41 @@ test("runLuaScript exposes list_tabs", async () => {
     tabs: [{ name: "agent", sessionId: "s1", workdir: "/repo", model: "provider/model", thinking: "low", status: "idle" }],
   });
   assert.equal(requests[0]!.prompt, "agent:provider/model:low");
+});
+
+test("runLuaScript exposes mixcode.render", async () => {
+  const script = `
+    mixcode.open_tab({ name = "render", prompt = mixcode.render("hello {aaa}!", { aaa = "world" }) })
+  `;
+  const requests = await runLuaScript(script, "test.lua");
+  assert.equal(requests[0]!.prompt, "hello world!");
+});
+
+test("runLuaScript exposes global render", async () => {
+  const script = `
+    mixcode.open_tab({ name = "render", prompt = render("n={n}, b={b}", { n = 42, b = true }) })
+  `;
+  const requests = await runLuaScript(script, "test.lua");
+  assert.equal(requests[0]!.prompt, "n=42, b=true");
+});
+
+test("runLuaScript render supports escaped braces", async () => {
+  const script = `
+    mixcode.open_tab({ name = "render", prompt = render("literal {{name}} = {name}", { name = "world" }) })
+  `;
+  const requests = await runLuaScript(script, "test.lua");
+  assert.equal(requests[0]!.prompt, "literal {name} = world");
+});
+
+test("runLuaScript render throws on missing variable", async () => {
+  const script = `mixcode.open_tab({ name = "x", prompt = render("hello {name}", {}) })`;
+  await assert.rejects(() => runLuaScript(script, "test.lua"), /Missing template variable: name/);
+});
+
+test("renderTemplate rejects invalid variables", () => {
+  assert.throws(() => renderTemplate("hello {a.b}", () => "x"), /Invalid template variable/);
+  assert.throws(() => renderTemplate("hello {", () => "x"), /Unclosed/);
+  assert.throws(() => renderTemplate("hello }", () => "x"), /Unexpected/);
 });
 
 test("contextFromState exposes batch Lua context from state tabs", () => {

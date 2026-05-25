@@ -159,7 +159,13 @@ export async function runLuaScript(
   });
   lua.lua_setfield(L, -2, to_luastring("list_tabs"));
 
+  const renderFn = (L: any) => luaRender(L, lua, lauxlib, to_luastring, to_jsstring);
+  lua.lua_pushcfunction(L, renderFn);
+  lua.lua_setfield(L, -2, to_luastring("render"));
+
   lua.lua_setglobal(L, to_luastring("mixcode"));
+  lua.lua_pushcfunction(L, renderFn);
+  lua.lua_setglobal(L, to_luastring("render"));
 
   // Execute the script
   const status = lauxlib.luaL_dostring(L, to_luastring(source));
@@ -261,6 +267,43 @@ export async function applyBatchRequests(
   await Promise.all(operations);
 }
 
+export function renderTemplate(
+  template: string,
+  resolveVar: (name: string) => string | undefined,
+): string {
+  let output = "";
+  for (let index = 0; index < template.length; index++) {
+    const char = template[index];
+    const next = template[index + 1];
+    if (char === "{" && next === "{") {
+      output += "{";
+      index++;
+      continue;
+    }
+    if (char === "}" && next === "}") {
+      output += "}";
+      index++;
+      continue;
+    }
+    if (char === "}") throw new Error("Unexpected '}' in template");
+    if (char !== "{") {
+      output += char;
+      continue;
+    }
+    const end = template.indexOf("}", index + 1);
+    if (end < 0) throw new Error("Unclosed '{' in template");
+    const name = template.slice(index + 1, end);
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
+      throw new Error(`Invalid template variable: ${name || "<empty>"}`);
+    }
+    const value = resolveVar(name);
+    if (value === undefined) throw new Error(`Missing template variable: ${name}`);
+    output += value;
+    index = end;
+  }
+  return output;
+}
+
 export function contextFromState(state: MixCodeState): BatchLuaContext {
   return {
     workdir: state.workdir,
@@ -304,4 +347,38 @@ function setStringField(
 ): void {
   lua.lua_pushstring(L, to_luastring(value));
   lua.lua_setfield(L, -2, to_luastring(field));
+}
+
+function luaRender(
+  L: any,
+  lua: any,
+  lauxlib: any,
+  to_luastring: (s: string) => Uint8Array,
+  to_jsstring: (s: Uint8Array) => string,
+): number {
+  if (lua.lua_isnoneornil(L, 1)) {
+    return lauxlib.luaL_error(L, to_luastring("render expects a template string"));
+  }
+  if (!lua.lua_istable(L, 2)) {
+    return lauxlib.luaL_error(L, to_luastring("render expects a variables table"));
+  }
+  const template = to_jsstring(lua.lua_tostring(L, 1));
+  try {
+    const rendered = renderTemplate(template, (name) => {
+      lua.lua_getfield(L, 2, to_luastring(name));
+      if (lua.lua_isnil(L, -1) || lua.lua_isnoneornil(L, -1)) {
+        lua.lua_pop(L, 1);
+        return undefined;
+      }
+      lauxlib.luaL_tolstring(L, -1);
+      const value = to_jsstring(lua.lua_tostring(L, -1));
+      lua.lua_pop(L, 2);
+      return value;
+    });
+    lua.lua_pushstring(L, to_luastring(rendered));
+    return 1;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return lauxlib.luaL_error(L, to_luastring(message));
+  }
 }

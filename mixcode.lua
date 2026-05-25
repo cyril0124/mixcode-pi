@@ -43,3 +43,17 @@ function mixcode.tab_exists(name) end
 ---List tabs visible at batch startup.
 ---@return mixcode.TabInfo[]
 function mixcode.list_tabs() end
+
+---Render a string template using `{name}` placeholders.
+---Use `{{` and `}}` to output literal braces.
+---Missing variables and invalid placeholder names raise an error.
+---@param template string
+---@param vars table<string, any>
+---@return string
+function mixcode.render(template, vars) end
+
+---Global shorthand for `mixcode.render`.
+---@param template string
+---@param vars table<string, any>
+---@return string
+function render(template, vars) end
