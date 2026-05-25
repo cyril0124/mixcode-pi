@@ -132,9 +132,6 @@ export class MixCodeRuntime {
   private extensionManagerConfig: ExtensionManagerConfig = defaultExtensionManagerConfig();
   private extensionUiHost?: ExtensionCustomUiHost;
   private shellExecutionSequence = 0;
-  // Cache services by (workdir, systemPrompt) to avoid redundant resourceLoader.reload()
-  // across tabs sharing the same working directory.
-  private readonly servicesCache = new Map<string, Promise<AgentSessionServices>>();
 
   private lifecycleContext(): RuntimeLifecycleContext {
     return {
@@ -338,7 +335,6 @@ export class MixCodeRuntime {
       disabledExtensionKeys: [...disabled].sort(),
     };
     await this.extensionManagerStore?.save(this.extensionManagerConfig);
-    this.invalidateServicesCache();
   }
 
   async reloadExtensionManagerTab(sessionId: string): Promise<RuntimeExtensionReloadResult> {
@@ -706,8 +702,6 @@ export class MixCodeRuntime {
     if (runtimeTab.agentSession.isCompacting) {
       throw new Error("Cannot reload extensions while compaction is running");
     }
-    // Invalidate cached services so new tabs pick up reloaded extensions
-    this.invalidateServicesCache(runtimeTab.tab.workdir);
     this.resetExtensionHostState(runtimeTab);
     await runtimeTab.agentSession.reload();
     runtimeTab.extensionsResult = runtimeTab.agentSession.resourceLoader.getExtensions();
@@ -907,17 +901,7 @@ export class MixCodeRuntime {
     workdir: string,
     systemPrompt?: string,
   ): Promise<AgentSessionServices> {
-    return this.createServicesCached(workdir, systemPrompt);
-  }
-
-  private createServicesCached(
-    workdir: string,
-    systemPrompt?: string,
-  ): Promise<AgentSessionServices> {
-    const cacheKey = `${workdir}\0${systemPrompt ?? ""}`;
-    const cached = this.servicesCache.get(cacheKey);
-    if (cached) return cached;
-    const promise = createRuntimeServices({
+    return createRuntimeServices({
       workdir,
       systemPrompt,
       agentDir: this.agentDir,
@@ -929,21 +913,6 @@ export class MixCodeRuntime {
       extensionFactories: this.extensionFactories,
       getDisabledExtensionKeys: () => this.disabledExtensionKeys(),
     });
-    this.servicesCache.set(cacheKey, promise);
-    // Evict on failure so retries don't get a rejected promise
-    promise.catch(() => this.servicesCache.delete(cacheKey));
-    return promise;
-  }
-
-  /** Invalidate cached services for a workdir (e.g. after extension reload). */
-  invalidateServicesCache(workdir?: string): void {
-    if (workdir) {
-      for (const key of this.servicesCache.keys()) {
-        if (key.startsWith(`${workdir}\0`)) this.servicesCache.delete(key);
-      }
-    } else {
-      this.servicesCache.clear();
-    }
   }
 
   private disabledExtensionKeys(): Set<string> {

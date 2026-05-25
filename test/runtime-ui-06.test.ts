@@ -303,6 +303,45 @@ test("runtime loads pi extension factories, tools, commands, and lifecycle hooks
   }
 });
 
+test("runtime keeps extension runtimes isolated across same-workdir tabs", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-isolation-"));
+  const extension: ExtensionFactory = (pi) => {
+    pi.registerMessageRenderer("isolation-note", (message) => new Text(String(message.content), 0, 0));
+    pi.registerCommand("poke", {
+      description: "Exercise a command that uses its captured pi API.",
+      handler: async () => {
+        pi.sendMessage({ customType: "isolation-note", content: "still alive", display: true });
+      },
+    });
+  };
+
+  try {
+    const runtime = new MixCodeRuntime({ sessionsRoot: dir, extensionFactories: [extension] });
+    const workdir = process.cwd();
+    const first = await runtime.createTab(createTab(1, "s1", workdir), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir,
+    });
+    const second = await runtime.createTab(createTab(2, "s2", workdir), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir,
+    });
+
+    assert.notEqual(first.extensionsResult.runtime, second.extensionsResult.runtime);
+
+    first.agentSession.dispose();
+    await runtime.prompt("s2", "/poke");
+
+    assert.ok(
+      second.chat.some((line) => line.role === "extension" && line.text.includes("still alive")),
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("runtime extension terminal input and UI setters expose exact state changes", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-terminal-ui-"));
   const events: string[] = [];
@@ -440,7 +479,7 @@ test("runtime extension manager disables extension entries across reloads", asyn
   }
 });
 
-test("runtime extension manager disables cached services for new tabs", async () => {
+test("runtime extension manager disables extensions for new tabs", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-manager-cache-"));
   let disabledExtensionKeys: string[] = [];
   const extension: ExtensionFactory = (pi) => {
