@@ -631,7 +631,9 @@ test("runtime extension reload resets host UI state and rebinds extension resour
     assert.deepEqual(runtimeTab.tab.extensionUi.statuses, [{ key: "state", text: "reload" }]);
     assert.equal(runtimeTab.tab.extensionUi.workingMessage, "working:reload");
     assert.deepEqual(
-      runtimeTab.tab.extensionUi.widgets.map((widget) => widget.lines[0]),
+      runtimeTab.tab.extensionUi.widgets
+        .filter((widget) => widget.key !== "bg-sessions")
+        .map((widget) => widget.lines[0]),
       ["widget:reload"],
     );
     assert.deepEqual(

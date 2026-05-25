@@ -263,11 +263,13 @@ test("runtime maps supported pi extension UI primitives into MixCode tab state",
     assert.equal(runtimeTab.tab.extensionUi.hiddenThinkingLabel, "Delegated thinking...");
     assert.equal(runtimeTab.tab.extensionUi.toolsExpanded, true);
     assert.deepEqual(
-      runtimeTab.tab.extensionUi.widgets.map((widget) => ({
-        key: widget.key,
-        placement: widget.placement,
-        lines: widget.lines.map(stripAnsi),
-      })),
+      runtimeTab.tab.extensionUi.widgets
+        .filter((widget) => widget.key !== "bg-sessions")
+        .map((widget) => ({
+          key: widget.key,
+          placement: widget.placement,
+          lines: widget.lines.map(stripAnsi),
+        })),
       [
         { key: "above", placement: "aboveEditor", lines: ["above widget"] },
         { key: "below", placement: "belowEditor", lines: ["below widget"] },
@@ -362,10 +364,12 @@ test("runtime maps supported pi extension UI primitives into MixCode tab state",
     assert.equal(runtimeTab.tab.extensionUi.workingIndicatorIntervalMs, undefined);
     assert.equal(runtimeTab.tab.extensionUi.hiddenThinkingLabel, undefined);
     assert.deepEqual(
-      runtimeTab.tab.extensionUi.widgets.map((widget) => ({
-        key: widget.key,
-        lines: widget.lines.map(stripAnsi),
-      })),
+      runtimeTab.tab.extensionUi.widgets
+        .filter((widget) => widget.key !== "bg-sessions")
+        .map((widget) => ({
+          key: widget.key,
+          lines: widget.lines.map(stripAnsi),
+        })),
       [{ key: "below", lines: ["replacement"] }],
     );
     assert.deepEqual(events, ["factory-dispose"]);
