@@ -169,7 +169,14 @@ export class EditorSlot implements Component {
     this.syncActiveTab();
     if (this.mixState.activeTabId === "config") return [];
     this.syncActiveEditorBorder();
-    return this.activeEditor.render(width);
+    const lines = this.activeEditor.render(width);
+    // Extension editor components may not pad lines to full width.
+    // Ensure every line fills the terminal width so the differential
+    // renderer clears leftover characters from previous frames.
+    if (this.activeEditor !== this.defaultEditor) {
+      return lines.map((line) => padLine(line, width));
+    }
+    return lines;
   }
 
   invalidate(): void {

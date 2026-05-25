@@ -81,6 +81,7 @@ export function createExtensionCustomOverlay<T>(
           return;
         }
         component = normalizeExtensionCustomComponent(createdComponent);
+        sanitizeComponentRender(component);
         const overlayOptions = scopeOverlayOptionsToTab(
           resolveExtensionOverlayOptions(options, component),
           runtimeTab,
@@ -310,4 +311,26 @@ function normalizeOverlayMargin(margin: OverlayOptions["margin"]): {
   if (typeof margin === "number")
     return { top: margin, right: margin, bottom: margin, left: margin };
   return margin ? { ...margin } : {};
+}
+
+/**
+ * Wrap a component's render to flatten embedded newlines into separate lines.
+ * Extension components may produce lines containing literal \n (e.g. from
+ * multi-line prompt text). The TUI differential renderer assumes each array
+ * element is a single terminal row; embedded newlines break cursor positioning.
+ */
+function sanitizeComponentRender(component: ExtensionCustomComponent): void {
+  const originalRender = component.render.bind(component);
+  component.render = (width: number): string[] => {
+    const raw = originalRender(width);
+    const result: string[] = [];
+    for (const line of raw) {
+      if (line.includes("\n")) {
+        for (const sub of line.split("\n")) result.push(sub);
+      } else {
+        result.push(line);
+      }
+    }
+    return result;
+  };
 }
