@@ -3,3 +3,5 @@ refs/
 dist/
 coverage/
 tmp/
+bun.lock
+bun.lockb

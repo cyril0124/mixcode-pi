@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { cwd } from "node:process";
 import { fileURLToPath } from "node:url";
@@ -213,6 +214,8 @@ export function exposeLocalPiCli(
 ): string {
   const repoDir = resolve(dirname(fileURLToPath(entryUrl)), "..", "..");
   const binDir = resolve(repoDir, "node_modules", ".bin");
+  // In bun compiled binary, import.meta.url is a virtual path; skip if dir doesn't exist.
+  if (!existsSync(binDir)) return binDir;
   const delimiter = process.platform === "win32" ? ";" : ":";
   const parts = (env.PATH ?? "").split(delimiter).filter(Boolean);
   if (!parts.includes(binDir)) {

@@ -23,7 +23,18 @@ npm run build
 node dist/cli/main.js
 ```
 
-`npm run coverage` 会强制 lines/branches/functions/statements 均达到 95%。
+## 单二进制安装
+
+需要预先安装 [bun](https://bun.sh)：
+
+```bash
+./install.sh              # 默认安装到 ~/.local/bin/mixcode-pi
+./install.sh --prefix /opt/mixcode  # 安装到 /opt/mixcode/bin/mixcode-pi
+```
+
+此方式会通过 `bun build --compile` 编译出一个独立的可执行文件，无需 Node.js 或 node_modules。
+
+`npm run coverage` 会强制 lines/functions/statements 达到 95%，branches 达到 90%。
 
 真实 TUI smoke 默认跳过；需要 tmux 和真实终端会话时可显式开启：
 

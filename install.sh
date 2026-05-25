@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# MixCode Pi installer — compile to fully static single binary
+# MixCode Pi installer — compile to standalone single binary
 # Usage: ./install.sh [--prefix ~/.local]
 
 INSTALL_NAME="mixcode-pi"
@@ -21,8 +21,12 @@ PREFIX="${MIXCODE_INSTALL_PREFIX:-$HOME/.local}"
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --prefix)   PREFIX="$2"; shift 2 ;;
-    --prefix=*) PREFIX="${1#--prefix=}"; shift ;;
+    --prefix)
+      [ $# -lt 2 ] && error "--prefix requires an argument"
+      PREFIX="$2"; shift 2 ;;
+    --prefix=*) PREFIX="${1#--prefix=}"
+      [ -z "$PREFIX" ] && error "--prefix must not be empty"
+      shift ;;
     -h|--help)
       cat <<EOF
 Usage: install.sh [OPTIONS]
@@ -40,6 +44,8 @@ EOF
   esac
 done
 
+# Strip trailing slashes for consistent PATH matching
+PREFIX="${PREFIX%/}"
 BIN_DIR="$PREFIX/bin"
 
 # --- Preflight ---
@@ -56,20 +62,18 @@ info "bun $(bun --version)"
 
 cd "$REPO_DIR"
 
-if [ ! -d node_modules ]; then
-  info "Installing dependencies..."
-  bun install
-fi
+info "Installing dependencies..."
+bun install
 
 # --- Compile ---
 
-TMPDIR=$(mktemp -d)
-trap 'rm -rf "$TMPDIR"' EXIT
+BUILD_TMPDIR=$(mktemp -d)
+trap 'rm -rf "$BUILD_TMPDIR"' EXIT
 
 info "Compiling standalone binary..."
-bun build src/cli/binary-entry.ts --compile --packages bundle --outfile "$TMPDIR/$INSTALL_NAME"
+bun build src/cli/binary-entry.ts --compile --packages bundle --outfile "$BUILD_TMPDIR/$INSTALL_NAME"
 
-if [ ! -f "$TMPDIR/$INSTALL_NAME" ]; then
+if [ ! -f "$BUILD_TMPDIR/$INSTALL_NAME" ]; then
   error "Compilation failed"
 fi
 
@@ -78,13 +82,13 @@ fi
 mkdir -p "$BIN_DIR"
 
 info "Installing to $BIN_DIR/$INSTALL_NAME..."
-mv -f "$TMPDIR/$INSTALL_NAME" "$BIN_DIR/$INSTALL_NAME" 2>/dev/null \
-  || cp "$TMPDIR/$INSTALL_NAME" "$BIN_DIR/$INSTALL_NAME"
+mv -f "$BUILD_TMPDIR/$INSTALL_NAME" "$BIN_DIR/$INSTALL_NAME" 2>/dev/null \
+  || cp "$BUILD_TMPDIR/$INSTALL_NAME" "$BIN_DIR/$INSTALL_NAME"
 chmod +x "$BIN_DIR/$INSTALL_NAME"
 
 # --- PATH check ---
 
-if ! echo "$PATH" | tr ':' '\n' | grep -qx "$BIN_DIR"; then
+if ! echo "$PATH" | tr ':' '\n' | grep -qxF "$BIN_DIR"; then
   warn "$BIN_DIR is not in your PATH."
   echo ""
   echo "  Add to your shell profile:"
