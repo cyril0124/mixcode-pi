@@ -70,5 +70,9 @@ process.on("SIGTERM", () => {
 });
 
 // Dynamic import ensures PI_PACKAGE_DIR is set before pi-coding-agent loads.
+// Bun's compiled executable can make main.ts look like the direct argv[1]
+// entrypoint, so mark this import as wrapper-owned before loading it.
+const BINARY_ENTRY_IMPORT_FLAG = Symbol.for("mixcode-pi.binary-entry-import");
+(globalThis as Record<symbol, unknown>)[BINARY_ENTRY_IMPORT_FLAG] = true;
 const { main } = await import("./main.js");
 await main();

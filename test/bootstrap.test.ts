@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
 import { test } from "node:test";
 import { Type } from "@earendil-works/pi-ai";
 import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
@@ -9,6 +9,10 @@ import {
   bootstrapMixCode,
   createInitialState,
   createTab,
+  defaultMixCodeAgentDir,
+  defaultPiAgentDir,
+  defaultPiAuthPath,
+  defaultPiModelsPath,
   defaultStateDir,
   saveStateFile,
   scopedStateDir,
@@ -91,6 +95,45 @@ test("bootstrap builds completion sources from project files and skills", async 
     );
   } finally {
     await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("default pi model paths stay compatible with pi agent config", () => {
+  const oldPiDir = process.env.PI_CODING_AGENT_DIR;
+  const oldMixCodeDir = process.env.MIXCODE_CODING_AGENT_DIR;
+  try {
+    process.env.PI_CODING_AGENT_DIR = "/tmp/pi-agent";
+    delete process.env.MIXCODE_CODING_AGENT_DIR;
+    assert.equal(defaultPiAgentDir(), "/tmp/pi-agent");
+    assert.equal(defaultPiModelsPath(), "/tmp/pi-agent/models.json");
+    assert.equal(defaultPiAuthPath(), "/tmp/pi-agent/auth.json");
+    assert.equal(defaultMixCodeAgentDir(), "/tmp/pi-agent");
+
+    process.env.PI_CODING_AGENT_DIR = "";
+    assert.equal(defaultPiAgentDir(), join(homedir(), ".pi", "agent"));
+    assert.equal(defaultPiModelsPath(), join(homedir(), ".pi", "agent", "models.json"));
+    assert.equal(defaultPiAuthPath(), join(homedir(), ".pi", "agent", "auth.json"));
+    assert.equal(defaultMixCodeAgentDir(), join(homedir(), ".pi", "agent"));
+
+    process.env.PI_CODING_AGENT_DIR = "~/pi-agent";
+    assert.equal(defaultPiAgentDir(), join(homedir(), "pi-agent"));
+    assert.equal(defaultPiModelsPath(), join(homedir(), "pi-agent", "models.json"));
+    assert.equal(defaultPiAuthPath(), join(homedir(), "pi-agent", "auth.json"));
+    assert.equal(defaultMixCodeAgentDir(), join(homedir(), "pi-agent"));
+
+    process.env.MIXCODE_CODING_AGENT_DIR = "";
+    assert.equal(defaultMixCodeAgentDir(), join(homedir(), "pi-agent"));
+
+    process.env.MIXCODE_CODING_AGENT_DIR = "~/mix-agent";
+    assert.equal(defaultMixCodeAgentDir(), join(homedir(), "mix-agent"));
+
+    process.env.MIXCODE_CODING_AGENT_DIR = "/tmp/mix-agent";
+    assert.equal(defaultMixCodeAgentDir(), "/tmp/mix-agent");
+  } finally {
+    if (oldPiDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+    else process.env.PI_CODING_AGENT_DIR = oldPiDir;
+    if (oldMixCodeDir === undefined) delete process.env.MIXCODE_CODING_AGENT_DIR;
+    else process.env.MIXCODE_CODING_AGENT_DIR = oldMixCodeDir;
   }
 });
 

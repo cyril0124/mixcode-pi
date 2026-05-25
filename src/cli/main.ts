@@ -224,9 +224,16 @@ export function exposeLocalPiCli(
   return binDir;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+const BINARY_ENTRY_IMPORT_FLAG = Symbol.for("mixcode-pi.binary-entry-import");
+
+if (isDirectCliEntry()) {
   main().catch((error) => {
     console.error(error);
     process.exitCode = 1;
   });
+}
+
+function isDirectCliEntry(entryUrl = import.meta.url, argv1 = process.argv[1]): boolean {
+  if ((globalThis as Record<symbol, unknown>)[BINARY_ENTRY_IMPORT_FLAG]) return false;
+  return Boolean(argv1) && entryUrl === `file://${argv1}`;
 }

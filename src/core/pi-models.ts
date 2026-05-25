@@ -1,8 +1,9 @@
 import { stat } from "node:fs/promises";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import type { Context, Model, SimpleStreamOptions } from "@earendil-works/pi-ai";
 import { streamSimple } from "@earendil-works/pi-ai";
-import { AuthStorage, getAgentDir, ModelRegistry } from "@earendil-works/pi-coding-agent";
+import { AuthStorage, ModelRegistry } from "@earendil-works/pi-coding-agent";
 
 export interface PiModelSource {
   provider: string;
@@ -29,12 +30,25 @@ export interface PiModelRegistryBundle {
   loadError?: string;
 }
 
+export function resolveAgentDirEnv(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  if (value === "~") return homedir();
+  if (value.startsWith("~/") || (process.platform === "win32" && value.startsWith("~\\"))) {
+    return join(homedir(), value.slice(2));
+  }
+  return value;
+}
+
+export function defaultPiAgentDir(): string {
+  return resolveAgentDirEnv(process.env.PI_CODING_AGENT_DIR) ?? join(homedir(), ".pi", "agent");
+}
+
 export function defaultPiModelsPath(): string {
-  return join(getAgentDir(), "models.json");
+  return join(defaultPiAgentDir(), "models.json");
 }
 
 export function defaultPiAuthPath(): string {
-  return join(getAgentDir(), "auth.json");
+  return join(defaultPiAgentDir(), "auth.json");
 }
 
 export async function createPiModelRegistryBundle(

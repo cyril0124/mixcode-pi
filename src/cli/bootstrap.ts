@@ -22,7 +22,11 @@ import {
   setTabModel,
 } from "../core/models.js";
 import { checkPiPackageUpdates } from "../core/package-updates.js";
-import { createPiModelRegistryBundle } from "../core/pi-models.js";
+import {
+  createPiModelRegistryBundle,
+  defaultPiAgentDir,
+  resolveAgentDirEnv,
+} from "../core/pi-models.js";
 import {
   loadStateFile,
   saveStateFile,
@@ -46,6 +50,10 @@ export interface BootstrapOptions {
 }
 
 export const DEFAULT_STATE_PORT = 0;
+
+export function defaultMixCodeAgentDir(): string {
+  return resolveAgentDirEnv(process.env.MIXCODE_CODING_AGENT_DIR) ?? defaultPiAgentDir();
+}
 
 export function defaultStateDir(): string {
   return join(process.env.XDG_CONFIG_HOME ?? join(homedir(), ".config"), "mixcode-pi");
@@ -100,10 +108,11 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
   }
   state.activeTabId = "config";
   const modelRepairs = repairUnavailableTabModels(state);
+  const agentDir = options.agentDir ?? defaultMixCodeAgentDir();
   const runtime = new MixCodeRuntime({
     sessionsRoot: join(stateDir, "sessions"),
     rootStateDir,
-    agentDir: options.agentDir,
+    agentDir,
     authStorage: modelBundle.authStorage,
     modelRegistry: modelBundle.registry,
     extensionFactories: options.extensionFactories,
@@ -147,8 +156,7 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
     stateFile,
     workspaceFile,
     completionSources,
-    packageUpdateCheck: () =>
-      checkPiPackageUpdates({ workdir: state.workdir, agentDir: options.agentDir }),
+    packageUpdateCheck: () => checkPiPackageUpdates({ workdir: state.workdir, agentDir }),
   };
 }
 
