@@ -117,23 +117,25 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
     streamFn: modelBundle.runtimeAuth.stream,
   });
   await runtime.loadExtensionManagerConfig();
-  for (const tab of state.tabs) {
-    const runtimeTab = await runtime.createTab(tab, {
-      systemPrompt: MIXCODE_SYSTEM_PROMPT,
-      thinkingLevel: tab.thinkingLevel,
-      workdir: tab.workdir,
-    });
-    // Sync tab title from session file name (persisted via /rename or Ctrl+R)
-    const sessionName = runtimeTab.session.getSessionName();
-    if (sessionName) tab.title = sessionName;
-    const repair = modelRepairs.get(tab.sessionId);
-    if (repair) {
-      runtimeTab.chat.push({
-        role: "system",
-        text: `Saved model ${repair.from} is unavailable in Pi models; switched to ${repair.to}.`,
+  await Promise.all(
+    state.tabs.map(async (tab) => {
+      const runtimeTab = await runtime.createTab(tab, {
+        systemPrompt: MIXCODE_SYSTEM_PROMPT,
+        thinkingLevel: tab.thinkingLevel,
+        workdir: tab.workdir,
       });
-    }
-  }
+      // Sync tab title from session file name (persisted via /rename or Ctrl+R)
+      const sessionName = runtimeTab.session.getSessionName();
+      if (sessionName) tab.title = sessionName;
+      const repair = modelRepairs.get(tab.sessionId);
+      if (repair) {
+        runtimeTab.chat.push({
+          role: "system",
+          text: `Saved model ${repair.from} is unavailable in Pi models; switched to ${repair.to}.`,
+        });
+      }
+    }),
+  );
   const completionSources = {
     skills: await scanSkillEntries(state.workdir, options.homeDir),
     files: await scanProjectFiles(state.workdir),

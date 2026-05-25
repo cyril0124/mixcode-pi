@@ -440,6 +440,69 @@ test("runtime extension manager disables extension entries across reloads", asyn
   }
 });
 
+test("runtime extension manager disables cached services for new tabs", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-manager-cache-"));
+  let disabledExtensionKeys: string[] = [];
+  const extension: ExtensionFactory = (pi) => {
+    pi.registerTool({
+      name: "managed_tool",
+      label: "Managed",
+      description: "Managed extension tool",
+      parameters: Type.Object({}),
+      execute: async () => ({ content: [{ type: "text", text: "managed" }], details: {} }),
+    });
+    pi.registerCommand("managed", {
+      description: "Managed extension command",
+      handler: async () => undefined,
+    });
+  };
+
+  try {
+    const runtime = new MixCodeRuntime({
+      sessionsRoot: dir,
+      extensionFactories: [extension],
+      extensionManagerStore: {
+        load: async () => ({ version: 1, disabledExtensionKeys }),
+        save: async (config) => {
+          disabledExtensionKeys = config.disabledExtensionKeys;
+        },
+      },
+    });
+    await runtime.loadExtensionManagerConfig();
+    const workdir = process.cwd();
+    await runtime.createTab(createTab(1, "s1", workdir), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir,
+    });
+
+    const entry = runtime.getExtensionManagerEntries("s1").find((item) => item.source === "inline");
+    assert.ok(entry);
+    await runtime.setExtensionEnabled("s1", entry.key, false);
+
+    await runtime.createTab(createTab(2, "s2", workdir), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir,
+    });
+
+    assert.equal(
+      runtime.getExtensionCommands("s2").some((command) => command.name === "managed"),
+      false,
+    );
+    assert.equal(
+      runtime.getExtensionTools("s2").some((tool) => tool.name === "managed_tool"),
+      false,
+    );
+    assert.equal(
+      runtime.getExtensionManagerEntries("s2").find((item) => item.key === entry.key)?.enabled,
+      false,
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("runtime extension factory widgets render live state after requestRender", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-live-widget-"));
   let count = 0;
