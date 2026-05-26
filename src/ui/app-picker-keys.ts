@@ -4,6 +4,8 @@ import {
   acceptPickerSelection,
   completeWorkdirPickerSelection,
   movePickerSelection,
+  navigatePickerToParent,
+  togglePickerHidden,
   updatePickerQuery,
 } from "../core/pickers.js";
 import type { MixCodeState } from "../core/types.js";
@@ -33,6 +35,19 @@ export function handlePickerKey(
     showLinesOverlay(tui, (width) => renderPickerOverlay(state, width));
     return true;
   }
+  // Workdir picker: left arrow navigates to parent directory
+  if (picker.kind === "workdir" && matchesKey(data, "left")) {
+    if (navigatePickerToParent(picker)) {
+      showLinesOverlay(tui, (width) => renderPickerOverlay(state, width));
+    }
+    return true;
+  }
+  // Workdir picker: Ctrl+H toggles hidden directories
+  if (picker.kind === "workdir" && matchesKey(data, "ctrl+h")) {
+    togglePickerHidden(picker);
+    showLinesOverlay(tui, (width) => renderPickerOverlay(state, width));
+    return true;
+  }
   if (matchesKey(data, "tab") || matchesKey(data, "shift+tab")) {
     if (
       picker.kind === "workdir" &&
@@ -42,13 +57,30 @@ export function handlePickerKey(
       showLinesOverlay(tui, (width) => renderPickerOverlay(state, width));
       return true;
     }
-    movePickerSelection(picker, matchesKey(data, "shift+tab") ? -1 : 1);
-    showLinesOverlay(tui, (width) => renderPickerOverlay(state, width));
+    if (picker.kind !== "workdir") {
+      movePickerSelection(picker, matchesKey(data, "shift+tab") ? -1 : 1);
+      showLinesOverlay(tui, (width) => renderPickerOverlay(state, width));
+    }
     return true;
   }
   if (matchesKey(data, "enter")) {
-    const selected = acceptPickerSelection(picker);
-    if (!selected) return true;
+    // For workdir picker: Enter confirms the current browsing directory as the new workdir.
+    // Exception: if the selected item is a custom path (no completeValue), use that instead.
+    let selectedId: string;
+    if (picker.kind === "workdir") {
+      const selected = acceptPickerSelection(picker);
+      if (selected && !selected.completeValue) {
+        // Custom path entry — use its resolved id
+        selectedId = selected.id;
+      } else {
+        // Normal case: confirm the current browsing directory
+        selectedId = picker.browsingDir ?? picker.workdirBase ?? process.cwd();
+      }
+    } else {
+      const selected = acceptPickerSelection(picker);
+      if (!selected) return true;
+      selectedId = selected.id;
+    }
     const finish = () => {
       state.picker = undefined;
       closeAppOverlay(tui);
@@ -56,7 +88,7 @@ export function handlePickerKey(
       tui.requestRender();
     };
     try {
-      const result = applyPickerSelection(state, selected.id, runtime);
+      const result = applyPickerSelection(state, selectedId, runtime);
       if (isPromiseLike(result)) {
         void result.then(finish).catch((error: unknown) => {
           showErrorOverlay(tui, error);

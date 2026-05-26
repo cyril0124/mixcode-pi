@@ -1,11 +1,11 @@
 import { readdirSync } from "node:fs";
 import { homedir } from "node:os";
-import { isAbsolute, join, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
+import { THEMES } from "../ui/themes.js";
 import { fuzzyMatch } from "./fuzzy.js";
 import { modelRefId } from "./models.js";
 import type { MixCodeState, MixCodeTabInfo, PickerItem, PickerKind, PickerState } from "./types.js";
-import { THEMES } from "../ui/themes.js";
 
 export const THINKING_LEVELS: ThinkingLevel[] = [
   "off",
@@ -23,13 +23,16 @@ export function createPicker(
 ): PickerState {
   const items = pickerItems(kind, state, active);
   const selectedId = selectedPickerId(kind, state, active);
+  const browsingDir = kind === "workdir" ? (active?.workdir ?? state.workdir) : undefined;
   return {
     kind,
     title: pickerTitle(kind),
-    query: kind === "workdir" ? selectedId : "",
-    selectedIndex: selectedPickerIndex(items, selectedId),
+    query: "",
+    selectedIndex: kind === "workdir" ? 0 : selectedPickerIndex(items, selectedId),
     items,
-    workdirBase: kind === "workdir" ? (active?.workdir ?? state.workdir) : undefined,
+    workdirBase: browsingDir,
+    browsingDir,
+    showHidden: false,
   };
 }
 
@@ -111,9 +114,54 @@ export function completeWorkdirPickerSelection(picker: PickerState): boolean {
   if (picker.kind !== "workdir") return false;
   const selected = acceptPickerSelection(picker);
   if (!selected?.completeValue) return false;
-  picker.query = selected.completeValue;
+  // Navigate into the selected directory
+  picker.browsingDir = selected.completeValue;
+  picker.query = "";
   picker.selectedIndex = 0;
   return true;
+}
+
+/** Navigate the workdir picker to the parent directory */
+export function navigatePickerToParent(picker: PickerState): boolean {
+  if (picker.kind !== "workdir" || !picker.browsingDir) return false;
+  const parent = dirname(picker.browsingDir);
+  if (parent === picker.browsingDir) return false; // already at root
+  const currentName = basename(picker.browsingDir);
+  picker.browsingDir = parent;
+  picker.query = "";
+  // Try to select the directory we came from
+  const items = filteredPickerItems(picker);
+  const idx = items.findIndex((item) => item.label === `${currentName}/`);
+  picker.selectedIndex = idx >= 0 ? idx : 0;
+  return true;
+}
+
+/** Toggle visibility of hidden directories in the workdir picker */
+export function togglePickerHidden(picker: PickerState): boolean {
+  if (picker.kind !== "workdir") return false;
+  picker.showHidden = !picker.showHidden;
+  picker.selectedIndex = 0;
+  return true;
+}
+
+/** Get the breadcrumb segments for the current browsing directory */
+export function workdirBreadcrumb(picker: PickerState): string[] {
+  if (picker.kind !== "workdir" || !picker.browsingDir) return [];
+  const dir = picker.browsingDir;
+  const home = homedir();
+  if (dir === home) return ["~"];
+  if (dir.startsWith(home + "/")) {
+    return [
+      "~",
+      ...dir
+        .slice(home.length + 1)
+        .split("/")
+        .filter(Boolean),
+    ];
+  }
+  // Absolute path: split into segments, first segment is "/"
+  const parts = dir.split("/").filter(Boolean);
+  return ["/", ...parts];
 }
 
 function pickerTitle(kind: PickerKind): string {
@@ -138,64 +186,35 @@ function selectedPickerIndex(items: PickerItem[], selectedId: string): number {
 }
 
 function filteredWorkdirItems(picker: PickerState, query: string): PickerItem[] {
-  const base = picker.workdirBase ?? picker.items[0]?.id ?? process.cwd();
-  if (!query) return picker.items;
-  const { candidates, error } = directoryCandidates(base, query);
-  const custom = {
-    id: normalizeWorkdirInput(base, query),
-    label: query,
-    description: error ? `custom workdir | ${error}` : "custom workdir",
-  };
-  if (query.endsWith("/")) {
-    return [custom, ...candidates.filter((item) => item.id !== custom.id)];
-  }
-  return candidates.some((item) => item.id === custom.id) ? candidates : [...candidates, custom];
-}
+  const browsingDir = picker.browsingDir ?? picker.workdirBase ?? process.cwd();
+  const showHidden = picker.showHidden ?? false;
 
-function directoryCandidates(
-  base: string,
-  query: string,
-): { candidates: PickerItem[]; error: string } {
-  const { parent, prefix, outputPrefix } = workdirQueryParts(base, query);
-  const entries = readDirectoryEntries(parent);
-  if ("error" in entries) return { candidates: [], error: entries.error };
-  const matches = entries
+  // If query looks like a path (contains / or starts with ~), treat as direct path input
+  if (query && (query.includes("/") || query.startsWith("~"))) {
+    const resolved = normalizeWorkdirInput(browsingDir, query);
+    return [{ id: resolved, label: query, description: "custom path" }];
+  }
+
+  const entries = readDirectoryEntries(browsingDir);
+  if ("error" in entries) {
+    return [{ id: browsingDir, label: browsingDir, description: `error: ${entries.error}` }];
+  }
+
+  const dirs = entries
     .filter((entry) => entry.isDirectory())
-    .filter(
-      (entry) =>
-        !entry.name.startsWith(".") && entry.name.toLowerCase().startsWith(prefix.toLowerCase()),
-    )
-    .sort((a, b) => a.name.localeCompare(b.name))
-    .slice(0, 20);
-  return {
-    error: "",
-    candidates: matches.map((entry) => {
-      const value = `${outputPrefix}${entry.name}/`;
-      return {
-        id: normalizeWorkdirInput(base, value),
-        label: value,
-        description: "directory",
-        completeValue: value,
-      };
-    }),
-  };
-}
+    .filter((entry) => showHidden || !entry.name.startsWith("."))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
-function workdirQueryParts(
-  base: string,
-  query: string,
-): { parent: string; prefix: string; outputPrefix: string } {
-  const normalized = query.replace(/\\/g, "/");
-  const slashIndex = normalized.lastIndexOf("/");
-  if (slashIndex === -1) {
-    return { parent: expandWorkdirBase(base, ""), prefix: normalized, outputPrefix: "" };
-  }
-  const rawParent = normalized.slice(0, slashIndex + 1);
-  return {
-    parent: expandWorkdirBase(base, rawParent),
-    prefix: normalized.slice(slashIndex + 1),
-    outputPrefix: rawParent,
-  };
+  const filtered = query
+    ? dirs.filter((entry) => entry.name.toLowerCase().includes(query.toLowerCase()))
+    : dirs;
+
+  return filtered.slice(0, 20).map((entry) => ({
+    id: resolve(browsingDir, entry.name),
+    label: `${entry.name}/`,
+    description: "directory",
+    completeValue: resolve(browsingDir, entry.name),
+  }));
 }
 
 function normalizeWorkdirInput(base: string, input: string): string {
@@ -205,14 +224,6 @@ function normalizeWorkdirInput(base: string, input: string): string {
   if (trimmed.startsWith("~/")) return join(homedir(), trimmed.slice(2));
   if (isAbsolute(trimmed)) return resolve(trimmed);
   return resolve(base, trimmed);
-}
-
-function expandWorkdirBase(base: string, rawParent: string): string {
-  if (!rawParent) return resolve(base);
-  if (rawParent === "~/") return homedir();
-  if (rawParent.startsWith("~/")) return resolve(homedir(), rawParent.slice(2));
-  if (isAbsolute(rawParent)) return resolve(rawParent);
-  return resolve(base, rawParent);
 }
 
 function readDirectoryEntries(

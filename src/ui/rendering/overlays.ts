@@ -5,7 +5,7 @@ import {
   filterTabJumpEntries,
   previewTitle,
 } from "../../core/overlays.js";
-import { filteredPickerItems } from "../../core/pickers.js";
+import { filteredPickerItems, workdirBreadcrumb } from "../../core/pickers.js";
 import type { MixCodeState, MixCodeTabInfo } from "../../core/types.js";
 import { tabHasPendingUserInteraction } from "../../core/user-interactions.js";
 import { type MixCodeTheme, themeForId } from "../themes.js";
@@ -122,7 +122,8 @@ function renderConfigInner(
   const updateRows = renderPackageUpdateNotice(state.packageUpdates, bodyWidth);
   const staticBodyRows = 1 + logo.length + 1 + updateRows.length;
   // configPanelBox adds a leading spacer, top border, and bottom border around body rows.
-  const maxAgentRows = maxRows === undefined ? undefined : Math.max(0, maxRows - 3 - staticBodyRows);
+  const maxAgentRows =
+    maxRows === undefined ? undefined : Math.max(0, maxRows - 3 - staticBodyRows);
   const agentTableRows = renderAgentViewTable(state, bodyWidth, maxAgentRows);
   const lines = [
     "",
@@ -141,7 +142,8 @@ function configPanelBox(title: string, lines: string[], width: number): string[]
     border: activeRenderTheme.borderDim,
   });
   const body = lines.map(
-    (line) => `${activeRenderTheme.borderDim("│")}${padLine(line, innerWidth)}${activeRenderTheme.borderDim("│")}`,
+    (line) =>
+      `${activeRenderTheme.borderDim("│")}${padLine(line, innerWidth)}${activeRenderTheme.borderDim("│")}`,
   );
   const bottom = `${activeRenderTheme.borderDim("└")}${activeRenderTheme.borderDim("─".repeat(innerWidth))}${activeRenderTheme.borderDim("┘")}`;
   return [padLine("", width), top, ...body, bottom];
@@ -152,11 +154,7 @@ const AGENT_CARD_CHROME_ROWS = 3;
 const AGENT_VIEW_SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 const AGENT_VIEW_SPINNER_INTERVAL_MS = 80;
 
-function renderAgentViewTable(
-  state: MixCodeState,
-  width: number,
-  maxRows?: number,
-): string[] {
+function renderAgentViewTable(state: MixCodeState, width: number, maxRows?: number): string[] {
   if (state.tabs.length === 0) {
     return [
       "",
@@ -167,9 +165,10 @@ function renderAgentViewTable(
   const lines: string[] = ["", activeRenderTheme.bold(" Agents")];
   const selectedIndex = Math.min(state.homeSelectedTabIndex, state.tabs.length - 1);
   const now = Date.now();
-  const maxCards = maxRows === undefined
-    ? state.tabs.length
-    : Math.max(0, Math.floor((maxRows - AGENT_CARD_CHROME_ROWS) / AGENT_CARD_HEIGHT));
+  const maxCards =
+    maxRows === undefined
+      ? state.tabs.length
+      : Math.max(0, Math.floor((maxRows - AGENT_CARD_CHROME_ROWS) / AGENT_CARD_HEIGHT));
   const { start, end } = agentCardWindow(state.tabs.length, selectedIndex, maxCards);
   for (let i = start; i < end; i++) {
     lines.push(...renderAgentCard(state.tabs[i]!, width, i === selectedIndex, now));
@@ -178,7 +177,11 @@ function renderAgentViewTable(
   return lines;
 }
 
-function agentCardWindow(total: number, selectedIndex: number, visibleCount: number): { start: number; end: number } {
+function agentCardWindow(
+  total: number,
+  selectedIndex: number,
+  visibleCount: number,
+): { start: number; end: number } {
   if (visibleCount <= 0) return { start: selectedIndex, end: selectedIndex };
   const count = Math.min(total, visibleCount);
   const half = Math.floor(count / 2);
@@ -236,9 +239,10 @@ function formatAgentSpinner(tab: MixCodeState["tabs"][number], now: number): str
   const start = tab.workingStartedAt ? Date.parse(tab.workingStartedAt) : NaN;
   // If startedAt is unavailable, use wall-clock time so the spinner still animates.
   const elapsed = Number.isFinite(start) ? Math.max(0, now - start) : now;
-  const frame = AGENT_VIEW_SPINNER_FRAMES[
-    Math.floor(elapsed / AGENT_VIEW_SPINNER_INTERVAL_MS) % AGENT_VIEW_SPINNER_FRAMES.length
-  ];
+  const frame =
+    AGENT_VIEW_SPINNER_FRAMES[
+      Math.floor(elapsed / AGENT_VIEW_SPINNER_INTERVAL_MS) % AGENT_VIEW_SPINNER_FRAMES.length
+    ];
   return activeRenderTheme.accent(frame ?? AGENT_VIEW_SPINNER_FRAMES[0]!);
 }
 
@@ -280,7 +284,6 @@ function singleLinePreview(text: string | undefined): string {
   return (text ?? "").replace(/\s+/g, " ").trim();
 }
 
-
 function renderPackageUpdateNotice(packages: string[], width: number): string[] {
   if (!packages.length) return [];
   const innerWidth = Math.max(0, width - 2);
@@ -294,12 +297,10 @@ function renderPackageUpdateNotice(packages: string[], width: number): string[] 
   ];
   return [
     `${activeRenderTheme.tool("┌")}${activeRenderTheme.tool("─".repeat(innerWidth))}${activeRenderTheme.tool("┐")}`,
-    ...lines.map(
-      (line) => {
-        const body = truncateToWidth(` ${line}`, innerWidth, "...");
-        return `${activeRenderTheme.tool("│")}${padLine(body, innerWidth)}${activeRenderTheme.tool("│")}`;
-      },
-    ),
+    ...lines.map((line) => {
+      const body = truncateToWidth(` ${line}`, innerWidth, "...");
+      return `${activeRenderTheme.tool("│")}${padLine(body, innerWidth)}${activeRenderTheme.tool("│")}`;
+    }),
     `${activeRenderTheme.tool("└")}${activeRenderTheme.tool("─".repeat(innerWidth))}${activeRenderTheme.tool("┘")}`,
     "",
   ];
@@ -399,6 +400,12 @@ function renderPickerOverlayInner(state: MixCodeState, width: number): string[] 
   const picker = state.picker;
   if (!picker) return [];
   const items = filteredPickerItems(picker);
+
+  // Workdir picker has a custom layout with breadcrumb and icons
+  if (picker.kind === "workdir") {
+    return renderWorkdirPickerOverlay(picker, items, width);
+  }
+
   const lines = [`filter: ${picker.query}`, ""];
   if (!items.length) {
     lines.push("No matching items");
@@ -412,11 +419,50 @@ function renderPickerOverlayInner(state: MixCodeState, width: number): string[] 
       );
     });
   }
+  lines.push("", "type: filter  up/down: select  enter: choose  esc: cancel");
+  return overlayPanel(picker.title, lines, width);
+}
+
+function renderWorkdirPickerOverlay(
+  picker: NonNullable<MixCodeState["picker"]>,
+  items: ReturnType<typeof filteredPickerItems>,
+  width: number,
+): string[] {
+  const innerWidth = Math.max(1, width - 2);
+  const breadcrumb = workdirBreadcrumb(picker);
+  const breadcrumbLine = breadcrumb
+    .map((seg, i) =>
+      i === breadcrumb.length - 1 ? activeRenderTheme.warning(seg) : activeRenderTheme.accent(seg),
+    )
+    .join(activeRenderTheme.dim(" / "));
+
+  const filterLine = picker.query
+    ? `${activeRenderTheme.dim("filter:")} ${picker.query}`
+    : activeRenderTheme.dim("type to filter");
+
+  const lines: string[] = [breadcrumbLine, filterLine, ""];
+
+  if (!items.length) {
+    lines.push(activeRenderTheme.dim("  (empty directory)"));
+  } else {
+    items.forEach((item, index) => {
+      const icon = item.completeValue ? "\u{1F4C1}" : "\u{1F4C4}";
+      const line = `${index === picker.selectedIndex ? ">" : " "} ${icon} ${item.label}  ${activeRenderTheme.dim(item.description)}`;
+      lines.push(
+        index === picker.selectedIndex
+          ? activeRenderTheme.selection(padLine(line, innerWidth))
+          : line,
+      );
+    });
+  }
+
+  const hiddenIndicator = picker.showHidden ? "on" : "off";
+  const itemCount = items.length;
   lines.push(
     "",
-    picker.kind === "workdir"
-      ? "type path  ctrl+u: clear  tab: complete  up/down: select  enter: set workdir  esc: cancel"
-      : "type: filter  up/down: select  enter: choose  esc: cancel",
+    activeRenderTheme.dim(
+      `${itemCount} dirs \u00b7 \u2190: parent  tab: enter dir  enter: set workdir  ctrl+h: hidden(${hiddenIndicator})  esc: cancel`,
+    ),
   );
   return overlayPanel(picker.title, lines, width);
 }

@@ -160,8 +160,8 @@ test("submitted input opens local pickers and picker keys apply selections", asy
     changes.push(`async:${next.picker?.kind ?? "none"}`);
   });
   assert.equal(state.picker?.kind, "workdir");
-  assert.equal(state.picker?.query, "/repo");
-  assert.match(overlays.at(-1) ?? "", /filter: \/repo/);
+  assert.equal(state.picker?.query, "");
+  assert.match(overlays.at(-1) ?? "", /Change Workdir/);
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[B", tui), { consume: true });
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[A", tui), { consume: true });
   assert.deepEqual(handleMixCodeKeyInput(state, "z", tui), { consume: true });
@@ -291,12 +291,15 @@ test("workdir picker completes directories before applying selection", async () 
       tui,
     );
     assert.equal(state.picker?.kind, "workdir");
-    assert.equal(state.picker?.query, dir);
-    assert.deepEqual(handleMixCodeKeyInput(state, "\x15", tui), { consume: true });
+    assert.equal(state.picker?.query, "");
+    assert.equal(state.picker?.browsingDir, dir);
     assert.deepEqual(handleMixCodeKeyInput(state, "a", tui), { consume: true });
     assert.match(renderPickerOverlay(state, 80).join("\n"), /alpha\//);
+    // Tab navigates into the selected directory
     assert.deepEqual(handleMixCodeKeyInput(state, "\t", tui), { consume: true });
-    assert.equal(state.picker?.query, "alpha/");
+    assert.equal(state.picker?.browsingDir, join(dir, "alpha"));
+    assert.equal(state.picker?.query, "");
+    // Enter confirms the current browsing directory as workdir
     assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui), { consume: true });
     assert.equal(tab.workdir, join(dir, "alpha"));
   } finally {

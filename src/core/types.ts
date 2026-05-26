@@ -52,6 +52,10 @@ export interface PickerState {
   selectedIndex: number;
   items: PickerItem[];
   workdirBase?: string;
+  /** Current browsing directory for workdir picker (absolute path) */
+  browsingDir?: string;
+  /** Whether to show hidden directories (starting with .) */
+  showHidden?: boolean;
 }
 
 export interface CommandPaletteState {
@@ -208,7 +212,6 @@ export interface InputMetaHitRegion {
   endX: number;
 }
 
-
 export type PreviewMessageRole =
   | "user"
   | "assistant"
@@ -222,7 +225,6 @@ export interface PreviewMessage {
   role: PreviewMessageRole;
   text: string;
 }
-
 
 export interface MixCodeState {
   workdir: string;
