@@ -118,7 +118,12 @@ export function handleMixCodeKeyInput(
   }
   // Agent View table navigation on MixCode Home must run before per-session
   // extension terminal handlers because Home is not an agent input surface.
-  if (state.activeTabId === "config" && !hasAnyOverlay(tui) && state.tabs.length > 0) {
+  if (
+    state.activeTabId === "config" &&
+    !hasAnyOverlay(tui) &&
+    !isEditorAutocompleteOpen() &&
+    state.tabs.length > 0
+  ) {
     if (matchesKey(data, "up")) {
       state.homeSelectedTabIndex =
         (state.homeSelectedTabIndex - 1 + state.tabs.length) % state.tabs.length;
@@ -133,6 +138,16 @@ export function handleMixCodeKeyInput(
     if (matchesKey(data, "right") || matchesKey(data, "enter")) {
       const target = state.tabs[state.homeSelectedTabIndex];
       if (target) {
+        // If editor has text, send message to selected agent; otherwise attach.
+        if (matchesKey(data, "enter") && editorActions && editorActions.getText().length > 0) {
+          const text = editorActions.getText().trim();
+          editorActions.setText("");
+          if (text && runtime?.prompt) {
+            void runtime.prompt(target.sessionId, text);
+          }
+          tui.requestRender();
+          return { consume: true };
+        }
         transferVimModeForHomeAttach(state, target);
         activateTab(state, target.sessionId);
         tui.requestRender();

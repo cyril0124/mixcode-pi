@@ -393,6 +393,11 @@ export function createActiveFileCompletionSource(
 }
 
 function activeCompletionWorkdir(state: MixCodeState): string {
+  if (state.activeTabId === "config") {
+    // On Agent View, use the selected agent's workdir for file completion.
+    const selected = state.tabs[state.homeSelectedTabIndex];
+    return selected?.workdir ?? state.workdir;
+  }
   const active = state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];
-  return active && state.activeTabId !== "config" ? active.workdir : state.workdir;
+  return active ? active.workdir : state.workdir;
 }

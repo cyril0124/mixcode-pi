@@ -165,7 +165,24 @@ function resolveActiveAutocompleteProvider(
   base: AutocompleteProvider,
 ): AutocompleteProvider {
   const active = state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];
-  if (!active || state.activeTabId === "config") return base;
+  if (!active || state.activeTabId === "config") return homeAutocompleteFilter(base);
   if (!runtime.getTab(active.sessionId)) return base;
   return runtime.applyExtensionAutocompleteProviders?.(active.sessionId, base) ?? base;
+}
+
+// On Agent View, only allow $ (skills) and @ (files) autocomplete; block / (commands).
+function homeAutocompleteFilter(base: AutocompleteProvider): AutocompleteProvider {
+  return {
+    getSuggestions: async (lines, cursorLine, cursorCol, options) => {
+      const line = lines[cursorLine] ?? "";
+      const before = line.slice(0, cursorCol);
+      const token = before.match(/(?:^|\s)([^\s]*)$/)?.[1] ?? "";
+      if (token.startsWith("/")) return null;
+      return base.getSuggestions(lines, cursorLine, cursorCol, options);
+    },
+    applyCompletion: (lines, cursorLine, cursorCol, item, prefix) =>
+      base.applyCompletion(lines, cursorLine, cursorCol, item, prefix),
+    shouldTriggerFileCompletion: (lines, cursorLine, cursorCol) =>
+      base.shouldTriggerFileCompletion?.(lines, cursorLine, cursorCol) ?? false,
+  };
 }

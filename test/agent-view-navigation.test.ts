@@ -328,6 +328,58 @@ test("Home attach does not create vimMode when none is active", () => {
   assert.equal(second.vimMode, false);
 });
 
+test("Home Enter with text sends message to selected agent and stays on Home", () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo", { title: "Worker" }), createTab(2, "s2", "/repo"));
+  state.activeTabId = "config";
+  state.homeSelectedTabIndex = 0;
+  const tui = makeTui();
+  let prompted: { sessionId: string; text: string } | undefined;
+  const runtime = {
+    prompt: (sessionId: string, text: string) => {
+      prompted = { sessionId, text };
+      return Promise.resolve();
+    },
+  };
+  const editorActions = makeEditorActions("fix the bug");
+
+  const result = handleMixCodeKeyInput(state, "\r", tui, undefined, runtime, undefined, () => false, editorActions);
+
+  assert.deepEqual(result, { consume: true });
+  assert.equal(state.activeTabId, "config");
+  assert.deepEqual(prompted, { sessionId: "s1", text: "fix the bug" });
+  assert.equal(editorActions.getText(), "");
+});
+
+test("Home Enter with empty text attaches to selected agent", () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"), createTab(2, "s2", "/repo"));
+  state.activeTabId = "config";
+  state.homeSelectedTabIndex = 1;
+  const tui = makeTui();
+  const editorActions = makeEditorActions("");
+
+  const result = handleMixCodeKeyInput(state, "\r", tui, undefined, undefined, undefined, () => false, editorActions);
+
+  assert.deepEqual(result, { consume: true });
+  assert.equal(state.activeTabId, "s2");
+});
+
+test("Home Right always attaches regardless of editor text", () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"));
+  state.activeTabId = "config";
+  state.homeSelectedTabIndex = 0;
+  const tui = makeTui();
+  const editorActions = makeEditorActions("some text");
+
+  const result = handleMixCodeKeyInput(state, "\x1b[C", tui, undefined, undefined, undefined, () => false, editorActions);
+
+  assert.deepEqual(result, { consume: true });
+  assert.equal(state.activeTabId, "s1");
+  assert.equal(editorActions.getText(), "some text");
+});
+
 test("Home Right/Enter does NOT consume when no tabs exist", () => {
   const state = createInitialState("/repo");
   state.activeTabId = "config";
@@ -467,20 +519,49 @@ test("renderConfig shows spinner for working agent cards", () => {
   assert.doesNotMatch(plain, /[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] \[idle\]/);
 });
 
-test("renderConfig shows latest assistant preview in agent card", () => {
+test("renderConfig shows preview panel below card list for selected agent", () => {
   const state = createInitialState("/repo");
   state.tabs.push(
     createTab(1, "s1", "/repo", {
       title: "Previewer",
       previewMessages: [
         { role: "user", text: "please explain" },
+        { role: "tool", text: "read file" },
         { role: "assistant", text: "Here is the latest assistant output\nwith details" },
       ],
     }),
   );
-  const output = renderConfig(state, 100).join("\n");
+  state.homeSelectedTabIndex = 0;
+  const output = stripAnsi(renderConfig(state, 100).join("\n"));
 
-  assert.match(output, /⎿ Here is the latest assistant output with details/);
+  // Preview panel shows user/assistant below card list, not tool messages.
+  assert.match(output, /user:.*please explain/);
+  assert.match(output, /assistant:.*Here is the latest assistant output with details/);
+  assert.doesNotMatch(output, /tool:/);
+});
+
+test("renderConfig shows compact preview for all cards including selected", () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(
+    createTab(1, "s1", "/repo", {
+      title: "First",
+      previewMessages: [
+        { role: "assistant", text: "First output" },
+      ],
+    }),
+    createTab(2, "s2", "/repo", {
+      title: "Second",
+      previewMessages: [
+        { role: "assistant", text: "Second output" },
+      ],
+    }),
+  );
+  state.homeSelectedTabIndex = 0;
+  const output = stripAnsi(renderConfig(state, 100).join("\n"));
+
+  // Both cards show compact ⎿ preview
+  assert.match(output, /⎿ First output/);
+  assert.match(output, /⎿ Second output/);
 });
 
 test("renderConfig dynamically windows agent cards around selection", () => {

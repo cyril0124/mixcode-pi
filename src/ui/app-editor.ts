@@ -28,7 +28,14 @@ export class CompactPromptEditor extends Editor {
   }
 
   override handleInput(data: string): void {
-    if (this.mixState.activeTabId === "config") return;
+    if (this.mixState.activeTabId === "config") {
+      // Allow typing on Agent View for sending messages to selected agent.
+      super.handleInput(data);
+      this.triggerSymbolAutocomplete(data);
+      this.closeStaleSymbolAutocomplete();
+      this.rootTui.requestRender();
+      return;
+    }
     if (this.activeTab()?.vimMode) {
       this.rootTui.requestRender();
       return;
@@ -55,8 +62,21 @@ export class CompactPromptEditor extends Editor {
   }
 
   override render(width: number): string[] {
-    if (this.mixState.activeTabId === "config") return [];
     const theme = themeForId(this.mixState.theme);
+    if (this.mixState.activeTabId === "config") {
+      // Render editor on Agent View with a placeholder targeting the selected agent.
+      this.borderColor = theme.thinkingBorder();
+      const lines = super.render(width);
+      const currentText = this.getExpandedText?.() ?? this.getText();
+      if (currentText.length === 0) {
+        return lines.map((line, index) =>
+          index === 1
+            ? renderPlaceholderLine(line, homeEditorPlaceholder(this.mixState), width, theme)
+            : line,
+        );
+      }
+      return lines;
+    }
     const isVimMode = this.activeTab()?.vimMode === true;
     const currentText = this.getExpandedText?.() ?? this.getText();
     const isEmpty = currentText.length === 0;
@@ -114,6 +134,11 @@ function editorPlaceholder(state: MixCodeState): string {
   return `Send message to ${active?.title ?? "agent"}...`;
 }
 
+function homeEditorPlaceholder(state: MixCodeState): string {
+  const selected = state.tabs[state.homeSelectedTabIndex];
+  return selected ? `Send to ${selected.title}...` : "Select an agent...";
+}
+
 export class EditorSlot implements Component {
   private focusState = false;
   private activeEditor: EditorComponent;
@@ -167,7 +192,10 @@ export class EditorSlot implements Component {
 
   render(width: number): string[] {
     this.syncActiveTab();
-    if (this.mixState.activeTabId === "config") return [];
+    if (this.mixState.activeTabId === "config") {
+      // On Agent View, render the default editor (for sending messages).
+      return this.defaultEditor.render(width);
+    }
     this.syncActiveEditorBorder();
     const lines = this.activeEditor.render(width);
     // Extension editor components may not pad lines to full width.
@@ -184,7 +212,11 @@ export class EditorSlot implements Component {
   }
 
   handleInput(data: string): void {
-    if (this.mixState.activeTabId === "config") return;
+    if (this.mixState.activeTabId === "config") {
+      // On Agent View, route input to the default editor for message composition.
+      this.defaultEditor.handleInput(data);
+      return;
+    }
     this.syncActiveTab();
     if (this.activeTab()?.vimMode) {
       this.tui.requestRender();

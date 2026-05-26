@@ -120,15 +120,20 @@ function renderConfigInner(
   ];
   const bodyWidth = Math.max(1, width - 6);
   const updateRows = renderPackageUpdateNotice(state.packageUpdates, bodyWidth);
-  const staticBodyRows = 1 + logo.length + 1 + updateRows.length;
+  // Hide logo when terminal is too small to fit logo + at least 1 card + preview.
+  const LOGO_ROWS = logo.length + 2; // logo lines + blank before + blank after
+  const MIN_ROWS_FOR_LOGO = LOGO_ROWS + AGENT_CARD_HEIGHT + AGENT_CARD_CHROME_ROWS + 3; // + panel chrome
+  const showLogo = maxRows === undefined || maxRows >= MIN_ROWS_FOR_LOGO + updateRows.length;
+  const logoLines = showLogo
+    ? ["", ...logo.map((line) => centerLine(activeRenderTheme.accent(line), Math.max(1, width - 2))), ""]
+    : [""];
+  const staticBodyRows = logoLines.length + updateRows.length;
   // configPanelBox adds a leading spacer, top border, and bottom border around body rows.
   const maxAgentRows =
     maxRows === undefined ? undefined : Math.max(0, maxRows - 3 - staticBodyRows);
   const agentTableRows = renderAgentViewTable(state, bodyWidth, maxAgentRows);
   const lines = [
-    "",
-    ...logo.map((line) => centerLine(activeRenderTheme.accent(line), Math.max(1, width - 2))),
-    "",
+    ...logoLines,
     ...updateRows.map((line) => `  ${line}`),
     ...agentTableRows.map((line) => `  ${line}`),
   ];
@@ -165,13 +170,26 @@ function renderAgentViewTable(state: MixCodeState, width: number, maxRows?: numb
   const lines: string[] = ["", activeRenderTheme.bold(" Agents")];
   const selectedIndex = Math.min(state.homeSelectedTabIndex, state.tabs.length - 1);
   const now = Date.now();
-  const maxCards =
-    maxRows === undefined
-      ? state.tabs.length
-      : Math.max(0, Math.floor((maxRows - AGENT_CARD_CHROME_ROWS) / AGENT_CARD_HEIGHT));
+  // Card list gets priority; preview panel uses remaining space.
+  const PREVIEW_PANEL_MIN_ROWS = 2; // divider(1) + at least 1 message
+  const availableForCards = maxRows === undefined
+    ? undefined
+    : Math.max(0, maxRows - AGENT_CARD_CHROME_ROWS - PREVIEW_PANEL_MIN_ROWS);
+  const maxCards = availableForCards === undefined
+    ? state.tabs.length
+    : Math.max(1, Math.floor(availableForCards / AGENT_CARD_HEIGHT));
   const { start, end } = agentCardWindow(state.tabs.length, selectedIndex, maxCards);
   for (let i = start; i < end; i++) {
     lines.push(...renderAgentCard(state.tabs[i]!, width, i === selectedIndex, now));
+  }
+  // Preview panel uses remaining rows after cards.
+  const cardRows = (end - start) * AGENT_CARD_HEIGHT;
+  const previewMaxRows = maxRows === undefined
+    ? 5
+    : Math.max(1, maxRows - AGENT_CARD_CHROME_ROWS - cardRows);
+  const selectedTab = state.tabs[selectedIndex];
+  if (selectedTab && previewMaxRows > 0) {
+    lines.push(...renderPreviewPanel(selectedTab, width, previewMaxRows));
   }
   lines.push(activeRenderTheme.dim("  ↑/↓: select  →/Enter: attach  Tab: cycle tabs"));
   return lines;
@@ -224,6 +242,31 @@ function renderAgentCard(
     `${border("│")}${activeRenderTheme.dim(padLine(preview, innerWidth))}${border("│")}`,
     `${border("└")}${border("─".repeat(innerWidth))}${border("┘")}`,
   ];
+}
+
+function renderPreviewPanel(
+  tab: MixCodeState["tabs"][number],
+  width: number,
+  maxLines: number,
+): string[] {
+  const innerWidth = Math.max(0, width - 2);
+  const divider = `${activeRenderTheme.borderDim("─".repeat(width))}`;
+  const messages = tab.previewMessages.filter(
+    (msg) => msg.role === "user" || msg.role === "assistant",
+  );
+  if (messages.length === 0) {
+    return [divider, activeRenderTheme.dim("  No messages yet")];
+  }
+  const recent = messages.slice(-maxLines);
+  const lines = recent.map((msg) => {
+    const role = msg.role === "assistant" ? "assistant" : "user";
+    const prefix = ` ${activeRenderTheme.dim(`${role}:`)} `;
+    const prefixWidth = visibleWidth(prefix);
+    const textBudget = Math.max(1, innerWidth - prefixWidth);
+    const text = truncateToWidth(singleLinePreview(msg.text), textBudget, "...");
+    return `${prefix}${text}`;
+  });
+  return [divider, ...lines];
 }
 
 function formatAgentCardTitleSegment(tab: MixCodeState["tabs"][number], text: string): string {

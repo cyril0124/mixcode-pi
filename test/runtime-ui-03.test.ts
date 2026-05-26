@@ -532,7 +532,9 @@ test("createMixCodeTui editor slot handles input, autocomplete host, and submit"
 
     state.activeTabId = "config";
     (tui as unknown as { handleInput: (data: string) => void }).handleInput("x");
-    assert.equal(layout.editor.getText(), "");
+    // Agent View now accepts editor input for sending messages to selected agent.
+    assert.equal(layout.editor.getText(), "x");
+    layout.editor.setText("");
     assert.deepEqual(
       await runtime
         .applyExtensionAutocompleteProviders(
