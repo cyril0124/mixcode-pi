@@ -37,6 +37,7 @@ export async function main(): Promise<void> {
   const tui = createMixCodeTui(state, runtime, {
     completionSources,
     workspaceFile,
+    exitProcessOnQuit: true,
     onStateChanged: async (nextState) => saveStateFile(stateFile, nextState, DEFAULT_STATE_PORT),
   });
   tui.start();

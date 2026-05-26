@@ -6,6 +6,8 @@ export type MixCodeKeyRuntime = Partial<
   Pick<
     MixCodeRuntime,
     | "abortTab"
+    | "abortAllTabs"
+    | "beginShutdown"
     | "appendSystemMessage"
     | "closeTab"
     | "createTab"

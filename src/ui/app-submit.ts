@@ -31,6 +31,7 @@ import type {
   RuntimeToolInfo,
 } from "./app-types.js";
 import { openExtensionManager } from "./extension-manager.js";
+import { getConfiguredQuitOptions, quitMixCode } from "./quit.js";
 import { clearConversationCache, renderPickerOverlay } from "./rendering.js";
 import { openSessionSelector, type SessionSelectorRuntime } from "./session-selector.js";
 import { resolveThemeInput, setTheme } from "./themes.js";
@@ -344,9 +345,7 @@ export async function handleSubmittedInput(
       await editTextWithTuiPaused(tui, text, request.editor);
     }
   } else if (parsed.command === "quit" || parsed.command === "exit") {
-    if (!tui.stop) throw new Error("Quit command requires TUI stop support");
-    await runtime.closeAllTabs();
-    tui.stop();
+    await quitMixCode(runtime, tui, getConfiguredQuitOptions(tui));
   } else if (parsed.command === "undo") {
     await runtime.undoLastUserTurn(active!.sessionId);
     activateTab(state, active!.sessionId);

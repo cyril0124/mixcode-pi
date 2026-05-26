@@ -204,6 +204,13 @@ export async function shutdownRuntimeTab(
   extensionUiHost: ExtensionCustomUiHost | undefined,
 ): Promise<void> {
   await runtimeTab.agentSession.extensionRunner.emit(event);
+  disposeRuntimeTabAfterShutdown(runtimeTab, extensionUiHost);
+}
+
+export function disposeRuntimeTabAfterShutdown(
+  runtimeTab: RuntimeTab,
+  extensionUiHost: ExtensionCustomUiHost | undefined,
+): void {
   disposeChatRenderers(runtimeTab.chat);
   runtimeTab.agentSession.dispose();
   resetExtensionHostState(runtimeTab, extensionUiHost);

@@ -66,6 +66,7 @@ import {
   getExtensionManagerEntriesForServices,
   type RuntimeLifecycleContext,
   rebuildRuntimeChat,
+  disposeRuntimeTabAfterShutdown,
   replaceRuntimeTabSession,
   shutdownRuntimeTab,
   syncRuntimeChatFromSession,
@@ -118,6 +119,7 @@ export class MixCodeRuntime {
   private readonly changeListeners = new Set<
     (event: RuntimeEvent, runtimeTab: RuntimeTab) => void
   >();
+  private isShuttingDown = false;
   private readonly getApiKey?: (
     provider: string,
   ) => Promise<string | undefined> | string | undefined;
@@ -280,6 +282,11 @@ export class MixCodeRuntime {
     return () => {
       this.changeListeners.delete(listener);
     };
+  }
+
+  beginShutdown(): void {
+    this.isShuttingDown = true;
+    this.changeListeners.clear();
   }
 
   getExtensionCommands(sessionId: string) {
@@ -557,6 +564,21 @@ export class MixCodeRuntime {
     return true;
   }
 
+  abortAllTabs(): void {
+    for (const runtimeTab of this.tabs.values()) {
+      runtimeTab.agentSession.abortRetry();
+      runtimeTab.agentSession.abortCompaction();
+      runtimeTab.agentSession.abortBranchSummary();
+      if (runtimeTab.agentSession.isBashRunning) runtimeTab.agentSession.abortBash();
+      if (runtimeTab.agentSession.isStreaming) runtimeTab.agentSession.agent.abort();
+      runtimeTab.agentSession.clearQueue();
+      runtimeTab.tab.pendingMessages = [];
+      runtimeTab.queuedPromptCount = 0;
+      runtimeTab.tab.pendingEscapeAction = undefined;
+      runtimeTab.tab.pendingEscapeArmedAt = undefined;
+    }
+  }
+
   dispatchTerminalInput(sessionId: string, data: string): TerminalInputResult {
     const runtimeTab = this.tabs.get(sessionId);
     if (!runtimeTab || runtimeTab.extensionTerminalInputHandlers.size === 0) return undefined;
@@ -722,8 +744,28 @@ export class MixCodeRuntime {
   }
 
   async closeAllTabs(): Promise<void> {
-    for (const sessionId of [...this.tabs.keys()]) {
-      await this.closeTab(sessionId);
+    const entries = [...this.tabs.entries()];
+    const closeResults = await Promise.allSettled(
+      entries.map(async ([, runtimeTab]) => {
+        await runtimeTab.agentSession.extensionRunner.emit({
+          type: "session_shutdown",
+          reason: "quit",
+        });
+        disposeRuntimeTabAfterShutdown(runtimeTab, this.extensionUiHost);
+      }),
+    );
+    for (const [index, result] of closeResults.entries()) {
+      if (result.status === "fulfilled") {
+        this.tabs.delete(entries[index]![0]);
+        continue;
+      }
+      for (let remainingIndex = index; remainingIndex < entries.length; remainingIndex++) {
+        const [sessionId, runtimeTab] = entries[remainingIndex]!;
+        if (!this.tabs.has(sessionId)) continue;
+        disposeRuntimeTabAfterShutdown(runtimeTab, this.extensionUiHost);
+        this.tabs.delete(sessionId);
+      }
+      throw result.reason;
     }
   }
 
@@ -930,6 +972,7 @@ export class MixCodeRuntime {
   }
 
   private emitChange(event: RuntimeEvent, runtimeTab: RuntimeTab): void {
+    if (this.isShuttingDown) return;
     this.changeListeners.forEach((listener) => listener(event, runtimeTab));
   }
 }

@@ -55,6 +55,7 @@ export interface MixCodeTuiOptions {
   workspaceFile?: string;
   externalEditor?: string;
   terminal?: ConstructorParameters<typeof TUI>[0];
+  exitProcessOnQuit?: boolean;
 }
 export function createMixCodeTui(
   state: MixCodeState,
@@ -62,6 +63,8 @@ export function createMixCodeTui(
   options: MixCodeTuiOptions = {},
 ): TuiType {
   const tui = new TUI(withMouseReporting(options.terminal ?? new ProcessTerminal()));
+  (tui as TuiType & { mixCodeExitProcessOnQuit?: boolean }).mixCodeExitProcessOnQuit =
+    options.exitProcessOnQuit === true;
   bindRuntimeRendering(runtime, tui, state, options.onStateChanged);
   const stopWorkingRedraw = bindWorkingRedraw(state, tui);
   const stopLiveExtensionRedraw = bindLiveExtensionRedraw(state, tui);

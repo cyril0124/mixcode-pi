@@ -10,7 +10,8 @@ import {
   showLinesOverlay,
   showTransientTextOverlay,
 } from "./app-overlays.js";
-import type { MixCodeKeyRuntime, OverlayTui } from "./app-types.js";
+import type { OverlayTui } from "./app-types.js";
+import { shutdownRuntimeAndStopTui, type RuntimeQuitTarget } from "./quit.js";
 
 export {
   armPendingEscape,
@@ -105,11 +106,9 @@ export function showSystemMessageOrToast(
 }
 
 export async function closeRuntimeAndStop(
-  runtime: MixCodeKeyRuntime | undefined,
+  runtime: RuntimeQuitTarget | undefined,
   tui: OverlayTui,
 ): Promise<void> {
-  if (!tui.stop) throw new Error("Quit command requires TUI stop support");
-  if (runtime?.closeAllTabs) await runtime.closeAllTabs();
-  tui.stop();
+  await shutdownRuntimeAndStopTui(runtime, tui);
   tui.requestRender();
 }

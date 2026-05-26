@@ -25,12 +25,7 @@ import {
   toggleCurrentQuestionOption,
 } from "../core/dialogs.js";
 import type { MixCodeState } from "../core/types.js";
-import {
-  armPendingEscape,
-  clearPendingEscape,
-  closeRuntimeAndStop,
-  hasPendingEscape,
-} from "./app-actions.js";
+import { armPendingEscape, clearPendingEscape, hasPendingEscape } from "./app-actions.js";
 import {
   closeAppOverlay,
   editTextWithTuiPaused,
@@ -46,6 +41,7 @@ import type {
   MixCodeKeyRuntime,
   OverlayTui,
 } from "./app-types.js";
+import { getConfiguredQuitOptions, quitMixCode } from "./quit.js";
 import { renderCommandPalette, renderExportChooser, renderTabJumpOverlay } from "./rendering.js";
 
 export {
@@ -143,7 +139,7 @@ export function handleQuitConfirmKey(
   if (data.toLowerCase() === "y") {
     state.quitConfirmOpen = false;
     closeAppOverlay(tui);
-    void closeRuntimeAndStop(runtime, tui).catch((error: unknown) => {
+    void quitMixCode(runtime, tui, getConfiguredQuitOptions(tui)).catch((error: unknown) => {
       showErrorOverlay(tui, error);
     });
     tui.requestRender();

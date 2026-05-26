@@ -197,7 +197,7 @@ test("app action helpers expose model, system message, and close edge branches",
     { closeAllTabs: async () => closed.push("closed") },
     { stop: () => closed.push("stopped"), requestRender: () => closed.push("render") },
   );
-  assert.deepEqual(closed, ["closed", "stopped", "render"]);
+  assert.deepEqual(closed, ["stopped", "closed", "render"]);
 
   state.tabs.length = 0;
   assert.throws(

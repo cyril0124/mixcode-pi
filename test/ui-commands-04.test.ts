@@ -453,7 +453,7 @@ test("submitted input marks done, exports state, imports sessions, and exits dir
   assert.equal(stopped, true);
   assert.equal(closedAll, 1);
   assert.equal(state.quitConfirmOpen, false);
-  assert.equal(renders.length, 6);
+  assert.equal(renders.length, 7);
   await rm(dir, { recursive: true, force: true });
 });
 

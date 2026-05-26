@@ -152,5 +152,5 @@ test("ctrl+q opens a quit confirmation overlay when the prompt is empty", async 
   });
   assert.deepEqual(handleMixCodeKeyInput(state, "y", tui, undefined, runtime), { consume: true });
   await new Promise((resolve) => setImmediate(resolve));
-  assert.deepEqual(lifecycle, ["closeAll", "stop"]);
+  assert.deepEqual(lifecycle, ["stop", "closeAll"]);
 });
