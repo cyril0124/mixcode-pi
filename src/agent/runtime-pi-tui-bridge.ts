@@ -35,6 +35,7 @@
 // surfaces drift loudly instead of silently regressing the UI.
 
 import { dirname } from "node:path";
+import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import {
   getKeybindings as getOuterKeybindings,
@@ -58,30 +59,66 @@ async function resolveNestedPiTui(): Promise<PiTuiKeybindingsModule | undefined>
   // Resolve the pi-coding-agent entry to locate its nested pi-tui copy.
   // In any bundled/compiled binary (bun --compile, Node SEA, etc.),
   // import.meta.resolve will fail because node_modules don't exist on disk.
-  // Treat that as "no nested copy" — all modules are already unified in the
-  // bundle so there's no dual-instance problem to fix.
   let codingAgentEntry: string;
   try {
     codingAgentEntry = fileURLToPath(import.meta.resolve("@earendil-works/pi-coding-agent"));
   } catch {
-    return undefined;
+    // Bun compiled binary: try CJS require via the nested path.
+    // Bun bundles both pi-tui copies; createRequire can reach the nested one
+    // even though the filesystem path is virtual.
+    return resolveNestedViaCjs();
   }
   // pi-coding-agent's main is at <pkgDir>/dist/index.js. The nested pi-tui
   // copy lives at <pkgDir>/node_modules/@earendil-works/pi-tui when the
   // upstream shrinkwrap is in effect.
   const distDir = dirname(codingAgentEntry);
   const pkgDir = dirname(distDir);
+  const nestedKeybindingsPath = `${pkgDir}/node_modules/@earendil-works/pi-tui/dist/keybindings.js`;
+
+  // First try CJS require (bypasses package.json "exports" restrictions).
+  const cjsMod = loadNestedKeybindingsViaCjs(nestedKeybindingsPath);
+  if (cjsMod) return cjsMod;
+
+  // Fallback: dynamic ESM import of the full index (works when exports allow it).
   const nestedEntry = `${pkgDir}/node_modules/@earendil-works/pi-tui/dist/index.js`;
   try {
     return (await import(nestedEntry)) as PiTuiKeybindingsModule;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ERR_MODULE_NOT_FOUND") {
-      // Nested copy not present (e.g. pi-coding-agent dropped its shrinkwrap
-      // and npm deduped pi-tui to a single instance). The top-level set is
-      // already sufficient; nothing to mirror.
       return undefined;
     }
     throw error;
+  }
+}
+
+// Use createRequire to load the nested keybindings module directly by
+// absolute path. This bypasses package.json "exports" restrictions that
+// block subpath imports in Node 22+.
+function loadNestedKeybindingsViaCjs(absolutePath: string): PiTuiKeybindingsModule | undefined {
+  try {
+    const require = createRequire(import.meta.url);
+    const mod = require(absolutePath) as PiTuiKeybindingsModule;
+    if (mod.setKeybindings === (setOuterKeybindings as unknown)) return undefined;
+    return mod;
+  } catch {
+    return undefined;
+  }
+}
+
+// Fallback for Bun compiled binary where import.meta.resolve fails.
+// Bun's virtual FS still serves bundled node_modules via createRequire.
+function resolveNestedViaCjs(): PiTuiKeybindingsModule | undefined {
+  try {
+    const require = createRequire(import.meta.url);
+    // Walk from the resolved pi-coding-agent dist entry to find the nested pi-tui.
+    const codingAgentMain = require.resolve("@earendil-works/pi-coding-agent");
+    const pkgDir = dirname(dirname(codingAgentMain));
+    const nestedPath = `${pkgDir}/node_modules/@earendil-works/pi-tui/dist/keybindings.js`;
+    const mod = require(nestedPath) as PiTuiKeybindingsModule;
+    if (mod.setKeybindings === (setOuterKeybindings as unknown)) return undefined;
+    return mod;
+  } catch {
+    return undefined;
   }
 }
 
