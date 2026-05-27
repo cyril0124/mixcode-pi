@@ -1,7 +1,4 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
 import { test } from "node:test";
 import {
   createInitialState,
@@ -90,38 +87,32 @@ test("submitted input shows system tools when editor is disabled", async () => {
   );
 });
 
-test("submitted input shows system prompt from pi runtime when editor is disabled", async () => {
+test("submitted input only accepts bare system prompt command", async () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo", { status: "done" });
   state.tabs.push(tab);
   state.activeTabId = "s1";
-  const overlays: string[] = [];
   const runtime = {
     getTab: () => ({ agent: { state: { systemPrompt: "system from runtime" } } }),
   } as unknown as MixCodeRuntime;
   const tui = {
     requestRender: () => undefined,
-    showOverlay: (component: { render?: (width: number) => string[] } | string) => {
-      overlays.push(
-        typeof component === "string"
-          ? component
-          : (component.render?.(120).join("\n") ?? String(component)),
-      );
-      return {} as never;
-    },
+    showOverlay: () => ({} as never),
   };
 
-  await handleSubmittedInput(state, runtime, "/system-prompt --editor=false", tui);
-  assert.match(overlays.at(-1) ?? "", /system from runtime/);
   await assert.rejects(
     () =>
       handleSubmittedInput(
         state,
-        { getTab: () => undefined } as unknown as MixCodeRuntime,
+        runtime,
         "/system-prompt --editor=false",
         tui,
       ),
-    /Unknown tab session/,
+    /Usage: \/system-prompt/,
+  );
+  await assert.rejects(
+    () => handleSubmittedInput(state, runtime, "/system-prompt extra", tui),
+    /Usage: \/system-prompt/,
   );
 });
 

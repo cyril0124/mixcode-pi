@@ -145,8 +145,8 @@ export function handleSessionSelectorKey(
       tui.requestRender();
       return true;
     }
-    // Accept any printable input
-    if (data.length > 0 && !/^[\x00-\x1f\x7f]$/.test(data)) {
+    // Accept printable text input; multi-byte escape/control sequences are navigation keys.
+    if (data.length > 0 && !/[\x00-\x1f\x7f]/.test(data)) {
       selector.renameInput += data;
       showLinesOverlay(tui, (width) => renderSessionSelector(state, width));
       tui.requestRender();

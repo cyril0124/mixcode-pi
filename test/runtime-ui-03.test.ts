@@ -565,6 +565,8 @@ test("createMixCodeTui editor slot handles input, autocomplete host, and submit"
     const externalDir = await mkdtemp(join(tmpdir(), "mixcode-external-editor-ok-"));
     let externalCapture = "";
     const editorScript = join(externalDir, "editor.sh");
+    const previousEditor = process.env.EDITOR;
+    const previousVisual = process.env.VISUAL;
     await writeFile(editorScript, `#!/bin/sh\nprintf changed > "$1"\n`, { mode: 0o755 });
     const externalState = createInitialState("/repo");
     const externalTab = createTab(2, "s2", "/repo");
@@ -603,6 +605,8 @@ test("createMixCodeTui editor slot handles input, autocomplete host, and submit"
       (externalTui as unknown as { handleInput: (data: string) => void }).handleInput("\x05");
       await waitFor(() => externalLayout.editor.getText() === "changed");
       assert.equal(externalCapture, "stop;start;");
+      process.env.EDITOR = editorScript;
+      delete process.env.VISUAL;
       await handleSubmittedInput(
         externalState,
         {
@@ -617,7 +621,7 @@ test("createMixCodeTui editor slot handles input, autocomplete host, and submit"
                 }
               : undefined,
         } as unknown as MixCodeRuntime,
-        `/system-prompt --editor=${editorScript}`,
+        "/system-prompt",
         externalTui,
       );
       assert.equal(
@@ -627,6 +631,10 @@ test("createMixCodeTui editor slot handles input, autocomplete host, and submit"
       (externalTui as unknown as { handleInput: (data: string) => void }).handleInput("x");
       assert.equal(externalLayout.editor.getText(), "changedx");
     } finally {
+      if (previousEditor === undefined) delete process.env.EDITOR;
+      else process.env.EDITOR = previousEditor;
+      if (previousVisual === undefined) delete process.env.VISUAL;
+      else process.env.VISUAL = previousVisual;
       externalTui.stop();
       await rm(externalDir, { recursive: true, force: true });
     }

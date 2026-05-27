@@ -157,11 +157,16 @@ export function parseCommandArgs(argsString: string): string[] {
   let current = "";
   let inDouble = false;
   let inSingle = false;
+  let tokenStarted = false;
 
   for (let i = 0; i < argsString.length; i++) {
     const ch = argsString[i]!;
+    const next = argsString[i + 1];
     if (inDouble) {
-      if (ch === '"') {
+      if (ch === "\\" && next !== undefined && (next === '"' || next === "\\")) {
+        current += next;
+        i++;
+      } else if (ch === '"') {
         inDouble = false;
       } else {
         current += ch;
@@ -174,18 +179,26 @@ export function parseCommandArgs(argsString: string): string[] {
       }
     } else if (ch === '"') {
       inDouble = true;
+      tokenStarted = true;
     } else if (ch === "'") {
       inSingle = true;
+      tokenStarted = true;
+    } else if (ch === "\\" && next !== undefined) {
+      current += next;
+      tokenStarted = true;
+      i++;
     } else if (/\s/.test(ch)) {
-      if (current) {
+      if (tokenStarted) {
         args.push(current);
         current = "";
+        tokenStarted = false;
       }
     } else {
       current += ch;
+      tokenStarted = true;
     }
   }
-  if (current) args.push(current);
+  if (tokenStarted) args.push(current);
   return args;
 }
 

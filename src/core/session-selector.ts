@@ -249,7 +249,9 @@ export function getFilteredSessions(state: SessionSelectorState): FlatSessionNod
 
   // Flat list with search
   if (!trimmed) {
-    return nameFiltered.map((session) => ({
+    const flatSessions =
+      state.sortMode === "recent" ? [...nameFiltered].sort(compareSessionModifiedDesc) : nameFiltered;
+    return flatSessions.map((session) => ({
       session,
       depth: 0,
       isLast: true,
@@ -263,6 +265,7 @@ export function getFilteredSessions(state: SessionSelectorState): FlatSessionNod
   if (state.sortMode === "recent") {
     return nameFiltered
       .filter((s) => matchSession(s, parsed).matches)
+      .sort(compareSessionModifiedDesc)
       .map((session) => ({ session, depth: 0, isLast: true, ancestorContinues: [] }));
   }
 
@@ -282,6 +285,10 @@ export function getFilteredSessions(state: SessionSelectorState): FlatSessionNod
     isLast: true,
     ancestorContinues: [],
   }));
+}
+
+function compareSessionModifiedDesc(left: SessionInfo, right: SessionInfo): number {
+  return right.modified.getTime() - left.modified.getTime();
 }
 
 export function toggleSessionSelectorScope(state: SessionSelectorState): void {

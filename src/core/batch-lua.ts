@@ -324,7 +324,7 @@ function getStringField(
   tableIndex: number,
   field: string,
   lua: any,
-  _lauxlib: any,
+  lauxlib: any,
   to_luastring: (s: string) => Uint8Array,
   to_jsstring: (s: Uint8Array) => string,
 ): string | null {
@@ -332,6 +332,9 @@ function getStringField(
   if (lua.lua_isnil(L, -1) || lua.lua_isnoneornil(L, -1)) {
     lua.lua_pop(L, 1);
     return null;
+  }
+  if (lua.lua_type(L, -1) !== lua.LUA_TSTRING) {
+    return lauxlib.luaL_error(L, to_luastring(`mixcode.open_tab: '${field}' field must be a string`));
   }
   const value = to_jsstring(lua.lua_tostring(L, -1));
   lua.lua_pop(L, 1);

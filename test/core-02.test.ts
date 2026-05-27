@@ -86,26 +86,25 @@ test("generic pickers cover workdir completion and empty selection edges", async
     assert.equal(completeWorkdirPickerSelection(modelPicker), false);
 
     const workdirPicker = createPicker("workdir", state, tab);
-    assert.equal(workdirPicker.query, dir);
-    updatePickerQuery(workdirPicker, "");
-    assert.equal(filteredPickerItems(workdirPicker)[0]?.id, dir);
-    assert.equal(completeWorkdirPickerSelection(workdirPicker), false);
-    updatePickerQuery(workdirPicker, "a");
-    assert.equal(filteredPickerItems(workdirPicker)[0]?.completeValue, "alpha/");
+    assert.equal(workdirPicker.query, "");
+    assert.equal(workdirPicker.browsingDir, dir);
+    // Empty query lists directory contents
+    assert.ok(filteredPickerItems(workdirPicker).some((item) => item.id === join(dir, "alpha")));
+    // Filter by 'al' to match only alpha
+    updatePickerQuery(workdirPicker, "al");
+    assert.equal(filteredPickerItems(workdirPicker)[0]?.completeValue, join(dir, "alpha"));
     assert.equal(completeWorkdirPickerSelection(workdirPicker), true);
-    assert.equal(workdirPicker.query, "alpha/");
-    movePickerSelection(workdirPicker, 1);
-    assert.ok(filteredPickerItems(workdirPicker).some((item) => item.id === join(dir, "alpha")));
+    assert.equal(workdirPicker.query, "");
+    assert.equal(workdirPicker.browsingDir, join(dir, "alpha"));
+    // Path-style queries (containing / or ~) are treated as custom path input
     updatePickerQuery(workdirPicker, `${dir}/`);
-    assert.ok(filteredPickerItems(workdirPicker).some((item) => item.id === join(dir, "alpha")));
+    assert.ok(filteredPickerItems(workdirPicker).some((item) => item.id === dir));
     updatePickerQuery(workdirPicker, "~/");
     assert.ok(filteredPickerItems(workdirPicker)[0]?.id);
     updatePickerQuery(workdirPicker, "~");
     assert.ok(filteredPickerItems(workdirPicker)[0]?.id);
     updatePickerQuery(workdirPicker, `${join(dir, "missing")}/a`);
-    assert.ok(
-      filteredPickerItems(workdirPicker).some((item) => /parent unreadable/.test(item.description)),
-    );
+    assert.equal(filteredPickerItems(workdirPicker)[0]?.description, "custom path");
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

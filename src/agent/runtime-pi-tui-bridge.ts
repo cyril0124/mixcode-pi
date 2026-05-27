@@ -49,11 +49,36 @@ export interface PiTuiKeybindingsModule {
   getKeybindings: () => unknown;
 }
 
+// Injection point for compiled binaries where runtime module resolution fails.
+// binary-entry.ts statically imports the nested pi-tui keybindings module and
+// stashes it on globalThis under a well-known symbol before the bridge loads.
+const NESTED_PI_TUI_SYMBOL = Symbol.for("mixcode-pi.nested-pi-tui");
+const injectedNestedPiTui: PiTuiKeybindingsModule | undefined = (() => {
+  const candidate = (globalThis as Record<symbol, unknown>)[NESTED_PI_TUI_SYMBOL] as
+    | PiTuiKeybindingsModule
+    | undefined;
+  if (!candidate || typeof candidate.setKeybindings !== "function") return undefined;
+  // Only accept if it's genuinely a different module instance.
+  if (candidate.setKeybindings === (setOuterKeybindings as unknown)) return undefined;
+  return candidate;
+})();
+
+/**
+ * Inject the nested pi-tui module for environments (bun --compile) where
+ * runtime resolution cannot locate it. Can also be called explicitly in tests.
+ */
+export function injectNestedPiTui(mod: PiTuiKeybindingsModule): void {
+  // Only accept if it's genuinely a different module instance.
+  if (mod.setKeybindings !== (setOuterKeybindings as unknown)) {
+    (globalThis as Record<symbol, unknown>)[NESTED_PI_TUI_SYMBOL] = mod;
+  }
+}
+
 // Eagerly resolve the nested copy at module load. Top-level await keeps the
 // resolution synchronous from a consumer's perspective: by the time anyone
 // imports `applyMixCodeKeybindings`, the nested module is either ready or
 // confirmed missing.
-const nestedPiTui: PiTuiKeybindingsModule | undefined = await resolveNestedPiTui();
+const nestedPiTui: PiTuiKeybindingsModule | undefined = injectedNestedPiTui ?? (await resolveNestedPiTui());
 
 async function resolveNestedPiTui(): Promise<PiTuiKeybindingsModule | undefined> {
   // Resolve the pi-coding-agent entry to locate its nested pi-tui copy.
@@ -122,6 +147,24 @@ function resolveNestedViaCjs(): PiTuiKeybindingsModule | undefined {
   }
 }
 
+// Resolve the effective nested module: prefer injected (for compiled binary)
+// over the eagerly-resolved one (for dev/node).
+function getNestedPiTui(): PiTuiKeybindingsModule | undefined {
+  // Re-read from globalThis each time in case injectNestedPiTui was called
+  // after module initialization.
+  const fromGlobal = (globalThis as Record<symbol, unknown>)[NESTED_PI_TUI_SYMBOL] as
+    | PiTuiKeybindingsModule
+    | undefined;
+  if (
+    fromGlobal &&
+    typeof fromGlobal.setKeybindings === "function" &&
+    fromGlobal.setKeybindings !== (setOuterKeybindings as unknown)
+  ) {
+    return fromGlobal;
+  }
+  return nestedPiTui;
+}
+
 // Apply mixcode's keybindings to every pi-tui module instance we know about
 // and return a restore handle.
 //
@@ -129,16 +172,17 @@ function resolveNestedViaCjs(): PiTuiKeybindingsModule | undefined {
 // (which resolve `keyText`/`keyHint` against the nested copy) and renderers
 // in this repo (which use the top-level copy) both see the same manager.
 export function applyMixCodeKeybindings(): () => void {
+  const nested = getNestedPiTui();
   const previousOuter = getOuterKeybindings();
-  const previousNested = nestedPiTui?.getKeybindings();
+  const previousNested = nested?.getKeybindings();
   setOuterKeybindings(
     MIXCODE_EXTENSION_KEYBINDINGS_MANAGER as unknown as Parameters<typeof setOuterKeybindings>[0],
   );
-  nestedPiTui?.setKeybindings(MIXCODE_EXTENSION_KEYBINDINGS_MANAGER);
+  nested?.setKeybindings(MIXCODE_EXTENSION_KEYBINDINGS_MANAGER);
   return () => {
     setOuterKeybindings(previousOuter);
-    if (nestedPiTui && previousNested !== undefined) {
-      nestedPiTui.setKeybindings(previousNested);
+    if (nested && previousNested !== undefined) {
+      nested.setKeybindings(previousNested);
     }
   };
 }
@@ -146,5 +190,5 @@ export function applyMixCodeKeybindings(): () => void {
 // Test seam: lets focused tests verify the bridge actually located the nested
 // copy and that it is structurally distinct from the top-level module.
 export async function loadNestedPiTui(): Promise<PiTuiKeybindingsModule | undefined> {
-  return nestedPiTui;
+  return getNestedPiTui();
 }

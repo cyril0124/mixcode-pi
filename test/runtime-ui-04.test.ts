@@ -331,19 +331,6 @@ test("submitted input handles prompt, shell, local commands, clear, and missing 
     await handleSubmittedInput(state, runtime, "/close-session", tui);
     await handleSubmittedInput(state, runtime, "/theme mixcode-dark", tui);
     await handleSubmittedInput(state, runtime, "/help", tui);
-    await handleSubmittedInput(
-      state,
-      {
-        ...runtime,
-        getTab: () => ({
-          chat: [],
-          reasoning: [],
-          agent: { state: { systemPrompt: "Runtime system prompt" } },
-        }),
-      } as unknown as MixCodeRuntime,
-      "/system-prompt --editor=false",
-      tui,
-    );
     await handleSubmittedInput(state, runtime, "/run worker task", tui);
     assert.match(prompts[0] ?? "", /<skill name=/);
     assert.doesNotMatch(prompts[0] ?? "", /workdir-instructions|Follow repo rules/);
@@ -360,7 +347,6 @@ test("submitted input handles prompt, shell, local commands, clear, and missing 
     assert.equal(tab.model.modelId, "faux-1");
     assert.equal(state.theme, "mixcode-dark");
     assert.ok(tab.previewMessages.some((msg: { text: string }) => msg.text.includes("Keyboard Shortcuts")));
-    assert.ok(overlays.some((line) => line.includes("Runtime system prompt")));
     state.tabs.length = 0;
     await handleSubmittedInput(state, runtime, "ignored", tui);
   } finally {

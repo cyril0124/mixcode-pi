@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { existsSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { cwd } from "node:process";
 import { fileURLToPath } from "node:url";
@@ -236,5 +236,10 @@ if (isDirectCliEntry()) {
 
 function isDirectCliEntry(entryUrl = import.meta.url, argv1 = process.argv[1]): boolean {
   if ((globalThis as Record<symbol, unknown>)[BINARY_ENTRY_IMPORT_FLAG]) return false;
-  return Boolean(argv1) && entryUrl === `file://${argv1}`;
+  if (!argv1) return false;
+  try {
+    return fileURLToPath(entryUrl) === realpathSync(argv1);
+  } catch {
+    return entryUrl === `file://${argv1}`;
+  }
 }

@@ -312,14 +312,10 @@ export async function handleSubmittedInput(
     const shortcuts = active ? getExtensionShortcuts(runtime, active.sessionId) : [];
     showSystemMessageOrToast(state, runtime, tui, renderHotkeysText(shortcuts));
   } else if (parsed.command === "system-prompt") {
+    if (parsed.args.trim()) throw new Error("Usage: /system-prompt");
     const runtimeTab = runtime.getTab(active!.sessionId);
     if (!runtimeTab) throw new Error(`Unknown tab session: ${active!.sessionId}`);
-    const request = parseEditorFlag(parsed.args);
-    if (request.editorDisabled) {
-      showTextOverlay(tui, runtimeTab.agent.state.systemPrompt);
-    } else {
-      await editTextWithTuiPaused(tui, runtimeTab.agent.state.systemPrompt, request.editor);
-    }
+    await editTextWithTuiPaused(tui, runtimeTab.agent.state.systemPrompt);
   } else if (parsed.command === "system-tools") {
     const runtimeTab = runtime.getTab(active!.sessionId);
     if (!runtimeTab) throw new Error(`Unknown tab session: ${active!.sessionId}`);

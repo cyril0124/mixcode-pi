@@ -235,7 +235,8 @@ test("picker state filters, moves, and accepts selections", () => {
   assert.equal(theme.title, "Choose Theme");
   const workdir = createPicker("workdir", state);
   assert.equal(workdir.items[0]?.id, "/repo");
-  assert.equal(workdir.query, "/repo");
+  assert.equal(workdir.query, "");
+  assert.equal(workdir.browsingDir, "/repo");
 });
 
 test("workdir picker completes direct child directories only", async () => {
@@ -247,23 +248,26 @@ test("workdir picker completes direct child directories only", async () => {
 
     const state = createInitialState(dir);
     const picker = createPicker("workdir", state);
-    assert.equal(picker.query, dir);
-    updatePickerQuery(picker, "a");
+    assert.equal(picker.query, "");
+    assert.equal(picker.browsingDir, dir);
+    // Filter by 'al' to match only alpha
+    updatePickerQuery(picker, "al");
     assert.deepEqual(
       filteredPickerItems(picker).map((item) => item.label),
-      ["alpha/", "a"],
+      ["alpha/"],
     );
     assert.deepEqual(
       filteredPickerItems(picker).map((item) => item.description),
-      ["directory", "custom workdir"],
+      ["directory"],
     );
     assert.equal(acceptPickerSelection(picker)?.id, join(dir, "alpha"));
 
+    // Path-style query (contains /) treated as custom path input
     updatePickerQuery(picker, "alpha/");
     assert.equal(acceptPickerSelection(picker)?.id, join(dir, "alpha"));
 
     updatePickerQuery(picker, "missing/path");
-    assert.match(filteredPickerItems(picker)[0]?.description ?? "", /parent unreadable/);
+    assert.equal(filteredPickerItems(picker)[0]?.description, "custom path");
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -280,25 +284,30 @@ test("workdir picker covers home absolute and empty query branches", async () =>
 
     const state = createInitialState(join(dir, "base"));
     const picker = createPicker("workdir", state);
-    assert.equal(filteredPickerItems(picker)[0]?.id, join(dir, "base"));
+    // browsingDir is non-existent, shows error item
+    assert.match(filteredPickerItems(picker)[0]?.description ?? "", /error/);
 
     updatePickerQuery(picker, "");
-    assert.equal(filteredPickerItems(picker)[0]?.id, join(dir, "base"));
+    assert.match(filteredPickerItems(picker)[0]?.description ?? "", /error/);
 
+    // ~ resolves to home directory
     updatePickerQuery(picker, "~");
     assert.equal(acceptPickerSelection(picker)?.id, home);
 
+    // ~/p is treated as custom path input (starts with ~)
     updatePickerQuery(picker, "~/p");
     assert.deepEqual(
       filteredPickerItems(picker).map((item) => item.label),
-      ["~/proj/", "~/p"],
+      ["~/p"],
     );
-    assert.equal(acceptPickerSelection(picker)?.id, join(home, "proj/"));
+    assert.equal(acceptPickerSelection(picker)?.id, join(home, "p"));
 
+    // Absolute path with partial match treated as custom path
     updatePickerQuery(picker, `${dir}/a`);
-    assert.equal(acceptPickerSelection(picker)?.id, join(dir, "abs"));
+    assert.equal(acceptPickerSelection(picker)?.id, join(dir, "a"));
 
     assert.equal(completeWorkdirPickerSelection(createPicker("models", state)), false);
+    // no-match filter on unreadable dir still shows error, no completeValue
     updatePickerQuery(picker, "no-match");
     picker.selectedIndex = 1;
     assert.equal(completeWorkdirPickerSelection(picker), false);
