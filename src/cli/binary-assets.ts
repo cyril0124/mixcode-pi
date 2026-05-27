@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 export interface BinaryRuntimeAssets {
@@ -9,6 +9,8 @@ export interface BinaryRuntimeAssets {
   exportTemplateJs: string;
   exportVendorMarked: string;
   exportVendorHighlight: string;
+  interactiveAssets?: Record<string, string>;
+  photonWasmPath?: string;
   packageJson: Record<string, unknown>;
 }
 
@@ -32,20 +34,27 @@ export function materializeBinaryRuntimeAssets(
   writePackageJson(runtimeDir, assets.packageJson);
   for (const themeDir of themeDirs) writeThemes(themeDir, assets);
   for (const exportHtmlDir of exportHtmlDirs) writeExportHtmlAssets(exportHtmlDir, assets);
-  for (const assetsDir of assetsDirs) mkdirSync(assetsDir, { recursive: true });
+  for (const assetsDir of assetsDirs) writeInteractiveAssets(assetsDir, assets.interactiveAssets ?? {});
+  if (assets.photonWasmPath) writePhotonWasm(runtimeDir, assets.photonWasmPath);
 }
 
 function writePackageJson(runtimeDir: string, packageJson: Record<string, unknown>): void {
+  const piConfig = packageJson.piConfig;
   writeFileSync(
     join(runtimeDir, "package.json"),
     JSON.stringify({
       ...packageJson,
       piConfig: {
+        ...(isRecord(piConfig) ? piConfig : {}),
         name: "mixcode",
         configDir: ".mixcode-pi",
       },
     }),
   );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function writeThemes(themeDir: string, assets: Pick<BinaryRuntimeAssets, "darkTheme" | "lightTheme">): void {
@@ -72,4 +81,15 @@ function writeExportHtmlAssets(
   writeFileSync(join(exportHtmlDir, "template.js"), assets.exportTemplateJs);
   writeFileSync(join(exportVendorDir, "marked.min.js"), assets.exportVendorMarked);
   writeFileSync(join(exportVendorDir, "highlight.min.js"), assets.exportVendorHighlight);
+}
+
+function writeInteractiveAssets(assetsDir: string, assetPathsByName: Record<string, string>): void {
+  mkdirSync(assetsDir, { recursive: true });
+  for (const [name, assetPath] of Object.entries(assetPathsByName)) {
+    writeFileSync(join(assetsDir, name), readFileSync(assetPath));
+  }
+}
+
+function writePhotonWasm(runtimeDir: string, photonWasmPath: string): void {
+  writeFileSync(join(runtimeDir, "photon_rs_bg.wasm"), readFileSync(photonWasmPath));
 }

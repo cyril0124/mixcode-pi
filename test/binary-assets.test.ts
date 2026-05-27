@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -8,6 +8,11 @@ import { materializeBinaryRuntimeAssets } from "../src/cli/binary-assets.js";
 test("binary runtime assets are written for both upstream Bun and dist layouts", async () => {
   const runtimeDir = await mkdtemp(join(tmpdir(), "mixcode-binary-assets-"));
   try {
+    const sourceAsset = join(runtimeDir, "clankolas.png.source");
+    const photonWasm = join(runtimeDir, "photon_rs_bg.wasm.source");
+    await writeFile(sourceAsset, "image-bytes", "utf8");
+    await writeFile(photonWasm, "wasm-bytes", "utf8");
+
     materializeBinaryRuntimeAssets(runtimeDir, {
       darkTheme: { name: "dark" },
       lightTheme: { name: "light" },
@@ -16,10 +21,19 @@ test("binary runtime assets are written for both upstream Bun and dist layouts",
       exportTemplateJs: "js",
       exportVendorMarked: "marked",
       exportVendorHighlight: "highlight",
-      packageJson: { name: "mixcode-pi", version: "1.2.3" },
+      interactiveAssets: { "clankolas.png": sourceAsset },
+      photonWasmPath: photonWasm,
+      packageJson: {
+        name: "mixcode-pi",
+        version: "1.2.3",
+        piConfig: { preserved: true, name: "old", configDir: ".old" },
+      },
     });
 
     const packageJson = JSON.parse(await readFile(join(runtimeDir, "package.json"), "utf8"));
+    assert.equal(packageJson.name, "mixcode-pi");
+    assert.equal(packageJson.version, "1.2.3");
+    assert.equal(packageJson.piConfig.preserved, true);
     assert.equal(packageJson.piConfig.name, "mixcode");
     assert.equal(packageJson.piConfig.configDir, ".mixcode-pi");
 
@@ -50,7 +64,10 @@ test("binary runtime assets are written for both upstream Bun and dist layouts",
       join(runtimeDir, "dist", "modes", "interactive", "assets"),
     ]) {
       assert.equal((await stat(assetsDir)).isDirectory(), true);
+      assert.equal(await readFile(join(assetsDir, "clankolas.png"), "utf8"), "image-bytes");
     }
+
+    assert.equal(await readFile(join(runtimeDir, "photon_rs_bg.wasm"), "utf8"), "wasm-bytes");
   } finally {
     await rm(runtimeDir, { recursive: true, force: true });
   }
