@@ -49,6 +49,20 @@ test("head and tail clipping helpers cover empty, one-row, and unchanged layouts
   assert.match(fitHeadLines(["a", "b", "c"], 2, 10).join("\n"), /a/);
 });
 
+test("agent surface shows explicit overflow markers at the bottom", () => {
+  const tab = createTab(99, "s99", "/repo");
+  const chat = Array.from({ length: 10 }, (_, index) => ({
+    role: "assistant" as const,
+    text: `message-${index}`,
+  }));
+
+  const lines = renderAgentSurface(tab, { chat, reasoning: [] } as never, 80, 6);
+  const text = stripAnsi(lines.join("\n"));
+
+  assert.match(text, /\.\.\. older above/);
+  assert.doesNotMatch(text, /^\.\.\.$/m);
+});
+
 test("agent surface max height keeps the newest surface rows", () => {
   const tab = createTab(1, "s1", "/repo");
   const chat = Array.from({ length: 8 }, (_, index) => ({

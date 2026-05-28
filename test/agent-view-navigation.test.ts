@@ -540,6 +540,47 @@ test("renderConfig shows preview panel below card list for selected agent", () =
   assert.doesNotMatch(output, /tool:/);
 });
 
+test("renderConfig respects row budget for compact Agent View", () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(
+    createTab(1, "s1", "/repo", {
+      title: "Previewer",
+      previewMessages: [{ role: "assistant", text: "Long preview ".repeat(50) }],
+    }),
+  );
+  state.homeSelectedTabIndex = 0;
+
+  const lines = renderConfig(state, 100, undefined, 0, 9);
+  const output = stripAnsi(lines.join("\n"));
+
+  assert.equal(lines.length, 9);
+  assert.match(output, /Agents/);
+  assert.match(output, /⎿ Long preview/);
+  assert.doesNotMatch(output, /^\.\.\.$/m);
+  assert.doesNotMatch(output, /newer below/);
+});
+
+test("renderConfig preserves full selected-agent preview when it fits", () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(
+    createTab(1, "s1", "/repo", {
+      title: "Previewer",
+      previewMessages: Array.from({ length: 7 }, (_, index) => ({
+        role: "assistant" as const,
+        text: `message ${index + 1}`,
+      })),
+    }),
+  );
+  state.homeSelectedTabIndex = 0;
+
+  const output = stripAnsi(renderConfig(state, 100, undefined, 0, 19).join("\n"));
+
+  for (let index = 1; index <= 7; index++) {
+    assert.match(output, new RegExp(`assistant: message ${index}`));
+  }
+  assert.doesNotMatch(output, /newer below/);
+});
+
 test("renderConfig shows compact preview for all cards including selected", () => {
   const state = createInitialState("/repo");
   state.tabs.push(

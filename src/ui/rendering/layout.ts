@@ -41,8 +41,9 @@ export function fitTailLines(lines: string[], maxHeight: number, width: number):
   const height = Math.max(0, Math.floor(maxHeight));
   if (height === 0) return [];
   if (lines.length <= height) return lines;
-  if (height === 1) return [padLine(activeRenderTheme.dim("..."), width)];
-  return [padLine(activeRenderTheme.dim("..."), width), ...lines.slice(-(height - 1))];
+  const marker = padLine(activeRenderTheme.dim("... older above"), width);
+  if (height === 1) return [marker];
+  return [marker, ...lines.slice(-(height - 1))];
 }
 
 export function fitScrolledLines(
@@ -93,15 +94,19 @@ export function fitScrolledLinesWithInfo(
       scrollable: true,
     };
   }
-  if (height === 1)
+  if (height === 1) {
+    const start = Math.max(0, lines.length - offset - 1);
+    const end = Math.min(lines.length, Math.max(1, lines.length - offset));
+    const marker = start > 0 ? "... older above" : "... newer below";
     return {
-      lines: [padLine(activeRenderTheme.dim("..."), width)],
+      lines: [padLine(activeRenderTheme.dim(marker), width)],
       total: lines.length,
       height,
-      start: Math.max(0, lines.length - offset - 1),
-      end: Math.min(lines.length, Math.max(1, lines.length - offset)),
+      start,
+      end,
       scrollable: true,
     };
+  }
   const end = Math.min(lines.length, Math.max(height, lines.length - offset));
   const start = Math.max(0, end - height);
   const window = lines.slice(start, end);
@@ -116,6 +121,7 @@ export function fitHeadLines(lines: string[], maxHeight: number, width: number):
   const height = Math.max(0, Math.floor(maxHeight));
   if (height === 0) return [];
   if (lines.length <= height) return lines;
-  if (height === 1) return [padLine(activeRenderTheme.dim("..."), width)];
-  return [...lines.slice(0, height - 1), padLine(activeRenderTheme.dim("..."), width)];
+  const marker = padLine(activeRenderTheme.dim("... newer below"), width);
+  if (height === 1) return [marker];
+  return [...lines.slice(0, height - 1), marker];
 }

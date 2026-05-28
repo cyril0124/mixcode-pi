@@ -123,7 +123,9 @@ function renderConfigInner(
   // Hide logo when terminal is too small to fit logo + at least 1 card + preview.
   const LOGO_ROWS = logo.length + 2; // logo lines + blank before + blank after
   const MIN_ROWS_FOR_LOGO = LOGO_ROWS + AGENT_CARD_HEIGHT + AGENT_CARD_CHROME_ROWS + 3; // + panel chrome
-  const showLogo = maxRows === undefined || maxRows >= MIN_ROWS_FOR_LOGO + updateRows.length;
+  const showLogo =
+    state.tabs.length === 0 &&
+    (maxRows === undefined || maxRows >= MIN_ROWS_FOR_LOGO + updateRows.length);
   const logoLines = showLogo
     ? ["", ...logo.map((line) => centerLine(activeRenderTheme.accent(line), Math.max(1, width - 2))), ""]
     : [""];
@@ -137,7 +139,13 @@ function renderConfigInner(
     ...updateRows.map((line) => `  ${line}`),
     ...agentTableRows.map((line) => `  ${line}`),
   ];
-  return configPanelBox("", lines, width);
+  return fitConfigRows(configPanelBox("", lines, width), maxRows, width);
+}
+
+function fitConfigRows(lines: string[], maxRows: number | undefined, width: number): string[] {
+  void width;
+  if (maxRows === undefined) return lines;
+  return lines.slice(0, Math.max(0, Math.floor(maxRows)));
 }
 
 function configPanelBox(title: string, lines: string[], width: number): string[] {
@@ -160,39 +168,68 @@ const AGENT_VIEW_SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "�
 const AGENT_VIEW_SPINNER_INTERVAL_MS = 80;
 
 function renderAgentViewTable(state: MixCodeState, width: number, maxRows?: number): string[] {
+  const budget = maxRows === undefined ? undefined : Math.max(0, Math.floor(maxRows));
   if (state.tabs.length === 0) {
-    return [
-      "",
-      activeRenderTheme.bold(" Agents"),
-      activeRenderTheme.dim("  No agent sessions. Use the command palette to start one."),
-    ];
+    return fitAgentRows(
+      [
+        "",
+        activeRenderTheme.bold(" Agents"),
+        activeRenderTheme.dim("  No agent sessions. Use the command palette to start one."),
+      ],
+      budget,
+    );
   }
-  const lines: string[] = ["", activeRenderTheme.bold(" Agents")];
+
+  const lines: string[] = [];
+  pushAgentRows(lines, ["", activeRenderTheme.bold(" Agents")], budget);
   const selectedIndex = Math.min(state.homeSelectedTabIndex, state.tabs.length - 1);
   const now = Date.now();
-  // Card list gets priority; preview panel uses remaining space.
-  const PREVIEW_PANEL_MIN_ROWS = 2; // divider(1) + at least 1 message
-  const availableForCards = maxRows === undefined
-    ? undefined
-    : Math.max(0, maxRows - AGENT_CARD_CHROME_ROWS - PREVIEW_PANEL_MIN_ROWS);
+  const hint = activeRenderTheme.dim("  ↑/↓: select  →/Enter: attach  Tab: cycle tabs");
+
+  // Cards are the anchor of Agent View; preview and hint use the remaining rows.
+  const rowsAfterHeader = budget === undefined ? undefined : Math.max(0, budget - lines.length);
+  const previewAndHintReserve =
+    rowsAfterHeader !== undefined && rowsAfterHeader >= AGENT_CARD_HEIGHT + 3 ? 3 : 0;
+  const availableForCards =
+    rowsAfterHeader === undefined ? undefined : Math.max(0, rowsAfterHeader - previewAndHintReserve);
   const maxCards = availableForCards === undefined
     ? state.tabs.length
-    : Math.max(1, Math.floor(availableForCards / AGENT_CARD_HEIGHT));
+    : Math.max(0, Math.floor(availableForCards / AGENT_CARD_HEIGHT));
   const { start, end } = agentCardWindow(state.tabs.length, selectedIndex, maxCards);
-  for (let i = start; i < end; i++) {
-    lines.push(...renderAgentCard(state.tabs[i]!, width, i === selectedIndex, now));
+  if (maxCards === 0 && rowsAfterHeader !== undefined && rowsAfterHeader > 0) {
+    pushAgentRows(lines, renderAgentCard(state.tabs[selectedIndex]!, width, true, now), budget);
+  } else {
+    for (let i = start; i < end; i++) {
+      if (budget !== undefined && lines.length + AGENT_CARD_HEIGHT > budget) break;
+      lines.push(...renderAgentCard(state.tabs[i]!, width, i === selectedIndex, now));
+    }
   }
-  // Preview panel uses remaining rows after cards.
-  const cardRows = (end - start) * AGENT_CARD_HEIGHT;
-  const previewMaxRows = maxRows === undefined
-    ? 5
-    : Math.max(1, maxRows - AGENT_CARD_CHROME_ROWS - cardRows);
+
   const selectedTab = state.tabs[selectedIndex];
-  if (selectedTab && previewMaxRows > 0) {
-    lines.push(...renderPreviewPanel(selectedTab, width, previewMaxRows));
+  const remainingRows = budget === undefined ? undefined : Math.max(0, budget - lines.length);
+  const previewRows = remainingPreviewRows(remainingRows);
+  if (selectedTab && previewRows > 0) {
+    pushAgentRows(lines, renderPreviewPanel(selectedTab, width, previewRows), budget);
   }
-  lines.push(activeRenderTheme.dim("  ↑/↓: select  →/Enter: attach  Tab: cycle tabs"));
+  pushAgentRows(lines, [hint], budget);
   return lines;
+}
+
+function remainingPreviewRows(remainingRows: number | undefined): number {
+  if (remainingRows === undefined) return 6; // divider + 5 recent messages
+  if (remainingRows >= 3) return remainingRows - 1; // keep one row for the navigation hint
+  if (remainingRows >= 2) return remainingRows;
+  return 0;
+}
+
+function pushAgentRows(lines: string[], rows: string[], budget: number | undefined): void {
+  const remaining = budget === undefined ? rows.length : Math.max(0, budget - lines.length);
+  lines.push(...rows.slice(0, remaining));
+}
+
+function fitAgentRows(lines: string[], budget: number | undefined): string[] {
+  if (budget === undefined) return lines;
+  return lines.slice(0, budget);
 }
 
 function agentCardWindow(
@@ -247,17 +284,19 @@ function renderAgentCard(
 function renderPreviewPanel(
   tab: MixCodeState["tabs"][number],
   width: number,
-  maxLines: number,
+  maxRows: number,
 ): string[] {
+  if (maxRows <= 0) return [];
   const innerWidth = Math.max(0, width - 2);
   const divider = `${activeRenderTheme.borderDim("─".repeat(width))}`;
+  if (maxRows === 1) return [divider];
   const messages = tab.previewMessages.filter(
     (msg) => msg.role === "user" || msg.role === "assistant",
   );
   if (messages.length === 0) {
-    return [divider, activeRenderTheme.dim("  No messages yet")];
+    return [divider, activeRenderTheme.dim("  No messages yet")].slice(0, maxRows);
   }
-  const recent = messages.slice(-maxLines);
+  const recent = messages.slice(-(maxRows - 1));
   const lines = recent.map((msg) => {
     const role = msg.role === "assistant" ? "assistant" : "user";
     const prefix = ` ${activeRenderTheme.dim(`${role}:`)} `;
