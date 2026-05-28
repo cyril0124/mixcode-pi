@@ -462,14 +462,6 @@ test("rendering exposes header, status, working indicator, and sidebar landmarks
     ).join("\n"),
     /Worked for 4m 51s/,
   );
-  tab.goal = {
-    objective: "ship goal",
-    status: "active",
-    createdAt: "c",
-    updatedAt: "u",
-    lastError: "",
-    lastErrorAt: "",
-  };
   assert.deepEqual(renderStatus(tab, 120), []);
   assert.match(renderStatus(undefined, 80)[0] ?? "", /no active agent/);
   assert.deepEqual(renderSidebar(tab, 40), []);

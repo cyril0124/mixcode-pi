@@ -11,9 +11,6 @@ import {
   commandSuggestions,
   createInitialState,
   createTab,
-  applyGoalAction,
-  buildGoalPrompt,
-  consumeGoalCompletionMarker,
   deleteWorkspace,
   deserializeState,
   extractFileRefs,
@@ -25,9 +22,6 @@ import {
   loadStateFile,
   loadWorkspaces,
   normalizeStartupWorkdir,
-  normalizeGoal,
-  parseGoalCommandArgs,
-  renderGoalSummary,
   parseSgrMouseInput,
   MOUSE_REPORTING_DISABLE,
   MOUSE_REPORTING_ENABLE,
@@ -306,14 +300,6 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
         previewIndex: 0,
         previewScrollOffset: 2,
         pendingMessages: ["queued"],
-        goal: {
-          objective: "ship goal",
-          status: "active",
-          createdAt: "c",
-          updatedAt: "u",
-          lastError: "",
-          lastErrorAt: "",
-        },
         redoSessionId: "redo-s1",
       }),
       createTab(2, "s2", "/repo", {
@@ -342,7 +328,6 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
     assert.equal(restored.tabs[0]?.previewScrollOffset, 2);
 
     assert.deepEqual(restored.tabs[0]?.pendingMessages, ["queued"]);
-    assert.equal(restored.tabs[0]?.goal?.objective, "ship goal");
     assert.equal(restored.tabs[0]?.redoSessionId, "redo-s1");
     assert.equal(restored.tabs[1]?.model.modelId, "tab-two-model");
     assert.equal(restored.tabs[1]?.contextLimit, 123_000);

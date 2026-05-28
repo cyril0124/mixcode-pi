@@ -4,7 +4,6 @@ import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { AssistantMessage, Model, Usage } from "@earendil-works/pi-ai";
 import type { MessageRenderer, SessionEntry } from "@earendil-works/pi-coding-agent";
 import { type Component, TUI as PiTui } from "@earendil-works/pi-tui";
-import { consumeGoalCompletionMarker } from "../core/goal.js";
 import type { MixCodeTabInfo, PreviewMessageRole } from "../core/types.js";
 import { MIXCODE_EXTENSION_THEME } from "./runtime-extension-theme.js";
 import { applyMixCodeKeybindings } from "./runtime-pi-tui-bridge.js";
@@ -17,8 +16,8 @@ import {
 } from "./runtime-tool-chat.js";
 import type { ChatLine, CustomMessageLike, RuntimeTab } from "./runtime-types.js";
 
-export function assistantDisplayText(tab: MixCodeTabInfo, message: AssistantMessage): string {
-  return consumeGoalCompletionMarker(tab, assistantText(message.content));
+export function assistantDisplayText(_tab: MixCodeTabInfo, message: AssistantMessage): string {
+  return assistantText(message.content);
 }
 
 export function appendSystemMessage(runtimeTab: RuntimeTab, text: string): void {
@@ -384,7 +383,6 @@ export function resetTabForNewSession(tab: MixCodeTabInfo, sessionId: string): v
   tab.previewHint = "";
   tab.pendingEscapeAction = undefined;
   tab.pendingEscapeArmedAt = undefined;
-  tab.goal = undefined;
   tab.unreadDone = false;
   tab.workingStartedAt = undefined;
   tab.lastWorkedDurationSeconds = undefined;

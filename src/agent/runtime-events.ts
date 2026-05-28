@@ -1,6 +1,5 @@
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { AssistantMessage, Usage } from "@earendil-works/pi-ai";
-import { consumeGoalCompletionMarker } from "../core/goal.js";
 import {
   appendEmptyRunNotice,
   appendPreviewMessage,
@@ -420,8 +419,7 @@ export function syncAssistantBlocks(
   let chatIndex = streaming?.chatIndex;
   message.content.forEach((block, contentIndex) => {
     if (block.type === "text") {
-      const text =
-        contentIndex === 0 ? consumeGoalCompletionMarker(runtimeTab.tab, block.text) : block.text;
+      const text = block.text;
       if (!text.trim()) return;
       const existing = blockIndices.get(contentIndex);
       if (existing !== undefined && runtimeTab.chat[existing]?.role === "assistant") {

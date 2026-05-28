@@ -8,9 +8,6 @@ import {
   commandSuggestions,
   createInitialState,
   createTab,
-  applyGoalAction,
-  buildGoalPrompt,
-  consumeGoalCompletionMarker,
   deleteWorkspace,
   deserializeState,
   extractFileRefs,
@@ -24,9 +21,6 @@ import {
   loadStateFile,
   loadWorkspaces,
   normalizeStartupWorkdir,
-  normalizeGoal,
-  parseGoalCommandArgs,
-  renderGoalSummary,
   parseSgrMouseInput,
   MOUSE_REPORTING_DISABLE,
   MOUSE_REPORTING_ENABLE,
@@ -108,132 +102,6 @@ test("generic pickers cover workdir completion and empty selection edges", async
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
-});
-
-test("goal state applies local actions and completion marker", () => {
-  const tab = createTab(1, "s1", "/repo");
-  assert.deepEqual(parseGoalCommandArgs(""), { action: "status", text: "" });
-  assert.deepEqual(parseGoalCommandArgs("pause ignored words"), {
-    action: "pause",
-    text: "ignored words",
-  });
-  assert.deepEqual(parseGoalCommandArgs("ship feature"), { action: "set", text: "ship feature" });
-  assert.deepEqual(parseGoalCommandArgs("set ship feature"), {
-    action: "set",
-    text: "ship feature",
-  });
-  assert.match(applyGoalAction(tab, "status").message, /No active goal/);
-  assert.match(applyGoalAction(tab, "clear").message, /Goal cleared/);
-  assert.throws(() => applyGoalAction(tab, "pause"), /No goal to pause/);
-  assert.throws(() => applyGoalAction(tab, "complete"), /No goal to complete/);
-  assert.throws(() => applyGoalAction(tab, "set", ""), /Goal objective cannot be empty/);
-  const set = applyGoalAction(tab, "set", "ship feature", new Date("2026-01-01T00:00:00.000Z"));
-  assert.equal(tab.goal?.status, "active");
-  assert.match(set.prompt ?? "", /Start working toward this MixCode goal/);
-  assert.match(applyGoalAction(tab, "status").message, /created: 2026/);
-  assert.match(buildGoalPrompt("resume", "ship feature"), /Resume working/);
-  assert.match(
-    applyGoalAction(tab, "pause", "", new Date("2026-01-02T00:00:00.000Z")).message,
-    /paused/,
-  );
-  assert.equal(tab.goal?.status, "paused");
-  assert.match(applyGoalAction(tab, "resume").prompt ?? "", /MIXCODE_GOAL_COMPLETE/);
-  assert.equal(tab.goal?.status, "active");
-  consumeGoalCompletionMarker(
-    tab,
-    "done\nMIXCODE_GOAL_COMPLETE",
-    new Date("2026-01-03T00:00:00.000Z"),
-  );
-  assert.equal(tab.goal?.status, "complete");
-  consumeGoalCompletionMarker(
-    tab,
-    "again\nMIXCODE_GOAL_COMPLETE",
-    new Date("2026-01-04T00:00:00.000Z"),
-  );
-  assert.equal(tab.goal?.updatedAt, "2026-01-03T00:00:00.000Z");
-  applyGoalAction(tab, "resume");
-  consumeGoalCompletionMarker(tab, buildGoalPrompt("set", "ship feature"));
-  assert.equal(tab.goal?.status, "active");
-  consumeGoalCompletionMarker(tab, "final response:\nMIXCODE_GOAL_COMPLETE");
-  assert.equal(tab.goal?.status, "active");
-  assert.match(applyGoalAction(tab, "clear").message, /ship feature/);
-  assert.equal(tab.goal, undefined);
-  consumeGoalCompletionMarker(tab, "done\nMIXCODE_GOAL_COMPLETE");
-  assert.throws(() => applyGoalAction(tab, "resume"), /No goal to resume/);
-  assert.throws(() => applyGoalAction(tab, "what"), /Unknown goal action/);
-  assert.equal(renderGoalSummary(undefined), "");
-  assert.equal(
-    renderGoalSummary({
-      objective: "",
-      status: "active",
-      createdAt: "",
-      updatedAt: "",
-      lastError: "",
-      lastErrorAt: "",
-    }),
-    "",
-  );
-  assert.equal(
-    renderGoalSummary(
-      {
-        objective: "tiny",
-        status: "paused",
-        createdAt: "",
-        updatedAt: "",
-        lastError: "",
-        lastErrorAt: "",
-      },
-      4,
-    ),
-    "",
-  );
-  assert.match(
-    renderGoalSummary(
-      {
-        objective: "a very long goal objective",
-        status: "error",
-        createdAt: "",
-        updatedAt: "",
-        lastError: "x",
-        lastErrorAt: "t",
-      },
-      18,
-    ),
-    /\.\.\./,
-  );
-  assert.equal(normalizeGoal(null), undefined);
-  assert.equal(normalizeGoal([]), undefined);
-  assert.equal(normalizeGoal({ objective: "", status: "active" }), undefined);
-  assert.deepEqual(
-    normalizeGoal({
-      objective: "",
-      status: "error",
-      created_at: "c",
-      updated_at: "u",
-      last_error: "e",
-      last_error_at: "t",
-    }),
-    {
-      objective: "",
-      status: "error",
-      createdAt: "c",
-      updatedAt: "u",
-      lastError: "e",
-      lastErrorAt: "t",
-    },
-  );
-  assert.equal(normalizeGoal({ objective: "x", status: "bad" })?.status, "active");
-  const unknownTimeTab = createTab(2, "s2", "/repo", {
-    goal: {
-      objective: "x",
-      status: "active",
-      createdAt: "",
-      updatedAt: "",
-      lastError: "",
-      lastErrorAt: "",
-    },
-  });
-  assert.match(applyGoalAction(unknownTimeTab, "status").message, /created: unknown/);
 });
 
 test("attachments extract refs outside fenced code and build XML prompt parts", async () => {

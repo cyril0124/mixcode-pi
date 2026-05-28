@@ -12,7 +12,6 @@ export * from "./core/extension-manager.js";
 export * from "./core/external-editor.js";
 export * from "./core/file-picker.js";
 export * from "./core/fuzzy.js";
-export * from "./core/goal.js";
 export * from "./core/json.js";
 export * from "./core/keymap.js";
 export * from "./core/models.js";

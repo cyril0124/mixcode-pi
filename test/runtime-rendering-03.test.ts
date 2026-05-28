@@ -214,14 +214,6 @@ test("rendering exposes input metadata and tab bar landmarks", () => {
     },
   });
   state.tabs.push(tab);
-  tab.goal = {
-    objective: "ship goal",
-    status: "active",
-    createdAt: new Date("2026-05-10T00:00:00.000Z").toISOString(),
-    updatedAt: new Date("2026-05-10T00:00:00.000Z").toISOString(),
-    lastError: "",
-    lastErrorAt: "",
-  };
   const many = Array.from({ length: 16 }, (_, index) => ({
     role: "user" as const,
     text: `line-${index}`,

@@ -3,7 +3,6 @@ import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { setTheme } from "../ui/themes.js";
 import { createInitialState, createTab } from "./defaults.js";
-import { normalizeGoal } from "./goal.js";
 import type {
   MixCodeState,
   PreviewMessage,
@@ -78,9 +77,6 @@ export function serializeState(state: MixCodeState, port: number): Record<string
         .filter((tab) => tab.pendingMessages.length > 0)
         .map((tab) => [tab.sessionId, tab.pendingMessages]),
     ),
-    goals: Object.fromEntries(
-      state.tabs.filter((tab) => tab.goal).map((tab) => [tab.sessionId, tab.goal]),
-    ),
     redo_sessions: Object.fromEntries(
       state.tabs
         .filter((tab) => tab.redoSessionId)
@@ -124,7 +120,6 @@ export function deserializeState(
   const previewScrollOffsets = objectRecord(data.preview_scroll_offsets);
   const chatScrollOffsets = objectRecord(data.chat_scroll_offsets);
   const pendingMessages = objectRecord(data.pending_messages);
-  const goals = objectRecord(data.goals);
   const redoSessions = objectRecord(data.redo_sessions);
   const unseen = new Set(Array.isArray(data.unseen_done) ? data.unseen_done.map(String) : []);
   if (Array.isArray(data.children)) {
@@ -147,7 +142,6 @@ export function deserializeState(
           chatScrollOffset:
             typeof chatScrollOffsets[sessionId] === "number" ? chatScrollOffsets[sessionId] : 0,
           pendingMessages: normalizeStringList(pendingMessages[sessionId]),
-          goal: normalizeGoal(goals[sessionId]),
           redoSessionId:
             typeof redoSessions[sessionId] === "string" && redoSessions[sessionId]
               ? redoSessions[sessionId]

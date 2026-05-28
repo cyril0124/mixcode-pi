@@ -100,14 +100,6 @@ export interface ExtensionManagerPanelState {
   working: boolean;
 }
 
-export interface GoalState {
-  objective: string;
-  status: "active" | "paused" | "complete" | "error";
-  createdAt: string;
-  updatedAt: string;
-  lastError: string;
-  lastErrorAt: string;
-}
 
 export interface MixCodeModelRef {
   provider: string;
@@ -145,7 +137,6 @@ export interface MixCodeTabInfo {
   vimMode: boolean;
   vimPendingEscapeAt?: number;
   vimPendingHome?: boolean;
-  goal?: GoalState;
   redoSessionId?: string;
   pendingEscapeAction?: PendingEscapeAction;
   pendingEscapeArmedAt?: number;
