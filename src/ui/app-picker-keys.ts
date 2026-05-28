@@ -1,5 +1,5 @@
 import { matchesKey } from "@earendil-works/pi-tui";
-import { applyContextLimit, parseContextLimitValue } from "../core/context-limit.js";
+import { applyContextLimit, parseContextLimitValue, adjustCompactionSettingsForLimit } from "../core/context-limit.js";
 import { findModelRef } from "../core/models.js";
 import {
   acceptPickerSelection,
@@ -83,7 +83,17 @@ export function handlePickerKey(
         return true;
       }
       const active = state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];
-      if (active) applyContextLimit(active, value);
+      if (active) {
+        applyContextLimit(active, value);
+        const runtimeTab = runtime?.getTab?.(active.sessionId);
+        if (runtimeTab) {
+          adjustCompactionSettingsForLimit(
+            runtimeTab.agentSession.settingsManager,
+            active.contextLimit,
+            active.contextLimitOverridden ?? false,
+          );
+        }
+      }
       state.picker = undefined;
       closeAppOverlay(tui);
       void onStateChanged?.(state);
@@ -186,6 +196,14 @@ function applyPickerSelection(
     const value = selectedId === "reset" ? "reset" as const : parseInt(selectedId, 10);
     if (value === "reset" || (typeof value === "number" && value > 0)) {
       applyContextLimit(active, value);
+      const runtimeTab = runtime?.getTab?.(active.sessionId);
+      if (runtimeTab) {
+        adjustCompactionSettingsForLimit(
+          runtimeTab.agentSession.settingsManager,
+          active.contextLimit,
+          active.contextLimitOverridden ?? false,
+        );
+      }
     }
   } else if (state.picker.kind === "workdir" && active) {
     return applyWorkdirSelection(active, selectedId, runtime);

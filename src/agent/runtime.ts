@@ -55,6 +55,7 @@ import {
   surfaceShortcutError,
 } from "./runtime-extension-ui.js";
 import {
+  consumeDeferredPendingMessageFlush,
   flushRuntimePendingMessage,
   popRuntimePendingMessage,
   scheduleRuntimePendingMessageFlush,
@@ -63,13 +64,14 @@ import {
   bindRuntimeExtensions,
   createRuntimeServices,
   createRuntimeTab,
-  getExtensionManagerEntriesForServices,
-  type RuntimeLifecycleContext,
-  rebuildRuntimeChat,
   disposeRuntimeTabAfterShutdown,
+  getExtensionManagerEntriesForServices,
+  installMidTurnCompactionHook,
+  rebuildRuntimeChat,
   replaceRuntimeTabSession,
   shutdownRuntimeTab,
   syncRuntimeChatFromSession,
+  type RuntimeLifecycleContext,
 } from "./runtime-lifecycle.js";
 import { resolveRuntimeModel, resolveRuntimeModelFromSession } from "./runtime-model.js";
 import { registerMixCodeRuntimeProvider } from "./runtime-provider.js";
@@ -448,6 +450,9 @@ export class MixCodeRuntime {
       await runtimeTab.agentSession.prompt(trimmed, { streamingBehavior: "steer" });
       return;
     }
+    if (runtimeTab.agentSession.isCompacting) {
+      throw new Error("Cannot prompt while compaction is running");
+    }
     await runtimeTab.agentSession.prompt(text);
   }
 
@@ -553,8 +558,9 @@ export class MixCodeRuntime {
   abortTab(sessionId: string): boolean {
     const runtimeTab = this.requireTab(sessionId);
     if (!runtimeTab.agentSession.isStreaming) {
-      // Try aborting branch summarization (no-op if not summarizing)
+      // Try aborting branch summarization and compaction (no-op if not running)
       runtimeTab.agentSession.abortBranchSummary();
+      runtimeTab.agentSession.abortCompaction();
       return false;
     }
     void runtimeTab.agentSession.abort();
@@ -796,8 +802,12 @@ export class MixCodeRuntime {
 
   async compactSession(sessionId: string, customInstructions = ""): Promise<void> {
     const runtimeTab = this.requireTab(sessionId);
-    if (runtimeTab.session.getBranch().filter((entry) => entry.type === "message").length < 2) {
+    const branch = runtimeTab.session.getBranch();
+    if (branch.filter((entry) => entry.type === "message").length < 2) {
       throw new Error("Nothing to compact (no messages yet)");
+    }
+    if (branch.at(-1)?.type === "compaction") {
+      throw new Error("Session is already compacted");
     }
     runtimeTab.tab.status = "running";
     runtimeTab.tab.workingStartedAt = new Date().toISOString();
@@ -809,7 +819,11 @@ export class MixCodeRuntime {
       // compact() emits compaction_end which triggers applyEvent to rebuild chat
       await runtimeTab.agentSession.compact(customInstructions);
     } catch (error) {
-      runtimeTab.tab.status = "error";
+      const message = error instanceof Error ? error.message : String(error);
+      const aborted = message === "Compaction cancelled" || (error instanceof Error && error.name === "AbortError");
+      if (!aborted) {
+        runtimeTab.tab.status = "error";
+      }
       runtimeTab.tab.workingStartedAt = undefined;
       this.emitChange({ type: "extension_ui_update" }, runtimeTab);
       throw error;
@@ -881,12 +895,14 @@ export class MixCodeRuntime {
     runtimeTab.extensionsResult = extensionsResult;
     runtimeTab.extensionManagerEntries = getExtensionManagerEntriesForServices(services);
     runtimeTab.agent = agentSession.agent;
+    installMidTurnCompactionHook(agentSession, runtimeTab.tab, { current: runtimeTab });
     runtimeTab.tab.workdir = workdir;
     appendExtensionLoadErrors(runtimeTab);
     appendExtensionConflictDiagnostics(runtimeTab);
     agentSession.subscribe((event) => {
       this.applyEvent(runtimeTab, event);
       if (event.type === "agent_end") {
+        if (consumeDeferredPendingMessageFlush(runtimeTab)) return;
         this.schedulePendingMessageFlush(runtimeTab.tab.sessionId, runtimeTab.agentSession);
       }
     });

@@ -42,6 +42,12 @@ export function scheduleRuntimePendingMessageFlush(
   });
 }
 
+export function consumeDeferredPendingMessageFlush(runtimeTab: RuntimeTab): boolean {
+  if (!runtimeTab.deferPendingMessageFlush) return false;
+  runtimeTab.deferPendingMessageFlush = false;
+  return true;
+}
+
 export function popRuntimePendingMessage(runtimeTab: RuntimeTab): string | undefined {
   const wasRuntimeQueued = runtimeTab.queuedPromptCount > 0;
   const message = runtimeTab.tab.pendingMessages.pop();

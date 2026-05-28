@@ -28,8 +28,10 @@ export function renderToast(
 ): string | undefined {
   const toast = activeToast(tab);
   if (!toast) return undefined;
-  const maxWidth = Math.min(40, Math.max(12, Math.floor(width * 0.4)));
-  const text = truncateToWidth(toast.message, maxWidth - 2, "…");
+  // Allow toast to use up to 80% of screen width, sized to message content
+  const messageWidth = visibleWidth(toast.message);
+  const maxWidth = Math.max(12, Math.min(messageWidth + 2, Math.floor(width * 0.8)));
+  const text = truncateToWidth(toast.message, maxWidth - 2, "\u2026");
   const padded = ` ${text} `;
   const paddedWidth = visibleWidth(padded);
   const leftPad = Math.max(0, width - paddedWidth);

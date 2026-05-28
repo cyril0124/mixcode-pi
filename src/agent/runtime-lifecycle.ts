@@ -3,6 +3,7 @@ import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import {
   type AgentSessionServices,
   type AuthStorage,
+  calculateContextTokens,
   type CreateAgentSessionResult,
   type CreateAgentSessionServicesOptions,
   createAgentSessionFromServices,
@@ -14,6 +15,7 @@ import {
   type SessionShutdownEvent,
   type SessionStartEvent,
   type SettingsManager,
+  shouldCompact,
 } from "@earendil-works/pi-coding-agent";
 import {
   type ExtensionManagerEntry,
@@ -56,6 +58,7 @@ import type {
   RuntimeTab,
   SessionReplacementReason,
 } from "./runtime-types.js";
+import { consumeDeferredPendingMessageFlush } from "./runtime-follow-up.js";
 import { activateMixCodeTools, ToolLog } from "./tools.js";
 
 export type RuntimeTabConfig = Omit<AgentRuntimeConfig, "sessionId" | "model"> & {
@@ -127,6 +130,11 @@ export async function createRuntimeTab(
   });
   activateMixCodeTools(agentSession);
   applyMixCodeSystemPrompt(runtimeTabPromptOptions(services, config.workdir), agentSession);
+  // Mid-turn compaction check: after each tool call, if context exceeds the threshold,
+  // signal terminate=true so the agent loop exits cleanly (agent_end). The runtime
+  // then waits for idle, compacts, and continues from the compacted transcript.
+  const runtimeTabRef: { current?: RuntimeTab } = {};
+  installMidTurnCompactionHook(agentSession, tab, runtimeTabRef);
   const runtimeTab: RuntimeTab = {
     tab,
     agentSession,
@@ -146,6 +154,7 @@ export async function createRuntimeTab(
     extensionManagerEntries: getExtensionManagerEntriesForServices(services),
   };
   runtimeTab.requestRender = () => context.emitChange({ type: "extension_ui_update" }, runtimeTab);
+  runtimeTabRef.current = runtimeTab;
   const restoredChat = await rebuildRuntimeChat(runtimeTab);
   if (tab.previewMessages.length === 0) {
     syncPreviewFromChat(tab, restoredChat);
@@ -262,6 +271,7 @@ export async function replaceRuntimeTabSession(
   runtimeTab.queuedPromptCount = 0;
   runtimeTab.streamingAssistant = undefined;
   runtimeTab.streamingReasoning = undefined;
+  installMidTurnCompactionHook(created.session, runtimeTab.tab, { current: runtimeTab });
   runtimeTab.chat = await rebuildRuntimeChat(runtimeTab);
   syncPreviewFromChat(runtimeTab.tab, runtimeTab.chat);
   applyRuntimeTabModel(runtimeTab, created.session.agent.state.model);
@@ -439,7 +449,54 @@ function subscribeRuntimeTab(runtimeTab: RuntimeTab, context: RuntimeLifecycleCo
   runtimeTab.agentSession.subscribe((event: AgentSessionEvent) => {
     context.applyEvent(runtimeTab, event);
     if (event.type === "agent_end") {
+      if (consumeDeferredPendingMessageFlush(runtimeTab)) return;
       context.schedulePendingMessageFlush(runtimeTab.tab.sessionId, runtimeTab.agentSession);
     }
   });
+}
+
+/**
+ * Install a mid-turn compaction check on the agent's afterToolCall hook.
+ *
+ * The Pi SDK only checks compaction at turn boundaries (agent_end) and before
+ * the next user prompt. During long tool loops, context can grow unbounded.
+ * This hook checks after each tool call whether context exceeds the compaction
+ * threshold. If so, it returns { terminate: true } which causes the agent loop
+ * to exit cleanly (agent_end), and the runtime schedules an auto-compact cycle.
+ *
+ * The hook chains with the existing afterToolCall set by AgentSession (for
+ * extension tool_result events) by capturing and delegating to it.
+ */
+export function installMidTurnCompactionHook(
+  agentSession: RuntimeTab["agentSession"],
+  tab?: MixCodeTabInfo,
+  runtimeTabRef?: { current?: RuntimeTab },
+): void {
+  const existingHook = agentSession.agent.afterToolCall;
+
+  agentSession.agent.afterToolCall = async (context, signal) => {
+    // Run the existing hook first (extension tool_result interception)
+    const existingResult = await existingHook?.(context, signal);
+
+    // Check if context exceeds compaction threshold
+    const settings = agentSession.settingsManager.getCompactionSettings();
+    if (settings.enabled && context.assistantMessage.usage) {
+      const contextTokens = calculateContextTokens(context.assistantMessage.usage);
+      // Use the tab's contextLimit which respects user override via /context-limit.
+      // Falls back to model's contextWindow (which is also mutated by the override).
+      const contextWindow = tab?.contextLimit ?? agentSession.agent.state.model?.contextWindow ?? 0;
+      if (contextWindow > 0 && shouldCompact(contextTokens, contextWindow, settings)) {
+        // Always attempt auto-compact-and-continue for context limit overrides.
+        // The autoCompactAndContinue function will detect if compact was ineffective
+        // and stop the loop with a user-facing message.
+        if (runtimeTabRef?.current && tab?.contextLimitOverridden) {
+          runtimeTabRef.current.pendingContextLimitCompaction = true;
+        }
+        // Merge terminate into existing result (preserve content/details overrides)
+        return { ...existingResult, terminate: true };
+      }
+    }
+
+    return existingResult;
+  };
 }

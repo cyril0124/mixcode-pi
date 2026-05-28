@@ -290,6 +290,10 @@ test("runtime rejects compaction when there is no useful history", async () => {
       workdir: process.cwd(),
     });
     await assert.rejects(runtime.compactSession("empty"), /Nothing to compact/);
+    // After compacting once, re-compacting immediately should be rejected
+    await runtime.prompt("empty", "hello");
+    await runtime.compactSession("empty");
+    await assert.rejects(runtime.compactSession("empty"), /already compacted/i);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

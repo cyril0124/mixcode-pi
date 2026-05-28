@@ -201,6 +201,16 @@ export interface RuntimeTab {
     tokenInput: number;
     tokenOutput: number;
   };
+  /** Set by mid-turn compaction hook when context limit override triggers terminate */
+  pendingContextLimitCompaction?: boolean;
+  /** Skip the next pending-message flush after auto-compaction takes over */
+  deferPendingMessageFlush?: boolean;
+  /** True while the context-limit auto-compaction cycle owns follow-up work */
+  autoCompactCycleActive?: boolean;
+  /** True when that cycle observes a compaction_end without a result */
+  autoCompactCycleFailed?: boolean;
+  /** True while autoCompactAndContinue is running */
+  isAutoCompacting?: boolean;
 }
 
 export interface ExtensionManagerStore {

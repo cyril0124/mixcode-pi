@@ -87,11 +87,36 @@ export function applyContextLimit(
   if (value > tab.model.contextWindow) {
     pushToast(
       tab,
-      `⚠ Set to ${formatCompactTokens(value)} (model: ${formatCompactTokens(tab.model.contextWindow)})`,
+      `⚠ Context limit set to ${formatCompactTokens(value)} (exceeds model capacity of ${formatCompactTokens(tab.model.contextWindow)})`,
     );
   } else {
-    pushToast(tab, `✓ Context limit: ${formatCompactTokens(value)}`);
+    pushToast(tab, `✓ Context limit set to ${formatCompactTokens(value)}`);
   }
+}
+
+/**
+ * Adjust compaction keepRecentTokens to match the context limit override.
+ * Without this, the SDK's findCutPoint may refuse to cut because its token
+ * estimation (chars/4) underestimates real token counts, making it think all
+ * content fits within keepRecentTokens even when it doesn't.
+ *
+ * Formula: keepRecentTokens = contextLimit * 0.25
+ * This accounts for the ~2x underestimation in SDK's estimateTokens.
+ */
+export function adjustCompactionSettingsForLimit(
+  settingsManager: { applyOverrides: (overrides: { compaction?: { keepRecentTokens?: number } }) => void },
+  contextLimit: number,
+  overridden: boolean,
+): void {
+  if (!overridden) {
+    // Reset to default (20000) when override is removed
+    settingsManager.applyOverrides({ compaction: { keepRecentTokens: 20000 } });
+    return;
+  }
+  // Use 25% of the limit as keepRecentTokens to ensure effective compaction
+  // even with SDK's token underestimation
+  const keepRecent = Math.max(4096, Math.round(contextLimit * 0.25));
+  settingsManager.applyOverrides({ compaction: { keepRecentTokens: keepRecent } });
 }
 
 /**

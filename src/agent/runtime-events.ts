@@ -4,6 +4,7 @@ import { consumeGoalCompletionMarker } from "../core/goal.js";
 import {
   appendEmptyRunNotice,
   appendPreviewMessage,
+  appendSystemMessage,
   assistantDisplayText,
   contextTokensFromUsage,
   customMessageToChatLine,
@@ -25,6 +26,103 @@ import {
   toolExecutionToChatLine,
 } from "./runtime-tool-chat.js";
 import type { ChatLine, RuntimeEvent, RuntimeTab, ToolResultLike } from "./runtime-types.js";
+
+type AgentSessionPostRunInternals = {
+  _handlePostAgentRun?: () => Promise<boolean>;
+};
+
+/**
+ * Auto-compact the session after the current agent run becomes idle,
+ * then continue the agent from the compacted transcript.
+ */
+async function autoCompactAndContinue(runtimeTab: RuntimeTab): Promise<void> {
+  try {
+    await waitForPromptPostRun(runtimeTab.agentSession);
+    runtimeTab.isAutoCompacting = true;
+
+    let compacted = isLatestBranchEntryCompaction(runtimeTab);
+    if (!compacted && !runtimeTab.autoCompactCycleFailed) {
+      if (runtimeTab.agentSession.isCompacting) {
+        await waitForCompactionEnd(runtimeTab.agentSession);
+        compacted = isLatestBranchEntryCompaction(runtimeTab);
+      }
+    }
+
+    if (!compacted && !runtimeTab.autoCompactCycleFailed) {
+      try {
+        await runtimeTab.agentSession.compact();
+        compacted = isLatestBranchEntryCompaction(runtimeTab);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        const aborted =
+          message === "Compaction cancelled" || (error instanceof Error && error.name === "AbortError");
+        if (aborted) {
+          runtimeTab.tab.status = "idle";
+          runtimeTab.tab.workingStartedAt = undefined;
+          return;
+        }
+        if (/already compacted/i.test(message)) {
+          compacted = true;
+        } else {
+          throw error;
+        }
+      }
+    }
+
+    if (!compacted) {
+      throw new Error("Auto-compaction did not produce a compaction entry");
+    }
+    await continueAgentSession(runtimeTab.agentSession);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    runtimeTab.tab.status = "error";
+    runtimeTab.tab.workingStartedAt = undefined;
+    appendSystemMessage(runtimeTab, `Auto-compaction failed: ${message}`);
+    runtimeTab.requestRender?.();
+  } finally {
+    runtimeTab.isAutoCompacting = false;
+    runtimeTab.autoCompactCycleActive = false;
+  }
+}
+
+async function waitForPromptPostRun(agentSession: RuntimeTab["agentSession"]): Promise<void> {
+  await agentSession.agent.waitForIdle();
+  // Let AgentSession.prompt() run its post-agent checks after Agent.waitForIdle() resolves.
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await agentSession.agent.waitForIdle();
+  if (agentSession.isCompacting) {
+    await waitForCompactionEnd(agentSession);
+  }
+  await agentSession.agent.waitForIdle();
+}
+
+function isLatestBranchEntryCompaction(runtimeTab: RuntimeTab): boolean {
+  return runtimeTab.session.getBranch().at(-1)?.type === "compaction";
+}
+
+async function waitForCompactionEnd(agentSession: RuntimeTab["agentSession"]): Promise<void> {
+  if (!agentSession.isCompacting) return;
+  await new Promise<void>((resolve) => {
+    const unsubscribe = agentSession.subscribe((event) => {
+      if (event.type !== "compaction_end") return;
+      unsubscribe();
+      resolve();
+    });
+  });
+}
+
+async function continueAgentSession(agentSession: RuntimeTab["agentSession"]): Promise<void> {
+  await agentSession.agent.continue();
+  const handlePostAgentRun = (agentSession as unknown as AgentSessionPostRunInternals)._handlePostAgentRun;
+  if (typeof handlePostAgentRun !== "function") {
+    throw new Error(
+      "Pi AgentSession post-run internals changed; cannot continue after auto-compaction.",
+    );
+  }
+  while (await handlePostAgentRun.call(agentSession)) {
+    await agentSession.agent.continue();
+  }
+}
 
 export function applyEvent(
   runtimeTab: RuntimeTab,
@@ -52,6 +150,17 @@ export function applyEvent(
       runtimeTab.tab.lastWorkedDurationSeconds = undefined;
       break;
     case "agent_end":
+      // If the agent was terminated by the mid-turn hook due to context limit override,
+      // trigger auto-compaction and continue the agent run.
+      if (runtimeTab.pendingContextLimitCompaction) {
+        runtimeTab.pendingContextLimitCompaction = false;
+        runtimeTab.deferPendingMessageFlush = true;
+        runtimeTab.autoCompactCycleActive = true;
+        runtimeTab.autoCompactCycleFailed = false;
+        // Don't set idle — keep running status for the compact + continue cycle
+        void autoCompactAndContinue(runtimeTab);
+        break;
+      }
       appendEmptyRunNotice(runtimeTab);
       runtimeTab.tab.status = "idle";
       runtimeTab.tab.unreadDone = true;
@@ -115,11 +224,19 @@ export function applyEvent(
       break;
     case "compaction_start":
       runtimeTab.tab.status = "running";
-      runtimeTab.tab.workingStartedAt = new Date().toISOString();
+      // Use ??= to preserve the timestamp set by compactSession() before the event fires
+      runtimeTab.tab.workingStartedAt ??= new Date().toISOString();
       runtimeTab.tab.lastWorkedDurationSeconds = undefined;
       runtimeTab.tab.pendingEscapeAction = undefined;
       runtimeTab.tab.pendingEscapeArmedAt = undefined;
-      runtimeTab.chat.push({ role: "system", text: `Compaction started (${event.reason}).` });
+      {
+        // Show "context-limit" instead of "manual" when the auto-compact cycle is active.
+        const displayReason =
+          event.reason === "manual" && runtimeTab.isAutoCompacting
+            ? "context-limit"
+            : event.reason;
+        runtimeTab.chat.push({ role: "system", text: `Compaction started (${displayReason}).` });
+      }
       break;
     case "compaction_end":
       runtimeTab.tab.status = event.errorMessage ? "error" : "idle";
@@ -142,6 +259,11 @@ export function applyEvent(
           role: "system",
           text: `Compaction failed: ${event.errorMessage}`,
         });
+      } else if (event.aborted) {
+        runtimeTab.chat.push({ role: "system", text: "Compaction cancelled." });
+      }
+      if (!event.result && runtimeTab.autoCompactCycleActive) {
+        runtimeTab.autoCompactCycleFailed = true;
       }
       break;
     case "session_info_changed":
