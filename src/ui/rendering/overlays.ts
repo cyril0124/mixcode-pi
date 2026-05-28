@@ -123,9 +123,7 @@ function renderConfigInner(
   // Hide logo when terminal is too small to fit logo + at least 1 card + preview.
   const LOGO_ROWS = logo.length + 2; // logo lines + blank before + blank after
   const MIN_ROWS_FOR_LOGO = LOGO_ROWS + AGENT_CARD_HEIGHT + AGENT_CARD_CHROME_ROWS + 3; // + panel chrome
-  const showLogo =
-    state.tabs.length === 0 &&
-    (maxRows === undefined || maxRows >= MIN_ROWS_FOR_LOGO + updateRows.length);
+  const showLogo = maxRows === undefined || maxRows >= MIN_ROWS_FOR_LOGO + updateRows.length;
   const logoLines = showLogo
     ? ["", ...logo.map((line) => centerLine(activeRenderTheme.accent(line), Math.max(1, width - 2))), ""]
     : [""];

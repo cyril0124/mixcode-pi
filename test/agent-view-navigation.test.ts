@@ -573,7 +573,7 @@ test("renderConfig preserves full selected-agent preview when it fits", () => {
   );
   state.homeSelectedTabIndex = 0;
 
-  const output = stripAnsi(renderConfig(state, 100, undefined, 0, 19).join("\n"));
+  const output = stripAnsi(renderConfig(state, 100, undefined, 0, 26).join("\n"));
 
   for (let index = 1; index <= 7; index++) {
     assert.match(output, new RegExp(`assistant: message ${index}`));
