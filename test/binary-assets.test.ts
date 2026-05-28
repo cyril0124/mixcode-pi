@@ -35,7 +35,7 @@ test("binary runtime assets are written for both upstream Bun and dist layouts",
     assert.equal(packageJson.version, "1.2.3");
     assert.equal(packageJson.piConfig.preserved, true);
     assert.equal(packageJson.piConfig.name, "mixcode");
-    assert.equal(packageJson.piConfig.configDir, ".mixcode-pi");
+    assert.equal(packageJson.piConfig.configDir, ".pi");
 
     for (const themeDir of [
       join(runtimeDir, "theme"),

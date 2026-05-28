@@ -12,6 +12,8 @@ export interface BinaryRuntimeAssets {
   interactiveAssets?: Record<string, string>;
   photonWasmPath?: string;
   packageJson: Record<string, unknown>;
+  /** Built-in extension packages: { packageName: { filename: content } } */
+  builtinPackages?: Record<string, Record<string, string>>;
 }
 
 export function materializeBinaryRuntimeAssets(
@@ -36,6 +38,7 @@ export function materializeBinaryRuntimeAssets(
   for (const exportHtmlDir of exportHtmlDirs) writeExportHtmlAssets(exportHtmlDir, assets);
   for (const assetsDir of assetsDirs) writeInteractiveAssets(assetsDir, assets.interactiveAssets ?? {});
   if (assets.photonWasmPath) writePhotonWasm(runtimeDir, assets.photonWasmPath);
+  if (assets.builtinPackages) writeBuiltinPackages(runtimeDir, assets.builtinPackages);
 }
 
 function writePackageJson(runtimeDir: string, packageJson: Record<string, unknown>): void {
@@ -47,7 +50,7 @@ function writePackageJson(runtimeDir: string, packageJson: Record<string, unknow
       piConfig: {
         ...(isRecord(piConfig) ? piConfig : {}),
         name: "mixcode",
-        configDir: ".mixcode-pi",
+        configDir: ".pi",
       },
     }),
   );
@@ -92,4 +95,17 @@ function writeInteractiveAssets(assetsDir: string, assetPathsByName: Record<stri
 
 function writePhotonWasm(runtimeDir: string, photonWasmPath: string): void {
   writeFileSync(join(runtimeDir, "photon_rs_bg.wasm"), readFileSync(photonWasmPath));
+}
+
+function writeBuiltinPackages(
+  runtimeDir: string,
+  packages: Record<string, Record<string, string>>,
+): void {
+  for (const [name, files] of Object.entries(packages)) {
+    const pkgDir = join(runtimeDir, "packages", name);
+    mkdirSync(pkgDir, { recursive: true });
+    for (const [filename, content] of Object.entries(files)) {
+      writeFileSync(join(pkgDir, filename), content);
+    }
+  }
 }

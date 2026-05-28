@@ -16,6 +16,8 @@ import exportVendorMarked from "../../node_modules/@earendil-works/pi-coding-age
 import exportVendorHighlight from "../../node_modules/@earendil-works/pi-coding-agent/dist/core/export-html/vendor/highlight.min.js" with { type: "text" };
 import clankolasImagePath from "../../node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/assets/clankolas.png" with { type: "file" };
 import photonWasmPath from "../../node_modules/@earendil-works/pi-coding-agent/node_modules/@silvia-odwyer/photon-node/photon_rs_bg.wasm" with { type: "file" };
+import searchGuardIndex from "../../packages/search-guard/index.ts" with { type: "text" };
+import searchGuardPackageJson from "../../packages/search-guard/package.json" with { type: "text" };
 import packageJson from "../../package.json" with { type: "json" };
 import { materializeBinaryRuntimeAssets } from "./binary-assets.js";
 
@@ -58,6 +60,12 @@ materializeBinaryRuntimeAssets(runtimeDir, {
   interactiveAssets: { "clankolas.png": clankolasImagePath },
   photonWasmPath,
   packageJson,
+  builtinPackages: {
+    "search-guard": {
+      "index.ts": searchGuardIndex,
+      "package.json": searchGuardPackageJson,
+    },
+  },
 });
 
 process.env.PI_PACKAGE_DIR = runtimeDir;

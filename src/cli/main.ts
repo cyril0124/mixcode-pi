@@ -22,10 +22,13 @@ import { createMixCodeTui } from "../ui/app.js";
 import { applyModelSelection, applyThinkingLevel } from "../ui/app-actions.js";
 import { clearConversationCache } from "../ui/rendering.js";
 import { bootstrapMixCode, DEFAULT_STATE_PORT } from "./bootstrap.js";
+import { ensurePackageExtensions } from "../core/ensure-package-extensions.js";
 
 export async function main(): Promise<void> {
   exposeLocalPiCli();
+  const repoDir = process.env.PI_PACKAGE_DIR ?? resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
   const args = parseMainArgs(process.argv.slice(2), cwd());
+  ensurePackageExtensions(repoDir, { copy: true });
   const { state, runtime, stateFile, workspaceFile, completionSources, packageUpdateCheck } =
     await bootstrapMixCode({
       workdir: args.workdir,
