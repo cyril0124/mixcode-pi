@@ -402,7 +402,10 @@ export class MixCodeRuntime {
       displayName: `${agentState.model.provider}/${agentState.model.id}`,
       contextWindow: agentState.model.contextWindow,
     };
-    runtimeTab.tab.contextLimit = agentState.model.contextWindow;
+    // Only sync contextLimit from model if the user hasn't overridden it
+    if (!runtimeTab.tab.contextLimitOverridden) {
+      runtimeTab.tab.contextLimit = agentState.model.contextWindow;
+    }
     runtimeTab.tab.thinkingLevel = agentState.thinkingLevel;
     syncContextUsage(runtimeTab);
     return runtimeTab.tab;
@@ -836,6 +839,7 @@ export class MixCodeRuntime {
       contextWindow: model.contextWindow,
     };
     runtimeTab.tab.contextLimit = model.contextWindow;
+    runtimeTab.tab.contextLimitOverridden = false;
   }
 
   updateTabThinkingLevel(sessionId: string, level: ThinkingLevel): ThinkingLevel {

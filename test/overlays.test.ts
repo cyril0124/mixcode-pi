@@ -197,6 +197,7 @@ test("command palette state filters, moves, accepts, and closes", () => {
     [
       "/models",
       "/thinking",
+      "/context-limit",
       "/theme",
       "/tui-state",
       "/system-tools",

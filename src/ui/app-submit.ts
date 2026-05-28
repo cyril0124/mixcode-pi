@@ -1,6 +1,7 @@
 import type { MixCodeRuntime } from "../agent/runtime.js";
 import { disposeChatRenderers } from "../agent/runtime-chat.js";
 import { MIXCODE_EXTENSION_KEYBINDINGS } from "../agent/runtime-extension-theme.js";
+import { applyContextLimit, parseContextLimitValue } from "../core/context-limit.js";
 import { parseInput } from "../core/commands.js";
 import { createTab } from "../core/defaults.js";
 import { stringifyJson } from "../core/json.js";
@@ -305,6 +306,20 @@ export async function handleSubmittedInput(
       return;
     }
     applyThinkingLevel(state, active!, parsed.args.trim(), runtime);
+  } else if (parsed.command === "context-limit") {
+    if (!parsed.args.trim()) {
+      state.picker = createPicker("context-limit", state, active);
+      showLinesOverlay(tui, (width) => renderPickerOverlay(state, width));
+      await onStateChanged?.(state);
+      tui.requestRender();
+      return;
+    }
+    const value = parseContextLimitValue(parsed.args);
+    if (value === undefined) {
+      pushToast(active!, `✖ Invalid context limit: "${parsed.args}". Use a number (e.g. 32k, 40000) or "reset".`);
+    } else {
+      applyContextLimit(active!, value);
+    }
   } else if (parsed.command === "help") {
     const shortcuts = active ? getExtensionShortcuts(runtime, active.sessionId) : [];
     showSystemMessageOrToast(state, runtime, tui, renderHotkeysText(shortcuts));
@@ -648,7 +663,10 @@ function syncTabContextUsage(
   contextUsage: SessionStatsInfo["contextUsage"],
 ): void {
   if (!contextUsage) return;
-  tab.contextLimit = contextUsage.contextWindow;
+  // Only sync contextLimit from the runtime if the user hasn't overridden it
+  if (!tab.contextLimitOverridden) {
+    tab.contextLimit = contextUsage.contextWindow;
+  }
   tab.currentContextTokens = contextUsage.tokens === null ? undefined : contextUsage.tokens;
 }
 

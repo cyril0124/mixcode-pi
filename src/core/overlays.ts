@@ -281,6 +281,14 @@ function agentCommandPaletteEntries(
       hasSession,
       noSessionReason,
     ),
+    commandEntry(
+      "agent.context-limit",
+      "Set Context Limit",
+      "/context-limit",
+      "Set context window limit for the current tab",
+      hasSession,
+      noSessionReason,
+    ),
     commandEntry("agent.theme", "Choose Theme", "/theme", "Choose the app UI theme"),
     commandEntry(
       "agent.tui-state",
@@ -437,6 +445,7 @@ function commandPaletteLocalCommands(): string[] {
   return [
     "models",
     "thinking",
+    "context-limit",
     "theme",
     "tui-state",
     "system-tools",

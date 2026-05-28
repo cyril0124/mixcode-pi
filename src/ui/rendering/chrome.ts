@@ -69,13 +69,14 @@ function renderStatusInner(tab: MixCodeTabInfo | undefined, width: number): stri
 function renderCompactContextUsage(tab: MixCodeTabInfo): string {
   const tokens = tab.currentContextTokens;
   const limit = tab.contextLimit;
-  if (tokens === undefined) return `?/${formatCompactTokenCount(limit)}`;
+  const overrideMark = tab.contextLimitOverridden ? "*" : "";
+  if (tokens === undefined) return `?/${formatCompactTokenCount(limit)}${overrideMark}`;
   const percent =
     limit > 0 ? Math.min(999, Math.max(0, Math.round((tokens / limit) * 100))) : undefined;
   const text =
     percent === undefined
-      ? `${formatCompactTokenCount(tokens)}/${formatCompactTokenCount(limit)}`
-      : `${formatCompactTokenCount(tokens)}/${formatCompactTokenCount(limit)} (${percent}%)`;
+      ? `${formatCompactTokenCount(tokens)}/${formatCompactTokenCount(limit)}${overrideMark}`
+      : `${formatCompactTokenCount(tokens)}/${formatCompactTokenCount(limit)}${overrideMark} (${percent}%)`;
   if (percent === undefined) return text;
   if (percent >= 80) return activeRenderTheme.danger(text);
   if (percent >= 50) return activeRenderTheme.accent(text);

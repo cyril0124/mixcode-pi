@@ -3,6 +3,7 @@ import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { THEMES } from "../ui/themes.js";
+import { contextLimitPickerItems } from "./context-limit.js";
 import { fuzzyMatch } from "./fuzzy.js";
 import { modelRefId } from "./models.js";
 import type { MixCodeState, MixCodeTabInfo, PickerItem, PickerKind, PickerState } from "./types.js";
@@ -61,6 +62,10 @@ export function pickerItems(
       label: theme.label,
       description: theme.dark ? "dark" : "light",
     }));
+  }
+  if (kind === "context-limit") {
+    const contextWindow = active?.model.contextWindow ?? state.model.contextWindow;
+    return contextLimitPickerItems(contextWindow);
   }
   return [
     {
@@ -168,6 +173,7 @@ function pickerTitle(kind: PickerKind): string {
   if (kind === "models") return "Choose Model";
   if (kind === "thinking") return "Choose Thinking";
   if (kind === "theme") return "Choose Theme";
+  if (kind === "context-limit") return "Set Context Limit";
   return "Change Workdir";
 }
 

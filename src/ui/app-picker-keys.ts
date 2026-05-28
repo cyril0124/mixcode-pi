@@ -1,4 +1,5 @@
 import { matchesKey } from "@earendil-works/pi-tui";
+import { applyContextLimit, parseContextLimitValue } from "../core/context-limit.js";
 import { findModelRef } from "../core/models.js";
 import {
   acceptPickerSelection,
@@ -25,6 +26,14 @@ export function handlePickerKey(
   const picker = state.picker;
   if (!picker) return false;
   if (matchesKey(data, "escape")) {
+    // In custom input mode, Esc goes back to the picker list
+    if (picker.customInputMode) {
+      picker.customInputMode = false;
+      picker.customInputError = undefined;
+      picker.query = "";
+      showLinesOverlay(tui, (width) => renderPickerOverlay(state, width));
+      return true;
+    }
     state.picker = undefined;
     closeAppOverlay(tui);
     tui.requestRender();
@@ -49,6 +58,7 @@ export function handlePickerKey(
     return true;
   }
   if (matchesKey(data, "tab") || matchesKey(data, "shift+tab")) {
+    if (picker.customInputMode) return true;
     if (
       picker.kind === "workdir" &&
       matchesKey(data, "tab") &&
@@ -64,6 +74,23 @@ export function handlePickerKey(
     return true;
   }
   if (matchesKey(data, "enter")) {
+    // Context-limit picker: custom input mode
+    if (picker.kind === "context-limit" && picker.customInputMode) {
+      const value = parseContextLimitValue(picker.query);
+      if (value === undefined) {
+        picker.customInputError = "Invalid: enter a number (e.g. 32k, 40000)";
+        showLinesOverlay(tui, (width) => renderPickerOverlay(state, width));
+        return true;
+      }
+      const active = state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];
+      if (active) applyContextLimit(active, value);
+      state.picker = undefined;
+      closeAppOverlay(tui);
+      void onStateChanged?.(state);
+      tui.requestRender();
+      return true;
+    }
+
     // For workdir picker: Enter confirms the current browsing directory as the new workdir.
     // Exception: if the selected item is a custom path (no completeValue), use that instead.
     let selectedId: string;
@@ -81,6 +108,16 @@ export function handlePickerKey(
       if (!selected) return true;
       selectedId = selected.id;
     }
+
+    // Context-limit picker: "custom" item selected → enter custom input mode
+    if (picker.kind === "context-limit" && selectedId === "custom") {
+      picker.customInputMode = true;
+      picker.customInputError = undefined;
+      picker.query = "";
+      showLinesOverlay(tui, (width) => renderPickerOverlay(state, width));
+      return true;
+    }
+
     const finish = () => {
       state.picker = undefined;
       closeAppOverlay(tui);
@@ -104,22 +141,26 @@ export function handlePickerKey(
     return true;
   }
   if (matchesKey(data, "down")) {
+    if (picker.customInputMode) return true;
     movePickerSelection(picker, 1);
     showLinesOverlay(tui, (width) => renderPickerOverlay(state, width));
     return true;
   }
   if (matchesKey(data, "up")) {
+    if (picker.customInputMode) return true;
     movePickerSelection(picker, -1);
     showLinesOverlay(tui, (width) => renderPickerOverlay(state, width));
     return true;
   }
   if (data === "\u007f") {
     updatePickerQuery(picker, picker.query.slice(0, -1));
+    if (picker.customInputMode) picker.customInputError = undefined;
     showLinesOverlay(tui, (width) => renderPickerOverlay(state, width));
     return true;
   }
   if (/^[\x20-\x7e]$/.test(data)) {
     updatePickerQuery(picker, picker.query + data);
+    if (picker.customInputMode) picker.customInputError = undefined;
     showLinesOverlay(tui, (width) => renderPickerOverlay(state, width));
     return true;
   }
@@ -140,6 +181,12 @@ function applyPickerSelection(
     applyThinkingLevel(state, active, selectedId, runtime);
   } else if (state.picker.kind === "theme") {
     setTheme(state, selectedId);
+  } else if (state.picker.kind === "context-limit" && active) {
+    // "reset" item or a numeric preset
+    const value = selectedId === "reset" ? "reset" as const : parseInt(selectedId, 10);
+    if (value === "reset" || (typeof value === "number" && value > 0)) {
+      applyContextLimit(active, value);
+    }
   } else if (state.picker.kind === "workdir" && active) {
     return applyWorkdirSelection(active, selectedId, runtime);
   }

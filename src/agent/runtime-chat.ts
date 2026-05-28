@@ -347,7 +347,10 @@ export function syncPreviewFromChat(tab: MixCodeTabInfo, chat: ChatLine[]): void
 
 export function syncContextUsage(runtimeTab: RuntimeTab): void {
   const usage = runtimeTab.agentSession.getContextUsage();
-  runtimeTab.tab.contextLimit = usage?.contextWindow ?? runtimeTab.tab.contextLimit;
+  // Only sync contextLimit from runtime if the user hasn't overridden it
+  if (!runtimeTab.tab.contextLimitOverridden) {
+    runtimeTab.tab.contextLimit = usage?.contextWindow ?? runtimeTab.tab.contextLimit;
+  }
   if (usage?.tokens === null) {
     runtimeTab.tab.currentContextTokens = undefined;
   } else if (usage?.tokens !== undefined && usage.tokens > 0) {
@@ -402,6 +405,7 @@ export function applyRuntimeTabModel(runtimeTab: RuntimeTab, model: Model<any>):
     contextWindow: model.contextWindow,
   };
   runtimeTab.tab.contextLimit = model.contextWindow;
+  runtimeTab.tab.contextLimitOverridden = false;
 }
 
 export async function emitBeforeSwitch(

@@ -3,6 +3,7 @@ import { themeArgumentCompletions } from "../ui/themes.js";
 export type LocalCommand =
   | "models"
   | "thinking"
+  | "context-limit"
   | "workdir"
   | "theme"
   | "fork"
@@ -52,6 +53,11 @@ export const LOCAL_COMMANDS: Array<{
 }> = [
   { name: "models", description: "Select model for the active agent" },
   { name: "thinking", description: "Select thinking level" },
+  {
+    name: "context-limit",
+    description: "Set context window limit",
+    argumentHint: "<tokens|reset>",
+  },
   { name: "workdir", description: "Change active agent workdir" },
   {
     name: "theme",

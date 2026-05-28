@@ -39,6 +39,7 @@ export function setStateModel(state: MixCodeState, model: MixCodeModelRef): void
 export function setTabModel(tab: MixCodeTabInfo, model: MixCodeModelRef): void {
   tab.model = model;
   tab.contextLimit = model.contextWindow;
+  tab.contextLimitOverridden = false;
 }
 
 export function findModelRef(models: MixCodeModelRef[], query: string): MixCodeModelRef {

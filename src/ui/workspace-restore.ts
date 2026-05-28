@@ -172,6 +172,7 @@ function applyWorkspaceTabMetadata(tab: MixCodeTabInfo, item: WorkspaceTabSnapsh
   if (item.model) {
     tab.model = { ...item.model };
     tab.contextLimit = item.model.contextWindow;
+    tab.contextLimitOverridden = false;
   }
   if (item.thinkingLevel) tab.thinkingLevel = item.thinkingLevel;
 }

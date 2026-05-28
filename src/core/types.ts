@@ -36,7 +36,7 @@ export interface DialogRequestState {
   dirty: boolean;
 }
 
-export type PickerKind = "models" | "thinking" | "theme" | "workdir";
+export type PickerKind = "models" | "thinking" | "theme" | "workdir" | "context-limit";
 
 export interface PickerItem {
   id: string;
@@ -56,6 +56,10 @@ export interface PickerState {
   browsingDir?: string;
   /** Whether to show hidden directories (starting with .) */
   showHidden?: boolean;
+  /** When true, the picker is in custom input mode (context-limit) */
+  customInputMode?: boolean;
+  /** Validation error message for custom input mode */
+  customInputError?: string;
 }
 
 export interface CommandPaletteState {
@@ -120,6 +124,8 @@ export interface MixCodeTabInfo {
   tokenInput: number;
   tokenOutput: number;
   contextLimit: number;
+  /** True when contextLimit was explicitly overridden by the user via /context-limit */
+  contextLimitOverridden?: boolean;
   currentContextTokens?: number;
   model: MixCodeModelRef;
   thinkingLevel: ThinkingLevel;

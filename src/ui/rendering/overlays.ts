@@ -449,6 +449,11 @@ function renderPickerOverlayInner(state: MixCodeState, width: number): string[] 
     return renderWorkdirPickerOverlay(picker, items, width);
   }
 
+  // Context-limit picker: custom input mode
+  if (picker.kind === "context-limit" && picker.customInputMode) {
+    return renderContextLimitCustomInput(picker, width);
+  }
+
   const lines = [`filter: ${picker.query}`, ""];
   if (!items.length) {
     lines.push("No matching items");
@@ -507,6 +512,22 @@ function renderWorkdirPickerOverlay(
       `${itemCount} dirs \u00b7 \u2190: parent  tab: enter dir  enter: set workdir  ctrl+h: hidden(${hiddenIndicator})  esc: cancel`,
     ),
   );
+  return overlayPanel(picker.title, lines, width);
+}
+
+function renderContextLimitCustomInput(
+  picker: NonNullable<MixCodeState["picker"]>,
+  width: number,
+): string[] {
+  const lines: string[] = [
+    "Enter context limit (e.g. 32k, 40000)",
+    "",
+    `> ${picker.query}_`,
+  ];
+  if (picker.customInputError) {
+    lines.push(activeRenderTheme.danger(`\u2716 ${picker.customInputError}`));
+  }
+  lines.push("", activeRenderTheme.dim("enter: confirm  esc: back"));
   return overlayPanel(picker.title, lines, width);
 }
 
