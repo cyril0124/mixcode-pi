@@ -4,6 +4,7 @@ import {
   formatSkillsForPrompt,
   getAgentDir,
 } from "@earendil-works/pi-coding-agent";
+import { detectSearchTools, type SearchToolAvailability } from "./detect-search-tools.js";
 
 export const MIXCODE_SYSTEM_PROMPT =
   "You are an expert coding assistant operating inside pi, a coding agent harness. You help users by reading files, executing commands, editing code, and writing new files.";
@@ -15,6 +16,7 @@ export interface BuildMixCodeSystemPromptOptions {
   selectedTools?: string[];
   toolSnippets?: Record<string, string>;
   promptGuidelines?: string[];
+  searchTools?: SearchToolAvailability;
 }
 
 export async function buildMixCodeSystemPrompt(
@@ -37,10 +39,13 @@ export async function buildMixCodeSystemPrompt(
     contextFiles: loader.getAgentsFiles().agentsFiles,
     skills: loader.getSkills().skills,
     cwd: options.workdir,
+    searchTools: options.searchTools,
   });
 }
 
-export function buildMixCodeSystemPromptFromParts(options: BuildSystemPromptOptions): string {
+export function buildMixCodeSystemPromptFromParts(
+  options: BuildSystemPromptOptions & { searchTools?: SearchToolAvailability },
+): string {
   const {
     customPrompt,
     selectedTools,
@@ -50,6 +55,7 @@ export function buildMixCodeSystemPromptFromParts(options: BuildSystemPromptOpti
     cwd,
     contextFiles: providedContextFiles,
     skills: providedSkills,
+    searchTools,
   } = options;
   const promptCwd = cwd.replace(/\\/g, "/");
   const appendSection = appendSystemPrompt ? `\n\n${appendSystemPrompt}` : "";
@@ -59,7 +65,7 @@ export function buildMixCodeSystemPromptFromParts(options: BuildSystemPromptOpti
   let prompt =
     customPrompt && customPrompt !== MIXCODE_SYSTEM_PROMPT
       ? customPrompt
-      : buildDefaultMixCodePrompt({ selectedTools, toolSnippets, promptGuidelines });
+      : buildDefaultMixCodePrompt({ selectedTools, toolSnippets, promptGuidelines, searchTools });
   if (appendSection) {
     prompt += appendSection;
   }
@@ -77,9 +83,11 @@ export function buildMixCodeSystemPromptFromParts(options: BuildSystemPromptOpti
 }
 
 function buildDefaultMixCodePrompt(
-  options: Pick<BuildSystemPromptOptions, "selectedTools" | "toolSnippets" | "promptGuidelines">,
+  options: Pick<BuildSystemPromptOptions, "selectedTools" | "toolSnippets" | "promptGuidelines"> & {
+    searchTools?: SearchToolAvailability;
+  },
 ): string {
-  const { selectedTools, toolSnippets, promptGuidelines } = options;
+  const { selectedTools, toolSnippets, promptGuidelines, searchTools } = options;
   const tools = selectedTools || ["read", "bash", "edit", "write"];
   const snippets = toolSnippets ?? {};
   const visibleTools = tools.filter((name) => !!snippets[name]);
@@ -87,7 +95,7 @@ function buildDefaultMixCodePrompt(
     visibleTools.length > 0
       ? visibleTools.map((name) => `- ${name}: ${snippets[name]}`).join("\n")
       : "(none)";
-  const guidelines = buildGuidelines(tools, promptGuidelines)
+  const guidelines = buildGuidelines(tools, promptGuidelines, searchTools)
     .map((g) => `- ${g}`)
     .join("\n");
 
@@ -102,7 +110,11 @@ Guidelines:
 ${guidelines}`;
 }
 
-function buildGuidelines(tools: string[], promptGuidelines: string[] | undefined): string[] {
+function buildGuidelines(
+  tools: string[],
+  promptGuidelines: string[] | undefined,
+  searchTools?: SearchToolAvailability,
+): string[] {
   const guidelinesList: string[] = [];
   const guidelinesSet = new Set<string>();
   const addGuideline = (guideline: string) => {
@@ -112,15 +124,11 @@ function buildGuidelines(tools: string[], promptGuidelines: string[] | undefined
   };
 
   const hasBash = tools.includes("bash");
-  const hasGrep = tools.includes("grep");
-  const hasFind = tools.includes("find");
-  const hasLs = tools.includes("ls");
-  if (hasBash && !hasGrep && !hasFind && !hasLs) {
-    addGuideline("Use bash for file operations like ls, rg, find");
-  } else if (hasBash && (hasGrep || hasFind || hasLs)) {
-    addGuideline(
-      "Prefer grep/find/ls tools over bash for file exploration (faster, respects .gitignore)",
-    );
+  if (hasBash) {
+    const availability = searchTools ?? detectSearchTools();
+    for (const g of buildSearchGuidelines(availability)) {
+      addGuideline(g);
+    }
   }
   for (const guideline of promptGuidelines ?? []) {
     const normalized = guideline.trim();
@@ -131,6 +139,22 @@ function buildGuidelines(tools: string[], promptGuidelines: string[] | undefined
   addGuideline("Be concise in your responses");
   addGuideline("Show file paths clearly when working with files");
   return guidelinesList;
+}
+
+/**
+ * Build search tool guidelines based on available CLI tools.
+ * Only emits guidelines when rg/fd are available, to override model defaults.
+ * Returns undefined when neither is available (no guideline needed).
+ */
+function buildSearchGuidelines(availability: SearchToolAvailability): string[] {
+  const guidelines: string[] = [];
+  if (availability.hasRg) {
+    guidelines.push("For content search, ALWAYS use `rg` (ripgrep). NEVER use `grep`.");
+  }
+  if (availability.hasFd) {
+    guidelines.push("For file search, ALWAYS use `fd`. NEVER use `find`.");
+  }
+  return guidelines;
 }
 
 function formatProjectContext(contextFiles: Array<{ path: string; content: string }>): string {

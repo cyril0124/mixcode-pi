@@ -26,7 +26,7 @@ test("buildMixCodeSystemPrompt loads Pi project context into system prompt", asy
     assert.match(prompt, /^You are an expert coding assistant operating inside pi/);
     assert.match(prompt, /Available tools:\n\(none\)/);
     assert.match(prompt, /Guidelines:/);
-    assert.match(prompt, /Use bash for file operations like ls, rg, find/);
+    assert.match(prompt, /For content search, ALWAYS use `rg` \(ripgrep\)\. NEVER use `grep`\./);
     assert.doesNotMatch(prompt, /Pi documentation/);
     assert.match(prompt, /<project_context>/);
     assert.match(
@@ -152,15 +152,14 @@ test("buildMixCodeSystemPrompt formats tools and exploration guidelines like Pi"
         grep: "Search file contents for patterns (respects .gitignore)",
       },
       promptGuidelines: ["Use read to examine files instead of cat or sed.", "  "],
+      searchTools: { hasRg: true, hasFd: true },
     });
 
     assert.match(prompt, /- read: Read file contents/);
     assert.match(prompt, /- bash: Execute bash commands \(ls, grep, find, etc\.\)/);
     assert.match(prompt, /- grep: Search file contents for patterns \(respects \.gitignore\)/);
-    assert.match(
-      prompt,
-      /Prefer grep\/find\/ls tools over bash for file exploration \(faster, respects \.gitignore\)/,
-    );
+    assert.match(prompt, /For content search, ALWAYS use `rg` \(ripgrep\)\. NEVER use `grep`\./);
+    assert.match(prompt, /For file search, ALWAYS use `fd`\. NEVER use `find`\./);
     assert.match(prompt, /Use read to examine files instead of cat or sed\./);
   } finally {
     await rm(dir, { recursive: true, force: true });
@@ -173,10 +172,12 @@ test("default MixCode custom prompt expands tools and guidelines before Pi assem
     cwd: "/repo",
     selectedTools: ["bash"],
     toolSnippets: { bash: "Execute bash commands" },
+    searchTools: { hasRg: true, hasFd: true },
   });
 
   assert.match(prompt, /^You are an expert coding assistant operating inside pi/);
   assert.match(prompt, /Available tools:\n- bash: Execute bash commands/);
   assert.match(prompt, /Guidelines:/);
-  assert.match(prompt, /Use bash for file operations like ls, rg, find/);
+  assert.match(prompt, /For content search, ALWAYS use `rg` \(ripgrep\)\. NEVER use `grep`\./);
+  assert.match(prompt, /For file search, ALWAYS use `fd`\. NEVER use `find`\./);
 });

@@ -6,10 +6,6 @@ import {
   createBashToolDefinition,
   createEditTool,
   createEditToolDefinition,
-  createFindTool,
-  createFindToolDefinition,
-  createGrepTool,
-  createGrepToolDefinition,
   createLocalBashOperations,
   createLsTool,
   createLsToolDefinition,
@@ -26,17 +22,9 @@ import {
 /** Default timeout (seconds) applied when the AI does not specify one. */
 export const BASH_DEFAULT_TIMEOUT_SECONDS = 300;
 
-export type PiBuiltinToolName = "read" | "bash" | "edit" | "write" | "grep" | "find" | "ls";
+export type PiBuiltinToolName = "read" | "bash" | "edit" | "write" | "ls";
 
-export const PI_BUILTIN_TOOL_NAMES: PiBuiltinToolName[] = [
-  "read",
-  "bash",
-  "edit",
-  "write",
-  "grep",
-  "find",
-  "ls",
-];
+export const PI_BUILTIN_TOOL_NAMES: PiBuiltinToolName[] = ["read", "bash", "edit", "write", "ls"];
 
 type AnyToolDefinition = ToolDefinition<any, any, any>;
 
@@ -102,8 +90,6 @@ function createPiBuiltinTools(agentSession: AgentSession): Record<PiBuiltinToolN
     }),
     edit: createEditTool(cwd),
     write: createWriteTool(cwd),
-    grep: createGrepTool(cwd),
-    find: createFindTool(cwd),
     ls: createLsTool(cwd),
   };
 }
@@ -149,8 +135,6 @@ function createPiBuiltinToolDefinitions(
     ),
     edit: createEditToolDefinition(cwd),
     write: createWriteToolDefinition(cwd),
-    grep: createGrepToolDefinition(cwd),
-    find: createFindToolDefinition(cwd),
     ls: createLsToolDefinition(cwd),
   };
 }

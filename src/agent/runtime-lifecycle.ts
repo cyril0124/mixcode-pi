@@ -3,9 +3,9 @@ import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import {
   type AgentSessionServices,
   type AuthStorage,
-  calculateContextTokens,
   type CreateAgentSessionResult,
   type CreateAgentSessionServicesOptions,
+  calculateContextTokens,
   createAgentSessionFromServices,
   createAgentSessionServices,
   type ExtensionFactory,
@@ -17,6 +17,7 @@ import {
   type SettingsManager,
   shouldCompact,
 } from "@earendil-works/pi-coding-agent";
+import { detectSearchTools, type SearchToolAvailability } from "../core/detect-search-tools.js";
 import {
   type ExtensionManagerEntry,
   extensionManagerEntriesFromResult,
@@ -44,6 +45,7 @@ import {
   createMixCodeExtensionUiContext,
   disposeExtensionWidgets,
 } from "./runtime-extension-ui.js";
+import { consumeDeferredPendingMessageFlush } from "./runtime-follow-up.js";
 import {
   buildMixCodeSystemPromptOverride,
   registerMixCodeRuntimeProvider,
@@ -58,7 +60,6 @@ import type {
   RuntimeTab,
   SessionReplacementReason,
 } from "./runtime-types.js";
-import { consumeDeferredPendingMessageFlush } from "./runtime-follow-up.js";
 import { activateMixCodeTools, ToolLog } from "./tools.js";
 
 export type RuntimeTabConfig = Omit<AgentRuntimeConfig, "sessionId" | "model"> & {
@@ -356,6 +357,9 @@ export function getExtensionManagerEntriesForServices(
   return extensionManagerEntriesByServices.get(services) ?? [];
 }
 
+/** Cached search tool availability, detected once at module load. */
+const cachedSearchTools: SearchToolAvailability = detectSearchTools();
+
 function runtimeTabPromptOptions(services: AgentSessionServices, cwd: string) {
   const appendSystemPrompt = services.resourceLoader.getAppendSystemPrompt().join("\n\n");
   return {
@@ -364,6 +368,7 @@ function runtimeTabPromptOptions(services: AgentSessionServices, cwd: string) {
     contextFiles: services.resourceLoader.getAgentsFiles().agentsFiles,
     skills: services.resourceLoader.getSkills().skills,
     cwd,
+    searchTools: cachedSearchTools,
   };
 }
 
