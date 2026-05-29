@@ -595,7 +595,7 @@ function normalizeRenderedToolLine(text: string, width: number): string[] {
 function normalizeExternalRendererLines(text: string, width: number): string[] {
   return String(text)
     .split(/\r?\n/)
-    .map((part) => truncateToWidth(sanitizeTerminalText(part), Math.max(0, width), "..."));
+    .map((part) => truncateToWidth(sanitizeTerminalText(part).replace(/\t/g, "  "), Math.max(0, width), "..."));
 }
 
 function renderToolBackgroundLine(
