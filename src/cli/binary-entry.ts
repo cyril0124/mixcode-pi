@@ -18,6 +18,8 @@ import clankolasImagePath from "../../node_modules/@earendil-works/pi-coding-age
 import photonWasmPath from "../../node_modules/@silvia-odwyer/photon-node/photon_rs_bg.wasm" with { type: "file" };
 import searchGuardIndex from "../../packages/search-guard/index.ts" with { type: "text" };
 import searchGuardPackageJson from "../../packages/search-guard/package.json" with { type: "text" };
+import imageHoistIndex from "../../packages/image-hoist/index.ts" with { type: "text" };
+import imageHoistPackageJson from "../../packages/image-hoist/package.json" with { type: "text" };
 import packageJson from "../../package.json" with { type: "json" };
 import { materializeBinaryRuntimeAssets } from "./binary-assets.js";
 
@@ -64,6 +66,10 @@ materializeBinaryRuntimeAssets(runtimeDir, {
     "search-guard": {
       "index.ts": searchGuardIndex,
       "package.json": searchGuardPackageJson,
+    },
+    "image-hoist": {
+      "index.ts": imageHoistIndex,
+      "package.json": imageHoistPackageJson,
     },
   },
 });
