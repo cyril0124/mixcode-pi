@@ -15,7 +15,7 @@ import exportTemplateJs from "../../node_modules/@earendil-works/pi-coding-agent
 import exportVendorMarked from "../../node_modules/@earendil-works/pi-coding-agent/dist/core/export-html/vendor/marked.min.js" with { type: "text" };
 import exportVendorHighlight from "../../node_modules/@earendil-works/pi-coding-agent/dist/core/export-html/vendor/highlight.min.js" with { type: "text" };
 import clankolasImagePath from "../../node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/assets/clankolas.png" with { type: "file" };
-import photonWasmPath from "../../node_modules/@earendil-works/pi-coding-agent/node_modules/@silvia-odwyer/photon-node/photon_rs_bg.wasm" with { type: "file" };
+import photonWasmPath from "../../node_modules/@silvia-odwyer/photon-node/photon_rs_bg.wasm" with { type: "file" };
 import searchGuardIndex from "../../packages/search-guard/index.ts" with { type: "text" };
 import searchGuardPackageJson from "../../packages/search-guard/package.json" with { type: "text" };
 import packageJson from "../../package.json" with { type: "json" };
@@ -27,7 +27,7 @@ import { materializeBinaryRuntimeAssets } from "./binary-assets.js";
 // import it statically and stash it on globalThis for the bridge to pick up.
 // We cannot import the bridge directly here because it transitively pulls in
 // pi-coding-agent which reads PI_PACKAGE_DIR eagerly (not yet set at this point).
-import * as nestedPiTuiKeybindings from "../../node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-tui/dist/keybindings.js";
+import * as nestedPiTuiKeybindings from "../../node_modules/@earendil-works/pi-tui/dist/keybindings.js";
 
 // Use mkdtempSync for unpredictable temp dir name (avoids symlink attacks on shared systems)
 const runtimeDir = mkdtempSync(join(tmpdir(), "mixcode-pi-"));
