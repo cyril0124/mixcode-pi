@@ -22,6 +22,9 @@ import imageHoistIndex from "../../packages/image-hoist/index.ts" with { type: "
 import imageHoistPackageJson from "../../packages/image-hoist/package.json" with { type: "text" };
 import diffTrackerIndex from "../../packages/diff-tracker/index.ts" with { type: "text" };
 import diffTrackerPackageJson from "../../packages/diff-tracker/package.json" with { type: "text" };
+import commandBrowserIndex from "../../packages/command-browser/index.ts" with { type: "text" };
+import commandBrowserComponent from "../../packages/command-browser/command-browser.ts" with { type: "text" };
+import commandBrowserPackageJson from "../../packages/command-browser/package.json" with { type: "text" };
 import packageJson from "../../package.json" with { type: "json" };
 import { materializeBinaryRuntimeAssets } from "./binary-assets.js";
 
@@ -76,6 +79,11 @@ materializeBinaryRuntimeAssets(runtimeDir, {
     "diff-tracker": {
       "index.ts": diffTrackerIndex,
       "package.json": diffTrackerPackageJson,
+    },
+    "command-browser": {
+      "index.ts": commandBrowserIndex,
+      "command-browser.ts": commandBrowserComponent,
+      "package.json": commandBrowserPackageJson,
     },
   },
 });
