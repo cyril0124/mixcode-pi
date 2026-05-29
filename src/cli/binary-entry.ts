@@ -20,6 +20,8 @@ import searchGuardIndex from "../../packages/search-guard/index.ts" with { type:
 import searchGuardPackageJson from "../../packages/search-guard/package.json" with { type: "text" };
 import imageHoistIndex from "../../packages/image-hoist/index.ts" with { type: "text" };
 import imageHoistPackageJson from "../../packages/image-hoist/package.json" with { type: "text" };
+import diffTrackerIndex from "../../packages/diff-tracker/index.ts" with { type: "text" };
+import diffTrackerPackageJson from "../../packages/diff-tracker/package.json" with { type: "text" };
 import packageJson from "../../package.json" with { type: "json" };
 import { materializeBinaryRuntimeAssets } from "./binary-assets.js";
 
@@ -70,6 +72,10 @@ materializeBinaryRuntimeAssets(runtimeDir, {
     "image-hoist": {
       "index.ts": imageHoistIndex,
       "package.json": imageHoistPackageJson,
+    },
+    "diff-tracker": {
+      "index.ts": diffTrackerIndex,
+      "package.json": diffTrackerPackageJson,
     },
   },
 });
