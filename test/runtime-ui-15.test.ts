@@ -159,6 +159,65 @@ function stripAnsi(text: string): string {
     .replace(/\x1b_[^\x07]*(?:\x07|\x1b\\)/g, "");
 }
 
+test("extension string widgets wrap long lines instead of truncating", () => {
+  const tab = createTab(1, "s1", "/repo", {
+    extensionUi: {
+      statuses: [],
+      widgets: [
+        {
+          key: "recap",
+          placement: "aboveEditor",
+          lines: [
+            "recap: Reviewed staged changes, passed git diff --cached --check, and committed skills/grill-me/SKILL.md as 589464f with message.",
+          ],
+        },
+      ],
+      toolsExpanded: false,
+      pendingUserInteractions: [],
+      workingVisible: true,
+    },
+  });
+
+  const lines = renderExtensionWidgets(tab, 48, "aboveEditor");
+  const plain = lines.map(stripAnsi);
+  const normalized = plain.join(" ").replace(/\s+/g, " ").trim();
+
+  assert.ok(lines.length > 1);
+  assert.equal(plain.some((line) => line.includes("...")), false);
+  assert.match(normalized, /with message\./);
+  assert.equal(lines.every((line) => visibleWidth(line) <= 48), true);
+});
+
+test("extension header and footer preserve full-width component output", () => {
+  const fullWidthLine = (label: string, width: number) => {
+    const prefix = `${label} width=${width} `;
+    return `${prefix}${"X".repeat(Math.max(0, width - visibleWidth(prefix) - 1))}|`;
+  };
+  const tab = createTab(1, "s1", "/repo", {
+    extensionUi: {
+      statuses: [],
+      widgets: [],
+      toolsExpanded: false,
+      pendingUserInteractions: [],
+      workingVisible: true,
+      header: { lines: [], render: (width) => [fullWidthLine("header", width)] },
+      footer: { lines: [], render: (width) => [fullWidthLine("footer", width)] },
+    },
+  });
+
+  const header = renderExtensionHeader(tab, 48);
+  const footer = renderExtensionFooter(tab, 48);
+
+  assert.equal(header.length, 1);
+  assert.equal(footer.length, 1);
+  assert.equal(stripAnsi(header[0] ?? "").endsWith("|"), true);
+  assert.equal(stripAnsi(footer[0] ?? "").endsWith("|"), true);
+  assert.equal(stripAnsi(header.join("\n")).includes("..."), false);
+  assert.equal(stripAnsi(footer.join("\n")).includes("..."), false);
+  assert.equal(header.every((line) => visibleWidth(line) <= 48), true);
+  assert.equal(footer.every((line) => visibleWidth(line) <= 48), true);
+});
+
 function silentTerminal(): Terminal {
   return {
     start: () => undefined,
@@ -304,11 +363,11 @@ test("runtime maps supported pi extension UI primitives into MixCode tab state",
     const narrowHeader = renderExtensionHeader(runtimeTab.tab, 8);
     assert.equal(narrowHeader.length, 1);
     assert.equal(visibleWidth(narrowHeader[0] ?? ""), 8);
-    assert.match(stripAnsi(narrowHeader.join("\n")), /hea\.\.\./);
-    assert.match(
-      stripAnsi(renderExtensionFooter(runtimeTab.tab, 8).join("\n")),
-      /foo\.\.\./,
-    );
+    assert.equal(stripAnsi(narrowHeader.join("\n")).trim(), "header 8");
+    const narrowFooter = renderExtensionFooter(runtimeTab.tab, 8);
+    assert.equal(narrowFooter.length, 1);
+    assert.equal(visibleWidth(narrowFooter[0] ?? ""), 8);
+    assert.match(stripAnsi(narrowFooter.join("\n")), /foote\.\.\./);
     assert.match(renderInputMeta(runtimeTab.tab, 100).join("\n"), /status: ready/);
     assert.match(
       renderExtensionWidgets(runtimeTab.tab, 100, "aboveEditor").join("\n"),

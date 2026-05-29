@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import type { RuntimeTab } from "../../agent/runtime.js";
 import { isPendingEscapeActive } from "../../core/escape.js";
 import type { MouseHitRegion } from "../../core/mouse.js";
@@ -22,7 +22,7 @@ export function renderHeader(width: number, theme: MixCodeTheme = activeRenderTh
 
 export function renderExtensionHeader(tab: MixCodeTabInfo | undefined, width: number): string[] {
   const header = tab?.extensionUi.header;
-  return renderExtensionSlot(header?.render ? header.render(width) : header?.lines, width);
+  return renderExtensionComponentSlot(header?.render ? header.render(width) : header?.lines, width);
 }
 
 export function renderTabBar(
@@ -312,10 +312,15 @@ function renderExtensionWidgetsInner(
   const lines: string[] = [];
   widgets.forEach((widget, index) => {
     if (index > 0) lines.push(padLine("", width));
-    const widgetLines = widget.render?.(Math.max(1, width - 2)) ?? widget.lines;
+    const bodyWidth = Math.max(1, width - 2);
+    const widgetLines = widget.render?.(bodyWidth) ?? wrapExtensionWidgetLines(widget.lines, bodyWidth);
     lines.push(...widgetLines.map((line) => renderSingleLineExtensionSlot(line, width)));
   });
   return lines;
+}
+
+function wrapExtensionWidgetLines(lines: string[], width: number): string[] {
+  return lines.flatMap((line) => wrapTextWithAnsi(sanitizeWidgetLine(line), width));
 }
 
 export function renderFooter(width: number): string[] {
@@ -325,7 +330,7 @@ export function renderFooter(width: number): string[] {
 
 export function renderExtensionFooter(tab: MixCodeTabInfo | undefined, width: number): string[] {
   const footer = tab?.extensionUi.footer;
-  return renderExtensionSlot(footer?.render ? footer.render(width) : footer?.lines, width);
+  return renderExtensionComponentSlot(footer?.render ? footer.render(width) : footer?.lines, width);
 }
 
 function extensionStatusText(tab: MixCodeTabInfo): string {
@@ -337,9 +342,9 @@ function extensionStatusText(tab: MixCodeTabInfo): string {
     .join("  ");
 }
 
-function renderExtensionSlot(lines: string[] | undefined, width: number): string[] {
+function renderExtensionComponentSlot(lines: string[] | undefined, width: number): string[] {
   if (!lines?.length) return [];
-  return lines.map((line) => renderSingleLineExtensionSlot(line, width));
+  return lines.map((line) => padLine(sanitizeWidgetLine(line), width));
 }
 
 function renderSingleLineExtensionSlot(line: string, width: number): string {
