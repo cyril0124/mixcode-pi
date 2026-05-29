@@ -53,7 +53,6 @@ type OptionalSubmitRuntime = Partial<
     | "listAllSessions"
     | "reloadExtensionManagerTab"
     | "reloadExtensionManagerWorkdir"
-    | "redoLastUndo"
     | "renameSession"
     | "resolveModel"
     | "updateTabModel"
@@ -75,7 +74,6 @@ export type MixCodeSubmitRuntime = Pick<
   | "deleteAllTabs"
   | "executeShellCommand"
   | "extensionReload"
-  | "undoLastUserTurn"
   | "compactSession"
   | "setExtensionEnabled"
 > &

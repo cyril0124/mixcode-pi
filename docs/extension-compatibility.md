@@ -191,7 +191,7 @@ theme / getAllThemes / getTheme / setTheme
 - tool `renderCall`
 - tool `renderResult`
 - renderer component 复用
-- session close / clear / compact / undo 时 dispose
+- session close / clear / compact 时 dispose
 - renderer 抛错时显式显示错误
 - renderer `context.invalidate()` 触发 MixCode redraw
 

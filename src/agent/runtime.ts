@@ -43,9 +43,7 @@ import {
   importRuntimeJsonl,
   navigateRuntimeTree,
   type RuntimeExtensionSessionContext,
-  redoRuntimeUserTurn,
   switchRuntimeSession,
-  undoRuntimeUserTurn,
 } from "./runtime-extension-session.js";
 import {
   appendExtensionConflictDiagnostics,
@@ -161,7 +159,6 @@ export class MixCodeRuntime {
       requireTab: (sessionId) => this.requireTab(sessionId),
       createSession: (cwd, sessionId, parentSession) =>
         this.createSession(cwd, sessionId, parentSession),
-      openOrCreateSession: (sessionId, cwd) => this.openOrCreateSession(sessionId, cwd),
       replaceRuntimeTabSession: (runtimeTab, sessionManager, reason) =>
         this.replaceRuntimeTabSession(runtimeTab, sessionManager, reason),
       syncChatFromSession: (runtimeTab) => this.syncChatFromSession(runtimeTab),
@@ -445,7 +442,6 @@ export class MixCodeRuntime {
     const runtimeTab = this.requireTab(sessionId);
     const trimmed = text.trim();
     if (!trimmed) return;
-    runtimeTab.tab.redoSessionId = undefined;
     if (runtimeTab.agentSession.isStreaming) {
       await runtimeTab.agentSession.prompt(trimmed, { streamingBehavior: "steer" });
       return;
@@ -467,7 +463,6 @@ export class MixCodeRuntime {
     if (runtimeTab.agentSession.isBashRunning) {
       throw new Error("Cannot run a shell command while another bash command is running");
     }
-    runtimeTab.tab.redoSessionId = undefined;
     runtimeTab.tab.status = "running";
     runtimeTab.tab.workingStartedAt = new Date().toISOString();
     runtimeTab.tab.lastWorkedDurationSeconds = undefined;
@@ -790,14 +785,6 @@ export class MixCodeRuntime {
     for (const sessionId of [...this.tabs.keys()]) {
       await this.deleteTab(sessionId);
     }
-  }
-
-  async undoLastUserTurn(sessionId: string): Promise<void> {
-    await undoRuntimeUserTurn(sessionId, this.extensionSessionContext());
-  }
-
-  async redoLastUndo(sessionId: string): Promise<void> {
-    await redoRuntimeUserTurn(sessionId, this.extensionSessionContext());
   }
 
   async compactSession(sessionId: string, customInstructions = ""): Promise<void> {

@@ -300,7 +300,6 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
         previewIndex: 0,
         previewScrollOffset: 2,
         pendingMessages: ["queued"],
-        redoSessionId: "redo-s1",
       }),
       createTab(2, "s2", "/repo", {
         model: tabTwoModel,
@@ -313,7 +312,6 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
     assert.deepEqual(serialized.children, ["s1", "s2"]);
     assert.equal((serialized.workdirs as Record<string, string>).s1, "/repo");
     assert.equal((serialized.tab_titles as Record<string, string>).s1, "Renamed Agent");
-    assert.equal((serialized.redo_sessions as Record<string, string>).s1, "redo-s1");
     assert.deepEqual((serialized.tab_models as Record<string, unknown>).s2, tabTwoModel);
     assert.equal((serialized.tab_variants as Record<string, string>).s2, "xhigh");
     const restored = deserializeState(serialized, "/fallback");
@@ -328,7 +326,6 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
     assert.equal(restored.tabs[0]?.previewScrollOffset, 2);
 
     assert.deepEqual(restored.tabs[0]?.pendingMessages, ["queued"]);
-    assert.equal(restored.tabs[0]?.redoSessionId, "redo-s1");
     assert.equal(restored.tabs[1]?.model.modelId, "tab-two-model");
     assert.equal(restored.tabs[1]?.contextLimit, 123_000);
     assert.equal(restored.tabs[1]?.thinkingLevel, "xhigh");

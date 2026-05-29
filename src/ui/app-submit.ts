@@ -59,12 +59,10 @@ export async function handleSubmittedInput(
     parsed.kind === "prompt" || parsed.kind === "shell" || !configScopedCommand(parsed.command);
   if (!active && requiresActive) return;
   if (parsed.kind === "prompt") {
-    clearRedoSession(active);
     const knownSkills = getKnownSkillsFromTab(runtime, active!.sessionId);
     const promptTemplates = getPromptTemplatesFromTab(runtime, active!.sessionId);
     await runtime.prompt(active!.sessionId, await buildModelPrompt(parsed.args, active!.workdir, { knownSkills, promptTemplates }));
   } else if (parsed.kind === "shell") {
-    clearRedoSession(active);
     if (!runtime.executeShellCommand) {
       throw new Error("Shell command execution requires pi runtime bash support");
     }
@@ -82,7 +80,6 @@ export async function handleSubmittedInput(
     active!.vimPendingEscapeAt = undefined;
     active!.vimPendingHome = false;
   } else if (parsed.command === "clear") {
-    clearRedoSession(active);
     if (!runtime.clearTab) throw new Error("Clear requires runtime session replacement support");
     const oldSessionId = active!.sessionId;
     // Immediately clear the visible conversation so the UI feels responsive.
@@ -212,7 +209,6 @@ export async function handleSubmittedInput(
       await editTextWithTuiPaused(tui, text, request.editor);
     }
   } else if (parsed.command === "import") {
-    clearRedoSession(active);
     if (!runtime.importFromJsonl)
       throw new Error("Import requires pi runtime session import support");
     const request = parseImportRequest(parsed.args);
@@ -239,7 +235,6 @@ export async function handleSubmittedInput(
       "Reloaded keybindings, extensions, skills, prompts, and themes",
     );
   } else if (parsed.command === "fork") {
-    clearRedoSession(active);
     const sessionId = parsed.args.trim() || `${active!.sessionId}-fork-${Date.now()}`;
     await runtime.forkSession(active!.sessionId, sessionId);
     const activeIndex = state.tabs.findIndex((t) => t.sessionId === state.activeTabId);
@@ -288,7 +283,6 @@ export async function handleSubmittedInput(
     }
     setTheme(state, resolveThemeInput(parsed.args));
   } else if (parsed.command === "workdir") {
-    clearRedoSession(active);
     if (!parsed.args.trim()) {
       state.picker = createPicker("workdir", state, active);
       showLinesOverlay(tui, (width) => renderPickerOverlay(state, width));
@@ -366,23 +360,12 @@ export async function handleSubmittedInput(
     }
   } else if (parsed.command === "quit" || parsed.command === "exit") {
     await quitMixCode(runtime, tui, getConfiguredQuitOptions(tui));
-  } else if (parsed.command === "undo") {
-    await runtime.undoLastUserTurn(active!.sessionId);
-    activateTab(state, active!.sessionId);
-  } else if (parsed.command === "redo") {
-    if (!runtime.redoLastUndo)
-      throw new Error("Redo requires pi runtime session replacement support");
-    await runtime.redoLastUndo(active!.sessionId);
-    activateTab(state, active!.sessionId);
   } else if (parsed.command === "compact") {
-    clearRedoSession(active);
     await runtime.compactSession(active!.sessionId, parsed.args);
   } else if (isExtensionCommand(runtime, active!.sessionId, parsed.command)) {
-    clearRedoSession(active);
     await runtime.prompt(active!.sessionId, `/${parsed.command} ${parsed.args}`.trim());
   } else if (isPromptTemplate(runtime, active!.sessionId, parsed.command)) {
     // Route prompt template commands through buildModelPrompt for expansion
-    clearRedoSession(active);
     const knownSkills = getKnownSkillsFromTab(runtime, active!.sessionId);
     const promptTemplates = getPromptTemplatesFromTab(runtime, active!.sessionId);
     const fullText = `/${parsed.command} ${parsed.args}`.trim();
@@ -412,10 +395,6 @@ function isPromptTemplate(
   const runtimeTab = runtime.getTab(sessionId);
   if (!runtimeTab?.services?.resourceLoader) return false;
   return runtimeTab.services.resourceLoader.getPrompts().prompts.some((p) => p.name === command);
-}
-
-function clearRedoSession(tab: MixCodeState["tabs"][number] | undefined): void {
-  if (tab) tab.redoSessionId = undefined;
 }
 
 /**

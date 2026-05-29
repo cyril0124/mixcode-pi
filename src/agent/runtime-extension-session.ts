@@ -28,7 +28,6 @@ export interface RuntimeExtensionSessionContext {
     sessionId?: string,
     parentSession?: string,
   ) => Promise<SessionManager>;
-  openOrCreateSession: (sessionId: string, cwd: string) => Promise<SessionManager>;
   replaceRuntimeTabSession: (
     runtimeTab: RuntimeTab,
     sessionManager: SessionManager,
@@ -151,52 +150,6 @@ export async function importRuntimeJsonl(
   const sessionManager = SessionManager.open(destinationPath, sessionDir, cwdOverride);
   await context.replaceRuntimeTabSession(runtimeTab, sessionManager, "resume");
   return { cancelled: false };
-}
-
-export async function undoRuntimeUserTurn(
-  sessionId: string,
-  context: RuntimeExtensionSessionContext,
-): Promise<void> {
-  const runtimeTab = context.requireTab(sessionId);
-  const redoSessionId = runtimeTab.tab.sessionId;
-  const branch = runtimeTab.session.getBranch();
-  const latestUser = [...branch]
-    .reverse()
-    .find((entry) => entry.type === "message" && entry.message.role === "user");
-  if (!latestUser) {
-    throw new Error("No user message found to undo");
-  }
-  let undoSession: SessionManager;
-  if (latestUser.parentId) {
-    const undoSessionFile = runtimeTab.session.createBranchedSession(latestUser.parentId);
-    if (!undoSessionFile) throw new Error("Undo requires a persisted session file");
-    undoSession = SessionManager.open(
-      undoSessionFile,
-      runtimeTab.session.getSessionDir(),
-      runtimeTab.tab.workdir,
-    );
-  } else {
-    const parentSession = runtimeTab.session.getSessionFile();
-    undoSession = await context.createSession(runtimeTab.tab.workdir, undefined, parentSession);
-  }
-  const result = await context.replaceRuntimeTabSession(runtimeTab, undoSession, "fork");
-  result.tab.redoSessionId = redoSessionId;
-  result.tab.status = "idle";
-  result.tab.unreadDone = false;
-}
-
-export async function redoRuntimeUserTurn(
-  sessionId: string,
-  context: RuntimeExtensionSessionContext,
-): Promise<void> {
-  const runtimeTab = context.requireTab(sessionId);
-  const redoSessionId = runtimeTab.tab.redoSessionId;
-  if (!redoSessionId) throw new Error("No undone session to redo");
-  const redoSession = await context.openOrCreateSession(redoSessionId, runtimeTab.tab.workdir);
-  const result = await context.replaceRuntimeTabSession(runtimeTab, redoSession, "resume");
-  result.tab.redoSessionId = undefined;
-  result.tab.status = "idle";
-  result.tab.unreadDone = false;
 }
 
 function resolveForkTarget(

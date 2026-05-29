@@ -69,12 +69,11 @@ test("theme registry validates and suggests themes", () => {
 
 test("prompt templates expand supported local slash commands", () => {
   // expandLocalPromptCommand is a legacy no-op stub.
-  // /compact and /undo are handled as local commands directly in app-submit.
+  // /compact is handled as a local command directly in app-submit.
   // Prompt template expansion is now handled by the full template system.
   assert.equal(expandLocalPromptCommand("goal", ""), undefined);
   assert.equal(expandLocalPromptCommand("goal", "ship"), undefined);
   assert.equal(expandLocalPromptCommand("compact", ""), undefined);
-  assert.equal(expandLocalPromptCommand("undo", ""), undefined);
   assert.equal(expandLocalPromptCommand("brainstorm", ""), undefined);
   assert.equal(expandLocalPromptCommand("brainstorm-3", "topic"), undefined);
   assert.equal(expandLocalPromptCommand("brainstorm-4", "topic"), undefined);
@@ -133,13 +132,11 @@ test("question overlay renders pending request details and empty states", () => 
   assert.match(renderQuestionOverlay(tab, 80).join("\n"), /No options/);
 });
 
-test("submitted input handles compact, undo, redo, and validates theme", async () => {
+test("submitted input handles compact and validates theme", async () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"));
   state.activeTabId = "s1";
   const prompts: string[] = [];
-  const undone: string[] = [];
-  const redone: string[] = [];
   const compacted: Array<{ sessionId: string; instructions: string }> = [];
   const systemMessages: string[] = [];
   const runtime = {
@@ -148,8 +145,6 @@ test("submitted input handles compact, undo, redo, and validates theme", async (
       prompts.push(text);
     },
     getTab: () => undefined,
-    undoLastUserTurn: async (sessionId: string) => undone.push(sessionId),
-    redoLastUndo: async (sessionId: string) => redone.push(sessionId),
     compactSession: async (sessionId: string, instructions: string) =>
       compacted.push({ sessionId, instructions }),
   } as unknown as MixCodeRuntime;
@@ -157,11 +152,7 @@ test("submitted input handles compact, undo, redo, and validates theme", async (
   await handleSubmittedInput(state, runtime, "/goal ship", tui);
   assert.equal(state.tabs[0]?.goal, undefined);
   await handleSubmittedInput(state, runtime, "/compact preserve decisions", tui);
-  await handleSubmittedInput(state, runtime, "/undo", tui);
-  await handleSubmittedInput(state, runtime, "/redo", tui);
   assert.equal(prompts.length, 0);
-  assert.deepEqual(undone, ["s1"]);
-  assert.deepEqual(redone, ["s1"]);
   assert.deepEqual(compacted, [{ sessionId: "s1", instructions: "preserve decisions" }]);
   assert.ok(systemMessages.some((message) => message.includes("Unknown slash command: /goal")));
   await assert.rejects(
@@ -196,14 +187,15 @@ test("submitted input reloads active Pi resources", async () => {
   assert.equal(renders, 1);
 });
 
-test("undo and redo keep focus on the replaced active tab", async () => {
+test("unknown slash commands keep focus on the active tab", async () => {
   const state = createInitialState("/repo");
   const first = createTab(1, "s1", "/repo");
   const second = createTab(2, "s2", "/repo");
   state.tabs.push(first, second);
   state.activeTabId = "s2";
+  const systemMessages: string[] = [];
   const runtime = {
-    appendSystemMessage: () => undefined,
+    appendSystemMessage: (_sessionId: string, text: string) => systemMessages.push(text),
     prompt: async () => undefined,
     getTab: () => undefined,
     createTab: async () => undefined,
@@ -213,31 +205,13 @@ test("undo and redo keep focus on the replaced active tab", async () => {
     deleteTab: async () => undefined,
     deleteAllTabs: async () => undefined,
     compactSession: async () => undefined,
-    undoLastUserTurn: async (sessionId: string) => {
-      assert.equal(sessionId, "s2");
-      second.sessionId = "s2-undo";
-      second.redoSessionId = "s2";
-    },
-    redoLastUndo: async (sessionId: string) => {
-      assert.equal(sessionId, "s2-undo");
-      second.sessionId = "s2";
-      second.redoSessionId = undefined;
-    },
   } as unknown as MixCodeRuntime;
   const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
 
-  await handleSubmittedInput(state, runtime, "/undo", tui);
-  assert.equal(state.activeTabId, "s2-undo");
-  assert.equal(
-    state.tabs.find((tab) => tab.sessionId === state.activeTabId),
-    second,
-  );
-
-  await handleSubmittedInput(state, runtime, "/redo", tui);
+  await handleSubmittedInput(state, runtime, "/no-such-command", tui);
   assert.equal(state.activeTabId, "s2");
-  assert.equal(
-    state.tabs.find((tab) => tab.sessionId === state.activeTabId),
-    second,
+  assert.ok(
+    systemMessages.some((message) => message.includes("Unknown slash command: /no-such-command")),
   );
 });
 

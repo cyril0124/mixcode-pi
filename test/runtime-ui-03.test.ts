@@ -216,9 +216,6 @@ test("createMixCodeTui editor slot handles input, autocomplete host, and submit"
     clearTab: async () => {
       throw new Error("clear failed");
     },
-    redoLastUndo: async () => {
-      throw new Error("No undone session to redo");
-    },
     getExtensionCommands: () => [],
     getAllExtensionCommands: () => [],
     applyExtensionAutocompleteProviders: (_sessionId: string, base: AutocompleteProvider) => ({
@@ -494,24 +491,6 @@ test("createMixCodeTui editor slot handles input, autocomplete host, and submit"
     assert.equal(layout.editor.getText(), "a");
     layout.editor.setText("");
 
-    layout.editor.setText("/redo");
-    layout.editor.handleInput("\r");
-    await waitFor(() => chat.some((message) => message.text === "No undone session to redo"));
-    assert.equal(
-      tab.previewMessages.some((message) => message.text === "No undone session to redo"),
-      true,
-    );
-    assert.equal(
-      submitOverlays.some((overlay) => /No undone session to redo/.test(overlay)),
-      false,
-    );
-    assert.equal(
-      (tui as unknown as { focusedComponent?: unknown }).focusedComponent,
-      layout.editor,
-    );
-    (tui as unknown as { handleInput: (data: string) => void }).handleInput("b");
-    assert.equal(layout.editor.getText(), "b");
-    layout.editor.setText("");
     const submitPropagation: string[] = [];
     layout.editor.setEditorComponent(
       () => ({

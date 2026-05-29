@@ -234,55 +234,6 @@ test("runtime creates pi agent sessions, streams default response, and records s
       reopenedAgainTab.chat.some((line) => line.text.includes("not chat")),
       false,
     );
-    await reopened.undoLastUserTurn("s1");
-    const undoSessionId = reopenedTab.tab.sessionId;
-    assert.notEqual(undoSessionId, "s1");
-    assert.equal(
-      reopenedTab.chat.some((line) => line.text.includes("hello")),
-      false,
-    );
-    assert.equal(
-      reopenedTab.tab.previewMessages.some((message) => message.text.includes("hello")),
-      false,
-    );
-    const reopenedUndo = new MixCodeRuntime({ sessionsRoot: dir });
-    const reopenedUndoTab = await reopenedUndo.createTab(
-      createTab(1, undoSessionId, process.cwd(), { redoSessionId: reopenedTab.tab.redoSessionId }),
-      {
-        systemPrompt: "system",
-        thinkingLevel: "medium",
-        workdir: process.cwd(),
-      },
-    );
-    assert.equal(
-      reopenedUndoTab.chat.some((line) => line.text.includes("hello")),
-      false,
-    );
-    assert.equal(
-      reopenedUndoTab.tab.previewMessages.some((message) => message.text.includes("hello")),
-      false,
-    );
-    assert.equal(reopenedUndoTab.tab.redoSessionId, "s1");
-    await reopenedUndo.redoLastUndo(undoSessionId);
-    assert.equal(reopenedUndoTab.tab.sessionId, "s1");
-    assert.equal(
-      reopenedUndoTab.chat.some((line) => line.text.includes("hello")),
-      true,
-    );
-    const reopenedRedo = new MixCodeRuntime({ sessionsRoot: dir });
-    const reopenedRedoTab = await reopenedRedo.createTab(
-      createTab(1, reopenedUndoTab.tab.sessionId, process.cwd()),
-      {
-        systemPrompt: "system",
-        thinkingLevel: "medium",
-        workdir: process.cwd(),
-      },
-    );
-    assert.equal(
-      reopenedRedoTab.chat.some((line) => line.text.includes("hello")),
-      true,
-    );
-    await assert.rejects(reopened.undoLastUserTurn(undoSessionId), /No user message/);
     runtimeTab.session.appendMessage({
       role: "toolResult",
       toolCallId: "tc1",
@@ -344,45 +295,6 @@ test("runtime creates pi agent sessions, streams default response, and records s
     assert.equal(forked.getSessionId(), "s2");
     assert.equal(runtime.resolveModel("faux", "").id, "faux-1");
     await runtime.prompt("s1", "second message");
-    await runtime.undoLastUserTurn("s1");
-    const secondUndoSessionId = runtimeTab.tab.sessionId;
-    assert.notEqual(secondUndoSessionId, "s1");
-    assert.equal(
-      runtimeTab.chat.some((line) => line.text.includes("second message")),
-      false,
-    );
-    assert.equal(
-      runtimeTab.chat.some((line) => line.text.includes("hello")),
-      true,
-    );
-    const reopenedSecondUndo = new MixCodeRuntime({ sessionsRoot: dir });
-    const reopenedSecondUndoTab = await reopenedSecondUndo.createTab(
-      createTab(1, secondUndoSessionId, process.cwd()),
-      {
-        systemPrompt: "system",
-        thinkingLevel: "medium",
-        workdir: process.cwd(),
-      },
-    );
-    assert.equal(
-      reopenedSecondUndoTab.chat.some((line) => line.text.includes("second message")),
-      false,
-    );
-    assert.equal(
-      reopenedSecondUndoTab.chat.some((line) => line.text.includes("hello")),
-      true,
-    );
-    await runtime.redoLastUndo(secondUndoSessionId);
-    assert.equal(runtimeTab.tab.sessionId, "s1");
-    assert.equal(
-      runtimeTab.chat.some((line) => line.text.includes("second message")),
-      true,
-    );
-    assert.equal(
-      runtimeTab.chat.some((line) => line.text.includes("hello")),
-      true,
-    );
-    await assert.rejects(runtime.redoLastUndo("s1"), /No undone session to redo/);
     await runtime.deleteTab("s1");
     assert.equal(runtime.getTab("s1"), undefined);
     await assert.rejects(runtime.deleteTab("s1"), /Unknown tab session/);

@@ -276,7 +276,6 @@ test("submitted input handles prompt, shell, local commands, clear, and missing 
     },
     deleteTab: async () => undefined,
     deleteAllTabs: async () => undefined,
-    undoLastUserTurn: async () => undefined,
     compactSession: async () => undefined,
     resolveModel: (provider: string, modelId: string) => ({
       ...MIXCODE_FAUX_MODEL,

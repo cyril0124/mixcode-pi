@@ -137,7 +137,6 @@ export interface MixCodeTabInfo {
   vimMode: boolean;
   vimPendingEscapeAt?: number;
   vimPendingHome?: boolean;
-  redoSessionId?: string;
   pendingEscapeAction?: PendingEscapeAction;
   pendingEscapeArmedAt?: number;
   /** Timestamp of last Escape press for double-escape tree detection */

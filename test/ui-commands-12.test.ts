@@ -72,7 +72,6 @@ test("submitted /resume opens session selector overlay", async () => {
     closeAllTabs: async () => undefined,
     deleteTab: async () => undefined,
     deleteAllTabs: async () => undefined,
-    undoLastUserTurn: async () => undefined,
     compactSession: async () => undefined,
   } as unknown as MixCodeRuntime;
 
@@ -101,7 +100,6 @@ test("submitted /resume throws when runtime lacks session listing support", asyn
     closeAllTabs: async () => undefined,
     deleteTab: async () => undefined,
     deleteAllTabs: async () => undefined,
-    undoLastUserTurn: async () => undefined,
     compactSession: async () => undefined,
   } as unknown as MixCodeRuntime;
 

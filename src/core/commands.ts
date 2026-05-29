@@ -22,8 +22,6 @@ export type LocalCommand =
   | "system-tools"
   | "session"
   | "compact"
-  | "undo"
-  | "redo"
   | "clear"
   | "mark-done"
   | "vim"
@@ -81,8 +79,6 @@ export const LOCAL_COMMANDS: Array<{
   { name: "system-tools", description: "Show the active agent tools" },
   { name: "session", description: "Show session info and stats" },
   { name: "compact", description: "Compact context" },
-  { name: "undo", description: "Move session leaf back" },
-  { name: "redo", description: "Restore the most recently undone session" },
   { name: "clear", description: "Replace active session with a fresh child session" },
   { name: "mark-done", description: "Mark active tab done" },
   { name: "vim", description: "Enter Vim mode for chat scrolling" },

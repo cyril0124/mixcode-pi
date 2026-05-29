@@ -428,7 +428,6 @@ test("submitted input marks done, exports state, imports sessions, and exits dir
     },
     deleteTab: async () => undefined,
     deleteAllTabs: async () => undefined,
-    undoLastUserTurn: async () => undefined,
     compactSession: async () => undefined,
   } as unknown as MixCodeRuntime;
 

@@ -65,8 +65,8 @@ src/
   │
   ├─ /local-command
   │    ├─ 纯 UI 状态：/toggle-todo /preview /shell /mark-done
-  │    ├─ 会话操作：/new-session /fork /undo /compact /delete-session
-  │    └─ prompt 模板：/goal /compact /undo
+  │    ├─ 会话操作：/new-session /fork /compact /delete-session
+  │    └─ prompt 模板：/goal /compact
   │
   └─ !shell
        └─ 作为 shell 请求进入 Agent，同时写入 preview shell 消息
@@ -245,13 +245,13 @@ src/core/commands.ts
         │
     ├─ session command
     │   /new-session /fork /clear /close-session /delete-session
-    │   /delete-all-sessions /undo /compact /import
+    │   /delete-all-sessions /compact /import
         │
         ├─ workspace command
         │   /save-workspace /restore-workspace /delete-workspace
         │
         └─ prompt-template command
-            /goal /compact /undo
+            /goal /compact
 ```
 
 `/import <jsonl-path> [cwdOverride]` 复用 Pi session JSONL 导入语义：
@@ -309,7 +309,7 @@ npm run check
 
 ```text
 core state        commands / tabs / overlays / command palette / questions / workspace
-agent runtime     session repo / stream events / tools / compaction / undo
+agent runtime     session repo / stream events / tools / compaction
 ui rendering      header / tabs / status / command palette / export
 ui input          global keys / tab jump / export chooser / question flow
 bootstrap         initial state / persisted restore / completion sources

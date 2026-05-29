@@ -224,7 +224,6 @@ test("submitted input deletes a single session or all sessions through runtime",
     closeTab: async (sessionId: string) => closed.push(sessionId),
     deleteTab: async (sessionId: string) => deleted.push(sessionId),
     deleteAllTabs: async () => deleted.push("*"),
-    undoLastUserTurn: async () => undefined,
     compactSession: async () => undefined,
   } as unknown as MixCodeRuntime;
   const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };

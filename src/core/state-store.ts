@@ -77,11 +77,6 @@ export function serializeState(state: MixCodeState, port: number): Record<string
         .filter((tab) => tab.pendingMessages.length > 0)
         .map((tab) => [tab.sessionId, tab.pendingMessages]),
     ),
-    redo_sessions: Object.fromEntries(
-      state.tabs
-        .filter((tab) => tab.redoSessionId)
-        .map((tab) => [tab.sessionId, tab.redoSessionId]),
-    ),
     startup_workdir: state.workdir,
     theme: state.theme,
     unseen_done: state.tabs.filter((tab) => tab.unreadDone).map((tab) => tab.sessionId),
@@ -120,7 +115,6 @@ export function deserializeState(
   const previewScrollOffsets = objectRecord(data.preview_scroll_offsets);
   const chatScrollOffsets = objectRecord(data.chat_scroll_offsets);
   const pendingMessages = objectRecord(data.pending_messages);
-  const redoSessions = objectRecord(data.redo_sessions);
   const unseen = new Set(Array.isArray(data.unseen_done) ? data.unseen_done.map(String) : []);
   if (Array.isArray(data.children)) {
     state.tabs = data.children
@@ -142,10 +136,6 @@ export function deserializeState(
           chatScrollOffset:
             typeof chatScrollOffsets[sessionId] === "number" ? chatScrollOffsets[sessionId] : 0,
           pendingMessages: normalizeStringList(pendingMessages[sessionId]),
-          redoSessionId:
-            typeof redoSessions[sessionId] === "string" && redoSessions[sessionId]
-              ? redoSessions[sessionId]
-              : undefined,
           thinkingLevel,
           model,
           contextLimit: model.contextWindow,
