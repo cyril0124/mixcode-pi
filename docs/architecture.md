@@ -189,7 +189,7 @@ Ctrl+P
        └─ /new-session /close-session /delete-session /delete-all-sessions
 ```
 
-不可用命令不会静默执行；palette 中直接显示 `disabled: <reason>`，回车后显示同一原因。
+不可用命令不会出现在 palette 列表中；回车在空列表上直接关闭 palette，不执行任何操作。
 
 为避免抢占其它交互，以下场景下 `Ctrl+P` 不打开 command palette：
 

@@ -170,7 +170,7 @@ test("single escape abort prompt is cleared by later non-abort actions", () => {
   assert.equal(tab.pendingEscapeAction, undefined);
 });
 
-test("command palette disabled entries show an explicit unavailable reason", () => {
+test("command palette hides disabled entries and does not execute them", () => {
   const state = createInitialState("/repo");
   const overlays: string[] = [];
   let overlayOpen = false;
@@ -196,10 +196,9 @@ test("command palette disabled entries show an explicit unavailable reason", () 
   assert.deepEqual(handleMixCodeKeyInput(state, "a", tui), { consume: true });
   assert.deepEqual(handleMixCodeKeyInput(state, "v", tui), { consume: true });
   assert.deepEqual(handleMixCodeKeyInput(state, "e", tui), { consume: true });
-  assert.match(
-    overlays.at(-1) ?? "",
-    /> Save Workspace\s+\/save-workspace\s+disabled: No open Agent Tabs/,
-  );
+  // Disabled entries are hidden from the rendered output
+  assert.match(overlays.at(-1) ?? "", /No matching commands/);
+  assert.doesNotMatch(overlays.at(-1) ?? "", /Save Workspace/);
   assert.deepEqual(
     handleMixCodeKeyInput(state, "\r", tui, undefined, undefined, undefined, undefined, undefined, {
       executeCommand: () => {
@@ -209,7 +208,6 @@ test("command palette disabled entries show an explicit unavailable reason", () 
     { consume: true },
   );
   assert.equal(state.commandPaletteOpen, false);
-  assert.match(overlays.at(-1) ?? "", /No open Agent Tabs to save as a workspace/);
 });
 
 test("ctrl-p does not open command palette while another input mode owns focus", () => {

@@ -402,26 +402,56 @@ function renderCommandPaletteInner(
   extensionCommands: Array<{ name: string; description?: string }> = [],
 ): string[] {
   if (!state.commandPaletteOpen) return [];
-  const entries = commandPaletteEntriesWithExtensions(state, extensionCommands);
-  const lines = [
-    activeRenderTheme.dim("Search commands"),
-    `  ${state.commandPalette.query || " "}`,
-    "",
-  ];
+  const allEntries = commandPaletteEntriesWithExtensions(state, extensionCommands);
+  const entries = allEntries.filter((entry) => entry.enabled);
+  const innerWidth = Math.max(1, width - 2);
+
+  // Search row with ">" prefix
+  const searchPrefix = activeRenderTheme.accent(">");
+  const queryText = state.commandPalette.query || " ";
+  const searchLine = ` ${searchPrefix} ${queryText}`;
+
+  // Separator between search and list
+  const separator = activeRenderTheme.border("─".repeat(innerWidth));
+
+  // Column width allocation: marker(2) + label(40%) + gap(2) + cmd(25%) + gap(2) + desc(35%)
+  const markerWidth = 2;
+  const gapTotal = 4;
+  const remaining = Math.max(0, innerWidth - markerWidth - gapTotal);
+  const labelCol = Math.max(6, Math.floor(remaining * 0.4));
+  const cmdCol = Math.max(6, Math.floor(remaining * 0.25));
+  const descCol = Math.max(4, remaining - labelCol - cmdCol);
+
+  const lines: string[] = [searchLine, separator];
+
   if (!entries.length) {
-    lines.push("No matching commands");
+    lines.push(activeRenderTheme.dim("  No matching commands"));
   } else {
     entries.forEach((entry, index) => {
-      const status = entry.enabled ? entry.description : `disabled: ${entry.disabledReason}`;
-      const line = `${index === state.commandPalette.selectedIndex ? ">" : " "} ${entry.label.padEnd(22)} ${entry.command.padEnd(22)} ${status}`;
-      lines.push(
-        index === state.commandPalette.selectedIndex
-          ? activeRenderTheme.selection(padLine(line, Math.max(1, width - 2)))
-          : line,
-      );
+      const isSelected = index === state.commandPalette.selectedIndex;
+      const marker = isSelected ? "› " : "  ";
+      const label = truncateToWidth(entry.label, labelCol, "…");
+      const cmd = truncateToWidth(entry.command, cmdCol, "…");
+      const desc = truncateToWidth(entry.description, descCol, "…");
+
+      const labelPadded = label + " ".repeat(Math.max(0, labelCol - visibleWidth(label)));
+      const cmdPadded = cmd + " ".repeat(Math.max(0, cmdCol - visibleWidth(cmd)));
+
+      const coloredLabel = labelPadded;
+      const coloredCmd = activeRenderTheme.accent(cmdPadded);
+      const coloredDesc = activeRenderTheme.dim(desc);
+
+      const row = `${marker}${coloredLabel}  ${coloredCmd}  ${coloredDesc}`;
+
+      if (isSelected) {
+        lines.push(activeRenderTheme.selection(padLine(row, innerWidth)));
+      } else {
+        lines.push(row);
+      }
     });
   }
-  lines.push("", "type: filter  up/down: select  enter: execute command  esc: cancel");
+
+  lines.push("", activeRenderTheme.dim("  ↑↓ select  ⏎ run  esc close"));
   return overlayPanel("Command Palette", lines, width);
 }
 
