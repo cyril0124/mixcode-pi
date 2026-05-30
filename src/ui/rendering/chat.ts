@@ -562,11 +562,19 @@ function renderCompactionSummaryBlock(
 }
 
 function renderStartupBlock(text: string, width: number): string[] {
-  return text.split(/\r?\n/).map((line) => {
+  return text.split(/\r?\n/).flatMap((line) => {
     if (/^\[[^\]]+\]$/.test(line.trim())) {
-      return padLine(activeRenderTheme.tool(line.trim()), width);
+      return [padLine(activeRenderTheme.tool(line.trim()), width)];
     }
-    return padLine(activeRenderTheme.dim(line), width);
+    // Wrap long resource lists (e.g. comma-separated skills/extensions) so the
+    // full content stays visible instead of being clipped with an ellipsis.
+    // Continuation lines keep the original leading indent (hanging indent).
+    const indent = line.match(/^\s*/)?.[0] ?? "";
+    const content = line.slice(indent.length);
+    const wrapWidth = Math.max(1, width - indent.length);
+    return wrapTextWithAnsi(content, wrapWidth).map((part) =>
+      padLine(activeRenderTheme.dim(`${indent}${part}`), width),
+    );
   });
 }
 
