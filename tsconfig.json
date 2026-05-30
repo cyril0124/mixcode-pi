@@ -12,6 +12,6 @@
     "sourceMap": true,
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "packages/**/*.ts"],
+  "include": ["src/**/*.ts", "pi-packages/**/*.ts"],
   "exclude": ["src/cli/binary-entry.ts"]
 }

@@ -5,7 +5,7 @@ import {
   type CommandInfo,
   createCommandBrowserComponent,
   filterItems,
-} from "../packages/command-browser/command-browser.ts";
+} from "../pi-packages/command-browser/command-browser.ts";
 
 // ─── Fixtures ──────────────────────────────────────────────────────────────────
 

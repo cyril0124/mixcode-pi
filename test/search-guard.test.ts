@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { homedir } from "node:os";
 import { dirname } from "node:path";
 import { test } from "node:test";
-import { inspectBashCommand, tokenize } from "../packages/search-guard/index.ts";
+import { inspectBashCommand, tokenize } from "../pi-packages/search-guard/index.ts";
 
 const CWD = "/project/myapp";
 

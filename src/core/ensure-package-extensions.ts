@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 
 /**
- * Ensure all packages under `<repoRoot>/packages/` that declare a `pi` field
+ * Ensure all packages under `<repoRoot>/pi-packages/` that declare a `pi` field
  * in their package.json are installed into the global Pi extensions directory
  * (`~/.pi/agent/extensions/`).
  *
@@ -13,7 +13,7 @@ import { join, resolve } from "node:path";
  * Safe to call multiple times — existing correct installs are left untouched.
  */
 export function ensurePackageExtensions(repoRoot: string, options?: { copy?: boolean }): void {
-  const packagesDir = join(repoRoot, "packages");
+  const packagesDir = join(repoRoot, "pi-packages");
   if (!existsSync(packagesDir)) return;
 
   const extensionsDir = join(homedir(), ".pi", "agent", "extensions");

@@ -16,15 +16,15 @@ import exportVendorMarked from "../../node_modules/@earendil-works/pi-coding-age
 import exportVendorHighlight from "../../node_modules/@earendil-works/pi-coding-agent/dist/core/export-html/vendor/highlight.min.js" with { type: "text" };
 import clankolasImagePath from "../../node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/assets/clankolas.png" with { type: "file" };
 import photonWasmPath from "../../node_modules/@silvia-odwyer/photon-node/photon_rs_bg.wasm" with { type: "file" };
-import searchGuardIndex from "../../packages/search-guard/index.ts" with { type: "text" };
-import searchGuardPackageJson from "../../packages/search-guard/package.json" with { type: "text" };
-import imageHoistIndex from "../../packages/image-hoist/index.ts" with { type: "text" };
-import imageHoistPackageJson from "../../packages/image-hoist/package.json" with { type: "text" };
-import diffTrackerIndex from "../../packages/diff-tracker/index.ts" with { type: "text" };
-import diffTrackerPackageJson from "../../packages/diff-tracker/package.json" with { type: "text" };
-import commandBrowserIndex from "../../packages/command-browser/index.ts" with { type: "text" };
-import commandBrowserComponent from "../../packages/command-browser/command-browser.ts" with { type: "text" };
-import commandBrowserPackageJson from "../../packages/command-browser/package.json" with { type: "text" };
+import searchGuardIndex from "../../pi-packages/search-guard/index.ts" with { type: "text" };
+import searchGuardPackageJson from "../../pi-packages/search-guard/package.json" with { type: "text" };
+import imageHoistIndex from "../../pi-packages/image-hoist/index.ts" with { type: "text" };
+import imageHoistPackageJson from "../../pi-packages/image-hoist/package.json" with { type: "text" };
+import diffTrackerIndex from "../../pi-packages/diff-tracker/index.ts" with { type: "text" };
+import diffTrackerPackageJson from "../../pi-packages/diff-tracker/package.json" with { type: "text" };
+import commandBrowserIndex from "../../pi-packages/command-browser/index.ts" with { type: "text" };
+import commandBrowserComponent from "../../pi-packages/command-browser/command-browser.ts" with { type: "text" };
+import commandBrowserPackageJson from "../../pi-packages/command-browser/package.json" with { type: "text" };
 import packageJson from "../../package.json" with { type: "json" };
 import { materializeBinaryRuntimeAssets } from "./binary-assets.js";
 
