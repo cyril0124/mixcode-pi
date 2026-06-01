@@ -41,7 +41,10 @@ const SHORTCUT_HINT =
   "space: toggle  enter: save+reload  r: reload tab  a: reload workdir  esc: close";
 
 function renderExtensionManagerInner(state: MixCodeState, width: number): string[] {
-  const panelWidth = Math.min(Math.max(60, width - 6), width);
+  // Fill the entire overlay width: the LinesOverlay wrapper pads every line to
+  // `width` with plain (background-less) spaces, so any panel narrower than the
+  // overlay leaves a black gutter on the right. Panel == overlay width avoids it.
+  const panelWidth = width;
   const manager = state.extensionManager;
   const entries = manager.entries;
   const contentWidth = Math.max(1, panelWidth - 2);
@@ -66,7 +69,7 @@ function renderExtensionManagerInner(state: MixCodeState, width: number): string
     ? renderDoublePane(manager, contentWidth, maxBody)
     : renderSinglePane(manager, contentWidth, maxBody);
   lines.push(...rendered.body);
-  if (rendered.footer) lines.push("", rendered.footer);
+  if (rendered.footer) lines.push(rendered.footer);
   return overlayPanel("Extension Manager", lines, panelWidth);
 }
 
@@ -133,16 +136,22 @@ function renderDoublePane(
     const leftRaw = entry
       ? buildListRow(entry, selected, selectedKeys.has(entry.key), true)
       : "";
-    const leftCell = selected
-      ? activeRenderTheme.selection(padLine(leftRaw, leftWidth))
-      : padLine(leftRaw, leftWidth);
     const rightCell = padLine(detailLines[row] ?? "", rightWidth);
-    body.push(`${leftCell}${sep}${rightCell}`);
+    if (selected) {
+      // Wrap the entire row in selection background so the right pane doesn't
+      // appear "black" by contrast with the highlighted left pane.
+      const fullRow = `${padLine(leftRaw, leftWidth)}${sep}${rightCell}`;
+      body.push(activeRenderTheme.selection(padLine(fullRow, contentWidth)));
+    } else {
+      body.push(`${padLine(leftRaw, leftWidth)}${sep}${rightCell}`);
+    }
   }
-  return {
-    body,
-    footer: scrollFooter(manager.selectedIndex, entries.length, startIndex, bodyRows),
-  };
+  const footerText = scrollFooter(manager.selectedIndex, entries.length, startIndex, bodyRows);
+  // Keep the separator visual continuity in the footer row.
+  const footer = footerText
+    ? `${padLine(footerText, leftWidth)}${sep}${padLine("", rightWidth)}`
+    : "";
+  return { body, footer };
 }
 
 // Keep the selected index centered within a fixed-height scrolling window.
