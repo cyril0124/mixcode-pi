@@ -20,6 +20,10 @@ export interface ExtensionManagerEntry {
   baseDir?: string;
   toolCount: number;
   commandCount: number;
+  /** Sorted tool names provided by this extension (empty for failed loads). */
+  toolNames: string[];
+  /** Sorted command names provided by this extension (empty for failed loads). */
+  commandNames: string[];
   error?: string;
 }
 
@@ -110,6 +114,9 @@ export function extensionManagerEntriesFromResult(
       baseDir: extension.sourceInfo.baseDir,
       toolCount: extension.tools.size,
       commandCount: extension.commands.size,
+      // Map keys are the registered tool/command names; sort for stable display.
+      toolNames: [...extension.tools.keys()].sort((a, b) => a.localeCompare(b)),
+      commandNames: [...extension.commands.keys()].sort((a, b) => a.localeCompare(b)),
     };
   });
   const loadedKeys = new Set(entries.map((entry) => entry.key));
@@ -133,6 +140,8 @@ export function extensionManagerEntriesFromResult(
       origin: "top-level",
       toolCount: 0,
       commandCount: 0,
+      toolNames: [],
+      commandNames: [],
       error: error.error,
     });
     loadedKeys.add(key);

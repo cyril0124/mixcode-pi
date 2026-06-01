@@ -87,6 +87,8 @@ export interface ExtensionManagerEntryInfo {
   baseDir?: string;
   toolCount: number;
   commandCount: number;
+  toolNames: string[];
+  commandNames: string[];
   error?: string;
 }
 

@@ -104,6 +104,8 @@ test("global key input toggles MixCode overlays and passes through regular input
         origin: "top-level",
         toolCount: 1,
         commandCount: 1,
+        toolNames: ["inline_tool"],
+        commandNames: ["inline"],
       },
     ],
     setExtensionEnabled: async (_sessionId: string, key: string, enabled: boolean) => {

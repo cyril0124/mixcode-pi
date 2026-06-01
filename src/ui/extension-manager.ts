@@ -1,4 +1,4 @@
-import { matchesKey, truncateToWidth } from "@earendil-works/pi-tui";
+import { matchesKey, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import type { ExtensionReloadResult } from "../core/extension-manager.js";
 import type { ExtensionManagerEntryInfo, MixCodeState } from "../core/types.js";
 import { closeAppOverlay, showErrorOverlay, showLinesOverlay } from "./app-overlays.js";
@@ -32,42 +32,282 @@ export function renderExtensionManager(state: MixCodeState, width: number): stri
   return renderWithTheme(themeForId(state.theme), () => renderExtensionManagerInner(state, width));
 }
 
+// Terminal must be at least this wide before the master/detail two-pane layout
+// is used; narrower terminals fall back to an enhanced single-column list.
+const DOUBLE_PANE_MIN_WIDTH = 80;
+// Fraction of the inner content width allocated to the left list column.
+const LEFT_COLUMN_RATIO = 0.55;
+const SHORTCUT_HINT =
+  "space: toggle  enter: save+reload  r: reload tab  a: reload workdir  esc: close";
+
 function renderExtensionManagerInner(state: MixCodeState, width: number): string[] {
   const panelWidth = Math.min(Math.max(60, width - 6), width);
   const manager = state.extensionManager;
   const entries = manager.entries;
-  const selectedKeys = new Set(manager.selectedKeys);
-  const bodyWidth = Math.max(1, panelWidth - 4);
-  const lines = [
-    activeRenderTheme.dim(
-      "space: toggle  enter: save+reload  r: reload tab  a: reload workdir  esc: close",
-    ),
-    "",
-  ];
-  if (manager.working) lines.push(activeRenderTheme.accent("Working..."), "");
-  if (manager.error) lines.push(activeRenderTheme.danger(manager.error), "");
-  if (manager.message) lines.push(activeRenderTheme.success(manager.message), "");
+  const contentWidth = Math.max(1, panelWidth - 2);
+
+  const header = [activeRenderTheme.dim(truncateToWidth(SHORTCUT_HINT, contentWidth)), ""];
+  const statusLines = buildStatusLines(manager);
+
+  // Reserve rows for panel borders, header, status banners and the scroll
+  // footer so the body window never pushes the panel past the terminal height.
+  const reserved = 2 + header.length + statusLines.length + 2;
+  const termRows = process.stdout.rows || 24;
+  const maxBody = Math.max(5, termRows - reserved);
+
+  const lines = [...header, ...statusLines];
   if (!entries.length) {
     lines.push(activeRenderTheme.dim("No Pi extensions loaded for this workdir."));
-  } else {
-    entries.forEach((entry, index) => {
-      const selected = index === manager.selectedIndex;
-      const checked = entry.enabled ? "x" : " ";
-      const pending = selectedKeys.has(entry.key) ? "*" : " ";
-      const source = formatExtensionSource(entry);
-      const metrics = `tools:${entry.toolCount} commands:${entry.commandCount}`;
-      const pathWidth = Math.max(12, bodyWidth - source.length - metrics.length - 12);
-      const path = truncateToWidth(formatExtensionPath(entry.path), pathWidth);
-      const text = `${selected ? ">" : " "} [${checked}]${pending} ${path}  ${source}  ${metrics}`;
-      const line = entry.error
-        ? `${activeRenderTheme.danger(text)} ${activeRenderTheme.danger(entry.error)}`
-        : entry.enabled
-          ? text
-          : activeRenderTheme.dim(text);
-      lines.push(selected ? activeRenderTheme.selection(padLine(line, bodyWidth)) : line);
-    });
+    return overlayPanel("Extension Manager", lines, panelWidth);
   }
+
+  const useDoublePane = width >= DOUBLE_PANE_MIN_WIDTH;
+  const rendered = useDoublePane
+    ? renderDoublePane(manager, contentWidth, maxBody)
+    : renderSinglePane(manager, contentWidth, maxBody);
+  lines.push(...rendered.body);
+  if (rendered.footer) lines.push("", rendered.footer);
   return overlayPanel("Extension Manager", lines, panelWidth);
+}
+
+function buildStatusLines(manager: MixCodeState["extensionManager"]): string[] {
+  const out: string[] = [];
+  if (manager.working) out.push(activeRenderTheme.accent("Working..."));
+  if (manager.error) out.push(activeRenderTheme.danger(manager.error));
+  if (manager.message) out.push(activeRenderTheme.success(manager.message));
+  if (out.length) out.push("");
+  return out;
+}
+
+// Enhanced single column: status icon + friendly name + inline metadata, with a
+// scrolling viewport so long lists never overflow the panel.
+function renderSinglePane(
+  manager: MixCodeState["extensionManager"],
+  width: number,
+  maxBody: number,
+): { body: string[]; footer: string } {
+  const entries = manager.entries;
+  const selectedKeys = new Set(manager.selectedKeys);
+  const bodyRows = Math.max(1, Math.min(maxBody, entries.length));
+  const startIndex = windowStart(manager.selectedIndex, entries.length, bodyRows);
+  const body: string[] = [];
+  for (let i = startIndex; i < startIndex + bodyRows && i < entries.length; i++) {
+    const entry = entries[i]!;
+    const selected = i === manager.selectedIndex;
+    const raw = buildListRow(entry, selected, selectedKeys.has(entry.key), false);
+    body.push(
+      selected ? activeRenderTheme.selection(padLine(raw, width)) : padLine(raw, width),
+    );
+  }
+  return {
+    body,
+    footer: scrollFooter(manager.selectedIndex, entries.length, startIndex, bodyRows),
+  };
+}
+
+// Master/detail: a scrolling list on the left and the full field set of the
+// selected entry on the right, separated by a thin vertical rule.
+function renderDoublePane(
+  manager: MixCodeState["extensionManager"],
+  contentWidth: number,
+  maxBody: number,
+): { body: string[]; footer: string } {
+  const entries = manager.entries;
+  const selectedKeys = new Set(manager.selectedKeys);
+  const gap = 3; // " │ "
+  const leftWidth = Math.max(16, Math.floor((contentWidth - gap) * LEFT_COLUMN_RATIO));
+  const rightWidth = Math.max(16, contentWidth - gap - leftWidth);
+  const selectedEntry = entries[manager.selectedIndex];
+  const detailLines = selectedEntry
+    ? buildDetailLines(selectedEntry, rightWidth, selectedKeys.has(selectedEntry.key))
+    : [];
+  const listVisible = Math.min(entries.length, maxBody);
+  const bodyRows = Math.max(1, Math.min(maxBody, Math.max(listVisible, detailLines.length)));
+  const startIndex = windowStart(manager.selectedIndex, entries.length, bodyRows);
+  const sep = ` ${activeRenderTheme.borderDim("│")} `;
+  const body: string[] = [];
+  for (let row = 0; row < bodyRows; row++) {
+    const entryIndex = startIndex + row;
+    const entry = entryIndex < entries.length ? entries[entryIndex] : undefined;
+    const selected = entry !== undefined && entryIndex === manager.selectedIndex;
+    const leftRaw = entry
+      ? buildListRow(entry, selected, selectedKeys.has(entry.key), true)
+      : "";
+    const leftCell = selected
+      ? activeRenderTheme.selection(padLine(leftRaw, leftWidth))
+      : padLine(leftRaw, leftWidth);
+    const rightCell = padLine(detailLines[row] ?? "", rightWidth);
+    body.push(`${leftCell}${sep}${rightCell}`);
+  }
+  return {
+    body,
+    footer: scrollFooter(manager.selectedIndex, entries.length, startIndex, bodyRows),
+  };
+}
+
+// Keep the selected index centered within a fixed-height scrolling window.
+function windowStart(selectedIndex: number, total: number, windowSize: number): number {
+  if (total <= windowSize) return 0;
+  return Math.max(0, Math.min(selectedIndex - Math.floor(windowSize / 2), total - windowSize));
+}
+
+function scrollFooter(
+  selectedIndex: number,
+  total: number,
+  startIndex: number,
+  windowSize: number,
+): string {
+  if (total === 0) return "";
+  const hasUp = startIndex > 0;
+  const hasDown = startIndex + windowSize < total;
+  const position = `(${selectedIndex + 1}/${total})`;
+  const scroll = hasUp || hasDown ? `   ${hasUp ? "▲" : " "} ${hasDown ? "▼" : " "} scroll` : "";
+  return activeRenderTheme.dim(`  ${position}${scroll}`);
+}
+
+function extensionStatusIcon(entry: ExtensionManagerEntryInfo): string {
+  if (entry.error) return activeRenderTheme.danger("⚠");
+  return entry.enabled ? activeRenderTheme.success("●") : activeRenderTheme.dim("○");
+}
+
+function colorizeName(entry: ExtensionManagerEntryInfo, name: string): string {
+  if (entry.error) return activeRenderTheme.danger(name);
+  return entry.enabled ? activeRenderTheme.text(name) : activeRenderTheme.dim(name);
+}
+
+// One list row. `compact` (double-pane) shows only icon + name + pending marker;
+// the wide single-pane variant also appends right-aligned source/metrics or the
+// load error message.
+function buildListRow(
+  entry: ExtensionManagerEntryInfo,
+  selected: boolean,
+  pending: boolean,
+  compact: boolean,
+): string {
+  const cursor = selected ? activeRenderTheme.accent("▸ ") : "  ";
+  const icon = extensionStatusIcon(entry);
+  const name = colorizeName(entry, friendlyExtensionName(entry));
+  const pendingMark = pending ? activeRenderTheme.warning(" *") : "";
+  const left = `${cursor}${icon} ${name}${pendingMark}`;
+  if (compact) return left;
+  const metaPlain = entry.error
+    ? entry.error
+    : `${formatExtensionSource(entry)}  tools ${entry.toolCount}  cmds ${entry.commandCount}`;
+  return `${left}  ${entry.error ? activeRenderTheme.danger(metaPlain) : activeRenderTheme.dim(metaPlain)}`;
+}
+
+// Full field listing for the selected entry shown in the detail pane.
+function buildDetailLines(
+  entry: ExtensionManagerEntryInfo,
+  width: number,
+  pending: boolean,
+): string[] {
+  const icon = extensionStatusIcon(entry);
+  const name = friendlyExtensionName(entry);
+  const lines: string[] = [
+    truncateToWidth(`${icon} ${activeRenderTheme.bold(name)}`, width),
+    activeRenderTheme.borderDim("─".repeat(width)),
+  ];
+  const status = entry.error
+    ? activeRenderTheme.danger("error")
+    : entry.enabled
+      ? activeRenderTheme.success("enabled")
+      : activeRenderTheme.dim("disabled");
+  lines.push(detailField("status", status, width));
+  if (pending) {
+    const target = entry.enabled ? "enable on save" : "disable on save";
+    lines.push(detailField("pending", activeRenderTheme.warning(target), width));
+  }
+  lines.push(detailField("source", entry.source, width));
+  lines.push(detailField("scope", entry.scope, width));
+  lines.push(detailField("origin", entry.origin, width));
+  lines.push(...detailNameList("tools", entry.toolCount, entry.toolNames, width, false));
+  lines.push(...detailNameList("commands", entry.commandCount, entry.commandNames, width, true));
+  lines.push(activeRenderTheme.dim("path"));
+  for (const part of wrapToWidth(formatExtensionPath(entry.path), width - 2)) {
+    lines.push(`  ${part}`);
+  }
+  if (entry.resolvedPath && entry.resolvedPath !== entry.path) {
+    lines.push(activeRenderTheme.dim("resolved"));
+    for (const part of wrapToWidth(formatExtensionPath(entry.resolvedPath), width - 2)) {
+      lines.push(`  ${part}`);
+    }
+  }
+  if (entry.error) {
+    lines.push(activeRenderTheme.danger("error"));
+    for (const part of wrapToWidth(entry.error, width - 2)) {
+      lines.push(activeRenderTheme.danger(`  ${part}`));
+    }
+  }
+  return lines;
+}
+
+function detailField(label: string, value: string, width: number): string {
+  const head = activeRenderTheme.dim(label.padEnd(9));
+  return truncateToWidth(`${head}${value}`, width);
+}
+
+// A count header (e.g. "tools    3") followed by one indented "· name" row per
+// entry. Command names get a leading "/" to match how they are invoked. Each
+// name occupies a single line and is truncated to the detail pane width.
+function detailNameList(
+  label: string,
+  count: number,
+  names: string[],
+  width: number,
+  isCommand: boolean,
+): string[] {
+  const lines = [detailField(label, String(count), width)];
+  for (const name of names) {
+    const display = isCommand ? `/${name}` : name;
+    lines.push(truncateToWidth(`  ${activeRenderTheme.dim("·")} ${display}`, width));
+  }
+  return lines;
+}
+
+// Hard-wrap plain text (paths / error messages) into width-bounded chunks.
+function wrapToWidth(text: string, width: number): string[] {
+  if (width <= 1) return [text];
+  const out: string[] = [];
+  let rest = text;
+  while (visibleWidth(rest) > width) {
+    out.push(rest.slice(0, width));
+    rest = rest.slice(width);
+  }
+  out.push(rest);
+  return out;
+}
+
+// Generic container directory names that are never meaningful extension names;
+// when a derived segment matches one of these we walk up to the parent folder.
+const GENERIC_SEGMENTS = new Set(["src", "dist", "lib", "out", "build", "index"]);
+
+// Pick the last path segment that is not a generic container dir (src/dist/...).
+function meaningfulSegment(segments: string[]): string | undefined {
+  for (let i = segments.length - 1; i >= 0; i--) {
+    const segment = segments[i]!;
+    if (!GENERIC_SEGMENTS.has(segment.toLowerCase())) return segment;
+  }
+  return segments[segments.length - 1];
+}
+
+// Derive a human-friendly extension name: prefer the package directory name
+// (baseDir), otherwise infer it from the file path (dropping an index.* file).
+// Generic container dirs like src/dist are skipped in favor of the real package.
+function friendlyExtensionName(entry: ExtensionManagerEntryInfo): string {
+  const base = entry.baseDir?.trim();
+  if (base) {
+    const segment = meaningfulSegment(base.split(/[/\\]/).filter(Boolean));
+    if (segment) return segment;
+  }
+  const path = entry.path;
+  if (!path || path === "<inline>") return path || "extension";
+  const parts = path.split(/[/\\]/).filter(Boolean);
+  // Drop a trailing index.* entry file so we name by its containing directory.
+  if (parts.length && /^index\.[a-z]+$/i.test(parts[parts.length - 1]!)) parts.pop();
+  const segment = meaningfulSegment(parts);
+  if (!segment) return path;
+  return segment.replace(/\.[a-z]+$/i, "") || path;
 }
 
 export function handleExtensionManagerKey(
