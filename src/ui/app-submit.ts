@@ -20,6 +20,7 @@ import {
   applyModelSelection,
   applyThinkingLevel,
   applyWorkdirSelection,
+  reloadRuntimeModels,
   showSystemMessageOrToast,
 } from "./app-actions.js";
 import { createTuiDebugState } from "./app-debug.js";
@@ -228,11 +229,16 @@ export async function handleSubmittedInput(
   } else if (parsed.command === "reload") {
     if (!runtime.extensionReload) throw new Error("Reload requires pi runtime reload support");
     await runtime.extensionReload(active!.sessionId);
+    // Native reload covers extensions/skills/prompts/themes but not models; the
+    // model registry is loaded once at bootstrap, so refresh it here too.
+    const modelsReloaded = reloadRuntimeModels(state, runtime);
     showSystemMessageOrToast(
       state,
       runtime,
       tui,
-      "Reloaded keybindings, extensions, skills, prompts, and themes",
+      modelsReloaded
+        ? "Reloaded keybindings, extensions, skills, prompts, themes, and models"
+        : "Reloaded keybindings, extensions, skills, prompts, and themes",
     );
   } else if (parsed.command === "fork") {
     const sessionId = parsed.args.trim() || `${active!.sessionId}-fork-${Date.now()}`;

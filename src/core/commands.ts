@@ -74,7 +74,7 @@ export const LOCAL_COMMANDS: Array<{
   { name: "export", description: "View thinking, chatlog, latest-agent, or latest-user text" },
   { name: "import", description: "Import a Pi session JSONL file" },
   { name: "extension-manager", description: "Manage Pi extensions for this workdir" },
-  { name: "reload", description: "Reload keybindings, extensions, skills, prompts, and themes" },
+  { name: "reload", description: "Reload keybindings, extensions, skills, prompts, themes, and models" },
   { name: "system-prompt", description: "Show the active agent system prompt" },
   { name: "system-tools", description: "Show the active agent tools" },
   { name: "session", description: "Show session info and stats" },

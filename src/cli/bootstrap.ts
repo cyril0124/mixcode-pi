@@ -15,8 +15,11 @@ import {
 } from "../core/extension-manager.js";
 import { scanProjectFiles } from "../core/file-picker.js";
 import {
+  buildAvailableModelRefs,
+  isModelRefAvailable,
   modelRefId,
   modelToRef,
+  normalizeModelRef,
   registerModels,
   setStateModel,
   setTabModel,
@@ -88,15 +91,13 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
   const configuredModels = modelBundle.sources
     .filter((source) => source.authStatus.configured)
     .map((source) => modelToRef(source.model));
-  state.availableModels = [{ ...DEFAULT_MODEL_REF }];
-  for (const model of configuredModels)
-    state.availableModels = upsertBootstrapModelRef(state.availableModels, model);
+  state.availableModels = buildAvailableModelRefs(configuredModels);
   const preferredModel = configuredModels.at(-1) ?? DEFAULT_MODEL_REF;
-  const savedStateModelAvailable = isBootstrapModelAvailable(state, state.model);
+  const savedStateModelAvailable = isModelRefAvailable(state.availableModels, state.model);
   if (!restoredFromDisk || !savedStateModelAvailable) {
     setStateModel(state, preferredModel);
   } else {
-    setStateModel(state, normalizedBootstrapModelRef(state, state.model));
+    setStateModel(state, normalizeModelRef(state.availableModels, state.model));
   }
   if (state.tabs.length === 0) {
     const firstTab = createTab(1, `session-${Date.now()}`, options.workdir, {
@@ -165,8 +166,8 @@ function repairUnavailableTabModels(
 ): Map<string, { from: string; to: string }> {
   const repairs = new Map<string, { from: string; to: string }>();
   for (const tab of state.tabs) {
-    if (isBootstrapModelAvailable(state, tab.model)) {
-      setTabModel(tab, normalizedBootstrapModelRef(state, tab.model));
+    if (isModelRefAvailable(state.availableModels, tab.model)) {
+      setTabModel(tab, normalizeModelRef(state.availableModels, tab.model));
       continue;
     }
     const from = modelRefId(tab.model);
@@ -174,31 +175,4 @@ function repairUnavailableTabModels(
     repairs.set(tab.sessionId, { from, to: modelRefId(state.model) });
   }
   return repairs;
-}
-
-function isBootstrapModelAvailable(state: MixCodeState, model: MixCodeState["model"]): boolean {
-  return state.availableModels.some(
-    (item) => item.provider === model.provider && item.modelId === model.modelId,
-  );
-}
-
-function normalizedBootstrapModelRef(
-  state: MixCodeState,
-  model: MixCodeState["model"],
-): MixCodeState["model"] {
-  return (
-    state.availableModels.find(
-      (item) => item.provider === model.provider && item.modelId === model.modelId,
-    ) ?? model
-  );
-}
-
-function upsertBootstrapModelRef(
-  models: MixCodeState["availableModels"],
-  model: MixCodeState["model"],
-): MixCodeState["availableModels"] {
-  return [
-    ...models.filter((item) => item.provider !== model.provider || item.modelId !== model.modelId),
-    model,
-  ];
 }

@@ -1,4 +1,5 @@
 import { getModels, getProviders, type Model } from "@earendil-works/pi-ai";
+import { DEFAULT_MODEL_REF } from "./defaults.js";
 import type { MixCodeModelRef, MixCodeState, MixCodeTabInfo } from "./types.js";
 
 const registeredModels = new Map<string, Model<any>>();
@@ -25,6 +26,38 @@ export function registerModel(model: Model<any>): void {
 
 export function registerModels(models: Model<any>[]): void {
   for (const model of models) registerModel(model);
+}
+
+// Drop every previously registered model before re-registering the given set.
+// Used by /reload so models removed from models.json stop resolving instead of
+// lingering as stale fallbacks in resolveRegisteredModel.
+export function replaceRegisteredModels(models: Model<any>[]): void {
+  registeredModels.clear();
+  registerModels(models);
+}
+
+// Build the selectable model list shown in the picker: the faux default first,
+// followed by every configured model (deduplicated by provider/modelId).
+export function buildAvailableModelRefs(configured: MixCodeModelRef[]): MixCodeModelRef[] {
+  return configured.reduce(upsertModelRef, [{ ...DEFAULT_MODEL_REF }]);
+}
+
+export function isModelRefAvailable(models: MixCodeModelRef[], model: MixCodeModelRef): boolean {
+  return models.some(
+    (item) => item.provider === model.provider && item.modelId === model.modelId,
+  );
+}
+
+// Return the canonical ref from the available list (carrying its contextWindow
+// etc.) when present; otherwise fall back to the provided ref unchanged.
+export function normalizeModelRef(
+  models: MixCodeModelRef[],
+  model: MixCodeModelRef,
+): MixCodeModelRef {
+  return (
+    models.find((item) => item.provider === model.provider && item.modelId === model.modelId) ??
+    model
+  );
 }
 
 export function resolveRegisteredModel(provider: string, modelId: string): Model<any> | undefined {

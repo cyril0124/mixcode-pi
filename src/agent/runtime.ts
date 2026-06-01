@@ -18,8 +18,9 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { type AutocompleteProvider, matchesKey as matchesPiKey } from "@earendil-works/pi-tui";
 import { stripSkillInjection } from "../core/attachments.js";
+import { modelToRef, replaceRegisteredModels } from "../core/models.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
-import type { AgentRuntimeConfig, MixCodeTabInfo } from "../core/types.js";
+import type { AgentRuntimeConfig, MixCodeModelRef, MixCodeTabInfo } from "../core/types.js";
 import { MIXCODE_EXTENSION_KEYBINDINGS } from "./runtime-extension-theme.js";
 import { activateMixCodeTools, getActiveToolInfos } from "./tools.js";
 
@@ -739,6 +740,30 @@ export class MixCodeRuntime {
     appendExtensionLoadErrors(runtimeTab);
     appendExtensionConflictDiagnostics(runtimeTab);
     this.emitChange({ type: "extension_ui_update" }, runtimeTab);
+  }
+
+  /**
+   * Reload model configuration from disk (models.json + auth) without restarting.
+   *
+   * The native agentSession.reload() only refreshes settings/extensions/skills/
+   * prompts/themes; the model registry is loaded once at bootstrap and is never
+   * touched by /reload. This re-reads models.json via the shared ModelRegistry
+   * (which also re-applies the dynamic faux/runtime providers it owns) and
+   * rebuilds the global resolver map, then returns the configured, selectable
+   * model refs so the UI can rebuild its picker list.
+   *
+   * Returns an empty list when no model registry is wired (e.g. faux-only tests).
+   */
+  reloadModelConfig(): MixCodeModelRef[] {
+    if (!this.modelRegistry?.refresh) return [];
+    this.modelRegistry.refresh();
+    const all = this.modelRegistry.getAll();
+    replaceRegisteredModels(all);
+    return all
+      // The faux model is a runtime-only default, never a configured choice.
+      .filter((model) => model.provider !== "faux")
+      .filter((model) => this.modelRegistry?.getProviderAuthStatus?.(model.provider).configured)
+      .map(modelToRef);
   }
 
   async closeTab(sessionId: string): Promise<void> {

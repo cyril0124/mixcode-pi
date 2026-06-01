@@ -587,3 +587,51 @@ function customConfigBody(options: {
     }
   }`;
 }
+
+test("runtime.reloadModelConfig re-reads models.json from disk after it changes", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-reload-models-"));
+  const oldKey = process.env.MIXCODE_RELOAD_KEY;
+  try {
+    process.env.MIXCODE_RELOAD_KEY = "reload-secret";
+    const configPath = join(dir, "models.json");
+    const provider = (modelId: string) => ({
+      providers: {
+        "reload-proxy": {
+          baseUrl: "https://reload.example/v1",
+          api: "openai",
+          apiKey: "MIXCODE_RELOAD_KEY",
+          models: [{ id: modelId, contextWindow: 4096 }],
+        },
+      },
+    });
+    await writeFile(configPath, JSON.stringify(provider("alpha")), "utf8");
+    const bundle = await createPiModelRegistryBundle(configPath);
+    const runtime = new MixCodeRuntime({
+      sessionsRoot: join(dir, "sessions"),
+      agentDir: dir,
+      authStorage: bundle.authStorage,
+      modelRegistry: bundle.registry,
+      getApiKey: bundle.runtimeAuth.getApiKey,
+      streamFn: bundle.runtimeAuth.stream,
+    });
+    assert.equal(runtime.resolveModel("reload-proxy", "alpha").id, "alpha");
+
+    // Replace the model on disk; before reload the registry still serves the old one.
+    await writeFile(configPath, JSON.stringify(provider("beta")), "utf8");
+    const configured = runtime.reloadModelConfig();
+
+    assert.ok(
+      configured.some((ref) => ref.provider === "reload-proxy" && ref.modelId === "beta"),
+      "reloaded config should expose the new beta model",
+    );
+    assert.ok(
+      !configured.some((ref) => ref.modelId === "alpha"),
+      "the removed alpha model should no longer be configured",
+    );
+    assert.equal(runtime.resolveModel("reload-proxy", "beta").id, "beta");
+  } finally {
+    if (oldKey === undefined) delete process.env.MIXCODE_RELOAD_KEY;
+    else process.env.MIXCODE_RELOAD_KEY = oldKey;
+    await rm(dir, { recursive: true, force: true });
+  }
+});

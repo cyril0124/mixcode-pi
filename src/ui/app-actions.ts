@@ -1,6 +1,13 @@
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { MixCodeRuntime } from "../agent/runtime.js";
-import { setTabModel } from "../core/models.js";
+import {
+  buildAvailableModelRefs,
+  isModelRefAvailable,
+  normalizeModelRef,
+  setStateModel,
+  setTabModel,
+} from "../core/models.js";
+import { DEFAULT_MODEL_REF } from "../core/defaults.js";
 import { closeCommandPalette, closeTabJump } from "../core/overlays.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import type { MixCodeState } from "../core/types.js";
@@ -69,6 +76,46 @@ export function applyModelSelection(
     runtime.updateTabModel(active.sessionId, resolvedModel);
   else setTabModel(active, model);
   state.model = model;
+}
+
+/**
+ * Re-read model configuration from disk and reconcile it into UI state.
+ *
+ * Runs after a /reload: asks the runtime to refresh models.json, then rebuilds
+ * the selectable list and repairs any selected model (global + per-tab) that no
+ * longer exists. The active tab's runtime session is updated in place so the
+ * agent immediately uses the repaired model. Returns true when the runtime
+ * actually performed a model reload (i.e. a registry was wired).
+ */
+export function reloadRuntimeModels(
+  state: MixCodeState,
+  runtime: Partial<Pick<MixCodeRuntime, "reloadModelConfig" | "resolveModel" | "updateTabModel">>,
+): boolean {
+  if (!runtime.reloadModelConfig) return false;
+  const configured = runtime.reloadModelConfig();
+  state.availableModels = buildAvailableModelRefs(configured);
+  const preferred = configured.at(-1) ?? { ...DEFAULT_MODEL_REF };
+  const nextStateModel = isModelRefAvailable(state.availableModels, state.model)
+    ? normalizeModelRef(state.availableModels, state.model)
+    : preferred;
+  setStateModel(state, nextStateModel);
+  // The active tab is the one /reload operates on (mirrors the submit handler:
+  // activeTabId may be "config", in which case the first tab is treated active).
+  const active = state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];
+  for (const tab of state.tabs) {
+    const repaired = isModelRefAvailable(state.availableModels, tab.model)
+      ? normalizeModelRef(state.availableModels, tab.model)
+      : nextStateModel;
+    // Always update persisted state so background tabs reflect the repair too.
+    setTabModel(tab, repaired);
+    // Additionally sync the active tab's live runtime agent. Reload is blocked
+    // while that tab streams, so updateTabModel is safe here.
+    if (tab === active && runtime.updateTabModel && runtime.resolveModel) {
+      const resolved = runtime.resolveModel(repaired.provider, repaired.modelId);
+      if (resolved) runtime.updateTabModel(tab.sessionId, resolved);
+    }
+  }
+  return true;
 }
 
 export function applyWorkdirSelection(

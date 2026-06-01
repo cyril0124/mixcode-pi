@@ -53,6 +53,7 @@ type OptionalSubmitRuntime = Partial<
     | "listAllSessions"
     | "reloadExtensionManagerTab"
     | "reloadExtensionManagerWorkdir"
+    | "reloadModelConfig"
     | "renameSession"
     | "resolveModel"
     | "updateTabModel"

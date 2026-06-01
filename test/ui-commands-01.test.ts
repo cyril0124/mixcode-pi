@@ -14,6 +14,8 @@ import {
   renderInputMeta,
   renderPickerOverlay,
   renderQuestionOverlay,
+  setStateModel,
+  setTabModel,
   tabBarHitRegions,
   setTheme,
   themeForId,
@@ -185,6 +187,65 @@ test("submitted input reloads active Pi resources", async () => {
     ),
   );
   assert.equal(renders, 1);
+});
+
+test("/reload refreshes models.json and rebuilds the selectable model list", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"));
+  state.activeTabId = "s1";
+  // Start with a stale selection that disappears after the reload.
+  setStateModel(state, {
+    provider: "acme",
+    modelId: "old",
+    displayName: "acme/old",
+    contextWindow: 1000,
+  });
+  setTabModel(state.tabs[0]!, state.model);
+
+  const systemMessages: string[] = [];
+  const updatedTabModels: Array<{ sessionId: string; modelId: string }> = [];
+  // Simulate models.json now exposing only acme/new (acme/old was removed).
+  const refreshed: Model<any>[] = [
+    {
+      id: "new",
+      provider: "acme",
+      api: "openai",
+      contextWindow: 4096,
+    } as unknown as Model<any>,
+  ];
+  const runtime = {
+    appendSystemMessage: (_sessionId: string, text: string) => systemMessages.push(text),
+    extensionReload: async () => {},
+    reloadModelConfig: () =>
+      refreshed.map((model) => ({
+        provider: model.provider,
+        modelId: model.id,
+        displayName: `${model.provider}/${model.id}`,
+        contextWindow: model.contextWindow,
+      })),
+    resolveModel: (provider: string, modelId: string) =>
+      refreshed.find((model) => model.provider === provider && model.id === modelId),
+    updateTabModel: (sessionId: string, model: Model<any>) =>
+      updatedTabModels.push({ sessionId, modelId: model.id }),
+  } as unknown as MixCodeRuntime;
+  const tui = { requestRender: () => {}, showOverlay: () => ({}) as never };
+
+  await handleSubmittedInput(state, runtime, "/reload", tui);
+
+  // The picker list keeps the faux default plus the freshly configured model.
+  assert.deepEqual(
+    state.availableModels.map((model) => `${model.provider}/${model.modelId}`),
+    ["faux/faux-1", "acme/new"],
+  );
+  // The stale acme/old selection is repaired to the configured acme/new.
+  assert.equal(state.model.modelId, "new");
+  assert.equal(state.tabs[0]!.model.modelId, "new");
+  // The active tab's live runtime session is synced to the repaired model.
+  assert.deepEqual(updatedTabModels, [{ sessionId: "s1", modelId: "new" }]);
+  assert.ok(
+    systemMessages.some((message) => message.includes("and models")),
+    "reload message should report that models were reloaded",
+  );
 });
 
 test("unknown slash commands keep focus on the active tab", async () => {

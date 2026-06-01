@@ -51,6 +51,10 @@ export type RuntimeModelRegistry = Pick<
   | "isUsingOAuth"
   | "registerProvider"
   | "getAll"
+  // refresh re-reads models.json from disk; getProviderAuthStatus tells us which
+  // providers have credentials so /reload can rebuild the selectable model list.
+  | "refresh"
+  | "getProviderAuthStatus"
 >;
 export type ExtensionArgumentCompleter = (
   argumentPrefix: string,
