@@ -6,6 +6,8 @@ import {
   openCommandPalette,
   openTabJump,
 } from "../core/overlays.js";
+import { buildModelPrompt } from "../core/prompt-build.js";
+import { getKnownSkillsFromTab, getPromptTemplatesFromTab } from "./app-submit.js";
 import { activateTab, nextTabId } from "../core/tabs.js";
 import type { MixCodeState } from "../core/types.js";
 import { clearPendingEscape, openQuitConfirm } from "./app-actions.js";
@@ -143,7 +145,11 @@ export function handleMixCodeKeyInput(
           const text = editorActions.getText().trim();
           editorActions.setText("");
           if (text && runtime?.prompt) {
-            void runtime.prompt(target.sessionId, text);
+            const knownSkills = getKnownSkillsFromTab(runtime, target.sessionId);
+            const promptTemplates = getPromptTemplatesFromTab(runtime, target.sessionId);
+            void buildModelPrompt(text, target.workdir, { knownSkills, promptTemplates }).then(
+              (built) => runtime.prompt!(target.sessionId, built),
+            );
           }
           tui.requestRender();
           return { consume: true };

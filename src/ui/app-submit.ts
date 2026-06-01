@@ -407,11 +407,11 @@ function isPromptTemplate(
  * Extract known skills from the runtime tab's resource loader.
  * Returns undefined if the tab or resource loader is unavailable.
  */
-function getKnownSkillsFromTab(
-  runtime: MixCodeSubmitRuntime,
+export function getKnownSkillsFromTab(
+  runtime: { getTab?: (sessionId: string) => ReturnType<MixCodeSubmitRuntime["getTab"]> },
   sessionId: string,
 ): KnownSkill[] | undefined {
-  const runtimeTab = runtime.getTab(sessionId);
+  const runtimeTab = runtime.getTab?.(sessionId);
   if (!runtimeTab?.services?.resourceLoader) return undefined;
   return runtimeTab.services.resourceLoader.getSkills().skills.map((skill) => ({
     name: skill.name,
@@ -424,11 +424,11 @@ function getKnownSkillsFromTab(
  * Extract prompt templates from the runtime tab's resource loader.
  * Returns undefined if the tab or resource loader is unavailable.
  */
-function getPromptTemplatesFromTab(
-  runtime: MixCodeSubmitRuntime,
+export function getPromptTemplatesFromTab(
+  runtime: { getTab?: (sessionId: string) => ReturnType<MixCodeSubmitRuntime["getTab"]> },
   sessionId: string,
 ): PromptTemplate[] | undefined {
-  const runtimeTab = runtime.getTab(sessionId);
+  const runtimeTab = runtime.getTab?.(sessionId);
   if (!runtimeTab?.services?.resourceLoader) return undefined;
   const { prompts } = runtimeTab.services.resourceLoader.getPrompts();
   return prompts.map((p) => ({
