@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { MixCodeRuntime } from "../agent/runtime.js";
 import {
@@ -10,6 +11,7 @@ import {
 import { DEFAULT_MODEL_REF } from "../core/defaults.js";
 import { closeCommandPalette, closeTabJump } from "../core/overlays.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
+import { pushToast } from "../core/toast.js";
 import type { MixCodeState } from "../core/types.js";
 import {
   quitOverlayOptions,
@@ -123,6 +125,11 @@ export function applyWorkdirSelection(
   workdir: string,
   runtime?: Partial<Pick<MixCodeRuntime, "updateTabWorkdir">>,
 ): void | Promise<void> {
+  // Skip the expensive teardown/rebuild if the resolved path is unchanged.
+  if (path.resolve(workdir) === path.resolve(active.workdir)) {
+    pushToast(active, "workdir unchanged");
+    return;
+  }
   if (runtime?.updateTabWorkdir)
     return runtime.updateTabWorkdir(active.sessionId, workdir, MIXCODE_SYSTEM_PROMPT);
   active.workdir = workdir;
