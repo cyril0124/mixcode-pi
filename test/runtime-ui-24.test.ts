@@ -496,7 +496,7 @@ test("faux stream emits assistant text without external provider", async () => {
   );
 });
 
-test("runtime auto-compacts and continues mid-turn without empty prompt", async () => {
+async function assertRuntimeAutoCompactsAndContinuesMidTurn(contextLimitOverridden: boolean): Promise<void> {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-auto-compact-continue-"));
   try {
     const seenContexts: Context[] = [];
@@ -555,7 +555,7 @@ test("runtime auto-compacts and continues mid-turn without empty prompt", async 
       },
       contextLimit: 100,
     });
-    tab.contextLimitOverridden = true;
+    tab.contextLimitOverridden = contextLimitOverridden;
     const runtimeTab = await runtime.createTab(tab, {
       systemPrompt: "system",
       thinkingLevel: "medium",
@@ -581,6 +581,14 @@ test("runtime auto-compacts and continues mid-turn without empty prompt", async 
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+}
+
+test("runtime auto-compacts and continues mid-turn without empty prompt", async () => {
+  await assertRuntimeAutoCompactsAndContinuesMidTurn(true);
+});
+
+test("runtime auto-compacts and continues mid-turn without context-limit override", async () => {
+  await assertRuntimeAutoCompactsAndContinuesMidTurn(false);
 });
 
 test("runtime preserves mid-turn auto-compaction after workdir changes", async () => {

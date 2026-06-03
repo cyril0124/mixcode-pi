@@ -149,7 +149,7 @@ export function applyEvent(
       runtimeTab.tab.lastWorkedDurationSeconds = undefined;
       break;
     case "agent_end":
-      // If the agent was terminated by the mid-turn hook due to context limit override,
+      // If the agent was terminated by the mid-turn hook due to compaction pressure,
       // trigger auto-compaction and continue the agent run.
       if (runtimeTab.pendingContextLimitCompaction) {
         runtimeTab.pendingContextLimitCompaction = false;

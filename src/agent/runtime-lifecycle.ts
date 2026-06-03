@@ -493,10 +493,9 @@ export function installMidTurnCompactionHook(
       // Falls back to model's contextWindow (which is also mutated by the override).
       const contextWindow = tab?.contextLimit ?? agentSession.agent.state.model?.contextWindow ?? 0;
       if (contextWindow > 0 && shouldCompact(contextTokens, contextWindow, settings)) {
-        // Always attempt auto-compact-and-continue for context limit overrides.
-        // The autoCompactAndContinue function will detect if compact was ineffective
-        // and stop the loop with a user-facing message.
-        if (runtimeTabRef?.current && tab?.contextLimitOverridden) {
+        // This hook terminates an active tool loop mid-turn, so runtime must own
+        // the follow-up compact + continue cycle instead of leaving the task idle.
+        if (runtimeTabRef?.current) {
           runtimeTabRef.current.pendingContextLimitCompaction = true;
         }
         // Merge terminate into existing result (preserve content/details overrides)

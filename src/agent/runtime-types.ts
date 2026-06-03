@@ -205,7 +205,7 @@ export interface RuntimeTab {
     tokenInput: number;
     tokenOutput: number;
   };
-  /** Set by mid-turn compaction hook when context limit override triggers terminate */
+  /** Set by mid-turn compaction hook when compaction pressure terminates the tool loop */
   pendingContextLimitCompaction?: boolean;
   /** Skip the next pending-message flush after auto-compaction takes over */
   deferPendingMessageFlush?: boolean;
