@@ -50,6 +50,7 @@ import {
   buildMixCodeSystemPromptOverride,
   registerMixCodeRuntimeProvider,
 } from "./runtime-provider.js";
+import { configureMixCodeRetrySettings } from "./retry-settings.js";
 import { resetExtensionHostState } from "./runtime-session.js";
 import type {
   ChatLine,
@@ -346,6 +347,7 @@ export async function createRuntimeServices(
   if (services.diagnostics.some((diagnostic) => diagnostic.type === "error")) {
     throw new Error(services.diagnostics.map((diagnostic) => diagnostic.message).join("\n"));
   }
+  configureMixCodeRetrySettings(services.settingsManager);
   servicesRef = services;
   extensionManagerEntriesByServices.set(services, latestExtensionManagerEntries);
   return services;
