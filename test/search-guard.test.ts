@@ -5,6 +5,8 @@ import { test } from "node:test";
 import { inspectBashCommand, tokenize } from "../pi-packages/search-guard/index.ts";
 
 const CWD = "/project/myapp";
+const HOME = homedir();
+const PARENT_HOME = dirname(HOME);
 
 // ─── tokenize ────────────────────────────────────────────────────────────────
 
@@ -38,6 +40,14 @@ test("safe: non-search command", () => {
   assert.equal(inspectBashCommand("ls -la /etc", CWD), null);
 });
 
+test("safe: find in a subdirectory of home", () => {
+  assert.equal(inspectBashCommand(`find ${HOME}/project -name '*.ts'`, CWD), null);
+});
+
+test("safe: comment-only line", () => {
+  assert.equal(inspectBashCommand("# find / -name foo", CWD), null);
+});
+
 // ─── inspectBashCommand: blocked ─────────────────────────────────────────────
 
 test("blocked: grep targeting /", () => {
@@ -61,18 +71,15 @@ test("blocked: find targeting /tmp", () => {
 });
 
 test("blocked: grep targeting ~ (tilde)", () => {
-  const result = inspectBashCommand("grep -r foo ~", CWD);
-  assert.equal(result, "~");
+  assert.equal(inspectBashCommand("grep -r foo ~", CWD), "~");
 });
 
 test("blocked: compound command with dangerous segment", () => {
-  const result = inspectBashCommand("echo hi && grep -r foo /", CWD);
-  assert.equal(result, "/");
+  assert.equal(inspectBashCommand("echo hi && grep -r foo /", CWD), "/");
 });
 
 test("blocked: piped command with dangerous segment", () => {
-  const result = inspectBashCommand("cat file | grep pattern /home", CWD);
-  assert.equal(result, "/home");
+  assert.equal(inspectBashCommand("cat file | grep pattern /home", CWD), "/home");
 });
 
 test("blocked: fd targeting /usr", () => {
@@ -84,7 +91,122 @@ test("blocked: grep with -- separator then blacklisted path", () => {
 });
 
 test("blocked: grep targeting dirname(homedir)", () => {
-  const parentHome = dirname(homedir());
-  const result = inspectBashCommand(`grep -r foo ${parentHome}`, CWD);
-  assert.equal(result, parentHome);
+  const result = inspectBashCommand(`grep -r foo ${PARENT_HOME}`, CWD);
+  assert.equal(result, PARENT_HOME);
+});
+
+// ─── heredoc handling ─────────────────────────────────────────────────────────
+
+test("blocked: find after heredoc with semicolons in body", () => {
+  const cmd = `cat > /tmp/out.txt << 'EOF'
+line one;
+line two;
+x = 1;
+y = 2;
+EOF
+find ${HOME} -name "*.log" -type f 2>/dev/null | head -5`;
+  assert.equal(inspectBashCommand(cmd, CWD), HOME);
+});
+
+test("blocked: find after heredoc with cd prefix and comment", () => {
+  const cmd = `cd /tmp/workdir && cat > /tmp/config.ini << 'HEREDOC'
+[section]
+key=value;
+arr={1,2,3};
+HEREDOC
+# now search for something
+find ${HOME} -name "target" -type f 2>/dev/null`;
+  assert.equal(inspectBashCommand(cmd, CWD), HOME);
+});
+
+test("safe: heredoc content not parsed as commands", () => {
+  const cmd = `cat << EOF
+find / -name foo
+grep -r secret /home
+rg dangerous /etc
+EOF
+echo done`;
+  assert.equal(inspectBashCommand(cmd, CWD), null);
+});
+
+test("safe: heredoc with dash variant", () => {
+  const cmd = `cat <<- MARKER
+\tfind / -type f
+\tgrep -r / /tmp
+MARKER
+echo ok`;
+  assert.equal(inspectBashCommand(cmd, CWD), null);
+});
+
+// ─── comment handling ─────────────────────────────────────────────────────────
+
+test("blocked: find after comment line", () => {
+  const cmd = `# this is just a comment
+find ${HOME} -name "*.ts"`;
+  assert.equal(inspectBashCommand(cmd, CWD), HOME);
+});
+
+test("safe: search command inside comment is ignored", () => {
+  const cmd = `# find / -name foo
+echo hello`;
+  assert.equal(inspectBashCommand(cmd, CWD), null);
+});
+
+test("safe: inline comment after safe command", () => {
+  assert.equal(inspectBashCommand("echo ok # find / -name x", CWD), null);
+});
+
+// ─── $HOME expansion ─────────────────────────────────────────────────────────
+
+test("blocked: find targeting $HOME", () => {
+  assert.equal(inspectBashCommand('find $HOME -name "target" -type f', CWD), "$HOME");
+});
+
+test("blocked: grep targeting ${HOME}", () => {
+  assert.equal(inspectBashCommand("grep -r pattern \\${HOME}", CWD), "${HOME}");
+});
+
+test("safe: find targeting $HOME/subdir", () => {
+  assert.equal(inspectBashCommand('find $HOME/projects -name "*.ts"', CWD), null);
+});
+
+// ─── redirections ─────────────────────────────────────────────────────────────
+
+test("blocked: find with 2>/dev/null redirection", () => {
+  assert.equal(
+    inspectBashCommand(`find ${HOME} -name "x" -type f 2>/dev/null`, CWD),
+    HOME,
+  );
+});
+
+test("safe: redirection tokens not confused as paths", () => {
+  assert.equal(
+    inspectBashCommand("grep -r foo src/ 2>/dev/null", CWD),
+    null,
+  );
+});
+
+// ─── multiline combined scenarios ─────────────────────────────────────────────
+
+test("blocked: multiline heredoc then dangerous find", () => {
+  const cmd = `cd /tmp/work && cat > /tmp/input.cfg << 'END'
+opt_a = true;
+opt_b = false;
+list = {a, b, c};
+END
+# locate the binary
+find ${HOME} -name "mytool" -type f 2>/dev/null | head -3`;
+  assert.equal(inspectBashCommand(cmd, CWD), HOME);
+});
+
+test("blocked: find with multiple paths (second is dangerous)", () => {
+  assert.equal(
+    inspectBashCommand(`find ./safe ${HOME} -name "*.ts"`, CWD),
+    HOME,
+  );
+});
+
+test("blocked: newline-separated dangerous command", () => {
+  const cmd = `echo hello\nfind / -name foo`;
+  assert.equal(inspectBashCommand(cmd, CWD), "/");
 });
