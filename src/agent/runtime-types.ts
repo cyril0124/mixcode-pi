@@ -207,6 +207,8 @@ export interface RuntimeTab {
     tokenInput: number;
     tokenOutput: number;
   };
+  /** Start time from the just-ended run, reused if SDK post-run compaction starts immediately. */
+  postRunWorkingStartedAt?: string;
   /** Set by mid-turn compaction hook when compaction pressure terminates the tool loop */
   pendingContextLimitCompaction?: boolean;
   /** Skip the next pending-message flush after auto-compaction takes over */

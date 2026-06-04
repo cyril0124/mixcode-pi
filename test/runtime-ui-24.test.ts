@@ -207,6 +207,29 @@ function lastRuntimeUserText(context: Context): string {
   return "";
 }
 
+function contextHasCompactionSummary(context: Context, expected: string): boolean {
+  return context.messages.some((message) => {
+    if (message.role !== "user") return false;
+    if (typeof message.content === "string") {
+      return message.content.includes("compacted into the following summary") && message.content.includes(expected);
+    }
+    return message.content.some(
+      (block) =>
+        block.type === "text" &&
+        block.text.includes("compacted into the following summary") &&
+        block.text.includes(expected),
+    );
+  });
+}
+
+function contextHasToolResultText(context: Context, expected: string): boolean {
+  return context.messages.some((message) => {
+    if (message.role !== "toolResult") return false;
+    if (typeof message.content === "string") return message.content.includes(expected);
+    return message.content.some((block) => block.type === "text" && block.text.includes(expected));
+  });
+}
+
 async function waitForRuntime(predicate: () => boolean, attempts = 25): Promise<void> {
   for (let i = 0; i < attempts; i += 1) {
     if (predicate()) return;
@@ -392,7 +415,7 @@ test("runtime shows working state while compaction runs", async () => {
             return {
               compaction: {
                 summary: `delayed summary ${event.customInstructions ?? ""}`.trim(),
-                firstKeptEntryId: event.preparation.firstKeptEntry?.id,
+                firstKeptEntryId: event.preparation.firstKeptEntryId,
                 tokensBefore: 42,
               },
             };
@@ -532,7 +555,7 @@ async function assertRuntimeAutoCompactsAndContinuesMidTurn(contextLimitOverridd
           pi.on("session_before_compact", (event) => ({
             compaction: {
               summary: "auto summary",
-              firstKeptEntryId: event.preparation.firstKeptEntry?.id,
+              firstKeptEntryId: event.preparation.firstKeptEntryId,
               tokensBefore: event.preparation.tokensBefore,
             },
           }));
@@ -572,8 +595,9 @@ async function assertRuntimeAutoCompactsAndContinuesMidTurn(contextLimitOverridd
     const userLines = runtimeTab.chat.filter((line) => line.role === "user").map((line) => line.text);
     assert.deepEqual(userLines, ["start"]);
     assert.equal(streamTexts.length, 1);
-    assert.match(streamTexts[0] ?? "", /auto summary/);
-    assert.doesNotMatch(streamTexts[0] ?? "", /\n\s*\n\s*$/);
+    assert.equal(streamTexts[0] ?? "", "start");
+    assert.ok(contextHasCompactionSummary(seenContexts[1]!, "auto summary"));
+    assert.ok(contextHasToolResultText(seenContexts[1]!, "tool:first"));
     assert.equal(runtimeTab.session.getBranch().at(-1)?.type, "message");
     assert.ok(runtimeTab.session.getBranch().some((entry) => entry.type === "compaction"));
     assert.equal(runtimeTab.chat.some((line) => /finished without a response/i.test(line.text)), false);
@@ -632,7 +656,7 @@ test("runtime preserves mid-turn auto-compaction after workdir changes", async (
           pi.on("session_before_compact", (event) => ({
             compaction: {
               summary: "auto summary",
-              firstKeptEntryId: event.preparation.firstKeptEntry?.id,
+              firstKeptEntryId: event.preparation.firstKeptEntryId,
               tokensBefore: event.preparation.tokensBefore,
             },
           }));
@@ -671,7 +695,9 @@ test("runtime preserves mid-turn auto-compaction after workdir changes", async (
     await waitForRuntime(() => seenContexts.length >= 2);
 
     assert.equal(streamTexts.length, 1);
-    assert.match(streamTexts[0] ?? "", /auto summary/);
+    assert.equal(streamTexts[0] ?? "", "start");
+    assert.ok(contextHasCompactionSummary(seenContexts[1]!, "auto summary"));
+    assert.ok(contextHasToolResultText(seenContexts[1]!, "tool:first"));
     assert.ok(runtimeTab.session.getBranch().some((entry) => entry.type === "compaction"));
     assert.equal(runtimeTab.tab.status, "idle");
   } finally {
@@ -712,7 +738,7 @@ test("runtime auto-compaction skips the matching pending flush", async () => {
           pi.on("session_before_compact", (event) => ({
             compaction: {
               summary: "auto summary",
-              firstKeptEntryId: event.preparation.firstKeptEntry?.id,
+              firstKeptEntryId: event.preparation.firstKeptEntryId,
               tokensBefore: event.preparation.tokensBefore,
             },
           }));
@@ -802,7 +828,7 @@ test("runtime waits for SDK post-run compaction before continuing", async () => 
             return {
               compaction: {
                 summary: "auto summary",
-                firstKeptEntryId: event.preparation.firstKeptEntry?.id,
+                firstKeptEntryId: event.preparation.firstKeptEntryId,
                 tokensBefore: event.preparation.tokensBefore,
               },
             };
@@ -942,7 +968,7 @@ test("runtime rejects prompt while compaction is running", async () => {
             return {
               compaction: {
                 summary: "summary",
-                firstKeptEntryId: event.preparation.firstKeptEntry?.id,
+                firstKeptEntryId: event.preparation.firstKeptEntryId,
                 tokensBefore: 1,
               },
             };
@@ -990,7 +1016,7 @@ test("runtime abortTab aborts compaction and leaves status idle", async () => {
             return {
               compaction: {
                 summary: "summary",
-                firstKeptEntryId: event.preparation.firstKeptEntry?.id,
+                firstKeptEntryId: event.preparation.firstKeptEntryId,
                 tokensBefore: 1,
               },
             };
@@ -1016,8 +1042,7 @@ test("runtime abortTab aborts compaction and leaves status idle", async () => {
     runtime.abortTab("s1");
     releaseCompact();
     await compactPromise;
-    // After abort, status must not be "error"
-    assert.notEqual(tab.status, "error");
+    assert.equal(tab.status, "idle");
     // Chat should contain cancellation message, not a dangling "started" only
     const chatTexts = runtime.getTab("s1")!.chat.map((l) => l.text);
     assert.ok(chatTexts.some((t) => /[Cc]ancell?ed/.test(t)));

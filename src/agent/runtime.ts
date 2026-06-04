@@ -449,6 +449,7 @@ export class MixCodeRuntime {
       await runtimeTab.agentSession.prompt(trimmed, { streamingBehavior: "steer" });
       return;
     }
+    runtimeTab.postRunWorkingStartedAt = undefined;
     if (runtimeTab.agentSession.isCompacting) {
       throw new Error("Cannot prompt while compaction is running");
     }
@@ -818,6 +819,12 @@ export class MixCodeRuntime {
 
   async compactSession(sessionId: string, customInstructions = ""): Promise<void> {
     const runtimeTab = this.requireTab(sessionId);
+    if (runtimeTab.agentSession.isStreaming) {
+      throw new Error("Cannot compact while the agent is streaming");
+    }
+    if (runtimeTab.agentSession.isCompacting) {
+      throw new Error("Cannot compact while compaction is running");
+    }
     const branch = runtimeTab.session.getBranch();
     if (branch.filter((entry) => entry.type === "message").length < 2) {
       throw new Error("Nothing to compact (no messages yet)");

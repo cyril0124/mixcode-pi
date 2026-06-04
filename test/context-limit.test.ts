@@ -4,6 +4,7 @@ import {
   parseContextLimitValue,
   contextLimitPickerItems,
   applyContextLimit,
+  adjustCompactionSettingsForLimit,
 } from "../src/core/context-limit.js";
 import type { MixCodeTabInfo } from "../src/core/types.js";
 
@@ -109,6 +110,20 @@ describe("contextLimitPickerItems", () => {
     assert.equal(items[0]!.id, "50000");
     assert.equal(items[1]!.id, "100000");
     assert.equal(items[2]!.id, "150000");
+  });
+});
+
+describe("adjustCompactionSettingsForLimit", () => {
+  it("keeps compaction budgets below very small overridden limits", () => {
+    const overrides: Array<{ compaction?: { reserveTokens?: number; keepRecentTokens?: number } }> = [];
+    adjustCompactionSettingsForLimit({ applyOverrides: (override) => overrides.push(override) }, 1000, true);
+    assert.deepEqual(overrides, [{ compaction: { reserveTokens: 100, keepRecentTokens: 250 } }]);
+  });
+
+  it("resets to SDK defaults when the context limit override is removed", () => {
+    const overrides: Array<{ compaction?: { reserveTokens?: number; keepRecentTokens?: number } }> = [];
+    adjustCompactionSettingsForLimit({ applyOverrides: (override) => overrides.push(override) }, 1000, false);
+    assert.deepEqual(overrides, [{ compaction: { reserveTokens: 16384, keepRecentTokens: 20000 } }]);
   });
 });
 

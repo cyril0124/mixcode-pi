@@ -137,7 +137,12 @@ export function applyEvent(
     case "agent_start":
       runtimeTab.currentRunChatStartIndex = runtimeTab.chat.length;
       runtimeTab.tab.status = "running";
-      runtimeTab.tab.workingStartedAt = new Date().toISOString();
+      runtimeTab.postRunWorkingStartedAt = undefined;
+      if (runtimeTab.autoCompactCycleActive) {
+        runtimeTab.tab.workingStartedAt ??= new Date().toISOString();
+      } else {
+        runtimeTab.tab.workingStartedAt = new Date().toISOString();
+      }
       runtimeTab.tab.lastWorkedDurationSeconds = undefined;
       runtimeTab.tab.pendingEscapeAction = undefined;
       runtimeTab.tab.pendingEscapeArmedAt = undefined;
@@ -165,6 +170,7 @@ export function applyEvent(
       runtimeTab.tab.unreadDone = true;
       runtimeTab.tab.pendingEscapeAction = undefined;
       runtimeTab.tab.pendingEscapeArmedAt = undefined;
+      runtimeTab.postRunWorkingStartedAt = runtimeTab.tab.workingStartedAt;
       runtimeTab.tab.lastWorkedDurationSeconds = elapsedSeconds(
         runtimeTab.tab.workingStartedAt,
         new Date(),
@@ -223,8 +229,12 @@ export function applyEvent(
       break;
     case "compaction_start":
       runtimeTab.tab.status = "running";
-      // Use ??= to preserve the timestamp set by compactSession() before the event fires
-      runtimeTab.tab.workingStartedAt ??= new Date().toISOString();
+      // SDK post-run auto-compaction starts after agent_end clears the active timer.
+      {
+        const postRunStartedAt = event.reason === "manual" ? undefined : runtimeTab.postRunWorkingStartedAt;
+        runtimeTab.tab.workingStartedAt ??= postRunStartedAt ?? new Date().toISOString();
+        runtimeTab.postRunWorkingStartedAt = undefined;
+      }
       runtimeTab.tab.lastWorkedDurationSeconds = undefined;
       runtimeTab.tab.pendingEscapeAction = undefined;
       runtimeTab.tab.pendingEscapeArmedAt = undefined;
@@ -237,22 +247,30 @@ export function applyEvent(
         runtimeTab.chat.push({ role: "system", text: `Compaction started (${displayReason}).` });
       }
       break;
-    case "compaction_end":
-      runtimeTab.tab.status = event.errorMessage ? "error" : "idle";
+    case "compaction_end": {
+      const continuingAfterAutoCompaction = Boolean(event.result && runtimeTab.autoCompactCycleActive);
+      runtimeTab.tab.status = event.errorMessage
+        ? "error"
+        : continuingAfterAutoCompaction
+          ? "running"
+          : "idle";
       runtimeTab.tab.pendingEscapeAction = undefined;
       runtimeTab.tab.pendingEscapeArmedAt = undefined;
-      runtimeTab.tab.lastWorkedDurationSeconds = elapsedSeconds(
-        runtimeTab.tab.workingStartedAt,
-        new Date(),
-      );
-      runtimeTab.tab.workingStartedAt = undefined;
+      runtimeTab.tab.lastWorkedDurationSeconds = continuingAfterAutoCompaction
+        ? undefined
+        : elapsedSeconds(runtimeTab.tab.workingStartedAt, new Date());
+      if (!continuingAfterAutoCompaction) {
+        runtimeTab.tab.workingStartedAt = undefined;
+      }
       if (event.result) {
         // Rebuild chat from session entries (which now include the compaction entry)
         disposeChatRenderers(runtimeTab.chat);
         runtimeTab.chat = entriesToChatLines(runtimeTab.session.getBranch(), runtimeTab);
         syncPreviewFromChat(runtimeTab.tab, runtimeTab.chat);
         syncContextUsage(runtimeTab);
-        runtimeTab.tab.unreadDone = true;
+        if (!continuingAfterAutoCompaction) {
+          runtimeTab.tab.unreadDone = true;
+        }
       } else if (event.errorMessage) {
         runtimeTab.chat.push({
           role: "system",
@@ -265,6 +283,7 @@ export function applyEvent(
         runtimeTab.autoCompactCycleFailed = true;
       }
       break;
+    }
     case "session_info_changed":
       if (event.name) runtimeTab.tab.title = event.name;
       break;

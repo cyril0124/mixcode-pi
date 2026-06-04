@@ -95,28 +95,25 @@ export function applyContextLimit(
 }
 
 /**
- * Adjust compaction keepRecentTokens to match the context limit override.
- * Without this, the SDK's findCutPoint may refuse to cut because its token
- * estimation (chars/4) underestimates real token counts, making it think all
- * content fits within keepRecentTokens even when it doesn't.
- *
- * Formula: keepRecentTokens = contextLimit * 0.25
- * This accounts for the ~2x underestimation in SDK's estimateTokens.
+ * Adjust compaction budgets to match the context limit override.
+ * keepRecentTokens controls the cut point; reserveTokens controls when the SDK
+ * decides compaction is needed, so both must fit under tiny custom limits.
  */
 export function adjustCompactionSettingsForLimit(
-  settingsManager: { applyOverrides: (overrides: { compaction?: { keepRecentTokens?: number } }) => void },
+  settingsManager: {
+    applyOverrides: (overrides: { compaction?: { reserveTokens?: number; keepRecentTokens?: number } }) => void;
+  },
   contextLimit: number,
   overridden: boolean,
 ): void {
   if (!overridden) {
-    // Reset to default (20000) when override is removed
-    settingsManager.applyOverrides({ compaction: { keepRecentTokens: 20000 } });
+    // Reset to SDK defaults when override is removed.
+    settingsManager.applyOverrides({ compaction: { reserveTokens: 16384, keepRecentTokens: 20000 } });
     return;
   }
-  // Use 25% of the limit as keepRecentTokens to ensure effective compaction
-  // even with SDK's token underestimation
-  const keepRecent = Math.max(4096, Math.round(contextLimit * 0.25));
-  settingsManager.applyOverrides({ compaction: { keepRecentTokens: keepRecent } });
+  const reserveTokens = Math.max(1, Math.min(16384, Math.round(contextLimit * 0.1)));
+  const keepRecent = Math.max(1, Math.round(contextLimit * 0.25));
+  settingsManager.applyOverrides({ compaction: { reserveTokens, keepRecentTokens: keepRecent } });
 }
 
 /**
