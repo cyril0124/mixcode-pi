@@ -8,7 +8,7 @@
 import assert from "node:assert/strict";
 import { performance } from "node:perf_hooks";
 import { test } from "node:test";
-import { createTab, type ChatLine } from "../src/index.js";
+import { createTab, scrollChat, type ChatLine } from "../src/index.js";
 import { renderAgentSurface } from "../src/ui/rendering/agent-surface.js";
 import { renderChat } from "../src/ui/rendering/chat.js";
 
@@ -69,6 +69,21 @@ function buildPerformanceChat(count: number): ChatLine[] {
       chat.push({ role: "system", text: `system-${i} ${"system words ".repeat(30)}` });
     }
   }
+  return chat;
+}
+
+function buildRunningChatWithHugeStreamingTail(): ChatLine[] {
+  const chat: ChatLine[] = [{ role: "user", text: "first user message" }];
+  for (let i = 1; i < 80; i++) {
+    chat.push({
+      role: i % 2 === 0 ? "user" : "assistant",
+      text: `historical-${i} ${"history words wrap ".repeat(50)}`,
+    });
+  }
+  chat.push({
+    role: "assistant",
+    text: `active streaming tail ${"streaming words wrap ".repeat(10_000)}`,
+  });
   return chat;
 }
 
@@ -211,6 +226,46 @@ test("complete long assistant messages render full text outside streaming window
 
   assert.match(rendered, /START/);
   assert.match(rendered, /END/);
+});
+
+test("running windowed renderer reaches the first user message with home sentinel", () => {
+  const chat = buildRunningChatWithHugeStreamingTail();
+  const tab = createTab(15, "s15", "/repo", { status: "running", chatScrollOffset: 1_000_000 });
+  const streamingIndex = chat.length - 1;
+  const runtimeTab = {
+    chat,
+    reasoning: [],
+    streamingAssistant: { chatIndex: streamingIndex, blockIndices: new Map() },
+  } as never;
+
+  const lines = renderAgentSurface(tab, runtimeTab, WIDTH, HEIGHT);
+  const text = lines.map(stripAnsi).join("\n");
+
+  assert.match(text, /first user message/);
+  assert.doesNotMatch(text, /active streaming tail/);
+  assert.match(text, /\.\.\. newer below/);
+  assert.equal(lines.length, HEIGHT);
+  assert.ok(tab.chatScrollOffset < 1_000_000);
+});
+
+test("running windowed renderer can scroll stepwise to the first user message", () => {
+  const chat = buildRunningChatWithHugeStreamingTail();
+  const tab = createTab(16, "s16", "/repo", { status: "running", chatScrollOffset: 0 });
+  const streamingIndex = chat.length - 1;
+  const runtimeTab = {
+    chat,
+    reasoning: [],
+    streamingAssistant: { chatIndex: streamingIndex, blockIndices: new Map() },
+  } as never;
+
+  let text = "";
+  for (let step = 0; step < 500; step++) {
+    text = renderAgentSurface(tab, runtimeTab, WIDTH, HEIGHT).map(stripAnsi).join("\n");
+    if (/first user message/.test(text)) break;
+    scrollChat(tab, 10);
+  }
+
+  assert.match(text, /first user message/);
 });
 
 test("running chats with active tool renderers use windowed rendering and still invoke renderer", () => {

@@ -194,17 +194,23 @@ function renderAgentSurfaceWindowed(
   // until we've covered the visible window plus overscan.
   const targetRows = viewport + scrollOffset + WINDOW_OVERSCAN_LINES;
   const lines: string[] = [...queueLines];
+  const frameBlockHeights = new Map<ChatLine, number>();
   let oldestEmittedIndex = chat.length;
   let nextIsNonEmpty = queueLines.length > 0;
   for (let i = chat.length - 1; i >= 0; i--) {
     if (lines.length >= targetRows) break;
+    const line = chat[i]!;
     const block = renderChatBlock(
-      chat[i]!,
+      line,
       mainWidth,
       tab,
       activeRenderTheme,
       streamingTextRenderOptions(runtimeTab, i),
     );
+    // Some rendered blocks intentionally bypass the cross-frame cache (for
+    // example the active streaming assistant tail). Keep their just-rendered
+    // height for this frame so scroll bounds use what is actually on screen.
+    frameBlockHeights.set(line, block.length);
     if (block.length === 0) {
       // Empty block contributes nothing visually; just record visit.
       oldestEmittedIndex = i;
@@ -258,6 +264,7 @@ function renderAgentSurfaceWindowed(
     mainWidth,
     tab,
     reachedTop,
+    frameBlockHeights,
   );
 
   // Clamp scrollOffset against the estimate so chatHome's 1_000_000 sentinel
@@ -338,12 +345,15 @@ function estimateTotalHeight(
   width: number,
   tab: MixCodeTabInfo,
   reasoningCounted: boolean,
+  frameBlockHeights: ReadonlyMap<ChatLine, number>,
 ): number {
   let total = queueRows;
   let nonEmpty = 0;
   for (let i = 0; i < chat.length; i++) {
-    const cached = cachedChatBlockHeight(chat[i]!, width, tab);
-    const h = cached ?? BLOCK_HEIGHT_FALLBACK;
+    const line = chat[i]!;
+    const h = frameBlockHeights.has(line)
+      ? frameBlockHeights.get(line)!
+      : (cachedChatBlockHeight(line, width, tab) ?? BLOCK_HEIGHT_FALLBACK);
     total += h;
     if (h > 0) nonEmpty++;
   }
