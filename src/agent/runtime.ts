@@ -30,6 +30,7 @@ import {
   defaultExtensionManagerConfig,
   type ExtensionManagerConfig,
 } from "../core/extension-manager.js";
+import { isExtensionToolOwner } from "../core/extension-tool-owners.js";
 import {
   appendSystemMessage,
   disposeChatRenderers,
@@ -152,6 +153,7 @@ export class MixCodeRuntime {
       streamFn: this.streamFn,
       getApiKey: this.getApiKey,
       getDisabledExtensionKeys: () => this.disabledExtensionKeys(),
+      extensionToolOwnerPolicy: isExtensionToolOwner,
     };
   }
 
@@ -731,6 +733,8 @@ export class MixCodeRuntime {
     }
     this.resetExtensionHostState(runtimeTab);
     await runtimeTab.agentSession.reload();
+    runtimeTab.extensionToolOwnerPolicy = isExtensionToolOwner;
+    activateMixCodeTools(runtimeTab.agentSession, runtimeTab.extensionToolOwnerPolicy);
     runtimeTab.extensionsResult = runtimeTab.agentSession.resourceLoader.getExtensions();
     runtimeTab.extensionManagerEntries = getExtensionManagerEntriesForServices(runtimeTab.services);
     runtimeTab.agent = runtimeTab.agentSession.agent;
@@ -738,7 +742,7 @@ export class MixCodeRuntime {
     runtimeTab.chat = await this.rebuildChat(runtimeTab);
     syncPreviewFromChat(runtimeTab.tab, runtimeTab.chat);
     appendExtensionLoadErrors(runtimeTab);
-    appendExtensionConflictDiagnostics(runtimeTab);
+    appendExtensionConflictDiagnostics(runtimeTab, runtimeTab.extensionToolOwnerPolicy);
     this.emitChange({ type: "extension_ui_update" }, runtimeTab);
   }
 
@@ -900,17 +904,19 @@ export class MixCodeRuntime {
       thinkingLevel: runtimeTab.tab.thinkingLevel,
       sessionStartEvent: { type: "session_start", reason: "reload" },
     });
-    activateMixCodeTools(agentSession);
+    const extensionToolOwnerPolicy = isExtensionToolOwner;
+    activateMixCodeTools(agentSession, extensionToolOwnerPolicy);
     runtimeTab.session = sessionManager;
     runtimeTab.agentSession = agentSession;
     runtimeTab.services = services;
     runtimeTab.extensionsResult = extensionsResult;
     runtimeTab.extensionManagerEntries = getExtensionManagerEntriesForServices(services);
+    runtimeTab.extensionToolOwnerPolicy = extensionToolOwnerPolicy;
     runtimeTab.agent = agentSession.agent;
     installMidTurnCompactionHook(agentSession, runtimeTab.tab, { current: runtimeTab });
     runtimeTab.tab.workdir = workdir;
     appendExtensionLoadErrors(runtimeTab);
-    appendExtensionConflictDiagnostics(runtimeTab);
+    appendExtensionConflictDiagnostics(runtimeTab, runtimeTab.extensionToolOwnerPolicy);
     agentSession.subscribe((event) => {
       this.applyEvent(runtimeTab, event);
       if (event.type === "agent_end") {

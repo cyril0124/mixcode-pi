@@ -38,12 +38,12 @@ src/
 │   ├── commands.ts           本地 slash command 解析与补全源
 │   ├── tabs.ts               tab 增删改与前后环绕切换
 │   ├── overlays.ts           preview、tab jump、shell 等纯状态逻辑
-│   ├── questions.ts          ask_questions 的选择/提交模型
+│   ├── questions.ts          question UI 的选择/提交模型
 │   ├── state-store.ts        TUI 状态与 workspace 持久化
 │   └── system-prompt.ts        通过 Pi resource loader 构建 system prompt
 ├── agent/
 │   ├── runtime.ts            MixCodeRuntime -> pi Agent/Session
-│   ├── tools.ts              read_text_file、shell、ask_questions 等工具
+│   ├── tools.ts              Pi built-in tools、extension tool owner 合并与 Tool Owners 摘要
 │   └── faux-stream.ts        测试和本地演示用 faux model stream
 └── ui/
     ├── app.ts                pi-tui Root、Editor、全局键处理

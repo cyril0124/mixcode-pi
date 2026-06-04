@@ -28,6 +28,11 @@ import {
   buildMixCodeSystemPromptOptionsFromSession,
   MIXCODE_SYSTEM_PROMPT,
 } from "../core/system-prompt.js";
+import {
+  displayToolOwner,
+  isExtensionToolOwner,
+  type ExtensionToolOwnerPolicy,
+} from "../core/extension-tool-owners.js";
 import type { AgentRuntimeConfig, MixCodeTabInfo } from "../core/types.js";
 import type { MixCodeRuntime } from "./runtime.js";
 import {
@@ -61,7 +66,7 @@ import type {
   RuntimeTab,
   SessionReplacementReason,
 } from "./runtime-types.js";
-import { activateMixCodeTools, ToolLog } from "./tools.js";
+import { activateMixCodeTools, PI_BUILTIN_TOOL_NAMES, ToolLog } from "./tools.js";
 
 export type RuntimeTabConfig = Omit<AgentRuntimeConfig, "sessionId" | "model"> & {
   model?: Model<any>;
@@ -105,6 +110,7 @@ export interface RuntimeLifecycleContext {
   streamFn?: MixCodeStreamFn;
   getApiKey?: (provider: string) => Promise<string | undefined> | string | undefined;
   getDisabledExtensionKeys?: (workdir: string) => ReadonlySet<string>;
+  extensionToolOwnerPolicy?: ExtensionToolOwnerPolicy;
 }
 
 export async function createRuntimeTab(
@@ -130,7 +136,8 @@ export async function createRuntimeTab(
     model,
     thinkingLevel: config.thinkingLevel,
   });
-  activateMixCodeTools(agentSession);
+  const extensionToolOwnerPolicy = resolveExtensionToolOwnerPolicy(context);
+  activateMixCodeTools(agentSession, extensionToolOwnerPolicy);
   applyMixCodeSystemPrompt(runtimeTabPromptOptions(services, config.workdir), agentSession);
   // Mid-turn compaction check: after each tool call, if context exceeds the threshold,
   // signal terminate=true so the agent loop exits cleanly (agent_end). The runtime
@@ -154,13 +161,8 @@ export async function createRuntimeTab(
     extensionCustomOverlayHandles: new Set(),
     extensionAutocompleteProviderFactories: [],
     extensionManagerEntries: getExtensionManagerEntriesForServices(services),
+    extensionToolOwnerPolicy,
   };
-  runtimeTab.requestRender = () => context.emitChange({ type: "extension_ui_update" }, runtimeTab);
-  runtimeTabRef.current = runtimeTab;
-  const restoredChat = await rebuildRuntimeChat(runtimeTab);
-  if (tab.previewMessages.length === 0) {
-    syncPreviewFromChat(tab, restoredChat);
-  }
   tab.extensionUi = {
     statuses: [],
     widgets: [],
@@ -168,7 +170,16 @@ export async function createRuntimeTab(
     pendingUserInteractions: [],
     workingVisible: true,
   };
+  runtimeTab.requestRender = () => context.emitChange({ type: "extension_ui_update" }, runtimeTab);
+  runtimeTabRef.current = runtimeTab;
+  const restoredChat = await rebuildRuntimeChat(runtimeTab);
+  if (tab.previewMessages.length === 0) {
+    syncPreviewFromChat(tab, restoredChat);
+  }
   runtimeTab.chat = restoredChat;
+  await bindRuntimeExtensions(runtimeTab, context);
+  activateMixCodeTools(agentSession, extensionToolOwnerPolicy);
+  applyMixCodeSystemPrompt(runtimeTabPromptOptions(services, config.workdir), agentSession);
   if (!config.suppressStartupSummary) {
     const summary = startupResourceSummary(runtimeTab);
     if (summary) runtimeTab.chat.unshift({ role: "startup", text: summary });
@@ -176,7 +187,6 @@ export async function createRuntimeTab(
   syncContextUsage(runtimeTab);
   appendExtensionDiagnostics(runtimeTab);
   subscribeRuntimeTab(runtimeTab, context);
-  await bindRuntimeExtensions(runtimeTab, context);
   context.tabs.set(tab.sessionId, runtimeTab);
   return runtimeTab;
 }
@@ -204,7 +214,8 @@ export async function createAgentSessionForReplacement(
     thinkingLevel: config.thinkingLevel,
     sessionStartEvent: config.sessionStartEvent,
   });
-  activateMixCodeTools(result.session);
+  const extensionToolOwnerPolicy = resolveExtensionToolOwnerPolicy(context);
+  activateMixCodeTools(result.session, extensionToolOwnerPolicy);
   applyMixCodeSystemPrompt(runtimeTabPromptOptions(services, config.workdir), result.session);
   return { ...result, services, toolLog };
 }
@@ -267,17 +278,13 @@ export async function replaceRuntimeTabSession(
   runtimeTab.services = created.services;
   runtimeTab.extensionsResult = created.extensionsResult;
   runtimeTab.extensionManagerEntries = getExtensionManagerEntriesForServices(created.services);
+  runtimeTab.extensionToolOwnerPolicy = resolveExtensionToolOwnerPolicy(context);
   runtimeTab.agent = created.session.agent;
   runtimeTab.session = sessionManager;
   runtimeTab.toolLog = created.toolLog;
   runtimeTab.queuedPromptCount = 0;
   runtimeTab.streamingAssistant = undefined;
   runtimeTab.streamingReasoning = undefined;
-  installMidTurnCompactionHook(created.session, runtimeTab.tab, { current: runtimeTab });
-  runtimeTab.chat = await rebuildRuntimeChat(runtimeTab);
-  syncPreviewFromChat(runtimeTab.tab, runtimeTab.chat);
-  applyRuntimeTabModel(runtimeTab, created.session.agent.state.model);
-  runtimeTab.tab.thinkingLevel = created.session.agent.state.thinkingLevel;
   disposeExtensionWidgets(runtimeTab.tab);
   runtimeTab.tab.extensionUi = {
     statuses: [],
@@ -286,9 +293,16 @@ export async function replaceRuntimeTabSession(
     pendingUserInteractions: [],
     workingVisible: true,
   };
+  installMidTurnCompactionHook(created.session, runtimeTab.tab, { current: runtimeTab });
+  runtimeTab.chat = await rebuildRuntimeChat(runtimeTab);
+  syncPreviewFromChat(runtimeTab.tab, runtimeTab.chat);
+  await bindRuntimeExtensions(runtimeTab, context);
+  activateMixCodeTools(created.session, runtimeTab.extensionToolOwnerPolicy);
+  applyMixCodeSystemPrompt(runtimeTabPromptOptions(created.services, runtimeTab.tab.workdir), created.session);
+  applyRuntimeTabModel(runtimeTab, created.session.agent.state.model);
+  runtimeTab.tab.thinkingLevel = created.session.agent.state.thinkingLevel;
   appendExtensionDiagnostics(runtimeTab);
   subscribeRuntimeTab(runtimeTab, context);
-  await bindRuntimeExtensions(runtimeTab, context);
   context.tabs.set(runtimeTab.tab.sessionId, runtimeTab);
   context.emitChange({ type: "extension_ui_update" }, runtimeTab);
   return runtimeTab;
@@ -386,6 +400,7 @@ function startupResourceSummary(runtimeTab: RuntimeTab): string {
     ...resourceSummarySection("Context", contextFiles),
     ...resourceSummarySection("Skills", skills),
     ...resourceSummarySection("Extensions", extensions),
+    ...resourceSummarySection("Tool Owners", toolOwnerSummary(runtimeTab)),
   ].join("\n");
 }
 
@@ -449,7 +464,20 @@ export async function bindRuntimeExtensions(
 
 function appendExtensionDiagnostics(runtimeTab: RuntimeTab): void {
   appendExtensionLoadErrors(runtimeTab);
-  appendExtensionConflictDiagnostics(runtimeTab);
+  appendExtensionConflictDiagnostics(runtimeTab, runtimeTab.extensionToolOwnerPolicy);
+}
+
+function resolveExtensionToolOwnerPolicy(context: RuntimeLifecycleContext): ExtensionToolOwnerPolicy {
+  return context.extensionToolOwnerPolicy ?? isExtensionToolOwner;
+}
+
+function toolOwnerSummary(runtimeTab: RuntimeTab): string[] {
+  const builtInToolNames = new Set<string>(PI_BUILTIN_TOOL_NAMES);
+  return runtimeTab.agentSession
+    .getAllTools()
+    .filter((tool) => builtInToolNames.has(tool.name) && tool.sourceInfo?.source !== "builtin")
+    .map((tool) => `${tool.name} -> ${displayToolOwner(tool.sourceInfo)}`)
+    .sort((left, right) => left.localeCompare(right));
 }
 
 function subscribeRuntimeTab(runtimeTab: RuntimeTab, context: RuntimeLifecycleContext): void {

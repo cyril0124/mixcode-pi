@@ -1,4 +1,5 @@
 import type { ExtensionUIContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionToolOwnerPolicy } from "../core/extension-tool-owners.js";
 import type { AutocompleteProvider } from "@earendil-works/pi-tui";
 import { LOCAL_COMMANDS } from "../core/commands.js";
 import {
@@ -36,13 +37,19 @@ export function appendExtensionLoadErrors(runtimeTab: RuntimeTab): void {
   }
 }
 
-export function appendExtensionConflictDiagnostics(runtimeTab: RuntimeTab): void {
-  for (const line of extensionConflictDiagnostics(runtimeTab)) {
+export function appendExtensionConflictDiagnostics(
+  runtimeTab: RuntimeTab,
+  extensionToolOwnerPolicy?: ExtensionToolOwnerPolicy,
+): void {
+  for (const line of extensionConflictDiagnostics(runtimeTab, extensionToolOwnerPolicy)) {
     runtimeTab.chat.push({ role: "system", text: line });
   }
 }
 
-function extensionConflictDiagnostics(runtimeTab: RuntimeTab): string[] {
+function extensionConflictDiagnostics(
+  runtimeTab: RuntimeTab,
+  extensionToolOwnerPolicy?: ExtensionToolOwnerPolicy,
+): string[] {
   const diagnostics: string[] = [];
   const localCommands = new Set(LOCAL_COMMANDS.map((command) => command.name));
   for (const command of runtimeTab.agentSession.extensionRunner.getRegisteredCommands()) {
@@ -56,6 +63,7 @@ function extensionConflictDiagnostics(runtimeTab: RuntimeTab): string[] {
   for (const extensionTool of runtimeTab.agentSession.extensionRunner.getAllRegisteredTools()) {
     const name = extensionTool.definition.name;
     if (seenExtensionTools.has(name) || !builtInToolNames.has(name as never)) continue;
+    if (extensionToolOwnerPolicy?.(extensionTool.sourceInfo, name)) continue;
     seenExtensionTools.add(name);
     diagnostics.push(
       `Extension tool conflict: ${name} from ${formatSourceInfo(extensionTool.sourceInfo)} is shadowed by Pi builtin tool ${name}.`,

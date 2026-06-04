@@ -33,6 +33,7 @@ import type {
   ExtensionManagerEntry,
   ExtensionReloadResult,
 } from "../core/extension-manager.js";
+import type { ExtensionToolOwnerPolicy } from "../core/extension-tool-owners.js";
 import type { MixCodeTabInfo } from "../core/types.js";
 import type { mixcodeFauxStream } from "./faux-stream.js";
 import type { ToolLog } from "./tools.js";
@@ -191,6 +192,7 @@ export interface RuntimeTab {
   extensionCustomOverlayHandles: Set<OverlayHandle>;
   extensionAutocompleteProviderFactories: ExtensionAutocompleteProviderFactory[];
   extensionManagerEntries: ExtensionManagerEntry[];
+  extensionToolOwnerPolicy: ExtensionToolOwnerPolicy;
   extensionAutocompleteProviderCache?: ExtensionAutocompleteProviderCache;
   requestRender?: () => void;
   streamingReasoning?: {

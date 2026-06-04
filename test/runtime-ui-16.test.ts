@@ -237,7 +237,7 @@ test("runtime dispatches pi extension shortcuts and surfaces handler errors", as
   }
 });
 
-test("runtime reports extension command and tool conflicts explicitly", async () => {
+test("runtime reports extension command and shortcut conflicts while extension tools can own builtin names", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-conflict-"));
   const extension: ExtensionFactory = (pi) => {
     pi.registerCommand("clear", {
@@ -271,10 +271,11 @@ test("runtime reports extension command and tool conflicts explicitly", async ()
           line.role === "system" && line.text.includes("Extension command conflict: /clear"),
       ),
     );
-    assert.ok(
+    assert.equal(
       runtimeTab.chat.some(
         (line) => line.role === "system" && line.text.includes("Extension tool conflict: read"),
       ),
+      false,
     );
     assert.ok(
       runtimeTab.chat.some(
@@ -285,10 +286,11 @@ test("runtime reports extension command and tool conflicts explicitly", async ()
       runtime.getExtensionCommands("s1").some((command) => command.name === "clear"),
       true,
     );
-    assert.match(
+    assert.equal(
       runtimeTab.agentSession.getToolDefinition("read")?.description,
-      /^Read the contents of a file\./,
+      "Conflicting MixCode tool.",
     );
+    assert.match(runtimeTab.chat.find((line) => line.role === "startup")?.text ?? "", /read -> inline/);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

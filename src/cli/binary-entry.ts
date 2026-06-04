@@ -25,6 +25,8 @@ import diffTrackerPackageJson from "../../pi-packages/diff-tracker/package.json"
 import commandBrowserIndex from "../../pi-packages/command-browser/index.ts" with { type: "text" };
 import commandBrowserComponent from "../../pi-packages/command-browser/command-browser.ts" with { type: "text" };
 import commandBrowserPackageJson from "../../pi-packages/command-browser/package.json" with { type: "text" };
+import bashDefaultTimeoutIndex from "../../pi-packages/bash-default-timeout/index.ts" with { type: "text" };
+import bashDefaultTimeoutPackageJson from "../../pi-packages/bash-default-timeout/package.json" with { type: "text" };
 import packageJson from "../../package.json" with { type: "json" };
 import { materializeBinaryRuntimeAssets } from "./binary-assets.js";
 
@@ -84,6 +86,10 @@ materializeBinaryRuntimeAssets(runtimeDir, {
       "index.ts": commandBrowserIndex,
       "command-browser.ts": commandBrowserComponent,
       "package.json": commandBrowserPackageJson,
+    },
+    "bash-default-timeout": {
+      "index.ts": bashDefaultTimeoutIndex,
+      "package.json": bashDefaultTimeoutPackageJson,
     },
   },
 });

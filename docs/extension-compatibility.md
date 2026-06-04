@@ -119,15 +119,17 @@ AGENTS / project context / system prompt 走 Pi resource loader 链路，不再�
 
 ### Tools
 
-MixCode 自有工具以 Pi `ToolDefinition[]` 注册：
+MixCode 启用 Pi built-in tool，并在需要时恢复未被 extension 接管的内置实现：
 
 ```text
-read_text_file
-shell
-ask_questions
+read
+bash
+edit
+write
+ls
 ```
 
-extension tools 会进入 `AgentSession.getAllTools()` 并参与 active tools。当前仍设置 `noTools: "builtin"`，所以 Pi built-in tools 会存在于 tool registry，但不是默认 active policy 的唯一依据。
+extension tools 会进入 `AgentSession.getAllTools()` 并参与 active tools。如果 extension 按 Pi SDK 语义注册了与 built-in 同名的 tool，该 extension 拥有该 tool 名称，MixCode 不再用内置实现抢回；启动摘要里的 `[Tool Owners]` 会显示当前 owner。
 
 ### Commands
 
@@ -145,7 +147,8 @@ extension tools 会进入 `AgentSession.getAllTools()` 并参与 active tools。
 - extension slash command 注册
 - extension command completion
 - 本地 command 优先
-- command/tool/shortcut conflict 显式显示为 system chat，不静默覆盖
+- command/shortcut conflict 显式显示为 system chat，不静默覆盖
+- extension tool 可覆盖同名 built-in tool，并通过 `[Tool Owners]` 暴露 owner
 
 ### UI Primitives
 
