@@ -8,7 +8,8 @@ extensions=(
   # Core UI tools
   npm:@juicesharp/rpiv-todo
   npm:@juicesharp/rpiv-ask-user-question
-  npm:@juicesharp/rpiv-btw
+  npm:@narumitw/pi-btw
+  npm:pi-tool-display
 
   # Goal & workflow
   npm:pi-goals
