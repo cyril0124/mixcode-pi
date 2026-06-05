@@ -45,7 +45,30 @@ export async function openOrCreateSession(
     (metadata: SessionInfo) => metadata.id === sessionId,
   );
   if (existing) return SessionManager.open(existing.path, sessionsRoot, cwd);
+  // SessionManager indexes sessions by their JSONL header id. Some persisted
+  // files have a filename id (the durable MixCode tab sessionId) that no longer
+  // matches the header id, so a header-id lookup misses them and we would
+  // silently create an empty session, dropping the whole conversation. Fall
+  // back to locating the file by its filename id before creating a new one.
+  const byFileName = findSessionFileByName(sessionsRoot, sessionId);
+  if (byFileName) return SessionManager.open(byFileName, sessionsRoot, cwd);
   return createSession(cwd, sessionsRoot, sessionId);
+}
+
+// Session files are named `${ISO-timestamp}_${sessionId}.jsonl`. The timestamp
+// never contains "_", so the substring after the first "_" is the sessionId
+// (which may itself contain "-"). Returns the newest matching file path.
+function findSessionFileByName(sessionsRoot: string, sessionId: string): string | undefined {
+  let entries: string[];
+  try {
+    entries = readdirSync(sessionsRoot);
+  } catch {
+    return undefined;
+  }
+  const suffix = `_${sessionId}.jsonl`;
+  const matches = entries.filter((name) => name.endsWith(suffix)).sort();
+  const latest = matches.at(-1);
+  return latest ? join(sessionsRoot, latest) : undefined;
 }
 
 export async function createSession(

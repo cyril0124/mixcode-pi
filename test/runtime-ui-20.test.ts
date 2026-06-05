@@ -189,6 +189,68 @@ function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+test("runtime restores a session whose filename id differs from its header id", async () => {
+  // Repro for the "Agent Tab empty after restart while Home preview still shows
+  // the conversation" bug. Some persisted session files have a filename id
+  // (the MixCode tab sessionId) that no longer matches the JSONL header id
+  // (created by SessionManager.create before newSession rewrote it). Looking
+  // sessions up purely by header id makes openOrCreateSession miss the real
+  // file and create an empty session, dropping the whole conversation.
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-id-mismatch-"));
+  try {
+    const workdir = join(dir, "wd");
+    await mkdir(workdir, { recursive: true });
+    const sessionFile = join(dir, "2026-06-04T00-00-00-000Z_session-12345.jsonl");
+    const entries = [
+      {
+        type: "session",
+        version: 3,
+        id: "019e0000-aaaa-7000-8000-000000000000",
+        timestamp: "2026-06-04T00:00:00.000Z",
+        cwd: workdir,
+      },
+      {
+        type: "message",
+        id: "m1",
+        parentId: null,
+        timestamp: "2026-06-04T00:00:01.000Z",
+        message: { role: "user", content: "recover me please", timestamp: 1 },
+      },
+      {
+        type: "message",
+        id: "m2",
+        parentId: "m1",
+        timestamp: "2026-06-04T00:00:02.000Z",
+        message: {
+          role: "assistant",
+          content: [{ type: "text", text: "the real answer" }],
+          provider: "faux",
+          model: "faux-1",
+          timestamp: 2,
+        },
+      },
+    ];
+    await writeFile(sessionFile, `${entries.map((e) => JSON.stringify(e)).join("\n")}\n`, "utf8");
+
+    const runtime = new MixCodeRuntime({ sessionsRoot: dir });
+    const restored = await runtime.createTab(createTab(1, "session-12345", workdir), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir,
+    });
+
+    assert.equal(restored.session.getSessionFile(), sessionFile);
+    assert.match(restored.chat.map((line) => line.text).join("\n"), /the real answer/);
+    assert.equal(
+      restored.session.getBranch().filter((entry) => entry.type === "message").length,
+      2,
+    );
+    await runtime.closeAllTabs();
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("runtime clear replaces the active pi session and resets tab state", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-clear-"));
   try {
