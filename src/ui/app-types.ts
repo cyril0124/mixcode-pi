@@ -24,6 +24,7 @@ export type MixCodeKeyRuntime = Partial<
     | "getTab"
     | "getPromptHistory"
     | "hasExtensionCustomOverlay"
+    | "listAllSessions"
     | "prompt"
     | "popPendingMessage"
     | "reloadExtensionManagerTab"

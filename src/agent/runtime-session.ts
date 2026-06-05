@@ -181,7 +181,7 @@ export async function listAllSessionsGlobal(
   const all: SessionInfo[] = [];
   for (const dir of dirs) {
     try {
-      const sessions = await SessionManager.list("/", dir);
+      const sessions = await SessionManager.listAll(dir);
       for (const session of sessions) {
         if (seen.has(session.path)) continue;
         seen.add(session.path);
