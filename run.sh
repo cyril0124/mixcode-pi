@@ -29,11 +29,20 @@ needs_build() {
 }
 
 if [ "${MIXCODE_DEV:-0}" = "1" ]; then
+  if [ "${1:-}" = "status" ]; then
+    cd "$workdir"
+    exec node --import tsx "$repo_dir/src/cli/main.ts" "$@"
+  fi
   exec node --import tsx src/cli/main.ts --workdir "$workdir" "$@"
 fi
 
 if needs_build; then
-  tsgo
+  npm run build
+fi
+
+if [ "${1:-}" = "status" ]; then
+  cd "$workdir"
+  exec node "$dist_entry" "$@"
 fi
 
 exec node "$dist_entry" --workdir "$workdir" "$@"
