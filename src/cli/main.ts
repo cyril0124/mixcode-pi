@@ -15,19 +15,31 @@ import { parseInput } from "../core/commands.js";
 import { createTab } from "../core/defaults.js";
 import { findModelRef } from "../core/models.js";
 import { buildModelPrompt } from "../core/prompt-build.js";
+import {
+  cleanupInstanceRegistry,
+  formatInstanceStatusTable,
+  loadLiveInstanceStatus,
+  removeInstanceSnapshotSync,
+  writeCurrentInstanceSnapshot,
+  INSTANCE_HEARTBEAT_INTERVAL_MS,
+} from "../core/instance-registry.js";
 import { saveStateFile } from "../core/state-store.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import { activateTab } from "../core/tabs.js";
 import { createMixCodeTui } from "../ui/app.js";
 import { applyModelSelection, applyThinkingLevel } from "../ui/app-actions.js";
 import { clearConversationCache } from "../ui/rendering.js";
-import { bootstrapMixCode, DEFAULT_STATE_PORT } from "./bootstrap.js";
+import { bootstrapMixCode, DEFAULT_STATE_PORT, defaultStateDir } from "./bootstrap.js";
 import { ensurePackageExtensions } from "../core/ensure-package-extensions.js";
 
 export async function main(): Promise<void> {
   exposeLocalPiCli();
   const repoDir = process.env.PI_PACKAGE_DIR ?? resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
   const args = parseMainArgs(process.argv.slice(2), cwd());
+  if (args.command === "status") {
+    await runStatusCommand(args);
+    return;
+  }
   ensurePackageExtensions(repoDir, { copy: true });
   const { state, runtime, stateFile, workspaceFile, completionSources, packageUpdateCheck } =
     await bootstrapMixCode({
@@ -37,11 +49,72 @@ export async function main(): Promise<void> {
     ? await loadBatchRequests(args.batch, contextFromState(state))
     : undefined;
   if (batchRequests) validateBatchRequests(batchRequests, (query) => findModelRef(state.availableModels, query));
+  const stateRoot = defaultStateDir();
+  await cleanupInstanceRegistry(stateRoot);
+  let registryWriteErrorReported = false;
+  const reportRegistryWriteError = (error: unknown) => {
+    if (registryWriteErrorReported) return;
+    registryWriteErrorReported = true;
+    const message = error instanceof Error ? error.message : String(error);
+    process.stderr.write(`mixcode-pi instance registry update failed: ${message}\n`);
+  };
+  const writeRegistrySnapshot = async () => {
+    try {
+      await writeCurrentInstanceSnapshot(stateRoot, state);
+    } catch (error) {
+      reportRegistryWriteError(error);
+    }
+  };
+  await writeCurrentInstanceSnapshot(stateRoot, state);
+  const heartbeat = setInterval(writeRegistrySnapshot, INSTANCE_HEARTBEAT_INTERVAL_MS);
+  heartbeat.unref?.();
+  let scheduledRegistrySnapshot: NodeJS.Timeout | undefined;
+  const scheduleRegistrySnapshot = () => {
+    if (scheduledRegistrySnapshot) return;
+    scheduledRegistrySnapshot = setTimeout(() => {
+      scheduledRegistrySnapshot = undefined;
+      void writeRegistrySnapshot();
+    }, 1_000);
+    scheduledRegistrySnapshot.unref?.();
+  };
+  const removeRegistrySnapshot = () => {
+    clearInterval(heartbeat);
+    if (scheduledRegistrySnapshot) clearTimeout(scheduledRegistrySnapshot);
+    removeInstanceSnapshotSync(stateRoot);
+  };
+  process.once("exit", (code) => {
+    if (code === 0 || code === 130 || code === 143) removeRegistrySnapshot();
+  });
+  process.once("SIGINT", () => {
+    removeRegistrySnapshot();
+    process.exit(130);
+  });
+  process.once("SIGTERM", () => {
+    removeRegistrySnapshot();
+    process.exit(143);
+  });
+
   const tui = createMixCodeTui(state, runtime, {
     completionSources,
     workspaceFile,
     exitProcessOnQuit: true,
-    onStateChanged: async (nextState) => saveStateFile(stateFile, nextState, DEFAULT_STATE_PORT),
+    onStateChanged: async (nextState) => {
+      await saveStateFile(stateFile, nextState, DEFAULT_STATE_PORT);
+      await writeRegistrySnapshot();
+    },
+  });
+  const originalRequestRender = tui.requestRender.bind(tui);
+  tui.requestRender = (force?: boolean) => {
+    scheduleRegistrySnapshot();
+    originalRequestRender(force);
+  };
+  const originalStop = tui.stop.bind(tui);
+  tui.stop = () => {
+    removeRegistrySnapshot();
+    originalStop();
+  };
+  runtime.onChange(() => {
+    void writeRegistrySnapshot();
   });
   tui.start();
   void packageUpdateCheck()
@@ -160,21 +233,38 @@ export async function main(): Promise<void> {
   }
 }
 
+export type MainCommand = "tui" | "status";
+
+async function runStatusCommand(args: MainArgs): Promise<void> {
+  const report = await loadLiveInstanceStatus(defaultStateDir(), { workdir: args.statusWorkdir });
+  const output = args.json ? JSON.stringify(report, null, 2) : formatInstanceStatusTable(report);
+  process.stdout.write(`${output}\n`);
+}
+
 export interface MainArgs {
+  command: MainCommand;
   workdir: string;
   batch?: string;
+  json?: boolean;
+  statusWorkdir?: string;
 }
 
 const HELP_TEXT = `Usage: mixcode-pi [options]
+       mixcode-pi status [--json] [--workdir <path>]
 
 Options:
   --workdir <path>   Set working directory (default: cwd)
   --batch <file>     Execute a Lua batch script after TUI startup
   --help, -h         Show this help message
+
+Commands:
+  status             Show live mixcode-pi instances and tabs
 `;
 
 export function parseMainArgs(args: string[], fallbackWorkdir: string): MainArgs {
   const baseWorkdir = resolve(fallbackWorkdir);
+  if (args[0] === "status") return parseStatusArgs(args.slice(1), baseWorkdir);
+
   let workdir = baseWorkdir;
   let batchPath: string | undefined;
   for (let index = 0; index < args.length; index++) {
@@ -209,7 +299,37 @@ export function parseMainArgs(args: string[], fallbackWorkdir: string): MainArgs
     }
     throw new Error(`Unknown argument: ${arg}`);
   }
-  return { workdir, batch: batchPath ? resolve(workdir, batchPath) : undefined };
+  return { command: "tui", workdir, batch: batchPath ? resolve(workdir, batchPath) : undefined };
+}
+
+function parseStatusArgs(args: string[], baseWorkdir: string): MainArgs {
+  let json = false;
+  let statusWorkdir: string | undefined;
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index];
+    if (arg === "--help" || arg === "-h") {
+      process.stdout.write(HELP_TEXT);
+      process.exit(0);
+    }
+    if (arg === "--json") {
+      json = true;
+      continue;
+    }
+    if (arg === "--workdir") {
+      const value = args[++index];
+      if (!value) throw new Error("--workdir requires a path");
+      statusWorkdir = resolve(baseWorkdir, value);
+      continue;
+    }
+    if (arg?.startsWith("--workdir=")) {
+      const value = arg.slice("--workdir=".length);
+      if (!value) throw new Error("--workdir requires a path");
+      statusWorkdir = resolve(baseWorkdir, value);
+      continue;
+    }
+    throw new Error(`Unknown status argument: ${arg}`);
+  }
+  return { command: "status", workdir: baseWorkdir, json, statusWorkdir };
 }
 
 export function exposeLocalPiCli(
