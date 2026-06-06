@@ -14,6 +14,7 @@ import {
   saveWorkspaces,
   snapshotWorkspace,
   type MixCodeState,
+  UUIDV7_SESSION_ID_PATTERN,
 } from "../src/index.js";
 
 function stripAnsi(text: string): string {
@@ -238,21 +239,23 @@ test("restore workspace reopens saved sessions, closes extra tabs, and reports m
         ],
       },
     ]);
-    const { runtime, closed, switched } = createRuntime({ extra: join(dir, "extra.jsonl") });
+    const { runtime, created, closed, switched } = createRuntime({ extra: join(dir, "extra.jsonl") });
     const tui = createOverlayTui();
 
     await handleSubmittedInput(state, runtime, "/restore-workspace main", tui, undefined, undefined, workspaceFile);
     await new Promise((resolve) => setTimeout(resolve, 50));
 
-    assert.equal(state.tabs.length, 2);
+    assert.equal(state.tabs.length, 1);
     assert.equal(state.tabs[0]?.title, "plan");
     assert.equal(state.tabs[0]?.workdir, "/repo");
-    assert.equal(state.tabs[1]?.title, "old qa");
+    assert.deepEqual(created, [state.tabs[0]!.sessionId]);
+    assert.match(created[0]!, UUIDV7_SESSION_ID_PATTERN);
     assert.deepEqual(closed, ["extra"]);
     assert.equal(switched.length, 1);
     assert.equal(switched[0]?.sessionPath, existingSessionPath);
-    const toastMsg = state.tabs[0]?.toast?.message ?? state.tabs[1]?.toast?.message ?? "";
-    assert.match(toastMsg, /Workspace restored: main/);
+    assert.deepEqual(state.workspaceOverlay.skippedMissing, ["old qa"]);
+    const toastMsg = state.tabs[0]?.toast?.message ?? "";
+    assert.match(toastMsg, /Workspace restored: main · restored 1, skipped 1/);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

@@ -14,6 +14,7 @@ import {
   cycleSessionSortMode,
   toggleSessionNameFilter,
   updateSessionSelectorQuery,
+  UUIDV7_SESSION_ID_PATTERN,
 } from "../src/index.js";
 import type { MixCodeRuntime } from "../src/index.js";
 import type { SessionInfo } from "@earendil-works/pi-coding-agent";
@@ -157,6 +158,7 @@ test("session selector key handling: enter resumes selected session", async () =
   state.sessionSelector.open = true;
   state.sessionSelector.currentSessions = makeSessions();
   let switchedTo = "";
+  let switchInputId = "";
   const tui = {
     requestRender: () => undefined,
     showOverlay: () => ({ hide: () => undefined }) as never,
@@ -164,8 +166,11 @@ test("session selector key handling: enter resumes selected session", async () =
     hideOverlay: () => undefined,
   };
   const runtime = {
-    extensionSwitchSession: async (_sessionId: string, sessionPath: string) => {
+    extensionSwitchSession: async (sessionId: string, sessionPath: string) => {
+      switchInputId = sessionId;
       switchedTo = sessionPath;
+      const tab = state.tabs.find((item) => item.sessionId === sessionId);
+      if (tab) tab.sessionId = "session-a";
       return { cancelled: false };
     },
     createTab: async () => undefined,
@@ -179,9 +184,13 @@ test("session selector key handling: enter resumes selected session", async () =
 
   // Should have created a new tab and switched its session
   assert.equal(switchedTo, "/sessions/session-a.jsonl");
+  assert.match(switchInputId, UUIDV7_SESSION_ID_PATTERN);
   assert.equal(state.sessionSelector.open, false);
-  // A new tab should have been appended
+  // A new tab should have been appended and synchronized to the real resumed ID.
   assert.equal(state.tabs.length, 2);
+  assert.equal(state.tabs[1]!.sessionId, "session-a");
+  assert.equal(state.activeTabId, "session-a");
+  assert.equal(state.tabs[1]!.title, "My Session");
 });
 
 test("session selector key handling: cancelled resume removes transient tab", async () => {
@@ -212,7 +221,7 @@ test("session selector key handling: cancelled resume removes transient tab", as
   assert.equal(state.tabs.length, 1);
   assert.equal(state.tabs[0]!.sessionId, "s1");
   assert.equal(state.activeTabId, "s1");
-  assert.match(closedTab, /^session-/);
+  assert.match(closedTab, UUIDV7_SESSION_ID_PATTERN);
   assert.equal(state.sessionSelector.statusMessage, "Resume cancelled");
 });
 

@@ -7,7 +7,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { MixCodeRuntime } from "../agent/runtime.js";
 import { scanSkillEntries } from "../core/attachments.js";
-import { createInitialState, createTab, DEFAULT_MODEL_REF } from "../core/defaults.js";
+import { createInitialState, createSessionId, createTab, DEFAULT_MODEL_REF } from "../core/defaults.js";
 import {
   extensionManagerFile,
   loadExtensionManagerConfig,
@@ -100,7 +100,7 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
     setStateModel(state, normalizeModelRef(state.availableModels, state.model));
   }
   if (state.tabs.length === 0) {
-    const firstTab = createTab(1, `session-${Date.now()}`, options.workdir, {
+    const firstTab = createTab(1, createSessionId(), options.workdir, {
       model: { ...state.model },
       contextLimit: state.model.contextWindow,
       thinkingLevel: state.thinkingLevel,

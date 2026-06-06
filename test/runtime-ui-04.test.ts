@@ -67,6 +67,7 @@ import {
   fitTailLines,
   titledBox,
   themeForId,
+  UUIDV7_SESSION_ID_PATTERN,
 } from "../src/index.js";
 
 function delayedAssistantStream(text: string, ready: Promise<void>, options?: SimpleStreamOptions) {
@@ -248,6 +249,8 @@ test("submitted input handles prompt, shell, local commands, clear, and missing 
   const shellCommands: Array<{ command: string; excludeFromContext: boolean | undefined }> = [];
   const cleared: string[] = [];
   const closed: string[] = [];
+  const created: string[] = [];
+  const forked: string[] = [];
   const runtime = {
     prompt: async (_sessionId: string, text: string) => {
       prompts.push(text);
@@ -269,8 +272,12 @@ test("submitted input handles prompt, shell, local commands, clear, and missing 
       tab.sessionId = "cleared";
       return { tab };
     },
-    createTab: async () => undefined,
-    forkSession: async () => undefined,
+    createTab: async (createdTab: { sessionId: string }) => {
+      created.push(createdTab.sessionId);
+    },
+    forkSession: async (_sourceSessionId: string, newSessionId: string) => {
+      forked.push(newSessionId);
+    },
     closeTab: async (sessionId: string) => {
       closed.push(sessionId);
     },
@@ -323,10 +330,14 @@ test("submitted input handles prompt, shell, local commands, clear, and missing 
     await handleSubmittedInput(state, runtime, "/models faux-1", tui);
     await handleSubmittedInput(state, runtime, "/rename Renamed", tui);
     await handleSubmittedInput(state, runtime, "/fork forked", tui);
-    assert.equal(state.activeTabId, "forked");
+    const forkedSessionId = state.activeTabId;
+    assert.match(forkedSessionId, UUIDV7_SESSION_ID_PATTERN);
+    assert.notEqual(forkedSessionId, "forked");
     await handleSubmittedInput(state, runtime, "/delete-session", tui);
     await handleSubmittedInput(state, runtime, "/new-session s2", tui);
-    assert.equal(state.activeTabId, "s2");
+    const newSessionId = state.activeTabId;
+    assert.match(newSessionId, UUIDV7_SESSION_ID_PATTERN);
+    assert.notEqual(newSessionId, "s2");
     await handleSubmittedInput(state, runtime, "/close-session", tui);
     await handleSubmittedInput(state, runtime, "/theme mixcode-dark", tui);
     await handleSubmittedInput(state, runtime, "/help", tui);
@@ -336,7 +347,9 @@ test("submitted input handles prompt, shell, local commands, clear, and missing 
     assert.deepEqual(prompts.slice(1), ["/run worker task"]);
     assert.deepEqual(shellCommands, [{ command: "pwd", excludeFromContext: false }]);
     assert.deepEqual(cleared, ["s1"]);
-    assert.deepEqual(closed, ["s2"]);
+    assert.deepEqual(closed, [newSessionId]);
+    assert.deepEqual(created, [forkedSessionId, newSessionId]);
+    assert.deepEqual(forked, [forkedSessionId]);
     assert.equal(state.activeTabId, "cleared");
     assert.equal(tab.previewMessages.some((message) => message.role === "shell"), false);
     assert.ok(changes.length > 0);

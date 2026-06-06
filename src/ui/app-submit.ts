@@ -3,7 +3,7 @@ import { disposeChatRenderers } from "../agent/runtime-chat.js";
 import { MIXCODE_EXTENSION_KEYBINDINGS } from "../agent/runtime-extension-theme.js";
 import { applyContextLimit, parseContextLimitValue, adjustCompactionSettingsForLimit } from "../core/context-limit.js";
 import { parseInput } from "../core/commands.js";
-import { createTab } from "../core/defaults.js";
+import { createSessionId, createTab } from "../core/defaults.js";
 import { stringifyJson } from "../core/json.js";
 import { MIXCODE_KEYMAP } from "../core/keymap.js";
 import { findModelRef } from "../core/models.js";
@@ -125,7 +125,7 @@ export async function handleSubmittedInput(
         });
     }, 32);
   } else if (parsed.command === "new-session") {
-    const sessionId = parsed.args.trim() || `session-${Date.now()}`;
+    const sessionId = createSessionId();
     const tab = createTab(state.tabs.length + 1, sessionId, state.workdir, {
       model: { ...state.model },
       contextLimit: state.model.contextWindow,
@@ -241,7 +241,7 @@ export async function handleSubmittedInput(
         : "Reloaded keybindings, extensions, skills, prompts, and themes",
     );
   } else if (parsed.command === "fork") {
-    const sessionId = parsed.args.trim() || `${active!.sessionId}-fork-${Date.now()}`;
+    const sessionId = createSessionId();
     await runtime.forkSession(active!.sessionId, sessionId);
     const activeIndex = state.tabs.findIndex((t) => t.sessionId === state.activeTabId);
     const tab = createTab(state.tabs.length + 1, sessionId, active!.workdir, {

@@ -4,7 +4,7 @@ import { unlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import { matchesKey, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
-import { createTab } from "../core/defaults.js";
+import { createSessionId, createTab } from "../core/defaults.js";
 import {
   createSessionSelectorState,
   cycleSessionSortMode,
@@ -436,7 +436,7 @@ function resumeSelectedSession(
   closeSessionSelector(state, tui);
   // Create a new tab and switch its session to the target.
   const previousActiveTabId = state.activeTabId;
-  const newSessionId = `session-${Date.now()}`;
+  const newSessionId = createSessionId();
   const newTab = createTab(state.tabs.length + 1, newSessionId, active?.workdir ?? state.workdir, {
     model: { ...(active?.model ?? state.model) },
     contextLimit: active?.contextLimit ?? state.model.contextWindow,
@@ -463,6 +463,9 @@ function resumeSelectedSession(
         tui.requestRender();
         return;
       }
+      // Runtime replacement rewrites the tab to the real resumed session ID.
+      // Keep activeTabId aligned so registry/workspace/status see the real ID.
+      activateTab(state, newTab.sessionId);
       // Sync tab title from session name
       if (sessionName) newTab.title = sessionName;
       await onStateChanged?.(state);

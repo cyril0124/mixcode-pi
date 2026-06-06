@@ -13,6 +13,7 @@ import {
   setTheme,
   themeForId,
   themeSuggestions,
+  UUIDV7_SESSION_ID_PATTERN,
 } from "../src/index.js";
 import type { MixCodeRuntime } from "../src/index.js";
 import type { Model } from "@earendil-works/pi-ai";
@@ -344,8 +345,10 @@ test("config-scoped submitted input runs without an active agent tab", async () 
     /Quit command requires TUI stop support/,
   );
   assert.equal(state.theme, "mixcode-light");
-  assert.ok(state.tabs.some((tab) => tab.sessionId === "s1"));
-  assert.ok(state.tabs.some((tab) => /^session-\d+$/.test(tab.sessionId)));
+  assert.equal(state.tabs.some((tab) => tab.sessionId === "s1"), false);
+  assert.equal(state.tabs.some((tab) => /^session-\d+$/.test(tab.sessionId)), false);
+  assert.equal(created.length, 2);
+  assert.equal(created.every((sessionId) => UUIDV7_SESSION_ID_PATTERN.test(sessionId)), true);
   assert.deepEqual(
     created,
     state.tabs.filter((tab) => tab.sessionId !== "debug").map((tab) => tab.sessionId),

@@ -1,3 +1,4 @@
+export { createSessionId, UUIDV7_SESSION_ID_PATTERN } from "./session-ids.js";
 import { createSessionSelectorState } from "./session-selector.js";
 import { createTreeSelectorState } from "./tree-selector.js";
 import { createWorkspaceOverlayState } from "./workspace-ui.js";

@@ -14,6 +14,7 @@ import {
   defaultPiAuthPath,
   defaultPiModelsPath,
   defaultStateDir,
+  UUIDV7_SESSION_ID_PATTERN,
   saveStateFile,
   scopedStateDir,
   stateFileForPort,
@@ -30,6 +31,7 @@ test("bootstrap creates initial state and persists it when no state exists", asy
       modelConfigPath: join(dir, "missing.jsonc"),
     });
     assert.equal(state.tabs.length, 1);
+    assert.match(state.tabs[0]!.sessionId, UUIDV7_SESSION_ID_PATTERN);
     assert.ok(runtime.getTab(state.tabs[0]!.sessionId));
     assert.equal(stateFile, stateFileForPort(scopedStateDir(dir, dir), 7));
     assert.deepEqual(state.packageUpdates, []);

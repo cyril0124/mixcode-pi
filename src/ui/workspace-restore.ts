@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { createTab } from "../core/defaults.js";
+import { createSessionId, createTab } from "../core/defaults.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import { activateTab, clampHomeSelectedTabIndex, closeAgentTab } from "../core/tabs.js";
 import type { MixCodeState, MixCodeTabInfo, WorkspaceSnapshot, WorkspaceTabSnapshot } from "../core/types.js";
@@ -49,17 +49,7 @@ export async function restoreWorkspace(
       continue;
     }
     if (!existsSync(item.sessionPath)) {
-      // Session file may never have been persisted (no assistant messages yet).
-      // Create a fresh tab instead of reporting missing.
-      const created = createWorkspaceRuntimeTab(state, item, index);
-      state.tabs.push(created);
-      await runtime.createTab(created, {
-        systemPrompt: MIXCODE_SYSTEM_PROMPT,
-        thinkingLevel: created.thinkingLevel,
-        workdir: created.workdir,
-      });
-      applyWorkspaceTabMetadata(created, item);
-      restoredTabs.push({ item, tab: created });
+      missing.push(item.title || item.sessionId);
       continue;
     }
     const created = createWorkspaceRuntimeTab(state, item, index);
@@ -127,7 +117,7 @@ function createWorkspaceRuntimeTab(
   item: WorkspaceTabSnapshot,
   index: number,
 ): MixCodeTabInfo {
-  return createTab(state.tabs.length + 1, `workspace-${Date.now()}-${index}`, item.workdir || state.workdir, {
+  return createTab(state.tabs.length + 1, createSessionId(), item.workdir || state.workdir, {
     title: item.title || `Agent-${String(index + 1).padStart(2, "0")}`,
     model: item.model ? { ...item.model } : { ...state.model },
     contextLimit: item.model?.contextWindow ?? state.model.contextWindow,

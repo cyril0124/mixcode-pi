@@ -12,7 +12,7 @@ import {
 } from "../core/batch-lua.js";
 import { disposeChatRenderers } from "../agent/runtime-chat.js";
 import { parseInput } from "../core/commands.js";
-import { createTab } from "../core/defaults.js";
+import { createSessionId, createTab } from "../core/defaults.js";
 import { findModelRef } from "../core/models.js";
 import { buildModelPrompt } from "../core/prompt-build.js";
 import {
@@ -133,7 +133,7 @@ export async function main(): Promise<void> {
         return tab ? { sessionId: tab.sessionId } : undefined;
       },
       async createNewTab(request) {
-        const sessionId = `batch-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const sessionId = createSessionId();
         const model = request.model ? findModelRef(state.availableModels, request.model) : state.model;
         const thinking = (request.thinking as any) ?? state.thinkingLevel;
         const workdir = request.workdir ?? state.workdir;
