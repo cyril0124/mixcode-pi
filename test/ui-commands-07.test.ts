@@ -13,7 +13,6 @@ import {
   renderConfig,
   renderInputMeta,
   renderPickerOverlay,
-  renderQuestionOverlay,
   tabBarHitRegions,
   setTheme,
   themeForId,

@@ -158,7 +158,7 @@ export interface MixCodeTabInfo {
   toast?: ToastNotification;
 }
 
-export type PendingEscapeAction = "abort-agent" | "reject-question";
+export type PendingEscapeAction = "abort-agent";
 
 export type InputMetaAction = "workdir" | "models" | "thinking";
 

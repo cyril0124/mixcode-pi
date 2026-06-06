@@ -1,10 +1,11 @@
-import { matchesKey } from "@earendil-works/pi-tui";
+import { Key, matchesKey } from "@earendil-works/pi-tui";
 import { MIXCODE_EXTENSION_KEYBINDINGS_MANAGER } from "../agent/runtime.js";
 import {
   closeCommandPalette,
   closeTabJump,
   openCommandPalette,
   openTabJump,
+  scrollChat,
 } from "../core/overlays.js";
 import { buildModelPrompt } from "../core/prompt-build.js";
 import { getKnownSkillsFromTab, getPromptTemplatesFromTab } from "./app-submit.js";
@@ -22,7 +23,6 @@ import {
   handleChatSelectionMouseInput,
   handleMouseInput,
   handlePreviewKey,
-  handleQuestionKey,
   handleQueuedFlushKey,
   handleQuitConfirmKey,
   handleStreamingAbortKey,
@@ -100,13 +100,6 @@ export function handleMixCodeKeyInput(
     return undefined;
   }
   if (active && handleQueuedFlushKey(state, active, data, tui, runtime, isEditorAutocompleteOpen)) {
-    return { consume: true };
-  }
-  if (
-    active?.pendingDialogs.length &&
-    handleQuestionKey(state, active, data, tui, runtime, onStateChanged)
-  ) {
-    clearPendingEscape(active, "abort-agent");
     return { consume: true };
   }
   if (
@@ -329,6 +322,16 @@ export function handleMixCodeKeyInput(
   if (
     active &&
     state.activeTabId !== "config" &&
+    active.extensionUi.pendingUserInteractions.length > 0 &&
+    handleExtensionInteractionChatScrollKey(active, data)
+  ) {
+    clearPendingEscape(active, "abort-agent");
+    tui.requestRender();
+    return { consume: true };
+  }
+  if (
+    active &&
+    state.activeTabId !== "config" &&
     runtime?.hasExtensionCustomOverlay?.(active.sessionId)
   ) {
     runtime.focusExtensionCustomOverlay?.(active.sessionId);
@@ -518,6 +521,15 @@ function hasFocusedAppControl(
       active?.previewOpen ||
       active?.pendingDialogs.length,
   );
+}
+
+function handleExtensionInteractionChatScrollKey(
+  active: MixCodeState["tabs"][number],
+  data: string,
+): boolean {
+  if (matchesKey(data, Key.shift("up"))) return scrollChat(active, 3);
+  if (matchesKey(data, Key.shift("down"))) return scrollChat(active, -3);
+  return false;
 }
 
 function shouldRouteLineBoundaryKeyToEditor(

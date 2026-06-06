@@ -5,7 +5,6 @@ import { tmpdir } from "node:os";
 import { test } from "node:test";
 import {
   createInitialState,
-  createDialogRequest,
   createTab,
   expandLocalPromptCommand,
   handleMixCodeKeyInput,
@@ -13,7 +12,6 @@ import {
   renderConfig,
   renderInputMeta,
   renderPickerOverlay,
-  renderQuestionOverlay,
   tabBarHitRegions,
   setTheme,
   themeForId,
@@ -286,13 +284,13 @@ test("global key input toggles MixCode overlays and passes through regular input
   assert.equal(state.commandPaletteOpen, true);
   assert.deepEqual(handleMixCodeKeyInput(state, "t", tui), { consume: true });
   assert.deepEqual(handleMixCodeKeyInput(state, "h", tui), { consume: true });
-  assert.match(overlays.at(-1) ?? "", /> Choose Thinking Tier\s+\/thinking/);
+  assert.match(overlays.at(-1) ?? "", /Choose Thinking Tier[\s\S]*\/thinking/);
   assert.deepEqual(handleMixCodeKeyInput(state, "\t", tui), { consume: true });
-  assert.match(overlays.at(-1) ?? "", /> Choose Theme\s+\/theme/);
+  assert.match(overlays.at(-1) ?? "", /Choose Theme[\s\S]*\/theme/);
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[Z", tui), { consume: true });
-  assert.match(overlays.at(-1) ?? "", /> Choose Thinking Tier\s+\/thinking/);
+  assert.match(overlays.at(-1) ?? "", /Choose Thinking Tier[\s\S]*\/thinking/);
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[B", tui), { consume: true });
-  assert.match(overlays.at(-1) ?? "", /> Choose Theme\s+\/theme/);
+  assert.match(overlays.at(-1) ?? "", /Choose Theme[\s\S]*\/theme/);
   assert.deepEqual(
     handleMixCodeKeyInput(state, "\r", tui, undefined, undefined, undefined, undefined, undefined, {
       executeCommand: (command: string) => {

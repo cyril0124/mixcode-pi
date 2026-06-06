@@ -5,7 +5,6 @@ import { tmpdir } from "node:os";
 import { test } from "node:test";
 import {
   createInitialState,
-  createDialogRequest,
   createTab,
   expandLocalPromptCommand,
   handleMixCodeKeyInput,
@@ -14,7 +13,6 @@ import {
   renderHotkeysText,
   renderInputMeta,
   renderPickerOverlay,
-  renderQuestionOverlay,
   tabBarHitRegions,
   setTheme,
   themeForId,

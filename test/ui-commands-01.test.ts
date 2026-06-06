@@ -5,7 +5,6 @@ import { tmpdir } from "node:os";
 import { test } from "node:test";
 import {
   createInitialState,
-  createDialogRequest,
   createTab,
   expandLocalPromptCommand,
   handleMixCodeKeyInput,
@@ -13,7 +12,6 @@ import {
   renderConfig,
   renderInputMeta,
   renderPickerOverlay,
-  renderQuestionOverlay,
   setStateModel,
   setTabModel,
   tabBarHitRegions,
@@ -86,52 +84,6 @@ test("prompt templates expand supported local slash commands", () => {
   assert.equal(expandLocalPromptCommand("plan-to-file", "ship"), undefined);
   assert.equal(expandLocalPromptCommand("update-agents-md", "prefer tests"), undefined);
   assert.equal(expandLocalPromptCommand("other", ""), undefined);
-});
-
-test("question overlay renders pending request details and empty states", () => {
-  const tab = createTab(1, "s1", "/repo");
-  assert.deepEqual(renderQuestionOverlay(tab, 80), []);
-  tab.pendingDialogs.push(createDialogRequest("r1", "s1", []));
-  assert.match(renderQuestionOverlay(tab, 80).join("\n"), /No pending question details/);
-  tab.pendingDialogs[0] = createDialogRequest("r2", "s1", [
-    {
-      header: "Confirm",
-      question: "Proceed?",
-      options: [{ label: "Yes", description: "Continue" }],
-      multiple: false,
-      custom: true,
-    },
-  ]);
-  const rendered = renderQuestionOverlay(tab, 80).join("\n");
-  assert.match(rendered, /Proceed/);
-  assert.match(rendered, /> \[ \] Yes/);
-  assert.match(rendered, / {2}\[ \] Custom: \(empty\)/);
-  tab.pendingDialogs[0].selectedAnswers[0] = ["Yes"];
-  tab.pendingDialogs[0].customAnswers[0] = "Go";
-  assert.match(renderQuestionOverlay(tab, 80).join("\n"), /> \[x\] Yes/);
-  assert.match(renderQuestionOverlay(tab, 80).join("\n"), / {2}\[ \] Custom: Go/);
-  tab.pendingDialogs[0].highlightedOptionIndices[0] = 1;
-  tab.pendingDialogs[0].editingCustomIndex = 0;
-  assert.match(renderQuestionOverlay(tab, 80).join("\n"), /> \[\*\] Custom: Go/);
-  tab.pendingDialogs[0] = createDialogRequest("r2b", "s1", [
-    {
-      header: "Confirm",
-      question: "Which?",
-      options: [
-        { label: "Yes", description: "Continue" },
-        { label: "No", description: "Stop" },
-      ],
-      multiple: false,
-      custom: false,
-    },
-  ]);
-  tab.pendingDialogs[0].highlightedOptionIndices[0] = 1;
-  assert.match(renderQuestionOverlay(tab, 80).join("\n"), / {2}\[ \] Yes/);
-  assert.match(renderQuestionOverlay(tab, 80).join("\n"), /> \[ \] No/);
-  tab.pendingDialogs[0] = createDialogRequest("r3", "s1", [
-    { header: "Empty", question: "Explain?", options: [], multiple: false, custom: false },
-  ]);
-  assert.match(renderQuestionOverlay(tab, 80).join("\n"), /No options/);
 });
 
 test("submitted input handles compact and validates theme", async () => {

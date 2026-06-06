@@ -1,5 +1,4 @@
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
-import { isPendingEscapeActive } from "../../core/escape.js";
 import {
   commandPaletteEntriesWithExtensions,
   filterTabJumpEntries,
@@ -13,56 +12,6 @@ import { tabStatusGlyph } from "./chrome.js";
 import { activeRenderTheme, renderWithTheme } from "./context.js";
 import { centerLine } from "./layout.js";
 import { box, overlayPanel, padLine, panelBox, renderBoxTop } from "./primitives.js";
-
-export function renderQuestionOverlay(
-  tab: MixCodeTabInfo,
-  width: number,
-  theme: MixCodeTheme = activeRenderTheme,
-): string[] {
-  return renderWithTheme(theme, () => renderQuestionOverlayInner(tab, width));
-}
-
-function renderQuestionOverlayInner(tab: MixCodeTabInfo, width: number): string[] {
-  const request = tab.pendingDialogs[0];
-  if (!request) return [];
-  const innerWidth = Math.max(1, width - 2);
-  const question = request.questions[request.currentQuestionIndex];
-  if (!question) return renderQuestionPanel(["No pending question details"], width);
-  const highlighted = request.highlightedOptionIndices[request.currentQuestionIndex] ?? 0;
-  const selected = new Set(request.selectedAnswers[request.currentQuestionIndex] ?? []);
-  const options = question.options.length
-    ? question.options.map((option, index) => {
-        const marker = index === highlighted ? ">" : " ";
-        const checkbox = selected.has(option.label) ? "x" : " ";
-        const body = `${marker} [${checkbox}] ${option.label}${option.description ? `  ${activeRenderTheme.dim(option.description)}` : ""}`;
-        return index === highlighted
-          ? activeRenderTheme.selection(padLine(body, innerWidth))
-          : body;
-      })
-    : [activeRenderTheme.dim("  No options")];
-  const customSelected = question.custom && highlighted === question.options.length;
-  const customEditing = request.editingCustomIndex === request.currentQuestionIndex;
-  const customPrefix = customSelected ? ">" : " ";
-  const customValue = request.customAnswers[request.currentQuestionIndex] || "(empty)";
-  const customLine = `${customPrefix} [${customEditing ? "*" : " "}] Custom: ${customValue}`;
-  const custom = question.custom
-    ? [customSelected ? activeRenderTheme.selection(padLine(customLine, innerWidth)) : customLine]
-    : [];
-  const escapeHint = isPendingEscapeActive(tab, "reject-question")
-    ? "Esc again: reject question"
-    : "Esc: arm reject";
-  const hints = [
-    activeRenderTheme.dim(
-      "h/l: question  up/down: option/custom  space/enter: toggle/edit  y: send  n: reject",
-    ),
-    activeRenderTheme.dim(escapeHint),
-  ];
-  const title = `${question.header}  ${request.currentQuestionIndex + 1}/${request.questions.length}`;
-  return renderQuestionPanel(
-    [activeRenderTheme.accent(title), question.question, "", ...options, ...custom, "", ...hints],
-    width,
-  );
-}
 
 export function renderPreviewOverlay(
   tab: MixCodeTabInfo,
@@ -598,10 +547,6 @@ function renderContextLimitCustomInput(
   return overlayPanel(picker.title, lines, width);
 }
 
-function renderQuestionPanel(lines: string[], width: number): string[] {
-  const rule = activeRenderTheme.accent("─".repeat(Math.max(1, width)));
-  return [rule, ...lines.map((line) => padLine(` ${line}`, width)), rule];
-}
 
 function exportChooserItems(): Array<{ key: string; label: string }> {
   return [

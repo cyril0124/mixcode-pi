@@ -239,14 +239,7 @@ test(undefined, () => {
     new Set(MIXCODE_KEYMAP.map((item) => item.scope ?? "global")).has("global"),
     true,
   );
-  for (const scope of [
-    "picker",
-    "command-palette",
-    "tab-jump",
-    "export",
-    "question",
-    "preview",
-  ]) {
+  for (const scope of ["picker", "command-palette", "tab-jump", "export", "preview"]) {
     assert.equal(
       MIXCODE_KEYMAP.some((item) => item.scope === scope),
       true,
@@ -257,12 +250,6 @@ test(undefined, () => {
       true,
     );
   }
-  assert.ok(
-    MIXCODE_KEYMAP.some(
-      (item) =>
-        item.scope === "question" && item.key === "escape" && item.action === "question-reject",
-    ),
-  );
   assert.ok(MIXCODE_KEYMAP.some((item) => item.scope === "preview" && item.key === "g/G"));
   assert.match(
     renderExportText("chatlog --editor", {

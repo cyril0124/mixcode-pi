@@ -5,7 +5,6 @@ import { tmpdir } from "node:os";
 import { test } from "node:test";
 import {
   createInitialState,
-  createDialogRequest,
   createTab,
   expandLocalPromptCommand,
   handleMixCodeKeyInput,
@@ -13,7 +12,6 @@ import {
   renderConfig,
   renderInputMeta,
   renderPickerOverlay,
-  renderQuestionOverlay,
   tabBarHitRegions,
   setTheme,
   themeForId,
@@ -44,242 +42,24 @@ async function waitFor<T>(read: () => Promise<T>, attempts = 25): Promise<T> {
   throw lastError;
 }
 
-test("global key input resolves extension dialog questions without prompting the model", async () => {
+test("global key input scrolls chat with Shift+Up/Down during extension user interactions", () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo");
-  tab.pendingDialogs.push(
-    createDialogRequest(
-      "extension-ui-select-1",
-      "s1",
-      [
-        {
-          header: "Pick",
-          question: "Choose",
-          options: [
-            { label: "A", description: "Alpha" },
-            { label: "B", description: "Beta" },
-          ],
-          multiple: false,
-          custom: false,
-        },
-      ],
-      { extensionResolverId: "extension-ui-select-1", extensionUiKind: "select" },
-    ),
-  );
+  tab.extensionUi.pendingUserInteractions.push({ id: "ask-user-question", kind: "custom" });
   state.tabs.push(tab);
   state.activeTabId = "s1";
-  let resolved: unknown;
-  let prompted = false;
-  const changes: string[] = [];
-  const runtime = {
-    prompt: async () => {
-      prompted = true;
-    },
-    resolveExtensionDialog: (_sessionId: string, requestId: string, result: unknown) => {
-      resolved = result;
-      const index = tab.pendingDialogs.findIndex((request) => request.requestId === requestId);
-      if (index !== -1) tab.pendingDialogs.splice(index, 1);
-      return true;
-    },
-  };
+  let renders = 0;
   const tui = {
-    requestRender: () => undefined,
+    requestRender: () => renders++,
     showOverlay: () => ({}) as never,
-    hideOverlay: () => undefined,
-    hasOverlay: () => false,
+    hasOverlay: () => true,
   };
 
-  assert.deepEqual(handleMixCodeKeyInput(state, "j", tui, undefined, runtime), { consume: true });
-  assert.deepEqual(
-    handleMixCodeKeyInput(state, " ", tui, undefined, runtime, () => changes.push("changed")),
-    { consume: true },
-  );
-  assert.equal(resolved, "B");
-  assert.equal(prompted, false);
-  assert.equal(tab.pendingDialogs.length, 0);
-  assert.deepEqual(changes, ["changed"]);
-
-  tab.pendingDialogs.push(
-    createDialogRequest(
-      "extension-ui-input-1",
-      "s1",
-      [{ header: "Name", question: "Type name", options: [], multiple: false, custom: true }],
-      { extensionResolverId: "extension-ui-input-1", extensionUiKind: "input" },
-    ),
-  );
-  tab.pendingDialogs[0]!.editingCustomIndex = 0;
-  for (const char of "Neo") {
-    assert.deepEqual(handleMixCodeKeyInput(state, char, tui, undefined, runtime), {
-      consume: true,
-    });
-  }
-  assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui, undefined, runtime), { consume: true });
-  assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui, undefined, runtime), { consume: true });
-  assert.equal(resolved, "Neo");
-
-  tab.pendingDialogs.push(
-    createDialogRequest(
-      "extension-ui-input-empty",
-      "s1",
-      [{ header: "Name", question: "Type name", options: [], multiple: false, custom: true }],
-      { extensionResolverId: "extension-ui-input-empty", extensionUiKind: "input" },
-    ),
-  );
-  assert.deepEqual(handleMixCodeKeyInput(state, "y", tui, undefined, runtime), { consume: true });
-  assert.equal(resolved, "");
-
-  tab.pendingDialogs.push(
-    createDialogRequest(
-      "extension-ui-select-empty",
-      "s1",
-      [{ header: "Pick", question: "Choose", options: [], multiple: false, custom: false }],
-      { extensionResolverId: "extension-ui-select-empty", extensionUiKind: "select" },
-    ),
-  );
-  assert.deepEqual(handleMixCodeKeyInput(state, "y", tui, undefined, runtime), { consume: true });
-  assert.equal(resolved, undefined);
-
-  tab.pendingDialogs.push(
-    createDialogRequest(
-      "extension-ui-select-sparse",
-      "s1",
-      [{ header: "Pick", question: "Choose", options: [], multiple: false, custom: false }],
-      { extensionResolverId: "extension-ui-select-sparse", extensionUiKind: "select" },
-    ),
-  );
-  tab.pendingDialogs[0]!.selectedAnswers = [];
-  tab.pendingDialogs[0]!.customAnswers = [];
-  assert.deepEqual(handleMixCodeKeyInput(state, "y", tui, undefined, runtime), { consume: true });
-  assert.equal(resolved, undefined);
-
-  tab.pendingDialogs.push(
-    createDialogRequest(
-      "extension-ui-input-sparse-index",
-      "s1",
-      [
-        {
-          header: "First",
-          question: "Skip this one",
-          options: [{ label: "A", description: "" }],
-          multiple: false,
-          custom: false,
-        },
-        { header: "Name", question: "Type name", options: [], multiple: false, custom: true },
-      ],
-      { extensionResolverId: "extension-ui-input-sparse-index", extensionUiKind: "input" },
-    ),
-  );
-  tab.pendingDialogs[0]!.selectedAnswers = [["A"]];
-  tab.pendingDialogs[0]!.customAnswers = ["ignored"];
-  assert.deepEqual(handleMixCodeKeyInput(state, "l", tui, undefined, runtime), { consume: true });
-  assert.equal(tab.pendingDialogs[0]?.currentQuestionIndex, 1);
-  assert.deepEqual(handleMixCodeKeyInput(state, "y", tui, undefined, runtime), { consume: true });
-  assert.equal(resolved, "");
-
-  tab.pendingDialogs.push(
-    createDialogRequest(
-      "extension-ui-missing-runtime",
-      "s1",
-      [{ header: "Pick", question: "Choose", options: [], multiple: false, custom: false }],
-      { extensionResolverId: "extension-ui-missing-runtime", extensionUiKind: "select" },
-    ),
-  );
-  assert.throws(() => handleMixCodeKeyInput(state, "y", tui), /runtime resolver support/);
-  tab.pendingDialogs = [];
-
-  tab.pendingDialogs.push(
-    createDialogRequest(
-      "extension-ui-confirm-1",
-      "s1",
-      [
-        {
-          header: "Confirm",
-          question: "Proceed?",
-          options: [
-            { label: "Yes", description: "" },
-            { label: "No", description: "" },
-          ],
-          multiple: false,
-          custom: false,
-        },
-      ],
-      { extensionResolverId: "extension-ui-confirm-1", extensionUiKind: "confirm" },
-    ),
-  );
-  assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui, undefined, runtime), { consume: true });
-  assert.equal(resolved, "Yes");
-  assert.equal(tab.pendingDialogs.length, 0);
-
-  tab.pendingDialogs.push(
-    createDialogRequest(
-      "extension-ui-confirm-esc",
-      "s1",
-      [
-        {
-          header: "Confirm",
-          question: "Proceed?",
-          options: [
-            { label: "Yes", description: "" },
-            { label: "No", description: "" },
-          ],
-          multiple: false,
-          custom: false,
-        },
-      ],
-      { extensionResolverId: "extension-ui-confirm-esc", extensionUiKind: "confirm" },
-    ),
-  );
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime), {
-    consume: true,
-  });
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime), {
-    consume: true,
-  });
-  assert.equal(resolved, undefined);
-  assert.equal(tab.pendingDialogs.length, 0);
-
-  tab.status = "thinking";
-  tab.pendingDialogs.push(
-    createDialogRequest(
-      "extension-ui-confirm-running-esc",
-      "s1",
-      [
-        {
-          header: "Confirm",
-          question: "Proceed?",
-          options: [
-            { label: "Yes", description: "" },
-            { label: "No", description: "" },
-          ],
-          multiple: false,
-          custom: false,
-        },
-      ],
-      {
-        extensionResolverId: "extension-ui-confirm-running-esc",
-        extensionUiKind: "confirm",
-      },
-    ),
-  );
-  let aborts = 0;
-  const streamingRuntime = {
-    ...runtime,
-    getTab: () => ({ agent: { state: { isStreaming: true } } }),
-    abortTab: () => {
-      aborts++;
-      return true;
-    },
-  };
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui, undefined, streamingRuntime), {
-    consume: true,
-  });
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui, undefined, streamingRuntime), {
-    consume: true,
-  });
-  assert.equal(resolved, undefined);
-  assert.equal(tab.pendingDialogs.length, 0);
-  assert.equal(tab.pendingEscapeAction, undefined);
-  assert.equal(aborts, 0);
+  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[1;2A", tui), { consume: true });
+  assert.equal(tab.chatScrollOffset, 3);
+  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[1;2B", tui), { consume: true });
+  assert.equal(tab.chatScrollOffset, 0);
+  assert.equal(renders, 2);
 });
 
 test("escape flushes queued messages immediately when the active tab is idle", async () => {

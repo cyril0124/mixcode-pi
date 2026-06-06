@@ -122,31 +122,6 @@ export const MIXCODE_KEYMAP: KeyAction[] = [
   },
   { key: "enter", action: "export-open", description: "Open selected export", scope: "export" },
   { key: "escape", action: "export-close", description: "Close export chooser", scope: "export" },
-  { key: "h/l", action: "question-page", description: "Move between questions", scope: "question" },
-  {
-    key: "j/k",
-    action: "question-option",
-    description: "Move highlighted answer option",
-    scope: "question",
-  },
-  {
-    key: "enter/space",
-    action: "question-toggle",
-    description: "Toggle highlighted answer option",
-    scope: "question",
-  },
-  {
-    key: "y/n",
-    action: "question-submit",
-    description: "Submit or reject question answer",
-    scope: "question",
-  },
-  {
-    key: "escape",
-    action: "question-reject",
-    description: "First Esc asks for confirmation, second Esc rejects",
-    scope: "question",
-  },
   {
     key: "h/l",
     action: "preview-message",

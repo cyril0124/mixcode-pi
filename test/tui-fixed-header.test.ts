@@ -13,7 +13,6 @@ import {
   fitTailLines,
   renderAgentSurface,
   renderCommandPalette,
-  renderQuestionOverlay,
   renderTabJumpOverlay,
   renderFixedTopViewport,
 } from "../src/ui/rendering.js";
@@ -762,33 +761,10 @@ test("key handling covers app overlay handles", () => {
 
 test("rendering overlay defaults cover closed and fallback branches", () => {
   const state = createInitialState("/repo");
-  const tab = createTab(1, "s1", "/repo", {
-    pendingDialogs: [
-      {
-        requestId: "q",
-        sessionId: "s1",
-        questions: [
-          {
-            header: "H",
-            question: "Q",
-            options: [{ label: "A", description: "Alpha" }],
-            multiple: false,
-            custom: false,
-          },
-        ],
-        currentQuestionIndex: 0,
-        highlightedOptionIndices: [],
-        selectedAnswers: [],
-        customAnswers: [],
-        dirty: false,
-      },
-    ],
-  });
-  assert.match(renderQuestionOverlay(tab, 80).join("\n"), /> \[ \] A/);
   assert.deepEqual(renderCommandPalette(state, 80), []);
   assert.deepEqual(renderTabJumpOverlay(state, 80), []);
   openCommandPalette(state);
-  assert.match(renderCommandPalette(state, 80).join("\n"), /Search commands/);
+  assert.match(renderCommandPalette(state, 80).join("\n"), /Command Palette/);
 });
 
 test("handleMixCodeKeyInput lets q pass through to the editor", () => {

@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   createInitialState,
-  createDialogRequest,
   createTab,
   expandLocalPromptCommand,
   handleMixCodeKeyInput,
@@ -10,7 +9,6 @@ import {
   renderConfig,
   renderInputMeta,
   renderPickerOverlay,
-  renderQuestionOverlay,
   tabBarHitRegions,
   setTheme,
   themeForId,

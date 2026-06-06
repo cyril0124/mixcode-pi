@@ -94,7 +94,7 @@ MixCodeRuntime
 │ Chat                         │ TODO Board                  │
 │ user / assistant / tool      │ optional                    │
 ├──────────────────────────────┴─────────────────────────────┤
-│ Shell / Markdown Preview / Question overlays                │
+│ Shell / Markdown Preview overlays                           │
 ├────────────────────────────────────────────────────────────┤
 │ > prompt editor                                             │
 ├────────────────────────────────────────────────────────────┤
@@ -119,11 +119,11 @@ Config tab 只渲染配置面板和可点击操作，不渲染 prompt editor；�
 | `Alt+Up` / `Ctrl+U` | 将最后一条 queued prompt 弹回编辑器；没有队列时不抢占 Editor |
 | `Ctrl+V` | Markdown preview |
 | `@` | 打开 mixcode 风格全局文件 picker，选择后插入 `@path ` |
-| `Esc` | 关闭 overlay、preview 或 tab jump；question 场景第一次显示确认提示，第二次拒绝问题；shell 场景单次关闭 shell |
+| `Esc` | 关闭 overlay、preview 或 tab jump；shell 场景单次关闭 shell |
 | `Ctrl+Q` | 打开退出确认；`y` 确认、`n`/`Esc` 取消；`/quit` 和 `/exit` 直接退出，不弹确认 |
 | `q` | 普通输入字符，不绑定退出，避免破坏 prompt 输入 |
 
-`src/core/keymap.ts` 是带作用域的可审计 keymap，不只记录全局键。`global` 作用域覆盖主输入表面，`file-picker`、`picker`、`command-palette`、`tab-jump`、`export`、`question`、`preview`、`shell` 作用域覆盖 overlay 或局部交互；`describeKeymap()` 保持旧的简短输出，`describeScopedKeymap()` 用于审计完整局部键表。
+`src/core/keymap.ts` 是带作用域的可审计 keymap，不只记录全局键。`global` 作用域覆盖主输入表面，`file-picker`、`picker`、`command-palette`、`tab-jump`、`export`、`preview`、`shell` 作用域覆盖 overlay 或局部交互；`describeKeymap()` 保持旧的简短输出，`describeScopedKeymap()` 用于审计完整局部键表。
 
 ```text
 key input
@@ -139,7 +139,6 @@ key input
        ├─ command-palette: Tab Shift+Tab Up Down Enter Esc
        ├─ tab-jump:        Tab Shift+Tab Up Down Enter Esc
        ├─ export:          Tab Shift+Tab T/C/A/U Enter Esc
-       ├─ question:        h/l j/k Space Enter y/n double-Esc
        ├─ preview:         h/l j/k g/G Home End Esc
        └─ shell:           Up Down PageUp PageDown Home End Esc
 ```
@@ -196,20 +195,12 @@ Ctrl+P
 ```text
 completion/picker/tab-jump/export overlay 打开
 preview overlay 打开
-pending question 等待回答
 当前 tab 没有可用 palette command
 ```
 
-Question 保留双 `Esc` 保护语义；shell 按当前 MixCode 交互要求单 `Esc` 关闭：
+shell 按当前 MixCode 交互要求单 `Esc` 关闭：
 
 ```text
-Question overlay
-  Enter/Space ──> toggle highlighted option
-  Esc #1 ──> pendingEscapeAction = reject-question
-             UI: Esc again: reject question
-  Esc #2 ──> runtime.prompt(buildDialogRejectionPrompt)
-             pendingDialogs.shift()
-
 Shell overlay
   Esc ──> ShellManager.close(tab)
           shellOpen = false
@@ -310,10 +301,10 @@ npm run check
 当前测试覆盖重点：
 
 ```text
-core state        commands / tabs / overlays / command palette / questions / workspace
+core state        commands / tabs / overlays / command palette / workspace
 agent runtime     session repo / stream events / tools / compaction
 ui rendering      header / tabs / status / command palette / export
-ui input          global keys / tab jump / export chooser / question flow
+ui input          global keys / tab jump / export chooser
 bootstrap         initial state / persisted restore / completion sources
 ```
 

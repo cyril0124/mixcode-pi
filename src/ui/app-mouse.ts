@@ -46,6 +46,11 @@ export function handleMouseInput(
     tui.requestRender();
     return true;
   }
+  if (mouse.wheel && active.extensionUi.pendingUserInteractions.length > 0) {
+    scrollChat(active, mouse.wheel === "up" ? 3 : -3);
+    tui.requestRender();
+    return true;
+  }
   if (hasAnyOverlay(tui)) return false;
   if (handleChatSelectionMouseInput(state, active, data, tui, runtime, copyToClipboard)) {
     return true;

@@ -15,7 +15,6 @@ import {
   renderHeader,
   renderInputMeta,
   renderPreviewOverlay,
-  renderQuestionOverlay,
   renderStatus,
   renderTabBar,
   renderWorkingIndicator,
@@ -57,8 +56,7 @@ export class MixCodeRoot implements Component {
     top.push(...renderStatus(active, width, theme));
     const contentGap = [padLine("", width)];
     const preview = renderPreviewOverlay(active, width, theme);
-    const question = renderQuestionOverlay(active, width, theme);
-    const bottomBeforeMeta = [...preview, ...question];
+    const bottomBeforeMeta = [...preview];
     const viewportRows = this.getViewportRows?.();
     if (!viewportRows) {
       const middle = renderAgentSurface(active, runtimeTab, width, undefined, theme);

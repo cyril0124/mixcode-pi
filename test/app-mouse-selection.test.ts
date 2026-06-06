@@ -44,3 +44,21 @@ test("handleMouseInput keeps wheel scrolling separate from selection", () => {
   );
   assert.equal(tab.chatSelection, undefined);
 });
+
+test("handleMouseInput scrolls chat wheel during extension user interaction overlays", () => {
+  const { state, tab } = setup();
+  tab.extensionUi.pendingUserInteractions.push({ id: "ask-user-question", kind: "custom" });
+  let renders = 0;
+  const tui = {
+    requestRender: () => renders++,
+    showOverlay: () => ({ hide: () => undefined }) as never,
+    hasOverlay: () => true,
+  };
+
+  assert.equal(
+    handleMouseInput(state, tab, "\x1b[<64;2;6M", tui, undefined, undefined, async () => undefined),
+    true,
+  );
+  assert.equal(tab.chatScrollOffset, 3);
+  assert.equal(renders, 1);
+});
