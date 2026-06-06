@@ -151,7 +151,34 @@ export class MixCodeLayoutRoot implements Component {
         : 0;
     const controlTopGapRows = editorLines.length > 0 ? WORKING_GAP_ROWS : 0;
     const workingBottomGapRows = workingLines.length > 0 ? WORKING_GAP_ROWS : 0;
-    this.setEditorRows(editorLines.length);
+    const viewportRowsForClamp = this.getViewportRows?.();
+    // Clamp editor lines so extension editor components (e.g. the btw answer
+    // pager) cannot overflow the terminal and push the tab bar into scrollback.
+    // Reserve exactly the main region's tab-bar rows: when the editor is large,
+    // MixCodeRoot self-clamps to emit only its fixed top (tabBarHitRow rows) and
+    // drops its internal content gap, so reserving more would needlessly cut the
+    // editor component's own bottom chrome (e.g. the btw bottom border).
+    // Fall back to 1 (single tab-bar row) before the first frame sets the value.
+    const mainTopReserve = this.state.tabBarHitRow ?? 1;
+    const clampedEditorLines = viewportRowsForClamp
+      ? editorLines.slice(
+          0,
+          Math.max(
+            1,
+            viewportRowsForClamp -
+              mainTopReserve -
+              controlTopGapRows -
+              workingLines.length -
+              workingBottomGapRows -
+              widgetsAboveBottomGapRows -
+              widgetsAbove.length -
+              widgetsBelow.length -
+              metaProbe.length -
+              renderFooter(width).length,
+          ),
+        )
+      : editorLines;
+    this.setEditorRows(clampedEditorLines.length);
     this.setMetaRows(
       controlTopGapRows +
         workingLines.length +
@@ -174,7 +201,7 @@ export class MixCodeLayoutRoot implements Component {
             workingLines.length -
             workingBottomGapRows -
             widgetsAboveBottomGapRows -
-            editorLines.length -
+            clampedEditorLines.length -
             widgetsBelow.length -
             metaProbe.length -
             footerLines.length,
@@ -190,7 +217,7 @@ export class MixCodeLayoutRoot implements Component {
       workingLines.length +
       workingBottomGapRows +
       widgetsAboveBottomGapRows +
-      editorLines.length +
+      clampedEditorLines.length +
       widgetsBelow.length +
       1;
     const metaLines =
@@ -205,7 +232,7 @@ export class MixCodeLayoutRoot implements Component {
       ...Array.from({ length: widgetsAboveBottomGapRows }, () => padLine("", width)),
       ...workingLines,
       ...Array.from({ length: workingBottomGapRows }, () => padLine("", width)),
-      ...editorLines,
+      ...clampedEditorLines,
       ...widgetsBelow,
       ...metaLines,
       ...footerLines,
