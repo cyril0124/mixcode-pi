@@ -157,7 +157,7 @@ export function acceptTabJumpSelection(state: MixCodeState): string {
 function clampTabJumpIndex(state: MixCodeState, index: number): number {
   const entries = filterTabJumpEntries(state, state.tabJumpQuery);
   if (!entries.length) return 0;
-  return Math.min(Math.max(index, 0), entries.length - 1);
+  return ((index % entries.length) + entries.length) % entries.length;
 }
 
 export function commandPaletteEntries(state: MixCodeState): CommandPaletteEntry[] {
