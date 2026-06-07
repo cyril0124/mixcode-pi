@@ -361,6 +361,10 @@ export async function createRuntimeServices(
   if (services.diagnostics.some((diagnostic) => diagnostic.type === "error")) {
     throw new Error(services.diagnostics.map((diagnostic) => diagnostic.message).join("\n"));
   }
+  // Multiple Enter submissions queued during a running turn should be delivered
+  // together on the next steering drain. applyOverrides is session-local, so this
+  // default does not rewrite user Pi settings.
+  services.settingsManager.applyOverrides({ steeringMode: "all" });
   configureMixCodeRetrySettings(services.settingsManager);
   servicesRef = services;
   extensionManagerEntriesByServices.set(services, latestExtensionManagerEntries);

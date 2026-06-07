@@ -196,15 +196,19 @@ function streamAssistantMessage(message: AssistantMessage) {
   return stream;
 }
 
+function runtimeUserTexts(context: Context): string[] {
+  return context.messages
+    .filter((message) => message.role === "user")
+    .map((message) => {
+      if (typeof message.content === "string") return message.content;
+      return message.content
+        .map((block) => (block.type === "text" ? block.text : "[image]"))
+        .join("\n");
+    });
+}
+
 function lastRuntimeUserText(context: Context): string {
-  for (const message of [...context.messages].reverse()) {
-    if (message.role !== "user") continue;
-    if (typeof message.content === "string") return message.content;
-    return message.content
-      .map((block) => (block.type === "text" ? block.text : "[image]"))
-      .join("\n");
-  }
-  return "";
+  return runtimeUserTexts(context).at(-1) ?? "";
 }
 
 function contextHasCompactionSummary(context: Context, expected: string): boolean {
@@ -283,6 +287,7 @@ test("runtime drains queued prompts automatically after agent_end reaches idle",
   const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-queue-auto-"));
   try {
     const streamTexts: string[] = [];
+    const streamUserTextSnapshots: string[][] = [];
     let firstStarted!: () => void;
     const firstStartedPromise = new Promise<void>((resolve) => {
       firstStarted = resolve;
@@ -294,7 +299,9 @@ test("runtime drains queued prompts automatically after agent_end reaches idle",
     const runtime = new MixCodeRuntime({
       sessionsRoot: dir,
       streamFn: (_model: Model<any>, context: Context, options?: SimpleStreamOptions) => {
-        const text = lastRuntimeUserText(context);
+        const userTexts = runtimeUserTexts(context);
+        const text = userTexts.at(-1) ?? "";
+        streamUserTextSnapshots.push(userTexts);
         streamTexts.push(text);
         if (streamTexts.length === 1) {
           firstStarted();
@@ -319,19 +326,24 @@ test("runtime drains queued prompts automatically after agent_end reaches idle",
 
     const firstPrompt = runtime.prompt("s1", "first");
     await firstStartedPromise;
-    await runtime.prompt("s1", "queued");
-    assert.deepEqual(tab.pendingMessages, ["queued"]);
+    await runtime.prompt("s1", "first queued");
+    await runtime.prompt("s1", "second queued");
+    assert.deepEqual(tab.pendingMessages, ["first queued", "second queued"]);
     assert.equal(runtimeTab.agent.state.isStreaming, true);
     releaseFirst();
     await firstPrompt;
-    await waitForRuntime(() => tab.pendingMessages.length === 0 && streamTexts.includes("queued"));
+    await waitForRuntime(
+      () => tab.pendingMessages.length === 0 && streamUserTextSnapshots.at(-1)?.includes("second queued") === true,
+    );
 
     assert.deepEqual(tab.pendingMessages, []);
-    assert.deepEqual(streamTexts, ["first", "queued"]);
-    assert.ok(runtimeTab.chat.some((line) => line.role === "user" && line.text.includes("queued")));
+    assert.deepEqual(streamTexts, ["first", "second queued"]);
+    assert.deepEqual(streamUserTextSnapshots.at(-1), ["first", "first queued", "second queued"]);
+    assert.ok(runtimeTab.chat.some((line) => line.role === "user" && line.text.includes("first queued")));
+    assert.ok(runtimeTab.chat.some((line) => line.role === "user" && line.text.includes("second queued")));
     assert.ok(
       runtimeTab.chat.some(
-        (line) => line.role === "assistant" && line.text.includes("Echo: queued"),
+        (line) => line.role === "assistant" && line.text.includes("Echo: second queued"),
       ),
     );
   } finally {
