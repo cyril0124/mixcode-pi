@@ -30,7 +30,7 @@ export function registerMixCodeRuntimeProvider(
     return;
   }
   if (registeredModel || !streamFn) return;
-  const runtimeStreamSimple = (requestModel: Model<any>, context: any, options: any) =>
+  const runtimeStreamSimple = (requestModel: Model<any>, context: any, options: any = {}) =>
     bridgeRuntimeStream(requestModel, streamFn(requestModel, context, options));
   registry.registerProvider(model.provider, {
     name: model.provider,

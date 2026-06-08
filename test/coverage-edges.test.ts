@@ -502,10 +502,14 @@ test("runtime provider bridges stream errors and runtime auth branches", async (
     contextWindow: 1000,
     maxTokens: 100,
   };
+  let bridgedOptions: unknown;
   registerMixCodeRuntimeProvider(
     registry,
     model as never,
-    () => Promise.reject(new Error("stream failed")) as never,
+    (_model, _context, options) => {
+      bridgedOptions = options;
+      return Promise.reject(new Error("stream failed")) as never;
+    },
     () => "",
   );
   const registered = registry.find("custom-provider", "custom-model");
@@ -514,6 +518,7 @@ test("runtime provider bridges stream errors and runtime auth branches", async (
   const events = [];
   for await (const event of stream) events.push(event);
   assert.equal(events[0]?.type, "error");
+  assert.deepEqual(bridgedOptions, {});
   assert.equal((await stream.result()).errorMessage, "stream failed");
   assert.equal(await registry.getApiKeyForProvider("custom-provider"), "mixcode-runtime");
 

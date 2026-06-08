@@ -74,14 +74,18 @@ async function autoCompactAndContinue(runtimeTab: RuntimeTab): Promise<void> {
     await continueAgentSession(runtimeTab.agentSession);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    runtimeTab.tab.status = "error";
+    runtimeTab.tab.status = "idle";
     runtimeTab.tab.workingStartedAt = undefined;
-    appendSystemMessage(runtimeTab, `Auto-compaction failed: ${message}`);
+    appendSystemMessage(runtimeTab, normalizeCompactionFailureMessage(message));
     runtimeTab.requestRender?.();
   } finally {
     runtimeTab.isAutoCompacting = false;
     runtimeTab.autoCompactCycleActive = false;
   }
+}
+
+function normalizeCompactionFailureMessage(message: string): string {
+  return /^(Auto-)?Compaction failed:/i.test(message) ? message : `Compaction failed: ${message}`;
 }
 
 async function waitForPromptPostRun(agentSession: RuntimeTab["agentSession"]): Promise<void> {
@@ -250,7 +254,9 @@ export function applyEvent(
     case "compaction_end": {
       const continuingAfterAutoCompaction = Boolean(event.result && runtimeTab.autoCompactCycleActive);
       runtimeTab.tab.status = event.errorMessage
-        ? "error"
+        ? runtimeTab.autoCompactCycleActive
+          ? "idle"
+          : "error"
         : continuingAfterAutoCompaction
           ? "running"
           : "idle";
@@ -274,7 +280,7 @@ export function applyEvent(
       } else if (event.errorMessage) {
         runtimeTab.chat.push({
           role: "system",
-          text: `Compaction failed: ${event.errorMessage}`,
+          text: normalizeCompactionFailureMessage(event.errorMessage),
         });
       } else if (event.aborted) {
         runtimeTab.chat.push({ role: "system", text: "Compaction cancelled." });

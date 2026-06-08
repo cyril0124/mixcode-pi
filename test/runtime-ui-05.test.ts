@@ -303,6 +303,59 @@ test("runtime creates pi agent sessions, streams default response, and records s
   }
 });
 
+test("runtime compacts imported replay session with stream signal", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-compact-replay-"));
+  try {
+    let compactSignal: AbortSignal | undefined;
+    const runtime = new MixCodeRuntime({
+      sessionsRoot: dir,
+      streamFn: (_model: Model<any>, _context: Context, options?: SimpleStreamOptions) => {
+        compactSignal = options?.signal;
+        return delayedAssistantStream("replay summary", Promise.resolve(), options);
+      },
+    });
+    const importPath = join(dir, "2026-06-07T00-00-00-000Z_replay-session.jsonl");
+    const replayAssistantMessage = (text: string): AssistantMessage => ({
+      ...runtimeAssistantMessage(text),
+      api: "replay",
+      provider: "replay",
+      model: "replay-model",
+    });
+    const replayEntries = [
+      { type: "session", version: 3, id: "replay-session", timestamp: "2026-06-07T00:00:00.000Z", cwd: process.cwd() },
+      { type: "message", id: "u1", parentId: null, timestamp: "2026-06-07T00:00:01.000Z", message: { role: "user", content: [{ type: "text", text: "original task" }], timestamp: 0 } },
+      { type: "message", id: "a1", parentId: "u1", timestamp: "2026-06-07T00:00:02.000Z", message: replayAssistantMessage("old answer") },
+      { type: "compaction", id: "c1", parentId: "a1", timestamp: "2026-06-07T00:00:03.000Z", summary: "previous summary", firstKeptEntryId: "u2", tokensBefore: 50000 },
+      { type: "message", id: "u2", parentId: "c1", timestamp: "2026-06-07T00:00:04.000Z", message: { role: "user", content: [{ type: "text", text: "continue" }], timestamp: 0 } },
+      { type: "message", id: "a2", parentId: "u2", timestamp: "2026-06-07T00:00:05.000Z", message: { ...replayAssistantMessage("tool call"), content: [{ type: "toolCall", id: "tc1", name: "read", arguments: { path: "file.ts" } }], stopReason: "toolUse" } },
+      { type: "message", id: "t1", parentId: "a2", timestamp: "2026-06-07T00:00:06.000Z", message: { role: "toolResult", toolCallId: "tc1", toolName: "read", content: [{ type: "text", text: "file content" }], details: {}, isError: false, timestamp: 0 } },
+      { type: "message", id: "a3", parentId: "t1", timestamp: "2026-06-07T00:00:07.000Z", message: replayAssistantMessage("latest answer") },
+    ];
+    await writeFile(importPath, `${replayEntries.map((entry) => JSON.stringify(entry)).join("\n")}\n`, "utf8");
+    const tab = createTab(1, "replay-session", process.cwd(), {
+      model: {
+        provider: "replay",
+        modelId: "replay-model",
+        displayName: "replay/replay-model",
+        contextWindow: MIXCODE_FAUX_MODEL.contextWindow,
+      },
+    });
+    await runtime.createTab(tab, {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+      model: { ...MIXCODE_FAUX_MODEL, provider: "replay", api: "replay", id: "replay-model" },
+    });
+
+    await runtime.compactSession("replay-session");
+
+    assert.ok(compactSignal instanceof AbortSignal);
+    assert.equal(tab.status, "idle");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("runtime imports pi session JSONL into the active tab", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-import-"));
   const importedCwd = join(dir, "imported-cwd");

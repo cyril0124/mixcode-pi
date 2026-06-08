@@ -953,12 +953,13 @@ test("runtime surfaces auto-compaction failures", async () => {
 
     await runtime.prompt("s1", "start");
     await waitForRuntime(
-      () => tab.status === "error" && runtimeTab.chat.some((line) => /did not produce/i.test(line.text)),
+      () => tab.status === "idle" && runtimeTab.chat.some((line) => /did not produce/i.test(line.text)),
       100,
     );
 
-    assert.equal(tab.status, "error");
-    assert.ok(runtimeTab.chat.some((line) => /Auto-compaction failed: .*did not produce/i.test(line.text)));
+    assert.equal(tab.status, "idle");
+    assert.ok(runtimeTab.chat.some((line) => /Compaction failed: .*did not produce/i.test(line.text)));
+    assert.equal(runtimeTab.chat.some((line) => /Compaction failed: Auto-compaction failed/i.test(line.text)), false);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
