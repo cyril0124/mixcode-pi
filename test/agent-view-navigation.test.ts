@@ -14,15 +14,24 @@ function stripAnsi(text: string): string {
 
 function makeTui() {
   let renders = 0;
+  const overlays: string[] = [];
   return {
     requestRender: () => {
       renders++;
     },
-    showOverlay: () => ({}) as never,
+    showOverlay: (component: { render?: (width: number) => string[] } | string) => {
+      overlays.push(
+        typeof component === "string" ? component : (component.render?.(80).join("\n") ?? ""),
+      );
+      return { hide: () => undefined } as never;
+    },
     hideOverlay: () => undefined,
     hasOverlay: () => false,
     get renders() {
       return renders;
+    },
+    get overlays() {
+      return overlays;
     },
   };
 }
@@ -328,7 +337,7 @@ test("Home attach does not create vimMode when none is active", () => {
   assert.equal(second.vimMode, false);
 });
 
-test("Home Enter with text sends message to selected agent and stays on Home", () => {
+test("Home Enter with text sends message to selected agent and stays on Home", async () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo", { title: "Worker" }), createTab(2, "s2", "/repo"));
   state.activeTabId = "config";
@@ -344,11 +353,32 @@ test("Home Enter with text sends message to selected agent and stays on Home", (
   const editorActions = makeEditorActions("fix the bug");
 
   const result = handleMixCodeKeyInput(state, "\r", tui, undefined, runtime, undefined, () => false, editorActions);
+  await new Promise<void>((resolve) => setImmediate(resolve));
 
   assert.deepEqual(result, { consume: true });
   assert.equal(state.activeTabId, "config");
   assert.deepEqual(prompted, { sessionId: "s1", text: "fix the bug" });
   assert.equal(editorActions.getText(), "");
+});
+
+test("Home Enter restores text and shows transient error when selected agent rejects prompt", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo", { title: "Worker" }), createTab(2, "s2", "/repo"));
+  state.activeTabId = "config";
+  state.homeSelectedTabIndex = 0;
+  const tui = makeTui();
+  const runtime = {
+    prompt: () => Promise.reject(new Error("Cannot prompt while compaction is running")),
+  };
+  const editorActions = makeEditorActions("fix the bug");
+
+  const result = handleMixCodeKeyInput(state, "\r", tui, undefined, runtime, undefined, () => false, editorActions);
+  await new Promise<void>((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(result, { consume: true });
+  assert.equal(state.activeTabId, "config");
+  assert.equal(editorActions.getText(), "fix the bug");
+  assert.match(tui.overlays.at(-1) ?? "", /Cannot prompt while compaction is running/);
 });
 
 test("Home Enter with empty text attaches to selected agent", () => {

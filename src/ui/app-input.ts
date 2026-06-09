@@ -33,6 +33,7 @@ import {
   closeAppOverlay,
   hasAnyOverlay,
   hasAppOverlay,
+  showErrorOverlay,
   showLinesOverlay,
 } from "./app-overlays.js";
 import { handlePickerKey } from "./app-picker-keys.js";
@@ -140,9 +141,13 @@ export function handleMixCodeKeyInput(
           if (text && runtime?.prompt) {
             const knownSkills = getKnownSkillsFromTab(runtime, target.sessionId);
             const promptTemplates = getPromptTemplatesFromTab(runtime, target.sessionId);
-            void buildModelPrompt(text, target.workdir, { knownSkills, promptTemplates }).then(
-              (built) => runtime.prompt!(target.sessionId, built),
-            );
+            void buildModelPrompt(text, target.workdir, { knownSkills, promptTemplates })
+              .then((built) => runtime.prompt!(target.sessionId, built))
+              .catch((error: unknown) => {
+                editorActions.setText(text);
+                showErrorOverlay(tui, error);
+                tui.requestRender();
+              });
           }
           tui.requestRender();
           return { consume: true };
