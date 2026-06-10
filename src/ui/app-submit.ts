@@ -255,6 +255,7 @@ export async function handleSubmittedInput(
       systemPrompt: MIXCODE_SYSTEM_PROMPT,
       thinkingLevel: tab.thinkingLevel,
       workdir: tab.workdir,
+      reuseServicesFromSessionId: active!.sessionId,
     });
     // Persist the fork title into the session file so it survives restarts.
     runtime.renameSession?.(sessionId, tab.title);

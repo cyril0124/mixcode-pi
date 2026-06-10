@@ -36,6 +36,7 @@ import {
 import type { AgentRuntimeConfig, MixCodeTabInfo } from "../core/types.js";
 import type { MixCodeRuntime } from "./runtime.js";
 import {
+  appendSystemMessage,
   applyRuntimeTabModel,
   disposeChatRenderers,
   entriesToChatLines,
@@ -71,6 +72,8 @@ import { activateMixCodeTools, PI_BUILTIN_TOOL_NAMES, ToolLog } from "./tools.js
 export type RuntimeTabConfig = Omit<AgentRuntimeConfig, "sessionId" | "model"> & {
   model?: Model<any>;
   suppressStartupSummary?: boolean;
+  reuseServicesFromSessionId?: string;
+  reuseServices?: AgentSessionServices;
 };
 
 const extensionManagerEntriesByServices = new WeakMap<
@@ -123,7 +126,31 @@ export async function createRuntimeTab(
   const model = config.model
     ? config.model
     : context.resolveModel(tab.model.provider, tab.model.modelId);
-  const services = await context.createServices(config.workdir, config.systemPrompt);
+  const services =
+    config.reuseServices ??
+    (config.reuseServicesFromSessionId
+      ? context.tabs.get(config.reuseServicesFromSessionId)?.services
+      : undefined);
+  return createRuntimeTabWithServices(
+    tab,
+    session,
+    config,
+    context,
+    model,
+    services ?? (await context.createServices(config.workdir, config.systemPrompt)),
+    toolLog,
+  );
+}
+
+async function createRuntimeTabWithServices(
+  tab: MixCodeTabInfo,
+  session: SessionManager,
+  config: RuntimeTabConfig,
+  context: RuntimeLifecycleContext,
+  model: Model<any>,
+  services: AgentSessionServices,
+  toolLog: ToolLog,
+): Promise<RuntimeTab> {
   registerMixCodeRuntimeProvider(
     services.modelRegistry,
     model,
@@ -137,13 +164,10 @@ export async function createRuntimeTab(
     thinkingLevel: config.thinkingLevel,
   });
   const extensionToolOwnerPolicy = resolveExtensionToolOwnerPolicy(context);
-  activateMixCodeTools(agentSession, extensionToolOwnerPolicy);
-  applyMixCodeSystemPrompt(runtimeTabPromptOptions(services, config.workdir), agentSession);
   // Mid-turn compaction check: after each tool call, if context exceeds the threshold,
   // signal terminate=true so the agent loop exits cleanly (agent_end). The runtime
   // then waits for idle, compacts, and continues from the compacted transcript.
   const runtimeTabRef: { current?: RuntimeTab } = {};
-  installMidTurnCompactionHook(agentSession, tab, runtimeTabRef);
   const runtimeTab: RuntimeTab = {
     tab,
     agentSession,
@@ -172,23 +196,79 @@ export async function createRuntimeTab(
   };
   runtimeTab.requestRender = () => context.emitChange({ type: "extension_ui_update" }, runtimeTab);
   runtimeTabRef.current = runtimeTab;
-  const restoredChat = await rebuildRuntimeChat(runtimeTab);
-  if (tab.previewMessages.length === 0) {
-    syncPreviewFromChat(tab, restoredChat);
+  try {
+    activateMixCodeTools(agentSession, extensionToolOwnerPolicy);
+    applyMixCodeSystemPrompt(runtimeTabPromptOptions(services, config.workdir), agentSession);
+    installMidTurnCompactionHook(agentSession, tab, runtimeTabRef);
+    const restoredChat = await rebuildRuntimeChat(runtimeTab);
+    if (tab.previewMessages.length === 0) {
+      syncPreviewFromChat(tab, restoredChat);
+    }
+    runtimeTab.chat = restoredChat;
+    await bindRuntimeExtensions(runtimeTab, context);
+    activateMixCodeTools(agentSession, extensionToolOwnerPolicy);
+    applyMixCodeSystemPrompt(runtimeTabPromptOptions(services, config.workdir), agentSession);
+    if (!config.suppressStartupSummary) {
+      const summary = startupResourceSummary(runtimeTab);
+      if (summary) runtimeTab.chat.unshift({ role: "startup", text: summary });
+    }
+    syncContextUsage(runtimeTab);
+    appendExtensionDiagnostics(runtimeTab);
+    subscribeRuntimeTab(runtimeTab, context);
+    context.tabs.set(tab.sessionId, runtimeTab);
+    return runtimeTab;
+  } catch (error) {
+    await disposePartialRuntimeTab(runtimeTab, error, context);
+    throw error;
   }
-  runtimeTab.chat = restoredChat;
-  await bindRuntimeExtensions(runtimeTab, context);
-  activateMixCodeTools(agentSession, extensionToolOwnerPolicy);
-  applyMixCodeSystemPrompt(runtimeTabPromptOptions(services, config.workdir), agentSession);
-  if (!config.suppressStartupSummary) {
-    const summary = startupResourceSummary(runtimeTab);
-    if (summary) runtimeTab.chat.unshift({ role: "startup", text: summary });
+}
+
+async function disposePartialRuntimeTab(
+  runtimeTab: RuntimeTab,
+  originalError: unknown,
+  context: RuntimeLifecycleContext,
+): Promise<void> {
+  // Fast-path fallback must not leave a half-initialized AgentSession alive.
+  try {
+    await shutdownRuntimeTab(
+      runtimeTab,
+      { type: "session_shutdown", reason: "new" },
+      context.getExtensionUiHost(),
+    );
+  } catch (cleanupError) {
+    throw new AggregateError(
+      [originalError, cleanupError],
+      `Session startup failed and cleanup failed: ${formatErrorMessage(originalError)}; cleanup: ${formatErrorMessage(cleanupError)}`,
+    );
   }
-  syncContextUsage(runtimeTab);
-  appendExtensionDiagnostics(runtimeTab);
-  subscribeRuntimeTab(runtimeTab, context);
-  context.tabs.set(tab.sessionId, runtimeTab);
-  return runtimeTab;
+}
+
+function formatErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+export async function createRuntimeTabWithFallback(
+  tab: MixCodeTabInfo,
+  session: SessionManager,
+  config: RuntimeTabConfig,
+  context: RuntimeLifecycleContext,
+): Promise<RuntimeTab> {
+  try {
+    return await createRuntimeTab(tab, session, config, context);
+  } catch (error) {
+    if (!config.reuseServicesFromSessionId && !config.reuseServices) throw error;
+    const rebuilt = await createRuntimeTab(
+      tab,
+      session,
+      { ...config, reuseServicesFromSessionId: undefined, reuseServices: undefined },
+      context,
+    );
+    appendSystemMessage(
+      rebuilt,
+      `Fast session reuse failed; rebuilt services: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return rebuilt;
+  }
 }
 
 export async function createAgentSessionForReplacement(
@@ -200,7 +280,29 @@ export async function createAgentSessionForReplacement(
   const model = config.model
     ? config.model
     : context.resolveModelFromSession(sessionManager, config.model);
-  const services = await context.createServices(config.workdir, config.systemPrompt);
+  const services =
+    config.reuseServices ??
+    (config.reuseServicesFromSessionId
+      ? context.tabs.get(config.reuseServicesFromSessionId)?.services
+      : undefined);
+  return createAgentSessionForReplacementWithServices(
+    sessionManager,
+    config,
+    context,
+    model,
+    services ?? (await context.createServices(config.workdir, config.systemPrompt)),
+    toolLog,
+  );
+}
+
+async function createAgentSessionForReplacementWithServices(
+  sessionManager: SessionManager,
+  config: RuntimeTabConfig & { sessionStartEvent: SessionStartEvent },
+  context: RuntimeLifecycleContext,
+  model: Model<any>,
+  services: AgentSessionServices,
+  toolLog: ToolLog,
+): Promise<CreateAgentSessionResult & { services: AgentSessionServices; toolLog: ToolLog }> {
   registerMixCodeRuntimeProvider(
     services.modelRegistry,
     model,
@@ -484,7 +586,44 @@ function toolOwnerSummary(runtimeTab: RuntimeTab): string[] {
     .sort((left, right) => left.localeCompare(right));
 }
 
-function subscribeRuntimeTab(runtimeTab: RuntimeTab, context: RuntimeLifecycleContext): void {
+export async function reloadRuntimeTabWithFreshServices(
+  runtimeTab: RuntimeTab,
+  context: RuntimeLifecycleContext,
+): Promise<void> {
+  const services = await context.createServices(runtimeTab.tab.workdir, MIXCODE_SYSTEM_PROMPT);
+  const model = runtimeTab.agent.state.model;
+  registerMixCodeRuntimeProvider(services.modelRegistry, model, context.streamFn, context.getApiKey);
+  await shutdownRuntimeTab(
+    runtimeTab,
+    { type: "session_shutdown", reason: "reload" },
+    context.getExtensionUiHost(),
+  );
+  const { session: agentSession, extensionsResult } = await createAgentSessionFromServices({
+    services,
+    sessionManager: runtimeTab.session,
+    model,
+    thinkingLevel: runtimeTab.tab.thinkingLevel,
+    sessionStartEvent: { type: "session_start", reason: "reload" },
+  });
+  runtimeTab.services = services;
+  runtimeTab.agentSession = agentSession;
+  runtimeTab.extensionsResult = extensionsResult;
+  runtimeTab.extensionToolOwnerPolicy = resolveExtensionToolOwnerPolicy(context);
+  runtimeTab.agent = agentSession.agent;
+  runtimeTab.extensionManagerEntries = getExtensionManagerEntriesForServices(services);
+  activateMixCodeTools(agentSession, runtimeTab.extensionToolOwnerPolicy);
+  installMidTurnCompactionHook(agentSession, runtimeTab.tab, { current: runtimeTab });
+  runtimeTab.chat = await rebuildRuntimeChat(runtimeTab);
+  syncPreviewFromChat(runtimeTab.tab, runtimeTab.chat);
+  await bindRuntimeExtensions(runtimeTab, context);
+  activateMixCodeTools(agentSession, runtimeTab.extensionToolOwnerPolicy);
+  applyMixCodeSystemPrompt(runtimeTabPromptOptions(services, runtimeTab.tab.workdir), agentSession);
+  appendExtensionDiagnostics(runtimeTab);
+  subscribeRuntimeTab(runtimeTab, context);
+  context.emitChange({ type: "extension_ui_update" }, runtimeTab);
+}
+
+export function subscribeRuntimeTab(runtimeTab: RuntimeTab, context: RuntimeLifecycleContext): void {
   runtimeTab.agentSession.subscribe((event: AgentSessionEvent) => {
     context.applyEvent(runtimeTab, event);
     if (event.type === "agent_end") {

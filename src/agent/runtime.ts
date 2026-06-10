@@ -7,8 +7,8 @@ import {
   type AgentSession,
   type AgentSessionServices,
   type AuthStorage,
-  type CreateAgentSessionServicesOptions,
   createAgentSessionFromServices,
+  type CreateAgentSessionServicesOptions,
   type ExtensionFactory,
   getAgentDir,
   type SessionInfo,
@@ -33,7 +33,6 @@ import {
 import { isExtensionToolOwner } from "../core/extension-tool-owners.js";
 import {
   appendSystemMessage,
-  disposeChatRenderers,
   resetTabForNewSession,
   syncContextUsage,
   syncPreviewFromChat,
@@ -63,11 +62,11 @@ import {
 import {
   bindRuntimeExtensions,
   createRuntimeServices,
-  createRuntimeTab,
+  createRuntimeTabWithFallback,
   disposeRuntimeTabAfterShutdown,
   getExtensionManagerEntriesForServices,
   installMidTurnCompactionHook,
-  rebuildRuntimeChat,
+  reloadRuntimeTabWithFreshServices,
   replaceRuntimeTabSession,
   shutdownRuntimeTab,
   syncRuntimeChatFromSession,
@@ -82,7 +81,6 @@ import {
   listSessionsForCwd,
   openOrCreateSession,
   reopenSessionInWorkdir,
-  resetExtensionHostState,
 } from "./runtime-session.js";
 import type {
   ChatLine,
@@ -211,10 +209,11 @@ export class MixCodeRuntime {
     config: Omit<AgentRuntimeConfig, "sessionId" | "model"> & {
       model?: Model<any>;
       suppressStartupSummary?: boolean;
+      reuseServicesFromSessionId?: string;
     },
   ): Promise<RuntimeTab> {
     const session = await this.openOrCreateSession(tab.sessionId, config.workdir);
-    return this.createRuntimeTab(tab, session, config);
+    return createRuntimeTabWithFallback(tab, session, config, this.lifecycleContext());
   }
 
   async clearTab(
@@ -230,6 +229,7 @@ export class MixCodeRuntime {
       throw new Error("Cannot clear a session while it is streaming");
     }
     const oldHeader = runtimeTab.session.getHeader();
+    const services = runtimeTab.services;
     const newSession = await this.createSession(
       config.workdir,
       config.newSessionId,
@@ -242,21 +242,16 @@ export class MixCodeRuntime {
     });
     this.tabs.delete(sessionId);
     resetTabForNewSession(runtimeTab.tab, newSession.getSessionId());
-    return this.createRuntimeTab(runtimeTab.tab, newSession, {
-      ...config,
-      suppressStartupSummary: true,
-    });
-  }
-
-  private async createRuntimeTab(
-    tab: MixCodeTabInfo,
-    session: SessionManager,
-    config: Omit<AgentRuntimeConfig, "sessionId" | "model"> & {
-      model?: Model<any>;
-      suppressStartupSummary?: boolean;
-    },
-  ): Promise<RuntimeTab> {
-    return createRuntimeTab(tab, session, config, this.lifecycleContext());
+    return createRuntimeTabWithFallback(
+      runtimeTab.tab,
+      newSession,
+      {
+        ...config,
+        suppressStartupSummary: true,
+        reuseServices: services,
+      },
+      this.lifecycleContext(),
+    );
   }
 
   getTab(sessionId: string): RuntimeTab | undefined {
@@ -732,19 +727,7 @@ export class MixCodeRuntime {
     if (runtimeTab.agentSession.isCompacting) {
       throw new Error("Cannot reload extensions while compaction is running");
     }
-    this.resetExtensionHostState(runtimeTab);
-    await runtimeTab.agentSession.reload();
-    runtimeTab.extensionToolOwnerPolicy = isExtensionToolOwner;
-    activateMixCodeTools(runtimeTab.agentSession, runtimeTab.extensionToolOwnerPolicy);
-    runtimeTab.extensionsResult = runtimeTab.agentSession.resourceLoader.getExtensions();
-    runtimeTab.extensionManagerEntries = getExtensionManagerEntriesForServices(runtimeTab.services);
-    runtimeTab.agent = runtimeTab.agentSession.agent;
-    disposeChatRenderers(runtimeTab.chat);
-    runtimeTab.chat = await this.rebuildChat(runtimeTab);
-    syncPreviewFromChat(runtimeTab.tab, runtimeTab.chat);
-    appendExtensionLoadErrors(runtimeTab);
-    appendExtensionConflictDiagnostics(runtimeTab, runtimeTab.extensionToolOwnerPolicy);
-    this.emitChange({ type: "extension_ui_update" }, runtimeTab);
+    await reloadRuntimeTabWithFreshServices(runtimeTab, this.lifecycleContext());
   }
 
   /**
@@ -941,10 +924,6 @@ export class MixCodeRuntime {
     await shutdownRuntimeTab(runtimeTab, event, this.extensionUiHost);
   }
 
-  private resetExtensionHostState(runtimeTab: RuntimeTab): void {
-    resetExtensionHostState(runtimeTab, this.extensionUiHost);
-  }
-
   private async openOrCreateSession(sessionId: string, cwd: string): Promise<SessionManager> {
     return openOrCreateSession(sessionId, cwd, this.sessionsRoot);
   }
@@ -978,10 +957,6 @@ export class MixCodeRuntime {
 
   private setLiveEditorText(text: string): void {
     this.extensionUiHost?.editor?.setText(text);
-  }
-
-  private async rebuildChat(runtimeTab: RuntimeTab): Promise<ChatLine[]> {
-    return rebuildRuntimeChat(runtimeTab);
   }
 
   private async createServices(
