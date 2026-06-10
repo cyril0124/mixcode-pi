@@ -41,7 +41,7 @@ export async function main(): Promise<void> {
     return;
   }
   ensurePackageExtensions(repoDir, { copy: true });
-  const { state, runtime, stateFile, workspaceFile, completionSources, packageUpdateCheck } =
+  const { state, runtime, stateFile, workspaceFile, completionSources, packageUpdateCheck, tabsReady } =
     await bootstrapMixCode({
       workdir: args.workdir,
     });
@@ -117,6 +117,14 @@ export async function main(): Promise<void> {
     void writeRegistrySnapshot();
   });
   tui.start();
+  void tabsReady
+    .then(() => {
+      tui.requestRender(true);
+    })
+    .catch((error: unknown) => {
+      const msg = error instanceof Error ? error.message : String(error);
+      process.stderr.write(`Extension loading failed: ${msg}\n`);
+    });
   void packageUpdateCheck()
     .then((packages) => {
       state.packageUpdates = packages;
@@ -223,13 +231,14 @@ export async function main(): Promise<void> {
         return findModelRef(state.availableModels, query);
       },
     };
-    void applyBatchRequests(batchRequests ?? [], batchHost)
-      .then(() => saveStateFile(stateFile, state, DEFAULT_STATE_PORT))
+    void tabsReady
+      .then(() => applyBatchRequests(batchRequests ?? [], batchHost))
       .catch((error: unknown) => {
         const msg = error instanceof Error ? error.message : String(error);
         process.stderr.write(`Batch error: ${msg}\n`);
         process.exitCode = 1;
-      });
+      })
+      .finally(() => saveStateFile(stateFile, state, DEFAULT_STATE_PORT));
   }
 }
 

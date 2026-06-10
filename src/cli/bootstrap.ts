@@ -69,6 +69,8 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
   workspaceFile: string;
   completionSources: MixCodeCompletionSources;
   packageUpdateCheck: () => Promise<string[]>;
+  /** Resolves when all runtime tabs are fully initialized (extensions loaded). */
+  tabsReady: Promise<void>;
 }> {
   const rootStateDir = options.stateDir ?? defaultStateDir();
   const stateDir = scopedStateDir(rootStateDir, options.workdir);
@@ -127,14 +129,22 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
     streamFn: modelBundle.runtimeAuth.stream,
   });
   await runtime.loadExtensionManagerConfig();
-  await Promise.all(
+  const completionSources = {
+    skills: await scanSkillEntries(state.workdir, options.homeDir),
+    files: await scanProjectFiles(state.workdir),
+  };
+  await saveStateFile(stateFile, state, port);
+  // Defer tab creation: return immediately so the TUI can render the initial
+  // frame with persisted previewMessages. Extensions load in the background.
+  for (const tab of state.tabs) tab.status = "Not Ready";
+  const tabsReady = Promise.all(
     state.tabs.map(async (tab) => {
       const runtimeTab = await runtime.createTab(tab, {
         systemPrompt: MIXCODE_SYSTEM_PROMPT,
         thinkingLevel: tab.thinkingLevel,
         workdir: tab.workdir,
       });
-      // Sync tab title from session file name (persisted via /rename or Ctrl+R)
+      tab.status = "idle";
       const sessionName = runtimeTab.session.getSessionName();
       if (sessionName) tab.title = sessionName;
       const repair = modelRepairs.get(tab.sessionId);
@@ -145,12 +155,7 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
         });
       }
     }),
-  );
-  const completionSources = {
-    skills: await scanSkillEntries(state.workdir, options.homeDir),
-    files: await scanProjectFiles(state.workdir),
-  };
-  await saveStateFile(stateFile, state, port);
+  ) as unknown as Promise<void>;
   return {
     state,
     runtime,
@@ -158,6 +163,7 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
     workspaceFile,
     completionSources,
     packageUpdateCheck: () => checkPiPackageUpdates({ workdir: state.workdir, agentDir }),
+    tabsReady,
   };
 }
 

@@ -59,6 +59,9 @@ export async function handleSubmittedInput(
   const requiresActive =
     parsed.kind === "prompt" || parsed.kind === "shell" || !configScopedCommand(parsed.command);
   if (!active && requiresActive) return;
+  if (active?.status === "Not Ready" && requiresActive) {
+    throw new Error("Tab is still loading extensions. Please wait a moment.");
+  }
   if (parsed.kind === "prompt") {
     const knownSkills = getKnownSkillsFromTab(runtime, active!.sessionId);
     const promptTemplates = getPromptTemplatesFromTab(runtime, active!.sessionId);

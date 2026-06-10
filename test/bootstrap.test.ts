@@ -24,7 +24,7 @@ import { exposeLocalPiCli, parseMainArgs } from "../src/cli/main.js";
 test("bootstrap creates initial state and persists it when no state exists", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-bootstrap-"));
   try {
-    const { state, runtime, stateFile } = await bootstrapMixCode({
+    const { state, runtime, stateFile, tabsReady } = await bootstrapMixCode({
       workdir: dir,
       stateDir: dir,
       port: 7,
@@ -32,6 +32,7 @@ test("bootstrap creates initial state and persists it when no state exists", asy
     });
     assert.equal(state.tabs.length, 1);
     assert.match(state.tabs[0]!.sessionId, UUIDV7_SESSION_ID_PATTERN);
+    await tabsReady;
     assert.ok(runtime.getTab(state.tabs[0]!.sessionId));
     assert.equal(stateFile, stateFileForPort(scopedStateDir(dir, dir), 7));
     assert.deepEqual(state.packageUpdates, []);
@@ -59,6 +60,7 @@ test("bootstrap restores persisted tab order and runtime tabs", async () => {
       ["s1", "s2"],
     );
     assert.equal(restored.state.activeTabId, "config");
+    await restored.tabsReady;
     assert.ok(restored.runtime.getTab("s1"));
     assert.ok(restored.runtime.getTab("s2"));
   } finally {
@@ -288,6 +290,7 @@ test("bootstrap wires pi model registry and extension options into runtime", asy
       agentDir: join(dir, "agent"),
       extensionFactories: [extension],
     });
+    await boot.tabsReady;
     const runtimeTab = boot.runtime.getTab(boot.state.tabs[0]!.sessionId);
     assert.ok(runtimeTab);
     assert.equal(runtimeTab.agent.state.model.provider, "mixcode-bootstrap-extension");
@@ -340,6 +343,7 @@ test("bootstrap wires configured pi models into runtime auth streaming", async (
     });
 
     const tab = boot.state.tabs[0]!;
+    await boot.tabsReady;
     const runtimeTab = boot.runtime.getTab(tab.sessionId);
     assert.ok(runtimeTab);
     assert.equal(runtimeTab.agent.state.model.provider, "mixcode-bootstrap-stream");
@@ -389,6 +393,7 @@ test("bootstrap repairs persisted tabs that reference unavailable models", async
     assert.equal(boot.state.model.displayName, "faux/faux-1");
     assert.equal(boot.state.tabs[0]?.model.displayName, "faux/faux-1");
     assert.equal(boot.state.tabs[0]?.contextLimit, 200_000);
+    await boot.tabsReady;
     assert.ok(boot.runtime.getTab("s1"));
   } finally {
     await rm(dir, { recursive: true, force: true });

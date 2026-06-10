@@ -1,0 +1,54 @@
+diff --git a/node_modules/@earendil-works/pi-coding-agent/dist/core/extensions/loader.js b/node_modules/@earendil-works/pi-coding-agent/dist/core/extensions/loader.js
+index 677b4f6..66f07d5 100644
+--- a/node_modules/@earendil-works/pi-coding-agent/dist/core/extensions/loader.js
++++ b/node_modules/@earendil-works/pi-coding-agent/dist/core/extensions/loader.js
+@@ -261,14 +261,18 @@ function createExtensionAPI(extension, runtime, cwd, eventBus) {
+     };
+     return api;
+ }
++let _sharedJiti = null;
++function getSharedJiti() {
++    if (!_sharedJiti) {
++        _sharedJiti = createJiti(import.meta.url, {
++            moduleCache: true,
++            ...(isBunBinary ? { virtualModules: VIRTUAL_MODULES, tryNative: false } : { alias: getAliases() }),
++        });
++    }
++    return _sharedJiti;
++}
+ async function loadExtensionModule(extensionPath) {
+-    const jiti = createJiti(import.meta.url, {
+-        moduleCache: false,
+-        // In Bun binary: use virtualModules for bundled packages (no filesystem resolution)
+-        // Also disable tryNative so jiti handles ALL imports (not just the entry point)
+-        // In Node.js/dev: use aliases to resolve to node_modules paths
+-        ...(isBunBinary ? { virtualModules: VIRTUAL_MODULES, tryNative: false } : { alias: getAliases() }),
+-    });
++    const jiti = getSharedJiti();
+     const module = await jiti.import(extensionPath, { default: true });
+     const factory = module;
+     return typeof factory !== "function" ? undefined : factory;
+@@ -324,6 +328,8 @@ export async function loadExtensionFromFactory(factory, cwd, eventBus, runtime,
+  * Load extensions from paths.
+  */
+ export async function loadExtensions(paths, cwd, eventBus, runtime) {
++    // Reset shared jiti so reloaded extensions pick up file changes
++    _sharedJiti = null;
+     const extensions = [];
+     const errors = [];
+     const resolvedCwd = resolvePath(cwd);
+@@ -333,11 +339,11 @@ export async function loadExtensions(paths, cwd, eventBus, runtime) {
+         const { extension, error } = await loadExtension(extPath, resolvedCwd, resolvedEventBus, resolvedRuntime);
+         if (error) {
+             errors.push({ path: extPath, error });
+-            continue;
+-        }
+-        if (extension) {
++        } else if (extension) {
+             extensions.push(extension);
+         }
++        // Yield to the event loop between extensions so the TUI stays responsive
++        await new Promise((resolve) => setImmediate(resolve));
+     }
+     return {
+         extensions,
