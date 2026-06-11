@@ -228,7 +228,7 @@ export class MixCodeRuntime {
     if (runtimeTab.agent.state.isStreaming) {
       throw new Error("Cannot clear a session while it is streaming");
     }
-    const oldHeader = runtimeTab.session.getHeader();
+    const oldHeader = runtimeTab.session?.getHeader();
     const services = runtimeTab.services;
     const newSession = await this.createSession(
       config.workdir,
@@ -240,6 +240,10 @@ export class MixCodeRuntime {
       reason: "new",
       targetSessionFile: newSession.getSessionFile() ?? undefined,
     });
+    // Reload extensions now (while tab.sessionId still matches state.activeTabId)
+    // so that createRuntimeTabWithFallback doesn't need to reload during the
+    // window where tab.sessionId has changed but state.activeTabId hasn't.
+    await services.resourceLoader.reload();
     this.tabs.delete(sessionId);
     resetTabForNewSession(runtimeTab.tab, newSession.getSessionId());
     return createRuntimeTabWithFallback(
@@ -249,6 +253,7 @@ export class MixCodeRuntime {
         ...config,
         suppressStartupSummary: true,
         reuseServices: services,
+        skipExtensionReload: true,
       },
       this.lifecycleContext(),
     );
@@ -287,7 +292,9 @@ export class MixCodeRuntime {
   }
 
   getExtensionCommands(sessionId: string) {
-    return this.requireTab(sessionId)
+    const runtimeTab = this.tabs.get(sessionId);
+    if (!runtimeTab) return [];
+    return runtimeTab
       .agentSession.extensionRunner.getRegisteredCommands()
       .map((command) => ({
         name: command.invocationName,

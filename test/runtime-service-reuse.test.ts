@@ -48,6 +48,106 @@ test("clear reuses services while replacing the agent session", async () => {
   });
 });
 
+test("extension commands work after clearTab without stale ctx error", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-clear-extension-cmd-"));
+  const events: string[] = [];
+  const extension: ExtensionFactory = (pi) => {
+    pi.registerCommand("ping", {
+      description: "Ping test",
+      handler: (_args, _ctx) => {
+        // This calls runtime.assertActive() internally via the pi closure
+        pi.sendMessage({ content: "pong", display: false });
+        events.push("pong");
+      },
+    });
+  };
+  try {
+    const runtime = new MixCodeRuntime({
+      sessionsRoot: join(dir, "sessions"),
+      extensionFactories: [extension],
+    });
+    await runtime.createTab(createTab(1, "s1", process.cwd()), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+    });
+
+    const cleared = await runtime.clearTab("s1", {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+      newSessionId: "s1-clear",
+    });
+
+    // Execute the extension command on the cleared session — should not throw stale error
+    await runtime.prompt("s1-clear", "/ping");
+    assert.ok(events.includes("pong"), "Extension command should execute without stale ctx error");
+    // Verify no system error messages about stale ctx
+    const staleErrors = cleared.chat.filter(
+      (msg) => msg.role === "system" && msg.text.includes("stale"),
+    );
+    assert.equal(staleErrors.length, 0, `Unexpected stale errors: ${JSON.stringify(staleErrors)}`);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("extension commands work after clearTab on a forked session", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-fork-clear-ext-cmd-"));
+  const events: string[] = [];
+  const extension: ExtensionFactory = (pi) => {
+    pi.registerCommand("ping", {
+      description: "Ping test",
+      handler: (_args, _ctx) => {
+        pi.sendMessage({ content: "pong", display: false });
+        events.push("pong");
+      },
+    });
+  };
+  try {
+    const runtime = new MixCodeRuntime({
+      sessionsRoot: join(dir, "sessions"),
+      extensionFactories: [extension],
+    });
+    const source = await runtime.createTab(createTab(1, "source", process.cwd()), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+    });
+    await runtime.forkSession("source", "forked");
+    await runtime.createTab(
+      createTab(2, "forked", process.cwd(), {
+        model: { ...source.tab.model },
+        thinkingLevel: source.tab.thinkingLevel,
+      }),
+      {
+        systemPrompt: "system",
+        thinkingLevel: "medium",
+        workdir: process.cwd(),
+        reuseServicesFromSessionId: "source",
+      },
+    );
+
+    // Clear the forked session — this disposes its runner, invalidating the shared runtime
+    const cleared = await runtime.clearTab("forked", {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+      newSessionId: "forked-clear",
+    });
+
+    // Extension command on cleared forked session should work
+    await runtime.prompt("forked-clear", "/ping");
+    assert.ok(events.includes("pong"), "Extension command should work after fork+clear");
+    const staleErrors = cleared.chat.filter(
+      (msg) => msg.role === "system" && msg.text.includes("stale"),
+    );
+    assert.equal(staleErrors.length, 0, `Unexpected stale errors: ${JSON.stringify(staleErrors)}`);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("createTab can reuse another tab's services for slash fork", async () => {
   await withRuntime("mixcode-fork-reuse-services-", async (runtime) => {
     const source = await runtime.createTab(createTab(1, "source", process.cwd()), {

@@ -74,6 +74,8 @@ export type RuntimeTabConfig = Omit<AgentRuntimeConfig, "sessionId" | "model"> &
   suppressStartupSummary?: boolean;
   reuseServicesFromSessionId?: string;
   reuseServices?: AgentSessionServices;
+  /** Skip resourceLoader.reload() — caller already reloaded extensions. */
+  skipExtensionReload?: boolean;
 };
 
 const extensionManagerEntriesByServices = new WeakMap<
@@ -126,18 +128,25 @@ export async function createRuntimeTab(
   const model = config.model
     ? config.model
     : context.resolveModel(tab.model.provider, tab.model.modelId);
-  const services =
+  const reusedServices =
     config.reuseServices ??
     (config.reuseServicesFromSessionId
       ? context.tabs.get(config.reuseServicesFromSessionId)?.services
       : undefined);
+  // Reload extensions on reused services so this tab gets a fresh
+  // extensionsResult (fresh runtime + fresh pi closures). Without this,
+  // multiple tabs sharing the same resourceLoader would share a mutable
+  // runtime object — invalidating one (dispose) would break the others.
+  if (reusedServices && !config.skipExtensionReload) {
+    await reusedServices.resourceLoader.reload();
+  }
   return createRuntimeTabWithServices(
     tab,
     session,
     config,
     context,
     model,
-    services ?? (await context.createServices(config.workdir, config.systemPrompt)),
+    reusedServices ?? (await context.createServices(config.workdir, config.systemPrompt)),
     toolLog,
   );
 }
