@@ -68,7 +68,7 @@ bun install
 # Apply patches (patch-package may fail under bun's postinstall; apply manually)
 if [ -d "$REPO_DIR/patches" ]; then
   info "Applying patches..."
-  ./node_modules/.bin/patch-package --patch-dir "$REPO_DIR/patches" \
+  ./node_modules/.bin/patch-package --patch-dir patches \
     || true
 fi
 
