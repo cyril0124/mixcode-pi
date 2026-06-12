@@ -433,22 +433,72 @@ export function renderTabJumpOverlay(state: MixCodeState, width: number): string
 function renderTabJumpOverlayInner(state: MixCodeState, width: number): string[] {
   if (!state.tabJumpOpen) return [];
   const entries = filterTabJumpEntries(state, state.tabJumpQuery);
-  const lines = [`filter: ${state.tabJumpQuery}`, ""];
+  const totalTabs = filterTabJumpEntries(state, "").length;
+  const innerWidth = Math.max(1, width - 2);
+  const searchText = state.tabJumpQuery || "";
+  const countText = `${entries.length}/${totalTabs} tabs`;
+  const searchPrefix = activeRenderTheme.dim("Search");
+  const searchLeft = ` ${searchPrefix}  ${activeRenderTheme.accent(searchText)}`;
+  const searchGap = Math.max(1, innerWidth - visibleWidth(searchLeft) - visibleWidth(countText));
+  const lines = [`${searchLeft}${" ".repeat(searchGap)}${activeRenderTheme.dim(countText)}`, ""];
   if (!entries.length) {
-    lines.push("No matching tabs");
+    lines.push(activeRenderTheme.dim("No matching tabs"));
   } else {
     entries.forEach((entry, index) => {
-      const marker = entry.question ? "?" : entry.busy ? "*" : entry.done ? "!" : " ";
-      const line = `${index === state.tabJumpIndex ? ">" : " "} ${marker} ${entry.label} (${entry.id})`;
+      const line = renderTabJumpRow(entry, index === state.tabJumpIndex, innerWidth);
       lines.push(
-        index === state.tabJumpIndex
-          ? activeRenderTheme.selection(padLine(line, Math.max(1, width - 2)))
-          : line,
+        index === state.tabJumpIndex ? activeRenderTheme.selection(padLine(line, innerWidth)) : line,
       );
     });
   }
-  lines.push("", "type: filter  up/down: select  enter: jump  esc: cancel");
+  lines.push(
+    "",
+    activeRenderTheme.dim("type filter · ↑↓/tab select · enter jump · esc cancel"),
+  );
   return overlayPanel("Tab Jump", lines, width);
+}
+
+function renderTabJumpRow(
+  entry: ReturnType<typeof filterTabJumpEntries>[number],
+  selected: boolean,
+  width: number,
+): string {
+  const cursor = selected ? activeRenderTheme.accent("›") : " ";
+  const status = formatTabJumpStatus(entry);
+  const leftWidth = visibleWidth(cursor) + 1 + visibleWidth(status) + 2;
+  const displayId = formatTabJumpId(entry.id, entry.label, width - leftWidth - 2);
+  const id = activeRenderTheme.dim(displayId);
+  const idWidth = visibleWidth(displayId);
+  const titleWidth = Math.max(1, width - leftWidth - idWidth - 2);
+  const title = formatTabJumpTitle(entry, truncateToWidth(entry.label, titleWidth, "..."));
+  const left = `${cursor} ${status}  ${title}`;
+  const gap = Math.max(1, width - visibleWidth(left) - idWidth);
+  return `${left}${" ".repeat(gap)}${id}`;
+}
+
+function formatTabJumpStatus(entry: ReturnType<typeof filterTabJumpEntries>[number]): string {
+  if (entry.question) return activeRenderTheme.warning("?");
+  if (entry.busy) return activeRenderTheme.accent("*");
+  if (entry.done) return activeRenderTheme.done("!");
+  return " ";
+}
+
+function formatTabJumpId(id: string, label: string, availableWidth: number): string {
+  if (id.length <= 12) return id;
+  const fullIdWidth = visibleWidth(id);
+  const labelWidth = visibleWidth(label);
+  if (labelWidth + 1 + fullIdWidth <= availableWidth) return id;
+  return id.slice(0, 8);
+}
+
+function formatTabJumpTitle(
+  entry: ReturnType<typeof filterTabJumpEntries>[number],
+  title: string,
+): string {
+  if (entry.question) return activeRenderTheme.tool(title);
+  if (entry.busy) return activeRenderTheme.accent(title);
+  if (entry.done) return activeRenderTheme.done(title);
+  return title;
 }
 
 export function renderPickerOverlay(state: MixCodeState, width: number): string[] {

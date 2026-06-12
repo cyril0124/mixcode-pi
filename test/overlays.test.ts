@@ -24,6 +24,7 @@ import {
   chatHome,
   scrollChat,
   scrollPreview,
+  stripAnsi,
   tabJumpEntries,
   togglePreview,
   updateCommandPaletteQuery,
@@ -128,11 +129,19 @@ test("tab jump state opens, filters, moves, accepts, and closes", () => {
   const state = createInitialState("/repo");
   const alpha = createTab(1, "s1", "/repo", { alias: "alpha", unreadDone: true });
   state.tabs.push(alpha, createTab(2, "s2", "/repo", { title: "Beta" }));
+  const longId = "019eb998-93ad-73cb-9a84-2f129ae26b41";
+  state.tabs.push(createTab(3, longId, "/repo", { title: "Gamma session" }));
   state.activeTabId = "s2";
   openTabJump(state);
   assert.equal(state.tabJumpOpen, true);
   assert.equal(state.tabJumpIndex, 2);
-  assert.match(renderTabJumpOverlay(state, 80).join("\n"), /> {3}Beta/);
+  const initialOverlay = stripAnsi(renderTabJumpOverlay(state, 80).join("\n"));
+  assert.match(initialOverlay, /Search\s+4\/4 tabs/);
+  assert.match(initialOverlay, /›\s+Beta\s+s2/);
+  assert.match(initialOverlay, /Gamma session\s+019eb998-93ad-73cb-9a84-2f129ae26b41/);
+  const narrowOverlay = stripAnsi(renderTabJumpOverlay(state, 48).join("\n"));
+  assert.match(narrowOverlay, /Gamma session\s+019eb998/);
+  assert.doesNotMatch(narrowOverlay, /019eb998-93ad/);
 
   updateTabJumpQuery(state, "al");
   assert.deepEqual(
@@ -150,7 +159,7 @@ test("tab jump state opens, filters, moves, accepts, and closes", () => {
   moveTabJumpSelection(state, -1);
   assert.equal(state.tabJumpIndex, 0);
   moveTabJumpSelection(state, 99);
-  assert.equal(state.tabJumpIndex, 2);
+  assert.equal(state.tabJumpIndex, 3);
   updateTabJumpQuery(state, "missing");
   assert.match(renderTabJumpOverlay(state, 80).join("\n"), /No matching tabs/);
   assert.equal(acceptTabJumpSelection(state), "");
@@ -162,7 +171,9 @@ test("tab jump state opens, filters, moves, accepts, and closes", () => {
   state.tabs[1]!.pendingDialogs = [];
   state.tabs[1]!.unreadDone = true;
   state.tabs[1]!.status = "done";
-  assert.match(renderTabJumpOverlay(state, 80).join("\n"), /! Beta/);
+  const statusOverlay = stripAnsi(renderTabJumpOverlay(state, 80).join("\n"));
+  assert.match(statusOverlay, /!\s+Beta\s+s2/);
+  assert.match(statusOverlay, /type filter · ↑↓\/tab select · enter jump · esc cancel/);
   closeTabJump(state);
   assert.equal(state.tabJumpQuery, "");
 });
