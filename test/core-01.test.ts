@@ -315,7 +315,7 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
     assert.deepEqual((serialized.tab_models as Record<string, unknown>).s2, tabTwoModel);
     assert.equal((serialized.tab_variants as Record<string, string>).s2, "xhigh");
     const restored = deserializeState(serialized, "/fallback");
-    assert.equal(restored.theme, "mixcode-dark");
+    assert.equal(restored.theme, "claude-warm");
     assert.equal(restored.activeTabId, "s1");
     assert.equal(restored.tabs[0]?.sessionId, "s1");
     assert.equal(restored.tabs[0]?.title, "Renamed Agent");

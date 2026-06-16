@@ -249,7 +249,7 @@ test("createMixCodeTui wires a pi-tui instance without starting it", () => {
       };
     }
   ).extensionUiHost;
-  assert.equal(host?.themes?.getTheme(), "mixcode-dark");
+  assert.equal(host?.themes?.getTheme(), "claude-warm");
   host?.themes?.setTheme("terminal");
   assert.equal((tui as unknown as { renderRequested?: boolean }).renderRequested, true);
   assert.equal(state.theme, "terminal");
