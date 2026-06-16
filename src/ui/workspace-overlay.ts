@@ -1,5 +1,6 @@
 import { matchesKey } from "@earendil-works/pi-tui";
 import { deleteWorkspace, saveWorkspaces } from "../core/state-store.js";
+import type { ToastType } from "../core/toast.js";
 import type { MixCodeState, WorkspaceSnapshot } from "../core/types.js";
 import { createWorkspaceOverlayState } from "../core/workspace-ui.js";
 import { snapshotWorkspace, upsertWorkspace } from "../core/workspace.js";
@@ -87,7 +88,7 @@ export async function saveWorkspaceByName(
     workspaceFile,
     upsertWorkspace(existing, snapshotWorkspace(state, name, new Date(), runtime)),
   );
-  showWorkspaceToast(state, tui, `Workspace ${existed ? "updated" : "saved"}: ${name}`);
+  showWorkspaceToast(state, tui, `Workspace ${existed ? "updated" : "saved"}: ${name}`, "success");
 }
 
 export async function restoreWorkspaceByName(
@@ -110,7 +111,7 @@ export async function deleteWorkspaceByName(
   name: string,
 ): Promise<void> {
   await deleteWorkspace(workspaceFile, name);
-  showWorkspaceToast(state, tui, `Workspace deleted: ${name}`);
+  showWorkspaceToast(state, tui, `Workspace deleted: ${name}`, "success");
 }
 
 export function handleWorkspaceOverlayKey(
@@ -159,13 +160,18 @@ export function closeWorkspaceOverlay(state: MixCodeState, tui: OverlayTui): voi
   tui.requestRender();
 }
 
-export function showWorkspaceToast(state: MixCodeState, tui: OverlayTui, message: string): void {
+export function showWorkspaceToast(
+  state: MixCodeState,
+  tui: OverlayTui,
+  message: string,
+  type: ToastType = "info",
+): void {
   const active = state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];
   if (!active) {
     showTransientTextOverlay(tui, message);
     return;
   }
-  pushToast(active, message);
+  pushToast(active, { type, message });
 }
 
 function handleWorkspaceCancelKey(state: MixCodeState, data: string, tui: OverlayTui): boolean {

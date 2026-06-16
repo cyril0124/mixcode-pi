@@ -155,11 +155,11 @@ function handleChatSelectionMouse(
     }
     void copyToClipboard(text)
       .then(() => {
-        pushToast(active, `Copied ${chars} chars.`);
+        pushToast(active, { type: "success", message: `Copied ${chars} chars.` });
         tui.requestRender();
       })
       .catch((error: unknown) => {
-        pushToast(active, `Copy failed: ${errorMessage(error)}`);
+        pushToast(active, { type: "error", message: `Copy failed: ${errorMessage(error)}` });
         tui.requestRender();
       });
     tui.requestRender();

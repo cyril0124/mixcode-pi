@@ -92,7 +92,7 @@ export async function handleSubmittedInput(
     }
     const userEntryIds = userMessageEntryIdsInBranch(runtimeTab.session.getBranch());
     if (userEntryIds.length === 0) {
-      pushToast(active!, "No user messages in current chat");
+      pushToast(active!, { type: "warning", message: "No user messages in current chat" });
       tui.requestRender();
       return;
     }
@@ -248,10 +248,10 @@ export async function handleSubmittedInput(
       request.cwdOverride,
     );
     if (result.cancelled) {
-      pushToast(active!, "Import cancelled.");
+      pushToast(active!, { type: "warning", message: "Import cancelled." });
     } else {
       activateTab(state, active!.sessionId);
-      pushToast(active!, `Imported session: ${request.path}`);
+      pushToast(active!, { type: "success", message: `Imported session: ${request.path}` });
     }
   } else if (parsed.command === "extension-manager") {
     openExtensionManager(state, runtime, tui);
@@ -346,7 +346,10 @@ export async function handleSubmittedInput(
     }
     const value = parseContextLimitValue(parsed.args);
     if (value === undefined) {
-      pushToast(active!, `✖ Invalid context limit: "${parsed.args}". Use a number (e.g. 32k, 40000) or "reset".`);
+      pushToast(active!, {
+        type: "error",
+        message: `Invalid context limit: "${parsed.args}". Use a number (e.g. 32k, 40000) or "reset".`,
+      });
     } else {
       applyContextLimit(active!, value);
       // Adjust SDK compaction settings to match the new limit

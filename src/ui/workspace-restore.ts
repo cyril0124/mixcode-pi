@@ -23,7 +23,7 @@ export async function restoreWorkspace(
   if (!runtime?.createTab || !runtime.closeTab || !runtime.extensionSwitchSession) {
     restoreAlreadyOpenWorkspaceOrder(state, workspace);
     await onStateChanged?.(state);
-    showWorkspaceToast(state, tui, `Workspace restored: ${workspace.name}`);
+    showWorkspaceToast(state, tui, `Workspace restored: ${workspace.name}`, "success");
     return;
   }
   const items = workspaceItems(workspace);
@@ -83,6 +83,7 @@ export async function restoreWorkspace(
     missing.length
       ? `Workspace restored: ${workspace.name} · restored ${restoredTabs.length}, skipped ${missing.length}`
       : `Workspace restored: ${workspace.name} · ${restoredTabs.length} tabs`,
+    "success",
   );
   if (missing.length) {
     state.workspaceOverlay.mode = "missing";

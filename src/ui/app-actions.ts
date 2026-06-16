@@ -127,7 +127,7 @@ export function applyWorkdirSelection(
 ): void | Promise<void> {
   // Skip the expensive teardown/rebuild if the resolved path is unchanged.
   if (path.resolve(workdir) === path.resolve(active.workdir)) {
-    pushToast(active, "workdir unchanged");
+    pushToast(active, { type: "info", message: "workdir unchanged" });
     return;
   }
   if (runtime?.updateTabWorkdir)

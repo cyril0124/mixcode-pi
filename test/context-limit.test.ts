@@ -149,14 +149,14 @@ describe("applyContextLimit", () => {
     applyContextLimit(tab, 200_000);
     assert.equal(tab.contextLimit, 200_000);
     assert.equal(tab.contextLimitOverridden, true);
-    assert.ok(tab.toast?.message.includes("⚠"));
+    assert.equal(tab.toast?.type, "warning");
     assert.ok(tab.toast?.message.includes("model"));
   });
 
   it("shows success toast for normal values", () => {
     const tab = createMockTab();
     applyContextLimit(tab, 64000);
-    assert.ok(tab.toast?.message.includes("✓"));
+    assert.equal(tab.toast?.type, "success");
     assert.ok(!tab.toast?.message.includes("exceeds"));
   });
 });

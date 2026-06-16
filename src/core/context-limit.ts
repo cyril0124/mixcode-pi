@@ -77,7 +77,10 @@ export function applyContextLimit(
   if (value === "reset") {
     tab.contextLimit = tab.model.contextWindow;
     tab.contextLimitOverridden = false;
-    pushToast(tab, `✓ Context limit reset to ${formatCompactTokens(tab.model.contextWindow)}`);
+    pushToast(tab, {
+      type: "success",
+      message: `Context limit reset to ${formatCompactTokens(tab.model.contextWindow)}`,
+    });
     return;
   }
 
@@ -85,12 +88,15 @@ export function applyContextLimit(
   tab.contextLimitOverridden = true;
 
   if (value > tab.model.contextWindow) {
-    pushToast(
-      tab,
-      `⚠ Context limit set to ${formatCompactTokens(value)} (exceeds model capacity of ${formatCompactTokens(tab.model.contextWindow)})`,
-    );
+    pushToast(tab, {
+      type: "warning",
+      message: `Context limit set to ${formatCompactTokens(value)} (exceeds model capacity of ${formatCompactTokens(tab.model.contextWindow)})`,
+    });
   } else {
-    pushToast(tab, `✓ Context limit set to ${formatCompactTokens(value)}`);
+    pushToast(tab, {
+      type: "success",
+      message: `Context limit set to ${formatCompactTokens(value)}`,
+    });
   }
 }
 

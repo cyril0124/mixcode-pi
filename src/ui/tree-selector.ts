@@ -161,7 +161,7 @@ export function openTreeSelector(
 
   if (tree.length === 0) {
     const tab = state.tabs.find((t) => t.sessionId === sessionId);
-    if (tab) pushToast(tab, "No entries in session");
+    if (tab) pushToast(tab, { type: "warning", message: "No entries in session" });
     tui.requestRender();
     return;
   }
@@ -375,7 +375,7 @@ export function handleTreeSelectorKey(
         // If selecting the current leaf, show status and close
         if (entry.id === selector.currentLeafId) {
           closeTreeSelector(state, tui);
-          pushToast(active, "Already at this point");
+          pushToast(active, { type: "info", message: "Already at this point" });
           return true;
         }
         const runtimeRef = runtime as unknown as TreeSelectorRuntime | undefined;
@@ -480,7 +480,11 @@ function moveTreeSelectorSelection(
   }
   if (!moved) {
     const active = state.tabs.find((tab) => tab.sessionId === state.activeTabId);
-    if (active) pushToast(active, direction < 0 ? "No older user message" : "No newer user message");
+    if (active)
+      pushToast(active, {
+        type: "info",
+        message: direction < 0 ? "No older user message" : "No newer user message",
+      });
   } else if (selector.mode === "navigate") {
     void navigateOnSelectionChange(state, tui, runtime, onStateChanged);
   }
@@ -509,7 +513,8 @@ async function navigateOnSelectionChange(
     bounds?.height ?? getMaxVisible(),
     bounds?.width ?? (process.stdout.columns || 80),
   );
-  if (!result.found) pushToast(active, "Message is not in the current chat");
+  if (!result.found)
+    pushToast(active, { type: "warning", message: "Message is not in the current chat" });
   await onStateChanged?.(state);
   refreshTreeSelectorDisplay(tui);
   tui.requestRender();
@@ -545,14 +550,14 @@ async function navigateToEntry(
     });
     if (result.aborted) {
       // Re-show tree selector with same selection on abort
-      if (active) pushToast(active, "Branch summarization cancelled");
+      if (active) pushToast(active, { type: "warning", message: "Branch summarization cancelled" });
       openTreeSelector(state, runtime, tui, sessionId, entryId);
       return;
     }
     if (result.cancelled) {
-      if (active) pushToast(active, "Navigation cancelled");
+      if (active) pushToast(active, { type: "warning", message: "Navigation cancelled" });
     } else {
-      if (active) pushToast(active, "Navigated to selected point");
+      if (active) pushToast(active, { type: "success", message: "Navigated to selected point" });
     }
   } catch (error) {
     showErrorOverlay(tui, error);

@@ -1,15 +1,22 @@
-import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import type { MixCodeTabInfo } from "./types.js";
 
+export type ToastType = "info" | "success" | "warning" | "error";
+
 export interface ToastNotification {
+  type: ToastType;
   message: string;
   createdAt: number;
 }
 
+export interface ToastRequest {
+  type: ToastType;
+  message: string;
+}
+
 const TOAST_DURATION_MS = 3_000;
 
-export function pushToast(tab: MixCodeTabInfo, message: string): void {
-  tab.toast = { message, createdAt: Date.now() };
+export function pushToast(tab: MixCodeTabInfo, toast: ToastRequest): void {
+  tab.toast = { ...toast, createdAt: Date.now() };
 }
 
 export function activeToast(tab: MixCodeTabInfo): ToastNotification | undefined {
@@ -19,21 +26,4 @@ export function activeToast(tab: MixCodeTabInfo): ToastNotification | undefined 
     return undefined;
   }
   return tab.toast;
-}
-
-export function renderToast(
-  tab: MixCodeTabInfo,
-  width: number,
-  dim: (text: string) => string,
-): string | undefined {
-  const toast = activeToast(tab);
-  if (!toast) return undefined;
-  // Allow toast to use up to 80% of screen width, sized to message content
-  const messageWidth = visibleWidth(toast.message);
-  const maxWidth = Math.max(12, Math.min(messageWidth + 2, Math.floor(width * 0.8)));
-  const text = truncateToWidth(toast.message, maxWidth - 2, "\u2026");
-  const padded = ` ${text} `;
-  const paddedWidth = visibleWidth(padded);
-  const leftPad = Math.max(0, width - paddedWidth);
-  return `${" ".repeat(leftPad)}${dim(padded)}`;
 }

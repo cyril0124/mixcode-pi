@@ -183,7 +183,11 @@ export function handleCommandPaletteKey(
       closeCommandPalette(state);
       closeAppOverlay(tui);
       const active = state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];
-      if (active) pushToast(active, selected.disabledReason || "Command unavailable");
+      if (active)
+        pushToast(active, {
+          type: "warning",
+          message: selected.disabledReason || "Command unavailable",
+        });
       tui.requestRender();
       return true;
     }
