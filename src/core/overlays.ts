@@ -39,18 +39,27 @@ export function scrollPreview(tab: MixCodeTabInfo, delta: number): boolean {
 }
 
 export function scrollChat(tab: MixCodeTabInfo, delta: number): boolean {
+  clearChatScrollAnchor(tab);
   tab.chatScrollOffset = Math.min(1_000_000, Math.max(0, tab.chatScrollOffset + delta));
   return true;
 }
 
 export function chatHome(tab: MixCodeTabInfo): boolean {
+  clearChatScrollAnchor(tab);
   tab.chatScrollOffset = 1_000_000;
   return true;
 }
 
 export function chatEnd(tab: MixCodeTabInfo): boolean {
+  clearChatScrollAnchor(tab);
   tab.chatScrollOffset = 0;
   return true;
+}
+
+export function clearChatScrollAnchor(tab: MixCodeTabInfo): void {
+  tab.chatScrollAnchorEntryId = undefined;
+  tab.chatScrollAnchorIndex = undefined;
+  tab.chatScrollAnchorText = undefined;
 }
 
 export function previewHome(tab: MixCodeTabInfo): boolean {

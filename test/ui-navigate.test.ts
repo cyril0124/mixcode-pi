@@ -134,24 +134,26 @@ test("/navigate moves with arrows and j/k, then scrolls current chat", async () 
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[A", tui, undefined, runtime), { consume: true });
   assert.equal(state.treeSelector.filteredNodes[state.treeSelector.selectedIndex]?.node.entry.id, "u1");
   await Promise.resolve();
-  assert.ok(tab.chatScrollOffset > 0);
+  assert.equal(tab.chatScrollAnchorEntryId, "u1");
+  assert.equal(tab.chatScrollAnchorIndex, 0);
 
-  const olderOffset = tab.chatScrollOffset;
+  const olderAnchor = tab.chatScrollAnchorEntryId;
   assert.deepEqual(handleMixCodeKeyInput(state, "k", tui, undefined, runtime), { consume: true });
   assert.equal(state.treeSelector.filteredNodes[state.treeSelector.selectedIndex]?.node.entry.id, "u1");
   assert.match(tab.toast?.message ?? "", /No older user message/);
-  assert.equal(tab.chatScrollOffset, olderOffset);
+  assert.equal(tab.chatScrollAnchorEntryId, olderAnchor);
 
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[B", tui, undefined, runtime), { consume: true });
   assert.equal(state.treeSelector.filteredNodes[state.treeSelector.selectedIndex]?.node.entry.id, "u2");
   await Promise.resolve();
-  assert.equal(tab.chatScrollOffset, 0);
+  assert.equal(tab.chatScrollAnchorEntryId, "u2");
+  assert.equal(tab.chatScrollAnchorIndex, 2);
   assert.equal(state.treeSelector.summarizePrompt, null);
 
   assert.deepEqual(handleMixCodeKeyInput(state, "j", tui, undefined, runtime), { consume: true });
   assert.equal(state.treeSelector.filteredNodes[state.treeSelector.selectedIndex]?.node.entry.id, "u2");
   assert.match(tab.toast?.message ?? "", /No newer user message/);
-  assert.equal(tab.chatScrollOffset, 0);
+  assert.equal(tab.chatScrollAnchorEntryId, "u2");
 
   assert.equal(handleMixCodeKeyInput(state, "\r", tui, undefined, runtime)?.consume, undefined);
   assert.equal(handleMixCodeKeyInput(state, "x", tui, undefined, runtime)?.consume, undefined);
@@ -171,7 +173,7 @@ test("/navigate scroll alignment puts selected user message at top when possible
   const chat = [
     { role: "user" as const, text: "first user", entryId: "u1" },
     { role: "assistant" as const, text: "assistant one" },
-    { role: "user" as const, text: "middle user", entryId: "u2" },
+    { role: "user" as const, text: "middle user" },
     { role: "assistant" as const, text: "assistant two" },
     { role: "user" as const, text: "last user", entryId: "u3" },
   ];
@@ -179,12 +181,51 @@ test("/navigate scroll alignment puts selected user message at top when possible
   const result = scrollChatToUserEntry(tab, chat, [u1.entry, a1.entry, u2.entry, a2.entry, u3.entry], "u2", 5, 80);
 
   assert.equal(result.found, true);
-  assert.ok(tab.chatScrollOffset > 0);
+  assert.equal(tab.chatScrollAnchorEntryId, "u2");
   const visible = renderAgentSurface(tab, { chat, reasoning: [] } as never, 80, 5)
     .map(stripAnsi)
     .filter((line) => line.trim());
   assert.match(visible.slice(0, 3).join("\n"), /middle user/);
   assert.doesNotMatch(visible.slice(0, 3).join("\n"), /first user/);
+});
+
+test("/navigate scroll targeting does not render every chat block", () => {
+  const tab = createTab(1, "s1", "/repo");
+  const u1 = messageNode("u1", null, "user", "first user");
+  const x1 = {
+    entry: {
+      type: "custom_message",
+      id: "x1",
+      parentId: "u1",
+      timestamp: "2026-05-14T00:00:01.000Z",
+      customType: "slow",
+      content: "slow block",
+    },
+    children: [],
+  } as unknown as SessionTreeNode;
+  const u2 = messageNode("u2", "x1", "user", "second user");
+  let renderCalls = 0;
+  const chat = [
+    { role: "user" as const, text: "first user", entryId: "u1" },
+    {
+      role: "extension" as const,
+      text: "slow block",
+      renderExtension: () => {
+        renderCalls++;
+        return ["slow block"];
+      },
+    },
+    { role: "user" as const, text: "second user", entryId: "u2" },
+  ];
+
+  const result = scrollChatToUserEntry(tab, chat, [u1.entry, x1.entry, u2.entry], "u2", 4, 80);
+
+  assert.equal(result.found, true);
+  const visible = renderAgentSurface(tab, { chat, reasoning: [] } as never, 80, 4)
+    .map(stripAnsi)
+    .filter((line) => line.trim());
+  assert.match(visible.slice(0, 3).join("\n"), /second user/);
+  assert.equal(renderCalls, 0);
 });
 
 test("/navigate requires an active agent chat", async () => {

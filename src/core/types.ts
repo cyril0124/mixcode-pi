@@ -130,6 +130,9 @@ export interface MixCodeTabInfo {
   promptHistory: string[];
   draftInput: string;
   chatScrollOffset: number;
+  chatScrollAnchorEntryId?: string;
+  chatScrollAnchorIndex?: number;
+  chatScrollAnchorText?: string;
   previewOpen: boolean;
   previewMessages: PreviewMessage[];
   previewIndex: number;

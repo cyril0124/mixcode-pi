@@ -107,6 +107,19 @@ function renderAgentSurfaceInner(
   const sidebarWidth = 0;
   const mainWidth = surfaceWidth;
 
+  if (maxHeight !== undefined && runtimeTab && tab.chatScrollAnchorEntryId) {
+    return renderAgentSurfaceAnchored(
+      tab,
+      runtimeTab,
+      width,
+      maxHeight,
+      surfaceWidth,
+      mainWidth,
+      sidebarVisible,
+      sidebarWidth,
+    );
+  }
+
   // Windowed path: only viable when the caller is going to clip to maxHeight
   // anyway and chat is long enough that rendering every block hurts. Falls
   // through to the legacy full-render path otherwise (legacy callers pass
@@ -194,6 +207,95 @@ function canUseWindowedRender(tab: MixCodeTabInfo, runtimeTab: RuntimeTab): bool
  * gives a slightly imprecise but stable thumb. The visible content is
  * always exact because actual heights drive the slicing.
  */
+function renderAgentSurfaceAnchored(
+  tab: MixCodeTabInfo,
+  runtimeTab: RuntimeTab,
+  width: number,
+  maxHeight: number,
+  surfaceWidth: number,
+  mainWidth: number,
+  sidebarVisible: boolean,
+  sidebarWidth: number,
+): string[] {
+  const chat = runtimeTab.chat;
+  const viewport = Math.max(0, Math.floor(maxHeight));
+  if (viewport <= 0) return [];
+
+  let anchorIndex = tab.chatScrollAnchorIndex ?? -1;
+  if (anchorIndex < 0 || anchorIndex >= chat.length || !matchesChatAnchor(chat[anchorIndex]!, tab)) {
+    anchorIndex = chat.findIndex((line) => matchesChatAnchor(line, tab));
+  }
+  if (anchorIndex < 0) {
+    tab.chatScrollAnchorEntryId = undefined;
+    tab.chatScrollAnchorIndex = undefined;
+    tab.chatScrollAnchorText = undefined;
+    return renderAgentSurfaceWindowed(
+      tab,
+      runtimeTab,
+      width,
+      maxHeight,
+      surfaceWidth,
+      mainWidth,
+      sidebarVisible,
+      sidebarWidth,
+    );
+  }
+
+  const lines: string[] = [];
+  const frameBlockHeights = new Map<ChatLine, number>();
+  let nextIsNonEmpty = false;
+  for (let i = anchorIndex; i < chat.length && lines.length < viewport; i++) {
+    const line = chat[i]!;
+    const block = renderChatBlock(
+      line,
+      mainWidth,
+      tab,
+      activeRenderTheme,
+      streamingTextRenderOptions(runtimeTab, i),
+    );
+    frameBlockHeights.set(line, block.length);
+    if (block.length === 0) continue;
+    if (nextIsNonEmpty) lines.push(chatBlockSeparator(mainWidth));
+    for (const renderedLine of block) lines.push(renderedLine);
+    nextIsNonEmpty = true;
+  }
+  while (lines.length < viewport) lines.push(chatBlockSeparator(mainWidth));
+  const visible = lines.slice(0, viewport);
+
+  const total = estimateTotalHeight(
+    chat,
+    runtimeTab.reasoning ?? [],
+    renderQueuePreview(tab, mainWidth).length,
+    mainWidth,
+    tab,
+    false,
+    frameBlockHeights,
+  );
+  const start = Math.min(Math.max(0, total - visible.length), anchorIndex * BLOCK_HEIGHT_FALLBACK);
+  const composed = sidebarVisible
+    ? joinColumns(
+        visible,
+        renderSidebarInner(tab, sidebarWidth, runtimeTab),
+        mainWidth,
+        sidebarWidth,
+      )
+    : visible;
+  const fitted: ScrolledLinesResult = {
+    lines: highlightVisibleChatLines(composed, tab, surfaceWidth, viewport),
+    total,
+    height: viewport,
+    start,
+    end: Math.min(total, start + viewport),
+    scrollable: total > viewport,
+  };
+  return appendChatScrollbar(fitted, width, false);
+}
+
+function matchesChatAnchor(line: ChatLine, tab: MixCodeTabInfo): boolean {
+  if (line.entryId && line.entryId === tab.chatScrollAnchorEntryId) return true;
+  return Boolean(tab.chatScrollAnchorText && line.role === "user" && line.text === tab.chatScrollAnchorText);
+}
+
 function renderAgentSurfaceWindowed(
   tab: MixCodeTabInfo,
   runtimeTab: RuntimeTab,

@@ -24,6 +24,7 @@ import {
   summarizeUnknown,
   toolExecutionToChatLine,
 } from "./runtime-tool-chat.js";
+import { clearChatScrollAnchor } from "../core/overlays.js";
 import type { ChatLine, RuntimeEvent, RuntimeTab, ToolResultLike } from "./runtime-types.js";
 
 type AgentSessionPostRunInternals = {
@@ -326,6 +327,7 @@ export function appendMessageStart(runtimeTab: RuntimeTab, message: AgentMessage
   if (message.role === "user") {
     const text = contentText(message.content);
     if (!text.trim()) return;
+    clearChatScrollAnchor(runtimeTab.tab);
     runtimeTab.tab.chatScrollOffset = 0;
     runtimeTab.chat.push({ role: "user", text });
     appendPreviewMessage(runtimeTab.tab, "user", text);

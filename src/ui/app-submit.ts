@@ -123,6 +123,9 @@ export async function handleSubmittedInput(
     active!.previewMessages = [];
     active!.previewIndex = 0;
     active!.chatScrollOffset = 0;
+    active!.chatScrollAnchorEntryId = undefined;
+    active!.chatScrollAnchorIndex = undefined;
+    active!.chatScrollAnchorText = undefined;
     // Set status to "idle" rather than "running" — clearTab blocks the event loop
     // with synchronous extension loading so a spinner cannot animate anyway.
     // An idle-looking empty chat is less jarring than a frozen spinner.
