@@ -18,6 +18,7 @@ import {
   updateTabJumpQuery,
 } from "../core/overlays.js";
 import type { MixCodeState } from "../core/types.js";
+import { pushToast } from "../core/toast.js";
 import { armPendingEscape, clearPendingEscape, hasPendingEscape } from "./app-actions.js";
 import {
   closeAppOverlay,
@@ -26,7 +27,6 @@ import {
   showErrorOverlay,
   showLinesOverlay,
 } from "./app-overlays.js";
-import { pushToast } from "../core/toast.js";
 import { renderExportText } from "./app-submit.js";
 import type {
   CommandPaletteActions,

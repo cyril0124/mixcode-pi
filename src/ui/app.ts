@@ -45,10 +45,10 @@ export { bindLiveExtensionRedraw, bindRuntimeRendering, bindWorkingRedraw } from
 export {
   handleSubmittedInput,
   renderExportText,
-  renderHotkeysText,
   renderSessionInfoText,
-  renderSystemToolsText,
 } from "./app-submit.js";
+export { renderHotkeysText } from "./hotkeys.js";
+export { renderSystemToolsText } from "./system-tools.js";
 export interface MixCodeTuiOptions {
   completionSources?: MixCodeCompletionSources;
   onStateChanged?: (state: MixCodeState) => void | Promise<void>;

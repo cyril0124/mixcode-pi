@@ -204,7 +204,7 @@ function entryToChatLines(entry: SessionEntry, runtimeTab: RuntimeTab): ChatLine
   const message = entry.message;
   if (message.role === "user") {
     const text = contentText(message.content);
-    return text.trim() ? [{ role: "user", text }] : [];
+    return text.trim() ? [{ role: "user", text, entryId: entry.id }] : [];
   }
   if (message.role === "assistant") return assistantMessageToChatLines(message, runtimeTab);
   if (message.role === "bashExecution") {

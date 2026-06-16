@@ -32,7 +32,7 @@ function renderTreeSelectorInner(selector: TreeSelectorState, width: number): st
   }
 
   const lines: string[] = ["", renderDynamicBorder(bodyWidth), activeRenderTheme.bold("  Session Tree")];
-  lines.push(renderTreeHintLine(bodyWidth));
+  lines.push(renderTreeHintLine(selector, bodyWidth));
   lines.push(renderSearchLine(selector, bodyWidth));
   lines.push(renderDynamicBorder(bodyWidth));
   lines.push("");
@@ -88,13 +88,11 @@ function renderLabelInput(selector: TreeSelectorState, width: number): string[] 
   ].map((line) => truncateToWidth(line, width));
 }
 
-function renderTreeHintLine(width: number): string {
-  return truncateToWidth(
-    activeRenderTheme.dim(
-      "  ↑/↓: move. ←/→: page. ^←/^→ or Alt+←/Alt+→: fold/branch. shift+l: label. ctrl+d/ctrl+t/ctrl+u/ctrl+l/ctrl+a: filters (ctrl+o/shift+ctrl+o cycle). shift+t: label time",
-    ),
-    width,
-  );
+function renderTreeHintLine(selector: TreeSelectorState, width: number): string {
+  const text = selector.mode === "navigate"
+    ? "  ↑/↓ or j/k: move+scroll. Esc: close. Other keys pass through."
+    : "  ↑/↓: move. ←/→: page. ^←/^→ or Alt+←/Alt+→: fold/branch. shift+l: label. ctrl+d/ctrl+t/ctrl+u/ctrl+l/ctrl+a: filters (ctrl+o/shift+ctrl+o cycle). shift+t: label time";
+  return truncateToWidth(activeRenderTheme.dim(text), width);
 }
 
 function renderSearchLine(selector: TreeSelectorState, width: number): string {

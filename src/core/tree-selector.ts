@@ -43,8 +43,11 @@ export interface SummarizePromptState {
 }
 
 /** Tool call info for lookup */
+export type TreeSelectorMode = "tree" | "navigate";
+
 export interface TreeSelectorState {
   open: boolean;
+  mode: TreeSelectorMode;
   flatNodes: FlatTreeNode[];
   filteredNodes: FlatTreeNode[];
   selectedIndex: number;
@@ -53,6 +56,7 @@ export interface TreeSelectorState {
   searchQuery: string;
   multipleRoots: boolean;
   activePathIds: Set<string>;
+  allowedEntryIds: Set<string> | null;
   visibleParentMap: Map<string, string | null>;
   visibleChildrenMap: Map<string | null, string[]>;
   foldedNodes: Set<string>;
@@ -69,6 +73,7 @@ export interface TreeSelectorState {
 export function createTreeSelectorState(): TreeSelectorState {
   return {
     open: false,
+    mode: "tree",
     flatNodes: [],
     filteredNodes: [],
     selectedIndex: 0,
@@ -77,6 +82,7 @@ export function createTreeSelectorState(): TreeSelectorState {
     searchQuery: "",
     multipleRoots: false,
     activePathIds: new Set(),
+    allowedEntryIds: null,
     visibleParentMap: new Map(),
     visibleChildrenMap: new Map(),
     foldedNodes: new Set(),
@@ -98,10 +104,14 @@ export function initTreeSelector(
   currentLeafId: string | null,
   initialSelectedId?: string,
   initialFilterMode?: TreeFilterMode,
+  mode: TreeSelectorMode = "tree",
+  allowedEntryIds?: Set<string>,
 ): void {
   state.open = true;
+  state.mode = mode;
   state.currentLeafId = currentLeafId;
   state.filterMode = initialFilterMode ?? "default";
+  state.allowedEntryIds = allowedEntryIds ?? null;
   state.searchQuery = "";
   state.foldedNodes.clear();
   state.showLabelTimestamps = false;
@@ -295,6 +305,7 @@ export function applyTreeFilter(state: TreeSelectorState): void {
 
   state.filteredNodes = state.flatNodes.filter((flatNode) => {
     const entry = flatNode.node.entry;
+    if (state.allowedEntryIds && !state.allowedEntryIds.has(entry.id)) return false;
     const isCurrentLeaf = entry.id === state.currentLeafId;
 
     // Skip assistant messages with only tool calls (no text) unless error/aborted
@@ -512,6 +523,14 @@ export function moveTreeSelection(state: TreeSelectorState, direction: -1 | 1): 
     state.selectedIndex =
       state.selectedIndex === state.filteredNodes.length - 1 ? 0 : state.selectedIndex + 1;
   }
+}
+
+export function moveTreeSelectionBounded(state: TreeSelectorState, direction: -1 | 1): boolean {
+  if (state.filteredNodes.length === 0) return false;
+  const nextIndex = state.selectedIndex + direction;
+  if (nextIndex < 0 || nextIndex >= state.filteredNodes.length) return false;
+  state.selectedIndex = nextIndex;
+  return true;
 }
 
 export function pageTreeSelection(state: TreeSelectorState, direction: -1 | 1, pageSize: number): void {

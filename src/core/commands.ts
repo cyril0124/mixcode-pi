@@ -25,6 +25,7 @@ export type LocalCommand =
   | "clear"
   | "mark-done"
   | "vim"
+  | "navigate"
   | "new-session"
   | "resume"
   | "help"
@@ -82,6 +83,7 @@ export const LOCAL_COMMANDS: Array<{
   { name: "clear", description: "Replace active session with a fresh child session" },
   { name: "mark-done", description: "Mark active tab done" },
   { name: "vim", description: "Enter Vim mode for chat scrolling" },
+  { name: "navigate", description: "Scroll to user messages from the session tree" },
   { name: "new-session", description: "Create a session" },
   { name: "resume", description: "Resume a different session" },
   { name: "help", description: "Show all keyboard shortcuts" },

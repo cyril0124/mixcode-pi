@@ -5,7 +5,6 @@ import { applyContextLimit, parseContextLimitValue, adjustCompactionSettingsForL
 import { parseInput } from "../core/commands.js";
 import { createSessionId, createTab } from "../core/defaults.js";
 import { stringifyJson } from "../core/json.js";
-import { MIXCODE_KEYMAP } from "../core/keymap.js";
 import { findModelRef } from "../core/models.js";
 import { createPicker } from "../core/pickers.js";
 import { buildModelPrompt } from "../core/prompt-build.js";
@@ -32,7 +31,10 @@ import type {
   RuntimeShortcutInfo,
   RuntimeToolInfo,
 } from "./app-types.js";
+import { userMessageEntryIdsInBranch } from "./chat-scroll-target.js";
 import { openExtensionManager } from "./extension-manager.js";
+import { renderHotkeysText } from "./hotkeys.js";
+import { renderSystemToolsText } from "./system-tools.js";
 import { getConfiguredQuitOptions, quitMixCode } from "./quit.js";
 import { clearConversationCache, renderPickerOverlay } from "./rendering.js";
 import { openSessionSelector, type SessionSelectorRuntime } from "./session-selector.js";
@@ -83,6 +85,30 @@ export async function handleSubmittedInput(
     active!.vimMode = true;
     active!.vimPendingEscapeAt = undefined;
     active!.vimPendingHome = false;
+  } else if (parsed.command === "navigate") {
+    const runtimeTab = runtime.getTab?.(active!.sessionId);
+    if (!runtimeTab?.session.getTree || !runtimeTab.session.getLeafId || !runtimeTab.session.getBranch) {
+      throw new Error("Navigate requires an active agent chat");
+    }
+    const userEntryIds = userMessageEntryIdsInBranch(runtimeTab.session.getBranch());
+    if (userEntryIds.length === 0) {
+      pushToast(active!, "No user messages in current chat");
+      tui.requestRender();
+      return;
+    }
+    openTreeSelector(
+      state,
+      runtime as unknown as TreeSelectorRuntime,
+      tui,
+      active!.sessionId,
+      undefined,
+      "user-only",
+      "navigate",
+      new Set(userEntryIds),
+    );
+    await onStateChanged?.(state);
+    tui.requestRender();
+    return;
   } else if (parsed.command === "clear") {
     if (!runtime.clearTab) throw new Error("Clear requires runtime session replacement support");
     const oldSessionId = active!.sessionId;
@@ -540,118 +566,6 @@ function getExtensionShortcuts(
   );
 }
 
-export function renderSystemToolsText(tools: RuntimeToolInfo[]): string {
-  if (tools.length === 0) return ["System Tools", "", "No tools available."].join("\n");
-  return [
-    "System Tools",
-    "",
-    ...tools
-      .map((tool) => formatSystemTool(tool))
-      .join("\n\n")
-      .split("\n"),
-  ].join("\n");
-}
-
-export function renderHotkeysText(extensionShortcuts: RuntimeShortcutInfo[] = []): string {
-  const lines = [
-    "Keyboard Shortcuts",
-    "",
-    ...formatHotkeyGroup("Global", hotkeysForScope("global")),
-    "",
-    ...formatHotkeyGroup("Picker", hotkeysForScope("picker")),
-    "",
-    ...formatHotkeyGroup("Command Palette", hotkeysForScope("command-palette")),
-    "",
-    ...formatHotkeyGroup("Tab Jump", hotkeysForScope("tab-jump")),
-    "",
-    ...formatHotkeyGroup("Export", hotkeysForScope("export")),
-    "",
-    ...formatHotkeyGroup("Question", hotkeysForScope("question")),
-    "",
-    ...formatHotkeyGroup("Preview", hotkeysForScope("preview")),
-    "",
-    "Other",
-    "| Key | Action |",
-    "|-----|--------|",
-    "| `/` | Slash commands |",
-    "| `!` | Run bash command |",
-    "| `!!` | Run bash command (excluded from context) |",
-  ];
-  const extensions = extensionShortcuts.filter((shortcut) => shortcut.key.trim());
-  if (extensions.length > 0) {
-    lines.push(
-      "",
-      ...formatHotkeyGroup(
-        "Extensions",
-        extensions.map((shortcut) => ({
-          key: shortcut.key,
-          description: shortcut.description?.trim() || shortcut.source || "Extension shortcut",
-        })),
-      ),
-    );
-  }
-  return lines.join("\n");
-}
-
-function hotkeysForScope(scope: string): Array<{ key: string; description: string }> {
-  return MIXCODE_KEYMAP.filter((item) => (item.scope ?? "global") === scope).map((item) => ({
-    key: item.key,
-    description: item.description,
-  }));
-}
-
-function formatHotkeyGroup(
-  title: string,
-  entries: Array<{ key: string; description: string }>,
-): string[] {
-  return [
-    title,
-    "| Key | Action |",
-    "|-----|--------|",
-    ...entries.map((entry) => `| \`${formatHotkey(entry.key)}\` | ${entry.description} |`),
-  ];
-}
-
-function formatHotkey(key: string): string {
-  if (key === "/") return "/";
-  const parts = key.includes("+/") ? [key] : key.split("/");
-  return parts.map((part) => formatHotkeyChord(part)).join(" / ");
-}
-
-function formatHotkeyChord(chord: string): string {
-  return chord
-    .split("+")
-    .map((segment) => formatHotkeySegment(segment))
-    .join("+");
-}
-
-function formatHotkeySegment(segment: string): string {
-  const normalized = segment.trim();
-  const labels: Record<string, string> = {
-    alt: "Alt",
-    ctrl: "Ctrl",
-    down: "Down",
-    end: "End",
-    enter: "Enter",
-    escape: "Escape",
-    home: "Home",
-    j: "J",
-    k: "K",
-    l: "L",
-    left: "Left",
-    pageDown: "PageDown",
-    pageup: "PageUp",
-    pageUp: "PageUp",
-    right: "Right",
-    shift: "Shift",
-    space: "Space",
-    tab: "Tab",
-    up: "Up",
-  };
-  if (/^[a-z]$/.test(normalized)) return normalized.toUpperCase();
-  return labels[normalized] ?? normalized;
-}
-
 type SessionStatsInfo = ReturnType<
   NonNullable<ReturnType<MixCodeRuntime["getTab"]>>["agentSession"]["getSessionStats"]
 >;
@@ -730,43 +644,6 @@ function formatCompactTokenCount(tokens: number): string {
 
 function formatSessionContextPercent(percent: number | null): string {
   return percent === null ? "unknown" : `${percent.toFixed(1)}%`;
-}
-
-function formatSystemTool(tool: RuntimeToolInfo): string {
-  const name = String(tool.name ?? "(unnamed)");
-  const lines = [`## ${name}`];
-  if (typeof tool.description === "string" && tool.description.trim())
-    lines.push(tool.description.trim());
-  const source = formatToolSource(tool.sourceInfo);
-  if (source) lines.push(`source: ${source}`);
-  if (tool.parameters !== undefined)
-    lines.push("parameters:", stringifyJson(tool.parameters, true));
-  return lines.join("\n");
-}
-
-function formatToolSource(sourceInfo: RuntimeToolInfo["sourceInfo"]): string {
-  if (!sourceInfo) return "";
-  const parts = [
-    typeof sourceInfo.source === "string" && sourceInfo.source
-      ? displayToolSource(sourceInfo.source)
-      : "",
-    typeof sourceInfo.scope === "string" && sourceInfo.scope ? sourceInfo.scope : "",
-    typeof sourceInfo.origin === "string" && sourceInfo.origin ? sourceInfo.origin : "",
-    typeof sourceInfo.path === "string" && sourceInfo.path
-      ? displayToolSourcePath(sourceInfo.path)
-      : "",
-  ].filter(Boolean);
-  return parts.join(" | ");
-}
-
-function displayToolSource(source: string): string {
-  if (source === "builtin") return "pi-builtin";
-  if (source === "sdk") return "mixcode-custom";
-  return source;
-}
-
-function displayToolSourcePath(path: string): string {
-  return path.replace(/^<builtin:/, "<pi-builtin:").replace(/^<sdk:/, "<mixcode-custom:");
 }
 
 function parseExportRequest(args: string): ExportRequest {

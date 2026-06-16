@@ -76,6 +76,7 @@ export interface ChatLine {
   customType?: string;
   status?: "pending" | "running" | "success" | "error";
   toolCallId?: string;
+  entryId?: string;
   args?: unknown;
   renderExtension?: (width: number) => string[];
   renderToolCall?: (width: number) => string[];
