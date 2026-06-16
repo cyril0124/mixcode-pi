@@ -154,6 +154,7 @@ export interface ExtensionEditorHost {
   setAutocompleteProvider?: (provider: AutocompleteProvider) => void;
   setEditorComponent?: (factory: EditorFactory | undefined, sessionId?: string) => void;
   getEditorComponent?: (sessionId?: string) => EditorFactory | undefined;
+  getEmbeddedTerminalRows?: (sessionId?: string) => number | undefined;
 }
 
 export interface ExtensionCustomUiHost {

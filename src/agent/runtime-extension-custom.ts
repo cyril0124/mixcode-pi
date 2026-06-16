@@ -6,6 +6,7 @@ import {
   MIXCODE_EXTENSION_THEME,
 } from "./runtime-extension-theme.js";
 import { applyMixCodeKeybindings } from "./runtime-pi-tui-bridge.js";
+import { createTerminalRowsProxy } from "./runtime-tui-proxy.js";
 import type {
   ExtensionCustomComponent,
   ExtensionCustomFactory,
@@ -141,10 +142,11 @@ function createExtensionCustomEditor<T>(
     const closeWithoutResult = () => close(undefined as T);
     runtimeTab.extensionCustomOverlayClosers.add(closeWithoutResult);
     addPendingUserInteraction(runtimeTab, interactionId, "custom");
+    const tui = createTerminalRowsProxy(host.tui, () =>
+      host.editor?.getEmbeddedTerminalRows?.(sessionId),
+    );
     Promise.resolve()
-      .then(() =>
-        factory(host.tui, MIXCODE_EXTENSION_THEME, MIXCODE_EXTENSION_KEYBINDINGS_MANAGER, close),
-      )
+      .then(() => factory(tui, MIXCODE_EXTENSION_THEME, MIXCODE_EXTENSION_KEYBINDINGS_MANAGER, close))
       .then((createdComponent) => {
         if (settled) {
           createdComponent.dispose?.();

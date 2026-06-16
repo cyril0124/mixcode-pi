@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Component } from "@earendil-works/pi-tui";
+import { initTreeSelector, type SessionTreeNode } from "../src/core/tree-selector.js";
+import { renderTreeSelector } from "../src/ui/tree-selector-render.js";
 import {
   MixCodeFooterRoot,
   MixCodeLayoutRoot,
@@ -24,6 +26,8 @@ function fakeEditor(lines: string[]): EditorSlot {
   return {
     render: () => lines,
     invalidate: () => undefined,
+    setEmbeddedTerminalRows: () => false,
+    setEditorMaxRows: () => false,
   } as unknown as EditorSlot;
 }
 
@@ -33,6 +37,36 @@ function fakeEditor(lines: string[]): EditorSlot {
 // border. We replicate that self-sizing so the test mirrors btw exactly.
 const BTW_CHROME_LINES = 4;
 const BTW_RESERVED_APP_LINES = 3;
+function messageNode(
+  id: string,
+  parentId: string | null,
+  role: "user" | "assistant",
+  text: string,
+  children: SessionTreeNode[] = [],
+): SessionTreeNode {
+  return {
+    entry: {
+      type: "message",
+      id,
+      parentId,
+      timestamp: "2026-05-14T00:00:00.000Z",
+      message: { role, content: [{ type: "text", text }] },
+    },
+    children,
+  } as SessionTreeNode;
+}
+
+function sampleTree(): SessionTreeNode[] {
+  return [
+    messageNode("root", null, "user", "start", [
+      messageNode("assistant", "root", "assistant", "answer", [
+        messageNode("active", "assistant", "user", "current branch"),
+        messageNode("other", "assistant", "user", "side branch"),
+      ]),
+    ]),
+  ];
+}
+
 function borderedPagerLines(viewportRows: number): string[] {
   const contentRows = Math.max(1, viewportRows - BTW_CHROME_LINES - BTW_RESERVED_APP_LINES);
   return [
@@ -89,6 +123,76 @@ function buildRealLayout(editorLineCount: number, viewportRows: number, width = 
   );
 }
 
+function buildRealLayoutWithDynamicEditor(
+  editor: EditorSlot,
+  viewportRows: number,
+  width = 80,
+) {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo");
+  state.tabs = [tab];
+  state.activeTabId = tab.sessionId;
+  const runtime = new MixCodeRuntime();
+
+  let editorRows = 0;
+  let metaRows = 1;
+  const main = new MixCodeRoot(
+    state,
+    runtime,
+    () => viewportRows,
+    () => editorRows + metaRows + renderFooter(width).length + TERMINAL_SCROLL_GUARD_ROWS,
+  );
+  const layout = new MixCodeLayoutRoot(
+    state,
+    main,
+    editor,
+    new MixCodeFooterRoot(state),
+    (rows) => {
+      editorRows = rows;
+    },
+    (rows) => {
+      metaRows = rows;
+    },
+    () => viewportRows,
+    { requestRender: () => undefined },
+  );
+  return { layout, state };
+}
+
+function buildRealLayoutWithBtwStyleEditor(viewportRows: number) {
+  let embeddedTerminalRows = viewportRows;
+  const editor = {
+    render: () => borderedPagerLines(embeddedTerminalRows),
+    invalidate: () => undefined,
+    setEmbeddedTerminalRows: (rows: number) => {
+      if (embeddedTerminalRows === rows) return false;
+      embeddedTerminalRows = rows;
+      return true;
+    },
+    setEditorMaxRows: () => false,
+  } as unknown as EditorSlot;
+  return buildRealLayoutWithDynamicEditor(editor, viewportRows);
+}
+
+function buildRealLayoutWithTreeEditor(viewportRows: number) {
+  let editorMaxRows: number | undefined;
+  let editorState: ReturnType<typeof createInitialState> | undefined;
+  const editor = {
+    render: (width: number) => renderTreeSelector(editorState!, width, editorMaxRows),
+    invalidate: () => undefined,
+    setEmbeddedTerminalRows: () => false,
+    setEditorMaxRows: (rows: number | undefined) => {
+      if (editorMaxRows === rows) return false;
+      editorMaxRows = rows;
+      return true;
+    },
+  } as unknown as EditorSlot;
+  const { layout, state } = buildRealLayoutWithDynamicEditor(editor, viewportRows);
+  editorState = state;
+  initTreeSelector(state.treeSelector, sampleTree(), "active");
+  return { layout, state };
+}
+
 test("oversized extension editor never overflows the viewport or evicts the tab bar", () => {
   const viewportRows = 24;
   const { layout, state, getEditorRows } = buildRealLayout(200, viewportRows);
@@ -131,6 +235,61 @@ test("bordered pager keeps both its top and bottom borders alongside the tab bar
   assert.match(text, /TOP-BORDER/, "pager top border must stay visible");
   assert.match(text, /BOTTOM-BORDER/, "pager bottom border (yellow line) must stay visible");
   void state;
+});
+
+test("btw-style pager receives available height when widgets and working status consume rows", () => {
+  const viewportRows = 24;
+  const { layout, state } = buildRealLayoutWithBtwStyleEditor(viewportRows);
+  try {
+    const active = state.tabs[0]!;
+    active.status = "running";
+    active.workingStartedAt = new Date().toISOString();
+    active.extensionUi.widgets = [
+      {
+        id: "goals",
+        placement: "aboveEditor",
+        lines: ["goal", "todo-1", "todo-2", "todo-3", "todo-4"],
+      },
+    ];
+
+    layout.render(80);
+    const lines = layout.render(80);
+    const text = stripAnsi(lines.join("\n"));
+
+    assert.ok(lines.length <= viewportRows, `overflow: ${lines.length} > ${viewportRows}`);
+    assert.match(text, /Agent-01/, "tab bar must stay visible");
+    assert.match(text, /TOP-BORDER/, "pager top border must stay visible");
+    assert.match(text, /BOTTOM-BORDER/, "pager bottom border must stay visible");
+    assert.doesNotMatch(text, /content-12/, "pager should size itself to available rows");
+  } finally {
+    layout.dispose();
+  }
+});
+
+test("tree selector sizes list to available editor rows with widgets and worked status", () => {
+  const viewportRows = 24;
+  const { layout, state } = buildRealLayoutWithTreeEditor(viewportRows);
+  const active = state.tabs[0]!;
+  active.lastWorkedDurationSeconds = 2;
+  active.extensionUi.widgets = [
+    {
+      id: "goals",
+      placement: "aboveEditor",
+      lines: ["goal", "time", "tokens", "floor", "next"],
+    },
+  ];
+
+  layout.render(80);
+  const lines = layout.render(80).map((line) => stripAnsi(line));
+  const text = lines.join("\n");
+  const treeNodeIndex = lines.findIndex((line) => line.includes("user: current branch"));
+  const metaIndex = lines.findIndex((line) => line.includes("faux/faux-1"));
+
+  assert.ok(lines.length <= viewportRows, `overflow: ${lines.length} > ${viewportRows}`);
+  assert.match(text, /Session Tree/);
+  assert.ok(treeNodeIndex >= 0, "tree node should stay visible inside editor area");
+  assert.ok(metaIndex > treeNodeIndex, "input meta must remain below the tree list");
+  assert.match(text, /\(3\/4\)/, "tree status row should remain visible");
 });
 
 test("small editor content is not clamped", () => {

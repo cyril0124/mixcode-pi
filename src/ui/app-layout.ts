@@ -126,32 +126,52 @@ export class MixCodeLayoutRoot implements Component {
 
   render(width: number): string[] {
     const theme = themeForId(this.state.theme);
-    const editorLines = this.editor.render(width);
     const active =
       this.state.tabs.find((tab) => tab.sessionId === this.state.activeTabId) ?? this.state.tabs[0];
-    const metaProbe =
-      active && this.state.activeTabId !== "config"
-        ? renderInputMeta(active, width, 0, theme, false)
-        : [];
-    const workingLines =
-      active && this.state.activeTabId !== "config"
-        ? this.renderWorkingLoader(active, width, theme)
-        : [];
-    const widgetsAbove =
-      active && this.state.activeTabId !== "config"
-        ? renderExtensionWidgets(active, width, "aboveEditor", theme)
-        : [];
-    const widgetsBelow =
-      active && this.state.activeTabId !== "config"
-        ? renderExtensionWidgets(active, width, "belowEditor", theme)
-        : [];
-    const widgetsAboveBottomGapRows =
+    const isAgentTab = active && this.state.activeTabId !== "config";
+    const metaProbe = isAgentTab ? renderInputMeta(active, width, 0, theme, false) : [];
+    const workingLines = isAgentTab ? this.renderWorkingLoader(active, width, theme) : [];
+    const widgetsAbove = isAgentTab
+      ? renderExtensionWidgets(active, width, "aboveEditor", theme)
+      : [];
+    const widgetsBelow = isAgentTab
+      ? renderExtensionWidgets(active, width, "belowEditor", theme)
+      : [];
+    const viewportRowsForClamp = this.getViewportRows?.();
+    const workingBottomGapRows = workingLines.length > 0 ? WORKING_GAP_ROWS : 0;
+    let editorLines = this.editor.render(width);
+    let widgetsAboveBottomGapRows =
       widgetsAbove.length > 0 && (workingLines.length > 0 || editorLines.length > 0)
         ? WORKING_GAP_ROWS
         : 0;
-    const controlTopGapRows = editorLines.length > 0 ? WORKING_GAP_ROWS : 0;
-    const workingBottomGapRows = workingLines.length > 0 ? WORKING_GAP_ROWS : 0;
-    const viewportRowsForClamp = this.getViewportRows?.();
+    let controlTopGapRows = editorLines.length > 0 ? WORKING_GAP_ROWS : 0;
+    if (
+      this.setEmbeddedTerminalRows(
+        active?.sessionId,
+        viewportRowsForClamp,
+        widgetsAbove.length,
+        widgetsAboveBottomGapRows,
+        workingLines.length,
+        workingBottomGapRows,
+        widgetsBelow.length,
+      )
+    ) {
+      editorLines = this.editor.render(width);
+      widgetsAboveBottomGapRows =
+        widgetsAbove.length > 0 && (workingLines.length > 0 || editorLines.length > 0)
+          ? WORKING_GAP_ROWS
+          : 0;
+      controlTopGapRows = editorLines.length > 0 ? WORKING_GAP_ROWS : 0;
+      this.setEmbeddedTerminalRows(
+        active?.sessionId,
+        viewportRowsForClamp,
+        widgetsAbove.length,
+        widgetsAboveBottomGapRows,
+        workingLines.length,
+        workingBottomGapRows,
+        widgetsBelow.length,
+      );
+    }
     // Clamp editor lines so extension editor components (e.g. the btw answer
     // pager) cannot overflow the terminal and push the tab bar into scrollback.
     // Reserve exactly the main region's tab-bar rows: when the editor is large,
@@ -160,24 +180,25 @@ export class MixCodeLayoutRoot implements Component {
     // editor component's own bottom chrome (e.g. the btw bottom border).
     // Fall back to 1 (single tab-bar row) before the first frame sets the value.
     const mainTopReserve = this.state.tabBarHitRow ?? 1;
-    const clampedEditorLines = viewportRowsForClamp
-      ? editorLines.slice(
-          0,
-          Math.max(
-            1,
-            viewportRowsForClamp -
-              mainTopReserve -
-              controlTopGapRows -
-              workingLines.length -
-              workingBottomGapRows -
-              widgetsAboveBottomGapRows -
-              widgetsAbove.length -
-              widgetsBelow.length -
-              metaProbe.length -
-              renderFooter(width).length,
-          ),
+    const maxEditorRows = viewportRowsForClamp
+      ? Math.max(
+          1,
+          viewportRowsForClamp -
+            mainTopReserve -
+            controlTopGapRows -
+            workingLines.length -
+            workingBottomGapRows -
+            widgetsAboveBottomGapRows -
+            widgetsAbove.length -
+            widgetsBelow.length -
+            metaProbe.length -
+            renderFooter(width).length,
         )
-      : editorLines;
+      : undefined;
+    if (this.editor.setEditorMaxRows(maxEditorRows, active?.sessionId)) {
+      editorLines = this.editor.render(width);
+    }
+    const clampedEditorLines = maxEditorRows ? editorLines.slice(0, maxEditorRows) : editorLines;
     this.setEditorRows(clampedEditorLines.length);
     this.setMetaRows(
       controlTopGapRows +
@@ -238,6 +259,31 @@ export class MixCodeLayoutRoot implements Component {
       ...footerLines,
       ...Array.from({ length: guardRows }, () => padLine("", Math.max(0, width - 1))),
     ];
+  }
+
+  private setEmbeddedTerminalRows(
+    sessionId: string | undefined,
+    viewportRows: number | undefined,
+    widgetsAboveRows: number,
+    widgetsAboveBottomGapRows: number,
+    workingRows: number,
+    workingBottomGapRows: number,
+    widgetsBelowRows: number,
+  ): boolean {
+    return this.editor.setEmbeddedTerminalRows(
+      viewportRows === undefined
+        ? undefined
+        : Math.max(
+            1,
+            viewportRows -
+              widgetsAboveRows -
+              widgetsAboveBottomGapRows -
+              workingRows -
+              workingBottomGapRows -
+              widgetsBelowRows,
+          ),
+      sessionId,
+    );
   }
 
   private renderWorkingLoader(

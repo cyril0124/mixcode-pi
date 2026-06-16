@@ -90,8 +90,11 @@ export function createMixCodeTui(
   );
   defaultEditor.setAutocompleteMaxVisible(8);
   const editor = new EditorSlot(tui, defaultEditor, state);
-  attachTreeSelectorDisplayHost(tui, state, (factory, sessionId) =>
-    editor.setEditorComponent(factory, sessionId),
+  attachTreeSelectorDisplayHost(
+    tui,
+    state,
+    (factory, sessionId) => editor.setEditorComponent(factory, sessionId),
+    (sessionId) => editor.getEditorMaxRows(sessionId),
   );
   hydrateTabPromptHistory(state, runtime);
   editor.onSubmit = (text) => {
@@ -176,6 +179,7 @@ export function createMixCodeTui(
       setAutocompleteProvider: () => editor.setAutocompleteProvider(activeCompletionProvider),
       setEditorComponent: (factory, sessionId) => editor.setEditorComponent(factory, sessionId),
       getEditorComponent: (sessionId) => editor.getEditorComponent(sessionId),
+      getEmbeddedTerminalRows: (sessionId) => editor.getEmbeddedTerminalRows(sessionId),
     },
     themes: {
       getTheme: () => state.theme,

@@ -77,6 +77,24 @@ test("bootstrap builds completion sources from project files and skills", async 
       "description: review",
       "utf8",
     );
+    await mkdir(join(dir, ".agents", "skills", "parallelize"), { recursive: true });
+    await writeFile(
+      join(dir, ".agents", "skills", "parallelize", "SKILL.md"),
+      [
+        "---",
+        'description: Parallelize decomposable work via subagents. Trigger: "parallelize"',
+        "---",
+        "# Parallelize",
+        "Fallback body description.",
+      ].join("\n"),
+      "utf8",
+    );
+    await mkdir(join(dir, ".agents", "skills", "broken"), { recursive: true });
+    await writeFile(
+      join(dir, ".agents", "skills", "broken", "SKILL.md"),
+      "---\ndescription: [\n---\n",
+      "utf8",
+    );
     await mkdir(join(dir, "src"), { recursive: true });
     await writeFile(join(dir, "src", "index.ts"), "", "utf8");
     const boot = await bootstrapMixCode({
@@ -86,6 +104,11 @@ test("bootstrap builds completion sources from project files and skills", async 
       modelConfigPath: join(dir, "missing.jsonc"),
     });
     assert.deepEqual(boot.completionSources.skills, [
+      {
+        name: "parallelize",
+        path: join(dir, ".agents", "skills", "parallelize", "SKILL.md"),
+        description: "Fallback body description.",
+      },
       {
         name: "review",
         path: join(dir, ".agents", "skills", "review", "SKILL.md"),

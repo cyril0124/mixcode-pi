@@ -60,7 +60,11 @@ export class TreeSelectorEditorComponent implements EditorComponent {
   ) {}
 
   render(width: number): string[] {
-    return renderTreeSelector(this.state, width);
+    return renderTreeSelector(
+      this.state,
+      width,
+      getTreeSelectorDisplayHost(this.tui)?.getEditorRows?.(this.state.activeTabId),
+    );
   }
 
   invalidate(): void {}
@@ -95,6 +99,7 @@ export function attachTreeSelectorDisplayHost(
   tui: OverlayTui,
   state: MixCodeState,
   setEditorComponent: (factory: (() => EditorComponent) | undefined, sessionId?: string) => void,
+  getEditorRows?: (sessionId?: string) => number | undefined,
 ): void {
   const displayTui = tui as OverlayTui & {
     treeSelectorDisplay?: TreeSelectorDisplayHost;
@@ -111,6 +116,7 @@ export function attachTreeSelectorDisplayHost(
       setEditorComponent(undefined, sessionId);
       state.treeSelector.open = false;
     },
+    getEditorRows,
   };
 }
 

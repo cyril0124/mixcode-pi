@@ -13,17 +13,26 @@ import { activeRenderTheme, renderWithTheme } from "./rendering/context.js";
 import { padLine } from "./rendering/primitives.js";
 import { themeForId } from "./themes.js";
 
-function getMaxVisible(): number {
+function getMaxVisible(maxRows?: number): number {
+  if (maxRows !== undefined) return Math.max(1, Math.floor(maxRows));
   return Math.max(5, Math.floor((process.stdout.rows || 24) / 2));
 }
 
-export function renderTreeSelector(state: MixCodeState, width: number): string[] {
+export function renderTreeSelector(
+  state: MixCodeState,
+  width: number,
+  maxRows?: number,
+): string[] {
   return renderWithTheme(themeForId(state.theme), () =>
-    renderTreeSelectorInner(state.treeSelector, width),
+    renderTreeSelectorInner(state.treeSelector, width, maxRows),
   );
 }
 
-function renderTreeSelectorInner(selector: TreeSelectorState, width: number): string[] {
+function renderTreeSelectorInner(
+  selector: TreeSelectorState,
+  width: number,
+  maxRows?: number,
+): string[] {
   const panelWidth = Math.max(1, width);
   const bodyWidth = panelWidth;
 
@@ -40,7 +49,9 @@ function renderTreeSelectorInner(selector: TreeSelectorState, width: number): st
   if (selector.labelEditEntryId !== null) {
     lines.push(...renderLabelInput(selector, bodyWidth));
   } else {
-    lines.push(...renderTreeList(selector, bodyWidth));
+    const footerRows = 2;
+    const maxListRows = maxRows === undefined ? undefined : maxRows - lines.length - footerRows;
+    lines.push(...renderTreeList(selector, bodyWidth, maxListRows));
   }
 
   lines.push("", renderDynamicBorder(bodyWidth));
@@ -106,7 +117,11 @@ function renderDynamicBorder(width: number): string {
   return activeRenderTheme.border("─".repeat(Math.max(1, width)));
 }
 
-function renderTreeList(selector: TreeSelectorState, bodyWidth: number): string[] {
+function renderTreeList(
+  selector: TreeSelectorState,
+  bodyWidth: number,
+  maxListRows?: number,
+): string[] {
   const lines: string[] = [];
   if (selector.filteredNodes.length === 0) {
     lines.push(activeRenderTheme.dim("  No entries found"));
@@ -114,7 +129,9 @@ function renderTreeList(selector: TreeSelectorState, bodyWidth: number): string[
     return lines.map((line) => truncateToWidth(line, bodyWidth));
   }
 
-  const maxVisible = getMaxVisible();
+  const maxVisible = maxListRows !== undefined && maxListRows <= 1
+    ? 0
+    : getMaxVisible(maxListRows === undefined ? undefined : maxListRows - 1);
   const startIndex = Math.max(
     0,
     Math.min(

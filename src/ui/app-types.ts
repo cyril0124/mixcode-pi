@@ -94,6 +94,7 @@ export interface TreeSelectorDisplayHost {
   ) => void;
   refresh: () => void;
   close: (sessionId?: string) => void;
+  getEditorRows?: (sessionId?: string) => number | undefined;
 }
 
 export type OverlayTui = Pick<TuiType, "requestRender" | "showOverlay"> &

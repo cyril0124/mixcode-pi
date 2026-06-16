@@ -149,6 +149,8 @@ export class EditorSlot implements Component {
   private autocompleteProvider: AutocompleteProvider | undefined;
   private submitHandler: ((text: string) => void) | undefined;
   private changeHandler: ((text: string) => void) | undefined;
+  private readonly embeddedTerminalRows = new Map<string, number>();
+  private readonly editorMaxRows = new Map<string, number>();
   private activeTabId = "";
   private historyIndex = -1;
 
@@ -342,6 +344,8 @@ export class EditorSlot implements Component {
     const currentText = this.getExpandedText(sessionId);
     if (!factory) {
       this.editorReplacements.delete(sessionId);
+      this.embeddedTerminalRows.delete(sessionId);
+      this.editorMaxRows.delete(sessionId);
       this.setDraftInput(sessionId, currentText);
       if (sessionId === this.mixState.activeTabId) {
         this.defaultEditor.setText(currentText);
@@ -377,6 +381,42 @@ export class EditorSlot implements Component {
 
   getEditorComponent(sessionId = this.mixState.activeTabId): EditorFactory | undefined {
     return this.editorReplacements.get(sessionId)?.factory;
+  }
+
+  setEmbeddedTerminalRows(rows: number | undefined, sessionId = this.mixState.activeTabId): boolean {
+    if (rows === undefined) {
+      const changed = this.embeddedTerminalRows.delete(sessionId);
+      if (changed) this.tui.requestRender();
+      return changed;
+    }
+    const nextRows = Math.max(1, Math.floor(rows));
+    if (this.embeddedTerminalRows.get(sessionId) === nextRows) return false;
+    this.embeddedTerminalRows.set(sessionId, nextRows);
+    this.tui.requestRender();
+    return true;
+  }
+
+  getEmbeddedTerminalRows(sessionId = this.mixState.activeTabId): number | undefined {
+    return this.embeddedTerminalRows.get(sessionId);
+  }
+
+  setEditorMaxRows(rows: number | undefined, sessionId = this.mixState.activeTabId): boolean {
+    if (rows === undefined) return this.deleteEditorMaxRows(sessionId);
+    const nextRows = Math.max(1, Math.floor(rows));
+    if (this.editorMaxRows.get(sessionId) === nextRows) return false;
+    this.editorMaxRows.set(sessionId, nextRows);
+    this.tui.requestRender();
+    return true;
+  }
+
+  getEditorMaxRows(sessionId = this.mixState.activeTabId): number | undefined {
+    return this.editorMaxRows.get(sessionId);
+  }
+
+  private deleteEditorMaxRows(sessionId: string): boolean {
+    const changed = this.editorMaxRows.delete(sessionId);
+    if (changed) this.tui.requestRender();
+    return changed;
   }
 
   private handleTabHistoryInput(data: string): boolean {

@@ -243,11 +243,15 @@ function parseFrontmatter(content: string): {
   const endIndex = content.indexOf("\n---", 4);
   if (endIndex === -1) return { frontmatter: {}, body: content };
   const yaml = content.slice(4, endIndex);
-  const parsed = parseYaml(yaml);
-  return {
-    frontmatter: isRecord(parsed) ? parsed : {},
-    body: content.slice(endIndex + 4).trim(),
-  };
+  try {
+    const parsed = parseYaml(yaml);
+    return {
+      frontmatter: isRecord(parsed) ? parsed : {},
+      body: content.slice(endIndex + 4).trim(),
+    };
+  } catch {
+    return { frontmatter: {}, body: content.slice(endIndex + 4).trim() };
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -314,7 +318,10 @@ export async function scanSkillEntries(
       if (entry.startsWith(".")) continue;
       const flatPath = await maybeSkillFile(join(dir, entry, "SKILL.md"));
       if (flatPath) {
-        if (!entriesByName.has(entry)) entriesByName.set(entry, await skillEntry(entry, flatPath));
+        if (!entriesByName.has(entry)) {
+          const skill = await maybeSkillEntry(entry, flatPath);
+          if (skill) entriesByName.set(entry, skill);
+        }
         continue;
       }
       let nestedEntries: string[] = [];
@@ -326,17 +333,23 @@ export async function scanSkillEntries(
       for (const nested of nestedEntries) {
         if (nested.startsWith(".")) continue;
         const nestedPath = await maybeSkillFile(join(dir, entry, nested, "SKILL.md"));
-        if (nestedPath && !entriesByName.has(nested))
-          entriesByName.set(nested, await skillEntry(nested, nestedPath));
+        if (nestedPath && !entriesByName.has(nested)) {
+          const skill = await maybeSkillEntry(nested, nestedPath);
+          if (skill) entriesByName.set(nested, skill);
+        }
       }
     }
   }
   return [...entriesByName.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
-async function skillEntry(name: string, path: string): Promise<SkillEntry> {
-  const content = await readFile(path, "utf8");
-  return { name, path, description: parseSkillDescription(content) };
+async function maybeSkillEntry(name: string, path: string): Promise<SkillEntry | undefined> {
+  try {
+    const content = await readFile(path, "utf8");
+    return { name, path, description: parseSkillDescription(content) };
+  } catch {
+    return undefined;
+  }
 }
 
 export function resolvePromptPath(ref: string, baseWorkdir: string): string {
