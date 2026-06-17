@@ -75,6 +75,14 @@ export function selectedChatText(lines: string[], selection: ChatSelectionState)
   return parts.join("\n").replace(/[ \t]+$/gm, "");
 }
 
+export function selectedInputText(lines: string[], selection: ChatSelectionState): string {
+  return selectedChatText(lines, selection)
+    .split("\n")
+    .map(normalizeInputSelectionLine)
+    .filter((line): line is string => line !== undefined)
+    .join("\n");
+}
+
 export function highlightChatSelectionLine(
   line: string,
   row: number,
@@ -89,9 +97,8 @@ export function highlightChatSelectionLine(
   const startCol = row === normalized.start.row ? normalized.start.col : 0;
   const endCol = row === normalized.end.row ? normalized.end.col : lineWidth;
   if (endCol <= startCol) return line;
-  const before = sliceVisibleText(plain, 0, startCol);
-  const selected = sliceVisibleText(plain, startCol, endCol);
-  const after = sliceVisibleText(plain, endCol, lineWidth);
+  const { before, selected, after } = splitVisibleTextAroundRange(plain, startCol, endCol);
+  if (!selected) return line;
   return `${before}${highlight(selected)}${after}`;
 }
 
@@ -100,6 +107,37 @@ export function stripAnsi(text: string): string {
     .replace(/\x1b\[[0-9;:]*[ -/]*[@-~]/g, "")
     .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, "")
     .replace(/\x1b[PX^_][\s\S]*?(?:\x07|\x1b\\)/g, "");
+}
+
+function normalizeInputSelectionLine(line: string): string | undefined {
+  const visible = line.trimEnd();
+  if (isBoxBorderLine(visible)) return undefined;
+  const unframed = stripVerticalBorders(visible);
+  const body = trimInputChromePadding(unframed.text);
+  if (unframed.framed && isFramedInputHintLine(body)) return undefined;
+  return body;
+}
+
+function isBoxBorderLine(line: string): boolean {
+  const trimmed = line.trim();
+  if (!trimmed) return false;
+  if (/^[─━═]{3,}$/.test(trimmed)) return true;
+  return /^[┌└╭╰╔╚╒╘╓╙].*[┐┘╮╯╗╝╕╛╖╜]$/.test(trimmed) && /[─━═]/.test(trimmed);
+}
+
+function stripVerticalBorders(line: string): { text: string; framed: boolean } {
+  if (/^[│┃║].*[│┃║]$/.test(line)) return { text: line.slice(1, -1), framed: true };
+  if (/^[│┃║]/.test(line)) return { text: line.slice(1), framed: true };
+  if (/[│┃║]$/.test(line)) return { text: line.slice(0, -1), framed: true };
+  return { text: line, framed: false };
+}
+
+function trimInputChromePadding(line: string): string {
+  return line.startsWith(" ") ? line.slice(1).trimEnd() : line.trimEnd();
+}
+
+function isFramedInputHintLine(line: string): boolean {
+  return /[↑↓←→⏎]/.test(line) && /\b(?:enter|ctrl|shift|tab|scroll|select|accept|cancel)\b/i.test(line);
 }
 
 function sliceVisibleText(text: string, start: number, end: number): string {
@@ -114,6 +152,27 @@ function sliceVisibleText(text: string, start: number, end: number): string {
     if (width >= to) break;
   }
   return output;
+}
+
+function splitVisibleTextAroundRange(
+  text: string,
+  start: number,
+  end: number,
+): { before: string; selected: string; after: string } {
+  const from = Math.max(0, Math.floor(start));
+  const to = Math.max(from, Math.floor(end));
+  let width = 0;
+  let before = "";
+  let selected = "";
+  let after = "";
+  for (const char of text) {
+    const nextWidth = width + visibleWidth(char);
+    if (nextWidth <= from) before += char;
+    else if (width >= to) after += char;
+    else selected += char;
+    width = nextWidth;
+  }
+  return { before, selected, after };
 }
 
 function clamp(value: number, min: number, max: number): number {

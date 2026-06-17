@@ -40,6 +40,7 @@ import { renderCommandPalette, renderExportChooser, renderTabJumpOverlay } from 
 export {
   handleChatSelectionMouseInput,
   handleChromeMouseInput,
+  handleInputSelectionMouseInput,
   handleMouseInput,
 } from "./app-mouse.js";
 export function handleStreamingAbortKey(

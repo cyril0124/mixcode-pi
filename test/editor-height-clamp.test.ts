@@ -298,3 +298,24 @@ test("small editor content is not clamped", () => {
   layout.render(80);
   assert.equal(getEditorRows(), 3);
 });
+
+test("layout records visible input editor rows for mouse selection", () => {
+  const { layout, state } = buildRealLayoutWithEditor(["TOP", " body ", "BOTTOM"], 24, 40);
+
+  layout.render(40);
+  layout.render(40);
+
+  const active = state.tabs[0]!;
+  assert.deepEqual(active.lastRenderedInputLines, ["TOP", " body ", "BOTTOM"]);
+  assert.deepEqual(active.inputSurfaceBounds, {
+    top: 21,
+    left: 1,
+    width: 40,
+    height: 3,
+  });
+
+  state.activeTabId = "config";
+  layout.render(40);
+  assert.equal(active.inputSurfaceBounds?.width, 40);
+  assert.equal(active.lastRenderedInputLines?.length, 3);
+});

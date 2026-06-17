@@ -1,5 +1,6 @@
 import { type Component, Loader, type TUI as TuiType } from "@earendil-works/pi-tui";
 import type { MixCodeRuntime } from "../agent/runtime.js";
+import { highlightChatSelectionLine } from "../core/chat-selection.js";
 import { isPendingEscapeActive } from "../core/escape.js";
 import type { MixCodeState } from "../core/types.js";
 import type { EditorSlot } from "./app-editor.js";
@@ -230,6 +231,30 @@ export class MixCodeLayoutRoot implements Component {
       : 0;
     const guardRows = Math.min(TERMINAL_SCROLL_GUARD_ROWS, floatingRows);
     const spacerRows = Math.max(0, floatingRows - guardRows);
+    const editorTop =
+      mainLines.length +
+      spacerRows +
+      controlTopGapRows +
+      widgetsAbove.length +
+      widgetsAboveBottomGapRows +
+      workingLines.length +
+      workingBottomGapRows +
+      1;
+    let visibleEditorLines = clampedEditorLines;
+    if (active) {
+      active.inputSurfaceBounds = {
+        top: editorTop,
+        left: 1,
+        width: Math.max(1, width),
+        height: clampedEditorLines.length,
+      };
+      active.lastRenderedInputLines = clampedEditorLines;
+      if (active.inputSelection) {
+        visibleEditorLines = clampedEditorLines.map((line, row) =>
+          highlightChatSelectionLine(line, row, active.inputSelection, theme.selection),
+        );
+      }
+    }
     const metaRow =
       mainLines.length +
       spacerRows +
@@ -253,7 +278,7 @@ export class MixCodeLayoutRoot implements Component {
       ...Array.from({ length: widgetsAboveBottomGapRows }, () => padLine("", width)),
       ...workingLines,
       ...Array.from({ length: workingBottomGapRows }, () => padLine("", width)),
-      ...clampedEditorLines,
+      ...visibleEditorLines,
       ...widgetsBelow,
       ...metaLines,
       ...footerLines,

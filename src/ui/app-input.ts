@@ -21,6 +21,7 @@ import {
   handleCommandPaletteKey,
   handleExportChooserKey,
   handleChatSelectionMouseInput,
+  handleInputSelectionMouseInput,
   handleMouseInput,
   handlePreviewKey,
   handleQueuedFlushKey,
@@ -158,6 +159,9 @@ export function handleMixCodeKeyInput(
         return { consume: true };
       }
     }
+  }
+  if (!hasAnyOverlay(tui) && handleInputSelectionMouseInput(state, active, data, tui)) {
+    return { consume: true };
   }
   if (handleChatSelectionMouseInput(state, active, data, tui, runtime)) {
     return { consume: true };

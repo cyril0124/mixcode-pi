@@ -157,6 +157,12 @@ export interface MixCodeTabInfo {
   chatSelection?: ChatSelectionState;
   /** Non-persisted: raw rendered Agent message rows before selection highlighting. */
   lastRenderedChatLines?: string[];
+  /** Non-persisted: screen bounds for the active input/editor surface. */
+  inputSurfaceBounds?: ChatSurfaceBounds;
+  /** Non-persisted: active text selection in the input/editor surface. */
+  inputSelection?: ChatSelectionState;
+  /** Non-persisted: raw rendered input/editor rows before selection highlighting. */
+  lastRenderedInputLines?: string[];
   /** Non-persisted: transient toast notification shown in the top-right corner. */
   toast?: ToastNotification;
 }

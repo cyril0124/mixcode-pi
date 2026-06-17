@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { visibleWidth } from "@earendil-works/pi-tui";
 import {
   highlightChatSelectionLine,
   normalizeChatSelection,
@@ -43,6 +44,20 @@ test("selectedChatText copies visible text across rows without ANSI styling", ()
 test("highlightChatSelectionLine highlights the selected visible cells", () => {
   const highlighted = highlightChatSelectionLine("hello world", 1, selection, (text) => `[${text}]`);
   assert.equal(highlighted, "hello [world]");
+});
+
+test("highlightChatSelectionLine preserves wide characters at cell boundaries", () => {
+  const line =
+    "  - 得出的结论是：@oh-my-pi/* 不是 @earendil-works/pi-* 的直接兼容替换，主要风险在 Bun 运行时、TS 源码导出、native bindings、包结构";
+  const highlighted = highlightChatSelectionLine(
+    line,
+    0,
+    { anchor: { row: 0, col: 4 }, focus: { row: 0, col: 5 }, dragging: true },
+    (text) => `\x1b[48;2;122;74;58m${text}\x1b[49m`,
+  );
+  const plain = stripAnsi(highlighted);
+  assert.equal(plain, line);
+  assert.equal(visibleWidth(plain), visibleWidth(line));
 });
 
 test("stripAnsi removes CSI and OSC control sequences", () => {

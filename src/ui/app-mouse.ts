@@ -2,6 +2,7 @@ import {
   pointInChatSurface,
   screenToChatSelectionPoint,
   selectedChatText,
+  selectedInputText,
 } from "../core/chat-selection.js";
 import { copyTextToClipboard, type ClipboardWriter } from "../core/clipboard.js";
 import { hitMouseRegion, parseSgrMouseInput } from "../core/mouse.js";
@@ -28,6 +29,18 @@ export function handleChatSelectionMouseInput(
   return handleChatSelectionMouse(active, mouse, tui, copyToClipboard);
 }
 
+export function handleInputSelectionMouseInput(
+  _state: MixCodeState,
+  active: MixCodeState["tabs"][number] | undefined,
+  data: string,
+  tui: OverlayTui,
+  copyToClipboard: ClipboardWriter = copyTextToClipboard,
+): boolean {
+  const mouse = parseSgrMouseInput(data);
+  if (!mouse || !active) return false;
+  return handleInputSelectionMouse(active, mouse, tui, copyToClipboard);
+}
+
 export function handleMouseInput(
   state: MixCodeState,
   active: MixCodeState["tabs"][number] | undefined,
@@ -52,6 +65,7 @@ export function handleMouseInput(
     return true;
   }
   if (hasAnyOverlay(tui)) return false;
+  if (handleInputSelectionMouse(active, mouse, tui, copyToClipboard)) return true;
   if (handleChatSelectionMouseInput(state, active, data, tui, runtime, copyToClipboard)) {
     return true;
   }
@@ -112,13 +126,72 @@ function handleChromeMouse(
   return false;
 }
 
+function handleInputSelectionMouse(
+  active: MixCodeState["tabs"][number],
+  mouse: NonNullable<ReturnType<typeof parseSgrMouseInput>>,
+  tui: OverlayTui,
+  copyToClipboard: ClipboardWriter,
+): boolean {
+  return handleTextSelectionMouse({
+    active,
+    mouse,
+    tui,
+    copyToClipboard,
+    bounds: active.inputSurfaceBounds,
+    getSelection: () => active.inputSelection,
+    setSelection: (selection) => {
+      active.inputSelection = selection;
+    },
+    getLines: () => active.lastRenderedInputLines ?? [],
+    selectText: selectedInputText,
+  });
+}
+
 function handleChatSelectionMouse(
   active: MixCodeState["tabs"][number],
   mouse: NonNullable<ReturnType<typeof parseSgrMouseInput>>,
   tui: OverlayTui,
   copyToClipboard: ClipboardWriter,
 ): boolean {
-  const bounds = active.chatSurfaceBounds;
+  return handleTextSelectionMouse({
+    active,
+    mouse,
+    tui,
+    copyToClipboard,
+    bounds: active.chatSurfaceBounds,
+    getSelection: () => active.chatSelection,
+    setSelection: (selection) => {
+      active.chatSelection = selection;
+    },
+    getLines: () => active.lastRenderedChatLines ?? [],
+    selectText: selectedChatText,
+  });
+}
+
+interface TextSelectionMouseOptions {
+  active: MixCodeState["tabs"][number];
+  mouse: NonNullable<ReturnType<typeof parseSgrMouseInput>>;
+  tui: OverlayTui;
+  copyToClipboard: ClipboardWriter;
+  bounds: MixCodeState["tabs"][number]["chatSurfaceBounds"];
+  getSelection: () => MixCodeState["tabs"][number]["chatSelection"];
+  setSelection: (selection: MixCodeState["tabs"][number]["chatSelection"]) => void;
+  getLines: () => string[];
+  selectText: typeof selectedChatText;
+}
+
+function handleTextSelectionMouse(options: TextSelectionMouseOptions): boolean {
+  const {
+    active,
+    mouse,
+    tui,
+    copyToClipboard,
+    bounds,
+    getSelection,
+    setSelection,
+    getLines,
+    selectText,
+  } = options;
   const screenPoint = { row: mouse.y, col: mouse.x };
   if (mouse.wheel) return false;
   if (
@@ -129,26 +202,21 @@ function handleChatSelectionMouse(
     pointInChatSurface(bounds, screenPoint)
   ) {
     const point = screenToChatSelectionPoint(bounds, mouse.y, mouse.x);
-    active.chatSelection = { anchor: point, focus: point, dragging: true };
+    setSelection({ anchor: point, focus: point, dragging: true });
     tui.requestRender();
     return true;
   }
-  if (
-    active.chatSelection?.dragging &&
-    mouse.button === 0 &&
-    mouse.motion &&
-    !mouse.release &&
-    bounds
-  ) {
-    active.chatSelection.focus = screenToChatSelectionPoint(bounds, mouse.y, mouse.x);
+  const selection = getSelection();
+  if (selection?.dragging && mouse.button === 0 && mouse.motion && !mouse.release && bounds) {
+    selection.focus = screenToChatSelectionPoint(bounds, mouse.y, mouse.x);
     tui.requestRender();
     return true;
   }
-  if (active.chatSelection?.dragging && mouse.release) {
-    active.chatSelection.dragging = false;
-    const text = selectedChatText(active.lastRenderedChatLines ?? [], active.chatSelection);
+  if (selection?.dragging && mouse.release) {
+    selection.dragging = false;
+    const text = selectText(getLines(), selection);
     const chars = text.length;
-    active.chatSelection = undefined;
+    setSelection(undefined);
     if (!text) {
       tui.requestRender();
       return true;
