@@ -330,7 +330,7 @@ export function handleTreeSelectorKey(
   }
 
   // Normal mode
-  if (matchesKey(data, "escape")) {
+  if (matchesKey(data, "escape") || (selector.mode === "navigate" && matchesKey(data, "enter"))) {
     if (selector.searchQuery) {
       updateTreeSearchQuery(selector, "");
       refreshTreeSelectorDisplay(tui);

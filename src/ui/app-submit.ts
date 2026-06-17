@@ -88,13 +88,13 @@ export async function handleSubmittedInput(
   } else if (parsed.command === "navigate") {
     const runtimeTab = runtime.getTab?.(active!.sessionId);
     if (!runtimeTab?.session.getTree || !runtimeTab.session.getLeafId || !runtimeTab.session.getBranch) {
-      throw new Error("Navigate requires an active agent chat");
+      pushToast(active!, { type: "warning", message: "Navigate requires an active agent chat" });
+      return void tui.requestRender();
     }
     const userEntryIds = userMessageEntryIdsInBranch(runtimeTab.session.getBranch());
     if (userEntryIds.length === 0) {
       pushToast(active!, { type: "warning", message: "No user messages in current chat" });
-      tui.requestRender();
-      return;
+      return void tui.requestRender();
     }
     openTreeSelector(
       state,

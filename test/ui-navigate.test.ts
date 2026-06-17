@@ -155,7 +155,9 @@ test("/navigate moves with arrows and j/k, then scrolls current chat", async () 
   assert.match(tab.toast?.message ?? "", /No newer user message/);
   assert.equal(tab.chatScrollAnchorEntryId, "u2");
 
-  assert.equal(handleMixCodeKeyInput(state, "\r", tui, undefined, runtime)?.consume, undefined);
+  assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui, undefined, runtime), { consume: true });
+  assert.equal(state.treeSelector.open, false);
+  state.treeSelector.open = true;
   assert.equal(handleMixCodeKeyInput(state, "x", tui, undefined, runtime)?.consume, undefined);
   assert.equal(state.treeSelector.summarizePrompt, null);
   assert.equal(state.treeSelector.searchQuery, "");
@@ -228,20 +230,21 @@ test("/navigate scroll targeting does not render every chat block", () => {
   assert.equal(renderCalls, 0);
 });
 
-test("/navigate requires an active agent chat", async () => {
+test("/navigate warns instead of throwing when runtime tab is missing", async () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo");
   state.tabs.push(tab);
   state.activeTabId = "s1";
   const runtime = {
-    appendSystemMessage: () => undefined,
+    appendSystemMessage: () => {
+      throw new Error("must not append to a missing runtime tab");
+    },
     prompt: async () => undefined,
     getTab: () => undefined,
   } as unknown as MixCodeRuntime;
   const tui = { requestRender: () => undefined };
 
-  await assert.rejects(
-    () => handleSubmittedInput(state, runtime, "/navigate", tui),
-    /Navigate requires an active agent chat/,
-  );
+  await handleSubmittedInput(state, runtime, "/navigate", tui);
+
+  assert.match(tab.toast?.message ?? "", /Navigate requires an active agent chat/);
 });
