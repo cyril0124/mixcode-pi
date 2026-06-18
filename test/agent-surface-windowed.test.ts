@@ -317,6 +317,69 @@ test("running tool behind extension message still renders correctly", () => {
   assert.match(text, /active tool frame/);
 });
 
+test("idle chats with stale pending tool tail still use windowed rendering", () => {
+  let historicalRendered = 0;
+  const chat = buildStreamingAssistantChat(180);
+  chat.splice(20, 0, {
+    role: "tool",
+    title: "historical",
+    toolCallId: "historical-1",
+    status: "success",
+    text: "",
+    renderToolCall: () => {
+      historicalRendered++;
+      return ["historical tool frame"];
+    },
+  });
+  chat.push({
+    role: "tool",
+    title: "stale",
+    toolCallId: "stale-1",
+    status: "pending",
+    text: "",
+  });
+  const tab = createTab(19, "s19", "/repo", { status: "idle", chatScrollOffset: 0 });
+
+  const lines = renderAgentSurface(tab, { chat, reasoning: [] } as never, WIDTH, HEIGHT);
+  const text = lines.map(stripAnsi).join("\n");
+
+  assert.equal(lines.length, HEIGHT);
+  assert.match(text, /stale/);
+  assert.match(text, /\.\.\. older above/);
+  assert.equal(historicalRendered, 0);
+});
+
+test("preview chat uses windowed rendering before runtime tab is ready", () => {
+  const smallTab = createTab(17, "s17-small", "/repo", {
+    previewMessages: buildPreviewMessages(100),
+  });
+  const largeTab = createTab(18, "s17-large", "/repo", {
+    previewMessages: buildPreviewMessages(5000),
+  });
+
+  const lines = renderAgentSurface(largeTab, undefined, WIDTH, HEIGHT);
+  const text = lines.map(stripAnsi).join("\n");
+  assert.equal(lines.length, HEIGHT);
+  assert.match(text, /preview-4999/);
+  assert.match(text, /\.\.\. older above/);
+
+  const smallMs = measurePreviewRenderMs(smallTab, 50);
+  const largeMs = measurePreviewRenderMs(largeTab, 50);
+  assert.ok(
+    largeMs < smallMs * 10,
+    `expected 5000-preview render to stay windowed; 5000=${largeMs.toFixed(
+      3,
+    )}ms 100=${smallMs.toFixed(3)}ms ratio=${(largeMs / smallMs).toFixed(1)}x`,
+  );
+});
+
+function buildPreviewMessages(count: number) {
+  return Array.from({ length: count }, (_, index) => ({
+    role: "assistant" as const,
+    text: `preview-${index} ${"preview words wrap markdown **bold** ".repeat(30)}`,
+  }));
+}
+
 test("windowed rendering scales sublinearly with block count", () => {
   // Verify that windowed rendering with 5000 blocks is not dramatically
   // slower than with 100 blocks (both use windowed path during streaming).
@@ -337,6 +400,17 @@ test("windowed rendering scales sublinearly with block count", () => {
     )}ms 100=${smallMs.toFixed(3)}ms ratio=${(largeMs / smallMs).toFixed(1)}x`,
   );
 });
+
+function measurePreviewRenderMs(tab: ReturnType<typeof createTab>, iterations: number): number {
+  for (let i = 0; i < 5; i++) {
+    renderAgentSurface(tab, undefined, 120, 30);
+  }
+  const start = performance.now();
+  for (let i = 0; i < iterations; i++) {
+    renderAgentSurface(tab, undefined, 120, 30);
+  }
+  return (performance.now() - start) / iterations;
+}
 
 function measureRenderMs(
   tab: ReturnType<typeof createTab>,

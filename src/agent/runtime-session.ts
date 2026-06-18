@@ -41,17 +41,16 @@ export async function openOrCreateSession(
   cwd: string,
   sessionsRoot: string,
 ): Promise<SessionManager> {
+  // Most restores already know the durable MixCode tab id, which is embedded in
+  // the session filename. Open it directly instead of parsing every JSONL in a
+  // large session directory.
+  const byFileName = findSessionFileByName(sessionsRoot, sessionId);
+  if (byFileName) return SessionManager.open(byFileName, sessionsRoot, cwd);
+
   const existing = (await SessionManager.list(cwd, sessionsRoot)).find(
     (metadata: SessionInfo) => metadata.id === sessionId,
   );
   if (existing) return SessionManager.open(existing.path, sessionsRoot, cwd);
-  // SessionManager indexes sessions by their JSONL header id. Some persisted
-  // files have a filename id (the durable MixCode tab sessionId) that no longer
-  // matches the header id, so a header-id lookup misses them and we would
-  // silently create an empty session, dropping the whole conversation. Fall
-  // back to locating the file by its filename id before creating a new one.
-  const byFileName = findSessionFileByName(sessionsRoot, sessionId);
-  if (byFileName) return SessionManager.open(byFileName, sessionsRoot, cwd);
   return createSession(cwd, sessionsRoot, sessionId);
 }
 

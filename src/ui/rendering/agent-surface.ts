@@ -6,7 +6,6 @@ import type { MixCodeTabInfo } from "../../core/types.js";
 import type { MixCodeTheme } from "../themes.js";
 import {
   STREAMING_MARKDOWN_CHAR_LIMIT,
-  cachedChatBlockHeight,
   chatBlockSeparator,
   renderChatBlock,
   renderConversation,
@@ -60,8 +59,8 @@ const BLOCK_HEIGHT_FALLBACK = 4;
 
 // Cache the expensive renderConversation + renderQueuePreview result per tab.
 // Invalidated when chat content, reasoning, width, theme, or relevant UI state changes.
-// Disabled when chat contains lines with dynamic render functions (tool/extension renderers)
-// that have component lifecycle side effects.
+// The full-render cache is bypassed while active tool renderers may have
+// lifecycle side effects that need to run on every frame.
 interface ConversationCache {
   lines: string[];
   // Invalidation keys
@@ -124,21 +123,21 @@ function renderAgentSurfaceInner(
   // anyway and chat is long enough that rendering every block hurts. Falls
   // through to the legacy full-render path otherwise (legacy callers pass
   // maxHeight=undefined, e.g. tests measuring full layout).
-  if (
-    maxHeight !== undefined &&
-    runtimeTab &&
-    canUseWindowedRender(tab, runtimeTab)
-  ) {
-    return renderAgentSurfaceWindowed(
-      tab,
-      runtimeTab,
-      width,
-      maxHeight,
-      surfaceWidth,
-      mainWidth,
-      sidebarVisible,
-      sidebarWidth,
-    );
+  if (maxHeight !== undefined) {
+    const chat = runtimeTab?.chat ?? previewMessagesToChat(tab);
+    if (canUseWindowedRender(tab, chat)) {
+      return renderAgentSurfaceWindowed(
+        tab,
+        runtimeTab,
+        chat,
+        width,
+        maxHeight,
+        surfaceWidth,
+        mainWidth,
+        sidebarVisible,
+        sidebarWidth,
+      );
+    }
   }
 
   const main = getCachedConversationLines(tab, runtimeTab, mainWidth);
@@ -160,33 +159,22 @@ function renderAgentSurfaceInner(
 }
 
 /**
- * Pick between the windowed and full-render path. Windowed path is only safe
- * when chat is long enough to dominate render cost AND it doesn't contain any
- * dynamic-renderer blocks in regions we wouldn't otherwise visit (those
- * renderers have lifecycle hooks that must run every frame).
+ * Pick between the windowed and full-render path. Windowed rendering is used
+ * whenever the caller clips output and the chat is long enough to make full
+ * rendering expensive.
  *
  * For a typical "long quiet chat" tab switch the dynamic-renderer check is
  * cheap because such tabs have few/none of those blocks.
  */
-function canUseWindowedRender(tab: MixCodeTabInfo, runtimeTab: RuntimeTab): boolean {
-  const chat = runtimeTab.chat;
+function canUseWindowedRender(tab: MixCodeTabInfo, chat: ChatLine[]): boolean {
   // During streaming, active tool renderers are always at the tail of the
   // chat (current turn). The windowed renderer walks backward from the tail,
   // so it naturally includes them in the viewport. Allow windowed rendering
   // with a lower threshold during streaming to avoid the expensive legacy
   // full-render path that blocks the event loop.
-  if (tab.status === "running" || tab.status === "thinking") {
-    return chat.length >= WINDOW_RENDER_STREAMING_THRESHOLD;
-  }
-  if (chat.length < WINDOW_RENDER_BLOCK_THRESHOLD) return false;
-  for (let i = chat.length - 1; i >= 0; i--) {
-    const line = chat[i]!;
-    if (line.role === "tool" && (line.status === "running" || line.status === "pending")) {
-      return false;
-    }
-    if (line.role !== "tool") break;
-  }
-  return true;
+  const isActiveRun = tab.status === "running" || tab.status === "thinking";
+  if (isActiveRun) return chat.length >= WINDOW_RENDER_STREAMING_THRESHOLD;
+  return chat.length >= WINDOW_RENDER_BLOCK_THRESHOLD;
 }
 
 /**
@@ -232,6 +220,7 @@ function renderAgentSurfaceAnchored(
     return renderAgentSurfaceWindowed(
       tab,
       runtimeTab,
+      chat,
       width,
       maxHeight,
       surfaceWidth,
@@ -321,7 +310,8 @@ function matchesChatAnchor(line: ChatLine, tab: MixCodeTabInfo): boolean {
 
 function renderAgentSurfaceWindowed(
   tab: MixCodeTabInfo,
-  runtimeTab: RuntimeTab,
+  runtimeTab: RuntimeTab | undefined,
+  chat: ChatLine[],
   width: number,
   maxHeight: number,
   surfaceWidth: number,
@@ -329,8 +319,7 @@ function renderAgentSurfaceWindowed(
   sidebarVisible: boolean,
   sidebarWidth: number,
 ): string[] {
-  const chat = runtimeTab.chat;
-  const reasoning = runtimeTab.reasoning ?? [];
+  const reasoning = runtimeTab?.reasoning ?? [];
   const viewport = Math.max(0, Math.floor(maxHeight));
   const scrollOffset = Math.max(0, tab.chatScrollOffset);
 
@@ -461,9 +450,10 @@ function renderAgentSurfaceWindowed(
 }
 
 function streamingTextRenderOptions(
-  runtimeTab: RuntimeTab,
+  runtimeTab: RuntimeTab | undefined,
   chatIndex: number,
 ): RenderChatBlockOptions | undefined {
+  if (!runtimeTab) return undefined;
   const streaming = runtimeTab.streamingAssistant;
   if (!streaming) return undefined;
   const line = runtimeTab.chat[chatIndex];
@@ -496,11 +486,8 @@ function estimateTotalHeight(
 ): number {
   let total = queueRows;
   let nonEmpty = 0;
-  for (let i = 0; i < chat.length; i++) {
-    const line = chat[i]!;
-    const h = frameBlockHeights.has(line)
-      ? frameBlockHeights.get(line)!
-      : (cachedChatBlockHeight(line, width, tab) ?? BLOCK_HEIGHT_FALLBACK);
+  for (const line of chat) {
+    const h = frameBlockHeights.get(line) ?? BLOCK_HEIGHT_FALLBACK;
     total += h;
     if (h > 0) nonEmpty++;
   }
