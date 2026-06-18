@@ -284,14 +284,15 @@ function renderAgentSurfaceAnchored(
     frameBlockHeights,
   );
   const start = Math.min(Math.max(0, total - visible.length), anchorIndex * BLOCK_HEIGHT_FALLBACK + windowStart);
+  const decorated = decorateWindow(visible, start, total, viewport, mainWidth);
   const composed = sidebarVisible
     ? joinColumns(
-        visible,
+        decorated,
         renderSidebarInner(tab, sidebarWidth, runtimeTab),
         mainWidth,
         sidebarWidth,
       )
-    : visible;
+    : decorated;
   const fitted: ScrolledLinesResult = {
     lines: highlightVisibleChatLines(composed, tab, surfaceWidth, viewport),
     total,
