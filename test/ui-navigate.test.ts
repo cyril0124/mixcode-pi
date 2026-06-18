@@ -155,6 +155,17 @@ test("/navigate moves with arrows and j/k, then scrolls current chat", async () 
   assert.match(tab.toast?.message ?? "", /No newer user message/);
   assert.equal(tab.chatScrollAnchorEntryId, "u2");
 
+  state.treeSelector.open = false;
+  tab.vimMode = true;
+  assert.deepEqual(handleMixCodeKeyInput(state, "k", tui, undefined, runtime), { consume: true });
+  assert.equal(tab.chatScrollAnchorEntryId, "u2");
+  assert.ok(tab.chatScrollOffset > 0);
+  assert.deepEqual(handleMixCodeKeyInput(state, "j", tui, undefined, runtime), { consume: true });
+  assert.equal(tab.chatScrollAnchorEntryId, "u2");
+  assert.equal(tab.chatScrollOffset, 0);
+  tab.vimMode = false;
+
+  state.treeSelector.open = true;
   assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui, undefined, runtime), { consume: true });
   assert.equal(state.treeSelector.open, false);
   state.treeSelector.open = true;

@@ -39,7 +39,10 @@ export function scrollPreview(tab: MixCodeTabInfo, delta: number): boolean {
 }
 
 export function scrollChat(tab: MixCodeTabInfo, delta: number): boolean {
-  clearChatScrollAnchor(tab);
+  if (tab.chatScrollAnchorEntryId) {
+    tab.chatScrollOffset = Math.min(1_000_000, Math.max(-1_000_000, tab.chatScrollOffset + delta));
+    return true;
+  }
   tab.chatScrollOffset = Math.min(1_000_000, Math.max(0, tab.chatScrollOffset + delta));
   return true;
 }

@@ -241,10 +241,29 @@ function renderAgentSurfaceAnchored(
     );
   }
 
-  const lines: string[] = [];
   const frameBlockHeights = new Map<ChatLine, number>();
-  let nextIsNonEmpty = false;
-  for (let i = anchorIndex; i < chat.length && lines.length < viewport; i++) {
+  const localOffset = tab.chatScrollOffset;
+  const prefix: string[] = [];
+  const neededPrefixRows = Math.max(0, localOffset);
+  let prefixHasContent = false;
+  for (let i = anchorIndex - 1; i >= 0 && prefix.length < neededPrefixRows; i--) {
+    const block = renderChatBlock(
+      chat[i]!,
+      mainWidth,
+      tab,
+      activeRenderTheme,
+      streamingTextRenderOptions(runtimeTab, i),
+    );
+    frameBlockHeights.set(chat[i]!, block.length);
+    if (block.length === 0) continue;
+    if (prefixHasContent) prefix.unshift(chatBlockSeparator(mainWidth));
+    for (let j = block.length - 1; j >= 0; j--) prefix.unshift(block[j]!);
+    prefixHasContent = true;
+  }
+
+  const suffix: string[] = [];
+  let suffixHasContent = prefix.length > 0;
+  for (let i = anchorIndex; i < chat.length && suffix.length < viewport + Math.max(0, -localOffset); i++) {
     const line = chat[i]!;
     const block = renderChatBlock(
       line,
@@ -255,12 +274,16 @@ function renderAgentSurfaceAnchored(
     );
     frameBlockHeights.set(line, block.length);
     if (block.length === 0) continue;
-    if (nextIsNonEmpty) lines.push(chatBlockSeparator(mainWidth));
-    for (const renderedLine of block) lines.push(renderedLine);
-    nextIsNonEmpty = true;
+    if (suffixHasContent) suffix.push(chatBlockSeparator(mainWidth));
+    for (const renderedLine of block) suffix.push(renderedLine);
+    suffixHasContent = true;
   }
-  while (lines.length < viewport) lines.push(chatBlockSeparator(mainWidth));
-  const visible = lines.slice(0, viewport);
+  const lines = [...prefix, ...suffix];
+  const anchorStart = prefix.length;
+  const requestedStart = localOffset >= 0 ? anchorStart - localOffset : anchorStart - localOffset;
+  const windowStart = Math.max(0, Math.min(requestedStart, Math.max(0, lines.length - viewport)));
+  const visible = lines.slice(windowStart, windowStart + viewport);
+  while (visible.length < viewport) visible.push(chatBlockSeparator(mainWidth));
 
   const total = estimateTotalHeight(
     chat,
@@ -271,7 +294,7 @@ function renderAgentSurfaceAnchored(
     false,
     frameBlockHeights,
   );
-  const start = Math.min(Math.max(0, total - visible.length), anchorIndex * BLOCK_HEIGHT_FALLBACK);
+  const start = Math.min(Math.max(0, total - visible.length), anchorIndex * BLOCK_HEIGHT_FALLBACK + windowStart);
   const composed = sidebarVisible
     ? joinColumns(
         visible,
