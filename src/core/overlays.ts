@@ -150,6 +150,105 @@ export function updateTabJumpQuery(state: MixCodeState, query: string): void {
   state.tabJumpIndex = clampTabJumpIndex(state, state.tabJumpIndex);
 }
 
+// --- Active-overlay seam ---------------------------------------------------
+//
+// MixCodeState holds ~9 state-level overlays in heterogeneous shapes (top-level
+// booleans, nested .open flags, presence-based picker). The invariant is
+// "at most one active at a time". This seam concentrates the discriminant and
+// mutual-exclusion that were previously spread across drifting OR-lists in
+// app-input.ts / app-key-handlers.ts and an ad-hoc close-list in openQuitConfirm.
+
+/** State-level overlays, in fixed priority order (mirrors app-input routing). */
+export type OverlayKind =
+  | "workspace"
+  | "tree-selector"
+  | "picker"
+  | "session-selector"
+  | "command-palette"
+  | "extension-manager"
+  | "tab-jump"
+  | "quit-confirm"
+  | "export-chooser";
+
+// Predicate per kind, evaluated in priority order by activeOverlay.
+const OVERLAY_PREDICATES: ReadonlyArray<readonly [OverlayKind, (s: MixCodeState) => boolean]> = [
+  ["workspace", (s) => s.workspaceOverlay.open],
+  ["tree-selector", (s) => s.treeSelector.open],
+  ["picker", (s) => s.picker !== undefined],
+  ["session-selector", (s) => s.sessionSelector.open],
+  ["command-palette", (s) => s.commandPaletteOpen],
+  ["extension-manager", (s) => s.extensionManager.open],
+  ["tab-jump", (s) => s.tabJumpOpen],
+  ["quit-confirm", (s) => s.quitConfirmOpen],
+  ["export-chooser", (s) => s.exportChooserOpen],
+];
+
+/** The single overlay currently active, or "none". Priority-ordered. */
+export function activeOverlay(state: MixCodeState): OverlayKind | "none" {
+  for (const [kind, isOpen] of OVERLAY_PREDICATES) {
+    if (isOpen(state)) return kind;
+  }
+  return "none";
+}
+
+/** True when any state-level overlay is active. */
+export function isOverlayActive(state: MixCodeState): boolean {
+  return activeOverlay(state) !== "none";
+}
+
+/** Clear whichever overlay is active, leaving the rest untouched. */
+export function closeActiveOverlay(state: MixCodeState): void {
+  state.workspaceOverlay.open = false;
+  state.treeSelector.open = false;
+  state.picker = undefined;
+  state.sessionSelector.open = false;
+  closeCommandPalette(state);
+  state.extensionManager.open = false;
+  closeTabJump(state);
+  state.quitConfirmOpen = false;
+  state.exportChooserOpen = false;
+  state.exportChooserIndex = 0;
+}
+
+// Flag/.open overlays openOverlay can flip on its own. picker is excluded: it
+// is presence-based and needs a PickerState payload, so callers assign it
+// directly (after closeActiveOverlay) rather than through openOverlay.
+const FLAG_OPENERS: Partial<Record<OverlayKind, (s: MixCodeState) => void>> = {
+  workspace: (s) => {
+    s.workspaceOverlay.open = true;
+  },
+  "tree-selector": (s) => {
+    s.treeSelector.open = true;
+  },
+  "session-selector": (s) => {
+    s.sessionSelector.open = true;
+  },
+  "command-palette": openCommandPalette,
+  "extension-manager": (s) => {
+    s.extensionManager.open = true;
+  },
+  "tab-jump": openTabJump,
+  "quit-confirm": (s) => {
+    s.quitConfirmOpen = true;
+  },
+  "export-chooser": (s) => {
+    s.exportChooserOpen = true;
+    s.exportChooserIndex = 0;
+  },
+};
+
+/**
+ * Open a flag/.open overlay with mutual exclusion: any currently-active overlay
+ * is closed first. picker is presence-based (needs a payload) and is opened by
+ * direct assignment after closeActiveOverlay, not through this entry point.
+ */
+export function openOverlay(state: MixCodeState, kind: Exclude<OverlayKind, "picker">): void {
+  closeActiveOverlay(state);
+  const open = FLAG_OPENERS[kind];
+  if (!open) throw new Error(`openOverlay: unsupported kind ${kind}`);
+  open(state);
+}
+
 export function moveTabJumpSelection(state: MixCodeState, delta: number): void {
   state.tabJumpIndex = clampTabJumpIndex(state, state.tabJumpIndex + delta);
 }

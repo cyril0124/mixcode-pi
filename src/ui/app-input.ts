@@ -1,8 +1,8 @@
 import { Key, matchesKey } from "@earendil-works/pi-tui";
 import { MIXCODE_EXTENSION_KEYBINDINGS_MANAGER } from "../agent/runtime.js";
 import {
-  closeCommandPalette,
-  closeTabJump,
+  closeActiveOverlay,
+  isOverlayActive,
   openCommandPalette,
   openTabJump,
   scrollChat,
@@ -209,14 +209,7 @@ export function handleMixCodeKeyInput(
   }
   if (matchesKey(data, "escape") && hasAppOverlay(tui)) {
     closeAppOverlay(tui);
-    state.exportChooserOpen = false;
-    state.exportChooserIndex = 0;
-    state.quitConfirmOpen = false;
-    state.extensionManager.open = false;
-    closeCommandPalette(state);
-    closeTabJump(state);
-    state.picker = undefined;
-    state.workspaceOverlay.open = false;
+    closeActiveOverlay(state);
     return { consume: true };
   }
 
@@ -500,15 +493,7 @@ function handleBatchedSubmitInput(
   if (!editorActions?.submitCurrentText) return false;
   if (state.activeTabId === "config") return false;
   if (isEditorAutocompleteOpen() || hasAnyOverlay(tui)) return false;
-  if (
-    state.picker ||
-    state.sessionSelector.open ||
-    state.commandPaletteOpen ||
-    state.tabJumpOpen ||
-    state.quitConfirmOpen ||
-    state.exportChooserOpen
-  )
-    return false;
+  if (isOverlayActive(state)) return false;
   if (active?.previewOpen || active?.pendingDialogs.length) return false;
   insertEditorText(editorActions, text);
   editorActions.submitCurrentText();
@@ -521,14 +506,7 @@ function hasFocusedAppControl(
   active: MixCodeState["tabs"][number] | undefined,
 ): boolean {
   return Boolean(
-    state.picker ||
-      state.sessionSelector.open ||
-      state.commandPaletteOpen ||
-      state.tabJumpOpen ||
-      state.quitConfirmOpen ||
-      state.exportChooserOpen ||
-      active?.previewOpen ||
-      active?.pendingDialogs.length,
+    isOverlayActive(state) || active?.previewOpen || active?.pendingDialogs.length,
   );
 }
 

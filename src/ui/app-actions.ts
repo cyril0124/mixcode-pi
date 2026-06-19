@@ -9,7 +9,7 @@ import {
   setTabModel,
 } from "../core/models.js";
 import { DEFAULT_MODEL_REF } from "../core/defaults.js";
-import { closeCommandPalette, closeTabJump } from "../core/overlays.js";
+import { openOverlay } from "../core/overlays.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import { pushToast } from "../core/toast.js";
 import type { MixCodeState } from "../core/types.js";
@@ -56,12 +56,8 @@ function isThinkingLevel(level: string): level is ThinkingLevel {
 }
 
 export function openQuitConfirm(state: MixCodeState, tui: OverlayTui): void {
-  state.quitConfirmOpen = true;
-  state.exportChooserOpen = false;
-  state.exportChooserIndex = 0;
-  closeCommandPalette(state);
-  closeTabJump(state);
-  state.picker = undefined;
+  // openOverlay enforces mutual exclusion (closes any active overlay first).
+  openOverlay(state, "quit-confirm");
   showLinesOverlay(tui, (width) => renderQuitConfirm(width), quitOverlayOptions());
 }
 
