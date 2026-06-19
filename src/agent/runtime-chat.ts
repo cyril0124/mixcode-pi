@@ -480,12 +480,6 @@ export async function assertImportHasCwd(
   }
 }
 
-export function elapsedSeconds(startedAt: string | undefined, now: Date): number | undefined {
-  const start = startedAt ? Date.parse(startedAt) : NaN;
-  if (!Number.isFinite(start)) return undefined;
-  return Math.max(0, Math.floor((now.getTime() - start) / 1000));
-}
-
 export function drainPendingMessages(
   messages: string[],
   count?: number,

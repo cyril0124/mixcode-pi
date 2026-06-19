@@ -19,6 +19,7 @@ import {
 import { type AutocompleteProvider, matchesKey as matchesPiKey } from "@earendil-works/pi-tui";
 import { stripSkillInjection } from "../core/attachments.js";
 import { modelToRef, replaceRegisteredModels } from "../core/models.js";
+import { setPendingMessages, setTabStatus } from "../core/tab-state.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import type { AgentRuntimeConfig, MixCodeModelRef, MixCodeTabInfo } from "../core/types.js";
 import { MIXCODE_EXTENSION_KEYBINDINGS } from "./runtime-extension-theme.js";
@@ -469,9 +470,7 @@ export class MixCodeRuntime {
     if (runtimeTab.agentSession.isBashRunning) {
       throw new Error("Cannot run a shell command while another bash command is running");
     }
-    runtimeTab.tab.status = "running";
-    runtimeTab.tab.workingStartedAt = new Date().toISOString();
-    runtimeTab.tab.lastWorkedDurationSeconds = undefined;
+    setTabStatus(runtimeTab.tab, "running", { restart: true });
     runtimeTab.tab.chatScrollOffset = 0;
     const excludeFromContext = options.excludeFromContext === true;
     const toolCallId = `user-bash-${Date.now()}-${++this.shellExecutionSequence}`;
@@ -567,8 +566,8 @@ export class MixCodeRuntime {
     void runtimeTab.agentSession.abort();
     runtimeTab.tab.pendingEscapeAction = undefined;
     runtimeTab.tab.pendingEscapeArmedAt = undefined;
-    runtimeTab.tab.status = "running";
-    runtimeTab.tab.workingStartedAt ??= new Date().toISOString();
+    // Preserve an existing timer (??=) — abort during an active run keeps elapsed.
+    setTabStatus(runtimeTab.tab, "running");
     runtimeTab.tab.chatScrollOffset = 0;
     appendSystemMessage(runtimeTab, "Abort requested.");
     return true;
@@ -582,7 +581,7 @@ export class MixCodeRuntime {
       if (runtimeTab.agentSession.isBashRunning) runtimeTab.agentSession.abortBash();
       if (runtimeTab.agentSession.isStreaming) runtimeTab.agentSession.agent.abort();
       runtimeTab.agentSession.clearQueue();
-      runtimeTab.tab.pendingMessages = [];
+      setPendingMessages(runtimeTab.tab, []);
       runtimeTab.queuedPromptCount = 0;
       runtimeTab.tab.pendingEscapeAction = undefined;
       runtimeTab.tab.pendingEscapeArmedAt = undefined;
@@ -822,9 +821,7 @@ export class MixCodeRuntime {
     if (branch.at(-1)?.type === "compaction") {
       throw new Error("Session is already compacted");
     }
-    runtimeTab.tab.status = "running";
-    runtimeTab.tab.workingStartedAt = new Date().toISOString();
-    runtimeTab.tab.lastWorkedDurationSeconds = undefined;
+    setTabStatus(runtimeTab.tab, "running", { restart: true });
     runtimeTab.tab.pendingEscapeAction = undefined;
     runtimeTab.tab.pendingEscapeArmedAt = undefined;
     this.emitChange({ type: "extension_ui_update" }, runtimeTab);
@@ -837,6 +834,7 @@ export class MixCodeRuntime {
       if (!aborted) {
         runtimeTab.tab.status = "error";
       }
+      // Drop the timer silently here; compaction_end did not record a duration.
       runtimeTab.tab.workingStartedAt = undefined;
       this.emitChange({ type: "extension_ui_update" }, runtimeTab);
       throw error;

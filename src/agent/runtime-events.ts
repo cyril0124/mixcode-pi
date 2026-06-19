@@ -8,7 +8,6 @@ import {
   contextTokensFromUsage,
   customMessageToChatLine,
   disposeChatRenderers,
-  elapsedSeconds,
   entriesToChatLines,
   surfaceAssistantStopReason,
   syncContextUsage,
@@ -16,6 +15,12 @@ import {
   updatePreviewMessage,
 } from "./runtime-chat.js";
 import { contentText } from "./runtime-text.js";
+import {
+  addTabTokens,
+  setTabContextTokens,
+  setPendingMessages,
+  setTabStatus,
+} from "../core/tab-state.js";
 import {
   formatToolPreview,
   normalizeToolResult,
@@ -57,6 +62,7 @@ async function autoCompactAndContinue(runtimeTab: RuntimeTab): Promise<void> {
         const aborted =
           message === "Compaction cancelled" || (error instanceof Error && error.name === "AbortError");
         if (aborted) {
+          // Aborted compaction: drop the timer silently, no worked-duration recorded.
           runtimeTab.tab.status = "idle";
           runtimeTab.tab.workingStartedAt = undefined;
           return;
@@ -75,6 +81,7 @@ async function autoCompactAndContinue(runtimeTab: RuntimeTab): Promise<void> {
     await continueAgentSession(runtimeTab.agentSession);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    // Failed compaction: drop the timer silently, no worked-duration recorded.
     runtimeTab.tab.status = "idle";
     runtimeTab.tab.workingStartedAt = undefined;
     appendSystemMessage(runtimeTab, normalizeCompactionFailureMessage(message));
@@ -141,22 +148,17 @@ export function applyEvent(
   switch (event.type) {
     case "agent_start":
       runtimeTab.currentRunChatStartIndex = runtimeTab.chat.length;
-      runtimeTab.tab.status = "running";
       runtimeTab.postRunWorkingStartedAt = undefined;
-      if (runtimeTab.autoCompactCycleActive) {
-        runtimeTab.tab.workingStartedAt ??= new Date().toISOString();
-      } else {
-        runtimeTab.tab.workingStartedAt = new Date().toISOString();
-      }
-      runtimeTab.tab.lastWorkedDurationSeconds = undefined;
+      // Fresh run restarts the timer; autoCompact continuation preserves it (??=).
+      setTabStatus(runtimeTab.tab, "running", {
+        restart: !runtimeTab.autoCompactCycleActive,
+      });
       runtimeTab.tab.pendingEscapeAction = undefined;
       runtimeTab.tab.pendingEscapeArmedAt = undefined;
       break;
     case "turn_start":
       runtimeTab.currentRunChatStartIndex ??= runtimeTab.chat.length;
-      runtimeTab.tab.status = "thinking";
-      runtimeTab.tab.workingStartedAt ??= new Date().toISOString();
-      runtimeTab.tab.lastWorkedDurationSeconds = undefined;
+      setTabStatus(runtimeTab.tab, "thinking");
       break;
     case "agent_end":
       // If the agent was terminated by the mid-turn hook due to compaction pressure,
@@ -171,16 +173,12 @@ export function applyEvent(
         break;
       }
       appendEmptyRunNotice(runtimeTab);
-      runtimeTab.tab.status = "idle";
+      // Save the start stamp for SDK post-run compaction before the timer closes.
+      runtimeTab.postRunWorkingStartedAt = runtimeTab.tab.workingStartedAt;
+      setTabStatus(runtimeTab.tab, "idle");
       runtimeTab.tab.unreadDone = true;
       runtimeTab.tab.pendingEscapeAction = undefined;
       runtimeTab.tab.pendingEscapeArmedAt = undefined;
-      runtimeTab.postRunWorkingStartedAt = runtimeTab.tab.workingStartedAt;
-      runtimeTab.tab.lastWorkedDurationSeconds = elapsedSeconds(
-        runtimeTab.tab.workingStartedAt,
-        new Date(),
-      );
-      runtimeTab.tab.workingStartedAt = undefined;
       runtimeTab.streamingReasoning = undefined;
       runtimeTab.currentRunChatStartIndex = undefined;
       break;
@@ -233,14 +231,17 @@ export function applyEvent(
     case "turn_end":
       break;
     case "compaction_start":
-      runtimeTab.tab.status = "running";
       // SDK post-run auto-compaction starts after agent_end clears the active timer.
+      // Preserve an existing stamp; otherwise reuse the post-run start or stamp now.
       {
-        const postRunStartedAt = event.reason === "manual" ? undefined : runtimeTab.postRunWorkingStartedAt;
-        runtimeTab.tab.workingStartedAt ??= postRunStartedAt ?? new Date().toISOString();
+        const postRunStartedAt =
+          event.reason === "manual" ? undefined : runtimeTab.postRunWorkingStartedAt;
+        setTabStatus(runtimeTab.tab, "running", {
+          startedAt:
+            runtimeTab.tab.workingStartedAt ?? postRunStartedAt ?? new Date().toISOString(),
+        });
         runtimeTab.postRunWorkingStartedAt = undefined;
       }
-      runtimeTab.tab.lastWorkedDurationSeconds = undefined;
       runtimeTab.tab.pendingEscapeAction = undefined;
       runtimeTab.tab.pendingEscapeArmedAt = undefined;
       {
@@ -254,21 +255,19 @@ export function applyEvent(
       break;
     case "compaction_end": {
       const continuingAfterAutoCompaction = Boolean(event.result && runtimeTab.autoCompactCycleActive);
-      runtimeTab.tab.status = event.errorMessage
+      const nextStatus: typeof runtimeTab.tab.status = event.errorMessage
         ? runtimeTab.autoCompactCycleActive
           ? "idle"
           : "error"
         : continuingAfterAutoCompaction
           ? "running"
           : "idle";
+      // Continuation keeps the timer running; a real end closes it into a duration.
+      setTabStatus(runtimeTab.tab, nextStatus, {
+        preserveStartedAt: continuingAfterAutoCompaction,
+      });
       runtimeTab.tab.pendingEscapeAction = undefined;
       runtimeTab.tab.pendingEscapeArmedAt = undefined;
-      runtimeTab.tab.lastWorkedDurationSeconds = continuingAfterAutoCompaction
-        ? undefined
-        : elapsedSeconds(runtimeTab.tab.workingStartedAt, new Date());
-      if (!continuingAfterAutoCompaction) {
-        runtimeTab.tab.workingStartedAt = undefined;
-      }
       if (event.result) {
         // Rebuild chat from session entries (which now include the compaction entry)
         disposeChatRenderers(runtimeTab.chat);
@@ -319,7 +318,7 @@ export function syncQueueState(runtimeTab: RuntimeTab, steering: readonly string
     0,
     Math.max(0, runtimeTab.tab.pendingMessages.length - runtimeTab.queuedPromptCount),
   );
-  runtimeTab.tab.pendingMessages = [...preserved, ...steering];
+  setPendingMessages(runtimeTab.tab, [...preserved, ...steering]);
   runtimeTab.queuedPromptCount = steering.length;
 }
 
@@ -581,18 +580,23 @@ function updateExistingToolExecution(
 export function applyAssistantUsage(runtimeTab: RuntimeTab, usage: Partial<Usage>): void {
   const streaming = runtimeTab.streamingAssistant;
   if (!streaming) {
-    runtimeTab.tab.tokenInput += usage.input ?? 0;
-    runtimeTab.tab.tokenOutput += usage.output ?? 0;
-    runtimeTab.tab.currentContextTokens =
-      contextTokensFromUsage(usage) ?? runtimeTab.tab.currentContextTokens;
+    addTabTokens(runtimeTab.tab, { input: usage.input ?? 0, output: usage.output ?? 0 });
+    setTabContextTokens(
+      runtimeTab.tab,
+      contextTokensFromUsage(usage) ?? runtimeTab.tab.currentContextTokens,
+    );
     return;
   }
   const nextInput = usage.input ?? 0;
   const nextOutput = usage.output ?? 0;
-  runtimeTab.tab.tokenInput += nextInput - streaming.tokenInput;
-  runtimeTab.tab.tokenOutput += nextOutput - streaming.tokenOutput;
+  addTabTokens(runtimeTab.tab, {
+    input: nextInput - streaming.tokenInput,
+    output: nextOutput - streaming.tokenOutput,
+  });
   streaming.tokenInput = nextInput;
   streaming.tokenOutput = nextOutput;
-  runtimeTab.tab.currentContextTokens =
-    contextTokensFromUsage(usage) ?? runtimeTab.tab.currentContextTokens;
+  setTabContextTokens(
+    runtimeTab.tab,
+    contextTokensFromUsage(usage) ?? runtimeTab.tab.currentContextTokens,
+  );
 }
