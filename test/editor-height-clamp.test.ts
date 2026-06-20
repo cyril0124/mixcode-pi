@@ -292,6 +292,26 @@ test("tree selector sizes list to available editor rows with widgets and worked 
   assert.match(text, /\(3\/4\)/, "tree status row should remain visible");
 });
 
+test("non-self-sizing selector keeps its bottom border when clamped", () => {
+  // The SDK ExtensionSelectorComponent renders its full box unconditionally
+  // (no setEmbeddedTerminalRows/setEditorMaxRows hook), so an oversized option
+  // list must keep its trailing border row instead of having it sliced off.
+  const viewportRows = 12;
+  const lines = [
+    "TOP-BORDER",
+    "TITLE",
+    ...Array.from({ length: 30 }, (_, i) => `option-${i}`),
+    "BOTTOM-BORDER",
+  ];
+  const { layout } = buildRealLayoutWithEditor(lines, viewportRows);
+
+  layout.render(80);
+  const text = stripAnsi(layout.render(80).join("\n"));
+
+  assert.match(text, /TOP-BORDER/, "selector top border must stay visible");
+  assert.match(text, /BOTTOM-BORDER/, "selector bottom border must survive the clamp");
+});
+
 test("small editor content is not clamped", () => {
   const { layout, getEditorRows } = buildRealLayout(3, 40);
   layout.render(80);

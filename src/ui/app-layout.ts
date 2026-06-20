@@ -199,7 +199,15 @@ export class MixCodeLayoutRoot implements Component {
     if (this.editor.setEditorMaxRows(maxEditorRows, active?.sessionId)) {
       editorLines = this.editor.render(width);
     }
-    const clampedEditorLines = maxEditorRows ? editorLines.slice(0, maxEditorRows) : editorLines;
+    // Clamp by keeping the bottom row: components that don't self-size (e.g. the
+    // SDK extension selector) render their full box unconditionally, so a plain
+    // head slice would drop their trailing border. Keep head + final line.
+    const clampedEditorLines =
+      maxEditorRows && editorLines.length > maxEditorRows
+        ? maxEditorRows >= 2
+          ? [...editorLines.slice(0, maxEditorRows - 1), editorLines[editorLines.length - 1]!]
+          : editorLines.slice(0, maxEditorRows)
+        : editorLines;
     this.setEditorRows(clampedEditorLines.length);
     this.setMetaRows(
       controlTopGapRows +
