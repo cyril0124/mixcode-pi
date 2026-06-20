@@ -27,6 +27,33 @@ import commandBrowserComponent from "../../pi-packages/command-browser/command-b
 import commandBrowserPackageJson from "../../pi-packages/command-browser/package.json" with { type: "text" };
 import bashDefaultTimeoutIndex from "../../pi-packages/bash-default-timeout/index.ts" with { type: "text" };
 import bashDefaultTimeoutPackageJson from "../../pi-packages/bash-default-timeout/package.json" with { type: "text" };
+import rpivTodo_config_ts from "../../pi-packages/rpiv-todo/config.ts" with { type: "text" };
+import rpivTodo_index_ts from "../../pi-packages/rpiv-todo/index.ts" with { type: "text" };
+import rpivTodo_locales_de_json from "../../pi-packages/rpiv-todo/locales/de.json" with { type: "text" };
+import rpivTodo_locales_en_json from "../../pi-packages/rpiv-todo/locales/en.json" with { type: "text" };
+import rpivTodo_locales_es_json from "../../pi-packages/rpiv-todo/locales/es.json" with { type: "text" };
+import rpivTodo_locales_fr_json from "../../pi-packages/rpiv-todo/locales/fr.json" with { type: "text" };
+import rpivTodo_locales_pt_BR_json from "../../pi-packages/rpiv-todo/locales/pt-BR.json" with { type: "text" };
+import rpivTodo_locales_pt_json from "../../pi-packages/rpiv-todo/locales/pt.json" with { type: "text" };
+import rpivTodo_locales_ru_json from "../../pi-packages/rpiv-todo/locales/ru.json" with { type: "text" };
+import rpivTodo_locales_uk_json from "../../pi-packages/rpiv-todo/locales/uk.json" with { type: "text" };
+import rpivTodo_locales_zh_json from "../../pi-packages/rpiv-todo/locales/zh.json" with { type: "text" };
+import rpivTodo_package_json from "../../pi-packages/rpiv-todo/package.json" with { type: "text" };
+import rpivTodo_state_i18n_bridge_ts from "../../pi-packages/rpiv-todo/state/i18n-bridge.ts" with { type: "text" };
+import rpivTodo_state_invariants_ts from "../../pi-packages/rpiv-todo/state/invariants.ts" with { type: "text" };
+import rpivTodo_state_replay_ts from "../../pi-packages/rpiv-todo/state/replay.ts" with { type: "text" };
+import rpivTodo_state_selectors_ts from "../../pi-packages/rpiv-todo/state/selectors.ts" with { type: "text" };
+import rpivTodo_state_session_ts from "../../pi-packages/rpiv-todo/state/session.ts" with { type: "text" };
+import rpivTodo_state_state_reducer_ts from "../../pi-packages/rpiv-todo/state/state-reducer.ts" with { type: "text" };
+import rpivTodo_state_state_ts from "../../pi-packages/rpiv-todo/state/state.ts" with { type: "text" };
+import rpivTodo_state_store_ts from "../../pi-packages/rpiv-todo/state/store.ts" with { type: "text" };
+import rpivTodo_state_task_graph_ts from "../../pi-packages/rpiv-todo/state/task-graph.ts" with { type: "text" };
+import rpivTodo_todo_overlay_ts from "../../pi-packages/rpiv-todo/todo-overlay.ts" with { type: "text" };
+import rpivTodo_todo_ts from "../../pi-packages/rpiv-todo/todo.ts" with { type: "text" };
+import rpivTodo_tool_response_envelope_ts from "../../pi-packages/rpiv-todo/tool/response-envelope.ts" with { type: "text" };
+import rpivTodo_tool_types_ts from "../../pi-packages/rpiv-todo/tool/types.ts" with { type: "text" };
+import rpivTodo_vendor_rpiv_config_ts from "../../pi-packages/rpiv-todo/vendor/rpiv-config.ts" with { type: "text" };
+import rpivTodo_view_format_ts from "../../pi-packages/rpiv-todo/view/format.ts" with { type: "text" };
 import packageJson from "../../package.json" with { type: "json" };
 import { materializeBinaryRuntimeAssets } from "./binary-assets.js";
 
@@ -90,6 +117,35 @@ materializeBinaryRuntimeAssets(runtimeDir, {
     "bash-default-timeout": {
       "index.ts": bashDefaultTimeoutIndex,
       "package.json": bashDefaultTimeoutPackageJson,
+    },
+    "rpiv-todo": {
+      "config.ts": rpivTodo_config_ts,
+      "index.ts": rpivTodo_index_ts,
+      "locales/de.json": rpivTodo_locales_de_json,
+      "locales/en.json": rpivTodo_locales_en_json,
+      "locales/es.json": rpivTodo_locales_es_json,
+      "locales/fr.json": rpivTodo_locales_fr_json,
+      "locales/pt-BR.json": rpivTodo_locales_pt_BR_json,
+      "locales/pt.json": rpivTodo_locales_pt_json,
+      "locales/ru.json": rpivTodo_locales_ru_json,
+      "locales/uk.json": rpivTodo_locales_uk_json,
+      "locales/zh.json": rpivTodo_locales_zh_json,
+      "package.json": rpivTodo_package_json,
+      "state/i18n-bridge.ts": rpivTodo_state_i18n_bridge_ts,
+      "state/invariants.ts": rpivTodo_state_invariants_ts,
+      "state/replay.ts": rpivTodo_state_replay_ts,
+      "state/selectors.ts": rpivTodo_state_selectors_ts,
+      "state/session.ts": rpivTodo_state_session_ts,
+      "state/state-reducer.ts": rpivTodo_state_state_reducer_ts,
+      "state/state.ts": rpivTodo_state_state_ts,
+      "state/store.ts": rpivTodo_state_store_ts,
+      "state/task-graph.ts": rpivTodo_state_task_graph_ts,
+      "todo-overlay.ts": rpivTodo_todo_overlay_ts,
+      "todo.ts": rpivTodo_todo_ts,
+      "tool/response-envelope.ts": rpivTodo_tool_response_envelope_ts,
+      "tool/types.ts": rpivTodo_tool_types_ts,
+      "vendor/rpiv-config.ts": rpivTodo_vendor_rpiv_config_ts,
+      "view/format.ts": rpivTodo_view_format_ts,
     },
   },
 });

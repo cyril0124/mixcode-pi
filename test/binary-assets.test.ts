@@ -28,6 +28,12 @@ test("binary runtime assets are written for both upstream Bun and dist layouts",
         version: "1.2.3",
         piConfig: { preserved: true, name: "old", configDir: ".old" },
       },
+      builtinPackages: {
+        "rpiv-todo": {
+          "index.ts": "export default () => {};",
+          "state/store.ts": "export const x = 1;",
+        },
+      },
     });
 
     const packageJson = JSON.parse(await readFile(join(runtimeDir, "package.json"), "utf8"));
@@ -68,6 +74,12 @@ test("binary runtime assets are written for both upstream Bun and dist layouts",
     }
 
     assert.equal(await readFile(join(runtimeDir, "photon_rs_bg.wasm"), "utf8"), "wasm-bytes");
+
+    // Built-in packages: nested-path files (e.g. "state/store.ts") must land in
+    // their subdirectory, not flattened. rpiv-todo relies on this.
+    const pkgDir = join(runtimeDir, "packages", "rpiv-todo");
+    assert.equal(await readFile(join(pkgDir, "index.ts"), "utf8"), "export default () => {};");
+    assert.equal(await readFile(join(pkgDir, "state", "store.ts"), "utf8"), "export const x = 1;");
   } finally {
     await rm(runtimeDir, { recursive: true, force: true });
   }

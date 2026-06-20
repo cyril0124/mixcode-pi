@@ -6,7 +6,10 @@ set -euo pipefail
 
 extensions=(
   # Core UI tools
-  npm:@juicesharp/rpiv-todo
+  # NOTE: rpiv-todo is vendored in-tree under pi-packages/rpiv-todo (patched for
+  # per-session state isolation across tabs) and is loaded as a built-in package.
+  # Do NOT add npm:@juicesharp/rpiv-todo here — it would double-register the
+  # `todo` tool and fight over the overlay widget.
   npm:@juicesharp/rpiv-ask-user-question
   npm:@narumitw/pi-btw
   npm:pi-tool-display

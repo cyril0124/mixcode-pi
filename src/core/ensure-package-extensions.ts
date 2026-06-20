@@ -37,11 +37,11 @@ export function ensurePackageExtensions(repoRoot: string, options?: { copy?: boo
     const target = resolve(pkgDir);
 
     if (shouldCopy) {
-      // Copy mode: write files directly into ~/.pi/agent/extensions/<name>/
-      mkdirSync(destDir, { recursive: true });
-      for (const file of readdirSync(pkgDir)) {
-        copyFileSync(join(pkgDir, file), join(destDir, file));
-      }
+      // Copy mode: write files directly into ~/.pi/agent/extensions/<name>/,
+      // recursing into subdirectories. Multi-file packages (e.g. rpiv-todo with
+      // state/, tool/, view/, vendor/, locales/) would otherwise lose their
+      // nested modules and fail to load.
+      copyTreeSync(pkgDir, destDir);
     } else {
       // Symlink mode: skip if already a symlink pointing to the correct target
       try {
@@ -54,5 +54,16 @@ export function ensurePackageExtensions(repoRoot: string, options?: { copy?: boo
       }
       symlinkSync(target, destDir);
     }
+  }
+}
+
+/** Recursively copy a directory tree (files + nested subdirectories). */
+function copyTreeSync(srcDir: string, destDir: string): void {
+  mkdirSync(destDir, { recursive: true });
+  for (const entry of readdirSync(srcDir, { withFileTypes: true })) {
+    const srcPath = join(srcDir, entry.name);
+    const destPath = join(destDir, entry.name);
+    if (entry.isDirectory()) copyTreeSync(srcPath, destPath);
+    else copyFileSync(srcPath, destPath);
   }
 }

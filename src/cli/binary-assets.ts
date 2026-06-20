@@ -1,5 +1,5 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 
 export interface BinaryRuntimeAssets {
   darkTheme: unknown;
@@ -105,7 +105,11 @@ function writeBuiltinPackages(
     const pkgDir = join(runtimeDir, "packages", name);
     mkdirSync(pkgDir, { recursive: true });
     for (const [filename, content] of Object.entries(files)) {
-      writeFileSync(join(pkgDir, filename), content);
+      // filename may contain subdirectories (e.g. "state/store.ts" for
+      // multi-file packages); ensure the parent directory exists first.
+      const filePath = join(pkgDir, filename);
+      mkdirSync(dirname(filePath), { recursive: true });
+      writeFileSync(filePath, content);
     }
   }
 }
