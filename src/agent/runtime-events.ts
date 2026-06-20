@@ -17,6 +17,7 @@ import {
 import { contentText } from "./runtime-text.js";
 import {
   addTabTokens,
+  clearPendingEscape,
   setTabContextTokens,
   setPendingMessages,
   setTabStatus,
@@ -35,6 +36,26 @@ import type { ChatLine, RuntimeEvent, RuntimeTab, ToolResultLike } from "./runti
 type AgentSessionPostRunInternals = {
   _handlePostAgentRun?: () => Promise<boolean>;
 };
+
+/**
+ * Atomically enter the context-limit auto-compaction cycle. These four flags
+ * form one transition: a stale `autoCompactCycleFailed` from a previous cycle
+ * would make the new cycle skip its compaction attempt (see the guards at the
+ * top of autoCompactAndContinue), so resetting it here is load-bearing — not
+ * incidental. Concentrating the set in one place removes that footgun.
+ */
+export function enterAutoCompactCycle(runtimeTab: RuntimeTab): void {
+  runtimeTab.pendingContextLimitCompaction = false;
+  runtimeTab.deferPendingMessageFlush = true;
+  runtimeTab.autoCompactCycleActive = true;
+  runtimeTab.autoCompactCycleFailed = false;
+}
+
+/** Leave the auto-compaction cycle, clearing the in-flight markers. */
+export function endAutoCompactCycle(runtimeTab: RuntimeTab): void {
+  runtimeTab.isAutoCompacting = false;
+  runtimeTab.autoCompactCycleActive = false;
+}
 
 /**
  * Auto-compact the session after the current agent run becomes idle,
@@ -63,8 +84,7 @@ async function autoCompactAndContinue(runtimeTab: RuntimeTab): Promise<void> {
           message === "Compaction cancelled" || (error instanceof Error && error.name === "AbortError");
         if (aborted) {
           // Aborted compaction: drop the timer silently, no worked-duration recorded.
-          runtimeTab.tab.status = "idle";
-          runtimeTab.tab.workingStartedAt = undefined;
+          setTabStatus(runtimeTab.tab, "idle", { discardTimer: true });
           return;
         }
         if (/already compacted/i.test(message)) {
@@ -82,13 +102,11 @@ async function autoCompactAndContinue(runtimeTab: RuntimeTab): Promise<void> {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     // Failed compaction: drop the timer silently, no worked-duration recorded.
-    runtimeTab.tab.status = "idle";
-    runtimeTab.tab.workingStartedAt = undefined;
+    setTabStatus(runtimeTab.tab, "idle", { discardTimer: true });
     appendSystemMessage(runtimeTab, normalizeCompactionFailureMessage(message));
     runtimeTab.requestRender?.();
   } finally {
-    runtimeTab.isAutoCompacting = false;
-    runtimeTab.autoCompactCycleActive = false;
+    endAutoCompactCycle(runtimeTab);
   }
 }
 
@@ -153,8 +171,7 @@ export function applyEvent(
       setTabStatus(runtimeTab.tab, "running", {
         restart: !runtimeTab.autoCompactCycleActive,
       });
-      runtimeTab.tab.pendingEscapeAction = undefined;
-      runtimeTab.tab.pendingEscapeArmedAt = undefined;
+      clearPendingEscape(runtimeTab.tab);
       break;
     case "turn_start":
       runtimeTab.currentRunChatStartIndex ??= runtimeTab.chat.length;
@@ -164,10 +181,7 @@ export function applyEvent(
       // If the agent was terminated by the mid-turn hook due to compaction pressure,
       // trigger auto-compaction and continue the agent run.
       if (runtimeTab.pendingContextLimitCompaction) {
-        runtimeTab.pendingContextLimitCompaction = false;
-        runtimeTab.deferPendingMessageFlush = true;
-        runtimeTab.autoCompactCycleActive = true;
-        runtimeTab.autoCompactCycleFailed = false;
+        enterAutoCompactCycle(runtimeTab);
         // Don't set idle — keep running status for the compact + continue cycle
         void autoCompactAndContinue(runtimeTab);
         break;
@@ -177,8 +191,7 @@ export function applyEvent(
       runtimeTab.postRunWorkingStartedAt = runtimeTab.tab.workingStartedAt;
       setTabStatus(runtimeTab.tab, "idle");
       runtimeTab.tab.unreadDone = true;
-      runtimeTab.tab.pendingEscapeAction = undefined;
-      runtimeTab.tab.pendingEscapeArmedAt = undefined;
+      clearPendingEscape(runtimeTab.tab);
       runtimeTab.streamingReasoning = undefined;
       runtimeTab.currentRunChatStartIndex = undefined;
       break;
@@ -242,8 +255,7 @@ export function applyEvent(
         });
         runtimeTab.postRunWorkingStartedAt = undefined;
       }
-      runtimeTab.tab.pendingEscapeAction = undefined;
-      runtimeTab.tab.pendingEscapeArmedAt = undefined;
+      clearPendingEscape(runtimeTab.tab);
       {
         // Show "context-limit" instead of "manual" when the auto-compact cycle is active.
         const displayReason =
@@ -266,8 +278,7 @@ export function applyEvent(
       setTabStatus(runtimeTab.tab, nextStatus, {
         preserveStartedAt: continuingAfterAutoCompaction,
       });
-      runtimeTab.tab.pendingEscapeAction = undefined;
-      runtimeTab.tab.pendingEscapeArmedAt = undefined;
+      clearPendingEscape(runtimeTab.tab);
       if (event.result) {
         // Rebuild chat from session entries (which now include the compaction entry)
         disposeChatRenderers(runtimeTab.chat);

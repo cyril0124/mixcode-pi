@@ -12,6 +12,7 @@ import { test } from "node:test";
 import { createTab } from "../src/core/defaults.js";
 import {
   addTabTokens,
+  clearPendingEscape,
   setTabContextTokens,
   setTabStatus,
 } from "../src/core/tab-state.js";
@@ -105,6 +106,19 @@ test("setTabStatus: restart overwrites an existing stamp, unlike the default ??=
   assert.equal(preserved.workingStartedAt, started);
 });
 
+test("setTabStatus: discardTimer drops the stamp without recording a duration", () => {
+  // Aborted/failed auto-compaction leaves work silently: status goes idle but
+  // no worked-duration is recorded (unlike a normal idle transition, which
+  // closes the timer into lastWorkedDurationSeconds).
+  const t = tab();
+  t.workingStartedAt = "2026-01-01T00:00:00.000Z";
+  t.lastWorkedDurationSeconds = 99;
+  setTabStatus(t, "idle", { now: new Date("2026-01-01T00:00:08.000Z"), discardTimer: true });
+  assert.equal(t.status, "idle");
+  assert.equal(t.workingStartedAt, undefined);
+  assert.equal(t.lastWorkedDurationSeconds, undefined, "no duration recorded on discard");
+});
+
 test("addTabTokens accumulates input/output", () => {
   const t = tab();
   addTabTokens(t, { input: 10, output: 5 });
@@ -129,4 +143,16 @@ test("setTabContextTokens distinguishes a real count from cleared (undefined)", 
   assert.equal(t.currentContextTokens, 1234);
   setTabContextTokens(t, undefined);
   assert.equal(t.currentContextTokens, undefined);
+});
+
+test("clearPendingEscape clears both halves of the armed-escape pair together", () => {
+  // pendingEscapeAction and pendingEscapeArmedAt were cleared as a pair in 8
+  // sites; clearing only one leaves a half-armed escape that the key handler
+  // can misread. The seam makes the pair atomic.
+  const t = tab();
+  t.pendingEscapeAction = "abort-agent";
+  t.pendingEscapeArmedAt = 1735689600000;
+  clearPendingEscape(t);
+  assert.equal(t.pendingEscapeAction, undefined);
+  assert.equal(t.pendingEscapeArmedAt, undefined);
 });

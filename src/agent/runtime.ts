@@ -19,7 +19,7 @@ import {
 import { type AutocompleteProvider, matchesKey as matchesPiKey } from "@earendil-works/pi-tui";
 import { stripSkillInjection } from "../core/attachments.js";
 import { modelToRef, replaceRegisteredModels } from "../core/models.js";
-import { setPendingMessages, setTabStatus } from "../core/tab-state.js";
+import { clearPendingEscape, setPendingMessages, setTabStatus } from "../core/tab-state.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import type { AgentRuntimeConfig, MixCodeModelRef, MixCodeTabInfo } from "../core/types.js";
 import { MIXCODE_EXTENSION_KEYBINDINGS } from "./runtime-extension-theme.js";
@@ -34,6 +34,7 @@ import {
 import { isExtensionToolOwner } from "../core/extension-tool-owners.js";
 import {
   appendSystemMessage,
+  applyRuntimeTabModel,
   resetTabForNewSession,
   syncContextUsage,
   syncPreviewFromChat,
@@ -65,7 +66,6 @@ import {
   createRuntimeServices,
   createRuntimeTabWithFallback,
   disposeRuntimeTabAfterShutdown,
-  getExtensionManagerEntriesForServices,
   installMidTurnCompactionHook,
   reloadRuntimeTabWithFreshServices,
   replaceRuntimeTabSession,
@@ -76,6 +76,7 @@ import {
 import { resolveRuntimeModel, resolveRuntimeModelFromSession } from "./runtime-model.js";
 import { registerMixCodeRuntimeProvider } from "./runtime-provider.js";
 import {
+  bindRuntimeSessionCore,
   copySession,
   createSession,
   listAllSessionsGlobal,
@@ -536,14 +537,13 @@ export class MixCodeRuntime {
       this.emitChange({ type: "extension_ui_update" }, runtimeTab);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      runtimeTab.tab.status = "error";
       upsertUserBashLine(runtimeTab, toolCallId, "error", errorMessage, args, excludeFromContext, {
         exitCode: undefined,
         cancelled: false,
         truncated: false,
         fullOutputPath: undefined,
       });
-      runtimeTab.tab.workingStartedAt = undefined;
+      setTabStatus(runtimeTab.tab, "error", { discardTimer: true });
       this.emitChange({ type: "extension_ui_update" }, runtimeTab);
       throw error;
     }
@@ -564,8 +564,7 @@ export class MixCodeRuntime {
       return false;
     }
     void runtimeTab.agentSession.abort();
-    runtimeTab.tab.pendingEscapeAction = undefined;
-    runtimeTab.tab.pendingEscapeArmedAt = undefined;
+    clearPendingEscape(runtimeTab.tab);
     // Preserve an existing timer (??=) — abort during an active run keeps elapsed.
     setTabStatus(runtimeTab.tab, "running");
     runtimeTab.tab.chatScrollOffset = 0;
@@ -583,8 +582,7 @@ export class MixCodeRuntime {
       runtimeTab.agentSession.clearQueue();
       setPendingMessages(runtimeTab.tab, []);
       runtimeTab.queuedPromptCount = 0;
-      runtimeTab.tab.pendingEscapeAction = undefined;
-      runtimeTab.tab.pendingEscapeArmedAt = undefined;
+      clearPendingEscape(runtimeTab.tab);
     }
   }
 
@@ -822,8 +820,7 @@ export class MixCodeRuntime {
       throw new Error("Session is already compacted");
     }
     setTabStatus(runtimeTab.tab, "running", { restart: true });
-    runtimeTab.tab.pendingEscapeAction = undefined;
-    runtimeTab.tab.pendingEscapeArmedAt = undefined;
+    clearPendingEscape(runtimeTab.tab);
     this.emitChange({ type: "extension_ui_update" }, runtimeTab);
     try {
       // compact() emits compaction_end which triggers applyEvent to rebuild chat
@@ -831,11 +828,13 @@ export class MixCodeRuntime {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const aborted = message === "Compaction cancelled" || (error instanceof Error && error.name === "AbortError");
-      if (!aborted) {
-        runtimeTab.tab.status = "error";
+      // Drop the timer silently either way; compaction_end did not record a duration.
+      // On a real error also flip to "error"; an abort leaves status untouched.
+      if (aborted) {
+        runtimeTab.tab.workingStartedAt = undefined;
+      } else {
+        setTabStatus(runtimeTab.tab, "error", { discardTimer: true });
       }
-      // Drop the timer silently here; compaction_end did not record a duration.
-      runtimeTab.tab.workingStartedAt = undefined;
       this.emitChange({ type: "extension_ui_update" }, runtimeTab);
       throw error;
     }
@@ -857,14 +856,7 @@ export class MixCodeRuntime {
       throw new Error("Cannot change model while the agent is streaming");
     }
     runtimeTab.agent.state.model = model;
-    runtimeTab.tab.model = {
-      provider: model.provider,
-      modelId: model.id,
-      displayName: `${model.provider}/${model.id}`,
-      contextWindow: model.contextWindow,
-    };
-    runtimeTab.tab.contextLimit = model.contextWindow;
-    runtimeTab.tab.contextLimitOverridden = false;
+    applyRuntimeTabModel(runtimeTab, model);
   }
 
   updateTabThinkingLevel(sessionId: string, level: ThinkingLevel): ThinkingLevel {
@@ -902,12 +894,12 @@ export class MixCodeRuntime {
     const extensionToolOwnerPolicy = isExtensionToolOwner;
     activateMixCodeTools(agentSession, extensionToolOwnerPolicy);
     runtimeTab.session = sessionManager;
-    runtimeTab.agentSession = agentSession;
-    runtimeTab.services = services;
-    runtimeTab.extensionsResult = extensionsResult;
-    runtimeTab.extensionManagerEntries = getExtensionManagerEntriesForServices(services);
-    runtimeTab.extensionToolOwnerPolicy = extensionToolOwnerPolicy;
-    runtimeTab.agent = agentSession.agent;
+    bindRuntimeSessionCore(runtimeTab, {
+      agentSession,
+      services,
+      extensionsResult,
+      extensionToolOwnerPolicy,
+    });
     installMidTurnCompactionHook(agentSession, runtimeTab.tab, { current: runtimeTab });
     runtimeTab.tab.workdir = workdir;
     appendExtensionLoadErrors(runtimeTab);

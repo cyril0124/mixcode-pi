@@ -57,7 +57,12 @@ import {
   registerMixCodeRuntimeProvider,
 } from "./runtime-provider.js";
 import { configureMixCodeRetrySettings } from "./retry-settings.js";
-import { resetExtensionHostState } from "./runtime-session.js";
+import {
+  bindRuntimeSessionCore,
+  getExtensionManagerEntriesForServices,
+  resetExtensionHostState,
+  setExtensionManagerEntriesForServices,
+} from "./runtime-session.js";
 import type {
   ChatLine,
   ExtensionCustomUiHost,
@@ -77,11 +82,6 @@ export type RuntimeTabConfig = Omit<AgentRuntimeConfig, "sessionId" | "model"> &
   /** Skip resourceLoader.reload() — caller already reloaded extensions. */
   skipExtensionReload?: boolean;
 };
-
-const extensionManagerEntriesByServices = new WeakMap<
-  AgentSessionServices,
-  ExtensionManagerEntry[]
->();
 
 export interface RuntimeServiceOptions {
   workdir: string;
@@ -385,12 +385,12 @@ export async function replaceRuntimeTabSession(
   resetTabForNewSession(runtimeTab.tab, sessionManager.getSessionId());
   runtimeTab.tab.workdir = sessionManager.getCwd();
   context.tabs.delete(previousSessionId);
-  runtimeTab.agentSession = created.session;
-  runtimeTab.services = created.services;
-  runtimeTab.extensionsResult = created.extensionsResult;
-  runtimeTab.extensionManagerEntries = getExtensionManagerEntriesForServices(created.services);
-  runtimeTab.extensionToolOwnerPolicy = resolveExtensionToolOwnerPolicy(context);
-  runtimeTab.agent = created.session.agent;
+  bindRuntimeSessionCore(runtimeTab, {
+    agentSession: created.session,
+    services: created.services,
+    extensionsResult: created.extensionsResult,
+    extensionToolOwnerPolicy: resolveExtensionToolOwnerPolicy(context),
+  });
   runtimeTab.session = sessionManager;
   runtimeTab.toolLog = created.toolLog;
   runtimeTab.queuedPromptCount = 0;
@@ -452,7 +452,7 @@ export async function createRuntimeServices(
       const disabledKeys = options.getDisabledExtensionKeys?.(options.workdir) ?? new Set<string>();
       latestExtensionManagerEntries = extensionManagerEntriesFromResult(overridden, disabledKeys);
       if (servicesRef) {
-        extensionManagerEntriesByServices.set(servicesRef, latestExtensionManagerEntries);
+        setExtensionManagerEntriesForServices(servicesRef, latestExtensionManagerEntries);
       }
       return filterDisabledExtensions(overridden, disabledKeys);
     },
@@ -478,14 +478,8 @@ export async function createRuntimeServices(
   services.settingsManager.applyOverrides({ steeringMode: "all" });
   configureMixCodeRetrySettings(services.settingsManager);
   servicesRef = services;
-  extensionManagerEntriesByServices.set(services, latestExtensionManagerEntries);
+  setExtensionManagerEntriesForServices(services, latestExtensionManagerEntries);
   return services;
-}
-
-export function getExtensionManagerEntriesForServices(
-  services: AgentSessionServices,
-): ExtensionManagerEntry[] {
-  return extensionManagerEntriesByServices.get(services) ?? [];
 }
 
 /** Cached search tool availability, detected once at module load. */
@@ -614,12 +608,12 @@ export async function reloadRuntimeTabWithFreshServices(
     thinkingLevel: runtimeTab.tab.thinkingLevel,
     sessionStartEvent: { type: "session_start", reason: "reload" },
   });
-  runtimeTab.services = services;
-  runtimeTab.agentSession = agentSession;
-  runtimeTab.extensionsResult = extensionsResult;
-  runtimeTab.extensionToolOwnerPolicy = resolveExtensionToolOwnerPolicy(context);
-  runtimeTab.agent = agentSession.agent;
-  runtimeTab.extensionManagerEntries = getExtensionManagerEntriesForServices(services);
+  bindRuntimeSessionCore(runtimeTab, {
+    agentSession,
+    services,
+    extensionsResult,
+    extensionToolOwnerPolicy: resolveExtensionToolOwnerPolicy(context),
+  });
   activateMixCodeTools(agentSession, runtimeTab.extensionToolOwnerPolicy);
   installMidTurnCompactionHook(agentSession, runtimeTab.tab, { current: runtimeTab });
   runtimeTab.chat = await rebuildRuntimeChat(runtimeTab);

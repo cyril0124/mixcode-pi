@@ -1,9 +1,62 @@
 import { existsSync, readdirSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { type SessionInfo, SessionManager } from "@earendil-works/pi-coding-agent";
+import {
+  type AgentSessionServices,
+  type LoadExtensionsResult,
+  type SessionInfo,
+  SessionManager,
+} from "@earendil-works/pi-coding-agent";
+import type { ExtensionManagerEntry } from "../core/extension-manager.js";
+import type { ExtensionToolOwnerPolicy } from "../core/extension-tool-owners.js";
 import { closeExtensionCustomOverlays, disposeExtensionWidgets } from "./runtime-extension-ui.js";
 import type { ExtensionCustomUiHost, RuntimeTab } from "./runtime-types.js";
+
+// Registry mapping an AgentSessionServices instance to the extension manager
+// entries computed for it. Lives here (next to bindRuntimeSessionCore) so the
+// session-bound derived state has a single owner.
+const extensionManagerEntriesByServices = new WeakMap<
+  AgentSessionServices,
+  ExtensionManagerEntry[]
+>();
+
+/** Associate extension manager entries with a services instance. */
+export function setExtensionManagerEntriesForServices(
+  services: AgentSessionServices,
+  entries: ExtensionManagerEntry[],
+): void {
+  extensionManagerEntriesByServices.set(services, entries);
+}
+
+export function getExtensionManagerEntriesForServices(
+  services: AgentSessionServices,
+): ExtensionManagerEntry[] {
+  return extensionManagerEntriesByServices.get(services) ?? [];
+}
+
+/**
+ * Rebind the session-owned core of a {@link RuntimeTab} after a new AgentSession
+ * is created (clear / reload / workdir change). Sets the four source fields and
+ * derives `agent` and `extensionManagerEntries` from them, so the derived fields
+ * can never drift out of sync with their source — the bug class that arose from
+ * three call sites hand-copying this assignment block.
+ */
+export function bindRuntimeSessionCore(
+  runtimeTab: RuntimeTab,
+  core: {
+    agentSession: RuntimeTab["agentSession"];
+    services: AgentSessionServices;
+    extensionsResult: LoadExtensionsResult;
+    extensionToolOwnerPolicy: ExtensionToolOwnerPolicy;
+  },
+): void {
+  runtimeTab.agentSession = core.agentSession;
+  runtimeTab.services = core.services;
+  runtimeTab.extensionsResult = core.extensionsResult;
+  runtimeTab.extensionToolOwnerPolicy = core.extensionToolOwnerPolicy;
+  runtimeTab.agent = core.agentSession.agent;
+  runtimeTab.extensionManagerEntries = getExtensionManagerEntriesForServices(core.services);
+}
 
 export function resetExtensionHostState(
   runtimeTab: RuntimeTab,

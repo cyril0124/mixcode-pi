@@ -335,3 +335,33 @@ test("slash fork requests service reuse from the source tab", async () => {
     "source",
   );
 });
+
+test("reload keeps derived tab fields bound to the new session", async () => {
+  // The session-rebind sites set agentSession/services plus two DERIVED fields:
+  // agent (= agentSession.agent) and extensionManagerEntries (= entries for services).
+  // If a rebind path forgets a derived field, it silently desyncs from its source.
+  await withRuntime("mixcode-reload-rebind-invariant-", async (runtime, dir) => {
+    const tab = await runtime.createTab(createTab(1, "s1", process.cwd()), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+    });
+    assert.equal(tab.agent, tab.agentSession.agent, "agent bound after create");
+
+    // extensionReload rebinds via runtime-lifecycle.ts.
+    await runtime.extensionReload("s1");
+    const afterReload = runtime.getTab("s1");
+    assert.ok(afterReload);
+    assert.equal(afterReload.agent, afterReload.agentSession.agent, "agent bound after reload");
+
+    // updateTabWorkdir rebinds via runtime.ts using a fresh services instance.
+    const nextWorkdir = join(dir, "sub");
+    await mkdir(nextWorkdir, { recursive: true });
+    const beforeServices = afterReload.services;
+    await runtime.updateTabWorkdir("s1", nextWorkdir);
+    const afterWorkdir = runtime.getTab("s1");
+    assert.ok(afterWorkdir);
+    assert.notEqual(afterWorkdir.services, beforeServices, "services replaced on workdir change");
+    assert.equal(afterWorkdir.agent, afterWorkdir.agentSession.agent, "agent bound after workdir");
+  });
+});

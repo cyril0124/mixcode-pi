@@ -5,6 +5,7 @@ import type { AssistantMessage, Model, Usage } from "@earendil-works/pi-ai";
 import type { MessageRenderer, SessionEntry } from "@earendil-works/pi-coding-agent";
 import { type Component, TUI as PiTui } from "@earendil-works/pi-tui";
 import type { MixCodeTabInfo, PreviewMessageRole } from "../core/types.js";
+import { clearPendingEscape } from "../core/tab-state.js";
 import { MIXCODE_EXTENSION_THEME } from "./runtime-extension-theme.js";
 import { applyMixCodeKeybindings } from "./runtime-pi-tui-bridge.js";
 import { NullTerminal } from "./runtime-null-terminal.js";
@@ -384,8 +385,7 @@ export function resetTabForNewSession(tab: MixCodeTabInfo, sessionId: string): v
   tab.previewIndex = 0;
   tab.previewScrollOffset = 0;
   tab.previewHint = "";
-  tab.pendingEscapeAction = undefined;
-  tab.pendingEscapeArmedAt = undefined;
+  clearPendingEscape(tab);
   tab.unreadDone = false;
   tab.workingStartedAt = undefined;
   tab.lastWorkedDurationSeconds = undefined;

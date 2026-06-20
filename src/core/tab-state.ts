@@ -36,6 +36,12 @@ export interface SetTabStatusOptions {
    * without restarting or closing the timer.
    */
   preserveStartedAt?: boolean;
+  /**
+   * Drop the timer without recording a duration. Used when a run ends abnormally
+   * (aborted/failed auto-compaction): status leaves work but no worked-duration
+   * should be measured, unlike the normal leaving-work path.
+   */
+  discardTimer?: boolean;
 }
 
 /**
@@ -56,6 +62,13 @@ export function setTabStatus(
 
   if (options.preserveStartedAt) {
     // Continuation: keep the running timer as-is, don't close it out.
+    return;
+  }
+
+  if (options.discardTimer) {
+    // Abnormal end: drop the stamp without measuring a duration.
+    tab.workingStartedAt = undefined;
+    tab.lastWorkedDurationSeconds = undefined;
     return;
   }
 
@@ -103,4 +116,14 @@ export function setTabContextTokens(tab: MixCodeTabInfo, tokens: number | undefi
 /** Replace the queued (pending) prompt list. */
 export function setPendingMessages(tab: MixCodeTabInfo, messages: string[]): void {
   tab.pendingMessages = messages;
+}
+
+/**
+ * Clear the armed-escape pair atomically. pendingEscapeAction (what a second
+ * Esc would do) and pendingEscapeArmedAt (when it was armed) must always clear
+ * together — a half-cleared pair leaves the key handler reading a stale arm.
+ */
+export function clearPendingEscape(tab: MixCodeTabInfo): void {
+  tab.pendingEscapeAction = undefined;
+  tab.pendingEscapeArmedAt = undefined;
 }
