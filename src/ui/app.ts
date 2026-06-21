@@ -1,6 +1,7 @@
 import { matchesKey, ProcessTerminal, TUI, type TUI as TuiType } from "@earendil-works/pi-tui";
 import type { ExtensionCustomUiHost, MixCodeRuntime } from "../agent/runtime.js";
 import { scanSkillEntries } from "../core/attachments.js";
+import { recordSubmittedHistory } from "../core/conversation-history.js";
 import { scanProjectFiles } from "../core/file-picker.js";
 import type { MixCodeState } from "../core/types.js";
 import { appendActiveSystemMessage } from "./app-actions.js";
@@ -56,6 +57,7 @@ export interface MixCodeTuiOptions {
   externalEditor?: string;
   terminal?: ConstructorParameters<typeof TUI>[0];
   exitProcessOnQuit?: boolean;
+  rootStateDir?: string;
 }
 export function createMixCodeTui(
   state: MixCodeState,
@@ -100,6 +102,16 @@ export function createMixCodeTui(
   editor.onSubmit = (text) => {
     const activeSessionId = state.activeTabId;
     editor.addToHistory(text, activeSessionId);
+    if (activeSessionId !== "config" && options.rootStateDir) {
+      void recordSubmittedHistory({
+        rootStateDir: options.rootStateDir,
+        sessionId: activeSessionId,
+        text,
+      }).catch((error: unknown) => {
+        appendActiveSystemMessage(state, runtime, `History warning: ${errorMessage(error)}`);
+        tui.requestRender();
+      });
+    }
     void handleSubmittedInput(
       state,
       runtime,

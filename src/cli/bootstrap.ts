@@ -1,4 +1,4 @@
-import { mkdir } from "node:fs/promises";
+import { chmod, mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type {
@@ -13,6 +13,10 @@ import {
   loadExtensionManagerConfig,
   saveExtensionManagerConfig,
 } from "../core/extension-manager.js";
+import {
+  buildConversationHistoryPromptForRoot,
+  ensureConversationHistoryState,
+} from "../core/conversation-history.js";
 import { scanProjectFiles } from "../core/file-picker.js";
 import {
   buildAvailableModelRefs,
@@ -36,7 +40,7 @@ import {
   scopedStateDir,
   stateFileForPort,
 } from "../core/state-store.js";
-import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
+import { MIXCODE_SYSTEM_PROMPT, setGlobalConversationHistoryPrompt } from "../core/system-prompt.js";
 import type { MixCodeState } from "../core/types.js";
 import type { MixCodeCompletionSources } from "../ui/completion.js";
 
@@ -67,6 +71,7 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
   runtime: MixCodeRuntime;
   stateFile: string;
   workspaceFile: string;
+  rootStateDir: string;
   completionSources: MixCodeCompletionSources;
   packageUpdateCheck: () => Promise<string[]>;
   /** Resolves when all runtime tabs are fully initialized (extensions loaded). */
@@ -74,8 +79,12 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
 }> {
   const rootStateDir = options.stateDir ?? defaultStateDir();
   const stateDir = scopedStateDir(rootStateDir, options.workdir);
+  const sessionsRoot = join(stateDir, "sessions");
   const port = options.port ?? DEFAULT_STATE_PORT;
-  await mkdir(stateDir, { recursive: true });
+  await mkdir(rootStateDir, { recursive: true, mode: 0o700 });
+  await chmod(rootStateDir, 0o700);
+  await mkdir(stateDir, { recursive: true, mode: 0o700 });
+  await chmod(stateDir, 0o700);
   const stateFile = stateFileForPort(stateDir, port);
   const workspaceFile = join(stateDir, "workspaces.json");
   let state: MixCodeState;
@@ -112,8 +121,19 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
   state.activeTabId = "config";
   const modelRepairs = repairUnavailableTabModels(state);
   const agentDir = options.agentDir ?? defaultMixCodeAgentDir();
+  const historyState = await ensureConversationHistoryState({
+    rootStateDir,
+    activeSessionsRoot: sessionsRoot,
+  });
+  setGlobalConversationHistoryPrompt(buildConversationHistoryPromptForRoot(rootStateDir));
+  if (historyState.warnings.length > 0) {
+    state.tabs[0]?.previewMessages.push({
+      role: "system",
+      text: `History warning: ${historyState.warnings.join("; ")}`,
+    });
+  }
   const runtime = new MixCodeRuntime({
-    sessionsRoot: join(stateDir, "sessions"),
+    sessionsRoot,
     rootStateDir,
     agentDir,
     authStorage: modelBundle.authStorage,
@@ -161,6 +181,7 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
     runtime,
     stateFile,
     workspaceFile,
+    rootStateDir,
     completionSources,
     packageUpdateCheck: () => checkPiPackageUpdates({ workdir: state.workdir, agentDir }),
     tabsReady,

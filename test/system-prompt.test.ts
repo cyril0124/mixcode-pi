@@ -7,9 +7,11 @@ import {
   buildMixCodeSystemPrompt,
   buildMixCodeSystemPromptFromParts,
   MIXCODE_SYSTEM_PROMPT,
+  setGlobalConversationHistoryPrompt,
 } from "../src/index.js";
 
 test("buildMixCodeSystemPrompt loads Pi project context into system prompt", async () => {
+  setGlobalConversationHistoryPrompt(undefined);
   const dir = await mkdtemp(join(tmpdir(), "mixcode-system-prompt-"));
   try {
     const repo = join(dir, "repo");
@@ -45,6 +47,7 @@ test("buildMixCodeSystemPrompt loads Pi project context into system prompt", asy
 });
 
 test("buildMixCodeSystemPrompt uses project SYSTEM and append prompt files", async () => {
+  setGlobalConversationHistoryPrompt(undefined);
   const dir = await mkdtemp(join(tmpdir(), "mixcode-system-files-"));
   try {
     const repo = join(dir, "repo");
@@ -71,6 +74,7 @@ test("buildMixCodeSystemPrompt uses project SYSTEM and append prompt files", asy
 });
 
 test("buildMixCodeSystemPrompt includes project skills from Pi resource loader", async () => {
+  setGlobalConversationHistoryPrompt(undefined);
   const dir = await mkdtemp(join(tmpdir(), "mixcode-system-skills-"));
   try {
     const repo = join(dir, "repo");
@@ -94,6 +98,7 @@ test("buildMixCodeSystemPrompt includes project skills from Pi resource loader",
 });
 
 test("buildMixCodeSystemPrompt falls back when project resources are empty", async () => {
+  setGlobalConversationHistoryPrompt(undefined);
   const dir = await mkdtemp(join(tmpdir(), "mixcode-system-fallback-"));
   try {
     const repo = join(dir, "repo");
@@ -117,6 +122,7 @@ test("buildMixCodeSystemPrompt falls back when project resources are empty", asy
 });
 
 test("buildMixCodeSystemPrompt uses defaults when optional inputs are omitted", async () => {
+  setGlobalConversationHistoryPrompt(undefined);
   const dir = await mkdtemp(join(tmpdir(), "mixcode-system-defaults-"));
   try {
     const repo = join(dir, "repo");
@@ -135,6 +141,7 @@ test("buildMixCodeSystemPrompt uses defaults when optional inputs are omitted", 
 });
 
 test("buildMixCodeSystemPrompt formats tools and exploration guidelines like Pi", async () => {
+  setGlobalConversationHistoryPrompt(undefined);
   const dir = await mkdtemp(join(tmpdir(), "mixcode-system-tools-"));
   try {
     const repo = join(dir, "repo");
@@ -166,7 +173,22 @@ test("buildMixCodeSystemPrompt formats tools and exploration guidelines like Pi"
   }
 });
 
+test("global conversation history prompt is appended when configured", () => {
+  try {
+    setGlobalConversationHistoryPrompt("Local conversation history:\n- path only");
+    const prompt = buildMixCodeSystemPromptFromParts({
+      customPrompt: MIXCODE_SYSTEM_PROMPT,
+      cwd: "/repo",
+      selectedTools: [],
+    });
+    assert.match(prompt, /Local conversation history:\n- path only/);
+  } finally {
+    setGlobalConversationHistoryPrompt(undefined);
+  }
+});
+
 test("default MixCode custom prompt expands tools and guidelines before Pi assembly", () => {
+  setGlobalConversationHistoryPrompt(undefined);
   const prompt = buildMixCodeSystemPromptFromParts({
     customPrompt: MIXCODE_SYSTEM_PROMPT,
     cwd: "/repo",

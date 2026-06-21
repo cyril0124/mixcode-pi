@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -63,6 +63,48 @@ test("bootstrap restores persisted tab order and runtime tabs", async () => {
     await restored.tabsReady;
     assert.ok(restored.runtime.getTab("s1"));
     assert.ok(restored.runtime.getTab("s2"));
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("bootstrap maintains global history files and exposes paths in prompt", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-bootstrap-history-"));
+  try {
+    const stateDir = join(dir, "state");
+    const repo = join(dir, "repo");
+    const sessionsRoot = join(scopedStateDir(stateDir, repo), "sessions");
+    await mkdir(repo, { recursive: true });
+    await mkdir(sessionsRoot, { recursive: true });
+    await writeFile(
+      join(sessionsRoot, "2026-06-20T00-00-00-000Z_s1.jsonl"),
+      [
+        JSON.stringify({ type: "session", id: "s1", cwd: repo, timestamp: "2026-06-20T00:00:00.000Z" }),
+        JSON.stringify({
+          type: "message",
+          id: "u1",
+          message: { role: "user", content: "hello boot", timestamp: Date.now() },
+        }),
+      ].join("\n") + "\n",
+      "utf8",
+    );
+
+    const boot = await bootstrapMixCode({
+      workdir: repo,
+      stateDir,
+      modelConfigPath: join(dir, "missing.jsonc"),
+    });
+    await boot.tabsReady;
+    const runtimeTab = boot.runtime.getTab(boot.state.tabs[0]!.sessionId);
+    assert.ok(runtimeTab);
+    assert.match(await readFile(join(stateDir, "history.jsonl"), "utf8"), /hello boot/);
+    assert.match(await readFile(join(stateDir, "session_index.jsonl"), "utf8"), /"id":"s1"/);
+    assert.equal((await stat(stateDir)).mode & 0o777, 0o700);
+    assert.equal((await stat(join(stateDir, "history.jsonl"))).mode & 0o777, 0o600);
+    assert.match(runtimeTab.agent.state.systemPrompt, /Local conversation history:/);
+    assert.match(runtimeTab.agent.state.systemPrompt, new RegExp(`${stateDir.replace(/[\\\\/]/g, "[\\\\/]")}[/\\\\]history\\.jsonl`));
+    assert.doesNotMatch(runtimeTab.agent.state.systemPrompt, /stores full session transcripts under/);
+    assert.doesNotMatch(runtimeTab.agent.state.systemPrompt, /hello boot/);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

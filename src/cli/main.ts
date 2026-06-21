@@ -41,10 +41,18 @@ export async function main(): Promise<void> {
     return;
   }
   ensurePackageExtensions(repoDir, { copy: true });
-  const { state, runtime, stateFile, workspaceFile, completionSources, packageUpdateCheck, tabsReady } =
-    await bootstrapMixCode({
-      workdir: args.workdir,
-    });
+  const {
+    state,
+    runtime,
+    stateFile,
+    workspaceFile,
+    rootStateDir,
+    completionSources,
+    packageUpdateCheck,
+    tabsReady,
+  } = await bootstrapMixCode({
+    workdir: args.workdir,
+  });
   const batchRequests = args.batch
     ? await loadBatchRequests(args.batch, contextFromState(state))
     : undefined;
@@ -97,6 +105,7 @@ export async function main(): Promise<void> {
   const tui = createMixCodeTui(state, runtime, {
     completionSources,
     workspaceFile,
+    rootStateDir,
     exitProcessOnQuit: true,
     onStateChanged: async (nextState) => {
       await saveStateFile(stateFile, nextState, DEFAULT_STATE_PORT);

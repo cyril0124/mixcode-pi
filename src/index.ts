@@ -6,6 +6,7 @@ export * from "./core/batch-lua.js";
 export * from "./core/chat-selection.js";
 export * from "./core/clipboard.js";
 export * from "./core/commands.js";
+export * from "./core/conversation-history.js";
 export * from "./core/defaults.js";
 export * from "./core/escape.js";
 export * from "./core/extension-manager.js";

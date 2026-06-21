@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { test } from "node:test";
@@ -190,6 +190,53 @@ function silentTerminal(): Terminal {
 function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
+
+test("createMixCodeTui submit hook persists prompt history", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-tui-history-"));
+  try {
+    const state = createInitialState("/repo");
+    const tab = createTab(1, "s1", "/repo");
+    state.tabs.push(tab);
+    state.activeTabId = "s1";
+    const prompts: string[] = [];
+    const runtime = {
+      onChange: () => () => undefined,
+      getTab: () => ({ tab, chat: [], reasoning: [] }),
+      prompt: async (_sessionId: string, text: string) => {
+        prompts.push(text);
+      },
+      appendSystemMessage: () => undefined,
+      getExtensionCommands: () => [],
+      getAllExtensionCommands: () => [],
+      applyExtensionAutocompleteProviders: (_sessionId: string, base: AutocompleteProvider) => base,
+      setExtensionUiHost: () => undefined,
+    } as unknown as MixCodeRuntime;
+    const tui = createMixCodeTui(state, runtime, { terminal: silentTerminal(), rootStateDir: dir });
+    try {
+      const layout = (
+        tui as unknown as {
+          children: Array<{
+            editor: { setText: (text: string) => void; submitCurrentText: () => void };
+          }>;
+        }
+      ).children[0]!;
+      layout.editor.setText("hello tui-history  ");
+      layout.editor.submitCurrentText();
+      await waitForRuntime(() => prompts.length === 1);
+      const historyFile = join(dir, "history.jsonl");
+      for (let i = 0; i < 25; i += 1) {
+        if (/hello tui-history/.test(await readFile(historyFile, "utf8").catch(() => ""))) break;
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      assert.deepEqual(prompts, ["hello tui-history"]);
+      assert.match(await readFile(historyFile, "utf8"), /"text":"hello tui-history"/);
+    } finally {
+      tui.stop();
+    }
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
 
 test("createMixCodeTui editor slot handles input, autocomplete host, and submit", async () => {
   const state = createInitialState("/repo");

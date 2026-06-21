@@ -6,6 +6,12 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { detectSearchTools, type SearchToolAvailability } from "./detect-search-tools.js";
 
+let globalConversationHistoryPrompt: string | undefined;
+
+export function setGlobalConversationHistoryPrompt(prompt: string | undefined): void {
+  globalConversationHistoryPrompt = prompt;
+}
+
 export const MIXCODE_SYSTEM_PROMPT =
   "You are an expert coding assistant operating inside pi, a coding agent harness. You help users by reading files, executing commands, editing code, and writing new files.";
 
@@ -43,8 +49,13 @@ export async function buildMixCodeSystemPrompt(
   });
 }
 
+export type MixCodeSystemPromptPartsOptions = BuildSystemPromptOptions & {
+  searchTools?: SearchToolAvailability;
+  conversationHistoryPrompt?: string;
+};
+
 export function buildMixCodeSystemPromptFromParts(
-  options: BuildSystemPromptOptions & { searchTools?: SearchToolAvailability },
+  options: MixCodeSystemPromptPartsOptions,
 ): string {
   const {
     customPrompt,
@@ -56,6 +67,7 @@ export function buildMixCodeSystemPromptFromParts(
     contextFiles: providedContextFiles,
     skills: providedSkills,
     searchTools,
+    conversationHistoryPrompt = globalConversationHistoryPrompt,
   } = options;
   const promptCwd = cwd.replace(/\\/g, "/");
   const appendSection = appendSystemPrompt ? `\n\n${appendSystemPrompt}` : "";
@@ -68,6 +80,9 @@ export function buildMixCodeSystemPromptFromParts(
       : buildDefaultMixCodePrompt({ selectedTools, toolSnippets, promptGuidelines, searchTools });
   if (appendSection) {
     prompt += appendSection;
+  }
+  if (conversationHistoryPrompt) {
+    prompt += `\n\n${conversationHistoryPrompt}`;
   }
   const projectContext = formatProjectContext(contextFiles);
   if (projectContext) {
@@ -178,8 +193,8 @@ export function buildMixCodeSystemPromptOptionsFromSession(
       name: string,
     ): { promptSnippet?: string; promptGuidelines?: string[] } | undefined;
   },
-  base: Omit<BuildSystemPromptOptions, "selectedTools" | "toolSnippets" | "promptGuidelines">,
-): BuildSystemPromptOptions {
+  base: Omit<MixCodeSystemPromptPartsOptions, "selectedTools" | "toolSnippets" | "promptGuidelines">,
+): MixCodeSystemPromptPartsOptions {
   const selectedTools = session.getActiveToolNames();
   const toolSnippets: Record<string, string> = {};
   for (const name of selectedTools) {
