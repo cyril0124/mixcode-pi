@@ -45,6 +45,7 @@ import {
   forkRuntimeSession,
   importRuntimeJsonl,
   navigateRuntimeTree,
+  retractRuntimeTurn,
   type RuntimeExtensionSessionContext,
   switchRuntimeSession,
 } from "./runtime-extension-session.js";
@@ -705,6 +706,15 @@ export class MixCodeRuntime {
     options?: ExtensionNavigateTreeOptions,
   ): Promise<{ cancelled: boolean; aborted?: boolean }> {
     return navigateRuntimeTree(sessionId, targetId, options, this.extensionSessionContext());
+  }
+
+  /**
+   * Retract the in-flight turn (abort + rewind leaf to the last user message)
+   * when it produced no visible output. Returns the message text to refill the
+   * editor, or undefined when not eligible so the caller aborts normally.
+   */
+  async retractCurrentTurn(sessionId: string): Promise<{ editorText: string } | undefined> {
+    return retractRuntimeTurn(sessionId, this.extensionSessionContext());
   }
 
   async extensionSwitchSession(

@@ -36,6 +36,18 @@ export function appendEmptyRunNotice(runtimeTab: RuntimeTab): void {
   if (!visibleOutput) appendSystemMessage(runtimeTab, "Agent finished without a response.");
 }
 
+/**
+ * True when the in-flight run has produced no visible assistant output yet:
+ * no assistant text and no tool lines with content since the run started.
+ * Mirrors the zero-output check used by appendEmptyRunNotice so a double-Esc
+ * retract and the "finished without a response" notice agree on what counts.
+ */
+export function hasNoVisibleRunOutput(runtimeTab: RuntimeTab): boolean {
+  const start = runtimeTab.currentRunChatStartIndex;
+  if (start === undefined) return false;
+  return !runtimeTab.chat.slice(start).some((line) => line.role !== "user" && line.text.trim());
+}
+
 export function surfaceAssistantStopReason(
   runtimeTab: RuntimeTab,
   message: AssistantMessage,

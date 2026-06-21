@@ -31,6 +31,7 @@ import { renderExportText } from "./app-submit.js";
 import type {
   CommandPaletteActions,
   ExportChooserActions,
+  MixCodeEditorActions,
   MixCodeKeyRuntime,
   OverlayTui,
 } from "./app-types.js";
@@ -47,6 +48,7 @@ export function handleStreamingAbortKey(
   active: MixCodeState["tabs"][number],
   tui: Pick<TuiType, "requestRender">,
   runtime?: MixCodeKeyRuntime,
+  editorActions?: MixCodeEditorActions,
 ): boolean {
   const runtimeTab = runtime?.getTab?.(active.sessionId);
   const isAgentStreaming = runtimeTab?.agent.state.isStreaming;
@@ -63,10 +65,40 @@ export function handleStreamingAbortKey(
   }
   if (!runtime?.abortTab)
     throw new Error("Stopping an active agent requires runtime abort support");
+  // On the confirming Esc, prefer retracting the message back to an empty editor
+  // when the run produced no visible output. Retract owns the abort internally;
+  // a non-empty draft or an ineligible turn falls through to a plain abort.
+  if (runtime.retractCurrentTurn && !editorActions?.getText()?.trim()) {
+    clearPendingEscape(active, "abort-agent");
+    tui.requestRender();
+    void retractOrAbort(active, tui, runtime, editorActions);
+    return true;
+  }
   runtime.abortTab(active.sessionId);
   clearPendingEscape(active, "abort-agent");
   tui.requestRender();
   return true;
+}
+
+// Try a retract (no-output rewind); if the turn is ineligible, abort normally.
+// Refills the editor only when it is still empty, so a draft typed during the
+// async hop is never clobbered.
+async function retractOrAbort(
+  active: MixCodeState["tabs"][number],
+  tui: Pick<TuiType, "requestRender">,
+  runtime: MixCodeKeyRuntime,
+  editorActions?: MixCodeEditorActions,
+): Promise<void> {
+  const result = await runtime.retractCurrentTurn!(active.sessionId);
+  if (!result) {
+    runtime.abortTab?.(active.sessionId);
+    tui.requestRender();
+    return;
+  }
+  if (result.editorText && !editorActions?.getText()?.trim()) {
+    editorActions?.setText(result.editorText);
+  }
+  tui.requestRender();
 }
 
 export function handleQueuedFlushKey(

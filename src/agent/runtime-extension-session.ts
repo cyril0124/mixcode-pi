@@ -6,6 +6,7 @@ import {
   assertImportHasCwd,
   emitBeforeFork,
   emitBeforeSwitch,
+  hasNoVisibleRunOutput,
   hasPriorVisibleConversation,
 } from "./runtime-chat.js";
 import { contentText } from "./runtime-text.js";
@@ -110,6 +111,45 @@ export async function navigateRuntimeTree(
   }
   context.emitChange({ type: "extension_ui_update" }, runtimeTab);
   return { cancelled: false };
+}
+
+/**
+ * Retract the in-flight turn as if it was never submitted: abort the run, rewind
+ * the branch leaf to before the last user message, and return that message text
+ * so the caller can refill the input box.
+ *
+ * Returns undefined (no retract) when the run already produced visible output or
+ * there is no user message to rewind to — the caller should then abort normally.
+ * Unlike navigateRuntimeTree, this does not touch the editor; the key handler
+ * owns the empty-editor guard and the actual prefill.
+ */
+export async function retractRuntimeTurn(
+  sessionId: string,
+  context: RuntimeExtensionSessionContext,
+): Promise<{ editorText: string } | undefined> {
+  const runtimeTab = context.requireTab(sessionId);
+  // Capture eligibility before aborting: agent_end clears the run start marker.
+  if (!hasNoVisibleRunOutput(runtimeTab)) return undefined;
+  const lastUser = lastUserMessage(runtimeTab);
+  if (!lastUser) return undefined;
+  // Stop the stream and wait for idle so navigateTree rebuilds from a settled state.
+  if (runtimeTab.agentSession.isStreaming) await runtimeTab.agentSession.abort();
+  await runtimeTab.agentSession.navigateTree(lastUser.id);
+  await context.syncChatFromSession(runtimeTab);
+  context.emitChange({ type: "extension_ui_update" }, runtimeTab);
+  return { editorText: lastUser.text };
+}
+
+// Last user message on the current branch (root -> leaf order), with its text.
+function lastUserMessage(runtimeTab: RuntimeTab): { id: string; text: string } | undefined {
+  const branch = runtimeTab.session.getBranch();
+  for (let i = branch.length - 1; i >= 0; i -= 1) {
+    const entry = branch[i];
+    if (entry?.type === "message" && entry.message.role === "user") {
+      return { id: entry.id, text: contentText(entry.message.content) };
+    }
+  }
+  return undefined;
 }
 
 export async function switchRuntimeSession(

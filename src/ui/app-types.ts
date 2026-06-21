@@ -27,6 +27,7 @@ export type MixCodeKeyRuntime = Partial<
     | "listAllSessions"
     | "prompt"
     | "popPendingMessage"
+    | "retractCurrentTurn"
     | "reloadExtensionManagerTab"
     | "reloadExtensionManagerWorkdir"
     | "resolveExtensionDialog"

@@ -109,7 +109,7 @@ export function handleMixCodeKeyInput(
     state.activeTabId !== "config" &&
     matchesKey(data, "escape") &&
     !hasAnyOverlay(tui) &&
-    handleStreamingAbortKey(active, tui, runtime)
+    handleStreamingAbortKey(active, tui, runtime, editorActions)
   ) {
     return { consume: true };
   }
