@@ -195,13 +195,13 @@ export async function main(): Promise<void> {
         tab.lastWorkedDurationSeconds = undefined;
         clearConversationCache(sessionId);
         tui.requestRender();
-        const originalTitle = tab.title;
+        // clearTab carries the session name into the fresh child session,
+        // so no manual rename is needed here.
         const cleared = await runtime.clearTab!(sessionId, {
           systemPrompt: MIXCODE_SYSTEM_PROMPT,
           thinkingLevel: tab.thinkingLevel,
           workdir: tab.workdir,
         });
-        runtime.renameSession(cleared.tab.sessionId, originalTitle);
         activateTab(state, cleared.tab.sessionId);
         clearConversationCache(cleared.tab.sessionId);
         tui.requestRender();

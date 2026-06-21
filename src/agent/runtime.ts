@@ -232,12 +232,18 @@ export class MixCodeRuntime {
       throw new Error("Cannot clear a session while it is streaming");
     }
     const oldHeader = runtimeTab.session?.getHeader();
+    // /clear replaces the conversation but keeps working in the same context, so
+    // a user-given session name must follow into the fresh child session. Capture
+    // it before shutdown and re-append it once the new session exists. Centralizing
+    // this here keeps every caller (TUI, batch, future) consistent.
+    const oldSessionName = runtimeTab.session?.getSessionName();
     const services = runtimeTab.services;
     const newSession = await this.createSession(
       config.workdir,
       config.newSessionId,
       oldHeader?.parentSession,
     );
+    if (oldSessionName) newSession.appendSessionInfo(oldSessionName);
     await this.shutdownRuntimeTab(runtimeTab, {
       type: "session_shutdown",
       reason: "new",
