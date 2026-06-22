@@ -76,6 +76,12 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
   packageUpdateCheck: () => Promise<string[]>;
   /** Resolves when all runtime tabs are fully initialized (extensions loaded). */
   tabsReady: Promise<void>;
+  /**
+   * Resolves when conversation history backfill and session-index rebuild
+   * finish. This scans every persisted session file, so it runs in the
+   * background after the TUI renders instead of blocking the first frame.
+   */
+  historyReady: Promise<{ warnings: string[] }>;
 }> {
   const rootStateDir = options.stateDir ?? defaultStateDir();
   const stateDir = scopedStateDir(rootStateDir, options.workdir);
@@ -121,17 +127,14 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
   state.activeTabId = "config";
   const modelRepairs = repairUnavailableTabModels(state);
   const agentDir = options.agentDir ?? defaultMixCodeAgentDir();
-  const historyState = await ensureConversationHistoryState({
+  // The history recall prompt is a static path string (no file scanning), so
+  // it is set synchronously to ensure every session's system prompt includes
+  // it. The actual backfill/index rebuild below is deferred to the background.
+  setGlobalConversationHistoryPrompt(buildConversationHistoryPromptForRoot(rootStateDir));
+  const historyReady = ensureConversationHistoryState({
     rootStateDir,
     activeSessionsRoot: sessionsRoot,
   });
-  setGlobalConversationHistoryPrompt(buildConversationHistoryPromptForRoot(rootStateDir));
-  if (historyState.warnings.length > 0) {
-    state.tabs[0]?.previewMessages.push({
-      role: "system",
-      text: `History warning: ${historyState.warnings.join("; ")}`,
-    });
-  }
   const runtime = new MixCodeRuntime({
     sessionsRoot,
     rootStateDir,
@@ -185,6 +188,7 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
     completionSources,
     packageUpdateCheck: () => checkPiPackageUpdates({ workdir: state.workdir, agentDir }),
     tabsReady,
+    historyReady,
   };
 }
 

@@ -50,6 +50,7 @@ export async function main(): Promise<void> {
     completionSources,
     packageUpdateCheck,
     tabsReady,
+    historyReady,
   } = await bootstrapMixCode({
     workdir: args.workdir,
   });
@@ -58,7 +59,6 @@ export async function main(): Promise<void> {
     : undefined;
   if (batchRequests) validateBatchRequests(batchRequests, (query) => findModelRef(state.availableModels, query));
   const stateRoot = defaultStateDir();
-  await cleanupInstanceRegistry(stateRoot);
   let registryWriteErrorReported = false;
   const reportRegistryWriteError = (error: unknown) => {
     if (registryWriteErrorReported) return;
@@ -73,7 +73,6 @@ export async function main(): Promise<void> {
       reportRegistryWriteError(error);
     }
   };
-  await writeCurrentInstanceSnapshot(stateRoot, state);
   const heartbeat = setInterval(writeRegistrySnapshot, INSTANCE_HEARTBEAT_INTERVAL_MS);
   heartbeat.unref?.();
   let scheduledRegistrySnapshot: NodeJS.Timeout | undefined;
@@ -126,6 +125,17 @@ export async function main(): Promise<void> {
     void writeRegistrySnapshot();
   });
   tui.start();
+  // Registry cleanup and initial snapshot are deferred to after the first frame.
+  // They are cheap on their own (~10ms), but their `await` yields the event loop
+  // to the deferred background extension loading (CPU-heavy jiti compilation that
+  // yields via setImmediate). When awaited before tui.start(), those yields let
+  // every tab finish loading before the first frame renders, so the "Not Ready"
+  // spinner never shows. Firing them after tui.start() keeps them off the
+  // first-frame critical path.
+  void cleanupInstanceRegistry(stateRoot).catch((err: unknown) => {
+    reportRegistryWriteError(err);
+  });
+  void writeRegistrySnapshot();
   void tabsReady
     .then(() => {
       tui.requestRender(true);
@@ -140,6 +150,22 @@ export async function main(): Promise<void> {
       tui.requestRender();
     })
     .catch(() => undefined);
+  // Conversation history backfill / session-index rebuild scans every persisted
+  // session file, so it runs in the background after the first frame. Surface
+  // any warnings into the first tab once it completes.
+  void historyReady
+    .then(({ warnings }) => {
+      if (warnings.length === 0) return;
+      state.tabs[0]?.previewMessages.push({
+        role: "system",
+        text: `History warning: ${warnings.join("; ")}`,
+      });
+      tui.requestRender();
+    })
+    .catch((error: unknown) => {
+      const msg = error instanceof Error ? error.message : String(error);
+      process.stderr.write(`History backfill failed: ${msg}\n`);
+    });
 
   // Execute batch script after TUI is ready
   if (args.batch) {

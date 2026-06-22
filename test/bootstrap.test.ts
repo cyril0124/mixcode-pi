@@ -95,6 +95,7 @@ test("bootstrap maintains global history files and exposes paths in prompt", asy
       modelConfigPath: join(dir, "missing.jsonc"),
     });
     await boot.tabsReady;
+    await boot.historyReady;
     const runtimeTab = boot.runtime.getTab(boot.state.tabs[0]!.sessionId);
     assert.ok(runtimeTab);
     assert.match(await readFile(join(stateDir, "history.jsonl"), "utf8"), /hello boot/);
