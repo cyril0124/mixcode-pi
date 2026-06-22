@@ -149,6 +149,8 @@ export interface MixCodeTabInfo {
   unreadDone: boolean;
   workingStartedAt?: string;
   lastWorkedDurationSeconds?: number;
+  /** ISO timestamp captured when work last ended; rendered next to the duration. */
+  lastWorkedAt?: string;
   extensionUi: ExtensionUiState;
   inputMetaHitRegions?: InputMetaHitRegion[];
   /** Non-persisted: screen bounds for the visible Agent message surface. */

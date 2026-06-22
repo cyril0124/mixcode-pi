@@ -401,6 +401,7 @@ export function resetTabForNewSession(tab: MixCodeTabInfo, sessionId: string): v
   tab.unreadDone = false;
   tab.workingStartedAt = undefined;
   tab.lastWorkedDurationSeconds = undefined;
+  tab.lastWorkedAt = undefined;
   tab.extensionUi = {
     statuses: [],
     widgets: [],

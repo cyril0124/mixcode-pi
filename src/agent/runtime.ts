@@ -540,6 +540,7 @@ export class MixCodeRuntime {
         runtimeTab.tab.workingStartedAt,
         new Date(),
       );
+      runtimeTab.tab.lastWorkedAt = new Date().toISOString();
       runtimeTab.tab.workingStartedAt = undefined;
       this.emitChange({ type: "extension_ui_update" }, runtimeTab);
     } catch (error) {

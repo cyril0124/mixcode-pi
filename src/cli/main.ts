@@ -193,6 +193,7 @@ export async function main(): Promise<void> {
         tab.status = "idle";
         tab.workingStartedAt = undefined;
         tab.lastWorkedDurationSeconds = undefined;
+        tab.lastWorkedAt = undefined;
         clearConversationCache(sessionId);
         tui.requestRender();
         // clearTab carries the session name into the fresh child session,

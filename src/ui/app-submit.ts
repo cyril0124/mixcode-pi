@@ -132,6 +132,7 @@ export async function handleSubmittedInput(
     active!.status = "idle";
     active!.workingStartedAt = undefined;
     active!.lastWorkedDurationSeconds = undefined;
+    active!.lastWorkedAt = undefined;
     clearConversationCache(oldSessionId);
     tui.requestRender();
     // Defer the heavy session replacement until after the TUI paints the cleared state.

@@ -462,6 +462,17 @@ test("rendering exposes header, status, working indicator, and sidebar landmarks
     ).join("\n"),
     /Worked for 4m 51s/,
   );
+  // With a completion stamp, the local clock time is appended.
+  assert.match(
+    renderWorkingIndicator(
+      createTab(25, "s25", "/repo", {
+        lastWorkedDurationSeconds: 291,
+        lastWorkedAt: "2026-06-22T14:23:05.000Z",
+      }),
+      80,
+    ).join("\n"),
+    /Worked for 4m 51s · at \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/,
+  );
   assert.deepEqual(renderStatus(tab, 120), []);
   assert.match(renderStatus(undefined, 80)[0] ?? "", /no active agent/);
   assert.deepEqual(renderSidebar(tab, 40), []);

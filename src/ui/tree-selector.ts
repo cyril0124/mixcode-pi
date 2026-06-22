@@ -542,6 +542,7 @@ async function navigateToEntry(
     active.status = "running";
     active.workingStartedAt = new Date().toISOString();
     active.lastWorkedDurationSeconds = undefined;
+    active.lastWorkedAt = undefined;
     active.extensionUi.workingMessage = "Summarizing branch... (escape to cancel)";
     active.extensionUi.workingVisible = true;
     tui.requestRender();

@@ -69,6 +69,7 @@ export function setTabStatus(
     // Abnormal end: drop the stamp without measuring a duration.
     tab.workingStartedAt = undefined;
     tab.lastWorkedDurationSeconds = undefined;
+    tab.lastWorkedAt = undefined;
     return;
   }
 
@@ -84,11 +85,13 @@ export function setTabStatus(
       tab.workingStartedAt ??= now.toISOString();
     }
     tab.lastWorkedDurationSeconds = undefined;
+    tab.lastWorkedAt = undefined;
     return;
   }
 
-  // Leaving work: close out the timer into a measured duration.
+  // Leaving work: close out the timer into a measured duration and stamp the moment.
   tab.lastWorkedDurationSeconds = elapsedSeconds(tab.workingStartedAt, now);
+  tab.lastWorkedAt = now.toISOString();
   tab.workingStartedAt = undefined;
 }
 

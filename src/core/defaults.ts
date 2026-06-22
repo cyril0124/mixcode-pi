@@ -86,6 +86,7 @@ export function createTab(
     unreadDone: false,
     workingStartedAt: undefined,
     lastWorkedDurationSeconds: undefined,
+    lastWorkedAt: undefined,
     extensionUi: {
       statuses: [],
       widgets: [],
