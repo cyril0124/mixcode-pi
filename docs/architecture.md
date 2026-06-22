@@ -145,7 +145,7 @@ key input
 
 Shell overlay 打开时按 refs/mixcode 的焦点语义处理：`Ctrl+V`、`Ctrl+L`、`Ctrl+E` 不触发全局 preview/export/editor，而是作为控制字符写入 shell；`Ctrl+P` 仍保留为 command palette。`Esc` 单次关闭 shell。
 
-`/models`、`/thinking`、`/context-limit`、`/theme`、`/workdir` 在无参数时会打开本地 picker overlay，支持输入过滤、上下移动、回车选择、Esc 取消。本地 `/theme` 参数支持 `mixcode-dark`、`mixcode-light`、`terminal`，也支持 `dark`、`light` 和唯一前缀如 `li`；多匹配前缀如 `mix` 会显式报 ambiguous，不静默猜测。Pi extension `ctx.ui.setTheme("dark" | "light")` 走同一套归一化并请求 redraw。Agent 输入 meta 行里的 workdir、model、thinking 三段也可用鼠标点击，分别复用 `/workdir`、`/models`、`/thinking` picker。编辑器补全覆盖 `/` slash commands、`$skill` 和 `@path`；`@path` 候选同时包含文件与带尾斜杠的目录，目录 query 如 `@src/` 会列出直接子项。选中文件会插入不带 `@` 的裸路径并补一个尾随空格（含空格时为 `"file with spaces.ts" `），选中目录则保留 `@` 以便继续向下钻取（含空格时为 `@"dir with spaces/"`）。
+`/models`、`/thinking`、`/context-limit`、`/theme`、`/workdir` 在无参数时会打开本地 picker overlay，支持输入过滤、上下移动、回车选择、Esc 取消。本地 `/theme` 参数支持 `mixcode-dark`、`mixcode-light`、`terminal`，也支持 `dark`、`light` 和唯一前缀如 `li`；多匹配前缀如 `mix` 会显式报 ambiguous，不静默猜测。Pi extension `ctx.ui.setTheme("dark" | "light")` 走同一套归一化并请求 redraw。Agent 输入 meta 行里的 workdir、model、thinking 三段也可用鼠标点击，分别复用 `/workdir`、`/models`、`/thinking` picker。编辑器补全覆盖 `/` slash commands、`$skill` 和 `@path`；`@path` 候选同时包含文件与带尾斜杠的目录，目录 query 如 `@src/` 会列出直接子项，带空格路径会插入为 `@"dir with spaces/"`。
 
 全局 `@` 文件 picker 参考 `refs/mixcode/mixcode/widgets/file_picker.py` 的真实实现，而不是 README 推测：
 

@@ -33,7 +33,7 @@ test("completion provider suggests slash commands, skills, and files", async () 
   assert.equal(reloadSlash?.items[0]?.value, "/reload");
   assert.equal(
     reloadSlash?.items[0]?.description,
-    "Reload keybindings, extensions, skills, prompts, themes, and models",
+    "Reload keybindings, extensions, skills, prompts, and themes",
   );
   const hotkeysSlash = await provider.getSuggestions(["/hot"], 0, 4, { signal });
   assert.equal(hotkeysSlash?.items[0]?.value, "/hotkeys");
@@ -53,8 +53,7 @@ test("completion provider suggests slash commands, skills, and files", async () 
     "[Skill] (~/.agents/skills/review/SKILL.md) Review code",
   );
   const file = await provider.getSuggestions(["see @runtime"], 0, 12, { signal });
-  // Files commit without the @ marker and gain a trailing space; directories keep @ for drill-down.
-  assert.equal(file?.items[0]?.value, "test/runtime-ui.test.ts ");
+  assert.equal(file?.items[0]?.value, "@test/runtime-ui.test.ts");
   assert.equal(file?.items[0]?.description, undefined);
   const directory = await provider.getSuggestions(["see @src"], 0, 8, { signal });
   assert.equal(directory?.items[0]?.value, "@src/");
@@ -307,7 +306,7 @@ test("completion provider covers command descriptions and empty argument results
   assert.equal(notArray, null);
 
   const quotedFile = await provider.getSuggestions(['see @"quote'], 0, 11, { signal });
-  assert.equal(quotedFile?.items[0]?.value, '"quote\\"file.ts" ');
+  assert.equal(quotedFile?.items[0]?.value, '@"quote\\"file.ts"');
 });
 
 test("completion provider applies selected item and detects file trigger", () => {

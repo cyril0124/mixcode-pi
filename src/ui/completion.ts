@@ -273,14 +273,8 @@ async function getSlashArgumentSuggestions(
 }
 
 function formatFileCompletionValue(path: string): string {
-  // Directories keep the @ marker so selecting one re-triggers child drill-down.
-  if (path.endsWith("/")) {
-    if (!/[\s"]/.test(path)) return `@${path}`;
-    return `@"${path.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
-  }
-  // Files commit as a bare path (no @) plus a trailing space, ready for more input.
-  if (!/[\s"]/.test(path)) return `${path} `;
-  return `"${path.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}" `;
+  if (!/[\s"]/.test(path)) return `@${path}`;
+  return `@"${path.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
 }
 
 function commandLabel(command: SourcedCompletionCommand): string {
