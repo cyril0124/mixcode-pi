@@ -231,7 +231,7 @@ function handleSaveKey(
   }
   if (matchesKey(data, "ctrl+u")) overlay.input = "";
   else if (data === "\u007f") overlay.input = overlay.input.slice(0, -1);
-  else if (/^[\x20-\x7e]$/.test(data)) overlay.input += data;
+  else if (data.length > 0 && !/[\x00-\x1f\x7f]/.test(data)) overlay.input += data;
   else return true;
   overlay.message = "";
   showWorkspaceOverlay(state, tui);
@@ -289,7 +289,7 @@ function handleWorkspaceQueryKey(state: MixCodeState, data: string, tui: Overlay
   else if (matchesKey(data, "ctrl+u")) {
     overlay.query = "";
     overlay.selectedIndex = 0;
-  } else if (/^[\x20-\x7e]$/.test(data)) overlay.query += data;
+  } else if (data.length > 0 && !/[\x00-\x1f\x7f]/.test(data)) overlay.query += data;
   else return false;
   clampWorkspaceSelection(overlay);
   showWorkspaceOverlay(state, tui);
