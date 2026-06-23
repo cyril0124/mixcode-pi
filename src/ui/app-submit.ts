@@ -159,6 +159,7 @@ export async function handleSubmittedInput(
     }, 32);
   } else if (parsed.command === "new-session") {
     const sessionId = createSessionId();
+    const previousActiveId = state.activeTabId;
     const tab = createTab(state.tabs.length + 1, sessionId, state.workdir, {
       model: { ...state.model },
       contextLimit: state.model.contextWindow,
@@ -166,11 +167,19 @@ export async function handleSubmittedInput(
     });
     state.tabs.push(tab);
     activateTab(state, sessionId);
-    await runtime.createTab(tab, {
-      systemPrompt: MIXCODE_SYSTEM_PROMPT,
-      thinkingLevel: state.thinkingLevel,
-      workdir: state.workdir,
-    });
+    try {
+      await runtime.createTab(tab, {
+        systemPrompt: MIXCODE_SYSTEM_PROMPT,
+        thinkingLevel: state.thinkingLevel,
+        workdir: state.workdir,
+      });
+    } catch (error) {
+      // Rollback: remove the broken tab and restore the previous active tab.
+      const idx = state.tabs.findIndex((t) => t.sessionId === sessionId);
+      if (idx >= 0) state.tabs.splice(idx, 1);
+      activateTab(state, previousActiveId);
+      throw error;
+    }
   } else if (parsed.command === "resume") {
     if (!runtime.listSessions) {
       throw new Error("Resume requires pi runtime session listing support");
@@ -284,12 +293,20 @@ export async function handleSubmittedInput(
     });
     state.tabs.splice(activeIndex + 1, 0, tab);
     activateTab(state, sessionId);
-    await runtime.createTab(tab, {
-      systemPrompt: MIXCODE_SYSTEM_PROMPT,
-      thinkingLevel: tab.thinkingLevel,
-      workdir: tab.workdir,
-      reuseServicesFromSessionId: active!.sessionId,
-    });
+    try {
+      await runtime.createTab(tab, {
+        systemPrompt: MIXCODE_SYSTEM_PROMPT,
+        thinkingLevel: tab.thinkingLevel,
+        workdir: tab.workdir,
+        reuseServicesFromSessionId: active!.sessionId,
+      });
+    } catch (error) {
+      // Rollback: remove the broken fork tab and restore the source tab.
+      const idx = state.tabs.findIndex((t) => t.sessionId === sessionId);
+      if (idx >= 0) state.tabs.splice(idx, 1);
+      activateTab(state, active!.sessionId);
+      throw error;
+    }
     // Persist the fork title into the session file so it survives restarts.
     runtime.renameSession?.(sessionId, tab.title);
   } else if (parsed.command === "tree") {

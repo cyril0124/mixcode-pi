@@ -247,6 +247,60 @@ test("submitted input deletes a single session or all sessions through runtime",
   assert.equal(state.activeTabId, "config");
 });
 
+test("new-session rolls back the tab and active id when runtime.createTab fails", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo", { status: "done" }));
+  state.activeTabId = "s1";
+  const runtime = {
+    getTab: () => undefined,
+    createTab: async () => {
+      throw new Error("create failed");
+    },
+  } as unknown as MixCodeRuntime;
+  const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
+
+  await assert.rejects(
+    () => handleSubmittedInput(state, runtime, "/new-session", tui),
+    /create failed/,
+  );
+  // Rollback: the half-created tab is removed and the previous tab stays active.
+  assert.deepEqual(
+    state.tabs.map((tab) => tab.sessionId),
+    ["s1"],
+  );
+  assert.equal(state.activeTabId, "s1");
+});
+
+test("fork rolls back the fork tab and restores the source tab when createTab fails", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo", { status: "done" }));
+  state.activeTabId = "s1";
+  let forked: string | undefined;
+  const runtime = {
+    getTab: () => undefined,
+    forkSession: async (_source: string, newId: string) => {
+      forked = newId;
+      return {} as never;
+    },
+    createTab: async () => {
+      throw new Error("fork create failed");
+    },
+  } as unknown as MixCodeRuntime;
+  const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
+
+  await assert.rejects(
+    () => handleSubmittedInput(state, runtime, "/fork", tui),
+    /fork create failed/,
+  );
+  assert.notEqual(forked, undefined);
+  // Rollback: the fork tab is removed and the source tab regains focus.
+  assert.deepEqual(
+    state.tabs.map((tab) => tab.sessionId),
+    ["s1"],
+  );
+  assert.equal(state.activeTabId, "s1");
+});
+
 test("config-scoped submitted input runs without an active agent tab", async () => {
   const state = createInitialState("/repo");
   const created: string[] = [];
