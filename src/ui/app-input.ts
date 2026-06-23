@@ -355,7 +355,8 @@ export function handleMixCodeKeyInput(
     return { consume: true };
   }
   if (matchesKey(data, "ctrl+l")) {
-    if (active) clearPendingEscape(active, "abort-agent");
+    if (!active || state.activeTabId === "config") return undefined;
+    clearPendingEscape(active, "abort-agent");
     state.exportChooserOpen = true;
     state.exportChooserIndex = 0;
     showLinesOverlay(tui, (width) => renderExportChooser(state, width));
