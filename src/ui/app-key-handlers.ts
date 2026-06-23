@@ -259,7 +259,7 @@ export function handleCommandPaletteKey(
     showLinesOverlay(tui, (width) => renderCommandPalette(state, width, extensionCommands));
     return true;
   }
-  if (/^[\x20-\x7e]$/.test(data)) {
+  if (data.length > 0 && !/[\x00-\x1f\x7f]/.test(data)) {
     updateCommandPaletteQueryWithExtensions(
       state,
       state.commandPalette.query + data,
@@ -317,7 +317,7 @@ export function handleTabJumpKey(state: MixCodeState, data: string, tui: Overlay
     showLinesOverlay(tui, (width) => renderTabJumpOverlay(state, width));
     return true;
   }
-  if (/^[\x20-\x7e]$/.test(data)) {
+  if (data.length > 0 && !/[\x00-\x1f\x7f]/.test(data)) {
     updateTabJumpQuery(state, state.tabJumpQuery + data);
     showLinesOverlay(tui, (width) => renderTabJumpOverlay(state, width));
     return true;

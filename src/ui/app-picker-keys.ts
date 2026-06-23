@@ -168,7 +168,7 @@ export function handlePickerKey(
     showLinesOverlay(tui, (width) => renderPickerOverlay(state, width));
     return true;
   }
-  if (/^[\x20-\x7e]$/.test(data)) {
+  if (data.length > 0 && !/[\x00-\x1f\x7f]/.test(data)) {
     updatePickerQuery(picker, picker.query + data);
     if (picker.customInputMode) picker.customInputError = undefined;
     showLinesOverlay(tui, (width) => renderPickerOverlay(state, width));
