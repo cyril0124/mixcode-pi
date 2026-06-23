@@ -25,9 +25,6 @@ extensions=(
 
   # Web & search
   npm:pi-web-access
-
-  # Session management
-  npm:@tmustier/pi-session-recap
 )
 
 for ext in "${extensions[@]}"; do
