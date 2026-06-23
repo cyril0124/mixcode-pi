@@ -301,7 +301,9 @@ function renderAgentSurfaceAnchored(
     end: Math.min(total, start + viewport),
     scrollable: total > viewport,
   };
-  return appendChatScrollbar(fitted, width, false);
+  const hasNewContent =
+    tab.chatScrollOffset > 0 && (tab.status === "running" || tab.status === "thinking");
+  return appendChatScrollbar(fitted, width, hasNewContent);
 }
 
 function matchesChatAnchor(line: ChatLine, tab: MixCodeTabInfo): boolean {
