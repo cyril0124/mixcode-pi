@@ -24,9 +24,11 @@ import {
   nextTabId,
   questionProgress,
   renameAgentTab,
+  resolveFdBinary,
   restoreWorkspaceOrder,
   scanProjectFiles,
   searchProjectFiles,
+  fdFileSuggestions,
   snapshotWorkspace,
   statusFromAgentEvent,
   toggleCurrentQuestionOption,
@@ -352,6 +354,57 @@ test("project file completion scans and ranks nested matches", async () => {
     assert.ok(!files.some((file) => file.includes("ignored.ts")));
     assert.equal(searchProjectFiles("ft", files)[0], "src/nested/feature.test.ts");
     assert.deepEqual(searchProjectFiles("src/", files, 5), ["src/index.ts", "src/nested/"]);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("directory completion expands nested dirs matched by trailing path", () => {
+  const files = [
+    "src/",
+    "src/core/",
+    "src/core/file-picker.ts",
+    "src/core/fuzzy.ts",
+    "src/ui/",
+    "src/ui/completion.ts",
+    "package.json",
+  ];
+  // Top-level directory still expands via root-anchored match.
+  assert.deepEqual(searchProjectFiles("src/", files), ["src/core/", "src/ui/"]);
+  // A nested directory typed by its own name (real path "src/core/") must
+  // expand its direct children even though the query is not root-anchored.
+  assert.deepEqual(searchProjectFiles("core/", files), [
+    "src/core/file-picker.ts",
+    "src/core/fuzzy.ts",
+  ]);
+});
+
+test("fd-backed file search expands nested dirs and reflects fresh files (pi parity)", async (t) => {
+  const fdPath = resolveFdBinary();
+  if (!fdPath) {
+    t.skip("fd not installed");
+    return;
+  }
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-fd-search-"));
+  try {
+    await mkdir(join(dir, "src", "core"), { recursive: true });
+    await writeFile(join(dir, "src", "core", "alpha.ts"), "");
+    await writeFile(join(dir, "src", "core", "beta.ts"), "");
+    const signal = new AbortController().signal;
+    // A nested directory typed by its own name expands its direct children,
+    // matching pi's `fd --full-path` behavior (the originally reported bug).
+    const nested = await fdFileSuggestions("core/", { workdir: dir, fdPath, signal });
+    const nestedPaths = nested.map((m) => m.displayPath).sort();
+    assert.deepEqual(nestedPaths, ["src/core/alpha.ts", "src/core/beta.ts"]);
+    // A file created after the initial scan is visible immediately, since fd
+    // queries the live tree rather than a cached snapshot.
+    await writeFile(join(dir, "src", "core", "gamma.ts"), "");
+    const refreshed = await fdFileSuggestions("gamma", { workdir: dir, fdPath, signal });
+    assert.ok(refreshed.some((m) => m.displayPath === "src/core/gamma.ts"));
+    // Directories sort ahead of files for the same matching term.
+    const dirsFirst = await fdFileSuggestions("core", { workdir: dir, fdPath, signal });
+    assert.equal(dirsFirst[0]?.displayPath, "src/core/");
+    assert.equal(dirsFirst[0]?.isDirectory, true);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

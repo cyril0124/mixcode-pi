@@ -2,6 +2,7 @@ import { matchesKey, ProcessTerminal, TUI, type TUI as TuiType } from "@earendil
 import type { ExtensionCustomUiHost, MixCodeRuntime } from "../agent/runtime.js";
 import { scanSkillEntries } from "../core/attachments.js";
 import { recordSubmittedHistory } from "../core/conversation-history.js";
+import { resolveFdBinary } from "../core/detect-search-tools.js";
 import { scanProjectFiles } from "../core/file-picker.js";
 import type { MixCodeState } from "../core/types.js";
 import { appendActiveSystemMessage } from "./app-actions.js";
@@ -130,6 +131,7 @@ export function createMixCodeTui(
     ...(options.completionSources ?? { skills: [], files: [] }),
     skills: createActiveSkillCompletionSource(state, runtime, options.completionSources?.skills),
     files: createActiveFileCompletionSource(state, options.completionSources?.files),
+    fileSearch: createActiveFileSearchSource(state),
     commands: () => {
       const active = state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];
       const extensionCommands =
@@ -405,6 +407,26 @@ export function createActiveFileCompletionSource(
     if (cached) return cached.files;
     // First load ever — must wait.
     return pending.get(workdir)!;
+  };
+}
+
+/**
+ * Provide live fd-backed `@` file completion sources for the active tab's
+ * workdir. fd presence is probed once and memoized; when fd is missing this
+ * returns undefined so the provider falls back to the static file list.
+ */
+export function createActiveFileSearchSource(
+  state: MixCodeState,
+): () => { fdPath: string; workdir: string } | undefined {
+  let resolved = false;
+  let fdPath: string | undefined;
+  return () => {
+    if (!resolved) {
+      fdPath = resolveFdBinary();
+      resolved = true;
+    }
+    if (!fdPath) return undefined;
+    return { fdPath, workdir: activeCompletionWorkdir(state) };
   };
 }
 

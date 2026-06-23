@@ -118,16 +118,25 @@ function pathDepth(path: string): number {
   return trimTrailingSlash(path).split("/").length - 1;
 }
 
-function directChildren(prefix: string, files: string[], limit: number): string[] {
-  return files
-    .filter((file) => {
-      if (file === prefix || !file.startsWith(prefix)) return false;
-      const rest = file.slice(prefix.length);
+function directChildren(query: string, files: string[], limit: number): string[] {
+  // `query` ends with "/" and may be a partial trailing path (e.g. "core/" for
+  // the real directory "src/core/"), so resolve it by matching directory
+  // entries whose path is the query or ends with "/<query>" before listing
+  // their direct children. This mirrors pi's `fd --full-path` behavior, which
+  // matches a directory anywhere in the tree rather than only at the root.
+  const matchingDirs = files.filter(
+    (file) => file.endsWith("/") && (file === query || file.endsWith(`/${query}`)),
+  );
+  const children = new Set<string>();
+  for (const dir of matchingDirs) {
+    for (const file of files) {
+      if (file === dir || !file.startsWith(dir)) continue;
+      const rest = file.slice(dir.length);
       const directName = rest.endsWith("/") ? rest.slice(0, -1) : rest;
-      return directName.length > 0 && !directName.includes("/");
-    })
-    .sort((a, b) => a.localeCompare(b))
-    .slice(0, limit);
+      if (directName.length > 0 && !directName.includes("/")) children.add(file);
+    }
+  }
+  return [...children].sort((a, b) => a.localeCompare(b)).slice(0, limit);
 }
 
 function trimTrailingSlash(path: string): string {

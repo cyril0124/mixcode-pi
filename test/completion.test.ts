@@ -33,7 +33,7 @@ test("completion provider suggests slash commands, skills, and files", async () 
   assert.equal(reloadSlash?.items[0]?.value, "/reload");
   assert.equal(
     reloadSlash?.items[0]?.description,
-    "Reload keybindings, extensions, skills, prompts, and themes",
+    "Reload keybindings, extensions, skills, prompts, themes, and models",
   );
   const hotkeysSlash = await provider.getSuggestions(["/hot"], 0, 4, { signal });
   assert.equal(hotkeysSlash?.items[0]?.value, "/hotkeys");
@@ -65,6 +65,51 @@ test("completion provider suggests slash commands, skills, and files", async () 
   assert.equal(await provider.getSuggestions(["plain"], 0, 5, { signal }), null);
   const missingLine = await provider.getSuggestions([], 0, 0, { signal });
   assert.equal(missingLine, null);
+});
+
+test("completion provider prefers live fd file search and falls back to static list", async () => {
+  const signal = new AbortController().signal;
+  // fileSearch points at a non-existent fd binary, so the spawn errors and
+  // yields no matches; the provider must fall back to the static file list.
+  const withFd = new MixCodeCompletionProvider({
+    skills: [],
+    files: ["src/", "src/core/", "src/core/file.ts"],
+    fileSearch: () => ({ fdPath: "mixcode-nonexistent-fd-binary", workdir: process.cwd() }),
+  });
+  const fallback = await withFd.getSuggestions(["@src/"], 0, 5, { signal });
+  assert.equal(fallback?.items[0]?.value, "@src/core/");
+
+  // Without fileSearch, the provider uses the static list directly.
+  const staticOnly = new MixCodeCompletionProvider({
+    skills: [],
+    files: ["src/", "src/core/", "src/core/file.ts"],
+  });
+  const result = await staticOnly.getSuggestions(["@src/"], 0, 5, { signal });
+  assert.equal(result?.items[0]?.value, "@src/core/");
+  assert.equal(result?.items[0]?.label, "src/core/");
+});
+
+test("completion provider uses fd results with basename labels when fd is available", async (t) => {
+  const { resolveFdBinary } = await import("../src/index.js");
+  const fdPath = resolveFdBinary();
+  if (!fdPath) {
+    t.skip("fd not installed");
+    return;
+  }
+  const signal = new AbortController().signal;
+  const provider = new MixCodeCompletionProvider({
+    skills: [],
+    files: [],
+    fileSearch: () => ({ fdPath, workdir: process.cwd() }),
+  });
+  // "@src/core/" expands the directory; values are full paths, labels basenames
+  // (pi parity), and the description carries the full display path.
+  const suggestions = await provider.getSuggestions(["@src/core/"], 0, 10, { signal });
+  assert.ok(suggestions && suggestions.items.length > 0);
+  const picker = suggestions.items.find((item) => item.value === "@src/core/file-picker.ts");
+  assert.ok(picker, "expected fd to surface src/core/file-picker.ts");
+  assert.equal(picker?.label, "file-picker.ts");
+  assert.equal(picker?.description, "src/core/file-picker.ts");
 });
 
 test("completion provider compacts skill descriptions before paths are truncated", async () => {

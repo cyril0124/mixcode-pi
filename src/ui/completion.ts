@@ -8,6 +8,7 @@ import type {
   SlashCommand,
 } from "@earendil-works/pi-tui";
 import { LOCAL_COMMANDS } from "../core/commands.js";
+import { fdFileSuggestions } from "../core/fd-file-search.js";
 import { searchProjectFiles } from "../core/file-picker.js";
 import { fuzzyMatchBatch } from "../core/fuzzy.js";
 
@@ -51,6 +52,13 @@ export interface MixCodeCompletionSources {
   promptTemplates?:
     | MixCodePromptTemplateCompletionSource[]
     | (() => MixCodePromptTemplateCompletionSource[]);
+  /**
+   * Live `@` file completion via fd, matching pi's behavior. When this returns
+   * an fd binary name and a workdir, `@` queries shell out to fd instead of
+   * fuzzy-matching the static `files` snapshot. Returning undefined (no fd
+   * installed) falls back to the static `files` list.
+   */
+  fileSearch?: () => { fdPath: string; workdir: string } | undefined;
 }
 
 export class MixCodeCompletionProvider implements AutocompleteProvider {
@@ -60,6 +68,7 @@ export class MixCodeCompletionProvider implements AutocompleteProvider {
     lines: string[],
     cursorLine: number,
     cursorCol: number,
+    options?: { signal?: AbortSignal; force?: boolean },
   ): Promise<AutocompleteSuggestions | null> {
     const line = lines[cursorLine] ?? "";
     const before = line.slice(0, cursorCol);
@@ -100,12 +109,34 @@ export class MixCodeCompletionProvider implements AutocompleteProvider {
     }
     if (token.startsWith("@")) {
       const prefix = token.slice(1);
-      const query = prefix.startsWith('"') ? prefix.slice(1) : prefix;
+      const isQuoted = prefix.startsWith('"');
+      const query = isQuoted ? prefix.slice(1) : prefix;
+      const fileSearch = this.sources.fileSearch?.();
+      // Prefer live fd search (pi parity): always reflects current disk state,
+      // gitignore-aware, no static-snapshot cap. Fall back to the static list
+      // when fd is unavailable or the fd query yields nothing usable.
+      if (fileSearch) {
+        const matches = await fdFileSuggestions(query, {
+          workdir: fileSearch.workdir,
+          fdPath: fileSearch.fdPath,
+          signal: options?.signal ?? new AbortController().signal,
+        });
+        if (matches.length > 0) {
+          return {
+            prefix: token,
+            items: matches.map((match) => ({
+              value: formatFileCompletionValue(match.displayPath, isQuoted),
+              label: path.basename(trimTrailingSlash(match.displayPath)) + (match.isDirectory ? "/" : ""),
+              description: match.displayPath,
+            })),
+          };
+        }
+      }
       const files = await resolveCompletionFiles(this.sources.files);
       return {
         prefix: token,
         items: searchProjectFiles(query, files).map((file) => ({
-          value: formatFileCompletionValue(file),
+          value: formatFileCompletionValue(file, isQuoted),
           label: file,
         })),
       };
@@ -272,9 +303,13 @@ async function getSlashArgumentSuggestions(
   return { prefix: argumentText, items };
 }
 
-function formatFileCompletionValue(path: string): string {
-  if (!/[\s"]/.test(path)) return `@${path}`;
+function formatFileCompletionValue(path: string, forceQuote = false): string {
+  if (!forceQuote && !/[\s"]/.test(path)) return `@${path}`;
   return `@"${path.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
+}
+
+function trimTrailingSlash(path: string): string {
+  return path.endsWith("/") ? path.slice(0, -1) : path;
 }
 
 function commandLabel(command: SourcedCompletionCommand): string {

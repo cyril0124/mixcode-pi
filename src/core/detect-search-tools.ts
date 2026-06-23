@@ -29,3 +29,17 @@ function isCommandAvailable(command: string, args: string[]): boolean {
     return false;
   }
 }
+
+/**
+ * Resolve the fd binary name available on PATH, trying `fd` then `fdfind`
+ * (Debian/Ubuntu ship the binary as `fdfind`). Mirrors pi's tools-manager
+ * `getToolPath("fd")` system-PATH probe so live `@` file completion can shell
+ * out to the same tool pi uses. Returns the invokable command name, or
+ * undefined when fd is not installed.
+ */
+export function resolveFdBinary(): string | undefined {
+  for (const candidate of ["fd", "fdfind"]) {
+    if (isCommandAvailable(candidate, ["--version"])) return candidate;
+  }
+  return undefined;
+}
