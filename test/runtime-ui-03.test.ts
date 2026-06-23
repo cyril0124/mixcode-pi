@@ -735,7 +735,7 @@ test("createMixCodeTui editor slot renders the input cursor while focused", () =
   assert.equal(stripAnsi(emptySurface).split("\n")[0], "─".repeat(80));
   assert.equal(stripAnsi(emptySurface).split("\n").at(-1), "─".repeat(80));
   assert.doesNotMatch(stripAnsi(emptySurface), /^\s*> /m);
-  assert.match(emptySurface, /\x1b\[38;2;129;162;190m─/);
+  assert.match(emptySurface, /\x1b\[38;2;217;119;87m─/);
 
   layout.editor.handleInput("a");
   const textSurface = layout.editor.render(80).join("\n");
@@ -754,7 +754,7 @@ test("createMixCodeTui editor slot renders the input cursor while focused", () =
   layout.editor.setText("!pwd");
   const shellSurface = layout.editor.render(80).join("\n");
   assert.equal(shellSurface.includes(CURSOR_MARKER), true);
-  assert.match(shellSurface, /\x1b\[38;2;181;189;104m─/);
+  assert.match(shellSurface, /\x1b\[38;2;220;236;244m─/);
 
   layout.editor.setText("");
   tab.vimMode = true;
@@ -764,7 +764,7 @@ test("createMixCodeTui editor slot renders the input cursor while focused", () =
   assert.doesNotMatch(stripAnsi(vimSurface), /Send message to Agent-01/);
   assert.equal(stripAnsi(vimSurface).split("\n")[0], "─".repeat(80));
   assert.equal(stripAnsi(vimSurface).split("\n").at(-1), "─".repeat(80));
-  assert.match(vimSurface, /\x1b\[38;2;138;190;183m─/);
+  assert.match(vimSurface, /\x1b\[38;2;201;164;255m─/);
   layout.editor.setText("draft");
   layout.editor.handleInput("x");
   assert.equal(layout.editor.current.getText(), "draft");

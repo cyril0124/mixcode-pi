@@ -393,7 +393,7 @@ test("bootstrap wires configured pi models into runtime auth streaming", async (
           "mixcode-bootstrap-stream": {
             baseUrl: "https://bootstrap-stream.example/v1",
             api: "openai-responses",
-            apiKey: "MIXCODE_BOOTSTRAP_STREAM_KEY",
+            apiKey: "$MIXCODE_BOOTSTRAP_STREAM_KEY",
             models: [{ id: "stream-model", contextWindow: 128 }],
           },
         },

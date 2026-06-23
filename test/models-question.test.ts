@@ -59,7 +59,7 @@ test("jw-proxy-gpt model loads through pi models.json registry as OpenAI Respons
         "providers": {
           "jw-proxy-gpt": {
             "baseUrl": "https://proxy.example.test/v1",
-            "apiKey": "JW_API_KEY_2",
+            "apiKey": "$JW_API_KEY_2",
             "api": "openai-responses",
             "compat": {
               "sendSessionIdHeader": true,
@@ -235,11 +235,11 @@ test("pi model runtime auth merges request headers and surfaces auth errors", as
           "mixcode-auth-test": {
             baseUrl: "https://runtime-auth.example/v1",
             api: "mixcode-auth-test-api",
-            apiKey: "MIXCODE_TEST_API_KEY",
+            apiKey: "$MIXCODE_TEST_API_KEY",
             authHeader: true,
             headers: {
               "x-provider": "provider",
-              "x-secret": "MIXCODE_TEST_API_KEY",
+              "x-secret": "$MIXCODE_TEST_API_KEY",
             },
             models: [{ id: "auth-model", headers: { "x-model": "model", "x-provider": "model" } }],
           },
@@ -456,7 +456,7 @@ test("pi model registry follows models.json overrides and edge cases", async () 
           mixed: {
             baseUrl: "https://mixed.example/v1",
             api: "openai-responses",
-            apiKey: "MIXCODE_TEST_API_KEY",
+            apiKey: "$MIXCODE_TEST_API_KEY",
             models: ["bad"],
           },
         },
@@ -496,7 +496,7 @@ test("pi model registry follows models.json overrides and edge cases", async () 
           "jw-proxy-gpt": {
             baseUrl: "https://provider.example/v1",
             api: "openai-responses",
-            apiKey: "MIXCODE_TEST_API_KEY",
+            apiKey: "$MIXCODE_TEST_API_KEY",
             compat: { sendSessionIdHeader: true },
             models: [
               {

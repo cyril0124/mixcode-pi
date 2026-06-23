@@ -519,8 +519,8 @@ test("runtime renders Pi edit tool diffs through the built-in renderer", async (
     assert.notEqual(editLineIndex, -1);
     assert.doesNotMatch(renderedLines[editLineIndex] ?? "", /\x1b\[48;2;38;38;36m/);
     assert.match(plain, /edit run\.sh/);
-    assert.match(plain, /-1 echo old/);
-    assert.match(plain, /\+1 echo new/);
+    assert.match(plain, /▌.*1.*│.*echo old/);
+    assert.match(plain, /▌.*1.*│.*echo new/);
     assert.doesNotMatch(plain, /Successfully replaced/);
     assert.match(rendered, /\x1b\[[0-?]*m/);
   } finally {

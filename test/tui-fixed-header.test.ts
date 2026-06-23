@@ -232,7 +232,7 @@ test("createMixCodeTui renders the combined layout with codex-like editor block 
     assert.equal(plainLines[inputLine + 1], "─".repeat(80));
     assert.match(plainLines[inputLine - 3] ?? "", /Working/);
     assert.equal(plainLines[inputLine - 2]?.trim(), "");
-    assert.match(lines[inputLine - 1] ?? "", /\x1b\[38;2;129;162;190m─/);
+    assert.match(lines[inputLine - 1] ?? "", /\x1b\[38;2;217;119;87m─/);
     assert.match(plainLines[inputLine + 2] ?? "", /faux\/faux-1/);
     assert.match(plainLines.join("\n"), /Send message to Agent-01\.\.\./);
     assert.doesNotMatch(plainLines.join("\n"), /▊|▔|▁/);
@@ -310,7 +310,7 @@ test("createMixCodeTui keeps a blank line between above-editor widgets and edito
   assert.notEqual(inputLine, -1);
   assert.equal(plainLines[inputLine - 1], "─".repeat(80));
   assert.equal(plainLines[inputLine - 2]?.trim(), "");
-  assert.match(lines[inputLine - 1] ?? "", /\x1b\[38;2;129;162;190m─/);
+  assert.match(lines[inputLine - 1] ?? "", /\x1b\[38;2;217;119;87m─/);
   assert.equal(inputLine, widgetLine + 3);
 });
 

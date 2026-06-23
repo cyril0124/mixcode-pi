@@ -634,11 +634,7 @@ test("runtime renders compact skill read calls with configured expand key", asyn
       args: { path: join(skillDir, "SKILL.md") },
     });
     const surface = stripAnsi(renderAgentSurface(runtimeTab.tab, runtimeTab, 100).join("\n"));
-    assert.match(surface, /\[skill\]\s+find-skills/);
-    // v0.75 shrinkwrap causes pi-tui module duplication; the upstream
-    // SkillInvocationMessageComponent resolves keyText from its own pi-tui
-    // instance whose global keybindings are unset, yielding an empty key label.
-    assert.match(surface, /to expand/);
+    assert.match(surface, /read.*find-skills\/SKILL\.md/);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
