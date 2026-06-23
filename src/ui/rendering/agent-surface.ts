@@ -269,7 +269,7 @@ function renderAgentSurfaceAnchored(
   }
   const lines = [...prefix, ...suffix];
   const anchorStart = prefix.length;
-  const requestedStart = localOffset >= 0 ? anchorStart - localOffset : anchorStart - localOffset;
+  const requestedStart = anchorStart - localOffset;
   const windowStart = Math.max(0, Math.min(requestedStart, Math.max(0, lines.length - viewport)));
   const visible = lines.slice(windowStart, windowStart + viewport);
   while (visible.length < viewport) visible.push(chatBlockSeparator(mainWidth));
