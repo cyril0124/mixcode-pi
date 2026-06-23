@@ -54,24 +54,15 @@ export async function restoreWorkspace(
     }
     const created = createWorkspaceRuntimeTab(state, item, index);
     state.tabs.push(created);
-    try {
-      await runtime.createTab(created, {
-        systemPrompt: MIXCODE_SYSTEM_PROMPT,
-        thinkingLevel: created.thinkingLevel,
-        workdir: created.workdir,
-      });
-      const result = await runtime.extensionSwitchSession(created.sessionId, item.sessionPath);
-      if (result.cancelled) {
-        await runtime.closeTab(created.sessionId);
-        closeAgentTab(state, created.sessionId);
-        missing.push(item.title || item.sessionId);
-        continue;
-      }
-    } catch {
-      // Rollback the half-created tab so it does not become a zombie.
-      const idx = state.tabs.findIndex((t) => t.sessionId === created.sessionId);
-      if (idx >= 0) state.tabs.splice(idx, 1);
-      try { await runtime.closeTab(created.sessionId); } catch { /* best effort */ }
+    await runtime.createTab(created, {
+      systemPrompt: MIXCODE_SYSTEM_PROMPT,
+      thinkingLevel: created.thinkingLevel,
+      workdir: created.workdir,
+    });
+    const result = await runtime.extensionSwitchSession(created.sessionId, item.sessionPath);
+    if (result.cancelled) {
+      await runtime.closeTab(created.sessionId);
+      closeAgentTab(state, created.sessionId);
       missing.push(item.title || item.sessionId);
       continue;
     }

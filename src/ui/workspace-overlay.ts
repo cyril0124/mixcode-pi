@@ -279,13 +279,7 @@ function handleWorkspaceListKey(
   if (overlay.mode === "delete") return startDeleteConfirmation(state, tui, workspace);
   const extraTabCount = countExtraTabs(state, runtime, workspace);
   if (extraTabCount > 0) return startRestoreConfirmation(state, tui, workspace, extraTabCount);
-  void restoreWorkspace(state, runtime, tui, workspace, onStateChanged).catch(
-    (error: unknown) => {
-      closeWorkspaceOverlay(state, tui);
-      const target = state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];
-      if (target) pushToast(target, { type: "error", message: errorMessage(error) });
-    },
-  );
+  void restoreWorkspace(state, runtime, tui, workspace, onStateChanged);
   return true;
 }
 
@@ -336,13 +330,7 @@ function handleRestoreConfirmKey(
   if (!matchesKey(data, "enter") && data !== "y" && data !== "Y") return true;
   const workspace = state.workspaceOverlay.pendingWorkspace;
   if (!workspace) return true;
-  void restoreWorkspace(state, runtime, tui, workspace, onStateChanged).catch(
-    (error: unknown) => {
-      closeWorkspaceOverlay(state, tui);
-      const target = state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];
-      if (target) pushToast(target, { type: "error", message: errorMessage(error) });
-    },
-  );
+  void restoreWorkspace(state, runtime, tui, workspace, onStateChanged);
   return true;
 }
 
