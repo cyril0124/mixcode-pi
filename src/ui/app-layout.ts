@@ -16,7 +16,6 @@ import {
   renderHeader,
   renderInputMeta,
   renderPreviewOverlay,
-  renderStatus,
   renderTabBar,
   renderWorkingIndicator,
 } from "./rendering.js";
@@ -54,7 +53,6 @@ export class MixCodeRoot implements Component {
       );
     }
     const runtimeTab = this.runtime.getTab(active.sessionId);
-    top.push(...renderStatus(active, width, theme));
     const contentGap = [padLine("", width)];
     const preview = renderPreviewOverlay(active, width, theme);
     const bottomBeforeMeta = [...preview];

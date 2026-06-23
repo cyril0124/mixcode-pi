@@ -34,7 +34,6 @@ import {
   renderExtensionHeader,
   renderFooter,
   renderHeader,
-  renderStatus,
   renderTabBar,
 } from "./rendering.js";
 import { withMouseReporting } from "./terminal.js";
@@ -212,8 +211,7 @@ export function createMixCodeTui(
       return (
         renderHeader(width, themeForId(state.theme)).length +
         renderExtensionHeader(active, width).length +
-        renderTabBar(state, width, themeForId(state.theme)).length +
-        renderStatus(active, width, themeForId(state.theme)).length
+        renderTabBar(state, width, themeForId(state.theme)).length
       );
     },
   } satisfies ExtensionCustomUiHost);
