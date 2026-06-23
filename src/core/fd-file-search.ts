@@ -218,7 +218,7 @@ export async function fdFileSuggestions(
       score: fdQuery ? scoreEntry(entry.path, fdQuery, entry.isDirectory) : 1,
     }))
     .filter((entry) => entry.score > 0);
-  scored.sort((a, b) => b.score - a.score);
+  scored.sort((a, b) => b.score - a.score || a.path.localeCompare(b.path));
   const matches: FdFileMatch[] = [];
   for (const { path: entryPath, isDirectory } of scored.slice(0, limit)) {
     const pathWithoutSlash = isDirectory ? entryPath.slice(0, -1) : entryPath;
