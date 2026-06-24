@@ -228,7 +228,7 @@ test("createMixCodeTui renders the combined layout with codex-like editor block 
     assert.match(plainLines.join("\n"), /extension footer/);
     assert.match(lines.join("\n"), /hello/);
     assert.notEqual(inputLine, -1);
-    assert.equal(plainLines[inputLine - 1], "─".repeat(80));
+    assert.match(plainLines[inputLine - 1] ?? "", /^─+ Agent-01 ──$/);
     assert.equal(plainLines[inputLine + 1], "─".repeat(80));
     assert.match(plainLines[inputLine - 3] ?? "", /Working/);
     assert.equal(plainLines[inputLine - 2]?.trim(), "");
@@ -308,7 +308,7 @@ test("createMixCodeTui keeps a blank line between above-editor widgets and edito
   const inputLine = plainLines.findIndex((line) => /Send message to Agent-01/.test(line));
   assert.notEqual(widgetLine, -1);
   assert.notEqual(inputLine, -1);
-  assert.equal(plainLines[inputLine - 1], "─".repeat(80));
+  assert.match(plainLines[inputLine - 1] ?? "", /^─+ Agent-01 ──$/);
   assert.equal(plainLines[inputLine - 2]?.trim(), "");
   assert.match(lines[inputLine - 1] ?? "", /\x1b\[38;2;217;119;87m─/);
   assert.equal(inputLine, widgetLine + 3);
@@ -329,7 +329,7 @@ test("createMixCodeTui keeps a blank line between idle content and editor", () =
   const inputLine = plainLines.findIndex((line) => /Send message to Agent-01/.test(line));
   assert.notEqual(inputLine, -1);
   assert.match(plainLines.slice(0, inputLine).join("\n"), /last visible answer/);
-  assert.equal(plainLines[inputLine - 1], "─".repeat(80));
+  assert.match(plainLines[inputLine - 1] ?? "", /^─+ Agent-01 ──$/);
   assert.equal(plainLines[inputLine - 2]?.trim(), "");
 });
 

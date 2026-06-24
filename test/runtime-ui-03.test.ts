@@ -732,7 +732,9 @@ test("createMixCodeTui editor slot renders the input cursor while focused", () =
   assert.equal(emptySurface.includes(CURSOR_MARKER), true);
   assert.match(emptySurface, /\x1b\[7m \x1b\[0m/);
   assert.match(stripAnsi(emptySurface), /Send message to Agent-01/);
-  assert.equal(stripAnsi(emptySurface).split("\n")[0], "─".repeat(80));
+  // Top border carries the agent title at the right end; bottom stays plain.
+  assert.match(stripAnsi(emptySurface).split("\n")[0]!, /^─+ Agent-01 ──$/);
+  assert.equal(visibleWidth(stripAnsi(emptySurface).split("\n")[0]!), 80);
   assert.equal(stripAnsi(emptySurface).split("\n").at(-1), "─".repeat(80));
   assert.doesNotMatch(stripAnsi(emptySurface), /^\s*> /m);
   assert.match(emptySurface, /\x1b\[38;2;217;119;87m─/);
@@ -762,9 +764,14 @@ test("createMixCodeTui editor slot renders the input cursor while focused", () =
   assert.equal(vimSurface.includes(CURSOR_MARKER), false);
   assert.match(stripAnsi(vimSurface), /^ Vim mode, q to exit/m);
   assert.doesNotMatch(stripAnsi(vimSurface), /Send message to Agent-01/);
-  assert.equal(stripAnsi(vimSurface).split("\n")[0], "─".repeat(80));
+  // Top border gains a [VIM] badge near the left and keeps the title at right.
+  assert.match(stripAnsi(vimSurface).split("\n")[0]!, /^── \[VIM\] ─+ Agent-01 ──$/);
+  assert.equal(visibleWidth(stripAnsi(vimSurface).split("\n")[0]!), 80);
   assert.equal(stripAnsi(vimSurface).split("\n").at(-1), "─".repeat(80));
+  // Dashes are vim-border colored.
   assert.match(vimSurface, /\x1b\[38;2;201;164;255m─/);
+  // Title follows vim border color in vim mode.
+  assert.match(vimSurface, /\x1b\[38;2;201;164;255mAgent-01/);
   layout.editor.setText("draft");
   layout.editor.handleInput("x");
   assert.equal(layout.editor.current.getText(), "draft");
