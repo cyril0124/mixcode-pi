@@ -382,9 +382,6 @@ export async function replaceRuntimeTabSession(
     },
     context,
   );
-  resetTabForNewSession(runtimeTab.tab, sessionManager.getSessionId());
-  runtimeTab.tab.workdir = sessionManager.getCwd();
-  context.tabs.delete(previousSessionId);
   bindRuntimeSessionCore(runtimeTab, {
     agentSession: created.session,
     services: created.services,
@@ -405,16 +402,25 @@ export async function replaceRuntimeTabSession(
     workingVisible: true,
   };
   installMidTurnCompactionHook(created.session, runtimeTab.tab, { current: runtimeTab });
+  // Rebuild chat and bind extensions BEFORE mutating tab identity.
+  // If either throws, the caller's state is still intact — no orphaned tab.
   runtimeTab.chat = await rebuildRuntimeChat(runtimeTab);
   syncPreviewFromChat(runtimeTab.tab, runtimeTab.chat);
   await bindRuntimeExtensions(runtimeTab, context);
+  // Only now commit the identity switch: update the tab's sessionId,
+  // remove the old key from the tabs map, and register under the new key.
+  resetTabForNewSession(runtimeTab.tab, sessionManager.getSessionId());
+  runtimeTab.tab.workdir = sessionManager.getCwd();
+  context.tabs.delete(previousSessionId);
+  context.tabs.set(runtimeTab.tab.sessionId, runtimeTab);
+  // Repopulate preview after identity-switch reset cleared previewMessages
+  syncPreviewFromChat(runtimeTab.tab, runtimeTab.chat);
   activateMixCodeTools(created.session, runtimeTab.extensionToolOwnerPolicy);
   applyMixCodeSystemPrompt(runtimeTabPromptOptions(created.services, runtimeTab.tab.workdir), created.session);
   applyRuntimeTabModel(runtimeTab, created.session.agent.state.model);
   runtimeTab.tab.thinkingLevel = created.session.agent.state.thinkingLevel;
   appendExtensionDiagnostics(runtimeTab);
   subscribeRuntimeTab(runtimeTab, context);
-  context.tabs.set(runtimeTab.tab.sessionId, runtimeTab);
   context.emitChange({ type: "extension_ui_update" }, runtimeTab);
   return runtimeTab;
 }
