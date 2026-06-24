@@ -16,6 +16,7 @@ import { padLine } from "./rendering.js";
 import { type MixCodeTheme, themeForId } from "./themes.js";
 export class CompactPromptEditor extends Editor {
   private readonly rootTui: Pick<TuiType, "requestRender">;
+  private lastThemeId = "";
 
   constructor(
     tui: TuiType,
@@ -63,6 +64,14 @@ export class CompactPromptEditor extends Editor {
 
   override render(width: number): string[] {
     const theme = themeForId(this.mixState.theme);
+    // Sync the base Editor's internal theme so autocomplete dropdown
+    // colors (selectList) follow theme changes instead of staying frozen
+    // at construction time. The private field is the only way — the Pi SDK
+    // Editor provides no public setTheme / updateTheme API.
+    if (this.mixState.theme !== this.lastThemeId) {
+      this.lastThemeId = this.mixState.theme;
+      (this as unknown as { theme: EditorTheme }).theme = editorThemeFor(theme);
+    }
     if (this.mixState.activeTabId === "config") {
       // Render editor on Agent View with a placeholder targeting the selected agent.
       this.borderColor = theme.thinkingBorder();
