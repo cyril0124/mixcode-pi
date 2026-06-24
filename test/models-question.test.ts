@@ -6,10 +6,12 @@ import { test } from "node:test";
 import {
   createAssistantMessageEventStream,
   fauxAssistantMessage,
-  registerFauxProvider,
-  registerApiProvider,
-  getApiProvider,
 } from "@earendil-works/pi-ai";
+import {
+  getApiProvider,
+  registerApiProvider,
+  registerFauxProvider,
+} from "@earendil-works/pi-ai/compat";
 import type { AssistantMessage, Context, Model, SimpleStreamOptions } from "@earendil-works/pi-ai";
 import {
   DEFAULT_MODEL_REF,

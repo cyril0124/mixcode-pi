@@ -1,8 +1,8 @@
 import { stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { Context, Model, SimpleStreamOptions } from "@earendil-works/pi-ai";
-import { streamSimple } from "@earendil-works/pi-ai";
+import type { Context, Model, ProviderHeaders, SimpleStreamOptions } from "@earendil-works/pi-ai";
+import { streamSimple } from "@earendil-works/pi-ai/compat";
 import { AuthStorage, ModelRegistry } from "@earendil-works/pi-coding-agent";
 
 export interface PiModelSource {
@@ -110,9 +110,9 @@ async function assertPathIsNotDirectory(path: string): Promise<void> {
 }
 
 function mergeHeaders(
-  base: Record<string, string> | undefined,
-  extra: Record<string, string> | undefined,
-): Record<string, string> | undefined {
+  base: ProviderHeaders | undefined,
+  extra: ProviderHeaders | undefined,
+): ProviderHeaders | undefined {
   const merged = { ...extra, ...base };
   return Object.keys(merged).length ? merged : undefined;
 }

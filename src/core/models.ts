@@ -1,4 +1,5 @@
-import { getModels, getProviders, type Model } from "@earendil-works/pi-ai";
+import { getModels, getProviders } from "@earendil-works/pi-ai/compat";
+import type { Model } from "@earendil-works/pi-ai";
 import { DEFAULT_MODEL_REF } from "./defaults.js";
 import type { MixCodeModelRef, MixCodeState, MixCodeTabInfo } from "./types.js";
 

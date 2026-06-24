@@ -1,4 +1,5 @@
-import { getModel, type Model } from "@earendil-works/pi-ai";
+import { getModel } from "@earendil-works/pi-ai/compat";
+import type { Model } from "@earendil-works/pi-ai";
 import type { SessionManager } from "@earendil-works/pi-coding-agent";
 import { resolveRegisteredModel } from "../core/models.js";
 import type { MixCodeTabInfo } from "../core/types.js";

@@ -35,6 +35,7 @@ import { isExtensionToolOwner } from "../core/extension-tool-owners.js";
 import {
   appendSystemMessage,
   applyRuntimeTabModel,
+  isNothingToCompactError,
   resetTabForNewSession,
   syncContextUsage,
   syncPreviewFromChat,
@@ -845,6 +846,15 @@ export class MixCodeRuntime {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const aborted = message === "Compaction cancelled" || (error instanceof Error && error.name === "AbortError");
+      // SDK 0.80+ refuses sessions with nothing to summarize (everything still
+      // fits the keep-recent window). That is a benign no-op, not an error:
+      // surface it as a system message, return to idle, and don't propagate.
+      if (isNothingToCompactError(message)) {
+        setTabStatus(runtimeTab.tab, "idle", { discardTimer: true });
+        appendSystemMessage(runtimeTab, "Nothing to compact (session too small).");
+        this.emitChange({ type: "extension_ui_update" }, runtimeTab);
+        return;
+      }
       // Drop the timer silently either way; compaction_end did not record a duration.
       // On a real error also flip to "error"; an abort leaves status untouched.
       if (aborted) {

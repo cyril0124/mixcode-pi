@@ -1,3 +1,4 @@
+import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -346,13 +347,18 @@ test("runtime rejects compaction when there is no useful history", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-"));
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir });
-    await runtime.createTab(createTab(1, "empty", process.cwd()), {
+    const runtimeTab = await runtime.createTab(createTab(1, "empty", process.cwd()), {
       systemPrompt: "system",
       thinkingLevel: "medium",
       workdir: process.cwd(),
     });
     await assert.rejects(runtime.compactSession("empty"), /Nothing to compact/);
-    // After compacting once, re-compacting immediately should be rejected
+    // After compacting once, re-compacting immediately should be rejected.
+    // Shrink the keep-recent window so the single "hello" turn is compactable
+    // under SDK 0.80+ (which otherwise refuses a session that fits the window).
+    runtimeTab.agentSession.settingsManager.applyOverrides({
+      compaction: { reserveTokens: 1, keepRecentTokens: 1 },
+    });
     await runtime.prompt("empty", "hello");
     await runtime.compactSession("empty");
     await assert.rejects(runtime.compactSession("empty"), /already compacted/i);

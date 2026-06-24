@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { SessionManager, Theme } from "@earendil-works/pi-coding-agent";
 import { AuthStorage, ModelRegistry } from "@earendil-works/pi-coding-agent";
-import { streamSimple } from "@earendil-works/pi-ai";
+import { streamSimple } from "@earendil-works/pi-ai/compat";
 import type { AutocompleteItem, AutocompleteProvider } from "@earendil-works/pi-tui";
 import { createInitialState, createTab, MixCodeCompletionProvider } from "../src/index.js";
 import { listAllSessionsGlobal, reopenSessionInWorkdir } from "../src/agent/runtime-session.js";

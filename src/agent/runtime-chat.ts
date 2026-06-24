@@ -27,6 +27,16 @@ export function appendSystemMessage(runtimeTab: RuntimeTab, text: string): void 
   appendPreviewMessage(runtimeTab.tab, "system", text);
 }
 
+/**
+ * True when the Pi SDK refused compaction because the session has nothing to
+ * summarize (everything still fits the keep-recent window). SDK 0.80+ throws
+ * instead of producing an empty summary; callers treat this as a benign no-op
+ * rather than an error. Matches both the manual guard wording and the SDK's.
+ */
+export function isNothingToCompactError(message: string): boolean {
+  return /nothing to compact|session too small/i.test(message);
+}
+
 export function appendEmptyRunNotice(runtimeTab: RuntimeTab): void {
   const start = runtimeTab.currentRunChatStartIndex;
   if (start === undefined) return;
@@ -358,7 +368,17 @@ export function syncPreviewFromChat(tab: MixCodeTabInfo, chat: ChatLine[]): void
 }
 
 export function syncContextUsage(runtimeTab: RuntimeTab): void {
-  const usage = runtimeTab.agentSession.getContextUsage();
+  // Context usage is a display-only metric. A degenerate/restored history entry
+  // (e.g. a toolCall block with no arguments) can make the SDK's token
+  // estimator throw; that must not make the tab uncreatable or break a render.
+  // Degrade to "unknown usage" instead of propagating.
+  let usage: ReturnType<RuntimeTab["agentSession"]["getContextUsage"]>;
+  try {
+    usage = runtimeTab.agentSession.getContextUsage();
+  } catch {
+    runtimeTab.tab.currentContextTokens = undefined;
+    return;
+  }
   // Only sync contextLimit from runtime if the user hasn't overridden it
   if (!runtimeTab.tab.contextLimitOverridden) {
     runtimeTab.tab.contextLimit = usage?.contextWindow ?? runtimeTab.tab.contextLimit;

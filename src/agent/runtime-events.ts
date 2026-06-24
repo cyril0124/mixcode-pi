@@ -9,6 +9,7 @@ import {
   customMessageToChatLine,
   disposeChatRenderers,
   entriesToChatLines,
+  isNothingToCompactError,
   surfaceAssistantStopReason,
   syncContextUsage,
   syncPreviewFromChat,
@@ -85,6 +86,11 @@ async function autoCompactAndContinue(runtimeTab: RuntimeTab): Promise<void> {
         if (aborted) {
           // Aborted compaction: drop the timer silently, no worked-duration recorded.
           setTabStatus(runtimeTab.tab, "idle", { discardTimer: true });
+          return;
+        }
+        if (isNothingToCompactError(message)) {
+          setTabStatus(runtimeTab.tab, "idle", { discardTimer: true });
+          appendSystemMessage(runtimeTab, "Nothing to compact (session too small).");
           return;
         }
         if (/already compacted/i.test(message)) {

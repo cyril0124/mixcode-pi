@@ -396,6 +396,11 @@ test("runtime compacts without custom instructions", async () => {
       thinkingLevel: "medium",
       workdir: process.cwd(),
     });
+    // SDK 0.80+ refuses to compact when the whole session fits the keep-recent
+    // window. Shrink the window so this single-turn fixture has history to summarize.
+    runtimeTab.agentSession.settingsManager.applyOverrides({
+      compaction: { reserveTokens: 1, keepRecentTokens: 1 },
+    });
     await runtime.prompt("s1", "compact me");
     await runtime.compactSession("s1");
     const compactedContext = runtimeTab.session.buildSessionContext();
@@ -436,10 +441,15 @@ test("runtime shows working state while compaction runs", async () => {
       ],
     });
     const tab = createTab(1, "s1", process.cwd());
-    await runtime.createTab(tab, {
+    const workingRuntimeTab = await runtime.createTab(tab, {
       systemPrompt: "system",
       thinkingLevel: "medium",
       workdir: process.cwd(),
+    });
+    // Shrink the keep-recent window so the single-turn fixture is compactable
+    // under SDK 0.80+ (which refuses when nothing falls outside the window).
+    workingRuntimeTab.agentSession.settingsManager.applyOverrides({
+      compaction: { reserveTokens: 1, keepRecentTokens: 1 },
     });
     await runtime.prompt("s1", "compact working");
     const statuses: Array<{ status: string; workingStartedAt?: string }> = [];
@@ -536,21 +546,27 @@ async function assertRuntimeAutoCompactsAndContinuesMidTurn(contextLimitOverridd
   try {
     const seenContexts: Context[] = [];
     const streamTexts: string[] = [];
+    let toolCallTriggered = false;
     const runtime = new MixCodeRuntime({
       sessionsRoot: dir,
       streamFn: (_model: Model<any>, context: Context) => {
         seenContexts.push(context);
-        if (seenContexts.length === 1) {
+        const text = lastRuntimeUserText(context);
+        // A prior "warmup" turn gives the session completed history outside the
+        // keep-recent window; SDK 0.80+ refuses to compact a lone in-progress
+        // turn. The "start" turn's tool call then triggers mid-turn compaction.
+        if (text === "start" && !toolCallTriggered) {
+          toolCallTriggered = true;
           return streamAssistantMessage(
             runtimeToolCallMessage(
               { type: "toolCall", id: "tc-auto", name: "auto_echo", arguments: { text: "first" } },
-              90,
+              990,
             ),
           );
         }
-        const text = lastRuntimeUserText(context);
         streamTexts.push(text);
-        return streamAssistantMessage(runtimeAssistantMessage(`continued:${text}`));
+        const reply = text === "warmup" ? `warmup reply ${"history ".repeat(40)}` : `continued:${text}`;
+        return streamAssistantMessage(runtimeAssistantMessage(reply));
       },
       extensionFactories: [
         (pi) => {
@@ -579,7 +595,7 @@ async function assertRuntimeAutoCompactsAndContinuesMidTurn(contextLimitOverridd
       provider: "queue-test",
       api: "queue-test",
       id: "queue-test-model",
-      contextWindow: 100,
+      contextWindow: 1000,
     };
     const tab = createTab(1, "s1", process.cwd(), {
       model: {
@@ -588,7 +604,7 @@ async function assertRuntimeAutoCompactsAndContinuesMidTurn(contextLimitOverridd
         displayName: `${model.provider}/${model.id}`,
         contextWindow: model.contextWindow,
       },
-      contextLimit: 100,
+      contextLimit: 1000,
     });
     tab.contextLimitOverridden = contextLimitOverridden;
     const runtimeTab = await runtime.createTab(tab, {
@@ -598,18 +614,30 @@ async function assertRuntimeAutoCompactsAndContinuesMidTurn(contextLimitOverridd
       model,
     });
     runtimeTab.agentSession.settingsManager.applyOverrides({
-      compaction: { reserveTokens: 20, keepRecentTokens: 1 },
+      compaction: { reserveTokens: 20, keepRecentTokens: 50 },
     });
 
+    // Warmup turn first so the session has completed history outside the
+    // keep-recent window; the "start" turn then triggers mid-turn compaction.
+    await runtime.prompt("s1", "warmup");
+    await waitForRuntime(() => streamTexts.includes("warmup"));
     await runtime.prompt("s1", "start");
-    await waitForRuntime(() => seenContexts.length >= 2);
+    await waitForRuntime(
+      () =>
+        streamTexts.includes("start") &&
+        runtimeTab.session.getBranch().some((entry) => entry.type === "compaction"),
+    );
 
     const userLines = runtimeTab.chat.filter((line) => line.role === "user").map((line) => line.text);
-    assert.deepEqual(userLines, ["start"]);
-    assert.equal(streamTexts.length, 1);
-    assert.equal(streamTexts[0] ?? "", "start");
-    assert.ok(contextHasCompactionSummary(seenContexts[1]!, "auto summary"));
-    assert.ok(contextHasToolResultText(seenContexts[1]!, "tool:first"));
+    assert.deepEqual(userLines, ["warmup", "start"]);
+    assert.ok(streamTexts.includes("start"));
+    // The compaction summary and the tool result both appear in the context the
+    // model sees when continuing after the mid-turn compaction.
+    const continuationContext = seenContexts.find((context) =>
+      contextHasCompactionSummary(context, "auto summary"),
+    );
+    assert.ok(continuationContext, "expected a post-compaction continuation context");
+    assert.ok(contextHasToolResultText(continuationContext, "tool:first"));
     assert.equal(runtimeTab.session.getBranch().at(-1)?.type, "message");
     assert.ok(runtimeTab.session.getBranch().some((entry) => entry.type === "compaction"));
     assert.equal(runtimeTab.chat.some((line) => /finished without a response/i.test(line.text)), false);
@@ -637,21 +665,24 @@ test("runtime preserves mid-turn auto-compaction after workdir changes", async (
 
     const seenContexts: Context[] = [];
     const streamTexts: string[] = [];
+    let toolCallTriggered = false;
     const runtime = new MixCodeRuntime({
       sessionsRoot: dir,
       streamFn: (_model: Model<any>, context: Context) => {
         seenContexts.push(context);
-        if (seenContexts.length === 1) {
+        const text = lastRuntimeUserText(context);
+        if (text === "start" && !toolCallTriggered) {
+          toolCallTriggered = true;
           return streamAssistantMessage(
             runtimeToolCallMessage(
               { type: "toolCall", id: "tc-workdir", name: "auto_echo", arguments: { text: "first" } },
-              90,
+              990,
             ),
           );
         }
-        const text = lastRuntimeUserText(context);
         streamTexts.push(text);
-        return streamAssistantMessage(runtimeAssistantMessage(`continued:${text}`));
+        const reply = text === "warmup" ? `warmup reply ${"history ".repeat(40)}` : `continued:${text}`;
+        return streamAssistantMessage(runtimeAssistantMessage(reply));
       },
       extensionFactories: [
         (pi) => {
@@ -680,7 +711,7 @@ test("runtime preserves mid-turn auto-compaction after workdir changes", async (
       provider: "queue-test",
       api: "queue-test",
       id: "queue-test-model",
-      contextWindow: 100,
+      contextWindow: 1000,
     };
     const tab = createTab(1, "s1", oldDir, {
       model: {
@@ -689,7 +720,7 @@ test("runtime preserves mid-turn auto-compaction after workdir changes", async (
         displayName: `${model.provider}/${model.id}`,
         contextWindow: model.contextWindow,
       },
-      contextLimit: 100,
+      contextLimit: 1000,
     });
     tab.contextLimitOverridden = true;
     const runtimeTab = await runtime.createTab(tab, {
@@ -700,16 +731,24 @@ test("runtime preserves mid-turn auto-compaction after workdir changes", async (
     });
     await runtime.updateTabWorkdir("s1", newDir, "system");
     runtimeTab.agentSession.settingsManager.applyOverrides({
-      compaction: { reserveTokens: 20, keepRecentTokens: 1 },
+      compaction: { reserveTokens: 20, keepRecentTokens: 50 },
     });
 
+    await runtime.prompt("s1", "warmup");
+    await waitForRuntime(() => streamTexts.includes("warmup"));
     await runtime.prompt("s1", "start");
-    await waitForRuntime(() => seenContexts.length >= 2);
+    await waitForRuntime(
+      () =>
+        streamTexts.includes("start") &&
+        runtimeTab.session.getBranch().some((entry) => entry.type === "compaction"),
+    );
 
-    assert.equal(streamTexts.length, 1);
-    assert.equal(streamTexts[0] ?? "", "start");
-    assert.ok(contextHasCompactionSummary(seenContexts[1]!, "auto summary"));
-    assert.ok(contextHasToolResultText(seenContexts[1]!, "tool:first"));
+    assert.ok(streamTexts.includes("start"));
+    const continuationContext = seenContexts.find((context) =>
+      contextHasCompactionSummary(context, "auto summary"),
+    );
+    assert.ok(continuationContext, "expected a post-compaction continuation context");
+    assert.ok(contextHasToolResultText(continuationContext, "tool:first"));
     assert.ok(runtimeTab.session.getBranch().some((entry) => entry.type === "compaction"));
     assert.equal(runtimeTab.tab.status, "idle");
   } finally {
@@ -808,19 +847,23 @@ test("runtime waits for SDK post-run compaction before continuing", async () => 
     });
     const seenContexts: Context[] = [];
     let compactionCalls = 0;
+    let toolCallTriggered = false;
     const runtime = new MixCodeRuntime({
       sessionsRoot: dir,
       streamFn: (_model: Model<any>, context: Context) => {
         seenContexts.push(context);
-        if (seenContexts.length === 1) {
+        const text = lastRuntimeUserText(context);
+        if (text === "start" && !toolCallTriggered) {
+          toolCallTriggered = true;
           return streamAssistantMessage(
             runtimeToolCallMessage(
               { type: "toolCall", id: "tc-race", name: "auto_echo", arguments: { text: "first" } },
-              90,
+              990,
             ),
           );
         }
-        return streamAssistantMessage(runtimeAssistantMessage(`continued:${lastRuntimeUserText(context)}`));
+        const reply = text === "warmup" ? `warmup reply ${"history ".repeat(40)}` : `continued:${text}`;
+        return streamAssistantMessage(runtimeAssistantMessage(reply));
       },
       extensionFactories: [
         (pi) => {
@@ -853,7 +896,7 @@ test("runtime waits for SDK post-run compaction before continuing", async () => 
       provider: "queue-test",
       api: "queue-test",
       id: "queue-test-model",
-      contextWindow: 100,
+      contextWindow: 1000,
     };
     const tab = createTab(1, "s1", process.cwd(), {
       model: {
@@ -862,7 +905,7 @@ test("runtime waits for SDK post-run compaction before continuing", async () => 
         displayName: `${model.provider}/${model.id}`,
         contextWindow: model.contextWindow,
       },
-      contextLimit: 100,
+      contextLimit: 1000,
     });
     tab.contextLimitOverridden = true;
     const runtimeTab = await runtime.createTab(tab, {
@@ -872,8 +915,11 @@ test("runtime waits for SDK post-run compaction before continuing", async () => 
       model,
     });
     runtimeTab.agentSession.settingsManager.applyOverrides({
-      compaction: { reserveTokens: 20, keepRecentTokens: 1 },
+      compaction: { reserveTokens: 20, keepRecentTokens: 50 },
     });
+
+    // Warmup turn first so the "start" turn's compaction has history to summarize.
+    await runtime.prompt("s1", "warmup");
 
     const promptPromise = runtime.prompt("s1", "start");
     await waitForRuntime(() => compactionCalls === 1);
@@ -882,9 +928,18 @@ test("runtime waits for SDK post-run compaction before continuing", async () => 
 
     releaseCompact();
     await promptPromise;
-    await waitForRuntime(() => seenContexts.length >= 2);
+    await waitForRuntime(
+      () =>
+        runtimeTab.session.getBranch().some((entry) => entry.type === "compaction") &&
+        runtimeTab.tab.status === "idle",
+    );
 
     assert.equal(compactionCalls, 1);
+    const continuationContext = seenContexts.find((context) =>
+      contextHasCompactionSummary(context, "auto summary"),
+    );
+    assert.ok(continuationContext, "expected a post-compaction continuation context");
+    assert.ok(contextHasToolResultText(continuationContext, "tool:first"));
     assert.equal(runtimeTab.session.getBranch().filter((entry) => entry.type === "compaction").length, 1);
     assert.equal(runtimeTab.tab.status, "idle");
   } finally {
@@ -895,18 +950,24 @@ test("runtime waits for SDK post-run compaction before continuing", async () => 
 test("runtime surfaces auto-compaction failures", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-auto-compact-fail-"));
   try {
+    let toolCallTriggered = false;
     const runtime = new MixCodeRuntime({
       sessionsRoot: dir,
       streamFn: (_model: Model<any>, context: Context) => {
         if (context.messages.some((message) => message.role === "toolResult")) {
           return streamAssistantMessage(runtimeAssistantMessage("should not continue"));
         }
-        return streamAssistantMessage(
-          runtimeToolCallMessage(
-            { type: "toolCall", id: "tc-fail", name: "auto_echo", arguments: { text: "first" } },
-            90,
-          ),
-        );
+        const text = lastRuntimeUserText(context);
+        if (text === "start" && !toolCallTriggered) {
+          toolCallTriggered = true;
+          return streamAssistantMessage(
+            runtimeToolCallMessage(
+              { type: "toolCall", id: "tc-fail", name: "auto_echo", arguments: { text: "first" } },
+              990,
+            ),
+          );
+        }
+        return streamAssistantMessage(runtimeAssistantMessage(`warmup reply ${"history ".repeat(40)}`));
       },
       extensionFactories: [
         (pi) => {
@@ -929,7 +990,7 @@ test("runtime surfaces auto-compaction failures", async () => {
       provider: "queue-test",
       api: "queue-test",
       id: "queue-test-model",
-      contextWindow: 100,
+      contextWindow: 1000,
     };
     const tab = createTab(1, "s1", process.cwd(), {
       model: {
@@ -938,7 +999,7 @@ test("runtime surfaces auto-compaction failures", async () => {
         displayName: `${model.provider}/${model.id}`,
         contextWindow: model.contextWindow,
       },
-      contextLimit: 100,
+      contextLimit: 1000,
     });
     tab.contextLimitOverridden = true;
     const runtimeTab = await runtime.createTab(tab, {
@@ -948,9 +1009,12 @@ test("runtime surfaces auto-compaction failures", async () => {
       model,
     });
     runtimeTab.agentSession.settingsManager.applyOverrides({
-      compaction: { reserveTokens: 20, keepRecentTokens: 1 },
+      compaction: { reserveTokens: 20, keepRecentTokens: 50 },
     });
 
+    // Warmup turn so the session is genuinely compactable; the cancel handler
+    // then makes compaction produce nothing, exercising the failure path.
+    await runtime.prompt("s1", "warmup");
     await runtime.prompt("s1", "start");
     await waitForRuntime(
       () => tab.status === "idle" && runtimeTab.chat.some((line) => /did not produce/i.test(line.text)),
@@ -1038,10 +1102,15 @@ test("runtime abortTab aborts compaction and leaves status idle", async () => {
       ],
     });
     const tab = createTab(1, "s1", process.cwd());
-    await runtime.createTab(tab, {
+    const abortRuntimeTab = await runtime.createTab(tab, {
       systemPrompt: "system",
       thinkingLevel: "medium",
       workdir: process.cwd(),
+    });
+    // Shrink the keep-recent window so the single-turn fixture is compactable
+    // under SDK 0.80+ and actually reaches compaction_start to be aborted.
+    abortRuntimeTab.agentSession.settingsManager.applyOverrides({
+      compaction: { reserveTokens: 1, keepRecentTokens: 1 },
     });
     await runtime.prompt("s1", "hello");
     const compactPromise = runtime.compactSession("s1").catch(() => {});

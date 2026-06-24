@@ -105,6 +105,12 @@ function textContent(message: Context["messages"][number]): string {
   return message.content.map((block) => (block.type === "text" ? block.text : "")).join("\n");
 }
 
+function lastRuntimeUserText(context: Context): string {
+  const users = context.messages.filter((message) => message.role === "user");
+  const last = users.at(-1);
+  return last ? textContent(last) : "";
+}
+
 test("SDK post-run compaction preserves the original working timer", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-compact-working-timer-"));
   try {
@@ -245,6 +251,11 @@ test("runtime rejects a second manual compaction while one is running", async ()
       thinkingLevel: "medium",
       workdir: process.cwd(),
     });
+    // Shrink the keep-recent window so the single "hello" turn is compactable
+    // under SDK 0.80+ and the manual compaction actually starts.
+    runtimeTab.agentSession.settingsManager.applyOverrides({
+      compaction: { reserveTokens: 1, keepRecentTokens: 1 },
+    });
     await runtime.prompt("s1", "hello");
 
     const firstStarted = new Promise<void>((resolve) => {
@@ -304,19 +315,23 @@ test("mid-turn auto-compaction keeps running state until continuation finishes",
   try {
     const seenContexts: Context[] = [];
     const compactionEndStates: Array<{ status: string; unreadDone: boolean }> = [];
+    let toolCallTriggered = false;
     const runtime = new MixCodeRuntime({
       sessionsRoot: dir,
       streamFn: (_model: Model<any>, context: Context) => {
         seenContexts.push(context);
-        if (seenContexts.length === 1) {
+        const text = lastRuntimeUserText(context);
+        if (text === "start" && !toolCallTriggered) {
+          toolCallTriggered = true;
           return streamAssistantMessage(
             runtimeToolCallMessage(
               { type: "toolCall", id: "tc-auto", name: "auto_echo", arguments: { text: "first" } },
-              90,
+              990,
             ),
           );
         }
-        return streamAssistantMessage(runtimeAssistantMessage("continued"));
+        const reply = text === "warmup" ? `warmup reply ${"history ".repeat(40)}` : "continued";
+        return streamAssistantMessage(runtimeAssistantMessage(reply));
       },
       extensionFactories: [
         (pi) => {
@@ -345,7 +360,7 @@ test("mid-turn auto-compaction keeps running state until continuation finishes",
       provider: "compact-test",
       api: "compact-test",
       id: "compact-test-model",
-      contextWindow: 100,
+      contextWindow: 1000,
     };
     const tab = createTab(1, "s1", process.cwd(), {
       model: {
@@ -354,7 +369,7 @@ test("mid-turn auto-compaction keeps running state until continuation finishes",
         displayName: `${model.provider}/${model.id}`,
         contextWindow: model.contextWindow,
       },
-      contextLimit: 100,
+      contextLimit: 1000,
     });
     tab.contextLimitOverridden = true;
     const runtimeTab = await runtime.createTab(tab, {
@@ -364,21 +379,35 @@ test("mid-turn auto-compaction keeps running state until continuation finishes",
       model,
     });
     runtimeTab.agentSession.settingsManager.applyOverrides({
-      compaction: { reserveTokens: 20, keepRecentTokens: 1 },
+      compaction: { reserveTokens: 20, keepRecentTokens: 50 },
     });
     runtime.onChange((event, changedTab) => {
       if (event.type !== "compaction_end" || changedTab.tab.sessionId !== "s1") return;
       compactionEndStates.push({ status: changedTab.tab.status, unreadDone: changedTab.tab.unreadDone });
     });
 
+    // Warmup turn first so the "start" turn's mid-turn compaction has history
+    // to summarize (SDK 0.80+ refuses to compact a lone in-progress turn).
+    await runtime.prompt("s1", "warmup");
+    await waitForRuntime(() => runtimeTab.session.getBranch().filter((entry) => entry.type === "message").length >= 2);
+    // The warmup turn marks the tab read/done; reset so the assertion observes
+    // the start turn's mid-compaction state, not the warmup's completion.
+    runtimeTab.tab.unreadDone = false;
     await runtime.prompt("s1", "start");
-    await waitForRuntime(() =>
-      seenContexts.length >= 2 && runtimeTab.session.getBranch().at(-1)?.type === "message",
+    await waitForRuntime(
+      () =>
+        runtimeTab.session.getBranch().some((entry) => entry.type === "compaction") &&
+        runtimeTab.session.getBranch().at(-1)?.type === "message" &&
+        runtimeTab.tab.status === "idle",
     );
 
     assert.deepEqual(compactionEndStates, [{ status: "running", unreadDone: false }]);
-    const continuedMessages = seenContexts[1]!.messages;
-    assert.ok(continuedMessages.some((message) => message.role === "toolResult" && textContent(message).includes("tool:first")));
+    const continuationContext = seenContexts.find((context) =>
+      context.messages.some(
+        (message) => message.role === "toolResult" && textContent(message).includes("tool:first"),
+      ),
+    );
+    assert.ok(continuationContext, "expected a continuation context with the tool result");
     assert.equal(tab.status, "idle");
   } finally {
     await rm(dir, { recursive: true, force: true });

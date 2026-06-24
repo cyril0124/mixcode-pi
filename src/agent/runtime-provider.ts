@@ -2,9 +2,8 @@ import {
   type AssistantMessage,
   createAssistantMessageEventStream,
   type Model,
-  registerApiProvider,
-  getApiProvider,
 } from "@earendil-works/pi-ai";
+import { getApiProvider, registerApiProvider } from "@earendil-works/pi-ai/compat";
 import type { ModelRegistry } from "@earendil-works/pi-coding-agent";
 import { mixcodeFauxStream } from "./faux-stream.js";
 import type { MixCodeStreamFn, SystemPromptOverride } from "./runtime-types.js";

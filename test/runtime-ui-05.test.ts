@@ -1,3 +1,4 @@
+import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -274,6 +275,11 @@ test("runtime creates pi agent sessions, streams default response, and records s
     const reopenedBashRendered = renderChat(reopenedBashTab.chat, 80).join("\n");
     assert.match(reopenedBashRendered, /\$ pwd/);
     assert.match(reopenedBashRendered, /bash output/);
+    // Shrink the keep-recent window so the accumulated history is compactable
+    // under SDK 0.80+ (which refuses when everything fits the window).
+    runtimeTab.agentSession.settingsManager.applyOverrides({
+      compaction: { reserveTokens: 1, keepRecentTokens: 1 },
+    });
     await runtime.compactSession("s1", "preserve user intent");
     const compactedBranch = runtimeTab.session.getBranch();
     assert.equal(compactedBranch.at(-1)?.type, "compaction");
@@ -340,11 +346,16 @@ test("runtime compacts imported replay session with stream signal", async () => 
         contextWindow: MIXCODE_FAUX_MODEL.contextWindow,
       },
     });
-    await runtime.createTab(tab, {
+    const runtimeTab = await runtime.createTab(tab, {
       systemPrompt: "system",
       thinkingLevel: "medium",
       workdir: process.cwd(),
       model: { ...MIXCODE_FAUX_MODEL, provider: "replay", api: "replay", id: "replay-model" },
+    });
+    // Shrink the keep-recent window so the imported post-compaction history is
+    // compactable under SDK 0.80+ (which refuses when it all fits the window).
+    runtimeTab.agentSession.settingsManager.applyOverrides({
+      compaction: { reserveTokens: 1, keepRecentTokens: 1 },
     });
 
     await runtime.compactSession("replay-session");
