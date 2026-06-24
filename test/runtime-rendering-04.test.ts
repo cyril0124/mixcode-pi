@@ -295,3 +295,23 @@ test("rendering exposes config, command, picker, and chooser overlays", () => {
     /queued: 1/,
   );
 });
+
+test("extension status text preserves SGR colors and never leaks bare ANSI", () => {
+  // Reproduces the status-bar ESC-strip bug: status text carries 24-bit SGR
+  // color sequences; the cleaner must keep them intact (with the ESC byte) and
+  // must not print bare "[38;2;...m" tokens (ESC removed) into the status line.
+  const colored = "\x1b[38;2;250;249;245m\u26a1  FULL\x1b[39m";
+  const tab = createTab(30, "s30", "/repo", {
+    extensionUi: {
+      statuses: [{ key: "ponytail", text: colored }],
+      widgets: [],
+      toolsExpanded: false,
+      workingVisible: false,
+    },
+  });
+  const meta = renderInputMeta(tab, 120).join("\n");
+  // The intact SGR sequence (ESC + CSI) must survive the cleaner.
+  assert.match(meta, /\x1b\[38;2;250;249;245m/);
+  // A bare CSI with the ESC stripped must never appear.
+  assert.doesNotMatch(meta, /(?<!\x1b)\[38;2;250;249;245m/);
+});

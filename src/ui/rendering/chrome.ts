@@ -357,9 +357,12 @@ function renderSingleLineExtensionSlot(line: string, width: number): string {
 }
 
 function cleanStatusText(text: string): string {
-  return text
+  // sanitizeTerminalText is ANSI-aware: it preserves SGR color sequences
+  // (ESC + CSI ... m) and drops every other control char. A blanket strip of
+  // 0x0e-0x1f here would delete the ESC (0x1b) byte and leak bare "[..m" tokens
+  // into the status line, so collapse whitespace only after sanitizing.
+  return sanitizeTerminalText(text)
     .replace(/[\r\n\t]+/g, " ")
-    .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "")
     .replace(/\s+/g, " ")
     .trim();
 }
