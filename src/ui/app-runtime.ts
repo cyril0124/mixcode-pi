@@ -1,5 +1,6 @@
 import type { AutocompleteProvider, TUI as TuiType } from "@earendil-works/pi-tui";
 import type { MixCodeRuntime } from "../agent/runtime.js";
+import { getActiveTab } from "../core/tabs.js";
 import type { MixCodeState } from "../core/types.js";
 import { addPromptHistory } from "./app-editor.js";
 import type { RuntimeChangeSource } from "./app-types.js";
@@ -58,13 +59,13 @@ function bindConditionalRedraw(
 
 function activeTabNeedsWorkingRedraw(state: MixCodeState): boolean {
   if (state.activeTabId === "config") return state.tabs.some((tab) => isWorkingStatus(tab.status));
-  const active = state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];
+  const active = getActiveTab(state);
   return isWorkingStatus(active?.status);
 }
 
 function activeTabNeedsLiveExtensionRedraw(state: MixCodeState): boolean {
   if (state.activeTabId === "config") return state.tabs.some(tabHasLiveExtensionUi);
-  const active = state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];
+  const active = getActiveTab(state);
   return active ? tabHasLiveExtensionUi(active) : false;
 }
 
@@ -136,7 +137,7 @@ export function activeExtensionCommands(
     | undefined,
 ): Array<{ name: string; description?: string }> {
   if (!runtime) return [];
-  const active = state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];
+  const active = getActiveTab(state);
   if (active && state.activeTabId !== "config" && runtime.getExtensionCommands) {
     return runtime.getExtensionCommands(active.sessionId);
   }
@@ -164,7 +165,7 @@ function resolveActiveAutocompleteProvider(
   runtime: MixCodeRuntime,
   base: AutocompleteProvider,
 ): AutocompleteProvider {
-  const active = state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];
+  const active = getActiveTab(state);
   if (!active || state.activeTabId === "config") return homeAutocompleteFilter(base);
   if (!runtime.getTab(active.sessionId)) return base;
   return runtime.applyExtensionAutocompleteProviders?.(active.sessionId, base) ?? base;

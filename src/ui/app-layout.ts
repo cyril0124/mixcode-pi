@@ -3,6 +3,7 @@ import type { MixCodeRuntime } from "../agent/runtime.js";
 import { highlightChatSelectionLine } from "../core/chat-selection.js";
 import { isPendingEscapeActive } from "../core/escape.js";
 import type { MixCodeState } from "../core/types.js";
+import { getActiveTab } from "../core/tabs.js";
 import type { EditorSlot } from "./app-editor.js";
 import {
   fitHeadLines,
@@ -34,8 +35,7 @@ export class MixCodeRoot implements Component {
   invalidate(): void {}
 
   render(width: number): string[] {
-    const active =
-      this.state.tabs.find((tab) => tab.sessionId === this.state.activeTabId) ?? this.state.tabs[0];
+    const active = getActiveTab(this.state);
     const theme = themeForId(this.state.theme);
     const top = [
       ...renderHeader(width, theme),
@@ -92,8 +92,7 @@ export class MixCodeFooterRoot implements Component {
   invalidate(): void {}
 
   render(width: number): string[] {
-    const active =
-      this.state.tabs.find((tab) => tab.sessionId === this.state.activeTabId) ?? this.state.tabs[0];
+    const active = getActiveTab(this.state);
     return [...renderExtensionFooter(active, width), ...renderFooter(width)];
   }
 }
@@ -125,8 +124,7 @@ export class MixCodeLayoutRoot implements Component {
 
   render(width: number): string[] {
     const theme = themeForId(this.state.theme);
-    const active =
-      this.state.tabs.find((tab) => tab.sessionId === this.state.activeTabId) ?? this.state.tabs[0];
+    const active = getActiveTab(this.state);
     const isAgentTab = active && this.state.activeTabId !== "config";
     const metaProbe = isAgentTab ? renderInputMeta(active, width, 0, theme, false) : [];
     const workingLines = isAgentTab ? this.renderWorkingLoader(active, width, theme) : [];

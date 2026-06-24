@@ -1,5 +1,5 @@
 import { fuzzyMatchBatch } from "./fuzzy.js";
-import { activateTab } from "./tabs.js";
+import { activateTab, findActiveTab } from "./tabs.js";
 import type { CommandPaletteEntry, MixCodeState, MixCodeTabInfo } from "./types.js";
 import { tabHasPendingUserInteraction } from "./user-interactions.js";
 
@@ -292,7 +292,7 @@ function commandPaletteBaseEntries(
   extensionCommands: Array<{ name: string; description?: string }>,
 ): CommandPaletteEntry[] {
   if (state.activeTabId === "config") return configCommandPaletteEntries(state);
-  const active = state.tabs.find((tab) => tab.sessionId === state.activeTabId);
+  const active = findActiveTab(state);
   if (!active) return [];
   return [
     ...agentCommandPaletteEntries(state, active),

@@ -9,6 +9,7 @@ import {
   togglePickerHidden,
   updatePickerQuery,
 } from "../core/pickers.js";
+import { getActiveTab } from "../core/tabs.js";
 import type { MixCodeState } from "../core/types.js";
 import { applyModelSelection, applyThinkingLevel, applyWorkdirSelection } from "./app-actions.js";
 import { closeAppOverlay, showErrorOverlay, showLinesOverlay } from "./app-overlays.js";
@@ -82,7 +83,7 @@ export function handlePickerKey(
         showLinesOverlay(tui, (width) => renderPickerOverlay(state, width));
         return true;
       }
-      const active = state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];
+      const active = getActiveTab(state);
       if (active) {
         applyContextLimit(active, value);
         const runtimeTab = runtime?.getTab?.(active.sessionId);
@@ -182,7 +183,7 @@ function applyPickerSelection(
   selectedId: string,
   runtime?: MixCodeKeyRuntime,
 ): void | Promise<void> {
-  const active = state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];
+  const active = getActiveTab(state);
   if (!state.picker) return;
   if (state.picker.kind === "models" && active) {
     const model = findModelRef(state.availableModels, selectedId);

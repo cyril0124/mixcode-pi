@@ -19,6 +19,7 @@ import {
 } from "../core/overlays.js";
 import type { MixCodeState } from "../core/types.js";
 import { pushToast } from "../core/toast.js";
+import { getActiveTab } from "../core/tabs.js";
 import { armPendingEscape, clearPendingEscape, hasPendingEscape } from "./app-actions.js";
 import {
   closeAppOverlay,
@@ -215,7 +216,7 @@ export function handleCommandPaletteKey(
     if (selected && !selected.enabled) {
       closeCommandPalette(state);
       closeAppOverlay(tui);
-      const active = state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];
+      const active = getActiveTab(state);
       if (active)
         pushToast(active, {
           type: "warning",
@@ -354,7 +355,7 @@ export function handleExportChooserKey(
     : exportTargetForKey(data);
   if (!target) return false;
   if (!runtime?.getTab) throw new Error("Export chooser requires runtime tab access");
-  const active = state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];
+  const active = getActiveTab(state);
   if (!active) throw new Error("No active tab for export");
   const runtimeTab = runtime.getTab(active.sessionId);
   if (!runtimeTab) throw new Error(`Unknown tab session: ${active.sessionId}`);

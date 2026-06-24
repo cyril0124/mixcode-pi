@@ -19,7 +19,7 @@ import {
   updateSessionSelectorQuery,
 } from "../core/session-selector.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
-import { activateTab, closeAgentTab } from "../core/tabs.js";
+import { activateTab, closeAgentTab, getActiveTab } from "../core/tabs.js";
 import type { MixCodeState } from "../core/types.js";
 import { closeAppOverlay, showErrorOverlay, showLinesOverlay } from "./app-overlays.js";
 import type { MixCodeKeyRuntime, OverlayTui } from "./app-types.js";
@@ -411,7 +411,7 @@ function resumeSelectedSession(
     tui.requestRender();
     return;
   }
-  const active = state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];
+  const active = getActiveTab(state);
   // Prevent resuming the already-active session
   const selector = state.sessionSelector;
   if (selector.currentSessionPath && sessionPath === selector.currentSessionPath) {

@@ -1,6 +1,7 @@
 import { matchesKey, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import type { ExtensionReloadResult } from "../core/extension-manager.js";
 import type { ExtensionManagerEntryInfo, MixCodeState } from "../core/types.js";
+import { getActiveTab } from "../core/tabs.js";
 import { closeAppOverlay, showErrorOverlay, showLinesOverlay } from "./app-overlays.js";
 import type { MixCodeKeyRuntime, MixCodeSubmitRuntime, OverlayTui } from "./app-types.js";
 import { activeRenderTheme, renderWithTheme } from "./rendering/context.js";
@@ -463,7 +464,7 @@ function toggleSelectedExtension(state: MixCodeState): void {
 }
 
 function activeExtensionManagerTab(state: MixCodeState): MixCodeState["tabs"][number] | undefined {
-  return state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];
+  return getActiveTab(state);
 }
 
 function formatReloadResults(results: ExtensionReloadResult[]): string {

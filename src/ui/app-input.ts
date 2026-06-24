@@ -9,7 +9,7 @@ import {
 } from "../core/overlays.js";
 import { buildModelPrompt } from "../core/prompt-build.js";
 import { getKnownSkillsFromTab, getPromptTemplatesFromTab } from "./app-submit.js";
-import { activateTab, nextTabId } from "../core/tabs.js";
+import { activateTab, getActiveTab, nextTabId } from "../core/tabs.js";
 import type { MixCodeState } from "../core/types.js";
 import { clearPendingEscape, openQuitConfirm } from "./app-actions.js";
 import { insertEditorText } from "./app-editor.js";
@@ -66,7 +66,7 @@ export function handleMixCodeKeyInput(
   workspaceOptions: WorkspaceKeyOptions = {},
 ): { consume?: boolean; data?: string } | undefined {
   pasteDetector.recordInput(data);
-  const active = state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];
+  const active = getActiveTab(state);
   if (state.workspaceOverlay.open) {
     if (
       handleWorkspaceOverlayKey(

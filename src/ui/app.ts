@@ -5,6 +5,7 @@ import { recordSubmittedHistory } from "../core/conversation-history.js";
 import { resolveFdBinary } from "../core/detect-search-tools.js";
 import { scanProjectFiles } from "../core/file-picker.js";
 import type { MixCodeState } from "../core/types.js";
+import { getActiveTab } from "../core/tabs.js";
 import { appendActiveSystemMessage } from "./app-actions.js";
 import { CompactPromptEditor, EditorSlot, editorThemeFor } from "./app-editor.js";
 import { handleMixCodeKeyInput } from "./app-input.js";
@@ -132,7 +133,7 @@ export function createMixCodeTui(
     files: createActiveFileCompletionSource(state, options.completionSources?.files),
     fileSearch: createActiveFileSearchSource(state),
     commands: () => {
-      const active = state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];
+      const active = getActiveTab(state);
       const extensionCommands =
         active && state.activeTabId !== "config"
           ? runtime.getExtensionCommands(active.sessionId)
@@ -156,8 +157,7 @@ export function createMixCodeTui(
     promptTemplates: () => {
       // Dynamically resolve prompt templates from the active tab's resource loader,
       // which includes extension-contributed templates.
-      const active =
-        state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];
+      const active = getActiveTab(state);
       if (active && state.activeTabId !== "config") {
         const runtimeTab = runtime.getTab(active.sessionId);
         if (runtimeTab?.services?.resourceLoader) {
@@ -305,8 +305,7 @@ export function createActiveSkillCompletionSource(
   let pendingRescan: Promise<void> | undefined;
 
   function readSkillsFromLoader(): Array<string | MixCodeSkillCompletionSource> | undefined {
-    const active =
-      state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];
+    const active = getActiveTab(state);
     if (active && state.activeTabId !== "config") {
       const runtimeTab = runtime.getTab(active.sessionId);
       if (runtimeTab?.services?.resourceLoader) {
@@ -434,6 +433,6 @@ function activeCompletionWorkdir(state: MixCodeState): string {
     const selected = state.tabs[state.homeSelectedTabIndex];
     return selected?.workdir ?? state.workdir;
   }
-  const active = state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];
+  const active = getActiveTab(state);
   return active ? active.workdir : state.workdir;
 }

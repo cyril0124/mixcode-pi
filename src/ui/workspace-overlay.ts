@@ -1,6 +1,7 @@
 import { matchesKey } from "@earendil-works/pi-tui";
 import { deleteWorkspace, saveWorkspaces } from "../core/state-store.js";
 import type { ToastType } from "../core/toast.js";
+import { getActiveTab } from "../core/tabs.js";
 import type { MixCodeState, WorkspaceSnapshot } from "../core/types.js";
 import { createWorkspaceOverlayState } from "../core/workspace-ui.js";
 import { snapshotWorkspace, upsertWorkspace } from "../core/workspace.js";
@@ -166,7 +167,7 @@ export function showWorkspaceToast(
   message: string,
   type: ToastType = "info",
 ): void {
-  const active = state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];
+  const active = getActiveTab(state);
   if (!active) {
     showTransientTextOverlay(tui, message);
     return;

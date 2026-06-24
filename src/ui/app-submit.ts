@@ -12,7 +12,7 @@ import type { PromptTemplate } from "../core/prompt-templates.js";
 import type { KnownSkill } from "../core/skill-command.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import { pushToast } from "../core/toast.js";
-import { activateTab, clampHomeSelectedTabIndex, closeAgentTab, renameAgentTab } from "../core/tabs.js";
+import { activateTab, clampHomeSelectedTabIndex, closeAgentTab, getActiveTab, renameAgentTab } from "../core/tabs.js";
 import type { MixCodeState } from "../core/types.js";
 import {
   appendActiveSystemMessage,
@@ -57,7 +57,7 @@ export async function handleSubmittedInput(
   workspaceFile?: string,
 ): Promise<void> {
   const parsed = parseInput(text);
-  const active = state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];
+  const active = getActiveTab(state);
   const requiresActive =
     parsed.kind === "prompt" || parsed.kind === "shell" || !configScopedCommand(parsed.command);
   if (!active && requiresActive) return;

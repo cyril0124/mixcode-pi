@@ -75,9 +75,8 @@ export function buildMixCodeSystemPromptFromParts(
   const skills = providedSkills ?? [];
 
   let prompt =
-    customPrompt && customPrompt !== MIXCODE_SYSTEM_PROMPT
-      ? customPrompt
-      : buildDefaultMixCodePrompt({ selectedTools, toolSnippets, promptGuidelines, searchTools });
+    customPrompt && customPrompt !== MIXCODE_SYSTEM_PROMPT ? customPrompt : MIXCODE_SYSTEM_PROMPT;
+  prompt += buildToolsAndGuidelinesSection({ selectedTools, toolSnippets, promptGuidelines, searchTools });
   if (appendSection) {
     prompt += appendSection;
   }
@@ -97,7 +96,7 @@ export function buildMixCodeSystemPromptFromParts(
   return prompt;
 }
 
-function buildDefaultMixCodePrompt(
+function buildToolsAndGuidelinesSection(
   options: Pick<BuildSystemPromptOptions, "selectedTools" | "toolSnippets" | "promptGuidelines"> & {
     searchTools?: SearchToolAvailability;
   },
@@ -114,15 +113,7 @@ function buildDefaultMixCodePrompt(
     .map((g) => `- ${g}`)
     .join("\n");
 
-  return `${MIXCODE_SYSTEM_PROMPT}
-
-Available tools:
-${toolsList}
-
-In addition to the tools above, you may have access to other custom tools depending on the project.
-
-Guidelines:
-${guidelines}`;
+  return `\n\nAvailable tools:\n${toolsList}\n\nIn addition to the tools above, you may have access to other custom tools depending on the project.\n\nGuidelines:\n${guidelines}`;
 }
 
 function buildGuidelines(

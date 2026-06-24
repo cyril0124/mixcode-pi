@@ -11,6 +11,7 @@ import {
 import { DEFAULT_MODEL_REF } from "../core/defaults.js";
 import { openOverlay } from "../core/overlays.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
+import { getActiveTab } from "../core/tabs.js";
 import { pushToast } from "../core/toast.js";
 import type { MixCodeState } from "../core/types.js";
 import {
@@ -99,7 +100,7 @@ export function reloadRuntimeModels(
   setStateModel(state, nextStateModel);
   // The active tab is the one /reload operates on (mirrors the submit handler:
   // activeTabId may be "config", in which case the first tab is treated active).
-  const active = state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];
+  const active = getActiveTab(state);
   for (const tab of state.tabs) {
     const repaired = isModelRefAvailable(state.availableModels, tab.model)
       ? normalizeModelRef(state.availableModels, tab.model)
@@ -136,7 +137,7 @@ export function appendActiveSystemMessage(
   runtime: Pick<MixCodeRuntime, "appendSystemMessage">,
   message: string,
 ): void {
-  const active = state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];
+  const active = getActiveTab(state);
   if (!active) throw new Error("No active tab for system message");
   runtime.appendSystemMessage(active.sessionId, message);
 }
@@ -147,7 +148,7 @@ export function showSystemMessageOrToast(
   tui: OverlayTui,
   message: string,
 ): void {
-  const active = state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];
+  const active = getActiveTab(state);
   if (!active || state.activeTabId === "config" || !runtime.appendSystemMessage) {
     showTransientTextOverlay(tui, message);
     return;
