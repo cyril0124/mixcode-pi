@@ -107,6 +107,8 @@ function renderTreeHintLine(selector: TreeSelectorState, width: number): string 
 }
 
 function renderSearchLine(selector: TreeSelectorState, width: number): string {
+  // Typing does not filter in navigate mode (keys pass through to chat scroll).
+  if (selector.mode === "navigate") return "";
   const line = selector.searchQuery
     ? `  ${activeRenderTheme.dim("Type to search:")} ${activeRenderTheme.accent(selector.searchQuery)}`
     : `  ${activeRenderTheme.dim("Type to search:")}`;
