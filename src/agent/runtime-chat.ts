@@ -371,21 +371,19 @@ export function syncContextUsage(runtimeTab: RuntimeTab): void {
   // Context usage is a display-only metric. A degenerate/restored history entry
   // (e.g. a toolCall block with no arguments) can make the SDK's token
   // estimator throw; that must not make the tab uncreatable or break a render.
-  // Degrade to "unknown usage" instead of propagating.
+  // When the SDK can't compute usage we keep whatever the last event set —
+  // clobbering to undefined would discard data from applyAssistantUsage.
   let usage: ReturnType<RuntimeTab["agentSession"]["getContextUsage"]>;
   try {
     usage = runtimeTab.agentSession.getContextUsage();
   } catch {
-    runtimeTab.tab.currentContextTokens = undefined;
     return;
   }
   // Only sync contextLimit from runtime if the user hasn't overridden it
   if (!runtimeTab.tab.contextLimitOverridden) {
     runtimeTab.tab.contextLimit = usage?.contextWindow ?? runtimeTab.tab.contextLimit;
   }
-  if (usage?.tokens === null) {
-    runtimeTab.tab.currentContextTokens = undefined;
-  } else if (usage?.tokens !== undefined && usage.tokens > 0) {
+  if (usage?.tokens != null && usage.tokens > 0) {
     runtimeTab.tab.currentContextTokens = usage.tokens;
   }
 }
