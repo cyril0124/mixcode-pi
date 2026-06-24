@@ -317,7 +317,7 @@ function renderPackageUpdateNotice(packages: string[], width: number): string[] 
   if (!packages.length) return [];
   const innerWidth = Math.max(0, width - 2);
   const title = activeRenderTheme.bold(activeRenderTheme.tool("Package Updates Available"));
-  const action = activeRenderTheme.accent("pi update");
+  const action = activeRenderTheme.accent("pi update --extensions");
   const lines = [
     title,
     `${activeRenderTheme.dim("Package updates are available. Run ")}${action}`,
