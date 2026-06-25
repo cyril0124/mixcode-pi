@@ -369,7 +369,7 @@ test("runtime maps supported pi extension UI primitives into MixCode tab state",
     assert.equal(narrowFooter.length, 1);
     assert.equal(visibleWidth(narrowFooter[0] ?? ""), 8);
     assert.match(stripAnsi(narrowFooter.join("\n")), /foote\.\.\./);
-    assert.match(renderInputMeta(runtimeTab.tab, 100).join("\n"), /status: ready/);
+    assert.match(renderInputMeta(runtimeTab.tab, 100).join("\n"), /\n ready\s*$/);
     assert.match(
       renderExtensionWidgets(runtimeTab.tab, 100, "aboveEditor").join("\n"),
       /above widget/,

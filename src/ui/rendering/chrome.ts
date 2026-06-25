@@ -132,13 +132,6 @@ function renderInputMetaInner(
   const contextBadge = ` ${renderCompactContextUsage(tab)} `;
   const right = chooseInputMetaRight(contextBadge, lineWidth, [
     () => {
-      const extensionStatus = extensionStatusText(tab);
-      const extension = extensionStatus ? activeRenderTheme.dim(`${extensionStatus}  `) : "";
-      const gitBadge = `  ${gitBranchForWorkdir(tab.workdir) || "-"} `;
-      const git = activeRenderTheme.accent(activeRenderTheme.bold(gitBadge));
-      return `${extension}${contextBadge} ${git}`;
-    },
-    () => {
       const gitBadge = `  ${gitBranchForWorkdir(tab.workdir) || "-"} `;
       const git = activeRenderTheme.accent(activeRenderTheme.bold(gitBadge));
       return `${contextBadge} ${git}`;
@@ -155,7 +148,10 @@ function renderInputMetaInner(
   if (updateHitRegions) {
     tab.inputMetaHitRegions = left.regions.map((region) => ({ ...region, row }));
   }
-  return [padLine(metaRow, lineWidth)];
+  const lines = [padLine(metaRow, lineWidth)];
+  const extLine = buildExtensionStatusLine(tab, Math.max(0, width - 1));
+  if (extLine) lines.push(extLine);
+  return lines;
 }
 
 function renderInputMetaLeft(
@@ -336,13 +332,22 @@ export function renderExtensionFooter(tab: MixCodeTabInfo | undefined, width: nu
   return renderExtensionComponentSlot(footer?.render ? footer.render(width) : footer?.lines, width);
 }
 
-function extensionStatusText(tab: MixCodeTabInfo): string {
-  return tab.extensionUi.statuses
-    .slice()
-    .sort((a, b) => a.key.localeCompare(b.key))
-    .map((status) => `${cleanStatusText(status.key)}: ${cleanStatusText(status.text)}`)
-    .filter((status) => status.trim())
-    .join("  ");
+// Build a pi-style extension status line: value-only, space-joined.
+// Returns undefined when there are no statuses so the caller can collapse to
+// single-line layout.
+function buildExtensionStatusLine(
+  tab: MixCodeTabInfo,
+  width: number,
+): string | undefined {
+  const statuses = tab.extensionUi.statuses;
+  if (!statuses.length) return undefined;
+  const sorted = [...statuses].sort((a, b) => a.key.localeCompare(b.key));
+  const text = sorted
+    .map((status) => cleanStatusText(status.text))
+    .filter((t) => t.trim())
+    .join(" ");
+  if (!text) return undefined;
+  return padLine(` ${text}`, width);
 }
 
 function renderExtensionComponentSlot(lines: string[] | undefined, width: number): string[] {
