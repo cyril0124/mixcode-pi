@@ -1,8 +1,7 @@
 import { getModel } from "@earendil-works/pi-ai/compat";
-import type { Model } from "@earendil-works/pi-ai";
 import type { SessionManager } from "@earendil-works/pi-coding-agent";
 import { resolveRegisteredModel } from "../core/models.js";
-import type { MixCodeTabInfo } from "../core/types.js";
+import type { MixCodeModel, MixCodeTabInfo } from "../core/types.js";
 import { MIXCODE_FAUX_MODEL } from "./faux-stream.js";
 import type { RuntimeModelRegistry } from "./runtime-types.js";
 
@@ -10,7 +9,7 @@ export function resolveRuntimeModel(
   provider: string,
   modelId: string,
   modelRegistry: RuntimeModelRegistry | undefined,
-): Model<any> {
+): MixCodeModel {
   if (provider === "faux") {
     const id = modelId ? modelId : MIXCODE_FAUX_MODEL.id;
     return { ...MIXCODE_FAUX_MODEL, id };
@@ -22,9 +21,9 @@ export function resolveRuntimeModel(
 
 export function resolveRuntimeModelFromSession(
   session: SessionManager,
-  fallback: MixCodeTabInfo["model"] | Model<any> | undefined,
+  fallback: MixCodeTabInfo["model"] | MixCodeModel | undefined,
   modelRegistry: RuntimeModelRegistry | undefined,
-): Model<any> {
+): MixCodeModel {
   const context = session.buildSessionContext();
   if (context.model) {
     return resolveRuntimeModel(context.model.provider, context.model.modelId, modelRegistry);

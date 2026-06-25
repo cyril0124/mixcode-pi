@@ -1,4 +1,3 @@
-import type { Model } from "@earendil-works/pi-ai";
 import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import {
   type AgentSessionServices,
@@ -33,7 +32,7 @@ import {
   isExtensionToolOwner,
   type ExtensionToolOwnerPolicy,
 } from "../core/extension-tool-owners.js";
-import type { AgentRuntimeConfig, MixCodeTabInfo } from "../core/types.js";
+import type { AgentRuntimeConfig, MixCodeModel, MixCodeTabInfo } from "../core/types.js";
 import type { MixCodeRuntime } from "./runtime.js";
 import {
   appendSystemMessage,
@@ -75,7 +74,7 @@ import type {
 import { activateMixCodeTools, PI_BUILTIN_TOOL_NAMES, ToolLog } from "./tools.js";
 
 export type RuntimeTabConfig = Omit<AgentRuntimeConfig, "sessionId" | "model"> & {
-  model?: Model<any>;
+  model?: MixCodeModel;
   suppressStartupSummary?: boolean;
   reuseServicesFromSessionId?: string;
   reuseServices?: AgentSessionServices;
@@ -107,11 +106,11 @@ export interface RuntimeLifecycleContext {
     agentSession: RuntimeTab["agentSession"],
   ) => void;
   createServices: (workdir: string, systemPrompt?: string) => Promise<AgentSessionServices>;
-  resolveModel: (provider: string, modelId: string) => Model<any>;
+  resolveModel: (provider: string, modelId: string) => MixCodeModel;
   resolveModelFromSession: (
     session: SessionManager,
-    fallback: MixCodeTabInfo["model"] | Model<any> | undefined,
-  ) => Model<any>;
+    fallback: MixCodeTabInfo["model"] | MixCodeModel | undefined,
+  ) => MixCodeModel;
   streamFn?: MixCodeStreamFn;
   getApiKey?: (provider: string) => Promise<string | undefined> | string | undefined;
   getDisabledExtensionKeys?: (workdir: string) => ReadonlySet<string>;
@@ -156,7 +155,7 @@ async function createRuntimeTabWithServices(
   session: SessionManager,
   config: RuntimeTabConfig,
   context: RuntimeLifecycleContext,
-  model: Model<any>,
+  model: MixCodeModel,
   services: AgentSessionServices,
   toolLog: ToolLog,
 ): Promise<RuntimeTab> {
@@ -308,7 +307,7 @@ async function createAgentSessionForReplacementWithServices(
   sessionManager: SessionManager,
   config: RuntimeTabConfig & { sessionStartEvent: SessionStartEvent },
   context: RuntimeLifecycleContext,
-  model: Model<any>,
+  model: MixCodeModel,
   services: AgentSessionServices,
   toolLog: ToolLog,
 ): Promise<CreateAgentSessionResult & { services: AgentSessionServices; toolLog: ToolLog }> {

@@ -1,11 +1,10 @@
 import { getModels, getProviders } from "@earendil-works/pi-ai/compat";
-import type { Model } from "@earendil-works/pi-ai";
 import { DEFAULT_MODEL_REF } from "./defaults.js";
-import type { MixCodeModelRef, MixCodeState, MixCodeTabInfo } from "./types.js";
+import type { MixCodeModelRef, MixCodeModel, MixCodeState, MixCodeTabInfo } from "./types.js";
 
-const registeredModels = new Map<string, Model<any>>();
+const registeredModels = new Map<string, MixCodeModel>();
 
-export function modelToRef(model: Model<any>): MixCodeModelRef {
+export function modelToRef(model: MixCodeModel): MixCodeModelRef {
   return {
     provider: model.provider,
     modelId: model.id,
@@ -21,18 +20,18 @@ export function listAvailableModelRefs(): MixCodeModelRef[] {
   );
 }
 
-export function registerModel(model: Model<any>): void {
+export function registerModel(model: MixCodeModel): void {
   registeredModels.set(modelKey(model.provider, model.id), model);
 }
 
-export function registerModels(models: Model<any>[]): void {
+export function registerModels(models: MixCodeModel[]): void {
   for (const model of models) registerModel(model);
 }
 
 // Drop every previously registered model before re-registering the given set.
 // Used by /reload so models removed from models.json stop resolving instead of
 // lingering as stale fallbacks in resolveRegisteredModel.
-export function replaceRegisteredModels(models: Model<any>[]): void {
+export function replaceRegisteredModels(models: MixCodeModel[]): void {
   registeredModels.clear();
   registerModels(models);
 }
@@ -61,7 +60,7 @@ export function normalizeModelRef(
   );
 }
 
-export function resolveRegisteredModel(provider: string, modelId: string): Model<any> | undefined {
+export function resolveRegisteredModel(provider: string, modelId: string): MixCodeModel | undefined {
   return registeredModels.get(modelKey(provider, modelId));
 }
 

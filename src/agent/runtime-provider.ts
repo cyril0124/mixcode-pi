@@ -1,16 +1,16 @@
 import {
   type AssistantMessage,
   createAssistantMessageEventStream,
-  type Model,
 } from "@earendil-works/pi-ai";
 import { getApiProvider, registerApiProvider } from "@earendil-works/pi-ai/compat";
 import type { ModelRegistry } from "@earendil-works/pi-coding-agent";
+import type { MixCodeModel } from "../core/types.js";
 import { mixcodeFauxStream } from "./faux-stream.js";
 import type { MixCodeStreamFn, SystemPromptOverride } from "./runtime-types.js";
 
 export function registerMixCodeRuntimeProvider(
   registry: ModelRegistry,
-  model: Model<any>,
+  model: MixCodeModel,
   streamFn?: MixCodeStreamFn,
   getApiKey?: (provider: string) => Promise<string | undefined> | string | undefined,
 ): void {
@@ -29,7 +29,7 @@ export function registerMixCodeRuntimeProvider(
     return;
   }
   if (registeredModel || !streamFn) return;
-  const runtimeStreamSimple = (requestModel: Model<any>, context: any, options: any = {}) =>
+  const runtimeStreamSimple = (requestModel: MixCodeModel, context: any, options: any = {}) =>
     bridgeRuntimeStream(requestModel, streamFn(requestModel, context, options));
   registry.registerProvider(model.provider, {
     name: model.provider,
@@ -53,7 +53,7 @@ function ensureApiRegistered(api: string, streamSimple: (...args: any[]) => any)
   });
 }
 
-function bridgeRuntimeStream(model: Model<any>, streamOrPromise: ReturnType<MixCodeStreamFn>) {
+function bridgeRuntimeStream(model: MixCodeModel, streamOrPromise: ReturnType<MixCodeStreamFn>) {
   const out = createAssistantMessageEventStream();
   void Promise.resolve(streamOrPromise)
     .then(async (stream) => {
@@ -97,7 +97,7 @@ function asyncRuntimeApiKeyResolver(
   return "mixcode-runtime";
 }
 
-function providerModelConfig(model: Model<any>) {
+function providerModelConfig(model: MixCodeModel) {
   return {
     id: model.id,
     name: model.name || model.id,

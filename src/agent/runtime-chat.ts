@@ -1,10 +1,10 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
-import type { AssistantMessage, Model, Usage } from "@earendil-works/pi-ai";
+import type { AssistantMessage, Usage } from "@earendil-works/pi-ai";
 import type { MessageRenderer, SessionEntry } from "@earendil-works/pi-coding-agent";
 import { type Component, TUI as PiTui } from "@earendil-works/pi-tui";
-import type { MixCodeTabInfo, PreviewMessageRole } from "../core/types.js";
+import type { MixCodeModel, MixCodeTabInfo, PreviewMessageRole } from "../core/types.js";
 import { clearPendingEscape } from "../core/tab-state.js";
 import { MIXCODE_EXTENSION_THEME } from "./runtime-extension-theme.js";
 import { applyMixCodeKeybindings } from "./runtime-pi-tui-bridge.js";
@@ -429,7 +429,7 @@ export function resetTabForNewSession(tab: MixCodeTabInfo, sessionId: string): v
   };
 }
 
-export function applyRuntimeTabModel(runtimeTab: RuntimeTab, model: Model<any>): void {
+export function applyRuntimeTabModel(runtimeTab: RuntimeTab, model: MixCodeModel): void {
   runtimeTab.tab.model = {
     provider: model.provider,
     modelId: model.id,

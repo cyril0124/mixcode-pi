@@ -2,7 +2,6 @@ import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
-import type { Model } from "@earendil-works/pi-ai";
 import {
   type AgentSession,
   type AgentSessionServices,
@@ -21,7 +20,7 @@ import { stripSkillInjection } from "../core/attachments.js";
 import { modelToRef, replaceRegisteredModels } from "../core/models.js";
 import { clearPendingEscape, setPendingMessages, setTabStatus } from "../core/tab-state.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
-import type { AgentRuntimeConfig, MixCodeModelRef, MixCodeTabInfo } from "../core/types.js";
+import type { AgentRuntimeConfig, MixCodeModel, MixCodeModelRef, MixCodeTabInfo } from "../core/types.js";
 import { MIXCODE_EXTENSION_KEYBINDINGS } from "./runtime-extension-theme.js";
 import { activateMixCodeTools, getActiveToolInfos } from "./tools.js";
 
@@ -211,7 +210,7 @@ export class MixCodeRuntime {
   async createTab(
     tab: MixCodeTabInfo,
     config: Omit<AgentRuntimeConfig, "sessionId" | "model"> & {
-      model?: Model<any>;
+      model?: MixCodeModel;
       suppressStartupSummary?: boolean;
       reuseServicesFromSessionId?: string;
     },
@@ -223,7 +222,7 @@ export class MixCodeRuntime {
   async clearTab(
     sessionId: string,
     config: Omit<AgentRuntimeConfig, "sessionId" | "model"> & {
-      model?: Model<any>;
+      model?: MixCodeModel;
       newSessionId?: string;
       suppressStartupSummary?: boolean;
     },
@@ -873,11 +872,11 @@ export class MixCodeRuntime {
     return tab;
   }
 
-  resolveModel(provider: string, modelId: string): Model<any> {
+  resolveModel(provider: string, modelId: string): MixCodeModel {
     return resolveRuntimeModel(provider, modelId, this.modelRegistry);
   }
 
-  updateTabModel(sessionId: string, model: Model<any>): void {
+  updateTabModel(sessionId: string, model: MixCodeModel): void {
     const runtimeTab = this.requireTab(sessionId);
     if (runtimeTab.agent.state.isStreaming) {
       throw new Error("Cannot change model while the agent is streaming");
@@ -974,8 +973,8 @@ export class MixCodeRuntime {
 
   private resolveModelFromSession(
     session: SessionManager,
-    fallback: MixCodeTabInfo["model"] | Model<any> | undefined,
-  ): Model<any> {
+    fallback: MixCodeTabInfo["model"] | MixCodeModel | undefined,
+  ): MixCodeModel {
     return resolveRuntimeModelFromSession(session, fallback, this.modelRegistry);
   }
 

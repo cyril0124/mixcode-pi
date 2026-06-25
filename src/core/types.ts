@@ -1,6 +1,12 @@
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { Model } from "@earendil-works/pi-ai";
 
+/** Erased Model type — the TApi type parameter is intentionally erased with `any`
+ *  because different models carry incompatible API-specific fields (e.g. `compat`).
+ *  Runtime code treats models uniformly while preserving shared metadata such as
+ *  `id`, `provider`, `api`, `baseUrl`, `reasoning`, and `contextWindow`. */
+export type MixCodeModel = Model<any>;
+
 import type { ChatSelectionState, ChatSurfaceBounds } from "./chat-selection.js";
 import type { SessionSelectorState } from "./session-selector.js";
 import type { ToastNotification } from "./toast.js";
@@ -282,7 +288,7 @@ export interface WorkspaceSnapshot {
 
 export interface AgentRuntimeConfig {
   systemPrompt?: string;
-  model: Model<any>;
+  model: MixCodeModel;
   thinkingLevel: ThinkingLevel;
   workdir: string;
   sessionId?: string;

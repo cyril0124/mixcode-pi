@@ -2,10 +2,10 @@ import type { Agent } from "@earendil-works/pi-agent-core";
 import type {
   Context,
   ImageContent,
-  Model,
   SimpleStreamOptions,
   TextContent,
 } from "@earendil-works/pi-ai";
+import type { MixCodeModel } from "../core/types.js";
 import type {
   AgentSession,
   AgentSessionEvent,
@@ -39,7 +39,7 @@ import type { mixcodeFauxStream } from "./faux-stream.js";
 import type { ToolLog } from "./tools.js";
 
 export type MixCodeStreamFn = (
-  model: Model<any>,
+  model: MixCodeModel,
   context: Context,
   options?: SimpleStreamOptions,
 ) => ReturnType<typeof mixcodeFauxStream> | Promise<ReturnType<typeof mixcodeFauxStream>>;

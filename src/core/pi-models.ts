@@ -1,21 +1,22 @@
 import { stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { Context, Model, ProviderHeaders, SimpleStreamOptions } from "@earendil-works/pi-ai";
+import type { Context, ProviderHeaders, SimpleStreamOptions } from "@earendil-works/pi-ai";
 import { streamSimple } from "@earendil-works/pi-ai/compat";
 import { AuthStorage, ModelRegistry } from "@earendil-works/pi-coding-agent";
+import type { MixCodeModel } from "./types.js";
 
 export interface PiModelSource {
   provider: string;
   modelId: string;
-  model: Model<any>;
+  model: MixCodeModel;
   authStatus: ReturnType<ModelRegistry["getProviderAuthStatus"]>;
 }
 
 export interface PiModelRuntimeAuth {
   getApiKey: (provider: string) => Promise<string | undefined>;
   stream: (
-    model: Model<any>,
+    model: MixCodeModel,
     context: Context,
     options?: SimpleStreamOptions,
   ) => ReturnType<typeof streamSimple> | Promise<ReturnType<typeof streamSimple>>;

@@ -2,9 +2,9 @@ import {
   type AssistantMessage,
   type Context,
   createAssistantMessageEventStream,
-  type Model,
   type SimpleStreamOptions,
 } from "@earendil-works/pi-ai";
+import type { MixCodeModel } from "../core/types.js";
 
 const EMPTY_USAGE = {
   input: 0,
@@ -15,7 +15,7 @@ const EMPTY_USAGE = {
   cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
 };
 
-export const MIXCODE_FAUX_MODEL: Model<string> = {
+export const MIXCODE_FAUX_MODEL: MixCodeModel = {
   id: "faux-1",
   name: "Faux MixCode Model",
   api: "mixcode-faux",
@@ -29,7 +29,7 @@ export const MIXCODE_FAUX_MODEL: Model<string> = {
 };
 
 export function mixcodeFauxStream(
-  model: Model<any>,
+  model: MixCodeModel,
   context: Context,
   _options?: SimpleStreamOptions,
 ) {
