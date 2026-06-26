@@ -115,9 +115,8 @@ tmp/mixcode-working-spacing-fixed-180x48.txt
   line 5   user message
   line 6   blank
   line 7   Working (...)
-  line 8   blank
-  line 9   input prompt
-  line 11  model / thinking / workdir meta
+  line 8   input prompt
+  line 10  model / thinking / workdir meta
 
 tmp/mixcode-agent-bottom-fixed-180x48.txt
   line 46  input prompt

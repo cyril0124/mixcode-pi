@@ -135,7 +135,7 @@ export class MixCodeLayoutRoot implements Component {
       ? renderExtensionWidgets(active, width, "belowEditor", theme)
       : [];
     const viewportRowsForClamp = this.getViewportRows?.();
-    const workingBottomGapRows = workingLines.length > 0 ? WORKING_GAP_ROWS : 0;
+    const workingBottomGapRows = 0;
     let editorLines = this.editor.render(width);
     let widgetsAboveBottomGapRows =
       widgetsAbove.length > 0 && (workingLines.length > 0 || editorLines.length > 0)

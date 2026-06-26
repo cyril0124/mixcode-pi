@@ -248,7 +248,7 @@ function renderWorkingIndicatorInner(
   if (!tab.extensionUi.workingVisible) return [];
   if (tab.status !== "running" && tab.status !== "thinking") {
     if (tab.lastWorkedDurationSeconds === undefined) return [];
-    const worked = `Worked for ${formatDuration(tab.lastWorkedDurationSeconds)}`;
+    const worked = ` Worked for ${formatDuration(tab.lastWorkedDurationSeconds)}`;
     const clock = formatClockTime(tab.lastWorkedAt);
     const text = clock ? `${worked} · at ${clock}` : worked;
     return [
@@ -309,8 +309,7 @@ function renderExtensionWidgetsInner(
   const widgets = tab.extensionUi.widgets.filter((widget) => widget.placement === placement);
   if (!widgets.length) return [];
   const lines: string[] = [];
-  widgets.forEach((widget, index) => {
-    if (index > 0) lines.push(padLine("", width));
+  widgets.forEach((widget) => {
     const bodyWidth = Math.max(1, width - 2);
     const widgetLines = widget.render?.(bodyWidth) ?? wrapExtensionWidgetLines(widget.lines, bodyWidth);
     lines.push(...widgetLines.map((line) => renderSingleLineExtensionSlot(line, width)));
