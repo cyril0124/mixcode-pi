@@ -344,7 +344,7 @@ function buildExtensionStatusLine(
   const text = sorted
     .map((status) => cleanStatusText(status.text))
     .filter((t) => t.trim())
-    .join(" ");
+    .join(` ${activeRenderTheme.dim("│")} `);
   if (!text) return undefined;
   return padLine(` ${text}`, width);
 }
