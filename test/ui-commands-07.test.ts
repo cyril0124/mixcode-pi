@@ -114,6 +114,47 @@ test("double escape stop takes priority over extension terminal input handlers",
   assert.equal(aborts, 1);
 });
 
+test("extension widget input handlers are suppressed while a modal dialog is active", () => {
+  // pi-subagents registers a belowEditor fleet list whose input listener
+  // navigates on Up/Down. A `/agents` select dialog replaces the editor without
+  // a tui overlay (hasOverlay=false) but sets a pending interaction, so the
+  // dialog — not the widget — must own the arrow keys.
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo", {
+    extensionUi: {
+      statuses: [],
+      widgets: [{ key: "fleet", placement: "belowEditor", lines: ["fleet"] }],
+      toolsExpanded: false,
+      pendingUserInteractions: [{ id: "extension-select-1", kind: "custom" }],
+      workingVisible: true,
+    },
+  });
+  state.tabs.push(tab);
+  state.activeTabId = "s1";
+  let dispatched = 0;
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({}) as never,
+    hasOverlay: () => false,
+  };
+  const runtime = {
+    dispatchTerminalInput: () => {
+      dispatched++;
+      return { consume: true };
+    },
+  } as unknown as Parameters<typeof handleMixCodeKeyInput>[4];
+  const editor = { getText: () => "", setText: () => undefined };
+
+  handleMixCodeKeyInput(state, "\x1b[A", tui, undefined, runtime, undefined, () => false, editor);
+  handleMixCodeKeyInput(state, "\x1b[B", tui, undefined, runtime, undefined, () => false, editor);
+  assert.equal(dispatched, 0);
+
+  // Without a pending interaction the widget listener runs normally.
+  tab.extensionUi.pendingUserInteractions = [];
+  handleMixCodeKeyInput(state, "\x1b[A", tui, undefined, runtime, undefined, () => false, editor);
+  assert.equal(dispatched, 1);
+});
+
 test("expired double escape arm resets before stopping an active run", () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo", { status: "thinking" });

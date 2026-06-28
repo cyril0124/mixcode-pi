@@ -167,7 +167,18 @@ export function handleMixCodeKeyInput(
   if (handleChatSelectionMouseInput(state, active, data, tui, runtime)) {
     return { consume: true };
   }
-  if (active && state.activeTabId !== "config" && !hasAnyOverlay(tui)) {
+  // Route raw input to extension widget input listeners (e.g. pi-subagents'
+  // belowEditor fleet list navigation). Suppressed while a modal extension
+  // interaction is active: select/confirm/input dialogs replace the editor
+  // without registering a tui overlay, so `hasAnyOverlay` is false for them —
+  // without the pending-interaction guard a widget listener would steal the
+  // dialog's arrow keys (e.g. Up/Down during `/agents`).
+  if (
+    active &&
+    state.activeTabId !== "config" &&
+    !hasAnyOverlay(tui) &&
+    !active.extensionUi.pendingUserInteractions.length
+  ) {
     const extensionInput = runtime?.dispatchTerminalInput?.(active.sessionId, data);
     if (extensionInput?.consume) return { consume: true };
     if (extensionInput?.data !== undefined) data = extensionInput.data;
