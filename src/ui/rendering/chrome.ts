@@ -324,6 +324,89 @@ function wrapExtensionWidgetLines(lines: string[], width: number): string[] {
   return lines.flatMap((line) => wrapTextWithAnsi(sanitizeWidgetLine(line), width));
 }
 
+// Fraction of terminal width given to the side panel when it is open.
+const EXTENSION_PANEL_WIDTH_RATIO = 0.33;
+const EXTENSION_PANEL_MIN_WIDTH = 30;
+
+/**
+ * Compute the side panel column width for a given terminal width. Clamped to a
+ * usable minimum; callers gate opening on a wide-enough terminal so the chat
+ * column is never crushed.
+ */
+export function extensionPanelWidth(terminalWidth: number): number {
+  const target = Math.floor(terminalWidth * EXTENSION_PANEL_WIDTH_RATIO);
+  return Math.max(EXTENSION_PANEL_MIN_WIDTH, target);
+}
+
+/**
+ * Render the widget side panel: aboveEditor widgets stacked over belowEditor
+ * widgets, separated by a blank row, framed with a left vertical border so it
+ * reads as a distinct column. Lines are padded to exactly `panelWidth` and the
+ * list is clipped to `panelHeight` (a dimmed "… more" marker replaces the last
+ * visible content row on overflow). The final row is a dim hint on how to close
+ * the panel. The returned rows are the raw rendered lines used for both display
+ * and mouse text selection.
+ */
+export function renderExtensionPanel(
+  tab: MixCodeTabInfo,
+  panelWidth: number,
+  panelHeight: number,
+  theme: MixCodeTheme = activeRenderTheme,
+): string[] {
+  return renderWithTheme(theme, () => renderExtensionPanelInner(tab, panelWidth, panelHeight));
+}
+
+// Dim footer hint telling the user how to dismiss the panel (Right toggles it).
+const EXTENSION_PANEL_CLOSE_HINT = "\u2192 to close";
+
+function renderExtensionPanelInner(
+  tab: MixCodeTabInfo,
+  panelWidth: number,
+  panelHeight: number,
+): string[] {
+  const height = Math.max(0, Math.floor(panelHeight));
+  if (height === 0 || panelWidth < 4) return [];
+  // Border + one padding space on the left; body fills the rest.
+  const bodyWidth = Math.max(1, panelWidth - 2);
+  const border = activeRenderTheme.borderDim("\u2502");
+  const blank = padLine(border, panelWidth);
+  const ordered = [
+    ...tab.extensionUi.widgets.filter((widget) => widget.placement === "aboveEditor"),
+    ...tab.extensionUi.widgets.filter((widget) => widget.placement === "belowEditor"),
+  ];
+  // Reserve the bottom row for a dim close hint when there is room for at least
+  // one content row above it; on a 1-row panel the content wins.
+  const hasHint = height >= 2;
+  const contentHeight = hasHint ? height - 1 : height;
+  const content: string[] = [];
+  ordered.forEach((widget, index) => {
+    if (index > 0) content.push(blank);
+    // The panel is a tall column, so let each widget render up to the panel's
+    // content budget instead of the host's default editor-area cap. The final
+    // clip below renders a single "… more" indicator for any real overflow.
+    const widgetLines =
+      widget.render?.(bodyWidth, contentHeight + 1) ??
+      wrapExtensionWidgetLines(widget.lines, bodyWidth);
+    for (const line of widgetLines) {
+      const text = truncateToWidth(sanitizeWidgetLine(line), bodyWidth, "...");
+      content.push(padLine(`${border} ${text}`, panelWidth));
+    }
+  });
+  // Clip content to its budget, marking overflow on the final visible row.
+  let visible = content;
+  if (content.length > contentHeight) {
+    visible = content.slice(0, contentHeight);
+    visible[contentHeight - 1] = padLine(`${border} ${activeRenderTheme.dim("\u2026 more")}`, panelWidth);
+  }
+  // Pad to full content height with border-only rows so the column stays rectangular.
+  while (visible.length < contentHeight) visible.push(blank);
+  if (hasHint) {
+    const hint = truncateToWidth(EXTENSION_PANEL_CLOSE_HINT, bodyWidth, "...");
+    visible.push(padLine(`${border} ${activeRenderTheme.dim(hint)}`, panelWidth));
+  }
+  return visible;
+}
+
 export function renderFooter(width: number): string[] {
   void width;
   return [];

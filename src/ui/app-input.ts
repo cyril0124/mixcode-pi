@@ -8,6 +8,7 @@ import {
   scrollChat,
 } from "../core/overlays.js";
 import { buildModelPrompt } from "../core/prompt-build.js";
+import { pushToast } from "../core/toast.js";
 import { getKnownSkillsFromTab, getPromptTemplatesFromTab } from "./app-submit.js";
 import { activateTab, getActiveTab, nextTabId } from "../core/tabs.js";
 import type { MixCodeState } from "../core/types.js";
@@ -242,6 +243,26 @@ export function handleMixCodeKeyInput(
     handleExportChooserKey(state, data, tui, runtime, exportChooserActions)
   ) {
     if (active) clearPendingEscape(active, "abort-agent");
+    return { consume: true };
+  }
+  // Right on empty input toggles the extension widget side panel. Mirrors the
+  // Left-returns-Home guard so it never steals the editor's cursor-right when
+  // there is text. Kept before extension/vim handling so it remains a built-in
+  // empty-input shortcut.
+  if (
+    active &&
+    state.activeTabId !== "config" &&
+    matchesKey(data, "right") &&
+    !hasAnyOverlay(tui) &&
+    !isEditorAutocompleteOpen() &&
+    !active.previewOpen &&
+    !active.pendingDialogs.length &&
+    !active.extensionUi.pendingUserInteractions.length &&
+    editorActions &&
+    editorActions.getText().length === 0
+  ) {
+    clearPendingEscape(active, "abort-agent");
+    toggleExtensionPanel(active, tui);
     return { consume: true };
   }
   if (
@@ -550,4 +571,43 @@ function inlineSubmitText(data: string): string | undefined {
     if (code < 0x20 || code === 0x7f) return undefined;
   }
   return body;
+}
+
+// Minimum terminal width before the side panel may open. Below this a split
+// would crush the chat column, so we toast instead. Mirrors the
+// extension-manager two-pane threshold for consistency.
+export const EXTENSION_PANEL_MIN_TERMINAL_WIDTH = 80;
+
+/**
+ * Toggle the extension widget side panel for the active tab. Opening is gated
+ * on having at least one aboveEditor/belowEditor widget (no empty panel) and a
+ * wide-enough terminal (otherwise a toast explains why nothing happened).
+ * Closing always succeeds.
+ */
+function toggleExtensionPanel(active: MixCodeState["tabs"][number], tui: OverlayTui): void {
+  if (active.panelOpen) {
+    active.panelOpen = false;
+    active.panelSelection = undefined;
+    tui.requestRender();
+    return;
+  }
+  const hasWidgets = active.extensionUi.widgets.some(
+    (widget) => widget.placement === "aboveEditor" || widget.placement === "belowEditor",
+  );
+  if (!hasWidgets) {
+    pushToast(active, { type: "info", message: "No extension widgets to show." });
+    tui.requestRender();
+    return;
+  }
+  const columns = process.stdout.columns || 0;
+  if (columns > 0 && columns < EXTENSION_PANEL_MIN_TERMINAL_WIDTH) {
+    pushToast(active, {
+      type: "warning",
+      message: `Terminal too narrow for the widget panel (need ${EXTENSION_PANEL_MIN_TERMINAL_WIDTH} cols).`,
+    });
+    tui.requestRender();
+    return;
+  }
+  active.panelOpen = true;
+  tui.requestRender();
 }

@@ -97,6 +97,7 @@ export function createTab(
     chatSurfaceBounds: undefined,
     chatSelection: undefined,
     lastRenderedChatLines: [],
+    panelOpen: false,
     ...overrides,
   };
 }

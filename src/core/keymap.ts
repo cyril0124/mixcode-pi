@@ -53,6 +53,12 @@ export const MIXCODE_KEYMAP: KeyAction[] = [
     description: "Browse prompt history when input is empty",
     scope: "global",
   },
+  {
+    key: "right",
+    action: "extension-widget-panel",
+    description: "Toggle extension widget side panel when input is empty",
+    scope: "global",
+  },
   { key: "ctrl+j", action: "newline", description: "Insert newline", scope: "global" },
   { key: "shift+enter", action: "newline", description: "Insert newline", scope: "global" },
 

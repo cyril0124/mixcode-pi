@@ -7,12 +7,15 @@ import { getActiveTab } from "../core/tabs.js";
 import type { EditorSlot } from "./app-editor.js";
 import {
   fitHeadLines,
+  joinColumns,
   padLine,
   renderAgentSurface,
   renderConfig,
   renderExtensionFooter,
   renderExtensionHeader,
+  renderExtensionPanel,
   renderExtensionWidgets,
+  extensionPanelWidth,
   renderFooter,
   renderHeader,
   renderInputMeta,
@@ -69,14 +72,60 @@ export class MixCodeRoot implements Component {
     const placeholderBottom = bottomBeforeMeta;
     const visibleBottom = placeholderBottom.slice(0, maxBottomRows);
     const middleHeight = Math.max(0, limit - fixedTop.length - visibleBottom.length);
+    const middle = this.renderMiddle(active, runtimeTab, width, middleHeight, fixedTop.length, theme);
+    return [...fixedTop, ...middle, ...visibleBottom];
+  }
+
+  /**
+   * Render the chat surface for the given height, optionally splitting off a
+   * right-hand extension widget panel when the tab has it open. Sets the screen
+   * bounds for chat (and panel) so mouse text-selection maps correctly.
+   */
+  private renderMiddle(
+    active: MixCodeState["tabs"][number],
+    runtimeTab: ReturnType<MixCodeRuntime["getTab"]>,
+    width: number,
+    middleHeight: number,
+    topRows: number,
+    theme: ReturnType<typeof themeForId>,
+  ): string[] {
+    if (!active.panelOpen) {
+      active.panelSurfaceBounds = undefined;
+      active.lastRenderedPanelLines = [];
+      active.chatSurfaceBounds = {
+        top: topRows + 1,
+        left: 1,
+        width: Math.max(1, width - 1),
+        height: middleHeight,
+      };
+      return renderAgentSurface(active, runtimeTab, width, middleHeight, theme);
+    }
+    // Split: chat on the left, widget panel on the right (1-col gap between).
+    const panelWidth = extensionPanelWidth(width);
+    const gap = 1;
+    const chatWidth = Math.max(1, width - panelWidth - gap);
     active.chatSurfaceBounds = {
-      top: fixedTop.length + 1,
+      top: topRows + 1,
       left: 1,
-      width: Math.max(1, width - 1),
+      width: Math.max(1, chatWidth - 1),
       height: middleHeight,
     };
-    const middle = renderAgentSurface(active, runtimeTab, width, middleHeight, theme);
-    return [...fixedTop, ...middle, ...visibleBottom];
+    const chat = renderAgentSurface(active, runtimeTab, chatWidth, middleHeight, theme);
+    let panel = renderExtensionPanel(active, panelWidth, middleHeight, theme);
+    active.lastRenderedPanelLines = panel;
+    // Panel occupies the columns after chat + gap (1-based screen coordinates).
+    active.panelSurfaceBounds = {
+      top: topRows + 1,
+      left: chatWidth + gap + 1,
+      width: panelWidth,
+      height: panel.length,
+    };
+    if (active.panelSelection) {
+      panel = panel.map((line, row) =>
+        highlightChatSelectionLine(line, row, active.panelSelection, theme.selection),
+      );
+    }
+    return joinColumns(chat, panel, chatWidth, panelWidth);
   }
 
   private fitRootLines(lines: string[], width: number): string[] {
@@ -129,13 +178,21 @@ export class MixCodeLayoutRoot implements Component {
     // Vim mode is a read-only chat-scrolling surface; suppress extension
     // widgets (above/below editor) so reclaimed rows grow the chat history.
     // Widget registration/lifecycle is untouched — this only gates rendering.
+    // The side panel likewise relocates these widgets, so hide them here when
+    // it is open (they render inside the panel via MixCodeRoot).
     const isVim = active?.vimMode === true;
+    const panelOpen = active?.panelOpen === true;
+    const hideEditorWidgets = isVim || panelOpen;
     const metaProbe = isAgentTab ? renderInputMeta(active, width, 0, theme, false) : [];
     const workingLines = isAgentTab ? this.renderWorkingLoader(active, width, theme) : [];
     const widgetsAbove =
-      isAgentTab && !isVim ? renderExtensionWidgets(active, width, "aboveEditor", theme) : [];
+      isAgentTab && !hideEditorWidgets
+        ? renderExtensionWidgets(active, width, "aboveEditor", theme)
+        : [];
     const widgetsBelow =
-      isAgentTab && !isVim ? renderExtensionWidgets(active, width, "belowEditor", theme) : [];
+      isAgentTab && !hideEditorWidgets
+        ? renderExtensionWidgets(active, width, "belowEditor", theme)
+        : [];
     const viewportRowsForClamp = this.getViewportRows?.();
     const workingBottomGapRows = 0;
     let editorLines = this.editor.render(width);

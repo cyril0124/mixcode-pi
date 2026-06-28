@@ -119,6 +119,7 @@ Config tab 只渲染配置面板和可点击操作，不渲染 prompt editor；�
 | `Ctrl+R` | 预填 `/rename 当前标题`，复用 slash command 重命名 |
 | `Alt+Up` / `Ctrl+U` | 将最后一条 queued prompt 弹回编辑器；没有队列时不抢占 Editor |
 | `Up` / `Down` | 普通输入为空且无 overlay、preview、补全、extension terminal input 消费时浏览当前 tab 的 prompt 历史；其它场景交给局部控件 |
+| `Right` | 普通输入为空且无 overlay、preview、补全、extension user interaction 时切换 extension widget side panel；无 widget 或终端过窄时显示 toast；有输入时交给 Editor 光标移动 |
 | `Ctrl+V` | Markdown preview |
 | `@` | 打开 mixcode 风格全局文件 picker，选择后插入 `@path ` |
 | `Esc` | 关闭 overlay、preview 或 tab jump；shell 场景单次关闭 shell |
@@ -133,7 +134,7 @@ key input
   ├─ global
   │    ├─ Tab / Shift+Tab / Ctrl+P / Ctrl+L / Ctrl+T
   │    ├─ Ctrl+E / Ctrl+C / Ctrl+R / Ctrl+V / Ctrl+Q
-  │    └─ @ / Esc / Alt+Up / Ctrl+U / Up / Down
+  │    └─ @ / Esc / Alt+Up / Ctrl+U / Up / Down / Right
   │
   └─ scoped overlays
        ├─ picker:          Tab Shift+Tab Up Down Enter Esc

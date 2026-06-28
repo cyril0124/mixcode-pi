@@ -147,9 +147,9 @@ function createLiveExtensionWidget(
     key,
     placement,
     lines: renderExtensionLines(component, terminal.columns),
-    render: (width) => {
+    render: (width, maxLines) => {
       terminal.columns = Math.max(1, Math.floor(width));
-      return renderExtensionLines(component, terminal.columns);
+      return renderExtensionLines(component, terminal.columns, maxLines);
     },
     dispose: () => {
       component.dispose?.();
@@ -166,20 +166,30 @@ export function disposeExtensionWidgets(tab: MixCodeTabInfo): void {
   tab.extensionUi.footer?.dispose?.();
 }
 
-function renderExtensionLines(component: Component, width: number): string[] {
+function renderExtensionLines(component: Component, width: number, maxLines?: number): string[] {
   const restoreKeybindings = applyMixCodeKeybindings();
   try {
     ensureExtensionThemeInitialized();
-    return limitExtensionWidgetLines(component.render(width));
+    return limitExtensionWidgetLines(component.render(width), maxLines);
   } finally {
     restoreKeybindings();
   }
 }
 
-function limitExtensionWidgetLines(lines: string[]): string[] {
+// Default editor-area cap: a single widget stacked around the editor may not
+// dominate the viewport, so it is clipped with a visible "truncated" marker.
+const DEFAULT_WIDGET_MAX_LINES = 10;
+
+function limitExtensionWidgetLines(lines: string[], maxLines?: number): string[] {
   const normalized = lines
     .map((line) => line.replace(/[\r\n\t]+/g, " "))
     .filter((line) => line.trim());
-  if (normalized.length <= 10) return normalized;
-  return [...normalized.slice(0, 10), "... (widget truncated)"];
+  // Caller-provided budget (e.g. the side panel): clip silently and let the
+  // caller render its own overflow indicator, avoiding a double marker.
+  if (maxLines !== undefined) {
+    const budget = Math.max(0, Math.floor(maxLines));
+    return normalized.length <= budget ? normalized : normalized.slice(0, budget);
+  }
+  if (normalized.length <= DEFAULT_WIDGET_MAX_LINES) return normalized;
+  return [...normalized.slice(0, DEFAULT_WIDGET_MAX_LINES), "... (widget truncated)"];
 }

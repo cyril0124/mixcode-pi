@@ -66,6 +66,9 @@ export function handleMouseInput(
   }
   if (hasAnyOverlay(tui)) return false;
   if (handleInputSelectionMouse(active, mouse, tui, copyToClipboard)) return true;
+  if (active.panelOpen && handlePanelSelectionMouse(active, mouse, tui, copyToClipboard)) {
+    return true;
+  }
   if (handleChatSelectionMouseInput(state, active, data, tui, runtime, copyToClipboard)) {
     return true;
   }
@@ -164,6 +167,27 @@ function handleChatSelectionMouse(
       active.chatSelection = selection;
     },
     getLines: () => active.lastRenderedChatLines ?? [],
+    selectText: selectedChatText,
+  });
+}
+
+function handlePanelSelectionMouse(
+  active: MixCodeState["tabs"][number],
+  mouse: NonNullable<ReturnType<typeof parseSgrMouseInput>>,
+  tui: OverlayTui,
+  copyToClipboard: ClipboardWriter,
+): boolean {
+  return handleTextSelectionMouse({
+    active,
+    mouse,
+    tui,
+    copyToClipboard,
+    bounds: active.panelSurfaceBounds,
+    getSelection: () => active.panelSelection,
+    setSelection: (selection) => {
+      active.panelSelection = selection;
+    },
+    getLines: () => active.lastRenderedPanelLines ?? [],
     selectText: selectedChatText,
   });
 }

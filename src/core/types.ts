@@ -171,6 +171,18 @@ export interface MixCodeTabInfo {
   inputSelection?: ChatSelectionState;
   /** Non-persisted: raw rendered input/editor rows before selection highlighting. */
   lastRenderedInputLines?: string[];
+  /**
+   * Per-tab toggle for the extension widget side panel. When true and the
+   * editor input is empty, the aboveEditor/belowEditor widgets are collected
+   * into a right-hand vertical split instead of stacking around the editor.
+   */
+  panelOpen: boolean;
+  /** Non-persisted: screen bounds for the visible widget side panel. */
+  panelSurfaceBounds?: ChatSurfaceBounds;
+  /** Non-persisted: active text selection inside the widget side panel. */
+  panelSelection?: ChatSelectionState;
+  /** Non-persisted: raw rendered side-panel rows before selection highlighting. */
+  lastRenderedPanelLines?: string[];
   /** Non-persisted: transient toast notification shown in the top-right corner. */
   toast?: ToastNotification;
 }
@@ -190,7 +202,13 @@ export interface ExtensionWidgetLine {
   key: string;
   placement: ExtensionWidgetPlacement;
   lines: string[];
-  render?: (width: number) => string[];
+  /**
+   * Render the widget at a given width. `maxLines` caps the output: when
+   * omitted the host applies its default editor-area cap (with a "truncated"
+   * marker); when provided (e.g. by the side panel) the lines are clipped
+   * silently to that budget so the caller renders its own overflow indicator.
+   */
+  render?: (width: number, maxLines?: number) => string[];
   dispose?: () => void;
 }
 
