@@ -451,6 +451,9 @@ test("editor and runtime model helpers cover fallback branches", () => {
   addPromptHistory(tab, "first");
   addPromptHistory(tab, "first");
   assert.deepEqual(tab.promptHistory, ["first"]);
+  addPromptHistory(tab, "older");
+  addPromptHistory(tab, "first");
+  assert.deepEqual(tab.promptHistory, ["first", "older"]);
   for (let index = 0; index < 105; index++) addPromptHistory(tab, `item-${index}`);
   assert.equal(tab.promptHistory.length, 100);
 

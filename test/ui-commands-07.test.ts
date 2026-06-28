@@ -453,6 +453,7 @@ test("vim mode consumes editor input, scrolls chat, and exits with q", async () 
       prompts.push(prompt);
     },
   };
+  let historyBrowsed = false;
   const editorActions = {
     getText: () => text,
     setText: (next: string) => {
@@ -465,10 +466,30 @@ test("vim mode consumes editor input, scrolls chat, and exits with q", async () 
       prompts.push(text);
       text = "";
     },
+    browsePromptHistory: () => {
+      historyBrowsed = true;
+      return true;
+    },
   };
 
   await handleSubmittedInput(state, runtime, "/vim", tui);
   assert.equal(tab.vimMode, true);
+
+  assert.deepEqual(
+    handleMixCodeKeyInput(
+      state,
+      "\x1b[A",
+      tui,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      editorActions,
+    ),
+    { consume: true },
+  );
+  assert.equal(tab.chatScrollOffset, 3);
+  assert.equal(historyBrowsed, false);
 
   assert.deepEqual(
     handleMixCodeKeyInput(

@@ -16,6 +16,7 @@ import {
   type MixCodeState,
   UUIDV7_SESSION_ID_PATTERN,
 } from "../src/index.js";
+import { restoreWorkspace } from "../src/ui/workspace-restore.js";
 
 function stripAnsi(text: string): string {
   return text
@@ -52,7 +53,10 @@ function createOverlayTui() {
   };
 }
 
-function createRuntime(sessionFiles: Record<string, string | undefined> = {}) {
+function createRuntime(
+  sessionFiles: Record<string, string | undefined> = {},
+  promptHistory: Record<string, string[]> = {},
+) {
   const created: string[] = [];
   const closed: string[] = [];
   const switched: Array<{ sessionId: string; sessionPath: string }> = [];
@@ -75,6 +79,7 @@ function createRuntime(sessionFiles: Record<string, string | undefined> = {}) {
       sessionFiles[sessionId] = sessionPath;
       return { cancelled: false };
     },
+    getPromptHistory: (sessionId: string) => promptHistory[sessionFiles[sessionId] ?? sessionId] ?? [],
   } as unknown as MixCodeRuntime;
   return { runtime, created, closed, switched };
 }
@@ -239,7 +244,10 @@ test("restore workspace reopens saved sessions, closes extra tabs, and reports m
         ],
       },
     ]);
-    const { runtime, created, closed, switched } = createRuntime({ extra: join(dir, "extra.jsonl") });
+    const { runtime, created, closed, switched } = createRuntime(
+      { extra: join(dir, "extra.jsonl") },
+      { [existingSessionPath]: ["old prompt", "new prompt"] },
+    );
     const tui = createOverlayTui();
 
     await handleSubmittedInput(state, runtime, "/restore-workspace main", tui, undefined, undefined, workspaceFile);
@@ -253,12 +261,46 @@ test("restore workspace reopens saved sessions, closes extra tabs, and reports m
     assert.deepEqual(closed, ["extra"]);
     assert.equal(switched.length, 1);
     assert.equal(switched[0]?.sessionPath, existingSessionPath);
+    assert.deepEqual(state.tabs[0]?.promptHistory, ["new prompt", "old prompt"]);
     assert.deepEqual(state.workspaceOverlay.skippedMissing, ["old qa"]);
     const toastMsg = state.tabs[0]?.toast?.message ?? "";
     assert.match(toastMsg, /Workspace restored: main · restored 1, skipped 1/);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+test("restore workspace order-only path hydrates prompt history", async () => {
+  const state = createInitialState("/repo");
+  const first = createTab(1, "s1", "/repo", { title: "one" });
+  const second = createTab(2, "s2", "/repo", { title: "two" });
+  state.tabs.push(first, second);
+  state.activeTabId = "s1";
+  const runtime = {
+    getTab: () => undefined,
+    getPromptHistory: (sessionId: string) => (sessionId === "s2" ? ["old", "new"] : []),
+  } as unknown as MixCodeRuntime;
+  const tui = createOverlayTui();
+
+  await restoreWorkspace(
+    state,
+    runtime,
+    tui,
+    {
+      name: "main",
+      children: ["s2", "s1"],
+      startupWorkdir: "/repo",
+      updatedAt: "now",
+      activeSessionId: "s2",
+      tabs: [],
+    },
+  );
+
+  assert.deepEqual(
+    state.tabs.map((tab) => tab.sessionId),
+    ["s2", "s1"],
+  );
+  assert.deepEqual(state.tabs[0]?.promptHistory, ["new", "old"]);
 });
 
 test("restore workspace keeps active tab when earlier workspace items are skipped", async () => {

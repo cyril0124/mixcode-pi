@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -17,6 +18,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { type AutocompleteProvider, matchesKey as matchesPiKey } from "@earendil-works/pi-tui";
 import { stripSkillInjection } from "../core/attachments.js";
+import { contentText } from "./runtime-text.js";
 import { modelToRef, replaceRegisteredModels } from "../core/models.js";
 import { clearPendingEscape, setPendingMessages, setTabStatus } from "../core/tab-state.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
@@ -80,6 +82,7 @@ import {
   bindRuntimeSessionCore,
   copySession,
   createSession,
+  findSessionFileByName,
   listAllSessionsGlobal,
   listSessionsForCwd,
   openOrCreateSession,
@@ -113,6 +116,47 @@ export type {
 } from "./runtime-types.js";
 
 type BashResult = Awaited<ReturnType<AgentSession["executeBash"]>>;
+
+type UserSessionEntry = {
+  id?: string;
+  parentId?: string | null;
+  type?: string;
+  message?: { role?: string; content?: string | Array<{ type: string; text?: string }> };
+};
+
+function promptsFromSessionFile(file: string | undefined): string[] {
+  if (!file) return [];
+  return sessionFileBranch(file).flatMap((entry) => promptsFromSessionEntry(entry));
+}
+
+function sessionFileBranch(file: string): UserSessionEntry[] {
+  const entries = readFileSync(file, "utf8")
+    .split(/\r?\n/)
+    .flatMap((line) => {
+      if (!line.trim()) return [];
+      try {
+        return [JSON.parse(line) as UserSessionEntry];
+      } catch {
+        return [];
+      }
+    });
+  if (entries[0]?.type !== "session") return [];
+  const messages = entries.filter((entry) => entry.type !== "session");
+  if (messages.some((entry) => !entry.id || entry.parentId === undefined)) return messages;
+  const byId = new Map(messages.flatMap((entry) => (entry.id ? [[entry.id, entry]] : [])));
+  const branch: UserSessionEntry[] = [];
+  for (let entry = messages.at(-1); entry; entry = entry.parentId ? byId.get(entry.parentId) : undefined) {
+    branch.push(entry);
+  }
+  return branch.reverse();
+}
+
+function promptsFromSessionEntry(entry: UserSessionEntry): string[] {
+  if (entry.type !== "message" || entry.message?.role !== "user" || !entry.message.content)
+    return [];
+  const text = stripSkillInjection(contentText(entry.message.content)).trim();
+  return text ? [text] : [];
+}
 
 export class MixCodeRuntime {
   private readonly sessionsRoot: string;
@@ -278,14 +322,20 @@ export class MixCodeRuntime {
 
   getPromptHistory(sessionId: string): string[] {
     const runtimeTab = this.tabs.get(sessionId);
-    if (!runtimeTab) return [];
-    const history: string[] = [];
-    for (const line of runtimeTab.chat) {
-      if (line.role === "user" && line.text.trim()) {
-        history.push(stripSkillInjection(line.text));
-      }
+    if (runtimeTab) {
+      const prompts = runtimeTab.session
+        .getBranch()
+        .flatMap((entry) => promptsFromSessionEntry(entry));
+      if (prompts.length > 0) return prompts;
+      return runtimeTab.chat.flatMap((line) => {
+        if (line.role !== "user") return [];
+        const text = stripSkillInjection(line.text).trim();
+        return text ? [text] : [];
+      });
     }
-    return history;
+    const filePrompts = promptsFromSessionFile(findSessionFileByName(this.sessionsRoot, sessionId));
+    if (filePrompts.length > 0) return filePrompts;
+    return [];
   }
 
   onChange(listener: (event: RuntimeEvent, runtimeTab: RuntimeTab) => void): () => void {

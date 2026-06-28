@@ -424,6 +424,12 @@ export class EditorSlot implements Component {
     this.activeEditor.onSubmit?.(text);
   }
 
+  browsePromptHistory(data: string): boolean {
+    this.syncActiveTab();
+    if (this.activeTab()?.vimMode) return false;
+    return this.handleTabHistoryInput(data);
+  }
+
   setAutocompleteProvider(provider: AutocompleteProvider): void {
     this.autocompleteProvider = provider;
     this.defaultEditor.setAutocompleteProvider?.(provider);
@@ -645,9 +651,10 @@ export function addPromptHistory(
 ): void {
   const trimmed = text.trim();
   if (!tab || !trimmed) return;
-  if (tab.promptHistory[0] === trimmed) return;
-  tab.promptHistory.unshift(trimmed);
-  if (tab.promptHistory.length > 100) tab.promptHistory.pop();
+  tab.promptHistory = [trimmed, ...tab.promptHistory.filter((item) => item !== trimmed)].slice(
+    0,
+    100,
+  );
 }
 export function insertEditorText(editorActions: MixCodeEditorActions, text: string): void {
   if (editorActions.insertTextAtCursor) {

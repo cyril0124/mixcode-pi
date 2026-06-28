@@ -110,17 +110,25 @@ export async function openOrCreateSession(
 // Session files are named `${ISO-timestamp}_${sessionId}.jsonl`. The timestamp
 // never contains "_", so the substring after the first "_" is the sessionId
 // (which may itself contain "-"). Returns the newest matching file path.
-function findSessionFileByName(sessionsRoot: string, sessionId: string): string | undefined {
+export function findSessionFileByName(sessionsRoot: string, sessionId: string): string | undefined {
   let entries: string[];
   try {
     entries = readdirSync(sessionsRoot);
   } catch {
     return undefined;
   }
-  const suffix = `_${sessionId}.jsonl`;
-  const matches = entries.filter((name) => name.endsWith(suffix)).sort();
+  const matches = entries
+    .filter((name) => sessionIdFromFileName(name) === sessionId)
+    .sort();
   const latest = matches.at(-1);
   return latest ? join(sessionsRoot, latest) : undefined;
+}
+
+function sessionIdFromFileName(name: string): string | undefined {
+  if (!name.endsWith(".jsonl")) return undefined;
+  const separator = name.indexOf("_");
+  if (separator < 0) return undefined;
+  return name.slice(separator + 1, -".jsonl".length);
 }
 
 export async function createSession(

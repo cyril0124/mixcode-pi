@@ -190,6 +190,55 @@ function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+test("runtime restores prompt history from the active SDK branch", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-branch-"));
+  const sessionId = "branch-history";
+  const file = join(dir, `2026-06-27T00-00-00-000Z_${sessionId}.jsonl`);
+  try {
+    const lines = [
+      { type: "session", version: 3, id: sessionId, timestamp: "2026-06-27T00:00:00.000Z", cwd: process.cwd() },
+      { type: "message", id: "u1", parentId: null, timestamp: "2026-06-27T00:00:01.000Z", message: { role: "user", content: "root prompt", timestamp: 0 } },
+      { type: "message", id: "a1", parentId: "u1", timestamp: "2026-06-27T00:00:02.000Z", message: runtimeAssistantMessage("answer") },
+      { type: "message", id: "u2", parentId: "a1", timestamp: "2026-06-27T00:00:03.000Z", message: { role: "user", content: "abandoned prompt", timestamp: 0 } },
+      "{bad json",
+      { type: "message", id: "u3", parentId: "a1", timestamp: "2026-06-27T00:00:04.000Z", message: { role: "user", content: "active prompt", timestamp: 0 } },
+    ];
+    await writeFile(
+      file,
+      `${lines.map((line) => (typeof line === "string" ? line : JSON.stringify(line))).join("\n")}\n`,
+      "utf8",
+    );
+
+    const runtime = new MixCodeRuntime({ sessionsRoot: dir });
+
+    assert.deepEqual(runtime.getPromptHistory(sessionId), ["root prompt", "active prompt"]);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("runtime restores prompt history from legacy linear session files", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-legacy-history-"));
+  const sessionId = "legacy-history";
+  const file = join(dir, `2026-06-27T00-00-00-000Z_${sessionId}.jsonl`);
+  try {
+    const lines = [
+      { type: "session", version: 1, id: sessionId, timestamp: "2026-06-27T00:00:00.000Z", cwd: process.cwd() },
+      { type: "message", timestamp: "2026-06-27T00:00:01.000Z", message: { role: "user", content: "first legacy", timestamp: 0 } },
+      { type: "message", timestamp: "2026-06-27T00:00:02.000Z", message: runtimeAssistantMessage("answer") },
+      { type: "message", timestamp: "2026-06-27T00:00:03.000Z", message: { role: "user", content: "second legacy", timestamp: 0 } },
+      { type: "message", timestamp: "2026-06-27T00:00:04.000Z", message: runtimeAssistantMessage("answer") },
+    ];
+    await writeFile(file, `${lines.map((line) => JSON.stringify(line)).join("\n")}\n`, "utf8");
+
+    const runtime = new MixCodeRuntime({ sessionsRoot: dir });
+
+    assert.deepEqual(runtime.getPromptHistory(sessionId), ["first legacy", "second legacy"]);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("runtime creates pi agent sessions, streams default response, and records session messages", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-"));
   try {
@@ -210,6 +259,7 @@ test("runtime creates pi agent sessions, streams default response, and records s
     assert.ok(entries.length >= 2);
     await assert.rejects(runtime.prompt("missing", "x"), /Unknown tab session/);
     const reopened = new MixCodeRuntime({ sessionsRoot: dir });
+    assert.deepEqual(reopened.getPromptHistory("s1"), ["hello"]);
     const reopenedTab = await reopened.createTab(createTab(1, "s1", process.cwd()), {
       systemPrompt: "system",
       thinkingLevel: "medium",
@@ -223,6 +273,7 @@ test("runtime creates pi agent sessions, streams default response, and records s
       reopenedTab.tab.previewMessages.map((message) => message.text).join("\n"),
       /hello/,
     );
+    reopenedTab.chat = [];
     assert.deepEqual(reopened.getPromptHistory("s1"), ["hello"]);
     reopenedTab.session.appendCustomEntry("ui-note", { text: "not chat" });
     const reopenedAgain = new MixCodeRuntime({ sessionsRoot: dir });

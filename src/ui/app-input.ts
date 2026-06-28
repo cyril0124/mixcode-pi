@@ -255,6 +255,19 @@ export function handleMixCodeKeyInput(
     tui.requestRender();
     return { consume: true };
   }
+  if (
+    active &&
+    state.activeTabId !== "config" &&
+    !active.vimMode &&
+    !hasAnyOverlay(tui) &&
+    !hasFocusedAppControl(state, active) &&
+    !isEditorAutocompleteOpen() &&
+    editorActions?.browsePromptHistory?.(data)
+  ) {
+    clearPendingEscape(active, "abort-agent");
+    tui.requestRender();
+    return { consume: true };
+  }
   // Left on empty input returns to MixCode Home (Agent View).
   // Keep this before vim key handling so vim mode does not consume Left first.
   if (

@@ -47,6 +47,12 @@ export const MIXCODE_KEYMAP: KeyAction[] = [
     description: "Pop last queued message into editor",
     scope: "global",
   },
+  {
+    key: "up/down",
+    action: "prompt-history",
+    description: "Browse prompt history when input is empty",
+    scope: "global",
+  },
   { key: "ctrl+j", action: "newline", description: "Insert newline", scope: "global" },
   { key: "shift+enter", action: "newline", description: "Insert newline", scope: "global" },
 

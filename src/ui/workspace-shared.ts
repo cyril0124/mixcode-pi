@@ -5,7 +5,16 @@ import type { MixCodeKeyRuntime } from "./app-types.js";
 export type WorkspaceSelectorMode = "restore" | "delete";
 
 export interface WorkspaceRuntime
-  extends Pick<MixCodeKeyRuntime, "createTab" | "closeTab" | "extensionSwitchSession" | "getTab"> {}
+  extends Pick<
+    MixCodeKeyRuntime,
+    "createTab" | "closeTab" | "extensionSwitchSession" | "getTab" | "getPromptHistory"
+  > {}
+
+export function workspaceRuntimeWithHistory(
+  runtime: MixCodeKeyRuntime | undefined,
+): WorkspaceRuntime | undefined {
+  return runtime;
+}
 
 export async function loadOptionalWorkspaces(workspaceFile: string): Promise<WorkspaceSnapshot[]> {
   try {

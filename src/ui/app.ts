@@ -230,6 +230,7 @@ export function createMixCodeTui(
         addToHistory: (text) => editor.addToHistory(text),
         insertTextAtCursor: (text) => editor.insertTextAtCursor(text),
         submitCurrentText: () => editor.submitCurrentText(),
+        browsePromptHistory: (input) => editor.browsePromptHistory(input),
       },
       {
         executeCommand: (command) =>

@@ -18,9 +18,9 @@ import {
   loadOptionalWorkspaces,
   moveWorkspaceSelection,
   selectedWorkspace,
-  type WorkspaceRuntime,
   type WorkspaceSelectorMode,
   workspaceItems,
+  workspaceRuntimeWithHistory,
   workspaceTabCount,
 } from "./workspace-shared.js";
 import { pushToast } from "../core/toast.js";
@@ -94,7 +94,7 @@ export async function saveWorkspaceByName(
 
 export async function restoreWorkspaceByName(
   state: MixCodeState,
-  runtime: WorkspaceRuntime | undefined,
+  runtime: MixCodeKeyRuntime | undefined,
   tui: OverlayTui,
   workspaceFile: string,
   name: string,
@@ -102,7 +102,7 @@ export async function restoreWorkspaceByName(
 ): Promise<void> {
   const workspace = (await loadOptionalWorkspaces(workspaceFile)).find((item) => item.name === name);
   if (!workspace) throw new Error(`Unknown workspace: ${name}`);
-  await restoreWorkspace(state, runtime, tui, workspace, onStateChanged);
+  await restoreWorkspace(state, workspaceRuntimeWithHistory(runtime), tui, workspace, onStateChanged);
 }
 
 export async function deleteWorkspaceByName(
@@ -119,7 +119,7 @@ export function handleWorkspaceOverlayKey(
   state: MixCodeState,
   data: string,
   tui: OverlayTui,
-  runtime: WorkspaceRuntime | undefined,
+  runtime: MixCodeKeyRuntime | undefined,
   onStateChanged: ((state: MixCodeState) => void | Promise<void>) | undefined,
   workspaceFile: string | undefined,
 ): boolean {
@@ -209,7 +209,7 @@ function handleSaveKey(
   state: MixCodeState,
   data: string,
   tui: OverlayTui,
-  runtime: WorkspaceRuntime | undefined,
+  runtime: Pick<MixCodeKeyRuntime, "getTab"> | undefined,
   workspaceFile: string,
   onStateChanged?: (state: MixCodeState) => void | Promise<void>,
 ): boolean {
@@ -243,7 +243,7 @@ function handleSaveOverwriteKey(
   state: MixCodeState,
   data: string,
   tui: OverlayTui,
-  runtime: WorkspaceRuntime | undefined,
+  runtime: Pick<MixCodeKeyRuntime, "getTab"> | undefined,
   workspaceFile: string,
   onStateChanged?: (state: MixCodeState) => void | Promise<void>,
 ): boolean {
@@ -258,7 +258,7 @@ function handleWorkspaceListKey(
   state: MixCodeState,
   data: string,
   tui: OverlayTui,
-  runtime: WorkspaceRuntime | undefined,
+  runtime: MixCodeKeyRuntime | undefined,
   _workspaceFile: string,
   onStateChanged?: (state: MixCodeState) => void | Promise<void>,
 ): boolean {
@@ -280,7 +280,7 @@ function handleWorkspaceListKey(
   if (overlay.mode === "delete") return startDeleteConfirmation(state, tui, workspace);
   const extraTabCount = countExtraTabs(state, runtime, workspace);
   if (extraTabCount > 0) return startRestoreConfirmation(state, tui, workspace, extraTabCount);
-  void restoreWorkspace(state, runtime, tui, workspace, onStateChanged);
+  void restoreWorkspace(state, workspaceRuntimeWithHistory(runtime), tui, workspace, onStateChanged);
   return true;
 }
 
@@ -325,13 +325,13 @@ function handleRestoreConfirmKey(
   state: MixCodeState,
   data: string,
   tui: OverlayTui,
-  runtime: WorkspaceRuntime | undefined,
+  runtime: MixCodeKeyRuntime | undefined,
   onStateChanged?: (state: MixCodeState) => void | Promise<void>,
 ): boolean {
   if (!matchesKey(data, "enter") && data !== "y" && data !== "Y") return true;
   const workspace = state.workspaceOverlay.pendingWorkspace;
   if (!workspace) return true;
-  void restoreWorkspace(state, runtime, tui, workspace, onStateChanged);
+  void restoreWorkspace(state, workspaceRuntimeWithHistory(runtime), tui, workspace, onStateChanged);
   return true;
 }
 
@@ -356,7 +356,7 @@ function handleDeleteConfirmKey(
 
 async function saveAndClose(
   state: MixCodeState,
-  runtime: WorkspaceRuntime | undefined,
+  runtime: Pick<MixCodeKeyRuntime, "getTab"> | undefined,
   tui: OverlayTui,
   workspaceFile: string,
   name: string,
@@ -370,7 +370,7 @@ async function saveAndClose(
 
 function countExtraTabs(
   state: MixCodeState,
-  runtime: WorkspaceRuntime | undefined,
+  runtime: Pick<MixCodeKeyRuntime, "getTab"> | undefined,
   workspace: WorkspaceSnapshot,
 ): number {
   const items = workspaceItems(workspace);

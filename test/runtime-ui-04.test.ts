@@ -69,6 +69,7 @@ import {
   themeForId,
   UUIDV7_SESSION_ID_PATTERN,
 } from "../src/index.js";
+import { hydrateTabPromptHistory } from "../src/ui/app-runtime.js";
 
 function delayedAssistantStream(text: string, ready: Promise<void>, options?: SimpleStreamOptions) {
   const stream = createAssistantMessageEventStream();
@@ -196,18 +197,27 @@ test("createMixCodeTui hydrates editor history per tab from restored runtime use
   const tab2 = createTab(2, "s2", "/repo");
   state.tabs.push(tab, tab2);
   state.activeTabId = "s1";
+  const historyReady = new Set<string>();
+  let extensionConsumesUp = true;
   const runtime = {
     onChange: () => () => undefined,
-    getTab: (sessionId: string) => ({
-      tab: sessionId === "s1" ? tab : tab2,
-      chat: [],
-      reasoning: [],
-    }),
-    getPromptHistory: (sessionId: string) =>
-      sessionId === "s1" ? ["older prompt", "newer prompt"] : ["tab two prompt"],
+    getTab: (sessionId: string) =>
+      historyReady.has(sessionId)
+        ? {
+            tab: sessionId === "s1" ? tab : tab2,
+            chat: [],
+            reasoning: [],
+          }
+        : undefined,
+    getPromptHistory: (sessionId: string) => {
+      if (!historyReady.has(sessionId)) return [];
+      return sessionId === "s1" ? ["older prompt", "newer prompt"] : ["tab two prompt"];
+    },
     getExtensionCommands: () => [],
     getAllExtensionCommands: () => [],
     applyExtensionAutocompleteProviders: (_sessionId: string, base: AutocompleteProvider) => base,
+    dispatchTerminalInput: (_sessionId: string, data: string) =>
+      extensionConsumesUp && data === "\x1b[A" ? { consume: true } : undefined,
     setExtensionUiHost: () => undefined,
   } as unknown as MixCodeRuntime;
   const tui = createMixCodeTui(state, runtime, { terminal: silentTerminal() });
@@ -217,22 +227,34 @@ test("createMixCodeTui hydrates editor history per tab from restored runtime use
         children: Array<{ editor: { getText: () => string; handleInput: (data: string) => void } }>;
       }
     ).children[0]!;
-    layout.editor.handleInput("\x1b[A");
-    assert.equal(layout.editor.getText(), "newer prompt");
-    layout.editor.handleInput("\x1b[A");
-    assert.equal(layout.editor.getText(), "older prompt");
-    layout.editor.handleInput("\x1b[B");
-    assert.equal(layout.editor.getText(), "newer prompt");
-    layout.editor.handleInput("\x1b[B");
+    const handleTuiInput = (data: string) =>
+      (tui as unknown as { handleInput: (data: string) => void }).handleInput(data);
+    handleTuiInput("\x1b[A");
     assert.equal(layout.editor.getText(), "");
-    (tui as unknown as { handleInput: (data: string) => void }).handleInput("\t");
+    historyReady.add("s1");
+    historyReady.add("s2");
+    hydrateTabPromptHistory(state, runtime);
+    hydrateTabPromptHistory(state, runtime);
+    assert.deepEqual(tab.promptHistory, ["newer prompt", "older prompt"]);
+    handleTuiInput("\x1b[A");
+    assert.equal(layout.editor.getText(), "");
+    extensionConsumesUp = false;
+    handleTuiInput("\x1b[A");
+    assert.equal(layout.editor.getText(), "newer prompt");
+    handleTuiInput("\x1b[A");
+    assert.equal(layout.editor.getText(), "older prompt");
+    handleTuiInput("\x1b[B");
+    assert.equal(layout.editor.getText(), "newer prompt");
+    handleTuiInput("\x1b[B");
+    assert.equal(layout.editor.getText(), "");
+    handleTuiInput("\t");
     assert.equal(state.activeTabId, "s2");
-    layout.editor.handleInput("\x1b[A");
+    handleTuiInput("\x1b[A");
     assert.equal(layout.editor.getText(), "tab two prompt");
-    (tui as unknown as { handleInput: (data: string) => void }).handleInput("\x1b[Z");
+    handleTuiInput("\x1b[Z");
     assert.equal(state.activeTabId, "s1");
     assert.equal(layout.editor.getText(), "");
-    layout.editor.handleInput("\x1b[A");
+    handleTuiInput("\x1b[A");
     assert.equal(layout.editor.getText(), "newer prompt");
   } finally {
     tui.stop();

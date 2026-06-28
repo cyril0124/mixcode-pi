@@ -109,6 +109,7 @@ export interface MixCodeEditorActions {
   addToHistory?: (text: string, sessionId?: string) => void;
   insertTextAtCursor?: (text: string) => void;
   submitCurrentText?: () => void;
+  browsePromptHistory?: (data: string) => boolean;
 }
 
 export interface CommandPaletteActions {

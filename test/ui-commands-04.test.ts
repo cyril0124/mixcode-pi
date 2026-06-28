@@ -88,7 +88,16 @@ test("global key input dispatches extension shortcuts only from the main editor 
   const runtime = {
     dispatchExtensionShortcut: (sessionId: string, data: string) => {
       dispatched.push(`${sessionId}:${JSON.stringify(data)}`);
-      return data === "\x18";
+      return data === "\x18" || data === "\x1b[A";
+    },
+  };
+  let historyBrowsed = false;
+  const editorActions = {
+    getText: () => "",
+    setText: () => undefined,
+    browsePromptHistory: () => {
+      historyBrowsed = true;
+      return true;
     },
   };
 
@@ -96,13 +105,19 @@ test("global key input dispatches extension shortcuts only from the main editor 
     consume: true,
   });
   assert.deepEqual(dispatched, ['s1:"\\u0018"']);
+  assert.deepEqual(
+    handleMixCodeKeyInput(state, "\x1b[A", tui, undefined, runtime, undefined, undefined, editorActions),
+    { consume: true },
+  );
+  assert.equal(historyBrowsed, false);
+  assert.deepEqual(dispatched, ['s1:"\\u0018"', 's1:"\\u001b[A"']);
   state.picker = { kind: "thinking", title: "Thinking", query: "", selectedIndex: 0, items: [] };
   assert.equal(handleMixCodeKeyInput(state, "\x18", tui, undefined, runtime), undefined);
-  assert.deepEqual(dispatched, ['s1:"\\u0018"']);
+  assert.deepEqual(dispatched, ['s1:"\\u0018"', 's1:"\\u001b[A"']);
   state.picker = undefined;
   overlayOpen = true;
   assert.equal(handleMixCodeKeyInput(state, "\x18", tui, undefined, runtime), undefined);
-  assert.deepEqual(dispatched, ['s1:"\\u0018"']);
+  assert.deepEqual(dispatched, ['s1:"\\u0018"', 's1:"\\u001b[A"']);
 });
 
 test("global key input leaves extension custom overlay input to pi-tui focus", () => {

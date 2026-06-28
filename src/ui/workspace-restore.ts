@@ -4,6 +4,7 @@ import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import { activateTab, clampHomeSelectedTabIndex, closeAgentTab } from "../core/tabs.js";
 import type { MixCodeState, MixCodeTabInfo, WorkspaceSnapshot, WorkspaceTabSnapshot } from "../core/types.js";
 import { reindexWorkspaceTabs } from "../core/workspace.js";
+import { hydrateTabPromptHistory } from "./app-runtime.js";
 import type { OverlayTui } from "./app-types.js";
 import { closeWorkspaceOverlay, showWorkspaceOverlay, showWorkspaceToast } from "./workspace-overlay.js";
 import { type WorkspaceRuntime, workspaceItems } from "./workspace-shared.js";
@@ -22,6 +23,7 @@ export async function restoreWorkspace(
 ): Promise<void> {
   if (!runtime?.createTab || !runtime.closeTab || !runtime.extensionSwitchSession) {
     restoreAlreadyOpenWorkspaceOrder(state, workspace);
+    if (runtime) hydrateTabPromptHistory(state, runtime);
     await onStateChanged?.(state);
     showWorkspaceToast(state, tui, `Workspace restored: ${workspace.name}`, "success");
     return;
@@ -76,6 +78,7 @@ export async function restoreWorkspace(
     await runtime.closeTab(tab.sessionId);
   }
   finishWorkspaceRestore(state, workspace, restoredTabs, missing);
+  hydrateTabPromptHistory(state, runtime);
   await onStateChanged?.(state);
   showWorkspaceToast(
     state,

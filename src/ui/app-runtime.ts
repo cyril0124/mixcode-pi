@@ -9,7 +9,7 @@ export const WORKING_REDRAW_INTERVAL_MS = 80;
 export const LIVE_EXTENSION_REDRAW_INTERVAL_MS = 1_000;
 export function hydrateTabPromptHistory(
   state: MixCodeState,
-  runtime: Pick<MixCodeRuntime, "getPromptHistory">,
+  runtime: Partial<Pick<MixCodeRuntime, "getPromptHistory">>,
 ): void {
   for (const tab of state.tabs) {
     const prompts = runtime.getPromptHistory?.(tab.sessionId) ?? [];
