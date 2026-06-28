@@ -173,7 +173,9 @@ export class CompactPromptEditor extends Editor {
 
 function editorPlaceholder(state: MixCodeState): string {
   const active = state.tabs.find((tab) => tab.sessionId === state.activeTabId);
-  return `Send message to ${active?.title ?? "agent"}...`;
+  // Hint the empty-input arrow shortcuts: Left returns to Home, Right toggles
+  // the extension widget panel. Truncated away on narrow terminals.
+  return `Send message to ${active?.title ?? "agent"}...  \u2190 Home \u00b7 \u2192 widgets`;
 }
 
 function homeEditorPlaceholder(state: MixCodeState): string {
