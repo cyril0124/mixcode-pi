@@ -45,6 +45,19 @@ export function activateTab(state: MixCodeState, tabId: string): void {
   if (tab) tab.unreadDone = false;
 }
 
+/**
+ * Close the extension widget side panel and drop any in-progress panel text
+ * selection. Used when a modal interaction takes over (dialog/custom overlay)
+ * or the session is cleared, so the panel never fights for focus or screen
+ * space with a modal surface. Returns true if the panel was open.
+ */
+export function dismissExtensionPanel(tab: MixCodeTabInfo): boolean {
+  if (!tab.panelOpen) return false;
+  tab.panelOpen = false;
+  tab.panelSelection = undefined;
+  return true;
+}
+
 export function renameAgentTab(state: MixCodeState, sessionId: string, title: string): void {
   const tab = state.tabs.find((item) => item.sessionId === sessionId);
   if (!tab) throw new Error(`Unknown tab: ${sessionId}`);

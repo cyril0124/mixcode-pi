@@ -392,6 +392,52 @@ test("runtime resolves pending extension dialogs when closing a tab", async () =
   }
 });
 
+test("opening an extension dialog collapses the widget side panel", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-panel-dismiss-"));
+  const extension: ExtensionFactory = (pi) => {
+    pi.registerCommand("wait-dialog", {
+      description: "Dialog opens, panel must collapse",
+      handler: async (_args, ctx) => {
+        await ctx.ui.select("Wait", ["one"]);
+      },
+    });
+  };
+  const mockEditorHost = {
+    tui: {} as any,
+    editor: {
+      getText: () => "",
+      getExpandedText: () => "",
+      setText: () => undefined,
+      pasteToEditor: () => undefined,
+      setEditorComponent: () => undefined,
+      getEditorComponent: () => undefined,
+    },
+  };
+
+  try {
+    const runtime = new MixCodeRuntime({ sessionsRoot: dir, extensionFactories: [extension] });
+    runtime.setExtensionUiHost(mockEditorHost as any);
+    await runtime.createTab(createTab(1, "s1", process.cwd()), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+    });
+    // Simulate the panel being open before the modal dialog is triggered.
+    runtime.getTab("s1")!.tab.panelOpen = true;
+
+    const prompt = runtime.prompt("s1", "/wait-dialog");
+    await waitForRuntime(
+      () => runtime.getTab("s1")?.tab.extensionUi.pendingUserInteractions.length === 1,
+    );
+    // The dialog took over input focus, so the panel must have collapsed.
+    assert.equal(runtime.getTab("s1")?.tab.panelOpen, false);
+    await runtime.deleteTab("s1");
+    await prompt;
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("runtime renders pi custom messages with renderer, fallback, errors, and restored history", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-custom-message-"));
   let statefulRenderCreations = 0;
