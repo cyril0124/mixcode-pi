@@ -181,9 +181,11 @@ function renderExtensionLines(component: Component, width: number, maxLines?: nu
 const DEFAULT_WIDGET_MAX_LINES = 10;
 
 function limitExtensionWidgetLines(lines: string[], maxLines?: number): string[] {
-  const normalized = lines
-    .map((line) => line.replace(/[\r\n\t]+/g, " "))
-    .filter((line) => line.trim());
+  // Keep blank lines: factory widgets (e.g. pi-subagents FleetView) use them as
+  // intentional vertical separators. Pi's native widget Container preserves
+  // every rendered row, so mixcode must not collapse interior blanks away —
+  // only normalize embedded control chars to spaces.
+  const normalized = lines.map((line) => line.replace(/[\r\n\t]+/g, " "));
   // Caller-provided budget (e.g. the side panel): clip silently and let the
   // caller render its own overflow indicator, avoiding a double marker.
   if (maxLines !== undefined) {

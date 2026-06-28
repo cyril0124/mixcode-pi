@@ -692,3 +692,49 @@ test("runtime extension reload resets host UI state and rebinds extension resour
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+// Factory widgets (e.g. pi-subagents FleetView) emit intentional blank lines as
+// vertical separators. Pi's native widget container preserves them; mixcode must
+// match, so interior blank rows survive widget rendering instead of being
+// collapsed away. Regression guard for the missing FleetView hint/main gap.
+test("runtime preserves interior blank lines in factory widgets", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-widget-blank-"));
+  const extension: ExtensionFactory = (pi) => {
+    pi.registerCommand("blank-widget", {
+      description: "Widget with an interior blank separator line",
+      handler: async (_args, ctx) => {
+        ctx.ui.setWidget(
+          "fleet-like",
+          (_tui, theme) => ({
+            render: () => [theme.fg("dim", "hint"), "", theme.fg("accent", "main")],
+            invalidate: () => undefined,
+          }),
+          { placement: "belowEditor" },
+        );
+      },
+    });
+  };
+
+  try {
+    const runtime = new MixCodeRuntime({ sessionsRoot: dir, extensionFactories: [extension] });
+    const runtimeTab = await runtime.createTab(createTab(1, "s1", process.cwd()), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+    });
+
+    await runtime.prompt("s1", "/blank-widget");
+
+    const widget = runtimeTab.tab.extensionUi.widgets.find((w) => w.key === "fleet-like");
+    assert.ok(widget, "widget should be registered");
+    // Stored snapshot keeps the interior blank line (3 rows, middle is blank).
+    assert.equal(widget?.lines.length, 3);
+    assert.equal((widget?.lines[1] ?? "x").trim(), "");
+    // Live render preserves the blank row too, so the on-screen gap survives.
+    const rendered = renderExtensionWidgets(runtimeTab.tab, 40, "belowEditor");
+    assert.equal(rendered.length, 3);
+    assert.equal(stripAnsi(rendered[1] ?? "x").trim(), "");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
