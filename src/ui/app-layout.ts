@@ -126,14 +126,16 @@ export class MixCodeLayoutRoot implements Component {
     const theme = themeForId(this.state.theme);
     const active = getActiveTab(this.state);
     const isAgentTab = active && this.state.activeTabId !== "config";
+    // Vim mode is a read-only chat-scrolling surface; suppress extension
+    // widgets (above/below editor) so reclaimed rows grow the chat history.
+    // Widget registration/lifecycle is untouched — this only gates rendering.
+    const isVim = active?.vimMode === true;
     const metaProbe = isAgentTab ? renderInputMeta(active, width, 0, theme, false) : [];
     const workingLines = isAgentTab ? this.renderWorkingLoader(active, width, theme) : [];
-    const widgetsAbove = isAgentTab
-      ? renderExtensionWidgets(active, width, "aboveEditor", theme)
-      : [];
-    const widgetsBelow = isAgentTab
-      ? renderExtensionWidgets(active, width, "belowEditor", theme)
-      : [];
+    const widgetsAbove =
+      isAgentTab && !isVim ? renderExtensionWidgets(active, width, "aboveEditor", theme) : [];
+    const widgetsBelow =
+      isAgentTab && !isVim ? renderExtensionWidgets(active, width, "belowEditor", theme) : [];
     const viewportRowsForClamp = this.getViewportRows?.();
     const workingBottomGapRows = 0;
     let editorLines = this.editor.render(width);

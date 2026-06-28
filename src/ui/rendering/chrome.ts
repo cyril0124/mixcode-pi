@@ -149,7 +149,10 @@ function renderInputMetaInner(
     tab.inputMetaHitRegions = left.regions.map((region) => ({ ...region, row }));
   }
   const lines = [padLine(metaRow, lineWidth)];
-  const extLine = buildExtensionStatusLine(tab, Math.max(0, width - 1));
+  // In vim mode the input area is read-only; hide the extension status line
+  // (e.g. pi-subagents) so its row is reclaimed by the chat surface. The
+  // first meta row (model/thinking/workdir/context/git) is kept.
+  const extLine = tab.vimMode ? undefined : buildExtensionStatusLine(tab, Math.max(0, width - 1));
   if (extLine) lines.push(extLine);
   return lines;
 }

@@ -100,7 +100,13 @@ export class CompactPromptEditor extends Editor {
     if (!isEmpty) return lines;
     if (isVimMode) {
       return lines.map((line, index) =>
-        index === 1 ? renderStaticPlaceholderLine("Vim mode, q to exit", width, theme) : line,
+        index === 1
+          ? renderStaticPlaceholderLine(
+              "Vim mode · q to exit · extension widgets & status line hidden",
+              width,
+              theme,
+            )
+          : line,
       );
     }
     return lines.map((line, index) =>
