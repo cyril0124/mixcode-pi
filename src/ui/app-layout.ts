@@ -21,6 +21,7 @@ import {
   renderInputMeta,
   renderPreviewOverlay,
   renderTabBar,
+  renderTabBarSeparator,
   renderWorkingIndicator,
 } from "./rendering.js";
 import { themeForId } from "./themes.js";
@@ -61,7 +62,13 @@ export class MixCodeRoot implements Component {
       );
     }
     const runtimeTab = this.runtime.getTab(active.sessionId);
-    const contentGap = [padLine("", width)];
+    // Horizontal rule directly under the tab bar (replaces the old blank gap).
+    // Color tracks the active tab's editor border so the chrome reads as one frame.
+    const contentGap = renderTabBarSeparator(
+      width,
+      { thinkingLevel: active.thinkingLevel, vimMode: active.vimMode },
+      theme,
+    );
     const preview = renderPreviewOverlay(active, width, theme);
     const bottomBeforeMeta = [...preview];
     const viewportRows = this.getViewportRows?.();

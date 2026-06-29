@@ -42,6 +42,29 @@ export function renderTabBar(
   });
 }
 
+/**
+ * Full-width horizontal rule rendered directly under the tab bar (agent view
+ * only), replacing the former blank interval row. Its color tracks the active
+ * tab's input-editor border so the two read as one frame: vim mode uses
+ * `vimBorder`, otherwise the thinking-level border (matching app-editor's
+ * normal-mode `borderColor`). Shell mode is intentionally not tracked — it is
+ * driven by transient editor text and would make this top rule flicker.
+ * Kept as its own function so a right-anchored label (agent name / model /
+ * branch, like the editor's top border) can later be threaded through one place.
+ */
+export function renderTabBarSeparator(
+  width: number,
+  options: { thinkingLevel?: string; vimMode?: boolean } = {},
+  theme: MixCodeTheme = activeRenderTheme,
+): string[] {
+  return renderWithTheme(theme, () => {
+    const colorize = options.vimMode
+      ? activeRenderTheme.vimBorder
+      : activeRenderTheme.thinkingBorder(options.thinkingLevel);
+    return [padLine(colorize("\u2500".repeat(Math.max(0, width))), width)];
+  });
+}
+
 export function tabBarHitRegions(
   state: MixCodeState,
   width = Number.POSITIVE_INFINITY,

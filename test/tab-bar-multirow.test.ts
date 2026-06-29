@@ -6,6 +6,7 @@ import {
   createTab,
   handleMixCodeKeyInput,
   renderTabBar,
+  renderTabBarSeparator,
   tabBarHitRegions,
 } from "../src/index.js";
 import type { OverlayTui } from "../src/index.js";
@@ -119,4 +120,28 @@ test("clicking a tab on a wrapped (non-first) row activates it", () => {
   );
   assert.deepEqual(result, { consume: true });
   assert.equal(state.activeTabId, wrapped.id);
+});
+
+test("tab bar separator is a single full-width horizontal rule", () => {
+  const width = 40;
+  const lines = renderTabBarSeparator(width);
+  // One row that fully spans the width with the box-drawing rule character.
+  assert.equal(lines.length, 1);
+  assert.equal(visibleWidth(lines[0]!), width);
+  const bare = stripAnsi(lines[0]!);
+  assert.equal(bare, "\u2500".repeat(width));
+});
+
+test("tab bar separator color tracks vim vs thinking-level border", () => {
+  const width = 12;
+  // Distinct editor-border states must yield distinct ANSI color sequences so
+  // the rule visually matches the input editor's top/bottom border.
+  const off = renderTabBarSeparator(width, { thinkingLevel: "off" })[0]!;
+  const high = renderTabBarSeparator(width, { thinkingLevel: "high" })[0]!;
+  const vim = renderTabBarSeparator(width, { vimMode: true })[0]!;
+  assert.notEqual(off, high, "thinking level must change the rule color");
+  assert.notEqual(off, vim, "vim mode must change the rule color");
+  // Bare glyphs are identical regardless of color.
+  assert.equal(stripAnsi(off), "\u2500".repeat(width));
+  assert.equal(stripAnsi(vim), "\u2500".repeat(width));
 });
