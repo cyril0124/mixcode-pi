@@ -5,7 +5,7 @@ import {
   selectedInputText,
 } from "../core/chat-selection.js";
 import { copyTextToClipboard, type ClipboardWriter } from "../core/clipboard.js";
-import { hitMouseRegion, parseSgrMouseInput } from "../core/mouse.js";
+import { parseSgrMouseInput } from "../core/mouse.js";
 import { scrollChat, scrollPreview } from "../core/overlays.js";
 import { pushToast } from "../core/toast.js";
 import { createPicker } from "../core/pickers.js";
@@ -96,13 +96,18 @@ function handleChromeMouse(
   mouse: NonNullable<ReturnType<typeof parseSgrMouseInput>>,
   tui: OverlayTui,
 ): boolean {
+  const tabBarTop = state.tabBarTopRow ?? tabBarMouseRow(state, active);
   if (
-    mouse.y === tabBarMouseRow(state, active) &&
+    mouse.y >= tabBarTop &&
     mouse.button === 0 &&
     !mouse.release &&
     !mouse.wheel
   ) {
-    const tabId = hitMouseRegion(tabBarHitRegions(state), mouse.x);
+    const clickedRow = mouse.y - tabBarTop;
+    const width = state.lastRenderWidth ?? Number.POSITIVE_INFINITY;
+    const tabId = tabBarHitRegions(state, width).find(
+      (region) => (region.row ?? 0) === clickedRow && mouse.x >= region.startX && mouse.x <= region.endX,
+    )?.id;
     if (tabId) {
       activateTab(state, tabId);
       tui.requestRender();

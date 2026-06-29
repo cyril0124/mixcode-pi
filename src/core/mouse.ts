@@ -11,6 +11,8 @@ export interface MouseHitRegion {
   id: string;
   startX: number;
   endX: number;
+  /** 0-indexed row within the tab bar; absent means the first/only row. */
+  row?: number;
 }
 
 const SGR_MOUSE_PATTERN = /^\x1b\[<(\d+);(\d+);(\d+)([mM])$/;

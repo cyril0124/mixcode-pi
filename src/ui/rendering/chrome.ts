@@ -31,26 +31,83 @@ export function renderTabBar(
   theme: MixCodeTheme = activeRenderTheme,
 ): string[] {
   return renderWithTheme(theme, () => {
-    const line = activeRenderTheme.text(
-      padLine(
-        tabBarSegments(state)
-          .map((segment) => segment.text)
-          .join(" "),
-        width,
-      ),
-    );
-    return [line];
+    const segments = tabBarSegments(state);
+    const indent = wrappedRowIndent(segments, width);
+    return packTabRows(segments, width, indent).map((row, rowIndex) => {
+      const prefix = rowIndex === 0 ? "" : " ".repeat(indent);
+      return activeRenderTheme.text(
+        padLine(prefix + row.map((segment) => segment.text).join(" "), width),
+      );
+    });
   });
 }
 
-export function tabBarHitRegions(state: MixCodeState): MouseHitRegion[] {
-  let cursor = 1;
-  return tabBarSegments(state).map((segment) => {
-    const startX = cursor;
-    const endX = cursor + visibleWidth(segment.text) - 1;
-    cursor = endX + 2;
-    return { id: segment.id, startX, endX };
+export function tabBarHitRegions(
+  state: MixCodeState,
+  width = Number.POSITIVE_INFINITY,
+): MouseHitRegion[] {
+  const segments = tabBarSegments(state);
+  const indent = wrappedRowIndent(segments, width);
+  const regions: MouseHitRegion[] = [];
+  packTabRows(segments, width, indent).forEach((row, rowIndex) => {
+    // Wrapped rows start under the first tab (after "MixCode Home"); the first
+    // row starts at the left edge.
+    let cursor = rowIndex === 0 ? 1 : indent + 1;
+    for (const segment of row) {
+      const startX = cursor;
+      const endX = cursor + visibleWidth(segment.text) - 1;
+      cursor = endX + 2;
+      regions.push({ id: segment.id, startX, endX, row: rowIndex });
+    }
   });
+  return regions;
+}
+
+type TabSegment = { id: string; text: string };
+
+/**
+ * Left indent for wrapped tab rows so they align under the first tab, i.e. just
+ * past the leading "MixCode Home" segment plus its separator space. Clamped to
+ * leave at least one column of budget so wrapped rows always render a tab.
+ */
+function wrappedRowIndent(segments: TabSegment[], width: number): number {
+  if (segments.length === 0) return 0;
+  const homeWidth = visibleWidth(segments[0]!.text);
+  if (!Number.isFinite(width)) return homeWidth + 1;
+  return Math.max(0, Math.min(homeWidth + 1, width - 1));
+}
+
+/**
+ * Greedily pack tab segments into rows that each fit within `width`, keeping
+ * every tab whole (never split across rows). Segments are separated by a single
+ * space, matching the single-row layout. Row 0 uses the full width; wrapped rows
+ * use `width - indent` because they render with a leading indent that aligns
+ * them under the first tab. A row always holds at least one segment, so an
+ * over-wide tab still renders (clipped by padLine) rather than being dropped.
+ * With an infinite width this collapses to one row.
+ */
+function packTabRows(segments: TabSegment[], width: number, indent: number): TabSegment[][] {
+  const rows: TabSegment[][] = [];
+  let current: TabSegment[] = [];
+  let currentWidth = 0;
+  // Budget for the row currently being built: full width for row 0, reduced by
+  // the indent for wrapped rows.
+  const budgetFor = (rowIndex: number): number => (rowIndex === 0 ? width : width - indent);
+  for (const segment of segments) {
+    const segWidth = visibleWidth(segment.text);
+    // Width this segment adds when appended to a non-empty row includes a
+    // leading separator space; the first segment of a row adds only its width.
+    const wouldAdd = current.length === 0 ? segWidth : segWidth + 1;
+    if (current.length > 0 && currentWidth + wouldAdd > budgetFor(rows.length)) {
+      rows.push(current);
+      current = [];
+      currentWidth = 0;
+    }
+    currentWidth += current.length === 0 ? segWidth : segWidth + 1;
+    current.push(segment);
+  }
+  if (current.length > 0) rows.push(current);
+  return rows.length > 0 ? rows : [[]];
 }
 
 export function renderStatus(

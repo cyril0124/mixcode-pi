@@ -282,6 +282,10 @@ export interface MixCodeState {
   theme: string;
   availableModels: MixCodeModelRef[];
   tabBarHitRow?: number;
+  /** Absolute 1-indexed terminal row of the tab bar's first line (multi-row aware). */
+  tabBarTopRow?: number;
+  /** Width used by the last render; lets mouse handlers recompute tab wrap layout. */
+  lastRenderWidth?: number;
   /** Non-persisted: selected row index in the Agent View table on MixCode Home. */
   homeSelectedTabIndex: number;
 }

@@ -40,12 +40,17 @@ export class MixCodeRoot implements Component {
   render(width: number): string[] {
     const active = getActiveTab(this.state);
     const theme = themeForId(this.state.theme);
+    const tabBarLines = renderTabBar(this.state, width, theme);
     const top = [
       ...renderHeader(width, theme),
       ...renderExtensionHeader(active, width),
-      ...renderTabBar(this.state, width, theme),
+      ...tabBarLines,
     ];
     this.state.tabBarHitRow = top.length;
+    // First absolute (1-indexed) row of the tab bar = rows above it + 1. Mouse
+    // handlers use this with lastRenderWidth to map clicks onto wrapped rows.
+    this.state.tabBarTopRow = top.length - tabBarLines.length + 1;
+    this.state.lastRenderWidth = width;
     if (!active || this.state.activeTabId === "config") {
       const viewportRows = this.getViewportRows?.();
       const limit = viewportRows ? Math.max(0, viewportRows - this.getReservedRows()) : undefined;
