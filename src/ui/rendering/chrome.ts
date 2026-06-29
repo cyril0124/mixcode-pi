@@ -471,8 +471,17 @@ function renderExtensionPanelInner(
       widget.render?.(bodyWidth, EXTENSION_PANEL_WIDGET_LINE_BUDGET) ??
       wrapExtensionWidgetLines(widget.lines, bodyWidth);
     for (const line of widgetLines) {
-      const text = truncateToWidth(sanitizeWidgetLine(line), bodyWidth, "...");
-      content.push(padLine(`${border} ${text}`, panelWidth));
+      // Wrap (don't truncate) so wide widget lines keep all their content; the
+      // panel scrolls, so extra wrapped rows are reachable. Empty lines wrap to
+      // [] — emit a bordered blank so vertical spacing is preserved.
+      const wrapped = wrapTextWithAnsi(sanitizeWidgetLine(line), bodyWidth);
+      if (wrapped.length === 0) {
+        content.push(blank);
+        continue;
+      }
+      for (const part of wrapped) {
+        content.push(padLine(`${border} ${part}`, panelWidth));
+      }
     }
   });
   // Window the content to contentHeight rows at the (clamped) scroll offset.

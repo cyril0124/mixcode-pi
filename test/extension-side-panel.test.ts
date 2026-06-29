@@ -244,6 +244,32 @@ test("panel shows a scroll-down marker when live widget output overflows", () =>
   assert.doesNotMatch(text, /\u2191 more/);
 });
 
+test("panel wraps wide widget lines instead of truncating with an ellipsis", () => {
+  // A single line wider than the panel body must wrap onto multiple rows so no
+  // content is lost. Regression guard: render-based widgets used to be cut with
+  // "..." (see chrome.ts truncateToWidth) instead of wrapped.
+  const longLine =
+    "This is a very long widget line that clearly exceeds the panel body width and should wrap";
+  const tab = makeTab({
+    extensionUi: {
+      statuses: [],
+      widgets: [{ key: "w", placement: "aboveEditor", lines: [], render: () => [longLine] }],
+      toolsExpanded: false,
+      pendingUserInteractions: [],
+      workingVisible: true,
+    },
+  });
+
+  const rows = renderExtensionPanel(tab, 40, 10).map(stripAnsi);
+  const body = rows.join("\n");
+  // No ellipsis truncation, and the final word of the line survives the wrap.
+  assert.doesNotMatch(body, /\.\.\./);
+  assert.match(body, /should wrap/);
+  // The line occupied more than one content row (wrapped, not single-line).
+  const contentRows = rows.filter((r) => /\S/.test(r.replace(/\u2502/g, "").replace(/to close/, "")));
+  assert.ok(contentRows.length >= 2, "wide line should wrap onto multiple rows");
+});
+
 test("panel below the width threshold refuses to open with a toast", () => {
   const state = makeState();
   const tab = state.tabs[0]!;
