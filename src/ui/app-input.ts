@@ -599,6 +599,7 @@ function toggleExtensionPanel(active: MixCodeState["tabs"][number], tui: Overlay
   if (active.panelOpen) {
     active.panelOpen = false;
     active.panelSelection = undefined;
+    active.panelScrollOffset = 0;
     tui.requestRender();
     return;
   }
@@ -620,5 +621,6 @@ function toggleExtensionPanel(active: MixCodeState["tabs"][number], tui: Overlay
     return;
   }
   active.panelOpen = true;
+  active.panelScrollOffset = 0;
   tui.requestRender();
 }

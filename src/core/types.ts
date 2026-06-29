@@ -177,6 +177,13 @@ export interface MixCodeTabInfo {
    * into a right-hand vertical split instead of stacking around the editor.
    */
   panelOpen: boolean;
+  /**
+   * Vertical scroll offset (in rows from the top) for the widget side panel
+   * when its content exceeds the visible height. 0 = top. Clamped at render
+   * time to the actual overflow. Independent of chat scroll so the two
+   * side-by-side regions never fight.
+   */
+  panelScrollOffset: number;
   /** Non-persisted: screen bounds for the visible widget side panel. */
   panelSurfaceBounds?: ChatSurfaceBounds;
   /** Non-persisted: active text selection inside the widget side panel. */

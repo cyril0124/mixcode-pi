@@ -47,6 +47,17 @@ export function scrollChat(tab: MixCodeTabInfo, delta: number): boolean {
   return true;
 }
 
+/**
+ * Scroll the widget side panel by `delta` rows. Only the lower bound is clamped
+ * here (>= 0); the upper bound depends on rendered content height and is
+ * clamped at render time in renderExtensionPanel. Returns true so callers can
+ * treat it as handled.
+ */
+export function scrollExtensionPanel(tab: MixCodeTabInfo, delta: number): boolean {
+  tab.panelScrollOffset = Math.min(1_000_000, Math.max(0, tab.panelScrollOffset + delta));
+  return true;
+}
+
 export function chatHome(tab: MixCodeTabInfo): boolean {
   clearChatScrollAnchor(tab);
   tab.chatScrollOffset = 1_000_000;

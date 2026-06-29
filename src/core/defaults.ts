@@ -98,6 +98,7 @@ export function createTab(
     chatSelection: undefined,
     lastRenderedChatLines: [],
     panelOpen: false,
+    panelScrollOffset: 0,
     ...overrides,
   };
 }

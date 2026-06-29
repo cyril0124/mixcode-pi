@@ -55,6 +55,7 @@ export function dismissExtensionPanel(tab: MixCodeTabInfo): boolean {
   if (!tab.panelOpen) return false;
   tab.panelOpen = false;
   tab.panelSelection = undefined;
+  tab.panelScrollOffset = 0;
   return true;
 }
 

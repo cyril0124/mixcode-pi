@@ -218,7 +218,7 @@ test("panel shows more than the editor-area line cap (no host truncation marker)
   assert.doesNotMatch(text, /widget truncated/);
 });
 
-test("panel shows an overflow marker for clipped live widget output", () => {
+test("panel shows a scroll-down marker when live widget output overflows", () => {
   const tab = makeTab({
     extensionUi: {
       statuses: [],
@@ -237,8 +237,11 @@ test("panel shows an overflow marker for clipped live widget output", () => {
     },
   });
 
+  // At the top of a tall panel, the hidden rows below are flagged with "↓ more".
+  tab.panelScrollOffset = 0;
   const text = renderExtensionPanel(tab, 40, 5).map(stripAnsi).join("\n");
-  assert.match(text, /\u2026 more/);
+  assert.match(text, /\u2193 more/);
+  assert.doesNotMatch(text, /\u2191 more/);
 });
 
 test("panel below the width threshold refuses to open with a toast", () => {
@@ -285,6 +288,88 @@ test("panel content is mouse-selectable and copies to clipboard", async () => {
 
   await new Promise((r) => setTimeout(r, 10));
   assert.match(copied, new RegExp(WIDGET_ABOVE));
+});
+
+test("tall panel scrolls with clamped offset and shows up/down markers", () => {
+  const lines = Array.from({ length: 30 }, (_, i) => `panel-item-${i + 1}`);
+  const tab = createTab(1, "s1", "/repo", {
+    panelOpen: true,
+    extensionUi: {
+      statuses: [],
+      widgets: [{ key: "big", placement: "aboveEditor", lines }],
+      toolsExpanded: false,
+      pendingUserInteractions: [],
+      workingVisible: true,
+    },
+  });
+
+  // At offset 0: top visible, a "↓ more" marker but no "↑ more".
+  tab.panelScrollOffset = 0;
+  const top = renderExtensionPanel(tab, 40, 10).map(stripAnsi).join("\n");
+  assert.match(top, /panel-item-1\b/);
+  assert.match(top, /\u2193 more/);
+  assert.doesNotMatch(top, /\u2191 more/);
+
+  // Scrolled down: a "↑ more" marker appears and later items become visible.
+  tab.panelScrollOffset = 5;
+  const mid = renderExtensionPanel(tab, 40, 10).map(stripAnsi).join("\n");
+  assert.match(mid, /\u2191 more/);
+  assert.match(mid, /panel-item-\d\d/);
+
+  // Offset past the end is clamped back to the real maximum (no blank scroll).
+  tab.panelScrollOffset = 9999;
+  renderExtensionPanel(tab, 40, 10);
+  assert.ok(tab.panelScrollOffset < 9999, "offset should be clamped to overflow");
+  const end = renderExtensionPanel(tab, 40, 10).map(stripAnsi).join("\n");
+  assert.match(end, /panel-item-30\b/);
+  assert.doesNotMatch(end, /\u2193 more/);
+});
+
+test("wheel routes to panel or chat by region, never both", () => {
+  const state = makeState({
+    panelOpen: true,
+    extensionUi: {
+      statuses: [],
+      widgets: [
+        {
+          key: "big",
+          placement: "aboveEditor",
+          lines: Array.from({ length: 30 }, (_, i) => `panel-item-${i + 1}`),
+        },
+      ],
+      toolsExpanded: false,
+      pendingUserInteractions: [],
+      workingVisible: true,
+    },
+  });
+  const tab = state.tabs[0]!;
+  const tui = fakeTui();
+  // Establish panel/chat surface bounds.
+  const mixTui = createMixCodeTui(state, makeRuntime(), { terminal: silentTerminal(100) });
+  mixTui.render(100);
+  mixTui.stop();
+  const bounds = tab.panelSurfaceBounds!;
+  assert.ok(bounds, "panel bounds set");
+
+  // Wheel-down inside the panel scrolls the panel, leaves chat untouched.
+  const chatBefore = tab.chatScrollOffset;
+  handleMouseInput(
+    state,
+    tab,
+    `\x1b[<65;${bounds.left + 1};${bounds.top + 1}M`,
+    tui,
+    undefined,
+    undefined,
+    async () => {},
+  );
+  assert.ok(tab.panelScrollOffset > 0, "panel scrolled");
+  assert.equal(tab.chatScrollOffset, chatBefore, "chat not scrolled by panel wheel");
+
+  // Wheel-up over the chat column scrolls chat, leaves the panel offset alone.
+  const panelBefore = tab.panelScrollOffset;
+  handleMouseInput(state, tab, `\x1b[<64;2;${bounds.top + 1}M`, tui, undefined, undefined, async () => {});
+  assert.equal(tab.panelScrollOffset, panelBefore, "panel not scrolled by chat wheel");
+  assert.ok(tab.chatScrollOffset > chatBefore, "chat scrolled");
 });
 
 function renderPlain(panelOpen: boolean): string[] {

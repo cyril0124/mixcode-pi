@@ -398,11 +398,11 @@ export function extensionPanelWidth(terminalWidth: number): number {
 /**
  * Render the widget side panel: aboveEditor widgets stacked over belowEditor
  * widgets, separated by a blank row, framed with a left vertical border so it
- * reads as a distinct column. Lines are padded to exactly `panelWidth` and the
- * list is clipped to `panelHeight` (a dimmed "… more" marker replaces the last
- * visible content row on overflow). The final row is a dim hint on how to close
- * the panel. The returned rows are the raw rendered lines used for both display
- * and mouse text selection.
+ * reads as a distinct column. Content taller than the panel scrolls at
+ * `tab.panelScrollOffset` (clamped here) with "↑ more"/"↓ more" markers on the
+ * hidden edges. The final row is a dim hint on how to close the panel. The
+ * returned rows are the raw rendered lines used for both display and mouse
+ * text selection.
  */
 export function renderExtensionPanel(
   tab: MixCodeTabInfo,
@@ -415,6 +415,9 @@ export function renderExtensionPanel(
 
 // Dim footer hint telling the user how to dismiss the panel (Right toggles it).
 const EXTENSION_PANEL_CLOSE_HINT = "\u2192 to close";
+// Generous per-widget line budget for the scrolling panel: high enough that no
+// real widget is truncated, so the panel's own scroll window is the only limit.
+const EXTENSION_PANEL_WIDGET_LINE_BUDGET = 1000;
 
 function renderExtensionPanelInner(
   tab: MixCodeTabInfo,
@@ -438,22 +441,29 @@ function renderExtensionPanelInner(
   const content: string[] = [];
   ordered.forEach((widget, index) => {
     if (index > 0) content.push(blank);
-    // The panel is a tall column, so let each widget render up to the panel's
-    // content budget instead of the host's default editor-area cap. The final
-    // clip below renders a single "… more" indicator for any real overflow.
+    // The panel scrolls, so render each widget's full content (not the host's
+    // 10-line editor-area cap). Pass a generous line budget that no real widget
+    // reaches; the scroll window below bounds what is actually shown.
     const widgetLines =
-      widget.render?.(bodyWidth, contentHeight + 1) ??
+      widget.render?.(bodyWidth, EXTENSION_PANEL_WIDGET_LINE_BUDGET) ??
       wrapExtensionWidgetLines(widget.lines, bodyWidth);
     for (const line of widgetLines) {
       const text = truncateToWidth(sanitizeWidgetLine(line), bodyWidth, "...");
       content.push(padLine(`${border} ${text}`, panelWidth));
     }
   });
-  // Clip content to its budget, marking overflow on the final visible row.
-  let visible = content;
-  if (content.length > contentHeight) {
-    visible = content.slice(0, contentHeight);
-    visible[contentHeight - 1] = padLine(`${border} ${activeRenderTheme.dim("\u2026 more")}`, panelWidth);
+  // Window the content to contentHeight rows at the (clamped) scroll offset.
+  // Clamp here and write back so a roster shrink or resize can never strand the
+  // offset past the end. "↑ more"/"↓ more" mark hidden rows above/below.
+  const maxOffset = Math.max(0, content.length - contentHeight);
+  const offset = Math.min(Math.max(0, Math.floor(tab.panelScrollOffset)), maxOffset);
+  tab.panelScrollOffset = offset;
+  let visible = content.slice(offset, offset + contentHeight);
+  if (offset > 0 && visible.length > 0) {
+    visible[0] = padLine(`${border} ${activeRenderTheme.dim("\u2191 more")}`, panelWidth);
+  }
+  if (offset < maxOffset && visible.length > 0) {
+    visible[visible.length - 1] = padLine(`${border} ${activeRenderTheme.dim("\u2193 more")}`, panelWidth);
   }
   // Pad to full content height with border-only rows so the column stays rectangular.
   while (visible.length < contentHeight) visible.push(blank);

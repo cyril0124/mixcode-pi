@@ -6,7 +6,7 @@ import {
 } from "../core/chat-selection.js";
 import { copyTextToClipboard, type ClipboardWriter } from "../core/clipboard.js";
 import { parseSgrMouseInput } from "../core/mouse.js";
-import { scrollChat, scrollPreview } from "../core/overlays.js";
+import { scrollChat, scrollExtensionPanel, scrollPreview } from "../core/overlays.js";
 import { pushToast } from "../core/toast.js";
 import { createPicker } from "../core/pickers.js";
 import { activateTab } from "../core/tabs.js";
@@ -70,6 +70,17 @@ export function handleMouseInput(
     return true;
   }
   if (handleChatSelectionMouseInput(state, active, data, tui, runtime, copyToClipboard)) {
+    return true;
+  }
+  // Wheel over the open side panel scrolls the panel; anywhere else scrolls
+  // chat. Region routing keeps the two side-by-side scroll regions independent.
+  if (
+    mouse.wheel &&
+    active.panelOpen &&
+    pointInChatSurface(active.panelSurfaceBounds, { row: mouse.y, col: mouse.x })
+  ) {
+    scrollExtensionPanel(active, mouse.wheel === "up" ? -3 : 3);
+    tui.requestRender();
     return true;
   }
   if (mouse.wheel && state.activeTabId !== "config") {
