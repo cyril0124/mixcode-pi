@@ -1,6 +1,7 @@
 import { CURSOR_MARKER, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import type { MixCodeState, WorkspaceSnapshot } from "../core/types.js";
 import { activeRenderTheme, overlayPanel, padLine, renderWithTheme } from "./rendering.js";
+import { windowStart } from "./rendering/scroll-window.js";
 import { themeForId } from "./themes.js";
 import {
   filteredWorkspaces,
@@ -184,13 +185,7 @@ function renderWorkspaceList(state: MixCodeState, width: number, rows: number): 
   const overlay = state.workspaceOverlay;
   const workspaces = filteredWorkspaces(overlay);
   const lines = [`filter: ${overlay.query}`, ""];
-  const startIndex = Math.max(
-    0,
-    Math.min(
-      overlay.selectedIndex - Math.floor((rows - 2) / 2),
-      Math.max(0, workspaces.length - (rows - 2)),
-    ),
-  );
+  const startIndex = windowStart(overlay.selectedIndex, workspaces.length, rows - 2);
   for (let index = startIndex; index < Math.min(workspaces.length, startIndex + rows - 2); index++) {
     const workspace = workspaces[index]!;
     const selected = index === overlay.selectedIndex;

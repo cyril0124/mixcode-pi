@@ -30,6 +30,7 @@ import { pushToast } from "../core/toast.js";
 import type { MixCodeKeyRuntime, OverlayTui, TreeSelectorDisplayHost } from "./app-types.js";
 import { showErrorOverlay } from "./app-overlays.js";
 import { scrollChatToUserEntry } from "./chat-scroll-target.js";
+import { halfScreenRows } from "./rendering/scroll-window.js";
 import { renderTreeSelector } from "./tree-selector-render.js";
 
 function refreshTreeSelectorDisplay(tui: OverlayTui): void {
@@ -45,7 +46,7 @@ function getTreeSelectorDisplayHost(tui: OverlayTui): TreeSelectorDisplayHost | 
 }
 
 function getMaxVisible(): number {
-  return Math.max(5, Math.floor((process.stdout.rows || 24) / 2));
+  return halfScreenRows();
 }
 
 export class TreeSelectorEditorComponent implements EditorComponent {

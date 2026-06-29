@@ -80,19 +80,57 @@ function moveFullResetAfterPadding(text: string, width: number): string {
   return `${body}${" ".repeat(Math.max(0, width - visibleWidth(body)))}${FULL_RESET}`;
 }
 
+/**
+ * Options for {@link drawBox}, the shared box renderer that consolidates the
+ * four public box helpers. The helpers differ only along these axes:
+ * - `meta`: extra labels for the top rule (only `titledBox` passes any).
+ * - `border`: color fn applied to the top, the `│` sides, and the bottom rule.
+ * - `inner`: optional color fn wrapping each padded body line; default identity
+ *   (raw `padLine`) so `box`/`titledBox` add no coloring where there was none.
+ * - `leadingBlank`: prepend one blank `padLine("", width)` (only `panelBox`).
+ */
+interface DrawBoxOptions {
+  title: string;
+  meta?: string[];
+  lines: string[];
+  width: number;
+  theme?: MixCodeTheme;
+  border?: (text: string) => string;
+  inner?: (text: string) => string;
+  leadingBlank?: boolean;
+}
+
+function drawBox(opts: DrawBoxOptions): string[] {
+  const {
+    title,
+    meta = [],
+    lines,
+    width,
+    theme = activeRenderTheme,
+    border = (text: string) => theme.border(text),
+    inner,
+    leadingBlank = false,
+  } = opts;
+  const innerWidth = Math.max(0, width - 2);
+  // renderBoxTop reads only theme.border, so override it with the chosen fn to
+  // keep the top, sides, and bottom all using the same border color.
+  const top = renderBoxTop(title, meta, innerWidth, { ...theme, border });
+  const body = lines.map((line) => {
+    const content = padLine(line, innerWidth);
+    return `${border("│")}${inner ? inner(content) : content}${border("│")}`;
+  });
+  const bottom = `${border("└")}${border("─".repeat(innerWidth))}${border("┘")}`;
+  const boxLines = [top, ...body, bottom];
+  return leadingBlank ? [padLine("", width), ...boxLines] : boxLines;
+}
+
 export function box(
   title: string,
   lines: string[],
   width: number,
   theme: MixCodeTheme = activeRenderTheme,
 ): string[] {
-  const innerWidth = Math.max(0, width - 2);
-  const top = renderBoxTop(title, [], innerWidth, theme);
-  const body = lines.map(
-    (line) => `${theme.border("│")}${padLine(line, innerWidth)}${theme.border("│")}`,
-  );
-  const bottom = `${theme.border("└")}${theme.border("─".repeat(innerWidth))}${theme.border("┘")}`;
-  return [top, ...body, bottom];
+  return drawBox({ title, lines, width, theme });
 }
 
 export function titledBox(
@@ -102,13 +140,7 @@ export function titledBox(
   width: number,
   theme: MixCodeTheme = activeRenderTheme,
 ): string[] {
-  const innerWidth = Math.max(0, width - 2);
-  const top = renderBoxTop(title, meta, innerWidth, theme);
-  const body = lines.map(
-    (line) => `${theme.border("│")}${padLine(line, innerWidth)}${theme.border("│")}`,
-  );
-  const bottom = `${theme.border("└")}${theme.border("─".repeat(innerWidth))}${theme.border("┘")}`;
-  return [top, ...body, bottom];
+  return drawBox({ title, meta, lines, width, theme });
 }
 
 export function renderBoxTop(
@@ -128,23 +160,18 @@ export function renderBoxTop(
 
 export function panelBox(title: string, lines: string[], width: number): string[] {
   const theme = activeRenderTheme;
-  const innerWidth = Math.max(0, width - 2);
-  const top = renderBoxTop(title, [], innerWidth, { ...theme, border: theme.borderDim });
-  const body = lines.map(
-    (line) =>
-      `${theme.borderDim("│")}${theme.setupPanel(padLine(line, innerWidth))}${theme.borderDim("│")}`,
-  );
-  const bottom = `${theme.borderDim("└")}${theme.borderDim("─".repeat(innerWidth))}${theme.borderDim("┘")}`;
-  return [padLine("", width), top, ...body, bottom];
+  return drawBox({
+    title,
+    lines,
+    width,
+    theme,
+    border: (text: string) => theme.borderDim(text),
+    inner: (text: string) => theme.setupPanel(text),
+    leadingBlank: true,
+  });
 }
 
 export function overlayPanel(title: string, lines: string[], width: number): string[] {
   const theme = activeRenderTheme;
-  const innerWidth = Math.max(0, width - 2);
-  const top = renderBoxTop(title, [], innerWidth, theme);
-  const body = lines.map(
-    (line) => `${theme.border("│")}${theme.surface(padLine(line, innerWidth))}${theme.border("│")}`,
-  );
-  const bottom = `${theme.border("└")}${theme.border("─".repeat(innerWidth))}${theme.border("┘")}`;
-  return [top, ...body, bottom];
+  return drawBox({ title, lines, width, theme, inner: (text: string) => theme.surface(text) });
 }

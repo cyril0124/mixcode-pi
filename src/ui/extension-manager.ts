@@ -6,6 +6,7 @@ import { closeAppOverlay, showErrorOverlay, showLinesOverlay } from "./app-overl
 import type { MixCodeKeyRuntime, MixCodeSubmitRuntime, OverlayTui } from "./app-types.js";
 import { activeRenderTheme, renderWithTheme } from "./rendering/context.js";
 import { overlayPanel, padLine } from "./rendering/primitives.js";
+import { windowStart } from "./rendering/scroll-window.js";
 import { themeForId } from "./themes.js";
 
 export function openExtensionManager(
@@ -153,12 +154,6 @@ function renderDoublePane(
     ? `${padLine(footerText, leftWidth)}${sep}${padLine("", rightWidth)}`
     : "";
   return { body, footer };
-}
-
-// Keep the selected index centered within a fixed-height scrolling window.
-function windowStart(selectedIndex: number, total: number, windowSize: number): number {
-  if (total <= windowSize) return 0;
-  return Math.max(0, Math.min(selectedIndex - Math.floor(windowSize / 2), total - windowSize));
 }
 
 function scrollFooter(

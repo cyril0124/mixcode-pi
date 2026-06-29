@@ -25,6 +25,7 @@ import { closeAppOverlay, showErrorOverlay, showLinesOverlay } from "./app-overl
 import type { MixCodeKeyRuntime, OverlayTui } from "./app-types.js";
 import { activeRenderTheme, renderWithTheme } from "./rendering/context.js";
 import { overlayPanel, padLine } from "./rendering/primitives.js";
+import { windowStart } from "./rendering/scroll-window.js";
 import { themeForId } from "./themes.js";
 
 // --- Open / Close ---
@@ -578,10 +579,7 @@ function renderSessionSelectorInner(selector: SessionSelectorState, width: numbe
       lines.push(activeRenderTheme.dim("  No sessions found."));
     }
   } else {
-    const startIndex = Math.max(
-      0,
-      Math.min(selector.selectedIndex - Math.floor(MAX_VISIBLE / 2), nodes.length - MAX_VISIBLE),
-    );
+    const startIndex = windowStart(selector.selectedIndex, nodes.length, MAX_VISIBLE);
     const endIndex = Math.min(startIndex + MAX_VISIBLE, nodes.length);
 
     for (let i = startIndex; i < endIndex; i++) {

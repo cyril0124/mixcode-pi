@@ -11,11 +11,12 @@ import {
 import type { MixCodeState } from "../core/types.js";
 import { activeRenderTheme, renderWithTheme } from "./rendering/context.js";
 import { padLine } from "./rendering/primitives.js";
+import { halfScreenRows, windowStart } from "./rendering/scroll-window.js";
 import { themeForId } from "./themes.js";
 
 function getMaxVisible(maxRows?: number): number {
   if (maxRows !== undefined) return Math.max(1, Math.floor(maxRows));
-  return Math.max(5, Math.floor((process.stdout.rows || 24) / 2));
+  return halfScreenRows();
 }
 
 export function renderTreeSelector(
@@ -134,13 +135,7 @@ function renderTreeList(
   const maxVisible = maxListRows !== undefined && maxListRows <= 1
     ? 0
     : getMaxVisible(maxListRows === undefined ? undefined : maxListRows - 1);
-  const startIndex = Math.max(
-    0,
-    Math.min(
-      selector.selectedIndex - Math.floor(maxVisible / 2),
-      selector.filteredNodes.length - maxVisible,
-    ),
-  );
+  const startIndex = windowStart(selector.selectedIndex, selector.filteredNodes.length, maxVisible);
   const endIndex = Math.min(startIndex + maxVisible, selector.filteredNodes.length);
 
   for (let i = startIndex; i < endIndex; i++) {
