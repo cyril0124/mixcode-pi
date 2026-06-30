@@ -298,7 +298,6 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
         unreadDone: true,
         previewMessages: [{ role: "assistant", text: "preview" }],
         previewIndex: 0,
-        previewScrollOffset: 2,
         pendingMessages: ["queued"],
       }),
       createTab(2, "s2", "/repo", {
@@ -323,7 +322,6 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
     assert.equal(restored.tabs[0]?.alias, "alpha");
     assert.equal(restored.tabs[0]?.unreadDone, true);
     assert.deepEqual(restored.tabs[0]?.previewMessages, [{ role: "assistant", text: "preview" }]);
-    assert.equal(restored.tabs[0]?.previewScrollOffset, 2);
 
     assert.deepEqual(restored.tabs[0]?.pendingMessages, ["queued"]);
     assert.equal(restored.tabs[1]?.model.modelId, "tab-two-model");
@@ -364,7 +362,6 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
         tab_aliases: [],
         preview_messages: { x: "bad" },
         preview_indices: { x: "bad" },
-        preview_scroll_offsets: { x: "bad" },
         pending_messages: { x: "bad" },
       },
       "/fallback",
@@ -376,7 +373,6 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
     assert.equal(minimal.tabs[0]?.title, "Worker");
     assert.deepEqual(minimal.tabs[0]?.previewMessages, []);
     assert.equal(minimal.tabs[0]?.previewIndex, 0);
-    assert.equal(minimal.tabs[0]?.previewScrollOffset, 0);
     assert.deepEqual(minimal.tabs[0]?.pendingMessages, []);
     const normalizedPreview = deserializeState(
       {

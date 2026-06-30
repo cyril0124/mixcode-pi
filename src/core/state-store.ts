@@ -62,16 +62,6 @@ export function serializeState(state: MixCodeState, port: number): Record<string
         .filter((tab) => tab.previewIndex > 0)
         .map((tab) => [tab.sessionId, tab.previewIndex]),
     ),
-    preview_scroll_offsets: Object.fromEntries(
-      state.tabs
-        .filter((tab) => tab.previewScrollOffset > 0)
-        .map((tab) => [tab.sessionId, tab.previewScrollOffset]),
-    ),
-    chat_scroll_offsets: Object.fromEntries(
-      state.tabs
-        .filter((tab) => tab.chatScrollOffset > 0)
-        .map((tab) => [tab.sessionId, tab.chatScrollOffset]),
-    ),
     pending_messages: Object.fromEntries(
       state.tabs
         .filter((tab) => tab.pendingMessages.length > 0)
@@ -112,8 +102,6 @@ export function deserializeState(
   const tabVariants = objectRecord(data.tab_variants);
   const previewMessages = objectRecord(data.preview_messages);
   const previewIndices = objectRecord(data.preview_indices);
-  const previewScrollOffsets = objectRecord(data.preview_scroll_offsets);
-  const chatScrollOffsets = objectRecord(data.chat_scroll_offsets);
   const pendingMessages = objectRecord(data.pending_messages);
   const unseen = new Set(Array.isArray(data.unseen_done) ? data.unseen_done.map(String) : []);
   if (Array.isArray(data.children)) {
@@ -129,12 +117,6 @@ export function deserializeState(
           previewMessages: normalizePreviewMessages(previewMessages[sessionId]),
           previewIndex:
             typeof previewIndices[sessionId] === "number" ? previewIndices[sessionId] : 0,
-          previewScrollOffset:
-            typeof previewScrollOffsets[sessionId] === "number"
-              ? previewScrollOffsets[sessionId]
-              : 0,
-          chatScrollOffset:
-            typeof chatScrollOffsets[sessionId] === "number" ? chatScrollOffsets[sessionId] : 0,
           pendingMessages: normalizeStringList(pendingMessages[sessionId]),
           thinkingLevel,
           model,
