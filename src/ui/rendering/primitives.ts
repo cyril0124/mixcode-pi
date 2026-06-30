@@ -171,7 +171,19 @@ export function panelBox(title: string, lines: string[], width: number): string[
   });
 }
 
-export function overlayPanel(title: string, lines: string[], width: number): string[] {
+export function overlayPanel(
+  title: string,
+  lines: string[],
+  width: number,
+  border?: (text: string) => string,
+): string[] {
   const theme = activeRenderTheme;
-  return drawBox({ title, lines, width, theme, inner: (text: string) => theme.surface(text) });
+  return drawBox({
+    title,
+    lines,
+    width,
+    theme,
+    border: border ?? ((text: string) => theme.border(text)),
+    inner: (text: string) => theme.surface(text),
+  });
 }

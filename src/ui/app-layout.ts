@@ -23,6 +23,7 @@ import {
   renderTabBar,
   renderTabBarSeparator,
   renderWorkingIndicator,
+  setCurrentUiTheme,
 } from "./rendering.js";
 import { themeForId } from "./themes.js";
 
@@ -185,6 +186,7 @@ export class MixCodeLayoutRoot implements Component {
 
   render(width: number): string[] {
     const theme = themeForId(this.state.theme);
+    setCurrentUiTheme(theme);
     const active = getActiveTab(this.state);
     const isAgentTab = active && this.state.activeTabId !== "config";
     // Vim mode is a read-only chat-scrolling surface; suppress extension
