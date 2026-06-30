@@ -198,6 +198,32 @@ test("completion provider delegates extension slash argument completions", async
   );
 });
 
+test("completion provider keeps the menu open for a fully typed command name", async () => {
+  // Regression: returning null on an exact command-name match closed the
+  // autocomplete menu, and the base Editor never re-triggers on a trailing
+  // space — so `/goal ` argument hints could never appear. Keeping the menu
+  // open (pi parity) lets the space keypress transition to argument hints.
+  const provider = new MixCodeCompletionProvider({
+    skills: [],
+    files: [],
+    commands: [
+      {
+        name: "goal",
+        description: "Set or view the goal",
+        getArgumentCompletions: (prefix) =>
+          /\S/.test(prefix) ? null : [{ value: "pause", label: "pause", description: "Pause" }],
+      },
+    ],
+  });
+  const signal = new AbortController().signal;
+
+  const exact = await provider.getSuggestions(["/goal"], 0, 5, { signal });
+  assert.equal(exact?.items[0]?.value, "/goal");
+  const withSpace = await provider.getSuggestions(["/goal "], 0, 6, { signal });
+  assert.equal(withSpace?.prefix, "");
+  assert.equal(withSpace?.items[0]?.value, "pause");
+});
+
 test("completion provider suggests local theme arguments", async () => {
   const provider = new MixCodeCompletionProvider({ skills: [], files: [] });
   const signal = new AbortController().signal;

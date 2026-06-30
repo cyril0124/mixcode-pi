@@ -77,7 +77,10 @@ export class MixCodeCompletionProvider implements AutocompleteProvider {
     const commands = mergedSlashCommands(this.sources.commands, skills, resolvePromptTemplates(this.sources.promptTemplates));
     if (token.startsWith("/") && isSlashCommandNameContext(before, token)) {
       const prefix = token.slice(1);
-      if (commands.some((command) => command.name === prefix)) return null;
+      // Keep the menu open even when the typed name exactly matches a command
+      // (pi parity). Closing it here strands the picker: the base Editor only
+      // re-triggers autocomplete on `/`, trigger chars, or word chars — never a
+      // space — so a closed menu can't reopen for `/<cmd> ` argument hints.
       const matchedCommands = fuzzyFilter(commands, prefix, (command) => command.name);
       if (matchedCommands.length === 0) return null;
       return {
