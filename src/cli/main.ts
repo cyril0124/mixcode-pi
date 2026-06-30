@@ -31,6 +31,8 @@ import { applyModelSelection, applyThinkingLevel } from "../ui/app-actions.js";
 import { clearConversationCache } from "../ui/rendering.js";
 import { bootstrapMixCode, defaultStateDir } from "./bootstrap.js";
 import { ensurePackageExtensions } from "../core/ensure-package-extensions.js";
+import { installConsoleTuiBridge, wireConsoleSink } from "./console-tui-bridge.js";
+import { showNoticeTextOverlay } from "../ui/app-overlays.js";
 
 export async function main(): Promise<void> {
   exposeLocalPiCli();
@@ -40,6 +42,10 @@ export async function main(): Promise<void> {
     await runStatusCommand(args);
     return;
   }
+  // Relocate console.{log,warn,error,...} onto the TUI before any extension can
+  // log. Installed after the status early-return so plain CLI subcommands keep
+  // printing to the real stdout; the sink is wired once the TUI exists below.
+  installConsoleTuiBridge();
   ensurePackageExtensions(repoDir, { copy: true });
   const {
     state,
@@ -110,6 +116,14 @@ export async function main(): Promise<void> {
       await saveStateFile(stateFile, nextState);
       await writeRegistrySnapshot();
     },
+  });
+  // Wire the console bridge to the TUI now that it exists: console output renders
+  // as a dismissible Notice panel (Home and agent tabs both safe) and any backlog
+  // queued during extension loading flushes here. requestRender is required
+  // because scheduler-style logging fires off the input loop.
+  wireConsoleSink((text) => {
+    showNoticeTextOverlay(tui, text);
+    tui.requestRender();
   });
   const originalRequestRender = tui.requestRender.bind(tui);
   tui.requestRender = (force?: boolean) => {
@@ -397,7 +411,11 @@ const BINARY_ENTRY_IMPORT_FLAG = Symbol.for("mixcode-pi.binary-entry-import");
 
 if (isDirectCliEntry()) {
   main().catch((error) => {
-    console.error(error);
+    // Bypass the console bridge here: a startup crash can happen after the bridge
+    // is installed but before the TUI sink is wired, which would queue this fatal
+    // error into a buffer that never flushes. Write straight to the real stderr.
+    const message = error instanceof Error ? (error.stack ?? error.message) : String(error);
+    process.stderr.write(`${message}\n`);
     process.exitCode = 1;
   });
 }

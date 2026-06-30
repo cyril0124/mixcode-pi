@@ -1,6 +1,6 @@
 // Tests for the notice/error overlay panel rendering (src/ui/app-overlays.ts).
 //
-// showTransientTextOverlay / showErrorOverlay render a bordered panel with a
+// showNoticeTextOverlay / showErrorOverlay render a bordered panel with a
 // title bar, wrapped body text, and a dim "Esc to close" hint. The panel must:
 //   - wrap long messages by panel width instead of truncating per line
 //   - show a title ("Notice" for transient, "Error" for errors)

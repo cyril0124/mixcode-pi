@@ -5,7 +5,7 @@ import { getActiveTab } from "../core/tabs.js";
 import type { MixCodeState, WorkspaceSnapshot } from "../core/types.js";
 import { createWorkspaceOverlayState } from "../core/workspace-ui.js";
 import { snapshotWorkspace, upsertWorkspace } from "../core/workspace.js";
-import { closeAppOverlay, showLinesOverlay, showTransientTextOverlay } from "./app-overlays.js";
+import { closeAppOverlay, showLinesOverlay, showNoticeTextOverlay } from "./app-overlays.js";
 import type { OverlayOptions } from "@earendil-works/pi-tui";
 import type { MixCodeKeyRuntime, OverlayTui } from "./app-types.js";
 import { renderWorkspaceOverlay } from "./workspace-rendering.js";
@@ -126,7 +126,7 @@ export function handleWorkspaceOverlayKey(
   const overlay = state.workspaceOverlay;
   if (!overlay.open) return false;
   if (!workspaceFile) {
-    showTransientTextOverlay(tui, "Workspace file is not configured");
+    showNoticeTextOverlay(tui, "Workspace file is not configured");
     return true;
   }
   if (handleWorkspaceCancelKey(state, data, tui)) return true;
@@ -169,7 +169,7 @@ export function showWorkspaceToast(
 ): void {
   const active = getActiveTab(state);
   if (!active) {
-    showTransientTextOverlay(tui, message);
+    showNoticeTextOverlay(tui, message);
     return;
   }
   pushToast(active, { type, message });
@@ -350,7 +350,7 @@ function handleDeleteConfirmKey(
     closeWorkspaceOverlay(state, tui);
     await onStateChanged?.(state);
     tui.requestRender();
-  })().catch((error: unknown) => showTransientTextOverlay(tui, errorMessage(error)));
+  })().catch((error: unknown) => showNoticeTextOverlay(tui, errorMessage(error)));
   return true;
 }
 

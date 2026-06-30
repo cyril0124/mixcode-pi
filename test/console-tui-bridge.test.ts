@@ -1,0 +1,48 @@
+// Tests for the console → TUI bridge (src/cli/console-tui-bridge.ts).
+//
+// The bridge overrides global console methods so their output is queued (before
+// the TUI exists) and later flushed to a sink in arrival order, each line tagged
+// with a `[console.<method>]:` prefix and formatted exactly like console. These
+// tests follow that lifecycle in one sequence because the bridge keeps
+// process-global state (the overridden console + the pending queue), and restore
+// the original console afterward so other test files are unaffected.
+
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { installConsoleTuiBridge, wireConsoleSink } from "../src/cli/console-tui-bridge.js";
+
+test("console bridge queues before wiring, then flushes in order with prefixes", () => {
+  const original = {
+    log: console.log,
+    info: console.info,
+    debug: console.debug,
+    warn: console.warn,
+    error: console.error,
+  };
+  try {
+    installConsoleTuiBridge();
+
+    // Before the sink is wired, these queue rather than hit the (absent) TUI.
+    console.log("hello", 42, { a: 1 });
+    console.info("info-line");
+    console.debug("debug-line");
+    console.warn("warn-line");
+
+    const captured: string[] = [];
+    // Wiring flushes the backlog in arrival order.
+    wireConsoleSink((text) => captured.push(text));
+
+    assert.deepEqual(captured, [
+      "[console.log]: hello 42 { a: 1 }", // node:util.format renders args like console
+      "[console.info]: info-line",
+      "[console.debug]: debug-line",
+      "[console.warn]: warn-line",
+    ]);
+
+    // After wiring, calls go straight to the sink (no queueing).
+    console.error("boom");
+    assert.equal(captured.at(-1), "[console.error]: boom");
+  } finally {
+    Object.assign(console, original);
+  }
+});

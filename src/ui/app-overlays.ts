@@ -91,7 +91,7 @@ export function renderQuitConfirm(width: number, theme: MixCodeTheme): string[] 
   );
 }
 
-export function showTransientTextOverlay(tui: OverlayTui, text: string): void {
+export function showNoticeTextOverlay(tui: OverlayTui, text: string): void {
   showNoticeOverlay(tui, text, { title: "Notice" });
 }
 

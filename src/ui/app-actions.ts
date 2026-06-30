@@ -18,7 +18,7 @@ import {
   quitOverlayOptions,
   renderQuitConfirm,
   showLinesOverlay,
-  showTransientTextOverlay,
+  showNoticeTextOverlay,
 } from "./app-overlays.js";
 import type { OverlayTui } from "./app-types.js";
 import { shutdownRuntimeAndStopTui, type RuntimeQuitTarget } from "./quit.js";
@@ -151,7 +151,7 @@ export function showSystemMessageOrToast(
 ): void {
   const active = getActiveTab(state);
   if (!active || state.activeTabId === "config" || !runtime.appendSystemMessage) {
-    showTransientTextOverlay(tui, message);
+    showNoticeTextOverlay(tui, message);
     return;
   }
   runtime.appendSystemMessage(active.sessionId, message);
