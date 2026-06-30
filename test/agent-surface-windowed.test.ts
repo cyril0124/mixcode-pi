@@ -195,6 +195,48 @@ test("running plain streaming chats use windowed rendering", () => {
   assert.doesNotMatch(text, /block-0\b/);
 });
 
+test("windowed renderer keeps scrolled view stable as new output arrives", () => {
+  const chat = buildLongChat(120);
+  const tab = createTab(20, "s20", "/repo", { status: "running", chatScrollOffset: 30 });
+  const before = renderAgentSurface(tab, { chat, reasoning: [] } as never, WIDTH, HEIGHT).map(stripAnsi);
+  const firstMessageRow = before.findIndex((line) => /\b(?:assistant|user|output|system)-\d+\b/.test(line));
+  const firstVisibleMessage = before[firstMessageRow]?.match(/\b(?:assistant|user|output|system)-\d+\b/)?.[0];
+
+  assert.ok(firstVisibleMessage, "expected a visible chat message below the older marker");
+
+  chat.push(...buildLongChat(10).map((line, index) => ({ ...line, text: `${line.text}-new-${index}` })));
+  const after = renderAgentSurface(tab, { chat, reasoning: [] } as never, WIDTH, HEIGHT).map(stripAnsi);
+
+  assert.match(after[firstMessageRow] ?? "", new RegExp(`\\b${firstVisibleMessage}\\b`));
+  assert.ok(tab.chatScrollOffset > 30, "scroll offset grows to compensate for appended output");
+});
+
+test("windowed renderer keeps scrolled view stable as streaming tail grows", () => {
+  const chat = buildRunningChatWithHugeStreamingTail();
+  const tab = createTab(21, "s21", "/repo", { status: "running", chatScrollOffset: 30 });
+  const before = renderAgentSurface(tab, { chat, reasoning: [] } as never, WIDTH, HEIGHT).map(stripAnsi);
+  const firstContentRow = before.findIndex((line) => line.includes("streaming words wrap"));
+  const firstVisibleLine = before[firstContentRow];
+
+  assert.ok(firstVisibleLine, "expected visible streaming content");
+
+  chat[chat.length - 1] = {
+    ...chat[chat.length - 1]!,
+    text: `${chat[chat.length - 1]!.text} ${"new streaming words wrap ".repeat(400)}`,
+  };
+  const after = renderAgentSurface(tab, { chat, reasoning: [] } as never, WIDTH, HEIGHT).map(stripAnsi);
+  const repeated = renderAgentSurface(tab, { chat, reasoning: [] } as never, WIDTH, HEIGHT).map(stripAnsi);
+
+  assert.equal(after[firstContentRow], firstVisibleLine);
+  assert.equal(repeated[firstContentRow], firstVisibleLine);
+
+  tab.chatScrollOffset = 0;
+  const bottom = renderAgentSurface(tab, { chat, reasoning: [] } as never, WIDTH, HEIGHT)
+    .map(stripAnsi)
+    .join("\n");
+  assert.match(bottom, /new streaming words wrap/);
+});
+
 test("running chats with historical tool renderers still use windowed rendering", () => {
   let rendered = 0;
   const chat = buildStreamingAssistantChat(180);

@@ -79,6 +79,16 @@ interface ConversationCache {
 }
 
 const conversationCacheMap = new Map<string, ConversationCache>();
+interface ScrollFreezeState {
+  total: number;
+  width: number;
+  height: number;
+  offset?: number;
+  frozen?: boolean;
+  line?: string;
+  row?: number;
+}
+const scrollFreezeStates = new WeakMap<MixCodeTabInfo, ScrollFreezeState>();
 
 /** Remove cached conversation lines for a closed tab to prevent memory leaks. */
 export function clearConversationCache(sessionId: string): void {
@@ -149,9 +159,13 @@ function renderAgentSurfaceInner(
   // values (e.g. 1_000_000 from chatHome) don't leave the offset far above
   // the content, which would make subsequent small scroll deltas (j / ctrl+d)
   // appear to do nothing.
-  const maxOffset = Math.max(0, lines.length - Math.max(0, Math.floor(maxHeight)));
+  const viewport = Math.max(0, Math.floor(maxHeight));
+  keepScrolledViewStable(tab, lines.length, surfaceWidth, viewport);
+  const maxOffset = Math.max(0, lines.length - viewport);
   if (tab.chatScrollOffset > maxOffset) tab.chatScrollOffset = maxOffset;
+  applyScrollFreezeAnchor(tab, lines, viewport, surfaceWidth);
   const fitted = fitScrolledLinesWithInfo(lines, maxHeight, surfaceWidth, tab.chatScrollOffset);
+  rememberScrollFreezeAnchor(tab, fitted.lines, surfaceWidth, fitted.height);
   const highlighted = highlightVisibleChatLines(fitted.lines, tab, surfaceWidth, fitted.height);
   const hasNewContent =
     tab.chatScrollOffset > 0 && (tab.status === "running" || tab.status === "thinking");
@@ -321,17 +335,17 @@ function renderAgentSurfaceWindowed(
   mainWidth: number,
   sidebarVisible: boolean,
   sidebarWidth: number,
+  freezeAdjusted = false,
 ): string[] {
   const reasoning = runtimeTab?.reasoning ?? [];
   const viewport = Math.max(0, Math.floor(maxHeight));
-  const scrollOffset = Math.max(0, tab.chatScrollOffset);
 
   // Bottom-anchored content.
   const queueLines = renderQueuePreview(tab, mainWidth);
 
   // Walk chat blocks newest-to-oldest, prepending rendered output to `lines`
   // until we've covered the visible window plus overscan.
-  const targetRows = viewport + scrollOffset + WINDOW_OVERSCAN_LINES;
+  const targetRows = viewport + Math.max(0, tab.chatScrollOffset) + WINDOW_OVERSCAN_LINES;
   const lines: string[] = [...queueLines];
   const frameBlockHeights = new Map<ChatLine, number>();
   let oldestEmittedIndex = chat.length;
@@ -408,9 +422,24 @@ function renderAgentSurfaceWindowed(
 
   // Clamp scrollOffset against the estimate so chatHome's 1_000_000 sentinel
   // settles into a sensible value (treated as "all the way up").
+  if (!freezeAdjusted && keepScrolledViewStable(tab, total, surfaceWidth, viewport)) {
+    return renderAgentSurfaceWindowed(
+      tab,
+      runtimeTab,
+      chat,
+      width,
+      maxHeight,
+      surfaceWidth,
+      mainWidth,
+      sidebarVisible,
+      sidebarWidth,
+      true,
+    );
+  }
   const maxOffset = Math.max(0, total - viewport);
   if (tab.chatScrollOffset > maxOffset) tab.chatScrollOffset = maxOffset;
-  const clampedOffset = Math.max(0, Math.min(scrollOffset, maxOffset));
+  applyScrollFreezeAnchor(tab, lines, viewport, surfaceWidth);
+  const clampedOffset = Math.max(0, Math.min(tab.chatScrollOffset, maxOffset));
 
   // Pick the visible window from the bottom. `lines` is ordered top-to-bottom
   // and ends with the queue preview / latest content. Bottom of window sits
@@ -428,6 +457,7 @@ function renderAgentSurfaceWindowed(
   const linesAboveBuffer = Math.max(0, total - lines.length);
   const start = linesAboveBuffer + windowStart;
 
+  rememberScrollFreezeAnchor(tab, visible, surfaceWidth, viewport);
   const decorated = decorateWindow(visible, start, total, viewport, mainWidth);
 
   const composed = sidebarVisible
@@ -452,6 +482,100 @@ function renderAgentSurfaceWindowed(
   return appendChatScrollbar(fitted, width, hasNewContent);
 }
 
+function keepScrolledViewStable(
+  tab: MixCodeTabInfo,
+  total: number,
+  width: number,
+  height: number,
+): boolean {
+  const previous = scrollFreezeStates.get(tab);
+  const grew = total > (previous?.total ?? total);
+  const canFreeze =
+    tab.chatScrollOffset > 0 &&
+    previous?.width === width &&
+    previous.height === height &&
+    previous.offset === tab.chatScrollOffset;
+  if (canFreeze && grew) {
+    tab.chatScrollOffset += total - previous.total;
+  }
+  scrollFreezeStates.set(tab, {
+    ...previous,
+    total,
+    width,
+    height,
+    offset: tab.chatScrollOffset,
+    frozen: canFreeze,
+  });
+  return canFreeze;
+}
+
+function applyScrollFreezeAnchor(
+  tab: MixCodeTabInfo,
+  lines: string[],
+  viewport: number,
+  width: number,
+): void {
+  const state = scrollFreezeStates.get(tab);
+  if (
+    tab.chatScrollOffset <= 0 ||
+    !state?.frozen ||
+    state.offset !== tab.chatScrollOffset ||
+    !state.line ||
+    state.width !== width ||
+    state.height !== viewport
+  ) {
+    return;
+  }
+  const index = findScrollFreezeAnchorIndex(lines, state.line, viewport, tab.chatScrollOffset, state.row ?? 0);
+  if (index < 0) return;
+  const maxStart = Math.max(0, lines.length - viewport);
+  const start = Math.max(0, Math.min(index - (state.row ?? 0), maxStart));
+  tab.chatScrollOffset = Math.max(0, lines.length - (start + viewport));
+}
+
+function rememberScrollFreezeAnchor(
+  tab: MixCodeTabInfo,
+  visible: string[],
+  width: number,
+  height: number,
+): void {
+  const current = scrollFreezeStates.get(tab) ?? { total: 0, width, height };
+  if (tab.chatScrollOffset <= 0) {
+    scrollFreezeStates.set(tab, { total: current.total, width, height, offset: tab.chatScrollOffset });
+    return;
+  }
+  const row = visible.findIndex((line) => {
+    const trimmed = line.trim();
+    return trimmed.length > 0 && !trimmed.includes("... older above") && !trimmed.includes("... newer below");
+  });
+  scrollFreezeStates.set(tab, {
+    ...current,
+    width,
+    height,
+    offset: tab.chatScrollOffset,
+    frozen: current.frozen === true && current.offset === tab.chatScrollOffset,
+    line: row >= 0 ? visible[row] : undefined,
+    row: row >= 0 ? row : undefined,
+  });
+}
+
+function findScrollFreezeAnchorIndex(
+  lines: string[],
+  line: string,
+  viewport: number,
+  scrollOffset: number,
+  row: number,
+): number {
+  const expected = Math.max(0, Math.min(lines.length - 1, lines.length - scrollOffset - viewport + row));
+  for (let distance = 0; distance < lines.length; distance++) {
+    const before = expected - distance;
+    if (before >= 0 && lines[before] === line) return before;
+    const after = expected + distance;
+    if (after < lines.length && lines[after] === line) return after;
+  }
+  return -1;
+}
+
 function streamingTextRenderOptions(
   runtimeTab: RuntimeTab | undefined,
   chatIndex: number,
@@ -461,12 +585,13 @@ function streamingTextRenderOptions(
   if (!streaming) return undefined;
   const line = runtimeTab.chat[chatIndex];
   if (line?.role !== "assistant" && line?.role !== "thinking") return undefined;
+  const frozen = scrollFreezeStates.get(runtimeTab.tab)?.frozen === true;
   if (streaming.chatIndex === chatIndex) {
-    return { streamingMarkdownCharLimit: STREAMING_MARKDOWN_CHAR_LIMIT };
+    return frozen ? undefined : { streamingMarkdownCharLimit: STREAMING_MARKDOWN_CHAR_LIMIT };
   }
   for (const index of streaming.blockIndices.values()) {
     if (index === chatIndex) {
-      return { streamingMarkdownCharLimit: STREAMING_MARKDOWN_CHAR_LIMIT };
+      return frozen ? undefined : { streamingMarkdownCharLimit: STREAMING_MARKDOWN_CHAR_LIMIT };
     }
   }
   return undefined;
