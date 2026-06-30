@@ -163,7 +163,7 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
     skills: await scanSkillEntries(state.workdir, options.homeDir),
     files: await scanProjectFiles(state.workdir),
   };
-  await saveStateFile(stateFile, state, port);
+  await saveStateFile(stateFile, state);
   // Defer tab creation: return immediately so the TUI can render the initial
   // frame with persisted previewMessages. Extensions load in the background.
   for (const tab of state.tabs) tab.status = "Not Ready";

@@ -29,7 +29,7 @@ import { activateTab } from "../core/tabs.js";
 import { createMixCodeTui } from "../ui/app.js";
 import { applyModelSelection, applyThinkingLevel } from "../ui/app-actions.js";
 import { clearConversationCache } from "../ui/rendering.js";
-import { bootstrapMixCode, DEFAULT_STATE_PORT, defaultStateDir } from "./bootstrap.js";
+import { bootstrapMixCode, defaultStateDir } from "./bootstrap.js";
 import { ensurePackageExtensions } from "../core/ensure-package-extensions.js";
 
 export async function main(): Promise<void> {
@@ -107,7 +107,7 @@ export async function main(): Promise<void> {
     rootStateDir,
     exitProcessOnQuit: true,
     onStateChanged: async (nextState) => {
-      await saveStateFile(stateFile, nextState, DEFAULT_STATE_PORT);
+      await saveStateFile(stateFile, nextState);
       await writeRegistrySnapshot();
     },
   });
@@ -274,7 +274,7 @@ export async function main(): Promise<void> {
         process.stderr.write(`Batch error: ${msg}\n`);
         process.exitCode = 1;
       })
-      .finally(() => saveStateFile(stateFile, state, DEFAULT_STATE_PORT));
+      .finally(() => saveStateFile(stateFile, state));
   }
 }
 

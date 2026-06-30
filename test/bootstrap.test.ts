@@ -50,7 +50,7 @@ test("bootstrap restores persisted tab order and runtime tabs", async () => {
     const state = createInitialState(repo);
     state.tabs.push(createTab(1, "s1", repo), createTab(2, "s2", repo));
     state.activeTabId = "s2";
-    await saveStateFile(stateFileForPort(scopedStateDir(dir, "/fallback"), 0), state, 0);
+    await saveStateFile(stateFileForPort(scopedStateDir(dir, "/fallback"), 0), state);
     const restored = await bootstrapMixCode({
       workdir: "/fallback",
       stateDir: dir,
@@ -290,7 +290,7 @@ test("bootstrap keeps a restored configured model when it is still available", a
         thinkingLevel: "xhigh",
       }),
     );
-    await saveStateFile(stateFileForPort(scopedStateDir(stateDir, repo), 0), state, 0);
+    await saveStateFile(stateFileForPort(scopedStateDir(stateDir, repo), 0), state);
 
     const boot = await bootstrapMixCode({
       workdir: repo,
@@ -449,7 +449,7 @@ test("bootstrap repairs persisted tabs that reference unavailable models", async
       createTab(1, "s1", repo, { model: unavailable, contextLimit: unavailable.contextWindow }),
     );
     state.activeTabId = "s1";
-    await saveStateFile(stateFileForPort(scopedStateDir(stateDir, repo), 0), state, 0);
+    await saveStateFile(stateFileForPort(scopedStateDir(stateDir, repo), 0), state);
 
     const boot = await bootstrapMixCode({
       workdir: repo,

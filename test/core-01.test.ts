@@ -306,8 +306,7 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
         thinkingLevel: "xhigh",
       }),
     );
-    const serialized = serializeState(state, 3010);
-    assert.equal(serialized.port, 3010);
+    const serialized = serializeState(state);
     assert.deepEqual(serialized.children, ["s1", "s2"]);
     assert.equal((serialized.workdirs as Record<string, string>).s1, "/repo");
     assert.equal((serialized.tab_titles as Record<string, string>).s1, "Renamed Agent");
@@ -315,7 +314,7 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
     assert.equal((serialized.tab_variants as Record<string, string>).s2, "xhigh");
     const restored = deserializeState(serialized, "/fallback");
     assert.equal(restored.theme, "claude-warm");
-    assert.equal(restored.activeTabId, "s1");
+    assert.equal(restored.activeTabId, "config");
     assert.equal(restored.tabs[0]?.sessionId, "s1");
     assert.equal(restored.tabs[0]?.title, "Renamed Agent");
     assert.equal(restored.tabs[0]?.workdir, "/repo");
@@ -334,12 +333,12 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
     assert.equal(scopedStateDir(dir, "/repo-a///"), scopedStateDir(dir, "/repo-a"));
 
     const stateFile = stateFileForPort(dir, 3010);
-    await saveStateFile(stateFile, state, 3010);
+    await saveStateFile(stateFile, state);
     assert.equal((await loadStateFile(stateFile, "/fallback")).workdir, "/repo/");
     const concurrentState = createInitialState("/repo");
     const concurrentFile = stateFileForPort(dir, 4010);
     await Promise.all(
-      Array.from({ length: 8 }, () => saveStateFile(concurrentFile, concurrentState, 4010)),
+      Array.from({ length: 8 }, () => saveStateFile(concurrentFile, concurrentState)),
     );
     assert.equal((await loadStateFile(concurrentFile, "/fallback")).workdir, "/repo");
     await assert.rejects(
@@ -347,12 +346,12 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
       /Invalid state file/,
     );
     assert.throws(() => deserializeState({ theme: "not-a-theme" }, "/fallback"), /Unknown theme/);
-    const fallback = deserializeState({ variant: "bad", active_tab: 1 }, "/fallback");
+    const fallback = deserializeState({ variant: "bad" }, "/fallback");
     assert.equal(fallback.workdir, "/fallback");
     assert.equal(fallback.activeTabId, "config");
     const defaultTitle = createInitialState("/fallback");
     defaultTitle.tabs.push(createTab(1, "default-title", "/fallback"));
-    const defaultTitleRestored = deserializeState(serializeState(defaultTitle, 0), "/fallback");
+    const defaultTitleRestored = deserializeState(serializeState(defaultTitle), "/fallback");
     assert.equal(defaultTitleRestored.tabs[0]?.title, "Agent-01");
     const minimal = deserializeState(
       {

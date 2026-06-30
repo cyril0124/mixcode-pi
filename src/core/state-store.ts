@@ -26,13 +26,11 @@ export function normalizeStartupWorkdir(workdir: string): string {
   return workdir.trim().replace(/\/+$/, "");
 }
 
-export function serializeState(state: MixCodeState, port: number): Record<string, unknown> {
+export function serializeState(state: MixCodeState): Record<string, unknown> {
   return {
-    port,
     children: state.tabs.map((tab) => tab.sessionId),
     model: state.model,
     variant: state.thinkingLevel,
-    active_tab: state.activeTabId,
     workdirs: Object.fromEntries(state.tabs.map((tab) => [tab.sessionId, tab.workdir])),
     tab_titles: Object.fromEntries(
       state.tabs
@@ -80,7 +78,6 @@ export function deserializeState(
   const state = createInitialState(
     typeof data.startup_workdir === "string" ? data.startup_workdir : fallbackWorkdir,
   );
-  state.activeTabId = typeof data.active_tab === "string" ? data.active_tab : "config";
   if (typeof data.theme === "string") setTheme(state, data.theme);
   if (data.model && typeof data.model === "object" && !Array.isArray(data.model)) {
     state.model = { ...state.model, ...(data.model as Partial<typeof state.model>) };
@@ -209,11 +206,10 @@ function normalizePreviewMessages(value: unknown): PreviewMessage[] {
 export async function saveStateFile(
   filePath: string,
   state: MixCodeState,
-  port: number,
 ): Promise<void> {
   await mkdir(dirname(filePath), { recursive: true });
   const temp = tempFilePath(filePath);
-  await writeFile(temp, `${JSON.stringify(serializeState(state, port), null, 2)}\n`, "utf8");
+  await writeFile(temp, `${JSON.stringify(serializeState(state), null, 2)}\n`, "utf8");
   await rename(temp, filePath);
 }
 
