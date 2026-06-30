@@ -1,6 +1,5 @@
 import { chmod, mkdir } from "node:fs/promises";
-import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import type {
   CreateAgentSessionServicesOptions,
   ExtensionFactory,
@@ -63,7 +62,13 @@ export function defaultMixCodeAgentDir(): string {
 }
 
 export function defaultStateDir(): string {
-  return join(process.env.XDG_CONFIG_HOME ?? join(homedir(), ".config"), "mixcode-pi");
+  return join(defaultMixCodeAgentDir(), "mixcode-pi");
+}
+
+export function defaultPiSessionDir(workdir: string, agentDir = defaultMixCodeAgentDir()): string {
+  const resolved = resolve(workdir);
+  const safePath = `--${resolved.replace(/^[/\\]/, "").replace(/[/\\:]/g, "-")}--`;
+  return join(resolve(agentDir), "sessions", safePath);
 }
 
 export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
@@ -85,7 +90,10 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
 }> {
   const rootStateDir = options.stateDir ?? defaultStateDir();
   const stateDir = scopedStateDir(rootStateDir, options.workdir);
-  const sessionsRoot = join(stateDir, "sessions");
+  const agentDir = options.agentDir ?? defaultMixCodeAgentDir();
+  const sessionsRoot = options.stateDir
+    ? join(stateDir, "sessions")
+    : defaultPiSessionDir(options.workdir, agentDir);
   const port = options.port ?? DEFAULT_STATE_PORT;
   await mkdir(rootStateDir, { recursive: true, mode: 0o700 });
   await chmod(rootStateDir, 0o700);
@@ -126,7 +134,6 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
   }
   state.activeTabId = "config";
   const modelRepairs = repairUnavailableTabModels(state);
-  const agentDir = options.agentDir ?? defaultMixCodeAgentDir();
   // The history recall prompt is a static path string (no file scanning), so
   // it is set synchronously to ensure every session's system prompt includes
   // it. The actual backfill/index rebuild below is deferred to the background.

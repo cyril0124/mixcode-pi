@@ -13,6 +13,7 @@ import {
   defaultPiAgentDir,
   defaultPiAuthPath,
   defaultPiModelsPath,
+  defaultPiSessionDir,
   defaultStateDir,
   UUIDV7_SESSION_ID_PATTERN,
   saveStateFile,
@@ -466,23 +467,27 @@ test("bootstrap repairs persisted tabs that reference unavailable models", async
   }
 });
 
-test("default state dir follows XDG_CONFIG_HOME", () => {
-  const old = process.env.XDG_CONFIG_HOME;
+test("default state dir lives under Pi agent dir and ignores XDG_CONFIG_HOME", () => {
+  const oldXdg = process.env.XDG_CONFIG_HOME;
+  const oldPi = process.env.PI_CODING_AGENT_DIR;
   process.env.XDG_CONFIG_HOME = "/tmp/xdg-test";
+  process.env.PI_CODING_AGENT_DIR = "/tmp/pi-agent";
   try {
-    assert.equal(defaultStateDir(), "/tmp/xdg-test/mixcode-pi");
-    delete process.env.XDG_CONFIG_HOME;
-    assert.match(defaultStateDir(), /\/\.config\/mixcode-pi$/);
+    assert.equal(defaultStateDir(), "/tmp/pi-agent/mixcode-pi");
   } finally {
-    if (old === undefined) delete process.env.XDG_CONFIG_HOME;
-    else process.env.XDG_CONFIG_HOME = old;
+    if (oldXdg === undefined) delete process.env.XDG_CONFIG_HOME;
+    else process.env.XDG_CONFIG_HOME = oldXdg;
+    if (oldPi === undefined) delete process.env.PI_CODING_AGENT_DIR;
+    else process.env.PI_CODING_AGENT_DIR = oldPi;
   }
 });
 
-test("bootstrap uses default state dir and port when omitted", async () => {
+test("bootstrap stores default UI state under Pi agent and sessions in Pi SDK directory", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-bootstrap-defaults-"));
-  const old = process.env.XDG_CONFIG_HOME;
+  const oldXdg = process.env.XDG_CONFIG_HOME;
+  const oldPi = process.env.PI_CODING_AGENT_DIR;
   process.env.XDG_CONFIG_HOME = join(dir, "xdg");
+  process.env.PI_CODING_AGENT_DIR = join(dir, "pi-agent");
   try {
     const boot = await bootstrapMixCode({
       workdir: dir,
@@ -491,11 +496,16 @@ test("bootstrap uses default state dir and port when omitted", async () => {
     });
     assert.equal(
       boot.stateFile,
-      join(scopedStateDir(join(dir, "xdg", "mixcode-pi"), dir), "mixcode_state.json"),
+      join(scopedStateDir(join(dir, "pi-agent", "mixcode-pi"), dir), "mixcode_state.json"),
     );
+    await boot.tabsReady;
+    const runtimeTab = boot.runtime.getTab(boot.state.tabs[0]!.sessionId);
+    assert.equal(runtimeTab?.session.getSessionDir(), defaultPiSessionDir(dir, join(dir, "pi-agent")));
   } finally {
-    if (old === undefined) delete process.env.XDG_CONFIG_HOME;
-    else process.env.XDG_CONFIG_HOME = old;
+    if (oldXdg === undefined) delete process.env.XDG_CONFIG_HOME;
+    else process.env.XDG_CONFIG_HOME = oldXdg;
+    if (oldPi === undefined) delete process.env.PI_CODING_AGENT_DIR;
+    else process.env.PI_CODING_AGENT_DIR = oldPi;
     await rm(dir, { recursive: true, force: true });
   }
 });
