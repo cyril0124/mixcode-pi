@@ -216,14 +216,6 @@ test("rendering exposes header, status, working indicator, and sidebar landmarks
   state.tabs.push(tab);
   assert.deepEqual(renderHeader(80), []);
   assert.match(
-    renderInputMeta(tab, 100, 0, themeForId("mixcode-light")).join("\n"),
-    /\x1b\[38;2;77;112;112m/,
-  );
-  assert.doesNotMatch(
-    renderConfig({ ...state, theme: "mixcode-light" }, 100, themeForId("mixcode-light")).join("\n"),
-    /\x1b\[48;/,
-  );
-  assert.match(
     renderTabBar({ ...state, activeTabId: "config" }, 80, themeForId("claude-warm"))[0] ?? "",
     /\x1b\[48;2;166;61;32m\x1b\[38;2;255;232;220m MixCode Home /,
   );
@@ -244,14 +236,6 @@ test("rendering exposes header, status, working indicator, and sidebar landmarks
   assert.match(
     renderTabBar(agentActiveState, 80)[0] ?? "",
     /\x1b\[48;2;95;135;255m\x1b\[38;2;24;24;30m MixCode Home /,
-  );
-  assert.match(
-    renderTabBar({ ...state, activeTabId: "config" }, 80, themeForId("mixcode-light"))[0] ?? "",
-    /\x1b\[48;2;208;208;224m/,
-  );
-  assert.match(
-    renderTabBar(agentActiveState, 80, themeForId("mixcode-light"))[0] ?? "",
-    /\x1b\[48;2;84;125;167m\x1b\[38;2;255;255;255m MixCode Home /,
   );
   assert.match(renderTabBar(state, 80)[0] ?? "", /\? Agent-01 /);
   assert.doesNotMatch(stripAnsi(renderTabBar(state, 80)[0] ?? ""), /\? Agent-01[!?]/);

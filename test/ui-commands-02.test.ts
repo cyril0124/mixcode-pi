@@ -149,10 +149,11 @@ test("submitted input opens local pickers and picker keys apply selections", asy
 
   await handleSubmittedInput(state, runtime, "/theme", tui);
   assert.equal(state.picker?.kind, "theme");
-  assert.deepEqual(handleMixCodeKeyInput(state, "l", tui), { consume: true });
-  assert.deepEqual(handleMixCodeKeyInput(state, "i", tui), { consume: true });
+  assert.deepEqual(handleMixCodeKeyInput(state, "t", tui), { consume: true });
+  assert.deepEqual(handleMixCodeKeyInput(state, "o", tui), { consume: true });
+  assert.deepEqual(handleMixCodeKeyInput(state, "k", tui), { consume: true });
   assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui), { consume: true });
-  assert.equal(state.theme, "mixcode-light");
+  assert.equal(state.theme, "tokyo-night");
 
   await handleSubmittedInput(state, runtime, "/workdir", tui, async (next) => {
     changes.push(`async:${next.picker?.kind ?? "none"}`);

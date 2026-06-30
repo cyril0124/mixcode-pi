@@ -45,15 +45,14 @@ test("tmux TUI smoke starts, switches theme, rejects OpenCode UI, and exits", {
 
     await tmuxRun(tmux, session, ["send-keys", "-t", "0", "Tab"]);
     await delay(400);
-    await tmuxRun(tmux, session, ["send-keys", "-l", "-t", "0", "/theme li"]);
+    await tmuxRun(tmux, session, ["send-keys", "-l", "-t", "0", "/theme tok"]);
     await delay(400);
     await tmuxRun(tmux, session, ["send-keys", "-t", "0", "Enter"]);
     await delay(800);
 
-    const light = await capturePane(tmux, session);
-    assert.equal(light.ansi.includes("\x1b[48;2;208;208;224m"), true);
-    assert.equal(light.ansi.includes("\x1b[38;2;90;128;128m"), true);
-    assert.doesNotMatch(light.plain, /> \/theme li/);
+    const themed = await capturePane(tmux, session);
+    assert.equal(themed.ansi.includes("\x1b[48;2;51;70;124m"), true);
+    assert.doesNotMatch(themed.plain, /> \/theme tok/);
 
     await sendLiteral(tmux, session, "\x10");
     const palette = await waitForPane(tmux, session, /Command Palette[\s\S]*Choose Model/, 5_000);

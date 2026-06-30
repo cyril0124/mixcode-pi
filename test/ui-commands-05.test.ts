@@ -328,21 +328,21 @@ test("config-scoped submitted input runs without an active agent tab", async () 
     },
   };
 
-  await handleSubmittedInput(state, runtime, "/theme mixcode-light", tui);
+  await handleSubmittedInput(state, runtime, "/theme tokyo-night", tui);
   await handleSubmittedInput(state, runtime, "/theme dark", tui);
   assert.equal(state.theme, "mixcode-dark");
-  await handleSubmittedInput(state, runtime, "/theme li", tui);
-  assert.equal(state.theme, "mixcode-light");
+  await handleSubmittedInput(state, runtime, "/theme tok", tui);
+  assert.equal(state.theme, "tokyo-night");
   await assert.rejects(
-    () => handleSubmittedInput(state, runtime, "/theme mix", tui),
+    () => handleSubmittedInput(state, runtime, "/theme t", tui),
     /Ambiguous theme/,
   );
   state.picker = {
     kind: "theme",
     title: "Choose Theme",
-    query: "mix",
+    query: "tok",
     selectedIndex: 0,
-    items: [{ id: "mixcode-light", label: "MixCode Light", description: "light" }],
+    items: [{ id: "tokyo-night", label: "Tokyo Night", description: "dark" }],
   };
   await handleSubmittedInput(state, runtime, "/tui-state --editor=false", tui);
   const debugTab = createTab(1, "debug", "/repo", {
@@ -398,7 +398,7 @@ test("config-scoped submitted input runs without an active agent tab", async () 
     () => handleSubmittedInput(state, runtime, "/exit", tui),
     /Quit command requires TUI stop support/,
   );
-  assert.equal(state.theme, "mixcode-light");
+  assert.equal(state.theme, "tokyo-night");
   assert.equal(state.tabs.some((tab) => tab.sessionId === "s1"), false);
   assert.equal(state.tabs.some((tab) => /^session-\d+$/.test(tab.sessionId)), false);
   assert.equal(created.length, 2);

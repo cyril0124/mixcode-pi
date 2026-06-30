@@ -183,7 +183,7 @@ theme / getAllThemes / getTheme / setTheme
 
 - `setHeader` / `setFooter` 只占用 MixCode 固定布局中的 extension slot，不允许覆盖 Agent Tabs 或核心输入区。
 - `setEditorComponent` 接入当前 live editor slot；没有 live TUI host 时显式报错。
-- `setTheme("dark" | "light" | "mixcode-dark" | "mixcode-light" | "terminal")` 会映射到 MixCode 全局 TUI theme，并主动请求 TUI redraw；未知 theme 或没有 live TUI host 时返回显式失败，不静默降级。
+- `setTheme("dark" | "mixcode-dark" | "claude-warm" | "tokyo-night" | "terminal")` 会映射到 MixCode 全局 TUI theme，并主动请求 TUI redraw；未知 theme（含已移除的 `light`/`mixcode-light`）或没有 live TUI host 时返回显式失败，不静默降级。
 - 非 overlay 的 `ctx.ui.custom()` 还不是完整 Pi TUI 等价能力。
 
 ### Rendering
@@ -207,15 +207,15 @@ extension renderer invalidate()
 
 ## TUI theme 验证
 
-2026-05-10 用 180x48 tmux 真实会话验证了 theme picker、theme alias / prefix 和 light theme 渲染：
+2026-06-30 用 180x48 tmux 真实会话验证了 theme picker、theme alias / prefix 和 tokyo-night theme 渲染：
 
 ```bash
 ./run.sh
 # in tmux:
 Tab
 /theme
-li<Enter>
-/theme li<Enter>
+tok<Enter>
+/theme tok<Enter>
 /theme terminal<Enter>
 ```
 
@@ -226,18 +226,18 @@ tmp/tui-verify-112457/
   ├─ 01-config-or-agent.ansi
   ├─ 02-agent-tab.ansi
   ├─ 03-theme-picker.ansi
-  └─ 04-light-theme.ansi
+  └─ 04-tokyo-night-theme.ansi
 ```
 
-`04-light-theme.ansi` 中确认出现 MixCode light palette，例如：
+`04-tokyo-night-theme.ansi` 中确认出现 MixCode tokyo-night palette，例如：
 
 ```text
-header bg: 48;2;227;222;210
-input bg : 48;2;236;231;220
-accent   : 38;2;196;93;61
+selection bg: 48;2;51;70;124
+home tab bg : 48;2;122;162;247
+accent      : 38;2;125;207;255
 ```
 
-另一次逐步 tmux 验证使用 `send-keys -l '/theme li'` 后单独发送 `Enter`，捕获到第一次 Enter 后输入框清空且出现 `48;2;227;222;210` light header。合并成一个 `tmux send-keys '/theme li' Enter` 会产生 tmux 批量输入时序差异，不能作为人工交互失败的证据。
+另一次逐步 tmux 验证使用 `send-keys -l '/theme tok'` 后单独发送 `Enter`，捕获到第一次 Enter 后输入框清空且出现 `48;2;51;70;124` selection bg。合并成一个 `tmux send-keys '/theme tok' Enter` 会产生 tmux 批量输入时序差异，不能作为人工交互失败的证据。
 
 可重复 smoke：
 

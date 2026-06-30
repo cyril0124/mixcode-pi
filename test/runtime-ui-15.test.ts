@@ -481,19 +481,17 @@ test("runtime maps extension theme primitives to MixCode themes", async () => {
     assert.match(seen[0] ?? "", /\x1b\[/);
     assert.match(seen[0] ?? "", /accent-ok/);
     assert.match(seen[1] ?? "", /mixcode-extension/);
-    assert.match(seen[1] ?? "", /mixcode-light/);
     assert.match(seen[2] ?? "", /theme-ok/);
     assert.equal(seen[3], "missing-ok");
     assert.match(
       seen[4] ?? "",
       /^false:Pi extension theme switching requires an active MixCode TUI host/,
     );
-    assert.deepEqual(light, { success: true });
+    assert.deepEqual(light, { success: false, error: "Unknown theme: light" });
     assert.deepEqual(dark, { success: true });
-    assert.deepEqual(appliedThemes, ["mixcode-light", "mixcode-dark"]);
+    assert.deepEqual(appliedThemes, ["mixcode-dark"]);
     assert.equal(mixTheme, "mixcode-dark");
     assert.equal(ui.theme, runtimeTab.agentSession.extensionRunner.getUIContext().theme);
-    assert.match(ui.getTheme("mixcode-light")?.fg("accent", "light-ok") ?? "", /light-ok/);
     assert.match(missing.error ?? "", /Unknown theme: missing-theme/);
     assert.equal(
       runtimeTab.chat.some((line) =>

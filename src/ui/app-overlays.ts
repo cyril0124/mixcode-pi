@@ -7,6 +7,8 @@ import {
 import { editTextInExternalEditor } from "../core/external-editor.js";
 import type { OverlayTui } from "./app-types.js";
 import { overlayPanel, padLine } from "./rendering.js";
+import { renderWithTheme } from "./rendering/context.js";
+import type { MixCodeTheme } from "./themes.js";
 
 const activeOverlayHandles = new WeakMap<object, OverlayHandle>();
 
@@ -78,11 +80,13 @@ export function quitOverlayOptions(): OverlayOptions {
   };
 }
 
-export function renderQuitConfirm(width: number): string[] {
-  return overlayPanel(
-    "Quit MixCode",
-    ["Are you sure you want to quit?", "", "[Y] Quit    [N] Cancel", "Esc: cancel"],
-    width,
+export function renderQuitConfirm(width: number, theme: MixCodeTheme): string[] {
+  return renderWithTheme(theme, () =>
+    overlayPanel(
+      "Quit MixCode",
+      ["Are you sure you want to quit?", "", "[Y] Quit    [N] Cancel", "Esc: cancel"],
+      width,
+    ),
   );
 }
 

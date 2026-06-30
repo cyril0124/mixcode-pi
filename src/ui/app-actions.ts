@@ -22,6 +22,7 @@ import {
 } from "./app-overlays.js";
 import type { OverlayTui } from "./app-types.js";
 import { shutdownRuntimeAndStopTui, type RuntimeQuitTarget } from "./quit.js";
+import { themeForId } from "./themes.js";
 
 export {
   armPendingEscape,
@@ -59,7 +60,7 @@ function isThinkingLevel(level: string): level is ThinkingLevel {
 export function openQuitConfirm(state: MixCodeState, tui: OverlayTui): void {
   // openOverlay enforces mutual exclusion (closes any active overlay first).
   openOverlay(state, "quit-confirm");
-  showLinesOverlay(tui, (width) => renderQuitConfirm(width), quitOverlayOptions());
+  showLinesOverlay(tui, (width) => renderQuitConfirm(width, themeForId(state.theme)), quitOverlayOptions());
 }
 
 export function applyModelSelection(

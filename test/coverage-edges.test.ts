@@ -15,7 +15,6 @@ import {
   currentExtensionTheme,
   extensionThemeByName,
   MIXCODE_EXTENSION_CLAUDE_WARM_THEME,
-  MIXCODE_EXTENSION_LIGHT_THEME,
   MIXCODE_EXTENSION_THEME,
   MIXCODE_EXTENSION_TOKYO_NIGHT_THEME,
 } from "../src/agent/runtime-extension-theme.js";
@@ -40,7 +39,7 @@ import { MIXCODE_FAUX_MODEL } from "../src/agent/faux-stream.js";
 
 test("extension theme helpers cover host, alias, and error branches", () => {
   assert.equal(currentExtensionTheme(undefined), MIXCODE_EXTENSION_THEME);
-  assert.equal(currentExtensionTheme({ getTheme: () => "light" }), MIXCODE_EXTENSION_LIGHT_THEME);
+  assert.equal(currentExtensionTheme({ getTheme: () => "light" }), MIXCODE_EXTENSION_THEME);
   assert.equal(currentExtensionTheme({ getTheme: () => "unknown" }), MIXCODE_EXTENSION_THEME);
 
   const names = availableExtensionThemes().map((theme) => theme.name);
@@ -48,8 +47,8 @@ test("extension theme helpers cover host, alias, and error branches", () => {
   assert.equal(extensionThemeByName("mixcode-dark"), MIXCODE_EXTENSION_THEME);
   assert.equal(extensionThemeByName("claude-warm"), MIXCODE_EXTENSION_CLAUDE_WARM_THEME);
   assert.equal(extensionThemeByName("tokyo-night"), MIXCODE_EXTENSION_TOKYO_NIGHT_THEME);
-  assert.equal(extensionThemeByName("mixcode-light"), MIXCODE_EXTENSION_LIGHT_THEME);
   assert.equal(extensionThemeByName("terminal"), MIXCODE_EXTENSION_THEME);
+  assert.equal(extensionThemeByName("mixcode-light"), undefined);
   assert.equal(extensionThemeByName("mixcode-extension"), MIXCODE_EXTENSION_THEME);
   assert.equal(
     extensionThemeByName(MIXCODE_EXTENSION_THEME.name ?? "mixcode-extension"),
@@ -99,23 +98,9 @@ test("extension theme helpers cover host, alias, and error branches", () => {
       },
       () => renders++,
     ),
-    { success: true },
+    { success: false, error: "Unknown theme: light" },
   );
-  assert.deepEqual(setThemes, ["mixcode-light"]);
-  assert.equal(renders, 2);
-  assert.deepEqual(
-    applyExtensionTheme(
-      "light",
-      {
-        getTheme: () => "dark",
-        setTheme: () => {
-          throw "theme failed";
-        },
-      },
-      () => renders++,
-    ),
-    { success: false, error: "theme failed" },
-  );
+  assert.deepEqual(setThemes, []);
   assert.deepEqual(
     applyExtensionTheme(
       "dark",

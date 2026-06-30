@@ -11,7 +11,6 @@ import {
 } from "@earendil-works/pi-tui";
 import {
   MIXCODE_EXTENSION_CLAUDE_WARM_THEME,
-  MIXCODE_EXTENSION_LIGHT_THEME,
   MIXCODE_EXTENSION_TERMINAL_THEME,
   MIXCODE_EXTENSION_THEME,
   MIXCODE_EXTENSION_TOKYO_NIGHT_THEME,
@@ -22,7 +21,6 @@ import type { ExtensionThemeHost } from "./runtime-types.js";
 
 export {
   MIXCODE_EXTENSION_CLAUDE_WARM_THEME,
-  MIXCODE_EXTENSION_LIGHT_THEME,
   MIXCODE_EXTENSION_TERMINAL_THEME,
   MIXCODE_EXTENSION_THEME,
   MIXCODE_EXTENSION_TOKYO_NIGHT_THEME,
@@ -83,7 +81,6 @@ export function availableExtensionThemes(): Array<{ name: string; path: string |
   return [
     ...THEMES.map((theme) => ({ name: theme.id, path: undefined })),
     { name: "dark", path: undefined },
-    { name: "light", path: undefined },
     { name: MIXCODE_EXTENSION_THEME.name ?? "mixcode-extension", path: undefined },
   ].filter(
     (theme, index, themes) =>
@@ -96,7 +93,6 @@ export function extensionThemeByName(name: string): Theme | undefined {
   if (themeId === "mixcode-dark") return MIXCODE_EXTENSION_THEME;
   if (themeId === "claude-warm") return MIXCODE_EXTENSION_CLAUDE_WARM_THEME;
   if (themeId === "tokyo-night") return MIXCODE_EXTENSION_TOKYO_NIGHT_THEME;
-  if (themeId === "mixcode-light") return MIXCODE_EXTENSION_LIGHT_THEME;
   if (themeId === "terminal") return MIXCODE_EXTENSION_TERMINAL_THEME;
   if (
     name === (MIXCODE_EXTENSION_THEME.name ?? "mixcode-extension") ||
@@ -141,6 +137,14 @@ export function normalizeExtensionThemeId(name: string): string | undefined {
   return normalizeThemeId(name);
 }
 
-export function ensureExtensionThemeInitialized(): void {
-  initTheme("dark");
+// Tracks which SDK builtin the global syntax highlighter was initialized to.
+// initTheme costs ~40us/call, far too much for the per-frame markdown highlight
+// path, so we cache the last mode and skip re-init when it is unchanged.
+// MixCode currently only ships dark builtins, so this stays "dark" in practice.
+let initializedThemeMode: "light" | "dark" | undefined;
+
+export function ensureExtensionThemeInitialized(mode: "light" | "dark" = "dark"): void {
+  if (initializedThemeMode === mode) return;
+  initTheme(mode);
+  initializedThemeMode = mode;
 }

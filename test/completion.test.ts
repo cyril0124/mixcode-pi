@@ -202,15 +202,15 @@ test("completion provider suggests local theme arguments", async () => {
   const provider = new MixCodeCompletionProvider({ skills: [], files: [] });
   const signal = new AbortController().signal;
 
-  const light = await provider.getSuggestions(["/theme li"], 0, 9, { signal });
-  assert.equal(light?.prefix, "/theme li");
-  assert.equal(light?.items[0]?.value, "/theme light");
-  assert.deepEqual(provider.applyCompletion(["/theme li"], 0, 9, light!.items[0]!, light!.prefix), {
-    lines: ["/theme light"],
+  const terminal = await provider.getSuggestions(["/theme ter"], 0, 10, { signal });
+  assert.equal(terminal?.prefix, "/theme ter");
+  assert.equal(terminal?.items[0]?.value, "/theme terminal");
+  assert.deepEqual(provider.applyCompletion(["/theme ter"], 0, 10, terminal!.items[0]!, terminal!.prefix), {
+    lines: ["/theme terminal"],
     cursorLine: 0,
-    cursorCol: 12,
+    cursorCol: 15,
   });
-  assert.equal(await provider.getSuggestions(["/theme light"], 0, 12, { signal }), null);
+  assert.equal(await provider.getSuggestions(["/theme terminal"], 0, 15, { signal }), null);
 
   const claude = await provider.getSuggestions(["/theme cla"], 0, 10, { signal });
   assert.equal(claude?.items[0]?.value, "/theme claude-warm");
@@ -219,10 +219,6 @@ test("completion provider suggests local theme arguments", async () => {
   assert.equal(tokyo?.items[0]?.value, "/theme tokyo-night");
 
   const mixcode = await provider.getSuggestions(["/theme mix"], 0, 10, { signal });
-  assert.equal(
-    mixcode?.items.some((item) => item.value === "/theme mixcode-light"),
-    true,
-  );
   assert.equal(
     mixcode?.items.some((item) => item.value === "/theme mixcode-dark"),
     true,

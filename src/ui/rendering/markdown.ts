@@ -43,10 +43,10 @@ function getMarkdownTheme(): MarkdownTheme {
     underline: (text: string) => `\x1b[4m${text}\x1b[24m`,
     // Reuse the SDK's syntax highlighter (highlight.js) so fenced code blocks
     // in assistant/thinking markdown get per-token colors, matching pi agent.
-    // highlightCode reads the SDK global theme, which mixcode standardizes to
-    // "dark" (same baseline the read/write tool previews already use); ensure
-    // it is initialized so the first code block isn't silently left uncolored.
-    // Falls back to flat text color for unknown/absent languages.
+    // highlightCode reads the SDK global theme; ensureExtensionThemeInitialized
+    // sets it to the "dark" builtin (the only brightness MixCode ships) and
+    // caches that so this per-frame path skips the ~40us initTheme cost.
+    // Falls back to flat color for unknown/absent languages.
     highlightCode: (code: string, lang?: string) => {
       ensureExtensionThemeInitialized();
       return highlightCode(code, lang);

@@ -46,25 +46,21 @@ async function waitFor<T>(read: () => Promise<T>, attempts = 25): Promise<T> {
 
 test("theme registry validates and suggests themes", () => {
   const state = createInitialState("/repo");
-  setTheme(state, "mixcode-light");
-  assert.equal(state.theme, "mixcode-light");
   setTheme(state, "dark");
   assert.equal(state.theme, "mixcode-dark");
   setTheme(state, "claude");
   assert.equal(state.theme, "claude-warm");
   setTheme(state, "toyko");
   assert.equal(state.theme, "tokyo-night");
-  setTheme(state, "light");
-  assert.equal(state.theme, "mixcode-light");
-  assert.ok(themeSuggestions("mix").length >= 2);
+  assert.ok(themeSuggestions("mix").length >= 1);
   assert.equal(themeSuggestions("claude")[0]?.id, "claude-warm");
   assert.equal(themeSuggestions("tokyo")[0]?.id, "tokyo-night");
-  assert.equal(themeSuggestions("light")[0]?.id, "mixcode-light");
   assert.ok(themeSuggestions("terminal").some((theme) => theme.id === "terminal"));
   assert.match(themeForId("claude-warm").homeTab(" MixCode Home "), /\x1b\[48;2;217;119;87m/);
   assert.match(themeForId("tokyo-night").homeTab(" MixCode Home "), /\x1b\[48;2;122;162;247m/);
   assert.equal(themeForId("terminal").surface("plain"), "plain");
   assert.throws(() => setTheme(state, "unknown"), /Unknown theme/);
+  assert.throws(() => setTheme(state, "light"), /Unknown theme/);
 });
 
 test("prompt templates expand supported local slash commands", () => {

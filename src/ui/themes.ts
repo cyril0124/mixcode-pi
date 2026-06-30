@@ -99,15 +99,6 @@ const MIXCODE_DARK_THINKING_BORDERS: Record<string, (text: string) => string> = 
   xhigh: rgb("#d183e8"),
 };
 
-const MIXCODE_LIGHT_THINKING_BORDERS: Record<string, (text: string) => string> = {
-  off: rgb("#8c8c8c"),
-  minimal: rgb("#6b6b6b"),
-  low: rgb("#547da7"),
-  medium: rgb("#5a8080"),
-  high: rgb("#875f87"),
-  xhigh: rgb("#8b008b"),
-};
-
 function thinkingBorderFor(
   palette: Record<string, (text: string) => string>,
 ): (thinkingLevel?: string) => (text: string) => string {
@@ -249,45 +240,6 @@ export const TOKYO_NIGHT_THEME: MixCodeTheme = {
   italic: (text: string) => `\x1b[3m${text}\x1b[23m`,
 };
 
-export const MIXCODE_LIGHT_THEME: MixCodeTheme = {
-  name: "pi-light",
-  border: rgb("#547da7"),
-  borderDim: rgb("#8c8c8c"),
-  text: rgb("#1f2328"),
-  dim: rgb("#6b6b6b"),
-  subtle: rgb("#6c6c6c"),
-  accent: rgb("#4d7070"),
-  danger: rgb("#aa5555"),
-  warning: rgb("#8a6520"),
-  success: rgb("#4a7348"),
-  done: rgb("#4a7348"),
-  background: persistentBgRgb("#f8f8f8"),
-  surface: persistentBgRgb("#ffffff"),
-  panel: persistentBgRgb("#e8e8f0"),
-  setupPanel: persistentBgRgb("#e8e8f0"),
-  selection: persistentBgRgb("#d0d0e0"),
-  promptSurface: identity,
-  shellPromptSurface: identity,
-  vimPromptSurface: identity,
-  shellBorder: rgb("#4a7348"),
-  vimBorder: rgb("#4d7070"),
-  thinkingBorder: thinkingBorderFor(MIXCODE_LIGHT_THINKING_BORDERS),
-  toolPendingBackground: bgPair("#e8e8f0"),
-  toolSuccessBackground: bgPair("#e8f0e8"),
-  toolErrorBackground: bgPair("#f0e8e8"),
-  systemBackground: bgPair("#e8e8f0"),
-  customMessageBackground: bgPair("#ede7f6"),
-  tab: (text: string) => `${bgRgb("#e8e8f0")(rgb("#6c6c6c")(text))}`,
-  activeTab: (text: string) => `${bgRgb("#d0d0e0")(rgb("#1f2328")(text))}`,
-  homeTab: (text: string) => `${bgRgb("#547da7")(rgb("#ffffff")(text))}`,
-  homeTabActive: (text: string) => `${bgRgb("#d0d0e0")(rgb("#4d7070")(text))}`,
-  userMessage: persistentBgRgb("#e8e8e8"),
-  thinking: rgb("#6c6c6c"),
-  tool: rgb("#8a6520"),
-  bold: (text: string) => `\x1b[1m${text}\x1b[22m`,
-  italic: (text: string) => `\x1b[3m${text}\x1b[23m`,
-};
-
 const TERMINAL_THINKING_BORDERS: Record<string, (text: string) => string> = {
   off: dim,
   minimal: dim,
@@ -394,66 +346,6 @@ export const MIXCODE_EXTENSION_THEME = new Theme(
   },
   "truecolor",
   { name: "mixcode-extension" },
-);
-
-export const MIXCODE_EXTENSION_LIGHT_THEME = new Theme(
-  {
-    accent: "#4d7070",
-    border: "#547da7",
-    borderAccent: "#4d7070",
-    borderMuted: "#8c8c8c",
-    success: "#4a7348",
-    error: "#aa5555",
-    warning: "#8a6520",
-    muted: "#6c6c6c",
-    dim: "#6b6b6b",
-    text: "#1f2328",
-    thinkingText: "#6c6c6c",
-    userMessageText: "#1f2328",
-    customMessageText: "#1f2328",
-    customMessageLabel: "#7e57c2",
-    toolTitle: "#1f2328",
-    toolOutput: "#6c6c6c",
-    mdHeading: "#9a7326",
-    mdLink: "#547da7",
-    mdLinkUrl: "#767676",
-    mdCode: "#4d7070",
-    mdCodeBlock: "#4a7348",
-    mdCodeBlockBorder: "#6c6c6c",
-    mdQuote: "#6c6c6c",
-    mdQuoteBorder: "#6c6c6c",
-    mdHr: "#6c6c6c",
-    mdListBullet: "#4a7348",
-    toolDiffAdded: "#4a7348",
-    toolDiffRemoved: "#aa5555",
-    toolDiffContext: "#6c6c6c",
-    syntaxComment: "#008000",
-    syntaxKeyword: "#0000FF",
-    syntaxFunction: "#795E26",
-    syntaxVariable: "#001080",
-    syntaxString: "#A31515",
-    syntaxNumber: "#098658",
-    syntaxType: "#267F99",
-    syntaxOperator: "#000000",
-    syntaxPunctuation: "#000000",
-    thinkingOff: "#8c8c8c",
-    thinkingMinimal: "#6b6b6b",
-    thinkingLow: "#547da7",
-    thinkingMedium: "#4d7070",
-    thinkingHigh: "#875f87",
-    thinkingXhigh: "#8b008b",
-    bashMode: "#4a7348",
-  },
-  {
-    selectedBg: "#d0d0e0",
-    userMessageBg: "#e8e8e8",
-    customMessageBg: "#ede7f6",
-    toolPendingBg: "#e8e8f0",
-    toolSuccessBg: "#e8f0e8",
-    toolErrorBg: "#f0e8e8",
-  },
-  "truecolor",
-  { name: "mixcode-light" },
 );
 
 export const MIXCODE_EXTENSION_TOKYO_NIGHT_THEME = new Theme(
@@ -582,7 +474,6 @@ export const THEMES: ThemeInfo[] = [
   { id: "mixcode-dark", label: "MixCode Dark", dark: true, aliases: ["dark", "mixcode"] },
   { id: "claude-warm", label: "Claude Warm", dark: true, aliases: ["claude", "warm"] },
   { id: "tokyo-night", label: "Tokyo Night", dark: true, aliases: ["tokyo", "toyko"] },
-  { id: "mixcode-light", label: "MixCode Light", dark: false, aliases: ["light"] },
   { id: "terminal", label: "Terminal", dark: true },
 ];
 
@@ -590,7 +481,6 @@ export function themeForId(themeId: string): MixCodeTheme {
   if (themeId === "mixcode-dark") return MIXCODE_DARK_THEME;
   if (themeId === "claude-warm") return CLAUDE_WARM_THEME;
   if (themeId === "tokyo-night") return TOKYO_NIGHT_THEME;
-  if (themeId === "mixcode-light") return MIXCODE_LIGHT_THEME;
   if (themeId === "terminal") return TERMINAL_THEME;
   throw new Error(`Unknown theme: ${themeId}`);
 }
