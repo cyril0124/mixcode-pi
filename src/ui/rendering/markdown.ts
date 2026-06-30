@@ -1,4 +1,6 @@
+import { highlightCode } from "@earendil-works/pi-coding-agent";
 import { Markdown, type MarkdownTheme, visibleWidth } from "@earendil-works/pi-tui";
+import { ensureExtensionThemeInitialized } from "../../agent/runtime-extension-theme.js";
 import { activeRenderTheme } from "./context.js";
 import { padLine } from "./primitives.js";
 
@@ -39,7 +41,16 @@ function getMarkdownTheme(): MarkdownTheme {
     italic: (text: string) => activeRenderTheme.italic(text),
     strikethrough: (text: string) => `\x1b[9m${text}\x1b[29m`,
     underline: (text: string) => `\x1b[4m${text}\x1b[24m`,
-    highlightCode: (code: string) => code.split("\n").map((line) => activeRenderTheme.text(line)),
+    // Reuse the SDK's syntax highlighter (highlight.js) so fenced code blocks
+    // in assistant/thinking markdown get per-token colors, matching pi agent.
+    // highlightCode reads the SDK global theme, which mixcode standardizes to
+    // "dark" (same baseline the read/write tool previews already use); ensure
+    // it is initialized so the first code block isn't silently left uncolored.
+    // Falls back to flat text color for unknown/absent languages.
+    highlightCode: (code: string, lang?: string) => {
+      ensureExtensionThemeInitialized();
+      return highlightCode(code, lang);
+    },
   };
 }
 
