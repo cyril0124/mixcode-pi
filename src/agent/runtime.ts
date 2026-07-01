@@ -304,7 +304,9 @@ export class MixCodeRuntime {
       newSession,
       {
         ...config,
-        suppressStartupSummary: true,
+        // Replay the startup resource summary ([Context]/[Skills]/[Extensions])
+        // like Pi's /new, so a cleared session shows what is loaded again.
+        suppressStartupSummary: false,
         reuseServices: services,
         skipExtensionReload: true,
       },

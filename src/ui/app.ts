@@ -32,7 +32,6 @@ import {
   type MixCodeSkillCompletionSource,
 } from "./completion.js";
 import {
-  renderExtensionHeader,
   renderFooter,
   renderHeader,
   renderTabBar,
@@ -210,7 +209,6 @@ export function createMixCodeTui(
       const width = tui.terminal.columns;
       return (
         renderHeader(width, themeForId(state.theme)).length +
-        renderExtensionHeader(active, width).length +
         renderTabBar(state, width, themeForId(state.theme)).length
       );
     },

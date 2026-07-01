@@ -48,6 +48,54 @@ test("head and tail clipping helpers cover empty, one-row, and unchanged layouts
   assert.match(fitHeadLines(["a", "b", "c"], 2, 10).join("\n"), /a/);
 });
 
+test("agent surface renders the extension header at the top when scrolled to the top", () => {
+  const tab = createTab(7, "s7", "/repo", {
+    extensionUi: {
+      statuses: [],
+      widgets: [],
+      toolsExpanded: false,
+      pendingUserInteractions: [],
+      workingVisible: true,
+      header: { lines: ["EXT-HEADER-LINE"] },
+    },
+  });
+  const chat = Array.from({ length: 5 }, (_, index) => ({
+    role: "assistant" as const,
+    text: `msg-${index}`,
+  }));
+
+  // Tall viewport: everything fits, so the header sits at the very top.
+  const lines = stripAnsi(renderAgentSurface(tab, { chat } as never, 80, 40).join("\n"));
+  assert.match(lines, /EXT-HEADER-LINE/);
+  const headerRow = lines.split("\n").findIndex((line) => /EXT-HEADER-LINE/.test(line));
+  const firstMsgRow = lines.split("\n").findIndex((line) => /msg-0/.test(line));
+  assert.ok(headerRow >= 0 && headerRow < firstMsgRow);
+});
+
+test("agent surface scrolls the extension header away when viewing the bottom", () => {
+  const tab = createTab(8, "s8", "/repo", {
+    extensionUi: {
+      statuses: [],
+      widgets: [],
+      toolsExpanded: false,
+      pendingUserInteractions: [],
+      workingVisible: true,
+      header: { lines: ["EXT-HEADER-LINE"] },
+    },
+  });
+  const chat = Array.from({ length: 40 }, (_, index) => ({
+    role: "assistant" as const,
+    text: `msg-${index}`,
+  }));
+
+  // Small viewport pinned to the bottom (offset 0): header has scrolled off,
+  // newest content is visible, older content is marked above.
+  const lines = stripAnsi(renderAgentSurface(tab, { chat } as never, 80, 6).join("\n"));
+  assert.doesNotMatch(lines, /EXT-HEADER-LINE/);
+  assert.match(lines, /msg-39/);
+  assert.match(lines, /\.\.\. older above/);
+});
+
 test("agent surface shows explicit overflow markers at the bottom", () => {
   const tab = createTab(99, "s99", "/repo");
   const chat = Array.from({ length: 10 }, (_, index) => ({
@@ -224,9 +272,15 @@ test("createMixCodeTui renders the combined layout with codex-like editor block 
     const lines = tui.render(80);
     const plainLines = lines.map(stripAnsi);
     const inputLine = plainLines.findIndex((line) => /Send message to Agent-01/.test(line));
-    assert.match(plainLines[0] ?? "", /extension header/);
+    // Extension header no longer pins above the tab bar; the tab bar is the
+    // top row and the header scrolls inside the agent surface, above the chat.
+    assert.match(plainLines[0] ?? "", /MixCode Home/);
+    const headerRow = plainLines.findIndex((line) => /extension header/.test(line));
+    const chatRow = plainLines.findIndex((line) => /hello/.test(line));
+    assert.notEqual(headerRow, -1);
+    assert.notEqual(chatRow, -1);
+    assert.ok(headerRow < chatRow);
     assert.match(plainLines.join("\n"), /extension footer/);
-    assert.match(lines.join("\n"), /hello/);
     assert.notEqual(inputLine, -1);
     assert.match(plainLines[inputLine - 1] ?? "", /^─+ Agent-01 ──$/);
     assert.equal(plainLines[inputLine + 1], "─".repeat(80));

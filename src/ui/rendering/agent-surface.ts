@@ -12,8 +12,20 @@ import {
   renderConversationEmptyState,
   type RenderChatBlockOptions,
 } from "./chat.js";
-import { renderSidebarInner } from "./chrome.js";
+import {
+  renderExtensionHeader,
+  renderSidebarInner,
+} from "./chrome.js";
 import { activeRenderTheme, renderWithTheme } from "./context.js";
+import {
+  BLOCK_HEIGHT_FALLBACK,
+  applyScrollFreezeAnchor,
+  decorateWindow,
+  estimateTotalHeight,
+  isScrollFrozen,
+  keepScrolledViewStable,
+  rememberScrollFreezeAnchor,
+} from "./agent-surface-scroll.js";
 import { fitScrolledLinesWithInfo, joinColumns, type ScrolledLinesResult } from "./layout.js";
 import { box, padLine } from "./primitives.js";
 import { applyToastOverlay } from "./toast-overlay.js";
@@ -52,9 +64,6 @@ const WINDOW_RENDER_STREAMING_THRESHOLD = 20;
 // makes scroll-up smoother (fewer cache misses while paging) at the cost of
 // extra block renders per frame.
 const WINDOW_OVERSCAN_LINES = 20;
-// Default per-block height assumption used before any block has been rendered
-// once. Roughly matches a typical assistant paragraph at 120 cols.
-const BLOCK_HEIGHT_FALLBACK = 4;
 
 // Cache the expensive renderConversation + renderQueuePreview result per tab.
 // Invalidated when chat content, width, theme, or relevant UI state changes.
@@ -75,20 +84,21 @@ interface ConversationCache {
 }
 
 const conversationCacheMap = new Map<string, ConversationCache>();
-interface ScrollFreezeState {
-  total: number;
-  width: number;
-  height: number;
-  offset?: number;
-  frozen?: boolean;
-  line?: string;
-  row?: number;
-}
-const scrollFreezeStates = new WeakMap<MixCodeTabInfo, ScrollFreezeState>();
 
 /** Remove cached conversation lines for a closed tab to prevent memory leaks. */
 export function clearConversationCache(sessionId: string): void {
   conversationCacheMap.delete(sessionId);
+}
+
+/**
+ * Extension header lines to prepend at the top of the scrollable conversation.
+ * Empty array when the tab has no extension header. Rendered live every frame
+ * (never cached) so dynamic headers keep updating, matching Pi where the header
+ * is the first child of the scrollback and scrolls away with the conversation.
+ */
+function scrollableHeaderLines(tab: MixCodeTabInfo, width: number): string[] {
+  const header = renderExtensionHeader(tab, width);
+  return header.length ? [...header, chatBlockSeparator(width)] : [];
 }
 
 export function renderAgentSurface(
@@ -147,9 +157,13 @@ function renderAgentSurfaceInner(
   }
 
   const main = getCachedConversationLines(tab, runtimeTab, mainWidth);
-  const lines = sidebarVisible
+  const body = sidebarVisible
     ? joinColumns(main, renderSidebarInner(tab, sidebarWidth, runtimeTab), mainWidth, sidebarWidth)
     : main;
+  // Extension header rides at the very top of the scrollable conversation
+  // (like Pi): visible when scrolled to the top, scrolls away otherwise.
+  const headerLines = scrollableHeaderLines(tab, mainWidth);
+  const lines = headerLines.length ? [...headerLines, ...body] : body;
   if (maxHeight === undefined) return lines;
   // Clamp chatScrollOffset to the actual scrollable range so that sentinel
   // values (e.g. 1_000_000 from chatHome) don't leave the offset far above
@@ -330,6 +344,9 @@ function renderAgentSurfaceWindowed(
 ): string[] {
   const viewport = Math.max(0, Math.floor(maxHeight));
 
+  // Extension header rides at the very top of the scrollable conversation.
+  const headerLines = scrollableHeaderLines(tab, mainWidth);
+
   // Bottom-anchored content.
   const queueLines = renderQueuePreview(tab, mainWidth);
 
@@ -368,17 +385,26 @@ function renderAgentSurfaceWindowed(
     oldestEmittedIndex = i;
   }
 
+  // When the backward walk reached the very first block, the header sits
+  // directly above it (Pi-style). Otherwise it stays part of the virtual
+  // prefix counted via estimateTotalHeight's extraRows below.
+  const reachedTop = oldestEmittedIndex === 0;
+  if (reachedTop && headerLines.length) {
+    for (let j = headerLines.length - 1; j >= 0; j--) lines.unshift(headerLines[j]!);
+  }
+
   // Empty-state placeholder mirrors what renderConversation would produce.
   if (lines.length === 0) {
     const placeholder = renderConversationEmptyState(mainWidth);
+    const withHeader = headerLines.length ? [...headerLines, ...placeholder] : placeholder;
     const composed = sidebarVisible
       ? joinColumns(
-          placeholder,
+          withHeader,
           renderSidebarInner(tab, sidebarWidth, runtimeTab),
           mainWidth,
           sidebarWidth,
         )
-      : placeholder;
+      : withHeader;
     const fitted = fitScrolledLinesWithInfo(composed, maxHeight, surfaceWidth, 0);
     const highlighted = highlightVisibleChatLines(fitted.lines, tab, surfaceWidth, fitted.height);
     return appendChatScrollbar({ ...fitted, lines: highlighted }, width, false);
@@ -392,6 +418,7 @@ function renderAgentSurfaceWindowed(
     queueLines.length,
     mainWidth,
     frameBlockHeights,
+    headerLines.length,
   );
 
   // Clamp scrollOffset against the estimate so chatHome's 1_000_000 sentinel
@@ -456,100 +483,6 @@ function renderAgentSurfaceWindowed(
   return appendChatScrollbar(fitted, width, hasNewContent);
 }
 
-function keepScrolledViewStable(
-  tab: MixCodeTabInfo,
-  total: number,
-  width: number,
-  height: number,
-): boolean {
-  const previous = scrollFreezeStates.get(tab);
-  const grew = total > (previous?.total ?? total);
-  const canFreeze =
-    tab.chatScrollOffset > 0 &&
-    previous?.width === width &&
-    previous.height === height &&
-    previous.offset === tab.chatScrollOffset;
-  if (canFreeze && grew) {
-    tab.chatScrollOffset += total - previous.total;
-  }
-  scrollFreezeStates.set(tab, {
-    ...previous,
-    total,
-    width,
-    height,
-    offset: tab.chatScrollOffset,
-    frozen: canFreeze,
-  });
-  return canFreeze;
-}
-
-function applyScrollFreezeAnchor(
-  tab: MixCodeTabInfo,
-  lines: string[],
-  viewport: number,
-  width: number,
-): void {
-  const state = scrollFreezeStates.get(tab);
-  if (
-    tab.chatScrollOffset <= 0 ||
-    !state?.frozen ||
-    state.offset !== tab.chatScrollOffset ||
-    !state.line ||
-    state.width !== width ||
-    state.height !== viewport
-  ) {
-    return;
-  }
-  const index = findScrollFreezeAnchorIndex(lines, state.line, viewport, tab.chatScrollOffset, state.row ?? 0);
-  if (index < 0) return;
-  const maxStart = Math.max(0, lines.length - viewport);
-  const start = Math.max(0, Math.min(index - (state.row ?? 0), maxStart));
-  tab.chatScrollOffset = Math.max(0, lines.length - (start + viewport));
-}
-
-function rememberScrollFreezeAnchor(
-  tab: MixCodeTabInfo,
-  visible: string[],
-  width: number,
-  height: number,
-): void {
-  const current = scrollFreezeStates.get(tab) ?? { total: 0, width, height };
-  if (tab.chatScrollOffset <= 0) {
-    scrollFreezeStates.set(tab, { total: current.total, width, height, offset: tab.chatScrollOffset });
-    return;
-  }
-  const row = visible.findIndex((line) => {
-    const trimmed = line.trim();
-    return trimmed.length > 0 && !trimmed.includes("... older above") && !trimmed.includes("... newer below");
-  });
-  scrollFreezeStates.set(tab, {
-    ...current,
-    width,
-    height,
-    offset: tab.chatScrollOffset,
-    frozen: current.frozen === true && current.offset === tab.chatScrollOffset,
-    line: row >= 0 ? visible[row] : undefined,
-    row: row >= 0 ? row : undefined,
-  });
-}
-
-function findScrollFreezeAnchorIndex(
-  lines: string[],
-  line: string,
-  viewport: number,
-  scrollOffset: number,
-  row: number,
-): number {
-  const expected = Math.max(0, Math.min(lines.length - 1, lines.length - scrollOffset - viewport + row));
-  for (let distance = 0; distance < lines.length; distance++) {
-    const before = expected - distance;
-    if (before >= 0 && lines[before] === line) return before;
-    const after = expected + distance;
-    if (after < lines.length && lines[after] === line) return after;
-  }
-  return -1;
-}
-
 function streamingTextRenderOptions(
   runtimeTab: RuntimeTab | undefined,
   chatIndex: number,
@@ -559,7 +492,7 @@ function streamingTextRenderOptions(
   if (!streaming) return undefined;
   const line = runtimeTab.chat[chatIndex];
   if (line?.role !== "assistant" && line?.role !== "thinking") return undefined;
-  const frozen = scrollFreezeStates.get(runtimeTab.tab)?.frozen === true;
+  const frozen = isScrollFrozen(runtimeTab.tab);
   if (streaming.chatIndex === chatIndex) {
     return frozen ? undefined : { streamingMarkdownCharLimit: STREAMING_MARKDOWN_CHAR_LIMIT };
   }
@@ -569,52 +502,6 @@ function streamingTextRenderOptions(
     }
   }
   return undefined;
-}
-
-/**
- * Estimate total virtual height. Uses cached heights for blocks already
- * rendered, BLOCK_HEIGHT_FALLBACK for blocks not yet rendered. Ignores
- * separator rows for the un-rendered prefix to keep the estimate simple
- * (±few rows error is acceptable for scrollbar thumb only).
- */
-function estimateTotalHeight(
-  chat: ChatLine[],
-  queueRows: number,
-  width: number,
-  frameBlockHeights: ReadonlyMap<ChatLine, number>,
-): number {
-  let total = queueRows;
-  let nonEmpty = 0;
-  for (const line of chat) {
-    const h = frameBlockHeights.get(line) ?? BLOCK_HEIGHT_FALLBACK;
-    total += h;
-    if (h > 0) nonEmpty++;
-  }
-  total += Math.max(0, nonEmpty - 1);
-  return total;
-}
-
-/**
- * Apply the same boundary markers fitScrolledLinesWithInfo applies (... older
- * above / ... newer below) so the windowed output is visually identical.
- */
-function decorateWindow(
-  visible: string[],
-  start: number,
-  total: number,
-  viewport: number,
-  width: number,
-): string[] {
-  if (visible.length === 0) return visible;
-  const out = visible.slice();
-  if (viewport <= 1) return out;
-  if (start > 0) {
-    out[0] = padLine(activeRenderTheme.dim("... older above"), width);
-  }
-  if (start + visible.length < total) {
-    out[out.length - 1] = padLine(activeRenderTheme.dim("... newer below"), width);
-  }
-  return out;
 }
 
 function getCachedConversationLines(

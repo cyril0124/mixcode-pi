@@ -43,7 +43,11 @@ test("clear reuses services while replacing the agent session", async () => {
 
     assert.equal(cleared.services, services);
     assert.notEqual(cleared.agentSession, agentSession);
-    assert.deepEqual(cleared.chat, []);
+    // Clear replays the startup summary; only a startup block, no conversation.
+    assert.equal(
+      cleared.chat.every((line) => line.role === "startup"),
+      true,
+    );
     assert.equal(runtime.getTab("s1"), undefined);
     assert.equal(runtime.getTab("s1-clear"), cleared);
   });
@@ -66,8 +70,11 @@ test("clear carries the session name to the fresh child session", async () => {
       newSessionId: "s1-clear",
     });
 
-    // The new session is empty of conversation but keeps the user-given name.
-    assert.deepEqual(cleared.chat, []);
+    // The new session has no conversation but keeps the user-given name.
+    assert.equal(
+      cleared.chat.every((line) => line.role === "startup"),
+      true,
+    );
     assert.equal(cleared.session.getSessionName(), "My Work");
   });
 });
@@ -358,6 +365,26 @@ test("slash fork requests service reuse from the source tab", async () => {
     (createConfigs[0] as { reuseServicesFromSessionId?: string }).reuseServicesFromSessionId,
     "source",
   );
+});
+
+test("reload replays the startup resource summary like Pi's /reload", async () => {
+  // Pi calls the same showLoadedResources() on session_start and /reload, so
+  // [Context]/[Skills]/[Extensions] reappear after a reload. MixCode's reload
+  // path must match: it rebuilds chat from the session but that alone drops
+  // the startup summary line, so extensionReload must re-add it explicitly.
+  await withRuntime("mixcode-reload-startup-summary-", async (runtime) => {
+    const tab = await runtime.createTab(createTab(1, "s1", process.cwd()), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+    });
+    assert.equal(tab.chat[0]?.role, "startup");
+
+    await runtime.extensionReload("s1");
+    const afterReload = runtime.getTab("s1");
+    assert.ok(afterReload);
+    assert.equal(afterReload.chat[0]?.role, "startup");
+  });
 });
 
 test("reload keeps derived tab fields bound to the new session", async () => {

@@ -550,6 +550,7 @@ export async function bindRuntimeExtensions(
   context: RuntimeLifecycleContext,
 ): Promise<void> {
   await runtimeTab.agentSession.bindExtensions({
+    mode: "tui",
     uiContext: createMixCodeExtensionUiContext(
       runtimeTab,
       () => {
@@ -624,6 +625,11 @@ export async function reloadRuntimeTabWithFreshServices(
   await bindRuntimeExtensions(runtimeTab, context);
   activateMixCodeTools(agentSession, runtimeTab.extensionToolOwnerPolicy);
   applyMixCodeSystemPrompt(runtimeTabPromptOptions(services, runtimeTab.tab.workdir), agentSession);
+  // Pi calls the same resource-listing routine on session_start and /reload,
+  // so [Context]/[Skills]/[Extensions] reappear after a reload. rebuildRuntimeChat
+  // only restores persisted messages, so re-add the summary explicitly here.
+  const reloadSummary = startupResourceSummary(runtimeTab);
+  if (reloadSummary) runtimeTab.chat.unshift({ role: "startup", text: reloadSummary });
   appendExtensionDiagnostics(runtimeTab);
   subscribeRuntimeTab(runtimeTab, context);
   context.emitChange({ type: "extension_ui_update" }, runtimeTab);

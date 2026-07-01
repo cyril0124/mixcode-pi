@@ -351,10 +351,10 @@ test("runtime scopes extension custom overlays to the active tab", async () => {
       ]);
       assert.deepEqual(tab2.extensionUi.pendingUserInteractions, []);
       assert.match(stripAnsi(renderTabBar(state, 80).join("\n")), /\? Agent-01/);
+      // Extension header now scrolls with the conversation, so the fixed top
+      // chrome reserved for overlays is just the header logo + tab bar.
       const expectedTopMargin =
-        renderExtensionHeader(tab1, 80).length +
-        renderTabBar(state, 80).length +
-        renderStatus(tab1, 80).length;
+        renderHeader(80).length + renderTabBar(state, 80).length;
       assert.equal(overlayOptions?.width, "92%");
       assert.equal(overlayOptions?.maxHeight, "85%");
       assert.deepEqual(overlayOptions?.margin, {

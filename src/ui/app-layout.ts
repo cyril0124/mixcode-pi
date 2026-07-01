@@ -12,7 +12,6 @@ import {
   renderAgentSurface,
   renderConfig,
   renderExtensionFooter,
-  renderExtensionHeader,
   renderExtensionPanel,
   renderExtensionWidgets,
   extensionPanelWidth,
@@ -43,11 +42,9 @@ export class MixCodeRoot implements Component {
     const active = getActiveTab(this.state);
     const theme = themeForId(this.state.theme);
     const tabBarLines = renderTabBar(this.state, width, theme);
-    const top = [
-      ...renderHeader(width, theme),
-      ...renderExtensionHeader(active, width),
-      ...tabBarLines,
-    ];
+    // Extension header is no longer pinned here; it now scrolls with the
+    // conversation (rendered at the top of the agent surface), matching Pi.
+    const top = [...renderHeader(width, theme), ...tabBarLines];
     this.state.tabBarHitRow = top.length;
     // First absolute (1-indexed) row of the tab bar = rows above it + 1. Mouse
     // handlers use this with lastRenderWidth to map clicks onto wrapped rows.

@@ -218,6 +218,49 @@ test("extension header and footer preserve full-width component output", () => {
   assert.equal(footer.every((line) => visibleWidth(line) <= 48), true);
 });
 
+test("runtime exposes extension UI context as TUI during startup and clear", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-ui-mode-"));
+  const modes: string[] = [];
+  const extension: ExtensionFactory = (pi) => {
+    pi.on("session_start", (_event, ctx) => {
+      modes.push(ctx.mode);
+      if (ctx.mode !== "tui") return;
+      ctx.ui.setHeader(() => ({
+        render: () => ["guarded header"],
+        invalidate: () => undefined,
+      }));
+    });
+  };
+
+  try {
+    const runtime = new MixCodeRuntime({ sessionsRoot: dir, extensionFactories: [extension] });
+    const runtimeTab = await runtime.createTab(createTab(1, "s1", process.cwd()), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+    });
+
+    assert.deepEqual(modes, ["tui"]);
+    assert.deepEqual(renderExtensionHeader(runtimeTab.tab, 80).map((line) => stripAnsi(line).trim()), [
+      "guarded header",
+    ]);
+
+    const cleared = await runtime.clearTab("s1", {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+      newSessionId: "s1-clear",
+    });
+
+    assert.deepEqual(modes, ["tui", "tui"]);
+    assert.deepEqual(renderExtensionHeader(cleared.tab, 80).map((line) => stripAnsi(line).trim()), [
+      "guarded header",
+    ]);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 function silentTerminal(): Terminal {
   return {
     start: () => undefined,
@@ -251,8 +294,10 @@ function escapeRegExp(text: string): string {
 test("runtime maps supported pi extension UI primitives into MixCode tab state", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-ui-noop-"));
   const events: string[] = [];
+  const modes: string[] = [];
   const extension: ExtensionFactory = (pi) => {
     pi.on("session_start", (_event, ctx) => {
+      modes.push(ctx.mode);
       ctx.ui.setStatus("status", "ready");
       ctx.ui.setStatus("gone", "soon");
       ctx.ui.setStatus("gone", undefined);
@@ -314,6 +359,7 @@ test("runtime maps supported pi extension UI primitives into MixCode tab state",
       workdir: process.cwd(),
     });
 
+    assert.deepEqual(modes, ["tui"]);
     assert.deepEqual(runtimeTab.tab.extensionUi.statuses, [{ key: "status", text: "ready" }]);
     assert.equal(runtimeTab.tab.extensionUi.workingMessage, "Delegating");
     assert.equal(runtimeTab.tab.extensionUi.workingVisible, false);
