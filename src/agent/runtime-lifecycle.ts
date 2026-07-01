@@ -626,10 +626,13 @@ export async function reloadRuntimeTabWithFreshServices(
   activateMixCodeTools(agentSession, runtimeTab.extensionToolOwnerPolicy);
   applyMixCodeSystemPrompt(runtimeTabPromptOptions(services, runtimeTab.tab.workdir), agentSession);
   // Pi calls the same resource-listing routine on session_start and /reload,
-  // so [Context]/[Skills]/[Extensions] reappear after a reload. rebuildRuntimeChat
-  // only restores persisted messages, so re-add the summary explicitly here.
+  // so [Context]/[Skills]/[Extensions] reappear after a reload. Pi APPENDS the
+  // listing after rebuilding the conversation (chatContainer.addChild), not
+  // prepends — matched here with push, not unshift, so the summary lands after
+  // existing history instead of being buried above it (invisible from a
+  // viewport scrolled to the bottom).
   const reloadSummary = startupResourceSummary(runtimeTab);
-  if (reloadSummary) runtimeTab.chat.unshift({ role: "startup", text: reloadSummary });
+  if (reloadSummary) runtimeTab.chat.push({ role: "startup", text: reloadSummary });
   appendExtensionDiagnostics(runtimeTab);
   subscribeRuntimeTab(runtimeTab, context);
   context.emitChange({ type: "extension_ui_update" }, runtimeTab);

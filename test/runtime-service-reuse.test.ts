@@ -369,9 +369,12 @@ test("slash fork requests service reuse from the source tab", async () => {
 
 test("reload replays the startup resource summary like Pi's /reload", async () => {
   // Pi calls the same showLoadedResources() on session_start and /reload, so
-  // [Context]/[Skills]/[Extensions] reappear after a reload. MixCode's reload
-  // path must match: it rebuilds chat from the session but that alone drops
-  // the startup summary line, so extensionReload must re-add it explicitly.
+  // [Context]/[Skills]/[Extensions] reappear after a reload. Critically, Pi
+  // APPENDS the listing (chatContainer.addChild after rebuildChatFromMessages),
+  // not prepends: on session_start the container is empty so append vs prepend
+  // look identical, but on /reload there is already a full conversation, so the
+  // summary must land AFTER it (visible near the bottom) or it is buried above
+  // history that the viewport is scrolled past and effectively invisible.
   await withRuntime("mixcode-reload-startup-summary-", async (runtime) => {
     const tab = await runtime.createTab(createTab(1, "s1", process.cwd()), {
       systemPrompt: "system",
@@ -380,10 +383,31 @@ test("reload replays the startup resource summary like Pi's /reload", async () =
     });
     assert.equal(tab.chat[0]?.role, "startup");
 
+    // Simulate real usage: have a conversation before reloading.
+    await runtime.prompt("s1", "hello");
+    const beforeReload = runtime.getTab("s1");
+    assert.ok(beforeReload);
+    assert.ok(
+      beforeReload.chat.some((line) => line.role === "user" && line.text === "hello"),
+      "conversation exists before reload",
+    );
+
     await runtime.extensionReload("s1");
     const afterReload = runtime.getTab("s1");
     assert.ok(afterReload);
-    assert.equal(afterReload.chat[0]?.role, "startup");
+    // Prior conversation must survive the reload.
+    assert.ok(
+      afterReload.chat.some((line) => line.role === "user" && line.text === "hello"),
+      "conversation survives reload",
+    );
+    // The new startup summary must be appended after existing history (like Pi),
+    // not unshifted above it where a scrolled-to-bottom viewport would miss it.
+    assert.equal(afterReload.chat.at(-1)?.role, "startup");
+    const userIndex = afterReload.chat.findIndex(
+      (line) => line.role === "user" && line.text === "hello",
+    );
+    const summaryIndex = afterReload.chat.length - 1;
+    assert.ok(userIndex < summaryIndex, "summary comes after prior conversation");
   });
 });
 
