@@ -142,7 +142,8 @@ test("MixCodeRoot caps agent view to keep header and tabs in the terminal viewpo
   const lines = root.render(80);
   assert.equal(lines.length <= 8, true);
   assert.match(lines[0] ?? "", /Agent-01/);
-  assert.equal(stripAnsi(lines[1] ?? "").trim(), "");
+  // Row under the tab bar is the horizontal rule (replaced the former blank gap).
+  assert.match(stripAnsi(lines[1] ?? ""), /^\u2500+$/);
   assert.doesNotMatch(lines.join("\n"), /message-0/);
   assert.match(lines.join("\n"), /message-39/);
 });
@@ -182,7 +183,8 @@ test("MixCodeRoot keeps every rendered row within a narrow terminal width", () =
     true,
   );
   assert.match(lines[0] ?? "", /Agent-01/);
-  assert.equal(stripAnsi(lines[1] ?? "").trim(), "");
+  // Row under the tab bar is the horizontal rule (replaced the former blank gap).
+  assert.match(stripAnsi(lines[1] ?? ""), /^\u2500+$/);
 });
 
 test("MixCodeRoot applies chat scroll offset while keeping top rows fixed", () => {
@@ -205,7 +207,8 @@ test("MixCodeRoot applies chat scroll offset while keeping top rows fixed", () =
   const lines = root.render(80);
   assert.equal(lines.length <= 10, true);
   assert.match(lines[0] ?? "", /Agent-01/);
-  assert.equal(stripAnsi(lines[1] ?? "").trim(), "");
+  // Row under the tab bar is the horizontal rule (replaced the former blank gap).
+  assert.match(stripAnsi(lines[1] ?? ""), /^\u2500+$/);
   assert.match(lines.join("\n"), /message-0/);
   assert.doesNotMatch(lines.join("\n"), /message-39/);
   assert.match(lines.join("\n"), /newer below/);
