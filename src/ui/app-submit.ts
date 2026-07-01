@@ -118,7 +118,6 @@ export async function handleSubmittedInput(
     if (runtimeTab) {
       disposeChatRenderers(runtimeTab.chat);
       runtimeTab.chat = [];
-      runtimeTab.reasoning = [];
     }
     active!.previewMessages = [];
     active!.previewIndex = 0;
@@ -528,10 +527,13 @@ export function renderExportText(
 ): string {
   const target = parseExportRequest(args).target;
   if (target === "thinking") {
+    const thinking = runtimeTab.chat
+      .filter((line) => line.role === "thinking")
+      .map((line) => line.text);
     return [
       "Thinking Export",
       "",
-      ...(runtimeTab.reasoning.length ? runtimeTab.reasoning : ["No thinking entries."]),
+      ...(thinking.length ? thinking : ["No thinking entries."]),
     ].join("\n");
   }
   if (target === "chatlog") {

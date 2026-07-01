@@ -61,7 +61,6 @@ import {
   renderStatus,
   renderTabBar,
   renderTabJumpOverlay,
-  renderThinking,
   renderWorkingIndicator,
   fitHeadLines,
   fitTailLines,
@@ -456,11 +455,6 @@ test("rendering exposes chat, tool, extension, and agent surface landmarks", () 
     markdownRendered.every((line) => visibleWidth(line) <= 40),
     true,
   );
-  assert.match(
-    renderThinking(["a long thinking line that should wrap cleanly", "   ", "last"], 20).join("\n"),
-    /long thinking/,
-  );
-  assert.doesNotMatch(renderThinking(["   "], 20).join("\n"), /thinking/);
 });
 
 test("chat rendering reuses stable assistant markdown while streaming text changes", () => {

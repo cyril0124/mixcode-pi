@@ -198,7 +198,6 @@ export function applyEvent(
       setTabStatus(runtimeTab.tab, "idle");
       runtimeTab.tab.unreadDone = true;
       clearPendingEscape(runtimeTab.tab);
-      runtimeTab.streamingReasoning = undefined;
       runtimeTab.currentRunChatStartIndex = undefined;
       break;
     case "message_start":
@@ -207,15 +206,12 @@ export function applyEvent(
     case "message_update":
       if (event.message.role === "assistant") {
         updateStreamingAssistant(runtimeTab, event.message);
-        updateStreamingReasoningFromMessage(runtimeTab, event.message);
       }
       break;
     case "tool_execution_start":
-      runtimeTab.reasoning.push(`${event.toolName} started`);
       upsertToolExecution(runtimeTab, event.toolCallId, event.toolName, "running", "", event.args);
       break;
     case "tool_execution_update":
-      runtimeTab.reasoning.push(`${event.toolName} update`);
       upsertToolExecution(
         runtimeTab,
         event.toolCallId,
@@ -241,11 +237,9 @@ export function applyEvent(
       break;
     case "message_end":
       if (event.message.role === "assistant") {
-        updateStreamingReasoningFromMessage(runtimeTab, event.message);
         updateStreamingAssistant(runtimeTab, event.message, { final: true });
         surfaceAssistantStopReason(runtimeTab, event.message);
       }
-      runtimeTab.streamingReasoning = undefined;
       break;
     case "turn_end":
       break;
@@ -417,35 +411,6 @@ export function updateStreamingAssistant(
   if (options.final) {
     runtimeTab.streamingAssistant = undefined;
   }
-}
-
-export function updateStreamingReasoningFromMessage(
-  runtimeTab: RuntimeTab,
-  message: AssistantMessage,
-): void {
-  message.content.forEach((block, contentIndex) => {
-    if (block.type === "thinking") {
-      upsertStreamingReasoning(runtimeTab, contentIndex, block.thinking);
-    }
-  });
-}
-
-export function upsertStreamingReasoning(
-  runtimeTab: RuntimeTab,
-  contentIndex: number,
-  text: string,
-): void {
-  const trimmed = text.trim();
-  if (!trimmed) return;
-  const streaming = runtimeTab.streamingReasoning ?? { entries: new Map<number, number>() };
-  runtimeTab.streamingReasoning = streaming;
-  const existing = streaming.entries.get(contentIndex);
-  if (existing !== undefined && runtimeTab.reasoning[existing] !== undefined) {
-    runtimeTab.reasoning[existing] = trimmed;
-    return;
-  }
-  const reasoningIndex = runtimeTab.reasoning.push(trimmed) - 1;
-  streaming.entries.set(contentIndex, reasoningIndex);
 }
 
 export function syncAssistantBlocks(

@@ -61,7 +61,6 @@ import {
   renderStatus,
   renderTabBar,
   renderTabJumpOverlay,
-  renderThinking,
   renderWorkingIndicator,
   fitHeadLines,
   fitTailLines,

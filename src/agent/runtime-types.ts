@@ -185,7 +185,6 @@ export interface RuntimeTab {
   agent: Agent;
   session: SessionManager;
   chat: ChatLine[];
-  reasoning: string[];
   toolLog: ToolLog;
   queuedPromptCount: number;
   extensionTerminalInputHandlers: Set<TerminalInputHandler>;
@@ -197,9 +196,6 @@ export interface RuntimeTab {
   extensionToolOwnerPolicy: ExtensionToolOwnerPolicy;
   extensionAutocompleteProviderCache?: ExtensionAutocompleteProviderCache;
   requestRender?: () => void;
-  streamingReasoning?: {
-    entries: Map<number, number>;
-  };
   currentRunChatStartIndex?: number;
   streamingAssistant?: {
     chatIndex?: number;

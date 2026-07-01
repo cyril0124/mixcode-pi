@@ -53,30 +53,18 @@ export function renderChat(
   return renderWithTheme(theme, () => renderChatStream(chat, width, tab));
 }
 
-export function renderThinking(
-  reasoning: string[],
-  width: number,
-  theme = activeRenderTheme,
-): string[] {
-  return renderWithTheme(theme, () => renderReasoningSummary(reasoning, width));
-}
-
 export function renderConversation(
   chat: ChatLine[],
-  reasoning: string[],
   width: number,
   tab?: MixCodeTabInfo,
 ): string[] {
-  if (!chat.length && !reasoning.length) {
+  if (!chat.length) {
     return [
       padLine(activeRenderTheme.dim("No messages yet. Type a prompt and press Enter."), width),
       padLine("", width),
     ];
   }
-  const reasoningSummary = chat.some((line) => line.role === "thinking")
-    ? []
-    : renderReasoningSummary(reasoning, width, tab);
-  return [...reasoningSummary, ...renderChatStream(chat, width, tab)];
+  return renderChatStream(chat, width, tab);
 }
 
 /**
@@ -113,25 +101,9 @@ export function cachedChatBlockHeight(
 }
 
 /**
- * Render the reasoning summary lines used as a prefix before the chat stream.
- * Mirrors what renderConversation does internally so windowed renderers can
- * include reasoning lines in their height accounting.
- */
-export function renderReasoningSummaryLines(
-  chat: ChatLine[],
-  reasoning: string[],
-  width: number,
-  tab?: MixCodeTabInfo,
-  theme = activeRenderTheme,
-): string[] {
-  if (chat.some((line) => line.role === "thinking")) return [];
-  return renderWithTheme(theme, () => renderReasoningSummary(reasoning, width, tab));
-}
-
-/**
- * Render the empty-state placeholder shown when both chat and reasoning are
- * empty. Pulled out so windowed renderers can short-circuit with the same
- * output as renderConversation for that edge case.
+ * Render the empty-state placeholder shown when the chat is empty. Pulled out
+ * so windowed renderers can short-circuit with the same output as
+ * renderConversation for that edge case.
  */
 export function renderConversationEmptyState(width: number): string[] {
   return [
@@ -143,24 +115,6 @@ export function renderConversationEmptyState(width: number): string[] {
 /** Standard blank separator row used between non-empty chat blocks. */
 export function chatBlockSeparator(width: number): string {
   return padLine("", width);
-}
-
-function renderReasoningSummary(
-  reasoning: string[],
-  width: number,
-  tab?: MixCodeTabInfo,
-): string[] {
-  if (!reasoning.length) return [];
-  const entries = reasoning
-    .map((line) => line.replace(/\s+/g, " ").trim())
-    .filter(Boolean)
-    .slice(-3);
-  const label = tab?.extensionUi.hiddenThinkingLabel?.trim();
-  const labeledEntries = label ? [`${label} ${entries.at(-1) ?? ""}`.trim()] : entries;
-  const lines = labeledEntries.flatMap((line) =>
-    renderMarkdown(line, width, { color: activeRenderTheme.thinking, italic: true }),
-  );
-  return [...lines, padLine("", width)];
 }
 
 // Per-line render cache strategy:

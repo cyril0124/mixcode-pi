@@ -61,7 +61,6 @@ import {
   renderStatus,
   renderTabBar,
   renderTabJumpOverlay,
-  renderThinking,
   renderWorkingIndicator,
   fitHeadLines,
   fitTailLines,
@@ -253,8 +252,9 @@ test("runtime restores redacted thinking and unknown assistant content explicitl
   );
 });
 
-test("runtime ignores blank reasoning and updates streaming reasoning in place", async () => {
-  const runtime = new MixCodeRuntime();
+test("runtime ignores blank thinking and updates streaming thinking in place", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-thinking-blank-"));
+  const runtime = new MixCodeRuntime({ sessionsRoot: dir });
   const tab = createTab(1, "s1", process.cwd());
   const runtimeTab = await runtime.createTab(tab, {
     systemPrompt: "system",
@@ -283,35 +283,46 @@ test("runtime ignores blank reasoning and updates streaming reasoning in place",
     timestamp: Date.now(),
   });
 
-  anyRuntime.applyEvent(runtimeTab, {
-    type: "message_update",
-    message: message("   "),
-    assistantMessageEvent: { type: "thinking_delta", contentIndex: 0, delta: "   ", partial: {} },
-  });
-  assert.deepEqual(runtimeTab.reasoning, []);
+  try {
+    anyRuntime.applyEvent(runtimeTab, {
+      type: "message_update",
+      message: message("   "),
+      assistantMessageEvent: { type: "thinking_delta", contentIndex: 0, delta: "   ", partial: {} },
+    });
+    assert.deepEqual(
+      runtimeTab.chat.filter((line) => line.role === "thinking").map((line) => line.text),
+      [],
+    );
 
-  anyRuntime.applyEvent(runtimeTab, {
-    type: "message_update",
-    message: message("first thought"),
-    assistantMessageEvent: {
-      type: "thinking_delta",
-      contentIndex: 0,
-      delta: "first thought",
-      partial: {},
-    },
-  });
-  anyRuntime.applyEvent(runtimeTab, {
-    type: "message_update",
-    message: message("second thought"),
-    assistantMessageEvent: {
-      type: "thinking_delta",
-      contentIndex: 0,
-      delta: "second thought",
-      partial: {},
-    },
-  });
+    anyRuntime.applyEvent(runtimeTab, {
+      type: "message_update",
+      message: message("first thought"),
+      assistantMessageEvent: {
+        type: "thinking_delta",
+        contentIndex: 0,
+        delta: "first thought",
+        partial: {},
+      },
+    });
+    anyRuntime.applyEvent(runtimeTab, {
+      type: "message_update",
+      message: message("second thought"),
+      assistantMessageEvent: {
+        type: "thinking_delta",
+        contentIndex: 0,
+        delta: "second thought",
+        partial: {},
+      },
+    });
 
-  assert.deepEqual(runtimeTab.reasoning, ["second thought"]);
+    // Same content index updates the existing thinking line in place (no duplicate).
+    assert.deepEqual(
+      runtimeTab.chat.filter((line) => line.role === "thinking").map((line) => line.text),
+      ["second thought"],
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });
 
 test("runtime updates existing streaming thinking and tool call blocks", async () => {

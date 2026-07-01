@@ -225,7 +225,6 @@ export async function main(): Promise<void> {
         if (runtimeTab) {
           disposeChatRenderers(runtimeTab.chat);
           runtimeTab.chat = [];
-          runtimeTab.reasoning = [];
         }
         tab.previewMessages = [];
         tab.previewIndex = 0;

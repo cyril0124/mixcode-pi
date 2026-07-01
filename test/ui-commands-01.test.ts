@@ -233,10 +233,10 @@ test("submitted input exports thinking, chatlog, and latest messages", async () 
     getTab: () => ({
       chat: [
         { role: "user", text: "question" },
+        { role: "thinking", text: "thought" },
         { role: "tool", text: "ok" },
         { role: "assistant", text: "answer" },
       ],
-      reasoning: ["thought"],
     }),
   } as unknown as MixCodeRuntime;
   const tui = {
@@ -278,7 +278,7 @@ test("submitted input exports empty fallback messages explicitly", async () => {
   state.activeTabId = "s1";
   const overlays: string[] = [];
   const runtime = {
-    getTab: () => ({ chat: [], reasoning: [] }),
+    getTab: () => ({ chat: [] }),
   } as unknown as MixCodeRuntime;
   const tui = {
     requestRender: () => undefined,
@@ -318,7 +318,6 @@ test("submitted input exports system-info with session, prompt, and tools", asyn
   const runtime = {
     getTab: () => ({
       chat: [],
-      reasoning: [],
       session: { getSessionName: () => "test-session" },
       agent: { state: { systemPrompt: "You are a helpful assistant." } },
       agentSession: {
@@ -391,7 +390,6 @@ test("submitted input can open exported history in external editor", async () =>
           { role: "tool" as const, title: "bash", status: "success" as const, text: "ok" },
           { role: "assistant" as const, text: "answer" },
         ],
-        reasoning: ["reasoning step"],
       }),
     } as unknown as MixCodeRuntime;
     const overlays: string[] = [];

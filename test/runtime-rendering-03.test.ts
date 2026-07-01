@@ -61,7 +61,6 @@ import {
   renderStatus,
   renderTabBar,
   renderTabJumpOverlay,
-  renderThinking,
   renderWorkingIndicator,
   fitHeadLines,
   fitTailLines,
@@ -229,18 +228,17 @@ test("rendering exposes input metadata and tab bar landmarks", () => {
   );
   const agentSurface = renderAgentSurface(
     tab,
-    { reasoning: ["tool started"], chat: many } as never,
+    { chat: many } as never,
     100,
   ).join("\n");
-  assert.match(agentSurface, /tool started/);
   assert.doesNotMatch(agentSurface, /TODO Board/);
   assert.doesNotMatch(agentSurface, /\[x\] Fix bug/);
   assert.deepEqual(renderStatus(tab, 120), []);
   assert.match(agentSurface, /line-15/);
+  // A thinking line in chat renders exactly once (no duplicate top summary).
   const piThinkingSurface = renderAgentSurface(
     createTab(18, "s18", "/repo"),
     {
-      reasoning: ["same thought"],
       chat: [
         { role: "thinking", text: "same thought" },
         { role: "assistant", text: "done" },
@@ -249,26 +247,9 @@ test("rendering exposes input metadata and tab bar landmarks", () => {
     100,
   ).join("\n");
   assert.equal((piThinkingSurface.match(/same thought/g) ?? []).length, 1);
-  const hiddenThinkingTab = createTab(25, "s25", "/repo", {
-    extensionUi: {
-      statuses: [],
-      widgets: [],
-      toolsExpanded: false,
-      workingVisible: true,
-      hiddenThinkingLabel: "Analyzing...",
-    },
-  });
-  assert.match(
-    renderAgentSurface(
-      hiddenThinkingTab,
-      { reasoning: ["private chain"], chat: [{ role: "assistant", text: "done" }] } as never,
-      100,
-    ).join("\n"),
-    /Analyzing\.\.\. private chain/,
-  );
   const narrowAgentSurfaceLines = renderAgentSurface(
     createTab(14, "s14", "/repo"),
-    { reasoning: [], chat: [{ role: "assistant", text: "main" }] } as never,
+    { chat: [{ role: "assistant", text: "main" }] } as never,
     55,
   );
   const narrowAgentSurface = narrowAgentSurfaceLines.join("\n");
@@ -284,13 +265,13 @@ test("rendering exposes input metadata and tab bar landmarks", () => {
   );
   const noSidebarSurface = renderAgentSurface(
     createTab(7, "s7", "/repo"),
-    { reasoning: [], chat: [] } as never,
+    { chat: [] } as never,
     100,
   ).join("\n");
   assert.doesNotMatch(noSidebarSurface, /badges:/);
   const queuedSurface = renderAgentSurface(
     createTab(11, "s11", "/repo", { pendingMessages: ["first queued message"] }),
-    { reasoning: [], chat: [] } as never,
+    { chat: [] } as never,
     80,
   ).join("\n");
   assert.match(queuedSurface, /Queue \(1\)/);
@@ -310,7 +291,7 @@ test("rendering exposes input metadata and tab bar landmarks", () => {
   }));
   const scrolledSurface = renderAgentSurface(
     scrollTab,
-    { reasoning: [], chat: scrollChat } as never,
+    { chat: scrollChat } as never,
     80,
     6,
   ).join("\n");
@@ -319,7 +300,7 @@ test("rendering exposes input metadata and tab bar landmarks", () => {
   assert.ok(scrolledSurface.split("\n").some((line) => /█\x1b\[39m$/.test(line)));
   const latestSurface = renderAgentSurface(
     createTab(20, "s20", "/repo"),
-    { reasoning: [], chat: scrollChat } as never,
+    { chat: scrollChat } as never,
     80,
     6,
   );
@@ -344,7 +325,6 @@ test("agent surface clamps extension-rendered tool lines with tabs to terminal w
   const lines = renderAgentSurface(
     tab,
     {
-      reasoning: [],
       chat: [
         {
           role: "tool",
@@ -364,4 +344,19 @@ test("agent surface clamps extension-rendered tool lines with tabs to terminal w
     lines.every((line) => visibleWidth(line) <= width),
     true,
   );
+});
+
+// Regression: after a /tree revert the chat is rebuilt from getBranch(). A
+// rebuilt chat with no thinking line must not surface any stale thinking text
+// at the top of the tab. Previously a separate accumulating `reasoning` store
+// (never cleared on rebuild) leaked the prior turn's thinking into the summary.
+test("agent surface shows no thinking content when rebuilt chat has none", () => {
+  const tab = createTab(30, "s30", "/repo");
+  const surface = renderAgentSurface(
+    tab,
+    { chat: [{ role: "user", text: "hello again" }] } as never,
+    80,
+  ).join("\n");
+  assert.match(surface, /hello again/);
+  assert.doesNotMatch(surface, /thinking|thought|Pondering|Analyzing/i);
 });

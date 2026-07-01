@@ -62,7 +62,6 @@ import {
   renderStatus,
   renderTabBar,
   renderTabJumpOverlay,
-  renderThinking,
   renderWorkingIndicator,
   fitHeadLines,
   fitTailLines,
@@ -394,7 +393,6 @@ test("runtime extension terminal input and UI setters expose exact state changes
     assert.equal(runtimeTab.tab.extensionUi.workingMessage, undefined);
     assert.equal(runtimeTab.tab.extensionUi.workingIndicatorFrames, undefined);
     assert.equal(runtimeTab.tab.extensionUi.workingIndicatorIntervalMs, undefined);
-    assert.equal(runtimeTab.tab.extensionUi.hiddenThinkingLabel, undefined);
     assert.equal(runtimeTab.tab.extensionUi.toolsExpanded, false);
     assert.equal(runtimeTab.tab.extensionUi.title, "Extension Title");
     assert.match(

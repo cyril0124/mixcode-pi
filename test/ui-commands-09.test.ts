@@ -83,9 +83,9 @@ test("export chooser shortcuts open selected export text in external editor", as
     getTab: () => ({
       chat: [
         { role: "user" as const, text: "question" },
+        { role: "thinking" as const, text: "thought" },
         { role: "assistant" as const, text: "answer" },
       ],
-      reasoning: ["thought"],
     }),
   };
   const editorActions = { editor: editorScript };

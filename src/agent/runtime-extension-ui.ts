@@ -170,9 +170,10 @@ export function createMixCodeExtensionUiContext(
       runtimeTab.tab.extensionUi.workingIndicatorIntervalMs = options?.intervalMs;
       requestRender();
     },
-    setHiddenThinkingLabel: (label) => {
-      runtimeTab.tab.extensionUi.hiddenThinkingLabel = label;
-      requestRender();
+    setHiddenThinkingLabel: () => {
+      // No-op: MixCode does not implement collapsible thinking blocks, so there
+      // is no hidden-thinking placeholder to relabel. Kept to satisfy the SDK
+      // ExtensionUIContext interface (mirrors the SDK's RPC-mode no-op).
     },
     setWidget: (key, content, options) => {
       setExtensionWidget(

@@ -10,7 +10,6 @@ import {
   renderChatBlock,
   renderConversation,
   renderConversationEmptyState,
-  renderReasoningSummaryLines,
   type RenderChatBlockOptions,
 } from "./chat.js";
 import { renderSidebarInner } from "./chrome.js";
@@ -58,7 +57,7 @@ const WINDOW_OVERSCAN_LINES = 20;
 const BLOCK_HEIGHT_FALLBACK = 4;
 
 // Cache the expensive renderConversation + renderQueuePreview result per tab.
-// Invalidated when chat content, reasoning, width, theme, or relevant UI state changes.
+// Invalidated when chat content, width, theme, or relevant UI state changes.
 // The full-render cache is bypassed while active tool renderers may have
 // lifecycle side effects that need to run on every frame.
 interface ConversationCache {
@@ -67,12 +66,9 @@ interface ConversationCache {
   chatLength: number;
   lastChatText: string;
   lastChatStatus: string | undefined;
-  reasoningLength: number;
-  lastReasoningText: string;
   width: number;
   themeName: string;
   toolsExpanded: boolean;
-  hiddenThinkingLabel: string;
   pendingMessagesLength: number;
   lastPendingMessage: string;
   chatRef: ChatLine[];
@@ -200,9 +196,7 @@ function canUseWindowedRender(tab: MixCodeTabInfo, chat: ChatLine[]): boolean {
  *      rendered block (and its leading separator) to a line buffer. Stop
  *      once we've collected enough rows to cover viewport + scrollOffset
  *      + overscan (so adjacent boundary markers can be placed).
- *   3. Materialize the reasoning prefix only if the visible window may
- *      reach the top of the chat (i.e. we walked all the way back).
- *   4. Slice the visible viewport out of the assembled lines.
+ *   3. Slice the visible viewport out of the assembled lines.
  *
  * Trade-off: the scrollbar thumb position uses estimated heights for the
  * blocks we did NOT render, since we don't know their actual size. This
@@ -290,11 +284,8 @@ function renderAgentSurfaceAnchored(
 
   const total = estimateTotalHeight(
     chat,
-    runtimeTab.reasoning ?? [],
     renderQueuePreview(tab, mainWidth).length,
     mainWidth,
-    tab,
-    false,
     frameBlockHeights,
   );
   const start = Math.min(Math.max(0, total - visible.length), anchorIndex * BLOCK_HEIGHT_FALLBACK + windowStart);
@@ -337,7 +328,6 @@ function renderAgentSurfaceWindowed(
   sidebarWidth: number,
   freezeAdjusted = false,
 ): string[] {
-  const reasoning = runtimeTab?.reasoning ?? [];
   const viewport = Math.max(0, Math.floor(maxHeight));
 
   // Bottom-anchored content.
@@ -378,21 +368,8 @@ function renderAgentSurfaceWindowed(
     oldestEmittedIndex = i;
   }
 
-  // If we walked to the start, prepend reasoning summary so the very top of
-  // the chat is reachable. Reasoning suppresses itself when chat already
-  // contains a thinking block.
-  const reachedTop = oldestEmittedIndex === 0;
-  if (reachedTop) {
-    const reasoningLines = renderReasoningSummaryLines(chat, reasoning, mainWidth, tab);
-    if (reasoningLines.length > 0) {
-      // Walk newest-to-oldest because reasoning sits above the very first
-      // block; preserve order on prepend.
-      for (let i = reasoningLines.length - 1; i >= 0; i--) lines.unshift(reasoningLines[i]!);
-    }
-  }
-
   // Empty-state placeholder mirrors what renderConversation would produce.
-  if (lines.length === 0 && reasoning.length === 0) {
+  if (lines.length === 0) {
     const placeholder = renderConversationEmptyState(mainWidth);
     const composed = sidebarVisible
       ? joinColumns(
@@ -412,11 +389,8 @@ function renderAgentSurfaceWindowed(
   // approximate for the un-rendered prefix, exact for what's on screen.
   const total = estimateTotalHeight(
     chat,
-    reasoning,
     queueLines.length,
     mainWidth,
-    tab,
-    reachedTop,
     frameBlockHeights,
   );
 
@@ -605,11 +579,8 @@ function streamingTextRenderOptions(
  */
 function estimateTotalHeight(
   chat: ChatLine[],
-  reasoning: string[],
   queueRows: number,
   width: number,
-  tab: MixCodeTabInfo,
-  reasoningCounted: boolean,
   frameBlockHeights: ReadonlyMap<ChatLine, number>,
 ): number {
   let total = queueRows;
@@ -620,16 +591,6 @@ function estimateTotalHeight(
     if (h > 0) nonEmpty++;
   }
   total += Math.max(0, nonEmpty - 1);
-  if (reasoningCounted) {
-    // Include reasoning summary rows once we know we actually emitted them.
-    const reasoningLines = renderReasoningSummaryLines(chat, reasoning, width, tab);
-    total += reasoningLines.length;
-  } else if (!chat.some((line) => line.role === "thinking")) {
-    // We didn't emit reasoning yet, but it does occupy rows in virtual space.
-    // Estimate by re-using its actual length (cheap, just a few markdown wraps).
-    const reasoningLines = renderReasoningSummaryLines(chat, reasoning, width, tab);
-    total += reasoningLines.length;
-  }
   return total;
 }
 
@@ -662,20 +623,17 @@ function getCachedConversationLines(
   width: number,
 ): string[] {
   const chat = runtimeTab?.chat ?? previewMessagesToChat(tab);
-  const reasoning = runtimeTab?.reasoning ?? [];
 
   // Skip cache when the tab is actively running or any tool is mid-execution.
   // Tool renderers may have component lifecycle side effects (dispose/create)
   // that require re-invocation on each render frame.
   if (tab.status === "running" || tab.status === "thinking" || hasRunningTool(chat)) {
     conversationCacheMap.delete(tab.sessionId);
-    return [...renderConversation(chat, reasoning, width, tab), ...renderQueuePreview(tab, width)];
+    return [...renderConversation(chat, width, tab), ...renderQueuePreview(tab, width)];
   }
 
   const lastChat = chat[chat.length - 1];
-  const lastReasoning = reasoning[reasoning.length - 1] ?? "";
   const toolsExpanded = tab.extensionUi.toolsExpanded ?? false;
-  const hiddenThinkingLabel = tab.extensionUi.hiddenThinkingLabel?.trim() ?? "";
   const lastPending = tab.pendingMessages[tab.pendingMessages.length - 1] ?? "";
 
   const cached = conversationCacheMap.get(tab.sessionId);
@@ -685,12 +643,9 @@ function getCachedConversationLines(
     cached.chatLength === chat.length &&
     cached.lastChatText === (lastChat?.text ?? "") &&
     cached.lastChatStatus === lastChat?.status &&
-    cached.reasoningLength === reasoning.length &&
-    cached.lastReasoningText === lastReasoning &&
     cached.width === width &&
     cached.themeName === activeRenderTheme.name &&
     cached.toolsExpanded === toolsExpanded &&
-    cached.hiddenThinkingLabel === hiddenThinkingLabel &&
     cached.pendingMessagesLength === tab.pendingMessages.length &&
     cached.lastPendingMessage === lastPending
   ) {
@@ -698,7 +653,7 @@ function getCachedConversationLines(
   }
 
   const lines = [
-    ...renderConversation(chat, reasoning, width, tab),
+    ...renderConversation(chat, width, tab),
     ...renderQueuePreview(tab, width),
   ];
 
@@ -708,12 +663,9 @@ function getCachedConversationLines(
     chatLength: chat.length,
     lastChatText: lastChat?.text ?? "",
     lastChatStatus: lastChat?.status,
-    reasoningLength: reasoning.length,
-    lastReasoningText: lastReasoning,
     width,
     themeName: activeRenderTheme.name,
     toolsExpanded,
-    hiddenThinkingLabel,
     pendingMessagesLength: tab.pendingMessages.length,
     lastPendingMessage: lastPending,
   });

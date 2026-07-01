@@ -61,7 +61,6 @@ import {
   renderStatus,
   renderTabBar,
   renderTabJumpOverlay,
-  renderThinking,
   renderWorkingIndicator,
   fitHeadLines,
   fitTailLines,
@@ -416,7 +415,6 @@ test("rendering exposes fitting helpers and keymap export text", () => {
     renderAgentSurface(
       createTab(32, "s32", "/repo", { chatScrollOffset: 1 }),
       {
-        reasoning: [],
         chat: [
           { role: "assistant", text: "a" },
           { role: "assistant", text: "b" },

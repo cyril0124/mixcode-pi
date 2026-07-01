@@ -62,7 +62,6 @@ import {
   renderStatus,
   renderTabBar,
   renderTabJumpOverlay,
-  renderThinking,
   renderWorkingIndicator,
   fitHeadLines,
   fitTailLines,
@@ -320,7 +319,6 @@ test("runtime maps supported pi extension UI primitives into MixCode tab state",
     assert.equal(runtimeTab.tab.extensionUi.workingVisible, false);
     assert.deepEqual(runtimeTab.tab.extensionUi.workingIndicatorFrames, ["⠋"]);
     assert.equal(runtimeTab.tab.extensionUi.workingIndicatorIntervalMs, 75);
-    assert.equal(runtimeTab.tab.extensionUi.hiddenThinkingLabel, "Delegated thinking...");
     assert.equal(runtimeTab.tab.extensionUi.toolsExpanded, true);
     assert.deepEqual(
       runtimeTab.tab.extensionUi.widgets
@@ -422,7 +420,6 @@ test("runtime maps supported pi extension UI primitives into MixCode tab state",
     runtimeTab.agentSession.extensionRunner.getUIContext().setWidget("factory", undefined);
     assert.equal(runtimeTab.tab.extensionUi.workingIndicatorFrames, undefined);
     assert.equal(runtimeTab.tab.extensionUi.workingIndicatorIntervalMs, undefined);
-    assert.equal(runtimeTab.tab.extensionUi.hiddenThinkingLabel, undefined);
     assert.deepEqual(
       runtimeTab.tab.extensionUi.widgets
         .filter((widget) => widget.key !== "bg-sessions")

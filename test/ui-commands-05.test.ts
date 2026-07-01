@@ -375,7 +375,6 @@ test("config-scoped submitted input runs without an active agent tab", async () 
       workingVisible: false,
       workingIndicatorFrames: ["-", "\\"],
       workingIndicatorIntervalMs: 75,
-      hiddenThinkingLabel: "hidden",
       workingMessage: "Working",
       title: "Extension",
       header: { lines: ["header"] },
@@ -417,7 +416,6 @@ test("config-scoped submitted input runs without an active agent tab", async () 
   assert.match(overlays.join("\n"), /"workingVisible": false/);
   assert.match(overlays.join("\n"), /"hasWorkingIndicatorFrames": true/);
   assert.match(overlays.join("\n"), /"workingIndicatorIntervalMs": 75/);
-  assert.match(overlays.join("\n"), /"hasHiddenThinkingLabel": true/);
   assert.match(overlays.join("\n"), /"hasWorkingMessage": true/);
   assert.match(overlays.join("\n"), /"hasTitle": true/);
   assert.match(overlays.join("\n"), /"headerLineCount": 1/);

@@ -20,7 +20,7 @@ test("renderAgentSurface overlays a typed toast card with right margin", () => {
 
   const lines = renderAgentSurface(
     tab,
-    { chat: [{ role: "assistant", text: "hello" }], reasoning: [] },
+    { chat: [{ role: "assistant", text: "hello" }] },
     60,
     8,
   ).map(stripAnsi);
@@ -46,7 +46,7 @@ test("renderAgentSurface wraps long toast messages to at most three rows", () =>
 
   const lines = renderAgentSurface(
     tab,
-    { chat: [{ role: "assistant", text: "hello" }], reasoning: [] },
+    { chat: [{ role: "assistant", text: "hello" }] },
     80,
     10,
   ).map(stripAnsi);
@@ -63,7 +63,7 @@ test("renderAgentSurface skips toast card when viewport is too small", () => {
 
   const output = renderAgentSurface(
     tab,
-    { chat: [{ role: "assistant", text: "hello" }], reasoning: [] },
+    { chat: [{ role: "assistant", text: "hello" }] },
     20,
     4,
   )

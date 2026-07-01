@@ -184,7 +184,6 @@ async function createRuntimeTabWithServices(
     agent: agentSession.agent,
     session,
     chat: [],
-    reasoning: [],
     toolLog,
     queuedPromptCount: 0,
     extensionTerminalInputHandlers: new Set(),
@@ -391,7 +390,6 @@ export async function replaceRuntimeTabSession(
   runtimeTab.toolLog = created.toolLog;
   runtimeTab.queuedPromptCount = 0;
   runtimeTab.streamingAssistant = undefined;
-  runtimeTab.streamingReasoning = undefined;
   disposeExtensionWidgets(runtimeTab.tab);
   runtimeTab.tab.extensionUi = {
     statuses: [],

@@ -61,7 +61,6 @@ import {
   renderStatus,
   renderTabBar,
   renderTabJumpOverlay,
-  renderThinking,
   renderWorkingIndicator,
   fitHeadLines,
   fitTailLines,
@@ -206,7 +205,6 @@ test("createMixCodeTui hydrates editor history per tab from restored runtime use
         ? {
             tab: sessionId === "s1" ? tab : tab2,
             chat: [],
-            reasoning: [],
           }
         : undefined,
     getPromptHistory: (sessionId: string) => {
@@ -288,7 +286,7 @@ test("submitted input handles prompt, shell, local commands, clear, and missing 
       tab.previewMessages.push({ role: "system", text });
       tab.previewIndex = tab.previewMessages.length - 1;
     },
-    getTab: () => ({ chat: [{ role: "user", text: "old" }], reasoning: [] }),
+    getTab: () => ({ chat: [{ role: "user", text: "old" }] }),
     clearTab: async (sessionId: string) => {
       cleared.push(sessionId);
       tab.sessionId = "cleared";
@@ -441,7 +439,7 @@ test("submitted clear fires session replacement without blocking the caller", as
       tab.sessionId = "cleared";
       return { tab };
     },
-    getTab: () => ({ chat: [], reasoning: [] }),
+    getTab: () => ({ chat: [] }),
   } as unknown as MixCodeRuntime;
   await handleSubmittedInput(state, runtime, "/clear", {
     requestRender: () => {

@@ -42,7 +42,6 @@ interface MixCodeTuiDebugState {
       workingVisible: boolean;
       hasWorkingIndicatorFrames: boolean;
       workingIndicatorIntervalMs?: number;
-      hasHiddenThinkingLabel: boolean;
       hasWorkingMessage: boolean;
       hasTitle: boolean;
       headerLineCount: number;
@@ -103,7 +102,6 @@ export function createTuiDebugState(state: MixCodeState): MixCodeTuiDebugState {
         workingVisible: tab.extensionUi.workingVisible,
         hasWorkingIndicatorFrames: Boolean(tab.extensionUi.workingIndicatorFrames?.length),
         workingIndicatorIntervalMs: tab.extensionUi.workingIndicatorIntervalMs,
-        hasHiddenThinkingLabel: Boolean(tab.extensionUi.hiddenThinkingLabel),
         hasWorkingMessage: Boolean(tab.extensionUi.workingMessage),
         hasTitle: Boolean(tab.extensionUi.title),
         headerLineCount: tab.extensionUi.header?.lines.length ?? 0,

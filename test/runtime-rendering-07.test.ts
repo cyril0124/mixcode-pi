@@ -61,7 +61,6 @@ import {
   renderStatus,
   renderTabBar,
   renderTabJumpOverlay,
-  renderThinking,
   renderWorkingIndicator,
   fitHeadLines,
   fitTailLines,
@@ -223,7 +222,7 @@ test(undefined, () => {
   assert.deepEqual(
     renderAgentSurface(
       createTab(21, "s21", "/repo", { chatScrollOffset: 2 }),
-      { reasoning: [], chat: [{ role: "assistant", text: "a" }] } as never,
+      { chat: [{ role: "assistant", text: "a" }] } as never,
       80,
       20,
     ).some((line) => line.includes("a")),
@@ -254,8 +253,25 @@ test(undefined, () => {
   assert.match(
     renderExportText("chatlog --editor", {
       chat: [{ role: "system", text: "notice" }],
-      reasoning: [],
     } as never),
     /\[system\] notice/,
+  );
+  // `/export thinking` reconstructs from the chat's thinking lines (no separate
+  // reasoning store). Mixed roles: only thinking lines are exported, in order.
+  assert.match(
+    renderExportText("thinking", {
+      chat: [
+        { role: "user", text: "hi" },
+        { role: "thinking", text: "first thought" },
+        { role: "assistant", text: "answer" },
+        { role: "thinking", text: "second thought" },
+      ],
+    } as never),
+    /first thought[\s\S]*second thought/,
+  );
+  // Empty chat (e.g. right after a /tree revert) yields the placeholder.
+  assert.match(
+    renderExportText("thinking", { chat: [] } as never),
+    /No thinking entries\./,
   );
 });

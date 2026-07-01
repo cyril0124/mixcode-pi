@@ -62,7 +62,6 @@ import {
   renderStatus,
   renderTabBar,
   renderTabJumpOverlay,
-  renderThinking,
   renderWorkingIndicator,
   fitHeadLines,
   fitTailLines,
@@ -288,7 +287,6 @@ test("runtime clear replaces the active pi session and resets tab state", async 
       cleared.chat.some((line) => line.role === "startup"),
       false,
     );
-    assert.deepEqual(cleared.reasoning, []);
     assert.deepEqual(tab.pendingMessages, []);
     assert.deepEqual(tab.previewMessages, []);
     assert.equal(tab.previewScrollOffset, 0);

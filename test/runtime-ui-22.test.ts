@@ -61,7 +61,6 @@ import {
   renderStatus,
   renderTabBar,
   renderTabJumpOverlay,
-  renderThinking,
   renderWorkingIndicator,
   fitHeadLines,
   fitTailLines,
@@ -376,8 +375,6 @@ test("runtime maps tool and thinking events into tab UI state", async () => {
   });
   assert.equal(tab.status, "thinking");
   assert.equal(tab.pendingDialogs.length, 0);
-  assert.equal(runtimeTab.reasoning.filter((line) => line.includes("think")).length, 1);
-  assert.ok(runtimeTab.reasoning.join("\n").includes("think more"));
   assert.ok(
     runtimeTab.chat.some((line) => line.role === "thinking" && line.text.includes("think more")),
   );

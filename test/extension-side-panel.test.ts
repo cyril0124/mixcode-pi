@@ -48,7 +48,7 @@ function makeRuntime(): MixCodeRuntime {
     text: `${CHAT_MARKER}-${i}`,
   }));
   return {
-    getTab: () => ({ chat, reasoning: [] }),
+    getTab: () => ({ chat }),
     onChange: () => () => undefined,
     getAllExtensionCommands: () => [],
   } as unknown as MixCodeRuntime;

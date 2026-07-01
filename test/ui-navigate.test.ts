@@ -195,7 +195,7 @@ test("/navigate scroll alignment puts selected user message at top when possible
 
   assert.equal(result.found, true);
   assert.equal(tab.chatScrollAnchorEntryId, "u2");
-  const visible = renderAgentSurface(tab, { chat, reasoning: [] } as never, 80, 5)
+  const visible = renderAgentSurface(tab, { chat } as never, 80, 5)
     .map(stripAnsi)
     .filter((line) => line.trim());
   assert.match(visible.slice(0, 3).join("\n"), /middle user/);
@@ -234,7 +234,7 @@ test("/navigate scroll targeting does not render every chat block", () => {
   const result = scrollChatToUserEntry(tab, chat, [u1.entry, x1.entry, u2.entry], "u2", 4, 80);
 
   assert.equal(result.found, true);
-  const visible = renderAgentSurface(tab, { chat, reasoning: [] } as never, 80, 4)
+  const visible = renderAgentSurface(tab, { chat } as never, 80, 4)
     .map(stripAnsi)
     .filter((line) => line.trim());
   assert.match(visible.slice(0, 3).join("\n"), /second user/);

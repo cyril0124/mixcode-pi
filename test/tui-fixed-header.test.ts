@@ -55,7 +55,7 @@ test("agent surface shows explicit overflow markers at the bottom", () => {
     text: `message-${index}`,
   }));
 
-  const lines = renderAgentSurface(tab, { chat, reasoning: [] } as never, 80, 6);
+  const lines = renderAgentSurface(tab, { chat } as never, 80, 6);
   const text = stripAnsi(lines.join("\n"));
 
   assert.match(text, /\.\.\. older above/);
@@ -68,7 +68,7 @@ test("agent surface max height keeps the newest surface rows", () => {
     role: "assistant" as const,
     text: `line-${index}`,
   }));
-  const lines = renderAgentSurface(tab, { chat, reasoning: [] } as never, 40, 3);
+  const lines = renderAgentSurface(tab, { chat } as never, 40, 3);
   assert.equal(lines.length, 3);
   assert.match(lines[0] ?? "", /\.\.\./);
   assert.match(lines.join("\n"), /line-7/);
@@ -83,7 +83,7 @@ test("MixCodeRoot caps agent view to keep header and tabs in the terminal viewpo
     role: "assistant" as const,
     text: `message-${index}`,
   }));
-  const runtime = { getTab: () => ({ chat, reasoning: [] }) } as unknown as MixCodeRuntime;
+  const runtime = { getTab: () => ({ chat }) } as unknown as MixCodeRuntime;
   const root = new MixCodeRoot(
     state,
     runtime,
@@ -118,7 +118,7 @@ test("MixCodeRoot keeps every rendered row within a narrow terminal width", () =
     })),
   ];
   const runtime = {
-    getTab: () => ({ chat, reasoning: ["thinking summary"] }),
+    getTab: () => ({ chat }),
   } as unknown as MixCodeRuntime;
   const root = new MixCodeRoot(
     state,
@@ -146,7 +146,7 @@ test("MixCodeRoot applies chat scroll offset while keeping top rows fixed", () =
     role: "assistant" as const,
     text: `message-${index}`,
   }));
-  const runtime = { getTab: () => ({ chat, reasoning: [] }) } as unknown as MixCodeRuntime;
+  const runtime = { getTab: () => ({ chat }) } as unknown as MixCodeRuntime;
   const root = new MixCodeRoot(
     state,
     runtime,
@@ -172,7 +172,7 @@ test("MixCodeRoot preserves full output when viewport rows are unavailable", () 
     role: "assistant" as const,
     text: `message-${index}`,
   }));
-  const runtime = { getTab: () => ({ chat, reasoning: [] }) } as unknown as MixCodeRuntime;
+  const runtime = { getTab: () => ({ chat }) } as unknown as MixCodeRuntime;
   const root = new MixCodeRoot(state, runtime);
 
   const lines = root.render(80);
@@ -215,7 +215,7 @@ test("createMixCodeTui renders the combined layout with codex-like editor block 
   );
   state.activeTabId = "s1";
   const runtime = {
-    getTab: () => ({ chat: [{ role: "assistant", text: "hello" }], reasoning: [] }),
+    getTab: () => ({ chat: [{ role: "assistant", text: "hello" }] }),
     onChange: () => () => undefined,
     getAllExtensionCommands: () => [],
   } as unknown as MixCodeRuntime;
@@ -259,7 +259,7 @@ test("createMixCodeTui flattens multiline extension widgets", () => {
   );
   state.activeTabId = "s1";
   const runtime = {
-    getTab: () => ({ chat: [{ role: "assistant", text: "hello" }], reasoning: [] }),
+    getTab: () => ({ chat: [{ role: "assistant", text: "hello" }] }),
     onChange: () => () => undefined,
     getAllExtensionCommands: () => [],
   } as unknown as MixCodeRuntime;
@@ -296,7 +296,7 @@ test("createMixCodeTui keeps a blank line between above-editor widgets and edito
   );
   state.activeTabId = "s1";
   const runtime = {
-    getTab: () => ({ chat: [], reasoning: [] }),
+    getTab: () => ({ chat: [] }),
     onChange: () => () => undefined,
     getAllExtensionCommands: () => [],
   } as unknown as MixCodeRuntime;
@@ -319,7 +319,7 @@ test("createMixCodeTui keeps a blank line between idle content and editor", () =
   state.tabs.push(createTab(1, "s1", "/repo"));
   state.activeTabId = "s1";
   const runtime = {
-    getTab: () => ({ chat: [{ role: "assistant", text: "last visible answer" }], reasoning: [] }),
+    getTab: () => ({ chat: [{ role: "assistant", text: "last visible answer" }] }),
     onChange: () => () => undefined,
     getAllExtensionCommands: () => [],
   } as unknown as MixCodeRuntime;
@@ -342,7 +342,7 @@ test("createMixCodeTui does not stack two blank rows above worked status", () =>
     text: `message-${index}`,
   }));
   const runtime = {
-    getTab: () => ({ chat, reasoning: [] }),
+    getTab: () => ({ chat }),
     onChange: () => () => undefined,
     getAllExtensionCommands: () => [],
   } as unknown as MixCodeRuntime;
@@ -377,7 +377,7 @@ test("createMixCodeTui pins input meta to the bottom without a trailing blank ro
     },
   ];
   const runtime = {
-    getTab: () => ({ chat, reasoning: ["thinking summary"] }),
+    getTab: () => ({ chat }),
     onChange: () => () => undefined,
     getAllExtensionCommands: () => [],
   } as unknown as MixCodeRuntime;
@@ -421,7 +421,7 @@ test("extension chrome truncates narrow terminal rows instead of wrapping", () =
   state.tabs.push(tab);
   state.activeTabId = tab.sessionId;
   const runtime = {
-    getTab: () => ({ chat: [{ role: "assistant", text: "ok" }], reasoning: [] }),
+    getTab: () => ({ chat: [{ role: "assistant", text: "ok" }] }),
     onChange: () => () => undefined,
     getAllExtensionCommands: () => [],
   } as unknown as MixCodeRuntime;
@@ -444,7 +444,7 @@ test("createMixCodeTui accounts for config and multiline editor row reservations
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"));
   const runtime = {
-    getTab: () => ({ chat: [{ role: "assistant", text: "hello" }], reasoning: [] }),
+    getTab: () => ({ chat: [{ role: "assistant", text: "hello" }] }),
     onChange: () => () => undefined,
     getAllExtensionCommands: () => [],
   } as unknown as MixCodeRuntime;
@@ -586,7 +586,7 @@ test("createMixCodeTui binds working redraw for Home Agent View spinners", async
   state.tabs.push(createTab(1, "s1", "/repo", { status: "running" }));
   state.activeTabId = "config";
   const runtime = {
-    getTab: () => ({ chat: [], reasoning: [] }),
+    getTab: () => ({ chat: [] }),
     onChange: () => () => undefined,
     getAllExtensionCommands: () => [],
   } as unknown as MixCodeRuntime;
@@ -634,7 +634,7 @@ test("differential renders do not force full redraws after the first paint", asy
     setProgress: () => undefined,
   };
   const runtime = {
-    getTab: () => ({ chat: [{ role: "assistant", text: "hello" }], reasoning: [] }),
+    getTab: () => ({ chat: [{ role: "assistant", text: "hello" }] }),
     onChange: () => () => undefined,
     getAllExtensionCommands: () => [],
   } as unknown as MixCodeRuntime;
@@ -695,7 +695,7 @@ test("working indicator is driven by the Pi TUI loader animation", async () => {
     setProgress: () => undefined,
   };
   const runtime = {
-    getTab: () => ({ tab, chat: [], reasoning: [] }),
+    getTab: () => ({ tab, chat: [] }),
     onChange: () => () => undefined,
     getExtensionCommands: () => [],
     getAllExtensionCommands: () => [],

@@ -62,7 +62,6 @@ import {
   renderStatus,
   renderTabBar,
   renderTabJumpOverlay,
-  renderThinking,
   renderWorkingIndicator,
   fitHeadLines,
   fitTailLines,
@@ -348,7 +347,8 @@ test("runtime surfaces assistant error and abort stop reasons", async () => {
 });
 
 test("runtime keeps assistant thinking out of chat assistant text", async () => {
-  const runtime = new MixCodeRuntime();
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-thinking-keep-"));
+  const runtime = new MixCodeRuntime({ sessionsRoot: dir });
   const tab = createTab(1, "s1", process.cwd());
   const runtimeTab = await runtime.createTab(tab, {
     systemPrompt: "system",
@@ -380,31 +380,39 @@ test("runtime keeps assistant thinking out of chat assistant text", async () => 
     timestamp: Date.now(),
   };
 
-  anyRuntime.applyEvent(runtimeTab, {
-    type: "message_start",
-    message: { ...message, content: [] },
-  });
-  anyRuntime.applyEvent(runtimeTab, {
-    type: "message_update",
-    message,
-    assistantMessageEvent: {
-      type: "thinking_delta",
-      contentIndex: 0,
-      delta: "private chain of thought",
-      partial: {},
-    },
-  });
-  anyRuntime.applyEvent(runtimeTab, { type: "message_end", message });
+  try {
+    anyRuntime.applyEvent(runtimeTab, {
+      type: "message_start",
+      message: { ...message, content: [] },
+    });
+    anyRuntime.applyEvent(runtimeTab, {
+      type: "message_update",
+      message,
+      assistantMessageEvent: {
+        type: "thinking_delta",
+        contentIndex: 0,
+        delta: "private chain of thought",
+        partial: {},
+      },
+    });
+    anyRuntime.applyEvent(runtimeTab, { type: "message_end", message });
 
-  assert.deepEqual(runtimeTab.reasoning, ["private chain of thought"]);
-  assert.deepEqual(
-    runtimeTab.chat.filter((line) => line.role === "assistant").map((line) => line.text),
-    ["public answer"],
-  );
-  assert.deepEqual(
-    tab.previewMessages.filter((line) => line.role === "assistant").map((line) => line.text),
-    ["public answer"],
-  );
+    // Thinking lands in chat as a dedicated thinking line, kept out of assistant text.
+    assert.deepEqual(
+      runtimeTab.chat.filter((line) => line.role === "thinking").map((line) => line.text),
+      ["private chain of thought"],
+    );
+    assert.deepEqual(
+      runtimeTab.chat.filter((line) => line.role === "assistant").map((line) => line.text),
+      ["public answer"],
+    );
+    assert.deepEqual(
+      tab.previewMessages.filter((line) => line.role === "assistant").map((line) => line.text),
+      ["public answer"],
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });
 
 test("runtime streams thinking from partial assistant messages", async () => {
@@ -445,7 +453,6 @@ test("runtime streams thinking from partial assistant messages", async () => {
       message: { ...baseMessage, content: [{ type: "thinking", thinking: "first" }] },
       assistantMessageEvent: { type: "thinking_start", contentIndex: 0 },
     });
-    assert.deepEqual(runtimeTab.reasoning, ["first"]);
     assert.deepEqual(
       runtimeTab.chat.filter((line) => line.role === "thinking").map((line) => line.text),
       ["first"],
@@ -461,7 +468,6 @@ test("runtime streams thinking from partial assistant messages", async () => {
         partial: {},
       },
     });
-    assert.deepEqual(runtimeTab.reasoning, ["first second"]);
     assert.deepEqual(
       runtimeTab.chat.filter((line) => line.role === "thinking").map((line) => line.text),
       ["first second"],
@@ -478,7 +484,6 @@ test("runtime streams thinking from partial assistant messages", async () => {
       },
       assistantMessageEvent: { type: "text_delta", contentIndex: 1, delta: "answer", partial: {} },
     });
-    assert.deepEqual(runtimeTab.reasoning, ["first second"]);
     assert.deepEqual(
       runtimeTab.chat
         .filter((line) => line.role !== "startup")
@@ -496,7 +501,6 @@ test("runtime streams thinking from partial assistant messages", async () => {
         ],
       },
     });
-    assert.deepEqual(runtimeTab.reasoning, ["final thinking"]);
     assert.deepEqual(
       runtimeTab.chat
         .filter((line) => line.role !== "startup")

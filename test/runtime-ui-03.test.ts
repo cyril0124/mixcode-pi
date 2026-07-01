@@ -63,7 +63,6 @@ import {
   renderStatus,
   renderTabBar,
   renderTabJumpOverlay,
-  renderThinking,
   renderWorkingIndicator,
   fitHeadLines,
   fitTailLines,
@@ -201,7 +200,7 @@ test("createMixCodeTui submit hook persists prompt history", async () => {
     const prompts: string[] = [];
     const runtime = {
       onChange: () => () => undefined,
-      getTab: () => ({ tab, chat: [], reasoning: [] }),
+      getTab: () => ({ tab, chat: [] }),
       prompt: async (_sessionId: string, text: string) => {
         prompts.push(text);
       },
@@ -251,7 +250,7 @@ test("createMixCodeTui editor slot handles input, autocomplete host, and submit"
   }> = [];
   const runtime = {
     onChange: () => () => undefined,
-    getTab: (sessionId: string) => (sessionId === "s1" ? { tab, chat, reasoning: [] } : undefined),
+    getTab: (sessionId: string) => (sessionId === "s1" ? { tab, chat } : undefined),
     prompt: async (_sessionId: string, text: string) => {
       prompts.push(text);
     },
@@ -601,7 +600,7 @@ test("createMixCodeTui editor slot handles input, autocomplete host, and submit"
     const externalRuntime = {
       onChange: () => () => undefined,
       getTab: (sessionId: string) =>
-        sessionId === "s2" ? { tab: externalTab, chat: [], reasoning: [] } : undefined,
+        sessionId === "s2" ? { tab: externalTab, chat: [] } : undefined,
       prompt: async () => undefined,
       getExtensionCommands: () => [],
       getAllExtensionCommands: () => [],
@@ -642,7 +641,6 @@ test("createMixCodeTui editor slot handles input, autocomplete host, and submit"
               ? {
                   tab: externalTab,
                   chat: [],
-                  reasoning: [],
                   agent: { state: { systemPrompt: "system prompt" } },
                 }
               : undefined,
@@ -705,7 +703,7 @@ test("createMixCodeTui editor slot renders the input cursor while focused", () =
     [];
   const runtime = {
     onChange: () => () => undefined,
-    getTab: () => ({ tab, chat, reasoning: [] }),
+    getTab: () => ({ tab, chat }),
     prompt: async () => undefined,
     appendSystemMessage: () => undefined,
     getExtensionCommands: () => [],

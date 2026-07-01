@@ -90,7 +90,7 @@ function buildRunningChatWithHugeStreamingTail(): ChatLine[] {
 test("windowed renderer pins to bottom when scrollOffset is 0", () => {
   const chat = buildLongChat(200);
   const tab = createTab(1, "s1", "/repo", { chatScrollOffset: 0 });
-  const lines = renderAgentSurface(tab, { chat, reasoning: [] } as never, WIDTH, HEIGHT);
+  const lines = renderAgentSurface(tab, { chat } as never, WIDTH, HEIGHT);
   const text = lines.map(stripAnsi).join("\n");
   // The newest message must be visible. i=199 -> 199%4=3 -> system-199.
   assert.match(text, /system-199/);
@@ -102,7 +102,7 @@ test("windowed renderer pins to bottom when scrollOffset is 0", () => {
 test("windowed renderer shows mid-scroll content with both boundary markers", () => {
   const chat = buildLongChat(200);
   const tab = createTab(2, "s2", "/repo", { chatScrollOffset: 50 });
-  const lines = renderAgentSurface(tab, { chat, reasoning: [] } as never, WIDTH, HEIGHT);
+  const lines = renderAgentSurface(tab, { chat } as never, WIDTH, HEIGHT);
   const text = lines.map(stripAnsi).join("\n");
   assert.match(text, /\.\.\. older above/);
   assert.match(text, /\.\.\. newer below/);
@@ -114,7 +114,7 @@ test("windowed renderer shows mid-scroll content with both boundary markers", ()
 test("windowed renderer reaches top of chat when scrollOffset is the home sentinel", () => {
   const chat = buildLongChat(200);
   const tab = createTab(3, "s3", "/repo", { chatScrollOffset: 1_000_000 });
-  const lines = renderAgentSurface(tab, { chat, reasoning: [] } as never, WIDTH, HEIGHT);
+  const lines = renderAgentSurface(tab, { chat } as never, WIDTH, HEIGHT);
   const text = lines.map(stripAnsi).join("\n");
   // Oldest message should be visible after the sentinel-driven scroll.
   assert.match(text, /assistant-0\b/);
@@ -130,8 +130,8 @@ test("windowed renderer reaches top of chat when scrollOffset is the home sentin
 test("windowed renderer keeps visible window stable across repeated renders", () => {
   const chat = buildLongChat(200);
   const tab = createTab(4, "s4", "/repo", { chatScrollOffset: 30 });
-  const first = renderAgentSurface(tab, { chat, reasoning: [] } as never, WIDTH, HEIGHT);
-  const second = renderAgentSurface(tab, { chat, reasoning: [] } as never, WIDTH, HEIGHT);
+  const first = renderAgentSurface(tab, { chat } as never, WIDTH, HEIGHT);
+  const second = renderAgentSurface(tab, { chat } as never, WIDTH, HEIGHT);
   // Identical inputs should produce identical output (cache stability).
   assert.deepEqual(first, second);
 });
@@ -139,7 +139,7 @@ test("windowed renderer keeps visible window stable across repeated renders", ()
 test("windowed renderer survives empty chat", () => {
   const chat: ChatLine[] = [];
   const tab = createTab(5, "s5", "/repo");
-  const lines = renderAgentSurface(tab, { chat, reasoning: [] } as never, WIDTH, HEIGHT);
+  const lines = renderAgentSurface(tab, { chat } as never, WIDTH, HEIGHT);
   // Empty chat returns just the placeholder rows; not padded to viewport.
   // (This matches the legacy path's behavior.)
   assert.match(lines.map(stripAnsi).join("\n"), /No messages yet/);
@@ -151,7 +151,7 @@ test("windowed renderer activates only above the threshold", () => {
   const shortTab = createTab(6, "s6", "/repo", { chatScrollOffset: 0 });
   const shortLines = renderAgentSurface(
     shortTab,
-    { chat: shortChat, reasoning: [] } as never,
+    { chat: shortChat } as never,
     WIDTH,
     HEIGHT,
   );
@@ -163,7 +163,7 @@ test("windowed renderer activates only above the threshold", () => {
   const longTab = createTab(7, "s7", "/repo", { chatScrollOffset: 0 });
   const longLines = renderAgentSurface(
     longTab,
-    { chat: longChat, reasoning: [] } as never,
+    { chat: longChat } as never,
     WIDTH,
     HEIGHT,
   );
@@ -177,7 +177,7 @@ test("windowed renderer renders queue preview when present", () => {
     chatScrollOffset: 0,
     pendingMessages: ["next prompt waiting"],
   });
-  const lines = renderAgentSurface(tab, { chat, reasoning: [] } as never, WIDTH, HEIGHT);
+  const lines = renderAgentSurface(tab, { chat } as never, WIDTH, HEIGHT);
   const text = lines.map(stripAnsi).join("\n");
   assert.match(text, /next prompt waiting/);
   assert.equal(lines.length, HEIGHT);
@@ -186,7 +186,7 @@ test("windowed renderer renders queue preview when present", () => {
 test("running plain streaming chats use windowed rendering", () => {
   const chat = buildStreamingAssistantChat(180);
   const tab = createTab(9, "s9", "/repo", { status: "running", chatScrollOffset: 0 });
-  const lines = renderAgentSurface(tab, { chat, reasoning: [] } as never, WIDTH, HEIGHT);
+  const lines = renderAgentSurface(tab, { chat } as never, WIDTH, HEIGHT);
   const text = lines.map(stripAnsi).join("\n");
 
   assert.equal(lines.length, HEIGHT);
@@ -198,14 +198,14 @@ test("running plain streaming chats use windowed rendering", () => {
 test("windowed renderer keeps scrolled view stable as new output arrives", () => {
   const chat = buildLongChat(120);
   const tab = createTab(20, "s20", "/repo", { status: "running", chatScrollOffset: 30 });
-  const before = renderAgentSurface(tab, { chat, reasoning: [] } as never, WIDTH, HEIGHT).map(stripAnsi);
+  const before = renderAgentSurface(tab, { chat } as never, WIDTH, HEIGHT).map(stripAnsi);
   const firstMessageRow = before.findIndex((line) => /\b(?:assistant|user|output|system)-\d+\b/.test(line));
   const firstVisibleMessage = before[firstMessageRow]?.match(/\b(?:assistant|user|output|system)-\d+\b/)?.[0];
 
   assert.ok(firstVisibleMessage, "expected a visible chat message below the older marker");
 
   chat.push(...buildLongChat(10).map((line, index) => ({ ...line, text: `${line.text}-new-${index}` })));
-  const after = renderAgentSurface(tab, { chat, reasoning: [] } as never, WIDTH, HEIGHT).map(stripAnsi);
+  const after = renderAgentSurface(tab, { chat } as never, WIDTH, HEIGHT).map(stripAnsi);
 
   assert.match(after[firstMessageRow] ?? "", new RegExp(`\\b${firstVisibleMessage}\\b`));
   assert.ok(tab.chatScrollOffset > 30, "scroll offset grows to compensate for appended output");
@@ -214,7 +214,7 @@ test("windowed renderer keeps scrolled view stable as new output arrives", () =>
 test("windowed renderer keeps scrolled view stable as streaming tail grows", () => {
   const chat = buildRunningChatWithHugeStreamingTail();
   const tab = createTab(21, "s21", "/repo", { status: "running", chatScrollOffset: 30 });
-  const before = renderAgentSurface(tab, { chat, reasoning: [] } as never, WIDTH, HEIGHT).map(stripAnsi);
+  const before = renderAgentSurface(tab, { chat } as never, WIDTH, HEIGHT).map(stripAnsi);
   const firstContentRow = before.findIndex((line) => line.includes("streaming words wrap"));
   const firstVisibleLine = before[firstContentRow];
 
@@ -224,14 +224,14 @@ test("windowed renderer keeps scrolled view stable as streaming tail grows", () 
     ...chat[chat.length - 1]!,
     text: `${chat[chat.length - 1]!.text} ${"new streaming words wrap ".repeat(400)}`,
   };
-  const after = renderAgentSurface(tab, { chat, reasoning: [] } as never, WIDTH, HEIGHT).map(stripAnsi);
-  const repeated = renderAgentSurface(tab, { chat, reasoning: [] } as never, WIDTH, HEIGHT).map(stripAnsi);
+  const after = renderAgentSurface(tab, { chat } as never, WIDTH, HEIGHT).map(stripAnsi);
+  const repeated = renderAgentSurface(tab, { chat } as never, WIDTH, HEIGHT).map(stripAnsi);
 
   assert.equal(after[firstContentRow], firstVisibleLine);
   assert.equal(repeated[firstContentRow], firstVisibleLine);
 
   tab.chatScrollOffset = 0;
-  const bottom = renderAgentSurface(tab, { chat, reasoning: [] } as never, WIDTH, HEIGHT)
+  const bottom = renderAgentSurface(tab, { chat } as never, WIDTH, HEIGHT)
     .map(stripAnsi)
     .join("\n");
   assert.match(bottom, /new streaming words wrap/);
@@ -252,7 +252,7 @@ test("running chats with historical tool renderers still use windowed rendering"
     },
   });
   const tab = createTab(10, "s10", "/repo", { status: "running", chatScrollOffset: 0 });
-  const lines = renderAgentSurface(tab, { chat, reasoning: [] } as never, WIDTH, HEIGHT);
+  const lines = renderAgentSurface(tab, { chat } as never, WIDTH, HEIGHT);
   const text = lines.map(stripAnsi).join("\n");
 
   assert.equal(rendered, 0);
@@ -276,7 +276,6 @@ test("running windowed renderer reaches the first user message with home sentine
   const streamingIndex = chat.length - 1;
   const runtimeTab = {
     chat,
-    reasoning: [],
     streamingAssistant: { chatIndex: streamingIndex, blockIndices: new Map() },
   } as never;
 
@@ -296,7 +295,6 @@ test("running windowed renderer can scroll stepwise to the first user message", 
   const streamingIndex = chat.length - 1;
   const runtimeTab = {
     chat,
-    reasoning: [],
     streamingAssistant: { chatIndex: streamingIndex, blockIndices: new Map() },
   } as never;
 
@@ -325,7 +323,7 @@ test("running chats with active tool renderers use windowed rendering and still 
     },
   });
   const tab = createTab(11, "s11", "/repo", { status: "running", chatScrollOffset: 0 });
-  const lines = renderAgentSurface(tab, { chat, reasoning: [] } as never, WIDTH, HEIGHT);
+  const lines = renderAgentSurface(tab, { chat } as never, WIDTH, HEIGHT);
   const text = lines.map(stripAnsi).join("\n");
 
   // Active tool renderer at the tail is within the viewport and gets invoked
@@ -351,7 +349,7 @@ test("running tool behind extension message still renders correctly", () => {
   // emitting a custom message during tool execution).
   chat.push({ role: "extension", text: "extension notification" });
   const tab = createTab(14, "s14", "/repo", { status: "running", chatScrollOffset: 0 });
-  const lines = renderAgentSurface(tab, { chat, reasoning: [] } as never, WIDTH, HEIGHT);
+  const lines = renderAgentSurface(tab, { chat } as never, WIDTH, HEIGHT);
   const text = lines.map(stripAnsi).join("\n");
 
   // The running tool renderer must still be invoked (it's within the viewport).
@@ -382,7 +380,7 @@ test("idle chats with stale pending tool tail still use windowed rendering", () 
   });
   const tab = createTab(19, "s19", "/repo", { status: "idle", chatScrollOffset: 0 });
 
-  const lines = renderAgentSurface(tab, { chat, reasoning: [] } as never, WIDTH, HEIGHT);
+  const lines = renderAgentSurface(tab, { chat } as never, WIDTH, HEIGHT);
   const text = lines.map(stripAnsi).join("\n");
 
   assert.equal(lines.length, HEIGHT);
@@ -460,11 +458,11 @@ function measureRenderMs(
   iterations: number,
 ): number {
   for (let i = 0; i < 5; i++) {
-    renderAgentSurface(tab, { chat, reasoning: [] } as never, 120, 30);
+    renderAgentSurface(tab, { chat } as never, 120, 30);
   }
   const start = performance.now();
   for (let i = 0; i < iterations; i++) {
-    renderAgentSurface(tab, { chat, reasoning: [] } as never, 120, 30);
+    renderAgentSurface(tab, { chat } as never, 120, 30);
   }
   return (performance.now() - start) / iterations;
 }

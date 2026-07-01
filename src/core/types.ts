@@ -237,7 +237,6 @@ export interface ExtensionUiState {
   pendingUserInteractions: ExtensionPendingUserInteraction[];
   workingIndicatorFrames?: string[];
   workingIndicatorIntervalMs?: number;
-  hiddenThinkingLabel?: string;
   workingMessage?: string;
   workingVisible: boolean;
   title?: string;

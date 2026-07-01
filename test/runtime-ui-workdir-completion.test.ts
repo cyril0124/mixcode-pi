@@ -90,7 +90,7 @@ test("createMixCodeTui rescans at-completion files after workdir changes", async
     state.activeTabId = "s1";
     const runtime = {
       onChange: () => () => undefined,
-      getTab: () => ({ tab, chat: [], reasoning: [] }),
+      getTab: () => ({ tab, chat: [] }),
       getExtensionCommands: () => [],
       getAllExtensionCommands: () => [],
       updateTabWorkdir: async (_sessionId: string, workdir: string) => {

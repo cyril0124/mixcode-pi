@@ -164,7 +164,6 @@ setStatus
 setWorkingMessage
 setWorkingVisible
 setWorkingIndicator
-setHiddenThinkingLabel
 setWidget
 setFooter
 setHeader
@@ -182,6 +181,7 @@ theme / getAllThemes / getTheme / setTheme
 重要边界：
 
 - `setHeader` / `setFooter` 只占用 MixCode 固定布局中的 extension slot，不允许覆盖 Agent Tabs 或核心输入区。
+- `setHiddenThinkingLabel` 被接受但为 no-op：MixCode 不实现可折叠 thinking 占位块，调用仅为满足 Pi SDK `ExtensionUIContext` 接口，不产生任何 TUI 效果。
 - `setEditorComponent` 接入当前 live editor slot；没有 live TUI host 时显式报错。
 - `setTheme("dark" | "mixcode-dark" | "claude-warm" | "tokyo-night" | "terminal")` 会映射到 MixCode 全局 TUI theme，并主动请求 TUI redraw；未知 theme（含已移除的 `light`/`mixcode-light`）或没有 live TUI host 时返回显式失败，不静默降级。
 - 非 overlay 的 `ctx.ui.custom()` 还不是完整 Pi TUI 等价能力。
