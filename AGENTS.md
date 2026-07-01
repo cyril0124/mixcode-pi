@@ -3,6 +3,7 @@
 ## TUI Validation
 
 - For TUI work, code inspection and unit tests are not sufficient evidence. Run the TUI interactively, capture screenshots, and verify core keyboard flows before claiming the UI works.
+- When you need to actually launch mixcode-pi to test it, use tmux. Do not run `tmux kill-server` (it would kill unrelated sessions); kill only the specific tmux session/window you created.
 
 ## Pi Integration
 
