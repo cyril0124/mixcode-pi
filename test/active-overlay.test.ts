@@ -33,7 +33,6 @@ const PRIORITY: OverlayKind[] = [
   "extension-manager",
   "tab-jump",
   "quit-confirm",
-  "export-chooser",
 ];
 
 const FLAG_KINDS: Exclude<OverlayKind, "picker">[] = [
@@ -44,7 +43,6 @@ const FLAG_KINDS: Exclude<OverlayKind, "picker">[] = [
   "extension-manager",
   "tab-jump",
   "quit-confirm",
-  "export-chooser",
 ];
 
 test("activeOverlay returns 'none' on a fresh state", () => {
@@ -98,7 +96,7 @@ test("activeOverlay follows the fixed priority when multiple flags are set", () 
   // Force two overlays on simultaneously (a state that should not occur in
   // practice) and assert the higher-priority one wins deterministically.
   const s = state();
-  openOverlay(s, "export-chooser");
+  openOverlay(s, "tab-jump");
   // raise a higher-priority flag directly, bypassing openOverlay's exclusion
   s.commandPaletteOpen = true;
   assert.equal(activeOverlay(s), "command-palette");

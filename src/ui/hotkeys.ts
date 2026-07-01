@@ -13,8 +13,6 @@ export function renderHotkeysText(extensionShortcuts: RuntimeShortcutInfo[] = []
     "",
     ...formatHotkeyGroup("Tab Jump", hotkeysForScope("tab-jump")),
     "",
-    ...formatHotkeyGroup("Export", hotkeysForScope("export")),
-    "",
     ...formatHotkeyGroup("Question", hotkeysForScope("question")),
     "",
     ...formatHotkeyGroup("Preview", hotkeysForScope("preview")),

@@ -117,16 +117,6 @@ export interface CommandPaletteActions {
   extensionCommands?: () => Array<{ name: string; description?: string }>;
 }
 
-export interface ExportChooserActions {
-  editor?: string;
-}
-
-export interface ExportRequest {
-  target: string;
-  editor?: string;
-  editorDisabled?: boolean;
-}
-
 export type RuntimeToolInfo = {
   name?: unknown;
   description?: unknown;

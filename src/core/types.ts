@@ -270,8 +270,6 @@ export interface MixCodeState {
   tabs: MixCodeTabInfo[];
   activeTabId: string;
   packageUpdates: string[];
-  exportChooserOpen: boolean;
-  exportChooserIndex: number;
   quitConfirmOpen: boolean;
   commandPaletteOpen: boolean;
   commandPalette: CommandPaletteState;

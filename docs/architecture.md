@@ -111,7 +111,6 @@ Config tab 只渲染配置面板和可点击操作，不渲染 prompt editor；�
 | `Shift+Tab` | 上一个 tab，补全打开时不抢占 |
 | `r` | config tab 或 overlay 场景从 pi runtime 刷新 tab 状态；agent 输入中保留普通字符 |
 | `Ctrl+P` | 可过滤命令面板；按 Config/Agent tab 显示当前语境命令，回车执行可用命令 |
-| `Ctrl+L` | 导出选择器，支持 thinking/chat/latest agent/latest user；打开后 `Tab`/`Shift+Tab`/上下键切换，`Enter` 或 `T/C/A/U` 打开 |
 | `Ctrl+T` | tab jump 模糊跳转；打开后 `Tab`/`Shift+Tab` 在候选中移动，不穿透到全局 tab 切换 |
 | `Ctrl+E` | 外部编辑器编辑输入 |
 | `Ctrl+C` | 清空普通编辑输入；shell 打开时发送中断给 shell |
@@ -132,7 +131,7 @@ Config tab 只渲染配置面板和可点击操作，不渲染 prompt editor；�
 key input
   │
   ├─ global
-  │    ├─ Tab / Shift+Tab / Ctrl+P / Ctrl+L / Ctrl+T
+  │    ├─ Tab / Shift+Tab / Ctrl+P / Ctrl+T
   │    ├─ Ctrl+E / Ctrl+C / Ctrl+R / Ctrl+V / Ctrl+Q
   │    └─ @ / Esc / Alt+Up / Ctrl+U / Up / Down / Right
   │
@@ -146,7 +145,7 @@ key input
        └─ shell:           Up Down PageUp PageDown Home End Esc
 ```
 
-Shell overlay 打开时按 refs/mixcode 的焦点语义处理：`Ctrl+V`、`Ctrl+L`、`Ctrl+E` 不触发全局 preview/export/editor，而是作为控制字符写入 shell；`Ctrl+P` 仍保留为 command palette。`Esc` 单次关闭 shell。
+Shell overlay 打开时按 refs/mixcode 的焦点语义处理：`Ctrl+V`、`Ctrl+E` 不触发全局 preview/editor，而是作为控制字符写入 shell；`Ctrl+P` 仍保留为 command palette。`Esc` 单次关闭 shell。
 
 `/models`、`/thinking`、`/context-limit`、`/theme`、`/workdir` 在无参数时会打开本地 picker overlay，支持输入过滤、上下移动、回车选择、Esc 取消。本地 `/theme` 参数支持 `mixcode-dark`、`claude-warm`、`tokyo-night`、`terminal`，也支持 `dark` 和唯一前缀如 `tok`；多匹配前缀如 `mix` 会显式报 ambiguous，不静默猜测。Pi extension `ctx.ui.setTheme("dark" | "mixcode-dark" | "claude-warm" | "tokyo-night" | "terminal")` 走同一套归一化并请求 redraw。Agent 输入 meta 行里的 workdir、model、thinking 三段也可用鼠标点击，分别复用 `/workdir`、`/models`、`/thinking` picker。编辑器补全覆盖 `/` slash commands、`$skill` 和 `@path`；`@path` 候选同时包含文件与带尾斜杠的目录，目录 query 如 `@src/` 会列出直接子项，带空格路径会插入为 `@"dir with spaces/"`。
 
@@ -196,7 +195,7 @@ Ctrl+P
 为避免抢占其它交互，以下场景下 `Ctrl+P` 不打开 command palette：
 
 ```text
-completion/picker/tab-jump/export overlay 打开
+completion/picker/tab-jump overlay 打开
 preview overlay 打开
 当前 tab 没有可用 palette command
 ```
@@ -306,8 +305,8 @@ npm run check
 ```text
 core state        commands / tabs / overlays / command palette / workspace
 agent runtime     session repo / stream events / tools / compaction
-ui rendering      header / tabs / status / command palette / export
-ui input          global keys / tab jump / export chooser
+ui rendering      header / tabs / status / command palette
+ui input          global keys / tab jump
 bootstrap         initial state / persisted restore / completion sources
 ```
 

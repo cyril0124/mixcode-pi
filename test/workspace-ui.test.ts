@@ -204,13 +204,13 @@ test("save workspace input confirms overwrite before saving", async () => {
 
     await handleSubmittedInput(state, runtime, "/save-workspace", tui, undefined, undefined, workspaceFile);
     assert.equal(state.workspaceOverlay.mode, "save");
-    for (const char of "main") handleMixCodeKeyInput(state, char, tui, undefined, runtime, undefined, undefined, undefined, undefined, {}, { workspaceFile });
+    for (const char of "main") handleMixCodeKeyInput(state, char, tui, undefined, runtime, undefined, undefined, undefined, undefined, { workspaceFile });
     assert.equal(state.workspaceOverlay.input, "main");
-    handleMixCodeKeyInput(state, "\r", tui, undefined, runtime, undefined, undefined, undefined, undefined, {}, { workspaceFile });
+    handleMixCodeKeyInput(state, "\r", tui, undefined, runtime, undefined, undefined, undefined, undefined, { workspaceFile });
     assert.equal(state.workspaceOverlay.mode, "save-confirm-overwrite");
     assert.match(tui.overlays.at(-1) ?? "", /Confirm Update Workspace/);
 
-    handleMixCodeKeyInput(state, "\r", tui, undefined, runtime, undefined, undefined, undefined, undefined, {}, { workspaceFile });
+    handleMixCodeKeyInput(state, "\r", tui, undefined, runtime, undefined, undefined, undefined, undefined, { workspaceFile });
     await new Promise((resolve) => setTimeout(resolve, 20));
 
     const saved = await loadWorkspaces(workspaceFile);
@@ -351,11 +351,11 @@ test("delete workspace selector requires confirmation", async () => {
     const tui = createOverlayTui();
 
     await handleSubmittedInput(state, runtime, "/delete-workspace", tui, undefined, undefined, workspaceFile);
-    handleMixCodeKeyInput(state, "\r", tui, undefined, runtime, undefined, undefined, undefined, undefined, {}, { workspaceFile });
+    handleMixCodeKeyInput(state, "\r", tui, undefined, runtime, undefined, undefined, undefined, undefined, { workspaceFile });
     assert.equal(state.workspaceOverlay.mode, "delete-confirm");
     assert.match(tui.overlays.at(-1) ?? "", /Delete Workspace "main"/);
 
-    handleMixCodeKeyInput(state, "\r", tui, undefined, runtime, undefined, undefined, undefined, undefined, {}, { workspaceFile });
+    handleMixCodeKeyInput(state, "\r", tui, undefined, runtime, undefined, undefined, undefined, undefined, { workspaceFile });
     await new Promise((resolve) => setTimeout(resolve, 20));
     await assert.rejects(loadWorkspaces(workspaceFile), /ENOENT/);
     assert.equal(state.tabs[0]?.toast?.message, "Workspace deleted: main");

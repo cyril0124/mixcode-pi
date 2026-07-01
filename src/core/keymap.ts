@@ -14,7 +14,6 @@ export const MIXCODE_KEYMAP: KeyAction[] = [
     description: "Open command palette",
     scope: "global",
   },
-  { key: "ctrl+l", action: "export", description: "Open export chooser", scope: "global" },
   { key: "ctrl+t", action: "jump-tab", description: "Open tab jump overlay", scope: "global" },
   {
     key: "ctrl+e",
@@ -120,20 +119,6 @@ export const MIXCODE_KEYMAP: KeyAction[] = [
     scope: "tab-jump",
   },
   { key: "escape", action: "tab-jump-close", description: "Close tab jump", scope: "tab-jump" },
-  {
-    key: "tab/shift+tab",
-    action: "export-select",
-    description: "Move export chooser selection",
-    scope: "export",
-  },
-  {
-    key: "t/c/a/u/s",
-    action: "export-open",
-    description: "Open thinking, chatlog, latest agent, latest user, or system info export",
-    scope: "export",
-  },
-  { key: "enter", action: "export-open", description: "Open selected export", scope: "export" },
-  { key: "escape", action: "export-close", description: "Close export chooser", scope: "export" },
   {
     key: "h/l",
     action: "preview-message",

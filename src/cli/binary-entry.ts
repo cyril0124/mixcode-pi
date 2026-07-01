@@ -25,6 +25,8 @@ import diffTrackerPackageJson from "../../pi-packages/diff-tracker/package.json"
 import commandBrowserIndex from "../../pi-packages/command-browser/index.ts" with { type: "text" };
 import commandBrowserComponent from "../../pi-packages/command-browser/command-browser.ts" with { type: "text" };
 import commandBrowserPackageJson from "../../pi-packages/command-browser/package.json" with { type: "text" };
+import chatViewIndex from "../../pi-packages/chat-view/index.ts" with { type: "text" };
+import chatViewPackageJson from "../../pi-packages/chat-view/package.json" with { type: "text" };
 import bashDefaultTimeoutIndex from "../../pi-packages/bash-default-timeout/index.ts" with { type: "text" };
 import bashDefaultTimeoutPackageJson from "../../pi-packages/bash-default-timeout/package.json" with { type: "text" };
 import rpivTodo_config_ts from "../../pi-packages/rpiv-todo/config.ts" with { type: "text" };
@@ -113,6 +115,10 @@ materializeBinaryRuntimeAssets(runtimeDir, {
       "index.ts": commandBrowserIndex,
       "command-browser.ts": commandBrowserComponent,
       "package.json": commandBrowserPackageJson,
+    },
+    "chat-view": {
+      "index.ts": chatViewIndex,
+      "package.json": chatViewPackageJson,
     },
     "bash-default-timeout": {
       "index.ts": bashDefaultTimeoutIndex,

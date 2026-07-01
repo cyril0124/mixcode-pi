@@ -6,8 +6,6 @@ interface MixCodeTuiDebugState {
   activeTabId: string;
   theme: string;
   overlays: {
-    exportChooserOpen: boolean;
-    exportChooserIndex: number;
     quitConfirmOpen: boolean;
     commandPaletteOpen: boolean;
     commandPalette: MixCodeState["commandPalette"];
@@ -57,8 +55,6 @@ export function createTuiDebugState(state: MixCodeState): MixCodeTuiDebugState {
     activeTabId: state.activeTabId,
     theme: state.theme,
     overlays: {
-      exportChooserOpen: state.exportChooserOpen,
-      exportChooserIndex: state.exportChooserIndex,
       quitConfirmOpen: state.quitConfirmOpen,
       commandPaletteOpen: state.commandPaletteOpen,
       commandPalette: state.commandPalette,

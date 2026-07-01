@@ -404,28 +404,6 @@ function renderCommandPaletteInner(
   return overlayPanel("Command Palette", lines, width);
 }
 
-export function renderExportChooser(state: MixCodeState, width: number): string[] {
-  return renderWithTheme(themeForId(state.theme), () => renderExportChooserInner(state, width));
-}
-
-function renderExportChooserInner(state: MixCodeState, width: number): string[] {
-  const options = exportChooserItems();
-  const lines = [
-    "Which content would you like to view?",
-    "",
-    ...options.map((item, index) => {
-      const marker = index === state.exportChooserIndex ? ">" : " ";
-      const line = `${marker} [${item.key}] ${item.label}`;
-      return index === state.exportChooserIndex
-        ? activeRenderTheme.selection(padLine(line, Math.max(1, width - 2)))
-        : line;
-    }),
-    "",
-    "up/down/tab: select  enter: open  esc: cancel",
-  ];
-  return overlayPanel("Export", lines, width);
-}
-
 export function renderTabJumpOverlay(state: MixCodeState, width: number): string[] {
   return renderWithTheme(themeForId(state.theme), () => renderTabJumpOverlayInner(state, width));
 }
@@ -595,15 +573,4 @@ function renderContextLimitCustomInput(
   }
   lines.push("", activeRenderTheme.dim("enter: confirm  esc: back"));
   return overlayPanel(picker.title, lines, width);
-}
-
-
-function exportChooserItems(): Array<{ key: string; label: string }> {
-  return [
-    { key: "T", label: "Thinking" },
-    { key: "C", label: "Chat" },
-    { key: "A", label: "Latest Agent Reply" },
-    { key: "U", label: "Latest User Message" },
-    { key: "S", label: "System Info" },
-  ];
 }

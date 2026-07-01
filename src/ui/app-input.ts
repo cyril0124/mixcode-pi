@@ -20,7 +20,6 @@ import {
   handleChatScrollKey,
   handleChromeMouseInput,
   handleCommandPaletteKey,
-  handleExportChooserKey,
   handleChatSelectionMouseInput,
   handleInputSelectionMouseInput,
   handleMouseInput,
@@ -42,14 +41,13 @@ import { handlePickerKey } from "./app-picker-keys.js";
 import { activeExtensionCommands } from "./app-runtime.js";
 import type {
   CommandPaletteActions,
-  ExportChooserActions,
   MixCodeEditorActions,
   MixCodeKeyRuntime,
   OverlayTui,
   WorkspaceKeyOptions,
 } from "./app-types.js";
 import { handleExtensionManagerKey } from "./extension-manager.js";
-import { renderCommandPalette, renderExportChooser, renderTabJumpOverlay } from "./rendering.js";
+import { renderCommandPalette, renderTabJumpOverlay } from "./rendering.js";
 import { handleSessionSelectorKey } from "./session-selector.js";
 import { handleTreeSelectorKey, openTreeSelector, type TreeSelectorRuntime } from "./tree-selector.js";
 import { handleWorkspaceOverlayKey } from "./workspace-overlay.js";
@@ -63,7 +61,6 @@ export function handleMixCodeKeyInput(
   isEditorAutocompleteOpen: () => boolean = () => false,
   editorActions?: MixCodeEditorActions,
   commandPaletteActions?: CommandPaletteActions,
-  exportChooserActions: ExportChooserActions = {},
   workspaceOptions: WorkspaceKeyOptions = {},
 ): { consume?: boolean; data?: string } | undefined {
   pasteDetector.recordInput(data);
@@ -231,7 +228,6 @@ export function handleMixCodeKeyInput(
     state.activeTabId !== "config" &&
     matchesKey(data, "escape") &&
     !hasAnyOverlay(tui) &&
-    !state.exportChooserOpen &&
     !state.commandPaletteOpen &&
     !active.previewOpen &&
     !active.pendingDialogs.length &&
@@ -249,13 +245,6 @@ export function handleMixCodeKeyInput(
     return { consume: true };
   }
 
-  if (
-    state.exportChooserOpen &&
-    handleExportChooserKey(state, data, tui, runtime, exportChooserActions)
-  ) {
-    if (active) clearPendingEscape(active, "abort-agent");
-    return { consume: true };
-  }
   // Right on empty input toggles the extension widget side panel. Mirrors the
   // Left-returns-Home guard so it never steals the editor's cursor-right when
   // there is text. Kept before extension/vim handling so it remains a built-in
@@ -397,14 +386,6 @@ export function handleMixCodeKeyInput(
       return undefined;
     openCommandPalette(state);
     showLinesOverlay(tui, (width) => renderCommandPalette(state, width, extensionCommands));
-    return { consume: true };
-  }
-  if (matchesKey(data, "ctrl+l")) {
-    if (!active || state.activeTabId === "config") return undefined;
-    clearPendingEscape(active, "abort-agent");
-    state.exportChooserOpen = true;
-    state.exportChooserIndex = 0;
-    showLinesOverlay(tui, (width) => renderExportChooser(state, width));
     return { consume: true };
   }
   if (

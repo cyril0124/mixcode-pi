@@ -222,9 +222,9 @@ test("commands parse prompts, slash commands, shell commands, and suggestions", 
     command: "save-workspace",
     args: "main",
   });
-  assert.deepEqual(parseInput("/export chatlog"), {
+  assert.deepEqual(parseInput("/view chatlog"), {
     kind: "local-command",
-    command: "export",
+    command: "view",
     args: "chatlog",
   });
   assert.deepEqual(parseInput("/import ./session.jsonl /repo"), {

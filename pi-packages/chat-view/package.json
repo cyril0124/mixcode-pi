@@ -1,0 +1,9 @@
+{
+  "name": "chat-view",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "View conversation content (thinking, chatlog, latest agent reply, latest user message) via /view — opens in $VISUAL/$EDITOR, falling back to the in-app editor.",
+  "pi": {
+    "extensions": ["./index.ts"]
+  }
+}

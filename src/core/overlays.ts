@@ -178,8 +178,7 @@ export type OverlayKind =
   | "command-palette"
   | "extension-manager"
   | "tab-jump"
-  | "quit-confirm"
-  | "export-chooser";
+  | "quit-confirm";
 
 // Predicate per kind, evaluated in priority order by activeOverlay.
 const OVERLAY_PREDICATES: ReadonlyArray<readonly [OverlayKind, (s: MixCodeState) => boolean]> = [
@@ -191,7 +190,6 @@ const OVERLAY_PREDICATES: ReadonlyArray<readonly [OverlayKind, (s: MixCodeState)
   ["extension-manager", (s) => s.extensionManager.open],
   ["tab-jump", (s) => s.tabJumpOpen],
   ["quit-confirm", (s) => s.quitConfirmOpen],
-  ["export-chooser", (s) => s.exportChooserOpen],
 ];
 
 /** The single overlay currently active, or "none". Priority-ordered. */
@@ -217,8 +215,6 @@ export function closeActiveOverlay(state: MixCodeState): void {
   state.extensionManager.open = false;
   closeTabJump(state);
   state.quitConfirmOpen = false;
-  state.exportChooserOpen = false;
-  state.exportChooserIndex = 0;
 }
 
 // Flag/.open overlays openOverlay can flip on its own. picker is excluded: it
@@ -241,10 +237,6 @@ const FLAG_OPENERS: Partial<Record<OverlayKind, (s: MixCodeState) => void>> = {
   "tab-jump": openTabJump,
   "quit-confirm": (s) => {
     s.quitConfirmOpen = true;
-  },
-  "export-chooser": (s) => {
-    s.exportChooserOpen = true;
-    s.exportChooserIndex = 0;
   },
 };
 

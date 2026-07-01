@@ -23,21 +23,18 @@ import { getActiveTab } from "../core/tabs.js";
 import { armPendingEscape, clearPendingEscape, hasPendingEscape } from "./app-actions.js";
 import {
   closeAppOverlay,
-  editTextWithTuiPaused,
   hasAnyOverlay,
   showErrorOverlay,
   showLinesOverlay,
 } from "./app-overlays.js";
-import { renderExportText } from "./app-submit.js";
 import type {
   CommandPaletteActions,
-  ExportChooserActions,
   MixCodeEditorActions,
   MixCodeKeyRuntime,
   OverlayTui,
 } from "./app-types.js";
 import { getConfiguredQuitOptions, quitMixCode } from "./quit.js";
-import { renderCommandPalette, renderExportChooser, renderTabJumpOverlay } from "./rendering.js";
+import { renderCommandPalette, renderTabJumpOverlay } from "./rendering.js";
 
 export {
   handleChatSelectionMouseInput,
@@ -183,7 +180,7 @@ export function canOpenCommandPalette(
 ): boolean {
   if (isEditorAutocompleteOpen()) return false;
   if (hasAnyOverlay(tui)) return false;
-  if (state.picker || state.sessionSelector.open || state.treeSelector.open || state.tabJumpOpen || state.exportChooserOpen)
+  if (state.picker || state.sessionSelector.open || state.treeSelector.open || state.tabJumpOpen)
     return false;
   if (active?.previewOpen || active?.pendingDialogs.length) return false;
   return commandPaletteEntriesWithExtensions(state, extensionCommands).length > 0;
@@ -324,75 +321,6 @@ export function handleTabJumpKey(state: MixCodeState, data: string, tui: Overlay
     return true;
   }
   return false;
-}
-
-export function handleExportChooserKey(
-  state: MixCodeState,
-  data: string,
-  tui: OverlayTui,
-  runtime?: MixCodeKeyRuntime,
-  actions: ExportChooserActions = {},
-): boolean {
-  if (matchesKey(data, "escape")) {
-    state.exportChooserOpen = false;
-    state.exportChooserIndex = 0;
-    closeAppOverlay(tui);
-    tui.requestRender();
-    return true;
-  }
-  if (matchesKey(data, "down") || matchesKey(data, "tab")) {
-    moveExportChooserSelection(state, 1);
-    showLinesOverlay(tui, (width) => renderExportChooser(state, width));
-    return true;
-  }
-  if (matchesKey(data, "up") || matchesKey(data, "shift+tab")) {
-    moveExportChooserSelection(state, -1);
-    showLinesOverlay(tui, (width) => renderExportChooser(state, width));
-    return true;
-  }
-  const target = matchesKey(data, "enter")
-    ? exportTargetAt(state.exportChooserIndex)
-    : exportTargetForKey(data);
-  if (!target) return false;
-  if (!runtime?.getTab) throw new Error("Export chooser requires runtime tab access");
-  const active = getActiveTab(state);
-  if (!active) throw new Error("No active tab for export");
-  const runtimeTab = runtime.getTab(active.sessionId);
-  if (!runtimeTab) throw new Error(`Unknown tab session: ${active.sessionId}`);
-  state.exportChooserOpen = false;
-  state.exportChooserIndex = 0;
-  closeAppOverlay(tui);
-  void editTextWithTuiPaused(tui, renderExportText(target, runtimeTab), actions.editor)
-    .then(() => {
-      tui.requestRender();
-    })
-    .catch((error: unknown) => {
-      showErrorOverlay(tui, error);
-      tui.requestRender();
-    });
-  tui.requestRender();
-  return true;
-}
-
-function moveExportChooserSelection(state: MixCodeState, delta: number): void {
-  const total = 5;
-  state.exportChooserIndex = (state.exportChooserIndex + delta + total) % total;
-}
-
-function exportTargetAt(index: number): string {
-  return ["thinking", "chatlog", "latest-agent", "latest-user", "system-info"][
-    Math.min(Math.max(index, 0), 4)
-  ]!;
-}
-
-function exportTargetForKey(data: string): string | undefined {
-  const key = data.toLowerCase();
-  if (key === "t") return "thinking";
-  if (key === "c") return "chatlog";
-  if (key === "a") return "latest-agent";
-  if (key === "u") return "latest-user";
-  if (key === "s") return "system-info";
-  return undefined;
 }
 
 export function handlePreviewKey(active: MixCodeState["tabs"][number], data: string): boolean {

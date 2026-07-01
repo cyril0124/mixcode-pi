@@ -19,8 +19,6 @@ export function createInitialState(workdir: string): MixCodeState {
     tabs: [],
     activeTabId: "config",
     packageUpdates: [],
-    exportChooserOpen: false,
-    exportChooserIndex: 0,
     quitConfirmOpen: false,
     commandPaletteOpen: false,
     commandPalette: { query: "", selectedIndex: 0 },

@@ -46,8 +46,6 @@ import {
   renderChat,
   renderCommandPalette,
   renderConfig,
-  renderExportChooser,
-  renderExportText,
   renderSystemToolsText,
   renderExtensionFooter,
   renderExtensionHeader,
@@ -252,14 +250,9 @@ test("runtime keeps the previous editor component when extension editor factory 
   }
 });
 
-test("runtime maps pi extension multiline editor primitive into a live TUI overlay", async () => {
+test("runtime maps pi extension multiline editor primitive into an in-place editor swap", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-multiline-editor-"));
   const events: string[] = [];
-  const terminal = silentTerminal();
-  const tui = new TUI(terminal);
-  let overlayComponent: Component | undefined;
-  let overlayOpen = false;
-  const originalShowOverlay = tui.showOverlay.bind(tui);
   const extension: ExtensionFactory = (pi) => {
     pi.registerCommand("edit-smoke", {
       description: "Multiline editor primitive smoke",
@@ -277,24 +270,34 @@ test("runtime maps pi extension multiline editor primitive into a live TUI overl
     });
   };
 
-  tui.showOverlay = ((component: Component, options?: OverlayOptions) => {
-    overlayOpen = true;
-    overlayComponent = component;
-    assert.deepEqual(options, { anchor: "center", width: "88%", maxHeight: "80%" });
-    const handle = originalShowOverlay(component, options);
-    const originalHide = handle.hide.bind(handle);
-    return {
-      ...handle,
-      hide: () => {
-        overlayOpen = false;
-        originalHide();
+  // Mock editor host: matching Pi agent behavior, ctx.ui.editor() swaps the
+  // real input editor component in place (EditorSlot) rather than opening a
+  // floating overlay. This mirrors the mockEditorHost pattern used for
+  // ctx.ui.select/confirm/input primitive tests.
+  type EditorComponentLike = { render(w: number): string[]; handleInput?(d: string): void };
+  let activeEditorComponent: EditorComponentLike | undefined;
+  let restoredToPrevious = false;
+  const terminal = silentTerminal();
+  const tui = new TUI(terminal);
+  const mockEditorHost = {
+    tui,
+    editor: {
+      getText: () => "",
+      getExpandedText: () => "",
+      setText: () => undefined,
+      pasteToEditor: () => undefined,
+      setEditorComponent: (factory: (() => EditorComponentLike) | undefined) => {
+        activeEditorComponent = factory?.();
+        if (!factory) restoredToPrevious = true;
       },
-    };
-  }) as typeof tui.showOverlay;
+      getEditorComponent: () => undefined,
+      getEmbeddedTerminalRows: () => undefined,
+    },
+  };
 
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir, extensionFactories: [extension] });
-    runtime.setExtensionUiHost({ tui });
+    runtime.setExtensionUiHost(mockEditorHost as any);
     const tab = createTab(1, "s1", process.cwd());
     await runtime.createTab(tab, {
       systemPrompt: "system",
@@ -303,28 +306,31 @@ test("runtime maps pi extension multiline editor primitive into a live TUI overl
     });
 
     const editTask = runtime.prompt("s1", "/edit-smoke");
-    await waitFor(() => overlayOpen && !!overlayComponent);
+    await waitFor(() => !!activeEditorComponent);
     assert.deepEqual(tab.extensionUi.pendingUserInteractions, [
       { id: "extension-editor-1", kind: "editor" },
     ]);
-    assert.match(stripAnsi(overlayComponent!.render(100).join("\n")), /Edit Note/);
-    overlayComponent!.handleInput?.(" updated");
-    overlayComponent!.handleInput?.("\r");
+    const editComponent = activeEditorComponent!;
+    assert.match(stripAnsi(editComponent.render(100).join("\n")), /Edit Note/);
+    editComponent.handleInput?.(" updated");
+    editComponent.handleInput?.("\r");
     await editTask;
-    assert.equal(overlayOpen, false);
+    assert.equal(restoredToPrevious, true);
     assert.deepEqual(tab.extensionUi.pendingUserInteractions, []);
     assert.equal(events.at(-1), "edited:prefill updated");
 
+    restoredToPrevious = false;
     const cancelTask = runtime.prompt("s1", "/edit-cancel");
-    await waitFor(() => overlayOpen && !!overlayComponent);
+    await waitFor(() => !!activeEditorComponent);
     assert.deepEqual(tab.extensionUi.pendingUserInteractions, [
       { id: "extension-editor-1", kind: "editor" },
     ]);
-    assert.match(stripAnsi(overlayComponent!.render(100).join("\n")), /Cancel Note/);
-    overlayComponent!.handleInput?.("\x1b");
-    overlayComponent!.handleInput?.("\r");
+    const cancelComponent = activeEditorComponent!;
+    assert.match(stripAnsi(cancelComponent.render(100).join("\n")), /Cancel Note/);
+    cancelComponent.handleInput?.("\x1b");
+    cancelComponent.handleInput?.("\r");
     await cancelTask;
-    assert.equal(overlayOpen, false);
+    assert.equal(restoredToPrevious, true);
     assert.deepEqual(tab.extensionUi.pendingUserInteractions, []);
     assert.equal(events.at(-1), "cancel:none");
   } finally {

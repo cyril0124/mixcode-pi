@@ -440,3 +440,50 @@ function silentTerminal(columns: number, rows = 24): Terminal {
     setProgress: () => undefined,
   };
 }
+
+// Regression: Ctrl+E must reach the extension editor component that owns the
+// editor slot (e.g. the /view editor), NOT trigger the global main-input
+// external-editor handler. The global handler in createMixCodeTui runs in a
+// tui input listener (before the focused component) and used to steal Ctrl+E
+// unconditionally, opening the empty main input instead of the view content.
+test("Ctrl+E defers to the extension editor component when it owns the slot", () => {
+  const state = makeState();
+  let capturedHost:
+    | { editor?: { setEditorComponent?: (factory: unknown, sessionId?: string) => void } }
+    | undefined;
+  const runtime = {
+    getTab: () => ({ chat: [] }),
+    onChange: () => () => undefined,
+    getAllExtensionCommands: () => [],
+    setExtensionUiHost: (host: typeof capturedHost) => {
+      capturedHost = host;
+    },
+  } as unknown as MixCodeRuntime;
+
+  const tui = createMixCodeTui(state, runtime, { terminal: silentTerminal(100, 36) });
+  try {
+    const received: string[] = [];
+    // Minimal EditorComponent stub that records the input it is handed.
+    const stubFactory = () => ({
+      render: () => ["stub-editor"],
+      invalidate: () => undefined,
+      getText: () => "",
+      setText: () => undefined,
+      handleInput: (data: string) => {
+        received.push(data);
+      },
+    });
+    // Sanity: no replacement yet, the guard condition is false.
+    assert.equal(capturedHost?.editor?.setEditorComponent !== undefined, true);
+    capturedHost!.editor!.setEditorComponent!(stubFactory, "s1");
+
+    // Ctrl+E (0x05) fed through the real tui input pipeline.
+    (tui as unknown as { handleInput(data: string): void }).handleInput("\x05");
+
+    // With the slot owned by the extension component, Ctrl+E falls through the
+    // global listener to the focused EditorSlot and reaches the stub.
+    assert.deepEqual(received, ["\x05"]);
+  } finally {
+    tui.stop();
+  }
+});

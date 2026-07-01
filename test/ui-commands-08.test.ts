@@ -102,7 +102,7 @@ test("global key input submits batched inline text ending with enter", () => {
       text = "";
     },
   };
-  state.exportChooserOpen = true;
+  state.tabJumpOpen = true;
   assert.equal(
     handleMixCodeKeyInput(
       state,
@@ -116,7 +116,7 @@ test("global key input submits batched inline text ending with enter", () => {
     ),
     undefined,
   );
-  state.exportChooserOpen = false;
+  state.tabJumpOpen = false;
   state.picker = { kind: "theme", title: "Choose Theme", query: "", selectedIndex: 0, items: [] };
   assert.equal(
     handleMixCodeKeyInput(

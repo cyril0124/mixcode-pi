@@ -293,11 +293,6 @@ test("ctrl-p does not open command palette while another input mode owns focus",
   assert.equal(state.commandPaletteOpen, false);
   state.tabJumpOpen = false;
 
-  state.exportChooserOpen = true;
-  assert.equal(handleMixCodeKeyInput(state, "\x10", tui), undefined);
-  assert.equal(state.commandPaletteOpen, false);
-  state.exportChooserOpen = false;
-
   tab.previewOpen = true;
   assert.equal(handleMixCodeKeyInput(state, "\x10", tui), undefined);
   assert.equal(state.commandPaletteOpen, false);

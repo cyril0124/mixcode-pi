@@ -14,7 +14,6 @@ export type LocalCommand =
   | "save-workspace"
   | "restore-workspace"
   | "delete-workspace"
-  | "export"
   | "import"
   | "extension-manager"
   | "reload"
@@ -72,7 +71,6 @@ export const LOCAL_COMMANDS: Array<{
   { name: "save-workspace", description: "Save current workspace tab order" },
   { name: "restore-workspace", description: "Restore a saved workspace tab order" },
   { name: "delete-workspace", description: "Delete a saved workspace" },
-  { name: "export", description: "View thinking, chatlog, latest-agent, or latest-user text" },
   { name: "import", description: "Import a Pi session JSONL file" },
   { name: "extension-manager", description: "Manage Pi extensions for this workdir" },
   { name: "reload", description: "Reload keybindings, extensions, skills, prompts, themes, and models" },

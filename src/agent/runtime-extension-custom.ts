@@ -197,6 +197,9 @@ function renderWithPiExtensionContext<T>(render: () => T): T {
   }
 }
 
+// Matches Pi agent behavior: the extension editor replaces the input editor
+// in place (EditorSlot swap), the same pattern createExtensionDialog uses for
+// select/confirm/input, rather than floating as a centered overlay.
 export function createExtensionEditorOverlay(
   runtimeTab: RuntimeTab,
   requestRender: () => void,
@@ -205,45 +208,52 @@ export function createExtensionEditorOverlay(
   prefill?: string,
 ): Promise<string | undefined> {
   const host = getCustomUiHost();
-  if (!host)
+  if (!host?.editor?.setEditorComponent)
     throw new Error("Pi extension UI primitive requires an active MixCode TUI host: editor");
+  const editor = host.editor;
+  const setEditorComponent = editor.setEditorComponent!;
   ensureExtensionThemeInitialized();
+  const sessionId = runtimeTab.tab.sessionId;
+  const previousFactory = editor.getEditorComponent?.(sessionId);
+  const previousText = editor.getExpandedText?.(sessionId) ?? editor.getText(sessionId) ?? "";
   return new Promise<string | undefined>((resolve) => {
     let component: ExtensionEditorComponent | undefined;
-    let handle: OverlayHandle | undefined;
     let settled = false;
     const interactionId = nextPendingInteractionId(runtimeTab, "editor");
     const finish = (value: string | undefined) => {
       if (settled) return;
       settled = true;
       runtimeTab.extensionCustomOverlayClosers.delete(cancel);
-      if (handle) runtimeTab.extensionCustomOverlayHandles.delete(handle);
       removePendingUserInteraction(runtimeTab, interactionId);
-      handle?.hide();
+      setEditorComponent(previousFactory, sessionId);
+      editor.setText(previousText, sessionId);
       resolve(value);
       requestRender();
     };
     const cancel = () => finish(undefined);
-    component = new ExtensionEditorComponent(
-      host.tui,
-      MIXCODE_EXTENSION_KEYBINDINGS_MANAGER,
-      title,
-      prefill,
-      finish,
-      cancel,
-      { autocompleteMaxVisible: 8 },
-    );
     runtimeTab.extensionCustomOverlayClosers.add(cancel);
     addPendingUserInteraction(runtimeTab, interactionId, "editor");
-    handle = host.tui.showOverlay(
-      component,
-      scopeOverlayOptionsToTab(
-        { anchor: "center", width: "88%", maxHeight: "80%" },
-        runtimeTab,
-        host,
-      ),
-    );
-    runtimeTab.extensionCustomOverlayHandles.add(handle);
+    const tui = createTerminalRowsProxy(host.tui, () => editor.getEmbeddedTerminalRows?.(sessionId));
+    // ExtensionEditorComponent bakes its hint row (including the "external
+    // editor" ctrl+e label) in its constructor via keyHint(), which reads the
+    // pi-tui GLOBAL keybindings. Construct it inside the MixCode keybindings
+    // scope so app.editor.external resolves; renderWithPiExtensionContext only
+    // covers later render/input, not this one-time construction.
+    const restoreKeybindings = applyMixCodeKeybindings();
+    try {
+      component = new ExtensionEditorComponent(
+        tui,
+        MIXCODE_EXTENSION_KEYBINDINGS_MANAGER,
+        title,
+        prefill,
+        finish,
+        cancel,
+        { autocompleteMaxVisible: 8 },
+      );
+    } finally {
+      restoreKeybindings();
+    }
+    setEditorComponent(() => customComponentEditor(component!), sessionId);
     requestRender();
   });
 }

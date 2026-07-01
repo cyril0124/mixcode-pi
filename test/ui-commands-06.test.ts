@@ -472,12 +472,6 @@ test("global key input toggles MixCode overlays and passes through regular input
     consume: true,
   });
   assert.equal(state.extensionManager.open, false);
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x0c", tui), { consume: true });
-  assert.match(overlays.at(-1) ?? "", /Latest Agent Reply/);
-  assert.equal(state.exportChooserOpen, true);
-  assert.deepEqual(handleMixCodeKeyInput(state, "\t", tui), { consume: true });
-  assert.equal(state.exportChooserIndex, 1);
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui), { consume: true });
   state.activeTabId = "config";
   renderConfig(state, 100);
   assert.equal(handleMixCodeKeyInput(state, "\x1b[<0;10;10M", tui), undefined);
@@ -485,14 +479,11 @@ test("global key input toggles MixCode overlays and passes through regular input
   assert.equal(state.commandPaletteOpen, false);
   state.activeTabId = "s1";
   assert.equal(state.activeTabId, "s1");
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[Z", tui), { consume: true });
-  assert.equal(state.exportChooserIndex, 0);
   overlayOpen = true;
-  state.exportChooserOpen = true;
+  state.tabJumpOpen = true;
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui), { consume: true });
-  assert.equal(state.exportChooserOpen, false);
-  assert.equal(state.commandPaletteOpen, false);
   assert.equal(state.tabJumpOpen, false);
+  assert.equal(state.commandPaletteOpen, false);
   assert.equal(state.picker, undefined);
   overlayOpen = false;
   state.activeTabId = "config";

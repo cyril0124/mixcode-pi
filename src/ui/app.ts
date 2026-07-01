@@ -45,7 +45,6 @@ export { MixCodeRoot } from "./app-layout.js";
 export { bindLiveExtensionRedraw, bindRuntimeRendering, bindWorkingRedraw } from "./app-runtime.js";
 export {
   handleSubmittedInput,
-  renderExportText,
   renderSessionInfoText,
 } from "./app-submit.js";
 export { renderHotkeysText } from "./hotkeys.js";
@@ -243,11 +242,14 @@ export function createMixCodeTui(
           ),
         extensionCommands: () => activeExtensionCommands(state, runtime),
       },
-      { editor: options.externalEditor },
       { workspaceFile: options.workspaceFile },
     );
     if (result?.consume) return result;
-    if (matchesKey(data, "ctrl+e")) {
+    // Global Ctrl+E opens the MAIN input editor's text in an external editor.
+    // Skip it while an extension component owns the editor slot (e.g. the /view
+    // editor): the key must fall through to the focused EditorSlot so the
+    // extension editor's own Ctrl+E opens ITS content, not the empty main input.
+    if (matchesKey(data, "ctrl+e") && !editor.getEditorComponent()) {
       void editTextWithTuiPaused(tui, editor.getText(), options.externalEditor)
         .then((text) => {
           editor.setText(text);

@@ -47,8 +47,6 @@ import {
   renderChat,
   renderCommandPalette,
   renderConfig,
-  renderExportChooser,
-  renderExportText,
   renderSystemToolsText,
   renderExtensionFooter,
   renderExtensionHeader,

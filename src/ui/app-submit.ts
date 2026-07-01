@@ -25,7 +25,6 @@ import {
 import { createTuiDebugState } from "./app-debug.js";
 import { editTextWithTuiPaused, showLinesOverlay, showTextOverlay } from "./app-overlays.js";
 import type {
-  ExportRequest,
   MixCodeSubmitRuntime,
   OverlayTui,
   RuntimeShortcutInfo,
@@ -240,16 +239,6 @@ export async function handleSubmittedInput(
       return;
     }
     await deleteWorkspaceByName(state, tui, workspaceFile, name);
-  } else if (parsed.command === "export") {
-    const runtimeTab = runtime.getTab(active!.sessionId);
-    if (!runtimeTab) throw new Error(`Unknown tab session: ${active!.sessionId}`);
-    const request = parseExportRequest(parsed.args);
-    const text = renderExportText(request.target, runtimeTab);
-    if (request.editorDisabled) {
-      showTextOverlay(tui, text);
-    } else {
-      await editTextWithTuiPaused(tui, text, request.editor);
-    }
   } else if (parsed.command === "import") {
     if (!runtime.importFromJsonl)
       throw new Error("Import requires pi runtime session import support");
@@ -521,51 +510,6 @@ function parseImportRequest(args: string): { path: string; cwdOverride?: string 
   return { path, cwdOverride: parts[1] };
 }
 
-export function renderExportText(
-  args: string,
-  runtimeTab: NonNullable<ReturnType<MixCodeRuntime["getTab"]>>,
-): string {
-  const target = parseExportRequest(args).target;
-  if (target === "thinking") {
-    const thinking = runtimeTab.chat
-      .filter((line) => line.role === "thinking")
-      .map((line) => line.text);
-    return [
-      "Thinking Export",
-      "",
-      ...(thinking.length ? thinking : ["No thinking entries."]),
-    ].join("\n");
-  }
-  if (target === "chatlog") {
-    return ["Chat Export", "", ...runtimeTab.chat.map(formatExportChatLine)].join("\n");
-  }
-  if (target === "latest-agent" || target === "latest-agent-reply") {
-    const latest = [...runtimeTab.chat].reverse().find((line) => line.role === "assistant");
-    return ["Latest Agent Reply", "", latest?.text ?? "No assistant message."].join("\n");
-  }
-  if (target === "latest-user" || target === "latest-user-message") {
-    const latest = [...runtimeTab.chat].reverse().find((line) => line.role === "user");
-    return ["Latest User Message", "", latest?.text ?? "No user message."].join("\n");
-  }
-  if (target === "system-info") {
-    const sections: string[] = [];
-    sections.push(renderSessionInfoText(runtimeTab));
-    sections.push("");
-    sections.push("═".repeat(60));
-    sections.push("");
-    sections.push("System Prompt");
-    sections.push("");
-    sections.push(runtimeTab.agent.state.systemPrompt || "(empty)");
-    sections.push("");
-    sections.push("═".repeat(60));
-    sections.push("");
-    const tools = runtimeTab.agentSession.getAllTools();
-    sections.push(renderSystemToolsText(Array.isArray(tools) ? tools : []));
-    return sections.join("\n");
-  }
-  throw new Error(`Unknown export target: ${target}`);
-}
-
 function getRuntimeTools(
   runtime: MixCodeSubmitRuntime,
   sessionId: string,
@@ -672,16 +616,6 @@ function formatSessionContextPercent(percent: number | null): string {
   return percent === null ? "unknown" : `${percent.toFixed(1)}%`;
 }
 
-function parseExportRequest(args: string): ExportRequest {
-  const { remaining, editor, editorDisabled } = parseEditorFlag(args);
-  const parts = remaining.trim().split(/\s+/).filter(Boolean);
-  let target = "chatlog";
-  for (const part of parts) {
-    target = part;
-  }
-  return { target, editor, editorDisabled };
-}
-
 function parseEditorFlag(args: string): {
   remaining: string;
   editor?: string;
@@ -706,15 +640,4 @@ function parseEditorFlag(args: string): {
     remaining.push(part);
   }
   return { remaining: remaining.join(" "), editor, editorDisabled };
-}
-
-function formatExportChatLine(
-  line: NonNullable<ReturnType<MixCodeRuntime["getTab"]>>["chat"][number],
-): string {
-  if (line.role === "tool") {
-    const title = line.title ? `:${line.title}` : "";
-    const status = line.status ? `:${line.status}` : "";
-    return `[tool${title}${status}] ${line.text}`;
-  }
-  return `[${line.role}] ${line.text}`;
 }

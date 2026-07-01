@@ -46,8 +46,6 @@ import {
   renderChat,
   renderCommandPalette,
   renderConfig,
-  renderExportChooser,
-  renderExportText,
   renderSystemToolsText,
   renderExtensionFooter,
   renderExtensionHeader,
@@ -265,8 +263,6 @@ test("rendering sanitizes terminal text and paints tool blocks", () => {
   state.commandPalette.query = "missing";
   assert.match(renderCommandPalette(state, 100).join("\n"), /No matching commands/);
   state.commandPaletteOpen = false;
-  assert.match(renderExportChooser(state, 80).join("\n"), /Latest Agent Reply/);
-  assert.match(renderExportChooser(state, 80).join("\n"), /System Info/);
   assert.deepEqual(renderTabJumpOverlay(state, 80), []);
   assert.deepEqual(renderPickerOverlay(state, 80), []);
 });

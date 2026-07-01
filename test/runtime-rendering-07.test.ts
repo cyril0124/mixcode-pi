@@ -46,8 +46,6 @@ import {
   renderChat,
   renderCommandPalette,
   renderConfig,
-  renderExportChooser,
-  renderExportText,
   renderSystemToolsText,
   renderExtensionFooter,
   renderExtensionHeader,
@@ -238,7 +236,7 @@ test(undefined, () => {
     new Set(MIXCODE_KEYMAP.map((item) => item.scope ?? "global")).has("global"),
     true,
   );
-  for (const scope of ["picker", "command-palette", "tab-jump", "export", "preview"]) {
+  for (const scope of ["picker", "command-palette", "tab-jump", "preview"]) {
     assert.equal(
       MIXCODE_KEYMAP.some((item) => item.scope === scope),
       true,
@@ -250,28 +248,4 @@ test(undefined, () => {
     );
   }
   assert.ok(MIXCODE_KEYMAP.some((item) => item.scope === "preview" && item.key === "g/G"));
-  assert.match(
-    renderExportText("chatlog --editor", {
-      chat: [{ role: "system", text: "notice" }],
-    } as never),
-    /\[system\] notice/,
-  );
-  // `/export thinking` reconstructs from the chat's thinking lines (no separate
-  // reasoning store). Mixed roles: only thinking lines are exported, in order.
-  assert.match(
-    renderExportText("thinking", {
-      chat: [
-        { role: "user", text: "hi" },
-        { role: "thinking", text: "first thought" },
-        { role: "assistant", text: "answer" },
-        { role: "thinking", text: "second thought" },
-      ],
-    } as never),
-    /first thought[\s\S]*second thought/,
-  );
-  // Empty chat (e.g. right after a /tree revert) yields the placeholder.
-  assert.match(
-    renderExportText("thinking", { chat: [] } as never),
-    /No thinking entries\./,
-  );
 });
