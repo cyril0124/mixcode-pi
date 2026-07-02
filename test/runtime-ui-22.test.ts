@@ -213,12 +213,19 @@ test("runtime maps tool and thinking events into tab UI state", async () => {
   anyRuntime.applyEvent(runtimeTab, { type: "session_info_changed" });
   anyRuntime.applyEvent(runtimeTab, { type: "session_info_changed", name: "Renamed Session" });
   anyRuntime.applyEvent(runtimeTab, { type: "thinking_level_changed", level: "high" });
+  const startedAtBeforeRetry = tab.workingStartedAt;
   anyRuntime.applyEvent(runtimeTab, {
     type: "auto_retry_start",
     attempt: 2,
     maxAttempts: 3,
     errorMessage: "rate limited",
   });
+  assert.equal(tab.status, "thinking", "status should remain thinking during retry");
+  assert.equal(
+    tab.workingStartedAt,
+    startedAtBeforeRetry,
+    "workingStartedAt should be preserved during retry",
+  );
   anyRuntime.applyEvent(runtimeTab, { type: "auto_retry_end", success: true });
   anyRuntime.applyEvent(runtimeTab, { type: "auto_retry_end", success: false });
   anyRuntime.applyEvent(runtimeTab, {

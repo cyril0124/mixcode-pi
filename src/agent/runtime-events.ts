@@ -308,6 +308,7 @@ export function applyEvent(
       runtimeTab.tab.thinkingLevel = event.level;
       break;
     case "auto_retry_start":
+      setTabStatus(runtimeTab.tab, "thinking", { preserveStartedAt: true });
       runtimeTab.chat.push({
         role: "system",
         text: `Retry ${event.attempt}/${event.maxAttempts}: ${event.errorMessage}`,

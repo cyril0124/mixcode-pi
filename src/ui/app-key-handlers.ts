@@ -52,9 +52,10 @@ export function handleStreamingAbortKey(
   const isAgentStreaming = runtimeTab?.agent.state.isStreaming;
   const streaming =
     isAgentStreaming ?? (active.status === "running" || active.status === "thinking");
-  // Also treat tab as "working" if status is running even when agent is not streaming
-  // (e.g., branch summarization in progress)
-  const working = streaming || (isAgentStreaming === false && active.status === "running");
+  // Also treat tab as "working" if status is running/thinking even when agent is not streaming
+  // (e.g., branch summarization in progress, or retry waiting)
+  const working = streaming ||
+    (isAgentStreaming === false && (active.status === "running" || active.status === "thinking"));
   if (!working) return false;
   if (!hasPendingEscape(active, "abort-agent")) {
     armPendingEscape(active, "abort-agent");

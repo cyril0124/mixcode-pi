@@ -618,9 +618,17 @@ export class MixCodeRuntime {
   abortTab(sessionId: string): boolean {
     const runtimeTab = this.requireTab(sessionId);
     if (!runtimeTab.agentSession.isStreaming) {
-      // Try aborting branch summarization and compaction (no-op if not running)
+      // Try aborting retry, branch summarization and compaction (no-op if not running)
+      const wasRetrying = runtimeTab.agentSession.isRetrying;
+      runtimeTab.agentSession.abortRetry();
       runtimeTab.agentSession.abortBranchSummary();
       runtimeTab.agentSession.abortCompaction();
+      // If retry was aborted, update status to idle
+      if (wasRetrying) {
+        setTabStatus(runtimeTab.tab, "idle", { discardTimer: false });
+        appendSystemMessage(runtimeTab, "Retry cancelled.");
+        this.emitChange({ type: "extension_ui_update" }, runtimeTab);
+      }
       return false;
     }
     void runtimeTab.agentSession.abort();
