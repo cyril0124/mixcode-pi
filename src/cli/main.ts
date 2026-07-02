@@ -33,8 +33,12 @@ import { bootstrapMixCode, defaultStateDir } from "./bootstrap.js";
 import { ensurePackageExtensions } from "../core/ensure-package-extensions.js";
 import { installConsoleTuiBridge, wireConsoleSink } from "./console-tui-bridge.js";
 import { showNoticeTextOverlay } from "../ui/app-overlays.js";
+import { configureHttpDispatcher } from "../core/http-dispatcher.js";
 
 export async function main(): Promise<void> {
+  // Configure undici's global dispatcher before provider SDKs issue requests.
+  // Runtime settings are applied once SettingsManager has loaded global/project settings.
+  configureHttpDispatcher();
   exposeLocalPiCli();
   const repoDir = process.env.PI_PACKAGE_DIR ?? resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
   const args = parseMainArgs(process.argv.slice(2), cwd());

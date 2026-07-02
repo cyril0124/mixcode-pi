@@ -28,6 +28,7 @@
     "@typescript/native-preview": "^7.0.0-dev.20260513.1",
     "fengari": "^0.1.5",
     "fengari-interop": "^0.1.4",
+    "undici": "^8.5.0",
     "yaml": "^2.8.4"
   },
   "devDependencies": {

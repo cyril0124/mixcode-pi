@@ -4,6 +4,7 @@ import type {
   CreateAgentSessionServicesOptions,
   ExtensionFactory,
 } from "@earendil-works/pi-coding-agent";
+import { SettingsManager } from "@earendil-works/pi-coding-agent";
 import { MixCodeRuntime } from "../agent/runtime.js";
 import { scanSkillEntries } from "../core/attachments.js";
 import { createInitialState, createSessionId, createTab, DEFAULT_MODEL_REF } from "../core/defaults.js";
@@ -42,6 +43,7 @@ import {
 import { MIXCODE_SYSTEM_PROMPT, setGlobalConversationHistoryPrompt } from "../core/system-prompt.js";
 import type { MixCodeState } from "../core/types.js";
 import type { MixCodeCompletionSources } from "../ui/completion.js";
+import { applyHttpProxySettings, configureHttpDispatcher } from "../core/http-dispatcher.js";
 
 export interface BootstrapOptions {
   workdir: string;
@@ -99,6 +101,10 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
   await chmod(rootStateDir, 0o700);
   await mkdir(stateDir, { recursive: true, mode: 0o700 });
   await chmod(stateDir, 0o700);
+
+  // Create SettingsManager early so we can apply HTTP proxy settings before any network requests
+  const settingsManager = SettingsManager.create(options.workdir, agentDir, { projectTrusted: true });
+
   const stateFile = stateFileForPort(stateDir, port);
   const workspaceFile = join(stateDir, "workspaces.json");
   let state: MixCodeState;
@@ -148,6 +154,7 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
     agentDir,
     authStorage: modelBundle.authStorage,
     modelRegistry: modelBundle.registry,
+    settingsManager,
     extensionFactories: options.extensionFactories,
     additionalExtensionPaths: options.additionalExtensionPaths,
     resourceLoaderOptions: options.resourceLoaderOptions,
@@ -158,6 +165,11 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
     getApiKey: modelBundle.runtimeAuth.getApiKey,
     streamFn: modelBundle.runtimeAuth.stream,
   });
+
+  // Apply HTTP proxy settings from SettingsManager after runtime is created but before any network requests
+  applyHttpProxySettings(settingsManager.getGlobalSettings().httpProxy);
+  configureHttpDispatcher(settingsManager.getHttpIdleTimeoutMs());
+
   await runtime.loadExtensionManagerConfig();
   const completionSources = {
     skills: await scanSkillEntries(state.workdir, options.homeDir),
