@@ -47,21 +47,21 @@ test("model helpers map pi models into MixCode state", () => {
   assert.ok(Array.isArray(listAvailableModelRefs()));
 });
 
-test("jw-proxy-gpt model loads through pi models.json registry as OpenAI Responses without storing secrets", async () => {
+test("proxy-gpt model loads through pi models.json registry as OpenAI Responses without storing secrets", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-model-config-"));
-  const oldKey = process.env.JW_API_KEY_2;
+  const oldKey = process.env.MIXCODE_TEST_PROXY_KEY;
   const oldAgentDir = process.env.PI_CODING_AGENT_DIR;
   try {
-    process.env.JW_API_KEY_2 = "secret-key";
+    process.env.MIXCODE_TEST_PROXY_KEY = "secret-key";
     process.env.PI_CODING_AGENT_DIR = dir;
     const configPath = join(dir, "models.json");
     await writeFile(
       configPath,
       `{
         "providers": {
-          "jw-proxy-gpt": {
+          "proxy-gpt": {
             "baseUrl": "https://proxy.example.test/v1",
-            "apiKey": "$JW_API_KEY_2",
+            "apiKey": "$MIXCODE_TEST_PROXY_KEY",
             "api": "openai-responses",
             "compat": {
               "sendSessionIdHeader": true,
@@ -93,13 +93,13 @@ test("jw-proxy-gpt model loads through pi models.json registry as OpenAI Respons
     assert.equal(defaultPiModelsPath(), configPath);
     const bundle = await createPiModelRegistryBundle();
     const source = bundle.sources.find(
-      (item) => item.provider === "jw-proxy-gpt" && item.modelId === "gpt-5.5",
+      (item) => item.provider === "proxy-gpt" && item.modelId === "gpt-5.5",
     );
     assert.ok(source);
-    assert.equal(source.provider, "jw-proxy-gpt");
+    assert.equal(source.provider, "proxy-gpt");
     assert.equal(source.modelId, "gpt-5.5");
     assert.equal(source.authStatus.source, "environment");
-    assert.equal(source.authStatus.label, "JW_API_KEY_2");
+    assert.equal(source.authStatus.label, "MIXCODE_TEST_PROXY_KEY");
     assert.equal(source.model.api, "openai-responses");
     assert.equal(source.model.baseUrl, "https://proxy.example.test/v1");
     assert.equal(source.model.contextWindow, 256000);
@@ -108,50 +108,56 @@ test("jw-proxy-gpt model loads through pi models.json registry as OpenAI Respons
     assert.equal(source.model.thinkingLevelMap?.xhigh, "xhigh");
     assert.deepEqual(source.model.input, ["text", "image"]);
     assert.doesNotMatch(JSON.stringify(source.model), /secret-key/);
-    assert.equal(await bundle.runtimeAuth.getApiKey("jw-proxy-gpt"), "secret-key");
+    assert.equal(await bundle.runtimeAuth.getApiKey("proxy-gpt"), "secret-key");
     const auth = await bundle.registry.getApiKeyAndHeaders(source.model);
     assert.equal(auth.ok, true);
     if (auth.ok) assert.equal(auth.apiKey, "secret-key");
 
     registerModels([source.model]);
     assert.equal(
-      findModelRef(listAvailableModelRefs(), "jw-proxy-gpt/gpt-5.5").contextWindow,
+      findModelRef(listAvailableModelRefs(), "proxy-gpt/gpt-5.5").contextWindow,
       256000,
     );
     const runtime = new MixCodeRuntime({
       getApiKey: bundle.runtimeAuth.getApiKey,
       streamFn: bundle.runtimeAuth.stream,
     });
-    assert.equal(runtime.resolveModel("jw-proxy-gpt", "gpt-5.5").api, "openai-responses");
+    assert.equal(runtime.resolveModel("proxy-gpt", "gpt-5.5").api, "openai-responses");
   } finally {
-    if (oldKey === undefined) delete process.env.JW_API_KEY_2;
-    else process.env.JW_API_KEY_2 = oldKey;
+    if (oldKey === undefined) delete process.env.MIXCODE_TEST_PROXY_KEY;
+    else process.env.MIXCODE_TEST_PROXY_KEY = oldKey;
     if (oldAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
     else process.env.PI_CODING_AGENT_DIR = oldAgentDir;
     await rm(dir, { recursive: true, force: true });
   }
 });
 
-test("jw-proxy-gpt gpt-5.5 sends a real OpenAI Responses request", {
-  skip:
-    process.env.MIXCODE_RUN_GPT55_RESPONSES_SMOKE !== "1"
-      ? "set MIXCODE_RUN_GPT55_RESPONSES_SMOKE=1 to send a real jw-proxy-gpt/gpt-5.5 request"
-      : false,
+// Opt-in smoke test target, e.g. MIXCODE_RESPONSES_SMOKE_MODEL="my-provider/my-model".
+// Keeps real provider/model names out of the repo while staying runnable locally.
+const RESPONSES_SMOKE_MODEL = process.env.MIXCODE_RESPONSES_SMOKE_MODEL ?? "";
+
+test("configured proxy model sends a real OpenAI Responses request", {
+  skip: !RESPONSES_SMOKE_MODEL.includes("/")
+    ? "set MIXCODE_RESPONSES_SMOKE_MODEL=<provider>/<model-id> to send a real request"
+    : false,
 }, async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-gpt55-responses-smoke-"));
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-responses-smoke-"));
   try {
     const workdir = join(dir, "repo");
     await mkdir(workdir, { recursive: true });
     const agentDir =
       process.env.PI_CODING_AGENT_DIR ?? join(process.env.HOME ?? "", ".pi", "agent");
     const bundle = await createPiModelRegistryBundle(undefined, join(agentDir, "auth.json"));
-    const model = bundle.registry.find("jw-proxy-gpt", "gpt-5.5");
-    assert.ok(model, "jw-proxy-gpt/gpt-5.5 must be registered in Pi models.json");
+    const slash = RESPONSES_SMOKE_MODEL.indexOf("/");
+    const provider = RESPONSES_SMOKE_MODEL.slice(0, slash);
+    const modelId = RESPONSES_SMOKE_MODEL.slice(slash + 1);
+    const model = bundle.registry.find(provider, modelId);
+    assert.ok(model, `${RESPONSES_SMOKE_MODEL} must be registered in Pi models.json`);
     assert.equal(model.api, "openai-responses");
     assert.equal(
       bundle.registry.hasConfiguredAuth(model),
       true,
-      "jw-proxy-gpt/gpt-5.5 must have configured auth",
+      `${RESPONSES_SMOKE_MODEL} must have configured auth`,
     );
 
     const runtime = new MixCodeRuntime({
@@ -162,26 +168,26 @@ test("jw-proxy-gpt gpt-5.5 sends a real OpenAI Responses request", {
       getApiKey: bundle.runtimeAuth.getApiKey,
       streamFn: bundle.runtimeAuth.stream,
     });
-    const tab = createTab(1, "gpt55-smoke", workdir, {
+    const tab = createTab(1, "responses-smoke", workdir, {
       model: modelToRef(model),
       contextLimit: model.contextWindow,
       thinkingLevel: "minimal",
     });
     const runtimeTab = await runtime.createTab(tab, {
       systemPrompt:
-        "You are a smoke-test assistant. Reply with exactly MIXCODE_GPT55_RESPONSES_OK and no extra text.",
+        "You are a smoke-test assistant. Reply with exactly MIXCODE_RESPONSES_SMOKE_OK and no extra text.",
       thinkingLevel: "minimal",
       workdir,
       model,
     });
 
     await runtime.prompt(
-      "gpt55-smoke",
-      "Reply with exactly MIXCODE_GPT55_RESPONSES_OK and no extra text.",
+      "responses-smoke",
+      "Reply with exactly MIXCODE_RESPONSES_SMOKE_OK and no extra text.",
     );
 
     const chat = runtimeTab.chat.map((line) => `${line.role}:${line.text}`).join("\n");
-    assert.match(chat, /assistant:MIXCODE_GPT55_RESPONSES_OK/);
+    assert.match(chat, /assistant:MIXCODE_RESPONSES_SMOKE_OK/);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -395,7 +401,7 @@ test("pi model registry exposes missing or incomplete config explicitly", async 
       "utf8",
     );
     const source = (await loadPiModelSources(literalValidPath)).find(
-      (item) => item.provider === "jw-proxy-gpt" && item.modelId === "gpt-5.5",
+      (item) => item.provider === "proxy-gpt" && item.modelId === "gpt-5.5",
     );
     assert.ok(source);
     assert.equal(source.model.baseUrl, "https://literal.example/v1");
@@ -403,7 +409,7 @@ test("pi model registry exposes missing or incomplete config explicitly", async 
     assert.deepEqual(source.model.input, ["text", "image"]);
     const literalBundle = await createPiModelRegistryBundle(literalValidPath);
     assert.equal(
-      await literalBundle.runtimeAuth.getApiKey("jw-proxy-gpt"),
+      await literalBundle.runtimeAuth.getApiKey("proxy-gpt"),
       "MIXCODE_TEST_UNSET_API_KEY",
     );
 
@@ -414,7 +420,7 @@ test("pi model registry exposes missing or incomplete config explicitly", async 
       "utf8",
     );
     const minimal = (await loadPiModelSources(minimalPath)).find(
-      (item) => item.provider === "jw-proxy-gpt" && item.modelId === "gpt-5.5",
+      (item) => item.provider === "proxy-gpt" && item.modelId === "gpt-5.5",
     );
     assert.ok(minimal);
     assert.equal(minimal.model.name, "gpt-5.5");
@@ -495,7 +501,7 @@ test("pi model registry follows models.json overrides and edge cases", async () 
       configPath,
       JSON.stringify({
         providers: {
-          "jw-proxy-gpt": {
+          "proxy-gpt": {
             baseUrl: "https://provider.example/v1",
             api: "openai-responses",
             apiKey: "$MIXCODE_TEST_API_KEY",
@@ -522,11 +528,11 @@ test("pi model registry follows models.json overrides and edge cases", async () 
 
     const bundle = await createPiModelRegistryBundle(configPath);
     const source = bundle.sources.find(
-      (item) => item.provider === "jw-proxy-gpt" && item.modelId === "gpt-5.5",
+      (item) => item.provider === "proxy-gpt" && item.modelId === "gpt-5.5",
     );
     assert.ok(source);
     assert.equal(source.authStatus.source, "environment");
-    assert.equal(await bundle.runtimeAuth.getApiKey("jw-proxy-gpt"), "resolved-test-key");
+    assert.equal(await bundle.runtimeAuth.getApiKey("proxy-gpt"), "resolved-test-key");
     assert.equal(await bundle.runtimeAuth.getApiKey("missing"), undefined);
     assert.equal(source.model.name, "GPT-5.5 Override");
     assert.equal(source.model.api, "anthropic-messages");
@@ -569,11 +575,11 @@ function customConfigBody(options: {
   const thinkingLine = options.minimal ? "" : `"thinkingLevelMap": { "off": null, "low": "low" },`;
   return `{
     "providers": {
-      "jw-proxy-gpt": {
+      "proxy-gpt": {
         ${baseUrlLine}
         ${apiLine}
         ${compatLine}
-        "apiKey": "${options.apiKey ?? "JW_API_KEY_2"}",
+        "apiKey": "${options.apiKey ?? "MIXCODE_TEST_PROXY_KEY"}",
         "models": [
           {
             "id": "gpt-5.5",

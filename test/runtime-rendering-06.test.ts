@@ -370,9 +370,9 @@ test("rendering exposes fitting helpers and keymap export text", () => {
   const wideMetaLine = renderInputMeta(
     createTab(32, "s32", "/repo", {
       model: {
-        provider: "jw",
+        provider: "proxy",
         modelId: "proxy-gpt-5.4-high",
-        displayName: "jw-proxy-gpt-5.4-high",
+        displayName: "proxy-gpt-5.4-high",
         contextWindow: 256_000,
       },
       thinkingLevel: "high",
@@ -380,7 +380,7 @@ test("rendering exposes fitting helpers and keymap export text", () => {
     }),
     120,
   ).join("\n");
-  assert.match(stripAnsi(wideMetaLine), /jw-proxy-gpt-5\.4-high/);
+  assert.match(stripAnsi(wideMetaLine), /proxy-gpt-5\.4-high/);
   assert.match(
     stripAnsi(
       renderWorkingIndicator(

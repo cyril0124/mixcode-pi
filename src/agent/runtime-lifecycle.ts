@@ -55,7 +55,10 @@ import {
   buildMixCodeSystemPromptOverride,
   registerMixCodeRuntimeProvider,
 } from "./runtime-provider.js";
-import { configureMixCodeRetrySettings } from "./retry-settings.js";
+import {
+  configureMixCodeRetryClassification,
+  configureMixCodeRetrySettings,
+} from "./retry-settings.js";
 import {
   bindRuntimeSessionCore,
   getExtensionManagerEntriesForServices,
@@ -480,6 +483,7 @@ export async function createRuntimeServices(
   // default does not rewrite user Pi settings.
   services.settingsManager.applyOverrides({ steeringMode: "all" });
   configureMixCodeRetrySettings(services.settingsManager);
+  configureMixCodeRetryClassification();
   servicesRef = services;
   setExtensionManagerEntriesForServices(services, latestExtensionManagerEntries);
   return services;

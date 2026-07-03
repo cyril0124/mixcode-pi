@@ -50,7 +50,7 @@ MixCode Pi
 | 真实 TUI 截图/交互验证 | `tmp/ref-mixcode-160x48.*`、`tmp/mixcode-pi-*.txt/.ansi`、`tmp/tui-verify-*` 记录参考和当前 TUI 截图；`test/tui-smoke.test.ts` 可重复验证 180x48 tmux 启动、标题、OpenCode 反残留、`/theme tok`、command palette、tab jump、`@` file picker、preview、shell、新建 tab、mouse tab click 和 Ctrl+Q 退出。 | 已验证 |
 | 视觉风格接近 MixCode | `src/ui/themes.ts` 提供 MixCode dark/claude-warm/tokyo-night/terminal；render tests 断言 dark/claude-warm/tokyo-night palette；tmux 截图文件保存 160x48 对照。 | 强验证但仍需人工审美复核 |
 | thinking/chat 不照搬 MixCode | `src/ui/rendering.ts` 对 thinking/tool/chat 有独立渲染；runtime tests 覆盖 thinking stream、tool block、renderer。 | 已验证 |
-| jw-proxy-gpt/gpt-5.5 OpenAI Responses | 本机 precheck 显示 `jw-proxy-gpt/gpt-5.5 registered=true auth=true api=openai-responses`；模型注册测试覆盖 OpenAI Responses 配置读取；本轮真实请求 smoke 返回 `MIXCODE_GPT55_RESPONSES_OK`。 | 已验证 |
+| 自定义 proxy 模型 OpenAI Responses | 本机 precheck 显示本地配置的 responses 模型 `registered=true auth=true api=openai-responses`；模型注册测试覆盖 OpenAI Responses 配置读取；本轮真实请求 smoke 返回 `MIXCODE_RESPONSES_SMOKE_OK`。 | 已验证 |
 | Pi extension 兼容 | `PI_EXTENSION_COMPAT_PLAN.md` 和 `docs/extension-compatibility.md` 记录；runtime tests 覆盖 extension factories、tools、commands、UI primitives、renderers、theme、shortcuts、terminal input 和 package resource discovery。 | 已验证通用兼容层 |
 | Theme 切换 | `/theme` picker、`/theme tok`、`/theme terminal`、extension `ctx.ui.setTheme("tokyo-night")` 均有测试；tmux 180x48 逐字输入 `/theme tok` 后 Enter 确认 tokyo-night palette。 | 已验证 |
 | Pi `ctx.ui.custom()` 默认非 overlay | `src/agent/runtime.ts` 将默认 `ctx.ui.custom()` 映射为临时 editor replacement；`test/runtime-ui.test.ts` 覆盖渲染、键盘输入、`done()` 恢复默认 editor；overlay 模式仍由独立测试覆盖。 | 已验证 |
@@ -62,9 +62,9 @@ timeout 60s npm run typecheck
 timeout 60s npm run build
 timeout 60s npm run coverage
 
-MIXCODE_RUN_GPT55_RESPONSES_SMOKE=1 \
+MIXCODE_RESPONSES_SMOKE_MODEL=<provider>/<model-id> \
   timeout 120s node --test --import tsx test/models-question.test.ts \
-  --test-name-pattern "jw-proxy-gpt gpt-5.5 sends a real OpenAI Responses request"
+  --test-name-pattern "configured proxy model sends a real OpenAI Responses request"
 
 MIXCODE_RUN_TMUX_TUI_SMOKE=1 \
   timeout 60s node --test --import tsx test/tui-smoke.test.ts
@@ -79,10 +79,10 @@ coverage:
   skipped = 4
   all files branch = 95.02%
 
-gpt-5.5 responses:
+responses smoke:
   api: openai-responses
-  provider/model: jw-proxy-gpt/gpt-5.5
-  pass: assistant replied MIXCODE_GPT55_RESPONSES_OK
+  provider/model: 取自本地 MIXCODE_RESPONSES_SMOKE_MODEL，不入库
+  pass: assistant replied MIXCODE_RESPONSES_SMOKE_OK
 
 tmux TUI smoke:
   viewport: 180x48
@@ -140,6 +140,6 @@ tmp/mixcode-agent-bottom-fixed-180x48.txt
 ```text
 1. 改 TUI 后先跑 160x48 tmux 截图，不只看静态 render。
 2. 改 runtime/extension 后先跑 targeted runtime-ui，再按需用用户安装的 package 做真实 smoke。
-3. 改 model/provider 后验证 jw-proxy-gpt/gpt-5.5 仍是 openai-responses。
+3. 改 model/provider 后验证本地配置的 responses 模型仍是 openai-responses。
 4. 不为了过测试添加 fallback/mock success；失败应显式暴露。
 ```
