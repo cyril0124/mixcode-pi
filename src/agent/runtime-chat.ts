@@ -23,7 +23,8 @@ export function assistantDisplayText(_tab: MixCodeTabInfo, message: AssistantMes
 
 export function appendSystemMessage(runtimeTab: RuntimeTab, text: string): void {
   if (!text.trim()) return;
-  runtimeTab.chat.push({ role: "system", text });
+  const variant = text.startsWith("Error:") ? ("system-error" as const) : undefined;
+  runtimeTab.chat.push({ role: "system", text, variant });
   appendPreviewMessage(runtimeTab.tab, "system", text);
 }
 

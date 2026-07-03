@@ -152,6 +152,8 @@ export interface MixCodeTabInfo {
   pendingEscapeArmedAt?: number;
   /** Timestamp of last Escape press for double-escape tree detection */
   lastEscapeTime?: number;
+  /** Retry state: present when auto-retry is in progress */
+  retryInfo?: { attempt: number; maxAttempts: number; delayMs: number; startedAt: number };
   unreadDone: boolean;
   workingStartedAt?: string;
   lastWorkedDurationSeconds?: number;

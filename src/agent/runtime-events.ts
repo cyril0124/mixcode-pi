@@ -309,16 +309,23 @@ export function applyEvent(
       break;
     case "auto_retry_start":
       setTabStatus(runtimeTab.tab, "thinking", { preserveStartedAt: true });
+      runtimeTab.tab.retryInfo = {
+        attempt: event.attempt,
+        maxAttempts: event.maxAttempts,
+        delayMs: event.delayMs,
+        startedAt: Date.now(),
+      };
       runtimeTab.chat.push({
         role: "system",
-        text: `Retry ${event.attempt}/${event.maxAttempts}: ${event.errorMessage}`,
+        text: `Error: Retry ${event.attempt}/${event.maxAttempts}: ${event.errorMessage}`,
       });
       break;
     case "auto_retry_end":
+      runtimeTab.tab.retryInfo = undefined;
       if (!event.success)
         runtimeTab.chat.push({
           role: "system",
-          text: `Retry failed: ${event.finalError ?? "unknown error"}`,
+          text: `Error: Retry failed: ${event.finalError ?? "unknown error"}`,
         });
       break;
   }

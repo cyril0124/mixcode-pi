@@ -130,3 +130,17 @@ export function clearPendingEscape(tab: MixCodeTabInfo): void {
   tab.pendingEscapeAction = undefined;
   tab.pendingEscapeArmedAt = undefined;
 }
+
+/**
+ * Format the auto-retry countdown status line, mirroring Pi's
+ * `Retrying (2/3) in 4s... (esc to cancel)`. Returns undefined when no retry is
+ * in progress. The remaining seconds are computed live off startedAt+delayMs so
+ * the existing periodic working redraw drives the ticking without a timer.
+ */
+export function retryStatusMessage(tab: MixCodeTabInfo, now: Date): string | undefined {
+  const retry = tab.retryInfo;
+  if (!retry) return undefined;
+  const remainingMs = Math.max(0, retry.startedAt + retry.delayMs - now.getTime());
+  const seconds = Math.ceil(remainingMs / 1000);
+  return `Retrying (${retry.attempt}/${retry.maxAttempts}) in ${seconds}s... (esc to cancel)`;
+}

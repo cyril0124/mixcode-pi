@@ -2,6 +2,7 @@ import { type Component, Loader, type TUI as TuiType } from "@earendil-works/pi-
 import type { MixCodeRuntime } from "../agent/runtime.js";
 import { highlightChatSelectionLine } from "../core/chat-selection.js";
 import { isPendingEscapeActive } from "../core/escape.js";
+import { retryStatusMessage } from "../core/tab-state.js";
 import type { MixCodeState } from "../core/types.js";
 import { getActiveTab } from "../core/tabs.js";
 import type { EditorSlot } from "./app-editor.js";
@@ -431,6 +432,10 @@ function workingLoaderKey(active: MixCodeState["tabs"][number], themeName: strin
 }
 
 function workingLoaderMessage(active: MixCodeState["tabs"][number], now: Date): string {
+  // During auto-retry, mirror Pi's countdown status line. The 80ms working
+  // redraw drives the live ticking; see retryStatusMessage.
+  const retry = retryStatusMessage(active, now);
+  if (retry) return retry;
   const message = active.extensionUi.workingMessage?.trim() || "Working";
   const elapsed = formatElapsed(active.workingStartedAt, now);
   const detail = isPendingEscapeActive(active, "abort-agent", now.getTime())

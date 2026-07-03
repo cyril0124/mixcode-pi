@@ -13,6 +13,7 @@ import { createTab } from "../src/core/defaults.js";
 import {
   addTabTokens,
   clearPendingEscape,
+  retryStatusMessage,
   setTabContextTokens,
   setTabStatus,
 } from "../src/core/tab-state.js";
@@ -155,4 +156,25 @@ test("clearPendingEscape clears both halves of the armed-escape pair together", 
   clearPendingEscape(t);
   assert.equal(t.pendingEscapeAction, undefined);
   assert.equal(t.pendingEscapeArmedAt, undefined);
+});
+
+test("retryStatusMessage: absent when no retry is in progress", () => {
+  assert.equal(retryStatusMessage(tab(), new Date()), undefined);
+});
+
+test("retryStatusMessage: formats a live countdown mirroring Pi's status line", () => {
+  const t = tab();
+  const startedAt = Date.parse("2026-01-01T00:00:00.000Z");
+  t.retryInfo = { attempt: 2, maxAttempts: 3, delayMs: 4000, startedAt };
+  // 1.2s elapsed → ceil((4000-1200)/1000) = 3s remaining
+  const now = new Date(startedAt + 1200);
+  assert.equal(retryStatusMessage(t, now), "Retrying (2/3) in 3s... (esc to cancel)");
+});
+
+test("retryStatusMessage: clamps remaining seconds at zero once the delay elapses", () => {
+  const t = tab();
+  const startedAt = Date.parse("2026-01-01T00:00:00.000Z");
+  t.retryInfo = { attempt: 1, maxAttempts: 3, delayMs: 2000, startedAt };
+  const now = new Date(startedAt + 5000);
+  assert.equal(retryStatusMessage(t, now), "Retrying (1/3) in 0s... (esc to cancel)");
 });

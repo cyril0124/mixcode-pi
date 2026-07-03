@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import type { RuntimeTab } from "../../agent/runtime.js";
 import { isPendingEscapeActive } from "../../core/escape.js";
+import { retryStatusMessage } from "../../core/tab-state.js";
 import type { MouseHitRegion } from "../../core/mouse.js";
 import type { MixCodeState, MixCodeTabInfo } from "../../core/types.js";
 import { tabHasPendingUserInteraction } from "../../core/user-interactions.js";
@@ -349,9 +350,11 @@ function renderWorkingIndicatorInner(
   const indicator = workingIndicatorFrame(tab, now);
   if (indicator === "") return [];
   const prefix = indicator ? `${indicator} ` : "";
-  return [
-    padLine(`${prefix}${activeRenderTheme.dim(`${message} (${elapsed} • ${detail})`)}`, width),
-  ];
+  // During auto-retry, mirror Pi's countdown status line instead of the
+  // generic working text; keep the same spinner + dim treatment.
+  const retry = retryStatusMessage(tab, now);
+  const body = retry ?? `${message} (${elapsed} • ${detail})`;
+  return [padLine(`${prefix}${activeRenderTheme.dim(body)}`, width)];
 }
 
 function workingIndicatorFrame(tab: MixCodeTabInfo, now: Date): string | undefined {

@@ -427,6 +427,21 @@ test("rendering exposes fitting helpers and keymap export text", () => {
     renderChat([{ role: "system", text: "multi\nline" }], 20).join("\n"),
     /\[System\]:[\s\S]*multi[\s\S]*line/,
   );
+  // Error system messages render the whole body (not just the title) in the
+  // danger color, mirroring Pi's plain red error text.
+  {
+    const dangerCode = themeForId("mixcode-dark").danger("X").split("X")[0]!;
+    const errorRendered = renderChat(
+      [{ role: "system", text: "Error: 503 Service Unavailable" }],
+      60,
+    ).join("\n");
+    // The body text must be preceded by the danger foreground code (a background
+    // SGR may be re-applied in between by the system-block background painter).
+    assert.match(errorRendered, new RegExp(`${escapeRegExp(dangerCode)}(\\x1b\\[[0-9;]*m)*Error: 503`));
+    // A non-error system message keeps its default (non-danger) body color.
+    const plainRendered = renderChat([{ role: "system", text: "Just a note" }], 60).join("\n");
+    assert.doesNotMatch(plainRendered, new RegExp(`${escapeRegExp(dangerCode)}(\\x1b\\[[0-9;]*m)*Just a note`));
+  }
   const systemMarkdown = stripAnsi(
     renderChat(
       [

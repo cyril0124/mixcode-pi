@@ -625,8 +625,10 @@ export class MixCodeRuntime {
       runtimeTab.agentSession.abortCompaction();
       // If retry was aborted, update status to idle
       if (wasRetrying) {
+        const attempt = runtimeTab.tab.retryInfo?.attempt ?? 0;
+        runtimeTab.tab.retryInfo = undefined;
         setTabStatus(runtimeTab.tab, "idle", { discardTimer: false });
-        appendSystemMessage(runtimeTab, "Retry cancelled.");
+        appendSystemMessage(runtimeTab, `Error: Retry failed after ${attempt} attempts: Retry cancelled`);
         this.emitChange({ type: "extension_ui_update" }, runtimeTab);
       }
       return false;

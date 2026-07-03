@@ -229,7 +229,7 @@ function renderMessageBlockUncached(
   if (line.compactionSummary) {
     return renderCompactionSummaryBlock(text, width, line.compactionTokensBefore, tab);
   }
-  return renderSystemBlock(text, width);
+  return renderSystemBlock(text, width, line.variant);
 }
 
 function shouldTruncateStreamingMarkdown(line: ChatLine, options: RenderChatBlockOptions): boolean {
@@ -313,7 +313,7 @@ function chatLineRenderCacheKey(
   if (line.compactionSummary) {
     return `cs${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${expanded ? 1 : 0}${KEY_SEP}${line.compactionTokensBefore ?? 0}${KEY_SEP}${line.text}`;
   }
-  return `s${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${line.text}`;
+  return `s${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${line.variant ?? ""}${KEY_SEP}${line.text}`;
 }
 
 function commandFromArgs(args: unknown): string {
@@ -452,8 +452,21 @@ function renderExtensionBlock(line: ChatLine, width: number): string[] {
   ];
 }
 
-function renderSystemBlock(text: string, width: number): string[] {
+function renderSystemBlock(text: string, width: number, variant?: string): string[] {
   const body = text.trim() ? text.trim() : " ";
+  const isError = variant === "system-error" || text.startsWith("Error:");
+  if (isError) {
+    // Error system messages render entirely in the danger color (title + body),
+    // mirroring Pi's plain red error text instead of a markdown-rendered body.
+    const title = activeRenderTheme.danger(activeRenderTheme.bold("[System]:"));
+    const bodyLines = wrapPlainLine(body, Math.max(1, width - 1)).map(
+      (part) => ` ${activeRenderTheme.danger(part)}`,
+    );
+    const lines = ["", ` ${title}`, ...bodyLines, ""];
+    return lines.map((part) =>
+      renderToolBackgroundLine(part, width, activeRenderTheme.systemBackground),
+    );
+  }
   const title = activeRenderTheme.accent(activeRenderTheme.bold("[System]:"));
   const lines = [
     "",

@@ -218,6 +218,7 @@ test("runtime maps tool and thinking events into tab UI state", async () => {
     type: "auto_retry_start",
     attempt: 2,
     maxAttempts: 3,
+    delayMs: 4000,
     errorMessage: "rate limited",
   });
   assert.equal(tab.status, "thinking", "status should remain thinking during retry");
@@ -239,10 +240,10 @@ test("runtime maps tool and thinking events into tab UI state", async () => {
   assert.ok(
     runtimeTab.chat.some((line) => line.text.includes("Compaction failed: compact failed")),
   );
-  assert.ok(runtimeTab.chat.some((line) => line.text.includes("Retry 2/3: rate limited")));
-  assert.ok(runtimeTab.chat.some((line) => line.text.includes("Retry failed: unknown error")));
+  assert.ok(runtimeTab.chat.some((line) => line.text.includes("Error: Retry 2/3: rate limited")));
+  assert.ok(runtimeTab.chat.some((line) => line.text.includes("Error: Retry failed: unknown error")));
   assert.ok(
-    runtimeTab.chat.some((line) => line.text.includes("Retry failed: provider exhausted retries")),
+    runtimeTab.chat.some((line) => line.text.includes("Error: Retry failed: provider exhausted retries")),
   );
   anyRuntime.applyEvent(runtimeTab, {
     type: "message_update",
