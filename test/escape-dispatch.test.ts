@@ -6,6 +6,7 @@ import {
   handleMixCodeKeyInput,
   PENDING_ESCAPE_CONFIRM_WINDOW_MS,
 } from "../src/index.js";
+import { hasAppOverlay, showErrorOverlay } from "../src/ui/app-overlays.js";
 
 // Baseline behavior contracts for Escape-key dispatch. These lock the observable
 // behavior before the dispatch is refactored into a single ordered entry point,
@@ -157,6 +158,34 @@ test("queued-message flush wins over double-escape stop", () => {
   assert.deepEqual(result, { consume: true });
   assert.equal(flushed, 1, "queued flush runs");
   assert.equal(tab.pendingEscapeAction, undefined, "double-escape stop is not armed");
+});
+
+test("escape closes a generic app overlay (error overlay 'Esc to close' contract)", () => {
+  // Error/text overlays have no dedicated state flag; they rely on the generic
+  // Esc fallback in handleMixCodeKeyInput. The overlay panel itself renders an
+  // "Esc to close" hint, so this contract is user-visible.
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo", { status: "idle" });
+  state.tabs.push(tab);
+  state.activeTabId = "s1";
+  // Overlay-capable tui: the returned handle tracks visibility so that
+  // hasAppOverlay flips on show/hide.
+  let visible = false;
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => {
+      visible = true;
+      return { hide: () => { visible = false; } } as unknown as never;
+    },
+    hasOverlay: () => visible,
+  };
+
+  showErrorOverlay(tui, new Error("boom"));
+  assert.equal(hasAppOverlay(tui), true, "error overlay is registered");
+
+  const result = handleMixCodeKeyInput(state, ESC, tui, undefined, undefined);
+  assert.deepEqual(result, { consume: true }, "Esc is consumed by the overlay close");
+  assert.equal(hasAppOverlay(tui), false, "Esc dismisses the error overlay");
 });
 
 test("double escape on an empty editor opens the tree for an idle tab", () => {

@@ -24,11 +24,10 @@ import {
   handleInputSelectionMouseInput,
   handleMouseInput,
   handlePreviewKey,
-  handleQueuedFlushKey,
   handleQuitConfirmKey,
-  handleStreamingAbortKey,
   handleTabJumpKey,
   handleVimModeKey,
+  handleEscapeKey,
 } from "./app-key-handlers.js";
 import {
   closeAppOverlay,
@@ -49,7 +48,8 @@ import type {
 import { handleExtensionManagerKey } from "./extension-manager.js";
 import { renderCommandPalette, renderTabJumpOverlay } from "./rendering.js";
 import { handleSessionSelectorKey } from "./session-selector.js";
-import { handleTreeSelectorKey, openTreeSelector, type TreeSelectorRuntime } from "./tree-selector.js";
+import { handleForkSelectorKey } from "./fork-selector.js";
+import { handleTreeSelectorKey, type TreeSelectorRuntime } from "./tree-selector.js";
 import { handleWorkspaceOverlayKey } from "./workspace-overlay.js";
 export function handleMixCodeKeyInput(
   state: MixCodeState,
@@ -87,29 +87,15 @@ export function handleMixCodeKeyInput(
       return { consume: true };
     }
   }
-  // Escape-owned app interrupts must run before extension terminal handlers,
-  // otherwise broad terminal handlers can consume Esc and make abort unreachable.
-  if (
-    active &&
-    state.activeTabId !== "config" &&
-    matchesKey(data, "escape") &&
-    runtime?.hasExtensionCustomOverlay?.(active.sessionId)
-  ) {
-    clearPendingEscape(active, "abort-agent");
-    runtime.focusExtensionCustomOverlay?.(active.sessionId);
-    return undefined;
+  if (state.forkSelector.open) {
+    if (handleForkSelectorKey(state, data, tui, runtime)) {
+      return { consume: true };
+    }
   }
-  if (active && handleQueuedFlushKey(state, active, data, tui, runtime, isEditorAutocompleteOpen)) {
-    return { consume: true };
-  }
-  if (
-    active &&
-    state.activeTabId !== "config" &&
-    matchesKey(data, "escape") &&
-    !hasAnyOverlay(tui) &&
-    handleStreamingAbortKey(active, tui, runtime, editorActions)
-  ) {
-    return { consume: true };
+  // Unified escape-key dispatch (extension overlay, queued flush, abort, double-Esc tree/fork)
+  if (matchesKey(data, "escape")) {
+    const result = handleEscapeKey(state, active, tui, runtime, editorActions, isEditorAutocompleteOpen, onStateChanged);
+    if (result) return result;
   }
   // Agent View table navigation on MixCode Home must run before per-session
   // extension terminal handlers because Home is not an agent input surface.
@@ -216,32 +202,14 @@ export function handleMixCodeKeyInput(
     openQuitConfirm(state, tui);
     return { consume: true };
   }
+  // Fallback: Esc dismisses app overlays that have no dedicated key handler
+  // (error/text overlays, which render an "Esc to close" hint). Must stay
+  // after the specific overlay handlers above (palette, tab-jump, quit-confirm,
+  // selectors) so their own Esc semantics win first; handleEscapeKey skips
+  // this case via its hasAnyOverlay guards.
   if (matchesKey(data, "escape") && hasAppOverlay(tui)) {
     closeAppOverlay(tui);
     closeActiveOverlay(state);
-    return { consume: true };
-  }
-
-  // Double-escape with empty editor opens tree selector (mirrors pi agent behavior)
-  if (
-    active &&
-    state.activeTabId !== "config" &&
-    matchesKey(data, "escape") &&
-    !hasAnyOverlay(tui) &&
-    !state.commandPaletteOpen &&
-    !active.previewOpen &&
-    !active.pendingDialogs.length &&
-    !editorActions?.getText()?.trim()
-  ) {
-    const now = Date.now();
-    if (active.lastEscapeTime && now - active.lastEscapeTime < 500) {
-      active.lastEscapeTime = undefined;
-      openTreeSelector(state, runtime as unknown as TreeSelectorRuntime, tui, active.sessionId);
-      tui.requestRender();
-      return { consume: true };
-    }
-    active.lastEscapeTime = now;
-    tui.requestRender();
     return { consume: true };
   }
 
@@ -364,14 +332,6 @@ export function handleMixCodeKeyInput(
     clearPendingEscape(active, "abort-agent");
     tui.requestRender();
     return { consume: true };
-  }
-  if (
-    active &&
-    state.activeTabId !== "config" &&
-    runtime?.hasExtensionCustomOverlay?.(active.sessionId)
-  ) {
-    runtime.focusExtensionCustomOverlay?.(active.sessionId);
-    return undefined;
   }
   if (matchesKey(data, "ctrl+t")) {
     if (active) clearPendingEscape(active, "abort-agent");

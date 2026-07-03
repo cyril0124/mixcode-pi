@@ -1,5 +1,6 @@
 export { createSessionId, UUIDV7_SESSION_ID_PATTERN } from "./session-ids.js";
 import { createSessionSelectorState } from "./session-selector.js";
+import { createForkSelectorState } from "../ui/fork-selector.js";
 import { createTreeSelectorState } from "./tree-selector.js";
 import { createWorkspaceOverlayState } from "./workspace-ui.js";
 import type { MixCodeModelRef, MixCodeState, MixCodeTabInfo } from "./types.js";
@@ -32,6 +33,7 @@ export function createInitialState(workdir: string): MixCodeState {
       working: false,
     },
     sessionSelector: createSessionSelectorState(),
+    forkSelector: createForkSelectorState(),
     treeSelector: createTreeSelectorState(),
     workspaceOverlay: createWorkspaceOverlayState(),
     tabJumpOpen: false,

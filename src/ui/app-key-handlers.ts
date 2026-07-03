@@ -21,6 +21,7 @@ import type { MixCodeState } from "../core/types.js";
 import { pushToast } from "../core/toast.js";
 import { getActiveTab } from "../core/tabs.js";
 import { armPendingEscape, clearPendingEscape, hasPendingEscape } from "./app-actions.js";
+import { isPendingEscapeActive } from "../core/escape.js";
 import {
   closeAppOverlay,
   hasAnyOverlay,
@@ -35,6 +36,8 @@ import type {
 } from "./app-types.js";
 import { getConfiguredQuitOptions, quitMixCode } from "./quit.js";
 import { renderCommandPalette, renderTabJumpOverlay } from "./rendering.js";
+import { openTreeSelector, type TreeSelectorRuntime } from "./tree-selector.js";
+import { openForkSelector } from "./fork-selector.js";
 
 export {
   handleChatSelectionMouseInput,
@@ -396,4 +399,111 @@ export function handleChatScrollKey(active: MixCodeState["tabs"][number], data: 
   if (matchesKey(data, "home")) return chatHome(active);
   if (matchesKey(data, "end")) return chatEnd(active);
   return false;
+}
+
+/**
+ * Unified escape-key dispatch, mirroring SDK's onEscape with MixCode-specific
+ * additions. Priority order (first match wins):
+ *
+ *  1. Extension custom overlay focus (MixCode-only, returns undefined for passthrough)
+ *  2. Queued-message flush (MixCode-only, subsumes abort)
+ *  3. Streaming/working abort (arm then confirm; retract when no output)
+ *  4. Bash running → abort bash
+ *  5. Bash mode → clear editor, exit bash mode
+ *  6. Empty editor double-Esc → tree / fork / none (reads doubleEscapeAction)
+ *
+ * Returns { consume: true } when consumed, undefined for passthrough.
+ */
+export function handleEscapeKey(
+  state: MixCodeState,
+  active: MixCodeState["tabs"][number] | undefined,
+  tui: OverlayTui,
+  runtime: MixCodeKeyRuntime | undefined,
+  editorActions: MixCodeEditorActions | undefined,
+  isEditorAutocompleteOpen: () => boolean,
+  onStateChanged?: (state: MixCodeState) => void | Promise<void>,
+): { consume: true } | undefined {
+  // 1. Extension custom overlay takes escape before any other dispatch (passthrough)
+  if (
+    active &&
+    state.activeTabId !== "config" &&
+    runtime?.hasExtensionCustomOverlay?.(active.sessionId)
+  ) {
+    clearPendingEscape(active, "abort-agent");
+    runtime.focusExtensionCustomOverlay?.(active.sessionId);
+    return undefined;
+  }
+
+  // 2. Queued-message flush (subsumes abort if streaming)
+  if (
+    active &&
+    handleQueuedFlushKey(state, active, "\x1b", tui, runtime, isEditorAutocompleteOpen)
+  ) {
+    return { consume: true };
+  }
+
+  // 3. Streaming/working abort: arm then confirm (or retract if no output)
+  if (active && state.activeTabId !== "config" && !hasAnyOverlay(tui)) {
+    const runtimeTab = runtime?.getTab?.(active.sessionId);
+    const isStreaming = runtimeTab?.agent?.state?.isStreaming ?? false;
+    const isWorking = active.status === "running" || active.status === "thinking";
+
+    if (isStreaming || isWorking) {
+      if (active.pendingEscapeAction === "abort-agent" && isPendingEscapeActive(active, "abort-agent")) {
+        // Confirming Esc: prefer retract when no output and editor is empty
+        active.pendingEscapeAction = undefined;
+        if (runtime?.retractCurrentTurn && !editorActions?.getText()?.trim()) {
+          void retractOrAbort(active, tui, runtime, editorActions);
+        } else {
+          runtime?.abortTab?.(active.sessionId);
+          tui.requestRender();
+        }
+        return { consume: true };
+      }
+      // First Esc: arm abort
+      active.pendingEscapeAction = "abort-agent";
+      active.pendingEscapeArmedAt = Date.now();
+      tui.requestRender();
+      return { consume: true };
+    }
+  }
+
+  // 4. Empty editor double-Esc → tree / fork / none
+  if (
+    active &&
+    state.activeTabId !== "config" &&
+    !hasAnyOverlay(tui) &&
+    !state.commandPaletteOpen &&
+    !active.previewOpen &&
+    !active.pendingDialogs.length &&
+    !editorActions?.getText()?.trim()
+  ) {
+    const action = runtime?.getDoubleEscapeAction?.(active.sessionId) ?? "tree";
+    if (action !== "none") {
+      const now = Date.now();
+      if (active.lastEscapeTime && now - active.lastEscapeTime < 500) {
+        // Confirming double-Esc
+        active.lastEscapeTime = undefined;
+        if (action === "tree") {
+          openTreeSelector(
+            state,
+            runtime as unknown as TreeSelectorRuntime,
+            tui,
+            active.sessionId,
+          );
+        } else {
+          // action === "fork"
+          openForkSelector(state, active.sessionId, runtime!, tui);
+        }
+        tui.requestRender();
+        return { consume: true };
+      }
+      // First Esc: arm the double-press timer
+      active.lastEscapeTime = now;
+      tui.requestRender();
+      return { consume: true };
+    }
+  }
+
+  return undefined;
 }

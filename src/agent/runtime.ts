@@ -340,6 +340,27 @@ export class MixCodeRuntime {
     return [];
   }
 
+  /**
+   * The configured double-Escape action on an empty editor: "tree" (session
+   * tree selector), "fork" (user-message fork selector), or "none". Reads Pi's
+   * native `doubleEscapeAction` setting; defaults to "tree" when no session
+   * settings manager is available (e.g. in tests).
+   */
+  getDoubleEscapeAction(sessionId: string): "tree" | "fork" | "none" {
+    const runtimeTab = this.tabs.get(sessionId);
+    return runtimeTab?.agentSession.settingsManager.getDoubleEscapeAction() ?? "tree";
+  }
+
+  /**
+   * User messages eligible as fork points, newest last. Each entry pairs the
+   * session entryId (fork target) with the message text (prefilled into the
+   * editor after forking). Empty when the session has no forkable user turns.
+   */
+  getForkableUserMessages(sessionId: string): Array<{ entryId: string; text: string }> {
+    const runtimeTab = this.tabs.get(sessionId);
+    return runtimeTab?.agentSession.getUserMessagesForForking() ?? [];
+  }
+
   onChange(listener: (event: RuntimeEvent, runtimeTab: RuntimeTab) => void): () => void {
     this.changeListeners.add(listener);
     return () => {

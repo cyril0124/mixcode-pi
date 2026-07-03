@@ -43,6 +43,7 @@ export * from "./ui/app.js";
 export * from "./ui/completion.js";
 export * from "./ui/rendering.js";
 export * from "./ui/session-selector.js";
+export * from "./ui/fork-selector.js";
 export * from "./ui/terminal.js";
 export * from "./ui/themes.js";
 export * from "./ui/workspace-overlay.js";
