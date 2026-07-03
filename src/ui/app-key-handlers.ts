@@ -423,14 +423,15 @@ export function handleEscapeKey(
   isEditorAutocompleteOpen: () => boolean,
   onStateChanged?: (state: MixCodeState) => void | Promise<void>,
 ): { consume: true } | undefined {
-  // 1. Extension custom overlay takes escape before any other dispatch (passthrough)
+  // 1. Extension custom overlay takes escape before any other dispatch
+  //    (passthrough). Focus restoration happens in the shared lazy-refocus
+  //    block in handleMixCodeKeyInput, which runs right after this dispatch.
   if (
     active &&
     state.activeTabId !== "config" &&
     runtime?.hasExtensionCustomOverlay?.(active.sessionId)
   ) {
     clearPendingEscape(active, "abort-agent");
-    runtime.focusExtensionCustomOverlay?.(active.sessionId);
     return undefined;
   }
 

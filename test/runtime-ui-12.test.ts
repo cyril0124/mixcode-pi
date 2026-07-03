@@ -386,6 +386,89 @@ test("runtime scopes extension custom overlays to the active tab", async () => {
   }
 });
 
+test("runtime focuses extension custom overlay triggered while its tab was inactive", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-custom-inactive-focus-"));
+  const events: string[] = [];
+  let overlayShown = false;
+  const extension: ExtensionFactory = (pi) => {
+    pi.registerCommand("inactive-overlay", {
+      description: "Custom overlay triggered from an inactive tab",
+      handler: async (_args, ctx) => {
+        const result = await ctx.ui.custom<string>(
+          (_hostTui, _theme, keybindings, done) => ({
+            render: () => ["overlay for tab one"],
+            handleInput: (data: string) => {
+              if (keybindings.matches(data, "tui.select.confirm")) done("selected");
+            },
+            invalidate: () => undefined,
+          }),
+          { overlay: true },
+        );
+        events.push(`result:${result}`);
+      },
+    });
+  };
+
+  try {
+    const state = createInitialState(process.cwd());
+    const tab1 = createTab(1, "s1", process.cwd());
+    const tab2 = createTab(2, "s2", process.cwd());
+    state.tabs.push(tab1, tab2);
+    state.activeTabId = "s1";
+    const runtime = new MixCodeRuntime({ sessionsRoot: dir, extensionFactories: [extension] });
+    await runtime.createTab(tab1, {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+    });
+    await runtime.createTab(tab2, {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+    });
+    const tui = createMixCodeTui(state, runtime, { terminal: silentTerminal() });
+    const originalShowOverlay = tui.showOverlay.bind(tui);
+    tui.showOverlay = ((component: Component, options?: OverlayOptions) => {
+      overlayShown = true;
+      return originalShowOverlay(component, options);
+    }) as typeof tui.showOverlay;
+    const raw = (data: string) =>
+      (tui as unknown as { handleInput: (data: string) => void }).handleInput(data);
+    let task: Promise<void> | undefined;
+    try {
+      // Switch to tab two BEFORE the extension asks its question on tab one.
+      // showOverlay skips focus capture for invisible overlays, so nothing
+      // focuses the questionnaire unless MixCode restores focus on switch-back.
+      raw("\t");
+      assert.equal(state.activeTabId, "s2");
+      task = runtime.prompt("s1", "/inactive-overlay");
+      await waitFor(() => overlayShown);
+
+      // While on another tab the hidden overlay must not react to keys.
+      raw("\r");
+      assert.deepEqual(events, []);
+
+      // Switching back must hand focus to the pending overlay: the first
+      // Enter after the switch selects instead of leaking to the editor.
+      raw("\x1b[Z");
+      assert.equal(state.activeTabId, "s1");
+      raw("\r");
+      await waitFor(() => events.length > 0);
+      await task;
+      assert.deepEqual(events, ["result:selected"]);
+      assert.equal(runtime.hasExtensionCustomOverlay("s1"), false);
+      assert.deepEqual(tab1.extensionUi.pendingUserInteractions, []);
+    } finally {
+      // Settle the pending ui.custom promise if the assertions above failed.
+      runtime.setExtensionUiHost(undefined);
+      await task?.catch(() => undefined);
+      tui.stop();
+    }
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("runtime maps pi extension custom non-overlay into the live editor slot", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-custom-editor-"));
   const events: string[] = [];

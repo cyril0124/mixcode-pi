@@ -518,7 +518,11 @@ export class MixCodeRuntime {
   focusExtensionCustomOverlay(sessionId: string): void {
     const handles = this.tabs.get(sessionId)?.extensionCustomOverlayHandles;
     const handle = handles ? [...handles].at(-1) : undefined;
-    handle?.focus();
+    // Skip already-focused overlays: this runs per keypress from the lazy
+    // refocus path, so avoid needless focus-order churn and re-renders.
+    // pi-tui's handle.focus() itself no-ops for invisible overlays.
+    if (!handle || handle.isFocused()) return;
+    handle.focus();
   }
 
   async prompt(sessionId: string, text: string): Promise<void> {

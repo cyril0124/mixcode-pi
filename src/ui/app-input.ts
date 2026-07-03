@@ -97,6 +97,22 @@ export function handleMixCodeKeyInput(
     const result = handleEscapeKey(state, active, tui, runtime, editorActions, isEditorAutocompleteOpen, onStateChanged);
     if (result) return result;
   }
+  // An extension custom overlay shown while its tab was inactive never
+  // captured focus: pi-tui's showOverlay only focuses overlays visible at
+  // show time, and MixCode scopes overlay visibility to the owning tab.
+  // Restore focus lazily before dispatch so this same key already reaches
+  // the overlay after switching back. Guarded so app overlays and modal
+  // app controls (palette, pickers, quit confirm, ...) keep focus priority;
+  // focusExtensionCustomOverlay itself no-ops when there is no overlay or
+  // it is already focused.
+  if (
+    active &&
+    state.activeTabId !== "config" &&
+    !hasAppOverlay(tui) &&
+    !hasFocusedAppControl(state, active)
+  ) {
+    runtime?.focusExtensionCustomOverlay?.(active.sessionId);
+  }
   // Agent View table navigation on MixCode Home must run before per-session
   // extension terminal handlers because Home is not an agent input surface.
   if (
