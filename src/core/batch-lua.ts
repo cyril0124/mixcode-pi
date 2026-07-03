@@ -7,7 +7,7 @@ import type { MixCodeModelRef, MixCodeState } from "./types.js";
  * Parsed open_tab request from Lua script.
  * Collected during Lua execution, then applied to the TUI state/runtime.
  */
-export type BatchReuseMode = "append" | "clear";
+export type BatchReuseMode = "append" | "clear" | "delete";
 
 export interface BatchLuaTabInfo {
   name: string;
@@ -29,7 +29,7 @@ export interface BatchTabRequest {
   workdir?: string;
   model?: string;
   thinking?: string;
-  /** Behavior when reusing an existing tab: "append" (default) or "clear". */
+  /** Behavior when reusing an existing tab: "append" (default), "clear", or "delete". */
   mode?: BatchReuseMode;
 }
 
@@ -48,6 +48,8 @@ export interface BatchExecutorHost {
   ): Promise<void>;
   /** Clear an existing tab's session (reset conversation) and return the new session id. */
   clearTab(sessionId: string): Promise<string>;
+  /** Delete an existing tab and its session file from disk. */
+  deleteTab(sessionId: string): Promise<void>;
   /**
    * Submit input to a tab, going through the full TUI input pipeline:
    * parseInput → buildModelPrompt ($ skill, /template expansion) → runtime.prompt
@@ -198,9 +200,9 @@ export function validateBatchRequests(
         );
       }
     }
-    if (request.mode && request.mode !== "append" && request.mode !== "clear") {
+    if (request.mode && !["append", "clear", "delete"].includes(request.mode)) {
       throw new Error(
-        `Invalid mode '${request.mode}' for tab '${request.name}'. Valid values: append, clear`,
+        `Invalid mode '${request.mode}' for tab '${request.name}'. Valid values: append, clear, delete`,
       );
     }
   }
@@ -243,10 +245,15 @@ export async function applyBatchRequests(
     }
   }
 
-  // Phase 1: Create/clear tabs sequentially (runtime.createTab doesn't support concurrency)
+  // Phase 1: Create/clear/delete tabs sequentially (runtime.createTab doesn't support concurrency)
   const groupSessions = new Map<string, string>();
   for (const [name, group] of groups) {
     let sessionId: string | undefined = group[0]!.existingSessionId;
+    if (sessionId && group[0]!.request.mode === "delete") {
+      // Delete = destroy the old tab (session file included), then start from scratch.
+      await host.deleteTab(sessionId);
+      sessionId = undefined;
+    }
     if (!sessionId) {
       sessionId = await host.createNewTab(group[0]!.request);
     } else if (group[0]!.request.mode === "clear") {

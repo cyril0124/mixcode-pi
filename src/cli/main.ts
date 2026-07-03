@@ -25,7 +25,7 @@ import {
 } from "../core/instance-registry.js";
 import { saveStateFile } from "../core/state-store.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
-import { activateTab } from "../core/tabs.js";
+import { activateTab, closeAgentTab } from "../core/tabs.js";
 import { createMixCodeTui } from "../ui/app.js";
 import { applyModelSelection, applyThinkingLevel } from "../ui/app-actions.js";
 import { clearConversationCache } from "../ui/rendering.js";
@@ -250,6 +250,16 @@ export async function main(): Promise<void> {
         clearConversationCache(cleared.tab.sessionId);
         tui.requestRender();
         return cleared.tab.sessionId;
+      },
+      async deleteTab(sessionId) {
+        const tab = state.tabs.find((t) => t.sessionId === sessionId);
+        if (!tab) throw new Error(`Cannot delete unknown tab: ${sessionId}`);
+        // Same path as the /delete-session command: destroy the runtime tab
+        // and its on-disk session file, then drop the TUI tab.
+        await runtime.deleteTab(sessionId);
+        closeAgentTab(state, sessionId);
+        clearConversationCache(sessionId);
+        tui.requestRender();
       },
       async submitInput(sessionId, input) {
         const parsed = parseInput(input);

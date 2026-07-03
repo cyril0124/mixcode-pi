@@ -202,18 +202,21 @@ function createMockHost(
   created: BatchTabRequest[];
   inputs: Array<{ sessionId: string; input: string }>;
   cleared: string[];
+  deleted: string[];
   configured: Array<{ sessionId: string; model?: string; thinking?: string }>;
 } {
   const state = createInitialState("/test");
   const created: BatchTabRequest[] = [];
   const inputs: Array<{ sessionId: string; input: string }> = [];
   const cleared: string[] = [];
+  const deleted: string[] = [];
   const configured: Array<{ sessionId: string; model?: string; thinking?: string }> = [];
   return {
     state,
     created,
     inputs,
     cleared,
+    deleted,
     configured,
     findTabByTitle(title) {
       const tab = existingTabs.find((t) => t.title === title);
@@ -238,6 +241,11 @@ function createMockHost(
       const tab = existingTabs.find((t) => t.sessionId === sessionId);
       if (tab) tab.sessionId = nextSessionId;
       return nextSessionId;
+    },
+    async deleteTab(sessionId) {
+      deleted.push(sessionId);
+      const index = existingTabs.findIndex((t) => t.sessionId === sessionId);
+      if (index >= 0) existingTabs.splice(index, 1);
     },
     async submitInput(sessionId, input) {
       inputs.push({ sessionId, input });
@@ -391,6 +399,30 @@ test("runLuaScript collects mode field", async () => {
   const script = `mixcode.open_tab({ name = "a", prompt = "b", mode = "clear" })`;
   const requests = await runLuaScript(script, "test.lua");
   assert.equal(requests[0]!.mode, "clear");
+});
+
+test("applyBatchRequests deletes old tab and creates fresh one when mode is delete", async () => {
+  const host = createMockHost([{ title: "my-agent", sessionId: "sess-1" }]);
+  const requests: BatchTabRequest[] = [
+    { name: "my-agent", prompt: "start over", mode: "delete" },
+  ];
+  await applyBatchRequests(requests, host);
+  assert.deepEqual(host.deleted, ["sess-1"]);
+  assert.equal(host.created.length, 1);
+  assert.equal(host.created[0]!.name, "my-agent");
+  assert.equal(host.inputs[0]!.sessionId, "new-my-agent");
+  assert.equal(host.inputs[0]!.input, "start over");
+});
+
+test("applyBatchRequests creates new tab when mode is delete and tab does not exist", async () => {
+  const host = createMockHost();
+  const requests: BatchTabRequest[] = [
+    { name: "fresh", prompt: "hello", mode: "delete" },
+  ];
+  await applyBatchRequests(requests, host);
+  assert.equal(host.deleted.length, 0);
+  assert.equal(host.created.length, 1);
+  assert.equal(host.inputs[0]!.sessionId, "new-fresh");
 });
 
 test("applyBatchRequests configures existing tab model and thinking", async () => {

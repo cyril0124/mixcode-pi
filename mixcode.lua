@@ -11,7 +11,7 @@ mixcode = {}
 ---@field workdir? string Working directory (defaults to current workdir)
 ---@field model? string Model identifier (e.g. "anthropic/claude-sonnet-4-20250514")
 ---@field thinking? "off"|"minimal"|"low"|"medium"|"high"|"xhigh" Thinking level
----@field mode? "append"|"clear" Reuse behavior when tab exists (default: "append")
+---@field mode? "append"|"clear"|"delete" Reuse behavior when tab exists (default: "append")
 
 ---@class mixcode.TabInfo
 ---@field name string Tab title
@@ -25,6 +25,7 @@ mixcode = {}
 ---If a tab with the same `name` already exists:
 ---  - mode="append" (default): prompt is appended to the existing session
 ---  - mode="clear": session is cleared first, then prompt is sent
+---  - mode="delete": tab and its session file are deleted, then a brand-new tab is created
 ---If no matching tab exists, a new tab is created.
 ---
 ---Throws on failure (missing fields, unknown model, invalid thinking level).
