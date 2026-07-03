@@ -7,16 +7,20 @@ export async function flushRuntimePendingMessage(
   runtimeTab: RuntimeTab,
   count?: number,
 ): Promise<void> {
-  if (runtimeTab.agentSession.isStreaming) {
-    await runtimeTab.agentSession.agent.waitForIdle();
-  }
+  // Detach queued messages from the steering queue BEFORE awaiting idle. On the
+  // Esc path (abort + flush), the run is still parked on a tool call; awaiting
+  // first lets the aborting loop drain these into the dying turn (queue_update([])
+  // zeroes pendingMessages), so the flush finds nothing and the agent just stops.
   syncPendingMessagesFromSteering(runtimeTab);
   const steeringBeforeFlush = [...getMutableSteeringMessages(runtimeTab.agentSession)];
   const queued = drainPendingMessages(runtimeTab.tab.pendingMessages, count);
   runtimeTab.queuedPromptCount = Math.max(0, runtimeTab.queuedPromptCount - queued.items.length);
+  // Remove only MixCode-managed steering messages; Pi follow-up messages must survive.
+  removeSteeringMessages(runtimeTab.agentSession, queued.items);
   try {
-    // Remove only MixCode-managed steering messages; Pi follow-up messages must survive.
-    removeSteeringMessages(runtimeTab.agentSession, queued.items);
+    if (runtimeTab.agentSession.isStreaming) {
+      await runtimeTab.agentSession.agent.waitForIdle();
+    }
     const text = queued.items.filter((item) => item.trim()).join("\n\n");
     if (!text) return;
     await runtimeTab.agentSession.prompt(text);
