@@ -484,7 +484,7 @@ test("runtime streams thinking from partial assistant messages", async () => {
     });
     assert.deepEqual(
       runtimeTab.chat
-        .filter((line) => line.role !== "startup")
+        .filter((line) => line.role === "thinking" || line.role === "assistant")
         .map((line) => `${line.role}:${line.text}`),
       ["thinking:first second", "assistant:answer"],
     );
@@ -501,7 +501,7 @@ test("runtime streams thinking from partial assistant messages", async () => {
     });
     assert.deepEqual(
       runtimeTab.chat
-        .filter((line) => line.role !== "startup")
+        .filter((line) => line.role === "thinking" || line.role === "assistant")
         .map((line) => `${line.role}:${line.text}`),
       ["thinking:final thinking", "assistant:final answer"],
     );

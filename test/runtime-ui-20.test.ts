@@ -267,7 +267,7 @@ test("runtime clear replaces the active pi session and resets tab state", async 
       thinkingLevel: "medium",
       workdir: process.cwd(),
     });
-    assert.equal(runtime.getTab("s1")?.chat[0]?.role, "startup");
+    assert.match(runtime.getTab("s1")?.tab.startupSummary ?? "", /\[Context\]/);
     await runtime.prompt("s1", "old message");
 
     const cleared = await runtime.clearTab("s1", {
@@ -280,13 +280,9 @@ test("runtime clear replaces the active pi session and resets tab state", async 
     assert.equal(cleared.tab.sessionId, "s1-clear");
     assert.equal(runtime.getTab("s1"), undefined);
     assert.equal(runtime.getTab("s1-clear"), cleared);
-    // Clear replays the startup summary like Pi's /new, so the fresh chat opens
-    // with a startup block instead of being empty.
-    assert.equal(cleared.chat[0]?.role, "startup");
-    assert.equal(
-      cleared.chat.some((line) => line.role === "startup"),
-      true,
-    );
+    // Clear recomputes the startup header like Pi's /new, so the fresh tab
+    // still shows what is loaded.
+    assert.match(cleared.tab.startupSummary ?? "", /\[Context\]/);
     assert.equal(
       cleared.chat.some((line) => line.role === "user" || line.role === "assistant"),
       false,

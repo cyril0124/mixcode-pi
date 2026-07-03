@@ -163,7 +163,7 @@ test("ordinary extensions own builtin tool names by default", async () => {
       ),
       false,
     );
-    assert.match(runtimeTab.chat.find((line) => line.role === "startup")?.text ?? "", /ls -> inline/);
+    assert.match(runtimeTab.tab.startupSummary ?? "", /ls -> inline/);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -175,7 +175,7 @@ test("ordinary deferred extensions own builtin tool names", async () => {
     const tool = runtime.getExtensionTools("s1").find((tool) => tool.name === "bash");
     assert.ok(tool);
     assert.equal(tool.sourceInfo?.source, "cli");
-    assert.match(runtimeTab.chat.find((line) => line.role === "startup")?.text ?? "", /bash -> cli/);
+    assert.match(runtimeTab.tab.startupSummary ?? "", /bash -> cli/);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -197,8 +197,8 @@ test("pi-tool-display style wrappers own builtin tool names without user config"
       ),
       false,
     );
-    assert.match(runtimeTab.chat.find((line) => line.role === "startup")?.text ?? "", /\[Tool Owners\]/);
-    assert.match(runtimeTab.chat.find((line) => line.role === "startup")?.text ?? "", /ls -> cli/);
+    assert.match(runtimeTab.tab.startupSummary ?? "", /\[Tool Owners\]/);
+    assert.match(runtimeTab.tab.startupSummary ?? "", /ls -> cli/);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -210,7 +210,7 @@ test("deferred pi-tool-display bash owners appear in startup summary", async () 
     const bash = runtime.getExtensionTools("s1").find((tool) => tool.name === "bash");
     assert.ok(bash);
     assert.equal(bash.sourceInfo?.source, "cli");
-    const startup = runtimeTab.chat.find((line) => line.role === "startup")?.text ?? "";
+    const startup = runtimeTab.tab.startupSummary ?? "";
     assert.match(startup, /\[Tool Owners\]/);
     assert.match(startup, /ls -> cli/);
     assert.match(startup, /bash -> cli/);

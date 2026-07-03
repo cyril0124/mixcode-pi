@@ -2,11 +2,12 @@
 // must wrap long comma-separated lists instead of hard-truncating them with "...".
 // Previously renderStartupBlock padded each line via padLine, which clipped any
 // line wider than the terminal, hiding most skills/extensions behind an ellipsis.
+// The summary now renders from tab.startupSummary via renderStartupBlock directly
+// (agent-surface header slot), not through the chat block renderer.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { ChatLine } from "../src/index.js";
-import { renderChatBlock } from "../src/ui/rendering/chat.js";
+import { renderStartupBlock } from "../src/ui/rendering/chat.js";
 
 function stripAnsi(s: string): string {
   return s.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "");
@@ -14,9 +15,9 @@ function stripAnsi(s: string): string {
 
 const WIDTH = 40;
 
-function buildStartupLine(): ChatLine {
+function buildStartupSummary(): string {
   const skills = Array.from({ length: 12 }, (_, i) => `skill-name-${i}`);
-  const text = [
+  return [
     "[Context]",
     "  ~/AGENTS.md",
     "",
@@ -24,12 +25,10 @@ function buildStartupLine(): ChatLine {
     `  ${skills.join(", ")}`,
     "",
   ].join("\n");
-  return { role: "startup", text };
 }
 
 test("startup block wraps long skill lists instead of truncating", () => {
-  const line = buildStartupLine();
-  const rendered = renderChatBlock(line, WIDTH).map(stripAnsi);
+  const rendered = renderStartupBlock(buildStartupSummary(), WIDTH).map(stripAnsi);
   const joined = rendered.join("\n");
 
   // No hard truncation marker should appear.

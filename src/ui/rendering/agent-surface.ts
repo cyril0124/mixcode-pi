@@ -10,6 +10,7 @@ import {
   renderChatBlock,
   renderConversation,
   renderConversationEmptyState,
+  renderStartupBlock,
   type RenderChatBlockOptions,
 } from "./chat.js";
 import {
@@ -91,14 +92,22 @@ export function clearConversationCache(sessionId: string): void {
 }
 
 /**
- * Extension header lines to prepend at the top of the scrollable conversation.
- * Empty array when the tab has no extension header. Rendered live every frame
- * (never cached) so dynamic headers keep updating, matching Pi where the header
- * is the first child of the scrollback and scrolls away with the conversation.
+ * Header lines to prepend at the top of the scrollable conversation: the
+ * extension header (when set) followed by the tab-level startup resource
+ * summary. Rendered live every frame (never cached) so dynamic headers keep
+ * updating, matching Pi where header + loadedResourcesContainer are the first
+ * children of the scrollback and scroll away with the conversation. Living
+ * outside the chat array, both survive chat rebuilds from session entries.
  */
 function scrollableHeaderLines(tab: MixCodeTabInfo, width: number): string[] {
   const header = renderExtensionHeader(tab, width);
-  return header.length ? [...header, chatBlockSeparator(width)] : [];
+  const startup = tab.startupSummary ? renderStartupBlock(tab.startupSummary, width) : [];
+  const lines = [
+    ...header,
+    ...(header.length && startup.length ? [chatBlockSeparator(width)] : []),
+    ...startup,
+  ];
+  return lines.length ? [...lines, chatBlockSeparator(width)] : [];
 }
 
 export function renderAgentSurface(

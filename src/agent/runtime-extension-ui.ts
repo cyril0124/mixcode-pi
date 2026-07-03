@@ -28,22 +28,22 @@ export { createExtensionCommandActions } from "./runtime-extension-actions.js";
 export { closeExtensionCustomOverlays } from "./runtime-extension-custom.js";
 export { disposeExtensionWidgets } from "./runtime-extension-widgets.js";
 
-export function appendExtensionLoadErrors(runtimeTab: RuntimeTab): void {
-  for (const error of runtimeTab.extensionsResult.errors) {
-    runtimeTab.chat.push({
-      role: "system",
-      text: `Extension load error: ${error.path}: ${error.error}`,
-    });
-  }
+/**
+ * Extension load error lines for the startup header's [Diagnostics] section.
+ * Returned (not pushed to chat) so they live on tab.startupSummary and survive
+ * chat rebuilds from session entries.
+ */
+export function extensionLoadErrorLines(runtimeTab: RuntimeTab): string[] {
+  return runtimeTab.extensionsResult.errors.map(
+    (error) => `Extension load error: ${error.path}: ${error.error}`,
+  );
 }
 
-export function appendExtensionConflictDiagnostics(
+export function extensionConflictDiagnosticLines(
   runtimeTab: RuntimeTab,
   extensionToolOwnerPolicy?: ExtensionToolOwnerPolicy,
-): void {
-  for (const line of extensionConflictDiagnostics(runtimeTab, extensionToolOwnerPolicy)) {
-    runtimeTab.chat.push({ role: "system", text: line });
-  }
+): string[] {
+  return extensionConflictDiagnostics(runtimeTab, extensionToolOwnerPolicy);
 }
 
 function extensionConflictDiagnostics(

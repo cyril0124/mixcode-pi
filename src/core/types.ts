@@ -161,6 +161,13 @@ export interface MixCodeTabInfo {
   /** ISO timestamp captured when work last ended; rendered next to the duration. */
   lastWorkedAt?: string;
   extensionUi: ExtensionUiState;
+  /**
+   * Non-persisted: startup resource summary ([Context]/[Skills]/[Extensions]/
+   * [Tool Owners]/[Diagnostics]) rendered at the top of the scrollable
+   * conversation. Lives outside the chat array (Pi's loadedResourcesContainer
+   * analogue) so chat rebuilds from session entries can never clear it.
+   */
+  startupSummary?: string;
   inputMetaHitRegions?: InputMetaHitRegion[];
   /** Non-persisted: screen bounds for the visible Agent message surface. */
   chatSurfaceBounds?: ChatSurfaceBounds;

@@ -44,11 +44,11 @@ import {
   syncPreviewFromChat,
 } from "./runtime-chat.js";
 import {
-  appendExtensionConflictDiagnostics,
-  appendExtensionLoadErrors,
   createExtensionCommandActions,
   createMixCodeExtensionUiContext,
   disposeExtensionWidgets,
+  extensionConflictDiagnosticLines,
+  extensionLoadErrorLines,
 } from "./runtime-extension-ui.js";
 import { consumeDeferredPendingMessageFlush } from "./runtime-follow-up.js";
 import {
@@ -78,7 +78,6 @@ import { activateMixCodeTools, PI_BUILTIN_TOOL_NAMES, ToolLog } from "./tools.js
 
 export type RuntimeTabConfig = Omit<AgentRuntimeConfig, "sessionId" | "model"> & {
   model?: MixCodeModel;
-  suppressStartupSummary?: boolean;
   reuseServicesFromSessionId?: string;
   reuseServices?: AgentSessionServices;
   /** Skip resourceLoader.reload() — caller already reloaded extensions. */
@@ -218,12 +217,8 @@ async function createRuntimeTabWithServices(
     await bindRuntimeExtensions(runtimeTab, context);
     activateMixCodeTools(agentSession, extensionToolOwnerPolicy);
     applyMixCodeSystemPrompt(runtimeTabPromptOptions(services, config.workdir), agentSession);
-    if (!config.suppressStartupSummary) {
-      const summary = startupResourceSummary(runtimeTab);
-      if (summary) runtimeTab.chat.unshift({ role: "startup", text: summary });
-    }
+    refreshStartupHeader(runtimeTab);
     syncContextUsage(runtimeTab);
-    appendExtensionDiagnostics(runtimeTab);
     subscribeRuntimeTab(runtimeTab, context);
     context.tabs.set(tab.sessionId, runtimeTab);
     return runtimeTab;
@@ -419,7 +414,7 @@ export async function replaceRuntimeTabSession(
   applyMixCodeSystemPrompt(runtimeTabPromptOptions(created.services, runtimeTab.tab.workdir), created.session);
   applyRuntimeTabModel(runtimeTab, created.session.agent.state.model);
   runtimeTab.tab.thinkingLevel = created.session.agent.state.thinkingLevel;
-  appendExtensionDiagnostics(runtimeTab);
+  refreshStartupHeader(runtimeTab);
   subscribeRuntimeTab(runtimeTab, context);
   context.emitChange({ type: "extension_ui_update" }, runtimeTab);
   return runtimeTab;
@@ -504,7 +499,15 @@ function runtimeTabPromptOptions(services: AgentSessionServices, cwd: string) {
   };
 }
 
-function startupResourceSummary(runtimeTab: RuntimeTab): string {
+/**
+ * Recompute the tab-level startup header ([Context]/[Skills]/[Extensions]/
+ * [Tool Owners]/[Diagnostics]) from the current services and extensions.
+ * Called on every session-binding change (create/clear/fork/resume/switch/
+ * reload/workdir change) so the header always reflects the live session —
+ * mirroring Pi, whose loadedResourcesContainer is refreshed on session_start
+ * and /reload but never cleared by chat rebuilds.
+ */
+export function refreshStartupHeader(runtimeTab: RuntimeTab): void {
   const contextFiles = runtimeTab.services.resourceLoader
     .getAgentsFiles()
     .agentsFiles.map((file) => displayResourcePath(file.path));
@@ -512,12 +515,20 @@ function startupResourceSummary(runtimeTab: RuntimeTab): string {
   const extensions = runtimeTab.extensionManagerEntries
     .filter((entry) => entry.enabled)
     .map((entry) => displayExtensionName(entry));
-  return [
+  const diagnostics = [
+    ...extensionLoadErrorLines(runtimeTab),
+    ...extensionConflictDiagnosticLines(runtimeTab, runtimeTab.extensionToolOwnerPolicy),
+  ];
+  runtimeTab.tab.startupSummary = [
     ...resourceSummarySection("Context", contextFiles),
     ...resourceSummarySection("Skills", skills),
     ...resourceSummarySection("Extensions", extensions),
     ...resourceSummarySection("Tool Owners", toolOwnerSummary(runtimeTab)),
-  ].join("\n");
+    // Diagnostics only when present — an empty section would just add noise.
+    ...(diagnostics.length ? resourceSummarySection("Diagnostics", diagnostics) : []),
+  ]
+    .join("\n")
+    .trimEnd();
 }
 
 function resourceSummarySection(title: string, items: string[]): string[] {
@@ -579,11 +590,6 @@ export async function bindRuntimeExtensions(
   );
 }
 
-function appendExtensionDiagnostics(runtimeTab: RuntimeTab): void {
-  appendExtensionLoadErrors(runtimeTab);
-  appendExtensionConflictDiagnostics(runtimeTab, runtimeTab.extensionToolOwnerPolicy);
-}
-
 function resolveExtensionToolOwnerPolicy(context: RuntimeLifecycleContext): ExtensionToolOwnerPolicy {
   return context.extensionToolOwnerPolicy ?? isExtensionToolOwner;
 }
@@ -629,15 +635,9 @@ export async function reloadRuntimeTabWithFreshServices(
   await bindRuntimeExtensions(runtimeTab, context);
   activateMixCodeTools(agentSession, runtimeTab.extensionToolOwnerPolicy);
   applyMixCodeSystemPrompt(runtimeTabPromptOptions(services, runtimeTab.tab.workdir), agentSession);
-  // Pi calls the same resource-listing routine on session_start and /reload,
-  // so [Context]/[Skills]/[Extensions] reappear after a reload. Pi APPENDS the
-  // listing after rebuilding the conversation (chatContainer.addChild), not
-  // prepends — matched here with push, not unshift, so the summary lands after
-  // existing history instead of being buried above it (invisible from a
-  // viewport scrolled to the bottom).
-  const reloadSummary = startupResourceSummary(runtimeTab);
-  if (reloadSummary) runtimeTab.chat.push({ role: "startup", text: reloadSummary });
-  appendExtensionDiagnostics(runtimeTab);
+  // Pi refreshes the same loadedResourcesContainer on session_start and /reload;
+  // the tab-level header is the MixCode analogue, so recompute it here too.
+  refreshStartupHeader(runtimeTab);
   subscribeRuntimeTab(runtimeTab, context);
   context.emitChange({ type: "extension_ui_update" }, runtimeTab);
 }

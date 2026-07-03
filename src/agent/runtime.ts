@@ -52,8 +52,6 @@ import {
   switchRuntimeSession,
 } from "./runtime-extension-session.js";
 import {
-  appendExtensionConflictDiagnostics,
-  appendExtensionLoadErrors,
   applyExtensionAutocompleteProviders,
   closeExtensionCustomOverlays,
   surfaceShortcutError,
@@ -70,6 +68,7 @@ import {
   createRuntimeTabWithFallback,
   disposeRuntimeTabAfterShutdown,
   installMidTurnCompactionHook,
+  refreshStartupHeader,
   reloadRuntimeTabWithFreshServices,
   replaceRuntimeTabSession,
   shutdownRuntimeTab,
@@ -255,7 +254,6 @@ export class MixCodeRuntime {
     tab: MixCodeTabInfo,
     config: Omit<AgentRuntimeConfig, "sessionId" | "model"> & {
       model?: MixCodeModel;
-      suppressStartupSummary?: boolean;
       reuseServicesFromSessionId?: string;
     },
   ): Promise<RuntimeTab> {
@@ -268,7 +266,6 @@ export class MixCodeRuntime {
     config: Omit<AgentRuntimeConfig, "sessionId" | "model"> & {
       model?: MixCodeModel;
       newSessionId?: string;
-      suppressStartupSummary?: boolean;
     },
   ): Promise<RuntimeTab> {
     const runtimeTab = this.requireTab(sessionId);
@@ -304,9 +301,8 @@ export class MixCodeRuntime {
       newSession,
       {
         ...config,
-        // Replay the startup resource summary ([Context]/[Skills]/[Extensions])
-        // like Pi's /new, so a cleared session shows what is loaded again.
-        suppressStartupSummary: false,
+        // createRuntimeTabWithFallback recomputes the startup header, so a
+        // cleared session shows what is loaded again (like Pi's /new).
         reuseServices: services,
         skipExtensionReload: true,
       },
@@ -1011,8 +1007,6 @@ export class MixCodeRuntime {
     });
     installMidTurnCompactionHook(agentSession, runtimeTab.tab, { current: runtimeTab });
     runtimeTab.tab.workdir = workdir;
-    appendExtensionLoadErrors(runtimeTab);
-    appendExtensionConflictDiagnostics(runtimeTab, runtimeTab.extensionToolOwnerPolicy);
     agentSession.subscribe((event) => {
       this.applyEvent(runtimeTab, event);
       if (event.type === "agent_end") {
@@ -1021,6 +1015,8 @@ export class MixCodeRuntime {
       }
     });
     await this.bindExtensions(runtimeTab);
+    // After extensions are bound: tool owners and diagnostics are final.
+    refreshStartupHeader(runtimeTab);
   }
 
   private async shutdownRuntimeTab(

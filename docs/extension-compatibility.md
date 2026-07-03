@@ -147,7 +147,7 @@ extension tools 会进入 `AgentSession.getAllTools()` 并参与 active tools。
 - extension slash command 注册
 - extension command completion
 - 本地 command 优先
-- command/shortcut conflict 显式显示为 system chat，不静默覆盖
+- command/shortcut conflict 显式显示在启动摘要 header 的 `[Diagnostics]` 段，不静默覆盖
 - extension tool 可覆盖同名 built-in tool，并通过 `[Tool Owners]` 暴露 owner
 
 ### UI Primitives

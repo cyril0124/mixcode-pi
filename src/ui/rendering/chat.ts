@@ -220,9 +220,6 @@ function renderMessageBlockUncached(
   if (line.role === "extension") {
     return renderExtensionBlock(line, width);
   }
-  if (line.role === "startup") {
-    return renderStartupBlock(text, width);
-  }
   if (line.branchSummary) {
     return renderBranchSummaryBlock(text, width, tab);
   }
@@ -290,9 +287,6 @@ function chatLineRenderCacheKey(
   if (role === "user") {
     // Skill blocks switch on toolsExpanded; safe to include unconditionally.
     return `u${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${expanded ? 1 : 0}${KEY_SEP}${line.text}`;
-  }
-  if (role === "startup") {
-    return `st${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${line.text}`;
   }
   if (role === "extension") {
     return `e${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${line.title ?? ""}${KEY_SEP}${line.customType ?? ""}${KEY_SEP}${line.text}`;
@@ -528,7 +522,12 @@ function renderCompactionSummaryBlock(
   return lines.map((part) => renderToolBackgroundLine(part, width, activeRenderTheme.systemBackground));
 }
 
-function renderStartupBlock(text: string, width: number): string[] {
+/**
+ * Render the tab-level startup resource summary ([Context]/[Skills]/...).
+ * Called from the agent surface header slot, not the chat block renderer —
+ * the summary is no longer a chat line.
+ */
+export function renderStartupBlock(text: string, width: number): string[] {
   return text.split(/\r?\n/).flatMap((line) => {
     if (/^\[[^\]]+\]$/.test(line.trim())) {
       return [padLine(activeRenderTheme.tool(line.trim()), width)];

@@ -397,7 +397,7 @@ export function contextTokensFromUsage(usage: Partial<Usage>): number | undefine
 }
 
 function previewRoleForChatLine(line: ChatLine): PreviewMessageRole {
-  return line.role === "extension" || line.role === "startup" ? "system" : line.role;
+  return line.role === "extension" ? "system" : line.role;
 }
 
 export function resetTabForNewSession(tab: MixCodeTabInfo, sessionId: string): void {
@@ -428,6 +428,9 @@ export function resetTabForNewSession(tab: MixCodeTabInfo, sessionId: string): v
     pendingUserInteractions: [],
     workingVisible: true,
   };
+  // The startup header belongs to the outgoing session's services; every
+  // session-replacement path recomputes it via refreshStartupHeader.
+  tab.startupSummary = undefined;
 }
 
 export function applyRuntimeTabModel(runtimeTab: RuntimeTab, model: MixCodeModel): void {

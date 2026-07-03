@@ -69,7 +69,7 @@ export type SystemPromptOverride = NonNullable<
 >["systemPromptOverride"];
 
 export interface ChatLine {
-  role: "user" | "assistant" | "thinking" | "tool" | "system" | "extension" | "startup";
+  role: "user" | "assistant" | "thinking" | "tool" | "system" | "extension";
   text: string;
   title?: string;
   variant?: "user-bash" | "system-error";

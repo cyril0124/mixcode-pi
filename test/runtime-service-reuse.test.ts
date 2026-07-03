@@ -43,10 +43,11 @@ test("clear reuses services while replacing the agent session", async () => {
 
     assert.equal(cleared.services, services);
     assert.notEqual(cleared.agentSession, agentSession);
-    // Clear replays the startup summary; only a startup block, no conversation.
+    // Clear recomputes the startup header; no conversation in the fresh chat.
+    assert.match(cleared.tab.startupSummary ?? "", /\[Context\]/);
     assert.equal(
-      cleared.chat.every((line) => line.role === "startup"),
-      true,
+      cleared.chat.some((line) => line.role === "user" || line.role === "assistant"),
+      false,
     );
     assert.equal(runtime.getTab("s1"), undefined);
     assert.equal(runtime.getTab("s1-clear"), cleared);
@@ -72,8 +73,8 @@ test("clear carries the session name to the fresh child session", async () => {
 
     // The new session has no conversation but keeps the user-given name.
     assert.equal(
-      cleared.chat.every((line) => line.role === "startup"),
-      true,
+      cleared.chat.some((line) => line.role === "user" || line.role === "assistant"),
+      false,
     );
     assert.equal(cleared.session.getSessionName(), "My Work");
   });
@@ -367,21 +368,19 @@ test("slash fork requests service reuse from the source tab", async () => {
   );
 });
 
-test("reload replays the startup resource summary like Pi's /reload", async () => {
-  // Pi calls the same showLoadedResources() on session_start and /reload, so
-  // [Context]/[Skills]/[Extensions] reappear after a reload. Critically, Pi
-  // APPENDS the listing (chatContainer.addChild after rebuildChatFromMessages),
-  // not prepends: on session_start the container is empty so append vs prepend
-  // look identical, but on /reload there is already a full conversation, so the
-  // summary must land AFTER it (visible near the bottom) or it is buried above
-  // history that the viewport is scrolled past and effectively invisible.
+test("reload recomputes the startup header like Pi's /reload", async () => {
+  // Pi refreshes the same loadedResourcesContainer on session_start and /reload,
+  // so [Context]/[Skills]/[Extensions] stay accurate after a reload. The tab's
+  // startupSummary is the MixCode analogue: recomputed by the reload path and,
+  // because it lives outside the chat array, never clobbered by the chat
+  // rebuild that reload performs.
   await withRuntime("mixcode-reload-startup-summary-", async (runtime) => {
     const tab = await runtime.createTab(createTab(1, "s1", process.cwd()), {
       systemPrompt: "system",
       thinkingLevel: "medium",
       workdir: process.cwd(),
     });
-    assert.equal(tab.chat[0]?.role, "startup");
+    assert.match(tab.tab.startupSummary ?? "", /\[Context\]/);
 
     // Simulate real usage: have a conversation before reloading.
     await runtime.prompt("s1", "hello");
@@ -400,14 +399,8 @@ test("reload replays the startup resource summary like Pi's /reload", async () =
       afterReload.chat.some((line) => line.role === "user" && line.text === "hello"),
       "conversation survives reload",
     );
-    // The new startup summary must be appended after existing history (like Pi),
-    // not unshifted above it where a scrolled-to-bottom viewport would miss it.
-    assert.equal(afterReload.chat.at(-1)?.role, "startup");
-    const userIndex = afterReload.chat.findIndex(
-      (line) => line.role === "user" && line.text === "hello",
-    );
-    const summaryIndex = afterReload.chat.length - 1;
-    assert.ok(userIndex < summaryIndex, "summary comes after prior conversation");
+    // The header is recomputed from the fresh services.
+    assert.match(afterReload.tab.startupSummary ?? "", /\[Context\]/);
   });
 });
 

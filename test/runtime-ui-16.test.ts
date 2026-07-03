@@ -262,23 +262,12 @@ test("runtime reports extension command and shortcut conflicts while extension t
       workdir: process.cwd(),
     });
 
-    assert.ok(
-      runtimeTab.chat.some(
-        (line) =>
-          line.role === "system" && line.text.includes("Extension command conflict: /clear"),
-      ),
-    );
-    assert.equal(
-      runtimeTab.chat.some(
-        (line) => line.role === "system" && line.text.includes("Extension tool conflict: read"),
-      ),
-      false,
-    );
-    assert.ok(
-      runtimeTab.chat.some(
-        (line) => line.role === "system" && line.text.includes("Extension shortcut 'ctrl+p'"),
-      ),
-    );
+    // Conflict diagnostics now surface in the startup header's [Diagnostics]
+    // section instead of chat system lines.
+    const summary = runtimeTab.tab.startupSummary ?? "";
+    assert.ok(summary.includes("Extension command conflict: /clear"));
+    assert.equal(summary.includes("Extension tool conflict: read"), false);
+    assert.ok(summary.includes("Extension shortcut 'ctrl+p'"));
     assert.equal(
       runtime.getExtensionCommands("s1").some((command) => command.name === "clear"),
       true,
@@ -287,7 +276,7 @@ test("runtime reports extension command and shortcut conflicts while extension t
       runtimeTab.agentSession.getToolDefinition("read")?.description,
       "Conflicting MixCode tool.",
     );
-    assert.match(runtimeTab.chat.find((line) => line.role === "startup")?.text ?? "", /read -> inline/);
+    assert.match(runtimeTab.tab.startupSummary ?? "", /read -> inline/);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -308,11 +297,10 @@ test("runtime surfaces pi extension load errors explicitly", async () => {
     });
 
     assert.ok(runtimeTab.extensionsResult.errors.some((error) => error.path === extensionPath));
+    // Load errors surface in the startup header's [Diagnostics] section.
+    assert.match(runtimeTab.tab.startupSummary ?? "", /\[Diagnostics\]/);
     assert.ok(
-      runtimeTab.chat.some(
-        (line) =>
-          line.role === "system" && line.text.includes(`Extension load error: ${extensionPath}`),
-      ),
+      (runtimeTab.tab.startupSummary ?? "").includes(`Extension load error: ${extensionPath}`),
     );
   } finally {
     await rm(dir, { recursive: true, force: true });
