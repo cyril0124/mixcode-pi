@@ -28,6 +28,7 @@ import {
   rememberScrollFreezeAnchor,
 } from "./agent-surface-scroll.js";
 import { fitScrolledLinesWithInfo, joinColumns, type ScrolledLinesResult } from "./layout.js";
+import { renderHeaderKeyHints } from "./header-hints.js";
 import { box, padLine } from "./primitives.js";
 import { applyToastOverlay } from "./toast-overlay.js";
 
@@ -93,21 +94,24 @@ export function clearConversationCache(sessionId: string): void {
 
 /**
  * Header lines to prepend at the top of the scrollable conversation: the
- * extension header (when set) followed by the tab-level startup resource
- * summary. Rendered live every frame (never cached) so dynamic headers keep
- * updating, matching Pi where header + loadedResourcesContainer are the first
- * children of the scrollback and scroll away with the conversation. Living
- * outside the chat array, both survive chat rebuilds from session entries.
+ * extension header (when set), the keyboard-hint block, then the tab-level
+ * startup resource summary. Rendered live every frame (never cached) so
+ * dynamic headers keep updating, matching Pi where header +
+ * loadedResourcesContainer are the first children of the scrollback and
+ * scroll away with the conversation. Living outside the chat array, all of
+ * these survive chat rebuilds from session entries.
  */
 function scrollableHeaderLines(tab: MixCodeTabInfo, width: number): string[] {
-  const header = renderExtensionHeader(tab, width);
-  const startup = tab.startupSummary ? renderStartupBlock(tab.startupSummary, width) : [];
-  const lines = [
-    ...header,
-    ...(header.length && startup.length ? [chatBlockSeparator(width)] : []),
-    ...startup,
-  ];
-  return lines.length ? [...lines, chatBlockSeparator(width)] : [];
+  const blocks = [
+    renderExtensionHeader(tab, width),
+    renderHeaderKeyHints(tab, width),
+    tab.startupSummary ? renderStartupBlock(tab.startupSummary, width) : [],
+  ].filter((block) => block.length > 0);
+  if (!blocks.length) return [];
+  const lines = blocks.flatMap((block, index) =>
+    index === 0 ? block : [chatBlockSeparator(width), ...block],
+  );
+  return [...lines, chatBlockSeparator(width)];
 }
 
 export function renderAgentSurface(

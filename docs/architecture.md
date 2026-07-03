@@ -103,7 +103,7 @@ MixCodeRuntime
 └────────────────────────────────────────────────────────────┘
 ```
 
-Config tab 只渲染配置面板和可点击操作，不渲染 prompt editor；这是为了避免在配置页出现无效的 Input Message 输入框。输入区下方不保留 refs/mixcode 的完整快捷键 footer，快捷键信息集中放在 help overlay 中。
+Config tab 只渲染配置面板和可点击操作，不渲染 prompt editor；这是为了避免在配置页出现无效的 Input Message 输入框。输入区下方不保留 refs/mixcode 的完整快捷键 footer；对话顶部 header 显示紧凑快捷键提示，`Ctrl+O` 可展开为完整全局键表，分作用域的完整列表仍在 help overlay（`/hotkeys`）中。
 
 | 快捷键 | 当前行为 |
 | --- | --- |
@@ -115,6 +115,7 @@ Config tab 只渲染配置面板和可点击操作，不渲染 prompt editor；�
 | `Ctrl+E` | 外部编辑器编辑输入 |
 | `Ctrl+C` | 清空普通编辑输入；shell 打开时发送中断给 shell |
 | `Ctrl+J` / `Shift+Enter` | 在当前 Editor 光标处插入换行 |
+| `Ctrl+O` | 展开/收起 tool 输出块与 header 快捷键提示（共用 tools-expand 状态） |
 | `Ctrl+R` | 预填 `/rename 当前标题`，复用 slash command 重命名 |
 | `Alt+Up` / `Ctrl+U` | 将最后一条 queued prompt 弹回编辑器；没有队列时不抢占 Editor |
 | `Up` / `Down` | 普通输入为空且无 overlay、preview、补全、extension terminal input 消费时浏览当前 tab 的 prompt 历史；其它场景交给局部控件 |
@@ -132,7 +133,7 @@ key input
   │
   ├─ global
   │    ├─ Tab / Shift+Tab / Ctrl+P / Ctrl+T
-  │    ├─ Ctrl+E / Ctrl+C / Ctrl+R / Ctrl+V / Ctrl+Q
+  │    ├─ Ctrl+E / Ctrl+C / Ctrl+R / Ctrl+O / Ctrl+V / Ctrl+Q
   │    └─ @ / Esc / Alt+Up / Ctrl+U / Up / Down / Right
   │
   └─ scoped overlays

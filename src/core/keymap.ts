@@ -60,6 +60,12 @@ export const MIXCODE_KEYMAP: KeyAction[] = [
   },
   { key: "ctrl+j", action: "newline", description: "Insert newline", scope: "global" },
   { key: "shift+enter", action: "newline", description: "Insert newline", scope: "global" },
+  {
+    key: "ctrl+o",
+    action: "toggle-tool-expand",
+    description: "Expand/collapse tool output and startup help",
+    scope: "global",
+  },
 
   { key: "escape", action: "close-overlay", description: "Close active overlay", scope: "global" },
   { key: "ctrl+q", action: "quit", description: "Quit MixCode", scope: "global" },
