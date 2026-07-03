@@ -184,10 +184,12 @@ Ctrl+P
   │    └─ /delete-all-sessions
   │
   └─ Agent tab
-       ├─ /models /thinking /context-limit /theme /tui-state /goal
-       ├─ /rename /workdir /shell
-       ├─ /toggle-todo /mark-done
-       └─ /new-session /close-session /delete-session /delete-all-sessions
+       ├─ /models /thinking /context-limit /theme /tui-state
+       ├─ /system-tools /system-prompt /extension-manager /reload /session
+       ├─ /rename /workdir /import /mark-done /vim
+       ├─ /fork /compact /clear /navigate /tree
+       ├─ /help /hotkeys /quit /exit
+       └─ /new-session /resume /close-session /delete-session /delete-all-sessions
 ```
 
 不可用命令不会出现在 palette 列表中；回车在空列表上直接关闭 palette，不执行任何操作。

@@ -226,6 +226,14 @@ test("command palette state filters, moves, accepts, and closes", () => {
       "/delete-session",
       "/reload",
       "/session",
+      "/fork",
+      "/compact",
+      "/clear",
+      "/navigate",
+      "/help",
+      "/hotkeys",
+      "/quit",
+      "/exit",
       "/delete-all-sessions",
     ],
   );
@@ -237,7 +245,7 @@ test("command palette state filters, moves, accepts, and closes", () => {
   );
   assert.equal(acceptCommandPaletteSelection(state), "/system-prompt");
   openCommandPalette(state);
-  updateCommandPaletteQuery(state, "vim");
+  updateCommandPaletteQuery(state, "vim mode");
   assert.deepEqual(
     commandPaletteEntries(state).map((entry) => entry.command),
     ["/vim"],
