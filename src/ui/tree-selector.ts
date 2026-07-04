@@ -15,6 +15,7 @@ import {
   foldOrUp,
   getSelectedTreeEntry,
   initTreeSelector,
+  isNewestNavRowSelected,
   moveTreeSelection,
   moveTreeSelectionBounded,
   moveSummarizeSelection,
@@ -26,6 +27,7 @@ import {
   updateTreeSearchQuery,
 } from "../core/tree-selector.js";
 import type { MixCodeState } from "../core/types.js";
+import { chatEnd } from "../core/overlays.js";
 import { pushToast } from "../core/toast.js";
 import type { MixCodeKeyRuntime, OverlayTui, TreeSelectorDisplayHost } from "./app-types.js";
 import { showErrorOverlay } from "./app-overlays.js";
@@ -505,12 +507,21 @@ async function navigateOnSelectionChange(
   runtime?: MixCodeKeyRuntime,
   onStateChanged?: (state: MixCodeState) => void | Promise<void>,
 ): Promise<void> {
-  const entry = getSelectedTreeEntry(state.treeSelector);
   const active = state.tabs.find((tab) => tab.sessionId === state.activeTabId);
+  if (!active) return;
+  // Virtual <NEWEST> row: clear the scroll anchor and jump to the latest position.
+  if (isNewestNavRowSelected(state.treeSelector)) {
+    chatEnd(active);
+    await onStateChanged?.(state);
+    refreshTreeSelectorDisplay(tui);
+    tui.requestRender();
+    return;
+  }
+  const entry = getSelectedTreeEntry(state.treeSelector);
   const runtimeRef = runtime as unknown as TreeSelectorRuntime | undefined;
-  const runtimeTab = active ? runtimeRef?.getTab(active.sessionId) : undefined;
+  const runtimeTab = runtimeRef?.getTab(active.sessionId);
   const branch = runtimeTab?.session.getBranch?.() ?? [];
-  if (!entry || !active || !runtimeTab) return;
+  if (!entry || !runtimeTab) return;
   const bounds = active.chatSurfaceBounds;
   const result = scrollChatToUserEntry(
     active,

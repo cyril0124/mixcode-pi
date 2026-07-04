@@ -58,13 +58,13 @@ function formatTime(timestamp?: string): string {
   // Relative time
   let relative: string;
   if (diffSecs < 60) {
-    relative = `${diffSecs}秒前`;
+    relative = `${diffSecs}s ago`;
   } else if (diffMins < 60) {
-    relative = `${diffMins}分钟前`;
+    relative = `${diffMins}m ago`;
   } else if (diffHours < 24) {
-    relative = `${diffHours}小时前`;
+    relative = `${diffHours}h ago`;
   } else {
-    relative = `${diffDays}天前`;
+    relative = `${diffDays}d ago`;
   }
 
   // Absolute time

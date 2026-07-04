@@ -105,8 +105,12 @@ test("/navigate opens the Session Tree view filtered to current-chat user messag
   const text = renderTreeSelector(state, 100).map(stripAnsi).join("\n");
   assert.match(text, /Session Tree/);
   assert.match(text, /j\/k: move\+scroll/);
-  assert.match(text, /user: first user/);
-  assert.match(text, /user: second user/);
+  // Navigate rows show sequence number + timestamp, like /prompt-history
+  assert.match(text, /#1 \S+.*user: first user/);
+  assert.match(text, /#2 \S+.*user: second user/);
+  // Virtual <NEWEST> row and counter including it
+  assert.match(text, /<NEWEST>/);
+  assert.match(text, /\(2\/3\)/);
   assert.doesNotMatch(text, /side branch user/);
   assert.doesNotMatch(text, /assistant answer/);
 });
@@ -150,9 +154,23 @@ test("/navigate moves with arrows and j/k, then scrolls current chat", async () 
   assert.equal(tab.chatScrollAnchorIndex, 2);
   assert.equal(state.treeSelector.summarizePrompt, null);
 
+  // j past the last user message selects the virtual <NEWEST> row: jump to latest
   assert.deepEqual(handleMixCodeKeyInput(state, "j", tui, undefined, runtime), { consume: true });
-  assert.equal(state.treeSelector.filteredNodes[state.treeSelector.selectedIndex]?.node.entry.id, "u2");
+  assert.equal(state.treeSelector.selectedIndex, state.treeSelector.filteredNodes.length);
+  await Promise.resolve();
+  assert.equal(tab.chatScrollAnchorEntryId, undefined);
+  assert.equal(tab.chatScrollOffset, 0);
+
+  // j past <NEWEST> hits the bottom boundary
+  assert.deepEqual(handleMixCodeKeyInput(state, "j", tui, undefined, runtime), { consume: true });
+  assert.equal(state.treeSelector.selectedIndex, state.treeSelector.filteredNodes.length);
   assert.match(tab.toast?.message ?? "", /No newer user message/);
+  assert.equal(tab.chatScrollAnchorEntryId, undefined);
+
+  // k moves back from <NEWEST> to the last user message and re-anchors
+  assert.deepEqual(handleMixCodeKeyInput(state, "k", tui, undefined, runtime), { consume: true });
+  assert.equal(state.treeSelector.filteredNodes[state.treeSelector.selectedIndex]?.node.entry.id, "u2");
+  await Promise.resolve();
   assert.equal(tab.chatScrollAnchorEntryId, "u2");
 
   state.treeSelector.open = false;

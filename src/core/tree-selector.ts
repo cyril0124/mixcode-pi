@@ -527,10 +527,17 @@ export function moveTreeSelection(state: TreeSelectorState, direction: -1 | 1): 
 
 export function moveTreeSelectionBounded(state: TreeSelectorState, direction: -1 | 1): boolean {
   if (state.filteredNodes.length === 0) return false;
+  // Navigate mode appends one virtual <NEWEST> row after the last user message.
+  const maxIndex = state.filteredNodes.length - 1 + (state.mode === "navigate" ? 1 : 0);
   const nextIndex = state.selectedIndex + direction;
-  if (nextIndex < 0 || nextIndex >= state.filteredNodes.length) return false;
+  if (nextIndex < 0 || nextIndex > maxIndex) return false;
   state.selectedIndex = nextIndex;
   return true;
+}
+
+/** True when the virtual <NEWEST> row (navigate mode only) is selected. */
+export function isNewestNavRowSelected(state: TreeSelectorState): boolean {
+  return state.mode === "navigate" && state.selectedIndex === state.filteredNodes.length;
 }
 
 export function pageTreeSelection(state: TreeSelectorState, direction: -1 | 1, pageSize: number): void {

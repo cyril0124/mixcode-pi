@@ -132,16 +132,30 @@ function renderTreeList(
     return lines.map((line) => truncateToWidth(line, bodyWidth));
   }
 
+  const isNavigate = selector.mode === "navigate";
+  // Navigate mode appends one virtual <NEWEST> row that jumps to the latest position.
+  const totalRows = selector.filteredNodes.length + (isNavigate ? 1 : 0);
+  const numWidth = String(selector.filteredNodes.length).length;
   const maxVisible = maxListRows !== undefined && maxListRows <= 1
     ? 0
     : getMaxVisible(maxListRows === undefined ? undefined : maxListRows - 1);
-  const startIndex = windowStart(selector.selectedIndex, selector.filteredNodes.length, maxVisible);
-  const endIndex = Math.min(startIndex + maxVisible, selector.filteredNodes.length);
+  const startIndex = windowStart(selector.selectedIndex, totalRows, maxVisible);
+  const endIndex = Math.min(startIndex + maxVisible, totalRows);
 
   for (let i = startIndex; i < endIndex; i++) {
+    const isSelected = i === selector.selectedIndex;
+
+    if (i >= selector.filteredNodes.length) {
+      // Virtual <NEWEST> row (navigate mode only): jump to the latest chat position.
+      const text = isSelected ? activeRenderTheme.bold("<NEWEST>") : "<NEWEST>";
+      let line = (isSelected ? activeRenderTheme.accent("› ") : "  ") + activeRenderTheme.accent(text);
+      if (isSelected) line = activeRenderTheme.selection(padLine(line, bodyWidth));
+      lines.push(truncateToWidth(line, bodyWidth));
+      continue;
+    }
+
     const flatNode = selector.filteredNodes[i];
     const entry = flatNode.node.entry;
-    const isSelected = i === selector.selectedIndex;
 
     const cursor = isSelected ? activeRenderTheme.accent("› ") : "  ";
     const displayIndent = selector.multipleRoots
@@ -196,6 +210,15 @@ function renderTreeList(
         ? activeRenderTheme.dim(`${formatLabelTimestamp(flatNode.node.labelTimestamp)} `)
         : "";
 
+    // Navigate mode: sequence number + relative timestamp, like /prompt-history.
+    const navInfo = isNavigate
+      ? activeRenderTheme.dim(
+          `#${String(i + 1).padStart(numWidth, " ")}${
+            entry.timestamp ? ` [${formatRelativeTimestamp(entry.timestamp)}]` : ""
+          } `,
+        )
+      : "";
+
     const content = getEntryDisplayText(flatNode.node, isSelected, selector);
 
     let line =
@@ -203,6 +226,7 @@ function renderTreeList(
       activeRenderTheme.dim(prefix) +
       foldMarker +
       pathMarker +
+      navInfo +
       label +
       labelTimestamp +
       content;
@@ -214,7 +238,7 @@ function renderTreeList(
 
   lines.push(
     activeRenderTheme.dim(
-      `  (${selector.selectedIndex + 1}/${selector.filteredNodes.length})${formatStatusLabels(selector)}`,
+      `  (${selector.selectedIndex + 1}/${totalRows})${formatStatusLabels(selector)}`,
     ),
   );
   return lines.map((line) => truncateToWidth(line, bodyWidth));
@@ -341,6 +365,37 @@ function getEntryDisplayText(
   }
 
   return isSelected ? activeRenderTheme.bold(result) : result;
+}
+
+/** Relative time like /prompt-history: "Xm ago (HH:MM)" */
+function formatRelativeTimestamp(timestamp: string): string {
+  const date = new Date(timestamp);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffSecs = Math.floor(diffMs / 1000);
+  const diffMins = Math.floor(diffSecs / 60);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  let relative: string;
+  if (diffSecs < 60) {
+    relative = `${diffSecs}s ago`;
+  } else if (diffMins < 60) {
+    relative = `${diffMins}m ago`;
+  } else if (diffHours < 24) {
+    relative = `${diffHours}h ago`;
+  } else {
+    relative = `${diffDays}d ago`;
+  }
+
+  const hours = date.getHours().toString().padStart(2, "0");
+  const mins = date.getMinutes().toString().padStart(2, "0");
+  const isToday = date.toDateString() === now.toDateString();
+  const absolute = isToday
+    ? `${hours}:${mins}`
+    : `${(date.getMonth() + 1).toString().padStart(2, "0")}-${date.getDate().toString().padStart(2, "0")} ${hours}:${mins}`;
+
+  return `${relative} (${absolute})`;
 }
 
 function formatLabelTimestamp(timestamp: string): string {
