@@ -9,6 +9,7 @@ import {
   customMessageToChatLine,
   disposeChatRenderers,
   entriesToChatLines,
+  isBenignCompactionError,
   isNothingToCompactError,
   surfaceAssistantStopReason,
   syncContextUsage,
@@ -88,16 +89,19 @@ async function autoCompactAndContinue(runtimeTab: RuntimeTab): Promise<void> {
           setTabStatus(runtimeTab.tab, "idle", { discardTimer: true });
           return;
         }
-        if (isNothingToCompactError(message)) {
+
+        // Use unified benign error check
+        if (isBenignCompactionError(error)) {
           setTabStatus(runtimeTab.tab, "idle", { discardTimer: true });
-          appendSystemMessage(runtimeTab, "Nothing to compact (session too small).");
+          // Only show message for "nothing to compact", not "already compacted"
+          if (isNothingToCompactError(message)) {
+            appendSystemMessage(runtimeTab, "Nothing to compact (session too small).");
+          }
           return;
         }
-        if (/already compacted/i.test(message)) {
-          compacted = true;
-        } else {
-          throw error;
-        }
+
+        // Real error - throw to outer catch
+        throw error;
       }
     }
 
