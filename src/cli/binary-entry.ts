@@ -56,6 +56,9 @@ import rpivTodo_tool_response_envelope_ts from "../../pi-packages/rpiv-todo/tool
 import rpivTodo_tool_types_ts from "../../pi-packages/rpiv-todo/tool/types.ts" with { type: "text" };
 import rpivTodo_vendor_rpiv_config_ts from "../../pi-packages/rpiv-todo/vendor/rpiv-config.ts" with { type: "text" };
 import rpivTodo_view_format_ts from "../../pi-packages/rpiv-todo/view/format.ts" with { type: "text" };
+import promptHistoryIndex from "../../pi-packages/prompt-history/index.ts" with { type: "text" };
+import promptHistoryBrowser from "../../pi-packages/prompt-history/prompt-history-browser.ts" with { type: "text" };
+import promptHistoryPackageJson from "../../pi-packages/prompt-history/package.json" with { type: "text" };
 import packageJson from "../../package.json" with { type: "json" };
 import { materializeBinaryRuntimeAssets } from "./binary-assets.js";
 
@@ -152,6 +155,11 @@ materializeBinaryRuntimeAssets(runtimeDir, {
       "tool/types.ts": rpivTodo_tool_types_ts,
       "vendor/rpiv-config.ts": rpivTodo_vendor_rpiv_config_ts,
       "view/format.ts": rpivTodo_view_format_ts,
+    },
+    "prompt-history": {
+      "index.ts": promptHistoryIndex,
+      "prompt-history-browser.ts": promptHistoryBrowser,
+      "package.json": promptHistoryPackageJson,
     },
   },
 });
