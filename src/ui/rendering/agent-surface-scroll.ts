@@ -100,7 +100,7 @@ export function rememberScrollFreezeAnchor(
   }
   const row = visible.findIndex((line) => {
     const trimmed = line.trim();
-    return trimmed.length > 0 && !trimmed.includes("... older above") && !trimmed.includes("... newer below");
+    return trimmed.length > 0 && !trimmed.includes("older above") && !trimmed.includes("newer below");
   });
   scrollFreezeStates.set(tab, {
     ...current,
@@ -160,8 +160,8 @@ export function estimateTotalHeight(
 }
 
 /**
- * Apply the same boundary markers fitScrolledLinesWithInfo applies (... older
- * above / ... newer below) so the windowed output is visually identical.
+ * Apply the same boundary markers fitScrolledLinesWithInfo applies (↑ older
+ * above / ↓ newer below) so the windowed output is visually identical.
  */
 export function decorateWindow(
   visible: string[],
@@ -174,10 +174,10 @@ export function decorateWindow(
   const out = visible.slice();
   if (viewport <= 1) return out;
   if (start > 0) {
-    out[0] = padLine(activeRenderTheme.dim("... older above"), width);
+    out[0] = padLine(activeRenderTheme.dim("↑ older above"), width);
   }
   if (start + visible.length < total) {
-    out[out.length - 1] = padLine(activeRenderTheme.dim("... newer below"), width);
+    out[out.length - 1] = padLine(activeRenderTheme.dim("↓ newer below"), width);
   }
   return out;
 }

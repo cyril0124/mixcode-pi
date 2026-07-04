@@ -41,7 +41,7 @@ export function fitTailLines(lines: string[], maxHeight: number, width: number):
   const height = Math.max(0, Math.floor(maxHeight));
   if (height === 0) return [];
   if (lines.length <= height) return lines;
-  const marker = padLine(activeRenderTheme.dim("... older above"), width);
+  const marker = padLine(activeRenderTheme.dim("↑ older above"), width);
   if (height === 1) return [marker];
   return [marker, ...lines.slice(-(height - 1))];
 }
@@ -97,7 +97,7 @@ export function fitScrolledLinesWithInfo(
   if (height === 1) {
     const start = Math.max(0, lines.length - offset - 1);
     const end = Math.min(lines.length, Math.max(1, lines.length - offset));
-    const marker = start > 0 ? "... older above" : "... newer below";
+    const marker = start > 0 ? "↑ older above" : "↓ newer below";
     return {
       lines: [padLine(activeRenderTheme.dim(marker), width)],
       total: lines.length,
@@ -111,9 +111,9 @@ export function fitScrolledLinesWithInfo(
   const start = Math.max(0, end - height);
   const window = lines.slice(start, end);
   if (start > 0 && window.length > 0)
-    window[0] = padLine(activeRenderTheme.dim("... older above"), width);
+    window[0] = padLine(activeRenderTheme.dim("↑ older above"), width);
   if (end < lines.length && window.length > 1)
-    window[window.length - 1] = padLine(activeRenderTheme.dim("... newer below"), width);
+    window[window.length - 1] = padLine(activeRenderTheme.dim("↓ newer below"), width);
   return { lines: window, total: lines.length, height, start, end, scrollable: true };
 }
 
@@ -121,7 +121,7 @@ export function fitHeadLines(lines: string[], maxHeight: number, width: number):
   const height = Math.max(0, Math.floor(maxHeight));
   if (height === 0) return [];
   if (lines.length <= height) return lines;
-  const marker = padLine(activeRenderTheme.dim("... newer below"), width);
+  const marker = padLine(activeRenderTheme.dim("↓ newer below"), width);
   if (height === 1) return [marker];
   return [...lines.slice(0, height - 1), marker];
 }
