@@ -98,6 +98,7 @@ interface DrawBoxOptions {
   border?: (text: string) => string;
   inner?: (text: string) => string;
   leadingBlank?: boolean;
+  rounded?: boolean;
 }
 
 function drawBox(opts: DrawBoxOptions): string[] {
@@ -110,16 +111,16 @@ function drawBox(opts: DrawBoxOptions): string[] {
     border = (text: string) => theme.border(text),
     inner,
     leadingBlank = false,
+    rounded = false,
   } = opts;
   const innerWidth = Math.max(0, width - 2);
-  // renderBoxTop reads only theme.border, so override it with the chosen fn to
-  // keep the top, sides, and bottom all using the same border color.
-  const top = renderBoxTop(title, meta, innerWidth, { ...theme, border });
+  const top = renderBoxTop(title, meta, innerWidth, { ...theme, border }, rounded);
   const body = lines.map((line) => {
     const content = padLine(line, innerWidth);
     return `${border("│")}${inner ? inner(content) : content}${border("│")}`;
   });
-  const bottom = `${border("└")}${border("─".repeat(innerWidth))}${border("┘")}`;
+  const [bl, br] = rounded ? ["╰", "╯"] : ["└", "┘"];
+  const bottom = `${border(bl)}${border("─".repeat(innerWidth))}${border(br)}`;
   const boxLines = [top, ...body, bottom];
   return leadingBlank ? [padLine("", width), ...boxLines] : boxLines;
 }
@@ -148,6 +149,7 @@ export function renderBoxTop(
   meta: string[],
   innerWidth: number,
   theme: MixCodeTheme,
+  rounded = false,
 ): string {
   const left = title ? ` ${title} ` : "";
   const right = meta.length ? ` ${meta.join("  |  ")} ` : "";
@@ -155,7 +157,8 @@ export function renderBoxTop(
   const clippedRight = right ? truncateToWidth(right, availableRightWidth) : "";
   const fillWidth = Math.max(0, innerWidth - visibleWidth(left) - visibleWidth(clippedRight));
   const line = truncateToWidth(`${left}${"─".repeat(fillWidth)}${clippedRight}`, innerWidth);
-  return `${theme.border("┌")}${theme.border(padLine(line, innerWidth))}${theme.border("┐")}`;
+  const [tl, tr] = rounded ? ["╭", "╮"] : ["┌", "┐"];
+  return `${theme.border(tl)}${theme.border(padLine(line, innerWidth))}${theme.border(tr)}`;
 }
 
 export function panelBox(title: string, lines: string[], width: number): string[] {

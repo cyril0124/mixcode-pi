@@ -24,9 +24,9 @@ test("renderAgentSurface overlays a typed toast card with right margin", () => {
     60,
     8,
   ).map(stripAnsi);
-  const toastTop = lines.find((line) => line.includes("┌") && line.includes("┐"));
+  const toastTop = lines.find((line) => line.includes("╭") && line.includes("╮"));
   const toastMid = lines.find((line) => line.includes("✓ Copied 11 chars."));
-  const toastBottom = lines.find((line) => line.includes("└") && line.includes("┘"));
+  const toastBottom = lines.find((line) => line.includes("╰") && line.includes("╯"));
 
   assert.ok(toastTop, "toast top border should render");
   assert.ok(toastMid, "toast message should render");
@@ -50,7 +50,7 @@ test("renderAgentSurface wraps long toast messages to at most three rows", () =>
     80,
     10,
   ).map(stripAnsi);
-  const toastRows = lines.filter((line) => /[┌└]─|│ .*│/.test(line));
+  const toastRows = lines.filter((line) => /[╭╰]─|│ .*│/.test(line));
 
   assert.equal(toastRows.length, 5);
   assert.equal(toastRows.filter((line) => line.includes("│")).length, 3);

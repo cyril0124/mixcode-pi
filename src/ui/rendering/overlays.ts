@@ -100,12 +100,12 @@ function configPanelBox(title: string, lines: string[], width: number): string[]
   const top = renderBoxTop(title, [], innerWidth, {
     ...activeRenderTheme,
     border: activeRenderTheme.borderDim,
-  });
+  }, true);
   const body = lines.map(
     (line) =>
       `${activeRenderTheme.borderDim("│")}${padLine(line, innerWidth)}${activeRenderTheme.borderDim("│")}`,
   );
-  const bottom = `${activeRenderTheme.borderDim("└")}${activeRenderTheme.borderDim("─".repeat(innerWidth))}${activeRenderTheme.borderDim("┘")}`;
+  const bottom = `${activeRenderTheme.borderDim("╰")}${activeRenderTheme.borderDim("─".repeat(innerWidth))}${activeRenderTheme.borderDim("╯")}`;
   return [padLine("", width), top, ...body, bottom];
 }
 

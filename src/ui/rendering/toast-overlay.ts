@@ -83,7 +83,7 @@ function toastCardLines(
 ): string[] {
   const contentWidth = boxWidth - 4;
   const color = toastColor(type, theme);
-  const top = `${color("┌")}${color("─".repeat(boxWidth - 2))}${color("┐")}`;
+  const top = `${color("╭")}${color("─".repeat(boxWidth - 2))}${color("╮")}`;
   const body = messageRows.map((row, index) => {
     const content = padLine(
       styleToastRow(row, index === 0 ? type : undefined, theme),
@@ -91,7 +91,7 @@ function toastCardLines(
     );
     return `${color("│")} ${theme.panel(content)} ${color("│")}`;
   });
-  const bottom = `${color("└")}${color("─".repeat(boxWidth - 2))}${color("┘")}`;
+  const bottom = `${color("╰")}${color("─".repeat(boxWidth - 2))}${color("╯")}`;
   return [top, ...body, bottom];
 }
 
