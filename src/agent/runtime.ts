@@ -959,11 +959,14 @@ export class MixCodeRuntime {
     return resolveRuntimeModel(provider, modelId, this.modelRegistry);
   }
 
-  updateTabModel(sessionId: string, model: MixCodeModel): void {
+  async updateTabModel(sessionId: string, model: MixCodeModel): Promise<void> {
     const runtimeTab = this.requireTab(sessionId);
     if (runtimeTab.agent.state.isStreaming) {
       throw new Error("Cannot change model while the agent is streaming");
     }
+    // Use agentSession.setModel() to trigger model_select event and persist to session
+    await runtimeTab.agentSession.setModel(model);
+    // Sync local state after SDK updates its own state
     runtimeTab.agent.state.model = model;
     applyRuntimeTabModel(runtimeTab, model);
   }

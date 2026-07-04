@@ -96,9 +96,14 @@ export function applyModelSelection(
   const resolvedModel = runtime?.resolveModel?.(model.provider, model.modelId);
   if (runtime?.resolveModel && !resolvedModel)
     throw new Error("Model is not registered in runtime: " + model.displayName);
-  if (runtime?.updateTabModel && resolvedModel)
-    runtime.updateTabModel(active.sessionId, resolvedModel);
-  else setTabModel(active, model);
+  if (runtime?.updateTabModel && resolvedModel) {
+    // updateTabModel is now async (calls agentSession.setModel)
+    runtime.updateTabModel(active.sessionId, resolvedModel).catch((err) => {
+      console.error("Failed to update model:", err);
+    });
+  } else {
+    setTabModel(active, model);
+  }
   state.model = model;
 }
 
@@ -136,7 +141,11 @@ export function reloadRuntimeModels(
     // while that tab streams, so updateTabModel is safe here.
     if (tab === active && runtime.updateTabModel && runtime.resolveModel) {
       const resolved = runtime.resolveModel(repaired.provider, repaired.modelId);
-      if (resolved) runtime.updateTabModel(tab.sessionId, resolved);
+      if (resolved) {
+        runtime.updateTabModel(tab.sessionId, resolved).catch((err) => {
+          console.error("Failed to update model:", err);
+        });
+      }
     }
   }
   return true;

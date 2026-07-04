@@ -1,3 +1,4 @@
+import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 export { createSessionId, UUIDV7_SESSION_ID_PATTERN } from "./session-ids.js";
 import { createSessionSelectorState } from "./session-selector.js";
 import { createForkSelectorState } from "../ui/fork-selector.js";
@@ -14,7 +15,7 @@ export const DEFAULT_MODEL_REF: MixCodeModelRef = {
   contextWindow: 200_000,
 };
 
-export function createInitialState(workdir: string): MixCodeState {
+export function createInitialState(workdir: string, defaultThinkingLevel?: ThinkingLevel): MixCodeState {
   return {
     workdir,
     tabs: [],
@@ -43,7 +44,7 @@ export function createInitialState(workdir: string): MixCodeState {
     tabJumpIndex: 0,
     picker: undefined,
     model: { ...DEFAULT_MODEL_REF },
-    thinkingLevel: "medium",
+    thinkingLevel: defaultThinkingLevel ?? "medium",
     theme: DEFAULT_THEME_ID,
     availableModels: [{ ...DEFAULT_MODEL_REF }],
     homeSelectedTabIndex: 0,

@@ -41,7 +41,7 @@ import {
   stateFileForPort,
 } from "../core/state-store.js";
 import { MIXCODE_SYSTEM_PROMPT, setGlobalConversationHistoryPrompt } from "../core/system-prompt.js";
-import type { MixCodeState } from "../core/types.js";
+import type { MixCodeModelRef, MixCodeState } from "../core/types.js";
 import type { MixCodeCompletionSources } from "../ui/completion.js";
 import { applyHttpProxySettings, configureHttpDispatcher } from "../core/http-dispatcher.js";
 
@@ -114,7 +114,9 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
     if (code !== "ENOENT") throw error;
-    state = createInitialState(options.workdir);
+    // Read defaultThinkingLevel from settings when creating initial state
+    const defaultThinkingLevel = settingsManager.getDefaultThinkingLevel();
+    state = createInitialState(options.workdir, defaultThinkingLevel);
     restoredFromDisk = false;
   }
   const modelBundle = await createPiModelRegistryBundle(options.modelConfigPath);
@@ -123,7 +125,25 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
     .filter((source) => source.authStatus.configured)
     .map((source) => modelToRef(source.model));
   state.availableModels = buildAvailableModelRefs(configuredModels);
-  const preferredModel = configuredModels.at(-1) ?? DEFAULT_MODEL_REF;
+
+  // Respect settings.json defaultProvider/defaultModel if set
+  const defaultProvider = settingsManager.getDefaultProvider();
+  const defaultModel = settingsManager.getDefaultModel();
+  let preferredModel: MixCodeModelRef;
+  if (defaultProvider && defaultModel) {
+    const settingsModelRef: MixCodeModelRef = {
+      provider: defaultProvider,
+      modelId: defaultModel,
+      displayName: `${defaultProvider}/${defaultModel}`,
+      contextWindow: 200000, // will be corrected by normalizeModelRef if available
+    };
+    preferredModel = isModelRefAvailable(state.availableModels, settingsModelRef)
+      ? normalizeModelRef(state.availableModels, settingsModelRef)
+      : (configuredModels.at(-1) ?? DEFAULT_MODEL_REF);
+  } else {
+    preferredModel = configuredModels.at(-1) ?? DEFAULT_MODEL_REF;
+  }
+
   const savedStateModelAvailable = isModelRefAvailable(state.availableModels, state.model);
   if (!restoredFromDisk || !savedStateModelAvailable) {
     setStateModel(state, preferredModel);
