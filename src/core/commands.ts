@@ -10,6 +10,7 @@ export type LocalCommand =
   | "tree"
   | "close-session"
   | "delete-session"
+  | "close-all-sessions"
   | "delete-all-sessions"
   | "save-workspace"
   | "restore-workspace"
@@ -67,6 +68,7 @@ export const LOCAL_COMMANDS: Array<{
   { name: "tree", description: "Navigate session tree (switch branches)" },
   { name: "close-session", description: "Close active tab" },
   { name: "delete-session", description: "Delete active session" },
+  { name: "close-all-sessions", description: "Close all agent tabs but keep their sessions" },
   { name: "delete-all-sessions", description: "Delete all open agent tabs" },
   { name: "save-workspace", description: "Save current workspace tab order" },
   { name: "restore-workspace", description: "Restore a saved workspace tab order" },

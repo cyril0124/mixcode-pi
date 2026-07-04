@@ -21,6 +21,8 @@ export function createInitialState(workdir: string): MixCodeState {
     activeTabId: "config",
     packageUpdates: [],
     quitConfirmOpen: false,
+    deleteAllSessionsConfirmOpen: false,
+    closeAllSessionsConfirmOpen: false,
     commandPaletteOpen: false,
     commandPalette: { query: "", selectedIndex: 0 },
     extensionManager: {

@@ -33,6 +33,8 @@ const PRIORITY: OverlayKind[] = [
   "extension-manager",
   "tab-jump",
   "quit-confirm",
+  "delete-all-sessions-confirm",
+  "close-all-sessions-confirm",
 ];
 
 const FLAG_KINDS: Exclude<OverlayKind, "picker">[] = [
@@ -43,6 +45,8 @@ const FLAG_KINDS: Exclude<OverlayKind, "picker">[] = [
   "extension-manager",
   "tab-jump",
   "quit-confirm",
+  "delete-all-sessions-confirm",
+  "close-all-sessions-confirm",
 ];
 
 test("activeOverlay returns 'none' on a fresh state", () => {

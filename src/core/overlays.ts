@@ -178,7 +178,9 @@ export type OverlayKind =
   | "command-palette"
   | "extension-manager"
   | "tab-jump"
-  | "quit-confirm";
+  | "quit-confirm"
+  | "delete-all-sessions-confirm"
+  | "close-all-sessions-confirm";
 
 // Predicate per kind, evaluated in priority order by activeOverlay.
 const OVERLAY_PREDICATES: ReadonlyArray<readonly [OverlayKind, (s: MixCodeState) => boolean]> = [
@@ -190,6 +192,8 @@ const OVERLAY_PREDICATES: ReadonlyArray<readonly [OverlayKind, (s: MixCodeState)
   ["extension-manager", (s) => s.extensionManager.open],
   ["tab-jump", (s) => s.tabJumpOpen],
   ["quit-confirm", (s) => s.quitConfirmOpen],
+  ["delete-all-sessions-confirm", (s) => s.deleteAllSessionsConfirmOpen],
+  ["close-all-sessions-confirm", (s) => s.closeAllSessionsConfirmOpen],
 ];
 
 /** The single overlay currently active, or "none". Priority-ordered. */
@@ -215,6 +219,8 @@ export function closeActiveOverlay(state: MixCodeState): void {
   state.extensionManager.open = false;
   closeTabJump(state);
   state.quitConfirmOpen = false;
+  state.deleteAllSessionsConfirmOpen = false;
+  state.closeAllSessionsConfirmOpen = false;
 }
 
 // Flag/.open overlays openOverlay can flip on its own. picker is excluded: it
@@ -237,6 +243,12 @@ const FLAG_OPENERS: Partial<Record<OverlayKind, (s: MixCodeState) => void>> = {
   "tab-jump": openTabJump,
   "quit-confirm": (s) => {
     s.quitConfirmOpen = true;
+  },
+  "delete-all-sessions-confirm": (s) => {
+    s.deleteAllSessionsConfirmOpen = true;
+  },
+  "close-all-sessions-confirm": (s) => {
+    s.closeAllSessionsConfirmOpen = true;
   },
 };
 
@@ -358,6 +370,14 @@ function configCommandPaletteEntries(state: MixCodeState): CommandPaletteEntry[]
       "Reload",
       "/reload",
       "Reload keybindings, extensions, skills, prompts, and themes",
+    ),
+    commandEntry(
+      "config.close-all-sessions",
+      "Close All Sessions",
+      "/close-all-sessions",
+      "Close all agent tabs but keep their sessions",
+      hasTabs,
+      "No open Agent Tabs",
     ),
     commandEntry(
       "config.delete-all-sessions",
@@ -585,6 +605,14 @@ function agentCommandPaletteEntries(
       "Exit the TUI",
     ),
     commandEntry(
+      "agent.close-all-sessions",
+      "Close All Sessions",
+      "/close-all-sessions",
+      "Close all agent tabs but keep their sessions",
+      hasTabs,
+      "No open Agent Tabs",
+    ),
+    commandEntry(
       "agent.delete-all-sessions",
       "Delete All Sessions",
       "/delete-all-sessions",
@@ -630,6 +658,7 @@ function commandPaletteLocalCommands(): string[] {
     "resume",
     "close-session",
     "delete-session",
+    "close-all-sessions",
     "delete-all-sessions",
     "reload",
     "session",

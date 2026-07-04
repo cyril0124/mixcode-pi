@@ -91,6 +91,36 @@ export function renderQuitConfirm(width: number, theme: MixCodeTheme): string[] 
   );
 }
 
+export function renderDeleteAllSessionsConfirm(width: number, theme: MixCodeTheme): string[] {
+  return renderWithTheme(theme, () =>
+    overlayPanel(
+      "Delete All Sessions",
+      [
+        "Delete all open agent tabs and their sessions?",
+        "",
+        "[Y] Delete    [N] Cancel",
+        "Esc: cancel",
+      ],
+      width,
+    ),
+  );
+}
+
+export function renderCloseAllSessionsConfirm(width: number, theme: MixCodeTheme): string[] {
+  return renderWithTheme(theme, () =>
+    overlayPanel(
+      "Close All Sessions",
+      [
+        "Close all open agent tabs? Sessions are kept and can be resumed.",
+        "",
+        "[Y] Close    [N] Cancel",
+        "Esc: cancel",
+      ],
+      width,
+    ),
+  );
+}
+
 export function showNoticeTextOverlay(tui: OverlayTui, text: string): void {
   showNoticeOverlay(tui, text, { title: "Notice" });
 }

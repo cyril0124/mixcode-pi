@@ -7,6 +7,8 @@ interface MixCodeTuiDebugState {
   theme: string;
   overlays: {
     quitConfirmOpen: boolean;
+    deleteAllSessionsConfirmOpen: boolean;
+    closeAllSessionsConfirmOpen: boolean;
     commandPaletteOpen: boolean;
     commandPalette: MixCodeState["commandPalette"];
     tabJumpOpen: boolean;
@@ -56,6 +58,8 @@ export function createTuiDebugState(state: MixCodeState): MixCodeTuiDebugState {
     theme: state.theme,
     overlays: {
       quitConfirmOpen: state.quitConfirmOpen,
+      deleteAllSessionsConfirmOpen: state.deleteAllSessionsConfirmOpen,
+      closeAllSessionsConfirmOpen: state.closeAllSessionsConfirmOpen,
       commandPaletteOpen: state.commandPaletteOpen,
       commandPalette: state.commandPalette,
       tabJumpOpen: state.tabJumpOpen,

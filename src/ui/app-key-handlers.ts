@@ -19,7 +19,7 @@ import {
 } from "../core/overlays.js";
 import type { MixCodeState } from "../core/types.js";
 import { pushToast } from "../core/toast.js";
-import { getActiveTab } from "../core/tabs.js";
+import { activateTab, clampHomeSelectedTabIndex, getActiveTab } from "../core/tabs.js";
 import { armPendingEscape, clearPendingEscape, hasPendingEscape } from "./app-actions.js";
 import { isPendingEscapeActive } from "../core/escape.js";
 import {
@@ -171,6 +171,81 @@ export function handleQuitConfirmKey(
       showErrorOverlay(tui, error);
     });
     tui.requestRender();
+    return true;
+  }
+  return true;
+}
+
+// Guards /delete-all-sessions (destructive, closes every tab and deletes every
+// session file) behind a Y/N step, mirroring handleQuitConfirmKey. Unlike quit,
+// the app keeps running afterward, so the confirmed deletion must also thread
+// onStateChanged through to persist the now-empty tab list (see
+// workspace-overlay.ts's handleDeleteConfirmKey for the same async+persist shape).
+export function handleDeleteAllSessionsConfirmKey(
+  state: MixCodeState,
+  data: string,
+  tui: OverlayTui,
+  runtime?: MixCodeKeyRuntime,
+  onStateChanged?: (state: MixCodeState) => void | Promise<void>,
+): boolean {
+  if (matchesKey(data, "escape") || data.toLowerCase() === "n") {
+    state.deleteAllSessionsConfirmOpen = false;
+    closeAppOverlay(tui);
+    tui.requestRender();
+    return true;
+  }
+  if (data.toLowerCase() === "y") {
+    if (!runtime?.deleteAllTabs) throw new Error("Deleting all sessions requires runtime support");
+    const confirmedRuntime = runtime;
+    state.deleteAllSessionsConfirmOpen = false;
+    closeAppOverlay(tui);
+    void (async () => {
+      // Call through confirmedRuntime.deleteAllTabs() (not a detached function
+      // reference) so `this` inside the real MixCodeRuntime method still
+      // resolves — deleteAllTabs reads `this.tabs` internally.
+      await confirmedRuntime.deleteAllTabs!();
+      state.tabs.length = 0;
+      activateTab(state, "config");
+      clampHomeSelectedTabIndex(state);
+      await onStateChanged?.(state);
+      tui.requestRender();
+    })().catch((error: unknown) => showErrorOverlay(tui, error));
+    return true;
+  }
+  return true;
+}
+
+// Same shape as handleDeleteAllSessionsConfirmKey, guarding /close-all-sessions
+// (non-destructive: tabs close but session files are kept, unlike delete-all).
+export function handleCloseAllSessionsConfirmKey(
+  state: MixCodeState,
+  data: string,
+  tui: OverlayTui,
+  runtime?: MixCodeKeyRuntime,
+  onStateChanged?: (state: MixCodeState) => void | Promise<void>,
+): boolean {
+  if (matchesKey(data, "escape") || data.toLowerCase() === "n") {
+    state.closeAllSessionsConfirmOpen = false;
+    closeAppOverlay(tui);
+    tui.requestRender();
+    return true;
+  }
+  if (data.toLowerCase() === "y") {
+    if (!runtime?.closeAllTabs) throw new Error("Closing all sessions requires runtime support");
+    const confirmedRuntime = runtime;
+    state.closeAllSessionsConfirmOpen = false;
+    closeAppOverlay(tui);
+    void (async () => {
+      // Call through confirmedRuntime.closeAllTabs() (not a detached function
+      // reference) so `this` inside the real MixCodeRuntime method still
+      // resolves — closeAllTabs reads `this.tabs` internally.
+      await confirmedRuntime.closeAllTabs!();
+      state.tabs.length = 0;
+      activateTab(state, "config");
+      clampHomeSelectedTabIndex(state);
+      await onStateChanged?.(state);
+      tui.requestRender();
+    })().catch((error: unknown) => showErrorOverlay(tui, error));
     return true;
   }
   return true;

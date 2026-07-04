@@ -12,15 +12,17 @@ import { pushToast } from "../core/toast.js";
 import { getKnownSkillsFromTab, getPromptTemplatesFromTab } from "./app-submit.js";
 import { activateTab, getActiveTab, nextTabId } from "../core/tabs.js";
 import type { MixCodeState } from "../core/types.js";
-import { clearPendingEscape, openQuitConfirm } from "./app-actions.js";
+import { clearPendingEscape, openCloseAllSessionsConfirm, openDeleteAllSessionsConfirm, openQuitConfirm } from "./app-actions.js";
 import { insertEditorText } from "./app-editor.js";
 import { pasteDetector } from "./paste-detect.js";
 import {
   canOpenCommandPalette,
   handleChatScrollKey,
   handleChromeMouseInput,
+  handleCloseAllSessionsConfirmKey,
   handleCommandPaletteKey,
   handleChatSelectionMouseInput,
+  handleDeleteAllSessionsConfirmKey,
   handleInputSelectionMouseInput,
   handleMouseInput,
   handlePreviewKey,
@@ -211,6 +213,18 @@ export function handleMixCodeKeyInput(
     return { consume: true };
   }
   if (state.quitConfirmOpen && handleQuitConfirmKey(state, data, tui, runtime)) {
+    return { consume: true };
+  }
+  if (
+    state.deleteAllSessionsConfirmOpen &&
+    handleDeleteAllSessionsConfirmKey(state, data, tui, runtime, onStateChanged)
+  ) {
+    return { consume: true };
+  }
+  if (
+    state.closeAllSessionsConfirmOpen &&
+    handleCloseAllSessionsConfirmKey(state, data, tui, runtime, onStateChanged)
+  ) {
     return { consume: true };
   }
   if (matchesKey(data, "ctrl+q")) {

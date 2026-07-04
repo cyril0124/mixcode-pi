@@ -281,6 +281,8 @@ export interface MixCodeState {
   activeTabId: string;
   packageUpdates: string[];
   quitConfirmOpen: boolean;
+  deleteAllSessionsConfirmOpen: boolean;
+  closeAllSessionsConfirmOpen: boolean;
   commandPaletteOpen: boolean;
   commandPalette: CommandPaletteState;
   extensionManager: ExtensionManagerPanelState;

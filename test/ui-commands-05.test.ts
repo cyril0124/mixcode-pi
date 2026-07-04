@@ -241,10 +241,198 @@ test("submitted input deletes a single session or all sessions through runtime",
   assert.deepEqual(state.tabs, []);
   assert.equal(state.activeTabId, "config");
 
+  // /delete-all-sessions now opens a Y/N confirmation instead of deleting
+  // immediately, guarding against accidental execution.
   await handleSubmittedInput(state, runtime, "/delete-all-sessions", tui);
-  assert.deepEqual(deleted, ["s2", "*"]);
+  assert.deepEqual(deleted, ["s2"]);
+  assert.equal(state.deleteAllSessionsConfirmOpen, true);
+
+  assert.deepEqual(handleMixCodeKeyInput(state, "y", tui, undefined, runtime), {
+    consume: true,
+  });
+  await waitFor(async () => assert.deepEqual(deleted, ["s2", "*"]));
+  assert.equal(state.deleteAllSessionsConfirmOpen, false);
   assert.deepEqual(state.tabs, []);
   assert.equal(state.activeTabId, "config");
+});
+
+test("delete-all-sessions confirmation cancel (n or Escape) leaves tabs untouched", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"), createTab(2, "s2", "/repo"));
+  state.activeTabId = "s1";
+  const deleted: string[] = [];
+  const runtime = {
+    getTab: () => undefined,
+    deleteAllTabs: async () => deleted.push("*"),
+  } as unknown as MixCodeRuntime;
+  // showOverlay must return a handle with `hide` so hasAnyOverlay(tui) reports
+  // true while the confirm overlay is open (needed for the Escape-key path,
+  // which routes through the shared escape dispatcher before reaching the
+  // deleteAllSessionsConfirmOpen check).
+  let overlayOpen = false;
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => {
+      overlayOpen = true;
+      return { hide: () => (overlayOpen = false) } as never;
+    },
+    hasOverlay: () => overlayOpen,
+  };
+
+  await handleSubmittedInput(state, runtime, "/delete-all-sessions", tui);
+  assert.equal(state.deleteAllSessionsConfirmOpen, true);
+
+  assert.deepEqual(handleMixCodeKeyInput(state, "n", tui, undefined, runtime), {
+    consume: true,
+  });
+  assert.equal(state.deleteAllSessionsConfirmOpen, false);
+  assert.deepEqual(deleted, []);
+  assert.deepEqual(
+    state.tabs.map((tab) => tab.sessionId),
+    ["s1", "s2"],
+  );
+
+  await handleSubmittedInput(state, runtime, "/delete-all-sessions", tui);
+  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime), {
+    consume: true,
+  });
+  assert.equal(state.deleteAllSessionsConfirmOpen, false);
+  assert.deepEqual(deleted, []);
+  assert.equal(state.tabs.length, 2);
+});
+
+test("submitted input closes all sessions through runtime after Y/N confirmation", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"), createTab(2, "s2", "/repo"));
+  state.activeTabId = "s1";
+  const closedAll: string[] = [];
+  const runtime = {
+    getTab: () => undefined,
+    closeAllTabs: async () => closedAll.push("*"),
+  } as unknown as MixCodeRuntime;
+  const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
+
+  // /close-all-sessions opens the same kind of Y/N confirmation as
+  // /delete-all-sessions, but confirming calls closeAllTabs (tabs close,
+  // session files are kept) instead of deleteAllTabs.
+  await handleSubmittedInput(state, runtime, "/close-all-sessions", tui);
+  assert.deepEqual(closedAll, []);
+  assert.equal(state.closeAllSessionsConfirmOpen, true);
+  assert.equal(state.tabs.length, 2);
+
+  assert.deepEqual(handleMixCodeKeyInput(state, "y", tui, undefined, runtime), {
+    consume: true,
+  });
+  await waitFor(async () => assert.deepEqual(closedAll, ["*"]));
+  assert.equal(state.closeAllSessionsConfirmOpen, false);
+  assert.deepEqual(state.tabs, []);
+  assert.equal(state.activeTabId, "config");
+});
+
+// Regression coverage: MixCodeRuntime.deleteAllTabs()/closeAllTabs() are real
+// class methods that read `this.tabs` internally. Detaching either method from
+// its runtime instance before calling it (e.g. `const fn = runtime.deleteAllTabs;
+// fn()`) loses `this` and throws "Cannot read properties of undefined (reading
+// 'tabs')" — this shipped once (fixed by always calling `runtime.xxx()` through
+// the object). Arrow-function mocks never catch this because arrow functions
+// have no own `this`, so these two tests use real prototype methods instead.
+test("delete-all-sessions confirmation calls runtime.deleteAllTabs bound to the runtime instance", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"), createTab(2, "s2", "/repo"));
+  state.activeTabId = "s1";
+  class FakeRuntime {
+    tabs = new Set(["s1", "s2"]);
+    getTab() {
+      return undefined;
+    }
+    async deleteAllTabs() {
+      this.tabs.clear();
+    }
+  }
+  const fakeRuntime = new FakeRuntime();
+  const runtime = fakeRuntime as unknown as MixCodeRuntime;
+  const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
+
+  await handleSubmittedInput(state, runtime, "/delete-all-sessions", tui);
+  assert.equal(state.deleteAllSessionsConfirmOpen, true);
+
+  assert.deepEqual(handleMixCodeKeyInput(state, "y", tui, undefined, runtime), {
+    consume: true,
+  });
+  await waitFor(async () => assert.equal(fakeRuntime.tabs.size, 0));
+  assert.equal(state.deleteAllSessionsConfirmOpen, false);
+  assert.deepEqual(state.tabs, []);
+  assert.equal(state.activeTabId, "config");
+});
+
+test("close-all-sessions confirmation calls runtime.closeAllTabs bound to the runtime instance", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"), createTab(2, "s2", "/repo"));
+  state.activeTabId = "s1";
+  class FakeRuntime {
+    tabs = new Set(["s1", "s2"]);
+    getTab() {
+      return undefined;
+    }
+    async closeAllTabs() {
+      this.tabs.clear();
+    }
+  }
+  const fakeRuntime = new FakeRuntime();
+  const runtime = fakeRuntime as unknown as MixCodeRuntime;
+  const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
+
+  await handleSubmittedInput(state, runtime, "/close-all-sessions", tui);
+  assert.equal(state.closeAllSessionsConfirmOpen, true);
+
+  assert.deepEqual(handleMixCodeKeyInput(state, "y", tui, undefined, runtime), {
+    consume: true,
+  });
+  await waitFor(async () => assert.equal(fakeRuntime.tabs.size, 0));
+  assert.equal(state.closeAllSessionsConfirmOpen, false);
+  assert.deepEqual(state.tabs, []);
+  assert.equal(state.activeTabId, "config");
+});
+
+test("close-all-sessions confirmation cancel (n or Escape) leaves tabs untouched", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"), createTab(2, "s2", "/repo"));
+  state.activeTabId = "s1";
+  const closedAll: string[] = [];
+  const runtime = {
+    getTab: () => undefined,
+    closeAllTabs: async () => closedAll.push("*"),
+  } as unknown as MixCodeRuntime;
+  let overlayOpen = false;
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => {
+      overlayOpen = true;
+      return { hide: () => (overlayOpen = false) } as never;
+    },
+    hasOverlay: () => overlayOpen,
+  };
+
+  await handleSubmittedInput(state, runtime, "/close-all-sessions", tui);
+  assert.equal(state.closeAllSessionsConfirmOpen, true);
+
+  assert.deepEqual(handleMixCodeKeyInput(state, "n", tui, undefined, runtime), {
+    consume: true,
+  });
+  assert.equal(state.closeAllSessionsConfirmOpen, false);
+  assert.deepEqual(closedAll, []);
+  assert.deepEqual(
+    state.tabs.map((tab) => tab.sessionId),
+    ["s1", "s2"],
+  );
+
+  await handleSubmittedInput(state, runtime, "/close-all-sessions", tui);
+  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime), {
+    consume: true,
+  });
+  assert.equal(state.closeAllSessionsConfirmOpen, false);
+  assert.deepEqual(closedAll, []);
+  assert.equal(state.tabs.length, 2);
 });
 
 test("new-session rolls back the tab and active id when runtime.createTab fails", async () => {

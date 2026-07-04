@@ -19,6 +19,8 @@ import {
   applyModelSelection,
   applyThinkingLevel,
   applyWorkdirSelection,
+  openCloseAllSessionsConfirm,
+  openDeleteAllSessionsConfirm,
   reloadRuntimeModels,
   showSystemMessageOrToast,
 } from "./app-actions.js";
@@ -208,10 +210,18 @@ export async function handleSubmittedInput(
     await runtime.deleteTab(active!.sessionId);
     closeAgentTab(state, active!.sessionId);
   } else if (parsed.command === "delete-all-sessions") {
-    await runtime.deleteAllTabs();
-    state.tabs.length = 0;
-    activateTab(state, "config");
-    clampHomeSelectedTabIndex(state);
+    // Destructive (closes every tab and deletes every session file): gate
+    // behind a Y/N confirmation instead of running immediately. The actual
+    // deletion happens in handleDeleteAllSessionsConfirmKey once confirmed.
+    openDeleteAllSessionsConfirm(state, tui);
+    await onStateChanged?.(state);
+    return;
+  } else if (parsed.command === "close-all-sessions") {
+    // Same Y/N gate as delete-all-sessions; the confirmed close happens in
+    // handleCloseAllSessionsConfirmKey (keeps session files, unlike delete).
+    openCloseAllSessionsConfirm(state, tui);
+    await onStateChanged?.(state);
+    return;
   } else if (parsed.command === "save-workspace") {
     if (!workspaceFile) throw new Error("Workspace file is not configured");
     const name = parsed.args.trim();
@@ -492,6 +502,7 @@ function configScopedCommand(command: string | undefined): boolean {
     command === "new-session" ||
     command === "resume" ||
     command === "delete-all-sessions" ||
+    command === "close-all-sessions" ||
     command === "save-workspace" ||
     command === "restore-workspace" ||
     command === "delete-workspace" ||

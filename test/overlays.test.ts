@@ -234,6 +234,7 @@ test("command palette state filters, moves, accepts, and closes", () => {
       "/hotkeys",
       "/quit",
       "/exit",
+      "/close-all-sessions",
       "/delete-all-sessions",
     ],
   );

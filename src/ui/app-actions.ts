@@ -16,6 +16,8 @@ import { pushToast } from "../core/toast.js";
 import type { MixCodeState } from "../core/types.js";
 import {
   quitOverlayOptions,
+  renderCloseAllSessionsConfirm,
+  renderDeleteAllSessionsConfirm,
   renderQuitConfirm,
   showLinesOverlay,
   showNoticeTextOverlay,
@@ -61,6 +63,28 @@ export function openQuitConfirm(state: MixCodeState, tui: OverlayTui): void {
   // openOverlay enforces mutual exclusion (closes any active overlay first).
   openOverlay(state, "quit-confirm");
   showLinesOverlay(tui, (width) => renderQuitConfirm(width, themeForId(state.theme)), quitOverlayOptions());
+}
+
+export function openDeleteAllSessionsConfirm(state: MixCodeState, tui: OverlayTui): void {
+  // Same mutual-exclusion + centered-panel mechanism as openQuitConfirm, guarding
+  // /delete-all-sessions (a destructive, hard-to-undo action) behind a Y/N step.
+  openOverlay(state, "delete-all-sessions-confirm");
+  showLinesOverlay(
+    tui,
+    (width) => renderDeleteAllSessionsConfirm(width, themeForId(state.theme)),
+    quitOverlayOptions(),
+  );
+}
+
+export function openCloseAllSessionsConfirm(state: MixCodeState, tui: OverlayTui): void {
+  // Same shape as openDeleteAllSessionsConfirm, but for the non-destructive
+  // /close-all-sessions (tabs close, session files are kept).
+  openOverlay(state, "close-all-sessions-confirm");
+  showLinesOverlay(
+    tui,
+    (width) => renderCloseAllSessionsConfirm(width, themeForId(state.theme)),
+    quitOverlayOptions(),
+  );
 }
 
 export function applyModelSelection(
