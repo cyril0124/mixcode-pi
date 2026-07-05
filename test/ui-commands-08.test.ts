@@ -12,6 +12,7 @@ import {
   renderConfig,
   renderInputMeta,
   renderPickerOverlay,
+  stripAnsi,
   tabBarHitRegions,
   setTheme,
   themeForId,
@@ -334,7 +335,7 @@ test("tab jump overlay filters and activates selected tab from keyboard", () => 
   assert.deepEqual(handleMixCodeKeyInput(state, "B", tui), { consume: true });
   assert.deepEqual(handleMixCodeKeyInput(state, "e", tui), { consume: true });
   assert.equal(state.tabJumpQuery, "Be");
-  assert.match(overlays.at(-1) ?? "", /Beta/);
+  assert.match(stripAnsi(overlays.at(-1) ?? ""), /Beta/);
   assert.deepEqual(handleMixCodeKeyInput(state, "\u007f", tui), { consume: true });
   assert.equal(state.tabJumpQuery, "B");
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[B", tui), { consume: true });

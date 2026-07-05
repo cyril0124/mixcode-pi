@@ -12,6 +12,7 @@ import {
   renderConfig,
   renderInputMeta,
   renderPickerOverlay,
+  stripAnsi,
   tabBarHitRegions,
   setTheme,
   themeForId,
@@ -133,7 +134,7 @@ test("submitted input opens local pickers and picker keys apply selections", asy
     { consume: true },
   );
   assert.deepEqual(handleMixCodeKeyInput(state, "p", tui), { consume: true });
-  assert.match(overlays.at(-1) ?? "", /openai\/gpt-4.1/);
+  assert.match(stripAnsi(overlays.at(-1) ?? ""), /openai\/gpt-4.1/);
   assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui), { consume: true });
   assert.equal(tab.model.modelId, "gpt-4.1");
   assert.equal(state.picker, undefined);
@@ -293,7 +294,7 @@ test("workdir picker completes directories before applying selection", async () 
     assert.equal(state.picker?.query, "");
     assert.equal(state.picker?.browsingDir, dir);
     assert.deepEqual(handleMixCodeKeyInput(state, "a", tui), { consume: true });
-    assert.match(renderPickerOverlay(state, 80).join("\n"), /alpha\//);
+    assert.match(stripAnsi(renderPickerOverlay(state, 80).join("\n")), /alpha\//);
     // Tab navigates into the selected directory
     assert.deepEqual(handleMixCodeKeyInput(state, "\t", tui), { consume: true });
     assert.equal(state.picker?.browsingDir, join(dir, "alpha"));

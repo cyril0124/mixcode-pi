@@ -1,5 +1,10 @@
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import {
+  fuzzyMatchAllPositions,
+  fuzzyMatchPositions,
+  substringMatchPositions,
+} from "../../core/fuzzy.js";
+import {
   commandPaletteEntriesWithExtensions,
   filterTabJumpEntries,
   previewTitle,
@@ -10,8 +15,14 @@ import { tabHasPendingUserInteraction } from "../../core/user-interactions.js";
 import { type MixCodeTheme, themeForId } from "../themes.js";
 import { tabStatusGlyph } from "./chrome.js";
 import { activeRenderTheme, renderWithTheme } from "./context.js";
+import { highlightRanges } from "./highlight.js";
 import { centerLine } from "./layout.js";
 import { box, overlayPanel, padLine, panelBox, renderBoxTop } from "./primitives.js";
+
+/** Shared match style for dynamic fuzzy-search highlighting across overlays: bold + accent. */
+function matchHighlight(text: string): string {
+  return activeRenderTheme.bold(activeRenderTheme.accent(text));
+}
 
 export function renderPreviewOverlay(
   tab: MixCodeTabInfo,
@@ -376,6 +387,10 @@ function renderCommandPaletteInner(
   if (!entries.length) {
     lines.push(activeRenderTheme.dim("  No matching commands"));
   } else {
+    // Highlight each column (label/command/description) independently against
+    // the typed query, so matched characters light up wherever they appear —
+    // even in columns not used by the filter's own match decision (desc).
+    const paletteQuery = state.commandPalette.query.trim();
     entries.forEach((entry, index) => {
       const isSelected = index === state.commandPalette.selectedIndex;
       const marker = isSelected ? "› " : "  ";
@@ -383,14 +398,28 @@ function renderCommandPaletteInner(
       const cmd = truncateToWidth(entry.command, cmdCol, "…");
       const desc = truncateToWidth(entry.description, descCol, "…");
 
-      const labelPadded = label + " ".repeat(Math.max(0, labelCol - visibleWidth(label)));
-      const cmdPadded = cmd + " ".repeat(Math.max(0, cmdCol - visibleWidth(cmd)));
+      const coloredLabel = highlightRanges(
+        label,
+        fuzzyMatchAllPositions(paletteQuery, label),
+        matchHighlight,
+      );
+      const coloredCmd = highlightRanges(
+        cmd,
+        fuzzyMatchAllPositions(paletteQuery, cmd),
+        matchHighlight,
+        activeRenderTheme.accent,
+      );
+      const coloredDesc = highlightRanges(
+        desc,
+        fuzzyMatchAllPositions(paletteQuery, desc),
+        matchHighlight,
+        activeRenderTheme.dim,
+      );
 
-      const coloredLabel = labelPadded;
-      const coloredCmd = activeRenderTheme.accent(cmdPadded);
-      const coloredDesc = activeRenderTheme.dim(desc);
+      const labelPadded = coloredLabel + " ".repeat(Math.max(0, labelCol - visibleWidth(label)));
+      const cmdPadded = coloredCmd + " ".repeat(Math.max(0, cmdCol - visibleWidth(cmd)));
 
-      const row = `${marker}${coloredLabel}  ${coloredCmd}  ${coloredDesc}`;
+      const row = `${marker}${labelPadded}  ${cmdPadded}  ${coloredDesc}`;
 
       if (isSelected) {
         lines.push(activeRenderTheme.selection(padLine(row, innerWidth)));
@@ -423,7 +452,7 @@ function renderTabJumpOverlayInner(state: MixCodeState, width: number): string[]
     lines.push(activeRenderTheme.dim("No matching tabs"));
   } else {
     entries.forEach((entry, index) => {
-      const line = renderTabJumpRow(entry, index === state.tabJumpIndex, innerWidth);
+      const line = renderTabJumpRow(entry, index === state.tabJumpIndex, innerWidth, state.tabJumpQuery);
       lines.push(
         index === state.tabJumpIndex ? activeRenderTheme.selection(padLine(line, innerWidth)) : line,
       );
@@ -440,6 +469,7 @@ function renderTabJumpRow(
   entry: ReturnType<typeof filterTabJumpEntries>[number],
   selected: boolean,
   width: number,
+  query: string,
 ): string {
   const cursor = selected ? activeRenderTheme.accent("›") : " ";
   const status = formatTabJumpStatus(entry);
@@ -448,7 +478,13 @@ function renderTabJumpRow(
   const id = activeRenderTheme.dim(displayId);
   const idWidth = visibleWidth(displayId);
   const titleWidth = Math.max(1, width - leftWidth - idWidth - 2);
-  const title = formatTabJumpTitle(entry, truncateToWidth(entry.label, titleWidth, "..."));
+  const truncatedTitle = truncateToWidth(entry.label, titleWidth, "...");
+  const title = highlightRanges(
+    truncatedTitle,
+    fuzzyMatchAllPositions(query, truncatedTitle),
+    matchHighlight,
+    tabJumpBaseStyle(entry),
+  );
   const left = `${cursor} ${status}  ${title}`;
   const gap = Math.max(1, width - visibleWidth(left) - idWidth);
   return `${left}${" ".repeat(gap)}${id}`;
@@ -469,14 +505,13 @@ function formatTabJumpId(id: string, label: string, availableWidth: number): str
   return id.slice(0, 8);
 }
 
-function formatTabJumpTitle(
+function tabJumpBaseStyle(
   entry: ReturnType<typeof filterTabJumpEntries>[number],
-  title: string,
-): string {
-  if (entry.question) return activeRenderTheme.tool(title);
-  if (entry.busy) return activeRenderTheme.accent(title);
-  if (entry.done) return activeRenderTheme.done(title);
-  return title;
+): (text: string) => string {
+  if (entry.question) return activeRenderTheme.tool;
+  if (entry.busy) return activeRenderTheme.accent;
+  if (entry.done) return activeRenderTheme.done;
+  return (text: string) => text;
 }
 
 export function renderPickerOverlay(state: MixCodeState, width: number): string[] {
@@ -502,8 +537,19 @@ function renderPickerOverlayInner(state: MixCodeState, width: number): string[] 
   if (!items.length) {
     lines.push("No matching items");
   } else {
+    const pickerQuery = picker.query.trim();
     items.forEach((item, index) => {
-      const line = `${index === picker.selectedIndex ? ">" : " "} ${item.label}  ${item.description}`;
+      const label = highlightRanges(
+        item.label,
+        fuzzyMatchPositions(pickerQuery, item.label),
+        matchHighlight,
+      );
+      const description = highlightRanges(
+        item.description,
+        fuzzyMatchPositions(pickerQuery, item.description),
+        matchHighlight,
+      );
+      const line = `${index === picker.selectedIndex ? ">" : " "} ${label}  ${description}`;
       lines.push(
         index === picker.selectedIndex
           ? activeRenderTheme.selection(padLine(line, Math.max(1, width - 2)))
@@ -537,9 +583,17 @@ function renderWorkdirPickerOverlay(
   if (!items.length) {
     lines.push(activeRenderTheme.dim("  (empty directory)"));
   } else {
+    // Workdir entries are filtered by plain substring `.includes()`, not fuzzy
+    // subsequence matching, so highlight the same way for accurate feedback.
+    const dirQuery = picker.query.trim();
     items.forEach((item, index) => {
       const icon = item.completeValue ? "\u{1F4C1}" : "\u{1F4C4}";
-      const line = `${index === picker.selectedIndex ? ">" : " "} ${icon} ${item.label}  ${activeRenderTheme.dim(item.description)}`;
+      const label = highlightRanges(
+        item.label,
+        substringMatchPositions(dirQuery, item.label),
+        matchHighlight,
+      );
+      const line = `${index === picker.selectedIndex ? ">" : " "} ${icon} ${label}  ${activeRenderTheme.dim(item.description)}`;
       lines.push(
         index === picker.selectedIndex
           ? activeRenderTheme.selection(padLine(line, innerWidth))

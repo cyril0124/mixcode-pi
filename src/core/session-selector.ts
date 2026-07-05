@@ -1,6 +1,6 @@
 import type { SessionInfo } from "@earendil-works/pi-coding-agent";
 
-import { fuzzyMatch } from "./fuzzy.js";
+import { fuzzyMatch, fuzzyMatchPositions, substringMatchPositions } from "./fuzzy.js";
 
 // --- Types ---
 
@@ -289,6 +289,39 @@ export function getFilteredSessions(state: SessionSelectorState): FlatSessionNod
 
 function compareSessionModifiedDesc(left: SessionInfo, right: SessionInfo): number {
   return right.modified.getTime() - left.modified.getTime();
+}
+
+/**
+ * Match positions within the *displayed* row text (session name or first
+ * message), for highlighting. Independent of matchSession's full search blob
+ * (id + name + allMessagesText + cwd): a session can match via a field that
+ * isn't shown in this row (e.g. a buried chat message), in which case this
+ * simply returns no positions — the row still appears because
+ * getFilteredSessions already decided inclusion via matchSession.
+ *
+ * ponytail: phrase tokens are matched against the raw display text rather
+ * than the whitespace-collapsed text matchSession searches; a phrase with
+ * unusual internal spacing may not highlight. Add normalization if reported.
+ */
+export function sessionDisplayHighlightPositions(query: string, displayText: string): number[] {
+  const trimmed = query.trim();
+  if (!trimmed) return [];
+  const parsed = parseSearchQuery(trimmed);
+  if (parsed.mode === "regex") {
+    if (!parsed.regex) return [];
+    const match = displayText.match(parsed.regex);
+    if (!match || match.index === undefined || match[0].length === 0) return [];
+    return Array.from({ length: match[0].length }, (_, i) => match.index! + i);
+  }
+  const positions = new Set<number>();
+  for (const token of parsed.tokens) {
+    const tokenPositions =
+      token.kind === "phrase"
+        ? substringMatchPositions(token.value, displayText)
+        : fuzzyMatchPositions(token.value, displayText);
+    for (const pos of tokenPositions) positions.add(pos);
+  }
+  return [...positions].sort((a, b) => a - b);
 }
 
 export function toggleSessionSelectorScope(state: SessionSelectorState): void {

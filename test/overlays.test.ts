@@ -149,7 +149,7 @@ test("tab jump state opens, filters, moves, accepts, and closes", () => {
     ["s1"],
   );
   assert.equal(state.tabJumpIndex, 0);
-  assert.match(renderTabJumpOverlay(state, 80).join("\n"), /alpha/);
+  assert.match(stripAnsi(renderTabJumpOverlay(state, 80).join("\n")), /alpha/);
   assert.equal(acceptTabJumpSelection(state), "s1");
   assert.equal(state.activeTabId, "s1");
   assert.equal(alpha.unreadDone, false);
@@ -274,7 +274,7 @@ test("command palette state filters, moves, accepts, and closes", () => {
     commandPaletteEntries(state).map((entry) => entry.command),
     [],
   );
-  assert.match(renderCommandPalette(state, 100, extensionCommands).join("\n"), /inspect-context/);
+  assert.match(stripAnsi(renderCommandPalette(state, 100, extensionCommands).join("\n")), /inspect-context/);
   assert.equal(acceptCommandPaletteSelection(state, extensionCommands), "/inspect-context");
 
   state.availableModels = [];

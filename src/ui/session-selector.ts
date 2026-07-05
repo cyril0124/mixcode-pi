@@ -14,6 +14,7 @@ import {
   getSelectedSessionPath,
   moveSessionSelectorSelection,
   type SessionSelectorState,
+  sessionDisplayHighlightPositions,
   toggleSessionNameFilter,
   toggleSessionSelectorScope,
   updateSessionSelectorQuery,
@@ -24,6 +25,7 @@ import type { MixCodeState } from "../core/types.js";
 import { closeAppOverlay, showErrorOverlay, showLinesOverlay } from "./app-overlays.js";
 import type { MixCodeKeyRuntime, OverlayTui } from "./app-types.js";
 import { activeRenderTheme, renderWithTheme } from "./rendering/context.js";
+import { highlightRanges } from "./rendering/highlight.js";
 import { overlayPanel, padLine } from "./rendering/primitives.js";
 import { windowStart } from "./rendering/scroll-window.js";
 import { themeForId } from "./themes.js";
@@ -638,18 +640,25 @@ function renderSessionLine(
   const availableForMsg = width - 2 - prefixWidth - rightWidth;
   const truncatedMsg = truncateToWidth(normalizedMessage, Math.max(10, availableForMsg), "…");
 
-  // Style message
-  let styledMsg: string;
-  if (isConfirmingDelete) {
-    styledMsg = activeRenderTheme.danger(truncatedMsg);
-  } else if (isCurrent) {
-    styledMsg = activeRenderTheme.accent(truncatedMsg);
-  } else if (hasName) {
-    styledMsg = activeRenderTheme.warning(truncatedMsg);
-  } else {
-    styledMsg = truncatedMsg;
-  }
-  if (isSelected) styledMsg = activeRenderTheme.bold(styledMsg);
+  // Style message: base color depends on state, matched chars always get
+  // bold+accent as a sibling span (never nested inside the selected-bold
+  // wrap) — see rendering/highlight.ts for why that ordering matters.
+  const baseStyle = isConfirmingDelete
+    ? activeRenderTheme.danger
+    : isCurrent
+      ? activeRenderTheme.accent
+      : hasName
+        ? activeRenderTheme.warning
+        : (text: string) => text;
+  const restStyle = isSelected
+    ? (text: string) => activeRenderTheme.bold(baseStyle(text))
+    : baseStyle;
+  const styledMsg = highlightRanges(
+    truncatedMsg,
+    sessionDisplayHighlightPositions(selector.query, truncatedMsg),
+    (text) => activeRenderTheme.bold(activeRenderTheme.accent(text)),
+    restStyle,
+  );
 
   // Build line
   const leftPart = cursor + activeRenderTheme.dim(prefix) + styledMsg;

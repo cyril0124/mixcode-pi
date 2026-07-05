@@ -12,6 +12,7 @@ import {
   renderConfig,
   renderInputMeta,
   renderPickerOverlay,
+  stripAnsi,
   tabBarHitRegions,
   setTheme,
   themeForId,
@@ -284,13 +285,13 @@ test("global key input toggles MixCode overlays and passes through regular input
   assert.equal(state.commandPaletteOpen, true);
   assert.deepEqual(handleMixCodeKeyInput(state, "t", tui), { consume: true });
   assert.deepEqual(handleMixCodeKeyInput(state, "h", tui), { consume: true });
-  assert.match(overlays.at(-1) ?? "", /Choose Thinking Tier[\s\S]*\/thinking/);
+  assert.match(stripAnsi(overlays.at(-1) ?? ""), /Choose Thinking Tier[\s\S]*\/thinking/);
   assert.deepEqual(handleMixCodeKeyInput(state, "\t", tui), { consume: true });
-  assert.match(overlays.at(-1) ?? "", /Choose Theme[\s\S]*\/theme/);
+  assert.match(stripAnsi(overlays.at(-1) ?? ""), /Choose Theme[\s\S]*\/theme/);
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[Z", tui), { consume: true });
-  assert.match(overlays.at(-1) ?? "", /Choose Thinking Tier[\s\S]*\/thinking/);
+  assert.match(stripAnsi(overlays.at(-1) ?? ""), /Choose Thinking Tier[\s\S]*\/thinking/);
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[B", tui), { consume: true });
-  assert.match(overlays.at(-1) ?? "", /Choose Theme[\s\S]*\/theme/);
+  assert.match(stripAnsi(overlays.at(-1) ?? ""), /Choose Theme[\s\S]*\/theme/);
   assert.deepEqual(
     handleMixCodeKeyInput(state, "\r", tui, undefined, undefined, undefined, undefined, undefined, {
       executeCommand: (command: string) => {
@@ -364,7 +365,7 @@ test("global key input toggles MixCode overlays and passes through regular input
       { consume: true },
     );
   }
-  assert.match(overlays.at(-1) ?? "", /inspect-context/);
+  assert.match(stripAnsi(overlays.at(-1) ?? ""), /inspect-context/);
   assert.deepEqual(
     handleMixCodeKeyInput(state, "\r", tui, undefined, undefined, undefined, undefined, undefined, {
       executeCommand: (command: string) => {
