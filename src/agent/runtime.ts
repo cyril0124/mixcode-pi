@@ -860,6 +860,12 @@ export class MixCodeRuntime {
 
   async closeTab(sessionId: string): Promise<void> {
     const runtimeTab = this.requireTab(sessionId);
+    if (runtimeTab.agentSession.isStreaming) {
+      throw new Error("Cannot close a session while the agent is streaming");
+    }
+    if (runtimeTab.agentSession.isCompacting) {
+      throw new Error("Cannot close a session while compaction is running");
+    }
     await this.shutdownRuntimeTab(runtimeTab, { type: "session_shutdown", reason: "quit" });
     this.tabs.delete(sessionId);
   }
@@ -892,6 +898,12 @@ export class MixCodeRuntime {
 
   async deleteTab(sessionId: string): Promise<void> {
     const runtimeTab = this.requireTab(sessionId);
+    if (runtimeTab.agentSession.isStreaming) {
+      throw new Error("Cannot delete a session while the agent is streaming");
+    }
+    if (runtimeTab.agentSession.isCompacting) {
+      throw new Error("Cannot delete a session while compaction is running");
+    }
     await this.shutdownRuntimeTab(runtimeTab, { type: "session_shutdown", reason: "quit" });
     const file = runtimeTab.session.getSessionFile();
     if (file) await rm(file, { force: true });
