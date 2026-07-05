@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { spawn } from "node:child_process";
 import { existsSync, realpathSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { cwd } from "node:process";
@@ -41,7 +42,12 @@ export async function main(): Promise<void> {
   configureHttpDispatcher();
   exposeLocalPiCli();
   const repoDir = process.env.PI_PACKAGE_DIR ?? resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
-  const args = parseMainArgs(process.argv.slice(2), cwd());
+  const rawArgs = process.argv.slice(2);
+  if (shouldDelegateToRealPiCli(rawArgs, Boolean(process.stdin.isTTY))) {
+    process.exitCode = await delegateToRealPiCli(rawArgs);
+    return;
+  }
+  const args = parseMainArgs(rawArgs, cwd());
   if (args.command === "status") {
     await runStatusCommand(args);
     return;
@@ -418,6 +424,55 @@ export function exposeLocalPiCli(
     env.PATH = [binDir, ...parts].join(delimiter);
   }
   return binDir;
+}
+
+/**
+ * True when argv explicitly requests pi-coding-agent's own public non-interactive
+ * contract: --print/-p, documented as "process prompt and exit" (see `pi --help`).
+ * mixcode-pi has no equivalent flag, so this is the one stable, upstream-owned
+ * signal that an argv was built for pi's headless contract rather than a human
+ * typo or mixcode-pi's own grammar — not a private convention of any one caller.
+ *
+ * This gate is safety-critical, not just a compatibility nicety: real pi does not
+ * actually require --print to run a turn to completion — given non-TTY stdin it
+ * will execute a full agentic turn (default tools include write/edit/bash) and
+ * exit even without --print. Delegating on "argv merely looks foreign" (e.g. any
+ * argv mixcode-pi's own parser rejects) was tried and reverted after confirming it
+ * lets an unattended, non-interactive invocation with no special flags at all
+ * (`mixcode-pi "some instruction"`, redirected stdin) silently escalate into a
+ * live, fully-tooled agent turn. Requiring the explicit --print/-p contract closes
+ * that hole: without it, unrecognized argv still surfaces mixcode-pi's own
+ * "Unknown argument" error instead of ever reaching a live agent.
+ *
+ * The isTTY check additionally ensures a human's own typo at an interactive
+ * terminal still surfaces mixcode-pi's own error instead of being redirected.
+ */
+export function shouldDelegateToRealPiCli(args: string[], isTTY: boolean): boolean {
+  if (isTTY) return false;
+  return args.includes("--print") || args.includes("-p");
+}
+
+/**
+ * Runs the real pi-coding-agent CLI with the given argv, inheriting stdio so the
+ * caller sees the same output/exit-code semantics as spawning upstream `pi`
+ * directly. `options.command` defaults to "pi" (resolved via PATH); it is
+ * overridable for testing without a real pi installation.
+ */
+export async function delegateToRealPiCli(
+  args: string[],
+  options: { command?: string; env?: NodeJS.ProcessEnv } = {},
+): Promise<number> {
+  const { command = "pi", env = process.env } = options;
+  return new Promise((resolve) => {
+    const child = spawn(command, args, { stdio: "inherit", env });
+    child.on("error", (error) => {
+      process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+      resolve(1);
+    });
+    child.on("exit", (code, signal) => {
+      resolve(code ?? (signal ? 1 : 0));
+    });
+  });
 }
 
 const BINARY_ENTRY_IMPORT_FLAG = Symbol.for("mixcode-pi.binary-entry-import");

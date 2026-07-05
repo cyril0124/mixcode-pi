@@ -20,7 +20,7 @@ import {
   scopedStateDir,
   stateFileForPort,
 } from "../src/index.js";
-import { exposeLocalPiCli, parseMainArgs } from "../src/cli/main.js";
+import { delegateToRealPiCli, exposeLocalPiCli, parseMainArgs, shouldDelegateToRealPiCli } from "../src/cli/main.js";
 
 test("bootstrap creates initial state and persists it when no state exists", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-bootstrap-"));
@@ -540,4 +540,37 @@ test("cli exposes project-local pi binary for extension child processes", () => 
   assert.equal(env.PATH?.startsWith(`${binDir}:`), true);
   exposeLocalPiCli(env, new URL("../src/cli/main.ts", import.meta.url).href);
   assert.equal(env.PATH?.split(":").filter((part) => part === binDir).length, 1);
+});
+
+test("cli only delegates when argv explicitly requests --print/-p off a TTY", () => {
+  // Valid mixcode-pi grammar never delegates, TTY or not.
+  assert.equal(shouldDelegateToRealPiCli([], false), false);
+  assert.equal(shouldDelegateToRealPiCli(["--workdir", "."], false), false);
+  assert.equal(shouldDelegateToRealPiCli(["status", "--json"], false), false);
+  // Explicit --print/-p (pi-coding-agent's own "process prompt and exit" contract,
+  // see `pi --help`) off a TTY is the only thing that delegates.
+  assert.equal(shouldDelegateToRealPiCli(["-p", "--no-session", "hello"], false), true);
+  assert.equal(shouldDelegateToRealPiCli(["--mode", "json", "--print"], false), true);
+  // Regression guards for a real vulnerability found while testing: forwarding any
+  // argv mixcode-pi's parser merely rejected (without requiring --print/-p) let a
+  // bare, flagless prompt silently escalate into a live, fully-tooled pi agent
+  // turn when stdin was non-TTY — confirmed by an actual file write in manual
+  // testing. Neither shape below may delegate, even though mixcode-pi's own
+  // parser rejects both of them too.
+  assert.equal(shouldDelegateToRealPiCli(["create a file and write to it"], false), false);
+  assert.equal(shouldDelegateToRealPiCli(["--model", "anthropic/claude", "do something"], false), false);
+  assert.equal(shouldDelegateToRealPiCli(["--some-future-flag-nobody-guessed"], false), false);
+  // Same explicit --print/-p argv, but a human is at an interactive terminal:
+  // surface mixcode-pi's own error instead of silently redirecting them elsewhere.
+  assert.equal(shouldDelegateToRealPiCli(["-p", "hello"], true), false);
+});
+
+test("cli delegates argv and exit code to the real pi CLI", async () => {
+  const code = await delegateToRealPiCli(["-e", "process.exit(7)"], { command: process.execPath });
+  assert.equal(code, 7);
+});
+
+test("cli reports exit code 1 when the delegated pi command cannot be spawned", async () => {
+  const code = await delegateToRealPiCli([], { command: "definitely-not-a-real-binary-xyz" });
+  assert.equal(code, 1);
 });
