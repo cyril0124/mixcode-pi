@@ -228,12 +228,19 @@ test("runtime maps tool and thinking events into tab UI state", async () => {
     "workingStartedAt should be preserved during retry",
   );
   anyRuntime.applyEvent(runtimeTab, { type: "auto_retry_end", success: true });
+  assert.equal(tab.status, "thinking", "successful retry keeps the working state");
   anyRuntime.applyEvent(runtimeTab, { type: "auto_retry_end", success: false });
+  // A failed/cancelled retry has no continuation: the working state closes.
+  assert.equal(tab.status, "idle", "failed retry closes the working state");
+  assert.equal(tab.workingStartedAt, undefined);
   anyRuntime.applyEvent(runtimeTab, {
     type: "auto_retry_end",
     success: false,
     finalError: "provider exhausted retries",
   });
+  assert.equal(tab.status, "idle", "already-closed state stays idle");
+  // Re-enter the working state for the tool-event assertions below.
+  anyRuntime.applyEvent(runtimeTab, { type: "turn_start" });
   assert.equal(tab.title, "Renamed Session");
   assert.equal(tab.thinkingLevel, "high");
   assert.ok(runtimeTab.chat.some((line) => line.text.includes("Compaction started (manual)")));

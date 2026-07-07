@@ -213,6 +213,11 @@ export interface RuntimeTab {
   };
   /** Start time from the just-ended run, reused if SDK post-run compaction starts immediately. */
   postRunWorkingStartedAt?: string;
+  /**
+   * One-shot marker set at compaction_end (willRetry): the SDK will continue
+   * the run next, so the following agent_start must not restart the timer.
+   */
+  sdkRunContinuation?: boolean;
   /** Set by mid-turn compaction hook when compaction pressure terminates the tool loop */
   pendingContextLimitCompaction?: boolean;
   /** Skip the next pending-message flush after auto-compaction takes over */

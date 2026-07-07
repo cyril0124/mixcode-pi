@@ -163,6 +163,16 @@ async function continueAgentSession(agentSession: RuntimeTab["agentSession"]): P
   }
 }
 
+/**
+ * Consume the one-shot SDK continuation marker. Reading it always clears it so
+ * a marker from an interrupted continuation cannot leak into a later fresh run.
+ */
+function consumeSdkRunContinuation(runtimeTab: RuntimeTab): boolean {
+  const continuation = runtimeTab.sdkRunContinuation === true;
+  runtimeTab.sdkRunContinuation = false;
+  return continuation;
+}
+
 export function applyEvent(
   runtimeTab: RuntimeTab,
   event: RuntimeEvent,
@@ -174,15 +184,24 @@ export function applyEvent(
     return;
   }
   switch (event.type) {
-    case "agent_start":
+    case "agent_start": {
       runtimeTab.currentRunChatStartIndex = runtimeTab.chat.length;
       runtimeTab.postRunWorkingStartedAt = undefined;
-      // Fresh run restarts the timer; autoCompact continuation preserves it (??=).
+      // Consume the marker unconditionally (no short-circuit leak).
+      const sdkContinuation = consumeSdkRunContinuation(runtimeTab);
+      // Fresh run restarts the timer; continuations of the same perceived work
+      // preserve it (??=): the mid-turn auto-compact cycle, an auto-retry
+      // continuation (retryInfo still armed), and the SDK compact-and-retry
+      // continue (willRetry marker).
       setTabStatus(runtimeTab.tab, "running", {
-        restart: !runtimeTab.autoCompactCycleActive,
+        restart:
+          !runtimeTab.autoCompactCycleActive &&
+          !runtimeTab.tab.retryInfo &&
+          !sdkContinuation,
       });
       clearPendingEscape(runtimeTab.tab);
       break;
+    }
     case "turn_start":
       runtimeTab.currentRunChatStartIndex ??= runtimeTab.chat.length;
       setTabStatus(runtimeTab.tab, "thinking");
@@ -270,7 +289,14 @@ export function applyEvent(
       }
       break;
     case "compaction_end": {
-      const continuingAfterAutoCompaction = Boolean(event.result && runtimeTab.autoCompactCycleActive);
+      // Two continuation shapes keep the timer running: MixCode's own mid-turn
+      // cycle (autoCompactCycleActive) and the SDK's compact-and-retry
+      // (willRetry: the SDK calls agent.continue() right after this event).
+      const sdkWillContinue = Boolean(event.result && event.willRetry);
+      if (sdkWillContinue) runtimeTab.sdkRunContinuation = true;
+      const continuingAfterAutoCompaction = Boolean(
+        event.result && (runtimeTab.autoCompactCycleActive || sdkWillContinue),
+      );
       const nextStatus: typeof runtimeTab.tab.status = event.errorMessage
         ? runtimeTab.autoCompactCycleActive
           ? "idle"
@@ -312,7 +338,17 @@ export function applyEvent(
       runtimeTab.tab.thinkingLevel = event.level;
       break;
     case "auto_retry_start":
-      setTabStatus(runtimeTab.tab, "thinking", { preserveStartedAt: true });
+      // agent_end already closed the timer before the SDK decided to retry.
+      // Restore the just-ended run's stamp (mirror compaction_start) so the
+      // retry countdown and its continuation keep counting from the original
+      // prompt instead of re-zeroing the spinner elapsed time.
+      setTabStatus(runtimeTab.tab, "thinking", {
+        startedAt:
+          runtimeTab.tab.workingStartedAt ??
+          runtimeTab.postRunWorkingStartedAt ??
+          new Date().toISOString(),
+      });
+      runtimeTab.postRunWorkingStartedAt = undefined;
       runtimeTab.tab.retryInfo = {
         attempt: event.attempt,
         maxAttempts: event.maxAttempts,
@@ -326,11 +362,19 @@ export function applyEvent(
       break;
     case "auto_retry_end":
       runtimeTab.tab.retryInfo = undefined;
-      if (!event.success)
+      if (!event.success) {
+        // No continuation follows a failed/cancelled retry. Close the restored
+        // timer into a measured duration unless another path (abortTab's retry
+        // branch, or the final attempt's agent_end) already left the working
+        // state and recorded it.
+        if (runtimeTab.tab.status === "running" || runtimeTab.tab.status === "thinking") {
+          setTabStatus(runtimeTab.tab, "idle");
+        }
         runtimeTab.chat.push({
           role: "system",
           text: `Error: Retry failed: ${event.finalError ?? "unknown error"}`,
         });
+      }
       break;
   }
   emitChange(event, runtimeTab);

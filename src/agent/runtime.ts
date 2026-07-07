@@ -533,6 +533,8 @@ export class MixCodeRuntime {
       return;
     }
     runtimeTab.postRunWorkingStartedAt = undefined;
+    // A fresh prompt is a fresh run: drop any stale SDK continuation marker.
+    runtimeTab.sdkRunContinuation = false;
     if (runtimeTab.agentSession.isCompacting) {
       throw new Error("Cannot prompt while compaction is running");
     }
@@ -550,7 +552,11 @@ export class MixCodeRuntime {
     if (runtimeTab.agentSession.isBashRunning) {
       throw new Error("Cannot run a shell command while another bash command is running");
     }
-    setTabStatus(runtimeTab.tab, "running", { restart: true });
+    // A streaming run owns the tab status/timer; the shell only drives them
+    // when the agent is idle (fresh stamp for a standalone shell execution).
+    if (!runtimeTab.agentSession.isStreaming) {
+      setTabStatus(runtimeTab.tab, "running", { restart: true });
+    }
     runtimeTab.tab.chatScrollOffset = 0;
     const excludeFromContext = options.excludeFromContext === true;
     const toolCallId = `user-bash-${Date.now()}-${++this.shellExecutionSequence}`;
@@ -606,14 +612,19 @@ export class MixCodeRuntime {
         excludeFromContext,
         result,
       );
-      runtimeTab.tab.status = "idle";
-      runtimeTab.tab.unreadDone = true;
-      runtimeTab.tab.lastWorkedDurationSeconds = elapsedShellSeconds(
-        runtimeTab.tab.workingStartedAt,
-        new Date(),
-      );
-      runtimeTab.tab.lastWorkedAt = new Date().toISOString();
-      runtimeTab.tab.workingStartedAt = undefined;
+      // Close the shell's own timer only when the agent didn't take over the
+      // status meanwhile: still not streaming and still in the shell's
+      // "running" state (an agent_end during the shell already closed it).
+      if (!runtimeTab.agentSession.isStreaming && runtimeTab.tab.status === "running") {
+        runtimeTab.tab.status = "idle";
+        runtimeTab.tab.unreadDone = true;
+        runtimeTab.tab.lastWorkedDurationSeconds = elapsedShellSeconds(
+          runtimeTab.tab.workingStartedAt,
+          new Date(),
+        );
+        runtimeTab.tab.lastWorkedAt = new Date().toISOString();
+        runtimeTab.tab.workingStartedAt = undefined;
+      }
       this.emitChange({ type: "extension_ui_update" }, runtimeTab);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -623,7 +634,11 @@ export class MixCodeRuntime {
         truncated: false,
         fullOutputPath: undefined,
       });
-      setTabStatus(runtimeTab.tab, "error", { discardTimer: true });
+      // Same ownership rule on the failure path: never flip a streaming run
+      // into "error" or discard its timer because a user shell command failed.
+      if (!runtimeTab.agentSession.isStreaming && runtimeTab.tab.status === "running") {
+        setTabStatus(runtimeTab.tab, "error", { discardTimer: true });
+      }
       this.emitChange({ type: "extension_ui_update" }, runtimeTab);
       throw error;
     }
