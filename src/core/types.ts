@@ -202,6 +202,40 @@ export interface MixCodeTabInfo {
   lastRenderedPanelLines?: string[];
   /** Non-persisted: transient toast notification shown in the top-right corner. */
   toast?: ToastNotification;
+  /** Non-persisted: generic floating panel anchored by the layout renderer. */
+  floatingPanel?: FloatingPanelState;
+}
+
+export type FloatingPanelThemeRole =
+  | "border"
+  | "borderDim"
+  | "text"
+  | "dim"
+  | "subtle"
+  | "accent"
+  | "danger"
+  | "warning"
+  | "success"
+  | "surface"
+  | "panel"
+  | "selection"
+  | "vimBorder"
+  | "userMessage";
+
+export interface FloatingPanelStyle {
+  border?: FloatingPanelThemeRole;
+  title?: FloatingPanelThemeRole;
+  body?: FloatingPanelThemeRole;
+  highlighted?: FloatingPanelThemeRole;
+}
+
+export interface FloatingPanelState {
+  title: string;
+  lines: string[];
+  highlightedIndex?: number;
+  width: number;
+  expiresAt: number;
+  style?: FloatingPanelStyle;
 }
 
 export type PendingEscapeAction = "abort-agent";

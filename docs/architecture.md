@@ -47,7 +47,7 @@ src/
 │   └── faux-stream.ts        测试和本地演示用 faux model stream
 └── ui/
     ├── app.ts                pi-tui Root、Editor、全局键处理
-    ├── rendering.ts          类 MixCode 的 header/tab/status/panel 渲染
+    ├── rendering.ts          类 MixCode 的 header/tab/status/panel/floating panel 渲染
     └── completion.ts         /、@ 两类补全（$skill 补全由 skill-refs 扩展提供）
 ```
 
@@ -119,13 +119,15 @@ Config tab 只渲染配置面板和可点击操作，不渲染 prompt editor；�
 | `Ctrl+R` | 预填 `/rename 当前标题`，复用 slash command 重命名 |
 | `Alt+Up` / `Ctrl+U` | 将最后一条 queued prompt 弹回编辑器；没有队列时不抢占 Editor |
 | `Up` / `Down` | 普通输入为空且无 overlay、preview、补全、extension terminal input 消费时浏览当前 tab 的 prompt 历史；其它场景交给局部控件 |
-| `Right` | Vim 模式跳到更新的 user message；非 Vim 普通输入为空且无 overlay、preview、补全、extension user interaction 时切换 extension widget side panel；无 widget 或终端过窄时显示 toast；有输入时交给 Editor 光标移动 |
-| `Shift+Right` | Vim 模式跳到更旧的 user message |
+| `Right` | Vim 模式跳到更新的 user message，并短暂显示右锚定 `User Messages` 预览；非 Vim 普通输入为空且无 overlay、preview、补全、extension user interaction 时切换 extension widget side panel；无 widget 或终端过窄时显示 toast；有输入时交给 Editor 光标移动 |
+| `Shift+Right` | Vim 模式跳到更旧的 user message，并短暂显示右锚定 `User Messages` 预览 |
 | `Ctrl+V` | Markdown preview |
 | `@` | 打开 mixcode 风格全局文件 picker，选择后插入 `@path ` |
 | `Esc` | 关闭 overlay、preview 或 tab jump；shell 场景单次关闭 shell |
 | `Ctrl+Q` | 打开退出确认；`y` 确认、`n`/`Esc` 取消；`/quit` 和 `/exit` 直接退出，不弹确认 |
 | `q` | 普通输入字符，不绑定退出，避免破坏 prompt 输入 |
+
+Vim user-message 导航预览是一个自动过期的 floating panel，覆盖在 editor 上方，列出附近 user prompts 和 `<NEWEST>`；Vim 状态提示为 `Vim: → newer user msg · Shift+→ older user msg`。
 
 `src/core/keymap.ts` 是带作用域的可审计 keymap，不只记录全局键。`global` 作用域覆盖主输入表面，`file-picker`、`picker`、`command-palette`、`tab-jump`、`export`、`preview`、`shell` 作用域覆盖 overlay 或局部交互；`describeKeymap()` 保持旧的简短输出，`describeScopedKeymap()` 用于审计完整局部键表。
 

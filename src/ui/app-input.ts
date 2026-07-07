@@ -179,6 +179,7 @@ export function handleMixCodeKeyInput(
     handleVimUserMessageNavigation(active, data, runtime)
   ) {
     clearPendingEscape(active, "abort-agent");
+    scheduleFloatingPanelExpiryRender(active, tui);
     tui.requestRender();
     return { consume: true };
   }
@@ -476,6 +477,15 @@ function pasteNewlineText(data: string): string | undefined {
   const text = inlineSubmitText(data);
   if (text === undefined) return undefined;
   return `${text}\n`;
+}
+
+function scheduleFloatingPanelExpiryRender(
+  active: MixCodeState["tabs"][number],
+  tui: OverlayTui,
+): void {
+  const expiresAt = active.floatingPanel?.expiresAt;
+  if (!expiresAt) return;
+  setTimeout(() => tui.requestRender(), Math.max(0, expiresAt - Date.now()) + 16);
 }
 
 function transferVimModeForHomeAttach(

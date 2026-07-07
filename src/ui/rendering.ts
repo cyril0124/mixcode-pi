@@ -2,6 +2,7 @@ export * from "./rendering/agent-surface.js";
 export * from "./rendering/chat.js";
 export * from "./rendering/chrome.js";
 export * from "./rendering/context.js";
+export * from "./rendering/floating-panel.js";
 export * from "./rendering/layout.js";
 export * from "./rendering/overlays.js";
 export * from "./rendering/primitives.js";

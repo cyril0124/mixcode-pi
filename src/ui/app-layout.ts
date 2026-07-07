@@ -16,6 +16,7 @@ import {
   renderExtensionPanel,
   renderExtensionWidgets,
   extensionPanelWidth,
+  renderFloatingPanelOverlay,
   renderFooter,
   renderHeader,
   renderInputMeta,
@@ -345,7 +346,7 @@ export class MixCodeLayoutRoot implements Component {
       active && this.state.activeTabId !== "config"
         ? renderInputMeta(active, width, metaRow, theme)
         : [];
-    return [
+    const assembled = [
       ...mainLines,
       ...Array.from({ length: spacerRows }, () => padLine("", width)),
       ...Array.from({ length: controlTopGapRows }, () => padLine("", width)),
@@ -359,6 +360,13 @@ export class MixCodeLayoutRoot implements Component {
       ...footerLines,
       ...Array.from({ length: guardRows }, () => padLine("", Math.max(0, width - 1))),
     ];
+    return active && this.state.activeTabId !== "config"
+      ? renderFloatingPanelOverlay(assembled, active.floatingPanel, {
+          width,
+          editorTopRow: editorTop,
+          theme,
+        })
+      : assembled;
   }
 
   private setEmbeddedTerminalRows(

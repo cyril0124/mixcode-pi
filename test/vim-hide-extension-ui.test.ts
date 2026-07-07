@@ -78,7 +78,7 @@ test("vim mode hides extension widgets and status line, reclaiming rows for chat
 
   // MixCode-owned chrome is preserved: the agent title still anchors the editor.
   assert.match(vimOutput, /Agent-01/);
-  assert.match(vimOutput, /Vim mode · q to exit/);
+  assert.match(vimOutput, /Vim: → newer user msg · Shift\+→ older user msg/);
 
   // The freed rows (2 widgets + 1 status) are handed back to the chat surface.
   assert.ok(
