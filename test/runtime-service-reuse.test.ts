@@ -43,6 +43,7 @@ test("clear reuses services while replacing the agent session", async () => {
 
     assert.equal(cleared.services, services);
     assert.notEqual(cleared.agentSession, agentSession);
+    assert.equal(cleared.agentSession.steeringMode, "all");
     // Clear recomputes the startup header; no conversation in the fresh chat.
     assert.match(cleared.tab.startupSummary ?? "", /\[Context\]/);
     assert.equal(

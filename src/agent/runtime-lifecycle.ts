@@ -119,6 +119,10 @@ export interface RuntimeLifecycleContext {
   extensionToolOwnerPolicy?: ExtensionToolOwnerPolicy;
 }
 
+export function applyMixCodeSessionDefaults(settingsManager: SettingsManager): void {
+  settingsManager.applyOverrides({ steeringMode: "all" }); // Settings reloads discard overrides.
+  configureMixCodeRetrySettings(settingsManager);
+}
 export async function createRuntimeTab(
   tab: MixCodeTabInfo,
   session: SessionManager,
@@ -167,6 +171,7 @@ async function createRuntimeTabWithServices(
     context.streamFn,
     context.getApiKey,
   );
+  applyMixCodeSessionDefaults(services.settingsManager);
   const { session: agentSession, extensionsResult } = await createAgentSessionFromServices({
     services,
     sessionManager: session,
@@ -314,6 +319,7 @@ async function createAgentSessionForReplacementWithServices(
     context.streamFn,
     context.getApiKey,
   );
+  applyMixCodeSessionDefaults(services.settingsManager);
   const result = await createAgentSessionFromServices({
     services,
     sessionManager,
@@ -473,11 +479,7 @@ export async function createRuntimeServices(
   if (services.diagnostics.some((diagnostic) => diagnostic.type === "error")) {
     throw new Error(services.diagnostics.map((diagnostic) => diagnostic.message).join("\n"));
   }
-  // Multiple Enter submissions queued during a running turn should be delivered
-  // together on the next steering drain. applyOverrides is session-local, so this
-  // default does not rewrite user Pi settings.
-  services.settingsManager.applyOverrides({ steeringMode: "all" });
-  configureMixCodeRetrySettings(services.settingsManager);
+  applyMixCodeSessionDefaults(services.settingsManager);
   configureMixCodeRetryClassification();
   servicesRef = services;
   setExtensionManagerEntriesForServices(services, latestExtensionManagerEntries);
