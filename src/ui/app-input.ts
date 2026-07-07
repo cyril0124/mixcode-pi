@@ -29,6 +29,7 @@ import {
   handleQuitConfirmKey,
   handleTabJumpKey,
   handleVimModeKey,
+  handleVimUserMessageNavigation,
   handleEscapeKey,
 } from "./app-key-handlers.js";
 import {
@@ -168,6 +169,19 @@ export function handleMixCodeKeyInput(
   if (handleChatSelectionMouseInput(state, active, data, tui, runtime)) {
     return { consume: true };
   }
+  if (
+    active &&
+    state.activeTabId !== "config" &&
+    !hasAnyOverlay(tui) &&
+    !hasFocusedAppControl(state, active) &&
+    !isEditorAutocompleteOpen() &&
+    !active.extensionUi.pendingUserInteractions.length &&
+    handleVimUserMessageNavigation(active, data, runtime)
+  ) {
+    clearPendingEscape(active, "abort-agent");
+    tui.requestRender();
+    return { consume: true };
+  }
   // Route raw input to extension widget input listeners (e.g. pi-subagents'
   // belowEditor fleet list navigation). Suppressed while a modal extension
   // interaction is active: select/confirm/input dialogs replace the editor
@@ -245,8 +259,8 @@ export function handleMixCodeKeyInput(
 
   // Right on empty input toggles the extension widget side panel. Mirrors the
   // Left-returns-Home guard so it never steals the editor's cursor-right when
-  // there is text. Kept before extension/vim handling so it remains a built-in
-  // empty-input shortcut.
+  // there is text. Vim mode handles Right earlier as user-message navigation,
+  // so this remains the non-Vim empty-input shortcut.
   if (
     active &&
     state.activeTabId !== "config" &&

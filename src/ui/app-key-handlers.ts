@@ -38,6 +38,7 @@ import { getConfiguredQuitOptions, quitMixCode } from "./quit.js";
 import { renderCommandPalette, renderTabJumpOverlay } from "./rendering.js";
 import { openTreeSelector, type TreeSelectorRuntime } from "./tree-selector.js";
 import { openForkSelector } from "./fork-selector.js";
+import { scrollChatToUserEntry, userMessageEntryIdsInBranch } from "./chat-scroll-target.js";
 
 export {
   handleChatSelectionMouseInput,
@@ -437,6 +438,84 @@ export function handlePreviewKey(active: MixCodeState["tabs"][number], data: str
     return true;
   }
   return false;
+}
+
+export function handleVimUserMessageNavigation(
+  active: MixCodeState["tabs"][number],
+  data: string,
+  runtime?: MixCodeKeyRuntime,
+): boolean {
+  if (!active.vimMode) return false;
+  const jumpPrevious = matchesKey(data, "shift+right");
+  const jumpNext = matchesKey(data, "right");
+  if (!jumpPrevious && !jumpNext) return false;
+
+  active.vimPendingEscapeAt = undefined;
+  active.vimPendingHome = false;
+
+  const runtimeTab = runtime?.getTab?.(active.sessionId);
+  const branch = runtimeTab?.session.getBranch?.();
+  if (!runtimeTab || !branch) {
+    pushToast(active, { type: "warning", message: "User-message navigation requires an active agent chat" });
+    return true;
+  }
+
+  const userEntryIds = userMessageEntryIdsInBranch(branch);
+  if (userEntryIds.length === 0) {
+    pushToast(active, { type: "warning", message: "No user messages in current chat" });
+    return true;
+  }
+
+  const targetId = jumpPrevious
+    ? previousUserEntryId(active, userEntryIds)
+    : nextUserEntryId(active, userEntryIds);
+  if (!targetId) return true;
+
+  const bounds = active.chatSurfaceBounds;
+  const result = scrollChatToUserEntry(
+    active,
+    runtimeTab.chat ?? [],
+    branch,
+    targetId,
+    bounds?.height ?? (process.stdout.rows || 24),
+    bounds?.width ?? (process.stdout.columns || 80),
+  );
+  if (!result.found)
+    pushToast(active, { type: "warning", message: "Message is not in the current chat" });
+  return true;
+}
+
+function nextUserEntryId(
+  active: MixCodeState["tabs"][number],
+  userEntryIds: string[],
+): string | undefined {
+  const currentIndex = active.chatScrollAnchorEntryId
+    ? userEntryIds.indexOf(active.chatScrollAnchorEntryId)
+    : userEntryIds.length;
+  if (currentIndex < 0 || currentIndex >= userEntryIds.length) {
+    pushToast(active, { type: "info", message: "No newer user message" });
+    return undefined;
+  }
+  if (currentIndex === userEntryIds.length - 1) {
+    chatEnd(active);
+    return undefined;
+  }
+  return userEntryIds[currentIndex + 1];
+}
+
+function previousUserEntryId(
+  active: MixCodeState["tabs"][number],
+  userEntryIds: string[],
+): string | undefined {
+  let currentIndex = active.chatScrollAnchorEntryId
+    ? userEntryIds.indexOf(active.chatScrollAnchorEntryId)
+    : userEntryIds.length;
+  if (currentIndex < 0) currentIndex = userEntryIds.length;
+  if (currentIndex === 0) {
+    pushToast(active, { type: "info", message: "No older user message" });
+    return undefined;
+  }
+  return userEntryIds[Math.min(currentIndex, userEntryIds.length) - 1];
 }
 
 export function handleVimModeKey(active: MixCodeState["tabs"][number], data: string): boolean {

@@ -55,7 +55,19 @@ export const MIXCODE_KEYMAP: KeyAction[] = [
   {
     key: "right",
     action: "extension-widget-panel",
-    description: "Toggle extension widget side panel when input is empty",
+    description: "Outside Vim, toggle extension widget side panel when input is empty",
+    scope: "global",
+  },
+  {
+    key: "right",
+    action: "vim-next-user-message",
+    description: "In Vim mode, jump to newer user message",
+    scope: "global",
+  },
+  {
+    key: "shift+right",
+    action: "vim-previous-user-message",
+    description: "In Vim mode, jump to older user message",
     scope: "global",
   },
   { key: "ctrl+j", action: "newline", description: "Insert newline", scope: "global" },

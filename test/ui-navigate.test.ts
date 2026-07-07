@@ -77,6 +77,10 @@ function runtimeWithTree(overrides: Partial<MixCodeRuntime> = {}): MixCodeRuntim
   } as unknown as MixCodeRuntime;
 }
 
+function emptyEditor() {
+  return { getText: () => "", setText: () => undefined };
+}
+
 test("/navigate opens the Session Tree view filtered to current-chat user messages", async () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo");
@@ -190,6 +194,101 @@ test("/navigate moves with arrows and j/k, then scrolls current chat", async () 
   assert.equal(handleMixCodeKeyInput(state, "x", tui, undefined, runtime)?.consume, undefined);
   assert.equal(state.treeSelector.summarizePrompt, null);
   assert.equal(state.treeSelector.searchQuery, "");
+});
+
+test("vim Right jumps to next user message and then NEWEST", async () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo");
+  tab.chatSurfaceBounds = { top: 0, left: 0, width: 80, height: 4 };
+  state.tabs.push(tab);
+  state.activeTabId = "s1";
+  const runtime = runtimeWithTree();
+  const tui = {
+    requestRender: () => undefined,
+    treeSelectorDisplay: {
+      open: () => undefined,
+      refresh: () => undefined,
+      close: () => undefined,
+    },
+  };
+
+  await handleSubmittedInput(state, runtime, "/navigate", tui);
+  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[A", tui, undefined, runtime), { consume: true });
+  await Promise.resolve();
+  assert.equal(tab.chatScrollAnchorEntryId, "u1");
+
+  state.treeSelector.open = false;
+  tab.vimMode = true;
+  assert.deepEqual(
+    handleMixCodeKeyInput(state, "\x1b[C", tui, undefined, runtime, undefined, () => false, emptyEditor()),
+    { consume: true },
+  );
+  assert.equal(state.treeSelector.open, false);
+  assert.equal(tab.chatScrollAnchorEntryId, "u2");
+
+  assert.deepEqual(
+    handleMixCodeKeyInput(state, "\x1b[C", tui, undefined, runtime, undefined, () => false, emptyEditor()),
+    { consume: true },
+  );
+  assert.equal(tab.chatScrollAnchorEntryId, undefined);
+  assert.equal(tab.chatScrollOffset, 0);
+
+  assert.deepEqual(
+    handleMixCodeKeyInput(state, "\x1b[C", tui, undefined, runtime, undefined, () => false, emptyEditor()),
+    { consume: true },
+  );
+  assert.match(tab.toast?.message ?? "", /No newer user message/);
+});
+
+test("vim Shift+Right walks backward through user messages", () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo");
+  tab.chatSurfaceBounds = { top: 0, left: 0, width: 80, height: 4 };
+  tab.vimMode = true;
+  state.tabs.push(tab);
+  state.activeTabId = "s1";
+  const runtime = runtimeWithTree();
+  const tui = { requestRender: () => undefined };
+
+  assert.deepEqual(
+    handleMixCodeKeyInput(state, "\x1b[1;2C", tui, undefined, runtime, undefined, () => false, emptyEditor()),
+    { consume: true },
+  );
+  assert.equal(tab.chatScrollAnchorEntryId, "u2");
+  assert.equal(tab.chatScrollAnchorIndex, 2);
+
+  assert.deepEqual(
+    handleMixCodeKeyInput(state, "\x1b[1;2C", tui, undefined, runtime, undefined, () => false, emptyEditor()),
+    { consume: true },
+  );
+  assert.equal(tab.chatScrollAnchorEntryId, "u1");
+  assert.equal(tab.chatScrollAnchorIndex, 0);
+
+  assert.deepEqual(
+    handleMixCodeKeyInput(state, "\x1b[1;2C", tui, undefined, runtime, undefined, () => false, emptyEditor()),
+    { consume: true },
+  );
+  assert.equal(tab.chatScrollAnchorEntryId, "u1");
+  assert.match(tab.toast?.message ?? "", /No older user message/);
+});
+
+test("vim Shift+Right treats a stale anchor as the newest position", () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo");
+  tab.chatSurfaceBounds = { top: 0, left: 0, width: 80, height: 4 };
+  tab.vimMode = true;
+  tab.chatScrollAnchorEntryId = "missing";
+  state.tabs.push(tab);
+  state.activeTabId = "s1";
+  const runtime = runtimeWithTree();
+  const tui = { requestRender: () => undefined };
+
+  assert.deepEqual(
+    handleMixCodeKeyInput(state, "\x1b[1;2C", tui, undefined, runtime, undefined, () => false, emptyEditor()),
+    { consume: true },
+  );
+  assert.equal(tab.chatScrollAnchorEntryId, "u2");
+  assert.equal(tab.chatScrollAnchorIndex, 2);
 });
 
 test("/navigate scroll alignment puts selected user message at top when possible", () => {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { buildLabeledTopBorder, isPlainBorderLine } from "../src/ui/app-editor.js";
+import { buildLabeledTopBorder, isPlainBorderLine } from "../src/ui/editor-top-border.js";
 
 function stripAnsi(text: string): string {
   return text.replace(/\x1b\[[0-9;:]*m/g, "");
