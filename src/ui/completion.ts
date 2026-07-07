@@ -1,4 +1,3 @@
-import { homedir } from "node:os";
 import path from "node:path";
 import { fuzzyFilter } from "@earendil-works/pi-tui";
 import type {
@@ -10,7 +9,6 @@ import type {
 import { LOCAL_COMMANDS } from "../core/commands.js";
 import { fdFileSuggestions } from "../core/fd-file-search.js";
 import { searchProjectFiles } from "../core/file-picker.js";
-import { fuzzyMatchBatch } from "../core/fuzzy.js";
 
 export interface MixCodeCompletionSourceInfo {
   source?: string;
@@ -92,24 +90,6 @@ export class MixCodeCompletionProvider implements AutocompleteProvider {
         })),
       };
     }
-    if (token.startsWith("$")) {
-      const prefix = token.slice(1);
-      const skillItems = skillCompletionSources(skills);
-      return {
-        prefix: token,
-        items: fuzzyMatchBatch(
-          prefix,
-          skillItems.map((skill) => skill.name),
-        ).map(([, skillName]) => {
-          const skill = skillItems.find((item) => item.name === skillName)!;
-          return {
-            value: `$${skill.name}`,
-            label: skill.name,
-            description: skillDescription(skill),
-          };
-        }),
-      };
-    }
     if (token.startsWith("@")) {
       const prefix = token.slice(1);
       const isQuoted = prefix.startsWith('"');
@@ -157,24 +137,18 @@ export class MixCodeCompletionProvider implements AutocompleteProvider {
     prefix: string,
   ) {
     const line = lines[cursorLine] ?? "";
-    const effective = effectiveCompletion(
-      lines,
-      cursorLine,
-      cursorCol,
-      item,
-      prefix,
-      skillCompletionSources(resolveCompletionSkills(this.sources.skills)).map((skill) => skill.name),
-    );
-    const start = cursorCol - effective.prefix.length;
-    const nextLine = `${line.slice(0, start)}${effective.value}${line.slice(cursorCol)}`;
+    const start = cursorCol - prefix.length;
+    const nextLine = `${line.slice(0, start)}${item.value}${line.slice(cursorCol)}`;
     const nextLines = lines.slice();
     nextLines[cursorLine] = nextLine;
-    return { lines: nextLines, cursorLine, cursorCol: start + effective.value.length };
+    return { lines: nextLines, cursorLine, cursorCol: start + item.value.length };
   }
 
   shouldTriggerFileCompletion(lines: string[], cursorLine: number, cursorCol: number): boolean {
     const token = currentToken((lines[cursorLine] ?? "").slice(0, cursorCol));
-    return token.startsWith("@") || token.startsWith("$");
+    // `$` skill completion lives in the skill-refs extension provider, which
+    // wraps this one and handles its own triggering.
+    return token.startsWith("@");
   }
 }
 
@@ -206,12 +180,6 @@ function skillCompletionSources(
   return skills.map((skill) => (typeof skill === "string" ? { name: skill } : skill));
 }
 
-function skillDescription(skill: MixCodeSkillCompletionSource): string {
-  const location = skill.path ? ` (${compactHomePath(skill.path)})` : "";
-  const summary = compactSkillSummary(skill.description);
-  return summary ? `[Skill]${location} ${summary}` : `[Skill]${location}`;
-}
-
 /**
  * Format skill description for /skill: slash commands with a source scope tag prefix.
  * Matches the Pi reference `prefixAutocompleteDescription` + `getAutocompleteSourceTag` pattern.
@@ -237,12 +205,6 @@ function getSkillSourceTag(sourceInfo: MixCodeSkillSourceInfo | undefined): stri
   return scopePrefix;
 }
 
-function compactHomePath(value: string): string {
-  const home = homedir();
-  if (value === home) return "~";
-  return value.startsWith(`${home}/`) ? `~/${value.slice(home.length + 1)}` : value;
-}
-
 function compactSkillSummary(value: string | undefined): string {
   if (!value) return "";
   const plain = value
@@ -260,20 +222,6 @@ function compactSkillSummary(value: string | undefined): string {
     .trim();
   if (plain.length <= 96) return plain;
   return `${plain.slice(0, 95).trimEnd()}…`;
-}
-
-function effectiveCompletion(
-  lines: string[],
-  cursorLine: number,
-  cursorCol: number,
-  item: AutocompleteItem,
-  prefix: string,
-  _skills: string[],
-): { prefix: string; value: string } {
-  const token = currentToken((lines[cursorLine] ?? "").slice(0, cursorCol));
-  if (!token.startsWith("$")) return { prefix, value: item.value };
-  // Use the full token as prefix so the entire $query is replaced by the selected item
-  return { prefix: token, value: item.value };
 }
 
 function isSlashCommandNameContext(before: string, token: string): boolean {

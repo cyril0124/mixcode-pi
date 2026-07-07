@@ -45,13 +45,14 @@ test("completion provider suggests slash commands, skills, and files", async () 
   assert.equal(extensionSlash?.items[0]?.value, "/inspect");
   assert.equal(extensionSlash?.items[0]?.label, "inspect (ext:pi-subagents)");
   assert.equal(extensionSlash?.items[0]?.description, "Inspect extension context");
+  // `$` skill completion is owned by the skill-refs extension provider; the
+  // host provider no longer answers $ tokens.
   const skill = await provider.getSuggestions(["use $rv"], 0, 7, { signal });
-  assert.equal(skill?.items[0]?.value, "$review");
-  assert.equal(skill?.items[0]?.label, "review");
-  assert.equal(
-    skill?.items[0]?.description,
-    "[Skill] (~/.agents/skills/review/SKILL.md) Review code",
-  );
+  assert.equal(skill, null);
+  // Skills still surface as /skill: slash commands.
+  const skillSlash = await provider.getSuggestions(["/skill:re"], 0, 9, { signal });
+  assert.equal(skillSlash?.items[0]?.value, "/skill:review");
+  assert.equal(skillSlash?.items[0]?.description, "Review code");
   const file = await provider.getSuggestions(["see @runtime"], 0, 12, { signal });
   assert.equal(file?.items[0]?.value, "@test/runtime-ui.test.ts");
   assert.equal(file?.items[0]?.description, undefined);
@@ -125,12 +126,12 @@ test("completion provider compacts skill descriptions before paths are truncated
     files: [],
   });
   const signal = new AbortController().signal;
-  const skill = await provider.getSuggestions(["$c"], 0, 2, { signal });
+  const skill = await provider.getSuggestions(["/skill:c"], 0, 8, { signal });
 
-  assert.equal(skill?.items[0]?.label, "caveman");
+  assert.equal(skill?.items[0]?.value, "/skill:caveman");
   assert.match(
     skill?.items[0]?.description ?? "",
-    /^\[Skill\] \(~\/\.agents\/skills\/caveman\/SKILL\.md\) Ultra-compressed communication mode\./,
+    /^Ultra-compressed communication mode\./,
   );
   assert.doesNotMatch(skill?.items[0]?.description ?? "", />\s*>/);
   assert.ok((skill?.items[0]?.description ?? "").length < 160);
@@ -395,7 +396,8 @@ test("completion provider applies selected item and detects file trigger", () =>
   );
   assert.deepEqual(appliedMissingLine, { lines: ["/help"], cursorLine: 0, cursorCol: 5 });
   assert.equal(provider.shouldTriggerFileCompletion(["see @src"], 0, 8), true);
-  assert.equal(provider.shouldTriggerFileCompletion(["use $review"], 0, 11), true);
+  // `$` tokens no longer trigger here; the skill-refs extension wrapper does.
+  assert.equal(provider.shouldTriggerFileCompletion(["use $review"], 0, 11), false);
   assert.equal(provider.shouldTriggerFileCompletion([], 0, 0), false);
   assert.equal(provider.shouldTriggerFileCompletion(["plain"], 0, 5), false);
 });

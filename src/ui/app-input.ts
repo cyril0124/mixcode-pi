@@ -443,6 +443,11 @@ function handlePasteNewline(
   active: MixCodeState["tabs"][number] | undefined,
 ): boolean {
   if (!editorActions) return false;
+  // When an extension custom component owns the editor slot, Enter is that
+  // component's confirmation key and never submits the default editor, so the
+  // paste protection does not apply. Intercepting here would swallow the
+  // confirm key and leave the extension's ctx.ui.custom() promise pending.
+  if (editorActions.hasEditorReplacement?.()) return false;
   if (!pasteDetector.isLikelyPaste()) return false;
   if (active?.vimMode) return false;
   const text = pasteNewlineText(data);

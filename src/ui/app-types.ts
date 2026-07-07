@@ -114,6 +114,12 @@ export interface MixCodeEditorActions {
   insertTextAtCursor?: (text: string) => void;
   submitCurrentText?: () => void;
   browsePromptHistory?: (data: string) => boolean;
+  /**
+   * True when an extension custom component currently owns the editor slot
+   * for the active tab. Input heuristics that protect the default editor's
+   * submit behavior (e.g. paste-newline) must not intercept keys then.
+   */
+  hasEditorReplacement?: () => boolean;
 }
 
 export interface CommandPaletteActions {

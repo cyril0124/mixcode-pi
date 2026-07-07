@@ -56,6 +56,9 @@ import rpivTodo_tool_response_envelope_ts from "../../pi-packages/rpiv-todo/tool
 import rpivTodo_tool_types_ts from "../../pi-packages/rpiv-todo/tool/types.ts" with { type: "text" };
 import rpivTodo_vendor_rpiv_config_ts from "../../pi-packages/rpiv-todo/vendor/rpiv-config.ts" with { type: "text" };
 import rpivTodo_view_format_ts from "../../pi-packages/rpiv-todo/view/format.ts" with { type: "text" };
+import skillRefsIndex from "../../pi-packages/skill-refs/index.ts" with { type: "text" };
+import skillRefsCore from "../../pi-packages/skill-refs/skill-core.ts" with { type: "text" };
+import skillRefsPackageJson from "../../pi-packages/skill-refs/package.json" with { type: "text" };
 import promptHistoryIndex from "../../pi-packages/prompt-history/index.ts" with { type: "text" };
 import promptHistoryBrowser from "../../pi-packages/prompt-history/prompt-history-browser.ts" with { type: "text" };
 import promptHistoryPackageJson from "../../pi-packages/prompt-history/package.json" with { type: "text" };
@@ -160,6 +163,11 @@ materializeBinaryRuntimeAssets(runtimeDir, {
       "index.ts": promptHistoryIndex,
       "prompt-history-browser.ts": promptHistoryBrowser,
       "package.json": promptHistoryPackageJson,
+    },
+    "skill-refs": {
+      "index.ts": skillRefsIndex,
+      "skill-core.ts": skillRefsCore,
+      "package.json": skillRefsPackageJson,
     },
   },
 });

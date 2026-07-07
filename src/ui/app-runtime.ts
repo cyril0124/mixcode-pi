@@ -166,7 +166,17 @@ function resolveActiveAutocompleteProvider(
   base: AutocompleteProvider,
 ): AutocompleteProvider {
   const active = getActiveTab(state);
-  if (!active || state.activeTabId === "config") return homeAutocompleteFilter(base);
+  if (!active || state.activeTabId === "config") {
+    // On the Agent (home) view, messages are sent to the selected tab, so
+    // stack that tab's extension autocomplete providers (e.g. skill-refs `$`)
+    // on top of the base provider before applying the home filter.
+    const selected = state.tabs[state.homeSelectedTabIndex];
+    const withExtensions =
+      selected && runtime.getTab?.(selected.sessionId)
+        ? (runtime.applyExtensionAutocompleteProviders?.(selected.sessionId, base) ?? base)
+        : base;
+    return homeAutocompleteFilter(withExtensions);
+  }
   if (!runtime.getTab(active.sessionId)) return base;
   return runtime.applyExtensionAutocompleteProviders?.(active.sessionId, base) ?? base;
 }

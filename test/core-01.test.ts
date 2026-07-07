@@ -6,15 +6,11 @@ import { tmpdir } from "node:os";
 import { promisify } from "node:util";
 import { test } from "node:test";
 import {
-  SkillError,
-  buildPrompt,
   commandSuggestions,
   createInitialState,
   createTab,
   deleteWorkspace,
   deserializeState,
-  extractFileRefs,
-  extractSkillRefs,
   fuzzyContains,
   fuzzyMatch,
   fuzzyMatchBatch,
@@ -29,9 +25,6 @@ import {
   AUTOWRAP_ENABLE,
   parseInput,
   parseJsonObject,
-  resolvePromptPath,
-  resolveSkillDirs,
-  scanSkillNames,
   saveStateFile,
   saveWorkspaces,
   scopedStateDir,
@@ -41,7 +34,6 @@ import {
   withMouseReporting,
   scanProjectFiles,
   searchProjectFiles,
-  scanSkillEntries,
   createPicker,
   filteredPickerItems,
   updatePickerQuery,

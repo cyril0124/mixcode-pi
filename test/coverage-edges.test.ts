@@ -329,18 +329,10 @@ test("completion provider covers extension source and argument formatting edges"
     (await provider.getSuggestions(["/node"], 0, 5, { signal }))?.items[0]?.description,
     "",
   );
-  assert.equal(
-    (await provider.getSuggestions(["$home"], 0, 5, { signal }))?.items[0]?.description,
-    "[Skill] (~)",
-  );
-  assert.equal(
-    (await provider.getSuggestions(["$nested"], 0, 7, { signal }))?.items[0]?.description,
-    "[Skill] (~/mixcode-skill) Summary Detail",
-  );
-  assert.equal(
-    (await provider.getSuggestions(["$bare"], 0, 5, { signal }))?.items[0]?.description,
-    "[Skill]",
-  );
+  // `$` tokens are owned by the skill-refs extension provider now.
+  assert.equal(await provider.getSuggestions(["$home"], 0, 5, { signal }), null);
+  assert.equal(await provider.getSuggestions(["$nested"], 0, 7, { signal }), null);
+  assert.equal(await provider.getSuggestions(["$bare"], 0, 5, { signal }), null);
   assert.equal(await provider.getSuggestions(["/hintdesc"], 0, 9, { signal }), null);
   assert.equal(await provider.getSuggestions(["/hintdesc value"], 0, 15, { signal }), null);
 

@@ -52,7 +52,7 @@ export interface BatchExecutorHost {
   deleteTab(sessionId: string): Promise<void>;
   /**
    * Submit input to a tab, going through the full TUI input pipeline:
-   * parseInput → buildModelPrompt ($ skill, /template expansion) → runtime.prompt
+   * parseInput → buildModelPrompt (/skill: and /template expansion) → runtime.prompt
    * Also supports /commands and !shell.
    */
   submitInput(sessionId: string, input: string): Promise<void>;

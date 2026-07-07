@@ -17,7 +17,6 @@ import {
   type SettingsManager,
 } from "@earendil-works/pi-coding-agent";
 import { type AutocompleteProvider, matchesKey as matchesPiKey } from "@earendil-works/pi-tui";
-import { stripSkillInjection } from "../core/attachments.js";
 import { contentText } from "./runtime-text.js";
 import { modelToRef, replaceRegisteredModels } from "../core/models.js";
 import { clearPendingEscape, setPendingMessages, setTabStatus } from "../core/tab-state.js";
@@ -153,7 +152,7 @@ function sessionFileBranch(file: string): UserSessionEntry[] {
 function promptsFromSessionEntry(entry: UserSessionEntry): string[] {
   if (entry.type !== "message" || entry.message?.role !== "user" || !entry.message.content)
     return [];
-  const text = stripSkillInjection(contentText(entry.message.content)).trim();
+  const text = contentText(entry.message.content).trim();
   return text ? [text] : [];
 }
 
@@ -327,7 +326,7 @@ export class MixCodeRuntime {
       if (prompts.length > 0) return prompts;
       return runtimeTab.chat.flatMap((line) => {
         if (line.role !== "user") return [];
-        const text = stripSkillInjection(line.text).trim();
+        const text = line.text.trim();
         return text ? [text] : [];
       });
     }
