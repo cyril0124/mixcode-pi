@@ -1,3 +1,4 @@
+import { LOCAL_COMMANDS, type LocalCommandPaletteMeta, type PaletteRequirement } from "./commands.js";
 import { fuzzyMatchBatch } from "./fuzzy.js";
 import { activateTab, findActiveTab } from "./tabs.js";
 import type { CommandPaletteEntry, MixCodeState, MixCodeTabInfo } from "./types.js";
@@ -316,311 +317,80 @@ function commandPaletteBaseEntries(
 }
 
 function configCommandPaletteEntries(state: MixCodeState): CommandPaletteEntry[] {
-  const hasTabs = state.tabs.length > 0;
-  return [
-    commandEntry("config.theme", "Choose Theme", "/theme", "Choose the app UI theme"),
-    commandEntry(
-      "config.tui-state",
-      "Open TUI State",
-      "/tui-state",
-      "Show the current TUI state JSON",
-    ),
-    commandEntry(
-      "config.extension-manager",
-      "Extension Manager",
-      "/extension-manager",
-      "Manage Pi extensions for this workdir",
-      hasTabs,
-      "No open Agent Tabs",
-    ),
-    commandEntry(
-      "config.new-session",
-      "New Session",
-      "/new-session",
-      "Create a new pi agent session",
-    ),
-    commandEntry(
-      "config.resume",
-      "Resume Session",
-      "/resume",
-      "Resume a different session",
-    ),
-    commandEntry(
-      "config.save-workspace",
-      "Save Workspace",
-      "/save-workspace",
-      "Save the current open agent tabs as a workspace",
-      hasTabs,
-      "No open Agent Tabs to save as a workspace",
-    ),
-    commandEntry(
-      "config.restore-workspace",
-      "Restore Workspace",
-      "/restore-workspace",
-      "Restore a saved workspace",
-    ),
-    commandEntry(
-      "config.delete-workspace",
-      "Delete Workspace",
-      "/delete-workspace",
-      "Delete a saved workspace",
-    ),
-    commandEntry(
-      "config.reload",
-      "Reload",
-      "/reload",
-      "Reload keybindings, extensions, skills, prompts, and themes",
-    ),
-    commandEntry(
-      "config.close-all-sessions",
-      "Close All Sessions",
-      "/close-all-sessions",
-      "Close all agent tabs but keep their sessions",
-      hasTabs,
-      "No open Agent Tabs",
-    ),
-    commandEntry(
-      "config.delete-all-sessions",
-      "Delete All Sessions",
-      "/delete-all-sessions",
-      "Delete all sessions and close all agent tabs",
-      hasTabs,
-      "No open Agent Tabs",
-    ),
-  ];
+  const flags = {
+    hasSession: false,
+    hasModels: state.availableModels.length > 0,
+    hasTabs: state.tabs.length > 0,
+  };
+  return LOCAL_COMMANDS.filter(
+    (command) => command.palette && (command.palette.scope === "config" || command.palette.scope === "both"),
+  ).map((command) =>
+    paletteEntryFromCommand("config", command.name, command.description, command.palette!, flags),
+  );
 }
 
 function agentCommandPaletteEntries(
   state: MixCodeState,
   active: MixCodeTabInfo,
 ): CommandPaletteEntry[] {
-  const hasSession = Boolean(active.sessionId);
-  const hasModels = state.availableModels.length > 0;
-  const hasTabs = state.tabs.length > 0;
-  const noSessionReason = "Current tab has no active session";
-  return [
-    commandEntry(
-      "agent.models",
-      "Choose Model",
-      "/models",
-      "Choose the current tab model",
-      hasSession && hasModels,
-      !hasSession ? noSessionReason : "No models loaded",
-    ),
-    commandEntry(
-      "agent.thinking",
-      "Choose Thinking Tier",
-      "/thinking",
-      "Choose the current tab thinking tier",
-      hasSession,
-      noSessionReason,
-    ),
-    commandEntry(
-      "agent.context-limit",
-      "Set Context Limit",
-      "/context-limit",
-      "Set context window limit for the current tab",
-      hasSession,
-      noSessionReason,
-    ),
-    commandEntry("agent.theme", "Choose Theme", "/theme", "Choose the app UI theme"),
-    commandEntry(
-      "agent.tui-state",
-      "Open TUI State",
-      "/tui-state",
-      "Show the current TUI state JSON",
-    ),
-    commandEntry(
-      "agent.system-tools",
-      "Open System Tools",
-      "/system-tools",
-      "Show the active agent tools",
-      hasSession,
-      noSessionReason,
-    ),
-    commandEntry(
-      "agent.system-prompt",
-      "Open System Prompt",
-      "/system-prompt",
-      "Show the active agent system prompt",
-      hasSession,
-      noSessionReason,
-    ),
-    commandEntry(
-      "agent.extension-manager",
-      "Extension Manager",
-      "/extension-manager",
-      "Manage Pi extensions for this workdir",
-      hasSession,
-      noSessionReason,
-    ),
-    commandEntry(
-      "agent.rename",
-      "Rename",
-      "/rename",
-      "Rename the current tab",
-      hasSession,
-      noSessionReason,
-    ),
-    commandEntry(
-      "agent.workdir",
-      "Change Workdir",
-      "/workdir",
-      "Change the current tab working directory",
-      hasSession,
-      noSessionReason,
-    ),
-    commandEntry(
-      "agent.import",
-      "Import Session",
-      "/import",
-      "Import a Pi session JSONL file into the current tab",
-      hasSession,
-      noSessionReason,
-    ),
-    commandEntry(
-      "agent.mark-done",
-      "Mark Done",
-      "/mark-done",
-      "Mark the current tab done",
-      hasSession,
-      noSessionReason,
-    ),
-    commandEntry(
-      "agent.vim",
-      "Vim Mode",
-      "/vim",
-      "Enter Vim mode for chat scrolling",
-      hasSession,
-      noSessionReason,
-    ),
-    commandEntry(
-      "agent.new-session",
-      "New Session",
-      "/new-session",
-      "Create a new pi agent session",
-      hasSession,
-      noSessionReason,
-    ),
-    commandEntry(
-      "agent.resume",
-      "Resume Session",
-      "/resume",
-      "Resume a different session",
-      hasSession,
-      noSessionReason,
-    ),
-    commandEntry(
-      "agent.tree",
-      "Session Tree",
-      "/tree",
-      "Navigate session tree (switch branches)",
-      hasSession,
-      noSessionReason,
-    ),
-    commandEntry(
-      "agent.close-session",
-      "Close Session",
-      "/close-session",
-      "Close the current tab but keep its session",
-      hasSession,
-      noSessionReason,
-    ),
-    commandEntry(
-      "agent.delete-session",
-      "Delete Session",
-      "/delete-session",
-      "Delete the session bound to the current tab",
-      hasSession,
-      noSessionReason,
-    ),
-    commandEntry(
-      "agent.reload",
-      "Reload",
-      "/reload",
-      "Reload keybindings, extensions, skills, prompts, and themes",
-    ),
-    commandEntry(
-      "agent.session",
-      "Session Info",
-      "/session",
-      "Show session info and stats",
-      hasSession,
-      noSessionReason,
-    ),
-    commandEntry(
-      "agent.fork",
-      "Fork Session",
-      "/fork",
-      "Fork the active session",
-      hasSession,
-      noSessionReason,
-    ),
-    commandEntry(
-      "agent.compact",
-      "Compact Context",
-      "/compact",
-      "Compact context",
-      hasSession,
-      noSessionReason,
-    ),
-    commandEntry(
-      "agent.clear",
-      "Clear Session",
-      "/clear",
-      "Replace active session with a fresh child session",
-      hasSession,
-      noSessionReason,
-    ),
-    commandEntry(
-      "agent.navigate",
-      "Navigate Messages",
-      "/navigate",
-      "Scroll to user messages from the session tree",
-      hasSession,
-      noSessionReason,
-    ),
-    commandEntry(
-      "agent.help",
-      "Help",
-      "/help",
-      "Show all keyboard shortcuts",
-    ),
-    commandEntry(
-      "agent.hotkeys",
-      "Hotkeys",
-      "/hotkeys",
-      "Show all keyboard shortcuts",
-    ),
-    commandEntry(
-      "agent.quit",
-      "Quit",
-      "/quit",
-      "Exit the TUI",
-    ),
-    commandEntry(
-      "agent.exit",
-      "Exit",
-      "/exit",
-      "Exit the TUI",
-    ),
-    commandEntry(
-      "agent.close-all-sessions",
-      "Close All Sessions",
-      "/close-all-sessions",
-      "Close all agent tabs but keep their sessions",
-      hasTabs,
-      "No open Agent Tabs",
-    ),
-    commandEntry(
-      "agent.delete-all-sessions",
-      "Delete All Sessions",
-      "/delete-all-sessions",
-      "Delete all sessions and close all agent tabs",
-      hasTabs,
-      "No open Agent Tabs",
-    ),
-  ];
+  const flags = {
+    hasSession: Boolean(active.sessionId),
+    hasModels: state.availableModels.length > 0,
+    hasTabs: state.tabs.length > 0,
+  };
+  return LOCAL_COMMANDS.filter(
+    (command) => command.palette && command.palette.scope !== "config",
+  ).map((command) =>
+    paletteEntryFromCommand("agent", command.name, command.description, command.palette!, flags),
+  );
+}
+
+interface PaletteFlags {
+  hasSession: boolean;
+  hasModels: boolean;
+  hasTabs: boolean;
+}
+
+/** Build a palette entry from a LOCAL_COMMANDS definition for the given view. */
+function paletteEntryFromCommand(
+  view: "agent" | "config",
+  name: string,
+  commandDescription: string,
+  meta: LocalCommandPaletteMeta,
+  flags: PaletteFlags,
+): CommandPaletteEntry {
+  const requires = view === "agent" ? meta.requires : meta.configRequires;
+  const { enabled, disabledReason } = resolvePaletteRequirement(requires, flags);
+  return commandEntry(
+    `${view}.${name}`,
+    meta.label,
+    `/${name}`,
+    meta.description ?? commandDescription,
+    enabled,
+    disabledReason,
+  );
+}
+
+/** Resolve an enable-condition key against the current UI flags. */
+function resolvePaletteRequirement(
+  requires: PaletteRequirement | undefined,
+  flags: PaletteFlags,
+): { enabled: boolean; disabledReason: string } {
+  switch (requires) {
+    case "session":
+      return { enabled: flags.hasSession, disabledReason: "Current tab has no active session" };
+    case "session+models":
+      return {
+        enabled: flags.hasSession && flags.hasModels,
+        disabledReason: !flags.hasSession
+          ? "Current tab has no active session"
+          : "No models loaded",
+      };
+    case "tabs":
+      return { enabled: flags.hasTabs, disabledReason: "No open Agent Tabs" };
+    default:
+      return { enabled: true, disabledReason: "" };
+  }
 }
 
 function extensionCommandPaletteEntries(
@@ -640,37 +410,9 @@ function extensionCommandPaletteEntries(
 }
 
 function commandPaletteLocalCommands(): string[] {
-  return [
-    "models",
-    "thinking",
-    "context-limit",
-    "theme",
-    "tui-state",
-    "system-tools",
-    "system-prompt",
-    "extension-manager",
-    "rename",
-    "workdir",
-    "import",
-    "mark-done",
-    "vim",
-    "new-session",
-    "resume",
-    "close-session",
-    "delete-session",
-    "close-all-sessions",
-    "delete-all-sessions",
-    "reload",
-    "session",
-    "fork",
-    "compact",
-    "clear",
-    "navigate",
-    "help",
-    "hotkeys",
-    "quit",
-    "exit",
-  ];
+  // Derived from the single source of truth so extension commands can never
+  // shadow a local command in the palette.
+  return LOCAL_COMMANDS.map((command) => command.name);
 }
 
 function commandEntry(

@@ -195,6 +195,12 @@ export interface RuntimeTab {
   extensionManagerEntries: ExtensionManagerEntry[];
   extensionToolOwnerPolicy: ExtensionToolOwnerPolicy;
   extensionAutocompleteProviderCache?: ExtensionAutocompleteProviderCache;
+  /**
+   * When true, custom messages with display:false are rendered in the chat
+   * (with a [hidden] marker). Toggled per tab via /toggle-hidden-messages;
+   * intentionally not persisted — it is a session-scoped debugging aid.
+   */
+  showHiddenMessages?: boolean;
   requestRender?: () => void;
   currentRunChatStartIndex?: number;
   streamingAssistant?: {

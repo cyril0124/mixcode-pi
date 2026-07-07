@@ -1,5 +1,5 @@
 import type { MixCodeRuntime } from "../agent/runtime.js";
-import { disposeChatRenderers } from "../agent/runtime-chat.js";
+import { disposeChatRenderers, entriesToChatLines } from "../agent/runtime-chat.js";
 import { MIXCODE_EXTENSION_KEYBINDINGS } from "../agent/runtime-extension-theme.js";
 import { applyContextLimit, parseContextLimitValue, adjustCompactionSettingsForLimit } from "../core/context-limit.js";
 import { parseInput } from "../core/commands.js";
@@ -86,6 +86,28 @@ export async function handleSubmittedInput(
     active!.vimMode = true;
     active!.vimPendingEscapeAt = undefined;
     active!.vimPendingHome = false;
+  } else if (parsed.command === "toggle-hidden-messages") {
+    const runtimeTab = runtime.getTab?.(active!.sessionId);
+    if (!runtimeTab) {
+      pushToast(active!, {
+        type: "warning",
+        message: "Toggling hidden messages requires an active agent chat",
+      });
+      return void tui.requestRender();
+    }
+    runtimeTab.showHiddenMessages = !runtimeTab.showHiddenMessages;
+    // Rebuild the chat lines from the session branch so already-persisted
+    // hidden entries appear/disappear immediately (same pattern as branch
+    // switching in runtime-events).
+    runtimeTab.chat = entriesToChatLines(runtimeTab.session.getBranch(), runtimeTab);
+    clearConversationCache(active!.sessionId);
+    pushToast(active!, {
+      type: "info",
+      message: runtimeTab.showHiddenMessages
+        ? "Hidden extension messages shown"
+        : "Hidden extension messages hidden",
+    });
+    tui.requestRender();
   } else if (parsed.command === "navigate") {
     const runtimeTab = runtime.getTab?.(active!.sessionId);
     if (!runtimeTab?.session.getTree || !runtimeTab.session.getLeafId || !runtimeTab.session.getBranch) {

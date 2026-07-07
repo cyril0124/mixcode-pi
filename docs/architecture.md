@@ -186,7 +186,7 @@ Ctrl+P
   │
   └─ Agent tab
        ├─ /models /thinking /context-limit /theme /tui-state
-       ├─ /system-tools /system-prompt /extension-manager /reload /session
+       ├─ /system-tools /system-prompt /toggle-hidden-messages /extension-manager /reload /session
        ├─ /rename /workdir /import /mark-done /vim
        ├─ /fork /compact /clear /navigate /tree
        ├─ /help /hotkeys /quit /exit

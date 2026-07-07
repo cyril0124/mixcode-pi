@@ -135,9 +135,13 @@ export function customMessageToChatLine(
   runtimeTab: RuntimeTab,
 ): ChatLine | undefined {
   if (!isCustomMessage(message)) return undefined;
-  if (!message.display) return undefined;
+  // Hidden (display:false) messages only render when the per-tab debug toggle
+  // is on; they get a [hidden] marker so they are distinguishable from
+  // messages that are visible by design.
+  if (!message.display && !runtimeTab.showHiddenMessages) return undefined;
   const text = contentText(message.content);
-  const title = message.customType ? `extension ${message.customType}` : "extension";
+  const baseTitle = message.customType ? `extension ${message.customType}` : "extension";
+  const title = message.display ? baseTitle : `${baseTitle} [hidden]`;
   const renderer = runtimeTab.agentSession.extensionRunner.getMessageRenderer(message.customType);
   const line: ChatLine = {
     role: "extension",

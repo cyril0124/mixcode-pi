@@ -32,6 +32,23 @@ import {
   updateTabJumpQuery,
 } from "../src/index.js";
 
+test("command palette derives every palette-visible LOCAL_COMMANDS entry", () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"));
+  state.activeTabId = "s1";
+  openCommandPalette(state);
+  const commands = new Set(commandPaletteEntries(state).map((entry) => entry.command));
+  // Newly registered local commands must appear without touching overlays.ts.
+  assert.ok(commands.has("/toggle-hidden-messages"), "palette derives /toggle-hidden-messages");
+  // Config-scoped view must also derive from the same source.
+  const configState = createInitialState("/repo");
+  openCommandPalette(configState);
+  const configCommands = new Set(
+    commandPaletteEntries(configState).map((entry) => entry.command),
+  );
+  assert.ok(configCommands.has("/save-workspace"), "config palette keeps workspace commands");
+});
+
 test("preview overlay toggles and renders", () => {
   const tab = createTab(1, "s1", "/repo");
   assert.deepEqual(renderPreviewOverlay(tab, 80), []);
@@ -209,33 +226,34 @@ test("command palette state filters, moves, accepts, and closes", () => {
       "/models",
       "/thinking",
       "/context-limit",
-      "/theme",
-      "/tui-state",
-      "/system-tools",
-      "/system-prompt",
-      "/extension-manager",
-      "/rename",
       "/workdir",
-      "/import",
-      "/mark-done",
-      "/vim",
-      "/new-session",
-      "/resume",
+      "/theme",
+      "/fork",
       "/tree",
       "/close-session",
       "/delete-session",
-      "/reload",
-      "/session",
-      "/fork",
-      "/compact",
-      "/clear",
-      "/navigate",
-      "/help",
-      "/hotkeys",
-      "/quit",
-      "/exit",
       "/close-all-sessions",
       "/delete-all-sessions",
+      "/import",
+      "/extension-manager",
+      "/reload",
+      "/system-prompt",
+      "/system-tools",
+      "/toggle-hidden-messages",
+      "/session",
+      "/compact",
+      "/clear",
+      "/mark-done",
+      "/vim",
+      "/navigate",
+      "/new-session",
+      "/resume",
+      "/help",
+      "/hotkeys",
+      "/rename",
+      "/tui-state",
+      "/quit",
+      "/exit",
     ],
   );
   assertNoOpenCodePaletteEntries(commandPaletteEntries(state));
