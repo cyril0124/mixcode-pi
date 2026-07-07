@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { materializeBinaryRuntimeAssets } from "../src/cli/binary-assets.js";
+import { ensurePackageExtensions } from "../src/core/ensure-package-extensions.js";
 
 test("binary runtime assets are written for both upstream Bun and dist layouts", async () => {
   const runtimeDir = await mkdtemp(join(tmpdir(), "mixcode-binary-assets-"));
@@ -82,5 +83,47 @@ test("binary runtime assets are written for both upstream Bun and dist layouts",
     assert.equal(await readFile(join(pkgDir, "state", "store.ts"), "utf8"), "export const x = 1;");
   } finally {
     await rm(runtimeDir, { recursive: true, force: true });
+  }
+});
+
+test("binary runtime built-in packages are installed as Pi extensions", async () => {
+  const oldHome = process.env.HOME;
+  const homeDir = await mkdtemp(join(tmpdir(), "mixcode-binary-home-"));
+  const runtimeDir = await mkdtemp(join(tmpdir(), "mixcode-binary-assets-"));
+  try {
+    process.env.HOME = homeDir;
+    materializeBinaryRuntimeAssets(runtimeDir, {
+      darkTheme: {},
+      lightTheme: {},
+      exportTemplateCss: "",
+      exportTemplateHtml: "",
+      exportTemplateJs: "",
+      exportVendorMarked: "",
+      exportVendorHighlight: "",
+      packageJson: {},
+      builtinPackages: {
+        "probe-extension": {
+          "index.ts": "export default () => {};",
+          "package.json": JSON.stringify({
+            name: "probe-extension",
+            version: "0.0.0",
+            type: "module",
+            pi: { extensions: ["./index.ts"] },
+          }),
+        },
+      },
+    });
+
+    ensurePackageExtensions(runtimeDir, { copy: true });
+
+    assert.equal(
+      await readFile(join(homeDir, ".pi", "agent", "extensions", "probe-extension", "index.ts"), "utf8"),
+      "export default () => {};",
+    );
+  } finally {
+    if (oldHome === undefined) delete process.env.HOME;
+    else process.env.HOME = oldHome;
+    await rm(runtimeDir, { recursive: true, force: true });
+    await rm(homeDir, { recursive: true, force: true });
   }
 });
