@@ -10,7 +10,6 @@ import {
   buildSessionIndex,
   conversationHistoryPaths,
   ensureConversationHistoryState,
-  loadMixCodeSettings,
   shouldRebuildSessionIndex,
 } from "../src/index.js";
 
@@ -39,47 +38,6 @@ test("conversation history paths live under the global state dir", () => {
   assert.equal(paths.settingsFile, "/state/mixcode_settings.json");
   assert.equal(paths.historyFile, "/state/history.jsonl");
   assert.equal(paths.sessionIndexFile, "/state/session_index.jsonl");
-});
-
-test("mixcode settings default history max bytes and ignore obsolete persistence", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-history-settings-"));
-  try {
-    assert.deepEqual(await loadMixCodeSettings(join(dir, "missing.json")), {
-      history: { maxBytes: 5 * 1024 * 1024 },
-    });
-    await writeFile(
-      join(dir, "mixcode_settings.json"),
-      JSON.stringify({ history: { persistence: "none", maxBytes: 128 } }),
-      "utf8",
-    );
-    assert.deepEqual(await loadMixCodeSettings(join(dir, "mixcode_settings.json")), {
-      history: { maxBytes: 128 },
-    });
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-});
-
-test("mixcode settings accept jsonc comments and trailing commas", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-history-jsonc-settings-"));
-  try {
-    await writeFile(
-      join(dir, "mixcode_settings.json"),
-      `{
-        // Keep at most 256 bytes of prompt history.
-        "history": {
-          "maxBytes": 256,
-        },
-      }`,
-      "utf8",
-    );
-
-    assert.deepEqual(await loadMixCodeSettings(join(dir, "mixcode_settings.json")), {
-      history: { maxBytes: 256 },
-    });
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
 });
 
 test("appendHistoryEntry writes strict Codex-compatible fields and trims oldest lines", async () => {

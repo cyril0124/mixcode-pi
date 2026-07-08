@@ -48,6 +48,19 @@ export function sanitizeTerminalText(text: string): string {
   return output;
 }
 
+export function renderBackgroundLine(
+  part: string,
+  width: number,
+  background: { start: string; end: string },
+): string {
+  const padded = padLine(part.replace(/\t/g, "  "), width);
+  return `${background.start}${reapplyBackgroundAfterSgr(padded, background.start)}${background.end}`;
+}
+
+function reapplyBackgroundAfterSgr(text: string, backgroundStart: string): string {
+  return text.replace(/\x1b\[[0-?]*[ -/]*m/g, (sequence) => `${sequence}${backgroundStart}`);
+}
+
 function isPrintableOrWhitespace(char: string): boolean {
   const code = char.charCodeAt(0);
   return code >= 0x20 || char === "\n" || char === "\r" || char === "\t";

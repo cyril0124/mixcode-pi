@@ -15,8 +15,10 @@ import {
 } from "../core/extension-manager.js";
 import {
   buildConversationHistoryPromptForRoot,
+  conversationHistoryPaths,
   ensureConversationHistoryState,
 } from "../core/conversation-history.js";
+import { loadMixCodeSettings } from "../core/mixcode-settings.js";
 import { scanProjectFiles } from "../core/file-picker.js";
 import {
   buildAvailableModelRefs,
@@ -107,6 +109,7 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
 
   const stateFile = stateFileForPort(stateDir, port);
   const workspaceFile = join(stateDir, "workspaces.json");
+  const mixCodeSettings = await loadMixCodeSettings(conversationHistoryPaths(rootStateDir).settingsFile);
   let state: MixCodeState;
   let restoredFromDisk = true;
   try {
@@ -119,6 +122,7 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
     state = createInitialState(options.workdir, defaultThinkingLevel);
     restoredFromDisk = false;
   }
+  state.ui = mixCodeSettings.ui;
   const modelBundle = await createPiModelRegistryBundle(options.modelConfigPath);
   registerModels(modelBundle.sources.map((source) => source.model));
   const configuredModels = modelBundle.sources

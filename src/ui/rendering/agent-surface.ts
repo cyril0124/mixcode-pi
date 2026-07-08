@@ -2,17 +2,21 @@ import { truncateToWidth } from "@earendil-works/pi-tui";
 import type { ChatLine, RuntimeTab } from "../../agent/runtime.js";
 import { highlightChatSelectionLine } from "../../core/chat-selection.js";
 import { activeToast } from "../../core/toast.js";
+import type { OversizedAssistantMessageSettings } from "../../core/mixcode-settings.js";
 import type { MixCodeTabInfo } from "../../core/types.js";
 import type { MixCodeTheme } from "../themes.js";
 import {
-  STREAMING_MARKDOWN_CHAR_LIMIT,
   chatBlockSeparator,
   renderChatBlock,
   renderConversation,
   renderConversationEmptyState,
   renderStartupBlock,
-  type RenderChatBlockOptions,
 } from "./chat.js";
+import {
+  chatBlockRenderOptions,
+  oversizedPolicyKey,
+  type AgentSurfaceRenderOptions,
+} from "./agent-surface-options.js";
 import {
   renderExtensionHeader,
   renderSidebarInner,
@@ -23,7 +27,6 @@ import {
   applyScrollFreezeAnchor,
   decorateWindow,
   estimateTotalHeight,
-  isScrollFrozen,
   keepScrolledViewStable,
   rememberScrollFreezeAnchor,
 } from "./agent-surface-scroll.js";
@@ -82,6 +85,7 @@ interface ConversationCache {
   toolsExpanded: boolean;
   pendingMessagesLength: number;
   lastPendingMessage: string;
+  oversizedPolicyKey: string;
   chatRef: ChatLine[];
 }
 
@@ -120,15 +124,19 @@ export function renderAgentSurface(
   width: number,
   maxHeight?: number,
   theme: MixCodeTheme = activeRenderTheme,
+  options: AgentSurfaceRenderOptions = {},
 ): string[] {
-  return renderWithTheme(theme, () => renderAgentSurfaceInner(tab, runtimeTab, width, maxHeight));
+  return renderWithTheme(theme, () =>
+    renderAgentSurfaceInner(tab, runtimeTab, width, maxHeight, options),
+  );
 }
 
 function renderAgentSurfaceInner(
   tab: MixCodeTabInfo,
   runtimeTab: RuntimeTab | undefined,
   width: number,
-  maxHeight?: number,
+  maxHeight: number | undefined,
+  options: AgentSurfaceRenderOptions,
 ): string[] {
   const surfaceWidth = maxHeight === undefined || width < 2 ? width : width - 1;
   const sidebarVisible = false;
@@ -145,6 +153,7 @@ function renderAgentSurfaceInner(
       mainWidth,
       sidebarVisible,
       sidebarWidth,
+      options,
     );
   }
 
@@ -154,7 +163,7 @@ function renderAgentSurfaceInner(
   // maxHeight=undefined, e.g. tests measuring full layout).
   if (maxHeight !== undefined) {
     const chat = runtimeTab?.chat ?? previewMessagesToChat(tab);
-    if (canUseWindowedRender(tab, chat)) {
+    if (canUseWindowedRender(tab, chat, options.oversizedAssistantMessage)) {
       return renderAgentSurfaceWindowed(
         tab,
         runtimeTab,
@@ -165,11 +174,12 @@ function renderAgentSurfaceInner(
         mainWidth,
         sidebarVisible,
         sidebarWidth,
+        options,
       );
     }
   }
 
-  const main = getCachedConversationLines(tab, runtimeTab, mainWidth);
+  const main = getCachedConversationLines(tab, runtimeTab, mainWidth, options);
   const body = sidebarVisible
     ? joinColumns(main, renderSidebarInner(tab, sidebarWidth, runtimeTab), mainWidth, sidebarWidth)
     : main;
@@ -203,15 +213,34 @@ function renderAgentSurfaceInner(
  * For a typical "long quiet chat" tab switch the dynamic-renderer check is
  * cheap because such tabs have few/none of those blocks.
  */
-function canUseWindowedRender(tab: MixCodeTabInfo, chat: ChatLine[]): boolean {
+function canUseWindowedRender(
+  tab: MixCodeTabInfo,
+  chat: ChatLine[],
+  oversizedPolicy: OversizedAssistantMessageSettings | undefined,
+): boolean {
   // During streaming, active tool renderers are always at the tail of the
   // chat (current turn). The windowed renderer walks backward from the tail,
   // so it naturally includes them in the viewport. Allow windowed rendering
   // with a lower threshold during streaming to avoid the expensive legacy
   // full-render path that blocks the event loop.
   const isActiveRun = tab.status === "running" || tab.status === "thinking";
-  if (isActiveRun) return chat.length >= WINDOW_RENDER_STREAMING_THRESHOLD;
-  return chat.length >= WINDOW_RENDER_BLOCK_THRESHOLD;
+  if (isActiveRun && chat.length >= WINDOW_RENDER_STREAMING_THRESHOLD) return true;
+  return chat.length >= WINDOW_RENDER_BLOCK_THRESHOLD || chat.some((line) => isOversizedAssistantBlock(line, oversizedPolicy));
+}
+
+function isOversizedAssistantBlock(
+  line: ChatLine,
+  policy: OversizedAssistantMessageSettings | undefined,
+): boolean {
+  if (!policy?.enabled) return false;
+  if (line.role !== "assistant" && line.role !== "thinking") return false;
+  if (Buffer.byteLength(line.text, "utf8") > policy.maxBytes) return true;
+  let lineCount = 1;
+  for (let index = line.text.indexOf("\n"); index >= 0; index = line.text.indexOf("\n", index + 1)) {
+    lineCount++;
+    if (lineCount > policy.maxLines) return true;
+  }
+  return false;
 }
 
 /**
@@ -239,6 +268,7 @@ function renderAgentSurfaceAnchored(
   mainWidth: number,
   sidebarVisible: boolean,
   sidebarWidth: number,
+  options: AgentSurfaceRenderOptions,
 ): string[] {
   const chat = runtimeTab.chat;
   const viewport = Math.max(0, Math.floor(maxHeight));
@@ -262,6 +292,7 @@ function renderAgentSurfaceAnchored(
       mainWidth,
       sidebarVisible,
       sidebarWidth,
+      options,
     );
   }
 
@@ -276,7 +307,7 @@ function renderAgentSurfaceAnchored(
       mainWidth,
       tab,
       activeRenderTheme,
-      streamingTextRenderOptions(runtimeTab, i),
+      chatBlockRenderOptions(runtimeTab, i, options),
     );
     frameBlockHeights.set(chat[i]!, block.length);
     if (block.length === 0) continue;
@@ -294,7 +325,7 @@ function renderAgentSurfaceAnchored(
       mainWidth,
       tab,
       activeRenderTheme,
-      streamingTextRenderOptions(runtimeTab, i),
+      chatBlockRenderOptions(runtimeTab, i, options),
     );
     frameBlockHeights.set(line, block.length);
     if (block.length === 0) continue;
@@ -353,6 +384,7 @@ function renderAgentSurfaceWindowed(
   mainWidth: number,
   sidebarVisible: boolean,
   sidebarWidth: number,
+  options: AgentSurfaceRenderOptions,
   freezeAdjusted = false,
 ): string[] {
   const viewport = Math.max(0, Math.floor(maxHeight));
@@ -378,7 +410,7 @@ function renderAgentSurfaceWindowed(
       mainWidth,
       tab,
       activeRenderTheme,
-      streamingTextRenderOptions(runtimeTab, i),
+      chatBlockRenderOptions(runtimeTab, i, options),
     );
     // Some rendered blocks intentionally bypass the cross-frame cache (for
     // example the active streaming assistant tail). Keep their just-rendered
@@ -447,6 +479,7 @@ function renderAgentSurfaceWindowed(
       mainWidth,
       sidebarVisible,
       sidebarWidth,
+      options,
       true,
     );
   }
@@ -496,45 +529,31 @@ function renderAgentSurfaceWindowed(
   return appendChatScrollbar(fitted, width, hasNewContent);
 }
 
-function streamingTextRenderOptions(
-  runtimeTab: RuntimeTab | undefined,
-  chatIndex: number,
-): RenderChatBlockOptions | undefined {
-  if (!runtimeTab) return undefined;
-  const streaming = runtimeTab.streamingAssistant;
-  if (!streaming) return undefined;
-  const line = runtimeTab.chat[chatIndex];
-  if (line?.role !== "assistant" && line?.role !== "thinking") return undefined;
-  const frozen = isScrollFrozen(runtimeTab.tab);
-  if (streaming.chatIndex === chatIndex) {
-    return frozen ? undefined : { streamingMarkdownCharLimit: STREAMING_MARKDOWN_CHAR_LIMIT };
-  }
-  for (const index of streaming.blockIndices.values()) {
-    if (index === chatIndex) {
-      return frozen ? undefined : { streamingMarkdownCharLimit: STREAMING_MARKDOWN_CHAR_LIMIT };
-    }
-  }
-  return undefined;
-}
-
 function getCachedConversationLines(
   tab: MixCodeTabInfo,
   runtimeTab: RuntimeTab | undefined,
   width: number,
+  options: AgentSurfaceRenderOptions,
 ): string[] {
   const chat = runtimeTab?.chat ?? previewMessagesToChat(tab);
 
   // Skip cache when the tab is actively running or any tool is mid-execution.
   // Tool renderers may have component lifecycle side effects (dispose/create)
   // that require re-invocation on each render frame.
+  const blockOptions = (_line: ChatLine, index: number) =>
+    chatBlockRenderOptions(runtimeTab, index, options);
   if (tab.status === "running" || tab.status === "thinking" || hasRunningTool(chat)) {
     conversationCacheMap.delete(tab.sessionId);
-    return [...renderConversation(chat, width, tab), ...renderQueuePreview(tab, width)];
+    return [
+      ...renderConversation(chat, width, tab, { blockOptions }),
+      ...renderQueuePreview(tab, width),
+    ];
   }
 
   const lastChat = chat[chat.length - 1];
   const toolsExpanded = tab.extensionUi.toolsExpanded ?? false;
   const lastPending = tab.pendingMessages[tab.pendingMessages.length - 1] ?? "";
+  const policyKey = oversizedPolicyKey(options.oversizedAssistantMessage);
 
   const cached = conversationCacheMap.get(tab.sessionId);
   if (
@@ -547,13 +566,14 @@ function getCachedConversationLines(
     cached.themeName === activeRenderTheme.name &&
     cached.toolsExpanded === toolsExpanded &&
     cached.pendingMessagesLength === tab.pendingMessages.length &&
-    cached.lastPendingMessage === lastPending
+    cached.lastPendingMessage === lastPending &&
+    cached.oversizedPolicyKey === policyKey
   ) {
     return cached.lines;
   }
 
   const lines = [
-    ...renderConversation(chat, width, tab),
+    ...renderConversation(chat, width, tab, { blockOptions }),
     ...renderQueuePreview(tab, width),
   ];
 
@@ -568,6 +588,7 @@ function getCachedConversationLines(
     toolsExpanded,
     pendingMessagesLength: tab.pendingMessages.length,
     lastPendingMessage: lastPending,
+    oversizedPolicyKey: policyKey,
   });
 
   return lines;

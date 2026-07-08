@@ -8,12 +8,20 @@
 import assert from "node:assert/strict";
 import { performance } from "node:perf_hooks";
 import { test } from "node:test";
-import { createTab, scrollChat, type ChatLine } from "../src/index.js";
+import {
+  DEFAULT_OVERSIZED_ASSISTANT_MESSAGE,
+  createTab,
+  scrollChat,
+  type ChatLine,
+} from "../src/index.js";
 import { renderAgentSurface } from "../src/ui/rendering/agent-surface.js";
 import { renderChat } from "../src/ui/rendering/chat.js";
 
 const WIDTH = 100;
 const HEIGHT = 20;
+const DEFAULT_SURFACE_OPTIONS = {
+  oversizedAssistantMessage: DEFAULT_OVERSIZED_ASSISTANT_MESSAGE,
+};
 
 function stripAnsi(s: string): string {
   return s.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "");
@@ -95,7 +103,7 @@ test("windowed renderer pins to bottom when scrollOffset is 0", () => {
   // The newest message must be visible. i=199 -> 199%4=3 -> system-199.
   assert.match(text, /system-199/);
   // The first visible row should be the boundary marker, not message-0.
-  assert.match(text, /\.\.\. older above/);
+  assert.match(text, /↑ older above/);
   assert.equal(lines.length, HEIGHT);
 });
 
@@ -104,8 +112,8 @@ test("windowed renderer shows mid-scroll content with both boundary markers", ()
   const tab = createTab(2, "s2", "/repo", { chatScrollOffset: 50 });
   const lines = renderAgentSurface(tab, { chat } as never, WIDTH, HEIGHT);
   const text = lines.map(stripAnsi).join("\n");
-  assert.match(text, /\.\.\. older above/);
-  assert.match(text, /\.\.\. newer below/);
+  assert.match(text, /↑ older above/);
+  assert.match(text, /↓ newer below/);
   // Newest message should NOT be visible when scrolled mid.
   assert.doesNotMatch(text, /system-199/);
   assert.equal(lines.length, HEIGHT);
@@ -120,7 +128,7 @@ test("windowed renderer reaches top of chat when scrollOffset is the home sentin
   assert.match(text, /assistant-0\b/);
   // Newest message must NOT be visible.
   assert.doesNotMatch(text, /system-199/);
-  assert.match(text, /\.\.\. newer below/);
+  assert.match(text, /↓ newer below/);
   assert.equal(lines.length, HEIGHT);
   // The renderer must clamp the sentinel to a reasonable maximum, not leave
   // the user stuck above the content with subsequent scrolls feeling dead.
@@ -191,7 +199,7 @@ test("running plain streaming chats use windowed rendering", () => {
 
   assert.equal(lines.length, HEIGHT);
   assert.match(text, /block-179/);
-  assert.match(text, /\.\.\. older above/);
+  assert.match(text, /↑ older above/);
   assert.doesNotMatch(text, /block-0\b/);
 });
 
@@ -227,6 +235,8 @@ test("windowed renderer keeps scrolled view stable as streaming tail grows", () 
   const after = renderAgentSurface(tab, { chat } as never, WIDTH, HEIGHT).map(stripAnsi);
   const repeated = renderAgentSurface(tab, { chat } as never, WIDTH, HEIGHT).map(stripAnsi);
 
+  assert.equal(after.length, HEIGHT);
+  assert.equal(repeated.length, HEIGHT);
   assert.equal(after[firstContentRow], firstVisibleLine);
   assert.equal(repeated[firstContentRow], firstVisibleLine);
 
@@ -258,16 +268,100 @@ test("running chats with historical tool renderers still use windowed rendering"
   assert.equal(rendered, 0);
   assert.equal(lines.length, HEIGHT);
   assert.match(text, /block-179/);
-  assert.match(text, /\.\.\. older above/);
+  assert.match(text, /↑ older above/);
   assert.doesNotMatch(text, /historical tool frame/);
 });
 
-test("complete long assistant messages render full text outside streaming window", () => {
+test("complete long assistant messages render full text outside TUI oversized policy", () => {
   const text = `START ${"x".repeat(9000)} END`;
   const rendered = renderChat([{ role: "assistant", text }], WIDTH).map(stripAnsi).join("\n");
 
   assert.match(rendered, /START/);
   assert.match(rendered, /END/);
+  assert.doesNotMatch(rendered, /Oversized provider output/);
+});
+
+test("TUI surface folds oversized assistant provider output", () => {
+  const chat: ChatLine[] = [
+    { role: "assistant", text: `huge-start\n${"card\n".repeat(200)}huge-end` },
+  ];
+  const tab = createTab(24, "s24", "/repo", { chatScrollOffset: 0 });
+  const text = renderAgentSurface(tab, { chat } as never, WIDTH, 140, undefined, {
+    oversizedAssistantMessage: { enabled: true, maxLines: 50, maxBytes: 1024 * 1024 },
+  })
+    .map(stripAnsi)
+    .join("\n");
+
+  assert.match(text, /\[Oversized provider output\]/);
+  assert.match(text, /role: assistant/);
+  assert.match(text, /threshold:/);
+  assert.match(text, /raw preview:/);
+  assert.match(text, /huge-start/);
+  assert.match(text, /huge-end/);
+  assert.match(text, /use \/view to inspect it/);
+});
+
+test("TUI surface restores full assistant markdown rendering when oversized policy is disabled", () => {
+  const chat: ChatLine[] = [{ role: "assistant", text: `START ${"x".repeat(200)} END` }];
+  const tab = createTab(25, "s25", "/repo", { chatScrollOffset: 0 });
+  const text = renderAgentSurface(tab, { chat } as never, WIDTH, HEIGHT, undefined, {
+    oversizedAssistantMessage: { enabled: false, maxLines: 1, maxBytes: 1 },
+  })
+    .map(stripAnsi)
+    .join("\n");
+
+  assert.doesNotMatch(text, /Oversized provider output/);
+  assert.match(text, /START/);
+  assert.match(text, /END/);
+});
+
+test("TUI surface folds oversized streaming assistant output immediately", () => {
+  const chat: ChatLine[] = [{ role: "assistant", text: `streaming ${"card ".repeat(200)}` }];
+  const tab = createTab(26, "s26", "/repo", { status: "running", chatScrollOffset: 0 });
+  const runtimeTab = {
+    chat,
+    streamingAssistant: { chatIndex: 0, blockIndices: new Map() },
+  } as never;
+  const text = renderAgentSurface(tab, runtimeTab, WIDTH, HEIGHT, undefined, {
+    oversizedAssistantMessage: { enabled: true, maxLines: 5000, maxBytes: 100 },
+  })
+    .map(stripAnsi)
+    .join("\n");
+
+  assert.match(text, /\[Oversized provider output\]/);
+  assert.match(text, /role: assistant/);
+});
+
+test("TUI surface keeps below-threshold assistant messages as markdown", () => {
+  const chat: ChatLine[] = [{ role: "assistant", text: "normal **markdown** message" }];
+  const tab = createTab(27, "s27", "/repo", { chatScrollOffset: 0 });
+  const text = renderAgentSurface(tab, { chat } as never, WIDTH, HEIGHT, undefined, DEFAULT_SURFACE_OPTIONS)
+    .map(stripAnsi)
+    .join("\n");
+
+  assert.doesNotMatch(text, /Oversized provider output/);
+  assert.match(text, /normal markdown message/);
+});
+
+test("TUI oversized policy applies only to assistant and thinking roles", () => {
+  const oversizedAssistantMessage = { enabled: true, maxLines: 1, maxBytes: 5 };
+  const chat: ChatLine[] = [
+    { role: "user", text: "USER-CONTENT-ABOVE-THRESHOLD" },
+    { role: "tool", title: "bash", toolCallId: "t-role", status: "success", text: "TOOL-CONTENT-ABOVE-THRESHOLD" },
+    { role: "system", text: "SYSTEM-CONTENT-ABOVE-THRESHOLD" },
+    { role: "thinking", text: "THINKING-CONTENT-ABOVE-THRESHOLD" },
+  ];
+  const tab = createTab(28, "s28", "/repo", { chatScrollOffset: 0 });
+  const text = renderAgentSurface(tab, { chat } as never, WIDTH, 80, undefined, {
+    oversizedAssistantMessage,
+  })
+    .map(stripAnsi)
+    .join("\n");
+
+  assert.match(text, /USER-CONTENT-ABOVE-THRESHOLD/);
+  assert.match(text, /TOOL-CONTENT-ABOVE-THRESHOLD/);
+  assert.match(text, /SYSTEM-CONTENT-ABOVE-THRESHOLD/);
+  assert.match(text, /role: thinking/);
 });
 
 test("running windowed renderer reaches the first user message with home sentinel", () => {
@@ -284,7 +378,7 @@ test("running windowed renderer reaches the first user message with home sentine
 
   assert.match(text, /first user message/);
   assert.doesNotMatch(text, /active streaming tail/);
-  assert.match(text, /\.\.\. newer below/);
+  assert.match(text, /↓ newer below/);
   assert.equal(lines.length, HEIGHT);
   assert.ok(tab.chatScrollOffset < 1_000_000);
 });
@@ -385,7 +479,7 @@ test("idle chats with stale pending tool tail still use windowed rendering", () 
 
   assert.equal(lines.length, HEIGHT);
   assert.match(text, /stale/);
-  assert.match(text, /\.\.\. older above/);
+  assert.match(text, /↑ older above/);
   assert.equal(historicalRendered, 0);
 });
 
@@ -401,7 +495,7 @@ test("preview chat uses windowed rendering before runtime tab is ready", () => {
   const text = lines.map(stripAnsi).join("\n");
   assert.equal(lines.length, HEIGHT);
   assert.match(text, /preview-4999/);
-  assert.match(text, /\.\.\. older above/);
+  assert.match(text, /↑ older above/);
 
   const smallMs = measurePreviewRenderMs(smallTab, 50);
   const largeMs = measurePreviewRenderMs(largeTab, 50);
@@ -411,6 +505,20 @@ test("preview chat uses windowed rendering before runtime tab is ready", () => {
       3,
     )}ms 100=${smallMs.toFixed(3)}ms ratio=${(largeMs / smallMs).toFixed(1)}x`,
   );
+});
+
+test("huge preview assistant block is folded on tab switch", () => {
+  const hugeTab = createTab(23, "s23-huge", "/repo", {
+    previewMessages: [
+      { role: "assistant", text: `huge-start\n\n${"card\n\n".repeat(20_000)}huge-end` },
+    ],
+  });
+
+  const lines = renderAgentSurface(hugeTab, undefined, WIDTH, HEIGHT, undefined, DEFAULT_SURFACE_OPTIONS);
+  const text = lines.map(stripAnsi).join("\n");
+  assert.equal(lines.length, HEIGHT);
+  assert.match(text, /Oversized provider output/);
+  assert.match(text, /huge-end/);
 });
 
 function buildPreviewMessages(count: number) {

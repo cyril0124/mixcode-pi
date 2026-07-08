@@ -1,9 +1,14 @@
 import { truncateToWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import type { ChatLine } from "../../agent/runtime.js";
+import type { OversizedAssistantMessageSettings } from "../../core/mixcode-settings.js";
 import type { MixCodeTabInfo } from "../../core/types.js";
 import { activeRenderTheme, renderWithTheme } from "./context.js";
 import { renderMarkdown } from "./markdown.js";
-import { padLine, sanitizeTerminalText } from "./primitives.js";
+import {
+  isOversizedAssistantMessageText,
+  renderOversizedAssistantMessageBlock,
+} from "./oversized-assistant-message.js";
+import { padLine, renderBackgroundLine, sanitizeTerminalText } from "./primitives.js";
 
 /**
  * Parsed skill block from a user message.
@@ -36,11 +41,16 @@ const OSC133_ZONE_END = "\x1b]133;B\x07";
 const OSC133_ZONE_FINAL = "\x1b]133;C\x07";
 const USER_BASH_PREVIEW_LINES = 20;
 // Max chars to render for an explicitly active streaming assistant/thinking block.
-// Complete messages render in full. At ~120 chars/line, 8000 chars produces
-// ~67 lines, which is enough for any viewport + overscan.
+// Complete messages render in full unless the TUI oversized policy folds them.
 export const STREAMING_MARKDOWN_CHAR_LIMIT = 8000;
+export interface RenderChatBlockOptions {
+  oversizedAssistantMessage?: OversizedAssistantMessageSettings;
+  streamingMarkdownCharLimit?: number;
+}
 
-export interface RenderChatBlockOptions { streamingMarkdownCharLimit?: number }
+interface RenderConversationOptions {
+  blockOptions?: (line: ChatLine, index: number) => RenderChatBlockOptions | undefined;
+}
 
 const chatLineRenderCache = new WeakMap<ChatLine, { key: string; lines: string[] }>();
 
@@ -57,6 +67,7 @@ export function renderConversation(
   chat: ChatLine[],
   width: number,
   tab?: MixCodeTabInfo,
+  options: RenderConversationOptions = {},
 ): string[] {
   if (!chat.length) {
     return [
@@ -64,7 +75,7 @@ export function renderConversation(
       padLine("", width),
     ];
   }
-  return renderChatStream(chat, width, tab);
+  return renderChatStream(chat, width, tab, options.blockOptions);
 }
 
 /**
@@ -127,10 +138,15 @@ export function chatBlockSeparator(width: number): string {
 // (extensions, tool renderers) opt out via chatLineRenderCacheKey returning
 // undefined and are re-rendered each frame.
 
-function renderChatStream(chat: ChatLine[], width: number, tab?: MixCodeTabInfo): string[] {
+function renderChatStream(
+  chat: ChatLine[],
+  width: number,
+  tab?: MixCodeTabInfo,
+  blockOptions?: (line: ChatLine, index: number) => RenderChatBlockOptions | undefined,
+): string[] {
   if (!chat.length) return [padLine(activeRenderTheme.dim("No messages yet."), width)];
   if (chat.length === 1) {
-    return renderMessageBlock(chat[0]!, width, tab);
+    return renderMessageBlock(chat[0]!, width, tab, blockOptions?.(chat[0]!, 0));
   }
 
   // Render each block (per-line cache hits keep this cheap for unchanged lines).
@@ -138,7 +154,8 @@ function renderChatStream(chat: ChatLine[], width: number, tab?: MixCodeTabInfo)
   let totalLength = 0;
   let nonEmptyCount = 0;
   for (let i = 0; i < chat.length; i++) {
-    const block = renderMessageBlock(chat[i]!, width, tab);
+    const line = chat[i]!;
+    const block = renderMessageBlock(line, width, tab, blockOptions?.(line, i));
     blocks[i] = block;
     totalLength += block.length;
     if (block.length > 0) nonEmptyCount++;
@@ -165,7 +182,7 @@ function renderMessageBlock(
   tab?: MixCodeTabInfo,
   options: RenderChatBlockOptions = {},
 ): string[] {
-  const cacheKey = chatLineRenderCacheKey(line, width, tab);
+  const cacheKey = chatLineRenderCacheKey(line, width, tab, options);
   const truncatesStreamingText = shouldTruncateStreamingMarkdown(line, options);
   if (cacheKey && !truncatesStreamingText) {
     const cached = chatLineRenderCache.get(line);
@@ -204,11 +221,25 @@ function renderMessageBlockUncached(
   if (line.role === "assistant") {
     if (!text.trim()) return [];
     const trimmed = text.trim();
+    const oversized = renderOversizedAssistantMessageBlock(
+      line.role,
+      trimmed,
+      options.oversizedAssistantMessage,
+      width,
+    );
+    if (oversized) return withOsc133Zone(oversized);
     return withOsc133Zone(renderMarkdown(streamingMarkdownText(trimmed, options), width));
   }
   if (line.role === "thinking") {
     if (!text.trim()) return [];
     const trimmed = text.trim();
+    const oversized = renderOversizedAssistantMessageBlock(
+      line.role,
+      trimmed,
+      options.oversizedAssistantMessage,
+      width,
+    );
+    if (oversized) return oversized;
     return renderMarkdown(streamingMarkdownText(trimmed, options), width, {
       color: activeRenderTheme.thinking,
       italic: true,
@@ -241,7 +272,6 @@ function shouldTruncateStreamingMarkdown(line: ChatLine, options: RenderChatBloc
 function streamingMarkdownText(text: string, options: RenderChatBlockOptions): string {
   const limit = options.streamingMarkdownCharLimit;
   if (limit === undefined || limit <= 0 || text.length <= limit) return text;
-  // Only active streaming blocks use this path; complete messages render fully.
   return text.slice(-limit);
 }
 
@@ -273,6 +303,7 @@ function chatLineRenderCacheKey(
   line: ChatLine,
   width: number,
   tab?: MixCodeTabInfo,
+  options: RenderChatBlockOptions = {},
 ): string | undefined {
   // Dynamic renderers must execute every frame for lifecycle correctness.
   if (line.renderExtension || line.renderToolCall || line.renderToolResult) return undefined;
@@ -281,7 +312,10 @@ function chatLineRenderCacheKey(
 
   // Hot paths first (assistant/thinking dominate any long chat).
   if (role === "assistant" || role === "thinking") {
-    return `${role[0]}${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${line.text}`;
+    if (isOversizedAssistantMessageText(line.text, options.oversizedAssistantMessage)) {
+      return undefined;
+    }
+    return `${role[0]}${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${oversizedPolicyKey(options)}${KEY_SEP}${line.text}`;
   }
   const expanded = tab?.extensionUi.toolsExpanded ?? false;
   if (role === "user") {
@@ -308,6 +342,12 @@ function chatLineRenderCacheKey(
     return `cs${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${expanded ? 1 : 0}${KEY_SEP}${line.compactionTokensBefore ?? 0}${KEY_SEP}${line.text}`;
   }
   return `s${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${line.variant ?? ""}${KEY_SEP}${line.text}`;
+}
+
+function oversizedPolicyKey(options: RenderChatBlockOptions): string {
+  const policy = options.oversizedAssistantMessage;
+  if (!policy) return "";
+  return `${policy.enabled ? 1 : 0}:${policy.maxLines}:${policy.maxBytes}`;
 }
 
 function commandFromArgs(args: unknown): string {
@@ -366,7 +406,7 @@ function renderToolBlock(line: ChatLine, width: number, tab?: MixCodeTabInfo): s
     ),
     "",
   ];
-  return lines.map((part) => renderToolBackgroundLine(part, width, background));
+  return lines.map((part) => renderBackgroundLine(part, width, background));
 }
 
 function renderUserBashBlock(line: ChatLine, width: number, tab?: MixCodeTabInfo): string[] {
@@ -458,7 +498,7 @@ function renderSystemBlock(text: string, width: number, variant?: string): strin
     );
     const lines = ["", ` ${title}`, ...bodyLines, ""];
     return lines.map((part) =>
-      renderToolBackgroundLine(part, width, activeRenderTheme.systemBackground),
+      renderBackgroundLine(part, width, activeRenderTheme.systemBackground),
     );
   }
   const title = activeRenderTheme.accent(activeRenderTheme.bold("[System]:"));
@@ -468,7 +508,7 @@ function renderSystemBlock(text: string, width: number, variant?: string): strin
     ...renderMarkdown(body, Math.max(1, width - 1)).map((line) => ` ${line}`),
     "",
   ];
-  return lines.map((part) => renderToolBackgroundLine(part, width, activeRenderTheme.systemBackground));
+  return lines.map((part) => renderBackgroundLine(part, width, activeRenderTheme.systemBackground));
 }
 
 function renderBranchSummaryBlock(
@@ -490,7 +530,7 @@ function renderBranchSummaryBlock(
     );
   }
   lines.push("");
-  return lines.map((part) => renderToolBackgroundLine(part, width, activeRenderTheme.systemBackground));
+  return lines.map((part) => renderBackgroundLine(part, width, activeRenderTheme.systemBackground));
 }
 
 function renderCompactionSummaryBlock(
@@ -519,7 +559,7 @@ function renderCompactionSummaryBlock(
     );
   }
   lines.push("");
-  return lines.map((part) => renderToolBackgroundLine(part, width, activeRenderTheme.systemBackground));
+  return lines.map((part) => renderBackgroundLine(part, width, activeRenderTheme.systemBackground));
 }
 
 /**
@@ -558,7 +598,7 @@ function renderToolRenderedLine(line: ChatLine, text: string, width: number): st
         : activeRenderTheme.toolPendingBackground;
   const innerWidth = Math.max(1, width - 1);
   return normalizeExternalRendererLines(text, innerWidth).map((part) =>
-    renderToolBackgroundLine(` ${part}`, width, background),
+    renderBackgroundLine(` ${part}`, width, background),
   );
 }
 
@@ -570,19 +610,6 @@ function normalizeExternalRendererLines(text: string, width: number): string[] {
   return String(text)
     .split(/\r?\n/)
     .map((part) => truncateToWidth(sanitizeTerminalText(part).replace(/\t/g, "  "), Math.max(0, width), "..."));
-}
-
-function renderToolBackgroundLine(
-  part: string,
-  width: number,
-  background: { start: string; end: string },
-): string {
-  const padded = padLine(part.replace(/\t/g, "  "), width);
-  return `${background.start}${reapplyBackgroundAfterSgr(padded, background.start)}${background.end}`;
-}
-
-function reapplyBackgroundAfterSgr(text: string, backgroundStart: string): string {
-  return text.replace(/\x1b\[[0-?]*[ -/]*m/g, (sequence) => `${sequence}${backgroundStart}`);
 }
 
 function toolDisplayTitle(line: ChatLine): string {
@@ -645,7 +672,7 @@ function renderSkillUserMessage(
     boxLines.push("", label, "");
   }
   for (const part of boxLines) {
-    lines.push(renderToolBackgroundLine(part, width, activeRenderTheme.customMessageBackground));
+    lines.push(renderBackgroundLine(part, width, activeRenderTheme.customMessageBackground));
   }
 
   // Render user message (args) as a separate user block below

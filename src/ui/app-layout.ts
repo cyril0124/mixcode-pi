@@ -2,6 +2,7 @@ import { type Component, Loader, type TUI as TuiType } from "@earendil-works/pi-
 import type { MixCodeRuntime } from "../agent/runtime.js";
 import { highlightChatSelectionLine } from "../core/chat-selection.js";
 import { isPendingEscapeActive } from "../core/escape.js";
+import { DEFAULT_OVERSIZED_ASSISTANT_MESSAGE } from "../core/mixcode-settings.js";
 import { retryStatusMessage } from "../core/tab-state.js";
 import type { MixCodeState } from "../core/types.js";
 import { getActiveTab } from "../core/tabs.js";
@@ -73,7 +74,9 @@ export class MixCodeRoot implements Component {
     const bottomBeforeMeta = [...preview];
     const viewportRows = this.getViewportRows?.();
     if (!viewportRows) {
-      const middle = renderAgentSurface(active, runtimeTab, width, undefined, theme);
+      const middle = renderAgentSurface(active, runtimeTab, width, undefined, theme, {
+        oversizedAssistantMessage: this.oversizedAssistantMessagePolicy(),
+      });
       return [...top, ...contentGap, ...middle, ...bottomBeforeMeta];
     }
     const limit = Math.max(0, viewportRows - this.getReservedRows());
@@ -110,7 +113,9 @@ export class MixCodeRoot implements Component {
         width: Math.max(1, width - 1),
         height: middleHeight,
       };
-      return renderAgentSurface(active, runtimeTab, width, middleHeight, theme);
+      return renderAgentSurface(active, runtimeTab, width, middleHeight, theme, {
+        oversizedAssistantMessage: this.oversizedAssistantMessagePolicy(),
+      });
     }
     // Split: chat on the left, widget panel on the right (1-col gap between).
     const panelWidth = extensionPanelWidth(width);
@@ -122,7 +127,9 @@ export class MixCodeRoot implements Component {
       width: Math.max(1, chatWidth - 1),
       height: middleHeight,
     };
-    const chat = renderAgentSurface(active, runtimeTab, chatWidth, middleHeight, theme);
+    const chat = renderAgentSurface(active, runtimeTab, chatWidth, middleHeight, theme, {
+      oversizedAssistantMessage: this.oversizedAssistantMessagePolicy(),
+    });
     let panel = renderExtensionPanel(active, panelWidth, middleHeight, theme);
     active.lastRenderedPanelLines = panel;
     // Panel occupies the columns after chat + gap (1-based screen coordinates).
@@ -138,6 +145,10 @@ export class MixCodeRoot implements Component {
       );
     }
     return joinColumns(chat, panel, chatWidth, panelWidth);
+  }
+
+  private oversizedAssistantMessagePolicy() {
+    return this.state.ui?.oversizedAssistantMessage ?? DEFAULT_OVERSIZED_ASSISTANT_MESSAGE;
   }
 
   private fitRootLines(lines: string[], width: number): string[] {

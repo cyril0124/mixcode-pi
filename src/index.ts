@@ -19,6 +19,7 @@ export * from "./core/instance-registry.js";
 export * from "./core/json.js";
 export * from "./core/keymap.js";
 export * from "./core/models.js";
+export * from "./core/mixcode-settings.js";
 export * from "./core/mouse.js";
 export * from "./core/overlays.js";
 export * from "./core/package-updates.js";

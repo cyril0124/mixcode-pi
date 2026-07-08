@@ -1,21 +1,16 @@
 import { chmod, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { parseSessionEntries } from "@earendil-works/pi-coding-agent";
-import { parseJsoncObject } from "./json.js";
+import {
+  MIXCODE_SETTINGS_FILENAME,
+  loadMixCodeSettings,
+  type HistorySettings,
+} from "./mixcode-settings.js";
 
 const HISTORY_FILENAME = "history.jsonl";
 const SESSION_INDEX_FILENAME = "session_index.jsonl";
-const SETTINGS_FILENAME = "mixcode_settings.json";
-export const DEFAULT_HISTORY_MAX_BYTES = 5 * 1024 * 1024;
+
 export const DEFAULT_HISTORY_BACKFILL_DAYS = 30;
-
-export interface MixCodeSettings {
-  history: HistorySettings;
-}
-
-export interface HistorySettings {
-  maxBytes: number;
-}
 
 export interface ConversationHistoryPaths {
   settingsFile: string;
@@ -63,26 +58,9 @@ interface ParsedSessionFile {
 
 export function conversationHistoryPaths(rootStateDir: string): ConversationHistoryPaths {
   return {
-    settingsFile: join(rootStateDir, SETTINGS_FILENAME),
+    settingsFile: join(rootStateDir, MIXCODE_SETTINGS_FILENAME),
     historyFile: join(rootStateDir, HISTORY_FILENAME),
     sessionIndexFile: join(rootStateDir, SESSION_INDEX_FILENAME),
-  };
-}
-
-export async function loadMixCodeSettings(settingsFile: string): Promise<MixCodeSettings> {
-  let raw: unknown;
-  try {
-    raw = parseJsoncObject(await readFile(settingsFile, "utf8"));
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return defaultMixCodeSettings();
-    throw error;
-  }
-  const source = objectRecord(raw);
-  const history = objectRecord(source.history);
-  return {
-    history: {
-      maxBytes: positiveInteger(history.maxBytes) ?? DEFAULT_HISTORY_MAX_BYTES,
-    },
   };
 }
 
@@ -503,20 +481,6 @@ function extractText(content: unknown): string {
     })
     .filter(Boolean)
     .join("\n");
-}
-
-function objectRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
-}
-
-function positiveInteger(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : undefined;
-}
-
-function defaultMixCodeSettings(): MixCodeSettings {
-  return { history: { maxBytes: DEFAULT_HISTORY_MAX_BYTES } };
 }
 
 function unique(values: string[]): string[] {

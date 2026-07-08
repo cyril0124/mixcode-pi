@@ -1,5 +1,6 @@
-import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { Model } from "@earendil-works/pi-ai";
+import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
+import type { MixCodeUiSettings } from "./mixcode-settings.js";
 
 /** Erased Model type — the TApi type parameter is intentionally erased with `any`
  *  because different models carry incompatible API-specific fields (e.g. `compat`).
@@ -312,6 +313,7 @@ export interface PreviewMessage {
 export interface MixCodeState {
   workdir: string;
   tabs: MixCodeTabInfo[];
+  ui?: MixCodeUiSettings;
   activeTabId: string;
   packageUpdates: string[];
   quitConfirmOpen: boolean;
