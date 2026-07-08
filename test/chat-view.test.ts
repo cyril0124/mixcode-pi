@@ -3,23 +3,16 @@ import { test } from "node:test";
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 import { buildViewText, formatViewText } from "../pi-packages/chat-view/index.ts";
 
-// ─── formatViewText: equal-width divider header ───────────────────────────────
+// ─── formatViewText: markdown heading ──────────────────────────────────────────
 
-test("formatViewText wraps the title with a divider matching its width", () => {
-  const text = formatViewText("Thinking Export", ["line one"]);
-  assert.deepEqual(text.split("\n"), [
-    "-".repeat("Thinking Export".length),
-    "Thinking Export",
-    "-".repeat("Thinking Export".length),
-    "",
-    "line one",
-  ]);
+test("formatViewText renders a markdown h1 title followed by body sections", () => {
+  const text = formatViewText("Thinking Export", ["line one", "line two"]);
+  assert.equal(text, "# Thinking Export\n\nline one\n\nline two");
 });
 
-test("formatViewText divider length tracks a different title's length", () => {
+test("formatViewText with a single body item has no trailing blank lines", () => {
   const text = formatViewText("Latest User Message", ["hi"]);
-  const divider = text.split("\n")[0];
-  assert.equal(divider, "-".repeat("Latest User Message".length));
+  assert.equal(text, "# Latest User Message\n\nhi");
 });
 
 // ─── buildViewText: session-branch reconstruction ──────────────────────────────
@@ -131,10 +124,10 @@ test("buildViewText chatlog: renders user/assistant/thinking/tool lines with pai
     assistantEntry([{ type: "text", text: "Tests passed." }]),
   ];
   const text = buildViewText("chatlog", entries);
-  assert.match(text, /\[user\] run the tests/);
-  assert.match(text, /\[thinking\] let me run it/);
-  assert.match(text, /\[tool:bash:success\] all tests passed/);
-  assert.match(text, /\[assistant\] Tests passed\./);
+  assert.match(text, /## 👤 User[\s\S]*run the tests/);
+  assert.match(text, /💭 Thinking[\s\S]*let me run it/);
+  assert.match(text, /🔧 Tool: `bash`[\s\S]*✅ success[\s\S]*all tests passed/);
+  assert.match(text, /## 🤖 Assistant[\s\S]*Tests passed\./);
 });
 
 test("buildViewText chatlog: marks a failed tool result as error", () => {
@@ -142,5 +135,5 @@ test("buildViewText chatlog: marks a failed tool result as error", () => {
     assistantEntry([{ type: "toolCall", id: "call-2", name: "bash", arguments: {} }]),
     toolResultEntry("call-2", "command not found", true),
   ];
-  assert.match(buildViewText("chatlog", entries), /\[tool:bash:error\] command not found/);
+  assert.match(buildViewText("chatlog", entries), /🔧 Tool: `bash`[\s\S]*❌ error[\s\S]*command not found/);
 });

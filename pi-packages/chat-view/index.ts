@@ -93,8 +93,7 @@ function normalizeTarget(raw: string): TargetId | undefined {
 // with one blank line separating the header from the body.
 
 export function formatViewText(title: string, body: string[]): string {
-  const divider = "-".repeat(title.length);
-  return [divider, title, divider, "", ...body].join("\n");
+  return [`# ${title}`, ...body].join("\n\n");
 }
 
 // ─── Content reconstruction from the session branch ───────────────────────────
@@ -128,7 +127,8 @@ function collectThinking(entries: SessionEntry[]): string[] {
       if (block.type !== "thinking") continue;
       const t = block as ThinkingBlock;
       const text = t.redacted ? "[Reasoning redacted]" : (t.thinking ?? "");
-      if (text.trim()) out.push(text);
+      // Indent each line so vim renders it as a blockquote-style indented block
+      if (text.trim()) out.push(`---\n\n${text.trim()}`);
     }
   }
   return out;
@@ -173,33 +173,42 @@ function collectChatlog(entries: SessionEntry[]): string[] {
     }
   }
 
-  const lines: string[] = [];
+  const sections: string[] = [];
   for (const entry of entries) {
     const msg = messageOf(entry) as { role: string; content?: unknown } | undefined;
     if (!msg) continue;
     if (msg.role === "user") {
       const text = blockText(msg.content);
-      if (text.trim()) lines.push(`[user] ${text}`);
+      if (text.trim()) sections.push(`---\n\n## 👤 User\n\n${text.trim()}`);
     } else if (msg.role === "assistant" && Array.isArray(msg.content)) {
+      const parts: string[] = [];
       for (const block of msg.content as AssistantBlock[]) {
         if (block.type === "text") {
           const text = (block as TextBlock).text ?? "";
-          if (text.trim()) lines.push(`[assistant] ${text}`);
+          if (text.trim()) parts.push(text.trim());
         } else if (block.type === "thinking") {
           const t = block as ThinkingBlock;
           const text = t.redacted ? "[Reasoning redacted]" : (t.thinking ?? "");
-          if (text.trim()) lines.push(`[thinking] ${text}`);
+          // Render thinking as a collapsed blockquote section
+          if (text.trim())
+            parts.push(
+              `> **💭 Thinking**\n>\n> ${text.trim().replace(/\n/g, "\n> ")}`,
+            );
         } else if (block.type === "toolCall") {
           const call = block as ToolCallBlock;
           const result = call.id ? resultById.get(call.id) : undefined;
-          const name = call.name ? `:${call.name}` : "";
-          const status = result ? `:${result.status}` : "";
-          lines.push(`[tool${name}${status}] ${result?.text ?? ""}`);
+          const name = call.name ?? "(unknown)";
+          const status = result?.status === "error" ? "❌ error" : "✅ success";
+          const resultText = result?.text.trim() ?? "";
+          // Use indented code block for tool output
+          const body = resultText ? `\n\n    ${resultText.replace(/\n/g, "\n    ")}` : "";
+          parts.push(`**🔧 Tool: \`${name}\`** — _${status}_${body}`);
         }
       }
+      if (parts.length) sections.push(`---\n\n## 🤖 Assistant\n\n${parts.join("\n\n")}`);
     }
   }
-  return lines;
+  return sections;
 }
 
 /** Build the final editor text for a target from the session branch. */
