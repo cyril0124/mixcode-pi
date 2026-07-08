@@ -41,11 +41,11 @@ test("conversation history paths live under the global state dir", () => {
   assert.equal(paths.sessionIndexFile, "/state/session_index.jsonl");
 });
 
-test("mixcode settings default history persistence and max bytes", async () => {
+test("mixcode settings default history max bytes and ignore obsolete persistence", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-history-settings-"));
   try {
     assert.deepEqual(await loadMixCodeSettings(join(dir, "missing.json")), {
-      history: { persistence: "save-all", maxBytes: 5 * 1024 * 1024 },
+      history: { maxBytes: 5 * 1024 * 1024 },
     });
     await writeFile(
       join(dir, "mixcode_settings.json"),
@@ -53,7 +53,29 @@ test("mixcode settings default history persistence and max bytes", async () => {
       "utf8",
     );
     assert.deepEqual(await loadMixCodeSettings(join(dir, "mixcode_settings.json")), {
-      history: { persistence: "none", maxBytes: 128 },
+      history: { maxBytes: 128 },
+    });
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("mixcode settings accept jsonc comments and trailing commas", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-history-jsonc-settings-"));
+  try {
+    await writeFile(
+      join(dir, "mixcode_settings.json"),
+      `{
+        // Keep at most 256 bytes of prompt history.
+        "history": {
+          "maxBytes": 256,
+        },
+      }`,
+      "utf8",
+    );
+
+    assert.deepEqual(await loadMixCodeSettings(join(dir, "mixcode_settings.json")), {
+      history: { maxBytes: 256 },
     });
   } finally {
     await rm(dir, { recursive: true, force: true });
@@ -64,9 +86,9 @@ test("appendHistoryEntry writes strict Codex-compatible fields and trims oldest 
   const dir = await mkdtemp(join(tmpdir(), "mixcode-history-append-"));
   const file = join(dir, "history.jsonl");
   try {
-    await appendHistoryEntry(file, { sessionId: "s1", text: "first", timestampSeconds: 10 }, { persistence: "save-all", maxBytes: 95 });
-    await appendHistoryEntry(file, { sessionId: "s1", text: "second", timestampSeconds: 11 }, { persistence: "save-all", maxBytes: 95 });
-    await appendHistoryEntry(file, { sessionId: "s2", text: "third", timestampSeconds: 12 }, { persistence: "save-all", maxBytes: 95 });
+    await appendHistoryEntry(file, { sessionId: "s1", text: "first", timestampSeconds: 10 }, { maxBytes: 95 });
+    await appendHistoryEntry(file, { sessionId: "s1", text: "second", timestampSeconds: 11 }, { maxBytes: 95 });
+    await appendHistoryEntry(file, { sessionId: "s2", text: "third", timestampSeconds: 12 }, { maxBytes: 95 });
     const records = await readJsonl(file);
     assert.deepEqual(records, [
       { session_id: "s1", ts: 11, text: "second" },
@@ -85,7 +107,7 @@ test("appendHistoryEntry preserves raw submitted text", async () => {
     await appendHistoryEntry(
       file,
       { sessionId: "s1", text: "!! echo hi  ", timestampSeconds: 10 },
-      { persistence: "save-all", maxBytes: 1024 },
+      { maxBytes: 1024 },
     );
     assert.deepEqual(await readJsonl(file), [
       { session_id: "s1", ts: 10, text: "!! echo hi  " },
@@ -104,7 +126,7 @@ test("appendHistoryEntry serializes concurrent appends", async () => {
         appendHistoryEntry(
           file,
           { sessionId: "s1", text: `prompt-${index}`, timestampSeconds: index },
-          { persistence: "save-all", maxBytes: 1024 * 1024 },
+          { maxBytes: 1024 * 1024 },
         ),
       ),
     );
@@ -114,11 +136,12 @@ test("appendHistoryEntry serializes concurrent appends", async () => {
   }
 });
 
-test("appendHistoryEntry respects disabled persistence", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-history-disabled-"));
+test("appendHistoryEntry skips invalid prompt-history entries", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-history-invalid-"));
   const file = join(dir, "history.jsonl");
   try {
-    await appendHistoryEntry(file, { sessionId: "s1", text: "ignored", timestampSeconds: 10 }, { persistence: "none", maxBytes: 1024 });
+    assert.equal(await appendHistoryEntry(file, { sessionId: "", text: "ignored", timestampSeconds: 10 }, { maxBytes: 1024 }), false);
+    assert.equal(await appendHistoryEntry(file, { sessionId: "s1", text: "   ", timestampSeconds: 10 }, { maxBytes: 1024 }), false);
     await assert.rejects(readFile(file, "utf8"), /ENOENT/);
   } finally {
     await rm(dir, { recursive: true, force: true });
@@ -136,13 +159,13 @@ test("backfillHistoryFromSessions imports recent user messages and deduplicates"
       { type: "message", id: "u2", message: { role: "user", content: "old prompt", timestamp: Date.UTC(2026, 3, 1) } },
     ]);
     const historyFile = join(dir, "history.jsonl");
-    await appendHistoryEntry(historyFile, { sessionId: "s1", text: "recent prompt", timestampSeconds: Date.UTC(2026, 5, 20) / 1000 }, { persistence: "save-all", maxBytes: 1024 * 1024 });
+    await appendHistoryEntry(historyFile, { sessionId: "s1", text: "recent prompt", timestampSeconds: Date.UTC(2026, 5, 20) / 1000 }, { maxBytes: 1024 * 1024 });
 
     const result = await backfillHistoryFromSessions({
       historyFile,
       sessionsRoots: [sessionsRoot],
       since: new Date(Date.UTC(2026, 4, 21)),
-      settings: { persistence: "save-all", maxBytes: 1024 * 1024 },
+      settings: { maxBytes: 1024 * 1024 },
     });
 
     assert.equal(result.imported, 0);
@@ -173,7 +196,7 @@ test("backfillHistoryFromSessions accepts entry timestamp strings", async () => 
       historyFile,
       sessionsRoots: [sessionsRoot],
       since: new Date(Date.UTC(2026, 4, 21)),
-      settings: { persistence: "save-all", maxBytes: 1024 * 1024 },
+      settings: { maxBytes: 1024 * 1024 },
     });
     assert.equal(result.imported, 1);
     assert.deepEqual(await readJsonl(historyFile), [

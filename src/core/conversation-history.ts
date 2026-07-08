@@ -1,20 +1,19 @@
 import { chmod, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { parseSessionEntries } from "@earendil-works/pi-coding-agent";
+import { parseJsoncObject } from "./json.js";
 
 const HISTORY_FILENAME = "history.jsonl";
 const SESSION_INDEX_FILENAME = "session_index.jsonl";
 const SETTINGS_FILENAME = "mixcode_settings.json";
 export const DEFAULT_HISTORY_MAX_BYTES = 5 * 1024 * 1024;
 export const DEFAULT_HISTORY_BACKFILL_DAYS = 30;
-export type HistoryPersistence = "save-all" | "none";
 
 export interface MixCodeSettings {
   history: HistorySettings;
 }
 
 export interface HistorySettings {
-  persistence: HistoryPersistence;
   maxBytes: number;
 }
 
@@ -73,7 +72,7 @@ export function conversationHistoryPaths(rootStateDir: string): ConversationHist
 export async function loadMixCodeSettings(settingsFile: string): Promise<MixCodeSettings> {
   let raw: unknown;
   try {
-    raw = JSON.parse(await readFile(settingsFile, "utf8"));
+    raw = parseJsoncObject(await readFile(settingsFile, "utf8"));
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return defaultMixCodeSettings();
     throw error;
@@ -82,7 +81,6 @@ export async function loadMixCodeSettings(settingsFile: string): Promise<MixCode
   const history = objectRecord(source.history);
   return {
     history: {
-      persistence: history.persistence === "none" ? "none" : "save-all",
       maxBytes: positiveInteger(history.maxBytes) ?? DEFAULT_HISTORY_MAX_BYTES,
     },
   };
@@ -93,7 +91,7 @@ export async function appendHistoryEntry(
   entry: HistoryEntryInput,
   settings: HistorySettings,
 ): Promise<boolean> {
-  if (settings.persistence === "none" || !entry.sessionId || !entry.text.trim()) return false;
+  if (!entry.sessionId || !entry.text.trim()) return false;
   await ensurePrivateDir(dirname(historyFile));
   const record: RawHistoryRecord = {
     session_id: entry.sessionId,
@@ -114,7 +112,6 @@ export async function backfillHistoryFromSessions(options: {
   since: Date;
   settings: HistorySettings;
 }): Promise<{ scannedSessions: number; imported: number }> {
-  if (options.settings.persistence === "none") return { scannedSessions: 0, imported: 0 };
   const additions: RawHistoryRecord[] = [];
   let scannedSessions = 0;
   for (const session of await readSessionFiles(options.sessionsRoots)) {
@@ -519,7 +516,7 @@ function positiveInteger(value: unknown): number | undefined {
 }
 
 function defaultMixCodeSettings(): MixCodeSettings {
-  return { history: { persistence: "save-all", maxBytes: DEFAULT_HISTORY_MAX_BYTES } };
+  return { history: { maxBytes: DEFAULT_HISTORY_MAX_BYTES } };
 }
 
 function unique(values: string[]): string[] {

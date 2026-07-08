@@ -30,6 +30,10 @@ mixcode-pi                # start in current directory
 mixcode-pi --workdir ~/project  # start in a specific directory
 ```
 
+## Configuration
+
+See [`mixcode_settings.json`](docs/mixcode-settings.md) for supported local settings.
+
 ---
 
 [中文文档](README.zh.md)
