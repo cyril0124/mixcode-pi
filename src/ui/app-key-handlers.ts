@@ -19,7 +19,7 @@ import {
 } from "../core/overlays.js";
 import type { MixCodeState } from "../core/types.js";
 import { pushToast } from "../core/toast.js";
-import { activateTab, clampHomeSelectedTabIndex, getActiveTab } from "../core/tabs.js";
+import { activateTab, clampHomeSelectedTabIndex, closeAgentTab, getActiveTab } from "../core/tabs.js";
 import { armPendingEscape, clearPendingEscape, hasPendingEscape } from "./app-actions.js";
 import { isPendingEscapeActive } from "../core/escape.js";
 import {
@@ -251,6 +251,40 @@ export function handleCloseAllSessionsConfirmKey(
   }
   return true;
 }
+export function handleSessionActionConfirmKey(
+  state: MixCodeState,
+  data: string,
+  tui: OverlayTui,
+  runtime?: MixCodeKeyRuntime,
+  onStateChanged?: (state: MixCodeState) => void | Promise<void>,
+): boolean {
+  const confirm = state.sessionActionConfirm;
+  if (!confirm) return false;
+  if (matchesKey(data, "escape") || data.toLowerCase() === "n") {
+    state.sessionActionConfirm = null;
+    closeAppOverlay(tui);
+    tui.requestRender();
+    return true;
+  }
+  if (data.toLowerCase() === "y") {
+    if (confirm.action === "close" && !runtime?.closeTab) throw new Error("Closing a session requires runtime support");
+    if (confirm.action === "delete" && !runtime?.deleteTab) throw new Error("Deleting a session requires runtime support");
+    const confirmedRuntime = runtime;
+    const { action, sessionId } = confirm;
+    state.sessionActionConfirm = null;
+    closeAppOverlay(tui);
+    void (async () => {
+      if (action === "close") await confirmedRuntime!.closeTab!(sessionId);
+      else await confirmedRuntime!.deleteTab!(sessionId);
+      closeAgentTab(state, sessionId);
+      await onStateChanged?.(state);
+      tui.requestRender();
+    })().catch((error: unknown) => showErrorOverlay(tui, error));
+    return true;
+  }
+  return true;
+}
+
 export function canOpenCommandPalette(
   state: MixCodeState,
   active: MixCodeState["tabs"][number] | undefined,

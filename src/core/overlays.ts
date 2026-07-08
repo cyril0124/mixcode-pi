@@ -179,6 +179,7 @@ export type OverlayKind =
   | "command-palette"
   | "extension-manager"
   | "tab-jump"
+  | "session-action-confirm"
   | "quit-confirm"
   | "delete-all-sessions-confirm"
   | "close-all-sessions-confirm";
@@ -192,6 +193,7 @@ const OVERLAY_PREDICATES: ReadonlyArray<readonly [OverlayKind, (s: MixCodeState)
   ["command-palette", (s) => s.commandPaletteOpen],
   ["extension-manager", (s) => s.extensionManager.open],
   ["tab-jump", (s) => s.tabJumpOpen],
+  ["session-action-confirm", (s) => s.sessionActionConfirm !== null],
   ["quit-confirm", (s) => s.quitConfirmOpen],
   ["delete-all-sessions-confirm", (s) => s.deleteAllSessionsConfirmOpen],
   ["close-all-sessions-confirm", (s) => s.closeAllSessionsConfirmOpen],
@@ -219,6 +221,7 @@ export function closeActiveOverlay(state: MixCodeState): void {
   closeCommandPalette(state);
   state.extensionManager.open = false;
   closeTabJump(state);
+  state.sessionActionConfirm = null;
   state.quitConfirmOpen = false;
   state.deleteAllSessionsConfirmOpen = false;
   state.closeAllSessionsConfirmOpen = false;
@@ -258,7 +261,9 @@ const FLAG_OPENERS: Partial<Record<OverlayKind, (s: MixCodeState) => void>> = {
  * is closed first. picker is presence-based (needs a payload) and is opened by
  * direct assignment after closeActiveOverlay, not through this entry point.
  */
-export function openOverlay(state: MixCodeState, kind: Exclude<OverlayKind, "picker">): void {
+export type FlagOverlayKind = Exclude<OverlayKind, "picker" | "session-action-confirm">;
+
+export function openOverlay(state: MixCodeState, kind: FlagOverlayKind): void {
   closeActiveOverlay(state);
   const open = FLAG_OPENERS[kind];
   if (!open) throw new Error(`openOverlay: unsupported kind ${kind}`);

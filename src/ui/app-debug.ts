@@ -9,6 +9,7 @@ interface MixCodeTuiDebugState {
     quitConfirmOpen: boolean;
     deleteAllSessionsConfirmOpen: boolean;
     closeAllSessionsConfirmOpen: boolean;
+    sessionActionConfirm: MixCodeState["sessionActionConfirm"];
     commandPaletteOpen: boolean;
     commandPalette: MixCodeState["commandPalette"];
     tabJumpOpen: boolean;
@@ -60,6 +61,7 @@ export function createTuiDebugState(state: MixCodeState): MixCodeTuiDebugState {
       quitConfirmOpen: state.quitConfirmOpen,
       deleteAllSessionsConfirmOpen: state.deleteAllSessionsConfirmOpen,
       closeAllSessionsConfirmOpen: state.closeAllSessionsConfirmOpen,
+      sessionActionConfirm: state.sessionActionConfirm,
       commandPaletteOpen: state.commandPaletteOpen,
       commandPalette: state.commandPalette,
       tabJumpOpen: state.tabJumpOpen,

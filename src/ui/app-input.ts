@@ -27,6 +27,7 @@ import {
   handleMouseInput,
   handlePreviewKey,
   handleQuitConfirmKey,
+  handleSessionActionConfirmKey,
   handleTabJumpKey,
   handleVimModeKey,
   handleVimUserMessageNavigation,
@@ -225,6 +226,9 @@ export function handleMixCodeKeyInput(
     return { consume: true };
   }
   if (state.tabJumpOpen && handleTabJumpKey(state, data, tui)) {
+    return { consume: true };
+  }
+  if (state.sessionActionConfirm && handleSessionActionConfirmKey(state, data, tui, runtime, onStateChanged)) {
     return { consume: true };
   }
   if (state.quitConfirmOpen && handleQuitConfirmKey(state, data, tui, runtime)) {

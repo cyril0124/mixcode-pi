@@ -12,7 +12,7 @@ import type { PromptTemplate } from "../core/prompt-templates.js";
 import type { KnownSkill } from "../core/skill-command.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import { pushToast } from "../core/toast.js";
-import { activateTab, clampHomeSelectedTabIndex, closeAgentTab, getActiveTab, renameAgentTab } from "../core/tabs.js";
+import { activateTab, clampHomeSelectedTabIndex, getActiveTab, renameAgentTab } from "../core/tabs.js";
 import type { MixCodeState } from "../core/types.js";
 import {
   appendActiveSystemMessage,
@@ -21,6 +21,7 @@ import {
   applyWorkdirSelection,
   openCloseAllSessionsConfirm,
   openDeleteAllSessionsConfirm,
+  openSessionActionConfirm,
   reloadRuntimeModels,
   showSystemMessageOrToast,
 } from "./app-actions.js";
@@ -226,11 +227,13 @@ export async function handleSubmittedInput(
     tui.requestRender();
     return;
   } else if (parsed.command === "close-session") {
-    await runtime.closeTab(active!.sessionId);
-    closeAgentTab(state, active!.sessionId);
+    openSessionActionConfirm(state, tui, "close", active!);
+    await onStateChanged?.(state);
+    return;
   } else if (parsed.command === "delete-session") {
-    await runtime.deleteTab(active!.sessionId);
-    closeAgentTab(state, active!.sessionId);
+    openSessionActionConfirm(state, tui, "delete", active!);
+    await onStateChanged?.(state);
+    return;
   } else if (parsed.command === "delete-all-sessions") {
     // Destructive (closes every tab and deletes every session file): gate
     // behind a Y/N confirmation instead of running immediately. The actual

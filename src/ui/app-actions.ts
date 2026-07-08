@@ -9,7 +9,7 @@ import {
   setTabModel,
 } from "../core/models.js";
 import { DEFAULT_MODEL_REF } from "../core/defaults.js";
-import { openOverlay } from "../core/overlays.js";
+import { closeActiveOverlay, openOverlay } from "../core/overlays.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import { getActiveTab } from "../core/tabs.js";
 import { pushToast } from "../core/toast.js";
@@ -19,6 +19,7 @@ import {
   renderCloseAllSessionsConfirm,
   renderDeleteAllSessionsConfirm,
   renderQuitConfirm,
+  renderSessionActionConfirm,
   showLinesOverlay,
   showNoticeTextOverlay,
 } from "./app-overlays.js";
@@ -83,6 +84,21 @@ export function openCloseAllSessionsConfirm(state: MixCodeState, tui: OverlayTui
   showLinesOverlay(
     tui,
     (width) => renderCloseAllSessionsConfirm(width, themeForId(state.theme)),
+    quitOverlayOptions(),
+  );
+}
+
+export function openSessionActionConfirm(
+  state: MixCodeState,
+  tui: OverlayTui,
+  action: "close" | "delete",
+  tab: MixCodeState["tabs"][number],
+): void {
+  closeActiveOverlay(state);
+  state.sessionActionConfirm = { action, sessionId: tab.sessionId };
+  showLinesOverlay(
+    tui,
+    (width) => renderSessionActionConfirm(width, themeForId(state.theme), action, tab.title),
     quitOverlayOptions(),
   );
 }

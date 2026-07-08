@@ -41,6 +41,7 @@ import {
   describeScopedKeymap,
   describeKeymap,
   handleSubmittedInput,
+  handleMixCodeKeyInput,
   mixcodeFauxStream,
   padLine,
   renderChat,
@@ -352,11 +353,15 @@ test("submitted input handles prompt, shell, local commands, clear, and missing 
     assert.match(forkedSessionId, UUIDV7_SESSION_ID_PATTERN);
     assert.notEqual(forkedSessionId, "forked");
     await handleSubmittedInput(state, runtime, "/delete-session", tui);
+    handleMixCodeKeyInput(state, "y", tui, undefined, runtime);
+    await new Promise((resolve) => setTimeout(resolve, 0));
     await handleSubmittedInput(state, runtime, "/new-session s2", tui);
     const newSessionId = state.activeTabId;
     assert.match(newSessionId, UUIDV7_SESSION_ID_PATTERN);
     assert.notEqual(newSessionId, "s2");
     await handleSubmittedInput(state, runtime, "/close-session", tui);
+    handleMixCodeKeyInput(state, "y", tui, undefined, runtime);
+    await new Promise((resolve) => setTimeout(resolve, 0));
     await handleSubmittedInput(state, runtime, "/theme mixcode-dark", tui);
     await handleSubmittedInput(state, runtime, "/help", tui);
     await handleSubmittedInput(state, runtime, "/run worker task", tui);

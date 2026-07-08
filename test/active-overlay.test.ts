@@ -15,6 +15,7 @@ import {
   closeActiveOverlay,
   isOverlayActive,
   openOverlay,
+  type FlagOverlayKind,
   type OverlayKind,
 } from "../src/core/overlays.js";
 
@@ -32,12 +33,13 @@ const PRIORITY: OverlayKind[] = [
   "command-palette",
   "extension-manager",
   "tab-jump",
+  "session-action-confirm",
   "quit-confirm",
   "delete-all-sessions-confirm",
   "close-all-sessions-confirm",
 ];
 
-const FLAG_KINDS: Exclude<OverlayKind, "picker">[] = [
+const FLAG_KINDS: FlagOverlayKind[] = [
   "workspace",
   "tree-selector",
   "session-selector",
@@ -94,6 +96,11 @@ test("closeActiveOverlay clears whichever overlay is active, including picker", 
   s.picker = { kind: "models", title: "", query: "", selectedIndex: 0, items: [] };
   closeActiveOverlay(s);
   assert.equal(activeOverlay(s), "none");
+
+  const confirming = state();
+  confirming.sessionActionConfirm = { action: "close", sessionId: "s1" };
+  closeActiveOverlay(confirming);
+  assert.equal(activeOverlay(confirming), "none");
 });
 
 test("activeOverlay follows the fixed priority when multiple flags are set", () => {

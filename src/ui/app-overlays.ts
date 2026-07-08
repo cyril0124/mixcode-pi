@@ -121,6 +121,26 @@ export function renderCloseAllSessionsConfirm(width: number, theme: MixCodeTheme
   );
 }
 
+export function renderSessionActionConfirm(
+  width: number,
+  theme: MixCodeTheme,
+  action: "close" | "delete",
+  title: string,
+): string[] {
+  const verb = action === "close" ? "Close" : "Delete";
+  const detail =
+    action === "close"
+      ? "The session is kept and can be resumed."
+      : "This deletes the session file.";
+  return renderWithTheme(theme, () =>
+    overlayPanel(
+      `${verb} Session`,
+      [`${verb} session "${title}"?`, detail, "", `[Y] ${verb}    [N] Cancel`, "Esc: cancel"],
+      width,
+    ),
+  );
+}
+
 export function showNoticeTextOverlay(tui: OverlayTui, text: string): void {
   showNoticeOverlay(tui, text, { title: "Notice" });
 }

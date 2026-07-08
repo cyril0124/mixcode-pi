@@ -310,6 +310,11 @@ export interface PreviewMessage {
   text: string;
 }
 
+export type SessionActionConfirm = {
+  action: "close" | "delete";
+  sessionId: string;
+};
+
 export interface MixCodeState {
   workdir: string;
   tabs: MixCodeTabInfo[];
@@ -319,6 +324,7 @@ export interface MixCodeState {
   quitConfirmOpen: boolean;
   deleteAllSessionsConfirmOpen: boolean;
   closeAllSessionsConfirmOpen: boolean;
+  sessionActionConfirm: SessionActionConfirm | null;
   commandPaletteOpen: boolean;
   commandPalette: CommandPaletteState;
   extensionManager: ExtensionManagerPanelState;

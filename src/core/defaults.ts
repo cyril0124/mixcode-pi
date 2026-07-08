@@ -28,6 +28,7 @@ export function createInitialState(workdir: string, defaultThinkingLevel?: Think
     quitConfirmOpen: false,
     deleteAllSessionsConfirmOpen: false,
     closeAllSessionsConfirmOpen: false,
+    sessionActionConfirm: null,
     commandPaletteOpen: false,
     commandPalette: { query: "", selectedIndex: 0 },
     extensionManager: {

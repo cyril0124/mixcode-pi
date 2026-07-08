@@ -212,7 +212,7 @@ test("submitted input shows session info from pi runtime", async () => {
   );
 });
 
-test("submitted input deletes a single session or all sessions through runtime", async () => {
+test("submitted input confirms a single session close/delete before touching runtime", async () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"), createTab(2, "s2", "/repo"));
   state.activeTabId = "s1";
@@ -228,8 +228,19 @@ test("submitted input deletes a single session or all sessions through runtime",
   const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
 
   await handleSubmittedInput(state, runtime, "/close-session", tui);
-  assert.deepEqual(closed, ["s1"]);
+  assert.deepEqual(closed, []);
   assert.deepEqual(deleted, []);
+  assert.deepEqual(state.sessionActionConfirm, { action: "close", sessionId: "s1" });
+  assert.deepEqual(
+    state.tabs.map((tab) => tab.sessionId),
+    ["s1", "s2"],
+  );
+
+  assert.deepEqual(handleMixCodeKeyInput(state, "y", tui, undefined, runtime), {
+    consume: true,
+  });
+  await waitFor(async () => assert.deepEqual(closed, ["s1"]));
+  assert.equal(state.sessionActionConfirm, null);
   assert.deepEqual(
     state.tabs.map((tab) => tab.sessionId),
     ["s2"],
@@ -237,12 +248,18 @@ test("submitted input deletes a single session or all sessions through runtime",
   assert.equal(state.activeTabId, "s2");
 
   await handleSubmittedInput(state, runtime, "/delete-session", tui);
-  assert.deepEqual(deleted, ["s2"]);
+  assert.deepEqual(deleted, []);
+  assert.deepEqual(state.sessionActionConfirm, { action: "delete", sessionId: "s2" });
+
+  assert.deepEqual(handleMixCodeKeyInput(state, "y", tui, undefined, runtime), {
+    consume: true,
+  });
+  await waitFor(async () => assert.deepEqual(deleted, ["s2"]));
+  assert.equal(state.sessionActionConfirm, null);
   assert.deepEqual(state.tabs, []);
   assert.equal(state.activeTabId, "config");
 
-  // /delete-all-sessions now opens a Y/N confirmation instead of deleting
-  // immediately, guarding against accidental execution.
+  // /delete-all-sessions keeps its existing Y/N confirmation path.
   await handleSubmittedInput(state, runtime, "/delete-all-sessions", tui);
   assert.deepEqual(deleted, ["s2"]);
   assert.equal(state.deleteAllSessionsConfirmOpen, true);
@@ -254,6 +271,50 @@ test("submitted input deletes a single session or all sessions through runtime",
   assert.equal(state.deleteAllSessionsConfirmOpen, false);
   assert.deepEqual(state.tabs, []);
   assert.equal(state.activeTabId, "config");
+});
+
+test("single session close/delete confirmation cancel leaves tabs untouched", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"), createTab(2, "s2", "/repo"));
+  state.activeTabId = "s1";
+  const deleted: string[] = [];
+  const closed: string[] = [];
+  const runtime = {
+    getTab: () => undefined,
+    closeTab: async (sessionId: string) => closed.push(sessionId),
+    deleteTab: async (sessionId: string) => deleted.push(sessionId),
+  } as unknown as MixCodeRuntime;
+  let overlayOpen = false;
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => {
+      overlayOpen = true;
+      return { hide: () => (overlayOpen = false) } as never;
+    },
+    hasOverlay: () => overlayOpen,
+  };
+
+  await handleSubmittedInput(state, runtime, "/close-session", tui);
+  assert.equal(state.sessionActionConfirm?.action, "close");
+  assert.deepEqual(handleMixCodeKeyInput(state, "n", tui, undefined, runtime), {
+    consume: true,
+  });
+  assert.equal(state.sessionActionConfirm, null);
+  assert.equal(overlayOpen, false);
+
+  await handleSubmittedInput(state, runtime, "/delete-session", tui);
+  assert.equal(state.sessionActionConfirm?.action, "delete");
+  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime), {
+    consume: true,
+  });
+  assert.equal(state.sessionActionConfirm, null);
+  assert.deepEqual(closed, []);
+  assert.deepEqual(deleted, []);
+  assert.deepEqual(
+    state.tabs.map((tab) => tab.sessionId),
+    ["s1", "s2"],
+  );
+  assert.equal(state.activeTabId, "s1");
 });
 
 test("delete-all-sessions confirmation cancel (n or Escape) leaves tabs untouched", async () => {

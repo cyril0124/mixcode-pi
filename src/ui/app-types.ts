@@ -12,6 +12,7 @@ export type MixCodeKeyRuntime = Partial<
     | "closeTab"
     | "createTab"
     | "closeAllTabs"
+    | "deleteTab"
     | "deleteAllTabs"
     | "dispatchExtensionShortcut"
     | "dispatchTerminalInput"
