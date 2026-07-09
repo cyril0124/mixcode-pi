@@ -7,7 +7,7 @@ import { Type } from "@earendil-works/pi-ai";
 import { SettingsManager, type ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import bashDefaultTimeoutExtension, {
   appendBashDefaultTimeoutNote,
-} from "../pi-packages/bash-default-timeout/index.ts";
+} from "../pi-packages/mpi-bash-default-timeout/index.ts";
 import { createTab, MixCodeRuntime } from "../src/index.js";
 
 function builtinNamedExtension(toolName: string): ExtensionFactory {

@@ -16,19 +16,19 @@ import exportVendorMarked from "../../node_modules/@earendil-works/pi-coding-age
 import exportVendorHighlight from "../../node_modules/@earendil-works/pi-coding-agent/dist/core/export-html/vendor/highlight.min.js" with { type: "text" };
 import clankolasImagePath from "../../node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/assets/clankolas.png" with { type: "file" };
 import photonWasmPath from "../../node_modules/@silvia-odwyer/photon-node/photon_rs_bg.wasm" with { type: "file" };
-import searchGuardIndex from "../../pi-packages/search-guard/index.ts" with { type: "text" };
-import searchGuardPackageJson from "../../pi-packages/search-guard/package.json" with { type: "text" };
-import imageHoistIndex from "../../pi-packages/image-hoist/index.ts" with { type: "text" };
-import imageHoistPackageJson from "../../pi-packages/image-hoist/package.json" with { type: "text" };
-import diffTrackerIndex from "../../pi-packages/diff-tracker/index.ts" with { type: "text" };
-import diffTrackerPackageJson from "../../pi-packages/diff-tracker/package.json" with { type: "text" };
-import commandBrowserIndex from "../../pi-packages/command-browser/index.ts" with { type: "text" };
-import commandBrowserComponent from "../../pi-packages/command-browser/command-browser.ts" with { type: "text" };
-import commandBrowserPackageJson from "../../pi-packages/command-browser/package.json" with { type: "text" };
-import chatViewIndex from "../../pi-packages/chat-view/index.ts" with { type: "text" };
-import chatViewPackageJson from "../../pi-packages/chat-view/package.json" with { type: "text" };
-import bashDefaultTimeoutIndex from "../../pi-packages/bash-default-timeout/index.ts" with { type: "text" };
-import bashDefaultTimeoutPackageJson from "../../pi-packages/bash-default-timeout/package.json" with { type: "text" };
+import searchGuardIndex from "../../pi-packages/mpi-search-guard/index.ts" with { type: "text" };
+import searchGuardPackageJson from "../../pi-packages/mpi-search-guard/package.json" with { type: "text" };
+import imageHoistIndex from "../../pi-packages/mpi-image-hoist/index.ts" with { type: "text" };
+import imageHoistPackageJson from "../../pi-packages/mpi-image-hoist/package.json" with { type: "text" };
+import diffTrackerIndex from "../../pi-packages/mpi-diff-tracker/index.ts" with { type: "text" };
+import diffTrackerPackageJson from "../../pi-packages/mpi-diff-tracker/package.json" with { type: "text" };
+import commandBrowserIndex from "../../pi-packages/mpi-command-browser/index.ts" with { type: "text" };
+import commandBrowserComponent from "../../pi-packages/mpi-command-browser/command-browser.ts" with { type: "text" };
+import commandBrowserPackageJson from "../../pi-packages/mpi-command-browser/package.json" with { type: "text" };
+import chatViewIndex from "../../pi-packages/mpi-chat-view/index.ts" with { type: "text" };
+import chatViewPackageJson from "../../pi-packages/mpi-chat-view/package.json" with { type: "text" };
+import bashDefaultTimeoutIndex from "../../pi-packages/mpi-bash-default-timeout/index.ts" with { type: "text" };
+import bashDefaultTimeoutPackageJson from "../../pi-packages/mpi-bash-default-timeout/package.json" with { type: "text" };
 import rpivTodo_config_ts from "../../pi-packages/rpiv-todo/config.ts" with { type: "text" };
 import rpivTodo_index_ts from "../../pi-packages/rpiv-todo/index.ts" with { type: "text" };
 import rpivTodo_locales_de_json from "../../pi-packages/rpiv-todo/locales/de.json" with { type: "text" };
@@ -56,12 +56,12 @@ import rpivTodo_tool_response_envelope_ts from "../../pi-packages/rpiv-todo/tool
 import rpivTodo_tool_types_ts from "../../pi-packages/rpiv-todo/tool/types.ts" with { type: "text" };
 import rpivTodo_vendor_rpiv_config_ts from "../../pi-packages/rpiv-todo/vendor/rpiv-config.ts" with { type: "text" };
 import rpivTodo_view_format_ts from "../../pi-packages/rpiv-todo/view/format.ts" with { type: "text" };
-import skillRefsIndex from "../../pi-packages/skill-refs/index.ts" with { type: "text" };
-import skillRefsCore from "../../pi-packages/skill-refs/skill-core.ts" with { type: "text" };
-import skillRefsPackageJson from "../../pi-packages/skill-refs/package.json" with { type: "text" };
-import promptHistoryIndex from "../../pi-packages/prompt-history/index.ts" with { type: "text" };
-import promptHistoryBrowser from "../../pi-packages/prompt-history/prompt-history-browser.ts" with { type: "text" };
-import promptHistoryPackageJson from "../../pi-packages/prompt-history/package.json" with { type: "text" };
+import skillRefsIndex from "../../pi-packages/mpi-skill-refs/index.ts" with { type: "text" };
+import skillRefsCore from "../../pi-packages/mpi-skill-refs/skill-core.ts" with { type: "text" };
+import skillRefsPackageJson from "../../pi-packages/mpi-skill-refs/package.json" with { type: "text" };
+import promptHistoryIndex from "../../pi-packages/mpi-prompt-history/index.ts" with { type: "text" };
+import promptHistoryBrowser from "../../pi-packages/mpi-prompt-history/prompt-history-browser.ts" with { type: "text" };
+import promptHistoryPackageJson from "../../pi-packages/mpi-prompt-history/package.json" with { type: "text" };
 import packageJson from "../../package.json" with { type: "json" };
 import { materializeBinaryRuntimeAssets } from "./binary-assets.js";
 
@@ -105,28 +105,28 @@ materializeBinaryRuntimeAssets(runtimeDir, {
   photonWasmPath,
   packageJson,
   builtinPackages: {
-    "search-guard": {
+    "mpi-search-guard": {
       "index.ts": searchGuardIndex,
       "package.json": searchGuardPackageJson,
     },
-    "image-hoist": {
+    "mpi-image-hoist": {
       "index.ts": imageHoistIndex,
       "package.json": imageHoistPackageJson,
     },
-    "diff-tracker": {
+    "mpi-diff-tracker": {
       "index.ts": diffTrackerIndex,
       "package.json": diffTrackerPackageJson,
     },
-    "command-browser": {
+    "mpi-command-browser": {
       "index.ts": commandBrowserIndex,
       "command-browser.ts": commandBrowserComponent,
       "package.json": commandBrowserPackageJson,
     },
-    "chat-view": {
+    "mpi-chat-view": {
       "index.ts": chatViewIndex,
       "package.json": chatViewPackageJson,
     },
-    "bash-default-timeout": {
+    "mpi-bash-default-timeout": {
       "index.ts": bashDefaultTimeoutIndex,
       "package.json": bashDefaultTimeoutPackageJson,
     },
@@ -159,12 +159,12 @@ materializeBinaryRuntimeAssets(runtimeDir, {
       "vendor/rpiv-config.ts": rpivTodo_vendor_rpiv_config_ts,
       "view/format.ts": rpivTodo_view_format_ts,
     },
-    "prompt-history": {
+    "mpi-prompt-history": {
       "index.ts": promptHistoryIndex,
       "prompt-history-browser.ts": promptHistoryBrowser,
       "package.json": promptHistoryPackageJson,
     },
-    "skill-refs": {
+    "mpi-skill-refs": {
       "index.ts": skillRefsIndex,
       "skill-core.ts": skillRefsCore,
       "package.json": skillRefsPackageJson,

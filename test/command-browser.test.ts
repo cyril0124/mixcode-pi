@@ -5,7 +5,7 @@ import {
   type CommandInfo,
   createCommandBrowserComponent,
   filterItems,
-} from "../pi-packages/command-browser/command-browser.ts";
+} from "../pi-packages/mpi-command-browser/command-browser.ts";
 
 // ─── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -32,8 +32,8 @@ const COMMANDS: CommandInfo[] = [
   skill("obsidian-markdown", "Create and edit Obsidian Flavored Markdown"),
   skill("minimal-change", "Prefer the smallest change that solves the problem"),
   skill("caveman", "Ultra-compressed communication mode"),
-  ext("diff", "Show file changes", "npm:diff-tracker@0.1.0"),
-  ext("commands", "Browse commands", "npm:command-browser@0.1.0"),
+  ext("diff", "Show file changes", "npm:mpi-diff-tracker@0.1.0"),
+  ext("commands", "Browse commands", "npm:mpi-command-browser@0.1.0"),
 ];
 
 // Fake theme + tui for component-level tests.
@@ -68,8 +68,8 @@ test("buildTabs strips skill: prefix from skill labels", () => {
 test("buildTabs groups extensions by package name with header rows", () => {
   const tabs = buildTabs(COMMANDS);
   const headers = tabs[0].items.filter((i) => i.kind === "header").map((i) => i.label);
-  assert.ok(headers.includes("diff-tracker"));
-  assert.ok(headers.includes("command-browser"));
+  assert.ok(headers.includes("mpi-diff-tracker"));
+  assert.ok(headers.includes("mpi-command-browser"));
 });
 
 // ─── filterItems ───────────────────────────────────────────────────────────────
@@ -107,7 +107,7 @@ test("command items carry a source tag derived from scope/package", () => {
   const skillItem = tabs[1].items.find((i) => i.kind === "command" && i.label === "minimal-change");
   assert.equal(skillItem?.sourceTag, "u");
   const extItem = tabs[0].items.find((i) => i.kind === "command" && i.label === "diff");
-  assert.equal(extItem?.sourceTag, "u:diff-tracker");
+  assert.equal(extItem?.sourceTag, "u:mpi-diff-tracker");
 });
 
 test("filterItems is case-insensitive", () => {
@@ -122,7 +122,7 @@ test("filterItems drops empty group headers in the Extensions tab", () => {
   const filtered = filterItems(tabs[0].items, "diff");
   const headers = filtered.filter((i) => i.kind === "header").map((i) => i.label);
   const cmds = filtered.filter((i) => i.kind === "command").map((i) => i.label);
-  assert.deepEqual(headers, ["diff-tracker"]);
+  assert.deepEqual(headers, ["mpi-diff-tracker"]);
   assert.deepEqual(cmds, ["diff"]);
 });
 

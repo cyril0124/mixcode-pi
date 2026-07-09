@@ -48,7 +48,7 @@ src/
 └── ui/
     ├── app.ts                pi-tui Root、Editor、全局键处理
     ├── rendering.ts          类 MixCode 的 header/tab/status/panel/floating panel 渲染
-    └── completion.ts         /、@ 两类补全（$skill 补全由 skill-refs 扩展提供）
+    └── completion.ts         /、@ 两类补全（$skill 补全由 mpi-skill-refs 扩展提供）
 ```
 
 ## 运行时映射
@@ -59,7 +59,7 @@ src/
   ├─ 普通 prompt
   │    └─ buildModelPrompt()
   │        ├─ 用户文本
-  │        ├─ $skill 引用（原样透传，由 skill-refs 扩展在 Pi 原生管线中展开）
+  │        ├─ $skill 引用（原样透传，由 mpi-skill-refs 扩展在 Pi 原生管线中展开）
   │        ├─ @file 引用
   │        └─ 不注入 AGENTS.md；项目上下文进入 system prompt
   │

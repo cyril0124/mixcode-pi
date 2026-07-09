@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
-import skillRefsExtension from "../pi-packages/skill-refs/index.ts";
+import skillRefsExtension from "../pi-packages/mpi-skill-refs/index.ts";
 import {
   buildSkillBlock,
   createSkillCompletionWrapper,
@@ -11,7 +11,7 @@ import {
   parseSkillDescription,
   scanSkillDirs,
   type ResolvedSkillRef,
-} from "../pi-packages/skill-refs/skill-core.ts";
+} from "../pi-packages/mpi-skill-refs/skill-core.ts";
 
 // ─── fixtures ────────────────────────────────────────────────────────────────
 
