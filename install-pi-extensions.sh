@@ -37,7 +37,7 @@ extensions=(
   npm:pi-interactive-shell
 
   # Web & search
-  # npm:pi-web-access
+  npm:@juicesharp/rpiv-web-tools
 
   # Session management
   # npm:@tmustier/pi-session-recap
