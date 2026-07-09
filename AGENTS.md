@@ -13,9 +13,10 @@
 ## Built-in Extensions
 
 - Built-in Pi extensions live in `pi-packages/<name>/`. Each package has a `package.json` with a `pi.extensions` field and an `index.ts` default-exporting an `ExtensionFactory`.
+- Name first-party packages with the `mpi-` prefix (directory, `package.json` name, and `binary-entry.ts` `builtinPackages` key must all match, e.g. `mpi-skill-refs`). Vendored upstream packages (e.g. `rpiv-todo`) keep their original name. Do not prefix runtime protocol strings such as command names, `customType`, or keymap actions.
 - At startup, `ensurePackageExtensions` (in `src/core/ensure-package-extensions.ts`) copies all valid packages to `~/.pi/agent/extensions/`, making them globally discoverable by Pi's file-system loader — including subagent sessions.
 - For the compiled binary, `binary-entry.ts` embeds each package's files via `import ... with { type: "text" }` and passes them as `builtinPackages` to `materializeBinaryRuntimeAssets`, which writes them to `runtimeDir/packages/` before `ensurePackageExtensions` runs.
-- To add a new built-in extension: create `pi-packages/<name>/package.json` + `index.ts`, then add the corresponding text imports in `binary-entry.ts`.
+- To add a new built-in extension: create `pi-packages/mpi-<name>/package.json` + `index.ts`, then add the corresponding text imports in `binary-entry.ts`.
 
 ## Code Quality
 
