@@ -62,7 +62,7 @@ test("highlightRanges groups consecutive positions into one styled span and leav
   assert.equal(highlightRanges("abc", [], (s) => `<${s}>`), "abc");
 });
 
-test("command palette highlights matched query characters in label, command, and description columns", () => {
+test("command palette highlights matched query characters in label and command columns only", () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"));
   state.activeTabId = "s1";
@@ -73,9 +73,12 @@ test("command palette highlights matched query characters in label, command, and
     stripAnsi(raw),
     /Choose Thinking Tier[\s\S]*\/thinking[\s\S]*Choose the current tab thinking tier/,
   );
-  // Command palette rows carry no other bold usage, so bold appearing here
-  // proves the accent+bold highlight actually fired end to end.
-  assert.match(raw, /\x1b\[1m/);
+  // Command palette rows carry no other bold usage. "thinking" appears in the
+  // label ("Choose Thinking Tier"), the command ("/thinking"), AND the
+  // description ("...thinking tier"). The description column never
+  // participates in the palette filter, so it must render as static dim text:
+  // exactly two bold-open spans (label + command), never three.
+  assert.equal((raw.match(/\x1b\[1m/g) ?? []).length, 2);
 });
 
 test("tab jump highlights matched characters in the tab title", () => {

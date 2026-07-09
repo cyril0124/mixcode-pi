@@ -337,6 +337,23 @@ test("command palette state filters, moves, accepts, and closes", () => {
   assert.equal(state.commandPalette.query, "");
 });
 
+test("command palette filter matches per-token subsequence, not scattered fuzzy", () => {
+  // Regression: pi's scattered-subsequence fuzzy kept rows whose label/command
+  // never actually contained the query as an in-order token (e.g. "done"
+  // matching "Toggle Hidden Messages" via t..o..d..? scattered across words),
+  // so the filtered list showed rows with zero highlighted characters. The
+  // filter now uses the same fuzzyMatchAllPositions matcher as the renderer.
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"));
+  state.activeTabId = "s1";
+  openCommandPalette(state);
+  updateCommandPaletteQuery(state, "done");
+  assert.deepEqual(
+    commandPaletteEntries(state).map((entry) => entry.command),
+    ["/mark-done"],
+  );
+});
+
 function assertNoOpenCodePaletteEntries(entries: ReturnType<typeof commandPaletteEntries>): void {
   const text = entries
     .map((entry) => `${entry.label} ${entry.command} ${entry.description}`)

@@ -387,9 +387,8 @@ function renderCommandPaletteInner(
   if (!entries.length) {
     lines.push(activeRenderTheme.dim("  No matching commands"));
   } else {
-    // Highlight each column (label/command/description) independently against
-    // the typed query, so matched characters light up wherever they appear —
-    // even in columns not used by the filter's own match decision (desc).
+    // Highlight only the searchable columns. Description stays dim because it
+    // does not participate in command palette filtering.
     const paletteQuery = state.commandPalette.query.trim();
     entries.forEach((entry, index) => {
       const isSelected = index === state.commandPalette.selectedIndex;
@@ -409,12 +408,11 @@ function renderCommandPaletteInner(
         matchHighlight,
         activeRenderTheme.accent,
       );
-      const coloredDesc = highlightRanges(
-        desc,
-        fuzzyMatchAllPositions(paletteQuery, desc),
-        matchHighlight,
-        activeRenderTheme.dim,
-      );
+      // Description is not part of the palette filter (see
+      // commandPaletteEntriesWithExtensions), so it must render as static dim
+      // text without query highlighting — otherwise matched chars would light
+      // up in a column that never participated in the match decision.
+      const coloredDesc = activeRenderTheme.dim(desc);
 
       const labelPadded = coloredLabel + " ".repeat(Math.max(0, labelCol - visibleWidth(label)));
       const cmdPadded = coloredCmd + " ".repeat(Math.max(0, cmdCol - visibleWidth(cmd)));

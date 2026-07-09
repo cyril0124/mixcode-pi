@@ -1,5 +1,5 @@
 import { LOCAL_COMMANDS, type LocalCommandPaletteMeta, type PaletteRequirement } from "./commands.js";
-import { fuzzyMatchBatch } from "./fuzzy.js";
+import { fuzzyMatchAllPositions, fuzzyMatchBatch } from "./fuzzy.js";
 import { activateTab, findActiveTab } from "./tabs.js";
 import type { CommandPaletteEntry, MixCodeState, MixCodeTabInfo } from "./types.js";
 import { tabHasPendingUserInteraction } from "./user-interactions.js";
@@ -303,9 +303,18 @@ export function commandPaletteEntriesWithExtensions(
   const entries = commandPaletteBaseEntries(state, extensionCommands);
   const query = state.commandPalette.query.trim();
   if (!query) return entries;
-  const searchKeys = entries.map((entry) => `${entry.label} ${entry.command}`);
-  const matched = new Set(fuzzyMatchBatch(query, searchKeys, entries.length).map(([, key]) => key));
-  return entries.filter((_, index) => matched.has(searchKeys[index] ?? ""));
+  // Filter with the SAME per-token subsequence matcher the renderer uses to
+  // highlight (fuzzyMatchAllPositions on the label and command columns), so a
+  // row survives the filter iff at least one of its columns would light up.
+  // pi's fuzzyMatchBatch used a looser scattered-subsequence score that kept
+  // rows with no visible highlight at all (e.g. "done" matching "Toggle Hidden
+  // Messages"), making the filter and highlight disagree. Description is
+  // intentionally excluded from both filter and highlight.
+  return entries.filter(
+    (entry) =>
+      fuzzyMatchAllPositions(query, entry.label).length > 0 ||
+      fuzzyMatchAllPositions(query, entry.command).length > 0,
+  );
 }
 
 function commandPaletteBaseEntries(
