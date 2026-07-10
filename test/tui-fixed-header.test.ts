@@ -93,7 +93,7 @@ test("agent surface scrolls the extension header away when viewing the bottom", 
   const lines = stripAnsi(renderAgentSurface(tab, { chat } as never, 80, 6).join("\n"));
   assert.doesNotMatch(lines, /EXT-HEADER-LINE/);
   assert.match(lines, /msg-39/);
-  assert.match(lines, /\.\.\. older above/);
+  assert.match(lines, /↑ older above/);
 });
 
 test("agent surface shows explicit overflow markers at the bottom", () => {
@@ -106,7 +106,7 @@ test("agent surface shows explicit overflow markers at the bottom", () => {
   const lines = renderAgentSurface(tab, { chat } as never, 80, 6);
   const text = stripAnsi(lines.join("\n"));
 
-  assert.match(text, /\.\.\. older above/);
+  assert.match(text, /↑ older above/);
   assert.doesNotMatch(text, /^\.\.\.$/m);
 });
 
@@ -118,7 +118,7 @@ test("agent surface max height keeps the newest surface rows", () => {
   }));
   const lines = renderAgentSurface(tab, { chat } as never, 40, 3);
   assert.equal(lines.length, 3);
-  assert.match(lines[0] ?? "", /\.\.\./);
+  assert.match(stripAnsi(lines[0] ?? ""), /↑ older above/);
   assert.match(lines.join("\n"), /line-7/);
 });
 

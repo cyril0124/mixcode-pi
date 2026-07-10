@@ -1,5 +1,4 @@
 import path from "node:path";
-import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { MixCodeRuntime } from "../agent/runtime.js";
 import {
   buildAvailableModelRefs,
@@ -12,6 +11,7 @@ import { DEFAULT_MODEL_REF } from "../core/defaults.js";
 import { closeActiveOverlay, openOverlay } from "../core/overlays.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import { getActiveTab } from "../core/tabs.js";
+import { isThinkingLevelAvailable, validThinkingLevelsMessage } from "../core/thinking-levels.js";
 import { pushToast } from "../core/toast.js";
 import type { MixCodeState } from "../core/types.js";
 import {
@@ -41,23 +41,16 @@ export function applyThinkingLevel(
   level: string,
   runtime?: Partial<Pick<MixCodeRuntime, "updateTabThinkingLevel">>,
 ): void {
-  if (!isThinkingLevel(level)) throw new Error("Unknown thinking level: " + level);
+  if (!isThinkingLevelAvailable(level, active.model)) {
+    throw new Error(
+      `Unknown thinking level: ${level}. Valid values: ${validThinkingLevelsMessage(active.model)}`,
+    );
+  }
   const effectiveLevel = runtime?.updateTabThinkingLevel
     ? runtime.updateTabThinkingLevel(active.sessionId, level)
     : level;
   active.thinkingLevel = effectiveLevel;
   state.thinkingLevel = effectiveLevel;
-}
-
-function isThinkingLevel(level: string): level is ThinkingLevel {
-  return (
-    level === "off" ||
-    level === "minimal" ||
-    level === "low" ||
-    level === "medium" ||
-    level === "high" ||
-    level === "xhigh"
-  );
 }
 
 export function openQuitConfirm(state: MixCodeState, tui: OverlayTui): void {
@@ -103,23 +96,19 @@ export function openSessionActionConfirm(
   );
 }
 
-export function applyModelSelection(
+export async function applyModelSelection(
   state: MixCodeState,
   active: MixCodeState["tabs"][number],
   model: MixCodeState["model"],
   runtime?: Partial<Pick<MixCodeRuntime, "resolveModel" | "updateTabModel">>,
-): void {
+): Promise<void> {
   const resolvedModel = runtime?.resolveModel?.(model.provider, model.modelId);
   if (runtime?.resolveModel && !resolvedModel)
     throw new Error("Model is not registered in runtime: " + model.displayName);
   if (runtime?.updateTabModel && resolvedModel) {
-    // updateTabModel is now async (calls agentSession.setModel)
-    runtime.updateTabModel(active.sessionId, resolvedModel).catch((err) => {
-      console.error("Failed to update model:", err);
-    });
-  } else {
-    setTabModel(active, model);
+    await runtime.updateTabModel(active.sessionId, resolvedModel);
   }
+  setTabModel(active, model);
   state.model = model;
 }
 
@@ -132,38 +121,34 @@ export function applyModelSelection(
  * agent immediately uses the repaired model. Returns true when the runtime
  * actually performed a model reload (i.e. a registry was wired).
  */
-export function reloadRuntimeModels(
+export async function reloadRuntimeModels(
   state: MixCodeState,
   runtime: Partial<Pick<MixCodeRuntime, "reloadModelConfig" | "resolveModel" | "updateTabModel">>,
-): boolean {
+): Promise<boolean> {
   if (!runtime.reloadModelConfig) return false;
   const configured = runtime.reloadModelConfig();
-  state.availableModels = buildAvailableModelRefs(configured);
+  const availableModels = buildAvailableModelRefs(configured);
   const preferred = configured.at(-1) ?? { ...DEFAULT_MODEL_REF };
-  const nextStateModel = isModelRefAvailable(state.availableModels, state.model)
-    ? normalizeModelRef(state.availableModels, state.model)
+  const nextStateModel = isModelRefAvailable(availableModels, state.model)
+    ? normalizeModelRef(availableModels, state.model)
     : preferred;
-  setStateModel(state, nextStateModel);
+  const repairs = state.tabs.map((tab) =>
+    isModelRefAvailable(availableModels, tab.model)
+      ? normalizeModelRef(availableModels, tab.model)
+      : nextStateModel,
+  );
   // The active tab is the one /reload operates on (mirrors the submit handler:
   // activeTabId may be "config", in which case the first tab is treated active).
   const active = getActiveTab(state);
-  for (const tab of state.tabs) {
-    const repaired = isModelRefAvailable(state.availableModels, tab.model)
-      ? normalizeModelRef(state.availableModels, tab.model)
-      : nextStateModel;
-    // Always update persisted state so background tabs reflect the repair too.
-    setTabModel(tab, repaired);
-    // Additionally sync the active tab's live runtime agent. Reload is blocked
-    // while that tab streams, so updateTabModel is safe here.
-    if (tab === active && runtime.updateTabModel && runtime.resolveModel) {
-      const resolved = runtime.resolveModel(repaired.provider, repaired.modelId);
-      if (resolved) {
-        runtime.updateTabModel(tab.sessionId, resolved).catch((err) => {
-          console.error("Failed to update model:", err);
-        });
-      }
-    }
+  if (active && runtime.updateTabModel && runtime.resolveModel) {
+    const activeIndex = state.tabs.indexOf(active);
+    const repaired = repairs[activeIndex]!;
+    const resolved = runtime.resolveModel(repaired.provider, repaired.modelId);
+    if (resolved) await runtime.updateTabModel(active.sessionId, resolved);
   }
+  state.availableModels = availableModels;
+  setStateModel(state, nextStateModel);
+  state.tabs.forEach((tab, index) => setTabModel(tab, repairs[index]!));
   return true;
 }
 

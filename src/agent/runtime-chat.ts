@@ -4,6 +4,7 @@ import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { AssistantMessage, Usage } from "@earendil-works/pi-ai";
 import type { MessageRenderer, SessionEntry } from "@earendil-works/pi-coding-agent";
 import { type Component, TUI as PiTui } from "@earendil-works/pi-tui";
+import { modelToRef } from "../core/models.js";
 import type { MixCodeModel, MixCodeTabInfo, PreviewMessageRole } from "../core/types.js";
 import { clearPendingEscape } from "../core/tab-state.js";
 import { MIXCODE_EXTENSION_THEME } from "./runtime-extension-theme.js";
@@ -470,12 +471,7 @@ export function resetTabForNewSession(tab: MixCodeTabInfo, sessionId: string): v
 }
 
 export function applyRuntimeTabModel(runtimeTab: RuntimeTab, model: MixCodeModel): void {
-  runtimeTab.tab.model = {
-    provider: model.provider,
-    modelId: model.id,
-    displayName: `${model.provider}/${model.id}`,
-    contextWindow: model.contextWindow,
-  };
+  runtimeTab.tab.model = modelToRef(model);
   runtimeTab.tab.contextLimit = model.contextWindow;
   runtimeTab.tab.contextLimitOverridden = false;
 }

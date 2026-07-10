@@ -151,7 +151,7 @@ key input
 
 Shell overlay 打开时按 refs/mixcode 的焦点语义处理：`Ctrl+V`、`Ctrl+E` 不触发全局 preview/editor，而是作为控制字符写入 shell；`Ctrl+P` 仍保留为 command palette。`Esc` 单次关闭 shell。
 
-`/models`、`/thinking`、`/context-limit`、`/theme`、`/workdir` 在无参数时会打开本地 picker overlay，支持输入过滤、上下移动、回车选择、Esc 取消。本地 `/theme` 参数支持 `mixcode-dark`、`claude-warm`、`tokyo-night`、`terminal`，也支持 `dark` 和唯一前缀如 `tok`；多匹配前缀如 `mix` 会显式报 ambiguous，不静默猜测。Pi extension `ctx.ui.setTheme("dark" | "mixcode-dark" | "claude-warm" | "tokyo-night" | "terminal")` 走同一套归一化并请求 redraw。Agent 输入 meta 行里的 workdir、model、thinking 三段也可用鼠标点击，分别复用 `/workdir`、`/models`、`/thinking` picker。编辑器补全覆盖 `/` slash commands、`$skill` 和 `@path`；`@path` 候选同时包含文件与带尾斜杠的目录，目录 query 如 `@src/` 会列出直接子项，带空格路径会插入为 `@"dir with spaces/"`。
+`/models`、`/thinking`、`/context-limit`、`/theme`、`/workdir` 在无参数时会打开本地 picker overlay，支持输入过滤、上下移动、回车选择、Esc 取消。`/thinking` 的候选来自当前 tab 模型能力；不支持 reasoning 的模型只显示 `off`，带 `thinkingLevelMap` 的模型可显示 Pi 支持的新 level（如 `max`）。本地 `/theme` 参数支持 `mixcode-dark`、`claude-warm`、`tokyo-night`、`terminal`，也支持 `dark` 和唯一前缀如 `tok`；多匹配前缀如 `mix` 会显式报 ambiguous，不静默猜测。Pi extension `ctx.ui.setTheme("dark" | "mixcode-dark" | "claude-warm" | "tokyo-night" | "terminal")` 走同一套归一化并请求 redraw。Agent 输入 meta 行里的 workdir、model、thinking 三段也可用鼠标点击，分别复用 `/workdir`、`/models`、`/thinking` picker。编辑器补全覆盖 `/` slash commands、`$skill` 和 `@path`；`@path` 候选同时包含文件与带尾斜杠的目录，目录 query 如 `@src/` 会列出直接子项，带空格路径会插入为 `@"dir with spaces/"`。
 
 全局 `@` 文件 picker 参考 `refs/mixcode/mixcode/widgets/file_picker.py` 的真实实现，而不是 README 推测：
 

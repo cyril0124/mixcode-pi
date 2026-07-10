@@ -73,7 +73,16 @@ export async function main(): Promise<void> {
   const batchRequests = args.batch
     ? await loadBatchRequests(args.batch, contextFromState(state))
     : undefined;
-  if (batchRequests) validateBatchRequests(batchRequests, (query) => findModelRef(state.availableModels, query));
+  if (batchRequests) {
+    validateBatchRequests(
+      batchRequests,
+      (query) => findModelRef(state.availableModels, query),
+      (request) =>
+        request.mode === "delete"
+          ? state.model
+          : (state.tabs.find((tab) => tab.title === request.name)?.model ?? state.model),
+    );
+  }
   const stateRoot = defaultStateDir();
   let registryWriteErrorReported = false;
   const reportRegistryWriteError = (error: unknown) => {
@@ -225,7 +234,7 @@ export async function main(): Promise<void> {
       async configureTab(sessionId, options) {
         const tab = state.tabs.find((t) => t.sessionId === sessionId);
         if (!tab) throw new Error(`Cannot configure unknown tab: ${sessionId}`);
-        if (options.model) applyModelSelection(state, tab, options.model, runtime);
+        if (options.model) await applyModelSelection(state, tab, options.model, runtime);
         if (options.thinking) applyThinkingLevel(state, tab, options.thinking, runtime);
       },
       async clearTab(sessionId) {
@@ -286,14 +295,13 @@ export async function main(): Promise<void> {
           const tab = state.tabs.find((t) => t.sessionId === sessionId);
           const workdir = tab?.workdir ?? state.workdir;
           const built = await buildModelPrompt(parsed.args, workdir, { knownSkills, promptTemplates });
-          // Fire-and-forget: don't await agent completion
-          void runtime.prompt(sessionId, built);
+          await runtime.prompt(sessionId, built);
         } else if (parsed.kind === "shell") {
-          void runtime.executeShellCommand(sessionId, parsed.args, {
+          await runtime.executeShellCommand(sessionId, parsed.args, {
             excludeFromContext: parsed.excludeFromContext === true,
           });
         } else {
-          void runtime.prompt(sessionId, input);
+          await runtime.prompt(sessionId, input);
         }
       },
       resolveModel(query) {

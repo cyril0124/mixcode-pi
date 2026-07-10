@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { test } from "node:test";
+import { availableThinkingLevelsForModel } from "../src/core/thinking-levels.js";
 import {
   AUTO_SAVED_WORKSPACE,
   addAgentTab,
@@ -36,6 +37,18 @@ import {
   answerCurrentQuestion,
   updatePickerQuery,
 } from "../src/index.js";
+
+test("unknown model capabilities expose only off thinking", () => {
+  assert.deepEqual(
+    availableThinkingLevelsForModel({
+      provider: "legacy",
+      modelId: "unknown",
+      displayName: "legacy/unknown",
+      contextWindow: 1,
+    }),
+    ["off"],
+  );
+});
 
 test("workspace snapshots preserve tab order and auto-save name", () => {
   const state = createInitialState("/repo");
@@ -217,13 +230,16 @@ test("picker state filters, moves, and accepts selections", () => {
   movePickerSelection(models, 1);
   assert.equal(models.selectedIndex, 0);
 
+  tab.model = { ...tab.model, reasoning: true, thinkingLevelMap: { max: "max" } };
   const thinking = createPicker("thinking", state, tab);
   assert.equal(acceptPickerSelection(thinking)?.id, "high");
-  updatePickerQuery(thinking, "xh");
+  updatePickerQuery(thinking, "max");
   assert.deepEqual(
     filteredPickerItems(thinking).map((item) => item.id),
-    ["xhigh"],
+    ["max"],
   );
+  updatePickerQuery(thinking, "xh");
+  assert.deepEqual(filteredPickerItems(thinking), []);
   updatePickerQuery(thinking, "zz");
   assert.deepEqual(filteredPickerItems(thinking), []);
   movePickerSelection(thinking, 1);

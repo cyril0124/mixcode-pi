@@ -10,6 +10,8 @@ export function modelToRef(model: MixCodeModel): MixCodeModelRef {
     modelId: model.id,
     displayName: `${model.provider}/${model.id}`,
     contextWindow: model.contextWindow,
+    reasoning: model.reasoning,
+    thinkingLevelMap: model.thinkingLevelMap,
   };
 }
 

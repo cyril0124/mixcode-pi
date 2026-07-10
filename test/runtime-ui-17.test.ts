@@ -1,3 +1,4 @@
+import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -298,6 +299,7 @@ test("runtime restores bash tool results through assistant tool call args", asyn
       thinkingLevel: "medium",
       workdir: process.cwd(),
     });
+    restored.tab.extensionUi.toolsExpanded = true;
     const rendered = stripAnsi(renderChat(restored.chat, 80).join("\n"));
     assert.match(rendered, /bash output/);
     assert.match(rendered, /\$ pwd/);

@@ -1,4 +1,6 @@
+import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { Theme } from "@earendil-works/pi-coding-agent";
+import { allKnownThinkingLevels } from "../core/thinking-levels.js";
 import type { MixCodeState } from "../core/types.js";
 
 export interface MixCodeTheme {
@@ -86,42 +88,126 @@ const ansiRed = (text: string) => `\x1b[31m${text}\x1b[39m`;
 const ansiGreen = (text: string) => `\x1b[32m${text}\x1b[39m`;
 const ansiYellow = (text: string) => `\x1b[33m${text}\x1b[39m`;
 const ansiBlue = (text: string) => `\x1b[34m${text}\x1b[39m`;
-const ansiMagenta = (text: string) => `\x1b[35m${text}\x1b[39m`;
 const ansiCyan = (text: string) => `\x1b[36m${text}\x1b[39m`;
 const dim = (text: string) => `\x1b[2m${text}\x1b[22m`;
 
-const MIXCODE_DARK_THINKING_BORDERS: Record<string, (text: string) => string> = {
-  off: rgb("#505050"),
-  minimal: rgb("#6e6e6e"),
-  low: rgb("#5f87af"),
-  medium: rgb("#81a2be"),
-  high: rgb("#b294bb"),
-  xhigh: rgb("#d183e8"),
+const THINKING_LEVELS = allKnownThinkingLevels();
+const TERMINAL_THINKING_ANSI = [90, 37, 34, 36, 35, 95, 31, 91, 33, 93, 32, 92, 94, 96, 97];
+
+type ThinkingThemeColors = {
+  [Level in ThinkingLevel as `thinking${Capitalize<Level>}`]: string;
 };
 
-function thinkingBorderFor(
-  palette: Record<string, (text: string) => string>,
-): (thinkingLevel?: string) => (text: string) => string {
-  return (thinkingLevel = "off") => palette[thinkingLevel] ?? palette.off ?? identity;
+function thinkingBorderFor(anchors: string[]): (thinkingLevel?: string) => (text: string) => string {
+  const colors = new Map(thinkingColorScale(anchors).map(({ level, hex }) => [level, rgb(hex)]));
+  return (thinkingLevel = THINKING_LEVELS[0] ?? "off") =>
+    colors.get(thinkingLevel as ThinkingLevel) ?? rgb(anchors[0] ?? "#505050");
 }
 
-const CLAUDE_WARM_THINKING_BORDERS: Record<string, (text: string) => string> = {
-  off: rgb("#3d3d3a"),
-  minimal: rgb("#87867f"),
-  low: rgb("#8f6b2f"),
-  medium: rgb("#d97757"),
-  high: rgb("#c45d3d"),
-  xhigh: rgb("#a63d20"),
-};
+function thinkingThemeColors(anchors: string[]): ThinkingThemeColors {
+  return Object.fromEntries(
+    thinkingColorScale(anchors).map(({ level, hex }) => [
+      `thinking${level[0]!.toUpperCase()}${level.slice(1)}`,
+      hex,
+    ]),
+  ) as ThinkingThemeColors;
+}
 
-const TOKYO_NIGHT_THINKING_BORDERS: Record<string, (text: string) => string> = {
-  off: rgb("#3b4261"),
-  minimal: rgb("#565f89"),
-  low: rgb("#7aa2f7"),
-  medium: rgb("#bb9af7"),
-  high: rgb("#ff9e64"),
-  xhigh: rgb("#f7768e"),
-};
+function thinkingColorScale(anchors: string[]): Array<{ level: ThinkingLevel; hex: string }> {
+  return THINKING_LEVELS.map((level, index) => ({
+    level,
+    hex: anchors[index] ?? extendThinkingColor(anchors, index),
+  }));
+}
+
+function extendThinkingColor(anchors: string[], index: number): string {
+  const last = parseRgb(anchors.at(-1) ?? "#505050");
+  const previous = parseRgb(anchors.at(-2) ?? anchors.at(-1) ?? "#404040");
+  const [lastH, lastS, lastL] = rgbToHsl(last);
+  const [previousH] = rgbToHsl(previous);
+  const hueStep = normalizeHueDelta(lastH - previousH) || 18;
+  const extra = index - anchors.length + 1;
+  return formatRgb(hslToRgb([wrapHue(lastH + hueStep * extra), lastS, clamp(lastL + 0.04 * extra, 0.25, 0.82)]));
+}
+
+function terminalThinkingBorderFor(): (thinkingLevel?: string) => (text: string) => string {
+  return (thinkingLevel = THINKING_LEVELS[0] ?? "off") => {
+    const index = Math.max(0, THINKING_LEVELS.indexOf(thinkingLevel as ThinkingLevel));
+    const color = TERMINAL_THINKING_ANSI[index % TERMINAL_THINKING_ANSI.length]!;
+    const cycle = Math.floor(index / TERMINAL_THINKING_ANSI.length);
+    const style = cycle % 3 === 1 ? "1;" : cycle % 3 === 2 ? "4;" : "";
+    const styleReset = cycle % 3 === 1 ? "\x1b[22m" : cycle % 3 === 2 ? "\x1b[24m" : "";
+    return (text: string) => `\x1b[${style}${color}m${text}\x1b[39m${styleReset}`;
+  };
+}
+
+function parseRgb(hex: string): [number, number, number] {
+  const value = hex.replace(/^#/, "");
+  return [0, 2, 4].map((offset) => Number.parseInt(value.slice(offset, offset + 2), 16)) as [
+    number,
+    number,
+    number,
+  ];
+}
+
+function formatRgb(channels: [number, number, number]): string {
+  return `#${channels.map((channel) => channel.toString(16).padStart(2, "0")).join("")}`;
+}
+
+function rgbToHsl([red, green, blue]: [number, number, number]): [number, number, number] {
+  const r = red / 255;
+  const g = green / 255;
+  const b = blue / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const lightness = (max + min) / 2;
+  if (max === min) return [0, 0, lightness];
+  const delta = max - min;
+  const saturation = delta / (1 - Math.abs(2 * lightness - 1));
+  const hue =
+    max === r
+      ? 60 * (((g - b) / delta) % 6)
+      : max === g
+        ? 60 * ((b - r) / delta + 2)
+        : 60 * ((r - g) / delta + 4);
+  return [wrapHue(hue), saturation, lightness];
+}
+
+function hslToRgb([hue, saturation, lightness]: [number, number, number]): [number, number, number] {
+  const chroma = (1 - Math.abs(2 * lightness - 1)) * saturation;
+  const x = chroma * (1 - Math.abs(((hue / 60) % 2) - 1));
+  const match = lightness - chroma / 2;
+  const [r1, g1, b1] =
+    hue < 60
+      ? [chroma, x, 0]
+      : hue < 120
+        ? [x, chroma, 0]
+        : hue < 180
+          ? [0, chroma, x]
+          : hue < 240
+            ? [0, x, chroma]
+            : hue < 300
+              ? [x, 0, chroma]
+              : [chroma, 0, x];
+  return [r1, g1, b1].map((channel) => Math.round((channel + match) * 255)) as [
+    number,
+    number,
+    number,
+  ];
+}
+
+function normalizeHueDelta(delta: number): number {
+  const normalized = ((delta + 540) % 360) - 180;
+  return Math.abs(normalized) < 8 ? 0 : normalized;
+}
+
+function wrapHue(hue: number): number {
+  return ((hue % 360) + 360) % 360;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
 
 export const MIXCODE_DARK_THEME: MixCodeTheme = {
   name: "pi-dark",
@@ -145,7 +231,7 @@ export const MIXCODE_DARK_THEME: MixCodeTheme = {
   vimPromptSurface: identity,
   shellBorder: rgb("#b5bd68"),
   vimBorder: rgb("#8abeb7"),
-  thinkingBorder: thinkingBorderFor(MIXCODE_DARK_THINKING_BORDERS),
+  thinkingBorder: thinkingBorderFor(["#505050", "#6e6e6e", "#5f87af", "#81a2be", "#b294bb", "#d183e8"]),
   toolPendingBackground: bgPair("#282832"),
   toolSuccessBackground: bgPair("#283228"),
   toolErrorBackground: bgPair("#3c2828"),
@@ -184,7 +270,7 @@ export const CLAUDE_WARM_THEME: MixCodeTheme = {
   vimPromptSurface: persistentBgRgb("#332a45"),
   shellBorder: rgb("#dcecf4"),
   vimBorder: rgb("#c9a4ff"),
-  thinkingBorder: thinkingBorderFor(CLAUDE_WARM_THINKING_BORDERS),
+  thinkingBorder: thinkingBorderFor(["#3d3d3a", "#87867f", "#8f6b2f", "#d97757", "#c45d3d", "#a63d20"]),
   toolPendingBackground: bgPair("#232321"),
   toolSuccessBackground: bgPair("#253020"),
   toolErrorBackground: bgPair("#34211e"),
@@ -223,7 +309,7 @@ export const TOKYO_NIGHT_THEME: MixCodeTheme = {
   vimPromptSurface: persistentBgRgb("#2a2440"),
   shellBorder: rgb("#9ece6a"),
   vimBorder: rgb("#bb9af7"),
-  thinkingBorder: thinkingBorderFor(TOKYO_NIGHT_THINKING_BORDERS),
+  thinkingBorder: thinkingBorderFor(["#3b4261", "#565f89", "#7aa2f7", "#bb9af7", "#ff9e64", "#f7768e"]),
   toolPendingBackground: bgPair("#24283b"),
   toolSuccessBackground: bgPair("#203326"),
   toolErrorBackground: bgPair("#3a202c"),
@@ -238,15 +324,6 @@ export const TOKYO_NIGHT_THEME: MixCodeTheme = {
   tool: rgb("#ff9e64"),
   bold: (text: string) => `\x1b[1m${text}\x1b[22m`,
   italic: (text: string) => `\x1b[3m${text}\x1b[23m`,
-};
-
-const TERMINAL_THINKING_BORDERS: Record<string, (text: string) => string> = {
-  off: dim,
-  minimal: dim,
-  low: ansiBlue,
-  medium: ansiCyan,
-  high: ansiMagenta,
-  xhigh: (text: string) => `\x1b[1m\x1b[35m${text}\x1b[39m\x1b[22m`,
 };
 
 export const TERMINAL_THEME: MixCodeTheme = {
@@ -271,7 +348,7 @@ export const TERMINAL_THEME: MixCodeTheme = {
   vimPromptSurface: identity,
   shellBorder: ansiGreen,
   vimBorder: ansiCyan,
-  thinkingBorder: thinkingBorderFor(TERMINAL_THINKING_BORDERS),
+  thinkingBorder: terminalThinkingBorderFor(),
   toolPendingBackground: { start: "", end: "" },
   toolSuccessBackground: { start: "", end: "" },
   toolErrorBackground: { start: "", end: "" },
@@ -328,12 +405,7 @@ export const MIXCODE_EXTENSION_THEME = new Theme(
     syntaxType: "#4EC9B0",
     syntaxOperator: "#D4D4D4",
     syntaxPunctuation: "#D4D4D4",
-    thinkingOff: "#505050",
-    thinkingMinimal: "#6e6e6e",
-    thinkingLow: "#5f87af",
-    thinkingMedium: "#81a2be",
-    thinkingHigh: "#b294bb",
-    thinkingXhigh: "#d183e8",
+    ...thinkingThemeColors(["#505050", "#6e6e6e", "#5f87af", "#81a2be", "#b294bb", "#d183e8"]),
     bashMode: "#b5bd68",
   },
   {
@@ -388,12 +460,7 @@ export const MIXCODE_EXTENSION_TOKYO_NIGHT_THEME = new Theme(
     syntaxType: "#2ac3de",
     syntaxOperator: "#89ddff",
     syntaxPunctuation: "#c0caf5",
-    thinkingOff: "#3b4261",
-    thinkingMinimal: "#565f89",
-    thinkingLow: "#7aa2f7",
-    thinkingMedium: "#bb9af7",
-    thinkingHigh: "#ff9e64",
-    thinkingXhigh: "#f7768e",
+    ...thinkingThemeColors(["#3b4261", "#565f89", "#7aa2f7", "#bb9af7", "#ff9e64", "#f7768e"]),
     bashMode: "#9ece6a",
   },
   {
@@ -448,12 +515,7 @@ export const MIXCODE_EXTENSION_CLAUDE_WARM_THEME = new Theme(
     syntaxType: "#8fa87a",
     syntaxOperator: "#faf9f5",
     syntaxPunctuation: "#7a7a72",
-    thinkingOff: "#3d3d3a",
-    thinkingMinimal: "#87867f",
-    thinkingLow: "#8f6b2f",
-    thinkingMedium: "#d97757",
-    thinkingHigh: "#c45d3d",
-    thinkingXhigh: "#a63d20",
+    ...thinkingThemeColors(["#3d3d3a", "#87867f", "#8f6b2f", "#d97757", "#c45d3d", "#a63d20"]),
     bashMode: "#dcecf4",
   },
   {

@@ -268,7 +268,7 @@ export class MixCodeRuntime {
     },
   ): Promise<RuntimeTab> {
     const runtimeTab = this.requireTab(sessionId);
-    if (runtimeTab.agent.state.isStreaming) {
+    if (runtimeTab.agentSession.isStreaming) {
       throw new Error("Cannot clear a session while it is streaming");
     }
     const oldHeader = runtimeTab.session?.getHeader();
@@ -472,17 +472,12 @@ export class MixCodeRuntime {
     const agentState = runtimeTab.agent.state;
     runtimeTab.tab.status = agentState.errorMessage
       ? "error"
-      : agentState.isStreaming
+      : runtimeTab.agentSession.isStreaming
         ? "running"
         : runtimeTab.tab.status === "done"
           ? "done"
           : "idle";
-    runtimeTab.tab.model = {
-      provider: agentState.model.provider,
-      modelId: agentState.model.id,
-      displayName: `${agentState.model.provider}/${agentState.model.id}`,
-      contextWindow: agentState.model.contextWindow,
-    };
+    runtimeTab.tab.model = modelToRef(agentState.model);
     // Only sync contextLimit from model if the user hasn't overridden it
     if (!runtimeTab.tab.contextLimitOverridden) {
       runtimeTab.tab.contextLimit = agentState.model.contextWindow;
@@ -987,7 +982,7 @@ export class MixCodeRuntime {
 
   async updateTabModel(sessionId: string, model: MixCodeModel): Promise<void> {
     const runtimeTab = this.requireTab(sessionId);
-    if (runtimeTab.agent.state.isStreaming) {
+    if (runtimeTab.agentSession.isStreaming) {
       throw new Error("Cannot change model while the agent is streaming");
     }
     // Use agentSession.setModel() to trigger model_select event and persist to session
@@ -995,6 +990,8 @@ export class MixCodeRuntime {
     // Sync local state after SDK updates its own state
     runtimeTab.agent.state.model = model;
     applyRuntimeTabModel(runtimeTab, model);
+    // Sync thinking level after Pi clamps it to new model's capability
+    runtimeTab.tab.thinkingLevel = runtimeTab.agentSession.thinkingLevel;
   }
 
   updateTabThinkingLevel(sessionId: string, level: ThinkingLevel): ThinkingLevel {

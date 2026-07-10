@@ -10,7 +10,7 @@ mixcode = {}
 ---@field prompt string Prompt text to send to the agent
 ---@field workdir? string Working directory (defaults to current workdir)
 ---@field model? string Model identifier (e.g. "anthropic/claude-sonnet-4-20250514")
----@field thinking? "off"|"minimal"|"low"|"medium"|"high"|"xhigh" Thinking level
+---@field thinking? "off"|"minimal"|"low"|"medium"|"high"|"xhigh"|"max" Thinking level supported by the selected model
 ---@field mode? "append"|"clear"|"delete" Reuse behavior when tab exists (default: "append")
 
 ---@class mixcode.TabInfo
@@ -18,7 +18,7 @@ mixcode = {}
 ---@field session_id string Runtime session id
 ---@field workdir string Tab working directory
 ---@field model string Model display name
----@field thinking "off"|"minimal"|"low"|"medium"|"high"|"xhigh" Thinking level
+---@field thinking "off"|"minimal"|"low"|"medium"|"high"|"xhigh"|"max" Thinking level
 ---@field status string Tab status
 
 ---Open a new agent tab or reuse an existing one by exact title match.

@@ -121,7 +121,8 @@ test("package bin symlink starts the CLI instead of silently exiting", async () 
     const linkPath = join(dir, "mixcode-pi");
     await symlink(join(process.cwd(), "src", "cli", "main.ts"), linkPath);
     const { stdout } = await execFileAsync(process.execPath, ["--import", "tsx", linkPath, "--help"], {
-      timeout: 10_000,
+      timeout: 20_000,
+      env: { ...process.env, NODE_OPTIONS: "", NODE_V8_COVERAGE: "" },
     });
     assert.match(stdout, /Usage: mixcode-pi \[options\]/);
   } finally {

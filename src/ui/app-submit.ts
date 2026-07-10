@@ -296,7 +296,7 @@ export async function handleSubmittedInput(
     await runtime.extensionReload(active!.sessionId);
     // Native reload covers extensions/skills/prompts/themes but not models; the
     // model registry is loaded once at bootstrap, so refresh it here too.
-    const modelsReloaded = reloadRuntimeModels(state, runtime);
+    const modelsReloaded = await reloadRuntimeModels(state, runtime);
     showSystemMessageOrToast(
       state,
       runtime,
@@ -352,7 +352,7 @@ export async function handleSubmittedInput(
       return;
     }
     const model = findModelRef(state.availableModels, parsed.args);
-    applyModelSelection(state, active!, model, runtime);
+    await applyModelSelection(state, active!, model, runtime);
   } else if (parsed.command === "theme") {
     if (!parsed.args.trim()) {
       state.picker = createPicker("theme", state, active);

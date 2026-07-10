@@ -12,10 +12,10 @@ import {
   type MixCodeRuntime,
 } from "../src/index.js";
 
-async function waitForRuntime(predicate: () => boolean, attempts = 25): Promise<void> {
+async function waitForRuntime(predicate: () => boolean, attempts = 100): Promise<void> {
   for (let index = 0; index < attempts; index++) {
     if (predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 10));
   }
   assert.ok(predicate());
 }

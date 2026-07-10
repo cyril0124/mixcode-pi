@@ -6,8 +6,8 @@ import { test } from "node:test";
 import { MixCodeRuntime, createTab } from "../src/index.js";
 
 // Mirrors compact-regression.test.ts's technique: create a real runtime tab,
-// flip the private streaming flag directly (no need to actually pump a live
-// stream), then assert the guarded method rejects. Covers the new
+// flip Pi's session-level active-run flag directly, then assert the guarded
+// method rejects. Covers the new
 // isStreaming/isCompacting guard added to closeTab/deleteTab so a stray click
 // on the tab-bar [ - ]/[ x ] buttons (or /close-session, /delete-session
 // themselves) can never yank a session out from under an in-flight turn.
@@ -20,15 +20,15 @@ test("runtime rejects closing a session while the agent is streaming", async () 
       thinkingLevel: "medium",
       workdir: process.cwd(),
     });
-    const mutableAgent = runtimeTab.agent as unknown as { _state: { isStreaming: boolean } };
-    mutableAgent._state.isStreaming = true;
+    const mutableSession = runtimeTab.agentSession as unknown as { _isAgentRunActive: boolean };
+    mutableSession._isAgentRunActive = true;
     try {
       await assert.rejects(
         () => runtime.closeTab("s1"),
         /Cannot close a session while the agent is streaming/,
       );
     } finally {
-      mutableAgent._state.isStreaming = false;
+      mutableSession._isAgentRunActive = false;
     }
     // The tab must still be there: the guard must fire before any teardown.
     assert.ok(runtime.getTab("s1"));
@@ -53,15 +53,15 @@ test("runtime rejects deleting a session while the agent is streaming", async ()
     // .jsonl yet, which would make the "file still there" assertion below pass
     // for the wrong reason).
     await runtime.prompt("s1", "hello");
-    const mutableAgent = runtimeTab.agent as unknown as { _state: { isStreaming: boolean } };
-    mutableAgent._state.isStreaming = true;
+    const mutableSession = runtimeTab.agentSession as unknown as { _isAgentRunActive: boolean };
+    mutableSession._isAgentRunActive = true;
     try {
       await assert.rejects(
         () => runtime.deleteTab("s1"),
         /Cannot delete a session while the agent is streaming/,
       );
     } finally {
-      mutableAgent._state.isStreaming = false;
+      mutableSession._isAgentRunActive = false;
     }
     // Guard must fire before the session file is removed.
     await assert.doesNotReject(() => access(sessionFile!));

@@ -365,7 +365,7 @@ test("submitted input handles prompt, shell, local commands, clear, and missing 
     await handleSubmittedInput(state, runtime, "/theme mixcode-dark", tui);
     await handleSubmittedInput(state, runtime, "/help", tui);
     await handleSubmittedInput(state, runtime, "/run worker task", tui);
-    assert.match(prompts[0] ?? "", /<skill name=/);
+    assert.equal(prompts[0], "hello $review @src/index.ts");
     assert.doesNotMatch(prompts[0] ?? "", /workdir-instructions|Follow repo rules/);
     assert.deepEqual(prompts.slice(1), ["/run worker task"]);
     assert.deepEqual(shellCommands, [{ command: "pwd", excludeFromContext: false }]);

@@ -1,3 +1,4 @@
+import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
@@ -262,7 +263,12 @@ test("bootstrap keeps a restored configured model when it is still available", a
             apiKey: "MIXCODE_BOOTSTRAP_RESTORE_KEY",
             models: [
               { id: "restore-model", contextWindow: 99 },
-              { id: "tab-model", contextWindow: 123 },
+              {
+                id: "tab-model",
+                contextWindow: 123,
+                reasoning: true,
+                thinkingLevelMap: { max: "max" },
+              },
             ],
           },
         },
@@ -285,9 +291,11 @@ test("bootstrap keeps a restored configured model when it is still available", a
           modelId: "tab-model",
           displayName: "old tab display",
           contextWindow: 1,
+          reasoning: true,
+          thinkingLevelMap: { max: "max" },
         },
         contextLimit: 1,
-        thinkingLevel: "xhigh",
+        thinkingLevel: "max",
       }),
     );
     await saveStateFile(stateFileForPort(scopedStateDir(stateDir, repo), 0), state);
@@ -308,7 +316,7 @@ test("bootstrap keeps a restored configured model when it is still available", a
     assert.equal(boot.state.tabs[0]?.model.displayName, "mixcode-bootstrap-restore/restore-model");
     assert.equal(boot.state.tabs[1]?.model.displayName, "mixcode-bootstrap-restore/tab-model");
     assert.equal(boot.state.tabs[1]?.contextLimit, 123);
-    assert.equal(boot.state.tabs[1]?.thinkingLevel, "xhigh");
+    assert.equal(boot.state.tabs[1]?.thinkingLevel, "max");
   } finally {
     if (oldKey === undefined) delete process.env.MIXCODE_BOOTSTRAP_RESTORE_KEY;
     else process.env.MIXCODE_BOOTSTRAP_RESTORE_KEY = oldKey;

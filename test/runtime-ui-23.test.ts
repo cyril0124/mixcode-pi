@@ -1,3 +1,4 @@
+import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -149,6 +150,37 @@ async function waitFor(predicate: () => boolean, attempts = 25): Promise<void> {
   await waitForRuntime(predicate, attempts);
 }
 
+let blockedQueueRuntimeSequence = 0;
+
+function createBlockedQueueRuntime(sessionsRoot: string) {
+  let release!: () => void;
+  const ready = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const suffix = ++blockedQueueRuntimeSequence;
+  const model: Model<string> = {
+    ...MIXCODE_FAUX_MODEL,
+    provider: `queue-${suffix}`,
+    api: `queue-${suffix}`,
+    id: `queue-${suffix}`,
+  };
+  const runtime = new MixCodeRuntime({
+    sessionsRoot,
+    streamFn: (_model, context, options) =>
+      delayedAssistantStream(lastRuntimeUserText(context), ready, options),
+  });
+  return { runtime, release, model };
+}
+
+async function startBlockedQueuePrompt(
+  runtime: MixCodeRuntime,
+  sessionId: string,
+): Promise<{ prompt: Promise<void> }> {
+  const prompt = runtime.prompt(sessionId, "busy");
+  await waitFor(() => runtime.getTab(sessionId)?.agentSession.isStreaming === true);
+  return { prompt };
+}
+
 function stripAnsi(text: string): string {
   return text
     .replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "")
@@ -242,17 +274,16 @@ test("runtime summarizes long tool results instead of flooding chat", async () =
 
 test("runtime queues prompts while busy, pops them, and flushes when idle", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-queue-"));
+  const { runtime, release, model } = createBlockedQueueRuntime(dir);
   try {
-    const runtime = new MixCodeRuntime({ sessionsRoot: dir });
     const tab = createTab(1, "s1", process.cwd());
     const runtimeTab = await runtime.createTab(tab, {
       systemPrompt: "system",
       thinkingLevel: "medium",
       workdir: process.cwd(),
+      model,
     });
-    const anyAgent = runtimeTab.agent as unknown as { _state: { isStreaming: boolean } };
-
-    anyAgent._state.isStreaming = true;
+    const { prompt } = await startBlockedQueuePrompt(runtime, "s1");
     await runtime.prompt("s1", "first queued");
     await runtime.prompt("s1", "second queued");
     await runtime.prompt("s1", "  ");
@@ -260,118 +291,112 @@ test("runtime queues prompts while busy, pops them, and flushes when idle", asyn
 
     assert.equal(runtime.popPendingMessage("s1"), "second queued");
     assert.deepEqual(tab.pendingMessages, ["first queued"]);
-    anyAgent._state.isStreaming = false;
-    tab.pendingMessages.unshift("preexisting pending");
-    await runtime.flushPendingMessage("s1", 1);
-    assert.deepEqual(tab.pendingMessages, ["preexisting pending"]);
+    runtimeTab.deferPendingMessageFlush = true;
+    release();
+    await prompt;
     assert.ok(runtimeTab.chat.some((line) => line.text.includes("first queued")));
-    assert.equal(
-      runtimeTab.chat.some((line) => line.text.includes("preexisting pending")),
-      false,
-    );
+    tab.pendingMessages.push("preexisting pending");
     await runtime.flushPendingMessage("s1");
     assert.deepEqual(tab.pendingMessages, []);
     assert.ok(runtimeTab.chat.some((line) => line.text.includes("preexisting pending")));
     await runtime.flushPendingMessage("s1");
     assert.deepEqual(tab.pendingMessages, []);
   } finally {
+    release();
     await rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime pop removes matching Pi steering queue entries", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-queue-pop-steer-"));
+  const { runtime, release, model } = createBlockedQueueRuntime(dir);
   try {
-    const runtime = new MixCodeRuntime({ sessionsRoot: dir });
     const tab = createTab(1, "s1", process.cwd());
     const runtimeTab = await runtime.createTab(tab, {
       systemPrompt: "system",
       thinkingLevel: "medium",
       workdir: process.cwd(),
+      model,
     });
-    const anyAgent = runtimeTab.agent as unknown as { _state: { isStreaming: boolean } };
-    anyAgent._state.isStreaming = true;
+    const { prompt } = await startBlockedQueuePrompt(runtime, "s1");
     await runtime.prompt("s1", "first queued");
     await runtime.prompt("s1", "second queued");
 
     assert.equal(runtime.popPendingMessage("s1"), "second queued");
-
     assert.deepEqual(tab.pendingMessages, ["first queued"]);
     assert.equal(runtimeTab.queuedPromptCount, 1);
     assert.deepEqual([...runtimeTab.agentSession.getSteeringMessages()], ["first queued"]);
+    runtimeTab.deferPendingMessageFlush = true;
+    release();
+    await prompt;
   } finally {
+    release();
     await rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime pop preserves unrelated Pi follow-up queue entries", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-queue-pop-preserve-follow-up-"));
+  const { runtime, release, model } = createBlockedQueueRuntime(dir);
   try {
-    const runtime = new MixCodeRuntime({ sessionsRoot: dir });
     const tab = createTab(1, "s1", process.cwd());
     const runtimeTab = await runtime.createTab(tab, {
       systemPrompt: "system",
       thinkingLevel: "medium",
       workdir: process.cwd(),
+      model,
     });
-    const anyAgent = runtimeTab.agent as unknown as { _state: { isStreaming: boolean } };
-    anyAgent._state.isStreaming = true;
+    const { prompt } = await startBlockedQueuePrompt(runtime, "s1");
     await runtime.prompt("s1", "steer queued");
     await runtimeTab.agentSession.followUp("follow-up from extension");
 
     assert.equal(runtime.popPendingMessage("s1"), "steer queued");
-
     assert.deepEqual(tab.pendingMessages, []);
     assert.equal(runtimeTab.queuedPromptCount, 0);
     assert.deepEqual([...runtimeTab.agentSession.getSteeringMessages()], []);
     assert.deepEqual([...runtimeTab.agentSession.getFollowUpMessages()], [
       "follow-up from extension",
     ]);
+    runtimeTab.deferPendingMessageFlush = true;
+    release();
+    await prompt;
   } finally {
+    release();
     await rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime waits for idle before flushing queued prompts", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-queue-wait-idle-"));
+  const { runtime, release, model } = createBlockedQueueRuntime(dir);
   try {
-    const runtime = new MixCodeRuntime({ sessionsRoot: dir });
     const tab = createTab(1, "s1", process.cwd());
     const runtimeTab = await runtime.createTab(tab, {
       systemPrompt: "system",
       thinkingLevel: "medium",
       workdir: process.cwd(),
+      model,
     });
+    const { prompt } = await startBlockedQueuePrompt(runtime, "s1");
     tab.pendingMessages.push("queued prompt");
     runtimeTab.queuedPromptCount = 1;
-    const events: string[] = [];
-    const anyAgent = runtimeTab.agent as unknown as {
-      _state: { isStreaming: boolean };
-      waitForIdle: () => Promise<void>;
-    };
-    anyAgent._state.isStreaming = true;
-    anyAgent.waitForIdle = async () => {
-      events.push("wait");
-      anyAgent._state.isStreaming = false;
-    };
-    (
-      runtimeTab.agent as unknown as {
-        prompt: (messages: Array<{ content: Array<{ text?: string }> }>) => Promise<void>;
-      }
-    ).prompt = async (messages) => {
-      events.push(
-        messages
-          .map((message) => message.content.map((block) => block.text ?? "").join("\n"))
-          .join("\n\n"),
-      );
-    };
 
-    await runtime.flushPendingMessage("s1", runtimeTab.queuedPromptCount);
+    let flushed = false;
+    const flush = runtime.flushPendingMessage("s1", 1).then(() => {
+      flushed = true;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.equal(flushed, false);
 
-    assert.deepEqual(events, ["wait", "queued prompt"]);
+    release();
+    await prompt;
+    await flush;
+    assert.equal(flushed, true);
     assert.deepEqual(tab.pendingMessages, []);
     assert.equal(runtimeTab.queuedPromptCount, 0);
+    assert.ok(runtimeTab.chat.some((line) => line.text.includes("queued prompt")));
   } finally {
+    release();
     await rm(dir, { recursive: true, force: true });
   }
 });
@@ -449,39 +474,32 @@ test("runtime keeps queued prompts when flush prompt fails", async () => {
 
 test("runtime flush syncs pending messages from Pi steering queue first", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-queue-sync-"));
+  const { runtime, release, model } = createBlockedQueueRuntime(dir);
   try {
-    const runtime = new MixCodeRuntime({ sessionsRoot: dir });
     const tab = createTab(1, "s1", process.cwd());
     const runtimeTab = await runtime.createTab(tab, {
       systemPrompt: "system",
       thinkingLevel: "medium",
       workdir: process.cwd(),
+      model,
     });
-    const anyAgent = runtimeTab.agent as unknown as { _state: { isStreaming: boolean } };
-    anyAgent._state.isStreaming = true;
+    const { prompt } = await startBlockedQueuePrompt(runtime, "s1");
     await runtime.prompt("s1", "queued prompt");
     assert.deepEqual(tab.pendingMessages, ["queued prompt"]);
     // Simulate local state getting out of sync.
     tab.pendingMessages = [];
     runtimeTab.queuedPromptCount = 0;
-    anyAgent._state.isStreaming = false;
-    let promptText = "";
-    (
-      runtimeTab.agent as unknown as {
-        prompt: (messages: Array<{ content: Array<{ text?: string }> }>) => Promise<void>;
-      }
-    ).prompt = async (messages) => {
-      promptText = messages
-        .map((message) => message.content.map((block) => block.text ?? "").join("\n"))
-        .join("\n\n");
-    };
 
-    await runtime.flushPendingMessage("s1", 1);
+    const flush = runtime.flushPendingMessage("s1", 1);
+    release();
+    await prompt;
+    await flush;
 
-    assert.equal(promptText, "queued prompt");
+    assert.ok(runtimeTab.chat.some((line) => line.text.includes("queued prompt")));
     assert.deepEqual(tab.pendingMessages, []);
     assert.equal(runtimeTab.queuedPromptCount, 0);
   } finally {
+    release();
     await rm(dir, { recursive: true, force: true });
   }
 });

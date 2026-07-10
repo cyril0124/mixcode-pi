@@ -454,15 +454,13 @@ test("runtime aborts an active pi agent run", async () => {
     thinkingLevel: "medium",
     workdir: process.cwd(),
   });
-  const anyAgent = runtimeTab.agent as unknown as {
-    _state: { isStreaming: boolean };
-    abort: () => void;
-  };
+  const mutableSession = runtimeTab.agentSession as unknown as { _isAgentRunActive: boolean };
+  const anyAgent = runtimeTab.agent as unknown as { abort: () => void };
   let aborted = false;
-  anyAgent._state.isStreaming = true;
+  mutableSession._isAgentRunActive = true;
   anyAgent.abort = () => {
     aborted = true;
-    anyAgent._state.isStreaming = false;
+    mutableSession._isAgentRunActive = false;
   };
   tab.pendingEscapeAction = "abort-agent";
   assert.equal(runtime.abortTab("s1"), true);

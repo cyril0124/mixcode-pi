@@ -20,6 +20,7 @@ import {
   themeSuggestions,
 } from "../src/index.js";
 import type { MixCodeRuntime } from "../src/index.js";
+import { allKnownThinkingLevels } from "../src/core/thinking-levels.js";
 import type { Model } from "@earendil-works/pi-ai";
 import { MIXCODE_FAUX_MODEL } from "../src/index.js";
 
@@ -61,6 +62,20 @@ test("theme registry validates and suggests themes", () => {
   assert.equal(themeForId("terminal").surface("plain"), "plain");
   assert.throws(() => setTheme(state, "unknown"), /Unknown theme/);
   assert.throws(() => setTheme(state, "light"), /Unknown theme/);
+});
+
+test("thinking border colors follow Pi levels without collisions", () => {
+  const levels = allKnownThinkingLevels();
+  for (const themeId of ["mixcode-dark", "claude-warm", "tokyo-night", "terminal"]) {
+    const theme = themeForId(themeId);
+    const colors = levels.map((level) => theme.thinkingBorder(level)("border"));
+    assert.equal(new Set(colors).size, levels.length, themeId);
+    assert.deepEqual(
+      levels.map((level) => theme.thinkingBorder(level)("border")),
+      colors,
+      `${themeId} colors must be stable`,
+    );
+  }
 });
 
 test("prompt templates expand supported local slash commands", () => {

@@ -150,6 +150,38 @@ async function waitFor(predicate: () => boolean, attempts = 25): Promise<void> {
   await waitForRuntime(predicate, attempts);
 }
 
+let blockedRuntimeSequence = 0;
+
+function createBlockedRuntime(sessionsRoot?: string, initialOptions: { getApiKey?: () => string } = {}) {
+  let release!: () => void;
+  const ready = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const suffix = ++blockedRuntimeSequence;
+  const model: Model<string> = {
+    ...MIXCODE_FAUX_MODEL,
+    provider: `blocked-${suffix}`,
+    api: `blocked-${suffix}`,
+    id: `blocked-${suffix}`,
+  };
+  const runtime = new MixCodeRuntime({
+    sessionsRoot,
+    ...initialOptions,
+    streamFn: (_model, context, options) =>
+      delayedAssistantStream(lastRuntimeUserText(context), ready, options),
+  });
+  return { runtime, release, model };
+}
+
+async function startBlockedPrompt(
+  runtime: MixCodeRuntime,
+  sessionId: string,
+): Promise<{ prompt: Promise<void> }> {
+  const prompt = runtime.prompt(sessionId, "busy");
+  await waitFor(() => runtime.getTab(sessionId)?.agentSession.isStreaming === true);
+  return { prompt };
+}
+
 function stripAnsi(text: string): string {
   return text
     .replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "")
@@ -314,15 +346,16 @@ test("runtime clear replaces the active pi session and resets tab state", async 
 
 test("runtime clear rejects active streaming sessions", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-clear-busy-"));
+  const { runtime, release, model } = createBlockedRuntime(dir);
+  let prompt: Promise<void> | undefined;
   try {
-    const runtime = new MixCodeRuntime({ sessionsRoot: dir });
-    const runtimeTab = await runtime.createTab(createTab(1, "s1", process.cwd()), {
+    await runtime.createTab(createTab(1, "s1", process.cwd()), {
       systemPrompt: "system",
       thinkingLevel: "medium",
       workdir: process.cwd(),
+      model,
     });
-    const anyAgent = runtimeTab.agent as unknown as { _state: { isStreaming: boolean } };
-    anyAgent._state.isStreaming = true;
+    ({ prompt } = await startBlockedPrompt(runtime, "s1"));
     await assert.rejects(
       runtime.clearTab("s1", {
         systemPrompt: "system",
@@ -335,8 +368,9 @@ test("runtime clear rejects active streaming sessions", async () => {
       () => runtime.extensionNewSession("s1"),
       /Cannot replace a session while the agent is streaming: new/,
     );
-    anyAgent._state.isStreaming = false;
   } finally {
+    release();
+    await prompt;
     await rm(dir, { recursive: true, force: true });
   }
 });
@@ -525,29 +559,44 @@ test("runtime leaves streamFn unset for non-faux explicit models", async () => {
 });
 
 test("runtime updates tab model and rejects changes while streaming", async () => {
-  const runtime = new MixCodeRuntime();
+  const { runtime, model: initialModel } = createBlockedRuntime(undefined, {
+    getApiKey: () => "test-key",
+  });
   const tab = createTab(1, "s1", process.cwd());
   const runtimeTab = await runtime.createTab(tab, {
     systemPrompt: "system",
     thinkingLevel: "medium",
     workdir: process.cwd(),
+    model: initialModel,
   });
   const model: Model<string> = {
-    ...MIXCODE_FAUX_MODEL,
-    provider: "custom",
-    api: "custom",
+    ...initialModel,
     id: "custom-model",
     contextWindow: 12345,
   };
-  runtime.updateTabModel("s1", model);
+  await runtime.updateTabModel("s1", model);
   assert.equal(runtimeTab.agent.state.model.id, "custom-model");
-  assert.equal(tab.model.displayName, "custom/custom-model");
+  assert.equal(tab.model.displayName, `${model.provider}/custom-model`);
   assert.equal(tab.contextLimit, 12345);
 
-  const anyAgent = runtimeTab.agent as unknown as { _state: { isStreaming: boolean } };
-  anyAgent._state.isStreaming = true;
-  assert.throws(() => runtime.updateTabModel("s1", model), /Cannot change model/);
-  anyAgent._state.isStreaming = false;
+  const {
+    runtime: busyRuntime,
+    release,
+    model: busyModel,
+  } = createBlockedRuntime(undefined, { getApiKey: () => "test-key" });
+  await busyRuntime.createTab(createTab(1, "busy-model", process.cwd()), {
+    systemPrompt: "system",
+    thinkingLevel: "medium",
+    workdir: process.cwd(),
+    model: busyModel,
+  });
+  const { prompt } = await startBlockedPrompt(busyRuntime, "busy-model");
+  await assert.rejects(
+    busyRuntime.updateTabModel("busy-model", { ...busyModel, id: "other-model" }),
+    /Cannot change model/,
+  );
+  release();
+  await prompt;
 });
 
 test("runtime updates workdir, system prompt, and tool closures", async () => {
@@ -580,10 +629,23 @@ test("runtime updates workdir, system prompt, and tool closures", async () => {
     const result = await readTool.execute("call-1", { path: "marker.txt" });
     assert.deepEqual(result.content, [{ type: "text", text: "new" }]);
 
-    const anyAgent = runtimeTab.agent as unknown as { _state: { isStreaming: boolean } };
-    anyAgent._state.isStreaming = true;
-    await assert.rejects(runtime.updateTabWorkdir("s1", oldDir, "system"), /Cannot change workdir/);
-    anyAgent._state.isStreaming = false;
+    const { runtime: busyRuntime, release, model: busyModel } = createBlockedRuntime(
+      join(dir, "busy-sessions"),
+    );
+    const busyTab = createTab(1, "busy", newDir);
+    await busyRuntime.createTab(busyTab, {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: newDir,
+      model: busyModel,
+    });
+    const { prompt } = await startBlockedPrompt(busyRuntime, "busy");
+    await assert.rejects(
+      busyRuntime.updateTabWorkdir("busy", oldDir, "system"),
+      /Cannot change workdir/,
+    );
+    release();
+    await prompt;
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

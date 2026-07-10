@@ -14,6 +14,7 @@ import {
 } from "../src/core/batch-lua.js";
 import { parseMainArgs } from "../src/cli/main.js";
 import { createInitialState, createTab } from "../src/index.js";
+import type { MixCodeModelRef } from "../src/core/types.js";
 
 // --- parseMainArgs --batch tests ---
 
@@ -197,7 +198,7 @@ test("contextFromState exposes batch Lua context from state tabs", () => {
 // --- applyBatchRequests tests ---
 
 function createMockHost(
-  existingTabs: Array<{ title: string; sessionId: string }> = [],
+  existingTabs: Array<{ title: string; sessionId: string; model?: MixCodeModelRef }> = [],
 ): BatchExecutorHost & {
   created: BatchTabRequest[];
   inputs: Array<{ sessionId: string; input: string }>;
@@ -206,6 +207,14 @@ function createMockHost(
   configured: Array<{ sessionId: string; model?: string; thinking?: string }>;
 } {
   const state = createInitialState("/test");
+  state.tabs.push(
+    ...existingTabs.map((tab, index) =>
+      createTab(index + 1, tab.sessionId, "/test", {
+        title: tab.title,
+        ...(tab.model ? { model: tab.model } : {}),
+      }),
+    ),
+  );
   const created: BatchTabRequest[] = [];
   const inputs: Array<{ sessionId: string; input: string }> = [];
   const cleared: string[] = [];
@@ -257,6 +266,8 @@ function createMockHost(
         modelId: query,
         displayName: query,
         contextWindow: 200_000,
+        reasoning: true,
+        thinkingLevelMap: query === "max-model" ? { max: "max" } : undefined,
       };
     },
   };
@@ -293,6 +304,43 @@ test("applyBatchRequests throws on invalid thinking level", async () => {
   await assert.rejects(() => applyBatchRequests(requests, host), /Invalid thinking level/);
 });
 
+test("applyBatchRequests validates thinking against selected model capability", async () => {
+  const host = createMockHost();
+  await applyBatchRequests(
+    [{ name: "x", prompt: "y", model: "max-model", thinking: "max" }],
+    host,
+  );
+  assert.equal(host.configured[0]?.thinking, "max");
+  await assert.rejects(
+    () => applyBatchRequests([{ name: "z", prompt: "y", thinking: "max" }], host),
+    /Invalid thinking level 'max'/,
+  );
+});
+
+test("applyBatchRequests accepts max thinking from an existing tab model", async () => {
+  const host = createMockHost([
+    {
+      title: "existing-max",
+      sessionId: "s-max",
+      model: {
+        provider: "test",
+        modelId: "max-model",
+        displayName: "max-model",
+        contextWindow: 200_000,
+        reasoning: true,
+        thinkingLevelMap: { max: "max" },
+      },
+    },
+  ]);
+
+  await applyBatchRequests(
+    [{ name: "existing-max", prompt: "continue", thinking: "max" }],
+    host,
+  );
+
+  assert.equal(host.configured[0]?.thinking, "max");
+});
+
 test("applyBatchRequests throws on unknown model", async () => {
   const host = createMockHost();
   const requests: BatchTabRequest[] = [{ name: "x", prompt: "y", model: "unknown-model" }];
@@ -304,6 +352,34 @@ test("applyBatchRequests does nothing for empty requests", async () => {
   await applyBatchRequests([], host);
   assert.equal(host.created.length, 0);
   assert.equal(host.inputs.length, 0);
+});
+
+test("applyBatchRequests awaits same-tab prompts in order", async () => {
+  const order: string[] = [];
+  const host = createMockHost();
+  let releaseFirst: (() => void) | undefined;
+  host.submitInput = async (_sessionId, input) => {
+    order.push(`start-${input}`);
+    if (input === "1") {
+      await new Promise<void>((resolve) => {
+        releaseFirst = resolve;
+      });
+    }
+    order.push(`end-${input}`);
+  };
+
+  const batch = applyBatchRequests(
+    [
+      { name: "same", prompt: "1" },
+      { name: "same", prompt: "2" },
+    ],
+    host,
+  );
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(order, ["start-1"]);
+  releaseFirst?.();
+  await batch;
+  assert.deepEqual(order, ["start-1", "end-1", "start-2", "end-2"]);
 });
 
 test("applyBatchRequests runs all prompts in parallel", async () => {

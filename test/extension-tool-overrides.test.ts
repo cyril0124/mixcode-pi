@@ -8,6 +8,8 @@ import { SettingsManager, type ExtensionFactory } from "@earendil-works/pi-codin
 import bashDefaultTimeoutExtension, {
   appendBashDefaultTimeoutNote,
 } from "../pi-packages/mpi-bash-default-timeout/index.ts";
+import { activateMixCodeTools } from "../src/agent/tools.js";
+import { isExtensionToolOwner } from "../src/core/extension-tool-owners.js";
 import { createTab, MixCodeRuntime } from "../src/index.js";
 
 function builtinNamedExtension(toolName: string): ExtensionFactory {
@@ -147,6 +149,39 @@ async function createRuntimeWithDeferredLocalPiToolDisplay() {
   });
   return { dir, runtime, runtimeTab };
 }
+
+test("public tool source metadata owns builtin names when private definitions are stale", () => {
+  const extensionDefinition = { name: "extension-read" };
+  const toolDefinitions = new Map([
+    ["read", { definition: extensionDefinition, sourceInfo: { source: "builtin" } }],
+  ]);
+  const session = {
+    _cwd: process.cwd(),
+    _toolDefinitions: toolDefinitions,
+    _toolRegistry: new Map(),
+    _toolPromptGuidelines: new Map(),
+    _toolPromptSnippets: new Map(),
+    settingsManager: {
+      getImageAutoResize: () => true,
+      getShellCommandPrefix: () => undefined,
+      getShellPath: () => undefined,
+    },
+    getAllTools: () => [
+      {
+        name: "read",
+        description: "extension read",
+        parameters: {},
+        sourceInfo: { source: "cli", path: "/extension/index.ts" },
+      },
+    ],
+    getActiveToolNames: () => [],
+    setActiveToolsByName: () => undefined,
+  };
+
+  activateMixCodeTools(session as never, isExtensionToolOwner);
+
+  assert.equal(toolDefinitions.get("read")?.definition, extensionDefinition);
+});
 
 test("ordinary extensions own builtin tool names by default", async () => {
   const { dir, runtime, runtimeTab } = await createRuntimeWithBuiltinNameExtension("ls");

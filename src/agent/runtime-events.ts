@@ -35,8 +35,10 @@ import {
 import { clearChatScrollAnchor } from "../core/overlays.js";
 import type { ChatLine, RuntimeEvent, RuntimeTab, ToolResultLike } from "./runtime-types.js";
 
-type AgentSessionPostRunInternals = {
+type AgentSessionContinuationInternals = {
+  _isAgentRunActive?: boolean;
   _handlePostAgentRun?: () => Promise<boolean>;
+  _emitAgentSettled?: () => Promise<void>;
 };
 
 /**
@@ -92,11 +94,13 @@ async function autoCompactAndContinue(runtimeTab: RuntimeTab): Promise<void> {
 
         // Use unified benign error check
         if (isBenignCompactionError(error)) {
-          setTabStatus(runtimeTab.tab, "idle", { discardTimer: true });
-          // Only show message for "nothing to compact", not "already compacted"
+          // The mid-turn hook already terminated the tool loop. Even when
+          // there is nothing useful to compact, the agent must resume from
+          // the tool result instead of silently ending the user's request.
           if (isNothingToCompactError(message)) {
             appendSystemMessage(runtimeTab, "Nothing to compact (session too small).");
           }
+          await continueAgentSession(runtimeTab.agentSession);
           return;
         }
 
@@ -125,14 +129,8 @@ function normalizeCompactionFailureMessage(message: string): string {
 }
 
 async function waitForPromptPostRun(agentSession: RuntimeTab["agentSession"]): Promise<void> {
-  await agentSession.agent.waitForIdle();
-  // Let AgentSession.prompt() run its post-agent checks after Agent.waitForIdle() resolves.
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  await agentSession.agent.waitForIdle();
-  if (agentSession.isCompacting) {
-    await waitForCompactionEnd(agentSession);
-  }
-  await agentSession.agent.waitForIdle();
+  await agentSession.waitForIdle();
+  if (agentSession.isCompacting) await waitForCompactionEnd(agentSession);
 }
 
 function isLatestBranchEntryCompaction(runtimeTab: RuntimeTab): boolean {
@@ -151,15 +149,29 @@ async function waitForCompactionEnd(agentSession: RuntimeTab["agentSession"]): P
 }
 
 async function continueAgentSession(agentSession: RuntimeTab["agentSession"]): Promise<void> {
-  await agentSession.agent.continue();
-  const handlePostAgentRun = (agentSession as unknown as AgentSessionPostRunInternals)._handlePostAgentRun;
-  if (typeof handlePostAgentRun !== "function") {
+  const session = agentSession as unknown as AgentSessionContinuationInternals;
+  const handlePostAgentRun = session._handlePostAgentRun;
+  const emitAgentSettled = session._emitAgentSettled;
+  if (
+    !("_isAgentRunActive" in session) ||
+    typeof handlePostAgentRun !== "function" ||
+    typeof emitAgentSettled !== "function"
+  ) {
     throw new Error(
-      "Pi AgentSession post-run internals changed; cannot continue after auto-compaction.",
+      "Pi AgentSession continuation internals changed; cannot continue after auto-compaction.",
     );
   }
-  while (await handlePostAgentRun.call(agentSession)) {
+
+  // Pi has no public session-level continuation API. Mirror its prompt lifecycle
+  // so guards and waitForIdle() cover this low-level continuation too.
+  session._isAgentRunActive = true;
+  try {
     await agentSession.agent.continue();
+    while (await handlePostAgentRun.call(agentSession)) {
+      await agentSession.agent.continue();
+    }
+  } finally {
+    await emitAgentSettled.call(agentSession);
   }
 }
 

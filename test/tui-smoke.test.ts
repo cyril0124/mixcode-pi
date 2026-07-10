@@ -8,7 +8,7 @@ import { test } from "node:test";
 
 const execFileAsync = promisify(execFile);
 
-test("tmux TUI smoke starts, switches theme, rejects OpenCode UI, and exits", {
+test("tmux TUI smoke covers max thinking, theme, navigation, and exit", {
   skip:
     process.env.MIXCODE_RUN_TMUX_TUI_SMOKE !== "1"
       ? "set MIXCODE_RUN_TMUX_TUI_SMOKE=1 to run a real tmux TUI smoke"
@@ -21,20 +21,47 @@ test("tmux TUI smoke starts, switches theme, rejects OpenCode UI, and exits", {
   try {
     const workdir = join(dir, "workdir");
     const configHome = join(dir, "xdg");
+    const agentDir = join(dir, "agent");
     await mkdir(workdir, { recursive: true });
     await mkdir(configHome, { recursive: true });
+    await mkdir(agentDir, { recursive: true });
     await writeFile(join(workdir, "probe.txt"), "probe\n");
+    await writeFile(
+      join(agentDir, "models.json"),
+      JSON.stringify({
+        providers: {
+          smoke: {
+            baseUrl: "https://smoke.invalid/v1",
+            api: "openai",
+            apiKey: "MIXCODE_TUI_SMOKE_KEY",
+            models: [
+              {
+                id: "max-model",
+                reasoning: true,
+                contextWindow: 200_000,
+                maxTokens: 1,
+                input: ["text"],
+                thinkingLevelMap: { off: null, low: "low", medium: "medium", high: "high", max: "max" },
+                cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+              },
+            ],
+          },
+        },
+      }),
+    );
 
     await tmuxRun(tmux, session, [
       "new-session",
       "-d",
+      "-s",
+      session,
       "-x",
       "180",
       "-y",
       "48",
       "-c",
       repo,
-      `XDG_CONFIG_HOME=${shellQuote(configHome)} ./run.sh --workdir ${shellQuote(workdir)}`,
+      `XDG_CONFIG_HOME=${shellQuote(configHome)} MIXCODE_CODING_AGENT_DIR=${shellQuote(agentDir)} PI_CODING_AGENT_DIR=${shellQuote(agentDir)} MIXCODE_TUI_SMOKE_KEY=smoke ./run.sh --workdir ${shellQuote(workdir)}`,
     ]);
 
     const initial = await waitForPane(tmux, session, /MixCode/, 25_000);
@@ -43,11 +70,26 @@ test("tmux TUI smoke starts, switches theme, rejects OpenCode UI, and exits", {
     assert.match(initial.plain, /Agent-01/);
     assert.doesNotMatch(initial.plain, /OpenCode|Attach Session|Connect|Reconnect/);
 
-    await tmuxRun(tmux, session, ["send-keys", "-t", "0", "Tab"]);
+    await tmuxRun(tmux, session, ["send-keys", "-t", session, "Tab"]);
+    const agent = await waitForPane(tmux, session, /Send message to Agent-01[\s\S]*smoke\/max-model/, 5_000);
+    assert.match(agent.plain, /smoke\/max-model/);
+
+    await sendLiteral(tmux, session, "/thinking");
+    await tmuxRun(tmux, session, ["send-keys", "-t", session, "Enter"]);
+    const thinkingPicker = await waitForPane(tmux, session, /Choose Thinking[\s\S]*max/, 5_000);
+    assert.match(thinkingPicker.plain, /Choose Thinking/);
+    assert.match(thinkingPicker.plain, /max/);
+    await sendEscape(tmux, session);
+
+    await sendLiteral(tmux, session, "/thinking max");
+    await tmuxRun(tmux, session, ["send-keys", "-t", session, "Enter"]);
+    const maxThinking = await waitForPane(tmux, session, /smoke\/max-model[\s\S]*Max/, 5_000);
+    assert.match(maxThinking.plain, /smoke\/max-model[\s\S]*Max/);
+
     await delay(400);
-    await tmuxRun(tmux, session, ["send-keys", "-l", "-t", "0", "/theme tok"]);
+    await tmuxRun(tmux, session, ["send-keys", "-l", "-t", session, "/theme tok"]);
     await delay(400);
-    await tmuxRun(tmux, session, ["send-keys", "-t", "0", "Enter"]);
+    await tmuxRun(tmux, session, ["send-keys", "-t", session, "Enter"]);
     await delay(800);
 
     const themed = await capturePane(tmux, session);
@@ -65,7 +107,7 @@ test("tmux TUI smoke starts, switches theme, rejects OpenCode UI, and exits", {
     await sendEscape(tmux, session);
 
     await sendLiteral(tmux, session, "/new-session Smoke");
-    await tmuxRun(tmux, session, ["send-keys", "-t", "0", "Enter"]);
+    await tmuxRun(tmux, session, ["send-keys", "-t", session, "Enter"]);
     const twoTabs = await waitForPane(tmux, session, /^ MixCode Home.*Agent-01.*Agent-02/m, 5_000);
     assert.match(twoTabs.plain, /Send message to Agent-02/);
     await sendSgrMouse(tmux, session, 20, 1);
@@ -73,15 +115,15 @@ test("tmux TUI smoke starts, switches theme, rejects OpenCode UI, and exits", {
     const clickedTab = await capturePane(tmux, session);
     assert.match(clickedTab.plain, /Send message to Agent-01/);
 
-    await tmuxRun(tmux, session, ["send-keys", "-t", "0", "C-q"]);
+    await tmuxRun(tmux, session, ["send-keys", "-t", session, "C-q"]);
     await delay(200);
     const quit = await capturePane(tmux, session);
     assert.match(quit.plain, /Quit/);
-    await tmuxRun(tmux, session, ["send-keys", "-t", "0", "y"]);
+    await tmuxRun(tmux, session, ["send-keys", "-t", session, "y"]);
     await delay(500);
-    await assert.rejects(() => tmuxRun(tmux, session, ["has-session", "-t", "0"]));
+    await assert.rejects(() => tmuxRun(tmux, session, ["has-session", "-t", session]));
   } finally {
-    await tmuxRun(tmux, session, ["kill-session", "-t", "0"]).catch(() => undefined);
+    await tmuxRun(tmux, session, ["kill-session", "-t", session]).catch(() => undefined);
     await rm(dir, { recursive: true, force: true });
   }
 });
@@ -96,12 +138,12 @@ async function resolveTmux(): Promise<string> {
 }
 
 async function sendLiteral(tmux: string, session: string, data: string): Promise<void> {
-  await tmuxRun(tmux, session, ["send-keys", "-l", "-t", "0", data]);
+  await tmuxRun(tmux, session, ["send-keys", "-l", "-t", session, data]);
   await delay(300);
 }
 
 async function sendEscape(tmux: string, session: string): Promise<void> {
-  await tmuxRun(tmux, session, ["send-keys", "-t", "0", "Escape"]);
+  await tmuxRun(tmux, session, ["send-keys", "-t", session, "Escape"]);
   await delay(300);
 }
 
@@ -121,7 +163,7 @@ async function capturePane(
   tmux: string,
   session: string,
 ): Promise<{ ansi: string; plain: string }> {
-  const { stdout } = await tmuxRun(tmux, session, ["capture-pane", "-p", "-e", "-t", "0"]);
+  const { stdout } = await tmuxRun(tmux, session, ["capture-pane", "-p", "-e", "-t", session]);
   return { ansi: stdout, plain: stripAnsi(stdout) };
 }
 

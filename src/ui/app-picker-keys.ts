@@ -187,7 +187,7 @@ function applyPickerSelection(
   if (!state.picker) return;
   if (state.picker.kind === "models" && active) {
     const model = findModelRef(state.availableModels, selectedId);
-    applyModelSelection(state, active, model, runtime);
+    return applyModelSelection(state, active, model, runtime);
   } else if (state.picker.kind === "thinking" && active) {
     applyThinkingLevel(state, active, selectedId, runtime);
   } else if (state.picker.kind === "theme") {

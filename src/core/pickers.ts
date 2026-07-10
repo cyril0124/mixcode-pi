@@ -1,21 +1,12 @@
 import { readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
-import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { THEMES } from "../ui/themes.js";
 import { contextLimitPickerItems } from "./context-limit.js";
 import { fuzzyMatch } from "./fuzzy.js";
 import { modelRefId } from "./models.js";
+import { availableThinkingLevelsForModel } from "./thinking-levels.js";
 import type { MixCodeState, MixCodeTabInfo, PickerItem, PickerKind, PickerState } from "./types.js";
-
-export const THINKING_LEVELS: ThinkingLevel[] = [
-  "off",
-  "minimal",
-  "low",
-  "medium",
-  "high",
-  "xhigh",
-];
 
 export function createPicker(
   kind: PickerKind,
@@ -50,7 +41,7 @@ export function pickerItems(
     }));
   }
   if (kind === "thinking") {
-    return THINKING_LEVELS.map((level) => ({
+    return availableThinkingLevelsForModel(active?.model ?? state.model).map((level) => ({
       id: level,
       label: level,
       description: active?.thinkingLevel === level ? "current" : "thinking tier",

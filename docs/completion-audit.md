@@ -47,7 +47,7 @@ MixCode Pi
 | 鼠标行为 | `src/core/mouse.ts`、`src/ui/app.ts` 覆盖 SGR 鼠标；测试覆盖 tab bar 点击、Config action hit region、input meta hit region、preview/shell wheel。 | 已验证 |
 | coverage >= 95% | `timeout 60s npm run coverage` 通过；全局 branch `95.02%`。 | 已验证 |
 | docs 文件夹中文技术方案和 ASCII 图 | `docs/architecture.md`、`docs/extension-compatibility.md`、本文均为中文并包含 ASCII 结构图。 | 已验证 |
-| 真实 TUI 截图/交互验证 | `tmp/ref-mixcode-160x48.*`、`tmp/mixcode-pi-*.txt/.ansi`、`tmp/tui-verify-*` 记录参考和当前 TUI 截图；`test/tui-smoke.test.ts` 可重复验证 180x48 tmux 启动、标题、OpenCode 反残留、`/theme tok`、command palette、tab jump、`@` file picker、preview、shell、新建 tab、mouse tab click 和 Ctrl+Q 退出。 | 已验证 |
+| 真实 TUI 截图/交互验证 | `tmp/ref-mixcode-160x48.*`、`tmp/mixcode-pi-*.txt/.ansi`、`tmp/tui-verify-*` 记录参考和当前 TUI 截图；`test/tui-smoke.test.ts` 可重复验证 180x48 tmux 启动、标题、OpenCode 反残留、`/thinking` picker 显示并应用模型支持的 `max`、`/theme tok`、command palette、tab jump、`@` file picker、preview、shell、新建 tab、mouse tab click 和 Ctrl+Q 退出。 | 已验证 |
 | 视觉风格接近 MixCode | `src/ui/themes.ts` 提供 MixCode dark/claude-warm/tokyo-night/terminal；render tests 断言 dark/claude-warm/tokyo-night palette；tmux 截图文件保存 160x48 对照。 | 强验证但仍需人工审美复核 |
 | thinking/chat 不照搬 MixCode | `src/ui/rendering.ts` 对 thinking/tool/chat 有独立渲染；runtime tests 覆盖 thinking stream、tool block、renderer。 | 已验证 |
 | 自定义 proxy 模型 OpenAI Responses | 本机 precheck 显示本地配置的 responses 模型 `registered=true auth=true api=openai-responses`；模型注册测试覆盖 OpenAI Responses 配置读取；本轮真实请求 smoke 返回 `MIXCODE_RESPONSES_SMOKE_OK`。 | 已验证 |
@@ -86,7 +86,8 @@ responses smoke:
 
 tmux TUI smoke:
   viewport: 180x48
-  pass: starts, rejects OpenCode UI, switches /theme tok to tokyo-night palette
+  pass: starts, rejects OpenCode UI, shows model-supported max thinking and applies /thinking max
+  pass: switches /theme tok to tokyo-night palette
   pass: opens command palette, tab jump, @ file picker, preview, shell
   pass: creates a second tab, switches tab by SGR mouse click, exits with Ctrl+Q
 ```

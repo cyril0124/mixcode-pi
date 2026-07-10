@@ -93,6 +93,7 @@ test("tab jump highlights matched characters in the tab title", () => {
 
 test("pickers highlight matched characters in the label using the same non-tokenized match as the filter", () => {
   const state = createInitialState("/repo");
+  state.model = { ...state.model, reasoning: true, thinkingLevelMap: { xhigh: "xhigh" } };
   state.picker = createPicker("thinking", state);
   updatePickerQuery(state.picker, "xh");
   const raw = renderPickerOverlay(state, 80).join("\n");

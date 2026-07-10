@@ -296,6 +296,8 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
       modelId: "tab-two-model",
       displayName: "custom/tab-two-model",
       contextWindow: 123_000,
+      reasoning: true,
+      thinkingLevelMap: { max: "max" },
     };
     state.tabs.push(
       createTab(1, "s1", "/repo", {
@@ -309,7 +311,7 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
       createTab(2, "s2", "/repo", {
         model: tabTwoModel,
         contextLimit: tabTwoModel.contextWindow,
-        thinkingLevel: "xhigh",
+        thinkingLevel: "max",
       }),
     );
     const serialized = serializeState(state);
@@ -317,7 +319,7 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
     assert.equal((serialized.workdirs as Record<string, string>).s1, "/repo");
     assert.equal((serialized.tab_titles as Record<string, string>).s1, "Renamed Agent");
     assert.deepEqual((serialized.tab_models as Record<string, unknown>).s2, tabTwoModel);
-    assert.equal((serialized.tab_variants as Record<string, string>).s2, "xhigh");
+    assert.equal((serialized.tab_variants as Record<string, string>).s2, "max");
     const restored = deserializeState(serialized, "/fallback");
     assert.equal(restored.theme, "claude-warm");
     assert.equal(restored.activeTabId, "config");
@@ -331,7 +333,7 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
     assert.deepEqual(restored.tabs[0]?.pendingMessages, ["queued"]);
     assert.equal(restored.tabs[1]?.model.modelId, "tab-two-model");
     assert.equal(restored.tabs[1]?.contextLimit, 123_000);
-    assert.equal(restored.tabs[1]?.thinkingLevel, "xhigh");
+    assert.equal(restored.tabs[1]?.thinkingLevel, "max");
 
     assert.equal(stateFileForPort(dir, 0), join(dir, "mixcode_state.json"));
     assert.equal(stateFileForPort(dir, 3010), join(dir, "mixcode_state_3010.json"));

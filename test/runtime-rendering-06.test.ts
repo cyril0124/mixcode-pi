@@ -410,18 +410,20 @@ test("rendering exposes fitting helpers and keymap export text", () => {
     /Working \(0s/,
   );
   assert.match(
-    renderAgentSurface(
-      createTab(32, "s32", "/repo", { chatScrollOffset: 1 }),
-      {
-        chat: [
-          { role: "assistant", text: "a" },
-          { role: "assistant", text: "b" },
-        ],
-      } as never,
-      40,
-      1,
-    ).join("\n"),
-    /\.\.\./,
+    stripAnsi(
+      renderAgentSurface(
+        createTab(32, "s32", "/repo", { chatScrollOffset: 1 }),
+        {
+          chat: [
+            { role: "assistant", text: "a" },
+            { role: "assistant", text: "b" },
+          ],
+        } as never,
+        40,
+        1,
+      ).join("\n"),
+    ),
+    /↑ older above/,
   );
   assert.match(
     renderChat([{ role: "system", text: "multi\nline" }], 20).join("\n"),

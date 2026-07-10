@@ -1,3 +1,4 @@
+import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -266,7 +267,7 @@ test("runtime reports extension command and shortcut conflicts while extension t
     // section instead of chat system lines.
     const summary = runtimeTab.tab.startupSummary ?? "";
     assert.ok(summary.includes("Extension command conflict: /clear"));
-    assert.equal(summary.includes("Extension tool conflict: read"), false);
+    assert.ok(summary.includes("Extension tool override: read"));
     assert.ok(summary.includes("Extension shortcut 'ctrl+p'"));
     assert.equal(
       runtime.getExtensionCommands("s1").some((command) => command.name === "clear"),

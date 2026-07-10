@@ -76,9 +76,10 @@ function runtimeToolCallMessage(toolCall: ToolCall, totalTokens: number): Assist
   };
 }
 
-function streamAssistantMessage(message: AssistantMessage) {
+function streamAssistantMessage(message: AssistantMessage, ready?: Promise<void>) {
   const stream = createAssistantMessageEventStream();
-  queueMicrotask(() => {
+  queueMicrotask(async () => {
+    if (ready) await ready;
     stream.push({ type: "start", partial: { ...message, content: [] } });
     const firstContent = message.content[0];
     if (firstContent?.type === "toolCall") {
@@ -295,15 +296,15 @@ test("runtime rejects manual compaction while the agent is streaming", async () 
     });
     await runtime.prompt("s1", "hello");
 
-    const mutableAgent = runtimeTab.agent as unknown as { _state: { isStreaming: boolean } };
-    mutableAgent._state.isStreaming = true;
+    const mutableSession = runtimeTab.agentSession as unknown as { _isAgentRunActive: boolean };
+    mutableSession._isAgentRunActive = true;
     try {
       await assert.rejects(
         () => runtime.compactSession("s1"),
         /Cannot compact while the agent is streaming/,
       );
     } finally {
-      mutableAgent._state.isStreaming = false;
+      mutableSession._isAgentRunActive = false;
     }
   } finally {
     await rm(dir, { recursive: true, force: true });
@@ -312,10 +313,15 @@ test("runtime rejects manual compaction while the agent is streaming", async () 
 
 test("mid-turn auto-compaction keeps running state until continuation finishes", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-compact-auto-state-"));
+  let releaseContinuation: () => void = () => undefined;
   try {
+    const continuationReady = new Promise<void>((resolve) => {
+      releaseContinuation = resolve;
+    });
     const seenContexts: Context[] = [];
     const compactionEndStates: Array<{ status: string; unreadDone: boolean }> = [];
     let toolCallTriggered = false;
+    let continuationStarted = false;
     const runtime = new MixCodeRuntime({
       sessionsRoot: dir,
       streamFn: (_model: Model<any>, context: Context) => {
@@ -330,8 +336,11 @@ test("mid-turn auto-compaction keeps running state until continuation finishes",
             ),
           );
         }
-        const reply = text === "warmup" ? `warmup reply ${"history ".repeat(40)}` : "continued";
-        return streamAssistantMessage(runtimeAssistantMessage(reply));
+        if (text === "start") {
+          continuationStarted = true;
+          return streamAssistantMessage(runtimeAssistantMessage("continued"), continuationReady);
+        }
+        return streamAssistantMessage(runtimeAssistantMessage(`warmup reply ${"history ".repeat(40)}`));
       },
       extensionFactories: [
         (pi) => {
@@ -394,6 +403,14 @@ test("mid-turn auto-compaction keeps running state until continuation finishes",
     // the start turn's mid-compaction state, not the warmup's completion.
     runtimeTab.tab.unreadDone = false;
     await runtime.prompt("s1", "start");
+    await waitForRuntime(() => continuationStarted);
+
+    assert.equal(runtimeTab.agentSession.isStreaming, true);
+    const continuationIdle = runtimeTab.agentSession.waitForIdle().then(() => "idle" as const);
+    assert.equal(await Promise.race([continuationIdle, delay(25)]), "pending");
+
+    releaseContinuation();
+    await continuationIdle;
     await waitForRuntime(
       () =>
         runtimeTab.session.getBranch().some((entry) => entry.type === "compaction") &&
@@ -401,6 +418,7 @@ test("mid-turn auto-compaction keeps running state until continuation finishes",
         runtimeTab.tab.status === "idle",
     );
 
+    assert.equal(runtimeTab.agentSession.isStreaming, false);
     assert.deepEqual(compactionEndStates, [{ status: "running", unreadDone: false }]);
     const continuationContext = seenContexts.find((context) =>
       context.messages.some(
@@ -410,6 +428,7 @@ test("mid-turn auto-compaction keeps running state until continuation finishes",
     assert.ok(continuationContext, "expected a continuation context with the tool result");
     assert.equal(tab.status, "idle");
   } finally {
+    releaseContinuation();
     await rm(dir, { recursive: true, force: true });
   }
 });

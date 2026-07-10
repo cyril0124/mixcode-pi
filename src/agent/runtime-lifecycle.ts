@@ -208,6 +208,9 @@ async function createRuntimeTabWithServices(
     pendingUserInteractions: [],
     workingVisible: true,
   };
+  // Pi may restore a different model and clamps thinking during session creation.
+  applyRuntimeTabModel(runtimeTab, agentSession.agent.state.model);
+  tab.thinkingLevel = agentSession.thinkingLevel;
   runtimeTab.requestRender = () => context.emitChange({ type: "extension_ui_update" }, runtimeTab);
   runtimeTabRef.current = runtimeTab;
   try {

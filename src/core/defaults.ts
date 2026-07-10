@@ -14,6 +14,7 @@ export const DEFAULT_MODEL_REF: MixCodeModelRef = {
   modelId: "faux-1",
   displayName: "faux/faux-1",
   contextWindow: 200_000,
+  reasoning: true,
 };
 
 export function createInitialState(workdir: string, defaultThinkingLevel?: ThinkingLevel): MixCodeState {

@@ -50,6 +50,8 @@ test("submitted input opens local pickers and picker keys apply selections", asy
     modelId: "gpt-4.1",
     displayName: "openai/gpt-4.1",
     contextWindow: 1_000_000,
+    reasoning: true,
+    thinkingLevelMap: { xhigh: "xhigh" },
   });
   const tab = createTab(1, "s1", "/repo");
   state.tabs.push(tab);
@@ -136,6 +138,7 @@ test("submitted input opens local pickers and picker keys apply selections", asy
   assert.deepEqual(handleMixCodeKeyInput(state, "p", tui), { consume: true });
   assert.match(stripAnsi(overlays.at(-1) ?? ""), /openai\/gpt-4.1/);
   assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui), { consume: true });
+  await new Promise((resolve) => setTimeout(resolve, 0));
   assert.equal(tab.model.modelId, "gpt-4.1");
   assert.equal(state.picker, undefined);
 
@@ -195,25 +198,32 @@ test("submitted input opens local pickers and picker keys apply selections", asy
 
 test("submitted thinking command updates the Pi runtime session", async () => {
   const state = createInitialState("/repo");
-  const tab = createTab(1, "s1", "/repo", { thinkingLevel: "high" });
+  const tab = createTab(1, "s1", "/repo", {
+    thinkingLevel: "high",
+    model: {
+      ...state.model,
+      reasoning: true,
+      thinkingLevelMap: { max: "max" },
+    },
+  });
   state.tabs.push(tab);
   state.activeTabId = "s1";
   const updates: Array<{ sessionId: string; level: string }> = [];
   const runtime = {
-    updateTabThinkingLevel: (sessionId: string, level: "xhigh") => {
+    updateTabThinkingLevel: (sessionId: string, level: "max") => {
       updates.push({ sessionId, level });
       return level;
     },
   } as unknown as MixCodeRuntime;
 
-  await handleSubmittedInput(state, runtime, "/thinking xhigh", {
+  await handleSubmittedInput(state, runtime, "/thinking max", {
     requestRender: () => undefined,
     showOverlay: () => ({}) as never,
   });
 
-  assert.deepEqual(updates, [{ sessionId: "s1", level: "xhigh" }]);
-  assert.equal(tab.thinkingLevel, "xhigh");
-  assert.equal(state.thinkingLevel, "xhigh");
+  assert.deepEqual(updates, [{ sessionId: "s1", level: "max" }]);
+  assert.equal(tab.thinkingLevel, "max");
+  assert.equal(state.thinkingLevel, "max");
 });
 
 test("workdir picker applies async runtime workdir updates", async () => {

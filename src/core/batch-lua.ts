@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
+import { isThinkingLevelAvailable, validThinkingLevelsMessage } from "./thinking-levels.js";
 import type { MixCodeModelRef, MixCodeState } from "./types.js";
 
 /**
@@ -182,23 +183,25 @@ export async function runLuaScript(
 /**
  * Apply collected batch requests to the host.
  * For each request: reuse existing tab (by exact title match) or create new.
- * All tabs are started in parallel (fire-and-forget prompts).
+ * Different tabs run in parallel; requests for the same tab run sequentially.
  * Throws on first failure (tab not found, model unknown, etc.).
  */
 export function validateBatchRequests(
   requests: BatchTabRequest[],
   resolveModel: (query: string) => MixCodeModelRef,
+  resolveImplicitModel: (request: BatchTabRequest) => MixCodeModelRef | undefined = () => undefined,
 ): void {
+  const effectiveModels = new Map<string, MixCodeModelRef>();
   for (const request of requests) {
-    if (request.model) resolveModel(request.model);
-    if (request.thinking) {
-      const valid: ThinkingLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh"];
-      if (!valid.includes(request.thinking as ThinkingLevel)) {
-        throw new Error(
-          `Invalid thinking level '${request.thinking}' for tab '${request.name}'. ` +
-            `Valid values: ${valid.join(", ")}`,
-        );
-      }
+    const model = request.model
+      ? resolveModel(request.model)
+      : (effectiveModels.get(request.name) ?? resolveImplicitModel(request));
+    if (model) effectiveModels.set(request.name, model);
+    if (request.thinking && !isThinkingLevelAvailable(request.thinking, model)) {
+      throw new Error(
+        `Invalid thinking level '${request.thinking}' for tab '${request.name}'. ` +
+          `Valid values: ${validThinkingLevelsMessage(model)}`,
+      );
     }
     if (request.mode && !["append", "clear", "delete"].includes(request.mode)) {
       throw new Error(
@@ -214,7 +217,14 @@ export async function applyBatchRequests(
 ): Promise<void> {
   if (requests.length === 0) return;
 
-  validateBatchRequests(requests, (query) => host.resolveModel(query));
+  validateBatchRequests(
+    requests,
+    (query) => host.resolveModel(query),
+    (request) =>
+      request.mode === "delete"
+        ? host.state.model
+        : (host.state.tabs.find((tab) => tab.title === request.name)?.model ?? host.state.model),
+  );
 
   // Validate all requests before applying any (fail-fast)
   const resolved: Array<{
@@ -262,7 +272,7 @@ export async function applyBatchRequests(
     groupSessions.set(name, sessionId);
   }
 
-  // Phase 2: Configure tabs and send prompts in parallel (fire-and-forget per group)
+  // Phase 2: Run tab groups in parallel while preserving request order within each tab.
   const operations = [...groups.entries()].map(async ([name, group]) => {
     const sessionId = groupSessions.get(name)!;
     for (const { request, model, thinking } of group) {

@@ -19,7 +19,7 @@ export async function flushRuntimePendingMessage(
   removeSteeringMessages(runtimeTab.agentSession, queued.items);
   try {
     if (runtimeTab.agentSession.isStreaming) {
-      await runtimeTab.agentSession.agent.waitForIdle();
+      await runtimeTab.agentSession.waitForIdle();
     }
     const text = queued.items.filter((item) => item.trim()).join("\n\n");
     if (!text) return;
@@ -38,8 +38,8 @@ export function scheduleRuntimePendingMessageFlush(
   getRuntimeTab: (sessionId: string) => RuntimeTab | undefined,
   flushPendingMessage: (sessionId: string, count?: number) => Promise<void>,
 ): void {
-  // Pi emits agent_end before clearing isStreaming, so wait for idle before draining queued input.
-  void agentSession.agent.waitForIdle().then(() => {
+  // Pi emits agent_end before the full session settles, so wait before draining queued input.
+  void agentSession.waitForIdle().then(() => {
     const runtimeTab = getRuntimeTab(sessionId);
     if (!runtimeTab || runtimeTab.queuedPromptCount === 0) return;
     return flushPendingMessage(sessionId, runtimeTab.queuedPromptCount);

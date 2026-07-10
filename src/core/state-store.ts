@@ -3,6 +3,7 @@ import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { setTheme } from "../ui/themes.js";
 import { createInitialState, createTab } from "./defaults.js";
+import { isKnownThinkingLevel } from "./thinking-levels.js";
 import type {
   MixCodeState,
   PreviewMessage,
@@ -80,16 +81,9 @@ export function deserializeState(
   );
   if (typeof data.theme === "string") setTheme(state, data.theme);
   if (data.model && typeof data.model === "object" && !Array.isArray(data.model)) {
-    state.model = { ...state.model, ...(data.model as Partial<typeof state.model>) };
+    state.model = normalizeModelRef(data.model, state.model);
   }
-  if (
-    data.variant === "off" ||
-    data.variant === "minimal" ||
-    data.variant === "low" ||
-    data.variant === "medium" ||
-    data.variant === "high" ||
-    data.variant === "xhigh"
-  ) {
+  if (typeof data.variant === "string" && isKnownThinkingLevel(data.variant)) {
     state.thinkingLevel = data.variant;
   }
   const workdirs = objectRecord(data.workdirs);
@@ -143,14 +137,27 @@ function sameModelRef(left: MixCodeState["model"], right: MixCodeState["model"])
 function normalizeModelRef(value: unknown, fallback: MixCodeState["model"]): MixCodeState["model"] {
   if (!value || typeof value !== "object" || Array.isArray(value)) return { ...fallback };
   const data = value as Record<string, unknown>;
+  const provider = typeof data.provider === "string" ? data.provider : fallback.provider;
+  const modelId = typeof data.modelId === "string" ? data.modelId : fallback.modelId;
+  const sameModel = provider === fallback.provider && modelId === fallback.modelId;
   return {
-    provider: typeof data.provider === "string" ? data.provider : fallback.provider,
-    modelId: typeof data.modelId === "string" ? data.modelId : fallback.modelId,
+    provider,
+    modelId,
     displayName: typeof data.displayName === "string" ? data.displayName : fallback.displayName,
     contextWindow:
       typeof data.contextWindow === "number" && Number.isFinite(data.contextWindow)
         ? data.contextWindow
         : fallback.contextWindow,
+    reasoning:
+      typeof data.reasoning === "boolean"
+        ? data.reasoning
+        : sameModel
+          ? fallback.reasoning
+          : undefined,
+    thinkingLevelMap: normalizeThinkingLevelMap(
+      data.thinkingLevelMap,
+      sameModel ? fallback.thinkingLevelMap : undefined,
+    ),
   };
 }
 
@@ -158,17 +165,20 @@ function normalizeThinkingLevel(
   value: unknown,
   fallback: MixCodeState["thinkingLevel"],
 ): MixCodeState["thinkingLevel"] {
-  if (
-    value === "off" ||
-    value === "minimal" ||
-    value === "low" ||
-    value === "medium" ||
-    value === "high" ||
-    value === "xhigh"
-  ) {
-    return value;
-  }
-  return fallback;
+  return typeof value === "string" && isKnownThinkingLevel(value) ? value : fallback;
+}
+
+function normalizeThinkingLevelMap(
+  value: unknown,
+  fallback: MixCodeState["model"]["thinkingLevelMap"],
+): MixCodeState["model"]["thinkingLevelMap"] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return fallback;
+  return Object.fromEntries(
+    Object.entries(value).filter(
+      (entry): entry is [string, string | null] =>
+        typeof entry[1] === "string" || entry[1] === null,
+    ),
+  );
 }
 
 function normalizeStringList(value: unknown): string[] {
@@ -251,6 +261,8 @@ export async function saveWorkspaces(
                 model_id: tab.model.modelId,
                 display_name: tab.model.displayName,
                 context_window: tab.model.contextWindow,
+                reasoning: tab.model.reasoning,
+                thinking_level_map: tab.model.thinkingLevelMap,
               }
             : undefined,
           thinking_level: tab.thinkingLevel,
@@ -322,11 +334,14 @@ function deserializeWorkspaceModel(item: unknown): WorkspaceSnapshot["tabs"][num
   if (!item || typeof item !== "object" || Array.isArray(item)) return undefined;
   const raw = item as Record<string, unknown>;
   if (typeof raw.provider !== "string" || typeof raw.model_id !== "string") return undefined;
+  const thinkingLevelMap = normalizeThinkingLevelMap(raw.thinking_level_map, undefined);
   return {
     provider: raw.provider,
     modelId: raw.model_id,
     displayName: typeof raw.display_name === "string" ? raw.display_name : raw.model_id,
     contextWindow: typeof raw.context_window === "number" ? raw.context_window : 0,
+    ...(typeof raw.reasoning === "boolean" ? { reasoning: raw.reasoning } : {}),
+    ...(thinkingLevelMap ? { thinkingLevelMap } : {}),
   };
 }
 

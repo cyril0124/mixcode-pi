@@ -129,7 +129,7 @@ write
 ls
 ```
 
-extension tools 会进入 `AgentSession.getAllTools()` 并参与 active tools。如果 extension 按 Pi SDK 语义注册了与 built-in 同名的 tool，该 extension 拥有该 tool 名称，MixCode 不再用内置实现抢回；启动摘要里的 `[Tool Owners]` 会显示当前 owner。
+extension tools 会进入 `AgentSession.getAllTools()` 并参与 active tools。如果 extension 按 Pi SDK 语义注册了与 built-in 同名的 tool，该 extension 拥有该 tool 名称，MixCode 不再用内置实现抢回；启动摘要里的 `[Diagnostics]` 会显示 `Extension tool override: <name>`，`[Tool Owners]` 会显示当前 owner。owner 判断以 `AgentSession.getAllTools()` 暴露的 public `sourceInfo` 为准，避免 Pi 内部私有 tool definition 尚未同步时误恢复 built-in。
 
 ### Commands
 

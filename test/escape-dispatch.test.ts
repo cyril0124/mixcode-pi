@@ -51,6 +51,23 @@ test("escape arms then aborts a normal streaming run", () => {
   assert.equal(tab.pendingEscapeAction, undefined, "arm cleared after abort");
 });
 
+test("escape uses AgentSession streaming state when low-level agent state is stale", () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo", { status: "idle" });
+  state.tabs.push(tab);
+  state.activeTabId = "s1";
+  const runtime = {
+    getTab: () => ({
+      agent: { state: { isStreaming: false } },
+      agentSession: { isStreaming: true, getSteeringMessages: () => [] },
+    }),
+    abortTab: () => true,
+  };
+
+  handleMixCodeKeyInput(state, ESC, silentTui(), undefined, runtime);
+  assert.equal(tab.pendingEscapeAction, "abort-agent");
+});
+
 test("escape aborts during retry when the agent is not streaming (regression guard)", () => {
   // During auto-retry the SDK is sleeping between attempts, so isStreaming is
   // false while the tab status stays "thinking". The abort path must still
@@ -158,6 +175,32 @@ test("queued-message flush wins over double-escape stop", () => {
   assert.deepEqual(result, { consume: true });
   assert.equal(flushed, 1, "queued flush runs");
   assert.equal(tab.pendingEscapeAction, undefined, "double-escape stop is not armed");
+});
+
+test("queued-message flush uses AgentSession streaming state", () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo", {
+    status: "idle",
+    pendingMessages: ["queued prompt"],
+  });
+  state.tabs.push(tab);
+  state.activeTabId = "s1";
+  let aborts = 0;
+  const runtime = {
+    getTab: () => ({
+      agent: { state: { isStreaming: false } },
+      queuedPromptCount: 1,
+      agentSession: { isStreaming: true, getSteeringMessages: () => ["queued prompt"] },
+    }),
+    abortTab: () => {
+      aborts++;
+      return true;
+    },
+    flushPendingMessage: () => Promise.resolve(),
+  };
+
+  handleMixCodeKeyInput(state, ESC, silentTui(), undefined, runtime);
+  assert.equal(aborts, 1);
 });
 
 test("escape closes a generic app overlay (error overlay 'Esc to close' contract)", () => {

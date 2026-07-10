@@ -53,7 +53,7 @@ export function handleStreamingAbortKey(
   editorActions?: MixCodeEditorActions,
 ): boolean {
   const runtimeTab = runtime?.getTab?.(active.sessionId);
-  const isAgentStreaming = runtimeTab?.agent.state.isStreaming;
+  const isAgentStreaming = runtimeTab?.agentSession?.isStreaming;
   const streaming =
     isAgentStreaming ?? (active.status === "running" || active.status === "thinking");
   // Also treat tab as "working" if status is running/thinking even when agent is not streaming
@@ -120,7 +120,7 @@ export function handleQueuedFlushKey(
   const runtimeQueuedCount = runtimeQueuedMessageCount(runtimeTab);
   if (active.pendingMessages.length === 0 && runtimeQueuedCount === 0) return false;
   const streaming =
-    runtimeTab?.agent.state.isStreaming ??
+    runtimeTab?.agentSession?.isStreaming ??
     (active.status === "running" || active.status === "thinking");
   if (!runtime?.flushPendingMessage)
     throw new Error("Flushing queued messages requires runtime queue support");
@@ -556,7 +556,7 @@ export function handleEscapeKey(
   // 3. Streaming/working abort: arm then confirm (or retract if no output)
   if (active && state.activeTabId !== "config" && !hasAnyOverlay(tui)) {
     const runtimeTab = runtime?.getTab?.(active.sessionId);
-    const isStreaming = runtimeTab?.agent?.state?.isStreaming ?? false;
+    const isStreaming = runtimeTab?.agentSession?.isStreaming ?? false;
     const isWorking = active.status === "running" || active.status === "thinking";
 
     if (isStreaming || isWorking) {

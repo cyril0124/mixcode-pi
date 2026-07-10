@@ -211,7 +211,7 @@ test("MixCodeRoot renders config and agent views", () => {
   assert.match(compactAgentLines[0] ?? "", /Agent-01/);
   // Row under the tab bar is the horizontal rule (replaced the former blank gap).
   assert.match(stripAnsi(compactAgentLines[1] ?? ""), /^\u2500+$/);
-  assert.match(compactAgentLines[2] ?? "", /\.\.\. older above/);
+  assert.match(stripAnsi(compactAgentLines[2] ?? ""), /↑ older above/);
   assert.equal(compactAgentLines.length, 6);
   const headerOnlyRoot = new MixCodeRoot(state, runtime, () => 2);
   const headerOnlyLines = headerOnlyRoot.render(100);

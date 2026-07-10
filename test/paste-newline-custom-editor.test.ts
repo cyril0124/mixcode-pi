@@ -54,7 +54,8 @@ function feedRapidInput(state: ReturnType<typeof makeState>, actions: MixCodeEdi
   handleMixCodeKeyInput(state, "y", silentTui(), undefined, undefined, undefined, undefined, actions);
 }
 
-test("paste-newline heuristic keeps intercepting Enter on the default editor", () => {
+test("paste-newline heuristic keeps intercepting Enter on the default editor", (t) => {
+  t.mock.method(Date, "now", () => 1_000_000);
   const state = makeState();
   const { actions, inserted } = makeEditorActions({ hasEditorReplacement: () => false });
   feedRapidInput(state, actions);
@@ -72,7 +73,8 @@ test("paste-newline heuristic keeps intercepting Enter on the default editor", (
   assert.deepEqual(inserted, ["\n"], "Enter is converted into an inserted newline");
 });
 
-test("paste-newline heuristic does not swallow Enter while an extension owns the editor slot", () => {
+test("paste-newline heuristic does not swallow Enter while an extension owns the editor slot", (t) => {
+  t.mock.method(Date, "now", () => 2_000_000);
   const state = makeState();
   const { actions, inserted } = makeEditorActions({ hasEditorReplacement: () => true });
   feedRapidInput(state, actions);

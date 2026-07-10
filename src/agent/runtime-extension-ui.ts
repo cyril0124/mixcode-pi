@@ -63,10 +63,12 @@ function extensionConflictDiagnostics(
   for (const extensionTool of runtimeTab.agentSession.extensionRunner.getAllRegisteredTools()) {
     const name = extensionTool.definition.name;
     if (seenExtensionTools.has(name) || !builtInToolNames.has(name as never)) continue;
-    if (extensionToolOwnerPolicy?.(extensionTool.sourceInfo, name)) continue;
     seenExtensionTools.add(name);
+    const source = formatSourceInfo(extensionTool.sourceInfo);
     diagnostics.push(
-      `Extension tool conflict: ${name} from ${formatSourceInfo(extensionTool.sourceInfo)} is shadowed by Pi builtin tool ${name}.`,
+      extensionToolOwnerPolicy?.(extensionTool.sourceInfo, name)
+        ? `Extension tool override: ${name} from ${source} overrides Pi builtin tool ${name}.`
+        : `Extension tool conflict: ${name} from ${source} is shadowed by Pi builtin tool ${name}.`,
     );
   }
   runtimeTab.agentSession.extensionRunner.getShortcuts(MIXCODE_EXTENSION_KEYBINDINGS);

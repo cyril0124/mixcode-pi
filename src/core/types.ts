@@ -1,4 +1,4 @@
-import type { Model } from "@earendil-works/pi-ai";
+import type { Model, ThinkingLevelMap } from "@earendil-works/pi-ai";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { MixCodeUiSettings } from "./mixcode-settings.js";
 
@@ -116,6 +116,8 @@ export interface MixCodeModelRef {
   modelId: string;
   displayName: string;
   contextWindow: number;
+  reasoning?: boolean;
+  thinkingLevelMap?: ThinkingLevelMap;
 }
 
 export interface MixCodeTabInfo {

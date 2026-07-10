@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { SessionManager, Theme } from "@earendil-works/pi-coding-agent";
+import { SessionManager, type Theme } from "@earendil-works/pi-coding-agent";
 import { AuthStorage, ModelRegistry } from "@earendil-works/pi-coding-agent";
 import { streamSimple } from "@earendil-works/pi-ai/compat";
 import type { AutocompleteItem, AutocompleteProvider } from "@earendil-works/pi-tui";
@@ -66,7 +66,7 @@ test("extension theme helpers cover host, alias, and error branches", () => {
   );
   assert.match(
     applyExtensionTheme(
-      new Theme({}, {}, "truecolor"),
+      ({ name: undefined } as unknown as Theme),
       {
         getTheme: () => "dark",
         setTheme: () => undefined,
@@ -77,7 +77,7 @@ test("extension theme helpers cover host, alias, and error branches", () => {
   );
   assert.match(
     applyExtensionTheme(
-      new Theme({}, {}, "truecolor", { name: "custom" }),
+      ({ name: "custom" } as unknown as Theme),
       {
         getTheme: () => "dark",
         setTheme: () => undefined,
@@ -129,15 +129,25 @@ test("app action helpers expose model, system message, and close edge branches",
   assert.equal(tab.pendingEscapeAction, undefined);
 
   const model = { provider: "p", modelId: "m", displayName: "p/m", contextWindow: 123 };
-  assert.throws(
-    () => applyModelSelection(state, tab, model, { resolveModel: () => undefined }),
+  await assert.rejects(
+    async () => applyModelSelection(state, tab, model, { resolveModel: () => undefined }),
     /Model is not registered/,
   );
   const updates: string[] = [];
-  applyModelSelection(state, tab, model, {
-    resolveModel: () => ({ provider: "p", id: "m", contextWindow: 123 }) as never,
-    updateTabModel: (sessionId, resolved) => updates.push(`${sessionId}:${resolved.id}`),
+  let finishUpdate: (() => void) | undefined;
+  const updateFinished = new Promise<void>((resolve) => {
+    finishUpdate = resolve;
   });
+  const selection = applyModelSelection(state, tab, model, {
+    resolveModel: () => ({ provider: "p", id: "m", contextWindow: 123 }) as never,
+    updateTabModel: async (sessionId, resolved) => {
+      updates.push(`${sessionId}:${resolved.id}`);
+      await updateFinished;
+    },
+  });
+  assert.equal(state.model.displayName, "faux/faux-1");
+  finishUpdate?.();
+  await selection;
   assert.deepEqual(updates, ["s1:m"]);
   assert.equal(state.model.displayName, "p/m");
 
@@ -333,7 +343,10 @@ test("completion provider covers extension source and argument formatting edges"
   assert.equal(await provider.getSuggestions(["$home"], 0, 5, { signal }), null);
   assert.equal(await provider.getSuggestions(["$nested"], 0, 7, { signal }), null);
   assert.equal(await provider.getSuggestions(["$bare"], 0, 5, { signal }), null);
-  assert.equal(await provider.getSuggestions(["/hintdesc"], 0, 9, { signal }), null);
+  assert.equal(
+    (await provider.getSuggestions(["/hintdesc"], 0, 9, { signal }))?.items[0]?.description,
+    "<value> - Has description",
+  );
   assert.equal(await provider.getSuggestions(["/hintdesc value"], 0, 15, { signal }), null);
 
   assert.deepEqual(

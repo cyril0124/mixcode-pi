@@ -35,7 +35,7 @@ export function createExtensionCommandActions(
   runtimeTab: RuntimeTab,
 ): ExtensionCommandContextActions {
   return {
-    waitForIdle: () => runtimeTab.agentSession.agent.waitForIdle(),
+    waitForIdle: () => runtimeTab.agentSession.waitForIdle(),
     newSession: (options) => runtime.extensionNewSession(runtimeTab.tab.sessionId, options),
     fork: (entryId, options) => runtime.extensionFork(runtimeTab.tab.sessionId, entryId, options),
     navigateTree: (targetId, options) =>

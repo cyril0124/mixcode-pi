@@ -260,14 +260,34 @@ test("runtime refresh syncs tab status from pi agent state", async () => {
   await assert.rejects(async () => runtime.refreshTabStatus("missing"), /Unknown tab session/);
 });
 
+test("runtime tab reflects Pi thinking clamp after creation", async () => {
+  const runtime = new MixCodeRuntime();
+  const model: Model<string> = {
+    ...MIXCODE_FAUX_MODEL,
+    id: "no-reasoning-model",
+    reasoning: false,
+  };
+  const tab = createTab(1, "s1", process.cwd(), { thinkingLevel: "max" });
+
+  const runtimeTab = await runtime.createTab(tab, {
+    systemPrompt: "",
+    thinkingLevel: "max",
+    workdir: process.cwd(),
+    model,
+  });
+
+  assert.equal(runtimeTab.agentSession.thinkingLevel, "off");
+  assert.equal(tab.thinkingLevel, "off");
+});
+
 test("runtime thinking update delegates to Pi agent session", async () => {
   const runtime = new MixCodeRuntime();
   const tab = createTab(1, "s1", process.cwd(), { thinkingLevel: "high" });
   const model: Model<string> = {
     ...MIXCODE_FAUX_MODEL,
-    id: "xhigh-model",
+    id: "max-model",
     reasoning: true,
-    thinkingLevelMap: { xhigh: "xhigh" },
+    thinkingLevelMap: { max: "max" },
   };
   const runtimeTab = await runtime.createTab(tab, {
     systemPrompt: "",
@@ -276,12 +296,12 @@ test("runtime thinking update delegates to Pi agent session", async () => {
     model,
   });
 
-  const effective = runtime.updateTabThinkingLevel("s1", "xhigh");
+  const effective = runtime.updateTabThinkingLevel("s1", "max");
 
-  assert.equal(effective, "xhigh");
-  assert.equal(runtimeTab.agent.state.thinkingLevel, "xhigh");
-  assert.equal(runtimeTab.agentSession.thinkingLevel, "xhigh");
-  assert.equal(tab.thinkingLevel, "xhigh");
+  assert.equal(effective, "max");
+  assert.equal(runtimeTab.agent.state.thinkingLevel, "max");
+  assert.equal(runtimeTab.agentSession.thinkingLevel, "max");
+  assert.equal(tab.thinkingLevel, "max");
 });
 
 test("runtime covers idle, running, and error refresh branches", async () => {
@@ -304,9 +324,14 @@ test("runtime covers idle, running, and error refresh branches", async () => {
     /^You are an expert coding assistant operating inside pi/,
   );
 
-  anyAgent._state.isStreaming = true;
+  Object.defineProperty(runtimeTab.agentSession, "isStreaming", { configurable: true, value: true });
   runtime.refreshTabStatus("s1");
   assert.equal(tab.status, "running");
+
+  anyAgent._state.isStreaming = true;
+  Object.defineProperty(runtimeTab.agentSession, "isStreaming", { configurable: true, value: false });
+  runtime.refreshTabStatus("s1");
+  assert.equal(tab.status, "idle");
 
   anyAgent._state.errorMessage = "provider failed";
   runtime.refreshTabStatus("s1");

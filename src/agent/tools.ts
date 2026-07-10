@@ -62,11 +62,13 @@ function restorePiBuiltinTools(
 ): PiBuiltinToolName[] {
   const writableSession = agentSession as unknown as AgentSessionToolInternals;
   const definitions = createPiBuiltinToolDefinitions(agentSession);
+  const sourceInfoByName = new Map(
+    agentSession.getAllTools().map((tool) => [tool.name, tool.sourceInfo] as const),
+  );
   const restoredBuiltinNames: PiBuiltinToolName[] = [];
   for (const [name, tool] of Object.entries(createPiBuiltinTools(agentSession))) {
     const builtinName = name as PiBuiltinToolName;
-    const currentDefinition = writableSession._toolDefinitions.get(name);
-    if (extensionToolOwnerPolicy?.(currentDefinition?.sourceInfo, builtinName)) continue;
+    if (extensionToolOwnerPolicy?.(sourceInfoByName.get(name), builtinName)) continue;
 
     const definition = definitions[builtinName];
     writableSession._toolDefinitions.set(name, {
