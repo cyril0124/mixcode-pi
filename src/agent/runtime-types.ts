@@ -228,6 +228,8 @@ export interface RuntimeTab {
   autoCompactCycleFailed?: boolean;
   /** True while autoCompactAndContinue is running */
   isAutoCompacting?: boolean;
+  /** Gate to serialize prompt dispatch decisions (user submit, queued flush) at idle→active transition */
+  promptDispatchGate?: Promise<void>;
 }
 
 export interface ExtensionManagerStore {

@@ -57,6 +57,7 @@ import {
 } from "./runtime-extension-ui.js";
 import {
   consumeDeferredPendingMessageFlush,
+  dispatchTurn,
   flushRuntimePendingMessage,
   popRuntimePendingMessage,
   scheduleRuntimePendingMessageFlush,
@@ -523,17 +524,22 @@ export class MixCodeRuntime {
     const runtimeTab = this.requireTab(sessionId);
     const trimmed = text.trim();
     if (!trimmed) return;
-    if (runtimeTab.agentSession.isStreaming) {
-      await runtimeTab.agentSession.prompt(trimmed, { streamingBehavior: "steer" });
-      return;
-    }
-    runtimeTab.postRunWorkingStartedAt = undefined;
-    // A fresh prompt is a fresh run: drop any stale SDK continuation marker.
-    runtimeTab.sdkRunContinuation = false;
-    if (runtimeTab.agentSession.isCompacting) {
-      throw new Error("Cannot prompt while compaction is running");
-    }
-    await runtimeTab.agentSession.prompt(text);
+    await dispatchTurn(runtimeTab, async (signalRegistered) => {
+      if (runtimeTab.agentSession.isStreaming) {
+        await runtimeTab.agentSession.prompt(trimmed, {
+          streamingBehavior: "steer",
+          preflightResult: signalRegistered,
+        });
+        return;
+      }
+      runtimeTab.postRunWorkingStartedAt = undefined;
+      // A fresh prompt is a fresh run: drop any stale SDK continuation marker.
+      runtimeTab.sdkRunContinuation = false;
+      if (runtimeTab.agentSession.isCompacting) {
+        throw new Error("Cannot prompt while compaction is running");
+      }
+      await runtimeTab.agentSession.prompt(text, { preflightResult: signalRegistered });
+    });
   }
 
   async executeShellCommand(

@@ -3,6 +3,38 @@ import { drainPendingMessages } from "./runtime-chat.js";
 import { syncQueueState } from "./runtime-events.js";
 import type { RuntimeTab } from "./runtime-types.js";
 
+/**
+ * Serialize prompt dispatch decisions at idle→active transitions.
+ * Acquires per-tab gate, executes send(), releases gate when preflightResult fires.
+ * Prevents concurrent agentSession.prompt() calls from racing through isStreaming checks.
+ */
+export async function dispatchTurn(
+  tab: RuntimeTab,
+  send: (signalRegistered: () => void) => Promise<void>,
+): Promise<void> {
+  const prev = tab.promptDispatchGate ?? Promise.resolve();
+  let release!: () => void;
+  tab.promptDispatchGate = new Promise<void>((r) => (release = r));
+  await prev.catch(() => {}); // Wait for previous dispatch to register
+  try {
+    let done = false;
+    const signalRegistered = () => {
+      if (!done) {
+        done = true;
+        release();
+      }
+    };
+    try {
+      await send(signalRegistered);
+    } finally {
+      signalRegistered(); // Ensure release on steer/early-exit paths
+    }
+  } catch (error) {
+    release(); // Release on exception
+    throw error;
+  }
+}
+
 export async function flushRuntimePendingMessage(
   runtimeTab: RuntimeTab,
   count?: number,
@@ -23,7 +55,9 @@ export async function flushRuntimePendingMessage(
     }
     const text = queued.items.filter((item) => item.trim()).join("\n\n");
     if (!text) return;
-    await runtimeTab.agentSession.prompt(text);
+    await dispatchTurn(runtimeTab, async (signalRegistered) => {
+      await runtimeTab.agentSession.prompt(text, { preflightResult: signalRegistered });
+    });
   } catch (error) {
     runtimeTab.tab.pendingMessages.splice(queued.start, 0, ...queued.items);
     runtimeTab.queuedPromptCount += queued.items.length;
