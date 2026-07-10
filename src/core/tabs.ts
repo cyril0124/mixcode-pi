@@ -1,9 +1,12 @@
 import { createTab } from "./defaults.js";
 import type { MixCodeState, MixCodeTabInfo } from "./types.js";
 
-/** Returns the active tab, falling back to tabs[0] when activeTabId doesn't match a real tab. */
-export function getActiveTab(state: Pick<MixCodeState, "tabs" | "activeTabId">): MixCodeTabInfo | undefined {
-  return state.tabs.find((tab) => tab.sessionId === state.activeTabId) ?? state.tabs[0];
+/** Returns the active agent, using the Home selection while the config tab is active. */
+export function getActiveTab(
+  state: Pick<MixCodeState, "tabs" | "activeTabId" | "homeSelectedTabIndex">,
+): MixCodeTabInfo | undefined {
+  if (state.activeTabId === "config") return state.tabs[state.homeSelectedTabIndex];
+  return state.tabs.find((tab) => tab.sessionId === state.activeTabId);
 }
 
 /** Finds the tab identified by activeTabId, without fallback. Returns undefined when not found. */
