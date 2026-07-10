@@ -414,6 +414,76 @@ function hasDiffnav(): boolean {
 
 // ─── Extension Entry Point ────────────────────────────────────────────────────
 
+interface Ctx {
+  cwd: string;
+  ui: {
+    notify: (msg: string, level: string) => void;
+    custom: <T>(fn: (tui: unknown, theme: unknown, keybindings: unknown, done: () => void) => {
+      render: () => string[];
+      invalidate: () => void;
+      handleInput: () => void;
+    }) => Promise<T>;
+  };
+  sessionManager: { getBranch: () => unknown };
+}
+
+async function renderDiff(scopeEntries: SessionEntry[], cwd: string, ctx: Ctx): Promise<void> {
+  if (scopeEntries.length === 0) {
+    ctx.ui.notify("No entries found for the specified range.", "info");
+    return;
+  }
+
+  const files = collectFileMods(scopeEntries, cwd);
+  if (files.size === 0) {
+    ctx.ui.notify("No file modifications found in this session.", "info");
+    return;
+  }
+
+  const diffContent = buildDiff(files, cwd);
+  if (!diffContent) {
+    ctx.ui.notify("Files were modified but have no effective changes.", "info");
+    return;
+  }
+
+  await ctx.ui.custom<void>((tui, _theme, _keybindings, done) => {
+    const t = tui as unknown as { stop: () => void; start: () => void; requestRender: (f?: boolean) => void };
+    t.stop();
+
+    const tmpFile = join(tmpdir(), `mixcode-diff-${process.pid}-${Date.now()}.diff`);
+    writeFileSync(tmpFile, `${diffContent}\n`, "utf-8");
+
+    const cleanup = () => {
+      try {
+        unlinkSync(tmpFile);
+      } catch {
+        /* best effort */
+      }
+    };
+
+    let child: ReturnType<typeof spawn>;
+    if (hasDiffnav()) {
+      child = spawn("sh", ["-c", `diffnav < "${tmpFile}"; rm -f "${tmpFile}"`], { stdio: "inherit" });
+    } else {
+      const viewer = process.env.EDITOR || process.env.VISUAL || "less";
+      child = spawn(viewer, [tmpFile], { stdio: "inherit" });
+    }
+
+    let resumed = false;
+    const resume = () => {
+      if (resumed) return;
+      resumed = true;
+      cleanup();
+      t.start();
+      t.requestRender(true);
+      done();
+    };
+    child.on("exit", resume);
+    child.on("error", resume);
+
+    return { render: () => [], invalidate: () => {}, handleInput: () => {} };
+  });
+}
+
 const extension: ExtensionFactory = (pi) => {
   pi.registerCommand("diff", {
     description: "Show file changes made during this session (via diffnav)",
@@ -431,7 +501,6 @@ const extension: ExtensionFactory = (pi) => {
       const entries = ctx.sessionManager.getBranch() as unknown as SessionEntry[];
       const trimmed = (args ?? "").trim();
 
-      // Parse: /diff | /diff last | /diff N | /diff N-M
       let scope: SessionEntry[];
       if (!trimmed) {
         scope = entries;
@@ -447,65 +516,16 @@ const extension: ExtensionFactory = (pi) => {
         return;
       }
 
-      if (scope.length === 0) {
-        ctx.ui.notify("No entries found for the specified range.", "info");
-        return;
-      }
+      await renderDiff(scope, cwd, ctx as unknown as Ctx);
+    },
+  });
 
-      const files = collectFileMods(scope, cwd);
-      if (files.size === 0) {
-        ctx.ui.notify("No file modifications found in this session.", "info");
-        return;
-      }
-
-      const diffContent = buildDiff(files, cwd);
-      if (!diffContent) {
-        ctx.ui.notify("Files were modified but have no effective changes.", "info");
-        return;
-      }
-
-      // Open viewer: pause TUI, spawn diffnav (or $EDITOR/less), resume on exit.
-      await ctx.ui.custom<void>((tui, _theme, _keybindings, done) => {
-        const t = tui as unknown as { stop: () => void; start: () => void; requestRender: (f?: boolean) => void };
-        t.stop();
-
-        const tmpFile = join(tmpdir(), `mixcode-diff-${process.pid}-${Date.now()}.diff`);
-        writeFileSync(tmpFile, `${diffContent}\n`, "utf-8");
-
-        const cleanup = () => {
-          try {
-            unlinkSync(tmpFile);
-          } catch {
-            /* best effort */
-          }
-        };
-
-        let child: ReturnType<typeof spawn>;
-        if (hasDiffnav()) {
-          // diffnav reads the diff on stdin but needs /dev/tty for keys;
-          // shell redirection gives it both. `;` ensures rm runs regardless.
-          child = spawn("sh", ["-c", `diffnav < "${tmpFile}"; rm -f "${tmpFile}"`], { stdio: "inherit" });
-        } else {
-          const viewer = process.env.EDITOR || process.env.VISUAL || "less";
-          child = spawn(viewer, [tmpFile], { stdio: "inherit" });
-        }
-
-        // Idempotent resume: Node may emit both error and exit; guard so the
-        // TUI is only restarted once (a double start leaks a resize listener).
-        let resumed = false;
-        const resume = () => {
-          if (resumed) return;
-          resumed = true;
-          cleanup();
-          t.start();
-          t.requestRender(true);
-          done();
-        };
-        child.on("exit", resume);
-        child.on("error", resume);
-
-        return { render: () => [], invalidate: () => {}, handleInput: () => {} };
-      });
+  pi.registerCommand("dl", {
+    description: "Show file changes from the last turn (alias for /diff last)",
+    handler: async (_args, ctx) => {
+      const entries = ctx.sessionManager.getBranch() as unknown as SessionEntry[];
+      const scope = getNthLastTurnEntries(entries, 1);
+      await renderDiff(scope, ctx.cwd, ctx as unknown as Ctx);
     },
   });
 };

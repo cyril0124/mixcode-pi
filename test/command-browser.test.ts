@@ -33,6 +33,7 @@ const COMMANDS: CommandInfo[] = [
   skill("minimal-change", "Prefer the smallest change that solves the problem"),
   skill("caveman", "Ultra-compressed communication mode"),
   ext("diff", "Show file changes", "npm:mpi-diff-tracker@0.1.0"),
+  ext("dl", "Show file changes from the last turn", "npm:mpi-diff-tracker@0.1.0"),
   ext("commands", "Browse commands", "npm:mpi-command-browser@0.1.0"),
 ];
 
@@ -70,6 +71,7 @@ test("buildTabs groups extensions by package name with header rows", () => {
   const headers = tabs[0].items.filter((i) => i.kind === "header").map((i) => i.label);
   assert.ok(headers.includes("mpi-diff-tracker"));
   assert.ok(headers.includes("mpi-command-browser"));
+  assert.ok(tabs[0].items.some((i) => i.kind === "command" && i.label === "dl"));
 });
 
 // ─── filterItems ───────────────────────────────────────────────────────────────
@@ -108,6 +110,8 @@ test("command items carry a source tag derived from scope/package", () => {
   assert.equal(skillItem?.sourceTag, "u");
   const extItem = tabs[0].items.find((i) => i.kind === "command" && i.label === "diff");
   assert.equal(extItem?.sourceTag, "u:mpi-diff-tracker");
+  const dlItem = tabs[0].items.find((i) => i.kind === "command" && i.label === "dl");
+  assert.equal(dlItem?.sourceTag, "u:mpi-diff-tracker");
 });
 
 test("filterItems is case-insensitive", () => {
