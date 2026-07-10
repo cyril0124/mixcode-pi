@@ -185,7 +185,8 @@ Ctrl+P
   ├─ Config tab
   │    ├─ /theme /tui-state /new-session
   │    ├─ /save-workspace /restore-workspace /delete-workspace
-  │    └─ /close-all-sessions /delete-all-sessions
+  │    ├─ /close-all-sessions /delete-all-sessions
+  │    └─ /login /logout
   │
   └─ Agent tab
        ├─ /models /thinking /context-limit /theme /tui-state
@@ -194,7 +195,8 @@ Ctrl+P
        ├─ /fork /compact /clear /navigate /tree
        ├─ /help /hotkeys /quit /exit
        ├─ /new-session /resume /close-session /delete-session
-       └─ /close-all-sessions /delete-all-sessions
+       ├─ /close-all-sessions /delete-all-sessions
+       └─ /login /logout
 ```
 
 不可用命令不会出现在 palette 列表中；回车在空列表上直接关闭 palette，不执行任何操作。
@@ -249,6 +251,9 @@ src/core/commands.ts
         │
         ├─ workspace command
         │   /save-workspace /restore-workspace /delete-workspace
+        │
+        ├─ auth command
+        │   /login /logout
         │
         └─ prompt-template command
             /goal /compact

@@ -56,6 +56,7 @@ type OptionalSubmitRuntime = Partial<
     | "executeShellCommand"
     | "extensionReload"
     | "extensionSwitchSession"
+    | "getSharedModelRegistry"
     | "listSessions"
     | "listAllSessions"
     | "reloadExtensionManagerTab"
@@ -121,6 +122,15 @@ export interface MixCodeEditorActions {
    * submit behavior (e.g. paste-newline) must not intercept keys then.
    */
   hasEditorReplacement?: () => boolean;
+  /**
+   * True when a non-editor input component (e.g. the /login provider selector
+   * or login dialog) currently owns the input area. When true, all keys must
+   * be forwarded to it verbatim, bypassing global key handling — mirroring
+   * Pi agent's editorContainer takeover during login.
+   */
+  hasInputComponent?: () => boolean;
+  /** Forward a raw key to the active input component. */
+  forwardToInputComponent?: (data: string) => void;
 }
 
 export interface CommandPaletteActions {

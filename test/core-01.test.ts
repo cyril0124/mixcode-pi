@@ -240,6 +240,21 @@ test("commands parse prompts, slash commands, shell commands, and suggestions", 
     command: "reload",
     args: "",
   });
+  assert.deepEqual(parseInput("/login"), {
+    kind: "local-command",
+    command: "login",
+    args: "",
+  });
+  assert.deepEqual(parseInput("/login openai"), {
+    kind: "local-command",
+    command: "login",
+    args: "openai",
+  });
+  assert.deepEqual(parseInput("/logout"), {
+    kind: "local-command",
+    command: "logout",
+    args: "",
+  });
   assert.deepEqual(parseInput("/vim"), {
     kind: "local-command",
     command: "vim",

@@ -68,6 +68,13 @@ export function handleMixCodeKeyInput(
   workspaceOptions: WorkspaceKeyOptions = {},
 ): { consume?: boolean; data?: string } | undefined {
   pasteDetector.recordInput(data);
+  // A non-editor input component (e.g. /login provider selector or login
+  // dialog) owns the input area: forward keys to it verbatim and bypass all
+  // global key handling, mirroring Pi agent's editorContainer takeover.
+  if (editorActions?.hasInputComponent?.()) {
+    editorActions.forwardToInputComponent?.(data);
+    return { consume: true };
+  }
   const active = getActiveTab(state);
   if (state.workspaceOverlay.open) {
     if (

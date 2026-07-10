@@ -29,6 +29,8 @@ export type LocalCommand =
   | "navigate"
   | "new-session"
   | "resume"
+  | "login"
+  | "logout"
   | "help"
   | "hotkeys"
   | "rename"
@@ -292,6 +294,25 @@ export const LOCAL_COMMANDS: Array<{
     palette: {
       label: "Open TUI State",
       description: "Show the current TUI state JSON",
+      scope: "both",
+    },
+  },
+  {
+    name: "login",
+    description: "Configure provider authentication",
+    argumentHint: "<provider>",
+    palette: {
+      label: "Login Provider",
+      description: "Configure provider authentication (OAuth or API key)",
+      scope: "both",
+    },
+  },
+  {
+    name: "logout",
+    description: "Remove provider authentication",
+    palette: {
+      label: "Logout Provider",
+      description: "Remove stored provider credentials",
       scope: "both",
     },
   },

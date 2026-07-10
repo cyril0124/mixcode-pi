@@ -117,7 +117,11 @@ export function createMixCodeTui(
       text,
       tui,
       options.onStateChanged,
-      undefined,
+      {
+        setInputComponent: (component, sessionId) => editor.setInputComponent(component, sessionId),
+        clearInputComponent: (sessionId) => editor.clearInputComponent(sessionId),
+        requestRender: () => tui.requestRender(),
+      },
       options.workspaceFile,
     ).catch((error: unknown) => {
       appendActiveSystemMessage(state, runtime, errorMessage(error));
@@ -228,7 +232,9 @@ export function createMixCodeTui(
         insertTextAtCursor: (text) => editor.insertTextAtCursor(text),
         submitCurrentText: () => editor.submitCurrentText(),
         browsePromptHistory: (input) => editor.browsePromptHistory(input),
-        hasEditorReplacement: () => editor.getEditorComponent() !== undefined,
+        hasEditorReplacement: () => editor.getEditorComponent() !== undefined || editor.hasInputComponent(),
+        hasInputComponent: () => editor.hasInputComponent(),
+        forwardToInputComponent: (data) => editor.handleInput(data),
       },
       {
         executeCommand: (command) =>

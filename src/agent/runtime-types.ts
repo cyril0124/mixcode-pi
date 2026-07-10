@@ -10,6 +10,7 @@ import type {
   AgentSession,
   AgentSessionEvent,
   AgentSessionServices,
+  AuthStorage,
   CreateAgentSessionServicesOptions,
   ExtensionCommandContextActions,
   KeybindingsManager as ExtensionKeybindingsManager,
@@ -56,7 +57,10 @@ export type RuntimeModelRegistry = Pick<
   // providers have credentials so /reload can rebuild the selectable model list.
   | "refresh"
   | "getProviderAuthStatus"
->;
+  | "getProviderDisplayName"
+> & {
+  authStorage: AuthStorage;
+};
 export type ExtensionArgumentCompleter = (
   argumentPrefix: string,
 ) => AutocompleteItem[] | null | Promise<AutocompleteItem[] | null>;

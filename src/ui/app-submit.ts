@@ -27,6 +27,7 @@ import {
 } from "./app-actions.js";
 import { createTuiDebugState } from "./app-debug.js";
 import { editTextWithTuiPaused, showLinesOverlay, showTextOverlay } from "./app-overlays.js";
+import type { Component } from "@earendil-works/pi-tui";
 import type {
   MixCodeSubmitRuntime,
   OverlayTui,
@@ -49,13 +50,19 @@ import {
   restoreWorkspaceByName,
   saveWorkspaceByName,
 } from "./workspace-overlay.js";
+export interface AuthInputHost {
+  setInputComponent: (component: Component, sessionId?: string) => void;
+  clearInputComponent: (sessionId?: string) => void;
+  requestRender: () => void;
+}
+
 export async function handleSubmittedInput(
   state: MixCodeState,
   runtime: MixCodeSubmitRuntime,
   text: string,
   tui: OverlayTui,
   onStateChanged?: (state: MixCodeState) => void | Promise<void>,
-  _shellManager?: unknown,
+  authInputHost?: AuthInputHost,
   workspaceFile?: string,
 ): Promise<void> {
   const parsed = parseInput(text);
@@ -305,6 +312,12 @@ export async function handleSubmittedInput(
         ? "Reloaded keybindings, extensions, skills, prompts, themes, and models"
         : "Reloaded keybindings, extensions, skills, prompts, and themes",
     );
+  } else if (parsed.command === "login") {
+    const { openPiLogin } = await import("./pi-auth.js");
+    await openPiLogin(state, runtime, authInputHost, parsed.args || undefined);
+  } else if (parsed.command === "logout") {
+    const { openPiLogout } = await import("./pi-auth.js");
+    await openPiLogout(state, runtime, authInputHost);
   } else if (parsed.command === "fork") {
     const sessionId = createSessionId();
     await runtime.forkSession(active!.sessionId, sessionId);
@@ -533,6 +546,8 @@ function configScopedCommand(command: string | undefined): boolean {
     command === "delete-workspace" ||
     command === "extension-manager" ||
     command === "vim" ||
+    command === "login" ||
+    command === "logout" ||
     command === "quit" ||
     command === "exit" ||
     command === "help" ||

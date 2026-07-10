@@ -191,6 +191,8 @@ export class EditorSlot implements Component {
     string,
     { factory: EditorFactory; editor: EditorComponent }
   >();
+  private inputComponentOverride: Component | undefined;
+  private inputComponentSessionId: string | undefined;
   private autocompleteProvider: AutocompleteProvider | undefined;
   private submitHandler: ((text: string) => void) | undefined;
   private changeHandler: ((text: string) => void) | undefined;
@@ -218,6 +220,11 @@ export class EditorSlot implements Component {
 
   set focused(focused: boolean) {
     this.focusState = focused;
+    if (this.inputComponentOverride && this.inputComponentSessionId === this.mixState.activeTabId) {
+      const focusable = this.inputComponentOverride as { focused?: boolean };
+      if (focusable.focused !== undefined) focusable.focused = focused;
+      return;
+    }
     this.syncEditorFocus();
   }
 
@@ -239,6 +246,10 @@ export class EditorSlot implements Component {
 
   render(width: number): string[] {
     this.syncActiveTab();
+    if (this.inputComponentOverride && this.inputComponentSessionId === this.mixState.activeTabId) {
+      const lines = this.inputComponentOverride.render(width);
+      return lines.map((line) => padLine(line, width));
+    }
     if (this.mixState.activeTabId === "config") {
       // On Agent View, render the default editor (for sending messages).
       return this.defaultEditor.render(width);
@@ -259,6 +270,15 @@ export class EditorSlot implements Component {
   }
 
   handleInput(data: string): void {
+    if (this.inputComponentOverride && this.inputComponentSessionId === this.mixState.activeTabId) {
+      const handler = (this.inputComponentOverride as { handleInput?: (data: string) => void })
+        .handleInput;
+      if (handler) {
+        handler.call(this.inputComponentOverride, data);
+        this.tui.requestRender();
+      }
+      return;
+    }
     if (this.mixState.activeTabId === "config") {
       // On Agent View, route input to the default editor for message composition.
       this.defaultEditor.handleInput(data);
@@ -462,6 +482,32 @@ export class EditorSlot implements Component {
 
   getEditorMaxRows(sessionId = this.mixState.activeTabId): number | undefined {
     return this.editorMaxRows.get(sessionId);
+  }
+
+  setInputComponent(component: Component, sessionId = this.mixState.activeTabId): void {
+    this.inputComponentOverride = component;
+    this.inputComponentSessionId = sessionId;
+    const focusable = component as { focused?: boolean };
+    if (focusable.focused !== undefined) {
+      // Force focused to true when setting input component
+      focusable.focused = true;
+      this.focusState = true;
+    }
+    this.tui.setFocus(this);
+    this.tui.requestRender();
+  }
+
+  clearInputComponent(sessionId = this.mixState.activeTabId): void {
+    if (this.inputComponentSessionId === sessionId) {
+      this.inputComponentOverride = undefined;
+      this.inputComponentSessionId = undefined;
+      this.tui.setFocus(this);
+      this.tui.requestRender();
+    }
+  }
+
+  hasInputComponent(sessionId = this.mixState.activeTabId): boolean {
+    return this.inputComponentOverride !== undefined && this.inputComponentSessionId === sessionId;
   }
 
   private deleteEditorMaxRows(sessionId: string): boolean {

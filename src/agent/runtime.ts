@@ -873,6 +873,10 @@ export class MixCodeRuntime {
       .map(modelToRef);
   }
 
+  getSharedModelRegistry(): RuntimeModelRegistry | undefined {
+    return this.modelRegistry;
+  }
+
   async closeTab(sessionId: string): Promise<void> {
     const runtimeTab = this.requireTab(sessionId);
     if (runtimeTab.agentSession.isStreaming) {
