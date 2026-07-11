@@ -9,13 +9,8 @@ import {
   contextFromState,
   loadBatchRequests,
   validateBatchRequests,
-  type BatchExecutorHost,
 } from "../core/batch-lua.js";
-import { disposeChatRenderers } from "../agent/runtime-chat.js";
-import { parseInput } from "../core/commands.js";
-import { createSessionId, createTab } from "../core/defaults.js";
 import { findModelRef } from "../core/models.js";
-import { buildModelPrompt } from "../core/prompt-build.js";
 import {
   cleanupInstanceRegistry,
   formatInstanceStatusTable,
@@ -25,11 +20,8 @@ import {
   INSTANCE_HEARTBEAT_INTERVAL_MS,
 } from "../core/instance-registry.js";
 import { saveStateFile } from "../core/state-store.js";
-import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
-import { activateTab, closeAgentTab } from "../core/tabs.js";
 import { createMixCodeTui } from "../ui/app.js";
-import { applyModelSelection, applyThinkingLevel } from "../ui/app-actions.js";
-import { clearConversationCache } from "../ui/rendering.js";
+import { createBatchExecutorHost } from "./batch-host.js";
 import { bootstrapMixCode, defaultStateDir } from "./bootstrap.js";
 import { ensurePackageExtensions } from "../core/ensure-package-extensions.js";
 import { installConsoleTuiBridge, wireConsoleSink } from "./console-tui-bridge.js";
@@ -202,112 +194,7 @@ export async function main(): Promise<void> {
 
   // Execute batch script after TUI is ready
   if (args.batch) {
-    const batchHost: BatchExecutorHost = {
-      state,
-      findTabByTitle(title) {
-        const tab = state.tabs.find((t) => t.title === title);
-        return tab ? { sessionId: tab.sessionId } : undefined;
-      },
-      async createNewTab(request) {
-        const sessionId = createSessionId();
-        const model = request.model ? findModelRef(state.availableModels, request.model) : state.model;
-        const thinking = (request.thinking as any) ?? state.thinkingLevel;
-        const workdir = request.workdir ?? state.workdir;
-        const tab = createTab(state.tabs.length + 1, sessionId, workdir, {
-          title: request.name,
-          model: { ...model },
-          contextLimit: model.contextWindow,
-          thinkingLevel: thinking,
-        });
-        state.tabs.push(tab);
-        activateTab(state, sessionId);
-        await runtime.createTab(tab, {
-          systemPrompt: MIXCODE_SYSTEM_PROMPT,
-          thinkingLevel: thinking,
-          workdir,
-          model: runtime.resolveModel(model.provider, model.modelId),
-        });
-        // Persist the tab name so bootstrap restores it correctly
-        runtime.renameSession(sessionId, request.name);
-        return sessionId;
-      },
-      async configureTab(sessionId, options) {
-        const tab = state.tabs.find((t) => t.sessionId === sessionId);
-        if (!tab) throw new Error(`Cannot configure unknown tab: ${sessionId}`);
-        if (options.model) await applyModelSelection(state, tab, options.model, runtime);
-        if (options.thinking) applyThinkingLevel(state, tab, options.thinking, runtime);
-      },
-      async clearTab(sessionId) {
-        const tab = state.tabs.find((t) => t.sessionId === sessionId);
-        if (!tab) throw new Error(`Cannot clear unknown tab: ${sessionId}`);
-        const runtimeTab = runtime.getTab(sessionId);
-        if (runtimeTab) {
-          disposeChatRenderers(runtimeTab.chat);
-          runtimeTab.chat = [];
-        }
-        tab.previewMessages = [];
-        tab.previewIndex = 0;
-        tab.chatScrollOffset = 0;
-        tab.status = "idle";
-        tab.workingStartedAt = undefined;
-        tab.lastWorkedDurationSeconds = undefined;
-        tab.lastWorkedAt = undefined;
-        clearConversationCache(sessionId);
-        tui.requestRender();
-        // clearTab carries the session name into the fresh child session,
-        // so no manual rename is needed here.
-        const cleared = await runtime.clearTab!(sessionId, {
-          systemPrompt: MIXCODE_SYSTEM_PROMPT,
-          thinkingLevel: tab.thinkingLevel,
-          workdir: tab.workdir,
-        });
-        activateTab(state, cleared.tab.sessionId);
-        clearConversationCache(cleared.tab.sessionId);
-        tui.requestRender();
-        return cleared.tab.sessionId;
-      },
-      async deleteTab(sessionId) {
-        const tab = state.tabs.find((t) => t.sessionId === sessionId);
-        if (!tab) throw new Error(`Cannot delete unknown tab: ${sessionId}`);
-        // Same path as the /delete-session command: destroy the runtime tab
-        // and its on-disk session file, then drop the TUI tab.
-        await runtime.deleteTab(sessionId);
-        closeAgentTab(state, sessionId);
-        clearConversationCache(sessionId);
-        tui.requestRender();
-      },
-      async submitInput(sessionId, input) {
-        const parsed = parseInput(input);
-        if (parsed.kind === "prompt") {
-          const runtimeTab = runtime.getTab(sessionId);
-          const knownSkills = runtimeTab?.services?.resourceLoader
-            ?.getSkills()
-            .skills.map((s: any) => ({ name: s.name, filePath: s.filePath, baseDir: s.baseDir }))
-            ?? undefined;
-          const promptTemplates = runtimeTab?.services?.resourceLoader
-            ?.getPrompts()
-            .prompts.map((p: any) => ({
-              name: p.name, description: p.description, argumentHint: p.argumentHint,
-              content: p.content, filePath: p.filePath,
-              sourceInfo: p.sourceInfo ? { scope: p.sourceInfo.scope, source: p.sourceInfo.source } : undefined,
-            }))
-            ?? undefined;
-          const tab = state.tabs.find((t) => t.sessionId === sessionId);
-          const workdir = tab?.workdir ?? state.workdir;
-          const built = await buildModelPrompt(parsed.args, workdir, { knownSkills, promptTemplates });
-          await runtime.prompt(sessionId, built);
-        } else if (parsed.kind === "shell") {
-          await runtime.executeShellCommand(sessionId, parsed.args, {
-            excludeFromContext: parsed.excludeFromContext === true,
-          });
-        } else {
-          await runtime.prompt(sessionId, input);
-        }
-      },
-      resolveModel(query) {
-        return findModelRef(state.availableModels, query);
-      },
-    };
+    const batchHost = createBatchExecutorHost({ state, runtime, tui });
     void tabsReady
       .then(() => applyBatchRequests(batchRequests ?? [], batchHost))
       .catch((error: unknown) => {

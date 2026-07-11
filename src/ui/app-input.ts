@@ -9,7 +9,7 @@ import {
 } from "../core/overlays.js";
 import { buildModelPrompt } from "../core/prompt-build.js";
 import { pushToast } from "../core/toast.js";
-import { getKnownSkillsFromTab, getPromptTemplatesFromTab } from "./app-submit.js";
+import { getKnownSkillsFromTab, getPromptTemplatesFromTab } from "./agent-tab-actions.js";
 import { activateTab, getActiveTab, nextTabId } from "../core/tabs.js";
 import type { MixCodeState } from "../core/types.js";
 import { clearPendingEscape, openCloseAllSessionsConfirm, openDeleteAllSessionsConfirm, openQuitConfirm } from "./app-actions.js";

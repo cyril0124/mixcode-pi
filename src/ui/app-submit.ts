@@ -1,5 +1,5 @@
 import type { MixCodeRuntime } from "../agent/runtime.js";
-import { disposeChatRenderers, entriesToChatLines } from "../agent/runtime-chat.js";
+import { entriesToChatLines } from "../agent/runtime-chat.js";
 import { MIXCODE_EXTENSION_KEYBINDINGS } from "../agent/runtime-extension-theme.js";
 import { applyContextLimit, parseContextLimitValue, adjustCompactionSettingsForLimit } from "../core/context-limit.js";
 import { parseInput } from "../core/commands.js";
@@ -7,9 +7,6 @@ import { createSessionId, createTab } from "../core/defaults.js";
 import { stringifyJson } from "../core/json.js";
 import { findModelRef } from "../core/models.js";
 import { createPicker } from "../core/pickers.js";
-import { buildModelPrompt } from "../core/prompt-build.js";
-import type { PromptTemplate } from "../core/prompt-templates.js";
-import type { KnownSkill } from "../core/skill-command.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import { pushToast } from "../core/toast.js";
 import { activateTab, clampHomeSelectedTabIndex, getActiveTab, renameAgentTab } from "../core/tabs.js";
@@ -25,6 +22,12 @@ import {
   reloadRuntimeModels,
   showSystemMessageOrToast,
 } from "./app-actions.js";
+import {
+  completeAgentTabClear,
+  createAgentTab,
+  prepareAgentTabClear,
+  submitAgentInput,
+} from "./agent-tab-actions.js";
 import { createTuiDebugState } from "./app-debug.js";
 import { editTextWithTuiPaused, showLinesOverlay, showTextOverlay } from "./app-overlays.js";
 import type { Component } from "@earendil-works/pi-tui";
@@ -73,18 +76,12 @@ export async function handleSubmittedInput(
   if (active?.status === "Not Ready" && requiresActive) {
     throw new Error("Tab is still loading extensions. Please wait a moment.");
   }
-  if (parsed.kind === "prompt") {
-    const knownSkills = getKnownSkillsFromTab(runtime, active!.sessionId);
-    const promptTemplates = getPromptTemplatesFromTab(runtime, active!.sessionId);
-    await runtime.prompt(active!.sessionId, await buildModelPrompt(parsed.args, active!.workdir, { knownSkills, promptTemplates }));
-  } else if (parsed.kind === "shell") {
-    if (!runtime.executeShellCommand) {
-      throw new Error("Shell command execution requires pi runtime bash support");
-    }
-    await runtime.executeShellCommand(active!.sessionId, parsed.args, {
-      excludeFromContext: parsed.excludeFromContext === true,
-    });
-  } else if (parsed.command === "mark-done") {
+  if (active && (await submitAgentInput(active, runtime, text, parsed))) {
+    await onStateChanged?.(state);
+    tui.requestRender();
+    return;
+  }
+  if (parsed.command === "mark-done") {
     active!.unreadDone = true;
     active!.status = "done";
     // Ring terminal bell after 5s so the user gets an audible notification
@@ -141,43 +138,13 @@ export async function handleSubmittedInput(
     tui.requestRender();
     return;
   } else if (parsed.command === "clear") {
-    if (!runtime.clearTab) throw new Error("Clear requires runtime session replacement support");
-    const oldSessionId = active!.sessionId;
-    // Immediately clear the visible conversation so the UI feels responsive.
-    // Dispose renderers before discarding the chat array to avoid leaks.
-    const runtimeTab = runtime.getTab?.(oldSessionId);
-    if (runtimeTab) {
-      disposeChatRenderers(runtimeTab.chat);
-      runtimeTab.chat = [];
-    }
-    active!.previewMessages = [];
-    active!.previewIndex = 0;
-    active!.chatScrollOffset = 0;
-    active!.chatScrollAnchorEntryId = undefined;
-    active!.chatScrollAnchorIndex = undefined;
-    active!.chatScrollAnchorText = undefined;
-    // Set status to "idle" rather than "running" — clearTab blocks the event loop
-    // with synchronous extension loading so a spinner cannot animate anyway.
-    // An idle-looking empty chat is less jarring than a frozen spinner.
-    active!.status = "idle";
-    active!.workingStartedAt = undefined;
-    active!.lastWorkedDurationSeconds = undefined;
-    active!.lastWorkedAt = undefined;
-    clearConversationCache(oldSessionId);
+    const prepared = prepareAgentTabClear(state, runtime, active!.sessionId);
     tui.requestRender();
-    // Defer the heavy session replacement until after the TUI paints the cleared state.
-    // requestRender() schedules a frame via process.nextTick → setTimeout(doRender, ≤16ms).
-    // 32ms guarantees the render completes before clearTab starts blocking.
+    // Session replacement loads extensions synchronously. Delay it until the TUI
+    // has painted the empty conversation, otherwise the clear appears frozen.
     setTimeout(() => {
-      runtime.clearTab!(oldSessionId, {
-        systemPrompt: MIXCODE_SYSTEM_PROMPT,
-        thinkingLevel: active!.thinkingLevel,
-        workdir: active!.workdir,
-      })
-        .then((cleared) => {
-          activateTab(state, cleared.tab.sessionId);
-          tui.requestRender();
-        })
+      completeAgentTabClear(state, runtime, prepared)
+        .then(() => tui.requestRender())
         .catch((error: unknown) => {
           appendActiveSystemMessage(
             state,
@@ -188,28 +155,7 @@ export async function handleSubmittedInput(
         });
     }, 32);
   } else if (parsed.command === "new-session") {
-    const sessionId = createSessionId();
-    const previousActiveId = state.activeTabId;
-    const tab = createTab(state.tabs.length + 1, sessionId, state.workdir, {
-      model: { ...state.model },
-      contextLimit: state.model.contextWindow,
-      thinkingLevel: state.thinkingLevel,
-    });
-    state.tabs.push(tab);
-    activateTab(state, sessionId);
-    try {
-      await runtime.createTab(tab, {
-        systemPrompt: MIXCODE_SYSTEM_PROMPT,
-        thinkingLevel: state.thinkingLevel,
-        workdir: state.workdir,
-      });
-    } catch (error) {
-      // Rollback: remove the broken tab and restore the previous active tab.
-      const idx = state.tabs.findIndex((t) => t.sessionId === sessionId);
-      if (idx >= 0) state.tabs.splice(idx, 1);
-      activateTab(state, previousActiveId);
-      throw error;
-    }
+    await createAgentTab(state, runtime);
   } else if (parsed.command === "resume") {
     if (!runtime.listSessions) {
       throw new Error("Resume requires pi runtime session listing support");
@@ -458,79 +404,11 @@ export async function handleSubmittedInput(
     await quitMixCode(runtime, tui, getConfiguredQuitOptions(tui));
   } else if (parsed.command === "compact") {
     await runtime.compactSession(active!.sessionId, parsed.args);
-  } else if (isExtensionCommand(runtime, active!.sessionId, parsed.command)) {
-    await runtime.prompt(active!.sessionId, `/${parsed.command} ${parsed.args}`.trim());
-  } else if (isPromptTemplate(runtime, active!.sessionId, parsed.command)) {
-    // Route prompt template commands through buildModelPrompt for expansion
-    const knownSkills = getKnownSkillsFromTab(runtime, active!.sessionId);
-    const promptTemplates = getPromptTemplatesFromTab(runtime, active!.sessionId);
-    const fullText = `/${parsed.command} ${parsed.args}`.trim();
-    await runtime.prompt(active!.sessionId, await buildModelPrompt(fullText, active!.workdir, { knownSkills, promptTemplates }));
   } else {
     appendActiveSystemMessage(state, runtime, `Unknown slash command: /${parsed.command}`.trim());
   }
   await onStateChanged?.(state);
   tui.requestRender();
-}
-
-function isExtensionCommand(
-  runtime: MixCodeSubmitRuntime,
-  sessionId: string,
-  command: string | undefined,
-): boolean {
-  if (!command || !runtime.getExtensionCommands) return false;
-  return runtime.getExtensionCommands(sessionId).some((item) => item.name === command);
-}
-
-function isPromptTemplate(
-  runtime: MixCodeSubmitRuntime,
-  sessionId: string,
-  command: string | undefined,
-): boolean {
-  if (!command) return false;
-  const runtimeTab = runtime.getTab(sessionId);
-  if (!runtimeTab?.services?.resourceLoader) return false;
-  return runtimeTab.services.resourceLoader.getPrompts().prompts.some((p) => p.name === command);
-}
-
-/**
- * Extract known skills from the runtime tab's resource loader.
- * Returns undefined if the tab or resource loader is unavailable.
- */
-export function getKnownSkillsFromTab(
-  runtime: { getTab?: (sessionId: string) => ReturnType<MixCodeSubmitRuntime["getTab"]> },
-  sessionId: string,
-): KnownSkill[] | undefined {
-  const runtimeTab = runtime.getTab?.(sessionId);
-  if (!runtimeTab?.services?.resourceLoader) return undefined;
-  return runtimeTab.services.resourceLoader.getSkills().skills.map((skill) => ({
-    name: skill.name,
-    filePath: skill.filePath,
-    baseDir: skill.baseDir,
-  }));
-}
-
-/**
- * Extract prompt templates from the runtime tab's resource loader.
- * Returns undefined if the tab or resource loader is unavailable.
- */
-export function getPromptTemplatesFromTab(
-  runtime: { getTab?: (sessionId: string) => ReturnType<MixCodeSubmitRuntime["getTab"]> },
-  sessionId: string,
-): PromptTemplate[] | undefined {
-  const runtimeTab = runtime.getTab?.(sessionId);
-  if (!runtimeTab?.services?.resourceLoader) return undefined;
-  const { prompts } = runtimeTab.services.resourceLoader.getPrompts();
-  return prompts.map((p) => ({
-    name: p.name,
-    description: p.description,
-    argumentHint: p.argumentHint,
-    content: p.content,
-    filePath: p.filePath,
-    sourceInfo: p.sourceInfo
-      ? { scope: p.sourceInfo.scope, source: p.sourceInfo.source }
-      : undefined,
-  }));
 }
 
 function configScopedCommand(command: string | undefined): boolean {

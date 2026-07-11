@@ -52,9 +52,10 @@ export interface BatchExecutorHost {
   /** Delete an existing tab and its session file from disk. */
   deleteTab(sessionId: string): Promise<void>;
   /**
-   * Submit input to a tab, going through the full TUI input pipeline:
-   * parseInput → buildModelPrompt (/skill: and /template expansion) → runtime.prompt
-   * Also supports /commands and !shell.
+   * Submit agent-directed input through the shared prompt pipeline: normal
+   * prompts, skills, prompt templates, extension commands, and !shell. MixCode
+   * local commands are rejected because batch mode has no interactive UI to own
+   * pickers, confirmations, or overlays.
    */
   submitInput(sessionId: string, input: string): Promise<void>;
   resolveModel(query: string): MixCodeModelRef;
