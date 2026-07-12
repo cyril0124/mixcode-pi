@@ -1,6 +1,3 @@
-import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
-import { unlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import { matchesKey, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
@@ -24,6 +21,7 @@ import { activateTab, closeAgentTab, getActiveTab } from "../core/tabs.js";
 import type { MixCodeState } from "../core/types.js";
 import { closeAppOverlay, showErrorOverlay, showLinesOverlay } from "./app-overlays.js";
 import type { MixCodeKeyRuntime, OverlayTui } from "./app-types.js";
+import { deleteSessionFile, findOpenSessionTab } from "./session-delete.js";
 import { activeRenderTheme, renderWithTheme } from "./rendering/context.js";
 import { highlightRanges } from "./rendering/highlight.js";
 import { overlayPanel, padLine } from "./rendering/primitives.js";
@@ -100,7 +98,7 @@ export function handleSessionSelectorKey(
     if (matchesKey(data, "enter") || data === "y" || data === "Y") {
       const pathToDelete = selector.confirmingDeletePath;
       selector.confirmingDeletePath = null;
-      void deleteSessionAndRefresh(state, tui, pathToDelete);
+      void deleteSessionAndRefresh(state, tui, pathToDelete, runtime);
       return true;
     }
     if (matchesKey(data, "escape") || data === "n" || data === "N") {
@@ -191,7 +189,7 @@ export function handleSessionSelectorKey(
     return true;
   }
   if (matchesKey(data, "ctrl+d")) {
-    startDeleteConfirmation(selector);
+    startDeleteConfirmation(state, selector, runtime);
     showLinesOverlay(tui, (width) => renderSessionSelector(state, width));
     tui.requestRender();
     return true;
@@ -273,7 +271,11 @@ export function handleSessionSelectorKey(
 
 // --- Internal actions ---
 
-function startDeleteConfirmation(selector: SessionSelectorState): void {
+function startDeleteConfirmation(
+  state: MixCodeState,
+  selector: SessionSelectorState,
+  runtime?: MixCodeKeyRuntime,
+): void {
   const path = getSelectedSessionPath(selector);
   if (!path) return;
   if (selector.currentSessionPath && path === selector.currentSessionPath) {
@@ -281,6 +283,13 @@ function startDeleteConfirmation(selector: SessionSelectorState): void {
     selector.statusType = "error";
     return;
   }
+  const openTab = findOpenSessionTab(state, runtime, path);
+  if (openTab) {
+    selector.statusMessage = `Cannot delete session open in tab: ${openTab.title}`;
+    selector.statusType = "error";
+    return;
+  }
+  selector.statusMessage = "";
   selector.confirmingDeletePath = path;
 }
 
@@ -328,8 +337,17 @@ async function deleteSessionAndRefresh(
   state: MixCodeState,
   tui: OverlayTui,
   sessionPath: string,
+  runtime?: MixCodeKeyRuntime,
 ): Promise<void> {
   const selector = state.sessionSelector;
+  const openTab = findOpenSessionTab(state, runtime, sessionPath);
+  if (openTab) {
+    selector.statusMessage = `Cannot delete session open in tab: ${openTab.title}`;
+    selector.statusType = "error";
+    showLinesOverlay(tui, (width) => renderSessionSelector(state, width));
+    tui.requestRender();
+    return;
+  }
   const result = await deleteSessionFile(sessionPath);
   if (result.ok) {
     selector.currentSessions = selector.currentSessions.filter((s) => s.path !== sessionPath);
@@ -346,22 +364,6 @@ async function deleteSessionAndRefresh(
   }
   showLinesOverlay(tui, (width) => renderSessionSelector(state, width));
   tui.requestRender();
-}
-
-async function deleteSessionFile(
-  sessionPath: string,
-): Promise<{ ok: boolean; method: "trash" | "unlink"; error?: string }> {
-  const trashArgs = sessionPath.startsWith("-") ? ["--", sessionPath] : [sessionPath];
-  const trashResult = spawnSync("trash", trashArgs, { encoding: "utf-8" });
-  if (trashResult.status === 0 || !existsSync(sessionPath)) {
-    return { ok: true, method: "trash" };
-  }
-  try {
-    await unlink(sessionPath);
-    return { ok: true, method: "unlink" };
-  } catch (err) {
-    return { ok: false, method: "unlink", error: err instanceof Error ? err.message : String(err) };
-  }
 }
 
 function loadAllSessions(state: MixCodeState, tui: OverlayTui, runtime?: MixCodeKeyRuntime): void {

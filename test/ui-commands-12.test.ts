@@ -151,6 +151,54 @@ test("session selector key handling: tab toggles scope", () => {
   assert.equal(state.sessionSelector.scope, "all");
 });
 
+test("session selector cannot delete a session open in another tab", () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(
+    createTab(1, "current", "/repo", { title: "Current" }),
+    createTab(2, "other", "/repo", { title: "Other" }),
+  );
+  state.activeTabId = "current";
+  state.sessionSelector.open = true;
+  state.sessionSelector.currentSessionPath = "/sessions/current.jsonl";
+  state.sessionSelector.currentSessions = makeSessions();
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({ hide: () => undefined }) as never,
+    hasOverlay: () => true,
+    hideOverlay: () => undefined,
+  };
+  let otherOpen = true;
+  const runtime = {
+    getTab: (sessionId: string) => {
+      if (sessionId === "other" && !otherOpen) return undefined;
+      return {
+        session: {
+          getSessionFile: () =>
+            sessionId === "current"
+              ? "/sessions/current.jsonl"
+              : "/sessions/session-a.jsonl",
+        },
+      };
+    },
+  };
+
+  handleMixCodeKeyInput(state, "\x04", tui, undefined, runtime);
+
+  assert.equal(state.sessionSelector.confirmingDeletePath, null);
+  assert.equal(state.sessionSelector.statusType, "error");
+  assert.match(state.sessionSelector.statusMessage, /Other/);
+
+  otherOpen = false;
+  handleMixCodeKeyInput(state, "\x04", tui, undefined, runtime);
+  assert.equal(state.sessionSelector.confirmingDeletePath, "/sessions/session-a.jsonl");
+
+  otherOpen = true;
+  handleMixCodeKeyInput(state, "\r", tui, undefined, runtime);
+  assert.equal(state.sessionSelector.confirmingDeletePath, null);
+  assert.equal(state.sessionSelector.statusType, "error");
+  assert.match(state.sessionSelector.statusMessage, /Other/);
+});
+
 test("session selector key handling: enter resumes selected session", async () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"));
