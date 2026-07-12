@@ -127,3 +127,54 @@ test("binary runtime built-in packages are installed as Pi extensions", async ()
     await rm(homeDir, { recursive: true, force: true });
   }
 });
+
+test("ensurePackageExtensions installs under the given agentDir, not global home", async () => {
+  const oldHome = process.env.HOME;
+  const homeDir = await mkdtemp(join(tmpdir(), "mixcode-agentdir-home-"));
+  const agentDir = await mkdtemp(join(tmpdir(), "mixcode-agentdir-"));
+  const runtimeDir = await mkdtemp(join(tmpdir(), "mixcode-agentdir-runtime-"));
+  try {
+    // Point HOME at an empty dir so a leak into the default root would be visible.
+    process.env.HOME = homeDir;
+    materializeBinaryRuntimeAssets(runtimeDir, {
+      darkTheme: {},
+      lightTheme: {},
+      exportTemplateCss: "",
+      exportTemplateHtml: "",
+      exportTemplateJs: "",
+      exportVendorMarked: "",
+      exportVendorHighlight: "",
+      packageJson: {},
+      builtinPackages: {
+        "probe-extension": {
+          "index.ts": "export default () => {};",
+          "package.json": JSON.stringify({
+            name: "probe-extension",
+            version: "0.0.0",
+            type: "module",
+            pi: { extensions: ["./index.ts"] },
+          }),
+        },
+      },
+    });
+
+    ensurePackageExtensions(runtimeDir, { copy: true, agentDir });
+
+    // Installed under the effective agentDir/extensions ...
+    assert.equal(
+      await readFile(join(agentDir, "extensions", "probe-extension", "index.ts"), "utf8"),
+      "export default () => {};",
+    );
+    // ... and NOT under the default global home root.
+    await assert.rejects(
+      stat(join(homeDir, ".pi", "agent", "extensions", "probe-extension")),
+      /ENOENT/,
+    );
+  } finally {
+    if (oldHome === undefined) delete process.env.HOME;
+    else process.env.HOME = oldHome;
+    await rm(runtimeDir, { recursive: true, force: true });
+    await rm(homeDir, { recursive: true, force: true });
+    await rm(agentDir, { recursive: true, force: true });
+  }
+});

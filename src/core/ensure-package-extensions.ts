@@ -5,19 +5,27 @@ import { join, resolve } from "node:path";
 /**
  * Ensure all packages under `<repoRoot>/pi-packages/` (dev/build output) or
  * `<repoRoot>/packages/` (compiled binary runtime) that declare a `pi` field in
- * their package.json are installed into the global Pi extensions directory
- * (`~/.pi/agent/extensions/`).
+ * their package.json are installed into the effective Pi extensions directory
+ * (`<agentDir>/extensions/`, default `~/.pi/agent/extensions/`).
+ *
+ * `agentDir` must match the effective agent directory Pi's ResourceLoader uses
+ * (see bootstrap's defaultMixCodeAgentDir); otherwise built-in packages install
+ * under one root while discovery scans another and never loads them.
  *
  * - Dev mode (stable repoRoot): creates symlinks for live-reload.
  * - Binary mode (ephemeral runtimeDir): copies files so they persist after exit.
  *
  * Safe to call multiple times — existing correct installs are left untouched.
  */
-export function ensurePackageExtensions(repoRoot: string, options?: { copy?: boolean }): void {
+export function ensurePackageExtensions(
+  repoRoot: string,
+  options?: { copy?: boolean; agentDir?: string },
+): void {
   const packageDirs = [join(repoRoot, "pi-packages"), join(repoRoot, "packages")].filter(existsSync);
   if (packageDirs.length === 0) return;
 
-  const extensionsDir = join(homedir(), ".pi", "agent", "extensions");
+  const agentDir = options?.agentDir ?? join(homedir(), ".pi", "agent");
+  const extensionsDir = join(agentDir, "extensions");
   mkdirSync(extensionsDir, { recursive: true });
   const shouldCopy = options?.copy ?? false;
 

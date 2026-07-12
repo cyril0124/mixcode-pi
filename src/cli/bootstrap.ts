@@ -75,6 +75,28 @@ export function defaultPiSessionDir(workdir: string, agentDir = defaultMixCodeAg
   return join(resolve(agentDir), "sessions", safePath);
 }
 
+/**
+ * Resolve the session root, mirroring Pi's precedence (main.js):
+ * explicit stateDir (test/isolation) wins for backward compatibility; otherwise
+ * follow PI_CODING_AGENT_SESSION_DIR env, then settings.sessionDir, then the
+ * per-workdir default under the effective agent dir.
+ */
+export function resolveSessionsRoot(input: {
+  workdir: string;
+  agentDir: string;
+  stateDir?: string;
+  scopedStateDir: string;
+  envSessionDir?: string;
+  settingsSessionDir?: string;
+}): string {
+  if (input.stateDir) return join(input.scopedStateDir, "sessions");
+  return (
+    resolveAgentDirEnv(input.envSessionDir) ??
+    input.settingsSessionDir ??
+    defaultPiSessionDir(input.workdir, input.agentDir)
+  );
+}
+
 export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
   state: MixCodeState;
   runtime: MixCodeRuntime;
@@ -95,17 +117,22 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
   const rootStateDir = options.stateDir ?? defaultStateDir();
   const stateDir = scopedStateDir(rootStateDir, options.workdir);
   const agentDir = options.agentDir ?? defaultMixCodeAgentDir();
-  const sessionsRoot = options.stateDir
-    ? join(stateDir, "sessions")
-    : defaultPiSessionDir(options.workdir, agentDir);
+  // Create SettingsManager early so its sessionDir/httpProxy settings can be
+  // read before we resolve the session root or issue any network request.
+  const settingsManager = SettingsManager.create(options.workdir, agentDir, { projectTrusted: true });
+  const sessionsRoot = resolveSessionsRoot({
+    workdir: options.workdir,
+    agentDir,
+    stateDir: options.stateDir,
+    scopedStateDir: stateDir,
+    envSessionDir: process.env.PI_CODING_AGENT_SESSION_DIR,
+    settingsSessionDir: settingsManager.getSessionDir(),
+  });
   const port = options.port ?? DEFAULT_STATE_PORT;
   await mkdir(rootStateDir, { recursive: true, mode: 0o700 });
   await chmod(rootStateDir, 0o700);
   await mkdir(stateDir, { recursive: true, mode: 0o700 });
   await chmod(stateDir, 0o700);
-
-  // Create SettingsManager early so we can apply HTTP proxy settings before any network requests
-  const settingsManager = SettingsManager.create(options.workdir, agentDir, { projectTrusted: true });
 
   const stateFile = stateFileForPort(stateDir, port);
   const workspaceFile = join(stateDir, "workspaces.json");
@@ -123,7 +150,13 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
     restoredFromDisk = false;
   }
   state.ui = mixCodeSettings.ui;
-  const modelBundle = await createPiModelRegistryBundle(options.modelConfigPath);
+  // Derive auth/models from the effective agent dir so a custom
+  // MIXCODE_CODING_AGENT_DIR keeps credentials, models, settings, sessions and
+  // extensions under one root instead of splitting across PI_CODING_AGENT_DIR.
+  const modelBundle = await createPiModelRegistryBundle(
+    options.modelConfigPath ?? join(agentDir, "models.json"),
+    join(agentDir, "auth.json"),
+  );
   registerModels(modelBundle.sources.map((source) => source.model));
   const configuredModels = modelBundle.sources
     .filter((source) => source.authStatus.configured)

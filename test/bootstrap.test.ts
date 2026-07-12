@@ -16,6 +16,7 @@ import {
   defaultPiModelsPath,
   defaultPiSessionDir,
   defaultStateDir,
+  resolveSessionsRoot,
   UUIDV7_SESSION_ID_PATTERN,
   saveStateFile,
   scopedStateDir,
@@ -581,4 +582,93 @@ test("cli delegates argv and exit code to the real pi CLI", async () => {
 test("cli reports exit code 1 when the delegated pi command cannot be spawned", async () => {
   const code = await delegateToRealPiCli([], { command: "definitely-not-a-real-binary-xyz" });
   assert.equal(code, 1);
+});
+
+test("resolveSessionsRoot follows Pi precedence: stateDir, env, settings, default", () => {
+  // Explicit stateDir (test/isolation) wins for backward compatibility.
+  assert.equal(
+    resolveSessionsRoot({
+      workdir: "/repo",
+      agentDir: "/agent",
+      stateDir: "/state-root",
+      scopedStateDir: "/state-root/workdirs/abc",
+      envSessionDir: "/env/sessions",
+      settingsSessionDir: "/settings/sessions",
+    }),
+    join("/state-root/workdirs/abc", "sessions"),
+  );
+  // Without stateDir: PI_CODING_AGENT_SESSION_DIR env wins (tilde expanded).
+  assert.equal(
+    resolveSessionsRoot({
+      workdir: "/repo",
+      agentDir: "/agent",
+      scopedStateDir: "/ignored",
+      envSessionDir: "/env/sessions",
+      settingsSessionDir: "/settings/sessions",
+    }),
+    "/env/sessions",
+  );
+  // Then settings.sessionDir.
+  assert.equal(
+    resolveSessionsRoot({
+      workdir: "/repo",
+      agentDir: "/agent",
+      scopedStateDir: "/ignored",
+      settingsSessionDir: "/settings/sessions",
+    }),
+    "/settings/sessions",
+  );
+  // Finally the per-workdir default under the effective agent dir.
+  assert.equal(
+    resolveSessionsRoot({
+      workdir: "/repo",
+      agentDir: "/agent",
+      scopedStateDir: "/ignored",
+    }),
+    defaultPiSessionDir("/repo", "/agent"),
+  );
+});
+
+test("bootstrap derives auth and models from the effective agent dir", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-bootstrap-agentdir-"));
+  const oldKey = process.env.MIXCODE_AGENTDIR_STREAM_KEY;
+  try {
+    process.env.MIXCODE_AGENTDIR_STREAM_KEY = "agentdir-secret";
+    const agentDir = join(dir, "agent");
+    await mkdir(agentDir, { recursive: true });
+    // models.json lives under the effective agentDir (no explicit modelConfigPath).
+    await writeFile(
+      join(agentDir, "models.json"),
+      JSON.stringify({
+        providers: {
+          "mixcode-agentdir": {
+            baseUrl: "https://agentdir.example/v1",
+            api: "openai-responses",
+            apiKey: "$MIXCODE_AGENTDIR_STREAM_KEY",
+            models: [{ id: "agentdir-model", contextWindow: 128 }],
+          },
+        },
+      }),
+      "utf8",
+    );
+
+    const boot = await bootstrapMixCode({
+      workdir: dir,
+      stateDir: join(dir, "state"),
+      homeDir: join(dir, "home"),
+      agentDir,
+    });
+
+    // The model from agentDir/models.json is available and configured (auth
+    // resolved from the same agentDir), proving both paths follow agentDir.
+    assert.ok(
+      boot.state.availableModels.some(
+        (model) => model.provider === "mixcode-agentdir" && model.modelId === "agentdir-model",
+      ),
+    );
+  } finally {
+    if (oldKey === undefined) delete process.env.MIXCODE_AGENTDIR_STREAM_KEY;
+    else process.env.MIXCODE_AGENTDIR_STREAM_KEY = oldKey;
+    await rm(dir, { recursive: true, force: true });
+  }
 });

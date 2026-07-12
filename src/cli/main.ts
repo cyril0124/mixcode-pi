@@ -22,7 +22,7 @@ import {
 import { saveStateFile } from "../core/state-store.js";
 import { createMixCodeTui } from "../ui/app.js";
 import { createBatchExecutorHost } from "./batch-host.js";
-import { bootstrapMixCode, defaultStateDir } from "./bootstrap.js";
+import { bootstrapMixCode, defaultMixCodeAgentDir, defaultStateDir } from "./bootstrap.js";
 import { ensurePackageExtensions } from "../core/ensure-package-extensions.js";
 import { installConsoleTuiBridge, wireConsoleSink } from "./console-tui-bridge.js";
 import { showNoticeTextOverlay } from "../ui/app-overlays.js";
@@ -48,7 +48,9 @@ export async function main(): Promise<void> {
   // log. Installed after the status early-return so plain CLI subcommands keep
   // printing to the real stdout; the sink is wired once the TUI exists below.
   installConsoleTuiBridge();
-  ensurePackageExtensions(repoDir, { copy: true });
+  // Install built-in packages under the same effective agent dir Pi's
+  // ResourceLoader scans, so discovery and installation share one root.
+  ensurePackageExtensions(repoDir, { copy: true, agentDir: defaultMixCodeAgentDir() });
   const {
     state,
     runtime,
