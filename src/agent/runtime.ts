@@ -751,7 +751,19 @@ export class MixCodeRuntime {
       agentSession,
       (targetSessionId) => this.tabs.get(targetSessionId),
       (targetSessionId, count) => this.flushPendingMessage(targetSessionId, count),
+      (targetSessionId, error) => this.reportPendingMessageFlushError(targetSessionId, error),
     );
+  }
+
+  // Surface an auto-resend failure on the owning tab instead of letting it
+  // bubble into an unhandled rejection. The queued text is already restored by
+  // flushRuntimePendingMessage; here we only make the failure visible.
+  private reportPendingMessageFlushError(sessionId: string, error: unknown): void {
+    const runtimeTab = this.tabs.get(sessionId);
+    if (!runtimeTab) return;
+    const message = error instanceof Error ? error.message : String(error);
+    appendSystemMessage(runtimeTab, `Error: Queued message failed to send: ${message}`);
+    this.emitChange({ type: "extension_ui_update" }, runtimeTab);
   }
 
   popPendingMessage(sessionId: string): string | undefined {

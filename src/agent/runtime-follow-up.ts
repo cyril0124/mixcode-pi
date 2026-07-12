@@ -71,13 +71,22 @@ export function scheduleRuntimePendingMessageFlush(
   agentSession: AgentSession,
   getRuntimeTab: (sessionId: string) => RuntimeTab | undefined,
   flushPendingMessage: (sessionId: string, count?: number) => Promise<void>,
+  onError: (sessionId: string, error: unknown) => void,
 ): void {
-  // Pi emits agent_end before the full session settles, so wait before draining queued input.
-  void agentSession.waitForIdle().then(() => {
-    const runtimeTab = getRuntimeTab(sessionId);
-    if (!runtimeTab || runtimeTab.queuedPromptCount === 0) return;
-    return flushPendingMessage(sessionId, runtimeTab.queuedPromptCount);
-  });
+  // Pi emits agent_end before the full session settles, so wait before draining
+  // queued input. The whole chain is fire-and-forget from a session event
+  // callback, so a rejected flush (e.g. the next run fails to start) would
+  // otherwise become an unhandled rejection and crash the TUI process. Catch it
+  // and surface it through onError; flushRuntimePendingMessage already re-queues
+  // the failed messages, so the user's text is preserved.
+  void agentSession
+    .waitForIdle()
+    .then(() => {
+      const runtimeTab = getRuntimeTab(sessionId);
+      if (!runtimeTab || runtimeTab.queuedPromptCount === 0) return;
+      return flushPendingMessage(sessionId, runtimeTab.queuedPromptCount);
+    })
+    .catch((error: unknown) => onError(sessionId, error));
 }
 
 export function consumeDeferredPendingMessageFlush(runtimeTab: RuntimeTab): boolean {
