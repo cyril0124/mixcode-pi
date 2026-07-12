@@ -28,10 +28,34 @@ export function reloadRuntimeSessionFromDisk(runtimeTab: RuntimeTab): ReloadSess
   const file = runtimeTab.session.getSessionFile();
   if (!file) return { reloaded: false, reason: "no-file" };
 
-  // Re-read the JSONL. setSessionFile rebuilds fileEntries + index and points
-  // the leaf at the last entry (correct for the append-only linear sessions
-  // MixCode writes). Any external appends are now visible.
+  // Capture the pre-reload leaf and known entry ids. setSessionFile rebuilds the
+  // index and unconditionally moves the leaf to the file's LAST entry — correct
+  // for a genuine external append, but wrong after a local retract
+  // (navigateTree/resetLeaf rewinds the in-memory leaf while the append-only
+  // file keeps the retracted entries). Without this guard, any reload after a
+  // retract — including prompt()'s pre-send reload — resurrects the retracted
+  // message.
+  const prevLeafId = runtimeTab.session.getLeafId();
+  const knownIds = new Set(runtimeTab.session.getEntries().map((entry) => entry.id));
+
+  // Re-read the JSONL. Any external appends are now visible.
   runtimeTab.session.setSessionFile(file);
+
+  // A real external append introduces entries we did not previously know. If the
+  // file grew only with entries we already had (the retract-then-reload case),
+  // restore the rewound leaf instead of jumping to the file tail.
+  const hasNewEntries = runtimeTab.session.getEntries().some((entry) => !knownIds.has(entry.id));
+  if (!hasNewEntries) {
+    if (prevLeafId === null) {
+      runtimeTab.session.resetLeaf();
+    } else if (runtimeTab.session.getEntry(prevLeafId)) {
+      runtimeTab.session.branch(prevLeafId);
+    }
+  }
+  // ponytail: single-writer model. If this instance retracts while another
+  // instance appends to the same session, the new entry counts as "new" and the
+  // leaf advances to the file tail, resurrecting the retracted message. Rare
+  // under the turn lock; upgrade to descendant-aware reconciliation if needed.
 
   // The agent's LLM context must reflect the reloaded branch, or the next turn
   // would send a stale message list even though the UI looks up to date.

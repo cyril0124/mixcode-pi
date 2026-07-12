@@ -5,12 +5,61 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { test } from "node:test";
 import {
+  type SimpleStreamOptions,
+  createAssistantMessageEventStream,
+} from "@earendil-works/pi-ai";
+import {
   MIXCODE_FAUX_MODEL,
   MixCodeRuntime,
   SessionLockConflictError,
   acquireSessionTurnLock,
   createTab,
 } from "../src/index.js";
+
+// A run that stays open with no visible output until `release` resolves, so a
+// mid-flight turn can be retracted (double-Esc undo) before it produces text.
+function pendingStream(release: Promise<void>, options?: SimpleStreamOptions) {
+  const stream = createAssistantMessageEventStream();
+  queueMicrotask(async () => {
+    const message = {
+      role: "assistant" as const,
+      content: [],
+      api: "retract-test",
+      provider: "retract-test",
+      model: "retract-test-model",
+      usage: {
+        input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+      },
+      stopReason: "stop" as const,
+      timestamp: Date.now(),
+    };
+    const aborted = { ...message, stopReason: "aborted" as const, errorMessage: "aborted" };
+    if (options?.signal?.aborted) {
+      stream.push({ type: "error", reason: "aborted", error: aborted });
+      stream.end(aborted);
+      return;
+    }
+    options?.signal?.addEventListener?.(
+      "abort",
+      () => {
+        stream.push({ type: "error", reason: "aborted", error: aborted });
+        stream.end(aborted);
+      },
+      { once: true },
+    );
+    await release;
+    stream.push({ type: "done", reason: "stop", message });
+    stream.end(message);
+  });
+  return stream;
+}
+
+// A custom-provider model so the injected streamFn is used (provider "faux"
+// routes to the built-in echo stream and would bypass pendingStream).
+function retractModel() {
+  return { ...MIXCODE_FAUX_MODEL, provider: "retract-test", api: "retract-test", id: "retract-test-model" };
+}
 
 async function waitFor(predicate: () => boolean, attempts = 50): Promise<void> {
   for (let i = 0; i < attempts; i += 1) {
@@ -208,6 +257,89 @@ test("large-session reload parses once per external-change burst", async () => {
     assert.equal(chat.filter((l) => l.role === "user" || l.role === "assistant").length, ENTRY_COUNT);
     // Report (do not gate on) the wall-clock cost of one large reload.
     process.stderr.write(`large-session reload: ${ENTRY_COUNT} entries in ${elapsedMs.toFixed(1)}ms\n`);
+  } finally {
+    await runtime.closeAllTabs();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+// Regression: a reload after a local retract must NOT resurrect the retracted
+// message. The retract rewinds the in-memory leaf, but the append-only file
+// still holds the entry; reload must preserve the rewound leaf when the file
+// gained no genuinely new entries.
+test("reload after retract does not resurrect the retracted message", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-retract-reload-"));
+  const sessionsRoot = join(dir, "sessions");
+  let release!: () => void;
+  const released = new Promise<void>((r) => { release = r; });
+  const runtime = new MixCodeRuntime({
+    sessionsRoot,
+    streamFn: (_m, _c, o) => pendingStream(released, o),
+  });
+  try {
+    const rt = await runtime.createTab(createTab(1, "s1", dir), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: dir,
+      model: retractModel(),
+    });
+    runtime.enableSessionSync();
+    const pending = runtime.prompt("s1", "MSG-A-retract-me");
+    await waitFor(() => rt.agentSession.isStreaming === true);
+    const res = await runtime.retractCurrentTurn("s1");
+    release();
+    await pending.catch(() => undefined);
+    await waitFor(() => rt.session.getBranch().length === 0);
+    assert.equal(res?.editorText, "MSG-A-retract-me");
+    assert.equal(chatText(runtime, "s1").includes("MSG-A"), false);
+
+    // A direct reload (what prompt()'s pre-send path and the watcher do) must
+    // not bring MSG-A back.
+    runtime.syncSessionFromDisk("s1");
+    assert.equal(chatText(runtime, "s1").includes("MSG-A"), false);
+    assert.equal(rt.session.getLeafId(), null);
+  } finally {
+    await runtime.closeAllTabs();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+// Regression: after retracting MSG-A and sending a NEW message MSG-B, only MSG-B
+// remains — prompt()'s pre-send reload must not resurrect MSG-A. This is the
+// exact user-reported "extra message after double-Esc undo" flow.
+test("sending a new message after retract keeps only the new message", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-retract-newmsg-"));
+  const sessionsRoot = join(dir, "sessions");
+  let release!: () => void;
+  let released = new Promise<void>((r) => { release = r; });
+  const runtime = new MixCodeRuntime({
+    sessionsRoot,
+    streamFn: (_m, _c, o) => pendingStream(released, o),
+  });
+  try {
+    const rt = await runtime.createTab(createTab(1, "s1", dir), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: dir,
+      model: retractModel(),
+    });
+    runtime.enableSessionSync();
+    // Turn 1: send MSG-A, then retract it mid-flight.
+    const p1 = runtime.prompt("s1", "MSG-A-retract-me");
+    await waitFor(() => rt.agentSession.isStreaming === true);
+    await runtime.retractCurrentTurn("s1");
+    release();
+    await p1.catch(() => undefined);
+    await waitFor(() => rt.session.getBranch().length === 0);
+    assert.equal(chatText(runtime, "s1").includes("MSG-A"), false);
+
+    // Turn 2: send a fresh message; let it complete immediately.
+    released = new Promise<void>((r) => { release = r; });
+    release();
+    await runtime.prompt("s1", "MSG-B-new");
+    await waitFor(() => rt.agentSession.isStreaming === false);
+    assert.equal(chatText(runtime, "s1").includes("MSG-B"), true);
+    assert.equal(chatText(runtime, "s1").includes("MSG-A"), false);
   } finally {
     await runtime.closeAllTabs();
     await rm(dir, { recursive: true, force: true });
