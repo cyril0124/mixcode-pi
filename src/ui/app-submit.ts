@@ -113,6 +113,20 @@ export async function handleSubmittedInput(
         : "Hidden extension messages hidden",
     });
     tui.requestRender();
+  } else if (parsed.command === "hide-thinking") {
+    // App-level toggle mirroring Pi's hideThinkingBlock: folds thinking content
+    // to a placeholder across every tab, persists via Pi's SettingsManager, and
+    // invalidates cached conversation lines so the change shows immediately.
+    state.hideThinkingBlock = !(state.hideThinkingBlock ?? false);
+    runtime.setHideThinkingBlock?.(state.hideThinkingBlock);
+    for (const tab of state.tabs) clearConversationCache(tab.sessionId);
+    if (active) {
+      pushToast(active, {
+        type: "info",
+        message: state.hideThinkingBlock ? "Thinking blocks: hidden" : "Thinking blocks: visible",
+      });
+    }
+    tui.requestRender();
   } else if (parsed.command === "navigate") {
     const runtimeTab = runtime.getTab?.(active!.sessionId);
     if (!runtimeTab?.session.getTree || !runtimeTab.session.getLeafId || !runtimeTab.session.getBranch) {
@@ -417,6 +431,7 @@ function configScopedCommand(command: string | undefined): boolean {
     command === "tui-state" ||
     command === "new-session" ||
     command === "resume" ||
+    command === "hide-thinking" ||
     command === "delete-all-sessions" ||
     command === "close-all-sessions" ||
     command === "save-workspace" ||

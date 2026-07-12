@@ -64,6 +64,7 @@ type OptionalSubmitRuntime = Partial<
     | "reloadModelConfig"
     | "renameSession"
     | "resolveModel"
+    | "setHideThinkingBlock"
     | "updateTabModel"
     | "updateTabThinkingLevel"
     | "updateTabWorkdir"

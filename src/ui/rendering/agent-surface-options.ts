@@ -5,6 +5,8 @@ import { STREAMING_MARKDOWN_CHAR_LIMIT, type RenderChatBlockOptions } from "./ch
 
 export interface AgentSurfaceRenderOptions {
   oversizedAssistantMessage?: OversizedAssistantMessageSettings;
+  /** When true, thinking blocks collapse to a static placeholder. */
+  hideThinking?: boolean;
 }
 
 export function chatBlockRenderOptions(
@@ -15,6 +17,7 @@ export function chatBlockRenderOptions(
   const result: RenderChatBlockOptions = {};
   const policy = options.oversizedAssistantMessage;
   if (policy) result.oversizedAssistantMessage = policy;
+  if (options.hideThinking) result.hideThinking = true;
 
   const streaming = runtimeTab?.streamingAssistant;
   const line = runtimeTab?.chat[chatIndex];
@@ -35,7 +38,9 @@ export function chatBlockRenderOptions(
     }
   }
 
-  return result.oversizedAssistantMessage || result.streamingMarkdownCharLimit !== undefined
+  return result.oversizedAssistantMessage ||
+    result.streamingMarkdownCharLimit !== undefined ||
+    result.hideThinking
     ? result
     : undefined;
 }

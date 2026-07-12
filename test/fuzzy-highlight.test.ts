@@ -68,17 +68,20 @@ test("command palette highlights matched query characters in label and command c
   state.activeTabId = "s1";
   openCommandPalette(state);
   updateCommandPaletteQuery(state, "thinking");
-  const raw = renderCommandPalette(state, 160).join("\n");
+  const lines = renderCommandPalette(state, 160);
   assert.match(
-    stripAnsi(raw),
+    stripAnsi(lines.join("\n")),
     /Choose Thinking Tier[\s\S]*\/thinking[\s\S]*Choose the current tab thinking tier/,
   );
-  // Command palette rows carry no other bold usage. "thinking" appears in the
-  // label ("Choose Thinking Tier"), the command ("/thinking"), AND the
-  // description ("...thinking tier"). The description column never
-  // participates in the palette filter, so it must render as static dim text:
-  // exactly two bold-open spans (label + command), never three.
-  assert.equal((raw.match(/\x1b\[1m/g) ?? []).length, 2);
+  // Scope the assertion to the /thinking row (the query "thinking" also matches
+  // the /hide-thinking row, whose bold spans are irrelevant here). On that row
+  // "thinking" appears in the label ("Choose Thinking Tier"), the command
+  // ("/thinking"), AND the description ("...thinking tier"). The description
+  // column never participates in the palette filter, so it must render as
+  // static dim text: exactly two bold-open spans (label + command), never three.
+  const thinkingRow = lines.find((line) => stripAnsi(line).includes("Choose Thinking Tier"));
+  assert.ok(thinkingRow, "palette renders the /thinking row");
+  assert.equal((thinkingRow.match(/\x1b\[1m/g) ?? []).length, 2);
 });
 
 test("tab jump highlights matched characters in the tab title", () => {

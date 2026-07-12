@@ -21,6 +21,7 @@ export type LocalCommand =
   | "system-prompt"
   | "system-tools"
   | "toggle-hidden-messages"
+  | "hide-thinking"
   | "session"
   | "compact"
   | "clear"
@@ -235,6 +236,13 @@ export const LOCAL_COMMANDS: Array<{
     name: "toggle-hidden-messages",
     description: "Toggle visibility of hidden (display:false) extension messages",
     palette: { label: "Toggle Hidden Messages", requires: "session" },
+  },
+  {
+    name: "hide-thinking",
+    // [global] prefix: this setting persists to Pi's global settings.json
+    // (survives restart, shared across workdirs and with Pi). See AGENTS.md.
+    description: "[global] Toggle visibility of assistant thinking blocks",
+    palette: { label: "Toggle Thinking Blocks", scope: "both" },
   },
   {
     name: "session",

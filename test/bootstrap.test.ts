@@ -519,6 +519,28 @@ test("bootstrap stores default UI state under Pi agent and sessions in Pi SDK di
   }
 });
 
+test("bootstrap initializes hideThinkingBlock from Pi settings.json", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-bootstrap-hide-thinking-"));
+  try {
+    const agentDir = join(dir, "agent");
+    await mkdir(agentDir, { recursive: true });
+    await writeFile(
+      join(agentDir, "settings.json"),
+      JSON.stringify({ hideThinkingBlock: true }),
+      "utf8",
+    );
+    const boot = await bootstrapMixCode({
+      workdir: dir,
+      stateDir: join(dir, "state"),
+      agentDir,
+      modelConfigPath: join(dir, "missing.jsonc"),
+    });
+    assert.equal(boot.state.hideThinkingBlock, true);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("bootstrap surfaces invalid persisted state errors", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-bootstrap-invalid-state-"));
   try {

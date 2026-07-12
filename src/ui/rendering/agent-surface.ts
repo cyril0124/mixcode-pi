@@ -86,6 +86,7 @@ interface ConversationCache {
   pendingMessagesLength: number;
   lastPendingMessage: string;
   oversizedPolicyKey: string;
+  hideThinking: boolean;
   chatRef: ChatLine[];
 }
 
@@ -554,6 +555,7 @@ function getCachedConversationLines(
   const toolsExpanded = tab.extensionUi.toolsExpanded ?? false;
   const lastPending = tab.pendingMessages[tab.pendingMessages.length - 1] ?? "";
   const policyKey = oversizedPolicyKey(options.oversizedAssistantMessage);
+  const hideThinking = options.hideThinking ?? false;
 
   const cached = conversationCacheMap.get(tab.sessionId);
   if (
@@ -567,7 +569,8 @@ function getCachedConversationLines(
     cached.toolsExpanded === toolsExpanded &&
     cached.pendingMessagesLength === tab.pendingMessages.length &&
     cached.lastPendingMessage === lastPending &&
-    cached.oversizedPolicyKey === policyKey
+    cached.oversizedPolicyKey === policyKey &&
+    cached.hideThinking === hideThinking
   ) {
     return cached.lines;
   }
@@ -589,6 +592,7 @@ function getCachedConversationLines(
     pendingMessagesLength: tab.pendingMessages.length,
     lastPendingMessage: lastPending,
     oversizedPolicyKey: policyKey,
+    hideThinking,
   });
 
   return lines;

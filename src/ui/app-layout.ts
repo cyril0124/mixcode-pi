@@ -76,6 +76,7 @@ export class MixCodeRoot implements Component {
     if (!viewportRows) {
       const middle = renderAgentSurface(active, runtimeTab, width, undefined, theme, {
         oversizedAssistantMessage: this.oversizedAssistantMessagePolicy(),
+        hideThinking: this.state.hideThinkingBlock ?? false,
       });
       return [...top, ...contentGap, ...middle, ...bottomBeforeMeta];
     }
@@ -115,6 +116,7 @@ export class MixCodeRoot implements Component {
       };
       return renderAgentSurface(active, runtimeTab, width, middleHeight, theme, {
         oversizedAssistantMessage: this.oversizedAssistantMessagePolicy(),
+        hideThinking: this.state.hideThinkingBlock ?? false,
       });
     }
     // Split: chat on the left, widget panel on the right (1-col gap between).
@@ -129,6 +131,7 @@ export class MixCodeRoot implements Component {
     };
     const chat = renderAgentSurface(active, runtimeTab, chatWidth, middleHeight, theme, {
       oversizedAssistantMessage: this.oversizedAssistantMessagePolicy(),
+      hideThinking: this.state.hideThinkingBlock ?? false,
     });
     let panel = renderExtensionPanel(active, panelWidth, middleHeight, theme);
     active.lastRenderedPanelLines = panel;

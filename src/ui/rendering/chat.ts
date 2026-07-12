@@ -47,7 +47,13 @@ export const STREAMING_MARKDOWN_CHAR_LIMIT = 8000;
 export interface RenderChatBlockOptions {
   oversizedAssistantMessage?: OversizedAssistantMessageSettings;
   streamingMarkdownCharLimit?: number;
+  /** When true, thinking blocks collapse to a static placeholder. */
+  hideThinking?: boolean;
 }
+
+// Placeholder shown in place of collapsed thinking content, matching Pi's
+// default hiddenThinkingLabel.
+export const HIDDEN_THINKING_LABEL = "Thinking...";
 
 interface RenderConversationOptions {
   blockOptions?: (line: ChatLine, index: number) => RenderChatBlockOptions | undefined;
@@ -233,6 +239,13 @@ function renderMessageBlockUncached(
   }
   if (line.role === "thinking") {
     if (!text.trim()) return [];
+    // Collapse thinking content to a static placeholder when hidden (Pi parity).
+    if (options.hideThinking) {
+      return renderMarkdown(HIDDEN_THINKING_LABEL, width, {
+        color: activeRenderTheme.thinking,
+        italic: true,
+      });
+    }
     const trimmed = text.trim();
     const oversized = renderOversizedAssistantMessageBlock(
       line.role,
@@ -316,7 +329,10 @@ function chatLineRenderCacheKey(
     if (isOversizedAssistantMessageText(line.text, options.oversizedAssistantMessage)) {
       return undefined;
     }
-    return `${role[0]}${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${oversizedPolicyKey(options)}${KEY_SEP}${line.text}`;
+    // hideThinking flips a thinking block's output to a fixed placeholder, so it
+    // must be part of the key (only relevant for the thinking branch).
+    const hideKey = role === "thinking" && options.hideThinking ? "1" : "0";
+    return `${role[0]}${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${oversizedPolicyKey(options)}${KEY_SEP}${hideKey}${KEY_SEP}${line.text}`;
   }
   const expanded = tab?.extensionUi.toolsExpanded ?? false;
   if (role === "user") {

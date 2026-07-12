@@ -314,6 +314,15 @@ export class MixCodeRuntime {
     return this.tabs.get(sessionId);
   }
 
+  /**
+   * Persist the thinking-block visibility toggle through Pi's native
+   * SettingsManager so it survives restarts (same store /settings uses).
+   * No-op when no settings manager is wired (e.g. faux/test runtimes).
+   */
+  setHideThinkingBlock(hide: boolean): void {
+    this.settingsManager?.setHideThinkingBlock(hide);
+  }
+
   listTabs(): RuntimeTab[] {
     return [...this.tabs.values()].sort((a, b) => a.tab.index - b.tab.index);
   }

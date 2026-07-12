@@ -342,6 +342,14 @@ export interface MixCodeState {
   thinkingLevel: ThinkingLevel;
   theme: string;
   availableModels: MixCodeModelRef[];
+  /**
+   * Non-persisted app-level toggle for thinking-block visibility, mirroring
+   * Pi's `hideThinkingBlock`. When true, thinking content collapses to a
+   * `Thinking...` placeholder across all tabs. Initialized from Pi's
+   * SettingsManager at bootstrap; toggled by /hide-thinking, which also writes
+   * the value back through the runtime so it survives restarts.
+   */
+  hideThinkingBlock?: boolean;
   tabBarHitRow?: number;
   /** Absolute 1-indexed terminal row of the tab bar's first line (multi-row aware). */
   tabBarTopRow?: number;
