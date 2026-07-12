@@ -425,24 +425,31 @@ test("rendering exposes fitting helpers and keymap export text", () => {
     ),
     /↑ older above/,
   );
-  assert.match(
-    renderChat([{ role: "system", text: "multi\nline" }], 20).join("\n"),
-    /\[System\]:[\s\S]*multi[\s\S]*line/,
-  );
-  // Error system messages render the whole body (not just the title) in the
-  // danger color, mirroring Pi's plain red error text.
+  const multilineSystem = renderChat([{ role: "system", text: "multi\nline" }], 20).join("\n");
+  assert.match(multilineSystem, /multi[\s\S]*line/);
+  assert.doesNotMatch(multilineSystem, /\[System\]:/);
+  // Error system messages render the whole body in the danger color,
+  // mirroring Pi's plain red error text.
   {
-    const dangerCode = themeForId("mixcode-dark").danger("X").split("X")[0]!;
+    const theme = themeForId("mixcode-dark");
+    const dangerCode = theme.danger("X").split("X")[0]!;
+    const dimCode = theme.dim("X").split("X")[0]!;
     const errorRendered = renderChat(
       [{ role: "system", text: "Error: 503 Service Unavailable" }],
       60,
     ).join("\n");
-    // The body text must be preceded by the danger foreground code (a background
-    // SGR may be re-applied in between by the system-block background painter).
     assert.match(errorRendered, new RegExp(`${escapeRegExp(dangerCode)}(\\x1b\\[[0-9;]*m)*Error: 503`));
-    // A non-error system message keeps its default (non-danger) body color.
-    const plainRendered = renderChat([{ role: "system", text: "Just a note" }], 60).join("\n");
+    assert.doesNotMatch(errorRendered, /\[System\]:/);
+    assert.equal(errorRendered.includes(theme.systemBackground.start), false);
+    // A non-error system message uses the dim foreground instead of danger.
+    const plainLines = renderChat([{ role: "system", text: "Just a note" }], 60);
+    const plainRendered = plainLines.join("\n");
     assert.doesNotMatch(plainRendered, new RegExp(`${escapeRegExp(dangerCode)}(\\x1b\\[[0-9;]*m)*Just a note`));
+    assert.match(plainRendered, new RegExp(`${escapeRegExp(dimCode)}(\\x1b\\[[0-9;]*m)*Just a note`));
+    assert.doesNotMatch(plainRendered, /\[System\]:/);
+    assert.equal(plainRendered.includes(theme.systemBackground.start), false);
+    const plainTextLines = plainLines.map(stripAnsi);
+    assert.equal(plainTextLines.find((line) => line.includes("Just a note"))?.indexOf("Just a note"), 1);
   }
   const systemMarkdown = stripAnsi(
     renderChat(
@@ -457,7 +464,7 @@ test("rendering exposes fitting helpers and keymap export text", () => {
       60,
     ).join("\n"),
   );
-  assert.match(systemMarkdown, /\[System\]:/);
+  assert.doesNotMatch(systemMarkdown, /\[System\]:/);
   assert.match(systemMarkdown, /Hotkeys/);
   assert.match(systemMarkdown, /│ Key │ Action/);
   assert.match(systemMarkdown, /│ \/\s+│ Slash commands │/);

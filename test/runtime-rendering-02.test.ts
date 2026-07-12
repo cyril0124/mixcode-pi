@@ -219,7 +219,7 @@ test("rendering exposes chat, tool, extension, and agent surface landmarks", () 
   const mixed = [
     { role: "assistant" as const, text: "agent\nreply" },
     { role: "tool" as const, text: "tool output" },
-    { role: "system" as const, text: "" },
+    { role: "system" as const, text: "system notice" },
   ];
   assert.equal(
     stripAnsi(renderInputMeta({ ...tab, currentContextTokens: 10 }, 80).join("\n")).includes(
@@ -257,7 +257,8 @@ test("rendering exposes chat, tool, extension, and agent surface landmarks", () 
   assert.equal(multilineUserChat.includes("›"), false);
   assert.match(renderChat(mixed, 80).join("\n"), /agent/);
   assert.match(renderChat(mixed, 80).join("\n"), /tool/);
-  assert.match(renderChat(mixed, 80).join("\n"), /\[System\]:/);
+  assert.match(renderChat(mixed, 80).join("\n"), /system notice/);
+  assert.doesNotMatch(renderChat(mixed, 80).join("\n"), /\[System\]:/);
   assert.equal(renderChat([{ role: "thinking", text: "" }], 80).join("\n"), "");
   const toolDefaults = renderChat(
     [

@@ -507,25 +507,19 @@ function renderSystemBlock(text: string, width: number, variant?: string): strin
   const body = text.trim() ? text.trim() : " ";
   const isError = variant === "system-error" || text.startsWith("Error:");
   if (isError) {
-    // Error system messages render entirely in the danger color (title + body),
+    // Error system messages render entirely in the danger color,
     // mirroring Pi's plain red error text instead of a markdown-rendered body.
-    const title = activeRenderTheme.danger(activeRenderTheme.bold("[System]:"));
     const bodyLines = wrapPlainLine(body, Math.max(1, width - 1)).map(
       (part) => ` ${activeRenderTheme.danger(part)}`,
     );
-    const lines = ["", ` ${title}`, ...bodyLines, ""];
-    return lines.map((part) =>
-      renderBackgroundLine(part, width, activeRenderTheme.systemBackground),
-    );
+    return ["", ...bodyLines, ""].map((part) => padLine(part, width));
   }
-  const title = activeRenderTheme.accent(activeRenderTheme.bold("[System]:"));
   const lines = [
     "",
-    ` ${title}`,
-    ...renderMarkdown(body, Math.max(1, width - 1)).map((line) => ` ${line}`),
+    ...renderMarkdown(body, Math.max(1, width - 1), { color: activeRenderTheme.dim }),
     "",
   ];
-  return lines.map((part) => renderBackgroundLine(part, width, activeRenderTheme.systemBackground));
+  return lines.map((part) => padLine(part, width));
 }
 
 function renderBranchSummaryBlock(
