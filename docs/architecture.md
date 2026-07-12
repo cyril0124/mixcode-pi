@@ -57,9 +57,9 @@ src/
 用户输入
   │
   ├─ 普通 prompt
-  │    └─ buildModelPrompt()
-  │        ├─ 用户文本
-  │        ├─ $skill 引用（原样透传，由 mpi-skill-refs 扩展在 Pi 原生管线中展开）
+  │    └─ 原样透传给 Pi AgentSession.prompt()
+  │        ├─ $skill 引用（由 mpi-skill-refs 扩展在 Pi 原生管线中展开）
+  │        ├─ /skill: 与 prompt 模板（由 Pi 原生 _expandSkillCommand / expandPromptTemplate 展开）
   │        ├─ @file 引用
   │        └─ 不注入 AGENTS.md；项目上下文进入 system prompt
   │

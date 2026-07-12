@@ -7,9 +7,7 @@ import {
   openTabJump,
   scrollChat,
 } from "../core/overlays.js";
-import { buildModelPrompt } from "../core/prompt-build.js";
 import { pushToast } from "../core/toast.js";
-import { getKnownSkillsFromTab, getPromptTemplatesFromTab } from "./agent-tab-actions.js";
 import { activateTab, getActiveTab, nextTabId } from "../core/tabs.js";
 import type { MixCodeState } from "../core/types.js";
 import { clearPendingEscape, openCloseAllSessionsConfirm, openDeleteAllSessionsConfirm, openQuitConfirm } from "./app-actions.js";
@@ -151,15 +149,13 @@ export function handleMixCodeKeyInput(
           const text = editorActions.getText().trim();
           editorActions.setText("");
           if (text && runtime?.prompt) {
-            const knownSkills = getKnownSkillsFromTab(runtime, target.sessionId);
-            const promptTemplates = getPromptTemplatesFromTab(runtime, target.sessionId);
-            void buildModelPrompt(text, target.workdir, { knownSkills, promptTemplates })
-              .then((built) => runtime.prompt!(target.sessionId, built))
-              .catch((error: unknown) => {
-                editorActions.setText(text);
-                showErrorOverlay(tui, error);
-                tui.requestRender();
-              });
+            // Forward raw text to Pi; AgentSession.prompt() owns skill/template
+            // expansion so extension input handlers see the original input.
+            void runtime.prompt(target.sessionId, text).catch((error: unknown) => {
+              editorActions.setText(text);
+              showErrorOverlay(tui, error);
+              tui.requestRender();
+            });
           }
           tui.requestRender();
           return { consume: true };

@@ -3,9 +3,6 @@ import type { MixCodeRuntime } from "../agent/runtime.js";
 import { disposeChatRenderers } from "../agent/runtime-chat.js";
 import { LOCAL_COMMANDS, parseInput, type ParsedInput } from "../core/commands.js";
 import { createSessionId, createTab } from "../core/defaults.js";
-import { buildModelPrompt } from "../core/prompt-build.js";
-import type { PromptTemplate } from "../core/prompt-templates.js";
-import type { KnownSkill } from "../core/skill-command.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import { activateTab, closeAgentTab } from "../core/tabs.js";
 import type { MixCodeModel, MixCodeModelRef, MixCodeState, MixCodeTabInfo } from "../core/types.js";
@@ -155,13 +152,11 @@ export async function submitAgentInput(
   parsed: ParsedInput = parseInput(text),
 ): Promise<boolean> {
   if (parsed.kind === "prompt") {
-    await runtime.prompt(
-      tab.sessionId,
-      await buildModelPrompt(parsed.args, tab.workdir, {
-        knownSkills: getKnownSkillsFromTab(runtime, tab.sessionId),
-        promptTemplates: getPromptTemplatesFromTab(runtime, tab.sessionId),
-      }),
-    );
+    // Pass the raw user text to Pi. AgentSession.prompt() owns the native
+    // pipeline order: extension commands -> input event -> skill/template
+    // expansion. Pre-expanding here would hide the original text from
+    // extension input handlers and skip Pi's template syntax (e.g. ${N:-default}).
+    await runtime.prompt(tab.sessionId, parsed.args);
     return true;
   }
   if (parsed.kind === "shell") {
@@ -177,18 +172,15 @@ export async function submitAgentInput(
   // Local command names are reserved by MixCode even when an extension declares
   // the same name; only unknown slash commands enter extension/template lookup.
   const commandText = `/${parsed.command} ${parsed.args}`.trim();
-  if (isExtensionCommand(runtime, tab.sessionId, parsed.command)) {
+  // Both extension commands and prompt templates are handled by Pi's native
+  // prompt pipeline; forward the raw command text and let AgentSession.prompt()
+  // dispatch and expand it. Unknown slash commands still fall through (return
+  // false) so MixCode does not silently send them to the model.
+  if (
+    isExtensionCommand(runtime, tab.sessionId, parsed.command) ||
+    isPromptTemplate(runtime, tab.sessionId, parsed.command)
+  ) {
     await runtime.prompt(tab.sessionId, commandText);
-    return true;
-  }
-  if (isPromptTemplate(runtime, tab.sessionId, parsed.command)) {
-    await runtime.prompt(
-      tab.sessionId,
-      await buildModelPrompt(commandText, tab.workdir, {
-        knownSkills: getKnownSkillsFromTab(runtime, tab.sessionId),
-        promptTemplates: getPromptTemplatesFromTab(runtime, tab.sessionId),
-      }),
-    );
     return true;
   }
   return false;
@@ -213,35 +205,4 @@ function isPromptTemplate(
       .getPrompts()
       .prompts.some((prompt) => prompt.name === command) ?? false
   );
-}
-
-export function getKnownSkillsFromTab(
-  runtime: { getTab?: (sessionId: string) => ReturnType<MixCodeRuntime["getTab"]> },
-  sessionId: string,
-): KnownSkill[] | undefined {
-  const runtimeTab = runtime.getTab?.(sessionId);
-  if (!runtimeTab?.services?.resourceLoader) return undefined;
-  return runtimeTab.services.resourceLoader.getSkills().skills.map((skill) => ({
-    name: skill.name,
-    filePath: skill.filePath,
-    baseDir: skill.baseDir,
-  }));
-}
-
-export function getPromptTemplatesFromTab(
-  runtime: { getTab?: (sessionId: string) => ReturnType<MixCodeRuntime["getTab"]> },
-  sessionId: string,
-): PromptTemplate[] | undefined {
-  const runtimeTab = runtime.getTab?.(sessionId);
-  if (!runtimeTab?.services?.resourceLoader) return undefined;
-  return runtimeTab.services.resourceLoader.getPrompts().prompts.map((prompt) => ({
-    name: prompt.name,
-    description: prompt.description,
-    argumentHint: prompt.argumentHint,
-    content: prompt.content,
-    filePath: prompt.filePath,
-    sourceInfo: prompt.sourceInfo
-      ? { scope: prompt.sourceInfo.scope, source: prompt.sourceInfo.source }
-      : undefined,
-  }));
 }

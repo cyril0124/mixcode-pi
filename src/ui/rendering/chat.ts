@@ -12,7 +12,8 @@ import { padLine, renderBackgroundLine, sanitizeTerminalText } from "./primitive
 
 /**
  * Parsed skill block from a user message.
- * Matches the format produced by expandSkillCommand:
+ * Matches the format produced by Pi's native skill expansion
+ * (AgentSession._expandSkillCommand):
  * `<skill name="..." location="...">\n...\n</skill>[\n\nuserMessage]`
  */
 interface ParsedSkillBlock {

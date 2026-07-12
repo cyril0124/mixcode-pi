@@ -40,28 +40,6 @@ async function maybeSkillFile(path: string): Promise<string | undefined> {
   }
 }
 
-export async function resolveSkillFile(
-  name: string,
-  baseWorkdir: string,
-  homeDir = homedir(),
-): Promise<string> {
-  for (const dir of resolveSkillDirs(baseWorkdir, homeDir)) {
-    const flat = await maybeSkillFile(join(dir, name, "SKILL.md"));
-    if (flat) return flat;
-    let entries: string[] = [];
-    try {
-      entries = await readdir(dir);
-    } catch {
-      continue;
-    }
-    for (const entry of entries) {
-      const nested = await maybeSkillFile(join(dir, entry, name, "SKILL.md"));
-      if (nested) return nested;
-    }
-  }
-  throw new SkillError(`Unknown skill: ${name}`);
-}
-
 export function parseSkillDescription(content: string): string {
   const normalized = normalizeNewlines(content);
   const { frontmatter, body } = parseFrontmatter(normalized);
