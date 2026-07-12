@@ -215,7 +215,7 @@ async function createRuntimeTabWithServices(
   runtimeTabRef.current = runtimeTab;
   try {
     activateMixCodeTools(agentSession, extensionToolOwnerPolicy);
-    applyMixCodeSystemPrompt(runtimeTabPromptOptions(services, config.workdir), agentSession);
+    applyMixCodeSystemPrompt(services, config.workdir, agentSession);
     installMidTurnCompactionHook(agentSession, tab, runtimeTabRef);
     const restoredChat = await rebuildRuntimeChat(runtimeTab);
     if (tab.previewMessages.length === 0) {
@@ -224,7 +224,7 @@ async function createRuntimeTabWithServices(
     runtimeTab.chat = restoredChat;
     await bindRuntimeExtensions(runtimeTab, context);
     activateMixCodeTools(agentSession, extensionToolOwnerPolicy);
-    applyMixCodeSystemPrompt(runtimeTabPromptOptions(services, config.workdir), agentSession);
+    applyMixCodeSystemPrompt(services, config.workdir, agentSession);
     refreshStartupHeader(runtimeTab);
     syncContextUsage(runtimeTab);
     subscribeRuntimeTab(runtimeTab, context);
@@ -332,7 +332,7 @@ async function createAgentSessionForReplacementWithServices(
   });
   const extensionToolOwnerPolicy = resolveExtensionToolOwnerPolicy(context);
   activateMixCodeTools(result.session, extensionToolOwnerPolicy);
-  applyMixCodeSystemPrompt(runtimeTabPromptOptions(services, config.workdir), result.session);
+  applyMixCodeSystemPrompt(services, config.workdir, result.session);
   return { ...result, services, toolLog };
 }
 
@@ -420,7 +420,7 @@ export async function replaceRuntimeTabSession(
   // Repopulate preview after identity-switch reset cleared previewMessages
   syncPreviewFromChat(runtimeTab.tab, runtimeTab.chat);
   activateMixCodeTools(created.session, runtimeTab.extensionToolOwnerPolicy);
-  applyMixCodeSystemPrompt(runtimeTabPromptOptions(created.services, runtimeTab.tab.workdir), created.session);
+  applyMixCodeSystemPrompt(created.services, runtimeTab.tab.workdir, created.session);
   applyRuntimeTabModel(runtimeTab, created.session.agent.state.model);
   runtimeTab.tab.thinkingLevel = created.session.agent.state.thinkingLevel;
   refreshStartupHeader(runtimeTab);
@@ -550,19 +550,60 @@ function displayResourcePath(path: string): string {
   return home && path.startsWith(`${home}/`) ? `~/${path.slice(home.length + 1)}` : path;
 }
 
+/**
+ * Route Pi's own system-prompt rebuilds through MixCode's builder.
+ *
+ * Pi rebuilds the base system prompt via AgentSession._rebuildSystemPrompt on
+ * construction, on setActiveToolsByName (which extensions can trigger at runtime
+ * through pi.setActiveTools), and on reload. Without this override those rebuilds
+ * replace MixCode's prompt (history recall, search guidelines, MixCode project-
+ * context format) with Pi's default builder output. Overriding the method keeps
+ * MixCode's builder authoritative across every rebuild path, and passing the
+ * rebuild's own toolNames captures each tool's promptSnippet and promptGuidelines.
+ */
+function installMixCodeSystemPromptBuilder(
+  agentSession: RuntimeTab["agentSession"],
+  services: AgentSessionServices,
+  cwd: string,
+): void {
+  const writableSession = agentSession as unknown as {
+    _rebuildSystemPrompt?: (toolNames: string[]) => string;
+    _baseSystemPromptOptions?: ReturnType<typeof buildMixCodeSystemPromptOptionsFromSession>;
+  };
+  if (typeof writableSession._rebuildSystemPrompt !== "function") {
+    throw new Error(
+      "Pi AgentSession._rebuildSystemPrompt internals changed; MixCode cannot own system prompt assembly.",
+    );
+  }
+  writableSession._rebuildSystemPrompt = (toolNames: string[]) => {
+    const options = buildMixCodeSystemPromptOptionsFromSession(
+      {
+        getActiveToolNames: () => toolNames,
+        getToolDefinition: (name) => agentSession.getToolDefinition(name),
+      },
+      runtimeTabPromptOptions(services, cwd),
+    );
+    // Pi reads _baseSystemPromptOptions in before_agent_start; keep it in sync.
+    writableSession._baseSystemPromptOptions = options;
+    return buildMixCodeSystemPromptFromParts(options);
+  };
+}
+
 function applyMixCodeSystemPrompt(
-  baseOptions: ReturnType<typeof runtimeTabPromptOptions>,
+  services: AgentSessionServices,
+  cwd: string,
   agentSession: RuntimeTab["agentSession"],
 ): void {
-  const options = buildMixCodeSystemPromptOptionsFromSession(agentSession, baseOptions);
-  const prompt = buildMixCodeSystemPromptFromParts(options);
+  installMixCodeSystemPromptBuilder(agentSession, services, cwd);
   const writableSession = agentSession as unknown as {
+    _rebuildSystemPrompt: (toolNames: string[]) => string;
     _baseSystemPrompt?: string;
-    _baseSystemPromptOptions?: typeof options;
+    _systemPromptOverride?: string;
   };
+  const prompt = writableSession._rebuildSystemPrompt(agentSession.getActiveToolNames());
   writableSession._baseSystemPrompt = prompt;
-  writableSession._baseSystemPromptOptions = options;
-  agentSession.agent.state.systemPrompt = prompt;
+  // Respect an active extension system-prompt override, matching Pi semantics.
+  agentSession.agent.state.systemPrompt = writableSession._systemPromptOverride ?? prompt;
 }
 
 export async function bindRuntimeExtensions(
@@ -590,7 +631,8 @@ export async function bindRuntimeExtensions(
     },
   });
   applyMixCodeSystemPrompt(
-    runtimeTabPromptOptions(runtimeTab.services, runtimeTab.tab.workdir),
+    runtimeTab.services,
+    runtimeTab.tab.workdir,
     runtimeTab.agentSession,
   );
 }
@@ -639,7 +681,7 @@ export async function reloadRuntimeTabWithFreshServices(
   syncPreviewFromChat(runtimeTab.tab, runtimeTab.chat);
   await bindRuntimeExtensions(runtimeTab, context);
   activateMixCodeTools(agentSession, runtimeTab.extensionToolOwnerPolicy);
-  applyMixCodeSystemPrompt(runtimeTabPromptOptions(services, runtimeTab.tab.workdir), agentSession);
+  applyMixCodeSystemPrompt(services, runtimeTab.tab.workdir, agentSession);
   // Pi refreshes the same loadedResourcesContainer on session_start and /reload;
   // the tab-level header is the MixCode analogue, so recompute it here too.
   refreshStartupHeader(runtimeTab);

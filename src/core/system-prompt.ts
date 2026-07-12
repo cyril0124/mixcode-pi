@@ -188,17 +188,25 @@ export function buildMixCodeSystemPromptOptionsFromSession(
 ): MixCodeSystemPromptPartsOptions {
   const selectedTools = session.getActiveToolNames();
   const toolSnippets: Record<string, string> = {};
+  // Collect per-tool guidelines alongside snippets. Pi's own _rebuildSystemPrompt
+  // feeds both builtin (read/edit/write) and extension tool promptGuidelines into
+  // the prompt; dropping them here would silently lose those usage constraints.
+  const promptGuidelines: string[] = [];
   for (const name of selectedTools) {
     const definition = session.getToolDefinition(name);
     const snippet = normalizePromptSnippet(definition?.promptSnippet);
     if (snippet) {
       toolSnippets[name] = snippet;
     }
+    for (const guideline of definition?.promptGuidelines ?? []) {
+      promptGuidelines.push(guideline);
+    }
   }
   return {
     ...base,
     selectedTools,
     toolSnippets,
+    promptGuidelines,
   };
 }
 
