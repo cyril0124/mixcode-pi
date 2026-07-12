@@ -128,6 +128,35 @@ test("second instance syncs another instance's appended conversation", async () 
   }
 });
 
+test("reload status survives the local session writes performed by reload", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-sync-reload-status-"));
+  const sessionsRoot = join(dir, "sessions");
+  const runtime = new MixCodeRuntime({ sessionsRoot });
+  try {
+    await runtime.createTab(createTab(1, "s1", dir), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: dir,
+      model: MIXCODE_FAUX_MODEL,
+    });
+    runtime.enableSessionSync();
+    await runtime.prompt("s1", "create persisted conversation");
+    await waitFor(() => runtime.getTab("s1")?.agentSession.isStreaming === false);
+
+    // Matches the /reload command order: rebuild Pi resources, reconcile the
+    // active model (both persist metadata), then append the transient status.
+    await runtime.extensionReload("s1");
+    await runtime.updateTabModel("s1", MIXCODE_FAUX_MODEL);
+    runtime.appendSystemMessage("s1", "Reloaded keybindings, extensions, skills, prompts, and themes");
+
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    assert.match(chatText(runtime, "s1"), /Reloaded keybindings/);
+  } finally {
+    await runtime.closeAllTabs();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 // With sync enabled, a session that is already turn-locked by another live
 // holder cannot be prompted: the write is rejected instead of corrupting the
 // shared JSONL, and the user's text is preserved by the caller (dispatch

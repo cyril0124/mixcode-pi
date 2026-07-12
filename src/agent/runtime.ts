@@ -942,7 +942,12 @@ export class MixCodeRuntime {
     if (runtimeTab.agentSession.isCompacting) {
       throw new Error("Cannot reload extensions while compaction is running");
     }
-    await reloadRuntimeTabWithFreshServices(runtimeTab, this.lifecycleContext());
+    try {
+      await reloadRuntimeTabWithFreshServices(runtimeTab, this.lifecycleContext());
+    } finally {
+      // Session reconstruction persists metadata; suppress its watcher echo.
+      this.sync.markLocalWrite(sessionId);
+    }
   }
 
   /**
@@ -1101,13 +1106,17 @@ export class MixCodeRuntime {
     if (runtimeTab.agentSession.isStreaming) {
       throw new Error("Cannot change model while the agent is streaming");
     }
-    // Use agentSession.setModel() to trigger model_select event and persist to session
-    await runtimeTab.agentSession.setModel(model);
-    // Sync local state after SDK updates its own state
-    runtimeTab.agent.state.model = model;
-    applyRuntimeTabModel(runtimeTab, model);
-    // Sync thinking level after Pi clamps it to new model's capability
-    runtimeTab.tab.thinkingLevel = runtimeTab.agentSession.thinkingLevel;
+    try {
+      // Use agentSession.setModel() to trigger model_select event and persist to session
+      await runtimeTab.agentSession.setModel(model);
+      // Sync local state after SDK updates its own state
+      runtimeTab.agent.state.model = model;
+      applyRuntimeTabModel(runtimeTab, model);
+      // Sync thinking level after Pi clamps it to new model's capability
+      runtimeTab.tab.thinkingLevel = runtimeTab.agentSession.thinkingLevel;
+    } finally {
+      this.sync.markLocalWrite(sessionId);
+    }
   }
 
   updateTabThinkingLevel(sessionId: string, level: ThinkingLevel): ThinkingLevel {
