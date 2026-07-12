@@ -41,6 +41,9 @@ import {
   syncPreviewFromChat,
 } from "./runtime-chat.js";
 import { applyEvent } from "./runtime-events.js";
+import { reloadRuntimeSessionFromDisk } from "./runtime-session-reload.js";
+import { RuntimeSyncManager } from "./runtime-sync.js";
+import type { SessionLockHandle } from "../core/session-lock.js";
 import {
   extensionNewRuntimeSession,
   forkRuntimeSession,
@@ -180,6 +183,7 @@ export class MixCodeRuntime {
   private extensionManagerConfig: ExtensionManagerConfig = defaultExtensionManagerConfig();
   private extensionUiHost?: ExtensionCustomUiHost;
   private shellExecutionSequence = 0;
+  private readonly sync: RuntimeSyncManager;
 
   private lifecycleContext(): RuntimeLifecycleContext {
     return {
@@ -243,6 +247,29 @@ export class MixCodeRuntime {
     this.extensionManagerStore = options.extensionManagerStore;
     this.getApiKey = options.getApiKey;
     this.streamFn = options.streamFn;
+    this.sync = new RuntimeSyncManager(
+      this.sessionsRoot,
+      (sessionId) => this.syncSessionFromDisk(sessionId),
+      (error) => this.reportSyncError(error),
+    );
+  }
+
+  /**
+   * Enable cross-process session sync: watch this sessionsRoot for external
+   * appends and serialize this instance's session writes with a turn lock.
+   * Opt-in (the CLI calls it at startup) so batch/test runtimes that share a
+   * sessionsRoot do not watch files or contend on locks.
+   */
+  enableSessionSync(): void {
+    this.sync.enable();
+    for (const runtimeTab of this.tabs.values()) this.sync.register(runtimeTab);
+  }
+
+  private reportSyncError(error: unknown): void {
+    const message = error instanceof Error ? error.message : String(error);
+    // Surface explicitly (never silently disable sync): the console bridge
+    // renders this as a dismissible TUI notice.
+    process.stderr.write(`mixcode-pi session sync error: ${message}\n`);
   }
 
   async loadExtensionManagerConfig(): Promise<void> {
@@ -258,7 +285,14 @@ export class MixCodeRuntime {
     },
   ): Promise<RuntimeTab> {
     const session = await this.openOrCreateSession(tab.sessionId, config.workdir);
-    return createRuntimeTabWithFallback(tab, session, config, this.lifecycleContext());
+    const runtimeTab = await createRuntimeTabWithFallback(
+      tab,
+      session,
+      config,
+      this.lifecycleContext(),
+    );
+    this.sync.register(runtimeTab);
+    return runtimeTab;
   }
 
   async clearTab(
@@ -296,7 +330,7 @@ export class MixCodeRuntime {
     await services.resourceLoader.reload();
     this.tabs.delete(sessionId);
     resetTabForNewSession(runtimeTab.tab, newSession.getSessionId());
-    return createRuntimeTabWithFallback(
+    const cleared = await createRuntimeTabWithFallback(
       runtimeTab.tab,
       newSession,
       {
@@ -308,6 +342,10 @@ export class MixCodeRuntime {
       },
       this.lifecycleContext(),
     );
+    // /clear swaps to a fresh child session file: retrack under the new file.
+    this.sync.unregister(sessionId);
+    this.sync.register(cleared);
+    return cleared;
   }
 
   getTab(sessionId: string): RuntimeTab | undefined {
@@ -376,6 +414,7 @@ export class MixCodeRuntime {
   beginShutdown(): void {
     this.isShuttingDown = true;
     this.changeListeners.clear();
+    this.sync.dispose();
   }
 
   getExtensionCommands(sessionId: string) {
@@ -535,6 +574,8 @@ export class MixCodeRuntime {
     if (!trimmed) return;
     await dispatchTurn(runtimeTab, async (signalRegistered) => {
       if (runtimeTab.agentSession.isStreaming) {
+        // Already streaming: this instance owns the turn (and its lock); steering
+        // just appends to the in-flight run.
         await runtimeTab.agentSession.prompt(trimmed, {
           streamingBehavior: "steer",
           preflightResult: signalRegistered,
@@ -547,7 +588,16 @@ export class MixCodeRuntime {
       if (runtimeTab.agentSession.isCompacting) {
         throw new Error("Cannot prompt while compaction is running");
       }
-      await runtimeTab.agentSession.prompt(text, { preflightResult: signalRegistered });
+      // Claim the cross-process turn lock, then branch off the latest on-disk
+      // state so this turn is a child of any messages another instance wrote.
+      const lock = this.sync.acquire(sessionId);
+      try {
+        if (lock) reloadRuntimeSessionFromDisk(runtimeTab);
+        await runtimeTab.agentSession.prompt(text, { preflightResult: signalRegistered });
+      } finally {
+        this.sync.markLocalWrite(sessionId);
+        this.sync.release(sessionId, lock);
+      }
     });
   }
 
@@ -562,6 +612,14 @@ export class MixCodeRuntime {
     if (runtimeTab.agentSession.isBashRunning) {
       throw new Error("Cannot run a shell command while another bash command is running");
     }
+    // A standalone (idle) shell run records a bashExecution entry to the
+    // session JSONL, so it must take the cross-process turn lock like a prompt.
+    // While the agent is streaming, this instance already owns the turn lock
+    // and the bash result is queued + flushed inside that turn, so re-acquiring
+    // here would self-conflict. Acquire before any tab-state mutation so a
+    // conflict throws cleanly, leaving the tab untouched.
+    const lock = runtimeTab.agentSession.isStreaming ? undefined : this.sync.acquire(sessionId);
+    if (lock) reloadRuntimeSessionFromDisk(runtimeTab);
     // A streaming run owns the tab status/timer; the shell only drives them
     // when the agent is idle (fresh stamp for a standalone shell execution).
     if (!runtimeTab.agentSession.isStreaming) {
@@ -651,6 +709,12 @@ export class MixCodeRuntime {
       }
       this.emitChange({ type: "extension_ui_update" }, runtimeTab);
       throw error;
+    } finally {
+      // Only meaningful when this call acquired the lock (standalone idle bash).
+      if (lock) {
+        this.sync.markLocalWrite(sessionId);
+        this.sync.release(sessionId, lock);
+      }
     }
   }
 
@@ -751,7 +815,18 @@ export class MixCodeRuntime {
 
   async flushPendingMessage(sessionId: string, count?: number): Promise<void> {
     const runtimeTab = this.requireTab(sessionId);
-    await flushRuntimePendingMessage(runtimeTab, count);
+    // The queued-message auto-resend is a fresh turn (the prior turn already
+    // released its lock at agent_end), so it re-acquires the cross-process turn
+    // lock. On conflict flushRuntimePendingMessage re-queues the text, so the
+    // user's input is preserved.
+    const lock = this.sync.acquire(sessionId);
+    try {
+      if (lock) reloadRuntimeSessionFromDisk(runtimeTab);
+      await flushRuntimePendingMessage(runtimeTab, count);
+    } finally {
+      this.sync.markLocalWrite(sessionId);
+      this.sync.release(sessionId, lock);
+    }
   }
 
   private schedulePendingMessageFlush(sessionId: string, agentSession: AgentSession): void {
@@ -907,6 +982,7 @@ export class MixCodeRuntime {
       throw new Error("Cannot close a session while compaction is running");
     }
     await this.shutdownRuntimeTab(runtimeTab, { type: "session_shutdown", reason: "quit" });
+    this.sync.unregister(sessionId);
     this.tabs.delete(sessionId);
   }
 
@@ -923,6 +999,7 @@ export class MixCodeRuntime {
     );
     for (const [index, result] of closeResults.entries()) {
       if (result.status === "fulfilled") {
+        this.sync.unregister(entries[index]![0]);
         this.tabs.delete(entries[index]![0]);
         continue;
       }
@@ -930,6 +1007,7 @@ export class MixCodeRuntime {
         const [sessionId, runtimeTab] = entries[remainingIndex]!;
         if (!this.tabs.has(sessionId)) continue;
         disposeRuntimeTabAfterShutdown(runtimeTab, this.extensionUiHost);
+        this.sync.unregister(sessionId);
         this.tabs.delete(sessionId);
       }
       throw result.reason;
@@ -947,6 +1025,7 @@ export class MixCodeRuntime {
     await this.shutdownRuntimeTab(runtimeTab, { type: "session_shutdown", reason: "quit" });
     const file = runtimeTab.session.getSessionFile();
     if (file) await rm(file, { force: true });
+    this.sync.unregister(sessionId);
     this.tabs.delete(sessionId);
   }
 
@@ -974,6 +1053,9 @@ export class MixCodeRuntime {
     setTabStatus(runtimeTab.tab, "running", { restart: true });
     clearPendingEscape(runtimeTab.tab);
     this.emitChange({ type: "extension_ui_update" }, runtimeTab);
+    // Compaction rewrites the branch, so it must hold the cross-process turn
+    // lock just like a prompt does.
+    const lock = this.sync.acquire(sessionId);
     try {
       // compact() emits compaction_end which triggers applyEvent to rebuild chat
       await runtimeTab.agentSession.compact(customInstructions);
@@ -998,6 +1080,9 @@ export class MixCodeRuntime {
       }
       this.emitChange({ type: "extension_ui_update" }, runtimeTab);
       throw error;
+    } finally {
+      this.sync.markLocalWrite(sessionId);
+      this.sync.release(sessionId, lock);
     }
   }
 
@@ -1078,6 +1163,8 @@ export class MixCodeRuntime {
     await this.bindExtensions(runtimeTab);
     // After extensions are bound: tool owners and diagnostics are final.
     refreshStartupHeader(runtimeTab);
+    // Workdir change reopens the session (possibly a new file path): retrack it.
+    this.sync.register(runtimeTab);
   }
 
   private async shutdownRuntimeTab(
@@ -1104,11 +1191,40 @@ export class MixCodeRuntime {
     sessionManager: SessionManager,
     reason: SessionReplacementReason,
   ): Promise<RuntimeTab> {
-    return replaceRuntimeTabSession(runtimeTab, sessionManager, reason, this.lifecycleContext());
+    const previousSessionId = runtimeTab.tab.sessionId;
+    const replaced = await replaceRuntimeTabSession(
+      runtimeTab,
+      sessionManager,
+      reason,
+      this.lifecycleContext(),
+    );
+    // new/resume/fork swap the tab to a different session id + file: retrack.
+    this.sync.unregister(previousSessionId);
+    this.sync.register(replaced);
+    return replaced;
   }
 
   private async syncChatFromSession(runtimeTab: RuntimeTab): Promise<void> {
     await syncRuntimeChatFromSession(runtimeTab);
+  }
+
+  /** The directory holding this runtime's session JSONL files (and .locks). */
+  getSessionsRoot(): string {
+    return this.sessionsRoot;
+  }
+
+  /**
+   * Reload a tab's session from disk to pick up appends made by another
+   * mixcode-pi instance sharing this sessionsRoot, then notify listeners so the
+   * TUI re-renders. No-op (returns false) while the local agent is streaming or
+   * compacting, or when the tab is unknown.
+   */
+  syncSessionFromDisk(sessionId: string): boolean {
+    const runtimeTab = this.tabs.get(sessionId);
+    if (!runtimeTab) return false;
+    const result = reloadRuntimeSessionFromDisk(runtimeTab);
+    if (result.reloaded) this.emitChange({ type: "extension_ui_update" }, runtimeTab);
+    return result.reloaded;
   }
 
   private resolveModelFromSession(

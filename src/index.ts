@@ -1,5 +1,7 @@
 export * from "./agent/faux-stream.js";
 export * from "./agent/runtime.js";
+export * from "./agent/runtime-session-reload.js";
+export * from "./agent/session-sync-coordinator.js";
 export * from "./cli/bootstrap.js";
 export * from "./core/attachments.js";
 export * from "./core/batch-lua.js";
@@ -26,6 +28,7 @@ export * from "./core/package-updates.js";
 export * from "./core/pi-models.js";
 export * from "./core/pickers.js";
 export * from "./core/dialogs.js";
+export * from "./core/session-lock.js";
 export * from "./core/session-selector.js";
 export * from "./core/state-store.js";
 export * from "./core/status.js";

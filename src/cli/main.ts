@@ -151,6 +151,10 @@ export async function main(): Promise<void> {
   runtime.onChange(() => {
     void writeRegistrySnapshot();
   });
+  // Enable cross-process session sync for the interactive TUI: watch this
+  // workdir's sessionsRoot for appends by other instances and serialize this
+  // instance's session writes with a turn lock. (Batch runs never reach here.)
+  runtime.enableSessionSync();
   tui.start();
   // Registry cleanup and initial snapshot are deferred to after the first frame.
   // They are cheap on their own (~10ms), but their `await` yields the event loop
