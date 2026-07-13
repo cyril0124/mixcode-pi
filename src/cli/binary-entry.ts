@@ -29,6 +29,9 @@ import chatViewIndex from "../../pi-packages/mpi-chat-view/index.ts" with { type
 import chatViewPackageJson from "../../pi-packages/mpi-chat-view/package.json" with { type: "text" };
 import bashDefaultTimeoutIndex from "../../pi-packages/mpi-bash-default-timeout/index.ts" with { type: "text" };
 import bashDefaultTimeoutPackageJson from "../../pi-packages/mpi-bash-default-timeout/package.json" with { type: "text" };
+import loopIndex from "../../pi-packages/mpi-loop/index.ts" with { type: "text" };
+import loopManagementView from "../../pi-packages/mpi-loop/loop-management-view.ts" with { type: "text" };
+import loopPackageJson from "../../pi-packages/mpi-loop/package.json" with { type: "text" };
 import rpivTodo_config_ts from "../../pi-packages/rpiv-todo/config.ts" with { type: "text" };
 import rpivTodo_index_ts from "../../pi-packages/rpiv-todo/index.ts" with { type: "text" };
 import rpivTodo_locales_de_json from "../../pi-packages/rpiv-todo/locales/de.json" with { type: "text" };
@@ -129,6 +132,11 @@ materializeBinaryRuntimeAssets(runtimeDir, {
     "mpi-bash-default-timeout": {
       "index.ts": bashDefaultTimeoutIndex,
       "package.json": bashDefaultTimeoutPackageJson,
+    },
+    "mpi-loop": {
+      "index.ts": loopIndex,
+      "loop-management-view.ts": loopManagementView,
+      "package.json": loopPackageJson,
     },
     "rpiv-todo": {
       "config.ts": rpivTodo_config_ts,

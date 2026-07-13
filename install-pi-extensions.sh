@@ -29,7 +29,6 @@ extensions=(
 
   # Goal & workflow
   npm:pi-goals
-  npm:pi-mono-loop
   npm:pi-schedule-prompt
 
   # Agent capabilities

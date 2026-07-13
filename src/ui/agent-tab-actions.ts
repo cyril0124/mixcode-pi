@@ -171,7 +171,7 @@ export async function submitAgentInput(
   if (!parsed.command || LOCAL_COMMAND_NAMES.has(parsed.command)) return false;
   // Local command names are reserved by MixCode even when an extension declares
   // the same name; only unknown slash commands enter extension/template lookup.
-  const commandText = `/${parsed.command} ${parsed.args}`.trim();
+  const commandText = text.trimStart();
   // Both extension commands and prompt templates are handled by Pi's native
   // prompt pipeline; forward the raw command text and let AgentSession.prompt()
   // dispatch and expand it. Unknown slash commands still fall through (return
