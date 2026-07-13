@@ -514,8 +514,8 @@ export default function (pi: ExtensionAPI) {
       pi.events.emit("loop:change", {});
       if (widget) widget.show(ctx);
 
-      // Run the prompt immediately on first invocation
-      firePrompt(prompt);
+      // Immediate first run goes through sendPrompt so RUNS / nextRunAt stay in sync.
+      sendPrompt();
     },
   });
 }
