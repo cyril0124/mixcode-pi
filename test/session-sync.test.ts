@@ -453,3 +453,97 @@ test("sending a new message after retract keeps only the new message", async () 
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+// compactSession must reload after taking the turn lock, same as prompt().
+// Without that, B can compact a stale leaf and orphan A's newer turn as a
+// sibling of the compaction entry (multi-instance history loss).
+test("compactSession reloads remote turns before rewriting the branch", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-sync-compact-"));
+  const sessionsRoot = join(dir, "sessions");
+  const runtimeA = new MixCodeRuntime({ sessionsRoot });
+  const runtimeB = new MixCodeRuntime({ sessionsRoot });
+  const MARKER = "UNIQUE_MARKER_FROM_A_BEFORE_COMPACT";
+  try {
+    const tabA = await runtimeA.createTab(createTab(1, "s-shared", dir), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: dir,
+      model: MIXCODE_FAUX_MODEL,
+    });
+    runtimeA.enableSessionSync();
+
+    await runtimeA.prompt("s-shared", "seed turn 1");
+    await waitFor(() => runtimeA.getTab("s-shared")?.agentSession.isStreaming === false);
+    await runtimeA.prompt("s-shared", "seed turn 2");
+    await waitFor(() => runtimeA.getTab("s-shared")?.agentSession.isStreaming === false);
+    assert.ok(tabA.session.getSessionFile(), "A must persist a session file");
+
+    // B opens the shared file (sees seed turns only).
+    const tabB = await runtimeB.createTab(createTab(1, "s-shared", dir), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: dir,
+      model: MIXCODE_FAUX_MODEL,
+    });
+    runtimeB.enableSessionSync();
+
+    // A appends a turn B has not reloaded.
+    await runtimeA.prompt("s-shared", MARKER);
+    await waitFor(() => runtimeA.getTab("s-shared")?.agentSession.isStreaming === false);
+    assert.equal(
+      tabB.session.getBranch().some((e) => {
+        if (e.type !== "message" || e.message?.role !== "user") return false;
+        const content = e.message.content;
+        const text = Array.isArray(content)
+          ? content.map((c) => ("text" in c ? c.text : "")).join("")
+          : String(content ?? "");
+        return text.includes(MARKER);
+      }),
+      false,
+      "B must still be stale before compact",
+    );
+
+    // Force compact to run under SDK 0.80+ keep-recent refusal rules.
+    tabB.agentSession.settingsManager.applyOverrides({
+      compaction: { reserveTokens: 1, keepRecentTokens: 1 },
+    });
+    await runtimeB.compactSession("s-shared", "sync compact");
+
+    // Re-read from disk: MARKER's assistant must be an ancestor of the
+    // compaction leaf, not a sibling orphaned by a stale compact.
+    runtimeA.syncSessionFromDisk("s-shared");
+    const entries = tabA.session.getEntries();
+    const byId = new Map(entries.map((e) => [e.id, e]));
+    const compaction = [...entries].reverse().find((e) => e.type === "compaction");
+    assert.ok(compaction, "compact must write a compaction entry");
+
+    const markerAssistant = entries.find((e) => {
+      if (e.type !== "message" || e.message?.role !== "assistant") return false;
+      // Faux model echoes the user text; walk back to the user parent.
+      const parent = e.parentId ? byId.get(e.parentId) : undefined;
+      if (parent?.type !== "message" || parent.message?.role !== "user") return false;
+      const content = parent.message.content;
+      const text = Array.isArray(content)
+        ? content.map((c) => ("text" in c ? c.text : "")).join("")
+        : String(content ?? "");
+      return text.includes(MARKER);
+    });
+    assert.ok(markerAssistant, "MARKER assistant must exist in the file tree");
+
+    const ancestors = new Set<string>();
+    let cur: (typeof entries)[number] | undefined = compaction;
+    while (cur) {
+      ancestors.add(cur.id);
+      cur = cur.parentId ? byId.get(cur.parentId) : undefined;
+    }
+    assert.equal(
+      ancestors.has(markerAssistant.id),
+      true,
+      "MARKER assistant must be on the compaction leaf path (not a sibling orphan)",
+    );
+  } finally {
+    await runtimeA.closeAllTabs();
+    await runtimeB.closeAllTabs();
+    await rm(dir, { recursive: true, force: true });
+  }
+});

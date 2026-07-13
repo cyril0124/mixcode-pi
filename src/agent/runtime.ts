@@ -1058,9 +1058,11 @@ export class MixCodeRuntime {
     clearPendingEscape(runtimeTab.tab);
     this.emitChange({ type: "extension_ui_update" }, runtimeTab);
     // Compaction rewrites the branch, so it must hold the cross-process turn
-    // lock just like a prompt does.
+    // lock just like a prompt does — and reload first so the rewrite is a child
+    // of any messages another instance already appended.
     const lock = this.sync.acquire(sessionId);
     try {
+      if (lock) reloadRuntimeSessionFromDisk(runtimeTab);
       // compact() emits compaction_end which triggers applyEvent to rebuild chat
       await runtimeTab.agentSession.compact(customInstructions);
     } catch (error) {
