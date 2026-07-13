@@ -100,21 +100,60 @@ export function applyContextLimit(
   }
 }
 
+type CompactionBudget = { reserveTokens?: number; keepRecentTokens?: number };
+
+interface CompactionOverrideTarget {
+  applyOverrides: (overrides: { compaction?: CompactionBudget }) => void;
+}
+
+interface CompactionBaselineSource {
+  getCompactionSettings: () => { reserveTokens: number; keepRecentTokens: number };
+}
+
+// Fallback used only when a manager's real baseline was never captured (e.g.
+// bare test mocks). Matches Pi's SDK compaction defaults.
+const SDK_COMPACTION_FALLBACK: Required<CompactionBudget> = {
+  reserveTokens: 16384,
+  keepRecentTokens: 20000,
+};
+
+// Per-manager baseline compaction budgets, captured once before any
+// /context-limit override mutates the manager. Keyed by manager identity so
+// each tab's own SettingsManager restores its own user-configured values on
+// reset instead of hardcoded SDK defaults. WeakMap avoids retaining disposed
+// managers.
+const compactionBaselines = new WeakMap<object, CompactionBudget>();
+
+/**
+ * Record a manager's current compaction budgets as its reset baseline.
+ * Call once per manager after session defaults are applied but before any
+ * /context-limit override, so a later reset restores the user's real values.
+ * Re-capturing is a no-op to avoid storing an already-overridden value.
+ */
+export function captureCompactionBaseline(
+  manager: CompactionOverrideTarget & CompactionBaselineSource,
+): void {
+  if (compactionBaselines.has(manager)) return;
+  const { reserveTokens, keepRecentTokens } = manager.getCompactionSettings();
+  compactionBaselines.set(manager, { reserveTokens, keepRecentTokens });
+}
+
 /**
  * Adjust compaction budgets to match the context limit override.
  * keepRecentTokens controls the cut point; reserveTokens controls when the SDK
  * decides compaction is needed, so both must fit under tiny custom limits.
  */
 export function adjustCompactionSettingsForLimit(
-  settingsManager: {
-    applyOverrides: (overrides: { compaction?: { reserveTokens?: number; keepRecentTokens?: number } }) => void;
-  },
+  settingsManager: CompactionOverrideTarget,
   contextLimit: number,
   overridden: boolean,
 ): void {
   if (!overridden) {
-    // Reset to SDK defaults when override is removed.
-    settingsManager.applyOverrides({ compaction: { reserveTokens: 16384, keepRecentTokens: 20000 } });
+    // Reset restores the manager's captured baseline (its user-configured
+    // compaction values), falling back to SDK defaults only when no baseline
+    // was captured for this manager.
+    const baseline = compactionBaselines.get(settingsManager) ?? SDK_COMPACTION_FALLBACK;
+    settingsManager.applyOverrides({ compaction: { ...baseline } });
     return;
   }
   const reserveTokens = Math.max(1, Math.min(16384, Math.round(contextLimit * 0.1)));

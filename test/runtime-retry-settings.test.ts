@@ -1,9 +1,8 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import test from "node:test";
-import { SettingsManager } from "@earendil-works/pi-coding-agent";
 import { createTab, MIXCODE_FAUX_MODEL, MixCodeRuntime } from "../src/index.js";
 import { MIXCODE_RETRY_DEFAULTS } from "../src/agent/retry-settings.js";
 
@@ -34,17 +33,18 @@ test("runtime sessions use MixCode retry defaults without persisting settings", 
 test("runtime sessions preserve explicit user retry settings", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-retry-explicit-"));
   try {
+    // Each tab now gets its own file-backed SettingsManager, so explicit retry
+    // settings must live on disk (global settings.json) to be read back.
     const agentDir = join(dir, "agent");
-    const settingsManager = SettingsManager.inMemory({
-      retry: {
-        maxRetries: 4,
-        baseDelayMs: 1000,
-      },
-    });
+    await mkdir(agentDir, { recursive: true });
+    await writeFile(
+      join(agentDir, "settings.json"),
+      JSON.stringify({ retry: { maxRetries: 4, baseDelayMs: 1000 } }),
+      "utf8",
+    );
     const runtime = new MixCodeRuntime({
       sessionsRoot: join(dir, "sessions"),
       agentDir,
-      settingsManager,
     });
     const tab = createTab(1, "s1", dir);
 

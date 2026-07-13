@@ -120,7 +120,7 @@ describe("adjustCompactionSettingsForLimit", () => {
     assert.deepEqual(overrides, [{ compaction: { reserveTokens: 100, keepRecentTokens: 250 } }]);
   });
 
-  it("resets to SDK defaults when the context limit override is removed", () => {
+  it("resets to SDK defaults when no baseline was captured", () => {
     const overrides: Array<{ compaction?: { reserveTokens?: number; keepRecentTokens?: number } }> = [];
     adjustCompactionSettingsForLimit({ applyOverrides: (override) => overrides.push(override) }, 1000, false);
     assert.deepEqual(overrides, [{ compaction: { reserveTokens: 16384, keepRecentTokens: 20000 } }]);

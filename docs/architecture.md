@@ -261,7 +261,7 @@ src/core/commands.ts
             /goal /compact
 ```
 
-`/context-limit <tokens|reset>` 会设置当前 tab 的上下文窗口限制；自定义限制会同步调整 SDK compaction 的 `reserveTokens` 与 `keepRecentTokens`，`reset` 会恢复 SDK 默认 compaction token 配置。
+`/context-limit <tokens|reset>` 会设置当前 tab 的上下文窗口限制；自定义限制会同步调整 SDK compaction 的 `reserveTokens` 与 `keepRecentTokens`，`reset` 会恢复该 tab 启动时捕获的用户基线 compaction 配置（仅在未捕获基线时回落到 SDK 默认）。每个 tab 拥有独立的 `SettingsManager`，因此 `/context-limit` 覆盖不会在独立 tab 之间泄漏；同源 fork/reuse 的 tab 仍共享同一 manager。
 
 `/import <jsonl-path> [cwdOverride]` 复用 Pi session JSONL 导入语义：
 

@@ -13,9 +13,10 @@ import {
   type SessionManager,
   type SessionShutdownEvent,
   type SessionStartEvent,
-  type SettingsManager,
+  SettingsManager,
   shouldCompact,
 } from "@earendil-works/pi-coding-agent";
+import { captureCompactionBaseline } from "../core/context-limit.js";
 import { detectSearchTools, type SearchToolAvailability } from "../core/detect-search-tools.js";
 import {
   type ExtensionManagerEntry,
@@ -141,6 +142,10 @@ export async function createRuntimeTab(
   // extensionsResult (fresh runtime + fresh pi closures). Without this,
   // multiple tabs sharing the same resourceLoader would share a mutable
   // runtime object — invalidating one (dispose) would break the others.
+  // Note: reused services also share the same SettingsManager, so a
+  // /context-limit override on one same-source (fork/reuse) tab affects the
+  // others' compaction budgets. Independent tabs each get their own manager
+  // (see createRuntimeServices), so cross-tab isolation holds for them.
   if (reusedServices && !config.skipExtensionReload) {
     await reusedServices.resourceLoader.reload();
   }
@@ -470,18 +475,30 @@ export async function createRuntimeServices(
       options.systemPrompt,
     ),
   };
+  // Give every tab its own SettingsManager (Pi's native per-cwd design) instead
+  // of sharing the bootstrap manager. /context-limit mutates compaction budgets
+  // via applyOverrides; a shared manager would leak one tab's override into all
+  // other tabs' compaction decisions (both the SDK turn-boundary check and the
+  // mid-turn hook read from this manager). The bootstrap manager is retained by
+  // the runtime only for startup proxy/defaults and global settings writes.
+  const settingsManager = SettingsManager.create(options.workdir, options.agentDir, {
+    projectTrusted: options.settingsManager?.isProjectTrusted() ?? true,
+  });
   const services = await createAgentSessionServices({
     cwd: options.workdir,
     agentDir: options.agentDir,
     authStorage: options.authStorage,
     modelRegistry: options.modelRegistry as ModelRegistry | undefined,
-    settingsManager: options.settingsManager,
+    settingsManager,
     resourceLoaderOptions,
   });
   if (services.diagnostics.some((diagnostic) => diagnostic.type === "error")) {
     throw new Error(services.diagnostics.map((diagnostic) => diagnostic.message).join("\n"));
   }
   applyMixCodeSessionDefaults(services.settingsManager);
+  // Record the user's compaction baseline before any /context-limit override so
+  // a later reset restores these values, not hardcoded SDK defaults.
+  captureCompactionBaseline(services.settingsManager);
   configureMixCodeRetryClassification();
   servicesRef = services;
   setExtensionManagerEntriesForServices(services, latestExtensionManagerEntries);
