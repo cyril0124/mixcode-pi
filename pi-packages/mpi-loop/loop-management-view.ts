@@ -7,6 +7,8 @@ import {
   wrapTextWithAnsi,
 } from "@earendil-works/pi-tui";
 
+export type LoopConflictMode = "skip" | "defer";
+
 export interface LoopViewEntry {
   id: string;
   name: string;
@@ -15,11 +17,14 @@ export interface LoopViewEntry {
   createdAt: Date;
   fireCount: number;
   nextRunAt: number;
+  mode: LoopConflictMode;
+  pending: boolean;
 }
 
 interface LoopManagementActions {
   getLoops: () => LoopViewEntry[];
   fire: (prompt: string) => void;
+  setMode: (id: string, mode: LoopConflictMode) => void;
   remove: (id: string) => void;
   clear: () => void;
 }
@@ -175,6 +180,15 @@ export class LoopManagementView implements Component {
       this.requestRender();
       return;
     }
+    if (matchesKey(data, "m")) {
+      const loop = this.loops.find((entry) => entry.id === this.detailLoopId);
+      if (loop) {
+        const nextMode = loop.mode === "defer" ? "skip" : "defer";
+        this.actions.setMode(loop.id, nextMode);
+        this.refresh();
+      }
+      return;
+    }
     if (matchesKey(data, "f")) {
       const loop = this.loops.find((entry) => entry.id === this.detailLoopId);
       if (loop) {
@@ -281,16 +295,19 @@ export class LoopManagementView implements Component {
     );
     const rangeStart = this.promptScrollOffset + 1;
     const rangeEnd = this.promptScrollOffset + visiblePrompt.length;
+    const nextLabel = loop.pending ? "waiting" : formatRelativeTime(loop.nextRunAt);
+    const modeLabel = loop.mode === "defer" ? "defer" : "skip";
     return this.renderPanel(
       [
         ` Name: ${loop.name}`,
-        ` Interval: ${loop.intervalLabel}  Next: ${formatRelativeTime(loop.nextRunAt)}  Runs: ${loop.fireCount}`,
+        ` Interval: ${loop.intervalLabel}  Next: ${nextLabel}  Runs: ${loop.fireCount}`,
+        ` Mode: ${modeLabel}${loop.pending ? " (pending)" : ""}`,
         this.theme.fg("border", "─".repeat(innerWidth)),
         ` ${this.theme.fg("accent", "Prompt")}  ${this.theme.fg("dim", `Lines ${rangeStart}-${rangeEnd}/${promptLines.length}`)}`,
         ...visiblePrompt.map((line) => `  ${line}`),
         "",
         this.theme.fg("dim", "  ↑↓ scroll  PgUp/PgDn page  Home/End jump"),
-        this.theme.fg("dim", "  f fire  x remove  ←/esc back"),
+        this.theme.fg("dim", "  m mode  f fire  x remove  ←/esc back"),
       ],
       width,
       `Loop ${loop.id}`,
@@ -314,10 +331,12 @@ export class LoopManagementView implements Component {
     return loops.slice(start, start + maxVisible).map((loop, visibleIndex) => {
       const selected = start + visibleIndex === this.selectedIndex;
       const marker = selected ? "› " : "  ";
-      const name = truncateToWidth(`${loop.id}  ${loop.name}`, nameWidth, "…");
+      const modeTag = loop.mode === "defer" ? "D" : "S";
+      const name = truncateToWidth(`${loop.id}  ${modeTag}  ${loop.name}`, nameWidth, "…");
       const interval = truncateToWidth(loop.intervalLabel, intervalWidth, "…");
+      const nextLabel = loop.pending ? "waiting" : formatRelativeTime(loop.nextRunAt);
       const detail = truncateToWidth(
-        `${loop.prompt}  ·  ${formatRelativeTime(loop.nextRunAt)}  ·  ${loop.fireCount} fires`,
+        `${loop.prompt}  ·  ${nextLabel}  ·  ${loop.fireCount} fires`,
         detailWidth,
         "…",
       );

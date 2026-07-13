@@ -27,6 +27,8 @@ function loop(overrides: Partial<LoopViewEntry> = {}): LoopViewEntry {
     createdAt: new Date("2026-07-13T00:00:00Z"),
     fireCount: 3,
     nextRunAt: Date.now() + 60_000,
+    mode: "defer",
+    pending: false,
     ...overrides,
   };
 }
@@ -35,6 +37,13 @@ function createView(entries: LoopViewEntry[]) {
   return new LoopManagementView(theme, () => {}, () => {}, () => 12, {
     getLoops: () => entries,
     fire: () => {},
+    setMode: (id, mode) => {
+      const entry = entries.find((item) => item.id === id);
+      if (entry) {
+        entry.mode = mode;
+        if (mode === "skip") entry.pending = false;
+      }
+    },
     remove: () => {},
     clear: () => {},
   });
@@ -59,6 +68,7 @@ test("detail scrolling reaches every part of a long prompt", () => {
   const view = new LoopManagementView(theme, () => {}, () => {}, () => 8, {
     getLoops: () => [loop({ prompt })],
     fire: () => {},
+    setMode: () => {},
     remove: () => {},
     clear: () => {},
   });
@@ -91,6 +101,7 @@ test("Enter opens details and f fires the prompt then closes", () => {
   const view = new LoopManagementView(theme, () => {}, () => closed++, () => 12, {
     getLoops: () => [entry],
     fire: (prompt) => fired.push(prompt),
+    setMode: () => {},
     remove: () => {},
     clear: () => {},
   });
@@ -105,6 +116,37 @@ test("Enter opens details and f fires the prompt then closes", () => {
   assert.equal(closed, 1);
 });
 
+test("m toggles conflict mode in detail and clears pending on skip", () => {
+  const entry = loop({ mode: "defer", pending: true });
+  const modes: string[] = [];
+  const view = new LoopManagementView(theme, () => {}, () => {}, () => 12, {
+    getLoops: () => [entry],
+    fire: () => {},
+    setMode: (id, mode) => {
+      modes.push(`${id}:${mode}`);
+      entry.mode = mode;
+      if (mode === "skip") entry.pending = false;
+    },
+    remove: () => {},
+    clear: () => {},
+  });
+
+  view.handleInput(ENTER);
+  assert.match(view.render(60).join("\n"), /Mode: defer \(pending\)/);
+  assert.match(view.render(60).join("\n"), /Next: waiting/);
+
+  view.handleInput("m");
+  assert.deepEqual(modes, ["1:skip"]);
+  const afterSkip = view.render(60).join("\n");
+  assert.match(afterSkip, /Mode: skip/);
+  assert.doesNotMatch(afterSkip, /pending/);
+  assert.doesNotMatch(afterSkip, /waiting/);
+
+  view.handleInput("m");
+  assert.deepEqual(modes, ["1:skip", "1:defer"]);
+  assert.match(view.render(60).join("\n"), /Mode: defer/);
+});
+
 test("f fires directly from the list", () => {
   const fired: string[] = [];
   let closed = 0;
@@ -112,6 +154,7 @@ test("f fires directly from the list", () => {
   const view = new LoopManagementView(theme, () => {}, () => closed++, () => 12, {
     getLoops: () => [entry],
     fire: (prompt) => fired.push(prompt),
+    setMode: () => {},
     remove: () => {},
     clear: () => {},
   });
@@ -146,8 +189,8 @@ test("left returns to the same filtered list selection", () => {
   view.handleInput(LEFT);
   const list = view.render(60).join("\n");
   assert.match(list, /> bet/);
-  assert.match(list, /› 2 {2}beta/);
-  assert.doesNotMatch(list, /1 {2}alpha/);
+  assert.match(list, /› 2 {2}D {2}beta/);
+  assert.doesNotMatch(list, /1 {2}D {2}alpha/);
 
   view.handleInput(ENTER);
   view.handleInput(ESCAPE);
@@ -163,6 +206,7 @@ test("deleting from details returns to the neighboring loop", () => {
   const view = new LoopManagementView(theme, () => {}, () => {}, () => 12, {
     getLoops: () => entries,
     fire: () => {},
+    setMode: () => {},
     remove: (id) => {
       entries = entries.filter((entry) => entry.id !== id);
     },
@@ -178,6 +222,6 @@ test("deleting from details returns to the neighboring loop", () => {
   view.handleInput("y");
   const list = view.render(60).join("\n");
   assert.match(list, /┌ Loops /);
-  assert.match(list, /› 3 {2}gamma/);
-  assert.doesNotMatch(list, /2 {2}beta/);
+  assert.match(list, /› 3 {2}D {2}gamma/);
+  assert.doesNotMatch(list, /2 {2}D {2}beta/);
 });

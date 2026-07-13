@@ -46,6 +46,8 @@ Examples:
 // Types
 // ---------------------------------------------------------------------------
 
+type LoopConflictMode = "skip" | "defer";
+
 interface LoopEntry {
   id: string;
   name: string;
@@ -55,6 +57,10 @@ interface LoopEntry {
   createdAt: Date;
   fireCount: number;
   nextRunAt: number;
+  /** Timer-tick conflict policy. Manual fire / first immediate fire ignore this. */
+  mode: LoopConflictMode;
+  /** defer: at most one coalesced fire waiting for agent idle. */
+  pending: boolean;
   timer: ReturnType<typeof setInterval>;
   expiryTimer: ReturnType<typeof setTimeout>;
 }
@@ -292,19 +298,21 @@ class LoopWidget {
     const flexibleWidth = Math.max(20, tableWidth - 32);
     const nameWidth = Math.min(15, Math.max(8, Math.floor(flexibleWidth / 3)));
     const promptWidth = Math.min(28, Math.max(12, flexibleWidth - nameWidth));
-    const header = ` ${fitCell("ON", 2)} ${fitCell("ID", 3)} ${fitCell("NAME", nameWidth)} ${fitCell("INTERVAL", 8)} ${fitCell("PROMPT", promptWidth)} ${fitCell("NEXT", 8)} ${fitCell("RUNS", 4)}`;
+    const header = ` ${fitCell("ON", 2)} ${fitCell("ID", 3)} ${fitCell("M", 1)} ${fitCell("NAME", nameWidth)} ${fitCell("INTERVAL", 8)} ${fitCell("PROMPT", promptWidth)} ${fitCell("NEXT", 8)} ${fitCell("RUNS", 4)}`;
     const lines: string[] = [theme.fg("dim", header)];
     for (const loop of loops) {
       const statusIcon = theme.fg("success", fitCell("✓", 2));
       const idText = theme.fg("accent", fitCell(loop.id, 3));
+      const modeText = theme.fg("dim", fitCell(loop.mode === "defer" ? "D" : "S", 1));
       const nameText = theme.fg("text", fitCell(loop.name, nameWidth));
       const intervalText = theme.fg("dim", fitCell(loop.intervalLabel, 8));
       const promptText = theme.fg("dim", fitCell(loop.prompt, promptWidth));
-      const nextText = fitCell(formatRelativeTime(loop.nextRunAt), 8);
+      const nextLabel = loop.pending ? "waiting" : formatRelativeTime(loop.nextRunAt);
+      const nextText = fitCell(nextLabel, 8);
       const countText = theme.fg("accent", fitCell(String(loop.fireCount), 4));
 
       lines.push(
-        ` ${statusIcon} ${idText} ${nameText} ${intervalText} ${promptText} ${nextText} ${countText}`,
+        ` ${statusIcon} ${idText} ${modeText} ${nameText} ${intervalText} ${promptText} ${nextText} ${countText}`,
       );
     }
 
@@ -332,11 +340,37 @@ class LoopWidget {
 export default function (pi: ExtensionAPI) {
   let widget: LoopWidget | undefined;
 
+  const deliverPrompt = (prompt: string, idle: boolean) => {
+    if (idle) pi.sendUserMessage(prompt);
+    else pi.sendUserMessage(prompt, { deliverAs: "followUp" });
+  };
+
+  const commitFire = (entry: LoopEntry, idle: boolean) => {
+    entry.pending = false;
+    entry.fireCount++;
+    entry.nextRunAt = Date.now() + entry.intervalMs;
+    pi.events.emit("loop:change", {});
+    deliverPrompt(entry.prompt, idle);
+  };
+
+  /** Flush coalesced defer ticks once the agent is actually idle. */
+  const flushPending = (ctx: { isIdle: () => boolean }) => {
+    if (!ctx.isIdle()) return;
+    for (const entry of activeLoops.values()) {
+      if (!entry.pending) continue;
+      commitFire(entry, ctx.isIdle());
+    }
+  };
+
   pi.on("session_start", async (_event, ctx) => {
     widget = new LoopWidget(pi);
     if (activeLoops.size > 0) {
       widget.show(ctx);
     }
+  });
+
+  pi.on("agent_end", (_event, ctx) => {
+    flushPending(ctx);
   });
 
   pi.on("session_shutdown", () => {
@@ -378,8 +412,7 @@ export default function (pi: ExtensionAPI) {
     handler: async (args, ctx) => {
       const trimmed = args.trim();
       const firePrompt = (prompt: string) => {
-        if (ctx.isIdle()) pi.sendUserMessage(prompt);
-        else pi.sendUserMessage(prompt, { deliverAs: "followUp" });
+        deliverPrompt(prompt, ctx.isIdle());
       };
 
       // ── No args: open management overlay ──────────────────────────
@@ -394,6 +427,13 @@ export default function (pi: ExtensionAPI) {
               {
                 getLoops: () => Array.from(activeLoops.values()),
                 fire: firePrompt,
+                setMode: (id, mode) => {
+                  const entry = activeLoops.get(id);
+                  if (!entry) return;
+                  entry.mode = mode;
+                  if (mode === "skip") entry.pending = false;
+                  pi.events.emit("loop:change", {});
+                },
                 remove: (id) => {
                   const entry = activeLoops.get(id);
                   if (entry) cancelLoop(entry);
@@ -461,17 +501,24 @@ export default function (pi: ExtensionAPI) {
       const id = generateId();
       const name = generateName(prompt);
 
-      const sendPrompt = () => {
+      // Timer ticks only: skip or coalesce-defer while busy. First/manual fire bypass this.
+      const onTimerTick = () => {
         const entry = activeLoops.get(id);
-        if (entry) {
-          entry.fireCount++;
+        if (!entry) return;
+        if (ctx.isIdle()) {
+          commitFire(entry, true);
+          return;
+        }
+        if (entry.mode === "skip") {
           entry.nextRunAt = Date.now() + entry.intervalMs;
           pi.events.emit("loop:change", {});
+          return;
         }
-        firePrompt(prompt);
+        entry.pending = true;
+        pi.events.emit("loop:change", {});
       };
 
-      const timer = setInterval(sendPrompt, effectiveMs);
+      const timer = setInterval(onTimerTick, effectiveMs);
 
       const expiryTimer = setTimeout(() => {
         const entry = activeLoops.get(id);
@@ -495,6 +542,8 @@ export default function (pi: ExtensionAPI) {
         createdAt: new Date(),
         fireCount: 0,
         nextRunAt: Date.now() + effectiveMs,
+        mode: "defer",
+        pending: false,
         timer,
         expiryTimer,
       };
@@ -506,6 +555,7 @@ export default function (pi: ExtensionAPI) {
           ` Name: ${name}\n` +
           ` Prompt: "${prompt}"\n` +
           ` Interval: every ${formatInterval(effectiveMs)}\n` +
+          ` Conflict: defer (toggle in /loop detail with m)\n` +
           ` Auto-expires: after ${formatInterval(MAX_AGE_MS)}\n` +
           ` Stop with: /loop stop ${id}`,
         "info",
@@ -514,8 +564,8 @@ export default function (pi: ExtensionAPI) {
       pi.events.emit("loop:change", {});
       if (widget) widget.show(ctx);
 
-      // Immediate first run goes through sendPrompt so RUNS / nextRunAt stay in sync.
-      sendPrompt();
+      // Immediate first run always delivers (not subject to skip/defer).
+      commitFire(entry, ctx.isIdle());
     },
   });
 }
