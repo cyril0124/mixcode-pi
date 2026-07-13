@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
-import { buildViewText, formatViewText } from "../pi-packages/mpi-chat-view/index.ts";
+import { buildViewText, formatViewText } from "./index.js";
 
 // ─── formatViewText: markdown heading ──────────────────────────────────────────
 

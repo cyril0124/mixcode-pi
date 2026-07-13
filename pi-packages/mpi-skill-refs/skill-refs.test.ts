@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
-import skillRefsExtension from "../pi-packages/mpi-skill-refs/index.ts";
+import skillRefsExtension from "./index.js";
 import {
   buildSkillBlock,
   createSkillCompletionWrapper,
@@ -11,7 +11,7 @@ import {
   parseSkillDescription,
   scanSkillDirs,
   type ResolvedSkillRef,
-} from "../pi-packages/mpi-skill-refs/skill-core.ts";
+} from "./skill-core.js";
 
 // ─── fixtures ────────────────────────────────────────────────────────────────
 
@@ -149,7 +149,7 @@ test("scanSkillDirs: finds flat and nested skills across dirs", async () => {
   assert.deepEqual(names, ["flat-skill", "home-skill", "nested-skill"]);
   const flat = entries.get("flat-skill")!;
   assert.equal(flat.description, "Flat one.");
-  assert.ok(flat.filePath.endsWith("SKILL.md"));
+  assert.ok(flat.filePath?.endsWith("SKILL.md"));
 });
 
 test("scanSkillDirs: project dir takes precedence over home for duplicates", async () => {

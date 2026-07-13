@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { homedir } from "node:os";
 import { dirname } from "node:path";
 import { test } from "node:test";
-import { inspectBashCommand, tokenize } from "../pi-packages/mpi-search-guard/index.ts";
+import { inspectBashCommand, tokenize } from "./index.js";
 
 const CWD = "/project/myapp";
 const HOME = homedir();
@@ -162,8 +162,10 @@ test("blocked: find targeting $HOME", () => {
   assert.equal(inspectBashCommand('find $HOME -name "target" -type f', CWD), "$HOME");
 });
 
-test("blocked: grep targeting ${HOME}", () => {
-  assert.equal(inspectBashCommand("grep -r pattern \\${HOME}", CWD), "${HOME}");
+const BRACED_HOME = "$" + "{HOME}";
+
+test(`blocked: grep targeting ${BRACED_HOME}`, () => {
+  assert.equal(inspectBashCommand(`grep -r pattern \\${BRACED_HOME}`, CWD), BRACED_HOME);
 });
 
 test("safe: find targeting $HOME/subdir", () => {

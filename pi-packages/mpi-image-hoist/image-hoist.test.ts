@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { hoistImages } from "../pi-packages/mpi-image-hoist/index.ts";
+import { hoistImages } from "./index.js";
 
 describe("image-hoist: hoistImages", () => {
   it("hoists images from tool_result to user message top level", () => {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { LoopManagementView, type LoopViewEntry } from "../pi-packages/mpi-loop/loop-management-view.js";
+import { LoopManagementView, type LoopViewEntry } from "./loop-management-view.js";
 
 const ESCAPE = "\x1b";
 const ENTER = "\r";
