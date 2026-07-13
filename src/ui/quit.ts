@@ -34,6 +34,11 @@ export function getConfiguredQuitOptions(tui: OverlayTui): QuitOptions {
   return { exitProcess: (tui as QuitConfiguredTui).mixCodeExitProcessOnQuit === true };
 }
 
+/** Prefer process.exitCode so batch/CI failures (exitCode=1) survive /quit. */
+function resolveQuitExitCode(): number {
+  return typeof process.exitCode === "number" ? process.exitCode : 0;
+}
+
 export async function quitMixCode(
   runtime: RuntimeQuitTarget | undefined,
   tui: OverlayTui,
@@ -47,7 +52,7 @@ export async function quitMixCode(
     // handlers are best-effort; this explicit watchdog prevents a stale extension
     // timer, child process, or network check from keeping the shell blocked.
     exitTimer = setTimeout(
-      () => exitScheduler(0),
+      () => exitScheduler(resolveQuitExitCode()),
       options.exitTimeoutMs ?? DEFAULT_QUIT_EXIT_TIMEOUT_MS,
     );
     exitTimer.unref?.();
@@ -63,6 +68,6 @@ export async function quitMixCode(
 
   if (exitProcess) {
     const exitScheduler = options.exitScheduler ?? ((code: number) => process.exit(code));
-    exitScheduler(0);
+    exitScheduler(resolveQuitExitCode());
   }
 }

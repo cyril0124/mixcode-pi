@@ -80,3 +80,31 @@ test("quitMixCode exits immediately after successful cleanup", async () => {
 
   assert.deepEqual(events, ["abort", "stop", "close", "render", "exit:0"]);
 });
+
+test("quitMixCode preserves process.exitCode for failed batch/CI quit", async () => {
+  const events: string[] = [];
+  const previous = process.exitCode;
+  process.exitCode = 1;
+  try {
+    await quitMixCode(
+      {
+        abortAllTabs: () => events.push("abort"),
+        closeAllTabs: async () => events.push("close"),
+      },
+      {
+        stop: () => events.push("stop"),
+        requestRender: () => events.push("render"),
+        showOverlay: () => ({}) as never,
+      },
+      {
+        exitProcess: true,
+        exitTimeoutMs: 1_000,
+        exitScheduler: (code) => events.push(`exit:${code}`),
+      },
+    );
+  } finally {
+    process.exitCode = previous;
+  }
+
+  assert.deepEqual(events, ["abort", "stop", "close", "render", "exit:1"]);
+});
