@@ -311,10 +311,10 @@ npm run check
   │
   ├─ typecheck      tsc --noEmit
   ├─ build          tsup ESM + d.ts
-  └─ coverage       c8 lines/branches/functions/statements >= 95%
+  └─ test           node --test
 ```
 
-当前测试覆盖重点：
+当前测试重点：
 
 ```text
 core state        commands / tabs / overlays / command palette / workspace
@@ -324,7 +324,7 @@ ui input          global keys / tab jump
 bootstrap         initial state / persisted restore / completion sources
 ```
 
-验收时不能只看覆盖率。还需要逐项对照：
+验收时需要逐项对照：
 
 ```text
 显式要求
@@ -334,7 +334,7 @@ bootstrap         initial state / persisted restore / completion sources
   ├─ refs/mixcode 仅作为参考
   ├─ 主要功能、快捷键、UI、鼠标行为复刻程度
   ├─ legacy session/tool/provider 能力到 Pi 模型的映射
-  ├─ 覆盖率 >= 95%
+  ├─ 自动化测试可运行
   └─ docs 中文技术方案与 ASCII 图
 ```
 

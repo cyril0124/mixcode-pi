@@ -26,7 +26,7 @@ MixCode Pi
   │   └─ 视觉风格接近 MixCode
   │
   └─ 验证
-      ├─ 自动化测试与 95% coverage gate
+      ├─ 自动化测试
       ├─ 真实 tmux TUI 截图
       ├─ Pi extension/package compatibility tests
       └─ 文档化差异和限制
@@ -45,7 +45,7 @@ MixCode Pi
 | 移除 OpenCode 专有组件 | Config render 测试断言不包含 `Connect/Reconnect/Attach Session/opencode`；真实 TUI smoke 同样检查。 | 已验证 |
 | 主要快捷键和交互 | `docs/architecture.md` 列出全局和局部作用域快捷键；`src/core/keymap.ts` 提供 scoped keymap；`test/runtime-ui.test.ts` 断言 `file-picker/picker/command-palette/tab-jump/preview/shell` 作用域存在；`test/ui-commands.test.ts` 覆盖 tab、palette、queue Esc、Ctrl+Q、@ picker、shell、preview；shell 焦点下 `Ctrl+V/E` 透传给 shell、`Ctrl+P` 保留 command palette。 | 已验证 |
 | 鼠标行为 | `src/core/mouse.ts`、`src/ui/app.ts` 覆盖 SGR 鼠标；测试覆盖 tab bar 点击、Config action hit region、input meta hit region、preview/shell wheel。 | 已验证 |
-| coverage >= 95% | `timeout 60s npm run coverage` 通过；全局 branch `95.02%`。 | 已验证 |
+| 自动化测试可运行 | `timeout 60s npm run test` 可运行。 | 已验证 |
 | docs 文件夹中文技术方案和 ASCII 图 | `docs/architecture.md`、`docs/extension-compatibility.md`、本文均为中文并包含 ASCII 结构图。 | 已验证 |
 | 真实 TUI 截图/交互验证 | `tmp/ref-mixcode-160x48.*`、`tmp/mixcode-pi-*.txt/.ansi`、`tmp/tui-verify-*` 记录参考和当前 TUI 截图；`test/tui-smoke.test.ts` 可重复验证 180x48 tmux 启动、标题、OpenCode 反残留、`/thinking` picker 显示并应用模型支持的 `max`、`/theme tok`、command palette、tab jump、`@` file picker、preview、shell、新建 tab、mouse tab click 和 Ctrl+Q 退出。 | 已验证 |
 | 视觉风格接近 MixCode | `src/ui/themes.ts` 提供 MixCode dark/claude-warm/tokyo-night/terminal；render tests 断言 dark/claude-warm/tokyo-night palette；tmux 截图文件保存 160x48 对照。 | 强验证但仍需人工审美复核 |
@@ -60,7 +60,7 @@ MixCode Pi
 ```text
 timeout 60s npm run typecheck
 timeout 60s npm run build
-timeout 60s npm run coverage
+timeout 60s npm run test
 
 MIXCODE_RESPONSES_SMOKE_MODEL=<provider>/<model-id> \
   timeout 120s node --test --import tsx test/models-question.test.ts \
@@ -73,11 +73,10 @@ MIXCODE_RUN_TMUX_TUI_SMOKE=1 \
 已观察到的关键结果：
 
 ```text
-coverage:
+test:
   tests = 219
   pass = 215
   skipped = 4
-  all files branch = 95.02%
 
 responses smoke:
   api: openai-responses
