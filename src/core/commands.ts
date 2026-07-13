@@ -256,7 +256,7 @@ export const LOCAL_COMMANDS: Array<{
   },
   {
     name: "clear",
-    description: "Replace active session with a fresh child session",
+    description: "Replace active session with a fresh child session (resets title)",
     palette: { label: "Clear Session", requires: "session" },
   },
   {

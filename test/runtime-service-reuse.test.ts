@@ -55,15 +55,16 @@ test("clear reuses services while replacing the agent session", async () => {
   });
 });
 
-test("clear carries the session name to the fresh child session", async () => {
+test("clear drops session name and resets tab title like Pi /new", async () => {
   await withRuntime("mixcode-clear-session-name-", async (runtime) => {
-    await runtime.createTab(createTab(1, "s1", process.cwd()), {
+    const initial = await runtime.createTab(createTab(1, "s1", process.cwd()), {
       systemPrompt: "system",
       thinkingLevel: "medium",
       workdir: process.cwd(),
     });
-    // User renamed the session before clearing.
+    // User renamed the session before clearing (session_info + UI title).
     runtime.renameSession("s1", "My Work");
+    initial.tab.title = "My Work";
 
     const cleared = await runtime.clearTab("s1", {
       systemPrompt: "system",
@@ -72,12 +73,13 @@ test("clear carries the session name to the fresh child session", async () => {
       newSessionId: "s1-clear",
     });
 
-    // The new session has no conversation but keeps the user-given name.
+    // Fresh child has no conversation, no session_info name, default tab title.
     assert.equal(
       cleared.chat.some((line) => line.role === "user" || line.role === "assistant"),
       false,
     );
-    assert.equal(cleared.session.getSessionName(), "My Work");
+    assert.equal(cleared.session.getSessionName(), undefined);
+    assert.equal(cleared.tab.title, "Agent-01");
   });
 });
 

@@ -307,18 +307,14 @@ export class MixCodeRuntime {
       throw new Error("Cannot clear a session while it is streaming");
     }
     const oldHeader = runtimeTab.session?.getHeader();
-    // /clear replaces the conversation but keeps working in the same context, so
-    // a user-given session name must follow into the fresh child session. Capture
-    // it before shutdown and re-append it once the new session exists. Centralizing
-    // this here keeps every caller (TUI, batch, future) consistent.
-    const oldSessionName = runtimeTab.session?.getSessionName();
+    // Align with Pi /new: /clear starts a fresh child session without carrying
+    // session_info name. Old file keeps its name for resume; new side is unnamed.
     const services = runtimeTab.services;
     const newSession = await this.createSession(
       config.workdir,
       config.newSessionId,
       oldHeader?.parentSession,
     );
-    if (oldSessionName) newSession.appendSessionInfo(oldSessionName);
     await this.shutdownRuntimeTab(runtimeTab, {
       type: "session_shutdown",
       reason: "new",
@@ -330,6 +326,9 @@ export class MixCodeRuntime {
     await services.resourceLoader.reload();
     this.tabs.delete(sessionId);
     resetTabForNewSession(runtimeTab.tab, newSession.getSessionId());
+    // Reset UI title so state-store tab_titles cannot re-persist the old name
+    // under the new session id after restart.
+    runtimeTab.tab.title = `Agent-${String(runtimeTab.tab.index).padStart(2, "0")}`;
     const cleared = await createRuntimeTabWithFallback(
       runtimeTab.tab,
       newSession,
