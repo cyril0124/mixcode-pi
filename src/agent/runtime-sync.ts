@@ -17,7 +17,12 @@ import type { RuntimeTab } from "./runtime-types.js";
  */
 export class RuntimeSyncManager {
   private coordinator?: SessionSyncCoordinator;
-  private readonly ownedLocks = new Map<string, SessionLockHandle>();
+  // Reentrant per-session ownership: the file lock is held once, but this
+  // process may acquire it multiple times for overlapping operations on the
+  // same session (e.g. a queued-message flush fires while the aborting turn
+  // still holds it). Re-acquiring the file lock would self-conflict (same live
+  // PID), so we ref-count and only touch the file at 0<->1 transitions.
+  private readonly ownedLocks = new Map<string, { handle: SessionLockHandle; count: number }>();
 
   constructor(
     private readonly sessionsRoot: string,
@@ -56,22 +61,51 @@ export class RuntimeSyncManager {
    * Acquire the cross-process turn lock for a session before a write. Returns
    * undefined when sync is disabled (no cross-process contention to guard).
    * Throws SessionLockConflictError when another live instance holds it.
+   *
+   * Reentrant: if THIS process already owns the lock for the session, this
+   * bumps a ref-count and returns a fresh token instead of re-touching the
+   * file. Each returned token releases exactly once; the underlying file lock
+   * is freed only when the last token is released.
    */
   acquire(sessionId: string): SessionLockHandle | undefined {
     if (!this.coordinator) return undefined;
-    const handle = acquireSessionTurnLock(this.sessionsRoot, sessionId);
-    this.ownedLocks.set(sessionId, handle);
-    return handle;
+    const existing = this.ownedLocks.get(sessionId);
+    if (existing) {
+      existing.count += 1;
+    } else {
+      const handle = acquireSessionTurnLock(this.sessionsRoot, sessionId);
+      this.ownedLocks.set(sessionId, { handle, count: 1 });
+    }
+    let released = false;
+    return {
+      sessionId,
+      release: () => {
+        if (released) return;
+        released = true;
+        this.releaseOwned(sessionId);
+      },
+    };
   }
 
   release(sessionId: string, handle: SessionLockHandle | undefined): void {
-    if (!handle) return;
-    handle.release();
-    if (this.ownedLocks.get(sessionId) === handle) this.ownedLocks.delete(sessionId);
+    // The token's own release() drives ref-counting; sessionId is kept for API
+    // symmetry with acquire() and callers that pass it explicitly.
+    void sessionId;
+    handle?.release();
+  }
+
+  private releaseOwned(sessionId: string): void {
+    const owned = this.ownedLocks.get(sessionId);
+    if (!owned) return;
+    owned.count -= 1;
+    if (owned.count <= 0) {
+      owned.handle.release();
+      this.ownedLocks.delete(sessionId);
+    }
   }
 
   dispose(): void {
-    for (const handle of this.ownedLocks.values()) handle.release();
+    for (const owned of this.ownedLocks.values()) owned.handle.release();
     this.ownedLocks.clear();
     this.coordinator?.dispose();
     this.coordinator = undefined;

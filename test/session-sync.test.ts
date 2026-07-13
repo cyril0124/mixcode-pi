@@ -333,6 +333,48 @@ test("reload after retract does not resurrect the retracted message", async () =
   }
 });
 
+// Regression: while a turn is streaming (its turn lock held by THIS process), a
+// queued-message flush (the Esc path) must not self-conflict on the lock. The
+// lock is reentrant within one process; only other instances are blocked.
+test("queued-message flush during a streaming turn does not self-conflict on the lock", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-flush-lock-"));
+  const sessionsRoot = join(dir, "sessions");
+  let release!: () => void;
+  const released = new Promise<void>((r) => { release = r; });
+  const runtime = new MixCodeRuntime({
+    sessionsRoot,
+    streamFn: (_m, _c, o) => pendingStream(released, o),
+  });
+  try {
+    const rt = await runtime.createTab(createTab(1, "s1", dir), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: dir,
+      model: retractModel(),
+    });
+    runtime.enableSessionSync();
+    // MSG-1 starts streaming and holds the turn lock.
+    const p1 = runtime.prompt("s1", "MSG-1");
+    await waitFor(() => rt.agentSession.isStreaming === true);
+    // MSG-2 is queued while streaming.
+    await runtime.prompt("s1", "MSG-2-queued");
+    assert.equal(rt.tab.pendingMessages.includes("MSG-2-queued"), true);
+    // Esc path: abort the active turn, then flush the queued message. This must
+    // not throw SessionLockConflictError even though MSG-1's turn still holds
+    // the lock as it unwinds.
+    runtime.abortTab("s1");
+    const flush = runtime.flushPendingMessage("s1");
+    release();
+    await p1.catch(() => undefined);
+    await flush; // must resolve, not reject with a lock conflict
+    await waitFor(() => rt.agentSession.isStreaming === false);
+    assert.equal(chatText(runtime, "s1").includes("MSG-2-queued"), true);
+  } finally {
+    await runtime.closeAllTabs();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 // Regression: after retracting MSG-A and sending a NEW message MSG-B, only MSG-B
 // remains — prompt()'s pre-send reload must not resurrect MSG-A. This is the
 // exact user-reported "extra message after double-Esc undo" flow.
