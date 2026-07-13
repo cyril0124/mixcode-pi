@@ -579,9 +579,16 @@ function renderCompactionSummaryBlock(
  * the summary is no longer a chat line.
  */
 export function renderStartupBlock(text: string, width: number): string[] {
+  // Pi renders the [Skill conflicts] block in a prominent warning color, unlike
+  // the muted tool color used for informational sections. Track whether we are
+  // inside that block so its header and content lines stand out.
+  let inSkillConflicts = false;
   return text.split(/\r?\n/).flatMap((line) => {
-    if (/^\[[^\]]+\]$/.test(line.trim())) {
-      return [padLine(activeRenderTheme.tool(line.trim()), width)];
+    const trimmed = line.trim();
+    if (/^\[[^\]]+\]$/.test(trimmed)) {
+      inSkillConflicts = trimmed === "[Skill conflicts]";
+      const headerColor = inSkillConflicts ? activeRenderTheme.warning : activeRenderTheme.tool;
+      return [padLine(headerColor(trimmed), width)];
     }
     // Wrap long resource lists (e.g. comma-separated skills/extensions) so the
     // full content stays visible instead of being clipped with an ellipsis.
@@ -589,9 +596,42 @@ export function renderStartupBlock(text: string, width: number): string[] {
     const indent = line.match(/^\s*/)?.[0] ?? "";
     const content = line.slice(indent.length);
     const wrapWidth = Math.max(1, width - indent.length);
+    if (inSkillConflicts && content.length > 0) {
+      return renderSkillConflictLine(indent, content, wrapWidth, width);
+    }
     return wrapTextWithAnsi(content, wrapWidth).map((part) =>
       padLine(activeRenderTheme.dim(`${indent}${part}`), width),
     );
+  });
+}
+
+/**
+ * Color a single line inside the [Skill conflicts] block, mirroring Pi's
+ * formatDiagnostics: winner (✓) uses success, loser (✗) uses warning, and
+ * collision-name / diagnostic-path lines use warning for prominence. Only the
+ * first wrapped part carries the marker; continuation parts stay dim.
+ */
+function renderSkillConflictLine(
+  indent: string,
+  content: string,
+  wrapWidth: number,
+  width: number,
+): string[] {
+  return wrapTextWithAnsi(content, wrapWidth).map((part, index) => {
+    if (index > 0) return padLine(activeRenderTheme.dim(`${indent}${part}`), width);
+    if (part.startsWith("✓ ")) {
+      return padLine(
+        `${indent}${activeRenderTheme.success("✓")} ${activeRenderTheme.dim(part.slice(2))}`,
+        width,
+      );
+    }
+    if (part.startsWith("✗ ")) {
+      return padLine(
+        `${indent}${activeRenderTheme.warning("✗")} ${activeRenderTheme.dim(part.slice(2))}`,
+        width,
+      );
+    }
+    return padLine(activeRenderTheme.warning(`${indent}${part}`), width);
   });
 }
 

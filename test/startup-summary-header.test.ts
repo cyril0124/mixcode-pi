@@ -189,3 +189,160 @@ test("extension load errors land in the startup summary diagnostics section", as
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("skill name collisions render a [Skill conflicts] section like Pi", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-hdr-skill-conflict-"));
+  const home = process.env.HOME ?? dir;
+  const winnerPath = join(home, ".pi/agent/skills/dup-skill/SKILL.md");
+  const loserPath = join(home, ".agents/skills/dup-skill/SKILL.md");
+  const winnerBaseDir = join(home, ".pi/agent/skills/dup-skill");
+  try {
+    const runtime = new MixCodeRuntime({
+      sessionsRoot: join(dir, "sessions"),
+      resourceLoaderOptions: {
+        // Inject a Pi-shaped skill-collision diagnostic plus the surviving skill
+        // so the header formatter can resolve the winner's source label.
+        skillsOverride: () => ({
+          skills: [
+            {
+              name: "dup-skill",
+              description: "duplicate skill",
+              filePath: winnerPath,
+              baseDir: winnerBaseDir,
+              sourceInfo: {
+                path: winnerPath,
+                source: "auto",
+                scope: "user",
+                origin: "top-level",
+                baseDir: winnerBaseDir,
+              },
+              disableModelInvocation: false,
+            },
+          ],
+          diagnostics: [
+            {
+              type: "collision",
+              message: 'name "dup-skill" collision',
+              path: loserPath,
+              collision: {
+                resourceType: "skill",
+                name: "dup-skill",
+                winnerPath,
+                loserPath,
+              },
+            },
+          ],
+        }),
+      },
+    });
+    const runtimeTab = await runtime.createTab(createTab(1, "s1", process.cwd()), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+    });
+    const summary = runtimeTab.tab.startupSummary ?? "";
+    assert.match(summary, /\[Skill conflicts\]/);
+    assert.match(summary, /"dup-skill" collision:/);
+    // Winner shows its source label + path exactly once.
+    assert.match(summary, /✓ auto \(user\) ~\/\.pi\/agent\/skills\/dup-skill\/SKILL\.md/);
+    // Loser is marked skipped with its (source-less) display path.
+    assert.match(summary, /✗ ~\/\.agents\/skills\/dup-skill\/SKILL\.md \(skipped\)/);
+    const winnerLines = summary.split("\n").filter((line) => line.includes("✓"));
+    assert.equal(winnerLines.length, 1, "winner path appears exactly once");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("no [Skill conflicts] section when there are no skill diagnostics", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-hdr-skill-clean-"));
+  try {
+    const runtime = new MixCodeRuntime({
+      sessionsRoot: join(dir, "sessions"),
+      // Force an empty diagnostics set so the assertion does not depend on the
+      // host machine's real skill collisions.
+      resourceLoaderOptions: {
+        skillsOverride: (base) => ({ skills: base.skills, diagnostics: [] }),
+      },
+    });
+    const runtimeTab = await runtime.createTab(createTab(1, "s1", process.cwd()), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+    });
+    assert.doesNotMatch(runtimeTab.tab.startupSummary ?? "", /\[Skill conflicts\]/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("skill conflicts render package source labels and non-collision diagnostics", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-hdr-skill-pkg-"));
+  const home = process.env.HOME ?? dir;
+  // npm package skill: baseDir + npm: source drives getShortPath's relative path
+  // and getDisplaySourceInfo's accent (source + scope) label branch.
+  const pkgBaseDir = join(home, ".pi/agent/npm/node_modules/pi-skills/skills/pkg-skill");
+  const winnerPath = join(pkgBaseDir, "SKILL.md");
+  const loserPath = join(home, "project/.agents/skills/pkg-skill/SKILL.md");
+  const warnPath = join(home, ".agents/skills/bad-skill/SKILL.md");
+  try {
+    const runtime = new MixCodeRuntime({
+      sessionsRoot: join(dir, "sessions"),
+      resourceLoaderOptions: {
+        skillsOverride: () => ({
+          skills: [
+            {
+              name: "pkg-skill",
+              description: "package skill",
+              filePath: winnerPath,
+              baseDir: pkgBaseDir,
+              sourceInfo: {
+                path: winnerPath,
+                source: "npm:pi-skills",
+                scope: "user",
+                origin: "package",
+                baseDir: pkgBaseDir,
+              },
+              disableModelInvocation: false,
+            },
+          ],
+          diagnostics: [
+            {
+              type: "collision",
+              message: 'name "pkg-skill" collision',
+              path: loserPath,
+              collision: {
+                resourceType: "skill",
+                name: "pkg-skill",
+                winnerPath,
+                loserPath,
+              },
+            },
+            // Non-collision diagnostic (validation warning) exercises the
+            // path + message "others" branch.
+            {
+              type: "warning",
+              message: "name contains invalid characters",
+              path: warnPath,
+            },
+          ],
+        }),
+      },
+    });
+    const runtimeTab = await runtime.createTab(createTab(1, "s1", process.cwd()), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+    });
+    const summary = runtimeTab.tab.startupSummary ?? "";
+    assert.match(summary, /\[Skill conflicts\]/);
+    // Winner: accent label "npm:pi-skills (user)" + package-relative short path.
+    assert.match(summary, /✓ npm:pi-skills \(user\) SKILL\.md/);
+    // Loser has no loaded sourceInfo -> plain ~-relative display path.
+    assert.match(summary, /✗ ~\/project\/\.agents\/skills\/pkg-skill\/SKILL\.md \(skipped\)/);
+    // Non-collision warning renders path line then message line.
+    assert.match(summary, /~\/\.agents\/skills\/bad-skill\/SKILL\.md\n\s+name contains invalid characters/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

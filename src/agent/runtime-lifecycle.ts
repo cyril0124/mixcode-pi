@@ -28,7 +28,6 @@ import {
   MIXCODE_SYSTEM_PROMPT,
 } from "../core/system-prompt.js";
 import {
-  displayToolOwner,
   isExtensionToolOwner,
   type ExtensionToolOwnerPolicy,
 } from "../core/extension-tool-owners.js";
@@ -47,8 +46,6 @@ import {
   createExtensionCommandActions,
   createMixCodeExtensionUiContext,
   disposeExtensionWidgets,
-  extensionConflictDiagnosticLines,
-  extensionLoadErrorLines,
 } from "./runtime-extension-ui.js";
 import { consumeDeferredPendingMessageFlush } from "./runtime-follow-up.js";
 import {
@@ -59,6 +56,8 @@ import {
   configureMixCodeRetryClassification,
   configureMixCodeRetrySettings,
 } from "./retry-settings.js";
+import { refreshStartupHeader } from "./runtime-startup-header.js";
+export { refreshStartupHeader } from "./runtime-startup-header.js";
 import {
   bindRuntimeSessionCore,
   getExtensionManagerEntriesForServices,
@@ -74,7 +73,7 @@ import type {
   RuntimeTab,
   SessionReplacementReason,
 } from "./runtime-types.js";
-import { activateMixCodeTools, PI_BUILTIN_TOOL_NAMES, ToolLog } from "./tools.js";
+import { activateMixCodeTools, ToolLog } from "./tools.js";
 
 export type RuntimeTabConfig = Omit<AgentRuntimeConfig, "sessionId" | "model"> & {
   model?: MixCodeModel;
@@ -505,52 +504,6 @@ function runtimeTabPromptOptions(services: AgentSessionServices, cwd: string) {
 }
 
 /**
- * Recompute the tab-level startup header ([Context]/[Skills]/[Extensions]/
- * [Tool Owners]/[Diagnostics]) from the current services and extensions.
- * Called on every session-binding change (create/clear/fork/resume/switch/
- * reload/workdir change) so the header always reflects the live session —
- * mirroring Pi, whose loadedResourcesContainer is refreshed on session_start
- * and /reload but never cleared by chat rebuilds.
- */
-export function refreshStartupHeader(runtimeTab: RuntimeTab): void {
-  const contextFiles = runtimeTab.services.resourceLoader
-    .getAgentsFiles()
-    .agentsFiles.map((file) => displayResourcePath(file.path));
-  const skills = runtimeTab.services.resourceLoader.getSkills().skills.map((skill) => skill.name);
-  const extensions = runtimeTab.extensionManagerEntries
-    .filter((entry) => entry.enabled)
-    .map((entry) => displayExtensionName(entry));
-  const diagnostics = [
-    ...extensionLoadErrorLines(runtimeTab),
-    ...extensionConflictDiagnosticLines(runtimeTab, runtimeTab.extensionToolOwnerPolicy),
-  ];
-  runtimeTab.tab.startupSummary = [
-    ...resourceSummarySection("Context", contextFiles),
-    ...resourceSummarySection("Skills", skills),
-    ...resourceSummarySection("Extensions", extensions),
-    ...resourceSummarySection("Tool Owners", toolOwnerSummary(runtimeTab)),
-    // Diagnostics only when present — an empty section would just add noise.
-    ...(diagnostics.length ? resourceSummarySection("Diagnostics", diagnostics) : []),
-  ]
-    .join("\n")
-    .trimEnd();
-}
-
-function resourceSummarySection(title: string, items: string[]): string[] {
-  return [`[${title}]`, items.length ? `  ${items.join(", ")}` : "  none", ""];
-}
-
-function displayExtensionName(entry: ExtensionManagerEntry): string {
-  if (entry.source && entry.source !== "local" && entry.source !== "unknown") return entry.source;
-  return displayResourcePath(entry.path);
-}
-
-function displayResourcePath(path: string): string {
-  const home = process.env.HOME;
-  return home && path.startsWith(`${home}/`) ? `~/${path.slice(home.length + 1)}` : path;
-}
-
-/**
  * Route Pi's own system-prompt rebuilds through MixCode's builder.
  *
  * Pi rebuilds the base system prompt via AgentSession._rebuildSystemPrompt on
@@ -639,15 +592,6 @@ export async function bindRuntimeExtensions(
 
 function resolveExtensionToolOwnerPolicy(context: RuntimeLifecycleContext): ExtensionToolOwnerPolicy {
   return context.extensionToolOwnerPolicy ?? isExtensionToolOwner;
-}
-
-function toolOwnerSummary(runtimeTab: RuntimeTab): string[] {
-  const builtInToolNames = new Set<string>(PI_BUILTIN_TOOL_NAMES);
-  return runtimeTab.agentSession
-    .getAllTools()
-    .filter((tool) => builtInToolNames.has(tool.name) && tool.sourceInfo?.source !== "builtin")
-    .map((tool) => `${tool.name} -> ${displayToolOwner(tool.sourceInfo)}`)
-    .sort((left, right) => left.localeCompare(right));
 }
 
 export async function reloadRuntimeTabWithFreshServices(
