@@ -45,7 +45,11 @@ export function closeAgentTab(state: MixCodeState, sessionId: string): MixCodeTa
 export function activateTab(state: MixCodeState, tabId: string): void {
   state.activeTabId = tabId;
   const tab = state.tabs.find((item) => item.sessionId === tabId);
-  if (tab) tab.unreadDone = false;
+  if (!tab) return;
+  // /mark-done sets status=done + unreadDone; both drive the "!" glyph. Clear both
+  // on focus so the badge matches real agent_end (unread only until viewed).
+  tab.unreadDone = false;
+  if (tab.status === "done") tab.status = "idle";
 }
 
 /**
