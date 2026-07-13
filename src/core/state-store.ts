@@ -28,6 +28,7 @@ export function normalizeStartupWorkdir(workdir: string): string {
 }
 
 export function serializeState(state: MixCodeState): Record<string, unknown> {
+  // /context-limit is session-ephemeral: do not persist contextLimit / contextLimitOverridden.
   return {
     children: state.tabs.map((tab) => tab.sessionId),
     model: state.model,
