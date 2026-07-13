@@ -71,16 +71,19 @@ type Mod =
 // superseded by a later edit and is safely skipped.
 
 interface Hunk {
+  /** 1-based new-file start from `@@ -old +new @@`; 0 means empty new file. */
+  newStart: number;
   lines: string[];
 }
 
 /** Parse hunks from a unified patch, ignoring file-header lines. */
-function parseHunks(patch: string): Hunk[] {
+export function parseHunks(patch: string): Hunk[] {
   const hunks: Hunk[] = [];
   let cur: Hunk | null = null;
   for (const line of patch.split("\n")) {
-    if (/^@@ -\d+(?:,\d+)? \+\d+(?:,\d+)? @@/.test(line)) {
-      cur = { lines: [] };
+    const header = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(line);
+    if (header) {
+      cur = { newStart: Number(header[1]), lines: [] };
       hunks.push(cur);
     } else if (cur && (line[0] === " " || line[0] === "-" || line[0] === "+")) {
       cur.lines.push(line);
@@ -113,12 +116,22 @@ function hunkSides(hunk: Hunk): { newSide: string[]; oldSide: string[] } {
  * each hunk's new-side block (not by fixed line number). Hunks are processed
  * bottom-to-top so earlier matches stay valid. A hunk whose new-side block is
  * not found was superseded by a later edit and is skipped.
+ *
+ * Pure deletions have an empty new-side (only `-` lines). Those cannot be
+ * located by content search, so we re-insert oldSide at the hunk's +newStart.
  */
-function reversePatch(newContent: string, hunks: Hunk[]): string {
+export function reversePatch(newContent: string, hunks: Hunk[]): string {
   let lines = newContent.split("\n");
   for (let hi = hunks.length - 1; hi >= 0; hi--) {
-    const { newSide, oldSide } = hunkSides(hunks[hi]);
-    if (newSide.length === 0) continue;
+    const hunk = hunks[hi];
+    const { newSide, oldSide } = hunkSides(hunk);
+    if (newSide.length === 0) {
+      // Pure deletion: +N,0 means insert oldSide at index N (0 for empty file).
+      if (oldSide.length === 0) continue;
+      const at = hunk.newStart;
+      lines = [...lines.slice(0, at), ...oldSide, ...lines.slice(at)];
+      continue;
+    }
     // Locate the contiguous new-side block.
     let found = -1;
     for (let i = 0; i + newSide.length <= lines.length; i++) {
