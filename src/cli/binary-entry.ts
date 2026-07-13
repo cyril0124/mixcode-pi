@@ -65,6 +65,8 @@ import skillRefsPackageJson from "../../pi-packages/mpi-skill-refs/package.json"
 import promptHistoryIndex from "../../pi-packages/mpi-prompt-history/index.ts" with { type: "text" };
 import promptHistoryBrowser from "../../pi-packages/mpi-prompt-history/prompt-history-browser.ts" with { type: "text" };
 import promptHistoryPackageJson from "../../pi-packages/mpi-prompt-history/package.json" with { type: "text" };
+import autoRenameIndex from "../../pi-packages/mpi-auto-rename/index.ts" with { type: "text" };
+import autoRenamePackageJson from "../../pi-packages/mpi-auto-rename/package.json" with { type: "text" };
 import packageJson from "../../package.json" with { type: "json" };
 import { materializeBinaryRuntimeAssets } from "./binary-assets.js";
 
@@ -176,6 +178,10 @@ materializeBinaryRuntimeAssets(runtimeDir, {
       "index.ts": skillRefsIndex,
       "skill-core.ts": skillRefsCore,
       "package.json": skillRefsPackageJson,
+    },
+    "mpi-auto-rename": {
+      "index.ts": autoRenameIndex,
+      "package.json": autoRenamePackageJson,
     },
   },
 });
