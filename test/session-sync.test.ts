@@ -73,6 +73,43 @@ function chatText(runtime: MixCodeRuntime, sessionId: string): string {
   return (runtime.getTab(sessionId)?.chat ?? []).map((line) => line.text).join("\n");
 }
 
+// Count only conversation (user/assistant/toolResult) entries on the branch.
+// A fresh session carries initial metadata entries (model_change,
+// thinking_level_change) that are NOT wiped by a first-prompt reload, so a
+// retract leaves those in place while removing the conversation turn. Asserting
+// on conversation entries captures the real "turn was retracted" invariant
+// without depending on those metadata rows.
+function conversationEntryCount(runtime: MixCodeRuntime, sessionId: string): number {
+  const branch = runtime.getTab(sessionId)?.session.getBranch() ?? [];
+  return branch.filter(
+    (entry) =>
+      entry.type === "message" &&
+      (entry.message.role === "user" ||
+        entry.message.role === "assistant" ||
+        entry.message.role === "toolResult"),
+  ).length;
+}
+
+test("sync before first flush preserves the session id exposed to extensions", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-sync-fresh-"));
+  const runtime = new MixCodeRuntime({ sessionsRoot: join(dir, "sessions") });
+  try {
+    const rt = await runtime.createTab(createTab(1, "s1", dir), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: dir,
+      model: MIXCODE_FAUX_MODEL,
+    });
+
+    const sessionId = rt.session.getSessionId();
+    assert.equal(runtime.syncSessionFromDisk("s1"), false);
+    assert.equal(rt.session.getSessionId(), sessionId);
+  } finally {
+    await runtime.closeAllTabs();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 // Two instances sharing one sessionsRoot, both bound to the SAME session file.
 // Instance A prompts (appends to disk); instance B must be able to pick up the
 // new conversation by reloading from disk, and its next prompt must include the
@@ -318,7 +355,7 @@ test("reload after retract does not resurrect the retracted message", async () =
     const res = await runtime.retractCurrentTurn("s1");
     release();
     await pending.catch(() => undefined);
-    await waitFor(() => rt.session.getBranch().length === 0);
+    await waitFor(() => conversationEntryCount(runtime, "s1") === 0);
     assert.equal(res?.editorText, "MSG-A-retract-me");
     assert.equal(chatText(runtime, "s1").includes("MSG-A"), false);
 
@@ -326,7 +363,7 @@ test("reload after retract does not resurrect the retracted message", async () =
     // not bring MSG-A back.
     runtime.syncSessionFromDisk("s1");
     assert.equal(chatText(runtime, "s1").includes("MSG-A"), false);
-    assert.equal(rt.session.getLeafId(), null);
+    assert.equal(conversationEntryCount(runtime, "s1"), 0);
   } finally {
     await runtime.closeAllTabs();
     await rm(dir, { recursive: true, force: true });
@@ -401,7 +438,7 @@ test("sending a new message after retract keeps only the new message", async () 
     await runtime.retractCurrentTurn("s1");
     release();
     await p1.catch(() => undefined);
-    await waitFor(() => rt.session.getBranch().length === 0);
+    await waitFor(() => conversationEntryCount(runtime, "s1") === 0);
     assert.equal(chatText(runtime, "s1").includes("MSG-A"), false);
 
     // Turn 2: send a fresh message; let it complete immediately.

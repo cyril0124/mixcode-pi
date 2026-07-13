@@ -6,6 +6,7 @@
 // line model, the preview, and context-usage stats. It deliberately does NOT
 // rebuild the AgentSession/services/extensions — only the session-derived view
 // changes, so this stays cheap relative to a full session replacement.
+import { existsSync } from "node:fs";
 import { disposeChatRenderers, entriesToChatLines, syncContextUsage, syncPreviewFromChat } from "./runtime-chat.js";
 import type { ChatLine, RuntimeTab } from "./runtime-types.js";
 
@@ -27,6 +28,15 @@ export function reloadRuntimeSessionFromDisk(runtimeTab: RuntimeTab): ReloadSess
   if (runtimeTab.agentSession.isCompacting) return { reloaded: false, reason: "compacting" };
   const file = runtimeTab.session.getSessionFile();
   if (!file) return { reloaded: false, reason: "no-file" };
+  // A fresh session has a file PATH but no file on disk until its first flush.
+  // SessionManager.setSessionFile() treats a non-existent path as "start a new
+  // session" and mints a NEW session id (keeping the old filename), which
+  // silently changes getSessionId() with no session_start event. That orphans
+  // any per-session extension state keyed on the id (e.g. the todo overlay is
+  // registered under the original id but tool_execution_end then reports the
+  // new id, so its widget never renders until /reload). Nothing on disk means
+  // no external appends to reconcile, so skip the reload entirely.
+  if (!existsSync(file)) return { reloaded: false, reason: "no-file" };
 
   // Capture the pre-reload leaf and known entry ids. setSessionFile rebuilds the
   // index and unconditionally moves the leaf to the file's LAST entry — correct
