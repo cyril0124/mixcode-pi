@@ -145,15 +145,20 @@ function stripLineComment(line: string): string {
 
 const SEARCH_CMDS = new Set(["grep", "rg", "find", "fd", "ag", "ack"]);
 
-// Flags that consume the next token as a value (grep/rg family)
+// Flags that consume the next token as a value (grep/rg family).
+// Note: bare -E is ERE mode for grep (no value); only rg's -E/--encoding takes a value.
+// We omit -E/--encoding here so grep -E is not mis-parsed; rg still checks paths correctly.
 const FLAGS_WITH_VALUE = new Set([
   "-e", "-f", "--include", "--exclude", "--exclude-dir",
   "-m", "--max-count", "-A", "-B", "-C", "--context",
   "--color", "--colours", "-g", "--glob", "-t", "--type",
-  "--type-add", "--type-not", "-E", "--encoding",
+  "--type-add", "--type-not",
   "--max-depth", "--maxdepth", "-d", "--depth",
   "--ignore-file", "--path-separator",
 ]);
+
+// Flags that already supply the pattern; remaining positionals are all paths.
+const PATTERN_FLAGS = new Set(["-e", "--regexp", "-f", "--file"]);
 
 function checkSegment(segment: string, cwd: string): string | null {
   const tokens = tokenize(segment);
@@ -250,6 +255,12 @@ function checkGrepPath(args: string[], cwd: string): string | null {
     const arg = args[i];
     if (arg === "--") { i++; break; }
     if (arg.startsWith("-")) {
+      // -e/-f/--regexp/--file already supply the pattern; do not treat next positional as pattern
+      if (PATTERN_FLAGS.has(arg)) {
+        patternSeen = true;
+        i += 2;
+        continue;
+      }
       i += FLAGS_WITH_VALUE.has(arg) ? 2 : 1;
       continue;
     }

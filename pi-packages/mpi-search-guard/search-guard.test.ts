@@ -90,6 +90,30 @@ test("blocked: grep with -- separator then blacklisted path", () => {
   assert.equal(inspectBashCommand("grep pattern -- /", CWD), "/");
 });
 
+test("blocked: grep -e pattern then blacklisted path", () => {
+  assert.equal(inspectBashCommand("grep -e foo /", CWD), "/");
+});
+
+test("blocked: grep -f patterns file then blacklisted path", () => {
+  assert.equal(inspectBashCommand("grep -f patterns.txt /", CWD), "/");
+});
+
+test("blocked: rg -e pattern then blacklisted path", () => {
+  assert.equal(inspectBashCommand("rg -e pattern /home", CWD), "/home");
+});
+
+test("blocked: grep -r -e pattern then blacklisted path", () => {
+  assert.equal(inspectBashCommand("grep -r -e pattern /", CWD), "/");
+});
+
+test("blocked: grep -E (ERE mode, no value) then blacklisted path", () => {
+  assert.equal(inspectBashCommand("grep -E foo /", CWD), "/");
+});
+
+test("safe: grep -r with pattern then project path", () => {
+  assert.equal(inspectBashCommand("grep -r foo src/", CWD), null);
+});
+
 test("blocked: grep targeting dirname(homedir)", () => {
   const result = inspectBashCommand(`grep -r foo ${PARENT_HOME}`, CWD);
   assert.equal(result, PARENT_HOME);
