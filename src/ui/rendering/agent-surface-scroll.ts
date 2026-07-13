@@ -86,6 +86,11 @@ export function applyScrollFreezeAnchor(
   tab.chatScrollOffset = Math.max(0, lines.length - (start + viewport));
 }
 
+/** Strip ANSI so blank themed rows (bg color + spaces) are not treated as content. */
+function visibleText(line: string): string {
+  return line.replace(/\[[0-?]*[ -/]*[@-~]/g, "").trim();
+}
+
 /** Remember the top visible non-marker line as the freeze anchor for next frame. */
 export function rememberScrollFreezeAnchor(
   tab: MixCodeTabInfo,
@@ -98,9 +103,12 @@ export function rememberScrollFreezeAnchor(
     scrollFreezeStates.set(tab, { total: current.total, width, height, offset: tab.chatScrollOffset });
     return;
   }
+  // Prefer real message text over padded blank rows. Theme backgrounds leave
+  // ANSI on whitespace-only lines; line.trim() alone treats those as content
+  // and the freeze anchor then matches the wrong blank row after growth.
   const row = visible.findIndex((line) => {
-    const trimmed = line.trim();
-    return trimmed.length > 0 && !trimmed.includes("older above") && !trimmed.includes("newer below");
+    const text = visibleText(line);
+    return text.length > 0 && !text.includes("older above") && !text.includes("newer below");
   });
   scrollFreezeStates.set(tab, {
     ...current,
