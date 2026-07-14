@@ -153,6 +153,29 @@ test("attached tree selector editor ignores Kitty key release events", () => {
   assert.equal(state.treeSelector.filterMode, "default");
 });
 
+test("navigate mode consumes Left so app-input cannot leave to Home", () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"));
+  state.activeTabId = "s1";
+  state.treeSelector = createTreeSelectorState();
+  initTreeSelector(state.treeSelector, sampleTree(), "active", "navigate");
+  state.treeSelector.open = true;
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({} as never),
+    hideOverlay: () => undefined,
+  };
+
+  // handleTreeSelectorKey must eat Left (empty-editor Left would activate Home).
+  assert.equal(handleTreeSelectorKey(state, "\x1b[D", tui), true);
+  assert.equal(state.treeSelector.open, true);
+  assert.equal(state.activeTabId, "s1");
+
+  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[D", tui), { consume: true });
+  assert.equal(state.activeTabId, "s1");
+  assert.equal(state.treeSelector.open, true);
+});
+
 test("tree selector uses pi-agent key labels and shortcuts", () => {
   const state = createInitialState("/repo");
   state.treeSelector = createTreeSelectorState();

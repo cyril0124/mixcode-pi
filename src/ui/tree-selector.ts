@@ -351,7 +351,9 @@ export function handleTreeSelectorKey(
     moveTreeSelectorSelection(state, tui, runtime, onStateChanged, 1);
     return true;
   }
-  if (selector.mode === "navigate") return false;
+  // Navigate swaps the editor for an empty tree surface; without consuming Left,
+  // app-input treats empty-editor Left as "return to Home" and leaves the tree open.
+  if (selector.mode === "navigate") return matchesKey(data, "left");
   if (matchesKey(data, "left") || matchesKey(data, "pageUp")) {
     pageTreeSelection(selector, -1, getMaxVisible());
     refreshTreeSelectorDisplay(tui);
