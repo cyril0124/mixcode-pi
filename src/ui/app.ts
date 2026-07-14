@@ -227,6 +227,7 @@ export function createMixCodeTui(
       () => editor.isShowingAutocomplete(),
       {
         getText: () => editor.getText(),
+        getExpandedText: () => editor.getExpandedText(),
         setText: (text) => editor.setText(text),
         addToHistory: (text, sessionId) => editor.addToHistory(text, sessionId),
         insertTextAtCursor: (text) => editor.insertTextAtCursor(text),

@@ -114,6 +114,8 @@ export type OverlayTui = Pick<TuiType, "requestRender" | "showOverlay"> &
 
 export interface MixCodeEditorActions {
   getText: () => string;
+  /** Full buffer with paste markers expanded (Pi Editor submit semantics). */
+  getExpandedText?: () => string;
   setText: (text: string) => void;
   addToHistory?: (text: string, sessionId?: string) => void;
   insertTextAtCursor?: (text: string) => void;

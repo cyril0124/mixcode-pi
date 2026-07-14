@@ -39,9 +39,10 @@ function makeTui() {
   };
 }
 
-function makeEditorActions(text = "") {
+function makeEditorActions(text = "", expanded?: string) {
   return {
     getText: () => text,
+    getExpandedText: () => expanded ?? text,
     setText: (next: string) => {
       text = next;
     },
@@ -293,6 +294,32 @@ test("Home Enter with empty text stays on Home (only Right attaches)", () => {
 
   assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui), { consume: true });
   assert.equal(state.activeTabId, "config");
+});
+
+test("Home Enter expands paste markers before sending", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"));
+  state.activeTabId = "config";
+  state.homeSelectedTabIndex = 0;
+  const tui = makeTui();
+  const prompted: string[] = [];
+  const runtime = {
+    prompt: async (_sessionId: string, text: string) => {
+      prompted.push(text);
+    },
+  };
+  const editorActions = makeEditorActions(
+    "[paste #1 +16 lines]",
+    "PASTE-LINE-1\nPASTE-LINE-2\nPASTE-LINE-3",
+  );
+
+  assert.deepEqual(
+    handleMixCodeKeyInput(state, "\r", tui, undefined, runtime, undefined, () => false, editorActions),
+    { consume: true },
+  );
+  await Promise.resolve();
+  assert.deepEqual(prompted, ["PASTE-LINE-1\nPASTE-LINE-2\nPASTE-LINE-3"]);
+  assert.equal(editorActions.getText(), "");
 });
 
 test("Home Ctrl+J inserts newline instead of submitting", () => {

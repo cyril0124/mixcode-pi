@@ -151,7 +151,9 @@ export function handleMixCodeKeyInput(
     if (matchesKey(data, "right") || isHomeEnter) {
       const target = state.tabs[state.homeSelectedTabIndex];
       if (target) {
-        const text = editorActions?.getText().trim() ?? "";
+        // Match Pi Editor / agent-tab submit: expand paste markers before send.
+        const text =
+          (editorActions?.getExpandedText?.() ?? editorActions?.getText() ?? "").trim();
         const hasText = text.length > 0;
         // Enter: send when non-empty after trim; never attach (Right is the only attach key).
         // Whitespace-only is a no-op (do not clear the buffer).
