@@ -203,3 +203,35 @@ test("default MixCode custom prompt expands tools and guidelines before Pi assem
   assert.match(prompt, /For content search, ALWAYS use `rg` \(ripgrep\)\. NEVER use `grep`\./);
   assert.match(prompt, /For file search, ALWAYS use `fd`\. NEVER use `find`\./);
 });
+
+test("custom base identity still keeps tools project context and skills", () => {
+  setGlobalConversationHistoryPrompt(undefined);
+  const prompt = buildMixCodeSystemPromptFromParts({
+    customPrompt: "You are a strict code reviewer focused on API breaks.",
+    cwd: "/repo",
+    selectedTools: ["read", "bash"],
+    toolSnippets: { read: "Read files", bash: "Execute bash commands" },
+    contextFiles: [{ path: "/repo/AGENTS.md", content: "Repo rules" }],
+    skills: [
+      {
+        name: "review",
+        description: "Review workflow",
+        filePath: "/repo/.agents/skills/review/SKILL.md",
+        baseDir: "/repo/.agents/skills/review",
+        sourceInfo: {
+          path: "/repo/.agents/skills/review/SKILL.md",
+          source: "project",
+          scope: "project",
+          origin: "top-level",
+        },
+        disableModelInvocation: false,
+      },
+    ],
+  });
+
+  assert.match(prompt, /^You are a strict code reviewer focused on API breaks\./);
+  assert.match(prompt, /Available tools:\n- read: Read files\n- bash: Execute bash commands/);
+  assert.match(prompt, /Repo rules/);
+  assert.match(prompt, /review/);
+  assert.match(prompt, /Review workflow/);
+});

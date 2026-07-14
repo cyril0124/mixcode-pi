@@ -17,6 +17,8 @@ export interface CreateAgentTabOptions {
   model?: MixCodeModelRef;
   runtimeModel?: MixCodeModel;
   thinkingLevel?: ThinkingLevel;
+  /** Base/identity system prompt; defaults to MIXCODE_SYSTEM_PROMPT. */
+  systemPrompt?: string;
 }
 
 /**
@@ -34,17 +36,19 @@ export async function createAgentTab(
   const workdir = options.workdir ?? state.workdir;
   const model = options.model ?? state.model;
   const thinkingLevel = options.thinkingLevel ?? state.thinkingLevel;
+  const customBasePrompt = isCustomBaseSystemPrompt(options.systemPrompt);
   const tab = createTab(state.tabs.length + 1, sessionId, workdir, {
     ...(options.title ? { title: options.title } : {}),
     model: { ...model },
     contextLimit: model.contextWindow,
     thinkingLevel,
+    ...(customBasePrompt ? { customBasePrompt: true } : {}),
   });
   state.tabs.push(tab);
   activateTab(state, sessionId);
   try {
     await runtime.createTab(tab, {
-      systemPrompt: MIXCODE_SYSTEM_PROMPT,
+      systemPrompt: options.systemPrompt ?? MIXCODE_SYSTEM_PROMPT,
       thinkingLevel,
       workdir,
       ...(options.runtimeModel ? { model: options.runtimeModel } : {}),
@@ -106,13 +110,21 @@ export async function completeAgentTabClear(
   state: MixCodeState,
   runtime: MixCodeSubmitRuntime,
   prepared: PreparedAgentTabClear,
+  options?: { systemPrompt?: string; rebuildServices?: boolean },
 ): Promise<string> {
   if (!runtime.clearTab) throw new Error("Clear requires runtime session replacement support");
   const cleared = await runtime.clearTab(prepared.oldSessionId, {
-    systemPrompt: MIXCODE_SYSTEM_PROMPT,
+    systemPrompt: options?.systemPrompt ?? MIXCODE_SYSTEM_PROMPT,
     thinkingLevel: prepared.tab.thinkingLevel,
     workdir: prepared.tab.workdir,
+    ...(options?.rebuildServices ? { rebuildServices: true } : {}),
   });
+  // Batch clear can install a new base identity; keep the UI badge in sync.
+  if (options?.systemPrompt !== undefined) {
+    prepared.tab.customBasePrompt = isCustomBaseSystemPrompt(options.systemPrompt)
+      ? true
+      : undefined;
+  }
   const nextSessionId = cleared.tab.sessionId;
   activateTab(state, nextSessionId);
   // The cache is keyed by session id; clear the new key as well because session
@@ -205,4 +217,9 @@ function isPromptTemplate(
       .getPrompts()
       .prompts.some((prompt) => prompt.name === command) ?? false
   );
+}
+
+/** True when the caller overrode the default base/identity system prompt. */
+function isCustomBaseSystemPrompt(systemPrompt: string | undefined): boolean {
+  return systemPrompt !== undefined && systemPrompt !== MIXCODE_SYSTEM_PROMPT;
 }

@@ -134,6 +134,11 @@ export interface MixCodeTabInfo {
   model: MixCodeModelRef;
   thinkingLevel: ThinkingLevel;
   workdir: string;
+  /**
+   * True when this tab's base/identity system prompt was overridden (e.g. batch
+   * `system_prompt`). UI shows a [sys] badge next to the editor title.
+   */
+  customBasePrompt?: boolean;
   alias: string;
   pendingDialogs: DialogRequestState[];
   pendingMessages: string[];

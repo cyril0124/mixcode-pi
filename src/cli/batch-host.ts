@@ -42,6 +42,7 @@ export function createBatchExecutorHost(options: {
         model,
         runtimeModel: runtime.resolveModel(model.provider, model.modelId),
         thinkingLevel,
+        systemPrompt: request.systemPrompt,
       });
       // The UI title is in-memory only; persist the batch name for bootstrap restore.
       runtime.renameSession(tab.sessionId, request.name);
@@ -53,12 +54,16 @@ export function createBatchExecutorHost(options: {
       if (config.model) await applyModelSelection(state, tab, config.model, runtime);
       if (config.thinking) applyThinkingLevel(state, tab, config.thinking, runtime);
     },
-    async clearTab(sessionId) {
+    async clearTab(sessionId, options) {
       const prepared = prepareAgentTabClear(state, runtime, sessionId);
       // Publish the immediate empty state before replacement starts, matching the
       // interactive adapter's two-phase clear without introducing a fake delay.
       tui.requestRender();
-      const nextSessionId = await completeAgentTabClear(state, runtime, prepared);
+      const nextSessionId = await completeAgentTabClear(state, runtime, prepared, {
+        systemPrompt: options?.systemPrompt,
+        // New base identity requires a fresh resourceLoader; default clear reuses services.
+        rebuildServices: options?.systemPrompt !== undefined,
+      });
       tui.requestRender();
       return nextSessionId;
     },

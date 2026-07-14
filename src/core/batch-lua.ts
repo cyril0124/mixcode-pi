@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
+import { modelRefId } from "./models.js";
 import { isThinkingLevelAvailable, validThinkingLevelsMessage } from "./thinking-levels.js";
 import type { MixCodeModelRef, MixCodeState } from "./types.js";
 
@@ -19,9 +20,20 @@ export interface BatchLuaTabInfo {
   status: string;
 }
 
+export interface BatchLuaModelInfo {
+  id: string;
+  provider: string;
+  modelId: string;
+  displayName: string;
+  contextWindow: number;
+  reasoning: boolean;
+}
+
 export interface BatchLuaContext {
   workdir: string;
   tabs: BatchLuaTabInfo[];
+  /** Available models snapshot at batch startup. */
+  models?: BatchLuaModelInfo[];
   /** CLI args after `--` (e.g. mixcode-pi --batch s.lua -- foo bar). */
   args?: string[];
 }
@@ -33,6 +45,12 @@ export interface BatchTabRequest {
   workdir?: string;
   model?: string;
   thinking?: string;
+  /**
+   * Base/identity system prompt only (same slot as SYSTEM.md / MIXCODE_SYSTEM_PROMPT).
+   * Tools, append, project context, and skills remain assembled by MixCode.
+   * Requires a new session: create, mode="clear", or mode="delete".
+   */
+  systemPrompt?: string;
   /** Behavior when reusing an existing tab: "append" (default), "clear", or "delete". */
   mode?: BatchReuseMode;
 }
@@ -56,7 +74,7 @@ export interface BatchExecutorHost {
     options: { model?: MixCodeModelRef; thinking?: ThinkingLevel },
   ): Promise<void>;
   /** Clear an existing tab's session (reset conversation) and return the new session id. */
-  clearTab(sessionId: string): Promise<string>;
+  clearTab(sessionId: string, options?: { systemPrompt?: string }): Promise<string>;
   /** Delete an existing tab and its session file from disk. */
   deleteTab(sessionId: string): Promise<void>;
   /**
@@ -133,10 +151,12 @@ export async function runLuaScript(
       getStringField(L, 1, "model", lua, lauxlib, to_luastring, to_jsstring) ?? undefined;
     const thinking =
       getStringField(L, 1, "thinking", lua, lauxlib, to_luastring, to_jsstring) ?? undefined;
+    const systemPrompt =
+      getStringField(L, 1, "system_prompt", lua, lauxlib, to_luastring, to_jsstring) ?? undefined;
     const mode =
       (getStringField(L, 1, "mode", lua, lauxlib, to_luastring, to_jsstring) as BatchReuseMode | null) ?? undefined;
 
-    requests.push({ name, prompt, workdir, model, thinking, mode });
+    requests.push({ name, prompt, workdir, model, thinking, systemPrompt, mode });
     return 0;
   });
   lua.lua_setfield(L, -2, to_luastring("open_tab"));
@@ -181,6 +201,26 @@ export async function runLuaScript(
     return 1;
   });
   lua.lua_setfield(L, -2, to_luastring("list_tabs"));
+
+  // Startup snapshot of available models (same lifetime as list_tabs).
+  lua.lua_pushcfunction(L, (L: any) => {
+    const models = context.models ?? [];
+    lua.lua_createtable(L, models.length, 0);
+    models.forEach((model, index) => {
+      lua.lua_createtable(L, 0, 6);
+      setStringField(L, "id", model.id, lua, to_luastring);
+      setStringField(L, "provider", model.provider, lua, to_luastring);
+      setStringField(L, "model_id", model.modelId, lua, to_luastring);
+      setStringField(L, "display_name", model.displayName, lua, to_luastring);
+      lua.lua_pushnumber(L, model.contextWindow);
+      lua.lua_setfield(L, -2, to_luastring("context_window"));
+      lua.lua_pushboolean(L, model.reasoning);
+      lua.lua_setfield(L, -2, to_luastring("reasoning"));
+      lua.lua_rawseti(L, -2, index + 1);
+    });
+    return 1;
+  });
+  lua.lua_setfield(L, -2, to_luastring("list_models"));
 
   const renderFn = (L: any) => luaRender(L, lua, lauxlib, to_luastring, to_jsstring);
   lua.lua_pushcfunction(L, renderFn);
@@ -231,6 +271,37 @@ export function validateBatchRequests(
   }
 }
 
+/**
+ * system_prompt only applies when a new session is created (new tab, clear, or
+ * delete). Append reuse keeps the existing session base prompt.
+ */
+export function validateSystemPromptRequests(
+  requests: BatchTabRequest[],
+  findExisting: (name: string) => boolean,
+): void {
+  const seenNames = new Set<string>();
+  for (const request of requests) {
+    if (!request.systemPrompt) {
+      seenNames.add(request.name);
+      continue;
+    }
+    if (seenNames.has(request.name)) {
+      throw new Error(
+        `system_prompt for tab '${request.name}' only applies when creating a new session; ` +
+          `later requests for the same tab reuse the session`,
+      );
+    }
+    seenNames.add(request.name);
+    const mode = request.mode ?? "append";
+    if (findExisting(request.name) && mode === "append") {
+      throw new Error(
+        `system_prompt for tab '${request.name}' requires a new session; ` +
+          `use mode="clear" or mode="delete", or a new tab name`,
+      );
+    }
+  }
+}
+
 export async function applyBatchRequests(
   requests: BatchTabRequest[],
   host: BatchExecutorHost,
@@ -245,6 +316,7 @@ export async function applyBatchRequests(
         ? host.state.model
         : (host.state.tabs.find((tab) => tab.title === request.name)?.model ?? host.state.model),
   );
+  validateSystemPromptRequests(requests, (name) => Boolean(host.findTabByTitle(name)));
 
   // Validate all requests before applying any (fail-fast)
   const resolved: Array<{
@@ -287,7 +359,9 @@ export async function applyBatchRequests(
     if (!sessionId) {
       sessionId = await host.createNewTab(group[0]!.request);
     } else if (group[0]!.request.mode === "clear") {
-      sessionId = await host.clearTab(sessionId);
+      sessionId = await host.clearTab(sessionId, {
+        systemPrompt: group[0]!.request.systemPrompt,
+      });
     }
     groupSessions.set(name, sessionId);
   }
@@ -313,6 +387,7 @@ export function formatBatchPlan(plan: BatchPlan): string {
     if (req.model) parts.push(`model=${req.model}`);
     if (req.thinking) parts.push(`thinking=${req.thinking}`);
     if (req.workdir) parts.push(`workdir=${req.workdir}`);
+    if (req.systemPrompt) parts.push("system_prompt=yes");
     lines.push(parts.join(" "));
     lines.push(req.prompt === undefined ? "   prompt: (none)" : `   prompt: ${req.prompt}`);
   });
@@ -366,6 +441,14 @@ export function contextFromState(state: MixCodeState): BatchLuaContext {
       model: tab.model.displayName,
       thinking: tab.thinkingLevel,
       status: tab.status,
+    })),
+    models: state.availableModels.map((model) => ({
+      id: modelRefId(model),
+      provider: model.provider,
+      modelId: model.modelId,
+      displayName: model.displayName,
+      contextWindow: model.contextWindow,
+      reasoning: Boolean(model.reasoning),
     })),
   };
 }

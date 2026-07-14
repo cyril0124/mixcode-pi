@@ -43,6 +43,7 @@ apply
 | `mixcode.current_workdir()` | 当前 workdir |
 | `mixcode.tab_exists(name)` | 启动快照：是否已有同名 tab |
 | `mixcode.list_tabs()` | 启动快照：已有 tab 列表 |
+| `mixcode.list_models()` | 启动快照：可用模型列表（`id`/`provider`/`model_id`/`display_name`/`context_window`/`reasoning`） |
 | `mixcode.render(tpl, vars)` / `render(...)` | `{name}` 模板；`{{` / `}}` 转义字面量 |
 
 标准 Lua 库可用（含 `os.getenv`、`io` 等）。类型桩见仓库根目录 [`mixcode.lua`](../mixcode.lua)。
@@ -56,6 +57,7 @@ apply
 | `workdir` | 否 | 该 tab 工作目录 |
 | `model` | 否 | 如 `anthropic/claude-sonnet-4-20250514` |
 | `thinking` | 否 | 依模型能力：`off` / `minimal` / `low` / … / `max` |
+| `system_prompt` | 否 | 仅替换 base/identity（同 SYSTEM.md 槽位）；tools/AGENTS.md/skills 仍由 MixCode 组装。**需要新会话**：新建 tab，或 `mode="clear"` / `mode="delete"`。`append` 复用已有会话会报错 |
 | `mode` | 否 | 已存在 tab 时：`append`（默认）/ `clear` / `delete` |
 
 `mode`：
@@ -66,6 +68,8 @@ apply
 
 prompt 支持普通文本、skills、prompt templates、extension commands、`!shell`。
 **不支持** MixCode 本地 slash command（需要交互 UI）。
+
+设置了 `system_prompt` 的 tab，编辑器标题旁显示 `[sys]` 角标。
 
 ### 示例
 

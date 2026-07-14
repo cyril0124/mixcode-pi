@@ -131,15 +131,20 @@ export class CompactPromptEditor extends Editor {
   ): void {
     const first = lines[0];
     if (first === undefined || !isPlainBorderLine(first)) return;
-    const title = this.activeTab()?.title ?? "";
+    const active = this.activeTab();
+    const title = active?.title ?? "";
+    // Title follows the vim border color in vim mode, accent in normal mode.
+    const titleLabel = isVimMode ? theme.vimBorder : theme.accent;
     lines[0] = buildLabeledTopBorder({
       width,
       title,
       vimMode: isVimMode,
+      customBasePrompt: active?.customBasePrompt === true,
       dash: this.borderColor,
       vimLabel: theme.vimBorder,
-      // Title follows the vim border color in vim mode, accent in normal mode.
-      titleLabel: isVimMode ? theme.vimBorder : theme.accent,
+      titleLabel,
+      // Keep [sys] in the same accent family as the title (agent identity).
+      sysLabel: titleLabel,
     });
   }
 

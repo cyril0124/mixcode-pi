@@ -55,6 +55,31 @@ test("clear reuses services while replacing the agent session", async () => {
   });
 });
 
+test("clear rebuilds services when rebuildServices is set for a new base prompt", async () => {
+  await withRuntime("mixcode-clear-rebuild-services-", async (runtime) => {
+    const initial = await runtime.createTab(createTab(1, "s1", process.cwd()), {
+      systemPrompt: "old base identity",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+    });
+    const services = initial.services;
+    assert.match(initial.agentSession.agent.state.systemPrompt ?? "", /old base identity/);
+
+    const cleared = await runtime.clearTab("s1", {
+      systemPrompt: "new base identity",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+      newSessionId: "s1-clear",
+      rebuildServices: true,
+    });
+
+    assert.notEqual(cleared.services, services);
+    assert.match(cleared.agentSession.agent.state.systemPrompt ?? "", /new base identity/);
+    // Base override keeps assembly layers (tools section still present).
+    assert.match(cleared.agentSession.agent.state.systemPrompt ?? "", /Available tools:/);
+  });
+});
+
 test("clear drops session name and resets tab title like Pi /new", async () => {
   await withRuntime("mixcode-clear-session-name-", async (runtime) => {
     const initial = await runtime.createTab(createTab(1, "s1", process.cwd()), {

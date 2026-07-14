@@ -300,6 +300,8 @@ export class MixCodeRuntime {
     config: Omit<AgentRuntimeConfig, "sessionId" | "model"> & {
       model?: MixCodeModel;
       newSessionId?: string;
+      /** Rebuild services (e.g. apply a new base system prompt). Default reuses. */
+      rebuildServices?: boolean;
     },
   ): Promise<RuntimeTab> {
     const runtimeTab = this.requireTab(sessionId);
@@ -310,6 +312,7 @@ export class MixCodeRuntime {
     // Align with Pi /new: /clear starts a fresh child session without carrying
     // session_info name. Old file keeps its name for resume; new side is unnamed.
     const services = runtimeTab.services;
+    const rebuildServices = Boolean(config.rebuildServices);
     const newSession = await this.createSession(
       config.workdir,
       config.newSessionId,
@@ -323,7 +326,10 @@ export class MixCodeRuntime {
     // Reload extensions now (while tab.sessionId still matches state.activeTabId)
     // so that createRuntimeTabWithFallback doesn't need to reload during the
     // window where tab.sessionId has changed but state.activeTabId hasn't.
-    await services.resourceLoader.reload();
+    // Skip when rebuilding services — createServices loads a fresh resourceLoader.
+    if (!rebuildServices) {
+      await services.resourceLoader.reload();
+    }
     this.tabs.delete(sessionId);
     resetTabForNewSession(runtimeTab.tab, newSession.getSessionId());
     // Reset UI title so state-store tab_titles cannot re-persist the old name
@@ -336,8 +342,9 @@ export class MixCodeRuntime {
         ...config,
         // createRuntimeTabWithFallback recomputes the startup header, so a
         // cleared session shows what is loaded again (like Pi's /new).
-        reuseServices: services,
-        skipExtensionReload: true,
+        // rebuildServices applies a new base systemPrompt via createServices.
+        reuseServices: rebuildServices ? undefined : services,
+        skipExtensionReload: !rebuildServices,
       },
       this.lifecycleContext(),
     );

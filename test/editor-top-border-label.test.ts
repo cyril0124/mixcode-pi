@@ -8,11 +8,17 @@ function stripAnsi(text: string): string {
 
 const identity = (s: string) => s;
 
-function build(opts: { width: number; title: string; vimMode: boolean }): string {
+function build(opts: {
+  width: number;
+  title: string;
+  vimMode: boolean;
+  customBasePrompt?: boolean;
+}): string {
   return buildLabeledTopBorder({
     width: opts.width,
     title: opts.title,
     vimMode: opts.vimMode,
+    customBasePrompt: opts.customBasePrompt,
     dash: identity,
     vimLabel: identity,
     titleLabel: identity,
@@ -79,6 +85,30 @@ test("toggling vim off drops [VIM] but keeps the title", () => {
   assert.match(on, /VIM/, "badge present while in vim mode");
   assert.doesNotMatch(off, /VIM/, "badge gone after leaving vim mode");
   assert.match(off, /─ Agent-1 ──$/, "title preserved after leaving vim mode");
+});
+
+test("custom base prompt appends [sys] after the title on the right", () => {
+  const line = stripAnsi(
+    build({ width: 40, title: "reviewer", vimMode: false, customBasePrompt: true }),
+  );
+  assert.equal([...line].length, 40);
+  assert.match(line, /─ reviewer \[sys\] ──$/, "[sys] sits after the title on the right");
+  assert.doesNotMatch(line, /VIM/);
+});
+
+test("vim badge stays left while [sys] stays after the title", () => {
+  const line = stripAnsi(
+    build({ width: 48, title: "reviewer", vimMode: true, customBasePrompt: true }),
+  );
+  assert.equal([...line].length, 48);
+  assert.match(line, /^── \[VIM\] /);
+  assert.match(line, /─ reviewer \[sys\] ──$/);
+});
+
+test("without customBasePrompt no [sys] badge is shown", () => {
+  const line = stripAnsi(build({ width: 40, title: "reviewer", vimMode: false }));
+  assert.doesNotMatch(line, /\[sys\]/);
+  assert.match(line, /─ reviewer ──$/);
 });
 
 test("isPlainBorderLine guards the scroll indicator and content lines", () => {

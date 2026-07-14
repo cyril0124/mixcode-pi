@@ -79,6 +79,56 @@ test("batch clear publishes the empty tab before session replacement starts", as
   assert.deepEqual(events, ["read-chat", "render", "replace-session", "render"]);
 });
 
+test("batch create marks customBasePrompt when system_prompt overrides base", async () => {
+  const state = createInitialState("/repo");
+  const runtime = {
+    resolveModel: () => ({
+      provider: "faux",
+      id: "faux-1",
+      name: "faux-1",
+      api: "faux",
+      contextWindow: 200_000,
+      maxTokens: 1,
+      input: ["text"],
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    }),
+    createTab: async () => undefined,
+    renameSession: () => undefined,
+  } as unknown as MixCodeRuntime;
+  const host = createBatchExecutorHost({
+    state,
+    runtime,
+    tui: { requestRender: () => undefined },
+  });
+
+  await host.createNewTab({
+    name: "reviewer",
+    prompt: "go",
+    systemPrompt: "You are a strict reviewer.",
+  });
+
+  assert.equal(state.tabs[0]?.title, "reviewer");
+  assert.equal(state.tabs[0]?.customBasePrompt, true);
+});
+
+test("batch clear sets customBasePrompt when system_prompt is provided", async () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo", { title: "reviewer" });
+  state.tabs.push(tab);
+  const runtime = {
+    getTab: () => ({ chat: [] }),
+    clearTab: async () => ({ tab }),
+  } as unknown as MixCodeRuntime;
+  const host = createBatchExecutorHost({
+    state,
+    runtime,
+    tui: { requestRender: () => undefined },
+  });
+
+  await host.clearTab("s1", { systemPrompt: "You are a strict reviewer." });
+  assert.equal(tab.customBasePrompt, true);
+});
+
 test("batch create rolls back state when runtime creation fails", async () => {
   const state = createInitialState("/repo");
   const runtime = {
