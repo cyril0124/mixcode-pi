@@ -30,6 +30,43 @@ function silentTui() {
 
 const ESC = "\x1b";
 
+test("escape clears bash-mode editor text without submitting", () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo", { status: "idle" });
+  state.tabs.push(tab);
+  state.activeTabId = "s1";
+  let text = "!echo should-clear";
+  const editorActions = {
+    getText: () => text,
+    setText: (next: string) => {
+      text = next;
+    },
+  };
+  const runtime = {
+    getTab: () => ({
+      agentSession: {
+        isStreaming: false,
+        isBashRunning: false,
+        getSteeringMessages: () => [],
+      },
+      queuedPromptCount: 0,
+    }),
+  };
+
+  const result = handleMixCodeKeyInput(
+    state,
+    ESC,
+    silentTui(),
+    undefined,
+    runtime,
+    undefined,
+    () => false,
+    editorActions,
+  );
+  assert.deepEqual(result, { consume: true });
+  assert.equal(text, "");
+});
+
 test("escape aborts standalone bash on first press (Pi parity)", () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo", { status: "running" });

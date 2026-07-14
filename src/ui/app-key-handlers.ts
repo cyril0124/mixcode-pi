@@ -522,10 +522,9 @@ export function handleChatScrollKey(active: MixCodeState["tabs"][number], data: 
  *
  *  1. Extension custom overlay focus (MixCode-only, returns undefined for passthrough)
  *  2. Queued-message flush (MixCode-only, subsumes abort)
- *  3. Streaming/working abort (arm then confirm; retract when no output)
- *  4. Bash running → abort bash
- *  5. Bash mode → clear editor, exit bash mode
- *  6. Empty editor double-Esc → tree / fork / none (reads doubleEscapeAction)
+ *  3. Streaming/working abort; standalone bash aborts on first Esc
+ *  4. Bash-mode editor text (!...) → clear editor
+ *  5. Empty editor double-Esc → tree / fork / none (reads doubleEscapeAction)
  *
  * Returns { consume: true } when consumed, undefined for passthrough.
  */
@@ -594,7 +593,20 @@ export function handleEscapeKey(
     }
   }
 
-  // 4. Empty editor double-Esc → tree / fork / none
+  // 4. Bash-mode editor text (!...) → clear input (Pi parity; not a running bash).
+  if (
+    active &&
+    state.activeTabId !== "config" &&
+    !hasAnyOverlay(tui) &&
+    editorActions?.getText()?.trimStart().startsWith("!")
+  ) {
+    clearPendingEscape(active, "abort-agent");
+    editorActions.setText("");
+    tui.requestRender();
+    return { consume: true };
+  }
+
+  // 5. Empty editor double-Esc → tree / fork / none
   if (
     active &&
     state.activeTabId !== "config" &&
