@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 import {
   createInitialState,
@@ -460,6 +463,49 @@ test("Home Enter restores text and shows transient error when selected agent rej
   assert.equal(state.activeTabId, "config");
   assert.equal(editorActions.getText(), "fix the bug");
   assert.match(tui.overlays.at(-1) ?? "", /Cannot prompt while compaction is running/);
+});
+
+test("Home Enter passes workspaceFile so /save-workspace works", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-home-ws-"));
+  const workspaceFile = join(dir, "workspaces.json");
+  try {
+    const state = createInitialState("/repo");
+    state.tabs.push(createTab(1, "s1", "/repo"));
+    state.activeTabId = "config";
+    state.homeSelectedTabIndex = 0;
+    const tui = makeTui();
+    const runtime = {
+      prompt: async () => undefined,
+      getTab: () => undefined,
+    };
+    const editorActions = makeEditorActions("/save-workspace from-home");
+
+    const result = handleMixCodeKeyInput(
+      state,
+      "\r",
+      tui,
+      undefined,
+      runtime,
+      undefined,
+      () => false,
+      editorActions,
+      undefined,
+      { workspaceFile },
+    );
+    await new Promise<void>((resolve) => setTimeout(resolve, 50));
+
+    assert.deepEqual(result, { consume: true });
+    assert.equal(state.activeTabId, "config");
+    // Must not surface "Workspace file is not configured".
+    assert.equal(
+      tui.overlays.some((o) => o.includes("Workspace file is not configured")),
+      false,
+    );
+    const saved = JSON.parse(await readFile(workspaceFile, "utf8")) as unknown[];
+    assert.ok(Array.isArray(saved) && saved.length >= 1);
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+  }
 });
 
 test("Home Enter with empty text does not attach; double Enter after send stays on Home", async () => {

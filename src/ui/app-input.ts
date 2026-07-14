@@ -175,7 +175,7 @@ export function handleMixCodeKeyInput(
                 });
               }
               // Do not change activeTabId: that swaps the main surface to the agent.
-              // Pass the selected tab as override so submit still targets it.
+              // Pass workspaceFile + selected tab so Home matches agent-tab submit plumbing.
               void handleSubmittedInput(
                 state,
                 runtime as MixCodeSubmitRuntime,
@@ -183,7 +183,7 @@ export function handleMixCodeKeyInput(
                 tui,
                 onStateChanged,
                 undefined,
-                undefined,
+                workspaceOptions.workspaceFile,
                 target,
               ).catch((error: unknown) => {
                 editorActions.setText(text);
