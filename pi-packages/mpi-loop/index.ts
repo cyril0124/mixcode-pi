@@ -8,6 +8,7 @@
  * /loop — open management overlay
  * /loop [interval] <prompt> — start a new loop
  * /loop stop <id|name> — stop a specific loop
+ * /loop interval <id|name> <interval> — reschedule an existing loop
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -34,13 +35,15 @@ Commands:
  /loop — open management overlay
  /loop [interval] <prompt> — start a new loop
  /loop stop <id|name> — stop a specific loop
+ /loop interval <id|name> <interval> — reschedule an existing loop
 
 Examples:
  /loop 5m /review
  /loop 30m check the deploy
  /loop 1h run the tests
  /loop check the deploy (defaults to ${DEFAULT_INTERVAL})
- /loop check the deploy every 20m`;
+ /loop check the deploy every 20m
+ /loop interval 1 30s`;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -339,6 +342,15 @@ export default function (pi: ExtensionAPI) {
     activeLoops.delete(entry.id);
   };
 
+  /** Replace the recurring timer only — prompt/mode/expiry/pending stay put. */
+  const rescheduleLoop = (entry: LoopEntry, intervalMs: number, onTimerTick: () => void): void => {
+    clearInterval(entry.timer);
+    entry.intervalMs = intervalMs;
+    entry.intervalLabel = formatInterval(intervalMs);
+    entry.nextRunAt = Date.now() + intervalMs;
+    entry.timer = setInterval(onTimerTick, intervalMs);
+  };
+
   const cancelAllLoops = (): number => {
     const count = activeLoops.size;
     for (const entry of activeLoops.values()) {
@@ -423,6 +435,11 @@ export default function (pi: ExtensionAPI) {
       if (!trimmed) {
         return [
           { label: "stop <id|name>", description: "Stop a running loop", value: "stop " },
+          {
+            label: "interval <id|name> <interval>",
+            description: "Reschedule a running loop",
+            value: "interval ",
+          },
           { label: "30s <prompt>", description: "Run prompt every 30 seconds", value: "30s " },
           { label: "1m <prompt>", description: "Run prompt every 1 minute", value: "1m " },
           { label: "5m <prompt>", description: "Run prompt every 5 minutes", value: "5m " },
@@ -440,12 +457,67 @@ export default function (pi: ExtensionAPI) {
         }));
       }
 
+      // "interval" / "interval <id>" → loop ids; after id, suggest interval tokens
+      if (trimmed === "interval" || trimmed.startsWith("interval ")) {
+        const rest = trimmed.slice("interval".length).trim();
+        const loops = Array.from(activeLoops.values());
+        if (!rest) {
+          if (loops.length === 0) return null;
+          return loops.map((loop) => ({
+            label: `${loop.id} (${loop.name})`,
+            description: `Current: ${loop.intervalLabel}`,
+            value: `interval ${loop.id} `,
+          }));
+        }
+        const parts = rest.split(/\s+/);
+        if (parts.length === 1) {
+          const q = parts[0]!.toLowerCase();
+          const matched = loops.filter(
+            (loop) =>
+              loop.id.startsWith(q) || loop.name.toLowerCase().startsWith(q),
+          );
+          if (matched.length === 0) return null;
+          return matched.map((loop) => ({
+            label: `${loop.id} (${loop.name})`,
+            description: `Current: ${loop.intervalLabel}`,
+            value: `interval ${loop.id} `,
+          }));
+        }
+        return [
+          { label: "30s", description: "Every 30 seconds", value: `interval ${parts[0]} 30s` },
+          { label: "1m", description: "Every 1 minute", value: `interval ${parts[0]} 1m` },
+          { label: "5m", description: "Every 5 minutes", value: `interval ${parts[0]} 5m` },
+        ];
+      }
+
       return null;
     },
     handler: async (args, ctx) => {
       const trimmed = args.trim();
       const firePrompt = (prompt: string) => {
         deliverPrompt(prompt, ctx.isIdle());
+      };
+      // Command ctx is captured at schedule/reschedule time — dies on session replacement.
+      const makeOnTimerTick = (loopId: string) => () => {
+        const entry = activeLoops.get(loopId);
+        if (!entry) return;
+        try {
+          if (ctx.isIdle()) {
+            commitFire(entry, true);
+            return;
+          }
+          if (entry.mode === "skip") {
+            entry.nextRunAt = Date.now() + entry.intervalMs;
+            pi.events.emit("loop:change", {});
+            return;
+          }
+          entry.pending = true;
+          pi.events.emit("loop:change", {});
+        } catch (e) {
+          if (!isStaleCtxError(e)) throw e;
+          cancelLoop(entry);
+          pi.events.emit("loop:change", {});
+        }
       };
 
       // ── No args: open management overlay ──────────────────────────
@@ -514,6 +586,49 @@ export default function (pi: ExtensionAPI) {
         return;
       }
 
+      // ── Interval (reschedule) subcommand ─────────────────────────────
+      if (trimmed === "interval" || trimmed.startsWith("interval ")) {
+        const rest = trimmed.slice("interval".length).trim();
+        const parts = rest.split(/\s+/).filter(Boolean);
+        if (parts.length < 2) {
+          ctx.ui.notify(USAGE_MESSAGE, "warning");
+          return;
+        }
+        const idOrName = parts[0]!;
+        const intervalToken = parts[1]!;
+        const entry = findLoop(idOrName);
+        if (!entry) {
+          ctx.ui.notify(
+            `No loop found with ID or name "${idOrName}". Use /loop to see active loops.`,
+            "warning",
+          );
+          return;
+        }
+        const intervalMs = parseIntervalToken(intervalToken);
+        if (intervalMs === null) {
+          ctx.ui.notify(
+            `Invalid interval "${intervalToken}". Use Ns/Nm/Nh/Nd (e.g. 30s, 5m).`,
+            "warning",
+          );
+          return;
+        }
+        if (intervalMs < MIN_INTERVAL_MS) {
+          ctx.ui.notify(
+            `Interval "${intervalToken}" is below the minimum (${formatInterval(MIN_INTERVAL_MS)}). Using ${formatInterval(MIN_INTERVAL_MS)} instead.`,
+            "warning",
+          );
+        }
+        const effectiveMs = Math.max(intervalMs, MIN_INTERVAL_MS);
+        rescheduleLoop(entry, effectiveMs, makeOnTimerTick(entry.id));
+        ctx.ui.notify(
+          `Loop "${entry.name}" (ID: ${entry.id}) rescheduled to every ${formatInterval(effectiveMs)}.`,
+          "info",
+        );
+        pi.events.emit("loop:change", {});
+        if (widget) widget.show(ctx);
+        return;
+      }
+
       // ── Schedule ─────────────────────────────────────────────────────
       const parsed = parseArgs(trimmed);
       if (!parsed?.prompt) {
@@ -535,29 +650,7 @@ export default function (pi: ExtensionAPI) {
       const name = generateName(prompt);
 
       // Timer ticks only: skip or coalesce-defer while busy. First/manual fire bypass this.
-      // Command ctx is captured at schedule time — it dies on session replacement.
-      const onTimerTick = () => {
-        const entry = activeLoops.get(id);
-        if (!entry) return;
-        try {
-          if (ctx.isIdle()) {
-            commitFire(entry, true);
-            return;
-          }
-          if (entry.mode === "skip") {
-            entry.nextRunAt = Date.now() + entry.intervalMs;
-            pi.events.emit("loop:change", {});
-            return;
-          }
-          entry.pending = true;
-          pi.events.emit("loop:change", {});
-        } catch (e) {
-          if (!isStaleCtxError(e)) throw e;
-          cancelLoop(entry);
-          pi.events.emit("loop:change", {});
-        }
-      };
-
+      const onTimerTick = makeOnTimerTick(id);
       const timer = setInterval(onTimerTick, effectiveMs);
 
       const expiryTimer = setTimeout(() => {
