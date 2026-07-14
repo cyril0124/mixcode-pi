@@ -414,7 +414,8 @@ export default function (pi: ExtensionAPI) {
     }
   });
 
-  pi.on("agent_end", (_event, ctx) => {
+  // agent_end fires while isIdle is still false; only agent_settled is truly idle.
+  pi.on("agent_settled", (_event, ctx) => {
     flushPending(ctx);
   });
 

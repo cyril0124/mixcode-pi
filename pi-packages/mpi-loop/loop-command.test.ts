@@ -82,7 +82,7 @@ test("mpi-loop queues immediate and overlay fires when the agent is busy", async
   ]);
 });
 
-test("mpi-loop defer coalesces busy timer ticks and flushes once on agent_end", async () => {
+test("mpi-loop defer coalesces busy ticks and flushes once on agent_settled", async () => {
   const sent: Array<{ prompt: string; options: unknown }> = [];
   const intervalFns: Array<() => void> = [];
   const realSetInterval = globalThis.setInterval;
@@ -100,8 +100,9 @@ test("mpi-loop defer coalesces busy timer ticks and flushes once on agent_end", 
   let commandHandler:
     | ((args: string, ctx: TestCommandContext) => Promise<void>)
     | undefined;
-  let agentEndHandler: ((event: unknown, ctx: TestCommandContext) => unknown) | undefined;
+  let agentSettledHandler: ((event: unknown, ctx: TestCommandContext) => unknown) | undefined;
   let shutdownHandler: ((event: unknown, ctx: unknown) => unknown) | undefined;
+  // Match real Pi: isIdle stays false through agent_end; true only after settle.
   let idle = false;
   const ctx: TestCommandContext = {
     ui: { notify: () => {} },
@@ -112,7 +113,7 @@ test("mpi-loop defer coalesces busy timer ticks and flushes once on agent_end", 
       commandHandler = options.handler;
     },
     on: (event: string, handler: (event: unknown, ctx: unknown) => unknown) => {
-      if (event === "agent_end") agentEndHandler = handler as typeof agentEndHandler;
+      if (event === "agent_settled") agentSettledHandler = handler as typeof agentSettledHandler;
       if (event === "session_shutdown") shutdownHandler = handler;
     },
     events: { emit: () => {}, on: () => () => {} },
@@ -122,7 +123,7 @@ test("mpi-loop defer coalesces busy timer ticks and flushes once on agent_end", 
   try {
     loopExtension(pi);
     assert.ok(commandHandler);
-    assert.ok(agentEndHandler);
+    assert.ok(agentSettledHandler);
 
     await commandHandler("10m defer prompt", ctx);
     assert.equal(sent.length, 1, "immediate fire still delivers while busy");
@@ -134,13 +135,17 @@ test("mpi-loop defer coalesces busy timer ticks and flushes once on agent_end", 
     intervalFns[0]!();
     assert.deepEqual(sent, [], "busy defer ticks must not stack sends");
 
+    // Real Pi agent_end: still not idle — must not flush here.
+    idle = false;
+    sent.length = 0;
+
     idle = true;
-    await agentEndHandler?.({ type: "agent_end" }, ctx);
+    await agentSettledHandler?.({ type: "agent_settled" }, ctx);
     assert.deepEqual(sent, [{ prompt: "defer prompt", options: undefined }]);
 
     sent.length = 0;
-    await agentEndHandler?.({ type: "agent_end" }, ctx);
-    assert.deepEqual(sent, [], "second agent_end must not re-fire without a new tick");
+    await agentSettledHandler?.({ type: "agent_settled" }, ctx);
+    assert.deepEqual(sent, [], "second agent_settled must not re-fire without a new tick");
   } finally {
     await shutdownHandler?.({}, ctx);
     globalThis.setInterval = realSetInterval;
@@ -168,7 +173,7 @@ test("mpi-loop skip drops busy timer ticks and never flushes them", async () => 
   let commandHandler:
     | ((args: string, ctx: TestCommandContext) => Promise<void>)
     | undefined;
-  let agentEndHandler: ((event: unknown, ctx: TestCommandContext) => unknown) | undefined;
+  let agentSettledHandler: ((event: unknown, ctx: TestCommandContext) => unknown) | undefined;
   let shutdownHandler: ((event: unknown, ctx: unknown) => unknown) | undefined;
   let overlay: TestOverlay | undefined;
   let idle = false;
@@ -191,7 +196,7 @@ test("mpi-loop skip drops busy timer ticks and never flushes them", async () => 
       commandHandler = options.handler;
     },
     on: (event: string, handler: (event: unknown, ctx: unknown) => unknown) => {
-      if (event === "agent_end") agentEndHandler = handler as typeof agentEndHandler;
+      if (event === "agent_settled") agentSettledHandler = handler as typeof agentSettledHandler;
       if (event === "session_shutdown") shutdownHandler = handler;
     },
     events: { emit: () => {}, on: () => () => {} },
@@ -216,8 +221,8 @@ test("mpi-loop skip drops busy timer ticks and never flushes them", async () => 
     assert.deepEqual(sent, [], "skip must drop busy timer ticks");
 
     idle = true;
-    await agentEndHandler?.({ type: "agent_end" }, ctx);
-    assert.deepEqual(sent, [], "skip must not flush dropped ticks on agent_end");
+    await agentSettledHandler?.({ type: "agent_settled" }, ctx);
+    assert.deepEqual(sent, [], "skip must not flush dropped ticks on agent_settled");
   } finally {
     await shutdownHandler?.({}, ctx);
     globalThis.setInterval = realSetInterval;
