@@ -389,6 +389,31 @@ test("Home Enter runs local slash commands on selected agent (not as model promp
   assert.equal(editorActions.getText(), "");
 });
 
+test("Home Enter send does not clear unread ! badge without viewing the tab", async () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo", {
+    title: "Worker",
+    status: "done",
+    unreadDone: true,
+  });
+  state.tabs.push(tab);
+  state.activeTabId = "config";
+  state.homeSelectedTabIndex = 0;
+  const tui = makeTui();
+  const runtime = {
+    prompt: async () => undefined,
+  };
+  const editorActions = makeEditorActions("follow-up from home");
+
+  handleMixCodeKeyInput(state, "\r", tui, undefined, runtime, undefined, () => false, editorActions);
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  await new Promise<void>((resolve) => setImmediate(resolve));
+
+  assert.equal(state.activeTabId, "config");
+  assert.equal(tab.unreadDone, true);
+  assert.equal(tab.status, "done");
+});
+
 test("Home Enter restores text and shows transient error when selected agent rejects prompt", async () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo", { title: "Worker" }), createTab(2, "s2", "/repo"));

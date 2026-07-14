@@ -155,7 +155,9 @@ export function handleMixCodeKeyInput(
           editorActions.setText("");
           if (text && runtime) {
             const previousActiveId = state.activeTabId;
-            activateTab(state, target.sessionId);
+            // Point submit at the target without activateTab: that clears unread
+            // ! / done badges, but Home send is not a user view of the chat.
+            state.activeTabId = target.sessionId;
             void handleSubmittedInput(
               state,
               runtime as MixCodeSubmitRuntime,
