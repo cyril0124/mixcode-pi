@@ -229,63 +229,85 @@ function checkFindPath(args: string[], cwd: string): string | null {
 }
 
 /**
- * For fd: usage is `fd [pattern] [path...]`.
- * First positional is the pattern, subsequent positionals are paths.
+ * Collect positionals and whether -e/-f already supplied the pattern.
+ * Value flags (-g, -t, -e for fd, …) are skipped with their values.
  */
-function checkFdPath(args: string[], cwd: string): string | null {
-  let patternSeen = false;
+function collectSearchPositionals(
+  args: string[],
+  options: { patternFlagsSupplyPattern: boolean },
+): { positionals: string[]; patternFromFlag: boolean } {
+  const positionals: string[] = [];
+  let patternFromFlag = false;
   let i = 0;
   while (i < args.length) {
-    const arg = args[i];
-    if (arg === "--") { i++; break; }
+    const arg = args[i]!;
+    if (arg === "--") {
+      i++;
+      break;
+    }
     if (arg.startsWith("-")) {
+      if (options.patternFlagsSupplyPattern) {
+        if (isAttachedPatternFlag(arg)) {
+          patternFromFlag = true;
+          i += 1;
+          continue;
+        }
+        if (PATTERN_FLAGS.has(arg)) {
+          patternFromFlag = true;
+          i += 2;
+          continue;
+        }
+      }
       i += FLAGS_WITH_VALUE.has(arg) ? 2 : 1;
       continue;
     }
-    if (!patternSeen) { patternSeen = true; i++; continue; }
-    // Subsequent positionals are paths
-    if (isBlacklisted(arg, cwd)) return arg;
+    positionals.push(arg);
     i++;
   }
-  // args after --
-  for (; i < args.length; i++) {
-    if (isBlacklisted(args[i], cwd)) return args[i];
+  for (; i < args.length; i++) positionals.push(args[i]!);
+  return { positionals, patternFromFlag };
+}
+
+/**
+ * First positional is pattern unless pattern already came from flags.
+ * Exception: sole positional that is a blacklisted root is treated as a path
+ * (e.g. `rg -g '*.ts' /`, `fd -e ts /`, bare `rg /`) — otherwise the root is
+ * misread as the pattern and never path-checked.
+ */
+function checkPatternThenPaths(
+  positionals: string[],
+  patternFromFlag: boolean,
+  cwd: string,
+): string | null {
+  let pathStart = 0;
+  if (!patternFromFlag) {
+    if (positionals.length === 0) return null;
+    if (positionals.length === 1 && isBlacklisted(positionals[0]!, cwd)) {
+      return positionals[0]!;
+    }
+    pathStart = 1;
+  }
+  for (let j = pathStart; j < positionals.length; j++) {
+    if (isBlacklisted(positionals[j]!, cwd)) return positionals[j]!;
   }
   return null;
 }
 
+/** For fd: usage is `fd [pattern] [path...]`. */
+function checkFdPath(args: string[], cwd: string): string | null {
+  // fd's -e is an extension filter (value flag), not a pattern flag.
+  const { positionals, patternFromFlag } = collectSearchPositionals(args, {
+    patternFlagsSupplyPattern: false,
+  });
+  return checkPatternThenPaths(positionals, patternFromFlag, cwd);
+}
+
 /** For grep/rg/ag/ack: positionals after the pattern are paths. */
 function checkGrepPath(args: string[], cwd: string): string | null {
-  let patternSeen = false;
-  let i = 0;
-  while (i < args.length) {
-    const arg = args[i];
-    if (arg === "--") { i++; break; }
-    if (arg.startsWith("-")) {
-      // -e/-f/--regexp/--file already supply the pattern; do not treat next positional as pattern.
-      // Also accept attached forms: -eFOO, -fFILE, --regexp=FOO, --file=FILE.
-      if (isAttachedPatternFlag(arg)) {
-        patternSeen = true;
-        i += 1;
-        continue;
-      }
-      if (PATTERN_FLAGS.has(arg)) {
-        patternSeen = true;
-        i += 2;
-        continue;
-      }
-      i += FLAGS_WITH_VALUE.has(arg) ? 2 : 1;
-      continue;
-    }
-    if (!patternSeen) { patternSeen = true; i++; continue; }
-    if (isBlacklisted(arg, cwd)) return arg;
-    i++;
-  }
-  // args after --
-  for (; i < args.length; i++) {
-    if (isBlacklisted(args[i], cwd)) return args[i];
-  }
-  return null;
+  const { positionals, patternFromFlag } = collectSearchPositionals(args, {
+    patternFlagsSupplyPattern: true,
+  });
+  return checkPatternThenPaths(positionals, patternFromFlag, cwd);
 }
 
 function basename(token: string): string {

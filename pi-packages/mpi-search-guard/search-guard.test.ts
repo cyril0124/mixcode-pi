@@ -122,6 +122,30 @@ test("blocked: grep -E (ERE mode, no value) then blacklisted path", () => {
   assert.equal(inspectBashCommand("grep -E foo /", CWD), "/");
 });
 
+test("blocked: rg -g glob then sole blacklisted path (not misread as pattern)", () => {
+  assert.equal(inspectBashCommand('rg -g "*.ts" /', CWD), "/");
+});
+
+test("blocked: rg -t type then sole blacklisted path", () => {
+  assert.equal(inspectBashCommand("rg -t ts /home", CWD), "/home");
+});
+
+test("blocked: fd -e ext then sole blacklisted path", () => {
+  assert.equal(inspectBashCommand("fd -e ts /", CWD), "/");
+});
+
+test("blocked: fd combined short flags then sole blacklisted path", () => {
+  assert.equal(inspectBashCommand("fd -HIu /", CWD), "/");
+});
+
+test("blocked: bare rg with sole blacklisted path", () => {
+  assert.equal(inspectBashCommand("rg /", CWD), "/");
+});
+
+test("safe: rg with pattern only (not a blacklisted root)", () => {
+  assert.equal(inspectBashCommand("rg foo", CWD), null);
+});
+
 test("safe: grep -r with pattern then project path", () => {
   assert.equal(inspectBashCommand("grep -r foo src/", CWD), null);
 });
