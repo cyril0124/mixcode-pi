@@ -154,13 +154,19 @@ export async function handleSubmittedInput(
     tui.requestRender();
     return;
   } else if (parsed.command === "clear") {
+    // Home send keeps activeTabId=config while overriding the target tab; stay there
+    // after clear instead of following completeAgentTabClear's activateTab(next).
+    const stayOnHome = state.activeTabId === "config";
     const prepared = prepareAgentTabClear(state, runtime, active!.sessionId);
     tui.requestRender();
     // Session replacement loads extensions synchronously. Delay it until the TUI
     // has painted the empty conversation, otherwise the clear appears frozen.
     setTimeout(() => {
       completeAgentTabClear(state, runtime, prepared)
-        .then(() => tui.requestRender())
+        .then(() => {
+          if (stayOnHome) activateTab(state, "config");
+          tui.requestRender();
+        })
         .catch((error: unknown) => {
           appendActiveSystemMessage(
             state,

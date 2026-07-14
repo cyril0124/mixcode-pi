@@ -508,6 +508,40 @@ test("Home Enter passes workspaceFile so /save-workspace works", async () => {
   }
 });
 
+test("Home /clear stays on Home after session replacement", async () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo");
+  state.tabs.push(tab);
+  state.activeTabId = "config";
+  state.homeSelectedTabIndex = 0;
+  const tui = makeTui();
+  const runtime = {
+    prompt: async () => undefined,
+    clearTab: async (sessionId: string) => {
+      assert.equal(sessionId, "s1");
+      tab.sessionId = "s1-cleared";
+      return { tab };
+    },
+  };
+  const editorActions = makeEditorActions("/clear");
+
+  handleMixCodeKeyInput(
+    state,
+    "\r",
+    tui,
+    undefined,
+    runtime,
+    undefined,
+    () => false,
+    editorActions,
+  );
+  await new Promise<void>((resolve) => setTimeout(resolve, 50));
+
+  assert.equal(state.activeTabId, "config");
+  assert.equal(tab.sessionId, "s1-cleared");
+  assert.equal(state.homeSelectedTabIndex, 0);
+});
+
 test("Home Enter with empty text does not attach; double Enter after send stays on Home", async () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"), createTab(2, "s2", "/repo"));
