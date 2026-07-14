@@ -354,10 +354,38 @@ test("Home Enter with text sends message to selected agent and stays on Home", a
 
   const result = handleMixCodeKeyInput(state, "\r", tui, undefined, runtime, undefined, () => false, editorActions);
   await new Promise<void>((resolve) => setImmediate(resolve));
+  await new Promise<void>((resolve) => setImmediate(resolve));
 
   assert.deepEqual(result, { consume: true });
   assert.equal(state.activeTabId, "config");
   assert.deepEqual(prompted, { sessionId: "s1", text: "fix the bug" });
+  assert.equal(editorActions.getText(), "");
+});
+
+test("Home Enter runs local slash commands on selected agent (not as model prompt)", async () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo", { title: "Worker" });
+  state.tabs.push(tab);
+  state.activeTabId = "config";
+  state.homeSelectedTabIndex = 0;
+  const tui = makeTui();
+  let prompted = false;
+  const runtime = {
+    prompt: async () => {
+      prompted = true;
+    },
+  };
+  const editorActions = makeEditorActions("/mark-done");
+
+  const result = handleMixCodeKeyInput(state, "\r", tui, undefined, runtime, undefined, () => false, editorActions);
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  await new Promise<void>((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(result, { consume: true });
+  assert.equal(state.activeTabId, "config");
+  assert.equal(prompted, false);
+  assert.equal(tab.status, "done");
+  assert.equal(tab.unreadDone, true);
   assert.equal(editorActions.getText(), "");
 });
 
@@ -373,6 +401,7 @@ test("Home Enter restores text and shows transient error when selected agent rej
   const editorActions = makeEditorActions("fix the bug");
 
   const result = handleMixCodeKeyInput(state, "\r", tui, undefined, runtime, undefined, () => false, editorActions);
+  await new Promise<void>((resolve) => setImmediate(resolve));
   await new Promise<void>((resolve) => setImmediate(resolve));
 
   assert.deepEqual(result, { consume: true });

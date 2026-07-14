@@ -47,12 +47,14 @@ import type {
   OverlayTui,
   WorkspaceKeyOptions,
 } from "./app-types.js";
+import { handleSubmittedInput } from "./app-submit.js";
 import { handleExtensionManagerKey } from "./extension-manager.js";
 import { renderCommandPalette, renderTabJumpOverlay } from "./rendering.js";
 import { handleSessionSelectorKey } from "./session-selector.js";
 import { handleForkSelectorKey } from "./fork-selector.js";
 import { handleTreeSelectorKey, type TreeSelectorRuntime } from "./tree-selector.js";
 import { handleWorkspaceOverlayKey } from "./workspace-overlay.js";
+import type { MixCodeSubmitRuntime } from "./app-types.js";
 export function handleMixCodeKeyInput(
   state: MixCodeState,
   data: string,
@@ -144,18 +146,33 @@ export function handleMixCodeKeyInput(
     if (matchesKey(data, "right") || matchesKey(data, "enter")) {
       const target = state.tabs[state.homeSelectedTabIndex];
       if (target) {
-        // If editor has text, send message to selected agent; otherwise attach.
+        // If editor has text, send to selected agent via the same submit pipeline as
+        // agent tabs (local slash/shell + prompt). Otherwise attach.
         if (matchesKey(data, "enter") && editorActions && editorActions.getText().length > 0) {
           const text = editorActions.getText().trim();
           editorActions.setText("");
-          if (text && runtime?.prompt) {
-            // Forward raw text to Pi; AgentSession.prompt() owns skill/template
-            // expansion so extension input handlers see the original input.
-            void runtime.prompt(target.sessionId, text).catch((error: unknown) => {
-              editorActions.setText(text);
-              showErrorOverlay(tui, error);
-              tui.requestRender();
-            });
+          if (text && runtime) {
+            const previousActiveId = state.activeTabId;
+            activateTab(state, target.sessionId);
+            void handleSubmittedInput(
+              state,
+              runtime as MixCodeSubmitRuntime,
+              text,
+              tui,
+              onStateChanged,
+            )
+              .catch((error: unknown) => {
+                editorActions.setText(text);
+                showErrorOverlay(tui, error);
+                tui.requestRender();
+              })
+              .finally(() => {
+                // Stay on Home unless the command itself switched tabs.
+                if (state.activeTabId === target.sessionId) {
+                  state.activeTabId = previousActiveId;
+                }
+                tui.requestRender();
+              });
           }
           tui.requestRender();
           return { consume: true };
