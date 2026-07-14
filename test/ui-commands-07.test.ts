@@ -356,6 +356,38 @@ test("global key input cycles tabs unless editor autocomplete is open", () => {
   assert.deepEqual(renderForces, [undefined, undefined, undefined]);
 });
 
+test("tab jump to Home preserves vim mode on the agent (like Left)", () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo", { vimMode: true });
+  state.tabs.push(tab);
+  state.activeTabId = "s1";
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({}) as never,
+    hideOverlay: () => undefined,
+    hasOverlay: () => false,
+  };
+
+  assert.deepEqual(handleMixCodeKeyInput(state, "\x14", tui), { consume: true }); // Ctrl+T
+  assert.equal(state.tabJumpOpen, true);
+  // Home is index 0; openTabJump selects current agent (1) — move to Home.
+  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[A", tui), { consume: true }); // Up
+  assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui), { consume: true });
+  assert.equal(state.activeTabId, "config");
+  assert.equal(tab.vimMode, true);
+
+  // Right attach transfers vim back onto the agent surface.
+  assert.deepEqual(
+    handleMixCodeKeyInput(state, "\x1b[C", tui, undefined, undefined, undefined, () => false, {
+      getText: () => "",
+      setText: () => undefined,
+    }),
+    { consume: true },
+  );
+  assert.equal(state.activeTabId, "s1");
+  assert.equal(tab.vimMode, true);
+});
+
 test("vim mode still allows tab and shift-tab to switch agent tabs", () => {
   const state = createInitialState("/repo");
   const first = createTab(1, "s1", "/repo", { vimMode: true });

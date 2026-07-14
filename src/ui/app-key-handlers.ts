@@ -402,13 +402,14 @@ export function handleTabJumpKey(state: MixCodeState, data: string, tui: Overlay
   if (matchesKey(data, "enter")) {
     const prev = state.tabs.find((tab) => tab.sessionId === state.activeTabId);
     const targetId = acceptTabJumpSelection(state);
-    // Transfer vim mode to the target tab when jumping
+    // Transfer vim only when the target is another agent tab. Jumping to MixCode
+    // Home (config) must leave vimMode on prev — same as Left → Home.
     if (prev?.vimMode && targetId && targetId !== prev.sessionId) {
-      prev.vimMode = false;
-      prev.vimPendingEscapeAt = undefined;
-      prev.vimPendingHome = false;
       const next = state.tabs.find((tab) => tab.sessionId === targetId);
       if (next) {
+        prev.vimMode = false;
+        prev.vimPendingEscapeAt = undefined;
+        prev.vimPendingHome = false;
         next.vimMode = true;
         next.vimPendingEscapeAt = undefined;
         next.vimPendingHome = false;
