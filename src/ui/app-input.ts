@@ -146,14 +146,16 @@ export function handleMixCodeKeyInput(
       tui.requestRender();
       return { consume: true };
     }
-    if (matchesKey(data, "right") || matchesKey(data, "enter")) {
+    // Ctrl+J is \n, which also matchesKey("enter") — do not treat it as Home submit.
+    const isHomeEnter = matchesKey(data, "enter") && !matchesKey(data, "ctrl+j");
+    if (matchesKey(data, "right") || isHomeEnter) {
       const target = state.tabs[state.homeSelectedTabIndex];
       if (target) {
         const text = editorActions?.getText().trim() ?? "";
         const hasText = text.length > 0;
         // Enter: send when non-empty after trim; never attach (Right is the only attach key).
         // Whitespace-only is a no-op (do not clear the buffer).
-        if (matchesKey(data, "enter")) {
+        if (isHomeEnter) {
           if (hasText && editorActions && runtime) {
             editorActions.setText("");
             // Match agent-tab onSubmit: in-memory Up-history + optional disk history.

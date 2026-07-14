@@ -295,6 +295,30 @@ test("Home Enter with empty text stays on Home (only Right attaches)", () => {
   assert.equal(state.activeTabId, "config");
 });
 
+test("Home Ctrl+J inserts newline instead of submitting", () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"));
+  state.activeTabId = "config";
+  state.homeSelectedTabIndex = 0;
+  const tui = makeTui();
+  let prompted = false;
+  const runtime = {
+    prompt: async () => {
+      prompted = true;
+    },
+  };
+  const editorActions = makeEditorActions("line-one");
+
+  // Ctrl+J is "\n", which also matchesKey("enter") — must not submit on Home.
+  assert.deepEqual(
+    handleMixCodeKeyInput(state, "\n", tui, undefined, runtime, undefined, () => false, editorActions),
+    { consume: true },
+  );
+  assert.equal(state.activeTabId, "config");
+  assert.equal(prompted, false);
+  assert.equal(editorActions.getText(), "line-one\n");
+});
+
 test("Home Enter with whitespace-only input does not clear the editor", () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"));
