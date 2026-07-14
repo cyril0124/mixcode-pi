@@ -47,8 +47,11 @@ import type {
   OverlayTui,
   WorkspaceKeyOptions,
 } from "./app-types.js";
+import { recordSubmittedHistory } from "../core/conversation-history.js";
+import { showSystemMessageOrToast } from "./app-actions.js";
 import { handleSubmittedInput } from "./app-submit.js";
 import { handleExtensionManagerKey } from "./extension-manager.js";
+import { errorMessage } from "./app-overlays.js";
 import { renderCommandPalette, renderTabJumpOverlay } from "./rendering.js";
 import { handleSessionSelectorKey } from "./session-selector.js";
 import { handleForkSelectorKey } from "./fork-selector.js";
@@ -154,6 +157,24 @@ export function handleMixCodeKeyInput(
           const text = editorActions.getText().trim();
           editorActions.setText("");
           if (text && runtime) {
+            // Match agent-tab onSubmit: in-memory Up-history + optional disk history.
+            editorActions.addToHistory?.(text, target.sessionId);
+            if (workspaceOptions.rootStateDir) {
+              void recordSubmittedHistory({
+                rootStateDir: workspaceOptions.rootStateDir,
+                sessionId: target.sessionId,
+                text,
+              }).catch((error: unknown) => {
+                // Same visibility as agent-tab history failures (system line or notice).
+                showSystemMessageOrToast(
+                  state,
+                  runtime,
+                  tui,
+                  `History warning: ${errorMessage(error)}`,
+                );
+                tui.requestRender();
+              });
+            }
             const previousActiveId = state.activeTabId;
             // Point submit at the target without activateTab: that clears unread
             // ! / done badges, but Home send is not a user view of the chat.

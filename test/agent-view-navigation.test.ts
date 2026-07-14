@@ -363,6 +363,7 @@ test("Home Enter with text sends message to selected agent and stays on Home", a
   state.homeSelectedTabIndex = 0;
   const tui = makeTui();
   let prompted: { sessionId: string; text: string } | undefined;
+  const history: Array<{ text: string; sessionId?: string }> = [];
   const runtime = {
     prompt: (sessionId: string, text: string) => {
       prompted = { sessionId, text };
@@ -370,6 +371,9 @@ test("Home Enter with text sends message to selected agent and stays on Home", a
     },
   };
   const editorActions = makeEditorActions("fix the bug");
+  editorActions.addToHistory = (text, sessionId) => {
+    history.push({ text, sessionId });
+  };
 
   const result = handleMixCodeKeyInput(state, "\r", tui, undefined, runtime, undefined, () => false, editorActions);
   await new Promise<void>((resolve) => setImmediate(resolve));
@@ -378,6 +382,7 @@ test("Home Enter with text sends message to selected agent and stays on Home", a
   assert.deepEqual(result, { consume: true });
   assert.equal(state.activeTabId, "config");
   assert.deepEqual(prompted, { sessionId: "s1", text: "fix the bug" });
+  assert.deepEqual(history, [{ text: "fix the bug", sessionId: "s1" }]);
   assert.equal(editorActions.getText(), "");
 });
 

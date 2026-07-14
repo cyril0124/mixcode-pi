@@ -228,7 +228,7 @@ export function createMixCodeTui(
       {
         getText: () => editor.getText(),
         setText: (text) => editor.setText(text),
-        addToHistory: (text) => editor.addToHistory(text),
+        addToHistory: (text, sessionId) => editor.addToHistory(text, sessionId),
         insertTextAtCursor: (text) => editor.insertTextAtCursor(text),
         submitCurrentText: () => editor.submitCurrentText(),
         browsePromptHistory: (input) => editor.browsePromptHistory(input),
@@ -249,7 +249,7 @@ export function createMixCodeTui(
           ),
         extensionCommands: () => activeExtensionCommands(state, runtime),
       },
-      { workspaceFile: options.workspaceFile },
+      { workspaceFile: options.workspaceFile, rootStateDir: options.rootStateDir },
     );
     if (result?.consume) return result;
     // Global Ctrl+E opens the MAIN input editor's text in an external editor.

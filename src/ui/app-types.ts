@@ -92,6 +92,8 @@ export type MixCodeSubmitRuntime = Pick<
 export type RuntimeChangeSource = Pick<MixCodeRuntime, "onChange">;
 export interface WorkspaceKeyOptions {
   workspaceFile?: string;
+  /** Agent-dir state root; when set, Home sends also append conversation history. */
+  rootStateDir?: string;
 }
 
 export interface TreeSelectorDisplayHost {
