@@ -175,15 +175,8 @@ function formatRelativeTime(date: Date | number): string {
 }
 
 // ---------------------------------------------------------------------------
-// Loop registry (in-memory, process-scoped)
+// Loop helpers
 // ---------------------------------------------------------------------------
-
-const activeLoops = new Map<string, LoopEntry>();
-let nextLoopId = 1;
-
-function generateId(): string {
-  return String(nextLoopId++);
-}
 
 function generateName(prompt: string): string {
   // Extract first meaningful word from prompt
@@ -194,37 +187,10 @@ function generateName(prompt: string): string {
   return clean.substring(0, 15);
 }
 
-function cancelLoop(entry: LoopEntry): void {
-  clearInterval(entry.timer);
-  clearTimeout(entry.expiryTimer);
-  activeLoops.delete(entry.id);
-}
-
-function cancelAllLoops(): number {
-  const count = activeLoops.size;
-  for (const entry of activeLoops.values()) {
-    cancelLoop(entry);
-  }
-  return count;
-}
-
 // pi-core invalidates extension ctx after session replacement/reload. Match the
 // stable substring so real bugs still surface while async timers/widgets exit cleanly.
 function isStaleCtxError(e: unknown): boolean {
   return /stale after session replacement/.test(String(e));
-}
-
-function findLoop(idOrName: string): LoopEntry | undefined {
-  // Try ID first
-  const byId = activeLoops.get(idOrName);
-  if (byId) return byId;
-
-  // Try name match
-  for (const entry of activeLoops.values()) {
-    if (entry.name === idOrName) return entry;
-  }
-
-  return undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -240,13 +206,15 @@ class LoopWidget {
 
   constructor(
     private pi: ExtensionAPI,
+    /** Loops for THIS tab/extension instance only (factory-scoped map). */
+    private listLoops: () => LoopEntry[],
   ) {}
 
   show(ctx: any): void {
     this.ctx = ctx;
 
     try {
-      if (activeLoops.size === 0) {
+      if (this.listLoops().length === 0) {
         this.hide(ctx);
         return;
       }
@@ -295,7 +263,7 @@ class LoopWidget {
   }
 
   private renderWidget(width: number, theme: any): string[] {
-    const loops = Array.from(activeLoops.values());
+    const loops = this.listLoops();
     const container = new Container();
     const borderColor = (s: string) => theme.fg("accent", s);
 
@@ -353,9 +321,40 @@ class LoopWidget {
 
 // Extension
 // ---------------------------------------------------------------------------
+// Loop state is factory-scoped so each MixCode tab (each ExtensionRunner load)
+// gets an isolated pool. A module-level Map would leak loops across tabs.
 
 export default function (pi: ExtensionAPI) {
+  const activeLoops = new Map<string, LoopEntry>();
+  let nextLoopId = 1;
   let widget: LoopWidget | undefined;
+
+  const listLoops = () => Array.from(activeLoops.values());
+
+  const generateId = () => String(nextLoopId++);
+
+  const cancelLoop = (entry: LoopEntry): void => {
+    clearInterval(entry.timer);
+    clearTimeout(entry.expiryTimer);
+    activeLoops.delete(entry.id);
+  };
+
+  const cancelAllLoops = (): number => {
+    const count = activeLoops.size;
+    for (const entry of activeLoops.values()) {
+      cancelLoop(entry);
+    }
+    return count;
+  };
+
+  const findLoop = (idOrName: string): LoopEntry | undefined => {
+    const byId = activeLoops.get(idOrName);
+    if (byId) return byId;
+    for (const entry of activeLoops.values()) {
+      if (entry.name === idOrName) return entry;
+    }
+    return undefined;
+  };
 
   const deliverPrompt = (prompt: string, idle: boolean): boolean => {
     try {
@@ -397,7 +396,7 @@ export default function (pi: ExtensionAPI) {
   pi.on("session_start", async (_event, ctx) => {
     // Replace widget without leaking the previous interval/subscription.
     widget?.destroy();
-    widget = new LoopWidget(pi);
+    widget = new LoopWidget(pi, listLoops);
     if (activeLoops.size > 0) {
       widget.show(ctx);
     }
@@ -459,7 +458,7 @@ export default function (pi: ExtensionAPI) {
               () => done(undefined),
               () => Math.floor(tui.terminal.rows * 0.8) - 6,
               {
-                getLoops: () => Array.from(activeLoops.values()),
+                getLoops: listLoops,
                 fire: firePrompt,
                 setMode: (id, mode) => {
                   const entry = activeLoops.get(id);

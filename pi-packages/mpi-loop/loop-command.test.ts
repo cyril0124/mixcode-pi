@@ -277,6 +277,113 @@ test("mpi-loop counts the immediate first fire in RUNS", async () => {
   }
 });
 
+test("mpi-loop isolates loops across extension instances (tabs)", async () => {
+  const sentA: string[] = [];
+  const sentB: string[] = [];
+  let handlerA: ((args: string, ctx: TestCommandContext) => Promise<void>) | undefined;
+  let handlerB: ((args: string, ctx: TestCommandContext) => Promise<void>) | undefined;
+  let startA: ((event: unknown, ctx: TestCommandContext) => unknown) | undefined;
+  let startB: ((event: unknown, ctx: TestCommandContext) => unknown) | undefined;
+  let shutdownA: ((event: unknown, ctx: unknown) => unknown) | undefined;
+  let shutdownB: ((event: unknown, ctx: unknown) => unknown) | undefined;
+  let overlayB: TestOverlay | undefined;
+
+  const makePi = (
+    sent: string[],
+    setHandler: (h: typeof handlerA) => void,
+    setStart: (h: typeof startA) => void,
+    setShutdown: (h: typeof shutdownA) => void,
+  ) =>
+    ({
+      registerCommand: (_name: string, options: { handler: typeof handlerA }) => {
+        setHandler(options.handler);
+      },
+      on: (event: string, handler: (event: unknown, ctx: unknown) => unknown) => {
+        if (event === "session_start") setStart(handler as typeof startA);
+        if (event === "session_shutdown") setShutdown(handler);
+      },
+      events: { emit: () => {}, on: () => () => {} },
+      sendUserMessage: (prompt: string) => sent.push(prompt),
+    }) as unknown as ExtensionAPI;
+
+  const idleCtx = (): TestCommandContext => ({
+    ui: { notify: () => {}, setWidget: () => {} },
+    isIdle: () => true,
+  });
+
+  loopExtension(
+    makePi(
+      sentA,
+      (h) => {
+        handlerA = h;
+      },
+      (h) => {
+        startA = h;
+      },
+      (h) => {
+        shutdownA = h;
+      },
+    ),
+  );
+  loopExtension(
+    makePi(
+      sentB,
+      (h) => {
+        handlerB = h;
+      },
+      (h) => {
+        startB = h;
+      },
+      (h) => {
+        shutdownB = h;
+      },
+    ),
+  );
+
+  assert.ok(handlerA && handlerB && startA && startB && shutdownA && shutdownB);
+
+  const ctxA = idleCtx();
+  const ctxB = idleCtx();
+  try {
+    await startA!({ type: "session_start" }, ctxA);
+    await startB!({ type: "session_start" }, ctxB);
+
+    await handlerA!("10m only-on-A", ctxA);
+    assert.deepEqual(sentA, ["only-on-A"]);
+    assert.deepEqual(sentB, [], "tab B must not receive tab A's loop fires");
+
+    // B's management overlay should not list A's loop.
+    const overlayCtxB: TestCommandContext = {
+      ui: {
+        notify: () => {},
+        custom: async (factory) => {
+          overlayB = factory(
+            { terminal: { rows: 30 }, requestRender: () => {} },
+            { fg: (_c, t) => t, bg: (_c, t) => t },
+            {},
+            () => {},
+          );
+        },
+      },
+      isIdle: () => true,
+    };
+    await handlerB!("", overlayCtxB);
+    assert.ok(overlayB);
+    const listB = overlayB.render(100).join("\n");
+    assert.doesNotMatch(listB, /only-on-A/);
+    assert.match(listB, /No matching loops/);
+
+    // Shutting down A must not kill loops that B creates afterward.
+    await shutdownA!({}, ctxA);
+    shutdownA = undefined;
+    await handlerB!("10m only-on-B", ctxB);
+    assert.deepEqual(sentB, ["only-on-B"]);
+  } finally {
+    await shutdownA?.({}, ctxA);
+    await shutdownB?.({}, ctxB);
+  }
+});
+
 test("mpi-loop refresh and timer tolerate stale ctx after session replacement", async () => {
   const STALE = "This extension ctx is stale after session replacement or reload.";
   const intervalFns: Array<() => void> = [];
