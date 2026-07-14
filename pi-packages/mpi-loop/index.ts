@@ -470,24 +470,19 @@ export default function (pi: ExtensionAPI) {
           }));
         }
         const parts = rest.split(/\s+/);
-        if (parts.length === 1) {
-          const q = parts[0]!.toLowerCase();
-          const matched = loops.filter(
-            (loop) =>
-              loop.id.startsWith(q) || loop.name.toLowerCase().startsWith(q),
-          );
-          if (matched.length === 0) return null;
-          return matched.map((loop) => ({
-            label: `${loop.id} (${loop.name})`,
-            description: `Current: ${loop.intervalLabel}`,
-            value: `interval ${loop.id} `,
-          }));
-        }
-        return [
-          { label: "30s", description: "Every 30 seconds", value: `interval ${parts[0]} 30s` },
-          { label: "1m", description: "Every 1 minute", value: `interval ${parts[0]} 1m` },
-          { label: "5m", description: "Every 5 minutes", value: `interval ${parts[0]} 5m` },
-        ];
+        // After id is chosen, do not force interval presets — free-type Ns/Nm/Nh/Nd.
+        if (parts.length >= 2) return null;
+        const q = parts[0]!.toLowerCase();
+        const matched = loops.filter(
+          (loop) =>
+            loop.id.startsWith(q) || loop.name.toLowerCase().startsWith(q),
+        );
+        if (matched.length === 0) return null;
+        return matched.map((loop) => ({
+          label: `${loop.id} (${loop.name})`,
+          description: `Current: ${loop.intervalLabel}`,
+          value: `interval ${loop.id} `,
+        }));
       }
 
       return null;

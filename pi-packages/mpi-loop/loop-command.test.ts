@@ -227,6 +227,52 @@ test("mpi-loop skip drops busy timer ticks and never flushes them", async () => 
   }
 });
 
+test("mpi-loop interval completion leaves the interval token free-form", async () => {
+  let commandHandler:
+    | ((args: string, ctx: TestCommandContext) => Promise<void>)
+    | undefined;
+  let getArgumentCompletions:
+    | ((prefix: string) => unknown)
+    | undefined;
+  let shutdownHandler: ((event: unknown, ctx: unknown) => unknown) | undefined;
+  const ctx: TestCommandContext = {
+    ui: { notify: () => {} },
+    isIdle: () => true,
+  };
+  const pi = {
+    registerCommand: (
+      _name: string,
+      options: {
+        handler: typeof commandHandler;
+        getArgumentCompletions?: (prefix: string) => unknown;
+      },
+    ) => {
+      commandHandler = options.handler;
+      getArgumentCompletions = options.getArgumentCompletions;
+    },
+    on: (event: string, handler: (event: unknown, ctx: unknown) => unknown) => {
+      if (event === "session_shutdown") shutdownHandler = handler;
+    },
+    events: { emit: () => {}, on: () => () => {} },
+    sendUserMessage: () => {},
+  } as unknown as ExtensionAPI;
+
+  try {
+    loopExtension(pi);
+    assert.ok(commandHandler);
+    assert.ok(getArgumentCompletions);
+    await commandHandler("10m free-interval", ctx);
+
+    const afterId = getArgumentCompletions("interval 1 2h");
+    assert.equal(afterId, null, "custom interval text must not be replaced by presets");
+
+    const idSuggestions = getArgumentCompletions("interval ");
+    assert.ok(Array.isArray(idSuggestions) && idSuggestions.length > 0);
+  } finally {
+    await shutdownHandler?.({}, ctx);
+  }
+});
+
 test("mpi-loop reschedules an existing loop interval without re-firing", async () => {
   const sent: string[] = [];
   const intervalCalls: Array<{ fn: () => void; ms: number }> = [];
