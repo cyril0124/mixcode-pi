@@ -105,6 +105,20 @@ test("workspace snapshot stores tab metadata and active tab", () => {
   );
 });
 
+test("workspace snapshot on Home records the selected agent, not tabs[0]", () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(
+    createTab(1, "s1", "/repo", { title: "Agent-01" }),
+    createTab(2, "s2", "/repo", { title: "Agent-02" }),
+  );
+  state.activeTabId = "config";
+  state.homeSelectedTabIndex = 1;
+
+  const snapshot = snapshotWorkspace(state, "from-home");
+
+  assert.equal(snapshot.activeSessionId, "s2");
+});
+
 test("workspace store round-trips new schema and reads legacy children", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-workspace-schema-"));
   const workspaceFile = join(dir, "workspaces.json");

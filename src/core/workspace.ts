@@ -1,4 +1,4 @@
-import { clampHomeSelectedTabIndex } from "./tabs.js";
+import { clampHomeSelectedTabIndex, getActiveTab } from "./tabs.js";
 import type { MixCodeState, WorkspaceSnapshot, WorkspaceTabSnapshot } from "./types.js";
 
 export const AUTO_SAVED_WORKSPACE = "[auto-saved]";
@@ -18,7 +18,8 @@ export function snapshotWorkspace(
     children: state.tabs.map((tab) => tab.sessionId),
     startupWorkdir: state.workdir,
     updatedAt: now.toISOString(),
-    activeSessionId: state.activeTabId === "config" ? state.tabs[0]?.sessionId : state.activeTabId,
+    // Home (config) should record the selected agent row, not always tabs[0].
+    activeSessionId: getActiveTab(state)?.sessionId,
     tabs: state.tabs.map((tab): WorkspaceTabSnapshot => {
       const sessionPath = runtime?.getTab?.(tab.sessionId)?.session?.getSessionFile?.() ?? undefined;
       return {
