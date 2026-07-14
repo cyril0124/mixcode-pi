@@ -558,11 +558,21 @@ export function handleEscapeKey(
     return { consume: true };
   }
 
-  // 3. Streaming/working abort: arm then confirm (or retract if no output)
+  // 3. Streaming/working abort: arm then confirm (or retract if no output).
+  // Standalone user bash (Pi parity): first Esc aborts immediately — no double-confirm.
   if (active && state.activeTabId !== "config" && !hasAnyOverlay(tui)) {
     const runtimeTab = runtime?.getTab?.(active.sessionId);
     const isStreaming = runtimeTab?.agentSession?.isStreaming ?? false;
+    const isBashRunning = runtimeTab?.agentSession?.isBashRunning ?? false;
     const isWorking = active.status === "running" || active.status === "thinking";
+
+    if (isBashRunning && !isStreaming) {
+      active.pendingEscapeAction = undefined;
+      active.pendingEscapeArmedAt = undefined;
+      runtime?.abortTab?.(active.sessionId);
+      tui.requestRender();
+      return { consume: true };
+    }
 
     if (isStreaming || isWorking) {
       if (active.pendingEscapeAction === "abort-agent" && isPendingEscapeActive(active, "abort-agent")) {

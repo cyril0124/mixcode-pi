@@ -30,6 +30,33 @@ function silentTui() {
 
 const ESC = "\x1b";
 
+test("escape aborts standalone bash on first press (Pi parity)", () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo", { status: "running" });
+  state.tabs.push(tab);
+  state.activeTabId = "s1";
+  let aborts = 0;
+  const runtime = {
+    getTab: () => ({
+      agentSession: {
+        isStreaming: false,
+        isBashRunning: true,
+        getSteeringMessages: () => [],
+      },
+      queuedPromptCount: 0,
+    }),
+    abortTab: () => {
+      aborts++;
+      return true;
+    },
+  };
+
+  const first = handleMixCodeKeyInput(state, ESC, silentTui(), undefined, runtime);
+  assert.deepEqual(first, { consume: true });
+  assert.equal(aborts, 1, "first Esc aborts bash immediately");
+  assert.equal(tab.pendingEscapeAction, undefined, "bash Esc does not arm double-confirm");
+});
+
 test("escape arms then aborts a normal streaming run", () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo", { status: "thinking" });
