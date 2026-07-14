@@ -5,9 +5,9 @@ import {
   substringMatchPositions,
 } from "../../core/fuzzy.js";
 import {
-  commandPaletteEntriesWithExtensions,
   filterTabJumpEntries,
   previewTitle,
+  selectableCommandPaletteEntries,
 } from "../../core/overlays.js";
 import { filteredPickerItems, workdirBreadcrumb } from "../../core/pickers.js";
 import type { MixCodeState, MixCodeTabInfo } from "../../core/types.js";
@@ -362,8 +362,8 @@ function renderCommandPaletteInner(
   extensionCommands: Array<{ name: string; description?: string }> = [],
 ): string[] {
   if (!state.commandPaletteOpen) return [];
-  const allEntries = commandPaletteEntriesWithExtensions(state, extensionCommands);
-  const entries = allEntries.filter((entry) => entry.enabled);
+  // Keep in lockstep with move/accept: only enabled rows are selectable.
+  const entries = selectableCommandPaletteEntries(state, extensionCommands);
   const innerWidth = Math.max(1, width - 2);
 
   // Search row with ">" prefix

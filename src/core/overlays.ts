@@ -317,6 +317,16 @@ export function commandPaletteEntriesWithExtensions(
   );
 }
 
+/** Entries the palette shows and that selection/accept must index into. */
+export function selectableCommandPaletteEntries(
+  state: MixCodeState,
+  extensionCommands: Array<{ name: string; description?: string }> = [],
+): CommandPaletteEntry[] {
+  return commandPaletteEntriesWithExtensions(state, extensionCommands).filter(
+    (entry) => entry.enabled,
+  );
+}
+
 function commandPaletteBaseEntries(
   state: MixCodeState,
   extensionCommands: Array<{ name: string; description?: string }>,
@@ -483,7 +493,8 @@ export function moveCommandPaletteSelection(
   delta: number,
   extensionCommands: Array<{ name: string; description?: string }> = [],
 ): void {
-  const count = commandPaletteEntriesWithExtensions(state, extensionCommands).length;
+  // Index against the same enabled-only list the renderer paints.
+  const count = selectableCommandPaletteEntries(state, extensionCommands).length;
   if (count === 0) {
     state.commandPalette.selectedIndex = 0;
     return;
@@ -495,7 +506,7 @@ export function acceptCommandPaletteSelection(
   state: MixCodeState,
   extensionCommands: Array<{ name: string; description?: string }> = [],
 ): string {
-  const entries = commandPaletteEntriesWithExtensions(state, extensionCommands);
+  const entries = selectableCommandPaletteEntries(state, extensionCommands);
   const selected =
     entries[
       clampCommandPaletteIndexWithExtensions(
@@ -505,7 +516,7 @@ export function acceptCommandPaletteSelection(
       )
     ];
   closeCommandPalette(state);
-  return selected?.enabled === false ? "" : (selected?.command ?? "");
+  return selected?.command ?? "";
 }
 
 function clampCommandPaletteIndex(state: MixCodeState, index: number): number {
@@ -517,7 +528,7 @@ function clampCommandPaletteIndexWithExtensions(
   index: number,
   extensionCommands: Array<{ name: string; description?: string }> = [],
 ): number {
-  const entries = commandPaletteEntriesWithExtensions(state, extensionCommands);
+  const entries = selectableCommandPaletteEntries(state, extensionCommands);
   if (!entries.length) return 0;
   return Math.min(Math.max(index, 0), entries.length - 1);
 }

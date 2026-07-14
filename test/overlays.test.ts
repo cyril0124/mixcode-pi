@@ -303,7 +303,11 @@ test("command palette state filters, moves, accepts, and closes", () => {
   const modelEntry = commandPaletteEntries(state).find((entry) => entry.command === "/models");
   assert.equal(modelEntry?.enabled, false);
   assert.equal(modelEntry?.disabledReason, "No models loaded");
-  assert.equal(acceptCommandPaletteSelection(state), "");
+  // Disabled rows are omitted from selection; Enter runs the first visible command.
+  const firstVisible = commandPaletteEntries(state).find((entry) => entry.enabled);
+  assert.ok(firstVisible);
+  assert.notEqual(firstVisible.command, "/models");
+  assert.equal(acceptCommandPaletteSelection(state), firstVisible.command);
   state.availableModels = [{ ...state.model }];
 
   state.tabs[0]!.sessionId = "";
@@ -338,6 +342,25 @@ test("command palette state filters, moves, accepts, and closes", () => {
   openCommandPalette(state);
   closeCommandPalette(state);
   assert.equal(state.commandPalette.query, "");
+});
+
+test("command palette selection skips disabled entries (matches visible rows)", () => {
+  // Home with no tabs: Close All / Save Workspace are disabled and hidden in the
+  // renderer. Down once must select the second *visible* command, not all[1].
+  const state = createInitialState("/repo");
+  state.activeTabId = "config";
+  assert.equal(state.tabs.length, 0);
+
+  const all = commandPaletteEntries(state);
+  const visible = all.filter((entry) => entry.enabled);
+  assert.ok(all.some((entry) => !entry.enabled), "fixture needs disabled rows");
+  assert.ok(visible.length >= 2);
+  assert.notEqual(all[1]?.command, visible[1]?.command);
+
+  openCommandPalette(state);
+  moveCommandPaletteSelection(state, 1);
+  assert.equal(state.commandPalette.selectedIndex, 1);
+  assert.equal(acceptCommandPaletteSelection(state), visible[1]!.command);
 });
 
 test("command palette filter matches per-token subsequence, not scattered fuzzy", () => {

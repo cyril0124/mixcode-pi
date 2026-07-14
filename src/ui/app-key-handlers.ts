@@ -323,30 +323,14 @@ export function handleCommandPaletteKey(
     return true;
   }
   if (matchesKey(data, "enter")) {
-    const entries = commandPaletteEntriesWithExtensions(state, extensionCommands);
-    const selected =
-      entries[
-        Math.min(Math.max(state.commandPalette.selectedIndex, 0), Math.max(0, entries.length - 1))
-      ];
-    if (selected && !selected.enabled) {
-      closeCommandPalette(state);
-      closeAppOverlay(tui);
-      const active = getActiveTab(state);
-      if (active)
-        pushToast(active, {
-          type: "warning",
-          message: selected.disabledReason || "Command unavailable",
-        });
-      tui.requestRender();
-      return true;
-    }
-    if (selected && !commandPaletteActions?.executeCommand) {
-      throw new Error("Command palette selection requires command execution support");
-    }
+    // accept indexes the enabled-only list (same rows the palette paints).
     const command = acceptCommandPaletteSelection(state, extensionCommands);
     closeAppOverlay(tui);
     if (command) {
-      void Promise.resolve(commandPaletteActions!.executeCommand(command)).catch(
+      if (!commandPaletteActions?.executeCommand) {
+        throw new Error("Command palette selection requires command execution support");
+      }
+      void Promise.resolve(commandPaletteActions.executeCommand(command)).catch(
         (error: unknown) => {
           showErrorOverlay(tui, error);
           tui.requestRender();
