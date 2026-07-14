@@ -364,6 +364,112 @@ test("mpi-loop reschedules an existing loop interval without re-firing", async (
   }
 });
 
+test("mpi-loop updates an existing loop prompt without re-firing", async () => {
+  const sent: string[] = [];
+  const intervalFns: Array<() => void> = [];
+  const realSetInterval = globalThis.setInterval;
+  const realClearInterval = globalThis.clearInterval;
+  const realSetTimeout = globalThis.setTimeout;
+  const realClearTimeout = globalThis.clearTimeout;
+  globalThis.setInterval = ((fn: () => void) => {
+    intervalFns.push(fn);
+    return 1 as unknown as ReturnType<typeof setInterval>;
+  }) as typeof setInterval;
+  globalThis.clearInterval = (() => {}) as typeof clearInterval;
+  globalThis.setTimeout = ((() => 1) as unknown) as typeof setTimeout;
+  globalThis.clearTimeout = (() => {}) as typeof clearTimeout;
+
+  let commandHandler:
+    | ((args: string, ctx: TestCommandContext) => Promise<void>)
+    | undefined;
+  let getArgumentCompletions:
+    | ((prefix: string) => unknown)
+    | undefined;
+  let shutdownHandler: ((event: unknown, ctx: unknown) => unknown) | undefined;
+  let overlay: TestOverlay | undefined;
+  const notifies: Array<{ message: string; level: string }> = [];
+  const ctx: TestCommandContext = {
+    ui: {
+      notify: (message, level) => notifies.push({ message, level }),
+      custom: async (factory) => {
+        overlay = factory(
+          { terminal: { rows: 30 }, requestRender: () => {} },
+          { fg: (_color, text) => text, bg: (_color, text) => text },
+          {},
+          () => {},
+        );
+      },
+    },
+    isIdle: () => true,
+  };
+  const pi = {
+    registerCommand: (
+      _name: string,
+      options: {
+        handler: typeof commandHandler;
+        getArgumentCompletions?: (prefix: string) => unknown;
+      },
+    ) => {
+      commandHandler = options.handler;
+      getArgumentCompletions = options.getArgumentCompletions;
+    },
+    on: (event: string, handler: (event: unknown, ctx: unknown) => unknown) => {
+      if (event === "session_shutdown") shutdownHandler = handler;
+    },
+    events: { emit: () => {}, on: () => () => {} },
+    sendUserMessage: (prompt: string) => sent.push(prompt),
+  } as unknown as ExtensionAPI;
+
+  try {
+    loopExtension(pi);
+    assert.ok(commandHandler);
+    assert.ok(getArgumentCompletions);
+
+    await commandHandler("10m old prompt", ctx);
+    assert.deepEqual(sent, ["old prompt"]);
+
+    sent.length = 0;
+    await commandHandler("prompt 1 new prompt\nline two", ctx);
+    assert.deepEqual(sent, [], "prompt update must not fire immediately");
+    assert.match(
+      notifies.at(-1)?.message ?? "",
+      /new prompt/,
+      "notify should report the new prompt",
+    );
+
+    await commandHandler("", ctx);
+    assert.ok(overlay);
+    const list = overlay.render(100).join("\n");
+    assert.match(list, /new prompt/);
+    assert.doesNotMatch(list, /old prompt/);
+
+    sent.length = 0;
+    assert.equal(intervalFns.length, 1);
+    intervalFns[0]!();
+    assert.deepEqual(sent, ["new prompt\nline two"], "next fire must use updated prompt");
+
+    const idSuggestions = getArgumentCompletions("prompt ");
+    assert.ok(Array.isArray(idSuggestions) && idSuggestions.length > 0);
+
+    const emptyNotifiesBefore = notifies.length;
+    await commandHandler("prompt 1", ctx);
+    assert.equal(notifies.length, emptyNotifiesBefore + 1);
+    assert.equal(notifies.at(-1)?.level, "warning");
+
+    const missingNotifiesBefore = notifies.length;
+    await commandHandler("prompt missing brand-new", ctx);
+    assert.equal(notifies.length, missingNotifiesBefore + 1);
+    assert.equal(notifies.at(-1)?.level, "warning");
+    assert.deepEqual(sent, ["new prompt\nline two"], "failed updates must not create or fire a loop");
+  } finally {
+    await shutdownHandler?.({}, ctx);
+    globalThis.setInterval = realSetInterval;
+    globalThis.clearInterval = realClearInterval;
+    globalThis.setTimeout = realSetTimeout;
+    globalThis.clearTimeout = realClearTimeout;
+  }
+});
+
 test("mpi-loop counts the immediate first fire in RUNS", async () => {
   let commandHandler:
     | ((args: string, ctx: TestCommandContext) => Promise<void>)

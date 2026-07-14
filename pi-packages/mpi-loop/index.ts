@@ -9,20 +9,24 @@
  * /loop [interval] <prompt> — start a new loop
  * /loop stop <id|name> — stop a specific loop
  * /loop interval <id|name> <interval> — reschedule an existing loop
+ * /loop prompt <id|name> <prompt> — rewrite an existing loop prompt
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { DynamicBorder } from "@earendil-works/pi-coding-agent";
 import { Container, Spacer, Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import {
+  DEFAULT_INTERVAL,
+  MAX_AGE_MS,
+  MIN_INTERVAL_MS,
+  formatInterval,
+  formatRelativeTime,
+  generateName,
+  isStaleCtxError,
+  parseArgs,
+  parseIntervalToken,
+} from "./loop-helpers.js";
 import { LoopManagementView } from "./loop-management-view.js";
-
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-const DEFAULT_INTERVAL = "10m";
-const MIN_INTERVAL_MS = 10_000; // 10 seconds
-const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 const USAGE_MESSAGE = `Usage: /loop [interval] <prompt>
 
@@ -36,6 +40,7 @@ Commands:
  /loop [interval] <prompt> — start a new loop
  /loop stop <id|name> — stop a specific loop
  /loop interval <id|name> <interval> — reschedule an existing loop
+ /loop prompt <id|name> <prompt> — rewrite an existing loop prompt
 
 Examples:
  /loop 5m /review
@@ -43,11 +48,8 @@ Examples:
  /loop 1h run the tests
  /loop check the deploy (defaults to ${DEFAULT_INTERVAL})
  /loop check the deploy every 20m
- /loop interval 1 30s`;
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
+ /loop interval 1 30s
+ /loop prompt 1 check deploy status`;
 
 type LoopConflictMode = "skip" | "defer";
 
@@ -66,134 +68,6 @@ interface LoopEntry {
   pending: boolean;
   timer: ReturnType<typeof setInterval>;
   expiryTimer: ReturnType<typeof setTimeout>;
-}
-
-// ---------------------------------------------------------------------------
-// Interval parsing helpers
-// ---------------------------------------------------------------------------
-
-/** Parse a token like "5m", "2h", "30s", "1d" → milliseconds, or null. */
-function parseIntervalToken(token: string): number | null {
-  const m = token.match(/^(\d+(?:\.\d+)?)(s|m|h|d)$/i);
-  if (!m) return null;
-  const n = parseFloat(m[1]!);
-  const unit = m[2]!.toLowerCase();
-  switch (unit) {
-    case "s":
-      return n * 1_000;
-    case "m":
-      return n * 60_000;
-    case "h":
-      return n * 3_600_000;
-    case "d":
-      return n * 86_400_000;
-    default:
-      return null;
-  }
-}
-
-/** Human-readable label for an interval in ms. */
-function formatInterval(ms: number): string {
-  if (ms < 60_000) return `${Math.round(ms / 1_000)}s`;
-  if (ms < 3_600_000) return `${Math.round(ms / 60_000)}m`;
-  if (ms < 86_400_000) return `${Math.round(ms / 3_600_000)}h`;
-  return `${Math.round(ms / 86_400_000)}d`;
-}
-
-interface ParseResult {
-  intervalMs: number;
-  intervalLabel: string;
-  prompt: string;
-}
-
-/**
- * Parse `[interval] <prompt>` using the same priority rules as the original skill:
- * 1. Leading token that matches \d+[smhd]
- * 2. Trailing "every <interval>" clause
- * 3. Default interval (DEFAULT_INTERVAL)
- */
-function parseArgs(input: string): ParseResult | null {
-  const trimmed = input.trim();
-  if (!trimmed) return null;
-
-  // Rule 1 — leading token
-  const leading = trimmed.match(/^\S+/)?.[0] ?? "";
-  const leadingMs = parseIntervalToken(leading);
-  if (leadingMs !== null) {
-    const prompt = trimmed.slice(leading.length).trim();
-    return { intervalMs: leadingMs, intervalLabel: leading.toLowerCase(), prompt };
-  }
-
-  // Rule 2 — trailing "every <interval>" or "every <number> <unit>"
-  const trailingExact = trimmed.match(
-    /^([\s\S]+?)\s+every\s+(\d+(?:\.\d+)?)(s|m|h|d|seconds?|minutes?|hours?|days?)$/i,
-  );
-  if (trailingExact) {
-    const rawUnit = trailingExact[3]!.toLowerCase();
-    const canonicalUnit = rawUnit.startsWith("s")
-      ? "s"
-      : rawUnit.startsWith("m")
-        ? "m"
-        : rawUnit.startsWith("h")
-          ? "h"
-          : "d";
-    const token = `${trailingExact[2]}${canonicalUnit}`;
-    const ms = parseIntervalToken(token)!;
-    const prompt = trailingExact[1]!.trim();
-    return { intervalMs: ms, intervalLabel: token, prompt };
-  }
-
-  // Rule 3 — default
-  const defaultMs = parseIntervalToken(DEFAULT_INTERVAL)!;
-  return { intervalMs: defaultMs, intervalLabel: DEFAULT_INTERVAL, prompt: trimmed };
-}
-
-// ---------------------------------------------------------------------------
-// Relative time formatting
-// ---------------------------------------------------------------------------
-
-function formatRelativeTime(date: Date | number): string {
-  const now = Date.now();
-  const target = typeof date === "number" ? date : date.getTime();
-  const diff = target - now;
-  const absDiff = Math.abs(diff);
-
-  const seconds = Math.floor(absDiff / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
-
-  let timeStr: string;
-  if (days > 0) {
-    timeStr = `${days}d`;
-  } else if (hours > 0) {
-    timeStr = `${hours}h`;
-  } else if (minutes > 0) {
-    timeStr = `${minutes}m`;
-  } else {
-    timeStr = `${seconds}s`;
-  }
-
-  return diff > 0 ? `in ${timeStr}` : `${timeStr} ago`;
-}
-
-// ---------------------------------------------------------------------------
-// Loop helpers
-// ---------------------------------------------------------------------------
-
-function generateName(prompt: string): string {
-  // Extract first meaningful word from prompt
-  const words = prompt.trim().split(/\s+/);
-  const first = words[0] || "loop";
-  // Remove slash prefix if it's a command
-  const clean = first.startsWith("/") ? first.slice(1) : first;
-  return clean.substring(0, 15);
-}
-
-// pi-core invalidates extension ctx after session replacement/reload. Match the
-// stable substring so real bugs still surface while async timers/widgets exit cleanly.
-function isStaleCtxError(e: unknown): boolean {
-  return /stale after session replacement/.test(String(e));
 }
 
 // ---------------------------------------------------------------------------
@@ -441,6 +315,11 @@ export default function (pi: ExtensionAPI) {
             description: "Reschedule a running loop",
             value: "interval ",
           },
+          {
+            label: "prompt <id|name> <prompt>",
+            description: "Rewrite a running loop prompt",
+            value: "prompt ",
+          },
           { label: "30s <prompt>", description: "Run prompt every 30 seconds", value: "30s " },
           { label: "1m <prompt>", description: "Run prompt every 1 minute", value: "1m " },
           { label: "5m <prompt>", description: "Run prompt every 5 minutes", value: "5m " },
@@ -483,6 +362,33 @@ export default function (pi: ExtensionAPI) {
           label: `${loop.id} (${loop.name})`,
           description: `Current: ${loop.intervalLabel}`,
           value: `interval ${loop.id} `,
+        }));
+      }
+
+      // "prompt" / "prompt <id>" → loop ids; after id, free-type new prompt text.
+      if (trimmed === "prompt" || trimmed.startsWith("prompt ")) {
+        const rest = trimmed.slice("prompt".length).trim();
+        const loops = Array.from(activeLoops.values());
+        if (!rest) {
+          if (loops.length === 0) return null;
+          return loops.map((loop) => ({
+            label: `${loop.id} (${loop.name})`,
+            description: `Current: ${loop.prompt}`,
+            value: `prompt ${loop.id} `,
+          }));
+        }
+        const parts = rest.split(/\s+/);
+        if (parts.length >= 2) return null;
+        const q = parts[0]!.toLowerCase();
+        const matched = loops.filter(
+          (loop) =>
+            loop.id.startsWith(q) || loop.name.toLowerCase().startsWith(q),
+        );
+        if (matched.length === 0) return null;
+        return matched.map((loop) => ({
+          label: `${loop.id} (${loop.name})`,
+          description: `Current: ${loop.prompt}`,
+          value: `prompt ${loop.id} `,
         }));
       }
 
@@ -618,6 +524,35 @@ export default function (pi: ExtensionAPI) {
         rescheduleLoop(entry, effectiveMs, makeOnTimerTick(entry.id));
         ctx.ui.notify(
           `Loop "${entry.name}" (ID: ${entry.id}) rescheduled to every ${formatInterval(effectiveMs)}.`,
+          "info",
+        );
+        pi.events.emit("loop:change", {});
+        if (widget) widget.show(ctx);
+        return;
+      }
+
+      // ── Prompt rewrite subcommand ────────────────────────────────────
+      if (trimmed === "prompt" || trimmed.startsWith("prompt ")) {
+        const rest = trimmed.slice("prompt".length).trim();
+        // Keep remainder intact so multiline prompts survive (do not split on whitespace).
+        const space = rest.search(/\s/);
+        const idOrName = space === -1 ? rest : rest.slice(0, space);
+        const newPrompt = space === -1 ? "" : rest.slice(space + 1).trim();
+        if (!idOrName || !newPrompt) {
+          ctx.ui.notify(USAGE_MESSAGE, "warning");
+          return;
+        }
+        const entry = findLoop(idOrName);
+        if (!entry) {
+          ctx.ui.notify(
+            `No loop found with ID or name "${idOrName}". Use /loop to see active loops.`,
+            "warning",
+          );
+          return;
+        }
+        entry.prompt = newPrompt;
+        ctx.ui.notify(
+          `Loop "${entry.name}" (ID: ${entry.id}) prompt updated to "${newPrompt}".`,
           "info",
         );
         pi.events.emit("loop:change", {});
