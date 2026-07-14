@@ -250,6 +250,32 @@ test("command palette hides disabled entries and does not execute them", () => {
   assert.equal(state.commandPaletteOpen, false);
 });
 
+test("command palette swallows unbound keys like Ctrl+T and PageUp", () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo", { chatScrollOffset: 0 });
+  state.tabs.push(tab);
+  state.activeTabId = "s1";
+  state.commandPaletteOpen = true;
+  let tabJumpOpened = false;
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({} as never),
+    hideOverlay: () => undefined,
+    hasOverlay: () => true,
+  };
+
+  // Ctrl+T would open tab jump if the palette leaked the key.
+  assert.deepEqual(handleMixCodeKeyInput(state, "\x14", tui), { consume: true });
+  assert.equal(state.commandPaletteOpen, true);
+  assert.equal(state.tabJumpOpen, false);
+  assert.equal(tabJumpOpened, false);
+
+  // PageUp would scroll chat if leaked.
+  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[5~", tui), { consume: true });
+  assert.equal(tab.chatScrollOffset, 0);
+  assert.equal(state.commandPaletteOpen, true);
+});
+
 test("ctrl-p does not open command palette while another input mode owns focus", () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo");
@@ -284,12 +310,13 @@ test("ctrl-p does not open command palette while another input mode owns focus",
     selectedIndex: 0,
     items: [{ id: "terminal", label: "Terminal", description: "" }],
   };
-  assert.equal(handleMixCodeKeyInput(state, "\x10", tui), undefined);
+  // Modal pickers swallow unbound keys (including Ctrl+P) instead of nesting the palette.
+  assert.deepEqual(handleMixCodeKeyInput(state, "\x10", tui), { consume: true });
   assert.equal(state.commandPaletteOpen, false);
   state.picker = undefined;
 
   state.tabJumpOpen = true;
-  assert.equal(handleMixCodeKeyInput(state, "\x10", tui), undefined);
+  assert.deepEqual(handleMixCodeKeyInput(state, "\x10", tui), { consume: true });
   assert.equal(state.commandPaletteOpen, false);
   state.tabJumpOpen = false;
 

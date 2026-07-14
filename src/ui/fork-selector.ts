@@ -91,7 +91,8 @@ export function handleForkSelectorKey(
     return true;
   }
 
-  return false;
+  // Modal: swallow unbound keys so they cannot hit the editor / global handlers.
+  return true;
 }
 
 function renderForkSelectorOverlay(state: MixCodeState, width: number): string[] {

@@ -175,7 +175,8 @@ export function handlePickerKey(
     showLinesOverlay(tui, (width) => renderPickerOverlay(state, width));
     return true;
   }
-  return false;
+  // Modal: swallow unbound keys so they cannot fall through.
+  return true;
 }
 
 function applyPickerSelection(

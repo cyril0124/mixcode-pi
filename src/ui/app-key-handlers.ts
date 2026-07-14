@@ -368,7 +368,8 @@ export function handleCommandPaletteKey(
     showLinesOverlay(tui, (width) => renderCommandPalette(state, width, extensionCommands));
     return true;
   }
-  return false;
+  // Modal: swallow unbound keys so they cannot scroll chat / open nested overlays.
+  return true;
 }
 
 export function handleTabJumpKey(state: MixCodeState, data: string, tui: OverlayTui): boolean {
@@ -423,7 +424,8 @@ export function handleTabJumpKey(state: MixCodeState, data: string, tui: Overlay
     showLinesOverlay(tui, (width) => renderTabJumpOverlay(state, width));
     return true;
   }
-  return false;
+  // Modal: swallow unbound keys so they cannot fall through.
+  return true;
 }
 
 export function handlePreviewKey(active: MixCodeState["tabs"][number], data: string): boolean {
