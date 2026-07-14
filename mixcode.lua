@@ -7,7 +7,7 @@ mixcode = {}
 
 ---@class mixcode.OpenTabOptions
 ---@field name string Tab title (used for matching existing tabs)
----@field prompt string Prompt text to send to the agent
+---@field prompt? string Prompt text to send; omit to create/reuse tab without submitting
 ---@field workdir? string Working directory (defaults to current workdir)
 ---@field model? string Model identifier (e.g. "anthropic/claude-sonnet-4-20250514")
 ---@field thinking? "off"|"minimal"|"low"|"medium"|"high"|"xhigh"|"max" Thinking level supported by the selected model
@@ -27,14 +27,20 @@ mixcode = {}
 ---  - mode="clear": session is cleared first, then prompt is sent
 ---  - mode="delete": tab and its session file are deleted, then a brand-new tab is created
 ---If no matching tab exists, a new tab is created.
+---If `prompt` is omitted, the tab is created/reused/cleared/deleted without submitting input.
 ---
----Throws on failure (missing fields, unknown model, invalid thinking level).
+---Throws on failure (missing name, unknown model, invalid thinking level).
 ---@param opts mixcode.OpenTabOptions
 function mixcode.open_tab(opts) end
 
 ---Return the current MixCode workdir.
 ---@return string
 function mixcode.current_workdir() end
+
+---Return CLI args after `--` as a 1-indexed array.
+---Example: `mixcode-pi --batch s.lua -- foo bar` → `{"foo", "bar"}`.
+---@return string[]
+function mixcode.args() end
 
 ---Return whether a tab with the exact title exists at batch startup.
 ---@param name string

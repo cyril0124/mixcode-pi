@@ -34,6 +34,8 @@ mixcode-pi --workdir ~/project  # start in a specific directory
 
 See [`mixcode_settings.json`](docs/mixcode-settings.md) for supported local settings.
 
+Batch Lua scripts: [`docs/batch-lua.md`](docs/batch-lua.md).
+
 ---
 
 [中文文档](README.zh.md)

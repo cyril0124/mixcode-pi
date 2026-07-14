@@ -1,16 +1,24 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
 import { existsSync, realpathSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { cwd } from "node:process";
 import { fileURLToPath } from "node:url";
 import {
   applyBatchRequests,
   contextFromState,
+  formatBatchPlan,
   loadBatchRequests,
   validateBatchRequests,
 } from "../core/batch-lua.js";
-import { findModelRef } from "../core/models.js";
+import { createInitialState } from "../core/defaults.js";
+import {
+  buildAvailableModelRefs,
+  findModelRef,
+  modelToRef,
+  registerModels,
+} from "../core/models.js";
+import { createPiModelRegistryBundle } from "../core/pi-models.js";
 import {
   cleanupInstanceRegistry,
   formatInstanceStatusTable,
@@ -19,10 +27,16 @@ import {
   writeCurrentInstanceSnapshot,
   INSTANCE_HEARTBEAT_INTERVAL_MS,
 } from "../core/instance-registry.js";
-import { saveStateFile } from "../core/state-store.js";
+import { loadStateFile, saveStateFile, scopedStateDir, stateFileForPort } from "../core/state-store.js";
+import type { MixCodeState } from "../core/types.js";
 import { createMixCodeTui } from "../ui/app.js";
 import { createBatchExecutorHost } from "./batch-host.js";
-import { bootstrapMixCode, defaultMixCodeAgentDir, defaultStateDir } from "./bootstrap.js";
+import {
+  bootstrapMixCode,
+  DEFAULT_STATE_PORT,
+  defaultMixCodeAgentDir,
+  defaultStateDir,
+} from "./bootstrap.js";
 import { ensurePackageExtensions } from "../core/ensure-package-extensions.js";
 import { installConsoleTuiBridge, wireConsoleSink } from "./console-tui-bridge.js";
 import { showNoticeTextOverlay } from "../ui/app-overlays.js";
@@ -42,6 +56,11 @@ export async function main(): Promise<void> {
   const args = parseMainArgs(rawArgs, cwd());
   if (args.command === "status") {
     await runStatusCommand(args);
+    return;
+  }
+  // dry-run never boots the TUI/runtime — only load models + existing state snapshot.
+  if (args.batchDryRun) {
+    await runBatchDryRun(args);
     return;
   }
   // Relocate console.{log,warn,error,...} onto the TUI before any extension can
@@ -64,12 +83,15 @@ export async function main(): Promise<void> {
   } = await bootstrapMixCode({
     workdir: args.workdir,
   });
-  const batchRequests = args.batch
-    ? await loadBatchRequests(args.batch, contextFromState(state))
+  const batchPlan = args.batch
+    ? await loadBatchRequests(args.batch, {
+        ...contextFromState(state),
+        args: args.batchArgs ?? [],
+      })
     : undefined;
-  if (batchRequests) {
+  if (batchPlan) {
     validateBatchRequests(
-      batchRequests,
+      batchPlan.requests,
       (query) => findModelRef(state.availableModels, query),
       (request) =>
         request.mode === "delete"
@@ -199,10 +221,10 @@ export async function main(): Promise<void> {
     });
 
   // Execute batch script after TUI is ready
-  if (args.batch) {
+  if (args.batch && batchPlan) {
     const batchHost = createBatchExecutorHost({ state, runtime, tui });
     void tabsReady
-      .then(() => applyBatchRequests(batchRequests ?? [], batchHost))
+      .then(() => applyBatchRequests(batchPlan.requests, batchHost))
       .catch((error: unknown) => {
         const msg = error instanceof Error ? error.message : String(error);
         process.stderr.write(`Batch error: ${msg}\n`);
@@ -220,21 +242,74 @@ async function runStatusCommand(args: MainArgs): Promise<void> {
   process.stdout.write(`${output}\n`);
 }
 
+/**
+ * Validate and print a batch plan without booting TUI/runtime or writing state.
+ * Reads existing state only if present; never creates session files.
+ */
+export async function runBatchDryRun(args: MainArgs): Promise<void> {
+  if (!args.batch) throw new Error("--batch-dry-run requires --batch <file>");
+
+  const agentDir = defaultMixCodeAgentDir();
+  const rootStateDir = defaultStateDir();
+  const stateDir = scopedStateDir(rootStateDir, args.workdir);
+  const stateFile = stateFileForPort(stateDir, DEFAULT_STATE_PORT);
+
+  let state: MixCodeState;
+  try {
+    state = await loadStateFile(stateFile, args.workdir);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code !== "ENOENT") throw error;
+    // In-memory only — dry-run must not create first-tab sessions or save state.
+    state = createInitialState(args.workdir);
+  }
+
+  const modelBundle = await createPiModelRegistryBundle(
+    join(agentDir, "models.json"),
+    join(agentDir, "auth.json"),
+  );
+  registerModels(modelBundle.sources.map((source) => source.model));
+  const configuredModels = modelBundle.sources
+    .filter((source) => source.authStatus.configured)
+    .map((source) => modelToRef(source.model));
+  state.availableModels = buildAvailableModelRefs(configuredModels);
+  const fallbackModel = configuredModels.at(-1) ?? state.model;
+
+  const plan = await loadBatchRequests(args.batch, {
+    ...contextFromState(state),
+    args: args.batchArgs ?? [],
+  });
+  validateBatchRequests(
+    plan.requests,
+    (query) => findModelRef(state.availableModels, query),
+    (request) =>
+      request.mode === "delete"
+        ? fallbackModel
+        : (state.tabs.find((tab) => tab.title === request.name)?.model ?? fallbackModel),
+  );
+  process.stdout.write(`${formatBatchPlan(plan)}\n`);
+}
+
 export interface MainArgs {
   command: MainCommand;
   workdir: string;
   batch?: string;
+  batchArgs?: string[];
+  batchDryRun?: boolean;
   json?: boolean;
   statusWorkdir?: string;
 }
 
-const HELP_TEXT = `Usage: mixcode-pi [options]
+const HELP_TEXT = `Usage: mixcode-pi [options] [-- <script-args...>]
        mixcode-pi status [--json] [--workdir <path>]
 
 Options:
   --workdir <path>   Set working directory (default: cwd)
   --batch <file>     Execute a Lua batch script after TUI startup
+  --batch-dry-run    Load/validate batch script and print plan (no TUI, no session writes)
   --help, -h         Show this help message
+
+  Arguments after -- are passed to the batch script as mixcode.args().
 
 Commands:
   status             Show live mixcode-pi instances and tabs
@@ -246,11 +321,17 @@ export function parseMainArgs(args: string[], fallbackWorkdir: string): MainArgs
 
   let workdir = baseWorkdir;
   let batchPath: string | undefined;
+  let batchDryRun = false;
+  let batchArgs: string[] | undefined;
   for (let index = 0; index < args.length; index++) {
     const arg = args[index];
     if (arg === "--help" || arg === "-h") {
       process.stdout.write(HELP_TEXT);
       process.exit(0);
+    }
+    if (arg === "--") {
+      batchArgs = args.slice(index + 1);
+      break;
     }
     if (arg === "--workdir") {
       const value = args[++index];
@@ -276,9 +357,22 @@ export function parseMainArgs(args: string[], fallbackWorkdir: string): MainArgs
       batchPath = value;
       continue;
     }
+    if (arg === "--batch-dry-run") {
+      batchDryRun = true;
+      continue;
+    }
     throw new Error(`Unknown argument: ${arg}`);
   }
-  return { command: "tui", workdir, batch: batchPath ? resolve(workdir, batchPath) : undefined };
+  if (batchDryRun && !batchPath) {
+    throw new Error("--batch-dry-run requires --batch <file>");
+  }
+  return {
+    command: "tui",
+    workdir,
+    batch: batchPath ? resolve(workdir, batchPath) : undefined,
+    batchArgs,
+    batchDryRun: batchDryRun || undefined,
+  };
 }
 
 function parseStatusArgs(args: string[], baseWorkdir: string): MainArgs {

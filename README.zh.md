@@ -33,3 +33,5 @@ mixcode-pi --workdir ~/project  # 指定工作目录
 ## 配置
 
 支持的本地设置见 [`mixcode_settings.json`](docs/mixcode-settings.md)。
+
+批量任务脚本见 [`docs/batch-lua.md`](docs/batch-lua.md)。

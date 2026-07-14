@@ -465,6 +465,8 @@ export function handleMixCodeKeyInput(
   if (matchesKey(data, "ctrl+c") && editorActions) {
     if (active) clearPendingEscape(active, "abort-agent");
     const text = editorActions.getText();
+    // On Home (activeTabId=config) this is a no-op: addToHistory needs a real tab.
+    // Intentional — Ctrl+C only clears; agent-tab history is per-session only.
     if (text.trim()) editorActions.addToHistory?.(text);
     editorActions.setText("");
     tui.requestRender();

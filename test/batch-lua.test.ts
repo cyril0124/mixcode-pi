@@ -7,12 +7,13 @@ import {
   applyBatchRequests,
   contextFromState,
   executeBatchScript,
+  formatBatchPlan,
   renderTemplate,
   runLuaScript,
   type BatchExecutorHost,
   type BatchTabRequest,
 } from "../src/core/batch-lua.js";
-import { parseMainArgs } from "../src/cli/main.js";
+import { parseMainArgs, runBatchDryRun } from "../src/cli/main.js";
 import { createInitialState, createTab } from "../src/index.js";
 import type { MixCodeModelRef } from "../src/core/types.js";
 
@@ -43,6 +44,22 @@ test("parseMainArgs throws on --batch= with empty value", () => {
   assert.throws(() => parseMainArgs(["--batch="], "/home/user"), /--batch requires a file path/);
 });
 
+test("parseMainArgs parses trailing script args after --", () => {
+  const result = parseMainArgs(["--batch", "s.lua", "--", "foo", "bar"], "/home/user");
+  assert.equal(result.batch, "/home/user/s.lua");
+  assert.deepEqual(result.batchArgs, ["foo", "bar"]);
+});
+
+test("parseMainArgs parses --batch-dry-run", () => {
+  const result = parseMainArgs(["--batch", "s.lua", "--batch-dry-run"], "/home/user");
+  assert.equal(result.batchDryRun, true);
+});
+
+test("parseMainArgs throws when --batch-dry-run lacks --batch", () => {
+  assert.throws(() => parseMainArgs(["--batch-dry-run"], "/home/user"), /--batch-dry-run requires --batch/);
+});
+
+
 // --- runLuaScript tests ---
 
 test("runLuaScript collects open_tab calls", async () => {
@@ -50,7 +67,8 @@ test("runLuaScript collects open_tab calls", async () => {
     mixcode.open_tab({ name = "agent-1", prompt = "hello" })
     mixcode.open_tab({ name = "agent-2", prompt = "world", workdir = "/tmp" })
   `;
-  const requests = await runLuaScript(script, "test.lua");
+  const plan = await runLuaScript(script, "test.lua");
+  const requests = plan.requests;
   assert.equal(requests.length, 2);
   assert.equal(requests[0]!.name, "agent-1");
   assert.equal(requests[0]!.prompt, "hello");
@@ -69,7 +87,8 @@ test("runLuaScript collects model and thinking fields", async () => {
       thinking = "high"
     })
   `;
-  const requests = await runLuaScript(script, "test.lua");
+  const plan = await runLuaScript(script, "test.lua");
+  const requests = plan.requests;
   assert.equal(requests.length, 1);
   assert.equal(requests[0]!.model, "anthropic/claude-sonnet");
   assert.equal(requests[0]!.thinking, "high");
@@ -85,9 +104,11 @@ test("runLuaScript throws when name is missing", async () => {
   await assert.rejects(() => runLuaScript(script, "test.lua"), /name.*required/);
 });
 
-test("runLuaScript throws when prompt is missing", async () => {
-  const script = `mixcode.open_tab({ name = "x" })`;
-  await assert.rejects(() => runLuaScript(script, "test.lua"), /prompt.*required/);
+test("runLuaScript allows open_tab without prompt", async () => {
+  const plan = await runLuaScript(`mixcode.open_tab({ name = "x" })`, "test.lua");
+  assert.equal(plan.requests.length, 1);
+  assert.equal(plan.requests[0]!.name, "x");
+  assert.equal(plan.requests[0]!.prompt, undefined);
 });
 
 test("runLuaScript throws when argument is not a table", async () => {
@@ -102,24 +123,26 @@ test("runLuaScript supports Lua control flow", async () => {
       mixcode.open_tab({ name = name, prompt = "task for " .. name })
     end
   `;
-  const requests = await runLuaScript(script, "test.lua");
+  const plan = await runLuaScript(script, "test.lua");
+  const requests = plan.requests;
   assert.equal(requests.length, 3);
   assert.equal(requests[0]!.name, "a");
   assert.equal(requests[0]!.prompt, "task for a");
   assert.equal(requests[2]!.name, "c");
 });
 
-test("runLuaScript returns empty array when no open_tab calls", async () => {
+test("runLuaScript returns empty plan when no open_tab calls", async () => {
   const script = `local x = 1 + 2`;
-  const requests = await runLuaScript(script, "test.lua");
-  assert.equal(requests.length, 0);
+  const plan = await runLuaScript(script, "test.lua");
+  assert.equal(plan.requests.length, 0);
 });
 
 test("runLuaScript exposes current_workdir", async () => {
   const script = `
     mixcode.open_tab({ name = "wd", prompt = mixcode.current_workdir() })
   `;
-  const requests = await runLuaScript(script, "test.lua", { workdir: "/repo", tabs: [] });
+  const plan = await runLuaScript(script, "test.lua", { workdir: "/repo", tabs: [] });
+  const requests = plan.requests;
   assert.equal(requests[0]!.prompt, "/repo");
 });
 
@@ -131,10 +154,11 @@ test("runLuaScript exposes tab_exists", async () => {
       mixcode.open_tab({ name = "known", prompt = "missing" })
     end
   `;
-  const requests = await runLuaScript(script, "test.lua", {
+  const plan = await runLuaScript(script, "test.lua", {
     workdir: "/repo",
     tabs: [{ name: "known", sessionId: "s1", workdir: "/repo", model: "m", thinking: "high", status: "idle" }],
   });
+  const requests = plan.requests;
   assert.equal(requests[0]!.prompt, "exists");
 });
 
@@ -143,10 +167,11 @@ test("runLuaScript exposes list_tabs", async () => {
     local tabs = mixcode.list_tabs()
     mixcode.open_tab({ name = "summary", prompt = tabs[1].name .. ":" .. tabs[1].model .. ":" .. tabs[1].thinking })
   `;
-  const requests = await runLuaScript(script, "test.lua", {
+  const plan = await runLuaScript(script, "test.lua", {
     workdir: "/repo",
     tabs: [{ name: "agent", sessionId: "s1", workdir: "/repo", model: "provider/model", thinking: "low", status: "idle" }],
   });
+  const requests = plan.requests;
   assert.equal(requests[0]!.prompt, "agent:provider/model:low");
 });
 
@@ -154,7 +179,8 @@ test("runLuaScript exposes mixcode.render", async () => {
   const script = `
     mixcode.open_tab({ name = "render", prompt = mixcode.render("hello {aaa}!", { aaa = "world" }) })
   `;
-  const requests = await runLuaScript(script, "test.lua");
+  const plan = await runLuaScript(script, "test.lua");
+  const requests = plan.requests;
   assert.equal(requests[0]!.prompt, "hello world!");
 });
 
@@ -162,7 +188,8 @@ test("runLuaScript exposes global render", async () => {
   const script = `
     mixcode.open_tab({ name = "render", prompt = render("n={n}, b={b}", { n = 42, b = true }) })
   `;
-  const requests = await runLuaScript(script, "test.lua");
+  const plan = await runLuaScript(script, "test.lua");
+  const requests = plan.requests;
   assert.equal(requests[0]!.prompt, "n=42, b=true");
 });
 
@@ -170,7 +197,8 @@ test("runLuaScript render supports escaped braces", async () => {
   const script = `
     mixcode.open_tab({ name = "render", prompt = render("literal {{name}} = {name}", { name = "world" }) })
   `;
-  const requests = await runLuaScript(script, "test.lua");
+  const plan = await runLuaScript(script, "test.lua");
+  const requests = plan.requests;
   assert.equal(requests[0]!.prompt, "literal {name} = world");
 });
 
@@ -473,7 +501,8 @@ test("applyBatchRequests throws on invalid mode", async () => {
 
 test("runLuaScript collects mode field", async () => {
   const script = `mixcode.open_tab({ name = "a", prompt = "b", mode = "clear" })`;
-  const requests = await runLuaScript(script, "test.lua");
+  const plan = await runLuaScript(script, "test.lua");
+  const requests = plan.requests;
   assert.equal(requests[0]!.mode, "clear");
 });
 
@@ -527,4 +556,88 @@ test("applyBatchRequests configures cleared tab using new session id", async () 
     thinking: "low",
   });
   assert.equal(host.inputs[0]!.sessionId, "sess-1-cleared");
+});
+
+
+// --- args / optional prompt / dry-run format ---
+
+test("runLuaScript exposes mixcode.args from context", async () => {
+  const plan = await runLuaScript(
+    `
+      local a = mixcode.args()
+      mixcode.open_tab({ name = a[1], prompt = a[2] })
+    `,
+    "test.lua",
+    { workdir: "/repo", tabs: [], args: ["agent", "hello"] },
+  );
+  assert.equal(plan.requests[0]!.name, "agent");
+  assert.equal(plan.requests[0]!.prompt, "hello");
+});
+
+test("runLuaScript args defaults to empty table", async () => {
+  const plan = await runLuaScript(
+    `
+      local a = mixcode.args()
+      mixcode.open_tab({ name = "n", prompt = tostring(#a) })
+    `,
+    "test.lua",
+  );
+  assert.equal(plan.requests[0]!.prompt, "0");
+});
+
+test("applyBatchRequests skips submit when prompt is omitted", async () => {
+  const host = createMockHost();
+  await applyBatchRequests([{ name: "empty-tab" }], host);
+  assert.equal(host.created.length, 1);
+  assert.equal(host.inputs.length, 0);
+});
+
+test("formatBatchPlan prints missing prompts", () => {
+  const text = formatBatchPlan({
+    requests: [
+      { name: "a", prompt: "hello", thinking: "low" },
+      { name: "b" },
+    ],
+  });
+  assert.match(text, /name=a/);
+  assert.match(text, /prompt: hello/);
+  assert.match(text, /prompt: \(none\)/);
+});
+
+
+test("runBatchDryRun prints plan without writing state file", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "batch-dry-"));
+  try {
+    const scriptPath = join(dir, "s.lua");
+    await writeFile(scriptPath, 'mixcode.open_tab({ name = "only", prompt = "hi" })\n');
+    // Isolate agent/state under temp so dry-run cannot touch the real agent dir.
+    const prevAgent = process.env.MIXCODE_CODING_AGENT_DIR;
+    process.env.MIXCODE_CODING_AGENT_DIR = join(dir, "agent");
+    let out = "";
+    const origWrite = process.stdout.write.bind(process.stdout);
+    process.stdout.write = ((chunk: any) => {
+      out += String(chunk);
+      return true;
+    }) as typeof process.stdout.write;
+    try {
+      await runBatchDryRun({
+        command: "tui",
+        workdir: dir,
+        batch: scriptPath,
+        batchArgs: [],
+        batchDryRun: true,
+      });
+    } finally {
+      process.stdout.write = origWrite;
+      if (prevAgent === undefined) delete process.env.MIXCODE_CODING_AGENT_DIR;
+      else process.env.MIXCODE_CODING_AGENT_DIR = prevAgent;
+    }
+    assert.match(out, /name=only/);
+    assert.match(out, /prompt: hi/);
+    // defaultStateDir is <agentDir>/mixcode-pi — must stay absent (no mkdir/save).
+    const { access } = await import("node:fs/promises");
+    await assert.rejects(() => access(join(dir, "agent", "mixcode-pi")), /ENOENT/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });

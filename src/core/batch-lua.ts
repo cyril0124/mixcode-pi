@@ -22,16 +22,24 @@ export interface BatchLuaTabInfo {
 export interface BatchLuaContext {
   workdir: string;
   tabs: BatchLuaTabInfo[];
+  /** CLI args after `--` (e.g. mixcode-pi --batch s.lua -- foo bar). */
+  args?: string[];
 }
 
 export interface BatchTabRequest {
   name: string;
-  prompt: string;
+  /** Optional: omit to create/reuse a tab without submitting a prompt. */
+  prompt?: string;
   workdir?: string;
   model?: string;
   thinking?: string;
   /** Behavior when reusing an existing tab: "append" (default), "clear", or "delete". */
   mode?: BatchReuseMode;
+}
+
+/** Collected plan from a batch Lua script. */
+export interface BatchPlan {
+  requests: BatchTabRequest[];
 }
 
 /**
@@ -71,7 +79,7 @@ export interface BatchExecutorHost {
 export async function loadBatchRequests(
   scriptPath: string,
   context?: BatchLuaContext,
-): Promise<BatchTabRequest[]> {
+): Promise<BatchPlan> {
   const absPath = resolve(scriptPath);
   const source = await readFile(absPath, "utf-8");
   return runLuaScript(source, absPath, context);
@@ -81,8 +89,8 @@ export async function executeBatchScript(
   scriptPath: string,
   host: BatchExecutorHost,
 ): Promise<void> {
-  const requests = await loadBatchRequests(scriptPath, contextFromState(host.state));
-  await applyBatchRequests(requests, host);
+  const plan = await loadBatchRequests(scriptPath, contextFromState(host.state));
+  await applyBatchRequests(plan.requests, host);
 }
 
 /**
@@ -93,7 +101,7 @@ export async function runLuaScript(
   source: string,
   scriptPath: string,
   context: BatchLuaContext = { workdir: "", tabs: [] },
-): Promise<BatchTabRequest[]> {
+): Promise<BatchPlan> {
   // Dynamic import because fengari is CJS-only
   const fengari = await import("fengari");
   const { lua, lauxlib, lualib, to_luastring, to_jsstring } = fengari.default ?? fengari;
@@ -115,10 +123,9 @@ export async function runLuaScript(
       return lauxlib.luaL_error(L, to_luastring("mixcode.open_tab: 'name' field is required"));
     }
 
-    const prompt = getStringField(L, 1, "prompt", lua, lauxlib, to_luastring, to_jsstring);
-    if (!prompt) {
-      return lauxlib.luaL_error(L, to_luastring("mixcode.open_tab: 'prompt' field is required"));
-    }
+    // prompt is optional: omit to create/reuse a tab without submitting input.
+    const prompt =
+      getStringField(L, 1, "prompt", lua, lauxlib, to_luastring, to_jsstring) ?? undefined;
 
     const workdir =
       getStringField(L, 1, "workdir", lua, lauxlib, to_luastring, to_jsstring) ?? undefined;
@@ -139,6 +146,18 @@ export async function runLuaScript(
     return 1;
   });
   lua.lua_setfield(L, -2, to_luastring("current_workdir"));
+
+  // CLI args after `--`; 1-indexed Lua array.
+  lua.lua_pushcfunction(L, (L: any) => {
+    const args = context.args ?? [];
+    lua.lua_createtable(L, args.length, 0);
+    args.forEach((arg, index) => {
+      lua.lua_pushstring(L, to_luastring(arg));
+      lua.lua_rawseti(L, -2, index + 1);
+    });
+    return 1;
+  });
+  lua.lua_setfield(L, -2, to_luastring("args"));
 
   lua.lua_pushcfunction(L, (L: any) => {
     const name = lua.lua_isnoneornil(L, 1) ? "" : to_jsstring(lua.lua_tostring(L, 1));
@@ -178,7 +197,7 @@ export async function runLuaScript(
     throw new Error(`Lua error in ${scriptPath}: ${errMsg}`);
   }
 
-  return requests;
+  return { requests };
 }
 
 /**
@@ -274,15 +293,30 @@ export async function applyBatchRequests(
   }
 
   // Phase 2: Run tab groups in parallel while preserving request order within each tab.
-  const operations = [...groups.entries()].map(async ([name, group]) => {
-    const sessionId = groupSessions.get(name)!;
-    for (const { request, model, thinking } of group) {
-      if (model || thinking) await host.configureTab(sessionId, { model, thinking });
-      await host.submitInput(sessionId, request.prompt);
-    }
-  });
+  await Promise.all(
+    [...groups.entries()].map(async ([name, group]) => {
+      const sessionId = groupSessions.get(name)!;
+      for (const { request, model, thinking } of group) {
+        if (model || thinking) await host.configureTab(sessionId, { model, thinking });
+        if (request.prompt !== undefined) await host.submitInput(sessionId, request.prompt);
+      }
+    }),
+  );
+}
 
-  await Promise.all(operations);
+/** Human-readable plan for --batch-dry-run. */
+export function formatBatchPlan(plan: BatchPlan): string {
+  const lines = [`Batch dry-run: ${plan.requests.length} request(s)`];
+  plan.requests.forEach((req, index) => {
+    const parts = [`${index + 1}. name=${req.name}`];
+    if (req.mode) parts.push(`mode=${req.mode}`);
+    if (req.model) parts.push(`model=${req.model}`);
+    if (req.thinking) parts.push(`thinking=${req.thinking}`);
+    if (req.workdir) parts.push(`workdir=${req.workdir}`);
+    lines.push(parts.join(" "));
+    lines.push(req.prompt === undefined ? "   prompt: (none)" : `   prompt: ${req.prompt}`);
+  });
+  return lines.join("\n");
 }
 
 export function renderTemplate(
