@@ -725,7 +725,14 @@ export class MixCodeRuntime {
 
   abortTab(sessionId: string): boolean {
     const runtimeTab = this.requireTab(sessionId);
+    // Pi interactive Esc: streaming → abort agent; else if bash → abortBash().
     if (!runtimeTab.agentSession.isStreaming) {
+      if (runtimeTab.agentSession.isBashRunning) {
+        runtimeTab.agentSession.abortBash();
+        clearPendingEscape(runtimeTab.tab);
+        this.emitChange({ type: "extension_ui_update" }, runtimeTab);
+        return true;
+      }
       // Try aborting retry, branch summarization and compaction (no-op if not running)
       const wasRetrying = runtimeTab.agentSession.isRetrying;
       runtimeTab.agentSession.abortRetry();

@@ -469,3 +469,30 @@ test("runtime aborts an active pi agent run", async () => {
   assert.ok(runtimeTab.chat.some((line) => line.text.includes("Abort requested")));
   assert.equal(runtime.abortTab("s1"), false);
 });
+
+test("runtime abortTab aborts standalone user bash (Pi Esc parity)", async () => {
+  const runtime = new MixCodeRuntime();
+  const tab = createTab(1, "s1", process.cwd());
+  const runtimeTab = await runtime.createTab(tab, {
+    systemPrompt: "system",
+    thinkingLevel: "medium",
+    workdir: process.cwd(),
+  });
+  let bashAborted = false;
+  const session = runtimeTab.agentSession as unknown as {
+    isStreaming: boolean;
+    isBashRunning: boolean;
+    abortBash: () => void;
+  };
+  Object.defineProperty(session, "isStreaming", { get: () => false, configurable: true });
+  Object.defineProperty(session, "isBashRunning", { get: () => !bashAborted, configurable: true });
+  session.abortBash = () => {
+    bashAborted = true;
+  };
+  tab.pendingEscapeAction = "abort-agent";
+  tab.status = "running";
+
+  assert.equal(runtime.abortTab("s1"), true);
+  assert.equal(bashAborted, true);
+  assert.equal(tab.pendingEscapeAction, undefined);
+});
