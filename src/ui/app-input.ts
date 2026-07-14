@@ -146,9 +146,11 @@ export function handleMixCodeKeyInput(
     if (matchesKey(data, "right") || matchesKey(data, "enter")) {
       const target = state.tabs[state.homeSelectedTabIndex];
       if (target) {
-        // If editor has text, send to selected agent via the same submit pipeline as
-        // agent tabs (local slash/shell + prompt). Otherwise attach.
-        if (matchesKey(data, "enter") && editorActions && editorActions.getText().length > 0) {
+        // Enter with text: send to selected agent via the same submit pipeline as
+        // agent tabs (local slash/shell + prompt). Right with text: leave cursor
+        // movement to the editor. Empty input: attach.
+        const hasText = Boolean(editorActions?.getText().length);
+        if (matchesKey(data, "enter") && hasText && editorActions) {
           const text = editorActions.getText().trim();
           editorActions.setText("");
           if (text && runtime) {
@@ -177,10 +179,13 @@ export function handleMixCodeKeyInput(
           tui.requestRender();
           return { consume: true };
         }
-        transferVimModeForHomeAttach(state, target);
-        activateTab(state, target.sessionId);
-        tui.requestRender();
-        return { consume: true };
+        // Right with text falls through so the editor can move the cursor.
+        if (!(matchesKey(data, "right") && hasText)) {
+          transferVimModeForHomeAttach(state, target);
+          activateTab(state, target.sessionId);
+          tui.requestRender();
+          return { consume: true };
+        }
       }
     }
   }

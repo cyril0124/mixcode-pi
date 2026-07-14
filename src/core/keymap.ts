@@ -166,7 +166,7 @@ export const MIXCODE_KEYMAP: KeyAction[] = [
   {
     key: "right/enter",
     action: "home-attach",
-    description: "Attach to selected agent session",
+    description: "Attach to selected agent when input is empty",
     scope: "home",
   },
 ];

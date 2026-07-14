@@ -424,7 +424,7 @@ test("Home Enter with empty text attaches to selected agent", () => {
   assert.equal(state.activeTabId, "s2");
 });
 
-test("Home Right always attaches regardless of editor text", () => {
+test("Home Right does NOT attach when editor has text", () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"));
   state.activeTabId = "config";
@@ -434,8 +434,9 @@ test("Home Right always attaches regardless of editor text", () => {
 
   const result = handleMixCodeKeyInput(state, "\x1b[C", tui, undefined, undefined, undefined, () => false, editorActions);
 
-  assert.deepEqual(result, { consume: true });
-  assert.equal(state.activeTabId, "s1");
+  // Leave Right to the editor for cursor movement when input is non-empty.
+  assert.notDeepEqual(result, { consume: true });
+  assert.equal(state.activeTabId, "config");
   assert.equal(editorActions.getText(), "some text");
 });
 
