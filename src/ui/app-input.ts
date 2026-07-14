@@ -446,9 +446,11 @@ export function handleMixCodeKeyInput(
   if ((matchesKey(data, "alt+up") || matchesKey(data, "ctrl+u")) && editorActions && active) {
     clearPendingEscape(active, "abort-agent");
     const text = runtime?.popPendingMessage?.(active.sessionId) ?? active.pendingMessages.pop();
-    if (!text) return undefined;
-    editorActions.setText(text);
-    tui.requestRender();
+    if (text) {
+      editorActions.setText(text);
+      tui.requestRender();
+    }
+    // Always consume: empty queue must not fall through to editor deleteToLineStart (Ctrl+U).
     return { consume: true };
   }
   return undefined;

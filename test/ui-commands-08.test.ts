@@ -231,7 +231,9 @@ test("global key input pops queued messages back into editor", () => {
   );
   assert.equal(text, "runtime queued");
   tab.pendingMessages.length = 0;
-  assert.equal(
+  // Empty queue must still consume Ctrl+U so pi-tui's deleteToLineStart cannot wipe the draft.
+  text = "keep draft";
+  assert.deepEqual(
     handleMixCodeKeyInput(
       state,
       "\x15",
@@ -242,8 +244,9 @@ test("global key input pops queued messages back into editor", () => {
       undefined,
       editorActions,
     ),
-    undefined,
+    { consume: true },
   );
+  assert.equal(text, "keep draft");
   assert.equal(renders, 2);
 });
 
