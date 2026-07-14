@@ -122,11 +122,12 @@ export async function handleSubmittedInput(
     state.hideThinkingBlock = !(state.hideThinkingBlock ?? false);
     runtime.setHideThinkingBlock?.(state.hideThinkingBlock);
     for (const tab of state.tabs) clearConversationCache(tab.sessionId);
-    if (active) {
-      pushToast(active, {
-        type: "info",
-        message: state.hideThinkingBlock ? "Thinking blocks: hidden" : "Thinking blocks: visible",
-      });
+    const message = state.hideThinkingBlock ? "Thinking blocks: hidden" : "Thinking blocks: visible";
+    // Home has no agent toast surface — use Notice there; agent tabs keep toast.
+    if (state.activeTabId === "config" || !active) {
+      showSystemMessageOrToast(state, runtime, tui, message);
+    } else {
+      pushToast(active, { type: "info", message });
     }
     tui.requestRender();
   } else if (parsed.command === "navigate") {

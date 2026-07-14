@@ -48,6 +48,42 @@ test("/hide-thinking toggles state, persists via runtime, and toasts", async () 
   assert.match(state.tabs[0]?.toast?.message ?? "", /visible/i);
 });
 
+test("/hide-thinking from Home shows Notice instead of agent toast", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"));
+  state.activeTabId = "config";
+  state.homeSelectedTabIndex = 0;
+  const overlays: string[] = [];
+  const runtime = {
+    getTab: () => undefined,
+    setHideThinkingBlock: () => undefined,
+  } as unknown as MixCodeRuntime;
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: (component: { render?: (width: number) => string[] } | string) => {
+      overlays.push(
+        typeof component === "string" ? component : (component.render?.(80).join("\n") ?? ""),
+      );
+      return {} as never;
+    },
+  } as unknown as OverlayTui;
+
+  await handleSubmittedInput(
+    state,
+    runtime,
+    "/hide-thinking",
+    tui,
+    undefined,
+    undefined,
+    undefined,
+    state.tabs[0],
+  );
+
+  assert.equal(state.hideThinkingBlock, true);
+  assert.equal(state.tabs[0]?.toast, undefined);
+  assert.ok(overlays.some((o) => /Thinking blocks: hidden/i.test(o)));
+});
+
 // ─── rendering: thinking collapses to placeholder when hidden ────────────────
 
 test("renderAgentSurface hides thinking content behind a placeholder", () => {
