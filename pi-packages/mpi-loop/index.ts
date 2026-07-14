@@ -208,6 +208,12 @@ function cancelAllLoops(): number {
   return count;
 }
 
+// pi-core invalidates extension ctx after session replacement/reload. Match the
+// stable substring so real bugs still surface while async timers/widgets exit cleanly.
+function isStaleCtxError(e: unknown): boolean {
+  return /stale after session replacement/.test(String(e));
+}
+
 function findLoop(idOrName: string): LoopEntry | undefined {
   // Try ID first
   const byId = activeLoops.get(idOrName);
@@ -239,32 +245,45 @@ class LoopWidget {
   show(ctx: any): void {
     this.ctx = ctx;
 
-    if (activeLoops.size === 0) {
-      this.hide(ctx);
-      return;
-    }
+    try {
+      if (activeLoops.size === 0) {
+        this.hide(ctx);
+        return;
+      }
 
-    ctx.ui.setWidget(
-      WIDGET_ID,
-      (_tui: any, theme: any) => ({
-        render: (width: number) => this.renderWidget(width, theme),
-        invalidate: () => {},
-      }),
-      { placement: "belowEditor" },
-    );
+      ctx.ui.setWidget(
+        WIDGET_ID,
+        (_tui: any, theme: any) => ({
+          render: (width: number) => this.renderWidget(width, theme),
+          invalidate: () => {},
+        }),
+        { placement: "belowEditor" },
+      );
 
-    if (!this.refreshInterval) {
-      this.refreshInterval = setInterval(() => this.refresh(), 30000);
-    }
+      if (!this.refreshInterval) {
+        this.refreshInterval = setInterval(() => this.refresh(), 30000);
+      }
 
-    // Listen for loop changes
-    if (!this.unsubscribe) {
-      this.unsubscribe = this.pi.events.on("loop:change", () => this.refresh());
+      // Listen for loop changes
+      if (!this.unsubscribe) {
+        this.unsubscribe = this.pi.events.on("loop:change", () => this.refresh());
+      }
+    } catch (e) {
+      if (!isStaleCtxError(e)) throw e;
+      // Captured ctx died (session replace/reload) — stop async refresh paths.
+      this.destroy();
     }
   }
 
-  hide(ctx: any): void {
-    ctx.ui.setWidget(WIDGET_ID, undefined);
+  hide(ctx?: any): void {
+    const target = ctx ?? this.ctx;
+    if (target) {
+      try {
+        target.ui.setWidget(WIDGET_ID, undefined);
+      } catch (e) {
+        if (!isStaleCtxError(e)) throw e;
+      }
+    }
     if (this.refreshInterval) {
       clearInterval(this.refreshInterval);
       this.refreshInterval = undefined;
@@ -327,10 +346,8 @@ class LoopWidget {
       this.unsubscribe();
       this.unsubscribe = undefined;
     }
-    if (this.refreshInterval) {
-      clearInterval(this.refreshInterval);
-      this.refreshInterval = undefined;
-    }
+    this.hide();
+    this.ctx = undefined;
   }
 }
 
@@ -340,9 +357,15 @@ class LoopWidget {
 export default function (pi: ExtensionAPI) {
   let widget: LoopWidget | undefined;
 
-  const deliverPrompt = (prompt: string, idle: boolean) => {
-    if (idle) pi.sendUserMessage(prompt);
-    else pi.sendUserMessage(prompt, { deliverAs: "followUp" });
+  const deliverPrompt = (prompt: string, idle: boolean): boolean => {
+    try {
+      if (idle) pi.sendUserMessage(prompt);
+      else pi.sendUserMessage(prompt, { deliverAs: "followUp" });
+      return true;
+    } catch (e) {
+      if (!isStaleCtxError(e)) throw e;
+      return false;
+    }
   };
 
   const commitFire = (entry: LoopEntry, idle: boolean) => {
@@ -350,19 +373,30 @@ export default function (pi: ExtensionAPI) {
     entry.fireCount++;
     entry.nextRunAt = Date.now() + entry.intervalMs;
     pi.events.emit("loop:change", {});
-    deliverPrompt(entry.prompt, idle);
+    if (!deliverPrompt(entry.prompt, idle)) {
+      // Runtime/pi for this extension instance is dead — drop all local loops.
+      cancelAllLoops();
+      widget?.destroy();
+      widget = undefined;
+    }
   };
 
   /** Flush coalesced defer ticks once the agent is actually idle. */
   const flushPending = (ctx: { isIdle: () => boolean }) => {
-    if (!ctx.isIdle()) return;
-    for (const entry of activeLoops.values()) {
-      if (!entry.pending) continue;
-      commitFire(entry, ctx.isIdle());
+    try {
+      if (!ctx.isIdle()) return;
+      for (const entry of activeLoops.values()) {
+        if (!entry.pending) continue;
+        commitFire(entry, ctx.isIdle());
+      }
+    } catch (e) {
+      if (!isStaleCtxError(e)) throw e;
     }
   };
 
   pi.on("session_start", async (_event, ctx) => {
+    // Replace widget without leaking the previous interval/subscription.
+    widget?.destroy();
     widget = new LoopWidget(pi);
     if (activeLoops.size > 0) {
       widget.show(ctx);
@@ -502,34 +536,45 @@ export default function (pi: ExtensionAPI) {
       const name = generateName(prompt);
 
       // Timer ticks only: skip or coalesce-defer while busy. First/manual fire bypass this.
+      // Command ctx is captured at schedule time — it dies on session replacement.
       const onTimerTick = () => {
         const entry = activeLoops.get(id);
         if (!entry) return;
-        if (ctx.isIdle()) {
-          commitFire(entry, true);
-          return;
-        }
-        if (entry.mode === "skip") {
-          entry.nextRunAt = Date.now() + entry.intervalMs;
+        try {
+          if (ctx.isIdle()) {
+            commitFire(entry, true);
+            return;
+          }
+          if (entry.mode === "skip") {
+            entry.nextRunAt = Date.now() + entry.intervalMs;
+            pi.events.emit("loop:change", {});
+            return;
+          }
+          entry.pending = true;
           pi.events.emit("loop:change", {});
-          return;
+        } catch (e) {
+          if (!isStaleCtxError(e)) throw e;
+          cancelLoop(entry);
+          pi.events.emit("loop:change", {});
         }
-        entry.pending = true;
-        pi.events.emit("loop:change", {});
       };
 
       const timer = setInterval(onTimerTick, effectiveMs);
 
       const expiryTimer = setTimeout(() => {
         const entry = activeLoops.get(id);
-        if (entry) {
-          cancelLoop(entry);
+        if (!entry) return;
+        cancelLoop(entry);
+        try {
           ctx.ui.notify(
             `Loop "${entry.name}" (ID: ${id}) auto-expired after ${formatInterval(MAX_AGE_MS)}.`,
             "info",
           );
           pi.events.emit("loop:change", {});
           if (widget) widget.show(ctx);
+        } catch (e) {
+          if (!isStaleCtxError(e)) throw e;
+          pi.events.emit("loop:change", {});
         }
       }, MAX_AGE_MS);
 

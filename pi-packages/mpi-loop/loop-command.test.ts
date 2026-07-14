@@ -277,9 +277,116 @@ test("mpi-loop counts the immediate first fire in RUNS", async () => {
   }
 });
 
+test("mpi-loop refresh and timer tolerate stale ctx after session replacement", async () => {
+  const STALE = "This extension ctx is stale after session replacement or reload.";
+  const intervalFns: Array<() => void> = [];
+  const realSetInterval = globalThis.setInterval;
+  const realClearInterval = globalThis.clearInterval;
+  const realSetTimeout = globalThis.setTimeout;
+  const realClearTimeout = globalThis.clearTimeout;
+  const clearedIntervals: unknown[] = [];
+  globalThis.setInterval = ((fn: () => void) => {
+    intervalFns.push(fn);
+    return intervalFns.length as unknown as ReturnType<typeof setInterval>;
+  }) as typeof setInterval;
+  globalThis.clearInterval = ((id) => {
+    clearedIntervals.push(id);
+  }) as typeof clearInterval;
+  globalThis.setTimeout = ((() => 1) as unknown) as typeof setTimeout;
+  globalThis.clearTimeout = (() => {}) as typeof clearTimeout;
+
+  let commandHandler:
+    | ((args: string, ctx: TestCommandContext) => Promise<void>)
+    | undefined;
+  let sessionStartHandler: ((event: unknown, ctx: TestCommandContext) => unknown) | undefined;
+  let shutdownHandler: ((event: unknown, ctx: unknown) => unknown) | undefined;
+  const changeListeners: Array<() => void> = [];
+  let stale = false;
+  let setWidgetCalls = 0;
+
+  const makeCtx = (): TestCommandContext => ({
+    ui: {
+      notify: () => {},
+      setWidget: () => {
+        if (stale) throw new Error(STALE);
+        setWidgetCalls++;
+      },
+    },
+    isIdle: () => {
+      if (stale) throw new Error(STALE);
+      return true;
+    },
+  });
+
+  const pi = {
+    registerCommand: (_name: string, options: { handler: typeof commandHandler }) => {
+      commandHandler = options.handler;
+    },
+    on: (event: string, handler: (event: unknown, ctx: unknown) => unknown) => {
+      if (event === "session_start") sessionStartHandler = handler as typeof sessionStartHandler;
+      if (event === "session_shutdown") shutdownHandler = handler;
+    },
+    events: {
+      emit: (event: string) => {
+        if (event === "loop:change") for (const listener of changeListeners) listener();
+      },
+      on: (_event: string, listener: () => void) => {
+        changeListeners.push(listener);
+        return () => {
+          const i = changeListeners.indexOf(listener);
+          if (i >= 0) changeListeners.splice(i, 1);
+        };
+      },
+    },
+    sendUserMessage: () => {
+      if (stale) throw new Error(STALE);
+    },
+  } as unknown as ExtensionAPI;
+
+  try {
+    loopExtension(pi);
+    assert.ok(sessionStartHandler);
+    assert.ok(commandHandler);
+
+    const ctx = makeCtx();
+    await sessionStartHandler?.({ type: "session_start" }, ctx);
+    await commandHandler("10m stale-probe", ctx);
+    assert.ok(setWidgetCalls > 0, "widget should register while ctx is live");
+    assert.ok(intervalFns.length >= 1, "loop timer should be registered");
+
+    // Session replacement invalidates the captured command/session ctx.
+    stale = true;
+    assert.doesNotThrow(() => {
+      for (const listener of [...changeListeners]) listener();
+    }, "loop:change refresh must not throw on stale ctx");
+    assert.doesNotThrow(() => {
+      for (const tick of [...intervalFns]) tick();
+    }, "loop timer tick must not throw on stale ctx");
+
+    // New session must not leave the previous widget interval alive.
+    const intervalsBeforeRestart = intervalFns.length;
+    stale = false;
+    const ctx2 = makeCtx();
+    await sessionStartHandler?.({ type: "session_start" }, ctx2);
+    assert.ok(
+      clearedIntervals.length > 0 || changeListeners.length <= 1,
+      "session_start should tear down the previous widget subscription/interval",
+    );
+    assert.ok(intervalFns.length >= intervalsBeforeRestart);
+  } finally {
+    stale = false;
+    await shutdownHandler?.({}, makeCtx());
+    globalThis.setInterval = realSetInterval;
+    globalThis.clearInterval = realClearInterval;
+    globalThis.setTimeout = realSetTimeout;
+    globalThis.clearTimeout = realClearTimeout;
+  }
+});
+
 interface TestCommandContext {
   ui: {
     notify: (message: string, level: string) => void;
+    setWidget?: (...args: unknown[]) => void;
     custom?: (factory: TestOverlayFactory) => Promise<void>;
   };
   isIdle: () => boolean;
