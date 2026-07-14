@@ -550,6 +550,36 @@ test("fork rolls back the fork tab and restores the source tab when createTab fa
   assert.equal(state.activeTabId, "s1");
 });
 
+test("fork from Home inserts after the selected source tab, not at bar head", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(
+    createTab(1, "s1", "/repo", { title: "Agent-01" }),
+    createTab(2, "s2", "/repo", { title: "Agent-02" }),
+    createTab(3, "s3", "/repo", { title: "Agent-03" }),
+  );
+  state.activeTabId = "config";
+  state.homeSelectedTabIndex = 1; // Agent-02
+  let forkedId = "";
+  const runtime = {
+    getTab: () => undefined,
+    forkSession: async (_source: string, newId: string) => {
+      forkedId = newId;
+      return {} as never;
+    },
+    createTab: async () => undefined,
+    renameSession: () => undefined,
+  } as unknown as MixCodeRuntime;
+  const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
+
+  await handleSubmittedInput(state, runtime, "/fork", tui, undefined, undefined, undefined, state.tabs[1]);
+
+  assert.deepEqual(
+    state.tabs.map((tab) => tab.sessionId),
+    ["s1", "s2", forkedId, "s3"],
+  );
+  assert.equal(state.tabs[2]?.title, "Agent-02-fork");
+});
+
 test("config-scoped submitted input runs without an active agent tab", async () => {
   const state = createInitialState("/repo");
   const created: string[] = [];

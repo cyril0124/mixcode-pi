@@ -283,7 +283,8 @@ export async function handleSubmittedInput(
   } else if (parsed.command === "fork") {
     const sessionId = createSessionId();
     await runtime.forkSession(active!.sessionId, sessionId);
-    const activeIndex = state.tabs.findIndex((t) => t.sessionId === state.activeTabId);
+    // Use the source tab, not activeTabId — on Home the latter is "config" (-1 → insert at 0).
+    const activeIndex = state.tabs.findIndex((t) => t.sessionId === active!.sessionId);
     const tab = createTab(state.tabs.length + 1, sessionId, active!.workdir, {
       model: { ...active!.model },
       thinkingLevel: active!.thinkingLevel,
