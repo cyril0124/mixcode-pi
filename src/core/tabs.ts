@@ -43,6 +43,13 @@ export function closeAgentTab(state: MixCodeState, sessionId: string): MixCodeTa
 }
 
 export function activateTab(state: MixCodeState, tabId: string): void {
+  // Tab / mouse paths reach Home via activateTab("config") without the Left-key
+  // helper that sets homeSelectedTabIndex. Remember the agent we left so Home
+  // highlight / Enter / getActiveTab stay on that row.
+  if (tabId === "config" && state.activeTabId !== "config") {
+    const leaving = state.tabs.findIndex((tab) => tab.sessionId === state.activeTabId);
+    if (leaving >= 0) state.homeSelectedTabIndex = leaving;
+  }
   state.activeTabId = tabId;
   const tab = state.tabs.find((item) => item.sessionId === tabId);
   if (!tab) return;

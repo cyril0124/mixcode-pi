@@ -292,6 +292,25 @@ test("Home Enter activates selected agent", () => {
   assert.equal(state.activeTabId, "s1");
 });
 
+test("Tab to Home selects the agent you left (not a stale homeSelectedTabIndex)", () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"), createTab(2, "s2", "/repo"));
+  state.activeTabId = "s2";
+  state.homeSelectedTabIndex = 0; // would wrongly target Agent-01
+  const tui = makeTui();
+  const editorActions = makeEditorActions("");
+
+  // Tab cycles config → s1 → s2 → config; from s2 next is config.
+  assert.deepEqual(
+    handleMixCodeKeyInput(state, "\t", tui, undefined, undefined, undefined, () => false, editorActions),
+    { consume: true },
+  );
+  assert.equal(state.activeTabId, "config");
+  assert.equal(state.homeSelectedTabIndex, 1);
+  assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui), { consume: true });
+  assert.equal(state.activeTabId, "s2");
+});
+
 test("Home attach transfers vimMode to selected agent", () => {
   const state = createInitialState("/repo");
   const first = createTab(1, "s1", "/repo", {
