@@ -38,6 +38,9 @@ export function closeAgentTab(state: MixCodeState, sessionId: string): MixCodeTa
   if (state.activeTabId === sessionId) {
     activateTab(state, state.tabs[Math.min(index, state.tabs.length - 1)]?.sessionId ?? "config");
   }
+  // Closing a tab before the Home selection shifts later tabs down — keep the
+  // same agent selected by moving the index with them.
+  if (index < state.homeSelectedTabIndex) state.homeSelectedTabIndex -= 1;
   clampHomeSelectedTabIndex(state);
   return removed!;
 }

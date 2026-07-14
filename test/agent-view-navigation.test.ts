@@ -896,6 +896,27 @@ test("homeSelectedTabIndex clamps when tab is closed", async () => {
   assert.equal(state.homeSelectedTabIndex, 0);
 });
 
+test("closing an earlier tab keeps the Home-selected agent", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(
+    createTab(1, "a", "/repo", { title: "A" }),
+    createTab(2, "b", "/repo", { title: "B" }),
+    createTab(3, "c", "/repo", { title: "C" }),
+  );
+  state.activeTabId = "config";
+  state.homeSelectedTabIndex = 1; // B
+
+  const { closeAgentTab, getActiveTab } = await import("../src/index.js");
+  closeAgentTab(state, "a");
+
+  assert.deepEqual(
+    state.tabs.map((tab) => tab.sessionId),
+    ["b", "c"],
+  );
+  assert.equal(state.homeSelectedTabIndex, 0);
+  assert.equal(getActiveTab(state)?.sessionId, "b");
+});
+
 test("homeSelectedTabIndex clamps when workspace restore removes selected tab", () => {
   const state = createInitialState("/repo");
   state.tabs.push(
