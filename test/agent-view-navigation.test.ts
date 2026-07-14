@@ -295,6 +295,29 @@ test("Home Enter with empty text stays on Home (only Right attaches)", () => {
   assert.equal(state.activeTabId, "config");
 });
 
+test("Home Enter with whitespace-only input does not clear the editor", () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"));
+  state.activeTabId = "config";
+  state.homeSelectedTabIndex = 0;
+  const tui = makeTui();
+  let prompted = false;
+  const runtime = {
+    prompt: async () => {
+      prompted = true;
+    },
+  };
+  const editorActions = makeEditorActions("   \t  ");
+
+  assert.deepEqual(
+    handleMixCodeKeyInput(state, "\r", tui, undefined, runtime, undefined, () => false, editorActions),
+    { consume: true },
+  );
+  assert.equal(state.activeTabId, "config");
+  assert.equal(prompted, false);
+  assert.equal(editorActions.getText(), "   \t  ");
+});
+
 test("Tab to Home selects the agent you left (not a stale homeSelectedTabIndex)", () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"), createTab(2, "s2", "/repo"));

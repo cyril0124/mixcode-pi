@@ -149,48 +149,47 @@ export function handleMixCodeKeyInput(
     if (matchesKey(data, "right") || matchesKey(data, "enter")) {
       const target = state.tabs[state.homeSelectedTabIndex];
       if (target) {
-        const hasText = Boolean(editorActions?.getText().length);
-        // Enter: send when non-empty; never attach (Right is the only attach key).
+        const text = editorActions?.getText().trim() ?? "";
+        const hasText = text.length > 0;
+        // Enter: send when non-empty after trim; never attach (Right is the only attach key).
+        // Whitespace-only is a no-op (do not clear the buffer).
         if (matchesKey(data, "enter")) {
-          if (hasText && editorActions) {
-            const text = editorActions.getText().trim();
+          if (hasText && editorActions && runtime) {
             editorActions.setText("");
-            if (text && runtime) {
-              // Match agent-tab onSubmit: in-memory Up-history + optional disk history.
-              editorActions.addToHistory?.(text, target.sessionId);
-              if (workspaceOptions.rootStateDir) {
-                void recordSubmittedHistory({
-                  rootStateDir: workspaceOptions.rootStateDir,
-                  sessionId: target.sessionId,
-                  text,
-                }).catch((error: unknown) => {
-                  // Same visibility as agent-tab history failures (system line or notice).
-                  showSystemMessageOrToast(
-                    state,
-                    runtime,
-                    tui,
-                    `History warning: ${errorMessage(error)}`,
-                  );
-                  tui.requestRender();
-                });
-              }
-              // Do not change activeTabId: that swaps the main surface to the agent.
-              // Pass workspaceFile + selected tab so Home matches agent-tab submit plumbing.
-              void handleSubmittedInput(
-                state,
-                runtime as MixCodeSubmitRuntime,
+            // Match agent-tab onSubmit: in-memory Up-history + optional disk history.
+            editorActions.addToHistory?.(text, target.sessionId);
+            if (workspaceOptions.rootStateDir) {
+              void recordSubmittedHistory({
+                rootStateDir: workspaceOptions.rootStateDir,
+                sessionId: target.sessionId,
                 text,
-                tui,
-                onStateChanged,
-                undefined,
-                workspaceOptions.workspaceFile,
-                target,
-              ).catch((error: unknown) => {
-                editorActions.setText(text);
-                showErrorOverlay(tui, error);
+              }).catch((error: unknown) => {
+                // Same visibility as agent-tab history failures (system line or notice).
+                showSystemMessageOrToast(
+                  state,
+                  runtime,
+                  tui,
+                  `History warning: ${errorMessage(error)}`,
+                );
                 tui.requestRender();
               });
             }
+            // Do not change activeTabId: that swaps the main surface to the agent.
+            // Pass workspaceFile + selected tab so Home matches agent-tab submit plumbing.
+            void handleSubmittedInput(
+              state,
+              runtime as MixCodeSubmitRuntime,
+              text,
+              tui,
+              onStateChanged,
+              undefined,
+              workspaceOptions.workspaceFile,
+              target,
+            ).catch((error: unknown) => {
+              editorActions.setText(text);
+              showErrorOverlay(tui, error);
+              tui.requestRender();
+            });
           }
           tui.requestRender();
           return { consume: true };
