@@ -486,16 +486,19 @@ export function handleMixCodeKeyInput(
   }
   if ((matchesKey(data, "alt+up") || matchesKey(data, "ctrl+u")) && editorActions && active) {
     clearPendingEscape(active, "abort-agent");
-    const text = runtime?.popPendingMessage?.(active.sessionId) ?? active.pendingMessages.pop();
-    if (text) {
-      // Re-queue the in-progress draft so Ctrl+U (edit queued) does not discard it.
-      // unshift keeps it ahead of the runtime-steering tail (see pendingMessages sync).
-      const draft = editorActions.getText();
-      if (draft.trim() && draft !== text) active.pendingMessages.unshift(draft);
-      editorActions.setText(text);
-      tui.requestRender();
+    // On Home, getActiveTab() is the selected agent — never dequeue that agent's queue here.
+    if (state.activeTabId !== "config") {
+      const text = runtime?.popPendingMessage?.(active.sessionId) ?? active.pendingMessages.pop();
+      if (text) {
+        // Re-queue the in-progress draft so Ctrl+U (edit queued) does not discard it.
+        // unshift keeps it ahead of the runtime-steering tail (see pendingMessages sync).
+        const draft = editorActions.getText();
+        if (draft.trim() && draft !== text) active.pendingMessages.unshift(draft);
+        editorActions.setText(text);
+        tui.requestRender();
+      }
     }
-    // Always consume: empty queue must not fall through to editor deleteToLineStart (Ctrl+U).
+    // Always consume: empty queue / Home must not fall through to editor deleteToLineStart.
     return { consume: true };
   }
   return undefined;

@@ -178,6 +178,51 @@ test("global key input submits batched inline text ending with enter", () => {
   );
 });
 
+test("Home Ctrl+U does not dequeue the selected agent queue", () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo", { pendingMessages: ["agent-queued"] });
+  state.tabs.push(tab);
+  state.activeTabId = "config";
+  state.homeSelectedTabIndex = 0;
+  let text = "home-draft";
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({}) as never,
+    hideOverlay: () => undefined,
+    hasOverlay: () => false,
+  };
+  const editorActions = {
+    getText: () => text,
+    setText: (next: string) => {
+      text = next;
+    },
+  };
+  let popped = 0;
+  const runtime = {
+    popPendingMessage: () => {
+      popped++;
+      return "should-not-pop";
+    },
+  };
+
+  assert.deepEqual(
+    handleMixCodeKeyInput(
+      state,
+      "\x15",
+      tui,
+      undefined,
+      runtime,
+      undefined,
+      undefined,
+      editorActions,
+    ),
+    { consume: true },
+  );
+  assert.equal(popped, 0);
+  assert.equal(text, "home-draft");
+  assert.deepEqual(tab.pendingMessages, ["agent-queued"]);
+});
+
 test("global key input pops queued messages back into editor", () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo", { pendingMessages: ["first", "second"] });
