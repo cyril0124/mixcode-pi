@@ -142,7 +142,7 @@ function renderAgentViewTable(state: MixCodeState, width: number, maxRows?: numb
   pushAgentRows(lines, ["", activeRenderTheme.bold(" Agents")], budget);
   const selectedIndex = Math.min(state.homeSelectedTabIndex, state.tabs.length - 1);
   const now = Date.now();
-  const hint = activeRenderTheme.dim("  ↑/↓: select  →/Enter: attach  Tab: cycle tabs");
+  const hint = activeRenderTheme.dim("  ↑/↓: select  →: attach  Enter: send  Tab: cycle tabs");
 
   // Cards are the anchor of Agent View; preview and hint use the remaining rows.
   const rowsAfterHeader = budget === undefined ? undefined : Math.max(0, budget - lines.length);

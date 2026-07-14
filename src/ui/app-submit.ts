@@ -10,7 +10,7 @@ import { createPicker } from "../core/pickers.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import { pushToast } from "../core/toast.js";
 import { activateTab, clampHomeSelectedTabIndex, getActiveTab, renameAgentTab } from "../core/tabs.js";
-import type { MixCodeState } from "../core/types.js";
+import type { MixCodeState, MixCodeTabInfo } from "../core/types.js";
 import {
   appendActiveSystemMessage,
   applyModelSelection,
@@ -67,9 +67,11 @@ export async function handleSubmittedInput(
   onStateChanged?: (state: MixCodeState) => void | Promise<void>,
   authInputHost?: AuthInputHost,
   workspaceFile?: string,
+  /** When set (e.g. Home send), submit targets this tab without changing activeTabId. */
+  activeTabOverride?: MixCodeTabInfo,
 ): Promise<void> {
   const parsed = parseInput(text);
-  const active = getActiveTab(state);
+  const active = activeTabOverride ?? getActiveTab(state);
   const requiresActive =
     parsed.kind === "prompt" || parsed.kind === "shell" || !configScopedCommand(parsed.command);
   if (!active && requiresActive) return;

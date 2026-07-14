@@ -281,15 +281,15 @@ test("Home Right activates selected agent", () => {
   assert.equal(state.activeTabId, "s2");
 });
 
-test("Home Enter activates selected agent", () => {
+test("Home Enter with empty text stays on Home (only Right attaches)", () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"), createTab(2, "s2", "/repo"));
   state.activeTabId = "config";
   state.homeSelectedTabIndex = 0;
   const tui = makeTui();
 
-  assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui), { consume: true }); // Enter
-  assert.equal(state.activeTabId, "s1");
+  assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui), { consume: true });
+  assert.equal(state.activeTabId, "config");
 });
 
 test("Tab to Home selects the agent you left (not a stale homeSelectedTabIndex)", () => {
@@ -307,7 +307,7 @@ test("Tab to Home selects the agent you left (not a stale homeSelectedTabIndex)"
   );
   assert.equal(state.activeTabId, "config");
   assert.equal(state.homeSelectedTabIndex, 1);
-  assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui), { consume: true });
+  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[C", tui), { consume: true });
   assert.equal(state.activeTabId, "s2");
 });
 
@@ -331,7 +331,7 @@ test("Home attach transfers vimMode to selected agent", () => {
   assert.equal(first.vimMode, true);
   state.homeSelectedTabIndex = 1;
 
-  assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui), { consume: true });
+  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[C", tui), { consume: true });
   assert.equal(state.activeTabId, "s2");
   assert.equal(first.vimMode, false);
   assert.equal(first.vimPendingEscapeAt, undefined);
@@ -364,9 +364,11 @@ test("Home Enter with text sends message to selected agent and stays on Home", a
   const tui = makeTui();
   let prompted: { sessionId: string; text: string } | undefined;
   const history: Array<{ text: string; sessionId?: string }> = [];
+  let activeWhilePrompt: string | undefined;
   const runtime = {
     prompt: (sessionId: string, text: string) => {
       prompted = { sessionId, text };
+      activeWhilePrompt = state.activeTabId;
       return Promise.resolve();
     },
   };
@@ -381,6 +383,7 @@ test("Home Enter with text sends message to selected agent and stays on Home", a
 
   assert.deepEqual(result, { consume: true });
   assert.equal(state.activeTabId, "config");
+  assert.equal(activeWhilePrompt, "config", "must not spoof activeTabId during Home send");
   assert.deepEqual(prompted, { sessionId: "s1", text: "fix the bug" });
   assert.deepEqual(history, [{ text: "fix the bug", sessionId: "s1" }]);
   assert.equal(editorActions.getText(), "");
@@ -459,18 +462,29 @@ test("Home Enter restores text and shows transient error when selected agent rej
   assert.match(tui.overlays.at(-1) ?? "", /Cannot prompt while compaction is running/);
 });
 
-test("Home Enter with empty text attaches to selected agent", () => {
+test("Home Enter with empty text does not attach; double Enter after send stays on Home", async () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"), createTab(2, "s2", "/repo"));
   state.activeTabId = "config";
   state.homeSelectedTabIndex = 1;
   const tui = makeTui();
-  const editorActions = makeEditorActions("");
+  const runtime = { prompt: async () => undefined };
+  const editorActions = makeEditorActions("hi");
 
-  const result = handleMixCodeKeyInput(state, "\r", tui, undefined, undefined, undefined, () => false, editorActions);
+  assert.deepEqual(
+    handleMixCodeKeyInput(state, "\r", tui, undefined, runtime, undefined, () => false, editorActions),
+    { consume: true },
+  );
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(state.activeTabId, "config");
+  assert.equal(editorActions.getText(), "");
 
-  assert.deepEqual(result, { consume: true });
-  assert.equal(state.activeTabId, "s2");
+  assert.deepEqual(
+    handleMixCodeKeyInput(state, "\r", tui, undefined, runtime, undefined, () => false, editorActions),
+    { consume: true },
+  );
+  assert.equal(state.activeTabId, "config");
 });
 
 test("Home Right does NOT attach when editor has text", () => {
@@ -774,7 +788,7 @@ test("homeSelectedTabIndex clamps when workspace restore removes selected tab", 
 
   assert.equal(state.homeSelectedTabIndex, 0);
   state.activeTabId = "config";
-  assert.deepEqual(handleMixCodeKeyInput(state, "\r", makeTui()), { consume: true });
+  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[C", makeTui()), { consume: true });
   assert.equal(state.activeTabId, "s1");
 });
 

@@ -149,61 +149,55 @@ export function handleMixCodeKeyInput(
     if (matchesKey(data, "right") || matchesKey(data, "enter")) {
       const target = state.tabs[state.homeSelectedTabIndex];
       if (target) {
-        // Enter with text: send to selected agent via the same submit pipeline as
-        // agent tabs (local slash/shell + prompt). Right with text: leave cursor
-        // movement to the editor. Empty input: attach.
         const hasText = Boolean(editorActions?.getText().length);
-        if (matchesKey(data, "enter") && hasText && editorActions) {
-          const text = editorActions.getText().trim();
-          editorActions.setText("");
-          if (text && runtime) {
-            // Match agent-tab onSubmit: in-memory Up-history + optional disk history.
-            editorActions.addToHistory?.(text, target.sessionId);
-            if (workspaceOptions.rootStateDir) {
-              void recordSubmittedHistory({
-                rootStateDir: workspaceOptions.rootStateDir,
-                sessionId: target.sessionId,
+        // Enter: send when non-empty; never attach (Right is the only attach key).
+        if (matchesKey(data, "enter")) {
+          if (hasText && editorActions) {
+            const text = editorActions.getText().trim();
+            editorActions.setText("");
+            if (text && runtime) {
+              // Match agent-tab onSubmit: in-memory Up-history + optional disk history.
+              editorActions.addToHistory?.(text, target.sessionId);
+              if (workspaceOptions.rootStateDir) {
+                void recordSubmittedHistory({
+                  rootStateDir: workspaceOptions.rootStateDir,
+                  sessionId: target.sessionId,
+                  text,
+                }).catch((error: unknown) => {
+                  // Same visibility as agent-tab history failures (system line or notice).
+                  showSystemMessageOrToast(
+                    state,
+                    runtime,
+                    tui,
+                    `History warning: ${errorMessage(error)}`,
+                  );
+                  tui.requestRender();
+                });
+              }
+              // Do not change activeTabId: that swaps the main surface to the agent.
+              // Pass the selected tab as override so submit still targets it.
+              void handleSubmittedInput(
+                state,
+                runtime as MixCodeSubmitRuntime,
                 text,
-              }).catch((error: unknown) => {
-                // Same visibility as agent-tab history failures (system line or notice).
-                showSystemMessageOrToast(
-                  state,
-                  runtime,
-                  tui,
-                  `History warning: ${errorMessage(error)}`,
-                );
-                tui.requestRender();
-              });
-            }
-            const previousActiveId = state.activeTabId;
-            // Point submit at the target without activateTab: that clears unread
-            // ! / done badges, but Home send is not a user view of the chat.
-            state.activeTabId = target.sessionId;
-            void handleSubmittedInput(
-              state,
-              runtime as MixCodeSubmitRuntime,
-              text,
-              tui,
-              onStateChanged,
-            )
-              .catch((error: unknown) => {
+                tui,
+                onStateChanged,
+                undefined,
+                undefined,
+                target,
+              ).catch((error: unknown) => {
                 editorActions.setText(text);
                 showErrorOverlay(tui, error);
                 tui.requestRender();
-              })
-              .finally(() => {
-                // Stay on Home unless the command itself switched tabs.
-                if (state.activeTabId === target.sessionId) {
-                  state.activeTabId = previousActiveId;
-                }
-                tui.requestRender();
               });
+            }
           }
           tui.requestRender();
           return { consume: true };
         }
         // Right with text falls through so the editor can move the cursor.
-        if (!(matchesKey(data, "right") && hasText)) {
+        // Right with empty input attaches to the selected agent.
+        if (!hasText) {
           transferVimModeForHomeAttach(state, target);
           activateTab(state, target.sessionId);
           tui.requestRender();
