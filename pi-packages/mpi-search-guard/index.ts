@@ -160,6 +160,13 @@ const FLAGS_WITH_VALUE = new Set([
 // Flags that already supply the pattern; remaining positionals are all paths.
 const PATTERN_FLAGS = new Set(["-e", "--regexp", "-f", "--file"]);
 
+/** grep/rg allow -eFOO / -fFILE / --regexp=FOO / --file=FILE without a separate value token. */
+function isAttachedPatternFlag(arg: string): boolean {
+  if (arg.startsWith("--regexp=") || arg.startsWith("--file=")) return true;
+  if (arg.startsWith("--")) return false;
+  return (arg.startsWith("-e") || arg.startsWith("-f")) && arg.length > 2;
+}
+
 function checkSegment(segment: string, cwd: string): string | null {
   const tokens = tokenize(segment);
   if (tokens.length === 0) return null;
@@ -255,7 +262,13 @@ function checkGrepPath(args: string[], cwd: string): string | null {
     const arg = args[i];
     if (arg === "--") { i++; break; }
     if (arg.startsWith("-")) {
-      // -e/-f/--regexp/--file already supply the pattern; do not treat next positional as pattern
+      // -e/-f/--regexp/--file already supply the pattern; do not treat next positional as pattern.
+      // Also accept attached forms: -eFOO, -fFILE, --regexp=FOO, --file=FILE.
+      if (isAttachedPatternFlag(arg)) {
+        patternSeen = true;
+        i += 1;
+        continue;
+      }
       if (PATTERN_FLAGS.has(arg)) {
         patternSeen = true;
         i += 2;

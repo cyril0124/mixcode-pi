@@ -94,6 +94,18 @@ test("blocked: grep -e pattern then blacklisted path", () => {
   assert.equal(inspectBashCommand("grep -e foo /", CWD), "/");
 });
 
+test("blocked: grep attached -ePATTERN then blacklisted path", () => {
+  assert.equal(inspectBashCommand("grep -eFOO /", CWD), "/");
+});
+
+test("blocked: grep attached -fFILE then blacklisted path", () => {
+  assert.equal(inspectBashCommand("grep -fpatterns.txt /home", CWD), "/home");
+});
+
+test("blocked: rg --regexp=pattern then blacklisted path", () => {
+  assert.equal(inspectBashCommand("rg --regexp=pattern /", CWD), "/");
+});
+
 test("blocked: grep -f patterns file then blacklisted path", () => {
   assert.equal(inspectBashCommand("grep -f patterns.txt /", CWD), "/");
 });
