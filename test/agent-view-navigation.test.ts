@@ -651,6 +651,18 @@ test("Home Up/Down does NOT consume when no tabs exist", () => {
 
 // --- renderConfig shows Agent View table ---
 
+test("renderConfig paints the selected agent toast", () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo");
+  tab.toast = { type: "info", message: "Hidden extension messages shown", createdAt: Date.now() };
+  state.tabs.push(tab);
+  state.activeTabId = "config";
+  state.homeSelectedTabIndex = 0;
+
+  const output = renderConfig(state, 100).join("\n");
+  assert.match(output, /Hidden extension messages shown/);
+});
+
 test("renderConfig shows Agent View table with agent rows", () => {
   const state = createInitialState("/repo");
   state.tabs.push(

@@ -10,6 +10,7 @@ import {
   selectableCommandPaletteEntries,
 } from "../../core/overlays.js";
 import { filteredPickerItems, workdirBreadcrumb } from "../../core/pickers.js";
+import { activeToast } from "../../core/toast.js";
 import type { MixCodeState, MixCodeTabInfo } from "../../core/types.js";
 import { tabHasPendingUserInteraction } from "../../core/user-interactions.js";
 import { type MixCodeTheme, themeForId } from "../themes.js";
@@ -18,6 +19,7 @@ import { activeRenderTheme, renderWithTheme } from "./context.js";
 import { highlightRanges } from "./highlight.js";
 import { centerLine } from "./layout.js";
 import { box, overlayPanel, padLine, panelBox, renderBoxTop } from "./primitives.js";
+import { applyToastOverlay } from "./toast-overlay.js";
 
 /** Shared match style for dynamic fuzzy-search highlighting across overlays: bold + accent. */
 function matchHighlight(text: string): string {
@@ -97,7 +99,13 @@ function renderConfigInner(
     ...updateRows.map((line) => `  ${line}`),
     ...agentTableRows.map((line) => `  ${line}`),
   ];
-  return fitConfigRows(configPanelBox("", lines, width), maxRows, width);
+  const framed = fitConfigRows(configPanelBox("", lines, width), maxRows, width);
+  // Home has no agent surface — paint the selected agent tab's toast here so
+  // pushToast(getActiveTab()) remains visible while activeTabId is config.
+  const selected = state.tabs[state.homeSelectedTabIndex];
+  if (!selected) return framed;
+  const height = maxRows === undefined ? framed.length : Math.max(framed.length, Math.floor(maxRows));
+  return applyToastOverlay(framed, activeToast(selected), width, height, activeRenderTheme);
 }
 
 function fitConfigRows(lines: string[], maxRows: number | undefined, width: number): string[] {
