@@ -408,8 +408,14 @@ export class EditorSlot implements Component {
     }
     this.activeEditor = this.defaultEditor;
     this.applyDefaultEditorBindings();
-    const active = this.mixState.tabs.find((tab) => tab.sessionId === this.activeTabId);
-    if (active) this.defaultEditor.setText(active.draftInput);
+    // Home is an ephemeral composer for the selected agent. Never carry the
+    // previous agent buffer into config — that made Home send agent draft + new text.
+    if (this.activeTabId === "config") {
+      this.defaultEditor.setText("");
+    } else {
+      const active = this.mixState.tabs.find((tab) => tab.sessionId === this.activeTabId);
+      if (active) this.defaultEditor.setText(active.draftInput);
+    }
     this.syncEditorFocus();
   }
 
