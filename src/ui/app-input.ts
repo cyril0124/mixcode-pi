@@ -471,6 +471,10 @@ export function handleMixCodeKeyInput(
     clearPendingEscape(active, "abort-agent");
     const text = runtime?.popPendingMessage?.(active.sessionId) ?? active.pendingMessages.pop();
     if (text) {
+      // Re-queue the in-progress draft so Ctrl+U (edit queued) does not discard it.
+      // unshift keeps it ahead of the runtime-steering tail (see pendingMessages sync).
+      const draft = editorActions.getText();
+      if (draft.trim() && draft !== text) active.pendingMessages.unshift(draft);
       editorActions.setText(text);
       tui.requestRender();
     }

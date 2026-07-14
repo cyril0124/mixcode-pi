@@ -216,6 +216,8 @@ test("global key input pops queued messages back into editor", () => {
   const runtime = {
     popPendingMessage: (sessionId: string) => (sessionId === "s1" ? "runtime queued" : undefined),
   };
+  // In-progress draft must be re-queued, not discarded, when popping.
+  text = "keep me draft";
   assert.deepEqual(
     handleMixCodeKeyInput(
       state,
@@ -230,6 +232,7 @@ test("global key input pops queued messages back into editor", () => {
     { consume: true },
   );
   assert.equal(text, "runtime queued");
+  assert.deepEqual(tab.pendingMessages, ["keep me draft", "first"]);
   tab.pendingMessages.length = 0;
   // Empty queue must still consume Ctrl+U so pi-tui's deleteToLineStart cannot wipe the draft.
   text = "keep draft";
