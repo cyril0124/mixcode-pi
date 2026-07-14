@@ -7,6 +7,7 @@ import {
   closeCommandPalette,
   closeTabJump,
   commandPaletteEntriesWithExtensions,
+  selectableCommandPaletteEntries,
   moveCommandPaletteSelection,
   moveTabJumpSelection,
   navigatePreview,
@@ -323,14 +324,20 @@ export function handleCommandPaletteKey(
     return true;
   }
   if (matchesKey(data, "enter")) {
+    // Peek first so a missing executeCommand can throw without closing the palette.
+    const selectable = selectableCommandPaletteEntries(state, extensionCommands);
+    const selected =
+      selectable[
+        Math.min(Math.max(state.commandPalette.selectedIndex, 0), Math.max(0, selectable.length - 1))
+      ];
+    if (selected && !commandPaletteActions?.executeCommand) {
+      throw new Error("Command palette selection requires command execution support");
+    }
     // accept indexes the enabled-only list (same rows the palette paints).
     const command = acceptCommandPaletteSelection(state, extensionCommands);
     closeAppOverlay(tui);
     if (command) {
-      if (!commandPaletteActions?.executeCommand) {
-        throw new Error("Command palette selection requires command execution support");
-      }
-      void Promise.resolve(commandPaletteActions.executeCommand(command)).catch(
+      void Promise.resolve(commandPaletteActions!.executeCommand(command)).catch(
         (error: unknown) => {
           showErrorOverlay(tui, error);
           tui.requestRender();

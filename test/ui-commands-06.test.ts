@@ -195,6 +195,18 @@ test("global key input toggles MixCode overlays and passes through regular input
   assert.equal(state.picker?.kind, "thinking");
   assert.match(overlays.at(-1) ?? "", /Choose Thinking/);
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui), { consume: true });
+  // Stale agent meta hit regions must not fire while MixCode Home is active.
+  renderInputMeta(tab, 120, 31);
+  state.activeTabId = "config";
+  state.homeSelectedTabIndex = 0;
+  const homeWorkdirRegion = tab.inputMetaHitRegions?.find((region) => region.action === "workdir");
+  assert.ok(homeWorkdirRegion);
+  assert.equal(
+    handleMixCodeKeyInput(state, `\x1b[<0;${homeWorkdirRegion.startX};31M`, tui),
+    undefined,
+  );
+  assert.equal(state.picker, undefined);
+  state.activeTabId = "s1";
   const mouseBeta = createTab(2, "s2", "/repo", { title: "Beta", unreadDone: true });
   state.tabs.push(mouseBeta);
   const betaTabRegion = tabBarHitRegions(state).find((region) => region.id === "s2");
@@ -449,7 +461,8 @@ test("global key input toggles MixCode overlays and passes through regular input
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[B", tui), { consume: true });
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[A", tui), { consume: true });
   assert.deepEqual(handleMixCodeKeyInput(state, "\u007f", tui), { consume: true });
-  assert.equal(handleMixCodeKeyInput(state, "\u0000", tui), undefined);
+  // Modal palette swallows unbound control bytes so they cannot fall through.
+  assert.deepEqual(handleMixCodeKeyInput(state, "\u0000", tui), { consume: true });
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui), { consume: true });
   assert.equal(state.commandPaletteOpen, false);
   await handleSubmittedInput(state, extensionRuntime, "/extension-manager", tui);

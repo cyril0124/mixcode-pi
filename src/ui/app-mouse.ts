@@ -125,8 +125,11 @@ function handleChromeMouse(
       return true;
     }
   }
+  // Agent footer meta regions stay on the tab after leaving for Home; ignore them
+  // while config is active so Home clicks cannot open model/thinking/workdir pickers.
   if (
     active &&
+    state.activeTabId !== "config" &&
     mouse.button === 0 &&
     !mouse.release &&
     !mouse.wheel &&
