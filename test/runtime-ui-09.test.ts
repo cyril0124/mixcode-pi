@@ -486,6 +486,61 @@ test("opening an extension dialog collapses the widget side panel", async () => 
   }
 });
 
+test("runtime renders custom session entries from appendEntry and EntryRenderer", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-custom-entry-"));
+  const extension: ExtensionFactory = (pi) => {
+    pi.registerEntryRenderer("marker", (entry) => new Text(`entry:${String(entry.data)}`, 0, 0));
+    pi.registerEntryRenderer("broken-entry", () => {
+      throw new Error("broken entry renderer");
+    });
+    pi.registerCommand("entry-smoke", {
+      description: "Custom entry renderer smoke",
+      handler: async () => {
+        pi.appendEntry("marker", "hello-entry");
+        pi.appendEntry("no-renderer", { n: 1 });
+        pi.appendEntry("broken-entry", "x");
+      },
+    });
+  };
+
+  try {
+    const runtime = new MixCodeRuntime({ sessionsRoot: dir, extensionFactories: [extension] });
+    const runtimeTab = await runtime.createTab(createTab(1, "s1", process.cwd()), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+    });
+
+    await runtime.prompt("s1", "/entry-smoke");
+    const extensionLines = runtimeTab.chat.filter((line) => line.role === "extension");
+    // Pi: no renderer → not shown; only marker + broken-entry error.
+    assert.equal(
+      extensionLines.some((line) => line.customType === "no-renderer"),
+      false,
+      "CustomEntry without EntryRenderer must stay hidden (Pi semantics)",
+    );
+    assert.ok(extensionLines.some((line) => line.customType === "marker"));
+    assert.ok(extensionLines.some((line) => line.customType === "broken-entry"));
+
+    const surface = renderAgentSurface(runtimeTab.tab, runtimeTab, 100).join("\n");
+    assert.match(stripAnsi(surface), /entry:hello-entry/);
+    assert.doesNotMatch(stripAnsi(surface), /no-renderer-type/);
+    assert.match(stripAnsi(surface), /extension entry renderer error \(broken-entry\)/);
+
+    // Restore path: rebuild chat lines from session branch entries.
+    const { entriesToChatLines } = await import("../src/agent/runtime-chat.js");
+    const rebuilt = entriesToChatLines(runtimeTab.session.getBranch(), runtimeTab);
+    const restored = rebuilt.filter((line) => line.role === "extension");
+    assert.ok(restored.some((line) => line.customType === "marker"));
+    assert.equal(
+      restored.some((line) => line.customType === "no-renderer"),
+      false,
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("runtime renders pi custom messages with renderer, fallback, errors, and restored history", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-custom-message-"));
   let statefulRenderCreations = 0;

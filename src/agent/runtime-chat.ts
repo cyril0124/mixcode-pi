@@ -2,7 +2,12 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { AssistantMessage, Usage } from "@earendil-works/pi-ai";
-import type { MessageRenderer, SessionEntry } from "@earendil-works/pi-coding-agent";
+import type {
+  CustomEntry,
+  EntryRenderer,
+  MessageRenderer,
+  SessionEntry,
+} from "@earendil-works/pi-coding-agent";
 import { type Component, TUI as PiTui } from "@earendil-works/pi-tui";
 import { modelToRef } from "../core/models.js";
 import type { MixCodeModel, MixCodeTabInfo, PreviewMessageRole } from "../core/types.js";
@@ -131,6 +136,45 @@ function assistantStopReasonText(message: AssistantMessage): string {
   return "";
 }
 
+/**
+ * Session CustomEntry (appendEntry) — not in LLM context.
+ * Pi only shows these when an EntryRenderer exists and returns a component;
+ * no renderer / undefined component → hidden (not a text fallback).
+ * Renderer throw → visible error line (Pi CustomEntryComponent error box).
+ */
+export function customEntryToChatLine(
+  entry: CustomEntry,
+  runtimeTab: RuntimeTab,
+): ChatLine | undefined {
+  const renderer = runtimeTab.agentSession.extensionRunner.getEntryRenderer(entry.customType);
+  // Match Pi interactive-mode addCustomEntryToChat: skip when no renderer.
+  if (!renderer) return undefined;
+
+  const title = entry.customType ? `extension ${entry.customType}` : "extension";
+  const text =
+    entry.data === undefined
+      ? ""
+      : typeof entry.data === "string"
+        ? entry.data
+        : JSON.stringify(entry.data);
+  const line: ChatLine = {
+    role: "extension",
+    title,
+    customType: entry.customType,
+    text,
+  };
+  line.renderExtension = (width) => renderPersistentExtensionEntry(line, entry, renderer, width);
+
+  // Probe once: hide when renderer returns undefined (Pi hasContent() === false).
+  // Keep the line when the probe is an error string (renderer threw).
+  const probe = line.renderExtension(80);
+  if (!line.extensionRendererLastComponent) {
+    const isError = probe.some((row) => row.includes("renderer error"));
+    if (!isError) return undefined;
+  }
+  return line;
+}
+
 export function customMessageToChatLine(
   message: AgentMessage,
   runtimeTab: RuntimeTab,
@@ -208,6 +252,42 @@ function defaultExtensionMessageLines(message: CustomMessageLike): string[] {
   return text ? [title, ...text.split(/\r?\n/)] : [title || "extension message"];
 }
 
+function renderPersistentExtensionEntry(
+  line: ChatLine,
+  entry: CustomEntry,
+  renderer: EntryRenderer,
+  width: number,
+): string[] {
+  const terminal = new NullTerminal(Math.max(1, Math.floor(width)));
+  const tui = new PiTui(terminal);
+  const restoreKeybindings = applyMixCodeKeybindings();
+  try {
+    const expanded = false;
+    if (line.extensionRendererLastComponent && line.extensionRendererExpanded === expanded) {
+      return line.extensionRendererLastComponent.render(terminal.columns);
+    }
+    const component = renderer(entry, { expanded }, MIXCODE_EXTENSION_THEME) as
+      | (Component & { dispose?(): void })
+      | undefined;
+    if (line.extensionRendererLastComponent && line.extensionRendererLastComponent !== component) {
+      line.extensionRendererLastComponent.dispose?.();
+    }
+    line.extensionRendererLastComponent = component;
+    line.extensionRendererExpanded = expanded;
+    // Pi: undefined component → no content, entry not shown.
+    if (!component) return [];
+    return component.render(terminal.columns);
+  } catch (error) {
+    line.extensionRendererLastComponent?.dispose?.();
+    line.extensionRendererLastComponent = undefined;
+    const detail = error instanceof Error ? error.message : String(error);
+    return [`extension entry renderer error (${entry.customType}): ${detail}`];
+  } finally {
+    restoreKeybindings();
+    tui.stop();
+  }
+}
+
 export function disposeChatRenderers(chat: ChatLine[]): void {
   for (const line of chat) {
     line.extensionRendererLastComponent?.dispose?.();
@@ -259,6 +339,10 @@ function entryToChatLines(entry: SessionEntry, runtimeTab: RuntimeTab): ChatLine
       },
       runtimeTab,
     );
+    return line ? [line] : [];
+  }
+  if (entry.type === "custom") {
+    const line = customEntryToChatLine(entry, runtimeTab);
     return line ? [line] : [];
   }
   if (entry.type !== "message") return [];

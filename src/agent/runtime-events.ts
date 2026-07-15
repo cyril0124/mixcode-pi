@@ -6,6 +6,7 @@ import {
   appendSystemMessage,
   assistantDisplayText,
   contextTokensFromUsage,
+  customEntryToChatLine,
   customMessageToChatLine,
   disposeChatRenderers,
   entriesToChatLines,
@@ -340,6 +341,21 @@ export function applyEvent(
       }
       if (!event.result && runtimeTab.autoCompactCycleActive) {
         runtimeTab.autoCompactCycleFailed = true;
+      }
+      break;
+    }
+    case "entry_appended": {
+      // CustomEntry from pi.appendEntry — not LLM context; show via EntryRenderer.
+      if (event.entry.type === "custom") {
+        const line = customEntryToChatLine(event.entry, runtimeTab);
+        if (line) {
+          runtimeTab.chat.push(line);
+          appendPreviewMessage(
+            runtimeTab.tab,
+            "system",
+            line.text || line.title || "extension entry",
+          );
+        }
       }
       break;
     }
