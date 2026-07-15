@@ -189,6 +189,8 @@ export class MixCodeRuntime {
   private readonly pendingExtensionShutdown = new Set<string>();
   /** UI host removes the tab from MixCodeState after runtime closeTab. */
   private readonly tabClosedListeners = new Set<(sessionId: string) => void>();
+  /** UI rebuilds /model list when extensions registerProvider/unregisterProvider. */
+  private readonly modelsChangedListeners = new Set<(refs: MixCodeModelRef[]) => void>();
 
   private lifecycleContext(): RuntimeLifecycleContext {
     return {
@@ -257,6 +259,9 @@ export class MixCodeRuntime {
       (sessionId) => this.syncSessionFromDisk(sessionId),
       (error) => this.reportSyncError(error),
     );
+    // Extension pi.registerProvider updates ModelRegistry but MixCode UI reads
+    // state.availableModels; keep them in sync when providers are registered.
+    this.installProviderRegistryUiSync();
   }
 
   /**
@@ -426,6 +431,7 @@ export class MixCodeRuntime {
     this.isShuttingDown = true;
     this.changeListeners.clear();
     this.tabClosedListeners.clear();
+    this.modelsChangedListeners.clear();
     this.pendingExtensionShutdown.clear();
     this.sync.dispose();
   }
@@ -461,6 +467,61 @@ export class MixCodeRuntime {
     return () => {
       this.tabClosedListeners.delete(listener);
     };
+  }
+
+  /**
+   * Fired when the selectable model list may have changed (extension
+   * registerProvider/unregisterProvider, or after reloadModelConfig).
+   */
+  onModelsChanged(listener: (refs: MixCodeModelRef[]) => void): () => void {
+    this.modelsChangedListeners.add(listener);
+    return () => {
+      this.modelsChangedListeners.delete(listener);
+    };
+  }
+
+  /**
+   * Selectable models for the UI picker: registry getAll() minus faux, auth-configured only.
+   * Does not re-read models.json (unlike reloadModelConfig).
+   */
+  collectSelectableModelRefs(): MixCodeModelRef[] {
+    if (!this.modelRegistry?.getAll) return [];
+    const all = this.modelRegistry.getAll();
+    replaceRegisteredModels(all);
+    return all
+      .filter((model) => model.provider !== "faux")
+      .filter((model) => this.modelRegistry?.getProviderAuthStatus?.(model.provider).configured)
+      .map(modelToRef);
+  }
+
+  private installProviderRegistryUiSync(): void {
+    const registry = this.modelRegistry as
+      | (RuntimeModelRegistry & {
+          registerProvider?: (name: string, config: unknown) => void;
+          unregisterProvider?: (name: string) => void;
+          __mixcodeUiSync?: boolean;
+        })
+      | undefined;
+    if (!registry?.registerProvider || !registry.unregisterProvider || registry.__mixcodeUiSync) {
+      return;
+    }
+    const originalRegister = registry.registerProvider.bind(registry);
+    const originalUnregister = registry.unregisterProvider.bind(registry);
+    registry.registerProvider = (name: string, config: unknown) => {
+      originalRegister(name, config);
+      this.emitModelsChanged();
+    };
+    registry.unregisterProvider = (name: string) => {
+      originalUnregister(name);
+      this.emitModelsChanged();
+    };
+    registry.__mixcodeUiSync = true;
+  }
+
+  private emitModelsChanged(): void {
+    if (this.modelsChangedListeners.size === 0) return;
+    const refs = this.collectSelectableModelRefs();
+    for (const listener of this.modelsChangedListeners) listener(refs);
   }
 
   private async closeTabFromExtensionShutdown(sessionId: string): Promise<void> {
@@ -1072,13 +1133,12 @@ export class MixCodeRuntime {
   reloadModelConfig(): MixCodeModelRef[] {
     if (!this.modelRegistry?.refresh) return [];
     this.modelRegistry.refresh();
-    const all = this.modelRegistry.getAll();
-    replaceRegisteredModels(all);
-    return all
-      // The faux model is a runtime-only default, never a configured choice.
-      .filter((model) => model.provider !== "faux")
-      .filter((model) => this.modelRegistry?.getProviderAuthStatus?.(model.provider).configured)
-      .map(modelToRef);
+    // Re-install sync after refresh in case the registry object was replaced
+    // (normally the same instance; wrap is idempotent via __mixcodeUiSync).
+    this.installProviderRegistryUiSync();
+    const refs = this.collectSelectableModelRefs();
+    this.emitModelsChanged();
+    return refs;
   }
 
   getSharedModelRegistry(): RuntimeModelRegistry | undefined {
