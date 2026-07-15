@@ -284,12 +284,17 @@ test("runtime maps extension select, confirm, and input UI primitives into edito
     activeEditorComponent!.handleInput("\r"); // enter
     await waitFor(() => activeEditorComponent !== undefined && events.length >= 1);
 
-    // Confirm dialog: select "Yes" (first option, already highlighted)
+    // Confirm dialog: title + message both visible (Pi joins them with newline)
     await waitFor(() => {
       if (!activeEditorComponent) return false;
       const r = activeEditorComponent.render(80).map(stripAnsi).join("\n");
       return r.includes("Yes");
     });
+    {
+      const confirmPlain = activeEditorComponent!.render(80).map(stripAnsi).join("\n");
+      assert.match(confirmPlain, /Confirm/);
+      assert.match(confirmPlain, /Proceed\?/);
+    }
     activeEditorComponent!.handleInput("\r"); // enter selects "Yes"
     await waitFor(() => events.length >= 2);
 

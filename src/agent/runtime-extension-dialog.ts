@@ -18,7 +18,7 @@ export function createExtensionDialog(
   getCustomUiHost: () => ExtensionCustomUiHost | undefined,
   kind: "select" | "confirm" | "input",
   title: string,
-  _question: string,
+  question: string,
   options: Array<{ label: string; description: string }>,
   _multiple: boolean,
   _custom: boolean,
@@ -82,11 +82,15 @@ export function createExtensionDialog(
 
     host.editor!.setEditorComponent!(
       (tui, _theme, _keybindings) => {
+        // Pi confirm joins title + message into the selector header so the body
+        // is visible (interactive-mode showExtensionConfirm).
+        const selectorTitle =
+          kind === "confirm" ? `${title}\n${question}` : title;
         component =
           kind === "input"
             ? new ExtensionInputComponent(
                 title,
-                _question,
+                question,
                 (value) => finish(value || undefined),
                 abort,
                 {
@@ -95,7 +99,7 @@ export function createExtensionDialog(
                 },
               )
             : new ExtensionSelectorComponent(
-                title,
+                selectorTitle,
                 options.map((option) => option.label),
                 finish,
                 abort,
