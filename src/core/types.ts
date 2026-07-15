@@ -302,6 +302,8 @@ export interface ExtensionUiState {
   workingMessage?: string;
   workingVisible: boolean;
   title?: string;
+  /** Pi setHiddenThinkingLabel — placeholder when thinking blocks are collapsed. */
+  hiddenThinkingLabel?: string;
   header?: ExtensionDynamicLines;
   footer?: ExtensionDynamicLines;
 }

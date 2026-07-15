@@ -98,3 +98,26 @@ test("renderAgentSurface hides thinking content behind a placeholder", () => {
   assert.match(hidden, /Thinking\.\.\./);
   assert.match(hidden, /final answer/);
 });
+
+test("hidden thinking placeholder uses extensionUi.hiddenThinkingLabel when set", () => {
+  const chat = [{ role: "thinking", text: "secret reasoning trace" }];
+  const tab = createTab(1, "s1", "/repo");
+  tab.extensionUi.hiddenThinkingLabel = "Reasoning folded";
+
+  const hidden = stripAnsi(
+    renderAgentSurface(tab, { chat } as never, 100, undefined, undefined, {
+      hideThinking: true,
+    }).join("\n"),
+  );
+  assert.doesNotMatch(hidden, /secret reasoning trace/);
+  assert.match(hidden, /Reasoning folded/);
+  assert.doesNotMatch(hidden, /Thinking\.\.\./);
+
+  tab.extensionUi.hiddenThinkingLabel = undefined;
+  const restored = stripAnsi(
+    renderAgentSurface(tab, { chat } as never, 100, undefined, undefined, {
+      hideThinking: true,
+    }).join("\n"),
+  );
+  assert.match(restored, /Thinking\.\.\./);
+});

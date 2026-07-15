@@ -241,7 +241,9 @@ function renderMessageBlockUncached(
     if (!text.trim()) return [];
     // Collapse thinking content to a static placeholder when hidden (Pi parity).
     if (options.hideThinking) {
-      return renderMarkdown(HIDDEN_THINKING_LABEL, width, {
+      const label =
+        tab?.extensionUi.hiddenThinkingLabel?.trim() || HIDDEN_THINKING_LABEL;
+      return renderMarkdown(label, width, {
         color: activeRenderTheme.thinking,
         italic: true,
       });
@@ -329,9 +331,11 @@ function chatLineRenderCacheKey(
     if (isOversizedAssistantMessageText(line.text, options.oversizedAssistantMessage)) {
       return undefined;
     }
-    // hideThinking flips a thinking block's output to a fixed placeholder, so it
-    // must be part of the key (only relevant for the thinking branch).
-    const hideKey = role === "thinking" && options.hideThinking ? "1" : "0";
+    // hideThinking + custom label flip the thinking placeholder; include both.
+    const hideKey =
+      role === "thinking" && options.hideThinking
+        ? `1${KEY_SEP}${tab?.extensionUi.hiddenThinkingLabel ?? ""}`
+        : "0";
     return `${role[0]}${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${oversizedPolicyKey(options)}${KEY_SEP}${hideKey}${KEY_SEP}${line.text}`;
   }
   const expanded = tab?.extensionUi.toolsExpanded ?? false;
