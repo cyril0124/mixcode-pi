@@ -191,6 +191,35 @@ test("windowed renderer renders queue preview when present", () => {
   assert.equal(lines.length, HEIGHT);
 });
 
+test("windowed renderer preserves header-to-queue spacing with empty blocks", () => {
+  const chat: ChatLine[] = Array.from({ length: 60 }, () => ({
+    role: "assistant",
+    text: "",
+  }));
+  const overrides = {
+    startupSummary: "[Context]\n  /repo/AGENTS.md\n",
+    pendingMessages: ["queued"],
+  };
+  const clean = (lines: string[]) => lines.map((line) => stripAnsi(line).trimEnd());
+  const full = clean(
+    renderAgentSurface(
+      createTab(42, "s42-full", "/repo", overrides),
+      { chat } as never,
+      WIDTH - 1,
+    ),
+  );
+  const windowed = clean(
+    renderAgentSurface(
+      createTab(43, "s43-windowed", "/repo", overrides),
+      { chat } as never,
+      WIDTH,
+      HEIGHT * 2,
+    ),
+  );
+
+  assert.deepEqual(windowed.slice(0, full.length), full);
+});
+
 test("running plain streaming chats use windowed rendering", () => {
   const chat = buildStreamingAssistantChat(180);
   const tab = createTab(9, "s9", "/repo", { status: "running", chatScrollOffset: 0 });
@@ -546,6 +575,24 @@ test("windowed rendering scales sublinearly with block count", () => {
     `expected 5000-block render to be within 10x of 100-block; 5000=${largeMs.toFixed(
       3,
     )}ms 100=${smallMs.toFixed(3)}ms ratio=${(largeMs / smallMs).toFixed(1)}x`,
+  );
+});
+
+test("deep scroll paint stays near bottom paint cost (no unshift O(n^2))", () => {
+  // Regression: Array.unshift while assembling scrolled history made deep
+  // offset paint hundreds of times slower than bottom pin for large chats.
+  const chat = buildPerformanceChat(2000);
+  const bottomTab = createTab(40, "s40", "/repo", { chatScrollOffset: 0 });
+  const deepTab = createTab(41, "s41", "/repo", { chatScrollOffset: 1_000_000 });
+
+  const bottomMs = measureRenderMs(bottomTab, chat, 8);
+  const deepMs = measureRenderMs(deepTab, chat, 6);
+
+  assert.ok(
+    deepMs < Math.max(15, bottomMs * 40),
+    `deep scroll paint too slow vs bottom; deep=${deepMs.toFixed(3)}ms bottom=${bottomMs.toFixed(
+      3,
+    )}ms ratio=${(deepMs / Math.max(0.001, bottomMs)).toFixed(1)}x`,
   );
 });
 

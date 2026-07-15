@@ -299,10 +299,12 @@ function renderAgentSurfaceAnchored(
 
   const frameBlockHeights = new Map<ChatLine, number>();
   const localOffset = tab.chatScrollOffset;
-  const prefix: string[] = [];
+  // Walk older blocks (anchor-1 → 0), collect newest-first, then reverse-join.
+  // Avoids O(n²) Array.unshift while building the prefix above the anchor.
+  const prefixBlocksNewestFirst: string[][] = [];
   const neededPrefixRows = Math.max(0, localOffset);
-  let prefixHasContent = false;
-  for (let i = anchorIndex - 1; i >= 0 && prefix.length < neededPrefixRows; i--) {
+  let prefixRows = 0;
+  for (let i = anchorIndex - 1; i >= 0 && prefixRows < neededPrefixRows; i--) {
     const block = renderChatBlock(
       chat[i]!,
       mainWidth,
@@ -312,10 +314,14 @@ function renderAgentSurfaceAnchored(
     );
     frameBlockHeights.set(chat[i]!, block.length);
     if (block.length === 0) continue;
-    if (prefixHasContent) prefix.unshift(chatBlockSeparator(mainWidth));
-    for (let j = block.length - 1; j >= 0; j--) prefix.unshift(block[j]!);
-    prefixHasContent = true;
+    if (prefixRows > 0) prefixRows += 1; // separator
+    prefixRows += block.length;
+    prefixBlocksNewestFirst.push(block);
   }
+  const prefix = joinRenderedBlocksTopToBottom(
+    prefixBlocksNewestFirst.reverse(),
+    chatBlockSeparator(mainWidth),
+  );
 
   const suffix: string[] = [];
   let suffixHasContent = prefix.length > 0;
@@ -375,6 +381,17 @@ function matchesChatAnchor(line: ChatLine, tab: MixCodeTabInfo): boolean {
   return Boolean(tab.chatScrollAnchorText && line.role === "user" && line.text === tab.chatScrollAnchorText);
 }
 
+/** Join blocks already ordered top-to-bottom; insert separator between non-empty ones. */
+function joinRenderedBlocksTopToBottom(blocks: string[][], separator: string): string[] {
+  const out: string[] = [];
+  for (const block of blocks) {
+    if (block.length === 0) continue;
+    if (out.length > 0) out.push(separator);
+    for (const line of block) out.push(line);
+  }
+  return out;
+}
+
 function renderAgentSurfaceWindowed(
   tab: MixCodeTabInfo,
   runtimeTab: RuntimeTab | undefined,
@@ -396,15 +413,17 @@ function renderAgentSurfaceWindowed(
   // Bottom-anchored content.
   const queueLines = renderQueuePreview(tab, mainWidth);
 
-  // Walk chat blocks newest-to-oldest, prepending rendered output to `lines`
-  // until we've covered the visible window plus overscan.
+  // Walk chat blocks newest-to-oldest, collecting rendered blocks, then
+  // reverse-join into top-to-bottom order. Push+reverse is O(n); unshift was O(n²).
   const targetRows = viewport + Math.max(0, tab.chatScrollOffset) + WINDOW_OVERSCAN_LINES;
-  const lines: string[] = [...queueLines];
+  const newerFirstBlocks: string[][] = [];
   const frameBlockHeights = new Map<ChatLine, number>();
   let oldestEmittedIndex = chat.length;
-  let nextIsNonEmpty = queueLines.length > 0;
+  // Count rows the same way unshift path did: queue first, then each older block
+  // plus a separator when content already exists below.
+  let assembledRows = queueLines.length;
   for (let i = chat.length - 1; i >= 0; i--) {
-    if (lines.length >= targetRows) break;
+    if (assembledRows >= targetRows) break;
     const line = chat[i]!;
     const block = renderChatBlock(
       line,
@@ -422,21 +441,33 @@ function renderAgentSurfaceWindowed(
       oldestEmittedIndex = i;
       continue;
     }
-    if (nextIsNonEmpty) {
-      // Prepend a separator between this block and whatever is below it.
-      lines.unshift(chatBlockSeparator(mainWidth));
-    }
-    for (let j = block.length - 1; j >= 0; j--) lines.unshift(block[j]!);
-    nextIsNonEmpty = true;
+    if (assembledRows > 0) assembledRows += 1; // separator between this block and content below
+    assembledRows += block.length;
+    newerFirstBlocks.push(block);
     oldestEmittedIndex = i;
   }
+
+  // newerFirstBlocks is [newest, ..., oldest]; reverse to oldest-first top-to-bottom.
+  const olderLines = joinRenderedBlocksTopToBottom(
+    newerFirstBlocks.reverse(),
+    chatBlockSeparator(mainWidth),
+  );
 
   // When the backward walk reached the very first block, the header sits
   // directly above it (Pi-style). Otherwise it stays part of the virtual
   // prefix counted via estimateTotalHeight's extraRows below.
   const reachedTop = oldestEmittedIndex === 0;
+  let lines: string[];
   if (reachedTop && headerLines.length) {
-    for (let j = headerLines.length - 1; j >= 0; j--) lines.unshift(headerLines[j]!);
+    lines = olderLines.length
+      ? [...headerLines, ...olderLines]
+      : [...headerLines];
+  } else {
+    lines = olderLines;
+  }
+  if (queueLines.length > 0) {
+    if (olderLines.length > 0) lines.push(chatBlockSeparator(mainWidth));
+    lines.push(...queueLines);
   }
 
   // Empty-state placeholder mirrors what renderConversation would produce.
