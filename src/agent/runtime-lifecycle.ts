@@ -595,10 +595,11 @@ export async function bindRuntimeExtensions(
       context.runtime.requestExtensionShutdown(runtimeTab.tab.sessionId);
     },
     onError: (error) => {
-      runtimeTab.chat.push({
-        role: "system",
-        text: `Extension ${error.extensionPath} ${error.event}: ${error.error}`,
-      });
+      appendSystemMessage(
+        runtimeTab,
+        `Extension ${error.extensionPath} ${error.event}: ${error.error}`,
+        "error",
+      );
     },
   });
   applyMixCodeSystemPrompt(

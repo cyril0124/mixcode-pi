@@ -27,10 +27,47 @@ export function assistantDisplayText(_tab: MixCodeTabInfo, message: AssistantMes
   return assistantText(message.content);
 }
 
-export function appendSystemMessage(runtimeTab: RuntimeTab, text: string): void {
+/**
+ * Pi interactive-mode display kinds:
+ * - status: showStatus (consecutive lines coalesce / replace)
+ * - error / warning: always append, break status chain
+ * - block: permanent multi-line dump (e.g. /session addChild Text), never coalesced
+ */
+export type SystemMessageKind = "status" | "error" | "warning" | "block";
+
+export function appendSystemMessage(
+  runtimeTab: RuntimeTab,
+  text: string,
+  kind: SystemMessageKind = text.startsWith("Error:") ? "error" : "status",
+): void {
   if (!text.trim()) return;
-  const variant = text.startsWith("Error:") ? ("system-error" as const) : undefined;
-  runtimeTab.chat.push({ role: "system", text, variant });
+
+  // Match Pi interactive-mode showStatus: consecutive status lines replace the last
+  // one instead of spamming the chat. Errors/warnings/blocks always append and break the chain.
+  if (kind === "status") {
+    const last = runtimeTab.chat.at(-1);
+    if (last?.role === "system" && last.systemStatus) {
+      last.text = text;
+      last.variant = undefined;
+      const preview = runtimeTab.tab.previewMessages;
+      const lastPreview = preview.at(-1);
+      if (lastPreview?.role === "system") {
+        lastPreview.text = text;
+        runtimeTab.tab.previewIndex = preview.length - 1;
+      } else {
+        appendPreviewMessage(runtimeTab.tab, "system", text);
+      }
+      return;
+    }
+  }
+
+  const variant = kind === "error" ? ("system-error" as const) : undefined;
+  runtimeTab.chat.push({
+    role: "system",
+    text,
+    variant,
+    systemStatus: kind === "status" ? true : undefined,
+  });
   appendPreviewMessage(runtimeTab.tab, "system", text);
 }
 

@@ -2,6 +2,7 @@ import type { ExtensionUIContext } from "@earendil-works/pi-coding-agent";
 import type { ExtensionToolOwnerPolicy } from "../core/extension-tool-owners.js";
 import type { AutocompleteProvider } from "@earendil-works/pi-tui";
 import { LOCAL_COMMANDS } from "../core/commands.js";
+import { appendSystemMessage } from "./runtime-chat.js";
 import {
   createExtensionCustomOverlay,
   createExtensionEditorOverlay,
@@ -79,10 +80,11 @@ function extensionConflictDiagnostics(
 }
 
 export function surfaceShortcutError(runtimeTab: RuntimeTab, error: unknown): void {
-  runtimeTab.chat.push({
-    role: "system",
-    text: `Shortcut handler error: ${error instanceof Error ? error.message : String(error)}`,
-  });
+  appendSystemMessage(
+    runtimeTab,
+    `Shortcut handler error: ${error instanceof Error ? error.message : String(error)}`,
+    "error",
+  );
 }
 
 function formatSourceInfo(sourceInfo: { path?: string; source?: string } | undefined): string {
@@ -94,10 +96,15 @@ export function createMixCodeExtensionUiContext(
   requestRender: () => void,
   getCustomUiHost: () => ExtensionCustomUiHost | undefined,
 ): ExtensionUIContext & { requestRender: () => void } {
+  // Match Pi showExtensionNotify: info -> replaceable status; warning/error always append.
   const notify = (message: string, type?: "info" | "warning" | "error") => {
-    const prefix =
-      type === "error" ? "Extension error" : type === "warning" ? "Extension warning" : "Extension";
-    runtimeTab.chat.push({ role: "system", text: `${prefix}: ${message}` });
+    if (type === "error") {
+      appendSystemMessage(runtimeTab, `Extension error: ${message}`, "error");
+    } else if (type === "warning") {
+      appendSystemMessage(runtimeTab, `Extension warning: ${message}`, "warning");
+    } else {
+      appendSystemMessage(runtimeTab, `Extension: ${message}`, "status");
+    }
     requestRender();
   };
   const getEditorHost = () => {

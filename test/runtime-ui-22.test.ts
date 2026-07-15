@@ -243,11 +243,17 @@ test("runtime maps tool and thinking events into tab UI state", async () => {
   anyRuntime.applyEvent(runtimeTab, { type: "turn_start" });
   assert.equal(tab.title, "Renamed Session");
   assert.equal(tab.thinkingLevel, "high");
-  assert.ok(runtimeTab.chat.some((line) => line.text.includes("Compaction started (manual)")));
+  // Compaction progress and in-flight retry countdown use the working loader
+  // (Pi StatusIndicator), not chat lines. Only terminal failures stay in chat.
+  assert.ok(
+    !runtimeTab.chat.some((line) => line.text.includes("Compaction started")),
+  );
+  assert.ok(
+    !runtimeTab.chat.some((line) => line.text.includes("Error: Retry 2/3")),
+  );
   assert.ok(
     runtimeTab.chat.some((line) => line.text.includes("Compaction failed: compact failed")),
   );
-  assert.ok(runtimeTab.chat.some((line) => line.text.includes("Error: Retry 2/3: rate limited")));
   assert.ok(runtimeTab.chat.some((line) => line.text.includes("Error: Retry failed: unknown error")));
   assert.ok(
     runtimeTab.chat.some((line) => line.text.includes("Error: Retry failed: provider exhausted retries")),

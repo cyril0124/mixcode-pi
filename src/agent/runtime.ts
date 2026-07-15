@@ -39,6 +39,7 @@ import {
   resetTabForNewSession,
   syncContextUsage,
   syncPreviewFromChat,
+  type SystemMessageKind,
 } from "./runtime-chat.js";
 import { applyEvent } from "./runtime-events.js";
 import { reloadRuntimeSessionFromDisk } from "./runtime-session-reload.js";
@@ -493,10 +494,11 @@ export class MixCodeRuntime {
     }
     if (runtimeTab.agentSession.isStreaming || runtimeTab.agentSession.isCompacting) return;
     void this.closeTabFromExtensionShutdown(sessionId).catch((error: unknown) => {
-      runtimeTab.chat.push({
-        role: "system",
-        text: `Extension shutdown failed: ${error instanceof Error ? error.message : String(error)}`,
-      });
+      appendSystemMessage(
+        runtimeTab,
+        `Extension shutdown failed: ${error instanceof Error ? error.message : String(error)}`,
+        "error",
+      );
       this.emitChange({ type: "extension_ui_update" }, runtimeTab);
     });
   }
@@ -816,9 +818,9 @@ export class MixCodeRuntime {
     }
   }
 
-  appendSystemMessage(sessionId: string, text: string): void {
+  appendSystemMessage(sessionId: string, text: string, kind?: SystemMessageKind): void {
     const runtimeTab = this.requireTab(sessionId);
-    appendSystemMessage(runtimeTab, text);
+    appendSystemMessage(runtimeTab, text, kind);
     this.emitChange({ type: "extension_ui_update" }, runtimeTab);
   }
 

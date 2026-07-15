@@ -171,10 +171,11 @@ export function appendActiveSystemMessage(
   state: MixCodeState,
   runtime: Pick<MixCodeRuntime, "appendSystemMessage">,
   message: string,
+  kind?: Parameters<MixCodeRuntime["appendSystemMessage"]>[2],
 ): void {
   const active = getActiveTab(state);
   if (!active) throw new Error("No active tab for system message");
-  runtime.appendSystemMessage(active.sessionId, message);
+  runtime.appendSystemMessage(active.sessionId, message, kind);
 }
 
 export function showSystemMessageOrToast(
@@ -182,13 +183,14 @@ export function showSystemMessageOrToast(
   runtime: Partial<Pick<MixCodeRuntime, "appendSystemMessage">>,
   tui: OverlayTui,
   message: string,
+  kind?: Parameters<NonNullable<MixCodeRuntime["appendSystemMessage"]>>[2],
 ): void {
   const active = getActiveTab(state);
   if (!active || state.activeTabId === "config" || !runtime.appendSystemMessage) {
     showNoticeTextOverlay(tui, message);
     return;
   }
-  runtime.appendSystemMessage(active.sessionId, message);
+  runtime.appendSystemMessage(active.sessionId, message, kind);
 }
 
 export async function closeRuntimeAndStop(

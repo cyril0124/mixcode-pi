@@ -253,10 +253,10 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
       if (sessionName) tab.title = sessionName;
       const repair = modelRepairs.get(tab.sessionId);
       if (repair) {
-        runtimeTab.chat.push({
-          role: "system",
-          text: `Saved model ${repair.from} is unavailable in Pi models; switched to ${repair.to}.`,
-        });
+        runtime.appendSystemMessage(
+          tab.sessionId,
+          `Saved model ${repair.from} is unavailable in Pi models; switched to ${repair.to}.`,
+        );
       }
     }),
   ) as unknown as Promise<void>;

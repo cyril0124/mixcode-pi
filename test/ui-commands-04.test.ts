@@ -21,7 +21,7 @@ import type { MixCodeRuntime } from "../src/index.js";
 import type { Model } from "@earendil-works/pi-ai";
 import { MIXCODE_FAUX_MODEL } from "../src/index.js";
 
-type TestChatLine = { role: "system"; text: string };
+type TestChatLine = { role: "system"; text: string; kind?: string };
 
 function createOverlayCaptureTui() {
   const overlays: string[] = [];
@@ -191,9 +191,9 @@ test("submitted hotkeys command shows built-in and extension shortcuts", async (
   const chat: TestChatLine[] = [];
   let renders = 0;
   const runtime = {
-    appendSystemMessage: (sessionId: string, text: string) => {
+    appendSystemMessage: (sessionId: string, text: string, kind?: string) => {
       assert.equal(sessionId, "s1");
-      chat.push({ role: "system", text });
+      chat.push({ role: "system", text, kind });
       tab.previewMessages.push({ role: "system", text });
     },
     getTab: (sessionId: string) => {
@@ -228,7 +228,15 @@ test("submitted hotkeys command shows built-in and extension shortcuts", async (
   await handleSubmittedInput(state, runtime, "/hotkeys", tui);
 
   const message = chat.at(-1)?.text ?? "";
+  // Pi permanently appends hotkeys (not showStatus coalesce).
+  assert.equal(chat.at(-1)?.kind, "block");
   assert.match(message, /Keyboard Shortcuts/);
+
+  // Home has no chat surface for this dump — command is a no-op there.
+  state.activeTabId = "config";
+  const before = chat.length;
+  await handleSubmittedInput(state, runtime, "/hotkeys", tui);
+  assert.equal(chat.length, before);
   assert.match(message, /Global/);
   assert.match(message, /\| `Ctrl\+P` \| Open command palette \|/);
   assert.match(message, /Other/);

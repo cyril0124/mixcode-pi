@@ -219,7 +219,7 @@ export const LOCAL_COMMANDS: Array<{
     palette: {
       label: "Reload",
       description: "Reload keybindings, extensions, skills, prompts, and themes",
-      scope: "both",
+      requires: "session",
     },
   },
   {
@@ -289,8 +289,16 @@ export const LOCAL_COMMANDS: Array<{
     description: "Resume a different session",
     palette: { label: "Resume Session", scope: "both", requires: "session" },
   },
-  { name: "help", description: "Show all keyboard shortcuts", palette: { label: "Help" } },
-  { name: "hotkeys", description: "Show all keyboard shortcuts", palette: { label: "Hotkeys" } },
+  {
+    name: "help",
+    description: "Show all keyboard shortcuts",
+    palette: { label: "Help", requires: "session" },
+  },
+  {
+    name: "hotkeys",
+    description: "Show all keyboard shortcuts",
+    palette: { label: "Hotkeys", requires: "session" },
+  },
   {
     name: "rename",
     description: "Rename active tab",

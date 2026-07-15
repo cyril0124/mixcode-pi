@@ -118,7 +118,7 @@ async function autoCompactAndContinue(runtimeTab: RuntimeTab): Promise<void> {
     const message = error instanceof Error ? error.message : String(error);
     // Failed compaction: drop the timer silently, no worked-duration recorded.
     setTabStatus(runtimeTab.tab, "idle", { discardTimer: true });
-    appendSystemMessage(runtimeTab, normalizeCompactionFailureMessage(message));
+    appendSystemMessage(runtimeTab, normalizeCompactionFailureMessage(message), "error");
     runtimeTab.requestRender?.();
   } finally {
     endAutoCompactCycle(runtimeTab);
@@ -292,14 +292,8 @@ export function applyEvent(
         runtimeTab.postRunWorkingStartedAt = undefined;
       }
       clearPendingEscape(runtimeTab.tab);
-      {
-        // Show "context-limit" instead of "manual" when the auto-compact cycle is active.
-        const displayReason =
-          event.reason === "manual" && runtimeTab.isAutoCompacting
-            ? "context-limit"
-            : event.reason;
-        runtimeTab.chat.push({ role: "system", text: `Compaction started (${displayReason}).` });
-      }
+      // Pi uses CompactionStatusIndicator (spinner), not a chat status line.
+      // MixCode already shows the working loader while status is running.
       break;
     case "compaction_end": {
       // Two continuation shapes keep the timer running: MixCode's own mid-turn
@@ -332,12 +326,13 @@ export function applyEvent(
           runtimeTab.tab.unreadDone = true;
         }
       } else if (event.errorMessage) {
-        runtimeTab.chat.push({
-          role: "system",
-          text: normalizeCompactionFailureMessage(event.errorMessage),
-        });
+        appendSystemMessage(
+          runtimeTab,
+          normalizeCompactionFailureMessage(event.errorMessage),
+          "error",
+        );
       } else if (event.aborted) {
-        runtimeTab.chat.push({ role: "system", text: "Compaction cancelled." });
+        appendSystemMessage(runtimeTab, "Compaction cancelled.");
       }
       if (!event.result && runtimeTab.autoCompactCycleActive) {
         runtimeTab.autoCompactCycleFailed = true;
@@ -383,10 +378,9 @@ export function applyEvent(
         delayMs: event.delayMs,
         startedAt: Date.now(),
       };
-      runtimeTab.chat.push({
-        role: "system",
-        text: `Error: Retry ${event.attempt}/${event.maxAttempts}: ${event.errorMessage}`,
-      });
+      // Pi uses RetryStatusIndicator (countdown spinner). MixCode already surfaces
+      // the live countdown via retryStatusMessage in the working loader — do not
+      // also dump a chat line on every attempt.
       break;
     case "auto_retry_end":
       runtimeTab.tab.retryInfo = undefined;
@@ -398,10 +392,11 @@ export function applyEvent(
         if (runtimeTab.tab.status === "running" || runtimeTab.tab.status === "thinking") {
           setTabStatus(runtimeTab.tab, "idle");
         }
-        runtimeTab.chat.push({
-          role: "system",
-          text: `Error: Retry failed: ${event.finalError ?? "unknown error"}`,
-        });
+        // Pi showError on final retry failure — permanent chat line.
+        appendSystemMessage(
+          runtimeTab,
+          `Error: Retry failed: ${event.finalError ?? "unknown error"}`,
+        );
       }
       break;
   }

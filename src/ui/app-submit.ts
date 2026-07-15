@@ -20,7 +20,6 @@ import {
   openDeleteAllSessionsConfirm,
   openSessionActionConfirm,
   reloadRuntimeModels,
-  showSystemMessageOrToast,
 } from "./app-actions.js";
 import {
   completeAgentTabClear,
@@ -269,10 +268,10 @@ export async function handleSubmittedInput(
     // Native reload covers extensions/skills/prompts/themes but not models; the
     // model registry is loaded once at bootstrap, so refresh it here too.
     const modelsReloaded = await reloadRuntimeModels(state, runtime);
-    showSystemMessageOrToast(
+    // Short status line (Pi showStatus); agent tab required (not config-scoped).
+    appendActiveSystemMessage(
       state,
       runtime,
-      tui,
       modelsReloaded
         ? "Reloaded keybindings, extensions, skills, prompts, themes, and models"
         : "Reloaded keybindings, extensions, skills, prompts, and themes",
@@ -385,12 +384,12 @@ export async function handleSubmittedInput(
         );
       }
     }
-  } else if (parsed.command === "help") {
+  } else if (parsed.command === "help" || parsed.command === "hotkeys") {
+    // Agent-tab only: Home has no chat surface for permanent shortcut dumps.
+    if (state.activeTabId === "config") return;
     const shortcuts = active ? getExtensionShortcuts(runtime, active.sessionId) : [];
-    showSystemMessageOrToast(state, runtime, tui, renderHotkeysText(shortcuts));
-  } else if (parsed.command === "hotkeys") {
-    const shortcuts = active ? getExtensionShortcuts(runtime, active.sessionId) : [];
-    showSystemMessageOrToast(state, runtime, tui, renderHotkeysText(shortcuts));
+    // Pi handleHotkeysCommand permanently appends Markdown (not showStatus).
+    appendActiveSystemMessage(state, runtime, renderHotkeysText(shortcuts), "block");
   } else if (parsed.command === "system-prompt") {
     if (parsed.args.trim()) throw new Error("Usage: /system-prompt");
     const runtimeTab = runtime.getTab(active!.sessionId);
@@ -407,11 +406,18 @@ export async function handleSubmittedInput(
       await editTextWithTuiPaused(tui, text, request.editor);
     }
   } else if (parsed.command === "session") {
+    // Agent-tab only: session stats dump into the active chat.
+    if (state.activeTabId === "config") return;
     const runtimeTab = runtime.getTab(active!.sessionId);
     if (!runtimeTab) throw new Error(`Unknown tab session: ${active!.sessionId}`);
     const info = runtimeTab.agentSession.getSessionStats();
     syncTabContextUsage(active!, info.contextUsage);
-    runtime.appendSystemMessage(active!.sessionId, renderSessionInfoText(runtimeTab, info));
+    // Pi handleSessionCommand adds a permanent Text child (not showStatus).
+    runtime.appendSystemMessage(
+      active!.sessionId,
+      renderSessionInfoText(runtimeTab, info),
+      "block",
+    );
   } else if (parsed.command === "tui-state") {
     const request = parseEditorFlag(parsed.args);
     const text = stringifyJson(createTuiDebugState(state), true);
@@ -448,9 +454,7 @@ function configScopedCommand(command: string | undefined): boolean {
     command === "login" ||
     command === "logout" ||
     command === "quit" ||
-    command === "exit" ||
-    command === "help" ||
-    command === "hotkeys"
+    command === "exit"
   );
 }
 function parseImportRequest(args: string): { path: string; cwdOverride?: string } {

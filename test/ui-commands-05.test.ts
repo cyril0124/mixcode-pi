@@ -18,7 +18,7 @@ import type { MixCodeRuntime } from "../src/index.js";
 import type { Model } from "@earendil-works/pi-ai";
 import { MIXCODE_FAUX_MODEL } from "../src/index.js";
 
-type TestChatLine = { role: "system"; text: string };
+type TestChatLine = { role: "system"; text: string; kind?: string };
 
 function assertQuitOverlay(text: string | undefined): void {
   assert.match(text ?? "", /┌/);
@@ -122,8 +122,8 @@ test("submitted input shows session info from pi runtime", async () => {
   const overlays: string[] = [];
   const chat: TestChatLine[] = [];
   const runtime = {
-    appendSystemMessage: (_sessionId: string, text: string) => {
-      chat.push({ role: "system", text });
+    appendSystemMessage: (_sessionId: string, text: string, kind?: string) => {
+      chat.push({ role: "system", text, kind });
       tab.previewMessages.push({ role: "system", text });
     },
     getTab: () => ({
@@ -171,6 +171,8 @@ test("submitted input shows session info from pi runtime", async () => {
   await handleSubmittedInput(state, runtime, "/session", tui);
   assert.deepEqual(overlays, []);
   const message = chat.at(-1)?.text ?? "";
+  // Pi handleSessionCommand permanently appends (not showStatus coalesce).
+  assert.equal(chat.at(-1)?.kind, "block");
   assert.match(message, /Session Info/);
   assert.match(message, /Name: Daily work/);
   assert.match(message, /File: \/tmp\/session\.jsonl/);

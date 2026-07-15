@@ -92,6 +92,8 @@ export interface ChatLine {
   branchSummary?: boolean;
   compactionSummary?: boolean;
   compactionTokensBefore?: number;
+  /** True for Pi-style transient status lines that coalesce when consecutive. */
+  systemStatus?: boolean;
   excludeFromContext?: boolean;
   bashExitCode?: number;
   bashCancelled?: boolean;
