@@ -72,12 +72,35 @@ function normalizePathQuery(query: string): string {
   return query.endsWith("/") ? query.slice(0, -1) : query;
 }
 
+/** Cap git ls-files so a hung/slow repo cannot block startup or @ completion forever. */
+const GIT_LS_FILES_TIMEOUT_MS = 5_000;
+
+/**
+ * Errors where scanProjectFiles should abandon git listing and walk the tree.
+ * Node timeout shapes vary: timedOut, ETIMEDOUT, or killed+SIGTERM with null code.
+ */
+export function isGitListFallbackError(error: unknown): boolean {
+  const err = error as {
+    code?: string | number | null;
+    timedOut?: boolean;
+    killed?: boolean;
+    signal?: NodeJS.Signals | null;
+  };
+  // 128 = not a git repo; ENOENT = no git binary
+  if (err.code === 128 || err.code === "ENOENT") return true;
+  if (err.timedOut || err.code === "ETIMEDOUT") return true;
+  // promisified execFile timeout on current Node: code null, killed, SIGTERM
+  if (err.killed && err.code == null && (err.signal === "SIGTERM" || err.signal === "SIGKILL"))
+    return true;
+  return false;
+}
+
 async function gitVisibleProjectFiles(root: string): Promise<string[] | undefined> {
   try {
     const { stdout } = await execFileAsync(
       "git",
       ["-C", root, "ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", "."],
-      { encoding: "utf8", maxBuffer: 10 * 1024 * 1024 },
+      { encoding: "utf8", maxBuffer: 10 * 1024 * 1024, timeout: GIT_LS_FILES_TIMEOUT_MS },
     );
     return stdout
       .split("\0")
@@ -86,8 +109,7 @@ async function gitVisibleProjectFiles(root: string): Promise<string[] | undefine
       .filter((path) => path && !path.startsWith("../"))
       .sort((a, b) => a.localeCompare(b));
   } catch (error) {
-    const code = (error as { code?: string | number }).code;
-    if (code === 128 || code === "ENOENT") return undefined;
+    if (isGitListFallbackError(error)) return undefined;
     throw error;
   }
 }

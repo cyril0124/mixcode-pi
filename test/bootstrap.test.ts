@@ -22,6 +22,7 @@ import {
   scopedStateDir,
   stateFileForPort,
 } from "../src/index.js";
+import { scanProjectFiles } from "../src/core/file-picker.js";
 import { delegateToRealPiCli, exposeLocalPiCli, parseMainArgs, shouldDelegateToRealPiCli } from "../src/cli/main.js";
 
 test("bootstrap creates initial state and persists it when no state exists", async () => {
@@ -161,7 +162,10 @@ test("bootstrap builds completion sources from project files and skills", async 
         description: "review",
       },
     ]);
-    assert.ok(boot.completionSources.files.includes("src/index.ts"));
+    // File scan is lazy (must not block bootstrap on git ls-files).
+    assert.deepEqual(boot.completionSources.files, []);
+    const scanned = await scanProjectFiles(dir);
+    assert.ok(scanned.includes("src/index.ts"));
     assert.equal(
       boot.workspaceFile,
       join(scopedStateDir(join(dir, "state"), dir), "workspaces.json"),

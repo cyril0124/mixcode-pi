@@ -19,7 +19,6 @@ import {
   ensureConversationHistoryState,
 } from "../core/conversation-history.js";
 import { loadMixCodeSettings } from "../core/mixcode-settings.js";
-import { scanProjectFiles } from "../core/file-picker.js";
 import {
   buildAvailableModelRefs,
   isModelRefAvailable,
@@ -231,9 +230,12 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
   configureHttpDispatcher(settingsManager.getHttpIdleTimeoutMs());
 
   await runtime.loadExtensionManagerConfig();
+  // Do not await scanProjectFiles here: it runs `git ls-files` (or a full walk) and
+  // used to block TUI first paint. File completion loads lazily via
+  // createActiveFileCompletionSource on first @ use (and prefers fd when present).
   const completionSources = {
     skills: await scanSkillEntries(state.workdir, options.homeDir),
-    files: await scanProjectFiles(state.workdir),
+    files: [] as string[],
   };
   await saveStateFile(stateFile, state);
   // Defer tab creation: return immediately so the TUI can render the initial

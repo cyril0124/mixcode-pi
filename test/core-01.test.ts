@@ -35,6 +35,7 @@ import {
   withMouseReporting,
   scanProjectFiles,
   searchProjectFiles,
+  isGitListFallbackError,
   createPicker,
   filteredPickerItems,
   updatePickerQuery,
@@ -529,4 +530,15 @@ test("project file scans respect git ignore rules", async () => {
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+test("isGitListFallbackError maps repo-missing and Node timeout shapes to walk fallback", () => {
+  assert.equal(isGitListFallbackError({ code: 128 }), true);
+  assert.equal(isGitListFallbackError({ code: "ENOENT" }), true);
+  assert.equal(isGitListFallbackError({ code: "ETIMEDOUT" }), true);
+  assert.equal(isGitListFallbackError({ timedOut: true }), true);
+  assert.equal(isGitListFallbackError({ killed: true, code: null, signal: "SIGTERM" }), true);
+  assert.equal(isGitListFallbackError({ killed: true, code: null, signal: "SIGKILL" }), true);
+  assert.equal(isGitListFallbackError({ code: 1 }), false);
+  assert.equal(isGitListFallbackError({ killed: true, code: 1, signal: "SIGTERM" }), false);
 });

@@ -392,27 +392,46 @@ export function createActiveFileCompletionSource(
   const cache = new Map<string, { files: string[]; timestamp: number }>();
   const pending = new Map<string, Promise<string[]>>();
   const FILE_CACHE_TTL_MS = 10_000; // Background refresh after 10 seconds
-  if (Array.isArray(initialFiles))
+  // Only seed a non-empty snapshot. Empty arrays mean "not scanned yet" (bootstrap
+  // no longer blocks on scanProjectFiles), so the first @ must still load files.
+  if (Array.isArray(initialFiles) && initialFiles.length > 0) {
     cache.set(state.workdir, { files: initialFiles, timestamp: Date.now() });
+  }
+
+  function beginLoad(workdir: string): Promise<string[]> {
+    const existing = pending.get(workdir);
+    if (existing) return existing;
+    const refresh = scanProjectFiles(workdir)
+      .then((files) => {
+        cache.set(workdir, { files, timestamp: Date.now() });
+        return files;
+      })
+      .finally(() => {
+        if (pending.get(workdir) === refresh) pending.delete(workdir);
+      });
+    pending.set(workdir, refresh);
+    return refresh;
+  }
+
+  // Warm after source creation so first @ often hits cache; shares pending with
+  // concurrent @ so we never double-scan the same workdir.
+  const warmDir = activeCompletionWorkdir(state);
+  if (!cache.has(warmDir)) {
+    void beginLoad(warmDir).catch(() => undefined);
+  }
+
   return () => {
     const workdir = activeCompletionWorkdir(state);
     const cached = cache.get(workdir);
     if (cached && Date.now() - cached.timestamp < FILE_CACHE_TTL_MS) return cached.files;
     // Stale-while-revalidate: return old results immediately, refresh in background.
-    if (!pending.has(workdir)) {
-      const refresh = scanProjectFiles(workdir)
-        .then((files) => {
-          cache.set(workdir, { files, timestamp: Date.now() });
-          return files;
-        })
-        .finally(() => pending.delete(workdir));
-      pending.set(workdir, refresh);
-      if (cached) void refresh.catch(() => undefined);
+    const refresh = beginLoad(workdir);
+    if (cached) {
+      void refresh.catch(() => undefined);
+      return cached.files;
     }
-    // If we have stale data, return it without waiting.
-    if (cached) return cached.files;
-    // First load ever — must wait.
-    return pending.get(workdir)!;
+    // First load ever — must wait (or join the background warm already in flight).
+    return refresh;
   };
 }
 

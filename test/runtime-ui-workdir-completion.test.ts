@@ -46,6 +46,24 @@ function stripAnsi(text: string): string {
     .replace(/\x1b[ -/]*[@-~]/g, "");
 }
 
+test("file completion source warms cache in background and joins the same pending load", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-completion-warm-"));
+  try {
+    await writeFile(join(dir, "warm-only.ts"), "");
+    const state = createInitialState(dir);
+    // Empty seed = bootstrap lazy path; source must warm without an initial list.
+    const files = createActiveFileCompletionSource(state, []);
+    const first = await Promise.resolve(files());
+    assert.ok(first.includes("warm-only.ts"));
+    // Within TTL the next call is synchronous from cache (not a Promise).
+    const second = files();
+    assert.ok(Array.isArray(second));
+    assert.ok(second.includes("warm-only.ts"));
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("active file completion source retries stale refresh after scan failures", async () => {
   const originalNow = Date.now;
   let now = 0;
