@@ -26,8 +26,10 @@ export function createExtensionDialog(
 ): Promise<string | undefined> {
   const host = getCustomUiHost();
   if (!host?.editor?.setEditorComponent) {
-    // Fallback: resolve immediately if editor host is unavailable
-    return Promise.resolve(undefined);
+    // Match custom/editor: missing host is an environment error, not user cancel.
+    throw new Error(
+      `Pi extension UI primitive requires an active MixCode TUI host: ${kind}`,
+    );
   }
   ensureExtensionThemeInitialized();
   const sessionId = runtimeTab.tab.sessionId;

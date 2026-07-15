@@ -345,6 +345,52 @@ test("runtime maps extension select, confirm, and input UI primitives into edito
   }
 });
 
+test("extension select/confirm/input throw when MixCode TUI editor host is missing", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-dialog-no-host-"));
+  const events: string[] = [];
+  const extension: ExtensionFactory = (pi) => {
+    pi.registerCommand("dialog-no-host", {
+      description: "Dialog without host must error",
+      handler: async (_args, ctx) => {
+        for (const [name, run] of [
+          ["select", () => ctx.ui.select("Pick", ["a"])],
+          ["confirm", () => ctx.ui.confirm("Sure?", "body")],
+          ["input", () => ctx.ui.input("Name")],
+        ] as const) {
+          try {
+            await run();
+            events.push(`${name}:ok`);
+          } catch (error) {
+            events.push(`${name}:${error instanceof Error ? error.message : String(error)}`);
+          }
+        }
+      },
+    });
+  };
+
+  try {
+    // No setExtensionUiHost — dialogs must not silent-resolve as user cancel.
+    const runtime = new MixCodeRuntime({ sessionsRoot: dir, extensionFactories: [extension] });
+    await runtime.createTab(createTab(1, "s1", process.cwd()), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+    });
+    await runtime.prompt("s1", "/dialog-no-host");
+    assert.equal(events.length, 3);
+    for (const line of events) {
+      assert.match(line, /requires an active MixCode TUI host: (select|confirm|input)/);
+    }
+    assert.equal(
+      events.some((line) => line.endsWith(":ok")),
+      false,
+      "missing host must not look like a successful cancel/choice",
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("runtime resolves pending extension dialogs when closing a tab", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-dialog-shutdown-"));
   const events: string[] = [];
