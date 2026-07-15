@@ -6,7 +6,6 @@ import { test } from "node:test";
 import {
   createInitialState,
   createTab,
-  expandLocalPromptCommand,
   handleMixCodeKeyInput,
   handleSubmittedInput,
   renderConfig,
@@ -399,6 +398,7 @@ test("picker key handling covers no-match, empty selection, and no active tab", 
     selectedIndex: 0,
     items: [{ id: "terminal", label: "Terminal", description: "" }],
   };
-  assert.equal(handleMixCodeKeyInput(state, "\x00", tui), undefined);
+  // Modal pickers swallow unbound keys so they cannot fall through to the editor.
+  assert.deepEqual(handleMixCodeKeyInput(state, "\x00", tui), { consume: true });
   assert.ok(overlays.length >= 0);
 });

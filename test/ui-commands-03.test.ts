@@ -6,7 +6,6 @@ import { test } from "node:test";
 import {
   createInitialState,
   createTab,
-  expandLocalPromptCommand,
   handleMixCodeKeyInput,
   handleSubmittedInput,
   renderConfig,

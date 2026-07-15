@@ -285,6 +285,9 @@ export class EditorSlot implements Component {
       return;
     }
     if (this.mixState.activeTabId === "config") {
+      // Sync first: switching to Home clears the previous agent draft. Without
+      // this, the first keystroke lands then getText()/render sync wipes it.
+      this.syncActiveTab();
       // On Agent View, route input to the default editor for message composition.
       this.defaultEditor.handleInput(data);
       return;

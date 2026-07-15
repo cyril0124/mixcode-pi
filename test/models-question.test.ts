@@ -64,7 +64,7 @@ test("proxy-gpt model loads through pi models.json registry as OpenAI Responses 
             "apiKey": "$MIXCODE_TEST_PROXY_KEY",
             "api": "openai-responses",
             "compat": {
-              "sendSessionIdHeader": true,
+              "sessionAffinityFormat": "openai",
               "supportsLongCacheRetention": true
             },
             "models": [
@@ -382,7 +382,7 @@ test("pi model registry exposes missing or incomplete config explicitly", async 
       customConfigBody({
         baseUrl: "https://literal.example/v1",
         apiKey: "MIXCODE_TEST_UNSET_API_KEY",
-        compat: { sendSessionIdHeader: false },
+        compat: { sessionAffinityFormat: "openai-nosession" },
         input: ["audio"],
       }),
       "utf8",
@@ -396,7 +396,7 @@ test("pi model registry exposes missing or incomplete config explicitly", async 
       customConfigBody({
         baseUrl: "https://literal.example/v1",
         apiKey: "MIXCODE_TEST_UNSET_API_KEY",
-        compat: { sendSessionIdHeader: false },
+        compat: { sessionAffinityFormat: "openai-nosession" },
       }),
       "utf8",
     );
@@ -405,7 +405,7 @@ test("pi model registry exposes missing or incomplete config explicitly", async 
     );
     assert.ok(source);
     assert.equal(source.model.baseUrl, "https://literal.example/v1");
-    assert.equal(source.model.compat?.sendSessionIdHeader, false);
+    assert.equal(source.model.compat?.sessionAffinityFormat, "openai-nosession");
     assert.deepEqual(source.model.input, ["text", "image"]);
     const literalBundle = await createPiModelRegistryBundle(literalValidPath);
     assert.equal(
@@ -505,7 +505,7 @@ test("pi model registry follows models.json overrides and edge cases", async () 
             baseUrl: "https://provider.example/v1",
             api: "openai-responses",
             apiKey: "$MIXCODE_TEST_API_KEY",
-            compat: { sendSessionIdHeader: true },
+            compat: { sessionAffinityFormat: "openai" },
             models: [
               {
                 id: "gpt-5.5",
@@ -545,7 +545,7 @@ test("pi model registry follows models.json overrides and edge cases", async () 
     assert.equal(source.model.cost.cacheWrite, 0);
     assert.equal(source.model.contextWindow, 256000);
     assert.equal(source.model.maxTokens, 9);
-    assert.equal(source.model.compat?.sendSessionIdHeader, true);
+    assert.equal(source.model.compat?.sessionAffinityFormat, "openai");
     assert.equal(source.model.compat?.supportsLongCacheRetention, true);
   } finally {
     if (oldAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;

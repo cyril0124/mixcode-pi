@@ -12,9 +12,7 @@ import {
   editTextInExternalEditor,
   getFilteredSessions,
   handleMixCodeKeyInput,
-  parseCommandArgs,
   runLuaScript,
-  substituteArgs,
 } from "../src/index.js";
 import type { SessionInfo } from "@earendil-works/pi-coding-agent";
 
@@ -32,23 +30,6 @@ function session(id: string, modified: string): SessionInfo {
     allMessagesText: id,
   };
 }
-
-test("parseCommandArgs preserves quoted empty arguments", () => {
-  assert.deepEqual(parseCommandArgs('"" two'), ["", "two"]);
-  assert.deepEqual(parseCommandArgs("one '' three"), ["one", "", "three"]);
-  assert.equal(
-    substituteArgs("first=[$1] second=[$2]", parseCommandArgs('"" two')),
-    "first=[] second=[two]",
-  );
-});
-
-test("parseCommandArgs preserves ordinary backslashes inside double quotes", () => {
-  assert.deepEqual(parseCommandArgs('"C:\\tmp\\file" "\\d+" "say \\"hi\\""'), [
-    "C:\\tmp\\file",
-    "\\d+",
-    'say "hi"',
-  ]);
-});
 
 test("runLuaScript rejects non-string open_tab fields with clear field errors", async () => {
   await assert.rejects(

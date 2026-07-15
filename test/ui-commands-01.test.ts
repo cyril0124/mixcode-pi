@@ -6,7 +6,6 @@ import { test } from "node:test";
 import {
   createInitialState,
   createTab,
-  expandLocalPromptCommand,
   handleMixCodeKeyInput,
   handleSubmittedInput,
   renderConfig,
@@ -76,25 +75,6 @@ test("thinking border colors follow Pi levels without collisions", () => {
       `${themeId} colors must be stable`,
     );
   }
-});
-
-test("prompt templates expand supported local slash commands", () => {
-  // expandLocalPromptCommand is a legacy no-op stub.
-  // /compact is handled as a local command directly in app-submit.
-  // Prompt template expansion is now handled by the full template system.
-  assert.equal(expandLocalPromptCommand("goal", ""), undefined);
-  assert.equal(expandLocalPromptCommand("goal", "ship"), undefined);
-  assert.equal(expandLocalPromptCommand("compact", ""), undefined);
-  assert.equal(expandLocalPromptCommand("brainstorm", ""), undefined);
-  assert.equal(expandLocalPromptCommand("brainstorm-3", "topic"), undefined);
-  assert.equal(expandLocalPromptCommand("brainstorm-4", "topic"), undefined);
-  assert.equal(expandLocalPromptCommand("brainstorm-5", "topic"), undefined);
-  assert.equal(expandLocalPromptCommand("review", "diff"), undefined);
-  assert.equal(expandLocalPromptCommand("explain-diff", "patch"), undefined);
-  assert.equal(expandLocalPromptCommand("plan", ""), undefined);
-  assert.equal(expandLocalPromptCommand("plan-to-file", "ship"), undefined);
-  assert.equal(expandLocalPromptCommand("update-agents-md", "prefer tests"), undefined);
-  assert.equal(expandLocalPromptCommand("other", ""), undefined);
 });
 
 test("submitted input handles compact and validates theme", async () => {

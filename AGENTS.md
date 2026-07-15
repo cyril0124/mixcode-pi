@@ -28,7 +28,7 @@
 ## Code Quality
 
 - Follow a TDD flow for behavior changes and bug fixes: first add or update a focused test that reproduces the expected behavior or failure, confirm it fails when feasible, then implement the smallest code change that makes the test pass.
-- Every TypeScript source file must not exceed 700 lines. If it exceeds, split it into smaller focused modules before adding more code.
+- Every TypeScript source file must not exceed 1000 lines. If it exceeds, split it into smaller focused modules before adding more code.
 - Add concise English comments in TypeScript source files for non-obvious intent: invariants, side effects, ordering constraints, edge cases, and rationale for surprising decisions. Do not comment self-evident syntax or restate the code; add them when modifying an uncommented complex area as well.
 - Prefer targeted tests for meaningful behavior over tests that only exercise incidental defensive branches.
 - For TypeScript code changes, run `./test-all.sh` (parallel: typecheck, build, lint, package tests) before finishing. Fallback to sequential `npm run check` if parallel execution has issues. Use `npm run format` or `./format.sh` only when formatting is intentionally requested or scoped, and do not claim formatting was run unless the command succeeds.

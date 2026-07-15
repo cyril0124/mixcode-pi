@@ -6,7 +6,6 @@ import { test } from "node:test";
 import {
   createInitialState,
   createTab,
-  expandLocalPromptCommand,
   handleMixCodeKeyInput,
   handleSubmittedInput,
   renderConfig,
@@ -104,7 +103,8 @@ test("global key input submits batched inline text ending with enter", () => {
     },
   };
   state.tabJumpOpen = true;
-  assert.equal(
+  // Modal tab-jump / picker swallow unbound keys so they cannot submit.
+  assert.deepEqual(
     handleMixCodeKeyInput(
       state,
       "export blocked\r",
@@ -115,11 +115,14 @@ test("global key input submits batched inline text ending with enter", () => {
       () => false,
       editor,
     ),
-    undefined,
+    { consume: true },
   );
+  assert.deepEqual(inserted, ["hello from tmux"]);
+  assert.deepEqual(submitted, ["hello from tmux"]);
+  assert.equal(text, "");
   state.tabJumpOpen = false;
   state.picker = { kind: "theme", title: "Choose Theme", query: "", selectedIndex: 0, items: [] };
-  assert.equal(
+  assert.deepEqual(
     handleMixCodeKeyInput(
       state,
       "picker blocked\r",
@@ -130,8 +133,11 @@ test("global key input submits batched inline text ending with enter", () => {
       () => false,
       editor,
     ),
-    undefined,
+    { consume: true },
   );
+  assert.deepEqual(inserted, ["hello from tmux"]);
+  assert.deepEqual(submitted, ["hello from tmux"]);
+  assert.equal(text, "");
   state.picker = undefined;
   assert.equal(
     handleMixCodeKeyInput(

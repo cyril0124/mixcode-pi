@@ -6,7 +6,6 @@ import { test } from "node:test";
 import {
   createInitialState,
   createTab,
-  expandLocalPromptCommand,
   handleMixCodeKeyInput,
   handleSubmittedInput,
   renderConfig,
@@ -112,7 +111,10 @@ test("global key input dispatches extension shortcuts only from the main editor 
   assert.equal(historyBrowsed, false);
   assert.deepEqual(dispatched, ['s1:"\\u0018"', 's1:"\\u001b[A"']);
   state.picker = { kind: "thinking", title: "Thinking", query: "", selectedIndex: 0, items: [] };
-  assert.equal(handleMixCodeKeyInput(state, "\x18", tui, undefined, runtime), undefined);
+  // Modal picker swallows unbound keys (including extension shortcuts).
+  assert.deepEqual(handleMixCodeKeyInput(state, "\x18", tui, undefined, runtime), {
+    consume: true,
+  });
   assert.deepEqual(dispatched, ['s1:"\\u0018"', 's1:"\\u001b[A"']);
   state.picker = undefined;
   overlayOpen = true;

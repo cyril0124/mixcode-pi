@@ -371,8 +371,10 @@ test("runtime custom overlay exposes host and delayed-close paths", async () => 
     assert.ok(events.includes("delayed-dispose"));
 
     runtime.setExtensionUiHost({ tui });
+    const optionsBeforeFactory = overlayOptions.length;
     const factoryTask = runtime.prompt("s1", "/custom-options-factory");
-    await waitFor(() => !!overlayComponent);
+    // Wait for THIS prompt's showOverlay, not a leftover component from delayed.
+    await waitFor(() => overlayOptions.length > optionsBeforeFactory);
     assert.deepEqual(overlayOptions.at(-1), { anchor: "bottom", width: 33 });
     overlayComponent!.handleInput?.("x");
     await factoryTask;

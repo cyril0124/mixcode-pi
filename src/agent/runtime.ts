@@ -578,6 +578,20 @@ export class MixCodeRuntime {
     const runtimeTab = this.requireTab(sessionId);
     const trimmed = text.trim();
     if (!trimmed) return;
+    // Registered extension commands may await custom UI for a long time. Skills,
+    // templates, and unknown slash input remain agent turns and need dispatchTurn.
+    const commandName = trimmed.match(/^\/(\S+)/)?.[1];
+    const isIdleExtensionCommand =
+      commandName !== undefined &&
+      !runtimeTab.agentSession.isStreaming &&
+      this.getExtensionCommands(sessionId).some((command) => command.name === commandName);
+    if (isIdleExtensionCommand) {
+      if (runtimeTab.agentSession.isCompacting) {
+        throw new Error("Cannot prompt while compaction is running");
+      }
+      await runtimeTab.agentSession.prompt(trimmed);
+      return;
+    }
     await dispatchTurn(runtimeTab, async (signalRegistered) => {
       if (runtimeTab.agentSession.isStreaming) {
         // Already streaming: this instance owns the turn (and its lock); steering

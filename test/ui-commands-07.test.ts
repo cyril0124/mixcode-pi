@@ -7,7 +7,6 @@ import {
   createInitialState,
   createDialogRequest,
   createTab,
-  expandLocalPromptCommand,
   handleMixCodeKeyInput,
   handleSubmittedInput,
   renderConfig,
