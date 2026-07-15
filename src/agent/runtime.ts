@@ -184,6 +184,10 @@ export class MixCodeRuntime {
   private extensionUiHost?: ExtensionCustomUiHost;
   private shellExecutionSequence = 0;
   private readonly sync: RuntimeSyncManager;
+  /** sessionIds that called ctx.shutdown() while streaming/compacting. */
+  private readonly pendingExtensionShutdown = new Set<string>();
+  /** UI host removes the tab from MixCodeState after runtime closeTab. */
+  private readonly tabClosedListeners = new Set<(sessionId: string) => void>();
 
   private lifecycleContext(): RuntimeLifecycleContext {
     return {
@@ -420,7 +424,81 @@ export class MixCodeRuntime {
   beginShutdown(): void {
     this.isShuttingDown = true;
     this.changeListeners.clear();
+    this.tabClosedListeners.clear();
+    this.pendingExtensionShutdown.clear();
     this.sync.dispose();
+  }
+
+  /**
+   * Pi-compatible ctx.shutdown() for multi-tab: close this session's tab only.
+   * If the tab is streaming/compacting, mark pending and close after idle
+   * (waitForIdle / agent_settled), matching Pi's shutdownRequested behavior.
+   */
+  requestExtensionShutdown(sessionId: string): void {
+    const runtimeTab = this.tabs.get(sessionId);
+    if (!runtimeTab) return;
+    // Always mark pending so idle and deferred paths share flushPending's catch.
+    this.pendingExtensionShutdown.add(sessionId);
+    if (runtimeTab.agentSession.isStreaming || runtimeTab.agentSession.isCompacting) {
+      // Prefer waitForIdle over agent_end: isStreaming is still true at agent_end.
+      void runtimeTab.agentSession
+        .waitForIdle()
+        .then(async () => {
+          if (runtimeTab.agentSession.isCompacting) {
+            await waitForCompactionIdle(runtimeTab.agentSession);
+          }
+          this.flushPendingExtensionShutdown(sessionId);
+        })
+        .catch(() => undefined);
+      return;
+    }
+    this.flushPendingExtensionShutdown(sessionId);
+  }
+
+  onTabClosed(listener: (sessionId: string) => void): () => void {
+    this.tabClosedListeners.add(listener);
+    return () => {
+      this.tabClosedListeners.delete(listener);
+    };
+  }
+
+  private async closeTabFromExtensionShutdown(sessionId: string): Promise<void> {
+    const runtimeTab = this.tabs.get(sessionId);
+    if (!runtimeTab) {
+      this.pendingExtensionShutdown.delete(sessionId);
+      return;
+    }
+    // closeTab rejects while streaming; re-queue if a race re-entered the turn.
+    if (runtimeTab.agentSession.isStreaming || runtimeTab.agentSession.isCompacting) {
+      this.pendingExtensionShutdown.add(sessionId);
+      return;
+    }
+    this.pendingExtensionShutdown.delete(sessionId);
+    try {
+      await this.closeTab(sessionId);
+    } catch (error) {
+      // Re-queue if close raced into a new turn; surface other failures.
+      if (this.tabs.has(sessionId)) this.pendingExtensionShutdown.add(sessionId);
+      throw error;
+    }
+    for (const listener of this.tabClosedListeners) listener(sessionId);
+  }
+
+  private flushPendingExtensionShutdown(sessionId: string): void {
+    if (!this.pendingExtensionShutdown.has(sessionId)) return;
+    const runtimeTab = this.tabs.get(sessionId);
+    if (!runtimeTab) {
+      this.pendingExtensionShutdown.delete(sessionId);
+      return;
+    }
+    if (runtimeTab.agentSession.isStreaming || runtimeTab.agentSession.isCompacting) return;
+    void this.closeTabFromExtensionShutdown(sessionId).catch((error: unknown) => {
+      runtimeTab.chat.push({
+        role: "system",
+        text: `Extension shutdown failed: ${error instanceof Error ? error.message : String(error)}`,
+      });
+      this.emitChange({ type: "extension_ui_update" }, runtimeTab);
+    });
   }
 
   getExtensionCommands(sessionId: string) {
@@ -1016,6 +1094,7 @@ export class MixCodeRuntime {
     await this.shutdownRuntimeTab(runtimeTab, { type: "session_shutdown", reason: "quit" });
     this.sync.unregister(sessionId);
     this.tabs.delete(sessionId);
+    this.pendingExtensionShutdown.delete(sessionId);
   }
 
   async closeAllTabs(): Promise<void> {
@@ -1192,6 +1271,11 @@ export class MixCodeRuntime {
     installMidTurnCompactionHook(agentSession, runtimeTab.tab, { current: runtimeTab });
     runtimeTab.tab.workdir = workdir;
     agentSession.subscribe((event) => {
+      // Flush deferred ctx.shutdown() before applyEvent so UI listeners cannot
+      // short-circuit the handler (agent_settled is when isStreaming becomes false).
+      if (event.type === "agent_settled" || event.type === "compaction_end") {
+        this.flushPendingExtensionShutdown(runtimeTab.tab.sessionId);
+      }
       this.applyEvent(runtimeTab, event);
       if (event.type === "agent_end") {
         if (consumeDeferredPendingMessageFlush(runtimeTab)) return;
@@ -1353,4 +1437,21 @@ function upsertUserBashLine(
     return;
   }
   runtimeTab.chat.push(line);
+}
+
+async function waitForCompactionIdle(
+  agentSession: RuntimeTab["agentSession"],
+): Promise<void> {
+  if (!agentSession.isCompacting) return;
+  await new Promise<void>((resolve) => {
+    const unsubscribe = agentSession.subscribe((event) => {
+      if (event.type !== "compaction_end") return;
+      unsubscribe();
+      resolve();
+    });
+    if (!agentSession.isCompacting) {
+      unsubscribe();
+      resolve();
+    }
+  });
 }

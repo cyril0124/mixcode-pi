@@ -5,7 +5,7 @@ import { recordSubmittedHistory } from "../core/conversation-history.js";
 import { resolveFdBinary } from "../core/detect-search-tools.js";
 import { scanProjectFiles } from "../core/file-picker.js";
 import type { MixCodeState } from "../core/types.js";
-import { getActiveTab } from "../core/tabs.js";
+import { closeAgentTab, getActiveTab } from "../core/tabs.js";
 import { appendActiveSystemMessage } from "./app-actions.js";
 import { CompactPromptEditor, EditorSlot, editorThemeFor } from "./app-editor.js";
 import { handleMixCodeKeyInput } from "./app-input.js";
@@ -216,6 +216,13 @@ export function createMixCodeTui(
       );
     },
   } satisfies ExtensionCustomUiHost);
+  // Extension ctx.shutdown() closes the runtime tab; mirror into MixCodeState.
+  runtime.onTabClosed?.((sessionId) => {
+    if (!state.tabs.some((tab) => tab.sessionId === sessionId)) return;
+    closeAgentTab(state, sessionId);
+    void options.onStateChanged?.(state);
+    tui.requestRender();
+  });
   tui.addInputListener((data) => {
     const result = handleMixCodeKeyInput(
       state,

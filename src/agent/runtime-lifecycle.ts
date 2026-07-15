@@ -590,8 +590,9 @@ export async function bindRuntimeExtensions(
       context.getExtensionUiHost,
     ),
     commandContextActions: createExtensionCommandActions(context.runtime, runtimeTab),
+    // Multi-tab: close this session only (not process exit). Defers while streaming.
     shutdownHandler: () => {
-      runtimeTab.chat.push({ role: "system", text: "Extension requested shutdown." });
+      context.runtime.requestExtensionShutdown(runtimeTab.tab.sessionId);
     },
     onError: (error) => {
       runtimeTab.chat.push({

@@ -363,11 +363,11 @@ test("runtime extension fork treats visible non-user entries as prior conversati
   }
 });
 
-test("runtime extension command shutdown surfaces host shutdown request", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-shutdown-request-"));
+test("ctx.shutdown() closes the current tab when idle", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-shutdown-idle-"));
   const extension: ExtensionFactory = (pi) => {
     pi.registerCommand("shutdown-smoke", {
-      description: "Request host shutdown",
+      description: "Request session shutdown",
       handler: async (_args, ctx) => {
         ctx.shutdown();
       },
@@ -376,18 +376,120 @@ test("runtime extension command shutdown surfaces host shutdown request", async 
 
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir, extensionFactories: [extension] });
-    const runtimeTab = await runtime.createTab(createTab(1, "s1", process.cwd()), {
+    await runtime.createTab(createTab(1, "s1", process.cwd()), {
       systemPrompt: "system",
       thinkingLevel: "medium",
       workdir: process.cwd(),
     });
+    await runtime.createTab(createTab(2, "s2", process.cwd()), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+    });
+    assert.equal(runtime.listTabs().length, 2);
+
     await runtime.prompt("s1", "/shutdown-smoke");
-    assert.equal(
-      runtimeTab.chat.some(
-        (line) => line.role === "system" && line.text === "Extension requested shutdown.",
-      ),
-      true,
+
+    assert.equal(runtime.getTab("s1"), undefined);
+    assert.ok(runtime.getTab("s2"), "sibling tab must survive extension shutdown");
+    assert.equal(runtime.listTabs().map((t) => t.tab.sessionId).join(","), "s2");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("ctx.shutdown() defers close until the tab is no longer streaming", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-shutdown-defer-"));
+  let release!: () => void;
+  const released = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+
+  const extension: ExtensionFactory = (pi) => {
+    pi.registerCommand("mark-shutdown", {
+      description: "Request shutdown while streaming (via runtime API after stream starts)",
+      handler: async () => {
+        // Command body unused; deferred path is exercised via requestExtensionShutdown.
+      },
+    });
+  };
+
+  function pendingStream(options?: SimpleStreamOptions) {
+    const stream = createAssistantMessageEventStream();
+    queueMicrotask(async () => {
+      const message: AssistantMessage = {
+        role: "assistant",
+        content: [],
+        api: "shutdown-defer",
+        provider: "shutdown-defer",
+        model: "shutdown-defer",
+        usage: {
+          input: 0,
+          output: 0,
+          cacheRead: 0,
+          cacheWrite: 0,
+          totalTokens: 0,
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+        },
+        stopReason: "stop",
+        timestamp: Date.now(),
+      };
+      stream.push({ type: "start", partial: { ...message, content: [] } });
+      await Promise.race([
+        released,
+        new Promise<void>((resolve) => {
+          if (options?.signal?.aborted) return resolve();
+          options?.signal?.addEventListener("abort", () => resolve(), { once: true });
+        }),
+      ]);
+      stream.push({ type: "done", reason: "stop", message });
+      stream.end(message);
+    });
+    return stream;
+  }
+
+  try {
+    const runtime = new MixCodeRuntime({
+      sessionsRoot: dir,
+      extensionFactories: [extension],
+      streamFn: (_model, _context, options) => pendingStream(options),
+    });
+    const model = {
+      ...MIXCODE_FAUX_MODEL,
+      provider: "shutdown-defer",
+      api: "shutdown-defer",
+      id: "shutdown-defer",
+    };
+    const runtimeTab = await runtime.createTab(createTab(1, "s1", process.cwd()), {
+      systemPrompt: "system",
+      thinkingLevel: "off",
+      workdir: process.cwd(),
+      model,
+    });
+    await runtime.createTab(createTab(2, "s2", process.cwd()), {
+      systemPrompt: "system",
+      thinkingLevel: "off",
+      workdir: process.cwd(),
+      model,
+    });
+
+    const pending = runtime.prompt("s1", "hang please");
+    await waitFor(
+      () =>
+        runtimeTab.agentSession.isStreaming === true ||
+        runtimeTab.agent.state.isStreaming === true,
+      80,
     );
+
+    runtime.requestExtensionShutdown("s1");
+    assert.ok(runtime.getTab("s1"), "must not close while streaming");
+
+    release();
+    await pending.catch(() => undefined);
+    await waitFor(() => runtime.getTab("s1") === undefined, 80);
+
+    assert.equal(runtime.getTab("s1"), undefined);
+    assert.ok(runtime.getTab("s2"), "sibling tab must survive deferred shutdown");
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
