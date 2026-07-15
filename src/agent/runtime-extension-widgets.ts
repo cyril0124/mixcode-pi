@@ -1,6 +1,6 @@
 import type { ReadonlyFooterDataProvider, Theme } from "@earendil-works/pi-coding-agent";
 import { type Component, TUI as PiTui } from "@earendil-works/pi-tui";
-import { gitBranchForWorkdir } from "../core/git-branch.js";
+import { gitBranchForWorkdir, onGitBranchChange } from "../core/git-branch.js";
 import type {
   ExtensionDynamicLines,
   ExtensionWidgetPlacement,
@@ -106,9 +106,12 @@ function createMixCodeFooterDataProvider(runtimeTab: RuntimeTab): ReadonlyFooter
         .filter((model) => runtimeTab.services.modelRegistry.hasConfiguredAuth(model))
         .map((model) => model.provider)
         .filter((provider, index, providers) => providers.indexOf(provider) === index).length,
-    // Branch updates surface on the next getGitBranch() after cache refresh
-    // (same paint model as chrome). Full HEAD-watcher left to Pi's own provider.
-    onBranchChange: () => () => undefined,
+    // Notify when the shared git cache sees a different branch for this workdir.
+    onBranchChange: (callback) =>
+      onGitBranchChange(runtimeTab.tab.workdir, () => {
+        callback();
+        runtimeTab.requestRender?.();
+      }),
   };
 }
 
