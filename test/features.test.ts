@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { performance } from "node:perf_hooks";
 import { test } from "node:test";
 import { availableThinkingLevelsForModel } from "../src/core/thinking-levels.js";
 import {
@@ -332,6 +333,55 @@ test("workdir picker covers home absolute and empty query branches", async () =>
   } finally {
     if (oldHome === undefined) delete process.env.HOME;
     else process.env.HOME = oldHome;
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("workdir picker reuses directory listing across query keystrokes", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-workdir-cache-"));
+  try {
+    // Enough entries that repeated readdir+sort is clearly more expensive than filter-only.
+    await Promise.all(
+      Array.from({ length: 2500 }, (_, i) => mkdir(join(dir, `d${String(i).padStart(4, "0")}`))),
+    );
+    await mkdir(join(dir, "target-hit"));
+
+    const state = createInitialState(dir);
+    const picker = createPicker("workdir", state);
+
+    // Warm + populate cache
+    updatePickerQuery(picker, "");
+    assert.ok(filteredPickerItems(picker).length > 0);
+    assert.ok(picker.workdirListingCache?.dirs.length === 2501);
+
+    const t0 = performance.now();
+    for (let i = 0; i < 40; i++) {
+      updatePickerQuery(picker, i % 2 === 0 ? "d1" : "d12");
+      filteredPickerItems(picker);
+    }
+    updatePickerQuery(picker, "target");
+    const hits = filteredPickerItems(picker);
+    const elapsed = performance.now() - t0;
+
+    assert.deepEqual(
+      hits.map((item) => item.label),
+      ["target-hit/"],
+    );
+    // Cached path: 40 filters over 2500 names should stay well under a full 40× readdir budget.
+    // Uncached was ~40–80ms/key on large dirs; allow generous CI headroom.
+    assert.ok(
+      elapsed < 200,
+      `workdir query loop too slow with cache expected; elapsed=${elapsed.toFixed(1)}ms`,
+    );
+
+    // browsingDir change must drop the old listing (navigate into target-hit).
+    picker.selectedIndex = 0;
+    assert.equal(completeWorkdirPickerSelection(picker), true);
+    assert.equal(picker.browsingDir, join(dir, "target-hit"));
+    updatePickerQuery(picker, "");
+    assert.deepEqual(filteredPickerItems(picker), []);
+    assert.equal(picker.workdirListingCache?.browsingDir, join(dir, "target-hit"));
+  } finally {
     await rm(dir, { recursive: true, force: true });
   }
 });

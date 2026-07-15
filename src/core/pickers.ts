@@ -192,26 +192,49 @@ function filteredWorkdirItems(picker: PickerState, query: string): PickerItem[] 
     return [{ id: resolved, label: query, description: "custom path" }];
   }
 
+  const listing = workdirDirectoryListing(picker, browsingDir, showHidden);
+  if ("error" in listing) {
+    return [{ id: browsingDir, label: browsingDir, description: `error: ${listing.error}` }];
+  }
+
+  const needle = query.toLowerCase();
+  const filtered = needle
+    ? listing.dirs.filter((name) => name.toLowerCase().includes(needle))
+    : listing.dirs;
+
+  return filtered.slice(0, 20).map((name) => ({
+    id: resolve(browsingDir, name),
+    label: `${name}/`,
+    description: "directory",
+    completeValue: resolve(browsingDir, name),
+  }));
+}
+
+/** Sorted directory names for browsingDir; cached on the picker across query keystrokes. */
+function workdirDirectoryListing(
+  picker: PickerState,
+  browsingDir: string,
+  showHidden: boolean,
+): { dirs: string[] } | { error: string } {
+  const cache = picker.workdirListingCache;
+  if (cache && cache.browsingDir === browsingDir && cache.showHidden === showHidden) {
+    if (cache.error) return { error: cache.error };
+    return { dirs: cache.dirs };
+  }
+
   const entries = readDirectoryEntries(browsingDir);
   if ("error" in entries) {
-    return [{ id: browsingDir, label: browsingDir, description: `error: ${entries.error}` }];
+    picker.workdirListingCache = { browsingDir, showHidden, dirs: [], error: entries.error };
+    return { error: entries.error };
   }
 
   const dirs = entries
     .filter((entry) => entry.isDirectory())
     .filter((entry) => showHidden || !entry.name.startsWith("."))
-    .sort((a, b) => a.name.localeCompare(b.name));
-
-  const filtered = query
-    ? dirs.filter((entry) => entry.name.toLowerCase().includes(query.toLowerCase()))
-    : dirs;
-
-  return filtered.slice(0, 20).map((entry) => ({
-    id: resolve(browsingDir, entry.name),
-    label: `${entry.name}/`,
-    description: "directory",
-    completeValue: resolve(browsingDir, entry.name),
-  }));
+    .map((entry) => entry.name)
+    .sort((a, b) => a.localeCompare(b));
+  picker.workdirListingCache = { browsingDir, showHidden, dirs };
+  return { dirs };
 }
 
 function normalizeWorkdirInput(base: string, input: string): string {

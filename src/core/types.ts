@@ -64,6 +64,16 @@ export interface PickerState {
   browsingDir?: string;
   /** Whether to show hidden directories (starting with .) */
   showHidden?: boolean;
+  /**
+   * Cached sorted directory names for the workdir picker.
+   * Invalidated automatically when browsingDir or showHidden changes.
+   */
+  workdirListingCache?: {
+    browsingDir: string;
+    showHidden: boolean;
+    dirs: string[];
+    error?: string;
+  };
   /** When true, the picker is in custom input mode (context-limit) */
   customInputMode?: boolean;
   /** Validation error message for custom input mode */
