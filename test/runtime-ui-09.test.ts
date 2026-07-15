@@ -486,6 +486,59 @@ test("opening an extension dialog collapses the widget side panel", async () => 
   }
 });
 
+test("extension message/entry renderers receive toolsExpanded as options.expanded", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-expanded-renderer-"));
+  const extension: ExtensionFactory = (pi) => {
+    pi.registerMessageRenderer(
+      "exp-msg",
+      (message, options) =>
+        new Text(`msg expanded=${options.expanded ? "TRUE" : "false"}|${message.content}`, 0, 0),
+    );
+    pi.registerEntryRenderer(
+      "exp-entry",
+      (entry, options) =>
+        new Text(
+          `entry expanded=${options.expanded ? "TRUE" : "false"}|${String(entry.data)}`,
+          0,
+          0,
+        ),
+    );
+    pi.registerCommand("exp-demo", {
+      description: "expanded demo",
+      handler: async () => {
+        pi.sendMessage({ customType: "exp-msg", content: "x", display: true });
+        pi.appendEntry("exp-entry", "y");
+      },
+    });
+  };
+
+  try {
+    const runtime = new MixCodeRuntime({ sessionsRoot: dir, extensionFactories: [extension] });
+    const runtimeTab = await runtime.createTab(createTab(1, "s1", process.cwd()), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+    });
+
+    await runtime.prompt("s1", "/exp-demo");
+    let surface = stripAnsi(renderAgentSurface(runtimeTab.tab, runtimeTab, 100).join("\n"));
+    assert.match(surface, /msg expanded=false/);
+    assert.match(surface, /entry expanded=false/);
+
+    runtimeTab.agentSession.extensionRunner.getUIContext().setToolsExpanded(true);
+    surface = stripAnsi(renderAgentSurface(runtimeTab.tab, runtimeTab, 100).join("\n"));
+    assert.match(surface, /msg expanded=TRUE/);
+    assert.match(surface, /entry expanded=TRUE/);
+
+    runtimeTab.agentSession.extensionRunner.getUIContext().setToolsExpanded(false);
+    surface = stripAnsi(renderAgentSurface(runtimeTab.tab, runtimeTab, 100).join("\n"));
+    assert.match(surface, /msg expanded=false/);
+    assert.match(surface, /entry expanded=false/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("runtime renders custom session entries from appendEntry and EntryRenderer", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-custom-entry-"));
   const extension: ExtensionFactory = (pi) => {

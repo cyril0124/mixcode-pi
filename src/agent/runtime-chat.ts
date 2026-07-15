@@ -163,7 +163,8 @@ export function customEntryToChatLine(
     customType: entry.customType,
     text,
   };
-  line.renderExtension = (width) => renderPersistentExtensionEntry(line, entry, renderer, width);
+  line.renderExtension = (width) =>
+    renderPersistentExtensionEntry(line, entry, renderer, width, runtimeTab);
 
   // Probe once: hide when renderer returns undefined (Pi hasContent() === false).
   // Keep the line when the probe is an error string (renderer threw).
@@ -196,7 +197,7 @@ export function customMessageToChatLine(
   };
   if (renderer) {
     line.renderExtension = (width) =>
-      renderPersistentExtensionMessage(line, message, renderer, width);
+      renderPersistentExtensionMessage(line, message, renderer, width, runtimeTab);
   }
   return line;
 }
@@ -214,6 +215,7 @@ function renderPersistentExtensionMessage(
   message: CustomMessageLike,
   renderer: MessageRenderer,
   width: number,
+  runtimeTab: RuntimeTab,
 ): string[] {
   const terminal = new NullTerminal(Math.max(1, Math.floor(width)));
   const tui = new PiTui(terminal);
@@ -221,7 +223,8 @@ function renderPersistentExtensionMessage(
   // extension renderers see the same manager we do.
   const restoreKeybindings = applyMixCodeKeybindings();
   try {
-    const expanded = false;
+    // Match Pi: options.expanded tracks tools-expanded (toolOutputExpanded).
+    const expanded = runtimeTab.tab.extensionUi.toolsExpanded ?? false;
     if (line.extensionRendererLastComponent && line.extensionRendererExpanded === expanded) {
       return line.extensionRendererLastComponent.render(terminal.columns);
     }
@@ -257,12 +260,14 @@ function renderPersistentExtensionEntry(
   entry: CustomEntry,
   renderer: EntryRenderer,
   width: number,
+  runtimeTab: RuntimeTab,
 ): string[] {
   const terminal = new NullTerminal(Math.max(1, Math.floor(width)));
   const tui = new PiTui(terminal);
   const restoreKeybindings = applyMixCodeKeybindings();
   try {
-    const expanded = false;
+    // Match Pi CustomEntryComponent.setExpanded(toolOutputExpanded).
+    const expanded = runtimeTab.tab.extensionUi.toolsExpanded ?? false;
     if (line.extensionRendererLastComponent && line.extensionRendererExpanded === expanded) {
       return line.extensionRendererLastComponent.render(terminal.columns);
     }
