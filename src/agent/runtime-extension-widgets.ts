@@ -1,5 +1,6 @@
 import type { ReadonlyFooterDataProvider, Theme } from "@earendil-works/pi-coding-agent";
 import { type Component, TUI as PiTui } from "@earendil-works/pi-tui";
+import { gitBranchForWorkdir } from "../core/git-branch.js";
 import type {
   ExtensionDynamicLines,
   ExtensionWidgetPlacement,
@@ -94,7 +95,9 @@ function createLiveExtensionLines(
 
 function createMixCodeFooterDataProvider(runtimeTab: RuntimeTab): ReadonlyFooterDataProvider {
   return {
-    getGitBranch: () => null,
+    // Share the same non-blocking git cache as the MixCode chrome footer badge.
+    // Empty string means unknown / loading / not a repo → Pi-style null.
+    getGitBranch: () => gitBranchForWorkdir(runtimeTab.tab.workdir) || null,
     getExtensionStatuses: () =>
       new Map(runtimeTab.tab.extensionUi.statuses.map((status) => [status.key, status.text])),
     getAvailableProviderCount: () =>
@@ -103,6 +106,8 @@ function createMixCodeFooterDataProvider(runtimeTab: RuntimeTab): ReadonlyFooter
         .filter((model) => runtimeTab.services.modelRegistry.hasConfiguredAuth(model))
         .map((model) => model.provider)
         .filter((provider, index, providers) => providers.indexOf(provider) === index).length,
+    // Branch updates surface on the next getGitBranch() after cache refresh
+    // (same paint model as chrome). Full HEAD-watcher left to Pi's own provider.
     onBranchChange: () => () => undefined,
   };
 }

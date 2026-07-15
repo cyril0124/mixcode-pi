@@ -1,8 +1,7 @@
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import type { RuntimeTab } from "../../agent/runtime.js";
 import { isPendingEscapeActive } from "../../core/escape.js";
+import { gitBranchForWorkdir } from "../../core/git-branch.js";
 import { retryStatusMessage } from "../../core/tab-state.js";
 import type { MouseHitRegion } from "../../core/mouse.js";
 import type { MixCodeState, MixCodeTabInfo } from "../../core/types.js";
@@ -11,18 +10,8 @@ import type { MixCodeTheme } from "../themes.js";
 import { activeRenderTheme, renderWithTheme } from "./context.js";
 import { padLine, sanitizeTerminalText } from "./primitives.js";
 
-const execFileAsync = promisify(execFile);
-const GIT_BRANCH_CACHE_TTL_MS = 2_000;
 const DEFAULT_WORKING_INDICATOR_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 const DEFAULT_WORKING_INDICATOR_INTERVAL_MS = 80;
-
-type GitBranchCacheEntry = {
-  value: string;
-  expiresAt: number;
-  /** In-flight refresh so concurrent paints do not spawn parallel git processes. */
-  inflight?: Promise<void>;
-};
-const gitBranchCache = new Map<string, GitBranchCacheEntry>();
 
 export function renderHeader(width: number, theme: MixCodeTheme = activeRenderTheme): string[] {
   void width;
@@ -645,60 +634,4 @@ function formatClockTime(iso: string | undefined): string {
   if (Number.isNaN(d.getTime())) return "";
   const p = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
-}
-
-/**
- * Read git branch for the footer badge without blocking the TUI event loop.
- * Render paths only return the last known value; refresh runs async and the
- * next paint (keystroke / stream frame) picks up the update.
- */
-function gitBranchForWorkdir(workdir: string): string {
-  const path = workdir.trim();
-  if (!path) return "";
-  const now = Date.now();
-  const cached = gitBranchCache.get(path);
-  if (cached && cached.expiresAt > now) return cached.value;
-
-  // Stale-while-revalidate: keep painting the previous value while git runs.
-  if (!cached?.inflight) {
-    const run = refreshGitBranch(path);
-    gitBranchCache.set(path, {
-      value: cached?.value ?? "",
-      expiresAt: cached?.expiresAt ?? 0,
-      inflight: run,
-    });
-    void run.finally(() => {
-      const entry = gitBranchCache.get(path);
-      if (entry?.inflight === run) entry.inflight = undefined;
-    });
-  }
-  return gitBranchCache.get(path)?.value ?? "";
-}
-
-async function refreshGitBranch(path: string): Promise<void> {
-  let value = "";
-  try {
-    const { stdout } = await execFileAsync("git", ["branch", "--show-current"], {
-      cwd: path,
-      encoding: "utf8",
-      timeout: 1_000,
-    });
-    value = stdout.trim();
-    if (!value) {
-      const short = await execFileAsync("git", ["rev-parse", "--short", "HEAD"], {
-        cwd: path,
-        encoding: "utf8",
-        timeout: 1_000,
-      });
-      value = short.stdout.trim();
-    }
-  } catch {
-    value = "";
-  }
-  const prev = gitBranchCache.get(path);
-  gitBranchCache.set(path, {
-    value,
-    expiresAt: Date.now() + GIT_BRANCH_CACHE_TTL_MS,
-    inflight: prev?.inflight,
-  });
 }
