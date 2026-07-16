@@ -350,7 +350,8 @@ test("submitted input handles prompt, shell, local commands, clear, and missing 
     await new Promise((resolve) => setTimeout(resolve, 50));
     await handleSubmittedInput(state, runtime, "/thinking high", tui);
     await handleSubmittedInput(state, runtime, "/workdir /tmp/work", tui);
-    await handleSubmittedInput(state, runtime, "/theme tokyo-night", tui);
+    const { setTheme } = await import("../src/ui/themes.js");
+    setTheme(state, "tokyo-night");
     await handleSubmittedInput(state, runtime, "/models faux-1", tui);
     await handleSubmittedInput(state, runtime, "/rename Renamed", tui);
     await handleSubmittedInput(state, runtime, "/fork forked", tui);
@@ -370,7 +371,7 @@ test("submitted input handles prompt, shell, local commands, clear, and missing 
     await handleSubmittedInput(state, runtime, "/close-session", tui);
     handleMixCodeKeyInput(state, "y", tui, undefined, runtime);
     await new Promise((resolve) => setTimeout(resolve, 0));
-    await handleSubmittedInput(state, runtime, "/theme mixcode-dark", tui);
+    setTheme(state, "mixcode-dark");
     await handleSubmittedInput(state, runtime, "/help", tui);
     await handleSubmittedInput(state, runtime, "/run worker task", tui);
     assert.equal(prompts[0], "hello $review @src/index.ts");

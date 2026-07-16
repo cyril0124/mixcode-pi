@@ -156,7 +156,7 @@ Shell overlay 打开时按 refs/mixcode 的焦点语义处理：`Ctrl+V`、`Ctrl
 
 `/thinking` 与 `/hide-thinking` 是两件不同的事：`/thinking` 调整当前 tab 模型的 reasoning level（`off`/`low`/`medium`/`high`/`max`），影响模型实际推理量；`/hide-thinking` 只切换 thinking 内容在 TUI 的可见性，隐藏时折叠为斜体 `Thinking...` 占位，不改变推理 level、不改写会话内容。`/hide-thinking` 是全 tab 生效的应用级 toggle，复用 Pi 原生 `hideThinkingBlock` 设置持久化（启动时 `SettingsManager.getHideThinkingBlock()` 读取，切换时 `setHideThinkingBlock()` 写回全局 `settings.json`），跨重启保持，并沿用 Pi 的状态文案 `Thinking blocks: hidden|visible`。因为它写入 Pi 全局 `settings.json`（跨重启、跨 workdir、与 Pi agent 共享），其 `description` 以 `[global]` 前缀标注，让用户在 palette / slash 补全里执行前即可看出这是全局持久化设置；约定见 AGENTS.md 的 Slash Commands。
 
-`/models`、`/thinking`、`/context-limit`、`/theme`、`/workdir` 在无参数时会打开本地 picker overlay，支持输入过滤、上下移动、回车选择、Esc 取消。`/thinking` 的候选来自当前 tab 模型能力；不支持 reasoning 的模型只显示 `off`，带 `thinkingLevelMap` 的模型可显示 Pi 支持的新 level（如 `max`）。本地 `/theme` 参数支持 `mixcode-dark`、`claude-warm`、`tokyo-night`、`terminal`，也支持 `dark` 和唯一前缀如 `tok`；多匹配前缀如 `mix` 会显式报 ambiguous，不静默猜测。Pi extension `ctx.ui.setTheme("dark" | "mixcode-dark" | "claude-warm" | "tokyo-night" | "terminal")` 走同一套归一化并请求 redraw。Agent 输入 meta 行里的 workdir、model、thinking 三段也可用鼠标点击，分别复用 `/workdir`、`/models`、`/thinking` picker。编辑器补全覆盖 `/` slash commands、`$skill` 和 `@path`；`@path` 候选同时包含文件与带尾斜杠的目录，目录 query 如 `@src/` 会列出直接子项，带空格路径会插入为 `@"dir with spaces/"`。
+`/models`、`/thinking`、`/context-limit`、`/workdir` 在无参数时会打开本地 picker overlay，支持输入过滤、上下移动、回车选择、Esc 取消。`/thinking` 的候选来自当前 tab 模型能力；不支持 reasoning 的模型只显示 `off`，带 `thinkingLevelMap` 的模型可显示 Pi 支持的新 level（如 `max`）。UI 主题改由 `/settings` 面板编辑（写入 `mixcode_settings.json` 的 `theme`，未设置时保留 runtime/default）；Pi extension `ctx.ui.setTheme("dark" | "mixcode-dark" | "claude-warm" | "tokyo-night" | "terminal")` 仍走同一套归一化并请求 redraw。Agent 输入 meta 行里的 workdir、model、thinking 三段也可用鼠标点击，分别复用 `/workdir`、`/models`、`/thinking` picker。编辑器补全覆盖 `/` slash commands、`$skill` 和 `@path`；`@path` 候选同时包含文件与带尾斜杠的目录，目录 query 如 `@src/` 会列出直接子项，带空格路径会插入为 `@"dir with spaces/"`。
 
 全局 `@` 文件 picker 参考 `refs/mixcode/mixcode/widgets/file_picker.py` 的真实实现，而不是 README 推测：
 
@@ -188,13 +188,13 @@ Command palette 不是全量 slash command 列表，而是复刻原项目的当�
 Ctrl+P
   │
   ├─ Config tab
-  │    ├─ /theme /tui-state /new-session /hide-thinking
+  │    ├─ /settings /tui-state /new-session /hide-thinking
   │    ├─ /save-workspace /restore-workspace /delete-workspace
   │    ├─ /close-all-sessions /delete-all-sessions
   │    └─ /login /logout
   │
   └─ Agent tab
-       ├─ /models /thinking /context-limit /theme /tui-state
+       ├─ /models /thinking /context-limit /settings /tui-state
        ├─ /system-tools /system-prompt /toggle-hidden-messages /hide-thinking /extension-manager /reload /session
        ├─ /rename /workdir /import /mark-done /vim
        ├─ /fork /compact /clear /navigate /tree
@@ -248,7 +248,7 @@ legacy local/runtime commands
 src/core/commands.ts
         │
     ├─ UI state command
-    │   /toggle-todo /theme /context-limit /tui-state /goal
+    │   /toggle-todo /settings /context-limit /tui-state /goal
         │
     ├─ session command
     │   /new-session /fork /clear /close-session /delete-session

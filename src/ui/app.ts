@@ -60,6 +60,12 @@ export interface MixCodeTuiOptions {
   terminal?: ConstructorParameters<typeof TUI>[0];
   exitProcessOnQuit?: boolean;
   rootStateDir?: string;
+  /** Required to enable the /settings overlay panel. */
+  settingsDeps?: {
+    settingsManager: import("@earendil-works/pi-coding-agent").SettingsManager;
+    mixcodeFile: string;
+    piSettingsFile: string;
+  };
 }
 export function createMixCodeTui(
   state: MixCodeState,
@@ -127,6 +133,8 @@ export function createMixCodeTui(
         requestRender: () => tui.requestRender(),
       },
       options.workspaceFile,
+      undefined,
+      options.settingsDeps,
     ).catch((error: unknown) => {
       appendActiveSystemMessage(state, runtime, errorMessage(error));
       tui.setFocus(editor);
@@ -267,6 +275,8 @@ export function createMixCodeTui(
             options.onStateChanged,
             undefined,
             options.workspaceFile,
+            undefined,
+            options.settingsDeps,
           ),
         extensionCommands: () => activeExtensionCommands(state, runtime),
       },

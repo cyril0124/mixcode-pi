@@ -206,10 +206,10 @@ test("commands parse prompts, slash commands, shell commands, and suggestions", 
     args: "pwd",
     excludeFromContext: true,
   });
-  assert.deepEqual(parseInput("/theme mixcode"), {
+  assert.deepEqual(parseInput("/settings"), {
     kind: "local-command",
-    command: "theme",
-    args: "mixcode",
+    command: "settings",
+    args: "",
   });
   assert.deepEqual(parseInput("/save-workspace main"), {
     kind: "local-command",
@@ -271,7 +271,7 @@ test("commands parse prompts, slash commands, shell commands, and suggestions", 
     command: "unknown",
     args: "x",
   });
-  assert.ok(commandSuggestions("/th").includes("theme"));
+  assert.ok(commandSuggestions("/set").includes("settings"));
   assert.ok(commandSuggestions("/system").includes("system-tools"));
   assert.ok(commandSuggestions("/se").includes("session"));
   assert.ok(commandSuggestions("/re").includes("reload"));

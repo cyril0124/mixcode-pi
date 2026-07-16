@@ -89,7 +89,7 @@ function createLiveExtensionLines(
   return {
     lines: renderExtensionLines(component, terminal.columns),
     render: (width) => {
-      // Rebuild when /theme changes so factories re-bind accent colors.
+      // Rebuild when theme changes so factories re-bind accent colors.
       const nextTheme = getActiveExtensionThemeId();
       if (nextTheme !== themeKey) {
         component.dispose?.();

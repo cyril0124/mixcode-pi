@@ -242,15 +242,6 @@ async function getSlashArgumentSuggestions(
   const argumentText = trimmed.slice(spaceIndex + 1);
   const items = await command.getArgumentCompletions(argumentText);
   if (!Array.isArray(items) || items.length === 0) return null;
-  if (commandName === "theme") {
-    return {
-      prefix: trimmed,
-      items: items.map((item) => ({
-        ...item,
-        value: `/theme ${item.value}`,
-      })),
-    };
-  }
   return { prefix: argumentText, items };
 }
 

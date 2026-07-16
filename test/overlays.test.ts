@@ -201,7 +201,7 @@ test("command palette state filters, moves, accepts, and closes", () => {
   assert.equal(state.commandPaletteOpen, true);
   assert.ok(
     commandPaletteEntries(state).some(
-      (entry) => entry.label === "Choose Theme" && entry.command === "/theme",
+      (entry) => entry.label === "Settings" && entry.command === "/settings",
     ),
   );
   assert.equal(
@@ -209,12 +209,12 @@ test("command palette state filters, moves, accepts, and closes", () => {
     false,
   );
   assertNoOpenCodePaletteEntries(commandPaletteEntries(state));
-  updateCommandPaletteQuery(state, "theme");
+  updateCommandPaletteQuery(state, "settings");
   assert.deepEqual(
     commandPaletteEntries(state).map((entry) => entry.command),
-    ["/theme"],
+    ["/settings"],
   );
-  assert.equal(acceptCommandPaletteSelection(state), "/theme");
+  assert.equal(acceptCommandPaletteSelection(state), "/settings");
   assert.equal(state.commandPaletteOpen, false);
 
   state.tabs.push(createTab(1, "s1", "/repo"));
@@ -227,7 +227,6 @@ test("command palette state filters, moves, accepts, and closes", () => {
       "/thinking",
       "/context-limit",
       "/workdir",
-      "/theme",
       "/fork",
       "/tree",
       "/close-session",
@@ -240,6 +239,7 @@ test("command palette state filters, moves, accepts, and closes", () => {
       "/system-prompt",
       "/system-tools",
       "/toggle-hidden-messages",
+      "/settings",
       "/hide-thinking",
       "/session",
       "/compact",
@@ -285,7 +285,9 @@ test("command palette state filters, moves, accepts, and closes", () => {
     entriesWithExtensions.some((entry) => entry.command === "/"),
     false,
   );
+  // Extension-only /theme is allowed once the built-in /theme command is gone.
   assert.equal(entriesWithExtensions.filter((entry) => entry.command === "/theme").length, 1);
+  assert.equal(entriesWithExtensions.filter((entry) => entry.command === "/settings").length, 1);
   assert.equal(
     entriesWithExtensions.find((entry) => entry.command === "/explain-selection")?.description,
     "Extension command",

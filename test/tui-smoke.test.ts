@@ -86,15 +86,32 @@ test("tmux TUI smoke covers max thinking, theme, navigation, and exit", {
     const maxThinking = await waitForPane(tmux, session, /smoke\/max-model[\s\S]*Max/, 5_000);
     assert.match(maxThinking.plain, /smoke\/max-model[\s\S]*Max/);
 
+    // Theme is edited via /settings (not /theme). Open settings, select Theme,
+    // pick tokyo-night, and verify the Tokyo Night selection color appears.
     await delay(400);
-    await tmuxRun(tmux, session, ["send-keys", "-l", "-t", session, "/theme tok"]);
+    await tmuxRun(tmux, session, ["send-keys", "-l", "-t", session, "/settings"]);
     await delay(400);
     await tmuxRun(tmux, session, ["send-keys", "-t", session, "Enter"]);
-    await delay(800);
+    await waitForPane(tmux, session, /Settings[\s\S]*Theme/, 5_000);
+    // Theme is the first Mixcode row after 5 Pi items (indices 0-4).
+    for (let i = 0; i < 5; i++) {
+      await tmuxRun(tmux, session, ["send-keys", "-t", session, "Down"]);
+      await delay(80);
+    }
+    await tmuxRun(tmux, session, ["send-keys", "-t", session, "Enter"]);
+    await delay(200);
+    // tokyo-night is typically 3rd theme after mixcode-dark, claude-warm
+    await tmuxRun(tmux, session, ["send-keys", "-t", session, "Down"]);
+    await delay(80);
+    await tmuxRun(tmux, session, ["send-keys", "-t", session, "Down"]);
+    await delay(80);
+    await tmuxRun(tmux, session, ["send-keys", "-t", session, "Enter"]);
+    await delay(400);
+    await tmuxRun(tmux, session, ["send-keys", "-t", session, "Escape"]);
+    await delay(400);
 
     const themed = await capturePane(tmux, session);
     assert.equal(themed.ansi.includes("\x1b[48;2;51;70;124m"), true);
-    assert.doesNotMatch(themed.plain, /> \/theme tok/);
 
     await sendLiteral(tmux, session, "\x10");
     const palette = await waitForPane(tmux, session, /Command Palette[\s\S]*Choose Model/, 5_000);

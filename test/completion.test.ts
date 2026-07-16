@@ -225,33 +225,6 @@ test("completion provider keeps the menu open for a fully typed command name", a
   assert.equal(withSpace?.items[0]?.value, "pause");
 });
 
-test("completion provider suggests local theme arguments", async () => {
-  const provider = new MixCodeCompletionProvider({ skills: [], files: [] });
-  const signal = new AbortController().signal;
-
-  const terminal = await provider.getSuggestions(["/theme ter"], 0, 10, { signal });
-  assert.equal(terminal?.prefix, "/theme ter");
-  assert.equal(terminal?.items[0]?.value, "/theme terminal");
-  assert.deepEqual(provider.applyCompletion(["/theme ter"], 0, 10, terminal!.items[0]!, terminal!.prefix), {
-    lines: ["/theme terminal"],
-    cursorLine: 0,
-    cursorCol: 15,
-  });
-  assert.equal(await provider.getSuggestions(["/theme terminal"], 0, 15, { signal }), null);
-
-  const claude = await provider.getSuggestions(["/theme cla"], 0, 10, { signal });
-  assert.equal(claude?.items[0]?.value, "/theme claude-warm");
-
-  const tokyo = await provider.getSuggestions(["/theme tok"], 0, 10, { signal });
-  assert.equal(tokyo?.items[0]?.value, "/theme tokyo-night");
-
-  const mixcode = await provider.getSuggestions(["/theme mix"], 0, 10, { signal });
-  assert.equal(
-    mixcode?.items.some((item) => item.value === "/theme mixcode-dark"),
-    true,
-  );
-});
-
 test("completion provider reads extension commands dynamically", async () => {
   let commandName = "first";
   const provider = new MixCodeCompletionProvider({

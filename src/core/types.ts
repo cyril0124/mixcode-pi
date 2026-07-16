@@ -80,6 +80,24 @@ export interface PickerState {
   customInputError?: string;
 }
 
+/** State for the /settings floating overlay panel. */
+export interface SettingsPanelState {
+  open: boolean;
+  selectedIndex: number;
+  editMode: boolean;
+  editText: string;
+  enumOpen: boolean;
+  enumIndex: number;
+  /** Snapshot of raw mixcode settings; mutated in place on write. */
+  mixcodeRaw: import("./mixcode-settings.js").RawMixCodeSettings;
+  mixcodeFile: string;
+  /** Absolute path to Pi global settings.json (display only). */
+  piSettingsFile: string;
+  /** Bound at open time so key handlers can write Pi settings. */
+  settingsManager?: import("@earendil-works/pi-coding-agent").SettingsManager;
+  setHideThinkingBlock?: (hide: boolean) => void;
+}
+
 export interface CommandPaletteState {
   query: string;
   selectedIndex: number;
@@ -346,6 +364,7 @@ export interface MixCodeState {
   sessionActionConfirm: SessionActionConfirm | null;
   commandPaletteOpen: boolean;
   commandPalette: CommandPaletteState;
+  settingsPanel: SettingsPanelState;
   extensionManager: ExtensionManagerPanelState;
   sessionSelector: SessionSelectorState;
   forkSelector: ForkSelectorState;

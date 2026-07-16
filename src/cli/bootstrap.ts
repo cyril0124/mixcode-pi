@@ -19,6 +19,7 @@ import {
   ensureConversationHistoryState,
 } from "../core/conversation-history.js";
 import { loadMixCodeSettings } from "../core/mixcode-settings.js";
+import { setTheme } from "../ui/themes.js";
 import {
   buildAvailableModelRefs,
   isModelRefAvailable,
@@ -112,6 +113,11 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
    * background after the TUI renders instead of blocking the first frame.
    */
   historyReady: Promise<{ warnings: string[] }>;
+  settingsDeps: {
+    settingsManager: import("@earendil-works/pi-coding-agent").SettingsManager;
+    mixcodeFile: string;
+    piSettingsFile: string;
+  };
 }> {
   const rootStateDir = options.stateDir ?? defaultStateDir();
   const stateDir = scopedStateDir(rootStateDir, options.workdir);
@@ -149,6 +155,9 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
     restoredFromDisk = false;
   }
   state.ui = mixCodeSettings.ui;
+  // Global Mixcode theme (mixcode_settings.json) wins over per-workdir state file
+  // when explicitly set; otherwise keep the restored/default state.theme.
+  if (mixCodeSettings.theme) setTheme(state, mixCodeSettings.theme);
   // Thinking-block visibility follows Pi's native hideThinkingBlock setting
   // (global/project scoped) rather than MixCode's own persisted state.
   state.hideThinkingBlock = settingsManager.getHideThinkingBlock();
@@ -270,6 +279,11 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
     packageUpdateCheck: () => checkPiPackageUpdates({ workdir: state.workdir, agentDir }),
     tabsReady,
     historyReady,
+    settingsDeps: {
+      settingsManager,
+      mixcodeFile: conversationHistoryPaths(rootStateDir).settingsFile,
+      piSettingsFile: join(agentDir, "settings.json"),
+    },
   };
 }
 

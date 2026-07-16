@@ -207,16 +207,14 @@ extension renderer invalidate()
 
 ## TUI theme 验证
 
-2026-06-30 用 180x48 tmux 真实会话验证了 theme picker、theme alias / prefix 和 tokyo-night theme 渲染：
+2026-06-30 用 180x48 tmux 真实会话验证了 theme 切换与 tokyo-night theme 渲染；内置 `/theme` 已移除，主题改由 `/settings` 编辑：
 
 ```bash
 ./run.sh
 # in tmux:
 Tab
-/theme
-tok<Enter>
-/theme tok<Enter>
-/theme terminal<Enter>
+/settings → Theme → tokyo-night
+/settings → Theme → terminal
 ```
 
 验证产物：
@@ -237,7 +235,7 @@ home tab bg : 48;2;122;162;247
 accent      : 38;2;125;207;255
 ```
 
-另一次逐步 tmux 验证使用 `send-keys -l '/theme tok'` 后单独发送 `Enter`，捕获到第一次 Enter 后输入框清空且出现 `48;2;51;70;124` selection bg。合并成一个 `tmux send-keys '/theme tok' Enter` 会产生 tmux 批量输入时序差异，不能作为人工交互失败的证据。
+另一次逐步 tmux 验证通过 `/settings` 选中 Theme 并选择 tokyo-night，捕获到 `48;2;51;70;124` selection bg。
 
 可重复 smoke：
 

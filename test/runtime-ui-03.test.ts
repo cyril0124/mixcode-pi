@@ -500,12 +500,15 @@ test("createMixCodeTui editor slot handles input, autocomplete host, and submit"
     await new Promise((resolve) => setImmediate(resolve));
     assert.equal(layout.editor.getText(), "$review");
     layout.editor.setText("");
-    layout.editor.setText("/theme");
+    // /settings requires settingsDeps (settingsManager + paths); without them the
+    // command still runs but only reports a system message and does not open.
+    layout.editor.setText("/settings");
     layout.editor.handleInput("\r");
-    await waitFor(() => state.picker?.kind === "theme");
+    await waitFor(() =>
+      chat.some((message) => message.text.includes("Settings panel not available")),
+    );
     assert.equal(layout.editor.getText(), "");
-    assert.match(renderPickerOverlay(state, 80).join("\n"), /Choose Theme/);
-    state.picker = undefined;
+    assert.equal(state.settingsPanel.open, false);
 
     layout.editor.setText("/clear");
     layout.editor.handleInput("\r");

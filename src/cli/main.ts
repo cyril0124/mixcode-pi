@@ -87,6 +87,7 @@ export async function main(): Promise<void> {
     packageUpdateCheck,
     tabsReady,
     historyReady,
+    settingsDeps,
   } = await bootstrapMixCode({
     workdir: args.workdir,
   });
@@ -154,6 +155,7 @@ export async function main(): Promise<void> {
     workspaceFile,
     rootStateDir,
     exitProcessOnQuit: true,
+    settingsDeps,
     onStateChanged: async (nextState) => {
       await saveStateFile(stateFile, nextState);
       await writeRegistrySnapshot();

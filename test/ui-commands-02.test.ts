@@ -150,12 +150,9 @@ test("submitted input opens local pickers and picker keys apply selections", asy
   assert.equal(tab.thinkingLevel, "xhigh");
   assert.deepEqual(thinkingUpdates, [{ sessionId: "s1", level: "xhigh" }]);
 
-  await handleSubmittedInput(state, runtime, "/theme", tui);
-  assert.equal(state.picker?.kind, "theme");
-  assert.deepEqual(handleMixCodeKeyInput(state, "t", tui), { consume: true });
-  assert.deepEqual(handleMixCodeKeyInput(state, "o", tui), { consume: true });
-  assert.deepEqual(handleMixCodeKeyInput(state, "k", tui), { consume: true });
-  assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui), { consume: true });
+  // Theme is managed via /settings now; setTheme still updates workdir state.
+  const { setTheme } = await import("../src/ui/themes.js");
+  setTheme(state, "tokyo-night");
   assert.equal(state.theme, "tokyo-night");
 
   await handleSubmittedInput(state, runtime, "/workdir", tui, async (next) => {

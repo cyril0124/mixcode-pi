@@ -32,6 +32,17 @@ export function createInitialState(workdir: string, defaultThinkingLevel?: Think
     sessionActionConfirm: null,
     commandPaletteOpen: false,
     commandPalette: { query: "", selectedIndex: 0 },
+    settingsPanel: {
+      open: false,
+      selectedIndex: 0,
+      editMode: false,
+      editText: "",
+      enumOpen: false,
+      enumIndex: 0,
+      mixcodeRaw: {},
+      mixcodeFile: "",
+      piSettingsFile: "",
+    },
     extensionManager: {
       open: false,
       selectedIndex: 0,

@@ -22,8 +22,8 @@ test("batch input rejects MixCode local commands instead of prompting the agent"
   });
 
   await assert.rejects(
-    () => host.submitInput("s1", "/theme terminal"),
-    /Batch prompt cannot execute MixCode local command: \/theme/,
+    () => host.submitInput("s1", "/settings"),
+    /Batch prompt cannot execute MixCode local command: \/settings/,
   );
   assert.deepEqual(prompts, []);
 });

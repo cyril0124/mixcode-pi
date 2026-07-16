@@ -252,7 +252,7 @@ test("rendering sanitizes terminal text and paints tool blocks", () => {
   assert.match(updateConfig, /pi-codex-extra/);
   assert.doesNotMatch(updateConfig, /more/);
   state.commandPaletteOpen = true;
-  assert.match(renderCommandPalette(state, 100).join("\n"), /Choose Theme/);
+  assert.match(renderCommandPalette(state, 100).join("\n"), /Settings/);
   assert.match(renderCommandPalette(state, 100).join("\n"), /Extension Manager/);
   assert.match(renderCommandPalette(state, 100).join("\n"), /\/delete-all-sessions/);
   state.activeTabId = tab.sessionId;

@@ -44,8 +44,9 @@ import { renderSystemToolsText } from "./system-tools.js";
 import { getConfiguredQuitOptions, quitMixCode } from "./quit.js";
 import { clearConversationCache, renderPickerOverlay } from "./rendering.js";
 import { openSessionSelector, type SessionSelectorRuntime } from "./session-selector.js";
-import { resolveThemeInput, setTheme } from "./themes.js";
+
 import { openTreeSelector, type TreeSelectorRuntime } from "./tree-selector.js";
+import { openSettingsPanel } from "./settings-panel.js";
 import {
   deleteWorkspaceByName,
   openSaveWorkspaceOverlay,
@@ -69,6 +70,12 @@ export async function handleSubmittedInput(
   workspaceFile?: string,
   /** When set (e.g. Home send), submit targets this tab without changing activeTabId. */
   activeTabOverride?: MixCodeTabInfo,
+  /** Settings panel dependencies — required to open /settings overlay. */
+  settingsDeps?: {
+    settingsManager: import("@earendil-works/pi-coding-agent").SettingsManager;
+    mixcodeFile: string;
+    piSettingsFile: string;
+  },
 ): Promise<void> {
   const parsed = parseInput(text);
   const active = activeTabOverride ?? getActiveTab(state);
@@ -115,6 +122,21 @@ export async function handleSubmittedInput(
         : "Hidden extension messages hidden",
     });
     tui.requestRender();
+  } else if (parsed.command === "settings") {
+    if (settingsDeps) {
+      await openSettingsPanel(
+          state,
+          tui,
+          settingsDeps.settingsManager,
+          settingsDeps.mixcodeFile,
+          settingsDeps.piSettingsFile,
+          { setHideThinkingBlock: runtime.setHideThinkingBlock?.bind(runtime) },
+        );
+    } else {
+      appendActiveSystemMessage(state, runtime, "Settings panel not available: missing configuration context.");
+    }
+    tui.requestRender();
+    return;
   } else if (parsed.command === "hide-thinking") {
     // App-level toggle mirroring Pi's hideThinkingBlock: folds thinking content
     // to a placeholder across every tab, persists via Pi's SettingsManager, and
@@ -339,15 +361,6 @@ export async function handleSubmittedInput(
     }
     const model = findModelRef(state.availableModels, parsed.args);
     await applyModelSelection(state, active!, model, runtime);
-  } else if (parsed.command === "theme") {
-    if (!parsed.args.trim()) {
-      state.picker = createPicker("theme", state, active);
-      showLinesOverlay(tui, (width) => renderPickerOverlay(state, width));
-      await onStateChanged?.(state);
-      tui.requestRender();
-      return;
-    }
-    setTheme(state, resolveThemeInput(parsed.args));
   } else if (parsed.command === "workdir") {
     if (!parsed.args.trim()) {
       state.picker = createPicker("workdir", state, active);
@@ -447,11 +460,11 @@ export async function handleSubmittedInput(
 
 function configScopedCommand(command: string | undefined): boolean {
   return (
-    command === "theme" ||
     command === "tui-state" ||
     command === "new-session" ||
     command === "resume" ||
     command === "hide-thinking" ||
+    command === "settings" ||
     command === "delete-all-sessions" ||
     command === "close-all-sessions" ||
     command === "save-workspace" ||

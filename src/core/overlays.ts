@@ -177,6 +177,7 @@ export type OverlayKind =
   | "picker"
   | "session-selector"
   | "command-palette"
+  | "settings-panel"
   | "extension-manager"
   | "tab-jump"
   | "session-action-confirm"
@@ -191,6 +192,7 @@ const OVERLAY_PREDICATES: ReadonlyArray<readonly [OverlayKind, (s: MixCodeState)
   ["picker", (s) => s.picker !== undefined],
   ["session-selector", (s) => s.sessionSelector.open],
   ["command-palette", (s) => s.commandPaletteOpen],
+  ["settings-panel", (s) => s.settingsPanel.open],
   ["extension-manager", (s) => s.extensionManager.open],
   ["tab-jump", (s) => s.tabJumpOpen],
   ["session-action-confirm", (s) => s.sessionActionConfirm !== null],
@@ -219,6 +221,7 @@ export function closeActiveOverlay(state: MixCodeState): void {
   state.picker = undefined;
   state.sessionSelector.open = false;
   closeCommandPalette(state);
+  state.settingsPanel.open = false;
   state.extensionManager.open = false;
   closeTabJump(state);
   state.sessionActionConfirm = null;

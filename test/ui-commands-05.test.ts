@@ -608,15 +608,13 @@ test("config-scoped submitted input runs without an active agent tab", async () 
     },
   };
 
-  await handleSubmittedInput(state, runtime, "/theme tokyo-night", tui);
-  await handleSubmittedInput(state, runtime, "/theme dark", tui);
-  assert.equal(state.theme, "mixcode-dark");
-  await handleSubmittedInput(state, runtime, "/theme tok", tui);
+  // Theme is no longer a slash command; setTheme still drives workdir state.
+  const { setTheme } = await import("../src/ui/themes.js");
+  setTheme(state, "tokyo-night");
   assert.equal(state.theme, "tokyo-night");
-  await assert.rejects(
-    () => handleSubmittedInput(state, runtime, "/theme t", tui),
-    /Ambiguous theme/,
-  );
+  setTheme(state, "mixcode-dark");
+  assert.equal(state.theme, "mixcode-dark");
+  // Keep a picker snapshot so /tui-state still exercises the picker dump path.
   state.picker = {
     kind: "theme",
     title: "Choose Theme",
@@ -677,7 +675,7 @@ test("config-scoped submitted input runs without an active agent tab", async () 
     () => handleSubmittedInput(state, runtime, "/exit", tui),
     /Quit command requires TUI stop support/,
   );
-  assert.equal(state.theme, "tokyo-night");
+  assert.equal(state.theme, "mixcode-dark");
   assert.equal(state.tabs.some((tab) => tab.sessionId === "s1"), false);
   assert.equal(state.tabs.some((tab) => /^session-\d+$/.test(tab.sessionId)), false);
   assert.equal(created.length, 2);

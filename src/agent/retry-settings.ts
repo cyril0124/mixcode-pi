@@ -74,6 +74,54 @@ function hasExplicitRetryValue(settingsManager: SettingsManager, key: RetryKey):
   return globalRetry?.[key] !== undefined || projectRetry?.[key] !== undefined;
 }
 
+/** Explicit global retry.maxRetries when set in settings.json; undefined => default. */
+export function getExplicitRetryMaxRetries(settingsManager: SettingsManager): number | undefined {
+  const globalRetry = settingsManager.getGlobalSettings().retry;
+  const value = globalRetry?.maxRetries;
+  return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : undefined;
+}
+
+/**
+ * Persist global retry.maxRetries into Pi's settings.json, then reload the manager.
+ * Pi only exposes setRetryEnabled publicly; nested maxRetries is written as JSON.
+ * Passing undefined clears the explicit value (back to MixCode/SDK default).
+ */
+export async function setRetryMaxRetries(
+  settingsManager: SettingsManager,
+  settingsFile: string,
+  maxRetries: number | undefined,
+): Promise<void> {
+  if (maxRetries !== undefined && (!Number.isInteger(maxRetries) || maxRetries <= 0)) {
+    throw new Error(`retry.maxRetries must be a positive integer, got ${maxRetries}`);
+  }
+  await settingsManager.flush();
+  const { readFile, writeFile, mkdir } = await import("node:fs/promises");
+  const { dirname } = await import("node:path");
+  let raw: Record<string, unknown> = {};
+  try {
+    const text = await readFile(settingsFile, "utf8");
+    const parsed = JSON.parse(text) as unknown;
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      raw = parsed as Record<string, unknown>;
+    }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+  const retry =
+    raw.retry && typeof raw.retry === "object" && !Array.isArray(raw.retry)
+      ? { ...(raw.retry as Record<string, unknown>) }
+      : {};
+  if (maxRetries === undefined) delete retry.maxRetries;
+  else retry.maxRetries = maxRetries;
+  if (Object.keys(retry).length > 0) raw.retry = retry;
+  else delete raw.retry;
+  await mkdir(dirname(settingsFile), { recursive: true });
+  await writeFile(settingsFile, `${JSON.stringify(raw, null, 2)}\n`, "utf8");
+  await settingsManager.reload();
+  // Re-apply MixCode retry defaults/jitter after reload (reload rebuilds getters).
+  configureMixCodeRetrySettings(settingsManager);
+}
+
 function installMixCodeRetryDefaultsAndJitter(
   settingsManager: SettingsManager,
   getRetrySettings: SettingsManager["getRetrySettings"],

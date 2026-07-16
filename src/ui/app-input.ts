@@ -39,6 +39,7 @@ import {
   showLinesOverlay,
 } from "./app-overlays.js";
 import { handlePickerKey } from "./app-picker-keys.js";
+import { handleSettingsPanelKey } from "./settings-panel.js";
 import { activeExtensionCommands } from "./app-runtime.js";
 import type {
   CommandPaletteActions,
@@ -262,6 +263,9 @@ export function handleMixCodeKeyInput(
     state.commandPaletteOpen &&
     handleCommandPaletteKey(state, data, tui, commandPaletteActions)
   ) {
+    return { consume: true };
+  }
+  if (state.settingsPanel.open && handleSettingsPanelKey(state, data, tui)) {
     return { consume: true };
   }
   if (

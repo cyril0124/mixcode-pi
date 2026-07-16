@@ -12,6 +12,7 @@ The file uses JSONC syntax: regular JSON plus comments and trailing commas. If t
 
 ```jsonc
 {
+  "theme": "tokyo-night",
   "history": {
     "maxBytes": 5242880,
   },
@@ -27,6 +28,7 @@ The file uses JSONC syntax: regular JSON plus comments and trailing commas. If t
 
 | Setting | Values | Default | Description |
 | --- | --- | --- | --- |
+| `theme` | theme id string | unset → runtime default | Explicit MixCode UI theme. When omitted, the app keeps the restored/default theme. Editable via `/settings`. |
 | `history.maxBytes` | positive integer | `5242880` | Maximum size, in bytes, kept in `history.jsonl`. Older entries are trimmed when the file exceeds this size. |
 | `ui.oversizedAssistantMessage.enabled` | boolean | `true` | Fold oversized assistant/thinking provider output in the TUI while keeping full content in the session; use `/view` to inspect the full content. |
 | `ui.oversizedAssistantMessage.maxLines` | positive integer | `5000` | Fold assistant/thinking output above this line count. |
@@ -58,4 +60,6 @@ Cap prompt history at 1 MiB:
 }
 ```
 
-Retry settings such as `retry.maxRetries` and `retry.baseDelayMs` are not read from `mixcode_settings.json`; they come from Pi's normal SettingsManager configuration.
+Retry settings such as `retry.maxRetries` and `retry.baseDelayMs` are not read from `mixcode_settings.json`; they come from Pi's normal SettingsManager configuration and can be edited from `/settings` (Pi global `settings.json`).
+
+Editing settings through `/settings` rewrites `mixcode_settings.json` as pure JSON (comments are not preserved).

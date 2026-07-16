@@ -4,7 +4,23 @@ import { parseJsoncObject } from "./json.js";
 export const MIXCODE_SETTINGS_FILENAME = "mixcode_settings.json";
 export const DEFAULT_HISTORY_MAX_BYTES = 5 * 1024 * 1024;
 
+/** Raw (unparsed) mixcode settings — undefined means not explicitly set. */
+export interface RawMixCodeSettings {
+  /** UI theme id when explicitly set; omit to use DEFAULT_THEME_ID. */
+  theme?: string;
+  history?: { maxBytes?: number };
+  ui?: {
+    oversizedAssistantMessage?: {
+      enabled?: boolean;
+      maxLines?: number;
+      maxBytes?: number;
+    };
+  };
+}
+
 export interface MixCodeSettings {
+  /** Explicit theme id, or undefined when the file omits theme (caller applies default). */
+  theme?: string;
   history: HistorySettings;
   ui: MixCodeUiSettings;
 }
@@ -31,9 +47,69 @@ export const DEFAULT_OVERSIZED_ASSISTANT_MESSAGE: OversizedAssistantMessageSetti
 
 export function defaultMixCodeSettings(): MixCodeSettings {
   return {
+    // theme omitted: unset, so UI can dim-display the runtime default
     history: { maxBytes: DEFAULT_HISTORY_MAX_BYTES },
     ui: { oversizedAssistantMessage: { ...DEFAULT_OVERSIZED_ASSISTANT_MESSAGE } },
   };
+}
+
+/** Load raw settings preserving undefined for unset fields (no defaults applied). */
+export async function loadRawMixCodeSettings(settingsFile: string): Promise<RawMixCodeSettings> {
+  let raw: unknown;
+  try {
+    raw = parseJsoncObject(await readFile(settingsFile, "utf8"));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return {};
+    throw error;
+  }
+  const source = objectRecord(raw);
+  const history = objectRecord(source.history);
+  const ui = objectRecord(source.ui);
+  const oversized = objectRecord(ui.oversizedAssistantMessage);
+  const result: RawMixCodeSettings = {};
+  if (typeof source.theme === "string" && source.theme.trim()) {
+    result.theme = source.theme.trim();
+  }
+  const rawMaxBytes = positiveInteger(history.maxBytes);
+  if (rawMaxBytes !== undefined) result.history = { maxBytes: rawMaxBytes };
+  const rawEnabled = typeof oversized.enabled === "boolean" ? oversized.enabled : undefined;
+  const rawMaxLines = positiveInteger(oversized.maxLines);
+  const rawOversizedBytes = positiveInteger(oversized.maxBytes);
+  if (rawEnabled !== undefined || rawMaxLines !== undefined || rawOversizedBytes !== undefined) {
+    result.ui = {
+      oversizedAssistantMessage: {
+        ...(rawEnabled !== undefined ? { enabled: rawEnabled } : {}),
+        ...(rawMaxLines !== undefined ? { maxLines: rawMaxLines } : {}),
+        ...(rawOversizedBytes !== undefined ? { maxBytes: rawOversizedBytes } : {}),
+      },
+    };
+  }
+  return result;
+}
+
+/** Write raw settings back to file (undefined fields are omitted). */
+export async function writeRawMixCodeSettings(
+  settingsFile: string,
+  raw: RawMixCodeSettings,
+): Promise<void> {
+  const { writeFile, mkdir } = await import("node:fs/promises");
+  const { dirname } = await import("node:path");
+  await mkdir(dirname(settingsFile), { recursive: true });
+  // Preserve unknown top-level keys; comments are still dropped because we rewrite JSON.
+  let existing: Record<string, unknown> = {};
+  try {
+    existing = objectRecord(parseJsoncObject(await readFile(settingsFile, "utf8")));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+  const next: Record<string, unknown> = { ...existing };
+  if (raw.theme === undefined) delete next.theme;
+  else next.theme = raw.theme;
+  if (raw.history === undefined) delete next.history;
+  else next.history = raw.history;
+  if (raw.ui === undefined) delete next.ui;
+  else next.ui = raw.ui;
+  await writeFile(settingsFile, `${JSON.stringify(next, null, 2)}\n`, "utf8");
 }
 
 export async function loadMixCodeSettings(settingsFile: string): Promise<MixCodeSettings> {
@@ -46,7 +122,10 @@ export async function loadMixCodeSettings(settingsFile: string): Promise<MixCode
   }
   const source = objectRecord(raw);
   const history = objectRecord(source.history);
+  const theme =
+    typeof source.theme === "string" && source.theme.trim() ? source.theme.trim() : undefined;
   return {
+    ...(theme ? { theme } : {}),
     history: {
       maxBytes: positiveInteger(history.maxBytes) ?? DEFAULT_HISTORY_MAX_BYTES,
     },

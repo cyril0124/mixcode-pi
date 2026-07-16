@@ -1,11 +1,8 @@
-import { themeArgumentCompletions } from "../ui/themes.js";
-
 export type LocalCommand =
   | "models"
   | "thinking"
   | "context-limit"
   | "workdir"
-  | "theme"
   | "fork"
   | "tree"
   | "close-session"
@@ -22,6 +19,7 @@ export type LocalCommand =
   | "system-tools"
   | "toggle-hidden-messages"
   | "hide-thinking"
+  | "settings"
   | "session"
   | "compact"
   | "clear"
@@ -113,13 +111,6 @@ export const LOCAL_COMMANDS: Array<{
       description: "Change the current tab working directory",
       requires: "session",
     },
-  },
-  {
-    name: "theme",
-    description: "Switch UI theme",
-    argumentHint: "<theme>",
-    getArgumentCompletions: themeArgumentCompletions,
-    palette: { label: "Choose Theme", description: "Choose the app UI theme", scope: "both" },
   },
   {
     name: "fork",
@@ -236,6 +227,12 @@ export const LOCAL_COMMANDS: Array<{
     name: "toggle-hidden-messages",
     description: "Toggle visibility of hidden (display:false) extension messages",
     palette: { label: "Toggle Hidden Messages", requires: "session" },
+  },
+  {
+    name: "settings",
+    // Writes Pi global settings.json for several items; theme/history/ui also hit mixcode_settings.json.
+    description: "[global] View and edit settings (theme, thinking visibility, defaults, …)",
+    palette: { label: "Settings", description: "Theme, thinking visibility, defaults, and more", scope: "both" },
   },
   {
     name: "hide-thinking",

@@ -297,12 +297,13 @@ test("global key input toggles MixCode overlays and passes through regular input
   assert.deepEqual(handleMixCodeKeyInput(state, "t", tui), { consume: true });
   assert.deepEqual(handleMixCodeKeyInput(state, "h", tui), { consume: true });
   assert.match(stripAnsi(overlays.at(-1) ?? ""), /Choose Thinking Tier[\s\S]*\/thinking/);
-  assert.deepEqual(handleMixCodeKeyInput(state, "\t", tui), { consume: true });
-  assert.match(stripAnsi(overlays.at(-1) ?? ""), /Choose Theme[\s\S]*\/theme/);
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[Z", tui), { consume: true });
-  assert.match(stripAnsi(overlays.at(-1) ?? ""), /Choose Thinking Tier[\s\S]*\/thinking/);
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[B", tui), { consume: true });
-  assert.match(stripAnsi(overlays.at(-1) ?? ""), /Choose Theme[\s\S]*\/theme/);
+  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui), { consume: true });
+  assert.equal(state.commandPaletteOpen, false);
+  assert.deepEqual(handleMixCodeKeyInput(state, "\x10", tui), { consume: true });
+  for (const ch of "settings") {
+    assert.deepEqual(handleMixCodeKeyInput(state, ch, tui), { consume: true });
+  }
+  assert.match(stripAnsi(overlays.at(-1) ?? ""), /Settings[\s\S]*\/settings/);
   assert.deepEqual(
     handleMixCodeKeyInput(state, "\r", tui, undefined, undefined, undefined, undefined, undefined, {
       executeCommand: (command: string) => {
@@ -312,7 +313,7 @@ test("global key input toggles MixCode overlays and passes through regular input
     { consume: true },
   );
   assert.equal(editorText, "");
-  assert.deepEqual(executedCommands, ["/theme"]);
+  assert.deepEqual(executedCommands, ["/settings"]);
   assert.equal(state.commandPaletteOpen, false);
   assert.equal(overlayOpen, false);
   assert.deepEqual(handleMixCodeKeyInput(state, "\x10", tui), { consume: true });

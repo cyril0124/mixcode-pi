@@ -100,10 +100,8 @@ test("submitted input handles compact and validates theme", async () => {
   assert.equal(prompts.length, 0);
   assert.deepEqual(compacted, [{ sessionId: "s1", instructions: "preserve decisions" }]);
   assert.ok(systemMessages.some((message) => message.includes("Unknown slash command: /goal")));
-  await assert.rejects(
-    () => handleSubmittedInput(state, runtime, "/theme unknown", tui),
-    /Unknown theme/,
-  );
+  await handleSubmittedInput(state, runtime, "/theme unknown", tui);
+  assert.ok(systemMessages.some((message) => message.includes("Unknown slash command: /theme")));
 });
 
 test("submitted input reloads active Pi resources", async () => {
