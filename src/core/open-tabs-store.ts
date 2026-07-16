@@ -194,11 +194,9 @@ function withOpenTabsLock<T>(filePath: string, fn: () => T): T {
           }
         }
       }
-      // ponytail: busy-wait with short sleep; fine for rare tab open/close
-      const start = Date.now();
-      while (Date.now() - start < 20) {
-        /* spin */
-      }
+      // Yield the event loop while another process holds the lock.
+      // Atomics.wait parks the thread; a Date.now spin would burn a full core.
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20);
     }
   }
 }
