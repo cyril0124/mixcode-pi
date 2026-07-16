@@ -90,7 +90,7 @@ function conversationEntryCount(runtime: MixCodeRuntime, sessionId: string): num
   ).length;
 }
 
-test("sync before first flush preserves the session id exposed to extensions", async () => {
+test("sync on a fresh session preserves the session id exposed to extensions", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-sync-fresh-"));
   const runtime = new MixCodeRuntime({ sessionsRoot: join(dir, "sessions") });
   try {
@@ -101,8 +101,12 @@ test("sync before first flush preserves the session id exposed to extensions", a
       model: MIXCODE_FAUX_MODEL,
     });
 
+    // createTab materializes the session header so peer instances can discover
+    // the file before the first assistant reply. A disk reload must not mint a
+    // new session id (that would orphan per-session extension state).
     const sessionId = rt.session.getSessionId();
-    assert.equal(runtime.syncSessionFromDisk("s1"), false);
+    assert.ok(rt.session.getSessionFile());
+    runtime.syncSessionFromDisk("s1");
     assert.equal(rt.session.getSessionId(), sessionId);
   } finally {
     await runtime.closeAllTabs();

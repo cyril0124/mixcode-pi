@@ -1,8 +1,10 @@
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { MixCodeRuntime } from "../agent/runtime.js";
 import { disposeChatRenderers } from "../agent/runtime-chat.js";
+import { findSessionFileByName } from "../agent/runtime-session.js";
 import { LOCAL_COMMANDS, parseInput, type ParsedInput } from "../core/commands.js";
 import { createSessionId, createTab } from "../core/defaults.js";
+import { noteTabClosed, noteTabOpened } from "../core/open-tabs-store.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import { activateTab, closeAgentTab } from "../core/tabs.js";
 import type { MixCodeModel, MixCodeModelRef, MixCodeState, MixCodeTabInfo } from "../core/types.js";
@@ -53,11 +55,62 @@ export async function createAgentTab(
       workdir,
       ...(options.runtimeModel ? { model: options.runtimeModel } : {}),
     });
+    // Publish into the shared open-tab set so peer instances open this session.
+    noteTabOpened(sessionId);
     return tab;
   } catch (error) {
     const index = state.tabs.findIndex((item) => item.sessionId === sessionId);
     if (index >= 0) state.tabs.splice(index, 1);
     activateTab(state, previousActiveId);
+    throw error;
+  }
+}
+
+export interface OpenExistingAgentTabOptions extends CreateAgentTabOptions {
+  sessionId: string;
+}
+
+/**
+ * Open a peer/shared session that already exists on disk as a local tab.
+ * Does not steal focus (activeTabId stays put). Fails if the session file is
+ * missing so callers can retry without creating an empty session.
+ */
+export async function openExistingAgentTab(
+  state: MixCodeState,
+  runtime: Pick<MixCodeRuntime, "createTab" | "getSessionsRoot">,
+  options: OpenExistingAgentTabOptions,
+): Promise<MixCodeTabInfo> {
+  const sessionId = options.sessionId;
+  if (state.tabs.some((tab) => tab.sessionId === sessionId)) {
+    throw new Error(`Tab already exists: ${sessionId}`);
+  }
+  const sessionFile = findSessionFileByName(runtime.getSessionsRoot(), sessionId);
+  if (!sessionFile) {
+    throw new Error(`Peer session not on disk yet: ${sessionId}`);
+  }
+  const workdir = options.workdir ?? state.workdir;
+  const model = options.model ?? state.model;
+  const thinkingLevel = options.thinkingLevel ?? state.thinkingLevel;
+  const customBasePrompt = isCustomBaseSystemPrompt(options.systemPrompt);
+  const tab = createTab(state.tabs.length + 1, sessionId, workdir, {
+    ...(options.title ? { title: options.title } : {}),
+    model: { ...model },
+    contextLimit: model.contextWindow,
+    thinkingLevel,
+    ...(customBasePrompt ? { customBasePrompt: true } : {}),
+  });
+  state.tabs.push(tab);
+  try {
+    await runtime.createTab(tab, {
+      systemPrompt: options.systemPrompt ?? MIXCODE_SYSTEM_PROMPT,
+      thinkingLevel,
+      workdir,
+      ...(options.runtimeModel ? { model: options.runtimeModel } : {}),
+    });
+    return tab;
+  } catch (error) {
+    const index = state.tabs.findIndex((item) => item.sessionId === sessionId);
+    if (index >= 0) state.tabs.splice(index, 1);
     throw error;
   }
 }
@@ -130,6 +183,12 @@ export async function completeAgentTabClear(
   // The cache is keyed by session id; clear the new key as well because session
   // replacement changes identity while retaining the same tab object.
   clearConversationCache(nextSessionId);
+  // /clear swaps session identity: replace the shared open-tab entry so peers
+  // drop the old file and open the fresh one.
+  if (prepared.oldSessionId !== nextSessionId) {
+    noteTabClosed(prepared.oldSessionId);
+    noteTabOpened(nextSessionId);
+  }
   return nextSessionId;
 }
 
@@ -150,6 +209,28 @@ export async function deleteAgentTab(
   await runtime.deleteTab(sessionId);
   closeAgentTab(state, sessionId);
   clearConversationCache(sessionId);
+  // Drop from the shared open-tab set so peer instances close it too.
+  noteTabClosed(sessionId);
+}
+
+/**
+ * Close a tab locally without deleting the session file. Used by peer reconcile
+ * when the shared open-tab set no longer includes this session, and by user
+ * /close-session. Does not steal focus beyond closeAgentTab's normal rules.
+ */
+export async function closeExistingAgentTab(
+  state: MixCodeState,
+  runtime: { closeTab?: (sessionId: string) => Promise<void> },
+  sessionId: string,
+  options: { publishClose?: boolean } = {},
+): Promise<void> {
+  if (!state.tabs.some((tab) => tab.sessionId === sessionId)) return;
+  if (!runtime.closeTab) throw new Error("Closing a session requires runtime support");
+  await runtime.closeTab(sessionId);
+  closeAgentTab(state, sessionId);
+  clearConversationCache(sessionId);
+  // Peer reconcile closes must NOT re-publish (already removed from open_tabs).
+  if (options.publishClose !== false) noteTabClosed(sessionId);
 }
 
 /**

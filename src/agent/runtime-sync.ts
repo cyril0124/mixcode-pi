@@ -7,6 +7,7 @@ import {
   acquireSessionTurnLock,
   type SessionLockHandle,
 } from "../core/session-lock.js";
+import { materializeSessionFile } from "./runtime-session.js";
 import { SessionSyncCoordinator } from "./session-sync-coordinator.js";
 import type { RuntimeTab } from "./runtime-types.js";
 
@@ -44,6 +45,10 @@ export class RuntimeSyncManager {
   }
 
   register(runtimeTab: RuntimeTab): void {
+    // Peer tab discovery needs the JSONL present before the first assistant
+    // reply; materialize regardless of whether content-sync is enabled so
+    // openExistingAgentTab can find the file from another instance.
+    materializeSessionFile(runtimeTab.session);
     const file = runtimeTab.session.getSessionFile();
     if (file) this.coordinator?.register(runtimeTab.tab.sessionId, file);
   }

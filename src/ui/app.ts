@@ -5,6 +5,7 @@ import { recordSubmittedHistory } from "../core/conversation-history.js";
 import { resolveFdBinary } from "../core/detect-search-tools.js";
 import { scanProjectFiles } from "../core/file-picker.js";
 import { buildAvailableModelRefs } from "../core/models.js";
+import { noteTabClosed } from "../core/open-tabs-store.js";
 import type { MixCodeState } from "../core/types.js";
 import { closeAgentTab, getActiveTab } from "../core/tabs.js";
 import { appendActiveSystemMessage } from "./app-actions.js";
@@ -224,6 +225,8 @@ export function createMixCodeTui(
   runtime.onTabClosed?.((sessionId) => {
     if (!state.tabs.some((tab) => tab.sessionId === sessionId)) return;
     closeAgentTab(state, sessionId);
+    // Keep shared open-tab set in sync so peer instances drop the tab too.
+    noteTabClosed(sessionId);
     void options.onStateChanged?.(state);
     tui.requestRender();
   });

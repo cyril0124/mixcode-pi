@@ -27,9 +27,16 @@ import {
   writeCurrentInstanceSnapshot,
   INSTANCE_HEARTBEAT_INTERVAL_MS,
 } from "../core/instance-registry.js";
+import {
+  configureOpenTabsPath,
+  noteTabOpened,
+  openTabsFile,
+} from "../core/open-tabs-store.js";
+import { startPeerTabSync } from "../core/peer-tab-sync.js";
 import { loadStateFile, saveStateFile, scopedStateDir, stateFileForPort } from "../core/state-store.js";
 import type { MixCodeState } from "../core/types.js";
 import { createMixCodeTui } from "../ui/app.js";
+import { closeExistingAgentTab, openExistingAgentTab } from "../ui/agent-tab-actions.js";
 import { createBatchExecutorHost } from "./batch-host.js";
 import {
   bootstrapMixCode,
@@ -165,11 +172,6 @@ export async function main(): Promise<void> {
     scheduleRegistrySnapshot();
     originalRequestRender(force);
   };
-  const originalStop = tui.stop.bind(tui);
-  tui.stop = () => {
-    removeRegistrySnapshot();
-    originalStop();
-  };
   runtime.onChange(() => {
     void writeRegistrySnapshot();
   });
@@ -177,6 +179,78 @@ export async function main(): Promise<void> {
   // workdir's sessionsRoot for appends by other instances and serialize this
   // instance's session writes with a turn lock. (Batch runs never reach here.)
   runtime.enableSessionSync();
+  // Shared open-tab set for this workdir: create/close mutate open_tabs.json;
+  // peers reconcile local tabs to match (open missing, close removed).
+  const openTabsPath = openTabsFile(dirname(stateFile));
+  configureOpenTabsPath(openTabsPath);
+  for (const tab of state.tabs) noteTabOpened(tab.sessionId);
+  let peerTabSyncErrorReported = false;
+  const peerTabSync = startPeerTabSync({
+    openTabsPath,
+    rootStateDir: stateRoot,
+    workdir: state.workdir,
+    getLocalSessionIds: () => state.tabs.map((tab) => tab.sessionId),
+    openTab: async (candidate) => {
+      await openExistingAgentTab(state, runtime, {
+        sessionId: candidate.sessionId,
+        title: candidate.title,
+        workdir: candidate.workdir,
+      });
+      await writeRegistrySnapshot();
+      tui.requestRender();
+    },
+    closeTab: async (sessionId) => {
+      // publishClose:false — open_tabs already dropped this id (we are reconciling).
+      await closeExistingAgentTab(state, runtime, sessionId, { publishClose: false });
+      await writeRegistrySnapshot();
+      tui.requestRender();
+    },
+    reorderTabs: async (orderedSessionIds) => {
+      const currentIds = state.tabs.map((tab) => tab.sessionId);
+      const desired = new Set(orderedSessionIds);
+      const nextTabs = [
+        ...orderedSessionIds.flatMap((id) => {
+          const tab = state.tabs.find((candidate) => candidate.sessionId === id);
+          return tab ? [tab] : [];
+        }),
+        // Keep a locally-created tab visible during the short publish window.
+        ...state.tabs.filter((tab) => !desired.has(tab.sessionId)),
+      ];
+      const nextIds = nextTabs.map((tab) => tab.sessionId);
+      if (
+        currentIds.length === nextIds.length &&
+        currentIds.every((id, index) => id === nextIds[index])
+      ) {
+        return;
+      }
+      const homeSelectedId = state.tabs[state.homeSelectedTabIndex]?.sessionId;
+      state.tabs = nextTabs;
+      state.tabs.forEach((tab, index) => {
+        tab.index = index + 1;
+      });
+      if (homeSelectedId) {
+        const nextHomeIndex = state.tabs.findIndex((tab) => tab.sessionId === homeSelectedId);
+        if (nextHomeIndex >= 0) state.homeSelectedTabIndex = nextHomeIndex;
+      }
+      await writeRegistrySnapshot();
+      tui.requestRender();
+    },
+    onError: (error) => {
+      // Missing session files are expected briefly after a peer creates a tab;
+      // only surface other errors once so the notice is not spammy.
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.startsWith("Peer session not on disk yet:")) return;
+      if (peerTabSyncErrorReported) return;
+      peerTabSyncErrorReported = true;
+      process.stderr.write(`mixcode-pi peer tab sync error: ${message}\n`);
+    },
+  });
+  const originalStop = tui.stop.bind(tui);
+  tui.stop = () => {
+    peerTabSync.dispose();
+    removeRegistrySnapshot();
+    originalStop();
+  };
   tui.start();
   // Registry cleanup and initial snapshot are deferred to after the first frame.
   // They are cheap on their own (~10ms), but their `await` yields the event loop

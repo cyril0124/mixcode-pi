@@ -6,6 +6,7 @@ import { parseInput } from "../core/commands.js";
 import { createSessionId, createTab } from "../core/defaults.js";
 import { stringifyJson } from "../core/json.js";
 import { findModelRef } from "../core/models.js";
+import { noteTabClosed, noteTabOpened } from "../core/open-tabs-store.js";
 import { createPicker } from "../core/pickers.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import { pushToast } from "../core/toast.js";
@@ -285,6 +286,9 @@ export async function handleSubmittedInput(
   } else if (parsed.command === "fork") {
     const sessionId = createSessionId();
     await runtime.forkSession(active!.sessionId, sessionId);
+    // The fork file now exists. Publish its ordered position before runtime tab
+    // startup so the local reconciler cannot treat the in-progress tab as extra.
+    noteTabOpened(sessionId, active!.sessionId);
     // Use the source tab, not activeTabId — on Home the latter is "config" (-1 → insert at 0).
     const activeIndex = state.tabs.findIndex((t) => t.sessionId === active!.sessionId);
     const tab = createTab(state.tabs.length + 1, sessionId, active!.workdir, {
@@ -293,6 +297,9 @@ export async function handleSubmittedInput(
       title: `${active!.title}-fork`,
     });
     state.tabs.splice(activeIndex + 1, 0, tab);
+    state.tabs.forEach((item, index) => {
+      item.index = index + 1;
+    });
     activateTab(state, sessionId);
     try {
       await runtime.createTab(tab, {
@@ -302,9 +309,10 @@ export async function handleSubmittedInput(
         reuseServicesFromSessionId: active!.sessionId,
       });
     } catch (error) {
-      // Rollback: remove the broken fork tab and restore the source tab.
+      // Rollback: remove the broken fork tab and shared ordered entry.
       const idx = state.tabs.findIndex((t) => t.sessionId === sessionId);
       if (idx >= 0) state.tabs.splice(idx, 1);
+      noteTabClosed(sessionId);
       activateTab(state, active!.sessionId);
       throw error;
     }

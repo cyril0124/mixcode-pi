@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { createSessionId, createTab } from "../core/defaults.js";
+import { noteTabsReplaced } from "../core/open-tabs-store.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import { activateTab, clampHomeSelectedTabIndex, closeAgentTab } from "../core/tabs.js";
 import type { MixCodeState, MixCodeTabInfo, WorkspaceSnapshot, WorkspaceTabSnapshot } from "../core/types.js";
@@ -24,6 +25,7 @@ export async function restoreWorkspace(
   if (!runtime?.createTab || !runtime.closeTab || !runtime.extensionSwitchSession) {
     restoreAlreadyOpenWorkspaceOrder(state, workspace);
     if (runtime) hydrateTabPromptHistory(state, runtime);
+    noteTabsReplaced(state.tabs.map((tab) => tab.sessionId));
     await onStateChanged?.(state);
     showWorkspaceToast(state, tui, `Workspace restored: ${workspace.name}`, "success");
     return;
@@ -79,6 +81,7 @@ export async function restoreWorkspace(
   }
   finishWorkspaceRestore(state, workspace, restoredTabs, missing);
   hydrateTabPromptHistory(state, runtime);
+  noteTabsReplaced(state.tabs.map((tab) => tab.sessionId));
   await onStateChanged?.(state);
   showWorkspaceToast(
     state,

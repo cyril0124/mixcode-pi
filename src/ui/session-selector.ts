@@ -2,6 +2,7 @@ import { homedir } from "node:os";
 import { matchesKey, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
 import { createSessionId, createTab } from "../core/defaults.js";
+import { noteTabOpened } from "../core/open-tabs-store.js";
 import {
   createSessionSelectorState,
   cycleSessionSortMode,
@@ -473,6 +474,7 @@ function resumeSelectedSession(
       activateTab(state, newTab.sessionId);
       // Sync tab title from session name
       if (sessionName) newTab.title = sessionName;
+      noteTabOpened(newTab.sessionId);
       await onStateChanged?.(state);
       tui.requestRender();
     } catch (error: unknown) {

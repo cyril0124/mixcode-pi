@@ -20,8 +20,8 @@ import {
 } from "../core/overlays.js";
 import type { MixCodeState } from "../core/types.js";
 import { pushToast } from "../core/toast.js";
-import { activateTab, clampHomeSelectedTabIndex, closeAgentTab, getActiveTab } from "../core/tabs.js";
-import { deleteAgentTab } from "./agent-tab-actions.js";
+import { activateTab, clampHomeSelectedTabIndex, getActiveTab } from "../core/tabs.js";
+import { closeExistingAgentTab, deleteAgentTab } from "./agent-tab-actions.js";
 import { armPendingEscape, clearPendingEscape, hasPendingEscape } from "./app-actions.js";
 import { isPendingEscapeActive } from "../core/escape.js";
 import {
@@ -277,8 +277,7 @@ export function handleSessionActionConfirmKey(
     closeAppOverlay(tui);
     void (async () => {
       if (action === "close") {
-        await confirmedRuntime!.closeTab!(sessionId);
-        closeAgentTab(state, sessionId);
+        await closeExistingAgentTab(state, confirmedRuntime!, sessionId);
       } else {
         await deleteAgentTab(state, confirmedRuntime!, sessionId);
       }

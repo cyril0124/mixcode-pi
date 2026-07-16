@@ -34,6 +34,7 @@ import {
   MixCodeRoot,
   MixCodeRuntime,
   box,
+  configureOpenTabsPath,
   createInitialState,
   createTab,
   createMixCodeTui,
@@ -43,7 +44,9 @@ import {
   handleSubmittedInput,
   handleMixCodeKeyInput,
   mixcodeFauxStream,
+  openTabsFile,
   padLine,
+  readOpenTabs,
   renderChat,
   renderCommandPalette,
   renderConfig,
@@ -260,6 +263,8 @@ test("createMixCodeTui hydrates editor history per tab from restored runtime use
 
 test("submitted input handles prompt, shell, local commands, clear, and missing active tab", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-submit-"));
+  const openTabsPath = openTabsFile(dir);
+  configureOpenTabsPath(openTabsPath);
   const state = createInitialState(dir);
   const tab = createTab(1, "s1", dir);
   state.tabs.push(tab);
@@ -352,6 +357,9 @@ test("submitted input handles prompt, shell, local commands, clear, and missing 
     const forkedSessionId = state.activeTabId;
     assert.match(forkedSessionId, UUIDV7_SESSION_ID_PATTERN);
     assert.notEqual(forkedSessionId, "forked");
+    // Regression: /fork must publish before peer reconcile, or it disappears.
+    assert.equal(readOpenTabs(openTabsPath).includes(forkedSessionId), true);
+    assert.deepEqual(state.tabs.map((item) => item.index), [1, 2]);
     await handleSubmittedInput(state, runtime, "/delete-session", tui);
     handleMixCodeKeyInput(state, "y", tui, undefined, runtime);
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -385,6 +393,7 @@ test("submitted input handles prompt, shell, local commands, clear, and missing 
     state.tabs.length = 0;
     await handleSubmittedInput(state, runtime, "ignored", tui);
   } finally {
+    configureOpenTabsPath(undefined);
     await rm(dir, { recursive: true, force: true });
   }
 });

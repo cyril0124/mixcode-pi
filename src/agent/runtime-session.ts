@@ -1,6 +1,6 @@
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import {
   type AgentSessionServices,
   type LoadExtensionsResult,
@@ -142,6 +142,33 @@ export async function createSession(
     session.newSession({ id: sessionId, parentSession });
   }
   return session;
+}
+
+/**
+ * Pi defers writing a new session JSONL until the first assistant message
+ * (`flushed === false`, exclusive create on first flush). Multi-instance tab
+ * discovery needs the file present as soon as a tab is open, so materialize
+ * the in-memory header (+ any already-appended entries) and mark the manager
+ * flushed so later appends use appendFile instead of wx.
+ */
+export function materializeSessionFile(session: SessionManager): void {
+  const file = session.getSessionFile();
+  if (!file) return;
+  // Pi keeps `flushed` private; multi-instance discovery needs the file on disk
+  // before the first assistant reply, so write then mark flushed for append path.
+  const mutable = session as unknown as { flushed?: boolean };
+  if (existsSync(file)) {
+    // File already on disk (reopened or previously materialized): ensure later
+    // appends do not attempt exclusive create.
+    mutable.flushed = true;
+    return;
+  }
+  const header = session.getHeader();
+  if (!header) return;
+  mkdirSync(dirname(file), { recursive: true });
+  const lines = [header, ...session.getEntries()].map((entry) => JSON.stringify(entry));
+  writeFileSync(file, `${lines.join("\n")}\n`, { flag: "wx" });
+  mutable.flushed = true;
 }
 
 export async function copySession(

@@ -39,6 +39,8 @@ src/
 │   ├── tabs.ts               tab 增删改与前后环绕切换
 │   ├── overlays.ts           preview、tab jump、shell 等纯状态逻辑
 │   ├── questions.ts          question UI 的选择/提交模型
+│   ├── open-tabs-store.ts    open_tabs.json 读写与跨实例 tab 集合变更
+│   ├── peer-tab-sync.ts      跨实例 tab 监听与对账（open/close 协调）
 │   ├── state-store.ts        TUI 状态与 workspace 持久化
 │   └── system-prompt.ts        通过 Pi resource loader 构建 system prompt
 ├── agent/
@@ -47,6 +49,7 @@ src/
 │   └── faux-stream.ts        测试和本地演示用 faux model stream
 └── ui/
     ├── app.ts                pi-tui Root、Editor、全局键处理
+    ├── agent-tab-actions.ts  openExistingAgentTab / closeExistingAgentTab 等 tab 生命周期操作
     ├── rendering.ts          类 MixCode 的 header/tab/status/panel/floating panel 渲染
     └── completion.ts         /、@ 两类补全（$skill 补全由 mpi-skill-refs 扩展提供）
 ```
@@ -317,7 +320,7 @@ npm run check
 当前测试重点：
 
 ```text
-core state        commands / tabs / overlays / command palette / workspace
+core state        commands / tabs / open-tabs-store / peer-tab-sync / overlays / command palette / workspace
 agent runtime     session repo / stream events / tools / compaction
 ui rendering      header / tabs / status / command palette
 ui input          global keys / tab jump

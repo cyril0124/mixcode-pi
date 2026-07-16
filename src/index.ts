@@ -25,6 +25,8 @@ export * from "./core/mixcode-settings.js";
 export * from "./core/mouse.js";
 export * from "./core/overlays.js";
 export * from "./core/package-updates.js";
+export * from "./core/open-tabs-store.js";
+export * from "./core/peer-tab-sync.js";
 export * from "./core/pi-models.js";
 export * from "./core/pickers.js";
 export * from "./core/dialogs.js";
