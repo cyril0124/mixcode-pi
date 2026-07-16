@@ -114,9 +114,9 @@ function createMixCodeFooterDataProvider(runtimeTab: RuntimeTab): ReadonlyFooter
     getExtensionStatuses: () =>
       new Map(runtimeTab.tab.extensionUi.statuses.map((status) => [status.key, status.text])),
     getAvailableProviderCount: () =>
-      runtimeTab.services.modelRegistry
-        .getAll()
-        .filter((model) => runtimeTab.services.modelRegistry.hasConfiguredAuth(model))
+      runtimeTab.services.modelRuntime
+        .getModels()
+        .filter((model) => runtimeTab.services.modelRuntime.hasConfiguredAuth(model.provider))
         .map((model) => model.provider)
         .filter((provider, index, providers) => providers.indexOf(provider) === index).length,
     // Notify when the shared git cache sees a different branch for this workdir.

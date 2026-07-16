@@ -242,7 +242,7 @@ test("service reuse failure falls back to fresh services with a target system me
       thinkingLevel: "medium",
       workdir: process.cwd(),
     });
-    const registry = source.services.modelRegistry as unknown as {
+    const registry = source.services.modelRuntime as unknown as {
       registerProvider: (...args: unknown[]) => unknown;
     };
     registry.registerProvider = () => {

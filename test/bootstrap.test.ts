@@ -375,7 +375,7 @@ test("bootstrap wires pi model registry and extension options into runtime", asy
     assert.ok(runtimeTab);
     assert.equal(runtimeTab.agent.state.model.provider, "mixcode-bootstrap-extension");
     assert.ok(
-      runtimeTab.agentSession.modelRegistry.find(
+      runtimeTab.agentSession.modelRuntime.getModel(
         "mixcode-bootstrap-extension",
         "bootstrap-extension-model",
       ),
@@ -430,11 +430,11 @@ test("bootstrap wires configured pi models into runtime auth streaming", async (
     assert.equal(runtimeTab.agent.state.model.id, "stream-model");
     assert.equal(runtimeTab.agent.state.model.api, "openai-responses");
     assert.equal(
-      await runtimeTab.agentSession.modelRegistry.getApiKeyForProvider("mixcode-bootstrap-stream"),
+      (await runtimeTab.agentSession.modelRuntime.getAuth("mixcode-bootstrap-stream"))?.auth.apiKey,
       "stream-secret",
     );
     assert.ok(
-      runtimeTab.agentSession.modelRegistry.find("mixcode-bootstrap-stream", "stream-model"),
+      runtimeTab.agentSession.modelRuntime.getModel("mixcode-bootstrap-stream", "stream-model"),
     );
   } finally {
     if (oldKey === undefined) delete process.env.MIXCODE_BOOTSTRAP_STREAM_KEY;
@@ -470,9 +470,20 @@ test("bootstrap repairs persisted tabs that reference unavailable models", async
       modelConfigPath: join(dir, "missing.jsonc"),
     });
 
-    assert.equal(boot.state.model.displayName, "faux/faux-1");
-    assert.equal(boot.state.tabs[0]?.model.displayName, "faux/faux-1");
-    assert.equal(boot.state.tabs[0]?.contextLimit, 200_000);
+    // Unavailable persisted models fall back to the preferred available model
+    // (configured ambient/models.json entry, else faux). Do not pin faux: ambient
+    // credentials can make built-in providers preferred.
+    assert.notEqual(boot.state.model.displayName, "missing-provider/missing-model");
+    assert.notEqual(boot.state.tabs[0]?.model.displayName, "missing-provider/missing-model");
+    assert.ok(
+      boot.state.availableModels.some(
+        (model) =>
+          model.provider === boot.state.model.provider && model.modelId === boot.state.model.modelId,
+      ),
+      "repaired model should be present in availableModels",
+    );
+    assert.equal(boot.state.tabs[0]?.model.displayName, boot.state.model.displayName);
+    assert.equal(boot.state.tabs[0]?.contextLimit, boot.state.model.contextWindow);
     await boot.tabsReady;
     assert.ok(boot.runtime.getTab("s1"));
   } finally {
@@ -483,8 +494,11 @@ test("bootstrap repairs persisted tabs that reference unavailable models", async
 test("default state dir lives under Pi agent dir and ignores XDG_CONFIG_HOME", () => {
   const oldXdg = process.env.XDG_CONFIG_HOME;
   const oldPi = process.env.PI_CODING_AGENT_DIR;
+  const oldMix = process.env.MIXCODE_CODING_AGENT_DIR;
   process.env.XDG_CONFIG_HOME = "/tmp/xdg-test";
   process.env.PI_CODING_AGENT_DIR = "/tmp/pi-agent";
+  // defaultMixCodeAgentDir prefers MIXCODE_CODING_AGENT_DIR over PI_CODING_AGENT_DIR.
+  delete process.env.MIXCODE_CODING_AGENT_DIR;
   try {
     assert.equal(defaultStateDir(), "/tmp/pi-agent/mixcode-pi");
   } finally {
@@ -492,6 +506,8 @@ test("default state dir lives under Pi agent dir and ignores XDG_CONFIG_HOME", (
     else process.env.XDG_CONFIG_HOME = oldXdg;
     if (oldPi === undefined) delete process.env.PI_CODING_AGENT_DIR;
     else process.env.PI_CODING_AGENT_DIR = oldPi;
+    if (oldMix === undefined) delete process.env.MIXCODE_CODING_AGENT_DIR;
+    else process.env.MIXCODE_CODING_AGENT_DIR = oldMix;
   }
 });
 
@@ -499,8 +515,11 @@ test("bootstrap stores default UI state under Pi agent and sessions in Pi SDK di
   const dir = await mkdtemp(join(tmpdir(), "mixcode-bootstrap-defaults-"));
   const oldXdg = process.env.XDG_CONFIG_HOME;
   const oldPi = process.env.PI_CODING_AGENT_DIR;
+  const oldMix = process.env.MIXCODE_CODING_AGENT_DIR;
   process.env.XDG_CONFIG_HOME = join(dir, "xdg");
   process.env.PI_CODING_AGENT_DIR = join(dir, "pi-agent");
+  // Prefer the PI_* path under test; clear MIXCODE_* isolation override.
+  delete process.env.MIXCODE_CODING_AGENT_DIR;
   try {
     const boot = await bootstrapMixCode({
       workdir: dir,
@@ -519,6 +538,8 @@ test("bootstrap stores default UI state under Pi agent and sessions in Pi SDK di
     else process.env.XDG_CONFIG_HOME = oldXdg;
     if (oldPi === undefined) delete process.env.PI_CODING_AGENT_DIR;
     else process.env.PI_CODING_AGENT_DIR = oldPi;
+    if (oldMix === undefined) delete process.env.MIXCODE_CODING_AGENT_DIR;
+    else process.env.MIXCODE_CODING_AGENT_DIR = oldMix;
     await rm(dir, { recursive: true, force: true });
   }
 });

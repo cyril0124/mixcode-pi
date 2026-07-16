@@ -220,7 +220,7 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
     sessionsRoot,
     rootStateDir,
     agentDir,
-    authStorage: modelBundle.authStorage,
+    modelRuntime: modelBundle.modelRuntime,
     modelRegistry: modelBundle.registry,
     settingsManager,
     extensionFactories: options.extensionFactories,

@@ -56,7 +56,7 @@ type OptionalSubmitRuntime = Partial<
     | "executeShellCommand"
     | "extensionReload"
     | "extensionSwitchSession"
-    | "getSharedModelRegistry"
+    | "getSharedModelRuntime"
     | "listSessions"
     | "listAllSessions"
     | "reloadExtensionManagerTab"

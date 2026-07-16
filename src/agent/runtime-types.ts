@@ -10,13 +10,13 @@ import type {
   AgentSession,
   AgentSessionEvent,
   AgentSessionServices,
-  AuthStorage,
   CreateAgentSessionServicesOptions,
   ExtensionCommandContextActions,
   KeybindingsManager as ExtensionKeybindingsManager,
   ExtensionUIContext,
   LoadExtensionsResult,
   ModelRegistry,
+  ModelRuntime,
   SessionManager,
   SessionShutdownEvent,
   TerminalInputHandler,
@@ -45,6 +45,7 @@ export type MixCodeStreamFn = (
   options?: SimpleStreamOptions,
 ) => ReturnType<typeof mixcodeFauxStream> | Promise<ReturnType<typeof mixcodeFauxStream>>;
 export type RuntimeEvent = AgentSessionEvent | { type: "extension_ui_update" };
+/** Extension-facing ModelRegistry facade methods used by MixCode runtime/UI. */
 export type RuntimeModelRegistry = Pick<
   ModelRegistry,
   | "find"
@@ -52,15 +53,17 @@ export type RuntimeModelRegistry = Pick<
   | "hasConfiguredAuth"
   | "isUsingOAuth"
   | "registerProvider"
+  | "unregisterProvider"
   | "getAll"
   // refresh re-reads models.json from disk; getProviderAuthStatus tells us which
   // providers have credentials so /reload can rebuild the selectable model list.
   | "refresh"
   | "getProviderAuthStatus"
   | "getProviderDisplayName"
-> & {
-  authStorage: AuthStorage;
-};
+  | "getApiKeyForProvider"
+>;
+
+export type RuntimeModelRuntime = ModelRuntime;
 export type ExtensionArgumentCompleter = (
   argumentPrefix: string,
 ) => AutocompleteItem[] | null | Promise<AutocompleteItem[] | null>;

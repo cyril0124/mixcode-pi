@@ -4,14 +4,23 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { AuthStorage, ModelRegistry, type ExtensionFactory } from "@earendil-works/pi-coding-agent";
+import { InMemoryCredentialStore } from "@earendil-works/pi-ai";
+import {
+  ModelRegistry,
+  ModelRuntime,
+  type ExtensionFactory,
+} from "@earendil-works/pi-coding-agent";
 import { MixCodeRuntime, createTab } from "../src/index.js";
 import type { MixCodeModelRef } from "../src/core/types.js";
 
 test("extension registerProvider notifies onModelsChanged with selectable model refs", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-ext-provider-"));
-  const authStorage = AuthStorage.inMemory();
-  const modelRegistry = ModelRegistry.inMemory(authStorage);
+  const modelRuntime = await ModelRuntime.create({
+    credentials: new InMemoryCredentialStore(),
+    modelsPath: null,
+    allowModelNetwork: false,
+  });
+  const modelRegistry = new ModelRegistry(modelRuntime);
   const seen: MixCodeModelRef[][] = [];
 
   const extension: ExtensionFactory = (pi) => {
@@ -38,7 +47,7 @@ test("extension registerProvider notifies onModelsChanged with selectable model 
   try {
     const runtime = new MixCodeRuntime({
       sessionsRoot: dir,
-      authStorage,
+      modelRuntime,
       modelRegistry,
       extensionFactories: [extension],
     });

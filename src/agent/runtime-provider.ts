@@ -3,21 +3,21 @@ import {
   createAssistantMessageEventStream,
 } from "@earendil-works/pi-ai";
 import { getApiProvider, registerApiProvider } from "@earendil-works/pi-ai/compat";
-import type { ModelRegistry } from "@earendil-works/pi-coding-agent";
+import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import type { MixCodeModel } from "../core/types.js";
 import { mixcodeFauxStream } from "./faux-stream.js";
 import type { MixCodeStreamFn, SystemPromptOverride } from "./runtime-types.js";
 
 export function registerMixCodeRuntimeProvider(
-  registry: ModelRegistry,
+  modelRuntime: ModelRuntime,
   model: MixCodeModel,
   streamFn?: MixCodeStreamFn,
   getApiKey?: (provider: string) => Promise<string | undefined> | string | undefined,
 ): void {
-  const registeredModel = registry.find(model.provider, model.id);
+  const registeredModel = modelRuntime.getModel(model.provider, model.id);
   if (model.provider === "faux") {
     const fauxStreamSimple = mixcodeFauxStream;
-    registry.registerProvider(model.provider, {
+    modelRuntime.registerProvider(model.provider, {
       name: "MixCode Faux",
       baseUrl: model.baseUrl,
       apiKey: "mixcode-faux",
@@ -31,7 +31,7 @@ export function registerMixCodeRuntimeProvider(
   if (registeredModel || !streamFn) return;
   const runtimeStreamSimple = (requestModel: MixCodeModel, context: any, options: any = {}) =>
     bridgeRuntimeStream(requestModel, streamFn(requestModel, context, options));
-  registry.registerProvider(model.provider, {
+  modelRuntime.registerProvider(model.provider, {
     name: model.provider,
     baseUrl: model.baseUrl,
     apiKey: asyncRuntimeApiKeyResolver(model.provider, getApiKey),

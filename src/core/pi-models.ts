@@ -3,14 +3,14 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { Context, ProviderHeaders, SimpleStreamOptions } from "@earendil-works/pi-ai";
 import { streamSimple } from "@earendil-works/pi-ai/compat";
-import { AuthStorage, ModelRegistry } from "@earendil-works/pi-coding-agent";
+import { ModelRegistry, ModelRuntime } from "@earendil-works/pi-coding-agent";
 import type { MixCodeModel } from "./types.js";
 
 export interface PiModelSource {
   provider: string;
   modelId: string;
   model: MixCodeModel;
-  authStatus: ReturnType<ModelRegistry["getProviderAuthStatus"]>;
+  authStatus: ReturnType<ModelRuntime["getProviderAuthStatus"]>;
 }
 
 export interface PiModelRuntimeAuth {
@@ -23,7 +23,8 @@ export interface PiModelRuntimeAuth {
 }
 
 export interface PiModelRegistryBundle {
-  authStorage: AuthStorage;
+  modelRuntime: ModelRuntime;
+  /** Extension-facing synchronous facade over modelRuntime. */
   registry: ModelRegistry;
   sources: PiModelSource[];
   runtimeAuth: PiModelRuntimeAuth;
@@ -57,21 +58,21 @@ export async function createPiModelRegistryBundle(
   authPath = defaultPiAuthPath(),
 ): Promise<PiModelRegistryBundle> {
   await assertPathIsNotDirectory(modelsPath);
-  const authStorage = AuthStorage.create(authPath);
-  const registry = ModelRegistry.create(authStorage, modelsPath);
-  const sources = registry.getAll().map((model) => ({
+  const modelRuntime = await ModelRuntime.create({ authPath, modelsPath });
+  const registry = new ModelRegistry(modelRuntime);
+  const sources = modelRuntime.getModels().map((model) => ({
     provider: model.provider,
     modelId: model.id,
     model,
-    authStatus: registry.getProviderAuthStatus(model.provider),
+    authStatus: modelRuntime.getProviderAuthStatus(model.provider),
   }));
-  const loadError = registry.getError();
+  const loadError = modelRuntime.getError();
   if (loadError) throw new Error(loadError);
   return {
-    authStorage,
+    modelRuntime,
     registry,
     sources,
-    runtimeAuth: createPiModelRuntimeAuth(registry),
+    runtimeAuth: createPiModelRuntimeAuth(modelRuntime),
     modelsPath,
   };
 }
@@ -82,7 +83,10 @@ export async function loadPiModelSources(
   return (await createPiModelRegistryBundle(modelsPath)).sources;
 }
 
-export function createPiModelRuntimeAuth(registry: ModelRegistry): PiModelRuntimeAuth {
+export function createPiModelRuntimeAuth(modelRuntime: ModelRuntime): PiModelRuntimeAuth {
+  // Use the extension-facing registry facade so stream auth matches
+  // getApiKeyAndHeaders semantics (ok without apiKey for no-auth-header models).
+  const registry = new ModelRegistry(modelRuntime);
   return {
     getApiKey: async (provider) => registry.getApiKeyForProvider(provider),
     stream: async (model, context, options) => {
@@ -114,6 +118,11 @@ function mergeHeaders(
   base: ProviderHeaders | undefined,
   extra: ProviderHeaders | undefined,
 ): ProviderHeaders | undefined {
-  const merged = { ...extra, ...base };
+  const merged = {
+    ...(extra
+      ? Object.fromEntries(Object.entries(extra).filter((entry) => entry[1] !== null))
+      : undefined),
+    ...base,
+  };
   return Object.keys(merged).length ? merged : undefined;
 }

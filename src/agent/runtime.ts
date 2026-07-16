@@ -6,11 +6,11 @@ import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import {
   type AgentSession,
   type AgentSessionServices,
-  type AuthStorage,
   createAgentSessionFromServices,
   type CreateAgentSessionServicesOptions,
   type ExtensionFactory,
   getAgentDir,
+  type ModelRuntime,
   type SessionInfo,
   type SessionManager,
   type SessionShutdownEvent,
@@ -191,7 +191,7 @@ export class MixCodeRuntime {
     provider: string,
   ) => Promise<string | undefined> | string | undefined;
   private readonly streamFn?: MixCodeStreamFn;
-  private readonly authStorage?: AuthStorage;
+  private readonly modelRuntime?: ModelRuntime;
   private readonly modelRegistry?: RuntimeModelRegistry;
   private readonly settingsManager?: SettingsManager;
   private readonly extensionFactories?: ExtensionFactory[];
@@ -248,7 +248,7 @@ export class MixCodeRuntime {
       sessionsRoot?: string;
       rootStateDir?: string;
       agentDir?: string;
-      authStorage?: AuthStorage;
+      modelRuntime?: ModelRuntime;
       modelRegistry?: RuntimeModelRegistry;
       settingsManager?: SettingsManager;
       extensionFactories?: ExtensionFactory[];
@@ -262,7 +262,7 @@ export class MixCodeRuntime {
     this.sessionsRoot = options.sessionsRoot ?? join(tmpdir(), "mixcode-pi-sessions");
     this.rootStateDir = options.rootStateDir;
     this.agentDir = options.agentDir ?? getAgentDir();
-    this.authStorage = options.authStorage;
+    this.modelRuntime = options.modelRuntime;
     this.modelRegistry = options.modelRegistry;
     this.settingsManager = options.settingsManager;
     this.extensionFactories = options.extensionFactories;
@@ -502,37 +502,37 @@ export class MixCodeRuntime {
    * Does not re-read models.json (unlike reloadModelConfig).
    */
   collectSelectableModelRefs(): MixCodeModelRef[] {
-    if (!this.modelRegistry?.getAll) return [];
-    const all = this.modelRegistry.getAll();
+    if (!this.modelRuntime?.getModels) return [];
+    const all = [...this.modelRuntime.getModels()];
     replaceRegisteredModels(all);
     return all
       .filter((model) => model.provider !== "faux")
-      .filter((model) => this.modelRegistry?.getProviderAuthStatus?.(model.provider).configured)
+      .filter((model) => this.modelRuntime?.getProviderAuthStatus?.(model.provider).configured)
       .map(modelToRef);
   }
 
   private installProviderRegistryUiSync(): void {
-    const registry = this.modelRegistry as
-      | (RuntimeModelRegistry & {
+    const runtime = this.modelRuntime as
+      | (ModelRuntime & {
           registerProvider?: (name: string, config: unknown) => void;
           unregisterProvider?: (name: string) => void;
           __mixcodeUiSync?: boolean;
         })
       | undefined;
-    if (!registry?.registerProvider || !registry.unregisterProvider || registry.__mixcodeUiSync) {
+    if (!runtime?.registerProvider || !runtime.unregisterProvider || runtime.__mixcodeUiSync) {
       return;
     }
-    const originalRegister = registry.registerProvider.bind(registry);
-    const originalUnregister = registry.unregisterProvider.bind(registry);
-    registry.registerProvider = (name: string, config: unknown) => {
+    const originalRegister = runtime.registerProvider.bind(runtime);
+    const originalUnregister = runtime.unregisterProvider.bind(runtime);
+    runtime.registerProvider = (name: string, config: unknown) => {
       originalRegister(name, config);
       this.emitModelsChanged();
     };
-    registry.unregisterProvider = (name: string) => {
+    runtime.unregisterProvider = (name: string) => {
       originalUnregister(name);
       this.emitModelsChanged();
     };
-    registry.__mixcodeUiSync = true;
+    runtime.__mixcodeUiSync = true;
   }
 
   private emitModelsChanged(): void {
@@ -1147,10 +1147,10 @@ export class MixCodeRuntime {
    *
    * Returns an empty list when no model registry is wired (e.g. faux-only tests).
    */
-  reloadModelConfig(): MixCodeModelRef[] {
-    if (!this.modelRegistry?.refresh) return [];
-    this.modelRegistry.refresh();
-    // Re-install sync after refresh in case the registry object was replaced
+  async reloadModelConfig(): Promise<MixCodeModelRef[]> {
+    if (!this.modelRuntime?.reloadConfig) return [];
+    await this.modelRuntime.reloadConfig();
+    // Re-install sync after refresh in case the runtime object was replaced
     // (normally the same instance; wrap is idempotent via __mixcodeUiSync).
     this.installProviderRegistryUiSync();
     const refs = this.collectSelectableModelRefs();
@@ -1158,6 +1158,11 @@ export class MixCodeRuntime {
     return refs;
   }
 
+  getSharedModelRuntime(): ModelRuntime | undefined {
+    return this.modelRuntime;
+  }
+
+  /** @deprecated Prefer getSharedModelRuntime(); kept for extension-facing registry access. */
   getSharedModelRegistry(): RuntimeModelRegistry | undefined {
     return this.modelRegistry;
   }
@@ -1285,7 +1290,7 @@ export class MixCodeRuntime {
   }
 
   resolveModel(provider: string, modelId: string): MixCodeModel {
-    return resolveRuntimeModel(provider, modelId, this.modelRegistry);
+    return resolveRuntimeModel(provider, modelId, this.modelRuntime ?? this.modelRegistry);
   }
 
   async updateTabModel(sessionId: string, model: MixCodeModel): Promise<void> {
@@ -1324,7 +1329,7 @@ export class MixCodeRuntime {
     }
     const services = await this.createServices(workdir, systemPrompt);
     const model = runtimeTab.agent.state.model;
-    registerMixCodeRuntimeProvider(services.modelRegistry, model, this.streamFn, this.getApiKey);
+    registerMixCodeRuntimeProvider(services.modelRuntime, model, this.streamFn, this.getApiKey);
     await this.shutdownRuntimeTab(runtimeTab, { type: "session_shutdown", reason: "reload" });
     const sessionManager = await reopenSessionInWorkdir(
       runtimeTab.session,
@@ -1432,7 +1437,7 @@ export class MixCodeRuntime {
     session: SessionManager,
     fallback: MixCodeTabInfo["model"] | MixCodeModel | undefined,
   ): MixCodeModel {
-    return resolveRuntimeModelFromSession(session, fallback, this.modelRegistry);
+    return resolveRuntimeModelFromSession(session, fallback, this.modelRuntime ?? this.modelRegistry);
   }
 
   private setLiveEditorText(text: string): void {
@@ -1447,8 +1452,7 @@ export class MixCodeRuntime {
       workdir,
       systemPrompt,
       agentDir: this.agentDir,
-      authStorage: this.authStorage,
-      modelRegistry: this.modelRegistry,
+      modelRuntime: this.modelRuntime,
       settingsManager: this.settingsManager,
       resourceLoaderOptions: this.resourceLoaderOptions,
       additionalExtensionPaths: this.additionalExtensionPaths,

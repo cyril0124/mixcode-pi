@@ -1,8 +1,8 @@
 diff --git a/node_modules/@earendil-works/pi-coding-agent/dist/core/extensions/loader.js b/node_modules/@earendil-works/pi-coding-agent/dist/core/extensions/loader.js
-index 575a208..92d4e3e 100644
+index 7b38171..359d82b 100644
 --- a/node_modules/@earendil-works/pi-coding-agent/dist/core/extensions/loader.js
 +++ b/node_modules/@earendil-works/pi-coding-agent/dist/core/extensions/loader.js
-@@ -298,6 +298,19 @@ function isCurrentCacheToken(cacheToken) {
+@@ -304,6 +304,19 @@ function isCurrentCacheToken(cacheToken) {
          extensionCacheCwd === cacheToken.cwd &&
          extensionCacheGeneration === cacheToken.generation);
  }
@@ -22,7 +22,7 @@ index 575a208..92d4e3e 100644
  async function loadExtensionModule(extensionPath, cacheToken) {
      if (isCurrentCacheToken(cacheToken)) {
          const cachedFactory = extensionCache.get(extensionPath);
-@@ -305,13 +318,7 @@ async function loadExtensionModule(extensionPath, cacheToken) {
+@@ -311,13 +324,7 @@ async function loadExtensionModule(extensionPath, cacheToken) {
              return cachedFactory;
          }
      }
@@ -37,7 +37,7 @@ index 575a208..92d4e3e 100644
      const module = await jiti.import(extensionPath, { default: true });
      const factory = module;
      if (typeof factory !== "function") {
-@@ -377,6 +384,8 @@ export async function loadExtensionFromFactory(factory, cwd, eventBus, runtime,
+@@ -383,6 +390,8 @@ export async function loadExtensionFromFactory(factory, cwd, eventBus, runtime,
   * Load extensions from paths.
   */
  async function loadExtensionsInternal(paths, cwd, eventBus, runtime, useCache = false) {
@@ -46,7 +46,7 @@ index 575a208..92d4e3e 100644
      const extensions = [];
      const errors = [];
      const cacheToken = useCache ? useExtensionCacheCwd(cwd) : undefined;
-@@ -387,11 +396,12 @@ async function loadExtensionsInternal(paths, cwd, eventBus, runtime, useCache =
+@@ -393,11 +402,12 @@ async function loadExtensionsInternal(paths, cwd, eventBus, runtime, useCache =
          const { extension, error } = await loadExtension(extPath, resolvedCwd, resolvedEventBus, resolvedRuntime, cacheToken);
          if (error) {
              errors.push({ path: extPath, error });

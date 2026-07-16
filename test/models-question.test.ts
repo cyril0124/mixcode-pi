@@ -163,7 +163,7 @@ test("configured proxy model sends a real OpenAI Responses request", {
     const runtime = new MixCodeRuntime({
       sessionsRoot: join(dir, "sessions"),
       agentDir,
-      authStorage: bundle.authStorage,
+      modelRuntime: bundle.modelRuntime,
       modelRegistry: bundle.registry,
       getApiKey: bundle.runtimeAuth.getApiKey,
       streamFn: bundle.runtimeAuth.stream,
@@ -213,8 +213,8 @@ test("pi model defaults follow PI_CODING_AGENT_DIR and runtime auth preserves ex
       },
     ]);
     const runtimeAuth = createPiModelRuntimeAuth({
-      getApiKeyForProvider: async () => undefined,
-      getApiKeyAndHeaders: async () => ({ ok: true }),
+      getAuth: async () => ({ auth: {} }),
+      getCompatibilityRequestConfig: () => ({ authHeader: false }),
     } as never);
     const streamed = await runtimeAuth.stream(
       faux.getModel(),
@@ -617,7 +617,7 @@ test("runtime.reloadModelConfig re-reads models.json from disk after it changes"
     const runtime = new MixCodeRuntime({
       sessionsRoot: join(dir, "sessions"),
       agentDir: dir,
-      authStorage: bundle.authStorage,
+      modelRuntime: bundle.modelRuntime,
       modelRegistry: bundle.registry,
       getApiKey: bundle.runtimeAuth.getApiKey,
       streamFn: bundle.runtimeAuth.stream,
@@ -626,7 +626,7 @@ test("runtime.reloadModelConfig re-reads models.json from disk after it changes"
 
     // Replace the model on disk; before reload the registry still serves the old one.
     await writeFile(configPath, JSON.stringify(provider("beta")), "utf8");
-    const configured = runtime.reloadModelConfig();
+    const configured = await runtime.reloadModelConfig();
 
     assert.ok(
       configured.some((ref) => ref.provider === "reload-proxy" && ref.modelId === "beta"),

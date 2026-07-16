@@ -12,9 +12,7 @@ import {
   type SimpleStreamOptions,
 } from "@earendil-works/pi-ai";
 import {
-  AuthStorage,
   getMarkdownTheme,
-  ModelRegistry,
   SettingsManager,
   type ExtensionFactory,
 } from "@earendil-works/pi-coding-agent";

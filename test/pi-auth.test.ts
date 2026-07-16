@@ -1,22 +1,26 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { test } from "node:test";
-import { AuthStorage, ModelRegistry } from "@earendil-works/pi-coding-agent";
+import { InMemoryCredentialStore } from "@earendil-works/pi-ai";
+import { ModelRegistry, ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { MixCodeRuntime, createTab } from "../src/index.js";
 
-test("AuthStorage and ModelRegistry are shared across tabs", async () => {
+test("ModelRuntime is shared across tabs", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-auth-shared-"));
   try {
-    const authPath = join(dir, "auth.json");
-    const authStorage = AuthStorage.create(authPath);
-    const registry = new ModelRegistry(authStorage);
+    const modelRuntime = await ModelRuntime.create({
+      credentials: new InMemoryCredentialStore(),
+      modelsPath: null,
+      allowModelNetwork: false,
+    });
+    const registry = new ModelRegistry(modelRuntime);
 
     const runtime = new MixCodeRuntime({
       sessionsRoot: join(dir, "sessions"),
-      authStorage,
+      modelRuntime,
       modelRegistry: registry,
     });
 
@@ -32,44 +36,58 @@ test("AuthStorage and ModelRegistry are shared across tabs", async () => {
       workdir: process.cwd(),
     });
 
-    // Both tabs use the same registry
-    assert.equal(tab1.services.modelRegistry, tab2.services.modelRegistry);
-    assert.equal(tab1.services.modelRegistry.authStorage, authStorage);
+    assert.equal(tab1.services.modelRuntime, tab2.services.modelRuntime);
+    assert.equal(tab1.services.modelRuntime, modelRuntime);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
 });
 
-test("AuthStorage set/logout works for API key", async () => {
+test("ModelRuntime stores and logs out API keys", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-auth-apikey-"));
   try {
-    const authPath = join(dir, "auth.json");
-    const authStorage = AuthStorage.create(authPath);
+    const credentials = new InMemoryCredentialStore();
+    const modelRuntime = await ModelRuntime.create({
+      credentials,
+      modelsPath: null,
+      allowModelNetwork: false,
+    });
 
-    authStorage.set("test-provider", { type: "api_key", key: "test-key-123" });
-    const retrieved = await authStorage.getApiKey("test-provider");
-    assert.equal(retrieved, "test-key-123");
+    await credentials.modify("test-provider", async () => ({
+      type: "api_key",
+      key: "test-key-123",
+    }));
+    const stored = await credentials.read("test-provider");
+    assert.equal(stored?.type, "api_key");
+    assert.equal(stored && "key" in stored ? stored.key : undefined, "test-key-123");
 
-    authStorage.logout("test-provider");
-    const afterLogout = await authStorage.getApiKey("test-provider");
+    await modelRuntime.logout("test-provider");
+    const afterLogout = await credentials.read("test-provider");
     assert.equal(afterLogout, undefined);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
 });
 
-test("ModelRegistry refresh updates provider auth status", async () => {
+test("ModelRuntime refresh updates provider auth status", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-auth-status-"));
   try {
-    const authPath = join(dir, "auth.json");
-    const authStorage = AuthStorage.create(authPath);
-    const registry = new ModelRegistry(authStorage);
+    const credentials = new InMemoryCredentialStore();
+    const modelRuntime = await ModelRuntime.create({
+      credentials,
+      modelsPath: null,
+      allowModelNetwork: false,
+    });
+    const registry = new ModelRegistry(modelRuntime);
 
     const beforeStatus = registry.getProviderAuthStatus("anthropic");
     assert.equal(beforeStatus.configured, false);
 
-    authStorage.set("anthropic", { type: "api_key", key: "sk-ant-test" });
-    registry.refresh();
+    await credentials.modify("anthropic", async () => ({
+      type: "api_key",
+      key: "sk-ant-test",
+    }));
+    await registry.refresh();
 
     const afterStatus = registry.getProviderAuthStatus("anthropic");
     assert.equal(afterStatus.configured, true);
@@ -79,17 +97,22 @@ test("ModelRegistry refresh updates provider auth status", async () => {
   }
 });
 
-test("OAuth provider list includes built-in providers", async () => {
+test("login provider list includes built-in OAuth providers", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-auth-oauth-"));
   try {
-    const authPath = join(dir, "auth.json");
-    const authStorage = AuthStorage.create(authPath);
+    const modelRuntime = await ModelRuntime.create({
+      credentials: new InMemoryCredentialStore(),
+      modelsPath: null,
+      allowModelNetwork: false,
+    });
 
-    const oauthProviders = authStorage.getOAuthProviders();
+    const oauthProviders = modelRuntime
+      .getProviders()
+      .filter((provider) => provider.auth.oauth?.login);
     assert.ok(oauthProviders.length > 0);
 
     const hasAnthropicOrOpenAI = oauthProviders.some(
-      (p) => p.id === "anthropic" || p.id === "openai",
+      (provider) => provider.id === "anthropic" || provider.id === "openai" || provider.id === "openai-codex",
     );
     assert.ok(hasAnthropicOrOpenAI, "Expected at least one major OAuth provider");
   } finally {

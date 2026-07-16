@@ -1,20 +1,33 @@
 import { getModel } from "@earendil-works/pi-ai/compat";
-import type { SessionManager } from "@earendil-works/pi-coding-agent";
+import type { ModelRuntime, SessionManager } from "@earendil-works/pi-coding-agent";
 import { resolveRegisteredModel } from "../core/models.js";
 import type { MixCodeModel, MixCodeTabInfo } from "../core/types.js";
 import { MIXCODE_FAUX_MODEL } from "./faux-stream.js";
 import type { RuntimeModelRegistry } from "./runtime-types.js";
 
+type ModelLookup = RuntimeModelRegistry | ModelRuntime | undefined;
+
+function findModel(lookup: ModelLookup, provider: string, modelId: string) {
+  if (!lookup) return undefined;
+  if ("find" in lookup && typeof lookup.find === "function") {
+    return lookup.find(provider, modelId);
+  }
+  if ("getModel" in lookup && typeof lookup.getModel === "function") {
+    return lookup.getModel(provider, modelId);
+  }
+  return undefined;
+}
+
 export function resolveRuntimeModel(
   provider: string,
   modelId: string,
-  modelRegistry: RuntimeModelRegistry | undefined,
+  modelLookup: ModelLookup,
 ): MixCodeModel {
   if (provider === "faux") {
     const id = modelId ? modelId : MIXCODE_FAUX_MODEL.id;
     return { ...MIXCODE_FAUX_MODEL, id };
   }
-  const registryModel = modelRegistry?.find?.(provider, modelId);
+  const registryModel = findModel(modelLookup, provider, modelId);
   if (registryModel) return registryModel;
   return resolveRegisteredModel(provider, modelId) ?? getModel(provider as never, modelId as never);
 }
@@ -22,15 +35,15 @@ export function resolveRuntimeModel(
 export function resolveRuntimeModelFromSession(
   session: SessionManager,
   fallback: MixCodeTabInfo["model"] | MixCodeModel | undefined,
-  modelRegistry: RuntimeModelRegistry | undefined,
+  modelLookup: ModelLookup,
 ): MixCodeModel {
   const context = session.buildSessionContext();
   if (context.model) {
-    return resolveRuntimeModel(context.model.provider, context.model.modelId, modelRegistry);
+    return resolveRuntimeModel(context.model.provider, context.model.modelId, modelLookup);
   }
   if (fallback && "provider" in fallback) {
     const modelId = "modelId" in fallback ? fallback.modelId : fallback.id;
-    return resolveRuntimeModel(fallback.provider, modelId, modelRegistry);
+    return resolveRuntimeModel(fallback.provider, modelId, modelLookup);
   }
-  return resolveRuntimeModel(MIXCODE_FAUX_MODEL.provider, MIXCODE_FAUX_MODEL.id, modelRegistry);
+  return resolveRuntimeModel(MIXCODE_FAUX_MODEL.provider, MIXCODE_FAUX_MODEL.id, modelLookup);
 }

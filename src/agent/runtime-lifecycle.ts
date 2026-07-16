@@ -1,7 +1,6 @@
 import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import {
   type AgentSessionServices,
-  type AuthStorage,
   type CreateAgentSessionResult,
   type CreateAgentSessionServicesOptions,
   calculateContextTokens,
@@ -9,7 +8,7 @@ import {
   createAgentSessionServices,
   type ExtensionFactory,
   type LoadExtensionsResult,
-  type ModelRegistry,
+  type ModelRuntime,
   type SessionManager,
   type SessionShutdownEvent,
   type SessionStartEvent,
@@ -70,7 +69,6 @@ import type {
   ExtensionCustomUiHost,
   MixCodeStreamFn,
   RuntimeEvent,
-  RuntimeModelRegistry,
   RuntimeTab,
   SessionReplacementReason,
 } from "./runtime-types.js";
@@ -88,8 +86,7 @@ export interface RuntimeServiceOptions {
   workdir: string;
   systemPrompt?: string;
   agentDir: string;
-  authStorage?: AuthStorage;
-  modelRegistry?: RuntimeModelRegistry;
+  modelRuntime?: ModelRuntime;
   settingsManager?: SettingsManager;
   resourceLoaderOptions?: CreateAgentSessionServicesOptions["resourceLoaderOptions"];
   additionalExtensionPaths?: string[];
@@ -170,7 +167,7 @@ async function createRuntimeTabWithServices(
   toolLog: ToolLog,
 ): Promise<RuntimeTab> {
   registerMixCodeRuntimeProvider(
-    services.modelRegistry,
+    services.modelRuntime,
     model,
     context.streamFn,
     context.getApiKey,
@@ -321,7 +318,7 @@ async function createAgentSessionForReplacementWithServices(
   toolLog: ToolLog,
 ): Promise<CreateAgentSessionResult & { services: AgentSessionServices; toolLog: ToolLog }> {
   registerMixCodeRuntimeProvider(
-    services.modelRegistry,
+    services.modelRuntime,
     model,
     context.streamFn,
     context.getApiKey,
@@ -487,8 +484,7 @@ export async function createRuntimeServices(
   const services = await createAgentSessionServices({
     cwd: options.workdir,
     agentDir: options.agentDir,
-    authStorage: options.authStorage,
-    modelRegistry: options.modelRegistry as ModelRegistry | undefined,
+    modelRuntime: options.modelRuntime,
     settingsManager,
     resourceLoaderOptions,
   });
@@ -619,7 +615,7 @@ export async function reloadRuntimeTabWithFreshServices(
 ): Promise<void> {
   const services = await context.createServices(runtimeTab.tab.workdir, MIXCODE_SYSTEM_PROMPT);
   const model = runtimeTab.agent.state.model;
-  registerMixCodeRuntimeProvider(services.modelRegistry, model, context.streamFn, context.getApiKey);
+  registerMixCodeRuntimeProvider(services.modelRuntime, model, context.streamFn, context.getApiKey);
   await shutdownRuntimeTab(
     runtimeTab,
     { type: "session_shutdown", reason: "reload" },

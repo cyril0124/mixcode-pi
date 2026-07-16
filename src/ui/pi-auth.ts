@@ -1,14 +1,19 @@
-import type { OAuthLoginCallbacks } from "@earendil-works/pi-ai";
+import type {
+  AuthEvent,
+  AuthInteraction,
+  AuthPrompt,
+  AuthType,
+} from "@earendil-works/pi-ai";
 import type { Component, TUI } from "@earendil-works/pi-tui";
 import {
   LoginDialogComponent,
   OAuthSelectorComponent,
   ExtensionSelectorComponent,
+  type ModelRuntime,
 } from "@earendil-works/pi-coding-agent";
 import { applyMixCodeKeybindings } from "../agent/runtime-pi-tui-bridge.js";
 import { ensureExtensionThemeInitialized } from "../agent/runtime-extension-theme.js";
 import type { MixCodeRuntime } from "../agent/runtime.js";
-import type { RuntimeModelRegistry } from "../agent/runtime-types.js";
 import { reloadRuntimeModels } from "./app-actions.js";
 import type { MixCodeState } from "../core/types.js";
 import { pushToast } from "../core/toast.js";
@@ -18,7 +23,7 @@ import type { AuthInputHost } from "./app-submit.js";
 type AuthSelectorProvider = {
   id: string;
   name: string;
-  authType: "oauth" | "api_key";
+  authType: AuthType;
 };
 
 /**
@@ -27,15 +32,15 @@ type AuthSelectorProvider = {
  */
 export async function openPiLogin(
   state: MixCodeState,
-  runtime: Partial<Pick<MixCodeRuntime, "getSharedModelRegistry" | "reloadModelConfig">>,
+  runtime: Partial<Pick<MixCodeRuntime, "getSharedModelRuntime" | "reloadModelConfig">>,
   inputHost: AuthInputHost | undefined,
   providerRef?: string,
 ): Promise<void> {
-  const registry = runtime.getSharedModelRegistry?.();
+  const modelRuntime = runtime.getSharedModelRuntime?.();
   const active = getActiveTab(state);
 
-  if (!registry) {
-    pushToast(state.tabs[0], { type: "error", message: "Auth not available (no registry)" });
+  if (!modelRuntime) {
+    pushToast(state.tabs[0], { type: "error", message: "Auth not available (no model runtime)" });
     return;
   }
 
@@ -48,7 +53,7 @@ export async function openPiLogin(
   const restoreKeys = applyMixCodeKeybindings();
 
   try {
-    const providers = getLoginProviders(registry);
+    const providers = await getLoginProviders(modelRuntime);
     if (providers.length === 0) {
       pushToast(state.tabs[0], { type: "warning", message: "No login providers available" });
       return;
@@ -69,17 +74,13 @@ export async function openPiLogin(
         return;
       }
     } else {
-      selectedProvider = await showProviderSelector(inputHost, "login", registry, providers);
+      selectedProvider = await showProviderSelector(inputHost, "login", providers);
       if (!selectedProvider) return;
     }
 
-    if (selectedProvider.authType === "oauth") {
-      await performOAuthLogin(inputHost, registry, selectedProvider.id, selectedProvider.name);
-    } else {
-      await performApiKeyLogin(inputHost, registry, selectedProvider.id, selectedProvider.name);
-    }
+    await performLogin(inputHost, modelRuntime, selectedProvider);
 
-    reloadRuntimeModels(state, runtime);
+    await reloadRuntimeModels(state, runtime);
     pushToast(state.tabs[0], {
       type: "success",
       message: `Logged in to ${selectedProvider.name}`,
@@ -101,14 +102,14 @@ export async function openPiLogin(
  */
 export async function openPiLogout(
   state: MixCodeState,
-  runtime: Partial<Pick<MixCodeRuntime, "getSharedModelRegistry" | "reloadModelConfig">>,
+  runtime: Partial<Pick<MixCodeRuntime, "getSharedModelRuntime" | "reloadModelConfig">>,
   inputHost: AuthInputHost | undefined,
 ): Promise<void> {
-  const registry = runtime.getSharedModelRegistry?.();
+  const modelRuntime = runtime.getSharedModelRuntime?.();
   const active = getActiveTab(state);
 
-  if (!registry) {
-    pushToast(state.tabs[0], { type: "error", message: "Auth not available (no registry)" });
+  if (!modelRuntime) {
+    pushToast(state.tabs[0], { type: "error", message: "Auth not available (no model runtime)" });
     return;
   }
 
@@ -121,17 +122,17 @@ export async function openPiLogout(
   const restoreKeys = applyMixCodeKeybindings();
 
   try {
-    const providers = getLogoutProviders(registry);
+    const providers = await getLogoutProviders(modelRuntime);
     if (providers.length === 0) {
       pushToast(state.tabs[0], { type: "warning", message: "No stored credentials to logout" });
       return;
     }
 
-    const selected = await showProviderSelector(inputHost, "logout", registry, providers);
+    const selected = await showProviderSelector(inputHost, "logout", providers);
     if (!selected) return;
 
-    registry.authStorage.logout(selected.id);
-    reloadRuntimeModels(state, runtime);
+    await modelRuntime.logout(selected.id);
+    await reloadRuntimeModels(state, runtime);
     pushToast(state.tabs[0], {
       type: "success",
       message: `Logged out from ${selected.name}`,
@@ -147,37 +148,36 @@ export async function openPiLogout(
   }
 }
 
-function getLoginProviders(registry: RuntimeModelRegistry): AuthSelectorProvider[] {
-  const oauthProviders = registry.authStorage.getOAuthProviders();
-  const apiKeyProviders = registry
-    .getAll()
-    .map((m) => m.provider)
-    .filter((p, i, arr) => arr.indexOf(p) === i)
-    .filter((p) => !oauthProviders.some((o) => o.id === p));
-
-  return [
-    ...oauthProviders.map((p) => ({
-      id: p.id,
-      name: p.name,
-      authType: "oauth" as const,
-    })),
-    ...apiKeyProviders.map((p) => ({
-      id: p,
-      name: registry.getProviderDisplayName(p),
-      authType: "api_key" as const,
-    })),
-  ].sort((a, b) => a.name.localeCompare(b.name));
+async function getLoginProviders(modelRuntime: ModelRuntime): Promise<AuthSelectorProvider[]> {
+  const providers: AuthSelectorProvider[] = [];
+  for (const provider of modelRuntime.getProviders()) {
+    const auth = provider.auth;
+    if (!auth) continue;
+    if (auth.oauth?.login) {
+      providers.push({
+        id: provider.id,
+        name: auth.oauth.name || provider.name || provider.id,
+        authType: "oauth",
+      });
+    }
+    if (auth.apiKey?.login) {
+      providers.push({
+        id: provider.id,
+        name: auth.apiKey.name || provider.name || provider.id,
+        authType: "api_key",
+      });
+    }
+  }
+  return providers.sort((a, b) => a.name.localeCompare(b.name));
 }
 
-function getLogoutProviders(registry: RuntimeModelRegistry): AuthSelectorProvider[] {
-  const stored = registry.authStorage.list();
-  const oauthIds = new Set(registry.authStorage.getOAuthProviders().map((p) => p.id));
-
+async function getLogoutProviders(modelRuntime: ModelRuntime): Promise<AuthSelectorProvider[]> {
+  const stored = await modelRuntime.listCredentials();
   return stored
-    .map((id) => ({
-      id,
-      name: registry.getProviderDisplayName(id),
-      authType: (oauthIds.has(id) ? "oauth" : "api_key") as "oauth" | "api_key",
+    .map((credential) => ({
+      id: credential.providerId,
+      name: modelRuntime.getProvider(credential.providerId)?.name ?? credential.providerId,
+      authType: credential.type,
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -185,16 +185,14 @@ function getLogoutProviders(registry: RuntimeModelRegistry): AuthSelectorProvide
 async function showProviderSelector(
   inputHost: AuthInputHost,
   mode: "login" | "logout",
-  registry: RuntimeModelRegistry,
   providers: AuthSelectorProvider[],
 ): Promise<AuthSelectorProvider | undefined> {
   return new Promise((resolve) => {
     const selector = new OAuthSelectorComponent(
       mode,
-      registry.authStorage,
       providers,
-      (id, _authType) => {
-        const selected = providers.find((p) => p.id === id);
+      (id, authType) => {
+        const selected = providers.find((p) => p.id === id && p.authType === authType);
         inputHost.clearInputComponent();
         resolve(selected);
       },
@@ -202,88 +200,81 @@ async function showProviderSelector(
         inputHost.clearInputComponent();
         resolve(undefined);
       },
-      (id) => registry.getProviderAuthStatus(id),
     );
     inputHost.setInputComponent(selector);
     selector.focused = true;
   });
 }
 
-async function performOAuthLogin(
+async function performLogin(
   inputHost: AuthInputHost,
-  registry: RuntimeModelRegistry,
-  providerId: string,
-  providerName: string,
+  modelRuntime: ModelRuntime,
+  provider: AuthSelectorProvider,
 ): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const tui = { requestRender: () => inputHost.requestRender() } as TUI;
-    const dialog = new LoginDialogComponent(
-      tui,
-      providerId,
-      (success, message) => {
-        if (success) resolve();
-        else reject(new Error(message ?? "Login failed"));
-      },
-      providerName,
-    );
-    inputHost.setInputComponent(dialog);
-    dialog.focused = true;
+  const tui = { requestRender: () => inputHost.requestRender() } as TUI;
+  let rejectLogin: ((error: Error) => void) | undefined;
+  const cancelled = new Promise<never>((_resolve, reject) => {
+    rejectLogin = reject;
+  });
+  const dialog = new LoginDialogComponent(
+    tui,
+    provider.id,
+    (success, message) => {
+      if (!success) rejectLogin?.(new Error(message ?? "Login cancelled"));
+    },
+    provider.name,
+    provider.authType === "api_key" ? `${provider.name} API key` : undefined,
+  );
+  inputHost.setInputComponent(dialog);
+  dialog.focused = true;
 
-    const callbacks: OAuthLoginCallbacks = {
-      onAuth: (info) => dialog.showAuth(info.url, info.instructions),
-      onDeviceCode: (info) => dialog.showDeviceCode(info),
-      onPrompt: (prompt) => dialog.showPrompt(prompt.message, prompt.placeholder),
-      onProgress: (message) => dialog.showProgress(message),
-      onSelect: async (prompt) => {
-        const selected = await showOAuthMethodSelector(inputHost, prompt.message, prompt.options);
+  const interaction: AuthInteraction = {
+    signal: dialog.signal,
+    prompt: async (prompt: AuthPrompt) => {
+      if (prompt.type === "select") {
+        const selected = await showOAuthMethodSelector(
+          inputHost,
+          prompt.message,
+          prompt.options.map((option) => ({ id: option.id, label: option.label })),
+        );
         if (!selected) throw new Error("Login cancelled");
-        // Re-show dialog after method selection
         inputHost.setInputComponent(dialog);
         dialog.focused = true;
         return selected;
-      },
-      onManualCodeInput: () =>
-        dialog.showManualInput("Paste the redirect URL or authorization code:"),
-      signal: dialog.signal,
-    };
+      }
+      if (prompt.type === "manual_code") {
+        return dialog.showManualInput(prompt.message);
+      }
+      return dialog.showPrompt(prompt.message, prompt.placeholder);
+    },
+    notify: (event: AuthEvent) => {
+      if (event.type === "auth_url") {
+        dialog.showAuth(event.url, event.instructions);
+        return;
+      }
+      if (event.type === "device_code") {
+        dialog.showDeviceCode({
+          userCode: event.userCode,
+          verificationUri: event.verificationUri,
+          intervalSeconds: event.intervalSeconds,
+          expiresInSeconds: event.expiresInSeconds,
+        });
+        return;
+      }
+      if (event.type === "progress") {
+        dialog.showProgress(event.message);
+        return;
+      }
+      if (event.type === "info") {
+        dialog.showInfo(event.message, event.links);
+      }
+    },
+  };
 
-    registry.authStorage.login(providerId, callbacks).catch(reject);
-  });
-}
-
-async function performApiKeyLogin(
-  inputHost: AuthInputHost,
-  registry: RuntimeModelRegistry,
-  providerId: string,
-  providerName: string,
-): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const tui = { requestRender: () => inputHost.requestRender() } as TUI;
-    const dialog = new LoginDialogComponent(
-      tui,
-      providerId,
-      (success, message) => {
-        if (success) resolve();
-        else reject(new Error(message ?? "Login cancelled"));
-      },
-      providerName,
-      `${providerName} API key`,
-    );
-    inputHost.setInputComponent(dialog);
-    dialog.focused = true;
-
-    dialog
-      .showPrompt("Enter your API key:", "sk-...")
-      .then((apiKey) => {
-        if (!apiKey || apiKey.trim().length === 0) {
-          reject(new Error("API key cannot be empty"));
-          return;
-        }
-        registry.authStorage.set(providerId, { type: "api_key", key: apiKey.trim() });
-        resolve();
-      })
-      .catch(reject);
-  });
+  await Promise.race([
+    modelRuntime.login(provider.id, provider.authType, interaction),
+    cancelled,
+  ]);
 }
 
 async function showOAuthMethodSelector(

@@ -4,7 +4,8 @@ import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { SessionManager, type Theme } from "@earendil-works/pi-coding-agent";
-import { AuthStorage, ModelRegistry } from "@earendil-works/pi-coding-agent";
+import { ModelRuntime } from "@earendil-works/pi-coding-agent";
+import { InMemoryCredentialStore } from "@earendil-works/pi-ai";
 import { streamSimple } from "@earendil-works/pi-ai/compat";
 import type { AutocompleteItem, AutocompleteProvider } from "@earendil-works/pi-tui";
 import { createInitialState, createTab, MixCodeCompletionProvider } from "../src/index.js";
@@ -483,7 +484,11 @@ test("editor and runtime model helpers cover fallback branches", () => {
 });
 
 test("runtime provider bridges stream errors and runtime auth branches", async () => {
-  const registry = ModelRegistry.inMemory(AuthStorage.inMemory());
+  const modelRuntime = await ModelRuntime.create({
+    credentials: new InMemoryCredentialStore(),
+    modelsPath: null,
+    allowModelNetwork: false,
+  });
   const model = {
     provider: "custom-provider",
     id: "custom-model",
@@ -497,7 +502,7 @@ test("runtime provider bridges stream errors and runtime auth branches", async (
   };
   let bridgedOptions: unknown;
   registerMixCodeRuntimeProvider(
-    registry,
+    modelRuntime,
     model as never,
     (_model, _context, options) => {
       bridgedOptions = options;
@@ -505,7 +510,7 @@ test("runtime provider bridges stream errors and runtime auth branches", async (
     },
     () => "",
   );
-  const registered = registry.find("custom-provider", "custom-model");
+  const registered = modelRuntime.getModel("custom-provider", "custom-model");
   assert.ok(registered);
   const stream = streamSimple(registered, { systemPrompt: "", messages: [], tools: [] }, {});
   const events = [];
@@ -513,17 +518,29 @@ test("runtime provider bridges stream errors and runtime auth branches", async (
   assert.equal(events[0]?.type, "error");
   assert.deepEqual(bridgedOptions, {});
   assert.equal((await stream.result()).errorMessage, "stream failed");
-  assert.equal(await registry.getApiKeyForProvider("custom-provider"), "mixcode-runtime");
+  // Runtime provider uses a placeholder apiKey string when getApiKey returns empty.
+  assert.equal(
+    modelRuntime.getRegisteredProviderConfig("custom-provider")?.apiKey,
+    "mixcode-runtime",
+  );
 
-  const registryWithoutStream = ModelRegistry.inMemory(AuthStorage.inMemory());
-  registerMixCodeRuntimeProvider(registryWithoutStream, model as never);
-  assert.equal(registryWithoutStream.find("custom-provider", "custom-model"), undefined);
-  registerMixCodeRuntimeProvider(registryWithoutStream, { ...model, provider: "faux" } as never);
-  assert.ok(registryWithoutStream.find("faux", "custom-model"));
+  const runtimeWithoutStream = await ModelRuntime.create({
+    credentials: new InMemoryCredentialStore(),
+    modelsPath: null,
+    allowModelNetwork: false,
+  });
+  registerMixCodeRuntimeProvider(runtimeWithoutStream, model as never);
+  assert.equal(runtimeWithoutStream.getModel("custom-provider", "custom-model"), undefined);
+  registerMixCodeRuntimeProvider(runtimeWithoutStream, { ...model, provider: "faux" } as never);
+  assert.ok(runtimeWithoutStream.getModel("faux", "custom-model"));
 
-  const namedRegistry = ModelRegistry.inMemory(AuthStorage.inMemory());
+  const namedRuntime = await ModelRuntime.create({
+    credentials: new InMemoryCredentialStore(),
+    modelsPath: null,
+    allowModelNetwork: false,
+  });
   registerMixCodeRuntimeProvider(
-    namedRegistry,
+    namedRuntime,
     { ...model, provider: "named-provider", id: "id-only", name: undefined } as never,
     async () => {
       const out = streamSimple(
@@ -535,9 +552,9 @@ test("runtime provider bridges stream errors and runtime auth branches", async (
     },
     () => "runtime-key",
   );
-  const idOnlyModel = namedRegistry.find("named-provider", "id-only");
+  const idOnlyModel = namedRuntime.getModel("named-provider", "id-only");
   assert.equal(idOnlyModel?.name, "id-only");
-  assert.equal(await namedRegistry.getApiKeyForProvider("named-provider"), "runtime-key");
+  assert.equal(namedRuntime.getRegisteredProviderConfig("named-provider")?.apiKey, "runtime-key");
 
   const overrideWithFallback = buildMixCodeSystemPromptOverride(undefined as never, "fallback");
   assert.equal(overrideWithFallback("base"), "base");

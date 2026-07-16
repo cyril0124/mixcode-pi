@@ -126,7 +126,7 @@ export async function reloadRuntimeModels(
   runtime: Partial<Pick<MixCodeRuntime, "reloadModelConfig" | "resolveModel" | "updateTabModel">>,
 ): Promise<boolean> {
   if (!runtime.reloadModelConfig) return false;
-  const configured = runtime.reloadModelConfig();
+  const configured = await runtime.reloadModelConfig();
   const availableModels = buildAvailableModelRefs(configured);
   const preferred = configured.at(-1) ?? { ...DEFAULT_MODEL_REF };
   const nextStateModel = isModelRefAvailable(availableModels, state.model)
