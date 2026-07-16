@@ -2,8 +2,8 @@ import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
 import type { AgentToolResult, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { type Component, TUI as PiTui } from "@earendil-works/pi-tui";
 import {
+  currentExtensionTheme,
   ensureExtensionThemeInitialized,
-  MIXCODE_EXTENSION_THEME,
 } from "./runtime-extension-theme.js";
 import { applyMixCodeKeybindings } from "./runtime-pi-tui-bridge.js";
 import { NullTerminal } from "./runtime-null-terminal.js";
@@ -68,7 +68,7 @@ function renderToolCall(
   try {
     const component = definition.renderCall?.(
       line.args as never,
-      MIXCODE_EXTENSION_THEME,
+      currentExtensionTheme(),
       createToolRenderContext(
         runtimeTab,
         line,
@@ -110,7 +110,7 @@ function renderToolResult(
     const component = definition.renderResult?.(
       { content: result.content, details: result.details } as AgentToolResult<unknown>,
       { expanded: runtimeTab.tab.extensionUi.toolsExpanded, isPartial },
-      MIXCODE_EXTENSION_THEME,
+      currentExtensionTheme(),
       createToolRenderContext(runtimeTab, line, previousComponent, isPartial, result.isError),
     ) as (Component & { dispose?(): void }) | undefined;
     if (previousComponent && previousComponent !== component) previousComponent.dispose?.();

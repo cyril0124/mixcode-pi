@@ -10,6 +10,10 @@ import {
   TUI_KEYBINDINGS,
 } from "@earendil-works/pi-tui";
 import {
+  getActiveExtensionThemeId,
+  noteActiveExtensionThemeId,
+} from "../core/active-extension-theme-id.js";
+import {
   MIXCODE_EXTENSION_CLAUDE_WARM_THEME,
   MIXCODE_EXTENSION_TERMINAL_THEME,
   MIXCODE_EXTENSION_THEME,
@@ -18,6 +22,8 @@ import {
   THEMES,
 } from "../ui/themes.js";
 import type { ExtensionThemeHost } from "./runtime-types.js";
+
+export { getActiveExtensionThemeId, noteActiveExtensionThemeId };
 
 export {
   MIXCODE_EXTENSION_CLAUDE_WARM_THEME,
@@ -68,11 +74,10 @@ export const MIXCODE_EXTENSION_KEYBINDINGS_MANAGER = new PiTuiKeybindingsManager
   MIXCODE_EXTENSION_KEYBINDINGS,
 ) as unknown as ExtensionKeybindingsManager;
 
-export function currentExtensionTheme(host: ExtensionThemeHost | undefined): Theme {
-  const current = host?.getTheme();
-  return current
-    ? (extensionThemeByName(current) ?? MIXCODE_EXTENSION_THEME)
-    : MIXCODE_EXTENSION_THEME;
+export function currentExtensionTheme(host?: ExtensionThemeHost | undefined): Theme {
+  const raw = host?.getTheme() ?? getActiveExtensionThemeId();
+  const current = normalizeExtensionThemeId(raw) ?? raw;
+  return extensionThemeByName(current) ?? MIXCODE_EXTENSION_THEME;
 }
 
 export function availableExtensionThemes(): Array<{ name: string; path: string | undefined }> {
@@ -123,6 +128,7 @@ export function applyExtensionTheme(
   if (!themeId) return { success: false, error: `Unknown theme: ${theme}` };
   try {
     host.setTheme(themeId);
+    noteActiveExtensionThemeId(themeId); // sync even if host.setTheme is a no-op in tests
     host.requestRender?.();
     requestRender();
     return { success: true };

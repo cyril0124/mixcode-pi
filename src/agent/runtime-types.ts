@@ -101,6 +101,8 @@ export interface ChatLine {
   bashFullOutputPath?: string;
   extensionRendererLastComponent?: Component & { dispose?(): void };
   extensionRendererExpanded?: boolean;
+  /** Theme id used when extensionRendererLastComponent was built; invalidate on /theme. */
+  extensionRendererThemeId?: string;
   toolRendererState?: Record<string, unknown>;
   toolCallRendererLastComponent?: Component & { dispose?(): void };
   toolResultRendererLastComponent?: Component & { dispose?(): void };

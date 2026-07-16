@@ -38,6 +38,7 @@ import {
   renderTabBar,
 } from "./rendering.js";
 import { withMouseReporting } from "./terminal.js";
+import { noteActiveExtensionThemeId } from "../agent/runtime-extension-theme.js";
 import { setTheme, themeForId } from "./themes.js";
 import { workspaceNameCompletions } from "./workspace-overlay.js";
 
@@ -64,6 +65,7 @@ export function createMixCodeTui(
   runtime: MixCodeRuntime,
   options: MixCodeTuiOptions = {},
 ): TuiType {
+  noteActiveExtensionThemeId(state.theme);
   const tui = new TUI(withMouseReporting(options.terminal ?? new ProcessTerminal()));
   (tui as TuiType & { mixCodeExitProcessOnQuit?: boolean }).mixCodeExitProcessOnQuit =
     options.exitProcessOnQuit === true;
@@ -201,6 +203,7 @@ export function createMixCodeTui(
       getTheme: () => state.theme,
       setTheme: (themeId) => {
         setTheme(state, themeId);
+        noteActiveExtensionThemeId(themeId);
         void options.onStateChanged?.(state);
         tui.requestRender();
       },

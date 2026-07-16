@@ -7,8 +7,9 @@ import type {
   MixCodeTabInfo,
 } from "../core/types.js";
 import {
+  currentExtensionTheme,
   ensureExtensionThemeInitialized,
-  MIXCODE_EXTENSION_THEME,
+  getActiveExtensionThemeId,
 } from "./runtime-extension-theme.js";
 import { applyMixCodeKeybindings } from "./runtime-pi-tui-bridge.js";
 import { NullTerminal } from "./runtime-null-terminal.js";
@@ -58,7 +59,8 @@ function createLiveExtensionFooter(
   factory: ExtensionFooterFactory,
 ): ExtensionDynamicLines {
   return createLiveExtensionLines(
-    (tui) => factory(tui, MIXCODE_EXTENSION_THEME, createMixCodeFooterDataProvider(runtimeTab)),
+    (tui) =>
+      factory(tui, currentExtensionTheme(), createMixCodeFooterDataProvider(runtimeTab)),
     runtimeTab.requestRender,
   );
 }
@@ -67,7 +69,10 @@ function createLiveExtensionHeader(
   factory: ExtensionHeaderFactory,
   requestRender: (() => void) | undefined,
 ): ExtensionDynamicLines {
-  return createLiveExtensionLines((tui) => factory(tui, MIXCODE_EXTENSION_THEME), requestRender);
+  return createLiveExtensionLines(
+    (tui) => factory(tui, currentExtensionTheme()),
+    requestRender,
+  );
 }
 
 function createLiveExtensionLines(
@@ -79,10 +84,18 @@ function createLiveExtensionLines(
   if (requestRender) terminal.requestRender = requestRender;
   const tui = new PiTui(terminal);
   if (requestRender) tui.requestRender = () => requestRender();
-  const component = factory(tui);
+  let themeKey = getActiveExtensionThemeId();
+  let component = factory(tui);
   return {
     lines: renderExtensionLines(component, terminal.columns),
     render: (width) => {
+      // Rebuild when /theme changes so factories re-bind accent colors.
+      const nextTheme = getActiveExtensionThemeId();
+      if (nextTheme !== themeKey) {
+        component.dispose?.();
+        themeKey = nextTheme;
+        component = factory(tui);
+      }
       terminal.columns = Math.max(1, Math.floor(width));
       return renderExtensionLines(component, terminal.columns);
     },
@@ -150,12 +163,19 @@ function createLiveExtensionWidget(
   terminal.requestRender = requestRender;
   const tui = new PiTui(terminal);
   tui.requestRender = () => requestRender();
-  const component = factory(tui, MIXCODE_EXTENSION_THEME);
+  let themeKey = getActiveExtensionThemeId();
+  let component = factory(tui, currentExtensionTheme());
   return {
     key,
     placement,
     lines: renderExtensionLines(component, terminal.columns),
     render: (width, maxLines) => {
+      const nextTheme = getActiveExtensionThemeId();
+      if (nextTheme !== themeKey) {
+        component.dispose?.();
+        themeKey = nextTheme;
+        component = factory(tui, currentExtensionTheme());
+      }
       terminal.columns = Math.max(1, Math.floor(width));
       return renderExtensionLines(component, terminal.columns, maxLines);
     },

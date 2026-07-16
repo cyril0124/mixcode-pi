@@ -12,7 +12,10 @@ import { type Component, TUI as PiTui } from "@earendil-works/pi-tui";
 import { modelToRef } from "../core/models.js";
 import type { MixCodeModel, MixCodeTabInfo, PreviewMessageRole } from "../core/types.js";
 import { clearPendingEscape } from "../core/tab-state.js";
-import { MIXCODE_EXTENSION_THEME } from "./runtime-extension-theme.js";
+import {
+  currentExtensionTheme,
+  getActiveExtensionThemeId,
+} from "./runtime-extension-theme.js";
 import { applyMixCodeKeybindings } from "./runtime-pi-tui-bridge.js";
 import { NullTerminal } from "./runtime-null-terminal.js";
 import { contentText } from "./runtime-text.js";
@@ -262,10 +265,15 @@ function renderPersistentExtensionMessage(
   try {
     // Match Pi: options.expanded tracks tools-expanded (toolOutputExpanded).
     const expanded = runtimeTab.tab.extensionUi.toolsExpanded ?? false;
-    if (line.extensionRendererLastComponent && line.extensionRendererExpanded === expanded) {
+    const themeId = getActiveExtensionThemeId();
+    if (
+      line.extensionRendererLastComponent &&
+      line.extensionRendererExpanded === expanded &&
+      line.extensionRendererThemeId === themeId
+    ) {
       return line.extensionRendererLastComponent.render(terminal.columns);
     }
-    const component = renderer(message, { expanded }, MIXCODE_EXTENSION_THEME) as
+    const component = renderer(message, { expanded }, currentExtensionTheme()) as
       | (Component & { dispose?(): void })
       | undefined;
     if (line.extensionRendererLastComponent && line.extensionRendererLastComponent !== component) {
@@ -273,6 +281,7 @@ function renderPersistentExtensionMessage(
     }
     line.extensionRendererLastComponent = component;
     line.extensionRendererExpanded = expanded;
+    line.extensionRendererThemeId = themeId;
     if (!component) return defaultExtensionMessageLines(message);
     return component.render(terminal.columns);
   } catch (error) {
@@ -305,10 +314,15 @@ function renderPersistentExtensionEntry(
   try {
     // Match Pi CustomEntryComponent.setExpanded(toolOutputExpanded).
     const expanded = runtimeTab.tab.extensionUi.toolsExpanded ?? false;
-    if (line.extensionRendererLastComponent && line.extensionRendererExpanded === expanded) {
+    const themeId = getActiveExtensionThemeId();
+    if (
+      line.extensionRendererLastComponent &&
+      line.extensionRendererExpanded === expanded &&
+      line.extensionRendererThemeId === themeId
+    ) {
       return line.extensionRendererLastComponent.render(terminal.columns);
     }
-    const component = renderer(entry, { expanded }, MIXCODE_EXTENSION_THEME) as
+    const component = renderer(entry, { expanded }, currentExtensionTheme()) as
       | (Component & { dispose?(): void })
       | undefined;
     if (line.extensionRendererLastComponent && line.extensionRendererLastComponent !== component) {
@@ -316,6 +330,7 @@ function renderPersistentExtensionEntry(
     }
     line.extensionRendererLastComponent = component;
     line.extensionRendererExpanded = expanded;
+    line.extensionRendererThemeId = themeId;
     // Pi: undefined component → no content, entry not shown.
     if (!component) return [];
     return component.render(terminal.columns);

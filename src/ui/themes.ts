@@ -1,5 +1,6 @@
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { Theme } from "@earendil-works/pi-coding-agent";
+import { noteActiveExtensionThemeId } from "../core/active-extension-theme-id.js";
 import { allKnownThinkingLevels } from "../core/thinking-levels.js";
 import type { MixCodeState } from "../core/types.js";
 
@@ -553,6 +554,8 @@ export function setTheme(state: MixCodeState, themeId: string): void {
     throw new Error(`Unknown theme: ${themeId}`);
   }
   state.theme = normalized;
+  // Keep extension UI (footer/widget/custom/message renderers) on the same palette.
+  noteActiveExtensionThemeId(normalized);
 }
 
 export function themeSuggestions(prefix: string): ThemeInfo[] {

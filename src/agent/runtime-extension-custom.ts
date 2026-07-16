@@ -4,7 +4,7 @@ import { dismissExtensionPanel } from "../core/tabs.js";
 import {
   ensureExtensionThemeInitialized,
   MIXCODE_EXTENSION_KEYBINDINGS_MANAGER,
-  MIXCODE_EXTENSION_THEME,
+  currentExtensionTheme,
 } from "./runtime-extension-theme.js";
 import { applyMixCodeKeybindings } from "./runtime-pi-tui-bridge.js";
 import { createTerminalRowsProxy } from "./runtime-tui-proxy.js";
@@ -78,7 +78,12 @@ export function createExtensionCustomOverlay<T>(
     runtimeTab.extensionCustomOverlayClosers.add(closeWithoutResult);
     Promise.resolve()
       .then(() =>
-        factory(host.tui, MIXCODE_EXTENSION_THEME, MIXCODE_EXTENSION_KEYBINDINGS_MANAGER, close),
+        factory(
+          host.tui,
+          currentExtensionTheme(host.themes),
+          MIXCODE_EXTENSION_KEYBINDINGS_MANAGER,
+          close,
+        ),
       )
       .then((createdComponent) => {
         if (settled) {
@@ -150,7 +155,14 @@ function createExtensionCustomEditor<T>(
       host.editor?.getEmbeddedTerminalRows?.(sessionId),
     );
     Promise.resolve()
-      .then(() => factory(tui, MIXCODE_EXTENSION_THEME, MIXCODE_EXTENSION_KEYBINDINGS_MANAGER, close))
+      .then(() =>
+        factory(
+          tui,
+          currentExtensionTheme(host.themes),
+          MIXCODE_EXTENSION_KEYBINDINGS_MANAGER,
+          close,
+        ),
+      )
       .then((createdComponent) => {
         if (settled) {
           createdComponent.dispose?.();
