@@ -67,12 +67,15 @@ src/
   │        └─ 不注入 AGENTS.md；项目上下文进入 system prompt
   │
   ├─ /local-command
-  │    ├─ 纯 UI 状态：/toggle-todo /preview /shell /mark-done
+  │    ├─ 纯 UI 状态：/toggle-todo /preview /mark-done
   │    ├─ 会话操作：/new-session /fork /compact /delete-session
   │    └─ prompt 模板：/goal /compact
   │
-  └─ !shell
-       └─ 作为 shell 请求进入 Agent，同时写入 preview shell 消息
+  └─ !shell / !!shell
+       └─ 走 Pi AgentSession.executeBash（!! = excludeFromContext）
+            ├─ 写入 session bashExecution
+            ├─ UI 渲染为 user-bash 块
+            └─ streaming 期间先挂 pending 区，agent_end 后并入主 chat
 
 MixCodeRuntime
   │
@@ -116,7 +119,7 @@ Config tab 只渲染配置面板和可点击操作，不渲染 prompt editor；�
 | `Ctrl+P` | 可过滤命令面板；按 Config/Agent tab 显示当前语境命令，回车执行可用命令 |
 | `Ctrl+T` | tab jump 模糊跳转；打开后 `Tab`/`Shift+Tab` 在候选中移动，不穿透到全局 tab 切换 |
 | `Ctrl+E` | 外部编辑器编辑输入 |
-| `Ctrl+C` | 清空普通编辑输入；shell 打开时发送中断给 shell |
+| `Ctrl+C` | 清空普通编辑输入 |
 | `Ctrl+J` / `Shift+Enter` | 在当前 Editor 光标处插入换行 |
 | `Ctrl+O` | 展开/收起 tool 输出块与 header 快捷键提示（共用 tools-expand 状态） |
 | `Ctrl+R` | 预填 `/rename 当前标题`，复用 slash command 重命名 |
@@ -126,13 +129,13 @@ Config tab 只渲染配置面板和可点击操作，不渲染 prompt editor；�
 | `Shift+Right` | Vim 模式跳到更旧的 user message，并短暂显示右锚定 `User Messages` 预览 |
 | `Ctrl+V` | Markdown preview |
 | `@` | 打开 mixcode 风格全局文件 picker，选择后插入 `@path ` |
-| `Esc` | 关闭 overlay、preview 或 tab jump；shell 场景单次关闭 shell |
+| `Esc` | 关闭 overlay、preview 或 tab jump；standalone `!shell` 一次中止；bash-mode 草稿 `!...` 清空 |
 | `Ctrl+Q` | 打开退出确认；`y` 确认、`n`/`Esc` 取消；`/quit` 和 `/exit` 直接退出，不弹确认 |
 | `q` | 普通输入字符，不绑定退出，避免破坏 prompt 输入 |
 
 Vim user-message 导航预览是一个自动过期的 floating panel，覆盖在 editor 上方，列出附近 user prompts 和 `<NEWEST>`；Vim 状态提示为 `Vim: → newer user msg · Shift+→ older user msg`。
 
-`src/core/keymap.ts` 是带作用域的可审计 keymap，不只记录全局键。`global` 作用域覆盖主输入表面，`file-picker`、`picker`、`command-palette`、`tab-jump`、`export`、`preview`、`shell` 作用域覆盖 overlay 或局部交互；`describeKeymap()` 保持旧的简短输出，`describeScopedKeymap()` 用于审计完整局部键表。
+`src/core/keymap.ts` 是带作用域的可审计 keymap，不只记录全局键。`global` 作用域覆盖主输入表面，`file-picker`、`picker`、`command-palette`、`tab-jump`、`export`、`preview` 作用域覆盖 overlay 或局部交互；`describeKeymap()` 保持旧的简短输出，`describeScopedKeymap()` 用于审计完整局部键表。
 
 ```text
 key input
@@ -148,11 +151,10 @@ key input
        ├─ command-palette: Tab Shift+Tab Up Down Enter Esc
        ├─ tab-jump:        Tab Shift+Tab Up Down Enter Esc
        ├─ export:          Tab Shift+Tab T/C/A/U Enter Esc
-       ├─ preview:         h/l j/k g/G Home End Esc
-       └─ shell:           Up Down PageUp PageDown Home End Esc
+       └─ preview:         h/l j/k g/G Home End Esc
 ```
 
-Shell overlay 打开时按 refs/mixcode 的焦点语义处理：`Ctrl+V`、`Ctrl+E` 不触发全局 preview/editor，而是作为控制字符写入 shell；`Ctrl+P` 仍保留为 command palette。`Esc` 单次关闭 shell。
+`!` / `!!` 不是独立 shell overlay：输入以 `!` 开头时 editor 进入 bash-mode 边框，提交后走 Pi `executeBash`。standalone bash 运行中 Esc 一次中止；agent streaming 时 Esc 仍走 agent abort 二次确认。
 
 `/thinking` 与 `/hide-thinking` 是两件不同的事：`/thinking` 调整当前 tab 模型的 reasoning level（`off`/`low`/`medium`/`high`/`max`），影响模型实际推理量；`/hide-thinking` 只切换 thinking 内容在 TUI 的可见性，隐藏时折叠为斜体 `Thinking...` 占位，不改变推理 level、不改写会话内容。`/hide-thinking` 是全 tab 生效的应用级 toggle，复用 Pi 原生 `hideThinkingBlock` 设置持久化（启动时 `SettingsManager.getHideThinkingBlock()` 读取，切换时 `setHideThinkingBlock()` 写回全局 `settings.json`），跨重启保持，并沿用 Pi 的状态文案 `Thinking blocks: hidden|visible`。因为它写入 Pi 全局 `settings.json`（跨重启、跨 workdir、与 Pi agent 共享），其 `description` 以 `[global]` 前缀标注，让用户在 palette / slash 补全里执行前即可看出这是全局持久化设置；约定见 AGENTS.md 的 Slash Commands。
 
@@ -214,29 +216,18 @@ preview overlay 打开
 当前 tab 没有可用 palette command
 ```
 
-shell 按当前 MixCode 交互要求单 `Esc` 关闭：
+`!` / `!!` shell（Pi bash 对齐）：
 
 ```text
-Shell overlay
-  Esc ──> ShellManager.close(tab)
-          shellOpen = false
-```
-
-Shell overlay 的本地 scrollback 映射：
-
-```text
-shell buffer
+Editor !cmd / !!cmd
   │
-  ├─ renderShellOverlay()
-  │    └─ shellScrollOffset + visible window
-  │
-  ├─ mouse wheel up/down
-  │    ├─ plain shell: scrollShell(-3 / +3)
-  │    ├─ alternate-screen: forward ↑/↓ to shell stdin
-  │    └─ SGR mouse enabled: forward wheel/down/up as \x1b[<button;x;yM/m
-  │
-  └─ arrow/home/end while shell panel is active
-       └─ scrollShell(), without stealing printable shell input
+  ├─ parseInput → kind:shell
+  ├─ AgentSession.executeBash / emitUserBash
+  ├─ chat: user-bash 块（Running... (Esc to cancel)）
+  ├─ session: bashExecution（!! excludeFromContext）
+  └─ Esc:
+       ├─ isBashRunning && !streaming → abortBash
+       └─ bash-mode draft (!...) → clear editor
 ```
 
 ## Slash Command 映射

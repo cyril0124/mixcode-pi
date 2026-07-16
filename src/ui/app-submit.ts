@@ -1,4 +1,4 @@
-import type { MixCodeRuntime } from "../agent/runtime.js";
+import { isBashAlreadyRunningError, type MixCodeRuntime } from "../agent/runtime.js";
 import { entriesToChatLines } from "../agent/runtime-chat.js";
 import { MIXCODE_EXTENSION_KEYBINDINGS } from "../agent/runtime-extension-theme.js";
 import { applyContextLimit, parseContextLimitValue, adjustCompactionSettingsForLimit } from "../core/context-limit.js";
@@ -29,7 +29,12 @@ import {
   submitAgentInput,
 } from "./agent-tab-actions.js";
 import { createTuiDebugState } from "./app-debug.js";
-import { editTextWithTuiPaused, showLinesOverlay, showTextOverlay } from "./app-overlays.js";
+import {
+  editTextWithTuiPaused,
+  errorMessage,
+  showLinesOverlay,
+  showTextOverlay,
+} from "./app-overlays.js";
 import type { Component } from "@earendil-works/pi-tui";
 import type {
   MixCodeSubmitRuntime,
@@ -76,6 +81,8 @@ export async function handleSubmittedInput(
     mixcodeFile: string;
     piSettingsFile: string;
   },
+  /** Optional editor restore hook for Pi-parity bash-already-running conflicts. */
+  editorActions?: Pick<import("./app-types.js").MixCodeEditorActions, "setText">,
 ): Promise<void> {
   const parsed = parseInput(text);
   const active = activeTabOverride ?? getActiveTab(state);
@@ -85,10 +92,30 @@ export async function handleSubmittedInput(
   if (active?.status === "Not Ready" && requiresActive) {
     throw new Error("Tab is still loading extensions. Please wait a moment.");
   }
-  if (active && (await submitAgentInput(active, runtime, text, parsed))) {
-    await onStateChanged?.(state);
-    tui.requestRender();
-    return;
+  try {
+    if (active && (await submitAgentInput(active, runtime, text, parsed))) {
+      await onStateChanged?.(state);
+      tui.requestRender();
+      return;
+    }
+  } catch (error) {
+    // Pi restores the editor and warns instead of dropping a concurrent !shell.
+    if (isBashAlreadyRunningError(error)) {
+      editorActions?.setText(text);
+      const message = errorMessage(error);
+      if (active && runtime.getTab?.(active.sessionId)) {
+        runtime.appendSystemMessage(active.sessionId, message, "error");
+      } else if (active) {
+        pushToast(active, {
+          type: "warning",
+          message,
+        });
+      }
+      await onStateChanged?.(state);
+      tui.requestRender();
+      return;
+    }
+    throw error;
   }
   if (parsed.command === "mark-done") {
     active!.unreadDone = true;

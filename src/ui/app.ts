@@ -135,6 +135,7 @@ export function createMixCodeTui(
       options.workspaceFile,
       undefined,
       options.settingsDeps,
+      { setText: (value) => editor.setText(value) },
     ).catch((error: unknown) => {
       // Avoid secondary Unknown tab session when the active tab has no runtime yet
       // (e.g. create failed and rolled back to a Not Ready tab, or peer closed it).

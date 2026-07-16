@@ -43,11 +43,11 @@ MixCode Pi
 | 不依赖 opencode server | `package.json` 只有 Pi 相关 runtime dependencies；TUI smoke 检查初始画面不含 `OpenCode / Attach Session / Connect / Reconnect`；`test/overlays.test.ts` 有反残留断言。 | 已验证 |
 | `refs/mixcode` 只作参考 | `.gitignore` 忽略 `refs/`；docs 明确 `refs/` 只用于 UI/交互参考；运行代码未依赖 `refs/`。 | 已验证 |
 | 移除 OpenCode 专有组件 | Config render 测试断言不包含 `Connect/Reconnect/Attach Session/opencode`；真实 TUI smoke 同样检查。 | 已验证 |
-| 主要快捷键和交互 | `docs/architecture.md` 列出全局和局部作用域快捷键；`src/core/keymap.ts` 提供 scoped keymap；`test/runtime-ui.test.ts` 断言 `file-picker/picker/command-palette/tab-jump/preview/shell` 作用域存在；`test/ui-commands.test.ts` 覆盖 tab、palette、queue Esc、Ctrl+Q、@ picker、shell、preview；shell 焦点下 `Ctrl+V/E` 透传给 shell、`Ctrl+P` 保留 command palette。 | 已验证 |
-| 鼠标行为 | `src/core/mouse.ts`、`src/ui/app.ts` 覆盖 SGR 鼠标；测试覆盖 tab bar 点击、Config action hit region、input meta hit region、preview/shell wheel。 | 已验证 |
+| 主要快捷键和交互 | `docs/architecture.md` 列出全局和局部作用域快捷键；`src/core/keymap.ts` 提供 scoped keymap；`test/runtime-rendering-07.test.ts` 断言 `picker/command-palette/tab-jump/preview` 作用域存在；`!`/`!!` 走 Pi `executeBash`（非独立 shell overlay），`test/shell-pi-parity.test.ts` 覆盖并发 bash 恢复、Esc 取消提示与 pending bash 显示；相关 UI 测试覆盖 tab、palette、queue Esc、Ctrl+Q、@ picker、preview。 | 已验证 |
+| 鼠标行为 | `src/core/mouse.ts`、`src/ui/app.ts` 覆盖 SGR 鼠标；测试覆盖 tab bar 点击、Config action hit region、input meta hit region、preview/chat wheel。 | 已验证 |
 | 自动化测试可运行 | `timeout 60s npm run test` 可运行。 | 已验证 |
 | docs 文件夹中文技术方案和 ASCII 图 | `docs/architecture.md`、`docs/extension-compatibility.md`、本文均为中文并包含 ASCII 结构图。 | 已验证 |
-| 真实 TUI 截图/交互验证 | `tmp/ref-mixcode-160x48.*`、`tmp/mixcode-pi-*.txt/.ansi`、`tmp/tui-verify-*` 记录参考和当前 TUI 截图；`test/tui-smoke.test.ts` 可重复验证 180x48 tmux 启动、标题、OpenCode 反残留、`/thinking` picker 显示并应用模型支持的 `max`、`/settings` 主题切换、command palette、tab jump、`@` file picker、preview、shell、新建 tab、mouse tab click 和 Ctrl+Q 退出。 | 已验证 |
+| 真实 TUI 截图/交互验证 | `tmp/ref-mixcode-160x48.*`、`tmp/mixcode-pi-*.txt/.ansi`、`tmp/tui-verify-*` 记录参考和当前 TUI 截图；`test/tui-smoke.test.ts` 可重复验证 180x48 tmux 启动、标题、OpenCode 反残留、`/thinking` picker 显示并应用模型支持的 `max`、`/settings` 主题切换、command palette、tab jump、`@` file picker、preview、`!` bash-mode、新建 tab、mouse tab click 和 Ctrl+Q 退出。 | 已验证 |
 | 视觉风格接近 MixCode | `src/ui/themes.ts` 提供 MixCode dark/claude-warm/tokyo-night/terminal；render tests 断言 dark/claude-warm/tokyo-night palette；tmux 截图文件保存 160x48 对照。 | 强验证但仍需人工审美复核 |
 | thinking/chat 不照搬 MixCode | `src/ui/rendering.ts` 对 thinking/tool/chat 有独立渲染；runtime tests 覆盖 thinking stream、tool block、renderer。 | 已验证 |
 | 自定义 proxy 模型 OpenAI Responses | 本机 precheck 显示本地配置的 responses 模型 `registered=true auth=true api=openai-responses`；模型注册测试覆盖 OpenAI Responses 配置读取；本轮真实请求 smoke 返回 `MIXCODE_RESPONSES_SMOKE_OK`。 | 已验证 |
@@ -87,7 +87,7 @@ tmux TUI smoke:
   viewport: 180x48
   pass: starts, rejects OpenCode UI, shows model-supported max thinking and applies /thinking max
   pass: switches theme via /settings to tokyo-night palette
-  pass: opens command palette, tab jump, @ file picker, preview, shell
+  pass: opens command palette, tab jump, @ file picker, preview, bang bash-mode
   pass: creates a second tab, switches tab by SGR mouse click, exits with Ctrl+Q
 ```
 

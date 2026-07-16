@@ -120,6 +120,23 @@ export type {
 
 type BashResult = Awaited<ReturnType<AgentSession["executeBash"]>>;
 
+/** Thrown when `!`/`!!` is submitted while another user bash is still running (Pi parity). */
+export class BashAlreadyRunningError extends Error {
+  constructor() {
+    super("A bash command is already running. Press Esc to cancel it first.");
+    this.name = "BashAlreadyRunningError";
+  }
+}
+
+export function isBashAlreadyRunningError(error: unknown): boolean {
+  return (
+    error instanceof BashAlreadyRunningError ||
+    (error instanceof Error &&
+      error.name === "BashAlreadyRunningError" &&
+      error.message === "A bash command is already running. Press Esc to cancel it first.")
+  );
+}
+
 type UserSessionEntry = {
   id?: string;
   parentId?: string | null;
@@ -771,7 +788,7 @@ export class MixCodeRuntime {
     const trimmed = command.trim();
     if (!trimmed) return;
     if (runtimeTab.agentSession.isBashRunning) {
-      throw new Error("Cannot run a shell command while another bash command is running");
+      throw new BashAlreadyRunningError();
     }
     // A standalone (idle) shell run records a bashExecution entry to the
     // session JSONL, so it must take the cross-process turn lock like a prompt.
@@ -1480,6 +1497,11 @@ function upsertUserBashLine(
   const existing = runtimeTab.chat.findIndex(
     (line) => line.role === "tool" && line.toolCallId === toolCallId,
   );
+  // Pi keeps streaming-started user bash in the pending area until the agent
+  // turn ends; once marked pending, keep it pending across chunk updates.
+  const previousPending =
+    existing >= 0 ? runtimeTab.chat[existing]?.pendingBash === true : false;
+  const pendingBash = previousPending || runtimeTab.agentSession.isStreaming;
   const line: ChatLine = {
     role: "tool",
     title: "bash",
@@ -1489,6 +1511,7 @@ function upsertUserBashLine(
     text,
     args,
     excludeFromContext,
+    pendingBash: pendingBash || undefined,
     bashExitCode: result?.exitCode,
     bashCancelled: result?.cancelled,
     bashTruncated: result?.truncated,

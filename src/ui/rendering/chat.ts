@@ -147,6 +147,26 @@ export function chatBlockSeparator(width: number): string {
 // (extensions, tool renderers) opt out via chatLineRenderCacheKey returning
 // undefined and are re-rendered each frame.
 
+function isPendingUserBash(line: ChatLine): boolean {
+  return line.role === "tool" && line.variant === "user-bash" && line.pendingBash === true;
+}
+
+/**
+ * Pi keeps streaming-started user bash after the main chat (pending zone).
+ * Reorder only for display; session/chat storage order is unchanged.
+ */
+export function chatLinesForDisplay(chat: ChatLine[]): ChatLine[] {
+  if (chat.length < 2) return chat;
+  const mainLines: ChatLine[] = [];
+  const pendingBashLines: ChatLine[] = [];
+  for (const line of chat) {
+    if (isPendingUserBash(line)) pendingBashLines.push(line);
+    else mainLines.push(line);
+  }
+  if (pendingBashLines.length === 0) return chat;
+  return [...mainLines, ...pendingBashLines];
+}
+
 function renderChatStream(
   chat: ChatLine[],
   width: number,
@@ -154,17 +174,26 @@ function renderChatStream(
   blockOptions?: (line: ChatLine, index: number) => RenderChatBlockOptions | undefined,
 ): string[] {
   if (!chat.length) return [padLine(activeRenderTheme.dim("No messages yet."), width)];
-  if (chat.length === 1) {
-    return renderMessageBlock(chat[0]!, width, tab, blockOptions?.(chat[0]!, 0));
+
+  const ordered = chatLinesForDisplay(chat);
+  if (ordered.length === 1) {
+    return renderMessageBlock(ordered[0]!, width, tab, blockOptions?.(ordered[0]!, 0));
   }
 
   // Render each block (per-line cache hits keep this cheap for unchanged lines).
-  const blocks = new Array<string[]>(chat.length);
+  const blocks = new Array<string[]>(ordered.length);
   let totalLength = 0;
   let nonEmptyCount = 0;
-  for (let i = 0; i < chat.length; i++) {
-    const line = chat[i]!;
-    const block = renderMessageBlock(line, width, tab, blockOptions?.(line, i));
+  for (let i = 0; i < ordered.length; i++) {
+    const line = ordered[i]!;
+    // blockOptions still sees original chat indices when provided.
+    const originalIndex = chat.indexOf(line);
+    const block = renderMessageBlock(
+      line,
+      width,
+      tab,
+      originalIndex >= 0 ? blockOptions?.(line, originalIndex) : undefined,
+    );
     blocks[i] = block;
     totalLength += block.length;
     if (block.length > 0) nonEmptyCount++;
@@ -359,7 +388,7 @@ function chatLineRenderCacheKey(
     if (line.variant === "user-bash") {
       // user-bash branch reads almost every bash-related field plus the
       // global toolsExpanded toggle and per-line toolExpanded fallback.
-      return `ub${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${line.status ?? ""}${KEY_SEP}${line.title ?? ""}${KEY_SEP}${commandFromArgs(line.args)}${KEY_SEP}${line.excludeFromContext === true ? 1 : 0}${KEY_SEP}${line.bashExitCode ?? ""}${KEY_SEP}${line.bashCancelled === true ? 1 : 0}${KEY_SEP}${line.bashTruncated === true ? 1 : 0}${KEY_SEP}${line.bashFullOutputPath ?? ""}${KEY_SEP}${line.toolExpanded === true ? 1 : 0}${KEY_SEP}${expanded ? 1 : 0}${KEY_SEP}${line.text}`;
+      return `ub${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${line.status ?? ""}${KEY_SEP}${line.title ?? ""}${KEY_SEP}${commandFromArgs(line.args)}${KEY_SEP}${line.excludeFromContext === true ? 1 : 0}${KEY_SEP}${line.pendingBash === true ? 1 : 0}${KEY_SEP}${line.bashExitCode ?? ""}${KEY_SEP}${line.bashCancelled === true ? 1 : 0}${KEY_SEP}${line.bashTruncated === true ? 1 : 0}${KEY_SEP}${line.bashFullOutputPath ?? ""}${KEY_SEP}${line.toolExpanded === true ? 1 : 0}${KEY_SEP}${expanded ? 1 : 0}${KEY_SEP}${line.text}`;
     }
     // Generic (non-renderer) tool block: depends on status/title/args/text.
     return `t${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${line.status ?? ""}${KEY_SEP}${line.title ?? ""}${KEY_SEP}${stableArgs(line.args)}${KEY_SEP}${line.text}`;
@@ -477,7 +506,9 @@ function userBashStatusLines(line: ChatLine, hiddenLineCount: number, expanded: 
       : `... ${hiddenLineCount} more lines (ctrl+o to expand)`;
     lines.push(activeRenderTheme.dim(label));
   }
-  if (line.status === "running") lines.push(activeRenderTheme.dim("Running..."));
+  if (line.status === "running") {
+    lines.push(activeRenderTheme.dim("Running... (Esc to cancel)"));
+  }
   if (line.status !== "running" && line.bashCancelled === true) {
     lines.push(activeRenderTheme.warning("(cancelled)"));
   } else if (

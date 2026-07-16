@@ -229,6 +229,9 @@ export function applyEvent(
         break;
       }
       appendEmptyRunNotice(runtimeTab);
+      // Pi moves streaming-started user bash from the pending area into chat on
+      // the next normal submit; agent_end is the earliest stable point here.
+      flushPendingUserBashLines(runtimeTab);
       // Save the start stamp for SDK post-run compaction before the timer closes.
       runtimeTab.postRunWorkingStartedAt = runtimeTab.tab.workingStartedAt;
       setTabStatus(runtimeTab.tab, "idle");
@@ -660,4 +663,13 @@ export function applyAssistantUsage(runtimeTab: RuntimeTab, usage: Partial<Usage
     runtimeTab.tab,
     contextTokensFromUsage(usage) ?? runtimeTab.tab.currentContextTokens,
   );
+}
+
+/** Pi parity: promote deferred user-bash blocks into normal chat after the agent turn. */
+function flushPendingUserBashLines(runtimeTab: RuntimeTab): void {
+  for (const line of runtimeTab.chat) {
+    if (line.role === "tool" && line.variant === "user-bash" && line.pendingBash) {
+      line.pendingBash = undefined;
+    }
+  }
 }

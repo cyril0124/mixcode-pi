@@ -95,6 +95,11 @@ export interface ChatLine {
   /** True for Pi-style transient status lines that coalesce when consecutive. */
   systemStatus?: boolean;
   excludeFromContext?: boolean;
+  /**
+   * True while a user `!`/`!!` bash block should render in the pending zone
+   * (Pi parity: started during agent streaming, stays pending until agent_end).
+   */
+  pendingBash?: boolean;
   bashExitCode?: number;
   bashCancelled?: boolean;
   bashTruncated?: boolean;

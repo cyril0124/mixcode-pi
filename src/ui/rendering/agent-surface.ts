@@ -7,6 +7,7 @@ import type { MixCodeTabInfo } from "../../core/types.js";
 import type { MixCodeTheme } from "../themes.js";
 import {
   chatBlockSeparator,
+  chatLinesForDisplay,
   renderChatBlock,
   renderConversation,
   renderConversationEmptyState,
@@ -414,25 +415,28 @@ function renderAgentSurfaceWindowed(
 
   // Bottom-anchored content.
   const queueLines = renderQueuePreview(tab, mainWidth);
+  // Pending user-bash renders after the main stream (Pi pending-area parity).
+  const displayChat = chatLinesForDisplay(chat);
 
   // Walk chat blocks newest-to-oldest, collecting rendered blocks, then
   // reverse-join into top-to-bottom order. Push+reverse is O(n); unshift was O(n²).
   const targetRows = viewport + Math.max(0, tab.chatScrollOffset) + WINDOW_OVERSCAN_LINES;
   const newerFirstBlocks: string[][] = [];
   const frameBlockHeights = new Map<ChatLine, number>();
-  let oldestEmittedIndex = chat.length;
+  let oldestEmittedIndex = displayChat.length;
   // Count rows the same way unshift path did: queue first, then each older block
   // plus a separator when content already exists below.
   let assembledRows = queueLines.length;
-  for (let i = chat.length - 1; i >= 0; i--) {
+  for (let i = displayChat.length - 1; i >= 0; i--) {
     if (assembledRows >= targetRows) break;
-    const line = chat[i]!;
+    const line = displayChat[i]!;
+    const originalIndex = chat.indexOf(line);
     const block = renderChatBlock(
       line,
       mainWidth,
       tab,
       activeRenderTheme,
-      chatBlockRenderOptions(runtimeTab, i, options),
+      chatBlockRenderOptions(runtimeTab, originalIndex >= 0 ? originalIndex : i, options),
     );
     // Some rendered blocks intentionally bypass the cross-frame cache (for
     // example the active streaming assistant tail). Keep their just-rendered
@@ -493,7 +497,7 @@ function renderAgentSurfaceWindowed(
   // and BLOCK_HEIGHT_FALLBACK for blocks we skipped. The thumb position is
   // approximate for the un-rendered prefix, exact for what's on screen.
   const total = estimateTotalHeight(
-    chat,
+    displayChat,
     queueLines.length,
     mainWidth,
     frameBlockHeights,

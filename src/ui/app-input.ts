@@ -190,6 +190,8 @@ export function handleMixCodeKeyInput(
               undefined,
               workspaceOptions.workspaceFile,
               target,
+              undefined,
+              { setText: (value) => editorActions.setText(value) },
             ).catch((error: unknown) => {
               editorActions.setText(text);
               showErrorOverlay(tui, error);
