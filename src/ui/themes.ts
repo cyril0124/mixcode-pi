@@ -423,7 +423,7 @@ export const MIXCODE_EXTENSION_THEME = new Theme(
 
 export const MIXCODE_EXTENSION_TOKYO_NIGHT_THEME = new Theme(
   {
-    accent: "#7dcfff",
+    accent: "#8abeb7",
     border: "#7aa2f7",
     borderAccent: "#bb9af7",
     borderMuted: "#3b4261",
@@ -478,7 +478,7 @@ export const MIXCODE_EXTENSION_TOKYO_NIGHT_THEME = new Theme(
 
 export const MIXCODE_EXTENSION_CLAUDE_WARM_THEME = new Theme(
   {
-    accent: "#d97757",
+    accent: "#8abeb7",
     border: "#4d4c48",
     borderAccent: "#d97757",
     borderMuted: "#3d3d3a",
