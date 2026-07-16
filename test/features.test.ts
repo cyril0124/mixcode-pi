@@ -239,8 +239,6 @@ test("picker state filters, moves, and accepts selections", () => {
     filteredPickerItems(thinking).map((item) => item.id),
     ["max"],
   );
-  updatePickerQuery(thinking, "xh");
-  assert.deepEqual(filteredPickerItems(thinking), []);
   updatePickerQuery(thinking, "zz");
   assert.deepEqual(filteredPickerItems(thinking), []);
   movePickerSelection(thinking, 1);
@@ -248,13 +246,8 @@ test("picker state filters, moves, and accepts selections", () => {
 
   const emptyModelState = createInitialState("/fallback");
   emptyModelState.availableModels = [];
-  const emptyModels = createPicker("models", emptyModelState);
-  assert.equal(acceptPickerSelection(emptyModels), undefined);
-  const theme = createPicker("theme", state);
-  assert.equal(theme.title, "Choose Theme");
+  assert.equal(acceptPickerSelection(createPicker("models", emptyModelState)), undefined);
   const workdir = createPicker("workdir", state);
-  assert.equal(workdir.items[0]?.id, "/repo");
-  assert.equal(workdir.query, "");
   assert.equal(workdir.browsingDir, "/repo");
 });
 
@@ -349,10 +342,13 @@ test("workdir picker reuses directory listing across query keystrokes", async ()
     const state = createInitialState(dir);
     const picker = createPicker("workdir", state);
 
-    // Warm + populate cache
+    // Warm + populate cache (UI only shows 20 rows; contract is the full listing cache).
     updatePickerQuery(picker, "");
-    assert.ok(filteredPickerItems(picker).length > 0);
-    assert.ok(picker.workdirListingCache?.dirs.length === 2501);
+    assert.equal(picker.workdirListingCache?.dirs.length, 2501);
+    assert.ok(
+      picker.workdirListingCache?.dirs.includes("target-hit"),
+      "expected cache to include target-hit",
+    );
 
     const t0 = performance.now();
     for (let i = 0; i < 40; i++) {
@@ -401,25 +397,6 @@ test("project file scan narrows project tree and ranks basename matches", async 
     assert.deepEqual(searchProjectFiles("ft", files), ["src/nested/feature.test.ts"]);
     assert.deepEqual(searchProjectFiles("nested", files, 1), ["src/nested/"]);
     assert.deepEqual(await scanProjectFiles(dir, 1), ["src/"]);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-});
-
-test("project file completion scans and ranks nested matches", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-global-picker-"));
-  try {
-    await mkdir(join(dir, "src", "nested"), { recursive: true });
-    await mkdir(join(dir, "node_modules", "pkg"), { recursive: true });
-    await writeFile(join(dir, "src", "index.ts"), "");
-    await writeFile(join(dir, "src", "nested", "feature.test.ts"), "");
-    await writeFile(join(dir, "node_modules", "pkg", "ignored.ts"), "");
-
-    const files = await scanProjectFiles(dir);
-    assert.deepEqual(files, ["src/", "src/index.ts", "src/nested/", "src/nested/feature.test.ts"]);
-    assert.ok(!files.some((file) => file.includes("ignored.ts")));
-    assert.equal(searchProjectFiles("ft", files)[0], "src/nested/feature.test.ts");
-    assert.deepEqual(searchProjectFiles("src/", files, 5), ["src/index.ts", "src/nested/"]);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

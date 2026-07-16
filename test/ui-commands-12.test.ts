@@ -78,10 +78,8 @@ test("submitted /resume opens session selector overlay", async () => {
 
   await handleSubmittedInput(state, runtime, "/resume", tui);
 
-  // Session selector should be open
   assert.equal(state.sessionSelector.open, true);
   assert.equal(state.sessionSelector.currentSessions.length, 2);
-  // Overlay should show session selector content
   assert.ok(overlayContent.includes("Resume Session"));
   assert.ok(overlayContent.includes("My Session"));
 });
@@ -227,14 +225,11 @@ test("session selector key handling: enter resumes selected session", async () =
   };
 
   handleMixCodeKeyInput(state, "\r", tui, undefined, runtime);
-  // Wait for async createTab + switch
   await new Promise((resolve) => setTimeout(resolve, 50));
 
-  // Should have created a new tab and switched its session
   assert.equal(switchedTo, "/sessions/session-a.jsonl");
   assert.match(switchInputId, UUIDV7_SESSION_ID_PATTERN);
   assert.equal(state.sessionSelector.open, false);
-  // A new tab should have been appended and synchronized to the real resumed ID.
   assert.equal(state.tabs.length, 2);
   assert.equal(state.tabs[1]!.sessionId, "session-a");
   assert.equal(state.activeTabId, "session-a");
@@ -291,52 +286,47 @@ test("session selector key handling: typing filters sessions", () => {
   assert.equal(state.sessionSelector.query, "My");
 
   const nodes = getFilteredSessions(state.sessionSelector);
-  // "My Session" should match, "Another session" should not
   assert.equal(nodes.length, 1);
   assert.equal(nodes[0]!.session.name, "My Session");
 });
 
-test("session selector state: scope toggle", () => {
+test("session selector filters, sorts, scopes, and selects sessions", () => {
   const selector = createSessionSelectorState();
   assert.equal(selector.scope, "current");
+  assert.equal(selector.sortMode, "threaded");
+  assert.equal(selector.nameFilter, "all");
+
   toggleSessionSelectorScope(selector);
   assert.equal(selector.scope, "all");
   toggleSessionSelectorScope(selector);
   assert.equal(selector.scope, "current");
-});
-
-test("session selector state: sort mode cycling", () => {
-  const selector = createSessionSelectorState();
-  assert.equal(selector.sortMode, "threaded");
   cycleSessionSortMode(selector);
   assert.equal(selector.sortMode, "recent");
   cycleSessionSortMode(selector);
   assert.equal(selector.sortMode, "relevance");
   cycleSessionSortMode(selector);
   assert.equal(selector.sortMode, "threaded");
-});
-
-test("session selector state: name filter toggle", () => {
-  const selector = createSessionSelectorState();
-  assert.equal(selector.nameFilter, "all");
   toggleSessionNameFilter(selector);
   assert.equal(selector.nameFilter, "named");
-  toggleSessionNameFilter(selector);
-  assert.equal(selector.nameFilter, "all");
-});
 
-test("session selector state: name filter hides unnamed sessions", () => {
-  const selector = createSessionSelectorState();
   selector.currentSessions = makeSessions();
-  selector.nameFilter = "named";
-  const nodes = getFilteredSessions(selector);
-  // Only "My Session" has a name
-  assert.equal(nodes.length, 1);
-  assert.equal(nodes[0]!.session.name, "My Session");
-});
+  assert.equal(getFilteredSessions(selector).length, 1);
+  assert.equal(getFilteredSessions(selector)[0]!.session.name, "My Session");
 
-test("session selector state: tree view shows parent-child relationships", () => {
-  const selector = createSessionSelectorState();
+  selector.nameFilter = "all";
+  selector.sortMode = "relevance";
+  updateSessionSelectorQuery(selector, "Another");
+  const relevance = getFilteredSessions(selector);
+  assert.equal(relevance.length, 1);
+  assert.equal(relevance[0]!.session.firstMessage, "Another session");
+
+  selector.query = "";
+  selector.sortMode = "threaded";
+  selector.selectedIndex = 1;
+  const nodes = getFilteredSessions(selector);
+  assert.equal(nodes.length, 2);
+  assert.equal(getSelectedSessionPath(selector), nodes[1]!.session.path);
+
   selector.currentSessions = [
     {
       path: "/sessions/parent.jsonl",
@@ -362,32 +352,12 @@ test("session selector state: tree view shows parent-child relationships", () =>
       allMessagesText: "child msg",
     },
   ];
-  const nodes = getFilteredSessions(selector);
-  assert.equal(nodes.length, 2);
-  assert.equal(nodes[0]!.session.name, "Parent");
-  assert.equal(nodes[0]!.depth, 0);
-  assert.equal(nodes[1]!.session.name, "Child");
-  assert.equal(nodes[1]!.depth, 1);
-});
-
-test("session selector state: search query filters and sorts by relevance", () => {
-  const selector = createSessionSelectorState();
-  selector.sortMode = "relevance";
-  selector.currentSessions = makeSessions();
-  updateSessionSelectorQuery(selector, "Another");
-  const nodes = getFilteredSessions(selector);
-  assert.equal(nodes.length, 1);
-  assert.equal(nodes[0]!.session.firstMessage, "Another session");
-});
-
-test("session selector state: getSelectedSessionPath returns correct path", () => {
-  const selector = createSessionSelectorState();
-  selector.currentSessions = makeSessions();
-  selector.selectedIndex = 1;
-  const nodes = getFilteredSessions(selector);
-  // In threaded mode without search, sorted by modified desc
-  const path = getSelectedSessionPath(selector);
-  assert.equal(path, nodes[1]!.session.path);
+  const tree = getFilteredSessions(selector);
+  assert.equal(tree.length, 2);
+  assert.equal(tree[0]!.session.name, "Parent");
+  assert.equal(tree[0]!.depth, 0);
+  assert.equal(tree[1]!.session.name, "Child");
+  assert.equal(tree[1]!.depth, 1);
 });
 
 test("formatSessionDate formats relative times correctly", () => {
@@ -400,92 +370,63 @@ test("formatSessionDate formats relative times correctly", () => {
   assert.equal(formatSessionDate(new Date(now - 60 * 86_400_000)), "2mo");
 });
 
-test("session selector rendering includes scope and sort indicators", () => {
+test("session selector rendering includes scope, sort, and empty-state text", () => {
   const state = createInitialState("/repo");
   state.sessionSelector.open = true;
   state.sessionSelector.currentSessions = makeSessions();
-  const rendered = renderSessionSelector(state, 80).join("\n");
-  assert.ok(rendered.includes("Resume Session"));
-  assert.ok(rendered.includes("Current"));
-  assert.ok(rendered.includes("Threaded"));
-});
+  const populated = renderSessionSelector(state, 80).join("\n");
+  assert.ok(populated.includes("Resume Session"));
+  assert.ok(populated.includes("Current"));
+  assert.ok(populated.includes("Threaded"));
 
-test("session selector rendering shows empty state for current folder", () => {
-  const state = createInitialState("/repo");
-  state.sessionSelector.open = true;
   state.sessionSelector.currentSessions = [];
-  const rendered = renderSessionSelector(state, 80).join("\n");
-  assert.ok(rendered.includes("No sessions in current folder"));
+  const empty = renderSessionSelector(state, 80).join("\n");
+  assert.ok(empty.includes("No sessions in current folder"));
 });
 
-test("bug: named filter + scope toggle should still show named sessions", () => {
+test("named filter survives scope toggles once all sessions are loaded", () => {
   const state = createInitialState("/repo");
   const selector = state.sessionSelector;
   selector.open = true;
-  // "My Session" has a name, "Another session" does not
   selector.currentSessions = makeSessions();
   selector.allSessions = makeSessions();
   selector.allLoaded = true;
 
-  // Switch to named filter
   toggleSessionNameFilter(selector);
   assert.equal(selector.nameFilter, "named");
+  assert.equal(getFilteredSessions(selector).length, 1);
+  assert.equal(getFilteredSessions(selector)[0]!.session.name, "My Session");
 
-  // Should see 1 named session in current scope
-  let nodes = getFilteredSessions(selector);
-  assert.equal(nodes.length, 1);
-  assert.equal(nodes[0]!.session.name, "My Session");
-
-  // Toggle to "all" scope
   toggleSessionSelectorScope(selector);
   assert.equal(selector.scope, "all");
+  assert.equal(getFilteredSessions(selector).length, 1);
+  assert.equal(getFilteredSessions(selector)[0]!.session.name, "My Session");
 
-  // Should still see 1 named session in all scope
-  nodes = getFilteredSessions(selector);
-  assert.equal(nodes.length, 1, `Expected 1 named session in 'all' scope, got ${nodes.length}`);
-  assert.equal(nodes[0]!.session.name, "My Session");
-
-  // Toggle back to "current" scope
   toggleSessionSelectorScope(selector);
   assert.equal(selector.scope, "current");
-
-  // Should still see 1 named session
-  nodes = getFilteredSessions(selector);
-  assert.equal(nodes.length, 1, `Expected 1 named session back in 'current' scope, got ${nodes.length}`);
-  assert.equal(nodes[0]!.session.name, "My Session");
+  assert.equal(getFilteredSessions(selector).length, 1);
 });
 
-test("bug: named filter + scope toggle with allSessions not yet loaded shows empty", () => {
+test("named filter with unloaded allSessions is empty in all scope and recovers", () => {
   const state = createInitialState("/repo");
   const selector = state.sessionSelector;
   selector.open = true;
   selector.currentSessions = makeSessions();
-  // allSessions NOT loaded yet (default state)
   assert.equal(selector.allLoaded, false);
   assert.deepEqual(selector.allSessions, []);
 
-  // Switch to named filter
   toggleSessionNameFilter(selector);
-  assert.equal(selector.nameFilter, "named");
+  assert.equal(getFilteredSessions(selector).length, 1);
 
-  // Current scope: 1 named session visible
-  let nodes = getFilteredSessions(selector);
-  assert.equal(nodes.length, 1);
-
-  // Toggle to "all" scope — allSessions is empty because not loaded
   toggleSessionSelectorScope(selector);
-  nodes = getFilteredSessions(selector);
-  // This is 0 because allSessions hasn't been loaded yet — expected behavior
-  assert.equal(nodes.length, 0);
+  assert.equal(getFilteredSessions(selector).length, 0);
 
-  // Toggle back to "current" — should recover and show the named session again
   toggleSessionSelectorScope(selector);
   assert.equal(selector.scope, "current");
-  nodes = getFilteredSessions(selector);
-  assert.equal(nodes.length, 1, `Expected 1 named session after toggling back, got ${nodes.length}`);
+  assert.equal(getFilteredSessions(selector).length, 1);
 });
 
-test("bug: ctrl+n then tab via key handler reproduces empty list", async () => {
+test("ctrl+n then tab via key handler loads all sessions under named filter", async () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"));
   state.activeTabId = "s1";
@@ -499,43 +440,31 @@ test("bug: ctrl+n then tab via key handler reproduces empty list", async () => {
     hasOverlay: () => true,
     hideOverlay: () => undefined,
   };
-  // Runtime that provides listAllSessions (async, resolves with same sessions)
   const runtime = {
     listAllSessions: async () => makeSessions(),
     extensionSwitchSession: async () => ({ cancelled: false }),
   };
 
-  // Ctrl+N: toggle named filter
-  handleMixCodeKeyInput(state, "\x0e", tui, undefined, runtime); // ctrl+n = 0x0e
+  handleMixCodeKeyInput(state, "\x0e", tui, undefined, runtime);
   assert.equal(selector.nameFilter, "named");
-  let nodes = getFilteredSessions(selector);
-  assert.equal(nodes.length, 1, "Should see 1 named session after Ctrl+N");
+  assert.equal(getFilteredSessions(selector).length, 1);
 
-  // Tab: toggle scope to "all" (triggers async load)
   handleMixCodeKeyInput(state, "\t", tui, undefined, runtime);
   assert.equal(selector.scope, "all");
-
-  // Wait for async loadAllSessions to complete
   await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal(getFilteredSessions(selector).length, 1);
 
-  // After load, allSessions should be populated
-  nodes = getFilteredSessions(selector);
-  assert.equal(nodes.length, 1, `Expected 1 named session in 'all' after load, got ${nodes.length}`);
-
-  // Tab: toggle back to "current"
   handleMixCodeKeyInput(state, "\t", tui, undefined, runtime);
   assert.equal(selector.scope, "current");
-  nodes = getFilteredSessions(selector);
-  assert.equal(nodes.length, 1, `Expected 1 named session back in 'current', got ${nodes.length}`);
+  assert.equal(getFilteredSessions(selector).length, 1);
 });
 
-test("bug: named filter with no named sessions shows empty in both scopes", async () => {
+test("named filter with no named sessions is empty until filter is cleared", async () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"));
   state.activeTabId = "s1";
   const selector = state.sessionSelector;
   selector.open = true;
-  // All sessions have NO name
   const unnamedSessions: SessionInfo[] = [
     {
       path: "/sessions/s1.jsonl",
@@ -571,45 +500,32 @@ test("bug: named filter with no named sessions shows empty in both scopes", asyn
     extensionSwitchSession: async () => ({ cancelled: false }),
   };
 
-  // Initially: 2 sessions visible
-  let nodes = getFilteredSessions(selector);
-  assert.equal(nodes.length, 2);
+  assert.equal(getFilteredSessions(selector).length, 2);
 
-  // Ctrl+N: named filter
   handleMixCodeKeyInput(state, "\x0e", tui, undefined, runtime);
   assert.equal(selector.nameFilter, "named");
-  nodes = getFilteredSessions(selector);
-  assert.equal(nodes.length, 0, "No named sessions, should be empty");
+  assert.equal(getFilteredSessions(selector).length, 0);
 
-  // Tab: switch to all
   handleMixCodeKeyInput(state, "\t", tui, undefined, runtime);
   await new Promise((resolve) => setTimeout(resolve, 50));
-  nodes = getFilteredSessions(selector);
-  assert.equal(nodes.length, 0, "Still no named sessions in all scope");
+  assert.equal(getFilteredSessions(selector).length, 0);
 
-  // Ctrl+N again: back to "all" filter
   handleMixCodeKeyInput(state, "\x0e", tui, undefined, runtime);
   assert.equal(selector.nameFilter, "all");
-  nodes = getFilteredSessions(selector);
-  assert.equal(nodes.length, 2, `Should see all 2 sessions after toggling filter back, got ${nodes.length}`);
+  assert.equal(getFilteredSessions(selector).length, 2);
 
-  // Tab: back to current
   handleMixCodeKeyInput(state, "\t", tui, undefined, runtime);
   assert.equal(selector.scope, "current");
-  nodes = getFilteredSessions(selector);
-  assert.equal(nodes.length, 2, `Should see all 2 sessions in current scope, got ${nodes.length}`);
+  assert.equal(getFilteredSessions(selector).length, 2);
 });
 
-test("bug: exact user scenario - named + tab + tab + ctrl+n still shows nothing", async () => {
-  // Reproduce: open resume, ctrl+n, tab (see named), tab again (see nothing),
-  // ctrl+n (still nothing)
+test("named filter can be cleared after visiting all-scope empty current folder", async () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"));
   state.activeTabId = "s1";
   const selector = state.sessionSelector;
   selector.open = true;
 
-  // Current folder has NO named sessions (only unnamed)
   const unnamedSession: SessionInfo = {
     path: "/sessions/unnamed.jsonl",
     id: "unnamed",
@@ -620,7 +536,6 @@ test("bug: exact user scenario - named + tab + tab + ctrl+n still shows nothing"
     firstMessage: "World",
     allMessagesText: "World",
   };
-  // All scope has a named session from ANOTHER workdir
   const namedSession: SessionInfo = {
     path: "/sessions/named.jsonl",
     id: "named",
@@ -645,34 +560,26 @@ test("bug: exact user scenario - named + tab + tab + ctrl+n still shows nothing"
     extensionSwitchSession: async () => ({ cancelled: false }),
   };
 
-  // Step 1: Ctrl+N → named mode (current scope has 0 named sessions)
   handleMixCodeKeyInput(state, "\x0e", tui, undefined, runtime);
   assert.equal(selector.nameFilter, "named");
   assert.equal(selector.scope, "current");
-  let nodes = getFilteredSessions(selector);
-  assert.equal(nodes.length, 0, "Step 1: no named sessions in current");
+  assert.equal(getFilteredSessions(selector).length, 0);
 
-  // Step 2: Tab → switch to all (triggers load, has 1 named session)
   handleMixCodeKeyInput(state, "\t", tui, undefined, runtime);
   assert.equal(selector.scope, "all");
   await new Promise((resolve) => setTimeout(resolve, 50));
-  nodes = getFilteredSessions(selector);
-  assert.equal(nodes.length, 1, "Step 2: should see 1 named session in all scope");
+  assert.equal(getFilteredSessions(selector).length, 1);
 
-  // Step 3: Tab → switch back to current (0 named sessions here)
   handleMixCodeKeyInput(state, "\t", tui, undefined, runtime);
   assert.equal(selector.scope, "current");
-  nodes = getFilteredSessions(selector);
-  assert.equal(nodes.length, 0, "Step 3: no named sessions in current scope");
+  assert.equal(getFilteredSessions(selector).length, 0);
 
-  // Step 4: Ctrl+N → disable named filter, should see ALL current sessions
   handleMixCodeKeyInput(state, "\x0e", tui, undefined, runtime);
   assert.equal(selector.nameFilter, "all");
-  nodes = getFilteredSessions(selector);
-  assert.equal(nodes.length, 1, `Step 4: should see 1 unnamed session in current, got ${nodes.length}`);
+  assert.equal(getFilteredSessions(selector).length, 1);
 });
 
-test("bug: shift+tab should not corrupt search query", () => {
+test("shift+tab does not corrupt search query", () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"));
   state.activeTabId = "s1";
@@ -687,12 +594,8 @@ test("bug: shift+tab should not corrupt search query", () => {
     hideOverlay: () => undefined,
   };
 
-  // Shift+Tab sends ESC [ Z in most terminals
   handleMixCodeKeyInput(state, "\x1b[Z", tui);
 
-  // Query should remain empty (shift+tab should not be treated as text input)
-  assert.equal(selector.query, "", "shift+tab should not be appended to query");
-  // Sessions should still be visible
-  const nodes = getFilteredSessions(selector);
-  assert.equal(nodes.length, 2, `Should still see all sessions, got ${nodes.length}`);
+  assert.equal(selector.query, "");
+  assert.equal(getFilteredSessions(selector).length, 2);
 });

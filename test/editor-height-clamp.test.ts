@@ -234,7 +234,7 @@ test("bordered pager keeps both its top and bottom borders alongside the tab bar
   assert.match(text, /Agent-01/, "tab bar must stay visible");
   assert.match(text, /TOP-BORDER/, "pager top border must stay visible");
   assert.match(text, /BOTTOM-BORDER/, "pager bottom border (yellow line) must stay visible");
-  void state;
+  assert.ok((state.tabBarHitRow ?? 0) >= 1, "tab bar must remain laid out");
 });
 
 test("btw-style pager receives available height when widgets and working status consume rows", () => {

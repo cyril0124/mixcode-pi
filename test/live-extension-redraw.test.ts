@@ -23,14 +23,11 @@ test("live extension redraw requests renders for active time-dependent UI", asyn
   });
 
   let renders = 0;
-  let stopped = false;
   const tui = {
     requestRender: () => {
       renders += 1;
     },
-    stop: () => {
-      stopped = true;
-    },
+    stop: () => undefined,
   };
 
   const stop = bindLiveExtensionRedraw(state, tui, 5);
@@ -40,8 +37,6 @@ test("live extension redraw requests renders for active time-dependent UI", asyn
   await new Promise((resolve) => setTimeout(resolve, 20));
 
   assert.equal(renders, beforeStop);
-  tui.stop();
-  assert.equal(stopped, true);
 });
 
 test("live extension redraw stays idle when active tab has only static extension UI", async () => {

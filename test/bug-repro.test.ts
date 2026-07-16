@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
 import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -88,13 +87,8 @@ test("external editor supports executable paths containing spaces", async () => 
   }
 });
 
-test("standalone binary entry references materialized assets that exist in installed dependencies", () => {
-  const source = readFileSyncFromRepo("src/cli/binary-entry.ts");
-  const match = source.match(/import photonWasmPath from "(\.\.\/\.\.\/[^"]+photon_rs_bg\.wasm)"/);
-  assert.ok(match);
-  const relativePath = match[1]!.replace(/^\.\.\/\.\.\//, "");
-  assert.equal(existsSync(relativePath), true);
-});
+// Photon wasm materialization is covered by binary-assets.test.ts via
+// materializeBinaryRuntimeAssets (runtime write of photon_rs_bg.wasm).
 
 test("package bin symlink starts the CLI instead of silently exiting", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-bin-link-"));
@@ -110,7 +104,3 @@ test("package bin symlink starts the CLI instead of silently exiting", async () 
     await rm(dir, { recursive: true, force: true });
   }
 });
-
-function readFileSyncFromRepo(path: string): string {
-  return existsSync(path) ? readFileSync(path, "utf8") : "";
-}

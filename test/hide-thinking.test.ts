@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { LOCAL_COMMANDS } from "../src/core/commands.js";
 import { createInitialState, createTab } from "../src/core/defaults.js";
 import type { MixCodeRuntime } from "../src/agent/runtime.js";
 import { handleSubmittedInput } from "../src/ui/app-submit.js";
@@ -10,17 +9,6 @@ import { renderAgentSurface } from "../src/ui/rendering/agent-surface.js";
 function stripAnsi(text: string): string {
   return text.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "");
 }
-
-// ─── command registration ────────────────────────────────────────────────────
-
-test("hide-thinking is a registered local command", () => {
-  const command = LOCAL_COMMANDS.find((cmd) => cmd.name === "hide-thinking");
-  assert.ok(command, "command registered");
-  assert.match(command.description, /thinking/i);
-  assert.ok(command.palette, "command has palette metadata");
-});
-
-// ─── /hide-thinking command behavior ─────────────────────────────────────────
 
 test("/hide-thinking toggles state, persists via runtime, and toasts", async () => {
   const state = createInitialState("/repo");
@@ -73,8 +61,6 @@ test("/hide-thinking from Home pushes toast on the selected agent", async () => 
   assert.equal(state.hideThinkingBlock, true);
   assert.match(state.tabs[0]?.toast?.message ?? "", /Thinking blocks: hidden/i);
 });
-
-// ─── rendering: thinking collapses to placeholder when hidden ────────────────
 
 test("renderAgentSurface hides thinking content behind a placeholder", () => {
   const chat = [

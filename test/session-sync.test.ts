@@ -278,16 +278,13 @@ test("standalone shell command is rejected while the session is turn-locked", as
   }
 });
 
-// Performance: a large session reloads in one parse per burst, and only the
-// changed tab is touched. Builds a synthetic large JSONL directly so the test
-// does not depend on running thousands of real turns.
-test("large-session reload parses once per external-change burst", async () => {
+// Large synthetic JSONL: reload materializes every conversation message into chat.
+test("large-session reload materializes every conversation entry into chat", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-sync-perf-"));
   const sessionsRoot = join(dir, "sessions");
   const { mkdir } = await import("node:fs/promises");
   await mkdir(sessionsRoot, { recursive: true });
 
-  // Build a valid append-only linear session with many entries.
   const sessionId = "perf-session";
   const header = { type: "session", version: 3, id: sessionId, timestamp: new Date().toISOString(), cwd: dir };
   const lines: string[] = [JSON.stringify(header)];
@@ -317,16 +314,9 @@ test("large-session reload parses once per external-change burst", async () => {
       workdir: dir,
       model: MIXCODE_FAUX_MODEL,
     });
-    // A single reload materializes the whole large branch as chat lines.
-    const start = performance.now();
-    const reloaded = runtime.syncSessionFromDisk(sessionId);
-    const elapsedMs = performance.now() - start;
-    assert.equal(reloaded, true);
+    assert.equal(runtime.syncSessionFromDisk(sessionId), true);
     const chat = runtime.getTab(sessionId)?.chat ?? [];
-    // Every message became a chat line (user + assistant).
     assert.equal(chat.filter((l) => l.role === "user" || l.role === "assistant").length, ENTRY_COUNT);
-    // Report (do not gate on) the wall-clock cost of one large reload.
-    process.stderr.write(`large-session reload: ${ENTRY_COUNT} entries in ${elapsedMs.toFixed(1)}ms\n`);
   } finally {
     await runtime.closeAllTabs();
     await rm(dir, { recursive: true, force: true });

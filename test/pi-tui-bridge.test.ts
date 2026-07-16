@@ -7,8 +7,6 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { fileURLToPath } from "node:url";
-import { dirname } from "node:path";
 
 import { getKeybindings as getOuterKeybindings } from "@earendil-works/pi-tui";
 
@@ -26,7 +24,6 @@ test("nested pi-tui module is exposed and is a distinct module instance", async 
     outer.setKeybindings,
     "nested pi-tui must be a separate module instance — that is the bug we're guarding against",
   );
-  // Sanity: both expose the same shape.
   assert.equal(typeof nested.setKeybindings, "function");
   assert.equal(typeof nested.getKeybindings, "function");
 });

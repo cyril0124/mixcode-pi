@@ -61,11 +61,10 @@ test("extension registerProvider notifies onModelsChanged with selectable model 
       workdir: process.cwd(),
     });
 
-    assert.ok(seen.length > 0, "expected onModelsChanged after extension registerProvider");
     const flat = seen.flat();
     assert.ok(
       flat.some((ref) => ref.provider === "ext-proxy" && ref.modelId === "ext-model"),
-      `expected ext-proxy/ext-model in notifications, got ${JSON.stringify(flat)}`,
+      `expected onModelsChanged with ext-proxy/ext-model, got ${JSON.stringify(flat)}`,
     );
 
     // Selectable list API used by UI rebuild.

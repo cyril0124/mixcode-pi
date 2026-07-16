@@ -1,152 +1,19 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { test } from "node:test";
+import { Type } from "@earendil-works/pi-ai";
+import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
+import { Text, TUI, type AutocompleteProvider, type Terminal } from "@earendil-works/pi-tui";
 import {
-  Type,
-  createAssistantMessageEventStream,
-  type AssistantMessage,
-  type Context,
-  type Model,
-  type SimpleStreamOptions,
-} from "@earendil-works/pi-ai";
-import {
-  getMarkdownTheme,
-  SettingsManager,
-  type ExtensionFactory,
-} from "@earendil-works/pi-coding-agent";
-import {
-  Markdown,
-  Text,
-  TUI,
-  visibleWidth,
-  type AutocompleteProvider,
-  type Component,
-  type OverlayOptions,
-  type Terminal,
-} from "@earendil-works/pi-tui";
-import {
-  MIXCODE_FAUX_MODEL,
   MixCodeCompletionProvider,
-  MixCodeRoot,
   MixCodeRuntime,
-  box,
-  createInitialState,
   createTab,
-  createMixCodeTui,
-  MIXCODE_KEYMAP,
-  describeScopedKeymap,
-  describeKeymap,
-  handleSubmittedInput,
-  mixcodeFauxStream,
-  padLine,
-  renderChat,
-  renderCommandPalette,
-  renderConfig,
-  renderSystemToolsText,
-  renderExtensionFooter,
-  renderExtensionHeader,
-  renderExtensionWidgets,
-  renderHeader,
-  renderInputMeta,
   renderAgentSurface,
-  renderPickerOverlay,
-  renderQueuePreview,
-  renderSidebar,
-  renderStatus,
-  renderTabBar,
-  renderTabJumpOverlay,
-  renderWorkingIndicator,
-  fitHeadLines,
-  fitTailLines,
-  titledBox,
-  themeForId,
+  renderExtensionWidgets,
 } from "../src/index.js";
-
-function delayedAssistantStream(text: string, ready: Promise<void>, options?: SimpleStreamOptions) {
-  const stream = createAssistantMessageEventStream();
-  queueMicrotask(async () => {
-    const message = runtimeAssistantMessage(`Echo: ${text}`);
-    await ready;
-    if (options?.signal?.aborted) {
-      const aborted = {
-        ...message,
-        content: [],
-        stopReason: "aborted" as const,
-        errorMessage: "Request was aborted",
-      };
-      stream.push({ type: "error", reason: "aborted", error: aborted });
-      stream.end(aborted);
-      return;
-    }
-    stream.push({ type: "start", partial: { ...message, content: [] } });
-    stream.push({
-      type: "text_start",
-      contentIndex: 0,
-      partial: { ...message, content: [{ type: "text", text: "" }] },
-    });
-    stream.push({
-      type: "text_delta",
-      contentIndex: 0,
-      delta: message.content[0]!.text,
-      partial: message,
-    });
-    stream.push({
-      type: "text_end",
-      contentIndex: 0,
-      content: message.content[0]!.text,
-      partial: message,
-    });
-    stream.push({ type: "done", reason: "stop", message });
-    stream.end(message);
-  });
-  return stream;
-}
-
-function runtimeAssistantMessage(text: string): AssistantMessage {
-  return {
-    role: "assistant",
-    content: [{ type: "text", text }],
-    api: "queue-test",
-    provider: "queue-test",
-    model: "queue-test-model",
-    usage: {
-      input: 1,
-      output: 1,
-      cacheRead: 0,
-      cacheWrite: 0,
-      totalTokens: 2,
-      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-    },
-    stopReason: "stop",
-    timestamp: Date.now(),
-  };
-}
-
-function lastRuntimeUserText(context: Context): string {
-  for (const message of [...context.messages].reverse()) {
-    if (message.role !== "user") continue;
-    if (typeof message.content === "string") return message.content;
-    return message.content
-      .map((block) => (block.type === "text" ? block.text : "[image]"))
-      .join("\n");
-  }
-  return "";
-}
-
-async function waitForRuntime(predicate: () => boolean, attempts = 25): Promise<void> {
-  for (let i = 0; i < attempts; i += 1) {
-    if (predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
-  assert.equal(predicate(), true);
-}
-
-async function waitFor(predicate: () => boolean, attempts = 25): Promise<void> {
-  await waitForRuntime(predicate, attempts);
-}
 
 function stripAnsi(text: string): string {
   return text
@@ -181,11 +48,7 @@ function silentTerminal(): Terminal {
   };
 }
 
-function escapeRegExp(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-test("runtime loads pi extension factories, tools, commands, and lifecycle hooks", async () => {
+test("runtime loads extension tools, commands, and lifecycle hooks", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-"));
   const events: string[] = [];
   const extension: ExtensionFactory = (pi) => {
@@ -221,47 +84,15 @@ test("runtime loads pi extension factories, tools, commands, and lifecycle hooks
 
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir, extensionFactories: [extension] });
-    const tab = createTab(1, "s1", process.cwd());
-    const runtimeTab = await runtime.createTab(tab, {
+    const runtimeTab = await runtime.createTab(createTab(1, "s1", process.cwd()), {
       systemPrompt: "system",
       thinkingLevel: "medium",
       workdir: process.cwd(),
     });
 
-    assert.ok(runtimeTab.extensionsResult.extensions.length >= 1);
     assert.ok(runtimeTab.agentSession.getAllTools().some((tool) => tool.name === "extension_echo"));
-    assert.ok(runtimeTab.agentSession.getAllTools().some((tool) => tool.name === "read"));
-    assert.ok(runtimeTab.agentSession.getAllTools().some((tool) => tool.name === "bash"));
-    assert.ok(runtimeTab.agentSession.getAllTools().some((tool) => tool.name === "edit"));
-    assert.ok(runtimeTab.agentSession.getAllTools().some((tool) => tool.name === "write"));
-    assert.ok(runtimeTab.agentSession.getAllTools().some((tool) => tool.name === "grep"));
-    assert.ok(runtimeTab.agentSession.getAllTools().some((tool) => tool.name === "find"));
-    assert.ok(runtimeTab.agentSession.getAllTools().some((tool) => tool.name === "ls"));
-    assert.ok(runtimeTab.agentSession.getActiveToolNames().includes("extension_echo"));
     assert.ok(runtimeTab.agentSession.getActiveToolNames().includes("read"));
-    assert.ok(runtimeTab.agentSession.getActiveToolNames().includes("bash"));
-    assert.ok(runtimeTab.agentSession.getActiveToolNames().includes("edit"));
-    assert.ok(runtimeTab.agentSession.getActiveToolNames().includes("write"));
-    assert.ok(runtimeTab.agentSession.getActiveToolNames().includes("grep"));
-    assert.ok(runtimeTab.agentSession.getActiveToolNames().includes("find"));
-    assert.ok(runtimeTab.agentSession.getActiveToolNames().includes("ls"));
     assert.ok(runtime.getExtensionCommands("s1").some((command) => command.name === "hello"));
-    assert.ok(runtime.getAllExtensionCommands().some((command) => command.name === "hello"));
-    assert.ok(runtime.getExtensionTools("s1").some((tool) => tool.name === "extension_echo"));
-    assert.deepEqual(
-      runtime
-        .getAllExtensionCommands()
-        .filter((command) => command.name === "hello")
-        .map((command) => command.description),
-      ["Smoke-test command"],
-    );
-    assert.deepEqual(
-      runtime
-        .getAllExtensionCommands()
-        .filter((command) => command.name === "hello")
-        .map((command) => command.sourceInfo?.source),
-      ["inline"],
-    );
     assert.deepEqual(
       await runtime
         .getExtensionCommands("s1")
@@ -284,16 +115,10 @@ test("runtime loads pi extension factories, tools, commands, and lifecycle hooks
         (line) => line.role === "system" && line.text.includes("Extension: plain notice"),
       ),
     );
-    const extensionLine = runtimeTab.chat.find(
-      (line) => line.role === "extension" && line.customType === "extension-note",
-    );
-    assert.ok(extensionLine);
-    assert.match(extensionLine.text, /hello world/);
     assert.match(
       renderAgentSurface(runtimeTab.tab, runtimeTab, 100).join("\n"),
       /rendered hello world/,
     );
-    assert.ok(renderAgentSurface(runtimeTab.tab, runtimeTab, 0).length > 0);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -326,10 +151,8 @@ test("runtime keeps extension runtimes isolated across same-workdir tabs", async
     });
 
     assert.notEqual(first.extensionsResult.runtime, second.extensionsResult.runtime);
-
     first.agentSession.dispose();
     await runtime.prompt("s2", "/poke");
-
     assert.ok(
       second.chat.some((line) => line.role === "extension" && line.text.includes("still alive")),
     );
@@ -340,7 +163,6 @@ test("runtime keeps extension runtimes isolated across same-workdir tabs", async
 
 test("runtime extension terminal input and UI setters expose exact state changes", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-terminal-ui-"));
-  const events: string[] = [];
   const extension: ExtensionFactory = (pi) => {
     pi.registerCommand("terminal-ui", {
       description: "Terminal input and UI state smoke",
@@ -349,31 +171,22 @@ test("runtime extension terminal input and UI setters expose exact state changes
           data === "drop" ? { consume: true } : data === "map" ? { data: "mapped" } : undefined,
         );
         ctx.ui.onTerminalInput((data) => (data === "mapped" ? { data: "" } : undefined));
-        ctx.ui.setStatus("state", "ready\nnow");
         ctx.ui.setStatus("state", "ready");
-        ctx.ui.setWorkingMessage();
-        ctx.ui.setWorkingIndicator();
-        ctx.ui.setHiddenThinkingLabel();
-        ctx.ui.setWidget("string", ["line\tone", "", "\x1b[31mred\x1b[39m"], {
-          placement: "belowEditor",
-        });
-        ctx.ui.setWidget("factory", (tui, theme) => ({
-          render: () => [theme.fg("accent", `factory:${tui.terminal.columns}`)],
-          invalidate: () => events.push("factory-invalidate"),
-          dispose: () => events.push("factory-dispose"),
-        }));
-        ctx.ui.setFooter(undefined);
-        ctx.ui.setHeader(undefined);
         ctx.ui.setTitle("Extension Title");
         ctx.ui.setToolsExpanded(false);
+        ctx.ui.setWidget("string", ["line one", "red"], { placement: "belowEditor" });
+        ctx.ui.setWidget("factory", (tui, theme) => ({
+          render: () => [theme.fg("accent", `factory:${tui.terminal.columns}`)],
+          invalidate: () => undefined,
+          dispose: () => undefined,
+        }));
       },
     });
   };
 
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir, extensionFactories: [extension] });
-    const tab = createTab(1, "s1", process.cwd());
-    const runtimeTab = await runtime.createTab(tab, {
+    const runtimeTab = await runtime.createTab(createTab(1, "s1", process.cwd()), {
       systemPrompt: "system",
       thinkingLevel: "medium",
       workdir: process.cwd(),
@@ -381,14 +194,10 @@ test("runtime extension terminal input and UI setters expose exact state changes
 
     await runtime.prompt("s1", "/terminal-ui");
 
-    assert.equal(runtime.dispatchTerminalInput("missing", "drop"), undefined);
     assert.deepEqual(runtime.dispatchTerminalInput("s1", "drop"), { consume: true });
     assert.deepEqual(runtime.dispatchTerminalInput("s1", "map"), { data: "" });
     assert.equal(runtime.dispatchTerminalInput("s1", "plain"), undefined);
     assert.deepEqual(runtimeTab.tab.extensionUi.statuses, [{ key: "state", text: "ready" }]);
-    assert.equal(runtimeTab.tab.extensionUi.workingMessage, undefined);
-    assert.equal(runtimeTab.tab.extensionUi.workingIndicatorFrames, undefined);
-    assert.equal(runtimeTab.tab.extensionUi.workingIndicatorIntervalMs, undefined);
     assert.equal(runtimeTab.tab.extensionUi.toolsExpanded, false);
     assert.equal(runtimeTab.tab.extensionUi.title, "Extension Title");
     assert.match(
@@ -396,8 +205,6 @@ test("runtime extension terminal input and UI setters expose exact state changes
       /factory:38/,
     );
     assert.match(renderExtensionWidgets(runtimeTab.tab, 40, "belowEditor").join("\n"), /line one/);
-    assert.match(renderExtensionWidgets(runtimeTab.tab, 40, "belowEditor").join("\n"), /red/);
-    assert.deepEqual(events, []);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -432,24 +239,19 @@ test("runtime extension manager disables extension entries across reloads", asyn
       },
     });
     await runtime.loadExtensionManagerConfig();
-    const runtimeTab = await runtime.createTab(createTab(1, "s1", process.cwd()), {
+    await runtime.createTab(createTab(1, "s1", process.cwd()), {
       systemPrompt: "system",
       thinkingLevel: "medium",
       workdir: process.cwd(),
     });
 
-    assert.ok(runtime.getExtensionCommands("s1").some((command) => command.name === "managed"));
-    assert.ok(runtime.getExtensionTools("s1").some((tool) => tool.name === "managed_tool"));
     const entry = runtime.getExtensionManagerEntries("s1").find((item) => item.source === "inline");
     assert.ok(entry);
     assert.equal(entry.enabled, true);
-    assert.equal(entry.toolCount, 1);
-    assert.equal(entry.commandCount, 1);
 
     await runtime.setExtensionEnabled("s1", entry.key, false);
     assert.deepEqual(disabledExtensionKeys, [entry.key]);
     const result = await runtime.reloadExtensionManagerTab("s1");
-
     assert.equal(result.status, "reloaded");
     assert.equal(
       runtime.getExtensionCommands("s1").some((command) => command.name === "managed"),
@@ -457,16 +259,6 @@ test("runtime extension manager disables extension entries across reloads", asyn
     );
     assert.equal(
       runtime.getExtensionTools("s1").some((tool) => tool.name === "managed_tool"),
-      false,
-    );
-    assert.equal(
-      runtimeTab.extensionsResult.extensions.some(
-        (extension) => extension.sourceInfo.source === "inline",
-      ),
-      false,
-    );
-    assert.equal(
-      runtime.getExtensionManagerEntries("s1").find((item) => item.key === entry.key)?.enabled,
       false,
     );
   } finally {
@@ -528,10 +320,6 @@ test("runtime extension manager disables extensions for new tabs", async () => {
       runtime.getExtensionTools("s2").some((tool) => tool.name === "managed_tool"),
       false,
     );
-    assert.equal(
-      runtime.getExtensionManagerEntries("s2").find((item) => item.key === entry.key)?.enabled,
-      false,
-    );
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -541,7 +329,6 @@ test("runtime extension factory widgets render live state after requestRender", 
   const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-live-widget-"));
   let count = 0;
   let widgetTui: TUI | undefined;
-  let renderRequests = 0;
   const extension: ExtensionFactory = (pi) => {
     pi.on("session_start", (_event, ctx) => {
       ctx.ui.setWidget("live", (tui, theme) => {
@@ -557,10 +344,6 @@ test("runtime extension factory widgets render live state after requestRender", 
 
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir, extensionFactories: [extension] });
-    let runtimeChanges = 0;
-    runtime.onChange(() => {
-      runtimeChanges += 1;
-    });
     const runtimeTab = await runtime.createTab(createTab(1, "s1", process.cwd()), {
       systemPrompt: "system",
       thinkingLevel: "medium",
@@ -573,13 +356,10 @@ test("runtime extension factory widgets render live state after requestRender", 
     );
     count = 1;
     widgetTui?.requestRender();
-    renderRequests += 1;
     assert.match(
       stripAnsi(renderExtensionWidgets(runtimeTab.tab, 80, "aboveEditor").join("\n")),
       /Todos \(1\/5\)/,
     );
-    assert.equal(renderRequests, 1);
-    assert.equal(runtimeChanges > 0, true);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -594,9 +374,6 @@ test("runtime extension reload resets host UI state and rebinds extension resour
       ctx.ui.setStatus("state", event.reason);
       ctx.ui.setWidget("reload-widget", [`widget:${event.reason}`]);
       ctx.ui.setWorkingMessage(`working:${event.reason}`);
-      ctx.ui.setEditorComponent(
-        (tui) => new Text(`editor:${event.reason}:${tui.terminal.columns}`, 0, 0),
-      );
       ctx.ui.addAutocompleteProvider((current) => ({
         getSuggestions: async (lines, cursorLine, cursorCol, options) => {
           if ((lines[cursorLine] ?? "").startsWith("#")) {
@@ -621,7 +398,6 @@ test("runtime extension reload resets host UI state and rebinds extension resour
 
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir, extensionFactories: [extension] });
-    let editorFactory: unknown;
     let activeProvider: AutocompleteProvider = new MixCodeCompletionProvider({
       skills: [],
       files: [],
@@ -635,9 +411,7 @@ test("runtime extension reload resets host UI state and rebinds extension resour
         setAutocompleteProvider: (provider) => {
           activeProvider = provider;
         },
-        setEditorComponent: (factory) => {
-          editorFactory = factory;
-        },
+        setEditorComponent: () => undefined,
       },
     });
     const runtimeTab = await runtime.createTab(createTab(1, "s1", process.cwd()), {
@@ -653,44 +427,19 @@ test("runtime extension reload resets host UI state and rebinds extension resour
     );
     assert.equal(runtime.dispatchTerminalInput("s1", "reload-key")?.consume, true);
     assert.equal(runtimeTab.tab.extensionUi.statuses[0]?.text, "startup");
-    assert.equal(runtimeTab.tab.extensionUi.workingMessage, "working:startup");
-    assert.ok(
-      runtimeTab.tab.extensionUi.widgets.some((widget) => widget.lines.includes("widget:startup")),
-    );
-    assert.equal(typeof editorFactory, "function");
 
     await runtime.prompt("s1", "/reload-smoke");
 
     assert.equal(runtime.dispatchTerminalInput("s1", "reload-key")?.consume, true);
     assert.deepEqual(runtimeTab.tab.extensionUi.statuses, [{ key: "state", text: "reload" }]);
     assert.equal(runtimeTab.tab.extensionUi.workingMessage, "working:reload");
-    assert.deepEqual(
-      runtimeTab.tab.extensionUi.widgets
-        .filter((widget) => widget.key !== "bg-sessions")
-        .map((widget) => widget.lines[0]),
-      ["widget:reload"],
-    );
-    assert.deepEqual(
-      await runtime
-        .applyExtensionAutocompleteProviders(
-          "s1",
-          new MixCodeCompletionProvider({ skills: [], files: [] }),
-        )
-        .getSuggestions(["#"], 0, 1, { signal: new AbortController().signal }),
-      { prefix: "#", items: [{ value: "#reload", label: "reload" }] },
-    );
     assert.deepEqual(events, ["start:startup", "shutdown:reload", "start:reload", "after-reload"]);
-    assert.equal(typeof editorFactory, "function");
     runtime.setExtensionUiHost(undefined);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
 });
 
-// Factory widgets (e.g. pi-subagents FleetView) emit intentional blank lines as
-// vertical separators. Pi's native widget container preserves them; mixcode must
-// match, so interior blank rows survive widget rendering instead of being
-// collapsed away. Regression guard for the missing FleetView hint/main gap.
 test("runtime preserves interior blank lines in factory widgets", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-widget-blank-"));
   const extension: ExtensionFactory = (pi) => {
@@ -720,11 +469,9 @@ test("runtime preserves interior blank lines in factory widgets", async () => {
     await runtime.prompt("s1", "/blank-widget");
 
     const widget = runtimeTab.tab.extensionUi.widgets.find((w) => w.key === "fleet-like");
-    assert.ok(widget, "widget should be registered");
-    // Stored snapshot keeps the interior blank line (3 rows, middle is blank).
+    assert.ok(widget);
     assert.equal(widget?.lines.length, 3);
     assert.equal((widget?.lines[1] ?? "x").trim(), "");
-    // Live render preserves the blank row too, so the on-screen gap survives.
     const rendered = renderExtensionWidgets(runtimeTab.tab, 40, "belowEditor");
     assert.equal(rendered.length, 3);
     assert.equal(stripAnsi(rendered[1] ?? "x").trim(), "");

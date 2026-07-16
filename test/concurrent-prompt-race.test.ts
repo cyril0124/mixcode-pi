@@ -158,13 +158,20 @@ test("flush and user submit at idle boundary do not collide", async () => {
     await waitFor(() => runtimeTab.agentSession.isStreaming === false);
 
     // Immediately fire user submit while flush is scheduled (might race at idle boundary)
-    const userSubmit = runtime.prompt("s1", "user message");
+    await runtime.prompt("s1", "user message");
 
-    // Both should complete without "already processing" error
-    await userSubmit;
+    // Flush is fire-and-forget after idle; wait until both user turns land.
+    await waitFor(() => {
+      const texts = runtime.getForkableUserMessages("s1").map((message) => message.text);
+      return texts.includes("queued message") && texts.includes("user message");
+    });
 
-    // Verify no crash/exception
-    assert.ok(true, "Concurrent flush and submit completed without error");
+    const userMessages = runtime.getForkableUserMessages("s1").map((message) => message.text);
+    assert.ok(userMessages.includes("trigger flush"));
+    assert.ok(userMessages.includes("queued message"));
+    assert.ok(userMessages.includes("user message"));
+    assert.equal(runtimeTab.tab.pendingMessages.length, 0);
+    assert.equal(runtimeTab.queuedPromptCount, 0);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

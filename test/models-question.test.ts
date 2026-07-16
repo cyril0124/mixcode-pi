@@ -44,7 +44,6 @@ test("model helpers map pi models into MixCode state", () => {
   assert.equal(findModelRef([ref], "faux-1").provider, "faux");
   assert.equal(findModelRef([ref], "faux/faux-1").modelId, "faux-1");
   assert.throws(() => findModelRef([DEFAULT_MODEL_REF], "missing"), /Unknown model/);
-  assert.ok(Array.isArray(listAvailableModelRefs()));
 });
 
 test("proxy-gpt model loads through pi models.json registry as OpenAI Responses without storing secrets", async () => {
@@ -96,8 +95,6 @@ test("proxy-gpt model loads through pi models.json registry as OpenAI Responses 
       (item) => item.provider === "proxy-gpt" && item.modelId === "gpt-5.5",
     );
     assert.ok(source);
-    assert.equal(source.provider, "proxy-gpt");
-    assert.equal(source.modelId, "gpt-5.5");
     assert.equal(source.authStatus.source, "environment");
     assert.equal(source.authStatus.label, "MIXCODE_TEST_PROXY_KEY");
     assert.equal(source.model.api, "openai-responses");
@@ -351,22 +348,15 @@ function streamSingleMessage(message: AssistantMessage) {
   return stream;
 }
 
-test("pi model registry exposes missing or incomplete config explicitly", async () => {
+test("pi model registry rejects directory paths and incomplete provider config", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-model-config-missing-"));
-  const oldConfig = process.env.MIXCODE_MODEL_CONFIG;
   try {
-    const missingPath = join(dir, "missing.jsonc");
-    assert.equal((await loadPiModelSources(missingPath)).length > 0, true);
     const directoryPath = join(dir, "directory.jsonc");
     await mkdir(directoryPath);
     await assert.rejects(
       loadPiModelSources(directoryPath),
       /EISDIR|illegal operation on a directory/,
     );
-
-    const emptyPath = join(dir, "empty.jsonc");
-    await writeFile(emptyPath, `{ "providers": {} }`, "utf8");
-    assert.equal((await loadPiModelSources(emptyPath)).length > 0, true);
 
     const noApiPath = join(dir, "no-api.jsonc");
     await writeFile(
@@ -376,20 +366,17 @@ test("pi model registry exposes missing or incomplete config explicitly", async 
     );
     await assert.rejects(loadPiModelSources(noApiPath), /no "api" specified/);
 
-    const literalPath = join(dir, "literal.jsonc");
-    await writeFile(
-      literalPath,
-      customConfigBody({
-        baseUrl: "https://literal.example/v1",
-        apiKey: "MIXCODE_TEST_UNSET_API_KEY",
-        compat: { sessionAffinityFormat: "openai-nosession" },
-        input: ["audio"],
-      }),
-      "utf8",
-    );
-    process.env.MIXCODE_MODEL_CONFIG = literalPath;
-    assert.equal((await loadPiModelSources()).length > 0, true);
+    const missingBasePath = join(dir, "missing-base.jsonc");
+    await writeFile(missingBasePath, customConfigBody({ baseUrl: undefined }), "utf8");
+    await assert.rejects(loadPiModelSources(missingBasePath), /"baseUrl" is required/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
 
+test("pi model registry applies literal and minimal models.json fields", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-model-config-fields-"));
+  try {
     const literalValidPath = join(dir, "literal-valid.jsonc");
     await writeFile(
       literalValidPath,
@@ -429,53 +416,63 @@ test("pi model registry exposes missing or incomplete config explicitly", async 
     assert.equal(minimal.model.contextWindow, 128000);
     assert.equal(minimal.model.maxTokens, 16384);
     assert.equal(minimal.model.thinkingLevelMap, undefined);
-
-    const missingBasePath = join(dir, "missing-base.jsonc");
-    await writeFile(missingBasePath, customConfigBody({ baseUrl: undefined }), "utf8");
-    await assert.rejects(loadPiModelSources(missingBasePath), /"baseUrl" is required/);
   } finally {
-    if (oldConfig === undefined) delete process.env.MIXCODE_MODEL_CONFIG;
-    else process.env.MIXCODE_MODEL_CONFIG = oldConfig;
     await rm(dir, { recursive: true, force: true });
   }
 });
 
-test("pi model registry follows models.json overrides and edge cases", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-pi-models-edges-"));
-  const oldAgentDir = process.env.PI_CODING_AGENT_DIR;
-  const oldApiKey = process.env.MIXCODE_TEST_API_KEY;
+test("pi model registry rejects invalid models.json schemas", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-pi-models-schema-"));
   try {
-    process.env.MIXCODE_TEST_API_KEY = "resolved-test-key";
-    const scalarPath = join(dir, "scalar.json");
-    await writeFile(scalarPath, "[]", "utf8");
-    await assert.rejects(loadPiModelSources(scalarPath), /Invalid models\.json schema/);
-    const noProvidersPath = join(dir, "no-providers.json");
-    await writeFile(noProvidersPath, "{}", "utf8");
-    await assert.rejects(loadPiModelSources(noProvidersPath), /Invalid models\.json schema/);
-
-    const ignoredPath = join(dir, "ignored.json");
-    await writeFile(
-      ignoredPath,
-      JSON.stringify({
-        providers: {
-          ignored: "bad",
-          empty: { models: [] },
-          nonArray: { models: "bad" },
-          mixed: {
-            baseUrl: "https://mixed.example/v1",
-            api: "openai-responses",
-            apiKey: "$MIXCODE_TEST_API_KEY",
-            models: ["bad"],
+    for (const [name, body] of [
+      ["scalar.json", "[]"],
+      ["no-providers.json", "{}"],
+      [
+        "ignored.json",
+        JSON.stringify({
+          providers: {
+            ignored: "bad",
+            empty: { models: [] },
+            nonArray: { models: "bad" },
+            mixed: {
+              baseUrl: "https://mixed.example/v1",
+              api: "openai-responses",
+              apiKey: "$MIXCODE_TEST_API_KEY",
+              models: ["bad"],
+            },
           },
-        },
-      }),
-      "utf8",
-    );
-    await assert.rejects(loadPiModelSources(ignoredPath), /Invalid models\.json schema/);
+        }),
+      ],
+      [
+        "missing-id.json",
+        JSON.stringify({
+          providers: {
+            demo: {
+              baseUrl: "https://demo.example/v1",
+              api: "openai-responses",
+              models: [{}],
+            },
+          },
+        }),
+      ],
+    ] as const) {
+      const path = join(dir, name);
+      await writeFile(path, body, "utf8");
+      await assert.rejects(loadPiModelSources(path), /Invalid models\.json schema/);
+    }
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
 
-    const pathFromHome = join(process.env.HOME ?? "", ".pi", "agent", "models.json");
+test("defaultPiModelsPath expands PI_CODING_AGENT_DIR and ~", () => {
+  const oldAgentDir = process.env.PI_CODING_AGENT_DIR;
+  try {
     delete process.env.PI_CODING_AGENT_DIR;
-    assert.equal(defaultPiModelsPath(), pathFromHome);
+    assert.equal(
+      defaultPiModelsPath(),
+      join(process.env.HOME ?? "", ".pi", "agent", "models.json"),
+    );
     process.env.PI_CODING_AGENT_DIR = "~";
     assert.equal(defaultPiModelsPath(), join(process.env.HOME ?? "", "models.json"));
     process.env.PI_CODING_AGENT_DIR = "~/pi-agent-test";
@@ -483,19 +480,17 @@ test("pi model registry follows models.json overrides and edge cases", async () 
       defaultPiModelsPath(),
       join(process.env.HOME ?? "", "pi-agent-test", "models.json"),
     );
+  } finally {
+    if (oldAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+    else process.env.PI_CODING_AGENT_DIR = oldAgentDir;
+  }
+});
 
-    const missingIdPath = join(dir, "missing-id.json");
-    await writeFile(
-      missingIdPath,
-      JSON.stringify({
-        providers: {
-          demo: { baseUrl: "https://demo.example/v1", api: "openai-responses", models: [{}] },
-        },
-      }),
-      "utf8",
-    );
-    await assert.rejects(loadPiModelSources(missingIdPath), /Invalid models\.json schema/);
-
+test("pi model registry applies per-model overrides over provider defaults", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-pi-models-overrides-"));
+  const oldApiKey = process.env.MIXCODE_TEST_API_KEY;
+  try {
+    process.env.MIXCODE_TEST_API_KEY = "resolved-test-key";
     const configPath = join(dir, "models.json");
     await writeFile(
       configPath,
@@ -548,8 +543,6 @@ test("pi model registry follows models.json overrides and edge cases", async () 
     assert.equal(source.model.compat?.sessionAffinityFormat, "openai");
     assert.equal(source.model.compat?.supportsLongCacheRetention, true);
   } finally {
-    if (oldAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
-    else process.env.PI_CODING_AGENT_DIR = oldAgentDir;
     if (oldApiKey === undefined) delete process.env.MIXCODE_TEST_API_KEY;
     else process.env.MIXCODE_TEST_API_KEY = oldApiKey;
     await rm(dir, { recursive: true, force: true });

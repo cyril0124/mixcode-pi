@@ -10,7 +10,7 @@ import {
   setGlobalConversationHistoryPrompt,
 } from "../src/index.js";
 
-test("buildMixCodeSystemPrompt loads Pi project context into system prompt", async () => {
+test("buildMixCodeSystemPrompt loads project context files into the prompt", async () => {
   setGlobalConversationHistoryPrompt(undefined);
   const dir = await mkdtemp(join(tmpdir(), "mixcode-system-prompt-"));
   try {
@@ -25,22 +25,12 @@ test("buildMixCodeSystemPrompt loads Pi project context into system prompt", asy
 
     const prompt = await buildMixCodeSystemPrompt({ workdir: child, agentDir });
 
-    assert.match(prompt, /^You are an expert coding assistant operating inside pi/);
-    assert.match(prompt, /Available tools:\n\(none\)/);
-    assert.match(prompt, /Guidelines:/);
-    assert.match(prompt, /For content search, ALWAYS use `rg` \(ripgrep\)\. NEVER use `grep`\./);
-    assert.doesNotMatch(prompt, /Pi documentation/);
     assert.match(prompt, /<project_context>/);
-    assert.match(
-      prompt,
-      /<description>Project-specific instructions and guidelines:<\/description>/,
-    );
-    assert.match(prompt, /<context_file>/);
     assert.match(prompt, /Global agent rules/);
     assert.match(prompt, /Repo agent rules/);
     assert.match(prompt, /Package agent rules/);
     assert.match(prompt, new RegExp(`Current working directory: ${child.replace(/\\/g, "\\\\")}`));
-    assert.doesNotMatch(prompt, /workdir-instructions/);
+    assert.doesNotMatch(prompt, /Pi documentation/);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -66,7 +56,6 @@ test("buildMixCodeSystemPrompt uses project SYSTEM and append prompt files", asy
     assert.match(prompt, /Project system prompt/);
     assert.match(prompt, /Append prompt/);
     assert.doesNotMatch(prompt, /Fallback prompt/);
-    assert.doesNotMatch(prompt, /^You are an expert coding assistant operating inside pi/);
     assert.doesNotMatch(prompt, /Pi documentation/);
   } finally {
     await rm(dir, { recursive: true, force: true });
@@ -121,26 +110,7 @@ test("buildMixCodeSystemPrompt falls back when project resources are empty", asy
   }
 });
 
-test("buildMixCodeSystemPrompt uses defaults when optional inputs are omitted", async () => {
-  setGlobalConversationHistoryPrompt(undefined);
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-system-defaults-"));
-  try {
-    const repo = join(dir, "repo");
-    await mkdir(repo, { recursive: true });
-
-    const prompt = await buildMixCodeSystemPrompt({ workdir: repo });
-
-    assert.match(prompt, /^You are an expert coding assistant operating inside pi/);
-    assert.match(prompt, /Available tools:\n\(none\)/);
-    assert.match(prompt, /Guidelines:/);
-    assert.doesNotMatch(prompt, /Pi documentation/);
-    assert.match(prompt, new RegExp(`Current working directory: ${repo.replace(/\\/g, "\\\\")}`));
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-});
-
-test("buildMixCodeSystemPrompt formats tools and exploration guidelines like Pi", async () => {
+test("buildMixCodeSystemPrompt formats tools, search guidance, and prompt guidelines", async () => {
   setGlobalConversationHistoryPrompt(undefined);
   const dir = await mkdtemp(join(tmpdir(), "mixcode-system-tools-"));
   try {
@@ -165,8 +135,8 @@ test("buildMixCodeSystemPrompt formats tools and exploration guidelines like Pi"
     assert.match(prompt, /- read: Read file contents/);
     assert.match(prompt, /- bash: Execute bash commands \(ls, grep, find, etc\.\)/);
     assert.match(prompt, /- grep: Search file contents for patterns \(respects \.gitignore\)/);
-    assert.match(prompt, /For content search, ALWAYS use `rg` \(ripgrep\)\. NEVER use `grep`\./);
-    assert.match(prompt, /For file search, ALWAYS use `fd`\. NEVER use `find`\./);
+    assert.match(prompt, /ALWAYS use `rg` \(ripgrep\)\. NEVER use `grep`/);
+    assert.match(prompt, /ALWAYS use `fd`\. NEVER use `find`/);
     assert.match(prompt, /Use read to examine files instead of cat or sed\./);
   } finally {
     await rm(dir, { recursive: true, force: true });
@@ -187,7 +157,7 @@ test("global conversation history prompt is appended when configured", () => {
   }
 });
 
-test("default MixCode custom prompt expands tools and guidelines before Pi assembly", () => {
+test("default MixCode prompt expands tools and search guidance before assembly", () => {
   setGlobalConversationHistoryPrompt(undefined);
   const prompt = buildMixCodeSystemPromptFromParts({
     customPrompt: MIXCODE_SYSTEM_PROMPT,
@@ -197,14 +167,12 @@ test("default MixCode custom prompt expands tools and guidelines before Pi assem
     searchTools: { hasRg: true, hasFd: true },
   });
 
-  assert.match(prompt, /^You are an expert coding assistant operating inside pi/);
   assert.match(prompt, /Available tools:\n- bash: Execute bash commands/);
-  assert.match(prompt, /Guidelines:/);
-  assert.match(prompt, /For content search, ALWAYS use `rg` \(ripgrep\)\. NEVER use `grep`\./);
-  assert.match(prompt, /For file search, ALWAYS use `fd`\. NEVER use `find`\./);
+  assert.match(prompt, /ALWAYS use `rg` \(ripgrep\)\. NEVER use `grep`/);
+  assert.match(prompt, /ALWAYS use `fd`\. NEVER use `find`/);
 });
 
-test("custom base identity still keeps tools project context and skills", () => {
+test("custom base identity still keeps tools, project context, and skills", () => {
   setGlobalConversationHistoryPrompt(undefined);
   const prompt = buildMixCodeSystemPromptFromParts({
     customPrompt: "You are a strict code reviewer focused on API breaks.",

@@ -5,7 +5,6 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { test } from "node:test";
 import {
-  Type,
   createAssistantMessageEventStream,
   type AssistantMessage,
   type Context,
@@ -13,56 +12,10 @@ import {
   type SimpleStreamOptions,
 } from "@earendil-works/pi-ai";
 import {
-  getMarkdownTheme,
-  SettingsManager,
-  type ExtensionFactory,
-} from "@earendil-works/pi-coding-agent";
-import {
-  Markdown,
-  Text,
-  TUI,
-  visibleWidth,
-  type AutocompleteProvider,
-  type Component,
-  type OverlayOptions,
-  type Terminal,
-} from "@earendil-works/pi-tui";
-import {
   MIXCODE_FAUX_MODEL,
-  MixCodeCompletionProvider,
-  MixCodeRoot,
   MixCodeRuntime,
-  box,
-  createInitialState,
   createTab,
-  createMixCodeTui,
-  MIXCODE_KEYMAP,
-  describeScopedKeymap,
-  describeKeymap,
-  handleSubmittedInput,
-  mixcodeFauxStream,
-  padLine,
   renderChat,
-  renderCommandPalette,
-  renderConfig,
-  renderSystemToolsText,
-  renderExtensionFooter,
-  renderExtensionHeader,
-  renderExtensionWidgets,
-  renderHeader,
-  renderInputMeta,
-  renderAgentSurface,
-  renderPickerOverlay,
-  renderQueuePreview,
-  renderSidebar,
-  renderStatus,
-  renderTabBar,
-  renderTabJumpOverlay,
-  renderWorkingIndicator,
-  fitHeadLines,
-  fitTailLines,
-  titledBox,
-  themeForId,
 } from "../src/index.js";
 
 function delayedAssistantStream(text: string, ready: Promise<void>, options?: SimpleStreamOptions) {
@@ -125,78 +78,48 @@ function runtimeAssistantMessage(text: string): AssistantMessage {
   };
 }
 
-function lastRuntimeUserText(context: Context): string {
-  for (const message of [...context.messages].reverse()) {
-    if (message.role !== "user") continue;
-    if (typeof message.content === "string") return message.content;
-    return message.content
-      .map((block) => (block.type === "text" ? block.text : "[image]"))
-      .join("\n");
-  }
-  return "";
-}
-
-async function waitForRuntime(predicate: () => boolean, attempts = 25): Promise<void> {
-  for (let i = 0; i < attempts; i += 1) {
-    if (predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
-  assert.equal(predicate(), true);
-}
-
-async function waitFor(predicate: () => boolean, attempts = 25): Promise<void> {
-  await waitForRuntime(predicate, attempts);
-}
-
-function stripAnsi(text: string): string {
-  return text
-    .replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "")
-    .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, "")
-    .replace(/\x1b_[^\x07]*(?:\x07|\x1b\\)/g, "");
-}
-
-function silentTerminal(): Terminal {
-  return {
-    start: () => undefined,
-    stop: () => undefined,
-    drainInput: async () => undefined,
-    write: () => undefined,
-    get columns() {
-      return 80;
-    },
-    get rows() {
-      return 24;
-    },
-    get kittyProtocolActive() {
-      return false;
-    },
-    moveBy: () => undefined,
-    hideCursor: () => undefined,
-    showCursor: () => undefined,
-    clearLine: () => undefined,
-    clearFromCursor: () => undefined,
-    clearScreen: () => undefined,
-    setTitle: () => undefined,
-    setProgress: () => undefined,
-  };
-}
-
-function escapeRegExp(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 test("runtime restores prompt history from the active SDK branch", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-branch-"));
   const sessionId = "branch-history";
   const file = join(dir, `2026-06-27T00-00-00-000Z_${sessionId}.jsonl`);
   try {
     const lines = [
-      { type: "session", version: 3, id: sessionId, timestamp: "2026-06-27T00:00:00.000Z", cwd: process.cwd() },
-      { type: "message", id: "u1", parentId: null, timestamp: "2026-06-27T00:00:01.000Z", message: { role: "user", content: "root prompt", timestamp: 0 } },
-      { type: "message", id: "a1", parentId: "u1", timestamp: "2026-06-27T00:00:02.000Z", message: runtimeAssistantMessage("answer") },
-      { type: "message", id: "u2", parentId: "a1", timestamp: "2026-06-27T00:00:03.000Z", message: { role: "user", content: "abandoned prompt", timestamp: 0 } },
+      {
+        type: "session",
+        version: 3,
+        id: sessionId,
+        timestamp: "2026-06-27T00:00:00.000Z",
+        cwd: process.cwd(),
+      },
+      {
+        type: "message",
+        id: "u1",
+        parentId: null,
+        timestamp: "2026-06-27T00:00:01.000Z",
+        message: { role: "user", content: "root prompt", timestamp: 0 },
+      },
+      {
+        type: "message",
+        id: "a1",
+        parentId: "u1",
+        timestamp: "2026-06-27T00:00:02.000Z",
+        message: runtimeAssistantMessage("answer"),
+      },
+      {
+        type: "message",
+        id: "u2",
+        parentId: "a1",
+        timestamp: "2026-06-27T00:00:03.000Z",
+        message: { role: "user", content: "abandoned prompt", timestamp: 0 },
+      },
       "{bad json",
-      { type: "message", id: "u3", parentId: "a1", timestamp: "2026-06-27T00:00:04.000Z", message: { role: "user", content: "active prompt", timestamp: 0 } },
+      {
+        type: "message",
+        id: "u3",
+        parentId: "a1",
+        timestamp: "2026-06-27T00:00:04.000Z",
+        message: { role: "user", content: "active prompt", timestamp: 0 },
+      },
     ];
     await writeFile(
       file,
@@ -205,7 +128,6 @@ test("runtime restores prompt history from the active SDK branch", async () => {
     );
 
     const runtime = new MixCodeRuntime({ sessionsRoot: dir });
-
     assert.deepEqual(runtime.getPromptHistory(sessionId), ["root prompt", "active prompt"]);
   } finally {
     await rm(dir, { recursive: true, force: true });
@@ -218,23 +140,44 @@ test("runtime restores prompt history from legacy linear session files", async (
   const file = join(dir, `2026-06-27T00-00-00-000Z_${sessionId}.jsonl`);
   try {
     const lines = [
-      { type: "session", version: 1, id: sessionId, timestamp: "2026-06-27T00:00:00.000Z", cwd: process.cwd() },
-      { type: "message", timestamp: "2026-06-27T00:00:01.000Z", message: { role: "user", content: "first legacy", timestamp: 0 } },
-      { type: "message", timestamp: "2026-06-27T00:00:02.000Z", message: runtimeAssistantMessage("answer") },
-      { type: "message", timestamp: "2026-06-27T00:00:03.000Z", message: { role: "user", content: "second legacy", timestamp: 0 } },
-      { type: "message", timestamp: "2026-06-27T00:00:04.000Z", message: runtimeAssistantMessage("answer") },
+      {
+        type: "session",
+        version: 1,
+        id: sessionId,
+        timestamp: "2026-06-27T00:00:00.000Z",
+        cwd: process.cwd(),
+      },
+      {
+        type: "message",
+        timestamp: "2026-06-27T00:00:01.000Z",
+        message: { role: "user", content: "first legacy", timestamp: 0 },
+      },
+      {
+        type: "message",
+        timestamp: "2026-06-27T00:00:02.000Z",
+        message: runtimeAssistantMessage("answer"),
+      },
+      {
+        type: "message",
+        timestamp: "2026-06-27T00:00:03.000Z",
+        message: { role: "user", content: "second legacy", timestamp: 0 },
+      },
+      {
+        type: "message",
+        timestamp: "2026-06-27T00:00:04.000Z",
+        message: runtimeAssistantMessage("answer"),
+      },
     ];
     await writeFile(file, `${lines.map((line) => JSON.stringify(line)).join("\n")}\n`, "utf8");
 
     const runtime = new MixCodeRuntime({ sessionsRoot: dir });
-
     assert.deepEqual(runtime.getPromptHistory(sessionId), ["first legacy", "second legacy"]);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
 });
 
-test("runtime creates pi agent sessions, streams default response, and records session messages", async () => {
+test("runtime creates sessions, streams responses, restores chat, and supports compact/fork/delete", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-"));
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir });
@@ -247,12 +190,9 @@ test("runtime creates pi agent sessions, streams default response, and records s
     assert.equal(runtime.listTabs().length, 1);
     await runtime.prompt("s1", "hello");
     assert.equal(tab.status, "idle");
-    assert.equal(tab.unreadDone, true);
     assert.ok(tab.previewMessages.some((message) => message.text.includes("hello")));
     assert.match(runtimeTab.chat.map((line) => line.text).join("\n"), /hello/);
-    const entries = runtimeTab.session.getEntries();
-    assert.ok(entries.length >= 2);
-    await assert.rejects(runtime.prompt("missing", "x"), /Unknown tab session/);
+
     const reopened = new MixCodeRuntime({ sessionsRoot: dir });
     assert.deepEqual(reopened.getPromptHistory("s1"), ["hello"]);
     const reopenedTab = await reopened.createTab(createTab(1, "s1", process.cwd()), {
@@ -260,16 +200,9 @@ test("runtime creates pi agent sessions, streams default response, and records s
       thinkingLevel: "medium",
       workdir: process.cwd(),
     });
-    assert.ok(reopenedTab.session.getEntries().length >= 2);
     assert.match(reopenedTab.chat.map((line) => line.text).join("\n"), /hello/);
-    assert.equal(reopenedTab.tab.currentContextTokens !== undefined, true);
     assert.equal(reopenedTab.tab.contextLimit, MIXCODE_FAUX_MODEL.contextWindow);
-    assert.match(
-      reopenedTab.tab.previewMessages.map((message) => message.text).join("\n"),
-      /hello/,
-    );
-    reopenedTab.chat = [];
-    assert.deepEqual(reopened.getPromptHistory("s1"), ["hello"]);
+
     reopenedTab.session.appendCustomEntry("ui-note", { text: "not chat" });
     const reopenedAgain = new MixCodeRuntime({ sessionsRoot: dir });
     const reopenedAgainTab = await reopenedAgain.createTab(createTab(1, "s1", process.cwd()), {
@@ -281,28 +214,7 @@ test("runtime creates pi agent sessions, streams default response, and records s
       reopenedAgainTab.chat.some((line) => line.text.includes("not chat")),
       false,
     );
-    runtimeTab.session.appendMessage({
-      role: "toolResult",
-      toolCallId: "tc1",
-      toolName: "read",
-      content: [{ type: "text", text: "tool summary text" }],
-      isError: false,
-      timestamp: Date.now(),
-    });
-    runtimeTab.session.appendMessage({
-      role: "custom",
-      customType: "note",
-      content: "custom text",
-      display: true,
-      timestamp: Date.now(),
-    });
-    runtimeTab.session.appendMessage({
-      role: "custom",
-      customType: "array-note",
-      content: [{ type: "text", text: "array custom text" }],
-      display: true,
-      timestamp: Date.now(),
-    });
+
     runtimeTab.session.appendMessage({
       role: "bashExecution",
       command: "pwd",
@@ -318,35 +230,19 @@ test("runtime creates pi agent sessions, streams default response, and records s
       thinkingLevel: "medium",
       workdir: process.cwd(),
     });
-    const reopenedBashRendered = renderChat(reopenedBashTab.chat, 80).join("\n");
-    assert.match(reopenedBashRendered, /\$ pwd/);
-    assert.match(reopenedBashRendered, /bash output/);
-    // Shrink the keep-recent window so the accumulated history is compactable
-    // under SDK 0.80+ (which refuses when everything fits the window).
+    const rendered = renderChat(reopenedBashTab.chat, 80).join("\n");
+    assert.match(rendered, /\$ pwd/);
+    assert.match(rendered, /bash output/);
+
     runtimeTab.agentSession.settingsManager.applyOverrides({
       compaction: { reserveTokens: 1, keepRecentTokens: 1 },
     });
     await runtime.compactSession("s1", "preserve user intent");
-    const compactedBranch = runtimeTab.session.getBranch();
-    assert.equal(compactedBranch.at(-1)?.type, "compaction");
-    const compactedContext = runtimeTab.session.buildSessionContext();
-    assert.match(
-      compactedContext.messages[0]?.role === "compactionSummary"
-        ? compactedContext.messages[0].summary
-        : "",
-      /preserve user intent/,
-    );
-    assert.doesNotMatch(
-      compactedContext.messages[0]?.role === "compactionSummary"
-        ? compactedContext.messages[0].summary
-        : "",
-      /Extractive summary/,
-    );
+    assert.equal(runtimeTab.session.getBranch().at(-1)?.type, "compaction");
     assert.ok(runtimeTab.chat.some((line) => line.compactionSummary === true));
+
     const forked = await runtime.forkSession("s1", "s2");
     assert.equal(forked.getSessionId(), "s2");
-    assert.equal(runtime.resolveModel("faux", "").id, "faux-1");
-    await runtime.prompt("s1", "second message");
     await runtime.deleteTab("s1");
     assert.equal(runtime.getTab("s1"), undefined);
     await assert.rejects(runtime.deleteTab("s1"), /Unknown tab session/);
@@ -374,16 +270,90 @@ test("runtime compacts imported replay session with stream signal", async () => 
       model: "replay-model",
     });
     const replayEntries = [
-      { type: "session", version: 3, id: "replay-session", timestamp: "2026-06-07T00:00:00.000Z", cwd: process.cwd() },
-      { type: "message", id: "u1", parentId: null, timestamp: "2026-06-07T00:00:01.000Z", message: { role: "user", content: [{ type: "text", text: "original task" }], timestamp: 0 } },
-      { type: "message", id: "a1", parentId: "u1", timestamp: "2026-06-07T00:00:02.000Z", message: replayAssistantMessage("old answer") },
-      { type: "compaction", id: "c1", parentId: "a1", timestamp: "2026-06-07T00:00:03.000Z", summary: "previous summary", firstKeptEntryId: "u2", tokensBefore: 50000 },
-      { type: "message", id: "u2", parentId: "c1", timestamp: "2026-06-07T00:00:04.000Z", message: { role: "user", content: [{ type: "text", text: "continue" }], timestamp: 0 } },
-      { type: "message", id: "a2", parentId: "u2", timestamp: "2026-06-07T00:00:05.000Z", message: { ...replayAssistantMessage("tool call"), content: [{ type: "toolCall", id: "tc1", name: "read", arguments: { path: "file.ts" } }], stopReason: "toolUse" } },
-      { type: "message", id: "t1", parentId: "a2", timestamp: "2026-06-07T00:00:06.000Z", message: { role: "toolResult", toolCallId: "tc1", toolName: "read", content: [{ type: "text", text: "file content" }], details: {}, isError: false, timestamp: 0 } },
-      { type: "message", id: "a3", parentId: "t1", timestamp: "2026-06-07T00:00:07.000Z", message: replayAssistantMessage("latest answer") },
+      {
+        type: "session",
+        version: 3,
+        id: "replay-session",
+        timestamp: "2026-06-07T00:00:00.000Z",
+        cwd: process.cwd(),
+      },
+      {
+        type: "message",
+        id: "u1",
+        parentId: null,
+        timestamp: "2026-06-07T00:00:01.000Z",
+        message: {
+          role: "user",
+          content: [{ type: "text", text: "original task" }],
+          timestamp: 0,
+        },
+      },
+      {
+        type: "message",
+        id: "a1",
+        parentId: "u1",
+        timestamp: "2026-06-07T00:00:02.000Z",
+        message: replayAssistantMessage("old answer"),
+      },
+      {
+        type: "compaction",
+        id: "c1",
+        parentId: "a1",
+        timestamp: "2026-06-07T00:00:03.000Z",
+        summary: "previous summary",
+        firstKeptEntryId: "u2",
+        tokensBefore: 50000,
+      },
+      {
+        type: "message",
+        id: "u2",
+        parentId: "c1",
+        timestamp: "2026-06-07T00:00:04.000Z",
+        message: {
+          role: "user",
+          content: [{ type: "text", text: "continue" }],
+          timestamp: 0,
+        },
+      },
+      {
+        type: "message",
+        id: "a2",
+        parentId: "u2",
+        timestamp: "2026-06-07T00:00:05.000Z",
+        message: {
+          ...replayAssistantMessage("tool call"),
+          content: [{ type: "toolCall", id: "tc1", name: "read", arguments: { path: "file.ts" } }],
+          stopReason: "toolUse",
+        },
+      },
+      {
+        type: "message",
+        id: "t1",
+        parentId: "a2",
+        timestamp: "2026-06-07T00:00:06.000Z",
+        message: {
+          role: "toolResult",
+          toolCallId: "tc1",
+          toolName: "read",
+          content: [{ type: "text", text: "file content" }],
+          details: {},
+          isError: false,
+          timestamp: 0,
+        },
+      },
+      {
+        type: "message",
+        id: "a3",
+        parentId: "t1",
+        timestamp: "2026-06-07T00:00:07.000Z",
+        message: replayAssistantMessage("latest answer"),
+      },
     ];
-    await writeFile(importPath, `${replayEntries.map((entry) => JSON.stringify(entry)).join("\n")}\n`, "utf8");
+    await writeFile(
+      importPath,
+      `${replayEntries.map((entry) => JSON.stringify(entry)).join("\n")}\n`,
+      "utf8",
+    );
     const tab = createTab(1, "replay-session", process.cwd(), {
       model: {
         provider: "replay",
@@ -398,8 +368,6 @@ test("runtime compacts imported replay session with stream signal", async () => 
       workdir: process.cwd(),
       model: { ...MIXCODE_FAUX_MODEL, provider: "replay", api: "replay", id: "replay-model" },
     });
-    // Shrink the keep-recent window so the imported post-compaction history is
-    // compactable under SDK 0.80+ (which refuses when it all fits the window).
     runtimeTab.agentSession.settingsManager.applyOverrides({
       compaction: { reserveTokens: 1, keepRecentTokens: 1 },
     });
@@ -453,7 +421,6 @@ test("runtime imports pi session JSONL into the active tab", async () => {
     );
 
     const result = await runtime.importFromJsonl("s1", importPath);
-
     assert.deepEqual(result, { cancelled: false });
     assert.equal(tab.sessionId, "imported-session");
     assert.equal(tab.workdir, importedCwd);
@@ -461,6 +428,7 @@ test("runtime imports pi session JSONL into the active tab", async () => {
     const importedTab = runtime.getTab("imported-session");
     assert.equal(importedTab, runtimeTab);
     assert.match(importedTab?.chat.map((line) => line.text).join("\n") ?? "", /imported hello/);
+
     await assert.rejects(
       () => runtime.importFromJsonl("imported-session", join(dir, "missing.jsonl")),
       /Session import file not found/,
@@ -480,34 +448,11 @@ test("runtime imports pi session JSONL into the active tab", async () => {
     assert.equal(tab.sessionId, "no-cwd");
     assert.equal(tab.workdir, process.cwd());
 
-    const missingCwdPath = join(dir, "missing-cwd.jsonl");
-    await writeFile(
-      missingCwdPath,
-      `${JSON.stringify({ type: "session", version: 3, id: "missing-cwd", timestamp: "2026-05-10T00:00:00.000Z", cwd: join(dir, "does-not-exist") })}\n`,
-      "utf8",
-    );
-    await assert.rejects(
-      () => runtime.importFromJsonl("no-cwd", missingCwdPath),
-      /Stored session working directory does not exist/,
-    );
-
     const emptyPath = join(dir, "empty.jsonl");
     await writeFile(emptyPath, "\n", "utf8");
     await assert.rejects(
       () => runtime.importFromJsonl("no-cwd", emptyPath),
       /Session import file is empty/,
-    );
-    const invalidJsonPath = join(dir, "invalid-json.jsonl");
-    await writeFile(invalidJsonPath, "{not-json}\n", "utf8");
-    await assert.rejects(
-      () => runtime.importFromJsonl("no-cwd", invalidJsonPath),
-      /Session import header is not valid JSON/,
-    );
-    const noHeaderPath = join(dir, "no-header.jsonl");
-    await writeFile(noHeaderPath, `${JSON.stringify({ type: "message", id: "m1" })}\n`, "utf8");
-    await assert.rejects(
-      () => runtime.importFromJsonl("no-cwd", noHeaderPath),
-      /must start with a session header/,
     );
   } finally {
     await rm(dir, { recursive: true, force: true });

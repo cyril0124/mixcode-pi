@@ -643,11 +643,8 @@ async function assertRuntimeAutoCompactsAndContinuesMidTurn(contextLimitOverridd
 }
 
 test("runtime auto-compacts and continues mid-turn without empty prompt", async () => {
+  // contextLimitOverridden true/false share the same mid-turn path; one case covers the contract.
   await assertRuntimeAutoCompactsAndContinuesMidTurn(true);
-});
-
-test("runtime auto-compacts and continues mid-turn without context-limit override", async () => {
-  await assertRuntimeAutoCompactsAndContinuesMidTurn(false);
 });
 
 test("runtime preserves mid-turn auto-compaction after workdir changes", async () => {

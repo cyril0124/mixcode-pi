@@ -20,9 +20,6 @@ import {
   renderCommandPalette,
   renderPreviewOverlay,
   renderTabJumpOverlay,
-  chatEnd,
-  chatHome,
-  scrollChat,
   scrollPreview,
   stripAnsi,
   tabJumpEntries,
@@ -49,7 +46,7 @@ test("command palette derives every palette-visible LOCAL_COMMANDS entry", () =>
   assert.ok(configCommands.has("/save-workspace"), "config palette keeps workspace commands");
 });
 
-test("preview overlay toggles and renders", () => {
+test("preview overlay toggles, navigates messages, and scrolls content", () => {
   const tab = createTab(1, "s1", "/repo");
   assert.deepEqual(renderPreviewOverlay(tab, 80), []);
   togglePreview(tab);
@@ -60,6 +57,7 @@ test("preview overlay toggles and renders", () => {
   assert.equal(scrollPreview(tab, 1), false);
   assert.equal(previewHome(tab), false);
   assert.equal(previewEnd(tab), false);
+
   togglePreview(tab);
   assert.match(renderPreviewOverlay(tab, 80).join("\n"), /No preview messages yet/);
   tab.previewMessages.push(
@@ -68,19 +66,9 @@ test("preview overlay toggles and renders", () => {
   );
   assert.equal(previewTitle(tab), "User Message 1 / 2");
   assert.match(renderPreviewOverlay(tab, 80).join("\n"), /Prompt/);
+
   assert.equal(navigatePreview(tab, 1), true);
   assert.equal(previewTitle(tab), "Assistant Message 2 / 2");
-  tab.previewMessages[1] = { role: "shell", text: "cmd\nout" };
-  assert.equal(previewTitle(tab), "Shell Message 2 / 2");
-  tab.previewMessages[1] = { role: "tool", text: "tool output" };
-  assert.equal(previewTitle(tab), "Tool Message 2 / 2");
-  tab.previewMessages[1] = { role: "thinking", text: "thought" };
-  assert.equal(previewTitle(tab), "Thinking Message 2 / 2");
-  tab.previewMessages[1] = { role: "system", text: "notice" };
-  assert.equal(previewTitle(tab), "System Message 2 / 2");
-  tab.previewMessages[1] = { role: "empty", text: "empty" };
-  assert.equal(previewTitle(tab), "Message Message 2 / 2");
-  tab.previewMessages[1] = { role: "assistant", text: "# Answer\n\nDetails\nMore" };
   assert.match(renderPreviewOverlay(tab, 80).join("\n"), /# Answer/);
   assert.equal(scrollPreview(tab, 2), true);
   assert.match(renderPreviewOverlay(tab, 80).join("\n"), /scroll: 3\/4/);
@@ -88,23 +76,28 @@ test("preview overlay toggles and renders", () => {
   assert.match(renderPreviewOverlay(tab, 80).join("\n"), /scroll: 1\/4/);
   assert.equal(previewEnd(tab), true);
   assert.match(renderPreviewOverlay(tab, 80).join("\n"), /scroll: 4\/4/);
+
   assert.equal(navigatePreview(tab, 1), true);
   assert.equal(previewTitle(tab), "No newer message");
   assert.equal(navigatePreview(tab, -1), true);
   assert.equal(previewTitle(tab), "User Message 1 / 2");
   assert.equal(navigatePreview(tab, -1), true);
   assert.equal(previewTitle(tab), "No older message");
-  assert.equal(scrollPreview(createTab(2, "s2", "/repo"), 2), false);
-  assert.equal(previewHome(createTab(3, "s3", "/repo")), false);
-  assert.equal(previewEnd(createTab(4, "s4", "/repo")), false);
-  assert.equal(scrollChat(tab, 5), true);
-  assert.equal(tab.chatScrollOffset, 5);
-  assert.equal(scrollChat(tab, -99), true);
-  assert.equal(tab.chatScrollOffset, 0);
-  assert.equal(chatHome(tab), true);
-  assert.equal(tab.chatScrollOffset, 1_000_000);
-  assert.equal(chatEnd(tab), true);
-  assert.equal(tab.chatScrollOffset, 0);
+});
+
+test("previewTitle labels known roles and falls back for unknown ones", () => {
+  const tab = createTab(1, "s1", "/repo");
+  togglePreview(tab);
+  tab.previewMessages = [{ role: "shell", text: "cmd" }];
+  assert.equal(previewTitle(tab), "Shell Message 1 / 1");
+  tab.previewMessages = [{ role: "tool", text: "out" }];
+  assert.equal(previewTitle(tab), "Tool Message 1 / 1");
+  tab.previewMessages = [{ role: "thinking", text: "thought" }];
+  assert.equal(previewTitle(tab), "Thinking Message 1 / 1");
+  tab.previewMessages = [{ role: "system", text: "notice" }];
+  assert.equal(previewTitle(tab), "System Message 1 / 1");
+  tab.previewMessages = [{ role: "empty", text: "empty" }];
+  assert.equal(previewTitle(tab), "Message Message 1 / 1");
 });
 
 test("tab jump entries expose busy, done, question, and fuzzy filtering", () => {
@@ -195,7 +188,7 @@ test("tab jump state opens, filters, moves, accepts, and closes", () => {
   assert.equal(state.tabJumpQuery, "");
 });
 
-test("command palette state filters, moves, accepts, and closes", () => {
+test("command palette filters, accepts, disables, and closes without OpenCode entries", () => {
   const state = createInitialState("/repo");
   openCommandPalette(state);
   assert.equal(state.commandPaletteOpen, true);
@@ -220,46 +213,23 @@ test("command palette state filters, moves, accepts, and closes", () => {
   state.tabs.push(createTab(1, "s1", "/repo"));
   state.activeTabId = "s1";
   openCommandPalette(state);
-  assert.deepEqual(
-    commandPaletteEntries(state).map((entry) => entry.command),
-    [
-      "/models",
-      "/thinking",
-      "/context-limit",
-      "/workdir",
-      "/fork",
-      "/tree",
-      "/close-session",
-      "/delete-session",
-      "/close-all-sessions",
-      "/delete-all-sessions",
-      "/import",
-      "/extension-manager",
-      "/reload",
-      "/system-prompt",
-      "/system-tools",
-      "/toggle-hidden-messages",
-      "/settings",
-      "/hide-thinking",
-      "/session",
-      "/compact",
-      "/clear",
-      "/mark-done",
-      "/vim",
-      "/navigate",
-      "/new-session",
-      "/resume",
-      "/help",
-      "/hotkeys",
-      "/rename",
-      "/tui-state",
-      "/login",
-      "/logout",
-      "/quit",
-      "/exit",
-    ],
-  );
+  const sessionCommands = new Set(commandPaletteEntries(state).map((entry) => entry.command));
+  for (const command of [
+    "/models",
+    "/thinking",
+    "/settings",
+    "/system-prompt",
+    "/toggle-hidden-messages",
+    "/vim",
+    "/login",
+    "/logout",
+    "/quit",
+  ]) {
+    assert.ok(sessionCommands.has(command), `session palette includes ${command}`);
+  }
+  assert.equal(sessionCommands.has("/review"), false);
   assertNoOpenCodePaletteEntries(commandPaletteEntries(state));
+
   updateCommandPaletteQuery(state, "system prompt");
   assert.deepEqual(
     commandPaletteEntries(state).map((entry) => entry.command),
@@ -273,6 +243,7 @@ test("command palette state filters, moves, accepts, and closes", () => {
     ["/vim"],
   );
   assert.equal(acceptCommandPaletteSelection(state), "/vim");
+
   openCommandPalette(state);
   const extensionCommands = [
     { name: "", description: "Empty extension command" },

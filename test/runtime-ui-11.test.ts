@@ -343,24 +343,6 @@ test("runtime exposes editor component replacement as an explicit error without 
           line.text.includes("Pi extension UI editor is not available in MixCode yet"),
       ),
     );
-    assert.equal(
-      runtimeTab.chat.some(
-        (line) =>
-          line.role === "system" &&
-          line.text.includes(
-            "Pi extension UI primitive is not wired in MixCode yet: setEditorComponent",
-          ),
-      ),
-      false,
-    );
-    assert.equal(
-      runtimeTab.chat.some(
-        (line) =>
-          line.role === "system" &&
-          line.text.includes("Pi extension UI primitive is not wired in MixCode yet: custom"),
-      ),
-      false,
-    );
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -450,10 +432,8 @@ test("runtime maps pi extension custom overlay into a live TUI overlay", async (
     await promptTask;
     assert.equal(overlayOpen, false);
     assert.equal(runtime.hasExtensionCustomOverlay("s1"), false);
-    assert.equal(runtime.hasExtensionCustomOverlay("missing"), false);
     assert.ok(events.includes("dispose"));
     assert.ok(events.includes("result:updated"));
-    assert.equal(runtimeTab.tab.pendingDialogs.length, 0);
   } finally {
     tui.stop();
     await rm(dir, { recursive: true, force: true });

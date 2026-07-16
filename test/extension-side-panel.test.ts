@@ -473,9 +473,8 @@ test("Ctrl+E defers to the extension editor component when it owns the slot", ()
         received.push(data);
       },
     });
-    // Sanity: no replacement yet, the guard condition is false.
-    assert.equal(capturedHost?.editor?.setEditorComponent !== undefined, true);
-    capturedHost!.editor!.setEditorComponent!(stubFactory, "s1");
+    assert.ok(capturedHost?.editor?.setEditorComponent, "extension UI host must expose editor replacement");
+    capturedHost.editor.setEditorComponent(stubFactory, "s1");
 
     // Ctrl+E (0x05) fed through the real tui input pipeline.
     (tui as unknown as { handleInput(data: string): void }).handleInput("\x05");

@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { customMessageToChatLine, entriesToChatLines } from "../src/agent/runtime-chat.js";
 import type { RuntimeTab } from "../src/agent/runtime-types.js";
-import { LOCAL_COMMANDS } from "../src/core/commands.js";
 import { createInitialState, createTab } from "../src/core/defaults.js";
 import type { MixCodeRuntime } from "../src/agent/runtime.js";
 import { handleSubmittedInput } from "../src/ui/app-submit.js";
@@ -56,14 +55,6 @@ test("visible custom message keeps its normal title when toggled on", () => {
   );
   assert.ok(line);
   assert.equal(line.title, "extension skill-refs");
-});
-
-// ─── command registration ────────────────────────────────────────────────────
-
-test("toggle-hidden-messages is a registered local command", () => {
-  const command = LOCAL_COMMANDS.find((cmd) => cmd.name === "toggle-hidden-messages");
-  assert.ok(command, "command registered");
-  assert.match(command.description, /hidden/i);
 });
 
 // ─── /toggle-hidden-messages command behavior ────────────────────────────────

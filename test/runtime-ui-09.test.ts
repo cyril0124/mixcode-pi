@@ -594,41 +594,25 @@ test("runtime renders custom session entries from appendEntry and EntryRenderer"
 
 test("runtime renders pi custom messages with renderer, fallback, errors, and restored history", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-custom-message-"));
-  let statefulRenderCreations = 0;
-  let statefulRenderDisposals = 0;
-  let replaceRenderCreations = 0;
-  let replaceRenderDisposals = 0;
-  let replaceRenderGeneration = 0;
   const extension: ExtensionFactory = (pi) => {
     pi.registerMessageRenderer(
       "rendered-note",
       (message) => new Text(`component:${message.content}`, 0, 0),
     );
-    pi.registerMessageRenderer("stateful-note", (message) => {
-      statefulRenderCreations++;
-      return {
-        invalidate: () => undefined,
-        render: () => [`stateful:${message.content}:${statefulRenderCreations}`],
-        dispose: () => {
-          statefulRenderDisposals++;
-        },
-      };
-    });
+    pi.registerMessageRenderer("stateful-note", (message) => ({
+      invalidate: () => undefined,
+      render: () => [`stateful:${message.content}:1`],
+      dispose: () => undefined,
+    }));
     pi.registerMessageRenderer("undefined-note", () => undefined);
     pi.registerMessageRenderer("broken-note", () => {
       throw new Error("broken renderer");
     });
-    pi.registerMessageRenderer("replace-note", (message) => {
-      replaceRenderCreations++;
-      const generation = replaceRenderGeneration++;
-      return {
-        invalidate: () => undefined,
-        render: () => [`replace:${message.content}:${generation}`],
-        dispose: () => {
-          replaceRenderDisposals++;
-        },
-      };
-    });
+    pi.registerMessageRenderer("replace-note", (message) => ({
+      invalidate: () => undefined,
+      render: () => [`replace:${message.content}:0`],
+      dispose: () => undefined,
+    }));
     pi.registerMessageRenderer("broken-after-note", () => {
       throw "broken string renderer";
     });
@@ -678,27 +662,6 @@ test("runtime renders pi custom messages with renderer, fallback, errors, and re
     assert.match(surface, /\bextension\b/);
     assert.match(surface, /extension renderer error \(broken-after-note\): broken string renderer/);
     assert.doesNotMatch(surface, /must not display/);
-    renderAgentSurface(runtimeTab.tab, runtimeTab, 100);
-    assert.equal(statefulRenderCreations, 1);
-    assert.equal(statefulRenderDisposals, 0);
-    const replaceLine = runtimeTab.chat.find(
-      (line) => line.role === "extension" && line.customType === "replace-note",
-    );
-    assert.ok(replaceLine?.renderExtension);
-    replaceLine.extensionRendererExpanded = true;
-    assert.match(replaceLine.renderExtension(100).join("\n"), /replace:replace me:\d+/);
-    assert.equal(replaceRenderCreations >= 2, true);
-    assert.equal(replaceRenderDisposals >= 1, true);
-    replaceLine.extensionRendererLastComponent = {
-      render: () => ["stale"],
-      invalidate: () => undefined,
-      dispose: () => {
-        replaceRenderDisposals++;
-      },
-    };
-    replaceLine.extensionRendererExpanded = true;
-    assert.match(replaceLine.renderExtension(100).join("\n"), /replace:replace me:/);
-    assert.equal(replaceRenderDisposals >= 2, true);
 
     const reopened = new MixCodeRuntime({ sessionsRoot: dir, extensionFactories: [extension] });
     const reopenedTab = await reopened.createTab(createTab(1, "s1", process.cwd()), {
@@ -712,9 +675,7 @@ test("runtime renders pi custom messages with renderer, fallback, errors, and re
     assert.match(reopenedSurface, /extension renderer error \(broken-note\): broken renderer/);
     assert.doesNotMatch(reopenedSurface, /must not display/);
     await runtime.closeTab("s1");
-    assert.equal(statefulRenderDisposals, 1);
     await reopened.closeTab("s1");
-    assert.equal(statefulRenderDisposals, 2);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

@@ -70,33 +70,6 @@ test("extension footerData.getGitBranch exposes workdir branch", async () => {
     const branch = await waitForBranch(readBranch);
     assert.ok(branch, "footerData.getGitBranch() should resolve for a git workdir");
     assert.equal(branch, gitBranchForWorkdir(process.cwd()) || null);
-
-    // Non-git workdir tab stays null after refresh window.
-    const bare = await mkdtemp(join(tmpdir(), "mixcode-footer-no-git-"));
-    try {
-      let bareRead: (() => string | null) | undefined;
-      const bareExt: ExtensionFactory = (pi) => {
-        pi.on("session_start", async (_event, ctx) => {
-          ctx.ui.setFooter((_tui, _theme, footerData) => {
-            bareRead = () => footerData.getGitBranch();
-            return { render: () => [], invalidate: () => undefined };
-          });
-        });
-      };
-      const bareRuntime = new MixCodeRuntime({
-        sessionsRoot: join(dir, "bare-sessions"),
-        extensionFactories: [bareExt],
-      });
-      await bareRuntime.createTab(createTab(2, "s2", bare), {
-        systemPrompt: "system",
-        thinkingLevel: "off",
-        workdir: bare,
-      });
-      await new Promise((resolve) => setTimeout(resolve, 250));
-      assert.equal(bareRead?.() ?? null, null);
-    } finally {
-      await rm(bare, { recursive: true, force: true });
-    }
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

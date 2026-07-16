@@ -15,57 +15,43 @@ test("applyWorkdirSelection skips and toasts when workdir is unchanged", () => {
   const tab = makeTab("/home/user/project");
   let called = false;
   const runtime = {
-    updateTabWorkdir: async () => { called = true; },
+    updateTabWorkdir: async () => {
+      called = true;
+    },
   };
 
   applyWorkdirSelection(tab, "/home/user/project", runtime);
-
-  assert.equal(called, false, "runtime.updateTabWorkdir should not be called");
-  assert.ok(tab.toast, "toast should be set");
-  assert.equal(tab.toast!.message, "workdir unchanged");
-});
-
-test("applyWorkdirSelection skips when paths differ only by trailing slash", () => {
-  const tab = makeTab("/home/user/project");
-  let called = false;
-  const runtime = {
-    updateTabWorkdir: async () => { called = true; },
-  };
+  assert.equal(called, false);
+  assert.equal(tab.toast?.message, "workdir unchanged");
 
   applyWorkdirSelection(tab, "/home/user/project/", runtime);
-
-  assert.equal(called, false, "runtime.updateTabWorkdir should not be called");
-  assert.ok(tab.toast);
+  assert.equal(called, false);
+  assert.equal(tab.toast?.message, "workdir unchanged");
 });
 
 test("applyWorkdirSelection proceeds when workdir actually changes", () => {
   const tab = makeTab("/home/user/project");
   let called = false;
   const runtime = {
-    updateTabWorkdir: async () => { called = true; },
+    updateTabWorkdir: async () => {
+      called = true;
+    },
   };
 
   applyWorkdirSelection(tab, "/home/user/other", runtime);
 
-  assert.equal(called, true, "runtime.updateTabWorkdir should be called");
-  assert.equal(tab.toast, undefined, "toast should not be set");
-});
-
-test("applyWorkdirSelection updates tab.workdir directly without runtime", () => {
-  const tab = makeTab("/home/user/project");
-
-  applyWorkdirSelection(tab, "/home/user/other");
-
-  assert.equal(tab.workdir, "/home/user/other");
+  assert.equal(called, true);
   assert.equal(tab.toast, undefined);
 });
 
-test("applyWorkdirSelection same-dir without runtime sets toast only", () => {
+test("applyWorkdirSelection without runtime updates workdir or toasts same-dir", () => {
   const tab = makeTab("/home/user/project");
 
-  applyWorkdirSelection(tab, "/home/user/project");
+  applyWorkdirSelection(tab, "/home/user/other");
+  assert.equal(tab.workdir, "/home/user/other");
+  assert.equal(tab.toast, undefined);
 
-  assert.equal(tab.workdir, "/home/user/project");
-  assert.ok(tab.toast);
-  assert.equal(tab.toast!.message, "workdir unchanged");
+  applyWorkdirSelection(tab, "/home/user/other");
+  assert.equal(tab.workdir, "/home/user/other");
+  assert.equal(tab.toast?.message, "workdir unchanged");
 });

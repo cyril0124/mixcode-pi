@@ -54,11 +54,11 @@ test("file completion source warms cache in background and joins the same pendin
     // Empty seed = bootstrap lazy path; source must warm without an initial list.
     const files = createActiveFileCompletionSource(state, []);
     const first = await Promise.resolve(files());
-    assert.ok(first.includes("warm-only.ts"));
+    assert.equal(first.includes("warm-only.ts"), true);
     // Within TTL the next call is synchronous from cache (not a Promise).
     const second = files();
-    assert.ok(Array.isArray(second));
-    assert.ok(second.includes("warm-only.ts"));
+    assert.equal(second instanceof Promise, false);
+    assert.equal((second as string[]).includes("warm-only.ts"), true);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -86,7 +86,7 @@ test("active file completion source retries stale refresh after scan failures", 
     assert.deepEqual(files(), ["old-only.ts"]);
     await new Promise((resolve) => setTimeout(resolve, 100));
     const refreshed = await files();
-    assert.ok(refreshed.includes("new-only.ts"));
+    assert.equal(refreshed.includes("new-only.ts"), true);
   } finally {
     Date.now = originalNow;
     await rm(dir, { recursive: true, force: true });

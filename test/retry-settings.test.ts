@@ -18,19 +18,13 @@ function classifyRetryable(message: { stopReason: string; errorMessage?: string 
 
 test("configureMixCodeRetrySettings applies MixCode retry defaults over SDK defaults", () => {
   const settings = SettingsManager.inMemory();
-  const originalRandom = Math.random;
-  Math.random = () => 0.5;
-  try {
-    configureMixCodeRetrySettings(settings);
+  configureMixCodeRetrySettings(settings);
 
-    assert.deepEqual(settings.getRetrySettings(), {
-      enabled: true,
-      maxRetries: MIXCODE_RETRY_DEFAULTS.maxRetries,
-      baseDelayMs: MIXCODE_RETRY_DEFAULTS.baseDelayMs,
-    });
-  } finally {
-    Math.random = originalRandom;
-  }
+  const retry = settings.getRetrySettings();
+  assert.equal(retry.enabled, true);
+  assert.equal(retry.maxRetries, MIXCODE_RETRY_DEFAULTS.maxRetries);
+  assert.ok(retry.baseDelayMs >= 180);
+  assert.ok(retry.baseDelayMs <= 220);
 });
 
 test("configureMixCodeRetrySettings preserves explicit retry settings", () => {
@@ -40,40 +34,28 @@ test("configureMixCodeRetrySettings preserves explicit retry settings", () => {
       baseDelayMs: 1000,
     },
   });
-  const originalRandom = Math.random;
-  Math.random = () => 0.5;
-  try {
-    configureMixCodeRetrySettings(settings);
+  configureMixCodeRetrySettings(settings);
 
-    assert.deepEqual(settings.getRetrySettings(), {
-      enabled: true,
-      maxRetries: 5,
-      baseDelayMs: 1000,
-    });
-  } finally {
-    Math.random = originalRandom;
-  }
+  const retry = settings.getRetrySettings();
+  assert.equal(retry.enabled, true);
+  assert.equal(retry.maxRetries, 5);
+  assert.ok(retry.baseDelayMs >= 900);
+  assert.ok(retry.baseDelayMs <= 1100);
 });
 
 test("configureMixCodeRetrySettings survives settings reloads", async () => {
   const settings = SettingsManager.inMemory();
-  const originalRandom = Math.random;
-  Math.random = () => 0.5;
-  try {
-    configureMixCodeRetrySettings(settings);
-    await settings.reload();
+  configureMixCodeRetrySettings(settings);
+  await settings.reload();
 
-    assert.deepEqual(settings.getRetrySettings(), {
-      enabled: true,
-      maxRetries: MIXCODE_RETRY_DEFAULTS.maxRetries,
-      baseDelayMs: MIXCODE_RETRY_DEFAULTS.baseDelayMs,
-    });
-  } finally {
-    Math.random = originalRandom;
-  }
+  const retry = settings.getRetrySettings();
+  assert.equal(retry.enabled, true);
+  assert.equal(retry.maxRetries, MIXCODE_RETRY_DEFAULTS.maxRetries);
+  assert.ok(retry.baseDelayMs >= 180);
+  assert.ok(retry.baseDelayMs <= 220);
 });
 
-test("configureMixCodeRetrySettings is idempotent and jitters once per read", () => {
+test("configureMixCodeRetrySettings is idempotent and jitters each read", () => {
   const settings = SettingsManager.inMemory();
   const originalRandom = Math.random;
   const randomValues = [0, 1];

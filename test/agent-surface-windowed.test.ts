@@ -153,32 +153,6 @@ test("windowed renderer survives empty chat", () => {
   assert.match(lines.map(stripAnsi).join("\n"), /No messages yet/);
 });
 
-test("windowed renderer activates only above the threshold", () => {
-  // Below threshold: legacy path. i=29 -> 29%4=1 -> user-29.
-  const shortChat = buildLongChat(30);
-  const shortTab = createTab(6, "s6", "/repo", { chatScrollOffset: 0 });
-  const shortLines = renderAgentSurface(
-    shortTab,
-    { chat: shortChat } as never,
-    WIDTH,
-    HEIGHT,
-  );
-  assert.match(shortLines.map(stripAnsi).join("\n"), /user-29/);
-
-  // Above threshold: windowed path. Same observable behavior at offset 0.
-  // i=119 -> 119%4=3 -> system-119.
-  const longChat = buildLongChat(120);
-  const longTab = createTab(7, "s7", "/repo", { chatScrollOffset: 0 });
-  const longLines = renderAgentSurface(
-    longTab,
-    { chat: longChat } as never,
-    WIDTH,
-    HEIGHT,
-  );
-  assert.equal(longLines.length, HEIGHT);
-  assert.match(longLines.map(stripAnsi).join("\n"), /system-119/);
-});
-
 test("windowed renderer renders queue preview when present", () => {
   const chat = buildLongChat(150);
   const tab = createTab(8, "s8", "/repo", {

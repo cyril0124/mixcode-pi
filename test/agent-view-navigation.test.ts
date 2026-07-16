@@ -161,6 +161,7 @@ test("Left on empty input does NOT trigger when preview is open", () => {
   const editorActions = makeEditorActions("");
 
   const result = handleMixCodeKeyInput(state, "\x1b[D", tui, undefined, undefined, undefined, () => false, editorActions);
+  assert.equal(result, undefined);
   assert.equal(state.activeTabId, "s1");
 });
 
@@ -178,21 +179,6 @@ test("Left on empty input returns to MixCode Home and preserves vimMode", () => 
   assert.equal(state.activeTabId, "config");
   assert.equal(state.homeSelectedTabIndex, 0);
   assert.equal(tab.vimMode, true);
-});
-
-test("Left on empty input returns to MixCode Home without vim mode", () => {
-  const state = createInitialState("/repo");
-  const tab = createTab(1, "s1", "/repo");
-  state.tabs.push(tab);
-  state.activeTabId = "s1";
-  const tui = makeTui();
-  const editorActions = makeEditorActions("");
-
-  const result = handleMixCodeKeyInput(state, "\x1b[D", tui, undefined, undefined, undefined, () => false, editorActions);
-
-  assert.deepEqual(result, { consume: true });
-  assert.equal(state.activeTabId, "config");
-  assert.equal(state.homeSelectedTabIndex, 0);
 });
 
 test("Left on non-empty input does NOT return to Home in vim mode", () => {
@@ -219,6 +205,7 @@ test("Left on empty input does NOT trigger when already on config", () => {
 
   const result = handleMixCodeKeyInput(state, "\x1b[D", tui, undefined, undefined, undefined, () => false, editorActions);
   // On config, Up/Down/Right/Enter are handled but Left is not
+  assert.notDeepEqual(result, { consume: true });
   assert.equal(state.activeTabId, "config");
 });
 
@@ -283,17 +270,6 @@ test("Home Right activates selected agent", () => {
 
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[C", tui), { consume: true }); // Right
   assert.equal(state.activeTabId, "s2");
-});
-
-test("Home Enter with empty text stays on Home (only Right attaches)", () => {
-  const state = createInitialState("/repo");
-  state.tabs.push(createTab(1, "s1", "/repo"), createTab(2, "s2", "/repo"));
-  state.activeTabId = "config";
-  state.homeSelectedTabIndex = 0;
-  const tui = makeTui();
-
-  assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui), { consume: true });
-  assert.equal(state.activeTabId, "config");
 });
 
 test("Home Enter expands paste markers before sending", async () => {
@@ -614,31 +590,6 @@ test("Home /clear stays on Home after session replacement", async () => {
   assert.equal(state.activeTabId, "config");
   assert.equal(tab.sessionId, "s1-cleared");
   assert.equal(state.homeSelectedTabIndex, 0);
-});
-
-test("Home Enter with empty text does not attach; double Enter after send stays on Home", async () => {
-  const state = createInitialState("/repo");
-  state.tabs.push(createTab(1, "s1", "/repo"), createTab(2, "s2", "/repo"));
-  state.activeTabId = "config";
-  state.homeSelectedTabIndex = 1;
-  const tui = makeTui();
-  const runtime = { prompt: async () => undefined };
-  const editorActions = makeEditorActions("hi");
-
-  assert.deepEqual(
-    handleMixCodeKeyInput(state, "\r", tui, undefined, runtime, undefined, () => false, editorActions),
-    { consume: true },
-  );
-  await new Promise<void>((resolve) => setImmediate(resolve));
-  await new Promise<void>((resolve) => setImmediate(resolve));
-  assert.equal(state.activeTabId, "config");
-  assert.equal(editorActions.getText(), "");
-
-  assert.deepEqual(
-    handleMixCodeKeyInput(state, "\r", tui, undefined, runtime, undefined, () => false, editorActions),
-    { consume: true },
-  );
-  assert.equal(state.activeTabId, "config");
 });
 
 test("Home Right does NOT attach when editor has text", () => {

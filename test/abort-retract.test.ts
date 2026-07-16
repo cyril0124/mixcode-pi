@@ -199,11 +199,10 @@ test("double escape with no assistant output retracts the message into an empty 
   const tab = createTab(1, "s1", "/repo", { status: "thinking" });
   state.tabs.push(tab);
   state.activeTabId = "s1";
-  let renders = 0;
   let aborts = 0;
   let editorText = "";
   const tui = {
-    requestRender: () => renders++,
+    requestRender: () => undefined,
     showOverlay: () => ({}) as never,
     hasOverlay: () => false,
   };

@@ -348,16 +348,10 @@ test("picker key handling covers no-match, empty selection, and no active tab", 
   state.tabs.push(createTab(1, "s1", "/repo"));
   state.activeTabId = "s1";
   let overlayOpen = false;
-  const overlays: string[] = [];
   const tui = {
     requestRender: () => undefined,
-    showOverlay: (component: { render?: (width: number) => string[] } | string) => {
+    showOverlay: () => {
       overlayOpen = true;
-      overlays.push(
-        typeof component === "string"
-          ? component
-          : (component.render?.(80).join("\n") ?? String(component)),
-      );
       return {} as never;
     },
     hideOverlay: () => {
@@ -397,5 +391,5 @@ test("picker key handling covers no-match, empty selection, and no active tab", 
   };
   // Modal pickers swallow unbound keys so they cannot fall through to the editor.
   assert.deepEqual(handleMixCodeKeyInput(state, "\x00", tui), { consume: true });
-  assert.ok(overlays.length >= 0);
+  assert.equal(state.picker?.kind, "theme");
 });

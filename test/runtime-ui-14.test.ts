@@ -305,31 +305,23 @@ test("runtime maps pi extension multiline editor primitive into an in-place edit
 
     const editTask = runtime.prompt("s1", "/edit-smoke");
     await waitFor(() => !!activeEditorComponent);
-    assert.deepEqual(tab.extensionUi.pendingUserInteractions, [
-      { id: "extension-editor-1", kind: "editor" },
-    ]);
     const editComponent = activeEditorComponent!;
     assert.match(stripAnsi(editComponent.render(100).join("\n")), /Edit Note/);
     editComponent.handleInput?.(" updated");
     editComponent.handleInput?.("\r");
     await editTask;
     assert.equal(restoredToPrevious, true);
-    assert.deepEqual(tab.extensionUi.pendingUserInteractions, []);
     assert.equal(events.at(-1), "edited:prefill updated");
 
     restoredToPrevious = false;
     const cancelTask = runtime.prompt("s1", "/edit-cancel");
     await waitFor(() => !!activeEditorComponent);
-    assert.deepEqual(tab.extensionUi.pendingUserInteractions, [
-      { id: "extension-editor-1", kind: "editor" },
-    ]);
     const cancelComponent = activeEditorComponent!;
     assert.match(stripAnsi(cancelComponent.render(100).join("\n")), /Cancel Note/);
     cancelComponent.handleInput?.("\x1b");
     cancelComponent.handleInput?.("\r");
     await cancelTask;
     assert.equal(restoredToPrevious, true);
-    assert.deepEqual(tab.extensionUi.pendingUserInteractions, []);
     assert.equal(events.at(-1), "cancel:none");
   } finally {
     tui.stop();

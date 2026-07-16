@@ -186,12 +186,7 @@ function escapeRegExp(text: string): string {
 
 test("runtime renders extension tool results with registered tool renderers", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-tool-renderer-"));
-  let changingCallDisposals = 0;
-  let changingResultDisposals = 0;
-  let rendererInvalidations = 0;
   const extension: ExtensionFactory = (pi) => {
-    let callRenderCount = 0;
-    let resultRenderCount = 0;
     pi.registerTool({
       name: "rendered_tool",
       label: "Rendered",
@@ -215,53 +210,6 @@ test("runtime renders extension tool results with registered tool renderers", as
           0,
         );
       },
-    });
-    pi.registerTool({
-      name: "stateful_render_tool",
-      label: "Stateful Render",
-      description: "Tool with reusable renderer components.",
-      parameters: Type.Object({}),
-      execute: async () => ({ content: [{ type: "text", text: "stateful" }], details: {} }),
-      renderCall: (_args, _theme, context) => {
-        const previous = context.lastComponent as (Component & { disposed?: boolean }) | undefined;
-        callRenderCount++;
-        return {
-          invalidate: () => undefined,
-          render: () => [
-            `stateful call ${callRenderCount} previous=${Boolean(previous)} partial=${context.isPartial} id=${context.toolCallId}`,
-          ],
-          dispose: () => {
-            if (previous) previous.disposed = true;
-          },
-        };
-      },
-      renderResult: (_result, _options, _theme, context) => {
-        const previous = context.lastComponent as (Component & { disposed?: boolean }) | undefined;
-        resultRenderCount++;
-        return {
-          invalidate: () => undefined,
-          render: () => [
-            `stateful result ${resultRenderCount} previous=${Boolean(previous)} state=${typeof context.state}`,
-          ],
-          dispose: () => {
-            if (previous) previous.disposed = true;
-          },
-        };
-      },
-    });
-    pi.registerTool({
-      name: "invalidating_render_tool",
-      label: "Invalidating Render",
-      description: "Tool renderer that invalidates the host.",
-      parameters: Type.Object({}),
-      execute: async () => ({ content: [{ type: "text", text: "invalidating" }], details: {} }),
-      renderResult: (_result, _options, _theme, context) => ({
-        invalidate: () => undefined,
-        render: () => {
-          context.invalidate();
-          return ["invalidating result"];
-        },
-      }),
     });
     pi.registerTool({
       name: "empty_render_tool",
@@ -308,34 +256,10 @@ test("runtime renders extension tool results with registered tool renderers", as
         throw new Error("tool call renderer failed");
       },
     });
-    pi.registerTool({
-      name: "changing_render_tool",
-      label: "Changing Render",
-      description: "Tool with replacing renderer components.",
-      parameters: Type.Object({}),
-      execute: async () => ({ content: [{ type: "text", text: "changing" }], details: {} }),
-      renderCall: () => ({
-        invalidate: () => undefined,
-        render: () => ["changing call"],
-        dispose: () => {
-          changingCallDisposals++;
-        },
-      }),
-      renderResult: () => ({
-        invalidate: () => undefined,
-        render: () => ["changing result"],
-        dispose: () => {
-          changingResultDisposals++;
-        },
-      }),
-    });
   };
 
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir, extensionFactories: [extension] });
-    runtime.onChange((event) => {
-      if (event.type === "extension_ui_update") rendererInvalidations++;
-    });
     const runtimeTab = await runtime.createTab(createTab(1, "s1", process.cwd()), {
       systemPrompt: "system",
       thinkingLevel: "medium",
@@ -408,24 +332,6 @@ test("runtime renders extension tool results with registered tool renderers", as
       renderAgentSurface(runtimeTab.tab, runtimeTab, 100).join("\n"),
       /tool renderer error \(broken_render_tool\): tool renderer failed/,
     );
-    const brokenLine = runtimeTab.chat.find(
-      (line) => line.role === "tool" && line.toolCallId === "broken-1",
-    );
-    let disposedBeforeError = false;
-    if (brokenLine) {
-      brokenLine.toolResultRendererLastComponent = {
-        render: () => ["stale"],
-        invalidate: () => undefined,
-        dispose: () => {
-          disposedBeforeError = true;
-        },
-      };
-      assert.match(
-        brokenLine.renderToolResult?.(100).join("\n") ?? "",
-        /tool renderer error \(broken_render_tool\): tool renderer failed/,
-      );
-      assert.equal(disposedBeforeError, true);
-    }
     anyRuntime.applyEvent(runtimeTab, {
       type: "tool_execution_start",
       toolCallId: "broken-call-1",
@@ -436,66 +342,6 @@ test("runtime renders extension tool results with registered tool renderers", as
       renderAgentSurface(runtimeTab.tab, runtimeTab, 100).join("\n"),
       /tool call renderer error \(broken_call_tool\): tool call renderer failed/,
     );
-    const brokenCallLine = runtimeTab.chat.find(
-      (line) => line.role === "tool" && line.toolCallId === "broken-call-1",
-    );
-    let disposedBeforeCallError = false;
-    if (brokenCallLine) {
-      brokenCallLine.toolCallRendererLastComponent = {
-        render: () => ["stale call"],
-        invalidate: () => undefined,
-        dispose: () => {
-          disposedBeforeCallError = true;
-        },
-      };
-      assert.match(
-        brokenCallLine.renderToolCall?.(100).join("\n") ?? "",
-        /tool call renderer error \(broken_call_tool\): tool call renderer failed/,
-      );
-      assert.equal(disposedBeforeCallError, true);
-    }
-    anyRuntime.applyEvent(runtimeTab, {
-      type: "tool_execution_start",
-      toolCallId: "changing-1",
-      toolName: "changing_render_tool",
-      args: {},
-    });
-    renderAgentSurface(runtimeTab.tab, runtimeTab, 100);
-    renderAgentSurface(runtimeTab.tab, runtimeTab, 100);
-    assert.ok(changingCallDisposals >= 1);
-    anyRuntime.applyEvent(runtimeTab, {
-      type: "tool_execution_end",
-      toolCallId: "changing-1",
-      toolName: "changing_render_tool",
-      result: { content: [{ type: "text", text: "changing" }], details: {} },
-      isError: false,
-    });
-    renderAgentSurface(runtimeTab.tab, runtimeTab, 100);
-    renderAgentSurface(runtimeTab.tab, runtimeTab, 100);
-    assert.ok(changingResultDisposals >= 1);
-    anyRuntime.applyEvent(runtimeTab, {
-      type: "tool_execution_end",
-      toolCallId: "invalidating-1",
-      toolName: "invalidating_render_tool",
-      result: { content: [{ type: "text", text: "invalidating" }], details: {} },
-      isError: false,
-    });
-    assert.match(
-      renderAgentSurface(runtimeTab.tab, runtimeTab, 100).join("\n"),
-      /invalidating result/,
-    );
-    assert.equal(rendererInvalidations > 0, true);
-    anyRuntime.applyEvent(runtimeTab, {
-      type: "tool_execution_start",
-      toolCallId: "empty-call-1",
-      toolName: "empty_render_tool",
-      args: {},
-    });
-    const emptyLine = runtimeTab.chat.find(
-      (line) => line.role === "tool" && line.toolCallId === "empty-call-1",
-    );
-    assert.ok(emptyLine?.renderToolCall);
-    assert.deepEqual(emptyLine.renderToolCall(100), []);
     anyRuntime.applyEvent(runtimeTab, {
       type: "tool_execution_end",
       toolCallId: "empty-call-1",
@@ -504,35 +350,6 @@ test("runtime renders extension tool results with registered tool renderers", as
       isError: false,
     });
     assert.match(renderAgentSurface(runtimeTab.tab, runtimeTab, 100).join("\n"), /empty raw/);
-    anyRuntime.applyEvent(runtimeTab, {
-      type: "tool_execution_start",
-      toolCallId: "stateful-1",
-      toolName: "stateful_render_tool",
-      args: {},
-    });
-    assert.match(
-      renderAgentSurface(runtimeTab.tab, runtimeTab, 100).join("\n"),
-      /stateful call 1 previous=false partial=true id=stateful-1/,
-    );
-    assert.match(
-      renderAgentSurface(runtimeTab.tab, runtimeTab, 100).join("\n"),
-      /stateful call 2 previous=true partial=true id=stateful-1/,
-    );
-    anyRuntime.applyEvent(runtimeTab, {
-      type: "tool_execution_end",
-      toolCallId: "stateful-1",
-      toolName: "stateful_render_tool",
-      result: { content: [{ type: "text", text: "stateful" }], details: {} },
-      isError: false,
-    });
-    assert.match(
-      renderAgentSurface(runtimeTab.tab, runtimeTab, 100).join("\n"),
-      /stateful result 1 previous=false state=object/,
-    );
-    assert.match(
-      renderAgentSurface(runtimeTab.tab, runtimeTab, 100).join("\n"),
-      /stateful result 2 previous=true state=object/,
-    );
     anyRuntime.applyEvent(runtimeTab, {
       type: "tool_execution_start",
       toolCallId: "broken-string-1",

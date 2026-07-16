@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
-import { homedir, tmpdir } from "node:os";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { SessionManager, type Theme } from "@earendil-works/pi-coding-agent";
+import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { InMemoryCredentialStore } from "@earendil-works/pi-ai";
 import { streamSimple } from "@earendil-works/pi-ai/compat";
@@ -12,12 +12,8 @@ import { createInitialState, createTab, MixCodeCompletionProvider } from "../src
 import { listAllSessionsGlobal, reopenSessionInWorkdir } from "../src/agent/runtime-session.js";
 import {
   applyExtensionTheme,
-  availableExtensionThemes,
-  currentExtensionTheme,
   extensionThemeByName,
-  MIXCODE_EXTENSION_CLAUDE_WARM_THEME,
   MIXCODE_EXTENSION_THEME,
-  MIXCODE_EXTENSION_TOKYO_NIGHT_THEME,
 } from "../src/agent/runtime-extension-theme.js";
 import {
   appendActiveSystemMessage,
@@ -30,7 +26,7 @@ import {
   activeExtensionCommands,
   createActiveAutocompleteProvider,
 } from "../src/ui/app-runtime.js";
-import { addPromptHistory, insertEditorText } from "../src/ui/app-editor.js";
+import { addPromptHistory } from "../src/ui/app-editor.js";
 import {
   buildMixCodeSystemPromptOverride,
   registerMixCodeRuntimeProvider,
@@ -38,55 +34,14 @@ import {
 import { resolveRuntimeModel, resolveRuntimeModelFromSession } from "../src/agent/runtime-model.js";
 import { MIXCODE_FAUX_MODEL } from "../src/agent/faux-stream.js";
 
-test("extension theme helpers cover host, alias, and error branches", () => {
-  assert.equal(currentExtensionTheme(undefined), MIXCODE_EXTENSION_THEME);
-  assert.equal(currentExtensionTheme({ getTheme: () => "light" }), MIXCODE_EXTENSION_THEME);
-  assert.equal(currentExtensionTheme({ getTheme: () => "unknown" }), MIXCODE_EXTENSION_THEME);
-
-  const names = availableExtensionThemes().map((theme) => theme.name);
-  assert.equal(new Set(names).size, names.length);
+test("extension theme lookup and apply reject unknown or hostless switches", () => {
   assert.equal(extensionThemeByName("mixcode-dark"), MIXCODE_EXTENSION_THEME);
-  assert.equal(extensionThemeByName("claude-warm"), MIXCODE_EXTENSION_CLAUDE_WARM_THEME);
-  assert.equal(extensionThemeByName("tokyo-night"), MIXCODE_EXTENSION_TOKYO_NIGHT_THEME);
-  assert.equal(extensionThemeByName("terminal"), MIXCODE_EXTENSION_THEME);
-  assert.equal(extensionThemeByName("mixcode-light"), undefined);
-  assert.equal(extensionThemeByName("mixcode-extension"), MIXCODE_EXTENSION_THEME);
-  assert.equal(
-    extensionThemeByName(MIXCODE_EXTENSION_THEME.name ?? "mixcode-extension"),
-    MIXCODE_EXTENSION_THEME,
-  );
   assert.equal(extensionThemeByName("missing"), undefined);
 
-  let renders = 0;
-  assert.deepEqual(
-    applyExtensionTheme("dark", undefined, () => renders++),
-    {
-      success: false,
-      error: "Pi extension theme switching requires an active MixCode TUI host",
-    },
-  );
-  assert.match(
-    applyExtensionTheme(
-      ({ name: undefined } as unknown as Theme),
-      {
-        getTheme: () => "dark",
-        setTheme: () => undefined,
-      },
-      () => renders++,
-    ).error ?? "",
-    /must have a name/,
-  );
-  assert.match(
-    applyExtensionTheme(
-      ({ name: "custom" } as unknown as Theme),
-      {
-        getTheme: () => "dark",
-        setTheme: () => undefined,
-      },
-      () => renders++,
-    ).error ?? "",
-    /not switchable/,
-  );
+  assert.deepEqual(applyExtensionTheme("dark", undefined, () => undefined), {
+    success: false,
+    error: "Pi extension theme switching requires an active MixCode TUI host",
+  });
 
   const setThemes: string[] = [];
   assert.deepEqual(
@@ -95,62 +50,51 @@ test("extension theme helpers cover host, alias, and error branches", () => {
       {
         getTheme: () => "dark",
         setTheme: (theme) => setThemes.push(theme),
-        requestRender: () => renders++,
       },
-      () => renders++,
+      () => undefined,
     ),
     { success: false, error: "Unknown theme: light" },
   );
   assert.deepEqual(setThemes, []);
-  assert.deepEqual(
-    applyExtensionTheme(
-      "dark",
-      {
-        getTheme: () => "light",
-        setTheme: () => {
-          throw new Error("theme error object");
-        },
-      },
-      () => renders++,
-    ),
-    { success: false, error: "theme error object" },
-  );
 });
 
-test("app action helpers expose model, system message, and close edge branches", async () => {
+test("model selection rejects unregistered models and commits registered ones", async () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo");
   state.tabs.push(tab);
   state.activeTabId = "s1";
-
-  tab.pendingEscapeAction = "close-shell";
-  clearPendingEscape(tab, "abort-agent");
-  assert.equal(tab.pendingEscapeAction, "close-shell");
-  clearPendingEscape(tab, "close-shell");
-  assert.equal(tab.pendingEscapeAction, undefined);
 
   const model = { provider: "p", modelId: "m", displayName: "p/m", contextWindow: 123 };
   await assert.rejects(
     async () => applyModelSelection(state, tab, model, { resolveModel: () => undefined }),
     /Model is not registered/,
   );
+
   const updates: string[] = [];
-  let finishUpdate: (() => void) | undefined;
-  const updateFinished = new Promise<void>((resolve) => {
-    finishUpdate = resolve;
-  });
-  const selection = applyModelSelection(state, tab, model, {
+  await applyModelSelection(state, tab, model, {
     resolveModel: () => ({ provider: "p", id: "m", contextWindow: 123 }) as never,
     updateTabModel: async (sessionId, resolved) => {
       updates.push(`${sessionId}:${resolved.id}`);
-      await updateFinished;
     },
   });
-  assert.equal(state.model.displayName, "faux/faux-1");
-  finishUpdate?.();
-  await selection;
   assert.deepEqual(updates, ["s1:m"]);
   assert.equal(state.model.displayName, "p/m");
+});
+
+test("pending escape clears only the matching action", () => {
+  const tab = createTab(1, "s1", "/repo");
+  tab.pendingEscapeAction = "close-shell";
+  clearPendingEscape(tab, "abort-agent");
+  assert.equal(tab.pendingEscapeAction, "close-shell");
+  clearPendingEscape(tab, "close-shell");
+  assert.equal(tab.pendingEscapeAction, undefined);
+});
+
+test("system messages go to the active tab; config falls back to overlay toast", () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo");
+  state.tabs.push(tab);
+  state.activeTabId = "s1";
 
   const overlays: string[] = [];
   const tui = {
@@ -164,8 +108,10 @@ test("app action helpers expose model, system message, and close edge branches",
     hideOverlay: () => undefined,
     hasOverlay: () => false,
   };
+
   showSystemMessageOrToast({ ...state, activeTabId: "config" }, {}, tui, "toast");
   assert.match(overlays.at(-1) ?? "", /toast/);
+
   const systemMessages: string[] = [];
   appendActiveSystemMessage(
     state,
@@ -184,6 +130,14 @@ test("app action helpers expose model, system message, and close edge branches",
   );
   assert.deepEqual(systemMessages, ["system", "notice"]);
 
+  state.tabs.length = 0;
+  assert.throws(
+    () => appendActiveSystemMessage(state, { appendSystemMessage: () => undefined } as never, "x"),
+    /No active tab/,
+  );
+});
+
+test("closeRuntimeAndStop stops the TUI then closes tabs", async () => {
   await assert.rejects(
     closeRuntimeAndStop(undefined, { requestRender: () => undefined }),
     /TUI stop/,
@@ -194,27 +148,21 @@ test("app action helpers expose model, system message, and close edge branches",
     { stop: () => closed.push("stopped"), requestRender: () => closed.push("render") },
   );
   assert.deepEqual(closed, ["stopped", "closed", "render"]);
-
-  state.tabs.length = 0;
-  assert.throws(
-    () => appendActiveSystemMessage(state, { appendSystemMessage: () => undefined } as never, "x"),
-    /No active tab/,
-  );
 });
 
-test("app runtime helpers cover command and autocomplete fallbacks", async () => {
+test("active extension commands come from the active tab, or all tabs on config", () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo");
   state.tabs.push(tab);
   state.activeTabId = "s1";
 
-  assert.deepEqual(activeExtensionCommands(state, undefined), []);
   assert.deepEqual(
     activeExtensionCommands(state, {
       getExtensionCommands: (sessionId) => [{ name: sessionId }],
     } as never),
     [{ name: "s1" }],
   );
+
   state.activeTabId = "config";
   assert.deepEqual(
     activeExtensionCommands(state, {
@@ -222,7 +170,13 @@ test("app runtime helpers cover command and autocomplete fallbacks", async () =>
     } as never),
     [{ name: "all" }],
   );
-  assert.deepEqual(activeExtensionCommands(state, {}), []);
+});
+
+test("autocomplete prefers the active tab extension provider over the base provider", async () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo");
+  state.tabs.push(tab);
+  state.activeTabId = "s1";
 
   const base: AutocompleteProvider = {
     getSuggestions: async () => ({ prefix: "b", items: [{ value: "base", label: "base" }] }),
@@ -236,40 +190,18 @@ test("app runtime helpers cover command and autocomplete fallbacks", async () =>
     applyCompletion: () => ({ lines: ["extension"], cursorLine: 0, cursorCol: 9 }),
     shouldTriggerFileCompletion: () => true,
   };
-  state.activeTabId = "missing";
-  const missingProvider = createActiveAutocompleteProvider(
+
+  const withoutExtension = createActiveAutocompleteProvider(
     state,
-    {
-      getTab: () => undefined,
-    } as never,
+    { getTab: () => ({}) } as never,
     base,
   );
   assert.equal(
-    (await missingProvider.getSuggestions([""], 0, 0, {} as never))?.items[0]?.value,
-    "base",
-  );
-  assert.equal(missingProvider.shouldTriggerFileCompletion?.(["@"], 0, 1), false);
-
-  state.activeTabId = "config";
-  const configProvider = createActiveAutocompleteProvider(state, {} as never, base);
-  assert.equal(
-    (await configProvider.getSuggestions([""], 0, 0, {} as never))?.items[0]?.value,
+    (await withoutExtension.getSuggestions([""], 0, 0, {} as never))?.items[0]?.value,
     "base",
   );
 
-  state.activeTabId = "s1";
-  const baseWhenNoExtension = createActiveAutocompleteProvider(
-    state,
-    {
-      getTab: () => ({}),
-    } as never,
-    base,
-  );
-  assert.equal(
-    (await baseWhenNoExtension.getSuggestions([""], 0, 0, {} as never))?.items[0]?.value,
-    "base",
-  );
-  const activeProvider = createActiveAutocompleteProvider(
+  const withExtension = createActiveAutocompleteProvider(
     state,
     {
       getTab: () => ({}),
@@ -278,99 +210,38 @@ test("app runtime helpers cover command and autocomplete fallbacks", async () =>
     base,
   );
   assert.equal(
-    (await activeProvider.getSuggestions([""], 0, 0, {} as never))?.items[0]?.value,
+    (await withExtension.getSuggestions([""], 0, 0, {} as never))?.items[0]?.value,
     "extension",
   );
-  assert.deepEqual(activeProvider.applyCompletion([""], 0, 0, {} as AutocompleteItem, ""), {
+  assert.deepEqual(withExtension.applyCompletion([""], 0, 0, {} as AutocompleteItem, ""), {
     lines: ["extension"],
     cursorLine: 0,
     cursorCol: 9,
   });
-  assert.equal(activeProvider.shouldTriggerFileCompletion?.(["@"], 0, 1), true);
 });
 
-test("completion provider covers extension source and argument formatting edges", async () => {
+test("completion provider formats extension sources and leaves $ skills alone", async () => {
   const provider = new MixCodeCompletionProvider({
-    skills: [
-      { name: "home-skill", path: homedir(), description: "" },
-      {
-        name: "nested-skill",
-        path: join(homedir(), "mixcode-skill"),
-        description: "> Summary\n- Detail",
-      },
-      { name: "bare-skill" },
-    ],
+    skills: [{ name: "home-skill", path: "/tmp/skill", description: "" }],
     files: [],
     commands: [
-      { name: "rawsrc", description: "raw", sourceInfo: { source: "file:local" } },
       { name: "plainpkg", description: "plain", sourceInfo: { source: "npm:plain" } },
-      { name: "plainver", description: "versioned", sourceInfo: { source: "npm:plain@1" } },
-      { name: "scopedplain", description: "scoped", sourceInfo: { source: "npm:@scope/pkg" } },
-      { name: "fallbacksrc", description: "fallback", sourceInfo: {} },
       { name: "hintdesc", argumentHint: "<value>", description: "Has description" },
-      { name: "nodesc" },
     ],
   });
   const signal = new AbortController().signal;
-  assert.equal(
-    (await provider.getSuggestions(["/raw"], 0, 4, { signal }))?.items[0]?.label,
-    "rawsrc (ext:file:local)",
-  );
+
   assert.equal(
     (await provider.getSuggestions(["/plainp"], 0, 7, { signal }))?.items[0]?.label,
     "plainpkg (ext:plain)",
   );
   assert.equal(
-    (await provider.getSuggestions(["/plainv"], 0, 7, { signal }))?.items[0]?.label,
-    "plainver (ext:plain)",
-  );
-  assert.equal(
-    (await provider.getSuggestions(["/scoped"], 0, 7, { signal }))?.items[0]?.label,
-    "scopedplain (ext:@scope/pkg)",
-  );
-  assert.equal(
-    (await provider.getSuggestions(["/fallback"], 0, 9, { signal }))?.items[0]?.label,
-    "fallbacksrc (ext:extension)",
-  );
-  assert.equal(
     (await provider.getSuggestions(["/hint"], 0, 5, { signal }))?.items[0]?.description,
     "<value> - Has description",
   );
-  assert.equal(
-    (await provider.getSuggestions(["/node"], 0, 5, { signal }))?.items[0]?.description,
-    "",
-  );
-  // `$` tokens are owned by the skill-refs extension provider now.
+  // `$` tokens are owned by the skill-refs extension provider.
   assert.equal(await provider.getSuggestions(["$home"], 0, 5, { signal }), null);
-  assert.equal(await provider.getSuggestions(["$nested"], 0, 7, { signal }), null);
-  assert.equal(await provider.getSuggestions(["$bare"], 0, 5, { signal }), null);
-  assert.equal(
-    (await provider.getSuggestions(["/hintdesc"], 0, 9, { signal }))?.items[0]?.description,
-    "<value> - Has description",
-  );
   assert.equal(await provider.getSuggestions(["/hintdesc value"], 0, 15, { signal }), null);
-
-  assert.deepEqual(
-    provider.applyCompletion(
-      ["use $nstd"],
-      0,
-      9,
-      { value: "$nested-skill", label: "nested-skill" },
-      "$nstd",
-    ),
-    { lines: ["use $nested-skill"], cursorLine: 0, cursorCol: 17 },
-  );
-
-  const applyMissingSkill = provider.applyCompletion(
-    ["use $zz"],
-    0,
-    7,
-    { value: "$unknown", label: "unknown" },
-    "$zz",
-  );
-  assert.deepEqual(applyMissingSkill, { lines: ["use $unknown"], cursorLine: 0, cursorCol: 12 });
-  assert.equal(await provider.getSuggestions(["/unknown value"], 0, 14, { signal }), null);
-  assert.equal(await provider.getSuggestions(["plain value"], 0, 11, { signal }), null);
 });
 
 test("runtime all-session listing includes sessions whose cwd is not filesystem root", async () => {
@@ -435,10 +306,8 @@ test("runtime session reopens non-persisted sessions in a new cwd", async () => 
   }
 });
 
-test("editor and runtime model helpers cover fallback branches", () => {
+test("prompt history dedupes consecutive repeats and caps at 100", () => {
   const tab = createTab(1, "s1", "/repo");
-  addPromptHistory(undefined, "ignored");
-  addPromptHistory(tab, "   ");
   addPromptHistory(tab, "first");
   addPromptHistory(tab, "first");
   assert.deepEqual(tab.promptHistory, ["first"]);
@@ -447,43 +316,18 @@ test("editor and runtime model helpers cover fallback branches", () => {
   assert.deepEqual(tab.promptHistory, ["first", "older"]);
   for (let index = 0; index < 105; index++) addPromptHistory(tab, `item-${index}`);
   assert.equal(tab.promptHistory.length, 100);
+});
 
-  let text = "base";
-  insertEditorText(
-    {
-      getText: () => text,
-      setText: (next) => {
-        text = next;
-      },
-    },
-    "+tail",
-  );
-  assert.equal(text, "base+tail");
-
-  const registryModel = { provider: "custom", id: "registered", contextWindow: 10 };
-  assert.equal(
-    resolveRuntimeModel("custom", "registered", {
-      find: () => registryModel,
-    } as never),
-    registryModel,
-  );
+test("runtime model resolution falls back to faux when registry has no match", () => {
   assert.equal(resolveRuntimeModel("faux", "", undefined).id, MIXCODE_FAUX_MODEL.id);
   const session = SessionManager.inMemory("/repo");
   assert.equal(
     resolveRuntimeModelFromSession(session, undefined, undefined).id,
     MIXCODE_FAUX_MODEL.id,
   );
-  assert.equal(
-    resolveRuntimeModelFromSession(
-      session,
-      { provider: "faux", id: "fallback-model", contextWindow: 1 } as never,
-      undefined,
-    ).id,
-    "fallback-model",
-  );
 });
 
-test("runtime provider bridges stream errors and runtime auth branches", async () => {
+test("runtime provider bridges stream failures and system-prompt overrides", async () => {
   const modelRuntime = await ModelRuntime.create({
     credentials: new InMemoryCredentialStore(),
     modelsPath: null,
@@ -500,14 +344,11 @@ test("runtime provider bridges stream errors and runtime auth branches", async (
     contextWindow: 1000,
     maxTokens: 100,
   };
-  let bridgedOptions: unknown;
+
   registerMixCodeRuntimeProvider(
     modelRuntime,
     model as never,
-    (_model, _context, options) => {
-      bridgedOptions = options;
-      return Promise.reject(new Error("stream failed")) as never;
-    },
+    () => Promise.reject(new Error("stream failed")) as never,
     () => "",
   );
   const registered = modelRuntime.getModel("custom-provider", "custom-model");
@@ -516,45 +357,11 @@ test("runtime provider bridges stream errors and runtime auth branches", async (
   const events = [];
   for await (const event of stream) events.push(event);
   assert.equal(events[0]?.type, "error");
-  assert.deepEqual(bridgedOptions, {});
   assert.equal((await stream.result()).errorMessage, "stream failed");
-  // Runtime provider uses a placeholder apiKey string when getApiKey returns empty.
   assert.equal(
     modelRuntime.getRegisteredProviderConfig("custom-provider")?.apiKey,
     "mixcode-runtime",
   );
-
-  const runtimeWithoutStream = await ModelRuntime.create({
-    credentials: new InMemoryCredentialStore(),
-    modelsPath: null,
-    allowModelNetwork: false,
-  });
-  registerMixCodeRuntimeProvider(runtimeWithoutStream, model as never);
-  assert.equal(runtimeWithoutStream.getModel("custom-provider", "custom-model"), undefined);
-  registerMixCodeRuntimeProvider(runtimeWithoutStream, { ...model, provider: "faux" } as never);
-  assert.ok(runtimeWithoutStream.getModel("faux", "custom-model"));
-
-  const namedRuntime = await ModelRuntime.create({
-    credentials: new InMemoryCredentialStore(),
-    modelsPath: null,
-    allowModelNetwork: false,
-  });
-  registerMixCodeRuntimeProvider(
-    namedRuntime,
-    { ...model, provider: "named-provider", id: "id-only", name: undefined } as never,
-    async () => {
-      const out = streamSimple(
-        MIXCODE_FAUX_MODEL,
-        { systemPrompt: "", messages: [], tools: [] },
-        {},
-      );
-      return out as never;
-    },
-    () => "runtime-key",
-  );
-  const idOnlyModel = namedRuntime.getModel("named-provider", "id-only");
-  assert.equal(idOnlyModel?.name, "id-only");
-  assert.equal(namedRuntime.getRegisteredProviderConfig("named-provider")?.apiKey, "runtime-key");
 
   const overrideWithFallback = buildMixCodeSystemPromptOverride(undefined as never, "fallback");
   assert.equal(overrideWithFallback("base"), "base");

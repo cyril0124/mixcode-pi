@@ -16,7 +16,7 @@
     "check:parallel": "run-p typecheck build lint",
     "format": "biome format --write .",
     "format:check": "biome format .",
-    "lint": "biome lint .",
+    "lint": "biome lint --error-on-warnings .",
     "lint:fix": "biome lint --write ."
   },
   "dependencies": {

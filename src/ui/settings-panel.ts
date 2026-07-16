@@ -548,7 +548,7 @@ function handleEdit(
       void item
         .setValue(
           ctx,
-          trimmed === "" || isNaN(parsed) || parsed <= 0 ? undefined : parsed,
+          trimmed === "" || Number.isNaN(parsed) || parsed <= 0 ? undefined : parsed,
         )
         .then(() => {
           applyLiveEffects(state);
@@ -582,7 +582,7 @@ function handleEnum(
 ): void {
   const item = ITEMS[panel.selectedIndex] as EnumItem | undefined;
   const ctx = panelCtx(state);
-  if (!item || item.kind !== "enum" || !ctx) return;
+  if (item?.kind !== "enum" || !ctx) return;
   const opts = item.getOptions(ctx);
 
   if (matchesKey(data, "up") || data === "\x1b[A") {

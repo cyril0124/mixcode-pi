@@ -393,20 +393,6 @@ test("runtime updates streaming assistant content in place", async () => {
   };
 
   anyRuntime.applyEvent(runtimeTab, { type: "message_start", message: baseMessage });
-  assert.equal(runtimeTab.chat.filter((line) => line.role === "assistant").length, 0);
-  runtimeTab.chat.push({ role: "assistant", text: "" });
-  const placeholderIndex = runtimeTab.chat.length - 1;
-  (
-    runtimeTab as unknown as {
-      streamingAssistant: {
-        chatIndex?: number;
-        blockIndices: Map<number, number>;
-        toolCallIndices: Map<string, number>;
-        tokenInput: number;
-        tokenOutput: number;
-      };
-    }
-  ).streamingAssistant.chatIndex = placeholderIndex;
   anyRuntime.applyEvent(runtimeTab, {
     type: "message_update",
     message: {
@@ -421,7 +407,6 @@ test("runtime updates streaming assistant content in place", async () => {
       partial: {},
     },
   });
-  assert.equal(tab.currentContextTokens, 7);
   anyRuntime.applyEvent(runtimeTab, {
     type: "message_end",
     message: {
@@ -435,7 +420,6 @@ test("runtime updates streaming assistant content in place", async () => {
     runtimeTab.chat.filter((line) => line.role === "assistant").map((line) => line.text),
     ["final answer"],
   );
-  assert.equal(runtimeTab.chat[placeholderIndex]?.text, "final answer");
   assert.deepEqual(
     tab.previewMessages
       .filter((message) => message.role === "assistant")

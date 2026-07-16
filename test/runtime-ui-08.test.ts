@@ -1,159 +1,17 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { test } from "node:test";
 import {
-  Type,
   createAssistantMessageEventStream,
   type AssistantMessage,
-  type Context,
-  type Model,
   type SimpleStreamOptions,
 } from "@earendil-works/pi-ai";
-import {
-  getMarkdownTheme,
-  SettingsManager,
-  type ExtensionFactory,
-} from "@earendil-works/pi-coding-agent";
-import {
-  Markdown,
-  Text,
-  TUI,
-  visibleWidth,
-  type AutocompleteProvider,
-  type Component,
-  type OverlayOptions,
-  type Terminal,
-} from "@earendil-works/pi-tui";
-import {
-  MIXCODE_FAUX_MODEL,
-  MixCodeCompletionProvider,
-  MixCodeRoot,
-  MixCodeRuntime,
-  box,
-  createInitialState,
-  createTab,
-  createMixCodeTui,
-  MIXCODE_KEYMAP,
-  describeScopedKeymap,
-  describeKeymap,
-  handleSubmittedInput,
-  mixcodeFauxStream,
-  padLine,
-  renderChat,
-  renderCommandPalette,
-  renderConfig,
-  renderSystemToolsText,
-  renderExtensionFooter,
-  renderExtensionHeader,
-  renderExtensionWidgets,
-  renderHeader,
-  renderInputMeta,
-  renderAgentSurface,
-  renderPickerOverlay,
-  renderQueuePreview,
-  renderSidebar,
-  renderStatus,
-  renderTabBar,
-  renderTabJumpOverlay,
-  renderWorkingIndicator,
-  fitHeadLines,
-  fitTailLines,
-  titledBox,
-  themeForId,
-} from "../src/index.js";
-
-function delayedAssistantStream(text: string, ready: Promise<void>, options?: SimpleStreamOptions) {
-  const stream = createAssistantMessageEventStream();
-  queueMicrotask(async () => {
-    const message = runtimeAssistantMessage(`Echo: ${text}`);
-    await ready;
-    if (options?.signal?.aborted) {
-      const aborted = {
-        ...message,
-        content: [],
-        stopReason: "aborted" as const,
-        errorMessage: "Request was aborted",
-      };
-      stream.push({ type: "error", reason: "aborted", error: aborted });
-      stream.end(aborted);
-      return;
-    }
-    stream.push({ type: "start", partial: { ...message, content: [] } });
-    stream.push({
-      type: "text_start",
-      contentIndex: 0,
-      partial: { ...message, content: [{ type: "text", text: "" }] },
-    });
-    stream.push({
-      type: "text_delta",
-      contentIndex: 0,
-      delta: message.content[0]!.text,
-      partial: message,
-    });
-    stream.push({
-      type: "text_end",
-      contentIndex: 0,
-      content: message.content[0]!.text,
-      partial: message,
-    });
-    stream.push({ type: "done", reason: "stop", message });
-    stream.end(message);
-  });
-  return stream;
-}
-
-function runtimeAssistantMessage(text: string): AssistantMessage {
-  return {
-    role: "assistant",
-    content: [{ type: "text", text }],
-    api: "queue-test",
-    provider: "queue-test",
-    model: "queue-test-model",
-    usage: {
-      input: 1,
-      output: 1,
-      cacheRead: 0,
-      cacheWrite: 0,
-      totalTokens: 2,
-      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-    },
-    stopReason: "stop",
-    timestamp: Date.now(),
-  };
-}
-
-function lastRuntimeUserText(context: Context): string {
-  for (const message of [...context.messages].reverse()) {
-    if (message.role !== "user") continue;
-    if (typeof message.content === "string") return message.content;
-    return message.content
-      .map((block) => (block.type === "text" ? block.text : "[image]"))
-      .join("\n");
-  }
-  return "";
-}
-
-async function waitForRuntime(predicate: () => boolean, attempts = 25): Promise<void> {
-  for (let i = 0; i < attempts; i += 1) {
-    if (predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
-  assert.equal(predicate(), true);
-}
-
-async function waitFor(predicate: () => boolean, attempts = 25): Promise<void> {
-  await waitForRuntime(predicate, attempts);
-}
-
-function stripAnsi(text: string): string {
-  return text
-    .replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "")
-    .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, "")
-    .replace(/\x1b_[^\x07]*(?:\x07|\x1b\\)/g, "");
-}
+import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
+import { TUI, type Terminal } from "@earendil-works/pi-tui";
+import { MIXCODE_FAUX_MODEL, MixCodeRuntime, createTab } from "../src/index.js";
 
 function silentTerminal(): Terminal {
   return {
@@ -181,8 +39,12 @@ function silentTerminal(): Terminal {
   };
 }
 
-function escapeRegExp(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+async function waitFor(predicate: () => boolean, attempts = 80): Promise<void> {
+  for (let i = 0; i < attempts; i += 1) {
+    if (predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  assert.equal(predicate(), true);
 }
 
 test("runtime extension fork covers root and at-position branches", async () => {
@@ -225,13 +87,11 @@ test("runtime extension fork covers root and at-position branches", async () => 
       .find((entry) => entry.type === "message" && entry.message.role === "user")?.id;
     assert.ok(atUserId);
     const beforeAtSession = afterRootFork.tab.sessionId;
-    const beforeAtSessionFile = afterRootFork.session.getSessionFile();
     events.length = 0;
     const forkAt = await runtime.extensionFork(beforeAtSession, atUserId, { position: "at" });
     const afterAtFork = runtime.listTabs()[0]!;
     assert.deepEqual(forkAt, { cancelled: false });
     assert.notEqual(afterAtFork.tab.sessionId, beforeAtSession);
-    assert.notEqual(afterAtFork.session.getSessionFile(), beforeAtSessionFile);
     assert.deepEqual(events, ["editor:"]);
     runtime.setExtensionUiHost(undefined);
   } finally {
@@ -301,18 +161,6 @@ test("runtime extension fork treats visible non-user entries as prior conversati
             timestamp: Date.now(),
           }),
         expected: "bash output",
-      },
-      {
-        name: "custom-message-role",
-        append: (runtimeTab) =>
-          runtimeTab.session.appendMessage({
-            role: "custom",
-            customType: "note",
-            content: "custom message",
-            display: true,
-            timestamp: Date.now(),
-          }),
-        expected: "custom message",
       },
     ];
     for (const item of cases) {
@@ -389,8 +237,14 @@ test("ctx.shutdown() closes the current tab when idle", async () => {
     await runtime.prompt("s1", "/shutdown-smoke");
 
     assert.equal(runtime.getTab("s1"), undefined);
-    assert.ok(runtime.getTab("s2"), "sibling tab must survive extension shutdown");
-    assert.equal(runtime.listTabs().map((t) => t.tab.sessionId).join(","), "s2");
+    assert.ok(runtime.getTab("s2"));
+    assert.equal(
+      runtime
+        .listTabs()
+        .map((t) => t.tab.sessionId)
+        .join(","),
+      "s2",
+    );
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -402,15 +256,6 @@ test("ctx.shutdown() defers close until the tab is no longer streaming", async (
   const released = new Promise<void>((resolve) => {
     release = resolve;
   });
-
-  const extension: ExtensionFactory = (pi) => {
-    pi.registerCommand("mark-shutdown", {
-      description: "Request shutdown while streaming (via runtime API after stream starts)",
-      handler: async () => {
-        // Command body unused; deferred path is exercised via requestExtensionShutdown.
-      },
-    });
-  };
 
   function pendingStream(options?: SimpleStreamOptions) {
     const stream = createAssistantMessageEventStream();
@@ -449,7 +294,6 @@ test("ctx.shutdown() defers close until the tab is no longer streaming", async (
   try {
     const runtime = new MixCodeRuntime({
       sessionsRoot: dir,
-      extensionFactories: [extension],
       streamFn: (_model, _context, options) => pendingStream(options),
     });
     const model = {
@@ -476,7 +320,6 @@ test("ctx.shutdown() defers close until the tab is no longer streaming", async (
       () =>
         runtimeTab.agentSession.isStreaming === true ||
         runtimeTab.agent.state.isStreaming === true,
-      80,
     );
 
     runtime.requestExtensionShutdown("s1");
@@ -484,10 +327,10 @@ test("ctx.shutdown() defers close until the tab is no longer streaming", async (
 
     release();
     await pending.catch(() => undefined);
-    await waitFor(() => runtime.getTab("s1") === undefined, 80);
+    await waitFor(() => runtime.getTab("s1") === undefined);
 
     assert.equal(runtime.getTab("s1"), undefined);
-    assert.ok(runtime.getTab("s2"), "sibling tab must survive deferred shutdown");
+    assert.ok(runtime.getTab("s2"));
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

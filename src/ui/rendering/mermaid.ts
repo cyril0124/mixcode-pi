@@ -1064,7 +1064,7 @@ function parseEr(src: string): { graph: Graph; infos: ClassInfo[] } | null {
       decl = st.slice(0, -1).trim();
       open = true;
     }
-    if (!decl || decl.split(/\s+/).filter(Boolean).length !== 1) return null;
+    if (decl?.split(/\s+/).filter(Boolean).length !== 1) return null;
     const idx = erEntity(graph, infos, decl);
     if (idx === null) return null;
     if (open) curEntity = idx;

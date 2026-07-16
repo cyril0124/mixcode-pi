@@ -106,7 +106,7 @@ test("completion provider uses fd results with basename labels when fd is availa
   // "@src/core/" expands the directory; values are full paths, labels basenames
   // (pi parity), and the description carries the full display path.
   const suggestions = await provider.getSuggestions(["@src/core/"], 0, 10, { signal });
-  assert.ok(suggestions && suggestions.items.length > 0);
+  assert.ok(suggestions, "expected @src/core/ suggestions from fd");
   const picker = suggestions.items.find((item) => item.value === "@src/core/file-picker.ts");
   assert.ok(picker, "expected fd to surface src/core/file-picker.ts");
   assert.equal(picker?.label, "file-picker.ts");
@@ -400,17 +400,14 @@ test("skill completion source refreshes when cache is stale", async () => {
 
   // First call: returns skills from loader, sets cache
   const first = getSkills();
-  assert.equal(first.length, 1);
-  assert.deepEqual(first[0], {
-    name: "alpha",
-    path: "/skills/alpha/SKILL.md",
-    description: "Alpha skill",
-    sourceInfo: undefined,
-  });
-
-  // Second call within TTL: returns cached (same reference)
-  const second = getSkills();
-  assert.equal(second, first);
+  assert.deepEqual(first, [
+    {
+      name: "alpha",
+      path: "/skills/alpha/SKILL.md",
+      description: "Alpha skill",
+      sourceInfo: undefined,
+    },
+  ]);
 
   // Simulate adding a new skill to the loader after background rescan
   mockSkills.push({
@@ -419,7 +416,7 @@ test("skill completion source refreshes when cache is stale", async () => {
     description: "Beta skill",
   });
 
-  // Still within TTL — should return stale cache
-  const third = getSkills();
-  assert.equal(third.length, 1);
+  // Still within TTL — should keep serving the pre-rescan skill set
+  const second = getSkills();
+  assert.deepEqual(second, first);
 });

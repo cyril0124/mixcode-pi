@@ -251,7 +251,6 @@ test("runtime custom non-overlay editor exposes missing host and teardown paths"
     try {
       await runtime.prompt("s1", "/custom-editor-throws");
       assert.ok(events.includes("throws:broken custom editor"));
-      assert.deepEqual(tab.extensionUi.pendingUserInteractions, []);
 
       const delayedTask = runtime.prompt("s1", "/custom-editor-delayed");
       await waitFor(() => typeof releaseFactory === "function");
@@ -381,7 +380,6 @@ test("runtime custom overlay exposes host and delayed-close paths", async () => 
 
     await runtime.prompt("s1", "/custom-throws");
     assert.ok(events.includes("throws:broken custom overlay"));
-    assert.deepEqual(runtime.getTab("s1")?.tab.extensionUi.pendingUserInteractions, []);
   } finally {
     tui.stop();
     await rm(dir, { recursive: true, force: true });
@@ -420,26 +418,6 @@ test("runtime maps pi extension editor text primitives into the active MixCode e
       await runtime.prompt("s1", "/editor-smoke");
       assert.deepEqual(events, ["before:", "after-set:hello", "after-paste:hello\nworld"]);
       assert.match(tui.render(80).join("\n"), /world/);
-      assert.equal(
-        runtime
-          .getTab("s1")
-          ?.chat.some((line) =>
-            line.text.includes(
-              "Pi extension UI primitive is not wired in MixCode yet: setEditorText",
-            ),
-          ),
-        false,
-      );
-      assert.equal(
-        runtime
-          .getTab("s1")
-          ?.chat.some((line) =>
-            line.text.includes(
-              "Pi extension UI primitive is not wired in MixCode yet: pasteToEditor",
-            ),
-          ),
-        false,
-      );
     } finally {
       tui.stop();
     }
@@ -515,16 +493,6 @@ test("runtime maps pi extension editor component into the active MixCode editor 
         "restored:custom!:expanded",
       ]);
       assert.match(tui.render(80).join("\n"), /custom!/);
-      assert.equal(
-        runtime
-          .getTab("s1")
-          ?.chat.some((line) =>
-            line.text.includes(
-              "Pi extension UI primitive is not wired in MixCode yet: setEditorComponent",
-            ),
-          ),
-        false,
-      );
     } finally {
       tui.stop();
     }

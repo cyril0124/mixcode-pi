@@ -16,28 +16,11 @@ import {
   isOverlayActive,
   openOverlay,
   type FlagOverlayKind,
-  type OverlayKind,
 } from "../src/core/overlays.js";
 
 function state() {
   return createInitialState("/tmp");
 }
-
-// The fixed priority order the discriminant must follow, mirroring the routing
-// cascade short-circuit sequence in app-input.ts.
-const PRIORITY: OverlayKind[] = [
-  "workspace",
-  "tree-selector",
-  "picker",
-  "session-selector",
-  "command-palette",
-  "extension-manager",
-  "tab-jump",
-  "session-action-confirm",
-  "quit-confirm",
-  "delete-all-sessions-confirm",
-  "close-all-sessions-confirm",
-];
 
 const FLAG_KINDS: FlagOverlayKind[] = [
   "workspace",

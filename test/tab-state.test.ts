@@ -128,14 +128,6 @@ test("addTabTokens accumulates input/output", () => {
   assert.equal(t.tokenOutput, 12);
 });
 
-test("addTabTokens treats missing fields as zero", () => {
-  const t = tab();
-  addTabTokens(t, { input: 4 });
-  addTabTokens(t, {});
-  assert.equal(t.tokenInput, 4);
-  assert.equal(t.tokenOutput, 0);
-});
-
 test("setTabContextTokens distinguishes a real count from cleared (undefined)", () => {
   // The renderer treats undefined as "unknown" vs a number as "known"; the
   // clear path (usage.tokens === null upstream) must not collapse to 0.

@@ -237,7 +237,7 @@ test("mpi-loop interval completion leaves the interval token free-form", async (
     | ((args: string, ctx: TestCommandContext) => Promise<void>)
     | undefined;
   let getArgumentCompletions:
-    | ((prefix: string) => unknown)
+    | ((prefix: string) => Array<{ label: string; value: string }> | null)
     | undefined;
   let shutdownHandler: ((event: unknown, ctx: unknown) => unknown) | undefined;
   const ctx: TestCommandContext = {
@@ -249,7 +249,7 @@ test("mpi-loop interval completion leaves the interval token free-form", async (
       _name: string,
       options: {
         handler: typeof commandHandler;
-        getArgumentCompletions?: (prefix: string) => unknown;
+        getArgumentCompletions?: typeof getArgumentCompletions;
       },
     ) => {
       commandHandler = options.handler;
@@ -268,11 +268,14 @@ test("mpi-loop interval completion leaves the interval token free-form", async (
     assert.ok(getArgumentCompletions);
     await commandHandler("10m free-interval", ctx);
 
-    const afterId = getArgumentCompletions("interval 1 2h");
-    assert.equal(afterId, null, "custom interval text must not be replaced by presets");
+    // After id + free-typed interval, completions must stop (no preset force-fill).
+    assert.equal(getArgumentCompletions("interval 1 2h"), null);
 
-    const idSuggestions = getArgumentCompletions("interval ");
-    assert.ok(Array.isArray(idSuggestions) && idSuggestions.length > 0);
+    const idSuggestions = getArgumentCompletions("interval ") ?? [];
+    assert.deepEqual(
+      idSuggestions.map((s) => s.value),
+      ["interval 1 "],
+    );
   } finally {
     await shutdownHandler?.({}, ctx);
   }
@@ -383,7 +386,7 @@ test("mpi-loop updates an existing loop prompt without re-firing", async () => {
     | ((args: string, ctx: TestCommandContext) => Promise<void>)
     | undefined;
   let getArgumentCompletions:
-    | ((prefix: string) => unknown)
+    | ((prefix: string) => Array<{ label: string; value: string }> | null)
     | undefined;
   let shutdownHandler: ((event: unknown, ctx: unknown) => unknown) | undefined;
   let overlay: TestOverlay | undefined;
@@ -407,7 +410,7 @@ test("mpi-loop updates an existing loop prompt without re-firing", async () => {
       _name: string,
       options: {
         handler: typeof commandHandler;
-        getArgumentCompletions?: (prefix: string) => unknown;
+        getArgumentCompletions?: typeof getArgumentCompletions;
       },
     ) => {
       commandHandler = options.handler;
@@ -448,8 +451,10 @@ test("mpi-loop updates an existing loop prompt without re-firing", async () => {
     intervalFns[0]!();
     assert.deepEqual(sent, ["new prompt\nline two"], "next fire must use updated prompt");
 
-    const idSuggestions = getArgumentCompletions("prompt ");
-    assert.ok(Array.isArray(idSuggestions) && idSuggestions.length > 0);
+    assert.deepEqual(
+      (getArgumentCompletions("prompt ") ?? []).map((s) => s.value),
+      ["prompt 1 "],
+    );
 
     const emptyNotifiesBefore = notifies.length;
     await commandHandler("prompt 1", ctx);
@@ -653,6 +658,8 @@ test("mpi-loop refresh and timer tolerate stale ctx after session replacement", 
   const changeListeners: Array<() => void> = [];
   let stale = false;
   let setWidgetCalls = 0;
+  const sent: string[] = [];
+  let overlay: TestOverlay | undefined;
 
   const makeCtx = (): TestCommandContext => ({
     ui: {
@@ -660,6 +667,14 @@ test("mpi-loop refresh and timer tolerate stale ctx after session replacement", 
       setWidget: () => {
         if (stale) throw new Error(STALE);
         setWidgetCalls++;
+      },
+      custom: async (factory) => {
+        overlay = factory(
+          { terminal: { rows: 30 }, requestRender: () => {} },
+          { fg: (_color, text) => text, bg: (_color, text) => text },
+          {},
+          () => {},
+        );
       },
     },
     isIdle: () => {
@@ -678,7 +693,7 @@ test("mpi-loop refresh and timer tolerate stale ctx after session replacement", 
     },
     events: {
       emit: (event: string) => {
-        if (event === "loop:change") for (const listener of changeListeners) listener();
+        if (event === "loop:change") for (const listener of [...changeListeners]) listener();
       },
       on: (_event: string, listener: () => void) => {
         changeListeners.push(listener);
@@ -688,8 +703,9 @@ test("mpi-loop refresh and timer tolerate stale ctx after session replacement", 
         };
       },
     },
-    sendUserMessage: () => {
+    sendUserMessage: (prompt: string) => {
       if (stale) throw new Error(STALE);
+      sent.push(prompt);
     },
   } as unknown as ExtensionAPI;
 
@@ -701,28 +717,59 @@ test("mpi-loop refresh and timer tolerate stale ctx after session replacement", 
     const ctx = makeCtx();
     await sessionStartHandler?.({ type: "session_start" }, ctx);
     await commandHandler("10m stale-probe", ctx);
+    assert.deepEqual(sent, ["stale-probe"]);
     assert.ok(setWidgetCalls > 0, "widget should register while ctx is live");
-    assert.ok(intervalFns.length >= 1, "loop timer should be registered");
+    assert.equal(changeListeners.length, 1, "widget should subscribe to loop:change");
+    const listenersBeforeStale = changeListeners.length;
+    const widgetsBeforeStale = setWidgetCalls;
+    const loopTimerCount = intervalFns.length;
+    assert.ok(loopTimerCount >= 1, "loop timer should be registered");
 
     // Session replacement invalidates the captured command/session ctx.
     stale = true;
-    assert.doesNotThrow(() => {
-      for (const listener of [...changeListeners]) listener();
-    }, "loop:change refresh must not throw on stale ctx");
-    assert.doesNotThrow(() => {
-      for (const tick of [...intervalFns]) tick();
-    }, "loop timer tick must not throw on stale ctx");
-
-    // New session must not leave the previous widget interval alive.
-    const intervalsBeforeRestart = intervalFns.length;
-    stale = false;
-    const ctx2 = makeCtx();
-    await sessionStartHandler?.({ type: "session_start" }, ctx2);
-    assert.ok(
-      clearedIntervals.length > 0 || changeListeners.length <= 1,
-      "session_start should tear down the previous widget subscription/interval",
+    // loop:change refresh hits setWidget with stale ctx → destroy unsubscribes.
+    for (const listener of [...changeListeners]) listener();
+    assert.equal(
+      changeListeners.length,
+      listenersBeforeStale - 1,
+      "stale refresh must destroy the widget subscription",
     );
-    assert.ok(intervalFns.length >= intervalsBeforeRestart);
+    assert.equal(setWidgetCalls, widgetsBeforeStale, "stale refresh must not re-register the widget");
+
+    // Timer tick with stale isIdle cancels the loop instead of firing.
+    sent.length = 0;
+    for (const tick of [...intervalFns]) tick();
+    assert.deepEqual(sent, [], "stale timer tick must not deliver the prompt");
+
+    // Live ctx management overlay should show the loop was cancelled.
+    // Re-declare so TS does not keep the prior `overlay = undefined` assignment.
+    stale = false;
+    let managementOverlay: TestOverlay | undefined;
+    await commandHandler("", {
+      ...makeCtx(),
+      ui: {
+        ...makeCtx().ui,
+        custom: async (factory) => {
+          managementOverlay = factory(
+            { terminal: { rows: 30 }, requestRender: () => {} },
+            { fg: (_color, text) => text, bg: (_color, text) => text },
+            {},
+            () => {},
+          );
+        },
+      },
+    });
+    if (!managementOverlay) throw new Error("management overlay should open");
+    assert.match(managementOverlay.render(100).join("\n"), /No matching loops/);
+
+    // Fresh session_start must not resurrect the cancelled loop's widget.
+    const widgetsBeforeRestart = setWidgetCalls;
+    await sessionStartHandler?.({ type: "session_start" }, makeCtx());
+    assert.equal(
+      setWidgetCalls,
+      widgetsBeforeRestart,
+      "session_start with no loops must not show the widget",
+    );
   } finally {
     stale = false;
     await shutdownHandler?.({}, makeCtx());

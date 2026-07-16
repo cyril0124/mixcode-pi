@@ -1,7 +1,4 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
 import { test } from "node:test";
 import {
   createInitialState,
@@ -10,18 +7,10 @@ import {
   handleSubmittedInput,
   renderConfig,
   renderInputMeta,
-  renderPickerOverlay,
   stripAnsi,
   tabBarHitRegions,
-  setTheme,
-  themeForId,
-  themeSuggestions,
 } from "../src/index.js";
 import type { MixCodeRuntime } from "../src/index.js";
-import type { Model } from "@earendil-works/pi-ai";
-import { MIXCODE_FAUX_MODEL } from "../src/index.js";
-
-type TestChatLine = { role: "system"; text: string };
 
 function assertQuitOverlay(text: string | undefined): void {
   assert.match(text ?? "", /┌/);
@@ -60,7 +49,6 @@ test("global key input toggles MixCode overlays and passes through regular input
   let overlayOpen = false;
   let renders = 0;
   const renderForces: Array<boolean | undefined> = [];
-  const editorText = "";
   let stopped = false;
   const closedAll: string[] = [];
   const executedCommands: string[] = [];
@@ -215,7 +203,6 @@ test("global key input toggles MixCode overlays and passes through regular input
   });
   assert.equal(state.activeTabId, "s2");
   assert.equal(mouseBeta.unreadDone, false);
-  assert.equal(renderForces.at(-1), undefined);
   state.activeTabId = "s1";
   let extensionMouseConsumed = false;
   const mouseConsumingRuntime = {
@@ -248,7 +235,6 @@ test("global key input toggles MixCode overlays and passes through regular input
   assert.equal(state.activeTabId, "s2");
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[<0;1;1M", tui), { consume: true });
   assert.equal(state.activeTabId, "config");
-  assert.equal(renderForces.at(-1), undefined);
   state.activeTabId = "s1";
   assert.equal(handleMixCodeKeyInput(state, "\x1b[<0;80;1M", tui), undefined);
   assert.equal(state.activeTabId, "s1");
@@ -312,7 +298,6 @@ test("global key input toggles MixCode overlays and passes through regular input
     }),
     { consume: true },
   );
-  assert.equal(editorText, "");
   assert.deepEqual(executedCommands, ["/settings"]);
   assert.equal(state.commandPaletteOpen, false);
   assert.equal(overlayOpen, false);

@@ -1,38 +1,12 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile, mkdir } from "node:fs/promises";
+import { mkdtemp, rm, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { test } from "node:test";
 import {
-  commandSuggestions,
   createInitialState,
   createTab,
-  deleteWorkspace,
-  deserializeState,
-  fuzzyContains,
-  fuzzyMatch,
-  fuzzyMatchBatch,
-  fuzzyMatchBatchScored,
-  loadStateFile,
-  loadWorkspaces,
-  normalizeStartupWorkdir,
-  parseSgrMouseInput,
-  MOUSE_REPORTING_DISABLE,
-  MOUSE_REPORTING_ENABLE,
-  AUTOWRAP_DISABLE,
-  AUTOWRAP_ENABLE,
-  parseInput,
-  parseJsonObject,
   resolveSkillDirs,
-  saveStateFile,
-  saveWorkspaces,
-  scopedStateDir,
-  serializeState,
-  stateFileForPort,
-  stringifyJson,
-  withMouseReporting,
-  scanProjectFiles,
-  searchProjectFiles,
   scanSkillEntries,
   createPicker,
   filteredPickerItems,
@@ -41,13 +15,10 @@ import {
   acceptPickerSelection,
   completeWorkdirPickerSelection,
 } from "../src/index.js";
-import type { Terminal } from "@earendil-works/pi-tui";
 
-test("generic pickers cover workdir completion and empty selection edges", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-picker-"));
+test("model picker filters by query and refuses empty selection", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-picker-model-"));
   try {
-    await mkdir(join(dir, "alpha"), { recursive: true });
-    await mkdir(join(dir, "beta"), { recursive: true });
     const state = createInitialState(dir);
     const tab = createTab(1, "s1", dir);
     state.tabs.push(tab);
@@ -71,27 +42,37 @@ test("generic pickers cover workdir completion and empty selection edges", async
     assert.equal(modelPicker.selectedIndex, 0);
     assert.equal(acceptPickerSelection(modelPicker), undefined);
     assert.equal(completeWorkdirPickerSelection(modelPicker), false);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("workdir picker completes directories and keeps custom path input", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-picker-workdir-"));
+  try {
+    await mkdir(join(dir, "alpha"), { recursive: true });
+    await mkdir(join(dir, "beta"), { recursive: true });
+    const state = createInitialState(dir);
+    const tab = createTab(1, "s1", dir);
+    state.tabs.push(tab);
+    state.activeTabId = "s1";
 
     const workdirPicker = createPicker("workdir", state, tab);
     assert.equal(workdirPicker.query, "");
     assert.equal(workdirPicker.browsingDir, dir);
-    // Empty query lists directory contents
     assert.ok(filteredPickerItems(workdirPicker).some((item) => item.id === join(dir, "alpha")));
-    // Filter by 'al' to match only alpha
+
     updatePickerQuery(workdirPicker, "al");
     assert.equal(filteredPickerItems(workdirPicker)[0]?.completeValue, join(dir, "alpha"));
     assert.equal(completeWorkdirPickerSelection(workdirPicker), true);
     assert.equal(workdirPicker.query, "");
     assert.equal(workdirPicker.browsingDir, join(dir, "alpha"));
-    // Path-style queries (containing / or ~) are treated as custom path input
+
     updatePickerQuery(workdirPicker, `${dir}/`);
     assert.ok(filteredPickerItems(workdirPicker).some((item) => item.id === dir));
-    updatePickerQuery(workdirPicker, "~/");
-    assert.ok(filteredPickerItems(workdirPicker)[0]?.id);
-    updatePickerQuery(workdirPicker, "~");
-    assert.ok(filteredPickerItems(workdirPicker)[0]?.id);
     updatePickerQuery(workdirPicker, `${join(dir, "missing")}/a`);
     assert.equal(filteredPickerItems(workdirPicker)[0]?.description, "custom path");
+    assert.equal(filteredPickerItems(workdirPicker)[0]?.id, `${join(dir, "missing")}/a`);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -139,7 +120,6 @@ test("scanSkillEntries uses first-wins for same-name skills across directories",
   const dir = await mkdtemp(join(tmpdir(), "mixcode-skill-priority-"));
   const home = join(dir, "home");
   try {
-    // Project-level skill takes priority over user-level skill with the same name.
     await mkdir(join(dir, ".agents", "skills", "demo"), { recursive: true });
     await writeFile(
       join(dir, ".agents", "skills", "demo", "SKILL.md"),

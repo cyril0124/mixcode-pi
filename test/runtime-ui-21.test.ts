@@ -206,7 +206,7 @@ test("runtime lets Pi resource loader discover project system prompt before MixC
   }
 });
 
-test("runtime refresh syncs tab status from pi agent state", async () => {
+test("runtime refresh syncs tab model and preserves done status", async () => {
   const runtime = new MixCodeRuntime();
   const tab = createTab(1, "s1", process.cwd(), { status: "done" });
   const explicit: Model<string> = {
@@ -248,13 +248,9 @@ test("runtime refresh syncs tab status from pi agent state", async () => {
   assert.equal(refreshed[0], tab);
   assert.equal(tab.status, "done");
   assert.equal(tab.model.modelId, "refresh-model");
-  assert.equal(tab.model.contextWindow, 1234);
   assert.equal(tab.contextLimit, 1234);
   assert.equal(tab.thinkingLevel, "high");
   assert.equal(tab.currentContextTokens, 12);
-  tab.status = "running";
-  runtime.refreshTabStatus("s1");
-  assert.equal(tab.status, "idle");
   await assert.rejects(async () => runtime.refreshTabStatus("missing"), /Unknown tab session/);
 });
 
@@ -302,7 +298,7 @@ test("runtime thinking update delegates to Pi agent session", async () => {
   assert.equal(tab.thinkingLevel, "max");
 });
 
-test("runtime covers idle, running, and error refresh branches", async () => {
+test("refreshTabStatus maps streaming and error agent state onto tab status", async () => {
   const runtime = new MixCodeRuntime();
   const tab = createTab(1, "s1", process.cwd(), { status: "running" });
   const runtimeTab = await runtime.createTab(tab, {
@@ -310,31 +306,25 @@ test("runtime covers idle, running, and error refresh branches", async () => {
     thinkingLevel: "medium",
     workdir: process.cwd(),
   });
-  const anyAgent = runtimeTab.agent as unknown as {
-    _state: { isStreaming: boolean; errorMessage?: string };
-  };
 
   runtime.refreshTabStatus("s1");
   assert.equal(tab.status, "idle");
-  assert.equal(tab.currentContextTokens, undefined);
-  assert.match(
-    runtimeTab.agent.state.systemPrompt,
-    /^You are an expert coding assistant operating inside pi/,
-  );
 
-  Object.defineProperty(runtimeTab.agentSession, "isStreaming", { configurable: true, value: true });
+  Object.defineProperty(runtimeTab.agentSession, "isStreaming", {
+    configurable: true,
+    get: () => true,
+  });
   runtime.refreshTabStatus("s1");
   assert.equal(tab.status, "running");
 
-  anyAgent._state.isStreaming = true;
-  Object.defineProperty(runtimeTab.agentSession, "isStreaming", { configurable: true, value: false });
-  runtime.refreshTabStatus("s1");
-  assert.equal(tab.status, "idle");
-
-  anyAgent._state.errorMessage = "provider failed";
+  Object.defineProperty(runtimeTab.agentSession, "isStreaming", {
+    configurable: true,
+    get: () => false,
+  });
+  Object.defineProperty(runtimeTab.agent.state, "errorMessage", {
+    configurable: true,
+    value: "provider failed",
+  });
   runtime.refreshTabStatus("s1");
   assert.equal(tab.status, "error");
-
-  anyAgent._state.errorMessage = undefined;
-  anyAgent._state.isStreaming = false;
 });

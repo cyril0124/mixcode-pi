@@ -219,7 +219,7 @@ test("tree selector input listener handles tree keys when no editor host is atta
     },
   };
 
-  assert.doesNotThrow(() =>
+  assert.deepEqual(
     handleMixCodeKeyInput(
       state,
       "\x0f",
@@ -233,6 +233,7 @@ test("tree selector input listener handles tree keys when no editor host is atta
         setText: () => undefined,
       },
     ),
+    { consume: true },
   );
   assert.equal(state.treeSelector.filterMode, "no-tools");
   assert.equal(renders, 1);

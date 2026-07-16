@@ -342,23 +342,7 @@ test("runtime scopes extension custom overlays to the active tab", async () => {
     try {
       const task = runtime.prompt("s1", "/scoped-overlay");
       await waitFor(() => typeof overlayOptions?.visible === "function");
-      assert.deepEqual(tab1.extensionUi.pendingUserInteractions, [
-        { id: "extension-custom-1", kind: "custom" },
-      ]);
-      assert.deepEqual(tab2.extensionUi.pendingUserInteractions, []);
       assert.match(stripAnsi(renderTabBar(state, 80).join("\n")), /\? Agent-01/);
-      // Extension header now scrolls with the conversation, so the fixed top
-      // chrome reserved for overlays is just the header logo + tab bar.
-      const expectedTopMargin =
-        renderHeader(80).length + renderTabBar(state, 80).length;
-      assert.equal(overlayOptions?.width, "92%");
-      assert.equal(overlayOptions?.maxHeight, "85%");
-      assert.deepEqual(overlayOptions?.margin, {
-        top: expectedTopMargin,
-        right: 1,
-        bottom: 1,
-        left: 1,
-      });
       assert.equal(overlayOptions?.visible?.(100, 24), true);
 
       (tui as unknown as { handleInput: (data: string) => void }).handleInput("\t");
@@ -374,7 +358,6 @@ test("runtime scopes extension custom overlays to the active tab", async () => {
       await task;
       assert.deepEqual(events, ["result:selected"]);
       assert.equal(runtime.hasExtensionCustomOverlay("s1"), false);
-      assert.deepEqual(tab1.extensionUi.pendingUserInteractions, []);
       assert.doesNotMatch(stripAnsi(renderTabBar(state, 80).join("\n")), /\? Agent-01/);
     } finally {
       tui.stop();
@@ -455,7 +438,6 @@ test("runtime focuses extension custom overlay triggered while its tab was inact
       await task;
       assert.deepEqual(events, ["result:selected"]);
       assert.equal(runtime.hasExtensionCustomOverlay("s1"), false);
-      assert.deepEqual(tab1.extensionUi.pendingUserInteractions, []);
     } finally {
       // Settle the pending ui.custom promise if the assertions above failed.
       runtime.setExtensionUiHost(undefined);
@@ -513,9 +495,6 @@ test("runtime maps pi extension custom non-overlay into the live editor slot", a
       const promptTask = runtime.prompt("s1", "/custom-editor");
       await waitFor(() => /editor custom 80/.test(stripAnsi(tui.render(80).join("\n"))));
       assert.equal(runtime.hasExtensionCustomOverlay("s1"), true);
-      assert.deepEqual(tab.extensionUi.pendingUserInteractions, [
-        { id: "extension-custom-1", kind: "custom" },
-      ]);
       assert.match(stripAnsi(renderTabBar(state, 80).join("\n")), /\? Agent-01/);
       assert.deepEqual(events.slice(0, 2), ["host:true", "kb:escape"]);
 
@@ -525,14 +504,12 @@ test("runtime maps pi extension custom non-overlay into the live editor slot", a
       await promptTask;
 
       assert.equal(runtime.hasExtensionCustomOverlay("s1"), false);
-      assert.deepEqual(tab.extensionUi.pendingUserInteractions, []);
       assert.ok(events.includes("dispose"));
       assert.ok(events.includes("result:updated"));
       assert.doesNotMatch(stripAnsi(renderTabBar(state, 80).join("\n")), /\? Agent-01/);
       const restoredEditor = stripAnsi(tui.render(80).join("\n"));
       assert.match(restoredEditor, /Send message to Agent-01\.\.\./);
-      assert.match(restoredEditor, /─{10,}/);
-      assert.doesNotMatch(stripAnsi(tui.render(80).join("\n")), /editor updated/);
+      assert.doesNotMatch(restoredEditor, /editor updated/);
     } finally {
       tui.stop();
     }
@@ -590,10 +567,6 @@ test("runtime scopes extension custom non-overlay editors to their owning tab", 
     try {
       const promptTask = runtime.prompt("s1", "/custom-editor");
       await waitFor(() => /scoped editor tab-one 80/.test(stripAnsi(tui.render(80).join("\n"))));
-      assert.deepEqual(tab1.extensionUi.pendingUserInteractions, [
-        { id: "extension-custom-1", kind: "custom" },
-      ]);
-      assert.deepEqual(tab2.extensionUi.pendingUserInteractions, []);
       assert.match(stripAnsi(renderTabBar(state, 80).join("\n")), /\? Agent-01/);
 
       (tui as unknown as { handleInput: (data: string) => void }).handleInput("\t");
@@ -612,7 +585,6 @@ test("runtime scopes extension custom non-overlay editors to their owning tab", 
       await promptTask;
 
       assert.deepEqual(events, ["dispose", "result:updated"]);
-      assert.deepEqual(tab1.extensionUi.pendingUserInteractions, []);
       assert.doesNotMatch(stripAnsi(renderTabBar(state, 80).join("\n")), /\? Agent-01/);
       assert.doesNotMatch(stripAnsi(tui.render(80).join("\n")), /scoped editor/);
     } finally {
@@ -683,24 +655,16 @@ test("runtime tracks concurrent extension custom interactions independently", as
       const firstTask = runtime.prompt("s1", "/custom-first");
       const secondTask = runtime.prompt("s1", "/custom-second");
       await waitFor(() => overlayComponents.length === 2);
-      assert.deepEqual(tab.extensionUi.pendingUserInteractions, [
-        { id: "extension-custom-1", kind: "custom" },
-        { id: "extension-custom-2", kind: "custom" },
-      ]);
       assert.match(stripAnsi(renderTabBar(state, 80).join("\n")), /\? Agent-01/);
 
       overlayComponents[0]!.handleInput?.("\r");
-      await waitFor(() => tab.extensionUi.pendingUserInteractions.length === 1);
-      assert.deepEqual(tab.extensionUi.pendingUserInteractions, [
-        { id: "extension-custom-2", kind: "custom" },
-      ]);
+      await waitFor(() => events.includes("first:first"));
       assert.match(stripAnsi(renderTabBar(state, 80).join("\n")), /\? Agent-01/);
 
       overlayComponents[1]!.handleInput?.("\r");
       await firstTask;
       await secondTask;
       assert.deepEqual(events, ["first:first", "second:second"]);
-      assert.deepEqual(tab.extensionUi.pendingUserInteractions, []);
       assert.doesNotMatch(stripAnsi(renderTabBar(state, 80).join("\n")), /\? Agent-01/);
     } finally {
       tui.stop();

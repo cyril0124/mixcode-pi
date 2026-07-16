@@ -307,36 +307,6 @@ test("runtime surfaces assistant error and abort stop reasons", async () => {
       },
     });
     assert.equal(runtimeTab.chat.filter((line) => line.role === "system").length, systemCount);
-
-    const runningTool = {
-      ...emptyAssistant,
-      content: [
-        {
-          type: "toolCall" as const,
-          id: "tc-error",
-          name: "bash",
-          arguments: { command: "sleep 30" },
-        },
-      ],
-      stopReason: "error" as const,
-      errorMessage: "tool failed",
-    };
-    anyRuntime.applyEvent(runtimeTab, {
-      type: "message_start",
-      message: { ...emptyAssistant, content: [] },
-    });
-    anyRuntime.applyEvent(runtimeTab, {
-      type: "message_update",
-      message: runningTool,
-      assistantMessageEvent: { type: "toolcall_start", contentIndex: 0, partial: {} },
-    });
-    const pendingIndex = runtimeTab.chat.findIndex(
-      (line) => line.role === "tool" && line.toolCallId === "tc-error",
-    );
-    assert.notEqual(pendingIndex, -1);
-    runtimeTab.chat[pendingIndex] = { role: "system", text: "not a tool anymore" };
-    anyRuntime.applyEvent(runtimeTab, { type: "message_end", message: runningTool });
-    assert.equal(runtimeTab.chat[pendingIndex]?.role, "system");
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

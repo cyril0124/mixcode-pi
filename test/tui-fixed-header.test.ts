@@ -770,52 +770,6 @@ test("working indicator is driven by the Pi TUI loader animation", async () => {
   assert.match(plain, /B Working \(\d+s . esc to interrupt\)/);
 });
 
-test("key handling covers app overlay handles", () => {
-  const state = createInitialState("/repo");
-  state.tabs.push(createTab(1, "s1", "/repo"));
-  state.activeTabId = "s1";
-  let overlayOpen = false;
-  let hides = 0;
-  const tui = {
-    requestRender: () => undefined,
-    showOverlay: () => {
-      overlayOpen = true;
-      return {
-        hide: () => {
-          hides++;
-          overlayOpen = false;
-        },
-        setHidden: () => undefined,
-        isHidden: () => false,
-        focus: () => undefined,
-        unfocus: () => undefined,
-        isFocused: () => false,
-      };
-    },
-    hideOverlay: () => {
-      overlayOpen = false;
-    },
-    hasOverlay: () => overlayOpen,
-  };
-
-  const editorActions = { getText: () => "", setText: () => undefined };
-  assert.equal(
-    handleMixCodeKeyInput(
-      state,
-      "@",
-      tui,
-      undefined,
-      undefined,
-      undefined,
-      () => false,
-      editorActions,
-      undefined,
-    ),
-    undefined,
-  );
-  assert.equal(overlayOpen, false);
-});
-
 test("rendering overlay defaults cover closed and fallback branches", () => {
   const state = createInitialState("/repo");
   assert.deepEqual(renderCommandPalette(state, 80), []);

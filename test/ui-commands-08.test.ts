@@ -1,57 +1,21 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
 import { test } from "node:test";
 import {
   createInitialState,
   createTab,
   handleMixCodeKeyInput,
-  handleSubmittedInput,
-  renderConfig,
-  renderInputMeta,
-  renderPickerOverlay,
   stripAnsi,
-  tabBarHitRegions,
-  setTheme,
-  themeForId,
-  themeSuggestions,
 } from "../src/index.js";
-import type { MixCodeRuntime } from "../src/index.js";
-import type { Model } from "@earendil-works/pi-ai";
-import { MIXCODE_FAUX_MODEL } from "../src/index.js";
-
-type TestChatLine = { role: "system"; text: string };
-
-function assertQuitOverlay(text: string | undefined): void {
-  assert.match(text ?? "", /┌/);
-  assert.match(text ?? "", /Quit MixCode/);
-  assert.match(text ?? "", /\[Y\] Quit/);
-}
-
-async function waitFor<T>(read: () => Promise<T>, attempts = 25): Promise<T> {
-  let lastError: unknown;
-  for (let index = 0; index < attempts; index++) {
-    try {
-      return await read();
-    } catch (error) {
-      lastError = error;
-      await new Promise((resolve) => setTimeout(resolve, 10));
-    }
-  }
-  throw lastError;
-}
 
 test("global key input submits batched inline text ending with enter", () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"));
   state.activeTabId = "s1";
   let text = "";
-  let renders = 0;
   const submitted: string[] = [];
   const inserted: string[] = [];
   const tui = {
-    requestRender: () => renders++,
+    requestRender: () => undefined,
     showOverlay: () => ({}) as never,
     hideOverlay: () => undefined,
     hasOverlay: () => false,
@@ -87,7 +51,6 @@ test("global key input submits batched inline text ending with enter", () => {
   assert.deepEqual(inserted, ["hello from tmux"]);
   assert.deepEqual(submitted, ["hello from tmux"]);
   assert.equal(text, "");
-  assert.equal(renders, 1);
   const editor = {
     getText: () => text,
     setText: (next: string) => {
@@ -235,9 +198,8 @@ test("global key input pops queued messages back into editor", () => {
   state.tabs.push(tab);
   state.activeTabId = "s1";
   let text = "";
-  let renders = 0;
   const tui = {
-    requestRender: () => renders++,
+    requestRender: () => undefined,
     showOverlay: () => ({}) as never,
     hideOverlay: () => undefined,
     hasOverlay: () => false,
@@ -301,7 +263,6 @@ test("global key input pops queued messages back into editor", () => {
     { consume: true },
   );
   assert.equal(text, "keep draft");
-  assert.equal(renders, 2);
 });
 
 test("global key input lets editor handle Home and End while input is focused", () => {
@@ -309,9 +270,8 @@ test("global key input lets editor handle Home and End while input is focused", 
   const tab = createTab(1, "s1", "/repo", { chatScrollOffset: 7 });
   state.tabs.push(tab);
   state.activeTabId = "s1";
-  let renders = 0;
   const tui = {
-    requestRender: () => renders++,
+    requestRender: () => undefined,
     showOverlay: () => ({}) as never,
     hideOverlay: () => undefined,
     hasOverlay: () => false,
@@ -335,7 +295,6 @@ test("global key input lets editor handle Home and End while input is focused", 
     undefined,
   );
   assert.equal(tab.chatScrollOffset, 7);
-  assert.equal(renders, 0);
 
   assert.equal(
     handleMixCodeKeyInput(
@@ -351,7 +310,6 @@ test("global key input lets editor handle Home and End while input is focused", 
     undefined,
   );
   assert.equal(tab.chatScrollOffset, 7);
-  assert.equal(renders, 0);
 });
 
 test("tab jump overlay filters and activates selected tab from keyboard", () => {
@@ -361,13 +319,8 @@ test("tab jump overlay filters and activates selected tab from keyboard", () => 
   state.activeTabId = "s1";
   const overlays: string[] = [];
   let overlayOpen = false;
-  let renders = 0;
-  const renderForces: Array<boolean | undefined> = [];
   const tui = {
-    requestRender: (force?: boolean) => {
-      renders++;
-      renderForces.push(force);
-    },
+    requestRender: () => undefined,
     showOverlay: (component: { render?: (width: number) => string[] } | string) => {
       overlayOpen = true;
       overlays.push(
@@ -402,14 +355,12 @@ test("tab jump overlay filters and activates selected tab from keyboard", () => 
   assert.equal(beta.unreadDone, false);
   assert.equal(state.tabJumpOpen, false);
   assert.equal(overlayOpen, false);
-  assert.equal(renderForces.at(-1), undefined);
 
   assert.deepEqual(handleMixCodeKeyInput(state, "\x14", tui), { consume: true });
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[A", tui), { consume: true });
   assert.equal(state.tabJumpIndex, 1);
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui), { consume: true });
   assert.equal(state.tabJumpOpen, false);
-  assert.equal(renders, 2);
 });
 
 test("vim mode allows ctrl-t tab jump and transfers vim mode to selected tab", () => {
@@ -430,11 +381,8 @@ test("vim mode allows ctrl-t tab jump and transfers vim mode to selected tab", (
 
   const overlays: string[] = [];
   let overlayOpen = false;
-  let renders = 0;
   const tui = {
-    requestRender: () => {
-      renders++;
-    },
+    requestRender: () => undefined,
     showOverlay: (component: { render?: (width: number) => string[] } | string) => {
       overlayOpen = true;
       overlays.push(
@@ -466,5 +414,4 @@ test("vim mode allows ctrl-t tab jump and transfers vim mode to selected tab", (
   assert.equal(beta.vimPendingHome, false);
   assert.equal(state.tabJumpOpen, false);
   assert.equal(overlayOpen, false);
-  assert.equal(renders, 1);
 });

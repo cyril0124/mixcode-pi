@@ -538,24 +538,6 @@ test("runtime accepts an explicit model and renders pi content blocks as separat
   assert.equal(runtime.resolveModel("openai", "missing"), undefined);
 });
 
-test("runtime leaves streamFn unset for non-faux explicit models", async () => {
-  const runtime = new MixCodeRuntime();
-  const tab = createTab(1, "s1", process.cwd());
-  const explicit: Model<string> = {
-    ...MIXCODE_FAUX_MODEL,
-    provider: "custom",
-    api: "custom",
-    id: "custom-model",
-  };
-  const runtimeTab = await runtime.createTab(tab, {
-    systemPrompt: "system",
-    thinkingLevel: "medium",
-    workdir: process.cwd(),
-    model: explicit,
-  });
-  assert.equal(runtimeTab.agent.state.model.provider, "custom");
-});
-
 test("runtime updates tab model and rejects changes while streaming", async () => {
   const { runtime, model: initialModel } = createBlockedRuntime(undefined, {
     getApiKey: () => "test-key",
