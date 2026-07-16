@@ -196,7 +196,11 @@ export async function handleSubmittedInput(
         });
     }, 32);
   } else if (parsed.command === "new-session") {
-    await createAgentTab(state, runtime);
+    // Paint Not Ready immediately; createAgentTab still awaits full runtime startup.
+    // Do not reuse services here — independent SettingsManager isolation.
+    await createAgentTab(state, runtime, {
+      onQueued: () => tui.requestRender(),
+    });
   } else if (parsed.command === "resume") {
     if (!runtime.listSessions) {
       throw new Error("Resume requires pi runtime session listing support");

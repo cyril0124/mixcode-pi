@@ -21,12 +21,22 @@ export interface CreateAgentTabOptions {
   thinkingLevel?: ThinkingLevel;
   /** Base/identity system prompt; defaults to MIXCODE_SYSTEM_PROMPT. */
   systemPrompt?: string;
+  /**
+   * Called after the UI tab is queued (Not Ready + activated) but before
+   * runtime.createTab finishes. Use for an immediate TUI render so the user
+   * sees loading instead of a frozen input path.
+   */
+  onQueued?: (tab: MixCodeTabInfo) => void;
 }
 
 /**
  * Create the UI tab and Pi runtime tab as one transaction. Runtime startup can
  * fail after the tab is already visible, so rollback must restore both the tab
  * list and the previously active id for every caller, including batch mode.
+ *
+ * Intentionally does NOT pass reuseServicesFromSessionId: /new-session is an
+ * independent tab and must keep its own SettingsManager (/context-limit
+ * isolation). Service reuse remains /fork and clearTab only.
  */
 export async function createAgentTab(
   state: MixCodeState,
@@ -44,6 +54,8 @@ export async function createAgentTab(
     model: { ...model },
     contextLimit: model.contextWindow,
     thinkingLevel,
+    // Visible while runtime/extensions start; flipped to idle on success.
+    status: "Not Ready",
     ...(customBasePrompt ? { customBasePrompt: true } : {}),
   });
   // Publish before runtime startup so local peer reconcile cannot treat the
@@ -51,6 +63,7 @@ export async function createAgentTab(
   noteTabOpened(sessionId);
   state.tabs.push(tab);
   activateTab(state, sessionId);
+  options.onQueued?.(tab);
   try {
     await runtime.createTab(tab, {
       systemPrompt: options.systemPrompt ?? MIXCODE_SYSTEM_PROMPT,
@@ -58,6 +71,7 @@ export async function createAgentTab(
       workdir,
       ...(options.runtimeModel ? { model: options.runtimeModel } : {}),
     });
+    tab.status = "idle";
     return tab;
   } catch (error) {
     const index = state.tabs.findIndex((item) => item.sessionId === sessionId);

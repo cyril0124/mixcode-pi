@@ -226,8 +226,16 @@ test("createAgentTab publishes open_tabs before create finishes so reconcile kee
       watchFactory: () => ({ close: () => undefined }),
     });
 
-    const createPromise = createAgentTab(state, runtime);
+    const queuedStatuses: string[] = [];
+    const createPromise = createAgentTab(state, runtime, {
+      onQueued: (tab) => {
+        queuedStatuses.push(tab.status);
+      },
+    });
     // Reconcile while createTab is still gated. Late noteTabOpened would lose the new id.
+    const inFlight = state.tabs[state.tabs.length - 1]!;
+    assert.equal(inFlight.status, "Not Ready");
+    assert.deepEqual(queuedStatuses, ["Not Ready"]);
     await sync.reconcileNow();
     releaseCreate();
     const created = await createPromise;
@@ -238,6 +246,7 @@ test("createAgentTab publishes open_tabs before create finishes so reconcile kee
       state.tabs.some((tab) => tab.sessionId === created.sessionId),
       true,
     );
+    assert.equal(created.status, "idle");
     assert.match(created.title, /^Agent-\d{2}$/);
     assert.equal(
       openedTitles.some((title) => /^Agent-[0-9a-f]{8}$/i.test(title)),
