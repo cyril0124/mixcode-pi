@@ -10,6 +10,7 @@ import {
   addOpenTab,
   addOpenTabAfter,
   configureOpenTabsPath,
+  replaceOpenTab,
   createInitialState,
   listTabsToReconcile,
   openTabsFile,
@@ -53,8 +54,11 @@ test("open_tabs store add/remove is durable", async () => {
     assert.deepEqual(readOpenTabs(file), ["a", "tail", "b"]);
     addOpenTabAfter(file, "fork", "a");
     assert.deepEqual(readOpenTabs(file), ["a", "fork", "tail", "b"]);
+    // /clear: replace in-place keeps position
+    replaceOpenTab(file, "tail", "tail-new");
+    assert.deepEqual(readOpenTabs(file), ["a", "fork", "tail-new", "b"]);
     removeOpenTab(file, "a");
-    assert.deepEqual(readOpenTabs(file), ["fork", "tail", "b"]);
+    assert.deepEqual(readOpenTabs(file), ["fork", "tail-new", "b"]);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

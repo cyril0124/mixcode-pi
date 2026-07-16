@@ -4,7 +4,7 @@ import { disposeChatRenderers } from "../agent/runtime-chat.js";
 import { findSessionFileByName } from "../agent/runtime-session.js";
 import { LOCAL_COMMANDS, parseInput, type ParsedInput } from "../core/commands.js";
 import { createSessionId, createTab } from "../core/defaults.js";
-import { noteTabClosed, noteTabOpened } from "../core/open-tabs-store.js";
+import { noteTabClosed, noteTabOpened, noteTabReplaced } from "../core/open-tabs-store.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import { activateTab, closeAgentTab } from "../core/tabs.js";
 import type { MixCodeModel, MixCodeModelRef, MixCodeState, MixCodeTabInfo } from "../core/types.js";
@@ -186,8 +186,8 @@ export async function completeAgentTabClear(
   // /clear swaps session identity: replace the shared open-tab entry so peers
   // drop the old file and open the fresh one.
   if (prepared.oldSessionId !== nextSessionId) {
-    noteTabClosed(prepared.oldSessionId);
-    noteTabOpened(nextSessionId);
+    // Replace in-place so the tab keeps its position in the shared ordered list.
+    noteTabReplaced(prepared.oldSessionId, nextSessionId);
   }
   return nextSessionId;
 }
@@ -226,10 +226,16 @@ export async function closeExistingAgentTab(
 ): Promise<void> {
   if (!state.tabs.some((tab) => tab.sessionId === sessionId)) return;
   if (!runtime.closeTab) throw new Error("Closing a session requires runtime support");
-  await runtime.closeTab(sessionId);
+  try {
+    await runtime.closeTab(sessionId);
+  } catch (error) {
+    // If the runtime tab is already gone (e.g. peer /clear replaced the session
+    // before reconcile finished), still clean up state and cache.
+    const msg = error instanceof Error ? error.message : String(error);
+    if (!msg.startsWith("Unknown tab session:")) throw error;
+  }
   closeAgentTab(state, sessionId);
   clearConversationCache(sessionId);
-  // Peer reconcile closes must NOT re-publish (already removed from open_tabs).
   if (options.publishClose !== false) noteTabClosed(sessionId);
 }
 

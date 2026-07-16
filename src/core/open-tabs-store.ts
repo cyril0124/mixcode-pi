@@ -58,6 +58,12 @@ export function noteTabClosed(sessionId: string): void {
   removeOpenTab(configuredOpenTabsPath, sessionId);
 }
 
+/** Record a /clear session swap: replace old id in-place so tab stays at its position. */
+export function noteTabReplaced(oldId: string, newId: string): void {
+  if (!configuredOpenTabsPath) return;
+  replaceOpenTab(configuredOpenTabsPath, oldId, newId);
+}
+
 /** Replace the shared set after a bulk workspace restore/reorder. */
 export function noteTabsReplaced(sessionIds: Iterable<string>): void {
   if (!configuredOpenTabsPath) return;
@@ -105,6 +111,22 @@ export function addOpenTabAfter(
     const ordered = [...ids].filter((id) => id !== sessionId);
     const sourceIndex = ordered.indexOf(afterSessionId);
     ordered.splice(sourceIndex >= 0 ? sourceIndex + 1 : ordered.length, 0, sessionId);
+    ids.clear();
+    for (const id of ordered) ids.add(id);
+  });
+}
+
+/** Atomically replace an old session id with a new one at the same position (/clear). */
+export function replaceOpenTab(filePath: string, oldId: string, newId: string): string[] {
+  if (!newId.trim()) return readOpenTabs(filePath);
+  return mutateOpenTabs(filePath, (ids) => {
+    const ordered = [...ids];
+    const idx = ordered.indexOf(oldId);
+    if (idx >= 0) {
+      ordered.splice(idx, 1, newId);
+    } else {
+      ordered.push(newId);
+    }
     ids.clear();
     for (const id of ordered) ids.add(id);
   });
