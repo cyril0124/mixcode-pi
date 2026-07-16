@@ -46,6 +46,9 @@ export async function createAgentTab(
     thinkingLevel,
     ...(customBasePrompt ? { customBasePrompt: true } : {}),
   });
+  // Publish before runtime startup so local peer reconcile cannot treat the
+  // in-progress tab as an extra (same order as /fork). Rollback on failure.
+  noteTabOpened(sessionId);
   state.tabs.push(tab);
   activateTab(state, sessionId);
   try {
@@ -55,12 +58,11 @@ export async function createAgentTab(
       workdir,
       ...(options.runtimeModel ? { model: options.runtimeModel } : {}),
     });
-    // Publish into the shared open-tab set so peer instances open this session.
-    noteTabOpened(sessionId);
     return tab;
   } catch (error) {
     const index = state.tabs.findIndex((item) => item.sessionId === sessionId);
     if (index >= 0) state.tabs.splice(index, 1);
+    noteTabClosed(sessionId);
     activateTab(state, previousActiveId);
     throw error;
   }

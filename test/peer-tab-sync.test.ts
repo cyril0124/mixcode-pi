@@ -12,6 +12,7 @@ import {
   configureOpenTabsPath,
   replaceOpenTab,
   createInitialState,
+  createTab,
   listTabsToReconcile,
   openTabsFile,
   readOpenTabs,
@@ -162,6 +163,125 @@ test("startPeerTabSync opens and closes against shared open_tabs", async () => {
     configureOpenTabsPath(undefined);
     await runtimeA.closeAllTabs();
     await runtimeB.closeAllTabs();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("createAgentTab publishes open_tabs before create finishes so reconcile keeps the new tab", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-new-session-race-"));
+  const openTabsPath = openTabsFile(join(dir, "state"));
+  configureOpenTabsPath(openTabsPath);
+  try {
+    const state = createInitialState(dir);
+    const existing = createTab(1, "old-last", dir, { title: "Agent-11", status: "idle" });
+    state.tabs.push(existing);
+    state.activeTabId = existing.sessionId;
+    writeOpenTabs(openTabsPath, [existing.sessionId]);
+
+    let releaseCreate!: () => void;
+    const createGate = new Promise<void>((resolve) => {
+      releaseCreate = resolve;
+    });
+    const runtimeTabs = new Map<string, { tab: { sessionId: string; title: string } }>([
+      [existing.sessionId, { tab: existing }],
+    ]);
+    const runtime = {
+      createTab: async (tab: { sessionId: string; title: string }) => {
+        await createGate;
+        const rt = { tab };
+        runtimeTabs.set(tab.sessionId, rt);
+        return rt as never;
+      },
+      getTab: (id: string) => runtimeTabs.get(id),
+      closeTab: async (id: string) => {
+        if (!runtimeTabs.has(id)) throw new Error(`Unknown tab session: ${id}`);
+        runtimeTabs.delete(id);
+      },
+      getSessionsRoot: () => dir,
+    };
+
+    const closed: string[] = [];
+    const openedTitles: string[] = [];
+    const sync = startPeerTabSync({
+      openTabsPath,
+      rootStateDir: join(dir, "root"),
+      workdir: dir,
+      debounceMs: 1,
+      pollIntervalMs: 60_000,
+      getLocalSessionIds: () => state.tabs.map((tab) => tab.sessionId),
+      openTab: async (candidate) => {
+        openedTitles.push(candidate.title);
+        state.tabs.push(
+          createTab(state.tabs.length + 1, candidate.sessionId, dir, {
+            title: candidate.title,
+            status: "idle",
+          }),
+        );
+      },
+      closeTab: async (sessionId) => {
+        closed.push(sessionId);
+        await closeExistingAgentTab(state, runtime, sessionId, { publishClose: false });
+      },
+      loadStatus: async () => ({ instances: [] }),
+      watchFactory: () => ({ close: () => undefined }),
+    });
+
+    const createPromise = createAgentTab(state, runtime);
+    // Reconcile while createTab is still gated. Late noteTabOpened would lose the new id.
+    await sync.reconcileNow();
+    releaseCreate();
+    const created = await createPromise;
+    await sync.reconcileNow();
+
+    assert.deepEqual(closed, [], "in-flight new tab must not be closed by peer reconcile");
+    assert.equal(
+      state.tabs.some((tab) => tab.sessionId === created.sessionId),
+      true,
+    );
+    assert.match(created.title, /^Agent-\d{2}$/);
+    assert.equal(
+      openedTitles.some((title) => /^Agent-[0-9a-f]{8}$/i.test(title)),
+      false,
+    );
+    assert.ok(readOpenTabs(openTabsPath).includes(created.sessionId));
+    assert.ok(runtimeTabs.has(created.sessionId));
+
+    sync.dispose();
+  } finally {
+    configureOpenTabsPath(undefined);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("createAgentTab rolls open_tabs back when createTab fails", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-new-session-rollback-"));
+  const openTabsPath = openTabsFile(join(dir, "state"));
+  configureOpenTabsPath(openTabsPath);
+  try {
+    const state = createInitialState(dir);
+    const existing = createTab(1, "old-last", dir, { title: "Agent-11", status: "idle" });
+    state.tabs.push(existing);
+    state.activeTabId = existing.sessionId;
+    writeOpenTabs(openTabsPath, [existing.sessionId]);
+
+    await assert.rejects(
+      () =>
+        createAgentTab(state, {
+          createTab: async () => {
+            throw new Error("create failed");
+          },
+        }),
+      /create failed/,
+    );
+
+    assert.deepEqual(
+      state.tabs.map((tab) => tab.sessionId),
+      [existing.sessionId],
+    );
+    assert.equal(state.activeTabId, existing.sessionId);
+    assert.deepEqual(readOpenTabs(openTabsPath), [existing.sessionId]);
+  } finally {
+    configureOpenTabsPath(undefined);
     await rm(dir, { recursive: true, force: true });
   }
 });

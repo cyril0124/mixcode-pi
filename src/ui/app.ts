@@ -136,7 +136,18 @@ export function createMixCodeTui(
       undefined,
       options.settingsDeps,
     ).catch((error: unknown) => {
-      appendActiveSystemMessage(state, runtime, errorMessage(error));
+      // Avoid secondary Unknown tab session when the active tab has no runtime yet
+      // (e.g. create failed and rolled back to a Not Ready tab, or peer closed it).
+      const active = getActiveTab(state);
+      if (active && state.activeTabId !== "config" && runtime.getTab?.(active.sessionId)) {
+        try {
+          runtime.appendSystemMessage(active.sessionId, errorMessage(error));
+        } catch {
+          showErrorOverlay(tui, error);
+        }
+      } else {
+        showErrorOverlay(tui, error);
+      }
       tui.setFocus(editor);
       tui.requestRender();
     });
