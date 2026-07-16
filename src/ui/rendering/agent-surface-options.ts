@@ -7,6 +7,8 @@ export interface AgentSurfaceRenderOptions {
   oversizedAssistantMessage?: OversizedAssistantMessageSettings;
   /** When true, thinking blocks collapse to a static placeholder. */
   hideThinking?: boolean;
+  /** When false, mermaid fences stay plain code blocks. Default true. */
+  renderMermaid?: boolean;
 }
 
 export function chatBlockRenderOptions(
@@ -18,6 +20,7 @@ export function chatBlockRenderOptions(
   const policy = options.oversizedAssistantMessage;
   if (policy) result.oversizedAssistantMessage = policy;
   if (options.hideThinking) result.hideThinking = true;
+  if (options.renderMermaid === false) result.renderMermaid = false;
 
   const streaming = runtimeTab?.streamingAssistant;
   const line = runtimeTab?.chat[chatIndex];
@@ -40,7 +43,8 @@ export function chatBlockRenderOptions(
 
   return result.oversizedAssistantMessage ||
     result.streamingMarkdownCharLimit !== undefined ||
-    result.hideThinking
+    result.hideThinking ||
+    result.renderMermaid === false
     ? result
     : undefined;
 }

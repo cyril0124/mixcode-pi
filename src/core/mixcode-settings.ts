@@ -15,6 +15,8 @@ export interface RawMixCodeSettings {
       maxLines?: number;
       maxBytes?: number;
     };
+    /** When false, mermaid fences render as plain code blocks. */
+    renderMermaid?: boolean;
   };
 }
 
@@ -31,7 +33,11 @@ export interface HistorySettings {
 
 export interface MixCodeUiSettings {
   oversizedAssistantMessage: OversizedAssistantMessageSettings;
+  /** When false, mermaid fences render as plain code blocks. Default true. */
+  renderMermaid: boolean;
 }
+
+export const DEFAULT_RENDER_MERMAID = true;
 
 export interface OversizedAssistantMessageSettings {
   enabled: boolean;
@@ -49,7 +55,10 @@ export function defaultMixCodeSettings(): MixCodeSettings {
   return {
     // theme omitted: unset, so UI can dim-display the runtime default
     history: { maxBytes: DEFAULT_HISTORY_MAX_BYTES },
-    ui: { oversizedAssistantMessage: { ...DEFAULT_OVERSIZED_ASSISTANT_MESSAGE } },
+    ui: {
+      oversizedAssistantMessage: { ...DEFAULT_OVERSIZED_ASSISTANT_MESSAGE },
+      renderMermaid: DEFAULT_RENDER_MERMAID,
+    },
   };
 }
 
@@ -75,13 +84,22 @@ export async function loadRawMixCodeSettings(settingsFile: string): Promise<RawM
   const rawEnabled = typeof oversized.enabled === "boolean" ? oversized.enabled : undefined;
   const rawMaxLines = positiveInteger(oversized.maxLines);
   const rawOversizedBytes = positiveInteger(oversized.maxBytes);
-  if (rawEnabled !== undefined || rawMaxLines !== undefined || rawOversizedBytes !== undefined) {
+  const rawRenderMermaid =
+    typeof ui.renderMermaid === "boolean" ? ui.renderMermaid : undefined;
+  const hasOversized =
+    rawEnabled !== undefined || rawMaxLines !== undefined || rawOversizedBytes !== undefined;
+  if (hasOversized || rawRenderMermaid !== undefined) {
     result.ui = {
-      oversizedAssistantMessage: {
-        ...(rawEnabled !== undefined ? { enabled: rawEnabled } : {}),
-        ...(rawMaxLines !== undefined ? { maxLines: rawMaxLines } : {}),
-        ...(rawOversizedBytes !== undefined ? { maxBytes: rawOversizedBytes } : {}),
-      },
+      ...(hasOversized
+        ? {
+            oversizedAssistantMessage: {
+              ...(rawEnabled !== undefined ? { enabled: rawEnabled } : {}),
+              ...(rawMaxLines !== undefined ? { maxLines: rawMaxLines } : {}),
+              ...(rawOversizedBytes !== undefined ? { maxBytes: rawOversizedBytes } : {}),
+            },
+          }
+        : {}),
+      ...(rawRenderMermaid !== undefined ? { renderMermaid: rawRenderMermaid } : {}),
     };
   }
   return result;
@@ -140,7 +158,24 @@ function parseUiSettings(value: unknown, settingsFile: string): MixCodeUiSetting
       ui.oversizedAssistantMessage,
       settingsFile,
     ),
+    renderMermaid: booleanUiSetting(
+      ui.renderMermaid,
+      DEFAULT_RENDER_MERMAID,
+      settingsFile,
+      "renderMermaid",
+    ),
   };
+}
+
+function booleanUiSetting(
+  value: unknown,
+  fallback: boolean,
+  settingsFile: string,
+  field: string,
+): boolean {
+  if (value === undefined) return fallback;
+  if (typeof value === "boolean") return value;
+  throw new Error(`${settingsFile}: ui.${field} must be a boolean`);
 }
 
 function parseOversizedAssistantMessageSettings(

@@ -4,7 +4,10 @@ import { createSessionSelectorState } from "./session-selector.js";
 import { createForkSelectorState } from "../ui/fork-selector.js";
 import { createTreeSelectorState } from "./tree-selector.js";
 import { createWorkspaceOverlayState } from "./workspace-ui.js";
-import { DEFAULT_OVERSIZED_ASSISTANT_MESSAGE } from "./mixcode-settings.js";
+import {
+  DEFAULT_OVERSIZED_ASSISTANT_MESSAGE,
+  DEFAULT_RENDER_MERMAID,
+} from "./mixcode-settings.js";
 import type { MixCodeModelRef, MixCodeState, MixCodeTabInfo } from "./types.js";
 
 export const DEFAULT_THEME_ID = "claude-warm";
@@ -23,6 +26,7 @@ export function createInitialState(workdir: string, defaultThinkingLevel?: Think
     tabs: [],
     ui: {
       oversizedAssistantMessage: { ...DEFAULT_OVERSIZED_ASSISTANT_MESSAGE },
+      renderMermaid: DEFAULT_RENDER_MERMAID,
     },
     activeTabId: "config",
     packageUpdates: [],

@@ -88,6 +88,7 @@ interface ConversationCache {
   oversizedPolicyKey: string;
   hideThinking: boolean;
   hiddenThinkingLabel: string;
+  renderMermaid: boolean;
   chatRef: ChatLine[];
 }
 
@@ -589,6 +590,7 @@ function getCachedConversationLines(
   const policyKey = oversizedPolicyKey(options.oversizedAssistantMessage);
   const hideThinking = options.hideThinking ?? false;
   const hiddenThinkingLabel = tab.extensionUi.hiddenThinkingLabel ?? "";
+  const renderMermaid = options.renderMermaid !== false;
 
   const cached = conversationCacheMap.get(tab.sessionId);
   if (
@@ -604,7 +606,8 @@ function getCachedConversationLines(
     cached.lastPendingMessage === lastPending &&
     cached.oversizedPolicyKey === policyKey &&
     cached.hideThinking === hideThinking &&
-    cached.hiddenThinkingLabel === hiddenThinkingLabel
+    cached.hiddenThinkingLabel === hiddenThinkingLabel &&
+    cached.renderMermaid === renderMermaid
   ) {
     return cached.lines;
   }
@@ -628,6 +631,7 @@ function getCachedConversationLines(
     oversizedPolicyKey: policyKey,
     hideThinking,
     hiddenThinkingLabel,
+    renderMermaid,
   });
 
   return lines;

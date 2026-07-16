@@ -9,6 +9,7 @@ import { homedir } from "node:os";
 import {
   DEFAULT_HISTORY_MAX_BYTES,
   DEFAULT_OVERSIZED_ASSISTANT_MESSAGE,
+  DEFAULT_RENDER_MERMAID,
   loadRawMixCodeSettings,
   writeRawMixCodeSettings,
   type RawMixCodeSettings,
@@ -161,6 +162,28 @@ const ITEMS: SettingItem[] = [
   },
   {
     kind: "boolean",
+    label: "renderMermaid",
+    section: "mixcode",
+    defaultValue: DEFAULT_RENDER_MERMAID,
+    getValue: ({ mixcodeRaw }) => mixcodeRaw.ui?.renderMermaid,
+    setValue: async (ctx, v) => {
+      const next: RawMixCodeSettings = { ...ctx.mixcodeRaw };
+      if (v === undefined) {
+        if (next.ui) {
+          const ui = { ...next.ui };
+          delete ui.renderMermaid;
+          if (Object.keys(ui).length > 0) next.ui = ui;
+          else delete next.ui;
+        }
+      } else {
+        next.ui = { ...next.ui, renderMermaid: v };
+      }
+      replaceRaw(ctx.mixcodeRaw, next);
+      await writeRawMixCodeSettings(ctx.mixcodeFile, next);
+    },
+  },
+  {
+    kind: "boolean",
     label: "oversized.enabled",
     section: "mixcode",
     defaultValue: DEFAULT_OVERSIZED_ASSISTANT_MESSAGE.enabled,
@@ -284,6 +307,7 @@ function applyLiveEffects(state: MixCodeState): void {
       maxLines: oversized?.maxLines ?? DEFAULT_OVERSIZED_ASSISTANT_MESSAGE.maxLines,
       maxBytes: oversized?.maxBytes ?? DEFAULT_OVERSIZED_ASSISTANT_MESSAGE.maxBytes,
     },
+    renderMermaid: raw.ui?.renderMermaid ?? DEFAULT_RENDER_MERMAID,
   };
   for (const tab of state.tabs) clearConversationCache(tab.sessionId);
 }
@@ -299,6 +323,7 @@ const ITEM_LABELS: Record<string, string> = {
   "retry.enabled": "Auto-retry",
   "retry.maxRetries": "Retry times",
   "history.maxBytes": "History max bytes",
+  renderMermaid: "Render Mermaid diagrams",
   "oversized.enabled": "Collapse oversized messages",
   "oversized.maxLines": "Oversized max lines",
   "oversized.maxBytes": "Oversized max bytes",

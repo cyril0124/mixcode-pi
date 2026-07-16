@@ -17,6 +17,7 @@ The file uses JSONC syntax: regular JSON plus comments and trailing commas. If t
     "maxBytes": 5242880,
   },
   "ui": {
+    "renderMermaid": true,
     "oversizedAssistantMessage": {
       "enabled": true,
       "maxLines": 5000,
@@ -30,6 +31,7 @@ The file uses JSONC syntax: regular JSON plus comments and trailing commas. If t
 | --- | --- | --- | --- |
 | `theme` | theme id string | unset → runtime default | Explicit MixCode UI theme. When omitted, the app keeps the restored/default theme. Editable via `/settings`. |
 | `history.maxBytes` | positive integer | `5242880` | Maximum size, in bytes, kept in `history.jsonl`. Older entries are trimmed when the file exceeds this size. |
+| `ui.renderMermaid` | boolean | `true` | When true, ` ```mermaid ` fences render as terminal ASCII diagrams; when false, they stay plain code blocks. Editable via `/settings`. |
 | `ui.oversizedAssistantMessage.enabled` | boolean | `true` | Fold oversized assistant/thinking provider output in the TUI while keeping full content in the session; use `/view` to inspect the full content. |
 | `ui.oversizedAssistantMessage.maxLines` | positive integer | `5000` | Fold assistant/thinking output above this line count. |
 | `ui.oversizedAssistantMessage.maxBytes` | positive integer | `131072` | Fold assistant/thinking output above this UTF-8 byte size. |
@@ -39,6 +41,7 @@ The file uses JSONC syntax: regular JSON plus comments and trailing commas. If t
 - Missing file: uses the default settings.
 - JSONC comments and trailing commas are accepted.
 - `history.maxBytes`: must be a positive integer; invalid values fall back to `5242880`.
+- `ui.renderMermaid`: must be a boolean; invalid values are reported as settings errors.
 - `ui.oversizedAssistantMessage.enabled`: must be a boolean.
 - `ui.oversizedAssistantMessage.maxLines` and `.maxBytes`: must be positive integers.
 - Invalid `ui.oversizedAssistantMessage` values are reported as settings errors.

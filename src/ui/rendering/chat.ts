@@ -49,6 +49,8 @@ export interface RenderChatBlockOptions {
   streamingMarkdownCharLimit?: number;
   /** When true, thinking blocks collapse to a static placeholder. */
   hideThinking?: boolean;
+  /** When false, mermaid fences stay plain code blocks. Default true. */
+  renderMermaid?: boolean;
 }
 
 // Placeholder shown in place of collapsed thinking content, matching Pi's
@@ -235,7 +237,11 @@ function renderMessageBlockUncached(
       width,
     );
     if (oversized) return withOsc133Zone(oversized);
-    return withOsc133Zone(renderMarkdown(streamingMarkdownText(trimmed, options), width));
+    return withOsc133Zone(
+      renderMarkdown(streamingMarkdownText(trimmed, options), width, {
+        renderMermaid: options.renderMermaid,
+      }),
+    );
   }
   if (line.role === "thinking") {
     if (!text.trim()) return [];
@@ -246,6 +252,7 @@ function renderMessageBlockUncached(
       return renderMarkdown(label, width, {
         color: activeRenderTheme.thinking,
         italic: true,
+        renderMermaid: options.renderMermaid,
       });
     }
     const trimmed = text.trim();
@@ -259,6 +266,7 @@ function renderMessageBlockUncached(
     return renderMarkdown(streamingMarkdownText(trimmed, options), width, {
       color: activeRenderTheme.thinking,
       italic: true,
+      renderMermaid: options.renderMermaid,
     });
   }
   if (line.role === "tool") {
@@ -336,7 +344,8 @@ function chatLineRenderCacheKey(
       role === "thinking" && options.hideThinking
         ? `1${KEY_SEP}${tab?.extensionUi.hiddenThinkingLabel ?? ""}`
         : "0";
-    return `${role[0]}${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${oversizedPolicyKey(options)}${KEY_SEP}${hideKey}${KEY_SEP}${line.text}`;
+    const mermaidKey = options.renderMermaid === false ? "0" : "1";
+    return `${role[0]}${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${oversizedPolicyKey(options)}${KEY_SEP}${hideKey}${KEY_SEP}${mermaidKey}${KEY_SEP}${line.text}`;
   }
   const expanded = tab?.extensionUi.toolsExpanded ?? false;
   if (role === "user") {
