@@ -65,6 +65,45 @@ function pendingStream(release: Promise<void>, options?: SimpleStreamOptions) {
   return stream;
 }
 
+// Like pendingStream, but after the abort signal the provider still takes delayMs
+// to close — models the real-world lag that made double-Esc retract feel sticky.
+function delayedAbortStream(delayMs: number, options?: SimpleStreamOptions) {
+  const stream = createAssistantMessageEventStream();
+  queueMicrotask(async () => {
+    const message: AssistantMessage = {
+      role: "assistant",
+      content: [],
+      api: "retract-test",
+      provider: "retract-test",
+      model: "retract-test-model",
+      usage: {
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        totalTokens: 0,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+      },
+      stopReason: "stop",
+      timestamp: Date.now(),
+    };
+    stream.push({ type: "start", partial: { ...message, content: [] } });
+    await new Promise<void>((resolve) => {
+      if (options?.signal?.aborted) return resolve();
+      options?.signal?.addEventListener("abort", () => resolve(), { once: true });
+    });
+    if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
+    const aborted = {
+      ...message,
+      stopReason: "aborted" as const,
+      errorMessage: "Request was aborted",
+    };
+    stream.push({ type: "error", reason: "aborted", error: aborted });
+    stream.end(aborted);
+  });
+  return stream;
+}
+
 function fauxModel(): Model<string> {
   return { ...MIXCODE_FAUX_MODEL, provider: "retract-test", api: "retract-test", id: "retract-test-model" };
 }
@@ -265,4 +304,90 @@ test("double escape does not clobber a non-empty editor draft on retract", async
   await new Promise((resolve) => setTimeout(resolve, 20));
   assert.equal(retractCalls, 0);
   assert.equal(editorText, "draft I am typing");
+});
+
+test("retractCurrentTurn restores editor text before a delayed abort settles", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-retract-optimistic-"));
+  try {
+    let editorText = "";
+    const runtime = new MixCodeRuntime({
+      sessionsRoot: dir,
+      streamFn: (_model: Model<any>, _context: Context, options?: SimpleStreamOptions) =>
+        delayedAbortStream(300, options),
+    });
+    runtime.setExtensionUiHost({
+      editor: {
+        getText: () => editorText,
+        setText: (text: string) => {
+          editorText = text;
+        },
+      },
+    });
+    const tab = createTab(1, "s1", process.cwd());
+    const runtimeTab = await runtime.createTab(tab, {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+      model: fauxModel(),
+    });
+
+    const branchBefore = runtimeTab.session.getBranch().length;
+    const pending = runtime.prompt("s1", "please retract me");
+    await waitFor(() => runtimeTab.agent.state.isStreaming === true);
+
+    let settled = false;
+    const retractPromise = runtime.retractCurrentTurn("s1").then((result) => {
+      settled = true;
+      return result;
+    });
+
+    // Editor must refill while abort is still in flight — not only after settle.
+    await waitFor(() => editorText === "please retract me");
+    assert.equal(settled, false, "editor refill must not wait for abort idle");
+
+    const result = await retractPromise;
+    await pending.catch(() => undefined);
+
+    assert.equal(result?.editorText, "please retract me");
+    await waitFor(() => runtimeTab.session.getBranch().length === branchBefore);
+    assert.equal(
+      runtimeTab.session.getBranch().some((e) => e.type === "message" && e.message.role === "user"),
+      false,
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("double escape requests a render immediately when starting retract", () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo", { status: "thinking" });
+  state.tabs.push(tab);
+  state.activeTabId = "s1";
+  let renders = 0;
+  let resolveRetract!: (value: { editorText: string }) => void;
+  const retractStarted = new Promise<{ editorText: string }>((resolve) => {
+    resolveRetract = resolve;
+  });
+  const tui = {
+    requestRender: () => renders++,
+    showOverlay: () => ({}) as never,
+    hasOverlay: () => false,
+  };
+  const runtime = {
+    getTab: () => ({ agent: { state: { isStreaming: true } } }),
+    abortTab: () => true,
+    // Stay pending so the immediate render cannot be credited to settle-time setText.
+    retractCurrentTurn: () => retractStarted,
+  };
+  const editorActions = {
+    getText: () => "",
+    setText: () => undefined,
+  };
+
+  handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime, undefined, () => false, editorActions);
+  const rendersAfterArm = renders;
+  handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime, undefined, () => false, editorActions);
+  assert.ok(renders > rendersAfterArm, "confirming Esc must requestRender before retract settles");
+  resolveRetract({ editorText: "please retract me" });
 });

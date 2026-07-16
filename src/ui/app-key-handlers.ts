@@ -571,6 +571,9 @@ export function handleEscapeKey(
         // Confirming Esc: prefer retract when no output and editor is empty
         active.pendingEscapeAction = undefined;
         if (runtime?.retractCurrentTurn && !editorActions?.getText()?.trim()) {
+          // Immediate render while retract awaits stream idle (optimistic setText
+          // also runs inside retractCurrentTurn when an editor host is wired).
+          tui.requestRender();
           void retractOrAbort(active, tui, runtime, editorActions);
         } else {
           runtime?.abortTab?.(active.sessionId);

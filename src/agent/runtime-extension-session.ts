@@ -120,8 +120,10 @@ export async function navigateRuntimeTree(
  *
  * Returns undefined (no retract) when the run already produced visible output or
  * there is no user message to rewind to — the caller should then abort normally.
- * Unlike navigateRuntimeTree, this does not touch the editor; the key handler
- * owns the empty-editor guard and the actual prefill.
+ *
+ * Refills an empty editor immediately (before awaiting abort idle) so double-Esc
+ * undo does not feel stuck behind provider stream teardown. The key handler may
+ * still setText after settle as a fallback when no editor host is wired.
  */
 export async function retractRuntimeTurn(
   sessionId: string,
@@ -132,6 +134,12 @@ export async function retractRuntimeTurn(
   if (!hasNoVisibleRunOutput(runtimeTab)) return undefined;
   const lastUser = lastUserMessage(runtimeTab);
   if (!lastUser) return undefined;
+  // Optimistic prefill: abort() waits for stream idle, which can lag hundreds of
+  // ms on a real provider. Restore the message first so the UI feels instant.
+  if (!context.extensionUiHost()?.editor?.getText().trim()) {
+    context.setLiveEditorText(lastUser.text);
+  }
+  context.emitChange({ type: "extension_ui_update" }, runtimeTab);
   // Stop the stream and wait for idle so navigateTree rebuilds from a settled state.
   if (runtimeTab.agentSession.isStreaming) await runtimeTab.agentSession.abort();
   await runtimeTab.agentSession.navigateTree(lastUser.id);
