@@ -395,7 +395,8 @@ function renderExtensionWidgetsInner(
   const lines: string[] = [];
   widgets.forEach((widget) => {
     const bodyWidth = Math.max(1, width - 2);
-    const widgetLines = widget.render?.(bodyWidth) ?? wrapExtensionWidgetLines(widget.lines, bodyWidth);
+    const widgetLines =
+      widget.render?.(bodyWidth) ?? wrapExtensionWidgetLines(widget.lines, bodyWidth);
     lines.push(...widgetLines.map((line) => renderSingleLineExtensionSlot(line, width)));
   });
   return lines;

@@ -20,6 +20,7 @@ import { closeAppOverlay, showLinesOverlay } from "./app-overlays.js";
 import { clearConversationCache } from "./rendering/agent-surface.js";
 import { activeRenderTheme, renderWithTheme } from "./rendering/context.js";
 import { overlayPanel, padLine } from "./rendering/primitives.js";
+import { windowStart } from "./rendering/scroll-window.js";
 import {
   getExplicitRetryMaxRetries,
   MIXCODE_RETRY_DEFAULTS,
@@ -358,23 +359,75 @@ function renderSettingsPanelInner(state: MixCodeState, width: number): string[] 
   const pathLine = (filePath: string) =>
     dim(`  ${formatSettingsPath(filePath, Math.max(1, innerWidth - 2))}`);
 
-  const lines: string[] = [];
-  let shownPi = false;
-  let shownMixcode = false;
-
-  ITEMS.forEach((item, idx) => {
-    if (item.section === "pi" && !shownPi) {
-      shownPi = true;
-      lines.push(sectionHeader("Pi"));
-      lines.push(pathLine(panel.piSettingsFile));
+  // Enum open: compact single-item view so the options window fits under the
+  // overlay maxHeight instead of head-clipping the caret on short terminals.
+  if (panel.enumOpen) {
+    const item = ITEMS[panel.selectedIndex];
+    if (item?.kind === "enum") {
+      return overlayPanel(
+        "Settings",
+        renderEnumFocusLines(panel, ctx, item, {
+          dim,
+          accent,
+          sel,
+          innerWidth,
+          labelCol,
+          valueCol,
+          gap,
+          sectionHeader,
+          pathLine,
+        }),
+        width,
+      );
     }
-    if (item.section === "mixcode" && !shownMixcode) {
-      shownMixcode = true;
-      if (lines.length > 0) lines.push("");
-      lines.push(sectionHeader("Mixcode"));
-      lines.push(pathLine(panel.mixcodeFile));
-    }
+  }
 
+  // Main list: render only a window around selectedIndex so short terminals
+  // don't head-clip the caret / footer (TUI overlay maxHeight is ~80%).
+  return overlayPanel(
+    "Settings",
+    renderMainSettingsLines(panel, ctx, {
+      dim,
+      accent,
+      sel,
+      innerWidth,
+      labelCol,
+      valueCol,
+      gap,
+      sectionHeader,
+      pathLine,
+    }),
+    width,
+  );
+}
+
+function settingsOverlayBodyBudget(): number {
+  const termRows = process.stdout.rows || 24;
+  // defaultOverlayOptions maxHeight "80%", minus top/bottom borders.
+  return Math.max(6, Math.floor(termRows * 0.8) - 2);
+}
+
+function renderMainSettingsLines(
+  panel: SettingsPanelState,
+  ctx: PanelCtx,
+  ui: {
+    dim: (s: string) => string;
+    accent: (s: string) => string;
+    sel: (s: string) => string;
+    innerWidth: number;
+    labelCol: number;
+    valueCol: number;
+    gap: number;
+    sectionHeader: (title: string) => string;
+    pathLine: (filePath: string) => string;
+  },
+): string[] {
+  const { dim, accent, sel, innerWidth, labelCol, valueCol, gap, sectionHeader, pathLine } = ui;
+  const footer = ["", dim("  ↑↓ select  ⏎ edit/toggle  esc close")];
+  const bodyBudget = Math.max(4, settingsOverlayBodyBudget() - footer.length);
+
+  // Build flat item rows first (no section headers yet), then window them.
+  const itemRows = ITEMS.map((item, idx) => {
     const isSelected = idx === panel.selectedIndex;
     const marker = isSelected ? accent("› ") : "  ";
     const label = ITEM_LABELS[item.label] ?? item.label;
@@ -407,25 +460,129 @@ function renderSettingsPanelInner(state: MixCodeState, width: number): string[] 
 
     const labelPadded = labelText + " ".repeat(Math.max(0, labelCol - visibleWidth(labelText)));
     const row = `${marker}${labelPadded}${" ".repeat(gap)}${valueColored}`;
-    lines.push(isSelected ? sel(padLine(row, innerWidth)) : row);
-
-    if (isSelected && panel.enumOpen && item.kind === "enum") {
-      const opts = item.getOptions(ctx);
-      if (opts.length === 0) {
-        lines.push(dim("    (no options available)"));
-      } else {
-        opts.forEach((opt, oi) => {
-          const optSelected = oi === panel.enumIndex;
-          const optMarker = optSelected ? accent("› ") : "  ";
-          const optRow = `  ${optMarker}${truncateToWidth(opt, Math.max(1, innerWidth - 4), "…")}`;
-          lines.push(optSelected ? sel(padLine(optRow, innerWidth)) : dim(optRow));
-        });
-      }
-    }
+    return {
+      idx,
+      section: item.section,
+      line: isSelected ? sel(padLine(row, innerWidth)) : row,
+    };
   });
 
-  lines.push("", dim("  ↑↓ select  ⏎ edit/toggle  esc close"));
-  return overlayPanel("Settings", lines, width);
+  // Prefer showing as many items as fit; reserve 2 lines for active section header+path
+  // and 2 for more-above/below markers when needed.
+  const maxItems = Math.max(3, bodyBudget - 4);
+  const start = windowStart(panel.selectedIndex, itemRows.length, maxItems);
+  const end = Math.min(start + maxItems, itemRows.length);
+  const slice = itemRows.slice(start, end);
+
+  const lines: string[] = [];
+  let shownPi = false;
+  let shownMixcode = false;
+  if (start > 0) lines.push(dim(`  ... (${start} more above)`));
+
+  for (const row of slice) {
+    if (row.section === "pi" && !shownPi) {
+      shownPi = true;
+      lines.push(sectionHeader("Pi"));
+      lines.push(pathLine(panel.piSettingsFile));
+    }
+    if (row.section === "mixcode" && !shownMixcode) {
+      shownMixcode = true;
+      if (lines.length > 0 && !lines[lines.length - 1]!.includes("more above")) {
+        // Keep a blank separator only when both sections are visible and budget allows.
+        if (shownPi) lines.push("");
+      }
+      lines.push(sectionHeader("Mixcode"));
+      lines.push(pathLine(panel.mixcodeFile));
+    }
+    lines.push(row.line);
+  }
+
+  if (end < itemRows.length) lines.push(dim(`  ... (${itemRows.length - end} more below)`));
+
+  // If chrome pushed us over budget, drop blank separators first then trim head
+  // while keeping the selected row if possible.
+  while (lines.length > bodyBudget) {
+    const blank = lines.findIndex((l) => l === "");
+    if (blank >= 0) {
+      lines.splice(blank, 1);
+      continue;
+    }
+    // Drop oldest non-selected chrome/item from the top.
+    const dropAt = lines.findIndex((l, i) => i > 0 && !l.includes("›"));
+    if (dropAt >= 0) lines.splice(dropAt, 1);
+    else break;
+  }
+
+  lines.push(...footer);
+  return lines;
+}
+
+function renderEnumFocusLines(
+  panel: SettingsPanelState,
+  ctx: PanelCtx,
+  item: EnumItem,
+  ui: {
+    dim: (s: string) => string;
+    accent: (s: string) => string;
+    sel: (s: string) => string;
+    innerWidth: number;
+    labelCol: number;
+    valueCol: number;
+    gap: number;
+    sectionHeader: (title: string) => string;
+    pathLine: (filePath: string) => string;
+  },
+): string[] {
+  const { dim, accent, sel, innerWidth, labelCol, valueCol, gap, sectionHeader, pathLine } = ui;
+  const sectionTitle = item.section === "pi" ? "Pi" : "Mixcode";
+  const filePath = item.section === "pi" ? panel.piSettingsFile : panel.mixcodeFile;
+  const label = ITEM_LABELS[item.label] ?? item.label;
+  const rawValue = item.getValue(ctx);
+  const isSet = rawValue !== undefined;
+  let valuePlain = String(isSet ? rawValue : item.defaultValue);
+  if (!isSet) valuePlain = `${valuePlain}  (default)`;
+  const labelText = truncateToWidth(label, labelCol, "…");
+  const valueText = truncateToWidth(valuePlain, valueCol, "…");
+  const valueColored = !isSet ? dim(valueText) : valueText;
+  const labelPadded = labelText + " ".repeat(Math.max(0, labelCol - visibleWidth(labelText)));
+  const row = `${accent("› ")}${labelPadded}${" ".repeat(gap)}${valueColored}`;
+
+  const lines: string[] = [
+    sectionHeader(sectionTitle),
+    pathLine(filePath),
+    sel(padLine(row, innerWidth)),
+  ];
+
+  const opts = item.getOptions(ctx);
+  if (opts.length === 0) {
+    lines.push(dim("    (no options available)"));
+  } else {
+    // Fit under default overlay maxHeight (~80% of terminal). Chrome is:
+    // top/bottom borders + section + path + parent row + optional more
+    // markers + blank + footer.
+    const termRows = process.stdout.rows || 24;
+    const overlayCap = Math.max(8, Math.floor(termRows * 0.8));
+    const chromeRows = 9; // borders(2)+section+path+parent+more*2+blank+footer
+    const maxVisible = Math.max(3, Math.min(10, overlayCap - chromeRows));
+    const startIndex = windowStart(panel.enumIndex, opts.length, maxVisible);
+    const endIndex = Math.min(startIndex + maxVisible, opts.length);
+    if (startIndex > 0) {
+      lines.push(dim(`    ... (${startIndex} more above)`));
+    }
+    for (let oi = startIndex; oi < endIndex; oi++) {
+      const opt = opts[oi]!;
+      const optSelected = oi === panel.enumIndex;
+      const optMarker = optSelected ? accent("› ") : "  ";
+      const optRow = `  ${optMarker}${truncateToWidth(opt, Math.max(1, innerWidth - 4), "…")}`;
+      lines.push(optSelected ? sel(padLine(optRow, innerWidth)) : dim(optRow));
+    }
+    if (endIndex < opts.length) {
+      lines.push(dim(`    ... (${opts.length - endIndex} more below)`));
+    }
+  }
+
+  lines.push("", dim("  ↑↓ select  ⏎ choose  esc back"));
+  return lines;
 }
 
 function formatBool(v: boolean): string {

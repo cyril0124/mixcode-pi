@@ -27,10 +27,13 @@ import {
   renderWorkingIndicator,
   setCurrentUiTheme,
 } from "./rendering.js";
-import { themeForId } from "./themes.js";
+import { themeForId, type MixCodeTheme } from "./themes.js";
 
 export const TERMINAL_SCROLL_GUARD_ROWS = 0;
 const WORKING_GAP_ROWS = 1;
+// Keep enough rows for chat + editor chrome so a flood of extension widgets
+// cannot push the tab bar into scrollback.
+const MIN_CHAT_AND_EDITOR_ROWS = 6;
 export class MixCodeRoot implements Component {
   constructor(
     private readonly state: MixCodeState,
@@ -219,15 +222,37 @@ export class MixCodeLayoutRoot implements Component {
     const hideEditorWidgets = isVim || panelOpen;
     const metaProbe = isAgentTab ? renderInputMeta(active, width, 0, theme, false) : [];
     const workingLines = isAgentTab ? this.renderWorkingLoader(active, width, theme) : [];
-    const widgetsAbove =
+    const viewportRowsForClamp = this.getViewportRows?.();
+    const footerRows = renderFooter(width).length;
+    // Shared budget for above+below editor widgets so tab bar + chat/editor stay on screen.
+    const mainTopReserve = this.state.tabBarHitRow ?? 1;
+    const widgetBudget =
+      viewportRowsForClamp === undefined
+        ? undefined
+        : Math.max(
+            0,
+            viewportRowsForClamp -
+              mainTopReserve -
+              WORKING_GAP_ROWS - // control top gap
+              1 - // min editor row
+              metaProbe.length -
+              footerRows -
+              MIN_CHAT_AND_EDITOR_ROWS,
+          );
+    const uncappedAbove =
       isAgentTab && !hideEditorWidgets
         ? renderExtensionWidgets(active, width, "aboveEditor", theme)
         : [];
-    const widgetsBelow =
+    const uncappedBelow =
       isAgentTab && !hideEditorWidgets
         ? renderExtensionWidgets(active, width, "belowEditor", theme)
         : [];
-    const viewportRowsForClamp = this.getViewportRows?.();
+    const { above: widgetsAbove, below: widgetsBelow } = fitEditorWidgets(
+      uncappedAbove,
+      uncappedBelow,
+      widgetBudget,
+      theme,
+    );
     const workingBottomGapRows = 0;
     let editorLines = this.editor.render(width);
     let widgetsAboveBottomGapRows =
@@ -269,7 +294,6 @@ export class MixCodeLayoutRoot implements Component {
     // drops its internal content gap, so reserving more would needlessly cut the
     // editor component's own bottom chrome (e.g. the btw bottom border).
     // Fall back to 1 (single tab-bar row) before the first frame sets the value.
-    const mainTopReserve = this.state.tabBarHitRow ?? 1;
     const maxEditorRows = viewportRowsForClamp
       ? Math.max(
           1,
@@ -282,7 +306,7 @@ export class MixCodeLayoutRoot implements Component {
             widgetsAbove.length -
             widgetsBelow.length -
             metaProbe.length -
-            renderFooter(width).length,
+            footerRows,
         )
       : undefined;
     if (this.editor.setEditorMaxRows(maxEditorRows, active?.sessionId)) {
@@ -500,4 +524,31 @@ function formatDuration(elapsedSeconds: number): string {
     return `${hours}h ${String(minutes).padStart(2, "0")}m ${String(seconds).padStart(2, "0")}s`;
   if (minutes === 0) return `${seconds}s`;
   return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
+}
+
+/** Cap stacked editor widgets to a shared row budget; prefer aboveEditor first. */
+function fitEditorWidgets(
+  above: string[],
+  below: string[],
+  budget: number | undefined,
+  theme: MixCodeTheme,
+): { above: string[]; below: string[] } {
+  if (budget === undefined) return { above, below };
+  const total = above.length + below.length;
+  if (total <= budget) return { above, below };
+  if (budget <= 0) return { above: [], below: [] };
+
+  const marker = theme.dim("… (widgets truncated)");
+  // Reserve one row for the marker when we have content to show.
+  const contentBudget = Math.max(0, budget - 1);
+  const keptAbove = above.slice(0, contentBudget);
+  const remaining = Math.max(0, contentBudget - keptAbove.length);
+  const keptBelow = below.slice(0, remaining);
+  if (keptBelow.length > 0) {
+    return { above: keptAbove, below: [...keptBelow, marker] };
+  }
+  if (keptAbove.length > 0) {
+    return { above: [...keptAbove, marker], below: [] };
+  }
+  return { above: [marker], below: [] };
 }

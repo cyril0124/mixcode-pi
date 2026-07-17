@@ -20,6 +20,7 @@ import { highlightRanges } from "./highlight.js";
 import { centerLine } from "./layout.js";
 import { box, overlayPanel, padLine, panelBox, renderBoxTop } from "./primitives.js";
 import { applyToastOverlay } from "./toast-overlay.js";
+import { halfScreenRows, windowStart } from "./scroll-window.js";
 
 /** Shared match style for dynamic fuzzy-search highlighting across overlays: bold + accent. */
 function matchHighlight(text: string): string {
@@ -544,7 +545,14 @@ function renderPickerOverlayInner(state: MixCodeState, width: number): string[] 
     lines.push("No matching items");
   } else {
     const pickerQuery = picker.query.trim();
-    items.forEach((item, index) => {
+    const maxVisible = halfScreenRows();
+    const startIndex = windowStart(picker.selectedIndex, items.length, maxVisible);
+    const endIndex = Math.min(startIndex + maxVisible, items.length);
+    if (startIndex > 0) {
+      lines.push(activeRenderTheme.dim(`  ... (${startIndex} more above)`));
+    }
+    for (let index = startIndex; index < endIndex; index++) {
+      const item = items[index]!;
       const label = highlightRanges(
         item.label,
         fuzzyMatchPositions(pickerQuery, item.label),
@@ -561,7 +569,10 @@ function renderPickerOverlayInner(state: MixCodeState, width: number): string[] 
           ? activeRenderTheme.selection(padLine(line, Math.max(1, width - 2)))
           : line,
       );
-    });
+    }
+    if (endIndex < items.length) {
+      lines.push(activeRenderTheme.dim(`  ... (${items.length - endIndex} more below)`));
+    }
   }
   lines.push("", "type: filter  up/down: select  enter: choose  esc: cancel");
   return overlayPanel(picker.title, lines, width);
@@ -592,7 +603,14 @@ function renderWorkdirPickerOverlay(
     // Workdir entries are filtered by plain substring `.includes()`, not fuzzy
     // subsequence matching, so highlight the same way for accurate feedback.
     const dirQuery = picker.query.trim();
-    items.forEach((item, index) => {
+    const maxVisible = halfScreenRows();
+    const startIndex = windowStart(picker.selectedIndex, items.length, maxVisible);
+    const endIndex = Math.min(startIndex + maxVisible, items.length);
+    if (startIndex > 0) {
+      lines.push(activeRenderTheme.dim(`  ... (${startIndex} more above)`));
+    }
+    for (let index = startIndex; index < endIndex; index++) {
+      const item = items[index]!;
       const icon = item.completeValue ? "\u{1F4C1}" : "\u{1F4C4}";
       const label = highlightRanges(
         item.label,
@@ -605,7 +623,10 @@ function renderWorkdirPickerOverlay(
           ? activeRenderTheme.selection(padLine(line, innerWidth))
           : line,
       );
-    });
+    }
+    if (endIndex < items.length) {
+      lines.push(activeRenderTheme.dim(`  ... (${items.length - endIndex} more below)`));
+    }
   }
 
   const hiddenIndicator = picker.showHidden ? "on" : "off";
