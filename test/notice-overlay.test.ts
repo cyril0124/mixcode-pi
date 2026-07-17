@@ -1,29 +1,38 @@
 // Tests for the notice/error overlay panel rendering (src/ui/app-overlays.ts).
 //
 // showNoticeTextOverlay / showErrorOverlay render a bordered panel with a
-// title bar, wrapped body text, and a dim "Esc to close" hint. The panel must:
+// title bar, wrapped body text, and a dim copy/Esc hint. The panel must:
 //   - wrap long messages by panel width instead of truncating per line
 //   - show a title ("Notice" for transient, "Error" for errors)
-//   - include an "Esc to close" hint line
+//   - include a copy/close hint line
 //   - keep every input word visible in the wrapped body
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { visibleWidth } from "@earendil-works/pi-tui";
-import { renderNoticePanel } from "../src/ui/app-overlays.js";
+import {
+  closeAppOverlay,
+  copyActiveNoticeText,
+  getActiveNotice,
+  hasActiveNotice,
+  renderNoticePanel,
+  resolveNoticeOverlayLayout,
+  showNoticeTextOverlay,
+} from "../src/ui/app-overlays.js";
 import { themeForId } from "../src/ui/themes.js";
 
 const stripAnsi = (text: string) => text.replace(/\x1b\[[0-9;]*m/g, "");
 const theme = themeForId("mixcode-dark");
 
-test("renderNoticePanel draws a bordered panel with title and Esc hint", () => {
+test("renderNoticePanel draws a bordered panel with title and copy/Esc hint", () => {
   const lines = renderNoticePanel("Saved", 40, theme, { title: "Notice" }).map(stripAnsi);
   const joined = lines.join("\n");
 
   assert.match(lines[0] ?? "", /┌.*Notice.*┐/, "top border should carry the title");
   assert.match(lines.at(-1) ?? "", /└─+┘/, "bottom border should close the box");
   assert.match(joined, /Saved/, "message body should render");
-  assert.match(joined, /Esc to close/, "Esc hint should render");
+  assert.match(joined, /c\/y copy/, "copy hint should render");
+  assert.match(joined, /Esc close/, "Esc hint should render");
 });
 
 test("renderNoticePanel uses 'Error' title for the error variant", () => {
@@ -60,4 +69,54 @@ test("renderNoticePanel pads every line to the requested width", () => {
   for (const line of lines) {
     assert.equal(visibleWidth(stripAnsi(line)), width, "each line should fill the panel width");
   }
+});
+
+test("showNoticeTextOverlay tracks active notice and clears on close", () => {
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: (component: { render: (width: number) => string[] }, options: { width?: number }) => {
+      component.render(typeof options.width === "number" ? options.width : 40);
+      return { hide: () => undefined };
+    },
+    hasOverlay: () => true,
+  };
+  showNoticeTextOverlay(tui, "hello notice body");
+  assert.equal(hasActiveNotice(), true);
+  assert.equal(getActiveNotice()?.text, "hello notice body");
+  assert.ok(getActiveNotice()?.bounds, "bounds should be set after first render");
+  assert.ok((getActiveNotice()?.renderedLines.length ?? 0) > 0);
+  closeAppOverlay(tui);
+  assert.equal(hasActiveNotice(), false);
+});
+
+test("copyActiveNoticeText copies full body via injected writer", async () => {
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: (component: { render: (width: number) => string[] }, options: { width?: number }) => {
+      component.render(typeof options.width === "number" ? options.width : 40);
+      return { hide: () => undefined };
+    },
+    hasOverlay: () => true,
+  };
+  showNoticeTextOverlay(tui, "full notice payload");
+  const copied: string[] = [];
+  const result = await copyActiveNoticeText(async (text) => {
+    copied.push(text);
+  });
+  assert.deepEqual(result, { chars: "full notice payload".length });
+  assert.deepEqual(copied, ["full notice payload"]);
+  closeAppOverlay(tui);
+});
+
+test("resolveNoticeOverlayLayout places bottom-center notice within terminal", () => {
+  const layout = resolveNoticeOverlayLayout(
+    { anchor: "bottom-center", width: 40, maxHeight: 12, margin: 1, offsetY: -4 },
+    8,
+    100,
+    40,
+  );
+  assert.equal(layout.width, 40);
+  assert.ok(layout.row >= 1, "row respects top margin");
+  assert.ok(layout.col >= 1, "col respects left margin");
+  assert.ok(layout.row + 8 <= 39, "panel stays above bottom margin after offset clamp");
 });

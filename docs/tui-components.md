@@ -16,7 +16,7 @@
 | --- | --- | --- |
 | 只需要告诉用户一个短结果，例如复制成功、终端太窄、没有可显示内容 | Toast | 自动消失、右上角、不阻塞输入，适合一行到三行的即时反馈。 |
 | 用户按键后需要一个短暂的局部上下文预览，例如“当前跳到了哪条 user message” | Floating Panel | 锚定在输入区附近，能高亮当前行，适合导航/局部状态预览。 |
-| 需要展示 console 输出、错误文本、较长诊断，并且不能污染 TTY 帧 | Notice/Error Overlay | non-capturing、底部居中、可换行、Esc 关闭，适合需要读完再关的信息。 |
+| 需要展示 console 输出、错误文本、较长诊断，并且不能污染 TTY 帧 | Notice/Error Overlay | non-capturing、底部居中、可换行、`c/y` 复制、Esc 关闭，适合需要读完再关的信息。 |
 | 需要筛选、选择、确认、编辑输入 | 不用这三类 | 使用 picker/palette/workspace overlay/editor component 等交互式组件。 |
 
 ```text
@@ -25,7 +25,7 @@ short result       navigation context        readable diagnostic
      v                    v                         v
   Toast            Floating Panel           Notice/Error Overlay
  top-right          above editor             bottom-center panel
- auto-hide          auto-hide                Esc to close
+ auto-hide          auto-hide                c/y copy · Esc close
 ```
 
 ## 1. Toast
@@ -197,9 +197,10 @@ Notice/Error Overlay 用来把较长、需要用户读完的信息放进 TUI 管
 | --- | --- |
 | console 重载 | `src/cli/console-tui-bridge.ts`：`installConsoleTuiBridge()`、`wireConsoleSink()` |
 | main 接线 | `src/cli/main.ts`：启动早期安装 bridge，TUI 创建后 wire sink 到 `showNoticeTextOverlay()` |
-| notice/error API | `src/ui/app-overlays.ts`：`showNoticeTextOverlay()`、`showErrorOverlay()` |
+| notice/error API | `src/ui/app-overlays.ts`：`showNoticeTextOverlay()`、`showErrorOverlay()`、`copyActiveNoticeText()` |
 | 渲染 | `src/ui/app-overlays.ts`：`renderNoticePanel()` |
-| 测试 | `test/console-tui-bridge.test.ts`、`test/notice-overlay.test.ts` |
+| 输入 | `src/ui/app-input.ts`：Notice 打开时 `c/y` 复制全文；`src/ui/app-mouse.ts`：面板内拖选复制 |
+| 测试 | `test/console-tui-bridge.test.ts`、`test/notice-overlay.test.ts`、`test/app-mouse-selection.test.ts` |
 
 ### Console Bridge Flow
 
@@ -235,7 +236,9 @@ Only these methods are bridged:
 
 - 位置：`anchor: "bottom-center"`，`offsetY: -4`。
 - 捕获：`nonCapturing: true`，不会主动吃掉输入焦点。
-- 关闭：显示 `Esc to close`，通用 Esc overlay 处理会关闭它。
+- 提示：显示 `c/y copy · Esc close`。
+- 复制：`c/C/y/Y` 复制完整 notice body；鼠标可在面板 bounds 内拖选复制。
+- 关闭：通用 Esc overlay 处理会关闭它。
 - 宽度：按内容自适应，最大约终端宽度 60%，最小 24。
 - 高度：最大约终端高度 60%，至少 6。
 - 内容：按 panel 宽度 wrap，不按行截断；适合诊断信息。
@@ -275,7 +278,7 @@ Toast 和 Floating Panel 都挂在 `MixCodeTabInfo` 上，避免跨 tab 泄漏�
 
 - Toast：`activeToast()` 根据 `createdAt` 过期。
 - Floating Panel：`expiresAt` 决定是否渲染，并安排到期重绘。
-- Notice/Error Overlay：没有自动过期，用户用 Esc 关闭。
+- Notice/Error Overlay：没有自动过期；可 `c/y` 复制，用户用 Esc 关闭。
 
 ### Do not use fallback success paths
 

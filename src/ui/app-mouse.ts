@@ -11,7 +11,13 @@ import { pushToast } from "../core/toast.js";
 import { createPicker } from "../core/pickers.js";
 import { activateTab } from "../core/tabs.js";
 import type { MixCodeState } from "../core/types.js";
-import { hasAnyOverlay, showLinesOverlay } from "./app-overlays.js";
+import {
+  getActiveNotice,
+  hasActiveNotice,
+  hasAnyOverlay,
+  setActiveNoticeSelection,
+  showLinesOverlay,
+} from "./app-overlays.js";
 import { activeExtensionCommands } from "./app-runtime.js";
 import type { MixCodeKeyRuntime, OverlayTui } from "./app-types.js";
 import { renderCommandPalette, renderPickerOverlay, tabBarHitRegions } from "./rendering.js";
@@ -64,7 +70,10 @@ export function handleMouseInput(
     tui.requestRender();
     return true;
   }
-  if (hasAnyOverlay(tui)) return false;
+  // Notice is nonCapturing and still allows select+copy; other overlays swallow mouse.
+  if (handleNoticeSelectionMouse(active, mouse, tui, copyToClipboard)) return true;
+  if (hasAnyOverlay(tui) && !hasActiveNotice()) return false;
+  if (hasActiveNotice()) return false;
   if (handleInputSelectionMouse(active, mouse, tui, copyToClipboard)) return true;
   if (active.panelOpen && handlePanelSelectionMouse(active, mouse, tui, copyToClipboard)) {
     return true;
@@ -166,6 +175,29 @@ function handleInputSelectionMouse(
     },
     getLines: () => active.lastRenderedInputLines ?? [],
     selectText: selectedInputText,
+  });
+}
+
+function handleNoticeSelectionMouse(
+  active: MixCodeState["tabs"][number],
+  mouse: NonNullable<ReturnType<typeof parseSgrMouseInput>>,
+  tui: OverlayTui,
+  copyToClipboard: ClipboardWriter,
+): boolean {
+  const notice = getActiveNotice();
+  if (!notice?.bounds) return false;
+  return handleTextSelectionMouse({
+    active,
+    mouse,
+    tui,
+    copyToClipboard,
+    bounds: notice.bounds,
+    getSelection: () => notice.selection,
+    setSelection: (selection) => {
+      setActiveNoticeSelection(selection);
+    },
+    getLines: () => notice.renderedLines,
+    selectText: selectedChatText,
   });
 }
 

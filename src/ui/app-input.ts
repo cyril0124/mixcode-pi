@@ -1,5 +1,6 @@
 import { Key, matchesKey } from "@earendil-works/pi-tui";
 import { MIXCODE_EXTENSION_KEYBINDINGS_MANAGER } from "../agent/runtime.js";
+import { copyTextToClipboard } from "../core/clipboard.js";
 import {
   closeActiveOverlay,
   isOverlayActive,
@@ -33,8 +34,11 @@ import {
 } from "./app-key-handlers.js";
 import {
   closeAppOverlay,
+  copyActiveNoticeText,
+  getActiveNotice,
   hasAnyOverlay,
   hasAppOverlay,
+  hasActiveNotice,
   showErrorOverlay,
   showLinesOverlay,
 } from "./app-overlays.js";
@@ -303,13 +307,30 @@ export function handleMixCodeKeyInput(
     return { consume: true };
   }
   // Fallback: Esc dismisses app overlays that have no dedicated key handler
-  // (error/text overlays, which render an "Esc to close" hint). Must stay
+  // (error/text overlays, which render a close hint). Must stay
   // after the specific overlay handlers above (palette, tab-jump, quit-confirm,
   // selectors) so their own Esc semantics win first; handleEscapeKey skips
   // this case via its hasAnyOverlay guards.
   if (matchesKey(data, "escape") && hasAppOverlay(tui)) {
     closeAppOverlay(tui);
     closeActiveOverlay(state);
+    return { consume: true };
+  }
+  // Notice is nonCapturing: copy keys must be handled here so they do not
+  // fall through into the editor while a diagnostic panel is open.
+  if (hasActiveNotice() && (data === "c" || data === "C" || data === "y" || data === "Y")) {
+    void copyActiveNoticeText(copyTextToClipboard).then((result) => {
+      if (!active) {
+        tui.requestRender();
+        return;
+      }
+      if ("error" in result) {
+        pushToast(active, { type: "error", message: `Copy failed: ${result.error}` });
+      } else {
+        pushToast(active, { type: "success", message: `Copied ${result.chars} chars.` });
+      }
+      tui.requestRender();
+    });
     return { consume: true };
   }
 

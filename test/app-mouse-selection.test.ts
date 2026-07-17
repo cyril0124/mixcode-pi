@@ -3,6 +3,11 @@ import { test } from "node:test";
 import { createInitialState, createTab } from "../src/index.js";
 import { handleMixCodeKeyInput } from "../src/ui/app-input.js";
 import { handleMouseInput } from "../src/ui/app-mouse.js";
+import {
+  closeAppOverlay,
+  getActiveNotice,
+  showNoticeTextOverlay,
+} from "../src/ui/app-overlays.js";
 
 function setup() {
   const state = createInitialState("/repo");
@@ -197,4 +202,68 @@ test("handleMouseInput drags and copies btw-style editor visible body", async ()
   assert.deepEqual(copied, ["visible one\nvisible two"]);
   assert.equal(tab.toast?.message, "Copied 23 chars.");
   assert.equal(tab.inputSelection, undefined);
+});
+
+test("handleMouseInput drags and copies active Notice panel text", async () => {
+  const { state, tab, tui } = setup();
+  const copied: string[] = [];
+  const noticeTui = {
+    requestRender: tui.requestRender,
+    showOverlay: (component: { render: (width: number) => string[] }, options: { width?: number }) => {
+      component.render(typeof options.width === "number" ? options.width : 40);
+      return { hide: () => undefined };
+    },
+    hasOverlay: () => true,
+  };
+  showNoticeTextOverlay(noticeTui, "hello notice body");
+  const notice = getActiveNotice();
+  assert.ok(notice?.bounds, "notice bounds required for selection");
+
+  // Force a known rectangle so SGR coordinates map cleanly in the unit test.
+  notice.bounds = { top: 10, left: 1, width: 20, height: 3 };
+  notice.renderedLines = ["hello notice body", "second line here", "c/y copy · Esc close"];
+
+  assert.equal(
+    handleMouseInput(state, tab, "\x1b[<0;7;10M", tui, undefined, undefined, async (text) => {
+      copied.push(text);
+    }),
+    true,
+  );
+  assert.equal(
+    handleMouseInput(state, tab, "\x1b[<32;7;11M", tui, undefined, undefined, async (text) => {
+      copied.push(text);
+    }),
+    true,
+  );
+  assert.equal(
+    handleMouseInput(state, tab, "\x1b[<0;7;11m", tui, undefined, undefined, async (text) => {
+      copied.push(text);
+    }),
+    true,
+  );
+
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(copied, ["notice body\nsecond"]);
+  assert.equal(tab.toast?.message, "Copied 18 chars.");
+  assert.equal(getActiveNotice()?.selection, undefined);
+  closeAppOverlay(noticeTui);
+});
+
+test("handleMixCodeKeyInput consumes c while Notice is open", async () => {
+  const { state, tui } = setup();
+  const noticeTui = {
+    requestRender: tui.requestRender,
+    showOverlay: (component: { render: (width: number) => string[] }, options: { width?: number }) => {
+      component.render(typeof options.width === "number" ? options.width : 40);
+      return { hide: () => undefined };
+    },
+    hasOverlay: () => true,
+  };
+  showNoticeTextOverlay(noticeTui, "full notice payload");
+  try {
+    assert.deepEqual(handleMixCodeKeyInput(state, "c", tui), { consume: true });
+    assert.deepEqual(handleMixCodeKeyInput(state, "y", tui), { consume: true });
+  } finally {
+    closeAppOverlay(noticeTui);
+  }
 });
