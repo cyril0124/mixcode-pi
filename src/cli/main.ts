@@ -109,7 +109,9 @@ export async function main(): Promise<void> {
   }
   const stateRoot = defaultStateDir();
   let registryWriteErrorReported = false;
-  const reportRegistryWriteError = (error: unknown) => {
+  // Assigned after the TUI exists so registry failures render as a notice
+  // instead of corrupting the frame via raw stderr.
+  let reportRegistryWriteError = (error: unknown) => {
     if (registryWriteErrorReported) return;
     registryWriteErrorReported = true;
     const message = error instanceof Error ? error.message : String(error);
@@ -167,6 +169,20 @@ export async function main(): Promise<void> {
   // because scheduler-style logging fires off the input loop.
   wireConsoleSink((text) => {
     showNoticeTextOverlay(tui, text);
+    tui.requestRender();
+  });
+  // From here on, background failures go through the notice panel — raw stderr
+  // would corrupt the TUI frame the same way unbridged console.* did.
+  reportRegistryWriteError = (error: unknown) => {
+    if (registryWriteErrorReported) return;
+    registryWriteErrorReported = true;
+    const message = error instanceof Error ? error.message : String(error);
+    showNoticeTextOverlay(tui, `mixcode-pi instance registry update failed: ${message}`);
+    tui.requestRender();
+  };
+  runtime.setSyncErrorHandler((error) => {
+    const message = error instanceof Error ? error.message : String(error);
+    showNoticeTextOverlay(tui, `mixcode-pi session sync error: ${message}`);
     tui.requestRender();
   });
   const originalRequestRender = tui.requestRender.bind(tui);
@@ -244,7 +260,9 @@ export async function main(): Promise<void> {
       if (message.startsWith("Peer session not on disk yet:")) return;
       if (peerTabSyncErrorReported) return;
       peerTabSyncErrorReported = true;
-      process.stderr.write(`mixcode-pi peer tab sync error: ${message}\n`);
+      // Route through the TUI notice panel — raw stderr corrupts the frame.
+      showNoticeTextOverlay(tui, `mixcode-pi peer tab sync error: ${message}`);
+      tui.requestRender();
     },
   });
   const originalStop = tui.stop.bind(tui);
@@ -271,7 +289,8 @@ export async function main(): Promise<void> {
     })
     .catch((error: unknown) => {
       const msg = error instanceof Error ? error.message : String(error);
-      process.stderr.write(`Extension loading failed: ${msg}\n`);
+      showNoticeTextOverlay(tui, `Extension loading failed: ${msg}`);
+      tui.requestRender();
     });
   void packageUpdateCheck()
     .then((packages) => {
@@ -293,7 +312,8 @@ export async function main(): Promise<void> {
     })
     .catch((error: unknown) => {
       const msg = error instanceof Error ? error.message : String(error);
-      process.stderr.write(`History backfill failed: ${msg}\n`);
+      showNoticeTextOverlay(tui, `History backfill failed: ${msg}`);
+      tui.requestRender();
     });
 
   // Execute batch script after TUI is ready
@@ -303,7 +323,8 @@ export async function main(): Promise<void> {
       .then(() => applyBatchRequests(batchPlan.requests, batchHost))
       .catch((error: unknown) => {
         const msg = error instanceof Error ? error.message : String(error);
-        process.stderr.write(`Batch error: ${msg}\n`);
+        showNoticeTextOverlay(tui, `Batch error: ${msg}`);
+        tui.requestRender();
         process.exitCode = 1;
       })
       .finally(() => saveStateFile(stateFile, state));

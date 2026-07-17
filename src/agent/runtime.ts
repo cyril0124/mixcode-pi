@@ -202,6 +202,8 @@ export class MixCodeRuntime {
   private extensionUiHost?: ExtensionCustomUiHost;
   private shellExecutionSequence = 0;
   private readonly sync: RuntimeSyncManager;
+  /** Optional host surface for session-sync failures (TUI notice). */
+  private syncErrorHandler?: (error: unknown) => void;
   /** sessionIds that called ctx.shutdown() while streaming/compacting. */
   private readonly pendingExtensionShutdown = new Set<string>();
   /** UI host removes the tab from MixCodeState after runtime closeTab. */
@@ -294,9 +296,18 @@ export class MixCodeRuntime {
 
   private reportSyncError(error: unknown): void {
     const message = error instanceof Error ? error.message : String(error);
-    // Surface explicitly (never silently disable sync): the console bridge
-    // renders this as a dismissible TUI notice.
+    // Prefer the host-installed handler (TUI notice). Fall back to stderr so
+    // batch/test runtimes still surface the failure without a TUI.
+    if (this.syncErrorHandler) {
+      this.syncErrorHandler(error);
+      return;
+    }
     process.stderr.write(`mixcode-pi session sync error: ${message}\n`);
+  }
+
+  /** Host installs a TUI-safe surface for session-sync failures. */
+  setSyncErrorHandler(handler: (error: unknown) => void): void {
+    this.syncErrorHandler = handler;
   }
 
   async loadExtensionManagerConfig(): Promise<void> {
