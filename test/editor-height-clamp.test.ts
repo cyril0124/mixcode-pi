@@ -10,8 +10,9 @@ import {
   TERMINAL_SCROLL_GUARD_ROWS,
 } from "../src/ui/app-layout.js";
 import type { EditorSlot } from "../src/ui/app-editor.js";
-import { renderFooter } from "../src/ui/rendering.js";
+import { renderExtensionFooter, renderFooter } from "../src/ui/rendering.js";
 import { createInitialState, createTab } from "../src/core/defaults.js";
+import { getActiveTab } from "../src/core/tabs.js";
 import { MixCodeRuntime } from "../src/agent/runtime.js";
 
 function stripAnsi(text: string): string {
@@ -94,7 +95,12 @@ function buildRealLayoutWithEditor(editorLines: string[], viewportRows: number, 
     state,
     runtime,
     () => viewportRows,
-    () => editorRows + metaRows + renderFooter(width).length + TERMINAL_SCROLL_GUARD_ROWS,
+    () =>
+      editorRows +
+      metaRows +
+      renderExtensionFooter(getActiveTab(state), width).length +
+      renderFooter(width).length +
+      TERMINAL_SCROLL_GUARD_ROWS,
   );
   const editor = fakeEditor(editorLines);
   const layout = new MixCodeLayoutRoot(
@@ -140,7 +146,12 @@ function buildRealLayoutWithDynamicEditor(
     state,
     runtime,
     () => viewportRows,
-    () => editorRows + metaRows + renderFooter(width).length + TERMINAL_SCROLL_GUARD_ROWS,
+    () =>
+      editorRows +
+      metaRows +
+      renderExtensionFooter(getActiveTab(state), width).length +
+      renderFooter(width).length +
+      TERMINAL_SCROLL_GUARD_ROWS,
   );
   const layout = new MixCodeLayoutRoot(
     state,

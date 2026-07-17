@@ -177,6 +177,9 @@ export class MixCodeFooterRoot implements Component {
   invalidate(): void {}
 
   render(width: number): string[] {
+    // Home uses getActiveTab() as the selected agent for previews/toasts, but
+    // extension footer is per-agent chrome and must not paint on the config tab.
+    if (this.state.activeTabId === "config") return [...renderFooter(width)];
     const active = getActiveTab(this.state);
     return [...renderExtensionFooter(active, width), ...renderFooter(width)];
   }
@@ -223,7 +226,11 @@ export class MixCodeLayoutRoot implements Component {
     const metaProbe = isAgentTab ? renderInputMeta(active, width, 0, theme, false) : [];
     const workingLines = isAgentTab ? this.renderWorkingLoader(active, width, theme) : [];
     const viewportRowsForClamp = this.getViewportRows?.();
-    const footerRows = renderFooter(width).length;
+    const activeForFooter =
+      this.state.activeTabId === "config" ? undefined : active;
+    // Count real extension footer lines (renderFooter is intentionally empty).
+    const footerRows =
+      renderExtensionFooter(activeForFooter, width).length + renderFooter(width).length;
     // Shared budget for above+below editor widgets so tab bar + chat/editor stay on screen.
     const mainTopReserve = this.state.tabBarHitRow ?? 1;
     const widgetBudget =

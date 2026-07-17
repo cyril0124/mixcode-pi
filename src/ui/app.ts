@@ -34,6 +34,7 @@ import {
   type MixCodeSkillCompletionSource,
 } from "./completion.js";
 import {
+  renderExtensionFooter,
   renderFooter,
   renderHeader,
   renderTabBar,
@@ -85,11 +86,20 @@ export function createMixCodeTui(
     state,
     runtime,
     () => tui.terminal.rows,
-    () =>
-      editorRows +
-      metaRows +
-      renderFooter(tui.terminal.columns).length +
-      TERMINAL_SCROLL_GUARD_ROWS,
+    () => {
+      // Home has no agent extension footer; only count it on agent tabs.
+      const active =
+        state.activeTabId === "config" ? undefined : getActiveTab(state);
+      // Extension footer is real footer chrome; include it in the main surface budget
+      // so multi-line setFooter cannot push the tab bar into scrollback.
+      return (
+        editorRows +
+        metaRows +
+        renderExtensionFooter(active, tui.terminal.columns).length +
+        renderFooter(tui.terminal.columns).length +
+        TERMINAL_SCROLL_GUARD_ROWS
+      );
+    },
   );
   const defaultEditor = new CompactPromptEditor(
     tui,

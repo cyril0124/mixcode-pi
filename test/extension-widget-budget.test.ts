@@ -7,8 +7,9 @@ import {
   TERMINAL_SCROLL_GUARD_ROWS,
 } from "../src/ui/app-layout.js";
 import type { EditorSlot } from "../src/ui/app-editor.js";
-import { renderFooter } from "../src/ui/rendering.js";
+import { renderExtensionFooter, renderFooter } from "../src/ui/rendering.js";
 import { createInitialState, createTab } from "../src/core/defaults.js";
+import { getActiveTab } from "../src/core/tabs.js";
 import { MixCodeRuntime } from "../src/agent/runtime.js";
 
 function stripAnsi(text: string): string {
@@ -37,7 +38,12 @@ function buildLayout(viewportRows: number, width = 80) {
     state,
     runtime,
     () => viewportRows,
-    () => editorRows + metaRows + renderFooter(width).length + TERMINAL_SCROLL_GUARD_ROWS,
+    () =>
+      editorRows +
+      metaRows +
+      renderExtensionFooter(getActiveTab(state), width).length +
+      renderFooter(width).length +
+      TERMINAL_SCROLL_GUARD_ROWS,
   );
   const editor = fakeEditor(["editor-line-0", "editor-line-1"]);
   const layout = new MixCodeLayoutRoot(
