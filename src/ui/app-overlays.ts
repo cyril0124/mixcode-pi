@@ -223,6 +223,59 @@ const NOTICE_MIN_BOX_WIDTH = 24;
 // content up to ~60% of the terminal, so the common short message stays compact
 // while a long diagnostic gets enough room to read.
 function showNoticeOverlay(tui: OverlayTui, text: string, options: NoticeOptions): void {
+  // Console bridge fires once per console.* call. Append consecutive console
+  // lines into the open Notice instead of replacing it, so multi-line diagnostics
+  // are not reduced to only the last emit.
+  if (
+    options.title === "Notice" &&
+    !options.danger &&
+    activeNotice &&
+    activeNotice.title === "Notice" &&
+    !activeNotice.danger &&
+    isConsoleNoticeLine(text) &&
+    isConsoleNoticeBody(activeNotice.text)
+  ) {
+    activeNotice.text = `${activeNotice.text}\n${text}`;
+    // Rebuild the overlay with the merged body (showLinesOverlay closes prior).
+    const merged = activeNotice.text;
+    const notice: ActiveNotice = {
+      text: merged,
+      title: options.title,
+      danger: options.danger,
+      renderedLines: [],
+    };
+    const overlayOptions = noticeOverlayOptions(merged, options.title);
+    showLinesOverlay(
+      tui,
+      (width) => {
+        const theme = getCurrentUiTheme();
+        const lines = renderNoticePanel(merged, width, theme, options);
+        const termWidth = Math.max(1, process.stdout.columns || 80);
+        const termHeight = Math.max(1, process.stdout.rows || 24);
+        const layout = resolveNoticeOverlayLayout(
+          overlayOptions,
+          lines.length,
+          termWidth,
+          termHeight,
+        );
+        notice.bounds = {
+          top: layout.row + 1,
+          left: layout.col + 1,
+          width: layout.width,
+          height: lines.length,
+        };
+        notice.renderedLines = lines;
+        if (!notice.selection) return lines;
+        return lines.map((line, row) =>
+          highlightChatSelectionLine(line, row, notice.selection, theme.selection),
+        );
+      },
+      overlayOptions,
+    );
+    activeNotice = notice;
+    return;
+  }
+
   // Keep a stable object so the render callback can mutate bounds/selection
   // after showLinesOverlay clears the previous activeNotice via closeAppOverlay.
   const notice: ActiveNotice = {
@@ -264,6 +317,14 @@ function showNoticeOverlay(tui: OverlayTui, text: string, options: NoticeOptions
     overlayOptions,
   );
   activeNotice = notice;
+}
+
+function isConsoleNoticeLine(text: string): boolean {
+  return /^\[console\.(log|info|debug|warn|error)\]:/.test(text);
+}
+
+function isConsoleNoticeBody(text: string): boolean {
+  return text.split(/\r?\n/).every((line) => line.length === 0 || isConsoleNoticeLine(line));
 }
 
 // Resolve the overlay width/height in terminal-relative terms. The TUI overlay

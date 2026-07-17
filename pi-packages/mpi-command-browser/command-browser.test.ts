@@ -213,3 +213,50 @@ test("Ctrl+L / Ctrl+H cycle tabs and reset the query", () => {
   const out = comp.render(100).join("\n");
   assert.ok(out.includes("darwin-skill"), "switching tab resets the query so all skills show");
 });
+
+test("buildTabs groups auto-discovered extensions by package path/baseDir", () => {
+  const autoCommands: CommandInfo[] = [
+    {
+      name: "diff",
+      description: "Show file changes",
+      source: "extension",
+      // Live Pi auto-discovery: baseDir is the agent root, package is only in path.
+      sourceInfo: {
+        path: "/tmp/agent/extensions/mpi-diff-tracker/index.ts",
+        source: "auto",
+        scope: "user",
+        origin: "top-level",
+        baseDir: "/tmp/agent",
+      },
+    },
+    {
+      name: "loop",
+      description: "Loop helper",
+      source: "extension",
+      sourceInfo: {
+        path: "/tmp/agent/extensions/mpi-loop/index.ts",
+        source: "auto",
+        scope: "user",
+        origin: "top-level",
+        baseDir: "/tmp/agent",
+      },
+    },
+    {
+      name: "goal",
+      description: "Goal tracker",
+      source: "extension",
+      sourceInfo: {
+        path: "/tmp/agent/extensions/mpi-goal/index.ts",
+        source: "auto",
+        scope: "user",
+        origin: "top-level",
+        baseDir: "/tmp/agent",
+      },
+    },
+  ];
+  const tabs = buildTabs(autoCommands);
+  const headers = tabs[0].items.filter((i) => i.kind === "header").map((i) => i.label);
+  assert.deepEqual(headers, ["mpi-diff-tracker", "mpi-goal", "mpi-loop"]);
+  assert.ok(!headers.includes("auto"));
+  assert.ok(!headers.includes("agent"));
+});

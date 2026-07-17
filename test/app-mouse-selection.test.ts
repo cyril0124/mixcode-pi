@@ -6,6 +6,8 @@ import { handleMouseInput } from "../src/ui/app-mouse.js";
 import {
   closeAppOverlay,
   getActiveNotice,
+  hasAnyOverlay,
+  showLinesOverlay,
   showNoticeTextOverlay,
 } from "../src/ui/app-overlays.js";
 
@@ -266,4 +268,26 @@ test("handleMixCodeKeyInput consumes c while Notice is open", async () => {
   } finally {
     closeAppOverlay(noticeTui);
   }
+});
+
+test("chat drag-select is blocked while a modal overlay is open", async () => {
+  const { state, tab, tui } = setup();
+  const overlayTui = {
+    ...tui,
+    showOverlay: () => ({ hide: () => undefined }) as never,
+    hasOverlay: () => true,
+  };
+  // Open a modal-style overlay (picker path uses hasAnyOverlay).
+  showLinesOverlay(overlayTui, () => ["Choose Thinking", "low", "high"]);
+  assert.equal(hasAnyOverlay(overlayTui), true);
+
+  // Live TUI routes mouse through handleMixCodeKeyInput; with an overlay open
+  // chat drag-select must not run (no toast / no selection).
+  handleMixCodeKeyInput(state, "\x1b[<0;7;5M", overlayTui, undefined, undefined);
+  handleMixCodeKeyInput(state, "\x1b[<32;6;6M", overlayTui, undefined, undefined);
+  handleMixCodeKeyInput(state, "\x1b[<0;6;6m", overlayTui, undefined, undefined);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(tab.toast, undefined);
+  assert.equal(tab.chatSelection, undefined);
 });

@@ -81,22 +81,55 @@ export function buildTabs(commands: CommandInfo[]): Tab[] {
   ];
 }
 
-/** Extensions tab: group commands by package name (sourceInfo.source). */
+/** Extensions tab: group commands by package name (sourceInfo.source / path). */
 function buildExtensionItems(commands: CommandInfo[]): GroupedItem[] {
   const groups = new Map<string, CommandInfo[]>();
   for (const cmd of commands) {
-    const key = formatSourceName(cmd.sourceInfo.source);
+    const key = extensionGroupKey(cmd.sourceInfo);
     const list = groups.get(key) ?? [];
     list.push(cmd);
     groups.set(key, list);
   }
 
+  // Stable alphabetical headers so auto-discovered packages are scannable.
+  const sortedKeys = [...groups.keys()].sort((a, b) => a.localeCompare(b));
   const items: GroupedItem[] = [];
-  for (const [groupName, cmds] of groups) {
+  for (const groupName of sortedKeys) {
     items.push({ kind: "header", label: groupName, searchText: "" });
-    for (const cmd of cmds) items.push(makeCommandItem(cmd));
+    for (const cmd of groups.get(groupName) ?? []) items.push(makeCommandItem(cmd));
   }
   return items;
+}
+
+/**
+ * Package group label for the Extensions tab.
+ * Auto-discovered packages report source:"auto" with baseDir=agent root; the
+ * package name lives in path (.../extensions/<pkg>/index.ts). Prefer that.
+ */
+function extensionGroupKey(info: CommandInfo["sourceInfo"]): string {
+  const source = info.source?.trim() ?? "";
+  if (source && source !== "auto") return formatSourceName(source);
+  // Prefer path: baseDir for auto packages is the agent dir (would group as "agent").
+  const fromPath = packageNameFromExtensionPath(info.path);
+  if (fromPath) return fromPath;
+  const fromBase = packageNameFromExtensionPath(info.baseDir);
+  if (fromBase) return fromBase;
+  return source || "unknown";
+}
+
+/** Extract <pkg> from .../extensions/<pkg>/... or .../extensions/<pkg>. */
+function packageNameFromExtensionPath(filePath: string | undefined): string | undefined {
+  if (!filePath) return undefined;
+  const parts = filePath.split(/[\\/]+/).filter(Boolean);
+  const extIdx = parts.lastIndexOf("extensions");
+  if (extIdx >= 0 && extIdx + 1 < parts.length) {
+    const pkg = parts[extIdx + 1]!;
+    // Guard against .../extensions/index.ts style noise.
+    if (pkg && pkg !== "index.ts" && pkg !== "index.js" && !pkg.endsWith(".ts") && !pkg.endsWith(".js")) {
+      return pkg;
+    }
+  }
+  return undefined;
 }
 
 /** Skills / Prompts tab: flat list, no group headers. */

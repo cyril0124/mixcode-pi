@@ -219,7 +219,10 @@ export function handleMixCodeKeyInput(
   if (!hasAnyOverlay(tui) && handleInputSelectionMouseInput(state, active, data, tui)) {
     return { consume: true };
   }
-  if (handleChatSelectionMouseInput(state, active, data, tui, runtime)) {
+  // Modal overlays (pickers/settings/etc.) must swallow chat drag-select so
+  // clipboard is not mutated under an open dialog. Notice remains selectable
+  // via handleMouseInput's dedicated notice path.
+  if (!hasAnyOverlay(tui) && handleChatSelectionMouseInput(state, active, data, tui, runtime)) {
     return { consume: true };
   }
   if (

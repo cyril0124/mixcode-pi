@@ -10,6 +10,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { installConsoleTuiBridge, wireConsoleSink } from "../src/cli/console-tui-bridge.js";
+import {
+  closeAppOverlay,
+  getActiveNotice,
+  showNoticeTextOverlay,
+} from "../src/ui/app-overlays.js";
 
 test("console bridge queues before wiring, then flushes in order with prefixes", () => {
   const original = {
@@ -45,4 +50,24 @@ test("console bridge queues before wiring, then flushes in order with prefixes",
   } finally {
     Object.assign(console, original);
   }
+});
+
+test("notice overlay appends consecutive console lines instead of replacing", () => {
+  // #12: rapid console.* used to leave only the last Notice because each sink
+  // call closed the previous overlay.
+  let renders = 0;
+  const tui = {
+    requestRender: () => renders++,
+    showOverlay: () => ({ hide: () => undefined }) as never,
+    hasOverlay: () => true,
+    hideOverlay: () => undefined,
+  };
+
+  showNoticeTextOverlay(tui, "[console.warn]: first");
+  showNoticeTextOverlay(tui, "[console.log]: second");
+  const notice = getActiveNotice();
+  assert.ok(notice);
+  assert.match(notice!.text, /\[console\.warn\]: first/);
+  assert.match(notice!.text, /\[console\.log\]: second/);
+  closeAppOverlay(tui);
 });
