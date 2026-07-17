@@ -174,6 +174,10 @@ export function prepareAgentTabClear(
  * Replace the session after the cleared frame is published. The old id is kept
  * separately because `runtime.clearTab()` mutates the existing tab object's
  * session id in place during the replacement.
+ *
+ * Local tab id + open_tabs are swapped together before any await so peer
+ * reconcile cannot treat the cleared tab as missing and reopen it as
+ * `Agent-{uuid8}`.
  */
 export async function completeAgentTabClear(
   state: MixCodeState,
@@ -182,30 +186,42 @@ export async function completeAgentTabClear(
   options?: { systemPrompt?: string; rebuildServices?: boolean },
 ): Promise<string> {
   if (!runtime.clearTab) throw new Error("Clear requires runtime session replacement support");
-  const cleared = await runtime.clearTab(prepared.oldSessionId, {
-    systemPrompt: options?.systemPrompt ?? MIXCODE_SYSTEM_PROMPT,
-    thinkingLevel: prepared.tab.thinkingLevel,
-    workdir: prepared.tab.workdir,
-    ...(options?.rebuildServices ? { rebuildServices: true } : {}),
-  });
-  // Batch clear can install a new base identity; keep the UI badge in sync.
-  if (options?.systemPrompt !== undefined) {
-    prepared.tab.customBasePrompt = isCustomBaseSystemPrompt(options.systemPrompt)
-      ? true
-      : undefined;
+  const nextSessionId = createSessionId();
+  const oldSessionId = prepared.oldSessionId;
+  const wasActive = state.activeTabId === oldSessionId;
+  // Sync section: local id and shared open-set must move together before clearTab
+  // awaits (extension reload / session create). Same idea as createAgentTab's
+  // noteTabOpened-before-create, but clear also renames the existing tab object.
+  prepared.tab.sessionId = nextSessionId;
+  if (wasActive) state.activeTabId = nextSessionId;
+  noteTabReplaced(oldSessionId, nextSessionId);
+  try {
+    const cleared = await runtime.clearTab(oldSessionId, {
+      systemPrompt: options?.systemPrompt ?? MIXCODE_SYSTEM_PROMPT,
+      thinkingLevel: prepared.tab.thinkingLevel,
+      workdir: prepared.tab.workdir,
+      newSessionId: nextSessionId,
+      ...(options?.rebuildServices ? { rebuildServices: true } : {}),
+    });
+    // Batch clear can install a new base identity; keep the UI badge in sync.
+    if (options?.systemPrompt !== undefined) {
+      prepared.tab.customBasePrompt = isCustomBaseSystemPrompt(options.systemPrompt)
+        ? true
+        : undefined;
+    }
+    const resultId = cleared.tab.sessionId;
+    activateTab(state, resultId);
+    // The cache is keyed by session id; clear the new key as well because session
+    // replacement changes identity while retaining the same tab object.
+    clearConversationCache(resultId);
+    return resultId;
+  } catch (error) {
+    // Roll identity back so peers and UI keep the session that still exists.
+    prepared.tab.sessionId = oldSessionId;
+    if (wasActive) state.activeTabId = oldSessionId;
+    noteTabReplaced(nextSessionId, oldSessionId);
+    throw error;
   }
-  const nextSessionId = cleared.tab.sessionId;
-  activateTab(state, nextSessionId);
-  // The cache is keyed by session id; clear the new key as well because session
-  // replacement changes identity while retaining the same tab object.
-  clearConversationCache(nextSessionId);
-  // /clear swaps session identity: replace the shared open-tab entry so peers
-  // drop the old file and open the fresh one.
-  if (prepared.oldSessionId !== nextSessionId) {
-    // Replace in-place so the tab keeps its position in the shared ordered list.
-    noteTabReplaced(prepared.oldSessionId, nextSessionId);
-  }
-  return nextSessionId;
 }
 
 /**

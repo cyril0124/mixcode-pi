@@ -22,8 +22,10 @@ import {
 } from "../src/index.js";
 import {
   closeExistingAgentTab,
+  completeAgentTabClear,
   createAgentTab,
   openExistingAgentTab,
+  prepareAgentTabClear,
 } from "../src/ui/agent-tab-actions.js";
 
 test("listTabsToReconcile opens missing and closes extras", () => {
@@ -289,6 +291,102 @@ test("createAgentTab rolls open_tabs back when createTab fails", async () => {
     );
     assert.equal(state.activeTabId, existing.sessionId);
     assert.deepEqual(readOpenTabs(openTabsPath), [existing.sessionId]);
+  } finally {
+    configureOpenTabsPath(undefined);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("completeAgentTabClear publishes open_tabs before session id swaps so reconcile keeps the title", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-clear-race-"));
+  const openTabsPath = openTabsFile(join(dir, "state"));
+  configureOpenTabsPath(openTabsPath);
+  try {
+    const state = createInitialState(dir);
+    const existing = createTab(1, "old-clear", dir, { title: "Agent-03", status: "idle" });
+    state.tabs.push(existing);
+    state.activeTabId = existing.sessionId;
+    writeOpenTabs(openTabsPath, [existing.sessionId]);
+
+    const runtimeTabs = new Map<
+      string,
+      { tab: { sessionId: string; title: string; index?: number }; chat: unknown[] }
+    >([[existing.sessionId, { tab: existing, chat: [] }]]);
+
+    let reconcileDuringClear!: () => Promise<void>;
+    let seenNewSessionId: string | undefined;
+    const runtime = {
+      getTab: (id: string) => runtimeTabs.get(id),
+      clearTab: async (
+        sessionId: string,
+        options?: { newSessionId?: string },
+      ) => {
+        const existingRt = runtimeTabs.get(sessionId);
+        if (!existingRt) throw new Error(`Unknown tab session: ${sessionId}`);
+        const tab = existingRt.tab as { sessionId: string; title: string; index: number };
+        const targetId = options?.newSessionId;
+        if (!targetId) throw new Error("clearTab requires newSessionId");
+        seenNewSessionId = targetId;
+        // Mirror runtime.clearTab: mutate the tab object's session id in place.
+        tab.sessionId = targetId;
+        tab.title = `Agent-${String(tab.index).padStart(2, "0")}`;
+        runtimeTabs.delete(sessionId);
+        const rt = { tab, chat: [] as unknown[] };
+        runtimeTabs.set(targetId, rt);
+        // Race window: local id is new; open_tabs must already list it.
+        await reconcileDuringClear();
+        return rt as never;
+      },
+      closeTab: async (id: string) => {
+        if (!runtimeTabs.has(id)) throw new Error(`Unknown tab session: ${id}`);
+        runtimeTabs.delete(id);
+      },
+      getSessionsRoot: () => dir,
+    };
+
+    const closed: string[] = [];
+    const opened: Array<{ sessionId: string; title: string }> = [];
+    const sync = startPeerTabSync({
+      openTabsPath,
+      rootStateDir: join(dir, "root"),
+      workdir: dir,
+      debounceMs: 1,
+      pollIntervalMs: 60_000,
+      getLocalSessionIds: () => state.tabs.map((tab) => tab.sessionId),
+      openTab: async (candidate) => {
+        opened.push({ sessionId: candidate.sessionId, title: candidate.title });
+        state.tabs.push(
+          createTab(state.tabs.length + 1, candidate.sessionId, dir, {
+            title: candidate.title,
+            status: "idle",
+          }),
+        );
+      },
+      closeTab: async (sessionId) => {
+        closed.push(sessionId);
+        await closeExistingAgentTab(state, runtime, sessionId, { publishClose: false });
+      },
+      loadStatus: async () => ({ instances: [] }),
+      watchFactory: () => ({ close: () => undefined }),
+    });
+    reconcileDuringClear = () => sync.reconcileNow();
+
+    const prepared = prepareAgentTabClear(state, runtime as never, existing.sessionId);
+    const resultId = await completeAgentTabClear(state, runtime as never, prepared);
+    await sync.reconcileNow();
+
+    assert.ok(seenNewSessionId);
+    assert.equal(resultId, seenNewSessionId);
+    assert.deepEqual(closed, [], "in-flight clear must not close the tab via peer reconcile");
+    assert.deepEqual(opened, [], "in-flight clear must not reopen with peer fallback title");
+    assert.equal(state.tabs.length, 1);
+    assert.equal(state.tabs[0]?.sessionId, seenNewSessionId);
+    assert.equal(state.tabs[0]?.title, "Agent-01");
+    assert.doesNotMatch(state.tabs[0]?.title ?? "", /^Agent-[0-9a-f]{8}$/i);
+    assert.deepEqual(readOpenTabs(openTabsPath), [seenNewSessionId]);
+    assert.ok(runtimeTabs.has(seenNewSessionId!));
+
+    sync.dispose();
   } finally {
     configureOpenTabsPath(undefined);
     await rm(dir, { recursive: true, force: true });
