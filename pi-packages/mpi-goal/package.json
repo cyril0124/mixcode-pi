@@ -1,0 +1,9 @@
+{
+  "name": "mpi-goal",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "MixCode built-in goal tracking with progressive tool disclosure",
+  "pi": {
+    "extensions": ["./index.ts"]
+  }
+}

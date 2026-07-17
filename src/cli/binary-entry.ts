@@ -63,6 +63,41 @@ import rpivTodo_view_format_ts from "../../pi-packages/rpiv-todo/view/format.ts"
 import skillRefsIndex from "../../pi-packages/mpi-skill-refs/index.ts" with { type: "text" };
 import skillRefsCore from "../../pi-packages/mpi-skill-refs/skill-core.ts" with { type: "text" };
 import skillRefsPackageJson from "../../pi-packages/mpi-skill-refs/package.json" with { type: "text" };
+import mpiGoal_index_ts from "../../pi-packages/mpi-goal/index.ts" with { type: "text" };
+import mpiGoal_package_json from "../../pi-packages/mpi-goal/package.json" with { type: "text" };
+import mpiGoal_src_app_ts from "../../pi-packages/mpi-goal/src/app.ts" with { type: "text" };
+import mpiGoal_src_domain_budget_ts from "../../pi-packages/mpi-goal/src/domain/budget.ts" with { type: "text" };
+import mpiGoal_src_domain_completion_gate_ts from "../../pi-packages/mpi-goal/src/domain/completion-gate.ts" with { type: "text" };
+import mpiGoal_src_domain_constants_ts from "../../pi-packages/mpi-goal/src/domain/constants.ts" with { type: "text" };
+import mpiGoal_src_domain_feature_flags_ts from "../../pi-packages/mpi-goal/src/domain/feature-flags.ts" with { type: "text" };
+import mpiGoal_src_domain_floor_steering_ts from "../../pi-packages/mpi-goal/src/domain/floor-steering.ts" with { type: "text" };
+import mpiGoal_src_domain_floor_ts from "../../pi-packages/mpi-goal/src/domain/floor.ts" with { type: "text" };
+import mpiGoal_src_domain_format_ts from "../../pi-packages/mpi-goal/src/domain/format.ts" with { type: "text" };
+import mpiGoal_src_domain_goal_intent_ts from "../../pi-packages/mpi-goal/src/domain/goal-intent.ts" with { type: "text" };
+import mpiGoal_src_domain_telemetry_ts from "../../pi-packages/mpi-goal/src/domain/telemetry.ts" with { type: "text" };
+import mpiGoal_src_domain_types_ts from "../../pi-packages/mpi-goal/src/domain/types.ts" with { type: "text" };
+import mpiGoal_src_persistence_goal_store_ts from "../../pi-packages/mpi-goal/src/persistence/goal-store.ts" with { type: "text" };
+import mpiGoal_src_persistence_queue_store_ts from "../../pi-packages/mpi-goal/src/persistence/queue-store.ts" with { type: "text" };
+import mpiGoal_src_queue_block_parser_ts from "../../pi-packages/mpi-goal/src/queue/block-parser.ts" with { type: "text" };
+import mpiGoal_src_queue_steering_ts from "../../pi-packages/mpi-goal/src/queue/steering.ts" with { type: "text" };
+import mpiGoal_src_runtime_context_reset_ts from "../../pi-packages/mpi-goal/src/runtime/context-reset.ts" with { type: "text" };
+import mpiGoal_src_runtime_continuation_ticket_ts from "../../pi-packages/mpi-goal/src/runtime/continuation-ticket.ts" with { type: "text" };
+import mpiGoal_src_runtime_continuation_ts from "../../pi-packages/mpi-goal/src/runtime/continuation.ts" with { type: "text" };
+import mpiGoal_src_runtime_lifecycle_ts from "../../pi-packages/mpi-goal/src/runtime/lifecycle.ts" with { type: "text" };
+import mpiGoal_src_runtime_post_completion_ts from "../../pi-packages/mpi-goal/src/runtime/post-completion.ts" with { type: "text" };
+import mpiGoal_src_runtime_prompts_ts from "../../pi-packages/mpi-goal/src/runtime/prompts.ts" with { type: "text" };
+import mpiGoal_src_runtime_terminal_workflow_ts from "../../pi-packages/mpi-goal/src/runtime/terminal-workflow.ts" with { type: "text" };
+import mpiGoal_src_surface_command_register_ts from "../../pi-packages/mpi-goal/src/surface/command/register.ts" with { type: "text" };
+import mpiGoal_src_surface_tools_dynamic_ts from "../../pi-packages/mpi-goal/src/surface/tools/dynamic.ts" with { type: "text" };
+import mpiGoal_src_surface_tools_goal_tools_ts from "../../pi-packages/mpi-goal/src/surface/tools/goal-tools.ts" with { type: "text" };
+import mpiGoal_src_surface_tools_names_ts from "../../pi-packages/mpi-goal/src/surface/tools/names.ts" with { type: "text" };
+import mpiGoal_src_surface_tools_queue_tools_ts from "../../pi-packages/mpi-goal/src/surface/tools/queue-tools.ts" with { type: "text" };
+import mpiGoal_src_surface_tools_results_ts from "../../pi-packages/mpi-goal/src/surface/tools/results.ts" with { type: "text" };
+import mpiGoal_src_surface_tools_schemas_ts from "../../pi-packages/mpi-goal/src/surface/tools/schemas.ts" with { type: "text" };
+import mpiGoal_src_surface_ui_goal_overlay_ts from "../../pi-packages/mpi-goal/src/surface/ui/goal-overlay.ts" with { type: "text" };
+import mpiGoal_src_surface_ui_notify_ts from "../../pi-packages/mpi-goal/src/surface/ui/notify.ts" with { type: "text" };
+import mpiGoal_src_surface_ui_widget_ts from "../../pi-packages/mpi-goal/src/surface/ui/widget.ts" with { type: "text" };
+import mpiGoal_src_templates_discover_ts from "../../pi-packages/mpi-goal/src/templates/discover.ts" with { type: "text" };
 import promptHistoryIndex from "../../pi-packages/mpi-prompt-history/index.ts" with { type: "text" };
 import promptHistoryBrowser from "../../pi-packages/mpi-prompt-history/prompt-history-browser.ts" with { type: "text" };
 import promptHistoryPackageJson from "../../pi-packages/mpi-prompt-history/package.json" with { type: "text" };
@@ -180,6 +215,43 @@ materializeBinaryRuntimeAssets(runtimeDir, {
       "index.ts": skillRefsIndex,
       "skill-core.ts": skillRefsCore,
       "package.json": skillRefsPackageJson,
+    },
+    "mpi-goal": {
+      "index.ts": mpiGoal_index_ts,
+      "package.json": mpiGoal_package_json,
+      "src/app.ts": mpiGoal_src_app_ts,
+      "src/domain/budget.ts": mpiGoal_src_domain_budget_ts,
+      "src/domain/completion-gate.ts": mpiGoal_src_domain_completion_gate_ts,
+      "src/domain/constants.ts": mpiGoal_src_domain_constants_ts,
+      "src/domain/feature-flags.ts": mpiGoal_src_domain_feature_flags_ts,
+      "src/domain/floor-steering.ts": mpiGoal_src_domain_floor_steering_ts,
+      "src/domain/floor.ts": mpiGoal_src_domain_floor_ts,
+      "src/domain/format.ts": mpiGoal_src_domain_format_ts,
+      "src/domain/goal-intent.ts": mpiGoal_src_domain_goal_intent_ts,
+      "src/domain/telemetry.ts": mpiGoal_src_domain_telemetry_ts,
+      "src/domain/types.ts": mpiGoal_src_domain_types_ts,
+      "src/persistence/goal-store.ts": mpiGoal_src_persistence_goal_store_ts,
+      "src/persistence/queue-store.ts": mpiGoal_src_persistence_queue_store_ts,
+      "src/queue/block-parser.ts": mpiGoal_src_queue_block_parser_ts,
+      "src/queue/steering.ts": mpiGoal_src_queue_steering_ts,
+      "src/runtime/context-reset.ts": mpiGoal_src_runtime_context_reset_ts,
+      "src/runtime/continuation-ticket.ts": mpiGoal_src_runtime_continuation_ticket_ts,
+      "src/runtime/continuation.ts": mpiGoal_src_runtime_continuation_ts,
+      "src/runtime/lifecycle.ts": mpiGoal_src_runtime_lifecycle_ts,
+      "src/runtime/post-completion.ts": mpiGoal_src_runtime_post_completion_ts,
+      "src/runtime/prompts.ts": mpiGoal_src_runtime_prompts_ts,
+      "src/runtime/terminal-workflow.ts": mpiGoal_src_runtime_terminal_workflow_ts,
+      "src/surface/command/register.ts": mpiGoal_src_surface_command_register_ts,
+      "src/surface/tools/dynamic.ts": mpiGoal_src_surface_tools_dynamic_ts,
+      "src/surface/tools/goal-tools.ts": mpiGoal_src_surface_tools_goal_tools_ts,
+      "src/surface/tools/names.ts": mpiGoal_src_surface_tools_names_ts,
+      "src/surface/tools/queue-tools.ts": mpiGoal_src_surface_tools_queue_tools_ts,
+      "src/surface/tools/results.ts": mpiGoal_src_surface_tools_results_ts,
+      "src/surface/tools/schemas.ts": mpiGoal_src_surface_tools_schemas_ts,
+      "src/surface/ui/goal-overlay.ts": mpiGoal_src_surface_ui_goal_overlay_ts,
+      "src/surface/ui/notify.ts": mpiGoal_src_surface_ui_notify_ts,
+      "src/surface/ui/widget.ts": mpiGoal_src_surface_ui_widget_ts,
+      "src/templates/discover.ts": mpiGoal_src_templates_discover_ts,
     },
     "mpi-auto-rename": {
       "index.ts": autoRenameIndex,

@@ -271,32 +271,25 @@ src/core/commands.ts
 
 ## Goal 状态映射
 
-原项目的 `/goal` 是 TUI 拥有的长期目标状态，而不是普通远端运行时命令。当前实现把它映射到 `MixCodeTabInfo.goal`：
+`/goal` 由内置扩展 `pi-packages/mpi-goal` 提供（`ensurePackageExtensions` /
+`binary-entry` 嵌入）。目标状态保存在当前 session 分支的 custom entry
+（`mpi-goal-*` 前缀），不是 `MixCodeTabInfo` 字段。
 
 ```text
 /goal ship feature
   │
-  ├─ parseGoalCommandArgs() -> set
-  ├─ applyGoalAction()      -> tab.goal = active
-  └─ runtime.prompt()       -> Start working toward this MixCode goal
+  ├─ mpi-goal /goal command
+  ├─ session appendEntry(mpi-goal-*)
+  ├─ progressive tools activated (create/queue/pause/...)
+  └─ lifecycle continues work toward the objective
 
-assistant reply
-  │
-  └─ MIXCODE_GOAL_COMPLETE 独立行
-       └─ consumeGoalCompletionMarker() -> tab.goal.status = complete
+/goal                 open management overlay
+/goal tools           activate goal model tools
+/goal pause|resume|clear
+/goal queue ...
 ```
 
-支持的本地动作：
-
-```text
-/goal                 查看当前 goal
-/goal <text>          设置 active goal 并发送启动 prompt
-/goal set <text>      同上
-/goal pause           暂停本地 goal
-/goal resume [text]   恢复 goal 并发送 resume prompt
-/goal complete        本地标记完成
-/goal clear           清除本地 goal
-```
+能力边界与安装约定见 `pi-packages/mpi-goal/README.md`。
 
 ## 测试和验收
 
