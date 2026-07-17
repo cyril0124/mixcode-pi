@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Install pi extensions for the project.
-# Run once after cloning or when updating extension versions.
+# Install optional Pi packages into the agent dir via `pi install`.
+# Run after clone, or when this list changes.
+#
+# Built-in packages live under pi-packages/ and are loaded by the app itself
+# (ensurePackageExtensions / binary-entry). Do not list them here or tools and
+# widgets can double-register. Vendored example: pi-packages/rpiv-todo.
 
-# The `pi` CLI is distributed as the npm package @earendil-works/pi-coding-agent.
-# If it isn't already available on PATH, install it globally the official way.
+# `pi` ships as npm package @earendil-works/pi-coding-agent.
 if ! command -v pi >/dev/null 2>&1; then
   echo "pi CLI not found; installing @earendil-works/pi-coding-agent globally ..."
   npm install -g @earendil-works/pi-coding-agent
@@ -18,28 +21,18 @@ if ! command -v pi >/dev/null 2>&1; then
 fi
 
 extensions=(
-  # Core UI tools
-  # NOTE: rpiv-todo is vendored in-tree under pi-packages/rpiv-todo (patched for
-  # per-session state isolation across tabs) and is loaded as a built-in package.
-  # Do NOT add npm:@juicesharp/rpiv-todo here — it would double-register the
-  # `todo` tool and fight over the overlay widget.
+  # UI
   npm:@juicesharp/rpiv-ask-user-question
   npm:@narumitw/pi-btw
   npm:pi-tool-display
-
-  # Goal & workflow
-  npm:pi-goals
   npm:pi-schedule-prompt
 
-  # Agent capabilities
+  # Agents / shell
   npm:@tintinweb/pi-subagents
   npm:pi-interactive-shell
 
-  # Web & search
+  # Web
   npm:@juicesharp/rpiv-web-tools
-
-  # Session management
-  # npm:@tmustier/pi-session-recap
 )
 
 for ext in "${extensions[@]}"; do
