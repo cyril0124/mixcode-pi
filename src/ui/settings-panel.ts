@@ -683,6 +683,11 @@ function handleNormal(
       const cur = item.getValue(ctx);
       panel.enumOpen = true;
       panel.enumIndex = Math.max(0, opts.indexOf(cur ?? ""));
+      // Theme: start browse preview on the currently highlighted option.
+      if (item.label === "theme") {
+        const preview = opts[panel.enumIndex] ?? cur;
+        if (preview) setTheme(state, preview);
+      }
       refreshSettingsPanel(state, tui);
     }
   } else if (matchesKey(data, "escape") || data === "\x1b") {
@@ -744,9 +749,11 @@ function handleEnum(
 
   if (matchesKey(data, "up") || data === "\x1b[A") {
     panel.enumIndex = Math.max(0, panel.enumIndex - 1);
+    previewEnumSelection(state, item, opts[panel.enumIndex]);
     refreshSettingsPanel(state, tui);
   } else if (matchesKey(data, "down") || data === "\x1b[B") {
     panel.enumIndex = Math.min(opts.length - 1, panel.enumIndex + 1);
+    previewEnumSelection(state, item, opts[panel.enumIndex]);
     refreshSettingsPanel(state, tui);
   } else if (matchesKey(data, "return") || data === "\r" || data === "\n") {
     void item.setValue(ctx, opts[panel.enumIndex]).then(() => {
@@ -755,7 +762,21 @@ function handleEnum(
       refreshSettingsPanel(state, tui);
     });
   } else if (matchesKey(data, "escape") || data === "\x1b") {
+    // Cancel browse preview for theme: restore the persisted/file value.
+    if (item.label === "theme") {
+      setTheme(state, ctx.mixcodeRaw.theme ?? DEFAULT_THEME_ID);
+    }
     panel.enumOpen = false;
     refreshSettingsPanel(state, tui);
   }
+}
+
+/** Live-preview enum values that only affect UI (currently theme). */
+function previewEnumSelection(
+  state: MixCodeState,
+  item: EnumItem,
+  value: string | undefined,
+): void {
+  if (item.label !== "theme" || value === undefined) return;
+  setTheme(state, value);
 }

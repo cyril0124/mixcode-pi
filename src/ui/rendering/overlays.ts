@@ -83,10 +83,14 @@ function renderConfigInner(
   ];
   const bodyWidth = Math.max(1, width - 6);
   const updateRows = renderPackageUpdateNotice(state.packageUpdates, bodyWidth);
-  // Hide logo when terminal is too small to fit logo + at least 1 card + preview.
+  // Hide logo when terminal is too small to fit logo + at least 1 card + preview,
+  // or too narrow to show the full banner without width-clipping into garbage.
   const LOGO_ROWS = logo.length + 2; // logo lines + blank before + blank after
   const MIN_ROWS_FOR_LOGO = LOGO_ROWS + AGENT_CARD_HEIGHT + AGENT_CARD_CHROME_ROWS + 3; // + panel chrome
-  const showLogo = maxRows === undefined || maxRows >= MIN_ROWS_FOR_LOGO + updateRows.length;
+  const MIN_COLS_FOR_LOGO = 54 + 6; // banner width + panel padding/borders
+  const showLogo =
+    width >= MIN_COLS_FOR_LOGO &&
+    (maxRows === undefined || maxRows >= MIN_ROWS_FOR_LOGO + updateRows.length);
   const logoLines = showLogo
     ? ["", ...logo.map((line) => centerLine(activeRenderTheme.accent(line), Math.max(1, width - 2))), ""]
     : [""];
@@ -154,6 +158,8 @@ function renderAgentViewTable(state: MixCodeState, width: number, maxRows?: numb
   const hint = activeRenderTheme.dim("  ↑/↓: select  →: attach  Enter: send  Tab: cycle tabs");
 
   // Cards are the anchor of Agent View; preview and hint use the remaining rows.
+  // Always prefer keeping the navigation hint over eating the last row with a
+  // partial card or preview panel (short terminals must keep onboarding keys).
   const rowsAfterHeader = budget === undefined ? undefined : Math.max(0, budget - lines.length);
   const previewAndHintReserve =
     rowsAfterHeader !== undefined && rowsAfterHeader >= AGENT_CARD_HEIGHT + 3 ? 3 : 0;
@@ -162,12 +168,17 @@ function renderAgentViewTable(state: MixCodeState, width: number, maxRows?: numb
   const maxCards = availableForCards === undefined
     ? state.tabs.length
     : Math.max(0, Math.floor(availableForCards / AGENT_CARD_HEIGHT));
+  // Leave one row for the hint whenever any space remains after the header.
+  const cardBudget =
+    budget === undefined
+      ? undefined
+      : Math.max(lines.length, budget - (budget > lines.length ? 1 : 0));
   const { start, end } = agentCardWindow(state.tabs.length, selectedIndex, maxCards);
   if (maxCards === 0 && rowsAfterHeader !== undefined && rowsAfterHeader > 0) {
-    pushAgentRows(lines, renderAgentCard(state.tabs[selectedIndex]!, width, true, now), budget);
+    pushAgentRows(lines, renderAgentCard(state.tabs[selectedIndex]!, width, true, now), cardBudget);
   } else {
     for (let i = start; i < end; i++) {
-      if (budget !== undefined && lines.length + AGENT_CARD_HEIGHT > budget) break;
+      if (cardBudget !== undefined && lines.length + AGENT_CARD_HEIGHT > cardBudget) break;
       lines.push(...renderAgentCard(state.tabs[i]!, width, i === selectedIndex, now));
     }
   }
@@ -184,9 +195,9 @@ function renderAgentViewTable(state: MixCodeState, width: number, maxRows?: numb
 
 function remainingPreviewRows(remainingRows: number | undefined): number {
   if (remainingRows === undefined) return 6; // divider + 5 recent messages
-  if (remainingRows >= 3) return remainingRows - 1; // keep one row for the navigation hint
-  if (remainingRows >= 2) return remainingRows;
-  return 0;
+  // Prefer the navigation hint over preview whenever any room remains.
+  if (remainingRows <= 1) return 0;
+  return remainingRows - 1;
 }
 
 function pushAgentRows(lines: string[], rows: string[], budget: number | undefined): void {

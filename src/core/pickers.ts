@@ -202,7 +202,7 @@ function filteredWorkdirItems(picker: PickerState, query: string): PickerItem[] 
     ? listing.dirs.filter((name) => name.toLowerCase().includes(needle))
     : listing.dirs;
 
-  return filtered.slice(0, 20).map((name) => ({
+  return filtered.map((name) => ({
     id: resolve(browsingDir, name),
     label: `${name}/`,
     description: "directory",

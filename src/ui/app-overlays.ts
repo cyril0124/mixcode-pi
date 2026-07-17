@@ -149,9 +149,10 @@ export function renderDeleteAllSessionsConfirm(width: number, theme: MixCodeThem
     overlayPanel(
       "Delete All Sessions",
       [
-        "Delete all open agent tabs and their sessions?",
+        "Delete all open agent tabs and permanently delete their session files?",
+        "This cannot be undone — deleted sessions cannot be resumed.",
         "",
-        "[Y] Delete    [N] Cancel",
+        "[Y] Delete permanently    [N] Cancel",
         "Esc: cancel",
       ],
       width,

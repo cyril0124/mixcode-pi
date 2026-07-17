@@ -795,7 +795,8 @@ test("renderConfig respects row budget for compact Agent View", () => {
 
   assert.equal(lines.length, 9);
   assert.match(output, /Agents/);
-  assert.match(output, /⎿ Long preview/);
+  // Tight budgets keep the navigation hint; card/preview text may be clipped.
+  assert.match(output, /↑\/↓: select|→: attach|Enter: send|Tab: cycle tabs/);
   assert.doesNotMatch(output, /^\.\.\.$/m);
   assert.doesNotMatch(output, /newer below/);
 });
