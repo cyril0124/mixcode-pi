@@ -206,7 +206,7 @@ function renderAgentSurfaceInner(
   const highlighted = highlightVisibleChatLines(fitted.lines, tab, surfaceWidth, fitted.height);
   const hasNewContent =
     tab.chatScrollOffset > 0 && (tab.status === "running" || tab.status === "thinking");
-  return appendChatScrollbar({ ...fitted, lines: highlighted }, width, hasNewContent);
+  return appendChatScrollbar({ ...fitted, lines: highlighted }, width, hasNewContent, tab);
 }
 
 /**
@@ -376,7 +376,7 @@ function renderAgentSurfaceAnchored(
   };
   const hasNewContent =
     tab.chatScrollOffset > 0 && (tab.status === "running" || tab.status === "thinking");
-  return appendChatScrollbar(fitted, width, hasNewContent);
+  return appendChatScrollbar(fitted, width, hasNewContent, tab);
 }
 
 function matchesChatAnchor(line: ChatLine, tab: MixCodeTabInfo): boolean {
@@ -490,7 +490,7 @@ function renderAgentSurfaceWindowed(
       : withHeader;
     const fitted = fitScrolledLinesWithInfo(composed, maxHeight, surfaceWidth, 0);
     const highlighted = highlightVisibleChatLines(fitted.lines, tab, surfaceWidth, fitted.height);
-    return appendChatScrollbar({ ...fitted, lines: highlighted }, width, false);
+    return appendChatScrollbar({ ...fitted, lines: highlighted }, width, false, tab);
   }
 
   // Estimated total: sum of cached heights (for blocks we already rendered)
@@ -564,7 +564,7 @@ function renderAgentSurfaceWindowed(
   };
   const hasNewContent =
     tab.chatScrollOffset > 0 && (tab.status === "running" || tab.status === "thinking");
-  return appendChatScrollbar(fitted, width, hasNewContent);
+  return appendChatScrollbar(fitted, width, hasNewContent, tab);
 }
 
 function getCachedConversationLines(
@@ -674,7 +674,15 @@ function appendChatScrollbar(
   result: ScrolledLinesResult,
   width: number,
   hasNewContent = false,
+  tab?: MixCodeTabInfo,
 ): string[] {
+  if (tab) {
+    tab.lastChatScrollMetrics = {
+      total: result.total,
+      viewport: result.height,
+      scrollable: result.scrollable,
+    };
+  }
   if (!result.scrollable || width < 2 || result.lines.length === 0)
     return result.lines.map((line) => padLine(line, width));
   const contentWidth = Math.max(1, width - 1);

@@ -211,6 +211,8 @@ export interface MixCodeTabInfo {
   chatSelection?: ChatSelectionState;
   /** Non-persisted: raw rendered Agent message rows before selection highlighting. */
   lastRenderedChatLines?: string[];
+  /** Non-persisted: last chat scroll metrics for scrollbar click mapping. */
+  lastChatScrollMetrics?: { total: number; viewport: number; scrollable: boolean };
   /** Non-persisted: screen bounds for the active input/editor surface. */
   inputSurfaceBounds?: ChatSurfaceBounds;
   /** Non-persisted: active text selection in the input/editor surface. */

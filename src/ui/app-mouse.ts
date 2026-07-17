@@ -6,7 +6,7 @@ import {
 } from "../core/chat-selection.js";
 import { copyTextToClipboard, type ClipboardWriter } from "../core/clipboard.js";
 import { parseSgrMouseInput } from "../core/mouse.js";
-import { scrollChat, scrollExtensionPanel, scrollPreview } from "../core/overlays.js";
+import { scrollChat, scrollExtensionPanel, scrollPreview, clearChatScrollAnchor } from "../core/overlays.js";
 import { pushToast } from "../core/toast.js";
 import { createPicker } from "../core/pickers.js";
 import { activateTab } from "../core/tabs.js";
@@ -74,6 +74,8 @@ export function handleMouseInput(
   if (handleNoticeSelectionMouse(active, mouse, tui, copyToClipboard)) return true;
   if (hasAnyOverlay(tui) && !hasActiveNotice()) return false;
   if (hasActiveNotice()) return false;
+  // Clicking the chat scrollbar gutter jumps scroll position (before text selection).
+  if (handleChatScrollbarMouse(state, active, mouse, tui)) return true;
   if (handleInputSelectionMouse(active, mouse, tui, copyToClipboard)) return true;
   if (active.panelOpen && handlePanelSelectionMouse(active, mouse, tui, copyToClipboard)) {
     return true;
@@ -108,6 +110,41 @@ export function handleChromeMouseInput(
 ): boolean {
   const mouse = parseSgrMouseInput(data);
   return mouse ? handleChromeMouse(state, active, mouse, tui) : false;
+}
+
+/**
+ * Click on the rightmost chat gutter (scrollbar track/thumb) maps y → chatScrollOffset.
+ * offset 0 = bottom (newest); maxOffset = top (oldest). Matches fitScrolledLinesWithInfo.
+ */
+function handleChatScrollbarMouse(
+  state: MixCodeState,
+  active: MixCodeState["tabs"][number],
+  mouse: NonNullable<ReturnType<typeof parseSgrMouseInput>>,
+  tui: OverlayTui,
+): boolean {
+  if (state.activeTabId === "config") return false;
+  if (mouse.wheel || mouse.release || mouse.button !== 0) return false;
+  const bounds = active.chatSurfaceBounds;
+  const metrics = active.lastChatScrollMetrics;
+  if (!bounds || !metrics?.scrollable || metrics.viewport <= 0 || metrics.total <= metrics.viewport) {
+    return false;
+  }
+  // Scrollbar is painted in the last column of the full chat surface (bounds.width is content).
+  const barCol = bounds.left + bounds.width;
+  if (mouse.x !== barCol) return false;
+  if (mouse.y < bounds.top || mouse.y >= bounds.top + bounds.height) return false;
+
+  const viewport = metrics.viewport;
+  const maxOffset = Math.max(0, metrics.total - viewport);
+  const rowInBar = Math.min(viewport - 1, Math.max(0, mouse.y - bounds.top));
+  // Thumb top fraction maps start; start = total - viewport - offset (approx).
+  // Clicking top of track → older (high offset); bottom → newer (offset 0).
+  const fraction = viewport <= 1 ? 0 : rowInBar / (viewport - 1);
+  const nextOffset = Math.round((1 - fraction) * maxOffset);
+  clearChatScrollAnchor(active);
+  active.chatScrollOffset = Math.min(1_000_000, Math.max(0, nextOffset));
+  tui.requestRender();
+  return true;
 }
 
 function handleChromeMouse(
