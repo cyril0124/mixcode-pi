@@ -127,3 +127,13 @@ export function createTab(
     ...overrides,
   };
 }
+
+/** Smallest free `Agent-NN` title among open tabs (1-based, zero-padded). */
+export function nextAvailableAgentTitle(tabs: ReadonlyArray<{ title: string }>): string {
+  const used = new Set(tabs.map((tab) => tab.title));
+  for (let n = 1; n < 10_000; n++) {
+    const title = `Agent-${String(n).padStart(2, "0")}`;
+    if (!used.has(title)) return title;
+  }
+  return `Agent-${String(tabs.length + 1).padStart(2, "0")}`;
+}

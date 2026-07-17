@@ -3,7 +3,7 @@ import type { MixCodeRuntime } from "../agent/runtime.js";
 import { disposeChatRenderers } from "../agent/runtime-chat.js";
 import { findSessionFileByName } from "../agent/runtime-session.js";
 import { LOCAL_COMMANDS, parseInput, type ParsedInput } from "../core/commands.js";
-import { createSessionId, createTab } from "../core/defaults.js";
+import { createSessionId, createTab, nextAvailableAgentTitle } from "../core/defaults.js";
 import { noteTabClosed, noteTabOpened, noteTabReplaced } from "../core/open-tabs-store.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import { activateTab, closeAgentTab } from "../core/tabs.js";
@@ -50,7 +50,7 @@ export async function createAgentTab(
   const thinkingLevel = options.thinkingLevel ?? state.thinkingLevel;
   const customBasePrompt = isCustomBaseSystemPrompt(options.systemPrompt);
   const tab = createTab(state.tabs.length + 1, sessionId, workdir, {
-    ...(options.title ? { title: options.title } : {}),
+    title: options.title ?? nextAvailableAgentTitle(state.tabs),
     model: { ...model },
     contextLimit: model.contextWindow,
     thinkingLevel,
@@ -109,7 +109,7 @@ export async function openExistingAgentTab(
   const thinkingLevel = options.thinkingLevel ?? state.thinkingLevel;
   const customBasePrompt = isCustomBaseSystemPrompt(options.systemPrompt);
   const tab = createTab(state.tabs.length + 1, sessionId, workdir, {
-    ...(options.title ? { title: options.title } : {}),
+    title: options.title ?? nextAvailableAgentTitle(state.tabs),
     model: { ...model },
     contextLimit: model.contextWindow,
     thinkingLevel,

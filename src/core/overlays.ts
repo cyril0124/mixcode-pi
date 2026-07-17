@@ -1,5 +1,5 @@
 import { LOCAL_COMMANDS, type LocalCommandPaletteMeta, type PaletteRequirement } from "./commands.js";
-import { fuzzyMatchAllPositions, fuzzyMatchBatch } from "./fuzzy.js";
+import { fuzzyMatch, fuzzyMatchAllPositions, fuzzyMatchBatch } from "./fuzzy.js";
 import { activateTab, findActiveTab } from "./tabs.js";
 import type { CommandPaletteEntry, MixCodeState, MixCodeTabInfo } from "./types.js";
 import { tabHasPendingUserInteraction } from "./user-interactions.js";
@@ -309,15 +309,34 @@ export function commandPaletteEntriesWithExtensions(
   // Filter with the SAME per-token subsequence matcher the renderer uses to
   // highlight (fuzzyMatchAllPositions on the label and command columns), so a
   // row survives the filter iff at least one of its columns would light up.
-  // pi's fuzzyMatchBatch used a looser scattered-subsequence score that kept
-  // rows with no visible highlight at all (e.g. "done" matching "Toggle Hidden
-  // Messages"), making the filter and highlight disagree. Description is
-  // intentionally excluded from both filter and highlight.
-  return entries.filter(
-    (entry) =>
-      fuzzyMatchAllPositions(query, entry.label).length > 0 ||
-      fuzzyMatchAllPositions(query, entry.command).length > 0,
-  );
+  // Then rank by match quality so exact/prefix beats scattered subsequences
+  // (e.g. "new" → New Session before Change Workdir).
+  return entries
+    .filter(
+      (entry) =>
+        fuzzyMatchAllPositions(query, entry.label).length > 0 ||
+        fuzzyMatchAllPositions(query, entry.command).length > 0,
+    )
+    .sort((a, b) => commandPaletteMatchRank(query, b) - commandPaletteMatchRank(query, a));
+}
+
+/** Higher is better: contiguous/prefix hits beat sparse subsequence matches. */
+function commandPaletteMatchRank(query: string, entry: CommandPaletteEntry): number {
+  const q = query.trim().toLowerCase();
+  if (!q) return 0;
+  const label = entry.label.toLowerCase();
+  const command = entry.command.toLowerCase();
+  let best = 0;
+  for (const text of [label, command]) {
+    if (text === q || text === `/${q}`) best = Math.max(best, 1000);
+    else if (text.startsWith(q) || text.startsWith(`/${q}`)) best = Math.max(best, 800);
+    else if (text.includes(q)) best = Math.max(best, 600);
+    else {
+      const score = fuzzyMatch(q, text);
+      if (score !== undefined) best = Math.max(best, score);
+    }
+  }
+  return best;
 }
 
 /** Entries the palette shows and that selection/accept must index into. */

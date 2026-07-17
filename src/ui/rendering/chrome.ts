@@ -205,7 +205,11 @@ function renderInputMetaInner(
   updateHitRegions = true,
 ): string[] {
   const lineWidth = Math.max(0, width - 1);
-  const escapeHint = isPendingEscapeActive(tab, "abort-agent") ? " | Esc again: stop" : "";
+  const escapeHint = isPendingEscapeActive(tab, "abort-agent")
+    ? " | Esc again: stop"
+    : tab.lastEscapeTime && Date.now() - tab.lastEscapeTime < 500
+      ? " | Esc again: tree"
+      : "";
   const model = tab.model.displayName || "-";
   const thinking = tab.thinkingLevel[0]!.toUpperCase() + tab.thinkingLevel.slice(1);
   const contextBadge = ` ${renderCompactContextUsage(tab)} `;

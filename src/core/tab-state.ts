@@ -129,6 +129,7 @@ export function setPendingMessages(tab: MixCodeTabInfo, messages: string[]): voi
 export function clearPendingEscape(tab: MixCodeTabInfo): void {
   tab.pendingEscapeAction = undefined;
   tab.pendingEscapeArmedAt = undefined;
+  tab.lastEscapeTime = undefined;
 }
 
 /**

@@ -602,9 +602,11 @@ export function handleEscapeKey(
   }
 
   // 5. Empty editor double-Esc → tree / fork / none
+  // Vim owns Esc for mode exit; do not arm/open session tree while vim is on.
   if (
     active &&
     state.activeTabId !== "config" &&
+    !active.vimMode &&
     !hasAnyOverlay(tui) &&
     !state.commandPaletteOpen &&
     !active.previewOpen &&
@@ -631,7 +633,7 @@ export function handleEscapeKey(
         tui.requestRender();
         return { consume: true };
       }
-      // First Esc: arm the double-press timer
+      // First Esc: arm the double-press timer (UI shows "Esc again: tree/fork").
       active.lastEscapeTime = now;
       tui.requestRender();
       return { consume: true };

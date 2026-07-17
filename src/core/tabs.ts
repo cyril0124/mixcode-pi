@@ -1,4 +1,4 @@
-import { createTab } from "./defaults.js";
+import { createTab, nextAvailableAgentTitle } from "./defaults.js";
 import type { MixCodeState, MixCodeTabInfo } from "./types.js";
 
 /** Returns the active agent, using the Home selection while the config tab is active. */
@@ -22,7 +22,9 @@ export function addAgentTab(
   if (state.tabs.some((tab) => tab.sessionId === sessionId)) {
     throw new Error(`Tab already exists: ${sessionId}`);
   }
-  const tab = createTab(state.tabs.length + 1, sessionId, workdir);
+  const tab = createTab(state.tabs.length + 1, sessionId, workdir, {
+    title: nextAvailableAgentTitle(state.tabs),
+  });
   state.tabs.push(tab);
   activateTab(state, sessionId);
   return tab;
