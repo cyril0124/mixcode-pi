@@ -410,7 +410,15 @@ function renderCommandPaletteInner(
     // Highlight only the searchable columns. Description stays dim because it
     // does not participate in command palette filtering.
     const paletteQuery = state.commandPalette.query.trim();
-    entries.forEach((entry, index) => {
+    // Window the list so selection stays visible under TUI maxHeight (~80%).
+    const maxVisible = halfScreenRows();
+    const startIndex = windowStart(state.commandPalette.selectedIndex, entries.length, maxVisible);
+    const endIndex = Math.min(startIndex + maxVisible, entries.length);
+    if (startIndex > 0) {
+      lines.push(activeRenderTheme.dim(`  ... (${startIndex} more above)`));
+    }
+    for (let index = startIndex; index < endIndex; index++) {
+      const entry = entries[index]!;
       const isSelected = index === state.commandPalette.selectedIndex;
       const marker = isSelected ? "› " : "  ";
       const label = truncateToWidth(entry.label, labelCol, "…");
@@ -444,7 +452,10 @@ function renderCommandPaletteInner(
       } else {
         lines.push(row);
       }
-    });
+    }
+    if (endIndex < entries.length) {
+      lines.push(activeRenderTheme.dim(`  ... (${entries.length - endIndex} more below)`));
+    }
   }
 
   lines.push("", activeRenderTheme.dim("  ↑↓ select  ⏎ run  esc close"));
@@ -469,12 +480,22 @@ function renderTabJumpOverlayInner(state: MixCodeState, width: number): string[]
   if (!entries.length) {
     lines.push(activeRenderTheme.dim("No matching tabs"));
   } else {
-    entries.forEach((entry, index) => {
+    const maxVisible = halfScreenRows();
+    const startIndex = windowStart(state.tabJumpIndex, entries.length, maxVisible);
+    const endIndex = Math.min(startIndex + maxVisible, entries.length);
+    if (startIndex > 0) {
+      lines.push(activeRenderTheme.dim(`... (${startIndex} more above)`));
+    }
+    for (let index = startIndex; index < endIndex; index++) {
+      const entry = entries[index]!;
       const line = renderTabJumpRow(entry, index === state.tabJumpIndex, innerWidth, state.tabJumpQuery);
       lines.push(
         index === state.tabJumpIndex ? activeRenderTheme.selection(padLine(line, innerWidth)) : line,
       );
-    });
+    }
+    if (endIndex < entries.length) {
+      lines.push(activeRenderTheme.dim(`... (${entries.length - endIndex} more below)`));
+    }
   }
   lines.push(
     "",

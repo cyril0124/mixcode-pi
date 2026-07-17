@@ -128,7 +128,7 @@ export function handleSessionSelectorKey(
       selector.renameTargetPath = null;
       selector.renameInput = "";
       if (name && targetPath) {
-        void confirmRenameSession(state, tui, targetPath, name);
+        void confirmRenameSession(state, tui, targetPath, name, runtime);
       } else {
         showLinesOverlay(tui, (width) => renderSessionSelector(state, width));
         tui.requestRender();
@@ -308,6 +308,7 @@ async function confirmRenameSession(
   tui: OverlayTui,
   sessionPath: string,
   name: string,
+  runtime?: MixCodeKeyRuntime,
 ): Promise<void> {
   const selector = state.sessionSelector;
   try {
@@ -319,8 +320,11 @@ async function confirmRenameSession(
     const sessions = selector.scope === "all" ? selector.allSessions : selector.currentSessions;
     const session = sessions.find((s) => s.path === sessionPath);
     if (session) session.name = name;
-    // Sync tab title if the renamed session is the active one
-    if (selector.currentSessionPath && sessionPath === selector.currentSessionPath) {
+    // Sync tab title for any open tab bound to this session file (not only active).
+    if (runtime) {
+      const openTab = findOpenSessionTab(state, runtime, sessionPath);
+      if (openTab) openTab.title = name;
+    } else if (selector.currentSessionPath && sessionPath === selector.currentSessionPath) {
       const activeTab = state.tabs.find((tab) => tab.sessionId === state.activeTabId);
       if (activeTab) activeTab.title = name;
     }
