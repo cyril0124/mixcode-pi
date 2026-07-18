@@ -14,6 +14,7 @@ import {
   createInitialState,
   createTab,
   listTabsToReconcile,
+  nextAvailableAgentTitle,
   openTabsFile,
   readOpenTabs,
   removeOpenTab,
@@ -46,6 +47,50 @@ test("listTabsToReconcile opens missing and closes extras", () => {
     { sessionId: "new-one", title: "Peer New", workdir: "/repo", peerPid: 2 },
   ]);
   assert.deepEqual(plan.desiredOrder, ["keep", "new-one"]);
+});
+
+// Regression: orphan open_tabs ids (no live peer registry title) must not get
+// Agent-{uuid8} titles. openExistingAgentTab then assigns Agent-NN.
+test("listTabsToReconcile without peer hints leaves title unset", () => {
+  const sessionId = "019f757b-c2e7-7c4c-a306-e2bd80c2cc45";
+  const plan = listTabsToReconcile({
+    localSessionIds: [],
+    desiredSessionIds: [sessionId],
+    localWorkdir: "/repo",
+  });
+  assert.equal(plan.toOpen.length, 1);
+  assert.deepEqual(plan.toOpen, [{ sessionId, workdir: "/repo" }]);
+});
+
+test("openExistingAgentTab without title uses sequential Agent-NN", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-peer-title-"));
+  const sessionsRoot = join(dir, "sessions");
+  const workdir = join(dir, "repo");
+  const runtimeA = new MixCodeRuntime({ sessionsRoot });
+  const runtimeB = new MixCodeRuntime({ sessionsRoot });
+  try {
+    const stateA = createInitialState(workdir);
+    const created = await createAgentTab(stateA, runtimeA, {
+      title: "From A",
+      runtimeModel: MIXCODE_FAUX_MODEL,
+    });
+
+    const stateB = createInitialState(workdir);
+    stateB.tabs.push(createTab(1, "local-keep", workdir, { title: "Agent-01" }));
+    stateB.activeTabId = "config";
+    const opened = await openExistingAgentTab(stateB, runtimeB, {
+      sessionId: created.sessionId,
+      workdir,
+      runtimeModel: MIXCODE_FAUX_MODEL,
+    });
+
+    assert.equal(opened.sessionId, created.sessionId);
+    assert.equal(opened.title, "Agent-02");
+  } finally {
+    await runtimeA.closeAllTabs();
+    await runtimeB.closeAllTabs();
+    await rm(dir, { recursive: true, force: true });
+  }
 });
 
 test("open_tabs store add/remove is durable", async () => {
@@ -133,7 +178,7 @@ test("startPeerTabSync opens and closes against shared open_tabs", async () => {
       openTab: async (candidate) => {
         await openExistingAgentTab(stateB, runtimeB, {
           sessionId: candidate.sessionId,
-          title: candidate.title,
+          ...(candidate.title ? { title: candidate.title } : {}),
           workdir: candidate.workdir,
           runtimeModel: MIXCODE_FAUX_MODEL,
         });
@@ -154,6 +199,11 @@ test("startPeerTabSync opens and closes against shared open_tabs", async () => {
     assert.deepEqual(opened, [created.sessionId]);
     assert.equal(stateB.activeTabId, "config");
     assert.deepEqual(orders.at(-1), [created.sessionId]);
+    // loadStatus empty → no peer title; production path must assign Agent-NN.
+    const peerOpened = stateB.tabs.find((tab) => tab.sessionId === created.sessionId);
+    assert.ok(peerOpened);
+    assert.match(peerOpened.title, /^Agent-\d{2}$/);
+    assert.doesNotMatch(peerOpened.title, /^Agent-[0-9a-f]{8}$/i);
 
     removeOpenTab(openTabsPath, created.sessionId);
     await sync.reconcileNow();
@@ -203,7 +253,7 @@ test("createAgentTab publishes open_tabs before create finishes so reconcile kee
     };
 
     const closed: string[] = [];
-    const openedTitles: string[] = [];
+    const reopened: string[] = [];
     const sync = startPeerTabSync({
       openTabsPath,
       rootStateDir: join(dir, "root"),
@@ -212,10 +262,10 @@ test("createAgentTab publishes open_tabs before create finishes so reconcile kee
       pollIntervalMs: 60_000,
       getLocalSessionIds: () => state.tabs.map((tab) => tab.sessionId),
       openTab: async (candidate) => {
-        openedTitles.push(candidate.title);
+        reopened.push(candidate.sessionId);
         state.tabs.push(
           createTab(state.tabs.length + 1, candidate.sessionId, dir, {
-            title: candidate.title,
+            title: candidate.title ?? nextAvailableAgentTitle(state.tabs),
             status: "idle",
           }),
         );
@@ -250,10 +300,8 @@ test("createAgentTab publishes open_tabs before create finishes so reconcile kee
     );
     assert.equal(created.status, "idle");
     assert.match(created.title, /^Agent-\d{2}$/);
-    assert.equal(
-      openedTitles.some((title) => /^Agent-[0-9a-f]{8}$/i.test(title)),
-      false,
-    );
+    // In-flight create must not be treated as missing and peer-reopened.
+    assert.deepEqual(reopened, []);
     assert.ok(readOpenTabs(openTabsPath).includes(created.sessionId));
     assert.ok(runtimeTabs.has(created.sessionId));
 
@@ -354,10 +402,13 @@ test("completeAgentTabClear publishes open_tabs before session id swaps so recon
       pollIntervalMs: 60_000,
       getLocalSessionIds: () => state.tabs.map((tab) => tab.sessionId),
       openTab: async (candidate) => {
-        opened.push({ sessionId: candidate.sessionId, title: candidate.title });
+        opened.push({
+          sessionId: candidate.sessionId,
+          title: candidate.title ?? nextAvailableAgentTitle(state.tabs),
+        });
         state.tabs.push(
           createTab(state.tabs.length + 1, candidate.sessionId, dir, {
-            title: candidate.title,
+            title: candidate.title ?? nextAvailableAgentTitle(state.tabs),
             status: "idle",
           }),
         );

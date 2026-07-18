@@ -211,7 +211,7 @@ export async function main(): Promise<void> {
     openTab: async (candidate) => {
       await openExistingAgentTab(state, runtime, {
         sessionId: candidate.sessionId,
-        title: candidate.title,
+        ...(candidate.title ? { title: candidate.title } : {}),
         workdir: candidate.workdir,
       });
       await writeRegistrySnapshot();

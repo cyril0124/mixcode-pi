@@ -176,8 +176,7 @@ export function prepareAgentTabClear(
  * session id in place during the replacement.
  *
  * Local tab id + open_tabs are swapped together before any await so peer
- * reconcile cannot treat the cleared tab as missing and reopen it as
- * `Agent-{uuid8}`.
+ * reconcile cannot treat the cleared tab as missing and reopen a duplicate.
  */
 export async function completeAgentTabClear(
   state: MixCodeState,

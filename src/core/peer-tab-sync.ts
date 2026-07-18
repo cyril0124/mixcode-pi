@@ -14,7 +14,8 @@ import { readOpenTabs } from "./open-tabs-store.js";
 
 export interface PeerTabCandidate {
   sessionId: string;
-  title: string;
+  /** Present only when a live peer registry advertised a title. */
+  title?: string;
   workdir: string;
   peerPid?: number;
 }
@@ -65,13 +66,9 @@ export function listTabsToReconcile(input: ListTabsToReconcileInput): TabReconci
   for (const sessionId of desired) {
     if (local.has(sessionId)) continue;
     const hint = hints.get(sessionId);
-    toOpen.push(
-      hint ?? {
-        sessionId,
-        title: `Agent-${sessionId.slice(0, 8)}`,
-        workdir: input.localWorkdir,
-      },
-    );
+    // No synthetic Agent-{uuid8} title: openExistingAgentTab assigns Agent-NN
+    // when title is absent.
+    toOpen.push(hint ?? { sessionId, workdir: input.localWorkdir });
   }
 
   const toClose: string[] = [];
