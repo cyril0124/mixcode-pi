@@ -83,6 +83,15 @@ export function selectedInputText(lines: string[], selection: ChatSelectionState
     .join("\n");
 }
 
+/** Notice panel copy: drop box borders and the "c/y copy" hint row. */
+export function selectedNoticeText(lines: string[], selection: ChatSelectionState): string {
+  return selectedChatText(lines, selection)
+    .split("\n")
+    .map(normalizeNoticeSelectionLine)
+    .filter((line): line is string => line !== undefined)
+    .join("\n");
+}
+
 export function highlightChatSelectionLine(
   line: string,
   row: number,
@@ -115,6 +124,15 @@ function normalizeInputSelectionLine(line: string): string | undefined {
   const unframed = stripVerticalBorders(visible);
   const body = trimInputChromePadding(unframed.text);
   if (unframed.framed && isFramedInputHintLine(body)) return undefined;
+  return body;
+}
+
+function normalizeNoticeSelectionLine(line: string): string | undefined {
+  const visible = line.trimEnd();
+  if (isBoxBorderLine(visible)) return undefined;
+  const unframed = stripVerticalBorders(visible);
+  const body = unframed.text.trimEnd();
+  if (/\bc\/y copy\b/i.test(body) || /\bEsc close\b/i.test(body)) return undefined;
   return body;
 }
 

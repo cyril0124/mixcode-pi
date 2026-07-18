@@ -1,0 +1,324 @@
+import assert from "node:assert/strict";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { test } from "node:test";
+import { SettingsManager } from "@earendil-works/pi-coding-agent";
+import {
+  MixCodeCompletionProvider,
+  createInitialState,
+  createTab,
+  renderChat,
+  renderConfig,
+  selectedNoticeText,
+  stripAnsi,
+} from "../src/index.js";
+import {
+  createTreeSelectorState,
+  initTreeSelector,
+  type SessionTreeNode,
+} from "../src/core/tree-selector.js";
+import { handleMouseInput } from "../src/ui/app-mouse.js";
+import { closeAppOverlay, showNoticeTextOverlay } from "../src/ui/app-overlays.js";
+import { handleTreeSelectorKey } from "../src/ui/tree-selector.js";
+import { handleSettingsPanelKey, renderSettingsPanel } from "../src/ui/settings-panel.js";
+
+function messageNode(
+  id: string,
+  parentId: string | null,
+  role: "user" | "assistant",
+  text: string,
+  children: SessionTreeNode[] = [],
+): SessionTreeNode {
+  return {
+    entry: {
+      type: "message",
+      id,
+      parentId,
+      timestamp: "2026-05-14T00:00:00.000Z",
+      message: { role, content: [{ type: "text", text }] },
+    },
+    children,
+  } as SessionTreeNode;
+}
+
+function sampleTree(): SessionTreeNode[] {
+  return [
+    messageNode("root", null, "user", "start", [
+      messageNode("assistant", "root", "assistant", "answer", [
+        messageNode("active", "assistant", "user", "current branch"),
+      ]),
+    ]),
+  ];
+}
+
+test("#76 settings number edit accepts unit suffixes and prefills compact form", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-settings-unit-"));
+  const mixcodeFile = join(dir, "mixcode_settings.json");
+  await writeFile(mixcodeFile, JSON.stringify({ history: { maxBytes: 5 * 1024 * 1024 } }));
+  try {
+    const state = createInitialState(dir);
+    state.settingsPanel = {
+      open: true,
+      selectedIndex: 6, // history.maxBytes
+      editMode: false,
+      editText: "",
+      enumOpen: false,
+      enumIndex: 0,
+      mixcodeRaw: { history: { maxBytes: 5 * 1024 * 1024 } },
+      mixcodeFile,
+      piSettingsFile: join(dir, "settings.json"),
+      settingsManager: SettingsManager.inMemory(),
+    };
+    const tui = {
+      requestRender: () => undefined,
+      showOverlay: () => ({ hide: () => undefined }) as never,
+      hasOverlay: () => true,
+      hideOverlay: () => undefined,
+    };
+
+    handleSettingsPanelKey(state, "\r", tui); // enter edit
+    assert.equal(state.settingsPanel.editMode, true);
+    assert.equal(state.settingsPanel.editText, "5mb");
+
+    // Replace with 2kb
+    state.settingsPanel.editText = "";
+    for (const ch of "2kb") handleSettingsPanelKey(state, ch, tui);
+    await handleSettingsPanelKey(state, "\r", tui);
+    // setValue is async
+    await new Promise((r) => setTimeout(r, 30));
+    assert.equal(state.settingsPanel.editMode, false);
+    assert.equal(state.settingsPanel.mixcodeRaw.history?.maxBytes, 2 * 1024);
+
+    assert.match(stripAnsi(renderSettingsPanel(state, 80).join("\n")), /2 KB/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("#76 non-byte number fields reject unit suffixes", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-settings-retries-"));
+  const mixcodeFile = join(dir, "mixcode_settings.json");
+  await writeFile(
+    mixcodeFile,
+    JSON.stringify({
+      ui: { oversizedAssistantMessage: { maxLines: 12 } },
+    }),
+  );
+  try {
+    const state = createInitialState(dir);
+    state.settingsPanel = {
+      open: true,
+      selectedIndex: 9, // oversized.maxLines
+      editMode: false,
+      editText: "",
+      enumOpen: false,
+      enumIndex: 0,
+      mixcodeRaw: { ui: { oversizedAssistantMessage: { maxLines: 12 } } },
+      mixcodeFile,
+      piSettingsFile: join(dir, "settings.json"),
+      settingsManager: SettingsManager.inMemory(),
+    };
+    const tui = {
+      requestRender: () => undefined,
+      showOverlay: () => ({ hide: () => undefined }) as never,
+      hasOverlay: () => true,
+      hideOverlay: () => undefined,
+    };
+
+    handleSettingsPanelKey(state, "\r", tui); // enter edit
+    assert.equal(state.settingsPanel.editMode, true);
+    assert.equal(state.settingsPanel.editText, "12");
+
+    state.settingsPanel.editText = "";
+    for (const ch of "5k") handleSettingsPanelKey(state, ch, tui);
+    await handleSettingsPanelKey(state, "\r", tui);
+    await new Promise((r) => setTimeout(r, 30));
+    // Invalid unit input clears the value rather than multiplying by 1024.
+    assert.equal(state.settingsPanel.editMode, false);
+    assert.equal(
+      state.settingsPanel.mixcodeRaw.ui?.oversizedAssistantMessage?.maxLines,
+      undefined,
+    );
+
+    // Valid plain integer still works for non-byte fields.
+    handleSettingsPanelKey(state, "\r", tui);
+    for (const ch of "8") handleSettingsPanelKey(state, ch, tui);
+    await handleSettingsPanelKey(state, "\r", tui);
+    await new Promise((r) => setTimeout(r, 30));
+    assert.equal(state.settingsPanel.mixcodeRaw.ui?.oversizedAssistantMessage?.maxLines, 8);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("#78 Home card shows unread-done chip and non-assistant preview", () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo", {
+    title: "Agent-01",
+    status: "idle",
+    unreadDone: true,
+    previewMessages: [{ role: "shell", text: "hello from bash" }],
+  });
+  state.tabs.push(tab);
+  state.activeTabId = "config";
+  const plain = stripAnsi(renderConfig(state, 100).join("\n"));
+  assert.match(plain, /\[done\]/);
+  assert.match(plain, /hello from bash/);
+});
+
+test("#88 tree ctrl+d resets filter to default", () => {
+  const state = createInitialState("/repo");
+  state.treeSelector = createTreeSelectorState();
+  initTreeSelector(state.treeSelector, sampleTree(), "active");
+  state.treeSelector.filterMode = "no-tools";
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => {
+      throw new Error("unexpected overlay");
+    },
+    hideOverlay: () => undefined,
+    treeSelectorDisplay: {
+      open: () => undefined,
+      refresh: () => undefined,
+      close: () => undefined,
+    },
+  };
+  assert.equal(handleTreeSelectorKey(state, "\x04", tui), true);
+  assert.equal(state.treeSelector.filterMode, "default");
+});
+
+test("#97 slash command completion value includes trailing space", async () => {
+  const provider = new MixCodeCompletionProvider({
+    skills: [],
+    files: [],
+    commands: [{ name: "thinking", description: "Select thinking level" }],
+  });
+  const slash = await provider.getSuggestions(["/th"], 0, 3, {
+    signal: new AbortController().signal,
+  });
+  assert.equal(slash?.items[0]?.value, "/thinking ");
+});
+
+test("#98 applyCompletion consumes mid-token suffix", () => {
+  const provider = new MixCodeCompletionProvider({ skills: [], files: [] });
+  const applied = provider.applyCompletion(
+    ["see @probe.txt"],
+    0,
+    10, // after @probe
+    { value: "@probe.txt", label: "probe.txt" },
+    "@probe",
+  );
+  assert.equal(applied.lines[0], "see @probe.txt");
+  assert.equal(applied.cursorCol, "see @probe.txt".length);
+});
+
+test("#99 expanded user-bash still offers collapse when overflow exists", () => {
+  const lines = Array.from({ length: 25 }, (_, i) => `line-${i}`);
+  const rendered = stripAnsi(
+    renderChat(
+      [
+        {
+          role: "tool",
+          title: "bash",
+          variant: "user-bash",
+          status: "done",
+          text: lines.join("\n"),
+          args: { command: "seq 25" },
+          toolExpanded: true,
+        },
+      ],
+      80,
+    ).join("\n"),
+  );
+  assert.match(rendered, /ctrl\+o to collapse/);
+});
+
+test("#101 running bash label differs when agent is busy", () => {
+  const line = {
+    role: "tool" as const,
+    title: "bash",
+    variant: "user-bash" as const,
+    status: "running" as const,
+    text: "",
+    args: { command: "sleep 1" },
+  };
+  const idle = stripAnsi(renderChat([line], 80).join("\n"));
+  assert.match(idle, /Running\.\.\. \(Esc to cancel\)/);
+
+  const tab = createTab(1, "s1", "/repo", { status: "running" });
+  const busy = stripAnsi(renderChat([line], 80, undefined, tab).join("\n"));
+  assert.match(busy, /agent Esc aborts run/);
+});
+
+test("#103 notice selection copy strips borders and hint", () => {
+  const lines = [
+    "┌──────────────┐",
+    "│ Notice body  │",
+    "│              │",
+    "│ c/y copy · Esc close │",
+    "└──────────────┘",
+  ];
+  const selection = {
+    anchor: { row: 0, col: 0 },
+    focus: { row: 4, col: 20 },
+    dragging: false,
+  };
+  const text = selectedNoticeText(lines, selection);
+  assert.match(text, /Notice body/);
+  assert.doesNotMatch(text, /c\/y copy/);
+  assert.doesNotMatch(text, /┌|└|│/);
+});
+
+test("#102 wheel still scrolls chat while Notice is open", () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo");
+  state.tabs.push(tab);
+  state.activeTabId = "s1";
+  tab.chatSurfaceBounds = { top: 5, left: 1, width: 20, height: 3 };
+  tab.lastRenderedChatLines = ["a", "b", "c"];
+  let renders = 0;
+  const tui = {
+    requestRender: () => renders++,
+    showOverlay: (component: { render: (width: number) => string[] }, options: { width?: number }) => {
+      component.render(typeof options.width === "number" ? options.width : 40);
+      return { hide: () => undefined };
+    },
+    hasOverlay: () => true,
+  };
+  showNoticeTextOverlay(tui, "notice while scrolling");
+  try {
+    assert.equal(
+      handleMouseInput(state, tab, "\x1b[<64;2;6M", tui, undefined, undefined, async () => undefined),
+      true,
+    );
+    assert.equal(tab.chatScrollOffset, 3);
+    assert.ok(renders >= 1);
+  } finally {
+    closeAppOverlay(tui);
+  }
+});
+
+test("#108 fileCompletionLabel keeps absolute path distinguishable", async () => {
+  const provider = new MixCodeCompletionProvider({
+    skills: [],
+    files: [],
+    fileSearch: () => ({
+      fdPath: "true", // unused; custom search via mock not available — use static absolute paths
+      workdir: "/repo",
+    }),
+  });
+  // Static list path with absolute-like entries through format via getSuggestions fallback
+  const staticOnly = new MixCodeCompletionProvider({
+    skills: [],
+    files: ["/tmp/project/src/file.ts", "~/notes/todo.md"],
+  });
+  const abs = await staticOnly.getSuggestions(["@file"], 0, 5, {
+    signal: new AbortController().signal,
+  });
+  const item = abs?.items.find((entry) => entry.value.includes("file.ts"));
+  assert.ok(item, "expected absolute file suggestion");
+  // Absolute labels keep path context, not only basename.
+  assert.notEqual(item?.label, "file.ts");
+  assert.match(item?.label ?? "", /file\.ts/);
+});

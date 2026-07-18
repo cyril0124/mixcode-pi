@@ -11,7 +11,7 @@ import {
 } from "../../core/overlays.js";
 import { filteredPickerItems, workdirBreadcrumb } from "../../core/pickers.js";
 import { activeToast } from "../../core/toast.js";
-import type { MixCodeState, MixCodeTabInfo } from "../../core/types.js";
+import type { MixCodeState, MixCodeTabInfo, PreviewMessage } from "../../core/types.js";
 import { tabHasPendingUserInteraction } from "../../core/user-interactions.js";
 import { type MixCodeTheme, themeForId } from "../themes.js";
 import { tabStatusGlyph } from "./chrome.js";
@@ -307,6 +307,13 @@ function formatAgentSpinner(tab: MixCodeState["tabs"][number], now: number): str
 }
 
 function formatTabStatusChip(tab: MixCodeState["tabs"][number]): string {
+  // Prefer unread-done over bare idle so Home cards match the tab-bar `!` glyph.
+  if (tab.unreadDone && (tab.status === "idle" || tab.status === "done")) {
+    return activeRenderTheme.tool("[done]");
+  }
+  if (tab.status === "error" || (tab.status === "idle" && hasPreviewError(tab))) {
+    return activeRenderTheme.danger("[error]");
+  }
   const text = `[${tab.status}]`;
   switch (tab.status) {
     case "running":
@@ -319,6 +326,13 @@ function formatTabStatusChip(tab: MixCodeState["tabs"][number]): string {
     default:
       return activeRenderTheme.dim(text);
   }
+}
+
+function hasPreviewError(tab: MixCodeState["tabs"][number]): boolean {
+  return tab.previewMessages.some(
+    (message) =>
+      message.role === "system" && /\berror\b/i.test(message.text ?? ""),
+  );
 }
 
 function projectName(tab: MixCodeState["tabs"][number]): string {
@@ -336,8 +350,15 @@ function formatTabUpdated(tab: MixCodeState["tabs"][number]): string {
 }
 
 function latestAssistantPreview(tab: MixCodeState["tabs"][number]): string {
-  const latest = [...tab.previewMessages].reverse().find((message) => message.role === "assistant");
-  return singleLinePreview(latest?.text) || "No output yet";
+  // Prefer assistant, then fall back to shell/system so Home cards don't stay
+  // stuck on "No output yet" after bash or error-only turns.
+  const roles: Array<PreviewMessage["role"]> = ["assistant", "shell", "system", "user"];
+  for (const role of roles) {
+    const latest = [...tab.previewMessages].reverse().find((message) => message.role === role);
+    const text = singleLinePreview(latest?.text);
+    if (text) return text;
+  }
+  return "No output yet";
 }
 
 function singleLinePreview(text: string | undefined): string {

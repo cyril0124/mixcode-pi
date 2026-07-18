@@ -595,6 +595,37 @@ function formatNumber(n: number): string {
   return String(n);
 }
 
+function isByteSizeSetting(item: SettingItem | undefined): boolean {
+  return item?.kind === "number" && item.label.endsWith("maxBytes");
+}
+
+/** Parse settings number fields; accept 5m/5mb/5k/5kb only for byte fields. */
+function parseSettingsNumber(raw: string, allowByteUnits = false): number | undefined {
+  const trimmed = raw.trim().toLowerCase();
+  if (!trimmed) return undefined;
+  const match = allowByteUnits
+    ? /^(\d+)\s*(mb|m|kb|k|b)?$/.exec(trimmed)
+    : /^(\d+)$/.exec(trimmed);
+  if (!match) return undefined;
+  const n = Number(match[1]);
+  if (!Number.isFinite(n) || n <= 0) return undefined;
+  const unit = allowByteUnits ? (match[2] ?? "") : "";
+  if (unit === "mb" || unit === "m") return n * 1024 * 1024;
+  if (unit === "kb" || unit === "k") return n * 1024;
+  return n;
+}
+
+function settingsNumberEditPrefill(value: number | undefined, allowByteUnits = false): string {
+  if (value === undefined) return "";
+  // Prefill byte fields with the same compact unit shown in the list so
+  // editing 5 MB is not mistaken for 5 bytes.
+  if (allowByteUnits) {
+    if (value >= 1024 * 1024 && value % (1024 * 1024) === 0) return `${value / (1024 * 1024)}mb`;
+    if (value >= 1024 && value % 1024 === 0) return `${value / 1024}kb`;
+  }
+  return String(value);
+}
+
 /** Collapse $HOME to ~, then middle-truncate if longer than maxWidth. */
 export function formatSettingsPath(filePath: string, maxWidth: number): string {
   if (!filePath) return "";
@@ -676,7 +707,7 @@ function handleNormal(
     } else if (item.kind === "number") {
       const cur = item.getValue(ctx);
       panel.editMode = true;
-      panel.editText = cur !== undefined ? String(cur) : "";
+      panel.editText = settingsNumberEditPrefill(cur, isByteSizeSetting(item));
       refreshSettingsPanel(state, tui);
     } else if (item.kind === "enum") {
       const opts = item.getOptions(ctx);
@@ -706,11 +737,11 @@ function handleEdit(
     const ctx = panelCtx(state);
     if (item?.kind === "number" && ctx) {
       const trimmed = panel.editText.trim();
-      const parsed = parseInt(trimmed, 10);
+      const parsed = parseSettingsNumber(trimmed, isByteSizeSetting(item));
       void item
         .setValue(
           ctx,
-          trimmed === "" || Number.isNaN(parsed) || parsed <= 0 ? undefined : parsed,
+          trimmed === "" || parsed === undefined ? undefined : parsed,
         )
         .then(() => {
           applyLiveEffects(state);
@@ -730,7 +761,7 @@ function handleEdit(
   } else if (matchesKey(data, "backspace") || data === "\x7f") {
     panel.editText = panel.editText.slice(0, -1);
     refreshSettingsPanel(state, tui);
-  } else if (data.length === 1 && /\d/.test(data)) {
+  } else if (data.length === 1 && /[\d.a-zA-Z]/.test(data)) {
     panel.editText += data;
     refreshSettingsPanel(state, tui);
   }

@@ -26,23 +26,23 @@ test("completion provider suggests slash commands, skills, and files", async () 
   const signal = new AbortController().signal;
   const slash = await provider.getSuggestions(["/th"], 0, 3, { signal });
   assert.equal(slash?.prefix, "/th");
-  assert.equal(slash?.items[0]?.value, "/thinking");
+  assert.equal(slash?.items[0]?.value, "/thinking ");
   assert.equal(slash?.items[0]?.label, "thinking (built-in)");
   assert.equal(slash?.items[0]?.description, "Select thinking level");
   const reloadSlash = await provider.getSuggestions(["/rel"], 0, 4, { signal });
-  assert.equal(reloadSlash?.items[0]?.value, "/reload");
+  assert.equal(reloadSlash?.items[0]?.value, "/reload ");
   assert.equal(
     reloadSlash?.items[0]?.description,
     "Reload keybindings, extensions, skills, prompts, themes, and models",
   );
   const hotkeysSlash = await provider.getSuggestions(["/hot"], 0, 4, { signal });
-  assert.equal(hotkeysSlash?.items[0]?.value, "/hotkeys");
+  assert.equal(hotkeysSlash?.items[0]?.value, "/hotkeys ");
   assert.equal(hotkeysSlash?.items[0]?.description, "Show all keyboard shortcuts");
   const fuzzySlash = await provider.getSuggestions(["/md"], 0, 3, { signal });
-  assert.equal(fuzzySlash?.items[0]?.value, "/mark-done");
+  assert.equal(fuzzySlash?.items[0]?.value, "/mark-done ");
   assert.equal(fuzzySlash?.items[0]?.label, "mark-done (built-in)");
   const extensionSlash = await provider.getSuggestions(["/ins"], 0, 4, { signal });
-  assert.equal(extensionSlash?.items[0]?.value, "/inspect");
+  assert.equal(extensionSlash?.items[0]?.value, "/inspect ");
   assert.equal(extensionSlash?.items[0]?.label, "inspect (ext:pi-subagents)");
   assert.equal(extensionSlash?.items[0]?.description, "Inspect extension context");
   // `$` skill completion is owned by the skill-refs extension provider; the
@@ -51,11 +51,12 @@ test("completion provider suggests slash commands, skills, and files", async () 
   assert.equal(skill, null);
   // Skills still surface as /skill: slash commands.
   const skillSlash = await provider.getSuggestions(["/skill:re"], 0, 9, { signal });
-  assert.equal(skillSlash?.items[0]?.value, "/skill:review");
+  assert.equal(skillSlash?.items[0]?.value, "/skill:review ");
   assert.equal(skillSlash?.items[0]?.description, "Review code");
   const file = await provider.getSuggestions(["see @runtime"], 0, 12, { signal });
   assert.equal(file?.items[0]?.value, "@test/runtime-ui.test.ts");
-  assert.equal(file?.items[0]?.description, undefined);
+  assert.equal(file?.items[0]?.label, "runtime-ui.test.ts");
+  assert.equal(file?.items[0]?.description, "test/runtime-ui.test.ts");
   const directory = await provider.getSuggestions(["see @src"], 0, 8, { signal });
   assert.equal(directory?.items[0]?.value, "@src/");
   const spacedDirectory = await provider.getSuggestions(["see @spaces"], 0, 11, { signal });
@@ -87,7 +88,7 @@ test("completion provider prefers live fd file search and falls back to static l
   });
   const result = await staticOnly.getSuggestions(["@src/"], 0, 5, { signal });
   assert.equal(result?.items[0]?.value, "@src/core/");
-  assert.equal(result?.items[0]?.label, "src/core/");
+  assert.equal(result?.items[0]?.label, "core/");
 });
 
 test("completion provider uses fd results with basename labels when fd is available", async (t) => {
@@ -128,7 +129,7 @@ test("completion provider compacts skill descriptions before paths are truncated
   const signal = new AbortController().signal;
   const skill = await provider.getSuggestions(["/skill:c"], 0, 8, { signal });
 
-  assert.equal(skill?.items[0]?.value, "/skill:caveman");
+  assert.equal(skill?.items[0]?.value, "/skill:caveman ");
   assert.match(
     skill?.items[0]?.description ?? "",
     /^Ultra-compressed communication mode\./,
@@ -162,7 +163,7 @@ test("completion provider delegates extension slash argument completions", async
   const signal = new AbortController().signal;
 
   const commandName = await provider.getSuggestions(["/ru"], 0, 3, { signal });
-  assert.equal(commandName?.items[0]?.value, "/run");
+  assert.equal(commandName?.items[0]?.value, "/run ");
   assert.equal(commandName?.items[0]?.label, "run (ext:extension)");
   assert.equal(commandName?.items[0]?.description, "Run extension command");
   assert.deepEqual(calls, []);
@@ -219,7 +220,7 @@ test("completion provider keeps the menu open for a fully typed command name", a
   const signal = new AbortController().signal;
 
   const exact = await provider.getSuggestions(["/goal"], 0, 5, { signal });
-  assert.equal(exact?.items[0]?.value, "/goal");
+  assert.equal(exact?.items[0]?.value, "/goal ");
   const withSpace = await provider.getSuggestions(["/goal "], 0, 6, { signal });
   assert.equal(withSpace?.prefix, "");
   assert.equal(withSpace?.items[0]?.value, "pause");
@@ -236,7 +237,7 @@ test("completion provider reads extension commands dynamically", async () => {
 
   assert.equal(
     (await provider.getSuggestions(["/fi"], 0, 3, { signal }))?.items[0]?.value,
-    "/first",
+    "/first ",
   );
   assert.equal(
     (await provider.getSuggestions(["/fi"], 0, 3, { signal }))?.items[0]?.label,
@@ -245,7 +246,7 @@ test("completion provider reads extension commands dynamically", async () => {
   commandName = "second";
   assert.equal(
     (await provider.getSuggestions(["/sec"], 0, 4, { signal }))?.items[0]?.value,
-    "/second",
+    "/second ",
   );
 });
 
@@ -314,7 +315,7 @@ test("completion provider keeps local slash commands ahead of conflicting extens
   const signal = new AbortController().signal;
 
   const command = await provider.getSuggestions(["/cle"], 0, 4, { signal });
-  assert.equal(command?.items[0]?.value, "/clear");
+  assert.equal(command?.items[0]?.value, "/clear ");
   assert.equal(command?.items[0]?.label, "clear (built-in)");
   assert.doesNotMatch(command?.items[0]?.description ?? "", /extension clear/);
   assert.equal(await provider.getSuggestions(["/clear x"], 0, 8, { signal }), null);

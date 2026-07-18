@@ -388,7 +388,10 @@ function chatLineRenderCacheKey(
     if (line.variant === "user-bash") {
       // user-bash branch reads almost every bash-related field plus the
       // global toolsExpanded toggle and per-line toolExpanded fallback.
-      return `ub${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${line.status ?? ""}${KEY_SEP}${line.title ?? ""}${KEY_SEP}${commandFromArgs(line.args)}${KEY_SEP}${line.excludeFromContext === true ? 1 : 0}${KEY_SEP}${line.pendingBash === true ? 1 : 0}${KEY_SEP}${line.bashExitCode ?? ""}${KEY_SEP}${line.bashCancelled === true ? 1 : 0}${KEY_SEP}${line.bashTruncated === true ? 1 : 0}${KEY_SEP}${line.bashFullOutputPath ?? ""}${KEY_SEP}${line.toolExpanded === true ? 1 : 0}${KEY_SEP}${expanded ? 1 : 0}${KEY_SEP}${line.text}`;
+      // Esc-hint also depends on whether the agent is busy (Esc aborts agent).
+      const agentBusy =
+        tab?.status === "running" || tab?.status === "thinking" ? 1 : 0;
+      return `ub${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${line.status ?? ""}${KEY_SEP}${line.title ?? ""}${KEY_SEP}${commandFromArgs(line.args)}${KEY_SEP}${line.excludeFromContext === true ? 1 : 0}${KEY_SEP}${line.pendingBash === true ? 1 : 0}${KEY_SEP}${line.bashExitCode ?? ""}${KEY_SEP}${line.bashCancelled === true ? 1 : 0}${KEY_SEP}${line.bashTruncated === true ? 1 : 0}${KEY_SEP}${line.bashFullOutputPath ?? ""}${KEY_SEP}${line.toolExpanded === true ? 1 : 0}${KEY_SEP}${expanded ? 1 : 0}${KEY_SEP}${agentBusy}${KEY_SEP}${line.text}`;
     }
     // Generic (non-renderer) tool block: depends on status/title/args/text.
     return `t${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${line.status ?? ""}${KEY_SEP}${line.title ?? ""}${KEY_SEP}${stableArgs(line.args)}${KEY_SEP}${line.text}`;
@@ -475,10 +478,12 @@ function renderUserBashBlock(line: ChatLine, width: number, tab?: MixCodeTabInfo
   const output = line.text.trimEnd();
   const outputLines = output ? output.split(/\r?\n/) : [];
   const expanded = tab?.extensionUi.toolsExpanded ?? line.toolExpanded === true;
-  const visibleOutput = outputLines.slice(
-    expanded ? 0 : Math.max(0, outputLines.length - USER_BASH_PREVIEW_LINES),
-  );
-  const hiddenLineCount = Math.max(0, outputLines.length - visibleOutput.length);
+  // Overflow count is relative to the collapsed preview budget, not the currently
+  // visible slice — so expanded views can still show "ctrl+o to collapse".
+  const overflowLineCount = Math.max(0, outputLines.length - USER_BASH_PREVIEW_LINES);
+  const visibleOutput = expanded
+    ? outputLines
+    : outputLines.slice(Math.max(0, outputLines.length - USER_BASH_PREVIEW_LINES));
   const body: string[] = [userBashRule(width, color), ` ${title}`];
   if (visibleOutput.length) {
     body.push(
@@ -488,7 +493,7 @@ function renderUserBashBlock(line: ChatLine, width: number, tab?: MixCodeTabInfo
       ),
     );
   }
-  const statusLines = userBashStatusLines(line, hiddenLineCount, expanded);
+  const statusLines = userBashStatusLines(line, overflowLineCount, expanded, tab);
   if (statusLines.length) body.push("", ...statusLines.map((part) => ` ${part}`));
   body.push(userBashRule(width, color));
   return body.map((part) => padLine(part, width));
@@ -498,16 +503,27 @@ function userBashRule(width: number, color = activeRenderTheme.tool): string {
   return color("─".repeat(Math.max(1, width)));
 }
 
-function userBashStatusLines(line: ChatLine, hiddenLineCount: number, expanded: boolean): string[] {
+function userBashStatusLines(
+  line: ChatLine,
+  overflowLineCount: number,
+  expanded: boolean,
+  tab?: MixCodeTabInfo,
+): string[] {
   const lines: string[] = [];
-  if (hiddenLineCount > 0) {
+  if (overflowLineCount > 0) {
     const label = expanded
       ? "(ctrl+o to collapse)"
-      : `... ${hiddenLineCount} more lines (ctrl+o to expand)`;
+      : `... ${overflowLineCount} more lines (ctrl+o to expand)`;
     lines.push(activeRenderTheme.dim(label));
   }
   if (line.status === "running") {
-    lines.push(activeRenderTheme.dim("Running... (Esc to cancel)"));
+    // While the agent is streaming/working, Esc is claimed by abort-agent, not bash cancel.
+    const agentBusy = tab?.status === "running" || tab?.status === "thinking";
+    lines.push(
+      activeRenderTheme.dim(
+        agentBusy ? "Running... (agent Esc aborts run)" : "Running... (Esc to cancel)",
+      ),
+    );
   }
   if (line.status !== "running" && line.bashCancelled === true) {
     lines.push(activeRenderTheme.warning("(cancelled)"));

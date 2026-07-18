@@ -34,6 +34,7 @@ export class CompactPromptEditor extends Editor {
       // Allow typing on Agent View for sending messages to selected agent.
       super.handleInput(data);
       this.triggerSymbolAutocomplete(data);
+      this.reopenDirectoryFileAutocomplete();
       this.closeStaleSymbolAutocomplete();
       this.rootTui.requestRender();
       return;
@@ -44,6 +45,7 @@ export class CompactPromptEditor extends Editor {
     }
     super.handleInput(data);
     this.triggerSymbolAutocomplete(data);
+    this.reopenDirectoryFileAutocomplete();
     this.closeStaleSymbolAutocomplete();
     this.rootTui.requestRender();
   }
@@ -158,6 +160,20 @@ export class CompactPromptEditor extends Editor {
         this as unknown as { forceFileAutocomplete?: (explicitTab?: boolean) => void }
       ).forceFileAutocomplete?.(false);
     }
+  }
+
+  /** After accepting a directory `@path/`, keep the file menu open for children. */
+  private reopenDirectoryFileAutocomplete(): void {
+    if (this.isShowingAutocomplete()) return;
+    const cursor = this.getCursor();
+    const line = this.getLines()[cursor.line] ?? "";
+    const token = currentEditorToken(line.slice(0, cursor.col));
+    if (!token.startsWith("@")) return;
+    const pathPart = token.slice(1).replace(/^"/, "").replace(/"$/, "");
+    if (!pathPart.endsWith("/")) return;
+    (
+      this as unknown as { forceFileAutocomplete?: (explicitTab?: boolean) => void }
+    ).forceFileAutocomplete?.(false);
   }
 
   private closeStaleSymbolAutocomplete(): void {

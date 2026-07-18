@@ -223,7 +223,8 @@ Editor !cmd / !!cmd
   │
   ├─ parseInput → kind:shell
   ├─ AgentSession.executeBash / emitUserBash
-  ├─ chat: user-bash 块（Running... (Esc to cancel)）
+  ├─ chat: user-bash 块
+  │    Running... (Esc to cancel) | agent busy → Running... (agent Esc aborts run)
   ├─ session: bashExecution（!! excludeFromContext）
   └─ Esc:
        ├─ isBashRunning && !streaming → abortBash

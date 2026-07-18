@@ -84,7 +84,8 @@ export class MixCodeCompletionProvider implements AutocompleteProvider {
       return {
         prefix: token,
         items: matchedCommands.map((command) => ({
-          value: `/${command.name}`,
+          // Trailing space keeps the menu path open for argument completion (pi parity).
+          value: `/${command.name} `,
           label: commandLabel(command),
           description: commandDescription(command),
         })),
@@ -109,7 +110,8 @@ export class MixCodeCompletionProvider implements AutocompleteProvider {
             prefix: token,
             items: matches.map((match) => ({
               value: formatFileCompletionValue(match.displayPath, isQuoted),
-              label: path.basename(trimTrailingSlash(match.displayPath)) + (match.isDirectory ? "/" : ""),
+              // Absolute/~ paths: show a distinguishable path, not only basename.
+              label: fileCompletionLabel(match.displayPath, match.isDirectory),
               description: match.displayPath,
             })),
           };
@@ -120,7 +122,8 @@ export class MixCodeCompletionProvider implements AutocompleteProvider {
         prefix: token,
         items: searchProjectFiles(query, files).map((file) => ({
           value: formatFileCompletionValue(file, isQuoted),
-          label: file,
+          label: fileCompletionLabel(file, file.endsWith("/")),
+          description: file,
         })),
       };
     }
@@ -138,7 +141,11 @@ export class MixCodeCompletionProvider implements AutocompleteProvider {
   ) {
     const line = lines[cursorLine] ?? "";
     const start = cursorCol - prefix.length;
-    const nextLine = `${line.slice(0, start)}${item.value}${line.slice(cursorCol)}`;
+    // Consume the rest of the current token after the cursor so mid-token Tab
+    // does not leave a suffix (e.g. @probe|.txt → @probe.txt, not @probe.txt.txt).
+    const after = line.slice(cursorCol);
+    const tokenTail = after.match(/^[^\s]*/)?.[0] ?? "";
+    const nextLine = `${line.slice(0, start)}${item.value}${after.slice(tokenTail.length)}`;
     const nextLines = lines.slice();
     nextLines[cursorLine] = nextLine;
     return { lines: nextLines, cursorLine, cursorCol: start + item.value.length };
@@ -248,6 +255,20 @@ async function getSlashArgumentSuggestions(
 function formatFileCompletionValue(path: string, forceQuote = false): string {
   if (!forceQuote && !/[\s"]/.test(path)) return `@${path}`;
   return `@"${path.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
+}
+
+function fileCompletionLabel(displayPath: string, isDirectory: boolean): string {
+  const body = trimTrailingSlash(displayPath);
+  const absoluteLike = body.startsWith("/") || body.startsWith("~/") || body === "~";
+  if (absoluteLike) {
+    // Absolute/~ paths: last two segments so multiple /.../index.ts entries differ.
+    const parts = body.split("/").filter(Boolean);
+    const short =
+      parts.length <= 2 ? body : `…/${parts.slice(-2).join("/")}`;
+    return isDirectory ? `${short}/` : short;
+  }
+  // Relative matches: basename (fd parity); full path stays in description.
+  return path.basename(body) + (isDirectory ? "/" : "");
 }
 
 function trimTrailingSlash(path: string): string {

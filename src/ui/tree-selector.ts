@@ -425,6 +425,13 @@ export function handleTreeSelectorKey(
     tui.requestRender();
     return true;
   }
+  // Pi default: ctrl+d resets tree filters to default (hint lists ctrl+d).
+  if (matchesKey(data, "ctrl+d")) {
+    setTreeFilter(selector, "default");
+    refreshTreeSelectorDisplay(tui);
+    tui.requestRender();
+    return true;
+  }
   if (matchesKey(data, "ctrl+o")) {
     cycleTreeFilter(selector, 1);
     refreshTreeSelectorDisplay(tui);

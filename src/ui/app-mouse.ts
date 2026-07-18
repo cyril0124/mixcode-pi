@@ -3,6 +3,7 @@ import {
   screenToChatSelectionPoint,
   selectedChatText,
   selectedInputText,
+  selectedNoticeText,
 } from "../core/chat-selection.js";
 import { copyTextToClipboard, type ClipboardWriter } from "../core/clipboard.js";
 import { parseSgrMouseInput } from "../core/mouse.js";
@@ -70,10 +71,10 @@ export function handleMouseInput(
     tui.requestRender();
     return true;
   }
-  // Notice is nonCapturing and still allows select+copy; other overlays swallow mouse.
+  // Notice is nonCapturing: selection inside notice bounds, otherwise continue
+  // to wheel/input/chat paths so Notice does not freeze the rest of the UI.
   if (handleNoticeSelectionMouse(active, mouse, tui, copyToClipboard)) return true;
   if (hasAnyOverlay(tui) && !hasActiveNotice()) return false;
-  if (hasActiveNotice()) return false;
   // Clicking the chat scrollbar gutter jumps scroll position (before text selection).
   if (handleChatScrollbarMouse(state, active, mouse, tui)) return true;
   if (handleInputSelectionMouse(active, mouse, tui, copyToClipboard)) return true;
@@ -85,6 +86,7 @@ export function handleMouseInput(
   }
   // Wheel over the open side panel scrolls the panel; anywhere else scrolls
   // chat. Region routing keeps the two side-by-side scroll regions independent.
+  // Notice does not block wheel outside its bounds (handled above only for selection).
   if (
     mouse.wheel &&
     active.panelOpen &&
@@ -234,7 +236,7 @@ function handleNoticeSelectionMouse(
       setActiveNoticeSelection(selection);
     },
     getLines: () => notice.renderedLines,
-    selectText: selectedChatText,
+    selectText: selectedNoticeText,
   });
 }
 
