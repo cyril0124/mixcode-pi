@@ -1,6 +1,7 @@
 import { TELEMETRY_SCHEMA_VERSION } from "./constants.js";
 import { currentGoalSessionKey } from "./session-scope.js";
 import type {
+	ApiGateState,
 	BudgetHardStopReason,
 	BudgetLimitReason,
 	BudgetWarningReason,
@@ -63,6 +64,19 @@ export function noteContinuationSkipped(
 ): GoalTelemetrySnapshot | null {
 	if (!telemetry) return null;
 	return { ...telemetry, lastSkipReason: reason, updatedAt: now };
+}
+
+export function isApiGateBlocked(telemetry: GoalTelemetrySnapshot | null | undefined): boolean {
+	return telemetry?.apiGate === "blocked";
+}
+
+export function noteApiGate(
+	telemetry: GoalTelemetrySnapshot | null,
+	gate: ApiGateState,
+	now = Date.now(),
+): GoalTelemetrySnapshot | null {
+	if (!telemetry) return null;
+	return { ...telemetry, apiGate: gate, updatedAt: now };
 }
 
 export function noteBudgetWrapUpSent(

@@ -40,8 +40,19 @@ export type GoalState = {
 
 export type TurnOrigin = "user" | "auto" | "budgetWrapUp";
 export type ContinuationReason = "created" | "resumed" | "agentEnd" | "compacted";
-export type ContinuationSkipReason = "notIdle" | "pendingMessages" | "notActive" | "budgetLimited" | "safetyCap" | "noProgress" | "floorExhausted" | "budgetExhausted" | "compacting";
-export type SafetyPauseReason = "maxAutoTurns" | "noProgress" | "abort";
+export type ContinuationSkipReason =
+	| "notIdle"
+	| "pendingMessages"
+	| "notActive"
+	| "budgetLimited"
+	| "safetyCap"
+	| "noProgress"
+	| "floorExhausted"
+	| "budgetExhausted"
+	| "compacting"
+	| "apiError";
+export type ApiGateState = "open" | "blocked";
+export type SafetyPauseReason = "maxAutoTurns" | "noProgress" | "abort" | "apiError";
 export type BudgetLimitReason = "tokenBudget" | "timeBudget";
 export type BudgetWarningReason = "tokenWarning" | "timeWarning";
 export type BudgetHardStopReason = "tokenHardStop" | "timeHardStop";
@@ -76,6 +87,8 @@ export type GoalTelemetrySnapshot = {
 	lastTurnOrigin?: TurnOrigin;
 	lastContinuationReason?: ContinuationReason;
 	lastSkipReason?: ContinuationSkipReason;
+	/** When blocked, agentEnd auto-continue is suppressed until user resume or a successful stop. */
+	apiGate?: ApiGateState;
 	lastTurnToolCallCount?: number;
 	lastTurnToolResultCount?: number;
 	lastTurnCompletedGoal?: boolean;

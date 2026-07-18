@@ -12,7 +12,15 @@ import { buildBudgetLimitPrompt, buildContinuationPrompt, buildPausePrompt } fro
 import { getQueue } from "../persistence/queue-store.js";
 import { decideTerminalContinuationTicket, dispatchContinuationTicket, revalidateContinuationTicket } from "./continuation-ticket.js";
 import { getGoal, getTelemetry, persistTelemetry } from "../persistence/goal-store.js";
-import { noteBudgetWrapUpSent, noteCompactionContinuation, noteContinuationScheduled, noteContinuationSkipped, setNextTurnOrigin } from "../domain/telemetry.js";
+import {
+	isApiGateBlocked,
+	noteApiGate,
+	noteBudgetWrapUpSent,
+	noteCompactionContinuation,
+	noteContinuationScheduled,
+	noteContinuationSkipped,
+	setNextTurnOrigin,
+} from "../domain/telemetry.js";
 import type { ContinuationReason, ContinuationSkipReason, GoalState } from "../domain/types.js";
 import { currentGoalSessionKey, runInGoalSession } from "../domain/session-scope.js";
 
@@ -127,6 +135,13 @@ export function scheduleMaybeContinueGoal(pi: ExtensionAPI, ctx: ExtensionContex
 	if (!goal || goal.status !== "active") {
 		logRuntime("scheduleMaybeContinueGoal.skip.notActive", { reason });
 		return;
+	}
+	// User resume/create always re-opens the API gate (upstream may be back).
+	if (isUserConfirmedContinuation(reason)) {
+		openApiGate(pi);
+	} else if (reason === "agentEnd" && isApiGateBlocked(getTelemetry())) {
+		logRuntime("scheduleMaybeContinueGoal.skip.apiError", { reason, goalId: goal.goalId });
+		return skip(pi, "apiError");
 	}
 	if (shouldSuppressAgentEndContinuation(reason)) {
 		logRuntime("scheduleMaybeContinueGoal.skip.noProgress", { reason, goalId: goal.goalId });
@@ -256,6 +271,22 @@ function attemptContinueGoal(
 
 function isUserConfirmedContinuation(reason: ContinuationReason): boolean {
 	return reason === "created" || reason === "resumed";
+}
+
+export function openApiGate(pi: ExtensionAPI): void {
+	if (!isApiGateBlocked(getTelemetry())) return;
+	const telemetry = noteApiGate(getTelemetry(), "open");
+	if (telemetry) persistTelemetry(pi, telemetry, "continuation");
+}
+
+export function blockApiGate(pi: ExtensionAPI): boolean {
+	const wasBlocked = isApiGateBlocked(getTelemetry());
+	const telemetry = noteApiGate(getTelemetry(), "blocked");
+	if (telemetry) {
+		const withSkip = noteContinuationSkipped(telemetry, "apiError");
+		if (withSkip) persistTelemetry(pi, withSkip, "continuation");
+	}
+	return !wasBlocked;
 }
 
 async function maybeSendBudgetWrapUp(pi: ExtensionAPI, ctx: ExtensionContext, goalId: string): Promise<void> {

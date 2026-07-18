@@ -46,16 +46,45 @@ import {
 	withLiveActiveTime,
 } from "../domain/active-time.js";
 import { evaluateBudgetPressure, isBudgetHardStop, isBudgetReached, isBudgetWarning, queueHandoffReason } from "../domain/budget.js";
-import { beginGoalCompaction, cancelGoalContinuation, finishGoalCompaction, interruptActiveGoalTurn, scheduleBudgetLimitWrapUp, scheduleMaybeContinueGoal } from "./continuation.js";
+import {
+	beginGoalCompaction,
+	cancelGoalContinuation,
+	finishGoalCompaction,
+	interruptActiveGoalTurn,
+	openApiGate,
+	scheduleBudgetLimitWrapUp,
+	scheduleMaybeContinueGoal,
+} from "./continuation.js";
 import { buildBudgetLimitPrompt } from "./prompts.js";
 import { ensureGoalHydrated, getGoal, getTelemetry, persistAccountGoal, persistTelemetry, persistUpdateGoal, replayGoalState } from "../persistence/goal-store.js";
 import { getQueue, replayQueueState } from "../persistence/queue-store.js";
 import { queueSteeringStillValid, sendQueueHandoff } from "../queue/steering.js";
 import { createNoopPostCompletionActionRunner, type PostCompletionActionRunner } from "./post-completion.js";
 import { processTerminalGoalWorkflow } from "./terminal-workflow.js";
-import { applyTurnTelemetry, consumeNextTurnOrigin, makeTurnSnapshot, noteBudgetHardStop, noteBudgetLimit, noteBudgetWarning, noteSafetyPause } from "../domain/telemetry.js";
+import {
+	applyTurnTelemetry,
+	consumeNextTurnOrigin,
+	isApiGateBlocked,
+	makeTurnSnapshot,
+	noteApiGate,
+	noteBudgetHardStop,
+	noteBudgetLimit,
+	noteBudgetWarning,
+	noteContinuationSkipped,
+	noteSafetyPause,
+} from "../domain/telemetry.js";
 import { notifyWarning, promptContinueActiveGoal, promptResumePausedGoal, syncGoalUi } from "../surface/ui/notify.js";
-import type { BudgetHardStopReason, BudgetLimitReason, BudgetPressure, GoalState, GoalTelemetrySnapshot, PiGoalEventReason, StreamBudgetSignal, TurnAccountingSnapshot } from "../domain/types.js";
+import type {
+	BudgetHardStopReason,
+	BudgetLimitReason,
+	BudgetPressure,
+	GoalState,
+	GoalTelemetrySnapshot,
+	PiGoalEventReason,
+	SafetyPauseReason,
+	StreamBudgetSignal,
+	TurnAccountingSnapshot,
+} from "../domain/types.js";
 
 type LifecycleSessionState = {
 	activeTurn: TurnAccountingSnapshot | null;
@@ -65,6 +94,8 @@ type LifecycleSessionState = {
 		| undefined;
 	expectAgentEndContinue: boolean;
 	agentEndContinueDispatched: boolean;
+	/** Final assistant stopReason from the last agent_end (after Pi retries finished). */
+	lastAgentEndStopReason?: string;
 };
 
 const lifecycleBySession = new Map<string, LifecycleSessionState>();
@@ -79,6 +110,7 @@ function lifecycleState(): LifecycleSessionState {
 			pendingAgentEndContinue: undefined,
 			expectAgentEndContinue: false,
 			agentEndContinueDispatched: false,
+			lastAgentEndStopReason: undefined,
 		};
 		lifecycleBySession.set(key, state);
 	}
@@ -160,8 +192,8 @@ export function registerGoalLifecycle(
 	// agent_end fires while isIdle is still false (Pi keeps the run active until
 	// post-run work finishes). Queue handoff can still arm on agent_end; auto-continue
 	// must wait for agent_settled so attemptContinueGoal does not silent-skip notIdle.
-	pi.on("agent_end", async (_event, ctx) => {
-		await withGoalSessionFromCtxAsync(ctx, async () => handleAgentEnd(pi, ctx, postCompletionRunner));
+	pi.on("agent_end", async (event, ctx) => {
+		await withGoalSessionFromCtxAsync(ctx, async () => handleAgentEnd(pi, event, ctx, postCompletionRunner));
 	});
 	pi.on("agent_settled", async (_event, ctx) => {
 		await withGoalSessionFromCtxAsync(ctx, async () => handleAgentSettled(pi, ctx));
@@ -206,11 +238,18 @@ function handleSessionCompact(pi: ExtensionAPI, ctx: ExtensionContext): void {
 	finishGoalCompaction(pi, ctx);
 }
 
-async function handleAgentEnd(pi: ExtensionAPI, ctx: ExtensionContext, postCompletionRunner: PostCompletionActionRunner): Promise<void> {
+async function handleAgentEnd(
+	pi: ExtensionAPI,
+	event: { messages?: unknown[] },
+	ctx: ExtensionContext,
+	postCompletionRunner: PostCompletionActionRunner,
+): Promise<void> {
 	// Close the active-time window between agent runs so idle wait is not billed.
 	// Rehydrate first: mid-session memory loss left getGoal() null while branch still had active goal.
 	ensureGoalHydrated(ctx);
 	flushAndStopGoalActiveTime(pi, "turn");
+	// Latest agent_end stopReason (may be intermediate if Pi still auto-retries).
+	lifecycleState().lastAgentEndStopReason = lastAssistantStopReason(event?.messages);
 	const goal = getGoal();
 	const reason = queueHandoffReason(goal);
 	const queueLength = getQueue().length;
@@ -224,6 +263,14 @@ async function handleAgentEnd(pi: ExtensionAPI, ctx: ExtensionContext, postCompl
 				await processTerminalGoalWorkflow(pi, ctx, { goal, reason: "turn", runner: postCompletionRunner });
 			});
 		}, AGENT_END_HANDOFF_DELAY_MS);
+		return;
+	}
+	// Error agent_end can fire before Pi auto-retries. Do not arm the 500ms
+	// fallback here — that would pause mid-retry. Wait for agent_settled only.
+	if (lifecycleState().lastAgentEndStopReason === "error") {
+		clearPendingAgentEndContinue();
+		lifecycleState().expectAgentEndContinue = Boolean(goal && goal.status === "active");
+		lifecycleState().agentEndContinueDispatched = false;
 		return;
 	}
 	// Prefer agent_settled; keep a short fallback if settled is dropped by the host.
@@ -262,9 +309,32 @@ function dispatchAgentEndContinue(pi: ExtensionAPI, ctx: ExtensionContext): void
 	if (!goal || goal.status !== "active") return;
 	lifecycleState().agentEndContinueDispatched = true;
 	lifecycleState().expectAgentEndContinue = false;
+	// Upstream API exhausted retries: pause goal (not active+idle fake work).
+	if (lifecycleState().lastAgentEndStopReason === "error") {
+		void pauseForSafety(
+			pi,
+			ctx,
+			goal,
+			"apiError",
+			"Upstream API failed after retries. Goal paused. Run /goal resume when the API is available.",
+		);
+		return;
+	}
 	// Queue handoff for a completed/budget-limited goal is started from agent_end;
 	// only active goals need the settle-time continuation nudge.
 	scheduleMaybeContinueGoal(pi, ctx, "agentEnd");
+}
+
+function lastAssistantStopReason(messages: unknown[] | undefined): string | undefined {
+	if (!Array.isArray(messages)) return undefined;
+	for (let i = messages.length - 1; i >= 0; i--) {
+		const message = messages[i];
+		if (typeof message !== "object" || message === null) continue;
+		const candidate = message as { role?: unknown; stopReason?: unknown };
+		if (candidate.role !== "assistant") continue;
+		return typeof candidate.stopReason === "string" ? candidate.stopReason : undefined;
+	}
+	return undefined;
 }
 
 function clearPendingAgentEndContinue(): void {
@@ -418,6 +488,10 @@ async function handleTurnEnd(pi: ExtensionAPI, event: TurnEndEvent, ctx: Extensi
 	stopActiveTime();
 	const tokens = assistantTokens(event.message);
 	const madeProgress = turn.completedGoal || turn.progressCount > 0;
+	// Successful model stop re-opens API gate (upstream recovered without explicit resume).
+	if (event.message.role === "assistant" && event.message.stopReason === "stop" && isApiGateBlocked(getTelemetry())) {
+		openApiGate(pi);
+	}
 	let telemetry = applyTurnTelemetry(getTelemetry(), turn, madeProgress);
 	let result = persistAccountGoal(pi, turn.goalId, { timeUsedSeconds: elapsed, tokensUsed: tokens }, telemetry, "turn");
 	let updated = result.goal;
@@ -462,14 +536,26 @@ async function pauseForSafety(
 	pi: ExtensionAPI,
 	ctx: ExtensionContext,
 	goal: GoalState,
-	reason: "abort" | "maxAutoTurns" | "noProgress",
+	reason: SafetyPauseReason,
 	message: string,
 ): Promise<void> {
 	cancelGoalContinuation(goal.goalId, reason);
 	flushAndStopGoalActiveTime(pi, reason === "abort" ? "abort" : "safety");
 	const current = getGoal() ?? goal;
+	if (current.status === "paused" && reason === "apiError" && current.goalId === goal.goalId) {
+		// Already paused (e.g. double settle); still refresh API gate telemetry once.
+		let telemetry = noteSafetyPause(getTelemetry(), reason);
+		telemetry = noteApiGate(telemetry, "blocked");
+		telemetry = noteContinuationSkipped(telemetry, "apiError");
+		if (telemetry) persistTelemetry(pi, telemetry, "safety");
+		return;
+	}
 	const paused: GoalState = { ...current, status: "paused", updatedAt: Date.now() };
-	const telemetry = noteSafetyPause(getTelemetry(), reason);
+	let telemetry = noteSafetyPause(getTelemetry(), reason);
+	if (reason === "apiError") {
+		telemetry = noteApiGate(telemetry, "blocked");
+		telemetry = noteContinuationSkipped(telemetry, "apiError");
+	}
 	persistUpdateGoal(pi, paused, telemetry, reason === "abort" ? "abort" : "safety");
 	if (telemetry) persistTelemetry(pi, telemetry, reason === "abort" ? "abort" : "safety");
 	syncGoalUi(ctx, paused);
