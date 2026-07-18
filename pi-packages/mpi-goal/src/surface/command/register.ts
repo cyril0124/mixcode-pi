@@ -7,6 +7,7 @@ import { discoverGoalTemplates, parseGoalTemplateInvocation } from "../../templa
 import { buildDirectGoalIntent, buildTemplateGoalIntent } from "../../domain/goal-intent.js";
 import { createPostCompletionActionStates, recordPostStartActionAnchors } from "../../runtime/post-completion.js";
 import { captureContextResetCommandContext } from "../../runtime/context-reset.js";
+import { withGoalSessionFromCtxAsync } from "../../domain/session-scope.js";
 import { flushAndStopGoalActiveTime } from "../../runtime/lifecycle.js";
 import { createTelemetry, resetSafetyCounters } from "../../domain/telemetry.js";
 import {
@@ -17,9 +18,10 @@ import {
 	persistSetGoal,
 	persistTelemetry,
 	persistUpdateGoal,
+	replayGoalState,
 } from "../../persistence/goal-store.js";
 import { parseQueueBlockItems, type QueueBlockItem } from "../../queue/block-parser.js";
-import { getQueue, enqueueGoal, persistEnqueue, persistRemove, removeGoal } from "../../persistence/queue-store.js";
+import { getQueue, enqueueGoal, persistEnqueue, persistRemove, removeGoal, replayQueueState } from "../../persistence/queue-store.js";
 import { notifyGoal, notifyInfo, notifyWarning, showGoalSummary, showNoGoal, syncGoalUi } from "../ui/notify.js";
 import { GoalManagementView } from "../ui/goal-overlay.js";
 import { enableGoalTools, isGoalToolsActive } from "../tools/dynamic.js";
@@ -107,17 +109,23 @@ async function handleGoalCommand(
 	ctx: ExtensionCommandContext,
 	runtime: GoalCommandRuntime,
 ): Promise<void> {
-	const trimmed = args.trim();
-	if (!trimmed || trimmed === "help") {
-		await openGoalOverlay(pi, ctx, runtime);
-		return;
-	}
+	// Bind per-tab session scope and rehydrate from this session's branch so
+	// another MixCode tab's in-memory goal cannot leak into this command.
+	await withGoalSessionFromCtxAsync(ctx, async () => {
+		replayGoalState(ctx);
+		replayQueueState(ctx);
+		const trimmed = args.trim();
+		if (!trimmed || trimmed === "help") {
+			await openGoalOverlay(pi, ctx, runtime);
+			return;
+		}
 
-	const handled = handleGoalControlCommand(pi, trimmed, ctx, runtime);
-	if (handled) return;
+		const handled = handleGoalControlCommand(pi, trimmed, ctx, runtime);
+		if (handled) return;
 
-	const resolved = resolveTemplateOrObjective(trimmed, ctx);
-	if (resolved) await setGoalObjective(pi, resolved, ctx, runtime);
+		const resolved = resolveTemplateOrObjective(trimmed, ctx);
+		if (resolved) await setGoalObjective(pi, resolved, ctx, runtime);
+	});
 }
 
 async function openGoalOverlay(

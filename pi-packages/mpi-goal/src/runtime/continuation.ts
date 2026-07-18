@@ -14,6 +14,7 @@ import { decideTerminalContinuationTicket, dispatchContinuationTicket, revalidat
 import { getGoal, getTelemetry, persistTelemetry } from "../persistence/goal-store.js";
 import { noteBudgetWrapUpSent, noteCompactionContinuation, noteContinuationScheduled, noteContinuationSkipped, setNextTurnOrigin } from "../domain/telemetry.js";
 import type { ContinuationReason, ContinuationSkipReason, GoalState } from "../domain/types.js";
+import { currentGoalSessionKey, runInGoalSession } from "../domain/session-scope.js";
 
 type PendingContinuation = {
 	goalId: string;
@@ -37,43 +38,73 @@ type ContinuationAttemptResult =
 
 const DEFAULT_RETRY_DELAYS_MS = [100, 250, 500, 1_000, 2_000];
 
-let pendingContinuation: PendingContinuation | undefined;
-let budgetWrapUps = new Map<string, PendingBudgetWrapUp>();
-let compactionActive = false;
-let compactionWork: CompactionContinuationWork | undefined;
-let prequeuedCompactionKey: string | undefined;
-let fallbackTimer: ReturnType<typeof setTimeout> | undefined;
-let fallbackAttempts = 0;
-let fallbackRetryDelaysMs = [...DEFAULT_RETRY_DELAYS_MS];
+type ContinuationSessionState = {
+	pendingContinuation?: PendingContinuation;
+	budgetWrapUps: Map<string, PendingBudgetWrapUp>;
+	compactionActive: boolean;
+	compactionWork?: CompactionContinuationWork;
+	prequeuedCompactionKey?: string;
+	fallbackTimer?: ReturnType<typeof setTimeout>;
+	fallbackAttempts: number;
+	fallbackRetryDelaysMs: number[];
+};
+
+const continuationBySession = new Map<string, ContinuationSessionState>();
+
+function contState(): ContinuationSessionState {
+	const key = currentGoalSessionKey();
+	let state = continuationBySession.get(key);
+	if (!state) {
+		state = {
+			budgetWrapUps: new Map(),
+			compactionActive: false,
+			fallbackAttempts: 0,
+			fallbackRetryDelaysMs: [...DEFAULT_RETRY_DELAYS_MS],
+		};
+		continuationBySession.set(key, state);
+	}
+	return state;
+}
+
+function scheduleInSession(delayMs: number, fn: () => void): ReturnType<typeof setTimeout> {
+	const sessionKey = currentGoalSessionKey();
+	return setTimeout(() => {
+		runInGoalSession(sessionKey, fn);
+	}, delayMs);
+}
 
 export function beginGoalCompaction(pi: ExtensionAPI, ctx: ExtensionContext): void {
 	logRuntime("beginGoalCompaction.start");
-	compactionActive = true;
+	contState().compactionActive = true;
 	cancelFallbackTimer();
-	fallbackAttempts = 0;
-	prequeuedCompactionKey = undefined;
-	compactionWork = currentCompactionWork();
-	logRuntime("beginGoalCompaction.workSelected", workFields(compactionWork));
-	if (!compactionWork) return;
-	if (compactionWork.kind === "activeGoal" && pendingContinuation?.goalId === compactionWork.goalId) {
-		logRuntime("beginGoalCompaction.cancelPendingContinuation", { pendingGoalId: pendingContinuation.goalId, pendingReason: pendingContinuation.reason });
-		clearTimeout(pendingContinuation.timer);
-		pendingContinuation = undefined;
+	contState().fallbackAttempts = 0;
+	contState().prequeuedCompactionKey = undefined;
+	contState().compactionWork = currentCompactionWork();
+	logRuntime("beginGoalCompaction.workSelected", workFields(contState().compactionWork));
+	if (!contState().compactionWork) return;
+	if (contState().compactionWork.kind === "activeGoal" && contState().pendingContinuation?.goalId === contState().compactionWork.goalId) {
+		logRuntime("beginGoalCompaction.cancelPendingContinuation", { pendingGoalId: contState().pendingContinuation.goalId, pendingReason: contState().pendingContinuation.reason });
+		clearTimeout(contState().pendingContinuation.timer);
+		contState().pendingContinuation = undefined;
 	}
 	skip(pi, "compacting");
 	if (ctx.isIdle()) {
-		logRuntime("beginGoalCompaction.prequeueSkippedIdle", workFields(compactionWork));
-		return finishCompactionTelemetry(pi, "prequeue", compactionWork.key, 0, "prequeueSkippedIdle");
+		logRuntime("beginGoalCompaction.prequeueSkippedIdle", workFields(contState().compactionWork));
+		return finishCompactionTelemetry(pi, "prequeue", contState().compactionWork.key, 0, "prequeueSkippedIdle");
 	}
-	const prequeued = prequeueCompactionWork(pi, compactionWork);
-	if (prequeued) prequeuedCompactionKey = compactionWork.key;
-	logRuntime("beginGoalCompaction.end", { ...workFields(compactionWork), prequeued, prequeuedCompactionKey });
+	const prequeued = prequeueCompactionWork(pi, contState().compactionWork);
+	if (prequeued) contState().prequeuedCompactionKey = contState().compactionWork.key;
+	logRuntime("beginGoalCompaction.end", {
+		...workFields(contState().compactionWork),
+		prequeued,
+		prequeuedCompactionKey: contState().prequeuedCompactionKey,
+	});
 }
 
 export function finishGoalCompaction(pi: ExtensionAPI, ctx: ExtensionContext): void {
-	logRuntime("finishGoalCompaction.start", workFields(compactionWork));
-	compactionActive = false;
-	const work = compactionWork;
+	logRuntime("finishGoalCompaction.start", workFields(contState().compactionWork));
+	contState().compactionActive = false;
+	const work = contState().compactionWork;
 	if (!work) {
 		logRuntime("finishGoalCompaction.noWork");
 		return;
@@ -82,7 +113,7 @@ export function finishGoalCompaction(pi: ExtensionAPI, ctx: ExtensionContext): v
 		logRuntime("finishGoalCompaction.workNoLongerApplies", workFields(work));
 		return clearCompactionRuntime();
 	}
-	if (prequeuedCompactionKey === work.key) {
+	if (contState().prequeuedCompactionKey === work.key) {
 		logRuntime("finishGoalCompaction.prequeuedAlready", workFields(work));
 		finishCompactionTelemetry(pi, "fallbackFinished", work.key, 0, "prequeued");
 		return clearCompactionRuntime({ keepPrequeueKey: true });
@@ -123,32 +154,32 @@ export function scheduleMaybeContinueGoal(pi: ExtensionAPI, ctx: ExtensionContex
 		logRuntime("scheduleMaybeContinueGoal.immediate", { reason, goalId });
 		return;
 	}
-	const timer = setTimeout(() => {
-		if (pendingContinuation?.goalId === goalId) pendingContinuation = undefined;
+	const timer = scheduleInSession(25, () => {
+		if (contState().pendingContinuation?.goalId === goalId) contState().pendingContinuation = undefined;
 		void safelyRun(async () => { attemptContinueGoal(pi, ctx, reason, goalId); });
-	}, 25);
-	pendingContinuation = { goalId, reason, timer };
+	});
+	contState().pendingContinuation = { goalId, reason, timer };
 	logRuntime("scheduleMaybeContinueGoal.scheduled", { reason, goalId });
 }
 
 export function scheduleBudgetLimitWrapUp(pi: ExtensionAPI, ctx: ExtensionContext, goal: GoalState): void {
-	if (budgetWrapUps.has(goal.goalId)) return;
-	const timer = setTimeout(() => {
-		budgetWrapUps.delete(goal.goalId);
+	if (contState().budgetWrapUps.has(goal.goalId)) return;
+	const timer = scheduleInSession(25, () => {
+		contState().budgetWrapUps.delete(goal.goalId);
 		void safelyRun(() => maybeSendBudgetWrapUp(pi, ctx, goal.goalId));
-	}, 25);
-	budgetWrapUps.set(goal.goalId, { goalId: goal.goalId, timer });
+	});
+	contState().budgetWrapUps.set(goal.goalId, { goalId: goal.goalId, timer });
 }
 
 export function cancelGoalContinuation(goalId?: string, _reason = "cancelled"): void {
-	if (pendingContinuation && (!goalId || pendingContinuation.goalId === goalId)) {
-		clearTimeout(pendingContinuation.timer);
-		pendingContinuation = undefined;
+	if (contState().pendingContinuation && (!goalId || contState().pendingContinuation.goalId === goalId)) {
+		clearTimeout(contState().pendingContinuation.timer);
+		contState().pendingContinuation = undefined;
 	}
-	for (const [pendingGoalId, pending] of budgetWrapUps) {
+	for (const [pendingGoalId, pending] of contState().budgetWrapUps) {
 		if (!goalId || pendingGoalId === goalId) {
 			clearTimeout(pending.timer);
-			budgetWrapUps.delete(pendingGoalId);
+			contState().budgetWrapUps.delete(pendingGoalId);
 		}
 	}
 }
@@ -166,16 +197,17 @@ export function interruptActiveGoalTurn(pi: ExtensionAPI, ctx: ExtensionContext,
 export function resetContinuationRuntime(): void {
 	cancelGoalContinuation();
 	cancelFallbackTimer();
-	compactionActive = false;
-	compactionWork = undefined;
-	prequeuedCompactionKey = undefined;
-	fallbackAttempts = 0;
-	fallbackRetryDelaysMs = [...DEFAULT_RETRY_DELAYS_MS];
+	const state = contState();
+	state.compactionActive = false;
+	state.compactionWork = undefined;
+	state.prequeuedCompactionKey = undefined;
+	state.fallbackAttempts = 0;
+	state.fallbackRetryDelaysMs = [...DEFAULT_RETRY_DELAYS_MS];
 }
 
 export function setCompactionFallbackRetryDelaysForTests(delaysMs: number[]): void {
-	fallbackRetryDelaysMs = delaysMs.filter((delay) => Number.isFinite(delay) && delay >= 0);
-	if (fallbackRetryDelaysMs.length === 0) fallbackRetryDelaysMs = [...DEFAULT_RETRY_DELAYS_MS];
+	contState().fallbackRetryDelaysMs = delaysMs.filter((delay) => Number.isFinite(delay) && delay >= 0);
+	if (contState().fallbackRetryDelaysMs.length === 0) contState().fallbackRetryDelaysMs = [...DEFAULT_RETRY_DELAYS_MS];
 }
 
 function attemptContinueGoal(
@@ -191,9 +223,9 @@ function attemptContinueGoal(
 		skip(pi, "notActive");
 		return { kind: "terminalSkip", reason: "notActive" };
 	}
-	if (compactionActive) {
-		compactionWork = { kind: "activeGoal", goalId, key: activeGoalKey(goalId) };
-		logRuntime("attemptContinueGoal.skip.compacting", workFields(compactionWork));
+	if (contState().compactionActive) {
+		contState().compactionWork = { kind: "activeGoal", goalId, key: activeGoalKey(goalId) };
+		logRuntime("attemptContinueGoal.skip.compacting", workFields(contState().compactionWork));
 		skip(pi, "compacting");
 		return { kind: "terminalSkip", reason: "compacting" };
 	}
@@ -273,21 +305,26 @@ function prequeueCompactionWork(pi: ExtensionAPI, work: CompactionContinuationWo
 
 function scheduleCompactionFallbackRetry(pi: ExtensionAPI, ctx: ExtensionContext, work: CompactionContinuationWork): void {
 	cancelFallbackTimer();
-	const delay = fallbackRetryDelaysMs[Math.min(fallbackAttempts, fallbackRetryDelaysMs.length - 1)];
-	fallbackTimer = setTimeout(() => {
-		fallbackTimer = undefined;
+	const delay = contState().fallbackRetryDelaysMs[Math.min(contState().fallbackAttempts, contState().fallbackRetryDelaysMs.length - 1)];
+	contState().fallbackTimer = scheduleInSession(delay ?? 0, () => {
+		contState().fallbackTimer = undefined;
 		void safelyRun(async () => runCompactionFallbackAttempt(pi, ctx, work));
-	}, delay ?? 0);
+	});
 }
 
 async function runCompactionFallbackAttempt(pi: ExtensionAPI, ctx: ExtensionContext, work: CompactionContinuationWork): Promise<void> {
 	if (!compactionWorkStillApplies(work)) return finishAndClear(pi, work.key, "workChanged");
-	fallbackAttempts++;
-	finishCompactionTelemetry(pi, "fallbackRetry", work.key, fallbackAttempts);
+	contState().fallbackAttempts++;
+	finishCompactionTelemetry(pi, "fallbackRetry", work.key, contState().fallbackAttempts);
 	const result = work.kind === "activeGoal" ? attemptContinueGoal(pi, ctx, "compacted", work.goalId) : attemptQueueHandoff(pi, ctx, work);
-	logRuntime("runCompactionFallbackAttempt.result", { ...workFields(work), resultKind: result.kind, resultReason: result.kind === "sent" ? undefined : result.reason, fallbackAttempts });
+	logRuntime("runCompactionFallbackAttempt.result", {
+		...workFields(work),
+		resultKind: result.kind,
+		resultReason: result.kind === "sent" ? undefined : result.reason,
+		fallbackAttempts: contState().fallbackAttempts,
+	});
 	if (result.kind === "sent") return finishAndClear(pi, work.key, "sent");
-	if (result.kind === "transientSkip" && fallbackAttempts < fallbackRetryDelaysMs.length) {
+	if (result.kind === "transientSkip" && contState().fallbackAttempts < contState().fallbackRetryDelaysMs.length) {
 		scheduleCompactionFallbackRetry(pi, ctx, work);
 		return;
 	}
@@ -332,17 +369,18 @@ function sendContinuationMessage(pi: ExtensionAPI, goal: GoalState, telemetry: R
 }
 
 function workFields(work: CompactionContinuationWork | undefined): Record<string, string | number | boolean | undefined> {
+	const state = contState();
 	return {
 		compactionWorkKind: work?.kind,
 		compactionWorkGoalId: work?.goalId,
 		compactionWorkQueueId: work?.kind === "queueHandoff" ? work.queueId : undefined,
 		compactionWorkKey: work?.key,
-		compactionActive,
-		prequeuedCompactionKey,
-		fallbackAttempts,
-		pendingContinuationGoalId: pendingContinuation?.goalId,
-		pendingContinuationReason: pendingContinuation?.reason,
-		hasFallbackTimer: Boolean(fallbackTimer),
+		compactionActive: state.compactionActive,
+		prequeuedCompactionKey: state.prequeuedCompactionKey,
+		fallbackAttempts: state.fallbackAttempts,
+		pendingContinuationGoalId: state.pendingContinuation?.goalId,
+		pendingContinuationReason: state.pendingContinuation?.reason,
+		hasFallbackTimer: Boolean(state.fallbackTimer),
 	};
 }
 
@@ -358,8 +396,8 @@ function queueKey(queueId: string): string {
 }
 
 function finishAndClear(pi: ExtensionAPI, key: string, reason: string): void {
-	logRuntime("finishAndClear", { key, reason, fallbackAttempts });
-	finishCompactionTelemetry(pi, "fallbackFinished", key, fallbackAttempts, reason);
+	logRuntime("finishAndClear", { key, reason, fallbackAttempts: contState().fallbackAttempts });
+	finishCompactionTelemetry(pi, "fallbackFinished", key, contState().fallbackAttempts, reason);
 	clearCompactionRuntime();
 }
 
@@ -372,15 +410,15 @@ function finishCompactionTelemetry(pi: ExtensionAPI, action: "prequeue" | "fallb
 function clearCompactionRuntime(opts: { keepPrequeueKey?: boolean } = {}): void {
 	logRuntime("clearCompactionRuntime", { keepPrequeueKey: opts.keepPrequeueKey });
 	cancelFallbackTimer();
-	compactionWork = undefined;
-	if (!opts.keepPrequeueKey) prequeuedCompactionKey = undefined;
-	fallbackAttempts = 0;
+	contState().compactionWork = undefined;
+	if (!opts.keepPrequeueKey) contState().prequeuedCompactionKey = undefined;
+	contState().fallbackAttempts = 0;
 }
 
 function cancelFallbackTimer(): void {
-	if (!fallbackTimer) return;
-	clearTimeout(fallbackTimer);
-	fallbackTimer = undefined;
+	if (!contState().fallbackTimer) return;
+	clearTimeout(contState().fallbackTimer);
+	contState().fallbackTimer = undefined;
 }
 
 function shouldSuppressAgentEndContinuation(reason: ContinuationReason): boolean {

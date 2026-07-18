@@ -1,4 +1,5 @@
 import { TELEMETRY_SCHEMA_VERSION } from "./constants.js";
+import { currentGoalSessionKey } from "./session-scope.js";
 import type {
 	BudgetHardStopReason,
 	BudgetLimitReason,
@@ -13,15 +14,17 @@ import type {
 	TurnOrigin,
 } from "./types.js";
 
-let nextTurnOrigin: TurnOrigin = "user";
+/** Per-session one-shot origin handoff (auto / budgetWrapUp / user). */
+const nextTurnOriginBySession = new Map<string, TurnOrigin>();
 
 export function setNextTurnOrigin(origin: TurnOrigin): void {
-	nextTurnOrigin = origin;
+	nextTurnOriginBySession.set(currentGoalSessionKey(), origin);
 }
 
 export function consumeNextTurnOrigin(): TurnOrigin {
-	const origin = nextTurnOrigin;
-	nextTurnOrigin = "user";
+	const key = currentGoalSessionKey();
+	const origin = nextTurnOriginBySession.get(key) ?? "user";
+	nextTurnOriginBySession.set(key, "user");
 	return origin;
 }
 

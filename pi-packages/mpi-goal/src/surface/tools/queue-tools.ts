@@ -1,5 +1,6 @@
 import { Type } from "typebox";
 import { CreateGoalParams, EmptyParams, PostCompletionActionParam, PostCompletionContextParam } from "./schemas.js";
+import { withGoalSessionFromCtxAsync } from "../../domain/session-scope.js";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { validateObjective } from "../../domain/format.js";
 import { validateFloorConfig } from "../../domain/floor.js";
@@ -8,8 +9,8 @@ import { resolveGoalTemplateByName } from "../../templates/discover.js";
 import { buildDirectGoalIntent } from "../../domain/goal-intent.js";
 import { createPostCompletionActionStates, recordPostStartActionAnchors } from "../../runtime/post-completion.js";
 import { decideTerminalContinuationTicket, dispatchContinuationTicket, revalidateContinuationTicket, type ContinuationTicket } from "../../runtime/continuation-ticket.js";
-import { createGoalState, getGoal, getTelemetry, persistSetGoal } from "../../persistence/goal-store.js";
-import { enqueueGoal, dequeueGoal, removeGoal, persistEnqueue, persistDequeue, persistRemove, getQueue, type DequeueAudit, type QueuedGoal } from "../../persistence/queue-store.js";
+import { createGoalState, getGoal, getTelemetry, persistSetGoal, replayGoalState } from "../../persistence/goal-store.js";
+import { enqueueGoal, dequeueGoal, removeGoal, persistEnqueue, persistDequeue, persistRemove, getQueue, replayQueueState, type DequeueAudit, type QueuedGoal } from "../../persistence/queue-store.js";
 import type { GoalQueueSteeringSender, GoalState, GoalTelemetrySnapshot } from "../../domain/types.js";
 import { syncGoalUi } from "../ui/notify.js";
 
@@ -33,6 +34,16 @@ type GoalQueueToolRuntime = {
 	sendQueueHandoff?: GoalQueueSteeringSender;
 };
 
+
+async function withSessionTool<T>(ctx: ExtensionContext, run: () => Promise<T>): Promise<T> {
+	return withGoalSessionFromCtxAsync(ctx, async () => {
+		replayGoalState(ctx);
+		replayQueueState(ctx);
+		return run();
+	});
+}
+
+
 export function registerGoalQueueTools(pi: ExtensionAPI, runtime: GoalQueueToolRuntime = {}): void {
 	registerListGoalQueueTool(pi);
 	registerEnqueueGoalTool(pi);
@@ -49,8 +60,10 @@ function registerListGoalQueueTool(pi: ExtensionAPI): void {
 		promptSnippet: "Discover queued goals waiting to start after the current goal.",
 		promptGuidelines: ["Use only when the user explicitly asks to see or review the goal queue.", "Do not infer queue listing from ordinary task requests."],
 		parameters: EmptyParams,
-		async execute() {
-			return resultForQueue();
+		async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
+			return withSessionTool(ctx, async () => {
+				return resultForQueue();
+			});
 		},
 	});
 }
@@ -64,16 +77,19 @@ function registerEnqueueGoalTool(pi: ExtensionAPI): void {
 		promptGuidelines: ["Use only when the user explicitly asks to queue a goal for later, not for ordinary task requests.", "Fill flags and args from the user's prose, but ask for missing required values instead of guessing."],
 		parameters: CreateGoalParams,
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-			const intent = buildDirectGoalIntent({ objective: params.objective, postCompletionContext: params.post_completion_context, postCompletionActions: params.post_completion_actions });
-			if (!intent.ok) return errorResult(intent.error);
-			const validation = validateObjective(intent.intent.objective);
-			if (!validation.ok) return errorResult(validation.hint ? `${validation.message} ${validation.hint}` : validation.message);
-			const floorError = validateFloorConfig({ tokenBudget: params.token_budget, timeBudgetSeconds: params.time_budget_seconds, minTokensBeforeWrapUp: params.min_tokens_before_wrap_up, minTimeSecondsBeforeWrapUp: params.min_time_seconds_before_wrap_up });
-			if (floorError) return errorResult(floorError);
-			const queued = enqueueGoal(validation.objective, "tool", { tokenBudget: params.token_budget, timeBudgetSeconds: params.time_budget_seconds, minTokensBeforeWrapUp: params.min_tokens_before_wrap_up, minTimeSecondsBeforeWrapUp: params.min_time_seconds_before_wrap_up, postCompletionActions: intent.intent.postCompletionActions });
-			persistEnqueue(pi, queued);
-			syncGoalUi(ctx, getGoal());
-			return resultForQueuedGoal(queued);
+			return withSessionTool(ctx, async () => {
+				const intent = buildDirectGoalIntent({ objective: params.objective, postCompletionContext: params.post_completion_context, postCompletionActions: params.post_completion_actions });
+				if (!intent.ok) return errorResult(intent.error);
+				const validation = validateObjective(intent.intent.objective);
+				if (!validation.ok) return errorResult(validation.hint ? `${validation.message} ${validation.hint}` : validation.message);
+				const floorError = validateFloorConfig({ tokenBudget: params.token_budget, timeBudgetSeconds: params.time_budget_seconds, minTokensBeforeWrapUp: params.min_tokens_before_wrap_up, minTimeSecondsBeforeWrapUp: params.min_time_seconds_before_wrap_up });
+				if (floorError) return errorResult(floorError);
+				const queued = enqueueGoal(validation.objective, "tool", { tokenBudget: params.token_budget, timeBudgetSeconds: params.time_budget_seconds, minTokensBeforeWrapUp: params.min_tokens_before_wrap_up, minTimeSecondsBeforeWrapUp: params.min_time_seconds_before_wrap_up, postCompletionActions: intent.intent.postCompletionActions });
+				persistEnqueue(pi, queued);
+				syncGoalUi(ctx, getGoal());
+				return resultForQueuedGoal(queued);
+
+			});
 		},
 	});
 }
@@ -93,7 +109,10 @@ function registerStartQueuedGoalTool(pi: ExtensionAPI, runtime: GoalQueueToolRun
 		],
 		parameters: EmptyParams,
 		async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
-			return startQueuedGoal(pi, runtime, ctx);
+			return withSessionTool(ctx, async () => {
+				return startQueuedGoal(pi, runtime, ctx);
+
+			});
 		},
 	});
 }
@@ -111,14 +130,34 @@ function registerDequeueGoalTool(pi: ExtensionAPI, runtime: GoalQueueToolRuntime
 			"The rationale and authority arguments are saved to session history for auditability; be truthful and specific.",
 		],
 		parameters: DequeueGoalParams,
-			async execute(_toolCallId, params) {
-			const audit = validateDequeueAudit(params.rationale, params.authority);
-			if (!audit.ok) return errorResult(audit.error);
-			const dequeued = dequeueGoal();
-			if (!dequeued) return { content: [{ type: "text" as const, text: "No queued goals." }], details: { goal: getGoal(), telemetry: getTelemetry() } as QueueToolDetails };
-			persistDequeue(pi, "dequeued", { queueId: dequeued.queueId, audit: audit.value });
-			sendNextQueueHandoffAfterDequeue(pi, runtime);
-			return { content: [{ type: "text" as const, text: `Dequeued goal: ${dequeued.queueId}\nObjective: ${dequeued.objective}\nRationale: ${audit.value.rationale}\nAuthority: ${audit.value.authority}` }], details: { goal: getGoal(), telemetry: getTelemetry(), dequeued, dequeue_audit: audit.value } as QueueToolDetails };
+		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+			return withSessionTool(ctx, async () => {
+				const audit = validateDequeueAudit(params.rationale, params.authority);
+				if (!audit.ok) return errorResult(audit.error);
+				const dequeued = dequeueGoal();
+				if (!dequeued) {
+					return {
+						content: [{ type: "text" as const, text: "No queued goals." }],
+						details: { goal: getGoal(), telemetry: getTelemetry() } as QueueToolDetails,
+					};
+				}
+				persistDequeue(pi, "dequeued", { queueId: dequeued.queueId, audit: audit.value });
+				sendNextQueueHandoffAfterDequeue(pi, runtime);
+				return {
+					content: [
+						{
+							type: "text" as const,
+							text: `Dequeued goal: ${dequeued.queueId}\nObjective: ${dequeued.objective}\nRationale: ${audit.value.rationale}\nAuthority: ${audit.value.authority}`,
+						},
+					],
+					details: {
+						goal: getGoal(),
+						telemetry: getTelemetry(),
+						dequeued,
+						dequeue_audit: audit.value,
+					} as QueueToolDetails,
+				};
+			});
 		},
 	});
 }
@@ -131,11 +170,16 @@ function registerRemoveQueuedGoalTool(pi: ExtensionAPI): void {
 		promptSnippet: "Remove a specific queued goal by ID.",
 		promptGuidelines: ["Use only when the user explicitly asks to remove a specific queued goal."],
 		parameters: Type.Object({ queueId: Type.String({ description: "Queue ID of the goal to remove" }) }),
-		async execute(_toolCallId, params, _signal, _onUpdate, _ctx) {
-			const removed = removeGoal(params.queueId);
-			if (!removed) return errorResult(`No queued goal found with id ${params.queueId}.`);
-			persistRemove(pi, params.queueId, "tool_remove");
-			return { content: [{ type: "text" as const, text: `Removed queued goal: ${removed.queueId}` }], details: { goal: getGoal(), telemetry: getTelemetry() } as QueueToolDetails };
+		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+			return withSessionTool(ctx, async () => {
+				const removed = removeGoal(params.queueId);
+				if (!removed) return errorResult(`No queued goal found with id ${params.queueId}.`);
+				persistRemove(pi, params.queueId, "tool_remove");
+				return {
+					content: [{ type: "text" as const, text: `Removed queued goal: ${removed.queueId}` }],
+					details: { goal: getGoal(), telemetry: getTelemetry() } as QueueToolDetails,
+				};
+			});
 		},
 	});
 }

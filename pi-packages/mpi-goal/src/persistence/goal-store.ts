@@ -1,5 +1,6 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { STATE_ENTRY_TYPE, STATE_EVENT_VERSION } from "../domain/constants.js";
+import { currentGoalSessionKey } from "../domain/session-scope.js";
 import { isTelemetry } from "../domain/telemetry.js";
 import type { ContextResetMode, GoalRuntimeState, GoalState, GoalTelemetrySnapshot, MutationResult, PiGoalEventReason, PiGoalStateEvent, PostCompletionActionState, PostCompletionActionStatus } from "../domain/types.js";
 
@@ -14,28 +15,48 @@ export type CreateGoalStateInput = {
 	now?: number;
 };
 
-let runtimeState: GoalRuntimeState = { goal: null, telemetry: null };
+/** Per MixCode tab/session — process-global singleton would cross-contaminate tabs. */
+const runtimeStates = new Map<string, GoalRuntimeState>();
+
+function emptyRuntimeState(): GoalRuntimeState {
+	return { goal: null, telemetry: null };
+}
+
+function getMutableRuntimeState(): GoalRuntimeState {
+	const key = currentGoalSessionKey();
+	let state = runtimeStates.get(key);
+	if (!state) {
+		state = emptyRuntimeState();
+		runtimeStates.set(key, state);
+	}
+	return state;
+}
+
+function setMutableRuntimeState(state: GoalRuntimeState): void {
+	runtimeStates.set(currentGoalSessionKey(), state);
+}
 
 export function getGoal(): GoalState | null {
-	return runtimeState.goal;
+	return getMutableRuntimeState().goal;
 }
 
 export function getTelemetry(): GoalTelemetrySnapshot | null {
-	return runtimeState.telemetry;
+	return getMutableRuntimeState().telemetry;
 }
 
 export function getRuntimeState(): GoalRuntimeState {
-	return { goal: runtimeState.goal, telemetry: runtimeState.telemetry };
+	const state = getMutableRuntimeState();
+	return { goal: state.goal, telemetry: state.telemetry };
 }
 
 export function replayGoalState(ctx: ExtensionContext): GoalRuntimeState {
-	let next: GoalRuntimeState = { goal: null, telemetry: null };
+	let next: GoalRuntimeState = emptyRuntimeState();
 	for (const entry of ctx.sessionManager.getBranch()) {
 		const event = entryToGoalEvent(entry);
 		if (!event) continue;
 		next = applyEvent(next, event);
 	}
-	runtimeState = next;
+	setMutableRuntimeState(next);
 	return getRuntimeState();
 }
 
@@ -44,12 +65,12 @@ export function replayGoalState(ctx: ExtensionContext): GoalRuntimeState {
  * rebuild from the session branch. No-op when memory already has a goal.
  */
 export function ensureGoalHydrated(ctx: ExtensionContext): GoalRuntimeState {
-	if (runtimeState.goal) return getRuntimeState();
+	if (getMutableRuntimeState().goal) return getRuntimeState();
 	return replayGoalState(ctx);
 }
 
 export function setRuntimeStateForTests(state: GoalRuntimeState): void {
-	runtimeState = state;
+	setMutableRuntimeState(state);
 }
 
 export function createGoalState(input: CreateGoalStateInput): GoalState {
@@ -86,8 +107,9 @@ export function persistUpdateGoal(
 	telemetry: GoalTelemetrySnapshot | null,
 	reason: PiGoalEventReason,
 ): MutationResult {
-	if (runtimeState.goal && runtimeState.goal.goalId !== goal.goalId) {
-		return { ok: false, goal: runtimeState.goal, telemetry: runtimeState.telemetry, message: "Stale goal update ignored." };
+	const current = getMutableRuntimeState();
+	if (current.goal && current.goal.goalId !== goal.goalId) {
+		return { ok: false, goal: current.goal, telemetry: current.telemetry, message: "Stale goal update ignored." };
 	}
 	return persistEvent(pi, { kind: "update", goalId: goal.goalId, goal, telemetry, reason });
 }
@@ -97,9 +119,10 @@ export function persistTelemetry(
 	telemetry: GoalTelemetrySnapshot | null,
 	reason: PiGoalEventReason,
 ): MutationResult {
-	const goal = runtimeState.goal;
+	const current = getMutableRuntimeState();
+	const goal = current.goal;
 	if (!goal || !telemetry || telemetry.goalId !== goal.goalId) {
-		return { ok: false, goal, telemetry: runtimeState.telemetry, message: "Stale telemetry update ignored." };
+		return { ok: false, goal, telemetry: current.telemetry, message: "Stale telemetry update ignored." };
 	}
 	return persistEvent(pi, { kind: "telemetry", goalId: goal.goalId, goal, telemetry, reason });
 }
@@ -111,9 +134,9 @@ export function persistAccountGoal(
 	telemetry: GoalTelemetrySnapshot | null,
 	reason: PiGoalEventReason,
 ): MutationResult {
-	const current = runtimeState.goal;
+	const current = getMutableRuntimeState().goal;
 	if (!current || current.goalId !== goalId) {
-		return { ok: false, goal: current, telemetry: runtimeState.telemetry, message: "Stale accounting ignored." };
+		return { ok: false, goal: current, telemetry: getMutableRuntimeState().telemetry, message: "Stale accounting ignored." };
 	}
 	const goal: GoalState = {
 		...current,
@@ -125,7 +148,7 @@ export function persistAccountGoal(
 }
 
 export function persistClearGoal(pi: ExtensionAPI, reason: PiGoalEventReason): MutationResult {
-	return persistEvent(pi, { kind: "clear", goalId: runtimeState.goal?.goalId, goal: null, telemetry: null, reason });
+	return persistEvent(pi, { kind: "clear", goalId: getMutableRuntimeState().goal?.goalId, goal: null, telemetry: null, reason });
 }
 
 function persistEvent(
@@ -134,8 +157,9 @@ function persistEvent(
 ): MutationResult {
 	const event: PiGoalStateEvent = { version: STATE_EVENT_VERSION, at: Date.now(), ...input };
 	pi.appendEntry(STATE_ENTRY_TYPE, event);
-	runtimeState = applyEvent(runtimeState, event);
-	return { ok: true, goal: runtimeState.goal, telemetry: runtimeState.telemetry };
+	const next = applyEvent(getMutableRuntimeState(), event);
+	setMutableRuntimeState(next);
+	return { ok: true, goal: next.goal, telemetry: next.telemetry };
 }
 
 function applyEvent(state: GoalRuntimeState, event: PiGoalStateEvent): GoalRuntimeState {

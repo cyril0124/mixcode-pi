@@ -39,3 +39,7 @@ global database.
 in an active turn (including tool waits). It is *not* calendar time since the
 goal was created: idle between turns, paused time, and overnight gaps do not
 count. The UI label is **Active** to make that explicit.
+
+In-memory goal/queue state is keyed by Pi `sessionId` (via AsyncLocalStorage) so
+multiple MixCode tabs in one process do not share one another’s goal. `/goal`
+rehydrates from the current session branch before reading state.

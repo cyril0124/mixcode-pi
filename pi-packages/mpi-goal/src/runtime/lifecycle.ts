@@ -30,6 +30,13 @@ import {
 	AGENT_END_HANDOFF_DELAY_MS,
 } from "../domain/constants.js";
 import {
+	currentGoalSessionKey,
+	runInGoalSession,
+	runInGoalSessionAsync,
+	withGoalSessionFromCtx,
+	withGoalSessionFromCtxAsync,
+} from "../domain/session-scope.js";
+import {
 	beginActiveTime,
 	discardActiveTime,
 	isActiveTimeRunning,
@@ -50,16 +57,34 @@ import { applyTurnTelemetry, consumeNextTurnOrigin, makeTurnSnapshot, noteBudget
 import { notifyWarning, promptContinueActiveGoal, promptResumePausedGoal, syncGoalUi } from "../surface/ui/notify.js";
 import type { BudgetHardStopReason, BudgetLimitReason, BudgetPressure, GoalState, GoalTelemetrySnapshot, PiGoalEventReason, StreamBudgetSignal, TurnAccountingSnapshot } from "../domain/types.js";
 
-let activeTurn: TurnAccountingSnapshot | null = null;
-let streamBudgetSignalsSent: Set<StreamBudgetSignal> = new Set();
-/** agent_end arms this; agent_settled clears it. Fallback fires if settled never arrives. */
-let pendingAgentEndContinue:
-	| { goalId: string; timer: ReturnType<typeof setTimeout>; pi: ExtensionAPI; ctx: ExtensionContext }
-	| undefined;
-/** True after agent_end for an active goal until continue is dispatched once. */
-let expectAgentEndContinue = false;
-/** Prevents double continue when both settled and fallback run. */
-let agentEndContinueDispatched = false;
+type LifecycleSessionState = {
+	activeTurn: TurnAccountingSnapshot | null;
+	streamBudgetSignalsSent: Set<StreamBudgetSignal>;
+	pendingAgentEndContinue:
+		| { goalId: string; timer: ReturnType<typeof setTimeout>; pi: ExtensionAPI; ctx: ExtensionContext }
+		| undefined;
+	expectAgentEndContinue: boolean;
+	agentEndContinueDispatched: boolean;
+};
+
+const lifecycleBySession = new Map<string, LifecycleSessionState>();
+
+function lifecycleState(): LifecycleSessionState {
+	const key = currentGoalSessionKey();
+	let state = lifecycleBySession.get(key);
+	if (!state) {
+		state = {
+			activeTurn: null,
+			streamBudgetSignalsSent: new Set(),
+			pendingAgentEndContinue: undefined,
+			expectAgentEndContinue: false,
+			agentEndContinueDispatched: false,
+		};
+		lifecycleBySession.set(key, state);
+	}
+	return state;
+}
+
 const AGENT_SETTLED_CONTINUE_FALLBACK_MS = 500;
 
 /** Persist whole active seconds if any; O(1). Returns seconds written. */
@@ -92,37 +117,61 @@ export function registerGoalLifecycle(
 ): void {
 	const onStateRestored = options.onStateRestored;
 	pi.on("session_start", async (event, ctx) => {
-		await handleSessionStart(pi, event, ctx);
-		onStateRestored?.();
+		await withGoalSessionFromCtxAsync(ctx, async () => {
+			await handleSessionStart(pi, event, ctx);
+			onStateRestored?.();
+		});
 	});
 	pi.on("session_tree", async (_event, ctx) => {
-		const state = replayGoalState(ctx);
-		replayQueueState(ctx);
-		syncGoalUi(ctx, state.goal);
-		onStateRestored?.();
+		await withGoalSessionFromCtxAsync(ctx, async () => {
+			const state = replayGoalState(ctx);
+			replayQueueState(ctx);
+			syncGoalUi(ctx, state.goal);
+			onStateRestored?.();
+		});
 	});
 	pi.on("session_before_compact", (_event, ctx) => {
-		flushGoalActiveTime(pi, "compact");
-		beginGoalCompaction(pi, ctx);
+		withGoalSessionFromCtx(ctx, () => {
+			flushGoalActiveTime(pi, "compact");
+			beginGoalCompaction(pi, ctx);
+		});
 	});
 	pi.on("session_compact", async (_event, ctx) => {
-		handleSessionCompact(pi, ctx);
-		onStateRestored?.();
+		await withGoalSessionFromCtxAsync(ctx, async () => {
+			handleSessionCompact(pi, ctx);
+			onStateRestored?.();
+		});
 	});
 	pi.on("turn_start", (event, ctx) => {
-		handleTurnStart(pi, event, ctx);
-		streamBudgetSignalsSent.clear();
+		withGoalSessionFromCtx(ctx, () => {
+			handleTurnStart(pi, event, ctx);
+			lifecycleState().streamBudgetSignalsSent.clear();
+		});
 	});
-	pi.on("tool_call", (event) => handleToolCall(event));
-	pi.on("tool_result", (event) => handleToolResult(pi, event));
-	pi.on("turn_end", async (event, ctx) => handleTurnEnd(pi, event, ctx, postCompletionRunner));
+	pi.on("tool_call", (event, ctx) => {
+		withGoalSessionFromCtx(ctx, () => handleToolCall(event));
+	});
+	pi.on("tool_result", (event, ctx) => {
+		withGoalSessionFromCtx(ctx, () => handleToolResult(pi, event));
+	});
+	pi.on("turn_end", async (event, ctx) => {
+		await withGoalSessionFromCtxAsync(ctx, async () => handleTurnEnd(pi, event, ctx, postCompletionRunner));
+	});
 	// agent_end fires while isIdle is still false (Pi keeps the run active until
 	// post-run work finishes). Queue handoff can still arm on agent_end; auto-continue
 	// must wait for agent_settled so attemptContinueGoal does not silent-skip notIdle.
-	pi.on("agent_end", async (_event, ctx) => handleAgentEnd(pi, ctx, postCompletionRunner));
-	pi.on("agent_settled", async (_event, ctx) => handleAgentSettled(pi, ctx));
-	pi.on("message_update", (event, ctx) => handleMessageUpdate(pi, event, ctx));
-	pi.on("context", (event) => filterGoalContext(event));
+	pi.on("agent_end", async (_event, ctx) => {
+		await withGoalSessionFromCtxAsync(ctx, async () => handleAgentEnd(pi, ctx, postCompletionRunner));
+	});
+	pi.on("agent_settled", async (_event, ctx) => {
+		await withGoalSessionFromCtxAsync(ctx, async () => handleAgentSettled(pi, ctx));
+	});
+	pi.on("message_update", (event, ctx) => {
+		withGoalSessionFromCtx(ctx, () => handleMessageUpdate(pi, event, ctx));
+	});
+	pi.on("context", (event, ctx) => {
+		return withGoalSessionFromCtx(ctx, () => filterGoalContext(event));
+	});
 }
 
 async function handleSessionStart(pi: ExtensionAPI, event: SessionStartEvent, ctx: ExtensionContext): Promise<void> {
@@ -167,10 +216,13 @@ async function handleAgentEnd(pi: ExtensionAPI, ctx: ExtensionContext, postCompl
 	const queueLength = getQueue().length;
 	if (reason && goal && queueLength > 0) {
 		clearPendingAgentEndContinue();
-		expectAgentEndContinue = false;
-		agentEndContinueDispatched = true;
+		lifecycleState().expectAgentEndContinue = false;
+		lifecycleState().agentEndContinueDispatched = true;
+		const sessionKey = currentGoalSessionKey();
 		setTimeout(() => {
-			void processTerminalGoalWorkflow(pi, ctx, { goal, reason: "turn", runner: postCompletionRunner });
+			void runInGoalSessionAsync(sessionKey, async () => {
+				await processTerminalGoalWorkflow(pi, ctx, { goal, reason: "turn", runner: postCompletionRunner });
+			});
 		}, AGENT_END_HANDOFF_DELAY_MS);
 		return;
 	}
@@ -185,44 +237,47 @@ async function handleAgentSettled(pi: ExtensionAPI, ctx: ExtensionContext): Prom
 
 function armPendingAgentEndContinue(pi: ExtensionAPI, ctx: ExtensionContext, goal: GoalState | null): void {
 	clearPendingAgentEndContinue();
-	agentEndContinueDispatched = false;
+	lifecycleState().agentEndContinueDispatched = false;
 	if (!goal || goal.status !== "active") {
-		expectAgentEndContinue = false;
+		lifecycleState().expectAgentEndContinue = false;
 		return;
 	}
-	expectAgentEndContinue = true;
+	lifecycleState().expectAgentEndContinue = true;
 	const goalId = goal.goalId;
+	const sessionKey = currentGoalSessionKey();
 	const timer = setTimeout(() => {
-		if (!pendingAgentEndContinue || pendingAgentEndContinue.goalId !== goalId) return;
-		pendingAgentEndContinue = undefined;
-		dispatchAgentEndContinue(pi, ctx);
+		runInGoalSession(sessionKey, () => {
+			if (!lifecycleState().pendingAgentEndContinue || lifecycleState().pendingAgentEndContinue.goalId !== goalId) return;
+			lifecycleState().pendingAgentEndContinue = undefined;
+			dispatchAgentEndContinue(pi, ctx);
+		});
 	}, AGENT_SETTLED_CONTINUE_FALLBACK_MS);
-	pendingAgentEndContinue = { goalId, timer, pi, ctx };
+	lifecycleState().pendingAgentEndContinue = { goalId, timer, pi, ctx };
 }
 
 function dispatchAgentEndContinue(pi: ExtensionAPI, ctx: ExtensionContext): void {
-	if (!expectAgentEndContinue || agentEndContinueDispatched) return;
+	if (!lifecycleState().expectAgentEndContinue || lifecycleState().agentEndContinueDispatched) return;
 	ensureGoalHydrated(ctx);
 	const goal = getGoal();
 	if (!goal || goal.status !== "active") return;
-	agentEndContinueDispatched = true;
-	expectAgentEndContinue = false;
+	lifecycleState().agentEndContinueDispatched = true;
+	lifecycleState().expectAgentEndContinue = false;
 	// Queue handoff for a completed/budget-limited goal is started from agent_end;
 	// only active goals need the settle-time continuation nudge.
 	scheduleMaybeContinueGoal(pi, ctx, "agentEnd");
 }
 
 function clearPendingAgentEndContinue(): void {
-	if (!pendingAgentEndContinue) return;
-	clearTimeout(pendingAgentEndContinue.timer);
-	pendingAgentEndContinue = undefined;
+	if (!lifecycleState().pendingAgentEndContinue) return;
+	clearTimeout(lifecycleState().pendingAgentEndContinue.timer);
+	lifecycleState().pendingAgentEndContinue = undefined;
 }
 
 function handleTurnStart(pi: ExtensionAPI, event: TurnStartEvent, ctx: ExtensionContext): void {
 	ensureGoalHydrated(ctx);
 	const goal = getGoal();
 	if (!goal) {
-		activeTurn = null;
+		lifecycleState().activeTurn = null;
 		discardActiveTime();
 		return;
 	}
@@ -230,14 +285,14 @@ function handleTurnStart(pi: ExtensionAPI, event: TurnStartEvent, ctx: Extension
 	// still works during the budget wrap-up turn. Paused and completed goals are
 	// excluded because no agent work should be in progress for them.
 	if (goal.status !== "active" && goal.status !== "budgetLimited") {
-		activeTurn = null;
+		lifecycleState().activeTurn = null;
 		discardActiveTime();
 		return;
 	}
 	// If a previous turn left the clock running (missing turn_end), bill residual first.
 	if (isActiveTimeRunning()) flushGoalActiveTime(pi, "turn");
 	const startedAt = event.timestamp || Date.now();
-	activeTurn = makeTurnSnapshot(goal.goalId, consumeNextTurnOrigin(), startedAt);
+	lifecycleState().activeTurn = makeTurnSnapshot(goal.goalId, consumeNextTurnOrigin(), startedAt);
 	beginActiveTime(startedAt);
 }
 
@@ -258,8 +313,8 @@ function handleMessageUpdate(pi: ExtensionAPI, event: MessageUpdateEvent, ctx: E
 
 	if (isBudgetHardStop(pressure.kind)) {
 		// Skip if already handled by a prior stream event or turn_end.
-		if (streamBudgetSignalsSent.has("hardStop") || getTelemetry()?.lastBudgetHardStopReason) return;
-		streamBudgetSignalsSent.add("hardStop");
+		if (lifecycleState().streamBudgetSignalsSent.has("hardStop") || getTelemetry()?.lastBudgetHardStopReason) return;
+		lifecycleState().streamBudgetSignalsSent.add("hardStop");
 		// Commit live time before status change so used matches the stop decision.
 		flushGoalActiveTime(pi, "budget");
 		const billed = getGoal() ?? goal;
@@ -283,8 +338,8 @@ function handleMessageUpdate(pi: ExtensionAPI, event: MessageUpdateEvent, ctx: E
 	// mid-stream. State transition to budgetLimited happens at turn_end, not here,
 	// because the wrap-up turn needs to complete so the agent can summarize progress.
 	if (isBudgetReached(pressure.kind)) {
-		if (streamBudgetSignalsSent.has("reached")) return;
-		streamBudgetSignalsSent.add("reached");
+		if (lifecycleState().streamBudgetSignalsSent.has("reached")) return;
+		lifecycleState().streamBudgetSignalsSent.add("reached");
 		const prompt = buildBudgetLimitPrompt(estimated);
 		pi.sendMessage(
 			{ customType: BUDGET_LIMIT_MESSAGE_TYPE, content: prompt.content, display: false, details: prompt.details },
@@ -296,12 +351,12 @@ function handleMessageUpdate(pi: ExtensionAPI, event: MessageUpdateEvent, ctx: E
 	// Warning: Two dedup layers — (1) per-stream signal tracker prevents repeat
 	// mid-turn, (2) telemetry flags prevent re-sending if turn_end already warned.
 	if (isBudgetWarning(pressure.kind)) {
-		if (streamBudgetSignalsSent.has("warning")) return;
+		if (lifecycleState().streamBudgetSignalsSent.has("warning")) return;
 		const telemetry = getTelemetry();
 		if (pressure.kind === "tokenWarning" && telemetry?.tokenBudgetWarningSent) return;
 		if (pressure.kind === "timeWarning" && telemetry?.timeBudgetWarningSent) return;
 
-		streamBudgetSignalsSent.add("warning");
+		lifecycleState().streamBudgetSignalsSent.add("warning");
 		const resource = pressure.kind.startsWith("time") ? "Time" : "Token";
 		const remaining = Math.max(0, Math.floor(pressure.remaining ?? 0));
 		const unit = pressure.kind.startsWith("time") ? "seconds" : "tokens";
@@ -314,28 +369,28 @@ function handleMessageUpdate(pi: ExtensionAPI, event: MessageUpdateEvent, ctx: E
 }
 
 function handleToolCall(_event: ToolCallEvent): void {
-	if (!activeTurn) return;
-	activeTurn.toolCallCount++;
+	if (!lifecycleState().activeTurn) return;
+	lifecycleState().activeTurn.toolCallCount++;
 }
 
 function handleToolResult(pi: ExtensionAPI, event: ToolResultEvent): void {
-	if (!activeTurn) return;
-	activeTurn.toolResultCount++;
+	if (!lifecycleState().activeTurn) return;
+	lifecycleState().activeTurn.toolResultCount++;
 	// Mid-turn checkpoint: persist only whole seconds (avoids per-tool write storms).
 	if (liveActiveExtraSeconds() >= 1) flushGoalActiveTime(pi, "turn");
 	if (event.isError) return;
 	if (event.toolName === "update_goal") return noteGoalUpdateResult(event.details);
-	activeTurn.progressCount++;
+	lifecycleState().activeTurn.progressCount++;
 }
 
 function noteGoalUpdateResult(details: unknown): void {
-	if (!activeTurn || hasToolError(details)) return;
+	if (!lifecycleState().activeTurn || hasToolError(details)) return;
 	if (typeof details !== "object" || details === null) return;
 	const result = details as Record<string, unknown>;
 	const goal = result.goal;
 	if (typeof goal === "object" && goal !== null) {
-		activeTurn.progressCount++;
-		if ((goal as Record<string, unknown>).status === "complete") activeTurn.completedGoal = true;
+		lifecycleState().activeTurn.progressCount++;
+		if ((goal as Record<string, unknown>).status === "complete") lifecycleState().activeTurn.completedGoal = true;
 	}
 }
 
@@ -344,8 +399,8 @@ function hasToolError(details: unknown): boolean {
 }
 
 async function handleTurnEnd(pi: ExtensionAPI, event: TurnEndEvent, ctx: ExtensionContext, postCompletionRunner: PostCompletionActionRunner): Promise<void> {
-	const turn = activeTurn;
-	activeTurn = null;
+	const turn = lifecycleState().activeTurn;
+	lifecycleState().activeTurn = null;
 	if (!turn) {
 		// No tracked turn — still stop the clock so idle is not billed.
 		flushAndStopGoalActiveTime(pi, "turn");

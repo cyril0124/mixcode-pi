@@ -1,5 +1,6 @@
 import { CreateGoalFromTemplateParams, CreateGoalParams, EmptyParams, NullableNumber, UpdateGoalParams } from "./schemas.js";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { withGoalSessionFromCtxAsync } from "../../domain/session-scope.js";
 import { validateObjective } from "../../domain/format.js";
 import { isBudgetExhausted, canActivateGoal } from "../../domain/budget.js";
 import { decideGoalCompletion, type CompletionDecision } from "../../domain/completion-gate.js";
@@ -9,7 +10,8 @@ import { listGoalTemplateMetadata } from "../../templates/discover.js";
 import { buildDirectGoalIntent, buildTemplateGoalIntent } from "../../domain/goal-intent.js";
 import { createPostCompletionActionStates, recordPostStartActionAnchors, type PostCompletionActionRunner } from "../../runtime/post-completion.js";
 import { flushAndStopGoalActiveTime } from "../../runtime/lifecycle.js";
-import { createGoalState, getGoal, getTelemetry, persistClearGoal, persistSetGoal, persistTelemetry, persistUpdateGoal } from "../../persistence/goal-store.js";
+import { createGoalState, getGoal, getTelemetry, persistClearGoal, persistSetGoal, persistTelemetry, persistUpdateGoal, replayGoalState } from "../../persistence/goal-store.js";
+import { replayQueueState } from "../../persistence/queue-store.js";
 import { registerGoalQueueTools } from "./queue-tools.js";
 import { syncGoalUi } from "../ui/notify.js";
 import { errorResult, formatToolGoal, remainingTime, remainingTokens, resultForGoal, resultForTemplates, type ToolDetails } from "./results.js";
@@ -24,6 +26,18 @@ type GoalToolRuntime = {
 	sendQueueHandoff?: GoalQueueSteeringSender;
 	postCompletionRunner?: PostCompletionActionRunner;
 };
+
+async function withSessionTool<T>(
+	ctx: ExtensionContext,
+	run: () => Promise<T>,
+): Promise<T> {
+	return withGoalSessionFromCtxAsync(ctx, async () => {
+		replayGoalState(ctx);
+		replayQueueState(ctx);
+		return run();
+	});
+}
+
 
 export function registerGoalTools(pi: ExtensionAPI, runtime: GoalToolRuntime = {}): void {
 	registerGetGoalTool(pi);
@@ -43,8 +57,10 @@ function registerGetGoalTool(pi: ExtensionAPI): void {
 		promptSnippet: "Inspect the active mpi-goal objective and progress state.",
 		promptGuidelines: ["Use get_goal to inspect an explicit active goal before deciding whether it is complete."],
 		parameters: EmptyParams,
-		async execute() {
-			return resultForGoal(getGoal(), getTelemetry());
+		async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
+			return withSessionTool(ctx, async () => {
+				return resultForGoal(getGoal(), getTelemetry());
+			});
 		},
 	});
 }
@@ -80,7 +96,10 @@ function registerCreateGoalTool(pi: ExtensionAPI, runtime: GoalToolRuntime): voi
 		],
 		parameters: CreateGoalParams,
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-			return createGoalFromTool(pi, runtime, params, ctx);
+			return withSessionTool(ctx, async () => {
+				return createGoalFromTool(pi, runtime, params, ctx);
+
+			});
 		},
 	});
 }
@@ -99,7 +118,10 @@ function registerCreateGoalFromTemplateTool(pi: ExtensionAPI, runtime: GoalToolR
 		],
 		parameters: CreateGoalFromTemplateParams,
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-			return createGoalFromTemplateTool(pi, runtime, params, ctx);
+			return withSessionTool(ctx, async () => {
+				return createGoalFromTemplateTool(pi, runtime, params, ctx);
+
+			});
 		},
 	});
 }
@@ -113,7 +135,10 @@ function registerUpdateGoalTool(pi: ExtensionAPI, runtime: GoalToolRuntime): voi
 		promptGuidelines: updateGoalGuidelines(),
 		parameters: UpdateGoalParams,
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-			return updateGoalFromTool(pi, runtime, params, ctx);
+			return withSessionTool(ctx, async () => {
+				return updateGoalFromTool(pi, runtime, params, ctx);
+
+			});
 		},
 	});
 }
@@ -130,15 +155,18 @@ function registerClearGoalTool(pi: ExtensionAPI, runtime: GoalToolRuntime): void
 		],
 		parameters: EmptyParams,
 		async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
-			const goal = getGoal();
-			runtime.cancelContinuation?.(goal?.goalId, "tool-clear");
-			flushAndStopGoalActiveTime(pi, "tool");
-			persistClearGoal(pi, "tool");
-			syncGoalUi(ctx, null);
-			const queueSize = runtime.getQueueSize?.() ?? 0;
-			if (queueSize > 0) runtime.sendQueueSteering?.("goal-clear");
-			const queueHint = queueSize > 0 ? ` ${queueSize} queued goal${queueSize > 1 ? "s" : ""} available. Queue steering was sent to the agent context.` : "";
-			return resultForGoal(null, getTelemetry(), goal ? `Goal cleared.${queueHint}` : `No goal was set.${queueHint}`);
+			return withSessionTool(ctx, async () => {
+				const goal = getGoal();
+				runtime.cancelContinuation?.(goal?.goalId, "tool-clear");
+				flushAndStopGoalActiveTime(pi, "tool");
+				persistClearGoal(pi, "tool");
+				syncGoalUi(ctx, null);
+				const queueSize = runtime.getQueueSize?.() ?? 0;
+				if (queueSize > 0) runtime.sendQueueSteering?.("goal-clear");
+				const queueHint = queueSize > 0 ? ` ${queueSize} queued goal${queueSize > 1 ? "s" : ""} available. Queue steering was sent to the agent context.` : "";
+				return resultForGoal(null, getTelemetry(), goal ? `Goal cleared.${queueHint}` : `No goal was set.${queueHint}`);
+
+			});
 		},
 	});
 }

@@ -1,5 +1,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { STATE_ENTRY_TYPE } from "../domain/constants.js";
+import { currentGoalSessionKey } from "../domain/session-scope.js";
 import type { PostCompletionActionSpec } from "../domain/types.js";
 
 export type QueuedGoal = {
@@ -64,19 +65,30 @@ export type GoalQueueRuntimeState = {
 };
 
 let queueCounter = 0;
-let runtimeQueue: QueuedGoal[] = [];
-let runtimeQueueRevision = 0;
+
+type QueueRuntime = { queue: QueuedGoal[]; revision: number };
+const queueRuntimes = new Map<string, QueueRuntime>();
+
+function getQueueRuntime(): QueueRuntime {
+	const key = currentGoalSessionKey();
+	let runtime = queueRuntimes.get(key);
+	if (!runtime) {
+		runtime = { queue: [], revision: 0 };
+		queueRuntimes.set(key, runtime);
+	}
+	return runtime;
+}
 
 function generateQueueId(): string {
 	return `q-${Date.now()}-${++queueCounter}`;
 }
 
 export function getQueue(): QueuedGoal[] {
-	return runtimeQueue;
+	return getQueueRuntime().queue;
 }
 
 export function getQueueRevision(): number {
-	return runtimeQueueRevision;
+	return getQueueRuntime().revision;
 }
 
 export function cloneQueuedGoal(goal: QueuedGoal): QueuedGoal {
@@ -103,31 +115,33 @@ export function enqueueGoal(objective: string, source: "command" | "tool", opts?
 		postCompletionContext: opts?.postCompletionContext,
 		createdAt: Date.now(),
 	};
-	runtimeQueue.push(goal);
+	getQueueRuntime().queue.push(goal);
 	incrementQueueRevision();
 	return goal;
 }
 
 export function dequeueGoal(): QueuedGoal | undefined {
-	const removed = runtimeQueue.shift();
+	const removed = getQueueRuntime().queue.shift();
 	if (removed) incrementQueueRevision();
 	return removed;
 }
 
 export function removeGoal(queueId: string): QueuedGoal | undefined {
-	const index = runtimeQueue.findIndex((g) => g.queueId === queueId);
+	const queue = getQueueRuntime().queue;
+	const index = queue.findIndex((g) => g.queueId === queueId);
 	if (index === -1) return undefined;
-	const removed = runtimeQueue.splice(index, 1)[0];
+	const removed = queue.splice(index, 1)[0];
 	if (removed) incrementQueueRevision();
 	return removed;
 }
 
 export function restoreQueueHeadForRepair(pi: ExtensionAPI, goal: QueuedGoal, reason: string): QueueRepairResult {
-	const head = runtimeQueue[0];
+	const queue = getQueueRuntime().queue;
+	const head = queue[0];
 	if (head?.queueId === goal.queueId) return { status: "already_present", queueId: goal.queueId };
 	if (head) return { status: "blocked_different_head", queueId: goal.queueId, currentHeadId: head.queueId };
 	const restored = cloneQueuedGoal(goal);
-	runtimeQueue.unshift(restored);
+	queue.unshift(restored);
 	incrementQueueRevision();
 	persistRepairHead(pi, restored, reason);
 	return { status: "restored", queueId: restored.queueId };
@@ -149,14 +163,16 @@ export function replayQueueState(ctx: { sessionManager: { getBranch(): unknown[]
 		queue = applyQueueEvent(queue, event);
 		revision++;
 	}
-	runtimeQueue = queue;
-	runtimeQueueRevision = revision;
+	const runtime = getQueueRuntime();
+	runtime.queue = queue;
+	runtime.revision = revision;
 	return { queue, revision };
 }
 
 export function setQueueForTests(state: GoalQueueRuntimeState): void {
-	runtimeQueue = state.queue;
-	runtimeQueueRevision = state.revision ?? 0;
+	const runtime = getQueueRuntime();
+	runtime.queue = state.queue;
+	runtime.revision = state.revision ?? 0;
 }
 
 export function persistEnqueue(pi: ExtensionAPI, goal: QueuedGoal): void {
@@ -176,7 +192,7 @@ function persistRepairHead(pi: ExtensionAPI, goal: QueuedGoal, reason: string): 
 }
 
 function incrementQueueRevision(): void {
-	runtimeQueueRevision++;
+	getQueueRuntime().revision++;
 }
 
 function entryToQueueEvent(entry: unknown): GoalQueueEvent | null {
