@@ -311,7 +311,9 @@ function formatTabStatusChip(tab: MixCodeState["tabs"][number]): string {
   if (tab.unreadDone && (tab.status === "idle" || tab.status === "done")) {
     return activeRenderTheme.tool("[done]");
   }
-  if (tab.status === "error" || (tab.status === "idle" && hasPreviewError(tab))) {
+  // Only the live tab status owns the error chip. Do not infer error from
+  // historical system messages — recovered sessions stay idle/done.
+  if (tab.status === "error") {
     return activeRenderTheme.danger("[error]");
   }
   const text = `[${tab.status}]`;
@@ -319,20 +321,11 @@ function formatTabStatusChip(tab: MixCodeState["tabs"][number]): string {
     case "running":
     case "thinking":
       return activeRenderTheme.accent(text);
-    case "error":
-      return activeRenderTheme.danger(text);
     case "done":
       return activeRenderTheme.tool(text);
     default:
       return activeRenderTheme.dim(text);
   }
-}
-
-function hasPreviewError(tab: MixCodeState["tabs"][number]): boolean {
-  return tab.previewMessages.some(
-    (message) =>
-      message.role === "system" && /\berror\b/i.test(message.text ?? ""),
-  );
 }
 
 function projectName(tab: MixCodeState["tabs"][number]): string {
