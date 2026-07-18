@@ -29,6 +29,15 @@ import {
 	QUEUE_MESSAGE_TYPE,
 	AGENT_END_HANDOFF_DELAY_MS,
 } from "../domain/constants.js";
+import {
+	beginActiveTime,
+	discardActiveTime,
+	isActiveTimeRunning,
+	liveActiveExtraSeconds,
+	stopActiveTime,
+	takeActiveElapsedSeconds,
+	withLiveActiveTime,
+} from "../domain/active-time.js";
 import { evaluateBudgetPressure, isBudgetHardStop, isBudgetReached, isBudgetWarning, queueHandoffReason } from "../domain/budget.js";
 import { beginGoalCompaction, cancelGoalContinuation, finishGoalCompaction, interruptActiveGoalTurn, scheduleBudgetLimitWrapUp, scheduleMaybeContinueGoal } from "./continuation.js";
 import { buildBudgetLimitPrompt } from "./prompts.js";
@@ -39,10 +48,28 @@ import { createNoopPostCompletionActionRunner, type PostCompletionActionRunner }
 import { processTerminalGoalWorkflow } from "./terminal-workflow.js";
 import { applyTurnTelemetry, consumeNextTurnOrigin, makeTurnSnapshot, noteBudgetHardStop, noteBudgetLimit, noteBudgetWarning, noteSafetyPause } from "../domain/telemetry.js";
 import { notifyWarning, promptContinueActiveGoal, promptResumePausedGoal, syncGoalUi } from "../surface/ui/notify.js";
-import type { BudgetHardStopReason, BudgetLimitReason, BudgetPressure, GoalState, GoalTelemetrySnapshot, StreamBudgetSignal, TurnAccountingSnapshot } from "../domain/types.js";
+import type { BudgetHardStopReason, BudgetLimitReason, BudgetPressure, GoalState, GoalTelemetrySnapshot, PiGoalEventReason, StreamBudgetSignal, TurnAccountingSnapshot } from "../domain/types.js";
 
 let activeTurn: TurnAccountingSnapshot | null = null;
 let streamBudgetSignalsSent: Set<StreamBudgetSignal> = new Set();
+
+/** Persist whole active seconds if any; O(1). Returns seconds written. */
+export function flushGoalActiveTime(pi: ExtensionAPI, reason: PiGoalEventReason = "turn"): number {
+	const goal = getGoal();
+	if (!goal || (goal.status !== "active" && goal.status !== "budgetLimited")) {
+		return 0;
+	}
+	const elapsed = takeActiveElapsedSeconds();
+	if (elapsed <= 0) return 0;
+	persistAccountGoal(pi, goal.goalId, { timeUsedSeconds: elapsed }, getTelemetry(), reason);
+	return elapsed;
+}
+
+/** Flush then stop the active-time clock (pause/clear/end of turn idle). */
+export function flushAndStopGoalActiveTime(pi: ExtensionAPI, reason: PiGoalEventReason = "turn"): void {
+	flushGoalActiveTime(pi, reason);
+	stopActiveTime();
+}
 
 export type GoalLifecycleOptions = {
 	/** Invoked after goal/queue state is restored from the session branch. */
@@ -66,15 +93,19 @@ export function registerGoalLifecycle(
 		onStateRestored?.();
 	});
 	pi.on("session_before_compact", (_event, ctx) => {
+		flushGoalActiveTime(pi, "compact");
 		beginGoalCompaction(pi, ctx);
 	});
 	pi.on("session_compact", async (_event, ctx) => {
 		handleSessionCompact(pi, ctx);
 		onStateRestored?.();
 	});
-	pi.on("turn_start", (event) => { handleTurnStart(event); streamBudgetSignalsSent.clear(); });
+	pi.on("turn_start", (event) => {
+		handleTurnStart(pi, event);
+		streamBudgetSignalsSent.clear();
+	});
 	pi.on("tool_call", (event) => handleToolCall(event));
-	pi.on("tool_result", (event) => handleToolResult(event));
+	pi.on("tool_result", (event) => handleToolResult(pi, event));
 	pi.on("turn_end", async (event, ctx) => handleTurnEnd(pi, event, ctx, postCompletionRunner));
 	// agent_end fires while isIdle is still false (Pi keeps the run active until
 	// post-run work finishes). Queue handoff can still arm on agent_end; auto-continue
@@ -118,6 +149,8 @@ function handleSessionCompact(pi: ExtensionAPI, ctx: ExtensionContext): void {
 }
 
 async function handleAgentEnd(pi: ExtensionAPI, ctx: ExtensionContext, postCompletionRunner: PostCompletionActionRunner): Promise<void> {
+	// Close the active-time window between agent runs so idle wait is not billed.
+	flushAndStopGoalActiveTime(pi, "turn");
 	const goal = getGoal();
 	const reason = queueHandoffReason(goal);
 	const queueLength = getQueue().length;
@@ -139,10 +172,11 @@ async function handleAgentSettled(pi: ExtensionAPI, ctx: ExtensionContext): Prom
 	scheduleMaybeContinueGoal(pi, ctx, "agentEnd");
 }
 
-function handleTurnStart(event: TurnStartEvent): void {
+function handleTurnStart(pi: ExtensionAPI, event: TurnStartEvent): void {
 	const goal = getGoal();
 	if (!goal) {
 		activeTurn = null;
+		discardActiveTime();
 		return;
 	}
 	// Track turns for active and budget-limited goals so budget hard-stop detection
@@ -150,9 +184,14 @@ function handleTurnStart(event: TurnStartEvent): void {
 	// excluded because no agent work should be in progress for them.
 	if (goal.status !== "active" && goal.status !== "budgetLimited") {
 		activeTurn = null;
+		discardActiveTime();
 		return;
 	}
-	activeTurn = makeTurnSnapshot(goal.goalId, consumeNextTurnOrigin(), event.timestamp || Date.now());
+	// If a previous turn left the clock running (missing turn_end), bill residual first.
+	if (isActiveTimeRunning()) flushGoalActiveTime(pi, "turn");
+	const startedAt = event.timestamp || Date.now();
+	activeTurn = makeTurnSnapshot(goal.goalId, consumeNextTurnOrigin(), startedAt);
+	beginActiveTime(startedAt);
 }
 
 function handleMessageUpdate(pi: ExtensionAPI, event: MessageUpdateEvent, ctx: ExtensionContext): void {
@@ -161,13 +200,11 @@ function handleMessageUpdate(pi: ExtensionAPI, event: MessageUpdateEvent, ctx: E
 	const goal = getGoal();
 	if (!goal || goal.status !== "active") return;
 
-	// Build an estimated goal with streaming usage added to persisted usage.
+	// Live estimate only — never persist on this hot path.
 	const streamTokens = event.message.usage?.totalTokens ?? 0;
-	const elapsedThisTurn = activeTurn ? Math.max(0, Math.floor((Date.now() - activeTurn.startedAt) / 1000)) : 0;
 	const estimated: GoalState = {
-		...goal,
+		...withLiveActiveTime(goal),
 		tokensUsed: goal.tokensUsed + (streamTokens > 0 ? streamTokens : 0),
-		timeUsedSeconds: goal.timeUsedSeconds + elapsedThisTurn,
 	};
 
 	const pressure = evaluateBudgetPressure(estimated);
@@ -176,12 +213,15 @@ function handleMessageUpdate(pi: ExtensionAPI, event: MessageUpdateEvent, ctx: E
 		// Skip if already handled by a prior stream event or turn_end.
 		if (streamBudgetSignalsSent.has("hardStop") || getTelemetry()?.lastBudgetHardStopReason) return;
 		streamBudgetSignalsSent.add("hardStop");
-		const stopped: GoalState = { ...goal, status: "budgetLimited", updatedAt: Date.now() };
+		// Commit live time before status change so used matches the stop decision.
+		flushGoalActiveTime(pi, "budget");
+		const billed = getGoal() ?? goal;
+		const stopped: GoalState = { ...billed, status: "budgetLimited", updatedAt: Date.now() };
 		const nextTelemetry = noteBudgetHardStop(noteBudgetLimit(getTelemetry(), pressureBudgetLimitReason(pressure)), budgetHardStopReason(pressure));
 		persistUpdateGoal(pi, stopped, nextTelemetry, "budget");
 		syncGoalUi(ctx, stopped);
 		notifyWarning(ctx, `${budgetResourceText(pressure)} budget hard stop enforced. Goal work stopped.`);
-		const prompt = buildBudgetLimitPrompt(estimated);
+		const prompt = buildBudgetLimitPrompt(withLiveActiveTime(stopped));
 		pi.sendMessage(
 			{ customType: BUDGET_LIMIT_MESSAGE_TYPE, content: prompt.content, display: false, details: prompt.details },
 			{ deliverAs: "steer" },
@@ -231,9 +271,11 @@ function handleToolCall(_event: ToolCallEvent): void {
 	activeTurn.toolCallCount++;
 }
 
-function handleToolResult(event: ToolResultEvent): void {
+function handleToolResult(pi: ExtensionAPI, event: ToolResultEvent): void {
 	if (!activeTurn) return;
 	activeTurn.toolResultCount++;
+	// Mid-turn checkpoint: persist only whole seconds (avoids per-tool write storms).
+	if (liveActiveExtraSeconds() >= 1) flushGoalActiveTime(pi, "turn");
 	if (event.isError) return;
 	if (event.toolName === "update_goal") return noteGoalUpdateResult(event.details);
 	activeTurn.progressCount++;
@@ -257,11 +299,21 @@ function hasToolError(details: unknown): boolean {
 async function handleTurnEnd(pi: ExtensionAPI, event: TurnEndEvent, ctx: ExtensionContext, postCompletionRunner: PostCompletionActionRunner): Promise<void> {
 	const turn = activeTurn;
 	activeTurn = null;
-	if (!turn) return;
+	if (!turn) {
+		// No tracked turn — still stop the clock so idle is not billed.
+		flushAndStopGoalActiveTime(pi, "turn");
+		return;
+	}
 
 	const goal = getGoal();
-	if (!goal || goal.goalId !== turn.goalId) return;
-	const elapsed = Math.max(0, Math.floor((Date.now() - turn.startedAt) / 1000));
+	if (!goal || goal.goalId !== turn.goalId) {
+		// Stale/replaced goal: drop residual time for the abandoned turn identity.
+		discardActiveTime();
+		return;
+	}
+	// Residual active seconds since last mid-turn flush (not full turn span — avoids double count).
+	const elapsed = takeActiveElapsedSeconds();
+	stopActiveTime();
 	const tokens = assistantTokens(event.message);
 	const madeProgress = turn.completedGoal || turn.progressCount > 0;
 	let telemetry = applyTurnTelemetry(getTelemetry(), turn, madeProgress);
@@ -312,7 +364,9 @@ async function pauseForSafety(
 	message: string,
 ): Promise<void> {
 	cancelGoalContinuation(goal.goalId, reason);
-	const paused: GoalState = { ...goal, status: "paused", updatedAt: Date.now() };
+	flushAndStopGoalActiveTime(pi, reason === "abort" ? "abort" : "safety");
+	const current = getGoal() ?? goal;
+	const paused: GoalState = { ...current, status: "paused", updatedAt: Date.now() };
 	const telemetry = noteSafetyPause(getTelemetry(), reason);
 	persistUpdateGoal(pi, paused, telemetry, reason === "abort" ? "abort" : "safety");
 	if (telemetry) persistTelemetry(pi, telemetry, reason === "abort" ? "abort" : "safety");

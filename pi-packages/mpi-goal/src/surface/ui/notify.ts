@@ -1,4 +1,5 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { withLiveActiveTime } from "../../domain/active-time.js";
 import { GOAL_USAGE, GOAL_USAGE_HINT, STATUS_UI_KEY, WIDGET_UI_KEY } from "../../domain/constants.js";
 import { footerStatusText, goalSummaryLines, goalUsageSummary, statusLabel } from "../../domain/format.js";
 import type { GoalState } from "../../domain/types.js";
@@ -10,8 +11,10 @@ export function syncGoalUi(ctx: ExtensionContext, goal: GoalState | null): void 
 		ctx.ui.setWidget(WIDGET_UI_KEY, undefined);
 		return;
 	}
-	ctx.ui.setStatus(STATUS_UI_KEY, footerStatusText(goal));
-	ctx.ui.setWidget(WIDGET_UI_KEY, goalWidgetFactory(goal), { placement: "aboveEditor" });
+	// Live active seconds for display only — no session write.
+	const view = withLiveActiveTime(goal);
+	ctx.ui.setStatus(STATUS_UI_KEY, footerStatusText(view));
+	ctx.ui.setWidget(WIDGET_UI_KEY, goalWidgetFactory(view), { placement: "aboveEditor" });
 }
 
 export function showNoGoal(ctx: ExtensionContext): void {

@@ -8,6 +8,7 @@ import { createTelemetry, noteBudgetLimit, noteFloorCompletionDeferred } from ".
 import { listGoalTemplateMetadata } from "../../templates/discover.js";
 import { buildDirectGoalIntent, buildTemplateGoalIntent } from "../../domain/goal-intent.js";
 import { createPostCompletionActionStates, recordPostStartActionAnchors, type PostCompletionActionRunner } from "../../runtime/post-completion.js";
+import { flushAndStopGoalActiveTime } from "../../runtime/lifecycle.js";
 import { createGoalState, getGoal, getTelemetry, persistClearGoal, persistSetGoal, persistTelemetry, persistUpdateGoal } from "../../persistence/goal-store.js";
 import { registerGoalQueueTools } from "./queue-tools.js";
 import { syncGoalUi } from "../ui/notify.js";
@@ -131,6 +132,7 @@ function registerClearGoalTool(pi: ExtensionAPI, runtime: GoalToolRuntime): void
 		async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
 			const goal = getGoal();
 			runtime.cancelContinuation?.(goal?.goalId, "tool-clear");
+			flushAndStopGoalActiveTime(pi, "tool");
 			persistClearGoal(pi, "tool");
 			syncGoalUi(ctx, null);
 			const queueSize = runtime.getQueueSize?.() ?? 0;
@@ -266,13 +268,23 @@ function updateGoalFromTool(pi: ExtensionAPI, runtime: GoalToolRuntime, params: 
 	if (update.goal.status !== "active") {
 		runtime.cancelContinuation?.(goal.goalId, "tool-status");
 	}
-	persistUpdateGoal(pi, update.goal, telemetryForUpdate(update.goal, completionDecision), "tool");
-	syncGoalUi(ctx, update.goal);
-	queueHandoffAfterToolUpdate(runtime, ctx, goal, update.goal);
-	if (goal.status !== "active" && update.goal.status === "active") {
+	// Pause/complete: bill residual active seconds then stop the clock.
+	if (update.goal.status === "paused" || update.goal.status === "complete") {
+		flushAndStopGoalActiveTime(pi, "tool");
+	}
+	const latest = getGoal() ?? goal;
+	const nextGoal: GoalState = {
+		...update.goal,
+		timeUsedSeconds: latest.timeUsedSeconds,
+		tokensUsed: latest.tokensUsed,
+	};
+	persistUpdateGoal(pi, nextGoal, telemetryForUpdate(nextGoal, completionDecision), "tool");
+	syncGoalUi(ctx, nextGoal);
+	queueHandoffAfterToolUpdate(runtime, ctx, goal, nextGoal);
+	if (goal.status !== "active" && nextGoal.status === "active") {
 		runtime.scheduleContinuation?.(ctx, "resumed");
 	}
-	return resultForGoal(update.goal, getTelemetry(), update.prefix);
+	return resultForGoal(nextGoal, getTelemetry(), update.prefix);
 }
 
 function floorCompletionDeferredResult(

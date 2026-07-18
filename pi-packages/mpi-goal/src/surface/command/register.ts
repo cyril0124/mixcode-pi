@@ -7,6 +7,7 @@ import { discoverGoalTemplates, parseGoalTemplateInvocation } from "../../templa
 import { buildDirectGoalIntent, buildTemplateGoalIntent } from "../../domain/goal-intent.js";
 import { createPostCompletionActionStates, recordPostStartActionAnchors } from "../../runtime/post-completion.js";
 import { captureContextResetCommandContext } from "../../runtime/context-reset.js";
+import { flushAndStopGoalActiveTime } from "../../runtime/lifecycle.js";
 import { createTelemetry, resetSafetyCounters } from "../../domain/telemetry.js";
 import {
 	createGoalState,
@@ -274,7 +275,9 @@ function pauseGoal(
 		return;
 	}
 	runtime.cancelContinuation(goal.goalId, "pause");
-	const paused: GoalState = { ...goal, status: "paused", updatedAt: Date.now() };
+	flushAndStopGoalActiveTime(pi, "command");
+	const current = getGoal() ?? goal;
+	const paused: GoalState = { ...current, status: "paused", updatedAt: Date.now() };
 	persistUpdateGoal(pi, paused, getTelemetry(), "command");
 	syncGoalUi(ctx, paused);
 	notifyGoal(ctx, paused);
@@ -324,6 +327,7 @@ function clearGoal(pi: ExtensionAPI, ctx: ExtensionCommandContext, runtime: Goal
 	const goal = getGoal();
 	const hadGoal = Boolean(goal);
 	runtime.cancelContinuation(goal?.goalId, "clear");
+	flushAndStopGoalActiveTime(pi, "command");
 	const result = persistClearGoal(pi, "command");
 	syncGoalUi(ctx, result.goal);
 	const queue = getQueue();

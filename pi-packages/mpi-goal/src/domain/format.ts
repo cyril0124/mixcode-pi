@@ -104,8 +104,8 @@ export function objectiveExcerpt(objective: string, maxChars = OBJECTIVE_EXCERPT
 
 export function formatTimeResource(goal: GoalState): string {
 	const used = formatElapsed(goal.timeUsedSeconds);
-	if (goal.timeBudgetSeconds === undefined) return `Time: ${used}`;
-	return `Time: ${used} / ${formatElapsed(goal.timeBudgetSeconds)}`;
+	if (goal.timeBudgetSeconds === undefined) return `Active: ${used}`;
+	return `Active: ${used} / ${formatElapsed(goal.timeBudgetSeconds)}`;
 }
 
 export function formatTokenResource(goal: GoalState): string {
@@ -175,7 +175,7 @@ export function goalSummaryLines(goal: GoalState): string[] {
 		"Goal",
 		`Status: ${goalStatusLabel(goal)}`,
 		`Objective: ${goal.objective}`,
-		`Time used: ${formatElapsed(goal.timeUsedSeconds)}`,
+		`Active time: ${formatElapsed(goal.timeUsedSeconds)}`,
 		`Tokens used: ${formatTokensCompact(goal.tokensUsed)}`,
 	];
 	if (goal.tokenBudget !== undefined) lines.push(`Token budget: ${formatTokensCompact(goal.tokenBudget)}`);

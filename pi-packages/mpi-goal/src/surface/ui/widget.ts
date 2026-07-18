@@ -116,7 +116,7 @@ function progressBar(percent: number, theme: GoalWidgetTheme): string {
 }
 
 function timeResource(goal: GoalState): ResourceSpec {
-	return { icon: "⏱", label: "Time", used: goal.timeUsedSeconds, budget: goal.timeBudgetSeconds, format: formatElapsed };
+	return { icon: "⏱", label: "Active", used: goal.timeUsedSeconds, budget: goal.timeBudgetSeconds, format: formatElapsed };
 }
 
 function tokenResource(goal: GoalState): ResourceSpec {

@@ -34,3 +34,8 @@ Upstream license: MIT (see `LICENSE` in this package / the original repository).
 
 Goal state is session-scoped (Pi `appendEntry` on the current branch), not a
 global database.
+
+**Active time** (`timeUsedSeconds`) is wall-clock time while the parent agent is
+in an active turn (including tool waits). It is *not* calendar time since the
+goal was created: idle between turns, paused time, and overnight gaps do not
+count. The UI label is **Active** to make that explicit.

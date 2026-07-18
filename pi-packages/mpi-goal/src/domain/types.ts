@@ -112,7 +112,8 @@ export type PiGoalEventReason =
 	| "continuation"
 	| "safety"
 	| "floor"
-	| "reset";
+	| "reset"
+	| "compact";
 
 export type PiGoalStateEvent = {
 	version: 1;
