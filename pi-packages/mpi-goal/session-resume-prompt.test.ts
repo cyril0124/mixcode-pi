@@ -145,6 +145,18 @@ test("session resume with active goal can leave idle without continuing", async 
 	assert.equal(getGoal()?.status, "active");
 });
 
+test("session resume Continue starts even when session is briefly not idle", async () => {
+	seedGoal("active");
+	selectChoice = "Continue goal";
+	// User-confirmed continue must not depend on a post-select idle race.
+	idle = false;
+
+	await emit("session_start", { type: "session_start", reason: "resume" });
+	// Immediate send — no settle wait required for explicit user continue.
+	assert.equal(continuationMessages().length, 1);
+	assert.equal((continuationMessages()[0]?.options as { triggerTurn?: boolean } | undefined)?.triggerTurn, true);
+});
+
 test("session reload does not prompt for active goal", async () => {
 	seedGoal("active");
 	selectChoice = "Continue goal";

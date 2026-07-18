@@ -105,6 +105,15 @@ export function scheduleMaybeContinueGoal(pi: ExtensionAPI, ctx: ExtensionContex
 	const telemetry = noteContinuationScheduled(getTelemetry(), reason);
 	if (telemetry) persistTelemetry(pi, telemetry, "continuation");
 	const goalId = goal.goalId;
+	// User-confirmed starts must fire now. Session resume / /goal set happen while
+	// the UI may still look busy; waiting for idle only drops the spinner-less kick.
+	if (isUserConfirmedContinuation(reason)) {
+		void safelyRun(async () => {
+			attemptContinueGoal(pi, ctx, reason, goalId, { force: true });
+		});
+		logRuntime("scheduleMaybeContinueGoal.forced", { reason, goalId });
+		return;
+	}
 	const timer = setTimeout(() => {
 		if (pendingContinuation?.goalId === goalId) pendingContinuation = undefined;
 		void safelyRun(async () => { attemptContinueGoal(pi, ctx, reason, goalId); });
@@ -160,7 +169,13 @@ export function setCompactionFallbackRetryDelaysForTests(delaysMs: number[]): vo
 	if (fallbackRetryDelaysMs.length === 0) fallbackRetryDelaysMs = [...DEFAULT_RETRY_DELAYS_MS];
 }
 
-function attemptContinueGoal(pi: ExtensionAPI, ctx: ExtensionContext, reason: ContinuationReason, goalId: string): ContinuationAttemptResult {
+function attemptContinueGoal(
+	pi: ExtensionAPI,
+	ctx: ExtensionContext,
+	reason: ContinuationReason,
+	goalId: string,
+	opts: { force?: boolean } = {},
+): ContinuationAttemptResult {
 	const goal = getGoal();
 	if (!goal || goal.goalId !== goalId || goal.status !== "active") {
 		logRuntime("attemptContinueGoal.skip.notActive", { reason, requestedGoalId: goalId });
@@ -173,12 +188,12 @@ function attemptContinueGoal(pi: ExtensionAPI, ctx: ExtensionContext, reason: Co
 		skip(pi, "compacting");
 		return { kind: "terminalSkip", reason: "compacting" };
 	}
-	if (!ctx.isIdle()) {
+	if (!opts.force && !ctx.isIdle()) {
 		logRuntime("attemptContinueGoal.skip.notIdle", { reason, requestedGoalId: goalId });
 		skip(pi, "notIdle");
 		return { kind: "transientSkip", reason: "notIdle" };
 	}
-	if (ctx.hasPendingMessages()) {
+	if (!opts.force && ctx.hasPendingMessages()) {
 		logRuntime("attemptContinueGoal.skip.pendingMessages", { reason, requestedGoalId: goalId });
 		skip(pi, "pendingMessages");
 		return { kind: "transientSkip", reason: "pendingMessages" };
@@ -193,9 +208,13 @@ function attemptContinueGoal(pi: ExtensionAPI, ctx: ExtensionContext, reason: Co
 		return { kind: "terminalSkip", reason: "safetyCap" };
 	}
 
-	logRuntime("attemptContinueGoal.send", { reason, goalId: goal.goalId });
+	logRuntime("attemptContinueGoal.send", { reason, goalId: goal.goalId, force: opts.force });
 	sendContinuationMessage(pi, goal, telemetry, reason, true);
 	return { kind: "sent" };
+}
+
+function isUserConfirmedContinuation(reason: ContinuationReason): boolean {
+	return reason === "created" || reason === "resumed";
 }
 
 async function maybeSendBudgetWrapUp(pi: ExtensionAPI, ctx: ExtensionContext, goalId: string): Promise<void> {
