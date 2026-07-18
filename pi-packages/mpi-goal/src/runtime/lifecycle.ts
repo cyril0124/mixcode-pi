@@ -41,7 +41,7 @@ import {
 import { evaluateBudgetPressure, isBudgetHardStop, isBudgetReached, isBudgetWarning, queueHandoffReason } from "../domain/budget.js";
 import { beginGoalCompaction, cancelGoalContinuation, finishGoalCompaction, interruptActiveGoalTurn, scheduleBudgetLimitWrapUp, scheduleMaybeContinueGoal } from "./continuation.js";
 import { buildBudgetLimitPrompt } from "./prompts.js";
-import { getGoal, getTelemetry, persistAccountGoal, persistTelemetry, persistUpdateGoal, replayGoalState } from "../persistence/goal-store.js";
+import { ensureGoalHydrated, getGoal, getTelemetry, persistAccountGoal, persistTelemetry, persistUpdateGoal, replayGoalState } from "../persistence/goal-store.js";
 import { getQueue, replayQueueState } from "../persistence/queue-store.js";
 import { queueSteeringStillValid, sendQueueHandoff } from "../queue/steering.js";
 import { createNoopPostCompletionActionRunner, type PostCompletionActionRunner } from "./post-completion.js";
@@ -52,6 +52,15 @@ import type { BudgetHardStopReason, BudgetLimitReason, BudgetPressure, GoalState
 
 let activeTurn: TurnAccountingSnapshot | null = null;
 let streamBudgetSignalsSent: Set<StreamBudgetSignal> = new Set();
+/** agent_end arms this; agent_settled clears it. Fallback fires if settled never arrives. */
+let pendingAgentEndContinue:
+	| { goalId: string; timer: ReturnType<typeof setTimeout>; pi: ExtensionAPI; ctx: ExtensionContext }
+	| undefined;
+/** True after agent_end for an active goal until continue is dispatched once. */
+let expectAgentEndContinue = false;
+/** Prevents double continue when both settled and fallback run. */
+let agentEndContinueDispatched = false;
+const AGENT_SETTLED_CONTINUE_FALLBACK_MS = 500;
 
 /** Persist whole active seconds if any; O(1). Returns seconds written. */
 export function flushGoalActiveTime(pi: ExtensionAPI, reason: PiGoalEventReason = "turn"): number {
@@ -100,8 +109,8 @@ export function registerGoalLifecycle(
 		handleSessionCompact(pi, ctx);
 		onStateRestored?.();
 	});
-	pi.on("turn_start", (event) => {
-		handleTurnStart(pi, event);
+	pi.on("turn_start", (event, ctx) => {
+		handleTurnStart(pi, event, ctx);
 		streamBudgetSignalsSent.clear();
 	});
 	pi.on("tool_call", (event) => handleToolCall(event));
@@ -150,29 +159,67 @@ function handleSessionCompact(pi: ExtensionAPI, ctx: ExtensionContext): void {
 
 async function handleAgentEnd(pi: ExtensionAPI, ctx: ExtensionContext, postCompletionRunner: PostCompletionActionRunner): Promise<void> {
 	// Close the active-time window between agent runs so idle wait is not billed.
+	// Rehydrate first: mid-session memory loss left getGoal() null while branch still had active goal.
+	ensureGoalHydrated(ctx);
 	flushAndStopGoalActiveTime(pi, "turn");
 	const goal = getGoal();
 	const reason = queueHandoffReason(goal);
 	const queueLength = getQueue().length;
 	if (reason && goal && queueLength > 0) {
+		clearPendingAgentEndContinue();
+		expectAgentEndContinue = false;
+		agentEndContinueDispatched = true;
 		setTimeout(() => {
 			void processTerminalGoalWorkflow(pi, ctx, { goal, reason: "turn", runner: postCompletionRunner });
 		}, AGENT_END_HANDOFF_DELAY_MS);
-		// Terminal handoff owns the next step; do not also arm auto-continue.
 		return;
 	}
-	// Defer auto-continue to agent_settled (see handleAgentSettled).
+	// Prefer agent_settled; keep a short fallback if settled is dropped by the host.
+	armPendingAgentEndContinue(pi, ctx, goal);
 }
 
 async function handleAgentSettled(pi: ExtensionAPI, ctx: ExtensionContext): Promise<void> {
+	clearPendingAgentEndContinue();
+	dispatchAgentEndContinue(pi, ctx);
+}
+
+function armPendingAgentEndContinue(pi: ExtensionAPI, ctx: ExtensionContext, goal: GoalState | null): void {
+	clearPendingAgentEndContinue();
+	agentEndContinueDispatched = false;
+	if (!goal || goal.status !== "active") {
+		expectAgentEndContinue = false;
+		return;
+	}
+	expectAgentEndContinue = true;
+	const goalId = goal.goalId;
+	const timer = setTimeout(() => {
+		if (!pendingAgentEndContinue || pendingAgentEndContinue.goalId !== goalId) return;
+		pendingAgentEndContinue = undefined;
+		dispatchAgentEndContinue(pi, ctx);
+	}, AGENT_SETTLED_CONTINUE_FALLBACK_MS);
+	pendingAgentEndContinue = { goalId, timer, pi, ctx };
+}
+
+function dispatchAgentEndContinue(pi: ExtensionAPI, ctx: ExtensionContext): void {
+	if (!expectAgentEndContinue || agentEndContinueDispatched) return;
+	ensureGoalHydrated(ctx);
 	const goal = getGoal();
 	if (!goal || goal.status !== "active") return;
+	agentEndContinueDispatched = true;
+	expectAgentEndContinue = false;
 	// Queue handoff for a completed/budget-limited goal is started from agent_end;
 	// only active goals need the settle-time continuation nudge.
 	scheduleMaybeContinueGoal(pi, ctx, "agentEnd");
 }
 
-function handleTurnStart(pi: ExtensionAPI, event: TurnStartEvent): void {
+function clearPendingAgentEndContinue(): void {
+	if (!pendingAgentEndContinue) return;
+	clearTimeout(pendingAgentEndContinue.timer);
+	pendingAgentEndContinue = undefined;
+}
+
+function handleTurnStart(pi: ExtensionAPI, event: TurnStartEvent, ctx: ExtensionContext): void {
+	ensureGoalHydrated(ctx);
 	const goal = getGoal();
 	if (!goal) {
 		activeTurn = null;

@@ -39,6 +39,15 @@ export function replayGoalState(ctx: ExtensionContext): GoalRuntimeState {
 	return getRuntimeState();
 }
 
+/**
+ * If in-memory goal was lost mid-session (reload race, empty interim replay),
+ * rebuild from the session branch. No-op when memory already has a goal.
+ */
+export function ensureGoalHydrated(ctx: ExtensionContext): GoalRuntimeState {
+	if (runtimeState.goal) return getRuntimeState();
+	return replayGoalState(ctx);
+}
+
 export function setRuntimeStateForTests(state: GoalRuntimeState): void {
 	runtimeState = state;
 }

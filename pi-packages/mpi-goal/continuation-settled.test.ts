@@ -138,6 +138,43 @@ test("agent_settled does not continue when goal is not active", async () => {
 	assert.equal(continuationMessages().length, 0);
 });
 
+test("agent_settled while busy queues followUp instead of dropping", async () => {
+	seedActiveGoal();
+	// Race: process/subagent wake starts a run before settle-time continue runs.
+	idle = false;
+	await emit("agent_end", { type: "agent_end", messages: [] });
+	await emit("agent_settled", { type: "agent_settled" });
+	await sleep(40);
+
+	const cont = continuationMessages();
+	assert.equal(cont.length, 1, "must queue continuation even when not idle");
+	assert.equal((cont[0]?.options as { triggerTurn?: boolean } | undefined)?.triggerTurn, false);
+	assert.equal((cont[0]?.options as { deliverAs?: string } | undefined)?.deliverAs, "followUp");
+});
+
+test("agent_settled rehydrates active goal from branch when memory is empty", async () => {
+	seedActiveGoal();
+	idle = true;
+	await emit("agent_end", { type: "agent_end", messages: [] });
+	// Mid-session memory loss after end: branch still has goal events, RAM does not.
+	setRuntimeStateForTests({ goal: null, telemetry: null });
+
+	await emit("agent_settled", { type: "agent_settled" });
+	await sleep(40);
+
+	assert.equal(continuationMessages().length, 1, "must continue after rehydrate from branch");
+});
+
+test("agent_end fallback continues if agent_settled never fires", async () => {
+	seedActiveGoal();
+	idle = true;
+	// Only agent_end — no settled (host bug / early exit).
+	await emit("agent_end", { type: "agent_end", messages: [] });
+	assert.equal(continuationMessages().length, 0, "must wait for settle/fallback window");
+	await sleep(600);
+	assert.equal(continuationMessages().length, 1, "fallback must kick auto-continue");
+});
+
 // Avoid leaking timers if a future change reintroduces delayed retries.
 test.after(() => {
 	resetContinuationRuntime();

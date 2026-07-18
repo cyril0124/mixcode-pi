@@ -114,6 +114,15 @@ export function scheduleMaybeContinueGoal(pi: ExtensionAPI, ctx: ExtensionContex
 		logRuntime("scheduleMaybeContinueGoal.forced", { reason, goalId });
 		return;
 	}
+	// agent_settled / post-compact already mean the previous run finished. A 25ms
+	// delay only opens a race where process/subagent wakes steal idle and we drop.
+	if (reason === "agentEnd" || reason === "compacted") {
+		void safelyRun(async () => {
+			attemptContinueGoal(pi, ctx, reason, goalId);
+		});
+		logRuntime("scheduleMaybeContinueGoal.immediate", { reason, goalId });
+		return;
+	}
 	const timer = setTimeout(() => {
 		if (pendingContinuation?.goalId === goalId) pendingContinuation = undefined;
 		void safelyRun(async () => { attemptContinueGoal(pi, ctx, reason, goalId); });
@@ -188,16 +197,6 @@ function attemptContinueGoal(
 		skip(pi, "compacting");
 		return { kind: "terminalSkip", reason: "compacting" };
 	}
-	if (!opts.force && !ctx.isIdle()) {
-		logRuntime("attemptContinueGoal.skip.notIdle", { reason, requestedGoalId: goalId });
-		skip(pi, "notIdle");
-		return { kind: "transientSkip", reason: "notIdle" };
-	}
-	if (!opts.force && ctx.hasPendingMessages()) {
-		logRuntime("attemptContinueGoal.skip.pendingMessages", { reason, requestedGoalId: goalId });
-		skip(pi, "pendingMessages");
-		return { kind: "transientSkip", reason: "pendingMessages" };
-	}
 	const telemetry = getTelemetry();
 	if (telemetry && telemetry.consecutiveAutoTurns >= MAX_CONSECUTIVE_AUTO_TURNS) {
 		skip(pi, "safetyCap");
@@ -208,8 +207,18 @@ function attemptContinueGoal(
 		return { kind: "terminalSkip", reason: "safetyCap" };
 	}
 
-	logRuntime("attemptContinueGoal.send", { reason, goalId: goal.goalId, force: opts.force });
-	sendContinuationMessage(pi, goal, telemetry, reason, true);
+	// Busy session: queue followUp instead of dropping. process/subagent wakes often
+	// start a run between agent_end and settle-time continue; skip(notIdle) permanently
+	// killed auto-continue once that wake chain ended.
+	const triggerTurn = opts.force || ctx.isIdle();
+	logRuntime("attemptContinueGoal.send", {
+		reason,
+		goalId: goal.goalId,
+		force: opts.force,
+		triggerTurn,
+		idle: ctx.isIdle(),
+	});
+	sendContinuationMessage(pi, goal, telemetry, reason, triggerTurn);
 	return { kind: "sent" };
 }
 
