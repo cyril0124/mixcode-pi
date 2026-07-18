@@ -15,26 +15,33 @@ export function isPlainBorderLine(line: string): boolean {
 
 /** Visible-width geometry for the labels embedded in the editor's top border. */
 const VIM_BADGE_TEXT = "[VIM]";
+const ZEN_BADGE_TEXT = "[ZEN]";
 export const SYS_BADGE_TEXT = "[sys]";
 // Right chunk around the title: " <title> " + 2 trailing dashes.
 const TITLE_FRAME_WIDTH = 1 /* leading space */ + 1 /* trailing space */ + 2 /* trailing dashes */;
 // Optional " [sys]" after the title (space + badge), before the trailing frame space/dashes.
 const SYS_BADGE_FRAME_WIDTH = 1 /* space before badge */ + visibleWidth(SYS_BADGE_TEXT);
-// Left chunk for the vim badge: 2 dashes + " [VIM] ".
-const VIM_FRAME_WIDTH = 2 /* leading dashes */ + 1 /* space */ + VIM_BADGE_TEXT.length + 1 /* space */;
-// Minimum dashes between the left edge and the title separator (normal mode).
+// Left badges share a 2-dash lead; each badge is " [BADGE]".
+const LEFT_LEAD_DASHES = 2;
+const BADGE_UNIT = (text: string) => 1 /* space */ + visibleWidth(text);
+// Minimum dashes between the left edge / badges and the title separator.
 const MIN_TITLE_LEAD_DASHES = 3;
+const MIN_BADGE_LEAD_DASHES = 1;
 
 export interface LabeledTopBorderOptions {
   width: number;
   title: string;
   vimMode: boolean;
+  /** When true, show [ZEN] next to [VIM] (or alone) near the left. */
+  zenMode?: boolean;
   /** When true, append [sys] after the title (custom base system prompt). */
   customBasePrompt?: boolean;
   /** Colorizer for the dashed border segments. */
   dash: (text: string) => string;
   /** Colorizer for the [VIM] badge. */
   vimLabel: (text: string) => string;
+  /** Colorizer for the [ZEN] badge; defaults to titleLabel (agent accent). */
+  zenLabel?: (text: string) => string;
   /** Colorizer for the agent title. */
   titleLabel: (text: string) => string;
   /** Colorizer for the [sys] badge; defaults to titleLabel. */
@@ -43,19 +50,23 @@ export interface LabeledTopBorderOptions {
 
 /**
  * Build the editor's top border line with an agent title anchored to the right
- * and an optional [VIM] badge near the left, e.g.
+ * and optional left badges, e.g.
  *   normal:  ────────────────── Agent-1 ──
  *   custom:  ────────────────── Agent-1 [sys] ──
  *   vim:     ── [VIM] ────────── Agent-1 ──
+ *   zen:     ── [ZEN] ────────── Agent-1 ──
+ *   both:    ── [VIM] [ZEN] ──── Agent-1 ──
  *
- * The title is truncated with an ellipsis when space is tight; the [VIM] badge
- * is dropped (title preserved) before the line degrades to a plain dashed
- * border. [sys] is preferred over a long title when both compete for width.
+ * The title is truncated with an ellipsis when space is tight; left badges are
+ * dropped (title preserved) before the line degrades to a plain dashed border.
+ * Drop order when tight: zen, then vim, then sys, then title.
  * The returned string always has an exact visible width of `width`.
  */
 export function buildLabeledTopBorder(opts: LabeledTopBorderOptions): string {
   const { width, title, vimMode, dash, vimLabel, titleLabel } = opts;
+  const zenMode = opts.zenMode === true;
   const sysLabel = opts.sysLabel ?? titleLabel;
+  const zenLabel = opts.zenLabel ?? titleLabel;
   if (width <= 0) return "";
   const dashes = (n: number) => dash("\u2500".repeat(Math.max(0, n)));
   const plain = () => dashes(width);
@@ -63,16 +74,22 @@ export function buildLabeledTopBorder(opts: LabeledTopBorderOptions): string {
   const trimmed = title.trim();
   if (!trimmed) return plain();
 
-  // Decide whether the [VIM] badge fits; if not, fall back to a title-only line.
   const wantVim = vimMode;
+  const wantZen = zenMode;
   const wantSys = Boolean(opts.customBasePrompt);
-  const leadWidth = wantVim ? VIM_FRAME_WIDTH : 0;
+  const leftWidth =
+    wantVim || wantZen
+      ? LEFT_LEAD_DASHES +
+        (wantVim ? BADGE_UNIT(VIM_BADGE_TEXT) : 0) +
+        (wantZen ? BADGE_UNIT(ZEN_BADGE_TEXT) : 0) +
+        1 /* trailing space after last badge */
+      : 0;
   const sysWidth = wantSys ? SYS_BADGE_FRAME_WIDTH : 0;
-  // Dashes that must connect the left edge / badge to the title separator.
-  const minLead = wantVim ? 1 : MIN_TITLE_LEAD_DASHES;
-  const maxTitleWidth = width - leadWidth - minLead - TITLE_FRAME_WIDTH - sysWidth;
+  const minLead = wantVim || wantZen ? MIN_BADGE_LEAD_DASHES : MIN_TITLE_LEAD_DASHES;
+  const maxTitleWidth = width - leftWidth - minLead - TITLE_FRAME_WIDTH - sysWidth;
   if (maxTitleWidth <= 0) {
-    // Prefer dropping vim first, then sys, so title can still show.
+    // Prefer dropping zen first, then vim, then sys, so title can still show.
+    if (wantZen) return buildLabeledTopBorder({ ...opts, zenMode: false });
     if (wantVim) return buildLabeledTopBorder({ ...opts, vimMode: false });
     if (wantSys) return buildLabeledTopBorder({ ...opts, customBasePrompt: false });
     return plain();
@@ -85,8 +102,9 @@ export function buildLabeledTopBorder(opts: LabeledTopBorderOptions): string {
   const titleWidth = visibleWidth(titleText);
 
   // Fill dashes that span from the left chunk to the title separator.
-  const fill = width - leadWidth - TITLE_FRAME_WIDTH - titleWidth - sysWidth;
+  const fill = width - leftWidth - TITLE_FRAME_WIDTH - titleWidth - sysWidth;
   if (fill < minLead) {
+    if (wantZen) return buildLabeledTopBorder({ ...opts, zenMode: false });
     if (wantVim) return buildLabeledTopBorder({ ...opts, vimMode: false });
     if (wantSys) return buildLabeledTopBorder({ ...opts, customBasePrompt: false });
     return plain();
@@ -94,9 +112,11 @@ export function buildLabeledTopBorder(opts: LabeledTopBorderOptions): string {
 
   const sysChunk = wantSys ? ` ${sysLabel(SYS_BADGE_TEXT)}` : "";
   const rightChunk = ` ${titleLabel(titleText)}${sysChunk} ${dash("\u2500\u2500")}`;
-  if (!wantVim) {
+  if (!wantVim && !wantZen) {
     return `${dashes(fill)}${rightChunk}`;
   }
-  const leftChunk = `${dash("\u2500\u2500")} ${vimLabel(VIM_BADGE_TEXT)} `;
+  const badges =
+    (wantVim ? ` ${vimLabel(VIM_BADGE_TEXT)}` : "") + (wantZen ? ` ${zenLabel(ZEN_BADGE_TEXT)}` : "");
+  const leftChunk = `${dash("\u2500".repeat(LEFT_LEAD_DASHES))}${badges} `;
   return `${leftChunk}${dashes(fill)}${rightChunk}`;
 }

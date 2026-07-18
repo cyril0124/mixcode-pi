@@ -208,7 +208,6 @@ export function handleMixCodeKeyInput(
         // Right with text falls through so the editor can move the cursor.
         // Right with empty input attaches to the selected agent.
         if (!hasText) {
-          transferVimModeForHomeAttach(state, target);
           activateTab(state, target.sessionId);
           tui.requestRender();
           return { consume: true };
@@ -402,6 +401,19 @@ export function handleMixCodeKeyInput(
     tui.requestRender();
     return { consume: true };
   }
+  // Zen swallows Tab/Shift+Tab so only Ctrl+T (with transfer) can change tabs.
+  // Runs before vim tab-cycle: zen owns Tab even when vim coexists.
+  if (
+    active &&
+    state.activeTabId !== "config" &&
+    active.zenMode &&
+    !isEditorAutocompleteOpen() &&
+    !hasAppOverlay(tui) &&
+    (matchesKey(data, "tab") || matchesKey(data, "shift+tab"))
+  ) {
+    clearPendingEscape(active, "abort-agent");
+    return { consume: true };
+  }
   if (
     active &&
     state.activeTabId !== "config" &&
@@ -578,20 +590,6 @@ function scheduleFloatingPanelExpiryRender(
   setTimeout(() => tui.requestRender(), Math.max(0, expiresAt - Date.now()) + 16);
 }
 
-function transferVimModeForHomeAttach(
-  state: MixCodeState,
-  target: MixCodeState["tabs"][number],
-): void {
-  const source = state.tabs.find((tab) => tab.vimMode);
-  if (!source || source.sessionId === target.sessionId) return;
-  source.vimMode = false;
-  source.vimPendingEscapeAt = undefined;
-  source.vimPendingHome = false;
-  target.vimMode = true;
-  target.vimPendingEscapeAt = undefined;
-  target.vimPendingHome = false;
-}
-
 function handleVimModeTabCycle(
   state: MixCodeState,
   active: MixCodeState["tabs"][number],
@@ -605,12 +603,7 @@ function handleVimModeTabCycle(
   const delta = matchesKey(data, "shift+tab") ? -1 : 1;
   const nextIndex = (currentIndex + delta + state.tabs.length) % state.tabs.length;
   const next = state.tabs[nextIndex]!;
-  active.vimMode = false;
-  active.vimPendingEscapeAt = undefined;
-  active.vimPendingHome = false;
-  next.vimMode = true;
-  next.vimPendingEscapeAt = undefined;
-  next.vimPendingHome = false;
+  // vim transfer is centralized in activateTab.
   activateTab(state, next.sessionId);
   tui.requestRender();
   return true;

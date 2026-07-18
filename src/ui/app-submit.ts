@@ -127,6 +127,8 @@ export async function handleSubmittedInput(
     active!.vimMode = true;
     active!.vimPendingEscapeAt = undefined;
     active!.vimPendingHome = false;
+  } else if (parsed.command === "toggle-zen-mode") {
+    active!.zenMode = !active!.zenMode;
   } else if (parsed.command === "toggle-hidden-messages") {
     const runtimeTab = runtime.getTab?.(active!.sessionId);
     if (!runtimeTab) {
@@ -503,6 +505,7 @@ function configScopedCommand(command: string | undefined): boolean {
     command === "delete-workspace" ||
     command === "extension-manager" ||
     command === "vim" ||
+    command === "toggle-zen-mode" ||
     command === "login" ||
     command === "logout" ||
     command === "quit" ||

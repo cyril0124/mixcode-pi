@@ -55,6 +55,29 @@ export function activateTab(state: MixCodeState, tabId: string): void {
     const leaving = state.tabs.findIndex((tab) => tab.sessionId === state.activeTabId);
     if (leaving >= 0) state.homeSelectedTabIndex = leaving;
   }
+  // Transfer vim/zen onto the destination agent. Source is the mode-owning
+  // agent (any tab with the flag), not only activeTabId — on Home activeTabId
+  // is "config" while the highlighted agent still holds the mode.
+  // Jumping to Home keeps flags on the agent (same as Left → Home).
+  if (tabId !== "config" && tabId !== state.activeTabId) {
+    const next = state.tabs.find((tab) => tab.sessionId === tabId);
+    if (next) {
+      const vimSource = state.tabs.find((tab) => tab.vimMode && tab.sessionId !== next.sessionId);
+      if (vimSource) {
+        vimSource.vimMode = false;
+        vimSource.vimPendingEscapeAt = undefined;
+        vimSource.vimPendingHome = false;
+        next.vimMode = true;
+        next.vimPendingEscapeAt = undefined;
+        next.vimPendingHome = false;
+      }
+      const zenSource = state.tabs.find((tab) => tab.zenMode && tab.sessionId !== next.sessionId);
+      if (zenSource) {
+        zenSource.zenMode = false;
+        next.zenMode = true;
+      }
+    }
+  }
   state.activeTabId = tabId;
   const tab = state.tabs.find((item) => item.sessionId === tabId);
   if (!tab) return;

@@ -391,21 +391,8 @@ export function handleTabJumpKey(state: MixCodeState, data: string, tui: Overlay
     return true;
   }
   if (matchesKey(data, "enter")) {
-    const prev = state.tabs.find((tab) => tab.sessionId === state.activeTabId);
-    const targetId = acceptTabJumpSelection(state);
-    // Transfer vim only when the target is another agent tab. Jumping to MixCode
-    // Home (config) must leave vimMode on prev — same as Left → Home.
-    if (prev?.vimMode && targetId && targetId !== prev.sessionId) {
-      const next = state.tabs.find((tab) => tab.sessionId === targetId);
-      if (next) {
-        prev.vimMode = false;
-        prev.vimPendingEscapeAt = undefined;
-        prev.vimPendingHome = false;
-        next.vimMode = true;
-        next.vimPendingEscapeAt = undefined;
-        next.vimPendingHome = false;
-      }
-    }
+    acceptTabJumpSelection(state);
+    // vim/zen transfer is centralized in activateTab (agent→agent only).
     closeAppOverlay(tui);
     tui.requestRender();
     return true;

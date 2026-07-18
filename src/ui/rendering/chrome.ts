@@ -41,6 +41,10 @@ export function renderTabBar(
   });
 }
 
+/** Max unread-done dots shown on the zen separator before collapsing to [+N]. */
+export const ZEN_DONE_DOT_CAP = 5;
+const ZEN_DONE_DOT = "\u25cf"; // ●
+
 /**
  * Full-width horizontal rule rendered directly under the tab bar (agent view
  * only), replacing the former blank interval row. Its color tracks the active
@@ -48,20 +52,52 @@ export function renderTabBar(
  * `vimBorder`, otherwise the thinking-level border (matching app-editor's
  * normal-mode `borderColor`). Shell mode is intentionally not tracked — it is
  * driven by transient editor text and would make this top rule flicker.
- * Kept as its own function so a right-anchored label (agent name / model /
- * branch, like the editor's top border) can later be threaded through one place.
+ * In zen mode, other agents' unreadDone count is left-anchored as ● dots
+ * (space-separated, cap 5, then [+N]) so completions stay visible without the
+ * tab bar.
  */
 export function renderTabBarSeparator(
   width: number,
-  options: { thinkingLevel?: string; vimMode?: boolean } = {},
+  options: {
+    thinkingLevel?: string;
+    vimMode?: boolean;
+    zenMode?: boolean;
+    /** Other agents with unreadDone (current tab excluded by the caller). */
+    zenDoneCount?: number;
+  } = {},
   theme: MixCodeTheme = activeRenderTheme,
 ): string[] {
   return renderWithTheme(theme, () => {
     const colorize = options.vimMode
       ? activeRenderTheme.vimBorder
       : activeRenderTheme.thinkingBorder(options.thinkingLevel);
-    return [padLine(colorize("\u2500".repeat(Math.max(0, width))), width)];
+    const plain = () => [padLine(colorize("\u2500".repeat(Math.max(0, width))), width)];
+    if (width <= 0) return plain();
+    if (options.zenMode !== true) return plain();
+    const count = Math.max(0, options.zenDoneCount ?? 0);
+    if (count === 0) return plain();
+
+    const shown = Math.min(count, ZEN_DONE_DOT_CAP);
+    const overflow = count - shown;
+    const dots = Array.from({ length: shown }, () => ZEN_DONE_DOT).join(" ");
+    // Prefer full "── ● ● [+N] "; drop [+N] then the cluster when width is tight.
+    const withOverflow =
+      overflow > 0 ? `\u2500\u2500 ${dots} [+${overflow}] ` : `\u2500\u2500 ${dots} `;
+    const withoutOverflow = `\u2500\u2500 ${dots} `;
+    let left = withOverflow;
+    if (visibleWidth(left) > width) left = withoutOverflow;
+    if (visibleWidth(left) > width) return plain();
+    const fill = Math.max(0, width - visibleWidth(left));
+    return [padLine(colorize(left + "\u2500".repeat(fill)), width)];
   });
+}
+
+/** Count other tabs' unreadDone for the zen separator (excludes active agent). */
+export function zenUnreadDoneCount(
+  tabs: ReadonlyArray<{ sessionId: string; unreadDone: boolean }>,
+  activeSessionId: string | undefined,
+): number {
+  return tabs.filter((tab) => tab.unreadDone && tab.sessionId !== activeSessionId).length;
 }
 
 export function tabBarHitRegions(

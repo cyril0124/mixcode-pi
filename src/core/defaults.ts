@@ -104,6 +104,7 @@ export function createTab(
     vimMode: false,
     vimPendingEscapeAt: undefined,
     vimPendingHome: false,
+    zenMode: false,
     pendingEscapeAction: undefined,
     pendingEscapeArmedAt: undefined,
     lastEscapeTime: undefined,

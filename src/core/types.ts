@@ -185,6 +185,8 @@ export interface MixCodeTabInfo {
   vimMode: boolean;
   vimPendingEscapeAt?: number;
   vimPendingHome?: boolean;
+  /** Distraction-free chrome: hide tab bar; tab/shift-tab swallowed; ctrl+t transfers. */
+  zenMode: boolean;
   pendingEscapeAction?: PendingEscapeAction;
   pendingEscapeArmedAt?: number;
   /** Timestamp of last Escape press for double-escape tree detection */

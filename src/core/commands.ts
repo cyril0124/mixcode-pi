@@ -25,6 +25,7 @@ export type LocalCommand =
   | "clear"
   | "mark-done"
   | "vim"
+  | "toggle-zen-mode"
   | "navigate"
   | "new-session"
   | "resume"
@@ -265,6 +266,11 @@ export const LOCAL_COMMANDS: Array<{
     name: "vim",
     description: "Enter Vim mode for chat scrolling",
     palette: { label: "Vim Mode", requires: "session" },
+  },
+  {
+    name: "toggle-zen-mode",
+    description: "Toggle Zen mode (hide tab bar; Tab switches only via Ctrl+T)",
+    palette: { label: "Toggle Zen Mode", requires: "session" },
   },
   {
     name: "navigate",

@@ -26,6 +26,7 @@ import {
   renderTabBarSeparator,
   renderWorkingIndicator,
   setCurrentUiTheme,
+  zenUnreadDoneCount,
 } from "./rendering.js";
 import { themeForId, type MixCodeTheme } from "./themes.js";
 
@@ -47,7 +48,12 @@ export class MixCodeRoot implements Component {
   render(width: number): string[] {
     const active = getActiveTab(this.state);
     const theme = themeForId(this.state.theme);
-    const tabBarLines = renderTabBar(this.state, width, theme);
+    // Zen mode hides the tab bar only; separator and header stay so chrome
+    // still frames the chat without tab chrome noise.
+    const tabBarLines =
+      active?.zenMode === true && this.state.activeTabId !== "config"
+        ? []
+        : renderTabBar(this.state, width, theme);
     // Extension header is no longer pinned here; it now scrolls with the
     // conversation (rendered at the top of the agent surface), matching Pi.
     const top = [...renderHeader(width, theme), ...tabBarLines];
@@ -68,9 +74,17 @@ export class MixCodeRoot implements Component {
     const runtimeTab = this.runtime.getTab(active.sessionId);
     // Horizontal rule directly under the tab bar (replaces the old blank gap).
     // Color tracks the active tab's editor border so the chrome reads as one frame.
+    // Zen: left-anchor ● for other agents' unreadDone (tab bar is hidden).
     const contentGap = renderTabBarSeparator(
       width,
-      { thinkingLevel: active.thinkingLevel, vimMode: active.vimMode },
+      {
+        thinkingLevel: active.thinkingLevel,
+        vimMode: active.vimMode,
+        zenMode: active.zenMode === true,
+        zenDoneCount: active.zenMode
+          ? zenUnreadDoneCount(this.state.tabs, active.sessionId)
+          : 0,
+      },
       theme,
     );
     const preview = renderPreviewOverlay(active, width, theme);

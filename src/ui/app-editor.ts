@@ -90,6 +90,7 @@ export class CompactPromptEditor extends Editor {
       return lines;
     }
     const isVimMode = this.activeTab()?.vimMode === true;
+    const isZenMode = this.activeTab()?.zenMode === true;
     const currentText = this.getExpandedText?.() ?? this.getText();
     const isEmpty = currentText.length === 0;
     const isShellMode = currentText.trimStart().startsWith("!");
@@ -99,7 +100,7 @@ export class CompactPromptEditor extends Editor {
         ? theme.shellBorder
         : theme.thinkingBorder(this.activeTab()?.thinkingLevel);
     const lines = super.render(width);
-    this.applyTopBorderLabel(lines, width, theme, isVimMode);
+    this.applyTopBorderLabel(lines, width, theme, isVimMode, isZenMode);
     if (!isEmpty) return lines;
     if (isVimMode) {
       return lines.map((line, index) =>
@@ -121,15 +122,16 @@ export class CompactPromptEditor extends Editor {
 
   /**
    * Replace the editor's plain top border (lines[0]) with a labeled variant
-   * showing the agent title at the right and an optional [VIM] badge. Skips the
-   * scroll indicator ("─── ↑ N more ─") and any non-border first line so it is
-   * never clobbered. Mutates `lines` in place.
+   * showing the agent title at the right and optional [VIM]/[ZEN] badges.
+   * Skips the scroll indicator ("─── ↑ N more ─") and any non-border first
+   * line so it is never clobbered. Mutates `lines` in place.
    */
   private applyTopBorderLabel(
     lines: string[],
     width: number,
     theme: MixCodeTheme,
     isVimMode: boolean,
+    isZenMode: boolean,
   ): void {
     const first = lines[0];
     if (first === undefined || !isPlainBorderLine(first)) return;
@@ -137,13 +139,17 @@ export class CompactPromptEditor extends Editor {
     const title = active?.title ?? "";
     // Title follows the vim border color in vim mode, accent in normal mode.
     const titleLabel = isVimMode ? theme.vimBorder : theme.accent;
+    // [ZEN] matches the frame: vimBorder when coexisting with vim, else accent.
+    const zenLabel = isVimMode ? theme.vimBorder : theme.accent;
     lines[0] = buildLabeledTopBorder({
       width,
       title,
       vimMode: isVimMode,
+      zenMode: isZenMode,
       customBasePrompt: active?.customBasePrompt === true,
       dash: this.borderColor,
       vimLabel: theme.vimBorder,
+      zenLabel,
       titleLabel,
       // Keep [sys] in the same accent family as the title (agent identity).
       sysLabel: titleLabel,

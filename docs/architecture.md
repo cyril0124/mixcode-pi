@@ -113,8 +113,8 @@ Config tab 只渲染配置面板和可点击操作，不渲染 prompt editor；�
 
 | 快捷键 | 当前行为 |
 | --- | --- |
-| `Tab` | 下一个 tab，补全打开时交给 Editor 接受候选 |
-| `Shift+Tab` | 上一个 tab，补全打开时不抢占 |
+| `Tab` | 下一个 tab，补全打开时交给 Editor 接受候选；**Zen 模式**下吞掉（不切换 tab，也不走 vim tab-cycle） |
+| `Shift+Tab` | 上一个 tab，补全打开时不抢占；**Zen 模式**下同样吞掉 |
 | `r` | config tab 或 overlay 场景从 pi runtime 刷新 tab 状态；agent 输入中保留普通字符 |
 | `Ctrl+P` | 可过滤命令面板；按 Config/Agent tab 显示当前语境命令，回车执行可用命令 |
 | `Ctrl+T` | tab jump 模糊跳转；打开后 `Tab`/`Shift+Tab` 在候选中移动，不穿透到全局 tab 切换 |
@@ -134,6 +134,8 @@ Config tab 只渲染配置面板和可点击操作，不渲染 prompt editor；�
 | `q` | 普通输入字符，不绑定退出，避免破坏 prompt 输入 |
 
 Vim user-message 导航预览是一个自动过期的 floating panel，覆盖在 editor 上方，列出附近 user prompts 和 `<NEWEST>`；Vim 状态提示为 `Vim: → newer user msg · Shift+→ older user msg`。
+
+`/toggle-zen-mode` 切换当前 agent 的 Zen 模式（tab 级、不写全局 settings）：隐藏 tab bar；Tab/Shift+Tab 被吞掉，换 tab 只靠 Ctrl+T（或 Home attach）；editor 顶栏显示 `[ZEN]`；分隔线左侧用 `●` 显示其他 agent 的 `unreadDone`（最多 5 个，超出 `[+N]`）。与 Vim 可并存；agent→agent 切换时 vim/zen 随目标转移，回 Home 时标志留在 agent 上。
 
 `src/core/keymap.ts` 是带作用域的可审计 keymap，不只记录全局键。`global` 作用域覆盖主输入表面，`file-picker`、`picker`、`command-palette`、`tab-jump`、`export`、`preview` 作用域覆盖 overlay 或局部交互；`describeKeymap()` 保持旧的简短输出，`describeScopedKeymap()` 用于审计完整局部键表。
 
@@ -198,7 +200,7 @@ Ctrl+P
   └─ Agent tab
        ├─ /models /thinking /context-limit /settings /tui-state
        ├─ /system-tools /system-prompt /toggle-hidden-messages /hide-thinking /extension-manager /reload /session
-       ├─ /rename /workdir /import /mark-done /vim
+       ├─ /rename /workdir /import /mark-done /vim /toggle-zen-mode
        ├─ /fork /compact /clear /navigate /tree
        ├─ /help /hotkeys /quit /exit
        ├─ /new-session /resume /close-session /delete-session

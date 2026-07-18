@@ -12,12 +12,14 @@ function build(opts: {
   width: number;
   title: string;
   vimMode: boolean;
+  zenMode?: boolean;
   customBasePrompt?: boolean;
 }): string {
   return buildLabeledTopBorder({
     width: opts.width,
     title: opts.title,
     vimMode: opts.vimMode,
+    zenMode: opts.zenMode,
     customBasePrompt: opts.customBasePrompt,
     dash: identity,
     vimLabel: identity,
