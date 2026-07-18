@@ -10,8 +10,8 @@
 // ║  configured. For scrolling and copying; nothing is written to disk. ║
 // ║                                                                    ║
 // ║  Targets:                                                          ║
-// ║    thinking      All reasoning/thinking blocks                     ║
 // ║    chatlog       Full transcript (user/assistant/thinking/tools)   ║
+// ║    thinking      All reasoning/thinking blocks                     ║
 // ║    latest-agent  Last assistant text reply                         ║
 // ║    latest-user   Last user message                                 ║
 // ║                                                                    ║
@@ -54,8 +54,8 @@ type AssistantBlock = TextBlock | ThinkingBlock | ToolCallBlock | { type: string
 
 /** Canonical target ids plus the human title rendered above the content. */
 const TARGETS = [
-  { id: "thinking", title: "Thinking Export", label: "Thinking" },
   { id: "chatlog", title: "Chat Export", label: "Chatlog" },
+  { id: "thinking", title: "Thinking Export", label: "Thinking" },
   { id: "latest-agent", title: "Latest Agent Reply", label: "Latest agent reply" },
   { id: "latest-user", title: "Latest User Message", label: "Latest user message" },
 ] as const;
@@ -66,10 +66,10 @@ type TargetId = (typeof TARGETS)[number]["id"];
 function normalizeTarget(raw: string): TargetId | undefined {
   const value = raw.trim().toLowerCase();
   switch (value) {
-    case "thinking":
-      return "thinking";
     case "chatlog":
       return "chatlog";
+    case "thinking":
+      return "thinking";
     case "latest-agent":
     case "latest-agent-reply":
       return "latest-agent";
@@ -322,7 +322,7 @@ const extension: ExtensionFactory = (pi) => {
   };
 
   pi.registerCommand("view", {
-    description: "View thinking, chatlog, latest-agent, or latest-user text (external editor, else in-app)",
+    description: "View chatlog, thinking, latest-agent, or latest-user text (external editor, else in-app)",
     getArgumentCompletions: (prefix: string) =>
       TARGETS.map((t) => ({ value: t.id, label: t.id, description: t.label })).filter((item) =>
         item.value.startsWith(prefix.trim()),
