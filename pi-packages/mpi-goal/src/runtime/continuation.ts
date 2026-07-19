@@ -87,23 +87,25 @@ export function beginGoalCompaction(pi: ExtensionAPI, ctx: ExtensionContext): vo
 	cancelFallbackTimer();
 	contState().fallbackAttempts = 0;
 	contState().prequeuedCompactionKey = undefined;
-	contState().compactionWork = currentCompactionWork();
-	logRuntime("beginGoalCompaction.workSelected", workFields(contState().compactionWork));
-	if (!contState().compactionWork) return;
-	if (contState().compactionWork.kind === "activeGoal" && contState().pendingContinuation?.goalId === contState().compactionWork.goalId) {
-		logRuntime("beginGoalCompaction.cancelPendingContinuation", { pendingGoalId: contState().pendingContinuation.goalId, pendingReason: contState().pendingContinuation.reason });
-		clearTimeout(contState().pendingContinuation.timer);
+	const work = currentCompactionWork();
+	contState().compactionWork = work;
+	logRuntime("beginGoalCompaction.workSelected", workFields(work));
+	if (!work) return;
+	const pending = contState().pendingContinuation;
+	if (work.kind === "activeGoal" && pending?.goalId === work.goalId) {
+		logRuntime("beginGoalCompaction.cancelPendingContinuation", { pendingGoalId: pending.goalId, pendingReason: pending.reason });
+		clearTimeout(pending.timer);
 		contState().pendingContinuation = undefined;
 	}
 	skip(pi, "compacting");
 	if (ctx.isIdle()) {
-		logRuntime("beginGoalCompaction.prequeueSkippedIdle", workFields(contState().compactionWork));
-		return finishCompactionTelemetry(pi, "prequeue", contState().compactionWork.key, 0, "prequeueSkippedIdle");
+		logRuntime("beginGoalCompaction.prequeueSkippedIdle", workFields(work));
+		return finishCompactionTelemetry(pi, "prequeue", work.key, 0, "prequeueSkippedIdle");
 	}
-	const prequeued = prequeueCompactionWork(pi, contState().compactionWork);
-	if (prequeued) contState().prequeuedCompactionKey = contState().compactionWork.key;
+	const prequeued = prequeueCompactionWork(pi, work);
+	if (prequeued) contState().prequeuedCompactionKey = work.key;
 	logRuntime("beginGoalCompaction.end", {
-		...workFields(contState().compactionWork),
+		...workFields(work),
 		prequeued,
 		prequeuedCompactionKey: contState().prequeuedCompactionKey,
 	});
@@ -187,8 +189,9 @@ export function scheduleBudgetLimitWrapUp(pi: ExtensionAPI, ctx: ExtensionContex
 }
 
 export function cancelGoalContinuation(goalId?: string, _reason = "cancelled"): void {
-	if (contState().pendingContinuation && (!goalId || contState().pendingContinuation.goalId === goalId)) {
-		clearTimeout(contState().pendingContinuation.timer);
+	const pending = contState().pendingContinuation;
+	if (pending && (!goalId || pending.goalId === goalId)) {
+		clearTimeout(pending.timer);
 		contState().pendingContinuation = undefined;
 	}
 	for (const [pendingGoalId, pending] of contState().budgetWrapUps) {

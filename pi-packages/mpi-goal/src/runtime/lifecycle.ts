@@ -299,7 +299,8 @@ function armPendingAgentEndContinue(pi: ExtensionAPI, ctx: ExtensionContext, goa
 	const sessionKey = currentGoalSessionKey();
 	const timer = setTimeout(() => {
 		runInGoalSession(sessionKey, () => {
-			if (!lifecycleState().pendingAgentEndContinue || lifecycleState().pendingAgentEndContinue.goalId !== goalId) return;
+			const pending = lifecycleState().pendingAgentEndContinue;
+			if (!pending || pending.goalId !== goalId) return;
 			lifecycleState().pendingAgentEndContinue = undefined;
 			dispatchAgentEndContinue(pi, ctx);
 		});
@@ -343,8 +344,9 @@ function lastAssistantStopReason(messages: unknown[] | undefined): string | unde
 }
 
 function clearPendingAgentEndContinue(): void {
-	if (!lifecycleState().pendingAgentEndContinue) return;
-	clearTimeout(lifecycleState().pendingAgentEndContinue.timer);
+	const pending = lifecycleState().pendingAgentEndContinue;
+	if (!pending) return;
+	clearTimeout(pending.timer);
 	lifecycleState().pendingAgentEndContinue = undefined;
 }
 
@@ -466,28 +468,31 @@ function handleMessageUpdate(pi: ExtensionAPI, event: MessageUpdateEvent, ctx: E
 }
 
 function handleToolCall(_event: ToolCallEvent): void {
-	if (!lifecycleState().activeTurn) return;
-	lifecycleState().activeTurn.toolCallCount++;
+	const turn = lifecycleState().activeTurn;
+	if (!turn) return;
+	turn.toolCallCount++;
 }
 
 function handleToolResult(pi: ExtensionAPI, event: ToolResultEvent): void {
-	if (!lifecycleState().activeTurn) return;
-	lifecycleState().activeTurn.toolResultCount++;
+	const turn = lifecycleState().activeTurn;
+	if (!turn) return;
+	turn.toolResultCount++;
 	// Mid-turn checkpoint: persist only whole seconds (avoids per-tool write storms).
 	if (liveActiveExtraSeconds() >= 1) flushGoalActiveTime(pi, "turn");
 	if (event.isError) return;
 	if (event.toolName === "update_goal") return noteGoalUpdateResult(event.details);
-	lifecycleState().activeTurn.progressCount++;
+	turn.progressCount++;
 }
 
 function noteGoalUpdateResult(details: unknown): void {
-	if (!lifecycleState().activeTurn || hasToolError(details)) return;
+	const turn = lifecycleState().activeTurn;
+	if (!turn || hasToolError(details)) return;
 	if (typeof details !== "object" || details === null) return;
 	const result = details as Record<string, unknown>;
 	const goal = result.goal;
 	if (typeof goal === "object" && goal !== null) {
-		lifecycleState().activeTurn.progressCount++;
-		if ((goal as Record<string, unknown>).status === "complete") lifecycleState().activeTurn.completedGoal = true;
+		turn.progressCount++;
+		if ((goal as Record<string, unknown>).status === "complete") turn.completedGoal = true;
 	}
 }
 

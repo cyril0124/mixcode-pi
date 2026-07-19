@@ -39,7 +39,6 @@ export function decideGoalCompletion(input: GoalCompletionGateInput): Completion
 			goal: input.currentGoal,
 			floor,
 			card: selected,
-			telemetry: input.telemetry,
 		}),
 	};
 }
@@ -49,5 +48,5 @@ function canAllowNoValuableWorkEscape(telemetry: GoalTelemetrySnapshot | null): 
 }
 
 function hasPriorFloorWork(telemetry: GoalTelemetrySnapshot | null): boolean {
-	return (telemetry?.floorSteerCount ?? 0) > 0 || (telemetry?.completedFloorCardIds.length ?? 0) > 0;
+	return (telemetry?.floorSteerCount ?? 0) > 0 || (telemetry?.completedFloorCardIds?.length ?? 0) > 0;
 }
