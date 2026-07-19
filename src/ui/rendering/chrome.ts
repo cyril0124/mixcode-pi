@@ -54,7 +54,8 @@ const ZEN_DONE_DOT = "\u25cf"; // ●
  * driven by transient editor text and would make this top rule flicker.
  * In zen mode, other agents' unreadDone count is left-anchored as ● dots
  * (space-separated, cap 5, then [+N]) so completions stay visible without the
- * tab bar.
+ * tab bar. Dots / [+N] use theme.done (same green as tab-bar !); dashes keep
+ * the frame color (vimBorder / thinking border).
  */
 export function renderTabBarSeparator(
   width: number,
@@ -68,10 +69,11 @@ export function renderTabBarSeparator(
   theme: MixCodeTheme = activeRenderTheme,
 ): string[] {
   return renderWithTheme(theme, () => {
-    const colorize = options.vimMode
+    const frame = options.vimMode
       ? activeRenderTheme.vimBorder
       : activeRenderTheme.thinkingBorder(options.thinkingLevel);
-    const plain = () => [padLine(colorize("\u2500".repeat(Math.max(0, width))), width)];
+    const done = activeRenderTheme.done;
+    const plain = () => [padLine(frame("\u2500".repeat(Math.max(0, width))), width)];
     if (width <= 0) return plain();
     if (options.zenMode !== true) return plain();
     const count = Math.max(0, options.zenDoneCount ?? 0);
@@ -81,14 +83,22 @@ export function renderTabBarSeparator(
     const overflow = count - shown;
     const dots = Array.from({ length: shown }, () => ZEN_DONE_DOT).join(" ");
     // Prefer full "── ● ● [+N] "; drop [+N] then the cluster when width is tight.
-    const withOverflow =
+    // Measure on bare text; paint frame dashes and done-colored markers separately.
+    const bareWithOverflow =
       overflow > 0 ? `\u2500\u2500 ${dots} [+${overflow}] ` : `\u2500\u2500 ${dots} `;
-    const withoutOverflow = `\u2500\u2500 ${dots} `;
-    let left = withOverflow;
-    if (visibleWidth(left) > width) left = withoutOverflow;
-    if (visibleWidth(left) > width) return plain();
-    const fill = Math.max(0, width - visibleWidth(left));
-    return [padLine(colorize(left + "\u2500".repeat(fill)), width)];
+    const bareWithoutOverflow = `\u2500\u2500 ${dots} `;
+    let bareLeft = bareWithOverflow;
+    let includeOverflow = overflow > 0;
+    if (visibleWidth(bareLeft) > width) {
+      bareLeft = bareWithoutOverflow;
+      includeOverflow = false;
+    }
+    if (visibleWidth(bareLeft) > width) return plain();
+    const fill = Math.max(0, width - visibleWidth(bareLeft));
+    const marker =
+      done(dots) + (includeOverflow ? ` ${done(`[+${overflow}]`)}` : "");
+    const painted = `${frame("\u2500\u2500")} ${marker} ${frame("\u2500".repeat(fill))}`;
+    return [padLine(painted, width)];
   });
 }
 

@@ -378,6 +378,29 @@ test("non-zen separator never shows done dots", () => {
   assert.doesNotMatch(line, /●/);
 });
 
+test("zen done dots use done color while dashes use the frame color", () => {
+  // Real SGR so visibleWidth/padLine ignore wrappers (fake <d> tags would be measured).
+  const esc = "\x1b";
+  const theme = {
+    vimBorder: (s: string) => `${esc}[36m${s}${esc}[39m`,
+    thinkingBorder: () => (s: string) => `${esc}[36m${s}${esc}[39m`,
+    done: (s: string) => `${esc}[32m${s}${esc}[39m`,
+    text: (s: string) => s,
+  } as unknown as import("../src/ui/themes.js").MixCodeTheme;
+  const line = renderTabBarSeparator(
+    40,
+    { zenMode: true, zenDoneCount: 7, vimMode: true },
+    theme,
+  )[0]!;
+  // "── ● ● ● ● ● [+2] " = 18 cols → 22 fill dashes on width 40.
+  assert.equal(stripAnsi(line), "── ● ● ● ● ● [+2] " + "\u2500".repeat(22));
+  // Dots and [+N] are green (32); lead/fill dashes are cyan frame (36).
+  assert.ok(line.includes(`${esc}[32m● ● ● ● ●${esc}[39m`));
+  assert.ok(line.includes(`${esc}[32m[+2]${esc}[39m`));
+  assert.ok(line.includes(`${esc}[36m──${esc}[39m`));
+  assert.ok(line.includes(`${esc}[36m`) && line.includes("─"));
+});
+
 test("zen separator drops dots when the row is too narrow", () => {
   const line = stripAnsi(
     renderTabBarSeparator(4, { zenMode: true, zenDoneCount: 3 })[0]!,
