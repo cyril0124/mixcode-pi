@@ -89,9 +89,9 @@ export function activateTab(state: MixCodeState, tabId: string): void {
 
 /**
  * Close the extension widget side panel and drop any in-progress panel text
- * selection. Used when a modal interaction takes over (dialog/custom overlay)
- * or the session is cleared, so the panel never fights for focus or screen
- * space with a modal surface. Returns true if the panel was open.
+ * selection. Panel open/close is user-owned (→ toggle); call this only for
+ * explicit dismiss paths — not when extension dialogs/custom UIs start.
+ * Returns true if the panel was open.
  */
 export function dismissExtensionPanel(tab: MixCodeTabInfo): boolean {
   if (!tab.panelOpen) return false;

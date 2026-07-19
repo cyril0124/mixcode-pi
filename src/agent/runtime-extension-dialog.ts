@@ -3,7 +3,7 @@ import {
   ExtensionSelectorComponent,
 } from "@earendil-works/pi-coding-agent";
 import type { Component, TUI as PiTui } from "@earendil-works/pi-tui";
-import { dismissExtensionPanel } from "../core/tabs.js";
+
 import { ensureExtensionThemeInitialized } from "./runtime-extension-theme.js";
 import { applyMixCodeKeybindings } from "./runtime-pi-tui-bridge.js";
 import type { ExtensionCustomUiHost, RuntimeTab } from "./runtime-types.js";
@@ -161,9 +161,8 @@ function nextDialogInteractionId(runtimeTab: RuntimeTab): string {
 }
 
 function addDialogInteraction(runtimeTab: RuntimeTab, id: string): void {
-  // A modal dialog (select/confirm/input) takes over input focus; collapse the
-  // widget side panel so it does not capture keys/mouse meant for the dialog.
-  dismissExtensionPanel(runtimeTab.tab);
+  // Dialog focus is tracked via pendingUserInteractions. Do not change panelOpen:
+  // the widget side panel is user-owned; key/mouse routing blocks it while pending.
   runtimeTab.tab.extensionUi.pendingUserInteractions.push({ id, kind: "custom" });
 }
 

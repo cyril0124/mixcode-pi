@@ -78,7 +78,13 @@ export function handleMouseInput(
   // Clicking the chat scrollbar gutter jumps scroll position (before text selection).
   if (handleChatScrollbarMouse(state, active, mouse, tui)) return true;
   if (handleInputSelectionMouse(active, mouse, tui, copyToClipboard)) return true;
-  if (active.panelOpen && handlePanelSelectionMouse(active, mouse, tui, copyToClipboard)) {
+  // While an extension dialog/custom UI owns input, keep the side panel visible
+  // but do not let panel selection/scroll steal clicks or drags from the modal.
+  const panelInteractive =
+    active.panelOpen &&
+    active.extensionUi.pendingUserInteractions.length === 0 &&
+    active.pendingDialogs.length === 0;
+  if (panelInteractive && handlePanelSelectionMouse(active, mouse, tui, copyToClipboard)) {
     return true;
   }
   if (handleChatSelectionMouseInput(state, active, data, tui, runtime, copyToClipboard)) {
@@ -87,9 +93,10 @@ export function handleMouseInput(
   // Wheel over the open side panel scrolls the panel; anywhere else scrolls
   // chat. Region routing keeps the two side-by-side scroll regions independent.
   // Notice does not block wheel outside its bounds (handled above only for selection).
+  // Pending interactions already force wheel→chat above; this path is idle-only.
   if (
     mouse.wheel &&
-    active.panelOpen &&
+    panelInteractive &&
     pointInChatSurface(active.panelSurfaceBounds, { row: mouse.y, col: mouse.x })
   ) {
     scrollExtensionPanel(active, mouse.wheel === "up" ? -3 : 3);

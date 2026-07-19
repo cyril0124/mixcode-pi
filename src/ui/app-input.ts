@@ -9,7 +9,7 @@ import {
   scrollChat,
 } from "../core/overlays.js";
 import { pushToast } from "../core/toast.js";
-import { activateTab, getActiveTab, nextTabId } from "../core/tabs.js";
+import { activateTab, dismissExtensionPanel, getActiveTab, nextTabId } from "../core/tabs.js";
 import type { MixCodeState } from "../core/types.js";
 import { clearPendingEscape, openCloseAllSessionsConfirm, openDeleteAllSessionsConfirm, openQuitConfirm } from "./app-actions.js";
 import { insertEditorText } from "./app-editor.js";
@@ -680,9 +680,7 @@ export const EXTENSION_PANEL_MIN_TERMINAL_WIDTH = 80;
  */
 function toggleExtensionPanel(active: MixCodeState["tabs"][number], tui: OverlayTui): void {
   if (active.panelOpen) {
-    active.panelOpen = false;
-    active.panelSelection = undefined;
-    active.panelScrollOffset = 0;
+    dismissExtensionPanel(active);
     tui.requestRender();
     return;
   }

@@ -438,11 +438,11 @@ test("runtime resolves pending extension dialogs when closing a tab", async () =
   }
 });
 
-test("opening an extension dialog collapses the widget side panel", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-panel-dismiss-"));
+test("extension dialog keeps the widget side panel open", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-panel-keep-dialog-"));
   const extension: ExtensionFactory = (pi) => {
     pi.registerCommand("wait-dialog", {
-      description: "Dialog opens, panel must collapse",
+      description: "Dialog opens without closing the side panel",
       handler: async (_args, ctx) => {
         await ctx.ui.select("Wait", ["one"]);
       },
@@ -468,15 +468,63 @@ test("opening an extension dialog collapses the widget side panel", async () => 
       thinkingLevel: "medium",
       workdir: process.cwd(),
     });
-    // Simulate the panel being open before the modal dialog is triggered.
+    // Panel open is user-owned; extension dialogs must not auto-dismiss it.
     runtime.getTab("s1")!.tab.panelOpen = true;
 
     const prompt = runtime.prompt("s1", "/wait-dialog");
     await waitForRuntime(
       () => runtime.getTab("s1")?.tab.extensionUi.pendingUserInteractions.length === 1,
     );
-    // The dialog took over input focus, so the panel must have collapsed.
-    assert.equal(runtime.getTab("s1")?.tab.panelOpen, false);
+    assert.equal(runtime.getTab("s1")?.tab.panelOpen, true);
+    await runtime.deleteTab("s1");
+    await prompt;
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("extension custom editor keeps the widget side panel open", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-panel-keep-custom-"));
+  const extension: ExtensionFactory = (pi) => {
+    pi.registerCommand("wait-custom", {
+      description: "Custom editor opens without closing the side panel",
+      handler: async (_args, ctx) => {
+        await ctx.ui.custom((_tui, _theme, _keys, done) => ({
+          render: () => ["custom-open"],
+          handleInput(data: string) {
+            if (data === "q" || data === "\x1b") done(undefined);
+          },
+        }));
+      },
+    });
+  };
+  const mockEditorHost = {
+    tui: {} as any,
+    editor: {
+      getText: () => "",
+      getExpandedText: () => "",
+      setText: () => undefined,
+      pasteToEditor: () => undefined,
+      setEditorComponent: () => undefined,
+      getEditorComponent: () => undefined,
+    },
+  };
+
+  try {
+    const runtime = new MixCodeRuntime({ sessionsRoot: dir, extensionFactories: [extension] });
+    runtime.setExtensionUiHost(mockEditorHost as any);
+    await runtime.createTab(createTab(1, "s1", process.cwd()), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+    });
+    runtime.getTab("s1")!.tab.panelOpen = true;
+
+    const prompt = runtime.prompt("s1", "/wait-custom");
+    await waitForRuntime(
+      () => runtime.getTab("s1")?.tab.extensionUi.pendingUserInteractions.length === 1,
+    );
+    assert.equal(runtime.getTab("s1")?.tab.panelOpen, true);
     await runtime.deleteTab("s1");
     await prompt;
   } finally {

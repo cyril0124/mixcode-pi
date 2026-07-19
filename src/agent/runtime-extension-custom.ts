@@ -1,6 +1,5 @@
 import { ExtensionEditorComponent } from "@earendil-works/pi-coding-agent";
 import type { Component, OverlayHandle, OverlayOptions } from "@earendil-works/pi-tui";
-import { dismissExtensionPanel } from "../core/tabs.js";
 import {
   ensureExtensionThemeInitialized,
   MIXCODE_EXTENSION_KEYBINDINGS_MANAGER,
@@ -27,9 +26,9 @@ function nextPendingInteractionId(runtimeTab: RuntimeTab, kind: "custom" | "edit
 }
 
 function addPendingUserInteraction(runtimeTab: RuntimeTab, id: string, kind: "custom" | "editor") {
-  // A modal extension interaction takes over input focus; collapse the widget
-  // side panel so it does not fight for keys/screen space with the modal.
-  dismissExtensionPanel(runtimeTab.tab);
+  // Side-panel open/close is user-owned (→ toggle). Pending interactions only
+  // take input focus via pendingUserInteractions guards — they must not change
+  // panelOpen, or every extension UI (custom/dialog/editor) would dismiss it.
   runtimeTab.tab.extensionUi.pendingUserInteractions.push({ id, kind });
 }
 
