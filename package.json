@@ -20,10 +20,10 @@
     "lint:fix": "biome lint --write ."
   },
   "dependencies": {
-    "@earendil-works/pi-agent-core": "0.80.8",
-    "@earendil-works/pi-ai": "0.80.8",
-    "@earendil-works/pi-coding-agent": "0.80.8",
-    "@earendil-works/pi-tui": "0.80.8",
+    "@earendil-works/pi-agent-core": "0.80.10",
+    "@earendil-works/pi-ai": "0.80.10",
+    "@earendil-works/pi-coding-agent": "0.80.10",
+    "@earendil-works/pi-tui": "0.80.10",
     "@silvia-odwyer/photon-node": "0.3.4",
     "@typescript/native-preview": "^7.0.0-dev.20260513.1",
     "fengari": "^0.1.5",

@@ -413,7 +413,8 @@ test("runtime applies pi extension autocomplete providers on top of MixCode comp
     assert.deepEqual(seen, ["wrapper:try #a"]);
 
     const slashSuggestions = await provider.getSuggestions(["/th"], 0, 3, { signal });
-    assert.equal(slashSuggestions?.items[0]?.value, "/thinking");
+    // MixCode slash completions include a trailing space so args can be typed next.
+    assert.equal(slashSuggestions?.items[0]?.value, "/thinking ");
     assert.deepEqual(seen, ["wrapper:try #a", "wrapper:/th"]);
     assert.equal(provider.shouldTriggerFileCompletion?.(["see @src"], 0, 8), true);
   } finally {

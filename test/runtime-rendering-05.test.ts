@@ -44,10 +44,13 @@ test("command palette lists settings and reports empty search", () => {
   assert.match(home, /\/delete-all-sessions/);
 
   state.activeTabId = tab.sessionId;
-  const agent = stripAnsi(renderCommandPalette(state, 100).join("\n"));
-  assert.match(agent, /Open System Prompt/);
-  assert.match(agent, /\/mark-done/);
-  assert.doesNotMatch(agent, /Toggle Shell/);
+  // Full list is taller than the first page; filter so the asserted rows are visible.
+  state.commandPalette.query = "system prompt";
+  assert.match(stripAnsi(renderCommandPalette(state, 100).join("\n")), /Open System Prompt/);
+  state.commandPalette.query = "mark-done";
+  assert.match(stripAnsi(renderCommandPalette(state, 100).join("\n")), /\/mark-done/);
+  state.commandPalette.query = "";
+  assert.doesNotMatch(stripAnsi(renderCommandPalette(state, 100).join("\n")), /Toggle Shell/);
 
   state.commandPalette.query = "missing";
   assert.match(stripAnsi(renderCommandPalette(state, 100).join("\n")), /No matching commands/);
