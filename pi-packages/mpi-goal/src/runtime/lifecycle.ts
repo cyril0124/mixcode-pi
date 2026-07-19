@@ -198,6 +198,11 @@ export function registerGoalLifecycle(
 	pi.on("agent_settled", async (_event, ctx) => {
 		await withGoalSessionFromCtxAsync(ctx, async () => handleAgentSettled(pi, ctx));
 	});
+	// Drop already-queued goal continuations after pause/clear: they still message_start
+	// even when status is no longer active (Pi followUp queue is not cleared by extensions).
+	pi.on("message_start", (event, ctx) => {
+		withGoalSessionFromCtx(ctx, () => handleGoalSteeringMessageStart(event, ctx));
+	});
 	pi.on("message_update", (event, ctx) => {
 		withGoalSessionFromCtx(ctx, () => handleMessageUpdate(pi, event, ctx));
 	});
@@ -341,6 +346,28 @@ function clearPendingAgentEndContinue(): void {
 	if (!lifecycleState().pendingAgentEndContinue) return;
 	clearTimeout(lifecycleState().pendingAgentEndContinue.timer);
 	lifecycleState().pendingAgentEndContinue = undefined;
+}
+
+/** Cancel armed agent_end auto-continue (timers + settle dispatch). Call on pause/clear. */
+export function cancelAgentEndContinueArm(): void {
+	clearPendingAgentEndContinue();
+	lifecycleState().expectAgentEndContinue = false;
+	// Mark dispatched so a late agent_settled cannot fire after pause.
+	lifecycleState().agentEndContinueDispatched = true;
+}
+
+function handleGoalSteeringMessageStart(
+	event: { message?: { role?: string; customType?: string } },
+	ctx: ExtensionContext,
+): void {
+	const message = event.message;
+	if (!message || message.role !== "custom") return;
+	if (message.customType !== CONTINUATION_MESSAGE_TYPE) return;
+	ensureGoalHydrated(ctx);
+	const goal = getGoal();
+	if (goal && goal.status === "active") return;
+	// Stale continuation still in Pi's followUp queue after pause/complete/clear.
+	ctx.abort();
 }
 
 function handleTurnStart(pi: ExtensionAPI, event: TurnStartEvent, ctx: ExtensionContext): void {
@@ -540,6 +567,7 @@ async function pauseForSafety(
 	message: string,
 ): Promise<void> {
 	cancelGoalContinuation(goal.goalId, reason);
+	cancelAgentEndContinueArm();
 	flushAndStopGoalActiveTime(pi, reason === "abort" ? "abort" : "safety");
 	const current = getGoal() ?? goal;
 	if (current.status === "paused" && reason === "apiError" && current.goalId === goal.goalId) {

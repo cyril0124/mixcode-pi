@@ -8,7 +8,7 @@ import {
 	scheduleBudgetLimitWrapUp,
 	scheduleMaybeContinueGoal,
 } from "./runtime/continuation.js";
-import { registerGoalLifecycle } from "./runtime/lifecycle.js";
+import { cancelAgentEndContinueArm, registerGoalLifecycle } from "./runtime/lifecycle.js";
 import { createNoopPostCompletionActionRunner } from "./runtime/post-completion.js";
 import { getQueue } from "./persistence/queue-store.js";
 import { sendQueueHandoff, sendQueueSteering } from "./queue/steering.js";
@@ -45,7 +45,11 @@ export function wireMpiGoal(pi: ExtensionAPI): void {
 
 	const scheduleContinuation = (ctx: Parameters<typeof scheduleMaybeContinueGoal>[1], reason: Parameters<typeof scheduleMaybeContinueGoal>[2]) =>
 		scheduleMaybeContinueGoal(pi, ctx, reason);
-	const cancelContinuation = cancelGoalContinuation;
+	const cancelContinuation = (goalId?: string, reason?: string) => {
+		cancelGoalContinuation(goalId, reason);
+		// Pause/clear must also drop armed agent_end settle/fallback continues.
+		cancelAgentEndContinueArm();
+	};
 	const interruptActiveTurn = (ctx: Parameters<typeof interruptActiveGoalTurn>[1], goal: Parameters<typeof interruptActiveGoalTurn>[2]) =>
 		interruptActiveGoalTurn(pi, ctx, goal);
 
