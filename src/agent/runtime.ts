@@ -1246,7 +1246,8 @@ export class MixCodeRuntime {
     if (runtimeTab.agentSession.isStreaming) {
       throw new Error("Cannot compact while the agent is streaming");
     }
-    if (runtimeTab.agentSession.isCompacting) {
+    // Cover the gap before SDK sets isCompacting (await abort() inside compact).
+    if (runtimeTab.compactionInFlight || runtimeTab.agentSession.isCompacting) {
       throw new Error("Cannot compact while compaction is running");
     }
     const branch = runtimeTab.session.getBranch();
@@ -1255,6 +1256,12 @@ export class MixCodeRuntime {
     }
     if (branch.at(-1)?.type === "compaction") {
       throw new Error("Session is already compacted");
+    }
+    // Claim before any await so autoCompactAndContinue cannot interleave.
+    runtimeTab.compactionInFlight = true;
+    if (runtimeTab.agentSession.isCompacting) {
+      runtimeTab.compactionInFlight = false;
+      throw new Error("Cannot compact while compaction is running");
     }
     setTabStatus(runtimeTab.tab, "running", { restart: true });
     clearPendingEscape(runtimeTab.tab);
@@ -1289,6 +1296,7 @@ export class MixCodeRuntime {
       this.emitChange({ type: "extension_ui_update" }, runtimeTab);
       throw error;
     } finally {
+      runtimeTab.compactionInFlight = false;
       this.sync.markLocalWrite(sessionId);
       this.sync.release(sessionId, lock);
     }

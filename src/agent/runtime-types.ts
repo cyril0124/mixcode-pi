@@ -244,6 +244,8 @@ export interface RuntimeTab {
   autoCompactCycleFailed?: boolean;
   /** True while autoCompactAndContinue is running */
   isAutoCompacting?: boolean;
+  /** True while compactSession owns a manual compact (covers SDK pre-isCompacting gap). */
+  compactionInFlight?: boolean;
   /** Gate to serialize prompt dispatch decisions (user submit, queued flush) at idle→active transition */
   promptDispatchGate?: Promise<void>;
 }

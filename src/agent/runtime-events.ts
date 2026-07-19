@@ -80,9 +80,16 @@ async function autoCompactAndContinue(runtimeTab: RuntimeTab): Promise<void> {
     }
 
     if (!compacted && !runtimeTab.autoCompactCycleFailed) {
+      // Serialize with compactSession: SDK compact() races if two callers enter
+      // during await abort() before isCompacting flips true.
+      await claimMixCodeCompaction(runtimeTab);
       try {
-        await runtimeTab.agentSession.compact();
-        compacted = isLatestBranchEntryCompaction(runtimeTab);
+        if (isLatestBranchEntryCompaction(runtimeTab)) {
+          compacted = true;
+        } else {
+          await runtimeTab.agentSession.compact();
+          compacted = isLatestBranchEntryCompaction(runtimeTab);
+        }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         const aborted =
@@ -107,6 +114,8 @@ async function autoCompactAndContinue(runtimeTab: RuntimeTab): Promise<void> {
 
         // Real error - throw to outer catch
         throw error;
+      } finally {
+        runtimeTab.compactionInFlight = false;
       }
     }
 
@@ -147,6 +156,27 @@ async function waitForCompactionEnd(agentSession: RuntimeTab["agentSession"]): P
       resolve();
     });
   });
+}
+
+/** Claim exclusive MixCode compaction; waits out peers (covers pre-isCompacting gap). */
+async function claimMixCodeCompaction(runtimeTab: RuntimeTab): Promise<void> {
+  for (;;) {
+    if (runtimeTab.agentSession.isCompacting) {
+      await waitForCompactionEnd(runtimeTab.agentSession);
+      continue;
+    }
+    if (runtimeTab.compactionInFlight) {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      continue;
+    }
+    runtimeTab.compactionInFlight = true;
+    // Re-check after claim in case another waiter raced the flag write.
+    if (runtimeTab.agentSession.isCompacting) {
+      runtimeTab.compactionInFlight = false;
+      continue;
+    }
+    return;
+  }
 }
 
 async function continueAgentSession(agentSession: RuntimeTab["agentSession"]): Promise<void> {
