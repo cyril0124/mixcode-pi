@@ -123,7 +123,7 @@ Config tab 只渲染配置面板和可点击操作，不渲染 prompt editor；�
 | `Ctrl+J` / `Shift+Enter` | 在当前 Editor 光标处插入换行 |
 | `Ctrl+O` | 展开/收起 tool 输出块与 header 快捷键提示（共用 tools-expand 状态） |
 | `Ctrl+R` | 预填 `/rename 当前标题`，复用 slash command 重命名 |
-| `Alt+Up` / `Ctrl+U` | 将最后一条 queued prompt 弹回编辑器；没有队列时不抢占 Editor |
+| `Alt+Up` / `Ctrl+U` | 将最后一条 queued prompt 弹回编辑器；**空队列时 Ctrl+U 武装 1s 内 `u`/`Ctrl+U` 进入 Vim**（input meta 显示 `u/Ctrl+U: vim`；Home / Alt+Up 不武装；始终消费以免落到 Editor 行首删除） |
 | `Up` / `Down` | 普通输入为空且无 overlay、preview、补全、extension terminal input 消费时浏览当前 tab 的 prompt 历史；其它场景交给局部控件 |
 | `Right` | Vim 模式跳到更新的 user message，并短暂显示右锚定 `User Messages` 预览；非 Vim 普通输入为空且无 overlay、preview、补全、extension user interaction 时切换 extension widget side panel；无 widget 或终端过窄时显示 toast；有输入时交给 Editor 光标移动 |
 | `Shift+Right` | Vim 模式跳到更旧的 user message，并短暂显示右锚定 `User Messages` 预览 |

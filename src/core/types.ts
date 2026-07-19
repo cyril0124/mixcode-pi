@@ -185,6 +185,8 @@ export interface MixCodeTabInfo {
   vimMode: boolean;
   vimPendingEscapeAt?: number;
   vimPendingHome?: boolean;
+  /** Timestamp when empty-queue Ctrl+U armed enter-via-u; cleared on next key. */
+  vimEnterArmedAt?: number;
   /** Distraction-free chrome: hide tab bar; tab/shift-tab swallowed; ctrl+t transfers. */
   zenMode: boolean;
   pendingEscapeAction?: PendingEscapeAction;

@@ -4,6 +4,7 @@ import {
   createInitialState,
   createTab,
   handleMixCodeKeyInput,
+  renderInputMeta,
   stripAnsi,
 } from "../src/index.js";
 
@@ -263,6 +264,353 @@ test("global key input pops queued messages back into editor", () => {
     { consume: true },
   );
   assert.equal(text, "keep draft");
+});
+
+test("input meta shows u/Ctrl+U: vim while enter-vim is armed", () => {
+  const tab = createTab(1, "s1", "/repo");
+  tab.vimEnterArmedAt = Date.now();
+  const plain = stripAnsi(renderInputMeta(tab, 120).join("\n"));
+  assert.match(plain, /u\/Ctrl\+U: vim/);
+});
+
+test("empty-queue Ctrl+U then u enters vim mode", () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo");
+  state.tabs.push(tab);
+  state.activeTabId = "s1";
+  let text = "draft stays";
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({}) as never,
+    hideOverlay: () => undefined,
+    hasOverlay: () => false,
+  };
+  const editorActions = {
+    getText: () => text,
+    setText: (next: string) => {
+      text = next;
+    },
+  };
+
+  assert.deepEqual(
+    handleMixCodeKeyInput(
+      state,
+      "\x15",
+      tui,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      editorActions,
+    ),
+    { consume: true },
+  );
+  assert.equal(tab.vimMode, false);
+  assert.ok(typeof tab.vimEnterArmedAt === "number");
+
+  assert.deepEqual(
+    handleMixCodeKeyInput(
+      state,
+      "u",
+      tui,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      editorActions,
+    ),
+    { consume: true },
+  );
+  assert.equal(tab.vimMode, true);
+  assert.equal(tab.vimEnterArmedAt, undefined);
+  assert.equal(text, "draft stays");
+
+  assert.deepEqual(handleMixCodeKeyInput(state, "q", tui), { consume: true });
+  assert.equal(tab.vimMode, false);
+});
+
+test("empty-queue Ctrl+U twice enters vim mode", () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo");
+  state.tabs.push(tab);
+  state.activeTabId = "s1";
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({}) as never,
+    hideOverlay: () => undefined,
+    hasOverlay: () => false,
+  };
+  const editorActions = {
+    getText: () => "",
+    setText: () => undefined,
+  };
+
+  assert.deepEqual(
+    handleMixCodeKeyInput(
+      state,
+      "\x15",
+      tui,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      editorActions,
+    ),
+    { consume: true },
+  );
+  assert.ok(typeof tab.vimEnterArmedAt === "number");
+
+  assert.deepEqual(
+    handleMixCodeKeyInput(
+      state,
+      "\x15",
+      tui,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      editorActions,
+    ),
+    { consume: true },
+  );
+  assert.equal(tab.vimMode, true);
+  assert.equal(tab.vimEnterArmedAt, undefined);
+});
+
+test("queued Ctrl+U still dequeues and does not arm vim enter", () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo", { pendingMessages: ["queued prompt"] });
+  state.tabs.push(tab);
+  state.activeTabId = "s1";
+  let text = "";
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({}) as never,
+    hideOverlay: () => undefined,
+    hasOverlay: () => false,
+  };
+  const editorActions = {
+    getText: () => text,
+    setText: (next: string) => {
+      text = next;
+    },
+  };
+
+  assert.deepEqual(
+    handleMixCodeKeyInput(
+      state,
+      "\x15",
+      tui,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      editorActions,
+    ),
+    { consume: true },
+  );
+  assert.equal(text, "queued prompt");
+  assert.equal(tab.vimEnterArmedAt, undefined);
+  assert.equal(tab.vimMode, false);
+
+  assert.equal(
+    handleMixCodeKeyInput(
+      state,
+      "u",
+      tui,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      editorActions,
+    ),
+    undefined,
+  );
+  assert.equal(tab.vimMode, false);
+});
+
+test("vim enter arm cancels on other key and expires after 1s", () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo");
+  state.tabs.push(tab);
+  state.activeTabId = "s1";
+  let text = "";
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({}) as never,
+    hideOverlay: () => undefined,
+    hasOverlay: () => false,
+  };
+  const editorActions = {
+    getText: () => text,
+    setText: (next: string) => {
+      text = next;
+    },
+  };
+
+  assert.deepEqual(
+    handleMixCodeKeyInput(
+      state,
+      "\x15",
+      tui,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      editorActions,
+    ),
+    { consume: true },
+  );
+  assert.ok(typeof tab.vimEnterArmedAt === "number");
+
+  // Non-confirm key clears the arm and continues normal dispatch.
+  assert.equal(
+    handleMixCodeKeyInput(
+      state,
+      "x",
+      tui,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      editorActions,
+    ),
+    undefined,
+  );
+  assert.equal(tab.vimEnterArmedAt, undefined);
+  assert.equal(tab.vimMode, false);
+
+  assert.deepEqual(
+    handleMixCodeKeyInput(
+      state,
+      "\x15",
+      tui,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      editorActions,
+    ),
+    { consume: true },
+  );
+  tab.vimEnterArmedAt = Date.now() - 1001;
+  assert.equal(
+    handleMixCodeKeyInput(
+      state,
+      "u",
+      tui,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      editorActions,
+    ),
+    undefined,
+  );
+  assert.equal(tab.vimMode, false);
+  assert.equal(tab.vimEnterArmedAt, undefined);
+});
+
+test("vim enter accepts Kitty CSI-u for confirming u and ignores key release", () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo");
+  state.tabs.push(tab);
+  state.activeTabId = "s1";
+  let text = "keep";
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({}) as never,
+    hideOverlay: () => undefined,
+    hasOverlay: () => false,
+  };
+  const editorActions = {
+    getText: () => text,
+    setText: (next: string) => {
+      text = next;
+    },
+  };
+
+  assert.deepEqual(
+    handleMixCodeKeyInput(
+      state,
+      "\x15",
+      tui,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      editorActions,
+    ),
+    { consume: true },
+  );
+  assert.ok(typeof tab.vimEnterArmedAt === "number");
+
+  // Kitty flag-2 Ctrl+U release must not clear the arm.
+  assert.deepEqual(
+    handleMixCodeKeyInput(
+      state,
+      "\x1b[117;5:3u",
+      tui,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      editorActions,
+    ),
+    { consume: true },
+  );
+  assert.ok(typeof tab.vimEnterArmedAt === "number");
+
+  // Kitty CSI-u for plain `u` (not the raw byte "u").
+  assert.deepEqual(
+    handleMixCodeKeyInput(
+      state,
+      "\x1b[117u",
+      tui,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      editorActions,
+    ),
+    { consume: true },
+  );
+  assert.equal(tab.vimMode, true);
+  assert.equal(text, "keep");
+});
+
+test("Home empty-queue Ctrl+U does not arm vim enter", () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo");
+  state.tabs.push(tab);
+  state.activeTabId = "config";
+  state.homeSelectedTabIndex = 0;
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({}) as never,
+    hideOverlay: () => undefined,
+    hasOverlay: () => false,
+  };
+  const editorActions = {
+    getText: () => "home",
+    setText: () => undefined,
+  };
+
+  assert.deepEqual(
+    handleMixCodeKeyInput(
+      state,
+      "\x15",
+      tui,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      editorActions,
+    ),
+    { consume: true },
+  );
+  assert.equal(tab.vimEnterArmedAt, undefined);
+  assert.equal(tab.vimMode, false);
 });
 
 test("global key input lets editor handle Home and End while input is focused", () => {

@@ -241,11 +241,16 @@ function renderInputMetaInner(
   updateHitRegions = true,
 ): string[] {
   const lineWidth = Math.max(0, width - 1);
+  // Same window as VIM_ENTER_ARM_WINDOW_MS in app-input (Ctrl+U → u/Ctrl+U).
+  const vimEnterArmed =
+    typeof tab.vimEnterArmedAt === "number" && Date.now() - tab.vimEnterArmedAt <= 1_000;
   const escapeHint = isPendingEscapeActive(tab, "abort-agent")
     ? " | Esc again: stop"
     : tab.lastEscapeTime && Date.now() - tab.lastEscapeTime < 500
       ? " | Esc again: tree"
-      : "";
+      : vimEnterArmed
+        ? " | u/Ctrl+U: vim"
+        : "";
   const model = tab.model.displayName || "-";
   const thinking = tab.thinkingLevel[0]!.toUpperCase() + tab.thinkingLevel.slice(1);
   const contextBadge = ` ${renderCompactContextUsage(tab)} `;

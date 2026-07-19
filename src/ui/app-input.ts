@@ -1,4 +1,4 @@
-import { Key, matchesKey } from "@earendil-works/pi-tui";
+import { isKeyRelease, Key, matchesKey } from "@earendil-works/pi-tui";
 import { MIXCODE_EXTENSION_KEYBINDINGS_MANAGER } from "../agent/runtime.js";
 import { copyTextToClipboard } from "../core/clipboard.js";
 import {
@@ -63,6 +63,15 @@ import { handleForkSelectorKey } from "./fork-selector.js";
 import { handleTreeSelectorKey, type TreeSelectorRuntime } from "./tree-selector.js";
 import { handleWorkspaceOverlayKey } from "./workspace-overlay.js";
 import type { MixCodeSubmitRuntime } from "./app-types.js";
+
+// Empty-queue Ctrl+U arms enter-vim; confirm with u or second Ctrl+U in this window.
+// 1s: releasing Ctrl then pressing u is slower than same-key double-tap.
+const VIM_ENTER_ARM_WINDOW_MS = 1_000;
+
+function isVimEnterConfirmKey(data: string): boolean {
+  return matchesKey(data, "u") || matchesKey(data, "ctrl+u");
+}
+
 export function handleMixCodeKeyInput(
   state: MixCodeState,
   data: string,
@@ -84,6 +93,27 @@ export function handleMixCodeKeyInput(
     return { consume: true };
   }
   const active = getActiveTab(state);
+  // Resolve empty-queue Ctrl+U → (u|Ctrl+U) enter-vim arm before other dispatch.
+  // Kitty flag-2 release events must not clear the arm.
+  if (active && active.vimEnterArmedAt !== undefined) {
+    if (isKeyRelease(data)) return { consume: true };
+    const armedAt = active.vimEnterArmedAt;
+    active.vimEnterArmedAt = undefined;
+    if (
+      isVimEnterConfirmKey(data) &&
+      state.activeTabId !== "config" &&
+      !active.vimMode &&
+      !hasFocusedAppControl(state, active) &&
+      !hasAnyOverlay(tui) &&
+      Date.now() - armedAt <= VIM_ENTER_ARM_WINDOW_MS
+    ) {
+      active.vimMode = true;
+      active.vimPendingEscapeAt = undefined;
+      active.vimPendingHome = false;
+      tui.requestRender();
+      return { consume: true };
+    }
+  }
   if (state.workspaceOverlay.open) {
     if (
       handleWorkspaceOverlayKey(
@@ -530,6 +560,8 @@ export function handleMixCodeKeyInput(
     return { consume: true };
   }
   if ((matchesKey(data, "alt+up") || matchesKey(data, "ctrl+u")) && editorActions && active) {
+    // Kitty flag-2 sends press+release; only the press dequeues/arms.
+    if (isKeyRelease(data)) return { consume: true };
     clearPendingEscape(active, "abort-agent");
     // On Home, getActiveTab() is the selected agent — never dequeue that agent's queue here.
     if (state.activeTabId !== "config") {
@@ -540,6 +572,11 @@ export function handleMixCodeKeyInput(
         const draft = editorActions.getText();
         if (draft.trim() && draft !== text) active.pendingMessages.unshift(draft);
         editorActions.setText(text);
+        tui.requestRender();
+      } else if (matchesKey(data, "ctrl+u") && !active.vimMode) {
+        // Empty queue: arm Ctrl+U → u enter-vim (Alt+Up does not arm).
+        active.vimEnterArmedAt = Date.now();
+        // Show input-meta hint (u/Ctrl+U: vim); same pattern as Esc-again arms.
         tui.requestRender();
       }
     }

@@ -47,6 +47,12 @@ export const MIXCODE_KEYMAP: KeyAction[] = [
     scope: "global",
   },
   {
+    key: "ctrl+u u / ctrl+u ctrl+u",
+    action: "enter-vim",
+    description: "After empty-queue Ctrl+U, press u or Ctrl+U within 1s to enter Vim mode",
+    scope: "global",
+  },
+  {
     key: "up/down",
     action: "prompt-history",
     description: "Browse prompt history when input is empty",
