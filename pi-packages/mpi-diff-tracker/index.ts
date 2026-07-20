@@ -1,8 +1,18 @@
-import { readFileSync } from "node:fs";
-import { spawnSync, spawn } from "node:child_process";
-import { resolve, relative, join } from "node:path";
-import { tmpdir } from "node:os";
-import { writeFileSync, unlinkSync } from "node:fs";
+import {
+  chmodSync,
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
+import { homedir, tmpdir } from "node:os";
+import { dirname, join, relative, resolve } from "node:path";
+import { spawn, spawnSync } from "node:child_process";
 import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
 
 // ╔══════════════════════════════════════════════════════════════════╗
@@ -415,27 +425,335 @@ function getRangeTurnEntries(entries: SessionEntry[], a: number, b: number): Ses
   return entries.slice(startIdx, endIdx);
 }
 
-// ─── Diff viewer detection ────────────────────────────────────────────────────
+// ─── Diff viewer + optional diffnav/delta install ─────────────────────────────
+// Install both from GitHub releases into ~/.local/bin when PATH has no diffnav.
 
-let _hasDiffnav: boolean | undefined;
-function hasDiffnav(): boolean {
-  if (_hasDiffnav === undefined) {
-    _hasDiffnav = spawnSync("which", ["diffnav"], { stdio: "ignore" }).status === 0;
-  }
-  return _hasDiffnav;
+const GH_UA = { Accept: "application/vnd.github+json", "User-Agent": "mixcode-mpi-diff-tracker" };
+
+let askedInstall = false;
+let cachedDiffnav: string | null | undefined;
+
+export function resetDiffnavInstallStateForTests(): void {
+  askedInstall = false;
+  cachedDiffnav = undefined;
 }
 
-// ─── Extension Entry Point ────────────────────────────────────────────────────
+export function defaultLocalBinDir(home = homedir()): string {
+  return join(home, ".local", "bin");
+}
+export function defaultDiffnavBinaryPath(home = homedir()): string {
+  return join(defaultLocalBinDir(home), "diffnav");
+}
+export function defaultDeltaBinaryPath(home = homedir()): string {
+  return join(defaultLocalBinDir(home), "delta");
+}
+
+/** diffnav asset triple: Linux_x86_64 / Darwin_arm64 / … */
+export function platformAssetName(platform: NodeJS.Platform = process.platform, arch = process.arch): string | null {
+  const os = platform === "darwin" ? "Darwin" : platform === "linux" ? "Linux" : null;
+  const cpu = arch === "arm64" ? "arm64" : arch === "x64" ? "x86_64" : null;
+  return os && cpu ? `${os}_${cpu}` : null;
+}
+
+/** delta rustc target: x86_64-unknown-linux-gnu / … */
+export function deltaAssetTarget(platform: NodeJS.Platform = process.platform, arch = process.arch): string | null {
+  if (platform === "linux" && arch === "x64") return "x86_64-unknown-linux-gnu";
+  if (platform === "linux" && arch === "arm64") return "aarch64-unknown-linux-gnu";
+  if (platform === "darwin" && arch === "x64") return "x86_64-apple-darwin";
+  if (platform === "darwin" && arch === "arm64") return "aarch64-apple-darwin";
+  return null;
+}
+
+export function isAllowedAssetUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "https:" || u.hostname !== "github.com") return false;
+    const m = /^\/[^/]+\/[^/]+\/releases\/download\/[^/]+\/([^/]+)$/.exec(u.pathname);
+    const file = m?.[1] ?? "";
+    return file.endsWith(".tar.gz") && !/windows/i.test(file);
+  } catch {
+    return false;
+  }
+}
+
+export function formatDownloadProgress(downloaded: number, total: number | null, label = "diffnav"): string {
+  const w = 10;
+  if (total && total > 0) {
+    const f = Math.round(Math.min(1, downloaded / total) * w);
+    const mb = (n: number) => (n < 1024 * 1024 ? `${(n / 1024).toFixed(1)}KB` : `${(n / (1024 * 1024)).toFixed(1)}MB`);
+    return `${label} [${"█".repeat(f)}${"░".repeat(w - f)}] ${Math.round((downloaded / total) * 100)}% ${mb(downloaded)}/${mb(total)}`;
+  }
+  const spin = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"[Math.floor(downloaded / 65536) % 10] ?? "⠋";
+  return `${label} [${spin}] ${(downloaded / 1024).toFixed(1)}KB`;
+}
+
+export type ReleaseAsset = { tag: string; assetName: string; size: number; url: string };
+
+export function pickReleaseAsset(
+  release: { tag_name?: string; assets?: Array<{ name?: string; size?: number; browser_download_url?: string }> },
+  triple: string,
+): ReleaseAsset | null {
+  const tag = release.tag_name?.trim();
+  if (!tag) return null;
+  const ver = tag.replace(/^v/, "");
+  const want = new Set([`diffnav_${ver}_${triple}.tar.gz`, `diffnav_${triple}.tar.gz`]);
+  const a = (release.assets ?? []).find((x) => x.name && want.has(x.name));
+  return a?.browser_download_url && a.name
+    ? { tag, assetName: a.name, size: Number(a.size) || 0, url: a.browser_download_url }
+    : null;
+}
+
+export function pickDeltaReleaseAsset(
+  release: { tag_name?: string; assets?: Array<{ name?: string; size?: number; browser_download_url?: string }> },
+  target: string,
+): ReleaseAsset | null {
+  const tag = release.tag_name?.trim();
+  if (!tag) return null;
+  const name = `delta-${tag.replace(/^v/, "")}-${target}.tar.gz`;
+  const a = (release.assets ?? []).find((x) => x.name === name);
+  return a?.browser_download_url && a.name
+    ? { tag, assetName: a.name, size: Number(a.size) || 0, url: a.browser_download_url }
+    : null;
+}
+
+function which(name: string): string | null {
+  const r = spawnSync("which", [name], { encoding: "utf-8" });
+  return r.status === 0 ? (r.stdout ?? "").trim().split("\n")[0]?.trim() || null : null;
+}
+
+export function detectDiffnavCommand(opts: { whichPath?: string | null; installedPath?: string; useCache?: boolean } = {}): string | null {
+  if (opts.useCache !== false && cachedDiffnav !== undefined) return cachedDiffnav;
+  const p = opts.whichPath !== undefined ? opts.whichPath : which("diffnav");
+  if (p) return (cachedDiffnav = p);
+  const inst = opts.installedPath ?? defaultDiffnavBinaryPath();
+  try {
+    if (existsSync(inst) && statSync(inst).isFile()) return (cachedDiffnav = inst);
+  } catch {
+    /* ignore */
+  }
+  return (cachedDiffnav = null);
+}
+
+export function resolveDeltaBinary(diffnavCmd?: string | null): string | null {
+  const w = which("delta");
+  if (w) return w;
+  for (const p of [diffnavCmd ? join(dirname(diffnavCmd), "delta") : "", defaultDeltaBinaryPath()]) {
+    if (!p) continue;
+    try {
+      if (existsSync(p) && statSync(p).isFile()) return p;
+    } catch {
+      /* ignore */
+    }
+  }
+  return null;
+}
+
+export function viewerPathEnv(diffnavCmd: string, basePath = process.env.PATH ?? ""): string {
+  return [dirname(diffnavCmd), defaultLocalBinDir(), basePath].filter(Boolean).join(":");
+}
+
+function findInTree(dir: string, name: string): string | null {
+  const stack = [dir];
+  while (stack.length) {
+    const cur = stack.pop()!;
+    for (const ent of readdirSync(cur)) {
+      const full = join(cur, ent);
+      try {
+        const st = statSync(full);
+        if (st.isDirectory()) stack.push(full);
+        else if (st.isFile() && ent === name) return full;
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+  return null;
+}
+
+export function parseDiffnavVersionOutput(raw: string): string {
+  const text = raw.replace(/\u001b\[[0-9;?]*[ -/]*[@-~]/g, "");
+  const m = /\bversion\s+(v?\d+(?:\.\d+)*)\b/i.exec(text);
+  if (m?.[1]) return m[1].startsWith("v") ? m[1] : `v${m[1]}`;
+  for (const line of text.split("\n")) {
+    const t = line.trim();
+    if (t && !/[▜▟▐▌▞▚▔▁]/.test(t)) return /^v?\d/.test(t) ? (t.startsWith("v") ? t : `v${t}`) : t.slice(0, 40);
+  }
+  return "ok";
+}
+
+async function download(url: string, dest: string, onProgress?: (n: number, total: number | null) => void): Promise<void> {
+  const res = await fetch(url, { redirect: "follow", headers: { "User-Agent": GH_UA["User-Agent"] } });
+  if (!res.ok || !res.body) throw new Error(`download failed: HTTP ${res.status}`);
+  const total = Number(res.headers.get("content-length")) || null;
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let n = 0;
+  let last = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+    chunks.push(value);
+    n += value.byteLength;
+    const now = Date.now();
+    if (onProgress && (now - last >= 100 || (total && n >= total))) {
+      last = now;
+      onProgress(n, total && total > 0 ? total : null);
+    }
+  }
+  onProgress?.(n, total && total > 0 ? total : null);
+  writeFileSync(dest, Buffer.concat(chunks.map((c) => Buffer.from(c))));
+}
+
+/** Download GitHub .tar.gz asset and install `binaryName` to installPath. */
+export async function installTarGzBinary(
+  url: string,
+  binaryName: string,
+  installPath: string,
+  onProgress?: (n: number, total: number | null) => void,
+): Promise<void> {
+  if (!isAllowedAssetUrl(url)) throw new Error("invalid github release tar.gz URL");
+  const work = join(tmpdir(), `mixcode-${binaryName}-${process.pid}-${Date.now()}`);
+  mkdirSync(join(work, "x"), { recursive: true });
+  try {
+    const archive = join(work, "a.tar.gz");
+    await download(url, archive, onProgress);
+    const tar = spawnSync("tar", ["-xzf", archive, "-C", join(work, "x")], { encoding: "utf-8" });
+    if (tar.status !== 0) throw new Error(`tar: ${(tar.stderr || tar.stdout || "").trim() || tar.status}`);
+    const bin = findInTree(join(work, "x"), binaryName);
+    if (!bin) throw new Error(`archive missing ${binaryName}`);
+    mkdirSync(dirname(installPath), { recursive: true });
+    copyFileSync(bin, installPath);
+    chmodSync(installPath, 0o755);
+  } finally {
+    try {
+      rmSync(work, { recursive: true, force: true });
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+async function latestAsset(
+  repo: string,
+  pick: (j: unknown) => ReleaseAsset | null,
+): Promise<ReleaseAsset | null> {
+  try {
+    const res = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, { headers: GH_UA });
+    if (!res.ok) return null;
+    return pick(await res.json());
+  } catch {
+    return null;
+  }
+}
+
+type Ui = {
+  notify: (msg: string, level?: string) => void;
+  select?: (title: string, options: string[]) => Promise<string | undefined>;
+  input?: (title: string, placeholder?: string) => Promise<string | undefined>;
+};
+
+async function ensureDelta(ui: Ui, diffnavCmd: string): Promise<void> {
+  if (resolveDeltaBinary(diffnavCmd)) return;
+  const target = deltaAssetTarget();
+  if (!target) return;
+  const meta = await latestAsset("dandavison/delta", (j) => pickDeltaReleaseAsset(j as never, target));
+  if (!meta) {
+    ui.notify("Could not fetch delta release (dandavison/delta)", "warning");
+    return;
+  }
+  ui.notify(`Installing delta ${meta.tag}…`, "info");
+  try {
+    await installTarGzBinary(meta.url, "delta", defaultDeltaBinaryPath(), (n, t) =>
+      ui.notify(formatDownloadProgress(n, t, "delta"), "info"),
+    );
+    ui.notify(`Installed delta ${meta.tag}`, "info");
+  } catch (e) {
+    ui.notify(`delta install failed: ${e instanceof Error ? e.message : String(e)}`, "error");
+  }
+}
+
+async function installDiffnavUrl(ui: Ui, url: string): Promise<string | null> {
+  try {
+    await installTarGzBinary(url, "diffnav", defaultDiffnavBinaryPath(), (n, t) =>
+      ui.notify(formatDownloadProgress(n, t, "diffnav"), "info"),
+    );
+    const ver = parseDiffnavVersionOutput(
+      `${spawnSync(defaultDiffnavBinaryPath(), ["--version"], { encoding: "utf-8" }).stdout ?? ""}`,
+    );
+    ui.notify(`Installed diffnav ${ver}`, "info");
+    cachedDiffnav = undefined;
+    const cmd = detectDiffnavCommand({ useCache: false }) ?? defaultDiffnavBinaryPath();
+    await ensureDelta(ui, cmd);
+    return cmd;
+  } catch (e) {
+    ui.notify(`diffnav install failed: ${e instanceof Error ? e.message : String(e)}`, "error");
+    return null;
+  }
+}
+
+async function ensureDiffnav(ui: Ui): Promise<string | null> {
+  const existing = detectDiffnavCommand();
+  if (existing) {
+    await ensureDelta(ui, existing);
+    return existing;
+  }
+  if (askedInstall) return null;
+  askedInstall = true;
+
+  const triple = platformAssetName();
+  if (!triple || !ui.select) {
+    if (!ui.select) ui.notify("diffnav missing; UI select unavailable — using pager", "warning");
+    return null;
+  }
+
+  const meta = triple
+    ? await latestAsset("dlvhdr/diffnav", (j) => pickReleaseAsset(j as never, triple))
+    : null;
+  const installLabel = meta ? `Install ${meta.tag} (${meta.assetName}, ${(meta.size / (1024 * 1024)).toFixed(1)}MB)` : null;
+  const pasteLabel = "Paste GitHub asset URL…";
+  const skipLabel = "Skip (use pager)";
+  const options = installLabel ? [installLabel, pasteLabel, skipLabel] : [pasteLabel, skipLabel];
+  if (!meta) ui.notify("Could not fetch diffnav release metadata; paste URL or skip", "warning");
+
+  const choice = await ui.select("diffnav not found", options);
+  if (!choice || choice === skipLabel) return null;
+
+  let url = meta?.url ?? "";
+  if (choice === pasteLabel || !url) {
+    const pasted = ui.input
+      ? await ui.input("GitHub release asset URL", "https://github.com/.../releases/download/...")
+      : undefined;
+    if (!pasted?.trim()) return null;
+    url = pasted.trim();
+  }
+  return installDiffnavUrl(ui, url);
+}
+
+function spawnPager(tmpFile: string): ReturnType<typeof spawn> {
+  const pager = process.env.PAGER?.trim();
+  return spawn("sh", ["-c", `${pager || "less -R"} "${tmpFile}"; rm -f "${tmpFile}"`], { stdio: "inherit" });
+}
+
+function spawnDiffnav(command: string, tmpFile: string): ReturnType<typeof spawn> {
+  const esc = command.replace(/'/g, "'\\''");
+  return spawn("sh", ["-c", `'${esc}' < "${tmpFile}" 2>"${tmpFile}.err"; ec=$?; rm -f "${tmpFile}"; exit $ec`], {
+    stdio: "inherit",
+    env: { ...process.env, PATH: viewerPathEnv(command) },
+  });
+}
 
 interface Ctx {
   cwd: string;
-  ui: {
-    notify: (msg: string, level: string) => void;
-    custom: <T>(fn: (tui: unknown, theme: unknown, keybindings: unknown, done: () => void) => {
-      render: () => string[];
-      invalidate: () => void;
-      handleInput: () => void;
-    }) => Promise<T>;
+  ui: Ui & {
+    custom: <T>(
+      fn: (
+        tui: unknown,
+        theme: unknown,
+        keybindings: unknown,
+        done: () => void,
+      ) => { render: () => string[]; invalidate: () => void; handleInput: () => void },
+    ) => Promise<T>;
   };
   sessionManager: { getBranch: () => unknown };
 }
@@ -445,61 +763,74 @@ async function renderDiff(scopeEntries: SessionEntry[], cwd: string, ctx: Ctx): 
     ctx.ui.notify("No entries found for the specified range.", "info");
     return;
   }
-
   const files = collectFileMods(scopeEntries, cwd);
   if (files.size === 0) {
     ctx.ui.notify("No file modifications found in this session.", "info");
     return;
   }
-
   const diffContent = buildDiff(files, cwd);
   if (!diffContent) {
     ctx.ui.notify("Files were modified but have no effective changes.", "info");
     return;
   }
 
-  await ctx.ui.custom<void>((tui, _theme, _keybindings, done) => {
-    const t = tui as unknown as { stop: () => void; start: () => void; requestRender: (f?: boolean) => void };
-    t.stop();
+  const diffnavCmd = await ensureDiffnav(ctx.ui);
+  let viewerError: string | undefined;
+  let usedDiffnav = false;
 
-    const tmpFile = join(tmpdir(), `mixcode-diff-${process.pid}-${Date.now()}.diff`);
-    writeFileSync(tmpFile, `${diffContent}\n`, "utf-8");
+  const runViewer = async (useDiffnav: boolean) => {
+    viewerError = undefined;
+    usedDiffnav = useDiffnav;
+    await ctx.ui.custom<void>((tui, _theme, _kb, done) => {
+      const t = tui as { stop: () => void; start: () => void; requestRender: (f?: boolean) => void };
+      t.stop();
+      const tmpFile = join(tmpdir(), `mixcode-diff-${process.pid}-${Date.now()}.diff`);
+      const errFile = `${tmpFile}.err`;
+      writeFileSync(tmpFile, `${diffContent}\n`);
+      const child =
+        useDiffnav && diffnavCmd ? spawnDiffnav(diffnavCmd, tmpFile) : spawnPager(tmpFile);
+      let doneOnce = false;
+      const finish = (code: number | null, err?: Error) => {
+        if (doneOnce) return;
+        doneOnce = true;
+        if (err) viewerError = err.message;
+        else if (code !== 0 && code !== null) {
+          try {
+            viewerError = readFileSync(errFile, "utf-8").trim() || `viewer exited ${code}`;
+          } catch {
+            viewerError = `viewer exited ${code}`;
+          }
+        }
+        for (const f of [tmpFile, errFile]) {
+          try {
+            unlinkSync(f);
+          } catch {
+            /* ignore */
+          }
+        }
+        t.start();
+        t.requestRender(true);
+        done();
+      };
+      child.on("exit", (c) => finish(c));
+      child.on("error", (e) => finish(1, e));
+      return { render: () => [], invalidate: () => {}, handleInput: () => {} };
+    });
+  };
 
-    const cleanup = () => {
-      try {
-        unlinkSync(tmpFile);
-      } catch {
-        /* best effort */
-      }
-    };
-
-    let child: ReturnType<typeof spawn>;
-    if (hasDiffnav()) {
-      child = spawn("sh", ["-c", `diffnav < "${tmpFile}"; rm -f "${tmpFile}"`], { stdio: "inherit" });
-    } else {
-      const viewer = process.env.EDITOR || process.env.VISUAL || "less";
-      child = spawn(viewer, [tmpFile], { stdio: "inherit" });
-    }
-
-    let resumed = false;
-    const resume = () => {
-      if (resumed) return;
-      resumed = true;
-      cleanup();
-      t.start();
-      t.requestRender(true);
-      done();
-    };
-    child.on("exit", resume);
-    child.on("error", resume);
-
-    return { render: () => [], invalidate: () => {}, handleInput: () => {} };
-  });
+  await runViewer(Boolean(diffnavCmd));
+  if (usedDiffnav && viewerError) {
+    ctx.ui.notify(`diffnav failed: ${viewerError}; opening less`, "warning");
+    await runViewer(false);
+  } else if (viewerError) {
+    ctx.ui.notify(`diff viewer failed: ${viewerError}`, "error");
+  }
 }
+
 
 const extension: ExtensionFactory = (pi) => {
   pi.registerCommand("diff", {
-    description: "Show file changes made during this session (via diffnav)",
+    description: "Show session file changes (diffnav if available, else pager)",
     getArgumentCompletions: (prefix: string) => {
       const items = [
         { value: "last", label: "last", description: "Last turn (= /diff 1)" },

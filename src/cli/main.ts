@@ -49,12 +49,33 @@ import { installConsoleTuiBridge, wireConsoleSink } from "./console-tui-bridge.j
 import { showNoticeTextOverlay } from "../ui/app-overlays.js";
 import { configureHttpDispatcher } from "../core/http-dispatcher.js";
 
+/**
+ * Root that contains built-in packages (`pi-packages/` in dev, `packages/` in
+ * binary runtime). Prefer this install's tree when it has packages; only then
+ * fall back to PI_PACKAGE_DIR (binary materialize path).
+ */
+export function resolveMixcodePackageRoot(selfRoot: string, env = process.env): string {
+  if (existsSync(join(selfRoot, "pi-packages")) || existsSync(join(selfRoot, "packages"))) {
+    return selfRoot;
+  }
+  const fromEnv = env.PI_PACKAGE_DIR?.trim();
+  if (fromEnv && (existsSync(join(fromEnv, "pi-packages")) || existsSync(join(fromEnv, "packages")))) {
+    return fromEnv;
+  }
+  return selfRoot;
+}
+
 export async function main(): Promise<void> {
   // Configure undici's global dispatcher before provider SDKs issue requests.
   // Runtime settings are applied once SettingsManager has loaded global/project settings.
   configureHttpDispatcher();
   exposeLocalPiCli();
-  const repoDir = process.env.PI_PACKAGE_DIR ?? resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+  // Built-in package install root is MixCode's own tree (pi-packages/ or packages/),
+  // not Pi's PI_PACKAGE_DIR. Host shells often still export PI_PACKAGE_DIR from a
+  // previous mixcode binary runtime; using it here would overwrite agent extensions
+  // with that stale tree and also break Pi theme paths if forced to the git root.
+  const selfRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+  const packageRoot = resolveMixcodePackageRoot(selfRoot);
   const rawArgs = process.argv.slice(2);
   if (shouldDelegateToRealPiCli(rawArgs, Boolean(process.stdin.isTTY))) {
     process.exitCode = await delegateToRealPiCli(rawArgs);
@@ -76,7 +97,7 @@ export async function main(): Promise<void> {
   installConsoleTuiBridge();
   // Install built-in packages under the same effective agent dir Pi's
   // ResourceLoader scans, so discovery and installation share one root.
-  ensurePackageExtensions(repoDir, { copy: true, agentDir: defaultMixCodeAgentDir() });
+  ensurePackageExtensions(packageRoot, { copy: true, agentDir: defaultMixCodeAgentDir() });
   const {
     state,
     runtime,
