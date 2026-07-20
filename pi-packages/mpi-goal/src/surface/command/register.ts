@@ -7,7 +7,11 @@ import { discoverGoalTemplates, parseGoalTemplateInvocation } from "../../templa
 import { buildDirectGoalIntent, buildTemplateGoalIntent } from "../../domain/goal-intent.js";
 import { createPostCompletionActionStates, recordPostStartActionAnchors } from "../../runtime/post-completion.js";
 import { captureContextResetCommandContext } from "../../runtime/context-reset.js";
-import { withGoalSessionFromCtxAsync } from "../../domain/session-scope.js";
+import {
+	goalSessionKeyFromManager,
+	runInGoalSession,
+	withGoalSessionFromCtxAsync,
+} from "../../domain/session-scope.js";
 import { flushAndStopGoalActiveTime } from "../../runtime/lifecycle.js";
 import { createTelemetry, resetSafetyCounters } from "../../domain/telemetry.js";
 import {
@@ -133,6 +137,10 @@ async function openGoalOverlay(
 	ctx: ExtensionCommandContext,
 	runtime: GoalCommandRuntime,
 ): Promise<void> {
+	// Capture session key now: overlay render/actions run later outside the command ALS.
+	const sessionKey = goalSessionKeyFromManager(ctx.sessionManager);
+	const inSession = <T,>(fn: () => T): T => runInGoalSession(sessionKey, fn);
+
 	if (!ctx.hasUI) {
 		const goal = getGoal();
 		if (goal) showGoalSummary(ctx, goal);
@@ -148,28 +156,31 @@ async function openGoalOverlay(
 				() => done(undefined),
 				() => Math.floor(tui.terminal.rows * 0.8) - 4,
 				{
-					getSnapshot: () => ({
-						goal: getGoal(),
-						queue: getQueue().map((item) => ({
-							queueId: item.queueId,
-							objective: item.objective,
-							template: item.template,
+					getSnapshot: () =>
+						inSession(() => ({
+							goal: getGoal(),
+							queue: getQueue().map((item) => ({
+								queueId: item.queueId,
+								objective: item.objective,
+								template: item.template,
+							})),
 						})),
-					}),
-					pause: () => pauseGoal(pi, ctx, runtime),
-					resume: () => resumeGoal(pi, ctx, runtime),
-					clear: () => clearGoal(pi, ctx, runtime),
-					enableTools: () => activateGoalToolsCommand(pi, ctx),
-					removeQueueItem: (queueId) => {
-						if (!removeGoal(queueId)) return;
-						persistRemove(pi, queueId, "overlay_remove");
-					},
-					clearQueue: () => {
-						for (const item of [...getQueue()]) {
-							removeGoal(item.queueId);
-							persistRemove(pi, item.queueId, "overlay_clear_queue");
-						}
-					},
+					pause: () => inSession(() => pauseGoal(pi, ctx, runtime)),
+					resume: () => inSession(() => resumeGoal(pi, ctx, runtime)),
+					clear: () => inSession(() => clearGoal(pi, ctx, runtime)),
+					enableTools: () => inSession(() => activateGoalToolsCommand(pi, ctx)),
+					removeQueueItem: (queueId) =>
+						inSession(() => {
+							if (!removeGoal(queueId)) return;
+							persistRemove(pi, queueId, "overlay_remove");
+						}),
+					clearQueue: () =>
+						inSession(() => {
+							for (const item of [...getQueue()]) {
+								removeGoal(item.queueId);
+								persistRemove(pi, item.queueId, "overlay_clear_queue");
+							}
+						}),
 				},
 			),
 		{
