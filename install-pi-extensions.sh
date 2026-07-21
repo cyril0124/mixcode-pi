@@ -21,17 +21,12 @@ if ! command -v pi >/dev/null 2>&1; then
 fi
 
 extensions=(
-  # UI
   npm:@juicesharp/rpiv-ask-user-question
   npm:@narumitw/pi-btw
   npm:pi-tool-display
   npm:pi-schedule-prompt
-
-  # Agents / shell
   npm:@tintinweb/pi-subagents
-  npm:pi-interactive-shell
-
-  # Web
+  npm:pi-invisible-continue
   npm:@juicesharp/rpiv-web-tools
 )
 
