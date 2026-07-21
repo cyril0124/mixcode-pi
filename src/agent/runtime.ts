@@ -526,6 +526,7 @@ export class MixCodeRuntime {
     const runtime = this.modelRuntime as
       | (ModelRuntime & {
           registerProvider?: (name: string, config: unknown) => void;
+          registerNativeProvider?: (provider: { id: string }) => void;
           unregisterProvider?: (name: string) => void;
           __mixcodeUiSync?: boolean;
         })
@@ -539,6 +540,14 @@ export class MixCodeRuntime {
       originalRegister(name, config);
       this.emitModelsChanged();
     };
+    // Full Provider registration (pi.registerProvider(providerObject)).
+    if (typeof runtime.registerNativeProvider === "function") {
+      const originalNative = runtime.registerNativeProvider.bind(runtime);
+      runtime.registerNativeProvider = (provider: { id: string }) => {
+        originalNative(provider);
+        this.emitModelsChanged();
+      };
+    }
     runtime.unregisterProvider = (name: string) => {
       originalUnregister(name);
       this.emitModelsChanged();

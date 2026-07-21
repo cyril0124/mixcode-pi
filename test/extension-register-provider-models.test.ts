@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { InMemoryCredentialStore } from "@earendil-works/pi-ai";
+import { fauxProvider, InMemoryCredentialStore } from "@earendil-works/pi-ai";
 import {
   ModelRegistry,
   ModelRuntime,
@@ -72,6 +72,61 @@ test("extension registerProvider notifies onModelsChanged with selectable model 
     assert.ok(
       selectable.some((ref) => ref.provider === "ext-proxy" && ref.modelId === "ext-model"),
       "collectSelectableModelRefs should include extension provider model",
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("extension registerProvider(native) notifies onModelsChanged with selectable model refs", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-ext-native-provider-"));
+  const modelRuntime = await ModelRuntime.create({
+    credentials: new InMemoryCredentialStore(),
+    modelsPath: null,
+    allowModelNetwork: false,
+  });
+  const modelRegistry = new ModelRegistry(modelRuntime);
+  const seen: MixCodeModelRef[][] = [];
+  const { provider: native } = fauxProvider({
+    provider: "ext-native",
+    models: [{ id: "native-model", name: "Native Model" }],
+  });
+  // Native providers only enter the selectable list when auth is configured.
+  await modelRuntime.setRuntimeApiKey("ext-native", "test-key");
+
+  const extension: ExtensionFactory = (pi) => {
+    pi.on("session_start", () => {
+      pi.registerProvider(native);
+    });
+  };
+
+  try {
+    const runtime = new MixCodeRuntime({
+      sessionsRoot: dir,
+      modelRuntime,
+      modelRegistry,
+      extensionFactories: [extension],
+    });
+    runtime.onModelsChanged((refs) => {
+      seen.push(refs);
+    });
+
+    await runtime.createTab(createTab(1, "s1", process.cwd()), {
+      systemPrompt: "system",
+      thinkingLevel: "off",
+      workdir: process.cwd(),
+    });
+
+    const flat = seen.flat();
+    assert.ok(
+      flat.some((ref) => ref.provider === "ext-native" && ref.modelId === "native-model"),
+      `expected onModelsChanged with ext-native/native-model, got ${JSON.stringify(flat)}`,
+    );
+
+    const selectable = runtime.collectSelectableModelRefs();
+    assert.ok(
+      selectable.some((ref) => ref.provider === "ext-native" && ref.modelId === "native-model"),
+      "collectSelectableModelRefs should include native provider model",
     );
   } finally {
     await rm(dir, { recursive: true, force: true });

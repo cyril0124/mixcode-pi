@@ -58,7 +58,12 @@ export async function createPiModelRegistryBundle(
   authPath = defaultPiAuthPath(),
 ): Promise<PiModelRegistryBundle> {
   await assertPathIsNotDirectory(modelsPath);
-  const modelRuntime = await ModelRuntime.create({ authPath, modelsPath });
+  // Interactive startup needs remote catalogs; create() only refreshes when opted in.
+  const modelRuntime = await ModelRuntime.create({
+    authPath,
+    modelsPath,
+    allowModelNetwork: true,
+  });
   const registry = new ModelRegistry(modelRuntime);
   const sources = modelRuntime.getModels().map((model) => ({
     provider: model.provider,
@@ -96,6 +101,8 @@ export function createPiModelRuntimeAuth(modelRuntime: ModelRuntime): PiModelRun
         ...options,
         apiKey: auth.apiKey ?? options?.apiKey,
         headers: mergeHeaders(options?.headers, auth.headers),
+        // Provider-scoped credentials (e.g. Bedrock profiles) travel in env.
+        env: auth.env ?? options?.env,
       });
     },
   };
