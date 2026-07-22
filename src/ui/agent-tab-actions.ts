@@ -117,12 +117,18 @@ export async function openExistingAgentTab(
   });
   state.tabs.push(tab);
   try {
-    await runtime.createTab(tab, {
+    const runtimeTab = await runtime.createTab(tab, {
       systemPrompt: options.systemPrompt ?? MIXCODE_SYSTEM_PROMPT,
       thinkingLevel,
       workdir,
       ...(options.runtimeModel ? { model: options.runtimeModel } : {}),
     });
+    // Peer reopen often lacks a registry title hint; restore the session file name
+    // so a resume race that peer-reopens does not stick on Agent-NN forever.
+    if (!options.title) {
+      const sessionName = runtimeTab.session.getSessionName?.();
+      if (sessionName) tab.title = sessionName;
+    }
     return tab;
   } catch (error) {
     const index = state.tabs.findIndex((item) => item.sessionId === sessionId);

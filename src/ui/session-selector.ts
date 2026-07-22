@@ -2,7 +2,7 @@ import { homedir } from "node:os";
 import { matchesKey, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
 import { createSessionId, createTab } from "../core/defaults.js";
-import { noteTabOpened } from "../core/open-tabs-store.js";
+import { noteTabClosed, noteTabOpened, noteTabReplaced } from "../core/open-tabs-store.js";
 import {
   createSessionSelectorState,
   cycleSessionSortMode,
@@ -42,7 +42,15 @@ export interface SessionSelectorRuntime {
     tab: import("../core/types.js").MixCodeTabInfo,
     config: { systemPrompt: string; thinkingLevel: string; workdir: string },
   ) => Promise<unknown>;
-  getTab: (sessionId: string) => { session: { getSessionFile: () => string | null } } | undefined;
+  getTab: (sessionId: string) =>
+    | {
+        session: {
+          getSessionFile: () => string | null;
+          getSessionName?: () => string | undefined;
+        };
+        tab?: { title: string };
+      }
+    | undefined;
   closeTab: (sessionId: string) => Promise<void>;
 }
 
@@ -234,6 +242,7 @@ export function handleSessionSelectorKey(
         tui,
         selected.session.path,
         selected.session.name,
+        selected.session.id,
         runtime,
         onStateChanged,
       );
@@ -407,6 +416,8 @@ function resumeSelectedSession(
   tui: OverlayTui,
   sessionPath: string,
   sessionName: string | undefined,
+  /** Durable session id from SessionManager.list (filename embed). */
+  targetSessionId: string | undefined,
   runtime?: MixCodeKeyRuntime,
   onStateChanged?: (state: MixCodeState) => void | Promise<void>,
 ): void {
@@ -439,6 +450,11 @@ function resumeSelectedSession(
   if (existingTab) {
     closeSessionSelector(state, tui);
     activateTab(state, existingTab.sessionId);
+    // Keep the open tab's label aligned with the session file (rename may have
+    // landed while this tab was backgrounded).
+    const openName =
+      runtimeRef.getTab(existingTab.sessionId)?.session.getSessionName?.() ?? sessionName;
+    if (openName) existingTab.title = openName;
     void onStateChanged?.(state);
     tui.requestRender();
     return;
@@ -446,16 +462,29 @@ function resumeSelectedSession(
   closeSessionSelector(state, tui);
   // Create a new tab and switch its session to the target.
   const previousActiveTabId = state.activeTabId;
-  const newSessionId = createSessionId();
-  const newTab = createTab(state.tabs.length + 1, newSessionId, active?.workdir ?? state.workdir, {
-    model: { ...(active?.model ?? state.model) },
-    contextLimit: active?.contextLimit ?? state.model.contextWindow,
-    thinkingLevel: active?.thinkingLevel ?? state.thinkingLevel,
-  });
+  const ephemeralSessionId = createSessionId();
+  const newTab = createTab(
+    state.tabs.length + 1,
+    ephemeralSessionId,
+    active?.workdir ?? state.workdir,
+    {
+      model: { ...(active?.model ?? state.model) },
+      contextLimit: active?.contextLimit ?? state.model.contextWindow,
+      thinkingLevel: active?.thinkingLevel ?? state.thinkingLevel,
+      // Visible while create/switch run (same badge as /new-session).
+      status: "Not Ready",
+    },
+  );
+  // Publish before createTab/switch so peer reconcile cannot treat this tab as
+  // missing (same race as createAgentTab / completeAgentTabClear).
+  noteTabOpened(ephemeralSessionId);
   state.tabs.push(newTab);
-  activateTab(state, newSessionId);
+  activateTab(state, ephemeralSessionId);
   void (async () => {
     let runtimeTabCreated = false;
+    /** True after UI+open_tabs already show the durable resumed id. */
+    let identityPublished = false;
+    const durableId = targetSessionId?.trim() || undefined;
     try {
       await runtimeRef.createTab(newTab, {
         systemPrompt: MIXCODE_SYSTEM_PROMPT,
@@ -463,10 +492,26 @@ function resumeSelectedSession(
         workdir: newTab.workdir,
       });
       runtimeTabCreated = true;
-      const result = await runtimeRef.extensionSwitchSession(newSessionId, sessionPath);
+      // Predict the post-switch id (list id matches SessionManager.getSessionId).
+      // Move local id + open_tabs together BEFORE switch awaits, so reconcile
+      // never sees local=real while open_tabs still lists the ephemeral id
+      // (that race closed the resumed tab and reopened Agent-NN).
+      if (durableId && durableId !== ephemeralSessionId) {
+        newTab.sessionId = durableId;
+        activateTab(state, durableId);
+        noteTabReplaced(ephemeralSessionId, durableId);
+        identityPublished = true;
+      }
+      // Runtime map is still keyed by the ephemeral id until replace commits.
+      const result = await runtimeRef.extensionSwitchSession(ephemeralSessionId, sessionPath);
       if (result.cancelled) {
-        await runtimeRef.closeTab(newSessionId);
-        discardResumeTabState(state, newSessionId, previousActiveTabId);
+        await runtimeRef.closeTab(ephemeralSessionId);
+        noteTabClosed(identityPublished && durableId ? durableId : ephemeralSessionId);
+        discardResumeTabState(
+          state,
+          identityPublished && durableId ? durableId : ephemeralSessionId,
+          previousActiveTabId,
+        );
         state.sessionSelector.statusMessage = "Resume cancelled";
         state.sessionSelector.statusType = "info";
         await onStateChanged?.(state);
@@ -476,16 +521,30 @@ function resumeSelectedSession(
       // Runtime replacement rewrites the tab to the real resumed session ID.
       // Keep activeTabId aligned so registry/workspace/status see the real ID.
       activateTab(state, newTab.sessionId);
-      // Sync tab title from session name
-      if (sessionName) newTab.title = sessionName;
-      noteTabOpened(newTab.sessionId);
+      // Prefer the fully-loaded session name (authoritative) over the selector's
+      // list scan, which can miss session_info past the header scan window.
+      const resumedName =
+        runtimeRef.getTab(newTab.sessionId)?.session.getSessionName?.() ?? sessionName;
+      if (resumedName) newTab.title = resumedName;
+      newTab.status = "idle";
+      // If list did not supply an id, publish the post-switch identity now.
+      if (!identityPublished) {
+        noteTabReplaced(ephemeralSessionId, newTab.sessionId);
+      }
       await onStateChanged?.(state);
       tui.requestRender();
     } catch (error: unknown) {
       if (runtimeTabCreated) {
-        await runtimeRef.closeTab(newSessionId);
+        // Runtime still uses the pre-replace key when switch fails before commit;
+        // after commit the map key is the durable id on the tab object.
+        const runtimeKey =
+          runtimeRef.getTab(newTab.sessionId) !== undefined
+            ? newTab.sessionId
+            : ephemeralSessionId;
+        await runtimeRef.closeTab(runtimeKey);
       }
-      discardResumeTabState(state, newSessionId, previousActiveTabId);
+      noteTabClosed(identityPublished && durableId ? durableId : ephemeralSessionId);
+      discardResumeTabState(state, newTab.sessionId, previousActiveTabId);
       showErrorOverlay(tui, error);
       tui.requestRender();
     }

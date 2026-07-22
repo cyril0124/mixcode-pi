@@ -1425,7 +1425,15 @@ export class MixCodeRuntime {
     sessionManager: SessionManager,
     reason: SessionReplacementReason,
   ): Promise<RuntimeTab> {
-    const previousSessionId = runtimeTab.tab.sessionId;
+    // Map key by identity: UI may pre-rename tab.sessionId for open_tabs before
+    // replace commits (resume race). Sync still tracks the pre-replace file key.
+    let previousSessionId = runtimeTab.tab.sessionId;
+    for (const [key, value] of this.tabs) {
+      if (value === runtimeTab) {
+        previousSessionId = key;
+        break;
+      }
+    }
     const replaced = await replaceRuntimeTabSession(
       runtimeTab,
       sessionManager,

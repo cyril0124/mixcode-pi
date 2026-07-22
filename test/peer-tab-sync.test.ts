@@ -1,6 +1,6 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { test } from "node:test";
@@ -12,6 +12,7 @@ import {
   configureOpenTabsPath,
   replaceOpenTab,
   createInitialState,
+  createSessionSelectorState,
   createTab,
   listTabsToReconcile,
   nextAvailableAgentTitle,
@@ -21,6 +22,7 @@ import {
   startPeerTabSync,
   writeOpenTabs,
 } from "../src/index.js";
+import type { MixCodeTabInfo } from "../src/core/types.js";
 import {
   closeExistingAgentTab,
   completeAgentTabClear,
@@ -28,6 +30,7 @@ import {
   openExistingAgentTab,
   prepareAgentTabClear,
 } from "../src/ui/agent-tab-actions.js";
+import { handleSessionSelectorKey } from "../src/ui/session-selector.js";
 
 test("listTabsToReconcile opens missing and closes extras", () => {
   const plan = listTabsToReconcile({
@@ -436,6 +439,161 @@ test("completeAgentTabClear publishes open_tabs before session id swaps so recon
     assert.doesNotMatch(state.tabs[0]?.title ?? "", /^Agent-[0-9a-f]{8}$/i);
     assert.deepEqual(readOpenTabs(openTabsPath), [seenNewSessionId]);
     assert.ok(runtimeTabs.has(seenNewSessionId!));
+
+    sync.dispose();
+  } finally {
+    configureOpenTabsPath(undefined);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("resume publishes open_tabs before switch so reconcile keeps session title", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-resume-race-"));
+  const openTabsPath = openTabsFile(join(dir, "state"));
+  configureOpenTabsPath(openTabsPath);
+  try {
+    const state = createInitialState(dir);
+    const existing = createTab(1, "old-last", dir, { title: "Agent-11", status: "idle" });
+    state.tabs.push(existing);
+    state.activeTabId = existing.sessionId;
+    writeOpenTabs(openTabsPath, [existing.sessionId]);
+
+    const durableId = "019f72f8-durable-resume-id";
+    const sessionPath = join(dir, "zen.jsonl");
+    await writeFile(sessionPath, "{}\n");
+
+    let releaseSwitch!: () => void;
+    const switchGate = new Promise<void>((resolve) => {
+      releaseSwitch = resolve;
+    });
+    let reconcileDuringSwitch!: () => Promise<void>;
+
+    const runtimeTabs = new Map<
+      string,
+      {
+        tab: MixCodeTabInfo;
+        session: { getSessionFile: () => string | null; getSessionName: () => string | undefined };
+      }
+    >([
+      [
+        existing.sessionId,
+        {
+          tab: existing,
+          session: { getSessionFile: () => null, getSessionName: () => undefined },
+        },
+      ],
+    ]);
+
+    const runtime = {
+      createTab: async (tab: MixCodeTabInfo) => {
+        const rt = {
+          tab,
+          session: {
+            getSessionFile: () => null as string | null,
+            getSessionName: () => undefined as string | undefined,
+          },
+        };
+        runtimeTabs.set(tab.sessionId, rt);
+        return rt as never;
+      },
+      extensionSwitchSession: async (sessionId: string, _path: string) => {
+        const rt = runtimeTabs.get(sessionId);
+        if (!rt) throw new Error(`Unknown runtime tab: ${sessionId}`);
+        // Race window: UI may already show durable id; open_tabs must list it.
+        await reconcileDuringSwitch();
+        await switchGate;
+        // Mirror replace: map key moves to durable id; tab object keeps durable id/title.
+        runtimeTabs.delete(sessionId);
+        rt.tab.sessionId = durableId;
+        rt.tab.title = "implement-zen-mode";
+        rt.session = {
+          getSessionFile: () => sessionPath,
+          getSessionName: () => "implement-zen-mode",
+        };
+        runtimeTabs.set(durableId, rt);
+        return { cancelled: false };
+      },
+      getTab: (id: string) => runtimeTabs.get(id),
+      closeTab: async (id: string) => {
+        if (!runtimeTabs.has(id)) throw new Error(`Unknown tab session: ${id}`);
+        runtimeTabs.delete(id);
+      },
+      getSessionsRoot: () => dir,
+    };
+
+    const closed: string[] = [];
+    const opened: Array<{ sessionId: string; title: string }> = [];
+    const sync = startPeerTabSync({
+      openTabsPath,
+      rootStateDir: join(dir, "root"),
+      workdir: dir,
+      debounceMs: 1,
+      pollIntervalMs: 60_000,
+      getLocalSessionIds: () => state.tabs.map((tab) => tab.sessionId),
+      openTab: async (candidate) => {
+        opened.push({
+          sessionId: candidate.sessionId,
+          title: candidate.title ?? nextAvailableAgentTitle(state.tabs),
+        });
+        state.tabs.push(
+          createTab(state.tabs.length + 1, candidate.sessionId, dir, {
+            title: candidate.title ?? nextAvailableAgentTitle(state.tabs),
+            status: "idle",
+          }),
+        );
+      },
+      closeTab: async (sessionId) => {
+        closed.push(sessionId);
+        await closeExistingAgentTab(state, runtime, sessionId, { publishClose: false });
+      },
+      loadStatus: async () => ({ instances: [] }),
+      watchFactory: () => ({ close: () => undefined }),
+    });
+    reconcileDuringSwitch = () => sync.reconcileNow();
+
+    state.sessionSelector = {
+      ...createSessionSelectorState(),
+      open: true,
+      loading: false,
+      currentSessions: [
+        {
+          path: sessionPath,
+          id: durableId,
+          cwd: dir,
+          name: "implement-zen-mode",
+          created: new Date(),
+          modified: new Date(),
+          messageCount: 0,
+          firstMessage: "",
+          allMessagesText: "",
+        } as never,
+      ],
+    };
+    state.sessionSelector.selectedIndex = 0;
+
+    const tui = {
+      requestRender: () => undefined,
+      showOverlay: () => ({ hide: () => undefined }) as never,
+      hasOverlay: () => state.sessionSelector.open,
+      hideOverlay: () => undefined,
+    };
+
+    // Enter on selected session (resume path under test).
+    handleSessionSelectorKey(state, "\r", tui as never, runtime as never);
+    // Allow async resume to publish durable id then hit switch gate.
+    await new Promise((r) => setTimeout(r, 20));
+    await sync.reconcileNow();
+    releaseSwitch();
+    await new Promise((r) => setTimeout(r, 30));
+    await sync.reconcileNow();
+
+    assert.deepEqual(closed, [], "in-flight resume must not be closed by peer reconcile");
+    assert.deepEqual(opened, [], "in-flight resume must not reopen with peer Agent-NN title");
+    const resumed = state.tabs.find((tab) => tab.sessionId === durableId);
+    assert.ok(resumed, "resumed tab must remain");
+    assert.equal(resumed.title, "implement-zen-mode");
+    assert.ok(readOpenTabs(openTabsPath).includes(durableId));
+    assert.ok(runtimeTabs.has(durableId));
 
     sync.dispose();
   } finally {

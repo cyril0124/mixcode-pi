@@ -228,6 +228,10 @@ async function createRuntimeTabWithServices(
     applyMixCodeSystemPrompt(services, config.workdir, agentSession);
     refreshStartupHeader(runtimeTab);
     syncContextUsage(runtimeTab);
+    // Opening an existing on-disk session (bootstrap / peer / openExisting) must
+    // show its persisted name — same as resume — not the default Agent-NN title.
+    const openedName = session.getSessionName();
+    if (openedName) tab.title = openedName;
     subscribeRuntimeTab(runtimeTab, context);
     context.tabs.set(tab.sessionId, runtimeTab);
     return runtimeTab;
@@ -299,6 +303,12 @@ export async function createAgentSessionForReplacement(
     (config.reuseServicesFromSessionId
       ? context.tabs.get(config.reuseServicesFromSessionId)?.services
       : undefined);
+  // Same invariant as createRuntimeTab: a disposed AgentSession invalidates the
+  // shared extensionsResult.runtime. Reusing services without reload would make
+  // the next session_start see stale ctx (pi-subagents scheduler warn).
+  if (services && !config.skipExtensionReload) {
+    await services.resourceLoader.reload();
+  }
   return createAgentSessionForReplacementWithServices(
     sessionManager,
     config,
@@ -355,7 +365,47 @@ export function disposeRuntimeTabAfterShutdown(
   resetExtensionHostState(runtimeTab, extensionUiHost);
 }
 
+// Test-only: delay after installing the replacement session and before bindExtensions.
+export const __testReplaceHooks = { bindDelayMs: 0 };
+
+/** Map key for a RuntimeTab — identity first, then tab.sessionId fallback. */
+function mapKeyForRuntimeTab(
+  tabs: Map<string, RuntimeTab>,
+  runtimeTab: RuntimeTab,
+): string {
+  for (const [key, value] of tabs) {
+    if (value === runtimeTab) return key;
+  }
+  return runtimeTab.tab.sessionId;
+}
+
 export async function replaceRuntimeTabSession(
+  runtimeTab: RuntimeTab,
+  sessionManager: SessionManager,
+  reason: SessionReplacementReason,
+  context: RuntimeLifecycleContext,
+): Promise<RuntimeTab> {
+  // Serialize per tab: concurrent resume/new/fork must not dispose a session that
+  // another replace has installed but not yet bound (stale ctx in session_start).
+  const previousLock = runtimeTab.replaceLock ?? Promise.resolve();
+  let releaseLock!: () => void;
+  runtimeTab.replaceLock = new Promise<void>((resolve) => {
+    releaseLock = resolve;
+  });
+  await previousLock.catch(() => undefined);
+  try {
+    return await replaceRuntimeTabSessionUnlocked(
+      runtimeTab,
+      sessionManager,
+      reason,
+      context,
+    );
+  } finally {
+    releaseLock();
+  }
+}
+
+async function replaceRuntimeTabSessionUnlocked(
   runtimeTab: RuntimeTab,
   sessionManager: SessionManager,
   reason: SessionReplacementReason,
@@ -364,10 +414,17 @@ export async function replaceRuntimeTabSession(
   if (runtimeTab.agentSession.isStreaming) {
     throw new Error(`Cannot replace a session while the agent is streaming: ${reason}`);
   }
-  const previousSessionId = runtimeTab.tab.sessionId;
+  // Prefer the tabs-map key (by object identity). Resume may pre-rename
+  // tab.sessionId for open_tabs/peer reconcile before switch commits, so the
+  // map key can still be the ephemeral id while tab.sessionId is already the
+  // durable one — using tab.sessionId here would delete the wrong map entry.
+  const previousSessionId = mapKeyForRuntimeTab(context.tabs, runtimeTab);
   const previousSessionFile = runtimeTab.session.getSessionFile();
   const targetSessionFile = sessionManager.getSessionFile() ?? undefined;
   const model = context.resolveModelFromSession(sessionManager, runtimeTab.tab.model);
+  // Capture services before shutdown: dispose invalidates the current runner, but
+  // the ResourceLoader can be reloaded for a fresh extensionsResult.runtime.
+  const previousServices = runtimeTab.services;
   await shutdownRuntimeTab(
     runtimeTab,
     {
@@ -384,6 +441,8 @@ export async function replaceRuntimeTabSession(
       thinkingLevel: runtimeTab.tab.thinkingLevel,
       workdir: sessionManager.getCwd(),
       model,
+      // Reload-on-reuse keeps a fresh extension runtime after dispose (see above).
+      reuseServices: previousServices,
       sessionStartEvent: { type: "session_start", reason, previousSessionFile },
     },
     context,
@@ -411,11 +470,26 @@ export async function replaceRuntimeTabSession(
   // If either throws, the caller's state is still intact — no orphaned tab.
   runtimeTab.chat = await rebuildRuntimeChat(runtimeTab);
   syncPreviewFromChat(runtimeTab.tab, runtimeTab.chat);
+  if (__testReplaceHooks.bindDelayMs > 0) {
+    await new Promise((resolve) => setTimeout(resolve, __testReplaceHooks.bindDelayMs));
+  }
+  // Resume title before bind so the tab bar never flashes Agent-NN if bind is slow
+  // or a session_start handler races a UI render. new/fork keep the caller title.
+  if (reason === "resume") {
+    const resumedName = sessionManager.getSessionName();
+    if (resumedName) runtimeTab.tab.title = resumedName;
+  }
   await bindRuntimeExtensions(runtimeTab, context);
   // Only now commit the identity switch: update the tab's sessionId,
   // remove the old key from the tabs map, and register under the new key.
   resetTabForNewSession(runtimeTab.tab, sessionManager.getSessionId());
   runtimeTab.tab.workdir = sessionManager.getCwd();
+  // Re-apply after identity switch: resetTabForNewSession does not clear title, but
+  // bind/session_start may have renamed; prefer the session file's persisted name.
+  if (reason === "resume") {
+    const resumedName = sessionManager.getSessionName();
+    if (resumedName) runtimeTab.tab.title = resumedName;
+  }
   context.tabs.delete(previousSessionId);
   context.tabs.set(runtimeTab.tab.sessionId, runtimeTab);
   // Repopulate preview after identity-switch reset cleared previewMessages

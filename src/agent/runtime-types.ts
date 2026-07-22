@@ -203,6 +203,11 @@ export interface RuntimeTab {
   chat: ChatLine[];
   toolLog: ToolLog;
   queuedPromptCount: number;
+  /**
+   * Serializes replaceRuntimeTabSession on this tab so a concurrent resume/new/fork
+   * cannot dispose the session installed by an in-flight replace before bindExtensions.
+   */
+  replaceLock?: Promise<void>;
   extensionTerminalInputHandlers: Set<TerminalInputHandler>;
   extensionDialogResolvers: Map<string, ExtensionDialogResolver>;
   extensionCustomOverlayClosers: Set<ExtensionCustomOverlayCloser>;
