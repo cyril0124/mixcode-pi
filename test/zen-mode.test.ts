@@ -11,6 +11,7 @@ import type { OverlayTui } from "../src/ui/app-types.js";
 import { buildLabeledTopBorder } from "../src/ui/editor-top-border.js";
 import {
   renderTabBarSeparator,
+  tabBarHitRegions,
   zenUnreadDoneCount,
 } from "../src/ui/rendering/chrome.js";
 
@@ -138,6 +139,37 @@ test("zen badge is dropped before title when width is tight", () => {
   assert.equal([...line].length, 14);
   assert.doesNotMatch(line, /ZEN/);
   assert.match(line, /Agent-1/);
+});
+
+test("zen mode ignores tab-bar mouse clicks", () => {
+  const state = createInitialState("/repo");
+  const first = createTab(1, "s1", "/repo", { title: "Alpha", zenMode: true });
+  const second = createTab(2, "s2", "/repo", { title: "Beta" });
+  state.tabs.push(first, second);
+  state.activeTabId = "s1";
+  // Ghost hit geometry as if the bar were still painted at row 1.
+  state.tabBarTopRow = 1;
+  state.lastRenderWidth = 80;
+  const regions = tabBarHitRegions(state, 80);
+  const beta = regions.find((region) => region.id === "s2");
+  assert.ok(beta, "hit-region math still exists; zen must ignore it");
+  const mouseY = (state.tabBarTopRow ?? 1) + (beta.row ?? 0);
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({}) as never,
+    hideOverlay: () => undefined,
+    hasOverlay: () => false,
+  };
+  // Clicking Beta's ghost tab region must not switch away from Alpha.
+  const result = handleMixCodeKeyInput(
+    state,
+    `\x1b[<0;${beta.startX};${mouseY}M`,
+    tui,
+  );
+  assert.notEqual(state.activeTabId, "s2");
+  assert.equal(first.zenMode, true);
+  // May fall through to other handlers (selection/scroll); must not activate Beta.
+  void result;
 });
 
 test("zen mode hides the tab bar but keeps agent chrome", () => {

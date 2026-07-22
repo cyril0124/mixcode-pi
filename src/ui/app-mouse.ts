@@ -162,8 +162,13 @@ function handleChromeMouse(
   mouse: NonNullable<ReturnType<typeof parseSgrMouseInput>>,
   tui: OverlayTui,
 ): boolean {
+  // Zen hides the tab bar; ghost hit-regions must not steal clicks on the
+  // separator / chat that now occupy those screen rows.
+  const tabBarVisible =
+    !(active?.zenMode === true && state.activeTabId !== "config");
   const tabBarTop = state.tabBarTopRow ?? tabBarMouseRow(state, active);
   if (
+    tabBarVisible &&
     mouse.y >= tabBarTop &&
     mouse.button === 0 &&
     !mouse.release &&
