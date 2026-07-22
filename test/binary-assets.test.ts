@@ -41,7 +41,9 @@ test("binary runtime assets are written for both upstream Bun and dist layouts",
     assert.equal(packageJson.name, "mixcode-pi");
     assert.equal(packageJson.version, "1.2.3");
     assert.equal(packageJson.piConfig.preserved, true);
-    assert.equal(packageJson.piConfig.name, "mixcode");
+    // Do not rebrand package identity as mixcode: PI_PACKAGE_DIR is inherited by
+    // child `pi` processes, and piConfig.name drives APP_NAME / ENV_AGENT_DIR.
+    assert.equal(packageJson.piConfig.name, undefined);
     assert.equal(packageJson.piConfig.configDir, ".pi");
 
     for (const themeDir of [

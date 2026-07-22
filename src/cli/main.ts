@@ -576,8 +576,12 @@ export async function delegateToRealPiCli(
   options: { command?: string; env?: NodeJS.ProcessEnv } = {},
 ): Promise<number> {
   const { command = "pi", env = process.env } = options;
+  // Binary materialize sets PI_PACKAGE_DIR for in-process Pi assets. Real `pi`
+  // must use its own package root so help/identity stay upstream (not mixcode).
+  const childEnv = { ...env };
+  delete childEnv.PI_PACKAGE_DIR;
   return new Promise((resolve) => {
-    const child = spawn(command, args, { stdio: "inherit", env });
+    const child = spawn(command, args, { stdio: "inherit", env: childEnv });
     child.on("error", (error) => {
       process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
       resolve(1);

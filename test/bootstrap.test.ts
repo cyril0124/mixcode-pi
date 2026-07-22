@@ -626,6 +626,22 @@ test("cli delegates argv and exit code to the real pi CLI", async () => {
   assert.equal(code, 7);
 });
 
+test("cli strips PI_PACKAGE_DIR when delegating to the real pi CLI", async () => {
+  // Child must not inherit mixcode binary materialize package dir; that path's
+  // package.json rewrote pi identity to mixcode and polluted `pi --help`.
+  const code = await delegateToRealPiCli(
+    [
+      "-e",
+      "process.stdout.write(process.env.PI_PACKAGE_DIR === undefined ? 'cleared' : process.env.PI_PACKAGE_DIR); process.exit(process.env.PI_PACKAGE_DIR === undefined ? 0 : 2)",
+    ],
+    {
+      command: process.execPath,
+      env: { ...process.env, PI_PACKAGE_DIR: "/tmp/mixcode-pi-must-not-leak" },
+    },
+  );
+  assert.equal(code, 0);
+});
+
 test("cli reports exit code 1 when the delegated pi command cannot be spawned", async () => {
   const code = await delegateToRealPiCli([], { command: "definitely-not-a-real-binary-xyz" });
   assert.equal(code, 1);
