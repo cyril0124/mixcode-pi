@@ -1,10 +1,16 @@
 import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 import {
+  configureOpenTabsPath,
   createInitialState,
   createTab,
   handleMixCodeKeyInput,
   handleSubmittedInput,
+  openTabsFile,
+  readOpenTabs,
   renderConfig,
   renderInputMeta,
   renderPickerOverlay,
@@ -13,6 +19,7 @@ import {
   themeForId,
   themeSuggestions,
   UUIDV7_SESSION_ID_PATTERN,
+  writeOpenTabs,
 } from "../src/index.js";
 import type { MixCodeRuntime } from "../src/index.js";
 import type { Model } from "@earendil-works/pi-ai";
@@ -389,6 +396,62 @@ test("submitted input closes all sessions through runtime after Y/N confirmation
   assert.equal(state.closeAllSessionsConfirmOpen, false);
   assert.deepEqual(state.tabs, []);
   assert.equal(state.activeTabId, "config");
+});
+
+test("close-all-sessions clears the shared open-tab set", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-close-all-open-tabs-"));
+  const filePath = openTabsFile(dir);
+  try {
+    configureOpenTabsPath(filePath);
+    writeOpenTabs(filePath, ["s1", "s2"]);
+    const state = createInitialState("/repo");
+    state.tabs.push(createTab(1, "s1", "/repo"), createTab(2, "s2", "/repo"));
+    state.activeTabId = "s1";
+    const runtime = {
+      getTab: () => undefined,
+      closeAllTabs: async () => undefined,
+    } as unknown as MixCodeRuntime;
+    const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
+
+    await handleSubmittedInput(state, runtime, "/close-all-sessions", tui);
+    assert.deepEqual(handleMixCodeKeyInput(state, "y", tui, undefined, runtime), {
+      consume: true,
+    });
+    await waitFor(async () => assert.equal(state.tabs.length, 0));
+
+    assert.deepEqual(readOpenTabs(filePath), []);
+  } finally {
+    configureOpenTabsPath(undefined);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("delete-all-sessions clears the shared open-tab set", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-delete-all-open-tabs-"));
+  const filePath = openTabsFile(dir);
+  try {
+    configureOpenTabsPath(filePath);
+    writeOpenTabs(filePath, ["s1", "s2"]);
+    const state = createInitialState("/repo");
+    state.tabs.push(createTab(1, "s1", "/repo"), createTab(2, "s2", "/repo"));
+    state.activeTabId = "s1";
+    const runtime = {
+      getTab: () => undefined,
+      deleteAllTabs: async () => undefined,
+    } as unknown as MixCodeRuntime;
+    const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
+
+    await handleSubmittedInput(state, runtime, "/delete-all-sessions", tui);
+    assert.deepEqual(handleMixCodeKeyInput(state, "y", tui, undefined, runtime), {
+      consume: true,
+    });
+    await waitFor(async () => assert.equal(state.tabs.length, 0));
+
+    assert.deepEqual(readOpenTabs(filePath), []);
+  } finally {
+    configureOpenTabsPath(undefined);
+    await rm(dir, { recursive: true, force: true });
+  }
 });
 
 // Regression coverage: MixCodeRuntime.deleteAllTabs()/closeAllTabs() are real

@@ -19,6 +19,7 @@ import {
   updateTabJumpQuery,
 } from "../core/overlays.js";
 import type { MixCodeState } from "../core/types.js";
+import { noteTabsReplaced } from "../core/open-tabs-store.js";
 import { pushToast } from "../core/toast.js";
 import { activateTab, clampHomeSelectedTabIndex, getActiveTab } from "../core/tabs.js";
 import { closeExistingAgentTab, deleteAgentTab } from "./agent-tab-actions.js";
@@ -207,6 +208,8 @@ export function handleDeleteAllSessionsConfirmKey(
       // reference) so `this` inside the real MixCodeRuntime method still
       // resolves — deleteAllTabs reads `this.tabs` internally.
       await confirmedRuntime.deleteAllTabs!();
+      // Same bulk-close publish as /close-all-sessions so peer sync cannot reopen.
+      noteTabsReplaced([]);
       state.tabs.length = 0;
       activateTab(state, "config");
       clampHomeSelectedTabIndex(state);
@@ -243,6 +246,8 @@ export function handleCloseAllSessionsConfirmKey(
       // reference) so `this` inside the real MixCodeRuntime method still
       // resolves — closeAllTabs reads `this.tabs` internally.
       await confirmedRuntime.closeAllTabs!();
+      // Publish the bulk close before local state becomes empty so peer sync cannot reopen it.
+      noteTabsReplaced([]);
       state.tabs.length = 0;
       activateTab(state, "config");
       clampHomeSelectedTabIndex(state);

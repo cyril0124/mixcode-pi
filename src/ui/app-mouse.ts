@@ -162,6 +162,8 @@ function handleChromeMouse(
   mouse: NonNullable<ReturnType<typeof parseSgrMouseInput>>,
   tui: OverlayTui,
 ): boolean {
+  // Capturing overlays own the screen; only non-capturing Notice allows chrome clicks.
+  if (hasAnyOverlay(tui) && !hasActiveNotice()) return false;
   // Zen hides the tab bar; ghost hit-regions must not steal clicks on the
   // separator / chat that now occupy those screen rows.
   const tabBarVisible =

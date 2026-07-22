@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createInitialState, createTab } from "../src/index.js";
+import { createInitialState, createTab, tabBarHitRegions } from "../src/index.js";
 import { handleMixCodeKeyInput } from "../src/ui/app-input.js";
 import { handleMouseInput } from "../src/ui/app-mouse.js";
 import {
@@ -268,6 +268,40 @@ test("handleMixCodeKeyInput consumes c while Notice is open", async () => {
   } finally {
     closeAppOverlay(noticeTui);
   }
+});
+
+test("tab clicks do not switch sessions through a modal command palette", () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"), createTab(2, "s2", "/repo"));
+  state.activeTabId = "s1";
+  state.tabBarTopRow = 1;
+  state.lastRenderWidth = 120;
+  let overlayOpen = false;
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => {
+      overlayOpen = true;
+      return { hide: () => (overlayOpen = false) } as never;
+    },
+    hasOverlay: () => overlayOpen,
+  };
+  const secondTab = tabBarHitRegions(state, 120).find((region) => region.id === "s2");
+  assert.ok(secondTab);
+
+  assert.deepEqual(handleMixCodeKeyInput(state, "\x10", tui), { consume: true });
+  assert.equal(state.commandPaletteOpen, true);
+  assert.deepEqual(
+    handleMixCodeKeyInput(
+      state,
+      `\x1b[<0;${secondTab.startX};${state.tabBarTopRow + (secondTab.row ?? 0)}M`,
+      tui,
+    ),
+    { consume: true },
+  );
+
+  assert.equal(state.activeTabId, "s1");
+  assert.equal(state.commandPaletteOpen, true);
+  closeAppOverlay(tui);
 });
 
 test("chat drag-select is blocked while a modal overlay is open", async () => {
