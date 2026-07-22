@@ -233,6 +233,59 @@ test("zen mode swallows tab and shift-tab without switching agents", () => {
   assert.equal(state.activeTabId, "s1");
 });
 
+// Zen already refuses Tab tab-switching; when an extension owns the editor,
+// swallow is wasteful — pass Tab through so the component can use it.
+test("zen mode passes tab through while an extension owns the editor slot", () => {
+  const state = createInitialState("/repo");
+  const first = createTab(1, "s1", "/repo", { zenMode: true });
+  const second = createTab(2, "s2", "/repo");
+  state.tabs.push(first, second);
+  state.activeTabId = "s1";
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({}) as never,
+    hideOverlay: () => undefined,
+    hasOverlay: () => false,
+  };
+  const editorActions = {
+    getText: () => "",
+    setText: () => undefined,
+    hasEditorReplacement: () => true,
+  };
+
+  assert.equal(
+    handleMixCodeKeyInput(
+      state,
+      "\t",
+      tui,
+      undefined,
+      undefined,
+      undefined,
+      () => false,
+      editorActions,
+    ),
+    undefined,
+    "Tab must reach the extension component",
+  );
+  assert.equal(state.activeTabId, "s1");
+
+  assert.equal(
+    handleMixCodeKeyInput(
+      state,
+      "\x1b[Z",
+      tui,
+      undefined,
+      undefined,
+      undefined,
+      () => false,
+      editorActions,
+    ),
+    undefined,
+    "Shift+Tab must reach the extension component",
+  );
+  assert.equal(state.activeTabId, "s1");
+});
+
 test("zen + vim still swallows tab (zen wins over vim tab cycle)", () => {
   const state = createInitialState("/repo");
   const first = createTab(1, "s1", "/repo", { zenMode: true, vimMode: true });

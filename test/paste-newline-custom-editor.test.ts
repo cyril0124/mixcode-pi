@@ -118,3 +118,81 @@ test("Ctrl+C does not clear/consume while an extension owns the editor slot", ()
   assert.equal(result, undefined, "Ctrl+C must pass through to the custom component");
   assert.equal(cleared, false, "default editor must not be cleared");
 });
+
+// Regression: global PgUp/PgDn scroll the main chat, but when an extension
+// custom component owns the editor slot (e.g. /btw side-thread history),
+// those keys must fall through instead of being consumed as chat scroll.
+const PAGE_UP = "\x1b[5~";
+const PAGE_DOWN = "\x1b[6~";
+
+test("PgUp/PgDn still scroll the main chat on the default editor", () => {
+  const state = makeState();
+  const tab = state.tabs[0]!;
+  tab.chatScrollOffset = 0;
+  const { actions } = makeEditorActions({ hasEditorReplacement: () => false });
+  const up = handleMixCodeKeyInput(
+    state,
+    PAGE_UP,
+    silentTui(),
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    actions,
+  );
+  assert.deepEqual(up, { consume: true }, "PgUp scrolls main chat");
+  assert.equal(tab.chatScrollOffset, 10);
+  const down = handleMixCodeKeyInput(
+    state,
+    PAGE_DOWN,
+    silentTui(),
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    actions,
+  );
+  assert.deepEqual(down, { consume: true }, "PgDn scrolls main chat");
+  assert.equal(tab.chatScrollOffset, 0);
+});
+
+test("PgUp/PgDn do not scroll/consume while an extension owns the editor slot", () => {
+  const state = makeState();
+  const tab = state.tabs[0]!;
+  tab.chatScrollOffset = 0;
+  const { actions } = makeEditorActions({ hasEditorReplacement: () => true });
+  for (const key of [PAGE_UP, PAGE_DOWN]) {
+    const result = handleMixCodeKeyInput(
+      state,
+      key,
+      silentTui(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      actions,
+    );
+    assert.equal(result, undefined, `${JSON.stringify(key)} must pass through to the custom component`);
+  }
+  assert.equal(tab.chatScrollOffset, 0, "main chat must not scroll under a replaced editor");
+});
+
+test("PgUp/PgDn do not scroll/consume while a pending extension interaction is open", () => {
+  const state = makeState();
+  const tab = state.tabs[0]!;
+  tab.chatScrollOffset = 0;
+  tab.extensionUi.pendingUserInteractions.push({ id: "extension-custom-1", kind: "custom" });
+  const { actions } = makeEditorActions({ hasEditorReplacement: () => false });
+  const result = handleMixCodeKeyInput(
+    state,
+    PAGE_UP,
+    silentTui(),
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    actions,
+  );
+  assert.equal(result, undefined, "PgUp must not steal focus from a pending extension interaction");
+  assert.equal(tab.chatScrollOffset, 0);
+});

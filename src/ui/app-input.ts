@@ -431,8 +431,9 @@ export function handleMixCodeKeyInput(
     tui.requestRender();
     return { consume: true };
   }
-  // Zen swallows Tab/Shift+Tab so only Ctrl+T (with transfer) can change tabs.
+  // Zen blocks Tab/Shift+Tab agent switching (only Ctrl+T can change tabs).
   // Runs before vim tab-cycle: zen owns Tab even when vim coexists.
+  // When an extension owns the editor, pass Tab through instead of swallowing.
   if (
     active &&
     state.activeTabId !== "config" &&
@@ -442,6 +443,12 @@ export function handleMixCodeKeyInput(
     (matchesKey(data, "tab") || matchesKey(data, "shift+tab"))
   ) {
     clearPendingEscape(active, "abort-agent");
+    if (
+      editorActions?.hasEditorReplacement?.() ||
+      active.extensionUi.pendingUserInteractions.length > 0
+    ) {
+      return undefined;
+    }
     return { consume: true };
   }
   if (
@@ -514,10 +521,15 @@ export function handleMixCodeKeyInput(
     showLinesOverlay(tui, (width) => renderCommandPalette(state, width, extensionCommands));
     return { consume: true };
   }
+  // Extension custom components (e.g. /btw) bind PgUp/PgDn for their own
+  // history. Skip main-chat scroll while a replacement editor or pending
+  // extension interaction owns input — same ownership model as Left/Right.
   if (
     active &&
     state.activeTabId !== "config" &&
     !hasAnyOverlay(tui) &&
+    !editorActions?.hasEditorReplacement?.() &&
+    !active.extensionUi.pendingUserInteractions.length &&
     !shouldRouteLineBoundaryKeyToEditor(data, editorActions) &&
     handleChatScrollKey(active, data)
   ) {
