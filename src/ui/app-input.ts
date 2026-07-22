@@ -537,7 +537,9 @@ export function handleMixCodeKeyInput(
   if (handleBatchedSubmitInput(state, active, data, tui, isEditorAutocompleteOpen, editorActions)) {
     return { consume: true };
   }
-  if (matchesKey(data, "ctrl+c") && editorActions) {
+  // Extension custom components (e.g. /btw) own the editor slot and bind
+  // Ctrl+C as exit/cancel. Do not clear the default editor or consume the key.
+  if (matchesKey(data, "ctrl+c") && editorActions && !editorActions.hasEditorReplacement?.()) {
     if (active) clearPendingEscape(active, "abort-agent");
     const text = editorActions.getText();
     // On Home (activeTabId=config) this is a no-op: addToHistory needs a real tab.

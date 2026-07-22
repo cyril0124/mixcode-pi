@@ -91,3 +91,30 @@ test("paste-newline heuristic does not swallow Enter while an extension owns the
   assert.equal(result, undefined, "Enter must pass through to the custom component");
   assert.deepEqual(inserted, [], "no newline is injected into the replaced editor");
 });
+
+// Regression: global Ctrl+C clears the default editor, but when an extension
+// custom component owns the editor slot (e.g. /btw), Ctrl+C is that component's
+// exit/cancel key and must fall through instead of being consumed as clear-input.
+test("Ctrl+C does not clear/consume while an extension owns the editor slot", () => {
+  const state = makeState();
+  let cleared = false;
+  const { actions } = makeEditorActions({
+    hasEditorReplacement: () => true,
+    getText: () => "draft",
+    setText: () => {
+      cleared = true;
+    },
+  });
+  const result = handleMixCodeKeyInput(
+    state,
+    "\x03",
+    silentTui(),
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    actions,
+  );
+  assert.equal(result, undefined, "Ctrl+C must pass through to the custom component");
+  assert.equal(cleared, false, "default editor must not be cleared");
+});
