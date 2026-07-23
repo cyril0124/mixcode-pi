@@ -28,6 +28,7 @@ extensions=(
   npm:@tintinweb/pi-subagents
   npm:pi-invisible-continue
   npm:@juicesharp/rpiv-web-tools
+  npm:@monotykamary/pi-tps
 )
 
 for ext in "${extensions[@]}"; do
