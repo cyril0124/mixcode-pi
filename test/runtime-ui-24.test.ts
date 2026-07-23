@@ -544,6 +544,7 @@ async function assertRuntimeAutoCompactsAndContinuesMidTurn(contextLimitOverridd
     let toolCallTriggered = false;
     const runtime = new MixCodeRuntime({
       sessionsRoot: dir,
+      agentDir: dir,
       streamFn: (_model: Model<any>, context: Context) => {
         seenContexts.push(context);
         const text = lastRuntimeUserText(context);
