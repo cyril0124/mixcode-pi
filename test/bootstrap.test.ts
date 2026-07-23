@@ -45,6 +45,68 @@ test("bootstrap creates initial state and persists it when no state exists", asy
   }
 });
 
+test("bootstrap keeps a session-start turn visibly running after tab load", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-bootstrap-running-"));
+  let releaseContext!: () => void;
+  let markContextEntered!: () => void;
+  let contextWaitTimer: ReturnType<typeof setTimeout> | undefined;
+  const contextGate = new Promise<void>((resolve) => {
+    releaseContext = resolve;
+  });
+  const contextEntered = new Promise<void>((resolve) => {
+    markContextEntered = resolve;
+  });
+  const extension: ExtensionFactory = (pi) => {
+    pi.on("session_start", (_event, ctx) => {
+      if (!ctx.hasUI) return;
+      pi.sendMessage(
+        { customType: "bootstrap-running", content: "continue", display: false },
+        { triggerTurn: true, deliverAs: "followUp" },
+      );
+    });
+    pi.on("context", async (event) => {
+      markContextEntered();
+      await contextGate;
+      return { messages: event.messages };
+    });
+  };
+
+  let boot: Awaited<ReturnType<typeof bootstrapMixCode>> | undefined;
+  try {
+    boot = await bootstrapMixCode({
+      workdir: dir,
+      stateDir: join(dir, "state"),
+      agentDir: join(dir, "agent"),
+      modelConfigPath: join(dir, "missing.jsonc"),
+      extensionFactories: [extension],
+    });
+    await boot.tabsReady;
+    await Promise.race([
+      contextEntered,
+      new Promise<never>((_, reject) => {
+        contextWaitTimer = setTimeout(
+          () => reject(new Error("bootstrap context event was not observed")),
+          10_000,
+        );
+      }),
+    ]);
+    clearTimeout(contextWaitTimer);
+    contextWaitTimer = undefined;
+
+    const tab = boot.state.tabs[0]!;
+    const runtimeTab = boot.runtime.getTab(tab.sessionId);
+    assert.ok(runtimeTab?.agentSession.isStreaming);
+    assert.ok(tab.status === "running" || tab.status === "thinking");
+    assert.ok(tab.workingStartedAt);
+  } finally {
+    if (contextWaitTimer) clearTimeout(contextWaitTimer);
+    boot?.runtime.getTab(boot.state.tabs[0]?.sessionId ?? "")?.agentSession.agent.abort();
+    releaseContext();
+    await boot?.runtime.getTab(boot.state.tabs[0]?.sessionId ?? "")?.agentSession.waitForIdle();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("bootstrap restores persisted tab order and runtime tabs", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-bootstrap-restore-"));
   try {

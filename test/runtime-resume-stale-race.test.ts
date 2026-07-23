@@ -4,6 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { test } from "node:test";
+import { createAssistantMessageEventStream, type AssistantMessage } from "@earendil-works/pi-ai";
 import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import { createTab, MixCodeRuntime } from "../src/index.js";
 import { __testReplaceHooks } from "../src/agent/runtime-lifecycle.js";
@@ -112,6 +113,96 @@ test("resume restores tab title from the resumed session's persisted name", asyn
       `resume must restore persisted name; got "${resumed.tab.title}"`,
     );
   } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("resume keeps a session-start turn visibly running", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-resume-running-"));
+  const stream = createAssistantMessageEventStream();
+  let releaseContext!: () => void;
+  let markContextEntered!: () => void;
+  let contextWaitTimer: ReturnType<typeof setTimeout> | undefined;
+  const contextGate = new Promise<void>((resolve) => {
+    releaseContext = resolve;
+  });
+  const contextEntered = new Promise<void>((resolve) => {
+    markContextEntered = resolve;
+  });
+  const events: string[] = [];
+  let runtime: MixCodeRuntime | undefined;
+  try {
+    runtime = new MixCodeRuntime({
+      sessionsRoot: join(dir, "sessions"),
+      streamFn: () => stream,
+      extensionFactories: [
+        (pi) => {
+          pi.on("session_start", async (event, ctx) => {
+            if (!ctx.hasUI || event.reason !== "resume") return;
+            pi.sendMessage(
+              { customType: "resume-running", content: "continue", display: false },
+              { triggerTurn: true, deliverAs: "followUp" },
+            );
+            await new Promise((resolve) => setTimeout(resolve, 20));
+          });
+          pi.on("context", async (event) => {
+            markContextEntered();
+            await contextGate;
+            return { messages: event.messages };
+          });
+        },
+      ],
+    });
+    const initial = await runtime.createTab(createTab(1, "s1", process.cwd()), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+    });
+    const target = (await runtime.forkSession("s1", "target")).getSessionFile();
+    assert.ok(target);
+    runtime.onChange((event) => events.push(event.type));
+
+    await runtime.extensionSwitchSession("s1", target);
+    await Promise.race([
+      contextEntered,
+      new Promise<never>((_, reject) => {
+        contextWaitTimer = setTimeout(
+          () => reject(new Error("resume context event was not observed")),
+          10_000,
+        );
+      }),
+    ]);
+    clearTimeout(contextWaitTimer);
+    contextWaitTimer = undefined;
+
+    const resumed = runtime.listTabs()[0]!;
+    assert.equal(resumed.agentSession.isStreaming, true);
+    assert.ok(resumed.tab.status === "running" || resumed.tab.status === "thinking");
+    assert.ok(resumed.tab.workingStartedAt);
+    assert.ok(events.includes("agent_start"));
+  } finally {
+    if (contextWaitTimer) clearTimeout(contextWaitTimer);
+    const resumed = runtime?.listTabs()[0];
+    releaseContext();
+    resumed?.agentSession.agent.abort();
+    stream.end({
+      role: "assistant",
+      content: [],
+      api: "resume-running-test",
+      provider: "resume-running-test",
+      model: "resume-running-test",
+      usage: {
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        totalTokens: 0,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+      },
+      stopReason: "aborted",
+      timestamp: Date.now(),
+    } satisfies AssistantMessage);
+    await resumed?.agentSession.waitForIdle();
     await rm(dir, { recursive: true, force: true });
   }
 });

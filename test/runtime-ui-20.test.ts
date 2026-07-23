@@ -597,6 +597,14 @@ test("runtime updates workdir, system prompt, and tool closures", async () => {
     });
 
     await runtime.updateTabWorkdir("s1", newDir, "system");
+    let thinkingLevelChanges = 0;
+    const unsubscribe = runtime.onChange((event) => {
+      if (event.type === "thinking_level_changed") thinkingLevelChanges += 1;
+    });
+    runtime.updateTabThinkingLevel("s1", "off");
+    unsubscribe();
+    assert.equal(thinkingLevelChanges, 1);
+
     assert.equal(tab.workdir, newDir);
     assert.equal(runtimeTab.session.getCwd(), newDir);
     assert.equal(runtimeTab.agentSession.sessionManager.getCwd(), newDir);

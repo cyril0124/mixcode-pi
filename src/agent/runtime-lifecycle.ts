@@ -232,7 +232,6 @@ async function createRuntimeTabWithServices(
     // show its persisted name — same as resume — not the default Agent-NN title.
     const openedName = session.getSessionName();
     if (openedName) tab.title = openedName;
-    subscribeRuntimeTab(runtimeTab, context);
     context.tabs.set(tab.sessionId, runtimeTab);
     return runtimeTab;
   } catch (error) {
@@ -480,9 +479,15 @@ async function replaceRuntimeTabSessionUnlocked(
     if (resumedName) runtimeTab.tab.title = resumedName;
   }
   await bindRuntimeExtensions(runtimeTab, context);
+  const sessionStartStatus = runtimeTab.tab.status;
+  const sessionStartWorkingStartedAt = runtimeTab.tab.workingStartedAt;
   // Only now commit the identity switch: update the tab's sessionId,
   // remove the old key from the tabs map, and register under the new key.
   resetTabForNewSession(runtimeTab.tab, sessionManager.getSessionId());
+  if (created.session.isStreaming) {
+    runtimeTab.tab.status = sessionStartStatus === "thinking" ? "thinking" : "running";
+    runtimeTab.tab.workingStartedAt = sessionStartWorkingStartedAt ?? new Date().toISOString();
+  }
   runtimeTab.tab.workdir = sessionManager.getCwd();
   // Re-apply after identity switch: resetTabForNewSession does not clear title, but
   // bind/session_start may have renamed; prefer the session file's persisted name.
@@ -499,7 +504,6 @@ async function replaceRuntimeTabSessionUnlocked(
   applyRuntimeTabModel(runtimeTab, created.session.agent.state.model);
   runtimeTab.tab.thinkingLevel = created.session.agent.state.thinkingLevel;
   refreshStartupHeader(runtimeTab);
-  subscribeRuntimeTab(runtimeTab, context);
   context.emitChange({ type: "extension_ui_update" }, runtimeTab);
   return runtimeTab;
 }
@@ -650,6 +654,8 @@ export async function bindRuntimeExtensions(
   runtimeTab: RuntimeTab,
   context: RuntimeLifecycleContext,
 ): Promise<void> {
+  // bindExtensions emits session_start, which may synchronously start a turn.
+  subscribeRuntimeTab(runtimeTab, context);
   await runtimeTab.agentSession.bindExtensions({
     mode: "tui",
     uiContext: createMixCodeExtensionUiContext(
@@ -718,7 +724,6 @@ export async function reloadRuntimeTabWithFreshServices(
   // Pi refreshes the same loadedResourcesContainer on session_start and /reload;
   // the tab-level header is the MixCode analogue, so recompute it here too.
   refreshStartupHeader(runtimeTab);
-  subscribeRuntimeTab(runtimeTab, context);
   context.emitChange({ type: "extension_ui_update" }, runtimeTab);
 }
 

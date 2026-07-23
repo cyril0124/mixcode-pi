@@ -15,7 +15,7 @@ import {
 	setRuntimeStateForTests,
 } from "./src/persistence/goal-store.js";
 import { registerGoalLifecycle } from "./src/runtime/lifecycle.js";
-import { resetContinuationRuntime } from "./src/runtime/continuation.js";
+import { resetContinuationRuntime, scheduleMaybeContinueGoal } from "./src/runtime/continuation.js";
 import type { GoalState } from "./src/domain/types.js";
 
 type Handler = (event: unknown, ctx?: ExtensionContext) => unknown | Promise<unknown>;
@@ -23,6 +23,8 @@ type Handler = (event: unknown, ctx?: ExtensionContext) => unknown | Promise<unk
 const handlers = new Map<string, Handler[]>();
 const entries: Array<{ type: string; customType?: string; data?: unknown; id: string }> = [];
 const messages: Array<{ customType?: string; content?: string; options?: unknown }> = [];
+const notifications: Array<{ message: string; type?: string }> = [];
+let sendMessageError: Error | undefined;
 let registered = false;
 let idle = true;
 let selectChoice: string | undefined;
@@ -39,6 +41,7 @@ const pi = {
 		entries.push({ type: "custom", customType, data, id });
 	},
 	sendMessage(msg: { customType?: string; content?: string }, options?: unknown) {
+		if (sendMessageError) throw sendMessageError;
 		messages.push({ ...msg, options });
 	},
 	registerTool() {},
@@ -58,7 +61,9 @@ const ctx = {
 	ui: {
 		setStatus() {},
 		setWidget() {},
-		notify() {},
+		notify(message: string, type?: string) {
+			notifications.push({ message, type });
+		},
 		select: async (prompt: string, _options: string[]) => {
 			selectPrompts.push(prompt);
 			return selectChoice;
@@ -106,6 +111,8 @@ function seedGoal(status: GoalState["status"]): GoalState {
 	resetContinuationRuntime();
 	entries.length = 0;
 	messages.length = 0;
+	notifications.length = 0;
+	sendMessageError = undefined;
 	selectPrompts.length = 0;
 	selectChoice = undefined;
 	idle = true;
@@ -125,12 +132,37 @@ test("session resume with active goal prompts continue and continues when accept
 	selectChoice = "Continue goal";
 
 	await emit("session_start", { type: "session_start", reason: "resume" });
-	await sleep(40);
-
 	assert.equal(selectPrompts.length, 1);
 	assert.match(selectPrompts[0] ?? "", /active goal/i);
 	assert.equal(continuationMessages().length, 1);
+	assert.equal((continuationMessages()[0]?.options as { triggerTurn?: boolean })?.triggerTurn, true);
+	assert.equal((continuationMessages()[0]?.options as { deliverAs?: string })?.deliverAs, "followUp");
 	assert.equal(getGoal()?.status, "active");
+});
+
+test("session resume isolates continuation send failures", async () => {
+	seedGoal("active");
+	selectChoice = "Continue goal";
+	sendMessageError = new Error("ctx is stale");
+
+	await emit("session_start", { type: "session_start", reason: "resume" });
+
+	assert.equal(selectPrompts.length, 1);
+	assert.equal(getGoal()?.status, "active");
+});
+
+test("user-confirmed continuation warns when no active goal remains", () => {
+	seedGoal("active");
+	setRuntimeStateForTests({ goal: null, telemetry: null });
+
+	scheduleMaybeContinueGoal(pi, ctx, "resumed");
+
+	assert.deepEqual(notifications, [
+		{
+			message: "Could not start goal continuation: no active goal in this session.",
+			type: "warning",
+		},
+	]);
 });
 
 test("session resume with active goal can leave idle without continuing", async () => {
@@ -152,7 +184,6 @@ test("session resume Continue starts even when session is briefly not idle", asy
 	idle = false;
 
 	await emit("session_start", { type: "session_start", reason: "resume" });
-	// Immediate send — no settle wait required for explicit user continue.
 	assert.equal(continuationMessages().length, 1);
 	assert.equal((continuationMessages()[0]?.options as { triggerTurn?: boolean } | undefined)?.triggerTurn, true);
 });

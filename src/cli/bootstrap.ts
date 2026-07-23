@@ -257,7 +257,9 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
         thinkingLevel: tab.thinkingLevel,
         workdir: tab.workdir,
       });
-      tab.status = "idle";
+      // session_start extensions may already have kicked off a turn while the
+      // tab was loading. Do not overwrite their running/thinking state.
+      if (!runtimeTab.agentSession.isStreaming) tab.status = "idle";
       const sessionName = runtimeTab.session.getSessionName();
       if (sessionName) tab.title = sessionName;
       const repair = modelRepairs.get(tab.sessionId);

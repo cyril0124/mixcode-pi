@@ -136,6 +136,50 @@ function traceRuntime(runtime: MixCodeRuntime, sessionId: string): TraceEntry[] 
   return trace;
 }
 
+test("session-start turn is shown as running after runtime subscription", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-timer-startup-"));
+  const message = assistantText("startup turn done");
+  const stream = createAssistantMessageEventStream();
+  try {
+    const runtime = new MixCodeRuntime({
+      sessionsRoot: dir,
+      streamFn: () => stream,
+      extensionFactories: [
+        (pi) => {
+          pi.on("session_start", (_event, ctx) => {
+            if (!ctx.hasUI) return;
+            pi.sendMessage(
+              { customType: "startup-turn", content: "continue", display: false },
+              { triggerTurn: true, deliverAs: "followUp" },
+            );
+          });
+        },
+      ],
+    });
+    const tab = createTab(1, "s1", process.cwd(), timerTabConfig());
+    const trace = traceRuntime(runtime, "s1");
+    const runtimeTab = await runtime.createTab(tab, {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+      model: TIMER_MODEL,
+    });
+
+    try {
+      assert.equal(runtimeTab.agentSession.isStreaming, true);
+      assert.equal(trace.find((entry) => entry.type === "agent_start")?.status, "running");
+      assert.ok(tab.workingStartedAt);
+    } finally {
+      stream.push({ type: "start", partial: { ...message, content: [] } });
+      stream.push({ type: "done", reason: "stop", message });
+      stream.end(message);
+      await runtimeTab.agentSession.waitForIdle();
+    }
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("auto-retry continuation preserves the working timer stamp", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-timer-retry-"));
   try {

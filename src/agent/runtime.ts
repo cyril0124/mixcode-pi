@@ -60,7 +60,6 @@ import {
   surfaceShortcutError,
 } from "./runtime-extension-ui.js";
 import {
-  consumeDeferredPendingMessageFlush,
   dispatchTurn,
   flushRuntimePendingMessage,
   popRuntimePendingMessage,
@@ -1383,15 +1382,9 @@ export class MixCodeRuntime {
     installMidTurnCompactionHook(agentSession, runtimeTab.tab, { current: runtimeTab });
     runtimeTab.tab.workdir = workdir;
     agentSession.subscribe((event) => {
-      // Flush deferred ctx.shutdown() before applyEvent so UI listeners cannot
-      // short-circuit the handler (agent_settled is when isStreaming becomes false).
+      // Registered before the shared UI listener so deferred shutdown flushes first.
       if (event.type === "agent_settled" || event.type === "compaction_end") {
         this.flushPendingExtensionShutdown(runtimeTab.tab.sessionId);
-      }
-      this.applyEvent(runtimeTab, event);
-      if (event.type === "agent_end") {
-        if (consumeDeferredPendingMessageFlush(runtimeTab)) return;
-        this.schedulePendingMessageFlush(runtimeTab.tab.sessionId, runtimeTab.agentSession);
       }
     });
     await this.bindExtensions(runtimeTab);

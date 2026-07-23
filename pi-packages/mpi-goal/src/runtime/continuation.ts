@@ -12,6 +12,7 @@ import { buildBudgetLimitPrompt, buildContinuationPrompt, buildPausePrompt } fro
 import { getQueue } from "../persistence/queue-store.js";
 import { decideTerminalContinuationTicket, dispatchContinuationTicket, revalidateContinuationTicket } from "./continuation-ticket.js";
 import { getGoal, getTelemetry, persistTelemetry } from "../persistence/goal-store.js";
+import { notifyWarning } from "../surface/ui/notify.js";
 import {
 	isApiGateBlocked,
 	noteApiGate,
@@ -136,6 +137,9 @@ export function scheduleMaybeContinueGoal(pi: ExtensionAPI, ctx: ExtensionContex
 	const goal = getGoal();
 	if (!goal || goal.status !== "active") {
 		logRuntime("scheduleMaybeContinueGoal.skip.notActive", { reason });
+		if (isUserConfirmedContinuation(reason) && ctx.hasUI) {
+			notifyWarning(ctx, "Could not start goal continuation: no active goal in this session.");
+		}
 		return;
 	}
 	// User resume/create always re-opens the API gate (upstream may be back).
@@ -153,8 +157,8 @@ export function scheduleMaybeContinueGoal(pi: ExtensionAPI, ctx: ExtensionContex
 	const telemetry = noteContinuationScheduled(getTelemetry(), reason);
 	if (telemetry) persistTelemetry(pi, telemetry, "continuation");
 	const goalId = goal.goalId;
-	// User-confirmed starts must fire now. Session resume / /goal set happen while
-	// the UI may still look busy; waiting for idle only drops the spinner-less kick.
+	// User-confirmed starts must fire now. The async wrapper catches send failures
+	// without delaying attemptContinueGoal before its first await.
 	if (isUserConfirmedContinuation(reason)) {
 		void safelyRun(async () => {
 			attemptContinueGoal(pi, ctx, reason, goalId, { force: true });
@@ -239,6 +243,9 @@ function attemptContinueGoal(
 	if (!goal || goal.goalId !== goalId || goal.status !== "active") {
 		logRuntime("attemptContinueGoal.skip.notActive", { reason, requestedGoalId: goalId });
 		skip(pi, "notActive");
+		if (isUserConfirmedContinuation(reason) && ctx.hasUI) {
+			notifyWarning(ctx, "Could not start goal continuation: no active goal in this session.");
+		}
 		return { kind: "terminalSkip", reason: "notActive" };
 	}
 	if (contState().compactionActive) {
@@ -392,7 +399,13 @@ function decideCompactionQueueHandoffTicket(work: Extract<CompactionContinuation
 	return ticket;
 }
 
-function sendContinuationMessage(pi: ExtensionAPI, goal: GoalState, telemetry: ReturnType<typeof getTelemetry>, reason: ContinuationReason, triggerTurn: boolean): void {
+function sendContinuationMessage(
+	pi: ExtensionAPI,
+	goal: GoalState,
+	telemetry: ReturnType<typeof getTelemetry>,
+	reason: ContinuationReason,
+	triggerTurn: boolean,
+): void {
 	const prompt = buildContinuationPrompt(goal, telemetry);
 	logRuntime("sendContinuationMessage", { reason, goalId: goal.goalId, triggerTurn, deliverAs: "followUp" });
 	setNextTurnOrigin("auto");
