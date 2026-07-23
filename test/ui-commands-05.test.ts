@@ -179,28 +179,31 @@ test("submitted input shows session info from pi runtime", async () => {
   assert.deepEqual(overlays, []);
   const message = chat.at(-1)?.text ?? "";
   // Pi handleSessionCommand permanently appends (not showStatus coalesce).
-  assert.equal(chat.at(-1)?.kind, "block");
+  assert.equal(chat.at(-1)?.kind, "plain");
   assert.match(message, /Session Info/);
   assert.match(message, /Name: Daily work/);
   assert.match(message, /File: \/tmp\/session\.jsonl/);
   assert.match(message, /ID: abc123/);
   assert.match(message, /Messages/);
+  // Pi: Total first, Tools combined line.
+  assert.match(message, /Total: 32/);
   assert.match(message, /User: 3/);
   assert.match(message, /Assistant: 11/);
-  assert.match(message, /Tool Calls: 18/);
-  assert.match(message, /Tool Results: 18/);
-  assert.match(message, /Total: 32/);
+  assert.match(message, /Tools: 18 calls, 18 results/);
+  assert.doesNotMatch(message, /Tool Calls:/);
+  assert.doesNotMatch(message, /Tool Results:/);
   assert.match(message, /Tokens/);
-  assert.match(message, /Input: 24,152/);
+  // Pi Input is full prompt volume (input + cacheRead + cacheWrite).
+  assert.match(message, /Input: 172,888/);
+  assert.match(message, /Cached: 148,736 \(86\.0%\)/);
+  assert.match(message, /Uncached: 24,152/);
   assert.match(message, /Output: 3,077/);
-  assert.match(message, /Cache Read: 148,736/);
   assert.match(message, /Total: 175,965/);
-  assert.match(message, /Context/);
-  assert.match(message, /Current: 9\.80k \(9,801\)/);
-  assert.match(message, /Limit: 256k \(256,000\)/);
-  assert.match(message, /Usage: 3\.8%/);
+  // Context is footer-only side effect, not part of Pi dump.
+  assert.doesNotMatch(message, /\bContext\b/);
+  assert.doesNotMatch(message, /Current:/);
   assert.match(message, /Cost/);
-  assert.match(message, /Total: 1\.2346/);
+  assert.match(message, /Total: \$1\.235/);
   assert.equal(tab.currentContextTokens, 9_801);
   assert.equal(tab.contextLimit, 256_000);
   assert.equal(tab.previewMessages.at(-1)?.text, message);

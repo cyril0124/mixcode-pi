@@ -79,7 +79,7 @@ export interface ChatLine {
   role: "user" | "assistant" | "thinking" | "tool" | "system" | "extension";
   text: string;
   title?: string;
-  variant?: "user-bash" | "system-error" | "system-warning";
+  variant?: "user-bash" | "system-error" | "system-warning" | "system-plain";
   customType?: string;
   status?: "pending" | "running" | "success" | "error";
   toolCallId?: string;

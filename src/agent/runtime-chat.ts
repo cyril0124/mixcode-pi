@@ -34,9 +34,10 @@ export function assistantDisplayText(_tab: MixCodeTabInfo, message: AssistantMes
  * Pi interactive-mode display kinds:
  * - status: showStatus (consecutive lines coalesce / replace)
  * - error / warning: always append, break status chain
- * - block: permanent multi-line dump (e.g. /session addChild Text), never coalesced
+ * - block: permanent multi-line Markdown dump (e.g. /help), never coalesced
+ * - plain: permanent multi-line plain dump (e.g. /session), never coalesced
  */
-export type SystemMessageKind = "status" | "error" | "warning" | "block";
+export type SystemMessageKind = "status" | "error" | "warning" | "block" | "plain";
 
 export function appendSystemMessage(
   runtimeTab: RuntimeTab,
@@ -69,7 +70,9 @@ export function appendSystemMessage(
       ? ("system-error" as const)
       : kind === "warning"
         ? ("system-warning" as const)
-        : undefined;
+        : kind === "plain"
+          ? ("system-plain" as const)
+          : undefined;
   runtimeTab.chat.push({
     role: "system",
     text,

@@ -49,6 +49,7 @@ import { renderSystemToolsText } from "./system-tools.js";
 import { getConfiguredQuitOptions, quitMixCode } from "./quit.js";
 import { clearConversationCache, renderPickerOverlay } from "./rendering.js";
 import { openSessionSelector, type SessionSelectorRuntime } from "./session-selector.js";
+import { renderSessionInfoText as formatSessionInfoText } from "./session-info.js";
 
 import { openTreeSelector, type TreeSelectorRuntime } from "./tree-selector.js";
 import { openSettingsPanel } from "./settings-panel.js";
@@ -466,11 +467,11 @@ export async function handleSubmittedInput(
     if (!runtimeTab) throw new Error(`Unknown tab session: ${active!.sessionId}`);
     const info = runtimeTab.agentSession.getSessionStats();
     syncTabContextUsage(active!, info.contextUsage);
-    // Pi handleSessionCommand adds a permanent Text child (not showStatus).
+    // Pi handleSessionCommand adds a permanent plain Text child (not showStatus).
     runtime.appendSystemMessage(
       active!.sessionId,
       renderSessionInfoText(runtimeTab, info),
-      "block",
+      "plain",
     );
   } else if (parsed.command === "tui-state") {
     const request = parseEditorFlag(parsed.args);
@@ -565,64 +566,15 @@ export function renderSessionInfoText(
   runtimeTab: NonNullable<ReturnType<MixCodeRuntime["getTab"]>>,
   info: SessionStatsInfo = runtimeTab.agentSession.getSessionStats(),
 ): string {
-  const name = runtimeTab.session.getSessionName();
-  const lines = ["Session Info", ""];
-  if (name) lines.push(`Name: ${name}`);
-  lines.push(
-    `File: ${info.sessionFile ?? "In-memory"}`,
-    `ID: ${info.sessionId}`,
-    "",
-    "Messages",
-    `User: ${info.userMessages}`,
-    `Assistant: ${info.assistantMessages}`,
-    `Tool Calls: ${info.toolCalls}`,
-    `Tool Results: ${info.toolResults}`,
-    `Total: ${info.totalMessages}`,
-    "",
-    "Tokens",
-    `Input: ${info.tokens.input.toLocaleString()}`,
-    `Output: ${info.tokens.output.toLocaleString()}`,
-  );
-  if (info.tokens.cacheRead > 0)
-    lines.push(`Cache Read: ${info.tokens.cacheRead.toLocaleString()}`);
-  if (info.tokens.cacheWrite > 0)
-    lines.push(`Cache Write: ${info.tokens.cacheWrite.toLocaleString()}`);
-  lines.push(`Total: ${info.tokens.total.toLocaleString()}`);
-  if (info.contextUsage) {
-    lines.push(
-      "",
-      "Context",
-      `Current: ${formatSessionContextTokens(info.contextUsage.tokens)}`,
-      `Limit: ${formatSessionContextLimit(info.contextUsage.contextWindow)}`,
-      `Usage: ${formatSessionContextPercent(info.contextUsage.percent)}`,
-    );
-  }
-  if (info.cost > 0) lines.push("", "Cost", `Total: ${info.cost.toFixed(4)}`);
-  return lines.join("\n");
-}
-
-function formatSessionContextTokens(tokens: number | null): string {
-  return tokens === null ? "unknown" : formatCompactAndExactTokenCount(tokens);
-}
-
-function formatSessionContextLimit(tokens: number): string {
-  return formatCompactAndExactTokenCount(tokens);
-}
-
-function formatCompactAndExactTokenCount(tokens: number): string {
-  const compact = formatCompactTokenCount(tokens);
-  const exact = tokens.toLocaleString();
-  return compact === exact ? exact : `${compact} (${exact})`;
-}
-
-function formatCompactTokenCount(tokens: number): string {
-  const value = tokens / 1_000;
-  if (Number.isInteger(value)) return `${value.toFixed(0)}k`;
-  return `${tokens < 10_000 ? value.toFixed(2) : value.toFixed(1)}k`;
-}
-
-function formatSessionContextPercent(percent: number | null): string {
-  return percent === null ? "unknown" : `${percent.toFixed(1)}%`;
+  // Pi handleSessionCommand: permanent stats dump with prompt-volume Input,
+  // Cached/Uncached split, $cost, optional multi-model and cache re-bill lines.
+  // Context usage is footer-only (syncTabContextUsage), not part of this dump.
+  const entries =
+    typeof runtimeTab.session.getEntries === "function"
+      ? runtimeTab.session.getEntries()
+      : [];
+  const models = runtimeTab.agentSession.modelRuntime;
+  return formatSessionInfoText(runtimeTab.session, info, { entries, models });
 }
 
 function parseEditorFlag(args: string): {

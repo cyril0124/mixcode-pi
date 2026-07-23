@@ -572,9 +572,10 @@ function renderSystemBlock(
   const body = text.trim() ? text.trim() : " ";
   const isError = variant === "system-error" || text.startsWith("Error:");
   const isWarning = variant === "system-warning";
-  // Pi notify/status/warning/error use plain Text with one leading space of padding
-  // and no trailing blank line. Outer chat composition already inserts one blank
-  // line between non-empty blocks.
+  const isPlain = variant === "system-plain";
+  // Pi notify/status/warning/error/session dump use plain Text with one leading
+  // space of padding and no trailing blank line. Outer chat composition already
+  // inserts one blank line between non-empty blocks.
   if (isError || isWarning || systemStatus) {
     const color = isError
       ? activeRenderTheme.danger
@@ -584,6 +585,10 @@ function renderSystemBlock(
     return wrapPlainLine(body, Math.max(1, width - 1)).map((part) =>
       padLine(` ${color(part)}`, width),
     );
+  }
+  if (isPlain) {
+    // Pi handleSessionCommand: bold section titles, dim "Label:" prefixes, normal values.
+    return renderSystemPlainDump(body, width);
   }
   // Permanent system blocks (e.g. /help) keep Markdown and surrounding spacing.
   const lines = [
@@ -816,6 +821,45 @@ function renderSkillUserMessage(
 
 function prettyJson(value: unknown): string {
   return JSON.stringify(value, null, 2);
+}
+
+
+/** Pi-style plain dump: bold headers, dim labels, normal values. */
+function renderSystemPlainDump(body: string, width: number): string[] {
+  const innerWidth = Math.max(1, width - 1);
+  const sectionHeaders = new Set(["Session Info", "Messages", "Tokens", "Cost"]);
+  const lines: string[] = [];
+  for (const raw of body.split(/\r?\n/)) {
+    if (!raw.trim()) {
+      lines.push(padLine("", width));
+      continue;
+    }
+    const trimmed = raw.trimEnd();
+    if (sectionHeaders.has(trimmed) && !/^\s/.test(raw)) {
+      const styled = activeRenderTheme.bold(trimmed);
+      for (const part of wrapTextWithAnsi(styled, innerWidth)) {
+        lines.push(padLine(` ${part}`, width));
+      }
+      continue;
+    }
+    const match = raw.match(/^(\s*)([^:]+:)(\s*)(.*)$/);
+    if (match) {
+      const indent = match[1] ?? "";
+      const label = match[2] ?? "";
+      const value = match[4] ?? "";
+      const styled =
+        `${indent}${activeRenderTheme.dim(label)}` +
+        (value.length > 0 ? ` ${activeRenderTheme.text(value)}` : "");
+      for (const part of wrapTextWithAnsi(styled, innerWidth)) {
+        lines.push(padLine(` ${part}`, width));
+      }
+      continue;
+    }
+    for (const part of wrapTextWithAnsi(activeRenderTheme.text(raw), innerWidth)) {
+      lines.push(padLine(` ${part}`, width));
+    }
+  }
+  return lines;
 }
 
 function wrapPlainLine(text: string, width: number): string[] {
