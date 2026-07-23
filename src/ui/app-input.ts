@@ -1,4 +1,4 @@
-import { isKeyRelease, Key, matchesKey } from "@earendil-works/pi-tui";
+import { isKeyRelease, matchesKey } from "@earendil-works/pi-tui";
 import { MIXCODE_EXTENSION_KEYBINDINGS_MANAGER } from "../agent/runtime.js";
 import { copyTextToClipboard } from "../core/clipboard.js";
 import {
@@ -6,7 +6,6 @@ import {
   isOverlayActive,
   openCommandPalette,
   openTabJump,
-  scrollChat,
 } from "../core/overlays.js";
 import { pushToast } from "../core/toast.js";
 import { activateTab, dismissExtensionPanel, getActiveTab, nextTabId } from "../core/tabs.js";
@@ -496,16 +495,6 @@ export function handleMixCodeKeyInput(
     tui.requestRender();
     return { consume: true };
   }
-  if (
-    active &&
-    state.activeTabId !== "config" &&
-    active.extensionUi.pendingUserInteractions.length > 0 &&
-    handleExtensionInteractionChatScrollKey(active, data)
-  ) {
-    clearPendingEscape(active, "abort-agent");
-    tui.requestRender();
-    return { consume: true };
-  }
   if (matchesKey(data, "ctrl+t")) {
     if (active) clearPendingEscape(active, "abort-agent");
     openTabJump(state);
@@ -688,15 +677,6 @@ function hasFocusedAppControl(
   return Boolean(
     isOverlayActive(state) || active?.previewOpen || active?.pendingDialogs.length,
   );
-}
-
-function handleExtensionInteractionChatScrollKey(
-  active: MixCodeState["tabs"][number],
-  data: string,
-): boolean {
-  if (matchesKey(data, Key.shift("up"))) return scrollChat(active, 3);
-  if (matchesKey(data, Key.shift("down"))) return scrollChat(active, -3);
-  return false;
 }
 
 function shouldRouteLineBoundaryKeyToEditor(

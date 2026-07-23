@@ -6,7 +6,10 @@ import {
   handleMixCodeKeyInput,
 } from "../src/index.js";
 
-test("global key input scrolls chat with Shift+Up/Down during extension user interactions", () => {
+test("Shift+Up/Down are not consumed as chat scroll during extension user interactions", () => {
+  // C3: interaction-period Shift+Up/Down is free for extension overlay/widget
+  // handleInput (pi-tui focused component after listeners). Chat scroll during
+  // interactions remains available via mouse wheel.
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo");
   tab.extensionUi.pendingUserInteractions.push({ id: "ask-user-question", kind: "custom" });
@@ -18,9 +21,9 @@ test("global key input scrolls chat with Shift+Up/Down during extension user int
     hasOverlay: () => true,
   };
 
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[1;2A", tui), { consume: true });
-  assert.equal(tab.chatScrollOffset, 3);
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[1;2B", tui), { consume: true });
+  assert.equal(handleMixCodeKeyInput(state, "\x1b[1;2A", tui)?.consume, undefined);
+  assert.equal(tab.chatScrollOffset, 0);
+  assert.equal(handleMixCodeKeyInput(state, "\x1b[1;2B", tui)?.consume, undefined);
   assert.equal(tab.chatScrollOffset, 0);
 });
 
