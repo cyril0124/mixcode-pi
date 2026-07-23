@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, utimes, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { test } from "node:test";
+import lockfile from "proper-lockfile";
 import {
   appendHistoryEntry,
   backfillHistoryFromSessions,
@@ -88,7 +89,103 @@ test("appendHistoryEntry serializes concurrent appends", async () => {
         ),
       ),
     );
-    assert.equal((await readJsonl(file)).length, 12);
+    const records = await readJsonl(file);
+    records.sort((left, right) => Number(left.ts) - Number(right.ts));
+    assert.deepEqual(
+      records,
+      Array.from({ length: 12 }, (_, index) => ({
+        session_id: "s1",
+        ts: index,
+        text: `prompt-${index}`,
+      })),
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("appendHistoryEntry reclaims a stale lock left by a crashed process", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-history-stale-lock-"));
+  const file = join(dir, "history.jsonl");
+  const lockDir = `${file}.lock`;
+  try {
+    await mkdir(lockDir);
+    const staleAt = new Date(Date.now() - 60_000);
+    await utimes(lockDir, staleAt, staleAt);
+
+    await appendHistoryEntry(
+      file,
+      { sessionId: "s1", text: "after crash", timestampSeconds: 10 },
+      { maxBytes: 1024 },
+    );
+
+    assert.deepEqual(await readJsonl(file), [
+      { session_id: "s1", ts: 10, text: "after crash" },
+    ]);
+    await assert.rejects(stat(lockDir), /ENOENT/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("appendHistoryEntry waits for a live history lock instead of stealing it", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-history-live-lock-"));
+  const file = join(dir, "history.jsonl");
+  let release: (() => Promise<void>) | undefined;
+  try {
+    release = await lockfile.lock(file, {
+      realpath: false,
+      stale: 30_000,
+      update: 10_000,
+    });
+    let settled = false;
+    const append = appendHistoryEntry(
+      file,
+      { sessionId: "s1", text: "after release", timestampSeconds: 10 },
+      { maxBytes: 1024 },
+    ).then(() => {
+      settled = true;
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    assert.equal(settled, false, "append must wait while the live lock is held");
+    await release();
+    release = undefined;
+    await append;
+
+    assert.deepEqual(await readJsonl(file), [
+      { session_id: "s1", ts: 10, text: "after release" },
+    ]);
+  } finally {
+    await release?.();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("appendHistoryEntry keeps retrying when a fresh crash lock becomes stale", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-history-fresh-crash-lock-"));
+  const file = join(dir, "history.jsonl");
+  const lockDir = `${file}.lock`;
+  try {
+    await mkdir(lockDir);
+    let settled = false;
+    const append = appendHistoryEntry(
+      file,
+      { sessionId: "s1", text: "recovered", timestampSeconds: 10 },
+      { maxBytes: 1024 },
+    ).then(() => {
+      settled = true;
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    assert.equal(settled, false, "fresh crash lock must initially remain valid");
+    const staleAt = new Date(Date.now() - 60_000);
+    await utimes(lockDir, staleAt, staleAt);
+    await append;
+
+    assert.deepEqual(await readJsonl(file), [
+      { session_id: "s1", ts: 10, text: "recovered" },
+    ]);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

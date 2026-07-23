@@ -1,6 +1,7 @@
 import { chmod, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { parseSessionEntries } from "@earendil-works/pi-coding-agent";
+import lockfile from "proper-lockfile";
 import {
   MIXCODE_SETTINGS_FILENAME,
   loadMixCodeSettings,
@@ -9,6 +10,14 @@ import {
 
 const HISTORY_FILENAME = "history.jsonl";
 const SESSION_INDEX_FILENAME = "session_index.jsonl";
+const HISTORY_LOCK_STALE_MS = 30_000;
+const HISTORY_LOCK_UPDATE_MS = 10_000;
+// Fast initial retries preserve short concurrent-append latency; the 200ms cap
+// keeps NFS polling bounded while the total window still exceeds stale time.
+const HISTORY_LOCK_RETRY_ATTEMPTS = 200;
+const HISTORY_LOCK_RETRY_FACTOR = 1.1;
+const HISTORY_LOCK_RETRY_MIN_MS = 20;
+const HISTORY_LOCK_RETRY_MAX_MS = 200;
 
 export const DEFAULT_HISTORY_BACKFILL_DAYS = 30;
 
@@ -426,28 +435,30 @@ async function writePrivateFile(path: string, text: string): Promise<void> {
 }
 
 async function withHistoryFileLock<T>(historyFile: string, run: () => Promise<T>): Promise<T> {
-  const lockDir = `${historyFile}.lock`;
-  await acquireLockDir(lockDir);
+  await ensurePrivateDir(dirname(historyFile));
+  let compromised: Error | undefined;
+  const release = await lockfile.lock(historyFile, {
+    realpath: false,
+    stale: HISTORY_LOCK_STALE_MS,
+    update: HISTORY_LOCK_UPDATE_MS,
+    retries: {
+      retries: HISTORY_LOCK_RETRY_ATTEMPTS,
+      factor: HISTORY_LOCK_RETRY_FACTOR,
+      minTimeout: HISTORY_LOCK_RETRY_MIN_MS,
+      maxTimeout: HISTORY_LOCK_RETRY_MAX_MS,
+      randomize: false,
+    },
+    onCompromised: (error) => {
+      compromised = error;
+    },
+  });
   try {
-    return await run();
+    if (compromised) throw compromised;
+    const result = await run();
+    if (compromised) throw compromised;
+    return result;
   } finally {
-    await rm(lockDir, { recursive: true, force: true });
-  }
-}
-
-async function acquireLockDir(lockDir: string): Promise<void> {
-  await ensurePrivateDir(dirname(lockDir));
-  const deadline = Date.now() + 5_000;
-  while (true) {
-    try {
-      await mkdir(lockDir, { mode: 0o700 });
-      return;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "EEXIST" || Date.now() >= deadline) {
-        throw error;
-      }
-      await new Promise((resolve) => setTimeout(resolve, 20));
-    }
+    await release();
   }
 }
 
