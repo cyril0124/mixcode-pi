@@ -78,6 +78,8 @@ export type RuntimeTabConfig = Omit<AgentRuntimeConfig, "sessionId" | "model"> &
   model?: MixCodeModel;
   reuseServicesFromSessionId?: string;
   reuseServices?: AgentSessionServices;
+  /** Keep an explicit caller title instead of restoring the opened session name. */
+  preserveCallerTitle?: boolean;
   /** Skip resourceLoader.reload() — caller already reloaded extensions. */
   skipExtensionReload?: boolean;
 };
@@ -229,9 +231,9 @@ async function createRuntimeTabWithServices(
     refreshStartupHeader(runtimeTab);
     syncContextUsage(runtimeTab);
     // Opening an existing on-disk session (bootstrap / peer / openExisting) must
-    // show its persisted name — same as resume — not the default Agent-NN title.
+    // show its persisted name. Fork supplies a distinct caller-owned title.
     const openedName = session.getSessionName();
-    if (openedName) tab.title = openedName;
+    if (openedName && !config.preserveCallerTitle) tab.title = openedName;
     context.tabs.set(tab.sessionId, runtimeTab);
     return runtimeTab;
   } catch (error) {

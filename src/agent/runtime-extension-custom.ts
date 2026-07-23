@@ -255,7 +255,9 @@ export function createExtensionEditorOverlay(
     const cancel = () => finish(undefined);
     runtimeTab.extensionCustomOverlayClosers.add(cancel);
     addPendingUserInteraction(runtimeTab, interactionId, "editor");
-    const tui = createTerminalRowsProxy(host.tui, () => editor.getEmbeddedTerminalRows?.(sessionId));
+    const tui = createTerminalRowsProxy(host.tui, () =>
+      editor.getEmbeddedTerminalRows?.(sessionId),
+    );
     // ExtensionEditorComponent bakes its hint row (including the "external
     // editor" ctrl+e label) in its constructor via keyHint(), which reads the
     // pi-tui GLOBAL keybindings. Construct it inside the MixCode keybindings

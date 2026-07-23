@@ -363,6 +363,7 @@ export async function handleSubmittedInput(
         thinkingLevel: tab.thinkingLevel,
         workdir: tab.workdir,
         reuseServicesFromSessionId: active!.sessionId,
+        preserveCallerTitle: true,
       });
     } catch (error) {
       // Rollback: remove the broken fork tab and shared ordered entry.

@@ -6,21 +6,28 @@ import { tmpdir } from "node:os";
 import { test } from "node:test";
 import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import {
+  configureOpenTabsPath,
   createInitialState,
   createTab,
   handleSubmittedInput,
   MixCodeRuntime,
+  openTabsFile,
 } from "../src/index.js";
 
 async function withRuntime(
   name: string,
-  run: (runtime: MixCodeRuntime) => Promise<void>,
+  run: (runtime: MixCodeRuntime, dir: string) => Promise<void>,
 ): Promise<void> {
   const dir = await mkdtemp(join(tmpdir(), name));
+  const runtime = new MixCodeRuntime({ sessionsRoot: join(dir, "sessions") });
   try {
-    await run(new MixCodeRuntime({ sessionsRoot: join(dir, "sessions") }));
+    await run(runtime, dir);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    try {
+      await runtime.closeAllTabs();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   }
 }
 
@@ -223,6 +230,77 @@ test("createTab can reuse another tab's services for slash fork", async () => {
     assert.notEqual(forked.agentSession, source.agentSession);
     assert.equal(runtime.getTab("source"), source);
     assert.equal(runtime.getTab("forked"), forked);
+  });
+});
+
+test("slash fork keeps and persists the fork suffix for a named source tab", async () => {
+  await withRuntime("mixcode-fork-named-title-", async (runtime, dir) => {
+    configureOpenTabsPath(openTabsFile(dir));
+    try {
+      const state = createInitialState(dir);
+      const source = createTab(1, "source", dir, { title: "Worker" });
+      state.tabs.push(source);
+      state.activeTabId = source.sessionId;
+      await runtime.createTab(source, {
+        systemPrompt: "system",
+        thinkingLevel: "medium",
+        workdir: dir,
+      });
+      runtime.renameSession(source.sessionId, source.title);
+
+      await handleSubmittedInput(state, runtime, "/fork", {
+        requestRender: () => undefined,
+        showOverlay: () => ({}) as never,
+      });
+
+      const forked = state.tabs[1]!;
+      assert.equal(forked.title, "Worker-fork");
+      assert.equal(runtime.getTab(forked.sessionId)?.session.getSessionName(), "Worker-fork");
+
+      await runtime.closeAllTabs();
+      const reopenedRuntime = new MixCodeRuntime({ sessionsRoot: join(dir, "sessions") });
+      try {
+        const reopenedTab = createTab(1, forked.sessionId, dir);
+        await reopenedRuntime.createTab(reopenedTab, {
+          systemPrompt: "system",
+          thinkingLevel: "medium",
+          workdir: dir,
+        });
+        assert.equal(reopenedTab.title, "Worker-fork");
+      } finally {
+        await reopenedRuntime.closeAllTabs();
+      }
+    } finally {
+      configureOpenTabsPath(undefined);
+    }
+  });
+});
+
+test("slash fork keeps the fork suffix for an unnamed source tab", async () => {
+  await withRuntime("mixcode-fork-unnamed-title-", async (runtime, dir) => {
+    configureOpenTabsPath(openTabsFile(dir));
+    try {
+      const state = createInitialState(dir);
+      const source = createTab(1, "source", dir);
+      state.tabs.push(source);
+      state.activeTabId = source.sessionId;
+      await runtime.createTab(source, {
+        systemPrompt: "system",
+        thinkingLevel: "medium",
+        workdir: dir,
+      });
+
+      await handleSubmittedInput(state, runtime, "/fork", {
+        requestRender: () => undefined,
+        showOverlay: () => ({}) as never,
+      });
+
+      const forked = state.tabs[1]!;
+      assert.equal(forked.title, "Agent-01-fork");
+      assert.equal(runtime.getTab(forked.sessionId)?.session.getSessionName(), "Agent-01-fork");
+    } finally {
+      configureOpenTabsPath(undefined);
+    }
   });
 });
 

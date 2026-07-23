@@ -319,6 +319,7 @@ export class MixCodeRuntime {
     config: Omit<AgentRuntimeConfig, "sessionId" | "model"> & {
       model?: MixCodeModel;
       reuseServicesFromSessionId?: string;
+      preserveCallerTitle?: boolean;
     },
   ): Promise<RuntimeTab> {
     const session = await this.openOrCreateSession(tab.sessionId, config.workdir);
