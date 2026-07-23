@@ -54,7 +54,9 @@ export function reloadRuntimeSessionFromDisk(runtimeTab: RuntimeTab): ReloadSess
   // A real external append introduces entries we did not previously know. If the
   // file grew only with entries we already had (the retract-then-reload case),
   // restore the rewound leaf instead of jumping to the file tail.
-  const hasNewEntries = runtimeTab.session.getEntries().some((entry) => !knownIds.has(entry.id));
+  const reloadedEntries = runtimeTab.session.getEntries();
+  const hasNewEntries = reloadedEntries.some((entry) => !knownIds.has(entry.id));
+  const entriesChanged = hasNewEntries || reloadedEntries.length !== knownIds.size;
   if (!hasNewEntries) {
     if (prevLeafId === null) {
       runtimeTab.session.resetLeaf();
@@ -67,14 +69,18 @@ export function reloadRuntimeSessionFromDisk(runtimeTab: RuntimeTab): ReloadSess
   // leaf advances to the file tail, resurrecting the retracted message. Rare
   // under the turn lock; upgrade to descendant-aware reconciliation if needed.
 
-  // The agent's LLM context must reflect the reloaded branch, or the next turn
-  // would send a stale message list even though the UI looks up to date.
-  runtimeTab.agent.state.messages = runtimeTab.session.buildSessionContext().messages;
+  // Keep in-memory-only Pi UI notifications when the disk entry set is unchanged.
+  // Rebuilding chat here would erase ctx.ui.notify() lines before every local prompt.
+  if (entriesChanged) {
+    // The agent's LLM context must reflect the reloaded branch, or the next turn
+    // would send a stale message list even though the UI looks up to date.
+    runtimeTab.agent.state.messages = runtimeTab.session.buildSessionContext().messages;
 
-  const nextChat: ChatLine[] = entriesToChatLines(runtimeTab.session.getBranch(), runtimeTab);
-  disposeChatRenderers(runtimeTab.chat);
-  runtimeTab.chat = nextChat;
-  syncPreviewFromChat(runtimeTab.tab, runtimeTab.chat);
-  syncContextUsage(runtimeTab);
+    const nextChat: ChatLine[] = entriesToChatLines(runtimeTab.session.getBranch(), runtimeTab);
+    disposeChatRenderers(runtimeTab.chat);
+    runtimeTab.chat = nextChat;
+    syncPreviewFromChat(runtimeTab.tab, runtimeTab.chat);
+    syncContextUsage(runtimeTab);
+  }
   return { reloaded: true };
 }

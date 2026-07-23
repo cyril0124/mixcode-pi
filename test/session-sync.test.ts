@@ -8,6 +8,7 @@ import {
   type SimpleStreamOptions,
   createAssistantMessageEventStream,
 } from "@earendil-works/pi-ai";
+import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import {
   MIXCODE_FAUX_MODEL,
   MixCodeRuntime,
@@ -192,6 +193,41 @@ test("reload status survives the local session writes performed by reload", asyn
 
     await new Promise((resolve) => setTimeout(resolve, 500));
     assert.match(chatText(runtime, "s1"), /Reloaded keybindings/);
+  } finally {
+    await runtime.closeAllTabs();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("a new prompt keeps the previous turn's extension info notification", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-sync-extension-info-"));
+  const sessionsRoot = join(dir, "sessions");
+  let turn = 0;
+  const extension: ExtensionFactory = (pi) => {
+    pi.on("turn_end", (_event, ctx) => {
+      turn += 1;
+      pi.appendEntry("telemetry", { turn });
+      ctx.ui.notify(`TPS turn ${turn}`, "info");
+    });
+  };
+  const runtime = new MixCodeRuntime({ sessionsRoot, extensionFactories: [extension] });
+  try {
+    await runtime.createTab(createTab(1, "s1", dir), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: dir,
+      model: MIXCODE_FAUX_MODEL,
+    });
+    runtime.enableSessionSync();
+
+    await runtime.prompt("s1", "first");
+    await waitFor(() => runtime.getTab("s1")?.agentSession.isStreaming === false);
+    assert.match(chatText(runtime, "s1"), /TPS turn 1/);
+
+    await runtime.prompt("s1", "second");
+    await waitFor(() => runtime.getTab("s1")?.agentSession.isStreaming === false);
+    assert.match(chatText(runtime, "s1"), /TPS turn 1/);
+    assert.match(chatText(runtime, "s1"), /TPS turn 2/);
   } finally {
     await runtime.closeAllTabs();
     await rm(dir, { recursive: true, force: true });
