@@ -98,12 +98,14 @@ export function createMixCodeExtensionUiContext(
 ): ExtensionUIContext & { requestRender: () => void } {
   // Match Pi showExtensionNotify: info -> replaceable status; warning/error always append.
   const notify = (message: string, type?: "info" | "warning" | "error") => {
+    // Match Pi showExtensionNotify: info is raw status text; warning/error use
+    // Warning:/Error: prefixes and never coalesce into the status chain.
     if (type === "error") {
-      appendSystemMessage(runtimeTab, `Extension error: ${message}`, "error");
+      appendSystemMessage(runtimeTab, `Error: ${message}`, "error");
     } else if (type === "warning") {
-      appendSystemMessage(runtimeTab, `Extension warning: ${message}`, "warning");
+      appendSystemMessage(runtimeTab, `Warning: ${message}`, "warning");
     } else {
-      appendSystemMessage(runtimeTab, `Extension: ${message}`, "status");
+      appendSystemMessage(runtimeTab, message, "status");
     }
     requestRender();
   };

@@ -64,7 +64,12 @@ export function appendSystemMessage(
     }
   }
 
-  const variant = kind === "error" ? ("system-error" as const) : undefined;
+  const variant =
+    kind === "error"
+      ? ("system-error" as const)
+      : kind === "warning"
+        ? ("system-warning" as const)
+        : undefined;
   runtimeTab.chat.push({
     role: "system",
     text,

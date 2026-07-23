@@ -216,7 +216,7 @@ test("runtime dispatches pi extension shortcuts and surfaces handler errors", as
     assert.deepEqual(seen, [`hit:${process.cwd()}`]);
     assert.ok(
       runtimeTab.chat.some(
-        (line) => line.role === "system" && line.text.includes("Extension: shortcut hit"),
+        (line) => line.role === "system" && line.systemStatus && line.text === "shortcut hit",
       ),
     );
     assert.equal(runtime.dispatchExtensionShortcut("s1", "\x19"), true);

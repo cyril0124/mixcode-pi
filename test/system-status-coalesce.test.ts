@@ -31,16 +31,17 @@ test("error and warning system messages always append and break status coalesce"
   const runtimeTab = fakeRuntimeTab();
   appendSystemMessage(runtimeTab, "Ready");
   appendSystemMessage(runtimeTab, "Error: boom");
-  appendSystemMessage(runtimeTab, "Extension warning: careful", "warning");
+  appendSystemMessage(runtimeTab, "Warning: careful", "warning");
   appendSystemMessage(runtimeTab, "After warning");
 
   assert.deepEqual(
     runtimeTab.chat.map((line) => line.text),
-    ["Ready", "Error: boom", "Extension warning: careful", "After warning"],
+    ["Ready", "Error: boom", "Warning: careful", "After warning"],
   );
   assert.equal(runtimeTab.chat[0]?.systemStatus, true);
   assert.equal(runtimeTab.chat[1]?.variant, "system-error");
   assert.equal(runtimeTab.chat[1]?.systemStatus, undefined);
+  assert.equal(runtimeTab.chat[2]?.variant, "system-warning");
   assert.equal(runtimeTab.chat[2]?.systemStatus, undefined);
   assert.equal(runtimeTab.chat[3]?.systemStatus, true);
 });

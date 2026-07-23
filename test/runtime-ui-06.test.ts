@@ -104,7 +104,9 @@ test("runtime loads extension tools, commands, and lifecycle hooks", async () =>
     assert.ok(
       runtimeTab.chat.some(
         (line) =>
-          line.role === "system" && line.text.includes("Extension warning: extension ready"),
+          line.role === "system" &&
+          line.variant === "system-warning" &&
+          line.text === "Warning: extension ready",
       ),
     );
 
@@ -112,7 +114,7 @@ test("runtime loads extension tools, commands, and lifecycle hooks", async () =>
     assert.ok(events.includes("command:world"));
     assert.ok(
       runtimeTab.chat.some(
-        (line) => line.role === "system" && line.text.includes("Extension: plain notice"),
+        (line) => line.role === "system" && line.systemStatus && line.text === "plain notice",
       ),
     );
     assert.match(
@@ -479,3 +481,136 @@ test("runtime preserves interior blank lines in factory widgets", async () => {
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("extension notify matches Pi info/warning/error rendering", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-notify-parity-"));
+  let ui: { notify: (message: string, type?: "info" | "warning" | "error") => void } | undefined;
+  const extension: ExtensionFactory = (pi) => {
+    pi.on("session_start", (_event, ctx) => {
+      ui = ctx.ui;
+    });
+  };
+  try {
+    const runtime = new MixCodeRuntime({ sessionsRoot: dir, extensionFactories: [extension] });
+    const runtimeTab = await runtime.createTab(createTab(1, "s1", process.cwd()), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+    });
+    assert.ok(ui, "extension UI context should be available after session_start");
+
+    ui.notify("info-old");
+    ui.notify("info **literal**\ninfo line 2");
+    ui.notify("warn **literal**\nwarn line 2", "warning");
+    ui.notify("fail **literal**\nfail line 2", "error");
+
+    assert.deepEqual(
+      runtimeTab.chat.map((line) => ({
+        text: line.text,
+        variant: line.variant,
+        systemStatus: line.systemStatus,
+      })),
+      [
+        {
+          text: "info **literal**\ninfo line 2",
+          variant: undefined,
+          systemStatus: true,
+        },
+        {
+          text: "Warning: warn **literal**\nwarn line 2",
+          variant: "system-warning",
+          systemStatus: undefined,
+        },
+        {
+          text: "Error: fail **literal**\nfail line 2",
+          variant: "system-error",
+          systemStatus: undefined,
+        },
+      ],
+    );
+
+    const { renderChat } = await import("../src/ui/rendering/chat.js");
+    const { MIXCODE_DARK_THEME } = await import("../src/ui/themes.js");
+    const { renderWithTheme } = await import("../src/ui/rendering/context.js");
+    const rendered = renderWithTheme(MIXCODE_DARK_THEME, () =>
+      renderChat(runtimeTab.chat, 80).join("\n"),
+    );
+    const plainLines = stripAnsi(rendered)
+      .split("\n")
+      .map((line) => line.trimEnd());
+    const content = plainLines.join("\n");
+    assert.match(content, /info \*\*literal\*\*/);
+    assert.match(content, /info line 2/);
+    assert.match(content, /Warning: warn \*\*literal\*\*/);
+    assert.match(content, /Error: fail \*\*literal\*\*/);
+    assert.doesNotMatch(content, /Extension/);
+    assert.doesNotMatch(content, /info-old/);
+
+    // Exactly one blank line between adjacent notify blocks.
+    const infoIdx = plainLines.findIndex((line) => line.includes("info **literal**"));
+    const warnIdx = plainLines.findIndex((line) => line.includes("Warning: warn"));
+    const errorIdx = plainLines.findIndex((line) => line.includes("Error: fail"));
+    assert.ok(infoIdx >= 0 && warnIdx > infoIdx && errorIdx > warnIdx);
+    assert.equal(warnIdx - (infoIdx + 1), 2); // info line2 then blank then warning
+    // Between last info content line and warning: one blank only
+    assert.equal(plainLines[warnIdx - 1], "");
+    assert.notEqual(plainLines[warnIdx - 2], "");
+    assert.equal(plainLines[errorIdx - 1], "");
+    assert.notEqual(plainLines[errorIdx - 2], "");
+
+    // Semantic colors: whole notify lines use dim / warning / danger.
+    assert.match(rendered, new RegExp(escapeRegExp(MIXCODE_DARK_THEME.dim("info **literal**"))));
+    assert.match(
+      rendered,
+      new RegExp(escapeRegExp(MIXCODE_DARK_THEME.warning("Warning: warn **literal**"))),
+    );
+    assert.match(
+      rendered,
+      new RegExp(escapeRegExp(MIXCODE_DARK_THEME.danger("Error: fail **literal**"))),
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("extension info history survives an intervening user message", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-notify-history-"));
+  let ui: { notify: (message: string, type?: "info" | "warning" | "error") => void } | undefined;
+  const extension: ExtensionFactory = (pi) => {
+    pi.on("session_start", (_event, ctx) => {
+      ui = ctx.ui;
+    });
+  };
+  try {
+    const runtime = new MixCodeRuntime({ sessionsRoot: dir, extensionFactories: [extension] });
+    const runtimeTab = await runtime.createTab(createTab(1, "s1", process.cwd()), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+      model: (await import("../src/index.js")).MIXCODE_FAUX_MODEL,
+    });
+    assert.ok(ui);
+    ui.notify("before");
+    await runtime.prompt("s1", "hello");
+    for (let i = 0; i < 50; i += 1) {
+      if (runtime.getTab("s1")?.agentSession.isStreaming === false) break;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    ui.notify("after");
+
+    const texts = runtimeTab.chat.map((line) => line.text);
+    const beforeIdx = texts.indexOf("before");
+    const userIdx = texts.findIndex((text) => text.includes("hello"));
+    const afterIdx = texts.indexOf("after");
+    assert.ok(beforeIdx >= 0, "before info should remain");
+    assert.ok(userIdx > beforeIdx, "user message should follow before info");
+    assert.ok(afterIdx > userIdx, "after info should follow user message");
+    assert.doesNotMatch(texts.join("\n"), /Extension/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
