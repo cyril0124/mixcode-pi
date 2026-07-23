@@ -196,3 +196,60 @@ test("PgUp/PgDn do not scroll/consume while a pending extension interaction is o
   assert.equal(result, undefined, "PgUp must not steal focus from a pending extension interaction");
   assert.equal(tab.chatScrollOffset, 0);
 });
+
+test("Ctrl+U is not consumed while a pending extension interaction owns input", () => {
+  const state = makeState();
+  const tab = state.tabs[0]!;
+  tab.pendingMessages.push("queued prompt");
+  tab.extensionUi.pendingUserInteractions.push({ id: "extension-custom-1", kind: "custom" });
+  let text = "draft";
+  let popped = 0;
+  const { actions } = makeEditorActions({
+    getText: () => text,
+    setText: (next) => {
+      text = next;
+    },
+  });
+  const result = handleMixCodeKeyInput(
+    state,
+    "\x15",
+    silentTui(),
+    undefined,
+    {
+      popPendingMessage: () => {
+        popped++;
+        return "runtime queued";
+      },
+    },
+    undefined,
+    undefined,
+    actions,
+  );
+
+  assert.equal(result, undefined, "Ctrl+U must reach the extension component");
+  assert.equal(popped, 0, "extension input must not dequeue the main editor queue");
+  assert.equal(text, "draft");
+  assert.equal(tab.vimEnterArmedAt, undefined);
+});
+
+test("Tab keeps switching MixCode tabs while an extension interaction is pending", () => {
+  const state = makeState();
+  const first = state.tabs[0]!;
+  first.extensionUi.pendingUserInteractions.push({ id: "extension-custom-1", kind: "custom" });
+  state.tabs.push(createTab(2, "s2", "/repo"));
+  const { actions } = makeEditorActions({});
+
+  const result = handleMixCodeKeyInput(
+    state,
+    "\t",
+    silentTui(),
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    actions,
+  );
+
+  assert.deepEqual(result, { consume: true });
+  assert.equal(state.activeTabId, "s2");
+});

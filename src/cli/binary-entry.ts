@@ -20,8 +20,10 @@ import searchGuardIndex from "../../pi-packages/mpi-search-guard/index.ts" with 
 import searchGuardPackageJson from "../../pi-packages/mpi-search-guard/package.json" with { type: "text" };
 import imageHoistIndex from "../../pi-packages/mpi-image-hoist/index.ts" with { type: "text" };
 import imageHoistPackageJson from "../../pi-packages/mpi-image-hoist/package.json" with { type: "text" };
-import diffTrackerIndex from "../../pi-packages/mpi-diff-tracker/index.ts" with { type: "text" };
-import diffTrackerPackageJson from "../../pi-packages/mpi-diff-tracker/package.json" with { type: "text" };
+import diffViewerIndex from "../../pi-packages/mpi-diff-viewer/index.ts" with { type: "text" };
+import diffViewerSessionDiff from "../../pi-packages/mpi-diff-viewer/session-diff.ts" with { type: "text" };
+import diffViewerComponent from "../../pi-packages/mpi-diff-viewer/diff-viewer.ts" with { type: "text" };
+import diffViewerPackageJson from "../../pi-packages/mpi-diff-viewer/package.json" with { type: "text" };
 import commandBrowserIndex from "../../pi-packages/mpi-command-browser/index.ts" with { type: "text" };
 import commandBrowserComponent from "../../pi-packages/mpi-command-browser/command-browser.ts" with { type: "text" };
 import commandBrowserPackageJson from "../../pi-packages/mpi-command-browser/package.json" with { type: "text" };
@@ -156,9 +158,11 @@ materializeBinaryRuntimeAssets(runtimeDir, {
       "index.ts": imageHoistIndex,
       "package.json": imageHoistPackageJson,
     },
-    "mpi-diff-tracker": {
-      "index.ts": diffTrackerIndex,
-      "package.json": diffTrackerPackageJson,
+    "mpi-diff-viewer": {
+      "index.ts": diffViewerIndex,
+      "session-diff.ts": diffViewerSessionDiff,
+      "diff-viewer.ts": diffViewerComponent,
+      "package.json": diffViewerPackageJson,
     },
     "mpi-command-browser": {
       "index.ts": commandBrowserIndex,

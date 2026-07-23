@@ -172,6 +172,39 @@ test("zen mode ignores tab-bar mouse clicks", () => {
   void result;
 });
 
+test("zen mode removes hidden tab-bar rows from extension overlay reservations", () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(
+    ...Array.from({ length: 8 }, (_, index) =>
+      createTab(index + 1, `s${index + 1}`, "/repo", {
+        title: `Long Agent Title ${index + 1}`,
+      }),
+    ),
+  );
+  state.activeTabId = "s1";
+  let reservedRows: ((sessionId: string) => number) | undefined;
+  const runtime = {
+    getTab: () => ({ chat: [] }),
+    onChange: () => () => undefined,
+    getAllExtensionCommands: () => [],
+    setExtensionUiHost: (host?: {
+      topReservedRows?: (sessionId: string) => number;
+    }) => {
+      reservedRows = host?.topReservedRows;
+    },
+  } as unknown as MixCodeRuntime;
+  const tui = createMixCodeTui(state, runtime, { terminal: silentTerminal() });
+  try {
+    const normalRows = reservedRows?.("s1") ?? 0;
+    assert.ok(normalRows > 1, `expected a wrapped tab bar, got ${normalRows} row(s)`);
+
+    state.tabs[0]!.zenMode = true;
+    assert.equal(reservedRows?.("s1"), 0);
+  } finally {
+    tui.stop();
+  }
+});
+
 test("zen mode hides the tab bar but keeps agent chrome", () => {
   const runtime = {
     getTab: () => ({ chat: [{ role: "assistant", text: "chat-line" }] }),

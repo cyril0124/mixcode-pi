@@ -290,6 +290,67 @@ test("runtime keeps enter as the extension select confirmation key", async () =>
   }
 });
 
+test("runtime renders custom overlays with their scoped terminal row budget", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-custom-rows-"));
+  const terminal = silentTerminal();
+  const tui = new TUI(terminal);
+  let overlayComponent: Component | undefined;
+  let overlayOptions: OverlayOptions | undefined;
+  const originalShowOverlay = tui.showOverlay.bind(tui);
+  const extension: ExtensionFactory = (pi) => {
+    pi.registerCommand("custom-rows", {
+      description: "Custom overlay row budget smoke",
+      handler: async (_args, ctx) => {
+        await ctx.ui.custom<string>(
+          (hostTui, _theme, _keybindings, done) => ({
+            render: () =>
+              Array.from({ length: hostTui.terminal.rows }, (_, index) =>
+                index === hostTui.terminal.rows - 1 ? "shortcut footer" : `body ${index}`,
+              ),
+            handleInput: () => done("closed"),
+            invalidate: () => undefined,
+          }),
+          {
+            overlay: true,
+            overlayOptions: { width: "100%", maxHeight: "100%", margin: 1 },
+          },
+        );
+      },
+    });
+  };
+
+  tui.showOverlay = ((component: Component, options?: OverlayOptions) => {
+    overlayComponent = component;
+    overlayOptions = options;
+    return originalShowOverlay(component, options);
+  }) as typeof tui.showOverlay;
+
+  try {
+    const runtime = new MixCodeRuntime({ sessionsRoot: dir, extensionFactories: [extension] });
+    runtime.setExtensionUiHost({ tui, topReservedRows: () => 5 });
+    await runtime.createTab(createTab(1, "s1", process.cwd()), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+    });
+
+    const task = runtime.prompt("s1", "/custom-rows");
+    await waitFor(() => !!overlayComponent && !!overlayOptions);
+    const margin = overlayOptions!.margin as {
+      top?: number;
+      bottom?: number;
+    };
+    const visibleRows = terminal.rows - (margin.top ?? 0) - (margin.bottom ?? 0);
+    const visible = overlayComponent!.render(80).slice(0, visibleRows).join("\n");
+    assert.match(visible, /shortcut footer/);
+    overlayComponent!.handleInput?.("q");
+    await task;
+  } finally {
+    tui.stop();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("runtime scopes extension custom overlays to the active tab", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-custom-tab-scope-"));
   const events: string[] = [];

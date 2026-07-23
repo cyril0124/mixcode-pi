@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -177,6 +177,52 @@ test("ensurePackageExtensions installs under the given agentDir, not global home
     else process.env.HOME = oldHome;
     await rm(runtimeDir, { recursive: true, force: true });
     await rm(homeDir, { recursive: true, force: true });
+    await rm(agentDir, { recursive: true, force: true });
+  }
+});
+
+test("installing mpi-diff-viewer removes the legacy built-in extensions", async () => {
+  const agentDir = await mkdtemp(join(tmpdir(), "mixcode-diff-viewer-agent-"));
+  const runtimeDir = await mkdtemp(join(tmpdir(), "mixcode-diff-viewer-runtime-"));
+  try {
+    const legacyDirs = ["mpi-diff-tracker", "mpi-diff-tracker-v2"].map((name) =>
+      join(agentDir, "extensions", name),
+    );
+    for (const legacyDir of legacyDirs) {
+      await mkdir(legacyDir, { recursive: true });
+      await writeFile(join(legacyDir, "index.ts"), "legacy", "utf8");
+    }
+    materializeBinaryRuntimeAssets(runtimeDir, {
+      darkTheme: {},
+      lightTheme: {},
+      exportTemplateCss: "",
+      exportTemplateHtml: "",
+      exportTemplateJs: "",
+      exportVendorMarked: "",
+      exportVendorHighlight: "",
+      packageJson: {},
+      builtinPackages: {
+        "mpi-diff-viewer": {
+          "index.ts": "export default () => {};",
+          "package.json": JSON.stringify({
+            name: "mpi-diff-viewer",
+            version: "0.1.0",
+            type: "module",
+            pi: { extensions: ["./index.ts"] },
+          }),
+        },
+      },
+    });
+
+    ensurePackageExtensions(runtimeDir, { copy: true, agentDir });
+
+    for (const legacyDir of legacyDirs) await assert.rejects(stat(legacyDir), /ENOENT/);
+    assert.equal(
+      await readFile(join(agentDir, "extensions", "mpi-diff-viewer", "index.ts"), "utf8"),
+      "export default () => {};",
+    );
+  } finally {
+    await rm(runtimeDir, { recursive: true, force: true });
     await rm(agentDir, { recursive: true, force: true });
   }
 });

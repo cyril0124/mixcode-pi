@@ -1,4 +1,15 @@
-import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, symlinkSync, unlinkSync } from "node:fs";
+import {
+  copyFileSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  readlinkSync,
+  rmSync,
+  symlinkSync,
+  unlinkSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -21,13 +32,31 @@ export function ensurePackageExtensions(
   repoRoot: string,
   options?: { copy?: boolean; agentDir?: string },
 ): void {
-  const packageDirs = [join(repoRoot, "pi-packages"), join(repoRoot, "packages")].filter(existsSync);
+  const packageDirs = [join(repoRoot, "pi-packages"), join(repoRoot, "packages")].filter(
+    existsSync,
+  );
   if (packageDirs.length === 0) return;
 
   const agentDir = options?.agentDir ?? join(homedir(), ".pi", "agent");
   const extensionsDir = join(agentDir, "extensions");
   mkdirSync(extensionsDir, { recursive: true });
   const shouldCopy = options?.copy ?? false;
+
+  const hasDiffViewer = packageDirs.some((packagesDir) => {
+    const manifest = join(packagesDir, "mpi-diff-viewer", "package.json");
+    if (!existsSync(manifest)) return false;
+    try {
+      return Boolean(JSON.parse(readFileSync(manifest, "utf8")).pi);
+    } catch {
+      return false;
+    }
+  });
+  // The viewer owns /diff; remove prior package names so Pi does not namespace duplicates.
+  if (hasDiffViewer) {
+    for (const legacyName of ["mpi-diff-tracker", "mpi-diff-tracker-v2"]) {
+      rmSync(join(extensionsDir, legacyName), { recursive: true, force: true });
+    }
+  }
 
   for (const packagesDir of packageDirs) {
     for (const entry of readdirSync(packagesDir, { withFileTypes: true })) {

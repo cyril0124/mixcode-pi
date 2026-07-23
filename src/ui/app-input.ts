@@ -563,6 +563,14 @@ export function handleMixCodeKeyInput(
     return { consume: true };
   }
   if ((matchesKey(data, "alt+up") || matchesKey(data, "ctrl+u")) && editorActions && active) {
+    // Extension custom components own these keys while their interaction is pending.
+    if (
+      state.activeTabId !== "config" &&
+      (editorActions.hasEditorReplacement?.() ||
+        active.extensionUi.pendingUserInteractions.length > 0)
+    ) {
+      return undefined;
+    }
     // Kitty flag-2 sends press+release; only the press dequeues/arms.
     if (isKeyRelease(data)) return { consume: true };
     clearPendingEscape(active, "abort-agent");

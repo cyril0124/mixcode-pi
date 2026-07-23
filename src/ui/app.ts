@@ -15,6 +15,7 @@ import {
   MixCodeFooterRoot,
   MixCodeLayoutRoot,
   MixCodeRoot,
+  renderVisibleTabBar,
   TERMINAL_SCROLL_GUARD_ROWS,
 } from "./app-layout.js";
 import { editTextWithTuiPaused, errorMessage, showErrorOverlay } from "./app-overlays.js";
@@ -33,12 +34,7 @@ import {
   type MixCodeCompletionSources,
   type MixCodeSkillCompletionSource,
 } from "./completion.js";
-import {
-  renderExtensionFooter,
-  renderFooter,
-  renderHeader,
-  renderTabBar,
-} from "./rendering.js";
+import { renderExtensionFooter, renderFooter, renderHeader } from "./rendering.js";
 import { withMouseReporting } from "./terminal.js";
 import { noteActiveExtensionThemeId } from "../agent/runtime-extension-theme.js";
 import { setTheme, themeForId } from "./themes.js";
@@ -245,10 +241,8 @@ export function createMixCodeTui(
       const active = state.tabs.find((tab) => tab.sessionId === sessionId);
       if (!active) return 0;
       const width = tui.terminal.columns;
-      return (
-        renderHeader(width, themeForId(state.theme)).length +
-        renderTabBar(state, width, themeForId(state.theme)).length
-      );
+      const theme = themeForId(state.theme);
+      return renderHeader(width, theme).length + renderVisibleTabBar(state, width, theme).length;
     },
   } satisfies ExtensionCustomUiHost);
   // Extension ctx.shutdown() closes the runtime tab; mirror into MixCodeState.

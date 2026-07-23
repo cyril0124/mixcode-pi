@@ -35,6 +35,18 @@ const WORKING_GAP_ROWS = 1;
 // Keep enough rows for chat + editor chrome so a flood of extension widgets
 // cannot push the tab bar into scrollback.
 const MIN_CHAT_AND_EDITOR_ROWS = 6;
+
+export function renderVisibleTabBar(
+  state: MixCodeState,
+  width: number,
+  theme: MixCodeTheme,
+): string[] {
+  const active = getActiveTab(state);
+  return active?.zenMode === true && state.activeTabId !== "config"
+    ? []
+    : renderTabBar(state, width, theme);
+}
+
 export class MixCodeRoot implements Component {
   constructor(
     private readonly state: MixCodeState,
@@ -50,10 +62,7 @@ export class MixCodeRoot implements Component {
     const theme = themeForId(this.state.theme);
     // Zen mode hides the tab bar only; separator and header stay so chrome
     // still frames the chat without tab chrome noise.
-    const tabBarLines =
-      active?.zenMode === true && this.state.activeTabId !== "config"
-        ? []
-        : renderTabBar(this.state, width, theme);
+    const tabBarLines = renderVisibleTabBar(this.state, width, theme);
     // Extension header is no longer pinned here; it now scrolls with the
     // conversation (rendered at the top of the agent surface), matching Pi.
     const top = [...renderHeader(width, theme), ...tabBarLines];

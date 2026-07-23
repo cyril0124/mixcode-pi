@@ -1,9 +1,14 @@
 import { ExtensionEditorComponent } from "@earendil-works/pi-coding-agent";
-import type { Component, OverlayHandle, OverlayOptions } from "@earendil-works/pi-tui";
+import type {
+  Component,
+  OverlayHandle,
+  OverlayOptions,
+  TUI as PiTui,
+} from "@earendil-works/pi-tui";
 import {
+  currentExtensionTheme,
   ensureExtensionThemeInitialized,
   MIXCODE_EXTENSION_KEYBINDINGS_MANAGER,
-  currentExtensionTheme,
 } from "./runtime-extension-theme.js";
 import { applyMixCodeKeybindings } from "./runtime-pi-tui-bridge.js";
 import { createTerminalRowsProxy } from "./runtime-tui-proxy.js";
@@ -14,6 +19,8 @@ import type {
   ExtensionCustomUiHost,
   RuntimeTab,
 } from "./runtime-types.js";
+
+const EXTENSION_OVERLAY_ROWS = Symbol.for("mixcode:extension-overlay-rows");
 
 function nextPendingInteractionId(runtimeTab: RuntimeTab, kind: "custom" | "editor"): string {
   const prefix = `extension-${kind}-`;
@@ -90,12 +97,16 @@ export function createExtensionCustomOverlay<T>(
           return;
         }
         component = normalizeExtensionCustomComponent(createdComponent);
-        sanitizeComponentRender(component);
+        sanitizeComponentRender(component, host.tui);
         const overlayOptions = scopeOverlayOptionsToTab(
           resolveExtensionOverlayOptions(options, component),
           runtimeTab,
           host,
         );
+        // Component renderers can size windowed content before pi-tui applies maxHeight clipping.
+        const hostTerminal = host.tui.terminal;
+        (component as unknown as Record<symbol, unknown>)[EXTENSION_OVERLAY_ROWS] = () =>
+          resolveOverlayRows(hostTerminal.rows, overlayOptions);
         handle = host.tui.showOverlay(component, overlayOptions);
         runtimeTab.extensionCustomOverlayHandles.add(handle);
         options?.onHandle?.(handle);
@@ -340,24 +351,52 @@ function normalizeOverlayMargin(margin: OverlayOptions["margin"]): {
   return margin ? { ...margin } : {};
 }
 
+function resolveOverlayRows(terminalRows: number, options: OverlayOptions): number {
+  const margin = normalizeOverlayMargin(options.margin);
+  const availableRows = Math.max(
+    1,
+    terminalRows - Math.max(0, margin.top ?? 0) - Math.max(0, margin.bottom ?? 0),
+  );
+  const maxHeight = resolveOverlayHeight(options.maxHeight, terminalRows);
+  return maxHeight === undefined ? availableRows : Math.min(availableRows, maxHeight);
+}
+
+function resolveOverlayHeight(
+  height: OverlayOptions["maxHeight"],
+  terminalRows: number,
+): number | undefined {
+  if (typeof height === "number") return Math.max(1, height);
+  const percent = /^(\d+(?:\.\d+)?)%$/.exec(height ?? "");
+  return percent ? Math.max(1, Math.floor((terminalRows * Number(percent[1])) / 100)) : undefined;
+}
+
 /**
  * Wrap a component's render to flatten embedded newlines into separate lines.
  * Extension components may produce lines containing literal \n (e.g. from
  * multi-line prompt text). The TUI differential renderer assumes each array
  * element is a single terminal row; embedded newlines break cursor positioning.
  */
-function sanitizeComponentRender(component: ExtensionCustomComponent): void {
+function sanitizeComponentRender(component: ExtensionCustomComponent, tui: PiTui): void {
   const originalRender = component.render.bind(component);
   component.render = (width: number): string[] => {
-    const raw = originalRender(width);
-    const result: string[] = [];
-    for (const line of raw) {
-      if (line.includes("\n")) {
-        for (const sub of line.split("\n")) result.push(sub);
-      } else {
-        result.push(line);
-      }
+    const rowsProvider = (component as unknown as Record<symbol, unknown>)[EXTENSION_OVERLAY_ROWS];
+    const originalTerminal = tui.terminal;
+    if (typeof rowsProvider === "function") {
+      tui.terminal = createTerminalRowsProxy(tui, rowsProvider as () => number).terminal;
     }
-    return result;
+    try {
+      const raw = originalRender(width);
+      const result: string[] = [];
+      for (const line of raw) {
+        if (line.includes("\n")) {
+          for (const sub of line.split("\n")) result.push(sub);
+        } else {
+          result.push(line);
+        }
+      }
+      return result;
+    } finally {
+      tui.terminal = originalTerminal;
+    }
   };
 }
