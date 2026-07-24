@@ -432,6 +432,35 @@ export function applyEvent(
         );
       }
       break;
+    case "summarization_retry_scheduled":
+      // Pi interactive: showError(errorMessage) + RetryStatusIndicator countdown.
+      // Reuse tab.retryInfo so the existing working-loader countdown path ticks.
+      setTabStatus(runtimeTab.tab, "thinking", {
+        startedAt:
+          runtimeTab.tab.workingStartedAt ??
+          runtimeTab.postRunWorkingStartedAt ??
+          new Date().toISOString(),
+      });
+      runtimeTab.postRunWorkingStartedAt = undefined;
+      runtimeTab.tab.retryInfo = {
+        attempt: event.attempt,
+        maxAttempts: event.maxAttempts,
+        delayMs: event.delayMs,
+        startedAt: Date.now(),
+      };
+      appendSystemMessage(runtimeTab, event.errorMessage, "error");
+      break;
+    case "summarization_retry_attempt_start":
+      // Pi clears the retry indicator and shows compaction/branch-summary spinner.
+      // MixCode already keeps status running/thinking during those operations.
+      runtimeTab.tab.retryInfo = undefined;
+      if (runtimeTab.tab.status === "idle") {
+        setTabStatus(runtimeTab.tab, "running");
+      }
+      break;
+    case "summarization_retry_finished":
+      runtimeTab.tab.retryInfo = undefined;
+      break;
   }
   emitChange(event, runtimeTab);
 }

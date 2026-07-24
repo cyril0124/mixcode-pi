@@ -934,15 +934,19 @@ export class MixCodeRuntime {
       }
       // Try aborting retry, branch summarization and compaction (no-op if not running)
       const wasRetrying = runtimeTab.agentSession.isRetrying;
+      const hadRetryCountdown = runtimeTab.tab.retryInfo !== undefined;
       runtimeTab.agentSession.abortRetry();
       runtimeTab.agentSession.abortBranchSummary();
       runtimeTab.agentSession.abortCompaction();
-      // If retry was aborted, update status to idle
-      if (wasRetrying) {
+      // Agent auto-retry and summarization_retry both arm tab.retryInfo for the
+      // working-loader countdown; clear UI state when either path is cancelled.
+      if (wasRetrying || hadRetryCountdown) {
         const attempt = runtimeTab.tab.retryInfo?.attempt ?? 0;
         runtimeTab.tab.retryInfo = undefined;
         setTabStatus(runtimeTab.tab, "idle", { discardTimer: false });
-        appendSystemMessage(runtimeTab, `Error: Retry failed after ${attempt} attempts: Retry cancelled`);
+        if (wasRetrying) {
+          appendSystemMessage(runtimeTab, `Error: Retry failed after ${attempt} attempts: Retry cancelled`);
+        }
         this.emitChange({ type: "extension_ui_update" }, runtimeTab);
       }
       return false;
@@ -964,6 +968,7 @@ export class MixCodeRuntime {
       if (runtimeTab.agentSession.isBashRunning) runtimeTab.agentSession.abortBash();
       if (runtimeTab.agentSession.isStreaming) runtimeTab.agentSession.agent.abort();
       runtimeTab.agentSession.clearQueue();
+      runtimeTab.tab.retryInfo = undefined;
       setPendingMessages(runtimeTab.tab, []);
       runtimeTab.queuedPromptCount = 0;
       clearPendingEscape(runtimeTab.tab);
