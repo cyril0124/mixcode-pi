@@ -91,14 +91,15 @@ export function showLinesOverlay(
 }
 
 export function closeAppOverlay(tui: OverlayTui): void {
+  // Only hide overlays we registered via showLinesOverlay/showTextOverlay.
+  // Never fall back to tui.hideOverlay(): that pops the stack top and can
+  // destroy an extension custom overlay whose close()/pending-interaction
+  // bookkeeping never runs (zombie hasExtensionCustomOverlay → Esc freezes).
   activeNotice = undefined;
   const handle = activeOverlayHandles.get(tui);
-  if (handle) {
-    handle.hide();
-    activeOverlayHandles.delete(tui);
-    return;
-  }
-  if (tui.hasOverlay?.()) tui.hideOverlay?.();
+  if (!handle) return;
+  handle.hide();
+  activeOverlayHandles.delete(tui);
 }
 
 export function hasAppOverlay(tui: OverlayTui): boolean {

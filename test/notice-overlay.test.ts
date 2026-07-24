@@ -17,6 +17,7 @@ import {
   hasActiveNotice,
   renderNoticePanel,
   resolveNoticeOverlayLayout,
+  showLinesOverlay,
   showNoticeTextOverlay,
 } from "../src/ui/app-overlays.js";
 import { themeForId } from "../src/ui/themes.js";
@@ -119,4 +120,48 @@ test("resolveNoticeOverlayLayout places bottom-center notice within terminal", (
   assert.ok(layout.row >= 1, "row respects top margin");
   assert.ok(layout.col >= 1, "col respects left margin");
   assert.ok(layout.row + 8 <= 39, "panel stays above bottom margin after offset clamp");
+});
+
+test("closeAppOverlay only hides tracked app handles, never hideOverlay stack top", () => {
+  // Regression: Ctrl+T used to call closeAppOverlay with an empty track map, which
+  // fell through to tui.hideOverlay() and popped the extension overlay. The
+  // extension never got its close() path, so pending interactions stayed forever
+  // and Esc looked frozen. Contract: untracked overlays stay on the stack.
+  type StackEntry = { name: string };
+  const stack: StackEntry[] = [];
+  let hideOverlayCalls = 0;
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: (_component: unknown) => {
+      const entry: StackEntry = { name: stack.length === 0 ? "extension" : "app" };
+      stack.push(entry);
+      return {
+        hide: () => {
+          const index = stack.indexOf(entry);
+          if (index !== -1) stack.splice(index, 1);
+        },
+      };
+    },
+    hasOverlay: () => stack.length > 0,
+    hideOverlay: () => {
+      hideOverlayCalls++;
+      stack.pop();
+    },
+  };
+
+  // Extension overlay is shown outside activeOverlayHandles tracking.
+  tui.showOverlay({ render: () => ["ext"] });
+  assert.equal(stack.map((e) => e.name).join(","), "extension");
+
+  closeAppOverlay(tui);
+  assert.equal(hideOverlayCalls, 0, "must not call hideOverlay when nothing is tracked");
+  assert.equal(stack.map((e) => e.name).join(","), "extension");
+
+  // App path registers a handle; closing must only remove that entry.
+  showLinesOverlay(tui, () => ["tab jump"]);
+  assert.equal(stack.map((e) => e.name).join(","), "extension,app");
+
+  closeAppOverlay(tui);
+  assert.equal(hideOverlayCalls, 0);
+  assert.equal(stack.map((e) => e.name).join(","), "extension");
 });
