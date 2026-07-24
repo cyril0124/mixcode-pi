@@ -155,10 +155,10 @@ function buildGuidelines(
 function buildSearchGuidelines(availability: SearchToolAvailability): string[] {
   const guidelines: string[] = [];
   if (availability.hasRg) {
-    guidelines.push("For content search, ALWAYS use `rg` (ripgrep). NEVER use `grep`.");
+    guidelines.push("For content search, ALWAYS use `rg` (ripgrep).");
   }
   if (availability.hasFd) {
-    guidelines.push("For file search, ALWAYS use `fd`. NEVER use `find`.");
+    guidelines.push("For file search, ALWAYS use `fd`.");
   }
   return guidelines;
 }

@@ -135,8 +135,10 @@ test("buildMixCodeSystemPrompt formats tools, search guidance, and prompt guidel
     assert.match(prompt, /- read: Read file contents/);
     assert.match(prompt, /- bash: Execute bash commands \(ls, grep, find, etc\.\)/);
     assert.match(prompt, /- grep: Search file contents for patterns \(respects \.gitignore\)/);
-    assert.match(prompt, /ALWAYS use `rg` \(ripgrep\)\. NEVER use `grep`/);
-    assert.match(prompt, /ALWAYS use `fd`\. NEVER use `find`/);
+    assert.match(prompt, /ALWAYS use `rg` \(ripgrep\)\./);
+    assert.match(prompt, /ALWAYS use `fd`\./);
+    assert.doesNotMatch(prompt, /NEVER use `grep`/);
+    assert.doesNotMatch(prompt, /NEVER use `find`/);
     assert.match(prompt, /Use read to examine files instead of cat or sed\./);
   } finally {
     await rm(dir, { recursive: true, force: true });
@@ -168,8 +170,10 @@ test("default MixCode prompt expands tools and search guidance before assembly",
   });
 
   assert.match(prompt, /Available tools:\n- bash: Execute bash commands/);
-  assert.match(prompt, /ALWAYS use `rg` \(ripgrep\)\. NEVER use `grep`/);
-  assert.match(prompt, /ALWAYS use `fd`\. NEVER use `find`/);
+  assert.match(prompt, /ALWAYS use `rg` \(ripgrep\)\./);
+  assert.match(prompt, /ALWAYS use `fd`\./);
+  assert.doesNotMatch(prompt, /NEVER use `grep`/);
+  assert.doesNotMatch(prompt, /NEVER use `find`/);
 });
 
 test("custom base identity still keeps tools, project context, and skills", () => {
