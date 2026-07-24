@@ -10,6 +10,7 @@ const theme = {
   bold: (text: string) => `\x1b[1m${text}\x1b[22m`,
   underline: (text: string) => `\x1b[4m${text}\x1b[24m`,
   inverse: (text: string) => `\x1b[7m${text}\x1b[27m`,
+  getBgAnsi: (color: string) => (color === "toolErrorBg" ? "\x1b[48;5;52m" : "\x1b[48;5;22m"),
 };
 
 function file(path: string, rows: DiffRow[], status: DiffFile["status"] = "modified"): DiffFile {
@@ -65,10 +66,13 @@ function fixture(): SessionDiff {
   return { files: [alpha, beta], additions: 2, deletions: 1, trackedFiles: 2 };
 }
 
-function underlinedSpans(output: string): string[] {
-  return Array.from(output.matchAll(/\x1b\[4m(.*?)\x1b\[24m/g), (match) =>
-    match[1]!.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, ""),
-  );
+function stripAnsi(text: string): string {
+  return text.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "");
+}
+
+function styledSpans(output: string, open: string, close: string): string[] {
+  const pattern = new RegExp(`${open}(.*?)${close}`, "g");
+  return Array.from(output.matchAll(pattern), (match) => stripAnsi(match[1]!));
 }
 
 function createViewer(
@@ -120,14 +124,44 @@ test("replace rows highlight English identifiers as whole words", () => {
     (text) => `\x1b[36m${text}\x1b[39m`,
   );
 
+  component.handleInput("s");
   const output = component.render(120).join("\n");
 
-  assert.deepEqual(underlinedSpans(output), ["abc123xyz", "abc923xyq"]);
-  assert.doesNotMatch(output, /\x1b\[7m/);
+  assert.deepEqual(styledSpans(output, "\\x1b\\[48;5;88m", "\\x1b\\[48;5;52m"), ["abc123xyz"]);
+  assert.deepEqual(styledSpans(output, "\\x1b\\[48;5;28m", "\\x1b\\[48;5;22m"), ["abc923xyq"]);
+  assert.doesNotMatch(output, /\x1b\[(?:1;)?7m/);
   assert.match(output, /\x1b\[36m/);
-  const changedLine = output.split("\n").find((line) => line.includes("abc123xyz")) ?? "";
-  assert.match(changedLine, /\x1b\[1m\s+1 -/);
-  assert.match(changedLine, /\x1b\[1m\s+1 \+/);
+  assert.ok(styledSpans(output, "\\x1b\\[4m", "\\x1b\\[24m").includes("src/changed.ts"));
+
+  const oldLine = stripAnsi(output.split("\n").find((line) => line.includes("abc123xyz")) ?? "");
+  const newLine = stripAnsi(output.split("\n").find((line) => line.includes("abc923xyq")) ?? "");
+  assert.match(oldLine, /\s+1\s+:\s+│ const code/);
+  assert.match(newLine, /\s+:\s+1\s+│ const code/);
+  assert.doesNotMatch(oldLine, /\s-\s/);
+  assert.doesNotMatch(newLine, /\s\+\s/);
+});
+
+test("adjacent changed words include connecting whitespace in one delta block", () => {
+  const changed = file("src/words.ts", [
+    {
+      kind: "replace",
+      oldLineNumber: 1,
+      newLineNumber: 1,
+      oldText: "return alpha beta;",
+      newText: "return gamma delta;",
+    },
+  ]);
+  const { component } = createViewer({
+    files: [changed],
+    additions: 1,
+    deletions: 1,
+    trackedFiles: 1,
+  });
+
+  const output = component.render(120).join("\n");
+
+  assert.deepEqual(styledSpans(output, "\\x1b\\[48;5;88m", "\\x1b\\[48;5;52m"), ["alpha beta"]);
+  assert.deepEqual(styledSpans(output, "\\x1b\\[48;5;28m", "\\x1b\\[48;5;22m"), ["gamma delta"]);
 });
 
 test("replace rows highlight Chinese text one grapheme at a time", () => {
@@ -149,7 +183,8 @@ test("replace rows highlight Chinese text one grapheme at a time", () => {
 
   const output = component.render(120).join("\n");
 
-  assert.deepEqual(underlinedSpans(output), ["世", "视"]);
+  assert.deepEqual(styledSpans(output, "\\x1b\\[48;5;88m", "\\x1b\\[48;5;52m"), ["世"]);
+  assert.deepEqual(styledSpans(output, "\\x1b\\[48;5;28m", "\\x1b\\[48;5;22m"), ["视"]);
 });
 
 test("cold files batch syntax highlighting once per side", () => {
@@ -273,7 +308,7 @@ test("n selects the next changed file", () => {
 
   component.handleInput("n");
 
-  assert.match(component.render(120).join("\n"), /A src\/beta\.ts/);
+  assert.match(stripAnsi(component.render(120).join("\n")), /src\/beta\.ts/);
 });
 
 test("j/k follow the rendered tree order when input paths are interleaved", () => {
@@ -316,11 +351,11 @@ test("j/k follow the rendered tree order when input paths are interleaved", () =
   assert.ok(tree.indexOf("c.ts") < tree.indexOf("b.ts"));
 
   component.handleInput("j");
-  assert.match(component.render(120).join("\n"), /M src\/c\.ts/);
+  assert.match(stripAnsi(component.render(120).join("\n")), /src\/c\.ts/);
   component.handleInput("j");
-  assert.match(component.render(120).join("\n"), /M test\/b\.ts/);
+  assert.match(stripAnsi(component.render(120).join("\n")), /test\/b\.ts/);
   component.handleInput("k");
-  assert.match(component.render(120).join("\n"), /M src\/c\.ts/);
+  assert.match(stripAnsi(component.render(120).join("\n")), /src\/c\.ts/);
 });
 
 test("s switches between side-by-side and unified diff", () => {
@@ -340,7 +375,7 @@ test("e hides the navigator and gives the diff the full width", () => {
   const output = component.render(120).join("\n");
 
   assert.doesNotMatch(output, /Navigator/);
-  assert.match(output, /M src\/alpha\.ts/);
+  assert.match(stripAnsi(output), /src\/alpha\.ts/);
 });
 
 test("t filters files and keeps the selected match", () => {
@@ -352,7 +387,7 @@ test("t filters files and keeps the selected match", () => {
 
   const output = component.render(120).join("\n");
   assert.match(output, /Filter: beta/);
-  assert.match(output, /A src\/beta\.ts/);
+  assert.match(stripAnsi(output), /src\/beta\.ts/);
   assert.doesNotMatch(output, /src\/alpha\.ts/);
 });
 

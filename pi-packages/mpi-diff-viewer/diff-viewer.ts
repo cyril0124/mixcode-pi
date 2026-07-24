@@ -72,16 +72,14 @@ function fit(text: string, width: number): string {
   return truncateToWidth(text, width, "", true);
 }
 
-function statusLabel(status: DiffFile["status"]): string {
-  if (status === "added") return "A";
-  if (status === "deleted") return "D";
-  return "M";
-}
-
 function statusIcon(status: DiffFile["status"]): string {
   if (status === "added") return "";
   if (status === "deleted") return "";
   return "";
+}
+
+function hunkLabel(header: string): string {
+  return /^@@[^@]*@@\s*(.*)$/.exec(header)?.[1]?.trim() || header;
 }
 
 function buildNavigatorRows(files: DiffFile[], fileIndexes: number[]): NavigatorRow[] {
@@ -194,6 +192,10 @@ const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: "grapheme
 const wordSegmenter = new Intl.Segmenter("en", { granularity: "word" });
 const hanPattern = /\p{Script=Han}/u;
 const trailingAnsiPattern = /(?:\x1b\[[0-?]*[ -/]*[@-~])+$/;
+// Delta uses a brighter semantic block inside each dark added/removed row.
+const deltaAddedHighlightBg = "\x1b[48;5;28m";
+const deltaRemovedHighlightBg = "\x1b[48;5;88m";
+const deltaHighlightFg = "\x1b[38;5;255m";
 
 function splitGraphemes(text: string): string[] {
   return Array.from(graphemeSegmenter.segment(text), ({ segment }) => segment);
@@ -357,19 +359,36 @@ function styleIntraLineDiffSide(
   side: "old" | "new",
   theme: Theme,
 ): string {
+  const sideParts = parts.filter(
+    (part) =>
+      !((side === "old" && part.kind === "added") || (side === "new" && part.kind === "removed")),
+  );
+  const isChanged = (part: IntraLineDiffPart | undefined): boolean =>
+    part !== undefined && (side === "old" ? part.kind === "removed" : part.kind === "added");
+  const runs: Array<{ value: string; changed: boolean }> = [];
+  for (let index = 0; index < sideParts.length; index++) {
+    const part = sideParts[index]!;
+    const changed =
+      isChanged(part) ||
+      (part.kind === "equal" &&
+        /^\s+$/.test(part.value) &&
+        isChanged(sideParts[index - 1]) &&
+        isChanged(sideParts[index + 1]));
+    const previous = runs.at(-1);
+    if (previous?.changed === changed) previous.value += part.value;
+    else runs.push({ value: part.value, changed });
+  }
+
   let column = 0;
   let rendered = "";
-  for (const part of parts) {
-    if ((side === "old" && part.kind === "added") || (side === "new" && part.kind === "removed")) {
-      continue;
-    }
-    const width = visibleWidth(part.value);
+  for (const run of runs) {
+    const width = visibleWidth(run.value);
     const text = sliceByColumn(highlighted, column, width, true);
-    const changed = side === "old" ? part.kind === "removed" : part.kind === "added";
-    if (changed) {
-      const color = side === "old" ? "error" : "success";
+    if (run.changed) {
       const plainText = text.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "");
-      rendered += theme.bold(theme.underline(theme.fg(color, plainText)));
+      const highlightBg = side === "old" ? deltaRemovedHighlightBg : deltaAddedHighlightBg;
+      const rowBg = theme.getBgAnsi(side === "old" ? "toolErrorBg" : "toolSuccessBg");
+      rendered += `${highlightBg}${deltaHighlightFg}${theme.bold(plainText)}\x1b[39m${rowBg}`;
     } else {
       rendered += text;
     }
@@ -621,12 +640,8 @@ export class DiffViewer {
   }
 
   private applyTone(line: string, tone: Tone): string {
-    if (tone === "added") {
-      return this.config.theme.bg("toolSuccessBg", this.config.theme.bold(line));
-    }
-    if (tone === "removed") {
-      return this.config.theme.bg("toolErrorBg", this.config.theme.bold(line));
-    }
+    if (tone === "added") return this.config.theme.bg("toolSuccessBg", line);
+    if (tone === "removed") return this.config.theme.bg("toolErrorBg", line);
     return line;
   }
 
@@ -663,30 +678,38 @@ export class DiffViewer {
   ): string[] {
     const oldNumber = side === "old" || side === "context" ? row.oldLineNumber : undefined;
     const newNumber = side === "new" || side === "context" ? row.newLineNumber : undefined;
-    const sign = side === "old" ? "-" : side === "new" ? "+" : " ";
     const tone: Tone = side === "old" ? "removed" : side === "new" ? "added" : "context";
     const highlighted = this.highlightedRow(prepared, row);
     const text = side === "old" ? highlighted.oldText : highlighted.newText;
-    const gutter = `${oldNumber === undefined ? " ".repeat(numberWidth) : String(oldNumber).padStart(numberWidth)} ${
-      newNumber === undefined ? " ".repeat(numberWidth) : String(newNumber).padStart(numberWidth)
-    } `;
-    const coloredSign = this.config.theme.fg(
-      sign === "+" ? "success" : sign === "-" ? "error" : "toolDiffContext",
-      sign,
-    );
-    return this.wrappedLine(
-      width,
-      `${this.config.theme.fg("borderMuted", gutter)}${coloredSign} `,
-      text,
-      tone,
-    );
+    const oldLabel =
+      oldNumber === undefined
+        ? " ".repeat(numberWidth)
+        : this.config.theme.fg(
+            side === "old" ? "error" : "muted",
+            String(oldNumber).padStart(numberWidth),
+          );
+    const newLabel =
+      newNumber === undefined
+        ? " ".repeat(numberWidth)
+        : this.config.theme.fg(
+            side === "new" ? "success" : "muted",
+            String(newNumber).padStart(numberWidth),
+          );
+    const separator = this.config.theme.fg("borderAccent", ":");
+    const rail = this.config.theme.fg("borderAccent", "│");
+    return this.wrappedLine(width, `${oldLabel} ${separator}${newLabel} ${rail} `, text, tone);
   }
 
   private renderUnifiedRows(file: DiffFile, width: number, prepared: PreparedFile): string[] {
     const lines: string[] = [];
     const numberWidth = this.lineNumberWidth(file);
     for (const hunk of file.hunks) {
-      lines.push(fit(this.config.theme.fg("accent", hunk.header), width));
+      lines.push(
+        fit(
+          this.config.theme.underline(this.config.theme.fg("warning", hunkLabel(hunk.header))),
+          width,
+        ),
+      );
       for (const row of hunk.rows) {
         if (row.kind === "equal") {
           lines.push(...this.renderUnifiedLine(row, "context", width, numberWidth, prepared));
@@ -710,34 +733,36 @@ export class DiffViewer {
   private renderSideCell(
     width: number,
     lineNumber: number | undefined,
-    sign: " " | "+" | "-",
     text: string,
     tone: Tone,
     numberWidth: number,
   ): string[] {
     if (lineNumber === undefined) return [" ".repeat(width)];
-    const coloredSign = this.config.theme.fg(
-      sign === "+" ? "success" : sign === "-" ? "error" : "toolDiffContext",
-      sign,
-    );
-    const gutter = this.config.theme.fg("borderMuted", String(lineNumber).padStart(numberWidth));
-    return this.wrappedLine(width, `${gutter} ${coloredSign} `, text, tone);
+    const numberColor = tone === "removed" ? "error" : tone === "added" ? "success" : "muted";
+    const gutter = this.config.theme.fg(numberColor, String(lineNumber).padStart(numberWidth));
+    const rail = this.config.theme.fg("borderAccent", "│");
+    return this.wrappedLine(width, `${gutter} ${rail} `, text, tone);
   }
 
   private renderSideBySideRows(file: DiffFile, width: number, prepared: PreparedFile): string[] {
-    const separator = this.config.theme.fg("borderMuted", "│");
+    const separator = this.config.theme.fg("borderAccent", "│");
     const oldWidth = Math.max(1, Math.floor((width - 1) / 2));
     const newWidth = Math.max(1, width - 1 - oldWidth);
     const numberWidth = this.lineNumberWidth(file);
     const lines = [
-      `${fit(this.config.theme.fg("muted", "Deleted / Old"), oldWidth)}${separator}${fit(
-        this.config.theme.fg("muted", "Added / New"),
+      `${fit(this.config.theme.bold(this.config.theme.fg("error", "Deleted / Old")), oldWidth)}${separator}${fit(
+        this.config.theme.bold(this.config.theme.fg("success", "Added / New")),
         newWidth,
       )}`,
     ];
 
     for (const hunk of file.hunks) {
-      lines.push(fit(this.config.theme.fg("accent", hunk.header), width));
+      lines.push(
+        fit(
+          this.config.theme.underline(this.config.theme.fg("warning", hunkLabel(hunk.header))),
+          width,
+        ),
+      );
       for (const row of hunk.rows) {
         const oldTone: Tone = row.kind === "equal" ? "context" : "removed";
         const newTone: Tone = row.kind === "equal" ? "context" : "added";
@@ -745,7 +770,6 @@ export class DiffViewer {
         const oldLines = this.renderSideCell(
           oldWidth,
           row.oldLineNumber,
-          row.kind === "equal" ? " " : "-",
           highlighted.oldText,
           oldTone,
           numberWidth,
@@ -753,7 +777,6 @@ export class DiffViewer {
         const newLines = this.renderSideCell(
           newWidth,
           row.newLineNumber,
-          row.kind === "equal" ? " " : "+",
           highlighted.newText,
           newTone,
           numberWidth,
@@ -963,7 +986,7 @@ export class DiffViewer {
     const lastRow = Math.min(rows.length, this.diffScroll + bodyHeight);
 
     return [
-      this.config.theme.bold(`${statusLabel(file.status)} ${file.path}`),
+      this.config.theme.underline(this.config.theme.fg("warning", file.path)),
       `${this.config.theme.fg("success", `+${file.additions}`)} ${this.config.theme.fg(
         "error",
         `-${file.deletions}`,
