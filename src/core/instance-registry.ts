@@ -334,10 +334,13 @@ function snapshotIsLive(
 async function listRegistryFiles(rootStateDir: string): Promise<string[]> {
   const dir = instanceRegistryDir(rootStateDir);
   if (!existsSync(dir)) return [];
-  const entries = await readdir(dir, { withFileTypes: true });
-  return entries
-    .filter((entry) => entry.isFile() && entry.name.endsWith(".json"))
-    .map((entry) => join(dir, entry.name));
+  // Name-only filter: avoid Dirent.isFile()/lstat. On NFS, readdir can list a
+  // writeInstanceSnapshot temp (*.json.<pid>.<uuid>.tmp) that is renamed away
+  // before isFile runs, throwing ENOENT into peer-tab-sync.
+  const names = await readdir(dir);
+  return names
+    .filter((name) => /^\d+\.json$/.test(name))
+    .map((name) => join(dir, name));
 }
 
 async function readSnapshotFile(filePath: string): Promise<{

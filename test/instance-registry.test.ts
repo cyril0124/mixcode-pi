@@ -117,7 +117,7 @@ test("loadLiveInstanceStatus filters stale dead and pid-reused snapshots", async
     await writeInstanceSnapshot(root, snapshot({ pid: 103, processStartTime: "old-start" }));
     await writeInstanceSnapshot(root, snapshot({ pid: 104, processStartTime: undefined }));
     await mkdir(instanceRegistryDir(root), { recursive: true });
-    await writeFile(join(instanceRegistryDir(root), "bad.json"), "not-json", "utf8");
+    await writeFile(join(instanceRegistryDir(root), "999.json"), "not-json", "utf8");
 
     const result = await loadLiveInstanceStatus(root, {
       now: new Date("2026-06-06T00:00:12.000Z"),
@@ -296,6 +296,32 @@ test("cleanupInstanceRegistry removes stale dead and reused-pid snapshots", asyn
       processInfo,
     });
     assert.deepEqual(live.instances.map((instance) => instance.pid), [100]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("loadLiveInstanceStatus ignores atomic-write temp files beside snapshots", async () => {
+  const root = await mkdtemp(join(tmpdir(), "mixcode-instance-registry-tmp-"));
+  try {
+    await writeInstanceSnapshot(root, snapshot({ pid: 100 }));
+    // Leftover / in-flight writeInstanceSnapshot temps must not trip directory listing.
+    await writeFile(
+      join(instanceRegistryDir(root), "100.json.100.aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.tmp"),
+      "{incomplete\n",
+      "utf8",
+    );
+    await writeFile(
+      join(instanceRegistryDir(root), "999.json.999.ffffffff-0000-1111-2222-333333333333.tmp"),
+      "",
+      "utf8",
+    );
+    const result = await loadLiveInstanceStatus(root, {
+      now: new Date("2026-06-06T00:00:12.000Z"),
+      processInfo,
+    });
+    assert.deepEqual(result.instances.map((instance) => instance.pid), [100]);
+    assert.equal(result.warnings.length, 0);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
