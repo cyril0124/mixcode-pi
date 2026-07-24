@@ -6,16 +6,17 @@
 // workdir should keep open: create adds, close/delete removes, peers reconcile.
 import {
   closeSync,
-  existsSync,
   mkdirSync,
   openSync,
   readFileSync,
   renameSync,
-  unlinkSync,
+  rmSync,
   writeFileSync,
+  writeSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
 import { randomUUID } from "node:crypto";
+import { currentProcessIdentity, type ProcessIdentity } from "./instance-registry.js";
 
 export const OPEN_TABS_VERSION = 1;
 
@@ -164,39 +165,80 @@ export function mutateOpenTabs(
   });
 }
 
+interface OpenTabsLockRecord {
+  pid: number;
+  processStartTime?: string;
+  processVerification: ProcessIdentity["verification"];
+  acquiredAt: string;
+}
+
+/**
+ * Exclusive lock for open_tabs read-modify-write.
+ * Same ownership rule as session-lock: reclaim only when the holder PID is dead
+ * or reused. Never steal after a wall-clock deadline — that races a live holder
+ * and drops concurrent add/remove updates.
+ */
 function withOpenTabsLock<T>(filePath: string, fn: () => T): T {
   const lockPath = `${filePath}.lock`;
   mkdirSync(dirname(filePath), { recursive: true });
-  const deadline = Date.now() + 5_000;
+  const pid = process.pid;
+  const identity = currentProcessIdentity(pid);
+  const payload = `${JSON.stringify({
+    pid,
+    processStartTime: identity.startTime,
+    processVerification: identity.verification,
+    acquiredAt: new Date().toISOString(),
+  } satisfies OpenTabsLockRecord)}\n`;
+
   for (;;) {
     try {
       const fd = openSync(lockPath, "wx");
       try {
+        writeSync(fd, payload);
         return fn();
       } finally {
         closeSync(fd);
-        try {
-          unlinkSync(lockPath);
-        } catch {
-          // lock already gone
+        // Only remove if we still own it (another process may have reclaimed a
+        // crash mid-write and replaced the record).
+        const current = readOpenTabsLockRecord(lockPath);
+        if (!current || current.pid === pid) {
+          rmSync(lockPath, { force: true });
         }
       }
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code;
       if (code !== "EEXIST") throw error;
-      if (Date.now() > deadline) {
-        // Stale lock: previous holder crashed. Steal after deadline.
-        if (existsSync(lockPath)) {
-          try {
-            unlinkSync(lockPath);
-          } catch {
-            // retry loop
-          }
-        }
+      const existing = readOpenTabsLockRecord(lockPath);
+      if (openTabsLockIsStale(existing)) {
+        rmSync(lockPath, { force: true });
+        continue;
       }
-      // Yield the event loop while another process holds the lock.
-      // Atomics.wait parks the thread; a Date.now spin would burn a full core.
+      // Live holder: yield without burning a core, then retry.
       Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20);
     }
   }
+}
+
+function readOpenTabsLockRecord(lockPath: string): OpenTabsLockRecord | undefined {
+  try {
+    const value = JSON.parse(readFileSync(lockPath, "utf8")) as Partial<OpenTabsLockRecord>;
+    if (typeof value.pid !== "number") return undefined;
+    return value as OpenTabsLockRecord;
+  } catch {
+    return undefined;
+  }
+}
+
+function openTabsLockIsStale(record: OpenTabsLockRecord | undefined): boolean {
+  if (!record) return true;
+  const identity = currentProcessIdentity(record.pid);
+  if (!identity.alive) return true;
+  if (
+    identity.startTime &&
+    record.processStartTime &&
+    identity.startTime !== record.processStartTime
+  ) {
+    return true;
+  }
+  return false;
 }
