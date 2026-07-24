@@ -21,7 +21,10 @@ import type { ExtensionToolOwnerPolicy } from "../core/extension-tool-owners.js"
 export type PiBuiltinToolName = "read" | "bash" | "edit" | "write" | "ls";
 
 export const PI_BUILTIN_TOOL_NAMES: PiBuiltinToolName[] = ["read", "bash", "edit", "write", "ls"];
-const PI_DEFAULT_ACTIVE_TOOL_NAMES = ["read", "bash", "edit", "write", "grep", "find", "ls"];
+// Match pi-coding-agent default active tools (sdk.js / AgentSession._buildRuntime).
+// grep/find/ls remain registered via createAllToolDefinitions but are inactive unless
+// the user/extension enables them.
+const PI_DEFAULT_ACTIVE_TOOL_NAMES = ["read", "bash", "edit", "write"];
 
 type AnyToolDefinition = ToolDefinition<any, any, any>;
 
@@ -29,17 +32,15 @@ export function activateMixCodeTools(
   agentSession: AgentSession,
   extensionToolOwnerPolicy?: ExtensionToolOwnerPolicy,
 ): void {
-  const restoredBuiltinNames = restorePiBuiltinTools(agentSession, extensionToolOwnerPolicy);
+  // Restore builtin definitions (including ls for owner-shadow policy) without
+  // force-activating tools that pi leaves inactive by default.
+  restorePiBuiltinTools(agentSession, extensionToolOwnerPolicy);
   const configuredToolNames = new Set(agentSession.getAllTools().map((tool) => tool.name));
   const defaultActiveToolNames = PI_DEFAULT_ACTIVE_TOOL_NAMES.filter((name) =>
     configuredToolNames.has(name),
   );
   agentSession.setActiveToolsByName([
-    ...new Set([
-      ...agentSession.getActiveToolNames(),
-      ...restoredBuiltinNames,
-      ...defaultActiveToolNames,
-    ]),
+    ...new Set([...agentSession.getActiveToolNames(), ...defaultActiveToolNames]),
   ]);
 }
 

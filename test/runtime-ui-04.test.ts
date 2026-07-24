@@ -354,23 +354,37 @@ test("submitted clear resets tab state when replacement fails", async () => {
 
 test("runtime enables Pi builtin tools", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-tools-"));
+  const agentDir = join(dir, "agent");
   try {
     await writeFile(join(dir, "a.txt"), "hello", "utf8");
-    const runtime = new MixCodeRuntime({ sessionsRoot: dir });
+    // Empty agentDir: no global extensions. Contract = pi default active set only.
+    const runtime = new MixCodeRuntime({ sessionsRoot: dir, agentDir });
     const runtimeTab = await runtime.createTab(createTab(1, "s1", dir), {
       systemPrompt: "system",
       thinkingLevel: "medium",
       workdir: dir,
     });
+    // agent.state.tools is the *active* set — pi default is read/bash/edit/write only.
+    const activeNames = runtimeTab.agentSession.getActiveToolNames().slice().sort();
+    assert.deepEqual(activeNames, ["bash", "edit", "read", "write"]);
+    assert.deepEqual(
+      runtimeTab.agent.state.tools.map((tool) => tool.name).sort(),
+      ["bash", "edit", "read", "write"],
+    );
     const tools = runtimeTab.agent.state.tools;
     const read = tools.find((tool) => tool.name === "read");
     const bash = tools.find((tool) => tool.name === "bash");
     const edit = tools.find((tool) => tool.name === "edit");
     const write = tools.find((tool) => tool.name === "write");
     assert.ok(read && bash && edit && write);
-    assert.ok(tools.some((tool) => tool.name === "grep"));
-    assert.ok(tools.some((tool) => tool.name === "find"));
-    assert.ok(tools.some((tool) => tool.name === "ls"));
+    // grep/find/ls stay registered (available to enable) but not active by default.
+    const allNames = runtimeTab.agentSession.getAllTools().map((tool) => tool.name);
+    assert.ok(allNames.includes("grep"));
+    assert.ok(allNames.includes("find"));
+    assert.ok(allNames.includes("ls"));
+    for (const inactive of ["grep", "find", "ls"]) {
+      assert.equal(activeNames.includes(inactive), false, `${inactive} must not be active by default`);
+    }
     assert.equal(
       tools.some((tool) => tool.name === "shell"),
       false,
