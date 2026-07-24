@@ -208,7 +208,9 @@ export function createPromptHistoryBrowserComponent(config: PromptHistoryBrowser
 
     if (matchesKey(data, Key.enter)) {
       const prompt = selectedPrompt();
-      done(prompt ?? null);
+      // Empty filter: stay open so the user can refine the query (Esc still closes).
+      if (prompt === undefined) return;
+      done(prompt);
       return;
     }
 

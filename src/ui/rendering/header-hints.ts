@@ -20,6 +20,10 @@ import { padLine } from "./primitives.js";
 // Hand-curated compact line (like Pi's compactInstructions), sized to cover
 // the day-to-day keys — interrupt/undo, navigation, palette, editor, queue —
 // while staying a short block; ctrl+o reveals the full annotated list.
+//
+// Intentionally static across modes: Vim mode swallows ctrl+p for its own
+// navigation, but the header still documents the global command palette chord
+// so users know it after leaving Vim (q). Do not hide or rewrite this row in Vim.
 const COMPACT_HINTS: ReadonlyArray<readonly [key: string, label: string]> = [
   ["esc", "interrupt"],
   ["esc esc", "tree"],

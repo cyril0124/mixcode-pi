@@ -225,3 +225,35 @@ test("deleting from details returns to the neighboring loop", () => {
   assert.match(list, /› 3 {2}D {2}gamma/);
   assert.doesNotMatch(list, /2 {2}D {2}beta/);
 });
+
+test("Esc on remove confirm cancels back to the list instead of closing", () => {
+  let closed = false;
+  const entries = [loop({ id: "1", name: "alpha" }), loop({ id: "2", name: "beta" })];
+  const view = new LoopManagementView(
+    theme,
+    () => {},
+    () => {
+      closed = true;
+    },
+    () => 12,
+    {
+      getLoops: () => entries,
+      fire: () => {},
+      setMode: () => {},
+      remove: () => {
+        throw new Error("remove should not run on Esc cancel");
+      },
+      clear: () => {},
+    },
+  );
+
+  view.handleInput("x");
+  assert.match(view.render(60).join("\n"), /Remove loop "alpha"/);
+
+  view.handleInput(ESCAPE);
+  const list = view.render(60).join("\n");
+  assert.equal(closed, false);
+  assert.doesNotMatch(list, /Remove loop/);
+  assert.match(list, /┌ Loops /);
+  assert.match(list, /alpha/);
+});

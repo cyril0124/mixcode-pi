@@ -98,8 +98,10 @@ export class LoopManagementView implements Component {
     const confirm = this.confirm;
     if (!confirm) return;
 
-    if (matchesKey(data, "escape") || matchesKey(data, "q")) {
-      this.done();
+    // Esc/q cancel like n: back to the list, do not close the whole manager.
+    if (matchesKey(data, "escape") || matchesKey(data, "q") || matchesKey(data, "n")) {
+      this.confirm = null;
+      this.requestRender();
       return;
     }
     if (matchesKey(data, "y")) {
@@ -107,11 +109,6 @@ export class LoopManagementView implements Component {
       else this.actions.clear();
       this.confirm = null;
       this.refresh();
-      return;
-    }
-    if (matchesKey(data, "n")) {
-      this.confirm = null;
-      this.requestRender();
     }
   }
 
