@@ -304,6 +304,47 @@ test("tab clicks do not switch sessions through a modal command palette", () => 
   closeAppOverlay(tui);
 });
 
+test("tab drag motion does not switch tabs", () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"), createTab(2, "s2", "/repo"));
+  state.activeTabId = "s1";
+  state.tabBarTopRow = 1;
+  state.lastRenderWidth = 120;
+  const tui = { requestRender: () => undefined };
+  const secondTab = tabBarHitRegions(state, 120).find((region) => region.id === "s2");
+  assert.ok(secondTab);
+  const y = state.tabBarTopRow + (secondTab.row ?? 0);
+  const x = secondTab.startX;
+
+  // Motion events use button base 32 (SGR bit 5) and must not switch tabs.
+  handleMouseInput(state, state.tabs[0], `\x1b[<32;${x};${y}M`, tui);
+  assert.equal(state.activeTabId, "s1");
+
+  // A real press still switches.
+  assert.equal(
+    handleMouseInput(state, state.tabs[0], `\x1b[<0;${x};${y}M`, tui),
+    true,
+  );
+  assert.equal(state.activeTabId, "s2");
+});
+
+test("input meta drag motion does not open pickers", () => {
+  const { state, tab } = setup();
+  state.activeTabId = "s1";
+  tab.inputMetaHitRegions = [{ action: "model", row: 20, startX: 5, endX: 20 }];
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({ hide: () => undefined }) as never,
+    hasOverlay: () => false,
+  };
+
+  handleMouseInput(state, tab, "\x1b[<32;10;20M", tui);
+  assert.equal(state.picker, undefined);
+
+  assert.equal(handleMouseInput(state, tab, "\x1b[<0;10;20M", tui), true);
+  assert.equal(state.picker?.kind, "model");
+});
+
 test("chat drag-select is blocked while a modal overlay is open", async () => {
   const { state, tab, tui } = setup();
   const overlayTui = {

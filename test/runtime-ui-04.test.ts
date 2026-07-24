@@ -198,7 +198,9 @@ test("submitted input handles prompt, shell, local commands, clear, and missing 
     await handleSubmittedInput(state, runtime, "/clear", tui);
     await new Promise((resolve) => setTimeout(resolve, 50));
     await handleSubmittedInput(state, runtime, "/thinking high", tui);
-    await handleSubmittedInput(state, runtime, "/workdir /tmp/work", tui);
+    const workdirTarget = join(dir, "work");
+    await mkdir(workdirTarget, { recursive: true });
+    await handleSubmittedInput(state, runtime, `/workdir ${workdirTarget}`, tui);
     const { setTheme } = await import("../src/ui/themes.js");
     setTheme(state, "tokyo-night");
     await handleSubmittedInput(state, runtime, "/models faux-1", tui);
@@ -234,7 +236,7 @@ test("submitted input handles prompt, shell, local commands, clear, and missing 
     assert.deepEqual(forked, [forkedSessionId]);
     assert.equal(state.activeTabId, "cleared");
     assert.equal(tab.thinkingLevel, "high");
-    assert.equal(tab.workdir, "/tmp/work");
+    assert.equal(tab.workdir, workdirTarget);
     assert.equal(tab.title, "Renamed");
     assert.equal(tab.model.modelId, "faux-1");
     assert.equal(state.theme, "mixcode-dark");

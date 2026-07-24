@@ -589,6 +589,52 @@ function customConfigBody(options: {
   }`;
 }
 
+test("runtime.reloadModelConfig skips models-changed emit when models.json is invalid", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-reload-models-bad-"));
+  const oldKey = process.env.MIXCODE_RELOAD_KEY;
+  try {
+    process.env.MIXCODE_RELOAD_KEY = "reload-secret";
+    const configPath = join(dir, "models.json");
+    await writeFile(
+      configPath,
+      JSON.stringify({
+        providers: {
+          "reload-proxy": {
+            baseUrl: "https://reload.example/v1",
+            api: "openai",
+            apiKey: "MIXCODE_RELOAD_KEY",
+            models: [{ id: "alpha", contextWindow: 4096 }],
+          },
+        },
+      }),
+      "utf8",
+    );
+    const bundle = await createPiModelRegistryBundle(configPath);
+    const runtime = new MixCodeRuntime({
+      sessionsRoot: join(dir, "sessions"),
+      agentDir: dir,
+      modelRuntime: bundle.modelRuntime,
+      modelRegistry: bundle.registry,
+      getApiKey: bundle.runtimeAuth.getApiKey,
+      streamFn: bundle.runtimeAuth.stream,
+    });
+    const emitted: number[] = [];
+    runtime.onModelsChanged(() => {
+      emitted.push(1);
+    });
+
+    await writeFile(configPath, "{ not valid json", "utf8");
+    await runtime.reloadModelConfig();
+
+    assert.match(runtime.getSharedModelRuntime()?.getError() ?? "", /Failed to parse models\.json/);
+    assert.deepEqual(emitted, [], "invalid models.json must not rewrite UI availableModels");
+  } finally {
+    if (oldKey === undefined) delete process.env.MIXCODE_RELOAD_KEY;
+    else process.env.MIXCODE_RELOAD_KEY = oldKey;
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("runtime.reloadModelConfig re-reads models.json from disk after it changes", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-reload-models-"));
   const oldKey = process.env.MIXCODE_RELOAD_KEY;

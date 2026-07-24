@@ -134,18 +134,22 @@ test("#76 non-byte number fields reject unit suffixes", async () => {
     for (const ch of "5k") handleSettingsPanelKey(state, ch, tui);
     await handleSettingsPanelKey(state, "\r", tui);
     await new Promise((r) => setTimeout(r, 30));
-    // Invalid unit input clears the value rather than multiplying by 1024.
-    assert.equal(state.settingsPanel.editMode, false);
-    assert.equal(
-      state.settingsPanel.mixcodeRaw.ui?.oversizedAssistantMessage?.maxLines,
-      undefined,
+    // Invalid unit input keeps edit mode and the prior explicit value.
+    assert.equal(state.settingsPanel.editMode, true);
+    assert.equal(state.settingsPanel.editText, "5k");
+    assert.equal(state.settingsPanel.mixcodeRaw.ui?.oversizedAssistantMessage?.maxLines, 12);
+    assert.match(state.settingsPanel.editError ?? "", /Invalid number/);
+    assert.match(
+      stripAnsi(renderSettingsPanel(state, 80).join("\n")),
+      /Invalid number: "5k"/,
     );
 
     // Valid plain integer still works for non-byte fields.
-    handleSettingsPanelKey(state, "\r", tui);
+    state.settingsPanel.editText = "";
     for (const ch of "8") handleSettingsPanelKey(state, ch, tui);
     await handleSettingsPanelKey(state, "\r", tui);
     await new Promise((r) => setTimeout(r, 30));
+    assert.equal(state.settingsPanel.editMode, false);
     assert.equal(state.settingsPanel.mixcodeRaw.ui?.oversizedAssistantMessage?.maxLines, 8);
   } finally {
     await rm(dir, { recursive: true, force: true });

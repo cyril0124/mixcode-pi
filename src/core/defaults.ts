@@ -41,6 +41,7 @@ export function createInitialState(workdir: string, defaultThinkingLevel?: Think
       selectedIndex: 0,
       editMode: false,
       editText: "",
+      editError: undefined,
       enumOpen: false,
       enumIndex: 0,
       mixcodeRaw: {},

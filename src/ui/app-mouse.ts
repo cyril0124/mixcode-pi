@@ -174,6 +174,7 @@ function handleChromeMouse(
     mouse.y >= tabBarTop &&
     mouse.button === 0 &&
     !mouse.release &&
+    !mouse.motion &&
     !mouse.wheel
   ) {
     const clickedRow = mouse.y - tabBarTop;
@@ -194,6 +195,7 @@ function handleChromeMouse(
     state.activeTabId !== "config" &&
     mouse.button === 0 &&
     !mouse.release &&
+    !mouse.motion &&
     !mouse.wheel &&
     active.inputMetaHitRegions?.length
   ) {

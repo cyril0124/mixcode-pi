@@ -237,7 +237,8 @@ function workdirDirectoryListing(
   return { dirs };
 }
 
-function normalizeWorkdirInput(base: string, input: string): string {
+/** Resolve ~ / relative / absolute workdir input against a base directory. */
+export function normalizeWorkdirInput(base: string, input: string): string {
   const trimmed = input.trim();
   if (!trimmed) return resolve(base);
   if (trimmed === "~") return homedir();

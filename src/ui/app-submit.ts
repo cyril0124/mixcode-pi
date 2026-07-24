@@ -324,15 +324,29 @@ export async function handleSubmittedInput(
     await runtime.extensionReload(active!.sessionId);
     // Native reload covers extensions/skills/prompts/themes but not models; the
     // model registry is loaded once at bootstrap, so refresh it here too.
-    const modelsReloaded = await reloadRuntimeModels(state, runtime);
+    const modelsResult = await reloadRuntimeModels(state, runtime);
     // Short status line (Pi showStatus); agent tab required (not config-scoped).
-    appendActiveSystemMessage(
-      state,
-      runtime,
-      modelsReloaded
-        ? "Reloaded keybindings, extensions, skills, prompts, themes, and models"
-        : "Reloaded keybindings, extensions, skills, prompts, and themes",
-    );
+    if (modelsResult.ok) {
+      appendActiveSystemMessage(
+        state,
+        runtime,
+        "Reloaded keybindings, extensions, skills, prompts, themes, and models",
+      );
+    } else if ("error" in modelsResult) {
+      // Extensions already reloaded; keep prior model selection and surface Pi's error.
+      appendActiveSystemMessage(
+        state,
+        runtime,
+        `Reloaded keybindings, extensions, skills, prompts, and themes; models failed: ${modelsResult.error}`,
+        "error",
+      );
+    } else {
+      appendActiveSystemMessage(
+        state,
+        runtime,
+        "Reloaded keybindings, extensions, skills, prompts, and themes",
+      );
+    }
   } else if (parsed.command === "login") {
     const { openPiLogin } = await import("./pi-auth.js");
     await openPiLogin(state, runtime, authInputHost, parsed.args || undefined);

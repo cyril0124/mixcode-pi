@@ -9,17 +9,28 @@ export const BLOCK_HEIGHT_FALLBACK = 4;
 
 // Per-tab scroll-freeze bookkeeping. When the user has scrolled up (offset > 0)
 // and new content streams in below, we "freeze" the viewport on a stable anchor
-// line so the visible text does not jump. State is keyed on the tab object.
+// so the visible text does not jump. Resize re-anchors via ChatLine + progress.
 interface ScrollFreezeState {
   total: number;
   width: number;
   height: number;
   offset?: number;
   frozen?: boolean;
+  /** Rendered-line fallback (width-stable matching). */
   line?: string;
   row?: number;
+  /** Stable message object for reflow-tolerant resize anchoring. */
+  chatLine?: ChatLine;
+  /** 0–1 progress through the anchored chat block (top of viewport content). */
+  blockProgress?: number;
 }
 const scrollFreezeStates = new WeakMap<MixCodeTabInfo, ScrollFreezeState>();
+
+export interface ChatBlockLayout {
+  line: ChatLine;
+  start: number;
+  height: number;
+}
 
 /** Whether the tab's viewport is currently frozen at a scrolled-up anchor. */
 export function isScrollFrozen(tab: MixCodeTabInfo): boolean {
@@ -39,21 +50,27 @@ export function keepScrolledViewStable(
 ): boolean {
   const previous = scrollFreezeStates.get(tab);
   const grew = total > (previous?.total ?? total);
+  const sameSize = previous?.width === width && previous?.height === height;
+  // Growth freeze only when layout size is unchanged. Resize re-anchors later.
   const canFreeze =
     tab.chatScrollOffset > 0 &&
-    previous?.width === width &&
-    previous.height === height &&
+    sameSize &&
     previous.offset === tab.chatScrollOffset;
   if (canFreeze && grew) {
     tab.chatScrollOffset += total - previous.total;
   }
+  // Stay frozen across size changes so apply* can re-align to the anchor.
+  const keepFrozen =
+    tab.chatScrollOffset > 0 &&
+    Boolean(previous?.line || previous?.chatLine) &&
+    (canFreeze || !sameSize);
   scrollFreezeStates.set(tab, {
     ...previous,
     total,
     width,
     height,
     offset: tab.chatScrollOffset,
-    frozen: canFreeze,
+    frozen: keepFrozen || canFreeze,
   });
   return canFreeze;
 }
@@ -61,6 +78,7 @@ export function keepScrolledViewStable(
 /**
  * Re-align chatScrollOffset onto the remembered anchor line so the frozen
  * viewport shows the same content after content above it changed height.
+ * Also used after resize when rendered lines still match the stored text.
  */
 export function applyScrollFreezeAnchor(
   tab: MixCodeTabInfo,
@@ -69,26 +87,75 @@ export function applyScrollFreezeAnchor(
   width: number,
 ): void {
   const state = scrollFreezeStates.get(tab);
-  if (
-    tab.chatScrollOffset <= 0 ||
-    !state?.frozen ||
-    state.offset !== tab.chatScrollOffset ||
-    !state.line ||
-    state.width !== width ||
-    state.height !== viewport
-  ) {
+  if (tab.chatScrollOffset <= 0 || !state?.frozen || !state.line) {
     return;
   }
-  const index = findScrollFreezeAnchorIndex(lines, state.line, viewport, tab.chatScrollOffset, state.row ?? 0);
+  // Prefer ChatLine re-anchor when available (handled by applyChatBlockScrollAnchor).
+  if (state.chatLine) return;
+  const index = findScrollFreezeAnchorIndex(
+    lines,
+    state.line,
+    viewport,
+    tab.chatScrollOffset,
+    state.row ?? 0,
+  );
   if (index < 0) return;
   const maxStart = Math.max(0, lines.length - viewport);
   const start = Math.max(0, Math.min(index - (state.row ?? 0), maxStart));
   tab.chatScrollOffset = Math.max(0, lines.length - (start + viewport));
+  // Keep bookkeeping aligned with the new layout size after re-anchor.
+  scrollFreezeStates.set(tab, {
+    ...state,
+    width,
+    height: viewport,
+    offset: tab.chatScrollOffset,
+    frozen: true,
+  });
+}
+
+/**
+ * Re-align offset using a stable ChatLine + progress through that block.
+ * Survives width reflow where rendered line text no longer matches.
+ */
+export function applyChatBlockScrollAnchor(
+  tab: MixCodeTabInfo,
+  blocks: readonly ChatBlockLayout[],
+  linesLength: number,
+  viewport: number,
+  width: number,
+): void {
+  const state = scrollFreezeStates.get(tab);
+  if (tab.chatScrollOffset <= 0 || !state?.frozen || !state.chatLine) return;
+  let block = blocks.find((entry) => entry.line === state.chatLine);
+  if (!block) {
+    // Session rebuild may drop object identity; fall back to entryId/text match.
+    block = blocks.find(
+      (entry) =>
+        (state.chatLine?.entryId && entry.line.entryId === state.chatLine.entryId) ||
+        (state.chatLine?.text &&
+          entry.line.role === state.chatLine.role &&
+          entry.line.text === state.chatLine.text),
+    );
+  }
+  if (!block || block.height <= 0) return;
+  const progress = Math.min(1, Math.max(0, state.blockProgress ?? 0));
+  const rowInBlock = Math.min(block.height - 1, Math.floor(progress * block.height));
+  const index = block.start + rowInBlock;
+  const maxStart = Math.max(0, linesLength - viewport);
+  const start = Math.max(0, Math.min(index - (state.row ?? 0), maxStart));
+  tab.chatScrollOffset = Math.max(0, linesLength - (start + viewport));
+  scrollFreezeStates.set(tab, {
+    ...state,
+    width,
+    height: viewport,
+    offset: tab.chatScrollOffset,
+    frozen: true,
+  });
 }
 
 /** Strip ANSI so blank themed rows (bg color + spaces) are not treated as content. */
 function visibleText(line: string): string {
-  return line.replace(/\[[0-?]*[ -/]*[@-~]/g, "").trim();
+  return line.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "").trim();
 }
 
 /** Remember the top visible non-marker line as the freeze anchor for next frame. */
@@ -100,7 +167,12 @@ export function rememberScrollFreezeAnchor(
 ): void {
   const current = scrollFreezeStates.get(tab) ?? { total: 0, width, height };
   if (tab.chatScrollOffset <= 0) {
-    scrollFreezeStates.set(tab, { total: current.total, width, height, offset: tab.chatScrollOffset });
+    scrollFreezeStates.set(tab, {
+      total: current.total,
+      width,
+      height,
+      offset: tab.chatScrollOffset,
+    });
     return;
   }
   // Prefer real message text over padded blank rows. Theme backgrounds leave
@@ -121,6 +193,53 @@ export function rememberScrollFreezeAnchor(
   });
 }
 
+/**
+ * Remember a ChatLine-based anchor after a windowed render. Call after the
+ * visible window is known so progress reflects the new layout.
+ */
+export function rememberChatBlockScrollAnchor(
+  tab: MixCodeTabInfo,
+  blocks: readonly ChatBlockLayout[],
+  windowStart: number,
+  visible: string[],
+  width: number,
+  height: number,
+): void {
+  const current = scrollFreezeStates.get(tab) ?? { total: 0, width, height };
+  if (tab.chatScrollOffset <= 0) {
+    scrollFreezeStates.set(tab, {
+      total: current.total,
+      width,
+      height,
+      offset: tab.chatScrollOffset,
+    });
+    return;
+  }
+  const row = visible.findIndex((line) => {
+    const text = visibleText(line);
+    return text.length > 0 && !text.includes("older above") && !text.includes("newer below");
+  });
+  const absolute = windowStart + Math.max(0, row);
+  const block = blocks.find(
+    (entry) => absolute >= entry.start && absolute < entry.start + entry.height,
+  );
+  const blockProgress =
+    block && block.height > 0
+      ? Math.min(1, Math.max(0, (absolute - block.start) / block.height))
+      : undefined;
+  scrollFreezeStates.set(tab, {
+    ...current,
+    width,
+    height,
+    offset: tab.chatScrollOffset,
+    frozen: true,
+    line: row >= 0 ? visible[row] : undefined,
+    row: row >= 0 ? row : undefined,
+    chatLine: block?.line,
+    blockProgress,
+  });
+}
+
 function findScrollFreezeAnchorIndex(
   lines: string[],
   line: string,
@@ -128,12 +247,24 @@ function findScrollFreezeAnchorIndex(
   scrollOffset: number,
   row: number,
 ): number {
-  const expected = Math.max(0, Math.min(lines.length - 1, lines.length - scrollOffset - viewport + row));
+  const expected = Math.max(
+    0,
+    Math.min(lines.length - 1, lines.length - scrollOffset - viewport + row),
+  );
   for (let distance = 0; distance < lines.length; distance++) {
     const before = expected - distance;
     if (before >= 0 && lines[before] === line) return before;
     const after = expected + distance;
     if (after < lines.length && lines[after] === line) return after;
+  }
+  // Reflow may change padding/ANSI; match by visible text as a second pass.
+  const target = visibleText(line);
+  if (!target) return -1;
+  for (let distance = 0; distance < lines.length; distance++) {
+    const before = expected - distance;
+    if (before >= 0 && visibleText(lines[before]!) === target) return before;
+    const after = expected + distance;
+    if (after < lines.length && visibleText(lines[after]!) === target) return after;
   }
   return -1;
 }

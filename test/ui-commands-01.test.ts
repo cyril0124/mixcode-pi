@@ -189,6 +189,54 @@ test("/reload refreshes models.json and rebuilds the selectable model list", asy
   );
 });
 
+test("/reload keeps model selection when models.json fails to load", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"));
+  state.activeTabId = "s1";
+  setStateModel(state, {
+    provider: "acme",
+    modelId: "old",
+    displayName: "acme/old",
+    contextWindow: 1000,
+  });
+  setTabModel(state.tabs[0]!, state.model);
+  const beforeModels = state.availableModels.map((model) => `${model.provider}/${model.modelId}`);
+
+  const systemMessages: string[] = [];
+  const updatedTabModels: Array<{ sessionId: string; modelId: string }> = [];
+  const runtime = {
+    appendSystemMessage: (_sessionId: string, text: string) => systemMessages.push(text),
+    extensionReload: async () => {},
+    reloadModelConfig: async () => [],
+    getSharedModelRuntime: () => ({
+      getError: () => 'Failed to parse models.json: Unexpected token',
+    }),
+    resolveModel: () => undefined,
+    updateTabModel: (sessionId: string, model: { id: string }) =>
+      updatedTabModels.push({ sessionId, modelId: model.id }),
+  } as unknown as MixCodeRuntime;
+  const tui = { requestRender: () => {}, showOverlay: () => ({}) as never };
+
+  await handleSubmittedInput(state, runtime, "/reload", tui);
+
+  assert.deepEqual(
+    state.availableModels.map((model) => `${model.provider}/${model.modelId}`),
+    beforeModels,
+  );
+  assert.equal(state.model.modelId, "old");
+  assert.equal(state.tabs[0]!.model.modelId, "old");
+  assert.deepEqual(updatedTabModels, []);
+  assert.ok(
+    systemMessages.some(
+      (message) =>
+        message.includes("models failed") && message.includes("Failed to parse models.json"),
+    ),
+  );
+  assert.ok(
+    systemMessages.every((message) => !message.includes("themes, and models")),
+  );
+});
+
 test("unknown slash commands keep focus on the active tab", async () => {
   const state = createInitialState("/repo");
   const first = createTab(1, "s1", "/repo");

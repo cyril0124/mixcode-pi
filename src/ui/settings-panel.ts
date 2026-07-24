@@ -265,6 +265,7 @@ export async function openSettingsPanel(
     selectedIndex: 0,
     editMode: false,
     editText: "",
+    editError: undefined,
     enumOpen: false,
     enumIndex: 0,
     mixcodeRaw,
@@ -423,7 +424,10 @@ function renderMainSettingsLines(
   },
 ): string[] {
   const { dim, accent, sel, innerWidth, labelCol, valueCol, gap, sectionHeader, pathLine } = ui;
-  const footer = ["", dim("  ↑↓ select  ⏎ edit/toggle  esc close")];
+  const footerHint = panel.editMode && panel.editError
+    ? dim(`  ${panel.editError}  ⏎ retry  esc cancel`)
+    : dim("  ↑↓ select  ⏎ edit/toggle  esc close");
+  const footer = ["", footerHint];
   const bodyBudget = Math.max(4, settingsOverlayBodyBudget() - footer.length);
 
   // Build flat item rows first (no section headers yet), then window them.
@@ -737,32 +741,51 @@ function handleEdit(
     const ctx = panelCtx(state);
     if (item?.kind === "number" && ctx) {
       const trimmed = panel.editText.trim();
-      const parsed = parseSettingsNumber(trimmed, isByteSizeSetting(item));
-      void item
-        .setValue(
-          ctx,
-          trimmed === "" || parsed === undefined ? undefined : parsed,
-        )
-        .then(() => {
+      // Empty input clears the explicit override (restore default).
+      if (trimmed === "") {
+        void item.setValue(ctx, undefined).then(() => {
           applyLiveEffects(state);
           panel.editMode = false;
           panel.editText = "";
+          panel.editError = undefined;
           refreshSettingsPanel(state, tui);
         });
+        return;
+      }
+      const parsed = parseSettingsNumber(trimmed, isByteSizeSetting(item));
+      // Non-empty invalid input stays in edit mode with an inline footer error.
+      if (parsed === undefined) {
+        panel.editError = isByteSizeSetting(item)
+          ? `Invalid number: "${trimmed}" (use N, Nkb, or Nmb)`
+          : `Invalid number: "${trimmed}" (positive integer)`;
+        refreshSettingsPanel(state, tui);
+        return;
+      }
+      void item.setValue(ctx, parsed).then(() => {
+        applyLiveEffects(state);
+        panel.editMode = false;
+        panel.editText = "";
+        panel.editError = undefined;
+        refreshSettingsPanel(state, tui);
+      });
       return;
     }
     panel.editMode = false;
     panel.editText = "";
+    panel.editError = undefined;
     refreshSettingsPanel(state, tui);
   } else if (matchesKey(data, "escape") || data === "\x1b") {
     panel.editMode = false;
     panel.editText = "";
+    panel.editError = undefined;
     refreshSettingsPanel(state, tui);
   } else if (matchesKey(data, "backspace") || data === "\x7f") {
     panel.editText = panel.editText.slice(0, -1);
+    panel.editError = undefined;
     refreshSettingsPanel(state, tui);
   } else if (data.length === 1 && /[\d.a-zA-Z]/.test(data)) {
     panel.editText += data;
+    panel.editError = undefined;
     refreshSettingsPanel(state, tui);
   }
 }

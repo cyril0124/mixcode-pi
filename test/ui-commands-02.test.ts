@@ -168,19 +168,19 @@ test("submitted input opens local pickers and picker keys apply selections", asy
   assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui), { consume: true });
   assert.equal(tab.workdir, "/repo");
 
-  await handleSubmittedInput(state, runtime, "/workdir", tui);
-  assert.equal(state.picker?.kind, "workdir");
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x15", tui), { consume: true });
-  assert.deepEqual(handleMixCodeKeyInput(state, "/", tui), { consume: true });
-  assert.deepEqual(handleMixCodeKeyInput(state, "t", tui), { consume: true });
-  assert.deepEqual(handleMixCodeKeyInput(state, "m", tui), { consume: true });
-  assert.deepEqual(handleMixCodeKeyInput(state, "p", tui), { consume: true });
-  assert.deepEqual(handleMixCodeKeyInput(state, "/", tui), { consume: true });
-  assert.deepEqual(handleMixCodeKeyInput(state, "n", tui), { consume: true });
-  assert.deepEqual(handleMixCodeKeyInput(state, "e", tui), { consume: true });
-  assert.deepEqual(handleMixCodeKeyInput(state, "w", tui), { consume: true });
-  assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui), { consume: true });
-  assert.equal(tab.workdir, "/tmp/new");
+  const workdirTarget = await mkdtemp(join(tmpdir(), "mixcode-workdir-picker-"));
+  try {
+    await handleSubmittedInput(state, runtime, "/workdir", tui);
+    assert.equal(state.picker?.kind, "workdir");
+    assert.deepEqual(handleMixCodeKeyInput(state, "\x15", tui), { consume: true });
+    for (const char of workdirTarget) {
+      assert.deepEqual(handleMixCodeKeyInput(state, char, tui), { consume: true });
+    }
+    assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui), { consume: true });
+    assert.equal(tab.workdir, workdirTarget);
+  } finally {
+    await rm(workdirTarget, { recursive: true, force: true });
+  }
 
   await handleSubmittedInput(state, runtime, "/workdir", tui);
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui), { consume: true });
@@ -223,55 +223,65 @@ test("submitted thinking command updates the Pi runtime session", async () => {
 });
 
 test("workdir picker applies async runtime workdir updates", async () => {
-  const state = createInitialState("/repo");
-  const tab = createTab(1, "s1", "/repo");
-  state.tabs.push(tab);
-  state.activeTabId = "s1";
-  const overlays: string[] = [];
-  let overlayOpen = false;
-  const tui = {
-    requestRender: () => undefined,
-    showOverlay: (component: { render?: (width: number) => string[] } | string) => {
-      overlayOpen = true;
-      overlays.push(
-        typeof component === "string"
-          ? component
-          : (component.render?.(120).join("\n") ?? String(component)),
-      );
-      return {} as never;
-    },
-    hideOverlay: () => {
-      overlayOpen = false;
-    },
-    hasOverlay: () => overlayOpen,
-  };
-  const calls: string[] = [];
-  const runtime = {
-    getTab: () => undefined,
-    updateTabWorkdir: async (sessionId: string, workdir: string) => {
-      calls.push(`${sessionId}:${workdir}`);
-      tab.workdir = workdir;
-    },
-  } as unknown as MixCodeRuntime;
+  const workdirTarget = await mkdtemp(join(tmpdir(), "mixcode-workdir-runtime-"));
+  try {
+    const state = createInitialState("/repo");
+    const tab = createTab(1, "s1", "/repo");
+    state.tabs.push(tab);
+    state.activeTabId = "s1";
+    const overlays: string[] = [];
+    let overlayOpen = false;
+    const tui = {
+      requestRender: () => undefined,
+      showOverlay: (component: { render?: (width: number) => string[] } | string) => {
+        overlayOpen = true;
+        overlays.push(
+          typeof component === "string"
+            ? component
+            : (component.render?.(120).join("\n") ?? String(component)),
+        );
+        return {} as never;
+      },
+      hideOverlay: () => {
+        overlayOpen = false;
+      },
+      hasOverlay: () => overlayOpen,
+    };
+    const calls: string[] = [];
+    const runtime = {
+      getTab: () => undefined,
+      updateTabWorkdir: async (sessionId: string, workdir: string) => {
+        calls.push(`${sessionId}:${workdir}`);
+        tab.workdir = workdir;
+      },
+    } as unknown as MixCodeRuntime;
 
-  await handleSubmittedInput(state, runtime, "/workdir", tui);
-  assert.equal(state.picker?.kind, "workdir");
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x15", tui, undefined, runtime), {
-    consume: true,
-  });
-  for (const char of "/tmp/runtime") {
-    assert.deepEqual(handleMixCodeKeyInput(state, char, tui, undefined, runtime), {
+    await handleSubmittedInput(state, runtime, "/workdir", tui);
+    assert.equal(state.picker?.kind, "workdir");
+    assert.deepEqual(handleMixCodeKeyInput(state, "\x15", tui, undefined, runtime), {
       consume: true,
     });
-  }
-  assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui, undefined, runtime), { consume: true });
-  await waitFor(() => calls.length === 1);
+    for (const char of workdirTarget) {
+      assert.deepEqual(handleMixCodeKeyInput(state, char, tui, undefined, runtime), {
+        consume: true,
+      });
+    }
+    assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui, undefined, runtime), {
+      consume: true,
+    });
+    await waitFor(async () => {
+      assert.equal(calls.length, 1);
+      return calls;
+    });
 
-  assert.deepEqual(calls, ["s1:/tmp/runtime"]);
-  assert.equal(tab.workdir, "/tmp/runtime");
-  assert.equal(state.picker, undefined);
-  assert.equal(overlayOpen, false);
-  assert.match(overlays[0] ?? "", /Change Workdir/);
+    assert.deepEqual(calls, [`s1:${workdirTarget}`]);
+    assert.equal(tab.workdir, workdirTarget);
+    assert.equal(state.picker, undefined);
+    assert.equal(overlayOpen, false);
+    assert.match(overlays[0] ?? "", /Change Workdir/);
+  } finally {
+    await rm(workdirTarget, { recursive: true, force: true });
+  }
 });
 
 test("workdir picker completes directories before applying selection", async () => {

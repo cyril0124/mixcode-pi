@@ -25,11 +25,14 @@ import {
 import { activeRenderTheme, renderWithTheme } from "./context.js";
 import {
   BLOCK_HEIGHT_FALLBACK,
+  applyChatBlockScrollAnchor,
   applyScrollFreezeAnchor,
   decorateWindow,
   estimateTotalHeight,
   keepScrolledViewStable,
+  rememberChatBlockScrollAnchor,
   rememberScrollFreezeAnchor,
+  type ChatBlockLayout,
 } from "./agent-surface-scroll.js";
 import { fitScrolledLinesWithInfo, joinColumns, type ScrolledLinesResult } from "./layout.js";
 import { renderHeaderKeyHints } from "./header-hints.js";
@@ -422,6 +425,7 @@ function renderAgentSurfaceWindowed(
   // reverse-join into top-to-bottom order. Push+reverse is O(n); unshift was O(n²).
   const targetRows = viewport + Math.max(0, tab.chatScrollOffset) + WINDOW_OVERSCAN_LINES;
   const newerFirstBlocks: string[][] = [];
+  const newerFirstChatLines: ChatLine[] = [];
   const frameBlockHeights = new Map<ChatLine, number>();
   let oldestEmittedIndex = displayChat.length;
   // Count rows the same way unshift path did: queue first, then each older block
@@ -450,12 +454,15 @@ function renderAgentSurfaceWindowed(
     if (assembledRows > 0) assembledRows += 1; // separator between this block and content below
     assembledRows += block.length;
     newerFirstBlocks.push(block);
+    newerFirstChatLines.push(line);
     oldestEmittedIndex = i;
   }
 
   // newerFirstBlocks is [newest, ..., oldest]; reverse to oldest-first top-to-bottom.
+  const orderedBlocks = newerFirstBlocks.reverse();
+  const orderedChatLines = newerFirstChatLines.reverse();
   const olderLines = joinRenderedBlocksTopToBottom(
-    newerFirstBlocks.reverse(),
+    orderedBlocks,
     chatBlockSeparator(mainWidth),
   );
 
@@ -523,7 +530,23 @@ function renderAgentSurfaceWindowed(
   }
   const maxOffset = Math.max(0, total - viewport);
   if (tab.chatScrollOffset > maxOffset) tab.chatScrollOffset = maxOffset;
+
+  // Map each rendered chat block to its start index in `lines` for resize anchors.
+  const blockLayouts: ChatBlockLayout[] = [];
+  {
+    let cursor = reachedTop && headerLines.length ? headerLines.length : 0;
+    // Header is not a chat block; chat blocks start after it when present at top.
+    for (let i = 0; i < orderedBlocks.length; i++) {
+      const block = orderedBlocks[i]!;
+      if (block.length === 0) continue;
+      if (blockLayouts.length > 0) cursor += 1; // separator
+      blockLayouts.push({ line: orderedChatLines[i]!, start: cursor, height: block.length });
+      cursor += block.length;
+    }
+  }
+  applyChatBlockScrollAnchor(tab, blockLayouts, lines.length, viewport, surfaceWidth);
   applyScrollFreezeAnchor(tab, lines, viewport, surfaceWidth);
+  if (tab.chatScrollOffset > maxOffset) tab.chatScrollOffset = maxOffset;
   const clampedOffset = Math.max(0, Math.min(tab.chatScrollOffset, maxOffset));
 
   // Pick the visible window from the bottom. `lines` is ordered top-to-bottom
@@ -542,7 +565,7 @@ function renderAgentSurfaceWindowed(
   const linesAboveBuffer = Math.max(0, total - lines.length);
   const start = linesAboveBuffer + windowStart;
 
-  rememberScrollFreezeAnchor(tab, visible, surfaceWidth, viewport);
+  rememberChatBlockScrollAnchor(tab, blockLayouts, windowStart, visible, surfaceWidth, viewport);
   const decorated = decorateWindow(visible, start, total, viewport, mainWidth);
 
   const composed = sidebarVisible

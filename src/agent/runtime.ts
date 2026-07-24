@@ -1173,6 +1173,10 @@ export class MixCodeRuntime {
     // Re-install sync after refresh in case the runtime object was replaced
     // (normally the same instance; wrap is idempotent via __mixcodeUiSync).
     this.installProviderRegistryUiSync();
+    // Parse/schema failures leave a ModelRuntime error. Do not emit models-changed:
+    // the UI listener would rewrite availableModels even though /reload keeps the
+    // previous selection and reports failure.
+    if (this.modelRuntime.getError?.()) return this.collectSelectableModelRefs();
     const refs = this.collectSelectableModelRefs();
     this.emitModelsChanged();
     return refs;

@@ -1,5 +1,7 @@
+import { existsSync, statSync } from "node:fs";
 import path from "node:path";
 import type { MixCodeRuntime } from "../agent/runtime.js";
+import { normalizeWorkdirInput } from "../core/pickers.js";
 import {
   buildAvailableModelRefs,
   isModelRefAvailable,
@@ -121,12 +123,25 @@ export async function applyModelSelection(
  * agent immediately uses the repaired model. Returns true when the runtime
  * actually performed a model reload (i.e. a registry was wired).
  */
+export type ModelReloadResult =
+  | { ok: true }
+  | { ok: false; error: string }
+  | { ok: false; skipped: true };
+
 export async function reloadRuntimeModels(
   state: MixCodeState,
-  runtime: Partial<Pick<MixCodeRuntime, "reloadModelConfig" | "resolveModel" | "updateTabModel">>,
-): Promise<boolean> {
-  if (!runtime.reloadModelConfig) return false;
+  runtime: Partial<
+    Pick<
+      MixCodeRuntime,
+      "reloadModelConfig" | "resolveModel" | "updateTabModel" | "getSharedModelRuntime"
+    >
+  >,
+): Promise<ModelReloadResult> {
+  if (!runtime.reloadModelConfig) return { ok: false, skipped: true };
   const configured = await runtime.reloadModelConfig();
+  // Pi keeps parse/schema/provider failures on ModelRuntime.getError() instead of throwing.
+  const modelError = runtime.getSharedModelRuntime?.()?.getError?.();
+  if (modelError) return { ok: false, error: modelError };
   const availableModels = buildAvailableModelRefs(configured);
   const preferred = configured.at(-1) ?? { ...DEFAULT_MODEL_REF };
   const nextStateModel = isModelRefAvailable(availableModels, state.model)
@@ -149,7 +164,7 @@ export async function reloadRuntimeModels(
   state.availableModels = availableModels;
   setStateModel(state, nextStateModel);
   state.tabs.forEach((tab, index) => setTabModel(tab, repairs[index]!));
-  return true;
+  return { ok: true };
 }
 
 export function applyWorkdirSelection(
@@ -157,14 +172,23 @@ export function applyWorkdirSelection(
   workdir: string,
   runtime?: Partial<Pick<MixCodeRuntime, "updateTabWorkdir">>,
 ): void | Promise<void> {
+  // Relative paths resolve against the current agent workdir (same as picker).
+  const resolved = normalizeWorkdirInput(active.workdir, workdir);
   // Skip the expensive teardown/rebuild if the resolved path is unchanged.
-  if (path.resolve(workdir) === path.resolve(active.workdir)) {
+  if (path.resolve(resolved) === path.resolve(active.workdir)) {
     pushToast(active, { type: "info", message: "workdir unchanged" });
     return;
   }
+  if (!existsSync(resolved) || !statSync(resolved).isDirectory()) {
+    pushToast(active, {
+      type: "error",
+      message: `workdir not found or not a directory: ${resolved}`,
+    });
+    return;
+  }
   if (runtime?.updateTabWorkdir)
-    return runtime.updateTabWorkdir(active.sessionId, workdir, MIXCODE_SYSTEM_PROMPT);
-  active.workdir = workdir;
+    return runtime.updateTabWorkdir(active.sessionId, resolved, MIXCODE_SYSTEM_PROMPT);
+  active.workdir = resolved;
 }
 
 export function appendActiveSystemMessage(

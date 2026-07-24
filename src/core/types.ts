@@ -86,6 +86,8 @@ export interface SettingsPanelState {
   selectedIndex: number;
   editMode: boolean;
   editText: string;
+  /** Inline validation error shown in the settings footer while editing. */
+  editError?: string;
   enumOpen: boolean;
   enumIndex: number;
   /** Snapshot of raw mixcode settings; mutated in place on write. */
