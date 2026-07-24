@@ -332,14 +332,17 @@ function projectName(tab: MixCodeState["tabs"][number]): string {
   return tab.workdir.split("/").filter(Boolean).pop() ?? tab.workdir;
 }
 
-function formatTabUpdated(tab: MixCodeState["tabs"][number]): string {
-  if (tab.lastWorkedDurationSeconds !== undefined && tab.lastWorkedDurationSeconds > 0) {
-    const secs = tab.lastWorkedDurationSeconds;
-    if (secs < 60) return `${secs}s ago`;
-    return `${Math.floor(secs / 60)}m ago`;
-  }
+/** Relative recency for Home cards from lastWorkedAt — not run duration. */
+function formatTabUpdated(tab: MixCodeState["tabs"][number], now = new Date()): string {
   if (tab.status === "running" || tab.status === "thinking") return "now";
-  return "—";
+  if (!tab.lastWorkedAt) return "—";
+  const at = Date.parse(tab.lastWorkedAt);
+  if (!Number.isFinite(at)) return "—";
+  const secs = Math.max(0, Math.floor((now.getTime() - at) / 1000));
+  if (secs < 60) return `${secs}s ago`;
+  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
+  if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`;
+  return `${Math.floor(secs / 86400)}d ago`;
 }
 
 function latestAssistantPreview(tab: MixCodeState["tabs"][number]): string {

@@ -171,6 +171,22 @@ test("#78 Home card shows unread-done chip and non-assistant preview", () => {
   assert.match(plain, /hello from bash/);
 });
 
+test("Home card Updated uses lastWorkedAt recency, not run duration", () => {
+  const state = createInitialState("/repo");
+  // Run lasted 3 minutes, but work finished ~5 seconds ago.
+  const tab = createTab(1, "s1", "/repo", {
+    title: "Agent-01",
+    status: "idle",
+    lastWorkedDurationSeconds: 180,
+    lastWorkedAt: new Date(Date.now() - 5_000).toISOString(),
+  });
+  state.tabs.push(tab);
+  state.activeTabId = "config";
+  const plain = stripAnsi(renderConfig(state, 100).join("\n"));
+  assert.match(plain, /Updated [0-5]s ago/);
+  assert.doesNotMatch(plain, /Updated 3m ago/);
+});
+
 test("#88 tree ctrl+d resets filter to default", () => {
   const state = createInitialState("/repo");
   state.treeSelector = createTreeSelectorState();
