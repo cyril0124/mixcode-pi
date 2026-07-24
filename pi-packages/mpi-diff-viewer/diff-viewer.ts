@@ -192,10 +192,12 @@ const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: "grapheme
 const wordSegmenter = new Intl.Segmenter("en", { granularity: "word" });
 const hanPattern = /\p{Script=Han}/u;
 const trailingAnsiPattern = /(?:\x1b\[[0-?]*[ -/]*[@-~])+$/;
-// Delta uses a brighter semantic block inside each dark added/removed row.
-const deltaAddedHighlightBg = "\x1b[48;5;28m";
-const deltaRemovedHighlightBg = "\x1b[48;5;88m";
-const deltaHighlightFg = "\x1b[38;5;255m";
+// Sampled from delta's reference image: muted rows with a lighter semantic block.
+const deltaAddedRowBg = "\x1b[48;2;12;39;5m";
+const deltaRemovedRowBg = "\x1b[48;2;57;5;4m";
+const deltaAddedHighlightBg = "\x1b[48;2;40;94;23m";
+const deltaRemovedHighlightBg = "\x1b[48;2;132;31;26m";
+const deltaHighlightFg = "\x1b[38;2;228;229;222m";
 
 function splitGraphemes(text: string): string[] {
   return Array.from(graphemeSegmenter.segment(text), ({ segment }) => segment);
@@ -387,7 +389,7 @@ function styleIntraLineDiffSide(
     if (run.changed) {
       const plainText = text.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "");
       const highlightBg = side === "old" ? deltaRemovedHighlightBg : deltaAddedHighlightBg;
-      const rowBg = theme.getBgAnsi(side === "old" ? "toolErrorBg" : "toolSuccessBg");
+      const rowBg = side === "old" ? deltaRemovedRowBg : deltaAddedRowBg;
       rendered += `${highlightBg}${deltaHighlightFg}${theme.bold(plainText)}\x1b[39m${rowBg}`;
     } else {
       rendered += text;
@@ -640,8 +642,8 @@ export class DiffViewer {
   }
 
   private applyTone(line: string, tone: Tone): string {
-    if (tone === "added") return this.config.theme.bg("toolSuccessBg", line);
-    if (tone === "removed") return this.config.theme.bg("toolErrorBg", line);
+    if (tone === "added") return `${deltaAddedRowBg}${line}\x1b[49m`;
+    if (tone === "removed") return `${deltaRemovedRowBg}${line}\x1b[49m`;
     return line;
   }
 

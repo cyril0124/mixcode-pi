@@ -10,8 +10,12 @@ const theme = {
   bold: (text: string) => `\x1b[1m${text}\x1b[22m`,
   underline: (text: string) => `\x1b[4m${text}\x1b[24m`,
   inverse: (text: string) => `\x1b[7m${text}\x1b[27m`,
-  getBgAnsi: (color: string) => (color === "toolErrorBg" ? "\x1b[48;5;52m" : "\x1b[48;5;22m"),
 };
+
+const addedRowBgPattern = "\\x1b\\[48;2;12;39;5m";
+const removedRowBgPattern = "\\x1b\\[48;2;57;5;4m";
+const addedHighlightBgPattern = "\\x1b\\[48;2;40;94;23m";
+const removedHighlightBgPattern = "\\x1b\\[48;2;132;31;26m";
 
 function file(path: string, rows: DiffRow[], status: DiffFile["status"] = "modified"): DiffFile {
   const additions = rows.filter((row) => row.kind === "insert" || row.kind === "replace").length;
@@ -127,8 +131,10 @@ test("replace rows highlight English identifiers as whole words", () => {
   component.handleInput("s");
   const output = component.render(120).join("\n");
 
-  assert.deepEqual(styledSpans(output, "\\x1b\\[48;5;88m", "\\x1b\\[48;5;52m"), ["abc123xyz"]);
-  assert.deepEqual(styledSpans(output, "\\x1b\\[48;5;28m", "\\x1b\\[48;5;22m"), ["abc923xyq"]);
+  assert.deepEqual(styledSpans(output, removedHighlightBgPattern, removedRowBgPattern), [
+    "abc123xyz",
+  ]);
+  assert.deepEqual(styledSpans(output, addedHighlightBgPattern, addedRowBgPattern), ["abc923xyq"]);
   assert.doesNotMatch(output, /\x1b\[(?:1;)?7m/);
   assert.match(output, /\x1b\[36m/);
   assert.ok(styledSpans(output, "\\x1b\\[4m", "\\x1b\\[24m").includes("src/changed.ts"));
@@ -160,8 +166,12 @@ test("adjacent changed words include connecting whitespace in one delta block", 
 
   const output = component.render(120).join("\n");
 
-  assert.deepEqual(styledSpans(output, "\\x1b\\[48;5;88m", "\\x1b\\[48;5;52m"), ["alpha beta"]);
-  assert.deepEqual(styledSpans(output, "\\x1b\\[48;5;28m", "\\x1b\\[48;5;22m"), ["gamma delta"]);
+  assert.deepEqual(styledSpans(output, removedHighlightBgPattern, removedRowBgPattern), [
+    "alpha beta",
+  ]);
+  assert.deepEqual(styledSpans(output, addedHighlightBgPattern, addedRowBgPattern), [
+    "gamma delta",
+  ]);
 });
 
 test("replace rows highlight Chinese text one grapheme at a time", () => {
@@ -183,8 +193,8 @@ test("replace rows highlight Chinese text one grapheme at a time", () => {
 
   const output = component.render(120).join("\n");
 
-  assert.deepEqual(styledSpans(output, "\\x1b\\[48;5;88m", "\\x1b\\[48;5;52m"), ["世"]);
-  assert.deepEqual(styledSpans(output, "\\x1b\\[48;5;28m", "\\x1b\\[48;5;22m"), ["视"]);
+  assert.deepEqual(styledSpans(output, removedHighlightBgPattern, removedRowBgPattern), ["世"]);
+  assert.deepEqual(styledSpans(output, addedHighlightBgPattern, addedRowBgPattern), ["视"]);
 });
 
 test("cold files batch syntax highlighting once per side", () => {
