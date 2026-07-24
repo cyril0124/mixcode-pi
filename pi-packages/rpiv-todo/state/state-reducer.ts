@@ -14,7 +14,7 @@ import { detectCycle } from "./task-graph.js";
  */
 export type Op =
 	| { kind: "create"; taskId: number }
-	| { kind: "update"; id: number; fromStatus: TaskStatus; toStatus: TaskStatus; changed: boolean }
+	| { kind: "update"; id: number; fromStatus: TaskStatus; toStatus: TaskStatus }
 	| { kind: "delete"; id: number; subject: string }
 	| { kind: "list"; statusFilter?: TaskStatus; includeDeleted: boolean }
 	| { kind: "get"; task: Task }
@@ -28,28 +28,6 @@ export interface ApplyResult {
 
 function errorResult(state: TaskState, message: string): ApplyResult {
 	return { state, op: { kind: "error", message } };
-}
-
-function sameNumberList(a: number[] | undefined, b: number[] | undefined): boolean {
-	const x = a ?? [];
-	const y = b ?? [];
-	return x.length === y.length && x.every((value, index) => value === y[index]);
-}
-
-function sameRecord(a: Record<string, unknown> | undefined, b: Record<string, unknown> | undefined): boolean {
-	return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
-}
-
-function taskChanged(before: Task, after: Task): boolean {
-	return (
-		before.subject !== after.subject ||
-		before.status !== after.status ||
-		before.description !== after.description ||
-		before.activeForm !== after.activeForm ||
-		before.owner !== after.owner ||
-		!sameNumberList(before.blockedBy, after.blockedBy) ||
-		!sameRecord(before.metadata, after.metadata)
-	);
 }
 
 /**
@@ -161,13 +139,7 @@ export function applyTaskMutation(state: TaskState, action: TaskAction, params: 
 			newTasks[idx] = updated;
 			return {
 				state: { tasks: newTasks, nextId: state.nextId },
-				op: {
-					kind: "update",
-					id: updated.id,
-					fromStatus: current.status,
-					toStatus: newStatus,
-					changed: taskChanged(current, updated),
-				},
+				op: { kind: "update", id: updated.id, fromStatus: current.status, toStatus: newStatus },
 			};
 		}
 

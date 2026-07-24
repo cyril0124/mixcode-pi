@@ -1,8 +1,8 @@
 {
   "name": "rpiv-todo",
-  "version": "2.1.0-mixcode.1",
+  "version": "1.20.0",
   "type": "module",
-  "description": "A todo list with upstream 2.1 UX updates and per-session state/overlay isolation across MixCode tabs.",
+  "description": "A todo list for the model, rendered as a live overlay. Vendored from @juicesharp/rpiv-todo and patched for per-session state isolation across MixCode tabs.",
   "license": "MIT",
   "pi": {
     "extensions": ["./index.ts"]

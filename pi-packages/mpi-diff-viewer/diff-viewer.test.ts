@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { visibleWidth } from "@earendil-works/pi-tui";
-import { createDiffViewerComponent } from "./diff-viewer.js";
+import { createDiffViewerComponent, type ReviewEditor } from "./diff-viewer.js";
+import type { ReviewDraft } from "./review.js";
 import type { DiffFile, DiffRow, SessionDiff } from "./session-diff.js";
 
 const theme = {
@@ -79,6 +80,21 @@ function styledSpans(output: string, open: string, close: string): string[] {
   return Array.from(output.matchAll(pattern), (match) => stripAnsi(match[1]!));
 }
 
+function createEditor(): ReviewEditor {
+  let text = "";
+  return {
+    getText: () => text,
+    setText: (value) => {
+      text = value;
+    },
+    handleInput: (data) => {
+      if (data === "\x7f") text = text.slice(0, -1);
+      else text += data;
+    },
+    render: () => [text],
+  };
+}
+
 function createViewer(
   diff = fixture(),
   columns = 120,
@@ -87,6 +103,7 @@ function createViewer(
 ) {
   let closed = 0;
   let renders = 0;
+  const submissions: ReviewDraft[] = [];
   const component = createDiffViewerComponent({
     tui: {
       terminal: { columns, rows },
@@ -94,10 +111,14 @@ function createViewer(
     },
     theme: theme as never,
     diff,
-    done: () => closed++,
+    done: (result) => {
+      closed++;
+      if (result) submissions.push(result);
+    },
     highlight,
+    editor: createEditor(),
   });
-  return { component, closed: () => closed, renders: () => renders };
+  return { component, closed: () => closed, renders: () => renders, submissions };
 }
 
 test("wide view opens side-by-side and every rendered row fits", () => {
@@ -128,7 +149,7 @@ test("replace rows highlight English identifiers as whole words", () => {
     (text) => `\x1b[36m${text}\x1b[39m`,
   );
 
-  component.handleInput("s");
+  component.handleInput("v");
   const output = component.render(120).join("\n");
 
   assert.deepEqual(styledSpans(output, removedHighlightBgPattern, removedRowBgPattern), [
@@ -286,7 +307,7 @@ test("footer stays within the runtime-provided overlay row budget", () => {
   const lines = component.render(80);
 
   assert.equal(lines.length, 18);
-  assert.match(lines.at(-1) ?? "", /j\/k files/);
+  assert.match(lines.at(-1) ?? "", /j\/k tree|j\/k files/);
 });
 
 test("navigator renders changed files as a compact diffnav-style tree", () => {
@@ -321,7 +342,7 @@ test("n selects the next changed file", () => {
   assert.match(stripAnsi(component.render(120).join("\n")), /src\/beta\.ts/);
 });
 
-test("j/k follow the rendered tree order when input paths are interleaved", () => {
+test("j/k walk every tree node and n/p skip directories", () => {
   const a = file("src/a.ts", [
     {
       kind: "replace",
@@ -360,22 +381,273 @@ test("j/k follow the rendered tree order when input paths are interleaved", () =
   assert.ok(tree.indexOf("a.ts") < tree.indexOf("c.ts"));
   assert.ok(tree.indexOf("c.ts") < tree.indexOf("b.ts"));
 
+  // Tree order: / → src → a.ts → c.ts → test → b.ts. Start on first file a.ts.
   component.handleInput("j");
   assert.match(stripAnsi(component.render(120).join("\n")), /src\/c\.ts/);
   component.handleInput("j");
+  assert.match(stripAnsi(component.render(120).join("\n")), / test|│ test/);
+  component.handleInput("n");
   assert.match(stripAnsi(component.render(120).join("\n")), /test\/b\.ts/);
-  component.handleInput("k");
+  component.handleInput("p");
   assert.match(stripAnsi(component.render(120).join("\n")), /src\/c\.ts/);
 });
 
-test("s switches between side-by-side and unified diff", () => {
+test("selecting a directory shows every descendant file diff with path headers", () => {
+  const a = file("src/a.ts", [
+    {
+      kind: "replace",
+      oldLineNumber: 1,
+      newLineNumber: 1,
+      oldText: "a-before",
+      newText: "a-after",
+    },
+  ]);
+  const b = file("test/b.ts", [
+    {
+      kind: "replace",
+      oldLineNumber: 1,
+      newLineNumber: 1,
+      oldText: "b-before",
+      newText: "b-after",
+    },
+  ]);
+  const c = file("src/c.ts", [
+    {
+      kind: "replace",
+      oldLineNumber: 1,
+      newLineNumber: 1,
+      oldText: "c-before",
+      newText: "c-after",
+    },
+  ]);
+  const { component } = createViewer({
+    files: [a, b, c],
+    additions: 3,
+    deletions: 3,
+    trackedFiles: 3,
+  });
+
+  // From a.ts, k moves to the parent src directory.
+  component.handleInput("k");
+  const output = stripAnsi(component.render(120).join("\n"));
+  assert.match(output, /src\/a\.ts/);
+  assert.match(output, /src\/c\.ts/);
+  assert.match(output, /a-before/);
+  assert.match(output, /c-before/);
+  assert.doesNotMatch(output, /b-before/);
+});
+
+test("comment mode saves a DISCUSS comment on the selected changed line by default", () => {
   const { component } = createViewer();
 
-  component.handleInput("s");
+  component.handleInput("c");
+  assert.match(stripAnsi(component.render(120).join("\n")), /Comment mode.*deleted 1/);
+  component.handleInput("\r");
+  assert.match(stripAnsi(component.render(120).join("\n")), /Edit DISCUSS comment/);
+  for (const character of "Handle null input.") component.handleInput(character);
+  component.handleInput("\r");
+
+  const output = stripAnsi(component.render(120).join("\n"));
+  assert.match(output, /alpha\.ts\s+1●/);
+  assert.match(output, /●.*const value = 1/);
+});
+
+test("V creates a same-side range and Review lists its DISCUSS comment", () => {
+  const ranged = file("src/range.ts", [
+    { kind: "insert", newLineNumber: 10, oldText: "", newText: "first();" },
+    { kind: "insert", newLineNumber: 11, oldText: "", newText: "second();" },
+  ]);
+  const { component } = createViewer({
+    files: [ranged],
+    additions: 2,
+    deletions: 0,
+    trackedFiles: 1,
+  });
+
+  component.handleInput("c");
+  component.handleInput("V");
+  component.handleInput("j");
+  component.handleInput("\r");
+  for (const character of "Can these be combined?") component.handleInput(character);
+  component.handleInput("\r");
+  component.handleInput("\x1b");
+  component.handleInput("r");
+
+  const output = stripAnsi(component.render(120).join("\n"));
+  assert.match(output, /Review comments/);
+  assert.match(output, /DISCUSS.*src\/range\.ts:10-11 \(added\)/);
+  assert.match(output, /Can these be combined\?/);
+});
+
+test("side-by-side arrows select the added side of the same changed row", () => {
+  const { component } = createViewer();
+
+  component.handleInput("c");
+  component.handleInput("\x1b[C");
+
+  assert.match(stripAnsi(component.render(120).join("\n")), /Comment mode.*added 1/);
+});
+
+test("comment cursor keeps the selected changed line visible", () => {
+  const rows = Array.from(
+    { length: 30 },
+    (_, index): DiffRow => ({
+      kind: "insert",
+      newLineNumber: index + 1,
+      oldText: "",
+      newText: `target-${index + 1}`,
+    }),
+  );
+  const longFile = file("src/long.ts", rows, "added");
+  const { component } = createViewer(
+    { files: [longFile], additions: 30, deletions: 0, trackedFiles: 1 },
+    100,
+    16,
+  );
+
+  component.handleInput("c");
+  for (let index = 0; index < 20; index++) component.handleInput("j");
+  const output = stripAnsi(component.render(100).join("\n"));
+
+  assert.match(output, /Comment mode.*added 21/);
+  assert.match(output, /target-21/);
+  assert.doesNotMatch(output, /target-1\b/);
+});
+
+test("comment selection skips context lines and ranges cannot cross hunks", () => {
+  const twoHunks: DiffFile = {
+    path: "src/hunks.ts",
+    status: "modified",
+    additions: 2,
+    deletions: 0,
+    hunks: [
+      {
+        header: "@@ -1,1 +1,2 @@ first",
+        oldStart: 1,
+        oldCount: 1,
+        newStart: 1,
+        newCount: 2,
+        rows: [
+          { kind: "insert", newLineNumber: 1, oldText: "", newText: "first();" },
+          {
+            kind: "equal",
+            oldLineNumber: 1,
+            newLineNumber: 2,
+            oldText: "keep();",
+            newText: "keep();",
+          },
+        ],
+      },
+      {
+        header: "@@ -9,1 +10,2 @@ second",
+        oldStart: 9,
+        oldCount: 1,
+        newStart: 10,
+        newCount: 2,
+        rows: [{ kind: "insert", newLineNumber: 10, oldText: "", newText: "second();" }],
+      },
+    ],
+  };
+  const { component } = createViewer({
+    files: [twoHunks],
+    additions: 2,
+    deletions: 0,
+    trackedFiles: 1,
+  });
+
+  component.handleInput("c");
+  component.handleInput("V");
+  component.handleInput("j");
+
+  assert.match(stripAnsi(component.render(120).join("\n")), /Comment mode.*added 1/);
+});
+
+test("Review x deletes the selected comment and clears its markers", () => {
+  const { component } = createViewer();
+
+  component.handleInput("l");
+  for (const character of "Remove this later.") component.handleInput(character);
+  component.handleInput("\r");
+  component.handleInput("r");
+  component.handleInput("x");
+
+  const output = stripAnsi(component.render(120).join("\n"));
+  assert.match(output, /No comments yet\./);
+  assert.doesNotMatch(output, /alpha\.ts\s+1●/);
+});
+
+test("file and entire-diff comments require confirmation before discard", () => {
+  const { component, closed } = createViewer();
+
+  component.handleInput("l");
+  for (const character of "Keep this module small.") component.handleInput(character);
+  component.handleInput("\r");
+  component.handleInput("a");
+  for (const character of "Preserve the public API.") component.handleInput(character);
+  component.handleInput("\r");
+  component.handleInput("q");
+
+  assert.equal(closed(), 0);
+  assert.match(stripAnsi(component.render(120).join("\n")), /Discard 2 review comments/);
+  component.handleInput("\r");
+  assert.equal(closed(), 0);
+  component.handleInput("q");
+  component.handleInput("d");
+  assert.equal(closed(), 1);
+});
+
+test("v switches between side-by-side and unified diff", () => {
+  const { component } = createViewer();
+
+  component.handleInput("v");
   const output = component.render(120).join("\n");
 
   assert.match(output, /unified/);
   assert.doesNotMatch(output, /Deleted \/ Old/);
+});
+
+test("s submits the complete review draft", () => {
+  const { component, submissions, closed } = createViewer();
+
+  component.handleInput("c");
+  component.handleInput("\x1b[C");
+  component.handleInput("\r");
+  for (const character of "Use the parsed value.") component.handleInput(character);
+  component.handleInput("\r");
+  component.handleInput("s");
+
+  assert.equal(closed(), 1);
+  assert.deepEqual(submissions, [
+    {
+      comments: [
+        {
+          target: {
+            kind: "line",
+            path: "src/alpha.ts",
+            side: "new",
+            startLine: 1,
+            endLine: 1,
+            code: ["const value = 2;"],
+          },
+          intent: "discuss",
+          body: "Use the parsed value.",
+        },
+      ],
+    },
+  ]);
+});
+
+test("Shift+Enter inserts a newline in the embedded comment editor", () => {
+  const { component, submissions } = createViewer();
+
+  component.handleInput("l");
+  for (const character of "First line") component.handleInput(character);
+  component.handleInput("\x1b[13;2u");
+  for (const character of "Second line") component.handleInput(character);
+  component.handleInput("\r");
+  component.handleInput("s");
+
+  assert.equal(submissions[0]?.comments[0]?.body, "First line\nSecond line");
 });
 
 test("e hides the navigator and gives the diff the full width", () => {
@@ -386,6 +658,21 @@ test("e hides the navigator and gives the diff the full width", () => {
 
   assert.doesNotMatch(output, /Navigator/);
   assert.match(stripAnsi(output), /src\/alpha\.ts/);
+});
+
+test("file filtering accepts s characters while review comments exist", () => {
+  const { component, closed, submissions } = createViewer();
+
+  component.handleInput("l");
+  for (const character of "Keep this file.") component.handleInput(character);
+  component.handleInput("\r");
+  component.handleInput("t");
+  for (const character of "session") component.handleInput(character);
+
+  const output = stripAnsi(component.render(120).join("\n"));
+  assert.match(output, /Filter: session_/);
+  assert.equal(closed(), 0);
+  assert.deepEqual(submissions, []);
 });
 
 test("t filters files and keeps the selected match", () => {
@@ -399,6 +686,31 @@ test("t filters files and keeps the selected match", () => {
   assert.match(output, /Filter: beta/);
   assert.match(stripAnsi(output), /src\/beta\.ts/);
   assert.doesNotMatch(output, /src\/alpha\.ts/);
+});
+
+test("comment mode Ctrl+D/U jumps the selected changed line by half a page", () => {
+  const rows = Array.from(
+    { length: 30 },
+    (_, index): DiffRow => ({
+      kind: "insert",
+      newLineNumber: index + 1,
+      oldText: "",
+      newText: `target-${index + 1}`,
+    }),
+  );
+  const longFile = file("src/long.ts", rows, "added");
+  const { component } = createViewer(
+    { files: [longFile], additions: 30, deletions: 0, trackedFiles: 1 },
+    100,
+    16,
+  );
+
+  component.handleInput("c");
+  assert.match(stripAnsi(component.render(100).join("\n")), /Comment mode.*added 1/);
+  component.handleInput("\x04");
+  assert.match(stripAnsi(component.render(100).join("\n")), /Comment mode.*added (?:[5-9]|1[0-9])/);
+  component.handleInput("\x15");
+  assert.match(stripAnsi(component.render(100).join("\n")), /Comment mode.*added 1/);
 });
 
 test("Ctrl+D and Ctrl+U scroll the diff viewport by half a page", () => {
@@ -439,4 +751,46 @@ test("help closes independently and q exits the viewer", () => {
   component.handleInput("q");
 
   assert.equal(closed(), 1);
+});
+
+test("comment mode Enter/x reuse a covering range comment", () => {
+  const ranged = file("src/range.ts", [
+    { kind: "insert", newLineNumber: 10, oldText: "", newText: "first();" },
+    { kind: "insert", newLineNumber: 11, oldText: "", newText: "second();" },
+  ]);
+  const { component } = createViewer({
+    files: [ranged],
+    additions: 2,
+    deletions: 0,
+    trackedFiles: 1,
+  });
+
+  component.handleInput("c");
+  component.handleInput("V");
+  component.handleInput("j");
+  component.handleInput("\r");
+  for (const character of "Can these be combined?") component.handleInput(character);
+  component.handleInput("\r");
+
+  // Leave the range anchor, move to the first covered line, and reopen the same comment.
+  component.handleInput("k");
+  component.handleInput("\r");
+  assert.match(stripAnsi(component.render(120).join("\n")), /Edit DISCUSS comment/);
+  assert.match(stripAnsi(component.render(120).join("\n")), /Can these be combined\?/);
+  for (const character of "!") component.handleInput(character);
+  component.handleInput("\r");
+
+  component.handleInput("x");
+  assert.doesNotMatch(stripAnsi(component.render(120).join("\n")), /●/);
+  component.handleInput("\x1b");
+  component.handleInput("r");
+  assert.match(stripAnsi(component.render(120).join("\n")), /No comments yet\./);
+});
+
+test("help yields to comment editor instead of trapping input", () => {
+  const { component } = createViewer();
+  component.handleInput("?");
+  assert.match(stripAnsi(component.render(120).join("\n")), /j\/k or/);
+  component.handleInput("l");
+  assert.match(stripAnsi(component.render(120).join("\n")), /Edit DISCUSS comment/);
 });

@@ -70,20 +70,19 @@ export function overlayStatusGlyph(status: TaskStatus, theme: Theme): string {
  */
 export function formatOverlayTaskLine(t: Task, theme: Theme, showId: boolean): string {
 	const glyph = overlayStatusGlyph(t.status, theme);
-	const subjectColor =
-		t.status === "in_progress" ? "accent" : t.status === "completed" || t.status === "deleted" ? "muted" : "text";
+	const subjectColor = t.status === "completed" || t.status === "deleted" ? "dim" : "text";
 	let subject = theme.fg(subjectColor, t.subject);
 	if (t.status === "completed" || t.status === "deleted") {
 		subject = theme.strikethrough(subject);
 	}
 	let line = `${glyph}`;
-	if (showId) line += ` ${theme.fg("dim", `#${t.id}`)}`;
+	if (showId) line += ` ${theme.fg("accent", `#${t.id}`)}`;
 	line += ` ${subject}`;
 	if (t.status === "in_progress" && t.activeForm) {
-		line += ` ${theme.fg("muted", `(${t.activeForm})`)}`;
+		line += ` ${theme.fg("dim", `(${t.activeForm})`)}`;
 	}
 	if (t.blockedBy && t.blockedBy.length > 0) {
-		line += ` ${theme.fg("muted", `⛓ ${t.blockedBy.map((id) => `#${id}`).join(",")}`)}`;
+		line += ` ${theme.fg("dim", `⛓ ${t.blockedBy.map((id) => `#${id}`).join(",")}`)}`;
 	}
 	return line;
 }

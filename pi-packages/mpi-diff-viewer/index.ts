@@ -1,5 +1,6 @@
 import type { ExtensionCommandContext, ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import { openDiffViewer } from "./diff-viewer.js";
+import { composeReviewPrompt } from "./review.js";
 import { buildSessionDiff, type SessionEntry } from "./session-diff.js";
 
 function userMessageIndexes(entries: SessionEntry[]): number[] {
@@ -50,7 +51,14 @@ async function showDiff(
     return;
   }
 
-  await openDiffViewer(diff, ctx);
+  const review = await openDiffViewer(diff, ctx);
+  if (!review) return;
+  const prompt = composeReviewPrompt(review);
+  const existing = ctx.ui.getEditorText?.() ?? "";
+  ctx.ui.setEditorText(
+    existing.trim() ? `${existing.replace(/\s*$/, "")}\n\n${prompt}` : prompt,
+  );
+  ctx.ui.notify("Inserted review feedback into the editor.", "info");
 }
 
 const extension: ExtensionFactory = (pi) => {
