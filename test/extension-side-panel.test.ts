@@ -184,10 +184,10 @@ test("open panel shows a dim hint on how to close it", () => {
   assert.doesNotMatch(closed.join("\n"), /\u2192 to close/);
 });
 
-test("panel shows more than the editor-area line cap (no host truncation marker)", () => {
+test("panel shows full live widget output without a truncation marker", () => {
   // A widget whose render() honors the maxLines budget, like real callback
-  // widgets. With 18 lines it would hit the editor's 10-line cap, but the tall
-  // panel must show them all and never emit the host "widget truncated" marker.
+  // widgets. The tall panel must show all 18 lines; its own scroll window is
+  // the only visible-height limit.
   const bigLines = Array.from({ length: 18 }, (_, i) => `panel-item-${i + 1}`);
   const state = makeState({
     panelOpen: true,

@@ -1,8 +1,10 @@
 # rpiv-todo (vendored)
 
-This package is vendored from the upstream open-source extension
-**`@juicesharp/rpiv-todo`** (version `1.20.0`) and is now maintained
-in-tree.
+This package was vendored from the upstream open-source extension
+**`@juicesharp/rpiv-todo`** at version `1.20.0` and is now maintained
+in-tree. The current in-tree version is `2.1.0-mixcode.1`: selected
+user-facing runtime updates from upstream `2.1.0` are ported on top of the
+MixCode-specific session isolation patch.
 
 ## Attribution
 
@@ -41,3 +43,27 @@ session keeps its own independent todo list. Search for `ponytail:` and
 - `todo.ts` — the `todo` tool and `/todos` command resolve the session id from
   their execution context before reading/writing state.
 - `config.ts` — imports the vendored `rpiv-config` instead of the npm package.
+
+## Ported from upstream 2.1.0
+
+- Configurable overlay height via `maxWidgetLines`.
+- Per-tab collapse/expand shortcut via `collapseKey` (default `ctrl+shift+t`).
+- Clear `No change` feedback for no-op updates.
+- Updated overlay colors, theme refresh behavior, and localized collapse labels.
+
+Configuration lives at `~/.config/rpiv-todo/config.json`:
+
+```json
+{
+  "maxWidgetLines": 12,
+  "collapseKey": "ctrl+shift+t"
+}
+```
+
+`maxWidgetLines` counts content rows including the heading, defaults to `12`,
+and must be at least `3`. `collapseKey` accepts Pi keybinding strings such as
+`alt+o`; set it to `"off"` to register no collapse shortcut. Key changes take
+effect after `/reload`, while height changes apply on the next repaint.
+
+The upstream single-foreground overlay policy is intentionally not ported;
+MixCode keeps one `TodoOverlay` per session so every tab has its own widget.

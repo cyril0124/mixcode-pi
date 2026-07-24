@@ -3,8 +3,8 @@
  *
  * Lifecycle controller for Pi's `setWidget` contract: factory-form
  * registration in widgetContainerAbove, register-once + requestRender()
- * refresh, 12-line collapse-not-scroll (plus a trailing spacer row, so the
- * widget renders up to 13 lines), auto-hide when empty.
+ * refresh, configurable collapse-not-scroll (default 12 content rows plus a
+ * trailing spacer), auto-hide when empty.
  *
  * Reads live state via `getState()` at render time — NEVER `replayFromBranch`
  * from `tool_execution_end` (branch is stale; `message_end` runs after).
@@ -12,19 +12,19 @@
 
 import type { ExtensionUIContext, Theme } from "@earendil-works/pi-coding-agent";
 import { type TUI, truncateToWidth } from "@earendil-works/pi-tui";
+import { COLLAPSE_KEY_OFF, getMaxWidgetLines, resolveCollapseKey } from "./config.js";
 import { formatStatusLabel, t } from "./state/i18n-bridge.js";
 import { selectHasActive, selectOverlayLayout, selectShowTaskIds, selectTodoCounts } from "./state/selectors.js";
 import { getState } from "./state/store.js";
 import { formatOverlayTaskLine } from "./view/format.js";
 
 const WIDGET_KEY = "rpiv-todos";
-// Budget for content rows (heading + tasks/summary). The rendered widget is
-// one line taller — withTrailingSpacer() appends a blank row below the panel.
-const MAX_WIDGET_LINES = 12;
 
 // English fallbacks for localized overlay chrome strings.
 const OVERLAY_HEADING = "Todos";
 const OVERLAY_MORE = "more";
+const OVERLAY_EXPAND_HINT = "{key} to expand";
+const OVERLAY_COLLAPSED = "collapsed";
 
 export class TodoOverlay {
 	// The overlay reads its session's state cell at render time. One overlay is
@@ -36,6 +36,7 @@ export class TodoOverlay {
 	private completedTaskIdsPendingHide = new Set<number>();
 	private hiddenCompletedTaskIds = new Set<number>();
 	private lastNextId: number | undefined;
+	private collapsed = false;
 
 	constructor(sessionId: string) {
 		this.sessionId = sessionId;
@@ -68,13 +69,12 @@ export class TodoOverlay {
 		if (!this.widgetRegistered) {
 			this.uiCtx.setWidget(
 				WIDGET_KEY,
-				(tui, theme) => {
+				(tui, factoryTheme) => {
 					this.tui = tui;
 					return {
-						render: (width: number) => this.renderWidget(theme, width),
+						render: (width: number) => this.renderWidget(this.uiCtx?.theme ?? factoryTheme, width),
 						invalidate: () => {
-							this.widgetRegistered = false;
-							this.tui = undefined;
+							// Render reads the current UI theme; no cached state needs invalidation.
 						},
 					};
 				},
@@ -84,6 +84,15 @@ export class TodoOverlay {
 		} else {
 			this.tui?.requestRender();
 		}
+	}
+
+	toggleCollapse(): void {
+		this.collapsed = !this.collapsed;
+		this.tui?.requestRender(true);
+	}
+
+	isRegistered(): boolean {
+		return this.widgetRegistered;
 	}
 
 	resetCompletedDisplayState(): void {
@@ -143,8 +152,17 @@ export class TodoOverlay {
 		const headingText = `${t("overlay.heading", OVERLAY_HEADING)} (${counts.completed}/${counts.total})`;
 		const heading = truncate(`${theme.fg(headingColor, headingIcon)} ${theme.fg(headingColor, headingText)}`);
 
+		if (this.collapsed) {
+			const key = resolveCollapseKey();
+			const hint =
+				key === COLLAPSE_KEY_OFF
+					? t("overlay.collapsed", OVERLAY_COLLAPSED)
+					: t("overlay.expandHint", OVERLAY_EXPAND_HINT).replace("{key}", key);
+			return this.withTrailingSpacer([heading, truncate(`${theme.fg("dim", "└─")} ${theme.fg("dim", hint)}`)]);
+		}
+
 		const lines: string[] = [heading];
-		const layout = selectOverlayLayout(overlayState, MAX_WIDGET_LINES - 1);
+		const layout = selectOverlayLayout(overlayState, getMaxWidgetLines() - 1);
 		for (const task of layout.visible) {
 			lines.push(truncate(`${theme.fg("dim", "├─")} ${formatOverlayTaskLine(task, theme, showIds)}`));
 		}
@@ -196,6 +214,7 @@ export class TodoOverlay {
 		this.widgetRegistered = false;
 		this.tui = undefined;
 		this.uiCtx = undefined;
+		this.collapsed = false;
 		this.resetCompletedDisplayState();
 	}
 }

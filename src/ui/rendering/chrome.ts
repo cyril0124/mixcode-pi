@@ -521,8 +521,7 @@ function renderExtensionPanelInner(
   const content: string[] = [];
   ordered.forEach((widget, index) => {
     if (index > 0) content.push(blank);
-    // The panel scrolls, so render each widget's full content (not the host's
-    // 10-line editor-area cap). Pass a generous line budget that no real widget
+    // The panel scrolls, so pass a generous line budget that no real widget
     // reaches; the scroll window below bounds what is actually shown.
     const widgetLines =
       widget.render?.(bodyWidth, EXTENSION_PANEL_WIDGET_LINE_BUDGET) ??

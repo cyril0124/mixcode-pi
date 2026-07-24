@@ -204,22 +204,15 @@ function renderExtensionLines(component: Component, width: number, maxLines?: nu
   }
 }
 
-// Default editor-area cap: a single widget stacked around the editor may not
-// dominate the viewport, so it is clipped with a visible "truncated" marker.
-const DEFAULT_WIDGET_MAX_LINES = 10;
-
 function limitExtensionWidgetLines(lines: string[], maxLines?: number): string[] {
   // Keep blank lines: factory widgets (e.g. pi-subagents FleetView) use them as
   // intentional vertical separators. Pi's native widget Container preserves
-  // every rendered row, so mixcode must not collapse interior blanks away —
-  // only normalize embedded control chars to spaces.
+  // every rendered row, so MixCode preserves them here too; app-layout applies
+  // one viewport-aware budget across all editor widgets to protect chat/editor.
   const normalized = lines.map((line) => line.replace(/[\r\n\t]+/g, " "));
+  if (maxLines === undefined) return normalized;
   // Caller-provided budget (e.g. the side panel): clip silently and let the
   // caller render its own overflow indicator, avoiding a double marker.
-  if (maxLines !== undefined) {
-    const budget = Math.max(0, Math.floor(maxLines));
-    return normalized.length <= budget ? normalized : normalized.slice(0, budget);
-  }
-  if (normalized.length <= DEFAULT_WIDGET_MAX_LINES) return normalized;
-  return [...normalized.slice(0, DEFAULT_WIDGET_MAX_LINES), "... (widget truncated)"];
+  const budget = Math.max(0, Math.floor(maxLines));
+  return normalized.length <= budget ? normalized : normalized.slice(0, budget);
 }

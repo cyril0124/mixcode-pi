@@ -356,10 +356,9 @@ test("runtime maps supported pi extension UI primitives into MixCode tab state",
       renderExtensionWidgets(runtimeTab.tab, 100, "aboveEditor").join("\n"),
       /above widget/,
     );
-    assert.match(
-      renderExtensionWidgets(runtimeTab.tab, 100, "aboveEditor").join("\n"),
-      /widget truncated/,
-    );
+    const aboveWidgets = renderExtensionWidgets(runtimeTab.tab, 100, "aboveEditor").join("\n");
+    assert.match(aboveWidgets, /line-11/);
+    assert.doesNotMatch(aboveWidgets, /widget truncated/);
     assert.match(
       renderExtensionWidgets(runtimeTab.tab, 100, "belowEditor").join("\n"),
       /below widget/,
