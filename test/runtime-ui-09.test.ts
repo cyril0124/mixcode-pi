@@ -684,7 +684,7 @@ test("runtime renders pi custom messages with renderer, fallback, errors, and re
   };
 
   try {
-    const runtime = new MixCodeRuntime({ sessionsRoot: dir, extensionFactories: [extension] });
+    const runtime = new MixCodeRuntime({ sessionsRoot: dir, agentDir: dir, extensionFactories: [extension] });
     const runtimeTab = await runtime.createTab(createTab(1, "s1", process.cwd()), {
       systemPrompt: "system",
       thinkingLevel: "medium",

@@ -1168,8 +1168,9 @@ export class MixCodeRuntime {
    * Returns an empty list when no model registry is wired (e.g. faux-only tests).
    */
   async reloadModelConfig(): Promise<MixCodeModelRef[]> {
-    if (!this.modelRuntime?.reloadConfig) return [];
-    await this.modelRuntime.reloadConfig();
+    if (!this.modelRuntime?.refresh) return [];
+    // pi 0.82: ModelRuntime.reloadConfig was removed; refresh() reloads models.json from disk.
+    await this.modelRuntime.refresh();
     // Re-install sync after refresh in case the runtime object was replaced
     // (normally the same instance; wrap is idempotent via __mixcodeUiSync).
     this.installProviderRegistryUiSync();

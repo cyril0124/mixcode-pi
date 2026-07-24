@@ -676,7 +676,11 @@ test("tab jump overlay filters and activates selected tab from keyboard", () => 
           ? component
           : (component.render?.(120).join("\n") ?? String(component)),
       );
-      return {} as never;
+      return {
+        hide: () => {
+          overlayOpen = false;
+        },
+      } as never;
     },
     hideOverlay: () => {
       overlayOpen = false;
@@ -738,7 +742,11 @@ test("vim mode allows ctrl-t tab jump and transfers vim mode to selected tab", (
           ? component
           : (component.render?.(120).join("\n") ?? String(component)),
       );
-      return {} as never;
+      return {
+        hide: () => {
+          overlayOpen = false;
+        },
+      } as never;
     },
     hideOverlay: () => {
       overlayOpen = false;

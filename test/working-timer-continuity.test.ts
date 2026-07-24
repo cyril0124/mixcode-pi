@@ -230,6 +230,7 @@ test("overflow compact-and-retry continuation preserves the working timer stamp"
     let overflowFired = false;
     const runtime = new MixCodeRuntime({
       sessionsRoot: dir,
+      agentDir: dir,
       streamFn: (_model: Model<never>, context: Context) => {
         const text = lastUserText(context);
         if (text.includes("start") && !overflowFired) {
@@ -274,10 +275,15 @@ test("overflow compact-and-retry continuation preserves the working timer stamp"
 
     await runtime.prompt("s1", "start");
     await waitForRuntime(
-      () =>
-        tab.status === "idle" &&
-        runtimeTab.session.getBranch().some((e) => e.type === "compaction") &&
-        runtimeTab.session.getBranch().at(-1)?.type === "message",
+      () => {
+        const branch = runtimeTab.session.getBranch();
+        const compactIdx = branch.findLastIndex((e) => e.type === "compaction");
+        return (
+          tab.status === "idle" &&
+          compactIdx >= 0 &&
+          branch.slice(compactIdx + 1).some((e) => e.type === "message")
+        );
+      },
     );
 
     const starts = trace.filter((t) => t.type === "agent_start");

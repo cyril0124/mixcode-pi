@@ -11,6 +11,7 @@ import {
   tabBarHitRegions,
 } from "../src/index.js";
 import type { MixCodeRuntime } from "../src/index.js";
+import { closeAppOverlay } from "../src/ui/app-overlays.js";
 
 function assertQuitOverlay(text: string | undefined): void {
   assert.match(text ?? "", /┌/);
@@ -62,7 +63,11 @@ test("global key input toggles MixCode overlays and passes through regular input
     showOverlay: (component: { render: (width: number) => string[] }) => {
       overlayOpen = true;
       overlays.push(component.render(120).join("\n"));
-      return {} as never;
+      return {
+        hide: () => {
+          overlayOpen = false;
+        },
+      } as never;
     },
     hideOverlay: () => {
       overlayOpen = false;
@@ -311,6 +316,7 @@ test("global key input toggles MixCode overlays and passes through regular input
   assert.equal(state.commandPaletteOpen, false);
   await new Promise((resolve) => setImmediate(resolve));
   assert.match(overlays.at(-1) ?? "", /string failure/);
+  closeAppOverlay(tui);
   overlayOpen = false;
   assert.deepEqual(handleMixCodeKeyInput(state, "\x10", tui), { consume: true });
   assert.throws(
@@ -320,6 +326,7 @@ test("global key input toggles MixCode overlays and passes through regular input
   assert.equal(state.commandPaletteOpen, true);
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui), { consume: true });
   assert.equal(state.commandPaletteOpen, false);
+  closeAppOverlay(tui);
   overlayOpen = false;
   const extensionCommand = { name: "inspect-context", description: "Inspect extension context" };
   assert.deepEqual(

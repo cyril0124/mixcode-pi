@@ -240,7 +240,11 @@ test("workdir picker applies async runtime workdir updates", async () => {
             ? component
             : (component.render?.(120).join("\n") ?? String(component)),
         );
-        return {} as never;
+        return {
+          hide: () => {
+            overlayOpen = false;
+          },
+        } as never;
       },
       hideOverlay: () => {
         overlayOpen = false;

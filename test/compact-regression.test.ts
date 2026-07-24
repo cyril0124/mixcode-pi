@@ -324,6 +324,7 @@ test("mid-turn auto-compaction keeps running state until continuation finishes",
     let continuationStarted = false;
     const runtime = new MixCodeRuntime({
       sessionsRoot: dir,
+      agentDir: dir,
       streamFn: (_model: Model<any>, context: Context) => {
         seenContexts.push(context);
         const text = lastRuntimeUserText(context);
@@ -412,10 +413,15 @@ test("mid-turn auto-compaction keeps running state until continuation finishes",
     releaseContinuation();
     await continuationIdle;
     await waitForRuntime(
-      () =>
-        runtimeTab.session.getBranch().some((entry) => entry.type === "compaction") &&
-        runtimeTab.session.getBranch().at(-1)?.type === "message" &&
-        runtimeTab.tab.status === "idle",
+      () => {
+        const branch = runtimeTab.session.getBranch();
+        const compactIdx = branch.findLastIndex((entry) => entry.type === "compaction");
+        return (
+          compactIdx >= 0 &&
+          branch.slice(compactIdx + 1).some((entry) => entry.type === "message") &&
+          runtimeTab.tab.status === "idle"
+        );
+      },
     );
 
     assert.equal(runtimeTab.agentSession.isStreaming, false);
