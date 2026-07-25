@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { AssistantMessage, Usage } from "@earendil-works/pi-ai";
 import type {
@@ -662,14 +663,17 @@ export function hasPriorVisibleConversation(entries: SessionEntry[]): boolean {
   });
 }
 
-export async function assertImportHasCwd(
+export async function inspectSessionImport(
   inputPath: string,
   cwdOverride: string | undefined,
   fallbackCwd: string,
-): Promise<void> {
-  if (cwdOverride) return;
-  const firstLine = (await readFile(inputPath, "utf8")).split(/\r?\n/, 1)[0]?.trim();
-  if (!firstLine) throw new Error(`Session import file is empty: ${inputPath}`);
+): Promise<{ resolvedPath: string; sessionId: string }> {
+  const resolvedPath = resolve(inputPath);
+  if (!existsSync(resolvedPath)) {
+    throw new Error(`Session import file not found: ${resolvedPath}`);
+  }
+  const firstLine = (await readFile(resolvedPath, "utf8")).split(/\r?\n/, 1)[0]?.trim();
+  if (!firstLine) throw new Error(`Session import file is empty: ${resolvedPath}`);
   let header: unknown;
   try {
     header = JSON.parse(firstLine);
@@ -687,14 +691,21 @@ export async function assertImportHasCwd(
     throw new Error("Session import file must start with a session header");
   }
   const cwd = (header as { cwd?: unknown }).cwd;
-  if (typeof cwd !== "string" || !cwd.trim()) {
-    throw new Error("Session import requires a cwd override because the JSONL header has no cwd");
+  if (!cwdOverride) {
+    if (typeof cwd !== "string" || !cwd.trim()) {
+      throw new Error("Session import requires a cwd override because the JSONL header has no cwd");
+    }
+    if (!existsSync(cwd)) {
+      throw new Error(
+        `Stored session working directory does not exist: ${cwd}\nSession file: ${resolvedPath}\nCurrent working directory: ${fallbackCwd}`,
+      );
+    }
   }
-  if (!existsSync(cwd)) {
-    throw new Error(
-      `Stored session working directory does not exist: ${cwd}\nSession file: ${inputPath}\nCurrent working directory: ${fallbackCwd}`,
-    );
+  const sessionId = (header as { id?: unknown }).id;
+  if (typeof sessionId !== "string" || !sessionId.trim()) {
+    throw new Error("Session import header is missing a valid session id");
   }
+  return { resolvedPath, sessionId };
 }
 
 export function drainPendingMessages(

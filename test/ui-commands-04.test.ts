@@ -6,14 +6,17 @@ import { test } from "node:test";
 import {
   createInitialState,
   createTab,
+  configureOpenTabsPath,
   handleMixCodeKeyInput,
   handleSubmittedInput,
   renderConfig,
   renderHotkeysText,
   renderInputMeta,
   renderPickerOverlay,
-  tabBarHitRegions,
+  readOpenTabs,
   setTheme,
+  tabBarHitRegions,
+  writeOpenTabs,
   themeForId,
   themeSuggestions,
 } from "../src/index.js";
@@ -407,15 +410,27 @@ test("workspace save surfaces invalid workspace files instead of treating them a
   }
 });
 
-test("submitted input marks done, exports state, imports sessions, and exits directly", async () => {
+test("submitted input marks done, exports state, imports sessions, and exits directly", async (t) => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-tui-state-toggle-"));
+  const openTabsPath = join(dir, "open_tabs.json");
+  configureOpenTabsPath(openTabsPath);
+  t.after(() => configureOpenTabsPath(undefined));
   const captureFile = join(dir, "capture.txt");
   const editorScript = join(dir, "editor.sh");
+  const sessionFile = join(dir, "session.jsonl");
+  const cancelledFile = join(dir, "cancelled.jsonl");
   await writeFile(editorScript, `#!/bin/sh\ncp "$1" "${captureFile}"\n`, { mode: 0o755 });
+  const sessionContents = `${JSON.stringify({ type: "session", version: 1, id: "imported", timestamp: "2026-05-10T00:00:00.000Z", cwd: dir })}\n`;
+  await writeFile(sessionFile, sessionContents);
+  await writeFile(
+    cancelledFile,
+    `${JSON.stringify({ type: "session", version: 3, id: "cancelled", timestamp: "2026-05-10T00:00:00.000Z", cwd: dir })}\n`,
+  );
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo");
   state.tabs.push(tab);
   state.activeTabId = "s1";
+  writeOpenTabs(openTabsPath, [tab.sessionId]);
   const renders: string[] = [];
   const overlays: string[] = [];
   const lifecycle: string[] = [];
@@ -441,7 +456,10 @@ test("submitted input marks done, exports state, imports sessions, and exits dir
       tab.previewIndex = tab.previewMessages.length - 1;
     },
     getTab: () => undefined,
-    importFromJsonl: async (_sessionId: string, path: string, cwdOverride?: string) => {
+    importFromJsonl: async (sessionId: string, path: string, cwdOverride?: string) => {
+      assert.equal(sessionId, "s1");
+      assert.equal(tab.sessionId, "imported");
+      assert.deepEqual(readOpenTabs(openTabsPath), ["imported"]);
       overlays.push(`import:${path}:${cwdOverride ?? ""}`);
       return { cancelled: false };
     },
@@ -461,16 +479,23 @@ test("submitted input marks done, exports state, imports sessions, and exits dir
   assert.match(await readFile(captureFile, "utf8"), /"activeTabId": "s1"/);
   assert.deepEqual(tab.previewMessages, []);
   assert.deepEqual(lifecycle, ["stop", "start"]);
-  await handleSubmittedInput(state, runtime, "/import ./session.jsonl /repo", tui);
-  assert.equal(overlays.at(-1), "import:./session.jsonl:/repo");
-  assert.equal(tab.toast?.message, "Imported session: ./session.jsonl");
-  runtime.importFromJsonl = async (_sessionId: string, path: string, cwdOverride?: string) => {
+  await handleSubmittedInput(state, runtime, `/import ${sessionFile} /repo`, tui);
+  assert.equal(overlays.at(-1), `import:${sessionFile}:/repo`);
+  assert.equal(tab.toast?.message, `Imported session: ${sessionFile}`);
+  assert.equal(await readFile(sessionFile, "utf8"), sessionContents);
+  runtime.importFromJsonl = async (sessionId: string, path: string, cwdOverride?: string) => {
+    assert.equal(sessionId, "imported");
+    assert.equal(tab.sessionId, "cancelled");
+    assert.deepEqual(readOpenTabs(openTabsPath), ["cancelled"]);
     overlays.push(`cancelled-import:${path}:${cwdOverride ?? ""}`);
     return { cancelled: true };
   };
-  await handleSubmittedInput(state, runtime, "/import ./cancelled.jsonl", tui);
-  assert.equal(overlays.at(-1), "cancelled-import:./cancelled.jsonl:");
+  await handleSubmittedInput(state, runtime, `/import ${cancelledFile}`, tui);
+  assert.equal(overlays.at(-1), `cancelled-import:${cancelledFile}:`);
   assert.equal(tab.toast?.message, "Import cancelled.");
+  assert.equal(tab.sessionId, "imported");
+  assert.equal(state.activeTabId, "imported");
+  assert.deepEqual(readOpenTabs(openTabsPath), ["imported"]);
   await handleSubmittedInput(state, runtime, "/exit", tui);
   assert.equal(stopped, true);
   assert.equal(closedAll, 1);

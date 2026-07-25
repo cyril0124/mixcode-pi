@@ -1,12 +1,12 @@
 import { isBashAlreadyRunningError, type MixCodeRuntime } from "../agent/runtime.js";
-import { entriesToChatLines } from "../agent/runtime-chat.js";
+import { entriesToChatLines, inspectSessionImport } from "../agent/runtime-chat.js";
 import { MIXCODE_EXTENSION_KEYBINDINGS } from "../agent/runtime-extension-theme.js";
 import { applyContextLimit, parseContextLimitValue, adjustCompactionSettingsForLimit } from "../core/context-limit.js";
 import { parseInput } from "../core/commands.js";
 import { createSessionId, createTab } from "../core/defaults.js";
 import { stringifyJson } from "../core/json.js";
 import { findModelRef } from "../core/models.js";
-import { noteTabClosed, noteTabOpened } from "../core/open-tabs-store.js";
+import { noteTabClosed, noteTabOpened, noteTabReplaced } from "../core/open-tabs-store.js";
 import { createPicker } from "../core/pickers.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import { pushToast } from "../core/toast.js";
@@ -328,16 +328,34 @@ export async function handleSubmittedInput(
     if (!runtime.importFromJsonl)
       throw new Error("Import requires pi runtime session import support");
     const request = parseImportRequest(parsed.args);
-    const result = await runtime.importFromJsonl(
-      active!.sessionId,
+    const oldSessionId = active!.sessionId;
+    const { sessionId: targetSessionId } = await inspectSessionImport(
       request.path,
       request.cwdOverride,
+      active!.workdir,
     );
-    if (result.cancelled) {
-      pushToast(active!, { type: "warning", message: "Import cancelled." });
-    } else {
-      activateTab(state, active!.sessionId);
-      pushToast(active!, { type: "success", message: `Imported session: ${request.path}` });
+    const identityChanged = targetSessionId !== oldSessionId;
+    const publishIdentity = (from: string, to: string) => {
+      active!.sessionId = to;
+      activateTab(state, to);
+      noteTabReplaced(from, to);
+    };
+    if (identityChanged) publishIdentity(oldSessionId, targetSessionId);
+    try {
+      const result = await runtime.importFromJsonl(
+        oldSessionId,
+        request.path,
+        request.cwdOverride,
+      );
+      if (result.cancelled) {
+        if (identityChanged) publishIdentity(targetSessionId, oldSessionId);
+        pushToast(active!, { type: "warning", message: "Import cancelled." });
+      } else {
+        pushToast(active!, { type: "success", message: `Imported session: ${request.path}` });
+      }
+    } catch (error) {
+      if (identityChanged) publishIdentity(targetSessionId, oldSessionId);
+      throw error;
     }
   } else if (parsed.command === "extension-manager") {
     openExtensionManager(state, runtime, tui);

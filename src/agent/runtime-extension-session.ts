@@ -3,11 +3,11 @@ import { copyFile, mkdir } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import { type SessionEntry, SessionManager } from "@earendil-works/pi-coding-agent";
 import {
-  assertImportHasCwd,
   emitBeforeFork,
   emitBeforeSwitch,
   hasNoVisibleRunOutput,
   hasPriorVisibleConversation,
+  inspectSessionImport,
 } from "./runtime-chat.js";
 import { contentText } from "./runtime-text.js";
 import type {
@@ -191,7 +191,7 @@ export async function importRuntimeJsonl(
   const destinationPath = join(sessionDir, basename(resolvedPath));
   const beforeResult = await emitBeforeSwitch(runtimeTab, "resume", destinationPath);
   if (beforeResult.cancelled) return beforeResult;
-  await assertImportHasCwd(resolvedPath, cwdOverride, runtimeTab.tab.workdir);
+  await inspectSessionImport(resolvedPath, cwdOverride, runtimeTab.tab.workdir);
   if (resolve(destinationPath) !== resolvedPath) {
     await copyFile(resolvedPath, destinationPath);
   }
