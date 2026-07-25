@@ -11,6 +11,7 @@ import {
 } from "../core/models.js";
 import { DEFAULT_MODEL_REF } from "../core/defaults.js";
 import { closeActiveOverlay, openOverlay } from "../core/overlays.js";
+import { closeTreeSelector } from "./tree-selector.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import { getActiveTab } from "../core/tabs.js";
 import { isThinkingLevelAvailable, validThinkingLevelsMessage } from "../core/thinking-levels.js";
@@ -55,8 +56,15 @@ export function applyThinkingLevel(
   state.thinkingLevel = effectiveLevel;
 }
 
+/** Unload Session Tree editor before state-only closeActiveOverlay paths. */
+function closeTreeSelectorIfOpen(state: MixCodeState, tui: OverlayTui): void {
+  if (state.treeSelector.open) closeTreeSelector(state, tui);
+}
+
 export function openQuitConfirm(state: MixCodeState, tui: OverlayTui): void {
-  // openOverlay enforces mutual exclusion (closes any active overlay first).
+  // openOverlay only flips treeSelector.open; unload the editor replacement first
+  // so cancel-quit does not leave a dead Session Tree in the input slot.
+  closeTreeSelectorIfOpen(state, tui);
   openOverlay(state, "quit-confirm");
   showLinesOverlay(tui, (width) => renderQuitConfirm(width, themeForId(state.theme)), quitOverlayOptions());
 }
@@ -64,6 +72,7 @@ export function openQuitConfirm(state: MixCodeState, tui: OverlayTui): void {
 export function openDeleteAllSessionsConfirm(state: MixCodeState, tui: OverlayTui): void {
   // Same mutual-exclusion + centered-panel mechanism as openQuitConfirm, guarding
   // /delete-all-sessions (a destructive, hard-to-undo action) behind a Y/N step.
+  closeTreeSelectorIfOpen(state, tui);
   openOverlay(state, "delete-all-sessions-confirm");
   showLinesOverlay(
     tui,
@@ -75,6 +84,7 @@ export function openDeleteAllSessionsConfirm(state: MixCodeState, tui: OverlayTu
 export function openCloseAllSessionsConfirm(state: MixCodeState, tui: OverlayTui): void {
   // Same shape as openDeleteAllSessionsConfirm, but for the non-destructive
   // /close-all-sessions (tabs close, session files are kept).
+  closeTreeSelectorIfOpen(state, tui);
   openOverlay(state, "close-all-sessions-confirm");
   showLinesOverlay(
     tui,
@@ -89,6 +99,7 @@ export function openSessionActionConfirm(
   action: "close" | "delete",
   tab: MixCodeState["tabs"][number],
 ): void {
+  closeTreeSelectorIfOpen(state, tui);
   closeActiveOverlay(state);
   state.sessionActionConfirm = { action, sessionId: tab.sessionId };
   showLinesOverlay(

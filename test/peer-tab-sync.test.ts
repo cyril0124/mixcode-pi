@@ -601,3 +601,94 @@ test("resume publishes open_tabs before switch so reconcile keeps session title"
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("peer reconcile syncTabTitles updates already-open local tab titles", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-peer-sync-title-"));
+  try {
+    const openTabsPath = join(dir, "open_tabs.json");
+    writeOpenTabs(openTabsPath, ["s1"]);
+    const titles: Array<{ sessionId: string; title: string }> = [];
+    const sync = startPeerTabSync({
+      openTabsPath,
+      rootStateDir: dir,
+      workdir: "/repo",
+      getLocalSessionIds: () => ["s1"],
+      openTab: async () => {
+        throw new Error("should not open");
+      },
+      closeTab: async () => {
+        throw new Error("should not close");
+      },
+      syncTabTitles: async (next) => {
+        titles.push(...next);
+      },
+      loadStatus: async () => ({
+        instances: [
+          {
+            pid: 99,
+            workdir: "/repo",
+            tabs: [{ sessionId: "s1", title: "PeerRealName", workdir: "/repo" }],
+          },
+        ],
+      }),
+      debounceMs: 10,
+      pollIntervalMs: 60_000,
+      watchFactory: () => ({ close: () => undefined }),
+    });
+    await sync.reconcileNow();
+    assert.deepEqual(titles, [{ sessionId: "s1", title: "PeerRealName" }]);
+    sync.dispose();
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("syncTabTitles prefers freshest registry snapshot over later pid order", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-peer-sync-title-fresh-"));
+  try {
+    const openTabsPath = join(dir, "open_tabs.json");
+    writeOpenTabs(openTabsPath, ["s1"]);
+    const titles: Array<{ sessionId: string; title: string }> = [];
+    const sync = startPeerTabSync({
+      openTabsPath,
+      rootStateDir: dir,
+      workdir: "/repo",
+      getLocalSessionIds: () => ["s1"],
+      openTab: async () => {
+        throw new Error("should not open");
+      },
+      closeTab: async () => {
+        throw new Error("should not close");
+      },
+      syncTabTitles: async (next) => {
+        titles.push(...next);
+      },
+      // Sorted like loadLiveInstanceStatus: lower pid first, higher pid later.
+      // Older higher-pid title must not win over a fresher lower-pid rename.
+      loadStatus: async () => ({
+        instances: [
+          {
+            pid: 1,
+            workdir: "/repo",
+            updatedAt: "2026-07-24T12:00:10.000Z",
+            tabs: [{ sessionId: "s1", title: "New", workdir: "/repo" }],
+          },
+          {
+            pid: 9,
+            workdir: "/repo",
+            updatedAt: "2026-07-24T12:00:00.000Z",
+            tabs: [{ sessionId: "s1", title: "Old", workdir: "/repo" }],
+          },
+        ],
+      }),
+      debounceMs: 10,
+      pollIntervalMs: 60_000,
+      watchFactory: () => ({ close: () => undefined }),
+    });
+    await sync.reconcileNow();
+    assert.deepEqual(titles, [{ sessionId: "s1", title: "New" }]);
+    sync.dispose();
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

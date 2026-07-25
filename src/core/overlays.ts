@@ -491,10 +491,8 @@ export function closeCommandPalette(state: MixCodeState): void {
 
 export function updateCommandPaletteQuery(state: MixCodeState, query: string): void {
   state.commandPalette.query = query;
-  state.commandPalette.selectedIndex = clampCommandPaletteIndex(
-    state,
-    state.commandPalette.selectedIndex,
-  );
+  // Ranking reorders on every keystroke; keep the highlight on the new top hit.
+  state.commandPalette.selectedIndex = 0;
 }
 
 export function updateCommandPaletteQueryWithExtensions(
@@ -503,11 +501,9 @@ export function updateCommandPaletteQueryWithExtensions(
   extensionCommands: Array<{ name: string; description?: string }> = [],
 ): void {
   state.commandPalette.query = query;
-  state.commandPalette.selectedIndex = clampCommandPaletteIndexWithExtensions(
-    state,
-    state.commandPalette.selectedIndex,
-    extensionCommands,
-  );
+  // Ranking reorders on every keystroke; keep the highlight on the new top hit.
+  state.commandPalette.selectedIndex = 0;
+  void extensionCommands;
 }
 
 export function moveCommandPaletteSelection(

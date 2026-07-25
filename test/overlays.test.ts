@@ -307,10 +307,20 @@ test("command palette filters, accepts, disables, and closes without OpenCode en
   updateCommandPaletteQuery(state, "missing");
   assert.deepEqual(commandPaletteEntries(state), []);
   assert.match(renderCommandPalette(state, 80).join("\n"), /No matching commands/);
-  moveCommandPaletteSelection(state, 1);
+  // Query change always resets selection to the new top hit (0).
   assert.equal(state.commandPalette.selectedIndex, 0);
   assert.equal(acceptCommandPaletteSelection(state), "");
   assert.equal(state.commandPaletteOpen, false);
+
+  openCommandPalette(state);
+  moveCommandPaletteSelection(state, 1);
+  const secondIndex = state.commandPalette.selectedIndex;
+  assert.ok(secondIndex > 0);
+  updateCommandPaletteQuery(state, "new");
+  assert.equal(state.commandPalette.selectedIndex, 0);
+  const filtered = commandPaletteEntries(state);
+  assert.ok(filtered.some((entry) => entry.command === "/new-session"));
+  assert.equal(acceptCommandPaletteSelection(state), "/new-session");
 
   openCommandPalette(state);
   closeCommandPalette(state);

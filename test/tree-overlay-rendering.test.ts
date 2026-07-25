@@ -289,3 +289,59 @@ test("tree selector keeps key priority over extension terminal input handlers be
   assert.equal(state.treeSelector.selectedIndex, 1);
   assert.equal(renders, 1);
 });
+
+test("openQuitConfirm unloads navigate tree so cancel does not leave a dead editor", async () => {
+  const { openQuitConfirm } = await import("../src/ui/app-actions.js");
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"));
+  state.activeTabId = "s1";
+  state.treeSelector = createTreeSelectorState();
+  initTreeSelector(state.treeSelector, sampleTree(), "active", "navigate");
+  state.treeSelector.open = true;
+  let editorClosed = false;
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({ hide: () => undefined }) as never,
+    hideOverlay: () => undefined,
+    treeSelectorDisplay: {
+      open: () => undefined,
+      refresh: () => undefined,
+      close: () => {
+        editorClosed = true;
+      },
+    },
+  };
+
+  openQuitConfirm(state, tui);
+  assert.equal(state.treeSelector.open, false);
+  assert.equal(editorClosed, true);
+  assert.equal(state.quitConfirmOpen, true);
+});
+
+test("Ctrl+T closes navigate before opening Tab Jump", () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"), createTab(2, "s2", "/repo"));
+  state.activeTabId = "s1";
+  state.treeSelector = createTreeSelectorState();
+  initTreeSelector(state.treeSelector, sampleTree(), "active", undefined, undefined, "navigate");
+  state.treeSelector.open = true;
+  let editorClosed = false;
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({ hide: () => undefined }) as never,
+    hideOverlay: () => undefined,
+    hasOverlay: () => true,
+    treeSelectorDisplay: {
+      open: () => undefined,
+      refresh: () => undefined,
+      close: () => {
+        editorClosed = true;
+      },
+    },
+  };
+
+  assert.deepEqual(handleMixCodeKeyInput(state, "\x14", tui), { consume: true }); // ctrl+t
+  assert.equal(state.treeSelector.open, false);
+  assert.equal(editorClosed, true);
+  assert.equal(state.tabJumpOpen, true);
+});

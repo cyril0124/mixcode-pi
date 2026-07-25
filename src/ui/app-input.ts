@@ -59,7 +59,7 @@ import { errorMessage } from "./app-overlays.js";
 import { renderCommandPalette, renderTabJumpOverlay } from "./rendering.js";
 import { handleSessionSelectorKey } from "./session-selector.js";
 import { handleForkSelectorKey } from "./fork-selector.js";
-import { handleTreeSelectorKey, type TreeSelectorRuntime } from "./tree-selector.js";
+import { closeTreeSelector, handleTreeSelectorKey, type TreeSelectorRuntime } from "./tree-selector.js";
 import { handleWorkspaceOverlayKey } from "./workspace-overlay.js";
 import type { MixCodeSubmitRuntime } from "./app-types.js";
 
@@ -497,6 +497,9 @@ export function handleMixCodeKeyInput(
   }
   if (matchesKey(data, "ctrl+t")) {
     if (active) clearPendingEscape(active, "abort-agent");
+    // Navigate installs a tree editor that falls through Ctrl+T; close it first
+    // so Tab Jump is the only layer and Esc dismisses it (not the tree under it).
+    if (state.treeSelector.open) closeTreeSelector(state, tui);
     openTabJump(state);
     showLinesOverlay(tui, (width) => renderTabJumpOverlay(state, width));
     return { consume: true };
