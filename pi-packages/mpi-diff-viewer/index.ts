@@ -13,35 +13,43 @@ function userMessageIndexes(entries: SessionEntry[]): number[] {
   return indexes;
 }
 
-function getNthLastTurnEntries(entries: SessionEntry[], turn: number): SessionEntry[] {
+function getNthLastTurnSlice(
+  entries: SessionEntry[],
+  turn: number,
+): { baseline: SessionEntry[]; scope: SessionEntry[] } {
   const indexes = userMessageIndexes(entries);
-  if (turn < 1 || turn > indexes.length) return [];
+  if (turn < 1 || turn > indexes.length) return { baseline: [], scope: [] };
   const start = indexes[indexes.length - turn]!;
-  const end = turn > 1 ? indexes[indexes.length - turn + 1] : entries.length;
-  return entries.slice(start, end);
+  const end = turn > 1 ? indexes[indexes.length - turn + 1]! : entries.length;
+  return { baseline: entries.slice(0, start), scope: entries.slice(start, end) };
 }
 
-function getRangeTurnEntries(entries: SessionEntry[], first: number, last: number): SessionEntry[] {
+function getRangeTurnSlice(
+  entries: SessionEntry[],
+  first: number,
+  last: number,
+): { baseline: SessionEntry[]; scope: SessionEntry[] } {
   const indexes = userMessageIndexes(entries);
   const farthest = Math.max(first, last);
   const nearest = Math.min(first, last);
-  if (nearest < 1 || farthest > indexes.length) return [];
+  if (nearest < 1 || farthest > indexes.length) return { baseline: [], scope: [] };
   const start = indexes[indexes.length - farthest]!;
-  const end = nearest > 1 ? indexes[indexes.length - nearest + 1] : entries.length;
-  return entries.slice(start, end);
+  const end = nearest > 1 ? indexes[indexes.length - nearest + 1]! : entries.length;
+  return { baseline: entries.slice(0, start), scope: entries.slice(start, end) };
 }
 
 async function showDiff(
   entries: SessionEntry[],
   cwd: string,
   ctx: Pick<ExtensionCommandContext, "ui">,
+  baselineEntries: SessionEntry[] = [],
 ): Promise<void> {
   if (entries.length === 0) {
     ctx.ui.notify("No entries found for the specified range.", "info");
     return;
   }
 
-  const diff = buildSessionDiff(entries, cwd);
+  const diff = buildSessionDiff(entries, cwd, baselineEntries);
   if (diff.trackedFiles === 0) {
     ctx.ui.notify("No file modifications found in this session.", "info");
     return;
@@ -77,19 +85,22 @@ const extension: ExtensionFactory = (pi) => {
       const entries = ctx.sessionManager.getBranch() as unknown as SessionEntry[];
       const value = (args ?? "").trim();
       let scope: SessionEntry[];
+      let baseline: SessionEntry[] = [];
 
       if (!value) scope = entries;
-      else if (value === "last") scope = getNthLastTurnEntries(entries, 1);
-      else if (/^\d+$/.test(value)) scope = getNthLastTurnEntries(entries, Number(value));
-      else if (/^\d+-\d+$/.test(value)) {
+      else if (value === "last") {
+        ({ baseline, scope } = getNthLastTurnSlice(entries, 1));
+      } else if (/^\d+$/.test(value)) {
+        ({ baseline, scope } = getNthLastTurnSlice(entries, Number(value)));
+      } else if (/^\d+-\d+$/.test(value)) {
         const [first, last] = value.split("-").map(Number);
-        scope = getRangeTurnEntries(entries, first!, last!);
+        ({ baseline, scope } = getRangeTurnSlice(entries, first!, last!));
       } else {
         ctx.ui.notify("Usage: /diff, /diff last, /diff N, /diff N-M", "info");
         return;
       }
 
-      await showDiff(scope, ctx.cwd, ctx);
+      await showDiff(scope, ctx.cwd, ctx, baseline);
     },
   });
 
@@ -97,7 +108,8 @@ const extension: ExtensionFactory = (pi) => {
     description: "Show file changes from the last turn (alias for /diff last)",
     handler: async (_args, ctx) => {
       const entries = ctx.sessionManager.getBranch() as unknown as SessionEntry[];
-      await showDiff(getNthLastTurnEntries(entries, 1), ctx.cwd, ctx);
+      const { baseline, scope } = getNthLastTurnSlice(entries, 1);
+      await showDiff(scope, ctx.cwd, ctx, baseline);
     },
   });
 };

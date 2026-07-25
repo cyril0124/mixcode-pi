@@ -67,6 +67,61 @@ test("parseUnifiedPatch preserves no-newline markers on both sides", () => {
   assert.equal(row?.newNoNewline, true);
 });
 
+test("buildSessionDiff uses baseline write content when turn starts with overwrite write", () => {
+  const cwd = mkdtempSync(join(tmpdir(), "mpi-diff-baseline-"));
+  try {
+    // Disk already has the post-turn content (write already applied).
+    writeFileSync(join(cwd, "sample.lua"), "new without info\n");
+    const baseline = [
+      {
+        type: "message",
+        message: {
+          role: "assistant",
+          content: [
+            {
+              type: "toolCall",
+              id: "write-old",
+              name: "write",
+              arguments: { path: "sample.lua", content: "old with source_info\n" },
+            },
+          ],
+        },
+      },
+    ];
+    const turn = [
+      {
+        type: "message",
+        message: {
+          role: "assistant",
+          content: [
+            {
+              type: "toolCall",
+              id: "write-new",
+              name: "write",
+              arguments: { path: "sample.lua", content: "new without info\n" },
+            },
+          ],
+        },
+      },
+    ];
+
+    const diff = buildSessionDiff(turn, cwd, baseline);
+
+    assert.equal(diff.trackedFiles, 1);
+    assert.equal(diff.files[0]?.status, "modified");
+    assert.deepEqual(
+      diff.files[0]?.hunks[0]?.rows.map((row) => ({
+        kind: row.kind,
+        oldText: row.oldText,
+        newText: row.newText,
+      })),
+      [{ kind: "replace", oldText: "old with source_info", newText: "new without info" }],
+    );
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
 test("buildSessionDiff generates a modified-file model without executables on PATH", () => {
   const cwd = mkdtempSync(join(tmpdir(), "mpi-diff-v2-"));
   const previousPath = process.env.PATH;

@@ -232,6 +232,14 @@ function readCurrentFile(path: string): string | null {
   }
 }
 
+function lastWriteContent(file: FileMods): string | undefined {
+  for (let index = file.mods.length - 1; index >= 0; index--) {
+    const mod = file.mods[index]!;
+    if (mod.kind === "write") return mod.content;
+  }
+  return undefined;
+}
+
 function reconstructFile(file: FileMods, cwd: string): FileState {
   const diskContent = readCurrentFile(resolve(cwd, file.path));
   const lastMod = file.mods[file.mods.length - 1];
@@ -386,12 +394,25 @@ export function parseUnifiedPatch(patch: string): DiffHunk[] {
   return hunks;
 }
 
-export function buildSessionDiff(entries: SessionEntry[], cwd: string): SessionDiff {
+export function buildSessionDiff(
+  entries: SessionEntry[],
+  cwd: string,
+  /** Prior session entries used as pre-range baseline (e.g. turns before /dl scope). */
+  baselineEntries: SessionEntry[] = [],
+): SessionDiff {
   const tracked = collectFileMods(entries, cwd);
+  const baselineMods =
+    baselineEntries.length > 0 ? collectFileMods(baselineEntries, cwd) : null;
   const files: DiffFile[] = [];
 
   for (const file of tracked.values()) {
-    const { initial, final } = reconstructFile(file, cwd);
+    let { initial, final } = reconstructFile(file, cwd);
+    // write-first scope has no pre-image; recover it from the last write before the range.
+    if (initial === null && baselineMods) {
+      const prior = baselineMods.get(file.path);
+      const priorContent = prior ? lastWriteContent(prior) : undefined;
+      if (priorContent !== undefined) initial = priorContent;
+    }
     if ((initial === null && final === null) || initial === final) continue;
 
     const oldContent = initial ?? "";
