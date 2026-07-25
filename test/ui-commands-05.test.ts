@@ -246,7 +246,7 @@ test("submitted input confirms a single session close/delete before touching run
   };
 
   await handleSubmittedInput(state, runtime, "/close-session", tui);
-  assert.deepEqual(confirmationOptions, { anchor: "top-center", width: 72, margin: 1 });
+  assert.deepEqual(confirmationOptions, { anchor: "center", width: 72, margin: 1 });
   assert.deepEqual(closed, []);
   assert.deepEqual(deleted, []);
   assert.deepEqual(state.sessionActionConfirm, { action: "close", sessionId: "s1" });

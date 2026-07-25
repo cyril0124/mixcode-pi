@@ -129,7 +129,7 @@ function defaultOverlayOptions(): OverlayOptions {
 
 export function quitOverlayOptions(): OverlayOptions {
   return {
-    anchor: "top-center",
+    anchor: "center",
     width: 72,
     margin: 1,
   };

@@ -338,7 +338,7 @@ r 应用级 refresh 绑定                      保留为按键刷新状态；�
 模型/思考/workdir modal picker             已有 pi-tui overlay picker，非 Textual modal
 @ file picker fuzzy/tree/Ctrl+G            已覆盖 fuzzy、tree、ignored toggle、j/k/gg/G、Enter 插入、Esc/empty-backspace 取消
 复杂 shell terminal 鼠标转发与 scrollback  已覆盖本地 scrollback、滚轮、alternate-screen wheel、SGR wheel/down/up、单 Esc 关闭；高层 hover 语义受 pi-tui 事件模型限制
-quit confirm overlay                      单独使用 top-center 小框，避开 pi-tui overlay 无法覆盖 terminal image 行的问题；见 tmp/tui-verify-200743/02-quit.png
+quit confirm overlay                      使用 center 小框（Ctrl+Q / close-session 等共用 quitOverlayOptions）；见 tmp/tui-verify-200743/02-quit.png
 ```
 
 处理原则：
