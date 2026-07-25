@@ -23,6 +23,7 @@ import imageHoistPackageJson from "../../pi-packages/mpi-image-hoist/package.jso
 import diffViewerIndex from "../../pi-packages/mpi-diff-viewer/index.ts" with { type: "text" };
 import diffViewerSessionDiff from "../../pi-packages/mpi-diff-viewer/session-diff.ts" with { type: "text" };
 import diffViewerComponent from "../../pi-packages/mpi-diff-viewer/diff-viewer.ts" with { type: "text" };
+import diffViewerReview from "../../pi-packages/mpi-diff-viewer/review.ts" with { type: "text" };
 import diffViewerPackageJson from "../../pi-packages/mpi-diff-viewer/package.json" with { type: "text" };
 import commandBrowserIndex from "../../pi-packages/mpi-command-browser/index.ts" with { type: "text" };
 import commandBrowserComponent from "../../pi-packages/mpi-command-browser/command-browser.ts" with { type: "text" };
@@ -135,6 +136,7 @@ materializeBinaryRuntimeAssets(runtimeDir, {
       "index.ts": diffViewerIndex,
       "session-diff.ts": diffViewerSessionDiff,
       "diff-viewer.ts": diffViewerComponent,
+      "review.ts": diffViewerReview,
       "package.json": diffViewerPackageJson,
     },
     "mpi-command-browser": {
