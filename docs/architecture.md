@@ -127,7 +127,6 @@ Config tab 只渲染配置面板和可点击操作，不渲染 prompt editor；�
 | `Up` / `Down` | 普通输入为空且无 overlay、preview、补全、extension terminal input 消费时浏览当前 tab 的 prompt 历史；其它场景交给局部控件 |
 | `Right` | Vim 模式跳到更新的 user message，并短暂显示右锚定 `User Messages` 预览；非 Vim 普通输入为空且无 overlay、preview、补全、extension user interaction 时切换 extension widget side panel；无 widget 或终端过窄时显示 toast；有输入时交给 Editor 光标移动 |
 | `Shift+Right` | Vim 模式跳到更旧的 user message，并短暂显示右锚定 `User Messages` 预览 |
-| `Ctrl+V` | Markdown preview |
 | `@` | 打开 mixcode 风格全局文件 picker，选择后插入 `@path ` |
 | `Esc` | 关闭 overlay、preview 或 tab jump；standalone `!shell` 一次中止；bash-mode 草稿 `!...` 清空 |
 | `Ctrl+Q` | 打开退出确认；`y` 确认、`n`/`Esc` 取消；`/quit` 和 `/exit` 直接退出，不弹确认 |
@@ -144,7 +143,7 @@ key input
   │
   ├─ global
   │    ├─ Tab / Shift+Tab / Ctrl+P / Ctrl+T
-  │    ├─ Ctrl+E / Ctrl+C / Ctrl+R / Ctrl+O / Ctrl+V / Ctrl+Q
+  │    ├─ Ctrl+E / Ctrl+C / Ctrl+R / Ctrl+O / Ctrl+Q
   │    └─ @ / Esc / Alt+Up / Ctrl+U / Up / Down / Right / Shift+Right
   │
   └─ scoped overlays
