@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { performance } from "node:perf_hooks";
@@ -450,6 +450,31 @@ test("fd-backed file search expands nested dirs and reflects fresh files (pi par
     assert.equal(dirsFirst[0]?.isDirectory, true);
   } finally {
     await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("fd-backed file search stays inside the workspace when it contains a symlink", async (t) => {
+  const fdPath = resolveFdBinary();
+  if (!fdPath) {
+    t.skip("fd not installed");
+    return;
+  }
+  const workdir = await mkdtemp(join(tmpdir(), "mixcode-fd-workdir-"));
+  const outside = await mkdtemp(join(tmpdir(), "mixcode-fd-outside-"));
+  try {
+    await writeFile(join(outside, "outside-only.txt"), "");
+    await symlink(outside, join(workdir, "linked"), "dir");
+
+    const matches = await fdFileSuggestions("outside-only", {
+      workdir,
+      fdPath,
+      signal: new AbortController().signal,
+    });
+
+    assert.equal(matches.some((match) => match.displayPath === "linked/outside-only.txt"), false);
+  } finally {
+    await rm(workdir, { recursive: true, force: true });
+    await rm(outside, { recursive: true, force: true });
   }
 });
 

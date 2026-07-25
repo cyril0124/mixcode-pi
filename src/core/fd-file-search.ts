@@ -135,7 +135,6 @@ function walkDirectoryWithFd(
     "f",
     "--type",
     "d",
-    "--follow",
     "--hidden",
     "--exclude",
     ".git",
