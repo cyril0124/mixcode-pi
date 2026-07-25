@@ -1,4 +1,99 @@
+import { Worker } from "node:worker_threads";
 import type { SessionInfo } from "@earendil-works/pi-coding-agent";
+
+export function sessionDisplayText(session: SessionInfo): string {
+  return (session.name ?? session.firstMessage).replace(/[\x00-\x1f\x7f]/g, " ").trim();
+}
+
+export interface RegexSearchResult {
+  path: string;
+  index: number;
+  highlightIndex: number;
+  highlightLength: number;
+}
+
+interface RegexWorkerMessage {
+  type: "result" | "error";
+  results?: RegexSearchResult[];
+  message?: string;
+}
+
+const REGEX_WORKER_SOURCE = `
+const { parentPort } = require("node:worker_threads");
+parentPort.on("message", ({ pattern, sessions }) => {
+  try {
+    const regex = new RegExp(pattern, "i");
+    const results = [];
+    for (const session of sessions) {
+      const index = session.text.search(regex);
+      if (index < 0) continue;
+      const displayMatch = session.displayText.match(regex);
+      results.push({
+        path: session.path,
+        index,
+        highlightIndex: displayMatch?.index ?? -1,
+        highlightLength: displayMatch?.[0]?.length ?? 0,
+      });
+    }
+    parentPort.postMessage({ type: "result", results });
+  } catch (error) {
+    parentPort.postMessage({ type: "error", message: String(error) });
+  }
+});
+`;
+
+export function searchSessionsWithRegex(
+  sessions: SessionInfo[],
+  pattern: string,
+  timeoutMs = 250,
+): { promise: Promise<RegexSearchResult[]>; cancel: () => void } {
+  const worker = new Worker(REGEX_WORKER_SOURCE, { eval: true });
+  let settled = false;
+  let timer: NodeJS.Timeout | undefined;
+  let rejectPromise: (error: Error) => void = () => undefined;
+  const promise = new Promise<RegexSearchResult[]>((resolve, reject) => {
+    rejectPromise = reject;
+    worker.once("message", (message: RegexWorkerMessage) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      void worker.terminate();
+      if (message.type === "error")
+        reject(new Error(message.message ?? "Invalid regular expression"));
+      else resolve(message.results ?? []);
+    });
+    worker.once("error", (error) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      void worker.terminate();
+      reject(error);
+    });
+    worker.postMessage({
+      pattern,
+      sessions: sessions.map((session) => ({
+        path: session.path,
+        text: `${session.id} ${session.name ?? ""} ${session.allMessagesText} ${session.cwd}`,
+        displayText: sessionDisplayText(session),
+      })),
+    });
+    timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      void worker.terminate();
+      reject(new Error(`Regex search timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+    timer.unref?.();
+  });
+  const cancel = () => {
+    if (settled) return;
+    settled = true;
+    if (timer) clearTimeout(timer);
+    void worker.terminate();
+    rejectPromise(new Error("Regex search cancelled"));
+  };
+  return { promise, cancel };
+}
 
 import { fuzzyMatch, fuzzyMatchPositions, substringMatchPositions } from "./fuzzy.js";
 
@@ -31,6 +126,13 @@ export interface SessionSelectorState {
   confirmingDeletePath: string | null;
   /** Current session file path (to prevent deleting active session) */
   currentSessionPath: string | null;
+  /** Transient async regex search state; never persisted. */
+  regexQuery: string;
+  regexStatus: "idle" | "loading" | "ready" | "error";
+  regexResults: Record<string, number>;
+  regexHighlights: Record<string, { index: number; length: number }>;
+  regexError: string;
+  regexCancel?: () => void;
   /** Rename mode */
   renameMode: boolean;
   renameTargetPath: string | null;
@@ -54,6 +156,11 @@ export function createSessionSelectorState(): SessionSelectorState {
     statusType: "info",
     confirmingDeletePath: null,
     currentSessionPath: null,
+    regexQuery: "",
+    regexStatus: "idle",
+    regexResults: {},
+    regexHighlights: {},
+    regexError: "",
     renameMode: false,
     renameTargetPath: null,
     renameInput: "",
@@ -134,24 +241,25 @@ function getSessionSearchText(session: SessionInfo): string {
   return `${session.id} ${session.name ?? ""} ${session.allMessagesText} ${session.cwd}`;
 }
 
-interface ParsedSearchQuery {
-  mode: "tokens" | "regex";
-  tokens: { kind: "fuzzy" | "phrase"; value: string }[];
-  regex: RegExp | null;
-  error?: string;
-}
+type ParsedSearchQuery =
+  | {
+      mode: "tokens";
+      tokens: { kind: "fuzzy" | "phrase"; value: string }[];
+      error?: string;
+    }
+  | {
+      mode: "regex";
+      tokens: [];
+      error?: string;
+    };
 
 function parseSearchQuery(query: string): ParsedSearchQuery {
   const trimmed = query.trim();
-  if (!trimmed) return { mode: "tokens", tokens: [], regex: null };
+  if (!trimmed) return { mode: "tokens", tokens: [] };
   if (trimmed.startsWith("re:")) {
     const pattern = trimmed.slice(3).trim();
-    if (!pattern) return { mode: "regex", tokens: [], regex: null, error: "Empty regex" };
-    try {
-      return { mode: "regex", tokens: [], regex: new RegExp(pattern, "i") };
-    } catch (err) {
-      return { mode: "regex", tokens: [], regex: null, error: String(err) };
-    }
+    if (!pattern) return { mode: "regex", tokens: [], error: "Empty regex" };
+    return { mode: "regex", tokens: [] };
   }
   const tokens: { kind: "fuzzy" | "phrase"; value: string }[] = [];
   let buf = "";
@@ -190,24 +298,17 @@ function parseSearchQuery(query: string): ParsedSearchQuery {
         .map((t) => t.trim())
         .filter((t) => t.length > 0)
         .map((t) => ({ kind: "fuzzy" as const, value: t })),
-      regex: null,
     };
   }
   flush(inQuote ? "phrase" : "fuzzy");
-  return { mode: "tokens", tokens, regex: null };
+  return { mode: "tokens", tokens };
 }
 
 function matchSession(
   session: SessionInfo,
-  parsed: ParsedSearchQuery,
+  parsed: ParsedSearchQuery & { mode: "tokens" },
 ): { matches: boolean; score: number } {
   const text = getSessionSearchText(session);
-  if (parsed.mode === "regex") {
-    if (!parsed.regex) return { matches: false, score: 0 };
-    const idx = text.search(parsed.regex);
-    if (idx < 0) return { matches: false, score: 0 };
-    return { matches: true, score: idx * 0.1 };
-  }
   if (parsed.tokens.length === 0) return { matches: true, score: 0 };
   let totalScore = 0;
   let normalizedText: string | null = null;
@@ -262,6 +363,22 @@ export function getFilteredSessions(state: SessionSelectorState): FlatSessionNod
   const parsed = parseSearchQuery(trimmed);
   if (parsed.error) return [];
 
+  if (parsed.mode === "regex") {
+    if (state.regexQuery !== trimmed || state.regexStatus !== "ready") return [];
+    const scores = state.regexResults;
+    const matched = nameFiltered.filter((session) => Object.hasOwn(scores, session.path));
+    const ordered =
+      state.sortMode === "recent"
+        ? matched.sort(compareSessionModifiedDesc)
+        : matched.sort((a, b) => (scores[a.path] ?? 0) - (scores[b.path] ?? 0));
+    return ordered.map((session) => ({
+      session,
+      depth: 0,
+      isLast: true,
+      ancestorContinues: [],
+    }));
+  }
+
   if (state.sortMode === "recent") {
     return nameFiltered
       .filter((s) => matchSession(s, parsed).matches)
@@ -308,10 +425,8 @@ export function sessionDisplayHighlightPositions(query: string, displayText: str
   if (!trimmed) return [];
   const parsed = parseSearchQuery(trimmed);
   if (parsed.mode === "regex") {
-    if (!parsed.regex) return [];
-    const match = displayText.match(parsed.regex);
-    if (!match || match.index === undefined || match[0].length === 0) return [];
-    return Array.from({ length: match[0].length }, (_, i) => match.index! + i);
+    // Regex matching runs in a worker; never execute user patterns on the UI thread.
+    return [];
   }
   const positions = new Set<number>();
   for (const token of parsed.tokens) {

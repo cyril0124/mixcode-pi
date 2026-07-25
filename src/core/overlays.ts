@@ -219,6 +219,8 @@ export function closeActiveOverlay(state: MixCodeState): void {
   state.workspaceOverlay.open = false;
   state.treeSelector.open = false;
   state.picker = undefined;
+  state.sessionSelector.regexCancel?.();
+  state.sessionSelector.regexCancel = undefined;
   state.sessionSelector.open = false;
   closeCommandPalette(state);
   state.settingsPanel.open = false;

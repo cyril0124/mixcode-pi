@@ -15,6 +15,8 @@ import {
   sessionDisplayHighlightPositions,
   toggleSessionNameFilter,
   toggleSessionSelectorScope,
+  searchSessionsWithRegex,
+  sessionDisplayText,
   updateSessionSelectorQuery,
 } from "../core/session-selector.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
@@ -29,7 +31,75 @@ import { overlayPanel, padLine } from "./rendering/primitives.js";
 import { windowStart } from "./rendering/scroll-window.js";
 import { themeForId } from "./themes.js";
 
-// --- Open / Close ---
+const regexSearches = new WeakMap<
+  SessionSelectorState,
+  { generation: number; cancel: () => void }
+>();
+
+function cancelRegexSearch(selector: SessionSelectorState): number {
+  const active = regexSearches.get(selector);
+  if (active) active.cancel();
+  return active?.generation ?? 0;
+}
+
+function refreshRegexSearch(state: MixCodeState, tui: OverlayTui): void {
+  const selector = state.sessionSelector;
+  const previousGeneration = cancelRegexSearch(selector);
+  selector.regexCancel = undefined;
+  selector.regexError = "";
+  selector.regexResults = {};
+  selector.regexHighlights = {};
+  const query = selector.query.trim();
+  if (!query.startsWith("re:")) {
+    selector.regexQuery = "";
+    selector.regexStatus = "idle";
+    regexSearches.delete(selector);
+    return;
+  }
+  const pattern = query.slice(3).trim();
+  if (!pattern) {
+    selector.regexQuery = query;
+    selector.regexStatus = "error";
+    selector.regexError = "Empty regex";
+    regexSearches.delete(selector);
+    return;
+  }
+  const sessions = selector.scope === "all" ? selector.allSessions : selector.currentSessions;
+  const generation = previousGeneration + 1;
+  selector.regexQuery = query;
+  selector.regexStatus = "loading";
+  const search = searchSessionsWithRegex(sessions, pattern);
+  regexSearches.set(selector, { generation, cancel: search.cancel });
+  selector.regexCancel = () => {
+    cancelRegexSearch(selector);
+    regexSearches.delete(selector);
+    selector.regexCancel = undefined;
+  };
+  void search.promise
+    .then((results) => {
+      const active = regexSearches.get(selector);
+      if (!active || active.generation !== generation || selector.query.trim() !== query) return;
+      selector.regexResults = Object.fromEntries(
+        results.map((result) => [result.path, result.index]),
+      );
+      selector.regexHighlights = Object.fromEntries(
+        results.map((result) => [
+          result.path,
+          { index: result.highlightIndex, length: result.highlightLength },
+        ]),
+      );
+      selector.regexStatus = "ready";
+      selector.regexError = "";
+      tui.requestRender();
+    })
+    .catch((error: unknown) => {
+      const active = regexSearches.get(selector);
+      if (!active || active.generation !== generation || selector.query.trim() !== query) return;
+      selector.regexStatus = "error";
+      selector.regexError = error instanceof Error ? error.message : String(error);
+      tui.requestRender();
+    });
+}
 
 export interface SessionSelectorRuntime {
   listSessions: (cwd: string) => Promise<import("@earendil-works/pi-coding-agent").SessionInfo[]>;
@@ -73,6 +143,7 @@ export async function openSessionSelector(
     const sessions = await runtime.listSessions(cwd);
     selector.currentSessions = sessions;
     selector.loading = false;
+    refreshRegexSearch(state, tui);
     showLinesOverlay(tui, (width) => renderSessionSelector(state, width));
     tui.requestRender();
   } catch (error) {
@@ -85,6 +156,9 @@ export async function openSessionSelector(
 }
 
 export function closeSessionSelector(state: MixCodeState, tui: OverlayTui): void {
+  cancelRegexSearch(state.sessionSelector);
+  regexSearches.delete(state.sessionSelector);
+  state.sessionSelector.regexCancel = undefined;
   state.sessionSelector.open = false;
   closeAppOverlay(tui);
   tui.requestRender();
@@ -171,7 +245,7 @@ export function handleSessionSelectorKey(
   }
   if (matchesKey(data, "tab")) {
     toggleSessionSelectorScope(selector);
-    // Load all sessions on first toggle to "all"
+    refreshRegexSearch(state, tui);
     if (selector.scope === "all" && !selector.allLoaded) {
       loadAllSessions(state, tui, runtime);
     }
@@ -252,14 +326,14 @@ export function handleSessionSelectorKey(
   // Backspace
   if (data === "\u007f") {
     updateSessionSelectorQuery(selector, selector.query.slice(0, -1));
-    showLinesOverlay(tui, (width) => renderSessionSelector(state, width));
+    refreshRegexSearch(state, tui);
     tui.requestRender();
     return true;
   }
   // Ctrl+U: clear query
   if (matchesKey(data, "ctrl+u")) {
     updateSessionSelectorQuery(selector, "");
-    showLinesOverlay(tui, (width) => renderSessionSelector(state, width));
+    refreshRegexSearch(state, tui);
     tui.requestRender();
     return true;
   }
@@ -272,7 +346,7 @@ export function handleSessionSelectorKey(
     !/^[\x00-\x1f\x7f]$/.test(data)
   ) {
     updateSessionSelectorQuery(selector, selector.query + data);
-    showLinesOverlay(tui, (width) => renderSessionSelector(state, width));
+    refreshRegexSearch(state, tui);
     tui.requestRender();
     return true;
   }
@@ -399,6 +473,7 @@ function loadAllSessions(state: MixCodeState, tui: OverlayTui, runtime?: MixCode
       selector.allSessions = sessions;
       selector.allLoaded = true;
       selector.loading = false;
+      refreshRegexSearch(state, tui);
       showLinesOverlay(tui, (width) => renderSessionSelector(state, width));
       tui.requestRender();
     })
@@ -640,6 +715,10 @@ function renderSessionSelectorInner(selector: SessionSelectorState, width: numbe
   if (nodes.length === 0) {
     if (selector.loading) {
       lines.push(activeRenderTheme.dim("  Loading sessions..."));
+    } else if (selector.regexStatus === "loading") {
+      lines.push(activeRenderTheme.dim("  Searching with regex..."));
+    } else if (selector.regexStatus === "error") {
+      lines.push(activeRenderTheme.danger(`  ${selector.regexError}`));
     } else if (selector.nameFilter === "named") {
       lines.push(activeRenderTheme.dim("  No named sessions. Ctrl+N to show all."));
     } else if (selector.scope === "current") {
@@ -684,8 +763,7 @@ function renderSessionLine(
 
   // Display text
   const hasName = Boolean(session.name);
-  const displayText = session.name ?? session.firstMessage;
-  const normalizedMessage = displayText.replace(/[\x00-\x1f\x7f]/g, " ").trim();
+  const normalizedMessage = sessionDisplayText(session);
 
   // Right side: message count + age + optional path/cwd
   const age = formatSessionDate(session.modified);
@@ -720,9 +798,10 @@ function renderSessionLine(
   const restStyle = isSelected
     ? (text: string) => activeRenderTheme.bold(baseStyle(text))
     : baseStyle;
+  const highlightPositions = regexHighlightPositions(selector, session.path, truncatedMsg);
   const styledMsg = highlightRanges(
     truncatedMsg,
-    sessionDisplayHighlightPositions(selector.query, truncatedMsg),
+    highlightPositions,
     (text) => activeRenderTheme.bold(activeRenderTheme.accent(text)),
     restStyle,
   );
@@ -740,6 +819,22 @@ function renderSessionLine(
     line = activeRenderTheme.selection(padLine(line, width));
   }
   return truncateToWidth(line, width);
+}
+
+function regexHighlightPositions(
+  selector: SessionSelectorState,
+  sessionPath: string,
+  displayText: string,
+): number[] {
+  if (!selector.query.trim().startsWith("re:")) {
+    return sessionDisplayHighlightPositions(selector.query, displayText);
+  }
+  const highlight = selector.regexHighlights[sessionPath];
+  if (!highlight || highlight.index < 0 || highlight.length <= 0) return [];
+  const end = Math.min(displayText.length, highlight.index + highlight.length);
+  return Array.from({ length: Math.max(0, end - highlight.index) }, (_, offset) =>
+    highlight.index + offset,
+  );
 }
 
 function buildTreePrefix(node: FlatSessionNode): string {

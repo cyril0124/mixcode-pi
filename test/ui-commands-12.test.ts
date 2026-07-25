@@ -10,6 +10,7 @@ import {
   handleMixCodeKeyInput,
   handleSubmittedInput,
   renderSessionSelector,
+  searchSessionsWithRegex,
   toggleSessionSelectorScope,
   cycleSessionSortMode,
   toggleSessionNameFilter,
@@ -44,6 +45,45 @@ function makeSessions(): SessionInfo[] {
     },
   ];
 }
+
+test("regex session search runs outside the event loop and times out pathological patterns", async () => {
+  const sessions = makeSessions();
+  sessions[0]!.allMessagesText = `${"a".repeat(30_000)}!`;
+
+  const safe = searchSessionsWithRegex(sessions, "My\\s+Session", 500);
+  const safeResults = await safe.promise;
+  assert.deepEqual(safeResults, [
+    {
+      path: "/sessions/session-a.jsonl",
+      index: 10,
+      highlightIndex: 0,
+      highlightLength: 10,
+    },
+  ]);
+
+  const selector = createSessionSelectorState();
+  selector.currentSessions = sessions;
+  selector.query = "re:session";
+  selector.regexQuery = selector.query;
+  selector.regexStatus = "ready";
+  selector.regexResults = {
+    "/sessions/session-a.jsonl": 100,
+    "/sessions/session-b.jsonl": 0,
+  };
+  selector.sortMode = "recent";
+  assert.deepEqual(getFilteredSessions(selector).map((node) => node.session.id), [
+    "session-a",
+    "session-b",
+  ]);
+  selector.sortMode = "relevance";
+  assert.deepEqual(getFilteredSessions(selector).map((node) => node.session.id), [
+    "session-b",
+    "session-a",
+  ]);
+
+  const pathological = searchSessionsWithRegex(sessions, "(a+)+$", 50);
+  await assert.rejects(pathological.promise, /timed out after 50ms/);
+});
 
 test("submitted /resume opens session selector overlay", async () => {
   const state = createInitialState("/repo");
