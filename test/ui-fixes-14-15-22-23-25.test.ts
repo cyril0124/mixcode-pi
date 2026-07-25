@@ -89,3 +89,40 @@ test("theme enum browse applies live preview and Esc restores previous theme", (
 
   assert.match(stripAnsi(renderSettingsPanel(state, 80).join("\n")), /Theme/);
 });
+
+test("defaultModel enum only lists models for the selected defaultProvider", () => {
+  const state = createInitialState("/repo");
+  state.availableModels = [
+    { provider: "openai", modelId: "gpt-4o", displayName: "openai/gpt-4o" },
+    { provider: "openai", modelId: "o3", displayName: "openai/o3" },
+    { provider: "anthropic", modelId: "claude-opus-4-5", displayName: "anthropic/claude-opus-4-5" },
+  ];
+  const settingsManager = SettingsManager.inMemory();
+  settingsManager.setDefaultProvider("openai");
+  settingsManager.setDefaultModel("gpt-4o");
+  state.settingsPanel = {
+    open: true,
+    selectedIndex: 2, // defaultModel (hideThinking, defaultProvider, defaultModel)
+    editMode: false,
+    editText: "",
+    enumOpen: false,
+    enumIndex: 0,
+    mixcodeRaw: {},
+    mixcodeFile: "/tmp/mixcode_settings.json",
+    piSettingsFile: "/tmp/settings.json",
+    settingsManager,
+  };
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({ hide: () => undefined }) as never,
+    hasOverlay: () => true,
+    hideOverlay: () => undefined,
+  };
+
+  handleSettingsPanelKey(state, "\r", tui); // open enum
+  assert.equal(state.settingsPanel.enumOpen, true);
+  const view = stripAnsi(renderSettingsPanel(state, 80).join("\n"));
+  assert.match(view, /gpt-4o/);
+  assert.match(view, /\bo3\b/);
+  assert.doesNotMatch(view, /claude-opus-4-5/);
+});

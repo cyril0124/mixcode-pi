@@ -111,7 +111,14 @@ const ITEMS: SettingItem[] = [
     section: "pi",
     defaultValue: "claude-opus-4-5",
     getValue: ({ settingsManager }) => settingsManager.getDefaultModel(),
-    getOptions: ({ availableModels }) => availableModels.map((m) => m.modelId),
+    // Model ids are provider-scoped in settings; only list models for defaultProvider.
+    getOptions: ({ availableModels, settingsManager }) => {
+      const provider = settingsManager.getDefaultProvider();
+      const models = provider
+        ? availableModels.filter((m) => m.provider === provider)
+        : availableModels;
+      return [...new Set(models.map((m) => m.modelId))];
+    },
     setValue: async ({ settingsManager }, v) => {
       if (v !== undefined) settingsManager.setDefaultModel(v);
     },
