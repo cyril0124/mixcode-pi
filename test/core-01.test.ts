@@ -4,6 +4,7 @@ import { mkdtemp, readFile, rm, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { promisify } from "node:util";
+import { performance } from "node:perf_hooks";
 import { test } from "node:test";
 import {
   commandSuggestions,
@@ -469,6 +470,30 @@ test("project file utilities scan and rank project references", async () => {
     assert.deepEqual(searchProjectFiles("beta/loose", ["alpha/loose", "beta/loose"], 1), [
       "beta/loose",
     ]);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("non-git project scan avoids per-entry stat cost", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-file-picker-walk-"));
+  try {
+    // Enough entries that sequential await stat(full) was multi-100ms; Dirent walk is far cheaper.
+    for (let d = 0; d < 50; d++) {
+      await mkdir(join(dir, `pkg${d}`), { recursive: true });
+      await Promise.all(
+        Array.from({ length: 40 }, (_, f) => writeFile(join(dir, `pkg${d}`, `mod${f}.ts`), "x\n")),
+      );
+    }
+    const t0 = performance.now();
+    const files = await scanProjectFiles(dir, 5000);
+    const ms = performance.now() - t0;
+    assert.ok(files.includes("pkg0/"));
+    assert.ok(files.includes("pkg0/mod0.ts"));
+    assert.ok(files.length > 2000, `expected large scan, got ${files.length}`);
+    // Cold walk of ~2k+ paths with per-entry await stat was ~100ms+ on local disk;
+    // withFileTypes should stay well under a loose CI budget.
+    assert.ok(ms < 250, `non-git scan too slow: ${ms.toFixed(1)}ms for ${files.length} paths`);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

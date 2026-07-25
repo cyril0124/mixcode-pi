@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { readdir, stat } from "node:fs/promises";
+import { readdir } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { promisify } from "node:util";
 import { fuzzyMatchBatch } from "./fuzzy.js";
@@ -12,17 +12,26 @@ export async function scanProjectFiles(root: string, maxFiles = 2000): Promise<s
   const gitFiles = await gitVisibleProjectFiles(root);
   if (gitFiles) return withParentDirectories(gitFiles).slice(0, maxFiles);
   const result: string[] = [];
+  // Use withFileTypes so each entry's kind is known without a follow-up stat().
+  // The previous await stat(full) per child serialized all filesystem metadata
+  // and made cold @ completion multi-second on medium trees without git/fd.
   async function walk(dir: string): Promise<void> {
     if (result.length >= maxFiles) return;
-    for (const entry of await readdir(dir)) {
-      if (EXCLUDED_DIRS.has(entry)) continue;
-      const full = join(dir, entry);
-      const info = await stat(full);
-      if (info.isDirectory()) {
+    let entries;
+    try {
+      entries = await readdir(dir, { withFileTypes: true });
+    } catch {
+      // Unreadable directory: skip (same as abandoning that branch).
+      return;
+    }
+    for (const entry of entries) {
+      if (EXCLUDED_DIRS.has(entry.name)) continue;
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) {
         result.push(`${normalizeProjectPath(relative(root, full))}/`);
         if (result.length >= maxFiles) return;
         await walk(full);
-      } else if (info.isFile()) {
+      } else if (entry.isFile()) {
         result.push(normalizeProjectPath(relative(root, full)));
       }
       if (result.length >= maxFiles) return;
