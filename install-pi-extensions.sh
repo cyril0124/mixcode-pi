@@ -6,7 +6,7 @@ set -euo pipefail
 #
 # Built-in packages live under pi-packages/ and are loaded by the app itself
 # (ensurePackageExtensions / binary-entry). Do not list them here or tools and
-# widgets can double-register. Vendored example: pi-packages/rpiv-todo.
+# widgets can double-register.
 
 # `pi` ships as npm package @earendil-works/pi-coding-agent.
 if ! command -v pi >/dev/null 2>&1; then
@@ -26,10 +26,18 @@ extensions=(
   npm:pi-tool-display
   npm:pi-schedule-prompt
   npm:@tintinweb/pi-subagents
+  npm:@tintinweb/pi-tasks
   npm:pi-invisible-continue
   npm:@juicesharp/rpiv-web-tools
   npm:@monotykamary/pi-tps
 )
+
+# https://github.com/jiangge/pi-cache-optimizer
+# https://github.com/robzolkos/pi-slopchop
+# https://github.com/fitchmultz/pi-agent-browser-native
+# https://github.com/davebcn87/pi-autoresearch
+# https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-codex-conversion
+# https://github.com/cortexkit/magic-context
 
 for ext in "${extensions[@]}"; do
   echo "Installing $ext ..."

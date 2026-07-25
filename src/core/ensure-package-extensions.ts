@@ -77,9 +77,8 @@ export function ensurePackageExtensions(
 
       if (shouldCopy) {
         // Copy mode: write files directly into ~/.pi/agent/extensions/<name>/,
-        // recursing into subdirectories. Multi-file packages (e.g. rpiv-todo with
-        // state/, tool/, view/, vendor/, locales/) would otherwise lose their
-        // nested modules and fail to load.
+        // recursing into subdirectories. Multi-file packages (nested modules
+        // under state/, tool/, view/, etc.) would otherwise lose paths and fail.
         copyTreeSync(pkgDir, destDir);
       } else {
         // Symlink mode: skip if already a symlink pointing to the correct target

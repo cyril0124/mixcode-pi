@@ -24,11 +24,11 @@ test("config lists agents and surfaces package update notice", () => {
   assert.match(config, /Agent-01/);
   assert.doesNotMatch(config, /Package Updates Available/);
 
-  state.packageUpdates = ["@juicesharp/rpiv-todo", "pi-codex-goal"];
+  state.packageUpdates = ["@tintinweb/pi-tasks", "pi-codex-goal"];
   const updates = stripAnsi(renderConfig(state, 100).join("\n"));
   assert.match(updates, /Package Updates Available/);
   assert.match(updates, /pi update/);
-  assert.match(updates, /@juicesharp\/rpiv-todo/);
+  assert.match(updates, /@tintinweb\/pi-tasks/);
   assert.match(updates, /pi-codex-goal/);
 });
 
