@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { homedir } from "node:os";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { homedir, tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 import { MixCodeCompletionProvider } from "../src/index.js";
 
@@ -112,6 +114,34 @@ test("completion provider uses fd results with basename labels when fd is availa
   assert.ok(picker, "expected fd to surface src/core/file-picker.ts");
   assert.equal(picker?.label, "file-picker.ts");
   assert.equal(picker?.description, "src/core/file-picker.ts");
+});
+
+test("completion provider returns no suggestions when fd finds no visible files", async (t) => {
+  const { resolveFdBinary } = await import("../src/index.js");
+  const fdPath = resolveFdBinary();
+  if (!fdPath) {
+    t.skip("fd not installed");
+    return;
+  }
+  const workdir = await mkdtemp(join(tmpdir(), "mixcode-completion-ignore-"));
+  try {
+    await mkdir(join(workdir, "ignored-dir"));
+    await writeFile(join(workdir, ".gitignore"), "ignored-dir/\n");
+    await writeFile(join(workdir, "ignored-dir", "secret.txt"), "secret\n");
+    const provider = new MixCodeCompletionProvider({
+      skills: [],
+      files: ["ignored-dir/", "ignored-dir/secret.txt"],
+      fileSearch: () => ({ fdPath, workdir }),
+    });
+
+    const suggestions = await provider.getSuggestions(["@ignored"], 0, 8, {
+      signal: new AbortController().signal,
+    });
+
+    assert.equal(suggestions, null);
+  } finally {
+    await rm(workdir, { recursive: true, force: true });
+  }
 });
 
 test("completion provider compacts skill descriptions before paths are truncated", async () => {

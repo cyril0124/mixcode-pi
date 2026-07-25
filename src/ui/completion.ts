@@ -1,11 +1,12 @@
+import { existsSync } from "node:fs";
 import path from "node:path";
-import { fuzzyFilter } from "@earendil-works/pi-tui";
 import type {
   AutocompleteItem,
   AutocompleteProvider,
   AutocompleteSuggestions,
   SlashCommand,
 } from "@earendil-works/pi-tui";
+import { fuzzyFilter } from "@earendil-works/pi-tui";
 import { LOCAL_COMMANDS } from "../core/commands.js";
 import { fdFileSuggestions } from "../core/fd-file-search.js";
 import { searchProjectFiles } from "../core/file-picker.js";
@@ -96,9 +97,8 @@ export class MixCodeCompletionProvider implements AutocompleteProvider {
       const isQuoted = prefix.startsWith('"');
       const query = isQuoted ? prefix.slice(1) : prefix;
       const fileSearch = this.sources.fileSearch?.();
-      // Prefer live fd search (pi parity): always reflects current disk state,
-      // gitignore-aware, no static-snapshot cap. Fall back to the static list
-      // when fd is unavailable or the fd query yields nothing usable.
+      // Prefer live fd search (pi parity): always reflects current disk and
+      // applies ignore rules. Fall back only when fd is unavailable.
       if (fileSearch) {
         const matches = await fdFileSuggestions(query, {
           workdir: fileSearch.workdir,
@@ -116,6 +116,11 @@ export class MixCodeCompletionProvider implements AutocompleteProvider {
             })),
           };
         }
+        const fdAvailable =
+          fileSearch.fdPath === "fd" ||
+          fileSearch.fdPath === "fdfind" ||
+          existsSync(fileSearch.fdPath);
+        if (fdAvailable) return null;
       }
       const files = await resolveCompletionFiles(this.sources.files);
       return {
