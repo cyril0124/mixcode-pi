@@ -28,16 +28,25 @@ export function renderTabBar(
   state: MixCodeState,
   width: number,
   theme: MixCodeTheme = activeRenderTheme,
+  maxRows?: number,
 ): string[] {
   return renderWithTheme(theme, () => {
     const segments = tabBarSegments(state);
     const indent = wrappedRowIndent(segments, width);
-    return packTabRows(segments, width, indent).map((row, rowIndex) => {
+    const packed = packTabRows(segments, width, indent);
+    const { rows, hiddenCount } = limitTabRows(packed, maxRows);
+    const lines = rows.map((row, rowIndex) => {
       const prefix = rowIndex === 0 ? "" : " ".repeat(indent);
       return activeRenderTheme.text(
         padLine(prefix + row.map((segment) => segment.text).join(" "), width),
       );
     });
+    if (hiddenCount > 0) {
+      lines.push(
+        activeRenderTheme.dim(padLine(`${" ".repeat(indent)}… +${hiddenCount} tabs`, width)),
+      );
+    }
+    return lines;
   });
 }
 
@@ -113,11 +122,14 @@ export function zenUnreadDoneCount(
 export function tabBarHitRegions(
   state: MixCodeState,
   width = Number.POSITIVE_INFINITY,
+  maxRows?: number,
 ): MouseHitRegion[] {
   const segments = tabBarSegments(state);
   const indent = wrappedRowIndent(segments, width);
   const regions: MouseHitRegion[] = [];
-  packTabRows(segments, width, indent).forEach((row, rowIndex) => {
+  const packed = packTabRows(segments, width, indent);
+  const { rows } = limitTabRows(packed, maxRows);
+  rows.forEach((row, rowIndex) => {
     // Wrapped rows start under the first tab (after "MixCode Home"); the first
     // row starts at the left edge.
     let cursor = rowIndex === 0 ? 1 : indent + 1;
@@ -132,6 +144,20 @@ export function tabBarHitRegions(
 }
 
 type TabSegment = { id: string; text: string };
+
+function limitTabRows(
+  rows: TabSegment[][],
+  maxRows: number | undefined,
+): { rows: TabSegment[][]; hiddenCount: number } {
+  if (maxRows === undefined || !Number.isFinite(maxRows) || rows.length <= maxRows) {
+    return { rows, hiddenCount: 0 };
+  }
+  const limit = Math.max(1, Math.floor(maxRows));
+  if (limit === 1) return { rows: rows.slice(0, 1), hiddenCount: 0 };
+  const visibleRows = rows.slice(0, limit - 1);
+  const hiddenCount = rows.slice(visibleRows.length).reduce((count, row) => count + row.length, 0);
+  return { rows: visibleRows, hiddenCount };
+}
 
 /**
  * Left indent for wrapped tab rows so they align under the first tab, i.e. just

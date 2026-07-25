@@ -251,6 +251,44 @@ test("picker state filters, moves, and accepts selections", () => {
   assert.equal(workdir.browsingDir, "/repo");
 });
 
+test("picker query starts selection at the first filtered result", () => {
+  const state = createInitialState("/repo");
+  state.availableModels.push(
+    {
+      provider: "openai",
+      modelId: "gpt-alpha",
+      displayName: "openai/gpt-alpha",
+      contextWindow: 100_000,
+    },
+    {
+      provider: "openai",
+      modelId: "gpt-beta",
+      displayName: "openai/gpt-beta",
+      contextWindow: 100_000,
+    },
+    {
+      provider: "openai",
+      modelId: "gpt-gamma",
+      displayName: "openai/gpt-gamma",
+      contextWindow: 100_000,
+    },
+    {
+      provider: "anthropic",
+      modelId: "claude",
+      displayName: "anthropic/claude",
+      contextWindow: 100_000,
+    },
+  );
+  const tab = createTab(1, "s1", "/repo", { model: state.availableModels.at(-1)! });
+  const picker = createPicker("models", state, tab);
+  assert.equal(picker.selectedIndex, 4);
+
+  updatePickerQuery(picker, "gpt");
+
+  assert.equal(picker.selectedIndex, 0);
+  assert.equal(acceptPickerSelection(picker)?.id, filteredPickerItems(picker)[0]?.id);
+});
+
 test("workdir picker completes direct child directories only", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-workdir-picker-"));
   try {

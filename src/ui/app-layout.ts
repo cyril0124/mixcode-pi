@@ -35,16 +35,19 @@ const WORKING_GAP_ROWS = 1;
 // Keep enough rows for chat + editor chrome so a flood of extension widgets
 // cannot push the tab bar into scrollback.
 const MIN_CHAT_AND_EDITOR_ROWS = 6;
+// Preserve enough Home rows for one agent card and its navigation hint.
+const MIN_HOME_CONTENT_ROWS = 10;
 
 export function renderVisibleTabBar(
   state: MixCodeState,
   width: number,
   theme: MixCodeTheme,
+  maxRows?: number,
 ): string[] {
   const active = getActiveTab(state);
   return active?.zenMode === true && state.activeTabId !== "config"
     ? []
-    : renderTabBar(state, width, theme);
+    : renderTabBar(state, width, theme, maxRows);
 }
 
 export class MixCodeRoot implements Component {
@@ -60,9 +63,18 @@ export class MixCodeRoot implements Component {
   render(width: number): string[] {
     const active = getActiveTab(this.state);
     const theme = themeForId(this.state.theme);
+    const viewportRows = this.getViewportRows?.();
+    const limit = viewportRows
+      ? Math.max(0, viewportRows - this.getReservedRows())
+      : undefined;
+    const minContentRows =
+      !active || this.state.activeTabId === "config"
+        ? MIN_HOME_CONTENT_ROWS
+        : MIN_CHAT_AND_EDITOR_ROWS;
+    const maxTabRows = limit === undefined ? undefined : Math.max(1, limit - minContentRows);
     // Zen mode hides the tab bar only; separator and header stay so chrome
     // still frames the chat without tab chrome noise.
-    const tabBarLines = renderVisibleTabBar(this.state, width, theme);
+    const tabBarLines = renderVisibleTabBar(this.state, width, theme, maxTabRows);
     // Extension header is no longer pinned here; it now scrolls with the
     // conversation (rendered at the top of the agent surface), matching Pi.
     const top = [...renderHeader(width, theme), ...tabBarLines];
@@ -72,8 +84,6 @@ export class MixCodeRoot implements Component {
     this.state.tabBarTopRow = top.length - tabBarLines.length + 1;
     this.state.lastRenderWidth = width;
     if (!active || this.state.activeTabId === "config") {
-      const viewportRows = this.getViewportRows?.();
-      const limit = viewportRows ? Math.max(0, viewportRows - this.getReservedRows()) : undefined;
       const configRows = limit === undefined ? undefined : Math.max(0, limit - top.length);
       return this.fitRootLines(
         [...top, ...renderConfig(this.state, width, theme, top.length, configRows)],
@@ -98,8 +108,7 @@ export class MixCodeRoot implements Component {
     );
     const preview = renderPreviewOverlay(active, width, theme);
     const bottomBeforeMeta = [...preview];
-    const viewportRows = this.getViewportRows?.();
-    if (!viewportRows) {
+    if (!viewportRows || limit === undefined) {
       const middle = renderAgentSurface(active, runtimeTab, width, undefined, theme, {
         oversizedAssistantMessage: this.oversizedAssistantMessagePolicy(),
         hideThinking: this.state.hideThinkingBlock ?? false,
@@ -107,7 +116,6 @@ export class MixCodeRoot implements Component {
       });
       return [...top, ...contentGap, ...middle, ...bottomBeforeMeta];
     }
-    const limit = Math.max(0, viewportRows - this.getReservedRows());
     if (top.length >= limit) return top.slice(0, limit);
     const fixedTop = [...top, ...contentGap];
     if (fixedTop.length >= limit) return fixedTop.slice(0, limit);

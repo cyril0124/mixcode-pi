@@ -56,6 +56,34 @@ test("workdir picker lists more than 20 dirs with overflow affordance", async ()
   }
 });
 
+test("theme enum opens on the effective default theme", () => {
+  const state = createInitialState("/repo");
+  state.theme = "claude-warm";
+  state.settingsPanel = {
+    open: true,
+    selectedIndex: 5,
+    editMode: false,
+    editText: "",
+    enumOpen: false,
+    enumIndex: 0,
+    mixcodeRaw: {},
+    mixcodeFile: "/tmp/mixcode_settings.json",
+    piSettingsFile: "/tmp/settings.json",
+    settingsManager: SettingsManager.inMemory(),
+  };
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({ hide: () => undefined }) as never,
+    hasOverlay: () => true,
+    hideOverlay: () => undefined,
+  };
+
+  handleSettingsPanelKey(state, "\r", tui);
+
+  assert.equal(state.theme, "claude-warm");
+  assert.match(stripAnsi(renderSettingsPanel(state, 80).join("\n")), /› claude-warm/);
+});
+
 test("theme enum browse applies live preview and Esc restores previous theme", () => {
   const state = createInitialState("/repo");
   state.theme = "claude-warm";

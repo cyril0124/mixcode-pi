@@ -180,8 +180,13 @@ function handleChromeMouse(
   ) {
     const clickedRow = mouse.y - tabBarTop;
     const width = state.lastRenderWidth ?? Number.POSITIVE_INFINITY;
-    const tabId = tabBarHitRegions(state, width).find(
-      (region) => (region.row ?? 0) === clickedRow && mouse.x >= region.startX && mouse.x <= region.endX,
+    const visibleRows =
+      state.tabBarHitRow === undefined
+        ? undefined
+        : Math.max(0, state.tabBarHitRow - tabBarTop + 1);
+    const tabId = tabBarHitRegions(state, width, visibleRows).find(
+      (region) =>
+        (region.row ?? 0) === clickedRow && mouse.x >= region.startX && mouse.x <= region.endX,
     )?.id;
     if (tabId) {
       // Tree is global; close owner editor before focusing another tab.

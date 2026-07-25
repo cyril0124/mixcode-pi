@@ -247,6 +247,31 @@ test("MixCodeRoot clips config view when viewport is smaller than static content
   assert.match(lines[0] ?? "", /MixCode Home/);
 });
 
+test("MixCodeRoot summarizes wrapped tabs to keep narrow Home content visible", () => {
+  const state = createInitialState("/repo");
+  for (let index = 1; index <= 12; index++) {
+    const tab = createTab(index, `s${index}`, "/repo");
+    tab.title = `task-${index}-long-title`;
+    state.tabs.push(tab);
+  }
+  state.activeTabId = "config";
+  const runtime = { getTab: () => undefined } as unknown as MixCodeRuntime;
+  const root = new MixCodeRoot(
+    state,
+    runtime,
+    () => 15,
+    () => 2,
+  );
+
+  const lines = root.render(40);
+  const text = stripAnsi(lines.join("\n"));
+
+  assert.equal(lines.length <= 13, true);
+  assert.match(text, /\+\d+ tabs/);
+  assert.match(text, /Agents/);
+  assert.match(text, /↑\/↓: select|→: attach|Enter: send|Tab: cycle tabs/);
+});
+
 test("createMixCodeTui renders the combined layout with codex-like editor block and meta row", () => {
   const state = createInitialState("/repo");
   state.tabs.push(
