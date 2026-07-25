@@ -209,7 +209,10 @@ export interface MixCodeTabInfo {
    * conversation. Lives outside the chat array (Pi's loadedResourcesContainer
    * analogue) so chat rebuilds from session entries can never clear it.
    */
+  /** Full startup resource detail, shown while the existing tool expansion is active. */
   startupSummary?: string;
+  /** Pi-style compact startup resource detail, shown by default. */
+  startupSummaryCompact?: string;
   inputMetaHitRegions?: InputMetaHitRegion[];
   /** Non-persisted: screen bounds for the visible Agent message surface. */
   chatSurfaceBounds?: ChatSurfaceBounds;

@@ -617,6 +617,7 @@ export function resetTabForNewSession(tab: MixCodeTabInfo, sessionId: string): v
   // The startup header belongs to the outgoing session's services; every
   // session-replacement path recomputes it via refreshStartupHeader.
   tab.startupSummary = undefined;
+  tab.startupSummaryCompact = undefined;
 }
 
 export function applyRuntimeTabModel(runtimeTab: RuntimeTab, model: MixCodeModel): void {

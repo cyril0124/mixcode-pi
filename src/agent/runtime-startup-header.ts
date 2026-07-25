@@ -24,22 +24,35 @@ export function refreshStartupHeader(runtimeTab: RuntimeTab): void {
     .agentsFiles.map((file) => displayResourcePath(file.path));
   const skillsResult = runtimeTab.services.resourceLoader.getSkills();
   const skills = skillsResult.skills.map((skill) => skill.name);
-  const extensions = runtimeTab.extensionManagerEntries
-    .filter((entry) => entry.enabled)
-    .map((entry) => displayExtensionName(entry));
+  const extensions = formatExtensionSummaries(
+    runtimeTab.extensionManagerEntries.filter((entry) => entry.enabled),
+  );
   const diagnostics = [
     ...extensionLoadErrorLines(runtimeTab),
     ...extensionConflictDiagnosticLines(runtimeTab, runtimeTab.extensionToolOwnerPolicy),
   ];
   const skillConflicts = skillConflictSection(skillsResult.skills, skillsResult.diagnostics);
-  runtimeTab.tab.startupSummary = [
+  const leadingSections = [
     ...resourceSummarySection("Context", contextFiles),
     ...resourceSummarySection("Skills", skills),
-    ...resourceSummarySection("Extensions", extensions),
+  ];
+  const trailingSections = [
     ...resourceSummarySection("Tool Owners", toolOwnerSummary(runtimeTab)),
     // Skill/Diagnostics sections only when present — empty sections add noise.
     ...skillConflicts,
     ...(diagnostics.length ? resourceSummarySection("Diagnostics", diagnostics) : []),
+  ];
+  runtimeTab.tab.startupSummaryCompact = [
+    ...leadingSections,
+    ...resourceSummarySection("Extensions", extensions.compact),
+    ...trailingSections,
+  ]
+    .join("\n")
+    .trimEnd();
+  runtimeTab.tab.startupSummary = [
+    ...leadingSections,
+    ...resourceSummaryLinesSection("Extensions", extensions.expanded),
+    ...trailingSections,
   ]
     .join("\n")
     .trimEnd();
@@ -47,6 +60,10 @@ export function refreshStartupHeader(runtimeTab: RuntimeTab): void {
 
 function resourceSummarySection(title: string, items: string[]): string[] {
   return [`[${title}]`, items.length ? `  ${items.join(", ")}` : "  none", ""];
+}
+
+function resourceSummaryLinesSection(title: string, lines: string[]): string[] {
+  return [`[${title}]`, ...(lines.length ? lines : ["  none"]), ""];
 }
 
 /**
@@ -187,9 +204,182 @@ function getShortPath(fullPath: string, sourceInfo: SourceInfo | undefined): str
   return formatDisplayPath(fullPath);
 }
 
-function displayExtensionName(entry: ExtensionManagerEntry): string {
-  if (entry.source && entry.source !== "local" && entry.source !== "unknown") return entry.source;
-  return displayResourcePath(entry.path);
+type ExtensionDisplayEntry = Pick<
+  ExtensionManagerEntry,
+  "path" | "source" | "scope" | "origin" | "baseDir"
+>;
+
+type ExtensionScope = "user" | "project" | "path";
+
+type ExtensionScopeGroup = {
+  scope: ExtensionScope;
+  paths: ExtensionDisplayEntry[];
+  packages: Map<string, ExtensionDisplayEntry[]>;
+};
+
+/** Pi InteractiveMode-compatible compact and expanded extension resource labels. */
+export function formatExtensionSummaries(entries: readonly ExtensionDisplayEntry[]): {
+  compact: string[];
+  expanded: string[];
+} {
+  const listed = [...entries];
+  return {
+    compact: compactExtensionLabels(listed).sort((left, right) => left.localeCompare(right)),
+    expanded: formatExtensionScopeGroups(buildExtensionScopeGroups(listed)),
+  };
+}
+
+function formatExtensionDisplayPath(resourcePath: string): string {
+  return formatDisplayPath(resourcePath)
+    .replace(/\/index\.ts$/, "")
+    .replace(/\/index\.js$/, "");
+}
+
+function isPackageExtension(entry: ExtensionDisplayEntry): boolean {
+  return entry.source.startsWith("npm:") || entry.source.startsWith("git:");
+}
+
+function getExtensionShortPath(entry: ExtensionDisplayEntry): string {
+  const normalizedFullPath = entry.path.replace(/\\/g, "/");
+  const baseDir = entry.baseDir;
+  const normalizedBaseDir = baseDir?.replace(/\\/g, "/");
+  if (baseDir && normalizedBaseDir && isPackageExtension(entry)) {
+    const npmRootMatch = normalizedBaseDir.match(/^(.*\/node_modules)\/(@?[^/]+(?:\/[^/]+)?)$/);
+    if (npmRootMatch?.[1] && normalizedFullPath.startsWith(`${npmRootMatch[1]}/`)) {
+      return path.posix.relative(normalizedBaseDir, normalizedFullPath);
+    }
+    const relativePath = path.relative(path.resolve(baseDir), path.resolve(entry.path));
+    if (
+      relativePath &&
+      relativePath !== "." &&
+      !relativePath.startsWith("..") &&
+      !relativePath.startsWith(`..${path.sep}`) &&
+      !path.isAbsolute(relativePath)
+    ) {
+      return relativePath.replace(/\\/g, "/");
+    }
+  }
+  const npmMatch = normalizedFullPath.match(/node_modules\/(@?[^/]+(?:\/[^/]+)?)\/(.*)/);
+  if (npmMatch && entry.source.startsWith("npm:")) return npmMatch[2];
+  const gitMatch = normalizedFullPath.match(/git\/[^/]+\/[^/]+\/(.*)/);
+  if (gitMatch && entry.source.startsWith("git:")) return gitMatch[1];
+  return formatDisplayPath(entry.path);
+}
+
+function compactPackageSourceLabel(source: string): string {
+  if (source.startsWith("npm:")) return source.slice("npm:".length) || source;
+  if (!source.startsWith("git:")) return source;
+  return source
+    .slice("git:".length)
+    .trim()
+    .replace(/^git@[^:]+:/, "")
+    .replace(/^(?:https?|ssh|git):\/\/[^/]+\//, "")
+    .replace(/^[^/]+\/(?=[^/]+\/)/, "")
+    .replace(/#.*$/, "")
+    .replace(/\.git$/, "");
+}
+
+function compactPackageExtensionLabel(entry: ExtensionDisplayEntry): string {
+  const sourceLabel = compactPackageSourceLabel(entry.source);
+  if (!sourceLabel) return compactPathLabel(entry.path);
+  const shortPath = getExtensionShortPath(entry);
+  const packagePath = shortPath.startsWith("extensions/")
+    ? shortPath.slice("extensions/".length)
+    : shortPath;
+  const parsedPath = path.posix.parse(packagePath);
+  if (parsedPath.name === "index") {
+    return !parsedPath.dir || parsedPath.dir === "."
+      ? sourceLabel
+      : `${sourceLabel}:${parsedPath.dir}`;
+  }
+  return `${sourceLabel}:${packagePath}`;
+}
+
+function compactPathSegments(resourcePath: string): string[] {
+  return formatDisplayPath(resourcePath)
+    .replace(/\\/g, "/")
+    .split("/")
+    .filter((segment) => segment.length > 0 && segment !== "~");
+}
+
+function compactPathLabel(resourcePath: string): string {
+  const segments = compactPathSegments(resourcePath);
+  return segments.at(-1) ?? formatDisplayPath(resourcePath);
+}
+
+function compactExtensionLabels(entries: ExtensionDisplayEntry[]): string[] {
+  const nonPackageEntries = entries
+    .filter((entry) => !isPackageExtension(entry))
+    .map((entry) => {
+      const segments = compactPathSegments(entry.path);
+      const last = segments.at(-1);
+      if (segments.length > 1 && (last === "index.ts" || last === "index.js")) segments.pop();
+      return { entry, segments };
+    });
+  return entries.map((entry) => {
+    if (isPackageExtension(entry)) return compactPackageExtensionLabel(entry);
+    const index = nonPackageEntries.findIndex((item) => item.entry.path === entry.path);
+    const segments = nonPackageEntries[index]?.segments;
+    if (!segments?.length) return compactPathLabel(entry.path);
+    for (let segmentCount = 1; segmentCount <= segments.length; segmentCount += 1) {
+      const candidate = segments.slice(-segmentCount).join("/");
+      const unique = nonPackageEntries.every(
+        (item, itemIndex) =>
+          itemIndex === index || item.segments.slice(-segmentCount).join("/") !== candidate,
+      );
+      if (unique) return candidate;
+    }
+    return segments.join("/");
+  });
+}
+
+function extensionScope(entry: ExtensionDisplayEntry): ExtensionScope {
+  if (entry.source === "cli" || entry.scope === "temporary") return "path";
+  if (entry.scope === "user") return "user";
+  if (entry.scope === "project") return "project";
+  return "path";
+}
+
+function buildExtensionScopeGroups(entries: ExtensionDisplayEntry[]): ExtensionScopeGroup[] {
+  const groups: Record<ExtensionScope, ExtensionScopeGroup> = {
+    user: { scope: "user", paths: [], packages: new Map() },
+    project: { scope: "project", paths: [], packages: new Map() },
+    path: { scope: "path", paths: [], packages: new Map() },
+  };
+  for (const entry of entries) {
+    const group = groups[extensionScope(entry)];
+    if (isPackageExtension(entry)) {
+      const items = group.packages.get(entry.source) ?? [];
+      items.push(entry);
+      group.packages.set(entry.source, items);
+    } else {
+      group.paths.push(entry);
+    }
+  }
+  return [groups.project, groups.user, groups.path].filter(
+    (group) => group.paths.length > 0 || group.packages.size > 0,
+  );
+}
+
+function formatExtensionScopeGroups(groups: ExtensionScopeGroup[]): string[] {
+  const lines: string[] = [];
+  for (const group of groups) {
+    lines.push(`  ${group.scope}`);
+    for (const entry of [...group.paths].sort((left, right) =>
+      left.path.localeCompare(right.path),
+    )) {
+      lines.push(`    ${formatExtensionDisplayPath(entry.path)}`);
+    }
+    for (const [source, entries] of [...group.packages.entries()].sort(([left], [right]) =>
+      left.localeCompare(right),
+    )) {
+      lines.push(`    ${source}`);
+      for (const entry of [...entries].sort((left, right) => left.path.localeCompare(right.path))) {
+        lines.push(`      ${formatExtensionDisplayPath(getExtensionShortPath(entry))}`);
+      }
+    }
+  }
+  return lines;
 }
 
 function displayResourcePath(resourcePath: string): string {

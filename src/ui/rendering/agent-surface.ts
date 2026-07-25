@@ -116,7 +116,14 @@ function scrollableHeaderLines(tab: MixCodeTabInfo, width: number): string[] {
   const blocks = [
     renderExtensionHeader(tab, width),
     renderHeaderKeyHints(tab, width),
-    tab.startupSummary ? renderStartupBlock(tab.startupSummary, width) : [],
+    tab.startupSummary
+      ? renderStartupBlock(
+          tab.extensionUi.toolsExpanded
+            ? tab.startupSummary
+            : (tab.startupSummaryCompact ?? tab.startupSummary),
+          width,
+        )
+      : [],
   ].filter((block) => block.length > 0);
   if (!blocks.length) return [];
   const lines = blocks.flatMap((block, index) =>
