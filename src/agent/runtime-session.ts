@@ -7,7 +7,10 @@ import {
   type SessionInfo,
   SessionManager,
 } from "@earendil-works/pi-coding-agent";
-import type { ExtensionManagerEntry } from "../core/extension-manager.js";
+import {
+  type ExtensionManagerEntry,
+  syncExtensionManagerEntrySources,
+} from "../core/extension-manager.js";
 import type { ExtensionToolOwnerPolicy } from "../core/extension-tool-owners.js";
 import { closeExtensionCustomOverlays, disposeExtensionWidgets } from "./runtime-extension-ui.js";
 import type { ExtensionCustomUiHost, RuntimeTab } from "./runtime-types.js";
@@ -28,10 +31,19 @@ export function setExtensionManagerEntriesForServices(
   extensionManagerEntriesByServices.set(services, entries);
 }
 
+/**
+ * Entries are captured inside extensionsOverride (before Pi applies package
+ * sourceInfo). Sync display fields from the live loader result on every read so
+ * callers always see npm:/git: labels after applyExtensionSourceInfo runs.
+ */
 export function getExtensionManagerEntriesForServices(
   services: AgentSessionServices,
 ): ExtensionManagerEntry[] {
-  return extensionManagerEntriesByServices.get(services) ?? [];
+  const entries = extensionManagerEntriesByServices.get(services) ?? [];
+  if (entries.length > 0) {
+    syncExtensionManagerEntrySources(entries, services.resourceLoader.getExtensions());
+  }
+  return entries;
 }
 
 /**

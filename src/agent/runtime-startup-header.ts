@@ -7,6 +7,7 @@ import {
   extensionConflictDiagnosticLines,
   extensionLoadErrorLines,
 } from "./runtime-extension-ui.js";
+import { getExtensionManagerEntriesForServices } from "./runtime-session.js";
 import type { RuntimeTab } from "./runtime-types.js";
 import { PI_BUILTIN_TOOL_NAMES } from "./tools.js";
 
@@ -24,6 +25,9 @@ export function refreshStartupHeader(runtimeTab: RuntimeTab): void {
     .agentsFiles.map((file) => displayResourcePath(file.path));
   const skillsResult = runtimeTab.services.resourceLoader.getSkills();
   const skills = skillsResult.skills.map((skill) => skill.name);
+  // Re-read via services so package sourceInfo is synced after Pi's post-override
+  // applyExtensionSourceInfo (entries captured in extensionsOverride are stale).
+  runtimeTab.extensionManagerEntries = getExtensionManagerEntriesForServices(runtimeTab.services);
   const extensions = formatExtensionSummaries(
     runtimeTab.extensionManagerEntries.filter((entry) => entry.enabled),
   );

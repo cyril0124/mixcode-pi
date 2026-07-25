@@ -97,6 +97,34 @@ export function filterDisabledExtensions(
   return result;
 }
 
+/**
+ * Copy post-apply sourceInfo onto entries captured inside extensionsOverride.
+ *
+ * Pi's DefaultResourceLoader calls extensionsOverride before
+ * applyExtensionSourceInfo, so entries built in the override still have the
+ * synthetic loader defaults (source=local, scope=temporary). The live result
+ * from getExtensions() already has package metadata (npm:/git:). Update display
+ * fields from that result, but leave `key` alone so disable persistence still
+ * matches the pre-apply keys used by filterDisabledExtensions.
+ */
+export function syncExtensionManagerEntrySources(
+  entries: ExtensionManagerEntry[],
+  liveResult: LoadExtensionsResult,
+): void {
+  if (entries.length === 0) return;
+  const byPath = new Map(
+    liveResult.extensions.map((extension) => [extension.path, extension.sourceInfo] as const),
+  );
+  for (const entry of entries) {
+    const sourceInfo = byPath.get(entry.path);
+    if (!sourceInfo) continue;
+    entry.source = sourceInfo.source;
+    entry.scope = sourceInfo.scope;
+    entry.origin = sourceInfo.origin;
+    entry.baseDir = sourceInfo.baseDir;
+  }
+}
+
 export function extensionManagerEntriesFromResult(
   result: LoadExtensionsResult,
   disabledKeys: ReadonlySet<string>,
