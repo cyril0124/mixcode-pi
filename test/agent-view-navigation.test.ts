@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { SettingsManager } from "@earendil-works/pi-coding-agent";
 import {
   createInitialState,
   createTab,
@@ -440,6 +441,38 @@ test("Home Enter with text sends message to selected agent and stays on Home", a
   assert.deepEqual(prompted, { sessionId: "s1", text: "fix the bug" });
   assert.deepEqual(history, [{ text: "fix the bug", sessionId: "s1" }]);
   assert.equal(editorActions.getText(), "");
+});
+
+test("Home Enter opens settings with the app configuration", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo", { title: "Worker" }));
+  state.activeTabId = "config";
+  const tui = makeTui();
+  const editorActions = makeEditorActions("/settings");
+  const settingsDeps = {
+    settingsManager: SettingsManager.inMemory(),
+    mixcodeFile: join(tmpdir(), "mixcode-home-settings.json"),
+    piSettingsFile: join(tmpdir(), "pi-home-settings.json"),
+  };
+
+  const result = handleMixCodeKeyInput(
+    state,
+    "\r",
+    tui,
+    undefined,
+    {},
+    undefined,
+    () => false,
+    editorActions,
+    undefined,
+    { settingsDeps },
+  );
+  await new Promise<void>((resolve) => setTimeout(resolve, 50));
+
+  assert.deepEqual(result, { consume: true });
+  assert.equal(state.activeTabId, "config");
+  assert.equal(state.settingsPanel.open, true);
+  assert.match(stripAnsi(tui.overlays.at(-1) ?? ""), /Settings[\s\S]*Theme/);
 });
 
 test("Home Enter runs local slash commands on selected agent (not as model prompt)", async () => {

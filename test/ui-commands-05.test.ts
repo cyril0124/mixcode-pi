@@ -236,9 +236,17 @@ test("submitted input confirms a single session close/delete before touching run
     deleteAllTabs: async () => deleted.push("*"),
     compactSession: async () => undefined,
   } as unknown as MixCodeRuntime;
-  const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
+  let confirmationOptions: { anchor?: unknown; width?: unknown; margin?: unknown } | undefined;
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: (_component: unknown, options?: { anchor?: unknown; width?: unknown; margin?: unknown }) => {
+      confirmationOptions = options;
+      return {} as never;
+    },
+  };
 
   await handleSubmittedInput(state, runtime, "/close-session", tui);
+  assert.deepEqual(confirmationOptions, { anchor: "top-center", width: 72, margin: 1 });
   assert.deepEqual(closed, []);
   assert.deepEqual(deleted, []);
   assert.deepEqual(state.sessionActionConfirm, { action: "close", sessionId: "s1" });

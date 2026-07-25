@@ -296,7 +296,7 @@ export function createMixCodeTui(
           ),
         extensionCommands: () => activeExtensionCommands(state, runtime),
       },
-      { workspaceFile: options.workspaceFile, rootStateDir: options.rootStateDir },
+      { workspaceFile: options.workspaceFile, rootStateDir: options.rootStateDir, settingsDeps: options.settingsDeps },
     );
     if (result?.consume) return result;
     // Global Ctrl+E opens the MAIN input editor's text in an external editor.

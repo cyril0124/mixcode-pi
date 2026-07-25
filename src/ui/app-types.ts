@@ -94,6 +94,12 @@ export interface WorkspaceKeyOptions {
   workspaceFile?: string;
   /** Agent-dir state root; when set, Home sends also append conversation history. */
   rootStateDir?: string;
+  /** Settings dependencies required by config-scoped commands entered from Home. */
+  settingsDeps?: {
+    settingsManager: import("@earendil-works/pi-coding-agent").SettingsManager;
+    mixcodeFile: string;
+    piSettingsFile: string;
+  };
 }
 
 export interface TreeSelectorDisplayHost {

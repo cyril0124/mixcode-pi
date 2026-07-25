@@ -248,7 +248,7 @@ export function handleMixCodeKeyInput(
               undefined,
               workspaceOptions.workspaceFile,
               target,
-              undefined,
+              workspaceOptions.settingsDeps,
               { setText: (value) => editorActions.setText(value) },
             ).catch((error: unknown) => {
               editorActions.setText(text);
