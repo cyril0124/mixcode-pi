@@ -1,12 +1,13 @@
 import { chmod, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { parseSessionEntries } from "@earendil-works/pi-coding-agent";
+import { parseSessionEntries, type SessionInfo } from "@earendil-works/pi-coding-agent";
 import lockfile from "proper-lockfile";
 import {
   MIXCODE_SETTINGS_FILENAME,
   loadMixCodeSettings,
   type HistorySettings,
 } from "./mixcode-settings.js";
+import { seedSessionCatalogRoot } from "./session-catalog.js";
 
 const HISTORY_FILENAME = "history.jsonl";
 const SESSION_INDEX_FILENAME = "session_index.jsonl";
@@ -53,6 +54,7 @@ interface RawSessionMessageEntry {
   timestamp?: string;
   cwd?: string;
   name?: string;
+  parentSession?: string;
   message?: { role?: string; content?: unknown; timestamp?: number | string };
 }
 
@@ -99,15 +101,26 @@ export async function backfillHistoryFromSessions(options: {
   since: Date;
   settings: HistorySettings;
 }): Promise<{ scannedSessions: number; imported: number }> {
-  const additions: RawHistoryRecord[] = [];
-  let scannedSessions = 0;
-  for (const session of await readSessionFiles(options.sessionsRoots)) {
-    scannedSessions++;
-    additions.push(...userHistoryRecordsFromSession(session, options.since));
-  }
-  if (additions.length === 0) return { scannedSessions, imported: 0 };
-  const imported = await withHistoryFileLock(options.historyFile, async () => {
-    const existing = await readHistoryRecords(options.historyFile);
+  const sessions = await readSessionFiles(options.sessionsRoots);
+  const imported = await backfillHistoryFromParsedSessions(
+    options.historyFile,
+    sessions,
+    options.since,
+    options.settings,
+  );
+  return { scannedSessions: sessions.length, imported };
+}
+
+async function backfillHistoryFromParsedSessions(
+  historyFile: string,
+  sessions: ParsedSessionFile[],
+  since: Date,
+  settings: HistorySettings,
+): Promise<number> {
+  const additions = sessions.flatMap((session) => userHistoryRecordsFromSession(session, since));
+  if (additions.length === 0) return 0;
+  return withHistoryFileLock(historyFile, async () => {
+    const existing = await readHistoryRecords(historyFile);
     const seen = new Set(existing.map(historyKey));
     const uniqueAdditions = additions.filter((record) => {
       const key = historyKey(record);
@@ -117,18 +130,25 @@ export async function backfillHistoryFromSessions(options: {
     });
     if (uniqueAdditions.length === 0) return 0;
     const merged = [...existing, ...uniqueAdditions].sort((left, right) => left.ts - right.ts);
-    await writeHistoryRecords(options.historyFile, merged, options.settings.maxBytes);
+    await writeHistoryRecords(historyFile, merged, settings.maxBytes);
     return uniqueAdditions.length;
   });
-  return { scannedSessions, imported };
 }
 
 export async function buildSessionIndex(options: {
   indexFile: string;
   sessionsRoots: string[];
 }): Promise<{ indexed: number }> {
+  const sessions = await readSessionFiles(options.sessionsRoots);
+  return buildSessionIndexFromParsedSessions(options.indexFile, sessions);
+}
+
+async function buildSessionIndexFromParsedSessions(
+  indexFile: string,
+  sessions: ParsedSessionFile[],
+): Promise<{ indexed: number }> {
   const records = new Map<string, SessionIndexRecord>();
-  for (const session of await readSessionFiles(options.sessionsRoots)) {
+  for (const session of sessions) {
     const record = sessionIndexRecord(session);
     const existing = records.get(record.id);
     if (!existing || existing.updated_at < record.updated_at) records.set(record.id, record);
@@ -137,7 +157,7 @@ export async function buildSessionIndex(options: {
     right.updated_at.localeCompare(left.updated_at),
   );
   await writePrivateFile(
-    options.indexFile,
+    indexFile,
     ordered.length ? `${ordered.map((record) => JSON.stringify(record)).join("\n")}\n` : "",
   );
   return { indexed: ordered.length };
@@ -161,9 +181,14 @@ export async function ensureConversationHistoryState(options: {
   rootStateDir: string;
   activeSessionsRoot: string;
   now?: () => Date;
-}): Promise<{ warnings: string[]; paths: ConversationHistoryPaths }> {
+}): Promise<{
+  warnings: string[];
+  paths: ConversationHistoryPaths;
+  scannedSessions: number;
+}> {
   const paths = conversationHistoryPaths(options.rootStateDir);
   const warnings: string[] = [];
+  let scannedSessions = 0;
   try {
     await ensurePrivateDir(options.rootStateDir);
     const settings = await loadMixCodeSettings(paths.settingsFile);
@@ -171,21 +196,24 @@ export async function ensureConversationHistoryState(options: {
       options.rootStateDir,
       options.activeSessionsRoot,
     );
-    const now = options.now ? options.now() : new Date();
-    const since = new Date(now.getTime() - DEFAULT_HISTORY_BACKFILL_DAYS * 24 * 60 * 60 * 1000);
-    await backfillHistoryFromSessions({
-      historyFile: paths.historyFile,
-      sessionsRoots,
-      since,
-      settings: settings.history,
-    });
-    if (await shouldRebuildSessionIndex(paths.sessionIndexFile, sessionsRoots)) {
-      await buildSessionIndex({ indexFile: paths.sessionIndexFile, sessionsRoots });
+    const historyMissing = !(await pathExists(paths.historyFile));
+    const indexStale = await shouldRebuildSessionIndex(paths.sessionIndexFile, sessionsRoots);
+    if (historyMissing || indexStale) {
+      const sessions = await readSessionFiles(sessionsRoots);
+      scannedSessions = sessions.length;
+      seedParsedSessionCatalog(sessionsRoots, sessions);
+      const now = options.now ? options.now() : new Date();
+      const since = new Date(now.getTime() - DEFAULT_HISTORY_BACKFILL_DAYS * 24 * 60 * 60 * 1000);
+      await backfillHistoryFromParsedSessions(paths.historyFile, sessions, since, settings.history);
+      if (!(await pathExists(paths.historyFile))) await writePrivateFile(paths.historyFile, "");
+      if (indexStale) {
+        await buildSessionIndexFromParsedSessions(paths.sessionIndexFile, sessions);
+      }
     }
   } catch (error) {
     warnings.push(error instanceof Error ? error.message : String(error));
   }
-  return { warnings, paths };
+  return { warnings, paths, scannedSessions };
 }
 
 export async function updateConversationSessionIndex(options: {
@@ -289,6 +317,69 @@ function sessionIndexRecord(session: ParsedSessionFile): SessionIndexRecord {
     path: session.path,
     cwd: session.cwd,
   };
+}
+
+function sessionInfoFromParsedSession(session: ParsedSessionFile): SessionInfo {
+  const header = session.entries.find((entry) => entry.type === "session");
+  const messages = session.entries.filter((entry) => entry.type === "message");
+  const allMessages: string[] = [];
+  let firstMessage = "";
+  let lastActivityTime: number | undefined;
+  let name: string | undefined;
+  for (const entry of session.entries) {
+    if (entry.type === "session_info") name = entry.name?.trim() || undefined;
+    if (entry.type !== "message" || !entry.message) continue;
+    if (entry.message.role !== "user" && entry.message.role !== "assistant") continue;
+    const activityTime = timestampMillis(entry.message.timestamp) ?? timestampMillis(entry.timestamp);
+    if (activityTime !== undefined) lastActivityTime = Math.max(lastActivityTime ?? 0, activityTime);
+    const text = extractSearchText(entry.message.content);
+    if (!text) continue;
+    allMessages.push(text);
+    if (!firstMessage && entry.message.role === "user") firstMessage = text;
+  }
+  const headerTime = timestampMillis(header?.timestamp);
+  return {
+    path: session.path,
+    id: typeof header?.id === "string" ? header.id : session.id,
+    cwd: session.cwd,
+    name,
+    parentSessionPath: header?.parentSession,
+    created: new Date(header?.timestamp ?? session.modified),
+    modified: new Date(lastActivityTime ?? headerTime ?? session.modified.getTime()),
+    messageCount: messages.length,
+    firstMessage: firstMessage || "(no messages)",
+    allMessagesText: allMessages.join(" "),
+  };
+}
+
+function seedParsedSessionCatalog(
+  sessionsRoots: string[],
+  sessions: ParsedSessionFile[],
+): void {
+  for (const root of sessionsRoots) {
+    seedSessionCatalogRoot(
+      root,
+      sessions
+        .filter((session) => dirname(session.path) === root)
+        .map(sessionInfoFromParsedSession),
+    );
+  }
+}
+
+function extractSearchText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content
+    .filter((block): block is { type: string; text: string } =>
+      Boolean(
+        block &&
+          typeof block === "object" &&
+          (block as { type?: unknown }).type === "text" &&
+          typeof (block as { text?: unknown }).text === "string",
+      ),
+    )
+    .map((block) => block.text)
+    .join(" ");
 }
 
 async function readSessionFiles(sessionsRoots: string[]): Promise<ParsedSessionFile[]> {
@@ -415,6 +506,16 @@ async function latestSessionsMtime(sessionsRoots: string[]): Promise<number> {
   }
   for (const root of unique(sessionsRoots)) await walk(root);
   return latest;
+}
+
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await stat(path);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw error;
+  }
 }
 
 async function readTextIfExists(path: string): Promise<string> {

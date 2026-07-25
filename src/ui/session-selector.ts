@@ -1,5 +1,8 @@
 import { homedir } from "node:os";
+import { dirname } from "node:path";
 import { matchesKey, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+
+import { invalidateSessionCatalog } from "../core/session-catalog.js";
 
 import { createSessionId, createTab } from "../core/defaults.js";
 import { noteTabClosed, noteTabOpened, noteTabReplaced } from "../core/open-tabs-store.js";
@@ -35,6 +38,50 @@ const regexSearches = new WeakMap<
   SessionSelectorState,
   { generation: number; cancel: () => void }
 >();
+
+type SessionListingKind = "current" | "all";
+const sessionListings = new WeakMap<
+  SessionSelectorState,
+  Partial<Record<SessionListingKind, AbortController>>
+>();
+
+function beginSessionListing(
+  selector: SessionSelectorState,
+  kind: SessionListingKind,
+): AbortController {
+  const active = sessionListings.get(selector) ?? {};
+  active[kind]?.abort();
+  const controller = new AbortController();
+  active[kind] = controller;
+  sessionListings.set(selector, active);
+  return controller;
+}
+
+function isCurrentSessionListing(
+  selector: SessionSelectorState,
+  kind: SessionListingKind,
+  controller: AbortController,
+): boolean {
+  return selector.open && sessionListings.get(selector)?.[kind] === controller;
+}
+
+function finishSessionListing(
+  selector: SessionSelectorState,
+  kind: SessionListingKind,
+  controller: AbortController,
+): void {
+  const active = sessionListings.get(selector);
+  if (active?.[kind] !== controller) return;
+  delete active[kind];
+  if (!active.current && !active.all) sessionListings.delete(selector);
+}
+
+function cancelSessionListings(selector: SessionSelectorState): void {
+  const active = sessionListings.get(selector);
+  active?.current?.abort();
+  active?.all?.abort();
+  sessionListings.delete(selector);
+}
 
 function cancelRegexSearch(selector: SessionSelectorState): number {
   const active = regexSearches.get(selector);
@@ -102,8 +149,13 @@ function refreshRegexSearch(state: MixCodeState, tui: OverlayTui): void {
 }
 
 export interface SessionSelectorRuntime {
-  listSessions: (cwd: string) => Promise<import("@earendil-works/pi-coding-agent").SessionInfo[]>;
-  listAllSessions: () => Promise<import("@earendil-works/pi-coding-agent").SessionInfo[]>;
+  listSessions: (
+    cwd: string,
+    signal?: AbortSignal,
+  ) => Promise<import("@earendil-works/pi-coding-agent").SessionInfo[]>;
+  listAllSessions: (
+    signal?: AbortSignal,
+  ) => Promise<import("@earendil-works/pi-coding-agent").SessionInfo[]>;
   extensionSwitchSession: (
     sessionId: string,
     sessionPath: string,
@@ -139,23 +191,31 @@ export async function openSessionSelector(
   showLinesOverlay(tui, (width) => renderSessionSelector(state, width));
   tui.requestRender();
 
-  try {
-    const sessions = await runtime.listSessions(cwd);
-    selector.currentSessions = sessions;
-    selector.loading = false;
-    refreshRegexSearch(state, tui);
-    showLinesOverlay(tui, (width) => renderSessionSelector(state, width));
-    tui.requestRender();
-  } catch (error) {
-    selector.loading = false;
-    selector.statusMessage = `Failed to load: ${error instanceof Error ? error.message : String(error)}`;
-    selector.statusType = "error";
-    showLinesOverlay(tui, (width) => renderSessionSelector(state, width));
-    tui.requestRender();
-  }
+  const controller = beginSessionListing(selector, "current");
+  void runtime
+    .listSessions(cwd, controller.signal)
+    .then((sessions) => {
+      if (!isCurrentSessionListing(selector, "current", controller)) return;
+      finishSessionListing(selector, "current", controller);
+      selector.currentSessions = sessions;
+      selector.loading = false;
+      refreshRegexSearch(state, tui);
+      showLinesOverlay(tui, (width) => renderSessionSelector(state, width));
+      tui.requestRender();
+    })
+    .catch((error: unknown) => {
+      if (!isCurrentSessionListing(selector, "current", controller)) return;
+      finishSessionListing(selector, "current", controller);
+      selector.loading = false;
+      selector.statusMessage = `Failed to load: ${error instanceof Error ? error.message : String(error)}`;
+      selector.statusType = "error";
+      showLinesOverlay(tui, (width) => renderSessionSelector(state, width));
+      tui.requestRender();
+    });
 }
 
 export function closeSessionSelector(state: MixCodeState, tui: OverlayTui): void {
+  cancelSessionListings(state.sessionSelector);
   cancelRegexSearch(state.sessionSelector);
   regexSearches.delete(state.sessionSelector);
   state.sessionSelector.regexCancel = undefined;
@@ -399,6 +459,7 @@ async function confirmRenameSession(
     const { SessionManager: SM } = await import("@earendil-works/pi-coding-agent");
     const mgr = SM.open(sessionPath);
     mgr.appendSessionInfo(name);
+    invalidateSessionCatalog(dirname(sessionPath));
     // Refresh the session list to reflect the new name
     const sessions = selector.scope === "all" ? selector.allSessions : selector.currentSessions;
     const session = sessions.find((s) => s.path === sessionPath);
@@ -467,9 +528,12 @@ function loadAllSessions(state: MixCodeState, tui: OverlayTui, runtime?: MixCode
   selector.loading = true;
   showLinesOverlay(tui, (width) => renderSessionSelector(state, width));
   tui.requestRender();
+  const controller = beginSessionListing(selector, "all");
   void runtimeRef
-    .listAllSessions()
+    .listAllSessions(controller.signal)
     .then((sessions) => {
+      if (!isCurrentSessionListing(selector, "all", controller)) return;
+      finishSessionListing(selector, "all", controller);
       selector.allSessions = sessions;
       selector.allLoaded = true;
       selector.loading = false;
@@ -478,6 +542,8 @@ function loadAllSessions(state: MixCodeState, tui: OverlayTui, runtime?: MixCode
       tui.requestRender();
     })
     .catch((error: unknown) => {
+      if (!isCurrentSessionListing(selector, "all", controller)) return;
+      finishSessionListing(selector, "all", controller);
       selector.loading = false;
       selector.statusMessage = `Failed to load: ${error instanceof Error ? error.message : String(error)}`;
       selector.statusType = "error";

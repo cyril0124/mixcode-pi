@@ -1,6 +1,8 @@
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { unlink } from "node:fs/promises";
+import { dirname } from "node:path";
+import { invalidateSessionCatalog } from "../core/session-catalog.js";
 import type { MixCodeState } from "../core/types.js";
 import type { MixCodeKeyRuntime } from "./app-types.js";
 
@@ -21,10 +23,12 @@ export async function deleteSessionFile(
   const trashArgs = sessionPath.startsWith("-") ? ["--", sessionPath] : [sessionPath];
   const trashResult = spawnSync("trash", trashArgs, { encoding: "utf-8" });
   if (trashResult.status === 0 || !existsSync(sessionPath)) {
+    invalidateSessionCatalog(dirname(sessionPath));
     return { ok: true, method: "trash" };
   }
   try {
     await unlink(sessionPath);
+    invalidateSessionCatalog(dirname(sessionPath));
     return { ok: true, method: "unlink" };
   } catch (error) {
     return {

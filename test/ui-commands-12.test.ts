@@ -9,6 +9,8 @@ import {
   getSelectedSessionPath,
   handleMixCodeKeyInput,
   handleSubmittedInput,
+  closeSessionSelector,
+  openSessionSelector,
   renderSessionSelector,
   searchSessionsWithRegex,
   toggleSessionSelectorScope,
@@ -122,6 +124,45 @@ test("submitted /resume opens session selector overlay", async () => {
   assert.equal(state.sessionSelector.currentSessions.length, 2);
   assert.ok(overlayContent.includes("Resume Session"));
   assert.ok(overlayContent.includes("My Session"));
+});
+
+test("session selector opens without waiting for listing and ignores results after close", async () => {
+  const state = createInitialState("/repo");
+  let resolveListing: (sessions: SessionInfo[]) => void = () => undefined;
+  const listing = new Promise<SessionInfo[]>((resolve) => {
+    resolveListing = resolve;
+  });
+  let renderCount = 0;
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => {
+      renderCount++;
+      return { hide: () => undefined } as never;
+    },
+    hasOverlay: () => state.sessionSelector.open,
+    hideOverlay: () => undefined,
+  };
+  const runtime = {
+    listSessions: () => listing,
+    listAllSessions: async () => [],
+  };
+
+  const opening = openSessionSelector(state, runtime as never, tui, "/repo", null);
+  const returned = await Promise.race([
+    opening.then(() => true),
+    new Promise<false>((resolve) => setTimeout(() => resolve(false), 25)),
+  ]);
+  assert.equal(returned, true, "opening the loading selector must not wait for disk scanning");
+  assert.equal(state.sessionSelector.loading, true);
+
+  closeSessionSelector(state, tui);
+  const rendersAfterClose = renderCount;
+  resolveListing(makeSessions());
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(state.sessionSelector.open, false);
+  assert.equal(state.sessionSelector.currentSessions.length, 0);
+  assert.equal(renderCount, rendersAfterClose, "late listing must not redraw a closed selector");
 });
 
 test("submitted /resume throws when runtime lacks session listing support", async () => {

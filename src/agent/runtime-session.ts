@@ -12,6 +12,10 @@ import {
   syncExtensionManagerEntrySources,
 } from "../core/extension-manager.js";
 import type { ExtensionToolOwnerPolicy } from "../core/extension-tool-owners.js";
+import {
+  invalidateSessionCatalog,
+  listSessionsInBackground,
+} from "../core/session-catalog.js";
 import { closeExtensionCustomOverlays, disposeExtensionWidgets } from "./runtime-extension-ui.js";
 import type { ExtensionCustomUiHost, RuntimeTab } from "./runtime-types.js";
 
@@ -181,6 +185,7 @@ export function materializeSessionFile(session: SessionManager): void {
   const lines = [header, ...session.getEntries()].map((entry) => JSON.stringify(entry));
   writeFileSync(file, `${lines.join("\n")}\n`, { flag: "wx" });
   mutable.flushed = true;
+  invalidateSessionCatalog(dirname(file));
 }
 
 export async function copySession(
@@ -203,6 +208,7 @@ export async function copySession(
   };
   const lines = [header, ...source.getBranch()].map((entry) => JSON.stringify(entry)).join("\n");
   await writeFile(file, `${lines}\n`, "utf8");
+  invalidateSessionCatalog(sessionsRoot);
   return SessionManager.open(file, sessionsRoot, cwd);
 }
 
@@ -228,6 +234,7 @@ async function createReplacementSession(
   const header = { type: "session", version: 3, id: source.getSessionId(), timestamp, cwd };
   const lines = [header, ...source.getBranch()].map((entry) => JSON.stringify(entry)).join("\n");
   await writeFile(file, `${lines}\n`, "utf8");
+  invalidateSessionCatalog(sessionsRoot);
   return SessionManager.open(file, sessionsRoot, cwd);
 }
 
@@ -238,8 +245,9 @@ async function createReplacementSession(
 export async function listSessionsForCwd(
   cwd: string,
   sessionsRoot: string,
+  signal?: AbortSignal,
 ): Promise<SessionInfo[]> {
-  const all = await SessionManager.list(cwd, sessionsRoot);
+  const all = await listSessionsInBackground({ mode: "current", cwd, sessionsRoot }, signal);
   // SessionManager.list with explicit sessionsRoot returns all sessions in that dir.
   // Filter to only sessions matching the requested cwd.
   const normalizedCwd = cwd.replace(/\/+$/, "");
@@ -254,6 +262,7 @@ export async function listSessionsForCwd(
 export async function listAllSessionsGlobal(
   sessionsRoot: string,
   rootStateDir?: string,
+  signal?: AbortSignal,
 ): Promise<SessionInfo[]> {
   // Always include the current sessionsRoot
   const dirs = new Set<string>([sessionsRoot]);
@@ -275,21 +284,5 @@ export async function listAllSessionsGlobal(
     }
   }
 
-  // Collect sessions from all directories, dedup by path
-  const seen = new Set<string>();
-  const all: SessionInfo[] = [];
-  for (const dir of dirs) {
-    try {
-      const sessions = await SessionManager.listAll(dir);
-      for (const session of sessions) {
-        if (seen.has(session.path)) continue;
-        seen.add(session.path);
-        all.push(session);
-      }
-    } catch {
-      // Skip unreadable directories
-    }
-  }
-  all.sort((a, b) => b.modified.getTime() - a.modified.getTime());
-  return all;
+  return listSessionsInBackground({ mode: "all", sessionDirs: [...dirs] }, signal);
 }

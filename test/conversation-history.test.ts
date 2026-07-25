@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, stat, utimes, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, mkdtemp, readFile, rm, stat, utimes, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { test } from "node:test";
 import lockfile from "proper-lockfile";
+import { listSessionsForCwd } from "../src/agent/runtime-session.js";
 import {
   appendHistoryEntry,
   backfillHistoryFromSessions,
@@ -314,7 +315,7 @@ test("ensureConversationHistoryState backfills history and builds stale index", 
   const dir = await mkdtemp(join(tmpdir(), "mixcode-history-ensure-"));
   try {
     const scoped = join(dir, "workdirs", "repo", "sessions");
-    await writeSessionFixture(scoped, "s1", [
+    const sessionPath = await writeSessionFixture(scoped, "s1", [
       { type: "session", id: "s1", cwd: "/repo", timestamp: "2026-06-20T00:00:00.000Z" },
       { type: "message", id: "u1", message: { role: "user", content: "hello history", timestamp: Date.UTC(2026, 5, 20) } },
     ]);
@@ -324,10 +325,51 @@ test("ensureConversationHistoryState backfills history and builds stale index", 
       now: () => new Date(Date.UTC(2026, 5, 20)),
     });
     assert.equal(result.warnings.length, 0);
+    assert.equal(result.scannedSessions, 1);
     assert.deepEqual(await readJsonl(join(dir, "history.jsonl")), [
       { session_id: "s1", ts: Date.UTC(2026, 5, 20) / 1000, text: "hello history" },
     ]);
     assert.equal((await readJsonl(join(dir, "session_index.jsonl"))).length, 1);
+
+    const catalogStartedAt = performance.now();
+    const catalogSessions = await listSessionsForCwd("/repo", scoped);
+    assert.ok(
+      performance.now() - catalogStartedAt < 250,
+      "history initialization must seed the resume catalog",
+    );
+    assert.equal(catalogSessions[0]?.allMessagesText, "hello history");
+
+    const unchanged = await ensureConversationHistoryState({
+      rootStateDir: dir,
+      activeSessionsRoot: scoped,
+      now: () => new Date(Date.UTC(2026, 5, 20)),
+    });
+    assert.equal(unchanged.scannedSessions, 0);
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    await appendFile(
+      sessionPath,
+      `${JSON.stringify({
+        type: "message",
+        id: "u2",
+        message: {
+          role: "user",
+          content: "new external prompt",
+          timestamp: Date.UTC(2026, 5, 21),
+        },
+      })}\n`,
+      "utf8",
+    );
+    const changed = await ensureConversationHistoryState({
+      rootStateDir: dir,
+      activeSessionsRoot: scoped,
+      now: () => new Date(Date.UTC(2026, 5, 21)),
+    });
+    assert.equal(changed.scannedSessions, 1);
+    assert.deepEqual(await readJsonl(join(dir, "history.jsonl")), [
+      { session_id: "s1", ts: Date.UTC(2026, 5, 20) / 1000, text: "hello history" },
+      { session_id: "s1", ts: Date.UTC(2026, 5, 21) / 1000, text: "new external prompt" },
+    ]);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

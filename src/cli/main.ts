@@ -32,6 +32,7 @@ import {
   noteTabOpened,
   openTabsFile,
 } from "../core/open-tabs-store.js";
+import { runSessionCatalogWorkerCommand } from "../core/session-catalog.js";
 import { startPeerTabSync } from "../core/peer-tab-sync.js";
 import { loadStateFile, saveStateFile, scopedStateDir, stateFileForPort } from "../core/state-store.js";
 import type { MixCodeState } from "../core/types.js";
@@ -66,6 +67,8 @@ export function resolveMixcodePackageRoot(selfRoot: string, env = process.env): 
 }
 
 export async function main(): Promise<void> {
+  const rawArgs = process.argv.slice(2);
+  if (await runSessionCatalogWorkerCommand(rawArgs)) return;
   // Configure undici's global dispatcher before provider SDKs issue requests.
   // Runtime settings are applied once SettingsManager has loaded global/project settings.
   configureHttpDispatcher();
@@ -76,7 +79,6 @@ export async function main(): Promise<void> {
   // with that stale tree and also break Pi theme paths if forced to the git root.
   const selfRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
   const packageRoot = resolveMixcodePackageRoot(selfRoot);
-  const rawArgs = process.argv.slice(2);
   if (shouldDelegateToRealPiCli(rawArgs, Boolean(process.stdin.isTTY))) {
     process.exitCode = await delegateToRealPiCli(rawArgs);
     return;

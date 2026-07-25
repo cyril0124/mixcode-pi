@@ -7,6 +7,7 @@ import {
   acquireSessionTurnLock,
   type SessionLockHandle,
 } from "../core/session-lock.js";
+import { invalidateSessionCatalog } from "../core/session-catalog.js";
 import { materializeSessionFile } from "./runtime-session.js";
 import { SessionSyncCoordinator } from "./session-sync-coordinator.js";
 import type { RuntimeTab } from "./runtime-types.js";
@@ -59,6 +60,7 @@ export class RuntimeSyncManager {
 
   /** Update the fingerprint so this instance's own write is not echoed back. */
   markLocalWrite(sessionId: string): void {
+    invalidateSessionCatalog(this.sessionsRoot);
     this.coordinator?.markLocalWrite(sessionId);
   }
 

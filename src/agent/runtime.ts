@@ -43,6 +43,7 @@ import {
 } from "./runtime-chat.js";
 import { applyEvent } from "./runtime-events.js";
 import { reloadRuntimeSessionFromDisk } from "./runtime-session-reload.js";
+import { invalidateSessionCatalog } from "../core/session-catalog.js";
 import { RuntimeSyncManager } from "./runtime-sync.js";
 import type { SessionLockHandle } from "../core/session-lock.js";
 import {
@@ -1074,8 +1075,8 @@ export class MixCodeRuntime {
    * List sessions for a specific working directory.
    * Uses the runtime's sessionsRoot as the session directory.
    */
-  async listSessions(cwd: string): Promise<SessionInfo[]> {
-    return listSessionsForCwd(cwd, this.sessionsRoot);
+  async listSessions(cwd: string, signal?: AbortSignal): Promise<SessionInfo[]> {
+    return listSessionsForCwd(cwd, this.sessionsRoot, signal);
   }
 
   /**
@@ -1083,8 +1084,8 @@ export class MixCodeRuntime {
    * Scans every workdir's sessions directory under rootStateDir,
    * plus the legacy root sessions directory.
    */
-  async listAllSessions(): Promise<SessionInfo[]> {
-    return listAllSessionsGlobal(this.sessionsRoot, this.rootStateDir);
+  async listAllSessions(signal?: AbortSignal): Promise<SessionInfo[]> {
+    return listAllSessionsGlobal(this.sessionsRoot, this.rootStateDir, signal);
   }
 
   /**
@@ -1094,6 +1095,7 @@ export class MixCodeRuntime {
   renameSession(sessionId: string, name: string): void {
     const runtimeTab = this.requireTab(sessionId);
     runtimeTab.session.appendSessionInfo(name);
+    invalidateSessionCatalog(this.sessionsRoot);
   }
 
   async extensionNewSession(
@@ -1249,7 +1251,10 @@ export class MixCodeRuntime {
     }
     await this.shutdownRuntimeTab(runtimeTab, { type: "session_shutdown", reason: "quit" });
     const file = runtimeTab.session.getSessionFile();
-    if (file) await rm(file, { force: true });
+    if (file) {
+      await rm(file, { force: true });
+      invalidateSessionCatalog(this.sessionsRoot);
+    }
     this.sync.unregister(sessionId);
     this.tabs.delete(sessionId);
   }
