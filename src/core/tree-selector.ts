@@ -47,6 +47,8 @@ export type TreeSelectorMode = "tree" | "navigate";
 
 export interface TreeSelectorState {
   open: boolean;
+  /** Session that owns the tree editor replacement while open. */
+  ownerSessionId?: string;
   mode: TreeSelectorMode;
   flatNodes: FlatTreeNode[];
   filteredNodes: FlatTreeNode[];
@@ -73,6 +75,7 @@ export interface TreeSelectorState {
 export function createTreeSelectorState(): TreeSelectorState {
   return {
     open: false,
+    ownerSessionId: undefined,
     mode: "tree",
     flatNodes: [],
     filteredNodes: [],

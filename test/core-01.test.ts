@@ -531,3 +531,18 @@ test("isGitListFallbackError maps repo-missing and Node timeout shapes to walk f
   assert.equal(isGitListFallbackError({ code: 1 }), false);
   assert.equal(isGitListFallbackError({ killed: true, code: 1, signal: "SIGTERM" }), false);
 });
+
+
+test("deleteWorkspace rejects unknown names", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-ws-unknown-"));
+  const workspaceFile = join(dir, "workspaces.json");
+  try {
+    await saveWorkspaces(workspaceFile, [
+      { name: "keep", children: ["s1"], startupWorkdir: "/repo", updatedAt: "now" },
+    ]);
+    await assert.rejects(deleteWorkspace(workspaceFile, "missing"), /Unknown workspace: missing/);
+    assert.equal((await loadWorkspaces(workspaceFile)).length, 1);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

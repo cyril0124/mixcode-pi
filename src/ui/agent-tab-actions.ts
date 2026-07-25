@@ -158,6 +158,14 @@ export function prepareAgentTabClear(
   // Validate replacement support before destructively clearing the visible tab.
   if (!runtime.clearTab) throw new Error("Clear requires runtime session replacement support");
   const runtimeTab = runtime.getTab?.(sessionId);
+  // Refuse before wiping UI — clearTab also rejects streaming, but prepare used to
+  // blank chat first so a failed clear left an empty unrecovered surface.
+  if (runtimeTab?.agentSession.isStreaming) {
+    throw new Error("Cannot clear a session while it is streaming");
+  }
+  if (runtimeTab?.agentSession.isBashRunning) {
+    throw new Error("Cannot clear a session while bash is running");
+  }
   if (runtimeTab) {
     disposeChatRenderers(runtimeTab.chat);
     runtimeTab.chat = [];

@@ -176,6 +176,8 @@ export function openTreeSelector(
   }
 
   initTreeSelector(state.treeSelector, tree, leafId, initialSelectedId, initialFilterMode, mode, allowedEntryIds);
+  // Remember owner so tab switches can unload the correct editor replacement.
+  state.treeSelector.ownerSessionId = sessionId;
   const display = getTreeSelectorDisplayHost(tui);
   if (!display) throw new Error("Tree selector requires editor display host support");
   display.open(sessionId, runtime, undefined);
@@ -183,8 +185,11 @@ export function openTreeSelector(
 }
 
 export function closeTreeSelector(state: MixCodeState, tui: OverlayTui): void {
+  const ownerSessionId = state.treeSelector.ownerSessionId;
   state.treeSelector.open = false;
-  closeTreeSelectorDisplay(tui);
+  state.treeSelector.ownerSessionId = undefined;
+  // Pass owner id: default close() would target the newly active tab after a switch.
+  closeTreeSelectorDisplay(tui, ownerSessionId);
   tui.requestRender();
 }
 

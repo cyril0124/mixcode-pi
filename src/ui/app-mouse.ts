@@ -11,6 +11,7 @@ import { scrollChat, scrollExtensionPanel, scrollPreview, clearChatScrollAnchor 
 import { pushToast } from "../core/toast.js";
 import { createPicker } from "../core/pickers.js";
 import { activateTab } from "../core/tabs.js";
+import { closeTreeSelector } from "./tree-selector.js";
 import type { MixCodeState } from "../core/types.js";
 import {
   getActiveNotice,
@@ -183,6 +184,10 @@ function handleChromeMouse(
       (region) => (region.row ?? 0) === clickedRow && mouse.x >= region.startX && mouse.x <= region.endX,
     )?.id;
     if (tabId) {
+      // Tree is global; close owner editor before focusing another tab.
+      if (state.treeSelector.open && state.activeTabId !== tabId) {
+        closeTreeSelector(state, tui);
+      }
       activateTab(state, tabId);
       tui.requestRender();
       return true;

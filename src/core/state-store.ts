@@ -347,7 +347,11 @@ function deserializeWorkspaceModel(item: unknown): WorkspaceSnapshot["tabs"][num
 }
 
 export async function deleteWorkspace(filePath: string, name: string): Promise<void> {
-  const remaining = (await loadWorkspaces(filePath)).filter((item) => item.name !== name);
+  const workspaces = await loadWorkspaces(filePath);
+  const remaining = workspaces.filter((item) => item.name !== name);
+  if (remaining.length === workspaces.length) {
+    throw new Error(`Unknown workspace: ${name}`);
+  }
   if (remaining.length === 0) {
     await rm(filePath, { force: true });
     return;

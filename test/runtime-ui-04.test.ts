@@ -147,7 +147,11 @@ test("submitted input handles prompt, shell, local commands, clear, and missing 
       tab.previewMessages.push({ role: "system", text });
       tab.previewIndex = tab.previewMessages.length - 1;
     },
-    getTab: () => ({ chat: [{ role: "user", text: "old" }] }),
+    getTab: () => ({
+      chat: [{ role: "user", text: "old" }],
+      agentSession: { isStreaming: false, isBashRunning: false },
+      session: { getBranch: () => [] },
+    }),
     clearTab: async (sessionId: string) => {
       cleared.push(sessionId);
       tab.sessionId = "cleared";
@@ -302,7 +306,11 @@ test("submitted clear fires session replacement without blocking the caller", as
       tab.sessionId = "cleared";
       return { tab };
     },
-    getTab: () => ({ chat: [] }),
+    getTab: () => ({
+      chat: [],
+      agentSession: { isStreaming: false, isBashRunning: false },
+      session: { getBranch: () => [] },
+    }),
   } as unknown as RuntimeType;
   await handleSubmittedInput(state, runtime, "/clear", {
     requestRender: () => {
@@ -337,6 +345,11 @@ test("submitted clear resets tab state when replacement fails", async () => {
       clearTab: async () => {
         throw new Error("clear failed");
       },
+      getTab: () => ({
+        chat: [],
+        agentSession: { isStreaming: false, isBashRunning: false },
+        session: { getBranch: () => [] },
+      }),
       appendSystemMessage: (_sessionId: string, text: string) => {
         systemMessages.push(text);
       },
@@ -462,4 +475,84 @@ test("submitted bang command streams Pi bash locally instead of prompting the mo
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+
+test("submitted clear refuses while streaming without wiping chat", async () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo");
+  state.tabs.push(tab);
+  state.activeTabId = "s1";
+  const systemMessages: string[] = [];
+  let clearCalled = false;
+  await handleSubmittedInput(
+    state,
+    {
+      clearTab: async () => {
+        clearCalled = true;
+        throw new Error("should not be called");
+      },
+      getTab: () => ({
+        chat: [{ role: "user", text: "keep me" }],
+        agentSession: { isStreaming: true, isBashRunning: false },
+        session: { getBranch: () => [] },
+      }),
+      appendSystemMessage: (_sessionId: string, text: string) => {
+        systemMessages.push(text);
+      },
+    } as unknown as RuntimeType,
+    "/clear",
+    {
+      requestRender: () => undefined,
+      showOverlay: () => ({}) as never,
+    },
+  );
+  assert.equal(clearCalled, false);
+  assert.ok(systemMessages.some((msg) => /streaming/i.test(msg)));
+});
+
+test("submitted clear restores chat when replacement fails after prepare", async () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo");
+  state.tabs.push(tab);
+  state.activeTabId = "s1";
+  const systemMessages: string[] = [];
+  // Stable tab object: catch path reassigns `.chat`, so a shared array alone cannot observe restore.
+  const runtimeTab = {
+    chat: [] as Array<{ role: string; text: string }>,
+    agentSession: { isStreaming: false, isBashRunning: false },
+    session: {
+      getBranch: () => [
+        {
+          type: "message",
+          id: "u1",
+          parentId: null,
+          message: { role: "user", content: [{ type: "text", text: "restored" }] },
+        },
+      ],
+    },
+  };
+  await handleSubmittedInput(
+    state,
+    {
+      clearTab: async () => {
+        throw new Error("clear failed after prepare");
+      },
+      getTab: () => runtimeTab,
+      appendSystemMessage: (_sessionId: string, text: string) => {
+        systemMessages.push(text);
+      },
+    } as unknown as RuntimeType,
+    "/clear",
+    {
+      requestRender: () => undefined,
+      showOverlay: () => ({}) as never,
+    },
+  );
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.ok(systemMessages.some((msg) => msg.includes("clear failed after prepare")));
+  assert.ok(
+    runtimeTab.chat.some((line) => line.role === "user" && line.text.includes("restored")),
+    "failed clear must rebuild chat from the surviving session branch",
+  );
 });

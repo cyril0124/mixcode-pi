@@ -119,6 +119,10 @@ export async function handleSubmittedInput(
     throw error;
   }
   if (parsed.command === "mark-done") {
+    // Intentional: unlike agent_end (unread only until the tab is viewed),
+    // /mark-done forces a sticky "!" on the current tab so the user can flag
+    // work as done while still looking at it. activateTab() clears the badge
+    // when focus leaves and returns (see core/tabs.ts).
     active!.unreadDone = true;
     active!.status = "done";
     // Ring terminal bell after 5s so the user gets an audible notification
@@ -206,7 +210,20 @@ export async function handleSubmittedInput(
     // Home send keeps activeTabId=config while overriding the target tab; stay there
     // after clear instead of following completeAgentTabClear's activateTab(next).
     const stayOnHome = state.activeTabId === "config";
-    const prepared = prepareAgentTabClear(state, runtime, active!.sessionId);
+    let prepared: ReturnType<typeof prepareAgentTabClear>;
+    try {
+      prepared = prepareAgentTabClear(state, runtime, active!.sessionId);
+    } catch (error: unknown) {
+      // Missing clearTab is a hard contract error (tests assert rejects).
+      if (!runtime.clearTab) throw error;
+      appendActiveSystemMessage(
+        state,
+        runtime,
+        `Clear failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      tui.requestRender();
+      return;
+    }
     tui.requestRender();
     // Session replacement loads extensions synchronously. Delay it until the TUI
     // has painted the empty conversation, otherwise the clear appears frozen.
@@ -217,6 +234,11 @@ export async function handleSubmittedInput(
           tui.requestRender();
         })
         .catch((error: unknown) => {
+          // Identity was rolled back; restore wiped chat from the surviving session.
+          const runtimeTab = runtime.getTab?.(prepared.tab.sessionId);
+          if (runtimeTab) {
+            runtimeTab.chat = entriesToChatLines(runtimeTab.session.getBranch(), runtimeTab);
+          }
           appendActiveSystemMessage(
             state,
             runtime,

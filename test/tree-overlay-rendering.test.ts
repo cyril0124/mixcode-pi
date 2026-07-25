@@ -345,3 +345,32 @@ test("Ctrl+T closes navigate before opening Tab Jump", () => {
   assert.equal(editorClosed, true);
   assert.equal(state.tabJumpOpen, true);
 });
+
+
+test("Tab switch closes tree so destination accepts typing", () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"), createTab(2, "s2", "/repo"));
+  state.activeTabId = "s1";
+  state.treeSelector = createTreeSelectorState();
+  initTreeSelector(state.treeSelector, sampleTree(), "active", undefined, undefined, "tree");
+  state.treeSelector.open = true;
+  state.treeSelector.ownerSessionId = "s1";
+  let closedOwner: string | undefined;
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({ hide: () => undefined }) as never,
+    hideOverlay: () => undefined,
+    treeSelectorDisplay: {
+      open: () => undefined,
+      refresh: () => undefined,
+      close: (sessionId?: string) => {
+        closedOwner = sessionId;
+      },
+    },
+  };
+
+  assert.deepEqual(handleMixCodeKeyInput(state, "\t", tui), { consume: true });
+  assert.equal(state.treeSelector.open, false);
+  assert.equal(closedOwner, "s1");
+  assert.equal(state.activeTabId, "s2");
+});

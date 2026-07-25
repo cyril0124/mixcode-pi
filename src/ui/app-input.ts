@@ -63,6 +63,18 @@ import { closeTreeSelector, handleTreeSelectorKey, type TreeSelectorRuntime } fr
 import { handleWorkspaceOverlayKey } from "./workspace-overlay.js";
 import type { MixCodeSubmitRuntime } from "./app-types.js";
 
+/** Switch tabs and close Session Tree if it would steal keys on the destination. */
+function activateTabClosingTree(
+  state: MixCodeState,
+  tui: OverlayTui,
+  tabId: string,
+): void {
+  if (state.treeSelector.open && state.activeTabId !== tabId) {
+    closeTreeSelector(state, tui);
+  }
+  activateTab(state, tabId);
+}
+
 // Empty-queue Ctrl+U arms enter-vim; confirm with u or second Ctrl+U in this window.
 // 1s: releasing Ctrl then pressing u is slower than same-key double-tap.
 const VIM_ENTER_ARM_WINDOW_MS = 1_000;
@@ -128,6 +140,19 @@ export function handleMixCodeKeyInput(
     }
   }
   if (handleChromeMouseInput(state, active, data, tui)) {
+    return { consume: true };
+  }
+  // Tab while Session Tree is open switches agents (tree is global and would
+  // otherwise swallow Tab as a no-op filter/nav key and block the new tab).
+  if (
+    state.treeSelector.open &&
+    (matchesKey(data, "tab") || matchesKey(data, "shift+tab")) &&
+    !isEditorAutocompleteOpen()
+  ) {
+    if (active) clearPendingEscape(active, "abort-agent");
+    const nextId = nextTabId(state, matchesKey(data, "shift+tab") ? -1 : 1);
+    activateTabClosingTree(state, tui, nextId);
+    tui.requestRender();
     return { consume: true };
   }
   if (state.treeSelector.open) {
@@ -237,7 +262,7 @@ export function handleMixCodeKeyInput(
         // Right with text falls through so the editor can move the cursor.
         // Right with empty input attaches to the selected agent.
         if (!hasText) {
-          activateTab(state, target.sessionId);
+          activateTabClosingTree(state, tui, target.sessionId);
           tui.requestRender();
           return { consume: true };
         }
@@ -426,7 +451,7 @@ export function handleMixCodeKeyInput(
     clearPendingEscape(active, "abort-agent");
     const tabIndex = state.tabs.findIndex((tab) => tab.sessionId === active.sessionId);
     if (tabIndex >= 0) state.homeSelectedTabIndex = tabIndex;
-    activateTab(state, "config");
+    activateTabClosingTree(state, tui, "config");
     tui.requestRender();
     return { consume: true };
   }
@@ -491,7 +516,7 @@ export function handleMixCodeKeyInput(
     !hasAppOverlay(tui)
   ) {
     if (active) clearPendingEscape(active, "abort-agent");
-    activateTab(state, nextTabId(state, matchesKey(data, "shift+tab") ? -1 : 1));
+    activateTabClosingTree(state, tui, nextTabId(state, matchesKey(data, "shift+tab") ? -1 : 1));
     tui.requestRender();
     return { consume: true };
   }
@@ -655,7 +680,7 @@ function handleVimModeTabCycle(
   const nextIndex = (currentIndex + delta + state.tabs.length) % state.tabs.length;
   const next = state.tabs[nextIndex]!;
   // vim transfer is centralized in activateTab.
-  activateTab(state, next.sessionId);
+  activateTabClosingTree(state, tui, next.sessionId);
   tui.requestRender();
   return true;
 }
