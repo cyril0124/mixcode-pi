@@ -3,12 +3,15 @@ import path from "node:path";
 import type { MixCodeRuntime } from "../agent/runtime.js";
 import { normalizeWorkdirInput } from "../core/pickers.js";
 import {
+  applyDisabledModelFlags,
+  assertModelEnabled,
   buildAvailableModelRefs,
   isModelRefAvailable,
   normalizeModelRef,
   setStateModel,
   setTabModel,
 } from "../core/models.js";
+import { loadMixCodeSettings } from "../core/mixcode-settings.js";
 import { DEFAULT_MODEL_REF } from "../core/defaults.js";
 import { closeActiveOverlay, openOverlay } from "../core/overlays.js";
 import { closeTreeSelector } from "./tree-selector.js";
@@ -115,6 +118,7 @@ export async function applyModelSelection(
   model: MixCodeState["model"],
   runtime?: Partial<Pick<MixCodeRuntime, "resolveModel" | "updateTabModel">>,
 ): Promise<void> {
+  assertModelEnabled(model);
   const resolvedModel = runtime?.resolveModel?.(model.provider, model.modelId);
   if (runtime?.resolveModel && !resolvedModel)
     throw new Error("Model is not registered in runtime: " + model.displayName);
@@ -147,14 +151,30 @@ export async function reloadRuntimeModels(
       "reloadModelConfig" | "resolveModel" | "updateTabModel" | "getSharedModelRuntime"
     >
   >,
+  options?: { mixcodeFile?: string },
 ): Promise<ModelReloadResult> {
   if (!runtime.reloadModelConfig) return { ok: false, skipped: true };
   const configured = await runtime.reloadModelConfig();
   // Pi keeps parse/schema/provider failures on ModelRuntime.getError() instead of throwing.
   const modelError = runtime.getSharedModelRuntime?.()?.getError?.();
   if (modelError) return { ok: false, error: modelError };
-  const availableModels = buildAvailableModelRefs(configured);
-  const preferred = configured.at(-1) ?? { ...DEFAULT_MODEL_REF };
+  // Re-read mixcode disabled lists on /reload so /settings writes take effect.
+  if (options?.mixcodeFile) {
+    const mixcode = await loadMixCodeSettings(options.mixcodeFile);
+    state.disabledProviders = mixcode.disabledProviders;
+    state.disabledModels = mixcode.disabledModels;
+  }
+  const availableModels = applyDisabledModelFlags(
+    buildAvailableModelRefs(configured),
+    state.disabledProviders,
+    state.disabledModels,
+  );
+  const preferred = applyDisabledModelFlags(
+    [configured.at(-1) ?? { ...DEFAULT_MODEL_REF }],
+    state.disabledProviders,
+    state.disabledModels,
+  )[0]!;
+  // Keep disabled current models (do not auto-switch); only repair truly missing ones.
   const nextStateModel = isModelRefAvailable(availableModels, state.model)
     ? normalizeModelRef(availableModels, state.model)
     : preferred;
@@ -169,8 +189,11 @@ export async function reloadRuntimeModels(
   if (active && runtime.updateTabModel && runtime.resolveModel) {
     const activeIndex = state.tabs.indexOf(active);
     const repaired = repairs[activeIndex]!;
-    const resolved = runtime.resolveModel(repaired.provider, repaired.modelId);
-    if (resolved) await runtime.updateTabModel(active.sessionId, resolved);
+    // Skip runtime model swap when the repaired selection is disabled; send path will reject.
+    if (!repaired.disabled) {
+      const resolved = runtime.resolveModel(repaired.provider, repaired.modelId);
+      if (resolved) await runtime.updateTabModel(active.sessionId, resolved);
+    }
   }
   state.availableModels = availableModels;
   setStateModel(state, nextStateModel);

@@ -346,7 +346,9 @@ export async function handleSubmittedInput(
     await runtime.extensionReload(active!.sessionId);
     // Native reload covers extensions/skills/prompts/themes but not models; the
     // model registry is loaded once at bootstrap, so refresh it here too.
-    const modelsResult = await reloadRuntimeModels(state, runtime);
+    const modelsResult = await reloadRuntimeModels(state, runtime, {
+      mixcodeFile: settingsDeps?.mixcodeFile,
+    });
     // Short status line (Pi showStatus); agent tab required (not config-scoped).
     if (modelsResult.ok) {
       appendActiveSystemMessage(

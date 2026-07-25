@@ -51,6 +51,8 @@ export interface PickerItem {
   label: string;
   description: string;
   completeValue?: string;
+  /** When true, item is visible but not selectable (e.g. disabled model). */
+  disabled?: boolean;
 }
 
 export interface PickerState {
@@ -148,6 +150,8 @@ export interface MixCodeModelRef {
   contextWindow: number;
   reasoning?: boolean;
   thinkingLevelMap?: ThinkingLevelMap;
+  /** Stamped from mixcode_settings disabled lists at bootstrap/reload. */
+  disabled?: boolean;
 }
 
 export interface MixCodeTabInfo {
@@ -389,6 +393,10 @@ export interface MixCodeState {
   thinkingLevel: ThinkingLevel;
   theme: string;
   availableModels: MixCodeModelRef[];
+  /** In-memory copy of mixcode_settings disabledProviders; applied on bootstrap/reload. */
+  disabledProviders: string[];
+  /** In-memory copy of mixcode_settings disabledModels; applied on bootstrap/reload. */
+  disabledModels: string[];
   /**
    * Non-persisted app-level toggle for thinking-block visibility, mirroring
    * Pi's `hideThinkingBlock`. When true, thinking content collapses to a

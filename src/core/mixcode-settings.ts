@@ -18,6 +18,10 @@ export interface RawMixCodeSettings {
     /** When false, mermaid fences render as plain code blocks. */
     renderMermaid?: boolean;
   };
+  /** Provider ids disabled for selection/use (global). */
+  disabledProviders?: string[];
+  /** Model refs `provider/modelId` disabled for selection/use (global). */
+  disabledModels?: string[];
 }
 
 export interface MixCodeSettings {
@@ -25,6 +29,8 @@ export interface MixCodeSettings {
   theme?: string;
   history: HistorySettings;
   ui: MixCodeUiSettings;
+  disabledProviders: string[];
+  disabledModels: string[];
 }
 
 export interface HistorySettings {
@@ -59,7 +65,21 @@ export function defaultMixCodeSettings(): MixCodeSettings {
       oversizedAssistantMessage: { ...DEFAULT_OVERSIZED_ASSISTANT_MESSAGE },
       renderMermaid: DEFAULT_RENDER_MERMAID,
     },
+    disabledProviders: [],
+    disabledModels: [],
   };
+}
+
+/** True when provider is disabled, or `provider/modelId` is in the model denylist. */
+export function isModelDisabled(
+  provider: string,
+  modelId: string,
+  disabledProviders: readonly string[] = [],
+  disabledModels: readonly string[] = [],
+): boolean {
+  if (disabledProviders.includes(provider)) return true;
+  const ref = `${provider}/${modelId}`;
+  return disabledModels.includes(ref);
 }
 
 /** Load raw settings preserving undefined for unset fields (no defaults applied). */
@@ -102,6 +122,10 @@ export async function loadRawMixCodeSettings(settingsFile: string): Promise<RawM
       ...(rawRenderMermaid !== undefined ? { renderMermaid: rawRenderMermaid } : {}),
     };
   }
+  const disabledProviders = stringList(source.disabledProviders);
+  if (disabledProviders !== undefined) result.disabledProviders = disabledProviders;
+  const disabledModels = stringList(source.disabledModels);
+  if (disabledModels !== undefined) result.disabledModels = disabledModels;
   return result;
 }
 
@@ -127,6 +151,10 @@ export async function writeRawMixCodeSettings(
   else next.history = raw.history;
   if (raw.ui === undefined) delete next.ui;
   else next.ui = raw.ui;
+  if (raw.disabledProviders === undefined) delete next.disabledProviders;
+  else next.disabledProviders = raw.disabledProviders;
+  if (raw.disabledModels === undefined) delete next.disabledModels;
+  else next.disabledModels = raw.disabledModels;
   await writeFile(settingsFile, `${JSON.stringify(next, null, 2)}\n`, "utf8");
 }
 
@@ -148,6 +176,8 @@ export async function loadMixCodeSettings(settingsFile: string): Promise<MixCode
       maxBytes: positiveInteger(history.maxBytes) ?? DEFAULT_HISTORY_MAX_BYTES,
     },
     ui: parseUiSettings(source.ui, settingsFile),
+    disabledProviders: stringList(source.disabledProviders) ?? [],
+    disabledModels: stringList(source.disabledModels) ?? [],
   };
 }
 
@@ -226,4 +256,13 @@ function objectRecord(value: unknown): Record<string, unknown> {
 
 function positiveInteger(value: unknown): number | undefined {
   return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : undefined;
+}
+
+/** Keep non-empty trimmed strings; non-arrays yield undefined (caller applies default). */
+function stringList(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
 }

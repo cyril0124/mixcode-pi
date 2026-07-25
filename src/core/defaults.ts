@@ -69,6 +69,8 @@ export function createInitialState(workdir: string, defaultThinkingLevel?: Think
     thinkingLevel: defaultThinkingLevel ?? "medium",
     theme: DEFAULT_THEME_ID,
     availableModels: [{ ...DEFAULT_MODEL_REF }],
+    disabledProviders: [],
+    disabledModels: [],
     homeSelectedTabIndex: 0,
   };
 }

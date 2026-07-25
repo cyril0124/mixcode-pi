@@ -21,6 +21,7 @@ import {
 import { loadMixCodeSettings } from "../core/mixcode-settings.js";
 import { setTheme } from "../ui/themes.js";
 import {
+  applyDisabledModelFlags,
   buildAvailableModelRefs,
   isModelRefAvailable,
   modelRefId,
@@ -172,7 +173,13 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
   const configuredModels = modelBundle.sources
     .filter((source) => source.authStatus.configured)
     .map((source) => modelToRef(source.model));
-  state.availableModels = buildAvailableModelRefs(configuredModels);
+  state.disabledProviders = mixCodeSettings.disabledProviders;
+  state.disabledModels = mixCodeSettings.disabledModels;
+  state.availableModels = applyDisabledModelFlags(
+    buildAvailableModelRefs(configuredModels),
+    state.disabledProviders,
+    state.disabledModels,
+  );
 
   // Respect settings.json defaultProvider/defaultModel if set
   const defaultProvider = settingsManager.getDefaultProvider();
@@ -187,9 +194,17 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
     };
     preferredModel = isModelRefAvailable(state.availableModels, settingsModelRef)
       ? normalizeModelRef(state.availableModels, settingsModelRef)
-      : (configuredModels.at(-1) ?? DEFAULT_MODEL_REF);
+      : applyDisabledModelFlags(
+          [configuredModels.at(-1) ?? { ...DEFAULT_MODEL_REF }],
+          state.disabledProviders,
+          state.disabledModels,
+        )[0]!;
   } else {
-    preferredModel = configuredModels.at(-1) ?? DEFAULT_MODEL_REF;
+    preferredModel = applyDisabledModelFlags(
+      [configuredModels.at(-1) ?? { ...DEFAULT_MODEL_REF }],
+      state.disabledProviders,
+      state.disabledModels,
+    )[0]!;
   }
 
   const savedStateModelAvailable = isModelRefAvailable(state.availableModels, state.model);

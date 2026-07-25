@@ -69,7 +69,17 @@ interface EnumItem {
   setValue(ctx: PanelCtx, v: string | undefined): Promise<void>;
 }
 
-type SettingItem = BooleanItem | NumberItem | EnumItem;
+interface MultiEnumItem {
+  kind: "multi-enum";
+  label: string;
+  section: "pi" | "mixcode";
+  defaultValue: string[];
+  getValues(ctx: PanelCtx): string[] | undefined;
+  getOptions(ctx: PanelCtx): string[];
+  setValues(ctx: PanelCtx, v: string[] | undefined): Promise<void>;
+}
+
+type SettingItem = BooleanItem | NumberItem | EnumItem | MultiEnumItem;
 
 const ITEMS: SettingItem[] = [
   {
@@ -219,6 +229,42 @@ const ITEMS: SettingItem[] = [
       await writeRawMixCodeSettings(ctx.mixcodeFile, next);
     },
   },
+  {
+    kind: "multi-enum",
+    label: "disabledProviders",
+    section: "mixcode",
+    defaultValue: [],
+    getValues: ({ mixcodeRaw }) => mixcodeRaw.disabledProviders,
+    // Full configured set (includes currently disabled) so users can re-enable.
+    getOptions: ({ availableModels }) =>
+      [...new Set(availableModels.map((m) => m.provider).filter((p) => p !== "faux"))].sort(),
+    setValues: async (ctx, v) => {
+      const next: RawMixCodeSettings = { ...ctx.mixcodeRaw };
+      if (v === undefined || v.length === 0) delete next.disabledProviders;
+      else next.disabledProviders = v;
+      replaceRaw(ctx.mixcodeRaw, next);
+      await writeRawMixCodeSettings(ctx.mixcodeFile, next);
+    },
+  },
+  {
+    kind: "multi-enum",
+    label: "disabledModels",
+    section: "mixcode",
+    defaultValue: [],
+    getValues: ({ mixcodeRaw }) => mixcodeRaw.disabledModels,
+    getOptions: ({ availableModels }) =>
+      availableModels
+        .filter((m) => m.provider !== "faux")
+        .map((m) => `${m.provider}/${m.modelId}`)
+        .sort(),
+    setValues: async (ctx, v) => {
+      const next: RawMixCodeSettings = { ...ctx.mixcodeRaw };
+      if (v === undefined || v.length === 0) delete next.disabledModels;
+      else next.disabledModels = v;
+      replaceRaw(ctx.mixcodeRaw, next);
+      await writeRawMixCodeSettings(ctx.mixcodeFile, next);
+    },
+  },
 ];
 
 function replaceRaw(target: RawMixCodeSettings, next: RawMixCodeSettings): void {
@@ -329,6 +375,8 @@ const ITEM_LABELS: Record<string, string> = {
   "oversized.enabled": "Collapse oversized messages",
   "oversized.maxLines": "Oversized max lines",
   "oversized.maxBytes": "Oversized max bytes",
+  disabledProviders: "Disabled providers",
+  disabledModels: "Disabled models",
 };
 
 export function renderSettingsPanel(state: MixCodeState, width: number): string[] {
@@ -364,7 +412,7 @@ function renderSettingsPanelInner(state: MixCodeState, width: number): string[] 
   // overlay maxHeight instead of head-clipping the caret on short terminals.
   if (panel.enumOpen) {
     const item = ITEMS[panel.selectedIndex];
-    if (item?.kind === "enum") {
+    if (item?.kind === "enum" || item?.kind === "multi-enum") {
       return overlayPanel(
         "Settings",
         renderEnumFocusLines(panel, ctx, item, {
@@ -435,7 +483,8 @@ function renderMainSettingsLines(
     const isSelected = idx === panel.selectedIndex;
     const marker = isSelected ? accent("› ") : "  ";
     const label = ITEM_LABELS[item.label] ?? item.label;
-    const rawValue = item.getValue(ctx);
+    const multiValues = item.kind === "multi-enum" ? item.getValues(ctx) : undefined;
+    const rawValue = item.kind === "multi-enum" ? multiValues : item.getValue(ctx);
     const isSet = rawValue !== undefined;
     const editing = isSelected && panel.editMode && item.kind === "number";
 
@@ -446,10 +495,14 @@ function renderMainSettingsLines(
       valuePlain = formatBool((isSet ? rawValue : item.defaultValue) as boolean);
     } else if (item.kind === "number") {
       valuePlain = formatNumber((isSet ? rawValue : item.defaultValue) as number);
+    } else if (item.kind === "multi-enum") {
+      const vals = multiValues ?? item.defaultValue;
+      valuePlain =
+        vals.length === 0 ? "none  (default)" : `${vals.length} selected · /reload`;
     } else {
       valuePlain = String(isSet ? rawValue : item.defaultValue);
     }
-    if (!isSet && !editing) valuePlain = `${valuePlain}  (default)`;
+    if (!isSet && !editing && item.kind !== "multi-enum") valuePlain = `${valuePlain}  (default)`;
 
     const labelText = truncateToWidth(label, labelCol, "…");
     const valueText = truncateToWidth(valuePlain, valueCol, "…");
@@ -524,7 +577,7 @@ function renderMainSettingsLines(
 function renderEnumFocusLines(
   panel: SettingsPanelState,
   ctx: PanelCtx,
-  item: EnumItem,
+  item: EnumItem | MultiEnumItem,
   ui: {
     dim: (s: string) => string;
     accent: (s: string) => string;
@@ -541,10 +594,17 @@ function renderEnumFocusLines(
   const sectionTitle = item.section === "pi" ? "Pi" : "Mixcode";
   const filePath = item.section === "pi" ? panel.piSettingsFile : panel.mixcodeFile;
   const label = ITEM_LABELS[item.label] ?? item.label;
-  const rawValue = item.getValue(ctx);
+  const multiSelected =
+    item.kind === "multi-enum" ? new Set(item.getValues(ctx) ?? item.defaultValue) : undefined;
+  const rawValue = item.kind === "enum" ? item.getValue(ctx) : item.getValues(ctx);
   const isSet = rawValue !== undefined;
-  let valuePlain = String(isSet ? rawValue : item.defaultValue);
-  if (!isSet) valuePlain = `${valuePlain}  (default)`;
+  let valuePlain =
+    item.kind === "multi-enum"
+      ? multiSelected!.size === 0
+        ? "none  (default)"
+        : `${multiSelected!.size} selected · /reload`
+      : String(isSet ? rawValue : item.defaultValue);
+  if (item.kind === "enum" && !isSet) valuePlain = `${valuePlain}  (default)`;
   const labelText = truncateToWidth(label, labelCol, "…");
   const valueText = truncateToWidth(valuePlain, valueCol, "…");
   const valueColored = !isSet ? dim(valueText) : valueText;
@@ -577,7 +637,9 @@ function renderEnumFocusLines(
       const opt = opts[oi]!;
       const optSelected = oi === panel.enumIndex;
       const optMarker = optSelected ? accent("› ") : "  ";
-      const optRow = `  ${optMarker}${truncateToWidth(opt, Math.max(1, innerWidth - 4), "…")}`;
+      const checked =
+        item.kind === "multi-enum" ? (multiSelected!.has(opt) ? "[x] " : "[ ] ") : "";
+      const optRow = `  ${optMarker}${checked}${truncateToWidth(opt, Math.max(1, innerWidth - 4 - checked.length), "…")}`;
       lines.push(optSelected ? sel(padLine(optRow, innerWidth)) : dim(optRow));
     }
     if (endIndex < opts.length) {
@@ -585,7 +647,14 @@ function renderEnumFocusLines(
     }
   }
 
-  lines.push("", dim("  ↑↓ select  ⏎ choose  esc back"));
+  lines.push(
+    "",
+    dim(
+      item.kind === "multi-enum"
+        ? "  ↑↓ move  ⏎ toggle  esc back · takes effect on /reload"
+        : "  ↑↓ select  ⏎ choose  esc back",
+    ),
+  );
   return lines;
 }
 
@@ -713,15 +782,19 @@ function handleNormal(
       panel.editMode = true;
       panel.editText = settingsNumberEditPrefill(cur, isByteSizeSetting(item));
       refreshSettingsPanel(state, tui);
-    } else if (item.kind === "enum") {
+    } else if (item.kind === "enum" || item.kind === "multi-enum") {
       const opts = item.getOptions(ctx);
-      const cur = item.getValue(ctx);
       panel.enumOpen = true;
-      panel.enumIndex = Math.max(0, opts.indexOf(cur ?? ""));
-      // Theme: start browse preview on the currently highlighted option.
-      if (item.label === "theme") {
-        const preview = opts[panel.enumIndex] ?? cur;
-        if (preview) setTheme(state, preview);
+      if (item.kind === "enum") {
+        const cur = item.getValue(ctx) ?? item.defaultValue;
+        panel.enumIndex = Math.max(0, opts.indexOf(cur));
+        // Theme: start browse preview on the currently highlighted option.
+        if (item.label === "theme") {
+          const preview = opts[panel.enumIndex] ?? cur;
+          if (preview) setTheme(state, preview);
+        }
+      } else {
+        panel.enumIndex = 0;
       }
       refreshSettingsPanel(state, tui);
     }
@@ -796,20 +869,33 @@ function handleEnum(
   tui: OverlayTui,
   panel: SettingsPanelState,
 ): void {
-  const item = ITEMS[panel.selectedIndex] as EnumItem | undefined;
+  const item = ITEMS[panel.selectedIndex];
   const ctx = panelCtx(state);
-  if (item?.kind !== "enum" || !ctx) return;
+  if (!item || !ctx || (item.kind !== "enum" && item.kind !== "multi-enum")) return;
   const opts = item.getOptions(ctx);
 
   if (matchesKey(data, "up") || data === "\x1b[A") {
     panel.enumIndex = Math.max(0, panel.enumIndex - 1);
-    previewEnumSelection(state, item, opts[panel.enumIndex]);
+    if (item.kind === "enum") previewEnumSelection(state, item, opts[panel.enumIndex]);
     refreshSettingsPanel(state, tui);
   } else if (matchesKey(data, "down") || data === "\x1b[B") {
-    panel.enumIndex = Math.min(opts.length - 1, panel.enumIndex + 1);
-    previewEnumSelection(state, item, opts[panel.enumIndex]);
+    panel.enumIndex = Math.min(Math.max(0, opts.length - 1), panel.enumIndex + 1);
+    if (item.kind === "enum") previewEnumSelection(state, item, opts[panel.enumIndex]);
     refreshSettingsPanel(state, tui);
   } else if (matchesKey(data, "return") || data === "\r" || data === "\n") {
+    if (item.kind === "multi-enum") {
+      const current = new Set(item.getValues(ctx) ?? []);
+      const opt = opts[panel.enumIndex];
+      if (opt) {
+        if (current.has(opt)) current.delete(opt);
+        else current.add(opt);
+      }
+      const next = [...current].sort();
+      void item.setValues(ctx, next.length > 0 ? next : undefined).then(() => {
+        refreshSettingsPanel(state, tui);
+      });
+      return;
+    }
     void item.setValue(ctx, opts[panel.enumIndex]).then(() => {
       applyLiveEffects(state);
       panel.enumOpen = false;
@@ -817,7 +903,7 @@ function handleEnum(
     });
   } else if (matchesKey(data, "escape") || data === "\x1b") {
     // Cancel browse preview for theme: restore the persisted/file value.
-    if (item.label === "theme") {
+    if (item.kind === "enum" && item.label === "theme") {
       setTheme(state, ctx.mixcodeRaw.theme ?? DEFAULT_THEME_ID);
     }
     panel.enumOpen = false;

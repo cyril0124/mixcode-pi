@@ -1,5 +1,6 @@
 import { getModels, getProviders } from "@earendil-works/pi-ai/compat";
 import { DEFAULT_MODEL_REF } from "./defaults.js";
+import { isModelDisabled } from "./mixcode-settings.js";
 import type { MixCodeModelRef, MixCodeModel, MixCodeState, MixCodeTabInfo } from "./types.js";
 
 const registeredModels = new Map<string, MixCodeModel>();
@@ -42,6 +43,33 @@ export function replaceRegisteredModels(models: MixCodeModel[]): void {
 // followed by every configured model (deduplicated by provider/modelId).
 export function buildAvailableModelRefs(configured: MixCodeModelRef[]): MixCodeModelRef[] {
   return configured.reduce(upsertModelRef, [{ ...DEFAULT_MODEL_REF }]);
+}
+
+/** Stamp `disabled` on refs from mixcode_settings lists without removing items. */
+export function applyDisabledModelFlags(
+  models: MixCodeModelRef[],
+  disabledProviders: readonly string[] = [],
+  disabledModels: readonly string[] = [],
+): MixCodeModelRef[] {
+  return models.map((model) => {
+    const disabled = isModelDisabled(
+      model.provider,
+      model.modelId,
+      disabledProviders,
+      disabledModels,
+    );
+    if (disabled) return { ...model, disabled: true };
+    const { disabled: _drop, ...rest } = model;
+    return rest;
+  });
+}
+
+export function assertModelEnabled(model: MixCodeModelRef): void {
+  if (model.disabled) {
+    throw new Error(
+      `Model is disabled: ${model.displayName}. Enable it in /settings then /reload.`,
+    );
+  }
 }
 
 export function isModelRefAvailable(models: MixCodeModelRef[], model: MixCodeModelRef): boolean {

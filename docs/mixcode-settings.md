@@ -24,6 +24,9 @@ The file uses JSONC syntax: regular JSON plus comments and trailing commas. If t
       "maxBytes": 131072,
     },
   },
+  // Orthogonal to models.json: disable providers/models without deleting catalog entries.
+  "disabledProviders": ["openai"],
+  "disabledModels": ["anthropic/claude-opus-4-5"],
 }
 ```
 
@@ -35,6 +38,8 @@ The file uses JSONC syntax: regular JSON plus comments and trailing commas. If t
 | `ui.oversizedAssistantMessage.enabled` | boolean | `true` | Fold oversized assistant/thinking provider output in the TUI while keeping full content in the session; use `/view` to inspect the full content. |
 | `ui.oversizedAssistantMessage.maxLines` | positive integer | `5000` | Fold assistant/thinking output above this line count. |
 | `ui.oversizedAssistantMessage.maxBytes` | positive integer | `131072` | Fold assistant/thinking output above this UTF-8 byte size. |
+| `disabledProviders` | string array of provider ids | `[]` | Globally disable providers. Models stay listed in `/models` but are dimmed as disabled and cannot be selected or used. Takes effect on `/reload` or restart. Editable via `/settings`. |
+| `disabledModels` | string array of `provider/modelId` | `[]` | Globally disable individual models. Same UI/use rules as `disabledProviders`. Provider-level disable covers all of that provider's models. Takes effect on `/reload` or restart. Editable via `/settings`. |
 
 ## Parsing Rules
 
@@ -47,6 +52,9 @@ The file uses JSONC syntax: regular JSON plus comments and trailing commas. If t
 - Invalid `ui.oversizedAssistantMessage` values are reported as settings errors.
 - Unknown fields are ignored.
 - Invalid JSONC is reported as a settings error.
+- `disabledProviders` / `disabledModels`: non-array values are treated as empty; only non-empty trimmed strings are kept.
+- Disabled lists do not edit `models.json`. `/login` still lists disabled providers so credentials can be configured.
+- A tab whose current model becomes disabled keeps that model reference (no auto-switch); sending a prompt or selecting the model is rejected until you pick an enabled model or re-enable and `/reload`.
 
 Prompt history cannot be disabled through `mixcode_settings.json`; submitted prompts are saved when they have a valid session id and non-empty text.
 

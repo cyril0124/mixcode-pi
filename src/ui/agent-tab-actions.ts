@@ -4,6 +4,7 @@ import { disposeChatRenderers } from "../agent/runtime-chat.js";
 import { findSessionFileByName } from "../agent/runtime-session.js";
 import { LOCAL_COMMANDS, parseInput, type ParsedInput } from "../core/commands.js";
 import { createSessionId, createTab, nextAvailableAgentTitle } from "../core/defaults.js";
+import { assertModelEnabled } from "../core/models.js";
 import { noteTabClosed, noteTabOpened, noteTabReplaced } from "../core/open-tabs-store.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import { activateTab, closeAgentTab } from "../core/tabs.js";
@@ -296,6 +297,7 @@ export async function submitAgentInput(
   parsed: ParsedInput = parseInput(text),
 ): Promise<boolean> {
   if (parsed.kind === "prompt") {
+    assertModelEnabled(tab.model);
     // Pass the raw user text to Pi. AgentSession.prompt() owns the native
     // pipeline order: extension commands -> input event -> skill/template
     // expansion. Pre-expanding here would hide the original text from
@@ -324,6 +326,7 @@ export async function submitAgentInput(
     isExtensionCommand(runtime, tab.sessionId, parsed.command) ||
     isPromptTemplate(runtime, tab.sessionId, parsed.command)
   ) {
+    assertModelEnabled(tab.model);
     await runtime.prompt(tab.sessionId, commandText);
     return true;
   }

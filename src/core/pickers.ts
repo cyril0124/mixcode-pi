@@ -37,7 +37,10 @@ export function pickerItems(
     return state.availableModels.map((model) => ({
       id: modelRefId(model),
       label: model.displayName,
-      description: `${model.contextWindow} context`,
+      description: model.disabled
+        ? `disabled · ${model.contextWindow} context`
+        : `${model.contextWindow} context`,
+      ...(model.disabled ? { disabled: true as const } : {}),
     }));
   }
   if (kind === "thinking") {
@@ -87,10 +90,8 @@ export function filteredPickerItems(picker: PickerState): PickerItem[] {
 
 export function updatePickerQuery(picker: PickerState, query: string): void {
   picker.query = query;
-  picker.selectedIndex = Math.min(
-    picker.selectedIndex,
-    Math.max(0, filteredPickerItems(picker).length - 1),
-  );
+  filteredPickerItems(picker);
+  picker.selectedIndex = 0;
 }
 
 export function movePickerSelection(picker: PickerState, delta: number): void {

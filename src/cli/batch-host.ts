@@ -2,7 +2,7 @@ import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { MixCodeRuntime } from "../agent/runtime.js";
 import type { BatchExecutorHost, BatchTabRequest } from "../core/batch-lua.js";
 import { parseInput } from "../core/commands.js";
-import { findModelRef } from "../core/models.js";
+import { assertModelEnabled, findModelRef } from "../core/models.js";
 import type { MixCodeState } from "../core/types.js";
 import { applyModelSelection, applyThinkingLevel } from "../ui/app-actions.js";
 import type { OverlayTui } from "../ui/app-types.js";
@@ -35,6 +35,7 @@ export function createBatchExecutorHost(options: {
       const model = request.model
         ? findModelRef(state.availableModels, request.model)
         : state.model;
+      assertModelEnabled(model);
       const thinkingLevel = (request.thinking as ThinkingLevel | undefined) ?? state.thinkingLevel;
       const tab = await createAgentTab(state, runtime, {
         title: request.name,
@@ -80,7 +81,9 @@ export function createBatchExecutorHost(options: {
       throw new Error(`Batch prompt cannot execute MixCode local command: ${command}`);
     },
     resolveModel(query) {
-      return findModelRef(state.availableModels, query);
+      const model = findModelRef(state.availableModels, query);
+      assertModelEnabled(model);
+      return model;
     },
   };
 }

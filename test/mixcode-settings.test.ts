@@ -14,6 +14,8 @@ test("mixcode settings default history and oversized assistant message policy", 
         oversizedAssistantMessage: { enabled: true, maxLines: 5000, maxBytes: 128 * 1024 },
         renderMermaid: true,
       },
+      disabledProviders: [],
+      disabledModels: [],
     });
     await writeFile(
       join(dir, "mixcode_settings.json"),
@@ -32,6 +34,8 @@ test("mixcode settings default history and oversized assistant message policy", 
         oversizedAssistantMessage: { enabled: false, maxLines: 42, maxBytes: 2048 },
         renderMermaid: false,
       },
+      disabledProviders: [],
+      disabledModels: [],
     });
   } finally {
     await rm(dir, { recursive: true, force: true });
@@ -58,6 +62,8 @@ test("mixcode settings accept jsonc comments and trailing commas", async () => {
         oversizedAssistantMessage: { enabled: true, maxLines: 5000, maxBytes: 128 * 1024 },
         renderMermaid: true,
       },
+      disabledProviders: [],
+      disabledModels: [],
     });
   } finally {
     await rm(dir, { recursive: true, force: true });

@@ -613,10 +613,11 @@ function renderPickerOverlayInner(state: MixCodeState, width: number): string[] 
         matchHighlight,
       );
       const line = `${index === picker.selectedIndex ? ">" : " "} ${label}  ${description}`;
+      const rendered = item.disabled ? activeRenderTheme.dim(line) : line;
       lines.push(
         index === picker.selectedIndex
-          ? activeRenderTheme.selection(padLine(line, Math.max(1, width - 2)))
-          : line,
+          ? activeRenderTheme.selection(padLine(rendered, Math.max(1, width - 2)))
+          : rendered,
       );
     }
     if (endIndex < items.length) {

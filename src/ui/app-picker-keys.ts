@@ -117,6 +117,11 @@ export function handlePickerKey(
     } else {
       const selected = acceptPickerSelection(picker);
       if (!selected) return true;
+      if (selected.disabled) {
+        showErrorOverlay(tui, new Error(`Model is disabled: ${selected.label}`));
+        tui.requestRender();
+        return true;
+      }
       selectedId = selected.id;
     }
 

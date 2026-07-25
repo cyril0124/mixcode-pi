@@ -4,7 +4,7 @@ import { scanSkillEntries } from "../core/attachments.js";
 import { recordSubmittedHistory } from "../core/conversation-history.js";
 import { resolveFdBinary } from "../core/detect-search-tools.js";
 import { scanProjectFiles } from "../core/file-picker.js";
-import { buildAvailableModelRefs } from "../core/models.js";
+import { applyDisabledModelFlags, buildAvailableModelRefs } from "../core/models.js";
 import { noteTabClosed } from "../core/open-tabs-store.js";
 import type { MixCodeState } from "../core/types.js";
 import { closeAgentTab, getActiveTab } from "../core/tabs.js";
@@ -256,7 +256,11 @@ export function createMixCodeTui(
   });
   // Extension pi.registerProvider → ModelRegistry; keep /model picker in sync.
   runtime.onModelsChanged?.((refs) => {
-    state.availableModels = buildAvailableModelRefs(refs);
+    state.availableModels = applyDisabledModelFlags(
+      buildAvailableModelRefs(refs),
+      state.disabledProviders,
+      state.disabledModels,
+    );
     void options.onStateChanged?.(state);
     tui.requestRender();
   });
