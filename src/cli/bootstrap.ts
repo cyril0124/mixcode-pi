@@ -46,7 +46,7 @@ import {
 import { MIXCODE_SYSTEM_PROMPT, setGlobalConversationHistoryPrompt } from "../core/system-prompt.js";
 import type { MixCodeModelRef, MixCodeState } from "../core/types.js";
 import type { MixCodeCompletionSources } from "../ui/completion.js";
-import { applyHttpProxySettings, configureHttpDispatcher } from "../core/http-dispatcher.js";
+import { applyHttpProxySettings, configureHttpDispatcher } from "@earendil-works/pi-coding-agent";
 
 export interface BootstrapOptions {
   workdir: string;

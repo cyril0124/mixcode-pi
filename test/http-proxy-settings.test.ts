@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { applyHttpProxySettings } from "../src/core/http-dispatcher.js";
+import { applyHttpProxySettings } from "@earendil-works/pi-coding-agent";
 
 function withProxyEnv(run: () => void): void {
 	const prevHttp = process.env.HTTP_PROXY;

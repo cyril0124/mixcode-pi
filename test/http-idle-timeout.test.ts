@@ -5,7 +5,7 @@ import {
 	formatHttpIdleTimeoutMs,
 	HTTP_IDLE_TIMEOUT_CHOICES,
 	parseHttpIdleTimeoutMs,
-} from "../src/core/http-dispatcher.js";
+} from "@earendil-works/pi-coding-agent";
 
 test("DEFAULT_HTTP_IDLE_TIMEOUT_MS is 5 minutes", () => {
 	assert.equal(DEFAULT_HTTP_IDLE_TIMEOUT_MS, 300_000);

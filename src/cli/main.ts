@@ -48,7 +48,7 @@ import {
 import { ensurePackageExtensions } from "../core/ensure-package-extensions.js";
 import { installConsoleTuiBridge, wireConsoleSink } from "./console-tui-bridge.js";
 import { showNoticeTextOverlay } from "../ui/app-overlays.js";
-import { configureHttpDispatcher } from "../core/http-dispatcher.js";
+import { configureHttpDispatcher } from "@earendil-works/pi-coding-agent";
 
 /**
  * Root that contains built-in packages (`pi-packages/` in dev, `packages/` in
