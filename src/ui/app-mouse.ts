@@ -5,7 +5,7 @@ import {
   selectedInputText,
   selectedNoticeText,
 } from "../core/chat-selection.js";
-import { copyTextToClipboard, type ClipboardWriter } from "../core/clipboard.js";
+import { copyToClipboard as writeClipboard } from "@earendil-works/pi-coding-agent";
 import { parseSgrMouseInput } from "../core/mouse.js";
 import { scrollChat, scrollExtensionPanel, scrollPreview, clearChatScrollAnchor } from "../core/overlays.js";
 import { pushToast } from "../core/toast.js";
@@ -24,13 +24,15 @@ import { activeExtensionCommands } from "./app-runtime.js";
 import type { MixCodeKeyRuntime, OverlayTui } from "./app-types.js";
 import { renderCommandPalette, renderPickerOverlay, tabBarHitRegions } from "./rendering.js";
 
+type ClipboardWriter = (text: string) => Promise<void>;
+
 export function handleChatSelectionMouseInput(
   state: MixCodeState,
   active: MixCodeState["tabs"][number] | undefined,
   data: string,
   tui: OverlayTui,
   _runtime?: Pick<MixCodeKeyRuntime, "appendSystemMessage">,
-  copyToClipboard: ClipboardWriter = copyTextToClipboard,
+  copyToClipboard: ClipboardWriter = writeClipboard,
 ): boolean {
   const mouse = parseSgrMouseInput(data);
   if (!mouse || !active || state.activeTabId === "config") return false;
@@ -42,7 +44,7 @@ export function handleInputSelectionMouseInput(
   active: MixCodeState["tabs"][number] | undefined,
   data: string,
   tui: OverlayTui,
-  copyToClipboard: ClipboardWriter = copyTextToClipboard,
+  copyToClipboard: ClipboardWriter = writeClipboard,
 ): boolean {
   const mouse = parseSgrMouseInput(data);
   if (!mouse || !active) return false;
@@ -56,7 +58,7 @@ export function handleMouseInput(
   tui: OverlayTui,
   _shellManager?: unknown,
   runtime?: Pick<MixCodeKeyRuntime, "appendSystemMessage">,
-  copyToClipboard: ClipboardWriter = copyTextToClipboard,
+  copyToClipboard: ClipboardWriter = writeClipboard,
 ): boolean {
   const mouse = parseSgrMouseInput(data);
   if (!mouse) return false;

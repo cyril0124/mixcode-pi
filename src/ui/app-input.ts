@@ -1,6 +1,6 @@
 import { isKeyRelease, matchesKey } from "@earendil-works/pi-tui";
 import { MIXCODE_EXTENSION_KEYBINDINGS_MANAGER } from "../agent/runtime.js";
-import { copyTextToClipboard } from "../core/clipboard.js";
+import { copyToClipboard } from "@earendil-works/pi-coding-agent";
 import {
   closeActiveOverlay,
   isOverlayActive,
@@ -375,7 +375,7 @@ export function handleMixCodeKeyInput(
   // Notice is nonCapturing: copy keys must be handled here so they do not
   // fall through into the editor while a diagnostic panel is open.
   if (hasActiveNotice() && (data === "c" || data === "C" || data === "y" || data === "Y")) {
-    void copyActiveNoticeText(copyTextToClipboard).then((result) => {
+    void copyActiveNoticeText(copyToClipboard).then((result) => {
       if (!active) {
         tui.requestRender();
         return;

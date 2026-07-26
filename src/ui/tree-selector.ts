@@ -3,7 +3,7 @@ import { type EditorComponent, isKeyRelease, matchesKey } from "@earendil-works/
 
 import type { ChatLine } from "../agent/runtime.js";
 import { applyMixCodeKeybindings } from "../agent/runtime-pi-tui-bridge.js";
-import { copyTextToClipboard } from "../core/clipboard.js";
+import { copyToClipboard } from "@earendil-works/pi-coding-agent";
 import { chatEnd } from "../core/overlays.js";
 import { pushToast } from "../core/toast.js";
 import {
@@ -307,7 +307,7 @@ function drainTreeComponentEvents(
   if (selector.copyRequest !== undefined) {
     const text = selector.copyRequest;
     selector.copyRequest = undefined;
-    void copyTextToClipboard(text)
+    void copyToClipboard(text)
       .then(() => {
         if (active) pushToast(active, { type: "success", message: "Copied to clipboard" });
         tui.requestRender();

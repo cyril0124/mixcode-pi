@@ -6,7 +6,6 @@ export * from "./cli/bootstrap.js";
 export * from "./core/attachments.js";
 export * from "./core/batch-lua.js";
 export * from "./core/chat-selection.js";
-export * from "./core/clipboard.js";
 export * from "./core/commands.js";
 export * from "./core/conversation-history.js";
 export * from "./core/defaults.js";
