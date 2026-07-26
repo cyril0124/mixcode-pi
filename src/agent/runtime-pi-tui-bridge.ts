@@ -34,8 +34,8 @@
 // explicit warning and degrades to top-level-only. This is intentional: it
 // surfaces drift loudly instead of silently regressing the UI.
 
-import { dirname } from "node:path";
 import { createRequire } from "node:module";
+import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   getKeybindings as getOuterKeybindings,
@@ -78,7 +78,8 @@ export function injectNestedPiTui(mod: PiTuiKeybindingsModule): void {
 // resolution synchronous from a consumer's perspective: by the time anyone
 // imports `applyMixCodeKeybindings`, the nested module is either ready or
 // confirmed missing.
-const nestedPiTui: PiTuiKeybindingsModule | undefined = injectedNestedPiTui ?? (await resolveNestedPiTui());
+const nestedPiTui: PiTuiKeybindingsModule | undefined =
+  injectedNestedPiTui ?? (await resolveNestedPiTui());
 
 async function resolveNestedPiTui(): Promise<PiTuiKeybindingsModule | undefined> {
   // Resolve the pi-coding-agent entry to locate its nested pi-tui copy.
@@ -98,22 +99,17 @@ async function resolveNestedPiTui(): Promise<PiTuiKeybindingsModule | undefined>
   // upstream shrinkwrap is in effect.
   const distDir = dirname(codingAgentEntry);
   const pkgDir = dirname(distDir);
-  const nestedKeybindingsPath = `${pkgDir}/node_modules/@earendil-works/pi-tui/dist/keybindings.js`;
-
-  // First try CJS require (bypasses package.json "exports" restrictions).
-  const cjsMod = loadNestedKeybindingsViaCjs(nestedKeybindingsPath);
-  if (cjsMod) return cjsMod;
-
-  // Fallback: dynamic ESM import of the full index (works when exports allow it).
+  // Import the same ESM entry that pi-coding-agent components resolve.
   const nestedEntry = `${pkgDir}/node_modules/@earendil-works/pi-tui/dist/index.js`;
   try {
     return (await import(nestedEntry)) as PiTuiKeybindingsModule;
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ERR_MODULE_NOT_FOUND") {
-      return undefined;
-    }
-    throw error;
+    if ((error as NodeJS.ErrnoException).code !== "ERR_MODULE_NOT_FOUND") throw error;
   }
+
+  // CJS is only a fallback: require() can create separate module state from the ESM entry.
+  const nestedKeybindingsPath = `${pkgDir}/node_modules/@earendil-works/pi-tui/dist/keybindings.js`;
+  return loadNestedKeybindingsViaCjs(nestedKeybindingsPath);
 }
 
 // Use createRequire to load the nested keybindings module directly by

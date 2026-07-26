@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createInitialState, createTab, setTheme } from "../src/index.js";
-import { handleMixCodeKeyInput } from "../src/ui/app-input.js";
 import {
   createTreeSelectorState,
   initTreeSelector,
   type SessionTreeNode,
 } from "../src/core/tree-selector.js";
+import { createInitialState, createTab, setTheme } from "../src/index.js";
+import { handleMixCodeKeyInput } from "../src/ui/app-input.js";
 import {
   attachTreeSelectorDisplayHost,
   handleTreeSelectorKey,
@@ -48,6 +48,60 @@ function sampleTree(): SessionTreeNode[] {
   ];
 }
 
+function toolSearchTree(): SessionTreeNode[] {
+  return [
+    messageNode("root", null, "user", "start", [
+      {
+        entry: {
+          type: "message",
+          id: "assistant-tool",
+          parentId: "root",
+          timestamp: "2026-05-14T00:00:00.000Z",
+          message: {
+            role: "assistant",
+            content: [
+              { type: "toolCall", id: "call-1", name: "read", arguments: { path: "/tmp/a" } },
+            ],
+          },
+        },
+        children: [
+          {
+            entry: {
+              type: "message",
+              id: "tool-result",
+              parentId: "assistant-tool",
+              timestamp: "2026-05-14T00:00:00.000Z",
+              message: {
+                role: "toolResult",
+                toolCallId: "call-1",
+                toolName: "read",
+                content: [{ type: "text", text: "tool output" }],
+                isError: false,
+                timestamp: 0,
+              },
+            },
+            children: [],
+          } as SessionTreeNode,
+        ],
+      } as SessionTreeNode,
+    ]),
+  ];
+}
+
+test("Pi tree search keeps tool names without leaking search metadata into copy", () => {
+  const state = createInitialState("/repo");
+  initTreeSelector(state.treeSelector, toolSearchTree(), "tool-result");
+  const tui = { requestRender: () => undefined };
+
+  for (const key of "read") handleTreeSelectorKey(state, key, tui);
+  const filtered = renderTreeSelector(state, 100).map(stripAnsi).join("\n");
+  assert.match(filtered, /\[read: \/tmp\/a\]/);
+  assert.doesNotMatch(filtered, /No entries found/);
+
+  state.treeSelector.component?.getTreeList().copySelected();
+  assert.equal(state.treeSelector.copyRequest, "tool output");
+});
+
 test("tree selector renders pi-agent style full-width bordered surface", () => {
   const previousRows = process.stdout.rows;
   process.stdout.rows = 24;
@@ -57,22 +111,75 @@ test("tree selector renders pi-agent style full-width bordered surface", () => {
     initTreeSelector(state.treeSelector, sampleTree(), "active");
 
     const lines = renderTreeSelector(state, 100).map(stripAnsi);
+    const text = lines.join("\n");
     assert.equal(lines[0], "");
     assert.equal(lines[1], "─".repeat(100));
-    assert.equal(lines[2], "  Session Tree");
-    assert.match(lines[3] ?? "", /↑\/↓: move\. ←\/→: page\./);
-    assert.match(lines[3] ?? "", /shift\+l: label/);
-    assert.equal(lines[4], "  Type to search:");
-    assert.equal(lines[5], "─".repeat(100));
-    assert.equal(lines[6], "");
+    assert.ok(lines.some((line) => line.trimEnd() === "   Session Tree"));
+    assert.match(text, /↑\/↓ move · ←\/→ page/);
+    assert.match(text, /shift\+l label · shift\+t label time/);
+    assert.ok(lines.some((line) => line.trimEnd() === "  Type to search:"));
     assert.ok(lines.some((line) => line.includes("• user: start")));
     assert.ok(lines.some((line) => line.includes("assistant: answer")));
     assert.ok(lines.some((line) => line.includes("(3/4)")));
     assert.equal(lines.at(-1), "─".repeat(100));
-    assert.doesNotMatch(lines.join("\n"), /┌|┐|┘|Filter:|Enter: navigate/);
+    assert.doesNotMatch(text, /┌|┐|┘|Filter:|Enter: navigate/);
   } finally {
     process.stdout.rows = previousRows;
   }
+});
+
+test("Pi tree selection preserves custom branch summarization", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"));
+  state.activeTabId = "s1";
+  initTreeSelector(state.treeSelector, sampleTree(), "active", "other");
+  const calls: Array<{
+    entryId: string;
+    options?: { summarize?: boolean; customInstructions?: string };
+  }> = [];
+  const runtime = {
+    getTab: () => ({
+      session: {
+        getTree: () => sampleTree(),
+        getLeafId: () => "active",
+        appendLabelChange: () => "",
+      },
+      agentSession: { abortBranchSummary: () => undefined },
+    }),
+    extensionNavigateTree: async (
+      _sessionId: string,
+      entryId: string,
+      options?: { summarize?: boolean; customInstructions?: string },
+    ) => {
+      calls.push({ entryId, options });
+      return { cancelled: false };
+    },
+    appendSystemMessage: () => undefined,
+  };
+  const tui = {
+    requestRender: () => undefined,
+    treeSelectorDisplay: {
+      open: () => undefined,
+      refresh: () => undefined,
+      close: () => undefined,
+    },
+  };
+
+  handleTreeSelectorKey(state, "\r", tui, runtime as never);
+  assert.match(renderTreeSelector(state, 80).map(stripAnsi).join("\n"), /Summarize Branch/);
+  handleTreeSelectorKey(state, "\x1b[B", tui, runtime as never);
+  handleTreeSelectorKey(state, "\x1b[B", tui, runtime as never);
+  handleTreeSelectorKey(state, "\r", tui, runtime as never);
+  for (const key of "focus on decisions") handleTreeSelectorKey(state, key, tui, runtime as never);
+  handleTreeSelectorKey(state, "\r", tui, runtime as never);
+  await Promise.resolve();
+
+  assert.deepEqual(calls, [
+    {
+      entryId: "other",
+      options: { summarize: true, customInstructions: "focus on decisions" },
+    },
+  ]);
 });
 
 test("tree selector opens in the editor input area instead of an overlay", () => {
@@ -162,7 +269,7 @@ test("navigate mode consumes Left so app-input cannot leave to Home", () => {
   state.treeSelector.open = true;
   const tui = {
     requestRender: () => undefined,
-    showOverlay: () => ({} as never),
+    showOverlay: () => ({}) as never,
     hideOverlay: () => undefined,
   };
 
@@ -201,7 +308,8 @@ test("tree selector uses pi-agent key labels and shortcuts", () => {
   assert.equal(state.treeSelector.filterMode, "no-tools");
 
   assert.equal(handleTreeSelectorKey(state, "L", tui), true);
-  assert.equal(state.treeSelector.labelEditEntryId, "active");
+  const labelEditor = renderTreeSelector(state, 80).map(stripAnsi).join("\n");
+  assert.match(labelEditor, /Label \(empty to remove\):/);
   assert.equal(refreshes, 2);
 });
 
@@ -220,19 +328,10 @@ test("tree selector input listener handles tree keys when no editor host is atta
   };
 
   assert.deepEqual(
-    handleMixCodeKeyInput(
-      state,
-      "\x0f",
-      tui,
-      undefined,
-      undefined,
-      undefined,
-      () => false,
-      {
-        getText: () => "",
-        setText: () => undefined,
-      },
-    ),
+    handleMixCodeKeyInput(state, "\x0f", tui, undefined, undefined, undefined, () => false, {
+      getText: () => "",
+      setText: () => undefined,
+    }),
     { consume: true },
   );
   assert.equal(state.treeSelector.filterMode, "no-tools");
@@ -286,7 +385,7 @@ test("tree selector keeps key priority over extension terminal input handlers be
   });
 
   assert.equal(dispatches, 0);
-  assert.equal(state.treeSelector.selectedIndex, 1);
+  assert.equal(state.treeSelector.selectedEntryId, "assistant");
   assert.equal(renders, 1);
 });
 
@@ -345,7 +444,6 @@ test("Ctrl+T closes navigate before opening Tab Jump", () => {
   assert.equal(editorClosed, true);
   assert.equal(state.tabJumpOpen, true);
 });
-
 
 test("Tab switch closes tree so destination accepts typing", () => {
   const state = createInitialState("/repo");

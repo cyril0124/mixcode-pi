@@ -1,8 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { NEWEST_TREE_ENTRY_ID, type SessionTreeNode } from "../src/core/tree-selector.js";
 import type { MixCodeRuntime } from "../src/index.js";
-import { createInitialState, createTab, handleMixCodeKeyInput, handleSubmittedInput } from "../src/index.js";
-import type { SessionTreeNode } from "../src/core/tree-selector.js";
+import {
+  createInitialState,
+  createTab,
+  handleMixCodeKeyInput,
+  handleSubmittedInput,
+} from "../src/index.js";
 import { scrollChatToUserEntry } from "../src/ui/chat-scroll-target.js";
 import { renderAgentSurface } from "../src/ui/rendering/agent-surface.js";
 import { renderTreeSelector } from "../src/ui/tree-selector-render.js";
@@ -102,16 +107,14 @@ test("/navigate opens the Session Tree view filtered to current-chat user messag
   assert.equal(state.treeSelector.open, true);
   assert.equal(state.treeSelector.mode, "navigate");
   assert.equal(state.treeSelector.filterMode, "user-only");
-  assert.deepEqual(
-    state.treeSelector.filteredNodes.map((node) => node.node.entry.id),
-    ["u1", "u2"],
-  );
+  assert.deepEqual(state.treeSelector.navigationEntryIds, ["u1", "u2", NEWEST_TREE_ENTRY_ID]);
   const text = renderTreeSelector(state, 100).map(stripAnsi).join("\n");
   assert.match(text, /Session Tree/);
   assert.match(text, /j\/k: move\+scroll/);
+  assert.doesNotMatch(text, /Type to search|filters|cycle ctrl/);
   // Navigate rows show sequence number + timestamp, like /prompt-history
-  assert.match(text, /#1 \S+.*user: first user/);
-  assert.match(text, /#2 \S+.*user: second user/);
+  assert.match(text, /user: #1 \[2026-05-14 00:00\] first user/);
+  assert.match(text, /user: #2 \[2026-05-14 00:00\] second user/);
   // Virtual <NEWEST> row and counter including it
   assert.match(text, /<NEWEST>/);
   assert.match(text, /\(2\/3\)/);
@@ -136,23 +139,27 @@ test("/navigate moves with arrows and j/k, then scrolls current chat", async () 
   };
 
   await handleSubmittedInput(state, runtime, "/navigate", tui);
-  assert.equal(state.treeSelector.filteredNodes[state.treeSelector.selectedIndex]?.node.entry.id, "u2");
+  assert.equal(state.treeSelector.selectedEntryId, "u2");
   assert.equal(tab.chatScrollOffset, 0);
 
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[A", tui, undefined, runtime), { consume: true });
-  assert.equal(state.treeSelector.filteredNodes[state.treeSelector.selectedIndex]?.node.entry.id, "u1");
+  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[A", tui, undefined, runtime), {
+    consume: true,
+  });
+  assert.equal(state.treeSelector.selectedEntryId, "u1");
   await Promise.resolve();
   assert.equal(tab.chatScrollAnchorEntryId, "u1");
   assert.equal(tab.chatScrollAnchorIndex, 0);
 
   const olderAnchor = tab.chatScrollAnchorEntryId;
   assert.deepEqual(handleMixCodeKeyInput(state, "k", tui, undefined, runtime), { consume: true });
-  assert.equal(state.treeSelector.filteredNodes[state.treeSelector.selectedIndex]?.node.entry.id, "u1");
+  assert.equal(state.treeSelector.selectedEntryId, "u1");
   assert.match(tab.toast?.message ?? "", /No older user message/);
   assert.equal(tab.chatScrollAnchorEntryId, olderAnchor);
 
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[B", tui, undefined, runtime), { consume: true });
-  assert.equal(state.treeSelector.filteredNodes[state.treeSelector.selectedIndex]?.node.entry.id, "u2");
+  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[B", tui, undefined, runtime), {
+    consume: true,
+  });
+  assert.equal(state.treeSelector.selectedEntryId, "u2");
   await Promise.resolve();
   assert.equal(tab.chatScrollAnchorEntryId, "u2");
   assert.equal(tab.chatScrollAnchorIndex, 2);
@@ -160,20 +167,20 @@ test("/navigate moves with arrows and j/k, then scrolls current chat", async () 
 
   // j past the last user message selects the virtual <NEWEST> row: jump to latest
   assert.deepEqual(handleMixCodeKeyInput(state, "j", tui, undefined, runtime), { consume: true });
-  assert.equal(state.treeSelector.selectedIndex, state.treeSelector.filteredNodes.length);
+  assert.equal(state.treeSelector.selectedEntryId, NEWEST_TREE_ENTRY_ID);
   await Promise.resolve();
   assert.equal(tab.chatScrollAnchorEntryId, undefined);
   assert.equal(tab.chatScrollOffset, 0);
 
   // j past <NEWEST> hits the bottom boundary
   assert.deepEqual(handleMixCodeKeyInput(state, "j", tui, undefined, runtime), { consume: true });
-  assert.equal(state.treeSelector.selectedIndex, state.treeSelector.filteredNodes.length);
+  assert.equal(state.treeSelector.selectedEntryId, NEWEST_TREE_ENTRY_ID);
   assert.match(tab.toast?.message ?? "", /No newer user message/);
   assert.equal(tab.chatScrollAnchorEntryId, undefined);
 
   // k moves back from <NEWEST> to the last user message and re-anchors
   assert.deepEqual(handleMixCodeKeyInput(state, "k", tui, undefined, runtime), { consume: true });
-  assert.equal(state.treeSelector.filteredNodes[state.treeSelector.selectedIndex]?.node.entry.id, "u2");
+  assert.equal(state.treeSelector.selectedEntryId, "u2");
   await Promise.resolve();
   assert.equal(tab.chatScrollAnchorEntryId, "u2");
 
@@ -191,9 +198,10 @@ test("/navigate moves with arrows and j/k, then scrolls current chat", async () 
   assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui, undefined, runtime), { consume: true });
   assert.equal(state.treeSelector.open, false);
   state.treeSelector.open = true;
+  const selectedBeforePassThrough = state.treeSelector.selectedEntryId;
   assert.equal(handleMixCodeKeyInput(state, "x", tui, undefined, runtime)?.consume, undefined);
   assert.equal(state.treeSelector.summarizePrompt, null);
-  assert.equal(state.treeSelector.searchQuery, "");
+  assert.equal(state.treeSelector.selectedEntryId, selectedBeforePassThrough);
 });
 
 test("vim Right jumps to next user message and then NEWEST", async () => {
@@ -213,28 +221,57 @@ test("vim Right jumps to next user message and then NEWEST", async () => {
   };
 
   await handleSubmittedInput(state, runtime, "/navigate", tui);
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[A", tui, undefined, runtime), { consume: true });
+  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[A", tui, undefined, runtime), {
+    consume: true,
+  });
   await Promise.resolve();
   assert.equal(tab.chatScrollAnchorEntryId, "u1");
 
   state.treeSelector.open = false;
   tab.vimMode = true;
   assert.deepEqual(
-    handleMixCodeKeyInput(state, "\x1b[C", tui, undefined, runtime, undefined, () => false, emptyEditor()),
+    handleMixCodeKeyInput(
+      state,
+      "\x1b[C",
+      tui,
+      undefined,
+      runtime,
+      undefined,
+      () => false,
+      emptyEditor(),
+    ),
     { consume: true },
   );
   assert.equal(state.treeSelector.open, false);
   assert.equal(tab.chatScrollAnchorEntryId, "u2");
 
   assert.deepEqual(
-    handleMixCodeKeyInput(state, "\x1b[C", tui, undefined, runtime, undefined, () => false, emptyEditor()),
+    handleMixCodeKeyInput(
+      state,
+      "\x1b[C",
+      tui,
+      undefined,
+      runtime,
+      undefined,
+      () => false,
+      emptyEditor(),
+    ),
     { consume: true },
   );
   assert.equal(tab.chatScrollAnchorEntryId, undefined);
   assert.equal(tab.chatScrollOffset, 0);
 
   assert.deepEqual(
-    handleMixCodeKeyInput(state, "\x1b[C", tui, undefined, runtime, undefined, () => false, emptyEditor()),
+    handleMixCodeKeyInput(
+      state,
+      "\x1b[C",
+      tui,
+      undefined,
+      runtime,
+      undefined,
+      () => false,
+      emptyEditor(),
+    ),
     { consume: true },
   );
   assert.match(tab.toast?.message ?? "", /No newer user message/);
@@ -251,21 +288,48 @@ test("vim Shift+Right walks backward through user messages", () => {
   const tui = { requestRender: () => undefined };
 
   assert.deepEqual(
-    handleMixCodeKeyInput(state, "\x1b[1;2C", tui, undefined, runtime, undefined, () => false, emptyEditor()),
+    handleMixCodeKeyInput(
+      state,
+      "\x1b[1;2C",
+      tui,
+      undefined,
+      runtime,
+      undefined,
+      () => false,
+      emptyEditor(),
+    ),
     { consume: true },
   );
   assert.equal(tab.chatScrollAnchorEntryId, "u2");
   assert.equal(tab.chatScrollAnchorIndex, 2);
 
   assert.deepEqual(
-    handleMixCodeKeyInput(state, "\x1b[1;2C", tui, undefined, runtime, undefined, () => false, emptyEditor()),
+    handleMixCodeKeyInput(
+      state,
+      "\x1b[1;2C",
+      tui,
+      undefined,
+      runtime,
+      undefined,
+      () => false,
+      emptyEditor(),
+    ),
     { consume: true },
   );
   assert.equal(tab.chatScrollAnchorEntryId, "u1");
   assert.equal(tab.chatScrollAnchorIndex, 0);
 
   assert.deepEqual(
-    handleMixCodeKeyInput(state, "\x1b[1;2C", tui, undefined, runtime, undefined, () => false, emptyEditor()),
+    handleMixCodeKeyInput(
+      state,
+      "\x1b[1;2C",
+      tui,
+      undefined,
+      runtime,
+      undefined,
+      () => false,
+      emptyEditor(),
+    ),
     { consume: true },
   );
   assert.equal(tab.chatScrollAnchorEntryId, "u1");
@@ -284,7 +348,16 @@ test("vim Shift+Right treats a stale anchor as the newest position", () => {
   const tui = { requestRender: () => undefined };
 
   assert.deepEqual(
-    handleMixCodeKeyInput(state, "\x1b[1;2C", tui, undefined, runtime, undefined, () => false, emptyEditor()),
+    handleMixCodeKeyInput(
+      state,
+      "\x1b[1;2C",
+      tui,
+      undefined,
+      runtime,
+      undefined,
+      () => false,
+      emptyEditor(),
+    ),
     { consume: true },
   );
   assert.equal(tab.chatScrollAnchorEntryId, "u2");
@@ -308,7 +381,14 @@ test("/navigate scroll alignment puts selected user message at top when possible
     { role: "user" as const, text: "last user", entryId: "u3" },
   ];
 
-  const result = scrollChatToUserEntry(tab, chat, [u1.entry, a1.entry, u2.entry, a2.entry, u3.entry], "u2", 5, 80);
+  const result = scrollChatToUserEntry(
+    tab,
+    chat,
+    [u1.entry, a1.entry, u2.entry, a2.entry, u3.entry],
+    "u2",
+    5,
+    80,
+  );
 
   assert.equal(result.found, true);
   assert.equal(tab.chatScrollAnchorEntryId, "u2");

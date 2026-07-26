@@ -23,13 +23,13 @@ import {
 } from "../ui/themes.js";
 import type { ExtensionThemeHost } from "./runtime-types.js";
 
-export { getActiveExtensionThemeId, noteActiveExtensionThemeId };
-
 export {
+  getActiveExtensionThemeId,
   MIXCODE_EXTENSION_CLAUDE_WARM_THEME,
   MIXCODE_EXTENSION_TERMINAL_THEME,
   MIXCODE_EXTENSION_THEME,
   MIXCODE_EXTENSION_TOKYO_NIGHT_THEME,
+  noteActiveExtensionThemeId,
 };
 
 export const MIXCODE_EXTENSION_KEYBINDINGS: KeybindingsConfig = {
@@ -67,6 +67,18 @@ const MIXCODE_EXTENSION_KEYBINDING_DEFINITIONS = {
   "app.thinking.toggle": { defaultKeys: "ctrl+r", description: "Prepare rename command" },
   "app.editor.external": { defaultKeys: "ctrl+e", description: "Open external editor" },
   "app.message.followUp": { defaultKeys: "alt+enter", description: "Queue follow-up message" },
+  "app.message.copy": { defaultKeys: "ctrl+x", description: "Copy tree entry" },
+  "app.tree.foldOrUp": { defaultKeys: ["ctrl+left", "alt+left"] },
+  "app.tree.unfoldOrDown": { defaultKeys: ["ctrl+right", "alt+right"] },
+  "app.tree.editLabel": { defaultKeys: "shift+l" },
+  "app.tree.toggleLabelTimestamp": { defaultKeys: "shift+t" },
+  "app.tree.filter.default": { defaultKeys: "ctrl+d" },
+  "app.tree.filter.noTools": { defaultKeys: "ctrl+t" },
+  "app.tree.filter.userOnly": { defaultKeys: "ctrl+u" },
+  "app.tree.filter.labeledOnly": { defaultKeys: "ctrl+l" },
+  "app.tree.filter.all": { defaultKeys: "ctrl+a" },
+  "app.tree.filter.cycleForward": { defaultKeys: "ctrl+o" },
+  "app.tree.filter.cycleBackward": { defaultKeys: "shift+ctrl+o" },
 } satisfies KeybindingDefinitions;
 
 export const MIXCODE_EXTENSION_KEYBINDINGS_MANAGER = new PiTuiKeybindingsManager(
