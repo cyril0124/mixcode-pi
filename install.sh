@@ -64,13 +64,13 @@ info "bun $(bun --version)"
 cd "$REPO_DIR"
 
 info "Installing dependencies..."
-bun install
-
-# Apply patches (patch-package may fail under bun's postinstall; apply manually)
-if [ -d "$REPO_DIR/patches" ]; then
-  info "Applying patches..."
-  ./node_modules/.bin/patch-package --patch-dir patches \
-    || true
+# postinstall runs patch-package --error-on-fail. A half-patched
+# node_modules (e.g. after a prior failed install) makes that fail;
+# clean the tree once and retry.
+if ! bun install; then
+  warn "bun install failed (often a dirty patched package). Cleaning and retrying..."
+  rm -rf node_modules
+  bun install || error "bun install failed after clean retry"
 fi
 
 # --- Compile ---
