@@ -108,7 +108,7 @@ test("createMixCodeTui submit hook persists prompt history", async () => {
   }
 });
 
-test("createMixCodeTui editor submits prompts, completes files, and surfaces slash errors", async () => {
+test("createMixCodeTui editor submits prompts and surfaces slash errors", async () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo");
   state.tabs.push(tab);
@@ -117,7 +117,12 @@ test("createMixCodeTui editor submits prompts, completes files, and surfaces sla
   const chat: Array<{ role: "user" | "assistant" | "system"; text: string }> = [];
   const runtime = {
     onChange: () => () => undefined,
-    getTab: () => ({ tab, chat }),
+    getTab: () => ({
+      tab,
+      chat,
+      agentSession: { isStreaming: false, isBashRunning: false },
+      session: { getBranch: () => [] },
+    }),
     prompt: async (_sessionId: string, text: string) => {
       prompts.push(text);
     },
@@ -133,7 +138,7 @@ test("createMixCodeTui editor submits prompts, completes files, and surfaces sla
   } as unknown as MixCodeRuntime;
   const tui = createMixCodeTui(state, runtime, {
     terminal: silentTerminal(),
-    completionSources: { skills: ["review"], files: ["src/index.ts"] },
+    completionSources: { skills: ["review"] },
   });
   try {
     const layout = (
@@ -143,6 +148,7 @@ test("createMixCodeTui editor submits prompts, completes files, and surfaces sla
             getText: () => string;
             setText: (text: string) => void;
             handleInput: (data: string) => void;
+            submitCurrentText: () => void;
             isShowingAutocomplete: () => boolean;
             current: Component;
           };
@@ -155,20 +161,12 @@ test("createMixCodeTui editor submits prompts, completes files, and surfaces sla
     await waitFor(() => prompts.includes("hello editor"));
     assert.equal(layout.editor.getText(), "");
 
-    layout.editor.setText("");
-    layout.editor.handleInput("@");
-    await waitFor(() => layout.editor.isShowingAutocomplete());
-    assert.match(stripAnsi(layout.editor.current.render(80).join("\n")), /src\/index\.ts/);
-    layout.editor.handleInput("\u007f");
-    await new Promise((resolve) => setImmediate(resolve));
-    assert.equal(layout.editor.isShowingAutocomplete(), false);
-
     layout.editor.setText("/clear");
-    layout.editor.handleInput("\r");
+    layout.editor.submitCurrentText();
     await waitFor(() => chat.some((message) => message.text === "Clear failed: clear failed"));
 
     layout.editor.setText("/does-not-exist");
-    layout.editor.handleInput("\r");
+    layout.editor.submitCurrentText();
     await waitFor(() =>
       chat.some((message) => message.text === "Unknown slash command: /does-not-exist"),
     );

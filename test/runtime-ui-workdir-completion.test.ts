@@ -3,11 +3,11 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { ensureTool } from "@earendil-works/pi-coding-agent";
 import type { Component, Terminal } from "@earendil-works/pi-tui";
 import {
   createInitialState,
   createMixCodeTui,
-  createActiveFileCompletionSource,
   createTab,
   type MixCodeRuntime,
 } from "../src/index.js";
@@ -46,54 +46,12 @@ function stripAnsi(text: string): string {
     .replace(/\x1b[ -/]*[@-~]/g, "");
 }
 
-test("file completion source warms cache in background and joins the same pending load", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-completion-warm-"));
-  try {
-    await writeFile(join(dir, "warm-only.ts"), "");
-    const state = createInitialState(dir);
-    // Empty seed = bootstrap lazy path; source must warm without an initial list.
-    const files = createActiveFileCompletionSource(state, []);
-    const first = await Promise.resolve(files());
-    assert.equal(first.includes("warm-only.ts"), true);
-    // Within TTL the next call is synchronous from cache (not a Promise).
-    const second = files();
-    assert.equal(second instanceof Promise, false);
-    assert.equal((second as string[]).includes("warm-only.ts"), true);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
+test("createMixCodeTui uses the active tab workdir for Pi file completion", async (t) => {
+  const fdPath = await ensureTool("fd", true);
+  if (!fdPath) {
+    t.skip("Pi could not provide fd");
+    return;
   }
-});
-
-test("active file completion source retries stale refresh after scan failures", async () => {
-  const originalNow = Date.now;
-  let now = 0;
-  Date.now = () => now;
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-completion-retry-"));
-  try {
-    const missingDir = join(dir, "missing");
-    const state = createInitialState(missingDir);
-    const tab = createTab(1, "s1", missingDir);
-    state.tabs.push(tab);
-    state.activeTabId = "s1";
-    const files = createActiveFileCompletionSource(state, ["old-only.ts"]);
-
-    now = 10_001;
-    assert.deepEqual(files(), ["old-only.ts"]);
-    await new Promise((resolve) => setTimeout(resolve, 100));
-
-    await mkdir(missingDir, { recursive: true });
-    await writeFile(join(missingDir, "new-only.ts"), "");
-    assert.deepEqual(files(), ["old-only.ts"]);
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    const refreshed = await files();
-    assert.equal(refreshed.includes("new-only.ts"), true);
-  } finally {
-    Date.now = originalNow;
-    await rm(dir, { recursive: true, force: true });
-  }
-});
-
-test("createMixCodeTui rescans at-completion files after workdir changes", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-completion-workdir-"));
   try {
     const oldDir = join(dir, "old");
@@ -117,7 +75,7 @@ test("createMixCodeTui rescans at-completion files after workdir changes", async
     } as unknown as MixCodeRuntime;
     const tui = createMixCodeTui(state, runtime, {
       terminal: silentTerminal(),
-      completionSources: { skills: [], files: ["old-only.ts"] },
+      completionSources: { skills: [], fdPath },
     });
     try {
       const layout = (

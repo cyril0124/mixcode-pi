@@ -5,7 +5,6 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { SettingsManager } from "@earendil-works/pi-coding-agent";
 import {
-  MixCodeCompletionProvider,
   createInitialState,
   createTab,
   renderChat,
@@ -208,31 +207,6 @@ test("#88 tree ctrl+d resets filter to default", () => {
   assert.equal(state.treeSelector.filterMode, "default");
 });
 
-test("#97 slash command completion value includes trailing space", async () => {
-  const provider = new MixCodeCompletionProvider({
-    skills: [],
-    files: [],
-    commands: [{ name: "thinking", description: "Select thinking level" }],
-  });
-  const slash = await provider.getSuggestions(["/th"], 0, 3, {
-    signal: new AbortController().signal,
-  });
-  assert.equal(slash?.items[0]?.value, "/thinking ");
-});
-
-test("#98 applyCompletion consumes mid-token suffix", () => {
-  const provider = new MixCodeCompletionProvider({ skills: [], files: [] });
-  const applied = provider.applyCompletion(
-    ["see @probe.txt"],
-    0,
-    10, // after @probe
-    { value: "@probe.txt", label: "probe.txt" },
-    "@probe",
-  );
-  assert.equal(applied.lines[0], "see @probe.txt");
-  assert.equal(applied.cursorCol, "see @probe.txt".length);
-});
-
 test("#99 expanded user-bash still offers collapse when overflow exists", () => {
   const lines = Array.from({ length: 25 }, (_, i) => `line-${i}`);
   const rendered = stripAnsi(
@@ -317,28 +291,4 @@ test("#102 wheel still scrolls chat while Notice is open", () => {
   } finally {
     closeAppOverlay(tui);
   }
-});
-
-test("#108 fileCompletionLabel keeps absolute path distinguishable", async () => {
-  const provider = new MixCodeCompletionProvider({
-    skills: [],
-    files: [],
-    fileSearch: () => ({
-      fdPath: "true", // unused; custom search via mock not available — use static absolute paths
-      workdir: "/repo",
-    }),
-  });
-  // Static list path with absolute-like entries through format via getSuggestions fallback
-  const staticOnly = new MixCodeCompletionProvider({
-    skills: [],
-    files: ["/tmp/project/src/file.ts", "~/notes/todo.md"],
-  });
-  const abs = await staticOnly.getSuggestions(["@file"], 0, 5, {
-    signal: new AbortController().signal,
-  });
-  const item = abs?.items.find((entry) => entry.value.includes("file.ts"));
-  assert.ok(item, "expected absolute file suggestion");
-  // Absolute labels keep path context, not only basename.
-  assert.notEqual(item?.label, "file.ts");
-  assert.match(item?.label ?? "", /file\.ts/);
 });

@@ -508,7 +508,7 @@ test("extension chrome truncates narrow terminal rows instead of wrapping", () =
     getAllExtensionCommands: () => [],
   } as unknown as MixCodeRuntime;
   const tui = createMixCodeTui(state, runtime, {
-    completionSources: { skills: [], files: [] },
+    completionSources: { skills: [] },
     terminal: silentTerminal(),
   });
 
@@ -531,7 +531,7 @@ test("createMixCodeTui accounts for config and multiline editor row reservations
     getAllExtensionCommands: () => [],
   } as unknown as MixCodeRuntime;
   const tui = createMixCodeTui(state, runtime, {
-    completionSources: { skills: [], files: [] },
+    completionSources: { skills: [] },
     terminal: silentTerminal(),
   });
 

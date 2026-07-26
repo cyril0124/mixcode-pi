@@ -4,7 +4,7 @@ import type {
   CreateAgentSessionServicesOptions,
   ExtensionFactory,
 } from "@earendil-works/pi-coding-agent";
-import { SettingsManager } from "@earendil-works/pi-coding-agent";
+import { ensureTool, SettingsManager } from "@earendil-works/pi-coding-agent";
 import { MixCodeRuntime } from "../agent/runtime.js";
 import { scanSkillEntries } from "../core/attachments.js";
 import { createInitialState, createSessionId, createTab, DEFAULT_MODEL_REF } from "../core/defaults.js";
@@ -252,14 +252,12 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
   // Apply HTTP proxy settings from SettingsManager after runtime is created but before any network requests
   applyHttpProxySettings(settingsManager.getGlobalSettings().httpProxy);
   configureHttpDispatcher(settingsManager.getHttpIdleTimeoutMs());
+  const fdPath = await ensureTool("fd");
 
   await runtime.loadExtensionManagerConfig();
-  // Do not await scanProjectFiles here: it runs `git ls-files` (or a full walk) and
-  // used to block TUI first paint. File completion loads lazily via
-  // createActiveFileCompletionSource on first @ use (and prefers fd when present).
   const completionSources = {
     skills: await scanSkillEntries(state.workdir, options.homeDir),
-    files: [] as string[],
+    ...(fdPath ? { fdPath } : {}),
   };
   await saveStateFile(stateFile, state);
   // Defer tab creation: return immediately so the TUI can render the initial

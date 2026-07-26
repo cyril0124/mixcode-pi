@@ -402,7 +402,6 @@ test("runtime extension reload resets host UI state and rebinds extension resour
     const runtime = new MixCodeRuntime({ sessionsRoot: dir, extensionFactories: [extension] });
     let activeProvider: AutocompleteProvider = new MixCodeCompletionProvider({
       skills: [],
-      files: [],
     });
     runtime.setExtensionUiHost({
       tui: new TUI(silentTerminal()),

@@ -2,8 +2,6 @@ import { matchesKey, ProcessTerminal, TUI, type TUI as TuiType } from "@earendil
 import type { ExtensionCustomUiHost, MixCodeRuntime } from "../agent/runtime.js";
 import { scanSkillEntries } from "../core/attachments.js";
 import { recordSubmittedHistory } from "../core/conversation-history.js";
-import { resolveFdBinary } from "../core/detect-search-tools.js";
-import { scanProjectFiles } from "../core/file-picker.js";
 import { applyDisabledModelFlags, buildAvailableModelRefs } from "../core/models.js";
 import { noteTabClosed } from "../core/open-tabs-store.js";
 import type { MixCodeState } from "../core/types.js";
@@ -160,10 +158,9 @@ export function createMixCodeTui(
     });
   };
   const baseCompletionProvider = new MixCodeCompletionProvider({
-    ...(options.completionSources ?? { skills: [], files: [] }),
+    ...(options.completionSources ?? { skills: [] }),
     skills: createActiveSkillCompletionSource(state, runtime, options.completionSources?.skills),
-    files: createActiveFileCompletionSource(state, options.completionSources?.files),
-    fileSearch: createActiveFileSearchSource(state),
+    workdir: () => activeCompletionWorkdir(state),
     commands: () => {
       const active = getActiveTab(state);
       const extensionCommands =
@@ -432,76 +429,6 @@ export function createActiveSkillCompletionSource(
     }
     // Fallback to static bootstrap skills
     return fallbackSkills ? (typeof fallbackSkills === "function" ? fallbackSkills() : fallbackSkills) : [];
-  };
-}
-
-export function createActiveFileCompletionSource(
-  state: MixCodeState,
-  initialFiles: MixCodeCompletionSources["files"] | undefined,
-): () => string[] | Promise<string[]> {
-  const cache = new Map<string, { files: string[]; timestamp: number }>();
-  const pending = new Map<string, Promise<string[]>>();
-  const FILE_CACHE_TTL_MS = 10_000; // Background refresh after 10 seconds
-  // Only seed a non-empty snapshot. Empty arrays mean "not scanned yet" (bootstrap
-  // no longer blocks on scanProjectFiles), so the first @ must still load files.
-  if (Array.isArray(initialFiles) && initialFiles.length > 0) {
-    cache.set(state.workdir, { files: initialFiles, timestamp: Date.now() });
-  }
-
-  function beginLoad(workdir: string): Promise<string[]> {
-    const existing = pending.get(workdir);
-    if (existing) return existing;
-    const refresh = scanProjectFiles(workdir)
-      .then((files) => {
-        cache.set(workdir, { files, timestamp: Date.now() });
-        return files;
-      })
-      .finally(() => {
-        if (pending.get(workdir) === refresh) pending.delete(workdir);
-      });
-    pending.set(workdir, refresh);
-    return refresh;
-  }
-
-  // Warm after source creation so first @ often hits cache; shares pending with
-  // concurrent @ so we never double-scan the same workdir.
-  const warmDir = activeCompletionWorkdir(state);
-  if (!cache.has(warmDir)) {
-    void beginLoad(warmDir).catch(() => undefined);
-  }
-
-  return () => {
-    const workdir = activeCompletionWorkdir(state);
-    const cached = cache.get(workdir);
-    if (cached && Date.now() - cached.timestamp < FILE_CACHE_TTL_MS) return cached.files;
-    // Stale-while-revalidate: return old results immediately, refresh in background.
-    const refresh = beginLoad(workdir);
-    if (cached) {
-      void refresh.catch(() => undefined);
-      return cached.files;
-    }
-    // First load ever — must wait (or join the background warm already in flight).
-    return refresh;
-  };
-}
-
-/**
- * Provide live fd-backed `@` file completion sources for the active tab's
- * workdir. fd presence is probed once and memoized; when fd is missing this
- * returns undefined so the provider falls back to the static file list.
- */
-export function createActiveFileSearchSource(
-  state: MixCodeState,
-): () => { fdPath: string; workdir: string } | undefined {
-  let resolved = false;
-  let fdPath: string | undefined;
-  return () => {
-    if (!resolved) {
-      fdPath = resolveFdBinary();
-      resolved = true;
-    }
-    if (!fdPath) return undefined;
-    return { fdPath, workdir: activeCompletionWorkdir(state) };
   };
 }
 

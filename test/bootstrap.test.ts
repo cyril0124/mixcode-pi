@@ -22,7 +22,6 @@ import {
   scopedStateDir,
   stateFileForPort,
 } from "../src/index.js";
-import { scanProjectFiles } from "../src/core/file-picker.js";
 import { delegateToRealPiCli, exposeLocalPiCli, parseMainArgs, shouldDelegateToRealPiCli } from "../src/cli/main.js";
 
 test("bootstrap creates initial state and persists it when no state exists", async () => {
@@ -177,7 +176,7 @@ test("bootstrap maintains global history files and exposes paths in prompt", asy
   }
 });
 
-test("bootstrap builds completion sources from project files and skills", async () => {
+test("bootstrap builds completion sources from Pi-managed fd and skills", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-bootstrap-completion-"));
   try {
     await mkdir(join(dir, ".agents", "skills", "review"), { recursive: true });
@@ -224,10 +223,7 @@ test("bootstrap builds completion sources from project files and skills", async 
         description: "review",
       },
     ]);
-    // File scan is lazy (must not block bootstrap on git ls-files).
-    assert.deepEqual(boot.completionSources.files, []);
-    const scanned = await scanProjectFiles(dir);
-    assert.ok(scanned.includes("src/index.ts"));
+    assert.equal(typeof boot.completionSources.fdPath, "string");
     assert.equal(
       boot.workspaceFile,
       join(scopedStateDir(join(dir, "state"), dir), "workspaces.json"),
@@ -304,6 +300,7 @@ test("bootstrap selects configured pi models from models.json", async () => {
     });
     assert.equal(boot.state.model.displayName, "mixcode-bootstrap/bootstrap-model");
     assert.equal(boot.state.tabs[0]?.model.displayName, "mixcode-bootstrap/bootstrap-model");
+    await boot.tabsReady;
   } finally {
     if (oldKey === undefined) delete process.env.MIXCODE_BOOTSTRAP_KEY;
     else process.env.MIXCODE_BOOTSTRAP_KEY = oldKey;
@@ -384,6 +381,7 @@ test("bootstrap keeps a restored configured model when it is still available", a
     assert.equal(boot.state.tabs[1]?.model.displayName, "mixcode-bootstrap-restore/tab-model");
     assert.equal(boot.state.tabs[1]?.contextLimit, 123);
     assert.equal(boot.state.tabs[1]?.thinkingLevel, "max");
+    await boot.tabsReady;
   } finally {
     if (oldKey === undefined) delete process.env.MIXCODE_BOOTSTRAP_RESTORE_KEY;
     else process.env.MIXCODE_BOOTSTRAP_RESTORE_KEY = oldKey;
@@ -791,6 +789,7 @@ test("bootstrap derives auth and models from the effective agent dir", async () 
         (model) => model.provider === "mixcode-agentdir" && model.modelId === "agentdir-model",
       ),
     );
+    await boot.tabsReady;
   } finally {
     if (oldKey === undefined) delete process.env.MIXCODE_AGENTDIR_STREAM_KEY;
     else process.env.MIXCODE_AGENTDIR_STREAM_KEY = oldKey;

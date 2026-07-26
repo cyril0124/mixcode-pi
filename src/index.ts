@@ -14,8 +14,6 @@ export * from "./core/detect-search-tools.js";
 export * from "./core/escape.js";
 export * from "./core/extension-manager.js";
 export * from "./core/external-editor.js";
-export * from "./core/fd-file-search.js";
-export * from "./core/file-picker.js";
 export * from "./core/fuzzy.js";
 export * from "./core/instance-registry.js";
 export * from "./core/json.js";

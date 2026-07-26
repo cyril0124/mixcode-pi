@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { performance } from "node:perf_hooks";
@@ -26,11 +26,7 @@ import {
   nextTabId,
   questionProgress,
   renameAgentTab,
-  resolveFdBinary,
   restoreWorkspaceOrder,
-  scanProjectFiles,
-  searchProjectFiles,
-  fdFileSuggestions,
   snapshotWorkspace,
   statusFromAgentEvent,
   toggleCurrentQuestionOption,
@@ -417,102 +413,6 @@ test("workdir picker reuses directory listing across query keystrokes", async ()
     assert.equal(picker.workdirListingCache?.browsingDir, join(dir, "target-hit"));
   } finally {
     await rm(dir, { recursive: true, force: true });
-  }
-});
-
-test("project file scan narrows project tree and ranks basename matches", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-picker-"));
-  try {
-    await mkdir(join(dir, "src", "nested"), { recursive: true });
-    await mkdir(join(dir, "node_modules", "pkg"), { recursive: true });
-    await writeFile(join(dir, "src", "index.ts"), "");
-    await writeFile(join(dir, "src", "nested", "feature.test.ts"), "");
-    await writeFile(join(dir, "node_modules", "pkg", "ignored.ts"), "");
-    const files = await scanProjectFiles(dir);
-    assert.deepEqual(files, ["src/", "src/index.ts", "src/nested/", "src/nested/feature.test.ts"]);
-    assert.deepEqual(searchProjectFiles("", files, 1), ["src/"]);
-    assert.deepEqual(searchProjectFiles("src/", files, 2), ["src/index.ts", "src/nested/"]);
-    assert.deepEqual(searchProjectFiles("ft", files), ["src/nested/feature.test.ts"]);
-    assert.deepEqual(searchProjectFiles("nested", files, 1), ["src/nested/"]);
-    assert.deepEqual(await scanProjectFiles(dir, 1), ["src/"]);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-});
-
-test("directory completion expands nested dirs matched by trailing path", () => {
-  const files = [
-    "src/",
-    "src/core/",
-    "src/core/file-picker.ts",
-    "src/core/fuzzy.ts",
-    "src/ui/",
-    "src/ui/completion.ts",
-    "package.json",
-  ];
-  // Top-level directory still expands via root-anchored match.
-  assert.deepEqual(searchProjectFiles("src/", files), ["src/core/", "src/ui/"]);
-  // A nested directory typed by its own name (real path "src/core/") must
-  // expand its direct children even though the query is not root-anchored.
-  assert.deepEqual(searchProjectFiles("core/", files), [
-    "src/core/file-picker.ts",
-    "src/core/fuzzy.ts",
-  ]);
-});
-
-test("fd-backed file search expands nested dirs and reflects fresh files (pi parity)", async (t) => {
-  const fdPath = resolveFdBinary();
-  if (!fdPath) {
-    t.skip("fd not installed");
-    return;
-  }
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-fd-search-"));
-  try {
-    await mkdir(join(dir, "src", "core"), { recursive: true });
-    await writeFile(join(dir, "src", "core", "alpha.ts"), "");
-    await writeFile(join(dir, "src", "core", "beta.ts"), "");
-    const signal = new AbortController().signal;
-    // A nested directory typed by its own name expands its direct children,
-    // matching pi's `fd --full-path` behavior (the originally reported bug).
-    const nested = await fdFileSuggestions("core/", { workdir: dir, fdPath, signal });
-    const nestedPaths = nested.map((m) => m.displayPath).sort();
-    assert.deepEqual(nestedPaths, ["src/core/alpha.ts", "src/core/beta.ts"]);
-    // A file created after the initial scan is visible immediately, since fd
-    // queries the live tree rather than a cached snapshot.
-    await writeFile(join(dir, "src", "core", "gamma.ts"), "");
-    const refreshed = await fdFileSuggestions("gamma", { workdir: dir, fdPath, signal });
-    assert.ok(refreshed.some((m) => m.displayPath === "src/core/gamma.ts"));
-    // Directories sort ahead of files for the same matching term.
-    const dirsFirst = await fdFileSuggestions("core", { workdir: dir, fdPath, signal });
-    assert.equal(dirsFirst[0]?.displayPath, "src/core/");
-    assert.equal(dirsFirst[0]?.isDirectory, true);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-});
-
-test("fd-backed file search stays inside the workspace when it contains a symlink", async (t) => {
-  const fdPath = resolveFdBinary();
-  if (!fdPath) {
-    t.skip("fd not installed");
-    return;
-  }
-  const workdir = await mkdtemp(join(tmpdir(), "mixcode-fd-workdir-"));
-  const outside = await mkdtemp(join(tmpdir(), "mixcode-fd-outside-"));
-  try {
-    await writeFile(join(outside, "outside-only.txt"), "");
-    await symlink(outside, join(workdir, "linked"), "dir");
-
-    const matches = await fdFileSuggestions("outside-only", {
-      workdir,
-      fdPath,
-      signal: new AbortController().signal,
-    });
-
-    assert.equal(matches.some((match) => match.displayPath === "linked/outside-only.txt"), false);
-  } finally {
-    await rm(workdir, { recursive: true, force: true });
-    await rm(outside, { recursive: true, force: true });
   }
 });
 

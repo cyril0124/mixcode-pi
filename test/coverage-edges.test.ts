@@ -8,7 +8,7 @@ import { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { InMemoryCredentialStore } from "@earendil-works/pi-ai";
 import { streamSimple } from "@earendil-works/pi-ai/compat";
 import type { AutocompleteItem, AutocompleteProvider } from "@earendil-works/pi-tui";
-import { createInitialState, createTab, MixCodeCompletionProvider } from "../src/index.js";
+import { createInitialState, createTab } from "../src/index.js";
 import { listAllSessionsGlobal, reopenSessionInWorkdir } from "../src/agent/runtime-session.js";
 import {
   applyExtensionTheme,
@@ -218,30 +218,6 @@ test("autocomplete prefers the active tab extension provider over the base provi
     cursorLine: 0,
     cursorCol: 9,
   });
-});
-
-test("completion provider formats extension sources and leaves $ skills alone", async () => {
-  const provider = new MixCodeCompletionProvider({
-    skills: [{ name: "home-skill", path: "/tmp/skill", description: "" }],
-    files: [],
-    commands: [
-      { name: "plainpkg", description: "plain", sourceInfo: { source: "npm:plain" } },
-      { name: "hintdesc", argumentHint: "<value>", description: "Has description" },
-    ],
-  });
-  const signal = new AbortController().signal;
-
-  assert.equal(
-    (await provider.getSuggestions(["/plainp"], 0, 7, { signal }))?.items[0]?.label,
-    "plainpkg (ext:plain)",
-  );
-  assert.equal(
-    (await provider.getSuggestions(["/hint"], 0, 5, { signal }))?.items[0]?.description,
-    "<value> - Has description",
-  );
-  // `$` tokens are owned by the skill-refs extension provider.
-  assert.equal(await provider.getSuggestions(["$home"], 0, 5, { signal }), null);
-  assert.equal(await provider.getSuggestions(["/hintdesc value"], 0, 15, { signal }), null);
 });
 
 test("runtime all-session listing includes sessions whose cwd is not filesystem root", async () => {

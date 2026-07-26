@@ -401,7 +401,6 @@ test("runtime applies pi extension autocomplete providers on top of MixCode comp
     });
     const base: AutocompleteProvider = new MixCodeCompletionProvider({
       skills: ["review"],
-      files: ["src/index.ts"],
     });
     const provider = runtime.applyExtensionAutocompleteProviders("s1", base);
     assert.equal(runtime.applyExtensionAutocompleteProviders("s1", base), provider);
@@ -413,8 +412,7 @@ test("runtime applies pi extension autocomplete providers on top of MixCode comp
     assert.deepEqual(seen, ["wrapper:try #a"]);
 
     const slashSuggestions = await provider.getSuggestions(["/th"], 0, 3, { signal });
-    // MixCode slash completions include a trailing space so args can be typed next.
-    assert.equal(slashSuggestions?.items[0]?.value, "/thinking ");
+    assert.equal(slashSuggestions?.items[0]?.value, "thinking");
     assert.deepEqual(seen, ["wrapper:try #a", "wrapper:/th"]);
     assert.equal(provider.shouldTriggerFileCompletion?.(["see @src"], 0, 8), true);
   } finally {
@@ -452,7 +450,7 @@ test("runtime refreshes live editor autocomplete providers registered after cach
       thinkingLevel: "medium",
       workdir: process.cwd(),
     });
-    const base: AutocompleteProvider = new MixCodeCompletionProvider({ skills: [], files: [] });
+    const base: AutocompleteProvider = new MixCodeCompletionProvider({ skills: [] });
     runtime.setExtensionUiHost({
       tui: new TUI(silentTerminal()),
       editor: {

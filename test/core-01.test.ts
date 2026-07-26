@@ -1,10 +1,7 @@
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile, mkdir } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { promisify } from "node:util";
-import { performance } from "node:perf_hooks";
 import { test } from "node:test";
 import {
   commandSuggestions,
@@ -34,13 +31,8 @@ import {
   stateFileForPort,
   stringifyJson,
   withMouseReporting,
-  scanProjectFiles,
-  searchProjectFiles,
-  isGitListFallbackError,
 } from "../src/index.js";
 import type { Terminal } from "@earendil-works/pi-tui";
-
-const execFileAsync = promisify(execFile);
 
 test("SGR mouse parser recognizes wheel and leaves non-mouse input untouched", () => {
   assert.deepEqual(parseSgrMouseInput("\x1b[<64;10;5M"), {
@@ -419,117 +411,6 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
-});
-
-test("project file utilities scan and rank project references", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-file-picker-"));
-  try {
-    await mkdir(join(dir, "src", "nested"), { recursive: true });
-    await mkdir(join(dir, "alpha"), { recursive: true });
-    await mkdir(join(dir, "alpha", "deep"), { recursive: true });
-    await mkdir(join(dir, "node_modules", "pkg"), { recursive: true });
-    await mkdir(join(dir, ".git"), { recursive: true });
-    await writeFile(join(dir, "image.png"), "");
-    await writeFile(join(dir, "src", "index.ts"), "");
-    await writeFile(join(dir, "src", "nested", "feature test.ts"), "");
-    await writeFile(join(dir, "alpha", "one.ts"), "");
-    await writeFile(join(dir, "alpha", "deep", "two.ts"), "");
-    await writeFile(join(dir, "loose"), "");
-    await writeFile(join(dir, "node_modules", "pkg", "index.js"), "");
-    await writeFile(join(dir, ".git", "config"), "");
-
-    const files = await scanProjectFiles(dir);
-    assert.ok(files.includes("src/"));
-    assert.ok(files.includes("src/index.ts"));
-    assert.ok(files.includes("src/nested/feature test.ts"));
-    assert.equal(
-      files.some((file) => file.startsWith("node_modules/pkg")),
-      false,
-    );
-    assert.ok((await scanProjectFiles(dir, 1)).length <= 1);
-    assert.ok((await scanProjectFiles(dir, 2)).length <= 2);
-    assert.deepEqual(await scanProjectFiles(dir, 0), []);
-    assert.equal((await scanProjectFiles(dir, 3)).length, 3);
-
-    assert.deepEqual(searchProjectFiles("", files, 2), files.slice(0, 2));
-    assert.deepEqual(searchProjectFiles("src/", files), ["src/index.ts", "src/nested/"]);
-    assert.deepEqual(searchProjectFiles("alpha/", files), ["alpha/deep/", "alpha/one.ts"]);
-    assert.deepEqual(searchProjectFiles("src/nested/", files), ["src/nested/feature test.ts"]);
-    assert.deepEqual(searchProjectFiles("src/nested/feature test.ts", files), [
-      "src/nested/feature test.ts",
-    ]);
-    assert.ok(searchProjectFiles("feature", files).includes("src/nested/feature test.ts"));
-    assert.ok(searchProjectFiles("two", files).includes("alpha/deep/two.ts"));
-    assert.equal(
-      searchProjectFiles("image", ["refs/pi/packages/ai/src/image.ts", "image.png"])[0],
-      "image.png",
-    );
-    assert.deepEqual(searchProjectFiles("loose", ["alpha/loose", "beta/loose"], 1), [
-      "alpha/loose",
-    ]);
-    assert.deepEqual(searchProjectFiles("beta/loose", ["alpha/loose", "beta/loose"], 1), [
-      "beta/loose",
-    ]);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-});
-
-test("non-git project scan avoids per-entry stat cost", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-file-picker-walk-"));
-  try {
-    // Enough entries that sequential await stat(full) was multi-100ms; Dirent walk is far cheaper.
-    for (let d = 0; d < 50; d++) {
-      await mkdir(join(dir, `pkg${d}`), { recursive: true });
-      await Promise.all(
-        Array.from({ length: 40 }, (_, f) => writeFile(join(dir, `pkg${d}`, `mod${f}.ts`), "x\n")),
-      );
-    }
-    const t0 = performance.now();
-    const files = await scanProjectFiles(dir, 5000);
-    const ms = performance.now() - t0;
-    assert.ok(files.includes("pkg0/"));
-    assert.ok(files.includes("pkg0/mod0.ts"));
-    assert.ok(files.length > 2000, `expected large scan, got ${files.length}`);
-    // Cold walk of ~2k+ paths with per-entry await stat was ~100ms+ on local disk;
-    // withFileTypes should stay well under a loose CI budget.
-    assert.ok(ms < 250, `non-git scan too slow: ${ms.toFixed(1)}ms for ${files.length} paths`);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-});
-
-test("project file scans respect git ignore rules", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-file-picker-gitignore-"));
-  try {
-    await execFileAsync("git", ["init"], { cwd: dir });
-    await mkdir(join(dir, "src"), { recursive: true });
-    await mkdir(join(dir, "ignored-dir"), { recursive: true });
-    await writeFile(join(dir, ".gitignore"), "ignored-dir/\n*.log\n");
-    await writeFile(join(dir, "src", "visible.ts"), "");
-    await writeFile(join(dir, "src", "ignored.log"), "");
-    await writeFile(join(dir, "ignored-dir", "hidden.ts"), "");
-
-    const files = await scanProjectFiles(dir);
-    assert.ok(files.includes("src/"));
-    assert.ok(files.includes("src/visible.ts"));
-    assert.equal(files.includes("src/ignored.log"), false);
-    assert.equal(files.includes("ignored-dir/"), false);
-    assert.equal(files.includes("ignored-dir/hidden.ts"), false);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-});
-
-test("isGitListFallbackError maps repo-missing and Node timeout shapes to walk fallback", () => {
-  assert.equal(isGitListFallbackError({ code: 128 }), true);
-  assert.equal(isGitListFallbackError({ code: "ENOENT" }), true);
-  assert.equal(isGitListFallbackError({ code: "ETIMEDOUT" }), true);
-  assert.equal(isGitListFallbackError({ timedOut: true }), true);
-  assert.equal(isGitListFallbackError({ killed: true, code: null, signal: "SIGTERM" }), true);
-  assert.equal(isGitListFallbackError({ killed: true, code: null, signal: "SIGKILL" }), true);
-  assert.equal(isGitListFallbackError({ code: 1 }), false);
-  assert.equal(isGitListFallbackError({ killed: true, code: 1, signal: "SIGTERM" }), false);
 });
 
 
