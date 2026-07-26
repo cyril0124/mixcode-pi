@@ -272,6 +272,8 @@ export async function handleSubmittedInput(
       tui,
       cwd,
       currentSessionPath,
+      onStateChanged,
+      authInputHost,
     );
     await onStateChanged?.(state);
     tui.requestRender();

@@ -6,29 +6,11 @@ import { tmpdir } from "node:os";
 import { test } from "node:test";
 import { promisify } from "node:util";
 import {
-  createInitialState,
-  createSessionSelectorState,
   editTextInExternalEditor,
-  getFilteredSessions,
-  handleMixCodeKeyInput,
   runLuaScript,
 } from "../src/index.js";
-import type { SessionInfo } from "@earendil-works/pi-coding-agent";
 
 const execFileAsync = promisify(execFile);
-
-function session(id: string, modified: string): SessionInfo {
-  return {
-    path: `/sessions/${id}.jsonl`,
-    id,
-    cwd: "/repo",
-    created: new Date("2025-01-01T00:00:00Z"),
-    modified: new Date(modified),
-    messageCount: 1,
-    firstMessage: id,
-    allMessagesText: id,
-  };
-}
 
 test("runLuaScript rejects non-string open_tab fields with clear field errors", async () => {
   await assert.rejects(
@@ -39,35 +21,6 @@ test("runLuaScript rejects non-string open_tab fields with clear field errors", 
     () => runLuaScript("mixcode.open_tab({ name = 'n', prompt = false })", "bad.lua"),
     /prompt.*string/,
   );
-});
-
-test("session selector recent mode sorts by modified time descending", () => {
-  const selector = createSessionSelectorState();
-  selector.sortMode = "recent";
-  selector.currentSessions = [
-    session("old", "2025-01-01T00:00:00Z"),
-    session("new", "2025-01-03T00:00:00Z"),
-  ];
-  assert.deepEqual(
-    getFilteredSessions(selector).map((node) => node.session.id),
-    ["new", "old"],
-  );
-});
-
-test("session selector rename mode ignores arrow escape sequences", () => {
-  const state = createInitialState("/repo");
-  state.sessionSelector.open = true;
-  state.sessionSelector.renameMode = true;
-  state.sessionSelector.renameInput = "abc";
-  const tui = {
-    requestRender: () => undefined,
-    showOverlay: () => ({ hide: () => undefined }) as never,
-    hasOverlay: () => true,
-    hideOverlay: () => undefined,
-  };
-
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[A", tui), { consume: true });
-  assert.equal(state.sessionSelector.renameInput, "abc");
 });
 
 test("external editor supports executable paths containing spaces", async () => {

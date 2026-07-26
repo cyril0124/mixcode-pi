@@ -281,6 +281,8 @@ export function createMixCodeTui(
         hasEditorReplacement: () => editor.getEditorComponent() !== undefined || editor.hasInputComponent(),
         hasInputComponent: () => editor.hasInputComponent(),
         forwardToInputComponent: (data) => editor.handleInput(data),
+        setInputComponent: (component, sessionId) => editor.setInputComponent(component, sessionId),
+        clearInputComponent: (sessionId) => editor.clearInputComponent(sessionId),
       },
       {
         executeCommand: (command) =>

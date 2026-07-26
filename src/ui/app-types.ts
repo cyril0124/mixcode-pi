@@ -142,6 +142,10 @@ export interface MixCodeEditorActions {
   hasInputComponent?: () => boolean;
   /** Forward a raw key to the active input component. */
   forwardToInputComponent?: (data: string) => void;
+  /** Replace the editor slot with a Component (Pi showSelector / login parity). */
+  setInputComponent?: (component: import("@earendil-works/pi-tui").Component, sessionId?: string) => void;
+  /** Clear editor-slot input component for the given session (or active). */
+  clearInputComponent?: (sessionId?: string) => void;
 }
 
 export interface CommandPaletteActions {

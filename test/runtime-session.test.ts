@@ -106,6 +106,79 @@ test("listAllSessionsGlobal returns sessions from every workdir in recent order"
   }
 });
 
+test("listSessionsForCwd reports Loading progress when onProgress is provided", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-session-progress-"));
+  try {
+    await mkdir(dir, { recursive: true });
+    for (const id of ["a", "b", "c"]) {
+      await writeFile(
+        join(dir, `2026-01-01T00-00-00-000Z_${id}.jsonl`),
+        `${JSON.stringify({
+          type: "session",
+          version: 3,
+          id,
+          timestamp: "2026-01-01T00:00:00.000Z",
+          cwd: "/repo",
+        })}\n`,
+        "utf8",
+      );
+    }
+    const ticks: Array<[number, number]> = [];
+    const sessions = await listSessionsForCwd("/repo", dir, undefined, (loaded, total) => {
+      ticks.push([loaded, total]);
+    });
+    assert.equal(sessions.length, 3);
+    assert.ok(ticks.length > 0, "expected progress callbacks");
+    assert.equal(ticks[ticks.length - 1]![1], 3);
+    assert.ok(ticks.some(([loaded, total]) => loaded > 0 && loaded <= total));
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("listAllSessionsGlobal scans Pi sessions/ sibling encoded-cwd directories", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-session-list-pi-"));
+  const sessionsParent = join(dir, "sessions");
+  const activeRoot = join(sessionsParent, "--active-cwd--");
+  const otherRoot = join(sessionsParent, "--other-cwd--");
+  try {
+    await mkdir(activeRoot, { recursive: true });
+    await mkdir(otherRoot, { recursive: true });
+    await writeFile(
+      join(activeRoot, "2026-01-01T00-00-00-000Z_active.jsonl"),
+      `${JSON.stringify({
+        type: "session",
+        version: 3,
+        id: "active-pi",
+        timestamp: "2026-01-01T00:00:00.000Z",
+        cwd: "/active",
+      })}\n`,
+      "utf8",
+    );
+    await writeFile(
+      join(otherRoot, "2026-01-03T00-00-00-000Z_other.jsonl"),
+      `${JSON.stringify({
+        type: "session",
+        version: 3,
+        id: "other-pi",
+        timestamp: "2026-01-03T00:00:00.000Z",
+        cwd: "/other",
+      })}\n`,
+      "utf8",
+    );
+
+    // No rootStateDir: pure Pi agent/sessions/--cwd-- layout.
+    const sessions = await listAllSessionsGlobal(activeRoot);
+
+    assert.deepEqual(
+      sessions.map((session) => session.id).sort(),
+      ["active-pi", "other-pi"],
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("listSessionsForCwd rejects a cancelled background listing", async () => {
   const controller = new AbortController();
   controller.abort();

@@ -85,13 +85,24 @@ export function showLinesOverlay(
   renderLines: (width: number) => string[],
   options: OverlayOptions = defaultOverlayOptions(),
 ): void {
+  showComponentOverlay(tui, new LinesOverlay(renderLines), options);
+}
+
+/** Show a focusable Component overlay and track it as the app overlay. */
+export function showComponentOverlay(
+  tui: OverlayTui,
+  component: Component,
+  options: OverlayOptions = defaultOverlayOptions(),
+): OverlayHandle | undefined {
   closeAppOverlay(tui);
-  const handle = tui.showOverlay(new LinesOverlay(renderLines), options);
-  if (isOverlayHandle(handle)) activeOverlayHandles.set(tui, handle);
+  const handle = tui.showOverlay(component, options);
+  if (!isOverlayHandle(handle)) return undefined;
+  activeOverlayHandles.set(tui, handle);
+  return handle;
 }
 
 export function closeAppOverlay(tui: OverlayTui): void {
-  // Only hide overlays we registered via showLinesOverlay/showTextOverlay.
+  // Only hide overlays we registered via showLinesOverlay/showComponentOverlay.
   // Never fall back to tui.hideOverlay(): that pops the stack top and can
   // destroy an extension custom overlay whose close()/pending-interaction
   // bookkeeping never runs (zombie hasExtensionCustomOverlay → Esc freezes).

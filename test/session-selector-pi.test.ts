@@ -1,0 +1,370 @@
+import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { test } from "node:test";
+import {
+  SessionManager,
+  SessionSelectorComponent,
+  type SessionInfo,
+} from "@earendil-works/pi-coding-agent";
+import { getKeybindings } from "@earendil-works/pi-tui";
+import {
+  createInitialState,
+  createTab,
+  handleSubmittedInput,
+  type MixCodeRuntime,
+} from "../src/index.js";
+import { applyMixCodeKeybindings } from "../src/agent/runtime-pi-tui-bridge.js";
+import {
+  closeSessionSelector,
+  openSessionSelector,
+  renameOpenSession,
+  resumeSelectedSession,
+} from "../src/ui/session-selector.js";
+
+function makeSessions(): SessionInfo[] {
+  return [
+    {
+      path: "/sessions/session-a.jsonl",
+      id: "session-a",
+      cwd: "/repo",
+      name: "My Session",
+      created: new Date("2025-01-01"),
+      modified: new Date("2025-01-02"),
+      messageCount: 10,
+      firstMessage: "Hello world",
+      allMessagesText: "Hello world",
+    },
+    {
+      path: "/sessions/session-b.jsonl",
+      id: "session-b",
+      cwd: "/repo",
+      created: new Date("2025-01-01"),
+      modified: new Date("2025-01-01"),
+      messageCount: 5,
+      firstMessage: "Another session",
+      allMessagesText: "Another session",
+    },
+  ];
+}
+
+function mockInputHost() {
+  let mounted: unknown;
+  let cleared = 0;
+  return {
+    host: {
+      setInputComponent: (component: unknown) => {
+        mounted = component;
+      },
+      clearInputComponent: () => {
+        cleared++;
+        mounted = undefined;
+      },
+      requestRender: () => undefined,
+    },
+    get mounted() {
+      return mounted;
+    },
+    get cleared() {
+      return cleared;
+    },
+  };
+}
+
+test("submitted /resume mounts SessionSelectorComponent in the editor input slot", async () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo");
+  state.tabs.push(tab);
+  state.activeTabId = "s1";
+  const input = mockInputHost();
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => {
+      throw new Error("session selector must not use floating overlay");
+    },
+  };
+  const sessions = makeSessions();
+  const runtime = {
+    appendSystemMessage: () => undefined,
+    getTab: () => ({ session: { getSessionFile: () => "/sessions/current.jsonl" } }),
+    listSessions: async () => sessions,
+    listAllSessions: async () => sessions,
+    extensionSwitchSession: async () => ({ cancelled: false }),
+    createTab: async () => undefined,
+    closeTab: async () => undefined,
+    closeAllTabs: async () => undefined,
+    deleteTab: async () => undefined,
+    deleteAllTabs: async () => undefined,
+    compactSession: async () => undefined,
+    prompt: async () => undefined,
+    setExtensionEnabled: () => undefined,
+    forkSession: async () => undefined,
+    executeShellCommand: async () => undefined,
+    extensionReload: async () => undefined,
+  } as unknown as MixCodeRuntime;
+
+  await handleSubmittedInput(
+    state,
+    runtime,
+    "/resume",
+    tui as never,
+    undefined,
+    input.host,
+  );
+
+  assert.equal(state.sessionSelector.open, true);
+  assert.ok(state.sessionSelector.component instanceof SessionSelectorComponent);
+  // Host wraps component for keybindings bridge; inner is still on state.
+  assert.ok(input.mounted);
+  assert.notEqual(input.mounted, undefined);
+});
+
+test("openSessionSelector returns without waiting for listing; close clears input slot", async () => {
+  const state = createInitialState("/repo");
+  state.activeTabId = "s1";
+  state.tabs.push(createTab(1, "s1", "/repo"));
+  let resolveListing: (sessions: SessionInfo[]) => void = () => undefined;
+  const listing = new Promise<SessionInfo[]>((resolve) => {
+    resolveListing = resolve;
+  });
+  const input = mockInputHost();
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({ hide: () => undefined }),
+  };
+  const runtime = {
+    listSessions: () => listing,
+    listAllSessions: async () => [],
+  };
+
+  const opening = openSessionSelector(
+    state,
+    runtime as never,
+    tui as never,
+    "/repo",
+    null,
+    undefined,
+    input.host,
+  );
+  const returned = await Promise.race([
+    opening.then(() => true),
+    new Promise<false>((resolve) => setTimeout(() => resolve(false), 25)),
+  ]);
+  assert.equal(returned, true, "opening must not wait for disk scanning");
+  assert.equal(state.sessionSelector.open, true);
+  assert.ok(state.sessionSelector.component);
+  assert.ok(input.mounted);
+
+  closeSessionSelector(state, tui as never);
+  resolveListing(makeSessions());
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(state.sessionSelector.open, false);
+  assert.equal(state.sessionSelector.component, undefined);
+  assert.ok(input.cleared >= 1);
+  assert.equal(input.mounted, undefined);
+});
+
+test("submitted /resume throws when runtime lacks session listing support", async () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo");
+  state.tabs.push(tab);
+  state.activeTabId = "s1";
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({}) as never,
+  };
+  const runtime = {
+    getTab: () => undefined,
+    closeTab: async () => undefined,
+    closeAllTabs: async () => undefined,
+    deleteTab: async () => undefined,
+    deleteAllTabs: async () => undefined,
+    compactSession: async () => undefined,
+    prompt: async () => undefined,
+    setExtensionEnabled: () => undefined,
+    forkSession: async () => undefined,
+    executeShellCommand: async () => undefined,
+    extensionReload: async () => undefined,
+    appendSystemMessage: () => undefined,
+    createTab: async () => undefined,
+  } as unknown as MixCodeRuntime;
+
+  await assert.rejects(
+    () => handleSubmittedInput(state, runtime, "/resume", tui),
+    /Resume requires pi runtime session listing support/,
+  );
+});
+
+test("applyMixCodeKeybindings exposes app.session shortcut labels for Pi keyHint", () => {
+  const restore = applyMixCodeKeybindings();
+  try {
+    const kb = getKeybindings();
+    assert.deepEqual(kb.getKeys("app.session.toggleSort" as never), ["ctrl+s"]);
+    assert.deepEqual(kb.getKeys("app.session.delete" as never), ["ctrl+d"]);
+    assert.deepEqual(kb.getKeys("app.session.rename" as never), ["ctrl+r"]);
+    assert.deepEqual(kb.getKeys("app.session.toggleNamedFilter" as never), ["ctrl+n"]);
+    assert.deepEqual(kb.getKeys("app.session.togglePath" as never), ["ctrl+p"]);
+  } finally {
+    restore();
+  }
+});
+
+test("session selector render includes key hints when keybindings bridge is applied", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"));
+  state.activeTabId = "s1";
+  const input = mockInputHost();
+  const tui = { requestRender: () => undefined, showOverlay: () => ({ hide: () => undefined }) };
+  const runtime = {
+    listSessions: async () => makeSessions(),
+    listAllSessions: async () => [],
+  };
+  await openSessionSelector(
+    state,
+    runtime as never,
+    tui as never,
+    "/repo",
+    null,
+    undefined,
+    input.host,
+  );
+  // Wait a tick for async list load inside Pi component
+  await new Promise((r) => setTimeout(r, 30));
+  const host = input.mounted as { render: (w: number) => string[] };
+  assert.ok(host?.render);
+  const plain = host
+    .render(100)
+    .join("\n")
+    .replace(/\x1b\[[0-9;]*m/g, "");
+  assert.match(plain, /ctrl\+s|Ctrl\+S/i);
+  assert.match(plain, /sort/i);
+  assert.match(plain, /ctrl\+d|Ctrl\+D/i);
+  closeSessionSelector(state, tui as never);
+});
+
+test("resumeSelectedSession opens a new tab and switches to the target session", async () => {
+  const state = createInitialState("/repo");
+  const active = createTab(1, "s-active", "/repo", { title: "Active" });
+  state.tabs.push(active);
+  state.activeTabId = "s-active";
+  state.sessionSelector.currentSessionPath = "/sessions/current.jsonl";
+
+  const switched: Array<{ id: string; path: string }> = [];
+  const created: string[] = [];
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({ hide: () => undefined }),
+    hasOverlay: () => false,
+  };
+  const runtime = {
+    extensionSwitchSession: async (sessionId: string, sessionPath: string) => {
+      switched.push({ id: sessionId, path: sessionPath });
+      const tab = state.tabs.find((t) => t.sessionId === "session-a" || created.includes(t.sessionId));
+      if (tab) tab.sessionId = "session-a";
+      return { cancelled: false };
+    },
+    createTab: async (tab: { sessionId: string }) => {
+      created.push(tab.sessionId);
+    },
+    getTab: (sessionId: string) => {
+      if (sessionId === "s-active") {
+        return { session: { getSessionFile: () => "/sessions/current.jsonl" } };
+      }
+      return {
+        session: {
+          getSessionFile: () => "/sessions/session-a.jsonl",
+          getSessionName: () => "My Session",
+        },
+      };
+    },
+    closeTab: async () => undefined,
+  };
+
+  resumeSelectedSession(
+    state,
+    tui as never,
+    "/sessions/session-a.jsonl",
+    "My Session",
+    "session-a",
+    runtime as never,
+  );
+
+  await new Promise((r) => setTimeout(r, 30));
+
+  assert.equal(switched.length, 1);
+  assert.equal(switched[0]!.path, "/sessions/session-a.jsonl");
+  const resumed = state.tabs.find((t) => t.sessionId === "session-a");
+  assert.ok(resumed);
+  assert.equal(resumed.title, "My Session");
+  assert.equal(resumed.status, "idle");
+});
+
+test("resumeSelectedSession focuses an already-open tab instead of creating another", () => {
+  const state = createInitialState("/repo");
+  const a = createTab(1, "s1", "/repo", { title: "One" });
+  const b = createTab(2, "s2", "/repo", { title: "Two" });
+  state.tabs.push(a, b);
+  state.activeTabId = "s1";
+
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({ hide: () => undefined }),
+  };
+  const runtime = {
+    extensionSwitchSession: async () => ({ cancelled: false }),
+    createTab: async () => {
+      throw new Error("must not create");
+    },
+    getTab: (sessionId: string) => ({
+      session: {
+        getSessionFile: () =>
+          sessionId === "s2" ? "/sessions/session-b.jsonl" : "/sessions/session-a.jsonl",
+        getSessionName: () => (sessionId === "s2" ? "Two" : "One"),
+      },
+    }),
+    closeTab: async () => undefined,
+  };
+
+  resumeSelectedSession(
+    state,
+    tui as never,
+    "/sessions/session-b.jsonl",
+    "Two",
+    "session-b",
+    runtime as never,
+  );
+
+  assert.equal(state.activeTabId, "s2");
+  assert.equal(state.tabs.length, 2);
+});
+
+test("renameOpenSession updates title of any open tab, not only active", async () => {
+  const root = await mkdtemp(join(tmpdir(), "mixcode-rename-pi-"));
+  try {
+    const otherSession = SessionManager.create(root, root);
+    const otherPath = otherSession.getSessionFile()!;
+    otherSession.appendSessionInfo("Old-Other-Name");
+
+    const state = createInitialState("/repo");
+    const active = createTab(1, "s-active", "/repo", { title: "Active-Tab" });
+    const other = createTab(2, "s-other", "/repo", { title: "Old-Other-Name" });
+    state.tabs.push(active, other);
+    state.activeTabId = "s-active";
+
+    const runtime = {
+      getTab: (sessionId: string) => {
+        if (sessionId !== "s-other") return undefined;
+        return { session: { getSessionFile: () => otherPath } };
+      },
+    };
+
+    await renameOpenSession(state, runtime as never, otherPath, "New-Other-Name");
+
+    assert.equal(other.title, "New-Other-Name");
+    assert.equal(active.title, "Active-Tab");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

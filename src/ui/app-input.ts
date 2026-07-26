@@ -245,7 +245,13 @@ export function handleMixCodeKeyInput(
               text,
               tui,
               onStateChanged,
-              undefined,
+              editorActions.setInputComponent && editorActions.clearInputComponent
+                ? {
+                    setInputComponent: editorActions.setInputComponent,
+                    clearInputComponent: editorActions.clearInputComponent,
+                    requestRender: () => tui.requestRender(),
+                  }
+                : undefined,
               workspaceOptions.workspaceFile,
               target,
               workspaceOptions.settingsDeps,

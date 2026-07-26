@@ -1,11 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { SessionInfo } from "@earendil-works/pi-coding-agent";
 import { fuzzyMatchAllPositions, fuzzyMatchPositions, substringMatchPositions } from "../src/core/fuzzy.js";
-import {
-  createSessionSelectorState,
-  updateSessionSelectorQuery,
-} from "../src/core/session-selector.js";
 import {
   createInitialState,
   createPicker,
@@ -21,7 +16,6 @@ import {
   updateTabJumpQuery,
 } from "../src/index.js";
 import { highlightRanges } from "../src/ui/rendering/highlight.js";
-import { renderSessionSelector } from "../src/ui/session-selector.js";
 
 test("fuzzyMatchPositions finds a greedy leftmost subsequence, or [] when it doesn't fully match", () => {
   assert.deepEqual(fuzzyMatchPositions("mc", "MixCode"), [0, 3]);
@@ -102,35 +96,4 @@ test("pickers highlight matched characters in the label using the same non-token
   const raw = renderPickerOverlay(state, 80).join("\n");
   assert.match(stripAnsi(raw), /xhigh/);
   assert.match(raw, /\x1b\[1m/);
-});
-
-test("session selector highlight never truncates the outer bold wrap for a selected row's remaining text", () => {
-  // Regression test for the nesting hazard documented in rendering/highlight.ts:
-  // SGR "bold off" is global state, not a stack. If a highlighted span were
-  // nested inside theme.bold(...) (applied when a row is selected), the
-  // span's own closing code would silently turn bold off for the rest of
-  // the row. Matched/unmatched runs must be flat siblings instead.
-  const selector = createSessionSelectorState();
-  const session: SessionInfo = {
-    path: "/sessions/a.jsonl",
-    id: "a",
-    cwd: "/repo",
-    created: new Date("2025-01-01"),
-    modified: new Date("2025-01-01"),
-    messageCount: 1,
-    firstMessage: "hello world message",
-    allMessagesText: "hello world message",
-  };
-  selector.open = true;
-  selector.currentSessions = [session];
-  selector.selectedIndex = 0;
-  updateSessionSelectorQuery(selector, "world");
-  const state = createInitialState("/repo");
-  state.sessionSelector = selector;
-  const raw = renderSessionSelector(state, 80).join("\n");
-  assert.match(stripAnsi(raw), /hello world message/);
-  // Three independent bold-open spans: prefix "hello ", matched "world", and
-  // suffix " message" -- each self-closed. A naive nested implementation
-  // would only ever show one outer bold-open for the whole row.
-  assert.equal((raw.match(/\x1b\[1m/g) ?? []).length, 3);
 });

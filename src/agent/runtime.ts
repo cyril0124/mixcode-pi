@@ -1075,8 +1075,12 @@ export class MixCodeRuntime {
    * List sessions for a specific working directory.
    * Uses the runtime's sessionsRoot as the session directory.
    */
-  async listSessions(cwd: string, signal?: AbortSignal): Promise<SessionInfo[]> {
-    return listSessionsForCwd(cwd, this.sessionsRoot, signal);
+  async listSessions(
+    cwd: string,
+    signal?: AbortSignal,
+    onProgress?: (loaded: number, total: number) => void,
+  ): Promise<SessionInfo[]> {
+    return listSessionsForCwd(cwd, this.sessionsRoot, signal, onProgress);
   }
 
   /**
@@ -1084,8 +1088,11 @@ export class MixCodeRuntime {
    * Scans every workdir's sessions directory under rootStateDir,
    * plus the legacy root sessions directory.
    */
-  async listAllSessions(signal?: AbortSignal): Promise<SessionInfo[]> {
-    return listAllSessionsGlobal(this.sessionsRoot, this.rootStateDir, signal);
+  async listAllSessions(
+    signal?: AbortSignal,
+    onProgress?: (loaded: number, total: number) => void,
+  ): Promise<SessionInfo[]> {
+    return listAllSessionsGlobal(this.sessionsRoot, this.rootStateDir, signal, onProgress);
   }
 
   /**

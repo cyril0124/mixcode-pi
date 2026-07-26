@@ -30,7 +30,7 @@ import {
   openExistingAgentTab,
   prepareAgentTabClear,
 } from "../src/ui/agent-tab-actions.js";
-import { handleSessionSelectorKey } from "../src/ui/session-selector.js";
+import { resumeSelectedSession } from "../src/ui/session-selector.js";
 
 test("listTabsToReconcile opens missing and closes extras", () => {
   const plan = listTabsToReconcile({
@@ -551,35 +551,25 @@ test("resume publishes open_tabs before switch so reconcile keeps session title"
     });
     reconcileDuringSwitch = () => sync.reconcileNow();
 
-    state.sessionSelector = {
-      ...createSessionSelectorState(),
-      open: true,
-      loading: false,
-      currentSessions: [
-        {
-          path: sessionPath,
-          id: durableId,
-          cwd: dir,
-          name: "implement-zen-mode",
-          created: new Date(),
-          modified: new Date(),
-          messageCount: 0,
-          firstMessage: "",
-          allMessagesText: "",
-        } as never,
-      ],
-    };
-    state.sessionSelector.selectedIndex = 0;
+    state.sessionSelector = createSessionSelectorState();
+    state.sessionSelector.currentSessionPath = null;
 
     const tui = {
       requestRender: () => undefined,
       showOverlay: () => ({ hide: () => undefined }) as never,
-      hasOverlay: () => state.sessionSelector.open,
+      hasOverlay: () => false,
       hideOverlay: () => undefined,
     };
 
-    // Enter on selected session (resume path under test).
-    handleSessionSelectorKey(state, "\r", tui as never, runtime as never);
+    // Drive multi-tab resume glue directly (UI is Pi SessionSelectorComponent).
+    resumeSelectedSession(
+      state,
+      tui as never,
+      sessionPath,
+      "implement-zen-mode",
+      durableId,
+      runtime as never,
+    );
     // Allow async resume to publish durable id then hit switch gate.
     await new Promise((r) => setTimeout(r, 20));
     await sync.reconcileNow();

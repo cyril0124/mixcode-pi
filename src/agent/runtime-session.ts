@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
-import { mkdir, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { mkdir, readdir, writeFile } from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
 import {
   type AgentSessionServices,
   type LoadExtensionsResult,
@@ -242,12 +242,20 @@ async function createReplacementSession(
  * List sessions for a specific working directory.
  * Filters results to only include sessions whose cwd matches.
  */
+/** Pi SessionSelectorComponent loader progress: (loaded, total) file counts. */
+export type SessionListProgress = (loaded: number, total: number) => void;
+
 export async function listSessionsForCwd(
   cwd: string,
   sessionsRoot: string,
   signal?: AbortSignal,
+  onProgress?: SessionListProgress,
 ): Promise<SessionInfo[]> {
-  const all = await listSessionsInBackground({ mode: "current", cwd, sessionsRoot }, signal);
+  // Progress needs main-thread SessionManager.list so the selector can show Loading n/m.
+  // Background worker path has no progress channel.
+  const all = onProgress
+    ? await SessionManager.list(cwd, sessionsRoot, onProgress)
+    : await listSessionsInBackground({ mode: "current", cwd, sessionsRoot }, signal);
   // SessionManager.list with explicit sessionsRoot returns all sessions in that dir.
   // Filter to only sessions matching the requested cwd.
   const normalizedCwd = cwd.replace(/\/+$/, "");
@@ -256,19 +264,46 @@ export async function listSessionsForCwd(
 
 /**
  * List all sessions across all working directories.
- * Scans the current sessionsRoot plus all sibling workdir session directories
- * under rootStateDir.
+ *
+ * Sources:
+ * 1. Current sessionsRoot
+ * 2. Pi default layout siblings: parent of sessionsRoot is sessions/ and each
+ *    child is an encoded-cwd directory under agentDir/sessions/.
+ *    Without this, All-scope only sees the active workdir.
+ * 3. MixCode isolation layout: rootStateDir/workdirs/.../sessions
  */
 export async function listAllSessionsGlobal(
   sessionsRoot: string,
   rootStateDir?: string,
   signal?: AbortSignal,
+  onProgress?: SessionListProgress,
 ): Promise<SessionInfo[]> {
-  // Always include the current sessionsRoot
+  const dirs = collectAllSessionDirs(sessionsRoot, rootStateDir);
+
+  if (onProgress) {
+    return listAllSessionDirsWithProgress([...dirs], onProgress);
+  }
+
+  return listSessionsInBackground({ mode: "all", sessionDirs: [...dirs] }, signal);
+}
+
+function collectAllSessionDirs(sessionsRoot: string, rootStateDir?: string): Set<string> {
   const dirs = new Set<string>([sessionsRoot]);
 
+  // Pi layout: agentDir/sessions/<encoded-cwd>/ — scan siblings of sessionsRoot.
+  const sessionsParent = dirname(sessionsRoot);
+  if (basename(sessionsParent) === "sessions") {
+    try {
+      for (const entry of readdirSync(sessionsParent, { withFileTypes: true })) {
+        if (entry.isDirectory()) dirs.add(join(sessionsParent, entry.name));
+      }
+    } catch {
+      // Ignore read errors on the sessions parent.
+    }
+  }
+
   if (rootStateDir) {
-    // All workdir session directories: rootStateDir/workdirs/*/sessions
+    // MixCode/test isolation: rootStateDir/workdirs/*/sessions
     const workdirsDir = join(rootStateDir, "workdirs");
     if (existsSync(workdirsDir)) {
       try {
@@ -284,5 +319,46 @@ export async function listAllSessionsGlobal(
     }
   }
 
-  return listSessionsInBackground({ mode: "all", sessionDirs: [...dirs] }, signal);
+  return dirs;
+}
+
+/** Main-thread multi-dir list with cumulative Loading n/m progress (Pi parity). */
+async function listAllSessionDirsWithProgress(
+  dirs: string[],
+  onProgress: SessionListProgress,
+): Promise<SessionInfo[]> {
+  const dirFiles: string[][] = [];
+  let totalFiles = 0;
+  for (const dir of dirs) {
+    try {
+      const files = (await readdir(dir)).filter((name) => name.endsWith(".jsonl"));
+      dirFiles.push(files);
+      totalFiles += files.length;
+    } catch {
+      dirFiles.push([]);
+    }
+  }
+
+  const seen = new Set<string>();
+  const sessions: SessionInfo[] = [];
+  let completedFiles = 0;
+
+  for (let index = 0; index < dirs.length; index++) {
+    const dir = dirs[index]!;
+    const fileCount = dirFiles[index]?.length ?? 0;
+    if (fileCount === 0) continue;
+    const listed = await SessionManager.listAll(dir, (loaded) => {
+      onProgress(Math.min(completedFiles + loaded, totalFiles), totalFiles);
+    });
+    for (const session of listed) {
+      if (seen.has(session.path)) continue;
+      seen.add(session.path);
+      sessions.push(session);
+    }
+    completedFiles += fileCount;
+    onProgress(Math.min(completedFiles, totalFiles), totalFiles);
+  }
+
+  sessions.sort((left, right) => right.modified.getTime() - left.modified.getTime());
+  return sessions;
 }
