@@ -111,6 +111,8 @@ export interface ChatLine {
   extensionRendererExpanded?: boolean;
   /** Theme id used when extensionRendererLastComponent was built; invalidate on /theme. */
   extensionRendererThemeId?: string;
+  /** outputPad used when extensionRendererLastComponent was built; invalidate on settings change. */
+  extensionRendererOutputPad?: number;
   toolRendererState?: Record<string, unknown>;
   toolCallRendererLastComponent?: Component & { dispose?(): void };
   toolResultRendererLastComponent?: Component & { dispose?(): void };

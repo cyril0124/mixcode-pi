@@ -272,17 +272,19 @@ function renderPersistentExtensionMessage(
   // extension renderers see the same manager we do.
   const restoreKeybindings = applyMixCodeKeybindings();
   try {
-    // Match Pi: options.expanded tracks tools-expanded (toolOutputExpanded).
+    // Match Pi: options.expanded tracks tools-expanded; outputPad comes from settings.
     const expanded = runtimeTab.tab.extensionUi.toolsExpanded ?? false;
+    const outputPad = runtimeTab.agentSession.settingsManager.getOutputPad();
     const themeId = getActiveExtensionThemeId();
     if (
       line.extensionRendererLastComponent &&
       line.extensionRendererExpanded === expanded &&
-      line.extensionRendererThemeId === themeId
+      line.extensionRendererThemeId === themeId &&
+      line.extensionRendererOutputPad === outputPad
     ) {
       return line.extensionRendererLastComponent.render(terminal.columns);
     }
-    const component = renderer(message, { expanded }, currentExtensionTheme()) as
+    const component = renderer(message, { expanded, outputPad }, currentExtensionTheme()) as
       | (Component & { dispose?(): void })
       | undefined;
     if (line.extensionRendererLastComponent && line.extensionRendererLastComponent !== component) {
@@ -291,6 +293,7 @@ function renderPersistentExtensionMessage(
     line.extensionRendererLastComponent = component;
     line.extensionRendererExpanded = expanded;
     line.extensionRendererThemeId = themeId;
+    line.extensionRendererOutputPad = outputPad;
     if (!component) return defaultExtensionMessageLines(message);
     return component.render(terminal.columns);
   } catch (error) {
