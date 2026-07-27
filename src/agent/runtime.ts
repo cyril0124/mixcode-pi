@@ -19,7 +19,12 @@ import {
 import { type AutocompleteProvider, matchesKey as matchesPiKey } from "@earendil-works/pi-tui";
 import { contentText } from "./runtime-text.js";
 import { modelToRef, replaceRegisteredModels } from "../core/models.js";
-import { clearPendingEscape, setPendingMessages, setTabStatus } from "../core/tab-state.js";
+import {
+  clearPendingEscape,
+  setPendingFollowUps,
+  setPendingMessages,
+  setTabStatus,
+} from "../core/tab-state.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import type { AgentRuntimeConfig, MixCodeModel, MixCodeModelRef, MixCodeTabInfo } from "../core/types.js";
 import { MIXCODE_EXTENSION_KEYBINDINGS } from "./runtime-extension-theme.js";
@@ -753,10 +758,15 @@ export class MixCodeRuntime {
     handle.focus();
   }
 
-  async prompt(sessionId: string, text: string): Promise<void> {
+  async prompt(
+    sessionId: string,
+    text: string,
+    options?: { streamingBehavior?: "steer" | "followUp" },
+  ): Promise<void> {
     const runtimeTab = this.requireTab(sessionId);
     const trimmed = text.trim();
     if (!trimmed) return;
+    const streamingBehavior = options?.streamingBehavior ?? "steer";
     // Registered extension commands may await custom UI for a long time. Skills,
     // templates, and unknown slash input remain agent turns and need dispatchTurn.
     const commandName = trimmed.match(/^\/(\S+)/)?.[1];
@@ -773,10 +783,10 @@ export class MixCodeRuntime {
     }
     await dispatchTurn(runtimeTab, async (signalRegistered) => {
       if (runtimeTab.agentSession.isStreaming) {
-        // Already streaming: this instance owns the turn (and its lock); steering
-        // just appends to the in-flight run.
+        // Already streaming: this instance owns the turn (and its lock); queue
+        // as steer (interrupt) or followUp (wait until idle).
         await runtimeTab.agentSession.prompt(trimmed, {
-          streamingBehavior: "steer",
+          streamingBehavior,
           preflightResult: signalRegistered,
         });
         return;
@@ -971,7 +981,9 @@ export class MixCodeRuntime {
       runtimeTab.agentSession.clearQueue();
       runtimeTab.tab.retryInfo = undefined;
       setPendingMessages(runtimeTab.tab, []);
+      setPendingFollowUps(runtimeTab.tab, []);
       runtimeTab.queuedPromptCount = 0;
+      runtimeTab.queuedFollowUpCount = 0;
       clearPendingEscape(runtimeTab.tab);
     }
   }

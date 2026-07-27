@@ -196,6 +196,7 @@ async function createRuntimeTabWithServices(
     chat: [],
     toolLog,
     queuedPromptCount: 0,
+    queuedFollowUpCount: 0,
     extensionTerminalInputHandlers: new Set(),
     extensionDialogResolvers: new Map(),
     extensionCustomOverlayClosers: new Set(),
@@ -457,6 +458,7 @@ async function replaceRuntimeTabSessionUnlocked(
   runtimeTab.session = sessionManager;
   runtimeTab.toolLog = created.toolLog;
   runtimeTab.queuedPromptCount = 0;
+  runtimeTab.queuedFollowUpCount = 0;
   runtimeTab.streamingAssistant = undefined;
   disposeExtensionWidgets(runtimeTab.tab);
   runtimeTab.tab.extensionUi = {

@@ -121,6 +121,11 @@ export function setPendingMessages(tab: MixCodeTabInfo, messages: string[]): voi
   tab.pendingMessages = messages;
 }
 
+/** Replace the follow-up queue (delivered after the agent is fully idle). */
+export function setPendingFollowUps(tab: MixCodeTabInfo, messages: string[]): void {
+  tab.pendingFollowUps = messages;
+}
+
 /**
  * Clear the armed-escape pair atomically. pendingEscapeAction (what a second
  * Esc would do) and pendingEscapeArmedAt (when it was armed) must always clear

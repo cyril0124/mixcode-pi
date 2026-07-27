@@ -89,6 +89,8 @@ interface ConversationCache {
   toolsExpanded: boolean;
   pendingMessagesLength: number;
   lastPendingMessage: string;
+  pendingFollowUpsLength: number;
+  lastPendingFollowUp: string;
   oversizedPolicyKey: string;
   hideThinking: boolean;
   hiddenThinkingLabel: string;
@@ -621,6 +623,7 @@ function getCachedConversationLines(
   const lastChat = chat[chat.length - 1];
   const toolsExpanded = tab.extensionUi.toolsExpanded ?? false;
   const lastPending = tab.pendingMessages[tab.pendingMessages.length - 1] ?? "";
+  const lastFollowUp = tab.pendingFollowUps[tab.pendingFollowUps.length - 1] ?? "";
   const policyKey = oversizedPolicyKey(options.oversizedAssistantMessage);
   const hideThinking = options.hideThinking ?? false;
   const hiddenThinkingLabel = tab.extensionUi.hiddenThinkingLabel ?? "";
@@ -638,6 +641,8 @@ function getCachedConversationLines(
     cached.toolsExpanded === toolsExpanded &&
     cached.pendingMessagesLength === tab.pendingMessages.length &&
     cached.lastPendingMessage === lastPending &&
+    cached.pendingFollowUpsLength === tab.pendingFollowUps.length &&
+    cached.lastPendingFollowUp === lastFollowUp &&
     cached.oversizedPolicyKey === policyKey &&
     cached.hideThinking === hideThinking &&
     cached.hiddenThinkingLabel === hiddenThinkingLabel &&
@@ -662,6 +667,8 @@ function getCachedConversationLines(
     toolsExpanded,
     pendingMessagesLength: tab.pendingMessages.length,
     lastPendingMessage: lastPending,
+    pendingFollowUpsLength: tab.pendingFollowUps.length,
+    lastPendingFollowUp: lastFollowUp,
     oversizedPolicyKey: policyKey,
     hideThinking,
     hiddenThinkingLabel,
@@ -749,20 +756,37 @@ export function renderQueuePreview(
 }
 
 function renderQueuePreviewInner(tab: MixCodeTabInfo, width: number): string[] {
-  if (!tab.pendingMessages.length) return [];
   const maxQueue = 5;
+  const lines: string[] = [];
+  if (tab.pendingMessages.length > 0) {
+    lines.push(...renderOneQueueBox("Steer", tab.pendingMessages, width, maxQueue, true));
+  }
+  if (tab.pendingFollowUps.length > 0) {
+    lines.push(...renderOneQueueBox("Follow-up", tab.pendingFollowUps, width, maxQueue, false));
+  }
+  return lines;
+}
+
+function renderOneQueueBox(
+  label: string,
+  messages: readonly string[],
+  width: number,
+  maxQueue: number,
+  escSendNow: boolean,
+): string[] {
   const innerWidth = Math.max(12, width - 2);
   const itemWidth = Math.max(8, innerWidth - 2);
-  const messages = tab.pendingMessages.slice(-maxQueue);
-  const queueTitle =
-    tab.pendingMessages.length > maxQueue
-      ? `Queue (${tab.pendingMessages.length}, latest ${maxQueue})`
-      : `Queue (${tab.pendingMessages.length})`;
-  const lines = [
-    `${queueTitle}  Esc->send now  Ctrl+U->edit`,
-    ...messages.map((message) => `↳ ${normalizePendingMessage(message, itemWidth)}`),
+  const shown = messages.slice(-maxQueue);
+  const title =
+    messages.length > maxQueue
+      ? `${label} (${messages.length}, latest ${maxQueue})`
+      : `${label} (${messages.length})`;
+  const shortcuts = escSendNow ? "Esc->send now  Ctrl+U->edit" : "Ctrl+U->edit";
+  const body = [
+    `${title}  ${shortcuts}`,
+    ...shown.map((message) => `↳ ${normalizePendingMessage(message, itemWidth)}`),
   ];
-  return box("Queue", lines, width);
+  return box(label, body, width);
 }
 
 function normalizePendingMessage(message: string, width: number): string {

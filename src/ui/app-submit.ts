@@ -5,7 +5,7 @@ import { applyContextLimit, parseContextLimitValue, adjustCompactionSettingsForL
 import { parseInput } from "../core/commands.js";
 import { createSessionId, createTab } from "../core/defaults.js";
 import { stringifyJson } from "../core/json.js";
-import { findModelRef } from "../core/models.js";
+import { assertModelEnabled, findModelRef } from "../core/models.js";
 import { noteTabClosed, noteTabOpened, noteTabReplaced } from "../core/open-tabs-store.js";
 import { createPicker } from "../core/pickers.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
@@ -118,7 +118,19 @@ export async function handleSubmittedInput(
     }
     throw error;
   }
-  if (parsed.command === "mark-done") {
+  if (parsed.command === "follow-up") {
+    // Queue as followUp (wait until idle). Do not send "/follow-up ..." as model text.
+    const message = parsed.args.trim();
+    if (!message) {
+      pushToast(active!, {
+        type: "warning",
+        message: "Usage: /follow-up <message>",
+      });
+      return void tui.requestRender();
+    }
+    assertModelEnabled(active!.model);
+    await runtime.prompt(active!.sessionId, message, { streamingBehavior: "followUp" });
+  } else if (parsed.command === "mark-done") {
     // Intentional: unlike agent_end (unread only until the tab is viewed),
     // /mark-done forces a sticky "!" on the current tab so the user can flag
     // work as done while still looking at it. activateTab() clears the badge

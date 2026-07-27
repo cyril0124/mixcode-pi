@@ -598,6 +598,7 @@ export function resetTabForNewSession(tab: MixCodeTabInfo, sessionId: string): v
   tab.currentContextTokens = undefined;
   tab.pendingDialogs = [];
   tab.pendingMessages = [];
+  tab.pendingFollowUps = [];
   tab.chatScrollOffset = 0;
   tab.chatScrollAnchorEntryId = undefined;
   tab.chatScrollAnchorIndex = undefined;

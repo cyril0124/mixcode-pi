@@ -176,6 +176,8 @@ export interface MixCodeTabInfo {
   alias: string;
   pendingDialogs: DialogRequestState[];
   pendingMessages: string[];
+  /** Follow-up queue (delivered after the agent is fully idle). Separate from steer pendingMessages. */
+  pendingFollowUps: string[];
   promptHistory: string[];
   draftInput: string;
   chatScrollOffset: number;

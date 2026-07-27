@@ -67,6 +67,11 @@ export function serializeState(state: MixCodeState): Record<string, unknown> {
         .filter((tab) => tab.pendingMessages.length > 0)
         .map((tab) => [tab.sessionId, tab.pendingMessages]),
     ),
+    pending_follow_ups: Object.fromEntries(
+      state.tabs
+        .filter((tab) => tab.pendingFollowUps.length > 0)
+        .map((tab) => [tab.sessionId, tab.pendingFollowUps]),
+    ),
     startup_workdir: state.workdir,
     theme: state.theme,
     unseen_done: state.tabs.filter((tab) => tab.unreadDone).map((tab) => tab.sessionId),
@@ -95,6 +100,7 @@ export function deserializeState(
   const previewMessages = objectRecord(data.preview_messages);
   const previewIndices = objectRecord(data.preview_indices);
   const pendingMessages = objectRecord(data.pending_messages);
+  const pendingFollowUps = objectRecord(data.pending_follow_ups);
   const unseen = new Set(Array.isArray(data.unseen_done) ? data.unseen_done.map(String) : []);
   if (Array.isArray(data.children)) {
     state.tabs = data.children
@@ -110,6 +116,7 @@ export function deserializeState(
           previewIndex:
             typeof previewIndices[sessionId] === "number" ? previewIndices[sessionId] : 0,
           pendingMessages: normalizeStringList(pendingMessages[sessionId]),
+          pendingFollowUps: normalizeStringList(pendingFollowUps[sessionId]),
           thinkingLevel,
           model,
           contextLimit: model.contextWindow,

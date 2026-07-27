@@ -333,8 +333,8 @@ test("runtime pop removes matching Pi steering queue entries", async () => {
   }
 });
 
-test("runtime pop preserves unrelated Pi follow-up queue entries", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-queue-pop-preserve-follow-up-"));
+test("runtime pop prefers follow-up over steer (Ctrl+U edit order)", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-queue-pop-prefer-follow-up-"));
   const { runtime, release, model } = createBlockedQueueRuntime(dir);
   try {
     const tab = createTab(1, "s1", process.cwd());
@@ -348,13 +348,20 @@ test("runtime pop preserves unrelated Pi follow-up queue entries", async () => {
     await runtime.prompt("s1", "steer queued");
     await runtimeTab.agentSession.followUp("follow-up from extension");
 
+    // Ctrl+U edits the more-deferred follow-up first; steer stays queued.
+    assert.equal(runtime.popPendingMessage("s1"), "follow-up from extension");
+    assert.deepEqual(tab.pendingFollowUps, []);
+    assert.equal(runtimeTab.queuedFollowUpCount, 0);
+    assert.deepEqual([...runtimeTab.agentSession.getFollowUpMessages()], []);
+    assert.deepEqual(tab.pendingMessages, ["steer queued"]);
+    assert.equal(runtimeTab.queuedPromptCount, 1);
+    assert.deepEqual([...runtimeTab.agentSession.getSteeringMessages()], ["steer queued"]);
+
     assert.equal(runtime.popPendingMessage("s1"), "steer queued");
     assert.deepEqual(tab.pendingMessages, []);
     assert.equal(runtimeTab.queuedPromptCount, 0);
     assert.deepEqual([...runtimeTab.agentSession.getSteeringMessages()], []);
-    assert.deepEqual([...runtimeTab.agentSession.getFollowUpMessages()], [
-      "follow-up from extension",
-    ]);
+
     runtimeTab.deferPendingMessageFlush = true;
     release();
     await prompt;

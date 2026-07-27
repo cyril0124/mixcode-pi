@@ -610,10 +610,14 @@ export function handleMixCodeKeyInput(
     clearPendingEscape(active, "abort-agent");
     // On Home, getActiveTab() is the selected agent — never dequeue that agent's queue here.
     if (state.activeTabId !== "config") {
-      const text = runtime?.popPendingMessage?.(active.sessionId) ?? active.pendingMessages.pop();
+      const text =
+        runtime?.popPendingMessage?.(active.sessionId) ??
+        active.pendingFollowUps.pop() ??
+        active.pendingMessages.pop();
       if (text) {
         // Re-queue the in-progress draft so Ctrl+U (edit queued) does not discard it.
         // unshift keeps it ahead of the runtime-steering tail (see pendingMessages sync).
+        // Draft re-queues into steer (local prefix), never into follow-up.
         const draft = editorActions.getText();
         if (draft.trim() && draft !== text) active.pendingMessages.unshift(draft);
         editorActions.setText(text);

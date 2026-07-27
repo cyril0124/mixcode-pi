@@ -29,6 +29,7 @@ function createMockTab(overrides: Partial<MixCodeTabInfo> = {}): MixCodeTabInfo 
     alias: "",
     pendingDialogs: [],
     pendingMessages: [],
+    pendingFollowUps: [],
     promptHistory: [],
     draftInput: "",
     chatScrollOffset: 0,

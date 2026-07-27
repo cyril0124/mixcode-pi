@@ -95,6 +95,7 @@ export function createTab(
     alias: "",
     pendingDialogs: [],
     pendingMessages: [],
+    pendingFollowUps: [],
     promptHistory: [],
     draftInput: "",
     chatScrollOffset: 0,

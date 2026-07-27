@@ -35,6 +35,10 @@ export async function dispatchTurn(
   }
 }
 
+/**
+ * Flush only the steer queue (Esc → send now). Follow-up messages must survive:
+ * Esc must not promote a "wait until idle" message into an immediate prompt.
+ */
 export async function flushRuntimePendingMessage(
   runtimeTab: RuntimeTab,
   count?: number,
@@ -95,7 +99,21 @@ export function consumeDeferredPendingMessageFlush(runtimeTab: RuntimeTab): bool
   return true;
 }
 
+/**
+ * Pop one queued message for Ctrl+U edit. Prefer follow-up (user is more often
+ * revising "do this after") then fall back to steer.
+ */
 export function popRuntimePendingMessage(runtimeTab: RuntimeTab): string | undefined {
+  if (runtimeTab.tab.pendingFollowUps.length > 0) {
+    const wasRuntimeQueued = runtimeTab.queuedFollowUpCount > 0;
+    const message = runtimeTab.tab.pendingFollowUps.pop();
+    if (message !== undefined && wasRuntimeQueued) {
+      removeFollowUpMessages(runtimeTab.agentSession, [message]);
+      runtimeTab.queuedFollowUpCount = Math.max(0, runtimeTab.queuedFollowUpCount - 1);
+    }
+    return message;
+  }
+
   const wasRuntimeQueued = runtimeTab.queuedPromptCount > 0;
   const message = runtimeTab.tab.pendingMessages.pop();
   if (message !== undefined && wasRuntimeQueued) {
@@ -105,18 +123,29 @@ export function popRuntimePendingMessage(runtimeTab: RuntimeTab): string | undef
   return message;
 }
 
-type SteeringQueueInternals = {
+type QueueInternals = {
   _steeringMessages?: string[];
+  _followUpMessages?: string[];
 };
 
 function getMutableSteeringMessages(agentSession: AgentSession): string[] {
-  const state = agentSession as unknown as SteeringQueueInternals;
+  const state = agentSession as unknown as QueueInternals;
   if (!Array.isArray(state._steeringMessages)) {
     throw new Error(
       "Pi AgentSession steering queue internals changed; MixCode queue flush cannot safely remove sent messages.",
     );
   }
   return state._steeringMessages;
+}
+
+function getMutableFollowUpMessages(agentSession: AgentSession): string[] {
+  const state = agentSession as unknown as QueueInternals;
+  if (!Array.isArray(state._followUpMessages)) {
+    throw new Error(
+      "Pi AgentSession follow-up queue internals changed; MixCode queue edit cannot safely remove sent messages.",
+    );
+  }
+  return state._followUpMessages;
 }
 
 function removeSteeringMessages(agentSession: AgentSession, messages: readonly string[]): void {
@@ -127,6 +156,16 @@ function removeSteeringMessages(agentSession: AgentSession, messages: readonly s
     if (index !== -1) remaining.splice(index, 1);
   }
   rebuildSteeringQueue(agentSession, remaining);
+}
+
+function removeFollowUpMessages(agentSession: AgentSession, messages: readonly string[]): void {
+  if (messages.length === 0) return;
+  const remaining = [...getMutableFollowUpMessages(agentSession)];
+  for (const message of messages) {
+    const index = remaining.indexOf(message);
+    if (index !== -1) remaining.splice(index, 1);
+  }
+  rebuildFollowUpQueue(agentSession, remaining);
 }
 
 function rebuildSteeringQueue(agentSession: AgentSession, steering: readonly string[]): void {
@@ -142,8 +181,27 @@ function rebuildSteeringQueue(agentSession: AgentSession, steering: readonly str
   }
 }
 
+function rebuildFollowUpQueue(agentSession: AgentSession, followUp: readonly string[]): void {
+  const messages = getMutableFollowUpMessages(agentSession);
+  messages.splice(0, messages.length, ...followUp);
+  agentSession.agent.clearFollowUpQueue();
+  for (const text of followUp) {
+    agentSession.agent.followUp({
+      role: "user",
+      content: [{ type: "text", text }],
+      timestamp: Date.now(),
+    });
+  }
+}
+
 function syncPendingMessagesFromSteering(runtimeTab: RuntimeTab): void {
   const steering = runtimeTab.agentSession.getSteeringMessages();
-  if (steering.length <= runtimeTab.queuedPromptCount) return;
-  syncQueueState(runtimeTab, steering);
+  const followUp = runtimeTab.agentSession.getFollowUpMessages();
+  if (
+    steering.length <= runtimeTab.queuedPromptCount &&
+    followUp.length <= runtimeTab.queuedFollowUpCount
+  ) {
+    return;
+  }
+  syncQueueState(runtimeTab, steering, followUp);
 }

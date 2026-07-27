@@ -4,6 +4,7 @@ export type LocalCommand =
   | "context-limit"
   | "workdir"
   | "fork"
+  | "follow-up"
   | "tree"
   | "close-session"
   | "delete-session"
@@ -110,6 +111,16 @@ export const LOCAL_COMMANDS: Array<{
     palette: {
       label: "Change Workdir",
       description: "Change the current tab working directory",
+      requires: "session",
+    },
+  },
+  {
+    name: "follow-up",
+    description: "Queue a message to send after the current agent turn finishes",
+    argumentHint: "<message>",
+    palette: {
+      label: "Queue Follow-up",
+      description: "Send after the agent finishes (not mid-turn steer)",
       requires: "session",
     },
   },

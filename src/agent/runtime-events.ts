@@ -22,6 +22,7 @@ import {
   addTabTokens,
   clearPendingEscape,
   setTabContextTokens,
+  setPendingFollowUps,
   setPendingMessages,
   setTabStatus,
 } from "../core/tab-state.js";
@@ -222,7 +223,7 @@ export function applyEvent(
   emitChange: (event: RuntimeEvent, runtimeTab: RuntimeTab) => void,
 ): void {
   if (event.type === "queue_update") {
-    syncQueueState(runtimeTab, event.steering);
+    syncQueueState(runtimeTab, event.steering, event.followUp);
     emitChange(event, runtimeTab);
     return;
   }
@@ -465,13 +466,25 @@ export function applyEvent(
   emitChange(event, runtimeTab);
 }
 
-export function syncQueueState(runtimeTab: RuntimeTab, steering: readonly string[]): void {
-  const preserved = runtimeTab.tab.pendingMessages.slice(
+export function syncQueueState(
+  runtimeTab: RuntimeTab,
+  steering: readonly string[],
+  followUp: readonly string[] = [],
+): void {
+  // Local UI can unshift drafts ahead of the runtime-mirrored tail; preserve that prefix.
+  const preservedSteer = runtimeTab.tab.pendingMessages.slice(
     0,
     Math.max(0, runtimeTab.tab.pendingMessages.length - runtimeTab.queuedPromptCount),
   );
-  setPendingMessages(runtimeTab.tab, [...preserved, ...steering]);
+  setPendingMessages(runtimeTab.tab, [...preservedSteer, ...steering]);
   runtimeTab.queuedPromptCount = steering.length;
+
+  const preservedFollowUp = runtimeTab.tab.pendingFollowUps.slice(
+    0,
+    Math.max(0, runtimeTab.tab.pendingFollowUps.length - runtimeTab.queuedFollowUpCount),
+  );
+  setPendingFollowUps(runtimeTab.tab, [...preservedFollowUp, ...followUp]);
+  runtimeTab.queuedFollowUpCount = followUp.length;
 }
 
 export function appendMessageStart(runtimeTab: RuntimeTab, message: AgentMessage): void {

@@ -23,7 +23,7 @@ test("queue preview shows count, shortcuts, and latest messages", () => {
       80,
     ).join("\n"),
   );
-  assert.match(one, /Queue \(1\)/);
+  assert.match(one, /Steer \(1\)/);
   assert.match(one, /Esc->send now {2}Ctrl\+U->edit/);
   assert.match(one, /first queued message/);
 
@@ -33,9 +33,27 @@ test("queue preview shows count, shortcuts, and latest messages", () => {
       80,
     ).join("\n"),
   );
-  assert.match(multi, /Queue \(6, latest 5\)/);
+  assert.match(multi, /Steer \(6, latest 5\)/);
   assert.doesNotMatch(multi, /↳ 1/);
   assert.match(multi, /↳ 6/);
+
+  const dual = stripAnsi(
+    renderQueuePreview(
+      createTab(3, "s3", "/repo", {
+        pendingMessages: ["steer me"],
+        pendingFollowUps: ["after done"],
+      }),
+      80,
+    ).join("\n"),
+  );
+  assert.match(dual, /Steer \(1\)/);
+  assert.match(dual, /Follow-up \(1\)/);
+  assert.match(dual, /steer me/);
+  assert.match(dual, /after done/);
+  assert.match(dual, /Esc->send now/);
+  // Follow-up box must not advertise Esc->send now.
+  const followBlock = dual.slice(dual.indexOf("Follow-up"));
+  assert.doesNotMatch(followBlock, /Esc->send now/);
 });
 
 test("agent surface does not invent thinking when rebuilt chat has none", () => {

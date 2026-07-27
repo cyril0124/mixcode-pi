@@ -204,7 +204,10 @@ export interface RuntimeTab {
   session: SessionManager;
   chat: ChatLine[];
   toolLog: ToolLog;
+  /** Count of runtime-mirrored steer messages at the tail of tab.pendingMessages. */
   queuedPromptCount: number;
+  /** Count of runtime-mirrored follow-up messages at the tail of tab.pendingFollowUps. */
+  queuedFollowUpCount: number;
   /**
    * Serializes replaceRuntimeTabSession on this tab so a concurrent resume/new/fork
    * cannot dispose the session installed by an in-flight replace before bindExtensions.
