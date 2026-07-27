@@ -20,7 +20,8 @@ import {
 } from "../src/index.js";
 import type { MixCodeRuntime } from "../src/index.js";
 import { allKnownThinkingLevels } from "../src/core/thinking-levels.js";
-import type { Model } from "@earendil-works/pi-ai";
+import { InMemoryCredentialStore, type Model } from "@earendil-works/pi-ai";
+import { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { MIXCODE_FAUX_MODEL } from "../src/index.js";
 
 type TestChatLine = { role: "system"; text: string };
@@ -204,13 +205,17 @@ test("/reload keeps model selection when models.json fails to load", async () =>
 
   const systemMessages: string[] = [];
   const updatedTabModels: Array<{ sessionId: string; modelId: string }> = [];
+  const modelRuntime = await ModelRuntime.create({
+    credentials: new InMemoryCredentialStore(),
+    modelsPath: null,
+    allowModelNetwork: false,
+  });
+  modelRuntime.getError = () => "Failed to parse models.json: Unexpected token";
   const runtime = {
     appendSystemMessage: (_sessionId: string, text: string) => systemMessages.push(text),
     extensionReload: async () => {},
     reloadModelConfig: async () => [],
-    getSharedModelRuntime: () => ({
-      getError: () => 'Failed to parse models.json: Unexpected token',
-    }),
+    getSharedModelRuntime: () => modelRuntime,
     resolveModel: () => undefined,
     updateTabModel: (sessionId: string, model: { id: string }) =>
       updatedTabModels.push({ sessionId, modelId: model.id }),

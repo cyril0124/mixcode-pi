@@ -12,6 +12,7 @@ import {
   setTabModel,
 } from "../core/models.js";
 import { loadMixCodeSettings } from "../core/mixcode-settings.js";
+import { configureDisabledModelRuntime } from "../core/pi-models.js";
 import { DEFAULT_MODEL_REF } from "../core/defaults.js";
 import { closeActiveOverlay, openOverlay } from "../core/overlays.js";
 import { closeTreeSelector } from "./tree-selector.js";
@@ -156,13 +157,42 @@ export async function reloadRuntimeModels(
   if (!runtime.reloadModelConfig) return { ok: false, skipped: true };
   const configured = await runtime.reloadModelConfig();
   // Pi keeps parse/schema/provider failures on ModelRuntime.getError() instead of throwing.
-  const modelError = runtime.getSharedModelRuntime?.()?.getError?.();
-  if (modelError) return { ok: false, error: modelError };
+  const modelRuntime = runtime.getSharedModelRuntime?.();
   // Re-read mixcode disabled lists on /reload so /settings writes take effect.
   if (options?.mixcodeFile) {
     const mixcode = await loadMixCodeSettings(options.mixcodeFile);
     state.disabledProviders = mixcode.disabledProviders;
     state.disabledModels = mixcode.disabledModels;
+  }
+  if (modelRuntime) {
+    configureDisabledModelRuntime(modelRuntime, state.disabledProviders, state.disabledModels);
+  }
+  const modelError = modelRuntime?.getError?.();
+  if (modelError) {
+    state.availableModels = applyDisabledModelFlags(
+      state.availableModels,
+      state.disabledProviders,
+      state.disabledModels,
+    );
+    setStateModel(
+      state,
+      applyDisabledModelFlags(
+        [state.model],
+        state.disabledProviders,
+        state.disabledModels,
+      )[0]!,
+    );
+    state.tabs.forEach((tab) =>
+      setTabModel(
+        tab,
+        applyDisabledModelFlags(
+          [tab.model],
+          state.disabledProviders,
+          state.disabledModels,
+        )[0]!,
+      ),
+    );
+    return { ok: false, error: modelError };
   }
   const availableModels = applyDisabledModelFlags(
     buildAvailableModelRefs(configured),

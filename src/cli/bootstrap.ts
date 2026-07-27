@@ -33,6 +33,7 @@ import {
 } from "../core/models.js";
 import { checkPiPackageUpdates } from "../core/package-updates.js";
 import {
+  configureDisabledModelRuntime,
   createPiModelRegistryBundle,
   defaultPiAgentDir,
   resolveAgentDirEnv,
@@ -168,6 +169,11 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
   const modelBundle = await createPiModelRegistryBundle(
     options.modelConfigPath ?? join(agentDir, "models.json"),
     join(agentDir, "auth.json"),
+  );
+  configureDisabledModelRuntime(
+    modelBundle.modelRuntime,
+    mixCodeSettings.disabledProviders,
+    mixCodeSettings.disabledModels,
   );
   registerModels(modelBundle.sources.map((source) => source.model));
   const configuredModels = modelBundle.sources

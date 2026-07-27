@@ -10,7 +10,7 @@ import {
   ModelRuntime,
   type ExtensionFactory,
 } from "@earendil-works/pi-coding-agent";
-import { MixCodeRuntime, createTab } from "../src/index.js";
+import { MixCodeRuntime, configureDisabledModelRuntime, createTab } from "../src/index.js";
 import type { MixCodeModelRef } from "../src/core/types.js";
 
 test("extension registerProvider notifies onModelsChanged with selectable model refs", async () => {
@@ -21,10 +21,12 @@ test("extension registerProvider notifies onModelsChanged with selectable model 
     allowModelNetwork: false,
   });
   const modelRegistry = new ModelRegistry(modelRuntime);
+  configureDisabledModelRuntime(modelRuntime, ["ext-proxy"], []);
   const seen: MixCodeModelRef[][] = [];
+  let extensionAvailable: string[] = [];
 
   const extension: ExtensionFactory = (pi) => {
-    pi.on("session_start", () => {
+    pi.on("session_start", (_event, ctx) => {
       pi.registerProvider("ext-proxy", {
         baseUrl: "https://example.invalid/v1",
         apiKey: "test-key",
@@ -41,6 +43,9 @@ test("extension registerProvider notifies onModelsChanged with selectable model 
           },
         ],
       });
+      extensionAvailable = ctx.modelRegistry
+        .getAvailable()
+        .map((model) => `${model.provider}/${model.id}`);
     });
   };
 
@@ -66,6 +71,7 @@ test("extension registerProvider notifies onModelsChanged with selectable model 
       flat.some((ref) => ref.provider === "ext-proxy" && ref.modelId === "ext-model"),
       `expected onModelsChanged with ext-proxy/ext-model, got ${JSON.stringify(flat)}`,
     );
+    assert.equal(extensionAvailable.includes("ext-proxy/ext-model"), false);
 
     // Selectable list API used by UI rebuild.
     const selectable = runtime.collectSelectableModelRefs();

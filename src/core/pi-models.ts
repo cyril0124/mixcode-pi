@@ -32,6 +32,91 @@ export interface PiModelRegistryBundle {
   loadError?: string;
 }
 
+interface DisabledModelRuntimePolicy {
+  disabledProviders: Set<string>;
+  disabledModels: Set<string>;
+}
+
+const disabledModelRuntimePolicies = new WeakMap<ModelRuntime, DisabledModelRuntimePolicy>();
+
+/** Apply MixCode's denylist to extension discovery and every public model execution path. */
+export function configureDisabledModelRuntime(
+  modelRuntime: ModelRuntime,
+  disabledProviders: readonly string[] = [],
+  disabledModels: readonly string[] = [],
+): void {
+  const existing = disabledModelRuntimePolicies.get(modelRuntime);
+  if (existing) {
+    existing.disabledProviders = new Set(disabledProviders);
+    existing.disabledModels = new Set(disabledModels);
+    return;
+  }
+
+  const policy: DisabledModelRuntimePolicy = {
+    disabledProviders: new Set(disabledProviders),
+    disabledModels: new Set(disabledModels),
+  };
+  disabledModelRuntimePolicies.set(modelRuntime, policy);
+
+  const originalGetAvailable = modelRuntime.getAvailable.bind(modelRuntime);
+  const originalGetAvailableSnapshot = modelRuntime.getAvailableSnapshot.bind(modelRuntime);
+  const originalStream = modelRuntime.stream.bind(modelRuntime) as ModelRuntime["stream"];
+  const originalComplete = modelRuntime.complete.bind(modelRuntime) as ModelRuntime["complete"];
+  const originalStreamSimple = modelRuntime.streamSimple.bind(
+    modelRuntime,
+  ) as ModelRuntime["streamSimple"];
+  const originalCompleteSimple = modelRuntime.completeSimple.bind(
+    modelRuntime,
+  ) as ModelRuntime["completeSimple"];
+
+  modelRuntime.getAvailable = (async (providerId?: string) =>
+    originalGetAvailable(providerId).then((models) =>
+      filterDisabledModels(models, policy),
+    )) as ModelRuntime["getAvailable"];
+  modelRuntime.getAvailableSnapshot = (() =>
+    filterDisabledModels(
+      originalGetAvailableSnapshot(),
+      policy,
+    )) as ModelRuntime["getAvailableSnapshot"];
+  modelRuntime.stream = ((...args: Parameters<ModelRuntime["stream"]>) => {
+    assertRuntimeModelEnabled(args[0], policy);
+    return originalStream(...args);
+  }) as ModelRuntime["stream"];
+  modelRuntime.complete = ((...args: Parameters<ModelRuntime["complete"]>) => {
+    assertRuntimeModelEnabled(args[0], policy);
+    return originalComplete(...args);
+  }) as ModelRuntime["complete"];
+  modelRuntime.streamSimple = ((...args: Parameters<ModelRuntime["streamSimple"]>) => {
+    assertRuntimeModelEnabled(args[0], policy);
+    return originalStreamSimple(...args);
+  }) as ModelRuntime["streamSimple"];
+  modelRuntime.completeSimple = ((...args: Parameters<ModelRuntime["completeSimple"]>) => {
+    assertRuntimeModelEnabled(args[0], policy);
+    return originalCompleteSimple(...args);
+  }) as ModelRuntime["completeSimple"];
+}
+
+function filterDisabledModels(
+  models: readonly MixCodeModel[],
+  policy: DisabledModelRuntimePolicy,
+): MixCodeModel[] {
+  return models.filter((model) => !runtimeModelDisabled(model, policy));
+}
+
+function assertRuntimeModelEnabled(model: MixCodeModel, policy: DisabledModelRuntimePolicy): void {
+  if (!runtimeModelDisabled(model, policy)) return;
+  throw new Error(
+    `Model is disabled: ${model.provider}/${model.id}. Enable it in /settings then /reload.`,
+  );
+}
+
+function runtimeModelDisabled(model: MixCodeModel, policy: DisabledModelRuntimePolicy): boolean {
+  return (
+    policy.disabledProviders.has(model.provider) ||
+    policy.disabledModels.has(`${model.provider}/${model.id}`)
+  );
+}
+
 export function resolveAgentDirEnv(value: string | undefined): string | undefined {
   if (!value) return undefined;
   if (value === "~") return homedir();
@@ -95,6 +180,10 @@ export function createPiModelRuntimeAuth(modelRuntime: ModelRuntime): PiModelRun
   return {
     getApiKey: async (provider) => registry.getApiKeyForProvider(provider),
     stream: async (model, context, options) => {
+      const policy = disabledModelRuntimePolicies.get(modelRuntime);
+      if (policy) {
+        assertRuntimeModelEnabled(model, policy);
+      }
       const auth = await registry.getApiKeyAndHeaders(model);
       if (!auth.ok) throw new Error(auth.error);
       return streamSimple(model, context, {

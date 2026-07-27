@@ -3,20 +3,26 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { fauxAssistantMessage, fauxProvider, InMemoryCredentialStore } from "@earendil-works/pi-ai";
+import { registerFauxProvider } from "@earendil-works/pi-ai/compat";
+import { ModelRegistry, ModelRuntime } from "@earendil-works/pi-coding-agent";
 import {
   applyDisabledModelFlags,
   assertModelEnabled,
+  configureDisabledModelRuntime,
+  createPiModelRuntimeAuth,
   createInitialState,
   createPicker,
   createTab,
   isModelDisabled,
   loadMixCodeSettings,
   loadRawMixCodeSettings,
+  modelToRef,
   writeRawMixCodeSettings,
   type MixCodeModelRef,
 } from "../src/index.js";
 import { pickerItems } from "../src/core/pickers.js";
-import { applyModelSelection } from "../src/ui/app-actions.js";
+import { applyModelSelection, reloadRuntimeModels } from "../src/ui/app-actions.js";
 import { submitAgentInput } from "../src/ui/agent-tab-actions.js";
 
 const openaiGpt: MixCodeModelRef = {
@@ -31,6 +37,31 @@ const anthropicOpus: MixCodeModelRef = {
   displayName: "anthropic/claude-opus",
   contextWindow: 200_000,
 };
+
+async function createPolicyRuntime(): Promise<ModelRuntime> {
+  const runtime = await ModelRuntime.create({
+    credentials: new InMemoryCredentialStore(),
+    modelsPath: null,
+    allowModelNetwork: false,
+  });
+  const { provider: disabledProvider } = fauxProvider({
+    provider: "disabled-provider",
+    models: [{ id: "disabled-model", name: "Disabled Model" }],
+  });
+  const { provider: enabledProvider } = fauxProvider({
+    provider: "enabled-provider",
+    models: [
+      { id: "enabled-model", name: "Enabled Model" },
+      { id: "disabled-model", name: "Individually Disabled Model" },
+    ],
+  });
+  runtime.registerNativeProvider(disabledProvider);
+  runtime.registerNativeProvider(enabledProvider);
+  await runtime.setRuntimeApiKey("disabled-provider", "test-key");
+  await runtime.setRuntimeApiKey("enabled-provider", "test-key");
+  await runtime.getAvailable();
+  return runtime;
+}
 
 test("isModelDisabled matches provider list and provider/modelId list", () => {
   assert.equal(isModelDisabled("openai", "gpt-4", ["openai"], []), true);
@@ -88,6 +119,208 @@ test("applyDisabledModelFlags stamps disabled without dropping models", () => {
   const onlyProvider = applyDisabledModelFlags([openaiGpt, anthropicOpus], ["openai"], []);
   assert.equal(onlyProvider[0]!.disabled, true);
   assert.equal(onlyProvider[1]!.disabled, undefined);
+});
+
+test("disabled model policy filters extension availability but preserves the full catalog", async () => {
+  const runtime = await createPolicyRuntime();
+  const registry = new ModelRegistry(runtime);
+
+  configureDisabledModelRuntime(
+    runtime,
+    ["disabled-provider"],
+    ["enabled-provider/disabled-model"],
+  );
+
+  assert.deepEqual(
+    registry
+      .getAvailable()
+      .filter(
+        (model) => model.provider === "disabled-provider" || model.provider === "enabled-provider",
+      )
+      .map((model) => `${model.provider}/${model.id}`),
+    ["enabled-provider/enabled-model"],
+  );
+  assert.deepEqual(
+    registry
+      .getAll()
+      .filter(
+        (model) => model.provider === "disabled-provider" || model.provider === "enabled-provider",
+      )
+      .map((model) => `${model.provider}/${model.id}`)
+      .sort(),
+    [
+      "disabled-provider/disabled-model",
+      "enabled-provider/disabled-model",
+      "enabled-provider/enabled-model",
+    ],
+  );
+
+  // Reconfiguration updates the existing wrapper instead of stacking another one.
+  configureDisabledModelRuntime(runtime, [], []);
+  assert.deepEqual(
+    registry
+      .getAvailable()
+      .filter(
+        (model) => model.provider === "disabled-provider" || model.provider === "enabled-provider",
+      )
+      .map((model) => `${model.provider}/${model.id}`)
+      .sort(),
+    [
+      "disabled-provider/disabled-model",
+      "enabled-provider/disabled-model",
+      "enabled-provider/enabled-model",
+    ],
+  );
+});
+
+test("disabled model policy rejects an already resolved model before provider execution", async () => {
+  const runtime = await createPolicyRuntime();
+  const disabled = runtime.getModel("disabled-provider", "disabled-model");
+  const enabled = runtime.getModel("enabled-provider", "enabled-model");
+  assert.ok(disabled);
+  assert.ok(enabled);
+
+  configureDisabledModelRuntime(runtime, ["disabled-provider"], []);
+
+  assert.throws(
+    () => runtime.streamSimple(disabled, { messages: [] }),
+    /Model is disabled: disabled-provider\/disabled-model/,
+  );
+  assert.doesNotThrow(() => runtime.streamSimple(enabled, { messages: [] }));
+});
+
+test("disabled model policy rejects the runtime auth stream path", async () => {
+  const faux = registerFauxProvider({
+    provider: "disabled-runtime-auth",
+    api: "disabled-runtime-auth-api",
+  });
+  try {
+    faux.setResponses([() => fauxAssistantMessage("unexpected")]);
+    const runtime = await ModelRuntime.create({
+      credentials: new InMemoryCredentialStore(),
+      modelsPath: null,
+      allowModelNetwork: false,
+    });
+    runtime.registerProvider("disabled-runtime-auth", {
+      baseUrl: "https://example.invalid/v1",
+      apiKey: "test-key",
+      api: "disabled-runtime-auth-api",
+      models: [
+        {
+          id: "blocked",
+          name: "Blocked",
+          reasoning: false,
+          input: ["text"],
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+          contextWindow: 8_000,
+          maxTokens: 1_024,
+        },
+      ],
+    });
+    const model = runtime.getModel("disabled-runtime-auth", "blocked");
+    assert.ok(model);
+    configureDisabledModelRuntime(runtime, ["disabled-runtime-auth"], []);
+
+    await assert.rejects(
+      () =>
+        createPiModelRuntimeAuth(runtime).stream(model, {
+          systemPrompt: "",
+          messages: [],
+          tools: [],
+        }),
+      /Model is disabled: disabled-runtime-auth\/blocked/,
+    );
+  } finally {
+    faux.unregister();
+  }
+});
+
+test("reloadRuntimeModels updates the shared extension model policy", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-disabled-reload-"));
+  const file = join(dir, "mixcode_settings.json");
+  const runtime = await createPolicyRuntime();
+  const registry = new ModelRegistry(runtime);
+  const configured = runtime
+    .getModels()
+    .filter(
+      (model) => model.provider === "disabled-provider" || model.provider === "enabled-provider",
+    )
+    .map(modelToRef);
+  const state = createInitialState("/repo");
+
+  try {
+    await writeFile(file, JSON.stringify({ disabledProviders: ["disabled-provider"] }), "utf8");
+    assert.deepEqual(
+      await reloadRuntimeModels(
+        state,
+        {
+          reloadModelConfig: async () => configured,
+          getSharedModelRuntime: () => runtime,
+        },
+        { mixcodeFile: file },
+      ),
+      { ok: true },
+    );
+    assert.equal(
+      registry.getAvailable().some((model) => model.provider === "disabled-provider"),
+      false,
+    );
+
+    await writeFile(file, "{}", "utf8");
+    await reloadRuntimeModels(
+      state,
+      {
+        reloadModelConfig: async () => configured,
+        getSharedModelRuntime: () => runtime,
+      },
+      { mixcodeFile: file },
+    );
+    assert.equal(
+      registry.getAvailable().some((model) => model.provider === "disabled-provider"),
+      true,
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("reload applies disabled policy when models.json is invalid", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-disabled-error-"));
+  const file = join(dir, "mixcode_settings.json");
+  const runtime = await createPolicyRuntime();
+  const registry = new ModelRegistry(runtime);
+  const state = createInitialState("/repo");
+  state.availableModels = runtime.getModels().map(modelToRef);
+  runtime.getError = () => "Failed to parse models.json";
+
+  try {
+    await writeFile(
+      file,
+      JSON.stringify({ disabledProviders: ["disabled-provider"] }),
+      "utf8",
+    );
+    assert.deepEqual(
+      await reloadRuntimeModels(
+        state,
+        {
+          reloadModelConfig: async () => [],
+          getSharedModelRuntime: () => runtime,
+        },
+        { mixcodeFile: file },
+      ),
+      { ok: false, error: "Failed to parse models.json" },
+    );
+    assert.equal(
+      registry.getAvailable().some((model) => model.provider === "disabled-provider"),
+      false,
+    );
+    assert.equal(
+      state.availableModels.find((model) => model.provider === "disabled-provider")?.disabled,
+      true,
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });
 
 test("models picker marks disabled items and keeps them listed", () => {
