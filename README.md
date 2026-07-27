@@ -26,9 +26,12 @@ This compiles a self-contained single binary via `bun build --compile`. No Node.
 ## Usage
 
 ```bash
-mixcode-pi                # start in current directory
-mixcode-pi --workdir ~/project  # start in a specific directory
+mixcode-pi                             # start in the current directory
+mixcode-pi --workdir ~/project         # start in a specific directory
+mixcode-pi --builtin-extensions-only   # load only MixCode built-in extensions
 ```
+
+`--builtin-extensions-only` disables only third-party Pi extensions; skills, prompts, themes, and context files continue to load from the existing configuration.
 
 ## Configuration
 

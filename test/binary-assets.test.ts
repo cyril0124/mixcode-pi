@@ -160,13 +160,14 @@ test("ensurePackageExtensions installs under the given agentDir, not global home
       },
     });
 
-    ensurePackageExtensions(runtimeDir, { copy: true, agentDir });
+    const installedExtensionPaths = ensurePackageExtensions(runtimeDir, { copy: true, agentDir });
 
     // Installed under the effective agentDir/extensions ...
     assert.equal(
       await readFile(join(agentDir, "extensions", "probe-extension", "index.ts"), "utf8"),
       "export default () => {};",
     );
+    assert.deepEqual(installedExtensionPaths, [join(agentDir, "extensions", "probe-extension")]);
     // ... and NOT under the default global home root.
     await assert.rejects(
       stat(join(homeDir, ".pi", "agent", "extensions", "probe-extension")),

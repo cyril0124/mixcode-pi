@@ -99,7 +99,11 @@ export async function main(): Promise<void> {
   installConsoleTuiBridge();
   // Install built-in packages under the same effective agent dir Pi's
   // ResourceLoader scans, so discovery and installation share one root.
-  ensurePackageExtensions(packageRoot, { copy: true, agentDir: defaultMixCodeAgentDir() });
+  const agentDir = defaultMixCodeAgentDir();
+  const builtinExtensionPaths = ensurePackageExtensions(packageRoot, {
+    copy: true,
+    agentDir,
+  });
   const {
     state,
     runtime,
@@ -113,6 +117,12 @@ export async function main(): Promise<void> {
     settingsDeps,
   } = await bootstrapMixCode({
     workdir: args.workdir,
+    ...(args.builtinExtensionsOnly
+      ? {
+          additionalExtensionPaths: builtinExtensionPaths,
+          resourceLoaderOptions: { noExtensions: true },
+        }
+      : {}),
   });
   const batchPlan = args.batch
     ? await loadBatchRequests(args.batch, {
@@ -426,6 +436,7 @@ export interface MainArgs {
   batch?: string;
   batchArgs?: string[];
   batchDryRun?: boolean;
+  builtinExtensionsOnly?: boolean;
   json?: boolean;
   statusWorkdir?: string;
 }
@@ -434,10 +445,11 @@ const HELP_TEXT = `Usage: mixcode-pi [options] [-- <script-args...>]
        mixcode-pi status [--json] [--workdir <path>]
 
 Options:
-  --workdir <path>   Set working directory (default: cwd)
-  --batch <file>     Execute a Lua batch script after TUI startup
-  --batch-dry-run    Load/validate batch script and print plan (no TUI, no session writes)
-  --help, -h         Show this help message
+  --workdir <path>           Set working directory (default: cwd)
+  --batch <file>             Execute a Lua batch script after TUI startup
+  --batch-dry-run            Load/validate batch script and print plan (no TUI, no session writes)
+  --builtin-extensions-only  Load MixCode built-in extensions without discovering third-party extensions
+  --help, -h                 Show this help message
 
   Arguments after -- are passed to the batch script as mixcode.args().
 
@@ -452,6 +464,7 @@ export function parseMainArgs(args: string[], fallbackWorkdir: string): MainArgs
   let workdir = baseWorkdir;
   let batchPath: string | undefined;
   let batchDryRun = false;
+  let builtinExtensionsOnly = false;
   let batchArgs: string[] | undefined;
   for (let index = 0; index < args.length; index++) {
     const arg = args[index];
@@ -491,6 +504,10 @@ export function parseMainArgs(args: string[], fallbackWorkdir: string): MainArgs
       batchDryRun = true;
       continue;
     }
+    if (arg === "--builtin-extensions-only") {
+      builtinExtensionsOnly = true;
+      continue;
+    }
     throw new Error(`Unknown argument: ${arg}`);
   }
   if (batchDryRun && !batchPath) {
@@ -502,6 +519,7 @@ export function parseMainArgs(args: string[], fallbackWorkdir: string): MainArgs
     batch: batchPath ? resolve(workdir, batchPath) : undefined,
     batchArgs,
     batchDryRun: batchDryRun || undefined,
+    builtinExtensionsOnly: builtinExtensionsOnly || undefined,
   };
 }
 

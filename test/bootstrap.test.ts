@@ -646,8 +646,50 @@ test("cli main args keep caller workdir explicit", () => {
   assert.equal(parseMainArgs([], "/tmp/caller").workdir, "/tmp/caller");
   assert.equal(parseMainArgs(["--workdir", "repo"], "/tmp/caller").workdir, "/tmp/caller/repo");
   assert.equal(parseMainArgs(["--workdir=/tmp/project"], "/tmp/caller").workdir, "/tmp/project");
+  assert.equal(parseMainArgs([], "/tmp/caller").builtinExtensionsOnly, undefined);
+  assert.equal(
+    parseMainArgs(["--builtin-extensions-only"], "/tmp/caller").builtinExtensionsOnly,
+    true,
+  );
   assert.throws(() => parseMainArgs(["--workdir"], "/tmp/caller"), /requires a path/);
   assert.throws(() => parseMainArgs(["--unknown"], "/tmp/caller"), /Unknown argument/);
+});
+
+test("bootstrap noExtensions loads explicit extensions without executing discovered extensions", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-bootstrap-builtins-only-"));
+  const agentDir = join(dir, "agent");
+  const explicitMarker = join(dir, "explicit-loaded");
+  const discoveredMarker = join(dir, "discovered-loaded");
+  const explicitExtension = join(dir, "explicit-extension.js");
+  try {
+    await mkdir(join(agentDir, "extensions"), { recursive: true });
+    await writeFile(
+      explicitExtension,
+      `import { writeFileSync } from "node:fs";\nwriteFileSync(${JSON.stringify(explicitMarker)}, "yes");\nexport default () => {};\n`,
+      "utf8",
+    );
+    await writeFile(
+      join(agentDir, "extensions", "discovered-extension.js"),
+      `import { writeFileSync } from "node:fs";\nwriteFileSync(${JSON.stringify(discoveredMarker)}, "yes");\nexport default () => {};\n`,
+      "utf8",
+    );
+
+    const boot = await bootstrapMixCode({
+      workdir: dir,
+      stateDir: join(dir, "state"),
+      homeDir: join(dir, "home"),
+      agentDir,
+      modelConfigPath: join(dir, "missing.jsonc"),
+      additionalExtensionPaths: [explicitExtension],
+      resourceLoaderOptions: { noExtensions: true },
+    });
+    await boot.tabsReady;
+
+    assert.equal(await readFile(explicitMarker, "utf8"), "yes");
+    await assert.rejects(stat(discoveredMarker), /ENOENT/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });
 
 test("cli exposes project-local pi binary for extension child processes", () => {

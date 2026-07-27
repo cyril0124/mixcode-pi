@@ -26,9 +26,12 @@
 ## 使用
 
 ```bash
-mixcode-pi                # 在当前目录启动
-mixcode-pi --workdir ~/project  # 指定工作目录
+mixcode-pi                             # 在当前目录启动
+mixcode-pi --workdir ~/project         # 指定工作目录
+mixcode-pi --builtin-extensions-only   # 仅加载 MixCode 内置扩展
 ```
+
+`--builtin-extensions-only` 只关闭第三方 Pi extensions；skills、prompts、themes 和上下文文件仍按现有配置加载。
 
 ## 配置
 

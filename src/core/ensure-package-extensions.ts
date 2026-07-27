@@ -31,14 +31,15 @@ import { join, resolve } from "node:path";
 export function ensurePackageExtensions(
   repoRoot: string,
   options?: { copy?: boolean; agentDir?: string },
-): void {
+): string[] {
   const packageDirs = [join(repoRoot, "pi-packages"), join(repoRoot, "packages")].filter(
     existsSync,
   );
-  if (packageDirs.length === 0) return;
+  if (packageDirs.length === 0) return [];
 
   const agentDir = options?.agentDir ?? join(homedir(), ".pi", "agent");
   const extensionsDir = join(agentDir, "extensions");
+  const installedExtensionPaths = new Set<string>();
   mkdirSync(extensionsDir, { recursive: true });
   const shouldCopy = options?.copy ?? false;
 
@@ -84,7 +85,10 @@ export function ensurePackageExtensions(
         // Symlink mode: skip if already a symlink pointing to the correct target
         try {
           const stat = lstatSync(destDir);
-          if (stat.isSymbolicLink() && resolve(readlinkSync(destDir)) === target) continue;
+          if (stat.isSymbolicLink() && resolve(readlinkSync(destDir)) === target) {
+            installedExtensionPaths.add(destDir);
+            continue;
+          }
           // Exists but wrong target or not a symlink — remove and recreate
           unlinkSync(destDir);
         } catch {
@@ -92,8 +96,10 @@ export function ensurePackageExtensions(
         }
         symlinkSync(target, destDir);
       }
+      installedExtensionPaths.add(destDir);
     }
   }
+  return [...installedExtensionPaths].sort();
 }
 
 /** Recursively copy a directory tree (files + nested subdirectories). */
