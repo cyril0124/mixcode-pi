@@ -5,7 +5,13 @@ import {
   extensionManagerEntriesFromResult,
   syncExtensionManagerEntrySources,
 } from "../src/core/extension-manager.js";
+import { createInitialState } from "../src/core/defaults.js";
 import { formatExtensionSummaries } from "../src/agent/runtime-startup-header.js";
+import { renderExtensionManager } from "../src/ui/extension-manager.js";
+
+function stripAnsi(text: string): string {
+  return text.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "");
+}
 
 // Build a minimal Extension-like object with just the fields the entry mapper
 // reads. The tools/commands Maps only need keys; values are irrelevant here.
@@ -133,4 +139,44 @@ test("syncExtensionManagerEntrySources restores package labels without rewriting
   assert.equal(entries[0]!.origin, "package");
   assert.equal(entries[0]!.baseDir, "/home/user/npm/node_modules/@scope/pkg");
   assert.deepEqual(formatExtensionSummaries(entries).compact, ["@scope/pkg:src"]);
+});
+
+test("extension manager names local extensions from their entry path", () => {
+  const state = createInitialState("/repo");
+  state.extensionManager.open = true;
+  state.extensionManager.selectedIndex = 1;
+  state.extensionManager.entries = [
+    {
+      key: "user:auto:top-level:/home/user/.pi/agent/extensions/mpi-loop/index.ts",
+      enabled: true,
+      path: "/home/user/.pi/agent/extensions/mpi-loop/index.ts",
+      resolvedPath: "/home/user/.pi/agent/extensions/mpi-loop/index.ts",
+      source: "auto",
+      scope: "user",
+      origin: "top-level",
+      baseDir: "/home/user/.pi/agent",
+      toolCount: 0,
+      commandCount: 1,
+      toolNames: [],
+      commandNames: ["loop"],
+    },
+    {
+      key: "user:npm:@scope/pkg:package:/home/user/node_modules/@scope/pkg/extensions/feature/index.ts",
+      enabled: true,
+      path: "/home/user/node_modules/@scope/pkg/extensions/feature/index.ts",
+      resolvedPath: "/home/user/node_modules/@scope/pkg/extensions/feature/index.ts",
+      source: "npm:@scope/pkg",
+      scope: "user",
+      origin: "package",
+      baseDir: "/home/user/node_modules/@scope/pkg",
+      toolCount: 0,
+      commandCount: 0,
+      toolNames: [],
+      commandNames: [],
+    },
+  ];
+
+  const rendered = stripAnsi(renderExtensionManager(state, 100).join("\n"));
+  assert.match(rendered, /● mpi-loop/);
+  assert.match(rendered, /● pkg/);
 });

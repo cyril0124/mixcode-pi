@@ -296,12 +296,12 @@ function meaningfulSegment(segments: string[]): string | undefined {
   return segments[segments.length - 1];
 }
 
-// Derive a human-friendly extension name: prefer the package directory name
-// (baseDir), otherwise infer it from the file path (dropping an index.* file).
-// Generic container dirs like src/dist are skipped in favor of the real package.
+// Derive a human-friendly extension name: package sources use their package
+// directory (baseDir); other sources use the entry path. Generic container
+// dirs like src/dist are skipped in favor of the real extension directory.
 function friendlyExtensionName(entry: ExtensionManagerEntryInfo): string {
   const base = entry.baseDir?.trim();
-  if (base) {
+  if (base && (entry.source.startsWith("npm:") || entry.source.startsWith("git:"))) {
     const segment = meaningfulSegment(base.split(/[/\\]/).filter(Boolean));
     if (segment) return segment;
   }
