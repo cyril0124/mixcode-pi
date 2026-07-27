@@ -102,6 +102,25 @@ test("Pi tree search keeps tool names without leaking search metadata into copy"
   assert.equal(state.treeSelector.copyRequest, "tool output");
 });
 
+test("tree selector initializes a deeply nested session", () => {
+  const depth = 20_000;
+  const root = messageNode("node-0", null, "user", "root");
+  let leaf = root;
+  for (let index = 1; index < depth; index++) {
+    const child = messageNode(`node-${index}`, leaf.entry.id, "user", `message ${index}`);
+    leaf.children.push(child);
+    leaf = child;
+  }
+
+  const state = createInitialState("/repo");
+  initTreeSelector(state.treeSelector, [root], leaf.entry.id);
+
+  assert.equal(
+    state.treeSelector.component?.getTreeList().getSelectedNode()?.entry.id,
+    leaf.entry.id,
+  );
+});
+
 test("tree selector renders pi-agent style full-width bordered surface", () => {
   const previousRows = process.stdout.rows;
   process.stdout.rows = 24;

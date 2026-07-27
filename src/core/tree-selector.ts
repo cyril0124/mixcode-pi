@@ -173,8 +173,11 @@ function addToolSearchMetadata(tree: SessionTreeNode[]): SessionTreeNode[] {
     }
   }
 
-  const cloneNode = (node: SessionTreeNode): SessionTreeNode => {
-    let entry = node.entry;
+  const clonedRoots = tree.map((node) => ({ ...node, children: [] }) as SessionTreeNode);
+  const cloneStack = tree.map((source, index) => ({ source, target: clonedRoots[index]! }));
+  while (cloneStack.length > 0) {
+    const { source, target } = cloneStack.pop()!;
+    let entry = source.entry;
     if (entry.type === "message" && entry.message.role === "toolResult") {
       const message = entry.message;
       const toolName = message.toolName ?? toolNames.get(message.toolCallId);
@@ -191,9 +194,16 @@ function addToolSearchMetadata(tree: SessionTreeNode[]): SessionTreeNode[] {
         };
       }
     }
-    return { ...node, entry, children: node.children.map(cloneNode) };
-  };
-  return tree.map(cloneNode);
+
+    target.entry = entry;
+    target.children = source.children.map(
+      (child) => ({ ...child, children: [] }) as SessionTreeNode,
+    );
+    for (let index = 0; index < source.children.length; index++) {
+      cloneStack.push({ source: source.children[index]!, target: target.children[index]! });
+    }
+  }
+  return clonedRoots;
 }
 
 export const NEWEST_TREE_ENTRY_ID = "__mixcode_tree_newest__";
