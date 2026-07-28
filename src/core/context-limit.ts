@@ -100,6 +100,47 @@ export function applyContextLimit(
   }
 }
 
+/**
+ * Live AgentSession model used by Pi SDK and extensions.
+ * They read `model.contextWindow` / `getContextUsage().contextWindow`, not MixCode's
+ * tab.contextLimit. Keep the two aligned for the active session only.
+ */
+export type SessionContextWindowModel = { contextWindow: number };
+
+/**
+ * Push tab.contextLimit into the live session model so Pi-native compaction and
+ * extensions that resolve the window from ctx.model see the /context-limit value.
+ * Session-ephemeral: does not rewrite models.json; model switch replaces the object.
+ */
+export function syncContextLimitToSessionModel(
+  tab: MixCodeTabInfo,
+  model: SessionContextWindowModel | undefined | null,
+): void {
+  if (!model) return;
+  // Canonical capacity stays on tab.model.contextWindow (MixCodeModelRef).
+  model.contextWindow = tab.contextLimitOverridden ? tab.contextLimit : tab.model.contextWindow;
+}
+
+/**
+ * Full /context-limit apply: UI tab + live model window + SDK compaction budgets.
+ */
+export function applyContextLimitToSession(
+  tab: MixCodeTabInfo,
+  value: number | "reset",
+  session: {
+    model?: SessionContextWindowModel | null;
+    settingsManager: CompactionOverrideTarget;
+  },
+): void {
+  applyContextLimit(tab, value);
+  syncContextLimitToSessionModel(tab, session.model);
+  adjustCompactionSettingsForLimit(
+    session.settingsManager,
+    tab.contextLimit,
+    tab.contextLimitOverridden ?? false,
+  );
+}
+
 type CompactionBudget = { reserveTokens?: number; keepRecentTokens?: number };
 
 interface CompactionOverrideTarget {

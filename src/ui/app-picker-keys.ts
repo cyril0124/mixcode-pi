@@ -1,5 +1,9 @@
 import { matchesKey } from "@earendil-works/pi-tui";
-import { applyContextLimit, parseContextLimitValue, adjustCompactionSettingsForLimit } from "../core/context-limit.js";
+import {
+  applyContextLimit,
+  applyContextLimitToSession,
+  parseContextLimitValue,
+} from "../core/context-limit.js";
 import { findModelRef } from "../core/models.js";
 import {
   acceptPickerSelection,
@@ -85,14 +89,14 @@ export function handlePickerKey(
       }
       const active = getActiveTab(state);
       if (active) {
-        applyContextLimit(active, value);
         const runtimeTab = runtime?.getTab?.(active.sessionId);
         if (runtimeTab) {
-          adjustCompactionSettingsForLimit(
-            runtimeTab.agentSession.settingsManager,
-            active.contextLimit,
-            active.contextLimitOverridden ?? false,
-          );
+          applyContextLimitToSession(active, value, {
+            model: runtimeTab.agentSession.model,
+            settingsManager: runtimeTab.agentSession.settingsManager,
+          });
+        } else {
+          applyContextLimit(active, value);
         }
       }
       state.picker = undefined;
@@ -202,14 +206,14 @@ function applyPickerSelection(
     // "reset" item or a numeric preset
     const value = selectedId === "reset" ? "reset" as const : parseInt(selectedId, 10);
     if (value === "reset" || (typeof value === "number" && value > 0)) {
-      applyContextLimit(active, value);
       const runtimeTab = runtime?.getTab?.(active.sessionId);
       if (runtimeTab) {
-        adjustCompactionSettingsForLimit(
-          runtimeTab.agentSession.settingsManager,
-          active.contextLimit,
-          active.contextLimitOverridden ?? false,
-        );
+        applyContextLimitToSession(active, value, {
+          model: runtimeTab.agentSession.model,
+          settingsManager: runtimeTab.agentSession.settingsManager,
+        });
+      } else {
+        applyContextLimit(active, value);
       }
     }
   } else if (state.picker.kind === "workdir" && active) {

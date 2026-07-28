@@ -716,7 +716,13 @@ export class MixCodeRuntime {
         : runtimeTab.tab.status === "done"
           ? "done"
           : "idle";
-    runtimeTab.tab.model = modelToRef(agentState.model);
+    const nextModel = modelToRef(agentState.model);
+    // /context-limit mutates the live session model.contextWindow for Pi/extensions.
+    // Keep MixCodeModelRef.contextWindow as the canonical capacity for reset/picker.
+    if (runtimeTab.tab.contextLimitOverridden) {
+      nextModel.contextWindow = runtimeTab.tab.model.contextWindow;
+    }
+    runtimeTab.tab.model = nextModel;
     // Only sync contextLimit from model if the user hasn't overridden it
     if (!runtimeTab.tab.contextLimitOverridden) {
       runtimeTab.tab.contextLimit = agentState.model.contextWindow;
@@ -1361,11 +1367,12 @@ export class MixCodeRuntime {
       throw new Error("Cannot change model while the agent is streaming");
     }
     try {
+      const sessionModel = { ...model };
       // Use agentSession.setModel() to trigger model_select event and persist to session
-      await runtimeTab.agentSession.setModel(model);
+      await runtimeTab.agentSession.setModel(sessionModel);
       // Sync local state after SDK updates its own state
-      runtimeTab.agent.state.model = model;
-      applyRuntimeTabModel(runtimeTab, model);
+      runtimeTab.agent.state.model = sessionModel;
+      applyRuntimeTabModel(runtimeTab, sessionModel);
       // Sync thinking level after Pi clamps it to new model's capability
       runtimeTab.tab.thinkingLevel = runtimeTab.agentSession.thinkingLevel;
     } finally {

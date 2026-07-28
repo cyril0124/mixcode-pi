@@ -1,12 +1,21 @@
-import { describe, it } from "node:test";
+import "./helpers/isolated-agent-dir.js";
+import { describe, it, test } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   parseContextLimitValue,
   contextLimitPickerItems,
   applyContextLimit,
+  applyContextLimitToSession,
   adjustCompactionSettingsForLimit,
+  syncContextLimitToSessionModel,
 } from "../src/core/context-limit.js";
 import type { MixCodeTabInfo } from "../src/core/types.js";
+import { createTab } from "../src/core/defaults.js";
+import { MIXCODE_FAUX_MODEL } from "../src/agent/faux-stream.js";
+import { MixCodeRuntime } from "../src/agent/runtime.js";
 
 function createMockTab(overrides: Partial<MixCodeTabInfo> = {}): MixCodeTabInfo {
   return {
@@ -160,4 +169,119 @@ describe("applyContextLimit", () => {
     assert.equal(tab.toast?.type, "success");
     assert.ok(!tab.toast?.message.includes("exceeds"));
   });
+});
+
+describe("syncContextLimitToSessionModel / applyContextLimitToSession", () => {
+  it("writes the UI limit into the live session model.contextWindow", () => {
+    const tab = createMockTab();
+    const sessionModel = { contextWindow: 131_072 };
+    applyContextLimit(tab, 32_000);
+    syncContextLimitToSessionModel(tab, sessionModel);
+    assert.equal(sessionModel.contextWindow, 32_000);
+  });
+
+  it("restores the canonical model window on reset", () => {
+    const tab = createMockTab({ contextLimit: 32_000, contextLimitOverridden: true });
+    const sessionModel = { contextWindow: 32_000 };
+    applyContextLimit(tab, "reset");
+    syncContextLimitToSessionModel(tab, sessionModel);
+    assert.equal(sessionModel.contextWindow, 131_072);
+  });
+
+  it("applies limit + session model + compaction budgets together", () => {
+    const tab = createMockTab();
+    const sessionModel = { contextWindow: 131_072 };
+    const overrides: Array<{ compaction?: { reserveTokens?: number; keepRecentTokens?: number } }> =
+      [];
+    applyContextLimitToSession(tab, 8_000, {
+      model: sessionModel,
+      settingsManager: { applyOverrides: (override) => overrides.push(override) },
+    });
+    assert.equal(tab.contextLimit, 8_000);
+    assert.equal(tab.contextLimitOverridden, true);
+    assert.equal(sessionModel.contextWindow, 8_000);
+    assert.deepEqual(overrides, [{ compaction: { reserveTokens: 800, keepRecentTokens: 2000 } }]);
+  });
+});
+
+test("session context limits do not mutate another session's model", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-context-limit-model-isolation-"));
+  try {
+    const sharedModel = {
+      ...MIXCODE_FAUX_MODEL,
+      provider: "context-limit-shared",
+      api: "context-limit-shared",
+      id: "context-limit-shared",
+      contextWindow: 128_000,
+    };
+    const runtime = new MixCodeRuntime({ sessionsRoot: dir, agentDir: dir });
+    const first = await runtime.createTab(createTab(1, "first", process.cwd()), {
+      systemPrompt: "system",
+      thinkingLevel: "off",
+      workdir: process.cwd(),
+      model: sharedModel,
+    });
+    const second = await runtime.createTab(createTab(2, "second", process.cwd()), {
+      systemPrompt: "system",
+      thinkingLevel: "off",
+      workdir: process.cwd(),
+      model: sharedModel,
+    });
+
+    applyContextLimitToSession(first.tab, 32_000, {
+      model: first.agentSession.model,
+      settingsManager: first.agentSession.settingsManager,
+    });
+
+    assert.equal(first.agentSession.model?.contextWindow, 32_000);
+    assert.equal(second.agentSession.model?.contextWindow, 128_000);
+    assert.equal(second.tab.contextLimit, 128_000);
+    assert.equal(sharedModel.contextWindow, 128_000);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("refreshTabStatus keeps canonical capacity so context-limit reset works", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-context-limit-refresh-reset-"));
+  try {
+    const model = {
+      ...MIXCODE_FAUX_MODEL,
+      provider: "context-limit-refresh",
+      api: "context-limit-refresh",
+      id: "context-limit-refresh",
+      contextWindow: 128_000,
+    };
+    const runtime = new MixCodeRuntime({ sessionsRoot: dir, agentDir: dir });
+    const runtimeTab = await runtime.createTab(createTab(1, "s1", process.cwd()), {
+      systemPrompt: "system",
+      thinkingLevel: "off",
+      workdir: process.cwd(),
+      model,
+    });
+
+    applyContextLimitToSession(runtimeTab.tab, 32_000, {
+      model: runtimeTab.agentSession.model,
+      settingsManager: runtimeTab.agentSession.settingsManager,
+    });
+    assert.equal(runtimeTab.tab.model.contextWindow, 128_000);
+    assert.equal(runtimeTab.agentSession.model?.contextWindow, 32_000);
+
+    runtime.refreshTabStatus("s1");
+    assert.equal(runtimeTab.tab.contextLimitOverridden, true);
+    assert.equal(runtimeTab.tab.contextLimit, 32_000);
+    assert.equal(runtimeTab.tab.model.contextWindow, 128_000);
+    assert.equal(runtimeTab.agentSession.model?.contextWindow, 32_000);
+
+    applyContextLimitToSession(runtimeTab.tab, "reset", {
+      model: runtimeTab.agentSession.model,
+      settingsManager: runtimeTab.agentSession.settingsManager,
+    });
+    assert.equal(runtimeTab.tab.contextLimitOverridden, false);
+    assert.equal(runtimeTab.tab.contextLimit, 128_000);
+    assert.equal(runtimeTab.tab.model.contextWindow, 128_000);
+    assert.equal(runtimeTab.agentSession.model?.contextWindow, 128_000);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });

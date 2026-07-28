@@ -1,7 +1,11 @@
 import { isBashAlreadyRunningError, type MixCodeRuntime } from "../agent/runtime.js";
 import { entriesToChatLines, inspectSessionImport } from "../agent/runtime-chat.js";
 import { MIXCODE_EXTENSION_KEYBINDINGS } from "../agent/runtime-extension-theme.js";
-import { applyContextLimit, parseContextLimitValue, adjustCompactionSettingsForLimit } from "../core/context-limit.js";
+import {
+  applyContextLimit,
+  applyContextLimitToSession,
+  parseContextLimitValue,
+} from "../core/context-limit.js";
 import { parseInput } from "../core/commands.js";
 import { createSessionId, createTab } from "../core/defaults.js";
 import { stringifyJson } from "../core/json.js";
@@ -499,15 +503,16 @@ export async function handleSubmittedInput(
         message: `Invalid context limit: "${parsed.args}". Use a number (e.g. 32k, 40000) or "reset".`,
       });
     } else {
-      applyContextLimit(active!, value);
-      // Adjust SDK compaction settings to match the new limit
+      // Drive UI + live model.contextWindow + SDK compaction budgets so Pi and
+      // extensions see the same window as the footer limit.
       const runtimeTab = runtime.getTab(active!.sessionId);
       if (runtimeTab) {
-        adjustCompactionSettingsForLimit(
-          runtimeTab.agentSession.settingsManager,
-          active!.contextLimit,
-          active!.contextLimitOverridden ?? false,
-        );
+        applyContextLimitToSession(active!, value, {
+          model: runtimeTab.agentSession.model,
+          settingsManager: runtimeTab.agentSession.settingsManager,
+        });
+      } else {
+        applyContextLimit(active!, value);
       }
     }
   } else if (parsed.command === "help" || parsed.command === "hotkeys") {

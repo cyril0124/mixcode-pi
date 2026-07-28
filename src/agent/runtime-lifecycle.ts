@@ -178,7 +178,7 @@ async function createRuntimeTabWithServices(
   const { session: agentSession, extensionsResult } = await createAgentSessionFromServices({
     services,
     sessionManager: session,
-    model,
+    model: { ...model },
     thinkingLevel: config.thinkingLevel,
   });
   const extensionToolOwnerPolicy = resolveExtensionToolOwnerPolicy(context);
@@ -339,7 +339,7 @@ async function createAgentSessionForReplacementWithServices(
   const result = await createAgentSessionFromServices({
     services,
     sessionManager,
-    model,
+    model: { ...model },
     thinkingLevel: config.thinkingLevel,
     sessionStartEvent: config.sessionStartEvent,
   });

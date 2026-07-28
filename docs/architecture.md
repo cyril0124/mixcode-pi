@@ -260,6 +260,8 @@ src/core/commands.ts
 
 `/context-limit <tokens|reset>` 会设置当前 tab 的上下文窗口限制；自定义限制会同步调整 SDK compaction 的 `reserveTokens` 与 `keepRecentTokens`，`reset` 会恢复该 tab 启动时捕获的用户基线 compaction 配置（仅在未捕获基线时回落到 SDK 默认）。每个 tab 拥有独立的 `SettingsManager`，因此 `/context-limit` 覆盖不会在独立 tab 之间泄漏；同源 fork/reuse 的 tab 仍共享同一 manager。
 
+`/context-limit` 还会把当前 tab 的有效窗口写入该 session 的 live `model.contextWindow`，让 Pi 原生 compaction 与读取 `ctx.model` / `getContextUsage().contextWindow` 的 extension 看到同一值；这是 session 内临时覆盖，不回写 `models.json`。`tab.model.contextWindow` 仍保留模型 canonical capacity，供 reset / picker 使用。创建 session 与切模型时会对 model 做浅拷贝，避免一个 tab 的 limit 改到另一个共享同一 model 对象的 session。
+
 `/import <jsonl-path> [cwdOverride]` 复用 Pi session JSONL 导入语义：
 
 ```text
