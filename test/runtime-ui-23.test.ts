@@ -371,6 +371,113 @@ test("runtime pop prefers follow-up over steer (Ctrl+U edit order)", async () =>
   }
 });
 
+test("runtime consecutive pops remove every returned steering message", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-queue-pop-consecutive-"));
+  const { runtime, release, model } = createBlockedQueueRuntime(dir);
+  let prompt: Promise<void> | undefined;
+  try {
+    const tab = createTab(1, "s1", process.cwd());
+    const runtimeTab = await runtime.createTab(tab, {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+      model,
+    });
+    ({ prompt } = await startBlockedQueuePrompt(runtime, "s1"));
+    await runtime.prompt("s1", "first queued");
+    await runtime.prompt("s1", "second queued");
+    await runtime.prompt("s1", "third queued");
+
+    assert.deepEqual(
+      [runtime.popPendingMessage("s1"), runtime.popPendingMessage("s1")],
+      ["third queued", "second queued"],
+    );
+    await new Promise<void>((resolve) => setImmediate(resolve));
+
+    assert.deepEqual(tab.pendingMessages, ["first queued"]);
+    assert.equal(runtimeTab.queuedPromptCount, 1);
+    assert.deepEqual([...runtimeTab.agentSession.getSteeringMessages()], ["first queued"]);
+    runtimeTab.deferPendingMessageFlush = true;
+  } finally {
+    release();
+    await prompt?.catch(() => undefined);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("runtime pop tolerates agent queue already drained for a tracked steer", async () => {
+  // Pi drains agent.steeringQueue before message_start clears _steeringMessages.
+  // Pop during that window must not throw or re-surface the delivered text.
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-queue-pop-drained-"));
+  const { runtime, release, model } = createBlockedQueueRuntime(dir);
+  let prompt: Promise<void> | undefined;
+  try {
+    const tab = createTab(1, "s1", process.cwd());
+    const runtimeTab = await runtime.createTab(tab, {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+      model,
+    });
+    ({ prompt } = await startBlockedQueuePrompt(runtime, "s1"));
+    await runtime.prompt("s1", "already drained");
+
+    const session = runtimeTab.agentSession as unknown as {
+      _steeringMessages: string[];
+      agent: { steeringQueue: { messages: unknown[] } };
+    };
+    assert.deepEqual(session._steeringMessages, ["already drained"]);
+    assert.equal(session.agent.steeringQueue.messages.length, 1);
+    session.agent.steeringQueue.messages.splice(0); // simulate drain before message_start
+
+    assert.equal(runtime.popPendingMessage("s1"), "already drained");
+    assert.deepEqual(tab.pendingMessages, []);
+    assert.deepEqual(session._steeringMessages, []);
+    assert.deepEqual(session.agent.steeringQueue.messages, []);
+    runtimeTab.deferPendingMessageFlush = true;
+  } finally {
+    release();
+    await prompt?.catch(() => undefined);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("runtime pop preserves an unrelated custom follow-up", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-queue-pop-custom-follow-up-"));
+  const { runtime, release, model } = createBlockedQueueRuntime(dir);
+  let prompt: Promise<void> | undefined;
+  try {
+    const tab = createTab(1, "s1", process.cwd());
+    const runtimeTab = await runtime.createTab(tab, {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+      model,
+    });
+    ({ prompt } = await startBlockedQueuePrompt(runtime, "s1"));
+    await runtime.prompt("s1", "edit me");
+    await runtimeTab.agentSession.sendCustomMessage(
+      {
+        customType: "queue-test",
+        content: [{ type: "text", text: "must survive" }],
+        display: true,
+        details: {},
+      },
+      { deliverAs: "followUp" },
+    );
+
+    assert.equal(runtimeTab.agent.hasQueuedMessages(), true);
+    assert.equal(runtime.popPendingMessage("s1"), "edit me");
+    assert.deepEqual([...runtimeTab.agentSession.getSteeringMessages()], []);
+    assert.equal(runtimeTab.agent.hasQueuedMessages(), true);
+    runtimeTab.deferPendingMessageFlush = true;
+  } finally {
+    release();
+    await prompt?.catch(() => undefined);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("runtime waits for idle before flushing queued prompts", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-queue-wait-idle-"));
   const { runtime, release, model } = createBlockedQueueRuntime(dir);

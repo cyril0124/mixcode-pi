@@ -1,3 +1,4 @@
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import { drainPendingMessages } from "./runtime-chat.js";
 import { syncQueueState } from "./runtime-events.js";
@@ -48,12 +49,13 @@ export async function flushRuntimePendingMessage(
   // first lets the aborting loop drain these into the dying turn (queue_update([])
   // zeroes pendingMessages), so the flush finds nothing and the agent just stops.
   syncPendingMessagesFromSteering(runtimeTab);
-  const steeringBeforeFlush = [...getMutableSteeringMessages(runtimeTab.agentSession)];
   const queued = drainPendingMessages(runtimeTab.tab.pendingMessages, count);
   runtimeTab.queuedPromptCount = Math.max(0, runtimeTab.queuedPromptCount - queued.items.length);
-  // Remove only MixCode-managed steering messages; Pi follow-up messages must survive.
-  removeSteeringMessages(runtimeTab.agentSession, queued.items);
+  // Remove before awaiting idle so the aborting run cannot consume these messages.
+  // Keep dequeue inside try: if internals throw, re-queue UI pending instead of dropping text.
+  let removedSteering: RemovedQueuedMessage[] = [];
   try {
+    removedSteering = removeQueuedMessages(runtimeTab, "steering", queued.items);
     if (runtimeTab.agentSession.isStreaming) {
       await runtimeTab.agentSession.waitForIdle();
     }
@@ -65,7 +67,7 @@ export async function flushRuntimePendingMessage(
   } catch (error) {
     runtimeTab.tab.pendingMessages.splice(queued.start, 0, ...queued.items);
     runtimeTab.queuedPromptCount += queued.items.length;
-    rebuildSteeringQueue(runtimeTab.agentSession, steeringBeforeFlush);
+    restoreSteeringMessages(runtimeTab, removedSteering);
     throw error;
   }
 }
@@ -108,8 +110,8 @@ export function popRuntimePendingMessage(runtimeTab: RuntimeTab): string | undef
     const wasRuntimeQueued = runtimeTab.queuedFollowUpCount > 0;
     const message = runtimeTab.tab.pendingFollowUps.pop();
     if (message !== undefined && wasRuntimeQueued) {
-      removeFollowUpMessages(runtimeTab.agentSession, [message]);
       runtimeTab.queuedFollowUpCount = Math.max(0, runtimeTab.queuedFollowUpCount - 1);
+      removeQueuedMessages(runtimeTab, "followUp", [message]);
     }
     return message;
   }
@@ -117,81 +119,95 @@ export function popRuntimePendingMessage(runtimeTab: RuntimeTab): string | undef
   const wasRuntimeQueued = runtimeTab.queuedPromptCount > 0;
   const message = runtimeTab.tab.pendingMessages.pop();
   if (message !== undefined && wasRuntimeQueued) {
-    removeSteeringMessages(runtimeTab.agentSession, [message]);
     runtimeTab.queuedPromptCount = Math.max(0, runtimeTab.queuedPromptCount - 1);
+    removeQueuedMessages(runtimeTab, "steering", [message]);
   }
   return message;
 }
 
+type QueueKind = "steering" | "followUp";
+
 type QueueInternals = {
   _steeringMessages?: string[];
   _followUpMessages?: string[];
+  _emitQueueUpdate?: () => void;
+  agent?: {
+    steeringQueue?: { messages?: AgentMessage[] };
+    followUpQueue?: { messages?: AgentMessage[] };
+  };
 };
 
-function getMutableSteeringMessages(agentSession: AgentSession): string[] {
-  const state = agentSession as unknown as QueueInternals;
-  if (!Array.isArray(state._steeringMessages)) {
-    throw new Error(
-      "Pi AgentSession steering queue internals changed; MixCode queue flush cannot safely remove sent messages.",
-    );
+type RemovedQueuedMessage = { message: AgentMessage; text: string };
+
+/**
+ * Pi 0.82.1 has no public targeted dequeue API. Mutate both of its queue layers
+ * synchronously so unrelated full messages (custom payloads and images) survive.
+ */
+function removeQueuedMessages(
+  runtimeTab: RuntimeTab,
+  kind: QueueKind,
+  messages: readonly string[],
+): RemovedQueuedMessage[] {
+  if (messages.length === 0) return [];
+  const session = runtimeTab.agentSession as unknown as QueueInternals;
+  const tracked = kind === "steering" ? session._steeringMessages : session._followUpMessages;
+  const pendingQueue = kind === "steering" ? session.agent?.steeringQueue : session.agent?.followUpQueue;
+  const pending = pendingQueue?.messages;
+  if (!Array.isArray(tracked) || !Array.isArray(pending) || !session._emitQueueUpdate) {
+    throw new Error(`Pi ${kind} queue internals changed; cannot dequeue safely.`);
   }
-  return state._steeringMessages;
+
+  const nextTracked = [...tracked];
+  const nextPending = [...pending];
+  const removed: Array<RemovedQueuedMessage & { index: number }> = [];
+  for (let requestedIndex = messages.length - 1; requestedIndex >= 0; requestedIndex -= 1) {
+    const text = messages[requestedIndex]!;
+    const trackedIndex = nextTracked.lastIndexOf(text);
+    if (trackedIndex === -1) continue;
+    nextTracked.splice(trackedIndex, 1);
+    const pendingIndex = findQueuedUserMessageFromEnd(nextPending, text);
+    // Agent may already have drained this message (drain → turn_start → message_start).
+    // Text tracker still holds it until message_start; treat as delivered, not a hard error.
+    if (pendingIndex === -1) continue;
+    removed.push({ index: pendingIndex, message: nextPending.splice(pendingIndex, 1)[0]!, text });
+  }
+
+  tracked.splice(0, tracked.length, ...nextTracked);
+  pending.splice(0, pending.length, ...nextPending);
+  session._emitQueueUpdate();
+  return removed.sort((left, right) => left.index - right.index);
 }
 
-function getMutableFollowUpMessages(agentSession: AgentSession): string[] {
-  const state = agentSession as unknown as QueueInternals;
-  if (!Array.isArray(state._followUpMessages)) {
-    throw new Error(
-      "Pi AgentSession follow-up queue internals changed; MixCode queue edit cannot safely remove sent messages.",
-    );
+function findQueuedUserMessageFromEnd(messages: readonly AgentMessage[], text: string): number {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]!;
+    if (message.role === "user" && queuedUserText(message) === text) return index;
   }
-  return state._followUpMessages;
+  return -1;
 }
 
-function removeSteeringMessages(agentSession: AgentSession, messages: readonly string[]): void {
-  if (messages.length === 0) return;
-  const remaining = [...getMutableSteeringMessages(agentSession)];
-  for (const message of messages) {
-    const index = remaining.indexOf(message);
-    if (index !== -1) remaining.splice(index, 1);
-  }
-  rebuildSteeringQueue(agentSession, remaining);
+function queuedUserText(message: Extract<AgentMessage, { role: "user" }>): string {
+  if (typeof message.content === "string") return message.content;
+  return message.content
+    .filter((block) => block.type === "text")
+    .map((block) => block.text)
+    .join("\n");
 }
 
-function removeFollowUpMessages(agentSession: AgentSession, messages: readonly string[]): void {
-  if (messages.length === 0) return;
-  const remaining = [...getMutableFollowUpMessages(agentSession)];
-  for (const message of messages) {
-    const index = remaining.indexOf(message);
-    if (index !== -1) remaining.splice(index, 1);
+function restoreSteeringMessages(
+  runtimeTab: RuntimeTab,
+  removed: readonly RemovedQueuedMessage[],
+): void {
+  if (removed.length === 0) return;
+  const session = runtimeTab.agentSession as unknown as QueueInternals;
+  const tracked = session._steeringMessages;
+  const pending = session.agent?.steeringQueue?.messages;
+  if (!Array.isArray(tracked) || !Array.isArray(pending) || !session._emitQueueUpdate) {
+    throw new Error("Pi steering queue internals changed; cannot restore dequeued messages safely.");
   }
-  rebuildFollowUpQueue(agentSession, remaining);
-}
-
-function rebuildSteeringQueue(agentSession: AgentSession, steering: readonly string[]): void {
-  const messages = getMutableSteeringMessages(agentSession);
-  messages.splice(0, messages.length, ...steering);
-  agentSession.agent.clearSteeringQueue();
-  for (const text of steering) {
-    agentSession.agent.steer({
-      role: "user",
-      content: [{ type: "text", text }],
-      timestamp: Date.now(),
-    });
-  }
-}
-
-function rebuildFollowUpQueue(agentSession: AgentSession, followUp: readonly string[]): void {
-  const messages = getMutableFollowUpMessages(agentSession);
-  messages.splice(0, messages.length, ...followUp);
-  agentSession.agent.clearFollowUpQueue();
-  for (const text of followUp) {
-    agentSession.agent.followUp({
-      role: "user",
-      content: [{ type: "text", text }],
-      timestamp: Date.now(),
-    });
-  }
+  tracked.push(...removed.map((item) => item.text));
+  pending.push(...removed.map((item) => item.message));
+  session._emitQueueUpdate();
 }
 
 function syncPendingMessagesFromSteering(runtimeTab: RuntimeTab): void {
