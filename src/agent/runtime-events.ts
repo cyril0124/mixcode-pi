@@ -109,7 +109,7 @@ async function autoCompactAndContinue(runtimeTab: RuntimeTab): Promise<void> {
           if (isNothingToCompactError(message)) {
             appendSystemMessage(runtimeTab, "Nothing to compact (session too small).");
           }
-          await continueAgentSession(runtimeTab.agentSession);
+          await continueAfterCompactionIfPossible(runtimeTab);
           return;
         }
 
@@ -123,7 +123,7 @@ async function autoCompactAndContinue(runtimeTab: RuntimeTab): Promise<void> {
     if (!compacted) {
       throw new Error("Auto-compaction did not produce a compaction entry");
     }
-    await continueAgentSession(runtimeTab.agentSession);
+    await continueAfterCompactionIfPossible(runtimeTab);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     // Failed compaction: drop the timer silently, no worked-duration recorded.
@@ -157,6 +157,28 @@ async function waitForCompactionEnd(agentSession: RuntimeTab["agentSession"]): P
       resolve();
     });
   });
+}
+
+/**
+ * Pi Agent.continue() refuses last role === "assistant" (no queued steer/follow-up).
+ * Match that gate so post-compact resume never surfaces as a fake Compaction failed.
+ * Aligns with SDK willRetry=false when the turn already finished (stopReason=stop).
+ */
+function canContinueAfterCompaction(agent: RuntimeTab["agentSession"]["agent"]): boolean {
+  if (typeof agent.hasQueuedMessages === "function" && agent.hasQueuedMessages()) {
+    return true;
+  }
+  const last = agent.state.messages.at(-1);
+  return Boolean(last && last.role !== "assistant");
+}
+
+async function continueAfterCompactionIfPossible(runtimeTab: RuntimeTab): Promise<void> {
+  if (!canContinueAfterCompaction(runtimeTab.agentSession.agent)) {
+    // Compaction itself succeeded (or was benign); the turn is already complete.
+    setTabStatus(runtimeTab.tab, "idle", { discardTimer: true });
+    return;
+  }
+  await continueAgentSession(runtimeTab.agentSession);
 }
 
 /** Claim exclusive MixCode compaction; waits out peers (covers pre-isCompacting gap). */
