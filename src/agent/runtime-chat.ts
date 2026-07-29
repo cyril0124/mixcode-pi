@@ -151,7 +151,6 @@ export function surfaceAssistantStopReason(
   message: AssistantMessage,
 ): void {
   const text = assistantStopReasonText(message);
-  if (!text) return;
   const pendingToolIndices = runtimeTab.chat
     .map((line, index) => ({ line, index }))
     .filter(
@@ -161,23 +160,37 @@ export function surfaceAssistantStopReason(
     )
     .map((item) => item.index);
   if (pendingToolIndices.length) {
+    // Tools still in flight need a terminal status; generic aborts use a calm label.
+    const toolText = text || "Cancelled";
     for (const index of pendingToolIndices) {
       const line = runtimeTab.chat[index];
       if (line?.role !== "tool") continue;
-      runtimeTab.chat[index] = { ...line, status: "error", text };
+      runtimeTab.chat[index] = { ...line, status: "error", text: toolText };
     }
     return;
   }
+  // Empty aborted assistant with generic provider wording: stay silent.
+  // Intentional aborts (compact, extension stop, etc.) surface their own status.
+  if (!text) return;
   if (!assistantText(message.content).trim()) {
     appendSystemMessage(runtimeTab, text);
   }
 }
 
+/** Provider boilerplate for intentional aborts (Esc, extension stop, compact, etc.). */
+export function isGenericAbortMessage(errorMessage: string | undefined): boolean {
+  if (!errorMessage || !errorMessage.trim()) return true;
+  return /^(request was aborted|request aborted|operation aborted|aborted)\.?$/i.test(
+    errorMessage.trim(),
+  );
+}
+
 function assistantStopReasonText(message: AssistantMessage): string {
   if (message.stopReason === "aborted") {
-    return message.errorMessage && message.errorMessage !== "Request was aborted"
-      ? message.errorMessage
-      : "Operation aborted";
+    // Generic abort wording is not a user-facing failure by itself; callers that
+    // own the abort should surface a specific status. Non-generic messages still show.
+    if (isGenericAbortMessage(message.errorMessage)) return "";
+    return message.errorMessage ?? "";
   }
   if (message.stopReason === "error") {
     return `Error: ${message.errorMessage || "Unknown error"}`;

@@ -85,14 +85,64 @@ export function scheduleRuntimePendingMessageFlush(
   // otherwise become an unhandled rejection and crash the TUI process. Catch it
   // and surface it through onError; flushRuntimePendingMessage already re-queues
   // the failed messages, so the user's text is preserved.
+  //
+  // After abort, an extension may schedule compact then start a follow-up turn.
+  // Yield past that macrotask, wait out compact, and if a new run already owns
+  // the session, leave steering queued for the next agent_end.
   void agentSession
     .waitForIdle()
+    .then(() => waitOutPostAbortCompactAndResume(agentSession))
     .then(() => {
       const runtimeTab = getRuntimeTab(sessionId);
       if (!runtimeTab || runtimeTab.queuedPromptCount === 0) return;
+      // Resume already owns the session; its agent_end will reschedule flush.
+      if (agentSession.isStreaming) return;
       return flushPendingMessage(sessionId, runtimeTab.queuedPromptCount);
     })
     .catch((error: unknown) => onError(sessionId, error));
+}
+
+function nextMacrotask(): Promise<void> {
+  return new Promise((resolve) => setImmediate(resolve));
+}
+
+// Pi compact() sets isCompacting only after await abort(); a follow-up turn may
+// start on compact onComplete. Fixed 1–2 macrotasks lose that race — poll a short window.
+const POST_ABORT_CLAIM_TICKS = 8;
+
+async function waitForCompactionIdle(agentSession: AgentSession): Promise<void> {
+  if (!agentSession.isCompacting) return;
+  await new Promise<void>((resolve) => {
+    const unsubscribe = agentSession.subscribe((event) => {
+      if (event.type !== "compaction_end") return;
+      unsubscribe();
+      resolve();
+    });
+    if (!agentSession.isCompacting) {
+      unsubscribe();
+      resolve();
+    }
+  });
+}
+
+async function waitForSessionClaim(claimed: () => boolean): Promise<void> {
+  if (claimed()) return;
+  for (let i = 0; i < POST_ABORT_CLAIM_TICKS; i += 1) {
+    await nextMacrotask();
+    if (claimed()) return;
+  }
+}
+
+/** Let post-abort compact/resume claim the session before draining steering. */
+async function waitOutPostAbortCompactAndResume(agentSession: AgentSession): Promise<void> {
+  await waitForSessionClaim(
+    () => agentSession.isCompacting || agentSession.isStreaming,
+  );
+  if (agentSession.isCompacting) {
+    await waitForCompactionIdle(agentSession);
+    // Resume is queued after compact onComplete; wait for it to own the session.
+    await waitForSessionClaim(() => agentSession.isStreaming);
+  }
 }
 
 export function consumeDeferredPendingMessageFlush(runtimeTab: RuntimeTab): boolean {

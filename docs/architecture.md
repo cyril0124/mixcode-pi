@@ -262,6 +262,22 @@ src/core/commands.ts
 
 `/context-limit` 还会把当前 tab 的有效窗口写入该 session 的 live `model.contextWindow`，让 Pi 原生 compaction 与读取 `ctx.model` / `getContextUsage().contextWindow` 的 extension 看到同一值；这是 session 内临时覆盖，不回写 `models.json`。`tab.model.contextWindow` 仍保留模型 canonical capacity，供 reset / picker 使用。创建 session 与切模型时会对 model 做浅拷贝，避免一个 tab 的 limit 改到另一个共享同一 model 对象的 session。
 
+### Compaction 边界
+
+```text
+core (mixcode runtime)
+  ├─ overflow        → Pi AgentSession compact + willRetry continue
+  ├─ turn 边界 threshold → Pi agent_end / 下次 prompt 前 _checkCompaction
+  └─ /compact        → agentSession.compact()
+
+pi-packages/mpi-mid-turn-compact (built-in extension)
+  └─ complete tool batch on `context` + usage over window-reserve
+       → abort → native compact (Pi summarization retry) → short followUp resume
+```
+
+Core **不再**在 `afterToolCall` 上做 mid-turn terminate + 私有 `_handlePostAgentRun` 续跑。
+长 tool loop 的 mid-turn 路径由内置扩展 `mpi-mid-turn-compact` 承担（`MPI_MID_TURN_COMPACT=0` 可关）。
+
 `/import <jsonl-path> [cwdOverride]` 复用 Pi session JSONL 导入语义：
 
 ```text

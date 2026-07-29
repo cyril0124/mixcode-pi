@@ -340,8 +340,8 @@ test("multi-turn tool loop keeps one stamp for the whole run", async () => {
       workdir: process.cwd(),
       model: TIMER_MODEL,
     });
-    // Keep the mid-turn compaction hook quiet: default reserveTokens exceeds the
-    // tiny test context window and would otherwise terminate the run mid-turn.
+    // Keep compaction thresholds loose relative to the tiny test context window
+    // so this case measures timer continuity, not auto-compact side effects.
     runtimeTab.agentSession.settingsManager.applyOverrides({
       compaction: { reserveTokens: 20, keepRecentTokens: 50 },
     });

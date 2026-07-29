@@ -76,7 +76,6 @@ import {
   createRuntimeServices,
   createRuntimeTabWithFallback,
   disposeRuntimeTabAfterShutdown,
-  installMidTurnCompactionHook,
   refreshStartupHeader,
   reloadRuntimeTabWithFreshServices,
   replaceRuntimeTabSession,
@@ -1306,7 +1305,7 @@ export class MixCodeRuntime {
     if (branch.at(-1)?.type === "compaction") {
       throw new Error("Session is already compacted");
     }
-    // Claim before any await so autoCompactAndContinue cannot interleave.
+    // Claim before any await so concurrent compactSession calls cannot interleave.
     runtimeTab.compactionInFlight = true;
     if (runtimeTab.agentSession.isCompacting) {
       runtimeTab.compactionInFlight = false;
@@ -1421,7 +1420,6 @@ export class MixCodeRuntime {
       extensionsResult,
       extensionToolOwnerPolicy,
     });
-    installMidTurnCompactionHook(agentSession, runtimeTab.tab, { current: runtimeTab });
     runtimeTab.tab.workdir = workdir;
     agentSession.subscribe((event) => {
       // Registered before the shared UI listener so deferred shutdown flushes first.

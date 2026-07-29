@@ -10,8 +10,6 @@ import {
   customMessageToChatLine,
   disposeChatRenderers,
   entriesToChatLines,
-  isBenignCompactionError,
-  isNothingToCompactError,
   surfaceAssistantStopReason,
   syncContextUsage,
   syncPreviewFromChat,
@@ -37,196 +35,8 @@ import {
 import { clearChatScrollAnchor } from "../core/overlays.js";
 import type { ChatLine, RuntimeEvent, RuntimeTab, ToolResultLike } from "./runtime-types.js";
 
-type AgentSessionContinuationInternals = {
-  _isAgentRunActive?: boolean;
-  _handlePostAgentRun?: () => Promise<boolean>;
-  _emitAgentSettled?: () => Promise<void>;
-};
-
-/**
- * Atomically enter the context-limit auto-compaction cycle. These four flags
- * form one transition: a stale `autoCompactCycleFailed` from a previous cycle
- * would make the new cycle skip its compaction attempt (see the guards at the
- * top of autoCompactAndContinue), so resetting it here is load-bearing — not
- * incidental. Concentrating the set in one place removes that footgun.
- */
-export function enterAutoCompactCycle(runtimeTab: RuntimeTab): void {
-  runtimeTab.pendingContextLimitCompaction = false;
-  runtimeTab.deferPendingMessageFlush = true;
-  runtimeTab.autoCompactCycleActive = true;
-  runtimeTab.autoCompactCycleFailed = false;
-}
-
-/** Leave the auto-compaction cycle, clearing the in-flight markers. */
-export function endAutoCompactCycle(runtimeTab: RuntimeTab): void {
-  runtimeTab.isAutoCompacting = false;
-  runtimeTab.autoCompactCycleActive = false;
-}
-
-/**
- * Auto-compact the session after the current agent run becomes idle,
- * then continue the agent from the compacted transcript.
- */
-async function autoCompactAndContinue(runtimeTab: RuntimeTab): Promise<void> {
-  try {
-    await waitForPromptPostRun(runtimeTab.agentSession);
-    runtimeTab.isAutoCompacting = true;
-
-    let compacted = isLatestBranchEntryCompaction(runtimeTab);
-    if (!compacted && !runtimeTab.autoCompactCycleFailed) {
-      if (runtimeTab.agentSession.isCompacting) {
-        await waitForCompactionEnd(runtimeTab.agentSession);
-        compacted = isLatestBranchEntryCompaction(runtimeTab);
-      }
-    }
-
-    if (!compacted && !runtimeTab.autoCompactCycleFailed) {
-      // Serialize with compactSession: SDK compact() races if two callers enter
-      // during await abort() before isCompacting flips true.
-      await claimMixCodeCompaction(runtimeTab);
-      try {
-        if (isLatestBranchEntryCompaction(runtimeTab)) {
-          compacted = true;
-        } else {
-          await runtimeTab.agentSession.compact();
-          compacted = isLatestBranchEntryCompaction(runtimeTab);
-        }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        const aborted =
-          message === "Compaction cancelled" || (error instanceof Error && error.name === "AbortError");
-        if (aborted) {
-          // Aborted compaction: drop the timer silently, no worked-duration recorded.
-          setTabStatus(runtimeTab.tab, "idle", { discardTimer: true });
-          return;
-        }
-
-        // Use unified benign error check
-        if (isBenignCompactionError(error)) {
-          // The mid-turn hook already terminated the tool loop. Even when
-          // there is nothing useful to compact, the agent must resume from
-          // the tool result instead of silently ending the user's request.
-          if (isNothingToCompactError(message)) {
-            appendSystemMessage(runtimeTab, "Nothing to compact (session too small).");
-          }
-          await continueAfterCompactionIfPossible(runtimeTab);
-          return;
-        }
-
-        // Real error - throw to outer catch
-        throw error;
-      } finally {
-        runtimeTab.compactionInFlight = false;
-      }
-    }
-
-    if (!compacted) {
-      throw new Error("Auto-compaction did not produce a compaction entry");
-    }
-    await continueAfterCompactionIfPossible(runtimeTab);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    // Failed compaction: drop the timer silently, no worked-duration recorded.
-    setTabStatus(runtimeTab.tab, "idle", { discardTimer: true });
-    appendSystemMessage(runtimeTab, normalizeCompactionFailureMessage(message), "error");
-    runtimeTab.requestRender?.();
-  } finally {
-    endAutoCompactCycle(runtimeTab);
-  }
-}
-
 function normalizeCompactionFailureMessage(message: string): string {
   return /^(Auto-)?Compaction failed:/i.test(message) ? message : `Compaction failed: ${message}`;
-}
-
-async function waitForPromptPostRun(agentSession: RuntimeTab["agentSession"]): Promise<void> {
-  await agentSession.waitForIdle();
-  if (agentSession.isCompacting) await waitForCompactionEnd(agentSession);
-}
-
-function isLatestBranchEntryCompaction(runtimeTab: RuntimeTab): boolean {
-  return runtimeTab.session.getBranch().at(-1)?.type === "compaction";
-}
-
-async function waitForCompactionEnd(agentSession: RuntimeTab["agentSession"]): Promise<void> {
-  if (!agentSession.isCompacting) return;
-  await new Promise<void>((resolve) => {
-    const unsubscribe = agentSession.subscribe((event) => {
-      if (event.type !== "compaction_end") return;
-      unsubscribe();
-      resolve();
-    });
-  });
-}
-
-/**
- * Pi Agent.continue() refuses last role === "assistant" (no queued steer/follow-up).
- * Match that gate so post-compact resume never surfaces as a fake Compaction failed.
- * Aligns with SDK willRetry=false when the turn already finished (stopReason=stop).
- */
-function canContinueAfterCompaction(agent: RuntimeTab["agentSession"]["agent"]): boolean {
-  if (typeof agent.hasQueuedMessages === "function" && agent.hasQueuedMessages()) {
-    return true;
-  }
-  const last = agent.state.messages.at(-1);
-  return Boolean(last && last.role !== "assistant");
-}
-
-async function continueAfterCompactionIfPossible(runtimeTab: RuntimeTab): Promise<void> {
-  if (!canContinueAfterCompaction(runtimeTab.agentSession.agent)) {
-    // Compaction itself succeeded (or was benign); the turn is already complete.
-    setTabStatus(runtimeTab.tab, "idle", { discardTimer: true });
-    return;
-  }
-  await continueAgentSession(runtimeTab.agentSession);
-}
-
-/** Claim exclusive MixCode compaction; waits out peers (covers pre-isCompacting gap). */
-async function claimMixCodeCompaction(runtimeTab: RuntimeTab): Promise<void> {
-  for (;;) {
-    if (runtimeTab.agentSession.isCompacting) {
-      await waitForCompactionEnd(runtimeTab.agentSession);
-      continue;
-    }
-    if (runtimeTab.compactionInFlight) {
-      await new Promise((resolve) => setTimeout(resolve, 25));
-      continue;
-    }
-    runtimeTab.compactionInFlight = true;
-    // Re-check after claim in case another waiter raced the flag write.
-    if (runtimeTab.agentSession.isCompacting) {
-      runtimeTab.compactionInFlight = false;
-      continue;
-    }
-    return;
-  }
-}
-
-async function continueAgentSession(agentSession: RuntimeTab["agentSession"]): Promise<void> {
-  const session = agentSession as unknown as AgentSessionContinuationInternals;
-  const handlePostAgentRun = session._handlePostAgentRun;
-  const emitAgentSettled = session._emitAgentSettled;
-  if (
-    !("_isAgentRunActive" in session) ||
-    typeof handlePostAgentRun !== "function" ||
-    typeof emitAgentSettled !== "function"
-  ) {
-    throw new Error(
-      "Pi AgentSession continuation internals changed; cannot continue after auto-compaction.",
-    );
-  }
-
-  // Pi has no public session-level continuation API. Mirror its prompt lifecycle
-  // so guards and waitForIdle() cover this low-level continuation too.
-  session._isAgentRunActive = true;
-  try {
-    await agentSession.agent.continue();
-    while (await handlePostAgentRun.call(agentSession)) {
-      await agentSession.agent.continue();
-    }
-  } finally {
-    await emitAgentSettled.call(agentSession);
-  }
 }
 
 /**
@@ -256,14 +66,10 @@ export function applyEvent(
       // Consume the marker unconditionally (no short-circuit leak).
       const sdkContinuation = consumeSdkRunContinuation(runtimeTab);
       // Fresh run restarts the timer; continuations of the same perceived work
-      // preserve it (??=): the mid-turn auto-compact cycle, an auto-retry
-      // continuation (retryInfo still armed), and the SDK compact-and-retry
+      // preserve it: auto-retry (retryInfo still armed) and SDK compact-and-retry
       // continue (willRetry marker).
       setTabStatus(runtimeTab.tab, "running", {
-        restart:
-          !runtimeTab.autoCompactCycleActive &&
-          !runtimeTab.tab.retryInfo &&
-          !sdkContinuation,
+        restart: !runtimeTab.tab.retryInfo && !sdkContinuation,
       });
       clearPendingEscape(runtimeTab.tab);
       break;
@@ -273,14 +79,7 @@ export function applyEvent(
       setTabStatus(runtimeTab.tab, "thinking");
       break;
     case "agent_end":
-      // If the agent was terminated by the mid-turn hook due to compaction pressure,
-      // trigger auto-compaction and continue the agent run.
-      if (runtimeTab.pendingContextLimitCompaction) {
-        enterAutoCompactCycle(runtimeTab);
-        // Don't set idle — keep running status for the compact + continue cycle
-        void autoCompactAndContinue(runtimeTab);
-        break;
-      }
+      // Core only maps Pi-native agent_end → idle / queue flush.
       appendEmptyRunNotice(runtimeTab);
       // Pi moves streaming-started user bash from the pending area into chat on
       // the next normal submit; agent_end is the earliest stable point here.
@@ -352,24 +151,17 @@ export function applyEvent(
       // MixCode already shows the working loader while status is running.
       break;
     case "compaction_end": {
-      // Two continuation shapes keep the timer running: MixCode's own mid-turn
-      // cycle (autoCompactCycleActive) and the SDK's compact-and-retry
-      // (willRetry: the SDK calls agent.continue() right after this event).
+      // SDK compact-and-retry (willRetry) calls agent.continue() after this event.
       const sdkWillContinue = Boolean(event.result && event.willRetry);
       if (sdkWillContinue) runtimeTab.sdkRunContinuation = true;
-      const continuingAfterAutoCompaction = Boolean(
-        event.result && (runtimeTab.autoCompactCycleActive || sdkWillContinue),
-      );
       const nextStatus: typeof runtimeTab.tab.status = event.errorMessage
-        ? runtimeTab.autoCompactCycleActive
-          ? "idle"
-          : "error"
-        : continuingAfterAutoCompaction
+        ? "error"
+        : sdkWillContinue
           ? "running"
           : "idle";
       // Continuation keeps the timer running; a real end closes it into a duration.
       setTabStatus(runtimeTab.tab, nextStatus, {
-        preserveStartedAt: continuingAfterAutoCompaction,
+        preserveStartedAt: sdkWillContinue,
       });
       clearPendingEscape(runtimeTab.tab);
       if (event.result) {
@@ -378,7 +170,7 @@ export function applyEvent(
         runtimeTab.chat = entriesToChatLines(runtimeTab.session.getBranch(), runtimeTab);
         syncPreviewFromChat(runtimeTab.tab, runtimeTab.chat);
         syncContextUsage(runtimeTab);
-        if (!continuingAfterAutoCompaction) {
+        if (!sdkWillContinue) {
           runtimeTab.tab.unreadDone = true;
         }
       } else if (event.errorMessage) {
@@ -389,9 +181,6 @@ export function applyEvent(
         );
       } else if (event.aborted) {
         appendSystemMessage(runtimeTab, "Compaction cancelled.");
-      }
-      if (!event.result && runtimeTab.autoCompactCycleActive) {
-        runtimeTab.autoCompactCycleFailed = true;
       }
       break;
     }

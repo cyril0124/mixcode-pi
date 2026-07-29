@@ -244,16 +244,11 @@ export interface RuntimeTab {
    * the run next, so the following agent_start must not restart the timer.
    */
   sdkRunContinuation?: boolean;
-  /** Set by mid-turn compaction hook when compaction pressure terminates the tool loop */
-  pendingContextLimitCompaction?: boolean;
-  /** Skip the next pending-message flush after auto-compaction takes over */
+  /**
+   * When true, agent_end skips auto-flush of queued prompts once.
+   * Used by tests and any path that must suppress the idle resend.
+   */
   deferPendingMessageFlush?: boolean;
-  /** True while the context-limit auto-compaction cycle owns follow-up work */
-  autoCompactCycleActive?: boolean;
-  /** True when that cycle observes a compaction_end without a result */
-  autoCompactCycleFailed?: boolean;
-  /** True while autoCompactAndContinue is running */
-  isAutoCompacting?: boolean;
   /** True while compactSession owns a manual compact (covers SDK pre-isCompacting gap). */
   compactionInFlight?: boolean;
   /** Gate to serialize prompt dispatch decisions (user submit, queued flush) at idle→active transition */

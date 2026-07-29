@@ -3,7 +3,6 @@ import {
   type AgentSessionServices,
   type CreateAgentSessionResult,
   type CreateAgentSessionServicesOptions,
-  calculateContextTokens,
   createAgentSessionFromServices,
   createAgentSessionServices,
   type ExtensionFactory,
@@ -13,7 +12,6 @@ import {
   type SessionShutdownEvent,
   type SessionStartEvent,
   SettingsManager,
-  shouldCompact,
 } from "@earendil-works/pi-coding-agent";
 import { captureCompactionBaseline } from "../core/context-limit.js";
 import { detectSearchTools, type SearchToolAvailability } from "../core/detect-search-tools.js";
@@ -182,10 +180,6 @@ async function createRuntimeTabWithServices(
     thinkingLevel: config.thinkingLevel,
   });
   const extensionToolOwnerPolicy = resolveExtensionToolOwnerPolicy(context);
-  // Mid-turn compaction check: after each tool call, if context exceeds the threshold,
-  // signal terminate=true so the agent loop exits cleanly (agent_end). The runtime
-  // then waits for idle, compacts, and continues from the compacted transcript.
-  const runtimeTabRef: { current?: RuntimeTab } = {};
   const runtimeTab: RuntimeTab = {
     tab,
     agentSession,
@@ -216,11 +210,9 @@ async function createRuntimeTabWithServices(
   applyRuntimeTabModel(runtimeTab, agentSession.agent.state.model);
   tab.thinkingLevel = agentSession.thinkingLevel;
   runtimeTab.requestRender = () => context.emitChange({ type: "extension_ui_update" }, runtimeTab);
-  runtimeTabRef.current = runtimeTab;
   try {
     activateMixCodeTools(agentSession, extensionToolOwnerPolicy);
     applyMixCodeSystemPrompt(services, config.workdir, agentSession);
-    installMidTurnCompactionHook(agentSession, tab, runtimeTabRef);
     const restoredChat = await rebuildRuntimeChat(runtimeTab);
     if (tab.previewMessages.length === 0) {
       syncPreviewFromChat(tab, restoredChat);
@@ -468,7 +460,6 @@ async function replaceRuntimeTabSessionUnlocked(
     pendingUserInteractions: [],
     workingVisible: true,
   };
-  installMidTurnCompactionHook(created.session, runtimeTab.tab, { current: runtimeTab });
   // Rebuild chat and bind extensions BEFORE mutating tab identity.
   // If either throws, the caller's state is still intact — no orphaned tab.
   runtimeTab.chat = await rebuildRuntimeChat(runtimeTab);
@@ -557,9 +548,8 @@ export async function createRuntimeServices(
   // Give every tab its own SettingsManager (Pi's native per-cwd design) instead
   // of sharing the bootstrap manager. /context-limit mutates compaction budgets
   // via applyOverrides; a shared manager would leak one tab's override into all
-  // other tabs' compaction decisions (both the SDK turn-boundary check and the
-  // mid-turn hook read from this manager). The bootstrap manager is retained by
-  // the runtime only for startup proxy/defaults and global settings writes.
+  // other tabs' SDK turn-boundary compaction decisions. The bootstrap manager is
+  // retained by the runtime only for startup proxy/defaults and global settings writes.
   const settingsManager = SettingsManager.create(options.workdir, options.agentDir, {
     projectTrusted: options.settingsManager?.isProjectTrusted() ?? true,
   });
@@ -719,7 +709,6 @@ export async function reloadRuntimeTabWithFreshServices(
     extensionToolOwnerPolicy: resolveExtensionToolOwnerPolicy(context),
   });
   activateMixCodeTools(agentSession, runtimeTab.extensionToolOwnerPolicy);
-  installMidTurnCompactionHook(agentSession, runtimeTab.tab, { current: runtimeTab });
   runtimeTab.chat = await rebuildRuntimeChat(runtimeTab);
   syncPreviewFromChat(runtimeTab.tab, runtimeTab.chat);
   await bindRuntimeExtensions(runtimeTab, context);
@@ -739,49 +728,4 @@ export function subscribeRuntimeTab(runtimeTab: RuntimeTab, context: RuntimeLife
       context.schedulePendingMessageFlush(runtimeTab.tab.sessionId, runtimeTab.agentSession);
     }
   });
-}
-
-/**
- * Install a mid-turn compaction check on the agent's afterToolCall hook.
- *
- * The Pi SDK only checks compaction at turn boundaries (agent_end) and before
- * the next user prompt. During long tool loops, context can grow unbounded.
- * This hook checks after each tool call whether context exceeds the compaction
- * threshold. If so, it returns { terminate: true } which causes the agent loop
- * to exit cleanly (agent_end), and the runtime schedules an auto-compact cycle.
- *
- * The hook chains with the existing afterToolCall set by AgentSession (for
- * extension tool_result events) by capturing and delegating to it.
- */
-export function installMidTurnCompactionHook(
-  agentSession: RuntimeTab["agentSession"],
-  tab?: MixCodeTabInfo,
-  runtimeTabRef?: { current?: RuntimeTab },
-): void {
-  const existingHook = agentSession.agent.afterToolCall;
-
-  agentSession.agent.afterToolCall = async (context, signal) => {
-    // Run the existing hook first (extension tool_result interception)
-    const existingResult = await existingHook?.(context, signal);
-
-    // Check if context exceeds compaction threshold
-    const settings = agentSession.settingsManager.getCompactionSettings();
-    if (settings.enabled && context.assistantMessage.usage) {
-      const contextTokens = calculateContextTokens(context.assistantMessage.usage);
-      // Use the tab's contextLimit which respects user override via /context-limit.
-      // Falls back to model's contextWindow (which is also mutated by the override).
-      const contextWindow = tab?.contextLimit ?? agentSession.agent.state.model?.contextWindow ?? 0;
-      if (contextWindow > 0 && shouldCompact(contextTokens, contextWindow, settings)) {
-        // This hook terminates an active tool loop mid-turn, so runtime must own
-        // the follow-up compact + continue cycle instead of leaving the task idle.
-        if (runtimeTabRef?.current) {
-          runtimeTabRef.current.pendingContextLimitCompaction = true;
-        }
-        // Merge terminate into existing result (preserve content/details overrides)
-        return { ...existingResult, terminate: true };
-      }
-    }
-
-    return existingResult;
-  };
 }

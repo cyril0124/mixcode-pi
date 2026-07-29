@@ -1,0 +1,48 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import type { AssistantMessage } from "@earendil-works/pi-ai";
+import {
+  isGenericAbortMessage,
+  surfaceAssistantStopReason,
+} from "../src/agent/runtime-chat.js";
+import type { RuntimeTab } from "../src/agent/runtime-types.js";
+
+function emptyTab(): RuntimeTab {
+  return {
+    chat: [],
+    tab: { previewMessages: [], previewIndex: 0 },
+  } as unknown as RuntimeTab;
+}
+
+function abortedAssistant(errorMessage: string): AssistantMessage {
+  return {
+    role: "assistant",
+    stopReason: "aborted",
+    errorMessage,
+    content: [],
+    usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 },
+  } as unknown as AssistantMessage;
+}
+
+test("isGenericAbortMessage matches provider boilerplate", () => {
+  assert.equal(isGenericAbortMessage(undefined), true);
+  assert.equal(isGenericAbortMessage("Request was aborted"), true);
+  assert.equal(isGenericAbortMessage("Request aborted"), true);
+  assert.equal(isGenericAbortMessage("Operation aborted"), true);
+  assert.equal(isGenericAbortMessage("model timeout"), false);
+});
+
+test("empty generic abort does not append a system line", () => {
+  const tab = emptyTab();
+  surfaceAssistantStopReason(tab, abortedAssistant("Request was aborted"));
+  surfaceAssistantStopReason(tab, abortedAssistant("Request aborted"));
+  assert.equal(tab.chat.length, 0);
+});
+
+test("empty non-generic abort still surfaces the provider message", () => {
+  const tab = emptyTab();
+  surfaceAssistantStopReason(tab, abortedAssistant("upstream cancelled stream"));
+  assert.equal(tab.chat.length, 1);
+  assert.equal(tab.chat[0]?.role, "system");
+  assert.match(tab.chat[0]?.text ?? "", /upstream cancelled stream/);
+});

@@ -206,29 +206,6 @@ function lastRuntimeUserText(context: Context): string {
   return runtimeUserTexts(context).at(-1) ?? "";
 }
 
-function contextHasCompactionSummary(context: Context, expected: string): boolean {
-  return context.messages.some((message) => {
-    if (message.role !== "user") return false;
-    if (typeof message.content === "string") {
-      return message.content.includes("compacted into the following summary") && message.content.includes(expected);
-    }
-    return message.content.some(
-      (block) =>
-        block.type === "text" &&
-        block.text.includes("compacted into the following summary") &&
-        block.text.includes(expected),
-    );
-  });
-}
-
-function contextHasToolResultText(context: Context, expected: string): boolean {
-  return context.messages.some((message) => {
-    if (message.role !== "toolResult") return false;
-    if (typeof message.content === "string") return message.content.includes(expected);
-    return message.content.some((block) => block.type === "text" && block.text.includes(expected));
-  });
-}
-
 async function waitForRuntime(predicate: () => boolean, attempts = 25): Promise<void> {
   for (let i = 0; i < attempts; i += 1) {
     if (predicate()) return;
@@ -536,426 +513,26 @@ test("faux stream emits assistant text without external provider", async () => {
   );
 });
 
-async function assertRuntimeAutoCompactsAndContinuesMidTurn(contextLimitOverridden: boolean): Promise<void> {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-auto-compact-continue-"));
+
+test("core leaves long tool turns to Pi / packages (no mid-turn private continue)", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-no-mid-turn-"));
   try {
-    const seenContexts: Context[] = [];
-    const streamTexts: string[] = [];
+    let postToolAssistantCalls = 0;
     let toolCallTriggered = false;
     const runtime = new MixCodeRuntime({
       sessionsRoot: dir,
       agentDir: dir,
       streamFn: (_model: Model<any>, context: Context) => {
-        seenContexts.push(context);
+        if (context.messages.some((message) => message.role === "toolResult")) {
+          postToolAssistantCalls += 1;
+          return streamAssistantMessage(runtimeAssistantMessage("finished after tool"));
+        }
         const text = lastRuntimeUserText(context);
-        // A prior "warmup" turn gives the session completed history outside the
-        // keep-recent window; SDK 0.80+ refuses to compact a lone in-progress
-        // turn. The "start" turn's tool call then triggers mid-turn compaction.
         if (text === "start" && !toolCallTriggered) {
           toolCallTriggered = true;
           return streamAssistantMessage(
             runtimeToolCallMessage(
               { type: "toolCall", id: "tc-auto", name: "auto_echo", arguments: { text: "first" } },
-              990,
-            ),
-          );
-        }
-        streamTexts.push(text);
-        const reply = text === "warmup" ? `warmup reply ${"history ".repeat(40)}` : `continued:${text}`;
-        return streamAssistantMessage(runtimeAssistantMessage(reply));
-      },
-      extensionFactories: [
-        (pi) => {
-          pi.registerTool({
-            name: "auto_echo",
-            label: "Auto Echo",
-            description: "Test tool for mid-turn auto-compaction.",
-            parameters: Type.Object({ text: Type.String() }),
-            execute: async (_toolCallId, params) => ({
-              content: [{ type: "text", text: `tool:${params.text}` }],
-              details: params,
-            }),
-          });
-          pi.on("session_before_compact", (event) => ({
-            compaction: {
-              summary: "auto summary",
-              firstKeptEntryId: event.preparation.firstKeptEntryId,
-              tokensBefore: event.preparation.tokensBefore,
-            },
-          }));
-        },
-      ],
-    });
-    const model: Model<string> = {
-      ...MIXCODE_FAUX_MODEL,
-      provider: "queue-test",
-      api: "queue-test",
-      id: "queue-test-model",
-      contextWindow: 1000,
-    };
-    const tab = createTab(1, "s1", process.cwd(), {
-      model: {
-        provider: model.provider,
-        modelId: model.id,
-        displayName: `${model.provider}/${model.id}`,
-        contextWindow: model.contextWindow,
-      },
-      contextLimit: 1000,
-    });
-    tab.contextLimitOverridden = contextLimitOverridden;
-    const runtimeTab = await runtime.createTab(tab, {
-      systemPrompt: "system",
-      thinkingLevel: "medium",
-      workdir: process.cwd(),
-      model,
-    });
-    runtimeTab.agentSession.settingsManager.applyOverrides({
-      compaction: { reserveTokens: 20, keepRecentTokens: 50 },
-    });
-
-    // Warmup turn first so the session has completed history outside the
-    // keep-recent window; the "start" turn then triggers mid-turn compaction.
-    await runtime.prompt("s1", "warmup");
-    await waitForRuntime(() => streamTexts.includes("warmup"));
-    await runtime.prompt("s1", "start");
-    await waitForRuntime(
-      () =>
-        streamTexts.includes("start") &&
-        runtimeTab.session.getBranch().some((entry) => entry.type === "compaction"),
-    );
-
-    const userLines = runtimeTab.chat.filter((line) => line.role === "user").map((line) => line.text);
-    assert.deepEqual(userLines, ["warmup", "start"]);
-    assert.ok(streamTexts.includes("start"));
-    // The compaction summary and the tool result both appear in the context the
-    // model sees when continuing after the mid-turn compaction.
-    const continuationContext = seenContexts.find((context) =>
-      contextHasCompactionSummary(context, "auto summary"),
-    );
-    assert.ok(continuationContext, "expected a post-compaction continuation context");
-    assert.ok(contextHasToolResultText(continuationContext, "tool:first"));
-    assert.equal(runtimeTab.session.getBranch().at(-1)?.type, "message");
-    assert.ok(runtimeTab.session.getBranch().some((entry) => entry.type === "compaction"));
-    assert.equal(runtimeTab.chat.some((line) => /finished without a response/i.test(line.text)), false);
-    assert.equal(runtimeTab.tab.status, "idle");
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-}
-
-test("runtime auto-compacts and continues mid-turn without empty prompt", async () => {
-  // contextLimitOverridden true/false share the same mid-turn path; one case covers the contract.
-  await assertRuntimeAutoCompactsAndContinuesMidTurn(true);
-});
-
-test("runtime preserves mid-turn auto-compaction after workdir changes", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-auto-compact-workdir-"));
-  try {
-    const oldDir = join(dir, "old");
-    const newDir = join(dir, "new");
-    await mkdir(oldDir, { recursive: true });
-    await mkdir(newDir, { recursive: true });
-
-    const seenContexts: Context[] = [];
-    const streamTexts: string[] = [];
-    let toolCallTriggered = false;
-    const runtime = new MixCodeRuntime({
-      sessionsRoot: dir,
-      streamFn: (_model: Model<any>, context: Context) => {
-        seenContexts.push(context);
-        const text = lastRuntimeUserText(context);
-        if (text === "start" && !toolCallTriggered) {
-          toolCallTriggered = true;
-          return streamAssistantMessage(
-            runtimeToolCallMessage(
-              { type: "toolCall", id: "tc-workdir", name: "auto_echo", arguments: { text: "first" } },
-              990,
-            ),
-          );
-        }
-        streamTexts.push(text);
-        const reply = text === "warmup" ? `warmup reply ${"history ".repeat(40)}` : `continued:${text}`;
-        return streamAssistantMessage(runtimeAssistantMessage(reply));
-      },
-      extensionFactories: [
-        (pi) => {
-          pi.registerTool({
-            name: "auto_echo",
-            label: "Auto Echo",
-            description: "Test tool for mid-turn auto-compaction after workdir changes.",
-            parameters: Type.Object({ text: Type.String() }),
-            execute: async (_toolCallId, params) => ({
-              content: [{ type: "text", text: `tool:${params.text}` }],
-              details: params,
-            }),
-          });
-          pi.on("session_before_compact", (event) => ({
-            compaction: {
-              summary: "auto summary",
-              firstKeptEntryId: event.preparation.firstKeptEntryId,
-              tokensBefore: event.preparation.tokensBefore,
-            },
-          }));
-        },
-      ],
-    });
-    const model: Model<string> = {
-      ...MIXCODE_FAUX_MODEL,
-      provider: "queue-test",
-      api: "queue-test",
-      id: "queue-test-model",
-      contextWindow: 1000,
-    };
-    const tab = createTab(1, "s1", oldDir, {
-      model: {
-        provider: model.provider,
-        modelId: model.id,
-        displayName: `${model.provider}/${model.id}`,
-        contextWindow: model.contextWindow,
-      },
-      contextLimit: 1000,
-    });
-    tab.contextLimitOverridden = true;
-    const runtimeTab = await runtime.createTab(tab, {
-      systemPrompt: "system",
-      thinkingLevel: "medium",
-      workdir: oldDir,
-      model,
-    });
-    await runtime.updateTabWorkdir("s1", newDir, "system");
-    runtimeTab.agentSession.settingsManager.applyOverrides({
-      compaction: { reserveTokens: 20, keepRecentTokens: 50 },
-    });
-
-    await runtime.prompt("s1", "warmup");
-    await waitForRuntime(() => streamTexts.includes("warmup"));
-    await runtime.prompt("s1", "start");
-    await waitForRuntime(
-      () =>
-        streamTexts.includes("start") &&
-        runtimeTab.session.getBranch().some((entry) => entry.type === "compaction"),
-    );
-
-    assert.ok(streamTexts.includes("start"));
-    const continuationContext = seenContexts.find((context) =>
-      contextHasCompactionSummary(context, "auto summary"),
-    );
-    assert.ok(continuationContext, "expected a post-compaction continuation context");
-    assert.ok(contextHasToolResultText(continuationContext, "tool:first"));
-    assert.ok(runtimeTab.session.getBranch().some((entry) => entry.type === "compaction"));
-    assert.equal(runtimeTab.tab.status, "idle");
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-});
-
-test("runtime auto-compaction skips the matching pending flush", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-auto-compact-flush-"));
-  try {
-    const seenContexts: Context[] = [];
-    const runtime = new MixCodeRuntime({
-      sessionsRoot: dir,
-      streamFn: (_model: Model<any>, context: Context) => {
-        seenContexts.push(context);
-        if (seenContexts.length === 1) {
-          return streamAssistantMessage(
-            runtimeToolCallMessage(
-              { type: "toolCall", id: "tc-flush", name: "auto_echo", arguments: { text: "first" } },
-              90,
-            ),
-          );
-        }
-        return streamAssistantMessage(runtimeAssistantMessage(`continued:${lastRuntimeUserText(context)}`));
-      },
-      extensionFactories: [
-        (pi) => {
-          pi.registerTool({
-            name: "auto_echo",
-            label: "Auto Echo",
-            description: "Test tool for pending-flush auto-compaction.",
-            parameters: Type.Object({ text: Type.String() }),
-            execute: async (_toolCallId, params) => ({
-              content: [{ type: "text", text: `tool:${params.text}` }],
-              details: params,
-            }),
-          });
-          pi.on("session_before_compact", (event) => ({
-            compaction: {
-              summary: "auto summary",
-              firstKeptEntryId: event.preparation.firstKeptEntryId,
-              tokensBefore: event.preparation.tokensBefore,
-            },
-          }));
-        },
-      ],
-    });
-    const model: Model<string> = {
-      ...MIXCODE_FAUX_MODEL,
-      provider: "queue-test",
-      api: "queue-test",
-      id: "queue-test-model",
-      contextWindow: 100,
-    };
-    const tab = createTab(1, "s1", process.cwd(), {
-      model: {
-        provider: model.provider,
-        modelId: model.id,
-        displayName: `${model.provider}/${model.id}`,
-        contextWindow: model.contextWindow,
-      },
-      contextLimit: 100,
-      pendingMessages: ["restored pending"],
-    });
-    tab.contextLimitOverridden = true;
-    const runtimeTab = await runtime.createTab(tab, {
-      systemPrompt: "system",
-      thinkingLevel: "medium",
-      workdir: process.cwd(),
-      model,
-    });
-    runtimeTab.agentSession.settingsManager.applyOverrides({
-      compaction: { reserveTokens: 20, keepRecentTokens: 1 },
-    });
-
-    await runtime.prompt("s1", "start");
-    await waitForRuntime(() => seenContexts.length >= 2);
-
-    assert.deepEqual(tab.pendingMessages, ["restored pending"]);
-    assert.equal(
-      runtimeTab.chat.some((line) => line.role === "user" && line.text.includes("restored pending")),
-      false,
-    );
-    assert.equal(runtimeTab.tab.status, "idle");
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-});
-
-test("runtime waits for SDK post-run compaction before continuing", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-auto-compact-race-"));
-  try {
-    let releaseCompact!: () => void;
-    const releaseCompactPromise = new Promise<void>((resolve) => {
-      releaseCompact = resolve;
-    });
-    const seenContexts: Context[] = [];
-    let compactionCalls = 0;
-    let toolCallTriggered = false;
-    const runtime = new MixCodeRuntime({
-      sessionsRoot: dir,
-      streamFn: (_model: Model<any>, context: Context) => {
-        seenContexts.push(context);
-        const text = lastRuntimeUserText(context);
-        if (text === "start" && !toolCallTriggered) {
-          toolCallTriggered = true;
-          return streamAssistantMessage(
-            runtimeToolCallMessage(
-              { type: "toolCall", id: "tc-race", name: "auto_echo", arguments: { text: "first" } },
-              990,
-            ),
-          );
-        }
-        const reply = text === "warmup" ? `warmup reply ${"history ".repeat(40)}` : `continued:${text}`;
-        return streamAssistantMessage(runtimeAssistantMessage(reply));
-      },
-      extensionFactories: [
-        (pi) => {
-          pi.registerTool({
-            name: "auto_echo",
-            label: "Auto Echo",
-            description: "Test tool for auto-compaction race handling.",
-            parameters: Type.Object({ text: Type.String() }),
-            execute: async (_toolCallId, params) => ({
-              content: [{ type: "text", text: `tool:${params.text}` }],
-              details: params,
-            }),
-          });
-          pi.on("session_before_compact", async (event) => {
-            compactionCalls += 1;
-            await releaseCompactPromise;
-            return {
-              compaction: {
-                summary: "auto summary",
-                firstKeptEntryId: event.preparation.firstKeptEntryId,
-                tokensBefore: event.preparation.tokensBefore,
-              },
-            };
-          });
-        },
-      ],
-    });
-    const model: Model<string> = {
-      ...MIXCODE_FAUX_MODEL,
-      provider: "queue-test",
-      api: "queue-test",
-      id: "queue-test-model",
-      contextWindow: 1000,
-    };
-    const tab = createTab(1, "s1", process.cwd(), {
-      model: {
-        provider: model.provider,
-        modelId: model.id,
-        displayName: `${model.provider}/${model.id}`,
-        contextWindow: model.contextWindow,
-      },
-      contextLimit: 1000,
-    });
-    tab.contextLimitOverridden = true;
-    const runtimeTab = await runtime.createTab(tab, {
-      systemPrompt: "system",
-      thinkingLevel: "medium",
-      workdir: process.cwd(),
-      model,
-    });
-    runtimeTab.agentSession.settingsManager.applyOverrides({
-      compaction: { reserveTokens: 20, keepRecentTokens: 50 },
-    });
-
-    // Warmup turn first so the "start" turn's compaction has history to summarize.
-    await runtime.prompt("s1", "warmup");
-
-    const promptPromise = runtime.prompt("s1", "start");
-    await waitForRuntime(() => compactionCalls === 1);
-    await new Promise((resolve) => setTimeout(resolve, 25));
-    assert.equal(compactionCalls, 1);
-
-    releaseCompact();
-    await promptPromise;
-    await waitForRuntime(
-      () =>
-        runtimeTab.session.getBranch().some((entry) => entry.type === "compaction") &&
-        runtimeTab.tab.status === "idle",
-    );
-
-    assert.equal(compactionCalls, 1);
-    const continuationContext = seenContexts.find((context) =>
-      contextHasCompactionSummary(context, "auto summary"),
-    );
-    assert.ok(continuationContext, "expected a post-compaction continuation context");
-    assert.ok(contextHasToolResultText(continuationContext, "tool:first"));
-    assert.equal(runtimeTab.session.getBranch().filter((entry) => entry.type === "compaction").length, 1);
-    assert.equal(runtimeTab.tab.status, "idle");
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-});
-
-test("runtime surfaces auto-compaction failures", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-auto-compact-fail-"));
-  try {
-    let toolCallTriggered = false;
-    const runtime = new MixCodeRuntime({
-      sessionsRoot: dir,
-      streamFn: (_model: Model<any>, context: Context) => {
-        if (context.messages.some((message) => message.role === "toolResult")) {
-          return streamAssistantMessage(runtimeAssistantMessage("should not continue"));
-        }
-        const text = lastRuntimeUserText(context);
-        if (text === "start" && !toolCallTriggered) {
-          toolCallTriggered = true;
-          return streamAssistantMessage(
-            runtimeToolCallMessage(
-              { type: "toolCall", id: "tc-fail", name: "auto_echo", arguments: { text: "first" } },
               990,
             ),
           );
@@ -967,14 +544,13 @@ test("runtime surfaces auto-compaction failures", async () => {
           pi.registerTool({
             name: "auto_echo",
             label: "Auto Echo",
-            description: "Test tool for failing auto-compaction.",
+            description: "Test tool for no mid-turn terminate.",
             parameters: Type.Object({ text: Type.String() }),
             execute: async (_toolCallId, params) => ({
               content: [{ type: "text", text: `tool:${params.text}` }],
               details: params,
             }),
           });
-          pi.on("session_before_compact", () => ({ cancel: true }));
         },
       ],
     });
@@ -1005,18 +581,66 @@ test("runtime surfaces auto-compaction failures", async () => {
       compaction: { reserveTokens: 20, keepRecentTokens: 50 },
     });
 
-    // Warmup turn so the session is genuinely compactable; the cancel handler
-    // then makes compaction produce nothing, exercising the failure path.
     await runtime.prompt("s1", "warmup");
     await runtime.prompt("s1", "start");
-    await waitForRuntime(
-      () => tab.status === "idle" && runtimeTab.chat.some((line) => /did not produce/i.test(line.text)),
-      100,
-    );
+    await waitForRuntime(() => tab.status === "idle" && postToolAssistantCalls >= 1);
 
+    assert.ok(postToolAssistantCalls >= 1, "tool loop must finish without MixCode mid-turn terminate");
+    assert.equal(
+      runtimeTab.session.getBranch().some((entry) => entry.type === "compaction"),
+      false,
+    );
+    assert.equal(runtimeTab.chat.some((line) => /Compaction failed/i.test(line.text)), false);
     assert.equal(tab.status, "idle");
-    assert.ok(runtimeTab.chat.some((line) => /Compaction failed: .*did not produce/i.test(line.text)));
-    assert.equal(runtimeTab.chat.some((line) => /Compaction failed: Auto-compaction failed/i.test(line.text)), false);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("runtime keeps restored pending messages when they are not runtime-queued", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-pending-not-flushed-"));
+  try {
+    const seenContexts: Context[] = [];
+    const runtime = new MixCodeRuntime({
+      sessionsRoot: dir,
+      streamFn: (_model: Model<any>, context: Context) => {
+        seenContexts.push(context);
+        return streamAssistantMessage(runtimeAssistantMessage(`ok:${lastRuntimeUserText(context)}`));
+      },
+    });
+    const model: Model<string> = {
+      ...MIXCODE_FAUX_MODEL,
+      provider: "queue-test",
+      api: "queue-test",
+      id: "queue-test-model",
+      contextWindow: 1000,
+    };
+    const tab = createTab(1, "s1", process.cwd(), {
+      model: {
+        provider: model.provider,
+        modelId: model.id,
+        displayName: `${model.provider}/${model.id}`,
+        contextWindow: model.contextWindow,
+      },
+      contextLimit: 1000,
+      pendingMessages: ["restored pending"],
+    });
+    const runtimeTab = await runtime.createTab(tab, {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+      model,
+    });
+
+    await runtime.prompt("s1", "start");
+    await waitForRuntime(() => tab.status === "idle");
+
+    // Not counted in queuedPromptCount → agent_end must not auto-send them.
+    assert.deepEqual(tab.pendingMessages, ["restored pending"]);
+    assert.equal(
+      runtimeTab.chat.some((line) => line.role === "user" && line.text.includes("restored pending")),
+      false,
+    );
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

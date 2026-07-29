@@ -120,7 +120,7 @@ export const LOCAL_COMMANDS: Array<{
     argumentHint: "<message>",
     palette: {
       label: "Queue Follow-up",
-      description: "Send after the agent finishes (not mid-turn steer)",
+      description: "Send after the agent finishes (not in-flight steer)",
       requires: "session",
     },
   },

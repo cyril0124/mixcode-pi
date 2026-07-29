@@ -81,6 +81,8 @@ import promptHistoryBrowser from "../../pi-packages/mpi-prompt-history/prompt-hi
 import promptHistoryPackageJson from "../../pi-packages/mpi-prompt-history/package.json" with { type: "text" };
 import autoRenameIndex from "../../pi-packages/mpi-auto-rename/index.ts" with { type: "text" };
 import autoRenamePackageJson from "../../pi-packages/mpi-auto-rename/package.json" with { type: "text" };
+import midTurnCompactIndex from "../../pi-packages/mpi-mid-turn-compact/index.ts" with { type: "text" };
+import midTurnCompactPackageJson from "../../pi-packages/mpi-mid-turn-compact/package.json" with { type: "text" };
 import packageJson from "../../package.json" with { type: "json" };
 import { materializeBinaryRuntimeAssets } from "./binary-assets.js";
 
@@ -210,6 +212,10 @@ materializeBinaryRuntimeAssets(runtimeDir, {
     "mpi-auto-rename": {
       "index.ts": autoRenameIndex,
       "package.json": autoRenamePackageJson,
+    },
+    "mpi-mid-turn-compact": {
+      "index.ts": midTurnCompactIndex,
+      "package.json": midTurnCompactPackageJson,
     },
   },
 });

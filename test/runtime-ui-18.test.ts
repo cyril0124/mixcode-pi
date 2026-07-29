@@ -257,7 +257,8 @@ test("runtime surfaces assistant error and abort stop reasons", async () => {
       (line) => line.role === "tool" && line.toolCallId === "tc-abort",
     );
     assert.equal(abortedTool?.status, "error");
-    assert.match(abortedTool?.text ?? "", /Operation aborted/);
+    // Generic provider abort wording is not shown as "Operation aborted"; tools get a calm label.
+    assert.match(abortedTool?.text ?? "", /Cancelled/);
 
     anyRuntime.applyEvent(runtimeTab, {
       type: "message_end",

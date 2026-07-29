@@ -1,44 +1,48 @@
-// Tests for the auto-compaction cycle transitions (src/agent/runtime-events.ts).
-//
-// The context-limit auto-compaction cycle is driven by four RuntimeTab flags.
-// They were previously set inline across the agent_end handler and the
-// autoCompactAndContinue finally block. enterAutoCompactCycle makes the entry
-// atomic; its most load-bearing job is resetting autoCompactCycleFailed, since
-// a stale failure flag would make the next cycle skip its compaction attempt.
+// Core no longer owns a mid-turn auto-compact cycle. agent_end must not start
+// private compact+continue work. This file guards the removed lifecycle flags.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import {
-  endAutoCompactCycle,
-  enterAutoCompactCycle,
-} from "../src/agent/runtime-events.js";
+import { applyEvent } from "../src/agent/runtime-events.js";
+import type { RuntimeTab } from "../src/agent/runtime-types.js";
 
-// Minimal stand-in carrying just the cycle flags the helpers touch.
-function cycleTab() {
+function stubTab(): RuntimeTab {
   return {
-    pendingContextLimitCompaction: true,
-    deferPendingMessageFlush: false,
-    autoCompactCycleActive: false,
-    autoCompactCycleFailed: true, // stale failure from a previous cycle
-    isAutoCompacting: false,
-  } as unknown as Parameters<typeof enterAutoCompactCycle>[0];
+    tab: {
+      sessionId: "s1",
+      status: "running",
+      pendingMessages: [],
+      pendingFollowUps: [],
+      unreadDone: false,
+    },
+    chat: [],
+    session: { getBranch: () => [] },
+    agentSession: {
+      isStreaming: false,
+      isCompacting: false,
+    },
+    queuedPromptCount: 0,
+    queuedFollowUpCount: 0,
+  } as unknown as RuntimeTab;
 }
 
-test("enterAutoCompactCycle clears the stale failure flag and arms the cycle", () => {
-  const t = cycleTab();
-  enterAutoCompactCycle(t);
-  assert.equal(t.pendingContextLimitCompaction, false);
-  assert.equal(t.deferPendingMessageFlush, true);
-  assert.equal(t.autoCompactCycleActive, true);
-  // The footgun guard: a previous cycle's failure must not leak into this one.
-  assert.equal(t.autoCompactCycleFailed, false);
-});
-
-test("endAutoCompactCycle clears the in-flight markers", () => {
-  const t = cycleTab();
-  enterAutoCompactCycle(t);
-  t.isAutoCompacting = true;
-  endAutoCompactCycle(t);
-  assert.equal(t.isAutoCompacting, false);
-  assert.equal(t.autoCompactCycleActive, false);
+test("agent_end does not arm a MixCode mid-turn auto-compact cycle", () => {
+  const runtimeTab = stubTab();
+  const events: string[] = [];
+  applyEvent(runtimeTab, { type: "agent_end", messages: [] } as never, (event) => {
+    events.push(event.type);
+  });
+  assert.equal(runtimeTab.tab.status, "idle");
+  // Removed flags must not reappear on the tab.
+  assert.equal(
+    "pendingContextLimitCompaction" in runtimeTab &&
+      (runtimeTab as { pendingContextLimitCompaction?: boolean }).pendingContextLimitCompaction,
+    false,
+  );
+  assert.equal(
+    "autoCompactCycleActive" in runtimeTab &&
+      (runtimeTab as { autoCompactCycleActive?: boolean }).autoCompactCycleActive,
+    false,
+  );
+  assert.deepEqual(events, ["agent_end"]);
 });
