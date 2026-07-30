@@ -1,8 +1,0 @@
-node_modules/
-dist/
-coverage/
-tmp/
-refs/
-.pi/
-package-lock.json
-*.png

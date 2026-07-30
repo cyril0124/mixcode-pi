@@ -1,4 +1,4 @@
-import type { AutocompleteProvider, TUI as TuiType } from "@earendil-works/pi-tui";
+import type { TUI as TuiType } from "@earendil-works/pi-tui";
 import type { MixCodeRuntime } from "../agent/runtime.js";
 import type { MixCodeState } from "../core/types.js";
 
@@ -169,5 +169,4 @@ export type RuntimeShortcutInfo = {
   source?: string;
 };
 
-export type MixCodeAutocompleteProvider = AutocompleteProvider;
 export type MixCodeTab = MixCodeState["tabs"][number];

@@ -1256,11 +1256,6 @@ export class MixCodeRuntime {
     return this.modelRuntime;
   }
 
-  /** @deprecated Prefer getSharedModelRuntime(); kept for extension-facing registry access. */
-  getSharedModelRegistry(): RuntimeModelRegistry | undefined {
-    return this.modelRegistry;
-  }
-
   async closeTab(sessionId: string): Promise<void> {
     const runtimeTab = this.requireTab(sessionId);
     if (runtimeTab.agentSession.isStreaming) {

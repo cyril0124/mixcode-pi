@@ -1,4 +1,3 @@
-import { stringifyJson } from "../core/json.js";
 import type { RuntimeToolInfo } from "./app-types.js";
 
 export function renderSystemToolsText(tools: RuntimeToolInfo[]): string {
@@ -21,7 +20,7 @@ function formatSystemTool(tool: RuntimeToolInfo): string {
   const source = formatToolSource(tool.sourceInfo);
   if (source) lines.push(`source: ${source}`);
   if (tool.parameters !== undefined)
-    lines.push("parameters:", stringifyJson(tool.parameters, true));
+    lines.push("parameters:", JSON.stringify(tool.parameters, null, 2));
   return lines.join("\n");
 }
 

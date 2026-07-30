@@ -80,34 +80,6 @@ export function listTabsToReconcile(input: ListTabsToReconcileInput): TabReconci
   return { toOpen, toClose, desiredOrder };
 }
 
-/** @deprecated Use listTabsToReconcile. Kept for existing unit tests during transition. */
-export function listPeerTabsToOpen(input: {
-  localSessionIds: Iterable<string>;
-  localWorkdir: string;
-  selfPid: number;
-  peers: Array<{
-    pid: number;
-    workdir: string;
-    tabs: Array<{ sessionId: string; title: string; workdir: string }>;
-  }>;
-}): PeerTabCandidate[] {
-  const desired = new Set<string>();
-  for (const peer of input.peers) {
-    if (peer.pid === input.selfPid) continue;
-    if (normalizeWorkdir(peer.workdir) !== normalizeWorkdir(input.localWorkdir)) continue;
-    for (const tab of peer.tabs) {
-      if (normalizeWorkdir(tab.workdir) !== normalizeWorkdir(input.localWorkdir)) continue;
-      desired.add(tab.sessionId);
-    }
-  }
-  return listTabsToReconcile({
-    localSessionIds: input.localSessionIds,
-    desiredSessionIds: desired,
-    localWorkdir: input.localWorkdir,
-    peerHints: input.peers,
-  }).toOpen;
-}
-
 export interface StartPeerTabSyncOptions {
   /** Path to shared open_tabs.json for this workdir. */
   openTabsPath: string;

@@ -8,7 +8,7 @@ import {
 } from "../core/context-limit.js";
 import { parseInput } from "../core/commands.js";
 import { createSessionId, createTab } from "../core/defaults.js";
-import { stringifyJson } from "../core/json.js";
+
 import { assertModelEnabled, findModelRef } from "../core/models.js";
 import { noteTabClosed, noteTabOpened, noteTabReplaced } from "../core/open-tabs-store.js";
 import { createPicker } from "../core/pickers.js";
@@ -559,7 +559,7 @@ export async function handleSubmittedInput(
     );
   } else if (parsed.command === "tui-state") {
     const request = parseEditorFlag(parsed.args);
-    const text = stringifyJson(createTuiDebugState(state), true);
+    const text = JSON.stringify(createTuiDebugState(state), null, 2);
     if (request.editorDisabled) {
       showTextOverlay(tui, text);
     } else {

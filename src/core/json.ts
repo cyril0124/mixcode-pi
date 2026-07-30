@@ -8,10 +8,6 @@ export function parseJsoncObject(text: string): Record<string, unknown> {
   return parseJsonObject(removeJsoncTrailingCommas(stripJsonComments(text, { whitespace: false })));
 }
 
-export function stringifyJson(value: unknown, pretty = false): string {
-  return JSON.stringify(value, null, pretty ? 2 : 0);
-}
-
 function assertJsonObject(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new Error("Expected JSON object");

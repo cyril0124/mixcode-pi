@@ -29,7 +29,6 @@ import {
   scopedStateDir,
   serializeState,
   stateFileForPort,
-  stringifyJson,
   withMouseReporting,
 } from "../src/index.js";
 import type { Terminal } from "@earendil-works/pi-tui";
@@ -240,8 +239,6 @@ test("commands parse prompts, slash commands, shell commands, and suggestions", 
 
 test("json helpers expose malformed and non-object input clearly", () => {
   assert.deepEqual(parseJsonObject('{"a":1}'), { a: 1 });
-  assert.equal(stringifyJson({ a: 1 }, true), '{\n  "a": 1\n}');
-  assert.equal(stringifyJson({ a: 1 }), '{"a":1}');
   assert.throws(() => parseJsonObject("[]"), /Expected JSON object/);
   assert.throws(() => parseJsonObject("{"), SyntaxError);
 });

@@ -43,22 +43,6 @@ export function ensurePackageExtensions(
   mkdirSync(extensionsDir, { recursive: true });
   const shouldCopy = options?.copy ?? false;
 
-  const hasDiffViewer = packageDirs.some((packagesDir) => {
-    const manifest = join(packagesDir, "mpi-diff-viewer", "package.json");
-    if (!existsSync(manifest)) return false;
-    try {
-      return Boolean(JSON.parse(readFileSync(manifest, "utf8")).pi);
-    } catch {
-      return false;
-    }
-  });
-  // The viewer owns /diff; remove prior package names so Pi does not namespace duplicates.
-  if (hasDiffViewer) {
-    for (const legacyName of ["mpi-diff-tracker", "mpi-diff-tracker-v2"]) {
-      rmSync(join(extensionsDir, legacyName), { recursive: true, force: true });
-    }
-  }
-
   for (const packagesDir of packageDirs) {
     for (const entry of readdirSync(packagesDir, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue;
