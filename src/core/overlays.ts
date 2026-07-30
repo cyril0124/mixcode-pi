@@ -1,5 +1,6 @@
 import { LOCAL_COMMANDS, type LocalCommandPaletteMeta, type PaletteRequirement } from "./commands.js";
-import { fuzzyMatch, fuzzyMatchAllPositions, fuzzyMatchBatch } from "./fuzzy.js";
+import { fuzzyFilter } from "@earendil-works/pi-tui";
+import { fuzzyMatch, fuzzyMatchAllPositions } from "./fuzzy.js";
 import { activateTab, findActiveTab } from "./tabs.js";
 import type { CommandPaletteEntry, MixCodeState, MixCodeTabInfo } from "./types.js";
 import { tabHasPendingUserInteraction } from "./user-interactions.js";
@@ -137,9 +138,7 @@ export function filterTabJumpEntries(
 ): ReturnType<typeof tabJumpEntries> {
   const entries = tabJumpEntries(state);
   if (!query.trim()) return entries;
-  const labels = entries.map((entry) => entry.label);
-  const matched = new Set(fuzzyMatchBatch(query, labels, entries.length).map(([, label]) => label));
-  return entries.filter((entry) => matched.has(entry.label));
+  return fuzzyFilter(entries, query, (entry) => entry.label);
 }
 
 export function openTabJump(state: MixCodeState): void {

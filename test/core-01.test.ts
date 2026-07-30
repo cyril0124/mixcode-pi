@@ -9,10 +9,7 @@ import {
   createTab,
   deleteWorkspace,
   deserializeState,
-  fuzzyContains,
   fuzzyMatch,
-  fuzzyMatchBatch,
-  fuzzyMatchBatchScored,
   loadStateFile,
   loadWorkspaces,
   normalizeStartupWorkdir,
@@ -133,19 +130,12 @@ test("mouse reporting terminal enables and disables SGR mouse events", async () 
   assert.equal(writes.at(-1), `${MOUSE_REPORTING_DISABLE}${AUTOWRAP_ENABLE}`);
 });
 
-test("fuzzy matching mirrors Pi TUI scoring semantics", () => {
-  assert.equal(fuzzyContains("mc", "MixCode"), true);
-  assert.equal(fuzzyContains("cm", "MixCode"), false);
-  assert.equal(fuzzyContains("", ""), true);
+test("fuzzyMatch adapts Pi TUI score (lower better; undefined = no match)", () => {
   assert.equal(fuzzyMatch("", "abc"), 0);
   assert.equal(fuzzyMatch("a", ""), undefined);
   assert.equal(fuzzyMatch("mc", "MixCode"), -10.7);
   assert.equal(fuzzyMatch("abcdef", "abc"), undefined);
-  assert.deepEqual(fuzzyMatchBatch("ab", ["ab", "alphabet", "cab"], 2), [
-    [-124.9, "ab"],
-    [-6.5, "alphabet"],
-  ]);
-  assert.deepEqual([...fuzzyMatchBatchScored("mc", ["MixCode", "abc"]).entries()], [[0, -10.7]]);
+  assert.equal(fuzzyMatch("cm", "MixCode"), undefined);
 });
 
 test("commands parse prompts, slash commands, shell commands, and suggestions", () => {
