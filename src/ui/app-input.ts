@@ -10,7 +10,7 @@ import {
 import { pushToast } from "../core/toast.js";
 import { activateTab, dismissExtensionPanel, getActiveTab, nextTabId } from "../core/tabs.js";
 import type { MixCodeState } from "../core/types.js";
-import { clearPendingEscape, openCloseAllSessionsConfirm, openDeleteAllSessionsConfirm, openQuitConfirm } from "./app-actions.js";
+import { clearPendingEscape, openQuitConfirm } from "./app-actions.js";
 import { insertEditorText } from "./app-editor.js";
 import { pasteDetector } from "./paste-detect.js";
 import {
@@ -34,7 +34,6 @@ import {
 import {
   closeAppOverlay,
   copyActiveNoticeText,
-  getActiveNotice,
   hasAnyOverlay,
   hasAppOverlay,
   hasActiveNotice,
@@ -59,9 +58,12 @@ import { errorMessage } from "./app-overlays.js";
 import { renderCommandPalette, renderTabJumpOverlay } from "./rendering.js";
 import { handleSessionSelectorKey } from "./session-selector.js";
 import { handleForkSelectorKey } from "./fork-selector.js";
-import { closeTreeSelector, handleTreeSelectorKey, type TreeSelectorRuntime } from "./tree-selector.js";
+import { closeTreeSelector, handleTreeSelectorKey } from "./tree-selector.js";
 import { handleWorkspaceOverlayKey } from "./workspace-overlay.js";
 import type { MixCodeSubmitRuntime } from "./app-types.js";
+
+type KeyResult = { consume?: boolean; data?: string } | undefined;
+type ActiveTab = MixCodeState["tabs"][number];
 
 /** Switch tabs and close Session Tree if it would steal keys on the destination. */
 function activateTabClosingTree(
@@ -94,7 +96,7 @@ export function handleMixCodeKeyInput(
   editorActions?: MixCodeEditorActions,
   commandPaletteActions?: CommandPaletteActions,
   workspaceOptions: WorkspaceKeyOptions = {},
-): { consume?: boolean; data?: string } | undefined {
+): KeyResult {
   pasteDetector.recordInput(data);
   // A non-editor input component (e.g. /login provider selector or login
   // dialog) owns the input area: forward keys to it verbatim and bypass all
@@ -188,93 +190,18 @@ export function handleMixCodeKeyInput(
   }
   // Agent View table navigation on MixCode Home must run before per-session
   // extension terminal handlers because Home is not an agent input surface.
-  if (
-    state.activeTabId === "config" &&
-    !hasAnyOverlay(tui) &&
-    !isEditorAutocompleteOpen() &&
-    state.tabs.length > 0
-  ) {
-    if (matchesKey(data, "up")) {
-      state.homeSelectedTabIndex =
-        (state.homeSelectedTabIndex - 1 + state.tabs.length) % state.tabs.length;
-      tui.requestRender();
-      return { consume: true };
-    }
-    if (matchesKey(data, "down")) {
-      state.homeSelectedTabIndex = (state.homeSelectedTabIndex + 1) % state.tabs.length;
-      tui.requestRender();
-      return { consume: true };
-    }
-    // Ctrl+J is \n, which also matchesKey("enter") — do not treat it as Home submit.
-    const isHomeEnter = matchesKey(data, "enter") && !matchesKey(data, "ctrl+j");
-    if (matchesKey(data, "right") || isHomeEnter) {
-      const target = state.tabs[state.homeSelectedTabIndex];
-      if (target) {
-        // Match Pi Editor / agent-tab submit: expand paste markers before send.
-        const text =
-          (editorActions?.getExpandedText?.() ?? editorActions?.getText() ?? "").trim();
-        const hasText = text.length > 0;
-        // Enter: send when non-empty after trim; never attach (Right is the only attach key).
-        // Whitespace-only is a no-op (do not clear the buffer).
-        if (isHomeEnter) {
-          if (hasText && editorActions && runtime) {
-            editorActions.setText("");
-            // Match agent-tab onSubmit: in-memory Up-history + optional disk history.
-            editorActions.addToHistory?.(text, target.sessionId);
-            if (workspaceOptions.rootStateDir) {
-              void recordSubmittedHistory({
-                rootStateDir: workspaceOptions.rootStateDir,
-                sessionId: target.sessionId,
-                text,
-              }).catch((error: unknown) => {
-                // Same visibility as agent-tab history failures (system line or notice).
-                showSystemMessageOrToast(
-                  state,
-                  runtime,
-                  tui,
-                  `History warning: ${errorMessage(error)}`,
-                );
-                tui.requestRender();
-              });
-            }
-            // Do not change activeTabId: that swaps the main surface to the agent.
-            // Pass workspaceFile + selected tab so Home matches agent-tab submit plumbing.
-            void handleSubmittedInput(
-              state,
-              runtime as MixCodeSubmitRuntime,
-              text,
-              tui,
-              onStateChanged,
-              editorActions.setInputComponent && editorActions.clearInputComponent
-                ? {
-                    setInputComponent: editorActions.setInputComponent,
-                    clearInputComponent: editorActions.clearInputComponent,
-                    requestRender: () => tui.requestRender(),
-                  }
-                : undefined,
-              workspaceOptions.workspaceFile,
-              target,
-              workspaceOptions.settingsDeps,
-              { setText: (value) => editorActions.setText(value) },
-            ).catch((error: unknown) => {
-              editorActions.setText(text);
-              showErrorOverlay(tui, error);
-              tui.requestRender();
-            });
-          }
-          tui.requestRender();
-          return { consume: true };
-        }
-        // Right with text falls through so the editor can move the cursor.
-        // Right with empty input attaches to the selected agent.
-        if (!hasText) {
-          activateTabClosingTree(state, tui, target.sessionId);
-          tui.requestRender();
-          return { consume: true };
-        }
-      }
-    }
-  }
+  const homeResult = handleHomeAgentViewKey(
+    state,
+    active,
+    data,
+    tui,
+    runtime,
+    onStateChanged,
+    isEditorAutocompleteOpen,
+    editorActions,
+    workspaceOptions,
+  );
+  if (homeResult) return homeResult;
   if (!hasAnyOverlay(tui) && handleInputSelectionMouseInput(state, active, data, tui)) {
     return { consume: true };
   }
@@ -318,6 +245,148 @@ export function handleMixCodeKeyInput(
   if (handleMouseInput(state, active, data, tui, undefined, runtime)) {
     return { consume: true };
   }
+  const overlayResult = handleModalOverlayKeys(
+    state,
+    active,
+    data,
+    tui,
+    runtime,
+    onStateChanged,
+    commandPaletteActions,
+  );
+  if (overlayResult) return overlayResult;
+  const agentNavResult = handleAgentSurfaceKeys(
+    state,
+    active,
+    data,
+    tui,
+    runtime,
+    isEditorAutocompleteOpen,
+    editorActions,
+  );
+  if (agentNavResult !== undefined) return agentNavResult;
+  return handleEditorControlKeys(
+    state,
+    active,
+    data,
+    tui,
+    runtime,
+    isEditorAutocompleteOpen,
+    editorActions,
+  );
+}
+
+/** Home (Agent View) table nav + attach/submit. Returns undefined to fall through. */
+function handleHomeAgentViewKey(
+  state: MixCodeState,
+  active: ActiveTab | undefined,
+  data: string,
+  tui: OverlayTui,
+  runtime: MixCodeKeyRuntime | undefined,
+  onStateChanged: ((state: MixCodeState) => void | Promise<void>) | undefined,
+  isEditorAutocompleteOpen: () => boolean,
+  editorActions: MixCodeEditorActions | undefined,
+  workspaceOptions: WorkspaceKeyOptions,
+): KeyResult {
+  if (
+    state.activeTabId !== "config" ||
+    hasAnyOverlay(tui) ||
+    isEditorAutocompleteOpen() ||
+    state.tabs.length === 0
+  ) {
+    return undefined;
+  }
+  if (matchesKey(data, "up")) {
+    state.homeSelectedTabIndex =
+      (state.homeSelectedTabIndex - 1 + state.tabs.length) % state.tabs.length;
+    tui.requestRender();
+    return { consume: true };
+  }
+  if (matchesKey(data, "down")) {
+    state.homeSelectedTabIndex = (state.homeSelectedTabIndex + 1) % state.tabs.length;
+    tui.requestRender();
+    return { consume: true };
+  }
+  // Ctrl+J is \n, which also matchesKey("enter") — do not treat it as Home submit.
+  const isHomeEnter = matchesKey(data, "enter") && !matchesKey(data, "ctrl+j");
+  if (!(matchesKey(data, "right") || isHomeEnter)) return undefined;
+  const target = state.tabs[state.homeSelectedTabIndex];
+  if (!target) return undefined;
+  // Match Pi Editor / agent-tab submit: expand paste markers before send.
+  const text =
+    (editorActions?.getExpandedText?.() ?? editorActions?.getText() ?? "").trim();
+  const hasText = text.length > 0;
+  // Enter: send when non-empty after trim; never attach (Right is the only attach key).
+  // Whitespace-only is a no-op (do not clear the buffer).
+  if (isHomeEnter) {
+    if (hasText && editorActions && runtime) {
+      editorActions.setText("");
+      // Match agent-tab onSubmit: in-memory Up-history + optional disk history.
+      editorActions.addToHistory?.(text, target.sessionId);
+      if (workspaceOptions.rootStateDir) {
+        void recordSubmittedHistory({
+          rootStateDir: workspaceOptions.rootStateDir,
+          sessionId: target.sessionId,
+          text,
+        }).catch((error: unknown) => {
+          // Same visibility as agent-tab history failures (system line or notice).
+          showSystemMessageOrToast(
+            state,
+            runtime,
+            tui,
+            `History warning: ${errorMessage(error)}`,
+          );
+          tui.requestRender();
+        });
+      }
+      // Do not change activeTabId: that swaps the main surface to the agent.
+      // Pass workspaceFile + selected tab so Home matches agent-tab submit plumbing.
+      void handleSubmittedInput(
+        state,
+        runtime as MixCodeSubmitRuntime,
+        text,
+        tui,
+        onStateChanged,
+        editorActions.setInputComponent && editorActions.clearInputComponent
+          ? {
+              setInputComponent: editorActions.setInputComponent,
+              clearInputComponent: editorActions.clearInputComponent,
+              requestRender: () => tui.requestRender(),
+            }
+          : undefined,
+        workspaceOptions.workspaceFile,
+        target,
+        workspaceOptions.settingsDeps,
+        { setText: (value) => editorActions.setText(value) },
+      ).catch((error: unknown) => {
+        editorActions.setText(text);
+        showErrorOverlay(tui, error);
+        tui.requestRender();
+      });
+    }
+    tui.requestRender();
+    return { consume: true };
+  }
+  // Right with text falls through so the editor can move the cursor.
+  // Right with empty input attaches to the selected agent.
+  if (!hasText) {
+    activateTabClosingTree(state, tui, target.sessionId);
+    tui.requestRender();
+    return { consume: true };
+  }
+  return undefined;
+}
+
+/** Modal overlays, Ctrl+Q, Esc fallback, Notice copy keys. */
+function handleModalOverlayKeys(
+  state: MixCodeState,
+  active: ActiveTab | undefined,
+  data: string,
+  tui: OverlayTui,
+  runtime: MixCodeKeyRuntime | undefined,
+  onStateChanged: ((state: MixCodeState) => void | Promise<void>) | undefined,
+  commandPaletteActions: CommandPaletteActions | undefined,
+): KeyResult {
   if (state.picker && handlePickerKey(state, data, tui, runtime, onStateChanged)) {
     return { consume: true };
   }
@@ -395,7 +464,23 @@ export function handleMixCodeKeyInput(
     });
     return { consume: true };
   }
+  return undefined;
+}
 
+/**
+ * Agent-tab surface keys: empty Left/Right, shortcuts, history, zen/vim/tab, palette.
+ * Returns undefined to fall through; returns explicit undefined from zen when Tab
+ * must reach an extension-owned editor (caller must not continue dispatch).
+ */
+function handleAgentSurfaceKeys(
+  state: MixCodeState,
+  active: ActiveTab | undefined,
+  data: string,
+  tui: OverlayTui,
+  runtime: MixCodeKeyRuntime | undefined,
+  isEditorAutocompleteOpen: () => boolean,
+  editorActions: MixCodeEditorActions | undefined,
+): KeyResult {
   // Right on empty input toggles the extension widget side panel. Mirrors the
   // Left-returns-Home guard so it never steals the editor's cursor-right when
   // there is text. Vim mode handles Right earlier as user-message navigation,
@@ -477,6 +562,7 @@ export function handleMixCodeKeyInput(
       editorActions?.hasEditorReplacement?.() ||
       active.extensionUi.pendingUserInteractions.length > 0
     ) {
+      // Fall through to editor/extension — do not continue agent-surface dispatch.
       return undefined;
     }
     return { consume: true };
@@ -544,6 +630,19 @@ export function handleMixCodeKeyInput(
     showLinesOverlay(tui, (width) => renderCommandPalette(state, width, extensionCommands));
     return { consume: true };
   }
+  return undefined;
+}
+
+/** Chat scroll + editor shortcuts (newline, paste, clear, rename, dequeue). */
+function handleEditorControlKeys(
+  state: MixCodeState,
+  active: ActiveTab | undefined,
+  data: string,
+  tui: OverlayTui,
+  runtime: MixCodeKeyRuntime | undefined,
+  isEditorAutocompleteOpen: () => boolean,
+  editorActions: MixCodeEditorActions | undefined,
+): KeyResult {
   // Extension custom components (e.g. /btw) bind PgUp/PgDn for their own
   // history. Skip main-chat scroll while a replacement editor or pending
   // extension interaction owns input — same ownership model as Left/Right.
