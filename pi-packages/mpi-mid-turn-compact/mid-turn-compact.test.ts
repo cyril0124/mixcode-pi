@@ -394,7 +394,9 @@ describe("context handler non-blocking compact", () => {
     await new Promise<void>((resolve) => setImmediate(resolve));
     assert.equal(compactStarted, true);
     assert.equal(compactSettled, false);
-    assert.equal(resumeSent, undefined);
+    // Snapshot first — narrowing resumeSent to undefined breaks CFA across await + closure assign.
+    const resumeEmptyBeforeCompact = resumeSent === undefined;
+    assert.ok(resumeEmptyBeforeCompact);
 
     resolveCompact();
     await new Promise<void>((resolve) => setImmediate(resolve));
@@ -660,7 +662,9 @@ describe("context handler non-blocking compact", () => {
       willRetry: false,
     }, ctx);
 
-    assert.equal(resumeSent, undefined); // scheduled, not yet flushed
+    // Snapshot first — narrowing resumeSent to undefined breaks CFA across await + closure assign.
+    const resumeEmptyBeforeFlush = resumeSent === undefined;
+    assert.ok(resumeEmptyBeforeFlush); // scheduled, not yet flushed
     await new Promise<void>((resolve) => setImmediate(resolve));
     await new Promise<void>((resolve) => setImmediate(resolve));
     assert.equal(resumeSent?.customType, "mpi-mid-turn-resume");
