@@ -152,6 +152,8 @@ test("submitted input handles prompt, shell, local commands, clear, and missing 
       agentSession: { isStreaming: false, isBashRunning: false },
       session: { getBranch: () => [] },
     }),
+    clearTabChatProjection: () => undefined,
+    rebuildChatFromSession: () => undefined,
     clearTab: async (sessionId: string) => {
       cleared.push(sessionId);
       tab.sessionId = "cleared";
@@ -306,6 +308,8 @@ test("submitted clear fires session replacement without blocking the caller", as
       tab.sessionId = "cleared";
       return { tab };
     },
+    clearTabChatProjection: () => undefined,
+    rebuildChatFromSession: () => undefined,
     getTab: () => ({
       chat: [],
       agentSession: { isStreaming: false, isBashRunning: false },
@@ -345,6 +349,8 @@ test("submitted clear resets tab state when replacement fails", async () => {
       clearTab: async () => {
         throw new Error("clear failed");
       },
+      clearTabChatProjection: () => undefined,
+      rebuildChatFromSession: () => undefined,
       getTab: () => ({
         chat: [],
         agentSession: { isStreaming: false, isBashRunning: false },
@@ -537,6 +543,15 @@ test("submitted clear restores chat when replacement fails after prepare", async
     {
       clearTab: async () => {
         throw new Error("clear failed after prepare");
+      },
+      clearTabChatProjection: () => {
+        runtimeTab.chat = [];
+      },
+      rebuildChatFromSession: () => {
+        // Mirror host rebuild: project surviving branch back into chat.
+        runtimeTab.chat = [
+          { role: "user", text: "restored" },
+        ];
       },
       getTab: () => runtimeTab,
       appendSystemMessage: (_sessionId: string, text: string) => {

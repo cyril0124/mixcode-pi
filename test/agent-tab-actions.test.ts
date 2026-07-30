@@ -37,7 +37,11 @@ test("batch clear resets the same chat anchors as TUI clear", async () => {
   });
   state.tabs.push(tab);
   const runtime = {
-    getTab: () => ({ chat: [] }),
+    getTab: () => ({
+      chat: [],
+      agentSession: { isStreaming: false, isBashRunning: false },
+    }),
+    clearTabChatProjection: () => undefined,
     clearTab: async () => ({ tab }),
   } as unknown as MixCodeRuntime;
   const host = createBatchExecutorHost({
@@ -61,8 +65,12 @@ test("batch clear publishes the empty tab before session replacement starts", as
   const runtime = {
     getTab: () => {
       events.push("read-chat");
-      return { chat: [] };
+      return {
+        chat: [],
+        agentSession: { isStreaming: false, isBashRunning: false },
+      };
     },
+    clearTabChatProjection: () => undefined,
     clearTab: async () => {
       events.push("replace-session");
       return { tab };
@@ -116,7 +124,11 @@ test("batch clear sets customBasePrompt when system_prompt is provided", async (
   const tab = createTab(1, "s1", "/repo", { title: "reviewer" });
   state.tabs.push(tab);
   const runtime = {
-    getTab: () => ({ chat: [] }),
+    getTab: () => ({
+      chat: [],
+      agentSession: { isStreaming: false, isBashRunning: false },
+    }),
+    clearTabChatProjection: () => undefined,
     clearTab: async () => ({ tab }),
   } as unknown as MixCodeRuntime;
   const host = createBatchExecutorHost({

@@ -456,6 +456,10 @@ test("submitted input marks done, exports state, imports sessions, and exits dir
       tab.previewIndex = tab.previewMessages.length - 1;
     },
     getTab: () => undefined,
+    previewSessionImport: async (path: string) => ({
+      resolvedPath: path,
+      sessionId: path.includes("cancelled") ? "cancelled" : "imported",
+    }),
     importFromJsonl: async (sessionId: string, path: string, cwdOverride?: string) => {
       assert.equal(sessionId, "s1");
       assert.equal(tab.sessionId, "imported");

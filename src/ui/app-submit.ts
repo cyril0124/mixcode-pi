@@ -1,5 +1,5 @@
 import { isBashAlreadyRunningError, type MixCodeRuntime } from "../agent/runtime.js";
-import { entriesToChatLines, inspectSessionImport } from "../agent/runtime-chat.js";
+
 import { MIXCODE_EXTENSION_KEYBINDINGS } from "../agent/runtime-extension-theme.js";
 import {
   applyContextLimit,
@@ -160,10 +160,11 @@ export async function handleSubmittedInput(
       return void tui.requestRender();
     }
     runtimeTab.showHiddenMessages = !runtimeTab.showHiddenMessages;
-    // Rebuild the chat lines from the session branch so already-persisted
-    // hidden entries appear/disappear immediately (same pattern as branch
-    // switching in runtime-events).
-    runtimeTab.chat = entriesToChatLines(runtimeTab.session.getBranch(), runtimeTab);
+    // Rebuild via host so projection stays behind the multi-tab seam.
+    if (!runtime.rebuildChatFromSession) {
+      throw new Error("Toggling hidden messages requires runtime chat rebuild support");
+    }
+    runtime.rebuildChatFromSession(active!.sessionId);
     clearConversationCache(active!.sessionId);
     pushToast(active!, {
       type: "info",
@@ -251,9 +252,13 @@ export async function handleSubmittedInput(
         })
         .catch((error: unknown) => {
           // Identity was rolled back; restore wiped chat from the surviving session.
-          const runtimeTab = runtime.getTab?.(prepared.tab.sessionId);
-          if (runtimeTab) {
-            runtimeTab.chat = entriesToChatLines(runtimeTab.session.getBranch(), runtimeTab);
+          // Best-effort only: requireTab throws if the map lost the id mid-clear.
+          try {
+            if (runtime.getTab?.(prepared.tab.sessionId)) {
+              runtime.rebuildChatFromSession?.(prepared.tab.sessionId);
+            }
+          } catch {
+            // Always surface the clear failure below even if restore fails.
           }
           appendActiveSystemMessage(
             state,
@@ -345,9 +350,12 @@ export async function handleSubmittedInput(
   } else if (parsed.command === "import") {
     if (!runtime.importFromJsonl)
       throw new Error("Import requires pi runtime session import support");
+    if (!runtime.previewSessionImport) {
+      throw new Error("Import requires runtime session import preview support");
+    }
     const request = parseImportRequest(parsed.args);
     const oldSessionId = active!.sessionId;
-    const { sessionId: targetSessionId } = await inspectSessionImport(
+    const { sessionId: targetSessionId } = await runtime.previewSessionImport(
       request.path,
       request.cwdOverride,
       active!.workdir,

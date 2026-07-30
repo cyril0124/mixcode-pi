@@ -129,6 +129,10 @@ test("createMixCodeTui editor submits prompts and surfaces slash errors", async 
     appendSystemMessage: (_sessionId: string, text: string) => {
       chat.push({ role: "system", text });
     },
+    clearTabChatProjection: () => {
+      chat.length = 0;
+    },
+    rebuildChatFromSession: () => undefined,
     clearTab: async () => {
       throw new Error("clear failed");
     },

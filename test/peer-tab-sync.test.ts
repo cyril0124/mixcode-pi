@@ -361,8 +361,21 @@ test("completeAgentTabClear publishes open_tabs before session id swaps so recon
 
     const runtimeTabs = new Map<
       string,
-      { tab: { sessionId: string; title: string; index?: number }; chat: unknown[] }
-    >([[existing.sessionId, { tab: existing, chat: [] }]]);
+      {
+        tab: { sessionId: string; title: string; index?: number };
+        chat: unknown[];
+        agentSession: { isStreaming: boolean; isBashRunning: boolean };
+      }
+    >([
+      [
+        existing.sessionId,
+        {
+          tab: existing,
+          chat: [],
+          agentSession: { isStreaming: false, isBashRunning: false },
+        },
+      ],
+    ]);
 
     let reconcileDuringClear!: () => Promise<void>;
     let seenNewSessionId: string | undefined;
@@ -382,7 +395,11 @@ test("completeAgentTabClear publishes open_tabs before session id swaps so recon
         tab.sessionId = targetId;
         tab.title = `Agent-${String(tab.index).padStart(2, "0")}`;
         runtimeTabs.delete(sessionId);
-        const rt = { tab, chat: [] as unknown[] };
+        const rt = {
+          tab,
+          chat: [] as unknown[],
+          agentSession: { isStreaming: false, isBashRunning: false },
+        };
         runtimeTabs.set(targetId, rt);
         // Race window: local id is new; open_tabs must already list it.
         await reconcileDuringClear();
@@ -391,6 +408,10 @@ test("completeAgentTabClear publishes open_tabs before session id swaps so recon
       closeTab: async (id: string) => {
         if (!runtimeTabs.has(id)) throw new Error(`Unknown tab session: ${id}`);
         runtimeTabs.delete(id);
+      },
+      clearTabChatProjection: (id: string) => {
+        const rt = runtimeTabs.get(id);
+        if (rt) rt.chat = [];
       },
       getSessionsRoot: () => dir,
     };

@@ -7,7 +7,8 @@ import type {
   RuntimeTab,
 } from "./runtime-types.js";
 
-interface ExtensionCommandRuntime {
+/** Narrow host surface used when binding Pi extension command actions. */
+export interface ExtensionCommandRuntime {
   extensionNewSession(
     sourceSessionId: string,
     options?: ExtensionNewSessionOptions,

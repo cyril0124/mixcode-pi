@@ -1,7 +1,5 @@
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { MixCodeRuntime } from "../agent/runtime.js";
-import { disposeChatRenderers } from "../agent/runtime-chat.js";
-import { findSessionFileByName } from "../agent/runtime-session.js";
 import { LOCAL_COMMANDS, parseInput, type ParsedInput } from "../core/commands.js";
 import { createSessionId, createTab, nextAvailableAgentTitle } from "../core/defaults.js";
 import { assertModelEnabled } from "../core/models.js";
@@ -94,15 +92,14 @@ export interface OpenExistingAgentTabOptions extends CreateAgentTabOptions {
  */
 export async function openExistingAgentTab(
   state: MixCodeState,
-  runtime: Pick<MixCodeRuntime, "createTab" | "getSessionsRoot">,
+  runtime: Pick<MixCodeRuntime, "createTab" | "hasSessionOnDisk">,
   options: OpenExistingAgentTabOptions,
 ): Promise<MixCodeTabInfo> {
   const sessionId = options.sessionId;
   if (state.tabs.some((tab) => tab.sessionId === sessionId)) {
     throw new Error(`Tab already exists: ${sessionId}`);
   }
-  const sessionFile = findSessionFileByName(runtime.getSessionsRoot(), sessionId);
-  if (!sessionFile) {
+  if (!runtime.hasSessionOnDisk(sessionId)) {
     throw new Error(`Peer session not on disk yet: ${sessionId}`);
   }
   const workdir = options.workdir ?? state.workdir;
@@ -161,6 +158,9 @@ export function prepareAgentTabClear(
   const runtimeTab = runtime.getTab?.(sessionId);
   // Refuse before wiping UI — clearTab also rejects streaming, but prepare used to
   // blank chat first so a failed clear left an empty unrecovered surface.
+  if (runtimeTab && !runtimeTab.agentSession) {
+    throw new Error("Cannot clear a session without a live agent session");
+  }
   if (runtimeTab?.agentSession.isStreaming) {
     throw new Error("Cannot clear a session while it is streaming");
   }
@@ -168,8 +168,10 @@ export function prepareAgentTabClear(
     throw new Error("Cannot clear a session while bash is running");
   }
   if (runtimeTab) {
-    disposeChatRenderers(runtimeTab.chat);
-    runtimeTab.chat = [];
+    if (!runtime.clearTabChatProjection) {
+      throw new Error("Clear requires runtime chat projection support");
+    }
+    runtime.clearTabChatProjection(sessionId);
   }
   tab.previewMessages = [];
   tab.previewIndex = 0;

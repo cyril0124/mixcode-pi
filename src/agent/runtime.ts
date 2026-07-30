@@ -6,7 +6,6 @@ import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import {
   type AgentSession,
   type AgentSessionServices,
-  createAgentSessionFromServices,
   type CreateAgentSessionServicesOptions,
   type ExtensionFactory,
   getAgentDir,
@@ -28,7 +27,7 @@ import {
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import type { AgentRuntimeConfig, MixCodeModel, MixCodeModelRef, MixCodeTabInfo } from "../core/types.js";
 import { MIXCODE_EXTENSION_KEYBINDINGS } from "./runtime-extension-theme.js";
-import { activateMixCodeTools, getActiveToolInfos } from "./tools.js";
+import { getActiveToolInfos } from "./tools.js";
 
 export { MIXCODE_EXTENSION_KEYBINDINGS_MANAGER } from "./runtime-extension-theme.js";
 
@@ -40,6 +39,9 @@ import { isExtensionToolOwner } from "../core/extension-tool-owners.js";
 import {
   appendSystemMessage,
   applyRuntimeTabModel,
+  disposeChatRenderers,
+  entriesToChatLines,
+  inspectSessionImport,
   isNothingToCompactError,
   resetTabForNewSession,
   syncContextUsage,
@@ -76,24 +78,21 @@ import {
   createRuntimeServices,
   createRuntimeTabWithFallback,
   disposeRuntimeTabAfterShutdown,
-  refreshStartupHeader,
   reloadRuntimeTabWithFreshServices,
   replaceRuntimeTabSession,
   shutdownRuntimeTab,
   syncRuntimeChatFromSession,
+  updateRuntimeTabWorkdir,
   type RuntimeLifecycleContext,
 } from "./runtime-lifecycle.js";
 import { resolveRuntimeModel, resolveRuntimeModelFromSession } from "./runtime-model.js";
-import { registerMixCodeRuntimeProvider } from "./runtime-provider.js";
 import {
-  bindRuntimeSessionCore,
   copySession,
   createSession,
   findSessionFileByName,
   listAllSessionsGlobal,
   listSessionsForCwd,
   openOrCreateSession,
-  reopenSessionInWorkdir,
 } from "./runtime-session.js";
 import type {
   ChatLine,
@@ -217,7 +216,8 @@ export class MixCodeRuntime {
 
   private lifecycleContext(): RuntimeLifecycleContext {
     return {
-      runtime: this,
+      extensionCommandRuntime: this,
+      requestExtensionShutdown: (sessionId) => this.requestExtensionShutdown(sessionId),
       tabs: this.tabs,
       getExtensionUiHost: () => this.extensionUiHost,
       emitChange: (event, runtimeTab) => this.emitChange(event, runtimeTab),
@@ -399,6 +399,44 @@ export class MixCodeRuntime {
 
   getTab(sessionId: string): RuntimeTab | undefined {
     return this.tabs.get(sessionId);
+  }
+
+  /**
+   * Rebuild the chat projection from the live session branch. Disposes prior
+   * render caches first. Used when UI toggles projection flags (e.g. hidden
+   * messages) without replacing the session.
+   */
+  rebuildChatFromSession(sessionId: string): void {
+    const runtimeTab = this.requireTab(sessionId);
+    disposeChatRenderers(runtimeTab.chat);
+    runtimeTab.chat = entriesToChatLines(runtimeTab.session.getBranch(), runtimeTab);
+  }
+
+  /**
+   * Dispose chat renderers and clear the in-memory projection without touching
+   * the underlying session (prepare-clear paints empty chat before clearTab).
+   */
+  clearTabChatProjection(sessionId: string): void {
+    const runtimeTab = this.requireTab(sessionId);
+    disposeChatRenderers(runtimeTab.chat);
+    runtimeTab.chat = [];
+  }
+
+  /** True when a session JSONL for this id exists under sessionsRoot. */
+  hasSessionOnDisk(sessionId: string): boolean {
+    return findSessionFileByName(this.sessionsRoot, sessionId) !== undefined;
+  }
+
+  /**
+   * Validate a session JSONL import path and return the session id from its
+   * header without mutating tabs (open_tabs identity pre-switch for /import).
+   */
+  previewSessionImport(
+    inputPath: string,
+    cwdOverride: string | undefined,
+    fallbackCwd: string,
+  ): Promise<{ resolvedPath: string; sessionId: string }> {
+    return inspectSessionImport(inputPath, cwdOverride, fallbackCwd);
   }
 
   /**
@@ -1392,44 +1430,23 @@ export class MixCodeRuntime {
     systemPrompt = MIXCODE_SYSTEM_PROMPT,
   ): Promise<void> {
     const runtimeTab = this.requireTab(sessionId);
-    if (runtimeTab.agentSession.isStreaming) {
-      throw new Error("Cannot change workdir while the agent is streaming");
-    }
-    const services = await this.createServices(workdir, systemPrompt);
-    const model = runtimeTab.agent.state.model;
-    registerMixCodeRuntimeProvider(services.modelRuntime, model, this.streamFn, this.getApiKey);
-    await this.shutdownRuntimeTab(runtimeTab, { type: "session_shutdown", reason: "reload" });
-    const sessionManager = await reopenSessionInWorkdir(
-      runtimeTab.session,
+    await updateRuntimeTabWorkdir(
+      runtimeTab,
       workdir,
+      systemPrompt,
       this.sessionsRoot,
+      this.lifecycleContext(),
+      {
+        onSessionRebound: (tab) => {
+          tab.agentSession.subscribe((event) => {
+            // Registered before the shared UI listener so deferred shutdown flushes first.
+            if (event.type === "agent_settled" || event.type === "compaction_end") {
+              this.flushPendingExtensionShutdown(tab.tab.sessionId);
+            }
+          });
+        },
+      },
     );
-    const { session: agentSession, extensionsResult } = await createAgentSessionFromServices({
-      services,
-      sessionManager,
-      model,
-      thinkingLevel: runtimeTab.tab.thinkingLevel,
-      sessionStartEvent: { type: "session_start", reason: "reload" },
-    });
-    const extensionToolOwnerPolicy = isExtensionToolOwner;
-    activateMixCodeTools(agentSession, extensionToolOwnerPolicy);
-    runtimeTab.session = sessionManager;
-    bindRuntimeSessionCore(runtimeTab, {
-      agentSession,
-      services,
-      extensionsResult,
-      extensionToolOwnerPolicy,
-    });
-    runtimeTab.tab.workdir = workdir;
-    agentSession.subscribe((event) => {
-      // Registered before the shared UI listener so deferred shutdown flushes first.
-      if (event.type === "agent_settled" || event.type === "compaction_end") {
-        this.flushPendingExtensionShutdown(runtimeTab.tab.sessionId);
-      }
-    });
-    await this.bindExtensions(runtimeTab);
-    // After extensions are bound: tool owners and diagnostics are final.
-    refreshStartupHeader(runtimeTab);
     // Workdir change reopens the session (possibly a new file path): retrack it.
     this.sync.register(runtimeTab);
   }

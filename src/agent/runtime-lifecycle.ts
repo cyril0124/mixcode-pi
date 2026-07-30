@@ -30,7 +30,6 @@ import {
   type ExtensionToolOwnerPolicy,
 } from "../core/extension-tool-owners.js";
 import type { AgentRuntimeConfig, MixCodeModel, MixCodeTabInfo } from "../core/types.js";
-import type { MixCodeRuntime } from "./runtime.js";
 import {
   appendSystemMessage,
   applyRuntimeTabModel,
@@ -40,6 +39,7 @@ import {
   syncContextUsage,
   syncPreviewFromChat,
 } from "./runtime-chat.js";
+import type { ExtensionCommandRuntime } from "./runtime-extension-actions.js";
 import {
   createExtensionCommandActions,
   createMixCodeExtensionUiContext,
@@ -59,6 +59,7 @@ export { refreshStartupHeader } from "./runtime-startup-header.js";
 import {
   bindRuntimeSessionCore,
   getExtensionManagerEntriesForServices,
+  reopenSessionInWorkdir,
   resetExtensionHostState,
   setExtensionManagerEntriesForServices,
 } from "./runtime-session.js";
@@ -95,7 +96,9 @@ export interface RuntimeServiceOptions {
 }
 
 export interface RuntimeLifecycleContext {
-  runtime: MixCodeRuntime;
+  /** Narrow command surface for Pi extension commandContextActions (not full host). */
+  extensionCommandRuntime: ExtensionCommandRuntime;
+  requestExtensionShutdown: (sessionId: string) => void;
   tabs: Map<string, RuntimeTab>;
   getExtensionUiHost: () => ExtensionCustomUiHost | undefined;
   emitChange: (event: RuntimeEvent, runtimeTab: RuntimeTab) => void;
@@ -659,10 +662,13 @@ export async function bindRuntimeExtensions(
       },
       context.getExtensionUiHost,
     ),
-    commandContextActions: createExtensionCommandActions(context.runtime, runtimeTab),
+    commandContextActions: createExtensionCommandActions(
+      context.extensionCommandRuntime,
+      runtimeTab,
+    ),
     // Multi-tab: close this session only (not process exit). Defers while streaming.
     shutdownHandler: () => {
-      context.runtime.requestExtensionShutdown(runtimeTab.tab.sessionId);
+      context.requestExtensionShutdown(runtimeTab.tab.sessionId);
     },
     onError: (error) => {
       appendSystemMessage(
@@ -718,6 +724,61 @@ export async function reloadRuntimeTabWithFreshServices(
   // the tab-level header is the MixCode analogue, so recompute it here too.
   refreshStartupHeader(runtimeTab);
   context.emitChange({ type: "extension_ui_update" }, runtimeTab);
+}
+
+/**
+ * Rebind a live tab onto a new workdir: fresh services, reopened session file,
+ * extension bind, startup header. Caller owns sync retrack and any pre-bind
+ * agentSession listeners (e.g. deferred extension shutdown flush).
+ */
+export async function updateRuntimeTabWorkdir(
+  runtimeTab: RuntimeTab,
+  workdir: string,
+  systemPrompt: string,
+  sessionsRoot: string,
+  context: RuntimeLifecycleContext,
+  options?: {
+    /** Called after session core is rebound, before bindExtensions. */
+    onSessionRebound?: (runtimeTab: RuntimeTab) => void;
+  },
+): Promise<void> {
+  if (runtimeTab.agentSession.isStreaming) {
+    throw new Error("Cannot change workdir while the agent is streaming");
+  }
+  const services = await context.createServices(workdir, systemPrompt);
+  const model = runtimeTab.agent.state.model;
+  registerMixCodeRuntimeProvider(services.modelRuntime, model, context.streamFn, context.getApiKey);
+  await shutdownRuntimeTab(
+    runtimeTab,
+    { type: "session_shutdown", reason: "reload" },
+    context.getExtensionUiHost(),
+  );
+  const sessionManager = await reopenSessionInWorkdir(
+    runtimeTab.session,
+    workdir,
+    sessionsRoot,
+  );
+  const { session: agentSession, extensionsResult } = await createAgentSessionFromServices({
+    services,
+    sessionManager,
+    model,
+    thinkingLevel: runtimeTab.tab.thinkingLevel,
+    sessionStartEvent: { type: "session_start", reason: "reload" },
+  });
+  const extensionToolOwnerPolicy = resolveExtensionToolOwnerPolicy(context);
+  activateMixCodeTools(agentSession, extensionToolOwnerPolicy);
+  runtimeTab.session = sessionManager;
+  bindRuntimeSessionCore(runtimeTab, {
+    agentSession,
+    services,
+    extensionsResult,
+    extensionToolOwnerPolicy,
+  });
+  runtimeTab.tab.workdir = workdir;
+  options?.onSessionRebound?.(runtimeTab);
+  await bindRuntimeExtensions(runtimeTab, context);
+  // After extensions are bound: tool owners and diagnostics are final.
+  refreshStartupHeader(runtimeTab);
 }
 
 export function subscribeRuntimeTab(runtimeTab: RuntimeTab, context: RuntimeLifecycleContext): void {

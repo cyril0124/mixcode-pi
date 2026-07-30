@@ -48,6 +48,7 @@ type OptionalSubmitRuntime = Partial<
   Pick<
     MixCodeRuntime,
     | "clearTab"
+    | "clearTabChatProjection"
     | "extensionNavigateTree"
     | "getExtensionCommands"
     | "getExtensionManagerEntries"
@@ -59,6 +60,8 @@ type OptionalSubmitRuntime = Partial<
     | "getSharedModelRuntime"
     | "listSessions"
     | "listAllSessions"
+    | "previewSessionImport"
+    | "rebuildChatFromSession"
     | "reloadExtensionManagerTab"
     | "reloadExtensionManagerWorkdir"
     | "reloadModelConfig"

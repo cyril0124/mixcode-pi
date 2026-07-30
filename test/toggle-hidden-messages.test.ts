@@ -77,6 +77,11 @@ test("/toggle-hidden-messages flips the flag, rebuilds chat, and toasts", async 
   const runtimeTab = fakeRuntimeTab({ branch });
   const runtime = {
     getTab: (sessionId: string) => (sessionId === "s1" ? runtimeTab : undefined),
+    rebuildChatFromSession: (sessionId: string) => {
+      const tab = runtime.getTab(sessionId);
+      if (!tab) throw new Error(`Unknown tab session: ${sessionId}`);
+      tab.chat = entriesToChatLines(tab.session.getBranch(), tab);
+    },
   } as unknown as MixCodeRuntime;
   const tui = { requestRender: () => undefined } as unknown as OverlayTui;
 
