@@ -30,7 +30,7 @@
 - Follow a TDD flow for behavior changes and bug fixes: first add or update a focused test that reproduces the expected behavior or failure, confirm it fails when feasible, then implement the smallest code change that makes the test pass.
 - Prefer TypeScript source files under 1000 lines; split into focused modules when a file grows mainly by unrelated concerns. The limit is a guideline, not a hard block — a coherent file may exceed 1000 lines when splitting would only hurt clarity.
 - Add concise English comments in TypeScript source files for non-obvious intent: invariants, side effects, ordering constraints, edge cases, and rationale for surprising decisions. Do not comment self-evident syntax or restate the code; add them when modifying an uncommented complex area as well.
-- Before finishing TypeScript behavior changes, follow **Test Guidelines** (focused test first, then the narrowest gate that covers the touch surface). Use `npm run format` or `./format.sh` only when formatting is intentionally requested or scoped, and do not claim formatting was run unless the command succeeds.
+- Before finishing TypeScript behavior changes, follow **Test Guidelines** (focused test first, then the narrowest gate that covers the touch surface). Use `npm run format` only when formatting is intentionally requested or scoped, and do not claim formatting was run unless the command succeeds.
 - Keep formatting changes intentional and scoped. Do not mix broad reformatting with behavioral changes unless the formatter requires it.
 
 ## Commands

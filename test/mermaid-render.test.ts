@@ -17,6 +17,31 @@ test("renderMermaidASCII draws sequence participants and messages", () => {
   assert.match(out, /hi/);
 });
 
+test("renderMermaidASCII draws class diagram boxes and members", () => {
+  const out = renderMermaidASCII("classDiagram\n  class Animal\n  Animal : +age", 80).join(
+    "\n",
+  );
+  assert.match(out, /Animal/);
+  assert.match(out, /\+age/);
+  assert.match(out, /[─┌┐└┘│]/);
+});
+
+test("renderMermaidASCII draws state diagram nodes and transitions", () => {
+  const out = renderMermaidASCII("stateDiagram-v2\n  [*] --> Still\n  Still --> [*]", 80).join(
+    "\n",
+  );
+  assert.match(out, /Still/);
+  assert.match(out, /[─│╭╮╰╯▼●]/);
+});
+
+test("renderMermaidASCII draws er diagram entities and relationship", () => {
+  const out = renderMermaidASCII("erDiagram\n  CUSTOMER ||--o{ ORDER : places", 80).join("\n");
+  assert.match(out, /CUSTOMER/);
+  assert.match(out, /ORDER/);
+  assert.match(out, /places/);
+  assert.match(out, /[─┌┐└┘│]/);
+});
+
 test("renderMermaidASCII falls back for unsupported diagram types", () => {
   const lines = renderMermaidASCII("gantt\n  title plan", 80);
   const out = lines.join("\n");
