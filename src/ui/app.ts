@@ -144,7 +144,7 @@ export function createMixCodeTui(
       // Avoid secondary Unknown tab session when the active tab has no runtime yet
       // (e.g. create failed and rolled back to a Not Ready tab, or peer closed it).
       const active = getActiveTab(state);
-      if (active && state.activeTabId !== "config" && runtime.getTab?.(active.sessionId)) {
+      if (active && state.activeTabId !== "config" && runtime.getTab(active.sessionId)) {
         try {
           runtime.appendSystemMessage(active.sessionId, errorMessage(error));
         } catch {
@@ -211,7 +211,7 @@ export function createMixCodeTui(
     baseCompletionProvider,
   );
   editor.setAutocompleteProvider(activeCompletionProvider);
-  runtime.setExtensionUiHost?.({
+  runtime.setExtensionUiHost({
     tui,
     editor: {
       getText: (sessionId) => editor.getText(sessionId),
@@ -243,7 +243,7 @@ export function createMixCodeTui(
     },
   } satisfies ExtensionCustomUiHost);
   // Extension ctx.shutdown() closes the runtime tab; mirror into MixCodeState.
-  runtime.onTabClosed?.((sessionId) => {
+  runtime.onTabClosed((sessionId) => {
     if (!state.tabs.some((tab) => tab.sessionId === sessionId)) return;
     closeAgentTab(state, sessionId);
     // Keep shared open-tab set in sync so peer instances drop the tab too.
@@ -252,7 +252,7 @@ export function createMixCodeTui(
     tui.requestRender();
   });
   // Extension pi.registerProvider → ModelRegistry; keep /model picker in sync.
-  runtime.onModelsChanged?.((refs) => {
+  runtime.onModelsChanged((refs) => {
     state.availableModels = applyDisabledModelFlags(
       buildAvailableModelRefs(refs),
       state.disabledProviders,

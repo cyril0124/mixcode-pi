@@ -153,9 +153,7 @@ export function prepareAgentTabClear(
 ): PreparedAgentTabClear {
   const tab = state.tabs.find((item) => item.sessionId === sessionId);
   if (!tab) throw new Error(`Cannot clear unknown tab: ${sessionId}`);
-  // Validate replacement support before destructively clearing the visible tab.
-  if (!runtime.clearTab) throw new Error("Clear requires runtime session replacement support");
-  const runtimeTab = runtime.getTab?.(sessionId);
+  const runtimeTab = runtime.getTab(sessionId);
   // Refuse before wiping UI — clearTab also rejects streaming, but prepare used to
   // blank chat first so a failed clear left an empty unrecovered surface.
   if (runtimeTab && !runtimeTab.agentSession) {
@@ -167,12 +165,7 @@ export function prepareAgentTabClear(
   if (runtimeTab?.agentSession.isBashRunning) {
     throw new Error("Cannot clear a session while bash is running");
   }
-  if (runtimeTab) {
-    if (!runtime.clearTabChatProjection) {
-      throw new Error("Clear requires runtime chat projection support");
-    }
-    runtime.clearTabChatProjection(sessionId);
-  }
+  if (runtimeTab) runtime.clearTabChatProjection(sessionId);
   tab.previewMessages = [];
   tab.previewIndex = 0;
   tab.chatScrollOffset = 0;
@@ -201,7 +194,6 @@ export async function completeAgentTabClear(
   prepared: PreparedAgentTabClear,
   options?: { systemPrompt?: string; rebuildServices?: boolean },
 ): Promise<string> {
-  if (!runtime.clearTab) throw new Error("Clear requires runtime session replacement support");
   const nextSessionId = createSessionId();
   const oldSessionId = prepared.oldSessionId;
   const wasActive = state.activeTabId === oldSessionId;
@@ -308,9 +300,6 @@ export async function submitAgentInput(
     return true;
   }
   if (parsed.kind === "shell") {
-    if (!runtime.executeShellCommand) {
-      throw new Error("Shell command execution requires pi runtime bash support");
-    }
     await runtime.executeShellCommand(tab.sessionId, parsed.args, {
       excludeFromContext: parsed.excludeFromContext === true,
     });
@@ -340,7 +329,7 @@ function isExtensionCommand(
   sessionId: string,
   command: string,
 ): boolean {
-  return runtime.getExtensionCommands?.(sessionId).some((item) => item.name === command) ?? false;
+  return runtime.getExtensionCommands(sessionId).some((item) => item.name === command);
 }
 
 function isPromptTemplate(

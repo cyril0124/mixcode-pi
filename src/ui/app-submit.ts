@@ -108,7 +108,7 @@ export async function handleSubmittedInput(
     if (isBashAlreadyRunningError(error)) {
       editorActions?.setText(text);
       const message = errorMessage(error);
-      if (active && runtime.getTab?.(active.sessionId)) {
+      if (active && runtime.getTab(active.sessionId)) {
         runtime.appendSystemMessage(active.sessionId, message, "error");
       } else if (active) {
         pushToast(active, {
@@ -151,7 +151,7 @@ export async function handleSubmittedInput(
   } else if (parsed.command === "toggle-zen-mode") {
     active!.zenMode = !active!.zenMode;
   } else if (parsed.command === "toggle-hidden-messages") {
-    const runtimeTab = runtime.getTab?.(active!.sessionId);
+    const runtimeTab = runtime.getTab(active!.sessionId);
     if (!runtimeTab) {
       pushToast(active!, {
         type: "warning",
@@ -161,9 +161,6 @@ export async function handleSubmittedInput(
     }
     runtimeTab.showHiddenMessages = !runtimeTab.showHiddenMessages;
     // Rebuild via host so projection stays behind the multi-tab seam.
-    if (!runtime.rebuildChatFromSession) {
-      throw new Error("Toggling hidden messages requires runtime chat rebuild support");
-    }
     runtime.rebuildChatFromSession(active!.sessionId);
     clearConversationCache(active!.sessionId);
     pushToast(active!, {
@@ -181,7 +178,7 @@ export async function handleSubmittedInput(
           settingsDeps.settingsManager,
           settingsDeps.mixcodeFile,
           settingsDeps.piSettingsFile,
-          { setHideThinkingBlock: runtime.setHideThinkingBlock?.bind(runtime) },
+          { setHideThinkingBlock: runtime.setHideThinkingBlock.bind(runtime) },
         );
     } else {
       appendActiveSystemMessage(state, runtime, "Settings panel not available: missing configuration context.");
@@ -193,14 +190,14 @@ export async function handleSubmittedInput(
     // to a placeholder across every tab, persists via Pi's SettingsManager, and
     // invalidates cached conversation lines so the change shows immediately.
     state.hideThinkingBlock = !(state.hideThinkingBlock ?? false);
-    runtime.setHideThinkingBlock?.(state.hideThinkingBlock);
+    runtime.setHideThinkingBlock(state.hideThinkingBlock);
     for (const tab of state.tabs) clearConversationCache(tab.sessionId);
     const message = state.hideThinkingBlock ? "Thinking blocks: hidden" : "Thinking blocks: visible";
     // Home paints the selected agent's toast (renderConfig + applyToastOverlay).
     if (active) pushToast(active, { type: "info", message });
     tui.requestRender();
   } else if (parsed.command === "navigate") {
-    const runtimeTab = runtime.getTab?.(active!.sessionId);
+    const runtimeTab = runtime.getTab(active!.sessionId);
     if (!runtimeTab?.session.getTree || !runtimeTab.session.getLeafId || !runtimeTab.session.getBranch) {
       pushToast(active!, { type: "warning", message: "Navigate requires an active agent chat" });
       return void tui.requestRender();
@@ -231,8 +228,6 @@ export async function handleSubmittedInput(
     try {
       prepared = prepareAgentTabClear(state, runtime, active!.sessionId);
     } catch (error: unknown) {
-      // Missing clearTab is a hard contract error (tests assert rejects).
-      if (!runtime.clearTab) throw error;
       appendActiveSystemMessage(
         state,
         runtime,
@@ -254,8 +249,8 @@ export async function handleSubmittedInput(
           // Identity was rolled back; restore wiped chat from the surviving session.
           // Best-effort only: requireTab throws if the map lost the id mid-clear.
           try {
-            if (runtime.getTab?.(prepared.tab.sessionId)) {
-              runtime.rebuildChatFromSession?.(prepared.tab.sessionId);
+            if (runtime.getTab(prepared.tab.sessionId)) {
+              runtime.rebuildChatFromSession(prepared.tab.sessionId);
             }
           } catch {
             // Always surface the clear failure below even if restore fails.
@@ -275,12 +270,6 @@ export async function handleSubmittedInput(
       onQueued: () => tui.requestRender(),
     });
   } else if (parsed.command === "resume") {
-    if (!runtime.listSessions) {
-      throw new Error("Resume requires pi runtime session listing support");
-    }
-    if (!runtime.extensionSwitchSession) {
-      throw new Error("Resume requires pi runtime session switch support");
-    }
     const cwd = active?.workdir ?? state.workdir;
     const runtimeTab = active ? runtime.getTab(active.sessionId) : undefined;
     const currentSessionPath =
@@ -348,11 +337,6 @@ export async function handleSubmittedInput(
     }
     await deleteWorkspaceByName(state, tui, workspaceFile, name);
   } else if (parsed.command === "import") {
-    if (!runtime.importFromJsonl)
-      throw new Error("Import requires pi runtime session import support");
-    if (!runtime.previewSessionImport) {
-      throw new Error("Import requires runtime session import preview support");
-    }
     const request = parseImportRequest(parsed.args);
     const oldSessionId = active!.sessionId;
     const { sessionId: targetSessionId } = await runtime.previewSessionImport(
@@ -386,7 +370,6 @@ export async function handleSubmittedInput(
   } else if (parsed.command === "extension-manager") {
     openExtensionManager(state, runtime, tui);
   } else if (parsed.command === "reload") {
-    if (!runtime.extensionReload) throw new Error("Reload requires pi runtime reload support");
     await runtime.extensionReload(active!.sessionId);
     // Native reload covers extensions/skills/prompts/themes but not models; the
     // model registry is loaded once at bootstrap, so refresh it here too.
@@ -400,19 +383,13 @@ export async function handleSubmittedInput(
         runtime,
         "Reloaded keybindings, extensions, skills, prompts, themes, and models",
       );
-    } else if ("error" in modelsResult) {
+    } else {
       // Extensions already reloaded; keep prior model selection and surface Pi's error.
       appendActiveSystemMessage(
         state,
         runtime,
         `Reloaded keybindings, extensions, skills, prompts, and themes; models failed: ${modelsResult.error}`,
         "error",
-      );
-    } else {
-      appendActiveSystemMessage(
-        state,
-        runtime,
-        "Reloaded keybindings, extensions, skills, prompts, and themes",
       );
     }
   } else if (parsed.command === "login") {
@@ -456,18 +433,15 @@ export async function handleSubmittedInput(
       throw error;
     }
     // Persist the fork title into the session file so it survives restarts.
-    runtime.renameSession?.(sessionId, tab.title);
+    runtime.renameSession(sessionId, tab.title);
   } else if (parsed.command === "tree") {
-    if (!runtime.extensionNavigateTree) {
-      throw new Error("Tree navigation requires pi runtime tree support");
-    }
     openTreeSelector(state, runtime as unknown as TreeSelectorRuntime, tui, active!.sessionId);
     await onStateChanged?.(state);
     tui.requestRender();
     return;
   } else if (parsed.command === "rename") {
     renameAgentTab(state, active!.sessionId, parsed.args);
-    runtime.renameSession?.(active!.sessionId, parsed.args);
+    runtime.renameSession(active!.sessionId, parsed.args);
   } else if (parsed.command === "models") {
     if (!parsed.args.trim()) {
       state.picker = createPicker("models", state, active);
@@ -609,7 +583,7 @@ function getRuntimeTools(
   sessionId: string,
   runtimeTab: NonNullable<ReturnType<MixCodeRuntime["getTab"]>>,
 ): RuntimeToolInfo[] {
-  const tools = runtime.getExtensionTools?.(sessionId) ?? runtimeTab.agentSession.getAllTools();
+  const tools = runtime.getExtensionTools(sessionId) ?? runtimeTab.agentSession.getAllTools();
   return Array.isArray(tools) ? tools : [];
 }
 

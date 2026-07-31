@@ -9,11 +9,10 @@ export const WORKING_REDRAW_INTERVAL_MS = 80;
 export const LIVE_EXTENSION_REDRAW_INTERVAL_MS = 1_000;
 export function hydrateTabPromptHistory(
   state: MixCodeState,
-  runtime: Partial<Pick<MixCodeRuntime, "getPromptHistory">>,
+  runtime: Pick<MixCodeRuntime, "getPromptHistory">,
 ): void {
   for (const tab of state.tabs) {
-    const prompts = runtime.getPromptHistory?.(tab.sessionId) ?? [];
-    for (const prompt of prompts) {
+    for (const prompt of runtime.getPromptHistory(tab.sessionId)) {
       addPromptHistory(tab, prompt);
     }
   }
@@ -132,16 +131,14 @@ function isWorkingStatus(status: MixCodeState["tabs"][number]["status"] | undefi
 }
 export function activeExtensionCommands(
   state: MixCodeState,
-  runtime:
-    | Partial<Pick<MixCodeRuntime, "getExtensionCommands" | "getAllExtensionCommands">>
-    | undefined,
+  runtime: Pick<MixCodeRuntime, "getExtensionCommands" | "getAllExtensionCommands"> | undefined,
 ): Array<{ name: string; description?: string }> {
   if (!runtime) return [];
   const active = getActiveTab(state);
-  if (active && state.activeTabId !== "config" && runtime.getExtensionCommands) {
+  if (active && state.activeTabId !== "config") {
     return runtime.getExtensionCommands(active.sessionId);
   }
-  return runtime.getAllExtensionCommands?.() ?? [];
+  return runtime.getAllExtensionCommands();
 }
 
 export function createActiveAutocompleteProvider(
@@ -172,13 +169,13 @@ function resolveActiveAutocompleteProvider(
     // on top of the base provider before applying the home filter.
     const selected = state.tabs[state.homeSelectedTabIndex];
     const withExtensions =
-      selected && runtime.getTab?.(selected.sessionId)
-        ? (runtime.applyExtensionAutocompleteProviders?.(selected.sessionId, base) ?? base)
+      selected && runtime.getTab(selected.sessionId)
+        ? runtime.applyExtensionAutocompleteProviders(selected.sessionId, base)
         : base;
     return homeAutocompleteFilter(withExtensions);
   }
   if (!runtime.getTab(active.sessionId)) return base;
-  return runtime.applyExtensionAutocompleteProviders?.(active.sessionId, base) ?? base;
+  return runtime.applyExtensionAutocompleteProviders(active.sessionId, base);
 }
 
 // On Agent View, only allow $ (skills) and @ (files) autocomplete; block / (commands).

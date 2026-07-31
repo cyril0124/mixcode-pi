@@ -29,7 +29,7 @@ export function openForkSelector(
   runtime: MixCodeKeyRuntime,
   tui: OverlayTui,
 ): void {
-  const items = runtime.getForkableUserMessages?.(sessionId) ?? [];
+  const items = runtime.getForkableUserMessages(sessionId);
   if (items.length === 0) {
     const tab = state.tabs.find((t) => t.sessionId === sessionId);
     if (tab) {

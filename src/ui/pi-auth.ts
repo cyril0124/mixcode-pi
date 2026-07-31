@@ -32,11 +32,17 @@ type AuthSelectorProvider = {
  */
 export async function openPiLogin(
   state: MixCodeState,
-  runtime: Partial<Pick<MixCodeRuntime, "getSharedModelRuntime" | "reloadModelConfig">>,
+  runtime: Pick<
+    MixCodeRuntime,
+    | "getSharedModelRuntime"
+    | "reloadModelConfig"
+    | "resolveModel"
+    | "updateTabModel"
+  >,
   inputHost: AuthInputHost | undefined,
   providerRef?: string,
 ): Promise<void> {
-  const modelRuntime = runtime.getSharedModelRuntime?.();
+  const modelRuntime = runtime.getSharedModelRuntime();
   const active = getActiveTab(state);
 
   if (!modelRuntime) {
@@ -102,10 +108,16 @@ export async function openPiLogin(
  */
 export async function openPiLogout(
   state: MixCodeState,
-  runtime: Partial<Pick<MixCodeRuntime, "getSharedModelRuntime" | "reloadModelConfig">>,
+  runtime: Pick<
+    MixCodeRuntime,
+    | "getSharedModelRuntime"
+    | "reloadModelConfig"
+    | "resolveModel"
+    | "updateTabModel"
+  >,
   inputHost: AuthInputHost | undefined,
 ): Promise<void> {
-  const modelRuntime = runtime.getSharedModelRuntime?.();
+  const modelRuntime = runtime.getSharedModelRuntime();
   const active = getActiveTab(state);
 
   if (!modelRuntime) {

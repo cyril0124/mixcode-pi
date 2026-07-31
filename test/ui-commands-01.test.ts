@@ -91,6 +91,7 @@ test("submitted input handles compact and validates theme", async () => {
       prompts.push(text);
     },
     getTab: () => undefined,
+    getExtensionCommands: () => [],
     compactSession: async (sessionId: string, instructions: string) =>
       compacted.push({ sessionId, instructions }),
   } as unknown as MixCodeRuntime;
@@ -116,6 +117,10 @@ test("submitted input reloads active Pi resources", async () => {
     extensionReload: async (sessionId: string) => {
       reloaded.push(sessionId);
     },
+    reloadModelConfig: async () => [],
+    getSharedModelRuntime: () => undefined,
+    resolveModel: () => undefined,
+    updateTabModel: async () => undefined,
   } as unknown as MixCodeRuntime;
   let renders = 0;
   const tui = { requestRender: () => renders++, showOverlay: () => ({}) as never };
@@ -125,7 +130,7 @@ test("submitted input reloads active Pi resources", async () => {
   assert.deepEqual(reloaded, ["s1"]);
   assert.ok(
     systemMessages.some((message) =>
-      message.includes("Reloaded keybindings, extensions, skills, prompts, and themes"),
+      message.includes("Reloaded keybindings, extensions, skills, prompts, themes, and models"),
     ),
   );
   assert.equal(renders, 1);
@@ -165,6 +170,7 @@ test("/reload refreshes models.json and rebuilds the selectable model list", asy
         displayName: `${model.provider}/${model.id}`,
         contextWindow: model.contextWindow,
       })),
+    getSharedModelRuntime: () => undefined,
     resolveModel: (provider: string, modelId: string) =>
       refreshed.find((model) => model.provider === provider && model.id === modelId),
     updateTabModel: (sessionId: string, model: Model<any>) =>
@@ -253,6 +259,7 @@ test("unknown slash commands keep focus on the active tab", async () => {
     appendSystemMessage: (_sessionId: string, text: string) => systemMessages.push(text),
     prompt: async () => undefined,
     getTab: () => undefined,
+    getExtensionCommands: () => [],
     createTab: async () => undefined,
     forkSession: async () => undefined,
     closeTab: async () => undefined,

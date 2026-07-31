@@ -125,7 +125,7 @@ export interface TreeSelectorRuntime {
         agentSession: { abortBranchSummary: () => void };
       }
     | undefined;
-  extensionNavigateTree?: (
+  extensionNavigateTree: (
     sessionId: string,
     targetId: string,
     options?: { summarize?: boolean; customInstructions?: string },
@@ -423,9 +423,6 @@ async function navigateToEntry(
     active.extensionUi.workingVisible = true;
     tui.requestRender();
   }
-  if (!runtime.extensionNavigateTree)
-    throw new Error("Tree navigation requires pi runtime tree support");
-
   try {
     const result = await runtime.extensionNavigateTree(sessionId, entryId, options);
     if (result.aborted) {

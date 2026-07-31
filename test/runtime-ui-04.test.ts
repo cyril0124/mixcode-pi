@@ -82,6 +82,8 @@ test("createMixCodeTui hydrates editor history per tab from restored runtime use
     dispatchTerminalInput: (_sessionId: string, data: string) =>
       extensionConsumesUp && data === "\x1b[A" ? { consume: true } : undefined,
     setExtensionUiHost: () => undefined,
+    onTabClosed: () => () => undefined,
+    onModelsChanged: () => () => undefined,
   } as unknown as RuntimeType;
   const tui = createMixCodeTui(state, runtime, { terminal: silentTerminal() });
   try {
@@ -186,6 +188,11 @@ test("submitted input handles prompt, shell, local commands, clear, and missing 
       tab.contextLimit = model.contextWindow;
     },
     getExtensionCommands: () => [{ name: "run", description: "Run extension command" }],
+    updateTabThinkingLevel: (_sessionId: string, level: string) => level,
+    updateTabWorkdir: async (sessionId: string, workdir: string) => {
+      if (sessionId === tab.sessionId || tab.sessionId === "cleared") tab.workdir = workdir;
+    },
+    renameSession: () => undefined,
   } as unknown as RuntimeType;
   const tui = {
     requestRender: () => undefined,
@@ -270,24 +277,6 @@ test("submitted input rejects invalid thinking level", async () => {
       },
     ),
     /Unknown thinking level/,
-  );
-});
-
-test("submitted input requires clear runtime replacement support", async () => {
-  const state = createInitialState("/repo");
-  state.tabs.push(createTab(1, "s1", "/repo"));
-  state.activeTabId = "s1";
-  await assert.rejects(
-    handleSubmittedInput(
-      state,
-      { getTab: () => undefined } as unknown as RuntimeType,
-      "/clear",
-      {
-        requestRender: () => undefined,
-        showOverlay: () => ({}) as never,
-      },
-    ),
-    /Clear requires runtime session replacement support/,
   );
 });
 

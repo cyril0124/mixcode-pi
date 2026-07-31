@@ -55,7 +55,7 @@ export function handleStreamingAbortKey(
   runtime?: MixCodeKeyRuntime,
   editorActions?: MixCodeEditorActions,
 ): boolean {
-  const runtimeTab = runtime?.getTab?.(active.sessionId);
+  const runtimeTab = runtime?.getTab(active.sessionId);
   const isAgentStreaming = runtimeTab?.agentSession?.isStreaming;
   const streaming =
     isAgentStreaming ?? (active.status === "running" || active.status === "thinking");
@@ -69,12 +69,11 @@ export function handleStreamingAbortKey(
     tui.requestRender();
     return true;
   }
-  if (!runtime?.abortTab)
-    throw new Error("Stopping an active agent requires runtime abort support");
+  if (!runtime) throw new Error("Stopping an active agent requires runtime abort support");
   // On the confirming Esc, prefer retracting the message back to an empty editor
   // when the run produced no visible output. Retract owns the abort internally;
   // a non-empty draft or an ineligible turn falls through to a plain abort.
-  if (runtime.retractCurrentTurn && !editorActions?.getText()?.trim()) {
+  if (!editorActions?.getText()?.trim()) {
     clearPendingEscape(active, "abort-agent");
     tui.requestRender();
     void retractOrAbort(active, tui, runtime, editorActions);
@@ -95,9 +94,9 @@ async function retractOrAbort(
   runtime: MixCodeKeyRuntime,
   editorActions?: MixCodeEditorActions,
 ): Promise<void> {
-  const result = await runtime.retractCurrentTurn!(active.sessionId);
+  const result = await runtime.retractCurrentTurn(active.sessionId);
   if (!result) {
-    runtime.abortTab?.(active.sessionId);
+    runtime.abortTab(active.sessionId);
     tui.requestRender();
     return;
   }
@@ -119,21 +118,14 @@ export function handleQueuedFlushKey(
   if (state.activeTabId === "config") return false;
   if (hasAnyOverlay(tui) || isEditorAutocompleteOpen()) return false;
   if (active.previewOpen || active.pendingDialogs.length > 0) return false;
-  const runtimeTab = runtime?.getTab?.(active.sessionId);
+  const runtimeTab = runtime?.getTab(active.sessionId);
   const runtimeQueuedCount = runtimeQueuedMessageCount(runtimeTab);
   if (active.pendingMessages.length === 0 && runtimeQueuedCount === 0) return false;
   const streaming =
     runtimeTab?.agentSession?.isStreaming ??
     (active.status === "running" || active.status === "thinking");
-  if (!runtime?.flushPendingMessage)
-    throw new Error("Flushing queued messages requires runtime queue support");
-  if (streaming) {
-    if (!runtime.abortTab)
-      throw new Error(
-        "Flushing queued messages from an active agent requires runtime abort support",
-      );
-    runtime.abortTab(active.sessionId);
-  }
+  if (!runtime) throw new Error("Flushing queued messages requires runtime queue support");
+  if (streaming) runtime.abortTab(active.sessionId);
   clearPendingEscape(active, "abort-agent");
   void runtime
     .flushPendingMessage(active.sessionId, runtimeQueuedCount || undefined)
@@ -199,7 +191,7 @@ export function handleDeleteAllSessionsConfirmKey(
     return true;
   }
   if (data.toLowerCase() === "y") {
-    if (!runtime?.deleteAllTabs) throw new Error("Deleting all sessions requires runtime support");
+    if (!runtime) throw new Error("Deleting all sessions requires runtime support");
     const confirmedRuntime = runtime;
     state.deleteAllSessionsConfirmOpen = false;
     closeAppOverlay(tui);
@@ -207,7 +199,7 @@ export function handleDeleteAllSessionsConfirmKey(
       // Call through confirmedRuntime.deleteAllTabs() (not a detached function
       // reference) so `this` inside the real MixCodeRuntime method still
       // resolves — deleteAllTabs reads `this.tabs` internally.
-      await confirmedRuntime.deleteAllTabs!();
+      await confirmedRuntime.deleteAllTabs();
       // Same bulk-close publish as /close-all-sessions so peer sync cannot reopen.
       noteTabsReplaced([]);
       state.tabs.length = 0;
@@ -237,7 +229,7 @@ export function handleCloseAllSessionsConfirmKey(
     return true;
   }
   if (data.toLowerCase() === "y") {
-    if (!runtime?.closeAllTabs) throw new Error("Closing all sessions requires runtime support");
+    if (!runtime) throw new Error("Closing all sessions requires runtime support");
     const confirmedRuntime = runtime;
     state.closeAllSessionsConfirmOpen = false;
     closeAppOverlay(tui);
@@ -245,7 +237,7 @@ export function handleCloseAllSessionsConfirmKey(
       // Call through confirmedRuntime.closeAllTabs() (not a detached function
       // reference) so `this` inside the real MixCodeRuntime method still
       // resolves — closeAllTabs reads `this.tabs` internally.
-      await confirmedRuntime.closeAllTabs!();
+      await confirmedRuntime.closeAllTabs();
       // Publish the bulk close before local state becomes empty so peer sync cannot reopen it.
       noteTabsReplaced([]);
       state.tabs.length = 0;
@@ -274,8 +266,7 @@ export function handleSessionActionConfirmKey(
     return true;
   }
   if (data.toLowerCase() === "y") {
-    if (confirm.action === "close" && !runtime?.closeTab) throw new Error("Closing a session requires runtime support");
-    if (confirm.action === "delete" && !runtime?.deleteTab) throw new Error("Deleting a session requires runtime support");
+    if (!runtime) throw new Error("Session close/delete requires runtime support");
     const confirmedRuntime = runtime;
     const { action, sessionId } = confirm;
     state.sessionActionConfirm = null;

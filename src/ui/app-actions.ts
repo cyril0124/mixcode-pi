@@ -46,14 +46,14 @@ export function applyThinkingLevel(
   state: MixCodeState,
   active: MixCodeState["tabs"][number],
   level: string,
-  runtime?: Partial<Pick<MixCodeRuntime, "updateTabThinkingLevel">>,
+  runtime?: Pick<MixCodeRuntime, "updateTabThinkingLevel">,
 ): void {
   if (!isThinkingLevelAvailable(level, active.model)) {
     throw new Error(
       `Unknown thinking level: ${level}. Valid values: ${validThinkingLevelsMessage(active.model)}`,
     );
   }
-  const effectiveLevel = runtime?.updateTabThinkingLevel
+  const effectiveLevel = runtime
     ? runtime.updateTabThinkingLevel(active.sessionId, level)
     : level;
   active.thinkingLevel = effectiveLevel;
@@ -117,13 +117,13 @@ export async function applyModelSelection(
   state: MixCodeState,
   active: MixCodeState["tabs"][number],
   model: MixCodeState["model"],
-  runtime?: Partial<Pick<MixCodeRuntime, "resolveModel" | "updateTabModel">>,
+  runtime?: Pick<MixCodeRuntime, "resolveModel" | "updateTabModel">,
 ): Promise<void> {
   assertModelEnabled(model);
-  const resolvedModel = runtime?.resolveModel?.(model.provider, model.modelId);
-  if (runtime?.resolveModel && !resolvedModel)
-    throw new Error("Model is not registered in runtime: " + model.displayName);
-  if (runtime?.updateTabModel && resolvedModel) {
+  if (runtime) {
+    const resolvedModel = runtime.resolveModel(model.provider, model.modelId);
+    if (!resolvedModel)
+      throw new Error("Model is not registered in runtime: " + model.displayName);
     await runtime.updateTabModel(active.sessionId, resolvedModel);
   }
   setTabModel(active, model);
@@ -139,25 +139,19 @@ export async function applyModelSelection(
  * agent immediately uses the repaired model. Returns true when the runtime
  * actually performed a model reload (i.e. a registry was wired).
  */
-export type ModelReloadResult =
-  | { ok: true }
-  | { ok: false; error: string }
-  | { ok: false; skipped: true };
+export type ModelReloadResult = { ok: true } | { ok: false; error: string };
 
 export async function reloadRuntimeModels(
   state: MixCodeState,
-  runtime: Partial<
-    Pick<
-      MixCodeRuntime,
-      "reloadModelConfig" | "resolveModel" | "updateTabModel" | "getSharedModelRuntime"
-    >
+  runtime: Pick<
+    MixCodeRuntime,
+    "reloadModelConfig" | "resolveModel" | "updateTabModel" | "getSharedModelRuntime"
   >,
   options?: { mixcodeFile?: string },
 ): Promise<ModelReloadResult> {
-  if (!runtime.reloadModelConfig) return { ok: false, skipped: true };
   const configured = await runtime.reloadModelConfig();
   // Pi keeps parse/schema/provider failures on ModelRuntime.getError() instead of throwing.
-  const modelRuntime = runtime.getSharedModelRuntime?.();
+  const modelRuntime = runtime.getSharedModelRuntime();
   // Re-read mixcode disabled lists on /reload so /settings writes take effect.
   if (options?.mixcodeFile) {
     const mixcode = await loadMixCodeSettings(options.mixcodeFile);
@@ -234,7 +228,7 @@ export async function reloadRuntimeModels(
 export function applyWorkdirSelection(
   active: MixCodeState["tabs"][number],
   workdir: string,
-  runtime?: Partial<Pick<MixCodeRuntime, "updateTabWorkdir">>,
+  runtime?: Pick<MixCodeRuntime, "updateTabWorkdir">,
 ): void | Promise<void> {
   // Relative paths resolve against the current agent workdir (same as picker).
   const resolved = normalizeWorkdirInput(active.workdir, workdir);
@@ -250,8 +244,7 @@ export function applyWorkdirSelection(
     });
     return;
   }
-  if (runtime?.updateTabWorkdir)
-    return runtime.updateTabWorkdir(active.sessionId, resolved, MIXCODE_SYSTEM_PROMPT);
+  if (runtime) return runtime.updateTabWorkdir(active.sessionId, resolved, MIXCODE_SYSTEM_PROMPT);
   active.workdir = resolved;
 }
 
@@ -268,13 +261,13 @@ export function appendActiveSystemMessage(
 
 export function showSystemMessageOrToast(
   state: MixCodeState,
-  runtime: Partial<Pick<MixCodeRuntime, "appendSystemMessage">>,
+  runtime: Pick<MixCodeRuntime, "appendSystemMessage">,
   tui: OverlayTui,
   message: string,
-  kind?: Parameters<NonNullable<MixCodeRuntime["appendSystemMessage"]>>[2],
+  kind?: Parameters<MixCodeRuntime["appendSystemMessage"]>[2],
 ): void {
   const active = getActiveTab(state);
-  if (!active || state.activeTabId === "config" || !runtime.appendSystemMessage) {
+  if (!active || state.activeTabId === "config") {
     showNoticeTextOverlay(tui, message);
     return;
   }

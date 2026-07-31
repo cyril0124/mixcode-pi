@@ -1,17 +1,17 @@
 import { loadWorkspaces } from "../core/state-store.js";
 import type { MixCodeState, WorkspaceSnapshot, WorkspaceTabSnapshot } from "../core/types.js";
-import type { MixCodeKeyRuntime } from "./app-types.js";
+import type { MixCodeRuntime } from "../agent/runtime.js";
 
 export type WorkspaceSelectorMode = "restore" | "delete";
 
-export interface WorkspaceRuntime
-  extends Pick<
-    MixCodeKeyRuntime,
-    "createTab" | "closeTab" | "extensionSwitchSession" | "getTab" | "getPromptHistory"
-  > {}
+/** Narrow host surface for workspace restore/save (not a Partial kitchen sink). */
+export type WorkspaceRuntime = Pick<
+  MixCodeRuntime,
+  "createTab" | "closeTab" | "extensionSwitchSession" | "getTab" | "getPromptHistory"
+>;
 
 export function workspaceRuntimeWithHistory(
-  runtime: MixCodeKeyRuntime | undefined,
+  runtime: MixCodeRuntime | undefined,
 ): WorkspaceRuntime | undefined {
   return runtime;
 }

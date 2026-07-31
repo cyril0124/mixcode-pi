@@ -72,6 +72,9 @@ test("createMixCodeTui submit hook persists prompt history", async () => {
     const runtime = {
       onChange: () => () => undefined,
       getTab: () => ({ tab, chat: [] }),
+      getPromptHistory: () => [],
+      onTabClosed: () => () => undefined,
+      onModelsChanged: () => () => undefined,
       prompt: async (_sessionId: string, text: string) => {
         prompts.push(text);
       },
@@ -123,6 +126,10 @@ test("createMixCodeTui editor submits prompts and surfaces slash errors", async 
       agentSession: { isStreaming: false, isBashRunning: false },
       session: { getBranch: () => [] },
     }),
+    getPromptHistory: () => [],
+    onTabClosed: () => () => undefined,
+    onModelsChanged: () => () => undefined,
+    setExtensionUiHost: () => undefined,
     prompt: async (_sessionId: string, text: string) => {
       prompts.push(text);
     },
@@ -192,6 +199,9 @@ test("createMixCodeTui external editor rewrites focused draft and surfaces exit 
     const runtime = {
       onChange: () => () => undefined,
       getTab: () => ({ tab, chat: [] }),
+      getPromptHistory: () => [],
+      onTabClosed: () => () => undefined,
+      onModelsChanged: () => () => undefined,
       prompt: async () => undefined,
       getExtensionCommands: () => [],
       getAllExtensionCommands: () => [],
@@ -262,6 +272,10 @@ test("createMixCodeTui editor slot renders the input cursor while focused", () =
   const runtime = {
     onChange: () => () => undefined,
     getTab: () => ({ tab, chat: [] }),
+    getPromptHistory: () => [],
+    onTabClosed: () => () => undefined,
+    onModelsChanged: () => () => undefined,
+    setExtensionUiHost: () => undefined,
     prompt: async () => undefined,
     appendSystemMessage: () => undefined,
     getExtensionCommands: () => [],

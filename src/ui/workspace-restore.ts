@@ -22,9 +22,8 @@ export async function restoreWorkspace(
   workspace: WorkspaceSnapshot,
   onStateChanged?: (state: MixCodeState) => void | Promise<void>,
 ): Promise<void> {
-  if (!runtime?.createTab || !runtime.closeTab || !runtime.extensionSwitchSession) {
+  if (!runtime) {
     restoreAlreadyOpenWorkspaceOrder(state, workspace);
-    if (runtime) hydrateTabPromptHistory(state, runtime);
     noteTabsReplaced(state.tabs.map((tab) => tab.sessionId));
     await onStateChanged?.(state);
     showWorkspaceToast(state, tui, `Workspace restored: ${workspace.name}`, "success");
@@ -154,9 +153,9 @@ function findOpenWorkspaceTab(
   runtime: WorkspaceRuntime | undefined,
   item: WorkspaceTabSnapshot,
 ): MixCodeTabInfo | undefined {
-  if (item.sessionPath && runtime?.getTab) {
+  if (item.sessionPath && runtime) {
     const byPath = state.tabs.find(
-      (tab) => runtime.getTab?.(tab.sessionId)?.session?.getSessionFile?.() === item.sessionPath,
+      (tab) => runtime.getTab(tab.sessionId)?.session?.getSessionFile?.() === item.sessionPath,
     );
     if (byPath) return byPath;
   }

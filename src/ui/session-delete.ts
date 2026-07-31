@@ -11,9 +11,9 @@ export function findOpenSessionTab(
   runtime: MixCodeKeyRuntime | undefined,
   sessionPath: string,
 ): MixCodeState["tabs"][number] | undefined {
-  if (!runtime?.getTab) return undefined;
+  if (!runtime) return undefined;
   return state.tabs.find(
-    (tab) => runtime.getTab?.(tab.sessionId)?.session.getSessionFile() === sessionPath,
+    (tab) => runtime.getTab(tab.sessionId)?.session.getSessionFile() === sessionPath,
   );
 }
 

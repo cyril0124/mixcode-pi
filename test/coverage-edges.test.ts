@@ -193,7 +193,11 @@ test("autocomplete prefers the active tab extension provider over the base provi
 
   const withoutExtension = createActiveAutocompleteProvider(
     state,
-    { getTab: () => ({}) } as never,
+    {
+      getTab: () => ({}),
+      applyExtensionAutocompleteProviders: (_sessionId: string, provider: AutocompleteProvider) =>
+        provider,
+    } as never,
     base,
   );
   assert.equal(

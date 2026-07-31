@@ -2,95 +2,11 @@ import type { TUI as TuiType } from "@earendil-works/pi-tui";
 import type { MixCodeRuntime } from "../agent/runtime.js";
 import type { MixCodeState } from "../core/types.js";
 
-export type MixCodeKeyRuntime = Partial<
-  Pick<
-    MixCodeRuntime,
-    | "abortTab"
-    | "abortAllTabs"
-    | "beginShutdown"
-    | "appendSystemMessage"
-    | "closeTab"
-    | "createTab"
-    | "closeAllTabs"
-    | "deleteTab"
-    | "deleteAllTabs"
-    | "dispatchExtensionShortcut"
-    | "dispatchTerminalInput"
-    | "extensionSwitchSession"
-    | "extensionFork"
-    | "flushPendingMessage"
-    | "focusExtensionCustomOverlay"
-    | "getAllExtensionCommands"
-    | "getExtensionCommands"
-    | "getExtensionManagerEntries"
-    | "getExtensionTools"
-    | "getTab"
-    | "getPromptHistory"
-    | "getDoubleEscapeAction"
-    | "getForkableUserMessages"
-    | "hasExtensionCustomOverlay"
-    | "listAllSessions"
-    | "prompt"
-    | "popPendingMessage"
-    | "retractCurrentTurn"
-    | "reloadExtensionManagerTab"
-    | "reloadExtensionManagerWorkdir"
-    | "resolveExtensionDialog"
-    | "resolveModel"
-    | "setExtensionEnabled"
-    | "updateTabModel"
-    | "updateTabThinkingLevel"
-    | "updateTabWorkdir"
-  >
->;
-
-type OptionalSubmitRuntime = Partial<
-  Pick<
-    MixCodeRuntime,
-    | "clearTab"
-    | "clearTabChatProjection"
-    | "extensionNavigateTree"
-    | "getExtensionCommands"
-    | "getExtensionManagerEntries"
-    | "getExtensionTools"
-    | "importFromJsonl"
-    | "executeShellCommand"
-    | "extensionReload"
-    | "extensionSwitchSession"
-    | "getSharedModelRuntime"
-    | "listSessions"
-    | "listAllSessions"
-    | "previewSessionImport"
-    | "rebuildChatFromSession"
-    | "reloadExtensionManagerTab"
-    | "reloadExtensionManagerWorkdir"
-    | "reloadModelConfig"
-    | "renameSession"
-    | "resolveModel"
-    | "setHideThinkingBlock"
-    | "updateTabModel"
-    | "updateTabThinkingLevel"
-    | "updateTabWorkdir"
-  >
->;
-
-export type MixCodeSubmitRuntime = Pick<
-  MixCodeRuntime,
-  | "appendSystemMessage"
-  | "prompt"
-  | "getTab"
-  | "createTab"
-  | "forkSession"
-  | "closeTab"
-  | "closeAllTabs"
-  | "deleteTab"
-  | "deleteAllTabs"
-  | "executeShellCommand"
-  | "extensionReload"
-  | "compactSession"
-  | "setExtensionEnabled"
-> &
-  OptionalSubmitRuntime;
+// UI host surface is the real runtime. Do not reintroduce Partial/Pick kitchen
+// sinks here — narrow at the call site only when a helper truly needs 1–2 methods.
+// Tests mock with `as MixCodeRuntime` / `as unknown as MixCodeRuntime`.
+export type MixCodeKeyRuntime = MixCodeRuntime;
+export type MixCodeSubmitRuntime = MixCodeRuntime;
 
 export type RuntimeChangeSource = Pick<MixCodeRuntime, "onChange">;
 export interface WorkspaceKeyOptions {

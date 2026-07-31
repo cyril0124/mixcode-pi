@@ -11,7 +11,7 @@ const PREVIEW_TTL_MS = 1_800;
 const PREVIEW_WIDTH = 34;
 const FALLBACK_PREVIEW_ROWS = 5;
 
-type RuntimeTab = NonNullable<ReturnType<NonNullable<MixCodeKeyRuntime["getTab"]>>>;
+type RuntimeTab = NonNullable<ReturnType<MixCodeKeyRuntime["getTab"]>>;
 
 export function handleVimUserMessageNavigation(
   active: MixCodeState["tabs"][number],

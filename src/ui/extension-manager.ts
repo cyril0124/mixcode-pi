@@ -16,8 +16,6 @@ export function openExtensionManager(
 ): void {
   const active = activeExtensionManagerTab(state);
   if (!active) throw new Error("Extension manager requires an active agent tab");
-  if (!runtime.getExtensionManagerEntries)
-    throw new Error("Extension manager requires runtime extension metadata support");
   state.extensionManager = {
     open: true,
     selectedIndex: 0,
@@ -367,25 +365,19 @@ function runExtensionManagerAction(
 ): void {
   const active = activeExtensionManagerTab(state);
   if (!active) throw new Error("Extension manager requires an active agent tab");
-  if (!runtime?.reloadExtensionManagerTab || !runtime.reloadExtensionManagerWorkdir) {
-    throw new Error("Extension manager requires runtime reload support");
-  }
-  const runtimeWithReload = runtime as MixCodeKeyRuntime &
-    Required<
-      Pick<MixCodeKeyRuntime, "reloadExtensionManagerTab" | "reloadExtensionManagerWorkdir">
-    >;
+  if (!runtime) throw new Error("Extension manager requires runtime reload support");
   state.extensionManager.working = true;
   state.extensionManager.error = "";
   state.extensionManager.message = "";
   showLinesOverlay(tui, (width) => renderExtensionManager(state, width));
   void (async () => {
     if (action === "apply-current")
-      await persistExtensionManagerToggles(state, runtimeWithReload, active.sessionId);
+      await persistExtensionManagerToggles(state, runtime, active.sessionId);
     const results =
       action === "reload-workdir"
-        ? await runtimeWithReload.reloadExtensionManagerWorkdir(active.workdir)
-        : [await runtimeWithReload.reloadExtensionManagerTab(active.sessionId)];
-    refreshExtensionManagerEntries(state, runtimeWithReload, active.sessionId);
+        ? await runtime.reloadExtensionManagerWorkdir(active.workdir)
+        : [await runtime.reloadExtensionManagerTab(active.sessionId)];
+    refreshExtensionManagerEntries(state, runtime, active.sessionId);
     state.extensionManager.message = formatReloadResults(results);
     state.extensionManager.selectedKeys = [];
     state.extensionManager.working = false;
@@ -406,8 +398,6 @@ async function persistExtensionManagerToggles(
   runtime: MixCodeKeyRuntime,
   sessionId: string,
 ): Promise<void> {
-  if (!runtime.setExtensionEnabled)
-    throw new Error("Extension manager requires runtime persistence support");
   const selectedKeys = new Set(state.extensionManager.selectedKeys);
   for (const entry of state.extensionManager.entries) {
     if (!selectedKeys.has(entry.key)) continue;
@@ -420,7 +410,6 @@ function refreshExtensionManagerEntries(
   runtime: MixCodeKeyRuntime,
   sessionId: string,
 ): void {
-  if (!runtime.getExtensionManagerEntries) return;
   state.extensionManager.entries = runtime.getExtensionManagerEntries(sessionId);
   state.extensionManager.selectedIndex = Math.min(
     state.extensionManager.selectedIndex,

@@ -166,36 +166,6 @@ test("openSessionSelector returns without waiting for listing; close clears inpu
   assert.equal(input.mounted, undefined);
 });
 
-test("submitted /resume throws when runtime lacks session listing support", async () => {
-  const state = createInitialState("/repo");
-  const tab = createTab(1, "s1", "/repo");
-  state.tabs.push(tab);
-  state.activeTabId = "s1";
-  const tui = {
-    requestRender: () => undefined,
-    showOverlay: () => ({}) as never,
-  };
-  const runtime = {
-    getTab: () => undefined,
-    closeTab: async () => undefined,
-    closeAllTabs: async () => undefined,
-    deleteTab: async () => undefined,
-    deleteAllTabs: async () => undefined,
-    compactSession: async () => undefined,
-    prompt: async () => undefined,
-    setExtensionEnabled: () => undefined,
-    forkSession: async () => undefined,
-    executeShellCommand: async () => undefined,
-    extensionReload: async () => undefined,
-    appendSystemMessage: () => undefined,
-    createTab: async () => undefined,
-  } as unknown as MixCodeRuntime;
-
-  await assert.rejects(
-    () => handleSubmittedInput(state, runtime, "/resume", tui),
-    /Resume requires pi runtime session listing support/,
-  );
-});
 
 test("applyMixCodeKeybindings exposes app.session shortcut labels for Pi keyHint", () => {
   const restore = applyMixCodeKeybindings();
