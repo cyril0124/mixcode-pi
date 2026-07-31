@@ -99,9 +99,14 @@ export function handleMixCodeKeyInput(
 ): KeyResult {
   pasteDetector.recordInput(data);
   // A non-editor input component (e.g. /login provider selector or login
-  // dialog) owns the input area: forward keys to it verbatim and bypass all
-  // global key handling, mirroring Pi agent's editorContainer takeover.
+  // dialog) owns the input area: forward keys to it and bypass all global
+  // key handling, mirroring Pi agent's editorContainer takeover.
+  // Drop Kitty flag-2 releases here: SessionSelector Tab matches both press
+  // and release (\x1b[9;1:3u), so forwarding the release would toggle scope
+  // twice and bounce All back to Current Folder. Same as pi-tui focused
+  // dispatch (skip release unless wantsKeyRelease).
   if (editorActions?.hasInputComponent?.()) {
+    if (isKeyRelease(data)) return { consume: true };
     editorActions.forwardToInputComponent?.(data);
     return { consume: true };
   }

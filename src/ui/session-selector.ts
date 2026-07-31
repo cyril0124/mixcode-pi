@@ -85,10 +85,33 @@ export async function openSessionSelector(
   const ownerSessionId = state.activeTabId;
   const close = () => closeSessionSelector(state, tui);
 
+  // Pi keeps the previous scope's rows until the All loader resolves. On large
+  // trees that scan is multi-second, so the list still looks like Current Folder
+  // while the header already says All. Start All only on first Tab; if still
+  // loading, clear stale current-folder rows first.
+  let listRef: { setSessions: (sessions: SessionInfo[], showCwd: boolean) => void } | undefined;
+  let allWarmConsumed = false;
+
   const component = new SessionSelectorComponent(
     // Forward Pi header Loading n/m progress (was previously discarded).
     (onProgress) => runtime.listSessions(cwd, undefined, onProgress),
-    (onProgress) => runtime.listAllSessions(undefined, onProgress),
+    async (onProgress) => {
+      if (allWarmConsumed) {
+        // Later refresh/delete must re-scan disk (not reuse the first All load).
+        return runtime.listAllSessions(undefined, onProgress);
+      }
+      allWarmConsumed = true;
+      const pending = runtime.listAllSessions(undefined, onProgress);
+      const settled = await Promise.race([
+        pending.then((sessions) => ({ ok: true as const, sessions })),
+        Promise.resolve({ ok: false as const }),
+      ]);
+      if (settled.ok) return settled.sessions;
+      // Still loading: drop current-folder rows so All is not a lie.
+      listRef?.setSessions([], true);
+      tui.requestRender();
+      return pending;
+    },
     (sessionPath) => {
       const nameAndId = readSessionNameAndId(sessionPath);
       close();
@@ -121,6 +144,7 @@ export async function openSessionSelector(
 
   // Guard multi-tab: refuse delete when another MixCode tab has the file open.
   const list = component.getSessionList();
+  listRef = list;
   const piDelete = list.onDeleteSession;
   list.onDeleteSession = async (sessionPath) => {
     const openTab = findOpenSessionTab(
@@ -228,6 +252,7 @@ function wrapSessionSelectorWithKeybindings(
       return withSessionKeybindings(() => component.render(width));
     },
     handleInput(data: string): void {
+      // Kitty releases are dropped in app-input before forwardToInputComponent.
       withSessionKeybindings(() => component.handleInput(data));
     },
     invalidate(): void {

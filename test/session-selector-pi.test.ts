@@ -16,6 +16,7 @@ import {
   type MixCodeRuntime,
 } from "../src/index.js";
 import { applyMixCodeKeybindings } from "../src/agent/runtime-pi-tui-bridge.js";
+import { handleMixCodeKeyInput } from "../src/ui/app-input.js";
 import {
   closeSessionSelector,
   openSessionSelector,
@@ -212,6 +213,199 @@ test("session selector render includes key hints when keybindings bridge is appl
   assert.match(plain, /sort/i);
   assert.match(plain, /ctrl\+d|Ctrl\+D/i);
   closeSessionSelector(state, tui as never);
+});
+
+type MountedSelector = {
+  handleInput: (data: string) => void;
+  render: (w: number) => string[];
+};
+
+async function openMountedSelector(runtime: {
+  listSessions: () => Promise<SessionInfo[]>;
+  listAllSessions: (
+    signal?: AbortSignal,
+    onProgress?: (loaded: number, total: number) => void,
+  ) => Promise<SessionInfo[]>;
+}) {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"));
+  state.activeTabId = "s1";
+  let mounted: MountedSelector | undefined;
+  const input = {
+    setInputComponent: (component: unknown) => {
+      mounted = component as MountedSelector;
+    },
+    clearInputComponent: () => {
+      mounted = undefined;
+    },
+    requestRender: () => undefined,
+  };
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({ hide: () => undefined }),
+    hasOverlay: () => false,
+  };
+  await openSessionSelector(
+    state,
+    runtime as never,
+    tui as never,
+    "/repo",
+    null,
+    undefined,
+    input,
+  );
+  await new Promise((r) => setTimeout(r, 30));
+  assert.ok(mounted);
+  return {
+    state,
+    tui,
+    get mounted() {
+      return mounted!;
+    },
+    tab(data: string) {
+      return handleMixCodeKeyInput(
+        state,
+        data,
+        tui as never,
+        undefined,
+        undefined,
+        undefined,
+        () => false,
+        {
+          hasInputComponent: () => mounted !== undefined,
+          forwardToInputComponent: (key) => mounted?.handleInput(key),
+        },
+      );
+    },
+    plain(width = 120) {
+      return mounted!
+        .render(width)
+        .join("\n")
+        .replace(/\x1b\[[0-9;]*m/g, "");
+    },
+    close() {
+      closeSessionSelector(state, tui as never);
+    },
+  };
+}
+
+test("All scope load reports Loading n/m progress to the header", async () => {
+  const current = makeSessions();
+  let reportProgress: ((loaded: number, total: number) => void) | undefined;
+  let resolveAll: (sessions: SessionInfo[]) => void = () => undefined;
+  const allPending = new Promise<SessionInfo[]>((resolve) => {
+    resolveAll = resolve;
+  });
+  const sel = await openMountedSelector({
+    listSessions: async () => current,
+    listAllSessions: async (_signal, onProgress) => {
+      reportProgress = onProgress;
+      return allPending;
+    },
+  });
+
+  sel.tab("\t");
+  await new Promise((r) => setTimeout(r, 20));
+  assert.ok(reportProgress, "first All load must accept an onProgress sink");
+  reportProgress!(3, 10);
+  await new Promise((r) => setTimeout(r, 10));
+  assert.match(sel.plain(), /Loading\s+3\/10/);
+
+  resolveAll(current);
+  await new Promise((r) => setTimeout(r, 20));
+  sel.close();
+});
+
+test("All scope clears current-folder rows while the global list is still loading", async () => {
+  const current = [
+    {
+      path: "/sessions/only-current.jsonl",
+      id: "only-current",
+      cwd: "/repo",
+      name: "OnlyInCurrent",
+      created: new Date("2025-01-01"),
+      modified: new Date("2025-01-02"),
+      messageCount: 1,
+      firstMessage: "current only",
+      allMessagesText: "current only",
+    },
+  ];
+  let releaseAll: (sessions: SessionInfo[]) => void = () => undefined;
+  const allPending = new Promise<SessionInfo[]>((resolve) => {
+    releaseAll = resolve;
+  });
+  const sel = await openMountedSelector({
+    listSessions: async () => current,
+    listAllSessions: () => allPending,
+  });
+  assert.match(sel.plain(100), /OnlyInCurrent/);
+
+  // Tab to All while the global scan is still in flight.
+  sel.tab("\t");
+  await new Promise((r) => setTimeout(r, 30));
+  const loadingPlain = sel.plain(100);
+  assert.match(loadingPlain, /Resume Session \(All\)/);
+  assert.doesNotMatch(
+    loadingPlain,
+    /OnlyInCurrent/,
+    "must not keep current-folder rows under All while loading",
+  );
+
+  releaseAll([
+    ...current,
+    {
+      path: "/sessions/other.jsonl",
+      id: "other",
+      cwd: "/other",
+      name: "FromOther",
+      created: new Date("2025-01-01"),
+      modified: new Date("2025-01-03"),
+      messageCount: 1,
+      firstMessage: "other",
+      allMessagesText: "other",
+    },
+  ]);
+  await new Promise((r) => setTimeout(r, 30));
+  assert.match(sel.plain(100), /FromOther/);
+  sel.close();
+});
+
+test("Tab scope toggle survives Kitty key-release (does not bounce back to Current)", async () => {
+  const current = makeSessions();
+  const all = [
+    ...current,
+    {
+      path: "/sessions/other.jsonl",
+      id: "other",
+      cwd: "/other",
+      name: "Other Folder",
+      created: new Date("2025-01-01"),
+      modified: new Date("2025-01-03"),
+      messageCount: 2,
+      firstMessage: "From elsewhere",
+      allMessagesText: "From elsewhere",
+    },
+  ];
+  let allCalls = 0;
+  const sel = await openMountedSelector({
+    listSessions: async () => current,
+    listAllSessions: async () => {
+      allCalls++;
+      return all;
+    },
+  });
+
+  // Kitty protocol: press then release for the same Tab key.
+  // Release (\x1b[9;1:3u) also matches tui.input.tab — must not re-toggle.
+  assert.deepEqual(sel.tab("\x1b[9;1u"), { consume: true });
+  assert.deepEqual(sel.tab("\x1b[9;1:3u"), { consume: true });
+  await new Promise((r) => setTimeout(r, 30));
+
+  assert.equal(allCalls, 1, "All-scope loader must run once, not bounce back");
+  const plain = sel.plain();
+  assert.match(plain, /Resume Session \(All\)/);
+  assert.match(plain, /Other Folder/);
+  sel.close();
 });
 
 test("resumeSelectedSession opens a new tab and switches to the target session", async () => {
