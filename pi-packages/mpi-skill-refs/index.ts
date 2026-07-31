@@ -11,8 +11,8 @@
 // |  - input: only handles streaming steer/followUp (before_agent_start does  |
 // |    not fire for queued messages); resolves from the warm cache and sends  |
 // |    the block with a matching deliverAs.                                   |
-// |  - session_start: cold-start filesystem scan so $ autocomplete works      |
-// |    before the first prompt; also registers the autocomplete wrapper.     |
+// |  - session_start: cold-start filesystem scan (user + package skills) so   |
+// |    $ autocomplete works before the first prompt; registers autocomplete. |
 // +---------------------------------------------------------------------------+
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {

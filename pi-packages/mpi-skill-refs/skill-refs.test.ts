@@ -161,6 +161,39 @@ test("scanSkillDirs: project dir takes precedence over home for duplicates", asy
   assert.equal(entries.get("dup")?.description, "From project.");
 });
 
+test("scanSkillDirs: finds npm and git package-contributed skills", async () => {
+  const project = makeTempDir();
+  const home = makeTempDir();
+  const agentDir = join(home, ".pi", "agent");
+  writeSkill(join(agentDir, "npm", "node_modules", "plain-pkg", "skills"), "plain-pkg-skill", "From plain npm package.");
+  writeSkill(
+    join(agentDir, "npm", "node_modules", "@scope", "scoped-pkg", "skills"),
+    "scoped-pkg-skill",
+    "From scoped npm package.",
+  );
+  writeSkill(
+    join(agentDir, "git", "github.com", "org", "repo", "skills"),
+    "git-pkg-skill",
+    "From git package.",
+  );
+
+  const entries = await scanSkillDirs(project, home, agentDir);
+  assert.equal(entries.get("plain-pkg-skill")?.description, "From plain npm package.");
+  assert.equal(entries.get("scoped-pkg-skill")?.description, "From scoped npm package.");
+  assert.equal(entries.get("git-pkg-skill")?.description, "From git package.");
+  assert.ok(entries.get("scoped-pkg-skill")?.filePath?.includes("@scope/scoped-pkg"));
+});
+
+test("scanSkillDirs: user skills take precedence over package skills", async () => {
+  const project = makeTempDir();
+  const home = makeTempDir();
+  const agentDir = join(home, ".pi", "agent");
+  writeSkill(join(agentDir, "skills"), "dup", "From user agent skills.");
+  writeSkill(join(agentDir, "npm", "node_modules", "pkg", "skills"), "dup", "From package.");
+  const entries = await scanSkillDirs(project, home, agentDir);
+  assert.equal(entries.get("dup")?.description, "From user agent skills.");
+});
+
 // ─── before_agent_start expansion ────────────────────────────────────────────
 
 test("before_agent_start: injects hidden custom message for $refs", async () => {

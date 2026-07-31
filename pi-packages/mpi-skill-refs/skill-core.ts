@@ -167,48 +167,148 @@ async function maybeSkillFile(path: string): Promise<string | undefined> {
   }
 }
 
+async function isDirectory(path: string): Promise<boolean> {
+  try {
+    return (await stat(path)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
 /**
- * Cold-start filesystem scan over the standard skill directories. Mirrors
- * Pi's native discovery locations so completion works before the first
- * prompt (the authoritative list from before_agent_start replaces this).
+ * Resolve the Pi agent dir. Env overrides apply only when the caller did not
+ * pass an explicit agentDir (tests pass a synthetic home tree).
+ */
+function resolveAgentDir(homeDir: string, agentDir?: string): string {
+  if (agentDir) return resolve(agentDir);
+  const fromEnv = process.env.MIXCODE_CODING_AGENT_DIR || process.env.PI_CODING_AGENT_DIR;
+  if (fromEnv) return resolve(fromEnv);
+  return resolve(join(homeDir, ".pi", "agent"));
+}
+
+/**
+ * Package-contributed skill roots under a Pi agent dir.
+ * - npm: <agentDir>/npm/node_modules/<pkg>/skills
+ * - scoped npm: <agentDir>/npm/node_modules/@scope/<pkg>/skills
+ * - git: <agentDir>/git/.../<pkgRoot>/skills (stop at first skills/ per branch)
+ */
+export async function listPackageSkillDirs(agentDir: string): Promise<string[]> {
+  const roots: string[] = [];
+  await collectNpmPackageSkillDirs(join(agentDir, "npm", "node_modules"), roots);
+  await collectGitPackageSkillDirs(join(agentDir, "git"), roots, 0);
+  return roots;
+}
+
+async function collectNpmPackageSkillDirs(nodeModules: string, roots: string[]): Promise<void> {
+  let names: string[] = [];
+  try {
+    names = await readdir(nodeModules);
+  } catch {
+    return;
+  }
+  for (const name of names) {
+    if (name.startsWith(".")) continue;
+    if (name.startsWith("@")) {
+      let scoped: string[] = [];
+      try {
+        scoped = await readdir(join(nodeModules, name));
+      } catch {
+        continue;
+      }
+      for (const pkg of scoped) {
+        if (pkg.startsWith(".")) continue;
+        const skillsDir = join(nodeModules, name, pkg, "skills");
+        if (await isDirectory(skillsDir)) roots.push(skillsDir);
+      }
+      continue;
+    }
+    const skillsDir = join(nodeModules, name, "skills");
+    if (await isDirectory(skillsDir)) roots.push(skillsDir);
+  }
+}
+
+// host/user/repo is typically depth 3; allow a little room without scanning forever.
+const GIT_PACKAGE_MAX_DEPTH = 6;
+
+async function collectGitPackageSkillDirs(
+  dir: string,
+  roots: string[],
+  depth: number,
+): Promise<void> {
+  if (depth > GIT_PACKAGE_MAX_DEPTH) return;
+  // Package root: first directory that has a skills/ child contributes that root.
+  const skillsDir = join(dir, "skills");
+  if (await isDirectory(skillsDir)) {
+    roots.push(skillsDir);
+    return;
+  }
+  let names: string[] = [];
+  try {
+    names = await readdir(dir);
+  } catch {
+    return;
+  }
+  for (const name of names) {
+    if (name.startsWith(".") || name === "node_modules") continue;
+    const full = join(dir, name);
+    if (await isDirectory(full)) await collectGitPackageSkillDirs(full, roots, depth + 1);
+  }
+}
+
+async function scanOneSkillDir(
+  dir: string,
+  entries: Map<string, SkillRefEntry>,
+): Promise<void> {
+  let names: string[] = [];
+  try {
+    names = await readdir(dir);
+  } catch {
+    return;
+  }
+  for (const name of names) {
+    if (name.startsWith(".")) continue;
+    const flat = await maybeSkillFile(join(dir, name, "SKILL.md"));
+    if (flat) {
+      await addScannedEntry(entries, name, flat);
+      continue;
+    }
+    // Nested layout: <dir>/<group>/<name>/SKILL.md
+    let nestedNames: string[] = [];
+    try {
+      nestedNames = await readdir(join(dir, name));
+    } catch {
+      continue;
+    }
+    for (const nested of nestedNames) {
+      if (nested.startsWith(".")) continue;
+      const nestedFile = await maybeSkillFile(join(dir, name, nested, "SKILL.md"));
+      if (nestedFile) await addScannedEntry(entries, nested, nestedFile);
+    }
+  }
+}
+
+/**
+ * Cold-start filesystem scan over standard skill directories plus package-
+ * contributed skill roots (npm/git under the agent dir). Mirrors Pi's native
+ * discovery so $ completion works before the first prompt; the authoritative
+ * list from before_agent_start still replaces this for the live set.
  */
 export async function scanSkillDirs(
   cwd: string,
   homeDir = homedir(),
+  agentDir?: string,
 ): Promise<Map<string, SkillRefEntry>> {
+  const resolvedAgentDir = resolveAgentDir(homeDir, agentDir);
   const dirs = [
     join(cwd, ".agents", "skills"),
     join(homeDir, ".agents", "skills"),
-    join(homeDir, ".pi", "agent", "skills"),
+    join(resolvedAgentDir, "skills"),
+    ...(await listPackageSkillDirs(resolvedAgentDir)),
   ].map((dir) => resolve(dir));
   const entries = new Map<string, SkillRefEntry>();
+  // Earlier dirs win (project → user → agent → packages).
   for (const dir of [...new Set(dirs)]) {
-    let names: string[] = [];
-    try {
-      names = await readdir(dir);
-    } catch {
-      continue;
-    }
-    for (const name of names) {
-      if (name.startsWith(".")) continue;
-      const flat = await maybeSkillFile(join(dir, name, "SKILL.md"));
-      if (flat) {
-        await addScannedEntry(entries, name, flat);
-        continue;
-      }
-      // Nested layout: <dir>/<group>/<name>/SKILL.md
-      let nestedNames: string[] = [];
-      try {
-        nestedNames = await readdir(join(dir, name));
-      } catch {
-        continue;
-      }
-      for (const nested of nestedNames) {
-        if (nested.startsWith(".")) continue;
-        const nestedFile = await maybeSkillFile(join(dir, name, nested, "SKILL.md"));
-        if (nestedFile) await addScannedEntry(entries, nested, nestedFile);
-      }
-    }
+    await scanOneSkillDir(dir, entries);
   }
   return entries;
 }
