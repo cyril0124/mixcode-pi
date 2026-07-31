@@ -7,8 +7,15 @@
 
 ## Pi Integration
 
--  Do not use OpenCode configuration or UI concepts as product logic unless explicitly requested. Model configuration should use Pi-native configuration sources.
-- Before implementing any feature, first check whether the Pi SDK provides native support for it. The Pi SDK means Pi's official runtime, extension, package, tool, command, UI, and TUI APIs documented at https://pi.dev/docs/latest/sdk and https://pi.dev/docs/latest/tui; prefer those native capabilities when available instead of rebuilding equivalent functionality.
+- Before implementing any feature, first check whether Pi-related packages already provide it. Prefer reusing components, APIs, and UI/TUI building blocks from installed `@earendil-works/pi-*` packages (and the Pi SDK docs at https://pi.dev/docs/latest/sdk and https://pi.dev/docs/latest/tui) over writing MixCode-local equivalents.
+- Only build custom code when the requirement is not covered by those packages (or the user explicitly requires a different behavior). Do not reimplement selectors, editors, dialogs, markdown, keybindings, session/tree UI, or similar just because a local rewrite is convenient.
+- Pi docs (check these before inventing local APIs or UI):
+  - Upstream SDK: https://pi.dev/docs/latest/sdk
+  - Upstream TUI: https://pi.dev/docs/latest/tui
+  - Package catalog: https://pi.dev/packages
+  - Local MixCode↔Pi compatibility: `docs/extension-compatibility.md`
+  - Local architecture mapping (not upstream API source): `docs/architecture.md`
+  - Local MixCode transient UI only (Toast / Floating Panel / Notice): `docs/tui-components.md`
 
 ## Built-in Extensions
 
