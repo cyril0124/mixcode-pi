@@ -252,6 +252,85 @@ test("runtime exposes extension UI context as TUI during startup and clear", asy
   }
 });
 
+test("clearTab keeps a non-colliding title, never the tab list position", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-clear-title-"));
+  try {
+    const runtime = new MixCodeRuntime({ sessionsRoot: dir, extensionFactories: [] });
+    // Post-close layout: positions no longer match titles (Agent-02 was closed).
+    await runtime.createTab(createTab(1, "s1", process.cwd(), { title: "Agent-01" }), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+    });
+    await runtime.createTab(createTab(2, "s2", process.cwd(), { title: "Agent-03" }), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+    });
+    await runtime.createTab(createTab(3, "s3", process.cwd(), { title: "Agent-04" }), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+    });
+
+    const cleared = await runtime.clearTab("s3", {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+      newSessionId: "s3-clear",
+    });
+
+    // Position index 3 would retitle as "Agent-03", colliding with s2's tab.
+    // A generic Agent-NN title must be preserved instead.
+    assert.equal(cleared.tab.title, "Agent-04");
+    assert.notEqual(
+      cleared.tab.title,
+      "Agent-03",
+      `cleared tab must not take an existing title, got ${cleared.tab.title}`,
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("clearTab drops a custom name for the next free generic title", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-clear-custom-title-"));
+  try {
+    const runtime = new MixCodeRuntime({ sessionsRoot: dir, extensionFactories: [] });
+    await runtime.createTab(createTab(1, "s1", process.cwd(), { title: "Agent-01" }), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+    });
+    await runtime.createTab(createTab(2, "s2", process.cwd(), { title: "Agent-02" }), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+    });
+    await runtime.createTab(createTab(3, "s3", process.cwd(), { title: "my-project" }), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+    });
+
+    const cleared = await runtime.clearTab("s3", {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+      newSessionId: "s3-clear",
+    });
+
+    // Custom names must not carry over to the fresh session; fall back to a
+    // free generic title that does not collide with the surviving tabs.
+    assert.match(cleared.tab.title, /^Agent-\d{2}$/);
+    assert.notEqual(cleared.tab.title, "Agent-01");
+    assert.notEqual(cleared.tab.title, "Agent-02");
+    assert.notEqual(cleared.tab.title, "my-project");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 function silentTerminal(): Terminal {
   return {
     start: () => undefined,

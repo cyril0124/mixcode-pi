@@ -18,6 +18,7 @@ import {
 import { type AutocompleteProvider, matchesKey as matchesPiKey } from "@earendil-works/pi-tui";
 import { contentText } from "./runtime-tool-chat.js";
 import { modelToRef, replaceRegisteredModels } from "../core/models.js";
+import { nextAvailableAgentTitle } from "../core/defaults.js";
 import {
   clearPendingEscape,
   setPendingFollowUps,
@@ -375,9 +376,17 @@ export class MixCodeRuntime {
     }
     this.tabs.delete(sessionId);
     resetTabForNewSession(runtimeTab.tab, newSession.getSessionId());
-    // Reset UI title so state-store tab_titles cannot re-persist the old name
-    // under the new session id after restart.
-    runtimeTab.tab.title = `Agent-${String(runtimeTab.tab.index).padStart(2, "0")}`;
+    // Reset UI title so state-store tab_titles cannot re-persist a custom name
+    // under the new session id after restart: custom names fall back to the next
+    // free generic title. Generic Agent-NN names are kept — the tab's list
+    // position must never be used here: after closing/forking/restoring tabs the
+    // position diverges from the title, and position-based retitling collides
+    // with an existing tab (clearing the 4th tab renamed it "Agent-04" while an
+    // Agent-04 tab already existed). this.tabs no longer contains this session,
+    // so the kept/next title is always free.
+    runtimeTab.tab.title = /^Agent-\d+$/.test(runtimeTab.tab.title)
+      ? runtimeTab.tab.title
+      : nextAvailableAgentTitle([...this.tabs.values()].map((entry) => entry.tab));
     const cleared = await createRuntimeTabWithFallback(
       runtimeTab.tab,
       newSession,
