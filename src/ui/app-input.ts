@@ -23,6 +23,7 @@ import {
   handleDeleteAllSessionsConfirmKey,
   handleInputSelectionMouseInput,
   handleMouseInput,
+  handlePickerKey,
   handlePreviewKey,
   handleQuitConfirmKey,
   handleSessionActionConfirmKey,
@@ -40,7 +41,6 @@ import {
   showErrorOverlay,
   showLinesOverlay,
 } from "./app-overlays.js";
-import { handlePickerKey } from "./app-picker-keys.js";
 import { handleSettingsPanelKey } from "./settings-panel.js";
 import { activeExtensionCommands } from "./app-runtime.js";
 import type {

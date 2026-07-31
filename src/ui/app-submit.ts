@@ -15,7 +15,7 @@ import { createPicker } from "../core/pickers.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import { pushToast } from "../core/toast.js";
 import { activateTab, clampHomeSelectedTabIndex, getActiveTab, renameAgentTab } from "../core/tabs.js";
-import type { MixCodeState, MixCodeTabInfo } from "../core/types.js";
+import type { MixCodeState, MixCodeTabInfo, PendingEscapeAction } from "../core/types.js";
 import {
   appendActiveSystemMessage,
   applyModelSelection,
@@ -32,7 +32,6 @@ import {
   prepareAgentTabClear,
   submitAgentInput,
 } from "./agent-tab-actions.js";
-import { createTuiDebugState } from "./app-debug.js";
 import {
   editTextWithTuiPaused,
   errorMessage,
@@ -659,4 +658,120 @@ function parseEditorFlag(args: string): {
     remaining.push(part);
   }
   return { remaining: remaining.join(" "), editor, editorDisabled };
+}
+
+interface MixCodeTuiDebugState {
+  version: 1;
+  workdir: string;
+  activeTabId: string;
+  theme: string;
+  overlays: {
+    quitConfirmOpen: boolean;
+    deleteAllSessionsConfirmOpen: boolean;
+    closeAllSessionsConfirmOpen: boolean;
+    sessionActionConfirm: MixCodeState["sessionActionConfirm"];
+    commandPaletteOpen: boolean;
+    commandPalette: MixCodeState["commandPalette"];
+    tabJumpOpen: boolean;
+    tabJumpQuery: string;
+    tabJumpIndex: number;
+    picker?: Omit<NonNullable<MixCodeState["picker"]>, "items"> & { itemCount: number };
+  };
+  tabs: Array<{
+    index: number;
+    sessionId: string;
+    title: string;
+    status: string;
+    active: boolean;
+    workdir: string;
+    alias: string;
+    thinkingLevel: string;
+    pendingDialogCount: number;
+    chatScrollOffset: number;
+    previewOpen: boolean;
+    previewIndex: number;
+    previewScrollOffset: number;
+    previewHint: string;
+    unreadDone: boolean;
+    pendingEscapeAction?: PendingEscapeAction;
+    workingStartedAt?: string;
+    lastWorkedDurationSeconds?: number;
+    extensionUi: {
+      statusCount: number;
+      widgetCount: number;
+      toolsExpanded: boolean;
+      workingVisible: boolean;
+      hasWorkingIndicatorFrames: boolean;
+      workingIndicatorIntervalMs?: number;
+      hasWorkingMessage: boolean;
+      hasTitle: boolean;
+      headerLineCount: number;
+      footerLineCount: number;
+    };
+    inputMetaHitRegions?: MixCodeState["tabs"][number]["inputMetaHitRegions"];
+  }>;
+}
+
+/** Snapshot used by /tui-state — only consumed in this module. */
+function createTuiDebugState(state: MixCodeState): MixCodeTuiDebugState {
+  return {
+    version: 1,
+    workdir: state.workdir,
+    activeTabId: state.activeTabId,
+    theme: state.theme,
+    overlays: {
+      quitConfirmOpen: state.quitConfirmOpen,
+      deleteAllSessionsConfirmOpen: state.deleteAllSessionsConfirmOpen,
+      closeAllSessionsConfirmOpen: state.closeAllSessionsConfirmOpen,
+      sessionActionConfirm: state.sessionActionConfirm,
+      commandPaletteOpen: state.commandPaletteOpen,
+      commandPalette: state.commandPalette,
+      tabJumpOpen: state.tabJumpOpen,
+      tabJumpQuery: state.tabJumpQuery,
+      tabJumpIndex: state.tabJumpIndex,
+      picker: state.picker
+        ? {
+            kind: state.picker.kind,
+            title: state.picker.title,
+            query: state.picker.query,
+            selectedIndex: state.picker.selectedIndex,
+            workdirBase: state.picker.workdirBase,
+            itemCount: state.picker.items.length,
+          }
+        : undefined,
+    },
+    tabs: state.tabs.map((tab) => ({
+      index: tab.index,
+      sessionId: tab.sessionId,
+      title: tab.title,
+      status: tab.status,
+      active: tab.sessionId === state.activeTabId,
+      workdir: tab.workdir,
+      alias: tab.alias,
+      thinkingLevel: tab.thinkingLevel,
+      pendingDialogCount: tab.pendingDialogs.length,
+      chatScrollOffset: tab.chatScrollOffset,
+      previewOpen: tab.previewOpen,
+      previewIndex: tab.previewIndex,
+      previewScrollOffset: tab.previewScrollOffset,
+      previewHint: tab.previewHint,
+      unreadDone: tab.unreadDone,
+      pendingEscapeAction: tab.pendingEscapeAction,
+      workingStartedAt: tab.workingStartedAt,
+      lastWorkedDurationSeconds: tab.lastWorkedDurationSeconds,
+      extensionUi: {
+        statusCount: tab.extensionUi.statuses.length,
+        widgetCount: tab.extensionUi.widgets.length,
+        toolsExpanded: tab.extensionUi.toolsExpanded,
+        workingVisible: tab.extensionUi.workingVisible,
+        hasWorkingIndicatorFrames: Boolean(tab.extensionUi.workingIndicatorFrames?.length),
+        workingIndicatorIntervalMs: tab.extensionUi.workingIndicatorIntervalMs,
+        hasWorkingMessage: Boolean(tab.extensionUi.workingMessage),
+        hasTitle: Boolean(tab.extensionUi.title),
+        headerLineCount: tab.extensionUi.header?.lines.length ?? 0,
+        footerLineCount: tab.extensionUi.footer?.lines.length ?? 0,
+      },
+      inputMetaHitRegions: tab.inputMetaHitRegions,
+    })),
+  };
 }
