@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createTab } from "../src/core/defaults.js";
+import type { MixCodeTabInfo } from "../src/core/types.js";
 import { bindRuntimeRendering } from "../src/ui/app.js";
 
 test("runtime rendering rings terminal bell when a tab completes work", () => {
   let listener:
     | ((
         event: { type: string; errorMessage?: string },
-        runtimeTab: { tab: ReturnType<typeof createTab> },
+        runtimeTab: { tab: MixCodeTabInfo },
       ) => void)
     | undefined;
   let renders = 0;
@@ -54,7 +55,7 @@ test("runtime rendering rings terminal bell when a new user interaction appears"
   let listener:
     | ((
         event: { type: string },
-        runtimeTab: { tab: ReturnType<typeof createTab> },
+        runtimeTab: { tab: MixCodeTabInfo },
       ) => void)
     | undefined;
   const writes: string[] = [];

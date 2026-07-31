@@ -12,6 +12,7 @@ import {
 import type { EditorSlot } from "../src/ui/app-editor.js";
 import { renderExtensionFooter, renderFooter } from "../src/ui/rendering.js";
 import { createInitialState, createTab } from "../src/core/defaults.js";
+import type { MixCodeState } from "../src/core/types.js";
 import { getActiveTab } from "../src/core/tabs.js";
 import { MixCodeRuntime } from "../src/agent/runtime.js";
 
@@ -187,7 +188,7 @@ function buildRealLayoutWithBtwStyleEditor(viewportRows: number) {
 
 function buildRealLayoutWithTreeEditor(viewportRows: number) {
   let editorMaxRows: number | undefined;
-  let editorState: ReturnType<typeof createInitialState> | undefined;
+  let editorState: MixCodeState | undefined;
   const editor = {
     render: (width: number) => renderTreeSelector(editorState!, width, editorMaxRows),
     invalidate: () => undefined,

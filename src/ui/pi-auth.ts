@@ -224,15 +224,12 @@ async function performLogin(
   provider: AuthSelectorProvider,
 ): Promise<void> {
   const tui = { requestRender: () => inputHost.requestRender() } as TUI;
-  let rejectLogin: ((error: Error) => void) | undefined;
-  const cancelled = new Promise<never>((_resolve, reject) => {
-    rejectLogin = reject;
-  });
+  const { promise: cancelled, reject: rejectLogin } = Promise.withResolvers<never>();
   const dialog = new LoginDialogComponent(
     tui,
     provider.id,
     (success, message) => {
-      if (!success) rejectLogin?.(new Error(message ?? "Login cancelled"));
+      if (!success) rejectLogin(new Error(message ?? "Login cancelled"));
     },
     provider.name,
     provider.authType === "api_key" ? `${provider.name} API key` : undefined,

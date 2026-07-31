@@ -13,6 +13,7 @@ import {
   createTab,
   scrollChat,
   type ChatLine,
+  type MixCodeTabInfo,
 } from "../src/index.js";
 import { renderAgentSurface } from "../src/ui/rendering/agent-surface.js";
 import { renderChat } from "../src/ui/rendering/chat.js";
@@ -570,7 +571,7 @@ test("deep scroll paint stays near bottom paint cost (no unshift O(n^2))", () =>
   );
 });
 
-function measurePreviewRenderMs(tab: ReturnType<typeof createTab>, iterations: number): number {
+function measurePreviewRenderMs(tab: MixCodeTabInfo, iterations: number): number {
   for (let i = 0; i < 5; i++) {
     renderAgentSurface(tab, undefined, 120, 30);
   }
@@ -582,7 +583,7 @@ function measurePreviewRenderMs(tab: ReturnType<typeof createTab>, iterations: n
 }
 
 function measureRenderMs(
-  tab: ReturnType<typeof createTab>,
+  tab: MixCodeTabInfo,
   chat: ChatLine[],
   iterations: number,
 ): number {

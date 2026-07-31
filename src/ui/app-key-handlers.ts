@@ -1,4 +1,5 @@
 import { matchesKey, type TUI as TuiType } from "@earendil-works/pi-tui";
+import type { RuntimeTab } from "../agent/runtime.js";
 import {
   applyContextLimit,
   applyContextLimitToSession,
@@ -162,7 +163,7 @@ export function handleQueuedFlushKey(
 }
 
 function runtimeQueuedMessageCount(
-  runtimeTab: ReturnType<NonNullable<MixCodeKeyRuntime["getTab"]>> | undefined,
+  runtimeTab: RuntimeTab | undefined,
 ): number {
   const queuedPromptCount =
     typeof runtimeTab?.queuedPromptCount === "number" ? runtimeTab.queuedPromptCount : 0;

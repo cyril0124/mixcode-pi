@@ -3,6 +3,7 @@ import { test } from "node:test";
 import type { Terminal } from "@earendil-works/pi-tui";
 import { createMixCodeTui, handleMixCodeKeyInput } from "../src/ui/app.js";
 import { createInitialState, createTab } from "../src/core/defaults.js";
+import type { MixCodeTabInfo } from "../src/core/types.js";
 import type { MixCodeRuntime } from "../src/agent/runtime.js";
 import type { SessionTreeNode } from "../src/core/tree-selector.js";
 import { renderFloatingPanelOverlay } from "../src/ui/rendering/floating-panel.js";
@@ -64,7 +65,7 @@ function userEntry(id: string, text: string, parentId: string | null) {
   return messageNode(id, parentId, "user", text).entry;
 }
 
-function makeRuntime(tab: ReturnType<typeof createTab>): MixCodeRuntime {
+function makeRuntime(tab: MixCodeTabInfo): MixCodeRuntime {
   const branch = [
     userEntry("u1", "first user message", null),
     messageNode("a1", "u1", "assistant", "assistant answer").entry,

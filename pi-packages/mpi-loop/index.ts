@@ -12,9 +12,9 @@
  * /loop prompt <id|name> <prompt> — rewrite an existing loop prompt
  */
 
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
 import { DynamicBorder } from "@earendil-works/pi-coding-agent";
-import { Container, Spacer, Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { Container, Spacer, Text, type TUI, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import {
   DEFAULT_INTERVAL,
   MAX_AGE_MS,
@@ -78,7 +78,7 @@ const WIDGET_ID = "loop-widget";
 
 class LoopWidget {
   private refreshInterval?: NodeJS.Timeout;
-  private ctx?: any;
+  private ctx?: ExtensionContext;
   private unsubscribe?: () => void;
 
   constructor(
@@ -87,7 +87,7 @@ class LoopWidget {
     private listLoops: () => LoopEntry[],
   ) {}
 
-  show(ctx: any): void {
+  show(ctx: ExtensionContext): void {
     this.ctx = ctx;
 
     try {
@@ -98,7 +98,7 @@ class LoopWidget {
 
       ctx.ui.setWidget(
         WIDGET_ID,
-        (_tui: any, theme: any) => ({
+        (_tui: TUI, theme: Theme) => ({
           render: (width: number) => this.renderWidget(width, theme),
           invalidate: () => {},
         }),
@@ -120,7 +120,7 @@ class LoopWidget {
     }
   }
 
-  hide(ctx?: any): void {
+  hide(ctx?: ExtensionContext): void {
     const target = ctx ?? this.ctx;
     if (target) {
       try {
@@ -139,7 +139,7 @@ class LoopWidget {
     if (this.ctx) this.show(this.ctx);
   }
 
-  private renderWidget(width: number, theme: any): string[] {
+  private renderWidget(width: number, theme: Theme): string[] {
     const loops = this.listLoops();
     const container = new Container();
     const borderColor = (s: string) => theme.fg("accent", s);

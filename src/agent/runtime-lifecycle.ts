@@ -385,10 +385,8 @@ export async function replaceRuntimeTabSession(
   // Serialize per tab: concurrent resume/new/fork must not dispose a session that
   // another replace has installed but not yet bound (stale ctx in session_start).
   const previousLock = runtimeTab.replaceLock ?? Promise.resolve();
-  let releaseLock!: () => void;
-  runtimeTab.replaceLock = new Promise<void>((resolve) => {
-    releaseLock = resolve;
-  });
+  const { promise: replaceLock, resolve: releaseLock } = Promise.withResolvers<void>();
+  runtimeTab.replaceLock = replaceLock;
   await previousLock.catch(() => undefined);
   try {
     return await replaceRuntimeTabSessionUnlocked(

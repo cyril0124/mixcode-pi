@@ -1,3 +1,4 @@
+import type { Theme } from "@earendil-works/pi-coding-agent";
 import type { Component } from "@earendil-works/pi-tui";
 import {
   fuzzyFilter,
@@ -6,6 +7,9 @@ import {
   visibleWidth,
   wrapTextWithAnsi,
 } from "@earendil-works/pi-tui";
+
+/** Theme surface used by the loop management overlay. */
+type LoopTheme = Pick<Theme, "fg" | "bg">;
 
 export type LoopConflictMode = "skip" | "defer";
 
@@ -43,7 +47,7 @@ export class LoopManagementView implements Component {
   private confirm: ConfirmState | null = null;
 
   constructor(
-    private theme: any,
+    private theme: LoopTheme,
     private requestRender: () => void,
     private done: () => void,
     private getMaxVisibleRows: () => number,

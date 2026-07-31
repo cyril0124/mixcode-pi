@@ -6,7 +6,7 @@ import {
   selectedNoticeText,
 } from "../core/chat-selection.js";
 import { copyToClipboard as writeClipboard } from "@earendil-works/pi-coding-agent";
-import { parseSgrMouseInput } from "../core/mouse.js";
+import { parseSgrMouseInput, type SgrMouseInput } from "../core/mouse.js";
 import { scrollChat, scrollExtensionPanel, scrollPreview, clearChatScrollAnchor } from "../core/overlays.js";
 import { pushToast } from "../core/toast.js";
 import { createPicker } from "../core/pickers.js";
@@ -131,7 +131,7 @@ export function handleChromeMouseInput(
 function handleChatScrollbarMouse(
   state: MixCodeState,
   active: MixCodeState["tabs"][number],
-  mouse: NonNullable<ReturnType<typeof parseSgrMouseInput>>,
+  mouse: SgrMouseInput,
   tui: OverlayTui,
 ): boolean {
   if (state.activeTabId === "config") return false;
@@ -162,7 +162,7 @@ function handleChatScrollbarMouse(
 function handleChromeMouse(
   state: MixCodeState,
   active: MixCodeState["tabs"][number] | undefined,
-  mouse: NonNullable<ReturnType<typeof parseSgrMouseInput>>,
+  mouse: SgrMouseInput,
   tui: OverlayTui,
 ): boolean {
   // Capturing overlays own the screen; only non-capturing Notice allows chrome clicks.
@@ -226,7 +226,7 @@ function handleChromeMouse(
 
 function handleInputSelectionMouse(
   active: MixCodeState["tabs"][number],
-  mouse: NonNullable<ReturnType<typeof parseSgrMouseInput>>,
+  mouse: SgrMouseInput,
   tui: OverlayTui,
   copyToClipboard: ClipboardWriter,
 ): boolean {
@@ -247,7 +247,7 @@ function handleInputSelectionMouse(
 
 function handleNoticeSelectionMouse(
   active: MixCodeState["tabs"][number],
-  mouse: NonNullable<ReturnType<typeof parseSgrMouseInput>>,
+  mouse: SgrMouseInput,
   tui: OverlayTui,
   copyToClipboard: ClipboardWriter,
 ): boolean {
@@ -270,7 +270,7 @@ function handleNoticeSelectionMouse(
 
 function handleChatSelectionMouse(
   active: MixCodeState["tabs"][number],
-  mouse: NonNullable<ReturnType<typeof parseSgrMouseInput>>,
+  mouse: SgrMouseInput,
   tui: OverlayTui,
   copyToClipboard: ClipboardWriter,
 ): boolean {
@@ -291,7 +291,7 @@ function handleChatSelectionMouse(
 
 function handlePanelSelectionMouse(
   active: MixCodeState["tabs"][number],
-  mouse: NonNullable<ReturnType<typeof parseSgrMouseInput>>,
+  mouse: SgrMouseInput,
   tui: OverlayTui,
   copyToClipboard: ClipboardWriter,
 ): boolean {
@@ -312,7 +312,7 @@ function handlePanelSelectionMouse(
 
 interface TextSelectionMouseOptions {
   active: MixCodeState["tabs"][number];
-  mouse: NonNullable<ReturnType<typeof parseSgrMouseInput>>;
+  mouse: SgrMouseInput;
   tui: OverlayTui;
   copyToClipboard: ClipboardWriter;
   bounds: MixCodeState["tabs"][number]["chatSurfaceBounds"];

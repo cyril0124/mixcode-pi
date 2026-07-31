@@ -1,8 +1,14 @@
 import {
   type AssistantMessage,
+  type Context,
   createAssistantMessageEventStream,
+  type SimpleStreamOptions,
 } from "@earendil-works/pi-ai";
-import { getApiProvider, registerApiProvider } from "@earendil-works/pi-ai/compat";
+import {
+  type ApiStreamSimpleFunction,
+  getApiProvider,
+  registerApiProvider,
+} from "@earendil-works/pi-ai/compat";
 import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import type { MixCodeModel } from "../core/types.js";
 import { mixcodeFauxStream } from "./faux-stream.js";
@@ -29,8 +35,11 @@ export function registerMixCodeRuntimeProvider(
     return;
   }
   if (registeredModel || !streamFn) return;
-  const runtimeStreamSimple = (requestModel: MixCodeModel, context: any, options: any = {}) =>
-    bridgeRuntimeStream(requestModel, streamFn(requestModel, context, options));
+  const runtimeStreamSimple = (
+    requestModel: MixCodeModel,
+    context: Context,
+    options?: SimpleStreamOptions,
+  ) => bridgeRuntimeStream(requestModel, streamFn(requestModel, context, options));
   modelRuntime.registerProvider(model.provider, {
     name: model.provider,
     baseUrl: model.baseUrl,
@@ -44,7 +53,7 @@ export function registerMixCodeRuntimeProvider(
 
 // Register a custom api in the global pi-ai api-registry if not already present.
 // This is required since v0.75 where streamSimple resolves providers from the global registry.
-function ensureApiRegistered(api: string, streamSimple: (...args: any[]) => any): void {
+function ensureApiRegistered(api: string, streamSimple: ApiStreamSimpleFunction): void {
   if (getApiProvider(api)) return;
   registerApiProvider({
     api,

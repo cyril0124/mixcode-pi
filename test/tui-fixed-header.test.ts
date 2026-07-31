@@ -17,6 +17,7 @@ import {
   renderFixedTopViewport,
 } from "../src/ui/rendering.js";
 import { createInitialState, createTab } from "../src/core/defaults.js";
+import type { MixCodeTabInfo } from "../src/core/types.js";
 import { openCommandPalette } from "../src/core/overlays.js";
 import type { MixCodeRuntime } from "../src/agent/runtime.js";
 
@@ -578,7 +579,7 @@ test("runtime changes request a differential render without keyboard or mouse in
 
 test("runtime rendering keeps unread done only for background tabs", () => {
   let listener:
-    | ((event: { type: "agent_end" }, runtimeTab: { tab: ReturnType<typeof createTab> }) => void)
+    | ((event: { type: "agent_end" }, runtimeTab: { tab: MixCodeTabInfo }) => void)
     | undefined;
   let renders = 0;
   let persisted = 0;

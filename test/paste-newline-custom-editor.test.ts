@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createInitialState, createTab, handleMixCodeKeyInput } from "../src/index.js";
+import { createInitialState, createTab, handleMixCodeKeyInput, type MixCodeState } from "../src/index.js";
 import type { MixCodeEditorActions } from "../src/ui/app-types.js";
 
 // Regression guard for the paste-newline heuristic swallowing Enter while an
@@ -47,7 +47,7 @@ function makeEditorActions(overrides: Partial<MixCodeEditorActions>): {
   return { actions, inserted };
 }
 
-function feedRapidInput(state: ReturnType<typeof makeState>, actions: MixCodeEditorActions): void {
+function feedRapidInput(state: MixCodeState, actions: MixCodeEditorActions): void {
   // Two printable keys within the 5ms paste window prime the detector so the
   // following Enter is classified as part of a paste burst.
   handleMixCodeKeyInput(state, "x", silentTui(), undefined, undefined, undefined, undefined, actions);

@@ -14,8 +14,8 @@ export async function dispatchTurn(
   send: (signalRegistered: () => void) => Promise<void>,
 ): Promise<void> {
   const prev = tab.promptDispatchGate ?? Promise.resolve();
-  let release!: () => void;
-  tab.promptDispatchGate = new Promise<void>((r) => (release = r));
+  const { promise, resolve: release } = Promise.withResolvers<void>();
+  tab.promptDispatchGate = promise;
   await prev.catch(() => {}); // Wait for previous dispatch to register
   try {
     let done = false;

@@ -1,5 +1,6 @@
 import { matchesKey, truncateToWidth } from "@earendil-works/pi-tui";
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
+import type { RuntimeTab } from "../agent/runtime.js";
 import { contentText } from "../agent/runtime-text.js";
 import { chatEnd } from "../core/overlays.js";
 import { pushToast } from "../core/toast.js";
@@ -10,8 +11,6 @@ import { scrollChatToUserEntry, userMessageEntryIdsInBranch } from "./chat-scrol
 const PREVIEW_TTL_MS = 1_800;
 const PREVIEW_WIDTH = 34;
 const FALLBACK_PREVIEW_ROWS = 5;
-
-type RuntimeTab = NonNullable<ReturnType<MixCodeKeyRuntime["getTab"]>>;
 
 export function handleVimUserMessageNavigation(
   active: MixCodeState["tabs"][number],
