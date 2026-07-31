@@ -84,6 +84,36 @@ export const MIXCODE_KEYMAP: KeyAction[] = [
     description: "Expand/collapse tool output and startup help",
     scope: "global",
   },
+  {
+    key: "ctrl+shift+t",
+    action: "session-tree",
+    description: "Open session tree (/tree)",
+    scope: "global",
+  },
+  {
+    key: "ctrl+shift+r",
+    action: "session-resume",
+    description: "Open session resume picker (/resume)",
+    scope: "global",
+  },
+  {
+    key: "ctrl+shift+f",
+    action: "session-fork",
+    description: "Fork from a user message (/fork)",
+    scope: "global",
+  },
+  {
+    key: "ctrl+shift+n",
+    action: "session-new",
+    description: "Create a new session tab (/new-session)",
+    scope: "global",
+  },
+  {
+    key: "esc esc",
+    action: "session-tree-double-esc",
+    description: "Open session tree when editor is empty",
+    scope: "global",
+  },
 
   { key: "escape", action: "close-overlay", description: "Close active overlay", scope: "global" },
   { key: "ctrl+q", action: "quit", description: "Quit MixCode", scope: "global" },

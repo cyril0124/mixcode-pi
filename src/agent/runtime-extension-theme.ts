@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   type KeybindingsManager as ExtensionKeybindingsManager,
   initTheme,
@@ -6,6 +8,7 @@ import {
 import {
   type KeybindingDefinitions,
   type KeybindingsConfig,
+  type KeyId,
   KeybindingsManager as PiTuiKeybindingsManager,
   TUI_KEYBINDINGS,
 } from "@earendil-works/pi-tui";
@@ -13,6 +16,7 @@ import {
   getActiveExtensionThemeId,
   noteActiveExtensionThemeId,
 } from "../core/active-extension-theme-id.js";
+import { defaultPiAgentDir, resolveAgentDirEnv } from "../core/pi-models.js";
 import {
   MIXCODE_EXTENSION_CLAUDE_WARM_THEME,
   MIXCODE_EXTENSION_TERMINAL_THEME,
@@ -75,6 +79,13 @@ const MIXCODE_EXTENSION_KEYBINDING_DEFINITIONS = {
   "app.editor.external": { defaultKeys: "ctrl+e", description: "Open external editor" },
   "app.message.followUp": { defaultKeys: "alt+enter", description: "Queue follow-up message" },
   "app.message.copy": { defaultKeys: "ctrl+x", description: "Copy tree entry" },
+  // Open-session actions (Pi InteractiveMode onAction parity). Defaults avoid
+  // MixCode chords (ctrl+p palette, ctrl+t jump, ctrl+r rename, …). Double-Esc
+  // still opens tree; keybindings.json overrides these.
+  "app.session.new": { defaultKeys: "ctrl+shift+n", description: "Create a new session tab" },
+  "app.session.tree": { defaultKeys: "ctrl+shift+t", description: "Open session tree" },
+  "app.session.fork": { defaultKeys: "ctrl+shift+f", description: "Fork current session" },
+  "app.session.resume": { defaultKeys: "ctrl+shift+r", description: "Resume a session" },
   "app.session.toggleNamedFilter": {
     defaultKeys: "ctrl+n",
     description: "Toggle named session filter",
@@ -100,10 +111,51 @@ const MIXCODE_EXTENSION_KEYBINDING_DEFINITIONS = {
   "app.tree.filter.cycleBackward": { defaultKeys: "shift+ctrl+o" },
 } satisfies KeybindingDefinitions;
 
+function mixcodeAgentDir(): string {
+  return resolveAgentDirEnv(process.env.MIXCODE_CODING_AGENT_DIR) ?? defaultPiAgentDir();
+}
+
+/** User overrides from `~/.pi/agent/keybindings.json` (Pi-native path). */
+function loadUserKeybindingsFile(agentDir = mixcodeAgentDir()): KeybindingsConfig {
+  const path = join(agentDir, "keybindings.json");
+  if (!existsSync(path)) return {};
+  try {
+    const parsed = JSON.parse(readFileSync(path, "utf-8")) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    const config: KeybindingsConfig = {};
+    for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+      if (typeof value === "string") {
+        config[key] = value as KeyId;
+        continue;
+      }
+      if (Array.isArray(value) && value.every((entry) => typeof entry === "string")) {
+        config[key] = value as KeyId[];
+      }
+    }
+    return config;
+  } catch {
+    return {};
+  }
+}
+
+function buildMixCodeUserBindings(): KeybindingsConfig {
+  // File wins over MixCode remaps so users can rebind palette/session chords.
+  return { ...MIXCODE_EXTENSION_KEYBINDINGS, ...loadUserKeybindingsFile() };
+}
+
 export const MIXCODE_EXTENSION_KEYBINDINGS_MANAGER = new PiTuiKeybindingsManager(
   MIXCODE_EXTENSION_KEYBINDING_DEFINITIONS,
-  MIXCODE_EXTENSION_KEYBINDINGS,
+  buildMixCodeUserBindings(),
 ) as unknown as ExtensionKeybindingsManager;
+
+/** Re-read `keybindings.json` after /reload. */
+export function reloadMixCodeUserKeybindings(): void {
+  (
+    MIXCODE_EXTENSION_KEYBINDINGS_MANAGER as unknown as {
+      setUserBindings: (bindings: KeybindingsConfig) => void;
+    }
+  ).setUserBindings(buildMixCodeUserBindings());
+}
 
 export function currentExtensionTheme(host?: ExtensionThemeHost | undefined): Theme {
   const raw = host?.getTheme() ?? getActiveExtensionThemeId();

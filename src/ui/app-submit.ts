@@ -4,7 +4,10 @@ import {
   type RuntimeTab,
 } from "../agent/runtime.js";
 
-import { MIXCODE_EXTENSION_KEYBINDINGS } from "../agent/runtime-extension-theme.js";
+import {
+  MIXCODE_EXTENSION_KEYBINDINGS,
+  reloadMixCodeUserKeybindings,
+} from "../agent/runtime-extension-theme.js";
 import {
   applyContextLimit,
   applyContextLimitToSession,
@@ -375,6 +378,7 @@ export async function handleSubmittedInput(
   } else if (parsed.command === "extension-manager") {
     openExtensionManager(state, runtime, tui);
   } else if (parsed.command === "reload") {
+    reloadMixCodeUserKeybindings();
     await runtime.extensionReload(active!.sessionId);
     // Native reload covers extensions/skills/prompts/themes but not models; the
     // model registry is loaded once at bootstrap, so refresh it here too.
