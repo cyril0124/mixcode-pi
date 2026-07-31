@@ -1,4 +1,5 @@
-import type { TUI as TuiType } from "@earendil-works/pi-tui";
+import type { SettingsManager } from "@earendil-works/pi-coding-agent";
+import type { Component, TUI as TuiType } from "@earendil-works/pi-tui";
 import type { MixCodeRuntime } from "../agent/runtime.js";
 import type { MixCodeState } from "../core/types.js";
 
@@ -15,7 +16,7 @@ export interface WorkspaceKeyOptions {
   rootStateDir?: string;
   /** Settings dependencies required by config-scoped commands entered from Home. */
   settingsDeps?: {
-    settingsManager: import("@earendil-works/pi-coding-agent").SettingsManager;
+    settingsManager: SettingsManager;
     mixcodeFile: string;
     piSettingsFile: string;
   };
@@ -62,7 +63,7 @@ export interface MixCodeEditorActions {
   /** Forward a raw key to the active input component. */
   forwardToInputComponent?: (data: string) => void;
   /** Replace the editor slot with a Component (Pi showSelector / login parity). */
-  setInputComponent?: (component: import("@earendil-works/pi-tui").Component, sessionId?: string) => void;
+  setInputComponent?: (component: Component, sessionId?: string) => void;
   /** Clear editor-slot input component for the given session (or active). */
   clearInputComponent?: (sessionId?: string) => void;
 }

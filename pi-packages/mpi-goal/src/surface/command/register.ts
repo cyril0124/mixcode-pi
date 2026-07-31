@@ -1,5 +1,6 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import type { AutocompleteItem } from "@earendil-works/pi-tui";
+import type { PostCompletionActionSpec } from "../../domain/types.js";
 import { GOAL_USAGE, GOAL_USAGE_HINT } from "../../domain/constants.js";
 import { canActivateGoal, budgetLimitReason } from "../../domain/budget.js";
 import { validateObjective, goalStatusLabel } from "../../domain/format.js";
@@ -219,7 +220,7 @@ type ResolvedObjectiveInput = {
 	template?: string;
 	templateFlags?: Record<string, string>;
 	templateArgs?: string;
-	postCompletionActions?: import("../../domain/types.js").PostCompletionActionSpec[];
+	postCompletionActions?: PostCompletionActionSpec[];
 };
 
 function resolveTemplateOrObjective(input: string, ctx: ExtensionCommandContext): ResolvedObjectiveInput | null {

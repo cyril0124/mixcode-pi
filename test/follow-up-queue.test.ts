@@ -3,6 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import type { MixCodeTabInfo } from "../src/core/types.js";
 import {
   Type,
   createAssistantMessageEventStream,
@@ -15,6 +16,7 @@ import {
 import {
   MIXCODE_FAUX_MODEL,
   MixCodeRuntime,
+  type RuntimeTab,
   createTab,
   parseInput,
   renderQueuePreview,
@@ -132,8 +134,8 @@ function stripAnsi(text: string): string {
 async function withSlowToolRuntime(
   run: (ctx: {
     runtime: MixCodeRuntime;
-    tab: ReturnType<typeof createTab>;
-    runtimeTab: Awaited<ReturnType<MixCodeRuntime["createTab"]>>;
+    tab: MixCodeTabInfo;
+    runtimeTab: RuntimeTab;
     releaseTool: () => void;
     toolRunning: Promise<void>;
   }) => Promise<void>,

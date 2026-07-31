@@ -116,7 +116,7 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
    */
   historyReady: Promise<{ warnings: string[] }>;
   settingsDeps: {
-    settingsManager: import("@earendil-works/pi-coding-agent").SettingsManager;
+    settingsManager: SettingsManager;
     mixcodeFile: string;
     piSettingsFile: string;
   };

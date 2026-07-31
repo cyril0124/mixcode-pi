@@ -7,6 +7,7 @@ import type { MixCodeRuntime } from "../src/agent/runtime.js";
 import { createMixCodeTui } from "../src/ui/app.js";
 import { handleMixCodeKeyInput } from "../src/ui/app-input.js";
 import { handleSubmittedInput } from "../src/ui/app-submit.js";
+import type { MixCodeTheme } from "../src/ui/themes.js";
 import type { OverlayTui } from "../src/ui/app-types.js";
 import { buildLabeledTopBorder } from "../src/ui/editor-top-border.js";
 import {
@@ -504,7 +505,7 @@ test("zen done dots use done color while dashes use the frame color", () => {
     thinkingBorder: () => (s: string) => `${esc}[36m${s}${esc}[39m`,
     done: (s: string) => `${esc}[32m${s}${esc}[39m`,
     text: (s: string) => s,
-  } as unknown as import("../src/ui/themes.js").MixCodeTheme;
+  } as unknown as MixCodeTheme;
   const line = renderTabBarSeparator(
     40,
     { zenMode: true, zenDoneCount: 7, vimMode: true },

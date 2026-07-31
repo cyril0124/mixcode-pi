@@ -1,3 +1,4 @@
+import type { Dirent } from "node:fs";
 import { chmod, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { parseSessionEntries, type SessionInfo } from "@earendil-works/pi-coding-agent";
@@ -413,7 +414,7 @@ async function parseSessionFile(path: string): Promise<ParsedSessionFile | undef
 async function listSessionJsonlFiles(sessionsRoots: string[]): Promise<string[]> {
   const result: string[] = [];
   async function walk(path: string): Promise<void> {
-    let entries: import("node:fs").Dirent[];
+    let entries: Dirent[];
     try {
       entries = await readdir(path, { withFileTypes: true });
     } catch {
@@ -489,7 +490,7 @@ async function discoverSessionRoots(
 async function latestSessionsMtime(sessionsRoots: string[]): Promise<number> {
   let latest = 0;
   async function walk(path: string): Promise<void> {
-    let entries: import("node:fs").Dirent[];
+    let entries: Dirent[];
     try {
       entries = await readdir(path, { withFileTypes: true });
     } catch {

@@ -1,5 +1,5 @@
 import { type Component, Loader, type TUI as TuiType } from "@earendil-works/pi-tui";
-import type { MixCodeRuntime } from "../agent/runtime.js";
+import type { MixCodeRuntime, RuntimeTab } from "../agent/runtime.js";
 import { highlightChatSelectionLine } from "../core/chat-selection.js";
 import { isPendingEscapeActive } from "../core/escape.js";
 import { DEFAULT_OVERSIZED_ASSISTANT_MESSAGE } from "../core/mixcode-settings.js";
@@ -134,11 +134,11 @@ export class MixCodeRoot implements Component {
    */
   private renderMiddle(
     active: MixCodeState["tabs"][number],
-    runtimeTab: ReturnType<MixCodeRuntime["getTab"]>,
+    runtimeTab: RuntimeTab | undefined,
     width: number,
     middleHeight: number,
     topRows: number,
-    theme: ReturnType<typeof themeForId>,
+    theme: MixCodeTheme,
   ): string[] {
     if (!active.panelOpen) {
       active.panelSurfaceBounds = undefined;
@@ -480,7 +480,7 @@ export class MixCodeLayoutRoot implements Component {
   private renderWorkingLoader(
     active: MixCodeState["tabs"][number],
     width: number,
-    theme: ReturnType<typeof themeForId>,
+    theme: MixCodeTheme,
   ): string[] {
     const key = workingLoaderKey(active, theme.name);
     if (!key) {

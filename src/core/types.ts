@@ -1,6 +1,7 @@
+import type { SettingsManager } from "@earendil-works/pi-coding-agent";
 import type { Model, ThinkingLevelMap } from "@earendil-works/pi-ai";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
-import type { MixCodeUiSettings } from "./mixcode-settings.js";
+import type { MixCodeUiSettings, RawMixCodeSettings } from "./mixcode-settings.js";
 
 /** Erased Model type — the TApi type parameter is intentionally erased with `any`
  *  because different models carry incompatible API-specific fields (e.g. `compat`).
@@ -93,12 +94,12 @@ export interface SettingsPanelState {
   enumOpen: boolean;
   enumIndex: number;
   /** Snapshot of raw mixcode settings; mutated in place on write. */
-  mixcodeRaw: import("./mixcode-settings.js").RawMixCodeSettings;
+  mixcodeRaw: RawMixCodeSettings;
   mixcodeFile: string;
   /** Absolute path to Pi global settings.json (display only). */
   piSettingsFile: string;
   /** Bound at open time so key handlers can write Pi settings. */
-  settingsManager?: import("@earendil-works/pi-coding-agent").SettingsManager;
+  settingsManager?: SettingsManager;
   setHideThinkingBlock?: (hide: boolean) => void;
 }
 

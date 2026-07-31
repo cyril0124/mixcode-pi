@@ -1,4 +1,8 @@
-import { isBashAlreadyRunningError, type MixCodeRuntime } from "../agent/runtime.js";
+import {
+  isBashAlreadyRunningError,
+  type MixCodeRuntime,
+  type RuntimeTab,
+} from "../agent/runtime.js";
 
 import { MIXCODE_EXTENSION_KEYBINDINGS } from "../agent/runtime-extension-theme.js";
 import {
@@ -38,8 +42,10 @@ import {
   showLinesOverlay,
   showTextOverlay,
 } from "./app-overlays.js";
+import type { SettingsManager } from "@earendil-works/pi-coding-agent";
 import type { Component } from "@earendil-works/pi-tui";
 import type {
+  MixCodeEditorActions,
   MixCodeSubmitRuntime,
   OverlayTui,
   RuntimeShortcutInfo,
@@ -81,12 +87,12 @@ export async function handleSubmittedInput(
   activeTabOverride?: MixCodeTabInfo,
   /** Settings panel dependencies — required to open /settings overlay. */
   settingsDeps?: {
-    settingsManager: import("@earendil-works/pi-coding-agent").SettingsManager;
+    settingsManager: SettingsManager;
     mixcodeFile: string;
     piSettingsFile: string;
   },
   /** Optional editor restore hook for Pi-parity bash-already-running conflicts. */
-  editorActions?: Pick<import("./app-types.js").MixCodeEditorActions, "setText">,
+  editorActions?: Pick<MixCodeEditorActions, "setText">,
 ): Promise<void> {
   const parsed = parseInput(text);
   const active = activeTabOverride ?? getActiveTab(state);
@@ -580,7 +586,7 @@ function parseImportRequest(args: string): { path: string; cwdOverride?: string 
 function getRuntimeTools(
   runtime: MixCodeSubmitRuntime,
   sessionId: string,
-  runtimeTab: NonNullable<ReturnType<MixCodeRuntime["getTab"]>>,
+  runtimeTab: RuntimeTab,
 ): RuntimeToolInfo[] {
   const tools = runtime.getExtensionTools(sessionId) ?? runtimeTab.agentSession.getAllTools();
   return Array.isArray(tools) ? tools : [];
@@ -603,9 +609,7 @@ function getExtensionShortcuts(
   );
 }
 
-type SessionStatsInfo = ReturnType<
-  NonNullable<ReturnType<MixCodeRuntime["getTab"]>>["agentSession"]["getSessionStats"]
->;
+type SessionStatsInfo = ReturnType<RuntimeTab["agentSession"]["getSessionStats"]>;
 
 function syncTabContextUsage(
   tab: MixCodeState["tabs"][number],
@@ -620,7 +624,7 @@ function syncTabContextUsage(
 }
 
 export function renderSessionInfoText(
-  runtimeTab: NonNullable<ReturnType<MixCodeRuntime["getTab"]>>,
+  runtimeTab: RuntimeTab,
   info: SessionStatsInfo = runtimeTab.agentSession.getSessionStats(),
 ): string {
   // Pi handleSessionCommand: permanent stats dump with prompt-volume Input,

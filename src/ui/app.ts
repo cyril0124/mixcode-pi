@@ -1,3 +1,4 @@
+import type { SettingsManager } from "@earendil-works/pi-coding-agent";
 import { matchesKey, ProcessTerminal, TUI, type TUI as TuiType } from "@earendil-works/pi-tui";
 import type { ExtensionCustomUiHost, MixCodeRuntime } from "../agent/runtime.js";
 import { scanSkillEntries } from "../core/attachments.js";
@@ -57,7 +58,7 @@ export interface MixCodeTuiOptions {
   rootStateDir?: string;
   /** Required to enable the /settings overlay panel. */
   settingsDeps?: {
-    settingsManager: import("@earendil-works/pi-coding-agent").SettingsManager;
+    settingsManager: SettingsManager;
     mixcodeFile: string;
     piSettingsFile: string;
   };

@@ -34,6 +34,14 @@
 - Before finishing TypeScript behavior changes, follow **Test Guidelines** (focused test first, then the narrowest gate that covers the touch surface). Use `bun run format` only when formatting is intentionally requested or scoped, and do not claim formatting was run unless the command succeeds.
 - Keep formatting changes intentional and scoped. Do not mix broad reformatting with behavioral changes unless the formatter requires it.
 
+### TypeScript Style
+
+- Avoid `any` unless no practical alternative; prefer real types from libraries or `node_modules` over guessed shapes.
+- When a function's return type is already a named type, reference it directly (`RuntimeTab`) instead of wrapping it in `ReturnType<...>`; keep `ReturnType` for anonymous/inferred shapes and third-party method return types.
+- Prefer `export * from "./module"` in pure barrels; when stars create ambiguity, remove the redundant export path instead of keeping named re-exports.
+- Prefer top-level `import type` over inline `import("pkg").Type` in type positions; dynamic `import()` stays for lazy-load / optional / binary-entry boundaries.
+- Prefer `Promise.withResolvers()` when a deferred must hand out its resolve/reject separately; keep `new Promise` for simple timer wrapping (`setTimeout`/`setImmediate`).
+
 ## Commands
 
 - Install deps with `bun install` (not npm). Unique lockfile: `bun.lock`.

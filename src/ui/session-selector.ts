@@ -14,6 +14,7 @@ import { invalidateSessionCatalog } from "../core/session-catalog.js";
 import { createSessionSelectorState } from "../core/session-selector.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import { activateTab, closeAgentTab, getActiveTab } from "../core/tabs.js";
+import type { MixCodeTabInfo } from "../core/types.js";
 import { pushToast } from "../core/toast.js";
 import type { MixCodeState } from "../core/types.js";
 import { showErrorOverlay } from "./app-overlays.js";
@@ -38,7 +39,7 @@ export interface SessionSelectorRuntime {
     sessionPath: string,
   ) => Promise<{ cancelled: boolean }>;
   createTab: (
-    tab: import("../core/types.js").MixCodeTabInfo,
+    tab: MixCodeTabInfo,
     config: { systemPrompt: string; thinkingLevel: string; workdir: string },
   ) => Promise<unknown>;
   getTab: (sessionId: string) =>
