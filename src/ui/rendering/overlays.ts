@@ -12,7 +12,7 @@ import {
 import { filteredPickerItems, workdirBreadcrumb } from "../../core/pickers.js";
 import { activeToast } from "../../core/toast.js";
 import type { MixCodeState, MixCodeTabInfo, PreviewMessage } from "../../core/types.js";
-import { tabHasPendingUserInteraction } from "../../core/user-interactions.js";
+import { tabHasPendingUserInteraction } from "../../core/tab-state.js";
 import { type MixCodeTheme, themeForId } from "../themes.js";
 import { tabStatusGlyph } from "./chrome.js";
 import { activeRenderTheme, renderWithTheme } from "./context.js";

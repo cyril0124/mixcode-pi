@@ -15,7 +15,6 @@ import {
   syncPreviewFromChat,
   updatePreviewMessage,
 } from "./runtime-chat.js";
-import { contentText } from "./runtime-text.js";
 import {
   addTabTokens,
   clearPendingEscape,
@@ -25,6 +24,7 @@ import {
   setTabStatus,
 } from "../core/tab-state.js";
 import {
+  contentText,
   formatToolPreview,
   normalizeToolResult,
   summarizeToolContent,

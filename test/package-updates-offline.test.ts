@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { checkPiPackageUpdates } from "../src/core/package-updates.js";
+import { checkPiPackageUpdates } from "../src/cli/bootstrap.js";
 
 test("checkPiPackageUpdates returns [] when options.env.PI_OFFLINE is truthy", async () => {
   const result = await checkPiPackageUpdates({

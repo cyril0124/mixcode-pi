@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { contentText } from "../src/agent/runtime-text.js";
+import { contentText } from "../src/agent/runtime-tool-chat.js";
 
 test("contentText returns string input as-is", () => {
   assert.equal(contentText("hello"), "hello");

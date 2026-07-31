@@ -19,8 +19,8 @@ import {
 } from "./runtime-extension-theme.js";
 import { applyMixCodeKeybindings } from "./runtime-pi-tui-bridge.js";
 import { NullTerminal } from "./runtime-null-terminal.js";
-import { contentText } from "./runtime-text.js";
 import {
+  contentText,
   normalizeToolResult,
   summarizeToolContent,
   toolExecutionToChatLine,

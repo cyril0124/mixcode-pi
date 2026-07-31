@@ -16,7 +16,7 @@ import {
   type SettingsManager,
 } from "@earendil-works/pi-coding-agent";
 import { type AutocompleteProvider, matchesKey as matchesPiKey } from "@earendil-works/pi-tui";
-import { contentText } from "./runtime-text.js";
+import { contentText } from "./runtime-tool-chat.js";
 import { modelToRef, replaceRegisteredModels } from "../core/models.js";
 import {
   clearPendingEscape,

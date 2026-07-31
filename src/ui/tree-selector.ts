@@ -7,23 +7,21 @@ import { copyToClipboard } from "@earendil-works/pi-coding-agent";
 import { chatEnd } from "../core/overlays.js";
 import { pushToast } from "../core/toast.js";
 import {
+  cancelCustomInstructions,
+  cancelSummarizePrompt,
+  confirmCustomInstructions,
+  confirmSummarizeSelection,
   initTreeSelector,
   isNewestTreeSelection,
+  moveSummarizeSelection,
   resetTreeSelectorComponent,
   type SessionTreeNode,
+  showSummarizePrompt,
   syncTreeSelectorSelection,
   type TreeFilterMode,
   type TreeSelectorMode,
   updateTreeFilterState,
 } from "../core/tree-selector.js";
-import {
-  cancelCustomInstructions,
-  cancelSummarizePrompt,
-  confirmCustomInstructions,
-  confirmSummarizeSelection,
-  moveSummarizeSelection,
-  showSummarizePrompt,
-} from "../core/tree-summarize.js";
 import type { MixCodeState } from "../core/types.js";
 import { showErrorOverlay } from "./app-overlays.js";
 import type { MixCodeKeyRuntime, OverlayTui, TreeSelectorDisplayHost } from "./app-types.js";

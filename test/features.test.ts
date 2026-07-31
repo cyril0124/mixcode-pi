@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { performance } from "node:perf_hooks";
 import { test } from "node:test";
 import { availableThinkingLevelsForModel } from "../src/core/thinking-levels.js";
+import { statusFromAgentEvent } from "../src/core/tab-state.js";
 import {
   AUTO_SAVED_WORKSPACE,
   addAgentTab,
@@ -28,7 +29,6 @@ import {
   renameAgentTab,
   restoreWorkspaceOrder,
   snapshotWorkspace,
-  statusFromAgentEvent,
   toggleCurrentQuestionOption,
   upsertWorkspace,
   answerCurrentQuestion,

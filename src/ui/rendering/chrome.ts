@@ -2,10 +2,9 @@ import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works
 import type { RuntimeTab } from "../../agent/runtime.js";
 import { isPendingEscapeActive } from "../../core/escape.js";
 import { gitBranchForWorkdir } from "../../core/git-branch.js";
-import { retryStatusMessage } from "../../core/tab-state.js";
 import type { MouseHitRegion } from "../../core/mouse.js";
+import { retryStatusMessage, tabHasPendingUserInteraction } from "../../core/tab-state.js";
 import type { MixCodeState, MixCodeTabInfo } from "../../core/types.js";
-import { tabHasPendingUserInteraction } from "../../core/user-interactions.js";
 import type { MixCodeTheme } from "../themes.js";
 import { activeRenderTheme, renderWithTheme } from "./context.js";
 import { padLine, sanitizeTerminalText } from "./primitives.js";

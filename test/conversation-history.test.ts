@@ -1,9 +1,8 @@
 import assert from "node:assert/strict";
-import { appendFile, mkdir, mkdtemp, readFile, rm, stat, utimes, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { test } from "node:test";
-import lockfile from "proper-lockfile";
 import { listSessionsForCwd } from "../src/agent/runtime-session.js";
 import {
   appendHistoryEntry,
@@ -12,8 +11,10 @@ import {
   buildSessionIndex,
   conversationHistoryPaths,
   ensureConversationHistoryState,
+  HISTORY_LOCK_ID,
   shouldRebuildSessionIndex,
 } from "../src/index.js";
+import { acquireSessionTurnLock } from "../src/core/session-lock.js";
 
 async function readJsonl(path: string): Promise<Record<string, unknown>[]> {
   const text = await readFile(path, "utf8");
@@ -108,11 +109,12 @@ test("appendHistoryEntry serializes concurrent appends", async () => {
 test("appendHistoryEntry reclaims a stale lock left by a crashed process", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-history-stale-lock-"));
   const file = join(dir, "history.jsonl");
-  const lockDir = `${file}.lock`;
   try {
-    await mkdir(lockDir);
-    const staleAt = new Date(Date.now() - 60_000);
-    await utimes(lockDir, staleAt, staleAt);
+    // Simulate a crashed holder: lock file owned by a dead PID, never released.
+    acquireSessionTurnLock(dir, HISTORY_LOCK_ID, {
+      pid: 999_999_999,
+      processInfo: () => ({ alive: true, startTime: "1", verification: "linux-start-time" }),
+    });
 
     await appendHistoryEntry(
       file,
@@ -123,7 +125,6 @@ test("appendHistoryEntry reclaims a stale lock left by a crashed process", async
     assert.deepEqual(await readJsonl(file), [
       { session_id: "s1", ts: 10, text: "after crash" },
     ]);
-    await assert.rejects(stat(lockDir), /ENOENT/);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -132,13 +133,9 @@ test("appendHistoryEntry reclaims a stale lock left by a crashed process", async
 test("appendHistoryEntry waits for a live history lock instead of stealing it", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-history-live-lock-"));
   const file = join(dir, "history.jsonl");
-  let release: (() => Promise<void>) | undefined;
+  let held: ReturnType<typeof acquireSessionTurnLock> | undefined;
   try {
-    release = await lockfile.lock(file, {
-      realpath: false,
-      stale: 30_000,
-      update: 10_000,
-    });
+    held = acquireSessionTurnLock(dir, HISTORY_LOCK_ID);
     let settled = false;
     const append = appendHistoryEntry(
       file,
@@ -150,39 +147,33 @@ test("appendHistoryEntry waits for a live history lock instead of stealing it", 
 
     await new Promise((resolve) => setTimeout(resolve, 60));
     assert.equal(settled, false, "append must wait while the live lock is held");
-    await release();
-    release = undefined;
+    held.release();
+    held = undefined;
     await append;
 
     assert.deepEqual(await readJsonl(file), [
       { session_id: "s1", ts: 10, text: "after release" },
     ]);
   } finally {
-    await release?.();
+    held?.release();
     await rm(dir, { recursive: true, force: true });
   }
 });
 
-test("appendHistoryEntry keeps retrying when a fresh crash lock becomes stale", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-history-fresh-crash-lock-"));
+test("appendHistoryEntry reclaims a dead-PID lock without waiting for mtime stale", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-history-dead-pid-lock-"));
   const file = join(dir, "history.jsonl");
-  const lockDir = `${file}.lock`;
   try {
-    await mkdir(lockDir);
-    let settled = false;
-    const append = appendHistoryEntry(
+    acquireSessionTurnLock(dir, HISTORY_LOCK_ID, {
+      pid: 999_999_998,
+      processInfo: () => ({ alive: true, startTime: "1", verification: "linux-start-time" }),
+    });
+
+    await appendHistoryEntry(
       file,
       { sessionId: "s1", text: "recovered", timestampSeconds: 10 },
       { maxBytes: 1024 },
-    ).then(() => {
-      settled = true;
-    });
-
-    await new Promise((resolve) => setTimeout(resolve, 60));
-    assert.equal(settled, false, "fresh crash lock must initially remain valid");
-    const staleAt = new Date(Date.now() - 60_000);
-    await utimes(lockDir, staleAt, staleAt);
-    await append;
+    );
 
     assert.deepEqual(await readJsonl(file), [
       { session_id: "s1", ts: 10, text: "recovered" },

@@ -4,7 +4,12 @@ import type {
   CreateAgentSessionServicesOptions,
   ExtensionFactory,
 } from "@earendil-works/pi-coding-agent";
-import { ensureTool, SettingsManager } from "@earendil-works/pi-coding-agent";
+import {
+  DefaultPackageManager,
+  ensureTool,
+  getAgentDir,
+  SettingsManager,
+} from "@earendil-works/pi-coding-agent";
 import { MixCodeRuntime } from "../agent/runtime.js";
 import { scanSkillEntries } from "../core/attachments.js";
 import { createInitialState, createSessionId, createTab, DEFAULT_MODEL_REF } from "../core/defaults.js";
@@ -31,7 +36,6 @@ import {
   setStateModel,
   setTabModel,
 } from "../core/models.js";
-import { checkPiPackageUpdates } from "../core/package-updates.js";
 import {
   configureDisabledModelRuntime,
   createPiModelRegistryBundle,
@@ -322,4 +326,23 @@ function repairUnavailableTabModels(
     repairs.set(tab.sessionId, { from, to: modelRefId(state.model) });
   }
   return repairs;
+}
+
+export interface PackageUpdateCheckOptions {
+  workdir: string;
+  agentDir?: string;
+  env?: NodeJS.ProcessEnv;
+}
+
+export async function checkPiPackageUpdates(options: PackageUpdateCheckOptions): Promise<string[]> {
+  if (options.env?.PI_OFFLINE ?? process.env.PI_OFFLINE) return [];
+  const agentDir = options.agentDir ?? getAgentDir();
+  const settingsManager = SettingsManager.create(options.workdir, agentDir);
+  const packageManager = new DefaultPackageManager({
+    cwd: options.workdir,
+    agentDir,
+    settingsManager,
+  });
+  const updates = await packageManager.checkForAvailableUpdates();
+  return updates.map((update) => update.displayName);
 }

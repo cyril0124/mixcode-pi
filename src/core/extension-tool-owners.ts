@@ -11,7 +11,5 @@ export function isExtensionToolOwner(
 
 export function displayToolOwner(sourceInfo: SourceInfo | undefined): string {
   if (!sourceInfo) return "unknown";
-  if (sourceInfo.source && sourceInfo.source !== "local") return sourceInfo.source;
-  if (sourceInfo.source) return sourceInfo.source;
-  return sourceInfo.path || "unknown";
+  return sourceInfo.source || sourceInfo.path || "unknown";
 }

@@ -7,8 +7,14 @@ import {
 } from "./runtime-extension-theme.js";
 import { applyMixCodeKeybindings } from "./runtime-pi-tui-bridge.js";
 import { NullTerminal } from "./runtime-null-terminal.js";
-import { contentText } from "./runtime-text.js";
 import type { ChatLine, RuntimeTab, ToolResultLike } from "./runtime-types.js";
+
+export function contentText(content: string | Array<{ type: string; text?: string }>): string {
+  if (typeof content === "string") return content;
+  return content
+    .map((block) => (block.text !== undefined ? block.text : `[${block.type}]`))
+    .join("\n");
+}
 
 export function toolExecutionToChatLine(
   runtimeTab: RuntimeTab,

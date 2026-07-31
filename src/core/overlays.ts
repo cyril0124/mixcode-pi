@@ -3,7 +3,7 @@ import { fuzzyFilter } from "@earendil-works/pi-tui";
 import { fuzzyMatch, fuzzyMatchAllPositions } from "./fuzzy.js";
 import { activateTab, findActiveTab } from "./tabs.js";
 import type { CommandPaletteEntry, MixCodeState, MixCodeTabInfo } from "./types.js";
-import { tabHasPendingUserInteraction } from "./user-interactions.js";
+import { tabHasPendingUserInteraction } from "./tab-state.js";
 
 export function togglePreview(tab: MixCodeTabInfo): void {
   tab.previewOpen = !tab.previewOpen;

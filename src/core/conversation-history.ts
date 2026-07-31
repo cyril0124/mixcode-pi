@@ -2,24 +2,23 @@ import type { Dirent } from "node:fs";
 import { chmod, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { parseSessionEntries, type SessionInfo } from "@earendil-works/pi-coding-agent";
-import lockfile from "proper-lockfile";
 import {
   MIXCODE_SETTINGS_FILENAME,
   loadMixCodeSettings,
   type HistorySettings,
 } from "./mixcode-settings.js";
 import { seedSessionCatalogRoot } from "./session-catalog.js";
+import {
+  acquireSessionTurnLock,
+  SessionLockConflictError,
+  type SessionLockHandle,
+} from "./session-lock.js";
 
 const HISTORY_FILENAME = "history.jsonl";
 const SESSION_INDEX_FILENAME = "session_index.jsonl";
-const HISTORY_LOCK_STALE_MS = 30_000;
-const HISTORY_LOCK_UPDATE_MS = 10_000;
-// Fast initial retries preserve short concurrent-append latency; the 200ms cap
-// keeps NFS polling bounded while the total window still exceeds stale time.
-const HISTORY_LOCK_RETRY_ATTEMPTS = 200;
-const HISTORY_LOCK_RETRY_FACTOR = 1.1;
-const HISTORY_LOCK_RETRY_MIN_MS = 20;
-const HISTORY_LOCK_RETRY_MAX_MS = 200;
+/** Shared lock id under rootStateDir/.locks/ — one history.jsonl per state dir. */
+export const HISTORY_LOCK_ID = "conversation-history";
+const HISTORY_LOCK_POLL_MS = 20;
 
 export const DEFAULT_HISTORY_BACKFILL_DAYS = 30;
 
@@ -537,30 +536,24 @@ async function writePrivateFile(path: string, text: string): Promise<void> {
 }
 
 async function withHistoryFileLock<T>(historyFile: string, run: () => Promise<T>): Promise<T> {
-  await ensurePrivateDir(dirname(historyFile));
-  let compromised: Error | undefined;
-  const release = await lockfile.lock(historyFile, {
-    realpath: false,
-    stale: HISTORY_LOCK_STALE_MS,
-    update: HISTORY_LOCK_UPDATE_MS,
-    retries: {
-      retries: HISTORY_LOCK_RETRY_ATTEMPTS,
-      factor: HISTORY_LOCK_RETRY_FACTOR,
-      minTimeout: HISTORY_LOCK_RETRY_MIN_MS,
-      maxTimeout: HISTORY_LOCK_RETRY_MAX_MS,
-      randomize: false,
-    },
-    onCompromised: (error) => {
-      compromised = error;
-    },
-  });
+  const rootStateDir = dirname(historyFile);
+  await ensurePrivateDir(rootStateDir);
+  // Same PID/start-time lock as session turns; wait/retry instead of throw-on-conflict
+  // so concurrent appends serialize instead of failing.
+  let handle: SessionLockHandle | undefined;
+  for (;;) {
+    try {
+      handle = acquireSessionTurnLock(rootStateDir, HISTORY_LOCK_ID);
+      break;
+    } catch (error) {
+      if (!(error instanceof SessionLockConflictError)) throw error;
+      await new Promise((resolve) => setTimeout(resolve, HISTORY_LOCK_POLL_MS));
+    }
+  }
   try {
-    if (compromised) throw compromised;
-    const result = await run();
-    if (compromised) throw compromised;
-    return result;
+    return await run();
   } finally {
-    await release();
+    handle.release();
   }
 }
 

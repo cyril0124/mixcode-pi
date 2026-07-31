@@ -9,7 +9,7 @@ import {
   hasPriorVisibleConversation,
   inspectSessionImport,
 } from "./runtime-chat.js";
-import { contentText } from "./runtime-text.js";
+import { contentText } from "./runtime-tool-chat.js";
 import type {
   ExtensionCustomUiHost,
   ExtensionForkOptions,

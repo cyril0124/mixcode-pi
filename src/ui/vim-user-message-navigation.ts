@@ -1,7 +1,7 @@
 import { matchesKey, truncateToWidth } from "@earendil-works/pi-tui";
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 import type { RuntimeTab } from "../agent/runtime.js";
-import { contentText } from "../agent/runtime-text.js";
+import { contentText } from "../agent/runtime-tool-chat.js";
 import { chatEnd } from "../core/overlays.js";
 import { pushToast } from "../core/toast.js";
 import type { MixCodeState } from "../core/types.js";
