@@ -40,34 +40,49 @@ export function reloadRuntimeSessionFromDisk(runtimeTab: RuntimeTab): ReloadSess
 
   // Capture the pre-reload leaf and known entry ids. setSessionFile rebuilds the
   // index and unconditionally moves the leaf to the file's LAST entry — correct
-  // for a genuine external append, but wrong after a local retract
-  // (navigateTree/resetLeaf rewinds the in-memory leaf while the append-only
-  // file keeps the retracted entries). Without this guard, any reload after a
-  // retract — including prompt()'s pre-send reload — resurrects the retracted
-  // message.
+  // only when that tail is a new descendant of our active leaf. After a local
+  // retract the append-only file still holds the abandoned path, so a naive
+  // "any new entry → keep file tail" would resurrect the retracted message
+  // (including when a peer appends onto that abandoned branch).
   const prevLeafId = runtimeTab.session.getLeafId();
   const knownIds = new Set(runtimeTab.session.getEntries().map((entry) => entry.id));
 
   // Re-read the JSONL. Any external appends are now visible.
   runtimeTab.session.setSessionFile(file);
 
-  // A real external append introduces entries we did not previously know. If the
-  // file grew only with entries we already had (the retract-then-reload case),
-  // restore the rewound leaf instead of jumping to the file tail.
   const reloadedEntries = runtimeTab.session.getEntries();
+  const byId = new Map(reloadedEntries.map((entry) => [entry.id, entry]));
   const hasNewEntries = reloadedEntries.some((entry) => !knownIds.has(entry.id));
   const entriesChanged = hasNewEntries || reloadedEntries.length !== knownIds.size;
-  if (!hasNewEntries) {
-    if (prevLeafId === null) {
-      runtimeTab.session.resetLeaf();
-    } else if (runtimeTab.session.getEntry(prevLeafId)) {
-      runtimeTab.session.branch(prevLeafId);
+
+  // A new entry extends the active leaf only if the walk to prevLeafId (or to a
+  // new root when prevLeafId is null) never hits a previously-known entry.
+  // Known nodes on the path mean the append hangs off an abandoned branch.
+  const isNewExtensionOfActiveLeaf = (entryId: string): boolean => {
+    let current = byId.get(entryId);
+    while (current) {
+      if (prevLeafId !== null && current.id === prevLeafId) return true;
+      if (knownIds.has(current.id)) return false;
+      if (prevLeafId === null && current.parentId === null) return true;
+      current = current.parentId ? byId.get(current.parentId) : undefined;
+    }
+    return false;
+  };
+
+  // File-order last matching tip wins (deepest new work on the active branch).
+  let advanceTo: string | undefined;
+  for (const entry of reloadedEntries) {
+    if (!knownIds.has(entry.id) && isNewExtensionOfActiveLeaf(entry.id)) {
+      advanceTo = entry.id;
     }
   }
-  // ponytail: single-writer model. If this instance retracts while another
-  // instance appends to the same session, the new entry counts as "new" and the
-  // leaf advances to the file tail, resurrecting the retracted message. Rare
-  // under the turn lock; upgrade to descendant-aware reconciliation if needed.
+  if (advanceTo) {
+    runtimeTab.session.branch(advanceTo);
+  } else if (prevLeafId === null) {
+    runtimeTab.session.resetLeaf();
+  } else if (runtimeTab.session.getEntry(prevLeafId)) {
+    runtimeTab.session.branch(prevLeafId);
+  }
 
   // Keep in-memory-only Pi UI notifications when the disk entry set is unchanged.
   // Rebuilding chat here would erase ctx.ui.notify() lines before every local prompt.

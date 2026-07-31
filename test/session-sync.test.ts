@@ -1,9 +1,11 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
+import { appendFileSync, readFileSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { test } from "node:test";
+import { randomUUID } from "node:crypto";
 import {
   type SimpleStreamOptions,
   createAssistantMessageEventStream,
@@ -394,6 +396,114 @@ test("reload after retract does not resurrect the retracted message", async () =
     runtime.syncSessionFromDisk("s1");
     assert.equal(chatText(runtime, "s1").includes("MSG-A"), false);
     assert.equal(conversationEntryCount(runtime, "s1"), 0);
+  } finally {
+    await runtime.closeAllTabs();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+// Regression: local retract + concurrent append on the abandoned branch must
+// not resurrect the retracted turn. setSessionFile always parks the leaf at
+// the file tail; descendant-aware reload must keep the rewound leaf when the
+// new entries hang off the abandoned path rather than the active one.
+test("reload after retract ignores new entries on the abandoned branch", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-retract-abandoned-"));
+  const sessionsRoot = join(dir, "sessions");
+  let release!: () => void;
+  const released = new Promise<void>((r) => { release = r; });
+  const runtime = new MixCodeRuntime({
+    sessionsRoot,
+    streamFn: (_m, _c, o) => pendingStream(released, o),
+  });
+  try {
+    const rt = await runtime.createTab(createTab(1, "s1", dir), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: dir,
+      model: retractModel(),
+    });
+    runtime.enableSessionSync();
+    const pending = runtime.prompt("s1", "MSG-A-retract-me");
+    await waitFor(() => rt.agentSession.isStreaming === true);
+    await runtime.retractCurrentTurn("s1");
+    release();
+    await pending.catch(() => undefined);
+    await waitFor(() => conversationEntryCount(runtime, "s1") === 0);
+    assert.equal(chatText(runtime, "s1").includes("MSG-A"), false);
+
+    const sessionFile = rt.session.getSessionFile();
+    assert.ok(sessionFile);
+    // File still holds the retracted user message; a peer continuing from that
+    // abandoned leaf appends a child. That is a genuine new entry, but not on
+    // our active branch.
+    const fileEntries = readFileSync(sessionFile, "utf8")
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .map((line) => JSON.parse(line) as { type?: string; id?: string; parentId?: string | null });
+    const retracted = [...fileEntries].reverse().find((e) => e.type === "message");
+    assert.ok(retracted?.id, "retracted message must remain on disk");
+    appendFileSync(
+      sessionFile,
+      `${JSON.stringify({
+        type: "message",
+        id: randomUUID().slice(0, 8),
+        parentId: retracted.id,
+        timestamp: new Date().toISOString(),
+        message: {
+          role: "user",
+          content: "PEER-ON-ABANDONED",
+          timestamp: Date.now(),
+        },
+      })}\n`,
+    );
+
+    runtime.syncSessionFromDisk("s1");
+    assert.equal(chatText(runtime, "s1").includes("MSG-A"), false);
+    assert.equal(chatText(runtime, "s1").includes("PEER-ON-ABANDONED"), false);
+    assert.equal(conversationEntryCount(runtime, "s1"), 0);
+  } finally {
+    await runtime.closeAllTabs();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+// Peer appends that extend the active leaf must still advance the local leaf.
+test("reload advances to new descendants of the active leaf", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-reload-descendant-"));
+  const sessionsRoot = join(dir, "sessions");
+  const runtime = new MixCodeRuntime({ sessionsRoot });
+  try {
+    const rt = await runtime.createTab(createTab(1, "s1", dir), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: dir,
+      model: MIXCODE_FAUX_MODEL,
+    });
+    await runtime.prompt("s1", "seed");
+    await waitFor(() => rt.agentSession.isStreaming === false);
+
+    const sessionFile = rt.session.getSessionFile();
+    assert.ok(sessionFile);
+    const leafId = rt.session.getLeafId();
+    assert.ok(leafId);
+    appendFileSync(
+      sessionFile,
+      `${JSON.stringify({
+        type: "message",
+        id: randomUUID().slice(0, 8),
+        parentId: leafId,
+        timestamp: new Date().toISOString(),
+        message: {
+          role: "user",
+          content: "PEER-ON-ACTIVE",
+          timestamp: Date.now(),
+        },
+      })}\n`,
+    );
+
+    const reloaded = runtime.syncSessionFromDisk("s1");
+    assert.equal(reloaded, true);
+    assert.match(chatText(runtime, "s1"), /PEER-ON-ACTIVE/);
   } finally {
     await runtime.closeAllTabs();
     await rm(dir, { recursive: true, force: true });
