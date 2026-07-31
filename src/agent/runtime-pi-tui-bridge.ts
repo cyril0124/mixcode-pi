@@ -1,38 +1,26 @@
-// Bridge between the project's top-level @earendil-works/pi-tui module and the
-// nested copy that @earendil-works/pi-coding-agent ships via its
-// npm-shrinkwrap.
+// Bridge for mixcode keybindings across pi-tui module instance(s).
 //
 // Why this exists
 // ---------------
-// pi-coding-agent declares "hasShrinkwrap": true and pins its own pi-tui
-// dependency. npm honors that shrinkwrap regardless of `overrides` in the
-// host project, so we end up with two distinct pi-tui module instances on
-// disk:
+// pi-tui keeps `globalKeybindings` as module-level state. When the install
+// tree has *two* physical pi-tui copies, each copy has its own state:
 //
 //   node_modules/@earendil-works/pi-tui                     (top-level)
 //   node_modules/@earendil-works/pi-coding-agent/
-//     node_modules/@earendil-works/pi-tui                   (nested)
+//     node_modules/@earendil-works/pi-tui                   (nested, optional)
 //
-// pi-tui keeps `globalKeybindings` as module-level state. Components shipped
-// by pi-coding-agent (read/grep/find/skill/...) call `getKeybindings()` from
-// the nested copy, so any keybindings set via the top-level module are
-// invisible to them. The user-visible symptom is empty keybinding labels like
+// That nested copy can appear under npm when pi-coding-agent's shrinkwrap is
+// honored. Bun (and some npm trees) often dedupe to a single top-level copy.
+// With two instances, setting keybindings only on the top-level leaves upstream
+// renderers (which import the nested copy) showing blank hints like
 // "( to expand)" instead of "(ctrl+o to expand)".
 //
 // What this module does
 // ---------------------
-// On load, it locates the nested pi-tui by walking from the resolved
-// pi-coding-agent entry to its sibling `node_modules/@earendil-works/pi-tui`.
-// `applyMixCodeKeybindings()` then mirrors `setKeybindings` calls onto both
-// copies so upstream renderers and our own renderers agree on the keybinding
-// state.
-//
-// Failure mode
-// ------------
-// If the nested copy ever disappears (for example, because pi-coding-agent
-// stops shipping a shrinkwrap and npm dedupes pi-tui), the bridge logs an
-// explicit warning and degrades to top-level-only. This is intentional: it
-// surfaces drift loudly instead of silently regressing the UI.
+// `applyMixCodeKeybindings()` always sets the top-level manager. If a *distinct*
+// nested instance is discoverable (or injected for bun --compile), the same
+// manager is mirrored there. If there is only one instance, top-level-only is
+// correct for both Node and Bun — no postinstall layout hacks required.
 
 import { createRequire } from "node:module";
 import { dirname } from "node:path";

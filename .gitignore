@@ -3,6 +3,6 @@ refs/
 dist/
 coverage/
 tmp/
-bun.lock
+package-lock.json
 bun.lockb
 .pi/

@@ -315,7 +315,7 @@ Core **不再**在 `afterToolCall` 上做 mid-turn terminate + 私有 `_handlePo
 ## 测试和验收
 
 ```text
-npm run check
+bun run check
   │
   ├─ typecheck      tsc --noEmit
   ├─ build          tsup ESM + d.ts

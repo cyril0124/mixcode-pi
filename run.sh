@@ -6,7 +6,7 @@ workdir="$(pwd)"
 cd "$repo_dir"
 
 if [ ! -d node_modules ]; then
-  npm install
+  bun install
 fi
 
 export PATH="$repo_dir/node_modules/.bin:$PATH"
@@ -19,7 +19,7 @@ needs_build() {
   fi
   if find "$repo_dir/src" \
     "$repo_dir/package.json" \
-    "$repo_dir/package-lock.json" \
+    "$repo_dir/bun.lock" \
     "$repo_dir/tsconfig.json" \
     "$repo_dir/biome.jsonc" \
     -newer "$dist_entry" -print -quit | grep -q .; then
@@ -37,7 +37,7 @@ if [ "${MIXCODE_DEV:-0}" = "1" ]; then
 fi
 
 if needs_build; then
-  npm run build
+  bun run build
 fi
 
 if [ "${1:-}" = "status" ]; then

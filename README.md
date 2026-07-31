@@ -23,6 +23,8 @@ Requires [Bun](https://bun.sh):
 
 This compiles a self-contained single binary via `bun build --compile`. No Node.js or node_modules needed at runtime.
 
+**Development:** install deps with `bun install` (lockfile: `bun.lock`). Scripts use `bun run …` (e.g. `bun run check`). Tests still run under Node's `node:test` + `tsx` via those scripts.
+
 ## Usage
 
 ```bash

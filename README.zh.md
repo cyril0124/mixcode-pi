@@ -23,6 +23,8 @@
 
 通过 `bun build --compile` 编译为独立的单二进制文件，运行时无需 Node.js 或 node_modules。
 
+**开发：** 用 `bun install` 装依赖（锁文件：`bun.lock`）。脚本统一 `bun run …`（例如 `bun run check`）。测试仍由这些脚本拉起 Node 的 `node:test` + `tsx`。
+
 ## 使用
 
 ```bash

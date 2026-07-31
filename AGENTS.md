@@ -31,11 +31,12 @@
 - Prefer TypeScript source files under 1000 lines; split into focused modules when a file grows mainly by unrelated concerns. The limit is a guideline, not a hard block — a coherent file may exceed 1000 lines when splitting would only hurt clarity.
 - Split on real seams only: a boundary that is independently testable, has a single clear responsibility, or is a replaceable interface. File length alone is not a seam. Prefer putting new code in the existing neighbor module; prefer merging thin single-caller satellites over further splits.
 - Add concise English comments in TypeScript source files for non-obvious intent: invariants, side effects, ordering constraints, edge cases, and rationale for surprising decisions. Do not comment self-evident syntax or restate the code; add them when modifying an uncommented complex area as well.
-- Before finishing TypeScript behavior changes, follow **Test Guidelines** (focused test first, then the narrowest gate that covers the touch surface). Use `npm run format` only when formatting is intentionally requested or scoped, and do not claim formatting was run unless the command succeeds.
+- Before finishing TypeScript behavior changes, follow **Test Guidelines** (focused test first, then the narrowest gate that covers the touch surface). Use `bun run format` only when formatting is intentionally requested or scoped, and do not claim formatting was run unless the command succeeds.
 - Keep formatting changes intentional and scoped. Do not mix broad reformatting with behavioral changes unless the formatter requires it.
 
 ## Commands
 
+- Install deps with `bun install` (not npm). Unique lockfile: `bun.lock`.
 - NEVER commit unless asked.
 
 ## Test Guidelines
@@ -68,10 +69,12 @@ Test the contract the system exposes — not the easiest internal detail to asse
 - Focused (default while iterating):
   - `node --test --import tsx test/<file>.test.ts`
   - `node --test --import tsx pi-packages/<pkg>/<file>.test.ts`
-- Package tests: `npm run test:packages`
-- Root suite: `npm test` (`test/*.test.ts` only)
-- Full sequential gate: `npm run check` (typecheck + build + root tests)
+- Package tests: `bun run test:packages`
+- Root suite: `bun run test` (`test/*.test.ts` only)
+- Full sequential gate: `bun run check` (typecheck + build + root tests)
 - Parallel package-oriented gate: `./test-all.sh` (typecheck + build + lint + package tests; does **not** run full `test/*.test.ts`)
+- Package manager: Bun only — install with `bun install`; lockfile is `bun.lock` (do not commit `package-lock.json`). Node remains required for `node --test` / `tsx` and for running `dist/` via `run.sh`.
+- `postinstall` runs `patch-package` only. pi-tui keybindings bridge supports both single-instance (bun/npm dedupe) and dual-instance (npm shrinkwrap nested) layouts without layout scripts.
 - When running backend unit tests, enforce a hard timeout of 60 seconds to avoid stuck tasks.
 - TUI/UI claims still require interactive proof per **TUI Validation**; unit tests alone are not enough. Optional automated smoke: `MIXCODE_RUN_TMUX_TUI_SMOKE=1` with `test/tui-smoke.test.ts`.
-- Before finishing a TypeScript behavior change: run the focused test(s) you added or changed until green, then the narrowest gate that covers the touch surface (`test:packages` for package work, `npm run check` and/or `./test-all.sh` as appropriate). Fix until green.
+- Before finishing a TypeScript behavior change: run the focused test(s) you added or changed until green, then the narrowest gate that covers the touch surface (`test:packages` for package work, `bun run check` and/or `./test-all.sh` as appropriate). Fix until green.
