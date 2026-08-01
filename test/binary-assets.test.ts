@@ -14,7 +14,7 @@ test("binary runtime assets are written for both upstream Bun and dist layouts",
     await writeFile(sourceAsset, "image-bytes", "utf8");
     await writeFile(photonWasm, "wasm-bytes", "utf8");
 
-    materializeBinaryRuntimeAssets(runtimeDir, {
+    await materializeBinaryRuntimeAssets(runtimeDir, {
       darkTheme: { name: "dark" },
       lightTheme: { name: "light" },
       exportTemplateCss: "css",
@@ -94,7 +94,7 @@ test("binary runtime built-in packages are installed as Pi extensions", async ()
   const runtimeDir = await mkdtemp(join(tmpdir(), "mixcode-binary-assets-"));
   try {
     process.env.HOME = homeDir;
-    materializeBinaryRuntimeAssets(runtimeDir, {
+    await materializeBinaryRuntimeAssets(runtimeDir, {
       darkTheme: {},
       lightTheme: {},
       exportTemplateCss: "",
@@ -138,7 +138,7 @@ test("ensurePackageExtensions installs under the given agentDir, not global home
   try {
     // Point HOME at an empty dir so a leak into the default root would be visible.
     process.env.HOME = homeDir;
-    materializeBinaryRuntimeAssets(runtimeDir, {
+    await materializeBinaryRuntimeAssets(runtimeDir, {
       darkTheme: {},
       lightTheme: {},
       exportTemplateCss: "",

@@ -1,4 +1,3 @@
-import { readFile } from "node:fs/promises";
 import { parseJsoncObject } from "./json.js";
 
 export const MIXCODE_SETTINGS_FILENAME = "mixcode_settings.json";
@@ -86,7 +85,7 @@ export function isModelDisabled(
 export async function loadRawMixCodeSettings(settingsFile: string): Promise<RawMixCodeSettings> {
   let raw: unknown;
   try {
-    raw = parseJsoncObject(await readFile(settingsFile, "utf8"));
+    raw = parseJsoncObject(await Bun.file(settingsFile).text());
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return {};
     throw error;
@@ -134,13 +133,10 @@ export async function writeRawMixCodeSettings(
   settingsFile: string,
   raw: RawMixCodeSettings,
 ): Promise<void> {
-  const { writeFile, mkdir } = await import("node:fs/promises");
-  const { dirname } = await import("node:path");
-  await mkdir(dirname(settingsFile), { recursive: true });
   // Preserve unknown top-level keys; comments are still dropped because we rewrite JSON.
   let existing: Record<string, unknown> = {};
   try {
-    existing = objectRecord(parseJsoncObject(await readFile(settingsFile, "utf8")));
+    existing = objectRecord(parseJsoncObject(await Bun.file(settingsFile).text()));
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
@@ -155,13 +151,14 @@ export async function writeRawMixCodeSettings(
   else next.disabledProviders = raw.disabledProviders;
   if (raw.disabledModels === undefined) delete next.disabledModels;
   else next.disabledModels = raw.disabledModels;
-  await writeFile(settingsFile, `${JSON.stringify(next, null, 2)}\n`, "utf8");
+  // Bun.write creates parent dirs; no mkdir needed.
+  await Bun.write(settingsFile, `${JSON.stringify(next, null, 2)}\n`);
 }
 
 export async function loadMixCodeSettings(settingsFile: string): Promise<MixCodeSettings> {
   let raw: unknown;
   try {
-    raw = parseJsoncObject(await readFile(settingsFile, "utf8"));
+    raw = parseJsoncObject(await Bun.file(settingsFile).text());
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return defaultMixCodeSettings();
     throw error;

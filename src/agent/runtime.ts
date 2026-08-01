@@ -1,7 +1,6 @@
-import { readFileSync } from "node:fs";
-import { rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import {
   type AgentSession,
@@ -154,7 +153,8 @@ function promptsFromSessionFile(file: string | undefined): string[] {
 }
 
 function sessionFileBranch(file: string): UserSessionEntry[] {
-  const entries = readFileSync(file, "utf8")
+  // Sync interface (getPromptHistory); Bun.file().text() is async-only.
+  const entries = fs.readFileSync(file, "utf8")
     .split(/\r?\n/)
     .flatMap((line) => {
       if (!line.trim()) return [];
@@ -266,7 +266,7 @@ export class MixCodeRuntime {
       streamFn?: MixCodeStreamFn;
     } = {},
   ) {
-    this.sessionsRoot = options.sessionsRoot ?? join(tmpdir(), "mixcode-pi-sessions");
+    this.sessionsRoot = options.sessionsRoot ?? path.join(os.tmpdir(), "mixcode-pi-sessions");
     this.rootStateDir = options.rootStateDir;
     this.agentDir = options.agentDir ?? getAgentDir();
     this.modelRuntime = options.modelRuntime;
@@ -1318,7 +1318,9 @@ export class MixCodeRuntime {
     await this.shutdownRuntimeTab(runtimeTab, { type: "session_shutdown", reason: "quit" });
     const file = runtimeTab.session.getSessionFile();
     if (file) {
-      await rm(file, { force: true });
+      await Bun.file(file).unlink().catch((error: unknown) => {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      });
       invalidateSessionCatalog(this.sessionsRoot);
     }
     this.sync.unregister(sessionId);

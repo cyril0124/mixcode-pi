@@ -1,6 +1,5 @@
-import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
-import { mkdir, readdir, writeFile } from "node:fs/promises";
-import { basename, dirname, join } from "node:path";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import {
   type AgentSessionServices,
   type LoadExtensionsResult,
@@ -129,7 +128,7 @@ export async function openOrCreateSession(
 export function findSessionFileByName(sessionsRoot: string, sessionId: string): string | undefined {
   let entries: string[];
   try {
-    entries = readdirSync(sessionsRoot);
+    entries = fs.readdirSync(sessionsRoot);
   } catch {
     return undefined;
   }
@@ -137,7 +136,7 @@ export function findSessionFileByName(sessionsRoot: string, sessionId: string): 
     .filter((name) => sessionIdFromFileName(name) === sessionId)
     .sort();
   const latest = matches.at(-1);
-  return latest ? join(sessionsRoot, latest) : undefined;
+  return latest ? path.join(sessionsRoot, latest) : undefined;
 }
 
 function sessionIdFromFileName(name: string): string | undefined {
@@ -173,7 +172,7 @@ export function materializeSessionFile(session: SessionManager): void {
   // Pi keeps `flushed` private; multi-instance discovery needs the file on disk
   // before the first assistant reply, so write then mark flushed for append path.
   const mutable = session as unknown as { flushed?: boolean };
-  if (existsSync(file)) {
+  if (fs.existsSync(file)) {
     // File already on disk (reopened or previously materialized): ensure later
     // appends do not attempt exclusive create.
     mutable.flushed = true;
@@ -181,11 +180,12 @@ export function materializeSessionFile(session: SessionManager): void {
   }
   const header = session.getHeader();
   if (!header) return;
-  mkdirSync(dirname(file), { recursive: true });
+  fs.mkdirSync(path.dirname(file), { recursive: true });
   const lines = [header, ...session.getEntries()].map((entry) => JSON.stringify(entry));
-  writeFileSync(file, `${lines.join("\n")}\n`, { flag: "wx" });
+  // Exclusive create (wx): keep node:fs; Bun.write has no exclusive-create flag.
+  fs.writeFileSync(file, `${lines.join("\n")}\n`, { flag: "wx" });
   mutable.flushed = true;
-  invalidateSessionCatalog(dirname(file));
+  invalidateSessionCatalog(path.dirname(file));
 }
 
 export async function copySession(
@@ -194,10 +194,9 @@ export async function copySession(
   newSessionId: string,
   sessionsRoot: string,
 ): Promise<SessionManager> {
-  await mkdir(sessionsRoot, { recursive: true });
   const timestamp = new Date().toISOString();
   const fileTimestamp = timestamp.replace(/[:.]/g, "-");
-  const file = join(sessionsRoot, `${fileTimestamp}_${newSessionId}.jsonl`);
+  const file = path.join(sessionsRoot, `${fileTimestamp}_${newSessionId}.jsonl`);
   const header = {
     type: "session",
     version: 3,
@@ -207,7 +206,8 @@ export async function copySession(
     parentSession: source.getSessionFile(),
   };
   const lines = [header, ...source.getBranch()].map((entry) => JSON.stringify(entry)).join("\n");
-  await writeFile(file, `${lines}\n`, "utf8");
+  // Bun.write creates parent dirs (sessionsRoot).
+  await Bun.write(file, `${lines}\n`);
   invalidateSessionCatalog(sessionsRoot);
   return SessionManager.open(file, sessionsRoot, cwd);
 }
@@ -227,13 +227,12 @@ async function createReplacementSession(
   cwd: string,
   sessionsRoot: string,
 ): Promise<SessionManager> {
-  await mkdir(sessionsRoot, { recursive: true });
   const timestamp = new Date().toISOString();
   const fileTimestamp = timestamp.replace(/[:.]/g, "-");
-  const file = join(sessionsRoot, `${fileTimestamp}_${source.getSessionId()}.jsonl`);
+  const file = path.join(sessionsRoot, `${fileTimestamp}_${source.getSessionId()}.jsonl`);
   const header = { type: "session", version: 3, id: source.getSessionId(), timestamp, cwd };
   const lines = [header, ...source.getBranch()].map((entry) => JSON.stringify(entry)).join("\n");
-  await writeFile(file, `${lines}\n`, "utf8");
+  await Bun.write(file, `${lines}\n`);
   invalidateSessionCatalog(sessionsRoot);
   return SessionManager.open(file, sessionsRoot, cwd);
 }
@@ -291,11 +290,11 @@ function collectAllSessionDirs(sessionsRoot: string, rootStateDir?: string): Set
   const dirs = new Set<string>([sessionsRoot]);
 
   // Pi layout: agentDir/sessions/<encoded-cwd>/ — scan siblings of sessionsRoot.
-  const sessionsParent = dirname(sessionsRoot);
-  if (basename(sessionsParent) === "sessions") {
+  const sessionsParent = path.dirname(sessionsRoot);
+  if (path.basename(sessionsParent) === "sessions") {
     try {
-      for (const entry of readdirSync(sessionsParent, { withFileTypes: true })) {
-        if (entry.isDirectory()) dirs.add(join(sessionsParent, entry.name));
+      for (const entry of fs.readdirSync(sessionsParent, { withFileTypes: true })) {
+        if (entry.isDirectory()) dirs.add(path.join(sessionsParent, entry.name));
       }
     } catch {
       // Ignore read errors on the sessions parent.
@@ -304,14 +303,14 @@ function collectAllSessionDirs(sessionsRoot: string, rootStateDir?: string): Set
 
   if (rootStateDir) {
     // MixCode/test isolation: rootStateDir/workdirs/*/sessions
-    const workdirsDir = join(rootStateDir, "workdirs");
-    if (existsSync(workdirsDir)) {
+    const workdirsDir = path.join(rootStateDir, "workdirs");
+    if (fs.existsSync(workdirsDir)) {
       try {
-        const entries = readdirSync(workdirsDir, { withFileTypes: true });
+        const entries = fs.readdirSync(workdirsDir, { withFileTypes: true });
         for (const entry of entries) {
           if (!entry.isDirectory()) continue;
-          const candidate = join(workdirsDir, entry.name, "sessions");
-          if (existsSync(candidate)) dirs.add(candidate);
+          const candidate = path.join(workdirsDir, entry.name, "sessions");
+          if (fs.existsSync(candidate)) dirs.add(candidate);
         }
       } catch {
         // Ignore read errors on workdirs directory
@@ -331,7 +330,7 @@ async function listAllSessionDirsWithProgress(
   let totalFiles = 0;
   for (const dir of dirs) {
     try {
-      const files = (await readdir(dir)).filter((name) => name.endsWith(".jsonl"));
+      const files = (await fs.promises.readdir(dir)).filter((name) => name.endsWith(".jsonl"));
       dirFiles.push(files);
       totalFiles += files.length;
     } catch {

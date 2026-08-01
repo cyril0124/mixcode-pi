@@ -3,9 +3,9 @@
 // pi-coding-agent's config module reads package.json and built-in resources
 // eagerly at import/render time.
 
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 
 import darkTheme from "../../node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/theme/dark.json" with { type: "json" };
 import lightTheme from "../../node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/theme/light.json" with { type: "json" };
@@ -94,12 +94,12 @@ import { materializeBinaryRuntimeAssets } from "./binary-assets.js";
 // pi-coding-agent which reads PI_PACKAGE_DIR eagerly (not yet set at this point).
 import * as nestedPiTuiKeybindings from "../../node_modules/@earendil-works/pi-tui/dist/keybindings.js";
 
-// Use mkdtempSync for unpredictable temp dir name (avoids symlink attacks on shared systems)
-const runtimeDir = mkdtempSync(join(tmpdir(), "mixcode-pi-"));
+// Sync mkdtemp/rm for process-exit cleanup (no async allowed on exit handlers).
+const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "mixcode-pi-"));
 
 function cleanup() {
   try {
-    rmSync(runtimeDir, { recursive: true, force: true });
+    fs.rmSync(runtimeDir, { recursive: true, force: true });
   } catch {
     // Best effort cleanup only.
   }
@@ -114,7 +114,7 @@ process.on("SIGTERM", () => {
   process.exit(143);
 });
 
-materializeBinaryRuntimeAssets(runtimeDir, {
+await materializeBinaryRuntimeAssets(runtimeDir, {
   darkTheme,
   lightTheme,
   exportTemplateCss,

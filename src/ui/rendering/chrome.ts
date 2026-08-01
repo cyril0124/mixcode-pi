@@ -152,9 +152,13 @@ function limitTabRows(
     return { rows, hiddenCount: 0 };
   }
   const limit = Math.max(1, Math.floor(maxRows));
-  if (limit === 1) return { rows: rows.slice(0, 1), hiddenCount: 0 };
-  const visibleRows = rows.slice(0, limit - 1);
-  const hiddenCount = rows.slice(visibleRows.length).reduce((count, row) => count + row.length, 0);
+  // Always keep the first row of tabs visible, then report the rest. limit === 1
+  // must not short-circuit hiddenCount to 0: at small terminal heights the
+  // layout caps the tab bar to one row, and silently dropping every other tab
+  // (no "… +N tabs" hint) makes open sessions undiscoverable.
+  const visibleCount = Math.max(1, limit - 1);
+  const visibleRows = rows.slice(0, visibleCount);
+  const hiddenCount = rows.slice(visibleCount).reduce((count, row) => count + row.length, 0);
   return { rows: visibleRows, hiddenCount };
 }
 

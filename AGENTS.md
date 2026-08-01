@@ -207,15 +207,15 @@ Test the contract the system exposes — not the easiest internal detail to asse
 
 ### How to run
 
-- Runner: Node built-in `node:test` + `tsx` (not vitest/jest). Root tests live in flat `test/*.test.ts`; package tests are colocated as `pi-packages/*/*.test.ts`.
+- Runner: `bun test --isolate --timeout=60000` (node:test-style tests under Bun so `Bun.*` works; `--isolate` avoids cross-file test nesting bugs). Root tests live in flat `test/*.test.ts`; package tests are colocated as `pi-packages/*/*.test.ts`.
 - Focused (default while iterating):
-  - `node --test --import tsx test/<file>.test.ts`
-  - `node --test --import tsx pi-packages/<pkg>/<file>.test.ts`
+  - `bun test --isolate --timeout=60000 test/<file>.test.ts`
+  - `bun test --isolate --timeout=60000 pi-packages/<pkg>/<file>.test.ts`
 - Package tests: `bun run test:packages`
 - Root suite: `bun run test` (`test/*.test.ts` only)
 - Full sequential gate: `bun run check` (typecheck + build + root tests)
 - Parallel package-oriented gate: `./test-all.sh` (typecheck + build + lint + package tests; does **not** run full `test/*.test.ts`)
-- Package manager: Bun only — install with `bun install`; lockfile is `bun.lock` (do not commit `package-lock.json`). Node remains required for `node --test` / `tsx` and for running `dist/` via `run.sh`.
+- Package manager / runtime: Bun — install with `bun install`; lockfile is `bun.lock` (do not commit `package-lock.json`). Run product code with `bun` (`run.sh`, shebang); do not use Node to execute product paths that call `Bun.*`.
 - `postinstall` runs `patch-package` only. pi-tui keybindings bridge supports both single-instance (bun/npm dedupe) and dual-instance (npm shrinkwrap nested) layouts without layout scripts.
 - When running backend unit tests, enforce a hard timeout of 60 seconds to avoid stuck tasks.
 - TUI/UI claims still require interactive proof per **TUI Validation**; unit tests alone are not enough. Optional automated smoke: `MIXCODE_RUN_TMUX_TUI_SMOKE=1` with `test/tui-smoke.test.ts`.

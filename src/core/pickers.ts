@@ -1,6 +1,6 @@
-import { readdirSync } from "node:fs";
-import { homedir } from "node:os";
-import { basename, dirname, isAbsolute, join, resolve } from "node:path";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 import { THEMES } from "../ui/themes.js";
 import { contextLimitPickerItems } from "./context-limit.js";
 import { fuzzyMatch } from "./fuzzy.js";
@@ -121,9 +121,9 @@ export function completeWorkdirPickerSelection(picker: PickerState): boolean {
 /** Navigate the workdir picker to the parent directory */
 export function navigatePickerToParent(picker: PickerState): boolean {
   if (picker.kind !== "workdir" || !picker.browsingDir) return false;
-  const parent = dirname(picker.browsingDir);
+  const parent = path.dirname(picker.browsingDir);
   if (parent === picker.browsingDir) return false; // already at root
-  const currentName = basename(picker.browsingDir);
+  const currentName = path.basename(picker.browsingDir);
   picker.browsingDir = parent;
   picker.query = "";
   // Try to select the directory we came from
@@ -145,7 +145,7 @@ export function togglePickerHidden(picker: PickerState): boolean {
 export function workdirBreadcrumb(picker: PickerState): string[] {
   if (picker.kind !== "workdir" || !picker.browsingDir) return [];
   const dir = picker.browsingDir;
-  const home = homedir();
+  const home = (process.env.HOME || os.homedir());
   if (dir === home) return ["~"];
   if (dir.startsWith(home + "/")) {
     return [
@@ -204,10 +204,10 @@ function filteredWorkdirItems(picker: PickerState, query: string): PickerItem[] 
     : listing.dirs;
 
   return filtered.map((name) => ({
-    id: resolve(browsingDir, name),
+    id: path.resolve(browsingDir, name),
     label: `${name}/`,
     description: "directory",
-    completeValue: resolve(browsingDir, name),
+    completeValue: path.resolve(browsingDir, name),
   }));
 }
 
@@ -241,20 +241,20 @@ function workdirDirectoryListing(
 /** Resolve ~ / relative / absolute workdir input against a base directory. */
 export function normalizeWorkdirInput(base: string, input: string): string {
   const trimmed = input.trim();
-  if (!trimmed) return resolve(base);
-  if (trimmed === "~") return homedir();
-  if (trimmed.startsWith("~/")) return join(homedir(), trimmed.slice(2));
-  if (isAbsolute(trimmed)) return resolve(trimmed);
-  return resolve(base, trimmed);
+  if (!trimmed) return path.resolve(base);
+  if (trimmed === "~") return (process.env.HOME || os.homedir());
+  if (trimmed.startsWith("~/")) return path.join((process.env.HOME || os.homedir()), trimmed.slice(2));
+  if (path.isAbsolute(trimmed)) return path.resolve(trimmed);
+  return path.resolve(base, trimmed);
 }
 
 function readDirectoryEntries(
-  path: string,
+  dirPath: string,
 ): Array<{ name: string; isDirectory: () => boolean }> | { error: string } {
   try {
-    return readdirSync(path, { withFileTypes: true });
+    return fs.readdirSync(dirPath, { withFileTypes: true });
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code ?? "unknown error";
-    return { error: `parent unreadable: ${path} (${code})` };
+    return { error: `parent unreadable: ${dirPath} (${code})` };
   }
 }

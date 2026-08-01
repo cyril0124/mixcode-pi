@@ -1,7 +1,4 @@
-import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
-import { unlink } from "node:fs/promises";
-import { dirname } from "node:path";
+import * as path from "node:path";
 import { invalidateSessionCatalog } from "../core/session-catalog.js";
 import type { MixCodeState } from "../core/types.js";
 import type { MixCodeKeyRuntime } from "./app-types.js";
@@ -21,14 +18,24 @@ export async function deleteSessionFile(
   sessionPath: string,
 ): Promise<{ ok: boolean; method: "trash" | "unlink"; error?: string }> {
   const trashArgs = sessionPath.startsWith("-") ? ["--", sessionPath] : [sessionPath];
-  const trashResult = spawnSync("trash", trashArgs, { encoding: "utf-8" });
-  if (trashResult.status === 0 || !existsSync(sessionPath)) {
-    invalidateSessionCatalog(dirname(sessionPath));
+  let trashOk = false;
+  try {
+    // Bun.spawnSync throws when the binary is missing; node spawnSync returned status=null.
+    const trashResult = Bun.spawnSync(["trash", ...trashArgs], {
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    trashOk = trashResult.exitCode === 0;
+  } catch {
+    trashOk = false;
+  }
+  if (trashOk || !(await Bun.file(sessionPath).exists())) {
+    invalidateSessionCatalog(path.dirname(sessionPath));
     return { ok: true, method: "trash" };
   }
   try {
-    await unlink(sessionPath);
-    invalidateSessionCatalog(dirname(sessionPath));
+    await Bun.file(sessionPath).unlink();
+    invalidateSessionCatalog(path.dirname(sessionPath));
     return { ok: true, method: "unlink" };
   } catch (error) {
     return {

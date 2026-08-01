@@ -23,7 +23,7 @@
 // correct for both Node and Bun — no postinstall layout hacks required.
 
 import { createRequire } from "node:module";
-import { dirname } from "node:path";
+import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   getKeybindings as getOuterKeybindings,
@@ -85,8 +85,8 @@ async function resolveNestedPiTui(): Promise<PiTuiKeybindingsModule | undefined>
   // pi-coding-agent's main is at <pkgDir>/dist/index.js. The nested pi-tui
   // copy lives at <pkgDir>/node_modules/@earendil-works/pi-tui when the
   // upstream shrinkwrap is in effect.
-  const distDir = dirname(codingAgentEntry);
-  const pkgDir = dirname(distDir);
+  const distDir = path.dirname(codingAgentEntry);
+  const pkgDir = path.dirname(distDir);
   // Import the same ESM entry that pi-coding-agent components resolve.
   const nestedEntry = `${pkgDir}/node_modules/@earendil-works/pi-tui/dist/index.js`;
   try {
@@ -121,7 +121,7 @@ function resolveNestedViaCjs(): PiTuiKeybindingsModule | undefined {
     const require = createRequire(import.meta.url);
     // Walk from the resolved pi-coding-agent dist entry to find the nested pi-tui.
     const codingAgentMain = require.resolve("@earendil-works/pi-coding-agent");
-    const pkgDir = dirname(dirname(codingAgentMain));
+    const pkgDir = path.dirname(path.dirname(codingAgentMain));
     const nestedPath = `${pkgDir}/node_modules/@earendil-works/pi-tui/dist/keybindings.js`;
     const mod = require(nestedPath) as PiTuiKeybindingsModule;
     if (mod.setKeybindings === (setOuterKeybindings as unknown)) return undefined;

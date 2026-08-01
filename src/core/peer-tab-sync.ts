@@ -3,9 +3,9 @@
 // Create adds a session id to open_tabs; close/delete removes it. Every live
 // instance watches (and polls) that file and opens/closes tabs to match.
 // Instance registry is only used here for optional title lookup.
-import { existsSync, watch, type FSWatcher } from "node:fs";
-import { mkdir } from "node:fs/promises";
-import { dirname } from "node:path";
+import * as fsSync from "node:fs";
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
 import {
   loadLiveInstanceStatus,
   type LoadInstanceStatusOptions,
@@ -129,7 +129,7 @@ export function startPeerTabSync(options: StartPeerTabSyncOptions): {
   const loadStatus = options.loadStatus ?? loadLiveInstanceStatus;
   const readDesired = options.readDesired ?? readOpenTabs;
   const watchFactory = options.watchFactory ?? defaultWatchFactory;
-  const openTabsDir = dirname(options.openTabsPath);
+  const openTabsDir = path.dirname(options.openTabsPath);
 
   let disposed = false;
   let debounceTimer: ReturnType<typeof setTimeout> | undefined;
@@ -173,7 +173,7 @@ export function startPeerTabSync(options: StartPeerTabSyncOptions): {
 
   const runOnce = async (): Promise<void> => {
     // No shared file yet: do not close local tabs (bootstrap may still be seeding).
-    if (!existsSync(options.openTabsPath)) return;
+    if (!(await Bun.file(options.openTabsPath).exists())) return;
     const desired = readDesired(options.openTabsPath);
 
     let peerHints: ListTabsToReconcileInput["peerHints"] = [];
@@ -254,7 +254,7 @@ export function startPeerTabSync(options: StartPeerTabSyncOptions): {
     await options.reorderTabs?.(plan.desiredOrder);
   };
 
-  void mkdir(openTabsDir, { recursive: true })
+  void fs.mkdir(openTabsDir, { recursive: true })
     .then(() => {
       if (disposed) return;
       watchHandle = watchFactory(openTabsDir, schedule, (error) => options.onError?.(error));
@@ -283,9 +283,9 @@ function defaultWatchFactory(
   onEvent: () => void,
   onError: (error: unknown) => void,
 ): { close(): void } {
-  let watcher: FSWatcher;
+  let watcher: fsSync.FSWatcher;
   try {
-    watcher = watch(dir, { persistent: false }, () => onEvent());
+    watcher = fsSync.watch(dir, { persistent: false }, () => onEvent());
   } catch (error) {
     onError(error);
     return { close: () => {} };

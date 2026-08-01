@@ -10,8 +10,8 @@
 // verified with the same process-identity check used by the instance registry
 // (PID liveness + Linux process start time), so a crashed owner's stale lock is
 // detected and reclaimed, and PID reuse cannot silently steal ownership.
-import { openSync, readFileSync, writeSync, closeSync, rmSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { currentProcessIdentity, type ProcessIdentity } from "./instance-registry.js";
 
 export const SESSION_LOCK_VERSION = 1;
@@ -43,13 +43,13 @@ export class SessionLockConflictError extends Error {
 }
 
 export function sessionLockDir(sessionsRoot: string): string {
-  return join(sessionsRoot, ".locks");
+  return path.join(sessionsRoot, ".locks");
 }
 
 function sessionLockFile(sessionsRoot: string, sessionId: string): string {
   // sessionId is a UUID-shaped token (assertValidSessionId upstream); it never
   // contains path separators, so it is safe as a filename component.
-  return join(sessionLockDir(sessionsRoot), `${sessionId}.lock`);
+  return path.join(sessionLockDir(sessionsRoot), `${sessionId}.lock`);
 }
 
 function parseLockRecord(raw: string): SessionLockRecord | undefined {
@@ -102,7 +102,7 @@ export function acquireSessionTurnLock(
   const pid = options.pid ?? process.pid;
   const processInfo = options.processInfo ?? ((p: number) => currentProcessIdentity(p));
   const filePath = sessionLockFile(sessionsRoot, sessionId);
-  mkdirSync(sessionLockDir(sessionsRoot), { recursive: true });
+  fs.mkdirSync(sessionLockDir(sessionsRoot), { recursive: true });
 
   const identity = processInfo(pid);
   const record: SessionLockRecord = {
@@ -119,11 +119,11 @@ export function acquireSessionTurnLock(
   // reclaiming it the second creation must succeed (or a live racer beat us).
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      const fd = openSync(filePath, "wx");
+      const fd = fs.openSync(filePath, "wx");
       try {
-        writeSync(fd, payload);
+        fs.writeSync(fd, payload);
       } finally {
-        closeSync(fd);
+        fs.closeSync(fd);
       }
       return makeHandle(sessionId, filePath, pid, processInfo);
     } catch (error) {
@@ -133,7 +133,7 @@ export function acquireSessionTurnLock(
         throw new SessionLockConflictError(sessionId, existing?.pid ?? -1);
       }
       // Reclaim: remove the stale lock and retry the atomic create.
-      rmSync(filePath, { force: true });
+      fs.rmSync(filePath, { force: true });
     }
   }
   // A racer reclaimed and took the lock between our checks.
@@ -143,7 +143,7 @@ export function acquireSessionTurnLock(
 
 function readLockRecord(filePath: string): SessionLockRecord | undefined {
   try {
-    return parseLockRecord(readFileSync(filePath, "utf8"));
+    return parseLockRecord(fs.readFileSync(filePath, "utf8"));
   } catch {
     return undefined;
   }
@@ -165,9 +165,9 @@ function makeHandle(
       // stale-reclaim by another process replaced our record with theirs.
       const current = readLockRecord(filePath);
       if (current && current.pid === pid) {
-        rmSync(filePath, { force: true });
+        fs.rmSync(filePath, { force: true });
       } else if (!current) {
-        rmSync(filePath, { force: true });
+        fs.rmSync(filePath, { force: true });
       }
       void processInfo; // reserved for future owner re-verification
     },

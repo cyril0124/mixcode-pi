@@ -1,9 +1,6 @@
-import { execFile } from "node:child_process";
-import { existsSync, readFileSync, statSync, watch, type FSWatcher } from "node:fs";
-import { dirname, join, resolve } from "node:path";
-import { promisify } from "node:util";
+import * as fs from "node:fs";
+import * as path from "node:path";
 
-const execFileAsync = promisify(execFile);
 /** Stale-while-revalidate TTL for paint-path reads without an active watcher. */
 const GIT_BRANCH_CACHE_TTL_MS = 2_000;
 /** Debounce HEAD/fs events before re-reading branch (Pi FooterDataProvider uses 500ms). */
@@ -23,7 +20,7 @@ type GitPaths = {
 type WorkdirWatchState = {
   paths: GitPaths | null;
   listeners: Set<() => void>;
-  headWatcher: FSWatcher | null;
+  headWatcher: fs.FSWatcher | null;
   debounceTimer: NodeJS.Timeout | null;
   refreshInFlight: boolean;
   refreshPending: boolean;
@@ -41,14 +38,14 @@ const workdirWatches = new Map<string, WorkdirWatchState>();
  * Returns "" when unknown / not a repo / still loading the first value.
  */
 export function gitBranchForWorkdir(workdir: string): string {
-  const path = normalizeWorkdir(workdir);
-  if (!path) return "";
+  const normalized = normalizeWorkdir(workdir);
+  if (!normalized) return "";
   const now = Date.now();
-  const cached = gitBranchCache.get(path);
+  const cached = gitBranchCache.get(normalized);
   if (cached && cached.expiresAt > now) return cached.value;
 
-  scheduleRefresh(path, cached?.value ?? "");
-  return gitBranchCache.get(path)?.value ?? cached?.value ?? "";
+  scheduleRefresh(normalized, cached?.value ?? "");
+  return gitBranchCache.get(normalized)?.value ?? cached?.value ?? "";
 }
 
 /**
@@ -58,33 +55,33 @@ export function gitBranchForWorkdir(workdir: string): string {
  * Returns unsubscribe.
  */
 export function onGitBranchChange(workdir: string, callback: () => void): () => void {
-  const path = normalizeWorkdir(workdir);
-  if (!path) return () => undefined;
+  const normalized = normalizeWorkdir(workdir);
+  if (!normalized) return () => undefined;
 
-  let state = workdirWatches.get(path);
+  let state = workdirWatches.get(normalized);
   if (!state) {
     state = {
-      paths: findGitPaths(path),
+      paths: findGitPaths(normalized),
       listeners: new Set(),
       headWatcher: null,
       debounceTimer: null,
       refreshInFlight: false,
       refreshPending: false,
     };
-    workdirWatches.set(path, state);
-    setupHeadWatcher(path, state);
+    workdirWatches.set(normalized, state);
+    setupHeadWatcher(normalized, state);
   }
   state.listeners.add(callback);
   // Kick a refresh so first resolve ("" -> branch) can notify.
-  const entry = gitBranchCache.get(path);
+  const entry = gitBranchCache.get(normalized);
   if (entry) entry.expiresAt = 0;
-  scheduleRefresh(path, entry?.value ?? "");
+  scheduleRefresh(normalized, entry?.value ?? "");
 
   return () => {
-    const current = workdirWatches.get(path);
+    const current = workdirWatches.get(normalized);
     if (!current) return;
     current.listeners.delete(callback);
-    if (current.listeners.size === 0) disposeWorkdirWatch(path, current);
+    if (current.listeners.size === 0) disposeWorkdirWatch(normalized, current);
   };
 }
 
@@ -92,41 +89,41 @@ function normalizeWorkdir(workdir: string): string {
   return workdir.trim();
 }
 
-function scheduleRefresh(path: string, previousCachedValue: string): void {
-  const cached = gitBranchCache.get(path);
+function scheduleRefresh(pathKey: string, previousCachedValue: string): void {
+  const cached = gitBranchCache.get(pathKey);
   if (cached?.inflight) return;
-  const run = refreshGitBranch(path, previousCachedValue);
-  gitBranchCache.set(path, {
+  const run = refreshGitBranch(pathKey, previousCachedValue);
+  gitBranchCache.set(pathKey, {
     value: cached?.value ?? previousCachedValue,
     expiresAt: cached?.expiresAt ?? 0,
     inflight: run,
   });
   void run.finally(() => {
-    const entry = gitBranchCache.get(path);
+    const entry = gitBranchCache.get(pathKey);
     if (entry?.inflight === run) entry.inflight = undefined;
   });
 }
 
-async function refreshGitBranch(path: string, previousCachedValue: string): Promise<void> {
-  const value = await resolveBranchAsync(path);
-  const prev = gitBranchCache.get(path);
+async function refreshGitBranch(pathKey: string, previousCachedValue: string): Promise<void> {
+  const value = await resolveBranchAsync(pathKey);
+  const prev = gitBranchCache.get(pathKey);
   const prevValue = prev?.value ?? previousCachedValue;
-  gitBranchCache.set(path, {
+  gitBranchCache.set(pathKey, {
     value,
     expiresAt: Date.now() + GIT_BRANCH_CACHE_TTL_MS,
     inflight: prev?.inflight,
   });
-  if (prevValue !== value) notifyBranchChange(path);
+  if (prevValue !== value) notifyBranchChange(pathKey);
 }
 
-async function resolveBranchAsync(path: string): Promise<string> {
-  const watch = workdirWatches.get(path);
-  const gitPaths = watch?.paths ?? findGitPaths(path);
-  if (watch && !watch.paths) watch.paths = gitPaths;
+async function resolveBranchAsync(pathKey: string): Promise<string> {
+  const watchState = workdirWatches.get(pathKey);
+  const gitPaths = watchState?.paths ?? findGitPaths(pathKey);
+  if (watchState && !watchState.paths) watchState.paths = gitPaths;
   if (!gitPaths) return "";
 
   try {
-    const content = readFileSync(gitPaths.headPath, "utf8").trim();
+    const content = (await Bun.file(gitPaths.headPath).text()).trim();
     if (content.startsWith("ref: refs/heads/")) {
       const branch = content.slice("ref: refs/heads/".length);
       // Pi treats ".invalid" as needing a git spawn; keep same fallback.
@@ -143,69 +140,94 @@ async function resolveBranchAsync(path: string): Promise<string> {
 
 async function resolveBranchWithGitAsync(repoDir: string): Promise<string> {
   try {
-    const { stdout } = await execFileAsync("git", ["branch", "--show-current"], {
-      cwd: repoDir,
-      encoding: "utf8",
-      timeout: 1_000,
-    });
-    const branch = stdout.trim();
+    const branch = (await runGit(repoDir, ["branch", "--show-current"])).trim();
     if (branch) return branch;
-    const short = await execFileAsync("git", ["rev-parse", "--short", "HEAD"], {
-      cwd: repoDir,
-      encoding: "utf8",
-      timeout: 1_000,
-    });
-    return short.stdout.trim();
+    return (await runGit(repoDir, ["rev-parse", "--short", "HEAD"])).trim();
   } catch {
     return "";
+  }
+}
+
+/** Run git via Bun.spawn (global) — no `import from "bun"` so tsup/esbuild can bundle. */
+async function runGit(repoDir: string, args: string[]): Promise<string> {
+  // Match prior execFileAsync timeout so a stuck git (NFS, lock) cannot hang the footer.
+  const timeoutMs = 1_000;
+  const proc = Bun.spawn(["git", ...args], {
+    cwd: repoDir,
+    stdout: "pipe",
+    // Ignore stderr so a chatty git cannot fill the pipe and deadlock.
+    stderr: "ignore",
+  });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const outcome = await Promise.race([
+      Promise.all([proc.exited, new Response(proc.stdout).text()]).then(([code, stdout]) => ({
+        timedOut: false as const,
+        code,
+        stdout,
+      })),
+      new Promise<{ timedOut: true }>((resolve) => {
+        timer = setTimeout(() => resolve({ timedOut: true }), timeoutMs);
+        timer.unref?.();
+      }),
+    ]);
+    if (outcome.timedOut) {
+      proc.kill();
+      return "";
+    }
+    if (outcome.code !== 0) return "";
+    return outcome.stdout;
+  } finally {
+    if (timer) clearTimeout(timer);
   }
 }
 
 /**
  * Find git metadata paths by walking up from cwd.
  * Handles regular repos (.git dir) and worktrees (.git file with gitdir:).
+ * Sync: used from paint-path and watcher setup.
  */
 function findGitPaths(cwd: string): GitPaths | null {
-  let dir = resolve(cwd);
+  let dir = path.resolve(cwd);
   while (true) {
-    const gitPath = join(dir, ".git");
-    if (existsSync(gitPath)) {
+    const gitPath = path.join(dir, ".git");
+    if (fs.existsSync(gitPath)) {
       try {
-        const stat = statSync(gitPath);
+        const stat = fs.statSync(gitPath);
         if (stat.isFile()) {
-          const content = readFileSync(gitPath, "utf8").trim();
+          const content = fs.readFileSync(gitPath, "utf8").trim();
           if (content.startsWith("gitdir: ")) {
-            const gitDir = resolve(dir, content.slice("gitdir: ".length).trim());
-            const headPath = join(gitDir, "HEAD");
-            if (!existsSync(headPath)) return null;
+            const gitDir = path.resolve(dir, content.slice("gitdir: ".length).trim());
+            const headPath = path.join(gitDir, "HEAD");
+            if (!fs.existsSync(headPath)) return null;
             return { repoDir: dir, headPath };
           }
         } else if (stat.isDirectory()) {
-          const headPath = join(gitPath, "HEAD");
-          if (!existsSync(headPath)) return null;
+          const headPath = path.join(gitPath, "HEAD");
+          if (!fs.existsSync(headPath)) return null;
           return { repoDir: dir, headPath };
         }
       } catch {
         return null;
       }
     }
-    const parent = dirname(dir);
+    const parent = path.dirname(dir);
     if (parent === dir) return null;
     dir = parent;
   }
 }
 
-function setupHeadWatcher(path: string, state: WorkdirWatchState): void {
+function setupHeadWatcher(pathKey: string, state: WorkdirWatchState): void {
   teardownHeadWatcher(state);
   if (!state.paths) return;
 
   // Watch the directory containing HEAD, not HEAD itself.
   // Git uses atomic writes (write temp, rename over HEAD), which changes the inode.
-  const headDir = dirname(state.paths.headPath);
+  const headDir = path.dirname(state.paths.headPath);
   try {
-    state.headWatcher = watch(headDir, (_eventType, filename) => {
+    state.headWatcher = fs.watch(headDir, (_eventType, filename) => {
       if (filename && filename !== "HEAD") return;
-      scheduleWatchedRefresh(path, state);
+      scheduleWatchedRefresh(pathKey, state);
     });
     state.headWatcher.on("error", () => {
       teardownHeadWatcher(state);
@@ -216,7 +238,7 @@ function setupHeadWatcher(path: string, state: WorkdirWatchState): void {
   }
 }
 
-function scheduleWatchedRefresh(path: string, state: WorkdirWatchState): void {
+function scheduleWatchedRefresh(pathKey: string, state: WorkdirWatchState): void {
   if (state.debounceTimer) return;
   if (state.refreshInFlight) {
     state.refreshPending = true;
@@ -224,41 +246,41 @@ function scheduleWatchedRefresh(path: string, state: WorkdirWatchState): void {
   }
   state.debounceTimer = setTimeout(() => {
     state.debounceTimer = null;
-    void runWatchedRefresh(path, state);
+    void runWatchedRefresh(pathKey, state);
   }, WATCH_DEBOUNCE_MS);
   state.debounceTimer.unref?.();
 }
 
-async function runWatchedRefresh(path: string, state: WorkdirWatchState): Promise<void> {
+async function runWatchedRefresh(pathKey: string, state: WorkdirWatchState): Promise<void> {
   if (state.refreshInFlight) {
     state.refreshPending = true;
     return;
   }
   state.refreshInFlight = true;
   try {
-    const prevValue = gitBranchCache.get(path)?.value ?? "";
+    const prevValue = gitBranchCache.get(pathKey)?.value ?? "";
     // Re-resolve git paths in case the repo layout changed.
-    state.paths = findGitPaths(path);
-    if (!state.headWatcher && state.paths) setupHeadWatcher(path, state);
-    const value = await resolveBranchAsync(path);
-    const prev = gitBranchCache.get(path);
-    gitBranchCache.set(path, {
+    state.paths = findGitPaths(pathKey);
+    if (!state.headWatcher && state.paths) setupHeadWatcher(pathKey, state);
+    const value = await resolveBranchAsync(pathKey);
+    const prev = gitBranchCache.get(pathKey);
+    gitBranchCache.set(pathKey, {
       value,
       expiresAt: Date.now() + GIT_BRANCH_CACHE_TTL_MS,
       inflight: prev?.inflight,
     });
-    if (prevValue !== value) notifyBranchChange(path);
+    if (prevValue !== value) notifyBranchChange(pathKey);
   } finally {
     state.refreshInFlight = false;
     if (state.refreshPending) {
       state.refreshPending = false;
-      scheduleWatchedRefresh(path, state);
+      scheduleWatchedRefresh(pathKey, state);
     }
   }
 }
 
-function notifyBranchChange(path: string): void {
-  const listeners = workdirWatches.get(path)?.listeners;
+function notifyBranchChange(pathKey: string): void {
+  const listeners = workdirWatches.get(pathKey)?.listeners;
   if (!listeners?.size) return;
   for (const callback of listeners) callback();
 }
@@ -274,7 +296,7 @@ function teardownHeadWatcher(state: WorkdirWatchState): void {
   }
 }
 
-function disposeWorkdirWatch(path: string, state: WorkdirWatchState): void {
+function disposeWorkdirWatch(pathKey: string, state: WorkdirWatchState): void {
   teardownHeadWatcher(state);
-  workdirWatches.delete(path);
+  workdirWatches.delete(pathKey);
 }

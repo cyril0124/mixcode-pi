@@ -145,3 +145,17 @@ test("tab bar separator color tracks vim vs thinking-level border", () => {
   assert.equal(stripAnsi(off), "\u2500".repeat(width));
   assert.equal(stripAnsi(vim), "\u2500".repeat(width));
 });
+
+test("tab bar capped to one row still surfaces the hidden tab count", () => {
+  const width = 40;
+  const state = manyTabState(12);
+  // When the layout budget allows only one tab-bar row, every tab that does
+  // not fit must still be reported (… +N tabs), never silently dropped.
+  const lines = renderTabBar(state, width, undefined, 1).map(stripAnsi);
+  assert.ok(lines.length >= 1, "one row of tabs must render");
+  assert.match(lines[0] ?? "", /Agent-1/, "first row should still show a tab");
+  assert.ok(
+    lines.some((line) => /\+\d+ tabs/.test(line)),
+    "hidden tabs must be surfaced with a count, got: " + lines.join(" | "),
+  );
+});

@@ -1,5 +1,5 @@
-import { readFileSync } from "node:fs";
-import { relative, resolve } from "node:path";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { generateUnifiedPatch } from "@earendil-works/pi-coding-agent";
 
 export interface EditPair {
@@ -172,8 +172,8 @@ function collectFileMods(entries: SessionEntry[], cwd: string): Map<string, File
 
   const files = new Map<string, FileMods>();
   const normalizedPath = (filePath: string): string => {
-    const absolute = resolve(cwd, filePath);
-    const local = relative(cwd, absolute);
+    const absolute = path.resolve(cwd, filePath);
+    const local = path.relative(cwd, absolute);
     return local.startsWith("..") ? absolute : local;
   };
   const ensureFile = (path: string): FileMods => {
@@ -224,9 +224,10 @@ function collectFileMods(entries: SessionEntry[], cwd: string): Map<string, File
   return files;
 }
 
-function readCurrentFile(path: string): string | null {
+function readCurrentFile(filePath: string): string | null {
+  // Sync reconstruct path; Bun.file().text() is async-only.
   try {
-    return readFileSync(path, "utf8");
+    return fs.readFileSync(filePath, "utf8");
   } catch {
     return null;
   }
@@ -241,7 +242,7 @@ function lastWriteContent(file: FileMods): string | undefined {
 }
 
 function reconstructFile(file: FileMods, cwd: string): FileState {
-  const diskContent = readCurrentFile(resolve(cwd, file.path));
+  const diskContent = readCurrentFile(path.resolve(cwd, file.path));
   const lastMod = file.mods[file.mods.length - 1];
   const final = lastMod?.kind === "write" ? lastMod.content : diskContent;
   const firstMod = file.mods[0];

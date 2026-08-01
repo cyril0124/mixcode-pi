@@ -1,4 +1,4 @@
-import { dirname } from "node:path";
+import * as path from "node:path";
 import {
   initTheme,
   SessionManager,
@@ -213,7 +213,7 @@ export async function renameOpenSession(
   if (!next) return;
   const mgr = SessionManager.open(sessionFilePath);
   mgr.appendSessionInfo(next);
-  invalidateSessionCatalog(dirname(sessionFilePath));
+  invalidateSessionCatalog(path.dirname(sessionFilePath));
   const openTab = findOpenSessionTab(state, runtime, sessionFilePath);
   if (openTab) openTab.title = next;
 }

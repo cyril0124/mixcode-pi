@@ -1,5 +1,4 @@
-import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import * as path from "node:path";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { modelRefId } from "./models.js";
 import { isThinkingLevelAvailable, validThinkingLevelsMessage } from "./thinking-levels.js";
@@ -98,8 +97,8 @@ export async function loadBatchRequests(
   scriptPath: string,
   context?: BatchLuaContext,
 ): Promise<BatchPlan> {
-  const absPath = resolve(scriptPath);
-  const source = await readFile(absPath, "utf-8");
+  const absPath = path.resolve(scriptPath);
+  const source = await Bun.file(absPath).text();
   return runLuaScript(source, absPath, context);
 }
 

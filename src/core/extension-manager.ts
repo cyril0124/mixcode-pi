@@ -1,5 +1,5 @@
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
 import type { LoadExtensionsResult, SourceInfo } from "@earendil-works/pi-coding-agent";
 
 export const EXTENSION_MANAGER_FILE = "extension_manager.json";
@@ -35,14 +35,14 @@ export interface ExtensionReloadResult {
 }
 
 export function extensionManagerFile(stateDir: string): string {
-  return join(stateDir, EXTENSION_MANAGER_FILE);
+  return path.join(stateDir, EXTENSION_MANAGER_FILE);
 }
 
 export async function loadExtensionManagerConfig(
   filePath: string,
 ): Promise<ExtensionManagerConfig> {
   try {
-    const raw = await readFile(filePath, "utf8");
+    const raw = await Bun.file(filePath).text();
     const parsed: unknown = JSON.parse(raw);
     return normalizeExtensionManagerConfig(parsed);
   } catch (error) {
@@ -55,11 +55,11 @@ export async function saveExtensionManagerConfig(
   filePath: string,
   config: ExtensionManagerConfig,
 ): Promise<void> {
-  await mkdir(dirname(filePath), { recursive: true });
   const normalized = normalizeExtensionManagerConfig(config);
   const temp = `${filePath}.${process.pid}.${Date.now()}.tmp`;
-  await writeFile(temp, `${JSON.stringify(normalized, null, 2)}\n`, "utf8");
-  await rename(temp, filePath);
+  // Bun.write creates parent dirs for the temp path.
+  await Bun.write(temp, `${JSON.stringify(normalized, null, 2)}\n`);
+  await fs.rename(temp, filePath);
 }
 
 export function defaultExtensionManagerConfig(): ExtensionManagerConfig {

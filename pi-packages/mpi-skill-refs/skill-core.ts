@@ -4,9 +4,9 @@
 // |  and the $ autocomplete wrapper. No ExtensionAPI dependency so everything |
 // |  here is directly unit-testable.                                          |
 // +---------------------------------------------------------------------------+
-import { readdir, readFile, stat } from "node:fs/promises";
-import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import * as fs from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import type { AutocompleteItem, AutocompleteProvider } from "@earendil-works/pi-tui";
 
 /** A skill usable for $ref expansion and completion. */
@@ -158,18 +158,18 @@ function stripYamlQuotes(value: string): string {
   return value;
 }
 
-async function maybeSkillFile(path: string): Promise<string | undefined> {
+async function maybeSkillFile(filePath: string): Promise<string | undefined> {
   try {
-    const info = await stat(path);
-    return info.isFile() ? path : undefined;
+    const info = await fs.stat(filePath);
+    return info.isFile() ? filePath : undefined;
   } catch {
     return undefined;
   }
 }
 
-async function isDirectory(path: string): Promise<boolean> {
+async function isDirectory(dirPath: string): Promise<boolean> {
   try {
-    return (await stat(path)).isDirectory();
+    return (await fs.stat(dirPath)).isDirectory();
   } catch {
     return false;
   }
@@ -180,10 +180,10 @@ async function isDirectory(path: string): Promise<boolean> {
  * pass an explicit agentDir (tests pass a synthetic home tree).
  */
 function resolveAgentDir(homeDir: string, agentDir?: string): string {
-  if (agentDir) return resolve(agentDir);
+  if (agentDir) return path.resolve(agentDir);
   const fromEnv = process.env.MIXCODE_CODING_AGENT_DIR || process.env.PI_CODING_AGENT_DIR;
-  if (fromEnv) return resolve(fromEnv);
-  return resolve(join(homeDir, ".pi", "agent"));
+  if (fromEnv) return path.resolve(fromEnv);
+  return path.resolve(path.join(homeDir, ".pi", "agent"));
 }
 
 /**
@@ -194,15 +194,15 @@ function resolveAgentDir(homeDir: string, agentDir?: string): string {
  */
 export async function listPackageSkillDirs(agentDir: string): Promise<string[]> {
   const roots: string[] = [];
-  await collectNpmPackageSkillDirs(join(agentDir, "npm", "node_modules"), roots);
-  await collectGitPackageSkillDirs(join(agentDir, "git"), roots, 0);
+  await collectNpmPackageSkillDirs(path.join(agentDir, "npm", "node_modules"), roots);
+  await collectGitPackageSkillDirs(path.join(agentDir, "git"), roots, 0);
   return roots;
 }
 
 async function collectNpmPackageSkillDirs(nodeModules: string, roots: string[]): Promise<void> {
   let names: string[] = [];
   try {
-    names = await readdir(nodeModules);
+    names = await fs.readdir(nodeModules);
   } catch {
     return;
   }
@@ -211,18 +211,18 @@ async function collectNpmPackageSkillDirs(nodeModules: string, roots: string[]):
     if (name.startsWith("@")) {
       let scoped: string[] = [];
       try {
-        scoped = await readdir(join(nodeModules, name));
+        scoped = await fs.readdir(path.join(nodeModules, name));
       } catch {
         continue;
       }
       for (const pkg of scoped) {
         if (pkg.startsWith(".")) continue;
-        const skillsDir = join(nodeModules, name, pkg, "skills");
+        const skillsDir = path.join(nodeModules, name, pkg, "skills");
         if (await isDirectory(skillsDir)) roots.push(skillsDir);
       }
       continue;
     }
-    const skillsDir = join(nodeModules, name, "skills");
+    const skillsDir = path.join(nodeModules, name, "skills");
     if (await isDirectory(skillsDir)) roots.push(skillsDir);
   }
 }
@@ -237,20 +237,20 @@ async function collectGitPackageSkillDirs(
 ): Promise<void> {
   if (depth > GIT_PACKAGE_MAX_DEPTH) return;
   // Package root: first directory that has a skills/ child contributes that root.
-  const skillsDir = join(dir, "skills");
+  const skillsDir = path.join(dir, "skills");
   if (await isDirectory(skillsDir)) {
     roots.push(skillsDir);
     return;
   }
   let names: string[] = [];
   try {
-    names = await readdir(dir);
+    names = await fs.readdir(dir);
   } catch {
     return;
   }
   for (const name of names) {
     if (name.startsWith(".") || name === "node_modules") continue;
-    const full = join(dir, name);
+    const full = path.join(dir, name);
     if (await isDirectory(full)) await collectGitPackageSkillDirs(full, roots, depth + 1);
   }
 }
@@ -261,13 +261,13 @@ async function scanOneSkillDir(
 ): Promise<void> {
   let names: string[] = [];
   try {
-    names = await readdir(dir);
+    names = await fs.readdir(dir);
   } catch {
     return;
   }
   for (const name of names) {
     if (name.startsWith(".")) continue;
-    const flat = await maybeSkillFile(join(dir, name, "SKILL.md"));
+    const flat = await maybeSkillFile(path.join(dir, name, "SKILL.md"));
     if (flat) {
       await addScannedEntry(entries, name, flat);
       continue;
@@ -275,13 +275,13 @@ async function scanOneSkillDir(
     // Nested layout: <dir>/<group>/<name>/SKILL.md
     let nestedNames: string[] = [];
     try {
-      nestedNames = await readdir(join(dir, name));
+      nestedNames = await fs.readdir(path.join(dir, name));
     } catch {
       continue;
     }
     for (const nested of nestedNames) {
       if (nested.startsWith(".")) continue;
-      const nestedFile = await maybeSkillFile(join(dir, name, nested, "SKILL.md"));
+      const nestedFile = await maybeSkillFile(path.join(dir, name, nested, "SKILL.md"));
       if (nestedFile) await addScannedEntry(entries, nested, nestedFile);
     }
   }
@@ -295,16 +295,16 @@ async function scanOneSkillDir(
  */
 export async function scanSkillDirs(
   cwd: string,
-  homeDir = homedir(),
+  homeDir = (process.env.HOME || os.homedir()),
   agentDir?: string,
 ): Promise<Map<string, SkillRefEntry>> {
   const resolvedAgentDir = resolveAgentDir(homeDir, agentDir);
   const dirs = [
-    join(cwd, ".agents", "skills"),
-    join(homeDir, ".agents", "skills"),
-    join(resolvedAgentDir, "skills"),
+    path.join(cwd, ".agents", "skills"),
+    path.join(homeDir, ".agents", "skills"),
+    path.join(resolvedAgentDir, "skills"),
     ...(await listPackageSkillDirs(resolvedAgentDir)),
-  ].map((dir) => resolve(dir));
+  ].map((dir) => path.resolve(dir));
   const entries = new Map<string, SkillRefEntry>();
   // Earlier dirs win (project → user → agent → packages).
   for (const dir of [...new Set(dirs)]) {
@@ -320,9 +320,9 @@ async function addScannedEntry(
 ): Promise<void> {
   if (entries.has(name)) return; // earlier dirs win (project before home)
   try {
-    const description = parseSkillDescription(await readFile(filePath, "utf8"));
+    const description = parseSkillDescription(await Bun.file(filePath).text());
     if (!description) return; // parity with host: skills need a description
-    entries.set(name, { name, filePath, baseDir: dirname(filePath), description });
+    entries.set(name, { name, filePath, baseDir: path.dirname(filePath), description });
   } catch {
     // Unreadable skill files are simply not offered.
   }

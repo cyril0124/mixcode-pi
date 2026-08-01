@@ -1,4 +1,3 @@
-import { existsSync } from "node:fs";
 import { createSessionId, createTab } from "../core/defaults.js";
 import { noteTabsReplaced } from "../core/open-tabs-store.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
@@ -51,7 +50,7 @@ export async function restoreWorkspace(
       missing.push(`${item.title || item.sessionId} (no session path saved)`);
       continue;
     }
-    if (!existsSync(item.sessionPath)) {
+    if (!(await Bun.file(item.sessionPath).exists())) {
       missing.push(item.title || item.sessionId);
       continue;
     }

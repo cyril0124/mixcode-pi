@@ -51,6 +51,12 @@ function makeRuntime(): MixCodeRuntime {
     getTab: () => ({ chat }),
     onChange: () => () => undefined,
     getAllExtensionCommands: () => [],
+    getExtensionCommands: () => [],
+    getPromptHistory: () => [],
+    setExtensionUiHost: () => undefined,
+    appendSystemMessage: () => undefined,
+    onTabClosed: () => () => undefined,
+    onModelsChanged: () => () => undefined,
   } as unknown as MixCodeRuntime;
 }
 
@@ -455,6 +461,11 @@ test("Ctrl+E defers to the extension editor component when it owns the slot", ()
     getTab: () => ({ chat: [] }),
     onChange: () => () => undefined,
     getAllExtensionCommands: () => [],
+    getExtensionCommands: () => [],
+    getPromptHistory: () => [],
+    appendSystemMessage: () => undefined,
+    onTabClosed: () => () => undefined,
+    onModelsChanged: () => () => undefined,
     setExtensionUiHost: (host: typeof capturedHost) => {
       capturedHost = host;
     },

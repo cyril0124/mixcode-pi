@@ -7,9 +7,10 @@
 // at most one reload.
 //
 // The watch and stat functions are injectable so behavior is deterministic in
-// tests; production uses node:fs.
-import { statSync, watch, type FSWatcher } from "node:fs";
-import { basename, join } from "node:path";
+// tests; production uses node:fs (watch has no Bun equivalent).
+import * as fs from "node:fs";
+import type { FSWatcher } from "node:fs";
+import * as path from "node:path";
 
 /** Size+mtime signature; cheap to compute and enough to spot real appends. */
 export interface FileFingerprint {
@@ -45,7 +46,7 @@ const DEFAULT_DEBOUNCE_MS = 250;
 const defaultWatchFactory: SessionWatchFactory = (dir, onEvent, onError) => {
   let watcher: FSWatcher;
   try {
-    watcher = watch(dir, { persistent: false }, (_type, filename) => {
+    watcher = fs.watch(dir, { persistent: false }, (_type, filename) => {
       onEvent(typeof filename === "string" ? filename : null);
     });
   } catch (error) {
@@ -58,7 +59,7 @@ const defaultWatchFactory: SessionWatchFactory = (dir, onEvent, onError) => {
 
 const defaultStatFingerprint: StatFingerprintFn = (filePath) => {
   try {
-    const s = statSync(filePath);
+    const s = fs.statSync(filePath);
     return { size: s.size, mtimeMs: s.mtimeMs };
   } catch {
     return undefined;
@@ -101,11 +102,11 @@ export class SessionSyncCoordinator {
   register(sessionId: string, sessionFile: string): void {
     if (this.disposed) return;
     this.unregister(sessionId);
-    const fileName = basename(sessionFile);
+    const fileName = path.basename(sessionFile);
     const tracked: TrackedSession = {
       sessionId,
       fileName,
-      fingerprint: this.statFingerprint(join(this.sessionsRoot, fileName)),
+      fingerprint: this.statFingerprint(path.join(this.sessionsRoot, fileName)),
     };
     this.bySessionId.set(sessionId, tracked);
     this.byFileName.set(fileName, tracked);
@@ -136,7 +137,7 @@ export class SessionSyncCoordinator {
       clearTimeout(tracked.debounceTimer);
       tracked.debounceTimer = undefined;
     }
-    tracked.fingerprint = this.statFingerprint(join(this.sessionsRoot, tracked.fileName));
+    tracked.fingerprint = this.statFingerprint(path.join(this.sessionsRoot, tracked.fileName));
   }
 
   private ensureWatching(): void {
@@ -162,13 +163,13 @@ export class SessionSyncCoordinator {
 
   /** Reload only if the file's fingerprint actually changed. */
   private considerReload(tracked: TrackedSession): void {
-    const next = this.statFingerprint(join(this.sessionsRoot, tracked.fileName));
+    const next = this.statFingerprint(path.join(this.sessionsRoot, tracked.fileName));
     if (next && fingerprintsEqual(tracked.fingerprint, next)) return;
     if (tracked.debounceTimer) clearTimeout(tracked.debounceTimer);
     tracked.debounceTimer = setTimeout(() => {
       tracked.debounceTimer = undefined;
       // Capture the fingerprint at fire time; the reload itself only reads.
-      tracked.fingerprint = this.statFingerprint(join(this.sessionsRoot, tracked.fileName));
+      tracked.fingerprint = this.statFingerprint(path.join(this.sessionsRoot, tracked.fileName));
       this.onExternalChange(tracked.sessionId);
     }, this.debounceMs);
     tracked.debounceTimer.unref?.();

@@ -4,18 +4,8 @@
 // close: union never drops a tab while any peer still holds it). This file is
 // the authoritative list of session ids that every live instance in the same
 // workdir should keep open: create adds, close/delete removes, peers reconcile.
-import {
-  closeSync,
-  mkdirSync,
-  openSync,
-  readFileSync,
-  renameSync,
-  rmSync,
-  writeFileSync,
-  writeSync,
-} from "node:fs";
-import { dirname, join } from "node:path";
-import { randomUUID } from "node:crypto";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { currentProcessIdentity, type ProcessIdentity } from "./instance-registry.js";
 
 export const OPEN_TABS_VERSION = 1;
@@ -27,7 +17,7 @@ export interface OpenTabsSnapshot {
 }
 
 export function openTabsFile(scopedStateDir: string): string {
-  return join(scopedStateDir, "open_tabs.json");
+  return path.join(scopedStateDir, "open_tabs.json");
 }
 
 // Process-wide path for the interactive TUI. create/close helpers call
@@ -73,7 +63,8 @@ export function noteTabsReplaced(sessionIds: Iterable<string>): void {
 
 export function readOpenTabs(filePath: string): string[] {
   try {
-    const raw = readFileSync(filePath, "utf8");
+    // Sync RMW lock path: keep sync fs (not Bun.file).
+    const raw = fs.readFileSync(filePath, "utf8");
     const parsed: unknown = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return [];
     const ids = (parsed as { sessionIds?: unknown }).sessionIds;
@@ -157,10 +148,10 @@ export function mutateOpenTabs(
       sessionIds,
       updatedAt: new Date().toISOString(),
     };
-    mkdirSync(dirname(filePath), { recursive: true });
-    const temp = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
-    writeFileSync(temp, `${JSON.stringify(snapshot, null, 2)}\n`, "utf8");
-    renameSync(temp, filePath);
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    const temp = `${filePath}.${process.pid}.${crypto.randomUUID()}.tmp`;
+    fs.writeFileSync(temp, `${JSON.stringify(snapshot, null, 2)}\n`, "utf8");
+    fs.renameSync(temp, filePath);
     return sessionIds;
   });
 }
@@ -180,7 +171,7 @@ interface OpenTabsLockRecord {
  */
 function withOpenTabsLock<T>(filePath: string, fn: () => T): T {
   const lockPath = `${filePath}.lock`;
-  mkdirSync(dirname(filePath), { recursive: true });
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
   const pid = process.pid;
   const identity = currentProcessIdentity(pid);
   const payload = `${JSON.stringify({
@@ -192,17 +183,18 @@ function withOpenTabsLock<T>(filePath: string, fn: () => T): T {
 
   for (;;) {
     try {
-      const fd = openSync(lockPath, "wx");
+      // Atomic exclusive create: Bun has no wx equivalent; keep openSync.
+      const fd = fs.openSync(lockPath, "wx");
       try {
-        writeSync(fd, payload);
+        fs.writeSync(fd, payload);
         return fn();
       } finally {
-        closeSync(fd);
+        fs.closeSync(fd);
         // Only remove if we still own it (another process may have reclaimed a
         // crash mid-write and replaced the record).
         const current = readOpenTabsLockRecord(lockPath);
         if (!current || current.pid === pid) {
-          rmSync(lockPath, { force: true });
+          fs.rmSync(lockPath, { force: true });
         }
       }
     } catch (error) {
@@ -210,7 +202,7 @@ function withOpenTabsLock<T>(filePath: string, fn: () => T): T {
       if (code !== "EEXIST") throw error;
       const existing = readOpenTabsLockRecord(lockPath);
       if (openTabsLockIsStale(existing)) {
-        rmSync(lockPath, { force: true });
+        fs.rmSync(lockPath, { force: true });
         continue;
       }
       // Live holder: yield without burning a core, then retry.
@@ -221,7 +213,7 @@ function withOpenTabsLock<T>(filePath: string, fn: () => T): T {
 
 function readOpenTabsLockRecord(lockPath: string): OpenTabsLockRecord | undefined {
   try {
-    const value = JSON.parse(readFileSync(lockPath, "utf8")) as Partial<OpenTabsLockRecord>;
+    const value = JSON.parse(fs.readFileSync(lockPath, "utf8")) as Partial<OpenTabsLockRecord>;
     if (typeof value.pid !== "number") return undefined;
     return value as OpenTabsLockRecord;
   } catch {

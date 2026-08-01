@@ -13,9 +13,9 @@
  * No custom ledger synthesis and no slash-command UI.
  * Host-agnostic: works under plain Pi or any shell that loads this extension.
  */
-import { existsSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   calculateContextTokens,
@@ -254,9 +254,9 @@ export function resolveCompactionBudgets(cwd: string, agentDir?: string): Compac
     agentDir ??
     process.env.MIXCODE_CODING_AGENT_DIR ??
     process.env.PI_CODING_AGENT_DIR ??
-    join(homedir(), ".pi", "agent");
-  const global = readCompactionSettings(join(globalDir, "settings.json"));
-  const project = readCompactionSettings(join(cwd, ".pi", "settings.json"));
+    path.join((process.env.HOME || os.homedir()), ".pi", "agent");
+  const global = readCompactionSettings(path.join(globalDir, "settings.json"));
+  const project = readCompactionSettings(path.join(cwd, ".pi", "settings.json"));
   return {
     enabled: project.enabled ?? global.enabled ?? true,
     reserveTokens: project.reserveTokens ?? global.reserveTokens ?? DEFAULT_RESERVE_TOKENS,
@@ -330,10 +330,10 @@ export function isBranchCompactable(
   return summarize > 0 || prefix > 0;
 }
 
-function readCompactionSettings(path: string): Partial<CompactionBudgets> {
-  if (!existsSync(path)) return {};
+function readCompactionSettings(settingsPath: string): Partial<CompactionBudgets> {
+  // Sync API callers; try/catch ENOENT instead of exists+read race.
   try {
-    const raw = JSON.parse(readFileSync(path, "utf8")) as {
+    const raw = JSON.parse(fs.readFileSync(settingsPath, "utf8")) as {
       compaction?: {
         enabled?: boolean;
         reserveTokens?: number;
@@ -445,7 +445,7 @@ export async function loadPrepareCompaction(): Promise<PrepareCompactionFn | nul
       try {
         const entry = import.meta.resolve("@earendil-works/pi-coding-agent");
         const href = pathToFileURL(
-          join(dirname(fileURLToPath(entry)), "core/compaction/compaction.js"),
+          path.join(path.dirname(fileURLToPath(entry)), "core/compaction/compaction.js"),
         ).href;
         const mod = (await import(href)) as { prepareCompaction?: PrepareCompactionFn };
         return typeof mod.prepareCompaction === "function" ? mod.prepareCompaction : null;

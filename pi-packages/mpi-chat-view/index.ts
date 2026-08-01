@@ -21,10 +21,8 @@
 // ║                                                                    ║
 // ╚══════════════════════════════════════════════════════════════════╝
 
-import { spawn } from "node:child_process";
-import { unlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import * as os from "node:os";
+import * as path from "node:path";
 import type { ExtensionFactory, SessionEntry } from "@earendil-works/pi-coding-agent";
 import type { Component, TUI } from "@earendil-works/pi-tui";
 
@@ -246,34 +244,37 @@ function openInExternalEditor(
   return ctx.ui.custom<boolean>((tui, _theme, _keybindings, done) => {
     const t = tui as unknown as { stop: () => void; start: () => void; requestRender: (f?: boolean) => void };
     t.stop();
-    const tmpFile = join(tmpdir(), `chat-view-${process.pid}-${Date.now()}.md`);
-    writeFileSync(tmpFile, `${content}\n`, "utf-8");
-    const cleanup = () => {
-      try {
-        unlinkSync(tmpFile);
-      } catch {
-        /* best effort */
-      }
-    };
+    const tmpFile = path.join(os.tmpdir(), `chat-view-${process.pid}-${Date.now()}.md`);
     // Split so `EDITOR="code -w"` style commands keep their flags.
     const [cmd, ...cmdArgs] = editorCmd.split(" ").filter(Boolean);
-    const child = spawn(cmd!, [...cmdArgs, tmpFile], {
-      stdio: "inherit",
-      shell: process.platform === "win32",
-    });
-    // Node may emit both error and exit; resume exactly once (a double start
-    // leaks a resize listener).
+    // Resume exactly once (a double start leaks a resize listener).
     let resumed = false;
     const resume = (ok: boolean) => {
       if (resumed) return;
       resumed = true;
-      cleanup();
+      void Bun.file(tmpFile)
+        .unlink()
+        .catch(() => {
+          /* best effort */
+        });
       t.start();
       t.requestRender(true);
       done(ok);
     };
-    child.on("exit", () => resume(true));
-    child.on("error", () => resume(false));
+    void (async () => {
+      try {
+        await Bun.write(tmpFile, `${content}\n`);
+        const child = Bun.spawn([cmd!, ...cmdArgs, tmpFile], {
+          stdin: "inherit",
+          stdout: "inherit",
+          stderr: "inherit",
+        });
+        await child.exited;
+        resume(true);
+      } catch {
+        resume(false);
+      }
+    })();
     return { render: () => [], invalidate: () => {}, handleInput: () => {} };
   });
 }

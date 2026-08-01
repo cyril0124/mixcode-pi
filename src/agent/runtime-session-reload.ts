@@ -6,7 +6,7 @@
 // line model, the preview, and context-usage stats. It deliberately does NOT
 // rebuild the AgentSession/services/extensions — only the session-derived view
 // changes, so this stays cheap relative to a full session replacement.
-import { existsSync } from "node:fs";
+import * as fs from "node:fs";
 import { disposeChatRenderers, entriesToChatLines, syncContextUsage, syncPreviewFromChat } from "./runtime-chat.js";
 import type { ChatLine, RuntimeTab } from "./runtime-types.js";
 
@@ -36,7 +36,8 @@ export function reloadRuntimeSessionFromDisk(runtimeTab: RuntimeTab): ReloadSess
   // registered under the original id but tool_execution_end then reports the
   // new id, so its widget never renders until /reload). Nothing on disk means
   // no external appends to reconcile, so skip the reload entirely.
-  if (!existsSync(file)) return { reloaded: false, reason: "no-file" };
+  // Sync API; Bun.file().exists() is async-only.
+  if (!fs.existsSync(file)) return { reloaded: false, reason: "no-file" };
 
   // Capture the pre-reload leaf and known entry ids. setSessionFile rebuilds the
   // index and unconditionally moves the leaf to the file's LAST entry — correct

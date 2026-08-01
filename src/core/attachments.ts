@@ -1,6 +1,6 @@
-import { readdir, readFile, stat } from "node:fs/promises";
-import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import * as fs from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { parse as parseYaml } from "yaml";
 
 export class SkillError extends Error {
@@ -22,19 +22,19 @@ function uniqueInOrder(values: Iterable<string>): string[] {
   return result;
 }
 
-export function resolveSkillDirs(baseWorkdir: string, homeDir = homedir()): string[] {
+export function resolveSkillDirs(baseWorkdir: string, homeDir = (process.env.HOME || os.homedir())): string[] {
   const dirs = [
-    join(baseWorkdir, ".agents", "skills"),
-    join(homeDir, ".agents", "skills"),
-    join(homeDir, ".pi", "agent", "skills"),
+    path.join(baseWorkdir, ".agents", "skills"),
+    path.join(homeDir, ".agents", "skills"),
+    path.join(homeDir, ".pi", "agent", "skills"),
   ];
-  return uniqueInOrder(dirs.map((dir) => resolve(dir)));
+  return uniqueInOrder(dirs.map((dir) => path.resolve(dir)));
 }
 
-async function maybeSkillFile(path: string): Promise<string | undefined> {
+async function maybeSkillFile(filePath: string): Promise<string | undefined> {
   try {
-    const info = await stat(path);
-    return info.isFile() ? path : undefined;
+    const info = await fs.stat(filePath);
+    return info.isFile() ? filePath : undefined;
   } catch {
     return undefined;
   }
@@ -103,19 +103,19 @@ export interface SkillEntry {
 
 export async function scanSkillEntries(
   baseWorkdir: string,
-  homeDir = homedir(),
+  homeDir = (process.env.HOME || os.homedir()),
 ): Promise<SkillEntry[]> {
   const entriesByName = new Map<string, SkillEntry>();
   for (const dir of resolveSkillDirs(baseWorkdir, homeDir)) {
     let entries: string[] = [];
     try {
-      entries = await readdir(dir);
+      entries = await fs.readdir(dir);
     } catch {
       continue;
     }
     for (const entry of entries) {
       if (entry.startsWith(".")) continue;
-      const flatPath = await maybeSkillFile(join(dir, entry, "SKILL.md"));
+      const flatPath = await maybeSkillFile(path.join(dir, entry, "SKILL.md"));
       if (flatPath) {
         if (!entriesByName.has(entry)) {
           const skill = await maybeSkillEntry(entry, flatPath);
@@ -125,13 +125,13 @@ export async function scanSkillEntries(
       }
       let nestedEntries: string[] = [];
       try {
-        nestedEntries = await readdir(join(dir, entry));
+        nestedEntries = await fs.readdir(path.join(dir, entry));
       } catch {
         continue;
       }
       for (const nested of nestedEntries) {
         if (nested.startsWith(".")) continue;
-        const nestedPath = await maybeSkillFile(join(dir, entry, nested, "SKILL.md"));
+        const nestedPath = await maybeSkillFile(path.join(dir, entry, nested, "SKILL.md"));
         if (nestedPath && !entriesByName.has(nested)) {
           const skill = await maybeSkillEntry(nested, nestedPath);
           if (skill) entriesByName.set(nested, skill);
@@ -142,10 +142,10 @@ export async function scanSkillEntries(
   return [...entriesByName.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
-async function maybeSkillEntry(name: string, path: string): Promise<SkillEntry | undefined> {
+async function maybeSkillEntry(name: string, filePath: string): Promise<SkillEntry | undefined> {
   try {
-    const content = await readFile(path, "utf8");
-    return { name, path, description: parseSkillDescription(content) };
+    const content = await Bun.file(filePath).text();
+    return { name, path: filePath, description: parseSkillDescription(content) };
   } catch {
     return undefined;
   }

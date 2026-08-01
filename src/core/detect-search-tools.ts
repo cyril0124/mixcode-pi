@@ -1,5 +1,3 @@
-import { spawnSync } from "node:child_process";
-
 export interface SearchToolAvailability {
   /** Whether `rg` (ripgrep) is available on PATH. */
   hasRg: boolean;
@@ -9,7 +7,6 @@ export interface SearchToolAvailability {
 
 /**
  * Detect whether rg and fd are available by running `--version`.
- * Uses spawnSync for cross-platform compatibility (no dependency on `which`).
  */
 export function detectSearchTools(): SearchToolAvailability {
   return {
@@ -19,12 +16,14 @@ export function detectSearchTools(): SearchToolAvailability {
 }
 
 function isCommandAvailable(command: string, args: string[]): boolean {
+  if (!Bun.which(command)) return false;
   try {
-    const result = spawnSync(command, args, {
-      stdio: "ignore",
+    const result = Bun.spawnSync([command, ...args], {
+      stdout: "ignore",
+      stderr: "ignore",
       timeout: 5000,
     });
-    return result.status === 0;
+    return result.exitCode === 0;
   } catch {
     return false;
   }

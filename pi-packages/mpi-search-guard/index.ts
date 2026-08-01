@@ -1,5 +1,5 @@
-import { homedir } from "node:os";
-import { dirname, resolve } from "node:path";
+import * as os from "node:os";
+import * as path from "node:path";
 import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
 
 /**
@@ -7,10 +7,10 @@ import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
  * Searching these recursively is prohibitively slow.
  *
  * In addition to the static list, we dynamically add:
- * - homedir()        e.g. /nfs/home/alice
- * - dirname(homedir()) e.g. /nfs/home  (covers non-standard home prefixes)
+ * - (process.env.HOME || os.homedir())        e.g. /nfs/home/alice
+ * - path.dirname(home)  e.g. /nfs/home  (covers non-standard home prefixes)
  */
-const home = homedir();
+const home = (process.env.HOME || os.homedir());
 const BLACKLIST: ReadonlySet<string> = new Set([
   "/",
   "/home",
@@ -21,12 +21,12 @@ const BLACKLIST: ReadonlySet<string> = new Set([
   "/opt",
   "/nfs",
   home,
-  dirname(home),
+  path.dirname(home),
 ]);
 
 /** Return true if the resolved path is in the blacklist. */
-function isBlacklisted(path: string, cwd: string): boolean {
-  return BLACKLIST.has(resolve(cwd, expandEnvVars(expandTilde(path))));
+function isBlacklisted(target: string, cwd: string): boolean {
+  return BLACKLIST.has(path.resolve(cwd, expandEnvVars(expandTilde(target))));
 }
 
 function expandTilde(p: string): string {

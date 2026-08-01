@@ -466,7 +466,7 @@ async function replaceRuntimeTabSessionUnlocked(
   runtimeTab.chat = await rebuildRuntimeChat(runtimeTab);
   syncPreviewFromChat(runtimeTab.tab, runtimeTab.chat);
   if (__testReplaceHooks.bindDelayMs > 0) {
-    await new Promise((resolve) => setTimeout(resolve, __testReplaceHooks.bindDelayMs));
+    await Bun.sleep(__testReplaceHooks.bindDelayMs);
   }
   // Resume title before bind so the tab bar never flashes Agent-NN if bind is slow
   // or a session_start handler races a UI render. new/fork keep the caller title.

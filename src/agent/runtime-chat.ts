@@ -1,6 +1,5 @@
-import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { AssistantMessage, Usage } from "@earendil-works/pi-ai";
 import type {
@@ -685,11 +684,17 @@ export async function inspectSessionImport(
   cwdOverride: string | undefined,
   fallbackCwd: string,
 ): Promise<{ resolvedPath: string; sessionId: string }> {
-  const resolvedPath = resolve(inputPath);
-  if (!existsSync(resolvedPath)) {
-    throw new Error(`Session import file not found: ${resolvedPath}`);
+  const resolvedPath = path.resolve(inputPath);
+  let content: string;
+  try {
+    content = await Bun.file(resolvedPath).text();
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      throw new Error(`Session import file not found: ${resolvedPath}`);
+    }
+    throw error;
   }
-  const firstLine = (await readFile(resolvedPath, "utf8")).split(/\r?\n/, 1)[0]?.trim();
+  const firstLine = content.split(/\r?\n/, 1)[0]?.trim();
   if (!firstLine) throw new Error(`Session import file is empty: ${resolvedPath}`);
   let header: unknown;
   try {
@@ -712,7 +717,8 @@ export async function inspectSessionImport(
     if (typeof cwd !== "string" || !cwd.trim()) {
       throw new Error("Session import requires a cwd override because the JSONL header has no cwd");
     }
-    if (!existsSync(cwd)) {
+    // Directory existence: Bun.file().exists() is file-only (returns false for dirs).
+    if (!fs.existsSync(cwd)) {
       throw new Error(
         `Stored session working directory does not exist: ${cwd}\nSession file: ${resolvedPath}\nCurrent working directory: ${fallbackCwd}`,
       );

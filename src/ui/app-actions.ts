@@ -1,5 +1,5 @@
-import { existsSync, statSync } from "node:fs";
-import path from "node:path";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import type { MixCodeRuntime } from "../agent/runtime.js";
 import { normalizeWorkdirInput } from "../core/pickers.js";
 import {
@@ -237,7 +237,13 @@ export function applyWorkdirSelection(
     pushToast(active, { type: "info", message: "workdir unchanged" });
     return;
   }
-  if (!existsSync(resolved) || !statSync(resolved).isDirectory()) {
+  let isDir = false;
+  try {
+    isDir = fs.statSync(resolved).isDirectory();
+  } catch {
+    isDir = false;
+  }
+  if (!isDir) {
     pushToast(active, {
       type: "error",
       message: `workdir not found or not a directory: ${resolved}`,

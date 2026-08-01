@@ -1,17 +1,6 @@
-import {
-  copyFileSync,
-  existsSync,
-  lstatSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  readlinkSync,
-  rmSync,
-  symlinkSync,
-  unlinkSync,
-} from "node:fs";
-import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 
 /**
  * Ensure all packages under `<repoRoot>/pi-packages/` (dev/build output) or
@@ -32,33 +21,34 @@ export function ensurePackageExtensions(
   repoRoot: string,
   options?: { copy?: boolean; agentDir?: string },
 ): string[] {
-  const packageDirs = [join(repoRoot, "pi-packages"), join(repoRoot, "packages")].filter(
-    existsSync,
+  // Sync install at startup: keep node:fs sync APIs (no Bun dir/symlink tree API).
+  const packageDirs = [path.join(repoRoot, "pi-packages"), path.join(repoRoot, "packages")].filter(
+    (dir) => fs.existsSync(dir),
   );
   if (packageDirs.length === 0) return [];
 
-  const agentDir = options?.agentDir ?? join(homedir(), ".pi", "agent");
-  const extensionsDir = join(agentDir, "extensions");
+  const agentDir = options?.agentDir ?? path.join((process.env.HOME || os.homedir()), ".pi", "agent");
+  const extensionsDir = path.join(agentDir, "extensions");
   const installedExtensionPaths = new Set<string>();
-  mkdirSync(extensionsDir, { recursive: true });
+  fs.mkdirSync(extensionsDir, { recursive: true });
   const shouldCopy = options?.copy ?? false;
 
   for (const packagesDir of packageDirs) {
-    for (const entry of readdirSync(packagesDir, { withFileTypes: true })) {
+    for (const entry of fs.readdirSync(packagesDir, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue;
-      const pkgDir = join(packagesDir, entry.name);
-      const pkgJsonPath = join(pkgDir, "package.json");
-      if (!existsSync(pkgJsonPath)) continue;
+      const pkgDir = path.join(packagesDir, entry.name);
+      const pkgJsonPath = path.join(pkgDir, "package.json");
+      if (!fs.existsSync(pkgJsonPath)) continue;
 
       try {
-        const pkg = JSON.parse(readFileSync(pkgJsonPath, "utf8"));
+        const pkg = JSON.parse(fs.readFileSync(pkgJsonPath, "utf8"));
         if (!pkg.pi) continue;
       } catch {
         continue;
       }
 
-      const destDir = join(extensionsDir, entry.name);
-      const target = resolve(pkgDir);
+      const destDir = path.join(extensionsDir, entry.name);
+      const target = path.resolve(pkgDir);
 
       if (shouldCopy) {
         // Copy mode: write files directly into ~/.pi/agent/extensions/<name>/,
@@ -68,17 +58,17 @@ export function ensurePackageExtensions(
       } else {
         // Symlink mode: skip if already a symlink pointing to the correct target
         try {
-          const stat = lstatSync(destDir);
-          if (stat.isSymbolicLink() && resolve(readlinkSync(destDir)) === target) {
+          const stat = fs.lstatSync(destDir);
+          if (stat.isSymbolicLink() && path.resolve(fs.readlinkSync(destDir)) === target) {
             installedExtensionPaths.add(destDir);
             continue;
           }
           // Exists but wrong target or not a symlink — remove and recreate
-          unlinkSync(destDir);
+          fs.unlinkSync(destDir);
         } catch {
           // ENOENT: path doesn't exist — proceed to create symlink
         }
-        symlinkSync(target, destDir);
+        fs.symlinkSync(target, destDir);
       }
       installedExtensionPaths.add(destDir);
     }
@@ -88,11 +78,11 @@ export function ensurePackageExtensions(
 
 /** Recursively copy a directory tree (files + nested subdirectories). */
 function copyTreeSync(srcDir: string, destDir: string): void {
-  mkdirSync(destDir, { recursive: true });
-  for (const entry of readdirSync(srcDir, { withFileTypes: true })) {
-    const srcPath = join(srcDir, entry.name);
-    const destPath = join(destDir, entry.name);
+  fs.mkdirSync(destDir, { recursive: true });
+  for (const entry of fs.readdirSync(srcDir, { withFileTypes: true })) {
+    const srcPath = path.join(srcDir, entry.name);
+    const destPath = path.join(destDir, entry.name);
     if (entry.isDirectory()) copyTreeSync(srcPath, destPath);
-    else copyFileSync(srcPath, destPath);
+    else fs.copyFileSync(srcPath, destPath);
   }
 }

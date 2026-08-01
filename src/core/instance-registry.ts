@@ -1,7 +1,6 @@
-import { randomUUID } from "node:crypto";
-import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { existsSync, readFileSync, rmSync } from "node:fs";
-import { dirname, join } from "node:path";
+import * as fsSync from "node:fs";
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
 import type { MixCodeState, TabStatus } from "./types.js";
 
 export const INSTANCE_REGISTRY_VERSION = 1;
@@ -88,11 +87,11 @@ const VALID_TAB_STATUSES = new Set<TabStatus>([
 ]);
 
 export function instanceRegistryDir(rootStateDir: string): string {
-  return join(rootStateDir, "instances");
+  return path.join(rootStateDir, "instances");
 }
 
 export function instanceRegistryFile(rootStateDir: string, pid = process.pid): string {
-  return join(instanceRegistryDir(rootStateDir), `${pid}.json`);
+  return path.join(instanceRegistryDir(rootStateDir), `${pid}.json`);
 }
 
 export function createInstanceSnapshot(
@@ -140,18 +139,17 @@ export async function writeInstanceSnapshot(
   snapshot: InstanceRegistrySnapshot,
 ): Promise<void> {
   const filePath = instanceRegistryFile(rootStateDir, snapshot.pid);
-  await mkdir(dirname(filePath), { recursive: true });
-  const temp = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
-  await writeFile(temp, `${JSON.stringify(snapshot, null, 2)}\n`, "utf8");
-  await rename(temp, filePath);
+  const temp = `${filePath}.${process.pid}.${crypto.randomUUID()}.tmp`;
+  await Bun.write(temp, `${JSON.stringify(snapshot, null, 2)}\n`);
+  await fs.rename(temp, filePath);
 }
 
 export async function removeInstanceSnapshot(rootStateDir: string, pid = process.pid): Promise<void> {
-  await rm(instanceRegistryFile(rootStateDir, pid), { force: true });
+  await fs.rm(instanceRegistryFile(rootStateDir, pid), { force: true });
 }
 
 export function removeInstanceSnapshotSync(rootStateDir: string, pid = process.pid): void {
-  rmSync(instanceRegistryFile(rootStateDir, pid), { force: true });
+  fsSync.rmSync(instanceRegistryFile(rootStateDir, pid), { force: true });
 }
 
 export async function loadLiveInstanceStatus(
@@ -196,7 +194,7 @@ export async function cleanupInstanceRegistry(
     const snapshot = parsed.snapshot;
     if (!snapshot) continue;
     if (snapshotIsLive(snapshot, now, options)) continue;
-    await rm(filePath, { force: true });
+    await fs.rm(filePath, { force: true });
     removed.push(snapshot.pid);
     removedFiles.push(filePath);
   }
@@ -333,14 +331,19 @@ function snapshotIsLive(
 
 async function listRegistryFiles(rootStateDir: string): Promise<string[]> {
   const dir = instanceRegistryDir(rootStateDir);
-  if (!existsSync(dir)) return [];
   // Name-only filter: avoid Dirent.isFile()/lstat. On NFS, readdir can list a
   // writeInstanceSnapshot temp (*.json.<pid>.<uuid>.tmp) that is renamed away
   // before isFile runs, throwing ENOENT into peer-tab-sync.
-  const names = await readdir(dir);
+  let names: string[];
+  try {
+    names = await fs.readdir(dir);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw error;
+  }
   return names
     .filter((name) => /^\d+\.json$/.test(name))
-    .map((name) => join(dir, name));
+    .map((name) => path.join(dir, name));
 }
 
 async function readSnapshotFile(filePath: string): Promise<{
@@ -348,7 +351,7 @@ async function readSnapshotFile(filePath: string): Promise<{
   warning?: InstanceStatusWarning;
 }> {
   try {
-    const raw = await readFile(filePath, "utf8");
+    const raw = await Bun.file(filePath).text();
     return { snapshot: parseSnapshot(JSON.parse(raw), filePath) };
   } catch (error) {
     return { warning: { file: filePath, message: error instanceof Error ? error.message : String(error) } };
@@ -467,7 +470,8 @@ function processVerificationField(
 
 function readLinuxProcessStartTime(pid: number): string | undefined {
   try {
-    const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
+    // Sync /proc read on paint-adjacent path; keep sync fs.
+    const stat = fsSync.readFileSync(`/proc/${pid}/stat`, "utf8");
     const closeParen = stat.lastIndexOf(") ");
     if (closeParen < 0) return undefined;
     const fieldsAfterCommand = stat.slice(closeParen + 2).trim().split(/\s+/);

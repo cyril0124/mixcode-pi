@@ -95,11 +95,9 @@ export async function setRetryMaxRetries(
     throw new Error(`retry.maxRetries must be a positive integer, got ${maxRetries}`);
   }
   await settingsManager.flush();
-  const { readFile, writeFile, mkdir } = await import("node:fs/promises");
-  const { dirname } = await import("node:path");
   let raw: Record<string, unknown> = {};
   try {
-    const text = await readFile(settingsFile, "utf8");
+    const text = await Bun.file(settingsFile).text();
     const parsed = JSON.parse(text) as unknown;
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
       raw = parsed as Record<string, unknown>;
@@ -115,8 +113,8 @@ export async function setRetryMaxRetries(
   else retry.maxRetries = maxRetries;
   if (Object.keys(retry).length > 0) raw.retry = retry;
   else delete raw.retry;
-  await mkdir(dirname(settingsFile), { recursive: true });
-  await writeFile(settingsFile, `${JSON.stringify(raw, null, 2)}\n`, "utf8");
+  // Bun.write creates parent dirs.
+  await Bun.write(settingsFile, `${JSON.stringify(raw, null, 2)}\n`);
   await settingsManager.reload();
   // Re-apply MixCode retry defaults/jitter after reload (reload rebuilds getters).
   configureMixCodeRetrySettings(settingsManager);

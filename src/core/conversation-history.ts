@@ -1,6 +1,6 @@
 import type { Dirent } from "node:fs";
-import { chmod, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
 import { parseSessionEntries, type SessionInfo } from "@earendil-works/pi-coding-agent";
 import {
   MIXCODE_SETTINGS_FILENAME,
@@ -69,9 +69,9 @@ interface ParsedSessionFile {
 
 export function conversationHistoryPaths(rootStateDir: string): ConversationHistoryPaths {
   return {
-    settingsFile: join(rootStateDir, MIXCODE_SETTINGS_FILENAME),
-    historyFile: join(rootStateDir, HISTORY_FILENAME),
-    sessionIndexFile: join(rootStateDir, SESSION_INDEX_FILENAME),
+    settingsFile: path.join(rootStateDir, MIXCODE_SETTINGS_FILENAME),
+    historyFile: path.join(rootStateDir, HISTORY_FILENAME),
+    sessionIndexFile: path.join(rootStateDir, SESSION_INDEX_FILENAME),
   };
 }
 
@@ -81,7 +81,7 @@ export async function appendHistoryEntry(
   settings: HistorySettings,
 ): Promise<boolean> {
   if (!entry.sessionId || !entry.text.trim()) return false;
-  await ensurePrivateDir(dirname(historyFile));
+  await ensurePrivateDir(path.dirname(historyFile));
   const record: RawHistoryRecord = {
     session_id: entry.sessionId,
     ts: entry.timestampSeconds ?? Math.floor(Date.now() / 1000),
@@ -169,7 +169,7 @@ export async function shouldRebuildSessionIndex(
 ): Promise<boolean> {
   let indexMtime = 0;
   try {
-    indexMtime = (await stat(indexFile)).mtimeMs;
+    indexMtime = (await fs.stat(indexFile)).mtimeMs;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return true;
     throw error;
@@ -360,7 +360,7 @@ function seedParsedSessionCatalog(
     seedSessionCatalogRoot(
       root,
       sessions
-        .filter((session) => dirname(session.path) === root)
+        .filter((session) => path.dirname(session.path) === root)
         .map(sessionInfoFromParsedSession),
     );
   }
@@ -392,14 +392,14 @@ async function readSessionFiles(sessionsRoots: string[]): Promise<ParsedSessionF
   return parsed;
 }
 
-async function parseSessionFile(path: string): Promise<ParsedSessionFile | undefined> {
+async function parseSessionFile(filePath: string): Promise<ParsedSessionFile | undefined> {
   try {
-    const [text, info] = await Promise.all([readFile(path, "utf8"), stat(path)]);
+    const [text, info] = await Promise.all([Bun.file(filePath).text(), fs.stat(filePath)]);
     const entries = parseSessionEntries(text) as unknown as RawSessionMessageEntry[];
     const header = entries.find((entry) => entry.type === "session");
     return {
-      path,
-      id: sessionIdFromPath(path, typeof header?.id === "string" ? header.id : undefined),
+      path: filePath,
+      id: sessionIdFromPath(filePath, typeof header?.id === "string" ? header.id : undefined),
       cwd: typeof header?.cwd === "string" ? header.cwd : "",
       modified: info.mtime,
       updatedAt: sessionUpdatedAt(entries, info.mtime),
@@ -412,15 +412,15 @@ async function parseSessionFile(path: string): Promise<ParsedSessionFile | undef
 
 async function listSessionJsonlFiles(sessionsRoots: string[]): Promise<string[]> {
   const result: string[] = [];
-  async function walk(path: string): Promise<void> {
+  async function walk(dir: string): Promise<void> {
     let entries: Dirent[];
     try {
-      entries = await readdir(path, { withFileTypes: true });
+      entries = await fs.readdir(dir, { withFileTypes: true });
     } catch {
       return;
     }
     for (const entry of entries) {
-      const child = join(path, entry.name);
+      const child = path.join(dir, entry.name);
       if (entry.isDirectory()) await walk(child);
       else if (entry.isFile() && entry.name.endsWith(".jsonl")) result.push(child);
     }
@@ -475,10 +475,10 @@ async function discoverSessionRoots(
   activeSessionsRoot: string,
 ): Promise<string[]> {
   const roots = new Set<string>([activeSessionsRoot]);
-  const workdirs = join(rootStateDir, "workdirs");
+  const workdirs = path.join(rootStateDir, "workdirs");
   try {
-    for (const entry of await readdir(workdirs, { withFileTypes: true })) {
-      if (entry.isDirectory()) roots.add(join(workdirs, entry.name, "sessions"));
+    for (const entry of await fs.readdir(workdirs, { withFileTypes: true })) {
+      if (entry.isDirectory()) roots.add(path.join(workdirs, entry.name, "sessions"));
     }
   } catch {
     // Missing workdirs directory is normal on first launch.
@@ -488,19 +488,19 @@ async function discoverSessionRoots(
 
 async function latestSessionsMtime(sessionsRoots: string[]): Promise<number> {
   let latest = 0;
-  async function walk(path: string): Promise<void> {
+  async function walk(dir: string): Promise<void> {
     let entries: Dirent[];
     try {
-      entries = await readdir(path, { withFileTypes: true });
+      entries = await fs.readdir(dir, { withFileTypes: true });
     } catch {
       return;
     }
     for (const entry of entries) {
-      const child = join(path, entry.name);
+      const child = path.join(dir, entry.name);
       if (entry.isDirectory()) {
         await walk(child);
       } else if (entry.isFile() && entry.name.endsWith(".jsonl")) {
-        latest = Math.max(latest, (await stat(child)).mtimeMs);
+        latest = Math.max(latest, (await fs.stat(child)).mtimeMs);
       }
     }
   }
@@ -508,9 +508,9 @@ async function latestSessionsMtime(sessionsRoots: string[]): Promise<number> {
   return latest;
 }
 
-async function pathExists(path: string): Promise<boolean> {
+async function pathExists(filePath: string): Promise<boolean> {
   try {
-    await stat(path);
+    await fs.stat(filePath);
     return true;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
@@ -518,25 +518,26 @@ async function pathExists(path: string): Promise<boolean> {
   }
 }
 
-async function readTextIfExists(path: string): Promise<string> {
+async function readTextIfExists(filePath: string): Promise<string> {
   try {
-    return await readFile(path, "utf8");
+    return await Bun.file(filePath).text();
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return "";
     throw error;
   }
 }
 
-async function writePrivateFile(path: string, text: string): Promise<void> {
-  await ensurePrivateDir(dirname(path));
-  const temp = `${path}.${process.pid}.${Date.now()}.tmp`;
-  await writeFile(temp, text, { encoding: "utf8", mode: 0o600 });
-  await rename(temp, path);
-  await chmod(path, 0o600);
+async function writePrivateFile(filePath: string, text: string): Promise<void> {
+  await ensurePrivateDir(path.dirname(filePath));
+  const temp = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+  // mode 0o600: keep writeFile (Bun.write does not set permissions).
+  await fs.writeFile(temp, text, { encoding: "utf8", mode: 0o600 });
+  await fs.rename(temp, filePath);
+  await fs.chmod(filePath, 0o600);
 }
 
 async function withHistoryFileLock<T>(historyFile: string, run: () => Promise<T>): Promise<T> {
-  const rootStateDir = dirname(historyFile);
+  const rootStateDir = path.dirname(historyFile);
   await ensurePrivateDir(rootStateDir);
   // Same PID/start-time lock as session turns; wait/retry instead of throw-on-conflict
   // so concurrent appends serialize instead of failing.
@@ -547,7 +548,7 @@ async function withHistoryFileLock<T>(historyFile: string, run: () => Promise<T>
       break;
     } catch (error) {
       if (!(error instanceof SessionLockConflictError)) throw error;
-      await new Promise((resolve) => setTimeout(resolve, HISTORY_LOCK_POLL_MS));
+      await Bun.sleep(HISTORY_LOCK_POLL_MS);
     }
   }
   try {
@@ -557,9 +558,9 @@ async function withHistoryFileLock<T>(historyFile: string, run: () => Promise<T>
   }
 }
 
-async function ensurePrivateDir(path: string): Promise<void> {
-  await mkdir(path, { recursive: true, mode: 0o700 });
-  await chmod(path, 0o700);
+async function ensurePrivateDir(dirPath: string): Promise<void> {
+  await fs.mkdir(dirPath, { recursive: true, mode: 0o700 });
+  await fs.chmod(dirPath, 0o700);
 }
 
 function sessionUpdatedAt(entries: RawSessionMessageEntry[], fallback: Date): Date {

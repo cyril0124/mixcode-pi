@@ -5,7 +5,7 @@
 
 import { isKeyRelease, matchesKey, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import type { SettingsManager } from "@earendil-works/pi-coding-agent";
-import { homedir } from "node:os";
+import * as os from "node:os";
 import {
   DEFAULT_HISTORY_MAX_BYTES,
   DEFAULT_OVERSIZED_ASSISTANT_MESSAGE,
@@ -709,7 +709,7 @@ function settingsNumberEditPrefill(value: number | undefined, allowByteUnits = f
 /** Collapse $HOME to ~, then middle-truncate if longer than maxWidth. */
 export function formatSettingsPath(filePath: string, maxWidth: number): string {
   if (!filePath) return "";
-  const home = homedir();
+  const home = (process.env.HOME || os.homedir());
   const display =
     home && (filePath === home || filePath.startsWith(`${home}/`))
       ? `~${filePath.slice(home.length)}`

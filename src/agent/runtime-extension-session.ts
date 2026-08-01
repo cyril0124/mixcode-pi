@@ -1,6 +1,5 @@
-import { existsSync } from "node:fs";
-import { copyFile, mkdir } from "node:fs/promises";
-import { basename, join, resolve } from "node:path";
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
 import { type SessionEntry, SessionManager } from "@earendil-works/pi-coding-agent";
 import {
   emitBeforeFork,
@@ -167,8 +166,10 @@ export async function switchRuntimeSession(
   context: RuntimeExtensionSessionContext,
 ): Promise<{ cancelled: boolean }> {
   const runtimeTab = context.requireTab(sessionId);
-  const resolvedPath = resolve(sessionPath);
-  if (!existsSync(resolvedPath)) throw new Error(`Session file not found: ${resolvedPath}`);
+  const resolvedPath = path.resolve(sessionPath);
+  if (!(await Bun.file(resolvedPath).exists())) {
+    throw new Error(`Session file not found: ${resolvedPath}`);
+  }
   const beforeResult = await emitBeforeSwitch(runtimeTab, "resume", resolvedPath);
   if (beforeResult.cancelled) return beforeResult;
   const sessionManager = SessionManager.open(resolvedPath, runtimeTab.session.getSessionDir());
@@ -184,16 +185,18 @@ export async function importRuntimeJsonl(
   context: RuntimeExtensionSessionContext,
 ): Promise<{ cancelled: boolean }> {
   const runtimeTab = context.requireTab(sessionId);
-  const resolvedPath = resolve(inputPath);
-  if (!existsSync(resolvedPath)) throw new Error(`Session import file not found: ${resolvedPath}`);
+  const resolvedPath = path.resolve(inputPath);
+  if (!(await Bun.file(resolvedPath).exists())) {
+    throw new Error(`Session import file not found: ${resolvedPath}`);
+  }
   const sessionDir = runtimeTab.session.getSessionDir();
-  await mkdir(sessionDir, { recursive: true });
-  const destinationPath = join(sessionDir, basename(resolvedPath));
+  await fs.mkdir(sessionDir, { recursive: true });
+  const destinationPath = path.join(sessionDir, path.basename(resolvedPath));
   const beforeResult = await emitBeforeSwitch(runtimeTab, "resume", destinationPath);
   if (beforeResult.cancelled) return beforeResult;
   await inspectSessionImport(resolvedPath, cwdOverride, runtimeTab.tab.workdir);
-  if (resolve(destinationPath) !== resolvedPath) {
-    await copyFile(resolvedPath, destinationPath);
+  if (path.resolve(destinationPath) !== resolvedPath) {
+    await Bun.write(destinationPath, Bun.file(resolvedPath));
   }
   const sessionManager = SessionManager.open(destinationPath, sessionDir, cwdOverride);
   await context.replaceRuntimeTabSession(runtimeTab, sessionManager, "resume");

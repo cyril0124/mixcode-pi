@@ -1,5 +1,5 @@
-import { chmod, mkdir } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
 import type {
   CreateAgentSessionServicesOptions,
   ExtensionFactory,
@@ -72,13 +72,13 @@ export function defaultMixCodeAgentDir(): string {
 }
 
 export function defaultStateDir(): string {
-  return join(defaultMixCodeAgentDir(), "mixcode-pi");
+  return path.join(defaultMixCodeAgentDir(), "mixcode-pi");
 }
 
 export function defaultPiSessionDir(workdir: string, agentDir = defaultMixCodeAgentDir()): string {
-  const resolved = resolve(workdir);
+  const resolved = path.resolve(workdir);
   const safePath = `--${resolved.replace(/^[/\\]/, "").replace(/[/\\:]/g, "-")}--`;
-  return join(resolve(agentDir), "sessions", safePath);
+  return path.join(path.resolve(agentDir), "sessions", safePath);
 }
 
 /**
@@ -95,7 +95,7 @@ export function resolveSessionsRoot(input: {
   envSessionDir?: string;
   settingsSessionDir?: string;
 }): string {
-  if (input.stateDir) return join(input.scopedStateDir, "sessions");
+  if (input.stateDir) return path.join(input.scopedStateDir, "sessions");
   return (
     resolveAgentDirEnv(input.envSessionDir) ??
     input.settingsSessionDir ??
@@ -140,13 +140,13 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
     settingsSessionDir: settingsManager.getSessionDir(),
   });
   const port = options.port ?? DEFAULT_STATE_PORT;
-  await mkdir(rootStateDir, { recursive: true, mode: 0o700 });
-  await chmod(rootStateDir, 0o700);
-  await mkdir(stateDir, { recursive: true, mode: 0o700 });
-  await chmod(stateDir, 0o700);
+  await fs.mkdir(rootStateDir, { recursive: true, mode: 0o700 });
+  await fs.chmod(rootStateDir, 0o700);
+  await fs.mkdir(stateDir, { recursive: true, mode: 0o700 });
+  await fs.chmod(stateDir, 0o700);
 
   const stateFile = stateFileForPort(stateDir, port);
-  const workspaceFile = join(stateDir, "workspaces.json");
+  const workspaceFile = path.join(stateDir, "workspaces.json");
   const mixCodeSettings = await loadMixCodeSettings(conversationHistoryPaths(rootStateDir).settingsFile);
   let state: MixCodeState;
   let restoredFromDisk = true;
@@ -171,8 +171,8 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
   // MIXCODE_CODING_AGENT_DIR keeps credentials, models, settings, sessions and
   // extensions under one root instead of splitting across PI_CODING_AGENT_DIR.
   const modelBundle = await createPiModelRegistryBundle(
-    options.modelConfigPath ?? join(agentDir, "models.json"),
-    join(agentDir, "auth.json"),
+    options.modelConfigPath ?? path.join(agentDir, "models.json"),
+    path.join(agentDir, "auth.json"),
   );
   configureDisabledModelRuntime(
     modelBundle.modelRuntime,
@@ -307,7 +307,7 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
     settingsDeps: {
       settingsManager,
       mixcodeFile: conversationHistoryPaths(rootStateDir).settingsFile,
-      piSettingsFile: join(agentDir, "settings.json"),
+      piSettingsFile: path.join(agentDir, "settings.json"),
     },
   };
 }

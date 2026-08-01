@@ -1,5 +1,4 @@
-import { type FSWatcher, watch } from "node:fs";
-import { spawn } from "node:child_process";
+import * as fs from "node:fs";
 import { Worker } from "node:worker_threads";
 import { SessionManager, type SessionInfo } from "@earendil-works/pi-coding-agent";
 
@@ -53,7 +52,7 @@ try {
 const cache = new Map<string, CachedListing>();
 const rootCache = new Map<string, SessionInfo[]>();
 const inFlight = new Map<string, Promise<SessionInfo[]>>();
-const watchers = new Map<string, FSWatcher | null>();
+const watchers = new Map<string, fs.FSWatcher | null>();
 
 export function listSessionsInBackground(
   request: SessionCatalogRequest,
@@ -196,7 +195,7 @@ function runListingWorkerThread(
   });
 }
 
-function runListingSubprocess(
+async function runListingSubprocess(
   request: SessionCatalogRequest,
   signal?: AbortSignal,
 ): Promise<SessionInfo[]> {
@@ -204,58 +203,43 @@ function runListingSubprocess(
   const args = compiled
     ? [SESSION_CATALOG_WORKER_ARG]
     : [process.argv[1]!, SESSION_CATALOG_WORKER_ARG];
-  return new Promise<SessionInfo[]>((resolve, reject) => {
-    const child = spawn(process.execPath, args, {
-      env: {
-        ...process.env,
-        [SESSION_CATALOG_REQUEST_ENV]: Buffer.from(JSON.stringify(request)).toString("base64url"),
-      },
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    let stdout = "";
-    let stderr = "";
-    let settled = false;
-    const finish = (callback: () => void): void => {
-      if (settled) return;
-      settled = true;
-      signal?.removeEventListener("abort", onAbort);
-      callback();
-    };
-    const onAbort = (): void => {
-      child.kill("SIGTERM");
-      finish(() => reject(abortError()));
-    };
-    signal?.addEventListener("abort", onAbort, { once: true });
-    child.stdout.setEncoding("utf8").on("data", (chunk: string) => {
-      stdout += chunk;
-    });
-    child.stderr.setEncoding("utf8").on("data", (chunk: string) => {
-      stderr += chunk;
-    });
-    child.once("error", (error) => finish(() => reject(error)));
-    child.once("close", (code) => {
-      finish(() => {
-        if (code !== 0) {
-          reject(new Error(stderr.trim() || `Session listing process exited with code ${code}`));
-          return;
-        }
-        try {
-          const message = JSON.parse(stdout) as WorkerResult;
-          if (message.type === "error") reject(new Error(message.message));
-          else resolve(message.sessions.map(restoreSessionDates));
-        } catch (error) {
-          reject(error);
-        }
-      });
-    });
+  const child = Bun.spawn([process.execPath, ...args], {
+    env: {
+      ...process.env,
+      [SESSION_CATALOG_REQUEST_ENV]: Buffer.from(JSON.stringify(request)).toString("base64url"),
+    },
+    stdin: "ignore",
+    stdout: "pipe",
+    stderr: "pipe",
   });
+  const onAbort = (): void => {
+    child.kill("SIGTERM");
+  };
+  signal?.addEventListener("abort", onAbort, { once: true });
+  try {
+    if (signal?.aborted) throw abortError();
+    const [stdout, stderr, code] = await Promise.all([
+      new Response(child.stdout as ReadableStream<Uint8Array>).text(),
+      new Response(child.stderr as ReadableStream<Uint8Array>).text(),
+      child.exited,
+    ]);
+    if (signal?.aborted) throw abortError();
+    if (code !== 0) {
+      throw new Error(stderr.trim() || `Session listing process exited with code ${code}`);
+    }
+    const message = JSON.parse(stdout) as WorkerResult;
+    if (message.type === "error") throw new Error(message.message);
+    return message.sessions.map(restoreSessionDates);
+  } finally {
+    signal?.removeEventListener("abort", onAbort);
+  }
 }
 
 function ensureRootWatcher(root: string): boolean {
   const existing = watchers.get(root);
   if (existing !== undefined) return existing !== null;
   try {
-    const watcher = watch(root, { persistent: false }, () => invalidateSessionCatalog(root));
+    const watcher = fs.watch(root, { persistent: false }, () => invalidateSessionCatalog(root));
     watcher.on("error", () => {
       invalidateSessionCatalog(root);
       watcher.close();

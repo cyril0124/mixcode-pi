@@ -1,6 +1,5 @@
-import { createHash, randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
 import { setTheme } from "../ui/themes.js";
 import { createInitialState, createTab } from "./defaults.js";
 import { isKnownThinkingLevel } from "./thinking-levels.js";
@@ -13,14 +12,14 @@ import type {
 
 export function stateFileForPort(stateDir: string, port: number): string {
   return port === 0
-    ? join(stateDir, "mixcode_state.json")
-    : join(stateDir, `mixcode_state_${port}.json`);
+    ? path.join(stateDir, "mixcode_state.json")
+    : path.join(stateDir, `mixcode_state_${port}.json`);
 }
 
 export function scopedStateDir(stateDir: string, workdir: string): string {
   const normalized = normalizeStartupWorkdir(workdir);
-  const digest = createHash("sha256").update(normalized).digest("hex").slice(0, 16);
-  return join(stateDir, "workdirs", digest);
+  const digest = new Bun.CryptoHasher("sha256").update(normalized).digest("hex").slice(0, 16);
+  return path.join(stateDir, "workdirs", digest);
 }
 
 export function normalizeStartupWorkdir(workdir: string): string {
@@ -225,17 +224,16 @@ export async function saveStateFile(
   filePath: string,
   state: MixCodeState,
 ): Promise<void> {
-  await mkdir(dirname(filePath), { recursive: true });
   const temp = tempFilePath(filePath);
-  await writeFile(temp, `${JSON.stringify(serializeState(state), null, 2)}\n`, "utf8");
-  await rename(temp, filePath);
+  await Bun.write(temp, `${JSON.stringify(serializeState(state), null, 2)}\n`);
+  await fs.rename(temp, filePath);
 }
 
 export async function loadStateFile(
   filePath: string,
   fallbackWorkdir: string,
 ): Promise<MixCodeState> {
-  const raw = await readFile(filePath, "utf8");
+  const raw = await Bun.file(filePath).text();
   const parsed: unknown = JSON.parse(raw);
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new Error(`Invalid state file: ${filePath}`);
@@ -247,7 +245,6 @@ export async function saveWorkspaces(
   filePath: string,
   workspaces: WorkspaceSnapshot[],
 ): Promise<void> {
-  await mkdir(dirname(filePath), { recursive: true });
   const cleaned = workspaces
     .filter((item) => item.name.trim())
     .map((item) => ({
@@ -277,16 +274,16 @@ export async function saveWorkspaces(
         })),
     }));
   const temp = tempFilePath(filePath);
-  await writeFile(temp, `${JSON.stringify(cleaned, null, 2)}\n`, "utf8");
-  await rename(temp, filePath);
+  await Bun.write(temp, `${JSON.stringify(cleaned, null, 2)}\n`);
+  await fs.rename(temp, filePath);
 }
 
 function tempFilePath(filePath: string): string {
-  return `${filePath}.${process.pid}.${randomUUID()}.tmp`;
+  return `${filePath}.${process.pid}.${crypto.randomUUID()}.tmp`;
 }
 
 export async function loadWorkspaces(filePath: string): Promise<WorkspaceSnapshot[]> {
-  const raw = await readFile(filePath, "utf8");
+  const raw = await Bun.file(filePath).text();
   const parsed: unknown = JSON.parse(raw);
   if (!Array.isArray(parsed)) throw new Error(`Invalid workspace file: ${filePath}`);
   return parsed
@@ -360,7 +357,7 @@ export async function deleteWorkspace(filePath: string, name: string): Promise<v
     throw new Error(`Unknown workspace: ${name}`);
   }
   if (remaining.length === 0) {
-    await rm(filePath, { force: true });
+    await fs.rm(filePath, { force: true });
     return;
   }
   await saveWorkspaces(filePath, remaining);

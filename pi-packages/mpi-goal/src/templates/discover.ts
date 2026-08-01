@@ -1,6 +1,5 @@
-import { execFileSync } from "node:child_process";
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import { extname, join, relative, sep } from "node:path";
+import * as fs from "node:fs";
+import * as path from "node:path";
 
 const TEMPLATE_DIR = ".pi-goals";
 const DEFAULT_COMMAND_TIMEOUT_MS = 10_000;
@@ -101,25 +100,26 @@ function findTemplates(nameOrAlias: string, root: string): GoalTemplate[] {
 }
 
 function findTemplateDirs(root: string): string[] {
-	return [join(root, TEMPLATE_DIR), join(root, ".ai", TEMPLATE_DIR)].filter(isDirectory);
+	return [path.join(root, TEMPLATE_DIR), path.join(root, ".ai", TEMPLATE_DIR)].filter(isDirectory);
 }
 
-function isDirectory(path: string): boolean {
+function isDirectory(dirPath: string): boolean {
 	try {
-		return statSync(path).isDirectory();
+		return fs.statSync(dirPath).isDirectory();
 	} catch {
 		return false;
 	}
 }
 
 function collectTemplates(root: string, templateDir: string, templates: GoalTemplate[]): void {
-	collectMarkdown(templateDir, (path) => {
-		const raw = readFileSync(path, "utf8");
+	collectMarkdown(templateDir, (filePath) => {
+		// Sync discovery API; Bun.file().text() is async-only.
+		const raw = fs.readFileSync(filePath, "utf8");
 		const parsed = parseFrontmatter(raw);
-		const relativeName = stripMarkdownExt(relative(templateDir, path).split(sep).join("/"));
+		const relativeName = stripMarkdownExt(path.relative(templateDir, filePath).split(path.sep).join("/"));
 		templates.push({
 			name: relativeName,
-			path: relative(root, path),
+			path: path.relative(root, filePath),
 			description: parsed.frontmatter.description || firstContentLine(parsed.body),
 			aliases: parseList(parsed.frontmatter.aliases),
 			allowCommands: parseBoolean(parsed.frontmatter.allow_commands),
@@ -130,23 +130,23 @@ function collectTemplates(root: string, templateDir: string, templates: GoalTemp
 	});
 }
 
-function collectMarkdown(dir: string, visit: (path: string) => void): void {
+function collectMarkdown(dir: string, visit: (filePath: string) => void): void {
 	let entries: string[];
 	try {
-		entries = readdirSync(dir);
+		entries = fs.readdirSync(dir);
 	} catch {
 		return;
 	}
 	for (const entry of entries) {
-		const path = join(dir, entry);
+		const filePath = path.join(dir, entry);
 		let stats;
 		try {
-			stats = statSync(path);
+			stats = fs.statSync(filePath);
 		} catch {
 			continue;
 		}
-		if (stats.isDirectory()) collectMarkdown(path, visit);
-		else if ([".md", ".markdown", ".txt"].includes(extname(entry))) visit(path);
+		if (stats.isDirectory()) collectMarkdown(filePath, visit);
+		else if ([".md", ".markdown", ".txt"].includes(path.extname(entry))) visit(filePath);
 	}
 }
 
@@ -222,12 +222,17 @@ function resolveInlineCommands(text: string, template: GoalTemplate, cwd: string
 
 function runCommand(command: string, template: GoalTemplate, cwd: string): string {
 	try {
-		const output = execFileSync("/bin/bash", ["-lc", command], {
+		const result = Bun.spawnSync(["/bin/bash", "-lc", command], {
 			cwd,
-			encoding: "utf8",
+			stdout: "pipe",
+			stderr: "pipe",
 			timeout: template.commandTimeoutMs,
-			maxBuffer: template.commandOutputLimit + 1024,
 		});
+		if (result.exitCode !== 0) {
+			const errText = result.stderr.toString() || result.stdout.toString() || `exit ${result.exitCode}`;
+			throw new Error(errText.trim() || `exit ${result.exitCode}`);
+		}
+		const output = result.stdout.toString();
 		return output.length > template.commandOutputLimit ? `${output.slice(0, template.commandOutputLimit)}\n[output truncated]` : output;
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
@@ -235,8 +240,8 @@ function runCommand(command: string, template: GoalTemplate, cwd: string): strin
 	}
 }
 
-function stripMarkdownExt(path: string): string {
-	return path.replace(/\.(md|markdown|txt)$/i, "");
+function stripMarkdownExt(filePath: string): string {
+	return filePath.replace(/\.(md|markdown|txt)$/i, "");
 }
 
 function parseList(value?: string): string[] {

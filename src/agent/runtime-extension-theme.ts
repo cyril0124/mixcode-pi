@@ -1,5 +1,5 @@
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import {
   type KeybindingsManager as ExtensionKeybindingsManager,
   initTheme,
@@ -117,10 +117,10 @@ function mixcodeAgentDir(): string {
 
 /** User overrides from `~/.pi/agent/keybindings.json` (Pi-native path). */
 function loadUserKeybindingsFile(agentDir = mixcodeAgentDir()): KeybindingsConfig {
-  const path = join(agentDir, "keybindings.json");
-  if (!existsSync(path)) return {};
+  // Sync load at keybindings manager construction; Bun.file().text() is async-only.
+  const filePath = path.join(agentDir, "keybindings.json");
   try {
-    const parsed = JSON.parse(readFileSync(path, "utf-8")) as unknown;
+    const parsed = JSON.parse(fs.readFileSync(filePath, "utf-8")) as unknown;
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
     const config: KeybindingsConfig = {};
     for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {

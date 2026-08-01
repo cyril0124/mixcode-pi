@@ -1,7 +1,6 @@
-#!/usr/bin/env node
-import { spawn } from "node:child_process";
-import { existsSync, realpathSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+#!/usr/bin/env bun
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { cwd } from "node:process";
 import { fileURLToPath } from "node:url";
 import {
@@ -56,11 +55,19 @@ import { configureHttpDispatcher } from "@earendil-works/pi-coding-agent";
  * fall back to PI_PACKAGE_DIR (binary materialize path).
  */
 export function resolveMixcodePackageRoot(selfRoot: string, env = process.env): string {
-  if (existsSync(join(selfRoot, "pi-packages")) || existsSync(join(selfRoot, "packages"))) {
+  // Directory existence: Bun.file().exists() is file-only.
+  if (
+    fs.existsSync(path.join(selfRoot, "pi-packages")) ||
+    fs.existsSync(path.join(selfRoot, "packages"))
+  ) {
     return selfRoot;
   }
   const fromEnv = env.PI_PACKAGE_DIR?.trim();
-  if (fromEnv && (existsSync(join(fromEnv, "pi-packages")) || existsSync(join(fromEnv, "packages")))) {
+  if (
+    fromEnv &&
+    (fs.existsSync(path.join(fromEnv, "pi-packages")) ||
+      fs.existsSync(path.join(fromEnv, "packages")))
+  ) {
     return fromEnv;
   }
   return selfRoot;
@@ -77,7 +84,7 @@ export async function main(): Promise<void> {
   // not Pi's PI_PACKAGE_DIR. Host shells often still export PI_PACKAGE_DIR from a
   // previous mixcode binary runtime; using it here would overwrite agent extensions
   // with that stale tree and also break Pi theme paths if forced to the git root.
-  const selfRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+  const selfRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
   const packageRoot = resolveMixcodePackageRoot(selfRoot);
   if (shouldDelegateToRealPiCli(rawArgs, Boolean(process.stdin.isTTY))) {
     process.exitCode = await delegateToRealPiCli(rawArgs);
@@ -232,7 +239,7 @@ export async function main(): Promise<void> {
   runtime.enableSessionSync();
   // Shared open-tab set for this workdir: create/close mutate open_tabs.json;
   // peers reconcile local tabs to match (open missing, close removed).
-  const openTabsPath = openTabsFile(dirname(stateFile));
+  const openTabsPath = openTabsFile(path.dirname(stateFile));
   configureOpenTabsPath(openTabsPath);
   for (const tab of state.tabs) noteTabOpened(tab.sessionId);
   let peerTabSyncErrorReported = false;
@@ -405,8 +412,8 @@ export async function runBatchDryRun(args: MainArgs): Promise<void> {
   }
 
   const modelBundle = await createPiModelRegistryBundle(
-    join(agentDir, "models.json"),
-    join(agentDir, "auth.json"),
+    path.join(agentDir, "models.json"),
+    path.join(agentDir, "auth.json"),
   );
   registerModels(modelBundle.sources.map((source) => source.model));
   const configuredModels = modelBundle.sources
@@ -458,7 +465,7 @@ Commands:
 `;
 
 export function parseMainArgs(args: string[], fallbackWorkdir: string): MainArgs {
-  const baseWorkdir = resolve(fallbackWorkdir);
+  const baseWorkdir = path.resolve(fallbackWorkdir);
   if (args[0] === "status") return parseStatusArgs(args.slice(1), baseWorkdir);
 
   let workdir = baseWorkdir;
@@ -479,13 +486,13 @@ export function parseMainArgs(args: string[], fallbackWorkdir: string): MainArgs
     if (arg === "--workdir") {
       const value = args[++index];
       if (!value) throw new Error("--workdir requires a path");
-      workdir = resolve(baseWorkdir, value);
+      workdir = path.resolve(baseWorkdir, value);
       continue;
     }
     if (arg?.startsWith("--workdir=")) {
       const value = arg.slice("--workdir=".length);
       if (!value) throw new Error("--workdir requires a path");
-      workdir = resolve(baseWorkdir, value);
+      workdir = path.resolve(baseWorkdir, value);
       continue;
     }
     if (arg === "--batch") {
@@ -516,7 +523,7 @@ export function parseMainArgs(args: string[], fallbackWorkdir: string): MainArgs
   return {
     command: "tui",
     workdir,
-    batch: batchPath ? resolve(workdir, batchPath) : undefined,
+    batch: batchPath ? path.resolve(workdir, batchPath) : undefined,
     batchArgs,
     batchDryRun: batchDryRun || undefined,
     builtinExtensionsOnly: builtinExtensionsOnly || undefined,
@@ -539,13 +546,13 @@ function parseStatusArgs(args: string[], baseWorkdir: string): MainArgs {
     if (arg === "--workdir") {
       const value = args[++index];
       if (!value) throw new Error("--workdir requires a path");
-      statusWorkdir = resolve(baseWorkdir, value);
+      statusWorkdir = path.resolve(baseWorkdir, value);
       continue;
     }
     if (arg?.startsWith("--workdir=")) {
       const value = arg.slice("--workdir=".length);
       if (!value) throw new Error("--workdir requires a path");
-      statusWorkdir = resolve(baseWorkdir, value);
+      statusWorkdir = path.resolve(baseWorkdir, value);
       continue;
     }
     throw new Error(`Unknown status argument: ${arg}`);
@@ -557,10 +564,10 @@ export function exposeLocalPiCli(
   env: NodeJS.ProcessEnv = process.env,
   entryUrl = import.meta.url,
 ): string {
-  const repoDir = resolve(dirname(fileURLToPath(entryUrl)), "..", "..");
-  const binDir = resolve(repoDir, "node_modules", ".bin");
+  const repoDir = path.resolve(path.dirname(fileURLToPath(entryUrl)), "..", "..");
+  const binDir = path.resolve(repoDir, "node_modules", ".bin");
   // In bun compiled binary, import.meta.url is a virtual path; skip if dir doesn't exist.
-  if (!existsSync(binDir)) return binDir;
+  if (!fs.existsSync(binDir)) return binDir;
   const delimiter = process.platform === "win32" ? ";" : ":";
   const parts = (env.PATH ?? "").split(delimiter).filter(Boolean);
   if (!parts.includes(binDir)) {
@@ -610,16 +617,18 @@ export async function delegateToRealPiCli(
   // must use its own package root so help/identity stay upstream (not mixcode).
   const childEnv = { ...env };
   delete childEnv.PI_PACKAGE_DIR;
-  return new Promise((resolve) => {
-    const child = spawn(command, args, { stdio: "inherit", env: childEnv });
-    child.on("error", (error) => {
-      process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
-      resolve(1);
+  try {
+    const child = Bun.spawn([command, ...args], {
+      stdin: "inherit",
+      stdout: "inherit",
+      stderr: "inherit",
+      env: childEnv,
     });
-    child.on("exit", (code, signal) => {
-      resolve(code ?? (signal ? 1 : 0));
-    });
-  });
+    return await child.exited;
+  } catch (error) {
+    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+    return 1;
+  }
 }
 
 const BINARY_ENTRY_IMPORT_FLAG = Symbol.for("mixcode-pi.binary-entry-import");
@@ -639,7 +648,7 @@ function isDirectCliEntry(entryUrl = import.meta.url, argv1 = process.argv[1]): 
   if ((globalThis as Record<symbol, unknown>)[BINARY_ENTRY_IMPORT_FLAG]) return false;
   if (!argv1) return false;
   try {
-    return fileURLToPath(entryUrl) === realpathSync(argv1);
+    return fileURLToPath(entryUrl) === fs.realpathSync(argv1);
   } catch {
     return entryUrl === `file://${argv1}`;
   }

@@ -1,5 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join, dirname } from "node:path";
+import * as path from "node:path";
 
 export interface BinaryRuntimeAssets {
   darkTheme: unknown;
@@ -16,32 +15,37 @@ export interface BinaryRuntimeAssets {
   builtinPackages?: Record<string, Record<string, string>>;
 }
 
-export function materializeBinaryRuntimeAssets(
+export async function materializeBinaryRuntimeAssets(
   runtimeDir: string,
   assets: BinaryRuntimeAssets,
-): void {
+): Promise<void> {
   const themeDirs = [
-    join(runtimeDir, "theme"),
-    join(runtimeDir, "dist", "modes", "interactive", "theme"),
+    path.join(runtimeDir, "theme"),
+    path.join(runtimeDir, "dist", "modes", "interactive", "theme"),
   ];
   const exportHtmlDirs = [
-    join(runtimeDir, "export-html"),
-    join(runtimeDir, "dist", "core", "export-html"),
+    path.join(runtimeDir, "export-html"),
+    path.join(runtimeDir, "dist", "core", "export-html"),
   ];
   const assetsDirs = [
-    join(runtimeDir, "assets"),
-    join(runtimeDir, "dist", "modes", "interactive", "assets"),
+    path.join(runtimeDir, "assets"),
+    path.join(runtimeDir, "dist", "modes", "interactive", "assets"),
   ];
 
-  writePackageJson(runtimeDir, assets.packageJson);
-  for (const themeDir of themeDirs) writeThemes(themeDir, assets);
-  for (const exportHtmlDir of exportHtmlDirs) writeExportHtmlAssets(exportHtmlDir, assets);
-  for (const assetsDir of assetsDirs) writeInteractiveAssets(assetsDir, assets.interactiveAssets ?? {});
-  if (assets.photonWasmPath) writePhotonWasm(runtimeDir, assets.photonWasmPath);
-  if (assets.builtinPackages) writeBuiltinPackages(runtimeDir, assets.builtinPackages);
+  await writePackageJson(runtimeDir, assets.packageJson);
+  for (const themeDir of themeDirs) await writeThemes(themeDir, assets);
+  for (const exportHtmlDir of exportHtmlDirs) await writeExportHtmlAssets(exportHtmlDir, assets);
+  for (const assetsDir of assetsDirs) {
+    await writeInteractiveAssets(assetsDir, assets.interactiveAssets ?? {});
+  }
+  if (assets.photonWasmPath) await writePhotonWasm(runtimeDir, assets.photonWasmPath);
+  if (assets.builtinPackages) await writeBuiltinPackages(runtimeDir, assets.builtinPackages);
 }
 
-function writePackageJson(runtimeDir: string, packageJson: Record<string, unknown>): void {
+async function writePackageJson(
+  runtimeDir: string,
+  packageJson: Record<string, unknown>,
+): Promise<void> {
   // Keep configDir under ~/.pi so credentials/sessions stay shared with Pi.
   // Do NOT set piConfig.name to "mixcode": PI_PACKAGE_DIR is process-global and
   // inherited by child `pi` CLIs; name drives APP_NAME / ENV_AGENT_DIR, which
@@ -50,8 +54,8 @@ function writePackageJson(runtimeDir: string, packageJson: Record<string, unknow
   const piConfig = isRecord(packageJson.piConfig) ? { ...packageJson.piConfig } : {};
   delete piConfig.name;
   piConfig.configDir = ".pi";
-  writeFileSync(
-    join(runtimeDir, "package.json"),
+  await Bun.write(
+    path.join(runtimeDir, "package.json"),
     JSON.stringify({
       ...packageJson,
       piConfig,
@@ -63,13 +67,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function writeThemes(themeDir: string, assets: Pick<BinaryRuntimeAssets, "darkTheme" | "lightTheme">): void {
-  mkdirSync(themeDir, { recursive: true });
-  writeFileSync(join(themeDir, "dark.json"), JSON.stringify(assets.darkTheme));
-  writeFileSync(join(themeDir, "light.json"), JSON.stringify(assets.lightTheme));
+async function writeThemes(
+  themeDir: string,
+  assets: Pick<BinaryRuntimeAssets, "darkTheme" | "lightTheme">,
+): Promise<void> {
+  await Bun.write(path.join(themeDir, "dark.json"), JSON.stringify(assets.darkTheme));
+  await Bun.write(path.join(themeDir, "light.json"), JSON.stringify(assets.lightTheme));
 }
 
-function writeExportHtmlAssets(
+async function writeExportHtmlAssets(
   exportHtmlDir: string,
   assets: Pick<
     BinaryRuntimeAssets,
@@ -79,40 +85,38 @@ function writeExportHtmlAssets(
     | "exportVendorMarked"
     | "exportVendorHighlight"
   >,
-): void {
-  const exportVendorDir = join(exportHtmlDir, "vendor");
-  mkdirSync(exportVendorDir, { recursive: true });
-  writeFileSync(join(exportHtmlDir, "template.css"), assets.exportTemplateCss);
-  writeFileSync(join(exportHtmlDir, "template.html"), assets.exportTemplateHtml);
-  writeFileSync(join(exportHtmlDir, "template.js"), assets.exportTemplateJs);
-  writeFileSync(join(exportVendorDir, "marked.min.js"), assets.exportVendorMarked);
-  writeFileSync(join(exportVendorDir, "highlight.min.js"), assets.exportVendorHighlight);
+): Promise<void> {
+  const exportVendorDir = path.join(exportHtmlDir, "vendor");
+  await Bun.write(path.join(exportHtmlDir, "template.css"), assets.exportTemplateCss);
+  await Bun.write(path.join(exportHtmlDir, "template.html"), assets.exportTemplateHtml);
+  await Bun.write(path.join(exportHtmlDir, "template.js"), assets.exportTemplateJs);
+  await Bun.write(path.join(exportVendorDir, "marked.min.js"), assets.exportVendorMarked);
+  await Bun.write(path.join(exportVendorDir, "highlight.min.js"), assets.exportVendorHighlight);
 }
 
-function writeInteractiveAssets(assetsDir: string, assetPathsByName: Record<string, string>): void {
-  mkdirSync(assetsDir, { recursive: true });
+async function writeInteractiveAssets(
+  assetsDir: string,
+  assetPathsByName: Record<string, string>,
+): Promise<void> {
   for (const [name, assetPath] of Object.entries(assetPathsByName)) {
-    writeFileSync(join(assetsDir, name), readFileSync(assetPath));
+    await Bun.write(path.join(assetsDir, name), Bun.file(assetPath));
   }
 }
 
-function writePhotonWasm(runtimeDir: string, photonWasmPath: string): void {
-  writeFileSync(join(runtimeDir, "photon_rs_bg.wasm"), readFileSync(photonWasmPath));
+async function writePhotonWasm(runtimeDir: string, photonWasmPath: string): Promise<void> {
+  await Bun.write(path.join(runtimeDir, "photon_rs_bg.wasm"), Bun.file(photonWasmPath));
 }
 
-function writeBuiltinPackages(
+async function writeBuiltinPackages(
   runtimeDir: string,
   packages: Record<string, Record<string, string>>,
-): void {
+): Promise<void> {
   for (const [name, files] of Object.entries(packages)) {
-    const pkgDir = join(runtimeDir, "packages", name);
-    mkdirSync(pkgDir, { recursive: true });
+    const pkgDir = path.join(runtimeDir, "packages", name);
     for (const [filename, content] of Object.entries(files)) {
       // filename may contain subdirectories (e.g. "state/store.ts" for
-      // multi-file packages); ensure the parent directory exists first.
-      const filePath = join(pkgDir, filename);
-      mkdirSync(dirname(filePath), { recursive: true });
-      writeFileSync(filePath, content);
+      // multi-file packages); Bun.write creates parent dirs.
+      await Bun.write(path.join(pkgDir, filename), content);
     }
   }
 }

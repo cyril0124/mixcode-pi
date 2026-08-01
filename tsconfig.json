@@ -10,7 +10,7 @@
     "outDir": "dist",
     "declaration": true,
     "sourceMap": true,
-    "types": ["node"]
+    "types": ["bun-types", "node"]
   },
   "include": ["src/**/*.ts", "pi-packages/**/*.ts"],
   "exclude": ["src/cli/binary-entry.ts"]

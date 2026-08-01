@@ -1,6 +1,6 @@
-import { stat } from "node:fs/promises";
-import { homedir } from "node:os";
-import { join } from "node:path";
+import * as fs from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import type { Context, ProviderHeaders, SimpleStreamOptions } from "@earendil-works/pi-ai";
 import { streamSimple } from "@earendil-works/pi-ai/compat";
 import { ModelRegistry, ModelRuntime } from "@earendil-works/pi-coding-agent";
@@ -119,23 +119,23 @@ function runtimeModelDisabled(model: MixCodeModel, policy: DisabledModelRuntimeP
 
 export function resolveAgentDirEnv(value: string | undefined): string | undefined {
   if (!value) return undefined;
-  if (value === "~") return homedir();
+  if (value === "~") return (process.env.HOME || os.homedir());
   if (value.startsWith("~/") || (process.platform === "win32" && value.startsWith("~\\"))) {
-    return join(homedir(), value.slice(2));
+    return path.join((process.env.HOME || os.homedir()), value.slice(2));
   }
   return value;
 }
 
 export function defaultPiAgentDir(): string {
-  return resolveAgentDirEnv(process.env.PI_CODING_AGENT_DIR) ?? join(homedir(), ".pi", "agent");
+  return resolveAgentDirEnv(process.env.PI_CODING_AGENT_DIR) ?? path.join((process.env.HOME || os.homedir()), ".pi", "agent");
 }
 
 export function defaultPiModelsPath(): string {
-  return join(defaultPiAgentDir(), "models.json");
+  return path.join(defaultPiAgentDir(), "models.json");
 }
 
 export function defaultPiAuthPath(): string {
-  return join(defaultPiAgentDir(), "auth.json");
+  return path.join(defaultPiAgentDir(), "auth.json");
 }
 
 export async function createPiModelRegistryBundle(
@@ -197,10 +197,10 @@ export function createPiModelRuntimeAuth(modelRuntime: ModelRuntime): PiModelRun
   };
 }
 
-async function assertPathIsNotDirectory(path: string): Promise<void> {
+async function assertPathIsNotDirectory(filePath: string): Promise<void> {
   try {
-    if ((await stat(path)).isDirectory()) {
-      throw Object.assign(new Error(`EISDIR: illegal operation on a directory, read '${path}'`), {
+    if ((await fs.stat(filePath)).isDirectory()) {
+      throw Object.assign(new Error(`EISDIR: illegal operation on a directory, read '${filePath}'`), {
         code: "EISDIR",
       });
     }
