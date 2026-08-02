@@ -750,7 +750,10 @@ function handleEditorControlKeys(
     tui.requestRender();
     return { consume: true };
   }
-  if (matchesKey(data, "shift+enter") && editorActions) {
+  // Extension custom components (e.g. /btw nested editor) own newline keys.
+  // Their wrapper often no-ops setText/getText, so consuming here would both
+  // block the nested editor and insert nothing.
+  if (matchesKey(data, "shift+enter") && editorActions && !editorActions.hasEditorReplacement?.()) {
     if (active) clearPendingEscape(active, "abort-agent");
     insertEditorText(editorActions, "\n");
     tui.requestRender();
@@ -774,13 +777,21 @@ function handleEditorControlKeys(
     tui.requestRender();
     return { consume: true };
   }
-  if (matchesKey(data, "ctrl+j") && editorActions) {
+  if (matchesKey(data, "ctrl+j") && editorActions && !editorActions.hasEditorReplacement?.()) {
     if (active) clearPendingEscape(active, "abort-agent");
     insertEditorText(editorActions, "\n");
     tui.requestRender();
     return { consume: true };
   }
-  if (matchesKey(data, "ctrl+r") && editorActions && active && state.activeTabId !== "config") {
+  // Extension custom components (e.g. /btw) own the editor slot and bind
+  // Ctrl+R as bring-to-main. Do not pre-fill /rename or consume the key.
+  if (
+    matchesKey(data, "ctrl+r") &&
+    editorActions &&
+    active &&
+    state.activeTabId !== "config" &&
+    !editorActions.hasEditorReplacement?.()
+  ) {
     clearPendingEscape(active, "abort-agent");
     editorActions.setText(`/rename ${active.title}`);
     tui.requestRender();

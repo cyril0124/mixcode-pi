@@ -117,6 +117,56 @@ test("Ctrl+C does not clear/consume while an extension owns the editor slot", ()
   assert.equal(cleared, false, "default editor must not be cleared");
 });
 
+// Regression: global Ctrl+R pre-fills /rename, but when an extension custom
+// component owns the editor slot (e.g. /btw bring-to-main), Ctrl+R must fall
+// through instead of being consumed as rename.
+test("Ctrl+R does not rename/consume while an extension owns the editor slot", () => {
+  const state = makeState();
+  let renamedText: string | undefined;
+  const { actions } = makeEditorActions({
+    hasEditorReplacement: () => true,
+    setText: (text) => {
+      renamedText = text;
+    },
+  });
+  const result = handleMixCodeKeyInput(
+    state,
+    "\x12",
+    silentTui(),
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    actions,
+  );
+  assert.equal(result, undefined, "Ctrl+R must pass through to the custom component");
+  assert.equal(renamedText, undefined, "rename text must not be injected");
+});
+
+// Regression: global Ctrl+J / Shift+Enter insert newline into MixCode's editor
+// actions. When an extension custom component owns the editor slot (e.g. /btw),
+// the wrapper often has no-op getText/setText, so consuming these keys both
+// blocks the nested editor and inserts nothing. Fall through instead.
+test("Ctrl+J and Shift+Enter do not insert/consume while an extension owns the editor slot", () => {
+  const state = makeState();
+  const { actions, inserted } = makeEditorActions({ hasEditorReplacement: () => true });
+  // "\n" is the legacy Ctrl+J (and Ghostty Shift+Enter) byte; CSI u is Kitty Shift+Enter.
+  for (const data of ["\n", "\x1b[13;2u"] as const) {
+    const result = handleMixCodeKeyInput(
+      state,
+      data,
+      silentTui(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      actions,
+    );
+    assert.equal(result, undefined, `${JSON.stringify(data)} must pass through to the custom component`);
+  }
+  assert.deepEqual(inserted, [], "no newline is injected into the replaced editor");
+});
+
 // Regression: global PgUp/PgDn scroll the main chat, but when an extension
 // custom component owns the editor slot (e.g. /btw side-thread history),
 // those keys must fall through instead of being consumed as chat scroll.
