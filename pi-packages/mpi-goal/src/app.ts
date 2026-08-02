@@ -1,4 +1,4 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { getGoalFeatureFlags } from "./domain/feature-flags.js";
 import { getGoal } from "./persistence/goal-store.js";
 import { createContextResetActionRunner } from "./runtime/context-reset.js";
@@ -12,7 +12,7 @@ import { cancelAgentEndContinueArm, registerGoalLifecycle } from "./runtime/life
 import { createNoopPostCompletionActionRunner } from "./runtime/post-completion.js";
 import { getQueue } from "./persistence/queue-store.js";
 import { sendQueueHandoff, sendQueueSteering } from "./queue/steering.js";
-import { registerGoalCommand } from "./surface/command/register.js";
+import { handleGoalCommand, registerGoalCommand, type GoalCommandRuntime } from "./surface/command/register.js";
 import { disableGoalTools, enableGoalTools } from "./surface/tools/dynamic.js";
 import { registerGoalTools } from "./surface/tools/goal-tools.js";
 
@@ -33,36 +33,54 @@ function syncGoalToolActivation(pi: ExtensionAPI): void {
 	disableGoalTools(pi);
 }
 
-/**
- * Wire mpi-goal into a Pi ExtensionAPI.
- * Goal/queue tools are registered but left inactive until /goal (or unfinished state).
- */
-export function wireMpiGoal(pi: ExtensionAPI): void {
-	const flags = getGoalFeatureFlags();
-	const postCompletionRunner = flags.postCompletionActions
-		? createContextResetActionRunner(flags)
-		: createNoopPostCompletionActionRunner("disabled by PI_GOAL_POST_COMPLETION_ACTIONS");
-
-	const scheduleContinuation = (ctx: Parameters<typeof scheduleMaybeContinueGoal>[1], reason: Parameters<typeof scheduleMaybeContinueGoal>[2]) =>
-		scheduleMaybeContinueGoal(pi, ctx, reason);
+function buildGoalCommandRuntime(pi: ExtensionAPI): GoalCommandRuntime {
+	const scheduleContinuation = (
+		ctx: Parameters<typeof scheduleMaybeContinueGoal>[1],
+		reason: Parameters<typeof scheduleMaybeContinueGoal>[2],
+	) => scheduleMaybeContinueGoal(pi, ctx, reason);
 	const cancelContinuation = (goalId?: string, reason?: string) => {
 		cancelGoalContinuation(goalId, reason);
 		// Pause/clear must also drop armed agent_end settle/fallback continues.
 		cancelAgentEndContinueArm();
 	};
-	const interruptActiveTurn = (ctx: Parameters<typeof interruptActiveGoalTurn>[1], goal: Parameters<typeof interruptActiveGoalTurn>[2]) =>
-		interruptActiveGoalTurn(pi, ctx, goal);
-
-	registerGoalCommand(pi, {
+	const interruptActiveTurn = (
+		ctx: Parameters<typeof interruptActiveGoalTurn>[1],
+		goal: Parameters<typeof interruptActiveGoalTurn>[2],
+	) => interruptActiveGoalTurn(pi, ctx, goal);
+	return {
 		scheduleContinuation,
 		cancelContinuation,
 		interruptActiveTurn,
 		sendQueueSteering: (reason, opts) => sendQueueSteering(pi, reason, opts),
-		// Progressive disclosure: any /goal interaction enables the tool surface.
 		onCommand: () => {
 			enableGoalTools(pi);
 		},
-	});
+	};
+}
+
+export type WireMpiGoalOptions = {
+	/** When false, skip registerCommand (shell already owns /goal). Default true. */
+	registerCommand?: boolean;
+};
+
+/**
+ * Wire the full mpi-goal surface into a Pi ExtensionAPI.
+ * Goal/queue tools are registered but left inactive until /goal (or unfinished state).
+ */
+export function wireMpiGoal(pi: ExtensionAPI, options: WireMpiGoalOptions = {}): void {
+	const registerCommand = options.registerCommand !== false;
+	const flags = getGoalFeatureFlags();
+	const postCompletionRunner = flags.postCompletionActions
+		? createContextResetActionRunner(flags)
+		: createNoopPostCompletionActionRunner("disabled by PI_GOAL_POST_COMPLETION_ACTIONS");
+
+	const commandRuntime = buildGoalCommandRuntime(pi);
+	const scheduleContinuation = commandRuntime.scheduleContinuation;
+	const cancelContinuation = commandRuntime.cancelContinuation;
+
+	if (registerCommand) {
+		registerGoalCommand(pi, commandRuntime);
+	}
 
 	registerGoalTools(pi, {
 		scheduleContinuation,
@@ -81,4 +99,15 @@ export function wireMpiGoal(pi: ExtensionAPI): void {
 	registerGoalLifecycle(pi, postCompletionRunner, {
 		onStateRestored: () => syncGoalToolActivation(pi),
 	});
+}
+
+/** Dispatch /goal after full wire (used by the cold shell command handler). */
+export async function dispatchGoalCommand(
+	pi: ExtensionAPI,
+	args: string,
+	ctx: ExtensionCommandContext,
+): Promise<void> {
+	const runtime = buildGoalCommandRuntime(pi);
+	runtime.onCommand?.();
+	await handleGoalCommand(pi, args, ctx, runtime);
 }

@@ -42,6 +42,8 @@ import skillRefsPackageJson from "../../pi-packages/mpi-skill-refs/package.json"
 import mpiGoal_index_ts from "../../pi-packages/mpi-goal/index.ts" with { type: "text" };
 import mpiGoal_package_json from "../../pi-packages/mpi-goal/package.json" with { type: "text" };
 import mpiGoal_src_app_ts from "../../pi-packages/mpi-goal/src/app.ts" with { type: "text" };
+import mpiGoal_src_shell_ts from "../../pi-packages/mpi-goal/src/shell.ts" with { type: "text" };
+import mpiGoal_src_session_gate_ts from "../../pi-packages/mpi-goal/src/session-gate.ts" with { type: "text" };
 import mpiGoal_src_domain_active_time_ts from "../../pi-packages/mpi-goal/src/domain/active-time.ts" with { type: "text" };
 import mpiGoal_src_domain_session_scope_ts from "../../pi-packages/mpi-goal/src/domain/session-scope.ts" with { type: "text" };
 import mpiGoal_src_domain_budget_ts from "../../pi-packages/mpi-goal/src/domain/budget.ts" with { type: "text" };
@@ -174,6 +176,8 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
       "index.ts": mpiGoal_index_ts,
       "package.json": mpiGoal_package_json,
       "src/app.ts": mpiGoal_src_app_ts,
+      "src/shell.ts": mpiGoal_src_shell_ts,
+      "src/session-gate.ts": mpiGoal_src_session_gate_ts,
       "src/domain/active-time.ts": mpiGoal_src_domain_active_time_ts,
       "src/domain/session-scope.ts": mpiGoal_src_domain_session_scope_ts,
       "src/domain/budget.ts": mpiGoal_src_domain_budget_ts,

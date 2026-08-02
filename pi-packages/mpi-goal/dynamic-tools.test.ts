@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import mpiGoal from "./index.js";
+import mpiGoal, { ensureMpiGoalWired } from "./index.js";
+import { wireMpiGoal } from "./src/app.js";
 import {
 	disableGoalTools,
 	enableGoalTools,
@@ -78,14 +79,24 @@ test("factory load does not call setActiveTools (runtime unbound)", () => {
 
 	assert.doesNotThrow(() => mpiGoal(pi));
 	assert.equal(setActiveCalls, 0);
-	assert.equal(tools.size, GOAL_TOOL_NAMES.length);
+	// Cold shell: command only; tools arrive after ensureMpiGoalWired / wireMpiGoal.
+	assert.equal(tools.size, 0);
 	assert.ok(commands.has("goal"));
 	assert.equal(commands.has("goal-tools"), false);
 });
 
+test("cold shell does not register tools until full wire", async () => {
+	const { pi, tools, commands } = createFakePi();
+	mpiGoal(pi);
+	assert.equal(tools.size, 0);
+	assert.ok(commands.has("goal"));
+	await ensureMpiGoalWired(pi);
+	assert.equal(tools.size, GOAL_TOOL_NAMES.length);
+});
+
 test("registers all goal tools but leaves them inactive by default", () => {
 	const { pi, tools, active } = createFakePi();
-	mpiGoal(pi);
+	wireMpiGoal(pi);
 
 	for (const name of GOAL_TOOL_NAMES) {
 		assert.ok(tools.has(name), `expected registered tool ${name}`);
@@ -97,7 +108,7 @@ test("registers all goal tools but leaves them inactive by default", () => {
 
 test("enableGoalTools is additive and keeps existing tools", () => {
 	const { pi, active } = createFakePi(["bash", "read", "edit"]);
-	mpiGoal(pi);
+	wireMpiGoal(pi);
 
 	const added = enableGoalTools(pi);
 	assert.equal(added.length, GOAL_TOOL_NAMES.length);
@@ -172,7 +183,7 @@ test("/goal tools activates the full goal tool set", async () => {
 
 test("disableGoalTools removes only goal tools", () => {
 	const { pi, active } = createFakePi();
-	mpiGoal(pi);
+	wireMpiGoal(pi);
 	enableGoalTools(pi);
 	disableGoalTools(pi);
 	assert.equal(active.has("bash"), true);

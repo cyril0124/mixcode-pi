@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { wireMpiGoal } from "./src/app.js";
+import { registerMpiGoalShell } from "./src/shell.js";
 
 /**
  * mpi-goal — MixCode built-in goal extension.
@@ -7,12 +7,21 @@ import { wireMpiGoal } from "./src/app.js";
  * Capability surface follows npm:pi-goals (goal/queue/templates/budgets/floors/
  * continuation/UI) without the external churn-monitor subprocess.
  *
+ * Cold load: only the thin shell is imported (command registration + session gate).
+ * Full tools/lifecycle/overlay graph is loaded once via ensureMpiGoalWired() on
+ * first /goal use or when session restore finds an unfinished goal/queue.
+ *
  * Progressive tool disclosure (Pi Dynamic Tool Loading):
- * all goal tools are registerTool'd at load, but stay out of the active set
- * until the user runs /goal, /goal tools, overlay "t", or an unfinished goal
- * is restored from session state. Activation uses additive setActiveTools only,
- * and never during factory load (runtime not bound yet).
+ * after full wire, all goal tools are registerTool'd but stay out of the active
+ * set until the user runs /goal, /goal tools, overlay "t", or an unfinished goal
+ * is restored. Activation uses additive setActiveTools only, and never during
+ * factory load (runtime not bound yet).
  */
 export default function mpiGoal(pi: ExtensionAPI): void {
-	wireMpiGoal(pi);
+	registerMpiGoalShell(pi);
 }
+
+// Do not re-export wireMpiGoal from this entry — a static export pulls the full
+// module graph back into the cold load path. Import `./src/app.js` directly when
+// tests need the full synchronous wire helper.
+export { ensureMpiGoalWired, isMpiGoalWired } from "./src/shell.js";

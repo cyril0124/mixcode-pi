@@ -1,6 +1,24 @@
+import { createRequire } from "node:module";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+
+const require = createRequire(import.meta.url);
+
+/**
+ * Packages that extensions may import after being copied under
+ * `<agentDir>/extensions/`. Native dynamic `import()` (e.g. mpi-goal lazy wire)
+ * resolves from the extension file path, not the app node_modules — so these
+ * must be visible when walking up from `~/.pi/agent/extensions/...`.
+ * Mirrors packages Pi exposes via jiti aliases / binary virtualModules.
+ */
+const AGENT_EXTENSION_RUNTIME_PACKAGES = [
+  "typebox",
+  "@earendil-works/pi-tui",
+  "@earendil-works/pi-agent-core",
+  "@earendil-works/pi-ai",
+  "@earendil-works/pi-coding-agent",
+] as const;
 
 /**
  * Ensure all packages under `<repoRoot>/pi-packages/` (dev/build output) or
@@ -31,6 +49,7 @@ export function ensurePackageExtensions(
   const extensionsDir = path.join(agentDir, "extensions");
   const installedExtensionPaths = new Set<string>();
   fs.mkdirSync(extensionsDir, { recursive: true });
+  ensureAgentExtensionRuntimePackages(agentDir);
   const shouldCopy = options?.copy ?? false;
 
   for (const packagesDir of packageDirs) {
@@ -84,5 +103,66 @@ function copyTreeSync(srcDir: string, destDir: string): void {
     const destPath = path.join(destDir, entry.name);
     if (entry.isDirectory()) copyTreeSync(srcPath, destPath);
     else fs.copyFileSync(srcPath, destPath);
+  }
+}
+
+/**
+ * Symlink host-resolved packages into `<agentDir>/node_modules` so extensions
+ * loaded from `<agentDir>/extensions/**` can resolve them via Node/Bun package
+ * walk-up (needed for lazy dynamic import outside jiti aliases).
+ */
+export function ensureAgentExtensionRuntimePackages(agentDir: string): void {
+  const nodeModules = path.join(agentDir, "node_modules");
+  fs.mkdirSync(nodeModules, { recursive: true });
+  for (const name of AGENT_EXTENSION_RUNTIME_PACKAGES) {
+    linkPackageIntoDir(nodeModules, name);
+  }
+}
+
+function linkPackageIntoDir(nodeModulesDir: string, packageName: string): void {
+  let resolvedEntry: string;
+  try {
+    // Prefer package.json so we link the package root, not a deep ESM file.
+    resolvedEntry = require.resolve(`${packageName}/package.json`);
+  } catch {
+    try {
+      resolvedEntry = require.resolve(packageName);
+    } catch {
+      return;
+    }
+  }
+  const packageRoot = packageRootFromEntry(resolvedEntry, packageName);
+  if (!packageRoot) return;
+  const dest = path.join(nodeModulesDir, ...packageName.split("/"));
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  try {
+    const st = fs.lstatSync(dest);
+    if (st.isSymbolicLink() && path.resolve(fs.readlinkSync(dest)) === packageRoot) return;
+    fs.rmSync(dest, { recursive: true, force: true });
+  } catch {
+    // missing — create
+  }
+  fs.symlinkSync(packageRoot, dest);
+}
+
+function packageRootFromEntry(entryFile: string, packageName: string): string | undefined {
+  let dir = path.dirname(entryFile);
+  const needle = `${path.sep}node_modules${path.sep}${packageName}`;
+  while (true) {
+    if (dir.endsWith(needle) || dir.endsWith(`${path.sep}node_modules${path.sep}${packageName.replaceAll("/", path.sep)}`)) {
+      return dir;
+    }
+    const pkgJson = path.join(dir, "package.json");
+    if (fs.existsSync(pkgJson)) {
+      try {
+        const pkg = JSON.parse(fs.readFileSync(pkgJson, "utf8")) as { name?: string };
+        if (pkg.name === packageName) return dir;
+      } catch {
+        // continue walk
+      }
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) return undefined;
+    dir = parent;
   }
 }

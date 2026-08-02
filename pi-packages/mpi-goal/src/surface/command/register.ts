@@ -33,7 +33,7 @@ import { enableGoalTools, isGoalToolsActive } from "../tools/dynamic.js";
 import { GOAL_TOOL_NAMES } from "../tools/names.js";
 import type { GoalCommandScheduler, GoalContinuationCanceller, GoalPauseInterrupter, GoalQueueSteeringSender, GoalState } from "../../domain/types.js";
 
-type GoalCommandRuntime = {
+export type GoalCommandRuntime = {
 	scheduleContinuation: GoalCommandScheduler;
 	cancelContinuation: GoalContinuationCanceller;
 	interruptActiveTurn: GoalPauseInterrupter;
@@ -108,7 +108,7 @@ function isOrderedMatch(value: string, query: string): boolean {
 	return true;
 }
 
-async function handleGoalCommand(
+export async function handleGoalCommand(
 	pi: ExtensionAPI,
 	args: string,
 	ctx: ExtensionCommandContext,
