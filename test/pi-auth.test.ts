@@ -48,7 +48,7 @@ test("openPiLogin surfaces missing runtime and missing input host as toasts", as
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"));
 
-  await openPiLogin(state, {}, undefined);
+  await openPiLogin(state, { getSharedModelRuntime: () => undefined }, undefined);
   assert.equal(state.tabs[0]?.toast?.type, "error");
   assert.match(state.tabs[0]?.toast?.message ?? "", /Auth not available \(no model runtime\)/);
 
@@ -64,7 +64,7 @@ test("openPiLogout surfaces missing runtime and missing input host as toasts", a
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"));
 
-  await openPiLogout(state, {}, undefined);
+  await openPiLogout(state, { getSharedModelRuntime: () => undefined }, undefined);
   assert.equal(state.tabs[0]?.toast?.type, "error");
   assert.match(state.tabs[0]?.toast?.message ?? "", /Auth not available \(no model runtime\)/);
 

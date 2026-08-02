@@ -94,6 +94,15 @@ function makeRuntime(tab: MixCodeTabInfo): MixCodeRuntime {
     }),
     onChange: () => () => undefined,
     getAllExtensionCommands: () => [],
+    getPromptHistory: () => [],
+    setExtensionUiHost: () => undefined,
+    getExtensionCommands: () => [],
+    onTabClosed: () => () => undefined,
+    onModelsChanged: () => () => undefined,
+    appendSystemMessage: () => undefined,
+    getSharedModelRuntime: () => undefined,
+    getExtensionTools: () => [],
+    applyExtensionAutocompleteProviders: (_sessionId: string, base: AutocompleteProvider) => base,
   } as unknown as MixCodeRuntime;
 }
 

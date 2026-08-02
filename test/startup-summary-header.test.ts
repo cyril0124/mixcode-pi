@@ -1,3 +1,4 @@
+import "./helpers/isolated-agent-dir.js";
 // Regression tests: the startup resource summary ([Context]/[Skills]/[Extensions])
 // lives on tab.startupSummary (a tab-level field, Pi's loadedResourcesContainer
 // analogue) instead of inside the chat array. Chat rebuilds from session entries

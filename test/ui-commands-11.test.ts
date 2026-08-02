@@ -43,6 +43,7 @@ test("escape flushes queued messages immediately when the active tab is idle", a
       flushed.push(sessionId);
       tab.pendingMessages = [];
     },
+    getTab: () => undefined,
   };
 
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime), {
@@ -145,6 +146,7 @@ test("escape flush queued message errors are shown in an overlay", async () => {
     flushPendingMessage: async () => {
       throw new Error("flush failed");
     },
+    getTab: () => undefined,
   };
 
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime), {

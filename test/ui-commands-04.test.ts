@@ -409,7 +409,7 @@ test("workspace save surfaces invalid workspace files instead of treating them a
           undefined,
           workspaceFile,
         ),
-      /Unexpected token|Expected property name/,
+      /Unexpected token|Expected property name|JSON Parse error/,
     );
   } finally {
     await rm(dir, { recursive: true, force: true });

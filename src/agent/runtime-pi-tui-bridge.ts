@@ -62,12 +62,23 @@ export function injectNestedPiTui(mod: PiTuiKeybindingsModule): void {
   }
 }
 
-// Eagerly resolve the nested copy at module load. Top-level await keeps the
-// resolution synchronous from a consumer's perspective: by the time anyone
-// imports `applyMixCodeKeybindings`, the nested module is either ready or
-// confirmed missing.
-const nestedPiTui: PiTuiKeybindingsModule | undefined =
-  injectedNestedPiTui ?? (await resolveNestedPiTui());
+// Resolve the nested copy lazily: kick off the async lookup at module load
+// without blocking module evaluation. Top-level await would guarantee the
+// copy is ready before any caller under Node (which pauses importers), but Bun
+// evaluates importers of this module while the await is still pending, so
+// accessing the eagerly-resolved constant from applyMixCodeKeybindings throws
+// a TDZ ReferenceError there. The lookup is a local file import that settles
+// in milliseconds; callers that run before it resolves simply skip mirroring
+// the nested copy (correct under Bun's single-instance dedupe, and Node's
+// evaluation order still surfaces the nested copy on subsequent calls).
+let nestedPiTui: PiTuiKeybindingsModule | undefined = injectedNestedPiTui;
+const nestedResolve: Promise<PiTuiKeybindingsModule | undefined> =
+  injectedNestedPiTui !== undefined
+    ? Promise.resolve(injectedNestedPiTui)
+    : resolveNestedPiTui();
+void nestedResolve.then((mod) => {
+  if (mod !== undefined) nestedPiTui = mod;
+});
 
 async function resolveNestedPiTui(): Promise<PiTuiKeybindingsModule | undefined> {
   // Resolve the pi-coding-agent entry to locate its nested pi-tui copy.

@@ -44,6 +44,13 @@ function makeRuntime(): MixCodeRuntime {
     getTab: () => ({ chat }),
     onChange: () => () => undefined,
     getAllExtensionCommands: () => [],
+    getPromptHistory: () => [],
+    setExtensionUiHost: () => undefined,
+    getExtensionCommands: () => [],
+    onTabClosed: () => () => undefined,
+    onModelsChanged: () => () => undefined,
+    appendSystemMessage: () => undefined,
+    getSharedModelRuntime: () => undefined,
   } as unknown as MixCodeRuntime;
 }
 

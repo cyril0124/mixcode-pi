@@ -64,6 +64,17 @@ test("submitted input shows system tools when editor is disabled", async () => {
         ],
       },
     }),
+    // No extension tools → fall back to the agent session's built-in tools.
+    getExtensionTools: () => undefined,
+    getPromptHistory: () => [],
+    setExtensionUiHost: () => undefined,
+    getExtensionCommands: () => [],
+    getAllExtensionCommands: () => [],
+    onTabClosed: () => () => undefined,
+    onModelsChanged: () => () => undefined,
+    appendSystemMessage: () => undefined,
+    getSharedModelRuntime: () => undefined,
+    applyExtensionAutocompleteProviders: (_sessionId: string, base: AutocompleteProvider) => base,
   } as unknown as MixCodeRuntime;
   const tui = {
     requestRender: () => undefined,
@@ -99,6 +110,16 @@ test("submitted input only accepts bare system prompt command", async () => {
   state.activeTabId = "s1";
   const runtime = {
     getTab: () => ({ agent: { state: { systemPrompt: "system from runtime" } } }),
+    getPromptHistory: () => [],
+    setExtensionUiHost: () => undefined,
+    getExtensionCommands: () => [],
+    getAllExtensionCommands: () => [],
+    onTabClosed: () => () => undefined,
+    onModelsChanged: () => () => undefined,
+    appendSystemMessage: () => undefined,
+    getSharedModelRuntime: () => undefined,
+    getExtensionTools: () => [],
+    applyExtensionAutocompleteProviders: (_sessionId: string, base: AutocompleteProvider) => base,
   } as unknown as MixCodeRuntime;
   const tui = {
     requestRender: () => undefined,
@@ -162,6 +183,15 @@ test("submitted input shows session info from pi runtime", async () => {
         getSessionName: () => "Daily work",
       },
     }),
+    getPromptHistory: () => [],
+    setExtensionUiHost: () => undefined,
+    getExtensionCommands: () => [],
+    getAllExtensionCommands: () => [],
+    onTabClosed: () => () => undefined,
+    onModelsChanged: () => () => undefined,
+    getSharedModelRuntime: () => undefined,
+    getExtensionTools: () => [],
+    applyExtensionAutocompleteProviders: (_sessionId: string, base: AutocompleteProvider) => base,
   } as unknown as MixCodeRuntime;
   const tui = {
     requestRender: () => undefined,
@@ -235,6 +265,16 @@ test("submitted input confirms a single session close/delete before touching run
     deleteTab: async (sessionId: string) => deleted.push(sessionId),
     deleteAllTabs: async () => deleted.push("*"),
     compactSession: async () => undefined,
+    getPromptHistory: () => [],
+    setExtensionUiHost: () => undefined,
+    getExtensionCommands: () => [],
+    getAllExtensionCommands: () => [],
+    onTabClosed: () => () => undefined,
+    onModelsChanged: () => () => undefined,
+    appendSystemMessage: () => undefined,
+    getSharedModelRuntime: () => undefined,
+    getExtensionTools: () => [],
+    applyExtensionAutocompleteProviders: (_sessionId: string, base: AutocompleteProvider) => base,
   } as unknown as MixCodeRuntime;
   let confirmationOptions: { anchor?: unknown; width?: unknown; margin?: unknown } | undefined;
   const tui = {
@@ -302,6 +342,16 @@ test("single session close/delete confirmation cancel leaves tabs untouched", as
     getTab: () => undefined,
     closeTab: async (sessionId: string) => closed.push(sessionId),
     deleteTab: async (sessionId: string) => deleted.push(sessionId),
+    getPromptHistory: () => [],
+    setExtensionUiHost: () => undefined,
+    getExtensionCommands: () => [],
+    getAllExtensionCommands: () => [],
+    onTabClosed: () => () => undefined,
+    onModelsChanged: () => () => undefined,
+    appendSystemMessage: () => undefined,
+    getSharedModelRuntime: () => undefined,
+    getExtensionTools: () => [],
+    applyExtensionAutocompleteProviders: (_sessionId: string, base: AutocompleteProvider) => base,
   } as unknown as MixCodeRuntime;
   let overlayOpen = false;
   const tui = {
@@ -344,6 +394,16 @@ test("delete-all-sessions confirmation cancel (n or Escape) leaves tabs untouche
   const runtime = {
     getTab: () => undefined,
     deleteAllTabs: async () => deleted.push("*"),
+    getPromptHistory: () => [],
+    setExtensionUiHost: () => undefined,
+    getExtensionCommands: () => [],
+    getAllExtensionCommands: () => [],
+    onTabClosed: () => () => undefined,
+    onModelsChanged: () => () => undefined,
+    appendSystemMessage: () => undefined,
+    getSharedModelRuntime: () => undefined,
+    getExtensionTools: () => [],
+    applyExtensionAutocompleteProviders: (_sessionId: string, base: AutocompleteProvider) => base,
   } as unknown as MixCodeRuntime;
   // showOverlay must return a handle with `hide` so hasAnyOverlay(tui) reports
   // true while the confirm overlay is open (needed for the Escape-key path,
@@ -389,6 +449,16 @@ test("submitted input closes all sessions through runtime after Y/N confirmation
   const runtime = {
     getTab: () => undefined,
     closeAllTabs: async () => closedAll.push("*"),
+    getPromptHistory: () => [],
+    setExtensionUiHost: () => undefined,
+    getExtensionCommands: () => [],
+    getAllExtensionCommands: () => [],
+    onTabClosed: () => () => undefined,
+    onModelsChanged: () => () => undefined,
+    appendSystemMessage: () => undefined,
+    getSharedModelRuntime: () => undefined,
+    getExtensionTools: () => [],
+    applyExtensionAutocompleteProviders: (_sessionId: string, base: AutocompleteProvider) => base,
   } as unknown as MixCodeRuntime;
   const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
 
@@ -421,6 +491,16 @@ test("close-all-sessions clears the shared open-tab set", async () => {
     const runtime = {
       getTab: () => undefined,
       closeAllTabs: async () => undefined,
+    getPromptHistory: () => [],
+    setExtensionUiHost: () => undefined,
+    getExtensionCommands: () => [],
+    getAllExtensionCommands: () => [],
+    onTabClosed: () => () => undefined,
+    onModelsChanged: () => () => undefined,
+    appendSystemMessage: () => undefined,
+    getSharedModelRuntime: () => undefined,
+    getExtensionTools: () => [],
+    applyExtensionAutocompleteProviders: (_sessionId: string, base: AutocompleteProvider) => base,
     } as unknown as MixCodeRuntime;
     const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
 
@@ -449,6 +529,16 @@ test("delete-all-sessions clears the shared open-tab set", async () => {
     const runtime = {
       getTab: () => undefined,
       deleteAllTabs: async () => undefined,
+    getPromptHistory: () => [],
+    setExtensionUiHost: () => undefined,
+    getExtensionCommands: () => [],
+    getAllExtensionCommands: () => [],
+    onTabClosed: () => () => undefined,
+    onModelsChanged: () => () => undefined,
+    appendSystemMessage: () => undefined,
+    getSharedModelRuntime: () => undefined,
+    getExtensionTools: () => [],
+    applyExtensionAutocompleteProviders: (_sessionId: string, base: AutocompleteProvider) => base,
     } as unknown as MixCodeRuntime;
     const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
 
@@ -538,6 +628,16 @@ test("close-all-sessions confirmation cancel (n or Escape) leaves tabs untouched
   const runtime = {
     getTab: () => undefined,
     closeAllTabs: async () => closedAll.push("*"),
+    getPromptHistory: () => [],
+    setExtensionUiHost: () => undefined,
+    getExtensionCommands: () => [],
+    getAllExtensionCommands: () => [],
+    onTabClosed: () => () => undefined,
+    onModelsChanged: () => () => undefined,
+    appendSystemMessage: () => undefined,
+    getSharedModelRuntime: () => undefined,
+    getExtensionTools: () => [],
+    applyExtensionAutocompleteProviders: (_sessionId: string, base: AutocompleteProvider) => base,
   } as unknown as MixCodeRuntime;
   let overlayOpen = false;
   const tui = {
@@ -580,6 +680,16 @@ test("new-session rolls back the tab and active id when runtime.createTab fails"
     createTab: async () => {
       throw new Error("create failed");
     },
+    getPromptHistory: () => [],
+    setExtensionUiHost: () => undefined,
+    getExtensionCommands: () => [],
+    getAllExtensionCommands: () => [],
+    onTabClosed: () => () => undefined,
+    onModelsChanged: () => () => undefined,
+    appendSystemMessage: () => undefined,
+    getSharedModelRuntime: () => undefined,
+    getExtensionTools: () => [],
+    applyExtensionAutocompleteProviders: (_sessionId: string, base: AutocompleteProvider) => base,
   } as unknown as MixCodeRuntime;
   const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
 
@@ -609,6 +719,16 @@ test("fork rolls back the fork tab and restores the source tab when createTab fa
     createTab: async () => {
       throw new Error("fork create failed");
     },
+    getPromptHistory: () => [],
+    setExtensionUiHost: () => undefined,
+    getExtensionCommands: () => [],
+    getAllExtensionCommands: () => [],
+    onTabClosed: () => () => undefined,
+    onModelsChanged: () => () => undefined,
+    appendSystemMessage: () => undefined,
+    getSharedModelRuntime: () => undefined,
+    getExtensionTools: () => [],
+    applyExtensionAutocompleteProviders: (_sessionId: string, base: AutocompleteProvider) => base,
   } as unknown as MixCodeRuntime;
   const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
 
@@ -643,6 +763,16 @@ test("fork from Home inserts after the selected source tab, not at bar head", as
     },
     createTab: async () => undefined,
     renameSession: () => undefined,
+    getPromptHistory: () => [],
+    setExtensionUiHost: () => undefined,
+    getExtensionCommands: () => [],
+    getAllExtensionCommands: () => [],
+    onTabClosed: () => () => undefined,
+    onModelsChanged: () => () => undefined,
+    appendSystemMessage: () => undefined,
+    getSharedModelRuntime: () => undefined,
+    getExtensionTools: () => [],
+    applyExtensionAutocompleteProviders: (_sessionId: string, base: AutocompleteProvider) => base,
   } as unknown as MixCodeRuntime;
   const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
 
@@ -668,6 +798,15 @@ test("config-scoped submitted input runs without an active agent tab", async () 
     },
     closeAllTabs: async () => undefined,
     deleteAllTabs: async () => undefined,
+    getPromptHistory: () => [],
+    setExtensionUiHost: () => undefined,
+    getExtensionCommands: () => [],
+    getAllExtensionCommands: () => [],
+    onTabClosed: () => () => undefined,
+    onModelsChanged: () => () => undefined,
+    getSharedModelRuntime: () => undefined,
+    getExtensionTools: () => [],
+    applyExtensionAutocompleteProviders: (_sessionId: string, base: AutocompleteProvider) => base,
   } as unknown as MixCodeRuntime;
   const overlays: string[] = [];
   const tui = {

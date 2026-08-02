@@ -1,3 +1,4 @@
+import "./helpers/isolated-agent-dir.js";
 // Working-timer continuity across perceived-continuous work.
 //
 // The spinner elapsed time is derived solely from tab.workingStartedAt

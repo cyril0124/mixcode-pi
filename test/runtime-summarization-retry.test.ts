@@ -1,3 +1,4 @@
+import "./helpers/isolated-agent-dir.js";
 // Contract: AgentSession summarization_retry_* events drive the same retry
 // countdown UI MixCode already uses for auto_retry_* (tab.retryInfo → working
 // loader). Pi interactive shows RetryStatusIndicator on scheduled, clears it on

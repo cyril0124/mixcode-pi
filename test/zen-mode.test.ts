@@ -193,6 +193,12 @@ test("zen mode removes hidden tab-bar rows from extension overlay reservations",
     }) => {
       reservedRows = host?.topReservedRows;
     },
+    getPromptHistory: () => [],
+    getExtensionCommands: () => [],
+    onTabClosed: () => () => undefined,
+    onModelsChanged: () => () => undefined,
+    appendSystemMessage: () => undefined,
+    getSharedModelRuntime: () => undefined,
   } as unknown as MixCodeRuntime;
   const tui = createMixCodeTui(state, runtime, { terminal: silentTerminal() });
   try {
@@ -211,6 +217,13 @@ test("zen mode hides the tab bar but keeps agent chrome", () => {
     getTab: () => ({ chat: [{ role: "assistant", text: "chat-line" }] }),
     onChange: () => () => undefined,
     getAllExtensionCommands: () => [],
+    getPromptHistory: () => [],
+    setExtensionUiHost: () => undefined,
+    getExtensionCommands: () => [],
+    onTabClosed: () => () => undefined,
+    onModelsChanged: () => () => undefined,
+    appendSystemMessage: () => undefined,
+    getSharedModelRuntime: () => undefined,
   } as unknown as MixCodeRuntime;
 
   function render(zenMode: boolean): string {

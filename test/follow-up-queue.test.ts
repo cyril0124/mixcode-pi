@@ -1,3 +1,4 @@
+import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -217,7 +218,11 @@ test("parseInput recognizes /follow-up as a local command", () => {
 
 test("streaming steer and followUp land in separate queues and dual UI", async () => {
   await withSlowToolRuntime(async ({ runtime, tab, runtimeTab, releaseTool, toolRunning }) => {
-    void runtime.prompt("s1", "do work");
+    // Fire-and-forget turn; the tool blocks until releaseTool() below. The
+    // deferred flush can race the test's final tmpdir cleanup under bun (the
+    // process no longer owns the directory when the trailing append lands), so
+    // surface-but-ignore the rejection instead of leaving it unhandled.
+    void runtime.prompt("s1", "do work").catch(() => {});
     await toolRunning;
     assert.equal(runtimeTab.agentSession.isStreaming, true);
 
@@ -250,7 +255,11 @@ test("streaming steer and followUp land in separate queues and dual UI", async (
 
 test("pop prefers follow-up over steer", async () => {
   await withSlowToolRuntime(async ({ runtime, tab, runtimeTab, releaseTool, toolRunning }) => {
-    void runtime.prompt("s1", "do work");
+    // Fire-and-forget turn; the tool blocks until releaseTool() below. The
+    // deferred flush can race the test's final tmpdir cleanup under bun (the
+    // process no longer owns the directory when the trailing append lands), so
+    // surface-but-ignore the rejection instead of leaving it unhandled.
+    void runtime.prompt("s1", "do work").catch(() => {});
     await toolRunning;
 
     await runtime.prompt("s1", "steer now");
@@ -272,7 +281,11 @@ test("pop prefers follow-up over steer", async () => {
 
 test("flushPendingMessage only drains steer; follow-up survives abort+flush", async () => {
   await withSlowToolRuntime(async ({ runtime, tab, runtimeTab, releaseTool, toolRunning }) => {
-    void runtime.prompt("s1", "do work");
+    // Fire-and-forget turn; the tool blocks until releaseTool() below. The
+    // deferred flush can race the test's final tmpdir cleanup under bun (the
+    // process no longer owns the directory when the trailing append lands), so
+    // surface-but-ignore the rejection instead of leaving it unhandled.
+    void runtime.prompt("s1", "do work").catch(() => {});
     await toolRunning;
 
     await runtime.prompt("s1", "steer now");
@@ -306,7 +319,11 @@ test("flushPendingMessage only drains steer; follow-up survives abort+flush", as
 
 test("abortAllTabs clears both queues", async () => {
   await withSlowToolRuntime(async ({ runtime, tab, runtimeTab, releaseTool, toolRunning }) => {
-    void runtime.prompt("s1", "do work");
+    // Fire-and-forget turn; the tool blocks until releaseTool() below. The
+    // deferred flush can race the test's final tmpdir cleanup under bun (the
+    // process no longer owns the directory when the trailing append lands), so
+    // surface-but-ignore the rejection instead of leaving it unhandled.
+    void runtime.prompt("s1", "do work").catch(() => {});
     await toolRunning;
     await runtime.prompt("s1", "steer now");
     await runtime.prompt("s1", "follow later", { streamingBehavior: "followUp" });

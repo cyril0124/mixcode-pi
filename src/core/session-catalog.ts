@@ -143,7 +143,13 @@ function runBackgroundListing(
   request: SessionCatalogRequest,
   signal?: AbortSignal,
 ): Promise<SessionInfo[]> {
-  return process.versions.bun
+  // Bun supports eval worker_threads (verified), so the worker path works under
+  // bun test / dev / dist alike. The subprocess path is only for bun --compile
+  // binaries, where the virtual FS cannot eval worker threads and the binary
+  // itself must be re-spawned with the worker arg (its main() handles it).
+  // Never reuse process.argv[1] for the subprocess entry here: under bun test
+  // argv[1] is the test file, which would re-run the test suite in a worker.
+  return process.argv[1]?.startsWith("/$bunfs/") === true
     ? runListingSubprocess(request, signal)
     : runListingWorkerThread(request, signal);
 }

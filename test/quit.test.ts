@@ -86,6 +86,10 @@ test("quitMixCode preserves process.exitCode for failed batch/CI quit", async ()
   const previous = process.exitCode;
   process.exitCode = 1;
   try {
+    // bun keeps a previously-set exitCode after `process.exitCode = undefined`
+    // (unlike node), so restore explicitly to 0 instead of the original
+    // undefined value to avoid leaking exit=1 into the test process.
+    void previous;
     await quitMixCode(
       {
         abortAllTabs: () => events.push("abort"),
@@ -103,7 +107,7 @@ test("quitMixCode preserves process.exitCode for failed batch/CI quit", async ()
       },
     );
   } finally {
-    process.exitCode = previous;
+    process.exitCode = previous ?? 0;
   }
 
   assert.deepEqual(events, ["abort", "stop", "close", "render", "exit:1"]);

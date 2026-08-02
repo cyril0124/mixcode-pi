@@ -1,3 +1,4 @@
+import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -446,7 +447,10 @@ test("runtime renders compact skill read calls with configured expand key", asyn
       args: { path: join(skillDir, "SKILL.md") },
     });
     const surface = stripAnsi(renderAgentSurface(runtimeTab.tab, runtimeTab, 100).join("\n"));
-    assert.match(surface, /read.*find-skills\/SKILL\.md/);
+    // Pi's read tool renders SKILL.md reads as a compact [skill] block whose
+    // expand hint is built from the configured app.tools.expand key.
+    assert.match(surface, /\[skill\] find-skills/);
+    assert.match(surface, /\(ctrl\+o to expand\)/);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

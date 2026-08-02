@@ -169,6 +169,14 @@ test("MixCodeRoot keeps every rendered row within a narrow terminal width", () =
   ];
   const runtime = {
     getTab: () => ({ chat }),
+    getPromptHistory: () => [],
+    setExtensionUiHost: () => undefined,
+    getExtensionCommands: () => [],
+    getAllExtensionCommands: () => [],
+    onTabClosed: () => () => undefined,
+    onModelsChanged: () => () => undefined,
+    appendSystemMessage: () => undefined,
+    getSharedModelRuntime: () => undefined,
   } as unknown as MixCodeRuntime;
   const root = new MixCodeRoot(
     state,
@@ -295,6 +303,13 @@ test("createMixCodeTui renders the combined layout with codex-like editor block 
     getTab: () => ({ chat: [{ role: "assistant", text: "hello" }] }),
     onChange: () => () => undefined,
     getAllExtensionCommands: () => [],
+    getPromptHistory: () => [],
+    setExtensionUiHost: () => undefined,
+    getExtensionCommands: () => [],
+    onTabClosed: () => () => undefined,
+    onModelsChanged: () => () => undefined,
+    appendSystemMessage: () => undefined,
+    getSharedModelRuntime: () => undefined,
   } as unknown as MixCodeRuntime;
   const tui = createMixCodeTui(state, runtime, { terminal: silentTerminal() });
   try {
@@ -345,6 +360,13 @@ test("createMixCodeTui flattens multiline extension widgets", () => {
     getTab: () => ({ chat: [{ role: "assistant", text: "hello" }] }),
     onChange: () => () => undefined,
     getAllExtensionCommands: () => [],
+    getPromptHistory: () => [],
+    setExtensionUiHost: () => undefined,
+    getExtensionCommands: () => [],
+    onTabClosed: () => () => undefined,
+    onModelsChanged: () => () => undefined,
+    appendSystemMessage: () => undefined,
+    getSharedModelRuntime: () => undefined,
   } as unknown as MixCodeRuntime;
   const tui = createMixCodeTui(state, runtime, { terminal: silentTerminal() });
   try {
@@ -382,6 +404,13 @@ test("createMixCodeTui keeps a blank line between above-editor widgets and edito
     getTab: () => ({ chat: [] }),
     onChange: () => () => undefined,
     getAllExtensionCommands: () => [],
+    getPromptHistory: () => [],
+    setExtensionUiHost: () => undefined,
+    getExtensionCommands: () => [],
+    onTabClosed: () => () => undefined,
+    onModelsChanged: () => () => undefined,
+    appendSystemMessage: () => undefined,
+    getSharedModelRuntime: () => undefined,
   } as unknown as MixCodeRuntime;
   const tui = createMixCodeTui(state, runtime, { terminal: silentTerminal() });
 
@@ -405,6 +434,13 @@ test("createMixCodeTui keeps a blank line between idle content and editor", () =
     getTab: () => ({ chat: [{ role: "assistant", text: "last visible answer" }] }),
     onChange: () => () => undefined,
     getAllExtensionCommands: () => [],
+    getPromptHistory: () => [],
+    setExtensionUiHost: () => undefined,
+    getExtensionCommands: () => [],
+    onTabClosed: () => () => undefined,
+    onModelsChanged: () => () => undefined,
+    appendSystemMessage: () => undefined,
+    getSharedModelRuntime: () => undefined,
   } as unknown as MixCodeRuntime;
   const tui = createMixCodeTui(state, runtime, { terminal: silentTerminal() });
 
@@ -428,6 +464,13 @@ test("createMixCodeTui does not stack two blank rows above worked status", () =>
     getTab: () => ({ chat }),
     onChange: () => () => undefined,
     getAllExtensionCommands: () => [],
+    getPromptHistory: () => [],
+    setExtensionUiHost: () => undefined,
+    getExtensionCommands: () => [],
+    onTabClosed: () => () => undefined,
+    onModelsChanged: () => () => undefined,
+    appendSystemMessage: () => undefined,
+    getSharedModelRuntime: () => undefined,
   } as unknown as MixCodeRuntime;
   const tui = createMixCodeTui(state, runtime, { terminal: silentTerminal() });
 
@@ -463,6 +506,13 @@ test("createMixCodeTui pins input meta to the bottom without a trailing blank ro
     getTab: () => ({ chat }),
     onChange: () => () => undefined,
     getAllExtensionCommands: () => [],
+    getPromptHistory: () => [],
+    setExtensionUiHost: () => undefined,
+    getExtensionCommands: () => [],
+    onTabClosed: () => () => undefined,
+    onModelsChanged: () => () => undefined,
+    appendSystemMessage: () => undefined,
+    getSharedModelRuntime: () => undefined,
   } as unknown as MixCodeRuntime;
   const tui = createMixCodeTui(state, runtime, { terminal: silentTerminal() });
   const lines = tui.render(120);
@@ -507,6 +557,13 @@ test("extension chrome truncates narrow terminal rows instead of wrapping", () =
     getTab: () => ({ chat: [{ role: "assistant", text: "ok" }] }),
     onChange: () => () => undefined,
     getAllExtensionCommands: () => [],
+    getPromptHistory: () => [],
+    setExtensionUiHost: () => undefined,
+    getExtensionCommands: () => [],
+    onTabClosed: () => () => undefined,
+    onModelsChanged: () => () => undefined,
+    appendSystemMessage: () => undefined,
+    getSharedModelRuntime: () => undefined,
   } as unknown as MixCodeRuntime;
   const tui = createMixCodeTui(state, runtime, {
     completionSources: { skills: [] },
@@ -530,6 +587,13 @@ test("createMixCodeTui accounts for config and multiline editor row reservations
     getTab: () => ({ chat: [{ role: "assistant", text: "hello" }] }),
     onChange: () => () => undefined,
     getAllExtensionCommands: () => [],
+    getPromptHistory: () => [],
+    setExtensionUiHost: () => undefined,
+    getExtensionCommands: () => [],
+    onTabClosed: () => () => undefined,
+    onModelsChanged: () => () => undefined,
+    appendSystemMessage: () => undefined,
+    getSharedModelRuntime: () => undefined,
   } as unknown as MixCodeRuntime;
   const tui = createMixCodeTui(state, runtime, {
     completionSources: { skills: [] },
@@ -672,6 +736,13 @@ test("createMixCodeTui binds working redraw for Home Agent View spinners", async
     getTab: () => ({ chat: [] }),
     onChange: () => () => undefined,
     getAllExtensionCommands: () => [],
+    getPromptHistory: () => [],
+    setExtensionUiHost: () => undefined,
+    getExtensionCommands: () => [],
+    onTabClosed: () => () => undefined,
+    onModelsChanged: () => () => undefined,
+    appendSystemMessage: () => undefined,
+    getSharedModelRuntime: () => undefined,
   } as unknown as MixCodeRuntime;
   const tui = createMixCodeTui(state, runtime, { terminal: silentTerminal() });
   let renders = 0;
@@ -720,6 +791,13 @@ test("differential renders do not force full redraws after the first paint", asy
     getTab: () => ({ chat: [{ role: "assistant", text: "hello" }] }),
     onChange: () => () => undefined,
     getAllExtensionCommands: () => [],
+    getPromptHistory: () => [],
+    setExtensionUiHost: () => undefined,
+    getExtensionCommands: () => [],
+    onTabClosed: () => () => undefined,
+    onModelsChanged: () => () => undefined,
+    appendSystemMessage: () => undefined,
+    getSharedModelRuntime: () => undefined,
   } as unknown as MixCodeRuntime;
   const tui = createMixCodeTui(state, runtime, { terminal });
 
@@ -782,6 +860,12 @@ test("working indicator is driven by the Pi TUI loader animation", async () => {
     onChange: () => () => undefined,
     getExtensionCommands: () => [],
     getAllExtensionCommands: () => [],
+    getPromptHistory: () => [],
+    setExtensionUiHost: () => undefined,
+    onTabClosed: () => () => undefined,
+    onModelsChanged: () => () => undefined,
+    appendSystemMessage: () => undefined,
+    getSharedModelRuntime: () => undefined,
   } as unknown as MixCodeRuntime;
   const tui = createMixCodeTui(state, runtime, { terminal });
 

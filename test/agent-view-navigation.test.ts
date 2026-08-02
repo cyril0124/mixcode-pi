@@ -460,7 +460,7 @@ test("Home Enter opens settings with the app configuration", async () => {
     "\r",
     tui,
     undefined,
-    {},
+    { setHideThinkingBlock: () => undefined },
     undefined,
     () => false,
     editorActions,
@@ -600,6 +600,7 @@ test("Home /clear stays on Home after session replacement", async () => {
   const tui = makeTui();
   const runtime = {
     prompt: async () => undefined,
+    getTab: () => undefined,
     clearTab: async (sessionId: string) => {
       assert.equal(sessionId, "s1");
       tab.sessionId = "s1-cleared";
