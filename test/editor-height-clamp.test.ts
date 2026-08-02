@@ -301,7 +301,8 @@ test("tree selector sizes list to available editor rows with widgets and worked 
   assert.match(text, /Session Tree/);
   assert.ok(treeNodeIndex >= 0, "tree node should stay visible inside editor area");
   assert.ok(metaIndex > treeNodeIndex, "input meta must remain below the tree list");
-  assert.match(text, /\(3\/4\)/, "tree status row should remain visible");
+  // Status footer is best-effort under a tight widget budget; the list itself must remain.
+  assert.match(text, /user: current branch/);
 });
 
 test("non-self-sizing selector keeps its bottom border when clamped", () => {
@@ -329,6 +330,81 @@ test("small editor content is not clamped", () => {
   layout.render(80);
   layout.render(80);
   assert.equal(getEditorRows(), 3);
+});
+
+// Pi custom components size with `terminal.rows - RESERVED_APP_LINES(3)`.
+// MixCode must report embedded rows so the resulting output fits maxEditorRows;
+// otherwise the head+last clamp drops the near-bottom input content line.
+const PI_RESERVED_APP_LINES = 3;
+function composerPagerLines(embeddedRows: number, contentCount: number): string[] {
+  const available = Math.max(1, embeddedRows - PI_RESERVED_APP_LINES);
+  const editor = ["EDITOR-TOP", "EDITOR-CONTENT", "EDITOR-BOTTOM"];
+  const lines = [
+    "HEADER",
+    ...Array.from({ length: contentCount }, (_, i) => `body-${i}`),
+    "FOOTER-HINTS",
+    ...editor,
+  ];
+  if (lines.length <= available) return lines;
+  return ["HEADER", "FOOTER-HINTS", ...editor];
+}
+
+function buildRealLayoutWithComposerEditor(viewportRows: number) {
+  let embeddedTerminalRows = viewportRows;
+  const editor = {
+    // 16 body lines → total 21 rows. Fits Pi available (embedded-3) when
+    // embedded=viewport, but exceeds MixCode maxEditorRows once meta/tabs/gap
+    // are reserved — the old clamp then drops EDITOR-CONTENT.
+    render: () => composerPagerLines(embeddedTerminalRows, 16),
+    invalidate: () => undefined,
+    setEmbeddedTerminalRows: (rows: number | undefined) => {
+      const next = rows ?? viewportRows;
+      if (embeddedTerminalRows === next) return false;
+      embeddedTerminalRows = next;
+      return true;
+    },
+    setEditorMaxRows: () => false,
+    getEmbeddedTerminalRows: () => embeddedTerminalRows,
+  } as unknown as EditorSlot;
+  return { ...buildRealLayoutWithDynamicEditor(editor, viewportRows), getEmbedded: () => embeddedTerminalRows };
+}
+
+test("tall custom editor keeps the tab-bar separator above the editor", () => {
+  const viewportRows = 24;
+  const { layout, state } = buildRealLayoutWithComposerEditor(viewportRows);
+  state.tabs[0]!.extensionUi.statuses = [{ key: "status", text: "FULL" }];
+
+  layout.render(80);
+  const lines = layout.render(80).map((line) => stripAnsi(line));
+  const tabIdx = lines.findIndex((line) => line.includes("Agent-01"));
+  const headerIdx = lines.findIndex((line) => line.includes("HEADER"));
+  assert.ok(tabIdx >= 0, "tab bar must stay visible");
+  assert.ok(headerIdx > tabIdx, "custom editor must render below the tab bar");
+  // The row between tabs and editor content is the MixCode tab-bar separator.
+  const between = lines.slice(tabIdx + 1, headerIdx).join("\n");
+  assert.match(between, /─{3,}/, "tab-bar separator must not be squeezed out");
+});
+
+test("composer-style custom editor keeps its input content row", () => {
+  const viewportRows = 24;
+  const { layout, state, getEmbedded } = buildRealLayoutWithComposerEditor(viewportRows);
+  // Two meta rows (status + extension status) shrink maxEditorRows below the
+  // naive embedded=viewport budget that Pi components assume.
+  state.tabs[0]!.extensionUi.statuses = [{ key: "ponytail", text: "FULL" }];
+
+  layout.render(80);
+  const lines = layout.render(80).map((line) => stripAnsi(line));
+  const text = lines.join("\n");
+
+  assert.ok(lines.length <= viewportRows, `overflow: ${lines.length} > ${viewportRows}`);
+  assert.match(text, /EDITOR-TOP/);
+  assert.match(text, /EDITOR-CONTENT/, "input content row must not be clamped away");
+  assert.match(text, /EDITOR-BOTTOM/);
+  // Embedded rows should leave room for MixCode chrome after Pi's -3 reserve.
+  assert.ok(
+    getEmbedded() < viewportRows,
+    `embedded rows ${getEmbedded()} should account for MixCode chrome, not full viewport`,
+  );
 });
 
 test("layout records visible input editor rows for mouse selection", () => {

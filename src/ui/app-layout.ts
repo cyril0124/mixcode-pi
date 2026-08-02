@@ -32,6 +32,9 @@ import { themeForId, type MixCodeTheme } from "./themes.js";
 
 export const TERMINAL_SCROLL_GUARD_ROWS = 0;
 const WORKING_GAP_ROWS = 1;
+// Horizontal rule under the tab bar (renderTabBarSeparator). Always reserve so
+// a tall custom editor cannot squeeze main down to tabs-only and drop it.
+const TAB_BAR_SEPARATOR_ROWS = 1;
 // Keep enough rows for chat + editor chrome so a flood of extension widgets
 // cannot push the tab bar into scrollback.
 const MIN_CHAT_AND_EDITOR_ROWS = 6;
@@ -263,7 +266,8 @@ export class MixCodeLayoutRoot implements Component {
     const footerRows =
       renderExtensionFooter(activeForFooter, width).length + renderFooter(width).length;
     // Shared budget for above+below editor widgets so tab bar + chat/editor stay on screen.
-    const mainTopReserve = this.state.tabBarHitRow ?? 1;
+    // Include the tab-bar separator: MixCodeRoot emits tabs + separator as fixedTop.
+    const mainTopReserve = (this.state.tabBarHitRow ?? 1) + TAB_BAR_SEPARATOR_ROWS;
     const widgetBudget =
       viewportRowsForClamp === undefined
         ? undefined
@@ -302,11 +306,15 @@ export class MixCodeLayoutRoot implements Component {
       this.setEmbeddedTerminalRows(
         active?.sessionId,
         viewportRowsForClamp,
+        mainTopReserve,
+        controlTopGapRows,
         widgetsAbove.length,
         widgetsAboveBottomGapRows,
         workingLines.length,
         workingBottomGapRows,
         widgetsBelow.length,
+        metaProbe.length,
+        footerRows,
       )
     ) {
       editorLines = this.editor.render(width);
@@ -318,20 +326,20 @@ export class MixCodeLayoutRoot implements Component {
       this.setEmbeddedTerminalRows(
         active?.sessionId,
         viewportRowsForClamp,
+        mainTopReserve,
+        controlTopGapRows,
         widgetsAbove.length,
         widgetsAboveBottomGapRows,
         workingLines.length,
         workingBottomGapRows,
         widgetsBelow.length,
+        metaProbe.length,
+        footerRows,
       );
     }
-    // Clamp editor lines so extension editor components (e.g. the btw answer
-    // pager) cannot overflow the terminal and push the tab bar into scrollback.
-    // Reserve exactly the main region's tab-bar rows: when the editor is large,
-    // MixCodeRoot self-clamps to emit only its fixed top (tabBarHitRow rows) and
-    // drops its internal content gap, so reserving more would needlessly cut the
-    // editor component's own bottom chrome (e.g. the btw bottom border).
-    // Fall back to 1 (single tab-bar row) before the first frame sets the value.
+    // Clamp editor lines so extension editor components cannot overflow the
+    // terminal and push the tab bar into scrollback. Reserve tab bar + separator
+    // (mainTopReserve); fall back before the first frame sets tabBarHitRow.
     const maxEditorRows = viewportRowsForClamp
       ? Math.max(
           1,
@@ -455,23 +463,36 @@ export class MixCodeLayoutRoot implements Component {
   private setEmbeddedTerminalRows(
     sessionId: string | undefined,
     viewportRows: number | undefined,
+    mainTopReserve: number,
+    controlTopGapRows: number,
     widgetsAboveRows: number,
     widgetsAboveBottomGapRows: number,
     workingRows: number,
     workingBottomGapRows: number,
     widgetsBelowRows: number,
+    metaRows: number,
+    footerRows: number,
   ): boolean {
+    // Pi custom components size with `terminal.rows - RESERVED_APP_LINES` (3).
+    // Report the same budget as maxEditorRows, plus that reserve, so their
+    // output fits without the head+last clamp dropping the input content row.
+    const PI_RESERVED_APP_LINES = 3;
     return this.editor.setEmbeddedTerminalRows(
       viewportRows === undefined
         ? undefined
         : Math.max(
             1,
             viewportRows -
+              mainTopReserve -
+              controlTopGapRows -
               widgetsAboveRows -
               widgetsAboveBottomGapRows -
               workingRows -
               workingBottomGapRows -
-              widgetsBelowRows,
+              widgetsBelowRows -
+              metaRows -
+              footerRows +
+              PI_RESERVED_APP_LINES,
           ),
       sessionId,
     );

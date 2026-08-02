@@ -198,6 +198,9 @@ function createExtensionCustomEditor<T>(
 }
 
 function customComponentEditor(component: ExtensionCustomComponent) {
+  // Forward Focusable.focused so nested editors emit CURSOR_MARKER. Without
+  // this, EditorSlot.syncEditorFocus is a no-op (`"focused" in component` is
+  // false) and the input row looks blank/missing.
   return {
     render: (width: number) => renderWithPiExtensionContext(() => component.render(width)),
     handleInput: (data: string) =>
@@ -206,6 +209,12 @@ function customComponentEditor(component: ExtensionCustomComponent) {
     getText: () => "",
     setText: () => undefined,
     wantsKeyRelease: component.wantsKeyRelease,
+    get focused() {
+      return Boolean((component as { focused?: boolean }).focused);
+    },
+    set focused(value: boolean) {
+      (component as { focused?: boolean }).focused = value;
+    },
   };
 }
 
