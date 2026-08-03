@@ -175,3 +175,66 @@ test("open_tabs reclaims a lock left by a dead pid", async () => {
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("open_tabs concurrent mutators never lose updates", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-open-tabs-race-"));
+  const filePath = openTabsFile(dir);
+  try {
+    writeOpenTabs(filePath, ["seed"]);
+    const { spawn } = await import("node:child_process");
+    const { writeFile } = await import("node:fs/promises");
+    const workerPath = join(dir, "worker.mjs");
+    await writeFile(
+      workerPath,
+      `
+import { mutateOpenTabs } from ${JSON.stringify(new URL("../src/core/open-tabs-store.ts", import.meta.url).pathname)};
+const filePath = process.argv[2];
+const myId = "w" + process.pid;
+const endAt = Date.now() + 1500;
+let ops = 0;
+while (Date.now() < endAt) {
+  mutateOpenTabs(filePath, (ids) => {
+    ids.add(myId);
+    const n = [...ids].filter((x) => x.startsWith("n:")).map((x) => Number(x.slice(2)));
+    const next = (n.length ? Math.max(...n) : 0) + 1;
+    for (const x of [...ids]) if (x.startsWith("n:")) ids.delete(x);
+    ids.add("n:" + next);
+  });
+  ops++;
+}
+process.stdout.write(String(ops));
+`,
+    );
+    const kids = Array.from({ length: 6 }, () =>
+      spawn(process.execPath, [workerPath, filePath], { stdio: ["ignore", "pipe", "inherit"] }),
+    );
+    const opsList = await Promise.all(
+      kids.map(
+        (c) =>
+          new Promise<number>((resolve, reject) => {
+            let out = "";
+            c.stdout?.on("data", (buf) => {
+              out += String(buf);
+            });
+            c.on("exit", (code) => {
+              if (code !== 0) reject(new Error(`worker exit ${code}`));
+              else resolve(Number(out) || 0);
+            });
+            c.on("error", reject);
+          }),
+      ),
+    );
+    const totalOps = opsList.reduce((a, b) => a + b, 0);
+    const final = readOpenTabs(filePath);
+    const counter = final.find((id) => id.startsWith("n:"));
+    assert.ok(counter, `missing counter in ${JSON.stringify(final)}`);
+    assert.equal(
+      Number(counter.slice(2)),
+      totalOps,
+      `lost updates: counter=${counter.slice(2)} totalOps=${totalOps}`,
+    );
+    assert.ok(final.includes("seed"));
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

@@ -182,43 +182,92 @@ function withOpenTabsLock<T>(filePath: string, fn: () => T): T {
   } satisfies OpenTabsLockRecord)}\n`;
 
   for (;;) {
+    // Publish fully-written lock via temp+linkSync (no empty-file window).
+    // Reclaim stale locks via rename, not rm — concurrent rm reclaimers used to
+    // delete each other's freshly published lock and dual-enter the CS.
+    const tempPath = `${lockPath}.${pid}.${crypto.randomUUID()}.tmp`;
     try {
-      // Atomic exclusive create: Bun has no wx equivalent; keep openSync.
-      const fd = fs.openSync(lockPath, "wx");
+      fs.writeFileSync(tempPath, payload, "utf8");
       try {
-        fs.writeSync(fd, payload);
+        fs.linkSync(tempPath, lockPath);
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        if (code !== "EEXIST") throw error;
+        // EEXIST then ENOENT: holder released — retry, do not reclaim (avoids
+        // renaming away a lock published after our failed read).
+        const existing = readOpenTabsLockSnapshot(lockPath);
+        if (existing.kind === "missing") continue;
+        if (existing.kind === "ok" && !openTabsLockIsStale(existing.record)) {
+          Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20);
+          continue;
+        }
+        // Stale dead-pid record or corrupt content still on disk.
+        if (!tryReclaimStaleOpenTabsLock(lockPath)) {
+          Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20);
+        }
+        continue;
+      }
+      try {
         return fn();
       } finally {
-        fs.closeSync(fd);
         // Only remove if we still own it (another process may have reclaimed a
-        // crash mid-write and replaced the record).
+        // crash mid-section and replaced the record).
         const current = readOpenTabsLockRecord(lockPath);
         if (!current || current.pid === pid) {
           fs.rmSync(lockPath, { force: true });
         }
       }
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code;
-      if (code !== "EEXIST") throw error;
-      const existing = readOpenTabsLockRecord(lockPath);
-      if (openTabsLockIsStale(existing)) {
-        fs.rmSync(lockPath, { force: true });
-        continue;
-      }
-      // Live holder: yield without burning a core, then retry.
-      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20);
+    } finally {
+      fs.rmSync(tempPath, { force: true });
     }
   }
 }
 
-function readOpenTabsLockRecord(lockPath: string): OpenTabsLockRecord | undefined {
+/** Take a suspected-stale lock aside, re-verify, drop only if still stale. */
+function tryReclaimStaleOpenTabsLock(lockPath: string): boolean {
+  const quarantine = `${lockPath}.reclaim.${process.pid}.${crypto.randomUUID()}`;
+  try {
+    fs.renameSync(lockPath, quarantine);
+  } catch {
+    return false;
+  }
+  const taken = readOpenTabsLockRecord(quarantine);
+  if (!openTabsLockIsStale(taken)) {
+    try {
+      fs.renameSync(quarantine, lockPath);
+    } catch {
+      try {
+        fs.linkSync(quarantine, lockPath);
+        fs.rmSync(quarantine, { force: true });
+      } catch {
+        // Path occupied; keep quarantine rather than destroy a live record.
+      }
+    }
+    return false;
+  }
+  fs.rmSync(quarantine, { force: true });
+  return true;
+}
+
+type OpenTabsLockSnapshot =
+  | { kind: "missing" }
+  | { kind: "invalid" }
+  | { kind: "ok"; record: OpenTabsLockRecord };
+
+function readOpenTabsLockSnapshot(lockPath: string): OpenTabsLockSnapshot {
   try {
     const value = JSON.parse(fs.readFileSync(lockPath, "utf8")) as Partial<OpenTabsLockRecord>;
-    if (typeof value.pid !== "number") return undefined;
-    return value as OpenTabsLockRecord;
-  } catch {
-    return undefined;
+    if (typeof value.pid !== "number") return { kind: "invalid" };
+    return { kind: "ok", record: value as OpenTabsLockRecord };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return { kind: "missing" };
+    return { kind: "invalid" };
   }
+}
+
+function readOpenTabsLockRecord(lockPath: string): OpenTabsLockRecord | undefined {
+  const snap = readOpenTabsLockSnapshot(lockPath);
+  return snap.kind === "ok" ? snap.record : undefined;
 }
 
 function openTabsLockIsStale(record: OpenTabsLockRecord | undefined): boolean {

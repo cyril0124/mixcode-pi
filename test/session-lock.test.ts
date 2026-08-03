@@ -121,3 +121,65 @@ test("release removes the lock file", async () => {
     handle.release();
   });
 });
+
+test("successful acquire never leaves an empty lock file", async () => {
+  await withRoot(async (root) => {
+    const handle = acquireSessionTurnLock(root, "s1", { pid: 100, processInfo: () => LIVE });
+    const raw = await import("node:fs/promises").then((fs) =>
+      fs.readFile(join(sessionLockDir(root), "s1.lock"), "utf8"),
+    );
+    assert.ok(raw.trim().length > 0, "lock path must not be empty after acquire");
+    const parsed = JSON.parse(raw) as { pid?: number };
+    assert.equal(parsed.pid, 100);
+    handle.release();
+  });
+});
+
+test("concurrent acquires never overlap the critical section", async () => {
+  await withRoot(async (root) => {
+    const { spawn } = await import("node:child_process");
+    const { writeFile } = await import("node:fs/promises");
+    const workerPath = join(root, "worker.mjs");
+    // Worker uses the same module under test; log IN/OUT around the held section.
+    await writeFile(
+      workerPath,
+      `
+import { appendFileSync } from "node:fs";
+import { acquireSessionTurnLock } from ${JSON.stringify(new URL("../src/core/session-lock.ts", import.meta.url).pathname)};
+const root = process.argv[2];
+const log = process.argv[3];
+const endAt = Date.now() + 1500;
+const sleep = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+while (Date.now() < endAt) {
+  try {
+    const h = acquireSessionTurnLock(root, "s1");
+    appendFileSync(log, "IN " + process.pid + "\\n");
+    sleep(1);
+    appendFileSync(log, "OUT " + process.pid + "\\n");
+    h.release();
+  } catch {}
+}
+`,
+    );
+    const logPath = join(root, "cs.log");
+    const kids = Array.from({ length: 6 }, () =>
+      spawn(process.execPath, [workerPath, root, logPath], { stdio: "ignore" }),
+    );
+    await Promise.all(kids.map((c) => new Promise<void>((r) => c.on("exit", () => r()))));
+    const { readFileSync, existsSync } = await import("node:fs");
+    if (!existsSync(logPath)) {
+      assert.fail("workers produced no CS log");
+    }
+    let depth = 0;
+    let maxDepth = 0;
+    for (const line of readFileSync(logPath, "utf8").split("\n")) {
+      if (line.startsWith("IN ")) {
+        depth += 1;
+        if (depth > maxDepth) maxDepth = depth;
+      } else if (line.startsWith("OUT ")) {
+        depth = Math.max(0, depth - 1);
+      }
+    }
+    assert.equal(maxDepth, 1, `lock must serialize CS, maxDepth=${maxDepth}`);
+  });
+});

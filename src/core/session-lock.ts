@@ -6,10 +6,10 @@
 // mutation across processes. It is advisory (cooperative): only code paths that
 // acquire it are serialized.
 //
-// A lock is a small JSON file created atomically (open with "wx"). Ownership is
-// verified with the same process-identity check used by the instance registry
-// (PID liveness + Linux process start time), so a crashed owner's stale lock is
-// detected and reclaimed, and PID reuse cannot silently steal ownership.
+// A lock is a small JSON file published atomically (temp write + linkSync) so the
+// path never appears empty. Ownership is verified with the same process-identity
+// check used by the instance registry (PID liveness + Linux process start time),
+// so a crashed owner's stale lock is reclaimed without stealing a live holder's.
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { currentProcessIdentity, type ProcessIdentity } from "./instance-registry.js";
@@ -115,25 +115,36 @@ export function acquireSessionTurnLock(
   };
   const payload = `${JSON.stringify(record)}\n`;
 
-  // Two attempts: the first may fail because a stale lock is present; after
-  // reclaiming it the second creation must succeed (or a live racer beat us).
+  // Publish via temp+linkSync so the lock path never appears empty between
+  // create and write. Reclaim stale locks via rename (not rm) so two reclaimers
+  // cannot delete each other's freshly published lock (rm TOCTOU dual-hold).
   for (let attempt = 0; attempt < 2; attempt += 1) {
+    const tempPath = `${filePath}.${pid}.${crypto.randomUUID()}.tmp`;
     try {
-      const fd = fs.openSync(filePath, "wx");
+      fs.writeFileSync(tempPath, payload, "utf8");
       try {
-        fs.writeSync(fd, payload);
-      } finally {
-        fs.closeSync(fd);
+        fs.linkSync(tempPath, filePath);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+        // EEXIST then ENOENT means the holder released — retry acquire.
+        // Never treat a missing path as reclaimable (that steals a brand-new lock).
+        const existing = readLockSnapshot(filePath);
+        if (existing.kind === "missing") continue;
+        if (existing.kind === "ok" && !lockIsStale(existing.record, processInfo)) {
+          throw new SessionLockConflictError(sessionId, existing.record.pid);
+        }
+        // Stale (dead pid) or corrupt/unparseable content that still exists on disk.
+        if (!tryReclaimStaleLockFile(filePath, processInfo)) {
+          const holder = readLockSnapshot(filePath);
+          if (holder.kind === "ok" && !lockIsStale(holder.record, processInfo)) {
+            throw new SessionLockConflictError(sessionId, holder.record.pid);
+          }
+        }
+        continue;
       }
       return makeHandle(sessionId, filePath, pid, processInfo);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-      const existing = readLockRecord(filePath);
-      if (!lockIsStale(existing, processInfo)) {
-        throw new SessionLockConflictError(sessionId, existing?.pid ?? -1);
-      }
-      // Reclaim: remove the stale lock and retry the atomic create.
-      fs.rmSync(filePath, { force: true });
+    } finally {
+      fs.rmSync(tempPath, { force: true });
     }
   }
   // A racer reclaimed and took the lock between our checks.
@@ -141,12 +152,57 @@ export function acquireSessionTurnLock(
   throw new SessionLockConflictError(sessionId, existing?.pid ?? -1);
 }
 
-function readLockRecord(filePath: string): SessionLockRecord | undefined {
+/**
+ * Atomically take a suspected-stale lock aside, re-verify, and drop it only if
+ * still stale. Returns true when the path is free for a new acquire attempt.
+ */
+function tryReclaimStaleLockFile(
+  filePath: string,
+  processInfo: (pid: number) => ProcessIdentity,
+): boolean {
+  const quarantine = `${filePath}.reclaim.${process.pid}.${crypto.randomUUID()}`;
   try {
-    return parseLockRecord(fs.readFileSync(filePath, "utf8"));
+    fs.renameSync(filePath, quarantine);
   } catch {
-    return undefined;
+    return false;
   }
+  const taken = readLockRecord(quarantine);
+  if (!lockIsStale(taken, processInfo)) {
+    // Live lock — put it back so the owner keeps mutual exclusion.
+    try {
+      fs.renameSync(quarantine, filePath);
+    } catch {
+      try {
+        fs.linkSync(quarantine, filePath);
+        fs.rmSync(quarantine, { force: true });
+      } catch {
+        // Path occupied; leave quarantine for diagnosis rather than deleting a live record.
+      }
+    }
+    return false;
+  }
+  fs.rmSync(quarantine, { force: true });
+  return true;
+}
+
+type LockSnapshot =
+  | { kind: "missing" }
+  | { kind: "invalid" }
+  | { kind: "ok"; record: SessionLockRecord };
+
+function readLockSnapshot(filePath: string): LockSnapshot {
+  try {
+    const record = parseLockRecord(fs.readFileSync(filePath, "utf8"));
+    return record ? { kind: "ok", record } : { kind: "invalid" };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return { kind: "missing" };
+    return { kind: "invalid" };
+  }
+}
+
+function readLockRecord(filePath: string): SessionLockRecord | undefined {
+  const snap = readLockSnapshot(filePath);
+  return snap.kind === "ok" ? snap.record : undefined;
 }
 
 function makeHandle(
