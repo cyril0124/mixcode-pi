@@ -23,3 +23,52 @@ index 1111111..2222222 100644
      }
      return globalKeybindings;
  }
+diff --git a/node_modules/@earendil-works/pi-tui/dist/keys.js b/node_modules/@earendil-works/pi-tui/dist/keys.js
+index 1111111..2222222 100644
+--- a/node_modules/@earendil-works/pi-tui/dist/keys.js
++++ b/node_modules/@earendil-works/pi-tui/dist/keys.js
+@@ -20,18 +20,27 @@
+ // =============================================================================
+ // Global Kitty Protocol State
+ // =============================================================================
+-let _kittyProtocolActive = false;
++// Share flag across duplicate module instances (bun --compile). Same pattern as
++// keybindings: Symbol.for on globalThis. Local cache keeps hot matchesKey/
++// parseKey paths as a boolean load; entry points resync from the shared slot.
++const KITTY_PROTOCOL_KEY = Symbol.for("@earendil-works/pi-tui:kitty-protocol");
++let _kittyProtocolActive = globalThis[KITTY_PROTOCOL_KEY] === true;
++function syncKittyProtocolActive() {
++    _kittyProtocolActive = globalThis[KITTY_PROTOCOL_KEY] === true;
++}
+ /**
+  * Set the global Kitty keyboard protocol state.
+  * Called by ProcessTerminal after detecting protocol support.
+  */
+ export function setKittyProtocolActive(active) {
++    globalThis[KITTY_PROTOCOL_KEY] = active;
+     _kittyProtocolActive = active;
+ }
+ /**
+  * Query whether Kitty keyboard protocol is currently active.
+  */
+ export function isKittyProtocolActive() {
++    syncKittyProtocolActive();
+     return _kittyProtocolActive;
+ }
+ /**
+@@ -631,6 +640,7 @@
+  * @param keyId - Key identifier (e.g., "ctrl+c", "escape", Key.ctrl("c"))
+  */
+ export function matchesKey(data, keyId) {
++    syncKittyProtocolActive();
+     const parsed = parseKeyId(keyId);
+     if (!parsed)
+         return false;
+@@ -997,6 +1007,7 @@
+     return formatKeyNameWithModifiers(keyName, modifier);
+ }
+ export function parseKey(data) {
++    syncKittyProtocolActive();
+     const kitty = parseKittySequence(data);
+     if (kitty) {
+         return formatParsedKey(kitty.codepoint, kitty.modifier, kitty.baseLayoutKey);
