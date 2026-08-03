@@ -320,6 +320,12 @@ function renderInputMetaInner(
   return lines;
 }
 
+// Progressive model-name degradation for narrow rows: render the richest
+// layout that fits (full provider/module model + icons + wide gaps, then
+// provider dropped, then icons dropped with single-space gaps); the tightest
+// mode falls back to truncation when nothing fits.
+type InputMetaMode = { model: string; thinking: string; gap: string };
+
 function renderInputMetaLeft(
   workdirPath: string,
   model: string,
@@ -331,36 +337,70 @@ function renderInputMetaLeft(
   regions: Array<{ action: "models" | "thinking" | "workdir"; startX: number; endX: number }>;
 } {
   if (width <= 0) return { text: "", regions: [] };
+  const moduleName = shortModelName(model);
+  const modes: InputMetaMode[] = [
+    { model: ` 󰚩 ${model} `, thinking: ` ✦ ${thinking} `, gap: "  " },
+    { model: ` 󰚩 ${moduleName} `, thinking: ` ✦ ${thinking} `, gap: "  " },
+    { model: moduleName, thinking, gap: " " },
+  ];
+  // Greedy degradation: strict modes require model, thinking, and workdir all
+  // visible at natural width; the tightest mode may truncate/drop pieces.
+  for (let index = 0; index < modes.length - 1; index++) {
+    const candidate = layoutInputMetaLeft(modes[index]!, workdirPath, escapeHint, width, true);
+    if (candidate.fits) return candidate;
+  }
+  return layoutInputMetaLeft(modes[modes.length - 1]!, workdirPath, escapeHint, width, false);
+}
+
+function layoutInputMetaLeft(
+  mode: InputMetaMode,
+  workdirPath: string,
+  escapeHint: string,
+  width: number,
+  strict: boolean,
+): {
+  text: string;
+  regions: Array<{ action: "models" | "thinking" | "workdir"; startX: number; endX: number }>;
+  fits: boolean;
+} {
   const pieces: Array<{ action?: "models" | "thinking" | "workdir"; text: string }> = [];
   let remaining = Math.max(0, width - 2);
   const escapeText = escapeHint ? activeRenderTheme.dim(escapeHint) : "";
   const escapeWidth = visibleWidth(escapeText);
-  const thinkingText = ` ✦ ${thinking} `;
-  const thinkingWidth = visibleWidth(thinkingText);
-  const modelFullWidth = visibleWidth(` 󰚩 ${model} `);
+  const thinkingWidth = visibleWidth(mode.thinking);
+  const modelFullWidth = visibleWidth(mode.model);
+  const gapWidth = visibleWidth(mode.gap);
   const fixedWidth = thinkingWidth + escapeWidth + (escapeText ? 1 : 0);
-  const modelWidth = Math.max(5, Math.min(modelFullWidth, remaining - fixedWidth));
-  const modelText = truncateToWidth(` 󰚩 ${model} `, modelWidth, "...");
+  if (strict && remaining - fixedWidth - 2 * gapWidth < modelFullWidth) {
+    return { text: "", regions: [], fits: false };
+  }
+  const modelWidth = strict
+    ? modelFullWidth
+    : Math.max(5, Math.min(modelFullWidth, remaining - fixedWidth));
+  const modelText = strict ? mode.model : truncateToWidth(mode.model, modelWidth, "...");
   pieces.push({
     action: "models",
     text: activeRenderTheme.accent(activeRenderTheme.bold(modelText)),
   });
   remaining -= visibleWidth(modelText);
   if (remaining >= thinkingWidth + escapeWidth + (escapeText ? 1 : 0)) {
-    pieces.push({ text: "  " });
+    pieces.push({ text: mode.gap });
     pieces.push({
       action: "thinking",
-      text: activeRenderTheme.accent(activeRenderTheme.bold(thinkingText)),
+      text: activeRenderTheme.accent(activeRenderTheme.bold(mode.thinking)),
     });
-    remaining -= 2 + thinkingWidth;
+    remaining -= gapWidth + thinkingWidth;
+  } else if (strict) {
+    return { text: "", regions: [], fits: false };
   }
   const escapeGap = escapeText ? 1 + escapeWidth : 0;
-  const workdirBudget = Math.max(0, remaining - escapeGap - 2);
+  const workdirBudget = Math.max(0, remaining - escapeGap - gapWidth);
+  if (strict && workdirBudget < 4) return { text: "", regions: [], fits: false };
   if (workdirBudget >= 4) {
-    pieces.push({ text: "  " });
+    pieces.push({ text: mode.gap });
     const workdir = compactWorkdir(shortWorkdir(workdirPath), workdirBudget);
     pieces.push({ action: "workdir", text: activeRenderTheme.accent(workdir) });
-    remaining -= 2 + visibleWidth(workdir);
+    remaining -= gapWidth + visibleWidth(workdir);
   }
   if (escapeText && remaining >= escapeGap) {
     pieces.push({ text: " " });
@@ -381,7 +421,7 @@ function renderInputMetaLeft(
     text += piece.text;
     cursor += pieceWidth;
   }
-  return { text, regions };
+  return { text, regions, fits: true };
 }
 
 function chooseInputMetaRight(
@@ -691,6 +731,13 @@ function shortWorkdir(workdir: string): string {
   const home = process.env.HOME;
   if (home && workdir.startsWith(home)) return `~${workdir.slice(home.length)}`;
   return workdir;
+}
+
+// "provider/module-name" → "module-name", keeping everything after the last
+// slash (openrouter/anthropic/claude-3.7-sonnet → claude-3.7-sonnet).
+export function shortModelName(displayName: string): string {
+  const slash = displayName.lastIndexOf("/");
+  return slash >= 0 ? displayName.slice(slash + 1) : displayName;
 }
 
 // Progressive left-to-right component compression: shrink directory components
