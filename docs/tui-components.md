@@ -1,300 +1,343 @@
-# MixCode-pi Transient TUI Components
+# MixCode TUI 组件目录
 
-本文记录 MixCode-pi 自己维护的三类 transient TUI 组件。目标读者是未来开发者：改 UI 时先看这里，确认应该复用哪个组件、入口文件在哪、生命周期和边界是什么。
+当前 mixcode-pi 的 TUI 表面清单。改 UI 前先看这里：能复用就复用；能用
+`@earendil-works/pi-tui` 就不要本地重写（见 AGENTS.md Pi Integration）。
 
-本文只覆盖三类短生命周期提示/浮层：
+覆盖：
 
-1. Toast：右上角短消息卡片。
-2. Floating Panel：输入编辑器上方靠右的短暂浮窗，例如 vim user-message navigation preview。
-3. Notice/Error Overlay：中间偏下的非捕获式通知面板，console bridge 和 error notice 使用。
+- 全屏 chrome / agent surface
+- 状态级 overlay / selector
+- 短生命周期反馈（Toast / Floating Panel / Notice）
+- 与 pi-tui 的所有权边界
 
-不覆盖完整 overlay 系统、picker/palette、workspace overlay、extension side panel、chat renderer、InputEditor 全部实现。
+不是快捷键手册（见 `docs/architecture.md` 与 `/hotkeys`）。
 
-## 快速选择
+## 全屏布局
 
-| 需求 | 用哪个组件 | 原因 |
+```text
+┌─ Full-screen layout ─────────────────────────────────────────────────────────────────────────────┐
+│                                   approximate agent-tab frame                                    │
+│                                                                                                  │
+│+------------------------------------------------------------------------------------------------+│
+│| Header: MixCode                                                                                |│
+│|================================================================================================|│
+│| [Home] [Agent-01*] [Agent-02] [Agent-03]                                                       |│
+│|------------------------------------------------------------------------------------------------|│
+│| Status: idle | ctx 12k/200k | claude-sonnet | thinking: medium                                 |│
+│|------------------------------------------------------------------------------------------------|│
+│| user> implement toast overlay                                                                  |│
+│| assistant> adding toast component...                                                           |│
+│| tool: bash  ok  (12ms)                                                                         |│
+│| assistant> Done. auto-hides in 3s.                                                             |│
+│|                                                                                                |│
+│| [scrollable chat surface]                                                                      |│
+│| (extension header scrolls here)                                                                |│
+│| optional: extension side panel may split this row                                              |│
+│|------------------------------------------------------------------------------------------------|│
+│| [extension widgets above editor]                                                               |│
+│|------------------------------------------------------------------------------------------------|│
+│| > prompt editor   CompactPromptEditor / EditorSlot                                             |│
+│|   / @ $ autocomplete  |  vim  |  bash-mode !                                                   |│
+│|------------------------------------------------------------------------------------------------|│
+│| meta: model | thinking | workdir | git | [ZEN]                                                 |│
+│| extension footer widgets                                                                       |│
+│| footer                                                                                         |│
+│+------------------------------------------------------------------------------------------------+│
+│                                                                                                  │
+│ overlays: pi-tui showOverlay() floats above this frame                                           │
+│ toast / floating-panel: painted into the frame (no focus steal)                                  │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+## 组件树
+
+```text
+┌─ Component tree ─────────────────────────────────────────────────────────────────────────────────┐
+│                         @earendil-works/pi-tui                                                   │
+│  +--------------------------------------------------------------------+                          │
+│  | TUI  Container  OverlayHandle  Editor  SelectList  Markdown  Loader|                          │
+│  +----------------------------------+---------------------------------+                          │
+│                                     |                                                            │
+│                                     v                                                            │
+│                          MixCodeLayoutRoot                                                       │
+│            +----------------+----------------+----------------+                                  │
+│            |                |                |                |                                  │
+│            v                v                v                v                                  │
+│      MixCodeRoot       EditorSlot     MixCodeFooterRoot   Loader                                 │
+│            |                |                |            (working)                              │
+│            |                v                v                                                   │
+│            |        CompactPromptEditor   extension footer                                       │
+│            |        + MixCodeCompletion     + renderFooter                                       │
+│            v                                                                                     │
+│   +---------------- chrome (chrome.ts) ----------------+                                         │
+│   | header | tab bar | separator | status | input meta |                                         │
+│   +-------------------+--------------------------------+                                         │
+│                       |                                                                          │
+│          +------------+-------------+                                                            │
+│          | config tab               | agent tab                                                  │
+│          v                          v                                                            │
+│    renderConfig()            Agent Surface                                                       │
+│    home actions                |                                                                 │
+│                                +-- chat blocks (user/asst/tool/bash)                             │
+│                                +-- extension header (scrolls w/ chat)                            │
+│                                +-- optional extension side panel                                 │
+│                                +-- queue preview                                                 │
+│                                +-- toast paint (top-right)                                       │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+## 所有权边界
+
+```text
+┌─ Ownership split ────────────────────────────────────────────────────────────────────────────────┐
+│  FROM pi-tui (reuse, do not reimplement)     MIXCODE-LOCAL (owned here)                          │
+│  ---------------------------------------     ---------------------------                         │
+│  TUI / Container / OverlayHandle             MixCodeLayoutRoot stack                             │
+│  Editor / Input / SelectList                 CompactPromptEditor                                 │
+│  Markdown / Image / Loader                   Agent Surface + chat blocks                         │
+│  Box / Spacer / Text / TruncateText          chrome (header/tab/status)                          │
+│  SettingsList (when fits)                    Settings Panel                                      │
+│  keybindings / autocomplete APIs             Command Palette / Tab Jump                          │
+│  showOverlay anchors                         Toast / Floating Panel                              │
+│                                              Picker / Tree / Session / Fork                      │
+│                                              Workspace Overlay                                   │
+│                                              Notice/Error + console bridge                       │
+│                                              Question dialogs                                    │
+│                                              Extension panel / widgets host                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+## Overlay / Selector 目录
+
+状态级 overlay 同一时刻只开一个（`src/core/overlays.ts` 的 `OverlayKind` 优先级）。
+通用 Text/Lines 与 Notice/Error 走 `src/ui/app-overlays.ts` -> pi-tui `showOverlay()`。
+
+```text
+┌─ Overlay / selector catalog ─────────────────────────────────────────────────────────────────────┐
+│ state-level overlays; single active via OverlayKind priority                                     │
+│                                                                                                  │
+│  ┌─ Command Palette ────────┐   ┌─ Tab Jump ───────────────┐   ┌─ Picker ─────────────────┐      │
+│  │ Ctrl+P                   │   │ Ctrl+T                   │   │ /models /workdir         │      │
+│  │ filter + enter           │   │ fuzzy tab switch         │   │ /thinking /ctx           │      │
+│  └──────────────────────────┘   └──────────────────────────┘   └──────────────────────────┘      │
+│                                                                                                  │
+│  ┌─ Settings Panel ─────────┐   ┌─ Extension Manager ──────┐   ┌─ Session Selector ───────┐      │
+│  │ /settings                │   │ manage packages          │   │ /resume                  │      │
+│  │ theme / UI opts          │   │ enable / disable         │   │ pick session             │      │
+│  └──────────────────────────┘   └──────────────────────────┘   └──────────────────────────┘      │
+│                                                                                                  │
+│  ┌─ Tree Selector ──────────┐   ┌─ Fork Selector ──────────┐   ┌─ Workspace Overlay ──────┐      │
+│  │ /tree                    │   │ /fork                    │   │ save/restore/del         │      │
+│  │ session DAG              │   │ branch point             │   │ progress/confirm         │      │
+│  └──────────────────────────┘   └──────────────────────────┘   └──────────────────────────┘      │
+│                                                                                                  │
+│  ┌─ Confirm dialogs ────────┐   ┌─ Notice / Error ─────────┐   ┌─ Text / Lines ───────────┐      │
+│  │ quit / close-all         │   │ bottom-center            │   │ generic overlay          │      │
+│  │ delete / action          │   │ c/y copy  Esc            │   │ help / hotkeys           │      │
+│  └──────────────────────────┘   └──────────────────────────┘   └──────────────────────────┘      │
+│                                                                                                  │
+│  ┌─ Preview overlay ────────┐   ┌─ Question dialog ────────┐   ┌─ File picker @ ──────────┐      │
+│  │ markdown / tool          │   │ pendingDialogs           │   │ fuzzy + tree             │      │
+│  │ h/l j/k g/G              │   │ multi-question           │   │ insert @path             │      │
+│  └──────────────────────────┘   └──────────────────────────┘   └──────────────────────────┘      │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 速查表
+
+| 表面 | 打开方式 | 主要文件 | 说明 |
+| --- | --- | --- | --- |
+| Command Palette | `Ctrl+P` | `rendering/overlays.ts`, `core/overlays.ts` | 按当前 tab 语境过滤，不是全量 slash 列表 |
+| Tab Jump | `Ctrl+T` | `rendering/overlays.ts`, `core/overlays.ts` | 模糊跳转 tab |
+| Picker | `/models` `/workdir` `/thinking` `/context-limit` | `core/pickers.ts`, `rendering/overlays.ts` | 过滤后单选 |
+| Settings Panel | `/settings` | `settings-panel.ts` | 主题 / UI 选项；workdir 级设置 |
+| Extension Manager | palette / command | `extension-manager.ts` | 启停 package extension |
+| Session Selector | `/resume`, `Ctrl+Shift+R` | `session-selector.ts` | 恢复已有 session |
+| Tree Selector | `/tree`, `Ctrl+Shift+T` | `tree-selector.ts` | session DAG |
+| Fork Selector | `/fork`, `Ctrl+Shift+F` | `fork-selector.ts` | 选择 fork 点 |
+| Workspace Overlay | save / restore / delete | `workspace-overlay.ts`, `workspace-rendering.ts` | 多模式 + 进度 |
+| Confirm | quit / close-all / delete / action | `app-overlays.ts`, `app-key-handlers.ts` | y/n + Esc |
+| Notice / Error | console bridge / errors | `app-overlays.ts` | 底中、`c/y` 复制、Esc 关 |
+| Text / Lines | help、hotkeys、通用 | `app-overlays.ts` | `showTextOverlay` / `showLinesOverlay` |
+| Preview | preview toggle | `rendering/overlays.ts`, `core/overlays.ts` | markdown / tool 预览 |
+| Question dialog | extension / agent questions | `core/dialogs.ts`, `pendingDialogs` | 多题 / 多选 |
+| File picker `@` | `@` | editor + file picker 路径 | fuzzy + tree 两种模式 |
+
+## 短生命周期 UI（Transient）
+
+只做反馈，不要用它们承载选择 / 确认。
+
+```text
+┌─ Transient UI ───────────────────────────────────────────────────────────────────────────────────┐
+│          short result                 local nav context               long diagnostic            │
+│                |                              |                              |                   │
+│                v                              v                              v                   │
+│  ┌─ Toast ──────────────────┐   ┌─ Floating Panel ─────────┐   ┌─ Notice / Error ─────────┐      │
+│  │ top-right                │   │ above editor             │   │ bottom-center            │      │
+│  │ auto-hide 3s             │   │ auto-hide ~1.8s          │   │ Esc close                │      │
+│  │ no focus                 │   │ no focus                 │   │ nonCapturing             │      │
+│  └──────────────────────────┘   └──────────────────────────┘   └──────────────────────────┘      │
+│                |                              |                              |                   │
+│                v                              v                              v                   │
+│            tab.toast                  tab.floatingPanel                 TUI overlay              │
+│        applyToastOverlay         renderFloatingPanelOverlay             showNotice*              │
+│       agent-surface paint               layout paint                pi-tui showOverlay           │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+| 需求 | 用 | 原因 |
 | --- | --- | --- |
-| 只需要告诉用户一个短结果，例如复制成功、终端太窄、没有可显示内容 | Toast | 自动消失、右上角、不阻塞输入，适合一行到三行的即时反馈。 |
-| 用户按键后需要一个短暂的局部上下文预览，例如“当前跳到了哪条 user message” | Floating Panel | 锚定在输入区附近，能高亮当前行，适合导航/局部状态预览。 |
-| 需要展示 console 输出、错误文本、较长诊断，并且不能污染 TTY 帧 | Notice/Error Overlay | non-capturing、底部居中、可换行、`c/y` 复制、Esc 关闭，适合需要读完再关的信息。 |
-| 需要筛选、选择、确认、编辑输入 | 不用这三类 | 使用 picker/palette/workspace overlay/editor component 等交互式组件。 |
+| 短结果（复制成功、太窄、无可显示） | **Toast** | 自动消失、右上、不抢焦点 |
+| 局部导航上下文（当前在哪条 user message） | **Floating Panel** | 锚定输入区上方、可高亮当前行 |
+| 需要读完的诊断 / console / error | **Notice / Error** | 底中、可复制、Esc 关 |
+| 选择 / 确认 / 编辑 | **不要用这三类** | 用 picker / palette / confirm / editor |
 
-```text
-short result       navigation context        readable diagnostic
-     │                    │                         │
-     v                    v                         v
-  Toast            Floating Panel           Notice/Error Overlay
- top-right          above editor             bottom-center panel
- auto-hide          auto-hide                c/y copy · Esc close
-```
+### Toast
 
-## 1. Toast
-
-### Purpose
-
-Toast 是最轻量的短反馈：告诉用户“发生了什么”，但不要求用户处理。典型场景：复制成功、操作不可用、边界提示、短错误。
-
-### Code Entry Points
-
-| 责任 | 文件 / API |
-| --- | --- |
-| 状态类型与写入 | `src/core/toast.ts`：`ToastType`、`ToastNotification`、`pushToast()`、`activeToast()` |
-| 渲染 | `src/ui/rendering/toast-overlay.ts`：`applyToastOverlay()` |
-| 挂到 chat surface | `src/ui/rendering/agent-surface.ts` 调用 `applyToastOverlay(lines, activeToast(tab), ...)` |
-| 常见调用点 | `src/ui/app-input.ts`、`src/ui/app-mouse.ts`、`src/ui/tree-selector.ts`、`src/ui/workspace-overlay.ts` |
-| 测试 | `test/toast-rendering.test.ts` |
-
-### State / API
+- 状态：`src/core/toast.ts` — `pushToast()` / `activeToast()`
+- 绘制：`src/ui/rendering/toast-overlay.ts` — `applyToastOverlay()`
+- 挂载：agent surface / config 绘制路径
+- 时长：`3000ms`
+- 类型：`info` / `success` / `warning` / `error`
+- 形态：圆角卡片，最多 3 行，右上边距
 
 ```ts
-pushToast(tab, {
-  type: "info" | "success" | "warning" | "error",
-  message: "short user-facing message",
-});
+pushToast(tab, { type: "success", message: "Copied." });
 ```
 
-`pushToast()` 把 toast 放到当前 tab 的 `tab.toast` 上，并记录 `createdAt`。`activeToast()` 在渲染时读取；超过 `TOAST_DURATION_MS` 后返回 `undefined` 并清掉状态。
+### Floating Panel
 
-当前 duration：`3_000ms`。
+- 状态：`tab.floatingPanel`（`FloatingPanelState`，`src/core/types.ts`）
+- 绘制：`src/ui/rendering/floating-panel.ts` — `renderFloatingPanelOverlay()`
+- 挂载：`app-layout.ts` assembled layout 末尾
+- 当前生产者：`src/ui/vim-user-message-navigation.ts`（TTL ~1800ms）
+- 样式只允许 `MixCodeTheme` role（state 可序列化）
 
-### Rendering Behavior
+### Notice / Error
 
-- 位置：chat surface 右上角，`TOAST_TOP_MARGIN = 1`，`TOAST_RIGHT_MARGIN = 1`。
-- 样式：圆角卡片，使用 `╭ ╮ ╰ ╯`。
-- 宽度：最小 24，最大 48，同时不超过终端宽度的 45%。
-- 内容：自动加类型图标：`•` / `✓` / `⚠` / `✖`。
-- 长文本：最多三行，最后一行用 `…` 截断。
-- 过小视口：如果放不下完整 toast，直接不渲染。
-
-### Use When
-
-- 操作完成或失败，但用户不需要选择。
-- 边界提示，例如“没有更旧消息”、“没有 extension widgets”。
-- 反馈内容可以在几秒后消失。
-
-### Do Not Use When
-
-- 文本较长，需要用户读完。
-- 需要用户确认、选择、输入。
-- 信息必须保留到用户显式关闭。
-
-### Validation
-
-最小验证：
-
-```bash
-timeout 60s node --test --import tsx test/toast-rendering.test.ts
-```
-
-重点断言：圆角边框存在、右边距存在、长消息最多三行、视口过小时不渲染。
-
-## 2. Floating Panel
-
-### Purpose
-
-Floating Panel 是输入区附近的短暂上下文预览。它不是通用 modal，也不接管焦点。当前主要使用者是 vim user-message navigation preview：按 `Right` / `Shift+Right` 后显示附近 user messages，并高亮当前行。
-
-### Code Entry Points
-
-| 责任 | 文件 / API |
-| --- | --- |
-| 状态类型 | `src/core/types.ts`：`FloatingPanelState`、`FloatingPanelStyle`、`FloatingPanelThemeRole` |
-| 默认 tab 状态 | `src/core/defaults.ts`：`floatingPanel: undefined` |
-| 渲染 | `src/ui/rendering/floating-panel.ts`：`renderFloatingPanelOverlay()` |
-| 接入布局 | `src/ui/app-layout.ts`：assembled layout 最后调用 `renderFloatingPanelOverlay(...)` |
-| 当前使用者 | `src/ui/vim-user-message-navigation.ts` |
-| 到期重绘 | `src/ui/app-input.ts`：`scheduleFloatingPanelExpiryRender()` |
-| 测试 | `test/floating-panel.test.ts` |
-
-### State / API
-
-```ts
-tab.floatingPanel = {
-  title: "User Messages",
-  lines: ["↑ 3 older above", "some message", "↓ 2 newer below"],
-  highlightedIndex: 1,
-  width: 34,
-  expiresAt: Date.now() + 1_800,
-  style: {
-    border: "borderDim",
-    title: "borderDim",
-    body: "surface",
-    highlighted: "selection",
-  },
-};
-```
-
-`style` 是可选的；不指定时使用安全默认值：
-
-- `border`: `borderDim`
-- `title`: `borderDim`，或跟随 `border`
-- `body`: `surface`
-- `highlighted`: `selection`
-
-`FloatingPanelThemeRole` 只允许使用 `MixCodeTheme` 中的命名 role。不要把函数直接塞进 state；这保持 state 可序列化/可测试，也避免跨 theme 生命周期泄漏。
-
-### Rendering Behavior
-
-- 位置：输入编辑器 top row 上方一行，靠右。
-- 右侧保护：`SCROLLBAR_SAFE_RIGHT_MARGIN = 2`，并且 splice 时保留 overlay 右侧原始 suffix，避免擦掉 chat scrollbar。
-- 样式：圆角 titled border，使用 `╭ title ─╮` / `╰──╯`。
-- 高亮：只通过 `highlightedIndex` 样式高亮，不在文本里加 `*`、`o` 等 marker。
-- 到期：`expiresAt` 后不渲染；按键触发时会安排一次到期后的 `requestRender()`，避免画面停留到下一次输入。
-- 过小空间：如果放不下面板，直接不渲染。
-
-### Current User-message Preview Behavior
-
-`src/ui/vim-user-message-navigation.ts` 负责生成当前 preview 内容：
-
-- `PREVIEW_TTL_MS = 1_800`
-- `PREVIEW_WIDTH = 34`
-- 默认 5 行；有 chat surface bounds 时自适应 3–7 行。
-- 行内容来自当前 branch 的 user message 第一行，最后追加虚拟 `<NEWEST>`。
-- 如果窗口无法显示全部消息，在框内显示：
-  - `↑ N older above`
-  - `↓ N newer below`
-- 当前行只高亮，不加 marker。
-
-### Use When
-
-- 用户已经触发了一个局部导航动作，需要短暂展示“附近上下文”。
-- 信息和输入区/当前 tab 强关联。
-- 不需要焦点、不需要 Esc、不需要用户选择。
-- 需要高亮当前行或展示少量列表。
-
-### Do Not Use When
-
-- 信息应覆盖全屏或需要用户关闭：用 Notice/Error Overlay。
-- 只是短成功/失败反馈：用 Toast。
-- 需要滚动、选择、过滤或提交：用 picker/palette/editor component。
-
-### Validation
-
-最小验证：
-
-```bash
-timeout 60s node --test --import tsx test/floating-panel.test.ts
-```
-
-重点断言：圆角标题、样式 role 可配置、当前行高亮、overflow rows、到期隐藏、右侧 scrollbar 列未被擦掉。
-
-真实 TUI 改动还需要 tmux 校验。可以用临时 harness 或实际功能路径启动 TUI，按触发键后 capture pane，确认：
-
-- `╭ User Messages` 出现。
-- 当前 user message 出现。
-- 右侧 scrollbar/gutter 没被覆盖。
-- 到期后消失。
-
-## 3. Notice / Error Overlay
-
-### Purpose
-
-Notice/Error Overlay 用来把较长、需要用户读完的信息放进 TUI 管理的 overlay，而不是让文本直接写到 stdout 破坏 TUI 帧。console bridge 的输出和部分 error/notice 都走这条路径。
-
-### Code Entry Points
-
-| 责任 | 文件 / API |
-| --- | --- |
-| console 重载 | `src/cli/console-tui-bridge.ts`：`installConsoleTuiBridge()`、`wireConsoleSink()` |
-| main 接线 | `src/cli/main.ts`：启动早期安装 bridge，TUI 创建后 wire sink 到 `showNoticeTextOverlay()` |
-| notice/error API | `src/ui/app-overlays.ts`：`showNoticeTextOverlay()`、`showErrorOverlay()`、`copyActiveNoticeText()` |
-| 渲染 | `src/ui/app-overlays.ts`：`renderNoticePanel()` |
-| 输入 | `src/ui/app-input.ts`：Notice 打开时 `c/y` 复制全文；`src/ui/app-mouse.ts`：面板内拖选复制 |
-| 测试 | `test/console-tui-bridge.test.ts`、`test/notice-overlay.test.ts`、`test/app-mouse-selection.test.ts` |
-
-### Console Bridge Flow
+- API：`showNoticeTextOverlay()` / `showErrorOverlay()`（`app-overlays.ts`）
+- Console：`src/cli/console-tui-bridge.ts` 先 queue，sink 就绪后 flush 进 Notice
+- 锚点：`bottom-center`，`nonCapturing: true`
+- 键：`c/y` 复制全文；Esc 关闭；面板内可鼠标拖选
 
 ```text
-extension / code calls console.log(...)
-  │
-  v
-installConsoleTuiBridge() overrides console.log/info/debug/warn/error
-  │
-  ├─ before TUI sink exists: queue formatted lines
-  │
-  v
-wireConsoleSink(fn) flushes backlog in order
-  │
-  v
-showNoticeTextOverlay(tui, "[console.log]: ...")
-  │
-  v
-bottom-center non-capturing Notice panel
+┌─ console -> Notice ──────────────────────────────────────────────────┐
+│  console.log / info / debug / warn / error                           │
+│                    |                                                 │
+│                    v                                                 │
+│       installConsoleTuiBridge()                                      │
+│                    |                                                 │
+│       +------------+------------+                                    │
+│       | before sink              | sink ready                        │
+│       v                          v                                   │
+│     queue lines              wireConsoleSink()                       │
+│       |                          |                                   │
+│       +------------> flush <-----+                                   │
+│                      |                                               │
+│                      v                                               │
+│         showNoticeTextOverlay(...)                                   │
+│                      |                                               │
+│                      v                                               │
+│           bottom-center Notice panel                                 │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
-Only these methods are bridged:
+## 该用哪个？
 
-- `console.log`
-- `console.info`
-- `console.debug`
-- `console.warn`
-- `console.error`
-
-`console.trace`、`console.dir` 等没有接管。
-
-### Rendering Behavior
-
-- 位置：`anchor: "bottom-center"`，`offsetY: -4`。
-- 捕获：`nonCapturing: true`，不会主动吃掉输入焦点。
-- 提示：显示 `c/y copy · Esc close`。
-- 复制：`c/C/y/Y` 复制完整 notice body；鼠标可在面板 bounds 内拖选复制。
-- 关闭：通用 Esc overlay 处理会关闭它。
-- 宽度：按内容自适应，最大约终端宽度 60%，最小 24。
-- 高度：最大约终端高度 60%，至少 6。
-- 内容：按 panel 宽度 wrap，不按行截断；适合诊断信息。
-- 样式：普通 notice 用默认 border，error variant 用 danger border/title。
-
-### Use When
-
-- 文本来自 console，需要从 raw tty 搬到 TUI 内。
-- 信息比 toast 长，用户可能要读几秒。
-- 错误消息需要保留到用户关闭。
-- 需要避免 TUI frame 被 stdout/stderr 破坏。
-
-### Do Not Use When
-
-- 只是短反馈：用 Toast。
-- 只是局部导航 preview：用 Floating Panel。
-- 需要用户选择/确认：用专门的 confirm overlay 或 picker。
-- 需要持续显示的 extension UI：用 extension header/footer/widgets/editor component。
-
-### Validation
-
-最小验证：
-
-```bash
-timeout 60s node --test --import tsx test/console-tui-bridge.test.ts test/notice-overlay.test.ts
+```text
+┌─ Which surface? ─────────────────────────────────────────────────────────────────────────────────┐
+│ need user action?                                                                                │
+│        |                                                                                         │
+│        +-- no -- short text? -- yes --> Toast                                                    │
+│        |              |                                                                          │
+│        |              +-- no -- local nav? -- yes --> Floating Panel                             │
+│        |                              |                                                          │
+│        |                              +-- no --> Notice / Error                                  │
+│        |                                                                                         │
+│        +-- yes                                                                                   │
+│             |                                                                                    │
+│             +-- select one item?  --> Picker / Session / Fork / Tree / TabJump                   │
+│             +-- filter commands?  --> Command Palette                                            │
+│             +-- edit settings?    --> Settings Panel                                             │
+│             +-- yes/no confirm?   --> Confirm overlay                                            │
+│             +-- multi-question?   --> Question dialog (pendingDialogs)                           │
+│             +-- free text / help? --> Text / Lines overlay                                       │
+│             +-- extension custom? --> Pi Component / widgets / editor slot                       │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-重点断言：console 输出先 queue 后 flush、带 `[console.<method>]:` 前缀、notice/error title 正确、长消息 wrap 后不丢词、每行宽度正确。
+## 常驻 chrome 件
 
-## Shared Rules
+| 部件 | 渲染入口 | 说明 |
+| --- | --- | --- |
+| Header | `renderHeader` | 顶栏 |
+| Tab bar | `renderTabBar` / `renderVisibleTabBar` | Zen 下隐藏 |
+| Tab separator | `renderTabBarSeparator` | Zen 未读 `●` |
+| Status | `renderStatus` | context / state / model |
+| Agent surface | `renderAgentSurface` | chat + 可选 sidebar |
+| Chat blocks | `renderChat` / `renderChatBlock` | user / asst / tool / bash |
+| Extension header | `renderExtensionHeader` | 随 chat 滚动 |
+| Extension side panel | `renderExtensionPanel` | 非 vim 时 `Right` 切换 |
+| Extension widgets | `renderExtensionWidgets` | 编辑器上下 |
+| Input meta | `renderInputMeta` | model / thinking / workdir 可点 |
+| Working indicator | pi-tui `Loader` | streaming / working |
+| Footer | `renderFooter` / `renderExtensionFooter` | 底栏 |
+| Editor | `CompactPromptEditor` + `EditorSlot` | 输入宿主 |
 
-### Keep transient state per tab
+## 代码地图
 
-Toast 和 Floating Panel 都挂在 `MixCodeTabInfo` 上，避免跨 tab 泄漏。Notice/Error Overlay 是 TUI-level overlay，因为它服务于全局 console/error 输出。
+```text
+┌─ Code map ───────────────────────────────────────────────────────────────────────────────────────┐
+│src/ui/                                                                                           │
+│├── app-layout.ts                 MixCodeRoot / FooterRoot / LayoutRoot                           │
+│├── app-editor.ts                 CompactPromptEditor, EditorSlot                                 │
+│├── app-overlays.ts               Lines / Text / Notice / Error / Confirm                         │
+│├── app-input.ts                  global key routing into components                              │
+│├── completion.ts                 / @ $ autocomplete provider                                     │
+│├── settings-panel.ts             Settings Panel                                                  │
+│├── session-selector.ts           Session resume selector                                         │
+│├── tree-selector.ts              Session tree selector                                           │
+│├── fork-selector.ts              Fork point selector                                             │
+│├── workspace-overlay.ts          Workspace save/restore/delete UI                                │
+│├── workspace-rendering.ts        Workspace overlay renderers                                     │
+│├── extension-manager.ts          Extension Manager overlay                                       │
+│├── vim-user-message-navigation.ts  Floating Panel producer                                       │
+│└── rendering/                                                                                    │
+│    ├── chrome.ts                 header, tab bar, status, meta, extension panel                   │
+│    ├── agent-surface.ts          chat surface + toast paint + queue                              │
+│    ├── chat.ts                   chat block rendering                                            │
+│    ├── overlays.ts               palette, tab-jump, picker, config, preview                      │
+│    ├── floating-panel.ts         Floating Panel renderer                                         │
+│    ├── toast-overlay.ts          Toast painter                                                   │
+│    └── primitives.ts             box / titledBox / overlayPanel                                  │
+│                                                                                                  │
+│src/core/                                                                                         │
+│├── toast.ts                      pushToast / activeToast                                         │
+│├── pickers.ts                    models / workdir / thinking / context                           │
+│├── overlays.ts                   OverlayKind + palette / tab-jump / preview                      │
+│├── dialogs.ts                    Question dialog state machine                                   │
+│└── types.ts                      FloatingPanelState, dialog, picker types                        │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+```
 
-### Prefer explicit expiry over silent persistence
+## 共享规则
 
-- Toast：`activeToast()` 根据 `createdAt` 过期。
-- Floating Panel：`expiresAt` 决定是否渲染，并安排到期重绘。
-- Notice/Error Overlay：没有自动过期；可 `c/y` 复制，用户用 Esc 关闭。
+1. **先复用再发明。** 先查 pi-tui 与本目录。
+2. **状态级 overlay 同时只开一个。** `activeOverlay()` / `closeActiveOverlay()`。
+3. **Toast / Floating Panel 按 tab 挂状态；Notice 是 TUI 级。**
+4. **生命周期要明确。** auto-hide、Esc、或显式清状态；禁止无声常驻。
+5. **样式走 `MixCodeTheme` role，不硬编码 ANSI。**
+6. **视口太小：不渲染或 queue，不伪造成功。**
+7. **渲染尽量纯。** 状态变更在 handler；renderer 只拼字符串。
+8. **TUI 改动要 tmux 验证**（见 AGENTS.md TUI Validation）。
 
-### Do not use fallback success paths
+## 新表面检查清单
 
-如果组件无法渲染（空间不足、没有 active tab、没有 TUI sink），让行为明确：不渲染、queue、toast warning 或 error overlay。不要伪造成功或吞掉真实错误。
-
-### Keep renderers pure where possible
-
-渲染函数应主要做 string composition：输入 state/theme/width，输出 lines。状态变更放在 action/input handler 层，例如 `pushToast()` 或设置 `tab.floatingPanel`。
-
-## Component Checklist
-
-新增 transient TUI 组件或复用现有组件时，至少确认：
-
-- [ ] 位置不会覆盖 tab bar、input editor、footer 或 chat scrollbar。
-- [ ] 生命周期明确：auto-hide、Esc close，或由状态清理。
-- [ ] 样式来自 `MixCodeTheme` role，而不是硬编码 ANSI。
-- [ ] 太窄/太矮时行为明确。
-- [ ] 有 focused rendering test。
-- [ ] TUI 相关改动通过 tmux capture 验证核心键流。
+- [ ] 现有表面是否已覆盖？复用。
+- [ ] pi-tui 是否已有？复用。
+- [ ] 位置：不盖住 tab bar / editor / footer / scrollbar。
+- [ ] 生命周期：auto-hide / Esc / 显式清理。
+- [ ] 主题：`MixCodeTheme` role。
+- [ ] 过窄 / 过矮行为已定义。
+- [ ] 有 focused contract test（禁止 source-grep）。
+- [ ] TUI 路径有 tmux capture。

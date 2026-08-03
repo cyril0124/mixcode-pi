@@ -54,7 +54,6 @@ import {
   renderAgentSurface,
   renderPickerOverlay,
   renderQueuePreview,
-  renderSidebar,
   renderStatus,
   renderTabBar,
   renderTabJumpOverlay,

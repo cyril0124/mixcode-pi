@@ -18,10 +18,7 @@ import {
   oversizedPolicyKey,
   type AgentSurfaceRenderOptions,
 } from "./agent-surface-options.js";
-import {
-  renderExtensionHeader,
-  renderSidebarInner,
-} from "./chrome.js";
+import { renderExtensionHeader } from "./chrome.js";
 import { activeRenderTheme, renderWithTheme } from "./context.js";
 import {
   BLOCK_HEIGHT_FALLBACK,
@@ -34,7 +31,7 @@ import {
   rememberScrollFreezeAnchor,
   type ChatBlockLayout,
 } from "./agent-surface-scroll.js";
-import { fitScrolledLinesWithInfo, joinColumns, type ScrolledLinesResult } from "./layout.js";
+import { fitScrolledLinesWithInfo, type ScrolledLinesResult } from "./layout.js";
 import { renderHeaderKeyHints } from "./header-hints.js";
 import { box, padLine } from "./primitives.js";
 import { applyToastOverlay } from "./toast-overlay.js";
@@ -155,8 +152,6 @@ function renderAgentSurfaceInner(
   options: AgentSurfaceRenderOptions,
 ): string[] {
   const surfaceWidth = maxHeight === undefined || width < 2 ? width : width - 1;
-  const sidebarVisible = false;
-  const sidebarWidth = 0;
   const mainWidth = surfaceWidth;
 
   if (maxHeight !== undefined && runtimeTab && tab.chatScrollAnchorEntryId) {
@@ -167,8 +162,6 @@ function renderAgentSurfaceInner(
       maxHeight,
       surfaceWidth,
       mainWidth,
-      sidebarVisible,
-      sidebarWidth,
       options,
     );
   }
@@ -188,17 +181,12 @@ function renderAgentSurfaceInner(
         maxHeight,
         surfaceWidth,
         mainWidth,
-        sidebarVisible,
-        sidebarWidth,
         options,
       );
     }
   }
 
-  const main = getCachedConversationLines(tab, runtimeTab, mainWidth, options);
-  const body = sidebarVisible
-    ? joinColumns(main, renderSidebarInner(tab, sidebarWidth, runtimeTab), mainWidth, sidebarWidth)
-    : main;
+  const body = getCachedConversationLines(tab, runtimeTab, mainWidth, options);
   // Extension header rides at the very top of the scrollable conversation
   // (like Pi): visible when scrolled to the top, scrolls away otherwise.
   const headerLines = scrollableHeaderLines(tab, mainWidth);
@@ -282,8 +270,6 @@ function renderAgentSurfaceAnchored(
   maxHeight: number,
   surfaceWidth: number,
   mainWidth: number,
-  sidebarVisible: boolean,
-  sidebarWidth: number,
   options: AgentSurfaceRenderOptions,
 ): string[] {
   const chat = runtimeTab.chat;
@@ -306,8 +292,6 @@ function renderAgentSurfaceAnchored(
       maxHeight,
       surfaceWidth,
       mainWidth,
-      sidebarVisible,
-      sidebarWidth,
       options,
     );
   }
@@ -370,16 +354,8 @@ function renderAgentSurfaceAnchored(
   );
   const start = Math.min(Math.max(0, total - visible.length), anchorIndex * BLOCK_HEIGHT_FALLBACK + windowStart);
   const decorated = decorateWindow(visible, start, total, viewport, mainWidth);
-  const composed = sidebarVisible
-    ? joinColumns(
-        decorated,
-        renderSidebarInner(tab, sidebarWidth, runtimeTab),
-        mainWidth,
-        sidebarWidth,
-      )
-    : decorated;
   const fitted: ScrolledLinesResult = {
-    lines: highlightVisibleChatLines(composed, tab, surfaceWidth, viewport),
+    lines: highlightVisibleChatLines(decorated, tab, surfaceWidth, viewport),
     total,
     height: viewport,
     start,
@@ -415,8 +391,6 @@ function renderAgentSurfaceWindowed(
   maxHeight: number,
   surfaceWidth: number,
   mainWidth: number,
-  sidebarVisible: boolean,
-  sidebarWidth: number,
   options: AgentSurfaceRenderOptions,
   freezeAdjusted = false,
 ): string[] {
@@ -496,15 +470,7 @@ function renderAgentSurfaceWindowed(
   if (lines.length === 0) {
     const placeholder = renderConversationEmptyState(mainWidth);
     const withHeader = headerLines.length ? [...headerLines, ...placeholder] : placeholder;
-    const composed = sidebarVisible
-      ? joinColumns(
-          withHeader,
-          renderSidebarInner(tab, sidebarWidth, runtimeTab),
-          mainWidth,
-          sidebarWidth,
-        )
-      : withHeader;
-    const fitted = fitScrolledLinesWithInfo(composed, maxHeight, surfaceWidth, 0);
+    const fitted = fitScrolledLinesWithInfo(withHeader, maxHeight, surfaceWidth, 0);
     const highlighted = highlightVisibleChatLines(fitted.lines, tab, surfaceWidth, fitted.height);
     return appendChatScrollbar({ ...fitted, lines: highlighted }, width, false, tab);
   }
@@ -531,8 +497,6 @@ function renderAgentSurfaceWindowed(
       maxHeight,
       surfaceWidth,
       mainWidth,
-      sidebarVisible,
-      sidebarWidth,
       options,
       true,
     );
@@ -577,17 +541,8 @@ function renderAgentSurfaceWindowed(
   rememberChatBlockScrollAnchor(tab, blockLayouts, windowStart, visible, surfaceWidth, viewport);
   const decorated = decorateWindow(visible, start, total, viewport, mainWidth);
 
-  const composed = sidebarVisible
-    ? joinColumns(
-        decorated,
-        renderSidebarInner(tab, sidebarWidth, runtimeTab),
-        mainWidth,
-        sidebarWidth,
-      )
-    : decorated;
-
   const fitted: ScrolledLinesResult = {
-    lines: highlightVisibleChatLines(composed, tab, surfaceWidth, viewport),
+    lines: highlightVisibleChatLines(decorated, tab, surfaceWidth, viewport),
     total,
     height: viewport,
     start,

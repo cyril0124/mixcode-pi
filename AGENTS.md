@@ -15,7 +15,7 @@
   - Package catalog: https://pi.dev/packages
   - Local MixCode↔Pi compatibility: `docs/extension-compatibility.md`
   - Local architecture mapping (not upstream API source): `docs/architecture.md`
-  - Local MixCode transient UI only (Toast / Floating Panel / Notice): `docs/tui-components.md`
+  - Local MixCode TUI component catalog (chrome / overlays / transient): `docs/tui-components.md`
 
 ## Built-in Extensions
 

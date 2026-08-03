@@ -1,5 +1,4 @@
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
-import type { RuntimeTab } from "../../agent/runtime.js";
 import { isPendingEscapeActive } from "../../core/escape.js";
 import { gitBranchForWorkdir } from "../../core/git-branch.js";
 import type { MouseHitRegion } from "../../core/mouse.js";
@@ -241,26 +240,6 @@ function formatCompactTokenCount(tokens: number): string {
   const value = tokens / 1_000;
   if (Number.isInteger(value)) return `${value.toFixed(0)}k`;
   return `${tokens < 10_000 ? value.toFixed(2) : value.toFixed(1)}k`;
-}
-
-export function renderSidebar(
-  tab: MixCodeTabInfo,
-  width: number,
-  runtimeTab?: RuntimeTab,
-  theme: MixCodeTheme = activeRenderTheme,
-): string[] {
-  return renderWithTheme(theme, () => renderSidebarInner(tab, width, runtimeTab));
-}
-
-export function renderSidebarInner(
-  tab: MixCodeTabInfo,
-  width: number,
-  runtimeTab?: RuntimeTab,
-): string[] {
-  void tab;
-  void width;
-  void runtimeTab;
-  return [];
 }
 
 export function renderInputMeta(

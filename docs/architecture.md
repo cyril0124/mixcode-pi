@@ -97,10 +97,10 @@ MixCodeRuntime
 │ [Config] [Agent-01] [Agent-02*]        Ctrl+T:Jump         │
 ├────────────────────────────────────────────────────────────┤
 │ Status: Context / State / Model                            │
-├──────────────────────────────┬─────────────────────────────┤
-│ Chat                         │ TODO Board                  │
-│ user / assistant / tool      │ optional                    │
-├──────────────────────────────┴─────────────────────────────┤
+├────────────────────────────────────────────────────────────┤
+│ Chat (user / assistant / tool / bash)                      │
+│ optional: extension side panel on the right                │
+├────────────────────────────────────────────────────────────┤
 │ Shell / Markdown Preview overlays                           │
 ├────────────────────────────────────────────────────────────┤
 │ > prompt editor                                             │
