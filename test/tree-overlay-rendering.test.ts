@@ -237,7 +237,7 @@ test("tree selector opens in the editor input area instead of an overlay", () =>
 
 test("attached tree selector editor handles focused TUI input directly", () => {
   const state = createInitialState("/repo");
-  initTreeSelector(state.treeSelector, sampleTree(), "active");
+  initTreeSelector(state.treeSelector, toolSearchTree(), "tool-result");
   let factory: (() => { handleInput?: (data: string) => void }) | undefined;
   let renders = 0;
   const tui = {
@@ -255,7 +255,10 @@ test("attached tree selector editor handles focused TUI input directly", () => {
   tui.treeSelectorDisplay?.open("s1");
   factory?.().handleInput?.("\x0f");
 
-  assert.equal(state.treeSelector.filterMode, "no-tools");
+  // ctrl+o cycles the filter to no-tools (pi's TreeList): tool result hidden, badge shown.
+  const filtered = renderTreeSelector(state, 100).map(stripAnsi).join("\n");
+  assert.match(filtered, /\[no-tools\]/);
+  assert.doesNotMatch(filtered, /\[read: \/tmp\/a\]/);
   assert.ok(renders >= 1);
 });
 
@@ -263,8 +266,11 @@ test("attached tree selector editor ignores Kitty key release events", () => {
   const state = createInitialState("/repo");
   initTreeSelector(state.treeSelector, sampleTree(), "active");
   let factory: (() => { handleInput?: (data: string) => void }) | undefined;
+  let renders = 0;
   const tui = {
-    requestRender: () => undefined,
+    requestRender: () => {
+      renders++;
+    },
     showOverlay: () => {
       throw new Error("tree selector key handling must not use overlay rendering");
     },
@@ -276,7 +282,8 @@ test("attached tree selector editor ignores Kitty key release events", () => {
   tui.treeSelectorDisplay?.open("s1");
   factory?.().handleInput?.("\x1b[111;5:3u");
 
-  assert.equal(state.treeSelector.filterMode, "default");
+  // Key release events short-circuit before any key handling or render request.
+  assert.equal(renders, 0);
 });
 
 test("navigate mode consumes Left so app-input cannot leave to Home", () => {
@@ -305,7 +312,7 @@ test("navigate mode consumes Left so app-input cannot leave to Home", () => {
 test("tree selector uses pi-agent key labels and shortcuts", () => {
   const state = createInitialState("/repo");
   state.treeSelector = createTreeSelectorState();
-  initTreeSelector(state.treeSelector, sampleTree(), "active");
+  initTreeSelector(state.treeSelector, toolSearchTree(), "tool-result");
   let refreshes = 0;
   const tui = {
     requestRender: () => undefined,
@@ -324,7 +331,10 @@ test("tree selector uses pi-agent key labels and shortcuts", () => {
 
   assert.equal(handleTreeSelectorKey(state, "\x0f", tui), true);
   assert.equal(refreshes, 1);
-  assert.equal(state.treeSelector.filterMode, "no-tools");
+  // ctrl+o cycles the filter to no-tools (pi's TreeList handles it): tool result hidden.
+  const filtered = renderTreeSelector(state, 100).map(stripAnsi).join("\n");
+  assert.match(filtered, /\[no-tools\]/);
+  assert.doesNotMatch(filtered, /\[read: \/tmp\/a\]/);
 
   assert.equal(handleTreeSelectorKey(state, "L", tui), true);
   const labelEditor = renderTreeSelector(state, 80).map(stripAnsi).join("\n");
@@ -335,7 +345,7 @@ test("tree selector uses pi-agent key labels and shortcuts", () => {
 test("tree selector input listener handles tree keys when no editor host is attached", () => {
   const state = createInitialState("/repo");
   state.treeSelector = createTreeSelectorState();
-  initTreeSelector(state.treeSelector, sampleTree(), "active");
+  initTreeSelector(state.treeSelector, toolSearchTree(), "tool-result");
   let renders = 0;
   const tui = {
     requestRender: () => {
@@ -353,7 +363,10 @@ test("tree selector input listener handles tree keys when no editor host is atta
     }),
     { consume: true },
   );
-  assert.equal(state.treeSelector.filterMode, "no-tools");
+  // ctrl+o cycles the filter to no-tools: tool result hidden, badge shown.
+  const filtered = renderTreeSelector(state, 100).map(stripAnsi).join("\n");
+  assert.match(filtered, /\[no-tools\]/);
+  assert.doesNotMatch(filtered, /\[read: \/tmp\/a\]/);
   assert.equal(renders, 1);
 });
 

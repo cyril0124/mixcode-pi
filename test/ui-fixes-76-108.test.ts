@@ -20,6 +20,7 @@ import {
 import { handleMouseInput } from "../src/ui/app-mouse.js";
 import { closeAppOverlay, showNoticeTextOverlay } from "../src/ui/app-overlays.js";
 import { handleTreeSelectorKey } from "../src/ui/tree-selector.js";
+import { renderTreeSelector } from "../src/ui/tree-selector-render.js";
 import { handleSettingsPanelKey, renderSettingsPanel } from "../src/ui/settings-panel.js";
 
 function messageNode(
@@ -47,6 +48,46 @@ function sampleTree(): SessionTreeNode[] {
       messageNode("assistant", "root", "assistant", "answer", [
         messageNode("active", "assistant", "user", "current branch"),
       ]),
+    ]),
+  ];
+}
+
+function toolResultTree(): SessionTreeNode[] {
+  return [
+    messageNode("root", null, "user", "start", [
+      {
+        entry: {
+          type: "message",
+          id: "assistant-tool",
+          parentId: "root",
+          timestamp: "2026-05-14T00:00:00.000Z",
+          message: {
+            role: "assistant",
+            content: [
+              { type: "toolCall", id: "call-1", name: "read", arguments: { path: "/tmp/a" } },
+            ],
+          },
+        },
+        children: [
+          {
+            entry: {
+              type: "message",
+              id: "tool-result",
+              parentId: "assistant-tool",
+              timestamp: "2026-05-14T00:00:00.000Z",
+              message: {
+                role: "toolResult",
+                toolCallId: "call-1",
+                toolName: "read",
+                content: [{ type: "text", text: "tool output" }],
+                isError: false,
+                timestamp: 0,
+              },
+            },
+            children: [],
+          } as SessionTreeNode,
+        ],
+      } as SessionTreeNode,
     ]),
   ];
 }
@@ -189,8 +230,7 @@ test("Home card Updated uses lastWorkedAt recency, not run duration", () => {
 test("#88 tree ctrl+d resets filter to default", () => {
   const state = createInitialState("/repo");
   state.treeSelector = createTreeSelectorState();
-  initTreeSelector(state.treeSelector, sampleTree(), "active");
-  state.treeSelector.filterMode = "no-tools";
+  initTreeSelector(state.treeSelector, toolResultTree(), "tool-result");
   const tui = {
     requestRender: () => undefined,
     showOverlay: () => {
@@ -203,8 +243,17 @@ test("#88 tree ctrl+d resets filter to default", () => {
       close: () => undefined,
     },
   };
+  const rendered = () => stripAnsi(renderTreeSelector(state, 100).join("\n"));
+
+  // ctrl+o cycles to no-tools: tool result row hidden, badge shown.
+  assert.equal(handleTreeSelectorKey(state, "\x0f", tui), true);
+  assert.match(rendered(), /\[no-tools\]/);
+  assert.doesNotMatch(rendered(), /\[read: \/tmp\/a\]/);
+
+  // ctrl+d resets the filter to default: tool result row visible again, badge gone.
   assert.equal(handleTreeSelectorKey(state, "\x04", tui), true);
-  assert.equal(state.treeSelector.filterMode, "default");
+  assert.doesNotMatch(rendered(), /\[no-tools\]/);
+  assert.match(rendered(), /\[read: \/tmp\/a\]/);
 });
 
 test("#99 expanded user-bash still offers collapse when overflow exists", () => {

@@ -20,7 +20,6 @@ import {
   syncTreeSelectorSelection,
   type TreeFilterMode,
   type TreeSelectorMode,
-  updateTreeFilterState,
 } from "../core/tree-selector.js";
 import type { MixCodeState } from "../core/types.js";
 import { showErrorOverlay } from "./app-overlays.js";
@@ -211,7 +210,6 @@ export function handleTreeSelectorKey(
   }
 
   withTreeKeybindings(() => selector.component?.handleInput(data));
-  updateTreeFilterState(selector, data);
   syncTreeSelectorSelection(selector);
   drainTreeComponentEvents(state, tui, runtime, onStateChanged);
   refreshTreeSelectorDisplay(tui);

@@ -132,30 +132,6 @@ export function syncTreeSelectorSelection(state: TreeSelectorState): string | nu
   return selected;
 }
 
-export function updateTreeFilterState(state: TreeSelectorState, data: string): void {
-  const modes: TreeFilterMode[] = ["default", "no-tools", "user-only", "labeled-only", "all"];
-  if (data === "\x04") state.filterMode = "default";
-  else if (data === "\x0f") state.filterMode = nextMode(state.filterMode, modes, 1);
-  else if (data === "\x14") {
-    state.filterMode = state.filterMode === "no-tools" ? "default" : "no-tools";
-  } else if (data === "\x15") {
-    state.filterMode = state.filterMode === "user-only" ? "default" : "user-only";
-  } else if (data === "\x0c") {
-    state.filterMode = state.filterMode === "labeled-only" ? "default" : "labeled-only";
-  } else if (data === "\x01") {
-    state.filterMode = state.filterMode === "all" ? "default" : "all";
-  }
-}
-
-function nextMode(
-  current: TreeFilterMode,
-  modes: TreeFilterMode[],
-  direction: 1 | -1,
-): TreeFilterMode {
-  const index = modes.indexOf(current);
-  return modes[(index + direction + modes.length) % modes.length]!;
-}
-
 const TOOL_SEARCH_METADATA_PREFIX = "\u0000mixcode-tree-tool:";
 const TOOL_SEARCH_METADATA_PATTERN = /\u0000mixcode-tree-tool:[^\u0000]*\u0000/g;
 
