@@ -182,7 +182,7 @@ test("bootstrap builds completion sources from Pi-managed fd and skills", async 
     await mkdir(join(dir, ".agents", "skills", "review"), { recursive: true });
     await writeFile(
       join(dir, ".agents", "skills", "review", "SKILL.md"),
-      "description: review",
+      "---\ndescription: review\n---\n",
       "utf8",
     );
     await mkdir(join(dir, ".agents", "skills", "parallelize"), { recursive: true });
@@ -190,7 +190,7 @@ test("bootstrap builds completion sources from Pi-managed fd and skills", async 
       join(dir, ".agents", "skills", "parallelize", "SKILL.md"),
       [
         "---",
-        'description: Parallelize decomposable work via subagents. Trigger: "parallelize"',
+        "description: Parallelize decomposable work via subagents",
         "---",
         "# Parallelize",
         "Fallback body description.",
@@ -215,7 +215,7 @@ test("bootstrap builds completion sources from Pi-managed fd and skills", async 
       {
         name: "parallelize",
         path: join(dir, ".agents", "skills", "parallelize", "SKILL.md"),
-        description: "Fallback body description.",
+        description: "Parallelize decomposable work via subagents",
       },
       {
         name: "review",

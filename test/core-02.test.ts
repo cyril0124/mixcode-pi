@@ -88,7 +88,7 @@ test("skill scanning finds flat and nested skills with parsed descriptions", asy
     await mkdir(join(home, ".agents", "skills", "nested-ns", "audit"), { recursive: true });
     await writeFile(
       join(workdir, ".agents", "skills", "review", "SKILL.md"),
-      "description: Review code\n\nBody",
+      "---\ndescription: Review code\n---\n\nBody",
       "utf8",
     );
     await writeFile(
@@ -105,7 +105,7 @@ test("skill scanning finds flat and nested skills with parsed descriptions", asy
     );
     assert.deepEqual(
       (await scanSkillEntries(workdir, home)).map((skill) => skill.description),
-      ["Check details across files. Report concise findings.", "Review code"],
+      ["Check details across files.\nReport concise findings.\n", "Review code"],
     );
     assert.equal(
       new Set(resolveSkillDirs(workdir, workdir)).size,
@@ -123,13 +123,13 @@ test("scanSkillEntries uses first-wins for same-name skills across directories",
     await mkdir(join(dir, ".agents", "skills", "demo"), { recursive: true });
     await writeFile(
       join(dir, ".agents", "skills", "demo", "SKILL.md"),
-      "description: Demo skill from project",
+      "---\ndescription: Demo skill from project\n---\n\nBody",
       "utf8",
     );
     await mkdir(join(home, ".agents", "skills", "demo"), { recursive: true });
     await writeFile(
       join(home, ".agents", "skills", "demo", "SKILL.md"),
-      "description: Demo skill from home",
+      "---\ndescription: Demo skill from home\n---\n\nBody",
       "utf8",
     );
     const entries = await scanSkillEntries(dir, home);
