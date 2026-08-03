@@ -358,7 +358,7 @@ function renderInputMetaLeft(
   const workdirBudget = Math.max(0, remaining - escapeGap - 2);
   if (workdirBudget >= 4) {
     pieces.push({ text: "  " });
-    const workdir = truncateToWidth(shortWorkdir(workdirPath), workdirBudget, "...");
+    const workdir = compactWorkdir(shortWorkdir(workdirPath), workdirBudget);
     pieces.push({ action: "workdir", text: activeRenderTheme.accent(workdir) });
     remaining -= 2 + visibleWidth(workdir);
   }
@@ -691,6 +691,23 @@ function shortWorkdir(workdir: string): string {
   const home = process.env.HOME;
   if (home && workdir.startsWith(home)) return `~${workdir.slice(home.length)}`;
   return workdir;
+}
+
+// Progressive left-to-right component compression: shrink directory components
+// to their first character (dotfiles keep ".x") until the path fits maxWidth;
+// the basename is never compressed. Falls back to "..." truncation when even
+// the fully compressed path is too wide.
+export function compactWorkdir(workdir: string, maxWidth: number): string {
+  if (visibleWidth(workdir) <= maxWidth) return workdir;
+  const segments = workdir.split("/");
+  for (let index = 1; index < segments.length - 1; index++) {
+    const segment = segments[index]!;
+    if (segment.length > 1) {
+      segments[index] = segment.startsWith(".") ? segment.slice(0, 2) : segment.slice(0, 1);
+      if (visibleWidth(segments.join("/")) <= maxWidth) return segments.join("/");
+    }
+  }
+  return truncateToWidth(segments.join("/"), maxWidth, "...");
 }
 
 function formatElapsed(startedAt: string | undefined, now: Date): string {
