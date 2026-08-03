@@ -19,9 +19,19 @@ import type { MixCodeState, MixCodeTabInfo } from "../core/types.js";
 import { showErrorOverlay } from "./app-overlays.js";
 import type { MixCodeKeyRuntime, OverlayTui } from "./app-types.js";
 import type { AuthInputHost } from "./app-submit.js";
-import { deleteSessionFile, findOpenSessionTab } from "./session-delete.js";
 
 export type SessionListProgress = (loaded: number, total: number) => void;
+
+export function findOpenSessionTab(
+  state: MixCodeState,
+  runtime: MixCodeKeyRuntime | undefined,
+  sessionPath: string,
+): MixCodeState["tabs"][number] | undefined {
+  if (!runtime) return undefined;
+  return state.tabs.find(
+    (tab) => runtime.getTab(tab.sessionId)?.session.getSessionFile() === sessionPath,
+  );
+}
 
 export interface SessionSelectorRuntime {
   listSessions: (
@@ -156,13 +166,13 @@ export async function openSessionSelector(
       list.onError?.(`Cannot delete session open in tab: ${openTab.title}`);
       return;
     }
-    const result = await deleteSessionFile(sessionPath);
-    if (!result.ok) {
-      list.onError?.(result.error ?? "Failed to delete session");
-      return;
-    }
-    // File already gone; Pi refresh path still updates in-memory lists.
+    // Delegate the actual delete (trash → unlink + in-memory list refresh +
+    // status message) to Pi's own onDeleteSession. Deleting here ourselves
+    // first made `trash` run twice for one deletion.
     if (piDelete) await piDelete(sessionPath);
+    // The sessions-root fs.watch invalidation is async; invalidate eagerly so
+    // the next catalog load never returns the just-deleted file.
+    invalidateSessionCatalog(path.dirname(sessionPath));
   };
 
   selectorState.component = component;
