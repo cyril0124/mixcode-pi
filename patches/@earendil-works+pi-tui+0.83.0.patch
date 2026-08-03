@@ -1,0 +1,25 @@
+diff --git a/node_modules/@earendil-works/pi-tui/dist/keybindings.js b/node_modules/@earendil-works/pi-tui/dist/keybindings.js
+index 1111111..2222222 100644
+--- a/node_modules/@earendil-works/pi-tui/dist/keybindings.js
++++ b/node_modules/@earendil-works/pi-tui/dist/keybindings.js
+@@ -161,13 +161,18 @@
+         return resolved;
+     }
+ }
+-let globalKeybindings = null;
++// Share keybindings across duplicate module instances (bun --compile can
++// materialize more than one copy of this module in one process). Same pattern
++// as pi-coding-agent theme (Symbol.for on globalThis).
++const GLOBAL_KEYBINDINGS_KEY = Symbol.for("@earendil-works/pi-tui:keybindings");
+ export function setKeybindings(keybindings) {
+-    globalKeybindings = keybindings;
++    globalThis[GLOBAL_KEYBINDINGS_KEY] = keybindings;
+ }
+ export function getKeybindings() {
++    let globalKeybindings = globalThis[GLOBAL_KEYBINDINGS_KEY];
+     if (!globalKeybindings) {
+         globalKeybindings = new KeybindingsManager(TUI_KEYBINDINGS);
++        globalThis[GLOBAL_KEYBINDINGS_KEY] = globalKeybindings;
+     }
+     return globalKeybindings;
+ }
