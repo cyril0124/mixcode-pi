@@ -14,12 +14,12 @@ import type { MixCodeModel } from "../core/types.js";
 import { mixcodeFauxStream } from "./faux-stream.js";
 import type { MixCodeStreamFn, SystemPromptOverride } from "./runtime-types.js";
 
-export function registerMixCodeRuntimeProvider(
+export async function registerMixCodeRuntimeProvider(
   modelRuntime: ModelRuntime,
   model: MixCodeModel,
   streamFn?: MixCodeStreamFn,
   getApiKey?: (provider: string) => Promise<string | undefined> | string | undefined,
-): void {
+): Promise<void> {
   const registeredModel = modelRuntime.getModel(model.provider, model.id);
   if (model.provider === "faux") {
     const fauxStreamSimple = mixcodeFauxStream;
@@ -35,15 +35,20 @@ export function registerMixCodeRuntimeProvider(
     return;
   }
   if (registeredModel || !streamFn) return;
+  // Defer streamFn so a synchronous throw becomes a rejection handled by bridgeRuntimeStream.
   const runtimeStreamSimple = (
     requestModel: MixCodeModel,
     context: Context,
     options?: SimpleStreamOptions,
-  ) => bridgeRuntimeStream(requestModel, streamFn(requestModel, context, options));
+  ) =>
+    bridgeRuntimeStream(
+      requestModel,
+      Promise.resolve().then(() => streamFn(requestModel, context, options)),
+    );
   modelRuntime.registerProvider(model.provider, {
     name: model.provider,
     baseUrl: model.baseUrl,
-    apiKey: asyncRuntimeApiKeyResolver(model.provider, getApiKey),
+    apiKey: await resolveRuntimeApiKey(model.provider, getApiKey),
     api: model.api,
     streamSimple: runtimeStreamSimple,
     models: [providerModelConfig(model)],
@@ -62,7 +67,11 @@ function ensureApiRegistered(api: string, streamSimple: ApiStreamSimpleFunction)
   });
 }
 
-function bridgeRuntimeStream(model: MixCodeModel, streamOrPromise: ReturnType<MixCodeStreamFn>) {
+function bridgeRuntimeStream(
+  model: MixCodeModel,
+  // Promise.resolve flattens nested thenables from deferred streamFn invocation.
+  streamOrPromise: ReturnType<MixCodeStreamFn> | Promise<ReturnType<MixCodeStreamFn>>,
+) {
   const out = createAssistantMessageEventStream();
   void Promise.resolve(streamOrPromise)
     .then(async (stream) => {
@@ -96,12 +105,12 @@ function bridgeRuntimeStream(model: MixCodeModel, streamOrPromise: ReturnType<Mi
   return out;
 }
 
-function asyncRuntimeApiKeyResolver(
+async function resolveRuntimeApiKey(
   provider: string,
   getApiKey?: (provider: string) => Promise<string | undefined> | string | undefined,
-): string {
+): Promise<string> {
   if (!getApiKey) return "mixcode-runtime";
-  const key = getApiKey(provider);
+  const key = await getApiKey(provider);
   if (typeof key === "string" && key.length > 0) return key;
   return "mixcode-runtime";
 }
@@ -124,11 +133,16 @@ function providerModelConfig(model: MixCodeModel) {
 }
 
 export function buildMixCodeSystemPromptOverride(
-  baseOverride: SystemPromptOverride,
+  baseOverride: SystemPromptOverride | string | undefined,
   fallbackPrompt?: string,
 ) {
   return (base: string | undefined) => {
-    const overridden = typeof baseOverride === "function" ? baseOverride(base) : base;
+    const overridden =
+      typeof baseOverride === "function"
+        ? baseOverride(base)
+        : typeof baseOverride === "string"
+          ? baseOverride
+          : base;
     return overridden ?? fallbackPrompt;
   };
 }

@@ -169,7 +169,7 @@ async function createRuntimeTabWithServices(
   services: AgentSessionServices,
   toolLog: ToolLog,
 ): Promise<RuntimeTab> {
-  registerMixCodeRuntimeProvider(
+  await registerMixCodeRuntimeProvider(
     services.modelRuntime,
     model,
     context.streamFn,
@@ -324,7 +324,7 @@ async function createAgentSessionForReplacementWithServices(
   services: AgentSessionServices,
   toolLog: ToolLog,
 ): Promise<CreateAgentSessionResult & { services: AgentSessionServices; toolLog: ToolLog }> {
-  registerMixCodeRuntimeProvider(
+  await registerMixCodeRuntimeProvider(
     services.modelRuntime,
     model,
     context.streamFn,
@@ -693,7 +693,12 @@ export async function reloadRuntimeTabWithFreshServices(
 ): Promise<void> {
   const services = await context.createServices(runtimeTab.tab.workdir, MIXCODE_SYSTEM_PROMPT);
   const model = runtimeTab.agent.state.model;
-  registerMixCodeRuntimeProvider(services.modelRuntime, model, context.streamFn, context.getApiKey);
+  await registerMixCodeRuntimeProvider(
+    services.modelRuntime,
+    model,
+    context.streamFn,
+    context.getApiKey,
+  );
   await shutdownRuntimeTab(
     runtimeTab,
     { type: "session_shutdown", reason: "reload" },
@@ -745,7 +750,12 @@ export async function updateRuntimeTabWorkdir(
   }
   const services = await context.createServices(workdir, systemPrompt);
   const model = runtimeTab.agent.state.model;
-  registerMixCodeRuntimeProvider(services.modelRuntime, model, context.streamFn, context.getApiKey);
+  await registerMixCodeRuntimeProvider(
+    services.modelRuntime,
+    model,
+    context.streamFn,
+    context.getApiKey,
+  );
   await shutdownRuntimeTab(
     runtimeTab,
     { type: "session_shutdown", reason: "reload" },

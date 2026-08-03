@@ -325,7 +325,7 @@ test("runtime provider bridges stream failures and system-prompt overrides", asy
     maxTokens: 100,
   };
 
-  registerMixCodeRuntimeProvider(
+  await registerMixCodeRuntimeProvider(
     modelRuntime,
     model as never,
     () => Promise.reject(new Error("stream failed")) as never,
@@ -343,6 +343,34 @@ test("runtime provider bridges stream failures and system-prompt overrides", asy
     "mixcode-runtime",
   );
 
+  // Async getApiKey must be awaited into the provider config, not dropped as a Promise.
+  await registerMixCodeRuntimeProvider(
+    modelRuntime,
+    { ...model, provider: "async-key-provider", api: "async-key-api" } as never,
+    () => Promise.reject(new Error("unused")) as never,
+    async () => "sk-from-async",
+  );
+  assert.equal(
+    modelRuntime.getRegisteredProviderConfig("async-key-provider")?.apiKey,
+    "sk-from-async",
+  );
+
+  // Sync throw from streamFn must become a bridged error event, not an uncaught exception.
+  await registerMixCodeRuntimeProvider(
+    modelRuntime,
+    { ...model, provider: "sync-throw-provider", api: "sync-throw-api" } as never,
+    () => {
+      throw new Error("sync stream boom");
+    },
+  );
+  const syncThrowModel = modelRuntime.getModel("sync-throw-provider", "custom-model");
+  assert.ok(syncThrowModel);
+  const syncStream = streamSimple(syncThrowModel, { systemPrompt: "", messages: [], tools: [] }, {});
+  const syncEvents = [];
+  for await (const event of syncStream) syncEvents.push(event);
+  assert.equal(syncEvents[0]?.type, "error");
+  assert.equal((await syncStream.result()).errorMessage, "sync stream boom");
+
   const overrideWithFallback = buildMixCodeSystemPromptOverride(undefined as never, "fallback");
   assert.equal(overrideWithFallback("base"), "base");
   assert.equal(overrideWithFallback(undefined), "fallback");
@@ -350,4 +378,8 @@ test("runtime provider bridges stream failures and system-prompt overrides", asy
     (base) => `${base ?? "empty"}+override` as never,
   );
   assert.equal(functionOverride("base"), "base+override");
+  // String override is applied as-is (not silently replaced by base).
+  const stringOverride = buildMixCodeSystemPromptOverride("fixed-prompt" as never, "fallback");
+  assert.equal(stringOverride("base"), "fixed-prompt");
+  assert.equal(stringOverride(undefined), "fixed-prompt");
 });
