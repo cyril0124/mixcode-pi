@@ -91,7 +91,6 @@ Core keys (not the full map — open **Help** / Command Palette in-app for every
 | `$` | Skill autocomplete |
 | `/toggle-zen-mode` | Zen mode |
 | `/vim` or empty-queue `Ctrl+U` then `u` | Vim mode |
-| `Ctrl+Shift+N` | New session |
 | `/new-session` / `/new-session Title` | New session (optional title) |
 
 ## Install

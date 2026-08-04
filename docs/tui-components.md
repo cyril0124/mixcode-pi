@@ -152,9 +152,9 @@
 | Picker | `/models` `/workdir` `/thinking` `/context-limit` | `core/pickers.ts`, `rendering/overlays.ts` | 过滤后单选 |
 | Settings Panel | `/settings` | `settings-panel.ts` | 主题 / UI 选项；workdir 级设置 |
 | Extension Manager | palette / command | `extension-manager.ts` | 启停 package extension |
-| Session Selector | `/resume`, `Ctrl+Shift+R` | `session-selector.ts` | 恢复已有 session |
-| Tree Selector | `/tree`, `Ctrl+Shift+T` | `tree-selector.ts` | session DAG |
-| Fork Selector | `/fork`, `Ctrl+Shift+F` | `fork-selector.ts` | 选择 fork 点 |
+| Session Selector | `/resume` | `session-selector.ts` | 恢复已有 session |
+| Tree Selector | `/tree`；空输入 Double-Esc | `tree-selector.ts` | session DAG |
+| Fork Selector | `/fork` | `fork-selector.ts` | 选择 fork 点 |
 | Workspace Overlay | save / restore / delete | `workspace-overlay.ts`, `workspace-rendering.ts` | 多模式 + 进度 |
 | Confirm | quit / close-all / delete / action | `app-overlays.ts`, `app-key-handlers.ts` | y/n + Esc |
 | Notice / Error | console bridge / errors | `app-overlays.ts` | 底中、`c/y` 复制、Esc 关 |

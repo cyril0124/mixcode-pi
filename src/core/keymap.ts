@@ -85,30 +85,6 @@ export const MIXCODE_KEYMAP: KeyAction[] = [
     scope: "global",
   },
   {
-    key: "ctrl+shift+t",
-    action: "session-tree",
-    description: "Open session tree (/tree)",
-    scope: "global",
-  },
-  {
-    key: "ctrl+shift+r",
-    action: "session-resume",
-    description: "Open session resume picker (/resume)",
-    scope: "global",
-  },
-  {
-    key: "ctrl+shift+f",
-    action: "session-fork",
-    description: "Fork from a user message (/fork)",
-    scope: "global",
-  },
-  {
-    key: "ctrl+shift+n",
-    action: "session-new",
-    description: "Create a new session tab (/new-session)",
-    scope: "global",
-  },
-  {
     key: "esc esc",
     action: "session-tree-double-esc",
     description: "Open session tree when editor is empty",

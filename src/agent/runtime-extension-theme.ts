@@ -79,13 +79,6 @@ const MIXCODE_EXTENSION_KEYBINDING_DEFINITIONS = {
   "app.editor.external": { defaultKeys: "ctrl+e", description: "Open external editor" },
   "app.message.followUp": { defaultKeys: "alt+enter", description: "Queue follow-up message" },
   "app.message.copy": { defaultKeys: "ctrl+x", description: "Copy tree entry" },
-  // Open-session actions (Pi InteractiveMode onAction parity). Defaults avoid
-  // MixCode chords (ctrl+p palette, ctrl+t jump, ctrl+r rename, …). Double-Esc
-  // still opens tree; keybindings.json overrides these.
-  "app.session.new": { defaultKeys: "ctrl+shift+n", description: "Create a new session tab" },
-  "app.session.tree": { defaultKeys: "ctrl+shift+t", description: "Open session tree" },
-  "app.session.fork": { defaultKeys: "ctrl+shift+f", description: "Fork current session" },
-  "app.session.resume": { defaultKeys: "ctrl+shift+r", description: "Resume a session" },
   "app.session.toggleNamedFilter": {
     defaultKeys: "ctrl+n",
     description: "Toggle named session filter",

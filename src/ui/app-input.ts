@@ -1,6 +1,5 @@
 import { isKeyRelease, matchesKey } from "@earendil-works/pi-tui";
 import { MIXCODE_EXTENSION_KEYBINDINGS_MANAGER } from "../agent/runtime.js";
-import { createAgentTab } from "./agent-tab-actions.js";
 import { copyToClipboard } from "@earendil-works/pi-coding-agent";
 import {
   closeActiveOverlay,
@@ -57,17 +56,11 @@ import { handleSubmittedInput } from "./app-submit.js";
 import { handleExtensionManagerKey } from "./extension-manager.js";
 import { errorMessage } from "./app-overlays.js";
 import { renderCommandPalette, renderTabJumpOverlay } from "./rendering.js";
-import {
-  handleSessionSelectorKey,
-  openSessionSelector,
-  type SessionSelectorRuntime,
-} from "./session-selector.js";
-import { handleForkSelectorKey, openForkSelector } from "./fork-selector.js";
+import { handleSessionSelectorKey } from "./session-selector.js";
+import { handleForkSelectorKey } from "./fork-selector.js";
 import {
   closeTreeSelector,
   handleTreeSelectorKey,
-  openTreeSelector,
-  type TreeSelectorRuntime,
 } from "./tree-selector.js";
 import { handleWorkspaceOverlayKey } from "./workspace-overlay.js";
 import type { MixCodeSubmitRuntime } from "./app-types.js";
@@ -484,69 +477,6 @@ function handleModalOverlayKeys(
 }
 
 /**
- * Open /tree /resume /fork /new-session from app.session.* keybindings (Pi parity).
- * Returns true when the key was consumed.
- */
-function handleSessionOpenShortcut(
-  state: MixCodeState,
-  active: ActiveTab | undefined,
-  data: string,
-  tui: OverlayTui,
-  runtime: MixCodeKeyRuntime | undefined,
-  editorActions: MixCodeEditorActions | undefined,
-  onStateChanged?: (state: MixCodeState) => void | Promise<void>,
-): boolean {
-  const kb = MIXCODE_EXTENSION_KEYBINDINGS_MANAGER;
-  if (kb.matches(data, "app.session.tree")) {
-    if (!active || !runtime) return true;
-    openTreeSelector(state, runtime as unknown as TreeSelectorRuntime, tui, active.sessionId);
-    tui.requestRender();
-    return true;
-  }
-  if (kb.matches(data, "app.session.resume")) {
-    if (!runtime || !editorActions?.setInputComponent || !editorActions.clearInputComponent) {
-      return true;
-    }
-    const cwd = active?.workdir ?? state.workdir;
-    const runtimeTab = active ? runtime.getTab(active.sessionId) : undefined;
-    const currentSessionPath =
-      (
-        runtimeTab as { session?: { getSessionFile?: () => string | null } } | undefined
-      )?.session?.getSessionFile?.() ?? null;
-    void openSessionSelector(
-      state,
-      runtime as unknown as SessionSelectorRuntime,
-      tui,
-      cwd,
-      currentSessionPath,
-      onStateChanged,
-      {
-        setInputComponent: editorActions.setInputComponent,
-        clearInputComponent: editorActions.clearInputComponent,
-        requestRender: () => tui.requestRender(),
-      },
-    ).then(() => onStateChanged?.(state));
-    tui.requestRender();
-    return true;
-  }
-  if (kb.matches(data, "app.session.fork")) {
-    if (!active || !runtime) return true;
-    openForkSelector(state, active.sessionId, runtime, tui);
-    tui.requestRender();
-    return true;
-  }
-  if (kb.matches(data, "app.session.new")) {
-    if (!runtime) return true;
-    void createAgentTab(state, runtime as never, {
-      onQueued: () => tui.requestRender(),
-    }).then(() => onStateChanged?.(state));
-    tui.requestRender();
-    return true;
-  }
-  return false;
-}
-
-/**
  * Agent-tab surface keys: empty Left/Right, shortcuts, history, zen/vim/tab, palette.
  * Returns undefined to fall through; returns explicit undefined from zen when Tab
  * must reach an extension-owned editor (caller must not continue dispatch).
@@ -579,17 +509,6 @@ function handleAgentSurfaceKeys(
   ) {
     clearPendingEscape(active, "abort-agent");
     toggleExtensionPanel(active, tui);
-    return { consume: true };
-  }
-  // Pi app.session.* open actions (tree/resume/fork/new). Bound via MixCode
-  // defaults + ~/.pi/agent/keybindings.json; double-Esc still opens tree.
-  if (
-    !hasAnyOverlay(tui) &&
-    !isEditorAutocompleteOpen() &&
-    !hasFocusedAppControl(state, active) &&
-    handleSessionOpenShortcut(state, active, data, tui, runtime, editorActions, onStateChanged)
-  ) {
-    if (active) clearPendingEscape(active, "abort-agent");
     return { consume: true };
   }
   if (

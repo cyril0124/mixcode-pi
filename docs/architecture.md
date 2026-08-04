@@ -123,10 +123,6 @@ Config tab 只渲染配置面板和可点击操作，不渲染 prompt editor；�
 | `Ctrl+J` / `Shift+Enter` | 在当前 Editor 光标处插入换行 |
 | `Ctrl+O` | 展开/收起 tool 输出块与 header 快捷键提示（共用 tools-expand 状态） |
 | `Ctrl+R` | 预填 `/rename 当前标题`，复用 slash command 重命名 |
-| `Ctrl+Shift+T` | 打开 session tree（`/tree`）；默认避开 `Ctrl+T` tab jump |
-| `Ctrl+Shift+R` | 打开 session resume 选择器（`/resume`）；默认避开 `Ctrl+R` rename |
-| `Ctrl+Shift+F` | 打开 fork 选择器（`/fork`） |
-| `Ctrl+Shift+N` | 新建 session tab（`/new-session`） |
 | `Esc Esc` | 编辑器为空时打开 session tree（既有 double-Esc 路径） |
 | `Alt+Up` / `Ctrl+U` | 将队列里最后一条消息弹回编辑器（**优先 follow-up，再 steer**）；**两队列都空时 Ctrl+U 武装 1s 内 `u`/`Ctrl+U` 进入 Vim**（input meta 显示 `u/Ctrl+U: vim`；Home / Alt+Up 不武装；始终消费以免落到 Editor 行首删除） |
 | `Up` / `Down` | 普通输入为空且无 overlay、preview、补全、extension terminal input 消费时浏览当前 tab 的 prompt 历史；其它场景交给局部控件 |
@@ -137,7 +133,7 @@ Config tab 只渲染配置面板和可点击操作，不渲染 prompt editor；�
 | `Ctrl+Q` | 打开退出确认；`y` 确认、`n`/`Esc` 取消；`/quit` 和 `/exit` 直接退出，不弹确认 |
 | `q` | 普通输入字符，不绑定退出，避免破坏 prompt 输入 |
 
-会话打开类绑定走 `app.session.{tree,resume,fork,new}`（定义在 `runtime-extension-theme.ts`），默认用 `Ctrl+Shift+*` 避开 MixCode 既有和弦；用户可在 Pi-native `~/.pi/agent/keybindings.json`（或 `MIXCODE_CODING_AGENT_DIR/keybindings.json`）覆盖，`/reload` 会重读该文件。
+Session tree 默认无全局和弦（可用 `/tree`、空输入 Double-Esc，或在 `keybindings.json` 自绑 `app.session.tree`）；`/resume`、`/fork`、`/new-session` 走 slash / palette。
 
 Vim user-message 导航预览是一个自动过期的 floating panel，覆盖在 editor 上方，列出附近 user prompts 和 `<NEWEST>`；Vim 状态提示为 `Vim: → newer user msg · Shift+→ older user msg`。
 
@@ -149,9 +145,8 @@ Vim user-message 导航预览是一个自动过期的 floating panel，覆盖在
 key input
   │
   ├─ global
-  │    ├─ Tab / Shift+Tab / Ctrl+P / Ctrl+T / Ctrl+Shift+T
+  │    ├─ Tab / Shift+Tab / Ctrl+P / Ctrl+T
   │    ├─ Ctrl+E / Ctrl+C / Ctrl+R / Ctrl+O / Ctrl+Q
-  │    ├─ Ctrl+Shift+R / Ctrl+Shift+F / Ctrl+Shift+N
   │    └─ @ / Esc / Esc Esc / Alt+Up / Ctrl+U / Up / Down / Right / Shift+Right
   │
   └─ scoped overlays
