@@ -437,7 +437,9 @@ async function navigateToEntry(
       active.status = "idle";
       active.workingStartedAt = undefined;
       active.extensionUi.workingMessage = undefined;
-      active.extensionUi.workingVisible = false;
+      // Keep default visibility: agent_start only flips status, not workingVisible.
+      // Leaving this false permanently hides the editor working spinner after summarize.
+      active.extensionUi.workingVisible = true;
     }
   }
   await onStateChanged?.(state);
