@@ -13,6 +13,7 @@ import { type EditorFactory, MIXCODE_EXTENSION_KEYBINDINGS_MANAGER } from "../ag
 import type { MixCodeState } from "../core/types.js";
 import type { MixCodeEditorActions } from "./app-types.js";
 import { buildLabeledTopBorder, isPlainBorderLine } from "./editor-top-border.js";
+import { colorizeContextUsage, exactContextUsageText } from "./rendering/chrome.js";
 import { padLine } from "./rendering.js";
 import { type MixCodeTheme, themeForId } from "./themes.js";
 export class CompactPromptEditor extends Editor {
@@ -101,6 +102,8 @@ export class CompactPromptEditor extends Editor {
         : theme.thinkingBorder(this.activeTab()?.thinkingLevel);
     const lines = super.render(width);
     this.applyTopBorderLabel(lines, width, theme, isVimMode, isZenMode);
+    // Bottom border stays a plain frame edge; model/bar/git live in the meta row
+    // under the editor (see renderInputMeta), not inside the dashed line.
     if (!isEmpty) return lines;
     if (isVimMode) {
       return lines.map((line, index) =>
@@ -122,9 +125,10 @@ export class CompactPromptEditor extends Editor {
 
   /**
    * Replace the editor's plain top border (lines[0]) with a labeled variant
-   * showing the agent title at the right and optional [VIM]/[ZEN] badges.
-   * Skips the scroll indicator ("─── ↑ N more ─") and any non-border first
-   * line so it is never clobbered. Mutates `lines` in place.
+   * showing the agent title + exact context (`xxk/xxk`) at the right and
+   * optional [VIM]/[ZEN]/[sys] badges. Skips the scroll indicator
+   * ("─── ↑ N more ─") and any non-border first line so it is never clobbered.
+   * Mutates `lines` in place.
    */
   private applyTopBorderLabel(
     lines: string[],
@@ -141,18 +145,23 @@ export class CompactPromptEditor extends Editor {
     const titleLabel = isVimMode ? theme.vimBorder : theme.accent;
     // [ZEN] matches the frame: vimBorder when coexisting with vim, else accent.
     const zenLabel = isVimMode ? theme.vimBorder : theme.accent;
+    const contextPlain = active ? exactContextUsageText(active) : "";
+    const contextLabel = (text: string) =>
+      active ? colorizeContextUsage(text, active) : theme.dim(text);
     lines[0] = buildLabeledTopBorder({
       width,
       title,
       vimMode: isVimMode,
       zenMode: isZenMode,
       customBasePrompt: active?.customBasePrompt === true,
+      contextText: contextPlain,
       dash: this.borderColor,
       vimLabel: theme.vimBorder,
       zenLabel,
       titleLabel,
       // Keep [sys] in the same accent family as the title (agent identity).
       sysLabel: titleLabel,
+      contextLabel,
     });
   }
 

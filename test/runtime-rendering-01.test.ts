@@ -70,7 +70,11 @@ test("input meta shows context usage against the limit", () => {
     currentContextTokens: 10,
     contextLimit: 200_000,
   });
-  assert.match(stripAnsi(renderInputMeta(tab, 100).join("\n")), /0\.01k\/200k \(0%\)/);
+  const plain = stripAnsi(renderInputMeta(tab, 100).join("\n"));
+  // Absolute xxk/xxk is on the editor top border; meta shows bar + percent only.
+  assert.match(plain, /░|█/);
+  assert.match(plain, /0%/);
+  assert.doesNotMatch(plain, /0\.01k\/200k/);
 });
 
 test("themeForId rejects unknown theme ids", () => {

@@ -301,21 +301,55 @@ function renderStatusInner(tab: MixCodeTabInfo | undefined, width: number): stri
   return [];
 }
 
-function renderCompactContextUsage(tab: MixCodeTabInfo): string {
+/** Bar width for the bottom-border context meter. */
+const CONTEXT_BAR_WIDTH = 8;
+
+/**
+ * Exact compact usage for the editor top border, e.g. `12.3k/200k` or `?/200k*`.
+ * No percent — that lives in the bottom-border bar.
+ */
+export function exactContextUsageText(tab: MixCodeTabInfo): string {
   const tokens = tab.currentContextTokens;
   const limit = tab.contextLimit;
   const overrideMark = tab.contextLimitOverridden ? "*" : "";
   if (tokens === undefined) return `?/${formatCompactTokenCount(limit)}${overrideMark}`;
-  const percent =
-    limit > 0 ? Math.min(999, Math.max(0, Math.round((tokens / limit) * 100))) : undefined;
-  const text =
-    percent === undefined
-      ? `${formatCompactTokenCount(tokens)}/${formatCompactTokenCount(limit)}${overrideMark}`
-      : `${formatCompactTokenCount(tokens)}/${formatCompactTokenCount(limit)}${overrideMark} (${percent}%)`;
-  if (percent === undefined) return text;
+  return `${formatCompactTokenCount(tokens)}/${formatCompactTokenCount(limit)}${overrideMark}`;
+}
+
+/** Colorize exact usage with the same thresholds as the context bar. */
+export function colorizeContextUsage(text: string, tab: MixCodeTabInfo): string {
+  const percent = contextUsagePercent(tab);
+  if (percent === undefined) return activeRenderTheme.dim(text);
   if (percent >= 80) return activeRenderTheme.danger(text);
   if (percent >= 50) return activeRenderTheme.accent(text);
   return activeRenderTheme.success(text);
+}
+
+/**
+ * Bottom-border context meter: `████░░░░ 50%` (no absolute token counts).
+ * Unknown usage renders as `???????? ?%`.
+ */
+export function contextBarAndPercentText(tab: MixCodeTabInfo): string {
+  const percent = contextUsagePercent(tab);
+  if (percent === undefined) {
+    // Empty meter until the first token count arrives; keep width stable.
+    return activeRenderTheme.dim(`${"░".repeat(CONTEXT_BAR_WIDTH)} ?%`);
+  }
+  const filled = Math.max(
+    0,
+    Math.min(CONTEXT_BAR_WIDTH, Math.round((percent / 100) * CONTEXT_BAR_WIDTH)),
+  );
+  const bar = `${"█".repeat(filled)}${"░".repeat(CONTEXT_BAR_WIDTH - filled)} ${percent}%`;
+  if (percent >= 80) return activeRenderTheme.danger(bar);
+  if (percent >= 50) return activeRenderTheme.accent(bar);
+  return activeRenderTheme.success(bar);
+}
+
+function contextUsagePercent(tab: MixCodeTabInfo): number | undefined {
+  const tokens = tab.currentContextTokens;
+  const limit = tab.contextLimit;
+  if (tokens === undefined || limit <= 0) return undefined;
+  return Math.min(999, Math.max(0, Math.round((tokens / limit) * 100)));
 }
 
 function formatCompactTokenCount(tokens: number): string {
@@ -353,7 +387,8 @@ function renderInputMetaInner(
         : "";
   const model = tab.model.displayName || "-";
   const thinking = tab.thinkingLevel[0]!.toUpperCase() + tab.thinkingLevel.slice(1);
-  const contextBadge = ` ${renderCompactContextUsage(tab)} `;
+  // Absolute xxk/xxk lives on the editor top border; bottom meta only shows bar+%.
+  const contextBadge = ` ${contextBarAndPercentText(tab)} `;
   const right = chooseInputMetaRight(contextBadge, lineWidth, [
     () => {
       const gitBadge = `  ${gitBranchForWorkdir(tab.workdir) || "-"} `;
@@ -374,8 +409,7 @@ function renderInputMetaInner(
   }
   const lines = [padLine(metaRow, lineWidth)];
   // In vim mode the input area is read-only; hide the extension status line
-  // (e.g. pi-subagents) so its row is reclaimed by the chat surface. The
-  // first meta row (model/thinking/workdir/context/git) is kept.
+  // (e.g. pi-subagents) so its row is reclaimed by the chat surface.
   const extLine = tab.vimMode ? undefined : buildExtensionStatusLine(tab, Math.max(0, width - 1));
   if (extLine) lines.push(extLine);
   return lines;

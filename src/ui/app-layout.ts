@@ -436,6 +436,8 @@ export class MixCodeLayoutRoot implements Component {
       clampedEditorLines.length +
       widgetsBelow.length +
       1;
+    // Meta sits under the editor frame (not inside the bottom border).
+    // Exact xxk/xxk is on the top border; this row shows model/bar+%/git.
     const metaLines =
       active && this.state.activeTabId !== "config"
         ? renderInputMeta(active, width, metaRow, theme)
