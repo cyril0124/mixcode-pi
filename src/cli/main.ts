@@ -155,7 +155,7 @@ export async function main(): Promise<void> {
     if (registryWriteErrorReported) return;
     registryWriteErrorReported = true;
     const message = error instanceof Error ? error.message : String(error);
-    process.stderr.write(`mixcode-pi instance registry update failed: ${message}\n`);
+    process.stderr.write(`mpi instance registry update failed: ${message}\n`);
   };
   const writeRegistrySnapshot = async () => {
     try {
@@ -217,12 +217,12 @@ export async function main(): Promise<void> {
     if (registryWriteErrorReported) return;
     registryWriteErrorReported = true;
     const message = error instanceof Error ? error.message : String(error);
-    showNoticeTextOverlay(tui, `mixcode-pi instance registry update failed: ${message}`);
+    showNoticeTextOverlay(tui, `mpi instance registry update failed: ${message}`);
     tui.requestRender();
   };
   runtime.setSyncErrorHandler((error) => {
     const message = error instanceof Error ? error.message : String(error);
-    showNoticeTextOverlay(tui, `mixcode-pi session sync error: ${message}`);
+    showNoticeTextOverlay(tui, `mpi session sync error: ${message}`);
     tui.requestRender();
   });
   const originalRequestRender = tui.requestRender.bind(tui);
@@ -311,7 +311,7 @@ export async function main(): Promise<void> {
       if (peerTabSyncErrorReported) return;
       peerTabSyncErrorReported = true;
       // Route through the TUI notice panel — raw stderr corrupts the frame.
-      showNoticeTextOverlay(tui, `mixcode-pi peer tab sync error: ${message}`);
+      showNoticeTextOverlay(tui, `mpi peer tab sync error: ${message}`);
       tui.requestRender();
     },
   });
@@ -448,8 +448,8 @@ export interface MainArgs {
   statusWorkdir?: string;
 }
 
-const HELP_TEXT = `Usage: mixcode-pi [options] [-- <script-args...>]
-       mixcode-pi status [--json] [--workdir <path>]
+const HELP_TEXT = `Usage: mpi [options] [-- <script-args...>]
+       mpi status [--json] [--workdir <path>]
 
 Options:
   --workdir <path>           Set working directory (default: cwd)
@@ -461,7 +461,7 @@ Options:
   Arguments after -- are passed to the batch script as mixcode.args().
 
 Commands:
-  status             Show live mixcode-pi instances and tabs
+  status             Show live mpi instances and tabs
 `;
 
 export function parseMainArgs(args: string[], fallbackWorkdir: string): MainArgs {

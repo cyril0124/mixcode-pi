@@ -6,13 +6,13 @@
 
 ```bash
 # 启动 TUI 后执行脚本
-mixcode-pi --batch examples/batch/simple.lua
+mpi --batch examples/batch/simple.lua
 
 # 把参数传给脚本（`--` 之后全部归脚本）
-mixcode-pi --batch script.lua -- packages/core packages/cli
+mpi --batch script.lua -- packages/core packages/cli
 
 # 只校验并打印计划：不启 TUI、不 bootstrap runtime、不写 state/session
-mixcode-pi --batch script.lua --batch-dry-run -- packages/core
+mpi --batch script.lua --batch-dry-run -- packages/core
 ```
 
 执行模型：

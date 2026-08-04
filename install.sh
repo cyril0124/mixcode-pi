@@ -4,8 +4,7 @@ set -euo pipefail
 # MixCode Pi installer — compile to standalone single binary
 # Usage: ./install.sh [--prefix ~/.local]
 
-INSTALL_NAME="mixcode-pi"
-ALIAS_NAME="mpi"
+INSTALL_NAME="mpi"
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # --- Helpers ---
@@ -94,10 +93,6 @@ mv -f "$BUILD_TMPDIR/$INSTALL_NAME" "$BIN_DIR/$INSTALL_NAME" 2>/dev/null \
   || cp "$BUILD_TMPDIR/$INSTALL_NAME" "$BIN_DIR/$INSTALL_NAME"
 chmod +x "$BIN_DIR/$INSTALL_NAME"
 
-# Expose short alias `mpi` -> mixcode-pi
-info "Linking $BIN_DIR/$ALIAS_NAME -> $INSTALL_NAME..."
-ln -sf "$INSTALL_NAME" "$BIN_DIR/$ALIAS_NAME"
-
 # --- PATH check ---
 
 if ! echo "$PATH" | tr ':' '\n' | grep -qxF "$BIN_DIR"; then
@@ -111,4 +106,4 @@ fi
 
 # --- Done ---
 
-info "Done! Single binary at $BIN_DIR/$INSTALL_NAME (alias: $ALIAS_NAME)"
+info "Done! Single binary at $BIN_DIR/$INSTALL_NAME"

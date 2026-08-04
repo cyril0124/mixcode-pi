@@ -46,7 +46,7 @@ test("external editor supports executable paths containing spaces", async () => 
 test("package bin symlink starts the CLI instead of silently exiting", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-bin-link-"));
   try {
-    const linkPath = join(dir, "mixcode-pi");
+    const linkPath = join(dir, "mpi");
     await symlink(join(process.cwd(), "src", "cli", "main.ts"), linkPath);
     // Bun runs .ts natively; --import tsx was the Node-era loader and fails
     // under Bun with an unrelated cjs resolution error.
@@ -54,7 +54,7 @@ test("package bin symlink starts the CLI instead of silently exiting", async () 
       timeout: 20_000,
       env: { ...process.env, NODE_OPTIONS: "", NODE_V8_COVERAGE: "" },
     });
-    assert.match(stdout, /Usage: mixcode-pi \[options\]/);
+    assert.match(stdout, /Usage: mpi \[options\]/);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

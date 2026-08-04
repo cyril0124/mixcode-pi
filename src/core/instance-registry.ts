@@ -202,7 +202,7 @@ export async function cleanupInstanceRegistry(
 }
 
 export function formatInstanceStatusTable(report: InstanceStatusReport): string {
-  if (report.instances.length === 0) return "No live mixcode-pi instances.";
+  if (report.instances.length === 0) return "No live mpi instances.";
   const groups: string[] = [];
   for (const instance of report.instances) {
     const lines = [

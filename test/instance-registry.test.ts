@@ -263,7 +263,7 @@ test("formatInstanceStatusTable renders grouped instances and active tabs", asyn
     assert.match(table, /active=active-session/);
     assert.match(table, /TITLE\s+SESSION/);
     assert.match(table, /\*\s+working\s+thinking\s+12s\s+Active Worker\s+active-session-abcdef/);
-    assert.equal(formatInstanceStatusTable({ ...result, instances: [] }), "No live mixcode-pi instances.");
+    assert.equal(formatInstanceStatusTable({ ...result, instances: [] }), "No live mpi instances.");
   } finally {
     await rm(root, { recursive: true, force: true });
   }

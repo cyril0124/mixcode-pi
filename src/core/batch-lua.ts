@@ -33,7 +33,7 @@ export interface BatchLuaContext {
   tabs: BatchLuaTabInfo[];
   /** Available models snapshot at batch startup. */
   models?: BatchLuaModelInfo[];
-  /** CLI args after `--` (e.g. mixcode-pi --batch s.lua -- foo bar). */
+  /** CLI args after `--` (e.g. mpi --batch s.lua -- foo bar). */
   args?: string[];
 }
 

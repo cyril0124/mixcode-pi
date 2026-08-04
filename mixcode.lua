@@ -50,7 +50,7 @@ function mixcode.open_tab(opts) end
 function mixcode.current_workdir() end
 
 ---Return CLI args after `--` as a 1-indexed array.
----Example: `mixcode-pi --batch s.lua -- foo bar` → `{"foo", "bar"}`.
+---Example: `mpi --batch s.lua -- foo bar` → `{"foo", "bar"}`.
 ---@return string[]
 function mixcode.args() end
 
