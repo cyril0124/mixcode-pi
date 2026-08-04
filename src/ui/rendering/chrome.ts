@@ -374,10 +374,19 @@ function layoutInputMetaLeft(
   }
   const escapeGap = escapeText ? 1 + escapeWidth : 0;
   const workdirBudget = Math.max(0, remaining - escapeGap - gapWidth);
-  if (strict && workdirBudget < 4) return { text: "", regions: [], fits: false };
-  if (workdirBudget >= 4) {
+  const workdirNatural = shortWorkdir(workdirPath);
+  // Strict modes keep the full short path; only the non-strict fallback may
+  // compact segments or ellipsize. Otherwise provider stays while workdir gets "...".
+  if (strict) {
+    if (visibleWidth(workdirNatural) > workdirBudget) {
+      return { text: "", regions: [], fits: false };
+    }
     pieces.push({ text: mode.gap });
-    const workdir = compactWorkdir(shortWorkdir(workdirPath), workdirBudget);
+    pieces.push({ action: "workdir", text: activeRenderTheme.accent(workdirNatural) });
+    remaining -= gapWidth + visibleWidth(workdirNatural);
+  } else if (workdirBudget >= 4) {
+    pieces.push({ text: mode.gap });
+    const workdir = compactWorkdir(workdirNatural, workdirBudget);
     pieces.push({ action: "workdir", text: activeRenderTheme.accent(workdir) });
     remaining -= gapWidth + visibleWidth(workdir);
   }

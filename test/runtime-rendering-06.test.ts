@@ -138,10 +138,10 @@ test("narrow input meta stays width-bounded and keeps a models hit region", () =
   });
   const line = renderInputMeta(tab, 28).join("\n");
   assert.equal(visibleWidth(line), 27);
-  assert.deepEqual(
-    tab.inputMetaHitRegions.map((region) => region.action),
-    ["models"],
-  );
+  const actions = tab.inputMetaHitRegions.map((region) => region.action);
+  assert.ok(actions.includes("models"));
+  // Non-strict layout may still paint a compacted workdir when ≥4 cols remain.
+  assert.ok(actions.every((action) => action === "models" || action === "workdir"));
 });
 
 test("blank custom working message still shows Working duration", () => {

@@ -8,7 +8,8 @@ import { renderInputMeta, shortModelName } from "../src/ui/rendering/chrome.js";
 // Input meta row degradation contract: full "provider/module" model + icons +
 // wide gaps when the row fits; progressive degradation as width shrinks —
 // drop the provider prefix, then drop icons and tighten gaps to single spaces,
-// then fall back to model truncation. The workdir keeps its own compaction.
+// then fall back to model truncation. Strict modes keep the full short workdir;
+// path compaction / ellipsis only happens in the tightest (non-strict) mode.
 function stripAnsi(text: string): string {
   return text.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "");
 }
@@ -36,21 +37,26 @@ test("shortModelName drops everything up to the last slash", () => {
 });
 
 test("wide rows show the full provider/module model name, icons, and workdir", () => {
-  const row = metaRow("anthropic/claude-sonnet-4-5", 110);
+  const row = metaRow("anthropic/claude-sonnet-4-5", 120);
   assert.match(row, /anthropic\/claude-sonnet-4-5/);
   assert.match(row, /✦ Medium/);
-  assert.match(row, /~\//);
+  assert.match(row, /~\/workspace\/project\/mixcode-pi-demo/);
+  assert.doesNotMatch(row, /\.\.\./);
 });
 
-test("moderate rows drop the provider prefix but keep icons and spacing", () => {
-  const row = metaRow("anthropic/claude-sonnet-4-5", 62);
+test("drop provider before compacting or truncating workdir", () => {
+  // Full provider/model leaves too little room for the natural workdir, but the
+  // short model name still fits it — must drop the provider, not ellipsize path.
+  const row = metaRow("anthropic/claude-sonnet-4-5", 90);
   assert.match(row, /claude-sonnet-4-5/);
   assert.doesNotMatch(row, /anthropic\//);
   assert.match(row, /✦ Medium/);
+  assert.match(row, /~\/workspace\/project\/mixcode-pi-demo/);
+  assert.doesNotMatch(row, /\.\.\./);
 });
 
 test("narrow rows drop icons and tighten spacing to single spaces", () => {
-  const row = metaRow("anthropic/claude-sonnet-4-5", 48);
+  const row = metaRow("anthropic/claude-sonnet-4-5", 55);
   assert.match(row, /claude-sonnet-4-5 Medium/);
   assert.doesNotMatch(row, /✦|󰚩/);
 });
