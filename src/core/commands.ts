@@ -290,10 +290,10 @@ export const LOCAL_COMMANDS: Array<{
   },
   {
     name: "new-session",
-    description: "Create a session",
+    description: "Create a session (optional name: /new-session Title)",
     palette: {
       label: "New Session",
-      description: "Create a new pi agent session",
+      description: "Create a new pi agent session; optional title becomes the tab name",
       scope: "both",
       requires: "session",
     },

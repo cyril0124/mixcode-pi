@@ -705,6 +705,39 @@ test("new-session rolls back the tab and active id when runtime.createTab fails"
   assert.equal(state.activeTabId, "s1");
 });
 
+test("/new-session <name> creates a tab titled like /new-session then /rename", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo", { status: "done", title: "Agent-01" }));
+  state.activeTabId = "s1";
+  const renamed: Array<{ sessionId: string; title: string }> = [];
+  const runtime = {
+    getTab: () => undefined,
+    createTab: async () => undefined,
+    renameSession: (sessionId: string, title: string) => {
+      renamed.push({ sessionId, title });
+    },
+    getPromptHistory: () => [],
+    setExtensionUiHost: () => undefined,
+    getExtensionCommands: () => [],
+    getAllExtensionCommands: () => [],
+    onTabClosed: () => () => undefined,
+    onModelsChanged: () => () => undefined,
+    appendSystemMessage: () => undefined,
+    getSharedModelRuntime: () => undefined,
+    getExtensionTools: () => [],
+    applyExtensionAutocompleteProviders: (_sessionId: string, base: AutocompleteProvider) => base,
+  } as unknown as MixCodeRuntime;
+  const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
+
+  await handleSubmittedInput(state, runtime, "/new-session API-Gateway", tui);
+
+  const created = state.tabs.find((tab) => tab.sessionId !== "s1");
+  assert.ok(created, "new tab was created");
+  assert.equal(created.title, "API-Gateway");
+  assert.equal(state.activeTabId, created.sessionId);
+  assert.deepEqual(renamed, [{ sessionId: created.sessionId, title: "API-Gateway" }]);
+});
+
 test("fork rolls back the fork tab and restores the source tab when createTab fails", async () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo", { status: "done" }));
@@ -793,6 +826,7 @@ test("config-scoped submitted input runs without an active agent tab", async () 
     appendSystemMessage: () => {
       throw new Error("No active tab for system message");
     },
+    renameSession: () => undefined,
     createTab: async (tab: { sessionId: string }) => {
       created.push(tab.sessionId);
     },

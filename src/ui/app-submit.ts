@@ -274,9 +274,16 @@ export async function handleSubmittedInput(
   } else if (parsed.command === "new-session") {
     // Paint Not Ready immediately; createAgentTab still awaits full runtime startup.
     // Do not reuse services here — independent SettingsManager isolation.
-    await createAgentTab(state, runtime, {
+    // Optional args: `/new-session Name` ≡ create + rename (same as `/rename Name`).
+    const title = parsed.args.trim();
+    const tab = await createAgentTab(state, runtime, {
       onQueued: () => tui.requestRender(),
+      ...(title ? { title } : {}),
     });
+    if (title) {
+      // createAgentTab already set tab.title; keep session-file metadata in sync.
+      runtime.renameSession(tab.sessionId, title);
+    }
   } else if (parsed.command === "resume") {
     const cwd = active?.workdir ?? state.workdir;
     const runtimeTab = active ? runtime.getTab(active.sessionId) : undefined;
