@@ -8,8 +8,13 @@ import {
   renderTabBar,
   renderTabBarSeparator,
   tabBarHitRegions,
+  tabBarMaxRows,
+  themeForId,
 } from "../src/index.js";
 import type { OverlayTui } from "../src/index.js";
+
+// Terminal theme paints activeTab with inverse video — easy to assert without RGB.
+const terminalTheme = themeForId("terminal");
 
 const stripAnsi = (text: string): string =>
   // eslint-disable-next-line no-control-regex
@@ -146,16 +151,58 @@ test("tab bar separator color tracks vim vs thinking-level border", () => {
   assert.equal(stripAnsi(vim), "\u2500".repeat(width));
 });
 
-test("tab bar capped to one row still surfaces the hidden tab count", () => {
+test("tab bar capped to one row inlines hidden count on the last visible row", () => {
   const width = 40;
   const state = manyTabState(12);
-  // When the layout budget allows only one tab-bar row, every tab that does
-  // not fit must still be reported (… +N tabs), never silently dropped.
+  // Budget of 1 row: no separate overflow line; last visible row ends with … +N.
   const lines = renderTabBar(state, width, undefined, 1).map(stripAnsi);
-  assert.ok(lines.length >= 1, "one row of tabs must render");
+  assert.equal(lines.length, 1, "overflow must not add an extra row");
   assert.match(lines[0] ?? "", /Agent-1/, "first row should still show a tab");
-  assert.ok(
-    lines.some((line) => /\+\d+ tabs/.test(line)),
-    "hidden tabs must be surfaced with a count, got: " + lines.join(" | "),
-  );
+  assert.match(lines[0] ?? "", /… \+\d+$|… \+\d+\s*$/);
+  assert.doesNotMatch(lines[0] ?? "", /\+\d+ tabs/);
+  assert.ok(visibleWidth(lines[0]!) <= width);
+});
+
+test("tabBarMaxRows takes the tighter of 15% terminal height and content cap", () => {
+  // 40-row terminal → floor(6); content cap 3 wins.
+  assert.equal(tabBarMaxRows(40, 3), 3);
+  // Content cap looser than 15% → percent wins.
+  assert.equal(tabBarMaxRows(40, 20), 6);
+  // Never below 1.
+  assert.equal(tabBarMaxRows(3, 0), 1);
+  assert.equal(tabBarMaxRows(undefined, 4), 4);
+  assert.equal(tabBarMaxRows(40, undefined), 6);
+  assert.equal(tabBarMaxRows(undefined, undefined), undefined);
+});
+
+test("last visible row drops trailing tabs so the inline … +N fits", () => {
+  const width = 40;
+  const state = manyTabState(12);
+  const lines = renderTabBar(state, width, undefined, 1).map(stripAnsi);
+  const line = lines[0]!;
+  const match = line.match(/… \+(\d+)/);
+  assert.ok(match, `expected inline overflow hint, got: ${line}`);
+  const hidden = Number(match[1]);
+  assert.ok(hidden >= 1, "at least one tab must be hidden");
+  // Hit regions only cover still-visible segments (not the hint, not hidden tabs).
+  const regions = tabBarHitRegions(state, width, 1).filter((r) => r.id !== "config");
+  assert.equal(regions.length + hidden, 12);
+});
+
+test("… +N uses activeTab style only when the active tab is hidden", () => {
+  const width = 40;
+  const state = manyTabState(12);
+  // s12 is past the first packed row under a 1-row cap → active is hidden.
+  state.activeTabId = "s12";
+  const hiddenActiveLine = renderTabBar(state, width, terminalTheme, 1)[0]!;
+  assert.match(stripAnsi(hiddenActiveLine), /… \+\d+/);
+  // Only `+N` is inverse; the leading `…` stays outside activeTab chrome.
+  assert.match(hiddenActiveLine, /\x1b\[7m\+\d+\x1b\[27m/);
+  assert.doesNotMatch(hiddenActiveLine, /\x1b\[7m … /);
+
+  // s1 stays on the first row → active visible; neither … nor +N is inverse.
+  state.activeTabId = "s1";
+  const visibleActiveLine = renderTabBar(state, width, terminalTheme, 1)[0]!;
+  assert.match(stripAnsi(visibleActiveLine), /… \+\d+/);
+  assert.doesNotMatch(visibleActiveLine, /\x1b\[7m\+\d+\x1b\[27m/);
 });

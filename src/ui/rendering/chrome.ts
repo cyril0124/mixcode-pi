@@ -22,6 +22,30 @@ export function renderExtensionHeader(tab: MixCodeTabInfo | undefined, width: nu
   return renderExtensionComponentSlot(header?.render ? header.render(width) : header?.lines, width);
 }
 
+/** Tab bar may use at most this fraction of the terminal height (rows). */
+export const TAB_BAR_VIEWPORT_RATIO = 0.15;
+
+/**
+ * Row budget for the tab bar: min(floor(terminalRows * 15%), contentCap), at least 1.
+ * Either input may be omitted; both omitted → unlimited (undefined).
+ */
+export function tabBarMaxRows(
+  terminalRows: number | undefined,
+  contentCap: number | undefined,
+): number | undefined {
+  const percentCap =
+    terminalRows === undefined || !Number.isFinite(terminalRows)
+      ? undefined
+      : Math.max(1, Math.floor(Math.max(0, terminalRows) * TAB_BAR_VIEWPORT_RATIO));
+  const capped =
+    contentCap === undefined || !Number.isFinite(contentCap)
+      ? undefined
+      : Math.max(1, Math.floor(contentCap));
+  if (percentCap === undefined) return capped;
+  if (capped === undefined) return percentCap;
+  return Math.max(1, Math.min(percentCap, capped));
+}
+
 export function renderTabBar(
   state: MixCodeState,
   width: number,
@@ -29,22 +53,27 @@ export function renderTabBar(
   maxRows?: number,
 ): string[] {
   return renderWithTheme(theme, () => {
-    const segments = tabBarSegments(state);
-    const indent = wrappedRowIndent(segments, width);
-    const packed = packTabRows(segments, width, indent);
-    const { rows, hiddenCount } = limitTabRows(packed, maxRows);
-    const lines = rows.map((row, rowIndex) => {
+    const { rows, hiddenCount, indent } = visibleTabBarLayout(state, width, maxRows);
+    // Same activeTab chrome as a selected tab — only when active lives in the overflow.
+    const activeHidden =
+      hiddenCount > 0 &&
+      !rows.some((row) => row.some((segment) => segment.id === state.activeTabId));
+    return rows.map((row, rowIndex) => {
       const prefix = rowIndex === 0 ? "" : " ".repeat(indent);
-      return activeRenderTheme.text(
-        padLine(prefix + row.map((segment) => segment.text).join(" "), width),
-      );
+      const tabsText = row.map((segment) => segment.text).join(" ");
+      const isLast = rowIndex === rows.length - 1;
+      // Overflow stays on the last visible row (` … +N`); no extra hint line.
+      if (isLast && hiddenCount > 0) {
+        // Only `+N` takes activeTab chrome; the leading `…` stays dim so it
+        // reads as overflow punctuation, not a selected tab chip.
+        const count = `+${hiddenCount}`;
+        const hint = activeHidden
+          ? activeRenderTheme.dim(" … ") + activeRenderTheme.activeTab(count)
+          : activeRenderTheme.dim(` … ${count}`);
+        return padLine(activeRenderTheme.text(prefix + tabsText) + hint, width);
+      }
+      return activeRenderTheme.text(padLine(prefix + tabsText, width));
     });
-    if (hiddenCount > 0) {
-      lines.push(
-        activeRenderTheme.dim(padLine(`${" ".repeat(indent)}… +${hiddenCount} tabs`, width)),
-      );
-    }
-    return lines;
   });
 }
 
@@ -122,11 +151,8 @@ export function tabBarHitRegions(
   width = Number.POSITIVE_INFINITY,
   maxRows?: number,
 ): MouseHitRegion[] {
-  const segments = tabBarSegments(state);
-  const indent = wrappedRowIndent(segments, width);
+  const { rows, indent } = visibleTabBarLayout(state, width, maxRows);
   const regions: MouseHitRegion[] = [];
-  const packed = packTabRows(segments, width, indent);
-  const { rows } = limitTabRows(packed, maxRows);
   rows.forEach((row, rowIndex) => {
     // Wrapped rows start under the first tab (after "MixCode Home"); the first
     // row starts at the left edge.
@@ -143,22 +169,78 @@ export function tabBarHitRegions(
 
 type TabSegment = { id: string; text: string };
 
+function visibleTabBarLayout(
+  state: MixCodeState,
+  width: number,
+  maxRows?: number,
+): { rows: TabSegment[][]; hiddenCount: number; indent: number } {
+  const segments = tabBarSegments(state);
+  const indent = wrappedRowIndent(segments, width);
+  const packed = packTabRows(segments, width, indent);
+  const limited = limitTabRows(packed, maxRows, width, indent);
+  return { ...limited, indent };
+}
+
 function limitTabRows(
   rows: TabSegment[][],
   maxRows: number | undefined,
+  width: number,
+  indent: number,
 ): { rows: TabSegment[][]; hiddenCount: number } {
-  if (maxRows === undefined || !Number.isFinite(maxRows) || rows.length <= maxRows) {
+  // Unlimited budget: keep every packed row (no overflow hint).
+  if (maxRows === undefined || !Number.isFinite(maxRows)) {
     return { rows, hiddenCount: 0 };
   }
   const limit = Math.max(1, Math.floor(maxRows));
-  // Always keep the first row of tabs visible, then report the rest. limit === 1
-  // must not short-circuit hiddenCount to 0: at small terminal heights the
-  // layout caps the tab bar to one row, and silently dropping every other tab
-  // (no "… +N tabs" hint) makes open sessions undiscoverable.
-  const visibleCount = Math.max(1, limit - 1);
-  const visibleRows = rows.slice(0, visibleCount);
-  const hiddenCount = rows.slice(visibleCount).reduce((count, row) => count + row.length, 0);
+  // All `limit` rows are real tab rows now — overflow is inlined on the last one,
+  // so we no longer reserve a whole row for a separate "… +N tabs" line.
+  if (rows.length <= limit) {
+    return { rows, hiddenCount: 0 };
+  }
+  const visibleRows = rows.slice(0, limit).map((row) => row.slice());
+  let hiddenCount = rows.slice(limit).reduce((count, row) => count + row.length, 0);
+  const lastIndex = visibleRows.length - 1;
+  const trimmed = trimRowForOverflowHint(
+    visibleRows[lastIndex]!,
+    lastIndex,
+    width,
+    indent,
+    hiddenCount,
+  );
+  visibleRows[lastIndex] = trimmed.row;
+  hiddenCount += trimmed.hiddenFromRow;
   return { rows: visibleRows, hiddenCount };
+}
+
+/** Drop trailing tabs on the last visible row until ` … +N` fits; keep ≥1 tab. */
+function trimRowForOverflowHint(
+  row: TabSegment[],
+  rowIndex: number,
+  width: number,
+  indent: number,
+  hiddenAfterRow: number,
+): { row: TabSegment[]; hiddenFromRow: number } {
+  const prefix = rowIndex === 0 ? 0 : indent;
+  let kept = row.slice();
+  let hiddenFromRow = 0;
+  // N grows as we drop; re-measure each time (` … +10` is wider than ` … +9`).
+  while (true) {
+    const n = hiddenAfterRow + hiddenFromRow;
+    if (n <= 0) return { row: kept, hiddenFromRow: 0 };
+    const hintW = visibleWidth(` … +${n}`);
+    const tabsW =
+      kept.length === 0 ? 0 : visibleWidth(kept.map((segment) => segment.text).join(" "));
+    if (prefix + tabsW + hintW <= width) {
+      return { row: kept, hiddenFromRow };
+    }
+    // Keep one tab even if the line is still tight — padLine clips rather than
+    // rendering a tabs-only-empty overflow row.
+    if (kept.length <= 1) {
+      return { row: kept, hiddenFromRow };
+    }
+    kept = kept.slice(0, -1);
+    hiddenFromRow += 1;
+  }
 }
 
 /**

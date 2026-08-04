@@ -24,6 +24,7 @@ import {
   renderPreviewOverlay,
   renderTabBar,
   renderTabBarSeparator,
+  tabBarMaxRows,
   renderWorkingIndicator,
   setCurrentUiTheme,
   zenUnreadDoneCount,
@@ -74,7 +75,9 @@ export class MixCodeRoot implements Component {
       !active || this.state.activeTabId === "config"
         ? MIN_HOME_CONTENT_ROWS
         : MIN_CHAT_AND_EDITOR_ROWS;
-    const maxTabRows = limit === undefined ? undefined : Math.max(1, limit - minContentRows);
+    // Cap tab-bar height: min(15% of terminal rows, rows left after min content).
+    const contentCap = limit === undefined ? undefined : Math.max(1, limit - minContentRows);
+    const maxTabRows = tabBarMaxRows(viewportRows, contentCap);
     // Zen mode hides the tab bar only; separator and header stay so chrome
     // still frames the chat without tab chrome noise.
     const tabBarLines = renderVisibleTabBar(this.state, width, theme, maxTabRows);
