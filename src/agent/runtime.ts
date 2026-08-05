@@ -658,12 +658,18 @@ export class MixCodeRuntime {
     if (!runtimeTab) return [];
     return runtimeTab
       .agentSession.extensionRunner.getRegisteredCommands()
-      .map((command) => ({
-        name: command.invocationName,
-        description: command.description,
-        getArgumentCompletions: command.getArgumentCompletions,
-        sourceInfo: command.sourceInfo,
-      }));
+      .map((command) => {
+        // Pi registerCommand spreads options; extensions may set argumentHint even
+        // though RegisteredCommand's published type omits it.
+        const argumentHint = (command as { argumentHint?: string }).argumentHint;
+        return {
+          name: command.invocationName,
+          description: command.description,
+          ...(argumentHint ? { argumentHint } : {}),
+          getArgumentCompletions: command.getArgumentCompletions,
+          sourceInfo: command.sourceInfo,
+        };
+      });
   }
 
   getAllExtensionCommands() {
@@ -672,6 +678,7 @@ export class MixCodeRuntime {
       {
         name: string;
         description?: string;
+        argumentHint?: string;
         getArgumentCompletions?: ExtensionArgumentCompleter;
         sourceInfo?: { path: string; source: string };
       }
@@ -681,6 +688,7 @@ export class MixCodeRuntime {
         commands.set(command.name, {
           name: command.name,
           description: command.description,
+          ...(command.argumentHint ? { argumentHint: command.argumentHint } : {}),
           getArgumentCompletions: command.getArgumentCompletions,
           sourceInfo: command.sourceInfo,
         });
