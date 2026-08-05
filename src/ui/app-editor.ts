@@ -13,7 +13,7 @@ import { type EditorFactory, MIXCODE_EXTENSION_KEYBINDINGS_MANAGER } from "../ag
 import type { MixCodeState } from "../core/types.js";
 import type { MixCodeEditorActions } from "./app-types.js";
 import { buildLabeledTopBorder, isPlainBorderLine } from "./editor-top-border.js";
-import { colorizeContextUsage, exactContextUsageText } from "./rendering/chrome.js";
+import { exactContextUsageText } from "./rendering/chrome.js";
 import { padLine } from "./rendering.js";
 import { type MixCodeTheme, themeForId } from "./themes.js";
 export class CompactPromptEditor extends Editor {
@@ -146,8 +146,8 @@ export class CompactPromptEditor extends Editor {
     // [ZEN] matches the frame: vimBorder when coexisting with vim, else accent.
     const zenLabel = isVimMode ? theme.vimBorder : theme.accent;
     const contextPlain = active ? exactContextUsageText(active) : "";
-    const contextLabel = (text: string) =>
-      active ? colorizeContextUsage(text, active) : theme.dim(text);
+    // Exact counts stay dim; the bottom bar keeps the usage-color signal.
+    const contextLabel = theme.dim;
     lines[0] = buildLabeledTopBorder({
       width,
       title,

@@ -316,15 +316,6 @@ export function exactContextUsageText(tab: MixCodeTabInfo): string {
   return `${formatCompactTokenCount(tokens)}/${formatCompactTokenCount(limit)}${overrideMark}`;
 }
 
-/** Colorize exact usage with the same thresholds as the context bar. */
-export function colorizeContextUsage(text: string, tab: MixCodeTabInfo): string {
-  const percent = contextUsagePercent(tab);
-  if (percent === undefined) return activeRenderTheme.dim(text);
-  if (percent >= 80) return activeRenderTheme.danger(text);
-  if (percent >= 50) return activeRenderTheme.accent(text);
-  return activeRenderTheme.success(text);
-}
-
 /**
  * Bottom-border context meter: `████░░░░ 50%` (no absolute token counts).
  * Unknown usage renders as `???????? ?%`.
