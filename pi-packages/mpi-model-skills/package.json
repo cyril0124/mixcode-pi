@@ -1,0 +1,9 @@
+{
+  "name": "mpi-model-skills",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Per-model skill add/remove via system prompt rebuild",
+  "pi": {
+    "extensions": ["./index.ts"]
+  }
+}

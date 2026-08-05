@@ -85,6 +85,9 @@ import autoRenameIndex from "../../pi-packages/mpi-auto-rename/index.ts" with { 
 import autoRenamePackageJson from "../../pi-packages/mpi-auto-rename/package.json" with { type: "text" };
 import midTurnCompactIndex from "../../pi-packages/mpi-mid-turn-compact/index.ts" with { type: "text" };
 import midTurnCompactPackageJson from "../../pi-packages/mpi-mid-turn-compact/package.json" with { type: "text" };
+import modelSkillsIndex from "../../pi-packages/mpi-model-skills/index.ts" with { type: "text" };
+import modelSkillsCore from "../../pi-packages/mpi-model-skills/model-skills-core.ts" with { type: "text" };
+import modelSkillsPackageJson from "../../pi-packages/mpi-model-skills/package.json" with { type: "text" };
 import packageJson from "../../package.json" with { type: "json" };
 import { materializeBinaryRuntimeAssets } from "./binary-assets.js";
 
@@ -220,6 +223,11 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
     "mpi-mid-turn-compact": {
       "index.ts": midTurnCompactIndex,
       "package.json": midTurnCompactPackageJson,
+    },
+    "mpi-model-skills": {
+      "index.ts": modelSkillsIndex,
+      "model-skills-core.ts": modelSkillsCore,
+      "package.json": modelSkillsPackageJson,
     },
   },
 });
