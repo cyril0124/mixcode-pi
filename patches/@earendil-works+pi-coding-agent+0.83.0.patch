@@ -62,10 +62,10 @@ index 099e74e..4a02f8f 100644
      return {
          extensions,
 diff --git a/node_modules/@earendil-works/pi-coding-agent/dist/index.d.ts b/node_modules/@earendil-works/pi-coding-agent/dist/index.d.ts
-index e91e38f..b95fe04 100644
+index e91e38f..c8a4f01 100644
 --- a/node_modules/@earendil-works/pi-coding-agent/dist/index.d.ts
 +++ b/node_modules/@earendil-works/pi-coding-agent/dist/index.d.ts
-@@ -32,4 +32,13 @@ export { parseFrontmatter, stripFrontmatter } from "./utils/frontmatter.ts";
+@@ -32,4 +32,22 @@ export { parseFrontmatter, stripFrontmatter } from "./utils/frontmatter.ts";
  export { convertToPng } from "./utils/image-convert.ts";
  export { formatDimensionNote, type ResizedImage, resizeImage } from "./utils/image-resize.ts";
  export { getShellConfig } from "./utils/shell.ts";
@@ -78,13 +78,22 @@ index e91e38f..b95fe04 100644
 +    formatHttpIdleTimeoutMs,
 +    parseHttpIdleTimeoutMs,
 +} from "./core/http-dispatcher.ts";
++export {
++    CACHE_TTL_MS,
++    type CacheMiss,
++    type CacheWasteTotals,
++    collectCacheMisses,
++    computeCacheWaste,
++    detectCacheMiss,
++    type ModelPriceSource,
++} from "./core/cache-stats.ts";
  //# sourceMappingURL=index.d.ts.map
 \ No newline at end of file
 diff --git a/node_modules/@earendil-works/pi-coding-agent/dist/index.js b/node_modules/@earendil-works/pi-coding-agent/dist/index.js
-index a2ee192..1992c01 100644
+index a2ee192..d4e7b02 100644
 --- a/node_modules/@earendil-works/pi-coding-agent/dist/index.js
 +++ b/node_modules/@earendil-works/pi-coding-agent/dist/index.js
-@@ -44,4 +44,15 @@ export { convertToPng } from "./utils/image-convert.js";
+@@ -44,4 +44,22 @@ export { convertToPng } from "./utils/image-convert.js";
  export { formatDimensionNote, resizeImage } from "./utils/image-resize.js";
  // Shell utilities
  export { getShellConfig } from "./utils/shell.js";
@@ -99,5 +108,12 @@ index a2ee192..1992c01 100644
 +    formatHttpIdleTimeoutMs,
 +    parseHttpIdleTimeoutMs,
 +} from "./core/http-dispatcher.js";
++// Cache waste stats; used by MixCode /session dump
++export {
++    CACHE_TTL_MS,
++    collectCacheMisses,
++    computeCacheWaste,
++    detectCacheMiss,
++} from "./core/cache-stats.js";
  //# sourceMappingURL=index.js.map
 \ No newline at end of file

@@ -107,7 +107,7 @@ test("renderSessionInfoText shows multi-model cost breakdown and cache re-bill",
     ["openai/gpt-a", "openai/gpt-b-real"],
   );
 
-  const waste = computeCacheWaste(entries);
+  const waste = computeCacheWaste(entries, { getModel: () => undefined });
   assert.ok(waste.missedTokens > 1024);
   assert.equal(waste.missCount, 1);
 

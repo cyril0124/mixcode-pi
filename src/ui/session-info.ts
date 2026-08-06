@@ -1,9 +1,20 @@
 /**
  * /session dump formatter aligned with Pi interactive-mode handleSessionCommand.
- * Pure layout + Pi-equivalent usage breakdown / cache-waste helpers (not public exports).
+ * Cache waste comes from Pi cache-stats (patched public export); usage breakdown
+ * stays local until usage-totals is also exported.
  */
 import type { Usage } from "@earendil-works/pi-ai";
-import type { SessionEntry } from "@earendil-works/pi-coding-agent";
+import {
+  computeCacheWaste,
+  type ModelPriceSource,
+  type SessionEntry,
+} from "@earendil-works/pi-coding-agent";
+
+export {
+  computeCacheWaste,
+  type CacheWasteTotals,
+  type ModelPriceSource,
+} from "@earendil-works/pi-coding-agent";
 
 export type SessionStatsLike = {
   sessionFile?: string;
@@ -28,13 +39,6 @@ export type SessionNameSource = {
   getEntries?: () => SessionEntry[];
 };
 
-export type ModelPriceSource = {
-  getModel(
-    provider: string,
-    modelId: string,
-  ): { cost: { cacheRead: number } } | undefined;
-};
-
 type UsageTotals = {
   input: number;
   output: number;
@@ -49,13 +53,7 @@ export type UsageCostBreakdownEntry = {
   tokens: number;
 };
 
-export type CacheWasteTotals = {
-  missedTokens: number;
-  missedCost: number;
-  missCount: number;
-};
-
-const NOISE_FLOOR_TOKENS = 1024;
+const EMPTY_MODEL_PRICES: ModelPriceSource = { getModel: () => undefined };
 
 function createUsageTotals(): UsageTotals {
   return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0 };
@@ -108,103 +106,6 @@ export function getUsageCostBreakdown(entries: SessionEntry[]): UsageCostBreakdo
     .sort((a, b) => b.cost - a.cost);
 }
 
-type PreviousRequest = {
-  promptTokens: number;
-  modelKey: string;
-  timestamp: number;
-  reportedCache: boolean;
-};
-
-type CacheMiss = {
-  missedTokens: number;
-  missedCost: number;
-};
-
-function detectMiss(
-  prev: PreviousRequest | undefined,
-  message: {
-    provider: string;
-    model: string;
-    timestamp: number;
-    usage: Usage;
-  },
-  models?: ModelPriceSource,
-): CacheMiss | undefined {
-  const usage = message.usage;
-  const promptTokens = usage.input + usage.cacheRead + usage.cacheWrite;
-  if (
-    !prev ||
-    promptTokens <= 0 ||
-    (usage.cacheRead + usage.cacheWrite === 0 && !prev.reportedCache)
-  ) {
-    return undefined;
-  }
-  const missedTokens = Math.min(prev.promptTokens, promptTokens) - usage.cacheRead;
-  if (missedTokens <= NOISE_FLOOR_TOKENS) return undefined;
-  const paidTokens = usage.input + usage.cacheWrite;
-  const paidPerToken =
-    paidTokens > 0 ? (usage.cost.input + usage.cost.cacheWrite) / paidTokens : 0;
-  const readPerToken =
-    usage.cacheRead > 0
-      ? usage.cost.cacheRead / usage.cacheRead
-      : (models?.getModel(message.provider, message.model)?.cost.cacheRead ?? 0) / 1_000_000;
-  return {
-    missedTokens,
-    missedCost: missedTokens * Math.max(0, paidPerToken - readPerToken),
-  };
-}
-
-function asPreviousRequest(
-  message: {
-    provider: string;
-    model: string;
-    timestamp: number;
-    usage: Usage;
-  },
-  reportedCache: boolean,
-): PreviousRequest | undefined {
-  const usage = message.usage;
-  const promptTokens = usage.input + usage.cacheRead + usage.cacheWrite;
-  if (promptTokens <= 0) return undefined;
-  return {
-    promptTokens,
-    modelKey: `${message.provider}/${message.model}`,
-    timestamp: message.timestamp,
-    reportedCache: reportedCache || usage.cacheRead + usage.cacheWrite > 0,
-  };
-}
-
-/** Cumulative cache waste across a session (Pi computeCacheWaste semantics). */
-export function computeCacheWaste(
-  entries: SessionEntry[],
-  models?: ModelPriceSource,
-): CacheWasteTotals {
-  let prev: PreviousRequest | undefined;
-  const totals: CacheWasteTotals = { missedTokens: 0, missedCost: 0, missCount: 0 };
-  for (const entry of entries) {
-    if (entry.type === "compaction" || entry.type === "branch_summary") {
-      prev = undefined;
-      continue;
-    }
-    if (entry.type === "message" && entry.message.role === "assistant") {
-      const message = entry.message as {
-        provider: string;
-        model: string;
-        timestamp: number;
-        usage: Usage;
-      };
-      const miss = detectMiss(prev, message, models);
-      if (miss) {
-        totals.missedTokens += miss.missedTokens;
-        totals.missedCost += miss.missedCost;
-        totals.missCount += 1;
-      }
-      prev = asPreviousRequest(message, prev?.reportedCache ?? false) ?? prev;
-    }
-  }
-  return totals;
-}
-
 /** Compact token counts for cost breakdown lines (Pi footer formatTokens). */
 export function formatSessionTokens(count: number): string {
   if (count < 1000) return count.toString();
@@ -224,7 +125,7 @@ export function renderSessionInfoText(
 ): string {
   const name = session.getSessionName?.() ?? undefined;
   const entries = options.entries ?? session.getEntries?.() ?? [];
-  const cacheWaste = computeCacheWaste(entries, options.models);
+  const cacheWaste = computeCacheWaste(entries, options.models ?? EMPTY_MODEL_PRICES);
   const usageBreakdown = getUsageCostBreakdown(entries);
 
   const lines: string[] = ["Session Info", ""];
