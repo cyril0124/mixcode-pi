@@ -100,7 +100,7 @@ diff --git a/node_modules/@earendil-works/pi-coding-agent/dist/index.js b/node_m
 index a2ee192..e9c3b01 100644
 --- a/node_modules/@earendil-works/pi-coding-agent/dist/index.js
 +++ b/node_modules/@earendil-works/pi-coding-agent/dist/index.js
-@@ -44,4 +44,29 @@ export { convertToPng } from "./utils/image-convert.js";
+@@ -44,4 +44,28 @@ export { convertToPng } from "./utils/image-convert.js";
  export { formatDimensionNote, resizeImage } from "./utils/image-resize.js";
  // Shell utilities
  export { getShellConfig } from "./utils/shell.js";
