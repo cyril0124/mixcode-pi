@@ -7,7 +7,6 @@ import { test } from "node:test";
 import { createAssistantMessageEventStream, type AssistantMessage } from "@earendil-works/pi-ai";
 import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import { createTab, MixCodeRuntime } from "../src/index.js";
-import { __testReplaceHooks } from "../src/agent/runtime-lifecycle.js";
 
 /**
  * Contract: concurrent replaceRuntimeTabSession on one tab must not bind a
@@ -17,12 +16,15 @@ import { __testReplaceHooks } from "../src/agent/runtime-lifecycle.js";
  *
  * Portable: inline extension reads ctx.sessionManager on session_start — same
  * assertActive boundary as pi-subagents startScheduler, no ~/.pi/agent required.
+ * Slow session_start widens the race window via the real bind path (no test hooks).
  */
 test("concurrent replace on one tab does not stale session_start ctx", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-replace-lock-"));
   const starts: string[] = [];
   const extension: ExtensionFactory = (pi) => {
-    pi.on("session_start", (_event, ctx) => {
+    pi.on("session_start", async (_event, ctx) => {
+      // Hold bind open so a non-serialized second replace could dispose mid-handler.
+      await Bun.sleep(150);
       try {
         starts.push(`ok:${ctx.sessionManager.getSessionId()}`);
       } catch (error) {
@@ -30,8 +32,6 @@ test("concurrent replace on one tab does not stale session_start ctx", async () 
       }
     });
   };
-  // Widen create→bind so a non-serialized second replace would win the race.
-  __testReplaceHooks.bindDelayMs = 150;
   try {
     const runtime = new MixCodeRuntime({
       sessionsRoot: join(dir, "sessions"),
@@ -47,7 +47,7 @@ test("concurrent replace on one tab does not stale session_start ctx", async () 
 
     starts.length = 0;
     const p1 = runtime.extensionSwitchSession("s1", f1);
-    await new Promise((r) => setTimeout(r, 40));
+    await Bun.sleep(40);
     // First replace may already have moved the tab id; use current map key.
     const id = runtime.listTabs()[0]!.tab.sessionId;
     const p2 = runtime.extensionSwitchSession(id, f2);
@@ -72,7 +72,6 @@ test("concurrent replace on one tab does not stale session_start ctx", async () 
     );
     assert.equal(runtime.listTabs()[0]!.tab.sessionId, "b");
   } finally {
-    __testReplaceHooks.bindDelayMs = 0;
     await rm(dir, { recursive: true, force: true });
   }
 });

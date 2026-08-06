@@ -362,9 +362,6 @@ export function disposeRuntimeTabAfterShutdown(
   resetExtensionHostState(runtimeTab, extensionUiHost);
 }
 
-// Test-only: delay after installing the replacement session and before bindExtensions.
-export const __testReplaceHooks = { bindDelayMs: 0 };
-
 /** Map key for a RuntimeTab — identity first, then tab.sessionId fallback. */
 function mapKeyForRuntimeTab(
   tabs: Map<string, RuntimeTab>,
@@ -465,9 +462,6 @@ async function replaceRuntimeTabSessionUnlocked(
   // If either throws, the caller's state is still intact — no orphaned tab.
   runtimeTab.chat = await rebuildRuntimeChat(runtimeTab);
   syncPreviewFromChat(runtimeTab.tab, runtimeTab.chat);
-  if (__testReplaceHooks.bindDelayMs > 0) {
-    await Bun.sleep(__testReplaceHooks.bindDelayMs);
-  }
   // Resume title before bind so the tab bar never flashes Agent-NN if bind is slow
   // or a session_start handler races a UI render. new/fork keep the caller title.
   if (reason === "resume") {

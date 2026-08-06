@@ -92,7 +92,7 @@ export async function readClipboardText(): Promise<string | null> {
 /**
  * Pi-parity clipboard paste: prefer image (temp path for the editor), else text.
  * Returns null when neither is available (or loaders missing).
- * Optional readers are test seams; production callers omit them.
+ * Optional readers let callers inject clipboard sources (e.g. custom paste).
  */
 export async function clipboardPasteForEditor(options?: {
   env?: NodeJS.ProcessEnv;
@@ -116,11 +116,4 @@ export async function clipboardPasteForEditor(options?: {
   const text = await readText();
   if (text) return { kind: "text", text };
   return null;
-}
-
-/** Test helper: reset private-module loaders. */
-export function resetPiPrivateLoadersForTests(): void {
-  distDirLoader = undefined;
-  clipboardImageLoader = undefined;
-  clipboardLoader = undefined;
 }

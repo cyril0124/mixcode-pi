@@ -10,8 +10,9 @@ import { CONTINUATION_MESSAGE_TYPE } from "./src/domain/constants.js";
 import { createTelemetry } from "./src/domain/telemetry.js";
 import {
 	createGoalState,
+	persistClearGoal,
 	persistSetGoal,
-	setRuntimeStateForTests,
+	replayGoalState,
 } from "./src/persistence/goal-store.js";
 import { registerGoalLifecycle } from "./src/runtime/lifecycle.js";
 import { resetContinuationRuntime } from "./src/runtime/continuation.js";
@@ -104,8 +105,14 @@ function seedActiveGoal(): void {
 	pendingMessages = false;
 	const goal = createGoalState({ objective: "keep working until done" });
 	const telemetry = createTelemetry(goal.goalId);
-	setRuntimeStateForTests({ goal, telemetry });
 	persistSetGoal(pi, goal, telemetry, "command");
+}
+
+/** Drop in-memory goal while keeping branch entries (mid-session memory loss). */
+function clearGoalMemoryKeepBranch(): void {
+	const saved = entries.splice(0, entries.length);
+	replayGoalState(ctx);
+	entries.push(...saved);
 }
 
 test("agent_end while not idle still continues after agent_settled", async () => {
@@ -130,7 +137,7 @@ test("agent_end while not idle still continues after agent_settled", async () =>
 
 test("agent_settled does not continue when goal is not active", async () => {
 	seedActiveGoal();
-	setRuntimeStateForTests({ goal: null, telemetry: null });
+	persistClearGoal(pi, "command");
 
 	idle = true;
 	await emit("agent_settled", { type: "agent_settled" });
@@ -157,7 +164,7 @@ test("agent_settled rehydrates active goal from branch when memory is empty", as
 	idle = true;
 	await emit("agent_end", { type: "agent_end", messages: [] });
 	// Mid-session memory loss after end: branch still has goal events, RAM does not.
-	setRuntimeStateForTests({ goal: null, telemetry: null });
+	clearGoalMemoryKeepBranch();
 
 	await emit("agent_settled", { type: "agent_settled" });
 	await sleep(40);

@@ -169,12 +169,6 @@ export function replayQueueState(ctx: { sessionManager: { getBranch(): unknown[]
 	return { queue, revision };
 }
 
-export function setQueueForTests(state: GoalQueueRuntimeState): void {
-	const runtime = getQueueRuntime();
-	runtime.queue = state.queue;
-	runtime.revision = state.revision ?? 0;
-}
-
 export function persistEnqueue(pi: ExtensionAPI, goal: QueuedGoal): void {
 	pi.appendEntry(STATE_ENTRY_TYPE, { version: 1, kind: "enqueue", queueId: goal.queueId, goal, reason: "enqueue", at: Date.now() } as GoalQueueEvent);
 }

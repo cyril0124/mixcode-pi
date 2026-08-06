@@ -4,8 +4,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { test } from "node:test";
-import { createTab, MixCodeRuntime, renderChat } from "../src/index.js";
-import { observeRenderMarkdownForTests } from "../src/ui/rendering/markdown.js";
+import { cachedChatBlockHeight, createTab, MixCodeRuntime, renderChat } from "../src/index.js";
 
 function stripAnsi(text: string): string {
   return text
@@ -129,19 +128,19 @@ test("extension messages use custom renderers and fall back to text", () => {
   assert.match(plain, /fallback after empty render/);
 });
 
-test("stable assistant markdown is not re-rendered when only streaming text changes", () => {
+test("stable assistant markdown stays height-cached when only streaming text changes", () => {
+  // Windowed scroll uses cachedChatBlockHeight so unchanged history lines must
+  // remain cacheable while the streaming tail mutates.
   const stable = { role: "assistant" as const, text: "stable **history**" };
   const streaming = { role: "assistant" as const, text: "partial one" };
-  const observed: string[] = [];
-  observeRenderMarkdownForTests((text) => observed.push(text));
-  try {
-    renderChat([stable, streaming], 80);
-    streaming.text = "partial two";
-    renderChat([stable, streaming], 80);
-  } finally {
-    observeRenderMarkdownForTests(undefined);
-  }
-  assert.deepEqual(observed, ["stable **history**", "partial one", "partial two"]);
+  renderChat([stable, streaming], 80);
+  const height = cachedChatBlockHeight(stable, 80);
+  assert.ok(height !== undefined, "stable line must be cached after first render");
+  streaming.text = "partial two";
+  const out = stripAnsi(renderChat([stable, streaming], 80).join("\n"));
+  assert.equal(cachedChatBlockHeight(stable, 80), height);
+  assert.match(out, /stable history/);
+  assert.match(out, /partial two/);
 });
 
 test("edit tool results render old and new file content", async () => {

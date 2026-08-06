@@ -2,7 +2,11 @@ import { afterEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { formatSkillsForPrompt } from "@earendil-works/pi-coding-agent";
+import {
+  createSyntheticSourceInfo,
+  formatSkillsForPrompt,
+  type Skill,
+} from "@earendil-works/pi-coding-agent";
 import {
   applyModelSkillRules,
   expandEnvPath,
@@ -16,9 +20,21 @@ import {
   replaceSkillsInSystemPrompt,
   ruleMatches,
   setModelSkillsEnabled,
-  syntheticSkill,
   type ModelLike,
 } from "./model-skills-core.js";
+
+/** Local fixture builder — not a product export. */
+function syntheticSkill(name: string, description = `${name} skill`, filePath?: string): Skill {
+  const fp = filePath ?? `/virtual/skills/${name}/SKILL.md`;
+  return {
+    name,
+    description,
+    filePath: fp,
+    baseDir: path.dirname(fp),
+    sourceInfo: createSyntheticSourceInfo(fp, { source: "model-skills-test" }),
+    disableModelInvocation: false,
+  };
+}
 
 const tmpDirs: string[] = [];
 

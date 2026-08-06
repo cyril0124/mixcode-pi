@@ -69,10 +69,6 @@ export function ensureGoalHydrated(ctx: ExtensionContext): GoalRuntimeState {
 	return replayGoalState(ctx);
 }
 
-export function setRuntimeStateForTests(state: GoalRuntimeState): void {
-	setMutableRuntimeState(state);
-}
-
 export function createGoalState(input: CreateGoalStateInput): GoalState {
 	const now = input.now ?? Date.now();
 	return {

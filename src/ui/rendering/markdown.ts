@@ -5,8 +5,6 @@ import { activeRenderTheme } from "./context.js";
 import { renderMermaidASCII } from "./mermaid.js";
 import { padLine } from "./primitives.js";
 
-let renderMarkdownObserver: ((text: string, width: number) => void) | undefined;
-
 export function renderMarkdown(
   text: string,
   width: number,
@@ -17,18 +15,11 @@ export function renderMarkdown(
     renderMermaid?: boolean;
   } = {},
 ): string[] {
-  renderMarkdownObserver?.(text, width);
   const markdown = new Markdown(text, 1, 0, getMarkdownTheme(width, options.renderMermaid !== false), {
     color: options.color ?? activeRenderTheme.text,
     italic: options.italic,
   });
   return markdown.render(width).map((line) => padRenderedMarkdownLine(line, width));
-}
-
-export function observeRenderMarkdownForTests(
-  observer: ((text: string, width: number) => void) | undefined,
-): void {
-  renderMarkdownObserver = observer;
 }
 
 function getMarkdownTheme(width: number, renderMermaid: boolean): MarkdownTheme {

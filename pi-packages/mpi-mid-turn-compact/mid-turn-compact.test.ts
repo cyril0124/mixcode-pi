@@ -15,7 +15,6 @@ import {
   isTinyLengthStall,
   lastAssistantUsageTokens,
   loadPrepareCompaction,
-  resetPrepareCompactionLoaderForTests,
   resolveCompactionBudgets,
   shouldCompactForWindow,
   shouldResumeAfterNativeCompact,
@@ -253,7 +252,6 @@ describe("single compact attempt", () => {
 
 describe("loadPrepareCompaction", () => {
   it("loads Pi prepareCompaction via package entry (not package.json exports)", async () => {
-    resetPrepareCompactionLoaderForTests();
     const prepare = await loadPrepareCompaction();
     assert.equal(typeof prepare, "function");
   });

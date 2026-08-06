@@ -7,10 +7,7 @@ import {
   commandSuggestions,
   parseInput,
 } from "../src/core/commands.js";
-import {
-  clipboardPasteForEditor,
-  resetPiPrivateLoadersForTests,
-} from "../src/core/pi-private.js";
+import { clipboardPasteForEditor } from "../src/core/pi-private.js";
 import { createInitialState, createTab } from "../src/core/defaults.js";
 import { handleSubmittedInput } from "../src/ui/app-submit.js";
 import type { MixCodeRuntime } from "../src/agent/runtime.js";
@@ -108,6 +105,5 @@ test("clipboardPasteForEditor prefers image temp path over text", async () => {
     assert.equal(empty, null);
   } finally {
     await rm(dir, { recursive: true, force: true });
-    resetPiPrivateLoadersForTests();
   }
 });

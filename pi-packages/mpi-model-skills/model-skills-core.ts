@@ -7,7 +7,6 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import {
-  createSyntheticSourceInfo,
   formatSkillsForPrompt,
   loadSkillsFromDir,
   type Skill,
@@ -442,17 +441,4 @@ export function replaceSkillsInSystemPrompt(systemPrompt: string, skills: readon
     return systemPrompt.slice(0, idx) + block + systemPrompt.slice(idx);
   }
   return systemPrompt + block;
-}
-
-/** Build a minimal Skill for tests without touching disk. */
-export function syntheticSkill(name: string, description = `${name} skill`, filePath?: string): Skill {
-  const fp = filePath ?? `/virtual/skills/${name}/SKILL.md`;
-  return {
-    name,
-    description,
-    filePath: fp,
-    baseDir: path.dirname(fp),
-    sourceInfo: createSyntheticSourceInfo(fp, { source: "model-skills-test" }),
-    disableModelInvocation: false,
-  };
 }

@@ -13,7 +13,6 @@ import {
 	getGoal,
 	persistSetGoal,
 	replayGoalState,
-	setRuntimeStateForTests,
 } from "./src/persistence/goal-store.js";
 import { STATE_ENTRY_TYPE } from "./src/domain/constants.js";
 
@@ -21,8 +20,9 @@ test("getGoal is null outside ALS even when session map still holds the goal", (
 	const goal = createGoalState({ objective: "keep me", now: 1 });
 	const telemetry = createTelemetry(goal.goalId);
 
+	const silentPi = { appendEntry() {} } as unknown as ExtensionAPI;
 	runInGoalSession("session-live", () => {
-		setRuntimeStateForTests({ goal, telemetry });
+		persistSetGoal(silentPi, goal, telemetry, "command");
 		assert.equal(getGoal()?.objective, "keep me");
 	});
 

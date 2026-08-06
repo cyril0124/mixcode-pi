@@ -10,9 +10,9 @@ import { createTelemetry } from "./src/domain/telemetry.js";
 import {
 	createGoalState,
 	getGoal,
+	persistClearGoal,
 	persistSetGoal,
 	persistUpdateGoal,
-	setRuntimeStateForTests,
 } from "./src/persistence/goal-store.js";
 import { registerGoalLifecycle } from "./src/runtime/lifecycle.js";
 import { resetContinuationRuntime, scheduleMaybeContinueGoal } from "./src/runtime/continuation.js";
@@ -119,7 +119,6 @@ function seedGoal(status: GoalState["status"]): GoalState {
 	const goal = createGoalState({ objective: "keep working until done" });
 	const withStatus: GoalState = { ...goal, status, updatedAt: Date.now() };
 	const telemetry = createTelemetry(withStatus.goalId);
-	setRuntimeStateForTests({ goal: withStatus, telemetry });
 	persistSetGoal(pi, withStatus, telemetry, "command");
 	if (status !== "active") {
 		persistUpdateGoal(pi, withStatus, telemetry, status === "paused" ? "abort" : "tool");
@@ -153,7 +152,7 @@ test("session resume isolates continuation send failures", async () => {
 
 test("user-confirmed continuation warns when no active goal remains", () => {
 	seedGoal("active");
-	setRuntimeStateForTests({ goal: null, telemetry: null });
+	persistClearGoal(pi, "command");
 
 	scheduleMaybeContinueGoal(pi, ctx, "resumed");
 

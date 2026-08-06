@@ -227,11 +227,6 @@ export function resetContinuationRuntime(): void {
 	state.fallbackRetryDelaysMs = [...DEFAULT_RETRY_DELAYS_MS];
 }
 
-export function setCompactionFallbackRetryDelaysForTests(delaysMs: number[]): void {
-	contState().fallbackRetryDelaysMs = delaysMs.filter((delay) => Number.isFinite(delay) && delay >= 0);
-	if (contState().fallbackRetryDelaysMs.length === 0) contState().fallbackRetryDelaysMs = [...DEFAULT_RETRY_DELAYS_MS];
-}
-
 function attemptContinueGoal(
 	pi: ExtensionAPI,
 	ctx: ExtensionContext,

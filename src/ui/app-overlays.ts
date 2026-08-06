@@ -368,7 +368,6 @@ function noticeOverlayOptions(text: string, title: string): OverlayOptions {
 /**
  * Mirror pi-tui resolveOverlayLayout for Notice so mouse hit-testing matches
  * where the compositor places the panel (bottom-center + margin + offsetY).
- * Exported for focused layout tests.
  */
 export function resolveNoticeOverlayLayout(
   options: OverlayOptions,
@@ -404,8 +403,7 @@ export function resolveNoticeOverlayLayout(
 }
 
 // Render a bordered notice/error panel: a titled box whose body is the
-// width-wrapped message followed by a dim copy/Esc hint. Exported for
-// focused rendering tests.
+// width-wrapped message followed by a dim copy/Esc hint.
 export function renderNoticePanel(
   text: string,
   width: number,

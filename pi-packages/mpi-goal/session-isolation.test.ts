@@ -1,18 +1,21 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { createTelemetry } from "./src/domain/telemetry.js";
 import { runInGoalSession } from "./src/domain/session-scope.js";
 import {
 	createGoalState,
 	getGoal,
-	setRuntimeStateForTests,
+	persistSetGoal,
 } from "./src/persistence/goal-store.js";
-import { enqueueGoal, getQueue, setQueueForTests } from "./src/persistence/queue-store.js";
+import { enqueueGoal, getQueue } from "./src/persistence/queue-store.js";
+
+const silentPi = { appendEntry() {} } as unknown as ExtensionAPI;
 
 test("goal memory is isolated across session keys", () => {
 	runInGoalSession("tab-a", () => {
 		const goal = createGoalState({ objective: "goal in tab A", now: 1 });
-		setRuntimeStateForTests({ goal, telemetry: createTelemetry(goal.goalId) });
+		persistSetGoal(silentPi, goal, createTelemetry(goal.goalId), "command");
 		assert.equal(getGoal()?.objective, "goal in tab A");
 	});
 
@@ -20,7 +23,7 @@ test("goal memory is isolated across session keys", () => {
 		// Fresh tab must not see tab-a goal (the multi-tab leak).
 		assert.equal(getGoal(), null);
 		const goal = createGoalState({ objective: "goal in tab B", now: 2 });
-		setRuntimeStateForTests({ goal, telemetry: createTelemetry(goal.goalId) });
+		persistSetGoal(silentPi, goal, createTelemetry(goal.goalId), "command");
 		assert.equal(getGoal()?.objective, "goal in tab B");
 	});
 
@@ -31,7 +34,6 @@ test("goal memory is isolated across session keys", () => {
 
 test("queue memory is isolated across session keys", () => {
 	runInGoalSession("tab-a", () => {
-		setQueueForTests({ queue: [], revision: 0 });
 		enqueueGoal("queued-A", "command");
 		assert.equal(getQueue().length, 1);
 		assert.equal(getQueue()[0]?.objective, "queued-A");

@@ -3,8 +3,8 @@ import test from "node:test";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
 	beginActiveTime,
+	discardActiveTime,
 	liveActiveExtraSeconds,
-	resetActiveTimeForTests,
 	stopActiveTime,
 	takeActiveElapsedSeconds,
 	withLiveActiveTime,
@@ -14,9 +14,16 @@ import {
 	createGoalState,
 	getGoal,
 	persistSetGoal,
-	setRuntimeStateForTests,
+	replayGoalState,
 } from "./src/persistence/goal-store.js";
 import { flushGoalActiveTime, registerGoalLifecycle } from "./src/runtime/lifecycle.js";
+
+/** Clear in-memory goal via production empty-branch replay. */
+function clearGoalMemory(): void {
+	replayGoalState({
+		sessionManager: { getBranch: () => [] },
+	} as unknown as ExtensionContext);
+}
 
 type Handler = (event: any, ctx?: any) => any;
 
@@ -25,7 +32,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 test("pure: takeActiveElapsedSeconds advances anchor without double count", () => {
-	resetActiveTimeForTests();
+	discardActiveTime();
 	const t0 = 1_000_000;
 	beginActiveTime(t0);
 	assert.equal(takeActiveElapsedSeconds(t0 + 2500), 2);
@@ -36,7 +43,7 @@ test("pure: takeActiveElapsedSeconds advances anchor without double count", () =
 });
 
 test("pure: sub-second remainders accumulate across stop/start", () => {
-	resetActiveTimeForTests();
+	discardActiveTime();
 	let t = 1_000_000;
 	let used = 0;
 	for (let i = 0; i < 5; i++) {
@@ -50,19 +57,19 @@ test("pure: sub-second remainders accumulate across stop/start", () => {
 });
 
 test("pure: withLiveActiveTime is display-only and does not mutate store", () => {
-	resetActiveTimeForTests();
+	discardActiveTime();
 	const goal = createGoalState({ objective: "x", now: 1 });
 	goal.timeUsedSeconds = 10;
 	beginActiveTime(Date.now() - 1500);
 	const live = withLiveActiveTime(goal);
 	assert.ok(live.timeUsedSeconds >= 11);
 	assert.equal(goal.timeUsedSeconds, 10);
-	resetActiveTimeForTests();
+	discardActiveTime();
 });
 
 function createLifecycleHarness() {
-	resetActiveTimeForTests();
-	setRuntimeStateForTests({ goal: null, telemetry: null });
+	discardActiveTime();
+	clearGoalMemory();
 	const handlers = new Map<string, Handler[]>();
 	const appendCalls: unknown[] = [];
 	const pi = {
@@ -109,7 +116,6 @@ function createLifecycleHarness() {
 			now: 1,
 		});
 		const telemetry = createTelemetry(goal.goalId);
-		setRuntimeStateForTests({ goal, telemetry });
 		persistSetGoal(pi, goal, telemetry, "tool");
 		return goal;
 	}
@@ -145,12 +151,11 @@ test("lifecycle: tool_result flushes whole seconds; sub-second does not persist"
 
 test("lifecycle: turn idle between turns is not billed", async () => {
 	const h = H();
-	resetActiveTimeForTests();
-	setRuntimeStateForTests({ goal: null, telemetry: null });
+	discardActiveTime();
+	clearGoalMemory();
 	// re-seed on same handlers
 	const goal = createGoalState({ objective: "idle", now: 1 });
 	const telemetry = createTelemetry(goal.goalId);
-	setRuntimeStateForTests({ goal, telemetry });
 	persistSetGoal(h.pi, goal, telemetry, "tool");
 
 	await h.emit("turn_start", { timestamp: Date.now() });
@@ -174,7 +179,6 @@ test("lifecycle: message_update without hard-stop does not appendEntry account",
 	const h = H();
 	const goal = createGoalState({ objective: "stream", timeBudgetSeconds: 10_000, now: 1 });
 	const telemetry = createTelemetry(goal.goalId);
-	setRuntimeStateForTests({ goal, telemetry });
 	persistSetGoal(h.pi, goal, telemetry, "tool");
 	await h.emit("turn_start", { timestamp: Date.now() });
 	const before = h.appendCalls.length;
@@ -188,7 +192,6 @@ test("lifecycle: hard-stop flushes time before status change", async () => {
 	// budget 2s → hard stop at ceil(2*1.1)=3
 	const goal = createGoalState({ objective: "hs", timeBudgetSeconds: 2, now: 1 });
 	const telemetry = createTelemetry(goal.goalId);
-	setRuntimeStateForTests({ goal, telemetry });
 	persistSetGoal(h.pi, goal, telemetry, "tool");
 	await h.emit("turn_start", { timestamp: Date.now() });
 	await sleep(3100);
@@ -200,9 +203,9 @@ test("lifecycle: hard-stop flushes time before status change", async () => {
 
 test("flushGoalActiveTime is no-op when clock stopped", () => {
 	const h = H();
-	resetActiveTimeForTests();
+	discardActiveTime();
 	const goal = createGoalState({ objective: "n", now: 1 });
-	setRuntimeStateForTests({ goal, telemetry: createTelemetry(goal.goalId) });
+	persistSetGoal(h.pi, goal, createTelemetry(goal.goalId), "tool");
 	const n = flushGoalActiveTime(h.pi, "turn");
 	assert.equal(n, 0);
 });

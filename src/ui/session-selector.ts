@@ -277,10 +277,7 @@ function wrapSessionSelectorWithKeybindings(
   };
 }
 
-/**
- * Multi-tab resume: open target in a new tab (or focus existing tab).
- * Exported for contract tests that drive resume without the full Pi UI.
- */
+/** Multi-tab resume: open target in a new tab (or focus existing tab). */
 export function resumeSelectedSession(
   state: MixCodeState,
   tui: OverlayTui,

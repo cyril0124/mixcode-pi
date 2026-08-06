@@ -80,12 +80,3 @@ export function withLiveActiveTime(goal: GoalState, now = Date.now()): GoalState
 	if (extra === 0) return goal;
 	return { ...goal, timeUsedSeconds: goal.timeUsedSeconds + extra };
 }
-
-export function resetActiveTimeForTests(): void {
-	clocks.set(currentGoalSessionKey(), { lastAccountedAt: null, carryMs: 0 });
-}
-
-/** Test-only peek. */
-export function getLastAccountedAtForTests(): number | null {
-	return clock().lastAccountedAt;
-}

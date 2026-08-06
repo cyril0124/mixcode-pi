@@ -457,15 +457,10 @@ export async function loadPrepareCompaction(): Promise<PrepareCompactionFn | nul
   return prepareCompactionLoader;
 }
 
-/** Test helper: reset prepareCompaction cache. */
-export function resetPrepareCompactionLoaderForTests(): void {
-  prepareCompactionLoader = undefined;
-}
-
 export function createMidTurnCompactExtension(options?: {
   agentDir?: string;
   enabled?: boolean;
-  /** Inject prepareCompaction for tests. */
+  /** Optional prepareCompaction override (defaults to Pi loader). */
   prepareCompaction?: PrepareCompactionFn | null;
 }): ExtensionFactory {
   const enabled =

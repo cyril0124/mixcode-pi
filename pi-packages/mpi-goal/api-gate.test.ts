@@ -12,7 +12,6 @@ import {
 	getGoal,
 	getTelemetry,
 	persistSetGoal,
-	setRuntimeStateForTests,
 } from "./src/persistence/goal-store.js";
 import { registerGoalLifecycle } from "./src/runtime/lifecycle.js";
 import { resetContinuationRuntime } from "./src/runtime/continuation.js";
@@ -110,7 +109,6 @@ function seedActiveGoal(): void {
 	idle = true;
 	const goal = createGoalState({ objective: "keep working until done" });
 	const telemetry = createTelemetry(goal.goalId);
-	setRuntimeStateForTests({ goal, telemetry });
 	persistSetGoal(pi, goal, telemetry, "command");
 }
 
