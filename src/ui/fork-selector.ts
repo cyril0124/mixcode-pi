@@ -4,7 +4,7 @@
  * refills the editor with that message text (SDK fork semantics).
  */
 
-import { matchesKey } from "@earendil-works/pi-tui";
+import { matchesKey, truncateToWidth } from "@earendil-works/pi-tui";
 import type { MixCodeState } from "../core/types.js";
 import type { MixCodeKeyRuntime, OverlayTui } from "./app-types.js";
 import { closeAppOverlay, showLinesOverlay } from "./app-overlays.js";
@@ -141,8 +141,8 @@ function renderForkSelectorOverlayInner(state: MixCodeState, width: number): str
 }
 
 function truncateMessagePreview(text: string, maxWidth: number): string {
-  // Collapse newlines and multiple spaces into single spaces, then truncate
-  const normalized = text.replace(/\s+/g, " ").trim();
-  if (normalized.length <= maxWidth) return normalized;
-  return normalized.slice(0, Math.max(0, maxWidth - 3)) + "...";
+  // Collapse newlines and multiple spaces into single spaces, then truncate.
+  // Delegate to pi-tui truncateToWidth: identical "..." behavior for ASCII,
+  // column-correct for wide chars (the old char-slice overflowed CJK text).
+  return truncateToWidth(text.replace(/\s+/g, " ").trim(), maxWidth);
 }
