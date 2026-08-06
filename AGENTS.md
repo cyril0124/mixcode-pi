@@ -40,6 +40,7 @@
 - Add concise English comments in TypeScript source files for non-obvious intent: invariants, side effects, ordering constraints, edge cases, and rationale for surprising decisions. Do not comment self-evident syntax or restate the code; add them when modifying an uncommented complex area as well.
 - Before finishing TypeScript behavior changes, follow **Test Guidelines** (focused test first, then the narrowest gate that covers the touch surface). Use `bun run format` only when formatting is intentionally requested or scoped, and do not claim formatting was run unless the command succeeds.
 - Keep formatting changes intentional and scoped. Do not mix broad reformatting with behavioral changes unless the formatter requires it.
+- Do not add or keep `src/` exports (including via `src/index.ts` barrels) that exist only so tests can call them. Tests must exercise the real production call path or compose production helpers; if a helper is test-only, put it under `test/` — never promote it into product modules for test convenience.
 
 ### TypeScript Style
 
