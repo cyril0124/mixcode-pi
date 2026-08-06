@@ -10,7 +10,7 @@ import {
   type SimpleStreamOptions,
 } from "@earendil-works/pi-ai";
 import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
-import { TUI, type Terminal } from "@earendil-works/pi-tui";
+import { TuiMainScreen, type Terminal } from "@earendil-works/pi-tui";
 import { MIXCODE_FAUX_MODEL, MixCodeRuntime, createTab, type RuntimeTab } from "../src/index.js";
 
 function silentTerminal(): Terminal {
@@ -63,7 +63,7 @@ test("runtime extension fork covers root and at-position branches", async () => 
       .find((entry) => entry.type === "message" && entry.message.role === "user")?.id;
     assert.ok(rootUserId);
     runtime.setExtensionUiHost({
-      tui: new TUI(silentTerminal()),
+      tui: new TuiMainScreen(silentTerminal()),
       editor: {
         getText: () => "occupied",
         setText: (text) => events.push(`editor:${text}`),

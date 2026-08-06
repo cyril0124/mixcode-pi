@@ -155,6 +155,18 @@ function assistantText(response: AssistantMessage): string {
     .trim();
 }
 
+
+function compactHeaders(
+  headers: Record<string, string | null> | undefined,
+): Record<string, string> | undefined {
+  if (!headers) return undefined;
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(headers)) {
+    if (value !== null) out[key] = value;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 function hasRequestAuth(auth: {
   apiKey?: string;
   headers?: Record<string, string>;
@@ -274,11 +286,19 @@ export async function runAutoRename(options: {
   let auth: { apiKey?: string; headers?: Record<string, string>; env?: Record<string, string> };
   try {
     const resolved = await ctx.modelRegistry.getApiKeyAndHeaders(ctx.model);
-    if (!resolved.ok || !hasRequestAuth(resolved)) {
+    if (!resolved.ok || !hasRequestAuth({
+      apiKey: resolved.ok ? resolved.apiKey : undefined,
+      headers: resolved.ok ? compactHeaders(resolved.headers) : undefined,
+      env: resolved.ok ? resolved.env : undefined,
+    })) {
       notify(resolved.ok ? `No credentials for ${ctx.model.provider}` : resolved.error, "error");
       return { ok: false, reason: "no_auth" };
     }
-    auth = resolved;
+    auth = {
+      apiKey: resolved.apiKey,
+      headers: compactHeaders(resolved.headers),
+      env: resolved.env,
+    };
   } catch (error: unknown) {
     notify(formatError(error), "error");
     return { ok: false, reason: "no_auth" };

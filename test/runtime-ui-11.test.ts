@@ -17,16 +17,7 @@ import {
   SettingsManager,
   type ExtensionFactory,
 } from "@earendil-works/pi-coding-agent";
-import {
-  Markdown,
-  Text,
-  TUI,
-  visibleWidth,
-  type AutocompleteProvider,
-  type Component,
-  type OverlayOptions,
-  type Terminal,
-} from "@earendil-works/pi-tui";
+import { Markdown, Text, TuiMainScreen, visibleWidth, type AutocompleteProvider, type Component, type OverlayOptions, type Terminal } from "@earendil-works/pi-tui";
 import {
   MIXCODE_FAUX_MODEL,
   MixCodeCompletionProvider,
@@ -352,7 +343,7 @@ test("runtime maps pi extension custom overlay into a live TUI overlay", async (
   const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-custom-overlay-"));
   const events: string[] = [];
   const terminal = silentTerminal();
-  const tui = new TUI(terminal);
+  const tui = new TuiMainScreen(terminal);
   const overlayRenders: string[] = [];
   const overlayOptions: OverlayOptions[] = [];
   let overlayComponent: Component | undefined;

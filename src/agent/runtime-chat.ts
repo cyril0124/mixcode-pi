@@ -8,7 +8,7 @@ import type {
   MessageRenderer,
   SessionEntry,
 } from "@earendil-works/pi-coding-agent";
-import { type Component, TUI as PiTui } from "@earendil-works/pi-tui";
+import { type Component, TuiMainScreen as PiTui } from "@earendil-works/pi-tui";
 import { modelToRef } from "../core/models.js";
 import type { MixCodeModel, MixCodeTabInfo, PreviewMessageRole } from "../core/types.js";
 import { clearPendingEscape } from "../core/tab-state.js";

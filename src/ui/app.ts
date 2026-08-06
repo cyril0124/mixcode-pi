@@ -1,5 +1,5 @@
 import type { SettingsManager } from "@earendil-works/pi-coding-agent";
-import { matchesKey, ProcessTerminal, TUI, type TUI as TuiType } from "@earendil-works/pi-tui";
+import { matchesKey, ProcessTerminal, TuiMainScreen, type TUI as TuiType } from "@earendil-works/pi-tui";
 import type { ExtensionCustomUiHost, MixCodeRuntime } from "../agent/runtime.js";
 import { scanSkillEntries } from "../core/attachments.js";
 import { recordSubmittedHistory } from "../core/conversation-history.js";
@@ -53,7 +53,7 @@ export interface MixCodeTuiOptions {
   onStateChanged?: (state: MixCodeState) => void | Promise<void>;
   workspaceFile?: string;
   externalEditor?: string;
-  terminal?: ConstructorParameters<typeof TUI>[0];
+  terminal?: ConstructorParameters<typeof TuiMainScreen>[0];
   exitProcessOnQuit?: boolean;
   rootStateDir?: string;
   /** Required to enable the /settings overlay panel. */
@@ -69,7 +69,7 @@ export function createMixCodeTui(
   options: MixCodeTuiOptions = {},
 ): TuiType {
   noteActiveExtensionThemeId(state.theme);
-  const tui = new TUI(withMouseReporting(options.terminal ?? new ProcessTerminal()));
+  const tui = new TuiMainScreen(withMouseReporting(options.terminal ?? new ProcessTerminal()));
   (tui as TuiType & { mixCodeExitProcessOnQuit?: boolean }).mixCodeExitProcessOnQuit =
     options.exitProcessOnQuit === true;
   bindRuntimeRendering(runtime, tui, state, options.onStateChanged);

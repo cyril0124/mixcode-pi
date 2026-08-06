@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { test } from "node:test";
 import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
-import { Text, TUI, type Terminal } from "@earendil-works/pi-tui";
+import { Text, TuiMainScreen, type Terminal } from "@earendil-works/pi-tui";
 import {
   MIXCODE_FAUX_MODEL,
   MixCodeRuntime,
@@ -167,7 +167,7 @@ test("runtime wires extension command session actions into MixCode sessions", as
     assert.ok(rootUserId);
     await runtime.prompt(afterNew.tab.sessionId, "child prompt");
     runtime.setExtensionUiHost({
-      tui: new TUI(silentTerminal()),
+      tui: new TuiMainScreen(silentTerminal()),
       editor: {
         getText: () => "",
         setText: (text) => events.push(`editor:${text}`),

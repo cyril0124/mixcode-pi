@@ -1,8 +1,8 @@
 diff --git a/node_modules/@earendil-works/pi-coding-agent/dist/core/extensions/loader.js b/node_modules/@earendil-works/pi-coding-agent/dist/core/extensions/loader.js
-index 099e74e..4a02f8f 100644
+index 1111111..2222222 100644
 --- a/node_modules/@earendil-works/pi-coding-agent/dist/core/extensions/loader.js
 +++ b/node_modules/@earendil-works/pi-coding-agent/dist/core/extensions/loader.js
-@@ -315,6 +315,19 @@ function isCurrentCacheToken(cacheToken) {
+@@ -348,6 +348,22 @@
          extensionCacheCwd === cacheToken.cwd &&
          extensionCacheGeneration === cacheToken.generation);
  }
@@ -11,10 +11,13 @@ index 099e74e..4a02f8f 100644
 +    if (!_sharedJiti) {
 +        _sharedJiti = createJiti(import.meta.url, {
 +            moduleCache: true,
-+            // In Bun binary: use virtualModules for bundled packages (no filesystem resolution)
-+            // Also disable tryNative so jiti handles ALL imports (not just the entry point)
-+            // In Node.js/dev: use aliases to resolve to node_modules paths
-+            ...(isBunBinary ? { virtualModules: VIRTUAL_MODULES, tryNative: false } : { alias: getAliases() }),
++            // Bun uses modules embedded in the executable. Source TypeScript reuses the
++            // host-resolved modules and root tsconfig paths. Built Node uses dist aliases.
++            ...(isBunBinary
++                ? { virtualModules: VIRTUAL_MODULES, tryNative: false }
++                : isTypeScriptSourceRuntime
++                    ? { virtualModules: VIRTUAL_MODULES, tsconfigPaths: true }
++                    : { alias: getAliases() }),
 +        });
 +    }
 +    return _sharedJiti;
@@ -22,22 +25,25 @@ index 099e74e..4a02f8f 100644
  async function loadExtensionModule(extensionPath, cacheToken) {
      if (isCurrentCacheToken(cacheToken)) {
          const cachedFactory = extensionCache.get(extensionPath);
-@@ -322,13 +335,7 @@ async function loadExtensionModule(extensionPath, cacheToken) {
+@@ -355,16 +371,7 @@
              return cachedFactory;
          }
      }
 -    const jiti = createJiti(import.meta.url, {
 -        moduleCache: false,
--        // In Bun binary: use virtualModules for bundled packages (no filesystem resolution)
--        // Also disable tryNative so jiti handles ALL imports (not just the entry point)
--        // In Node.js/dev: use aliases to resolve to node_modules paths
--        ...(isBunBinary ? { virtualModules: VIRTUAL_MODULES, tryNative: false } : { alias: getAliases() }),
+-        // Bun uses modules embedded in the executable. Source TypeScript reuses the
+-        // host-resolved modules and root tsconfig paths. Built Node uses dist aliases.
+-        ...(isBunBinary
+-            ? { virtualModules: VIRTUAL_MODULES, tryNative: false }
+-            : isTypeScriptSourceRuntime
+-                ? { virtualModules: VIRTUAL_MODULES, tsconfigPaths: true }
+-                : { alias: getAliases() }),
 -    });
 +    const jiti = getSharedJiti();
      const module = await jiti.import(extensionPath, { default: true });
      const factory = module;
      if (typeof factory !== "function") {
-@@ -394,6 +401,8 @@ export async function loadExtensionFromFactory(factory, cwd, eventBus, runtime,
+@@ -430,6 +437,8 @@
   * Load extensions from paths.
   */
  async function loadExtensionsInternal(paths, cwd, eventBus, runtime, useCache = false) {
@@ -46,7 +52,7 @@ index 099e74e..4a02f8f 100644
      const extensions = [];
      const errors = [];
      const cacheToken = useCache ? useExtensionCacheCwd(cwd) : undefined;
-@@ -404,11 +413,12 @@ async function loadExtensionsInternal(paths, cwd, eventBus, runtime, useCache =
+@@ -440,11 +449,12 @@
          const { extension, error } = await loadExtension(extPath, resolvedCwd, resolvedEventBus, resolvedRuntime, cacheToken);
          if (error) {
              errors.push({ path: extPath, error });
@@ -62,10 +68,10 @@ index 099e74e..4a02f8f 100644
      return {
          extensions,
 diff --git a/node_modules/@earendil-works/pi-coding-agent/dist/index.d.ts b/node_modules/@earendil-works/pi-coding-agent/dist/index.d.ts
-index e91e38f..b8f1a02 100644
+index 1111111..2222222 100644
 --- a/node_modules/@earendil-works/pi-coding-agent/dist/index.d.ts
 +++ b/node_modules/@earendil-works/pi-coding-agent/dist/index.d.ts
-@@ -32,4 +32,30 @@ export { parseFrontmatter, stripFrontmatter } from "./utils/frontmatter.ts";
+@@ -32,4 +32,30 @@
  export { convertToPng } from "./utils/image-convert.ts";
  export { formatDimensionNote, type ResizedImage, resizeImage } from "./utils/image-resize.ts";
  export { getShellConfig } from "./utils/shell.ts";
@@ -98,10 +104,10 @@ index e91e38f..b8f1a02 100644
  //# sourceMappingURL=index.d.ts.map
 \ No newline at end of file
 diff --git a/node_modules/@earendil-works/pi-coding-agent/dist/index.js b/node_modules/@earendil-works/pi-coding-agent/dist/index.js
-index a2ee192..e9c3b01 100644
+index 1111111..2222222 100644
 --- a/node_modules/@earendil-works/pi-coding-agent/dist/index.js
 +++ b/node_modules/@earendil-works/pi-coding-agent/dist/index.js
-@@ -44,4 +44,30 @@ export { convertToPng } from "./utils/image-convert.js";
+@@ -44,4 +44,30 @@
  export { formatDimensionNote, resizeImage } from "./utils/image-resize.js";
  // Shell utilities
  export { getShellConfig } from "./utils/shell.js";

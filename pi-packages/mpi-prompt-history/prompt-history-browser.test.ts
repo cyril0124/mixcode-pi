@@ -56,7 +56,7 @@ test("Up from first item wraps to last, Down from last wraps to first", () => {
   browser.handleInput("\r");
   assert.deepEqual(results, ["HISTORY-ITEM-ALPHA"]);
 
-  results.length = 0;
+  const wrapResults: Array<string | null> = [];
   const browser2 = createPromptHistoryBrowserComponent({
     tui: {
       terminal: { columns: 80, rows: 24 },
@@ -68,7 +68,7 @@ test("Up from first item wraps to last, Down from last wraps to first", () => {
       { entryId: "2", text: "HISTORY-ITEM-BETA" },
       { entryId: "3", text: "HISTORY-ITEM-GAMMA" },
     ],
-    done: (result) => results.push(result),
+    done: (result) => wrapResults.push(result),
   });
 
   // Down twice reaches ALPHA, one more Down wraps to GAMMA (first).
@@ -76,5 +76,5 @@ test("Up from first item wraps to last, Down from last wraps to first", () => {
   browser2.handleInput("\x1b[B");
   browser2.handleInput("\x1b[B");
   browser2.handleInput("\r");
-  assert.deepEqual(results, ["HISTORY-ITEM-GAMMA"]);
+  assert.deepEqual(wrapResults, ["HISTORY-ITEM-GAMMA"]);
 });

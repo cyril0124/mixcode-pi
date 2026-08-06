@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { test } from "node:test";
 import { Type } from "@earendil-works/pi-ai";
 import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
-import { Text, TUI, type AutocompleteProvider, type Terminal } from "@earendil-works/pi-tui";
+import { Text, TuiMainScreen, type AutocompleteProvider, type Terminal } from "@earendil-works/pi-tui";
 import {
   MixCodeCompletionProvider,
   MixCodeRuntime,
@@ -404,7 +404,7 @@ test("runtime extension reload resets host UI state and rebinds extension resour
       skills: [],
     });
     runtime.setExtensionUiHost({
-      tui: new TUI(silentTerminal()),
+      tui: new TuiMainScreen(silentTerminal()),
       editor: {
         getText: () => "",
         setText: () => undefined,

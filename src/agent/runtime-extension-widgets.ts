@@ -1,5 +1,5 @@
 import type { ReadonlyFooterDataProvider, Theme } from "@earendil-works/pi-coding-agent";
-import { type Component, TUI as PiTui } from "@earendil-works/pi-tui";
+import { type Component, TuiMainScreen as PiTui } from "@earendil-works/pi-tui";
 import { gitBranchForWorkdir, onGitBranchChange } from "../core/git-branch.js";
 import type {
   ExtensionDynamicLines,

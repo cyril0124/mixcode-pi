@@ -17,16 +17,7 @@ import {
   SettingsManager,
   type ExtensionFactory,
 } from "@earendil-works/pi-coding-agent";
-import {
-  Markdown,
-  Text,
-  TUI,
-  visibleWidth,
-  type AutocompleteProvider,
-  type Component,
-  type OverlayOptions,
-  type Terminal,
-} from "@earendil-works/pi-tui";
+import { Markdown, Text, TuiMainScreen, visibleWidth, type AutocompleteProvider, type Component, type OverlayOptions, type Terminal } from "@earendil-works/pi-tui";
 import {
   MIXCODE_FAUX_MODEL,
   MixCodeCompletionProvider,
@@ -494,7 +485,7 @@ test("runtime maps extension theme primitives to MixCode themes", async () => {
       workdir: process.cwd(),
     });
     runtime.setExtensionUiHost({
-      tui: new TUI(silentTerminal()),
+      tui: new TuiMainScreen(silentTerminal()),
       themes: {
         getTheme: () => mixTheme,
         setTheme: (themeId) => {

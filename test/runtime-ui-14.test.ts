@@ -17,16 +17,7 @@ import {
   SettingsManager,
   type ExtensionFactory,
 } from "@earendil-works/pi-coding-agent";
-import {
-  Markdown,
-  Text,
-  TUI,
-  visibleWidth,
-  type AutocompleteProvider,
-  type Component,
-  type OverlayOptions,
-  type Terminal,
-} from "@earendil-works/pi-tui";
+import { Markdown, Text, TuiMainScreen, visibleWidth, type AutocompleteProvider, type Component, type OverlayOptions, type Terminal } from "@earendil-works/pi-tui";
 import {
   MIXCODE_FAUX_MODEL,
   MixCodeCompletionProvider,
@@ -276,7 +267,7 @@ test("runtime maps pi extension multiline editor primitive into an in-place edit
   let activeEditorComponent: EditorComponentLike | undefined;
   let restoredToPrevious = false;
   const terminal = silentTerminal();
-  const tui = new TUI(terminal);
+  const tui = new TuiMainScreen(terminal);
   const mockEditorHost = {
     tui,
     editor: {
@@ -452,7 +443,7 @@ test("runtime refreshes live editor autocomplete providers registered after cach
     });
     const base: AutocompleteProvider = new MixCodeCompletionProvider({ skills: [] });
     runtime.setExtensionUiHost({
-      tui: new TUI(silentTerminal()),
+      tui: new TuiMainScreen(silentTerminal()),
       editor: {
         getText: () => "",
         setText: () => undefined,

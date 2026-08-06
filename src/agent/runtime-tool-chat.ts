@@ -1,6 +1,6 @@
 import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
 import type { AgentToolResult, ToolDefinition } from "@earendil-works/pi-coding-agent";
-import { type Component, TUI as PiTui } from "@earendil-works/pi-tui";
+import { type Component, TuiMainScreen as PiTui } from "@earendil-works/pi-tui";
 import {
   currentExtensionTheme,
   ensureExtensionThemeInitialized,

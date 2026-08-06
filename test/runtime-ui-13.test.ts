@@ -17,16 +17,7 @@ import {
   SettingsManager,
   type ExtensionFactory,
 } from "@earendil-works/pi-coding-agent";
-import {
-  Markdown,
-  Text,
-  TUI,
-  visibleWidth,
-  type AutocompleteProvider,
-  type Component,
-  type OverlayOptions,
-  type Terminal,
-} from "@earendil-works/pi-tui";
+import { Markdown, Text, TuiMainScreen, visibleWidth, type AutocompleteProvider, type Component, type OverlayOptions, type Terminal } from "@earendil-works/pi-tui";
 import {
   MIXCODE_FAUX_MODEL,
   MixCodeCompletionProvider,
@@ -239,7 +230,7 @@ test("runtime custom non-overlay editor exposes missing host and teardown paths"
 
     await runtime.prompt("s1", "/custom-editor-no-host");
     assert.match(events.at(-1) ?? "", /requires an active MixCode TUI host: custom/);
-    runtime.setExtensionUiHost({ tui: new TUI(silentTerminal()) });
+    runtime.setExtensionUiHost({ tui: new TuiMainScreen(silentTerminal()) });
     await runtime.prompt("s1", "/custom-editor-no-host");
     assert.match(events.at(-1) ?? "", /editor component replacement is not available/);
 
@@ -337,7 +328,7 @@ test("runtime custom overlay exposes host and delayed-close paths", async () => 
     });
   };
   const terminal = silentTerminal();
-  const tui = new TUI(terminal);
+  const tui = new TuiMainScreen(terminal);
   const overlayOptions: OverlayOptions[] = [];
   let overlayComponent: Component | undefined;
   const originalShowOverlay = tui.showOverlay.bind(tui);

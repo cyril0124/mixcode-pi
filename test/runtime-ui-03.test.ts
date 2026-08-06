@@ -3,14 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { test } from "node:test";
-import {
-  CURSOR_MARKER,
-  visibleWidth,
-  type AutocompleteProvider,
-  type Component,
-  type OverlayOptions,
-  type Terminal,
-} from "@earendil-works/pi-tui";
+import { CURSOR_MARKER, visibleWidth, type AutocompleteProvider, type Component, type OverlayOptions, type Terminal } from "@earendil-works/pi-tui";
 import {
   MixCodeCompletionProvider,
   createInitialState,
@@ -229,7 +222,7 @@ test("createMixCodeTui external editor rewrites focused draft and surfaces exit 
         }
       ).children[0]!;
       layout.editor.setText("initial");
-      tui.handleInput("\x05");
+      tui.handleTerminalInput("\x05");
       await waitFor(() => layout.editor.getText() === "changed");
       assert.equal(capture, "stop;start;");
     } finally {
@@ -253,7 +246,7 @@ test("createMixCodeTui external editor rewrites focused draft and surfaces exit 
       return originalShowOverlay(component, options);
     }) as typeof failureTui.showOverlay;
     try {
-      (failureTui as unknown as { handleInput: (data: string) => void }).handleInput("\x05");
+      (failureTui as unknown as { handleTerminalInput: (data: string) => void }).handleTerminalInput("\x05");
       await waitFor(() => overlays.some((overlay) => /External editor exited with 7/.test(overlay)));
     } finally {
       failureTui.stop();
@@ -304,7 +297,11 @@ test("createMixCodeTui editor slot renders the input cursor while focused", () =
     assert.equal(emptySurface.includes(CURSOR_MARKER), true);
     assert.match(emptySurface, /\x1b\[7m \x1b\[0m/);
     assert.match(stripAnsi(emptySurface), /Send message to Agent-01/);
-    assert.match(stripAnsi(emptySurface).split("\n")[0]!, /^─+ Agent-01 ──$/);
+    // Context usage sits after the title (e.g. "· ?/200k") when known/unknown.
+    assert.match(
+      stripAnsi(emptySurface).split("\n")[0]!,
+      /^─+ Agent-01(?: · \S+)? ──$/,
+    );
     assert.equal(visibleWidth(stripAnsi(emptySurface).split("\n")[0]!), 80);
     assert.equal(stripAnsi(emptySurface).split("\n").at(-1), "─".repeat(80));
     assert.doesNotMatch(stripAnsi(emptySurface), /^\s*> /m);
@@ -328,7 +325,10 @@ test("createMixCodeTui editor slot renders the input cursor while focused", () =
       stripAnsi(vimSurface),
       /^ Vim: → newer user msg · Shift\+→ older user msg · q exit · widgets\/status hidden/m,
     );
-    assert.match(stripAnsi(vimSurface).split("\n")[0]!, /^── \[VIM\] ─+ Agent-01 ──$/);
+    assert.match(
+      stripAnsi(vimSurface).split("\n")[0]!,
+      /^── \[VIM\] ─+ Agent-01(?: · \S+)? ──$/,
+    );
     layout.editor.setText("draft");
     layout.editor.handleInput("x");
     assert.equal(layout.editor.current.getText(), "draft");

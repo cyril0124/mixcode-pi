@@ -94,7 +94,7 @@ test("createMixCodeTui hydrates editor history per tab from restored runtime use
       }
     ).children[0]!;
     const handleTuiInput = (data: string) =>
-      (tui as unknown as { handleInput: (data: string) => void }).handleInput(data);
+      (tui as unknown as { handleTerminalInput: (data: string) => void }).handleTerminalInput(data);
     handleTuiInput("\x1b[A");
     assert.equal(layout.editor.getText(), "");
     historyReady.add("s1");

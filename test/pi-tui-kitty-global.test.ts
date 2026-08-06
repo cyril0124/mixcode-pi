@@ -9,11 +9,7 @@ import { createRequire } from "node:module";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import {
-  isKittyProtocolActive as isPkgKitty,
-  matchesKey,
-  setKittyProtocolActive as setPkgKitty,
-} from "@earendil-works/pi-tui";
+import { isKittyProtocolActive as isPkgKitty, matchesKey, setKittyProtocolActive as setPkgKitty } from "@earendil-works/pi-tui";
 
 const KEY = Symbol.for("@earendil-works/pi-tui:kitty-protocol");
 

@@ -17,16 +17,7 @@ import {
   SettingsManager,
   type ExtensionFactory,
 } from "@earendil-works/pi-coding-agent";
-import {
-  Markdown,
-  Text,
-  TUI,
-  visibleWidth,
-  type AutocompleteProvider,
-  type Component,
-  type OverlayOptions,
-  type Terminal,
-} from "@earendil-works/pi-tui";
+import { Markdown, Text, TuiMainScreen, visibleWidth, type AutocompleteProvider, type Component, type OverlayOptions, type Terminal } from "@earendil-works/pi-tui";
 import {
   MIXCODE_FAUX_MODEL,
   MixCodeCompletionProvider,
@@ -190,7 +181,7 @@ test("runtime initializes pi theme before rendering extension custom markdown ov
   const previousTheme = (globalThis as Record<symbol, unknown>)[themeKey];
   delete (globalThis as Record<symbol, unknown>)[themeKey];
   const terminal = silentTerminal();
-  const tui = new TUI(terminal);
+  const tui = new TuiMainScreen(terminal);
   let overlayComponent: Component | undefined;
   const originalShowOverlay = tui.showOverlay.bind(tui);
   const extension: ExtensionFactory = (pi) => {
@@ -242,7 +233,7 @@ test("runtime initializes pi theme before rendering extension custom markdown ov
 test("runtime keeps enter as the extension select confirmation key", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-custom-enter-"));
   const terminal = silentTerminal();
-  const tui = new TUI(terminal);
+  const tui = new TuiMainScreen(terminal);
   let overlayComponent: Component | undefined;
   const originalShowOverlay = tui.showOverlay.bind(tui);
   const events: string[] = [];
@@ -293,7 +284,7 @@ test("runtime keeps enter as the extension select confirmation key", async () =>
 test("runtime renders custom overlays with their scoped terminal row budget", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-custom-rows-"));
   const terminal = silentTerminal();
-  const tui = new TUI(terminal);
+  const tui = new TuiMainScreen(terminal);
   let overlayComponent: Component | undefined;
   let overlayOptions: OverlayOptions | undefined;
   const originalShowOverlay = tui.showOverlay.bind(tui);
@@ -406,16 +397,16 @@ test("runtime scopes extension custom overlays to the active tab", async () => {
       assert.match(stripAnsi(renderTabBar(state, 80).join("\n")), /\? Agent-01/);
       assert.equal(overlayOptions?.visible?.(100, 24), true);
 
-      (tui as unknown as { handleInput: (data: string) => void }).handleInput("\t");
+      (tui as unknown as { handleTerminalInput: (data: string) => void }).handleTerminalInput("\t");
       assert.equal(state.activeTabId, "s2");
       assert.equal(overlayOptions?.visible?.(100, 24), false);
-      (tui as unknown as { handleInput: (data: string) => void }).handleInput("\r");
+      (tui as unknown as { handleTerminalInput: (data: string) => void }).handleTerminalInput("\r");
       assert.deepEqual(events, []);
 
-      (tui as unknown as { handleInput: (data: string) => void }).handleInput("\x1b[Z");
+      (tui as unknown as { handleTerminalInput: (data: string) => void }).handleTerminalInput("\x1b[Z");
       assert.equal(state.activeTabId, "s1");
       assert.equal(overlayOptions?.visible?.(100, 24), true);
-      (tui as unknown as { handleInput: (data: string) => void }).handleInput("\r");
+      (tui as unknown as { handleTerminalInput: (data: string) => void }).handleTerminalInput("\r");
       await task;
       assert.deepEqual(events, ["result:selected"]);
       assert.equal(runtime.hasExtensionCustomOverlay("s1"), false);
@@ -475,7 +466,7 @@ test("runtime focuses extension custom overlay triggered while its tab was inact
       return originalShowOverlay(component, options);
     }) as typeof tui.showOverlay;
     const raw = (data: string) =>
-      (tui as unknown as { handleInput: (data: string) => void }).handleInput(data);
+      (tui as unknown as { handleTerminalInput: (data: string) => void }).handleTerminalInput(data);
     let task: Promise<void> | undefined;
     try {
       // Switch to tab two BEFORE the extension asks its question on tab one.
@@ -559,9 +550,9 @@ test("runtime maps pi extension custom non-overlay into the live editor slot", a
       assert.match(stripAnsi(renderTabBar(state, 80).join("\n")), /\? Agent-01/);
       assert.deepEqual(events.slice(0, 2), ["host:true", "kb:escape"]);
 
-      (tui as unknown as { handleInput: (data: string) => void }).handleInput("x");
+      (tui as unknown as { handleTerminalInput: (data: string) => void }).handleTerminalInput("x");
       await waitFor(() => /editor updated 80/.test(stripAnsi(tui.render(80).join("\n"))));
-      (tui as unknown as { handleInput: (data: string) => void }).handleInput("\r");
+      (tui as unknown as { handleTerminalInput: (data: string) => void }).handleTerminalInput("\r");
       await promptTask;
 
       assert.equal(runtime.hasExtensionCustomOverlay("s1"), false);
@@ -630,19 +621,19 @@ test("runtime scopes extension custom non-overlay editors to their owning tab", 
       await waitFor(() => /scoped editor tab-one 80/.test(stripAnsi(tui.render(80).join("\n"))));
       assert.match(stripAnsi(renderTabBar(state, 80).join("\n")), /\? Agent-01/);
 
-      (tui as unknown as { handleInput: (data: string) => void }).handleInput("\t");
+      (tui as unknown as { handleTerminalInput: (data: string) => void }).handleTerminalInput("\t");
       assert.equal(state.activeTabId, "s2");
       assert.doesNotMatch(stripAnsi(tui.render(80).join("\n")), /scoped editor/);
       assert.match(stripAnsi(renderTabBar(state, 80).join("\n")), /\? Agent-01/);
-      (tui as unknown as { handleInput: (data: string) => void }).handleInput("\r");
+      (tui as unknown as { handleTerminalInput: (data: string) => void }).handleTerminalInput("\r");
       assert.deepEqual(events, []);
 
-      (tui as unknown as { handleInput: (data: string) => void }).handleInput("\x1b[Z");
+      (tui as unknown as { handleTerminalInput: (data: string) => void }).handleTerminalInput("\x1b[Z");
       assert.equal(state.activeTabId, "s1");
       assert.match(stripAnsi(tui.render(80).join("\n")), /scoped editor tab-one 80/);
-      (tui as unknown as { handleInput: (data: string) => void }).handleInput("x");
+      (tui as unknown as { handleTerminalInput: (data: string) => void }).handleTerminalInput("x");
       await waitFor(() => /scoped editor updated 80/.test(stripAnsi(tui.render(80).join("\n"))));
-      (tui as unknown as { handleInput: (data: string) => void }).handleInput("\r");
+      (tui as unknown as { handleTerminalInput: (data: string) => void }).handleTerminalInput("\r");
       await promptTask;
 
       assert.deepEqual(events, ["dispose", "result:updated"]);

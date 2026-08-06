@@ -488,7 +488,7 @@ test("Ctrl+E defers to the extension editor component when it owns the slot", ()
     capturedHost.editor.setEditorComponent(stubFactory, "s1");
 
     // Ctrl+E (0x05) fed through the real tui input pipeline.
-    (tui as unknown as { handleInput(data: string): void }).handleInput("\x05");
+    (tui as unknown as { handleTerminalInput(data: string): void }).handleTerminalInput("\x05");
 
     // With the slot owned by the extension component, Ctrl+E falls through the
     // global listener to the focused EditorSlot and reaches the stub.

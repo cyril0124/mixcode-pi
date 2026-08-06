@@ -8,12 +8,7 @@ import { createRequire } from "node:module";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import {
-  getKeybindings as getPkgKeybindings,
-  setKeybindings as setPkgKeybindings,
-  KeybindingsManager,
-  TUI_KEYBINDINGS,
-} from "@earendil-works/pi-tui";
+import { getKeybindings as getPkgKeybindings, setKeybindings as setPkgKeybindings, KeybindingsManager, TUI_KEYBINDINGS } from "@earendil-works/pi-tui";
 
 import { MIXCODE_EXTENSION_KEYBINDINGS_MANAGER } from "../src/agent/runtime-extension-theme.js";
 import { applyMixCodeKeybindings } from "../src/agent/runtime-pi-tui-bridge.js";
