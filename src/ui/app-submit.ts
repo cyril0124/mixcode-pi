@@ -547,6 +547,22 @@ export async function handleSubmittedInput(
       renderSessionInfoText(runtimeTab, info),
       "plain",
     );
+  } else if (parsed.command === "export") {
+    // Pi handleExportCommand: .jsonl path → exportToJsonl, else HTML.
+    if (state.activeTabId === "config") return;
+    const runtimeTab = runtime.getTab(active!.sessionId);
+    if (!runtimeTab) throw new Error(`Unknown tab session: ${active!.sessionId}`);
+    const outputPath = parsed.args.trim() || undefined;
+    try {
+      const filePath =
+        outputPath?.endsWith(".jsonl") === true
+          ? runtimeTab.agentSession.exportToJsonl(outputPath)
+          : await runtimeTab.agentSession.exportToHtml(outputPath);
+      pushToast(active!, { type: "success", message: `Session exported to: ${filePath}` });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      pushToast(active!, { type: "error", message: `Failed to export session: ${message}` });
+    }
   } else if (parsed.command === "tui-state") {
     const request = parseEditorFlag(parsed.args);
     const text = JSON.stringify(createTuiDebugState(state), null, 2);

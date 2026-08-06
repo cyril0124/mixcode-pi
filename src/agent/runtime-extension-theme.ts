@@ -48,6 +48,8 @@ export const MIXCODE_EXTENSION_KEYBINDINGS: KeybindingsConfig = {
   "app.thinking.toggle": "ctrl+r",
   "app.editor.external": "ctrl+e",
   "app.message.followUp": "alt+enter",
+  // Pi default: ctrl+v (alt+v on Windows) pastes clipboard image path, else text.
+  "app.clipboard.pasteImage": process.platform === "win32" ? "alt+v" : "ctrl+v",
   // Session selector (Pi SessionSelectorComponent keyHint / getKeybindings)
   "app.session.toggleNamedFilter": "ctrl+n",
   "app.session.togglePath": "ctrl+p",
@@ -78,6 +80,10 @@ const MIXCODE_EXTENSION_KEYBINDING_DEFINITIONS = {
   "app.thinking.toggle": { defaultKeys: "ctrl+r", description: "Prepare rename command" },
   "app.editor.external": { defaultKeys: "ctrl+e", description: "Open external editor" },
   "app.message.followUp": { defaultKeys: "alt+enter", description: "Queue follow-up message" },
+  "app.clipboard.pasteImage": {
+    defaultKeys: process.platform === "win32" ? "alt+v" : "ctrl+v",
+    description: "Paste image from clipboard (text fallback)",
+  },
   "app.message.copy": { defaultKeys: "ctrl+x", description: "Copy tree entry" },
   "app.session.toggleNamedFilter": {
     defaultKeys: "ctrl+n",

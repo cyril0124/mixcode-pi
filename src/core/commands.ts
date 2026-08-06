@@ -22,6 +22,7 @@ export type LocalCommand =
   | "hide-thinking"
   | "settings"
   | "session"
+  | "export"
   | "compact"
   | "clear"
   | "mark-done"
@@ -257,6 +258,16 @@ export const LOCAL_COMMANDS: Array<{
     name: "session",
     description: "Show session info and stats",
     palette: { label: "Session Info", requires: "session" },
+  },
+  {
+    name: "export",
+    description: "Export session to HTML (or JSONL when path ends with .jsonl)",
+    argumentHint: "[path]",
+    palette: {
+      label: "Export Session",
+      description: "Export the current session to HTML or JSONL",
+      requires: "session",
+    },
   },
   {
     name: "compact",

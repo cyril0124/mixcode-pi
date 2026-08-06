@@ -12,6 +12,7 @@ import { activateTab, dismissExtensionPanel, getActiveTab, nextTabId } from "../
 import type { MixCodeState } from "../core/types.js";
 import { clearPendingEscape, openQuitConfirm } from "./app-actions.js";
 import { insertEditorText } from "./app-editor.js";
+import { clipboardPasteForEditor } from "../core/pi-private.js";
 import { pasteDetector } from "./paste-detect.js";
 import {
   canOpenCommandPalette,
@@ -686,6 +687,33 @@ function handleEditorControlKeys(
   }
   // Extension custom components (e.g. /btw) own the editor slot and bind
   // Ctrl+C as exit/cancel. Do not clear the default editor or consume the key.
+  // Pi CustomEditor: app.clipboard.pasteImage → temp image path (or text fallback).
+  // Intercept before the editor so Ctrl+V is not a no-op on terminals without OS paste.
+  if (
+    MIXCODE_EXTENSION_KEYBINDINGS_MANAGER.matches(data, "app.clipboard.pasteImage") &&
+    editorActions &&
+    !editorActions.hasEditorReplacement?.()
+  ) {
+    if (isKeyRelease(data)) return { consume: true };
+    if (active) clearPendingEscape(active, "abort-agent");
+    void clipboardPasteForEditor()
+      .then((result) => {
+        if (!result) return;
+        if (result.kind === "image") {
+          if (editorActions.insertTextAtCursor) editorActions.insertTextAtCursor(result.path);
+          else editorActions.setText(`${editorActions.getText()}${result.path}`);
+        } else if (editorActions.insertTextAtCursor) {
+          editorActions.insertTextAtCursor(result.text);
+        } else {
+          editorActions.setText(`${editorActions.getText()}${result.text}`);
+        }
+        tui.requestRender();
+      })
+      .catch(() => {
+        // Pi silently ignores clipboard errors (permissions, empty, etc.).
+      });
+    return { consume: true };
+  }
   if (matchesKey(data, "ctrl+c") && editorActions && !editorActions.hasEditorReplacement?.()) {
     if (active) clearPendingEscape(active, "abort-agent");
     const text = editorActions.getText();

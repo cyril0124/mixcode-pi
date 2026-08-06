@@ -21,6 +21,12 @@ export const MIXCODE_KEYMAP: KeyAction[] = [
     description: "Edit input in external editor",
     scope: "global",
   },
+  {
+    key: process.platform === "win32" ? "alt+v" : "ctrl+v",
+    action: "paste-clipboard-image",
+    description: "Paste image from clipboard (text fallback)",
+    scope: "global",
+  },
   { key: "ctrl+c", action: "clear-input", description: "Clear editor input", scope: "global" },
   {
     key: "ctrl+r",

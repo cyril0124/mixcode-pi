@@ -146,7 +146,7 @@ key input
   │
   ├─ global
   │    ├─ Tab / Shift+Tab / Ctrl+P / Ctrl+T
-  │    ├─ Ctrl+E / Ctrl+C / Ctrl+R / Ctrl+O / Ctrl+Q
+  │    ├─ Ctrl+E / Ctrl+V / Ctrl+C / Ctrl+R / Ctrl+O / Ctrl+Q
   │    └─ @ / Esc / Esc Esc / Alt+Up / Ctrl+U / Up / Down / Right / Shift+Right
   │
   └─ scoped overlays
@@ -201,7 +201,7 @@ Ctrl+P
   │
   └─ Agent tab
        ├─ /models /thinking /context-limit /settings /tui-state
-       ├─ /system-tools /system-prompt /toggle-hidden-messages /hide-thinking /extension-manager /reload /session
+       ├─ /system-tools /system-prompt /toggle-hidden-messages /hide-thinking /extension-manager /reload /session /export
        ├─ /rename /workdir /import /mark-done /vim /toggle-zen-mode
        ├─ /fork /compact /clear /navigate /tree
        ├─ /help /hotkeys /quit /exit
