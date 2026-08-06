@@ -214,15 +214,13 @@ export function createPromptHistoryBrowserComponent(config: PromptHistoryBrowser
       return;
     }
 
-    if (matchesKey(data, Key.up)) {
-      state.selectedIndex = Math.max(0, state.selectedIndex - 1);
-      tui.requestRender();
-      return;
-    }
-
-    if (matchesKey(data, Key.down)) {
-      state.selectedIndex = Math.min(visibleItems().length - 1, state.selectedIndex + 1);
-      tui.requestRender();
+    if (matchesKey(data, Key.up) || matchesKey(data, Key.down)) {
+      const count = visibleItems().length;
+      if (count > 0) {
+        const delta = matchesKey(data, Key.up) ? -1 : 1;
+        state.selectedIndex = (state.selectedIndex + delta + count) % count;
+        tui.requestRender();
+      }
       return;
     }
 
