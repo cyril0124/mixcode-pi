@@ -1,8 +1,12 @@
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { Context, ProviderHeaders, SimpleStreamOptions } from "@earendil-works/pi-ai";
-import { streamSimple } from "@earendil-works/pi-ai/compat";
+import type {
+  AssistantMessageEventStream,
+  Context,
+  ProviderHeaders,
+  SimpleStreamOptions,
+} from "@earendil-works/pi-ai";
 import { ModelRegistry, ModelRuntime } from "@earendil-works/pi-coding-agent";
 import type { MixCodeModel } from "./types.js";
 
@@ -19,7 +23,7 @@ export interface PiModelRuntimeAuth {
     model: MixCodeModel,
     context: Context,
     options?: SimpleStreamOptions,
-  ) => ReturnType<typeof streamSimple> | Promise<ReturnType<typeof streamSimple>>;
+  ) => AssistantMessageEventStream | Promise<AssistantMessageEventStream>;
 }
 
 export interface PiModelRegistryBundle {
@@ -186,9 +190,14 @@ export function createPiModelRuntimeAuth(modelRuntime: ModelRuntime): PiModelRun
       }
       const auth = await registry.getApiKeyAndHeaders(model);
       if (!auth.ok) throw new Error(auth.error);
-      return streamSimple(model, context, {
+      // Route through ModelRuntime so custom providers registered via
+      // modelRuntime.registerProvider (faux, streamFn bridges) are reached the
+      // same way pi-coding-agent's own AgentSession streams them.
+      return modelRuntime.streamSimple(model, context, {
         ...options,
-        apiKey: auth.apiKey ?? options?.apiKey,
+        // Caller-provided key wins; the resolved credential is the fallback,
+        // mirroring ModelRuntime.prepareRequest precedence.
+        apiKey: options?.apiKey ?? auth.apiKey,
         headers: mergeHeaders(options?.headers, auth.headers),
         // Provider-scoped credentials (e.g. Bedrock profiles) travel in env.
         env: auth.env ?? options?.env,

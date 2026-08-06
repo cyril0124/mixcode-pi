@@ -1,4 +1,4 @@
-import { getModel } from "@earendil-works/pi-ai/compat";
+import { getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
 import type { ModelRuntime, SessionManager } from "@earendil-works/pi-coding-agent";
 import { resolveRegisteredModel } from "../core/models.js";
 import type { MixCodeModel, MixCodeTabInfo } from "../core/types.js";
@@ -29,7 +29,7 @@ export function resolveRuntimeModel(
   }
   const registryModel = findModel(modelLookup, provider, modelId);
   if (registryModel) return registryModel;
-  return resolveRegisteredModel(provider, modelId) ?? getModel(provider as never, modelId as never);
+  return resolveRegisteredModel(provider, modelId) ?? getBuiltinModel(provider as never, modelId as never);
 }
 
 export function resolveRuntimeModelFromSession(

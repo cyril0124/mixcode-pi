@@ -6,12 +6,10 @@ import { test } from "node:test";
 import {
   createAssistantMessageEventStream,
   fauxAssistantMessage,
+  InMemoryCredentialStore,
 } from "@earendil-works/pi-ai";
-import {
-  getApiProvider,
-  registerApiProvider,
-  registerFauxProvider,
-} from "@earendil-works/pi-ai/compat";
+import { getApiProvider, registerApiProvider } from "@earendil-works/pi-ai/compat";
+import { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import type { AssistantMessage, Context, Model, SimpleStreamOptions } from "@earendil-works/pi-ai";
 import {
   DEFAULT_MODEL_REF,
@@ -193,34 +191,55 @@ test("configured proxy model sends a real OpenAI Responses request", {
 test("pi model defaults follow PI_CODING_AGENT_DIR and runtime auth preserves explicit fallbacks", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-pi-model-defaults-"));
   const oldAgentDir = process.env.PI_CODING_AGENT_DIR;
-  const faux = registerFauxProvider({
+  const modelRuntime = await ModelRuntime.create({
+    credentials: new InMemoryCredentialStore(),
+    modelsPath: null,
+    allowModelNetwork: false,
+  });
+  const model = {
+    id: "fallback-model",
     provider: "mixcode-runtime-fallback",
     api: "mixcode-runtime-fallback-api",
+    baseUrl: "https://fallback.example/v1",
+    reasoning: false,
+    input: ["text"],
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    contextWindow: 1000,
+    maxTokens: 100,
+  };
+  // Register the fallback provider the way registerMixCodeRuntimeProvider does,
+  // so runtimeAuth.stream routes through ModelRuntime (the non-deprecated path)
+  // instead of the compat global api-registry.
+  modelRuntime.registerProvider(model.provider, {
+    name: model.provider,
+    baseUrl: model.baseUrl,
+    api: model.api,
+    apiKey: "mixcode-runtime",
+    streamSimple: (requestModel, _context, options) => {
+      assert.equal(options?.apiKey, "caller-key");
+      assert.equal(options?.headers, undefined);
+      return streamSingleMessage({
+        ...fauxAssistantMessage("ok"),
+        api: requestModel.api,
+        provider: requestModel.provider,
+        model: requestModel.id,
+      });
+    },
+    models: [{ ...model }],
   });
   try {
     process.env.PI_CODING_AGENT_DIR = dir;
     assert.equal(defaultPiModelsPath(), join(dir, "models.json"));
     assert.equal(defaultPiAuthPath(), join(dir, "auth.json"));
 
-    faux.setResponses([
-      (_context, options) => {
-        assert.equal(options?.apiKey, "caller-key");
-        assert.equal(options?.headers, undefined);
-        return fauxAssistantMessage("ok");
-      },
-    ]);
-    const runtimeAuth = createPiModelRuntimeAuth({
-      getAuth: async () => ({ auth: {} }),
-      getCompatibilityRequestConfig: () => ({ authHeader: false }),
-    } as never);
+    const runtimeAuth = createPiModelRuntimeAuth(modelRuntime);
     const streamed = await runtimeAuth.stream(
-      faux.getModel(),
+      model as never,
       { systemPrompt: "", messages: [], tools: [] },
       { apiKey: "caller-key" },
     );
     assert.equal((await streamed.result()).stopReason, "stop");
   } finally {
-    faux.unregister();
     if (oldAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
     else process.env.PI_CODING_AGENT_DIR = oldAgentDir;
     await rm(dir, { recursive: true, force: true });

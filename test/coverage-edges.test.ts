@@ -6,7 +6,6 @@ import { test } from "node:test";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { InMemoryCredentialStore } from "@earendil-works/pi-ai";
-import { streamSimple } from "@earendil-works/pi-ai/compat";
 import type { AutocompleteItem, AutocompleteProvider } from "@earendil-works/pi-tui";
 import { createInitialState, createTab } from "../src/index.js";
 import { listAllSessionsGlobal, reopenSessionInWorkdir } from "../src/agent/runtime-session.js";
@@ -333,7 +332,14 @@ test("runtime provider bridges stream failures and system-prompt overrides", asy
   );
   const registered = modelRuntime.getModel("custom-provider", "custom-model");
   assert.ok(registered);
-  const stream = streamSimple(registered, { systemPrompt: "", messages: [], tools: [] }, {});
+  // Route through ModelRuntime (the non-deprecated path AgentSession uses):
+  // the registered provider's bridged streamSimple must surface the streamFn
+  // failure as an error event.
+  const stream = modelRuntime.streamSimple(
+    registered,
+    { systemPrompt: "", messages: [], tools: [] },
+    {},
+  );
   const events = [];
   for await (const event of stream) events.push(event);
   assert.equal(events[0]?.type, "error");
@@ -365,7 +371,11 @@ test("runtime provider bridges stream failures and system-prompt overrides", asy
   );
   const syncThrowModel = modelRuntime.getModel("sync-throw-provider", "custom-model");
   assert.ok(syncThrowModel);
-  const syncStream = streamSimple(syncThrowModel, { systemPrompt: "", messages: [], tools: [] }, {});
+  const syncStream = modelRuntime.streamSimple(
+    syncThrowModel,
+    { systemPrompt: "", messages: [], tools: [] },
+    {},
+  );
   const syncEvents = [];
   for await (const event of syncStream) syncEvents.push(event);
   assert.equal(syncEvents[0]?.type, "error");
