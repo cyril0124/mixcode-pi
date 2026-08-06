@@ -90,19 +90,16 @@ async function initTempGitRepo(): Promise<string> {
 test("onGitBranchChange fires when the cached branch value changes", async () => {
   const workdir = await initTempGitRepo();
   try {
+    // Pi FooterDataProvider resolves sync on first read and only notifies on later changes.
+    assert.equal(gitBranchForWorkdir(workdir), "base-branch");
     let fires = 0;
     const unsub = onGitBranchChange(workdir, () => {
       fires += 1;
     });
-    // First resolve: "" -> base-branch
-    await waitForBranch(() => (fires > 0 ? gitBranchForWorkdir(workdir) || null : null));
-    assert.ok(fires >= 1, "expected notify on first resolve");
-    const before = fires;
 
     execFileSync("git", ["checkout", "-qb", "feature-branch"], { cwd: workdir });
-    // Watch timer / forced refresh should notice the new branch.
-    await waitForBranch(() => (fires > before ? "ok" : null), 6_000);
-    assert.ok(fires > before, "expected notify after checkout");
+    await waitForBranch(() => (fires > 0 ? "ok" : null), 6_000);
+    assert.ok(fires > 0, "expected notify after checkout");
     assert.equal(gitBranchForWorkdir(workdir), "feature-branch");
     unsub();
   } finally {
