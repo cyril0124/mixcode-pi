@@ -1,8 +1,6 @@
 import {
   type BuildSystemPromptOptions,
-  DefaultResourceLoader,
-  formatSkillsForPrompt,
-  getAgentDir,
+  buildSystemPrompt,
 } from "@earendil-works/pi-coding-agent";
 import { detectSearchTools, type SearchToolAvailability } from "./detect-search-tools.js";
 
@@ -15,45 +13,19 @@ export function setGlobalConversationHistoryPrompt(prompt: string | undefined): 
 export const MIXCODE_SYSTEM_PROMPT =
   "You are an expert coding assistant operating inside pi, a coding agent harness. You help users by reading files, executing commands, editing code, and writing new files.";
 
-export interface BuildMixCodeSystemPromptOptions {
-  workdir: string;
-  basePrompt?: string;
-  agentDir?: string;
-  selectedTools?: string[];
-  toolSnippets?: Record<string, string>;
-  promptGuidelines?: string[];
-  searchTools?: SearchToolAvailability;
-}
-
-export async function buildMixCodeSystemPrompt(
-  options: BuildMixCodeSystemPromptOptions,
-): Promise<string> {
-  const agentDir = options.agentDir ?? getAgentDir();
-  const loader = new DefaultResourceLoader({
-    cwd: options.workdir,
-    agentDir,
-    systemPromptOverride: (base) => base ?? options.basePrompt,
-  });
-  await loader.reload();
-
-  return buildMixCodeSystemPromptFromParts({
-    customPrompt: loader.getSystemPrompt() || undefined,
-    selectedTools: options.selectedTools,
-    toolSnippets: options.toolSnippets,
-    promptGuidelines: options.promptGuidelines,
-    appendSystemPrompt: loader.getAppendSystemPrompt().join("\n\n"),
-    contextFiles: loader.getAgentsFiles().agentsFiles,
-    skills: loader.getSkills().skills,
-    cwd: options.workdir,
-    searchTools: options.searchTools,
-  });
-}
-
 export type MixCodeSystemPromptPartsOptions = BuildSystemPromptOptions & {
   searchTools?: SearchToolAvailability;
   conversationHistoryPrompt?: string;
 };
 
+/**
+ * MixCode system prompt on top of Pi's buildSystemPrompt.
+ *
+ * Always passes a customPrompt so Pi never injects its default "Pi documentation"
+ * block. Tools/guidelines (incl. rg/fd search rules) stay MixCode-owned because
+ * Pi's customPrompt path skips them; conversation history + Current date are
+ * MixCode-only and layered around Pi's append/context/skills/cwd assembly.
+ */
 export function buildMixCodeSystemPromptFromParts(
   options: MixCodeSystemPromptPartsOptions,
 ): string {
@@ -64,36 +36,40 @@ export function buildMixCodeSystemPromptFromParts(
     promptGuidelines,
     appendSystemPrompt,
     cwd,
-    contextFiles: providedContextFiles,
-    skills: providedSkills,
+    contextFiles,
+    skills,
     searchTools,
     conversationHistoryPrompt = globalConversationHistoryPrompt,
   } = options;
-  const promptCwd = cwd.replace(/\\/g, "/");
-  const appendSection = appendSystemPrompt ? `\n\n${appendSystemPrompt}` : "";
-  const contextFiles = providedContextFiles ?? [];
-  const skills = providedSkills ?? [];
 
-  let prompt =
+  const identity =
     customPrompt && customPrompt !== MIXCODE_SYSTEM_PROMPT ? customPrompt : MIXCODE_SYSTEM_PROMPT;
-  prompt += buildToolsAndGuidelinesSection({ selectedTools, toolSnippets, promptGuidelines, searchTools });
-  if (appendSection) {
-    prompt += appendSection;
-  }
+  const toolsSection = buildToolsAndGuidelinesSection({
+    selectedTools,
+    toolSnippets,
+    promptGuidelines,
+    searchTools,
+  });
+
+  let append = appendSystemPrompt;
   if (conversationHistoryPrompt) {
-    prompt += `\n\n${conversationHistoryPrompt}`;
+    append = append ? `${append}\n\n${conversationHistoryPrompt}` : conversationHistoryPrompt;
   }
-  const projectContext = formatProjectContext(contextFiles);
-  if (projectContext) {
-    prompt += `\n\n${projectContext}`;
-  }
-  const hasRead = !selectedTools || selectedTools.includes("read");
-  if (hasRead && skills.length > 0) {
-    prompt += formatSkillsForPrompt(skills);
-  }
-  prompt += `\nCurrent date: ${currentDate()}`;
-  prompt += `\nCurrent working directory: ${promptCwd}`;
-  return prompt;
+
+  const prompt = buildSystemPrompt({
+    customPrompt: identity + toolsSection,
+    selectedTools,
+    appendSystemPrompt: append,
+    cwd,
+    contextFiles,
+    skills,
+  });
+
+  // Pi ends with cwd only; MixCode also stamps the calendar date.
+  return prompt.replace(
+    /(\nCurrent working directory: [^\n]*)$/,
+    `\nCurrent date: ${currentDate()}$1`,
+  );
 }
 
 function buildToolsAndGuidelinesSection(
@@ -150,7 +126,6 @@ function buildGuidelines(
 /**
  * Build search tool guidelines based on available CLI tools.
  * Only emits guidelines when rg/fd are available, to override model defaults.
- * Returns undefined when neither is available (no guideline needed).
  */
 function buildSearchGuidelines(availability: SearchToolAvailability): string[] {
   const guidelines: string[] = [];
@@ -161,20 +136,6 @@ function buildSearchGuidelines(availability: SearchToolAvailability): string[] {
     guidelines.push("For file search, ALWAYS use `fd`.");
   }
   return guidelines;
-}
-
-function formatProjectContext(contextFiles: Array<{ path: string; content: string }>): string {
-  if (contextFiles.length === 0) return "";
-  const contextFileSections = contextFiles.map(
-    ({ path, content }) =>
-      `  <context_file>\n    <path>${path}</path>\n    <content>\n${content}\n    </content>\n  </context_file>`,
-  );
-  return [
-    "<project_context>",
-    "  <description>Project-specific instructions and guidelines:</description>",
-    ...contextFileSections,
-    "</project_context>",
-  ].join("\n");
 }
 
 export function buildMixCodeSystemPromptOptionsFromSession(

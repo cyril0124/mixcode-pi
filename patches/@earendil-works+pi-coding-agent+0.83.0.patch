@@ -65,7 +65,7 @@ diff --git a/node_modules/@earendil-works/pi-coding-agent/dist/index.d.ts b/node
 index e91e38f..b8f1a02 100644
 --- a/node_modules/@earendil-works/pi-coding-agent/dist/index.d.ts
 +++ b/node_modules/@earendil-works/pi-coding-agent/dist/index.d.ts
-@@ -32,4 +32,29 @@ export { parseFrontmatter, stripFrontmatter } from "./utils/frontmatter.ts";
+@@ -32,4 +32,30 @@ export { parseFrontmatter, stripFrontmatter } from "./utils/frontmatter.ts";
  export { convertToPng } from "./utils/image-convert.ts";
  export { formatDimensionNote, type ResizedImage, resizeImage } from "./utils/image-resize.ts";
  export { getShellConfig } from "./utils/shell.ts";
@@ -94,13 +94,14 @@ index e91e38f..b8f1a02 100644
 +    type UsageCostBreakdownEntry,
 +    type UsageTotals,
 +} from "./core/usage-totals.ts";
++export { buildSystemPrompt } from "./core/system-prompt.ts";
  //# sourceMappingURL=index.d.ts.map
 \ No newline at end of file
 diff --git a/node_modules/@earendil-works/pi-coding-agent/dist/index.js b/node_modules/@earendil-works/pi-coding-agent/dist/index.js
 index a2ee192..e9c3b01 100644
 --- a/node_modules/@earendil-works/pi-coding-agent/dist/index.js
 +++ b/node_modules/@earendil-works/pi-coding-agent/dist/index.js
-@@ -44,4 +44,28 @@ export { convertToPng } from "./utils/image-convert.js";
+@@ -44,4 +44,30 @@ export { convertToPng } from "./utils/image-convert.js";
  export { formatDimensionNote, resizeImage } from "./utils/image-resize.js";
  // Shell utilities
  export { getShellConfig } from "./utils/shell.js";
@@ -128,5 +129,7 @@ index a2ee192..e9c3b01 100644
 +    createUsageTotals,
 +    getUsageCostBreakdown,
 +} from "./core/usage-totals.js";
++// System prompt builder; used by MixCode system-prompt assembly
++export { buildSystemPrompt } from "./core/system-prompt.js";
  //# sourceMappingURL=index.js.map
 \ No newline at end of file
