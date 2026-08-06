@@ -1,19 +1,20 @@
 /**
  * /session dump formatter aligned with Pi interactive-mode handleSessionCommand.
- * Cache waste comes from Pi cache-stats (patched public export); usage breakdown
- * stays local until usage-totals is also exported.
+ * Cache waste + usage breakdown come from Pi (patched public exports).
  */
-import type { Usage } from "@earendil-works/pi-ai";
 import {
   computeCacheWaste,
+  getUsageCostBreakdown,
   type ModelPriceSource,
   type SessionEntry,
 } from "@earendil-works/pi-coding-agent";
 
 export {
   computeCacheWaste,
+  getUsageCostBreakdown,
   type CacheWasteTotals,
   type ModelPriceSource,
+  type UsageCostBreakdownEntry,
 } from "@earendil-works/pi-coding-agent";
 
 export type SessionStatsLike = {
@@ -39,72 +40,7 @@ export type SessionNameSource = {
   getEntries?: () => SessionEntry[];
 };
 
-type UsageTotals = {
-  input: number;
-  output: number;
-  cacheRead: number;
-  cacheWrite: number;
-  cost: number;
-};
-
-export type UsageCostBreakdownEntry = {
-  key: string;
-  cost: number;
-  tokens: number;
-};
-
 const EMPTY_MODEL_PRICES: ModelPriceSource = { getModel: () => undefined };
-
-function createUsageTotals(): UsageTotals {
-  return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0 };
-}
-
-function addUsageToTotals(totals: UsageTotals, usage: Usage): void {
-  totals.input += usage.input;
-  totals.output += usage.output;
-  totals.cacheRead += usage.cacheRead;
-  totals.cacheWrite += usage.cacheWrite;
-  totals.cost += usage.cost.total;
-}
-
-/** Group attributable assistant usage by model; tools/summaries share one bucket. */
-export function getUsageCostBreakdown(entries: SessionEntry[]): UsageCostBreakdownEntry[] {
-  const totalsByKey = new Map<string, UsageTotals>();
-  for (const entry of entries) {
-    let key: string | undefined;
-    let usage: Usage | undefined;
-    if (entry.type === "message" && entry.message.role === "assistant") {
-      const message = entry.message as {
-        provider: string;
-        model: string;
-        responseModel?: string;
-        usage: Usage;
-      };
-      key = `${message.provider}/${message.responseModel ?? message.model}`;
-      usage = message.usage;
-    } else if (entry.type === "message" && entry.message.role === "toolResult" && entry.message.usage) {
-      key = "Tools/summaries";
-      usage = entry.message.usage;
-    } else if ((entry.type === "branch_summary" || entry.type === "compaction") && entry.usage) {
-      key = "Tools/summaries";
-      usage = entry.usage;
-    }
-    if (!key || !usage) continue;
-    let totals = totalsByKey.get(key);
-    if (!totals) {
-      totals = createUsageTotals();
-      totalsByKey.set(key, totals);
-    }
-    addUsageToTotals(totals, usage);
-  }
-  return Array.from(totalsByKey, ([key, totals]) => ({
-    key,
-    cost: totals.cost,
-    tokens: totals.input + totals.output + totals.cacheRead + totals.cacheWrite,
-  }))
-    .filter((entry) => entry.cost > 0 || entry.tokens > 0)
-    .sort((a, b) => b.cost - a.cost);
-}
 
 /** Compact token counts for cost breakdown lines (Pi footer formatTokens). */
 export function formatSessionTokens(count: number): string {
