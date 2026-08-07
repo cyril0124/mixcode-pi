@@ -44,6 +44,56 @@ test("handleMouseInput drags and copies visible chat selection", async () => {
   assert.ok(renders() >= 3);
 });
 
+test("handleMouseInput auto-scrolls a top-edge chat drag and copies off-screen rows", async () => {
+  const { state, tab } = setup();
+  const allLines = Array.from({ length: 8 }, (_, index) => `line-${index}`);
+  const copied: string[] = [];
+  const viewport = 3;
+  const bottomStart = allLines.length - viewport;
+  const render = () => {
+    const start = Math.max(0, bottomStart - tab.chatScrollOffset);
+    tab.lastRenderedChatLines = allLines.slice(start, start + viewport);
+    tab.lastChatScrollMetrics = {
+      total: allLines.length,
+      viewport,
+      start,
+      end: start + viewport,
+      scrollable: true,
+    };
+  };
+  const tui = { requestRender: render };
+  render();
+
+  assert.equal(
+    handleMouseInput(state, tab, "\x1b[<0;7;7M", tui, undefined, undefined, async (text) => {
+      copied.push(text);
+    }),
+    true,
+  );
+  assert.equal(
+    handleMouseInput(state, tab, "\x1b[<32;1;5M", tui, undefined, undefined, async (text) => {
+      copied.push(text);
+    }),
+    true,
+  );
+
+  await Bun.sleep(125);
+  assert.ok(tab.chatScrollOffset >= 2, `expected auto-scroll, got ${tab.chatScrollOffset}`);
+
+  assert.equal(
+    handleMouseInput(state, tab, "\x1b[<0;1;5m", tui, undefined, undefined, async (text) => {
+      copied.push(text);
+    }),
+    true,
+  );
+  await new Promise((resolve) => setImmediate(resolve));
+
+  const stoppedOffset = tab.chatScrollOffset;
+  await Bun.sleep(80);
+  assert.equal(tab.chatScrollOffset, stoppedOffset);
+  assert.deepEqual(copied, [allLines.slice(bottomStart - stoppedOffset).join("\n")]);
+});
+
 test("handleMouseInput keeps wheel scrolling separate from selection", () => {
   const { state, tab, tui } = setup();
   assert.equal(
@@ -371,7 +421,13 @@ test("handleMouseInput maps chat scrollbar gutter clicks to chatScrollOffset", (
   const { state, tab, tui } = setup();
   // content width 20 → scrollbar at col left+width = 21
   tab.chatSurfaceBounds = { top: 5, left: 1, width: 20, height: 10 };
-  tab.lastChatScrollMetrics = { total: 100, viewport: 10, scrollable: true };
+  tab.lastChatScrollMetrics = {
+    total: 100,
+    viewport: 10,
+    start: 0,
+    end: 10,
+    scrollable: true,
+  };
   tab.chatScrollOffset = 0;
   tab.chatScrollAnchorEntryId = "anchor";
 
@@ -399,7 +455,13 @@ test("handleMouseInput maps chat scrollbar gutter clicks to chatScrollOffset", (
 test("handleMouseInput ignores scrollbar click when chat is not scrollable", () => {
   const { state, tab, tui } = setup();
   tab.chatSurfaceBounds = { top: 5, left: 1, width: 20, height: 10 };
-  tab.lastChatScrollMetrics = { total: 8, viewport: 10, scrollable: false };
+  tab.lastChatScrollMetrics = {
+    total: 8,
+    viewport: 10,
+    start: 0,
+    end: 8,
+    scrollable: false,
+  };
   tab.chatScrollOffset = 0;
   assert.equal(handleMouseInput(state, tab, "\x1b[<0;21;5M", tui), false);
   assert.equal(tab.chatScrollOffset, 0);

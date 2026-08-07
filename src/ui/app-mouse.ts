@@ -1,9 +1,15 @@
 import {
+  captureScrollableChatSelection,
   pointInChatSurface,
   screenToChatSelectionPoint,
   selectedChatText,
   selectedInputText,
   selectedNoticeText,
+  selectedScrollableChatText,
+  startScrollableChatSelection,
+  toScrollableChatSelectionPoint,
+  type ChatSelectionPoint,
+  type ChatSelectionState,
 } from "../core/chat-selection.js";
 import { copyToClipboard as writeClipboard } from "@earendil-works/pi-coding-agent";
 import { parseSgrMouseInput, type SgrMouseInput } from "../core/mouse.js";
@@ -25,6 +31,101 @@ import type { MixCodeKeyRuntime, OverlayTui } from "./app-types.js";
 import { renderCommandPalette, renderPickerOverlay, tabBarHitRegions } from "./rendering.js";
 
 type ClipboardWriter = (text: string) => Promise<void>;
+type ActiveTab = MixCodeState["tabs"][number];
+
+const CHAT_SELECTION_AUTO_SCROLL_INTERVAL_MS = 50;
+
+interface ChatSelectionAutoScrollState {
+  active: ActiveTab;
+  selection: ChatSelectionState;
+  tui: OverlayTui;
+  pointer: { x: number; y: number };
+  scrollDelta: -1 | 1;
+  timer?: ReturnType<typeof setInterval>;
+}
+
+let chatSelectionAutoScroll: ChatSelectionAutoScrollState | undefined;
+
+export function stopChatSelectionAutoScroll(): void {
+  if (chatSelectionAutoScroll?.timer) clearInterval(chatSelectionAutoScroll.timer);
+  chatSelectionAutoScroll = undefined;
+}
+
+function stopChatSelectionAutoScrollFor(selection: ChatSelectionState): void {
+  if (chatSelectionAutoScroll?.selection === selection) stopChatSelectionAutoScroll();
+}
+
+function updateChatSelectionAutoScroll(
+  active: ActiveTab,
+  selection: ChatSelectionState,
+  mouse: SgrMouseInput,
+  tui: OverlayTui,
+): void {
+  const bounds = active.chatSurfaceBounds;
+  if (!bounds) {
+    stopChatSelectionAutoScrollFor(selection);
+    return;
+  }
+  const bottom = bounds.top + bounds.height - 1;
+  const scrollDelta = mouse.y <= bounds.top ? 1 : mouse.y >= bottom ? -1 : 0;
+  if (scrollDelta === 0 || !canAutoScrollChat(active, scrollDelta)) {
+    stopChatSelectionAutoScrollFor(selection);
+    return;
+  }
+  if (chatSelectionAutoScroll?.selection === selection) {
+    chatSelectionAutoScroll.pointer = { x: mouse.x, y: mouse.y };
+    chatSelectionAutoScroll.scrollDelta = scrollDelta;
+    return;
+  }
+
+  stopChatSelectionAutoScroll();
+  const state: ChatSelectionAutoScrollState = {
+    active,
+    selection,
+    tui,
+    pointer: { x: mouse.x, y: mouse.y },
+    scrollDelta,
+  };
+  chatSelectionAutoScroll = state;
+  state.timer = setInterval(
+    () => autoScrollChatSelection(state),
+    CHAT_SELECTION_AUTO_SCROLL_INTERVAL_MS,
+  );
+  state.timer.unref();
+}
+
+function autoScrollChatSelection(state: ChatSelectionAutoScrollState): void {
+  const { active, selection, pointer, scrollDelta, tui } = state;
+  const bounds = active.chatSurfaceBounds;
+  if (
+    chatSelectionAutoScroll !== state ||
+    active.chatSelection !== selection ||
+    !selection.dragging ||
+    !bounds ||
+    !canAutoScrollChat(active, scrollDelta)
+  ) {
+    stopChatSelectionAutoScrollFor(selection);
+    return;
+  }
+
+  const lines = active.lastRenderedChatLines ?? [];
+  captureScrollableChatSelection(selection, lines, active.chatScrollOffset);
+  scrollChat(active, scrollDelta);
+  const point = screenToChatSelectionPoint(bounds, pointer.y, pointer.x);
+  selection.focus = toScrollableChatSelectionPoint(
+    selection,
+    point,
+    lines,
+    active.chatScrollOffset,
+  );
+  tui.requestRender();
+}
+
+function canAutoScrollChat(active: ActiveTab, scrollDelta: -1 | 1): boolean {
+  const metrics = active.lastChatScrollMetrics;
+  if (!metrics?.scrollable) return false;
+  return scrollDelta > 0 ? metrics.start > 0 : metrics.end < metrics.total;
+}
 
 export function handleChatSelectionMouseInput(
   state: MixCodeState,
@@ -285,7 +386,32 @@ function handleChatSelectionMouse(
       active.chatSelection = selection;
     },
     getLines: () => active.lastRenderedChatLines ?? [],
-    selectText: selectedChatText,
+    selectText: selectedScrollableChatText,
+    mapPoint: (point, selection) => {
+      if (!selection) return point;
+      const lines = active.lastRenderedChatLines ?? [];
+      captureScrollableChatSelection(selection, lines, active.chatScrollOffset);
+      return toScrollableChatSelectionPoint(selection, point, lines, active.chatScrollOffset);
+    },
+    onSelectionStart: (selection) => {
+      stopChatSelectionAutoScroll();
+      startScrollableChatSelection(
+        selection,
+        active.lastRenderedChatLines ?? [],
+        active.chatScrollOffset,
+      );
+    },
+    onSelectionMotion: (selection) => {
+      updateChatSelectionAutoScroll(active, selection, mouse, tui);
+    },
+    onSelectionRelease: (selection) => {
+      captureScrollableChatSelection(
+        selection,
+        active.lastRenderedChatLines ?? [],
+        active.chatScrollOffset,
+      );
+      stopChatSelectionAutoScrollFor(selection);
+    },
   });
 }
 
@@ -320,6 +446,13 @@ interface TextSelectionMouseOptions {
   setSelection: (selection: MixCodeState["tabs"][number]["chatSelection"]) => void;
   getLines: () => string[];
   selectText: typeof selectedChatText;
+  mapPoint?: (
+    point: ChatSelectionPoint,
+    selection: ChatSelectionState | undefined,
+  ) => ChatSelectionPoint;
+  onSelectionStart?: (selection: ChatSelectionState) => void;
+  onSelectionMotion?: (selection: ChatSelectionState) => void;
+  onSelectionRelease?: (selection: ChatSelectionState) => void;
 }
 
 function handleTextSelectionMouse(options: TextSelectionMouseOptions): boolean {
@@ -343,19 +476,25 @@ function handleTextSelectionMouse(options: TextSelectionMouseOptions): boolean {
     bounds !== undefined &&
     pointInChatSurface(bounds, screenPoint)
   ) {
-    const point = screenToChatSelectionPoint(bounds, mouse.y, mouse.x);
-    setSelection({ anchor: point, focus: point, dragging: true });
+    const rawPoint = screenToChatSelectionPoint(bounds, mouse.y, mouse.x);
+    const point = options.mapPoint?.(rawPoint, undefined) ?? rawPoint;
+    const selection = { anchor: point, focus: point, dragging: true };
+    setSelection(selection);
+    options.onSelectionStart?.(selection);
     tui.requestRender();
     return true;
   }
   const selection = getSelection();
   if (selection?.dragging && mouse.button === 0 && mouse.motion && !mouse.release && bounds) {
-    selection.focus = screenToChatSelectionPoint(bounds, mouse.y, mouse.x);
+    const rawPoint = screenToChatSelectionPoint(bounds, mouse.y, mouse.x);
+    selection.focus = options.mapPoint?.(rawPoint, selection) ?? rawPoint;
+    options.onSelectionMotion?.(selection);
     tui.requestRender();
     return true;
   }
   if (selection?.dragging && mouse.release) {
     selection.dragging = false;
+    options.onSelectionRelease?.(selection);
     const text = selectText(getLines(), selection);
     const chars = text.length;
     setSelection(undefined);

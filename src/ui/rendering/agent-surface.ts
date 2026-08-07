@@ -1,6 +1,10 @@
 import { truncateToWidth } from "@earendil-works/pi-tui";
 import type { ChatLine, RuntimeTab } from "../../agent/runtime.js";
-import { highlightChatSelectionLine } from "../../core/chat-selection.js";
+import {
+  captureScrollableChatSelection,
+  highlightChatSelectionLine,
+  scrollableChatSelectionForViewport,
+} from "../../core/chat-selection.js";
 import { activeToast } from "../../core/toast.js";
 import type { OversizedAssistantMessageSettings } from "../../core/mixcode-settings.js";
 import type { MixCodeTabInfo } from "../../core/types.js";
@@ -657,8 +661,13 @@ function highlightVisibleChatLines(
   const result = applyToastOverlay(lines, activeToast(tab), width, height, activeRenderTheme);
   const selection = tab.chatSelection;
   if (!selection) return result;
+  captureScrollableChatSelection(selection, lines, tab.chatScrollOffset);
+  const viewportSelection = scrollableChatSelectionForViewport(
+    selection,
+    tab.chatScrollOffset,
+  );
   return result.map((line, row) =>
-    highlightChatSelectionLine(line, row, selection, activeRenderTheme.selection),
+    highlightChatSelectionLine(line, row, viewportSelection, activeRenderTheme.selection),
   );
 }
 
@@ -672,6 +681,8 @@ function appendChatScrollbar(
     tab.lastChatScrollMetrics = {
       total: result.total,
       viewport: result.height,
+      start: result.start,
+      end: result.end,
       scrollable: result.scrollable,
     };
   }

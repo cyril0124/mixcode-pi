@@ -23,6 +23,13 @@ export interface NormalizedChatSelection {
   end: ChatSelectionPoint;
 }
 
+interface ScrollableChatSelectionSource {
+  originOffset: number;
+  lines: Map<number, string>;
+}
+
+const scrollableChatSelections = new WeakMap<ChatSelectionState, ScrollableChatSelectionSource>();
+
 export function pointInChatSurface(
   bounds: ChatSurfaceBounds | undefined,
   point: ChatSelectionPoint,
@@ -44,6 +51,56 @@ export function screenToChatSelectionPoint(
   return {
     row: clamp(Math.floor(row - bounds.top), 0, Math.max(0, bounds.height - 1)),
     col: clamp(Math.floor(col - bounds.left), 0, Math.max(0, bounds.width)),
+  };
+}
+
+/** Track visible rows while a drag scrolls so release can copy off-screen text. */
+export function startScrollableChatSelection(
+  selection: ChatSelectionState,
+  lines: string[],
+  scrollOffset: number,
+): void {
+  scrollableChatSelections.set(selection, { originOffset: scrollOffset, lines: new Map() });
+  captureScrollableChatSelection(selection, lines, scrollOffset);
+}
+
+export function captureScrollableChatSelection(
+  selection: ChatSelectionState,
+  lines: string[],
+  scrollOffset: number,
+): void {
+  const source = scrollableChatSelections.get(selection);
+  if (!source) return;
+  const firstRow = source.originOffset - scrollOffset;
+  for (let row = 0; row < lines.length; row++) {
+    const line = lines[row] ?? "";
+    if (!isChatScrollMarker(line)) source.lines.set(firstRow + row, line);
+  }
+}
+
+export function toScrollableChatSelectionPoint(
+  selection: ChatSelectionState,
+  point: ChatSelectionPoint,
+  lines: string[],
+  scrollOffset: number,
+): ChatSelectionPoint {
+  const source = scrollableChatSelections.get(selection);
+  if (!source) return point;
+  const row = selectableChatRow(lines, point.row);
+  return { row: row + source.originOffset - scrollOffset, col: point.col };
+}
+
+export function scrollableChatSelectionForViewport(
+  selection: ChatSelectionState,
+  scrollOffset: number,
+): ChatSelectionState {
+  const source = scrollableChatSelections.get(selection);
+  if (!source) return selection;
+  const rowDelta = scrollOffset - source.originOffset;
+  return {
+    ...selection,
+    anchor: { ...selection.anchor, row: selection.anchor.row + rowDelta },
+    focus: { ...selection.focus, row: selection.focus.row + rowDelta },
   };
 }
 
@@ -73,6 +130,25 @@ export function selectedChatText(lines: string[], selection: ChatSelectionState)
     parts.push(sliceVisibleText(text, startCol, endCol));
   }
   return parts.join("\n").replace(/[ \t]+$/gm, "");
+}
+
+export function selectedScrollableChatText(
+  visibleLines: string[],
+  selection: ChatSelectionState,
+): string {
+  const source = scrollableChatSelections.get(selection);
+  if (!source) return selectedChatText(visibleLines, selection);
+  const normalized = normalizeChatSelection(selection);
+  const lines: string[] = [];
+  for (let row = normalized.start.row; row <= normalized.end.row; row++) {
+    lines.push(source.lines.get(row) ?? "");
+  }
+  const shift = normalized.start.row;
+  return selectedChatText(lines, {
+    ...selection,
+    anchor: { ...selection.anchor, row: selection.anchor.row - shift },
+    focus: { ...selection.focus, row: selection.focus.row - shift },
+  });
 }
 
 export function selectedInputText(lines: string[], selection: ChatSelectionState): string {
@@ -156,6 +232,18 @@ function trimInputChromePadding(line: string): string {
 
 function isFramedInputHintLine(line: string): boolean {
   return /[↑↓←→⏎]/.test(line) && /\b(?:enter|ctrl|shift|tab|scroll|select|accept|cancel)\b/i.test(line);
+}
+
+function isChatScrollMarker(line: string): boolean {
+  const text = stripAnsi(line).trim();
+  return text === "↑ older above" || text === "↓ newer below";
+}
+
+function selectableChatRow(lines: string[], row: number): number {
+  const text = stripAnsi(lines[row] ?? "").trim();
+  if (text === "↑ older above") return Math.min(lines.length - 1, row + 1);
+  if (text === "↓ newer below") return Math.max(0, row - 1);
+  return row;
 }
 
 function sliceVisibleText(text: string, start: number, end: number): string {

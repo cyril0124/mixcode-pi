@@ -9,6 +9,7 @@ import type { MixCodeState } from "../core/types.js";
 import { closeAgentTab, getActiveTab } from "../core/tabs.js";
 import { appendActiveSystemMessage } from "./app-actions.js";
 import { CompactPromptEditor, EditorSlot, editorThemeFor } from "./app-editor.js";
+import { stopChatSelectionAutoScroll } from "./app-mouse.js";
 import { handleMixCodeKeyInput } from "./app-input.js";
 import {
   MixCodeFooterRoot,
@@ -339,6 +340,7 @@ export function createMixCodeTui(
   tui.stop = () => {
     stopWorkingRedraw();
     stopLiveExtensionRedraw();
+    stopChatSelectionAutoScroll();
     root.dispose();
     originalStop();
   };
