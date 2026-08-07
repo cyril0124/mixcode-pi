@@ -220,7 +220,8 @@ Test the contract the system exposes — not the easiest internal detail to asse
 - Full sequential gate: `bun run check` (typecheck + build + root tests)
 - Parallel package-oriented gate: `./test-all.sh` (typecheck + build + lint + package tests; does **not** run full `test/*.test.ts`)
 - Package manager / runtime: Bun — install with `bun install`; lockfile is `bun.lock` (do not commit `package-lock.json`). Run product code with `bun` (`run.sh`, shebang); do not use Node to execute product paths that call `Bun.*`.
-- `postinstall` runs `patch-package` only. pi-tui keybindings bridge supports both single-instance (bun/npm dedupe) and dual-instance (npm shrinkwrap nested) layouts without layout scripts.
+- `postinstall` runs `patch-package`, then `bun run scripts/install-pi-extensions.ts --postinstall` (TTY: optional interactive install of missing recommended third-party Pi packages; CI/non-TTY: warn only; never fails the parent install). Manual: `bun run install:extensions` or `./install-pi-extensions.sh`.
+- pi-tui keybindings bridge supports both single-instance (bun/npm dedupe) and dual-instance (npm shrinkwrap nested) layouts without layout scripts.
 - When running backend unit tests, enforce a hard timeout of 60 seconds to avoid stuck tasks.
 - TUI/UI claims still require interactive proof per **TUI Validation**; unit tests alone are not enough. Optional automated smoke: `MIXCODE_RUN_TMUX_TUI_SMOKE=1` with `test/tui-smoke.test.ts`.
 - Before finishing a TypeScript behavior change: run the focused test(s) you added or changed until green, then the narrowest gate that covers the touch surface (`test:packages` for package work, `bun run check` and/or `./test-all.sh` as appropriate). Fix until green.
