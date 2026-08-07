@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
@@ -222,17 +223,18 @@ function resolveInlineCommands(text: string, template: GoalTemplate, cwd: string
 
 function runCommand(command: string, template: GoalTemplate, cwd: string): string {
 	try {
-		const result = Bun.spawnSync(["/bin/bash", "-lc", command], {
+		// node:child_process — pure pi runs on Node; Bun.spawnSync is unavailable there.
+		const result = spawnSync("/bin/bash", ["-lc", command], {
 			cwd,
-			stdout: "pipe",
-			stderr: "pipe",
+			encoding: "utf8",
 			timeout: template.commandTimeoutMs,
 		});
-		if (result.exitCode !== 0) {
-			const errText = result.stderr.toString() || result.stdout.toString() || `exit ${result.exitCode}`;
-			throw new Error(errText.trim() || `exit ${result.exitCode}`);
+		if (result.error) throw result.error;
+		if (result.status !== 0) {
+			const errText = result.stderr || result.stdout || `exit ${result.status}`;
+			throw new Error(errText.trim() || `exit ${result.status}`);
 		}
-		const output = result.stdout.toString();
+		const output = result.stdout ?? "";
 		return output.length > template.commandOutputLimit ? `${output.slice(0, template.commandOutputLimit)}\n[output truncated]` : output;
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);

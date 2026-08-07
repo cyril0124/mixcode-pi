@@ -320,7 +320,8 @@ async function addScannedEntry(
 ): Promise<void> {
   if (entries.has(name)) return; // earlier dirs win (project before home)
   try {
-    const description = parseSkillDescription(await Bun.file(filePath).text());
+    // Use node:fs so pure-pi (Node) and mpi (Bun) both cold-scan $ completions.
+    const description = parseSkillDescription(await fs.readFile(filePath, "utf8"));
     if (!description) return; // parity with host: skills need a description
     entries.set(name, { name, filePath, baseDir: path.dirname(filePath), description });
   } catch {

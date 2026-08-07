@@ -24,6 +24,7 @@
 - At startup, `ensurePackageExtensions` (in `src/core/ensure-package-extensions.ts`) copies all valid packages to the effective agent dir's `extensions/` (`<agentDir>/extensions/`, where `agentDir` follows `MIXCODE_CODING_AGENT_DIR` → `PI_CODING_AGENT_DIR` → default `~/.pi/agent`), making them discoverable by Pi's file-system loader — including subagent sessions.
 - For the compiled binary, `binary-entry.ts` embeds each package's files via `import ... with { type: "text" }` and passes them as `builtinPackages` to `materializeBinaryRuntimeAssets`, which writes them to `runtimeDir/packages/` before `ensurePackageExtensions` runs.
 - To add a new built-in extension: create `pi-packages/mpi-<name>/package.json` + `index.ts`, then add the corresponding text imports in `binary-entry.ts`.
+- **No Bun APIs in `pi-packages/`.** These packages are installed into `~/.pi/agent/extensions/` and also run under pure upstream `pi` (Node + jiti), not only under `mpi` (Bun). Use `node:*` stdlib (`fs`, `fs/promises`, `child_process`, `path`, `os`, …). Do not call `Bun.*`, `bun:*` imports, or Bun Shell (`` $`…` ``). Product code under `src/` may still prefer Bun; this rule is package-only.
 
 ## Slash Commands
 
@@ -58,6 +59,8 @@
 ## Bun Over Node
 
 Use Bun APIs where they provide a cleaner alternative; fall back to `node:*` only for what Bun doesn't cover. **Never spawn shell commands for operations with proper APIs** (e.g., don't `Bun.spawnSync(["mkdir", "-p", dir])` — use `mkdirSync`).
+
+**Exception: `pi-packages/` must stay pure Node** — see **Built-in Extensions**. Pure `pi` loads those packages under Node; `Bun.*` there silently breaks features (e.g. `$` skill completion, external editor, goal inline commands).
 
 ### Quick reference
 

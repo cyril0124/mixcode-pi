@@ -21,6 +21,8 @@
 // ║                                                                    ║
 // ╚══════════════════════════════════════════════════════════════════╝
 
+import { spawn } from "node:child_process";
+import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import type { ExtensionFactory, SessionEntry } from "@earendil-works/pi-coding-agent";
@@ -252,24 +254,22 @@ function openInExternalEditor(
     const resume = (ok: boolean) => {
       if (resumed) return;
       resumed = true;
-      void Bun.file(tmpFile)
-        .unlink()
-        .catch(() => {
-          /* best effort */
-        });
+      // node:fs — pure pi runs on Node; Bun.file is unavailable there.
+      void fs.unlink(tmpFile).catch(() => {
+        /* best effort */
+      });
       t.start();
       t.requestRender(true);
       done(ok);
     };
     void (async () => {
       try {
-        await Bun.write(tmpFile, `${content}\n`);
-        const child = Bun.spawn([cmd!, ...cmdArgs, tmpFile], {
-          stdin: "inherit",
-          stdout: "inherit",
-          stderr: "inherit",
+        await fs.writeFile(tmpFile, `${content}\n`);
+        const child = spawn(cmd!, [...cmdArgs, tmpFile], { stdio: "inherit" });
+        await new Promise<void>((resolve, reject) => {
+          child.once("error", reject);
+          child.once("close", () => resolve());
         });
-        await child.exited;
         resume(true);
       } catch {
         resume(false);
