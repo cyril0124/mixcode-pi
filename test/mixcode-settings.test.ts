@@ -1,9 +1,50 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { loadMixCodeSettings } from "../src/index.js";
+import { SettingsManager } from "@earendil-works/pi-coding-agent";
+import { createInitialState, loadMixCodeSettings, stripAnsi } from "../src/index.js";
+import { handleSettingsPanelKey, renderSettingsPanel } from "../src/ui/settings-panel.js";
+
+test("settings panel toggles Mermaid rendering and persists it", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-settings-mermaid-"));
+  const mixcodeFile = join(dir, "mixcode_settings.json");
+  await writeFile(mixcodeFile, "{}\n");
+  try {
+    const state = createInitialState(dir);
+    state.settingsPanel = {
+      open: true,
+      selectedIndex: 7, // renderMermaid
+      editMode: false,
+      editText: "",
+      enumOpen: false,
+      enumIndex: 0,
+      mixcodeRaw: {},
+      mixcodeFile,
+      piSettingsFile: join(dir, "settings.json"),
+      settingsManager: SettingsManager.inMemory(),
+    };
+    const tui = {
+      requestRender: () => undefined,
+      showOverlay: () => ({ hide: () => undefined }) as never,
+      hasOverlay: () => true,
+      hideOverlay: () => undefined,
+    };
+
+    assert.match(stripAnsi(renderSettingsPanel(state, 80).join("\n")), /Render Mermaid diagrams/);
+    handleSettingsPanelKey(state, "\r", tui);
+    await Bun.sleep(30);
+
+    assert.equal(state.settingsPanel.mixcodeRaw.ui?.renderMermaid, false);
+    assert.equal(state.ui?.renderMermaid, false);
+    assert.deepEqual(JSON.parse(await readFile(mixcodeFile, "utf8")), {
+      ui: { renderMermaid: false },
+    });
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
 
 test("mixcode settings default history and oversized assistant message policy", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-history-settings-"));

@@ -71,7 +71,7 @@ diff --git a/node_modules/@earendil-works/pi-coding-agent/dist/index.d.ts b/node
 index 1111111..2222222 100644
 --- a/node_modules/@earendil-works/pi-coding-agent/dist/index.d.ts
 +++ b/node_modules/@earendil-works/pi-coding-agent/dist/index.d.ts
-@@ -32,4 +32,38 @@
+@@ -32,4 +32,39 @@
  export { convertToPng } from "./utils/image-convert.ts";
  export { formatDimensionNote, type ResizedImage, resizeImage } from "./utils/image-resize.ts";
  export { getShellConfig } from "./utils/shell.ts";
@@ -109,13 +109,14 @@ index 1111111..2222222 100644
 +    isWaylandSession,
 +    readClipboardImage,
 +} from "./utils/clipboard-image.ts";
++export { createMermaidMarkdownTransformer } from "./modes/interactive/components/mermaid.ts";
  //# sourceMappingURL=index.d.ts.map
 \ No newline at end of file
 diff --git a/node_modules/@earendil-works/pi-coding-agent/dist/index.js b/node_modules/@earendil-works/pi-coding-agent/dist/index.js
 index 1111111..2222222 100644
 --- a/node_modules/@earendil-works/pi-coding-agent/dist/index.js
 +++ b/node_modules/@earendil-works/pi-coding-agent/dist/index.js
-@@ -44,4 +44,39 @@
+@@ -44,4 +44,41 @@
  export { formatDimensionNote, resizeImage } from "./utils/image-resize.js";
  // Shell utilities
  export { getShellConfig } from "./utils/shell.js";
@@ -154,5 +155,7 @@ index 1111111..2222222 100644
 +    isWaylandSession,
 +    readClipboardImage,
 +} from "./utils/clipboard-image.js";
++// Mermaid markdown rendering; used by MixCode chat rendering
++export { createMermaidMarkdownTransformer } from "./modes/interactive/components/mermaid.js";
  //# sourceMappingURL=index.js.map
 \ No newline at end of file

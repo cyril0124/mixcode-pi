@@ -269,6 +269,8 @@ function renderMessageBlockUncached(
     return withOsc133Zone(
       renderMarkdown(streamingMarkdownText(trimmed, options), width, {
         renderMermaid: options.renderMermaid,
+        messageType: "assistant",
+        isStreaming: options.streamingMarkdownCharLimit !== undefined,
       }),
     );
   }
@@ -282,6 +284,8 @@ function renderMessageBlockUncached(
         color: activeRenderTheme.thinking,
         italic: true,
         renderMermaid: options.renderMermaid,
+        messageType: "assistant-thinking",
+        isStreaming: options.streamingMarkdownCharLimit !== undefined,
       });
     }
     const trimmed = text.trim();
@@ -296,6 +300,8 @@ function renderMessageBlockUncached(
       color: activeRenderTheme.thinking,
       italic: true,
       renderMermaid: options.renderMermaid,
+      messageType: "assistant-thinking",
+      isStreaming: options.streamingMarkdownCharLimit !== undefined,
     });
   }
   if (line.role === "tool") {

@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import type { ChatLine } from "../src/agent/runtime.js";
+import { stripAnsi } from "../src/index.js";
+import { renderChatBlock } from "../src/ui/rendering/chat.js";
+import { activeRenderTheme } from "../src/ui/rendering/context.js";
 import { renderMarkdown } from "../src/ui/rendering/markdown.js";
 
-test("renderMarkdown draws flowchart mermaid fences via grok-mermaid", () => {
+test("renderMarkdown draws flowchart mermaid fences via Pi transformer", () => {
   const md = ["```mermaid", "flowchart LR", "  A[Start] --> B[End]", "```"].join("\n");
   const out = renderMarkdown(md, 80).join("\n");
   assert.match(out, /Start/);
@@ -20,33 +24,22 @@ test("renderMarkdown draws sequence mermaid fences", () => {
 });
 
 test("renderMarkdown draws class mermaid fences", () => {
-  const md = ["```mermaid", "classDiagram", "  class Animal", "  Animal : +age", "```"].join(
-    "\n",
-  );
+  const md = ["```mermaid", "classDiagram", "  class Animal", "  Animal : +age", "```"].join("\n");
   const out = renderMarkdown(md, 80).join("\n");
   assert.match(out, /Animal/);
   assert.match(out, /\+age/);
 });
 
 test("renderMarkdown draws state mermaid fences", () => {
-  const md = [
-    "```mermaid",
-    "stateDiagram-v2",
-    "  [*] --> Still",
-    "  Still --> [*]",
-    "```",
-  ].join("\n");
+  const md = ["```mermaid", "stateDiagram-v2", "  [*] --> Still", "  Still --> [*]", "```"].join(
+    "\n",
+  );
   const out = renderMarkdown(md, 80).join("\n");
   assert.match(out, /Still/);
 });
 
 test("renderMarkdown draws er mermaid fences", () => {
-  const md = [
-    "```mermaid",
-    "erDiagram",
-    "  CUSTOMER ||--o{ ORDER : places",
-    "```",
-  ].join("\n");
+  const md = ["```mermaid", "erDiagram", "  CUSTOMER ||--o{ ORDER : places", "```"].join("\n");
   const out = renderMarkdown(md, 80).join("\n");
   assert.match(out, /CUSTOMER/);
   assert.match(out, /ORDER/);
@@ -65,6 +58,30 @@ test("renderMarkdown keeps mermaid as plain code when disabled", () => {
   const out = renderMarkdown(md, 80, { renderMermaid: false }).join("\n");
   assert.match(out, /flowchart LR/);
   assert.match(out, /A\[Start\]/);
+});
+
+test("renderMarkdown keeps mermaid as plain code in thinking blocks", () => {
+  const md = ["```mermaid", "flowchart LR", "  A[Start] --> B[End]", "```"].join("\n");
+  const out = renderMarkdown(md, 80, { messageType: "assistant-thinking" }).join("\n");
+  assert.match(out, /flowchart LR/);
+  assert.match(out, /A\[Start\]/);
+});
+
+test("renderChatBlock invalidates its cache when Mermaid rendering changes", () => {
+  const text = ["```mermaid", "flowchart LR", "  A[Start] --> B[End]", "```"].join("\n");
+  const line = { role: "assistant", text } satisfies ChatLine;
+
+  const disabled = stripAnsi(
+    renderChatBlock(line, 80, undefined, activeRenderTheme, { renderMermaid: false }).join("\n"),
+  );
+  const enabled = stripAnsi(
+    renderChatBlock(line, 80, undefined, activeRenderTheme, { renderMermaid: true }).join("\n"),
+  );
+
+  assert.match(disabled, /flowchart LR/);
+  assert.doesNotMatch(enabled, /flowchart LR/);
+  assert.match(enabled, /Start/);
+  assert.match(enabled, /End/);
 });
 
 test("renderMarkdown renders inline and block LaTeX as Unicode", () => {
