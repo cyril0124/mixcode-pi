@@ -14,7 +14,11 @@ import {
   showLinesOverlay,
 } from "./app-overlays.js";
 import type { MixCodeKeyRuntime, MixCodeSubmitRuntime, OverlayTui } from "./app-types.js";
+import {
+  DEFAULT_ICON_MODE,
+} from "../core/mixcode-settings.js";
 import { activeRenderTheme, renderWithTheme } from "./rendering/context.js";
+import { resolveGlyphs, resolveIconMode, type IconGlyphs } from "./rendering/icons.js";
 import { overlayPanel, padLine } from "./rendering/primitives.js";
 import { windowStart } from "./rendering/scroll-window.js";
 import { themeForId } from "./themes.js";
@@ -61,6 +65,11 @@ function renderExtensionManagerInner(state: MixCodeState, width: number): string
   const manager = state.extensionManager;
   const entries = filteredExtensionManagerEntries(manager);
   const contentWidth = Math.max(1, panelWidth - 2);
+  const iconMode = state.ui?.icons?.mode ?? DEFAULT_ICON_MODE;
+  const iconStyle = {
+    glyphs: resolveGlyphs(iconMode),
+    resolved: resolveIconMode(iconMode),
+  };
 
   const header = [activeRenderTheme.dim(truncateToWidth(SHORTCUT_HINT, contentWidth))];
   if (manager.searchActive || manager.searchQuery) {
@@ -83,8 +92,8 @@ function renderExtensionManagerInner(state: MixCodeState, width: number): string
   const terminalWidth = process.stdout.columns || width;
   const useDoublePane = terminalWidth >= DOUBLE_PANE_MIN_WIDTH;
   const rendered = useDoublePane
-    ? renderDoublePane(manager, entries, contentWidth, maxBody)
-    : renderSinglePane(manager, entries, contentWidth, maxBody);
+    ? renderDoublePane(manager, entries, contentWidth, maxBody, iconStyle)
+    : renderSinglePane(manager, entries, contentWidth, maxBody, iconStyle);
   lines.push(...rendered.body);
   if (rendered.footer) lines.push(rendered.footer);
   return overlayPanel("Extension Manager", lines, panelWidth);
@@ -126,11 +135,14 @@ function buildStatusLines(manager: MixCodeState["extensionManager"]): string[] {
 
 // Enhanced single column: status icon + friendly name + inline metadata, with a
 // scrolling viewport so long lists never overflow the panel.
+type IconStyle = { glyphs: IconGlyphs; resolved: "nerd" | "ascii" };
+
 function renderSinglePane(
   manager: MixCodeState["extensionManager"],
   entries: ExtensionManagerEntryInfo[],
   width: number,
   maxBody: number,
+  iconStyle: IconStyle,
 ): { body: string[]; footer: string } {
   const selectedKeys = new Set(manager.selectedKeys);
   const bodyRows = Math.max(1, Math.min(maxBody, entries.length));
@@ -139,7 +151,7 @@ function renderSinglePane(
   for (let i = startIndex; i < startIndex + bodyRows && i < entries.length; i++) {
     const entry = entries[i]!;
     const selected = i === manager.selectedIndex;
-    const raw = buildListRow(entry, selected, selectedKeys.has(entry.key), false);
+    const raw = buildListRow(entry, selected, selectedKeys.has(entry.key), false, iconStyle);
     body.push(
       selected ? activeRenderTheme.selection(padLine(raw, width)) : padLine(raw, width),
     );
@@ -157,6 +169,7 @@ function renderDoublePane(
   entries: ExtensionManagerEntryInfo[],
   contentWidth: number,
   maxBody: number,
+  iconStyle: IconStyle,
 ): { body: string[]; footer: string } {
   const selectedKeys = new Set(manager.selectedKeys);
   const gap = 3; // " │ "
@@ -164,7 +177,12 @@ function renderDoublePane(
   const rightWidth = Math.max(16, contentWidth - gap - leftWidth);
   const selectedEntry = entries[manager.selectedIndex];
   const detailLines = selectedEntry
-    ? buildDetailLines(selectedEntry, rightWidth, selectedKeys.has(selectedEntry.key))
+    ? buildDetailLines(
+        selectedEntry,
+        rightWidth,
+        selectedKeys.has(selectedEntry.key),
+        iconStyle,
+      )
     : [];
   const listVisible = Math.min(entries.length, maxBody);
   const bodyRows = Math.max(1, Math.min(maxBody, Math.max(listVisible, detailLines.length)));
@@ -179,7 +197,7 @@ function renderDoublePane(
     const entry = entryIndex < entries.length ? entries[entryIndex] : undefined;
     const selected = entry !== undefined && entryIndex === manager.selectedIndex;
     const leftRaw = entry
-      ? buildListRow(entry, selected, selectedKeys.has(entry.key), true)
+      ? buildListRow(entry, selected, selectedKeys.has(entry.key), true, iconStyle)
       : "";
     const rightCell = padLine(detailLines[detailStart + row] ?? "", rightWidth);
     if (selected) {
@@ -221,9 +239,16 @@ function scrollFooter(
   return activeRenderTheme.dim(`  ${position}${scroll}`);
 }
 
-function extensionStatusIcon(entry: ExtensionManagerEntryInfo): string {
-  if (entry.error) return activeRenderTheme.danger("⚠");
-  return entry.enabled ? activeRenderTheme.success("●") : activeRenderTheme.dim("○");
+function extensionStatusIcon(
+  entry: ExtensionManagerEntryInfo,
+  iconStyle: IconStyle,
+): string {
+  if (entry.error) {
+    return activeRenderTheme.danger(iconStyle.resolved === "ascii" ? "!" : "⚠");
+  }
+  return entry.enabled
+    ? activeRenderTheme.success(iconStyle.glyphs.statusOn)
+    : activeRenderTheme.dim(iconStyle.glyphs.statusOff);
 }
 
 function colorizeName(entry: ExtensionManagerEntryInfo, name: string): string {
@@ -239,9 +264,10 @@ function buildListRow(
   selected: boolean,
   pending: boolean,
   compact: boolean,
+  iconStyle: IconStyle,
 ): string {
   const cursor = selected ? activeRenderTheme.accent("▸ ") : "  ";
-  const icon = extensionStatusIcon(entry);
+  const icon = extensionStatusIcon(entry, iconStyle);
   const name = colorizeName(entry, friendlyExtensionName(entry));
   const pendingMark = pending ? activeRenderTheme.warning(" *") : "";
   const left = `${cursor}${icon} ${name}${pendingMark}`;
@@ -257,8 +283,9 @@ function buildDetailLines(
   entry: ExtensionManagerEntryInfo,
   width: number,
   pending: boolean,
+  iconStyle: IconStyle,
 ): string[] {
-  const icon = extensionStatusIcon(entry);
+  const icon = extensionStatusIcon(entry, iconStyle);
   const name = friendlyExtensionName(entry);
   const lines: string[] = [
     truncateToWidth(`${icon} ${activeRenderTheme.bold(name)}`, width),

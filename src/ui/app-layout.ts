@@ -2,7 +2,10 @@ import { type Component, Loader, type TUI as TuiType } from "@earendil-works/pi-
 import type { MixCodeRuntime, RuntimeTab } from "../agent/runtime.js";
 import { highlightChatSelectionLine } from "../core/chat-selection.js";
 import { isPendingEscapeActive } from "../core/escape.js";
-import { DEFAULT_OVERSIZED_ASSISTANT_MESSAGE } from "../core/mixcode-settings.js";
+import {
+  DEFAULT_ICON_MODE,
+  DEFAULT_OVERSIZED_ASSISTANT_MESSAGE,
+} from "../core/mixcode-settings.js";
 import { retryStatusMessage } from "../core/tab-state.js";
 import type { MixCodeState } from "../core/types.js";
 import { getActiveTab } from "../core/tabs.js";
@@ -105,6 +108,7 @@ export class MixCodeRoot implements Component {
         vimMode: active.vimMode,
         zenMode: active.zenMode === true,
         zenStatusMarkers: active.zenMode ? zenStatusMarkers(this.state.tabs, active.sessionId) : [],
+        iconMode: this.state.ui?.icons?.mode ?? DEFAULT_ICON_MODE,
       },
       theme,
     );
@@ -263,7 +267,10 @@ export class MixCodeLayoutRoot implements Component {
     const isVim = active?.vimMode === true;
     const panelOpen = active?.panelOpen === true;
     const hideEditorWidgets = isVim || panelOpen;
-    const metaProbe = isAgentTab ? renderInputMeta(active, width, 0, theme, false) : [];
+    const iconMode = this.state.ui?.icons?.mode ?? DEFAULT_ICON_MODE;
+    const metaProbe = isAgentTab
+      ? renderInputMeta(active, width, 0, theme, false, iconMode)
+      : [];
     const workingLines = isAgentTab ? this.renderWorkingLoader(active, width, theme) : [];
     const viewportRowsForClamp = this.getViewportRows?.();
     const activeForFooter = this.state.activeTabId === "config" ? undefined : active;
@@ -442,7 +449,7 @@ export class MixCodeLayoutRoot implements Component {
     // Exact xxk/xxk is on the top border; this row shows model/bar+%/git.
     const metaLines =
       active && this.state.activeTabId !== "config"
-        ? renderInputMeta(active, width, metaRow, theme)
+        ? renderInputMeta(active, width, metaRow, theme, true, iconMode)
         : [];
     const assembled = [
       ...mainLines,

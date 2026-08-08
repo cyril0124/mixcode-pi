@@ -36,9 +36,18 @@ test("contextBarAndPercentText shows open-tui style bar and percent without abso
     currentContextTokens: 100_000,
     contextLimit: 200_000,
   });
-  const plain = stripAnsi(contextBarAndPercentText(tab));
+  const plain = stripAnsi(contextBarAndPercentText(tab, "nerd"));
   assert.match(plain, /\uf0c9 \[█+░*\] 50\.0%/);
   assert.doesNotMatch(plain, /100k|200k/);
+});
+
+test("contextBarAndPercentText uses ascii glyphs when icon mode is ascii", () => {
+  const tab = createTab(1, "s1", "/repo", {
+    currentContextTokens: 100_000,
+    contextLimit: 200_000,
+  });
+  const plain = stripAnsi(contextBarAndPercentText(tab, "ascii"));
+  assert.match(plain, /# \[#+-*\] 50\.0%/);
 });
 
 test("top border embeds exact context next to the title", () => {
@@ -81,7 +90,7 @@ test("input meta row uses bar+percent, not absolute token counts", () => {
     currentContextTokens: 10,
     contextLimit: 200_000,
   });
-  const plain = stripAnsi(renderInputMeta(tab, 100).join("\n"));
+  const plain = stripAnsi(renderInputMeta(tab, 100, 0, undefined, true, "nerd").join("\n"));
   assert.match(plain, /\uf0c9 \[[█░]+\] 0\.0%/);
   assert.doesNotMatch(plain, /0\.01k\/200k/);
 });

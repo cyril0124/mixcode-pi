@@ -70,7 +70,7 @@ test("input meta shows context usage against the limit", () => {
     currentContextTokens: 10,
     contextLimit: 200_000,
   });
-  const plain = stripAnsi(renderInputMeta(tab, 100).join("\n"));
+  const plain = stripAnsi(renderInputMeta(tab, 100, 0, undefined, true, "nerd").join("\n"));
   // Absolute xxk/xxk is on the editor top border; meta shows open-tui-style bar + percent.
   assert.match(plain, /\uf0c9 \[[█░]+\] 0\.0%/);
   assert.doesNotMatch(plain, /0\.01k\/200k/);

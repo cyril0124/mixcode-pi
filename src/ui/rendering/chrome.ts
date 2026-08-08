@@ -1,11 +1,16 @@
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { isPendingEscapeActive } from "../../core/escape.js";
 import { gitBranchForWorkdir } from "../../core/git-branch.js";
+import {
+  DEFAULT_ICON_MODE,
+  type IconMode,
+} from "../../core/mixcode-settings.js";
 import type { MouseHitRegion } from "../../core/mouse.js";
 import { retryStatusMessage, tabHasPendingUserInteraction } from "../../core/tab-state.js";
 import type { MixCodeState, MixCodeTabInfo } from "../../core/types.js";
 import type { MixCodeTheme } from "../themes.js";
 import { activeRenderTheme, renderWithTheme } from "./context.js";
+import { resolveGlyphs, type IconGlyphs } from "./icons.js";
 import { padLine, sanitizeTerminalText } from "./primitives.js";
 
 const DEFAULT_WORKING_INDICATOR_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
@@ -79,7 +84,6 @@ export function renderTabBar(
 
 /** Max background-agent status markers shown before collapsing to [+N]. */
 export const ZEN_STATUS_MARKER_CAP = 5;
-const ZEN_STATUS_DOT = "\u25cf";
 export type ZenStatusMarker = "working" | "question" | "done" | "error";
 
 /**
@@ -102,6 +106,7 @@ export function renderTabBarSeparator(
     zenMode?: boolean;
     /** Meaningful states from other agents, ordered by tab position. */
     zenStatusMarkers?: readonly ZenStatusMarker[];
+    iconMode?: IconMode;
   } = {},
   theme: MixCodeTheme = activeRenderTheme,
 ): string[] {
@@ -115,10 +120,11 @@ export function renderTabBarSeparator(
     const markers = options.zenStatusMarkers ?? [];
     if (markers.length === 0) return plain();
 
+    const statusDot = resolveGlyphs(options.iconMode ?? DEFAULT_ICON_MODE).statusOn;
     const shownMarkers = markers.slice(0, ZEN_STATUS_MARKER_CAP);
     const hiddenMarkers = markers.slice(ZEN_STATUS_MARKER_CAP);
     const overflow = hiddenMarkers.length;
-    const markerText = shownMarkers.map(() => ZEN_STATUS_DOT).join(" ");
+    const markerText = shownMarkers.map(() => statusDot).join(" ");
     // Prefer full "── ● ● ● [+N] "; drop [+N] then the cluster when width is tight.
     // Measure on bare text; paint frame dashes and markers separately.
     const bareWithOverflow =
@@ -134,10 +140,10 @@ export function renderTabBarSeparator(
     const fill = Math.max(0, width - visibleWidth(bareLeft));
     const paintedMarkers = shownMarkers
       .map((marker) => {
-        if (marker === "working") return activeRenderTheme.accent(ZEN_STATUS_DOT);
-        if (marker === "question") return activeRenderTheme.warning(ZEN_STATUS_DOT);
-        if (marker === "error") return activeRenderTheme.danger(ZEN_STATUS_DOT);
-        return activeRenderTheme.done(ZEN_STATUS_DOT);
+        if (marker === "working") return activeRenderTheme.accent(statusDot);
+        if (marker === "question") return activeRenderTheme.warning(statusDot);
+        if (marker === "error") return activeRenderTheme.danger(statusDot);
+        return activeRenderTheme.done(statusDot);
       })
       .join(" ");
     const overflowColor = markers.every((marker) => marker === "done")
@@ -323,7 +329,6 @@ function renderStatusInner(tab: MixCodeTabInfo | undefined, width: number): stri
 
 /** Bar width for the bottom-meta context meter. */
 const CONTEXT_BAR_WIDTH = 8;
-const CONTEXT_ICON = "\uf0c9"; // open-tui context glyph (Nerd Font, not emoji)
 
 /**
  * Exact compact usage for the editor top border, e.g. `12.3k/200k` or `?/200k*`.
@@ -338,23 +343,27 @@ export function exactContextUsageText(tab: MixCodeTabInfo): string {
 }
 
 /**
- * Bottom-meta context meter, open-tui style: ` [████░░░░] 50.0%`.
+ * Bottom-meta context meter, open-tui style: `icon [bar] 50.0%`.
  * Absolute token counts stay on the editor top border.
  */
-export function contextBarAndPercentText(tab: MixCodeTabInfo): string {
+export function contextBarAndPercentText(
+  tab: MixCodeTabInfo,
+  iconMode: IconMode = DEFAULT_ICON_MODE,
+): string {
+  const glyphs = resolveGlyphs(iconMode);
   const percent = contextUsagePercent(tab);
   if (percent === undefined) {
     // Empty meter until the first token count arrives; keep width stable.
     return activeRenderTheme.dim(
-      `${CONTEXT_ICON} [${"░".repeat(CONTEXT_BAR_WIDTH)}] ?%`,
+      `${glyphs.context} [${glyphs.barEmpty.repeat(CONTEXT_BAR_WIDTH)}] ?%`,
     );
   }
   const filled = Math.max(
     0,
     Math.min(CONTEXT_BAR_WIDTH, Math.round((percent / 100) * CONTEXT_BAR_WIDTH)),
   );
-  const cells = `${"█".repeat(filled)}${"░".repeat(CONTEXT_BAR_WIDTH - filled)}`;
-  const bar = `${CONTEXT_ICON} [${cells}] ${percent.toFixed(1)}%`;
+  const cells = `${glyphs.barFilled.repeat(filled)}${glyphs.barEmpty.repeat(CONTEXT_BAR_WIDTH - filled)}`;
+  const bar = `${glyphs.context} [${cells}] ${percent.toFixed(1)}%`;
   if (percent >= 80) return activeRenderTheme.danger(bar);
   if (percent >= 50) return activeRenderTheme.accent(bar);
   return activeRenderTheme.success(bar);
@@ -379,8 +388,11 @@ export function renderInputMeta(
   row = 0,
   theme: MixCodeTheme = activeRenderTheme,
   updateHitRegions = true,
+  iconMode: IconMode = DEFAULT_ICON_MODE,
 ): string[] {
-  return renderWithTheme(theme, () => renderInputMetaInner(tab, width, row, updateHitRegions));
+  return renderWithTheme(theme, () =>
+    renderInputMetaInner(tab, width, row, updateHitRegions, iconMode),
+  );
 }
 
 function renderInputMetaInner(
@@ -388,8 +400,10 @@ function renderInputMetaInner(
   width: number,
   row = 0,
   updateHitRegions = true,
+  iconMode: IconMode = DEFAULT_ICON_MODE,
 ): string[] {
   const lineWidth = Math.max(0, width - 1);
+  const glyphs = resolveGlyphs(iconMode);
   // Same window as VIM_ENTER_ARM_WINDOW_MS in app-input (Ctrl+U → u/Ctrl+U).
   const vimEnterArmed =
     typeof tab.vimEnterArmedAt === "number" && Date.now() - tab.vimEnterArmedAt <= 1_000;
@@ -403,17 +417,17 @@ function renderInputMetaInner(
   const model = tab.model.displayName || "-";
   const thinking = tab.thinkingLevel[0]!.toUpperCase() + tab.thinkingLevel.slice(1);
   // Absolute xxk/xxk lives on the editor top border; bottom meta only shows bar+%.
-  const contextBadge = ` ${contextBarAndPercentText(tab)} `;
+  const contextBadge = ` ${contextBarAndPercentText(tab, iconMode)} `;
   const right = chooseInputMetaRight(contextBadge, lineWidth, [
     () => {
-      const gitBadge = `  ${gitBranchForWorkdir(tab.workdir) || "-"} `;
+      const gitBadge = ` ${glyphs.git} ${gitBranchForWorkdir(tab.workdir) || "-"} `;
       const git = activeRenderTheme.accent(activeRenderTheme.bold(gitBadge));
       return `${contextBadge} ${git}`;
     },
     () => contextBadge,
   ]);
   const leftBudget = Math.max(0, lineWidth - visibleWidth(right) - 1);
-  const left = renderInputMetaLeft(tab.workdir, model, thinking, escapeHint, leftBudget);
+  const left = renderInputMetaLeft(tab.workdir, model, thinking, escapeHint, leftBudget, glyphs);
   const gap = Math.max(1, lineWidth - visibleWidth(left.text) - visibleWidth(right));
   const metaRow =
     visibleWidth(left.text) + visibleWidth(right) + 1 <= lineWidth
@@ -442,6 +456,7 @@ function renderInputMetaLeft(
   thinking: string,
   escapeHint: string,
   width: number,
+  glyphs: IconGlyphs,
 ): {
   text: string;
   regions: Array<{ action: "models" | "thinking" | "workdir"; startX: number; endX: number }>;
@@ -449,8 +464,16 @@ function renderInputMetaLeft(
   if (width <= 0) return { text: "", regions: [] };
   const moduleName = shortModelName(model);
   const modes: InputMetaMode[] = [
-    { model: ` 󰚩 ${model} `, thinking: `  ${thinking} `, gap: "  " },
-    { model: ` 󰚩 ${moduleName} `, thinking: `  ${thinking} `, gap: "  " },
+    {
+      model: ` ${glyphs.model} ${model} `,
+      thinking: ` ${glyphs.thinking} ${thinking} `,
+      gap: "  ",
+    },
+    {
+      model: ` ${glyphs.model} ${moduleName} `,
+      thinking: ` ${glyphs.thinking} ${thinking} `,
+      gap: "  ",
+    },
     { model: moduleName, thinking, gap: " " },
   ];
   // Greedy degradation: strict modes require model, thinking, and workdir all

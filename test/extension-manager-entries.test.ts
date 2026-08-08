@@ -148,6 +148,7 @@ test("syncExtensionManagerEntrySources restores package labels without rewriting
 
 test("extension manager names local extensions from their entry path", () => {
   const state = createInitialState("/repo");
+  state.ui = { ...state.ui!, icons: { mode: "nerd" } };
   state.extensionManager.open = true;
   state.extensionManager.selectedIndex = 1;
   state.extensionManager.entries = [
@@ -188,6 +189,7 @@ test("extension manager names local extensions from their entry path", () => {
 
 test("extension manager keeps its footer inside the default overlay height", () => {
   const state = createInitialState("/repo");
+  state.ui = { ...state.ui!, icons: { mode: "nerd" } };
   state.extensionManager.open = true;
   state.extensionManager.selectedIndex = 29;
   state.extensionManager.entries = Array.from({ length: 30 }, (_, index) => ({
@@ -219,6 +221,7 @@ test("extension manager keeps its footer inside the default overlay height", () 
 
 test("closing the extension manager prevents a pending reload from restoring its overlay", async () => {
   const state = createInitialState("/repo");
+  state.ui = { ...state.ui!, icons: { mode: "nerd" } };
   state.tabs.push(createTab(1, "s1", "/repo"));
   state.activeTabId = "s1";
   const reload = Promise.withResolvers<{
@@ -255,6 +258,7 @@ test("closing the extension manager prevents a pending reload from restoring its
 
 test("a pending reload cannot update a newly opened extension manager", async () => {
   const state = createInitialState("/repo");
+  state.ui = { ...state.ui!, icons: { mode: "nerd" } };
   state.tabs.push(createTab(1, "s1", "/repo"));
   state.activeTabId = "s1";
   const reload = Promise.withResolvers<{
@@ -291,6 +295,7 @@ test("a pending reload cannot update a newly opened extension manager", async ()
 
 test("extension manager detail paging reaches commands and paths after a long tool list", () => {
   const state = createInitialState("/repo");
+  state.ui = { ...state.ui!, icons: { mode: "nerd" } };
   state.extensionManager.open = true;
   state.extensionManager.entries = [
     {
@@ -327,6 +332,7 @@ test("extension manager detail paging reaches commands and paths after a long to
 
 test("extension manager preserves wide characters while wrapping paths", () => {
   const state = createInitialState("/repo");
+  state.ui = { ...state.ui!, icons: { mode: "nerd" } };
   state.extensionManager.open = true;
   const path = `/extensions/${"中文".repeat(30)}/终点😀.ts`;
   state.extensionManager.entries = [
@@ -359,6 +365,7 @@ test("extension manager preserves wide characters while wrapping paths", () => {
 
 test("extension manager switches to two panes at 80 terminal columns", () => {
   const state = createInitialState("/repo");
+  state.ui = { ...state.ui!, icons: { mode: "nerd" } };
   state.extensionManager.open = true;
   state.extensionManager.entries = [
     {
@@ -397,6 +404,7 @@ test("extension manager switches to two panes at 80 terminal columns", () => {
 
 test("extension manager search matches command names", () => {
   const state = createInitialState("/repo");
+  state.ui = { ...state.ui!, icons: { mode: "nerd" } };
   state.extensionManager.open = true;
   state.extensionManager.entries = [
     {
@@ -436,6 +444,7 @@ test("extension manager search matches command names", () => {
 
 test("extension manager search keyboard flow toggles the filtered entry", () => {
   const state = createInitialState("/repo");
+  state.ui = { ...state.ui!, icons: { mode: "nerd" } };
   state.extensionManager.open = true;
   state.extensionManager.entries = [
     {

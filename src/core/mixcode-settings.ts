@@ -3,6 +3,10 @@ import { parseJsoncObject } from "./json.js";
 export const MIXCODE_SETTINGS_FILENAME = "mixcode_settings.json";
 export const DEFAULT_HISTORY_MAX_BYTES = 5 * 1024 * 1024;
 
+export const ICON_MODES = ["auto", "nerd", "ascii"] as const;
+export type IconMode = (typeof ICON_MODES)[number];
+export const DEFAULT_ICON_MODE: IconMode = "nerd";
+
 /** Raw (unparsed) mixcode settings — undefined means not explicitly set. */
 export interface RawMixCodeSettings {
   /** UI theme id when explicitly set; omit to use DEFAULT_THEME_ID. */
@@ -16,6 +20,8 @@ export interface RawMixCodeSettings {
     };
     /** When false, mermaid fences render as plain code blocks. */
     renderMermaid?: boolean;
+    /** Input-meta icon glyph mode (open-tui style). */
+    icons?: { mode?: IconMode };
   };
   /** Provider ids disabled for selection/use (global). */
   disabledProviders?: string[];
@@ -40,6 +46,7 @@ export interface MixCodeUiSettings {
   oversizedAssistantMessage: OversizedAssistantMessageSettings;
   /** When false, mermaid fences render as plain code blocks. Default true. */
   renderMermaid: boolean;
+  icons: { mode: IconMode };
 }
 
 export const DEFAULT_RENDER_MERMAID = true;
@@ -63,6 +70,7 @@ export function defaultMixCodeSettings(): MixCodeSettings {
     ui: {
       oversizedAssistantMessage: { ...DEFAULT_OVERSIZED_ASSISTANT_MESSAGE },
       renderMermaid: DEFAULT_RENDER_MERMAID,
+      icons: { mode: DEFAULT_ICON_MODE },
     },
     disabledProviders: [],
     disabledModels: [],
@@ -105,9 +113,10 @@ export async function loadRawMixCodeSettings(settingsFile: string): Promise<RawM
   const rawOversizedBytes = positiveInteger(oversized.maxBytes);
   const rawRenderMermaid =
     typeof ui.renderMermaid === "boolean" ? ui.renderMermaid : undefined;
+  const rawIconMode = rawIconModeValue(objectRecord(ui.icons).mode);
   const hasOversized =
     rawEnabled !== undefined || rawMaxLines !== undefined || rawOversizedBytes !== undefined;
-  if (hasOversized || rawRenderMermaid !== undefined) {
+  if (hasOversized || rawRenderMermaid !== undefined || rawIconMode !== undefined) {
     result.ui = {
       ...(hasOversized
         ? {
@@ -119,6 +128,7 @@ export async function loadRawMixCodeSettings(settingsFile: string): Promise<RawM
           }
         : {}),
       ...(rawRenderMermaid !== undefined ? { renderMermaid: rawRenderMermaid } : {}),
+      ...(rawIconMode !== undefined ? { icons: { mode: rawIconMode } } : {}),
     };
   }
   const disabledProviders = stringList(source.disabledProviders);
@@ -191,7 +201,22 @@ function parseUiSettings(value: unknown, settingsFile: string): MixCodeUiSetting
       settingsFile,
       "renderMermaid",
     ),
+    icons: { mode: parseIconMode(objectRecord(ui.icons).mode, settingsFile) },
   };
+}
+
+function rawIconModeValue(value: unknown): IconMode | undefined {
+  if (typeof value !== "string") return undefined;
+  return (ICON_MODES as readonly string[]).includes(value) ? (value as IconMode) : undefined;
+}
+
+function parseIconMode(value: unknown, settingsFile: string): IconMode {
+  if (value === undefined) return DEFAULT_ICON_MODE;
+  const parsed = rawIconModeValue(value);
+  if (parsed !== undefined) return parsed;
+  throw new Error(
+    `${settingsFile}: ui.icons.mode must be one of ${ICON_MODES.join(", ")}`,
+  );
 }
 
 function booleanUiSetting(

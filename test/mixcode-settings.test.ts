@@ -54,6 +54,7 @@ test("mixcode settings default history and oversized assistant message policy", 
       ui: {
         oversizedAssistantMessage: { enabled: true, maxLines: 5000, maxBytes: 128 * 1024 },
         renderMermaid: true,
+        icons: { mode: "nerd" },
       },
       disabledProviders: [],
       disabledModels: [],
@@ -65,6 +66,7 @@ test("mixcode settings default history and oversized assistant message policy", 
         ui: {
           oversizedAssistantMessage: { enabled: false, maxLines: 42, maxBytes: 2048 },
           renderMermaid: false,
+          icons: { mode: "ascii" },
         },
       }),
       "utf8",
@@ -74,6 +76,7 @@ test("mixcode settings default history and oversized assistant message policy", 
       ui: {
         oversizedAssistantMessage: { enabled: false, maxLines: 42, maxBytes: 2048 },
         renderMermaid: false,
+        icons: { mode: "ascii" },
       },
       disabledProviders: [],
       disabledModels: [],
@@ -102,6 +105,7 @@ test("mixcode settings accept jsonc comments and trailing commas", async () => {
       ui: {
         oversizedAssistantMessage: { enabled: true, maxLines: 5000, maxBytes: 128 * 1024 },
         renderMermaid: true,
+        icons: { mode: "nerd" },
       },
       disabledProviders: [],
       disabledModels: [],
@@ -135,6 +139,62 @@ test("mixcode settings reject invalid renderMermaid", async () => {
   try {
     await writeFile(file, JSON.stringify({ ui: { renderMermaid: "yes" } }), "utf8");
     await assert.rejects(() => loadMixCodeSettings(file), /ui\.renderMermaid must be a boolean/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("mixcode settings reject invalid icons.mode", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-icons-mode-invalid-"));
+  const file = join(dir, "mixcode_settings.json");
+  try {
+    await writeFile(file, JSON.stringify({ ui: { icons: { mode: "emoji" } } }), "utf8");
+    await assert.rejects(
+      () => loadMixCodeSettings(file),
+      /ui\.icons\.mode must be one of auto, nerd, ascii/,
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("settings panel cycles icons.mode and persists it", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-settings-icons-"));
+  const mixcodeFile = join(dir, "mixcode_settings.json");
+  await writeFile(mixcodeFile, "{}\n");
+  try {
+    const state = createInitialState(dir);
+    state.settingsPanel = {
+      open: true,
+      selectedIndex: 8, // icons.mode (after renderMermaid)
+      editMode: false,
+      editText: "",
+      enumOpen: false,
+      enumIndex: 0,
+      mixcodeRaw: {},
+      mixcodeFile,
+      piSettingsFile: join(dir, "settings.json"),
+      settingsManager: SettingsManager.inMemory(),
+    };
+    const tui = {
+      requestRender: () => undefined,
+      showOverlay: () => ({ hide: () => undefined }) as never,
+      hasOverlay: () => true,
+      hideOverlay: () => undefined,
+    };
+
+    assert.match(stripAnsi(renderSettingsPanel(state, 80).join("\n")), /Icon mode/);
+    // Open enum, pick ascii (index 2), confirm.
+    handleSettingsPanelKey(state, "\r", tui);
+    state.settingsPanel.enumIndex = 2;
+    handleSettingsPanelKey(state, "\r", tui);
+    await Bun.sleep(30);
+
+    assert.equal(state.settingsPanel.mixcodeRaw.ui?.icons?.mode, "ascii");
+    assert.equal(state.ui?.icons?.mode, "ascii");
+    assert.deepEqual(JSON.parse(await readFile(mixcodeFile, "utf8")), {
+      ui: { icons: { mode: "ascii" } },
+    });
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

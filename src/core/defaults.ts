@@ -5,6 +5,7 @@ import { createForkSelectorState } from "../ui/fork-selector.js";
 import { createTreeSelectorState } from "./tree-selector.js";
 import { createWorkspaceOverlayState } from "./workspace-ui.js";
 import {
+  DEFAULT_ICON_MODE,
   DEFAULT_OVERSIZED_ASSISTANT_MESSAGE,
   DEFAULT_RENDER_MERMAID,
 } from "./mixcode-settings.js";
@@ -27,6 +28,7 @@ export function createInitialState(workdir: string, defaultThinkingLevel?: Think
     ui: {
       oversizedAssistantMessage: { ...DEFAULT_OVERSIZED_ASSISTANT_MESSAGE },
       renderMermaid: DEFAULT_RENDER_MERMAID,
+      icons: { mode: DEFAULT_ICON_MODE },
     },
     activeTabId: "config",
     packageUpdates: [],

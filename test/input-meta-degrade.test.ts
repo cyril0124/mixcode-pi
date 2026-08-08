@@ -27,7 +27,7 @@ function metaRow(displayName: string, width: number): string {
     },
     thinkingLevel: "medium",
   });
-  return stripAnsi(renderInputMeta(tab, width).join("\n"));
+  return stripAnsi(renderInputMeta(tab, width, 0, undefined, true, "nerd").join("\n"));
 }
 
 test("shortModelName drops everything up to the last slash", () => {

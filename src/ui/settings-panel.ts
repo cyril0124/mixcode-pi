@@ -8,10 +8,13 @@ import type { SettingsManager } from "@earendil-works/pi-coding-agent";
 import * as os from "node:os";
 import {
   DEFAULT_HISTORY_MAX_BYTES,
+  DEFAULT_ICON_MODE,
   DEFAULT_OVERSIZED_ASSISTANT_MESSAGE,
   DEFAULT_RENDER_MERMAID,
+  ICON_MODES,
   loadRawMixCodeSettings,
   writeRawMixCodeSettings,
+  type IconMode,
   type RawMixCodeSettings,
 } from "../core/mixcode-settings.js";
 import type { MixCodeModelRef, MixCodeState, SettingsPanelState } from "../core/types.js";
@@ -201,6 +204,35 @@ const ITEMS: SettingItem[] = [
     },
   },
   {
+    kind: "enum",
+    label: "icons.mode",
+    section: "mixcode",
+    defaultValue: DEFAULT_ICON_MODE,
+    getValue: ({ mixcodeRaw }) => mixcodeRaw.ui?.icons?.mode,
+    getOptions: () => [...ICON_MODES],
+    setValue: async (ctx, v) => {
+      const next: RawMixCodeSettings = { ...ctx.mixcodeRaw };
+      if (v === undefined) {
+        if (next.ui?.icons) {
+          const icons = { ...next.ui.icons };
+          delete icons.mode;
+          const ui = { ...next.ui };
+          if (Object.keys(icons).length > 0) ui.icons = icons;
+          else delete ui.icons;
+          if (Object.keys(ui).length > 0) next.ui = ui;
+          else delete next.ui;
+        }
+      } else {
+        next.ui = {
+          ...next.ui,
+          icons: { ...next.ui?.icons, mode: v as IconMode },
+        };
+      }
+      replaceRaw(ctx.mixcodeRaw, next);
+      await writeRawMixCodeSettings(ctx.mixcodeFile, next);
+    },
+  },
+  {
     kind: "boolean",
     label: "oversized.enabled",
     section: "mixcode",
@@ -363,6 +395,7 @@ function applyLiveEffects(state: MixCodeState): void {
       maxBytes: oversized?.maxBytes ?? DEFAULT_OVERSIZED_ASSISTANT_MESSAGE.maxBytes,
     },
     renderMermaid: raw.ui?.renderMermaid ?? DEFAULT_RENDER_MERMAID,
+    icons: { mode: raw.ui?.icons?.mode ?? DEFAULT_ICON_MODE },
   };
   for (const tab of state.tabs) clearConversationCache(tab.sessionId);
 }
@@ -379,6 +412,7 @@ const ITEM_LABELS: Record<string, string> = {
   "retry.maxRetries": "Retry times",
   "history.maxBytes": "History max bytes",
   renderMermaid: "Render Mermaid diagrams",
+  "icons.mode": "Icon mode",
   "oversized.enabled": "Collapse oversized messages",
   "oversized.maxLines": "Oversized max lines",
   "oversized.maxBytes": "Oversized max bytes",
