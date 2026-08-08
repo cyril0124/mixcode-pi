@@ -67,6 +67,7 @@ export function createInitialState(workdir: string, defaultThinkingLevel?: Think
     tabJumpOpen: false,
     tabJumpQuery: "",
     tabJumpIndex: 0,
+    tabJumpNonIdleOnly: false,
     picker: undefined,
     model: { ...DEFAULT_MODEL_REF },
     thinkingLevel: defaultThinkingLevel ?? "medium",

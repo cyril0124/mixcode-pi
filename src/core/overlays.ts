@@ -136,7 +136,24 @@ export function filterTabJumpEntries(
   state: MixCodeState,
   query: string,
 ): ReturnType<typeof tabJumpEntries> {
-  const entries = tabJumpEntries(state);
+  let entries = tabJumpEntries(state);
+  if (state.tabJumpNonIdleOnly) {
+    // error is not encoded on the entry flags; include it via status.
+    const attentionIds = new Set(
+      state.tabs
+        .filter(
+          (tab) =>
+            tab.status === "running" ||
+            tab.status === "thinking" ||
+            tab.status === "error" ||
+            tab.status === "done" ||
+            tab.unreadDone ||
+            tabHasPendingUserInteraction(tab),
+        )
+        .map((tab) => tab.sessionId),
+    );
+    entries = entries.filter((entry) => attentionIds.has(entry.id));
+  }
   if (!query.trim()) return entries;
   return fuzzyFilter(entries, query, (entry) => entry.label);
 }
@@ -144,9 +161,10 @@ export function filterTabJumpEntries(
 export function openTabJump(state: MixCodeState): void {
   state.tabJumpOpen = true;
   state.tabJumpQuery = "";
+  state.tabJumpNonIdleOnly = false;
   state.tabJumpIndex = Math.max(
     0,
-    tabJumpEntries(state).findIndex((entry) => entry.id === state.activeTabId),
+    filterTabJumpEntries(state, "").findIndex((entry) => entry.id === state.activeTabId),
   );
 }
 
@@ -154,6 +172,12 @@ export function closeTabJump(state: MixCodeState): void {
   state.tabJumpOpen = false;
   state.tabJumpQuery = "";
   state.tabJumpIndex = 0;
+  state.tabJumpNonIdleOnly = false;
+}
+
+export function toggleTabJumpNonIdleOnly(state: MixCodeState): void {
+  state.tabJumpNonIdleOnly = !state.tabJumpNonIdleOnly;
+  state.tabJumpIndex = clampTabJumpIndex(state, state.tabJumpIndex);
 }
 
 export function updateTabJumpQuery(state: MixCodeState, query: string): void {

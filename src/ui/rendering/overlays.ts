@@ -8,6 +8,7 @@ import {
   filterTabJumpEntries,
   previewTitle,
   selectableCommandPaletteEntries,
+  tabJumpEntries,
 } from "../../core/overlays.js";
 import { filteredPickerItems, workdirBreadcrumb } from "../../core/pickers.js";
 import { activeToast } from "../../core/toast.js";
@@ -486,10 +487,12 @@ export function renderTabJumpOverlay(state: MixCodeState, width: number): string
 function renderTabJumpOverlayInner(state: MixCodeState, width: number): string[] {
   if (!state.tabJumpOpen) return [];
   const entries = filterTabJumpEntries(state, state.tabJumpQuery);
-  const totalTabs = filterTabJumpEntries(state, "").length;
+  // Denominator is unfiltered total so 2/5 still means "2 of 5 tabs match".
+  const totalTabs = tabJumpEntries(state).length;
   const innerWidth = Math.max(1, width - 2);
   const searchText = state.tabJumpQuery || "";
-  const countText = `${entries.length}/${totalTabs} tabs`;
+  const modeTag = state.tabJumpNonIdleOnly ? " non-idle" : "";
+  const countText = `${entries.length}/${totalTabs} tabs${modeTag}`;
   const searchPrefix = activeRenderTheme.dim("Search");
   const searchLeft = ` ${searchPrefix}  ${activeRenderTheme.accent(searchText)}`;
   const searchGap = Math.max(1, innerWidth - visibleWidth(searchLeft) - visibleWidth(countText));
@@ -516,7 +519,9 @@ function renderTabJumpOverlayInner(state: MixCodeState, width: number): string[]
   }
   lines.push(
     "",
-    activeRenderTheme.dim("type filter · ↑↓/tab select · enter jump · esc cancel"),
+    activeRenderTheme.dim(
+      "type filter · ↑↓/tab select · ctrl+f non-idle · enter jump · esc cancel",
+    ),
   );
   return overlayPanel("Tab Jump", lines, width);
 }

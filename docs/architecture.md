@@ -117,7 +117,7 @@ Config tab 只渲染配置面板和可点击操作，不渲染 prompt editor；�
 | `Shift+Tab` | 上一个 tab，补全打开时不抢占；**Zen 模式**下同样吞掉 |
 | `r` | config tab 或 overlay 场景从 pi runtime 刷新 tab 状态；agent 输入中保留普通字符 |
 | `Ctrl+P` | 可过滤命令面板；按 Config/Agent tab 显示当前语境命令，回车执行可用命令 |
-| `Ctrl+T` | tab jump 模糊跳转；打开后 `Tab`/`Shift+Tab` 在候选中移动，不穿透到全局 tab 切换 |
+| `Ctrl+T` | tab jump 模糊跳转；打开后 `Tab`/`Shift+Tab` 在候选中移动，`Ctrl+F` 切换仅显示非 idle（busy/done/question/error）tab，不穿透到全局 tab 切换 |
 | `Ctrl+E` | 外部编辑器编辑输入 |
 | `Ctrl+C` | 清空普通编辑输入 |
 | `Ctrl+J` / `Shift+Enter` | 在当前 Editor 光标处插入换行 |

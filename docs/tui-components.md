@@ -148,7 +148,7 @@
 | 表面 | 打开方式 | 主要文件 | 说明 |
 | --- | --- | --- | --- |
 | Command Palette | `Ctrl+P` | `rendering/overlays.ts`, `core/overlays.ts` | 按当前 tab 语境过滤，不是全量 slash 列表 |
-| Tab Jump | `Ctrl+T` | `rendering/overlays.ts`, `core/overlays.ts` | 模糊跳转 tab |
+| Tab Jump | `Ctrl+T` | `rendering/overlays.ts`, `core/overlays.ts` | 模糊跳转 tab；`Ctrl+F` 切换 non-idle 过滤 |
 | Picker | `/models` `/workdir` `/thinking` `/context-limit` | `core/pickers.ts`, `rendering/overlays.ts` | 过滤后单选 |
 | Settings Panel | `/settings` | `settings-panel.ts` | 主题 / UI 选项；workdir 级设置 |
 | Extension Manager | palette / command | `extension-manager.ts` | 启停 package extension |

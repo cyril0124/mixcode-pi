@@ -149,6 +149,12 @@ export const MIXCODE_KEYMAP: KeyAction[] = [
     scope: "tab-jump",
   },
   {
+    key: "ctrl+f",
+    action: "tab-jump-toggle-non-idle",
+    description: "Toggle non-idle-only filter",
+    scope: "tab-jump",
+  },
+  {
     key: "enter",
     action: "tab-jump-accept",
     description: "Activate selected tab",

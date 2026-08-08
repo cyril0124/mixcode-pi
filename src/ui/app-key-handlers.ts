@@ -22,6 +22,7 @@ import {
   previewHome,
   scrollChat,
   scrollPreview,
+  toggleTabJumpNonIdleOnly,
   updateCommandPaletteQueryWithExtensions,
   updateTabJumpQuery,
 } from "../core/overlays.js";
@@ -402,6 +403,11 @@ export function handleTabJumpKey(state: MixCodeState, data: string, tui: Overlay
     closeTabJump(state);
     closeAppOverlay(tui);
     tui.requestRender();
+    return true;
+  }
+  if (matchesKey(data, "ctrl+f")) {
+    toggleTabJumpNonIdleOnly(state);
+    showLinesOverlay(tui, (width) => renderTabJumpOverlay(state, width));
     return true;
   }
   if (matchesKey(data, "tab") || matchesKey(data, "shift+tab")) {

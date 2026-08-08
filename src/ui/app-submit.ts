@@ -706,6 +706,7 @@ interface MixCodeTuiDebugState {
     tabJumpOpen: boolean;
     tabJumpQuery: string;
     tabJumpIndex: number;
+    tabJumpNonIdleOnly: boolean;
     picker?: Omit<NonNullable<MixCodeState["picker"]>, "items"> & { itemCount: number };
   };
   tabs: Array<{
@@ -760,6 +761,7 @@ function createTuiDebugState(state: MixCodeState): MixCodeTuiDebugState {
       tabJumpOpen: state.tabJumpOpen,
       tabJumpQuery: state.tabJumpQuery,
       tabJumpIndex: state.tabJumpIndex,
+      tabJumpNonIdleOnly: state.tabJumpNonIdleOnly,
       picker: state.picker
         ? {
             kind: state.picker.kind,

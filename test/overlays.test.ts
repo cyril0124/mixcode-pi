@@ -24,6 +24,7 @@ import {
   stripAnsi,
   tabJumpEntries,
   togglePreview,
+  toggleTabJumpNonIdleOnly,
   updateCommandPaletteQuery,
   commandPaletteEntriesWithExtensions,
   updateTabJumpQuery,
@@ -183,9 +184,54 @@ test("tab jump state opens, filters, moves, accepts, and closes", () => {
   state.tabs[1]!.status = "done";
   const statusOverlay = stripAnsi(renderTabJumpOverlay(state, 80).join("\n"));
   assert.match(statusOverlay, /!\s+Beta\s+s2/);
-  assert.match(statusOverlay, /type filter · ↑↓\/tab select · enter jump · esc cancel/);
+  assert.match(
+    statusOverlay,
+    /type filter · ↑↓\/tab select · ctrl\+f non-idle · enter jump · esc cancel/,
+  );
   closeTabJump(state);
   assert.equal(state.tabJumpQuery, "");
+});
+
+test("tab jump ctrl+f toggles non-idle filter and resets on reopen", () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(
+    createTab(1, "s1", "/repo", { alias: "alpha", status: "running" }),
+    createTab(2, "s2", "/repo", { title: "Beta", status: "idle" }),
+    createTab(3, "s3", "/repo", { title: "Gamma", status: "idle", unreadDone: true }),
+    createTab(4, "s4", "/repo", { title: "Delta", status: "error" }),
+  );
+  state.activeTabId = "s2";
+  openTabJump(state);
+  assert.deepEqual(
+    filterTabJumpEntries(state, "").map((entry) => entry.id),
+    ["config", "s1", "s2", "s3", "s4"],
+  );
+
+  toggleTabJumpNonIdleOnly(state);
+  assert.equal(state.tabJumpNonIdleOnly, true);
+  assert.deepEqual(
+    filterTabJumpEntries(state, "").map((entry) => entry.id),
+    ["s1", "s3", "s4"],
+  );
+  // Active idle tab drops out; index clamps into the filtered list.
+  assert.ok(state.tabJumpIndex < filterTabJumpEntries(state, "").length);
+  assert.match(stripAnsi(renderTabJumpOverlay(state, 80).join("\n")), /non-idle/);
+
+  // Query stacks on top of non-idle filter.
+  updateTabJumpQuery(state, "ga");
+  assert.deepEqual(
+    filterTabJumpEntries(state, state.tabJumpQuery).map((entry) => entry.id),
+    ["s3"],
+  );
+
+  closeTabJump(state);
+  assert.equal(state.tabJumpNonIdleOnly, false);
+  openTabJump(state);
+  assert.equal(state.tabJumpNonIdleOnly, false);
+  assert.deepEqual(
+    filterTabJumpEntries(state, "").map((entry) => entry.id),
+    ["config", "s1", "s2", "s3", "s4"],
+  );
 });
 
 test("command palette filters, accepts, disables, and closes without OpenCode entries", () => {

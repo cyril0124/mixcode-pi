@@ -400,6 +400,8 @@ export interface MixCodeState {
   tabJumpOpen: boolean;
   tabJumpQuery: string;
   tabJumpIndex: number;
+  /** While Tab Jump is open: when true, list non-idle/attention tabs only. Reset on open/close. */
+  tabJumpNonIdleOnly: boolean;
   picker?: PickerState;
   model: MixCodeModelRef;
   thinkingLevel: ThinkingLevel;
