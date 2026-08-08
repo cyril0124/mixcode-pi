@@ -44,21 +44,22 @@ test("resolveThemeInput rejects ambiguous prefix and accepts unique prefixes", (
 });
 
 test("themeArgumentCompletions lists known values and hides exact matches", () => {
-  assert.deepEqual(
-    themeArgumentCompletions("").map((item) => item.value),
-    [
-      "mixcode-dark",
-      "dark",
-      "mixcode",
-      "claude-warm",
-      "claude",
-      "warm",
-      "tokyo-night",
-      "tokyo",
-      "toyko",
-      "terminal",
-    ],
-  );
+  const values = themeArgumentCompletions("").map((item) => item.value);
+  for (const required of [
+    "mixcode-dark",
+    "dark",
+    "mixcode",
+    "claude-warm",
+    "claude",
+    "warm",
+    "tokyo-night",
+    "tokyo",
+    "toyko",
+    "terminal",
+    "light",
+  ]) {
+    assert.ok(values.includes(required), `missing completion: ${required}`);
+  }
   assert.deepEqual(themeArgumentCompletions("mixcode-dark"), []);
   assert.deepEqual(themeArgumentCompletions("  MIXCODE-DARK  "), []);
   assert.deepEqual(themeArgumentCompletions("dark"), []);

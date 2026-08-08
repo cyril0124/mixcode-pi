@@ -61,7 +61,9 @@ test("theme registry validates and suggests themes", () => {
   assert.match(themeForId("tokyo-night").homeTab(" MixCode Home "), /\x1b\[48;2;122;162;247m/);
   assert.equal(themeForId("terminal").surface("plain"), "plain");
   assert.throws(() => setTheme(state, "unknown"), /Unknown theme/);
-  assert.throws(() => setTheme(state, "light"), /Unknown theme/);
+  // Pi built-in light is a valid theme id after Pi theme alignment.
+  setTheme(state, "light");
+  assert.equal(state.theme, "light");
 });
 
 test("thinking border colors follow Pi levels without collisions", () => {

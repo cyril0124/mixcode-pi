@@ -98,7 +98,7 @@ export class CompactPromptEditor extends Editor {
     this.borderColor = isVimMode
       ? theme.vimBorder
       : isShellMode
-        ? theme.shellBorder
+        ? theme.bashMode
         : theme.thinkingBorder(this.activeTab()?.thinkingLevel);
     const lines = super.render(width);
     this.applyTopBorderLabel(lines, width, theme, isVimMode, isZenMode);
@@ -654,7 +654,7 @@ export class EditorSlot implements Component {
         : this.textForSession(sessionId, true);
     const tab = this.mixState.tabs.find((item) => item.sessionId === sessionId);
     if (tab?.vimMode) return theme.vimBorder;
-    if (text.trimStart().startsWith("!")) return theme.shellBorder;
+    if (text.trimStart().startsWith("!")) return theme.bashMode;
     return theme.thinkingBorder(tab?.thinkingLevel);
   }
 }
@@ -722,7 +722,7 @@ export function editorThemeFor(theme: MixCodeTheme): EditorTheme {
       selectedText: theme.accent,
       description: theme.dim,
       scrollInfo: theme.dim,
-      noMatch: theme.danger,
+      noMatch: theme.error,
     },
   };
 }

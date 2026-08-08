@@ -667,7 +667,7 @@ function highlightVisibleChatLines(
     tab.chatScrollOffset,
   );
   return result.map((line, row) =>
-    highlightChatSelectionLine(line, row, viewportSelection, activeRenderTheme.selection),
+    highlightChatSelectionLine(line, row, viewportSelection, activeRenderTheme.selectedBg),
   );
 }
 
@@ -697,7 +697,7 @@ function appendChatScrollbar(
       barChar = activeRenderTheme.accent("↓");
       return `${padLine(line, contentWidth)}${barChar}`;
     }
-    return `${padLine(line, contentWidth)}${activeRenderTheme.borderDim(barChar)}`;
+    return `${padLine(line, contentWidth)}${activeRenderTheme.borderMuted(barChar)}`;
   });
 }
 

@@ -282,7 +282,7 @@ function showNoticeOverlay(tui: OverlayTui, text: string, options: NoticeOptions
         notice.renderedLines = lines;
         if (!notice.selection) return lines;
         return lines.map((line, row) =>
-          highlightChatSelectionLine(line, row, notice.selection, theme.selection),
+          highlightChatSelectionLine(line, row, notice.selection, theme.selectedBg),
         );
       },
       overlayOptions,
@@ -326,7 +326,7 @@ function showNoticeOverlay(tui: OverlayTui, text: string, options: NoticeOptions
       notice.renderedLines = lines;
       if (!notice.selection) return lines;
       return lines.map((line, row) =>
-        highlightChatSelectionLine(line, row, notice.selection, theme.selection),
+        highlightChatSelectionLine(line, row, notice.selection, theme.selectedBg),
       );
     },
     overlayOptions,
@@ -422,7 +422,7 @@ export function renderNoticePanel(
       })
       .map((line) => theme.text(line));
     const body = [...wrapped, "", theme.dim(NOTICE_HINT)];
-    const border = options.danger ? theme.danger : undefined;
+    const border = options.danger ? theme.error : undefined;
     return overlayPanel(options.title, body, width, border);
   });
 }

@@ -248,12 +248,12 @@ function renderMessageBlockUncached(
     }
     const innerWidth = Math.max(1, width - 2);
     const body = wrapPlainLine(text, innerWidth).map((part) =>
-      activeRenderTheme.userMessage(padLine(` ${part}`, width)),
+      activeRenderTheme.userMessageBg(padLine(` ${part}`, width)),
     );
     return [
-      OSC133_ZONE_START + activeRenderTheme.userMessage(padLine("", width)),
+      OSC133_ZONE_START + activeRenderTheme.userMessageBg(padLine("", width)),
       ...body,
-      activeRenderTheme.userMessage(padLine("", width)) + OSC133_ZONE_END + OSC133_ZONE_FINAL,
+      activeRenderTheme.userMessageBg(padLine("", width)) + OSC133_ZONE_END + OSC133_ZONE_FINAL,
     ];
   }
   if (line.role === "assistant") {
@@ -281,7 +281,7 @@ function renderMessageBlockUncached(
       const label =
         tab?.extensionUi.hiddenThinkingLabel?.trim() || HIDDEN_THINKING_LABEL;
       return renderMarkdown(label, width, {
-        color: activeRenderTheme.thinking,
+        color: activeRenderTheme.thinkingText,
         italic: true,
         renderMermaid: options.renderMermaid,
         messageType: "assistant-thinking",
@@ -297,7 +297,7 @@ function renderMessageBlockUncached(
     );
     if (oversized) return oversized;
     return renderMarkdown(streamingMarkdownText(trimmed, options), width, {
-      color: activeRenderTheme.thinking,
+      color: activeRenderTheme.thinkingText,
       italic: true,
       renderMermaid: options.renderMermaid,
       messageType: "assistant-thinking",
@@ -453,17 +453,17 @@ function renderToolBlock(line: ChatLine, width: number, tab?: MixCodeTabInfo): s
   const status = line.status ?? "success";
   const background =
     status === "error"
-      ? activeRenderTheme.toolErrorBackground
+      ? activeRenderTheme.toolErrorBg
       : status === "success"
-        ? activeRenderTheme.toolSuccessBackground
-        : activeRenderTheme.toolPendingBackground;
+        ? activeRenderTheme.toolSuccessBg
+        : activeRenderTheme.toolPendingBg;
   const innerWidth = Math.max(1, width - 2);
   const titleColor =
     status === "error"
-      ? activeRenderTheme.danger
+      ? activeRenderTheme.error
       : status === "success"
         ? activeRenderTheme.success
-        : activeRenderTheme.tool;
+        : activeRenderTheme.toolTitle;
   const title = titleColor(activeRenderTheme.bold(toolDisplayTitle(line)));
   const body = toolBodyLines(line);
   const lines = [
@@ -479,7 +479,7 @@ function renderToolBlock(line: ChatLine, width: number, tab?: MixCodeTabInfo): s
 
 function renderUserBashBlock(line: ChatLine, width: number, tab?: MixCodeTabInfo): string[] {
   const innerWidth = Math.max(1, width - 1);
-  const color = line.excludeFromContext ? activeRenderTheme.dim : activeRenderTheme.shellBorder;
+  const color = line.excludeFromContext ? activeRenderTheme.dim : activeRenderTheme.bashMode;
   const title = color(activeRenderTheme.bold(toolDisplayTitle(line)));
   const output = line.text.trimEnd();
   const outputLines = output ? output.split(/\r?\n/) : [];
@@ -505,7 +505,7 @@ function renderUserBashBlock(line: ChatLine, width: number, tab?: MixCodeTabInfo
   return body.map((part) => padLine(part, width));
 }
 
-function userBashRule(width: number, color = activeRenderTheme.tool): string {
+function userBashRule(width: number, color = activeRenderTheme.toolTitle): string {
   return color("─".repeat(Math.max(1, width)));
 }
 
@@ -538,7 +538,7 @@ function userBashStatusLines(
     line.bashExitCode !== undefined &&
     line.bashExitCode !== 0
   ) {
-    lines.push(activeRenderTheme.danger(`(exit ${line.bashExitCode})`));
+    lines.push(activeRenderTheme.error(`(exit ${line.bashExitCode})`));
   }
   if (line.status !== "running" && line.bashTruncated === true && line.bashFullOutputPath) {
     lines.push(
@@ -584,7 +584,7 @@ function renderSystemBlock(
   // inserts one blank line between non-empty blocks.
   if (isError || isWarning || systemStatus) {
     const color = isError
-      ? activeRenderTheme.danger
+      ? activeRenderTheme.error
       : isWarning
         ? activeRenderTheme.warning
         : activeRenderTheme.dim;
@@ -670,7 +670,7 @@ export function renderStartupBlock(text: string, width: number): string[] {
     const trimmed = line.trim();
     if (/^\[[^\]]+\]$/.test(trimmed)) {
       inSkillConflicts = trimmed === "[Skill conflicts]";
-      const headerColor = inSkillConflicts ? activeRenderTheme.warning : activeRenderTheme.tool;
+      const headerColor = inSkillConflicts ? activeRenderTheme.warning : activeRenderTheme.toolTitle;
       return [padLine(headerColor(trimmed), width)];
     }
     // Wrap long resource lists (e.g. comma-separated skills/extensions) so the
@@ -726,10 +726,10 @@ function renderToolRenderedLine(line: ChatLine, text: string, width: number): st
   const status = line.status ?? "success";
   const background =
     status === "error"
-      ? activeRenderTheme.toolErrorBackground
+      ? activeRenderTheme.toolErrorBg
       : status === "success"
-        ? activeRenderTheme.toolSuccessBackground
-        : activeRenderTheme.toolPendingBackground;
+        ? activeRenderTheme.toolSuccessBg
+        : activeRenderTheme.toolPendingBg;
   const innerWidth = Math.max(1, width - 1);
   return normalizeExternalRendererLines(text, innerWidth).map((part) =>
     renderBackgroundLine(` ${part}`, width, background),
@@ -806,19 +806,19 @@ function renderSkillUserMessage(
     boxLines.push("", label, "");
   }
   for (const part of boxLines) {
-    lines.push(renderBackgroundLine(part, width, activeRenderTheme.customMessageBackground));
+    lines.push(renderBackgroundLine(part, width, activeRenderTheme.customMessageBg));
   }
 
   // Render user message (args) as a separate user block below
   if (skillBlock.userMessage) {
     lines.push(padLine("", width));
     const body = wrapPlainLine(skillBlock.userMessage, innerWidth).map((part) =>
-      activeRenderTheme.userMessage(padLine(` ${part}`, width)),
+      activeRenderTheme.userMessageBg(padLine(` ${part}`, width)),
     );
     lines.push(
-      OSC133_ZONE_START + activeRenderTheme.userMessage(padLine("", width)),
+      OSC133_ZONE_START + activeRenderTheme.userMessageBg(padLine("", width)),
       ...body,
-      activeRenderTheme.userMessage(padLine("", width)) + OSC133_ZONE_END + OSC133_ZONE_FINAL,
+      activeRenderTheme.userMessageBg(padLine("", width)) + OSC133_ZONE_END + OSC133_ZONE_FINAL,
     );
   }
 

@@ -524,7 +524,7 @@ test("zen separator uses colored solid dots for every background state", () => {
     accent: (s: string) => `${esc}[34m${s}${esc}[39m`,
     warning: (s: string) => `${esc}[33m${s}${esc}[39m`,
     done: (s: string) => `${esc}[32m${s}${esc}[39m`,
-    danger: (s: string) => `${esc}[31m${s}${esc}[39m`,
+    error: (s: string) => `${esc}[31m${s}${esc}[39m`,
     text: (s: string) => s,
     dim: (s: string) => s,
   } as unknown as MixCodeTheme;
@@ -610,7 +610,7 @@ test("zen separator uses neutral overflow color whenever visible states are mixe
     accent: (s: string) => s,
     warning: (s: string) => s,
     done: (s: string) => s,
-    danger: (s: string) => s,
+    error: (s: string) => s,
     dim: (s: string) => `${esc}[2m${s}${esc}[22m`,
     text: (s: string) => s,
   } as unknown as MixCodeTheme;

@@ -130,7 +130,7 @@ function renderForkSelectorOverlayInner(state: MixCodeState, width: number): str
     const previewBudget = innerWidth - 2;
     const preview = truncateMessagePreview(item.text, previewBudget);
     const line = `${prefix} ${preview}`;
-    lines.push(isSelected ? activeRenderTheme.selection(line) : line);
+    lines.push(isSelected ? activeRenderTheme.selectedBg(line) : line);
   }
 
   if (endIndex < totalItems) {

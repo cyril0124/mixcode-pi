@@ -142,7 +142,7 @@ export function renderTabBarSeparator(
       .map((marker) => {
         if (marker === "working") return activeRenderTheme.accent(statusDot);
         if (marker === "question") return activeRenderTheme.warning(statusDot);
-        if (marker === "error") return activeRenderTheme.danger(statusDot);
+        if (marker === "error") return activeRenderTheme.error(statusDot);
         return activeRenderTheme.done(statusDot);
       })
       .join(" ");
@@ -364,7 +364,7 @@ export function contextBarAndPercentText(
   );
   const cells = `${glyphs.barFilled.repeat(filled)}${glyphs.barEmpty.repeat(CONTEXT_BAR_WIDTH - filled)}`;
   const bar = `${glyphs.context} [${cells}] ${percent.toFixed(1)}%`;
-  if (percent >= 80) return activeRenderTheme.danger(bar);
+  if (percent >= 80) return activeRenderTheme.error(bar);
   if (percent >= 50) return activeRenderTheme.accent(bar);
   return activeRenderTheme.success(bar);
 }
@@ -716,7 +716,7 @@ function renderExtensionPanelInner(
   if (height === 0 || panelWidth < 4) return [];
   // Border + one padding space on the left; body fills the rest.
   const bodyWidth = Math.max(1, panelWidth - 2);
-  const border = activeRenderTheme.borderDim("\u2502");
+  const border = activeRenderTheme.borderMuted("\u2502");
   const blank = padLine(border, panelWidth);
   const ordered = [
     ...tab.extensionUi.widgets.filter((widget) => widget.placement === "aboveEditor"),
@@ -847,7 +847,7 @@ function tabBarSegments(state: MixCodeState): Array<{ id: string; text: string }
 
 function renderTabSegmentText(tab: MixCodeTabInfo, text: string, active: boolean): string {
   const statusColor = tabHasPendingUserInteraction(tab)
-    ? activeRenderTheme.tool
+    ? activeRenderTheme.toolTitle
     : tab.status === "running" || tab.status === "thinking"
       ? activeRenderTheme.accent
       : tab.status !== "error" && tab.unreadDone

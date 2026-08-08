@@ -124,13 +124,13 @@ function configPanelBox(title: string, lines: string[], width: number): string[]
   const innerWidth = Math.max(0, width - 2);
   const top = renderBoxTop(title, [], innerWidth, {
     ...activeRenderTheme,
-    border: activeRenderTheme.borderDim,
+    border: activeRenderTheme.borderMuted,
   }, true);
   const body = lines.map(
     (line) =>
-      `${activeRenderTheme.borderDim("│")}${padLine(line, innerWidth)}${activeRenderTheme.borderDim("│")}`,
+      `${activeRenderTheme.borderMuted("│")}${padLine(line, innerWidth)}${activeRenderTheme.borderMuted("│")}`,
   );
-  const bottom = `${activeRenderTheme.borderDim("╰")}${activeRenderTheme.borderDim("─".repeat(innerWidth))}${activeRenderTheme.borderDim("╯")}`;
+  const bottom = `${activeRenderTheme.borderMuted("╰")}${activeRenderTheme.borderMuted("─".repeat(innerWidth))}${activeRenderTheme.borderMuted("╯")}`;
   return [padLine("", width), top, ...body, bottom];
 }
 
@@ -229,7 +229,7 @@ function renderAgentCard(
   selected: boolean,
   now: number,
 ): string[] {
-  const border = selected ? activeRenderTheme.accent : activeRenderTheme.borderDim;
+  const border = selected ? activeRenderTheme.accent : activeRenderTheme.borderMuted;
   const innerWidth = Math.max(0, width - 2);
   const marker = selected ? "› " : "";
   const status = formatTabStatusChip(tab);
@@ -267,7 +267,7 @@ function renderPreviewPanel(
 ): string[] {
   if (maxRows <= 0) return [];
   const innerWidth = Math.max(0, width - 2);
-  const divider = `${activeRenderTheme.borderDim("─".repeat(width))}`;
+  const divider = `${activeRenderTheme.borderMuted("─".repeat(width))}`;
   if (maxRows === 1) return [divider];
   const messages = tab.previewMessages.filter(
     (msg) => msg.role === "user" || msg.role === "assistant",
@@ -288,8 +288,8 @@ function renderPreviewPanel(
 }
 
 function formatAgentCardTitleSegment(tab: MixCodeState["tabs"][number], text: string): string {
-  if (tab.status === "error") return activeRenderTheme.danger(text);
-  if (tabHasPendingUserInteraction(tab)) return activeRenderTheme.tool(text);
+  if (tab.status === "error") return activeRenderTheme.error(text);
+  if (tabHasPendingUserInteraction(tab)) return activeRenderTheme.toolTitle(text);
   if (tab.status === "running" || tab.status === "thinking") return activeRenderTheme.accent(text);
   if (tab.status === "done" || tab.unreadDone) return activeRenderTheme.done(text);
   return text;
@@ -310,12 +310,12 @@ function formatAgentSpinner(tab: MixCodeState["tabs"][number], now: number): str
 function formatTabStatusChip(tab: MixCodeState["tabs"][number]): string {
   // Prefer unread-done over bare idle so Home cards match the tab-bar `!` glyph.
   if (tab.unreadDone && (tab.status === "idle" || tab.status === "done")) {
-    return activeRenderTheme.tool("[done]");
+    return activeRenderTheme.toolTitle("[done]");
   }
   // Only the live tab status owns the error chip. Do not infer error from
   // historical system messages — recovered sessions stay idle/done.
   if (tab.status === "error") {
-    return activeRenderTheme.danger("[error]");
+    return activeRenderTheme.error("[error]");
   }
   const text = `[${tab.status}]`;
   switch (tab.status) {
@@ -323,7 +323,7 @@ function formatTabStatusChip(tab: MixCodeState["tabs"][number]): string {
     case "thinking":
       return activeRenderTheme.accent(text);
     case "done":
-      return activeRenderTheme.tool(text);
+      return activeRenderTheme.toolTitle(text);
     default:
       return activeRenderTheme.dim(text);
   }
@@ -365,7 +365,7 @@ function singleLinePreview(text: string | undefined): string {
 function renderPackageUpdateNotice(packages: string[], width: number): string[] {
   if (!packages.length) return [];
   const innerWidth = Math.max(0, width - 2);
-  const title = activeRenderTheme.bold(activeRenderTheme.tool("Package Updates Available"));
+  const title = activeRenderTheme.bold(activeRenderTheme.toolTitle("Package Updates Available"));
   const action = activeRenderTheme.accent("pi update --extensions");
   const lines = [
     title,
@@ -374,12 +374,12 @@ function renderPackageUpdateNotice(packages: string[], width: number): string[] 
     ...packages.map((pkg) => `- ${pkg}`),
   ];
   return [
-    `${activeRenderTheme.tool("┌")}${activeRenderTheme.tool("─".repeat(innerWidth))}${activeRenderTheme.tool("┐")}`,
+    `${activeRenderTheme.toolTitle("┌")}${activeRenderTheme.toolTitle("─".repeat(innerWidth))}${activeRenderTheme.toolTitle("┐")}`,
     ...lines.map((line) => {
       const body = truncateToWidth(` ${line}`, innerWidth, "...");
-      return `${activeRenderTheme.tool("│")}${padLine(body, innerWidth)}${activeRenderTheme.tool("│")}`;
+      return `${activeRenderTheme.toolTitle("│")}${padLine(body, innerWidth)}${activeRenderTheme.toolTitle("│")}`;
     }),
-    `${activeRenderTheme.tool("└")}${activeRenderTheme.tool("─".repeat(innerWidth))}${activeRenderTheme.tool("┘")}`,
+    `${activeRenderTheme.toolTitle("└")}${activeRenderTheme.toolTitle("─".repeat(innerWidth))}${activeRenderTheme.toolTitle("┘")}`,
     "",
   ];
 }
@@ -466,7 +466,7 @@ function renderCommandPaletteInner(
       const row = `${marker}${labelPadded}  ${cmdPadded}  ${coloredDesc}`;
 
       if (isSelected) {
-        lines.push(activeRenderTheme.selection(padLine(row, innerWidth)));
+        lines.push(activeRenderTheme.selectedBg(padLine(row, innerWidth)));
       } else {
         lines.push(row);
       }
@@ -510,7 +510,7 @@ function renderTabJumpOverlayInner(state: MixCodeState, width: number): string[]
       const entry = entries[index]!;
       const line = renderTabJumpRow(entry, index === state.tabJumpIndex, innerWidth, state.tabJumpQuery);
       lines.push(
-        index === state.tabJumpIndex ? activeRenderTheme.selection(padLine(line, innerWidth)) : line,
+        index === state.tabJumpIndex ? activeRenderTheme.selectedBg(padLine(line, innerWidth)) : line,
       );
     }
     if (endIndex < entries.length) {
@@ -569,7 +569,7 @@ function formatTabJumpId(id: string, label: string, availableWidth: number): str
 function tabJumpBaseStyle(
   entry: ReturnType<typeof filterTabJumpEntries>[number],
 ): (text: string) => string {
-  if (entry.question) return activeRenderTheme.tool;
+  if (entry.question) return activeRenderTheme.toolTitle;
   if (entry.busy) return activeRenderTheme.accent;
   if (entry.done) return activeRenderTheme.done;
   return (text: string) => text;
@@ -621,7 +621,7 @@ function renderPickerOverlayInner(state: MixCodeState, width: number): string[] 
       const rendered = item.disabled ? activeRenderTheme.dim(line) : line;
       lines.push(
         index === picker.selectedIndex
-          ? activeRenderTheme.selection(padLine(rendered, Math.max(1, width - 2)))
+          ? activeRenderTheme.selectedBg(padLine(rendered, Math.max(1, width - 2)))
           : rendered,
       );
     }
@@ -675,7 +675,7 @@ function renderWorkdirPickerOverlay(
       const line = `${index === picker.selectedIndex ? ">" : " "} ${icon} ${label}  ${activeRenderTheme.dim(item.description)}`;
       lines.push(
         index === picker.selectedIndex
-          ? activeRenderTheme.selection(padLine(line, innerWidth))
+          ? activeRenderTheme.selectedBg(padLine(line, innerWidth))
           : line,
       );
     }
@@ -705,7 +705,7 @@ function renderContextLimitCustomInput(
     `> ${picker.query}_`,
   ];
   if (picker.customInputError) {
-    lines.push(activeRenderTheme.danger(`\u2716 ${picker.customInputError}`));
+    lines.push(activeRenderTheme.error(`\u2716 ${picker.customInputError}`));
   }
   lines.push("", activeRenderTheme.dim("enter: confirm  esc: back"));
   return overlayPanel(picker.title, lines, width);

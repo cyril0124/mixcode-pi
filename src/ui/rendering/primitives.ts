@@ -181,7 +181,7 @@ export function panelBox(title: string, lines: string[], width: number): string[
     lines,
     width,
     theme,
-    border: (text: string) => theme.borderDim(text),
+    border: (text: string) => theme.borderMuted(text),
     inner: (text: string) => theme.setupPanel(text),
     leadingBlank: true,
   });

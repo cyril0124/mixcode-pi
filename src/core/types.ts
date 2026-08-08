@@ -271,19 +271,19 @@ export interface MixCodeTabInfo {
 
 export type FloatingPanelThemeRole =
   | "border"
-  | "borderDim"
+  | "borderMuted"
   | "text"
   | "dim"
-  | "subtle"
+  | "muted"
   | "accent"
-  | "danger"
+  | "error"
   | "warning"
   | "success"
   | "surface"
   | "panel"
-  | "selection"
+  | "selectedBg"
   | "vimBorder"
-  | "userMessage";
+  | "userMessageBg";
 
 export interface FloatingPanelStyle {
   border?: FloatingPanelThemeRole;

@@ -507,9 +507,9 @@ test("runtime maps extension theme primitives to MixCode themes", async () => {
       seen[4] ?? "",
       /^false:Pi extension theme switching requires an active MixCode TUI host/,
     );
-    assert.deepEqual(light, { success: false, error: "Unknown theme: light" });
+    assert.deepEqual(light, { success: true });
     assert.deepEqual(dark, { success: true });
-    assert.deepEqual(appliedThemes, ["mixcode-dark"]);
+    assert.deepEqual(appliedThemes, ["light", "mixcode-dark"]);
     assert.equal(mixTheme, "mixcode-dark");
     assert.match(missing.error ?? "", /Unknown theme: missing-theme/);
   } finally {

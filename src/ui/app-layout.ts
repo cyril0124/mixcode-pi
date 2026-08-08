@@ -194,7 +194,7 @@ export class MixCodeRoot implements Component {
     };
     if (active.panelSelection) {
       panel = panel.map((line, row) =>
-        highlightChatSelectionLine(line, row, active.panelSelection, theme.selection),
+        highlightChatSelectionLine(line, row, active.panelSelection, theme.selectedBg),
       );
     }
     return joinColumns(chat, panel, chatWidth, panelWidth);
@@ -430,7 +430,7 @@ export class MixCodeLayoutRoot implements Component {
       active.lastRenderedInputLines = clampedEditorLines;
       if (active.inputSelection) {
         visibleEditorLines = clampedEditorLines.map((line, row) =>
-          highlightChatSelectionLine(line, row, active.inputSelection, theme.selection),
+          highlightChatSelectionLine(line, row, active.inputSelection, theme.selectedBg),
         );
       }
     }

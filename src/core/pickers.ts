@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { THEMES } from "../ui/themes.js";
+import { listThemeInfos } from "../ui/themes.js";
 import { contextLimitPickerItems } from "./context-limit.js";
 import { fuzzyMatch } from "./fuzzy.js";
 import { modelRefId } from "./models.js";
@@ -51,7 +51,7 @@ export function pickerItems(
     }));
   }
   if (kind === "theme") {
-    return THEMES.map((theme) => ({
+    return listThemeInfos().map((theme) => ({
       id: theme.id,
       label: theme.label,
       description: theme.dark ? "dark" : "light",

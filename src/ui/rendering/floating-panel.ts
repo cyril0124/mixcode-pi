@@ -50,10 +50,10 @@ function renderFloatingPanelBox(
 ): string[] {
   const innerWidth = Math.max(0, width - 2);
   const contentWidth = Math.max(0, width - 4);
-  const border = themeRole(theme, panel.style?.border ?? "borderDim");
-  const title = themeRole(theme, panel.style?.title ?? panel.style?.border ?? "borderDim");
+  const border = themeRole(theme, panel.style?.border ?? "borderMuted");
+  const title = themeRole(theme, panel.style?.title ?? panel.style?.border ?? "borderMuted");
   const bodyStyle = themeRole(theme, panel.style?.body ?? "surface");
-  const highlighted = themeRole(theme, panel.style?.highlighted ?? "selection");
+  const highlighted = themeRole(theme, panel.style?.highlighted ?? "selectedBg");
   const top = renderFloatingPanelTop(panel.title, innerWidth, border, title);
   const body = panel.lines.map((line, index) => {
     const paddedContent = padLine(` ${truncateToWidth(line, contentWidth)} `, innerWidth);

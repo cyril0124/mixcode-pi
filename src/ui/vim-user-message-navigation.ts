@@ -122,10 +122,10 @@ function refreshUserMessagePreview(
     width: PREVIEW_WIDTH,
     expiresAt: Date.now() + PREVIEW_TTL_MS,
     style: {
-      border: "borderDim",
-      title: "borderDim",
+      border: "borderMuted",
+      title: "borderMuted",
       body: "surface",
-      highlighted: "selection",
+      highlighted: "selectedBg",
     },
   };
 }

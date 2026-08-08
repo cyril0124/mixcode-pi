@@ -33,7 +33,7 @@ The file uses JSONC syntax: regular JSON plus comments and trailing commas. If t
 
 | Setting | Values | Default | Description |
 | --- | --- | --- | --- |
-| `theme` | theme id string | unset → runtime default | Explicit MixCode UI theme. When omitted, the app keeps the restored/default theme. Editable via `/settings`. |
+| `theme` | theme id string | unset → runtime default | Explicit UI theme id. Built-ins (`claude-warm`, `mixcode-dark`, `tokyo-night`, `terminal`), Pi themes (`dark`/`light` — note `dark` aliases to `mixcode-dark`), and any theme discovered by Pi (`~/.pi/agent/themes`, packages). Editable via `/settings`. |
 | `history.maxBytes` | positive integer | `5242880` | Maximum size, in bytes, kept in `history.jsonl`. Older entries are trimmed when the file exceeds this size. |
 | `ui.renderMermaid` | boolean | `true` | When true, ` ```mermaid ` fences render as terminal ASCII diagrams; when false, they stay plain code blocks. Editable via `/settings`. |
 | `ui.icons.mode` | `auto` \| `nerd` \| `ascii` | `nerd` | Glyph set for input-meta icons, context meter, zen status dots, and extension-manager status. `auto` picks nerd glyphs on known Nerd Font terminals, otherwise ascii. Editable via `/settings` as “Icon mode”. |

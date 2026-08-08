@@ -565,7 +565,7 @@ test("extension notify matches Pi info/warning/error rendering", async () => {
     );
     assert.match(
       rendered,
-      new RegExp(escapeRegExp(MIXCODE_DARK_THEME.danger("Error: fail **literal**"))),
+      new RegExp(escapeRegExp(MIXCODE_DARK_THEME.error("Error: fail **literal**"))),
     );
   } finally {
     await rm(dir, { recursive: true, force: true });

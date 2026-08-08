@@ -57,7 +57,7 @@ export function renderHeaderKeyHints(tab: MixCodeTabInfo, width: number): string
 function renderCompact(width: number): string[] {
   const separator = activeRenderTheme.dim(" · ");
   const units = COMPACT_HINTS.map(
-    ([key, label]) => `${activeRenderTheme.tool(key)}${activeRenderTheme.dim(` ${label}`)}`,
+    ([key, label]) => `${activeRenderTheme.toolTitle(key)}${activeRenderTheme.dim(` ${label}`)}`,
   );
   // Pack whole key+label units per line so a hint never wraps mid-pair.
   const lines: string[] = [];
@@ -79,12 +79,12 @@ function renderExpanded(width: number): string[] {
   const rows = [...globalKeymapRows(), ...EXPANDED_EXTRAS];
   const keyColumn = Math.max(...rows.map(([key]) => key.length)) + 2;
   const lines = rows.flatMap(([key, description]) => {
-    const label = `${activeRenderTheme.tool(key.padEnd(keyColumn))}${activeRenderTheme.dim(description)}`;
+    const label = `${activeRenderTheme.toolTitle(key.padEnd(keyColumn))}${activeRenderTheme.dim(description)}`;
     return wrapTextWithAnsi(label, Math.max(1, width)).map((line) => padLine(line, width));
   });
   lines.push(
     padLine(
-      `${activeRenderTheme.tool("/hotkeys".padEnd(keyColumn))}${activeRenderTheme.dim("Full shortcut list (all scopes)")}`,
+      `${activeRenderTheme.toolTitle("/hotkeys".padEnd(keyColumn))}${activeRenderTheme.dim("Full shortcut list (all scopes)")}`,
       width,
     ),
   );

@@ -563,6 +563,9 @@ export async function createRuntimeServices(
   // a later reset restores these values, not hardcoded SDK defaults.
   captureCompactionBaseline(services.settingsManager);
   configureMixCodeRetryClassification();
+  // Merge ResourceLoader-discovered themes (packages, ~/.pi/agent/themes, …).
+  const { registerMixCodeThemes } = await import("./runtime-extension-theme.js");
+  registerMixCodeThemes(services.resourceLoader.getThemes().themes);
   servicesRef = services;
   setExtensionManagerEntriesForServices(services, latestExtensionManagerEntries);
   return services;

@@ -120,6 +120,6 @@ function toastIcon(type: ToastType): string {
 function toastColor(type: ToastType, theme: MixCodeTheme): (text: string) => string {
   if (type === "success") return theme.success;
   if (type === "warning") return theme.warning;
-  if (type === "error") return theme.danger;
+  if (type === "error") return theme.error;
   return theme.accent;
 }

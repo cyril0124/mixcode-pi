@@ -45,6 +45,20 @@ test("extension theme lookup and apply reject unknown or hostless switches", () 
   const setThemes: string[] = [];
   assert.deepEqual(
     applyExtensionTheme(
+      "not-a-real-theme",
+      {
+        getTheme: () => "dark",
+        setTheme: (theme) => setThemes.push(theme),
+      },
+      () => undefined,
+    ),
+    { success: false, error: "Unknown theme: not-a-real-theme" },
+  );
+  assert.deepEqual(setThemes, []);
+
+  // Pi built-in light is loadable and switches when a host is present.
+  assert.deepEqual(
+    applyExtensionTheme(
       "light",
       {
         getTheme: () => "dark",
@@ -52,9 +66,9 @@ test("extension theme lookup and apply reject unknown or hostless switches", () 
       },
       () => undefined,
     ),
-    { success: false, error: "Unknown theme: light" },
+    { success: true },
   );
-  assert.deepEqual(setThemes, []);
+  assert.deepEqual(setThemes, ["light"]);
 });
 
 test("model selection rejects unregistered models and commits registered ones", async () => {

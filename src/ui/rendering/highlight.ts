@@ -10,7 +10,7 @@
  * theme.bold(...) wrapped around a whole already-colored row), the run's own
  * closing code would turn that outer style off partway through the row.
  * Keeping matched/unmatched runs as siblings avoids that, while still
- * nesting safely inside persistent background wraps like theme.selection
+ * nesting safely inside persistent background wraps like theme.selectedBg
  * (see rendering/primitives.ts), which are engineered to survive embedded
  * resets.
  */

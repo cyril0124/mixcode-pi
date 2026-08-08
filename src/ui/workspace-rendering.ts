@@ -51,7 +51,7 @@ function renderSaveOverlay(state: MixCodeState, width: number): string[] {
 function renderNameInputLines(value: string, width: number): string[] {
   const innerWidth = Math.max(4, width - 2);
   const visibleValue = truncateToWidth(value, Math.max(0, innerWidth - 1), "\u2026");
-  const cursor = activeRenderTheme.selection(" ");
+  const cursor = activeRenderTheme.selectedBg(" ");
   const content = padLine(`${visibleValue}${CURSOR_MARKER}${cursor}`, innerWidth);
   return [
     `${activeRenderTheme.border("\u250c")}${activeRenderTheme.border("\u2500".repeat(innerWidth))}${activeRenderTheme.border("\u2510")}`,
@@ -193,7 +193,7 @@ function renderWorkspaceList(state: MixCodeState, width: number, rows: number): 
     const nameWidth = Math.max(6, width - visibleWidth(right) - 4);
     const line = `${selected ? ">" : " "} ${truncateToWidth(workspace.name, nameWidth)} ${right}`;
     lines.push(
-      selected ? activeRenderTheme.selection(padLine(line, width)) : truncateToWidth(line, width),
+      selected ? activeRenderTheme.selectedBg(padLine(line, width)) : truncateToWidth(line, width),
     );
   }
   while (lines.length < rows) lines.push("");

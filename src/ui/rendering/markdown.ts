@@ -1,6 +1,5 @@
 import {
   createMermaidMarkdownTransformer,
-  highlightCode,
   type MarkdownTransformContext,
 } from "@earendil-works/pi-coding-agent";
 import { Markdown, type MarkdownTheme, visibleWidth } from "@earendil-works/pi-tui";
@@ -8,6 +7,7 @@ import {
   currentExtensionTheme,
   ensureExtensionThemeInitialized,
 } from "../../agent/runtime-extension-theme.js";
+import { getMarkdownTheme as getPiMarkdownTheme, highlightCode } from "../pi-theme-api.js";
 import { activeRenderTheme } from "./context.js";
 import { padLine } from "./primitives.js";
 
@@ -53,28 +53,12 @@ export function renderMarkdown(
 }
 
 function getMarkdownTheme(): MarkdownTheme {
+  // Sync global Pi theme once, then use Pi md* tokens so third-party themes apply.
+  ensureExtensionThemeInitialized();
+  const pi = getPiMarkdownTheme();
   return {
-    heading: (text: string) => activeRenderTheme.accent(text),
-    link: (text: string) => activeRenderTheme.tool(text),
-    linkUrl: (text: string) => activeRenderTheme.dim(text),
-    code: (text: string) => activeRenderTheme.tool(text),
-    codeBlock: (text: string) => activeRenderTheme.text(text),
-    codeBlockBorder: (text: string) => activeRenderTheme.border(text),
-    quote: (text: string) => activeRenderTheme.thinking(text),
-    quoteBorder: (text: string) => activeRenderTheme.border(text),
-    hr: (text: string) => activeRenderTheme.border(text),
-    listBullet: (text: string) => activeRenderTheme.accent(text),
-    bold: (text: string) => activeRenderTheme.bold(text),
-    italic: (text: string) => activeRenderTheme.italic(text),
-    strikethrough: (text: string) => `\x1b[9m${text}\x1b[29m`,
-    underline: (text: string) => `\x1b[4m${text}\x1b[24m`,
-    // Reuse the SDK's syntax highlighter (highlight.js) so fenced code blocks
-    // in assistant/thinking markdown get per-token colors, matching pi agent.
-    // highlightCode reads the SDK global theme; ensureExtensionThemeInitialized
-    // sets it to the "dark" builtin (the only brightness MixCode ships) and
-    // caches that so this per-frame path skips the ~40us initTheme cost.
-    // Falls back to flat color for unknown/absent languages.
-    // pi-tui expects highlightCode to return string[] (one entry per line).
+    ...pi,
+    // Keep highlight on the same initialized global Theme instance.
     highlightCode: (code: string, lang?: string) => {
       ensureExtensionThemeInitialized();
       return highlightCode(code, lang);

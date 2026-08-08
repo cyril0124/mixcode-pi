@@ -2,7 +2,6 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import {
   type KeybindingsManager as ExtensionKeybindingsManager,
-  initTheme,
   type Theme,
 } from "@earendil-works/pi-coding-agent";
 import {
@@ -18,12 +17,19 @@ import {
 } from "../core/active-extension-theme-id.js";
 import { defaultPiAgentDir, resolveAgentDirEnv } from "../core/pi-models.js";
 import {
+  applyPiThemeInstance,
+  initTheme,
+} from "../ui/pi-theme-api.js";
+import {
+  listThemeInfos,
   MIXCODE_EXTENSION_CLAUDE_WARM_THEME,
   MIXCODE_EXTENSION_TERMINAL_THEME,
   MIXCODE_EXTENSION_THEME,
   MIXCODE_EXTENSION_TOKYO_NIGHT_THEME,
   normalizeThemeId,
-  THEMES,
+  registerAdditionalTheme,
+  registerMixCodeThemes,
+  resolvePiTheme,
 } from "../ui/themes.js";
 import type { ExtensionThemeHost } from "./runtime-types.js";
 
@@ -34,6 +40,7 @@ export {
   MIXCODE_EXTENSION_THEME,
   MIXCODE_EXTENSION_TOKYO_NIGHT_THEME,
   noteActiveExtensionThemeId,
+  registerMixCodeThemes,
 };
 
 export const MIXCODE_EXTENSION_KEYBINDINGS: KeybindingsConfig = {
@@ -163,28 +170,17 @@ export function currentExtensionTheme(host?: ExtensionThemeHost | undefined): Th
 }
 
 export function availableExtensionThemes(): Array<{ name: string; path: string | undefined }> {
-  return [
-    ...THEMES.map((theme) => ({ name: theme.id, path: undefined })),
-    { name: "dark", path: undefined },
-    { name: MIXCODE_EXTENSION_THEME.name ?? "mixcode-extension", path: undefined },
-  ].filter(
-    (theme, index, themes) =>
-      themes.findIndex((candidate) => candidate.name === theme.name) === index,
-  );
+  const themes = listThemeInfos().map((theme) => ({ name: theme.id, path: undefined }));
+  // Legacy name some packages/tests still query.
+  if (!themes.some((theme) => theme.name === "mixcode-extension")) {
+    themes.push({ name: "mixcode-extension", path: undefined });
+  }
+  return themes;
 }
 
 export function extensionThemeByName(name: string): Theme | undefined {
-  const themeId = normalizeExtensionThemeId(name);
-  if (themeId === "mixcode-dark") return MIXCODE_EXTENSION_THEME;
-  if (themeId === "claude-warm") return MIXCODE_EXTENSION_CLAUDE_WARM_THEME;
-  if (themeId === "tokyo-night") return MIXCODE_EXTENSION_TOKYO_NIGHT_THEME;
-  if (themeId === "terminal") return MIXCODE_EXTENSION_TERMINAL_THEME;
-  if (
-    name === (MIXCODE_EXTENSION_THEME.name ?? "mixcode-extension") ||
-    name === "mixcode-extension"
-  )
-    return MIXCODE_EXTENSION_THEME;
-  return undefined;
+  const themeId = normalizeExtensionThemeId(name) ?? name.trim();
+  return resolvePiTheme(themeId);
 }
 
 export function applyExtensionTheme(
@@ -201,16 +197,26 @@ export function applyExtensionTheme(
     const themeId = theme.name?.trim();
     if (!themeId)
       return { success: false, error: "Pi extension in-memory themes must have a name in MixCode" };
-    return {
-      success: false,
-      error: `Pi extension in-memory themes are not switchable by MixCode yet: ${themeId}`,
-    };
+    try {
+      registerAdditionalTheme(theme);
+      host.setTheme(themeId);
+      noteActiveExtensionThemeId(themeId);
+      applyPiThemeInstance(theme);
+      host.requestRender?.();
+      requestRender();
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
   }
   const themeId = normalizeExtensionThemeId(theme);
   if (!themeId) return { success: false, error: `Unknown theme: ${theme}` };
+  const piTheme = resolvePiTheme(themeId);
+  if (!piTheme) return { success: false, error: `Unknown theme: ${theme}` };
   try {
     host.setTheme(themeId);
     noteActiveExtensionThemeId(themeId); // sync even if host.setTheme is a no-op in tests
+    applyPiThemeInstance(piTheme);
     host.requestRender?.();
     requestRender();
     return { success: true };
@@ -223,14 +229,18 @@ export function normalizeExtensionThemeId(name: string): string | undefined {
   return normalizeThemeId(name);
 }
 
-// Tracks which SDK builtin the global syntax highlighter was initialized to.
-// initTheme costs ~40us/call, far too much for the per-frame markdown highlight
-// path, so we cache the last mode and skip re-init when it is unchanged.
-// MixCode currently only ships dark builtins, so this stays "dark" in practice.
-let initializedThemeMode: "light" | "dark" | undefined;
+// Tracks whether the SDK global theme was initialized for syntax highlighting.
+// initTheme costs ~40us/call; cache so the per-frame markdown path skips re-init.
+let globalThemeReady = false;
 
 export function ensureExtensionThemeInitialized(mode: "light" | "dark" = "dark"): void {
-  if (initializedThemeMode === mode) return;
-  initTheme(mode);
-  initializedThemeMode = mode;
+  if (globalThemeReady) return;
+  const active = getActiveExtensionThemeId();
+  const resolved = active ? resolvePiTheme(active) : undefined;
+  if (resolved) {
+    applyPiThemeInstance(resolved);
+  } else {
+    initTheme(mode);
+  }
+  globalThemeReady = true;
 }

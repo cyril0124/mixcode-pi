@@ -30,7 +30,7 @@ import {
   setRetryMaxRetries,
 } from "../agent/retry-settings.js";
 import { DEFAULT_THEME_ID } from "../core/defaults.js";
-import { setTheme, THEMES, themeForId } from "./themes.js";
+import { listThemeInfos, setTheme, themeForId } from "./themes.js";
 
 // ─── Setting item descriptors ────────────────────────────────────────────────
 
@@ -156,7 +156,7 @@ const ITEMS: SettingItem[] = [
     defaultValue: DEFAULT_THEME_ID,
     // undefined => not explicitly set in the file => dim default display
     getValue: ({ mixcodeRaw }) => mixcodeRaw.theme,
-    getOptions: () => THEMES.map((theme) => theme.id),
+    getOptions: () => listThemeInfos().map((theme) => theme.id),
     setValue: async (ctx, v) => {
       const next: RawMixCodeSettings = { ...ctx.mixcodeRaw };
       if (v === undefined) delete next.theme;
@@ -432,7 +432,7 @@ function renderSettingsPanelInner(state: MixCodeState, width: number): string[] 
   const t = activeRenderTheme;
   const dim = (s: string) => t.dim(s);
   const accent = (s: string) => t.accent(s);
-  const sel = (s: string) => t.selection(s);
+  const sel = (s: string) => t.selectedBg(s);
   const innerWidth = Math.max(1, width - 2);
 
   // Label left / value right, same density as command palette rows.

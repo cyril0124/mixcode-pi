@@ -127,7 +127,7 @@ function extensionManagerBodyRows(manager: MixCodeState["extensionManager"]): nu
 function buildStatusLines(manager: MixCodeState["extensionManager"]): string[] {
   const out: string[] = [];
   if (manager.working) out.push(activeRenderTheme.accent("Working..."));
-  if (manager.error) out.push(activeRenderTheme.danger(manager.error));
+  if (manager.error) out.push(activeRenderTheme.error(manager.error));
   if (manager.message) out.push(activeRenderTheme.success(manager.message));
   if (out.length) out.push("");
   return out;
@@ -153,7 +153,7 @@ function renderSinglePane(
     const selected = i === manager.selectedIndex;
     const raw = buildListRow(entry, selected, selectedKeys.has(entry.key), false, iconStyle);
     body.push(
-      selected ? activeRenderTheme.selection(padLine(raw, width)) : padLine(raw, width),
+      selected ? activeRenderTheme.selectedBg(padLine(raw, width)) : padLine(raw, width),
     );
   }
   return {
@@ -190,7 +190,7 @@ function renderDoublePane(
   const maxDetailStart = Math.max(0, detailLines.length - bodyRows);
   const detailStart = Math.min(manager.detailScrollOffset, maxDetailStart);
   manager.detailScrollOffset = detailStart;
-  const sep = ` ${activeRenderTheme.borderDim("│")} `;
+  const sep = ` ${activeRenderTheme.borderMuted("│")} `;
   const body: string[] = [];
   for (let row = 0; row < bodyRows; row++) {
     const entryIndex = startIndex + row;
@@ -204,7 +204,7 @@ function renderDoublePane(
       // Wrap the entire row in selection background so the right pane doesn't
       // appear "black" by contrast with the highlighted left pane.
       const fullRow = `${padLine(leftRaw, leftWidth)}${sep}${rightCell}`;
-      body.push(activeRenderTheme.selection(padLine(fullRow, contentWidth)));
+      body.push(activeRenderTheme.selectedBg(padLine(fullRow, contentWidth)));
     } else {
       body.push(`${padLine(leftRaw, leftWidth)}${sep}${rightCell}`);
     }
@@ -244,7 +244,7 @@ function extensionStatusIcon(
   iconStyle: IconStyle,
 ): string {
   if (entry.error) {
-    return activeRenderTheme.danger(iconStyle.resolved === "ascii" ? "!" : "⚠");
+    return activeRenderTheme.error(iconStyle.resolved === "ascii" ? "!" : "⚠");
   }
   return entry.enabled
     ? activeRenderTheme.success(iconStyle.glyphs.statusOn)
@@ -252,7 +252,7 @@ function extensionStatusIcon(
 }
 
 function colorizeName(entry: ExtensionManagerEntryInfo, name: string): string {
-  if (entry.error) return activeRenderTheme.danger(name);
+  if (entry.error) return activeRenderTheme.error(name);
   return entry.enabled ? activeRenderTheme.text(name) : activeRenderTheme.dim(name);
 }
 
@@ -275,7 +275,7 @@ function buildListRow(
   const metaPlain = entry.error
     ? entry.error
     : `${formatExtensionSource(entry)}  tools ${entry.toolCount}  cmds ${entry.commandCount}`;
-  return `${left}  ${entry.error ? activeRenderTheme.danger(metaPlain) : activeRenderTheme.dim(metaPlain)}`;
+  return `${left}  ${entry.error ? activeRenderTheme.error(metaPlain) : activeRenderTheme.dim(metaPlain)}`;
 }
 
 // Full field listing for the selected entry shown in the detail pane.
@@ -289,10 +289,10 @@ function buildDetailLines(
   const name = friendlyExtensionName(entry);
   const lines: string[] = [
     truncateToWidth(`${icon} ${activeRenderTheme.bold(name)}`, width),
-    activeRenderTheme.borderDim("─".repeat(width)),
+    activeRenderTheme.borderMuted("─".repeat(width)),
   ];
   const status = entry.error
-    ? activeRenderTheme.danger("error")
+    ? activeRenderTheme.error("error")
     : entry.enabled
       ? activeRenderTheme.success("enabled")
       : activeRenderTheme.dim("disabled");
@@ -317,9 +317,9 @@ function buildDetailLines(
     }
   }
   if (entry.error) {
-    lines.push(activeRenderTheme.danger("error"));
+    lines.push(activeRenderTheme.error("error"));
     for (const part of wrapToWidth(entry.error, width - 2)) {
-      lines.push(activeRenderTheme.danger(`  ${part}`));
+      lines.push(activeRenderTheme.error(`  ${part}`));
     }
   }
   return lines;
