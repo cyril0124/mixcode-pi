@@ -1,4 +1,4 @@
-import { matchesKey, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { matchesKey, truncateToWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import type { ExtensionReloadResult } from "../core/extension-manager.js";
 import type { ExtensionManagerEntryInfo, MixCodeState } from "../core/types.js";
 import { getActiveTab } from "../core/tabs.js";
@@ -24,6 +24,7 @@ export function openExtensionManager(
   state.extensionManager = {
     open: true,
     selectedIndex: 0,
+    detailScrollOffset: 0,
     entries: runtime.getExtensionManagerEntries(active.sessionId),
     selectedKeys: [],
     message: "",
@@ -43,7 +44,7 @@ const DOUBLE_PANE_MIN_WIDTH = 80;
 // Fraction of the inner content width allocated to the left list column.
 const LEFT_COLUMN_RATIO = 0.55;
 const SHORTCUT_HINT =
-  "space: toggle  enter: save+reload  r: reload tab  a: reload workdir  esc: close";
+  "↑↓ select  PgUp/PgDn details  Space toggle  Enter save+reload  R tab  A workdir  Esc close";
 
 function renderExtensionManagerInner(state: MixCodeState, width: number): string[] {
   // Fill the entire overlay width: the LinesOverlay wrapper pads every line to
@@ -56,16 +57,7 @@ function renderExtensionManagerInner(state: MixCodeState, width: number): string
 
   const header = [activeRenderTheme.dim(truncateToWidth(SHORTCUT_HINT, contentWidth)), ""];
   const statusLines = buildStatusLines(manager);
-
-  // Reserve rows for panel borders, header, status banners and the scroll
-  // footer so the body window never pushes the panel past the terminal height.
-  const reserved = 2 + header.length + statusLines.length + 2;
-  const termRows = process.stdout.rows || 24;
-  const overlayRows = Math.max(
-    1,
-    Math.floor((termRows * DEFAULT_OVERLAY_MAX_HEIGHT_PERCENT) / 100),
-  );
-  const maxBody = Math.max(1, overlayRows - reserved);
+  const maxBody = extensionManagerBodyRows(manager);
 
   const lines = [...header, ...statusLines];
   if (!entries.length) {
@@ -73,13 +65,27 @@ function renderExtensionManagerInner(state: MixCodeState, width: number): string
     return overlayPanel("Extension Manager", lines, panelWidth);
   }
 
-  const useDoublePane = width >= DOUBLE_PANE_MIN_WIDTH;
+  const terminalWidth = process.stdout.columns || width;
+  const useDoublePane = terminalWidth >= DOUBLE_PANE_MIN_WIDTH;
   const rendered = useDoublePane
     ? renderDoublePane(manager, contentWidth, maxBody)
     : renderSinglePane(manager, contentWidth, maxBody);
   lines.push(...rendered.body);
   if (rendered.footer) lines.push(rendered.footer);
   return overlayPanel("Extension Manager", lines, panelWidth);
+}
+
+function extensionManagerBodyRows(manager: MixCodeState["extensionManager"]): number {
+  const statusCount =
+    Number(manager.working) + Number(Boolean(manager.error)) + Number(Boolean(manager.message));
+  const statusRows = statusCount > 0 ? statusCount + 1 : 0;
+  const reserved = 2 + 2 + statusRows + 2;
+  const termRows = process.stdout.rows || 24;
+  const overlayRows = Math.max(
+    1,
+    Math.floor((termRows * DEFAULT_OVERLAY_MAX_HEIGHT_PERCENT) / 100),
+  );
+  return Math.max(1, overlayRows - reserved);
 }
 
 function buildStatusLines(manager: MixCodeState["extensionManager"]): string[] {
@@ -136,6 +142,9 @@ function renderDoublePane(
   const listVisible = Math.min(entries.length, maxBody);
   const bodyRows = Math.max(1, Math.min(maxBody, Math.max(listVisible, detailLines.length)));
   const startIndex = windowStart(manager.selectedIndex, entries.length, bodyRows);
+  const maxDetailStart = Math.max(0, detailLines.length - bodyRows);
+  const detailStart = Math.min(manager.detailScrollOffset, maxDetailStart);
+  manager.detailScrollOffset = detailStart;
   const sep = ` ${activeRenderTheme.borderDim("│")} `;
   const body: string[] = [];
   for (let row = 0; row < bodyRows; row++) {
@@ -145,7 +154,7 @@ function renderDoublePane(
     const leftRaw = entry
       ? buildListRow(entry, selected, selectedKeys.has(entry.key), true)
       : "";
-    const rightCell = padLine(detailLines[row] ?? "", rightWidth);
+    const rightCell = padLine(detailLines[detailStart + row] ?? "", rightWidth);
     if (selected) {
       // Wrap the entire row in selection background so the right pane doesn't
       // appear "black" by contrast with the highlighted left pane.
@@ -156,11 +165,19 @@ function renderDoublePane(
     }
   }
   const footerText = scrollFooter(manager.selectedIndex, entries.length, startIndex, bodyRows);
-  // Keep the separator visual continuity in the footer row.
-  const footer = footerText
-    ? `${padLine(footerText, leftWidth)}${sep}${padLine("", rightWidth)}`
-    : "";
+  const detailFooterText = detailScrollFooter(detailStart, detailLines.length, bodyRows);
+  const footer = `${padLine(footerText, leftWidth)}${sep}${padLine(detailFooterText, rightWidth)}`;
   return { body, footer };
+}
+
+function detailScrollFooter(startIndex: number, total: number, windowSize: number): string {
+  if (total <= windowSize) return "";
+  const end = Math.min(total, startIndex + windowSize);
+  const hasUp = startIndex > 0;
+  const hasDown = end < total;
+  return activeRenderTheme.dim(
+    `${hasUp ? "▲" : " "} details ${startIndex + 1}-${end}/${total} ${hasDown ? "▼" : ""}`,
+  );
 }
 
 function scrollFooter(
@@ -277,17 +294,9 @@ function detailNameList(
   return lines;
 }
 
-// Hard-wrap plain text (paths / error messages) into width-bounded chunks.
+// Hard-wrap paths and errors by terminal columns without splitting graphemes.
 function wrapToWidth(text: string, width: number): string[] {
-  if (width <= 1) return [text];
-  const out: string[] = [];
-  let rest = text;
-  while (visibleWidth(rest) > width) {
-    out.push(rest.slice(0, width));
-    rest = rest.slice(width);
-  }
-  out.push(rest);
-  return out;
+  return wrapTextWithAnsi(text, Math.max(1, width));
 }
 
 // Generic container directory names that are never meaningful extension names;
@@ -345,6 +354,22 @@ export function handleExtensionManagerKey(
     showLinesOverlay(tui, (width) => renderExtensionManager(state, width));
     return true;
   }
+  if (matchesKey(data, "pageDown")) {
+    moveExtensionManagerDetails(
+      state,
+      Math.max(1, extensionManagerBodyRows(state.extensionManager) - 1),
+    );
+    showLinesOverlay(tui, (width) => renderExtensionManager(state, width));
+    return true;
+  }
+  if (matchesKey(data, "pageUp")) {
+    moveExtensionManagerDetails(
+      state,
+      -Math.max(1, extensionManagerBodyRows(state.extensionManager) - 1),
+    );
+    showLinesOverlay(tui, (width) => renderExtensionManager(state, width));
+    return true;
+  }
   if (data === " ") {
     toggleSelectedExtension(state);
     showLinesOverlay(tui, (width) => renderExtensionManager(state, width));
@@ -375,9 +400,10 @@ function runExtensionManagerAction(
   const active = activeExtensionManagerTab(state);
   if (!active) throw new Error("Extension manager requires an active agent tab");
   if (!runtime) throw new Error("Extension manager requires runtime reload support");
-  state.extensionManager.working = true;
-  state.extensionManager.error = "";
-  state.extensionManager.message = "";
+  const manager = state.extensionManager;
+  manager.working = true;
+  manager.error = "";
+  manager.message = "";
   showLinesOverlay(tui, (width) => renderExtensionManager(state, width));
   void (async () => {
     if (action === "apply-current")
@@ -386,16 +412,18 @@ function runExtensionManagerAction(
       action === "reload-workdir"
         ? await runtime.reloadExtensionManagerWorkdir(active.workdir)
         : [await runtime.reloadExtensionManagerTab(active.sessionId)];
+    manager.working = false;
+    if (state.extensionManager !== manager || !manager.open) return;
     refreshExtensionManagerEntries(state, runtime, active.sessionId);
-    state.extensionManager.message = formatReloadResults(results);
-    state.extensionManager.selectedKeys = [];
-    state.extensionManager.working = false;
+    manager.message = formatReloadResults(results);
+    manager.selectedKeys = [];
     await onStateChanged?.(state);
     showLinesOverlay(tui, (width) => renderExtensionManager(state, width));
     tui.requestRender();
   })().catch((error: unknown) => {
-    state.extensionManager.working = false;
-    state.extensionManager.error = error instanceof Error ? error.message : String(error);
+    manager.working = false;
+    if (state.extensionManager !== manager || !manager.open) return;
+    manager.error = error instanceof Error ? error.message : String(error);
     showErrorOverlay(tui, error);
     showLinesOverlay(tui, (width) => renderExtensionManager(state, width));
     tui.requestRender();
@@ -424,11 +452,13 @@ function refreshExtensionManagerEntries(
     state.extensionManager.selectedIndex,
     Math.max(0, state.extensionManager.entries.length - 1),
   );
+  state.extensionManager.detailScrollOffset = 0;
 }
 
 function closeExtensionManager(state: MixCodeState, tui: OverlayTui): void {
   state.extensionManager.open = false;
   state.extensionManager.selectedIndex = 0;
+  state.extensionManager.detailScrollOffset = 0;
   state.extensionManager.selectedKeys = [];
   closeAppOverlay(tui);
   tui.requestRender();
@@ -442,6 +472,14 @@ function moveExtensionManagerSelection(state: MixCodeState, delta: number): void
   }
   state.extensionManager.selectedIndex =
     (state.extensionManager.selectedIndex + delta + total) % total;
+  state.extensionManager.detailScrollOffset = 0;
+}
+
+function moveExtensionManagerDetails(state: MixCodeState, delta: number): void {
+  state.extensionManager.detailScrollOffset = Math.max(
+    0,
+    state.extensionManager.detailScrollOffset + delta,
+  );
 }
 
 function toggleSelectedExtension(state: MixCodeState): void {

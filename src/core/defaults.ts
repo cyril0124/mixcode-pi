@@ -51,6 +51,7 @@ export function createInitialState(workdir: string, defaultThinkingLevel?: Think
     extensionManager: {
       open: false,
       selectedIndex: 0,
+      detailScrollOffset: 0,
       entries: [],
       selectedKeys: [],
       message: "",

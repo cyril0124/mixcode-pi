@@ -136,6 +136,7 @@ export interface ExtensionManagerEntryInfo {
 export interface ExtensionManagerPanelState {
   open: boolean;
   selectedIndex: number;
+  detailScrollOffset: number;
   entries: ExtensionManagerEntryInfo[];
   selectedKeys: string[];
   message: string;

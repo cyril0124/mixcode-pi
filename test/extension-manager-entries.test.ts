@@ -1,13 +1,18 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { LoadExtensionsResult } from "@earendil-works/pi-coding-agent";
+import type { MixCodeRuntime } from "../src/agent/runtime.js";
+import { formatExtensionSummaries } from "../src/agent/runtime-startup-header.js";
 import {
   extensionManagerEntriesFromResult,
   syncExtensionManagerEntrySources,
 } from "../src/core/extension-manager.js";
-import { createInitialState } from "../src/core/defaults.js";
-import { formatExtensionSummaries } from "../src/agent/runtime-startup-header.js";
-import { renderExtensionManager } from "../src/ui/extension-manager.js";
+import { createInitialState, createTab } from "../src/core/defaults.js";
+import {
+  handleExtensionManagerKey,
+  openExtensionManager,
+  renderExtensionManager,
+} from "../src/ui/extension-manager.js";
 
 function stripAnsi(text: string): string {
   return text.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "");
@@ -209,5 +214,183 @@ test("extension manager keeps its footer inside the default overlay height", () 
   } finally {
     if (rowsDescriptor) Object.defineProperty(process.stdout, "rows", rowsDescriptor);
     else Reflect.deleteProperty(process.stdout, "rows");
+  }
+});
+
+test("closing the extension manager prevents a pending reload from restoring its overlay", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"));
+  state.activeTabId = "s1";
+  const reload = Promise.withResolvers<{
+    sessionId: string;
+    title: string;
+    status: "reloaded";
+  }>();
+  let overlayOpen = false;
+  let showCount = 0;
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => {
+      overlayOpen = true;
+      showCount++;
+      return { hide: () => (overlayOpen = false) } as never;
+    },
+  };
+  const runtime = {
+    getExtensionManagerEntries: () => [],
+    reloadExtensionManagerTab: () => reload.promise,
+  } as unknown as MixCodeRuntime;
+
+  openExtensionManager(state, runtime, tui);
+  handleExtensionManagerKey(state, "r", tui, runtime);
+  handleExtensionManagerKey(state, "\x1b", tui, runtime);
+  assert.equal(overlayOpen, false);
+
+  reload.resolve({ sessionId: "s1", title: "Agent-01", status: "reloaded" });
+  await Bun.sleep(0);
+  assert.equal(state.extensionManager.open, false);
+  assert.equal(overlayOpen, false);
+  assert.equal(showCount, 2);
+});
+
+test("a pending reload cannot update a newly opened extension manager", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"));
+  state.activeTabId = "s1";
+  const reload = Promise.withResolvers<{
+    sessionId: string;
+    title: string;
+    status: "reloaded";
+  }>();
+  let showCount = 0;
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => {
+      showCount++;
+      return { hide: () => undefined } as never;
+    },
+  };
+  const runtime = {
+    getExtensionManagerEntries: () => [],
+    reloadExtensionManagerTab: () => reload.promise,
+  } as unknown as MixCodeRuntime;
+
+  openExtensionManager(state, runtime, tui);
+  handleExtensionManagerKey(state, "r", tui, runtime);
+  handleExtensionManagerKey(state, "\x1b", tui, runtime);
+  openExtensionManager(state, runtime, tui);
+  const reopenedManager = state.extensionManager;
+
+  reload.resolve({ sessionId: "s1", title: "Agent-01", status: "reloaded" });
+  await Bun.sleep(0);
+  assert.equal(state.extensionManager, reopenedManager);
+  assert.equal(reopenedManager.message, "");
+  assert.equal(reopenedManager.working, false);
+  assert.equal(showCount, 3);
+});
+
+test("extension manager detail paging reaches commands and paths after a long tool list", () => {
+  const state = createInitialState("/repo");
+  state.extensionManager.open = true;
+  state.extensionManager.entries = [
+    {
+      key: "rich-extension",
+      enabled: true,
+      path: "/extensions/rich-extension/index.ts",
+      resolvedPath: "/extensions/rich-extension/index.ts",
+      source: "auto",
+      scope: "user",
+      origin: "top-level",
+      toolCount: 24,
+      commandCount: 2,
+      toolNames: Array.from({ length: 24 }, (_, index) => `tool_${index}`),
+      commandNames: ["alpha", "omega"],
+    },
+  ];
+  let rendered = stripAnsi(renderExtensionManager(state, 100).join("\n"));
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: (component: { render: (width: number) => string[] }) => {
+      rendered = stripAnsi(component.render(100).join("\n"));
+      return { hide: () => undefined } as never;
+    },
+  };
+
+  assert.doesNotMatch(rendered, /\/omega/);
+  assert.match(rendered, /details .*▼/);
+  handleExtensionManagerKey(state, "\x1b[6~", tui);
+  handleExtensionManagerKey(state, "\x1b[6~", tui);
+  assert.match(rendered, /\/omega/);
+  assert.match(rendered, /\/extensions\/rich-extension\/index\.ts/);
+  assert.match(rendered, /▲ details/);
+});
+
+test("extension manager preserves wide characters while wrapping paths", () => {
+  const state = createInitialState("/repo");
+  state.extensionManager.open = true;
+  const path = `/extensions/${"中文".repeat(30)}/终点😀.ts`;
+  state.extensionManager.entries = [
+    {
+      key: "wide-path",
+      enabled: true,
+      path,
+      resolvedPath: path,
+      source: "auto",
+      scope: "user",
+      origin: "top-level",
+      toolCount: 0,
+      commandCount: 0,
+      toolNames: [],
+      commandNames: [],
+    },
+  ];
+
+  const rowsDescriptor = Object.getOwnPropertyDescriptor(process.stdout, "rows");
+  Object.defineProperty(process.stdout, "rows", { configurable: true, value: 40 });
+  try {
+    const rendered = stripAnsi(renderExtensionManager(state, 100).join("\n"));
+    assert.match(rendered, /终点😀\.ts/);
+    assert.doesNotMatch(rendered, /�/);
+  } finally {
+    if (rowsDescriptor) Object.defineProperty(process.stdout, "rows", rowsDescriptor);
+    else Reflect.deleteProperty(process.stdout, "rows");
+  }
+});
+
+test("extension manager switches to two panes at 80 terminal columns", () => {
+  const state = createInitialState("/repo");
+  state.extensionManager.open = true;
+  state.extensionManager.entries = [
+    {
+      key: "extension",
+      enabled: true,
+      path: "/extensions/extension/index.ts",
+      resolvedPath: "/extensions/extension/index.ts",
+      source: "auto",
+      scope: "user",
+      origin: "top-level",
+      toolCount: 0,
+      commandCount: 0,
+      toolNames: [],
+      commandNames: [],
+    },
+  ];
+
+  const columnsDescriptor = Object.getOwnPropertyDescriptor(process.stdout, "columns");
+  try {
+    Object.defineProperty(process.stdout, "columns", { configurable: true, value: 79 });
+    const singlePane = stripAnsi(
+      renderExtensionManager(state, Math.floor(79 * 0.78)).join("\n"),
+    );
+    assert.doesNotMatch(singlePane, /status\s+enabled/);
+
+    Object.defineProperty(process.stdout, "columns", { configurable: true, value: 80 });
+    const doublePane = stripAnsi(
+      renderExtensionManager(state, Math.floor(80 * 0.78)).join("\n"),
+    );
+    assert.match(doublePane, /status\s+enabled/);
+  } finally {
+    if (columnsDescriptor) Object.defineProperty(process.stdout, "columns", columnsDescriptor);
+    else Reflect.deleteProperty(process.stdout, "columns");
   }
 });
