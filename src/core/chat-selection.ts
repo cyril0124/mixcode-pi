@@ -1,4 +1,4 @@
-import { visibleWidth } from "@earendil-works/pi-tui";
+import { sliceByColumn, stripTerminalSequences, visibleWidth } from "@earendil-works/pi-tui";
 
 export interface ChatSurfaceBounds {
   top: number;
@@ -127,7 +127,7 @@ export function selectedChatText(lines: string[], selection: ChatSelectionState)
     const text = stripAnsi(lines[row] ?? "").trimEnd();
     const startCol = row === normalized.start.row ? normalized.start.col : 0;
     const endCol = row === normalized.end.row ? normalized.end.col : visibleWidth(text);
-    parts.push(sliceVisibleText(text, startCol, endCol));
+    parts.push(sliceByColumn(text, startCol, Math.max(0, endCol - startCol), true));
   }
   return parts.join("\n").replace(/[ \t]+$/gm, "");
 }
@@ -182,16 +182,16 @@ export function highlightChatSelectionLine(
   const startCol = row === normalized.start.row ? normalized.start.col : 0;
   const endCol = row === normalized.end.row ? normalized.end.col : lineWidth;
   if (endCol <= startCol) return line;
-  const { before, selected, after } = splitVisibleTextAroundRange(plain, startCol, endCol);
+  const before = sliceByColumn(plain, 0, startCol, true);
+  const selected = sliceByColumn(plain, startCol, endCol - startCol, true);
+  const after = sliceByColumn(plain, endCol, Math.max(0, lineWidth - endCol), true);
   if (!selected) return line;
   return `${before}${highlight(selected)}${after}`;
 }
 
+/** Public alias for Pi stripTerminalSequences (kept name for existing callers/tests). */
 export function stripAnsi(text: string): string {
-  return text
-    .replace(/\x1b\[[0-9;:]*[ -/]*[@-~]/g, "")
-    .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, "")
-    .replace(/\x1b[PX^_][\s\S]*?(?:\x07|\x1b\\)/g, "");
+  return stripTerminalSequences(text);
 }
 
 function normalizeInputSelectionLine(line: string): string | undefined {
@@ -244,41 +244,6 @@ function selectableChatRow(lines: string[], row: number): number {
   if (text === "↑ older above") return Math.min(lines.length - 1, row + 1);
   if (text === "↓ newer below") return Math.max(0, row - 1);
   return row;
-}
-
-function sliceVisibleText(text: string, start: number, end: number): string {
-  const from = Math.max(0, Math.floor(start));
-  const to = Math.max(from, Math.floor(end));
-  let width = 0;
-  let output = "";
-  for (const char of text) {
-    const nextWidth = width + visibleWidth(char);
-    if (nextWidth > from && width < to) output += char;
-    width = nextWidth;
-    if (width >= to) break;
-  }
-  return output;
-}
-
-function splitVisibleTextAroundRange(
-  text: string,
-  start: number,
-  end: number,
-): { before: string; selected: string; after: string } {
-  const from = Math.max(0, Math.floor(start));
-  const to = Math.max(from, Math.floor(end));
-  let width = 0;
-  let before = "";
-  let selected = "";
-  let after = "";
-  for (const char of text) {
-    const nextWidth = width + visibleWidth(char);
-    if (nextWidth <= from) before += char;
-    else if (width >= to) after += char;
-    else selected += char;
-    width = nextWidth;
-  }
-  return { before, selected, after };
 }
 
 function clamp(value: number, min: number, max: number): number {

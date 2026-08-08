@@ -1,4 +1,4 @@
-import { truncateToWidth } from "@earendil-works/pi-tui";
+import { stripTerminalSequences, truncateToWidth } from "@earendil-works/pi-tui";
 import { applyMixCodeKeybindings } from "../agent/runtime-pi-tui-bridge.js";
 import type { TreeSelectorState } from "../core/tree-selector.js";
 import { SUMMARIZE_OPTIONS } from "../core/tree-selector.js";
@@ -92,5 +92,5 @@ function border(width: number): string {
 }
 
 function stripAnsi(text: string): string {
-  return text.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "");
+  return stripTerminalSequences(text);
 }

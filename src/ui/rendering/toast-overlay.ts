@@ -1,4 +1,9 @@
-import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
+import {
+  compositeTuiLine,
+  truncateToWidth,
+  visibleWidth,
+  wrapTextWithAnsi,
+} from "@earendil-works/pi-tui";
 import type { ToastNotification, ToastType } from "../../core/toast.js";
 import type { MixCodeTheme } from "../themes.js";
 import { padLine } from "./primitives.js";
@@ -36,11 +41,11 @@ export function applyToastOverlay(
   while (result.length < requiredRows) result.push("");
   for (let index = 0; index < overlay.length; index++) {
     const row = TOAST_TOP_MARGIN + index;
-    result[row] = spliceVisibleLine(
+    result[row] = compositeTuiLine(
       result[row] ?? "",
+      overlay[index]!,
       startCol,
       boxWidth,
-      overlay[index]!,
       lineWidth,
     );
   }
@@ -83,15 +88,17 @@ function toastCardLines(
 ): string[] {
   const contentWidth = boxWidth - 4;
   const color = toastColor(type, theme);
-  const top = `${color("╭")}${color("─".repeat(boxWidth - 2))}${color("╮")}`;
+  // Paint the full card (borders included). compositeTuiLine resets SGR before the
+  // overlay, so borders without an explicit panel bg fall back to terminal black.
+  const top = theme.panel(`${color("╭")}${color("─".repeat(boxWidth - 2))}${color("╮")}`);
   const body = messageRows.map((row, index) => {
     const content = padLine(
       styleToastRow(row, index === 0 ? type : undefined, theme),
       contentWidth,
     );
-    return `${color("│")} ${theme.panel(content)} ${color("│")}`;
+    return theme.panel(`${color("│")} ${content} ${color("│")}`);
   });
-  const bottom = `${color("╰")}${color("─".repeat(boxWidth - 2))}${color("╯")}`;
+  const bottom = theme.panel(`${color("╰")}${color("─".repeat(boxWidth - 2))}${color("╯")}`);
   return [top, ...body, bottom];
 }
 
@@ -115,17 +122,4 @@ function toastColor(type: ToastType, theme: MixCodeTheme): (text: string) => str
   if (type === "warning") return theme.warning;
   if (type === "error") return theme.danger;
   return theme.accent;
-}
-
-function spliceVisibleLine(
-  line: string,
-  startCol: number,
-  replaceWidth: number,
-  overlay: string,
-  totalWidth: number,
-): string {
-  const left = truncateToWidth(line, startCol, "");
-  const leftActual = visibleWidth(left);
-  const gap = startCol - leftActual;
-  return padLine(`${left}${" ".repeat(gap)}${overlay}`, totalWidth);
 }
