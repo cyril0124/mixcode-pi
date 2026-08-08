@@ -394,3 +394,107 @@ test("extension manager switches to two panes at 80 terminal columns", () => {
     else Reflect.deleteProperty(process.stdout, "columns");
   }
 });
+
+test("extension manager search matches command names", () => {
+  const state = createInitialState("/repo");
+  state.extensionManager.open = true;
+  state.extensionManager.entries = [
+    {
+      key: "rename",
+      enabled: true,
+      path: "/extensions/rename/index.ts",
+      resolvedPath: "/extensions/rename/index.ts",
+      source: "auto",
+      scope: "user",
+      origin: "top-level",
+      toolCount: 0,
+      commandCount: 1,
+      toolNames: [],
+      commandNames: ["auto-rename"],
+    },
+    {
+      key: "context",
+      enabled: true,
+      path: "/extensions/context/index.ts",
+      resolvedPath: "/extensions/context/index.ts",
+      source: "auto",
+      scope: "user",
+      origin: "top-level",
+      toolCount: 0,
+      commandCount: 1,
+      toolNames: [],
+      commandNames: ["inspect-context"],
+    },
+  ];
+  Object.assign(state.extensionManager, { searchActive: true, searchQuery: "inspect-context" });
+
+  const rendered = stripAnsi(renderExtensionManager(state, 79).join("\n"));
+  assert.match(rendered, /● context/);
+  assert.doesNotMatch(rendered, /● rename/);
+  assert.match(rendered, /1\/2 extensions/);
+});
+
+test("extension manager search keyboard flow toggles the filtered entry", () => {
+  const state = createInitialState("/repo");
+  state.extensionManager.open = true;
+  state.extensionManager.entries = [
+    {
+      key: "rename",
+      enabled: true,
+      path: "/extensions/rename/index.ts",
+      resolvedPath: "/extensions/rename/index.ts",
+      source: "auto",
+      scope: "user",
+      origin: "top-level",
+      toolCount: 0,
+      commandCount: 0,
+      toolNames: [],
+      commandNames: [],
+    },
+    {
+      key: "skill",
+      enabled: true,
+      path: "/extensions/skill/index.ts",
+      resolvedPath: "/extensions/skill/index.ts",
+      source: "auto",
+      scope: "user",
+      origin: "top-level",
+      toolCount: 0,
+      commandCount: 0,
+      toolNames: [],
+      commandNames: [],
+    },
+  ];
+  let rendered = "";
+  let overlayOpen = true;
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: (component: { render: (width: number) => string[] }) => {
+      overlayOpen = true;
+      rendered = stripAnsi(component.render(79).join("\n"));
+      return { hide: () => (overlayOpen = false) } as never;
+    },
+  };
+
+  handleExtensionManagerKey(state, "\x1b[47u", tui);
+  handleExtensionManagerKey(state, "\x1b[115u", tui);
+  for (const char of "kill") handleExtensionManagerKey(state, char, tui);
+  assert.match(rendered, /● skill/);
+  assert.doesNotMatch(rendered, /● rename/);
+
+  handleExtensionManagerKey(state, "x", tui);
+  assert.match(rendered, /No extensions match "skillx"/);
+  handleExtensionManagerKey(state, "\x7f", tui);
+  assert.match(rendered, /● skill/);
+
+  handleExtensionManagerKey(state, "\r", tui);
+  handleExtensionManagerKey(state, " ", tui);
+  assert.equal(state.extensionManager.entries[0]!.enabled, true);
+  assert.equal(state.extensionManager.entries[1]!.enabled, false);
+
+  handleExtensionManagerKey(state, "\x1b", tui);
+  assert.match(rendered, /● rename/);
+  assert.equal(overlayOpen, true);
+  handleExtensionManagerKey(state, "\x1b", tui);
+  assert.equal(overlayOpen, false);
+});

@@ -1,4 +1,9 @@
-import { matchesKey, truncateToWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
+import {
+  decodeKittyPrintable,
+  matchesKey,
+  truncateToWidth,
+  wrapTextWithAnsi,
+} from "@earendil-works/pi-tui";
 import type { ExtensionReloadResult } from "../core/extension-manager.js";
 import type { ExtensionManagerEntryInfo, MixCodeState } from "../core/types.js";
 import { getActiveTab } from "../core/tabs.js";
@@ -25,6 +30,8 @@ export function openExtensionManager(
     open: true,
     selectedIndex: 0,
     detailScrollOffset: 0,
+    searchActive: false,
+    searchQuery: "",
     entries: runtime.getExtensionManagerEntries(active.sessionId),
     selectedKeys: [],
     message: "",
@@ -44,7 +51,7 @@ const DOUBLE_PANE_MIN_WIDTH = 80;
 // Fraction of the inner content width allocated to the left list column.
 const LEFT_COLUMN_RATIO = 0.55;
 const SHORTCUT_HINT =
-  "↑↓ select  PgUp/PgDn details  Space toggle  Enter save+reload  R tab  A workdir  Esc close";
+  "↑↓ select  PgUp/PgDn details  / search  Space toggle  Enter save+reload  R tab  A workdir  Esc close";
 
 function renderExtensionManagerInner(state: MixCodeState, width: number): string[] {
   // Fill the entire overlay width: the LinesOverlay wrapper pads every line to
@@ -52,34 +59,54 @@ function renderExtensionManagerInner(state: MixCodeState, width: number): string
   // overlay leaves a black gutter on the right. Panel == overlay width avoids it.
   const panelWidth = width;
   const manager = state.extensionManager;
-  const entries = manager.entries;
+  const entries = filteredExtensionManagerEntries(manager);
   const contentWidth = Math.max(1, panelWidth - 2);
 
-  const header = [activeRenderTheme.dim(truncateToWidth(SHORTCUT_HINT, contentWidth)), ""];
+  const header = [activeRenderTheme.dim(truncateToWidth(SHORTCUT_HINT, contentWidth))];
+  if (manager.searchActive || manager.searchQuery) {
+    header.push(renderExtensionSearch(manager, entries.length, contentWidth));
+  }
+  header.push("");
   const statusLines = buildStatusLines(manager);
   const maxBody = extensionManagerBodyRows(manager);
 
   const lines = [...header, ...statusLines];
-  if (!entries.length) {
+  if (!manager.entries.length) {
     lines.push(activeRenderTheme.dim("No Pi extensions loaded for this workdir."));
+    return overlayPanel("Extension Manager", lines, panelWidth);
+  }
+  if (!entries.length) {
+    lines.push(activeRenderTheme.dim(`No extensions match "${manager.searchQuery}".`));
     return overlayPanel("Extension Manager", lines, panelWidth);
   }
 
   const terminalWidth = process.stdout.columns || width;
   const useDoublePane = terminalWidth >= DOUBLE_PANE_MIN_WIDTH;
   const rendered = useDoublePane
-    ? renderDoublePane(manager, contentWidth, maxBody)
-    : renderSinglePane(manager, contentWidth, maxBody);
+    ? renderDoublePane(manager, entries, contentWidth, maxBody)
+    : renderSinglePane(manager, entries, contentWidth, maxBody);
   lines.push(...rendered.body);
   if (rendered.footer) lines.push(rendered.footer);
   return overlayPanel("Extension Manager", lines, panelWidth);
+}
+
+function renderExtensionSearch(
+  manager: MixCodeState["extensionManager"],
+  visibleCount: number,
+  width: number,
+): string {
+  const query = manager.searchQuery || activeRenderTheme.dim("type to filter");
+  const prompt = manager.searchActive ? activeRenderTheme.accent("/") : activeRenderTheme.dim("/");
+  const count = activeRenderTheme.dim(`${visibleCount}/${manager.entries.length} extensions`);
+  return truncateToWidth(`${activeRenderTheme.dim("Search")} ${prompt}${query}  ${count}`, width);
 }
 
 function extensionManagerBodyRows(manager: MixCodeState["extensionManager"]): number {
   const statusCount =
     Number(manager.working) + Number(Boolean(manager.error)) + Number(Boolean(manager.message));
   const statusRows = statusCount > 0 ? statusCount + 1 : 0;
-  const reserved = 2 + 2 + statusRows + 2;
+  const searchRows = manager.searchActive || manager.searchQuery ? 1 : 0;
+  const reserved = 2 + 2 + searchRows + statusRows + 2;
   const termRows = process.stdout.rows || 24;
   const overlayRows = Math.max(
     1,
@@ -101,10 +128,10 @@ function buildStatusLines(manager: MixCodeState["extensionManager"]): string[] {
 // scrolling viewport so long lists never overflow the panel.
 function renderSinglePane(
   manager: MixCodeState["extensionManager"],
+  entries: ExtensionManagerEntryInfo[],
   width: number,
   maxBody: number,
 ): { body: string[]; footer: string } {
-  const entries = manager.entries;
   const selectedKeys = new Set(manager.selectedKeys);
   const bodyRows = Math.max(1, Math.min(maxBody, entries.length));
   const startIndex = windowStart(manager.selectedIndex, entries.length, bodyRows);
@@ -127,10 +154,10 @@ function renderSinglePane(
 // selected entry on the right, separated by a thin vertical rule.
 function renderDoublePane(
   manager: MixCodeState["extensionManager"],
+  entries: ExtensionManagerEntryInfo[],
   contentWidth: number,
   maxBody: number,
 ): { body: string[]; footer: string } {
-  const entries = manager.entries;
   const selectedKeys = new Set(manager.selectedKeys);
   const gap = 3; // " │ "
   const leftWidth = Math.max(16, Math.floor((contentWidth - gap) * LEFT_COLUMN_RATIO));
@@ -331,6 +358,32 @@ function friendlyExtensionName(entry: ExtensionManagerEntryInfo): string {
   return segment.replace(/\.[a-z]+$/i, "") || path;
 }
 
+function filteredExtensionManagerEntries(
+  manager: MixCodeState["extensionManager"],
+): ExtensionManagerEntryInfo[] {
+  const terms = manager.searchQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (!terms.length) return manager.entries;
+  return manager.entries.filter((entry) => {
+    const searchable = [
+      friendlyExtensionName(entry),
+      entry.key,
+      entry.source,
+      entry.scope,
+      entry.origin,
+      entry.path,
+      entry.resolvedPath,
+      entry.baseDir,
+      entry.error,
+      ...entry.toolNames,
+      ...entry.commandNames,
+    ]
+      .filter(Boolean)
+      .join("\n")
+      .toLowerCase();
+    return terms.every((term) => searchable.includes(term));
+  });
+}
+
 export function handleExtensionManagerKey(
   state: MixCodeState,
   data: string,
@@ -339,11 +392,23 @@ export function handleExtensionManagerKey(
   onStateChanged?: (state: MixCodeState) => void | Promise<void>,
 ): boolean {
   if (!state.extensionManager.open) return false;
+  const manager = state.extensionManager;
+  if (manager.searchActive) return handleExtensionManagerSearchKey(state, data, tui);
   if (matchesKey(data, "escape")) {
+    if (manager.searchQuery) {
+      updateExtensionManagerSearch(manager, "");
+      showLinesOverlay(tui, (width) => renderExtensionManager(state, width));
+      return true;
+    }
     closeExtensionManager(state, tui);
     return true;
   }
-  if (state.extensionManager.working) return true;
+  if (manager.working) return true;
+  if (data === "/" || decodeKittyPrintable(data) === "/") {
+    manager.searchActive = true;
+    showLinesOverlay(tui, (width) => renderExtensionManager(state, width));
+    return true;
+  }
   if (matchesKey(data, "down") || matchesKey(data, "tab")) {
     moveExtensionManagerSelection(state, 1);
     showLinesOverlay(tui, (width) => renderExtensionManager(state, width));
@@ -388,6 +453,73 @@ export function handleExtensionManagerKey(
     return true;
   }
   return true;
+}
+
+const SEARCH_GRAPHEME_SEGMENTER = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+
+function handleExtensionManagerSearchKey(
+  state: MixCodeState,
+  data: string,
+  tui: OverlayTui,
+): boolean {
+  const manager = state.extensionManager;
+  if (matchesKey(data, "escape")) {
+    manager.searchActive = false;
+    updateExtensionManagerSearch(manager, "");
+    showLinesOverlay(tui, (width) => renderExtensionManager(state, width));
+    return true;
+  }
+  if (matchesKey(data, "enter")) {
+    manager.searchActive = false;
+    showLinesOverlay(tui, (width) => renderExtensionManager(state, width));
+    return true;
+  }
+  if (matchesKey(data, "down") || matchesKey(data, "tab")) {
+    moveExtensionManagerSelection(state, 1);
+    showLinesOverlay(tui, (width) => renderExtensionManager(state, width));
+    return true;
+  }
+  if (matchesKey(data, "up") || matchesKey(data, "shift+tab")) {
+    moveExtensionManagerSelection(state, -1);
+    showLinesOverlay(tui, (width) => renderExtensionManager(state, width));
+    return true;
+  }
+  if (matchesKey(data, "pageDown") || matchesKey(data, "pageUp")) {
+    const direction = matchesKey(data, "pageDown") ? 1 : -1;
+    moveExtensionManagerDetails(
+      state,
+      direction * Math.max(1, extensionManagerBodyRows(manager) - 1),
+    );
+    showLinesOverlay(tui, (width) => renderExtensionManager(state, width));
+    return true;
+  }
+  if (matchesKey(data, "backspace") || data === "\x7f") {
+    const segments = [...SEARCH_GRAPHEME_SEGMENTER.segment(manager.searchQuery)];
+    const last = segments.at(-1);
+    updateExtensionManagerSearch(manager, last ? manager.searchQuery.slice(0, last.index) : "");
+    showLinesOverlay(tui, (width) => renderExtensionManager(state, width));
+    return true;
+  }
+  const kittyPrintable = decodeKittyPrintable(data);
+  if (kittyPrintable !== undefined) {
+    updateExtensionManagerSearch(manager, manager.searchQuery + kittyPrintable);
+    showLinesOverlay(tui, (width) => renderExtensionManager(state, width));
+    return true;
+  }
+  if (data.length > 0 && !/[\x00-\x1f\x7f]/.test(data)) {
+    updateExtensionManagerSearch(manager, manager.searchQuery + data);
+    showLinesOverlay(tui, (width) => renderExtensionManager(state, width));
+  }
+  return true;
+}
+
+function updateExtensionManagerSearch(
+  manager: MixCodeState["extensionManager"],
+  query: string,
+): void {
+  manager.searchQuery = query;
+  manager.selectedIndex = 0;
+  manager.detailScrollOffset = 0;
 }
 
 function runExtensionManagerAction(
@@ -448,9 +580,10 @@ function refreshExtensionManagerEntries(
   sessionId: string,
 ): void {
   state.extensionManager.entries = runtime.getExtensionManagerEntries(sessionId);
+  const visibleEntries = filteredExtensionManagerEntries(state.extensionManager);
   state.extensionManager.selectedIndex = Math.min(
     state.extensionManager.selectedIndex,
-    Math.max(0, state.extensionManager.entries.length - 1),
+    Math.max(0, visibleEntries.length - 1),
   );
   state.extensionManager.detailScrollOffset = 0;
 }
@@ -459,13 +592,15 @@ function closeExtensionManager(state: MixCodeState, tui: OverlayTui): void {
   state.extensionManager.open = false;
   state.extensionManager.selectedIndex = 0;
   state.extensionManager.detailScrollOffset = 0;
+  state.extensionManager.searchActive = false;
+  state.extensionManager.searchQuery = "";
   state.extensionManager.selectedKeys = [];
   closeAppOverlay(tui);
   tui.requestRender();
 }
 
 function moveExtensionManagerSelection(state: MixCodeState, delta: number): void {
-  const total = state.extensionManager.entries.length;
+  const total = filteredExtensionManagerEntries(state.extensionManager).length;
   if (total === 0) {
     state.extensionManager.selectedIndex = 0;
     return;
@@ -483,7 +618,9 @@ function moveExtensionManagerDetails(state: MixCodeState, delta: number): void {
 }
 
 function toggleSelectedExtension(state: MixCodeState): void {
-  const entry = state.extensionManager.entries[state.extensionManager.selectedIndex];
+  const entry = filteredExtensionManagerEntries(state.extensionManager)[
+    state.extensionManager.selectedIndex
+  ];
   if (!entry) return;
   entry.enabled = !entry.enabled;
   const selected = new Set(state.extensionManager.selectedKeys);

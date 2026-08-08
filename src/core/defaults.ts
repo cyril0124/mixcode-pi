@@ -52,6 +52,8 @@ export function createInitialState(workdir: string, defaultThinkingLevel?: Think
       open: false,
       selectedIndex: 0,
       detailScrollOffset: 0,
+      searchActive: false,
+      searchQuery: "",
       entries: [],
       selectedKeys: [],
       message: "",
