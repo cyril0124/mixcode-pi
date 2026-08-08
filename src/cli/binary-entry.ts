@@ -88,6 +88,10 @@ import midTurnCompactPackageJson from "../../pi-packages/mpi-mid-turn-compact/pa
 import modelSkillsIndex from "../../pi-packages/mpi-model-skills/index.ts" with { type: "text" };
 import modelSkillsCore from "../../pi-packages/mpi-model-skills/model-skills-core.ts" with { type: "text" };
 import modelSkillsPackageJson from "../../pi-packages/mpi-model-skills/package.json" with { type: "text" };
+import modelExtensionsIndex from "../../pi-packages/mpi-model-extensions/index.ts" with { type: "text" };
+import modelExtensionsCore from "../../pi-packages/mpi-model-extensions/model-extensions-core.ts" with { type: "text" };
+import modelExtensionsLoader from "../../pi-packages/mpi-model-extensions/model-extensions-loader.ts" with { type: "text" };
+import modelExtensionsPackageJson from "../../pi-packages/mpi-model-extensions/package.json" with { type: "text" };
 import packageJson from "../../package.json" with { type: "json" };
 import { materializeBinaryRuntimeAssets } from "./binary-assets.js";
 
@@ -228,6 +232,12 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
       "index.ts": modelSkillsIndex,
       "model-skills-core.ts": modelSkillsCore,
       "package.json": modelSkillsPackageJson,
+    },
+    "mpi-model-extensions": {
+      "index.ts": modelExtensionsIndex,
+      "model-extensions-core.ts": modelExtensionsCore,
+      "model-extensions-loader.ts": modelExtensionsLoader,
+      "package.json": modelExtensionsPackageJson,
     },
   },
 });

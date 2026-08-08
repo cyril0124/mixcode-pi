@@ -1,0 +1,9 @@
+{
+  "name": "mpi-model-extensions",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Per-model extension load via dynamic factory invoke",
+  "pi": {
+    "extensions": ["./index.ts"]
+  }
+}
