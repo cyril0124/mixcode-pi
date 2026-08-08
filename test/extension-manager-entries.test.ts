@@ -180,3 +180,34 @@ test("extension manager names local extensions from their entry path", () => {
   assert.match(rendered, /● mpi-loop/);
   assert.match(rendered, /● pkg/);
 });
+
+test("extension manager keeps its footer inside the default overlay height", () => {
+  const state = createInitialState("/repo");
+  state.extensionManager.open = true;
+  state.extensionManager.selectedIndex = 29;
+  state.extensionManager.entries = Array.from({ length: 30 }, (_, index) => ({
+    key: `extension-${index}`,
+    enabled: true,
+    path: `/extensions/extension-${index}/index.ts`,
+    resolvedPath: `/extensions/extension-${index}/index.ts`,
+    source: "auto",
+    scope: "user",
+    origin: "top-level",
+    toolCount: 0,
+    commandCount: 0,
+    toolNames: [],
+    commandNames: [],
+  }));
+
+  const rowsDescriptor = Object.getOwnPropertyDescriptor(process.stdout, "rows");
+  Object.defineProperty(process.stdout, "rows", { configurable: true, value: 12 });
+  try {
+    const rendered = renderExtensionManager(state, 60).map(stripAnsi);
+    assert.ok(rendered.length <= Math.floor(12 * 0.8));
+    assert.match(rendered.join("\n"), /\(30\/30\)/);
+    assert.match(rendered.at(-1) ?? "", /^└─+┘$/);
+  } finally {
+    if (rowsDescriptor) Object.defineProperty(process.stdout, "rows", rowsDescriptor);
+    else Reflect.deleteProperty(process.stdout, "rows");
+  }
+});

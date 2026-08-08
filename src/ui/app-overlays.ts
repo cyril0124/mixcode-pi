@@ -19,6 +19,8 @@ import type { MixCodeTheme } from "./themes.js";
 
 const activeOverlayHandles = new WeakMap<object, OverlayHandle>();
 
+export const DEFAULT_OVERLAY_MAX_HEIGHT_PERCENT = 80;
+
 /** Live Notice/Error panel state for mouse select + full-text copy. */
 export interface ActiveNotice {
   text: string;
@@ -133,7 +135,7 @@ function defaultOverlayOptions(): OverlayOptions {
   return {
     anchor: "center",
     width: "78%",
-    maxHeight: "80%",
+    maxHeight: `${DEFAULT_OVERLAY_MAX_HEIGHT_PERCENT}%`,
     margin: 1,
   };
 }

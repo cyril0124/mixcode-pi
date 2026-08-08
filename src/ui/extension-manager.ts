@@ -2,7 +2,12 @@ import { matchesKey, truncateToWidth, visibleWidth } from "@earendil-works/pi-tu
 import type { ExtensionReloadResult } from "../core/extension-manager.js";
 import type { ExtensionManagerEntryInfo, MixCodeState } from "../core/types.js";
 import { getActiveTab } from "../core/tabs.js";
-import { closeAppOverlay, showErrorOverlay, showLinesOverlay } from "./app-overlays.js";
+import {
+  closeAppOverlay,
+  DEFAULT_OVERLAY_MAX_HEIGHT_PERCENT,
+  showErrorOverlay,
+  showLinesOverlay,
+} from "./app-overlays.js";
 import type { MixCodeKeyRuntime, MixCodeSubmitRuntime, OverlayTui } from "./app-types.js";
 import { activeRenderTheme, renderWithTheme } from "./rendering/context.js";
 import { overlayPanel, padLine } from "./rendering/primitives.js";
@@ -56,7 +61,11 @@ function renderExtensionManagerInner(state: MixCodeState, width: number): string
   // footer so the body window never pushes the panel past the terminal height.
   const reserved = 2 + header.length + statusLines.length + 2;
   const termRows = process.stdout.rows || 24;
-  const maxBody = Math.max(5, termRows - reserved);
+  const overlayRows = Math.max(
+    1,
+    Math.floor((termRows * DEFAULT_OVERLAY_MAX_HEIGHT_PERCENT) / 100),
+  );
+  const maxBody = Math.max(1, overlayRows - reserved);
 
   const lines = [...header, ...statusLines];
   if (!entries.length) {
