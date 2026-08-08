@@ -13,7 +13,7 @@ import { buildLabeledTopBorder } from "../src/ui/editor-top-border.js";
 import {
   renderTabBarSeparator,
   tabBarHitRegions,
-  zenUnreadDoneCount,
+  zenStatusMarkers,
 } from "../src/ui/rendering/chrome.js";
 
 function stripAnsi(text: string): string {
@@ -162,11 +162,7 @@ test("zen mode ignores tab-bar mouse clicks", () => {
     hasOverlay: () => false,
   };
   // Clicking Beta's ghost tab region must not switch away from Alpha.
-  const result = handleMixCodeKeyInput(
-    state,
-    `\x1b[<0;${beta.startX};${mouseY}M`,
-    tui,
-  );
+  const result = handleMixCodeKeyInput(state, `\x1b[<0;${beta.startX};${mouseY}M`, tui);
   assert.notEqual(state.activeTabId, "s2");
   assert.equal(first.zenMode, true);
   // May fall through to other handlers (selection/scroll); must not activate Beta.
@@ -188,9 +184,7 @@ test("zen mode removes hidden tab-bar rows from extension overlay reservations",
     getTab: () => ({ chat: [] }),
     onChange: () => () => undefined,
     getAllExtensionCommands: () => [],
-    setExtensionUiHost: (host?: {
-      topReservedRows?: (sessionId: string) => number;
-    }) => {
+    setExtensionUiHost: (host?: { topReservedRows?: (sessionId: string) => number }) => {
       reservedRows = host?.topReservedRows;
     },
     getPromptHistory: () => [],
@@ -226,11 +220,11 @@ test("zen mode hides the tab bar but keeps agent chrome", () => {
     getSharedModelRuntime: () => undefined,
   } as unknown as MixCodeRuntime;
 
-  function render(zenMode: boolean): string {
+  function render(zenMode: boolean, siblingStatus: "idle" | "running" = "idle"): string {
     const state = createInitialState("/repo");
     state.tabs.push(
       createTab(1, "s1", "/repo", { title: "Alpha", zenMode }),
-      createTab(2, "s2", "/repo", { title: "Beta" }),
+      createTab(2, "s2", "/repo", { title: "Beta", status: siblingStatus }),
     );
     state.activeTabId = "s1";
     const tui = createMixCodeTui(state, runtime, { terminal: silentTerminal() });
@@ -243,6 +237,7 @@ test("zen mode hides the tab bar but keeps agent chrome", () => {
 
   const normal = render(false);
   const zen = render(true);
+  const zenWithWorkingSibling = render(true, "running");
 
   // Normal agent view shows the sibling tab label in the tab bar.
   assert.match(normal, /Beta/);
@@ -253,6 +248,7 @@ test("zen mode hides the tab bar but keeps agent chrome", () => {
   assert.doesNotMatch(zen, /Beta/);
   assert.match(zen, /Alpha/);
   assert.match(zen, /\[ZEN\]/);
+  assert.match(zenWithWorkingSibling, /^── ● ─/);
 });
 
 test("zen mode swallows tab and shift-tab without switching agents", () => {
@@ -458,7 +454,16 @@ test("from Home, Tab activates agent and keeps zen from the source agent", () =>
 
   // Left → Home (zen remains on first).
   assert.deepEqual(
-    handleMixCodeKeyInput(state, "\x1b[D", tui, undefined, undefined, undefined, () => false, emptyEditor),
+    handleMixCodeKeyInput(
+      state,
+      "\x1b[D",
+      tui,
+      undefined,
+      undefined,
+      undefined,
+      () => false,
+      emptyEditor,
+    ),
     { consume: true },
   );
   assert.equal(state.activeTabId, "config");
@@ -471,22 +476,78 @@ test("from Home, Tab activates agent and keeps zen from the source agent", () =>
   assert.equal(second.zenMode, true);
 });
 
-test("zenUnreadDoneCount excludes the active tab", () => {
+test("zenStatusMarkers exposes meaningful background states with existing glyph priority", () => {
+  const pendingDialog = {
+    requestId: "q",
+    sessionId: "question",
+    questions: [],
+    currentQuestionIndex: 0,
+    highlightedOptionIndices: [],
+    selectedAnswers: [],
+    customAnswers: [],
+    dirty: false,
+  };
   const tabs = [
-    { sessionId: "s1", unreadDone: true },
-    { sessionId: "s2", unreadDone: true },
-    { sessionId: "s3", unreadDone: false },
+    createTab(1, "active", "/repo", { status: "running" }),
+    createTab(2, "running", "/repo", { status: "running" }),
+    createTab(3, "thinking", "/repo", { status: "thinking" }),
+    createTab(4, "question", "/repo", {
+      status: "running",
+      pendingDialogs: [pendingDialog],
+    }),
+    createTab(5, "error", "/repo", {
+      status: "error",
+      pendingDialogs: [{ ...pendingDialog, sessionId: "error" }],
+    }),
+    createTab(6, "done", "/repo", { status: "done" }),
+    createTab(7, "unread", "/repo", { status: "idle", unreadDone: true }),
+    createTab(8, "idle", "/repo", { status: "idle" }),
+    createTab(9, "not-ready", "/repo", { status: "Not Ready" }),
   ];
-  assert.equal(zenUnreadDoneCount(tabs, "s1"), 1);
-  assert.equal(zenUnreadDoneCount(tabs, "s3"), 2);
-  assert.equal(zenUnreadDoneCount(tabs, undefined), 2);
+
+  assert.deepEqual(zenStatusMarkers(tabs, "active"), [
+    "working",
+    "working",
+    "question",
+    "error",
+    "done",
+    "done",
+  ]);
 });
 
-test("zen separator left-anchors ● dots and caps at 5 with [+N]", () => {
+test("zen separator uses colored solid dots for every background state", () => {
+  const esc = "\x1b";
+  const theme = {
+    vimBorder: (s: string) => `${esc}[36m${s}${esc}[39m`,
+    thinkingBorder: () => (s: string) => `${esc}[36m${s}${esc}[39m`,
+    accent: (s: string) => `${esc}[34m${s}${esc}[39m`,
+    warning: (s: string) => `${esc}[33m${s}${esc}[39m`,
+    done: (s: string) => `${esc}[32m${s}${esc}[39m`,
+    danger: (s: string) => `${esc}[31m${s}${esc}[39m`,
+    text: (s: string) => s,
+    dim: (s: string) => s,
+  } as unknown as MixCodeTheme;
+  const line = renderTabBarSeparator(
+    40,
+    { zenMode: true, zenStatusMarkers: ["working", "question", "done", "error"] },
+    theme,
+  )[0]!;
+
+  assert.match(stripAnsi(line), /^── ● ● ● ● ─/);
+  assert.ok(line.includes(`${esc}[34m●${esc}[39m`));
+  assert.ok(line.includes(`${esc}[33m●${esc}[39m`));
+  assert.ok(line.includes(`${esc}[32m●${esc}[39m`));
+  assert.ok(line.includes(`${esc}[31m●${esc}[39m`));
+});
+
+test("zen separator left-anchors done markers and caps at 5 with [+N]", () => {
   const width = 40;
   const bare = (count: number) =>
     stripAnsi(
-      renderTabBarSeparator(width, { zenMode: true, zenDoneCount: count })[0]!,
+      renderTabBarSeparator(width, {
+        zenMode: true,
+        zenStatusMarkers: Array.from({ length: count }, () => "done" as const),
+      })[0]!,
     );
 
   assert.equal(bare(0), "\u2500".repeat(width));
@@ -502,9 +563,12 @@ test("zen separator left-anchors ● dots and caps at 5 with [+N]", () => {
   }
 });
 
-test("non-zen separator never shows done dots", () => {
+test("non-zen separator never shows status markers", () => {
   const line = stripAnsi(
-    renderTabBarSeparator(40, { zenMode: false, zenDoneCount: 3 })[0]!,
+    renderTabBarSeparator(40, {
+      zenMode: false,
+      zenStatusMarkers: ["working", "question", "done", "error"],
+    })[0]!,
   );
   assert.equal(line, "\u2500".repeat(40));
   assert.doesNotMatch(line, /●/);
@@ -521,21 +585,49 @@ test("zen done dots use done color while dashes use the frame color", () => {
   } as unknown as MixCodeTheme;
   const line = renderTabBarSeparator(
     40,
-    { zenMode: true, zenDoneCount: 7, vimMode: true },
+    {
+      zenMode: true,
+      zenStatusMarkers: Array.from({ length: 7 }, () => "done" as const),
+      vimMode: true,
+    },
     theme,
   )[0]!;
   // "── ● ● ● ● ● [+2] " = 18 cols → 22 fill dashes on width 40.
   assert.equal(stripAnsi(line), "── ● ● ● ● ● [+2] " + "\u2500".repeat(22));
-  // Dots and [+N] are green (32); lead/fill dashes are cyan frame (36).
-  assert.ok(line.includes(`${esc}[32m● ● ● ● ●${esc}[39m`));
+  // Done markers and [+N] are green (32); lead/fill dashes are cyan frame (36).
+  assert.equal(line.match(/\x1b\[32m●\x1b\[39m/g)?.length, 5);
   assert.ok(line.includes(`${esc}[32m[+2]${esc}[39m`));
   assert.ok(line.includes(`${esc}[36m──${esc}[39m`));
   assert.ok(line.includes(`${esc}[36m`) && line.includes("─"));
 });
 
-test("zen separator drops dots when the row is too narrow", () => {
+test("zen separator uses neutral overflow color whenever visible states are mixed", () => {
+  const esc = "\x1b";
+  const identityTheme = {
+    vimBorder: (s: string) => s,
+    thinkingBorder: () => (s: string) => s,
+    accent: (s: string) => s,
+    warning: (s: string) => s,
+    done: (s: string) => s,
+    danger: (s: string) => s,
+    dim: (s: string) => `${esc}[2m${s}${esc}[22m`,
+    text: (s: string) => s,
+  } as unknown as MixCodeTheme;
+  const line = renderTabBarSeparator(
+    40,
+    { zenMode: true, zenStatusMarkers: ["working", "question", "error", "done", "done", "done"] },
+    identityTheme,
+  )[0]!;
+
+  assert.ok(line.includes(`${esc}[2m[+1]${esc}[22m`));
+});
+
+test("zen separator drops markers when the row is too narrow", () => {
   const line = stripAnsi(
-    renderTabBarSeparator(4, { zenMode: true, zenDoneCount: 3 })[0]!,
+    renderTabBarSeparator(4, {
+      zenMode: true,
+      zenStatusMarkers: ["working", "question", "done"],
+    })[0]!,
   );
   assert.equal(line, "────");
   assert.doesNotMatch(line, /●/);

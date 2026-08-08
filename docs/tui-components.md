@@ -272,7 +272,7 @@ pushToast(tab, { type: "success", message: "Copied." });
 | --- | --- | --- |
 | Header | `renderHeader` | 顶栏 |
 | Tab bar | `renderTabBar` / `renderVisibleTabBar` | Zen 下隐藏 |
-| Tab separator | `renderTabBarSeparator` | Zen 未读 `●` |
+| Tab separator | `renderTabBarSeparator` | Zen 后台状态：彩色 `●`（working / 等待输入 / done / error） |
 | Status | `renderStatus` | context / state / model |
 | Agent surface | `renderAgentSurface` | chat + 可选 sidebar |
 | Chat blocks | `renderChat` / `renderChatBlock` | user / asst / tool / bash |

@@ -77,9 +77,10 @@ export function renderTabBar(
   });
 }
 
-/** Max unread-done dots shown on the zen separator before collapsing to [+N]. */
-export const ZEN_DONE_DOT_CAP = 5;
-const ZEN_DONE_DOT = "\u25cf"; // ●
+/** Max background-agent status markers shown before collapsing to [+N]. */
+export const ZEN_STATUS_MARKER_CAP = 5;
+const ZEN_STATUS_DOT = "\u25cf";
+export type ZenStatusMarker = "working" | "question" | "done" | "error";
 
 /**
  * Full-width horizontal rule rendered directly under the tab bar (agent view
@@ -88,10 +89,10 @@ const ZEN_DONE_DOT = "\u25cf"; // ●
  * `vimBorder`, otherwise the thinking-level border (matching app-editor's
  * normal-mode `borderColor`). Shell mode is intentionally not tracked — it is
  * driven by transient editor text and would make this top rule flicker.
- * In zen mode, other agents' unreadDone count is left-anchored as ● dots
- * (space-separated, cap 5, then [+N]) so completions stay visible without the
- * tab bar. Dots / [+N] use theme.done (same green as tab-bar !); dashes keep
- * the frame color (vimBorder / thinking border).
+ * In zen mode, meaningful states from other agents are left-anchored as
+ * space-separated solid dots: accent for working, warning for pending input,
+ * green for done, and red for errors. The cluster is capped at five markers,
+ * then `[+N]`; dashes keep the frame color.
  */
 export function renderTabBarSeparator(
   width: number,
@@ -99,8 +100,8 @@ export function renderTabBarSeparator(
     thinkingLevel?: string;
     vimMode?: boolean;
     zenMode?: boolean;
-    /** Other agents with unreadDone (current tab excluded by the caller). */
-    zenDoneCount?: number;
+    /** Meaningful states from other agents, ordered by tab position. */
+    zenStatusMarkers?: readonly ZenStatusMarker[];
   } = {},
   theme: MixCodeTheme = activeRenderTheme,
 ): string[] {
@@ -108,21 +109,21 @@ export function renderTabBarSeparator(
     const frame = options.vimMode
       ? activeRenderTheme.vimBorder
       : activeRenderTheme.thinkingBorder(options.thinkingLevel);
-    const done = activeRenderTheme.done;
     const plain = () => [padLine(frame("\u2500".repeat(Math.max(0, width))), width)];
     if (width <= 0) return plain();
     if (options.zenMode !== true) return plain();
-    const count = Math.max(0, options.zenDoneCount ?? 0);
-    if (count === 0) return plain();
+    const markers = options.zenStatusMarkers ?? [];
+    if (markers.length === 0) return plain();
 
-    const shown = Math.min(count, ZEN_DONE_DOT_CAP);
-    const overflow = count - shown;
-    const dots = Array.from({ length: shown }, () => ZEN_DONE_DOT).join(" ");
-    // Prefer full "── ● ● [+N] "; drop [+N] then the cluster when width is tight.
-    // Measure on bare text; paint frame dashes and done-colored markers separately.
+    const shownMarkers = markers.slice(0, ZEN_STATUS_MARKER_CAP);
+    const hiddenMarkers = markers.slice(ZEN_STATUS_MARKER_CAP);
+    const overflow = hiddenMarkers.length;
+    const markerText = shownMarkers.map(() => ZEN_STATUS_DOT).join(" ");
+    // Prefer full "── ● ● ● [+N] "; drop [+N] then the cluster when width is tight.
+    // Measure on bare text; paint frame dashes and markers separately.
     const bareWithOverflow =
-      overflow > 0 ? `\u2500\u2500 ${dots} [+${overflow}] ` : `\u2500\u2500 ${dots} `;
-    const bareWithoutOverflow = `\u2500\u2500 ${dots} `;
+      overflow > 0 ? `\u2500\u2500 ${markerText} [+${overflow}] ` : `\u2500\u2500 ${markerText} `;
+    const bareWithoutOverflow = `\u2500\u2500 ${markerText} `;
     let bareLeft = bareWithOverflow;
     let includeOverflow = overflow > 0;
     if (visibleWidth(bareLeft) > width) {
@@ -131,19 +132,38 @@ export function renderTabBarSeparator(
     }
     if (visibleWidth(bareLeft) > width) return plain();
     const fill = Math.max(0, width - visibleWidth(bareLeft));
-    const marker =
-      done(dots) + (includeOverflow ? ` ${done(`[+${overflow}]`)}` : "");
+    const paintedMarkers = shownMarkers
+      .map((marker) => {
+        if (marker === "working") return activeRenderTheme.accent(ZEN_STATUS_DOT);
+        if (marker === "question") return activeRenderTheme.warning(ZEN_STATUS_DOT);
+        if (marker === "error") return activeRenderTheme.danger(ZEN_STATUS_DOT);
+        return activeRenderTheme.done(ZEN_STATUS_DOT);
+      })
+      .join(" ");
+    const overflowColor = markers.every((marker) => marker === "done")
+      ? activeRenderTheme.done
+      : activeRenderTheme.dim;
+    const marker = paintedMarkers + (includeOverflow ? ` ${overflowColor(`[+${overflow}]`)}` : "");
     const painted = `${frame("\u2500\u2500")} ${marker} ${frame("\u2500".repeat(fill))}`;
     return [padLine(painted, width)];
   });
 }
 
-/** Count other tabs' unreadDone for the zen separator (excludes active agent). */
-export function zenUnreadDoneCount(
-  tabs: ReadonlyArray<{ sessionId: string; unreadDone: boolean }>,
+/** Meaningful states from other tabs, reusing the normal tab-bar glyph priority. */
+export function zenStatusMarkers(
+  tabs: ReadonlyArray<MixCodeTabInfo>,
   activeSessionId: string | undefined,
-): number {
-  return tabs.filter((tab) => tab.unreadDone && tab.sessionId !== activeSessionId).length;
+): ZenStatusMarker[] {
+  const markers: ZenStatusMarker[] = [];
+  for (const tab of tabs) {
+    if (tab.sessionId === activeSessionId) continue;
+    const glyph = tabStatusGlyph(tab);
+    if (glyph === "!") markers.push("done");
+    else if (glyph === "*") markers.push("working");
+    else if (glyph === "?") markers.push("question");
+    else if (glyph === "x") markers.push("error");
+  }
+  return markers;
 }
 
 export function tabBarHitRegions(
@@ -529,7 +549,9 @@ function chooseInputMetaRight(
     const text = candidate();
     if (visibleWidth(text) + minLeftWidth + 1 <= lineWidth) return text;
   }
-  return visibleWidth(required) <= lineWidth ? required : truncateToWidth(required, lineWidth, "...");
+  return visibleWidth(required) <= lineWidth
+    ? required
+    : truncateToWidth(required, lineWidth, "...");
 }
 
 export function renderWorkingIndicator(
@@ -552,12 +574,7 @@ function renderWorkingIndicatorInner(
     const worked = ` Worked for ${formatDuration(tab.lastWorkedDurationSeconds)}`;
     const clock = formatClockTime(tab.lastWorkedAt);
     const text = clock ? `${worked} · at ${clock}` : worked;
-    return [
-      padLine(
-        activeRenderTheme.dim(text),
-        width,
-      ),
-    ];
+    return [padLine(activeRenderTheme.dim(text), width)];
   }
   const elapsed = formatElapsed(tab.workingStartedAt, now);
   const detail = isPendingEscapeActive(tab, "abort-agent", now.getTime())
@@ -715,7 +732,10 @@ function renderExtensionPanelInner(
     visible[0] = padLine(`${border} ${activeRenderTheme.dim("\u2191 more")}`, panelWidth);
   }
   if (offset < maxOffset && visible.length > 0) {
-    visible[visible.length - 1] = padLine(`${border} ${activeRenderTheme.dim("\u2193 more")}`, panelWidth);
+    visible[visible.length - 1] = padLine(
+      `${border} ${activeRenderTheme.dim("\u2193 more")}`,
+      panelWidth,
+    );
   }
   // Pad to full content height with border-only rows so the column stays rectangular.
   while (visible.length < contentHeight) visible.push(blank);
@@ -739,10 +759,7 @@ export function renderExtensionFooter(tab: MixCodeTabInfo | undefined, width: nu
 // Build a pi-style extension status line: value-only, space-joined.
 // Returns undefined when there are no statuses so the caller can collapse to
 // single-line layout.
-function buildExtensionStatusLine(
-  tab: MixCodeTabInfo,
-  width: number,
-): string | undefined {
+function buildExtensionStatusLine(tab: MixCodeTabInfo, width: number): string | undefined {
   const statuses = tab.extensionUi.statuses;
   if (!statuses.length) return undefined;
   const sorted = [...statuses].sort((a, b) => a.key.localeCompare(b.key));

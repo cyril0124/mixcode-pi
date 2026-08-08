@@ -137,7 +137,7 @@ Session tree 默认无全局和弦（可用 `/tree`、空输入 Double-Esc，或
 
 Vim user-message 导航预览是一个自动过期的 floating panel，覆盖在 editor 上方，列出附近 user prompts 和 `<NEWEST>`；Vim 状态提示为 `Vim: → newer user msg · Shift+→ older user msg`。
 
-`/toggle-zen-mode` 切换当前 agent 的 Zen 模式（tab 级、不写全局 settings）：隐藏 tab bar；Tab/Shift+Tab 被吞掉，换 tab 只靠 Ctrl+T（或 Home attach）；editor 顶栏显示 `[ZEN]`；分隔线左侧用 `●` 显示其他 agent 的 `unreadDone`（最多 5 个，超出 `[+N]`）。与 Vim 可并存；agent→agent 切换时 vim/zen 随目标转移，回 Home 时标志留在 agent 上。
+`/toggle-zen-mode` 切换当前 agent 的 Zen 模式（tab 级、不写全局 settings）：隐藏 tab bar；Tab/Shift+Tab 被吞掉，换 tab 只靠 Ctrl+T（或 Home attach）；editor 顶栏显示 `[ZEN]`；分隔线左侧用彩色实心圆 `●` 显示其他 agent 的有效状态：强调色表示 running/thinking，黄色表示等待输入，绿色表示 done/unreadDone，红色表示 error。活动 agent、idle 和 Not Ready 不显示；状态优先级与 tab bar 一致（error > 等待输入 > working > done），最多显示 5 个标记，超出显示 `[+N]`。与 Vim 可并存；agent→agent 切换时 vim/zen 随目标转移，回 Home 时标志留在 agent 上。
 
 `src/core/keymap.ts` 是带作用域的可审计 keymap，不只记录全局键。`global` 作用域覆盖主输入表面，`file-picker`、`picker`、`command-palette`、`tab-jump`、`export`、`preview` 作用域覆盖 overlay 或局部交互；`describeKeymap()` 保持旧的简短输出，`describeScopedKeymap()` 用于审计完整局部键表。
 

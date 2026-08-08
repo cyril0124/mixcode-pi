@@ -27,7 +27,7 @@ import {
   tabBarMaxRows,
   renderWorkingIndicator,
   setCurrentUiTheme,
-  zenUnreadDoneCount,
+  zenStatusMarkers,
 } from "./rendering.js";
 import { themeForId, type MixCodeTheme } from "./themes.js";
 
@@ -68,9 +68,7 @@ export class MixCodeRoot implements Component {
     const active = getActiveTab(this.state);
     const theme = themeForId(this.state.theme);
     const viewportRows = this.getViewportRows?.();
-    const limit = viewportRows
-      ? Math.max(0, viewportRows - this.getReservedRows())
-      : undefined;
+    const limit = viewportRows ? Math.max(0, viewportRows - this.getReservedRows()) : undefined;
     const minContentRows =
       !active || this.state.activeTabId === "config"
         ? MIN_HOME_CONTENT_ROWS
@@ -99,16 +97,14 @@ export class MixCodeRoot implements Component {
     const runtimeTab = this.runtime.getTab(active.sessionId);
     // Horizontal rule directly under the tab bar (replaces the old blank gap).
     // Color tracks the active tab's editor border so the chrome reads as one frame.
-    // Zen: left-anchor ● for other agents' unreadDone (tab bar is hidden).
+    // Zen: left-anchor meaningful states from other agents (tab bar is hidden).
     const contentGap = renderTabBarSeparator(
       width,
       {
         thinkingLevel: active.thinkingLevel,
         vimMode: active.vimMode,
         zenMode: active.zenMode === true,
-        zenDoneCount: active.zenMode
-          ? zenUnreadDoneCount(this.state.tabs, active.sessionId)
-          : 0,
+        zenStatusMarkers: active.zenMode ? zenStatusMarkers(this.state.tabs, active.sessionId) : [],
       },
       theme,
     );
@@ -129,7 +125,14 @@ export class MixCodeRoot implements Component {
     const placeholderBottom = bottomBeforeMeta;
     const visibleBottom = placeholderBottom.slice(0, maxBottomRows);
     const middleHeight = Math.max(0, limit - fixedTop.length - visibleBottom.length);
-    const middle = this.renderMiddle(active, runtimeTab, width, middleHeight, fixedTop.length, theme);
+    const middle = this.renderMiddle(
+      active,
+      runtimeTab,
+      width,
+      middleHeight,
+      fixedTop.length,
+      theme,
+    );
     return [...fixedTop, ...middle, ...visibleBottom];
   }
 
@@ -263,8 +266,7 @@ export class MixCodeLayoutRoot implements Component {
     const metaProbe = isAgentTab ? renderInputMeta(active, width, 0, theme, false) : [];
     const workingLines = isAgentTab ? this.renderWorkingLoader(active, width, theme) : [];
     const viewportRowsForClamp = this.getViewportRows?.();
-    const activeForFooter =
-      this.state.activeTabId === "config" ? undefined : active;
+    const activeForFooter = this.state.activeTabId === "config" ? undefined : active;
     // Count real extension footer lines (renderFooter is intentionally empty).
     const footerRows =
       renderExtensionFooter(activeForFooter, width).length + renderFooter(width).length;
