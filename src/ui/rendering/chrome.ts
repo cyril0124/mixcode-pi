@@ -321,12 +321,13 @@ function renderStatusInner(tab: MixCodeTabInfo | undefined, width: number): stri
   return [];
 }
 
-/** Bar width for the bottom-border context meter. */
+/** Bar width for the bottom-meta context meter. */
 const CONTEXT_BAR_WIDTH = 8;
+const CONTEXT_ICON = "\uf0c9"; // open-tui context glyph (Nerd Font, not emoji)
 
 /**
  * Exact compact usage for the editor top border, e.g. `12.3k/200k` or `?/200k*`.
- * No percent — that lives in the bottom-border bar.
+ * No percent — that lives in the bottom-meta bar.
  */
 export function exactContextUsageText(tab: MixCodeTabInfo): string {
   const tokens = tab.currentContextTokens;
@@ -337,20 +338,23 @@ export function exactContextUsageText(tab: MixCodeTabInfo): string {
 }
 
 /**
- * Bottom-border context meter: `████░░░░ 50%` (no absolute token counts).
- * Unknown usage renders as `???????? ?%`.
+ * Bottom-meta context meter, open-tui style: ` [████░░░░] 50.0%`.
+ * Absolute token counts stay on the editor top border.
  */
 export function contextBarAndPercentText(tab: MixCodeTabInfo): string {
   const percent = contextUsagePercent(tab);
   if (percent === undefined) {
     // Empty meter until the first token count arrives; keep width stable.
-    return activeRenderTheme.dim(`${"░".repeat(CONTEXT_BAR_WIDTH)} ?%`);
+    return activeRenderTheme.dim(
+      `${CONTEXT_ICON} [${"░".repeat(CONTEXT_BAR_WIDTH)}] ?%`,
+    );
   }
   const filled = Math.max(
     0,
     Math.min(CONTEXT_BAR_WIDTH, Math.round((percent / 100) * CONTEXT_BAR_WIDTH)),
   );
-  const bar = `${"█".repeat(filled)}${"░".repeat(CONTEXT_BAR_WIDTH - filled)} ${percent}%`;
+  const cells = `${"█".repeat(filled)}${"░".repeat(CONTEXT_BAR_WIDTH - filled)}`;
+  const bar = `${CONTEXT_ICON} [${cells}] ${percent.toFixed(1)}%`;
   if (percent >= 80) return activeRenderTheme.danger(bar);
   if (percent >= 50) return activeRenderTheme.accent(bar);
   return activeRenderTheme.success(bar);
@@ -360,7 +364,7 @@ function contextUsagePercent(tab: MixCodeTabInfo): number | undefined {
   const tokens = tab.currentContextTokens;
   const limit = tab.contextLimit;
   if (tokens === undefined || limit <= 0) return undefined;
-  return Math.min(999, Math.max(0, Math.round((tokens / limit) * 100)));
+  return Math.min(999, Math.max(0, (tokens / limit) * 100));
 }
 
 function formatCompactTokenCount(tokens: number): string {
@@ -445,8 +449,8 @@ function renderInputMetaLeft(
   if (width <= 0) return { text: "", regions: [] };
   const moduleName = shortModelName(model);
   const modes: InputMetaMode[] = [
-    { model: ` 󰚩 ${model} `, thinking: ` ✦ ${thinking} `, gap: "  " },
-    { model: ` 󰚩 ${moduleName} `, thinking: ` ✦ ${thinking} `, gap: "  " },
+    { model: ` 󰚩 ${model} `, thinking: `  ${thinking} `, gap: "  " },
+    { model: ` 󰚩 ${moduleName} `, thinking: `  ${thinking} `, gap: "  " },
     { model: moduleName, thinking, gap: " " },
   ];
   // Greedy degradation: strict modes require model, thinking, and workdir all

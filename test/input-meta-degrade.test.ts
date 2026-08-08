@@ -39,7 +39,7 @@ test("shortModelName drops everything up to the last slash", () => {
 test("wide rows show the full provider/module model name, icons, and workdir", () => {
   const row = metaRow("anthropic/claude-sonnet-4-5", 120);
   assert.match(row, /anthropic\/claude-sonnet-4-5/);
-  assert.match(row, /✦ Medium/);
+  assert.match(row, / Medium/);
   assert.match(row, /~\/workspace\/project\/mixcode-pi-demo/);
   assert.doesNotMatch(row, /\.\.\./);
 });
@@ -51,7 +51,7 @@ test("drop provider before compacting or truncating workdir", () => {
   const row = metaRow("anthropic/claude-sonnet-4-5", 98);
   assert.match(row, /claude-sonnet-4-5/);
   assert.doesNotMatch(row, /anthropic\//);
-  assert.match(row, /✦ Medium/);
+  assert.match(row, / Medium/);
   assert.match(row, /~\/workspace\/project\/mixcode-pi-demo/);
   assert.doesNotMatch(row, /\.\.\./);
 });
@@ -59,7 +59,7 @@ test("drop provider before compacting or truncating workdir", () => {
 test("narrow rows drop icons and tighten spacing to single spaces", () => {
   const row = metaRow("anthropic/claude-sonnet-4-5", 55);
   assert.match(row, /claude-sonnet-4-5 Medium/);
-  assert.doesNotMatch(row, /✦|󰚩/);
+  assert.doesNotMatch(row, /|󰚩/);
 });
 
 test("very narrow rows fall back to model truncation with an ellipsis", () => {
