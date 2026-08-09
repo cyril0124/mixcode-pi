@@ -77,11 +77,6 @@ const RECOMMENDED: RecommendedExtension[] = [
     hint: "quiet auto-continue hooks",
   },
   {
-    source: "npm:@juicesharp/rpiv-web-tools",
-    label: "web-tools",
-    hint: "web search / fetch helpers",
-  },
-  {
     source: "npm:@monotykamary/pi-tps",
     label: "pi-tps",
     hint: "tokens-per-second footer",
