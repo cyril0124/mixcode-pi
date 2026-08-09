@@ -392,6 +392,14 @@ export function assistantText(
     .join("\n");
 }
 
+function userMessageTimestamp(messageTimestamp: unknown, entryTimestamp: string): number | undefined {
+  if (typeof messageTimestamp === "number" && Number.isFinite(messageTimestamp)) {
+    return messageTimestamp;
+  }
+  const parsed = Date.parse(entryTimestamp);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 function entryToChatLines(entry: SessionEntry, runtimeTab: RuntimeTab): ChatLine[] {
   if (entry.type === "compaction") {
     return [
@@ -430,7 +438,16 @@ function entryToChatLines(entry: SessionEntry, runtimeTab: RuntimeTab): ChatLine
   const message = entry.message;
   if (message.role === "user") {
     const text = contentText(message.content);
-    return text.trim() ? [{ role: "user", text, entryId: entry.id }] : [];
+    if (!text.trim()) return [];
+    const timestamp = userMessageTimestamp(message.timestamp, entry.timestamp);
+    return [
+      {
+        role: "user",
+        text,
+        entryId: entry.id,
+        ...(timestamp !== undefined ? { timestamp } : {}),
+      },
+    ];
   }
   if (message.role === "assistant") return assistantMessageToChatLines(message, runtimeTab);
   if (message.role === "bashExecution") {

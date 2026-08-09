@@ -1,4 +1,4 @@
-import { truncateToWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
+import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import type { ChatLine } from "../../agent/runtime.js";
 import type { OversizedAssistantMessageSettings } from "../../core/mixcode-settings.js";
 import type { MixCodeTabInfo } from "../../core/types.js";
@@ -244,11 +244,17 @@ function renderMessageBlockUncached(
     // Detect skill block and render collapsed/expanded
     const skillBlock = parseSkillBlock(text);
     if (skillBlock) {
-      return renderSkillUserMessage(skillBlock, width, tab);
+      return renderSkillUserMessage(skillBlock, width, tab, line.timestamp);
     }
-    const innerWidth = Math.max(1, width - 2);
-    const body = wrapPlainLine(text, innerWidth).map((part) =>
-      activeRenderTheme.userMessageBg(padLine(` ${part}`, width)),
+    // Reserve room on the first body line for a right-side clock when present.
+    const clock = formatUserMessageTime(line.timestamp);
+    const clockWidth = clock ? visibleWidth(` ${clock}`) : 0;
+    const innerWidth = Math.max(1, width - 2 - clockWidth);
+    const bodyParts = wrapPlainLine(text, innerWidth);
+    const body = bodyParts.map((part, index) =>
+      index === 0 && clock
+        ? renderUserMessageFirstLine(part, clock, width)
+        : activeRenderTheme.userMessageBg(padLine(` ${part}`, width)),
     );
     return [
       OSC133_ZONE_START + activeRenderTheme.userMessageBg(padLine("", width)),
@@ -385,7 +391,7 @@ function chatLineRenderCacheKey(
   const expanded = tab?.extensionUi.toolsExpanded ?? false;
   if (role === "user") {
     // Skill blocks switch on toolsExpanded; safe to include unconditionally.
-    return `u${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${expanded ? 1 : 0}${KEY_SEP}${line.text}`;
+    return `u${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${expanded ? 1 : 0}${KEY_SEP}${line.timestamp ?? ""}${KEY_SEP}${line.text}`;
   }
   if (role === "extension") {
     return `e${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${line.title ?? ""}${KEY_SEP}${line.customType ?? ""}${KEY_SEP}${line.text}`;
@@ -786,6 +792,7 @@ function renderSkillUserMessage(
   skillBlock: ParsedSkillBlock,
   width: number,
   tab?: MixCodeTabInfo,
+  timestamp?: number,
 ): string[] {
   const expanded = tab?.extensionUi.toolsExpanded ?? false;
   const innerWidth = Math.max(1, width - 2);
@@ -805,6 +812,11 @@ function renderSkillUserMessage(
     const label = ` ${activeRenderTheme.bold("[skill]")} ${skillBlock.name} ${activeRenderTheme.dim("(ctrl+o to expand)")}`;
     boxLines.push("", label, "");
   }
+  // Skill-only (no args): pin clock on the label line, keep blank top spacing.
+  const skillClock = !skillBlock.userMessage ? formatUserMessageTime(timestamp) : "";
+  if (skillClock && boxLines[1]) {
+    boxLines[1] = withRightClock(boxLines[1]!, skillClock, width);
+  }
   for (const part of boxLines) {
     lines.push(renderBackgroundLine(part, width, activeRenderTheme.customMessageBg));
   }
@@ -812,8 +824,14 @@ function renderSkillUserMessage(
   // Render user message (args) as a separate user block below
   if (skillBlock.userMessage) {
     lines.push(padLine("", width));
-    const body = wrapPlainLine(skillBlock.userMessage, innerWidth).map((part) =>
-      activeRenderTheme.userMessageBg(padLine(` ${part}`, width)),
+    const clock = formatUserMessageTime(timestamp);
+    const clockWidth = clock ? visibleWidth(` ${clock}`) : 0;
+    const argsInnerWidth = Math.max(1, width - 2 - clockWidth);
+    const bodyParts = wrapPlainLine(skillBlock.userMessage, argsInnerWidth);
+    const body = bodyParts.map((part, index) =>
+      index === 0 && clock
+        ? renderUserMessageFirstLine(part, clock, width)
+        : activeRenderTheme.userMessageBg(padLine(` ${part}`, width)),
     );
     lines.push(
       OSC133_ZONE_START + activeRenderTheme.userMessageBg(padLine("", width)),
@@ -823,6 +841,38 @@ function renderSkillUserMessage(
   }
 
   return lines;
+}
+
+function formatUserMessageTime(timestamp?: number): string {
+  if (timestamp === undefined || !Number.isFinite(timestamp)) return "";
+  // Short month/day + local clock, e.g. "Aug 9, 5:07 PM" (locale-dependent).
+  return new Date(timestamp).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+/** First user body line: text left, clock right-aligned and dimmed. */
+function renderUserMessageFirstLine(part: string, clock: string, width: number): string {
+  return activeRenderTheme.userMessageBg(
+    padLine(withRightClock(` ${part}`, clock, width, true), width),
+  );
+}
+
+/**
+ * Pack `left` + right-aligned clock into `width`.
+ * When `dimClock` is set, only the clock gets dim SGR (body stays normal).
+ */
+function withRightClock(left: string, clock: string, width: number, dimClock = false): string {
+  const right = truncateToWidth(` ${clock}`, Math.max(0, width));
+  const rightWidth = visibleWidth(right);
+  const leftBudget = Math.max(0, width - rightWidth);
+  const clippedLeft = truncateToWidth(left, leftBudget);
+  const fill = Math.max(0, width - visibleWidth(clippedLeft) - rightWidth);
+  const styledRight = dimClock ? activeRenderTheme.dim(right) : right;
+  return `${clippedLeft}${" ".repeat(fill)}${styledRight}`;
 }
 
 function prettyJson(value: unknown): string {

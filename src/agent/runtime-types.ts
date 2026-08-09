@@ -84,6 +84,8 @@ export interface ChatLine {
   status?: "pending" | "running" | "success" | "error";
   toolCallId?: string;
   entryId?: string;
+  /** Epoch ms when a user message was sent; used for right-side clock render. */
+  timestamp?: number;
   args?: unknown;
   renderExtension?: (width: number) => string[];
   renderToolCall?: (width: number) => string[];

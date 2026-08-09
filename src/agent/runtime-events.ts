@@ -304,7 +304,13 @@ export function appendMessageStart(runtimeTab: RuntimeTab, message: AgentMessage
     if (!text.trim()) return;
     clearChatScrollAnchor(runtimeTab.tab);
     runtimeTab.tab.chatScrollOffset = 0;
-    runtimeTab.chat.push({ role: "user", text });
+    runtimeTab.chat.push({
+      role: "user",
+      text,
+      ...(typeof message.timestamp === "number" && Number.isFinite(message.timestamp)
+        ? { timestamp: message.timestamp }
+        : {}),
+    });
     appendPreviewMessage(runtimeTab.tab, "user", text);
   } else if (message.role === "custom") {
     const line = customMessageToChatLine(message, runtimeTab);
