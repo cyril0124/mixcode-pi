@@ -36,6 +36,7 @@ import {
 } from "./completion.js";
 import { renderExtensionFooter, renderFooter, renderHeader } from "./rendering.js";
 import { withMouseReporting } from "./terminal.js";
+import { installStdoutScreenGuard, withHostStdoutGuard } from "./stdout-screen-guard.js";
 import { noteActiveExtensionThemeId } from "../agent/runtime-extension-theme.js";
 import { setTheme, themeForId } from "./themes.js";
 import { workspaceNameCompletions } from "./workspace-overlay.js";
@@ -70,7 +71,15 @@ export function createMixCodeTui(
   options: MixCodeTuiOptions = {},
 ): TuiType {
   noteActiveExtensionThemeId(state.theme);
-  const tui = new TuiMainScreen(withMouseReporting(options.terminal ?? new ProcessTerminal()));
+  // Host owns the tty: Terminal writes run under host depth; extension-direct
+  // full-screen clears (CSI 2J/3J) are stripped and coalesced into one repaint.
+  const terminal = withHostStdoutGuard(
+    withMouseReporting(options.terminal ?? new ProcessTerminal()),
+  );
+  const tui = new TuiMainScreen(terminal);
+  // Strip only: extension clears never hit the wire, so the previous frame is still
+  // valid. Do not requestRender/clearScreen on block — that reintroduces the flash.
+  const uninstallStdoutGuard = installStdoutScreenGuard({});
   (tui as TuiType & { mixCodeExitProcessOnQuit?: boolean }).mixCodeExitProcessOnQuit =
     options.exitProcessOnQuit === true;
   bindRuntimeRendering(runtime, tui, state, options.onStateChanged);
@@ -78,6 +87,8 @@ export function createMixCodeTui(
   const stopLiveExtensionRedraw = bindLiveExtensionRedraw(state, tui);
   let editorRows = 0;
   let metaRows = state.activeTabId === "config" ? 0 : 1;
+  // Filled after EditorSlot construction; MixCodeRoot reads it lazily each render.
+  let editorSlot: EditorSlot | undefined;
   const main = new MixCodeRoot(
     state,
     runtime,
@@ -96,6 +107,8 @@ export function createMixCodeTui(
         TERMINAL_SCROLL_GUARD_ROWS
       );
     },
+    // Custom input skins only (setEditorComponent), not temporary dialog overrides.
+    () => editorSlot?.getEditorComponent() !== undefined,
   );
   const defaultEditor = new CompactPromptEditor(
     tui,
@@ -107,6 +120,7 @@ export function createMixCodeTui(
   );
   defaultEditor.setAutocompleteMaxVisible(8);
   const editor = new EditorSlot(tui, defaultEditor, state);
+  editorSlot = editor;
   attachTreeSelectorDisplayHost(
     tui,
     state,
@@ -220,7 +234,12 @@ export function createMixCodeTui(
       getExpandedText: (sessionId) => editor.getExpandedText(sessionId),
       setText: (text, sessionId) => editor.setText(text, sessionId),
       pasteToEditor: (text, sessionId) => editor.pasteToEditor(text, sessionId),
-      setAutocompleteProvider: () => editor.setAutocompleteProvider(activeCompletionProvider),
+      // Always rebind the multi-tab live proxy. Extension addAutocompleteProvider
+      // invalidates per-session cache and only needs a rebind so EditorSlot can
+      // re-snapshot triggerCharacters; never install a single-session concrete
+      // chain into the shared editor (that freezes wrappers to one tab).
+      setAutocompleteProvider: () =>
+        editor.setAutocompleteProvider(activeCompletionProvider),
       setEditorComponent: (factory, sessionId) => editor.setEditorComponent(factory, sessionId),
       getEditorComponent: (sessionId) => editor.getEditorComponent(sessionId),
       getEmbeddedTerminalRows: (sessionId) => editor.getEmbeddedTerminalRows(sessionId),
@@ -280,7 +299,11 @@ export function createMixCodeTui(
         insertTextAtCursor: (text) => editor.insertTextAtCursor(text),
         submitCurrentText: () => editor.submitCurrentText(),
         browsePromptHistory: (input) => editor.browsePromptHistory(input),
-        hasEditorReplacement: () => editor.getEditorComponent() !== undefined || editor.hasInputComponent(),
+        // Skin vs takeover: permanent setEditorComponent is visual only.
+        hasCustomEditorSkin: () => editor.getEditorComponent() !== undefined,
+        // Deprecated dual-meaning flag; ownership uses isPendingEditorTakeover.
+        hasEditorReplacement: () =>
+          editor.getEditorComponent() !== undefined || editor.hasInputComponent(),
         hasInputComponent: () => editor.hasInputComponent(),
         forwardToInputComponent: (data) => editor.handleInput(data),
         setInputComponent: (component, sessionId) => editor.setInputComponent(component, sessionId),
@@ -304,11 +327,14 @@ export function createMixCodeTui(
       { workspaceFile: options.workspaceFile, rootStateDir: options.rootStateDir, settingsDeps: options.settingsDeps },
     );
     if (result?.consume) return result;
-    // Global Ctrl+E opens the MAIN input editor's text in an external editor.
-    // Skip it while an extension component owns the editor slot (e.g. the /view
-    // editor): the key must fall through to the focused EditorSlot so the
-    // extension editor's own Ctrl+E opens ITS content, not the empty main input.
-    if (matchesKey(data, "ctrl+e") && !editor.getEditorComponent()) {
+    // Global Ctrl+E opens the active input editor in an external editor.
+    // Pending extension interactions (e.g. /view dialog) own the key; permanent
+    // setEditorComponent skins still use MixCode external-edit on active text.
+    const activeForEdit = state.activeTabId === "config" ? undefined : getActiveTab(state);
+    if (
+      matchesKey(data, "ctrl+e") &&
+      !(activeForEdit?.extensionUi.pendingUserInteractions.length)
+    ) {
       void editTextWithTuiPaused(tui, editor.getText(), options.externalEditor)
         .then((text) => {
           editor.setText(text);
@@ -343,6 +369,7 @@ export function createMixCodeTui(
     stopChatSelectionAutoScroll();
     root.dispose();
     originalStop();
+    uninstallStdoutGuard();
   };
   tui.addChild(root);
   tui.setFocus(editor);

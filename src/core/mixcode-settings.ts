@@ -20,7 +20,7 @@ export interface RawMixCodeSettings {
     };
     /** When false, mermaid fences render as plain code blocks. */
     renderMermaid?: boolean;
-    /** Input-meta icon glyph mode (open-tui style). */
+    /** Input-meta icon glyph mode. */
     icons?: { mode?: IconMode };
   };
   /** Provider ids disabled for selection/use (global). */

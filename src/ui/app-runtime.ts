@@ -147,13 +147,23 @@ export function createActiveAutocompleteProvider(
   base: AutocompleteProvider,
 ): AutocompleteProvider {
   const current = () => resolveActiveAutocompleteProvider(state, runtime, base);
+  // Pi Editor reads provider.triggerCharacters in setAutocompleteProvider.
+  // Mirror InteractiveMode.setupAutocompleteProvider: expose the live merged list
+  // from all extension wrappers. No MixCode-only force path.
   return {
+    get triggerCharacters() {
+      return current().triggerCharacters;
+    },
     getSuggestions: (lines, cursorLine, cursorCol, options) =>
       current().getSuggestions(lines, cursorLine, cursorCol, options),
     applyCompletion: (lines, cursorLine, cursorCol, item, prefix) =>
       current().applyCompletion(lines, cursorLine, cursorCol, item, prefix),
-    shouldTriggerFileCompletion: (lines, cursorLine, cursorCol) =>
-      current().shouldTriggerFileCompletion?.(lines, cursorLine, cursorCol) ?? false,
+    // Pi: omit/undefined => allow trigger; only explicit false cancels.
+    shouldTriggerFileCompletion: (lines, cursorLine, cursorCol) => {
+      const provider = current();
+      if (!provider.shouldTriggerFileCompletion) return true;
+      return provider.shouldTriggerFileCompletion(lines, cursorLine, cursorCol);
+    },
   };
 }
 
@@ -165,8 +175,8 @@ function resolveActiveAutocompleteProvider(
   const active = getActiveTab(state);
   if (!active || state.activeTabId === "config") {
     // On the Agent (home) view, messages are sent to the selected tab, so
-    // stack that tab's extension autocomplete providers (e.g. skill-refs `$`)
-    // on top of the base provider before applying the home filter.
+    // stack that tab's extension autocomplete providers on top of the base
+    // provider before applying the home filter.
     const selected = state.tabs[state.homeSelectedTabIndex];
     const withExtensions =
       selected && runtime.getTab(selected.sessionId)
@@ -181,6 +191,9 @@ function resolveActiveAutocompleteProvider(
 // On Agent View, only allow $ (skills) and @ (files) autocomplete; block / (commands).
 function homeAutocompleteFilter(base: AutocompleteProvider): AutocompleteProvider {
   return {
+    get triggerCharacters() {
+      return base.triggerCharacters;
+    },
     getSuggestions: async (lines, cursorLine, cursorCol, options) => {
       const line = lines[cursorLine] ?? "";
       const before = line.slice(0, cursorCol);
@@ -190,7 +203,9 @@ function homeAutocompleteFilter(base: AutocompleteProvider): AutocompleteProvide
     },
     applyCompletion: (lines, cursorLine, cursorCol, item, prefix) =>
       base.applyCompletion(lines, cursorLine, cursorCol, item, prefix),
-    shouldTriggerFileCompletion: (lines, cursorLine, cursorCol) =>
-      base.shouldTriggerFileCompletion?.(lines, cursorLine, cursorCol) ?? false,
+    shouldTriggerFileCompletion: (lines, cursorLine, cursorCol) => {
+      if (!base.shouldTriggerFileCompletion) return true;
+      return base.shouldTriggerFileCompletion(lines, cursorLine, cursorCol);
+    },
   };
 }

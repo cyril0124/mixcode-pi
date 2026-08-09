@@ -90,6 +90,7 @@ export function handleStreamingAbortKey(
   if (!working) return false;
   if (!hasPendingEscape(active, "abort-agent")) {
     armPendingEscape(active, "abort-agent");
+    pushToast(active, { type: "info", message: "Esc again: stop" });
     tui.requestRender();
     return true;
   }
@@ -592,9 +593,10 @@ export function handleEscapeKey(
         }
         return { consume: true };
       }
-      // First Esc: arm abort
+      // First Esc: arm abort (toast, not meta row).
       active.pendingEscapeAction = "abort-agent";
       active.pendingEscapeArmedAt = Date.now();
+      pushToast(active, { type: "info", message: "Esc again: stop" });
       tui.requestRender();
       return { consume: true };
     }
@@ -645,8 +647,12 @@ export function handleEscapeKey(
         tui.requestRender();
         return { consume: true };
       }
-      // First Esc: arm the double-press timer (UI shows "Esc again: tree/fork").
+      // First Esc: arm double-press (toast, not meta row).
       active.lastEscapeTime = now;
+      pushToast(active, {
+        type: "info",
+        message: action === "fork" ? "Esc again: fork" : "Esc again: tree",
+      });
       tui.requestRender();
       return { consume: true };
     }

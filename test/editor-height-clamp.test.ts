@@ -24,12 +24,13 @@ function stripAnsi(text: string): string {
 // extension editor-replacement component (e.g. the btw answer pager). The first
 // and last lines mimic the pager's top/bottom borders so we can assert both
 // survive the clamp.
-function fakeEditor(lines: string[]): EditorSlot {
+function fakeEditor(lines: string[], options?: { showingAutocomplete?: boolean }): EditorSlot {
   return {
     render: () => lines,
     invalidate: () => undefined,
     setEmbeddedTerminalRows: () => false,
     setEditorMaxRows: () => false,
+    isShowingAutocomplete: () => options?.showingAutocomplete === true,
   } as unknown as EditorSlot;
 }
 
@@ -330,6 +331,28 @@ test("small editor content is not clamped", () => {
   layout.render(80);
   layout.render(80);
   assert.equal(getEditorRows(), 3);
+});
+
+test("autocomplete open keeps the dropdown tail when the editor is clamped", () => {
+  // Custom skins (rounded borders) + autocomplete list are tall. The old
+  // head+last clamp kept borders but dropped the middle/list rows, so @/$
+  // looked dead. When autocomplete is open, keep the tail instead.
+  const viewportRows = 14;
+  const lines = [
+    "TOP-BORDER",
+    "INPUT-ROW",
+    "BOTTOM-BORDER",
+    ...Array.from({ length: 20 }, (_, i) => `AC-ITEM-${i}`),
+    "AC-FOOTER",
+  ];
+  const editor = fakeEditor(lines, { showingAutocomplete: true });
+  const { layout } = buildRealLayoutWithDynamicEditor(editor, viewportRows);
+
+  layout.render(80);
+  const text = stripAnsi(layout.render(80).join("\n"));
+
+  assert.match(text, /AC-FOOTER/, "autocomplete footer must stay visible");
+  assert.match(text, /AC-ITEM-/, "autocomplete items must not all be clamped away");
 });
 
 // Pi custom components size with `terminal.rows - RESERVED_APP_LINES(3)`.

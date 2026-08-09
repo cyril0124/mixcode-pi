@@ -72,8 +72,12 @@ test("paste-newline heuristic keeps intercepting Enter on the default editor", (
   assert.deepEqual(inserted, ["\n"], "Enter is converted into an inserted newline");
 });
 
-test("paste-newline heuristic does not swallow Enter while an extension owns the editor slot", () => {
+test("paste-newline heuristic does not swallow Enter while a pending extension interaction owns input", () => {
   const state = makeState();
+  state.tabs[0]!.extensionUi.pendingUserInteractions.push({
+    id: "extension-custom-1",
+    kind: "custom",
+  });
   const { actions, inserted } = makeEditorActions({ hasEditorReplacement: () => true });
   feedRapidInput(state, actions);
   const result = handleMixCodeKeyInput(
@@ -90,11 +94,15 @@ test("paste-newline heuristic does not swallow Enter while an extension owns the
   assert.deepEqual(inserted, [], "no newline is injected into the replaced editor");
 });
 
-// Regression: global Ctrl+C clears the default editor, but when an extension
-// custom component owns the editor slot (e.g. /btw), Ctrl+C is that component's
+// Regression: global Ctrl+C clears the default editor, but when a pending
+// extension interaction owns the slot (e.g. /btw), Ctrl+C is that component's
 // exit/cancel key and must fall through instead of being consumed as clear-input.
-test("Ctrl+C does not clear/consume while an extension owns the editor slot", () => {
+test("Ctrl+C does not clear/consume while a pending extension interaction owns input", () => {
   const state = makeState();
+  state.tabs[0]!.extensionUi.pendingUserInteractions.push({
+    id: "extension-custom-1",
+    kind: "custom",
+  });
   let cleared = false;
   const { actions } = makeEditorActions({
     hasEditorReplacement: () => true,
@@ -117,11 +125,38 @@ test("Ctrl+C does not clear/consume while an extension owns the editor slot", ()
   assert.equal(cleared, false, "default editor must not be cleared");
 });
 
-// Regression: global Ctrl+R pre-fills /rename, but when an extension custom
-// component owns the editor slot (e.g. /btw bring-to-main), Ctrl+R must fall
-// through instead of being consumed as rename.
-test("Ctrl+R does not rename/consume while an extension owns the editor slot", () => {
+test("Ctrl+C still clears draft with a permanent editor replacement", () => {
   const state = makeState();
+  let text = "draft";
+  const { actions } = makeEditorActions({
+    hasEditorReplacement: () => true,
+    getText: () => text,
+    setText: (next) => {
+      text = next;
+    },
+  });
+  const result = handleMixCodeKeyInput(
+    state,
+    "\x03",
+    silentTui(),
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    actions,
+  );
+  assert.deepEqual(result, { consume: true });
+  assert.equal(text, "");
+});
+
+// Regression: global Ctrl+R pre-fills /rename, but when a pending extension
+// interaction owns the slot (e.g. /btw bring-to-main), Ctrl+R must fall through.
+test("Ctrl+R does not rename/consume while a pending extension interaction owns input", () => {
+  const state = makeState();
+  state.tabs[0]!.extensionUi.pendingUserInteractions.push({
+    id: "extension-custom-1",
+    kind: "custom",
+  });
   let renamedText: string | undefined;
   const { actions } = makeEditorActions({
     hasEditorReplacement: () => true,
@@ -143,12 +178,38 @@ test("Ctrl+R does not rename/consume while an extension owns the editor slot", (
   assert.equal(renamedText, undefined, "rename text must not be injected");
 });
 
-// Regression: global Ctrl+J / Shift+Enter insert newline into MixCode's editor
-// actions. When an extension custom component owns the editor slot (e.g. /btw),
-// the wrapper often has no-op getText/setText, so consuming these keys both
-// blocks the nested editor and inserts nothing. Fall through instead.
-test("Ctrl+J and Shift+Enter do not insert/consume while an extension owns the editor slot", () => {
+test("Ctrl+R still prefills /rename with a permanent editor replacement", () => {
   const state = makeState();
+  let text = "draft";
+  const { actions } = makeEditorActions({
+    hasEditorReplacement: () => true,
+    getText: () => text,
+    setText: (next) => {
+      text = next;
+    },
+  });
+  const result = handleMixCodeKeyInput(
+    state,
+    "\x12",
+    silentTui(),
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    actions,
+  );
+  assert.deepEqual(result, { consume: true });
+  assert.equal(text, `/rename ${state.tabs[0]!.title}`);
+});
+
+// Regression: global Ctrl+J / Shift+Enter insert newline into MixCode's editor
+// actions. Temporary takeovers (e.g. /btw) own those keys; permanent skins do not.
+test("Ctrl+J and Shift+Enter do not insert/consume while a pending extension interaction owns input", () => {
+  const state = makeState();
+  state.tabs[0]!.extensionUi.pendingUserInteractions.push({
+    id: "extension-custom-1",
+    kind: "custom",
+  });
   const { actions, inserted } = makeEditorActions({ hasEditorReplacement: () => true });
   // "\n" is the legacy Ctrl+J (and Ghostty Shift+Enter) byte; CSI u is Kitty Shift+Enter.
   for (const data of ["\n", "\x1b[13;2u"] as const) {
@@ -204,10 +265,11 @@ test("PgUp/PgDn still scroll the main chat on the default editor", () => {
   assert.equal(tab.chatScrollOffset, 0);
 });
 
-test("PgUp/PgDn do not scroll/consume while an extension owns the editor slot", () => {
+test("PgUp/PgDn do not scroll/consume while a pending extension interaction owns input", () => {
   const state = makeState();
   const tab = state.tabs[0]!;
   tab.chatScrollOffset = 0;
+  tab.extensionUi.pendingUserInteractions.push({ id: "extension-custom-1", kind: "custom" });
   const { actions } = makeEditorActions({ hasEditorReplacement: () => true });
   for (const key of [PAGE_UP, PAGE_DOWN]) {
     const result = handleMixCodeKeyInput(
@@ -222,7 +284,38 @@ test("PgUp/PgDn do not scroll/consume while an extension owns the editor slot", 
     );
     assert.equal(result, undefined, `${JSON.stringify(key)} must pass through to the custom component`);
   }
-  assert.equal(tab.chatScrollOffset, 0, "main chat must not scroll under a replaced editor");
+  assert.equal(tab.chatScrollOffset, 0, "main chat must not scroll under a pending interaction");
+});
+
+test("PgUp/PgDn still scroll the main chat with a permanent editor replacement", () => {
+  const state = makeState();
+  const tab = state.tabs[0]!;
+  tab.chatScrollOffset = 0;
+  const { actions } = makeEditorActions({ hasEditorReplacement: () => true });
+  const up = handleMixCodeKeyInput(
+    state,
+    PAGE_UP,
+    silentTui(),
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    actions,
+  );
+  assert.deepEqual(up, { consume: true });
+  assert.equal(tab.chatScrollOffset, 10);
+  const down = handleMixCodeKeyInput(
+    state,
+    PAGE_DOWN,
+    silentTui(),
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    actions,
+  );
+  assert.deepEqual(down, { consume: true });
+  assert.equal(tab.chatScrollOffset, 0);
 });
 
 test("PgUp/PgDn do not scroll/consume while a pending extension interaction is open", () => {

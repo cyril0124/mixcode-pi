@@ -151,6 +151,29 @@ test("tab bar separator color tracks vim vs thinking-level border", () => {
   assert.equal(stripAnsi(vim), "\u2500".repeat(width));
 });
 
+test("tab bar separator agentChrome embeds title and optional override context", () => {
+  const width = 48;
+  const plain = stripAnsi(
+    renderTabBarSeparator(width, {
+      agentChrome: { title: "Agent-17", contextText: "53.4k/500k*" },
+    })[0]!,
+  );
+  assert.equal(visibleWidth(plain), width);
+  assert.match(plain, /Agent-17/);
+  assert.match(plain, /53\.4k\/500k\*/);
+});
+
+test("tab bar separator agentChrome can omit context when not overridden", () => {
+  const width = 40;
+  const plain = stripAnsi(
+    renderTabBarSeparator(width, {
+      agentChrome: { title: "Agent-17" },
+    })[0]!,
+  );
+  assert.match(plain, /Agent-17/);
+  assert.doesNotMatch(plain, /k\//);
+});
+
 test("tab bar capped to one row inlines hidden count on the last visible row", () => {
   const width = 40;
   const state = manyTabState(12);

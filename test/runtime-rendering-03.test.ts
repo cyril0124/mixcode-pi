@@ -84,12 +84,13 @@ test("agent surface shows thinking content only once", () => {
   assert.equal((surface.match(/same thought/g) ?? []).length, 1);
 });
 
-test("pending escape arm surfaces Esc-again stop hint in input meta", () => {
+test("pending escape arm no longer paints Esc-again stop in input meta", () => {
   const tab = createTab(1, "s1", "/repo", {
     pendingEscapeAction: "abort-agent",
     pendingEscapeArmedAt: Date.now(),
   });
-  assert.match(stripAnsi(renderInputMeta(tab, 100).join("\n")), /Esc again: stop/);
+  // Arm feedback is toast-only (see handleEscapeKey); meta stays free of chord hints.
+  assert.doesNotMatch(stripAnsi(renderInputMeta(tab, 100).join("\n")), /Esc again: stop/);
 });
 
 test("extension-rendered tool lines with tabs stay within terminal width", () => {

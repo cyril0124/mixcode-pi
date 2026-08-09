@@ -105,7 +105,7 @@ MixCodeRuntime
 ├────────────────────────────────────────────────────────────┤
 │ > prompt editor                                             │
 ├────────────────────────────────────────────────────────────┤
-│ status meta: model / thinking / workdir / git branch        │
+│ status meta: model / thinking / workdir / git (hidden if extension footer set) │
 └────────────────────────────────────────────────────────────┘
 ```
 
@@ -124,7 +124,7 @@ Config tab 只渲染配置面板和可点击操作，不渲染 prompt editor；�
 | `Ctrl+O` | 展开/收起 tool 输出块与 header 快捷键提示（共用 tools-expand 状态） |
 | `Ctrl+R` | 预填 `/rename 当前标题`，复用 slash command 重命名 |
 | `Esc Esc` | 编辑器为空时打开 session tree（既有 double-Esc 路径） |
-| `Alt+Up` / `Ctrl+U` | 将队列里最后一条消息弹回编辑器（**优先 follow-up，再 steer**）；**两队列都空时 Ctrl+U 武装 1s 内 `u`/`Ctrl+U` 进入 Vim**（input meta 显示 `u/Ctrl+U: vim`；Home / Alt+Up 不武装；始终消费以免落到 Editor 行首删除） |
+| `Alt+Up` / `Ctrl+U` | 将队列里最后一条消息弹回编辑器（**优先 follow-up，再 steer**）；**两队列都空时 Ctrl+U 武装 1s 内 `u`/`Ctrl+U` 进入 Vim**（toast 提示 `Again: u or Ctrl+U → vim`；Home / Alt+Up 不武装；始终消费以免落到 Editor 行首删除） |
 | `Up` / `Down` | 普通输入为空且无 overlay、preview、补全、extension terminal input 消费时浏览当前 tab 的 prompt 历史；其它场景交给局部控件 |
 | `Right` | Vim 模式跳到更新的 user message，并短暂显示右锚定 `User Messages` 预览；非 Vim 普通输入为空且无 overlay、preview、补全、extension user interaction 时切换 extension widget side panel；无 widget 或终端过窄时显示 toast；有输入时交给 Editor 光标移动 |
 | `Shift+Right` | Vim 模式跳到更旧的 user message，并短暂显示右锚定 `User Messages` 预览 |
@@ -162,7 +162,7 @@ key input
 
 `/thinking` 与 `/hide-thinking` 是两件不同的事：`/thinking` 调整当前 tab 模型的 reasoning level（`off`/`low`/`medium`/`high`/`max`），影响模型实际推理量；`/hide-thinking` 只切换 thinking 内容在 TUI 的可见性，隐藏时折叠为斜体 `Thinking...` 占位，不改变推理 level、不改写会话内容。`/hide-thinking` 是全 tab 生效的应用级 toggle，复用 Pi 原生 `hideThinkingBlock` 设置持久化（启动时 `SettingsManager.getHideThinkingBlock()` 读取，切换时 `setHideThinkingBlock()` 写回全局 `settings.json`），跨重启保持，并沿用 Pi 的状态文案 `Thinking blocks: hidden|visible`。因为它写入 Pi 全局 `settings.json`（跨重启、跨 workdir、与 Pi agent 共享），其 `description` 以 `[global]` 前缀标注，让用户在 palette / slash 补全里执行前即可看出这是全局持久化设置；约定见 AGENTS.md 的 Slash Commands。
 
-`/models`、`/thinking`、`/context-limit`、`/workdir` 在无参数时会打开本地 picker overlay，支持输入过滤、上下移动、回车选择、Esc 取消。`/thinking` 的候选来自当前 tab 模型能力；不支持 reasoning 的模型只显示 `off`，带 `thinkingLevelMap` 的模型可显示 Pi 支持的新 level（如 `max`）。UI 主题改由 `/settings` 面板编辑（写入 `mixcode_settings.json` 的 `theme`，未设置时保留 runtime/default）；Pi extension `ctx.ui.setTheme("dark" | "mixcode-dark" | "claude-warm" | "tokyo-night" | "terminal")` 仍走同一套归一化并请求 redraw。Agent 输入 meta 行里的 workdir、model、thinking 三段也可用鼠标点击，分别复用 `/workdir`、`/models`、`/thinking` picker。编辑器补全覆盖 `/` slash commands、`$skill` 和 `@path`；`@path` 候选同时包含文件与带尾斜杠的目录，目录 query 如 `@src/` 会列出直接子项，带空格路径会插入为 `@"dir with spaces/"`。
+`/models`、`/thinking`、`/context-limit`、`/workdir` 在无参数时会打开本地 picker overlay，支持输入过滤、上下移动、回车选择、Esc 取消。`/thinking` 的候选来自当前 tab 模型能力；不支持 reasoning 的模型只显示 `off`，带 `thinkingLevelMap` 的模型可显示 Pi 支持的新 level（如 `max`）。UI 主题改由 `/settings` 面板编辑（写入 `mixcode_settings.json` 的 `theme`，未设置时保留 runtime/default）；Pi extension `ctx.ui.setTheme("dark" | "mixcode-dark" | "claude-warm" | "tokyo-night" | "terminal")` 仍走同一套归一化并请求 redraw。Agent 输入 meta 行里的 workdir、model、thinking 三段也可用鼠标点击，分别复用 `/workdir`、`/models`、`/thinking` picker；当 tab 设置了 extension footer 时 meta 整行折叠（footer 已承载 cwd/model/context/git/status，避免双层重复），点击 picker 亦随之不可用。编辑器补全覆盖 `/` slash commands、`$skill` 和 `@path`；`@path` 候选同时包含文件与带尾斜杠的目录，目录 query 如 `@src/` 会列出直接子项，带空格路径会插入为 `@"dir with spaces/"`。
 
 全局 `@` 文件 picker 参考 `refs/mixcode/mixcode/widgets/file_picker.py` 的真实实现，而不是 README 推测：
 

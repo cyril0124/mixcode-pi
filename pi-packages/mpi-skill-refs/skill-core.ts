@@ -388,7 +388,9 @@ export function createSkillCompletionWrapper(
     },
     shouldTriggerFileCompletion(lines, cursorLine, cursorCol) {
       if (currentToken(lines, cursorLine, cursorCol).startsWith("$")) return true;
-      return base.shouldTriggerFileCompletion?.(lines, cursorLine, cursorCol) ?? false;
+      // Pi Editor: missing shouldTriggerFileCompletion means allow.
+      if (!base.shouldTriggerFileCompletion) return true;
+      return base.shouldTriggerFileCompletion(lines, cursorLine, cursorCol);
     },
   };
 }

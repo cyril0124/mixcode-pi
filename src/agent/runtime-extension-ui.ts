@@ -230,14 +230,17 @@ export function createMixCodeExtensionUiContext(
       createExtensionEditorOverlay(runtimeTab, requestRender, getCustomUiHost, title, prefill),
     addAutocompleteProvider: (factory) => {
       runtimeTab.extensionAutocompleteProviderFactories.push(factory);
+      // Pi InteractiveMode.setupAutocompleteProvider always rebuilds and rebinds
+      // the live editor (default + custom). Invalidate cache so the next resolve
+      // includes this wrapper; rebind without installing a dummy-rooted chain
+      // (that would make non-$ completions like @ return null forever).
+      runtimeTab.extensionAutocompleteProviderCache = undefined;
       const editor = getCustomUiHost()?.editor;
-      if (!editor?.setAutocompleteProvider || !runtimeTab.extensionAutocompleteProviderCache)
-        return;
-      editor.setAutocompleteProvider(
-        applyExtensionAutocompleteProviders(
-          runtimeTab,
-          runtimeTab.extensionAutocompleteProviderCache.base,
-        ),
+      if (!editor?.setAutocompleteProvider) return;
+      // Signal rebind only. Production host always keeps the multi-tab live
+      // proxy; never pass a session-scoped concrete chain into EditorSlot.
+      (editor.setAutocompleteProvider as (provider?: AutocompleteProvider) => void)(
+        undefined,
       );
       requestRender();
     },
@@ -279,9 +282,18 @@ export function applyExtensionAutocompleteProviders(
   ) {
     return cached.provider;
   }
+  // Match Pi InteractiveMode.setupAutocompleteProvider: fold wrapper
+  // triggerCharacters onto the final provider so Editor.setAutocompleteProvider
+  // enables every extension trigger character.
+  if (!base) return base;
   let provider = base;
+  const triggerCharacters = [...(base.triggerCharacters ?? [])];
   for (const factory of runtimeTab.extensionAutocompleteProviderFactories) {
     provider = factory(provider);
+    triggerCharacters.push(...(provider.triggerCharacters ?? []));
+  }
+  if (triggerCharacters.length > 0) {
+    provider.triggerCharacters = [...new Set(triggerCharacters)];
   }
   runtimeTab.extensionAutocompleteProviderCache = {
     base,

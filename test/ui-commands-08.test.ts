@@ -266,11 +266,39 @@ test("global key input pops queued messages back into editor", () => {
   assert.equal(text, "keep draft");
 });
 
-test("input meta shows u/Ctrl+U: vim while enter-vim is armed", () => {
+test("empty-queue Ctrl+U arms vim via toast, not input meta", () => {
+  const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo");
-  tab.vimEnterArmedAt = Date.now();
+  state.tabs.push(tab);
+  state.activeTabId = "s1";
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({}) as never,
+    hideOverlay: () => undefined,
+    hasOverlay: () => false,
+  };
+  const editorActions = {
+    getText: () => "",
+    setText: () => undefined,
+  };
+  assert.deepEqual(
+    handleMixCodeKeyInput(
+      state,
+      "\x15",
+      tui,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      editorActions,
+    ),
+    { consume: true },
+  );
+  assert.ok(typeof tab.vimEnterArmedAt === "number");
+  assert.equal(tab.toast?.type, "info");
+  assert.match(tab.toast?.message ?? "", /Again: u or Ctrl\+U → vim/);
   const plain = stripAnsi(renderInputMeta(tab, 120).join("\n"));
-  assert.match(plain, /u\/Ctrl\+U: vim/);
+  assert.doesNotMatch(plain, /u\/Ctrl\+U/);
 });
 
 test("empty-queue Ctrl+U then u enters vim mode", () => {
@@ -577,6 +605,60 @@ test("vim enter accepts Kitty CSI-u for confirming u and ignores key release", (
   );
   assert.equal(tab.vimMode, true);
   assert.equal(text, "keep");
+});
+
+test("empty-queue Ctrl+U still arms vim with a permanent editor replacement", () => {
+  // Visual editor skins (setEditorComponent) must not swallow Ctrl+U → u enter-vim.
+  // Only pending extension interactions own that key.
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo");
+  state.tabs.push(tab);
+  state.activeTabId = "s1";
+  let text = "draft stays";
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({}) as never,
+    hideOverlay: () => undefined,
+    hasOverlay: () => false,
+  };
+  const editorActions = {
+    getText: () => text,
+    setText: (next: string) => {
+      text = next;
+    },
+    hasEditorReplacement: () => true,
+  };
+
+  assert.deepEqual(
+    handleMixCodeKeyInput(
+      state,
+      "\x15",
+      tui,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      editorActions,
+    ),
+    { consume: true },
+  );
+  assert.ok(typeof tab.vimEnterArmedAt === "number");
+
+  assert.deepEqual(
+    handleMixCodeKeyInput(
+      state,
+      "u",
+      tui,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      editorActions,
+    ),
+    { consume: true },
+  );
+  assert.equal(tab.vimMode, true);
+  assert.equal(text, "draft stays");
 });
 
 test("Home empty-queue Ctrl+U does not arm vim enter", () => {

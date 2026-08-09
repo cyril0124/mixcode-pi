@@ -63,9 +63,24 @@ test("vim mode does not arm empty-editor double-Esc tree", () => {
   assert.equal(tab.lastEscapeTime, undefined);
 });
 
-test("input meta shows Esc again: tree while double-Esc is armed", () => {
+test("double-Esc arm shows Esc again: tree via toast, not input meta", () => {
+  const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo");
-  tab.lastEscapeTime = Date.now();
+  state.tabs.push(tab);
+  state.activeTabId = "s1";
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({}) as never,
+    hideOverlay: () => undefined,
+    hasOverlay: () => false,
+  };
+  const editor = { getText: () => "", setText: () => undefined };
+  assert.deepEqual(handleEscapeKey(state, tab, tui, undefined, editor, () => false), {
+    consume: true,
+  });
+  assert.ok(typeof tab.lastEscapeTime === "number");
+  assert.equal(tab.toast?.type, "info");
+  assert.match(tab.toast?.message ?? "", /Esc again: tree/);
   const plain = stripAnsi(renderInputMeta(tab, 120).join("\n"));
-  assert.match(plain, /Esc again: tree/);
+  assert.doesNotMatch(plain, /Esc again: tree/);
 });

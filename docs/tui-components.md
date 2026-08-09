@@ -39,8 +39,8 @@
 │| > prompt editor   CompactPromptEditor / EditorSlot                                             |│
 │|   / @ $ autocomplete  |  vim  |  bash-mode !                                                   |│
 │|------------------------------------------------------------------------------------------------|│
-│| meta: model | thinking | workdir | git | [ZEN]                                                 |│
-│| extension footer widgets                                                                       |│
+│| meta: model | thinking | workdir | git   (omitted when extension footer is set)                |│
+│| extension footer widgets  (when set, replaces meta row fields)                                 |│
 │| footer                                                                                         |│
 │+------------------------------------------------------------------------------------------------+│
 │                                                                                                  │

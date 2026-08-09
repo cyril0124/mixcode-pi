@@ -410,7 +410,9 @@ test("runtime extension reload resets host UI state and rebinds extension resour
         setText: () => undefined,
         pasteToEditor: () => undefined,
         setAutocompleteProvider: (provider) => {
-          activeProvider = provider;
+          // undefined = "rebind live" (app.ts uses activeCompletionProvider).
+          // Test host has no live proxy; keep the previous provider.
+          if (provider) activeProvider = provider;
         },
         setEditorComponent: () => undefined,
       },

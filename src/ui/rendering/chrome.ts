@@ -8,6 +8,7 @@ import {
 import type { MouseHitRegion } from "../../core/mouse.js";
 import { retryStatusMessage, tabHasPendingUserInteraction } from "../../core/tab-state.js";
 import type { MixCodeState, MixCodeTabInfo } from "../../core/types.js";
+import { buildLabeledTopBorder } from "../editor-top-border.js";
 import type { MixCodeTheme } from "../themes.js";
 import { activeRenderTheme, renderWithTheme } from "./context.js";
 import { resolveGlyphs, type IconGlyphs } from "./icons.js";
@@ -97,6 +98,9 @@ export type ZenStatusMarker = "working" | "question" | "done" | "error";
  * space-separated solid dots: accent for working, warning for pending input,
  * green for done, and red for errors. The cluster is capped at five markers,
  * then `[+N]`; dashes keep the frame color.
+ * When `agentChrome` is set (custom setEditorComponent skins), the rule carries
+ * the active agent title / optional override context / VIM|ZEN|sys badges so
+ * EditorSlot does not paint a second label strip above the input editor.
  */
 export function renderTabBarSeparator(
   width: number,
@@ -107,6 +111,12 @@ export function renderTabBarSeparator(
     /** Meaningful states from other agents, ordered by tab position. */
     zenStatusMarkers?: readonly ZenStatusMarker[];
     iconMode?: IconMode;
+    /** Right-anchored agent labels for custom input-editor skins. */
+    agentChrome?: {
+      title: string;
+      contextText?: string;
+      customBasePrompt?: boolean;
+    };
   } = {},
   theme: MixCodeTheme = activeRenderTheme,
 ): string[] {
@@ -116,43 +126,83 @@ export function renderTabBarSeparator(
       : activeRenderTheme.thinkingBorder(options.thinkingLevel);
     const plain = () => [padLine(frame("\u2500".repeat(Math.max(0, width))), width)];
     if (width <= 0) return plain();
-    if (options.zenMode !== true) return plain();
-    const markers = options.zenStatusMarkers ?? [];
-    if (markers.length === 0) return plain();
 
-    const statusDot = resolveGlyphs(options.iconMode ?? DEFAULT_ICON_MODE).statusOn;
-    const shownMarkers = markers.slice(0, ZEN_STATUS_MARKER_CAP);
-    const hiddenMarkers = markers.slice(ZEN_STATUS_MARKER_CAP);
-    const overflow = hiddenMarkers.length;
-    const markerText = shownMarkers.map(() => statusDot).join(" ");
-    // Prefer full "── ● ● ● [+N] "; drop [+N] then the cluster when width is tight.
-    // Measure on bare text; paint frame dashes and markers separately.
-    const bareWithOverflow =
-      overflow > 0 ? `\u2500\u2500 ${markerText} [+${overflow}] ` : `\u2500\u2500 ${markerText} `;
-    const bareWithoutOverflow = `\u2500\u2500 ${markerText} `;
-    let bareLeft = bareWithOverflow;
-    let includeOverflow = overflow > 0;
-    if (visibleWidth(bareLeft) > width) {
-      bareLeft = bareWithoutOverflow;
-      includeOverflow = false;
+    const markers =
+      options.zenMode === true ? (options.zenStatusMarkers ?? []) : ([] as readonly ZenStatusMarker[]);
+    const zenLeft =
+      markers.length > 0
+        ? paintZenStatusMarkerCluster(markers, frame, options.iconMode ?? DEFAULT_ICON_MODE, width)
+        : undefined;
+
+    if (options.agentChrome) {
+      const isVim = options.vimMode === true;
+      const isZen = options.zenMode === true;
+      const titleLabel = isVim ? activeRenderTheme.vimBorder : activeRenderTheme.accent;
+      const zenLabel = isVim ? activeRenderTheme.vimBorder : activeRenderTheme.accent;
+      const left = zenLeft?.painted ?? "";
+      const leftWidth = zenLeft?.width ?? 0;
+      // Prefer agent chrome when the row is too narrow for dots + title.
+      const chromeWidth = leftWidth > 0 && width - leftWidth >= 12 ? width - leftWidth : width;
+      const chromePrefix = chromeWidth === width ? "" : left;
+      const chrome = buildLabeledTopBorder({
+        width: chromeWidth,
+        title: options.agentChrome.title,
+        vimMode: isVim,
+        zenMode: isZen,
+        customBasePrompt: options.agentChrome.customBasePrompt === true,
+        contextText: options.agentChrome.contextText,
+        dash: frame,
+        vimLabel: activeRenderTheme.vimBorder,
+        zenLabel,
+        titleLabel,
+        sysLabel: titleLabel,
+        contextLabel: activeRenderTheme.dim,
+      });
+      return [padLine(`${chromePrefix}${chrome}`, width)];
     }
-    if (visibleWidth(bareLeft) > width) return plain();
-    const fill = Math.max(0, width - visibleWidth(bareLeft));
-    const paintedMarkers = shownMarkers
-      .map((marker) => {
-        if (marker === "working") return activeRenderTheme.accent(statusDot);
-        if (marker === "question") return activeRenderTheme.warning(statusDot);
-        if (marker === "error") return activeRenderTheme.error(statusDot);
-        return activeRenderTheme.done(statusDot);
-      })
-      .join(" ");
-    const overflowColor = markers.every((marker) => marker === "done")
-      ? activeRenderTheme.done
-      : activeRenderTheme.dim;
-    const marker = paintedMarkers + (includeOverflow ? ` ${overflowColor(`[+${overflow}]`)}` : "");
-    const painted = `${frame("\u2500\u2500")} ${marker} ${frame("\u2500".repeat(fill))}`;
-    return [padLine(painted, width)];
+
+    if (!zenLeft) return plain();
+    const fill = Math.max(0, width - zenLeft.width);
+    return [padLine(`${zenLeft.painted}${frame("\u2500".repeat(fill))}`, width)];
   });
+}
+
+/** Left cluster `── ● ● [+N] ` for zen other-agent dots; undefined if it cannot fit. */
+function paintZenStatusMarkerCluster(
+  markers: readonly ZenStatusMarker[],
+  frame: (text: string) => string,
+  iconMode: IconMode,
+  maxWidth: number,
+): { painted: string; width: number } | undefined {
+  const statusDot = resolveGlyphs(iconMode).statusOn;
+  const shownMarkers = markers.slice(0, ZEN_STATUS_MARKER_CAP);
+  const overflow = markers.length - shownMarkers.length;
+  const markerText = shownMarkers.map(() => statusDot).join(" ");
+  // Prefer full "── ● ● ● [+N] "; drop [+N] then the cluster when width is tight.
+  const bareWithOverflow =
+    overflow > 0 ? `\u2500\u2500 ${markerText} [+${overflow}] ` : `\u2500\u2500 ${markerText} `;
+  const bareWithoutOverflow = `\u2500\u2500 ${markerText} `;
+  let bareLeft = bareWithOverflow;
+  let includeOverflow = overflow > 0;
+  if (visibleWidth(bareLeft) > maxWidth) {
+    bareLeft = bareWithoutOverflow;
+    includeOverflow = false;
+  }
+  if (visibleWidth(bareLeft) > maxWidth) return undefined;
+  const paintedMarkers = shownMarkers
+    .map((marker) => {
+      if (marker === "working") return activeRenderTheme.accent(statusDot);
+      if (marker === "question") return activeRenderTheme.warning(statusDot);
+      if (marker === "error") return activeRenderTheme.error(statusDot);
+      return activeRenderTheme.done(statusDot);
+    })
+    .join(" ");
+  const overflowColor = markers.every((marker) => marker === "done")
+    ? activeRenderTheme.done
+    : activeRenderTheme.dim;
+  const marker = paintedMarkers + (includeOverflow ? ` ${overflowColor(`[+${overflow}]`)}` : "");
+  const painted = `${frame("\u2500\u2500")} ${marker} `;
+  return { painted, width: visibleWidth(bareLeft) };
 }
 
 /** Meaningful states from other tabs, reusing the normal tab-bar glyph priority. */
@@ -343,7 +393,7 @@ export function exactContextUsageText(tab: MixCodeTabInfo): string {
 }
 
 /**
- * Bottom-meta context meter, open-tui style: `icon [bar] 50.0%`.
+ * Bottom-meta context meter: `icon [bar] 50.0%`.
  * Absolute token counts stay on the editor top border.
  */
 export function contextBarAndPercentText(
@@ -404,16 +454,13 @@ function renderInputMetaInner(
 ): string[] {
   const lineWidth = Math.max(0, width - 1);
   const glyphs = resolveGlyphs(iconMode);
-  // Same window as VIM_ENTER_ARM_WINDOW_MS in app-input (Ctrl+U → u/Ctrl+U).
-  const vimEnterArmed =
-    typeof tab.vimEnterArmedAt === "number" && Date.now() - tab.vimEnterArmedAt <= 1_000;
-  const escapeHint = isPendingEscapeActive(tab, "abort-agent")
-    ? " | Esc again: stop"
-    : tab.lastEscapeTime && Date.now() - tab.lastEscapeTime < 500
-      ? " | Esc again: tree"
-      : vimEnterArmed
-        ? " | u/Ctrl+U: vim"
-        : "";
+  // Esc / vim-enter arm feedback is toast-only (see app-key-handlers / app-input).
+  // Extension footers already paint cwd/model/context/git/status — collapse meta
+  // so the two layers do not stack duplicate fields.
+  if (tab.extensionUi.footer) {
+    if (updateHitRegions) tab.inputMetaHitRegions = [];
+    return [];
+  }
   const model = tab.model.displayName || "-";
   const thinking = tab.thinkingLevel[0]!.toUpperCase() + tab.thinkingLevel.slice(1);
   // Absolute xxk/xxk lives on the editor top border; bottom meta only shows bar+%.
@@ -427,7 +474,7 @@ function renderInputMetaInner(
     () => contextBadge,
   ]);
   const leftBudget = Math.max(0, lineWidth - visibleWidth(right) - 1);
-  const left = renderInputMetaLeft(tab.workdir, model, thinking, escapeHint, leftBudget, glyphs);
+  const left = renderInputMetaLeft(tab.workdir, model, thinking, "", leftBudget, glyphs);
   const gap = Math.max(1, lineWidth - visibleWidth(left.text) - visibleWidth(right));
   const metaRow =
     visibleWidth(left.text) + visibleWidth(right) + 1 <= lineWidth

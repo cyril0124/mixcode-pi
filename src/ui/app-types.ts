@@ -48,9 +48,14 @@ export interface MixCodeEditorActions {
   submitCurrentText?: () => void;
   browsePromptHistory?: (data: string) => boolean;
   /**
-   * True when an extension custom component currently owns the editor slot
-   * for the active tab. Input heuristics that protect the default editor's
-   * submit behavior (e.g. paste-newline) must not intercept keys then.
+   * Permanent setEditorComponent skin. Visual only — does not mean MixCode
+   * should cede editor shortcuts (history, clear, scroll, …).
+   */
+  hasCustomEditorSkin?: () => boolean;
+  /**
+   * @deprecated Ownership must use pendingUserInteractions / hasInputComponent
+   * (see isPendingEditorTakeover in app-input). This flag alone no longer gates
+   * MixCode editor shortcuts; kept for older tests and diagnostics.
    */
   hasEditorReplacement?: () => boolean;
   /**

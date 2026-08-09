@@ -25,6 +25,7 @@ import {
   activeExtensionCommands,
   createActiveAutocompleteProvider,
 } from "../src/ui/app-runtime.js";
+import { applyExtensionAutocompleteProviders } from "../src/agent/runtime-extension-ui.js";
 import { addPromptHistory } from "../src/ui/app-editor.js";
 import {
   buildMixCodeSystemPromptOverride,
@@ -222,7 +223,10 @@ test("autocomplete prefers the active tab extension provider over the base provi
     state,
     {
       getTab: () => ({}),
-      applyExtensionAutocompleteProviders: () => extension,
+      applyExtensionAutocompleteProviders: () => ({
+        ...extension,
+        triggerCharacters: ["$"],
+      }),
     } as never,
     base,
   );
@@ -235,7 +239,88 @@ test("autocomplete prefers the active tab extension provider over the base provi
     cursorLine: 0,
     cursorCol: 9,
   });
+  // Pi Editor reads provider.triggerCharacters; extension wrappers must surface "$".
+  assert.ok(withExtension.triggerCharacters?.includes("$"));
 });
+
+test("live autocomplete proxy keeps per-active-tab extension wrappers after rebind", async () => {
+  // Production host always rebinds the multi-tab live proxy (never a single-session
+  // concrete chain). Switching active tab must change which extension wrappers run.
+  const state = createInitialState("/repo");
+  const tabA = createTab(1, "s1", "/repo");
+  const tabB = createTab(2, "s2", "/repo");
+  state.tabs.push(tabA, tabB);
+  state.activeTabId = "s1";
+
+  const base: AutocompleteProvider = {
+    triggerCharacters: ["@", "#"],
+    getSuggestions: async () => ({
+      prefix: "",
+      items: [{ value: "base", label: "base" }],
+    }),
+    applyCompletion: () => ({ lines: ["base"], cursorLine: 0, cursorCol: 4 }),
+  };
+
+  const runtimeTabs = {
+    s1: {
+      extensionAutocompleteProviderFactories: [
+        (current: AutocompleteProvider): AutocompleteProvider => ({
+          ...current,
+          triggerCharacters: ["$", ...(current.triggerCharacters ?? [])],
+          getSuggestions: async () => ({
+            prefix: "",
+            items: [{ value: "from-s1", label: "from-s1" }],
+          }),
+        }),
+      ],
+      extensionAutocompleteProviderCache: undefined as
+        | { base: AutocompleteProvider; factoryCount: number; provider: AutocompleteProvider }
+        | undefined,
+    },
+    s2: {
+      extensionAutocompleteProviderFactories: [] as Array<
+        (provider: AutocompleteProvider) => AutocompleteProvider
+      >,
+      extensionAutocompleteProviderCache: undefined as
+        | { base: AutocompleteProvider; factoryCount: number; provider: AutocompleteProvider }
+        | undefined,
+    },
+  };
+
+  const runtime = {
+    getTab: (id: string) => runtimeTabs[id as keyof typeof runtimeTabs],
+    applyExtensionAutocompleteProviders: (sessionId: string, b: AutocompleteProvider) =>
+      applyExtensionAutocompleteProviders(
+        runtimeTabs[sessionId as keyof typeof runtimeTabs] as never,
+        b,
+      ),
+  };
+
+  // Live proxy (same object app.ts binds into EditorSlot).
+  const live = createActiveAutocompleteProvider(state, runtime as never, base);
+  // Warm cache for s1 (boot path reads triggerCharacters).
+  assert.ok(live.triggerCharacters?.includes("$"));
+  assert.equal(
+    (await live.getSuggestions([""], 0, 0, {} as never))?.items[0]?.value,
+    "from-s1",
+  );
+
+  // addAutocompleteProvider rebind signal: invalidate + keep the same live proxy.
+  runtimeTabs.s1.extensionAutocompleteProviderCache = undefined;
+  const rebound = live; // host always rebinds live, never a concrete s1 chain
+
+  state.activeTabId = "s2";
+  assert.equal(
+    (await rebound.getSuggestions([""], 0, 0, {} as never))?.items[0]?.value,
+    "base",
+    "tab B must not freeze on tab A wrappers",
+  );
+  // s2 has no $ factory; after resolve, trigger list comes from base only.
+  const s2Triggers = rebound.triggerCharacters ?? [];
+  assert.ok(s2Triggers.includes("@"));
+  assert.ok(!s2Triggers.includes("$"), "tab B must not inherit tab A $ trigger from live resolve");
+});
+
 
 test("runtime all-session listing includes sessions whose cwd is not filesystem root", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-list-all-sessions-"));

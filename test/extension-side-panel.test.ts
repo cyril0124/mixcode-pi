@@ -447,13 +447,15 @@ function silentTerminal(columns: number, rows = 24): Terminal {
   };
 }
 
-// Regression: Ctrl+E must reach the extension editor component that owns the
-// editor slot (e.g. the /view editor), NOT trigger the global main-input
-// external-editor handler. The global handler in createMixCodeTui runs in a
-// tui input listener (before the focused component) and used to steal Ctrl+E
-// unconditionally, opening the empty main input instead of the view content.
-test("Ctrl+E defers to the extension editor component when it owns the slot", () => {
+// Regression: Ctrl+E must reach a pending extension editor (e.g. /view), NOT
+// the global main-input external-editor handler. Permanent setEditorComponent
+// skins still use MixCode Ctrl+E; only pending interactions own the key.
+test("Ctrl+E defers to the extension editor component when a pending interaction owns the slot", () => {
   const state = makeState();
+  state.tabs[0]!.extensionUi.pendingUserInteractions.push({
+    id: "extension-editor-1",
+    kind: "editor",
+  });
   let capturedHost:
     | { editor?: { setEditorComponent?: (factory: unknown, sessionId?: string) => void } }
     | undefined;
@@ -490,8 +492,7 @@ test("Ctrl+E defers to the extension editor component when it owns the slot", ()
     // Ctrl+E (0x05) fed through the real tui input pipeline.
     (tui as unknown as { handleTerminalInput(data: string): void }).handleTerminalInput("\x05");
 
-    // With the slot owned by the extension component, Ctrl+E falls through the
-    // global listener to the focused EditorSlot and reaches the stub.
+    // Pending interaction owns Ctrl+E: falls through to the focused EditorSlot stub.
     assert.deepEqual(received, ["\x05"]);
   } finally {
     tui.stop();

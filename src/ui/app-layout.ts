@@ -15,6 +15,7 @@ import {
   joinColumns,
   padLine,
   renderAgentSurface,
+  exactContextUsageText,
   renderConfig,
   renderExtensionFooter,
   renderExtensionPanel,
@@ -63,6 +64,8 @@ export class MixCodeRoot implements Component {
     private readonly runtime: MixCodeRuntime,
     private readonly getViewportRows?: () => number,
     private readonly getReservedRows: () => number = () => 2,
+    /** True when the active agent tab uses setEditorComponent (not dialogs). */
+    private readonly hasCustomEditor: () => boolean = () => false,
   ) {}
 
   invalidate(): void {}
@@ -100,15 +103,30 @@ export class MixCodeRoot implements Component {
     const runtimeTab = this.runtime.getTab(active.sessionId);
     // Horizontal rule directly under the tab bar (replaces the old blank gap).
     // Color tracks the active tab's editor border so the chrome reads as one frame.
-    // Zen: left-anchor meaningful states from other agents (tab bar is hidden).
+    // Custom setEditorComponent skins: put agent title / override context here so
+    // EditorSlot does not paint a second label strip above the input body.
+    // Zen (default editor): left-anchor meaningful states from other agents.
+    const customEditor = this.hasCustomEditor();
     const contentGap = renderTabBarSeparator(
       width,
       {
         thinkingLevel: active.thinkingLevel,
         vimMode: active.vimMode,
         zenMode: active.zenMode === true,
-        zenStatusMarkers: active.zenMode ? zenStatusMarkers(this.state.tabs, active.sessionId) : [],
+        zenStatusMarkers: active.zenMode
+          ? zenStatusMarkers(this.state.tabs, active.sessionId)
+          : [],
         iconMode: this.state.ui?.icons?.mode ?? DEFAULT_ICON_MODE,
+        agentChrome: customEditor
+          ? {
+              title: active.title ?? "",
+              contextText:
+                active.contextLimitOverridden === true
+                  ? exactContextUsageText(active)
+                  : undefined,
+              customBasePrompt: active.customBasePrompt === true,
+            }
+          : undefined,
       },
       theme,
     );
@@ -370,14 +388,17 @@ export class MixCodeLayoutRoot implements Component {
     if (this.editor.setEditorMaxRows(maxEditorRows, active?.sessionId)) {
       editorLines = this.editor.render(width);
     }
-    // Clamp by keeping the bottom row: components that don't self-size (e.g. the
-    // SDK extension selector) render their full box unconditionally, so a plain
-    // head slice would drop their trailing border. Keep head + final line.
+    // Clamp tall editors so they cannot push the tab bar into scrollback.
+    // Pi uses flex minSize on the editor dock instead of slicing render output;
+    // when we must clamp, keep head+last for selectors, and the tail while
+    // autocomplete is open so the dropdown stays visible (custom skins are taller).
     const clampedEditorLines =
       maxEditorRows && editorLines.length > maxEditorRows
-        ? maxEditorRows >= 2
-          ? [...editorLines.slice(0, maxEditorRows - 1), editorLines[editorLines.length - 1]!]
-          : editorLines.slice(0, maxEditorRows)
+        ? this.editor.isShowingAutocomplete()
+          ? editorLines.slice(-maxEditorRows)
+          : maxEditorRows >= 2
+            ? [...editorLines.slice(0, maxEditorRows - 1), editorLines[editorLines.length - 1]!]
+            : editorLines.slice(0, maxEditorRows)
         : editorLines;
     this.setEditorRows(clampedEditorLines.length);
     this.setMetaRows(
@@ -446,7 +467,8 @@ export class MixCodeLayoutRoot implements Component {
       widgetsBelow.length +
       1;
     // Meta sits under the editor frame (not inside the bottom border).
-    // Exact xxk/xxk is on the top border; this row shows model/bar+%/git.
+    // Exact xxk/xxk is on the top border; without an extension footer this
+    // row shows model/bar+%/git. When a footer is set, meta collapses.
     const metaLines =
       active && this.state.activeTabId !== "config"
         ? renderInputMeta(active, width, metaRow, theme, true, iconMode)

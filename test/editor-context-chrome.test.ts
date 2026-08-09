@@ -31,7 +31,7 @@ test("exactContextUsageText marks overridden limits", () => {
   assert.equal(exactContextUsageText(tab), "100k/200k*");
 });
 
-test("contextBarAndPercentText shows open-tui style bar and percent without absolute counts", () => {
+test("contextBarAndPercentText shows bar and percent without absolute counts", () => {
   const tab = createTab(1, "s1", "/repo", {
     currentContextTokens: 100_000,
     contextLimit: 200_000,
@@ -93,6 +93,40 @@ test("input meta row uses bar+percent, not absolute token counts", () => {
   const plain = stripAnsi(renderInputMeta(tab, 100, 0, undefined, true, "nerd").join("\n"));
   assert.match(plain, /\uf0c9 \[[█░]+\] 0\.0%/);
   assert.doesNotMatch(plain, /0\.01k\/200k/);
+});
+
+test("input meta collapses when an extension footer is present", () => {
+  const tab = createTab(1, "s1", "/nonexistent-no-git", {
+    currentContextTokens: 100_000,
+    contextLimit: 200_000,
+    model: {
+      provider: "anthropic",
+      modelId: "claude-sonnet-4-5",
+      displayName: "anthropic/claude-sonnet-4-5",
+      contextWindow: 200_000,
+    },
+  });
+  tab.extensionUi.footer = {
+    lines: ["footer cwd git model"],
+    render: () => ["footer cwd git model"],
+  };
+  tab.extensionUi.statuses = [{ key: "ponytail", text: "FULL" }];
+  const lines = renderInputMeta(tab, 120, 0, undefined, true, "nerd");
+  const plain = stripAnsi(lines.join("\n"));
+  assert.equal(lines.length, 0, "footer owns status chrome; meta stays empty without hints");
+  assert.doesNotMatch(plain, /claude-sonnet|100k|200k|10\.0%|FULL|nonexistent/);
+  assert.equal(tab.inputMetaHitRegions?.length ?? 0, 0);
+});
+
+test("input meta stays empty when extension footer is present even if Esc is armed", () => {
+  const tab = createTab(1, "s1", "/nonexistent-no-git", {
+    lastEscapeTime: Date.now(),
+    pendingEscapeAction: "abort-agent",
+    pendingEscapeArmedAt: Date.now(),
+  });
+  tab.extensionUi.footer = { lines: ["footer"], render: () => ["footer"] };
+  const lines = renderInputMeta(tab, 80, 0, undefined, true, "nerd");
+  assert.equal(lines.length, 0);
 });
 
 function visibleLen(text: string): number {

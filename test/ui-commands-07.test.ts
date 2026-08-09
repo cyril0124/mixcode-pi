@@ -34,7 +34,9 @@ test("double escape stops an active agent run", () => {
     consume: true,
   });
   assert.equal(tab.pendingEscapeAction, "abort-agent");
-  assert.match(renderInputMeta(tab, 80).join("\n"), /Esc again: stop/);
+  assert.equal(tab.toast?.type, "info");
+  assert.match(tab.toast?.message ?? "", /Esc again: stop/);
+  assert.doesNotMatch(renderInputMeta(tab, 80).join("\n"), /Esc again: stop/);
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime), {
     consume: true,
   });

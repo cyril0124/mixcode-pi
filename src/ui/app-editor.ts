@@ -91,7 +91,6 @@ export class CompactPromptEditor extends Editor {
       return lines;
     }
     const isVimMode = this.activeTab()?.vimMode === true;
-    const isZenMode = this.activeTab()?.zenMode === true;
     const currentText = this.getExpandedText?.() ?? this.getText();
     const isEmpty = currentText.length === 0;
     const isShellMode = currentText.trimStart().startsWith("!");
@@ -100,8 +99,9 @@ export class CompactPromptEditor extends Editor {
       : isShellMode
         ? theme.bashMode
         : theme.thinkingBorder(this.activeTab()?.thinkingLevel);
+    // Top-border agent chrome (title / xxk/xxk* / VIM|ZEN|sys) is applied by
+    // EditorSlot so setEditorComponent replacements keep the same contract.
     const lines = super.render(width);
-    this.applyTopBorderLabel(lines, width, theme, isVimMode, isZenMode);
     // Bottom border stays a plain frame edge; model/bar/git live in the meta row
     // under the editor (see renderInputMeta), not inside the dashed line.
     if (!isEmpty) return lines;
@@ -121,48 +121,6 @@ export class CompactPromptEditor extends Editor {
         ? renderPlaceholderLine(line, editorPlaceholder(this.mixState), width, theme)
         : line,
     );
-  }
-
-  /**
-   * Replace the editor's plain top border (lines[0]) with a labeled variant
-   * showing the agent title + exact context (`xxk/xxk`) at the right and
-   * optional [VIM]/[ZEN]/[sys] badges. Skips the scroll indicator
-   * ("─── ↑ N more ─") and any non-border first line so it is never clobbered.
-   * Mutates `lines` in place.
-   */
-  private applyTopBorderLabel(
-    lines: string[],
-    width: number,
-    theme: MixCodeTheme,
-    isVimMode: boolean,
-    isZenMode: boolean,
-  ): void {
-    const first = lines[0];
-    if (first === undefined || !isPlainBorderLine(first)) return;
-    const active = this.activeTab();
-    const title = active?.title ?? "";
-    // Title follows the vim border color in vim mode, accent in normal mode.
-    const titleLabel = isVimMode ? theme.vimBorder : theme.accent;
-    // [ZEN] matches the frame: vimBorder when coexisting with vim, else accent.
-    const zenLabel = isVimMode ? theme.vimBorder : theme.accent;
-    const contextPlain = active ? exactContextUsageText(active) : "";
-    // Exact counts stay dim; the bottom bar keeps the usage-color signal.
-    const contextLabel = theme.dim;
-    lines[0] = buildLabeledTopBorder({
-      width,
-      title,
-      vimMode: isVimMode,
-      zenMode: isZenMode,
-      customBasePrompt: active?.customBasePrompt === true,
-      contextText: contextPlain,
-      dash: this.borderColor,
-      vimLabel: theme.vimBorder,
-      zenLabel,
-      titleLabel,
-      // Keep [sys] in the same accent family as the title (agent identity).
-      sysLabel: titleLabel,
-      contextLabel,
-    });
   }
 
   private triggerSymbolAutocomplete(data: string): void {
@@ -230,6 +188,8 @@ export class EditorSlot implements Component {
   private inputComponentOverride: Component | undefined;
   private inputComponentSessionId: string | undefined;
   private autocompleteProvider: AutocompleteProvider | undefined;
+  /** Union of extension trigger chars seen so far (multi-tab / late register). */
+  private autocompleteTriggerCharacters = new Set<string>();
   private submitHandler: ((text: string) => void) | undefined;
   private changeHandler: ((text: string) => void) | undefined;
   private readonly embeddedTerminalRows = new Map<string, number>();
@@ -291,7 +251,14 @@ export class EditorSlot implements Component {
       return this.defaultEditor.render(width);
     }
     this.syncActiveEditorBorder();
-    const lines = this.activeEditor.render(width);
+    const body = this.activeEditor.render(width);
+    // Default editor: label the top border in-place. Custom setEditorComponent
+    // skins move title / override context / badges to the tab-bar separator
+    // (renderTabBarSeparator agentChrome) so the input body stays uncluttered.
+    const lines =
+      this.activeEditor === this.defaultEditor
+        ? this.applyAgentEditorChrome(body, width)
+        : body;
     // Extension editor components may not pad lines to full width.
     // Ensure every line fills the terminal width so the differential
     // renderer clears leftover characters from previous frames.
@@ -299,6 +266,50 @@ export class EditorSlot implements Component {
       return lines.map((line) => padLine(line, width));
     }
     return lines;
+  }
+
+  /**
+   * Attach MixCode's labeled top chrome after the default editor renders.
+   * Plain top borders are rewritten in place (no extra row). Non-plain tops
+   * (scroll indicators) get a prepended chrome line so labels are not dropped.
+   */
+  private applyAgentEditorChrome(lines: string[], width: number): string[] {
+    const active = this.activeTab();
+    if (!active || width <= 0) return lines;
+    const theme = themeForId(this.mixState.theme);
+    const isVimMode = active.vimMode === true;
+    const isZenMode = active.zenMode === true;
+    // Title follows the vim border color in vim mode, accent in normal mode.
+    const titleLabel = isVimMode ? theme.vimBorder : theme.accent;
+    // [ZEN] matches the frame: vimBorder when coexisting with vim, else accent.
+    const zenLabel = isVimMode ? theme.vimBorder : theme.accent;
+    const dash =
+      this.activeEditor.borderColor !== undefined
+        ? this.activeEditor.borderColor
+        : theme.thinkingBorder(active.thinkingLevel);
+    const chromeLine = buildLabeledTopBorder({
+      width,
+      title: active.title ?? "",
+      vimMode: isVimMode,
+      zenMode: isZenMode,
+      customBasePrompt: active.customBasePrompt === true,
+      contextText: exactContextUsageText(active),
+      dash,
+      vimLabel: theme.vimBorder,
+      zenLabel,
+      titleLabel,
+      // Keep [sys] in the same accent family as the title (agent identity).
+      sysLabel: titleLabel,
+      // Exact counts stay dim; the bottom bar keeps the usage-color signal.
+      contextLabel: theme.dim,
+    });
+    const first = lines[0];
+    if (first !== undefined && isPlainBorderLine(first)) {
+      const next = lines.slice();
+      next[0] = chromeLine;
+      return next;
+    }
+    return [chromeLine, ...lines];
   }
 
   invalidate(): void {
@@ -414,9 +425,19 @@ export class EditorSlot implements Component {
 
   setAutocompleteProvider(provider: AutocompleteProvider): void {
     this.autocompleteProvider = provider;
-    this.defaultEditor.setAutocompleteProvider?.(provider);
+    // Pi Editor snapshots triggerCharacters at set time (not via live getter).
+    // Materialize a plain list and accumulate so late addAutocompleteProvider
+    // registrations (session_start) still enable triggers on custom skins.
+    // Seed Pi defaults (@/#) so a "$"-only extension rebind never drops them
+    // from our accumulated set used when rebinding multiple editors.
+    for (const ch of ["@", "#"]) this.autocompleteTriggerCharacters.add(ch);
+    for (const ch of provider.triggerCharacters ?? []) {
+      if (ch.length === 1) this.autocompleteTriggerCharacters.add(ch);
+    }
+    const bound = bindAutocompleteProvider(provider, [...this.autocompleteTriggerCharacters]);
+    this.defaultEditor.setAutocompleteProvider?.(bound);
     for (const replacement of this.editorReplacements.values()) {
-      replacement.editor.setAutocompleteProvider?.(provider);
+      replacement.editor.setAutocompleteProvider?.(bound);
     }
   }
 
@@ -430,8 +451,9 @@ export class EditorSlot implements Component {
     const nextActiveTabId = this.mixState.activeTabId;
     if (this.activeTabId === this.mixState.activeTabId) return;
     const previous = this.mixState.tabs.find((tab) => tab.sessionId === this.activeTabId);
-    if (previous && this.activeEditor === this.defaultEditor)
-      previous.draftInput = this.defaultEditor.getExpandedText?.() ?? this.defaultEditor.getText();
+    if (previous)
+      previous.draftInput =
+        this.activeEditor.getExpandedText?.() ?? this.activeEditor.getText();
     this.activeTabId = nextActiveTabId;
     this.historyIndex = -1;
     const replacement = this.editorReplacements.get(this.activeTabId);
@@ -481,11 +503,16 @@ export class EditorSlot implements Component {
     nextEditor.onSubmit = this.submitHandler;
     nextEditor.onChange = this.changeHandler;
     nextEditor.setText(currentText);
+    // Match Pi InteractiveMode.setCustomEditorComponent: copy appearance +
+    // autocomplete via public Editor APIs only.
     if (nextEditor.borderColor !== undefined)
       nextEditor.borderColor = this.borderColorForSession(sessionId, nextEditor);
     nextEditor.setPaddingX?.(this.defaultEditor.getPaddingX());
-    if (this.autocompleteProvider) nextEditor.setAutocompleteProvider?.(this.autocompleteProvider);
+    nextEditor.setAutocompleteMaxVisible?.(this.defaultEditor.getAutocompleteMaxVisible());
     this.editorReplacements.set(sessionId, { factory, editor: nextEditor });
+    // Rebind all editors so the new skin gets a materialized trigger snapshot
+    // (same as Pi calling setAutocompleteProvider after creating the custom editor).
+    if (this.autocompleteProvider) this.setAutocompleteProvider(this.autocompleteProvider);
     if (sessionId === this.mixState.activeTabId) {
       this.activeEditor = nextEditor;
       this.syncActiveEditorBorder();
@@ -562,7 +589,8 @@ export class EditorSlot implements Component {
   }
 
   private handleTabHistoryInput(data: string): boolean {
-    if (this.activeEditor !== this.defaultEditor) return false;
+    // Works for default and permanent setEditorComponent skins. Temporary input
+    // components never reach here (handleInput short-circuits earlier).
     if (!matchesKey(data, "up") && !matchesKey(data, "down")) return false;
     const active = this.mixState.tabs.find((tab) => tab.sessionId === this.activeTabId);
     if (!active) return false;
@@ -573,17 +601,17 @@ export class EditorSlot implements Component {
       active.promptHistory.length > 0
     ) {
       this.historyIndex = 0;
-      this.defaultEditor.setText(active.promptHistory[0] ?? "");
+      this.activeEditor.setText(active.promptHistory[0] ?? "");
       return true;
     }
     if (matchesKey(data, "up") && browsing && this.historyIndex < active.promptHistory.length - 1) {
       this.historyIndex += 1;
-      this.defaultEditor.setText(active.promptHistory[this.historyIndex] ?? "");
+      this.activeEditor.setText(active.promptHistory[this.historyIndex] ?? "");
       return true;
     }
     if (matchesKey(data, "down") && browsing) {
       this.historyIndex -= 1;
-      this.defaultEditor.setText(
+      this.activeEditor.setText(
         this.historyIndex === -1
           ? active.draftInput
           : (active.promptHistory[this.historyIndex] ?? ""),
@@ -595,8 +623,8 @@ export class EditorSlot implements Component {
 
   private updateActiveTabDraft(): void {
     const active = this.mixState.tabs.find((tab) => tab.sessionId === this.activeTabId);
-    if (active && this.activeEditor === this.defaultEditor)
-      active.draftInput = this.defaultEditor.getExpandedText?.() ?? this.defaultEditor.getText();
+    // Keep draft for both default and custom editors so history Down restores it.
+    if (active) active.draftInput = this.activeEditor.getExpandedText?.() ?? this.activeEditor.getText();
   }
 
   private activeTab(): MixCodeState["tabs"][number] | undefined {
@@ -621,8 +649,7 @@ export class EditorSlot implements Component {
   private applyDefaultEditorBindings(): void {
     this.defaultEditor.onSubmit = this.submitHandler;
     this.defaultEditor.onChange = this.changeHandler;
-    if (this.autocompleteProvider)
-      this.defaultEditor.setAutocompleteProvider(this.autocompleteProvider);
+    if (this.autocompleteProvider) this.setAutocompleteProvider(this.autocompleteProvider);
   }
 
   private syncEditorFocus(): void {
@@ -725,4 +752,29 @@ export function editorThemeFor(theme: MixCodeTheme): EditorTheme {
       noMatch: theme.error,
     },
   };
+}
+
+/**
+ * Pi Editor snapshots `provider.triggerCharacters` in setAutocompleteProvider.
+ * Bind a plain array so custom skins receive extension triggers even when the
+ * live provider exposes them via a getter (active-tab proxy).
+ */
+function bindAutocompleteProvider(
+  provider: AutocompleteProvider,
+  triggerCharacters: string[],
+): AutocompleteProvider {
+  // Match Pi Editor.forceFileAutocomplete: missing shouldTriggerFileCompletion
+  // means "allow"; only an explicit false may cancel. Never coerce undefined→false.
+  const bound: AutocompleteProvider = {
+    triggerCharacters,
+    getSuggestions: (lines, cursorLine, cursorCol, options) =>
+      provider.getSuggestions(lines, cursorLine, cursorCol, options),
+    applyCompletion: (lines, cursorLine, cursorCol, item, prefix) =>
+      provider.applyCompletion(lines, cursorLine, cursorCol, item, prefix),
+  };
+  if (provider.shouldTriggerFileCompletion) {
+    bound.shouldTriggerFileCompletion = (lines, cursorLine, cursorCol) =>
+      provider.shouldTriggerFileCompletion!(lines, cursorLine, cursorCol);
+  }
+  return bound;
 }

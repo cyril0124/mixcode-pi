@@ -277,14 +277,14 @@ test("zen mode swallows tab and shift-tab without switching agents", () => {
   assert.equal(state.activeTabId, "s1");
 });
 
-// Zen already refuses Tab tab-switching; when an extension owns the editor,
-// swallow is wasteful — pass Tab through so the component can use it.
-test("zen mode passes tab through while an extension owns the editor slot", () => {
+// Zen already refuses Tab tab-switching; temporary takeovers still get Tab.
+test("zen mode passes tab through while a pending extension interaction owns input", () => {
   const state = createInitialState("/repo");
   const first = createTab(1, "s1", "/repo", { zenMode: true });
   const second = createTab(2, "s2", "/repo");
   state.tabs.push(first, second);
   state.activeTabId = "s1";
+  first.extensionUi.pendingUserInteractions.push({ id: "extension-custom-1", kind: "custom" });
   const tui = {
     requestRender: () => undefined,
     showOverlay: () => ({}) as never,
@@ -514,6 +514,36 @@ test("zenStatusMarkers exposes meaningful background states with existing glyph 
     "done",
     "done",
   ]);
+});
+
+test("zen separator keeps status dots when agentChrome is also present", () => {
+  const esc = "\x1b";
+  const theme = {
+    accent: (s: string) => `${esc}[34m${s}${esc}[39m`,
+    warning: (s: string) => `${esc}[33m${s}${esc}[39m`,
+    done: (s: string) => `${esc}[32m${s}${esc}[39m`,
+    error: (s: string) => `${esc}[31m${s}${esc}[39m`,
+    text: (s: string) => s,
+    dim: (s: string) => s,
+    vimBorder: (s: string) => s,
+    thinkingBorder: () => (s: string) => s,
+  } as unknown as MixCodeTheme;
+  const line = renderTabBarSeparator(
+    56,
+    {
+      iconMode: "nerd",
+      zenMode: true,
+      zenStatusMarkers: ["working", "done"],
+      agentChrome: { title: "Agent-17", contextText: "12k/200k*" },
+    },
+    theme,
+  )[0]!;
+  const bare = stripAnsi(line);
+  assert.match(bare, /^── ● ● /);
+  assert.match(bare, /Agent-17/);
+  assert.match(bare, /12k\/200k\*/);
+  assert.ok(line.includes(`${esc}[34m●${esc}[39m`));
+  assert.ok(line.includes(`${esc}[32m●${esc}[39m`));
 });
 
 test("zen separator uses colored solid dots for every background state", () => {

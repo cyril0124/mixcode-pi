@@ -52,7 +52,7 @@ const NERD_FONT_TERMINALS = new Set([
   "vscode",
 ]);
 
-/** Heuristic Nerd Font support from terminal env (open-tui style). */
+/** Heuristic Nerd Font support from terminal env. */
 export function detectNerdFont(
   env: NodeJS.ProcessEnv = process.env,
 ): boolean {

@@ -69,6 +69,18 @@ import type { MixCodeSubmitRuntime } from "./app-types.js";
 type KeyResult = { consume?: boolean; data?: string } | undefined;
 type ActiveTab = MixCodeState["tabs"][number];
 
+/**
+ * Temporary UI owns the input slot (login dialog, ctx.ui.custom / editor overlay).
+ * Permanent setEditorComponent skins are NOT takeovers — they still use MixCode keys.
+ */
+export function isPendingEditorTakeover(
+  active: ActiveTab | undefined,
+  editorActions?: MixCodeEditorActions,
+): boolean {
+  if (editorActions?.hasInputComponent?.()) return true;
+  return Boolean(active?.extensionUi.pendingUserInteractions.length);
+}
+
 /** Switch tabs and close Session Tree if it would steal keys on the destination. */
 function activateTabClosingTree(
   state: MixCodeState,
@@ -569,11 +581,8 @@ function handleAgentSurfaceKeys(
     (matchesKey(data, "tab") || matchesKey(data, "shift+tab"))
   ) {
     clearPendingEscape(active, "abort-agent");
-    if (
-      editorActions?.hasEditorReplacement?.() ||
-      active.extensionUi.pendingUserInteractions.length > 0
-    ) {
-      // Fall through to editor/extension — do not continue agent-surface dispatch.
+    if (isPendingEditorTakeover(active, editorActions)) {
+      // Fall through to temporary extension UI — permanent skins still swallow Tab.
       return undefined;
     }
     return { consume: true };
@@ -654,15 +663,13 @@ function handleEditorControlKeys(
   isEditorAutocompleteOpen: () => boolean,
   editorActions: MixCodeEditorActions | undefined,
 ): KeyResult {
-  // Extension custom components (e.g. /btw) bind PgUp/PgDn for their own
-  // history. Skip main-chat scroll while a replacement editor or pending
-  // extension interaction owns input — same ownership model as Left/Right.
+  // Pending extension interactions (e.g. /btw) may bind PgUp/PgDn for their own
+  // history. Permanent setEditorComponent skins still scroll the main chat.
   if (
     active &&
     state.activeTabId !== "config" &&
     !hasAnyOverlay(tui) &&
-    !editorActions?.hasEditorReplacement?.() &&
-    !active.extensionUi.pendingUserInteractions.length &&
+    active.extensionUi.pendingUserInteractions.length === 0 &&
     !shouldRouteLineBoundaryKeyToEditor(data, editorActions) &&
     handleChatScrollKey(active, data)
   ) {
@@ -670,10 +677,9 @@ function handleEditorControlKeys(
     tui.requestRender();
     return { consume: true };
   }
-  // Extension custom components (e.g. /btw nested editor) own newline keys.
-  // Their wrapper often no-ops setText/getText, so consuming here would both
-  // block the nested editor and insert nothing.
-  if (matchesKey(data, "shift+enter") && editorActions && !editorActions.hasEditorReplacement?.()) {
+  // Temporary takeovers own newline keys (wrapper often no-ops setText).
+  // Permanent skins still get MixCode newline insertion.
+  if (matchesKey(data, "shift+enter") && editorActions && !isPendingEditorTakeover(active, editorActions)) {
     if (active) clearPendingEscape(active, "abort-agent");
     insertEditorText(editorActions, "\n");
     tui.requestRender();
@@ -685,14 +691,12 @@ function handleEditorControlKeys(
   if (handleBatchedSubmitInput(state, active, data, tui, isEditorAutocompleteOpen, editorActions)) {
     return { consume: true };
   }
-  // Extension custom components (e.g. /btw) own the editor slot and bind
-  // Ctrl+C as exit/cancel. Do not clear the default editor or consume the key.
   // Pi CustomEditor: app.clipboard.pasteImage → temp image path (or text fallback).
   // Intercept before the editor so Ctrl+V is not a no-op on terminals without OS paste.
   if (
     MIXCODE_EXTENSION_KEYBINDINGS_MANAGER.matches(data, "app.clipboard.pasteImage") &&
     editorActions &&
-    !editorActions.hasEditorReplacement?.()
+    !isPendingEditorTakeover(active, editorActions)
   ) {
     if (isKeyRelease(data)) return { consume: true };
     if (active) clearPendingEscape(active, "abort-agent");
@@ -714,7 +718,8 @@ function handleEditorControlKeys(
       });
     return { consume: true };
   }
-  if (matchesKey(data, "ctrl+c") && editorActions && !editorActions.hasEditorReplacement?.()) {
+  if (matchesKey(data, "ctrl+c") && editorActions) {
+    if (isPendingEditorTakeover(active, editorActions)) return undefined;
     if (active) clearPendingEscape(active, "abort-agent");
     const text = editorActions.getText();
     // On Home (activeTabId=config) this is a no-op: addToHistory needs a real tab.
@@ -724,20 +729,20 @@ function handleEditorControlKeys(
     tui.requestRender();
     return { consume: true };
   }
-  if (matchesKey(data, "ctrl+j") && editorActions && !editorActions.hasEditorReplacement?.()) {
+  if (matchesKey(data, "ctrl+j") && editorActions && !isPendingEditorTakeover(active, editorActions)) {
     if (active) clearPendingEscape(active, "abort-agent");
     insertEditorText(editorActions, "\n");
     tui.requestRender();
     return { consume: true };
   }
-  // Extension custom components (e.g. /btw) own the editor slot and bind
-  // Ctrl+R as bring-to-main. Do not pre-fill /rename or consume the key.
+  // Pending interactions (e.g. /btw) may bind Ctrl+R as bring-to-main.
+  // Permanent setEditorComponent skins still get MixCode /rename prefill.
   if (
     matchesKey(data, "ctrl+r") &&
     editorActions &&
     active &&
     state.activeTabId !== "config" &&
-    !editorActions.hasEditorReplacement?.()
+    !isPendingEditorTakeover(active, editorActions)
   ) {
     clearPendingEscape(active, "abort-agent");
     editorActions.setText(`/rename ${active.title}`);
@@ -745,12 +750,8 @@ function handleEditorControlKeys(
     return { consume: true };
   }
   if ((matchesKey(data, "alt+up") || matchesKey(data, "ctrl+u")) && editorActions && active) {
-    // Extension custom components own these keys while their interaction is pending.
-    if (
-      state.activeTabId !== "config" &&
-      (editorActions.hasEditorReplacement?.() ||
-        active.extensionUi.pendingUserInteractions.length > 0)
-    ) {
+    // Temporary takeovers own Ctrl+U; permanent skins still dequeue / enter-vim.
+    if (state.activeTabId !== "config" && isPendingEditorTakeover(active, editorActions)) {
       return undefined;
     }
     // Kitty flag-2 sends press+release; only the press dequeues/arms.
@@ -773,7 +774,9 @@ function handleEditorControlKeys(
       } else if (matchesKey(data, "ctrl+u") && !active.vimMode) {
         // Empty queue: arm Ctrl+U → u enter-vim (Alt+Up does not arm).
         active.vimEnterArmedAt = Date.now();
-        // Show input-meta hint (u/Ctrl+U: vim); same pattern as Esc-again arms.
+        // Toast, not meta row — avoids an orphan hint line under custom footers.
+        // First Ctrl+U already consumed; confirm within the arm window.
+        pushToast(active, { type: "info", message: "Again: u or Ctrl+U → vim" });
         tui.requestRender();
       }
     }
@@ -794,11 +797,9 @@ function handlePasteNewline(
   active: MixCodeState["tabs"][number] | undefined,
 ): boolean {
   if (!editorActions) return false;
-  // When an extension custom component owns the editor slot, Enter is that
-  // component's confirmation key and never submits the default editor, so the
-  // paste protection does not apply. Intercepting here would swallow the
-  // confirm key and leave the extension's ctx.ui.custom() promise pending.
-  if (editorActions.hasEditorReplacement?.()) return false;
+  // Temporary takeovers use Enter as confirm; paste protection must not steal it.
+  // Permanent skins still get the default-editor paste-newline heuristic.
+  if (isPendingEditorTakeover(active, editorActions)) return false;
   if (!pasteDetector.isLikelyPaste()) return false;
   if (active?.vimMode) return false;
   const text = pasteNewlineText(data);

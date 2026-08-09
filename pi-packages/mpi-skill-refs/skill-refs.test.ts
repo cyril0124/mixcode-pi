@@ -404,7 +404,19 @@ test("completion wrapper: shouldTriggerFileCompletion true for $ token", () => {
     () => [],
   );
   assert.equal(provider.shouldTriggerFileCompletion?.(["$re"], 0, 3), true);
-  assert.equal(provider.shouldTriggerFileCompletion?.(["plain"], 0, 5), false);
+  // Pi: base without shouldTriggerFileCompletion means allow (not false).
+  assert.equal(provider.shouldTriggerFileCompletion?.(["plain"], 0, 5), true);
+
+  const strictBase = createSkillCompletionWrapper(
+    {
+      getSuggestions: async () => null,
+      applyCompletion: () => ({ lines: [], cursorLine: 0, cursorCol: 0 }),
+      shouldTriggerFileCompletion: () => false,
+    },
+    () => [],
+  );
+  assert.equal(strictBase.shouldTriggerFileCompletion?.(["$re"], 0, 3), true);
+  assert.equal(strictBase.shouldTriggerFileCompletion?.(["plain"], 0, 5), false);
 });
 
 // ─── authoritative refresh replaces stale entries ────────────────────────────
