@@ -26,6 +26,12 @@
 - To add a new built-in extension: create `pi-packages/mpi-<name>/package.json` + `index.ts`, then add the corresponding text imports in `binary-entry.ts`.
 - **No Bun APIs in `pi-packages/`.** These packages are installed into `~/.pi/agent/extensions/` and also run under pure upstream `pi` (Node + jiti), not only under `mpi` (Bun). Use `node:*` stdlib (`fs`, `fs/promises`, `child_process`, `path`, `os`, …). Do not call `Bun.*`, `bun:*` imports, or Bun Shell (`` $`…` ``). Product code under `src/` may still prefer Bun; this rule is package-only.
 
+### Third-party package load (compiled `mpi`)
+
+- Bun `--compile` + jiti `virtualModules` can break TypeBox when extensions import `Type` via `@earendil-works/pi-ai` re-exports (`Type4 is not defined`). The `patches/@earendil-works+pi-coding-agent+*.patch` re-binds `Type` from the bundled `typebox` module for those virtual entries.
+- Separately, some npm packages declare `pi.extensions: ["./src/....ts"]` while shipping a working `dist/`. At `createRuntimeServices`, `preferDistExtensionEntries` rewrites those entries under `<agentDir>/npm/node_modules` to `./dist/....js` when the dist file exists (idempotent; only that path is scanned).
+- Opt out: set `MIXCODE_SKIP_PI_EXT_NORMALIZE=1` (or any non-empty value). Do not hand-edit package manifests for this purpose unless debugging.
+
 ## Slash Commands
 
 - Slash commands are registered in `LOCAL_COMMANDS` (`src/core/commands.ts`); their `description` is shown in the command palette and slash autocomplete.

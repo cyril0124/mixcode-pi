@@ -15,6 +15,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { captureCompactionBaseline } from "../core/context-limit.js";
 import { detectSearchTools, type SearchToolAvailability } from "../core/detect-search-tools.js";
+import { preferDistExtensionEntries } from "../core/prefer-dist-extension-entries.js";
 import {
   type ExtensionManagerEntry,
   extensionManagerEntriesFromResult,
@@ -512,6 +513,10 @@ export async function rebuildRuntimeChat(runtimeTab: RuntimeTab): Promise<ChatLi
 export async function createRuntimeServices(
   options: RuntimeServiceOptions,
 ): Promise<AgentSessionServices> {
+  // Compile-binary mpi loads extensions via jiti virtualModules; prefer dist
+  // entries before packageManager.resolve so src+TypeBox packages don't fail.
+  preferDistExtensionEntries(options.agentDir);
+
   let servicesRef: AgentSessionServices | undefined;
   let latestExtensionManagerEntries: ExtensionManagerEntry[] = [];
   const resourceLoaderOptions = {

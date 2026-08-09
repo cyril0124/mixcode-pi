@@ -2,7 +2,28 @@ diff --git a/node_modules/@earendil-works/pi-coding-agent/dist/core/extensions/l
 index 1111111..2222222 100644
 --- a/node_modules/@earendil-works/pi-coding-agent/dist/core/extensions/loader.js
 +++ b/node_modules/@earendil-works/pi-coding-agent/dist/core/extensions/loader.js
-@@ -348,6 +348,22 @@
+@@ -54,6 +54,20 @@
+     "@mariozechner/pi-ai/providers/all": _bundledPiAiProviders,
+     "@mariozechner/pi-coding-agent": _bundledPiCodingAgent,
+ };
++// MIXCODE_TYPEBOX_FIX: Bun --compile can break TypeBox's Type proxy when exposed
++// only via namespace re-exports. Re-bind Type from the typebox module object.
++for (const key of ["@earendil-works/pi-ai", "@earendil-works/pi-ai/compat", "@mariozechner/pi-ai", "@mariozechner/pi-ai/compat"]) {
++    const mod = VIRTUAL_MODULES[key];
++    if (mod && VIRTUAL_MODULES.typebox) {
++        VIRTUAL_MODULES[key] = new Proxy(mod, {
++            get(target, prop, receiver) {
++                if (prop === "Type") return VIRTUAL_MODULES.typebox.Type ?? VIRTUAL_MODULES.typebox;
++                return Reflect.get(target, prop, receiver);
++            },
++        });
++    }
++}
++
+ const require = createRequire(import.meta.url);
+ const isTypeScriptSourceRuntime = !isBunBinary && path.extname(fileURLToPath(import.meta.url)) === ".ts";
+ /**
+@@ -348,6 +362,22 @@
          extensionCacheCwd === cacheToken.cwd &&
          extensionCacheGeneration === cacheToken.generation);
  }
@@ -25,7 +46,7 @@ index 1111111..2222222 100644
  async function loadExtensionModule(extensionPath, cacheToken) {
      if (isCurrentCacheToken(cacheToken)) {
          const cachedFactory = extensionCache.get(extensionPath);
-@@ -355,16 +371,7 @@
+@@ -355,16 +385,7 @@
              return cachedFactory;
          }
      }
@@ -43,7 +64,7 @@ index 1111111..2222222 100644
      const module = await jiti.import(extensionPath, { default: true });
      const factory = module;
      if (typeof factory !== "function") {
-@@ -430,6 +437,8 @@
+@@ -430,6 +451,8 @@
   * Load extensions from paths.
   */
  async function loadExtensionsInternal(paths, cwd, eventBus, runtime, useCache = false) {
@@ -52,7 +73,7 @@ index 1111111..2222222 100644
      const extensions = [];
      const errors = [];
      const cacheToken = useCache ? useExtensionCacheCwd(cwd) : undefined;
-@@ -440,11 +449,12 @@
+@@ -440,11 +463,12 @@
          const { extension, error } = await loadExtension(extPath, resolvedCwd, resolvedEventBus, resolvedRuntime, cacheToken);
          if (error) {
              errors.push({ path: extPath, error });

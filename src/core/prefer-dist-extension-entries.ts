@@ -1,0 +1,106 @@
+import * as fs from "node:fs";
+import * as path from "node:path";
+
+const SKIP_ENV = "MIXCODE_SKIP_PI_EXT_NORMALIZE";
+
+type PiPackageJson = {
+  pi?: {
+    extensions?: string[];
+  };
+};
+
+/**
+ * Prefer prebuilt dist extension entries when a package still points at src.
+ * Needed for Bun-compiled mpi (jiti virtualModules): compiling TypeBox-heavy
+ * src under that path can fail with "Type4 is not defined".
+ */
+export function preferDistExtensionEntries(agentDir: string): { rewritten: string[] } {
+  if (process.env[SKIP_ENV]?.trim()) {
+    return { rewritten: [] };
+  }
+
+  const roots = [path.join(agentDir, "npm", "node_modules")];
+  const rewritten: string[] = [];
+
+  for (const root of roots) {
+    if (!fs.existsSync(root)) continue;
+    for (const pkgDir of listPackageDirs(root)) {
+      if (rewritePackageManifest(pkgDir)) rewritten.push(pkgDir);
+    }
+  }
+
+  return { rewritten };
+}
+
+function listPackageDirs(nodeModules: string): string[] {
+  const out: string[] = [];
+  for (const name of fs.readdirSync(nodeModules)) {
+    if (name === ".bin") continue;
+    const full = path.join(nodeModules, name);
+    let st: fs.Stats;
+    try {
+      st = fs.statSync(full);
+    } catch {
+      continue;
+    }
+    if (!st.isDirectory()) continue;
+    if (name.startsWith("@")) {
+      for (const scoped of fs.readdirSync(full)) {
+        const scopedDir = path.join(full, scoped);
+        try {
+          if (fs.statSync(scopedDir).isDirectory()) out.push(scopedDir);
+        } catch {
+          // ignore broken entries
+        }
+      }
+      continue;
+    }
+    out.push(full);
+  }
+  return out;
+}
+
+function rewritePackageManifest(pkgDir: string): boolean {
+  const manifestPath = path.join(pkgDir, "package.json");
+  let raw: string;
+  try {
+    raw = fs.readFileSync(manifestPath, "utf8");
+  } catch {
+    return false;
+  }
+
+  let data: PiPackageJson;
+  try {
+    data = JSON.parse(raw) as PiPackageJson;
+  } catch {
+    return false;
+  }
+
+  const entries = data.pi?.extensions;
+  if (!entries?.length) return false;
+
+  let changed = false;
+  const next = entries.map((entry) => {
+    const preferred = preferDistPath(pkgDir, entry);
+    if (preferred !== entry) {
+      changed = true;
+      return preferred;
+    }
+    return entry;
+  });
+
+  if (!changed || !data.pi) return false;
+  data.pi.extensions = next;
+  fs.writeFileSync(manifestPath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
+  return true;
+}
+
+/** ./src/index.ts + dist/index.js → ./dist/index.js */
+function preferDistPath(pkgDir: string, entry: string): string {
+  const normalized = entry.replace(/\\/g, "/");
+  const m = normalized.match(/^\.\/src\/(.+)\.tsx?$/);
+  if (!m) return entry;
+  const distRel = `./dist/${m[1]}.js`;
+  if (fs.existsSync(path.join(pkgDir, distRel))) return distRel;
+  return entry;
+}
