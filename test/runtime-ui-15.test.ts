@@ -420,7 +420,15 @@ test("runtime maps supported pi extension UI primitives into MixCode tab state",
     });
 
     assert.deepEqual(modes, ["tui"]);
-    assert.match(renderInputMeta(runtimeTab.tab, 100).join("\n"), /\n ready\s*$/);
+    // Footer is set below, so input-meta collapses; status lives on extensionUi + footer.
+    assert.deepEqual(
+      runtimeTab.tab.extensionUi.statuses.map((s) => ({ key: s.key, text: s.text })),
+      [{ key: "status", text: "ready" }],
+    );
+    assert.match(
+      stripAnsi(renderExtensionFooter(runtimeTab.tab, 100).join("\n")),
+      /status=ready/,
+    );
     assert.match(
       renderExtensionWidgets(runtimeTab.tab, 100, "aboveEditor").join("\n"),
       /above widget/,
@@ -435,9 +443,12 @@ test("runtime maps supported pi extension UI primitives into MixCode tab state",
     assert.deepEqual(renderWorkingIndicator({ ...runtimeTab.tab, status: "running" }, 100), []);
     assert.equal(stripAnsi(renderExtensionHeader(runtimeTab.tab, 8).join("\n")).trim(), "header 8");
     assert.match(stripAnsi(renderExtensionFooter(runtimeTab.tab, 8).join("\n")), /foote\.\.\./);
+    assert.equal(runtimeTab.tab.extensionUi.hiddenThinkingLabel, "Delegated thinking...");
+    assert.equal(runtimeTab.tab.extensionUi.toolsExpanded, true);
 
     runtimeTab.agentSession.extensionRunner.getUIContext().setWorkingIndicator();
     runtimeTab.agentSession.extensionRunner.getUIContext().setHiddenThinkingLabel();
+    assert.equal(runtimeTab.tab.extensionUi.hiddenThinkingLabel, undefined);
     runtimeTab.agentSession.extensionRunner.getUIContext().setWidget("missing", undefined);
     runtimeTab.agentSession.extensionRunner.getUIContext().setWidget("below", ["replacement"]);
     runtimeTab.agentSession.extensionRunner.getUIContext().setWidget("above", undefined);

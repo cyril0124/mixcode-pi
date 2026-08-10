@@ -179,6 +179,8 @@ function createExtensionCustomEditor<T>(
           return;
         }
         component = normalizeExtensionCustomComponent(createdComponent);
+        // Same newline flatten as overlay path: differential renderer is row-based.
+        sanitizeComponentRender(component, host.tui);
         host.editor?.setEditorComponent?.(() => customComponentEditor(component!), sessionId);
         requestRender();
       })

@@ -168,7 +168,8 @@ setWidget
 setFooter
 setHeader
 setTitle
-custom(..., { overlay: true })
+custom(factory) / custom(factory, { overlay: true })
+setHiddenThinkingLabel
 pasteToEditor
 setEditorText / getEditorText
 editor(title, prefill?)
@@ -181,10 +182,10 @@ theme / getAllThemes / getTheme / setTheme
 重要边界：
 
 - `setHeader` / `setFooter` 只占用 MixCode 固定布局中的 extension slot，不允许覆盖 Agent Tabs 或核心输入区。
-- `setHiddenThinkingLabel` 写入 per-tab `hiddenThinkingLabel`，在 `hideThinkingBlock` 折叠占位时使用（默认 `Thinking...`）。
+- `setHiddenThinkingLabel(label?)` 写入 per-tab `hiddenThinkingLabel`；`hideThinkingBlock` 折叠 thinking 时用该文案作斜体占位（默认 `Thinking...`）；`undefined`/空串恢复默认。
+- `ctx.ui.custom(factory)`（非 overlay）临时替换当前 tab 的 editor slot（与 select/confirm/input/editor 同槽），`done()` 后恢复原文与 factory；`custom(factory, { overlay: true })` 走 pi-tui 浮层。无 live TUI host 或 editor 替换不可用时显式报错。
 - `setEditorComponent` 接入当前 live editor slot；没有 live TUI host 时显式报错。
 - `setTheme(name | Theme)` 对齐 Pi：任意已注册 theme 名（内置 `mixcode-dark`/`claude-warm`/`tokyo-night`/`terminal`、Pi `dark`/`light`、`~/.pi/agent/themes`、package themes、`ResourceLoader` 发现结果）会映射到 MixCode 全局 TUI + extension theme，并请求 redraw；`Theme` 实例须带 `name`（会 `registerAdditionalTheme`）。未知 theme 或没有 live TUI host 时显式失败，不静默降级。TUI chrome 字段名与 Pi token 对齐（如 `error`/`muted`/`borderMuted`/`selectedBg`/`bashMode`/`toolTitle`/`thinkingText`）。
-- 非 overlay 的 `ctx.ui.custom()` 还不是完整 Pi TUI 等价能力。
 
 ### Rendering
 

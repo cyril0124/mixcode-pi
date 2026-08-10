@@ -32,7 +32,7 @@ export function chatBlockRenderOptions(
   if (options.imageWidthCells !== undefined) result.imageWidthCells = options.imageWidthCells;
 
   // Pi InteractiveMode.getMarkdownTransformers: mermaid is local; extensions via runner.
-  const transformers = runtimeTab?.agentSession.extensionRunner.getMarkdownTransformers?.();
+  const transformers = runtimeTab?.agentSession?.extensionRunner?.getMarkdownTransformers?.();
   if (transformers && transformers.length > 0) {
     result.markdownTransformers = transformers;
   }
@@ -41,6 +41,7 @@ export function chatBlockRenderOptions(
   const line = runtimeTab?.chat[chatIndex];
   if (
     streaming &&
+    runtimeTab &&
     !isScrollFrozen(runtimeTab.tab) &&
     (line?.role === "assistant" || line?.role === "thinking")
   ) {
