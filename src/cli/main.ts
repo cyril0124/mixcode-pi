@@ -333,6 +333,9 @@ export async function main(): Promise<void> {
     reportRegistryWriteError(err);
   });
   void writeRegistrySnapshot();
+  // Stagger package update checks until after tab extension cold-load (tabsReady).
+  // Parallel jiti + npm view contends for CPU/network; finally keeps the check
+  // even when extension loading fails. Still fire-and-forget for the first frame.
   void tabsReady
     .then(() => {
       tui.requestRender(true);
@@ -341,13 +344,15 @@ export async function main(): Promise<void> {
       const msg = error instanceof Error ? error.message : String(error);
       showNoticeTextOverlay(tui, `Extension loading failed: ${msg}`);
       tui.requestRender();
-    });
-  void packageUpdateCheck()
-    .then((packages) => {
-      state.packageUpdates = packages;
-      tui.requestRender();
     })
-    .catch(() => undefined);
+    .finally(() => {
+      void packageUpdateCheck()
+        .then((packages) => {
+          state.packageUpdates = packages;
+          tui.requestRender();
+        })
+        .catch(() => undefined);
+    });
   // Conversation history backfill / session-index rebuild scans every persisted
   // session file, so it runs in the background after the first frame. Surface
   // any warnings into the first tab once it completes.
