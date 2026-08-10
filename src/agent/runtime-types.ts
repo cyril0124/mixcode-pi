@@ -86,6 +86,8 @@ export interface ChatLine {
   entryId?: string;
   /** Epoch ms when a user message was sent; used for right-side clock render. */
   timestamp?: number;
+  /** Image blocks from a user message (Pi content array); rendered under the text body. */
+  images?: ImageContent[];
   args?: unknown;
   renderExtension?: (width: number) => string[];
   renderToolCall?: (width: number) => string[];

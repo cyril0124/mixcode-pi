@@ -24,7 +24,8 @@ import {
   setTabStatus,
 } from "../core/tab-state.js";
 import {
-  contentText,
+  contentImages,
+  userMessageText,
   formatToolPreview,
   normalizeToolResult,
   summarizeToolContent,
@@ -300,18 +301,21 @@ export function syncQueueState(
 
 export function appendMessageStart(runtimeTab: RuntimeTab, message: AgentMessage): void {
   if (message.role === "user") {
-    const text = contentText(message.content);
-    if (!text.trim()) return;
+    // Pi getUserMessageText + separate image blocks for TUI.
+    const text = userMessageText(message.content);
+    const images = contentImages(message.content);
+    if (!text.trim() && images.length === 0) return;
     clearChatScrollAnchor(runtimeTab.tab);
     runtimeTab.tab.chatScrollOffset = 0;
     runtimeTab.chat.push({
       role: "user",
       text,
+      ...(images.length > 0 ? { images } : {}),
       ...(typeof message.timestamp === "number" && Number.isFinite(message.timestamp)
         ? { timestamp: message.timestamp }
         : {}),
     });
-    appendPreviewMessage(runtimeTab.tab, "user", text);
+    appendPreviewMessage(runtimeTab.tab, "user", text.trim() || "[image]");
   } else if (message.role === "custom") {
     const line = customMessageToChatLine(message, runtimeTab);
     if (!line) return;

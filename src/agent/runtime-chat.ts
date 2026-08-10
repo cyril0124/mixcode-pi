@@ -19,7 +19,9 @@ import {
 import { applyMixCodeKeybindings } from "./runtime-pi-tui-bridge.js";
 import { NullTerminal } from "./runtime-null-terminal.js";
 import {
+  contentImages,
   contentText,
+  userMessageText,
   normalizeToolResult,
   summarizeToolContent,
   toolExecutionToChatLine,
@@ -437,14 +439,17 @@ function entryToChatLines(entry: SessionEntry, runtimeTab: RuntimeTab): ChatLine
   if (entry.type !== "message") return [];
   const message = entry.message;
   if (message.role === "user") {
-    const text = contentText(message.content);
-    if (!text.trim()) return [];
+    // Pi getUserMessageText: body is text-only; images ride on ChatLine.images.
+    const text = userMessageText(message.content);
+    const images = contentImages(message.content);
+    if (!text.trim() && images.length === 0) return [];
     const timestamp = userMessageTimestamp(message.timestamp, entry.timestamp);
     return [
       {
         role: "user",
         text,
         entryId: entry.id,
+        ...(images.length > 0 ? { images } : {}),
         ...(timestamp !== undefined ? { timestamp } : {}),
       },
     ];

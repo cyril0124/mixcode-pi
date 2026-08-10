@@ -24,6 +24,10 @@ export function renderMarkdown(
     isStreaming?: boolean;
     /** When false, LaTeX math stays as source. Default true. */
     renderLatex?: boolean;
+    /** Pi UserMessageComponent: keep source list markers (default false). */
+    preserveOrderedListMarkers?: boolean;
+    /** Pi UserMessageComponent: keep source backslash escapes (default false). */
+    preserveBackslashEscapes?: boolean;
   } = {},
 ): string[] {
   const mermaidTransformer = createMermaidMarkdownTransformer({
@@ -41,6 +45,8 @@ export function renderMarkdown(
     },
     {
       renderLatex: options.renderLatex !== false,
+      preserveOrderedListMarkers: options.preserveOrderedListMarkers,
+      preserveBackslashEscapes: options.preserveBackslashEscapes,
       transform: (source, availableWidth) =>
         mermaidTransformer(source, {
           messageType: options.messageType ?? "assistant",

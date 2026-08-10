@@ -16,6 +16,33 @@ export function contentText(content: string | Array<{ type: string; text?: strin
     .join("\n");
 }
 
+/**
+ * Pi interactive-mode getUserMessageText: only text blocks, images omitted from the body.
+ * Image blocks are carried separately via contentImages() for TUI rendering.
+ */
+export function userMessageText(
+  content: string | Array<{ type: string; text?: string }>,
+): string {
+  if (typeof content === "string") return content;
+  return content
+    .filter((block) => block.type === "text" && typeof block.text === "string")
+    .map((block) => block.text ?? "")
+    .join("");
+}
+
+export function contentImages(
+  content: string | Array<{ type: string; text?: string; data?: string; mimeType?: string }>,
+): ImageContent[] {
+  if (typeof content === "string") return [];
+  const images: ImageContent[] = [];
+  for (const block of content) {
+    if (block.type !== "image") continue;
+    if (typeof block.data !== "string" || typeof block.mimeType !== "string") continue;
+    images.push({ type: "image", data: block.data, mimeType: block.mimeType });
+  }
+  return images;
+}
+
 export function toolExecutionToChatLine(
   runtimeTab: RuntimeTab,
   options: {

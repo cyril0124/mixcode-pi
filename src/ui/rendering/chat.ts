@@ -1,4 +1,15 @@
-import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
+import type { ImageContent } from "@earendil-works/pi-ai";
+import {
+  getCapabilities,
+  Image,
+  truncateToWidth,
+  visibleWidth,
+  wrapTextWithAnsi,
+} from "@earendil-works/pi-tui";
+import {
+  currentExtensionTheme,
+  ensureExtensionThemeInitialized,
+} from "../../agent/runtime-extension-theme.js";
 import type { ChatLine } from "../../agent/runtime.js";
 import type { OversizedAssistantMessageSettings } from "../../core/mixcode-settings.js";
 import type { MixCodeTabInfo } from "../../core/types.js";
@@ -51,6 +62,10 @@ export interface RenderChatBlockOptions {
   hideThinking?: boolean;
   /** When false, mermaid fences stay plain code blocks. Default true. */
   renderMermaid?: boolean;
+  /** When false, user-message image blocks are hidden. Default true (Pi showImages). */
+  showImages?: boolean;
+  /** Max image width in terminal cells. Default 60 (Pi imageWidthCells). */
+  imageWidthCells?: number;
 }
 
 // Placeholder shown in place of collapsed thinking content, matching Pi's
@@ -240,27 +255,14 @@ function renderMessageBlockUncached(
 ): string[] {
   const text = line.text.trimEnd();
   if (line.role === "user") {
-    if (!text.trim()) return [];
+    const images = line.images ?? [];
+    if (!text.trim() && images.length === 0) return [];
     // Detect skill block and render collapsed/expanded
-    const skillBlock = parseSkillBlock(text);
+    const skillBlock = text.trim() ? parseSkillBlock(text) : null;
     if (skillBlock) {
-      return renderSkillUserMessage(skillBlock, width, tab, line.timestamp);
+      return renderSkillUserMessage(skillBlock, width, tab, line.timestamp, options, images);
     }
-    // Reserve room on the first body line for a right-side clock when present.
-    const clock = formatUserMessageTime(line.timestamp);
-    const clockWidth = clock ? visibleWidth(` ${clock}`) : 0;
-    const innerWidth = Math.max(1, width - 2 - clockWidth);
-    const bodyParts = wrapPlainLine(text, innerWidth);
-    const body = bodyParts.map((part, index) =>
-      index === 0 && clock
-        ? renderUserMessageFirstLine(part, clock, width)
-        : activeRenderTheme.userMessageBg(padLine(` ${part}`, width)),
-    );
-    return [
-      OSC133_ZONE_START + activeRenderTheme.userMessageBg(padLine("", width)),
-      ...body,
-      activeRenderTheme.userMessageBg(padLine("", width)) + OSC133_ZONE_END + OSC133_ZONE_FINAL,
-    ];
+    return renderUserMessageBlock(text, width, line.timestamp, options, images);
   }
   if (line.role === "assistant") {
     if (!text.trim()) return [];
@@ -390,8 +392,11 @@ function chatLineRenderCacheKey(
   }
   const expanded = tab?.extensionUi.toolsExpanded ?? false;
   if (role === "user") {
-    // Skill blocks switch on toolsExpanded; safe to include unconditionally.
-    return `u${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${expanded ? 1 : 0}${KEY_SEP}${line.timestamp ?? ""}${KEY_SEP}${line.text}`;
+    // Skill blocks switch on toolsExpanded; images / showImages flip the image strip.
+    const showImages = options.showImages === false ? 0 : 1;
+    const imageKey = userImagesCacheKey(line.images);
+    const mermaidKey = options.renderMermaid === false ? "0" : "1";
+    return `u${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${expanded ? 1 : 0}${KEY_SEP}${line.timestamp ?? ""}${KEY_SEP}${showImages}${KEY_SEP}${options.imageWidthCells ?? 60}${KEY_SEP}${mermaidKey}${KEY_SEP}${imageKey}${KEY_SEP}${line.text}`;
   }
   if (role === "extension") {
     return `e${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${line.title ?? ""}${KEY_SEP}${line.customType ?? ""}${KEY_SEP}${line.text}`;
@@ -783,6 +788,83 @@ function objectRecord(value: unknown): Record<string, unknown> {
 }
 
 /**
+ * Pi UserMessageComponent: Markdown body + userMessageBg pad, plus MixCode clock.
+ * Image blocks (when present) render after the text box, matching tool-result image strip.
+ */
+function renderUserMessageBlock(
+  text: string,
+  width: number,
+  timestamp: number | undefined,
+  options: RenderChatBlockOptions,
+  images: ImageContent[] = [],
+): string[] {
+  ensureExtensionThemeInitialized();
+  const theme = currentExtensionTheme();
+  const clock = formatUserMessageTime(timestamp);
+  const clockWidth = clock ? visibleWidth(` ${clock}`) : 0;
+  const mdWidth = Math.max(1, width - clockWidth);
+  const mdLines = text.trim()
+    ? renderMarkdown(text.trimEnd(), mdWidth, {
+        color: (content) => theme.fg("userMessageText", content),
+        messageType: "user",
+        renderMermaid: options.renderMermaid,
+        // Match Pi UserMessageComponent Markdown options.
+        preserveOrderedListMarkers: true,
+        preserveBackslashEscapes: true,
+      })
+    : [];
+  const body =
+    mdLines.length > 0
+      ? mdLines.map((part, index) =>
+          index === 0 && clock
+            ? activeRenderTheme.userMessageBg(
+                padLine(withRightClock(part.replace(/\s+$/u, ""), clock, width, true), width),
+              )
+            : activeRenderTheme.userMessageBg(padLine(part, width)),
+        )
+      : [];
+  const imageLines = renderUserMessageImages(images, width, options);
+  if (body.length === 0 && imageLines.length === 0) return [];
+  return [
+    OSC133_ZONE_START + activeRenderTheme.userMessageBg(padLine("", width)),
+    ...body,
+    activeRenderTheme.userMessageBg(padLine("", width)) + OSC133_ZONE_END + OSC133_ZONE_FINAL,
+    ...imageLines,
+  ];
+}
+
+function renderUserMessageImages(
+  images: ImageContent[],
+  width: number,
+  options: RenderChatBlockOptions,
+): string[] {
+  if (options.showImages === false || images.length === 0) return [];
+  const caps = getCapabilities();
+  const maxWidthCells = Math.max(1, options.imageWidthCells ?? 60);
+  const lines: string[] = [];
+  for (const img of images) {
+    if (!img.data || !img.mimeType) continue;
+    // Kitty only embeds PNG; skip other mime types like Pi ToolExecutionComponent.
+    if (caps.images === "kitty" && img.mimeType !== "image/png") continue;
+    const component = new Image(
+      img.data,
+      img.mimeType,
+      { fallbackColor: (s) => activeRenderTheme.dim(s) },
+      { maxWidthCells },
+    );
+    lines.push(...component.render(width));
+  }
+  return lines;
+}
+
+function userImagesCacheKey(images: ImageContent[] | undefined): string {
+  if (!images?.length) return "0";
+  return images
+    .map((img) => `${img.mimeType}:${img.data.length}:${img.data.slice(0, 12)}`)
+    .join(",");
+}
+
+/**
  * Render a skill invocation user message with a background box.
  * Collapsed: [skill] name (ctrl+o to expand)
  * Expanded: [skill] name + full skill content as markdown
@@ -793,6 +875,8 @@ function renderSkillUserMessage(
   width: number,
   tab?: MixCodeTabInfo,
   timestamp?: number,
+  options: RenderChatBlockOptions = {},
+  images: ImageContent[] = [],
 ): string[] {
   const expanded = tab?.extensionUi.toolsExpanded ?? false;
   const innerWidth = Math.max(1, width - 2);
@@ -821,22 +905,11 @@ function renderSkillUserMessage(
     lines.push(renderBackgroundLine(part, width, activeRenderTheme.customMessageBg));
   }
 
-  // Render user message (args) as a separate user block below
-  if (skillBlock.userMessage) {
+  // Render user message (args) as a separate user block below (Markdown + images).
+  if (skillBlock.userMessage || images.length > 0) {
     lines.push(padLine("", width));
-    const clock = formatUserMessageTime(timestamp);
-    const clockWidth = clock ? visibleWidth(` ${clock}`) : 0;
-    const argsInnerWidth = Math.max(1, width - 2 - clockWidth);
-    const bodyParts = wrapPlainLine(skillBlock.userMessage, argsInnerWidth);
-    const body = bodyParts.map((part, index) =>
-      index === 0 && clock
-        ? renderUserMessageFirstLine(part, clock, width)
-        : activeRenderTheme.userMessageBg(padLine(` ${part}`, width)),
-    );
     lines.push(
-      OSC133_ZONE_START + activeRenderTheme.userMessageBg(padLine("", width)),
-      ...body,
-      activeRenderTheme.userMessageBg(padLine("", width)) + OSC133_ZONE_END + OSC133_ZONE_FINAL,
+      ...renderUserMessageBlock(skillBlock.userMessage ?? "", width, timestamp, options, images),
     );
   }
 
@@ -852,13 +925,6 @@ function formatUserMessageTime(timestamp?: number): string {
     hour: "numeric",
     minute: "2-digit",
   });
-}
-
-/** First user body line: text left, clock right-aligned and dimmed. */
-function renderUserMessageFirstLine(part: string, clock: string, width: number): string {
-  return activeRenderTheme.userMessageBg(
-    padLine(withRightClock(` ${part}`, clock, width, true), width),
-  );
 }
 
 /**
