@@ -288,7 +288,8 @@ Core **不再**在 `afterToolCall` 上做 mid-turn terminate + 私有 `_handlePo
   │
   ├─ 校验文件存在、header 有 session/cwd
   ├─ cwd 不存在时显式报错，用户可提供 cwdOverride
-  ├─ 复制 JSONL 到当前 session dir
+  ├─ 外部 JSONL 先在私有临时文件上完成 Pi 迁移，再原子、无覆盖地发布到当前 session dir
+  │    └─ 同名目标已存在时显式失败，保留原文件
   ├─ 触发 session_before_switch(reason=resume)
   └─ SessionManager.open(...) 后替换当前 AgentSession
 ```

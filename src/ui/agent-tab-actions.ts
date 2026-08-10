@@ -3,7 +3,12 @@ import type { MixCodeRuntime } from "../agent/runtime.js";
 import { LOCAL_COMMANDS, parseInput, type ParsedInput } from "../core/commands.js";
 import { createSessionId, createTab, nextAvailableAgentTitle } from "../core/defaults.js";
 import { assertModelEnabled } from "../core/models.js";
-import { noteTabClosed, noteTabOpened, noteTabReplaced } from "../core/open-tabs-store.js";
+import {
+  assertConfiguredOpenTabsReadable,
+  noteTabClosed,
+  noteTabOpened,
+  noteTabReplaced,
+} from "../core/open-tabs-store.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import { activateTab, closeAgentTab } from "../core/tabs.js";
 import type { MixCodeModel, MixCodeModelRef, MixCodeState, MixCodeTabInfo } from "../core/types.js";
@@ -73,10 +78,23 @@ export async function createAgentTab(
     tab.status = "idle";
     return tab;
   } catch (error) {
+    let publicationFailed = false;
+    let publicationError: unknown;
+    try {
+      noteTabClosed(sessionId);
+    } catch (rollbackError) {
+      publicationFailed = true;
+      publicationError = rollbackError;
+    }
     const index = state.tabs.findIndex((item) => item.sessionId === sessionId);
     if (index >= 0) state.tabs.splice(index, 1);
-    noteTabClosed(sessionId);
     activateTab(state, previousActiveId);
+    if (publicationFailed) {
+      throw new AggregateError(
+        [error, publicationError],
+        "Creating the tab failed and open_tabs rollback also failed",
+      );
+    }
     throw error;
   }
 }
@@ -153,6 +171,7 @@ export function prepareAgentTabClear(
 ): PreparedAgentTabClear {
   const tab = state.tabs.find((item) => item.sessionId === sessionId);
   if (!tab) throw new Error(`Cannot clear unknown tab: ${sessionId}`);
+  assertConfiguredOpenTabsReadable();
   const runtimeTab = runtime.getTab(sessionId);
   // Refuse before wiping UI — clearTab also rejects streaming, but prepare used to
   // blank chat first so a failed clear left an empty unrecovered surface.
@@ -197,12 +216,10 @@ export async function completeAgentTabClear(
   const nextSessionId = createSessionId();
   const oldSessionId = prepared.oldSessionId;
   const wasActive = state.activeTabId === oldSessionId;
-  // Sync section: local id and shared open-set must move together before clearTab
-  // awaits (extension reload / session create). Same idea as createAgentTab's
-  // noteTabOpened-before-create, but clear also renames the existing tab object.
+  // Publish first so a corrupt snapshot cannot leave the local identity half-swapped.
+  noteTabReplaced(oldSessionId, nextSessionId);
   prepared.tab.sessionId = nextSessionId;
   if (wasActive) state.activeTabId = nextSessionId;
-  noteTabReplaced(oldSessionId, nextSessionId);
   try {
     const cleared = await runtime.clearTab(oldSessionId, {
       systemPrompt: options?.systemPrompt ?? MIXCODE_SYSTEM_PROMPT,
@@ -224,10 +241,23 @@ export async function completeAgentTabClear(
     clearConversationCache(resultId);
     return resultId;
   } catch (error) {
-    // Roll identity back so peers and UI keep the session that still exists.
+    // Local identity must roll back even if publishing the rollback also fails.
+    let publicationFailed = false;
+    let publicationError: unknown;
+    try {
+      noteTabReplaced(nextSessionId, oldSessionId);
+    } catch (rollbackError) {
+      publicationFailed = true;
+      publicationError = rollbackError;
+    }
     prepared.tab.sessionId = oldSessionId;
     if (wasActive) state.activeTabId = oldSessionId;
-    noteTabReplaced(nextSessionId, oldSessionId);
+    if (publicationFailed) {
+      throw new AggregateError(
+        [error, publicationError],
+        "Clearing the tab failed and open_tabs rollback also failed",
+      );
+    }
     throw error;
   }
 }
@@ -246,11 +276,12 @@ export async function deleteAgentTab(
     throw new Error(`Cannot delete unknown tab: ${sessionId}`);
   }
   if (!runtime.deleteTab) throw new Error("Deleting a session requires runtime support");
+  assertConfiguredOpenTabsReadable();
   await runtime.deleteTab(sessionId);
+  // Publish before removing local state so a write failure leaves the tab visible.
+  noteTabClosed(sessionId);
   closeAgentTab(state, sessionId);
   clearConversationCache(sessionId);
-  // Drop from the shared open-tab set so peer instances close it too.
-  noteTabClosed(sessionId);
 }
 
 /**
@@ -266,6 +297,7 @@ export async function closeExistingAgentTab(
 ): Promise<void> {
   if (!state.tabs.some((tab) => tab.sessionId === sessionId)) return;
   if (!runtime.closeTab) throw new Error("Closing a session requires runtime support");
+  if (options.publishClose !== false) assertConfiguredOpenTabsReadable();
   try {
     await runtime.closeTab(sessionId);
   } catch (error) {
@@ -274,9 +306,9 @@ export async function closeExistingAgentTab(
     const msg = error instanceof Error ? error.message : String(error);
     if (!msg.startsWith("Unknown tab session:")) throw error;
   }
+  if (options.publishClose !== false) noteTabClosed(sessionId);
   closeAgentTab(state, sessionId);
   clearConversationCache(sessionId);
-  if (options.publishClose !== false) noteTabClosed(sessionId);
 }
 
 /**

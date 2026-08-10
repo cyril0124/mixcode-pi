@@ -1,3 +1,4 @@
+import * as crypto from "node:crypto";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { type SessionEntry, SessionManager } from "@earendil-works/pi-coding-agent";
@@ -196,11 +197,38 @@ export async function importRuntimeJsonl(
   if (beforeResult.cancelled) return beforeResult;
   await inspectSessionImport(resolvedPath, cwdOverride, runtimeTab.tab.workdir);
   if (path.resolve(destinationPath) !== resolvedPath) {
-    await Bun.write(destinationPath, Bun.file(resolvedPath));
+    await publishImportedSession(resolvedPath, destinationPath, sessionDir, cwdOverride);
   }
   const sessionManager = SessionManager.open(destinationPath, sessionDir, cwdOverride);
   await context.replaceRuntimeTabSession(runtimeTab, sessionManager, "resume");
   return { cancelled: false };
+}
+
+async function publishImportedSession(
+  sourcePath: string,
+  destinationPath: string,
+  sessionDir: string,
+  cwdOverride: string | undefined,
+): Promise<void> {
+  const tempPath = path.join(path.dirname(destinationPath), `.${crypto.randomUUID()}.tmp`);
+  try {
+    await Bun.write(tempPath, Bun.file(sourcePath));
+    // Pi migrates legacy files in place; do that before the copy becomes visible.
+    SessionManager.open(tempPath, sessionDir, cwdOverride);
+    try {
+      // Hard-link publication is atomic and never replaces an existing session.
+      await fs.link(tempPath, destinationPath);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "EEXIST") {
+        throw new Error(`Session import destination already exists: ${destinationPath}`, {
+          cause: error,
+        });
+      }
+      throw error;
+    }
+  } finally {
+    await fs.rm(tempPath, { force: true });
+  }
 }
 
 function resolveForkTarget(

@@ -2,20 +2,25 @@
 //
 // One coordinator per process. It watches the sessionsRoot directory ONCE (not
 // once per tab), maps changed filenames back to registered sessions, dedupes
-// repeat notifications with a size+mtime fingerprint, and debounces bursts so a
+// repeat notifications with a metadata fingerprint, and debounces bursts so a
 // single conversation turn (which the SDK may flush as several appends) causes
 // at most one reload.
 //
 // The watch and stat functions are injectable so behavior is deterministic in
 // tests; production uses node:fs (watch has no Bun equivalent).
-import * as fs from "node:fs";
 import type { FSWatcher } from "node:fs";
+import * as fs from "node:fs";
 import * as path from "node:path";
 
-/** Size+mtime signature; cheap to compute and enough to spot real appends. */
+/**
+ * Cheap metadata signature. ctime can trigger harmless metadata-only reloads;
+ * prefer that over missing an equal-size/equal-mtime external replacement.
+ */
 export interface FileFingerprint {
   size: number;
   mtimeMs: number;
+  ctimeMs?: number;
+  ino?: number;
 }
 
 export interface SessionWatchHandle {
@@ -60,7 +65,7 @@ const defaultWatchFactory: SessionWatchFactory = (dir, onEvent, onError) => {
 const defaultStatFingerprint: StatFingerprintFn = (filePath) => {
   try {
     const s = fs.statSync(filePath);
-    return { size: s.size, mtimeMs: s.mtimeMs };
+    return { size: s.size, mtimeMs: s.mtimeMs, ctimeMs: s.ctimeMs, ino: s.ino };
   } catch {
     return undefined;
   }
@@ -188,5 +193,11 @@ export class SessionSyncCoordinator {
 }
 
 function fingerprintsEqual(a: FileFingerprint | undefined, b: FileFingerprint): boolean {
-  return a !== undefined && a.size === b.size && a.mtimeMs === b.mtimeMs;
+  return (
+    a !== undefined &&
+    a.size === b.size &&
+    a.mtimeMs === b.mtimeMs &&
+    a.ctimeMs === b.ctimeMs &&
+    a.ino === b.ino
+  );
 }

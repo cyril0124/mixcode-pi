@@ -35,7 +35,10 @@ import {
   updatePickerQuery,
 } from "../core/pickers.js";
 import type { MixCodeState } from "../core/types.js";
-import { noteTabsReplaced } from "../core/open-tabs-store.js";
+import {
+  assertConfiguredOpenTabsReadable,
+  noteTabsReplaced,
+} from "../core/open-tabs-store.js";
 import { pushToast } from "../core/toast.js";
 import { activateTab, clampHomeSelectedTabIndex, getActiveTab } from "../core/tabs.js";
 import { closeExistingAgentTab, deleteAgentTab } from "./agent-tab-actions.js";
@@ -220,6 +223,7 @@ export function handleDeleteAllSessionsConfirmKey(
     state.deleteAllSessionsConfirmOpen = false;
     closeAppOverlay(tui);
     void (async () => {
+      assertConfiguredOpenTabsReadable();
       // Call through confirmedRuntime.deleteAllTabs() (not a detached function
       // reference) so `this` inside the real MixCodeRuntime method still
       // resolves — deleteAllTabs reads `this.tabs` internally.
@@ -258,6 +262,7 @@ export function handleCloseAllSessionsConfirmKey(
     state.closeAllSessionsConfirmOpen = false;
     closeAppOverlay(tui);
     void (async () => {
+      assertConfiguredOpenTabsReadable();
       // Call through confirmedRuntime.closeAllTabs() (not a detached function
       // reference) so `this` inside the real MixCodeRuntime method still
       // resolves — closeAllTabs reads `this.tabs` internally.

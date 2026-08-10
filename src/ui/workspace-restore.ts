@@ -1,5 +1,8 @@
 import { createSessionId, createTab } from "../core/defaults.js";
-import { noteTabsReplaced } from "../core/open-tabs-store.js";
+import {
+  assertConfiguredOpenTabsReadable,
+  noteTabsReplaced,
+} from "../core/open-tabs-store.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import { activateTab, clampHomeSelectedTabIndex, closeAgentTab } from "../core/tabs.js";
 import type { MixCodeState, MixCodeTabInfo, WorkspaceSnapshot, WorkspaceTabSnapshot } from "../core/types.js";
@@ -21,6 +24,7 @@ export async function restoreWorkspace(
   workspace: WorkspaceSnapshot,
   onStateChanged?: (state: MixCodeState) => void | Promise<void>,
 ): Promise<void> {
+  assertConfiguredOpenTabsReadable();
   if (!runtime) {
     restoreAlreadyOpenWorkspaceOrder(state, workspace);
     noteTabsReplaced(state.tabs.map((tab) => tab.sessionId));

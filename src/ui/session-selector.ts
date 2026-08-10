@@ -9,7 +9,12 @@ import { type Component, type Focusable, isKeyRelease } from "@earendil-works/pi
 
 import { applyMixCodeKeybindings } from "../agent/runtime-pi-tui-bridge.js";
 import { createSessionId, createTab } from "../core/defaults.js";
-import { noteTabClosed, noteTabOpened, noteTabReplaced } from "../core/open-tabs-store.js";
+import {
+  assertConfiguredOpenTabsReadable,
+  noteTabClosed,
+  noteTabOpened,
+  noteTabReplaced,
+} from "../core/open-tabs-store.js";
 import { invalidateSessionCatalog } from "../core/session-catalog.js";
 import { createSessionSelectorState } from "../core/session-selector.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
@@ -324,6 +329,7 @@ export function resumeSelectedSession(
     tui.requestRender();
     return;
   }
+  assertConfiguredOpenTabsReadable();
   closeSessionSelector(state, tui);
   const previousActiveTabId = state.activeTabId;
   const ephemeralSessionId = createSessionId();
@@ -353,9 +359,9 @@ export function resumeSelectedSession(
       });
       runtimeTabCreated = true;
       if (durableId && durableId !== ephemeralSessionId) {
+        noteTabReplaced(ephemeralSessionId, durableId);
         newTab.sessionId = durableId;
         activateTab(state, durableId);
-        noteTabReplaced(ephemeralSessionId, durableId);
         identityPublished = true;
       }
       const result = await runtimeRef.extensionSwitchSession(ephemeralSessionId, sessionPath);

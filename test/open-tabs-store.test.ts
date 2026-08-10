@@ -1,6 +1,6 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -14,6 +14,26 @@ import {
   readOpenTabs,
   writeOpenTabs,
 } from "../src/index.js";
+
+test("open_tabs rejects corrupt state without overwriting it", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-open-tabs-corrupt-"));
+  const filePath = openTabsFile(dir);
+  const corrupt = '{"version":1,"sessionIds":[';
+  try {
+    assert.deepEqual(readOpenTabs(filePath), [], "a missing file starts with no open tabs");
+    writeFileSync(filePath, corrupt, "utf8");
+
+    assert.throws(() => addOpenTab(filePath, "must-not-be-written"), SyntaxError);
+    assert.equal(readFileSync(filePath, "utf8"), corrupt);
+
+    const incomplete = '{"version":1,"sessionIds":["existing"]}';
+    writeFileSync(filePath, incomplete, "utf8");
+    assert.throws(() => addOpenTab(filePath, "must-not-be-written"), /Invalid open tabs snapshot/);
+    assert.equal(readFileSync(filePath, "utf8"), incomplete);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
 
 test("open_tabs lock wait yields CPU under contention", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-open-tabs-lock-"));

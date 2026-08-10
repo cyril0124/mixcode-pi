@@ -33,6 +33,11 @@ export function getConfiguredOpenTabsPath(): string | undefined {
   return configuredOpenTabsPath;
 }
 
+/** Fail before mutating runtime or UI state when the shared snapshot is unreadable. */
+export function assertConfiguredOpenTabsReadable(): void {
+  if (configuredOpenTabsPath) readOpenTabs(configuredOpenTabsPath);
+}
+
 /** Record a tab the user (or bootstrap) opened into the shared ordered list. */
 export function noteTabOpened(sessionId: string, afterSessionId?: string): void {
   if (!configuredOpenTabsPath || !sessionId.trim()) return;
@@ -62,17 +67,28 @@ export function noteTabsReplaced(sessionIds: Iterable<string>): void {
 }
 
 export function readOpenTabs(filePath: string): string[] {
+  let raw: string;
   try {
     // Sync RMW lock path: keep sync fs (not Bun.file).
-    const raw = fs.readFileSync(filePath, "utf8");
-    const parsed: unknown = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return [];
-    const ids = (parsed as { sessionIds?: unknown }).sessionIds;
-    if (!Array.isArray(ids)) return [];
-    return [...new Set(ids.map(String).filter((id) => id.trim()))];
-  } catch {
-    return [];
+    raw = fs.readFileSync(filePath, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw error;
   }
+  const parsed: unknown = JSON.parse(raw);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error(`Invalid open tabs snapshot: ${filePath}`);
+  }
+  const snapshot = parsed as { version?: unknown; sessionIds?: unknown; updatedAt?: unknown };
+  if (
+    snapshot.version !== OPEN_TABS_VERSION ||
+    !Array.isArray(snapshot.sessionIds) ||
+    !snapshot.sessionIds.every((id) => typeof id === "string") ||
+    typeof snapshot.updatedAt !== "string"
+  ) {
+    throw new Error(`Invalid open tabs snapshot: ${filePath}`);
+  }
+  return [...new Set(snapshot.sessionIds.filter((id) => id.trim()))];
 }
 
 /** Replace the shared open-tab set. Used at bootstrap to seed from state children. */

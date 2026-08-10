@@ -1,6 +1,6 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { test } from "node:test";
@@ -462,6 +462,81 @@ test("completeAgentTabClear publishes open_tabs before session id swaps so recon
     assert.ok(runtimeTabs.has(seenNewSessionId!));
 
     sync.dispose();
+  } finally {
+    configureOpenTabsPath(undefined);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("prepareAgentTabClear rejects corrupt open_tabs before wiping the tab", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-clear-corrupt-open-tabs-"));
+  const openTabsPath = openTabsFile(join(dir, "state"));
+  configureOpenTabsPath(openTabsPath);
+  try {
+    await mkdir(join(dir, "state"), { recursive: true });
+    await writeFile(openTabsPath, '{"version":1,"sessionIds":[', "utf8");
+    const state = createInitialState(dir);
+    const tab = createTab(1, "keep-session", dir, { status: "idle" });
+    tab.previewMessages = [{ role: "user", text: "keep this message" }];
+    state.tabs.push(tab);
+    state.activeTabId = tab.sessionId;
+    let projectionClears = 0;
+    const runtime = {
+      getTab: () => ({
+        agentSession: { isStreaming: false, isBashRunning: false },
+      }),
+      clearTabChatProjection: () => {
+        projectionClears++;
+      },
+    };
+
+    assert.throws(
+      () => prepareAgentTabClear(state, runtime as never, tab.sessionId),
+      SyntaxError,
+    );
+    assert.equal(projectionClears, 0);
+    assert.deepEqual(tab.previewMessages, [{ role: "user", text: "keep this message" }]);
+    assert.equal(tab.sessionId, "keep-session");
+  } finally {
+    configureOpenTabsPath(undefined);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("clear restores local identity when shared rollback also fails", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-clear-rollback-failure-"));
+  const openTabsPath = openTabsFile(join(dir, "state"));
+  configureOpenTabsPath(openTabsPath);
+  try {
+    const state = createInitialState(dir);
+    const tab = createTab(1, "old-session", dir, { status: "idle" });
+    state.tabs.push(tab);
+    state.activeTabId = tab.sessionId;
+    writeOpenTabs(openTabsPath, [tab.sessionId]);
+    const runtimeFailure = new Error("runtime clear failed");
+    const runtime = {
+      getTab: () => ({
+        agentSession: { isStreaming: false, isBashRunning: false },
+      }),
+      clearTabChatProjection: () => undefined,
+      clearTab: async () => {
+        await writeFile(openTabsPath, '{"version":1,"sessionIds":[', "utf8");
+        throw runtimeFailure;
+      },
+    };
+    const prepared = prepareAgentTabClear(state, runtime as never, tab.sessionId);
+    let caught: unknown;
+    try {
+      await completeAgentTabClear(state, runtime as never, prepared);
+    } catch (error) {
+      caught = error;
+    }
+
+    assert.ok(caught instanceof AggregateError);
+    assert.equal(caught.errors[0], runtimeFailure);
+    assert.ok(caught.errors[1] instanceof SyntaxError);
+    assert.equal(tab.sessionId, "old-session");
+    assert.equal(state.activeTabId, "old-session");
   } finally {
     configureOpenTabsPath(undefined);
     await rm(dir, { recursive: true, force: true });

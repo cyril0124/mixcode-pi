@@ -17,7 +17,12 @@ import { isLocalCommand, parseInput, type LocalCommand } from "../core/commands.
 import { createSessionId, createTab } from "../core/defaults.js";
 
 import { assertModelEnabled, findModelRef } from "../core/models.js";
-import { noteTabClosed, noteTabOpened, noteTabReplaced } from "../core/open-tabs-store.js";
+import {
+  assertConfiguredOpenTabsReadable,
+  noteTabClosed,
+  noteTabOpened,
+  noteTabReplaced,
+} from "../core/open-tabs-store.js";
 import { createPicker } from "../core/pickers.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import { pushToast } from "../core/toast.js";
@@ -496,6 +501,7 @@ const handleDeleteWorkspace: LocalCommandHandler = async ({
 };
 
 const handleImport: LocalCommandHandler = async ({ state, active, args, runtime }) => {
+  assertConfiguredOpenTabsReadable();
   const request = parseImportRequest(args);
   const oldSessionId = active!.sessionId;
   const { sessionId: targetSessionId } = await runtime.previewSessionImport(
@@ -505,22 +511,41 @@ const handleImport: LocalCommandHandler = async ({ state, active, args, runtime 
   );
   const identityChanged = targetSessionId !== oldSessionId;
   const publishIdentity = (from: string, to: string) => {
+    noteTabReplaced(from, to);
     active!.sessionId = to;
     activateTab(state, to);
-    noteTabReplaced(from, to);
+  };
+  const rollbackIdentity = (...originalErrors: [] | [unknown]) => {
+    let publicationFailed = false;
+    let publicationError: unknown;
+    try {
+      noteTabReplaced(targetSessionId, oldSessionId);
+    } catch (rollbackError) {
+      publicationFailed = true;
+      publicationError = rollbackError;
+    }
+    active!.sessionId = oldSessionId;
+    activateTab(state, oldSessionId);
+    if (publicationFailed) {
+      throw new AggregateError(
+        [...originalErrors, publicationError],
+        "Import failed and open_tabs rollback also failed",
+      );
+    }
   };
   if (identityChanged) publishIdentity(oldSessionId, targetSessionId);
+  let result: Awaited<ReturnType<MixCodeSubmitRuntime["importFromJsonl"]>>;
   try {
-    const result = await runtime.importFromJsonl(oldSessionId, request.path, request.cwdOverride);
-    if (result.cancelled) {
-      if (identityChanged) publishIdentity(targetSessionId, oldSessionId);
-      pushToast(active!, { type: "warning", message: "Import cancelled." });
-    } else {
-      pushToast(active!, { type: "success", message: `Imported session: ${request.path}` });
-    }
+    result = await runtime.importFromJsonl(oldSessionId, request.path, request.cwdOverride);
   } catch (error) {
-    if (identityChanged) publishIdentity(targetSessionId, oldSessionId);
+    if (identityChanged) rollbackIdentity(error);
     throw error;
+  }
+  if (result.cancelled) {
+    if (identityChanged) rollbackIdentity();
+    pushToast(active!, { type: "warning", message: "Import cancelled." });
+  } else {
+    pushToast(active!, { type: "success", message: `Imported session: ${request.path}` });
   }
   return undefined;
 };
@@ -570,6 +595,7 @@ const handleLogout: LocalCommandHandler = async ({ state, runtime, authInputHost
 };
 
 const handleFork: LocalCommandHandler = async ({ state, active, runtime }) => {
+  assertConfiguredOpenTabsReadable();
   const sessionId = createSessionId();
   await runtime.forkSession(active!.sessionId, sessionId);
   // The fork file now exists. Publish its ordered position before runtime tab
@@ -596,11 +622,24 @@ const handleFork: LocalCommandHandler = async ({ state, active, runtime }) => {
       preserveCallerTitle: true,
     });
   } catch (error) {
-    // Rollback: remove the broken fork tab and shared ordered entry.
+    // Always restore local state, even if publishing the rollback fails.
+    let publicationFailed = false;
+    let publicationError: unknown;
+    try {
+      noteTabClosed(sessionId);
+    } catch (rollbackError) {
+      publicationFailed = true;
+      publicationError = rollbackError;
+    }
     const idx = state.tabs.findIndex((t) => t.sessionId === sessionId);
     if (idx >= 0) state.tabs.splice(idx, 1);
-    noteTabClosed(sessionId);
     activateTab(state, active!.sessionId);
+    if (publicationFailed) {
+      throw new AggregateError(
+        [error, publicationError],
+        "Forking the tab failed and open_tabs rollback also failed",
+      );
+    }
     throw error;
   }
   // Persist the fork title into the session file so it survives restarts.

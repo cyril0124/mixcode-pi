@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
+import { mkdtemp, rename, rm, utimes, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 import {
-  SessionSyncCoordinator,
   type FileFingerprint,
+  SessionSyncCoordinator,
   type SessionWatchFactory,
 } from "../src/index.js";
 
@@ -19,7 +22,11 @@ function makeControllableWatch(): {
   const factory: SessionWatchFactory = (_dir, onEvent) => {
     watchCount += 1;
     emit = onEvent;
-    return { close: () => { closed = true; } };
+    return {
+      close: () => {
+        closed = true;
+      },
+    };
   };
   return { factory, emit: (f) => emit(f), closed: () => closed, watchCount: () => watchCount };
 }
@@ -81,6 +88,36 @@ test("a real fingerprint change triggers exactly one debounced reload", async ()
   await new Promise((r) => setTimeout(r, 20));
   assert.deepEqual(changed, ["sa"], "burst collapses to one reload");
   coord.dispose();
+});
+
+test("same size and mtime with replaced content still reloads", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-session-sync-replace-"));
+  const sessionPath = join(dir, "a.jsonl");
+  const replacementPath = join(dir, "replacement.jsonl");
+  const fixedTime = new Date("2026-01-01T00:00:00.000Z");
+  const w = makeControllableWatch();
+  const changed: string[] = [];
+  try {
+    await writeFile(sessionPath, "old\n", "utf8");
+    await utimes(sessionPath, fixedTime, fixedTime);
+    const coord = new SessionSyncCoordinator({
+      sessionsRoot: dir,
+      onExternalChange: (id) => changed.push(id),
+      watchFactory: w.factory,
+      debounceMs: 5,
+    });
+    coord.register("sa", sessionPath);
+
+    await writeFile(replacementPath, "new\n", "utf8");
+    await utimes(replacementPath, fixedTime, fixedTime);
+    await rename(replacementPath, sessionPath);
+    w.emit("a.jsonl");
+    await Bun.sleep(20);
+    assert.deepEqual(changed, ["sa"]);
+    coord.dispose();
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });
 
 test("repeat events with an unchanged fingerprint do not reload", async () => {

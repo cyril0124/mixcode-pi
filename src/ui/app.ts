@@ -266,9 +266,9 @@ export function createMixCodeTui(
   // Extension ctx.shutdown() closes the runtime tab; mirror into MixCodeState.
   runtime.onTabClosed((sessionId) => {
     if (!state.tabs.some((tab) => tab.sessionId === sessionId)) return;
-    closeAgentTab(state, sessionId);
-    // Keep shared open-tab set in sync so peer instances drop the tab too.
+    // Publish before removing local state so a write failure leaves the tab visible.
     noteTabClosed(sessionId);
+    closeAgentTab(state, sessionId);
     void options.onStateChanged?.(state);
     tui.requestRender();
   });
