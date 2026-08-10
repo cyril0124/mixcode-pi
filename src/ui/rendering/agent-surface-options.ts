@@ -22,6 +22,12 @@ export function chatBlockRenderOptions(
   if (options.hideThinking) result.hideThinking = true;
   if (options.renderMermaid === false) result.renderMermaid = false;
 
+  // Pi InteractiveMode.getMarkdownTransformers: mermaid is local; extensions via runner.
+  const transformers = runtimeTab?.agentSession.extensionRunner.getMarkdownTransformers?.();
+  if (transformers && transformers.length > 0) {
+    result.markdownTransformers = transformers;
+  }
+
   const streaming = runtimeTab?.streamingAssistant;
   const line = runtimeTab?.chat[chatIndex];
   if (
@@ -44,7 +50,8 @@ export function chatBlockRenderOptions(
   return result.oversizedAssistantMessage ||
     result.streamingMarkdownCharLimit !== undefined ||
     result.hideThinking ||
-    result.renderMermaid === false
+    result.renderMermaid === false ||
+    result.markdownTransformers
     ? result
     : undefined;
 }

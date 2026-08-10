@@ -1,4 +1,5 @@
 import type { ImageContent } from "@earendil-works/pi-ai";
+import type { MarkdownTransformer } from "@earendil-works/pi-coding-agent";
 import {
   getCapabilities,
   Image,
@@ -66,6 +67,11 @@ export interface RenderChatBlockOptions {
   showImages?: boolean;
   /** Max image width in terminal cells. Default 60 (Pi imageWidthCells). */
   imageWidthCells?: number;
+  /**
+   * Extension markdown transformers from `extensionRunner.getMarkdownTransformers()`.
+   * Applied on user / assistant / thinking Markdown (Pi message types only).
+   */
+  markdownTransformers?: readonly MarkdownTransformer[];
 }
 
 // Placeholder shown in place of collapsed thinking content, matching Pi's
@@ -279,6 +285,7 @@ function renderMessageBlockUncached(
         renderMermaid: options.renderMermaid,
         messageType: "assistant",
         isStreaming: options.streamingMarkdownCharLimit !== undefined,
+        transformers: options.markdownTransformers,
       }),
     );
   }
@@ -294,6 +301,7 @@ function renderMessageBlockUncached(
         renderMermaid: options.renderMermaid,
         messageType: "assistant-thinking",
         isStreaming: options.streamingMarkdownCharLimit !== undefined,
+        transformers: options.markdownTransformers,
       });
     }
     const trimmed = text.trim();
@@ -310,6 +318,7 @@ function renderMessageBlockUncached(
       renderMermaid: options.renderMermaid,
       messageType: "assistant-thinking",
       isStreaming: options.streamingMarkdownCharLimit !== undefined,
+      transformers: options.markdownTransformers,
     });
   }
   if (line.role === "tool") {
@@ -388,7 +397,8 @@ function chatLineRenderCacheKey(
         ? `1${KEY_SEP}${tab?.extensionUi.hiddenThinkingLabel ?? ""}`
         : "0";
     const mermaidKey = options.renderMermaid === false ? "0" : "1";
-    return `${role[0]}${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${oversizedPolicyKey(options)}${KEY_SEP}${hideKey}${KEY_SEP}${mermaidKey}${KEY_SEP}${line.text}`;
+    const transformersKey = markdownTransformersCacheKey(options.markdownTransformers);
+    return `${role[0]}${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${oversizedPolicyKey(options)}${KEY_SEP}${hideKey}${KEY_SEP}${mermaidKey}${KEY_SEP}${transformersKey}${KEY_SEP}${line.text}`;
   }
   const expanded = tab?.extensionUi.toolsExpanded ?? false;
   if (role === "user") {
@@ -396,7 +406,8 @@ function chatLineRenderCacheKey(
     const showImages = options.showImages === false ? 0 : 1;
     const imageKey = userImagesCacheKey(line.images);
     const mermaidKey = options.renderMermaid === false ? "0" : "1";
-    return `u${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${expanded ? 1 : 0}${KEY_SEP}${line.timestamp ?? ""}${KEY_SEP}${showImages}${KEY_SEP}${options.imageWidthCells ?? 60}${KEY_SEP}${mermaidKey}${KEY_SEP}${imageKey}${KEY_SEP}${line.text}`;
+    const transformersKey = markdownTransformersCacheKey(options.markdownTransformers);
+    return `u${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${expanded ? 1 : 0}${KEY_SEP}${line.timestamp ?? ""}${KEY_SEP}${showImages}${KEY_SEP}${options.imageWidthCells ?? 60}${KEY_SEP}${mermaidKey}${KEY_SEP}${transformersKey}${KEY_SEP}${imageKey}${KEY_SEP}${line.text}`;
   }
   if (role === "extension") {
     return `e${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${line.title ?? ""}${KEY_SEP}${line.customType ?? ""}${KEY_SEP}${line.text}`;
@@ -427,6 +438,27 @@ function oversizedPolicyKey(options: RenderChatBlockOptions): string {
   const policy = options.oversizedAssistantMessage;
   if (!policy) return "";
   return `${policy.enabled ? 1 : 0}:${policy.maxLines}:${policy.maxBytes}`;
+}
+
+// Stable identity for transformer functions so line-cache keys stay valid while
+// the same extension list is loaded, and invalidate when the list is replaced.
+const markdownTransformerIdentity = new WeakMap<MarkdownTransformer, number>();
+let nextMarkdownTransformerId = 1;
+
+function markdownTransformersCacheKey(
+  transformers: readonly MarkdownTransformer[] | undefined,
+): string {
+  if (!transformers?.length) return "0";
+  return transformers
+    .map((transformer) => {
+      let id = markdownTransformerIdentity.get(transformer);
+      if (id === undefined) {
+        id = nextMarkdownTransformerId++;
+        markdownTransformerIdentity.set(transformer, id);
+      }
+      return String(id);
+    })
+    .join(",");
 }
 
 function commandFromArgs(args: unknown): string {
@@ -808,6 +840,7 @@ function renderUserMessageBlock(
         color: (content) => theme.fg("userMessageText", content),
         messageType: "user",
         renderMermaid: options.renderMermaid,
+        transformers: options.markdownTransformers,
         // Match Pi UserMessageComponent Markdown options.
         preserveOrderedListMarkers: true,
         preserveBackslashEscapes: true,

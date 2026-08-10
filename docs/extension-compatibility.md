@@ -181,7 +181,7 @@ theme / getAllThemes / getTheme / setTheme
 重要边界：
 
 - `setHeader` / `setFooter` 只占用 MixCode 固定布局中的 extension slot，不允许覆盖 Agent Tabs 或核心输入区。
-- `setHiddenThinkingLabel` 被接受但为 no-op：MixCode 不实现可折叠 thinking 占位块，调用仅为满足 Pi SDK `ExtensionUIContext` 接口，不产生任何 TUI 效果。
+- `setHiddenThinkingLabel` 写入 per-tab `hiddenThinkingLabel`，在 `hideThinkingBlock` 折叠占位时使用（默认 `Thinking...`）。
 - `setEditorComponent` 接入当前 live editor slot；没有 live TUI host 时显式报错。
 - `setTheme(name | Theme)` 对齐 Pi：任意已注册 theme 名（内置 `mixcode-dark`/`claude-warm`/`tokyo-night`/`terminal`、Pi `dark`/`light`、`~/.pi/agent/themes`、package themes、`ResourceLoader` 发现结果）会映射到 MixCode 全局 TUI + extension theme，并请求 redraw；`Theme` 实例须带 `name`（会 `registerAdditionalTheme`）。未知 theme 或没有 live TUI host 时显式失败，不静默降级。TUI chrome 字段名与 Pi token 对齐（如 `error`/`muted`/`borderMuted`/`selectedBg`/`bashMode`/`toolTitle`/`thinkingText`）。
 - 非 overlay 的 `ctx.ui.custom()` 还不是完整 Pi TUI 等价能力。
@@ -197,6 +197,7 @@ theme / getAllThemes / getTheme / setTheme
 - session close / clear / compact 时 dispose
 - renderer 抛错时显式显示错误
 - renderer `context.invalidate()` 触发 MixCode redraw
+- 主聊天 `user` / `assistant` / `assistant-thinking` Markdown 串联 `extensionRunner.getMarkdownTransformers()`（mermaid 在前，与 Pi 顺序一致）；skill 展开正文、branch/compaction summary 不跑 extension transformers（与 Pi 一致）
 
 ```text
 extension renderer invalidate()

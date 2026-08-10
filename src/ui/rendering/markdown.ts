@@ -1,6 +1,7 @@
 import {
   createMermaidMarkdownTransformer,
   type MarkdownTransformContext,
+  type MarkdownTransformer,
 } from "@earendil-works/pi-coding-agent";
 import { Markdown, type MarkdownTheme, visibleWidth } from "@earendil-works/pi-tui";
 import {
@@ -28,12 +29,22 @@ export function renderMarkdown(
     preserveOrderedListMarkers?: boolean;
     /** Pi UserMessageComponent: keep source backslash escapes (default false). */
     preserveBackslashEscapes?: boolean;
+    /**
+     * Extension markdown transformers (Pi `getMarkdownTransformers()`).
+     * Applied after the built-in mermaid transformer, matching Pi order.
+     */
+    transformers?: readonly MarkdownTransformer[];
   } = {},
 ): string[] {
   const mermaidTransformer = createMermaidMarkdownTransformer({
     getMode: () => (options.renderMermaid === false ? "off" : "streaming"),
     theme: currentExtensionTheme(),
   });
+  // Pi InteractiveMode: mermaid first, then extensionRunner.getMarkdownTransformers().
+  const transformers: MarkdownTransformer[] = [
+    mermaidTransformer,
+    ...(options.transformers ?? []),
+  ];
   const markdown = new Markdown(
     text,
     1,
@@ -48,14 +59,37 @@ export function renderMarkdown(
       preserveOrderedListMarkers: options.preserveOrderedListMarkers,
       preserveBackslashEscapes: options.preserveBackslashEscapes,
       transform: (source, availableWidth) =>
-        mermaidTransformer(source, {
+        applyMarkdownTransformers(source, {
           messageType: options.messageType ?? "assistant",
           isStreaming: options.isStreaming ?? false,
           availableWidth,
-        }),
+        }, transformers),
     },
   );
   return markdown.render(width).map((line) => padRenderedMarkdownLine(line, width));
+}
+
+/**
+ * Match Pi `applyMarkdownTransformers`: sequential apply; non-string / thrown
+ * results keep the current markdown and continue.
+ */
+export function applyMarkdownTransformers(
+  markdown: string,
+  context: MarkdownTransformContext,
+  transformers: readonly MarkdownTransformer[],
+): string {
+  let transformedMarkdown = markdown;
+  for (const transformer of transformers) {
+    try {
+      const transformed = transformer(transformedMarkdown, context);
+      if (typeof transformed === "string") {
+        transformedMarkdown = transformed;
+      }
+    } catch {
+      // Keep the current Markdown and continue with the next transformer.
+    }
+  }
+  return transformedMarkdown;
 }
 
 function getMarkdownTheme(): MarkdownTheme {
