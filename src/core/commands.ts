@@ -363,6 +363,10 @@ export const LOCAL_COMMANDS: Array<{
 
 const COMMAND_SET = new Set<string>(LOCAL_COMMANDS.map((command) => command.name));
 
+export function isLocalCommand(command: string | undefined): command is LocalCommand {
+  return command !== undefined && COMMAND_SET.has(command);
+}
+
 export function parseInput(text: string): ParsedInput {
   const trimmed = text.trimStart();
   if (trimmed.startsWith("!!"))

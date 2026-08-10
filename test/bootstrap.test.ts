@@ -133,6 +133,30 @@ test("bootstrap restores persisted tab order and runtime tabs", async () => {
   }
 });
 
+test("bootstrap rejects an invalid persisted theme at the UI boundary", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-bootstrap-theme-"));
+  try {
+    const repo = join(dir, "repo");
+    const stateDir = join(dir, "state");
+    const scopedDir = scopedStateDir(stateDir, repo);
+    await mkdir(scopedDir, { recursive: true });
+    const state = createInitialState(repo);
+    state.theme = "not-a-theme";
+    await saveStateFile(stateFileForPort(scopedDir, 0), state);
+
+    await assert.rejects(
+      bootstrapMixCode({
+        workdir: repo,
+        stateDir,
+        modelConfigPath: join(dir, "missing.jsonc"),
+      }),
+      /Unknown theme: not-a-theme/,
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("bootstrap maintains global history files and exposes paths in prompt", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-bootstrap-history-"));
   try {

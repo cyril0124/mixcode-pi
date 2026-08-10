@@ -267,8 +267,8 @@ test("ctrl-p does not open command palette while another input mode owns focus",
   assert.equal(overlays, 0);
 
   state.picker = {
-    kind: "theme",
-    title: "Choose Theme",
+    kind: "models",
+    title: "Choose Model",
     query: "",
     selectedIndex: 0,
     items: [{ id: "terminal", label: "Terminal", description: "" }],

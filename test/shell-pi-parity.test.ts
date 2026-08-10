@@ -20,6 +20,7 @@ import {
   isBashAlreadyRunningError,
   renderChat,
 } from "../src/index.js";
+import { renderConversation } from "../src/ui/rendering/chat.js";
 
 function stripAnsi(text: string): string {
   return text.replace(/\x1b\[[0-9;]*m/g, "");
@@ -154,6 +155,29 @@ test("user-bash running status shows Esc cancel hint", () => {
     ).join("\n"),
   );
   assert.match(rendered, /Running\.\.\. \(Esc to cancel\)/);
+});
+
+test("pending user-bash rendering preserves original chat indices", () => {
+  const chat = [
+    { role: "user" as const, text: "before" },
+    {
+      role: "tool" as const,
+      variant: "user-bash" as const,
+      pendingBash: true,
+      text: "shell",
+    },
+    { role: "assistant" as const, text: "after" },
+  ];
+  const indices: number[] = [];
+
+  renderConversation(chat, 80, undefined, {
+    blockOptions: (_line, index) => {
+      indices.push(index);
+      return undefined;
+    },
+  });
+
+  assert.deepEqual(indices, [0, 2, 1]);
 });
 
 test("streaming-started user bash stays pending until agent_end", async () => {

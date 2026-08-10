@@ -1,7 +1,7 @@
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 export { createSessionId, UUIDV7_SESSION_ID_PATTERN } from "./session-ids.js";
 import { createSessionSelectorState } from "./session-selector.js";
-import { createForkSelectorState } from "../ui/fork-selector.js";
+import { createForkSelectorState } from "./fork-selector.js";
 import { createTreeSelectorState } from "./tree-selector.js";
 import { createWorkspaceOverlayState } from "./workspace-ui.js";
 import {

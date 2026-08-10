@@ -161,9 +161,8 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
     restoredFromDisk = false;
   }
   state.ui = mixCodeSettings.ui;
-  // Global Mixcode theme (mixcode_settings.json) wins over per-workdir state file
-  // when explicitly set; otherwise keep the restored/default state.theme.
-  if (mixCodeSettings.theme) setTheme(state, mixCodeSettings.theme);
+  // Validate and apply the effective theme at the UI composition boundary.
+  setTheme(state, mixCodeSettings.theme ?? state.theme);
   // Thinking-block visibility follows Pi's native hideThinkingBlock setting
   // (global/project scoped) rather than MixCode's own persisted state.
   state.hideThinkingBlock = settingsManager.getHideThinkingBlock();

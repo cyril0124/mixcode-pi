@@ -12,6 +12,7 @@ import type { MixCodeTheme } from "../themes.js";
 import {
   chatBlockSeparator,
   chatLinesForDisplay,
+  originalChatIndicesForDisplay,
   renderChatBlock,
   renderConversation,
   renderConversationEmptyState,
@@ -412,6 +413,7 @@ function renderAgentSurfaceWindowed(
   const queueLines = renderQueuePreview(tab, mainWidth);
   // Pending user-bash renders after the main stream (Pi pending-area parity).
   const displayChat = chatLinesForDisplay(chat);
+  const originalIndices = originalChatIndicesForDisplay(chat, displayChat);
 
   // Walk chat blocks newest-to-oldest, collecting rendered blocks, then
   // reverse-join into top-to-bottom order. Push+reverse is O(n); unshift was O(n²).
@@ -426,13 +428,13 @@ function renderAgentSurfaceWindowed(
   for (let i = displayChat.length - 1; i >= 0; i--) {
     if (assembledRows >= targetRows) break;
     const line = displayChat[i]!;
-    const originalIndex = chat.indexOf(line);
+    const originalIndex = originalIndices?.get(line) ?? i;
     const block = renderChatBlock(
       line,
       mainWidth,
       tab,
       activeRenderTheme,
-      chatBlockRenderOptions(runtimeTab, originalIndex >= 0 ? originalIndex : i, options),
+      chatBlockRenderOptions(runtimeTab, originalIndex, options),
     );
     // Some rendered blocks intentionally bypass the cross-frame cache (for
     // example the active streaming assistant tail). Keep their just-rendered

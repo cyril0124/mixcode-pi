@@ -14,7 +14,7 @@ export type MixCodeModel = Model<any>;
 
 import type { ChatSelectionState, ChatSurfaceBounds } from "./chat-selection.js";
 import type { SessionSelectorState } from "./session-selector.js";
-import type { ForkSelectorState } from "../ui/fork-selector.js";
+import type { ForkSelectorState } from "./fork-selector.js";
 import type { ToastNotification } from "./toast.js";
 import type { TreeSelectorState } from "./tree-selector.js";
 import type { WorkspaceOverlayState } from "./workspace-ui.js";
@@ -48,7 +48,7 @@ export interface DialogRequestState {
   dirty: boolean;
 }
 
-export type PickerKind = "models" | "thinking" | "theme" | "workdir" | "context-limit";
+export type PickerKind = "models" | "thinking" | "workdir" | "context-limit";
 
 export interface PickerItem {
   id: string;

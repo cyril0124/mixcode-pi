@@ -397,13 +397,13 @@ test("picker key handling covers no-match, empty selection, and no active tab", 
   assert.equal(state.picker, undefined);
 
   state.picker = {
-    kind: "theme",
-    title: "Choose Theme",
+    kind: "models",
+    title: "Choose Model",
     query: "",
     selectedIndex: 0,
     items: [{ id: "terminal", label: "Terminal", description: "" }],
   };
   // Modal pickers swallow unbound keys so they cannot fall through to the editor.
   assert.deepEqual(handleMixCodeKeyInput(state, "\x00", tui), { consume: true });
-  assert.equal(state.picker?.kind, "theme");
+  assert.equal(state.picker?.kind, "models");
 });

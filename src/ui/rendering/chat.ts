@@ -188,6 +188,17 @@ export function chatLinesForDisplay(chat: ChatLine[]): ChatLine[] {
   return [...mainLines, ...pendingBashLines];
 }
 
+/** Build original storage indices only when display ordering differs from chat ordering. */
+export function originalChatIndicesForDisplay(
+  chat: ChatLine[],
+  displayChat: ChatLine[],
+): Map<ChatLine, number> | undefined {
+  if (displayChat === chat) return undefined;
+  const indices = new Map<ChatLine, number>();
+  for (let i = chat.length - 1; i >= 0; i--) indices.set(chat[i]!, i);
+  return indices;
+}
+
 function renderChatStream(
   chat: ChatLine[],
   width: number,
@@ -197,6 +208,7 @@ function renderChatStream(
   if (!chat.length) return [padLine(activeRenderTheme.dim("No messages yet."), width)];
 
   const ordered = chatLinesForDisplay(chat);
+  const originalIndices = originalChatIndicesForDisplay(chat, ordered);
   if (ordered.length === 1) {
     return renderMessageBlock(ordered[0]!, width, tab, blockOptions?.(ordered[0]!, 0));
   }
@@ -208,12 +220,12 @@ function renderChatStream(
   for (let i = 0; i < ordered.length; i++) {
     const line = ordered[i]!;
     // blockOptions still sees original chat indices when provided.
-    const originalIndex = chat.indexOf(line);
+    const originalIndex = originalIndices?.get(line) ?? i;
     const block = renderMessageBlock(
       line,
       width,
       tab,
-      originalIndex >= 0 ? blockOptions?.(line, originalIndex) : undefined,
+      blockOptions?.(line, originalIndex),
     );
     blocks[i] = block;
     totalLength += block.length;

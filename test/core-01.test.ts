@@ -313,7 +313,8 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
       writeFile(stateFile, "[]").then(() => loadStateFile(stateFile, "/fallback")),
       /Invalid state file/,
     );
-    assert.throws(() => deserializeState({ theme: "not-a-theme" }, "/fallback"), /Unknown theme/);
+    const invalidTheme = deserializeState({ theme: "not-a-theme" }, "/fallback");
+    assert.equal(invalidTheme.theme, "not-a-theme");
     const fallback = deserializeState({ variant: "bad" }, "/fallback");
     assert.equal(fallback.workdir, "/fallback");
     assert.equal(fallback.activeTabId, "config");

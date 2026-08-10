@@ -863,8 +863,8 @@ test("config-scoped submitted input runs without an active agent tab", async () 
   assert.equal(state.theme, "mixcode-dark");
   // Keep a picker snapshot so /tui-state still exercises the picker dump path.
   state.picker = {
-    kind: "theme",
-    title: "Choose Theme",
+    kind: "models",
+    title: "Choose Model",
     query: "tok",
     selectedIndex: 0,
     items: [{ id: "tokyo-night", label: "Tokyo Night", description: "dark" }],

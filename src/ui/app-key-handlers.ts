@@ -62,7 +62,6 @@ import type {
 } from "./app-types.js";
 import { getConfiguredQuitOptions, quitMixCode } from "./quit.js";
 import { renderCommandPalette, renderPickerOverlay, renderTabJumpOverlay } from "./rendering.js";
-import { setTheme } from "./themes.js";
 import { openTreeSelector, type TreeSelectorRuntime } from "./tree-selector.js";
 import { openForkSelector } from "./fork-selector.js";
 export { handleVimUserMessageNavigation } from "./vim-user-message-navigation.js";
@@ -840,8 +839,6 @@ function applyPickerSelection(
     return applyModelSelection(state, active, model, runtime);
   } else if (state.picker.kind === "thinking" && active) {
     applyThinkingLevel(state, active, selectedId, runtime);
-  } else if (state.picker.kind === "theme") {
-    setTheme(state, selectedId);
   } else if (state.picker.kind === "context-limit" && active) {
     // "reset" item or a numeric preset
     const value = selectedId === "reset" ? ("reset" as const) : parseInt(selectedId, 10);

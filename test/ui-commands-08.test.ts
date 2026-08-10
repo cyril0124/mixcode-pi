@@ -85,7 +85,7 @@ test("global key input submits batched inline text ending with enter", () => {
   assert.deepEqual(submitted, ["hello from tmux"]);
   assert.equal(text, "");
   state.tabJumpOpen = false;
-  state.picker = { kind: "theme", title: "Choose Theme", query: "", selectedIndex: 0, items: [] };
+  state.picker = { kind: "models", title: "Choose Model", query: "", selectedIndex: 0, items: [] };
   assert.deepEqual(
     handleMixCodeKeyInput(
       state,

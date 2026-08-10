@@ -1,6 +1,5 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { setTheme } from "../ui/themes.js";
 import { createInitialState, createTab } from "./defaults.js";
 import { isKnownThinkingLevel } from "./thinking-levels.js";
 import type {
@@ -84,7 +83,7 @@ export function deserializeState(
   const state = createInitialState(
     typeof data.startup_workdir === "string" ? data.startup_workdir : fallbackWorkdir,
   );
-  if (typeof data.theme === "string") setTheme(state, data.theme);
+  if (typeof data.theme === "string") state.theme = data.theme;
   if (data.model && typeof data.model === "object" && !Array.isArray(data.model)) {
     state.model = normalizeModelRef(data.model, state.model);
   }

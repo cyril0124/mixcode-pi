@@ -1,7 +1,6 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { listThemeInfos } from "../ui/themes.js";
 import { contextLimitPickerItems } from "./context-limit.js";
 import { fuzzyMatch } from "./fuzzy.js";
 import { modelRefId } from "./models.js";
@@ -48,13 +47,6 @@ export function pickerItems(
       id: level,
       label: level,
       description: active?.thinkingLevel === level ? "current" : "thinking tier",
-    }));
-  }
-  if (kind === "theme") {
-    return listThemeInfos().map((theme) => ({
-      id: theme.id,
-      label: theme.label,
-      description: theme.dark ? "dark" : "light",
     }));
   }
   if (kind === "context-limit") {
@@ -164,7 +156,6 @@ export function workdirBreadcrumb(picker: PickerState): string[] {
 function pickerTitle(kind: PickerKind): string {
   if (kind === "models") return "Choose Model";
   if (kind === "thinking") return "Choose Thinking";
-  if (kind === "theme") return "Choose Theme";
   if (kind === "context-limit") return "Set Context Limit";
   return "Change Workdir";
 }
@@ -172,7 +163,6 @@ function pickerTitle(kind: PickerKind): string {
 function selectedPickerId(kind: PickerKind, state: MixCodeState, active?: MixCodeTabInfo): string {
   if (kind === "models") return modelRefId(active?.model ?? state.model);
   if (kind === "thinking") return active?.thinkingLevel ?? state.thinkingLevel;
-  if (kind === "theme") return state.theme;
   return active?.workdir ?? state.workdir;
 }
 
