@@ -1,5 +1,6 @@
 import type { RuntimeTab } from "../../agent/runtime.js";
 import type { OversizedAssistantMessageSettings } from "../../core/mixcode-settings.js";
+import type { MermaidRenderingMode } from "../../core/types.js";
 import { isScrollFrozen } from "./agent-surface-scroll.js";
 import { STREAMING_MARKDOWN_CHAR_LIMIT, type RenderChatBlockOptions } from "./chat.js";
 
@@ -7,8 +8,12 @@ export interface AgentSurfaceRenderOptions {
   oversizedAssistantMessage?: OversizedAssistantMessageSettings;
   /** When true, thinking blocks collapse to a static placeholder. */
   hideThinking?: boolean;
-  /** When false, mermaid fences stay plain code blocks. Default true. */
-  renderMermaid?: boolean;
+  /** Pi `markdown.mermaid` mode. Default `streaming`. */
+  mermaidRenderingMode?: MermaidRenderingMode;
+  /** When false, hide user/tool image strips. Default true. */
+  showImages?: boolean;
+  /** Max image width in terminal cells. Default 60. */
+  imageWidthCells?: number;
 }
 
 export function chatBlockRenderOptions(
@@ -20,7 +25,11 @@ export function chatBlockRenderOptions(
   const policy = options.oversizedAssistantMessage;
   if (policy) result.oversizedAssistantMessage = policy;
   if (options.hideThinking) result.hideThinking = true;
-  if (options.renderMermaid === false) result.renderMermaid = false;
+  if (options.mermaidRenderingMode && options.mermaidRenderingMode !== "streaming") {
+    result.mermaidRenderingMode = options.mermaidRenderingMode;
+  }
+  if (options.showImages === false) result.showImages = false;
+  if (options.imageWidthCells !== undefined) result.imageWidthCells = options.imageWidthCells;
 
   // Pi InteractiveMode.getMarkdownTransformers: mermaid is local; extensions via runner.
   const transformers = runtimeTab?.agentSession.extensionRunner.getMarkdownTransformers?.();
@@ -50,7 +59,9 @@ export function chatBlockRenderOptions(
   return result.oversizedAssistantMessage ||
     result.streamingMarkdownCharLimit !== undefined ||
     result.hideThinking ||
-    result.renderMermaid === false ||
+    result.mermaidRenderingMode ||
+    result.showImages === false ||
+    result.imageWidthCells !== undefined ||
     result.markdownTransformers
     ? result
     : undefined;

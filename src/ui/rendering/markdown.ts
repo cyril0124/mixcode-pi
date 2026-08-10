@@ -8,6 +8,7 @@ import {
   currentExtensionTheme,
   ensureExtensionThemeInitialized,
 } from "../../agent/runtime-extension-theme.js";
+import type { MermaidRenderingMode } from "../../core/types.js";
 import { getMarkdownTheme as getPiMarkdownTheme, highlightCode } from "../pi-theme-api.js";
 import { activeRenderTheme } from "./context.js";
 import { padLine } from "./primitives.js";
@@ -18,8 +19,8 @@ export function renderMarkdown(
   options: {
     color?: (text: string) => string;
     italic?: boolean;
-    /** When false, mermaid fences stay plain code blocks. Default true. */
-    renderMermaid?: boolean;
+    /** Pi `markdown.mermaid` mode. Default `streaming`. */
+    mermaidRenderingMode?: MermaidRenderingMode;
     /** Pi message context controls whether Mermaid is eligible for rendering. */
     messageType?: MarkdownTransformContext["messageType"];
     isStreaming?: boolean;
@@ -37,7 +38,7 @@ export function renderMarkdown(
   } = {},
 ): string[] {
   const mermaidTransformer = createMermaidMarkdownTransformer({
-    getMode: () => (options.renderMermaid === false ? "off" : "streaming"),
+    getMode: () => options.mermaidRenderingMode ?? "streaming",
     theme: currentExtensionTheme(),
   });
   // Pi InteractiveMode: mermaid first, then extensionRunner.getMarkdownTransformers().

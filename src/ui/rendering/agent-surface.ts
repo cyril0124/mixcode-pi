@@ -96,7 +96,9 @@ interface ConversationCache {
   oversizedPolicyKey: string;
   hideThinking: boolean;
   hiddenThinkingLabel: string;
-  renderMermaid: boolean;
+  mermaidRenderingMode: string;
+  showImages: boolean;
+  imageWidthCells: number;
   chatRef: ChatLine[];
 }
 
@@ -590,7 +592,9 @@ function getCachedConversationLines(
   const policyKey = oversizedPolicyKey(options.oversizedAssistantMessage);
   const hideThinking = options.hideThinking ?? false;
   const hiddenThinkingLabel = tab.extensionUi.hiddenThinkingLabel ?? "";
-  const renderMermaid = options.renderMermaid !== false;
+  const mermaidRenderingMode = options.mermaidRenderingMode ?? "streaming";
+  const showImages = options.showImages !== false;
+  const imageWidthCells = options.imageWidthCells ?? 60;
 
   const cached = conversationCacheMap.get(tab.sessionId);
   if (
@@ -609,7 +613,9 @@ function getCachedConversationLines(
     cached.oversizedPolicyKey === policyKey &&
     cached.hideThinking === hideThinking &&
     cached.hiddenThinkingLabel === hiddenThinkingLabel &&
-    cached.renderMermaid === renderMermaid
+    cached.mermaidRenderingMode === mermaidRenderingMode &&
+    cached.showImages === showImages &&
+    cached.imageWidthCells === imageWidthCells
   ) {
     return cached.lines;
   }
@@ -635,7 +641,9 @@ function getCachedConversationLines(
     oversizedPolicyKey: policyKey,
     hideThinking,
     hiddenThinkingLabel,
-    renderMermaid,
+    mermaidRenderingMode,
+    showImages,
+    imageWidthCells,
   });
 
   return lines;

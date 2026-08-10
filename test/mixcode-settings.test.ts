@@ -7,15 +7,16 @@ import { SettingsManager } from "@earendil-works/pi-coding-agent";
 import { createInitialState, loadMixCodeSettings, stripAnsi } from "../src/index.js";
 import { handleSettingsPanelKey, renderSettingsPanel } from "../src/ui/settings-panel.js";
 
-test("settings panel toggles Mermaid rendering and persists it", async () => {
+test("settings panel changes Pi mermaid mode and mirrors live state", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-settings-mermaid-"));
   const mixcodeFile = join(dir, "mixcode_settings.json");
   await writeFile(mixcodeFile, "{}\n");
   try {
     const state = createInitialState(dir);
+    const settingsManager = SettingsManager.inMemory();
     state.settingsPanel = {
       open: true,
-      selectedIndex: 7, // renderMermaid
+      selectedIndex: 8, // markdown.mermaid
       editMode: false,
       editText: "",
       enumOpen: false,
@@ -23,7 +24,7 @@ test("settings panel toggles Mermaid rendering and persists it", async () => {
       mixcodeRaw: {},
       mixcodeFile,
       piSettingsFile: join(dir, "settings.json"),
-      settingsManager: SettingsManager.inMemory(),
+      settingsManager,
     };
     const tui = {
       requestRender: () => undefined,
@@ -32,15 +33,17 @@ test("settings panel toggles Mermaid rendering and persists it", async () => {
       hideOverlay: () => undefined,
     };
 
-    assert.match(stripAnsi(renderSettingsPanel(state, 80).join("\n")), /Render Mermaid diagrams/);
+    assert.match(stripAnsi(renderSettingsPanel(state, 80).join("\n")), /Mermaid diagrams/);
+    // Open enum (default streaming), pick off, confirm.
+    handleSettingsPanelKey(state, "\r", tui);
+    state.settingsPanel.enumIndex = 0; // off
     handleSettingsPanelKey(state, "\r", tui);
     await Bun.sleep(30);
 
-    assert.equal(state.settingsPanel.mixcodeRaw.ui?.renderMermaid, false);
-    assert.equal(state.ui?.renderMermaid, false);
-    assert.deepEqual(JSON.parse(await readFile(mixcodeFile, "utf8")), {
-      ui: { renderMermaid: false },
-    });
+    assert.equal(settingsManager.getMermaidRenderingMode(), "off");
+    assert.equal(state.mermaidRenderingMode, "off");
+    // MixCode file is untouched — mermaid lives in Pi settings.json.
+    assert.deepEqual(JSON.parse(await readFile(mixcodeFile, "utf8")), {});
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -53,7 +56,6 @@ test("mixcode settings default history and oversized assistant message policy", 
       history: { maxBytes: 5 * 1024 * 1024 },
       ui: {
         oversizedAssistantMessage: { enabled: true, maxLines: 5000, maxBytes: 128 * 1024 },
-        renderMermaid: true,
         icons: { mode: "nerd" },
       },
       disabledProviders: [],
@@ -65,6 +67,7 @@ test("mixcode settings default history and oversized assistant message policy", 
         history: { persistence: "none", maxBytes: 128 },
         ui: {
           oversizedAssistantMessage: { enabled: false, maxLines: 42, maxBytes: 2048 },
+          // Legacy ui.renderMermaid is ignored (Pi markdown.mermaid owns mermaid now).
           renderMermaid: false,
           icons: { mode: "ascii" },
         },
@@ -75,7 +78,6 @@ test("mixcode settings default history and oversized assistant message policy", 
       history: { maxBytes: 128 },
       ui: {
         oversizedAssistantMessage: { enabled: false, maxLines: 42, maxBytes: 2048 },
-        renderMermaid: false,
         icons: { mode: "ascii" },
       },
       disabledProviders: [],
@@ -104,7 +106,6 @@ test("mixcode settings accept jsonc comments and trailing commas", async () => {
       history: { maxBytes: 256 },
       ui: {
         oversizedAssistantMessage: { enabled: true, maxLines: 5000, maxBytes: 128 * 1024 },
-        renderMermaid: true,
         icons: { mode: "nerd" },
       },
       disabledProviders: [],
@@ -133,12 +134,21 @@ test("mixcode settings reject invalid oversized assistant message policy", async
   }
 });
 
-test("mixcode settings reject invalid renderMermaid", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-render-mermaid-invalid-"));
+test("legacy ui.renderMermaid in mixcode_settings is ignored", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mixcode-render-mermaid-legacy-"));
   const file = join(dir, "mixcode_settings.json");
   try {
     await writeFile(file, JSON.stringify({ ui: { renderMermaid: "yes" } }), "utf8");
-    await assert.rejects(() => loadMixCodeSettings(file), /ui\.renderMermaid must be a boolean/);
+    // Unknown / obsolete fields must not throw.
+    assert.deepEqual(await loadMixCodeSettings(file), {
+      history: { maxBytes: 5 * 1024 * 1024 },
+      ui: {
+        oversizedAssistantMessage: { enabled: true, maxLines: 5000, maxBytes: 128 * 1024 },
+        icons: { mode: "nerd" },
+      },
+      disabledProviders: [],
+      disabledModels: [],
+    });
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -166,7 +176,7 @@ test("settings panel cycles icons.mode and persists it", async () => {
     const state = createInitialState(dir);
     state.settingsPanel = {
       open: true,
-      selectedIndex: 8, // icons.mode (after renderMermaid)
+      selectedIndex: 11, // icons.mode
       editMode: false,
       editText: "",
       enumOpen: false,

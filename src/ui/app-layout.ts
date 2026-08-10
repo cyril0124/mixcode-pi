@@ -136,7 +136,7 @@ export class MixCodeRoot implements Component {
       const middle = renderAgentSurface(active, runtimeTab, width, undefined, theme, {
         oversizedAssistantMessage: this.oversizedAssistantMessagePolicy(),
         hideThinking: this.state.hideThinkingBlock ?? false,
-        renderMermaid: this.renderMermaidEnabled(),
+        ...this.chatSurfaceRenderOptions(),
       });
       return [...top, ...contentGap, ...middle, ...bottomBeforeMeta];
     }
@@ -183,7 +183,7 @@ export class MixCodeRoot implements Component {
       return renderAgentSurface(active, runtimeTab, width, middleHeight, theme, {
         oversizedAssistantMessage: this.oversizedAssistantMessagePolicy(),
         hideThinking: this.state.hideThinkingBlock ?? false,
-        renderMermaid: this.renderMermaidEnabled(),
+        ...this.chatSurfaceRenderOptions(),
       });
     }
     // Split: chat on the left, widget panel on the right (1-col gap between).
@@ -199,7 +199,7 @@ export class MixCodeRoot implements Component {
     const chat = renderAgentSurface(active, runtimeTab, chatWidth, middleHeight, theme, {
       oversizedAssistantMessage: this.oversizedAssistantMessagePolicy(),
       hideThinking: this.state.hideThinkingBlock ?? false,
-      renderMermaid: this.renderMermaidEnabled(),
+      ...this.chatSurfaceRenderOptions(),
     });
     let panel = renderExtensionPanel(active, panelWidth, middleHeight, theme);
     active.lastRenderedPanelLines = panel;
@@ -222,8 +222,13 @@ export class MixCodeRoot implements Component {
     return this.state.ui?.oversizedAssistantMessage ?? DEFAULT_OVERSIZED_ASSISTANT_MESSAGE;
   }
 
-  private renderMermaidEnabled(): boolean {
-    return this.state.ui?.renderMermaid !== false;
+  /** Pi SettingsManager mirrors used by chat render (images + mermaid). */
+  private chatSurfaceRenderOptions() {
+    return {
+      mermaidRenderingMode: this.state.mermaidRenderingMode ?? ("streaming" as const),
+      showImages: this.state.showImages !== false,
+      imageWidthCells: this.state.imageWidthCells ?? 60,
+    };
   }
 
   private fitRootLines(lines: string[], width: number): string[] {

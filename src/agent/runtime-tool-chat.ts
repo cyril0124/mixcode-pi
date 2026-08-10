@@ -1,6 +1,11 @@
 import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
 import type { AgentToolResult, ToolDefinition } from "@earendil-works/pi-coding-agent";
-import { type Component, TuiMainScreen as PiTui } from "@earendil-works/pi-tui";
+import {
+  type Component,
+  getCapabilities,
+  Image,
+  TuiMainScreen as PiTui,
+} from "@earendil-works/pi-tui";
 import {
   currentExtensionTheme,
   ensureExtensionThemeInitialized,
@@ -148,8 +153,11 @@ function renderToolResult(
     ) as (Component & { dispose?(): void }) | undefined;
     if (previousComponent && previousComponent !== component) previousComponent.dispose?.();
     line.toolResultRendererLastComponent = component;
-    if (!component) return [];
-    return component.render(terminal.columns);
+    const body = component ? component.render(terminal.columns) : [];
+    // Pi ToolExecutionComponent appends Image children after the result body.
+    const images = renderToolResultImages(runtimeTab, result, width);
+    if (!body.length && !images.length) return [];
+    return images.length ? [...body, ...images] : body;
   } catch (error) {
     previousComponent?.dispose?.();
     line.toolResultRendererLastComponent = undefined;
@@ -159,6 +167,42 @@ function renderToolResult(
     restoreKeybindings();
     tui.stop();
   }
+}
+
+function toolShowImages(runtimeTab: RuntimeTab): boolean {
+  return runtimeTab.agentSession.settingsManager.getShowImages();
+}
+
+function toolImageWidthCells(runtimeTab: RuntimeTab): number {
+  return runtimeTab.agentSession.settingsManager.getImageWidthCells();
+}
+
+/** Match Pi ToolExecutionComponent image strip after tool result renderers. */
+function renderToolResultImages(
+  runtimeTab: RuntimeTab,
+  result: ToolResultLike,
+  width: number,
+): string[] {
+  if (!toolShowImages(runtimeTab)) return [];
+  const caps = getCapabilities();
+  if (!caps.images) return [];
+  const maxWidthCells = Math.max(1, toolImageWidthCells(runtimeTab));
+  const theme = currentExtensionTheme();
+  const lines: string[] = [];
+  for (const block of result.content) {
+    if (block.type !== "image") continue;
+    if (!block.data || !block.mimeType) continue;
+    // Kitty only embeds PNG; skip other mime types like Pi.
+    if (caps.images === "kitty" && block.mimeType !== "image/png") continue;
+    const component = new Image(
+      block.data,
+      block.mimeType,
+      { fallbackColor: (s) => theme.fg("toolOutput", s) },
+      { maxWidthCells },
+    );
+    lines.push(...component.render(width));
+  }
+  return lines;
 }
 
 function createToolRenderContext(
@@ -179,7 +223,7 @@ function createToolRenderContext(
     argsComplete: line.status !== "pending" && line.status !== "running",
     isPartial,
     expanded: runtimeTab.tab.extensionUi.toolsExpanded,
-    showImages: true,
+    showImages: toolShowImages(runtimeTab),
     isError,
   };
 }

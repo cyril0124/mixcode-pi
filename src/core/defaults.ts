@@ -7,7 +7,6 @@ import { createWorkspaceOverlayState } from "./workspace-ui.js";
 import {
   DEFAULT_ICON_MODE,
   DEFAULT_OVERSIZED_ASSISTANT_MESSAGE,
-  DEFAULT_RENDER_MERMAID,
 } from "./mixcode-settings.js";
 import type { MixCodeModelRef, MixCodeState, MixCodeTabInfo } from "./types.js";
 
@@ -27,7 +26,6 @@ export function createInitialState(workdir: string, defaultThinkingLevel?: Think
     tabs: [],
     ui: {
       oversizedAssistantMessage: { ...DEFAULT_OVERSIZED_ASSISTANT_MESSAGE },
-      renderMermaid: DEFAULT_RENDER_MERMAID,
       icons: { mode: DEFAULT_ICON_MODE },
     },
     activeTabId: "config",

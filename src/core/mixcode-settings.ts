@@ -18,8 +18,6 @@ export interface RawMixCodeSettings {
       maxLines?: number;
       maxBytes?: number;
     };
-    /** When false, mermaid fences render as plain code blocks. */
-    renderMermaid?: boolean;
     /** Input-meta icon glyph mode. */
     icons?: { mode?: IconMode };
   };
@@ -44,12 +42,8 @@ export interface HistorySettings {
 
 export interface MixCodeUiSettings {
   oversizedAssistantMessage: OversizedAssistantMessageSettings;
-  /** When false, mermaid fences render as plain code blocks. Default true. */
-  renderMermaid: boolean;
   icons: { mode: IconMode };
 }
-
-export const DEFAULT_RENDER_MERMAID = true;
 
 export interface OversizedAssistantMessageSettings {
   enabled: boolean;
@@ -69,7 +63,6 @@ export function defaultMixCodeSettings(): MixCodeSettings {
     history: { maxBytes: DEFAULT_HISTORY_MAX_BYTES },
     ui: {
       oversizedAssistantMessage: { ...DEFAULT_OVERSIZED_ASSISTANT_MESSAGE },
-      renderMermaid: DEFAULT_RENDER_MERMAID,
       icons: { mode: DEFAULT_ICON_MODE },
     },
     disabledProviders: [],
@@ -111,12 +104,10 @@ export async function loadRawMixCodeSettings(settingsFile: string): Promise<RawM
   const rawEnabled = typeof oversized.enabled === "boolean" ? oversized.enabled : undefined;
   const rawMaxLines = positiveInteger(oversized.maxLines);
   const rawOversizedBytes = positiveInteger(oversized.maxBytes);
-  const rawRenderMermaid =
-    typeof ui.renderMermaid === "boolean" ? ui.renderMermaid : undefined;
   const rawIconMode = rawIconModeValue(objectRecord(ui.icons).mode);
   const hasOversized =
     rawEnabled !== undefined || rawMaxLines !== undefined || rawOversizedBytes !== undefined;
-  if (hasOversized || rawRenderMermaid !== undefined || rawIconMode !== undefined) {
+  if (hasOversized || rawIconMode !== undefined) {
     result.ui = {
       ...(hasOversized
         ? {
@@ -127,7 +118,6 @@ export async function loadRawMixCodeSettings(settingsFile: string): Promise<RawM
             },
           }
         : {}),
-      ...(rawRenderMermaid !== undefined ? { renderMermaid: rawRenderMermaid } : {}),
       ...(rawIconMode !== undefined ? { icons: { mode: rawIconMode } } : {}),
     };
   }
@@ -195,12 +185,6 @@ function parseUiSettings(value: unknown, settingsFile: string): MixCodeUiSetting
       ui.oversizedAssistantMessage,
       settingsFile,
     ),
-    renderMermaid: booleanUiSetting(
-      ui.renderMermaid,
-      DEFAULT_RENDER_MERMAID,
-      settingsFile,
-      "renderMermaid",
-    ),
     icons: { mode: parseIconMode(objectRecord(ui.icons).mode, settingsFile) },
   };
 }
@@ -217,17 +201,6 @@ function parseIconMode(value: unknown, settingsFile: string): IconMode {
   throw new Error(
     `${settingsFile}: ui.icons.mode must be one of ${ICON_MODES.join(", ")}`,
   );
-}
-
-function booleanUiSetting(
-  value: unknown,
-  fallback: boolean,
-  settingsFile: string,
-  field: string,
-): boolean {
-  if (value === undefined) return fallback;
-  if (typeof value === "boolean") return value;
-  throw new Error(`${settingsFile}: ui.${field} must be a boolean`);
 }
 
 function parseOversizedAssistantMessageSettings(

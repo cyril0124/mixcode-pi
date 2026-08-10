@@ -167,6 +167,10 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
   // Thinking-block visibility follows Pi's native hideThinkingBlock setting
   // (global/project scoped) rather than MixCode's own persisted state.
   state.hideThinkingBlock = settingsManager.getHideThinkingBlock();
+  // Image / mermaid rendering follow Pi SettingsManager (settings.json).
+  state.showImages = settingsManager.getShowImages();
+  state.imageWidthCells = settingsManager.getImageWidthCells();
+  state.mermaidRenderingMode = settingsManager.getMermaidRenderingMode();
   // Derive auth/models from the effective agent dir so a custom
   // MIXCODE_CODING_AGENT_DIR keeps credentials, models, settings, sessions and
   // extensions under one root instead of splitting across PI_CODING_AGENT_DIR.

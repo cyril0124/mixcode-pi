@@ -13,7 +13,7 @@ import {
 } from "../../agent/runtime-extension-theme.js";
 import type { ChatLine } from "../../agent/runtime.js";
 import type { OversizedAssistantMessageSettings } from "../../core/mixcode-settings.js";
-import type { MixCodeTabInfo } from "../../core/types.js";
+import type { MermaidRenderingMode, MixCodeTabInfo } from "../../core/types.js";
 import { activeRenderTheme, renderWithTheme } from "./context.js";
 import { renderMarkdown } from "./markdown.js";
 import {
@@ -61,8 +61,8 @@ export interface RenderChatBlockOptions {
   streamingMarkdownCharLimit?: number;
   /** When true, thinking blocks collapse to a static placeholder. */
   hideThinking?: boolean;
-  /** When false, mermaid fences stay plain code blocks. Default true. */
-  renderMermaid?: boolean;
+  /** Pi `markdown.mermaid` mode. Default `streaming`. */
+  mermaidRenderingMode?: MermaidRenderingMode;
   /** When false, user-message image blocks are hidden. Default true (Pi showImages). */
   showImages?: boolean;
   /** Max image width in terminal cells. Default 60 (Pi imageWidthCells). */
@@ -282,7 +282,7 @@ function renderMessageBlockUncached(
     if (oversized) return withOsc133Zone(oversized);
     return withOsc133Zone(
       renderMarkdown(streamingMarkdownText(trimmed, options), width, {
-        renderMermaid: options.renderMermaid,
+        mermaidRenderingMode: options.mermaidRenderingMode,
         messageType: "assistant",
         isStreaming: options.streamingMarkdownCharLimit !== undefined,
         transformers: options.markdownTransformers,
@@ -298,7 +298,7 @@ function renderMessageBlockUncached(
       return renderMarkdown(label, width, {
         color: activeRenderTheme.thinkingText,
         italic: true,
-        renderMermaid: options.renderMermaid,
+        mermaidRenderingMode: options.mermaidRenderingMode,
         messageType: "assistant-thinking",
         isStreaming: options.streamingMarkdownCharLimit !== undefined,
         transformers: options.markdownTransformers,
@@ -315,7 +315,7 @@ function renderMessageBlockUncached(
     return renderMarkdown(streamingMarkdownText(trimmed, options), width, {
       color: activeRenderTheme.thinkingText,
       italic: true,
-      renderMermaid: options.renderMermaid,
+      mermaidRenderingMode: options.mermaidRenderingMode,
       messageType: "assistant-thinking",
       isStreaming: options.streamingMarkdownCharLimit !== undefined,
       transformers: options.markdownTransformers,
@@ -396,7 +396,7 @@ function chatLineRenderCacheKey(
       role === "thinking" && options.hideThinking
         ? `1${KEY_SEP}${tab?.extensionUi.hiddenThinkingLabel ?? ""}`
         : "0";
-    const mermaidKey = options.renderMermaid === false ? "0" : "1";
+    const mermaidKey = options.mermaidRenderingMode ?? "streaming";
     const transformersKey = markdownTransformersCacheKey(options.markdownTransformers);
     return `${role[0]}${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${oversizedPolicyKey(options)}${KEY_SEP}${hideKey}${KEY_SEP}${mermaidKey}${KEY_SEP}${transformersKey}${KEY_SEP}${line.text}`;
   }
@@ -405,7 +405,7 @@ function chatLineRenderCacheKey(
     // Skill blocks switch on toolsExpanded; images / showImages flip the image strip.
     const showImages = options.showImages === false ? 0 : 1;
     const imageKey = userImagesCacheKey(line.images);
-    const mermaidKey = options.renderMermaid === false ? "0" : "1";
+    const mermaidKey = options.mermaidRenderingMode ?? "streaming";
     const transformersKey = markdownTransformersCacheKey(options.markdownTransformers);
     return `u${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${expanded ? 1 : 0}${KEY_SEP}${line.timestamp ?? ""}${KEY_SEP}${showImages}${KEY_SEP}${options.imageWidthCells ?? 60}${KEY_SEP}${mermaidKey}${KEY_SEP}${transformersKey}${KEY_SEP}${imageKey}${KEY_SEP}${line.text}`;
   }
@@ -839,7 +839,7 @@ function renderUserMessageBlock(
     ? renderMarkdown(text.trimEnd(), mdWidth, {
         color: (content) => theme.fg("userMessageText", content),
         messageType: "user",
-        renderMermaid: options.renderMermaid,
+        mermaidRenderingMode: options.mermaidRenderingMode,
         transformers: options.markdownTransformers,
         // Match Pi UserMessageComponent Markdown options.
         preserveOrderedListMarkers: true,

@@ -3,6 +3,9 @@ import type { Model, ThinkingLevelMap } from "@earendil-works/pi-ai";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { MixCodeUiSettings, RawMixCodeSettings } from "./mixcode-settings.js";
 
+/** Pi SettingsManager markdown.mermaid (not re-exported from package entry). */
+export type MermaidRenderingMode = "off" | "final" | "streaming";
+
 /** Erased Model type — the TApi type parameter is intentionally erased with `any`
  *  because different models carry incompatible API-specific fields (e.g. `compat`).
  *  Runtime code treats models uniformly while preserving shared metadata such as
@@ -419,6 +422,14 @@ export interface MixCodeState {
    * the value back through the runtime so it survives restarts.
    */
   hideThinkingBlock?: boolean;
+  /**
+   * Live mirrors of Pi SettingsManager terminal/markdown fields used by the
+   * chat surface. Bootstrap + /settings write them; renderers read state only
+   * (no per-frame SettingsManager disk access).
+   */
+  showImages?: boolean;
+  imageWidthCells?: number;
+  mermaidRenderingMode?: MermaidRenderingMode; // Pi markdown.mermaid
   tabBarHitRow?: number;
   /** Absolute 1-indexed terminal row of the tab bar's first line (multi-row aware). */
   tabBarTopRow?: number;

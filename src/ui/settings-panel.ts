@@ -10,14 +10,18 @@ import {
   DEFAULT_HISTORY_MAX_BYTES,
   DEFAULT_ICON_MODE,
   DEFAULT_OVERSIZED_ASSISTANT_MESSAGE,
-  DEFAULT_RENDER_MERMAID,
   ICON_MODES,
   loadRawMixCodeSettings,
   writeRawMixCodeSettings,
   type IconMode,
   type RawMixCodeSettings,
 } from "../core/mixcode-settings.js";
-import type { MixCodeModelRef, MixCodeState, SettingsPanelState } from "../core/types.js";
+import type {
+  MermaidRenderingMode,
+  MixCodeModelRef,
+  MixCodeState,
+  SettingsPanelState,
+} from "../core/types.js";
 import type { OverlayTui } from "./app-types.js";
 import { closeAppOverlay, showLinesOverlay } from "./app-overlays.js";
 import { clearConversationCache } from "./rendering/agent-surface.js";
@@ -148,6 +152,53 @@ const ITEMS: SettingItem[] = [
       await setRetryMaxRetries(settingsManager, piSettingsFile, v);
     },
   },
+  {
+    kind: "boolean",
+    label: "showImages",
+    section: "pi",
+    defaultValue: true,
+    getValue: ({ settingsManager }) => settingsManager.getGlobalSettings().terminal?.showImages,
+    setValue: async ({ settingsManager }, v) => {
+      settingsManager.setShowImages(v);
+    },
+  },
+  {
+    kind: "number",
+    label: "imageWidthCells",
+    section: "pi",
+    defaultValue: 60,
+    getValue: ({ settingsManager }) => {
+      const width = settingsManager.getGlobalSettings().terminal?.imageWidthCells;
+      return typeof width === "number" && Number.isFinite(width) ? Math.max(1, Math.floor(width)) : undefined;
+    },
+    setValue: async ({ settingsManager }, v) => {
+      if (v === undefined) return;
+      settingsManager.setImageWidthCells(v);
+    },
+  },
+  {
+    kind: "boolean",
+    label: "blockImages",
+    section: "pi",
+    defaultValue: false,
+    getValue: ({ settingsManager }) => settingsManager.getGlobalSettings().images?.blockImages,
+    setValue: async ({ settingsManager }, v) => {
+      settingsManager.setBlockImages(v);
+    },
+  },
+  {
+    kind: "enum",
+    label: "markdown.mermaid",
+    section: "pi",
+    defaultValue: "streaming",
+    getValue: ({ settingsManager }) => settingsManager.getMermaidRenderingMode(),
+    getOptions: () => ["off", "final", "streaming"],
+    setValue: async ({ settingsManager }, v) => {
+      if (v === "off" || v === "final" || v === "streaming") {
+        settingsManager.setMermaidRenderingMode(v);
+      }
+    },
+  },
   // Theme is file-backed in mixcode_settings.json; live UI still uses state.theme.
   {
     kind: "enum",
@@ -177,28 +228,6 @@ const ITEMS: SettingItem[] = [
       const next: RawMixCodeSettings = { ...ctx.mixcodeRaw };
       if (v === undefined) delete next.history;
       else next.history = { ...next.history, maxBytes: v };
-      replaceRaw(ctx.mixcodeRaw, next);
-      await writeRawMixCodeSettings(ctx.mixcodeFile, next);
-    },
-  },
-  {
-    kind: "boolean",
-    label: "renderMermaid",
-    section: "mixcode",
-    defaultValue: DEFAULT_RENDER_MERMAID,
-    getValue: ({ mixcodeRaw }) => mixcodeRaw.ui?.renderMermaid,
-    setValue: async (ctx, v) => {
-      const next: RawMixCodeSettings = { ...ctx.mixcodeRaw };
-      if (v === undefined) {
-        if (next.ui) {
-          const ui = { ...next.ui };
-          delete ui.renderMermaid;
-          if (Object.keys(ui).length > 0) next.ui = ui;
-          else delete next.ui;
-        }
-      } else {
-        next.ui = { ...next.ui, renderMermaid: v };
-      }
       replaceRaw(ctx.mixcodeRaw, next);
       await writeRawMixCodeSettings(ctx.mixcodeFile, next);
     },
@@ -382,7 +411,11 @@ function refreshSettingsPanel(state: MixCodeState, tui: OverlayTui): void {
 function applyLiveEffects(state: MixCodeState): void {
   const panel = state.settingsPanel;
   if (panel.settingsManager) {
-    state.hideThinkingBlock = panel.settingsManager.getHideThinkingBlock();
+    const sm = panel.settingsManager;
+    state.hideThinkingBlock = sm.getHideThinkingBlock();
+    state.showImages = sm.getShowImages();
+    state.imageWidthCells = sm.getImageWidthCells();
+    state.mermaidRenderingMode = sm.getMermaidRenderingMode();
   }
   const raw = panel.mixcodeRaw;
   // Theme: explicit file value, else runtime default (dim path in the panel).
@@ -394,7 +427,6 @@ function applyLiveEffects(state: MixCodeState): void {
       maxLines: oversized?.maxLines ?? DEFAULT_OVERSIZED_ASSISTANT_MESSAGE.maxLines,
       maxBytes: oversized?.maxBytes ?? DEFAULT_OVERSIZED_ASSISTANT_MESSAGE.maxBytes,
     },
-    renderMermaid: raw.ui?.renderMermaid ?? DEFAULT_RENDER_MERMAID,
     icons: { mode: raw.ui?.icons?.mode ?? DEFAULT_ICON_MODE },
   };
   for (const tab of state.tabs) clearConversationCache(tab.sessionId);
@@ -410,8 +442,11 @@ const ITEM_LABELS: Record<string, string> = {
   defaultModel: "Default model",
   "retry.enabled": "Auto-retry",
   "retry.maxRetries": "Retry times",
+  showImages: "Show images",
+  imageWidthCells: "Image width (cells)",
+  blockImages: "Block images to model",
+  "markdown.mermaid": "Mermaid diagrams",
   "history.maxBytes": "History max bytes",
-  renderMermaid: "Render Mermaid diagrams",
   "icons.mode": "Icon mode",
   "oversized.enabled": "Collapse oversized messages",
   "oversized.maxLines": "Oversized max lines",
