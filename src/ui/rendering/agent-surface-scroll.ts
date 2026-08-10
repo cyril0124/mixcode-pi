@@ -23,6 +23,11 @@ interface ScrollFreezeState {
   chatLine?: ChatLine;
   /** 0–1 progress through the anchored chat block (top of viewport content). */
   blockProgress?: number;
+  /**
+   * User scroll delta this frame (wheel/key). Applied after anchor re-pin so
+   * stream growth can be absorbed without undoing intentional scrolling.
+   */
+  userDelta?: number;
 }
 const scrollFreezeStates = new WeakMap<MixCodeTabInfo, ScrollFreezeState>();
 
@@ -39,8 +44,13 @@ export function isScrollFrozen(tab: MixCodeTabInfo): boolean {
 
 /**
  * Keep the scrolled-up view stable when total content height grows. Returns
- * true when the viewport is (still) frozen so callers can re-run layout with
- * the adjusted offset.
+ * true when growth adjusted the offset so callers can re-run layout.
+ *
+ * Same-frame user scroll + stream growth:
+ *   1. Capture userDelta, reset to last frame's offset
+ *   2. Absorb content growth onto that base
+ *   3. Keep frozen so apply* re-pins to the old anchor (fixes estimate noise)
+ *   4. applyPendingScrollUserDelta restores the intentional scroll
  */
 export function keepScrolledViewStable(
   tab: MixCodeTabInfo,
@@ -51,17 +61,23 @@ export function keepScrolledViewStable(
   const previous = scrollFreezeStates.get(tab);
   const grew = total > (previous?.total ?? total);
   const sameSize = previous?.width === width && previous?.height === height;
-  // Growth freeze only when layout size is unchanged. Resize re-anchors later.
-  const canFreeze =
-    tab.chatScrollOffset > 0 &&
-    sameSize &&
-    previous.offset === tab.chatScrollOffset;
-  if (canFreeze && grew) {
-    tab.chatScrollOffset += total - previous.total;
+  const scrolledUp = tab.chatScrollOffset > 0;
+  const userDelta =
+    previous && sameSize ? tab.chatScrollOffset - (previous.offset ?? tab.chatScrollOffset) : 0;
+  let adjusted = false;
+  if (scrolledUp && sameSize && previous !== undefined) {
+    // Work from last frame's offset so apply* can re-pin, then re-apply userDelta.
+    tab.chatScrollOffset = previous.offset ?? tab.chatScrollOffset;
+    if (grew) {
+      tab.chatScrollOffset += total - previous.total;
+      adjusted = true;
+    }
   }
+  // Freeze when scrolled up with stable size (including same-frame user scroll).
+  const canFreeze = scrolledUp && sameSize && previous !== undefined;
   // Stay frozen across size changes so apply* can re-align to the anchor.
   const keepFrozen =
-    tab.chatScrollOffset > 0 &&
+    scrolledUp &&
     Boolean(previous?.line || previous?.chatLine) &&
     (canFreeze || !sameSize);
   scrollFreezeStates.set(tab, {
@@ -71,8 +87,23 @@ export function keepScrolledViewStable(
     height,
     offset: tab.chatScrollOffset,
     frozen: keepFrozen || canFreeze,
+    // Preserve userDelta across freezeAdjusted re-renders (keep is skipped then).
+    userDelta: userDelta !== 0 ? userDelta : previous?.userDelta,
   });
-  return canFreeze;
+  return adjusted;
+}
+
+/** Re-apply intentional user scroll after anchor re-pin. */
+export function applyPendingScrollUserDelta(tab: MixCodeTabInfo): void {
+  const state = scrollFreezeStates.get(tab);
+  const userDelta = state?.userDelta ?? 0;
+  if (!state || userDelta === 0) return;
+  tab.chatScrollOffset = Math.max(0, tab.chatScrollOffset + userDelta);
+  scrollFreezeStates.set(tab, {
+    ...state,
+    offset: tab.chatScrollOffset,
+    userDelta: 0,
+  });
 }
 
 /**

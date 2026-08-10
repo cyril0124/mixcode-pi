@@ -251,6 +251,49 @@ test("windowed renderer keeps scrolled view stable as streaming tail grows", () 
   assert.match(bottom, /new streaming words wrap/);
 });
 
+// Growth can arrive in the same frame as a user scroll. Freeze must still absorb
+// the growth; otherwise the view drifts toward the streaming tail.
+test("windowed renderer stays stable when user scrolls in the same frame as growth", () => {
+  const chatA = buildLongChat(120);
+  const chatB = buildLongChat(120);
+  const tabA = createTab(22, "s22", "/repo", { status: "running", chatScrollOffset: 40 });
+  const tabB = createTab(23, "s23", "/repo", { status: "running", chatScrollOffset: 40 });
+
+  renderAgentSurface(tabA, { chat: chatA } as never, WIDTH, HEIGHT);
+  renderAgentSurface(tabA, { chat: chatA } as never, WIDTH, HEIGHT);
+  renderAgentSurface(tabB, { chat: chatB } as never, WIDTH, HEIGHT);
+  renderAgentSurface(tabB, { chat: chatB } as never, WIDTH, HEIGHT);
+
+  // Scroll-only baseline.
+  tabA.chatScrollOffset += 5;
+  const onlyScroll = renderAgentSurface(tabA, { chat: chatA } as never, WIDTH, HEIGHT).map(stripAnsi);
+  const onlyScrollIds = onlyScroll
+    .map((line) => line.match(/\b(?:assistant|user|output|system)-\d+\b/)?.[0])
+    .filter((id): id is string => Boolean(id));
+
+  // Same user scroll, but content also grows below in this frame.
+  tabB.chatScrollOffset += 5;
+  chatB.push(
+    ...buildLongChat(12).map((line, index) => ({ ...line, text: `${line.text}-grow-${index}` })),
+  );
+  const scrollAndGrow = renderAgentSurface(tabB, { chat: chatB } as never, WIDTH, HEIGHT).map(
+    stripAnsi,
+  );
+  const scrollAndGrowIds = scrollAndGrow
+    .map((line) => line.match(/\b(?:assistant|user|output|system)-\d+\b/)?.[0])
+    .filter((id): id is string => Boolean(id));
+
+  assert.deepEqual(
+    scrollAndGrowIds,
+    onlyScrollIds,
+    "same-frame growth must not push the scrolled view toward newer content",
+  );
+  assert.ok(
+    tabB.chatScrollOffset > tabA.chatScrollOffset,
+    "scroll offset must grow to absorb appended content after a same-frame user scroll",
+  );
+});
+
 test("running chats with historical tool renderers still use windowed rendering", () => {
   let rendered = 0;
   const chat = buildStreamingAssistantChat(180);

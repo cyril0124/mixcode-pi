@@ -27,6 +27,7 @@ import { activeRenderTheme, renderWithTheme } from "./context.js";
 import {
   BLOCK_HEIGHT_FALLBACK,
   applyChatBlockScrollAnchor,
+  applyPendingScrollUserDelta,
   applyScrollFreezeAnchor,
   decorateWindow,
   estimateTotalHeight,
@@ -205,6 +206,8 @@ function renderAgentSurfaceInner(
   const maxOffset = Math.max(0, lines.length - viewport);
   if (tab.chatScrollOffset > maxOffset) tab.chatScrollOffset = maxOffset;
   applyScrollFreezeAnchor(tab, lines, viewport, surfaceWidth);
+  applyPendingScrollUserDelta(tab);
+  if (tab.chatScrollOffset > maxOffset) tab.chatScrollOffset = maxOffset;
   const fitted = fitScrolledLinesWithInfo(lines, maxHeight, surfaceWidth, tab.chatScrollOffset);
   rememberScrollFreezeAnchor(tab, fitted.lines, surfaceWidth, fitted.height);
   const highlighted = highlightVisibleChatLines(fitted.lines, tab, surfaceWidth, fitted.height);
@@ -523,6 +526,7 @@ function renderAgentSurfaceWindowed(
   }
   applyChatBlockScrollAnchor(tab, blockLayouts, lines.length, viewport, surfaceWidth);
   applyScrollFreezeAnchor(tab, lines, viewport, surfaceWidth);
+  applyPendingScrollUserDelta(tab);
   if (tab.chatScrollOffset > maxOffset) tab.chatScrollOffset = maxOffset;
   const clampedOffset = Math.max(0, Math.min(tab.chatScrollOffset, maxOffset));
 
