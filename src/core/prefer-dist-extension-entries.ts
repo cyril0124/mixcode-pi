@@ -3,6 +3,9 @@ import * as path from "node:path";
 
 const SKIP_ENV = "MIXCODE_SKIP_PI_EXT_NORMALIZE";
 
+/** One normalize pass per agentDir per process — createRuntimeServices can run per tab. */
+const normalizedAgentDirs = new Set<string>();
+
 type PiPackageJson = {
   pi?: {
     extensions?: string[];
@@ -11,22 +14,26 @@ type PiPackageJson = {
 
 /**
  * Prefer prebuilt dist extension entries when a package still points at src.
- * Needed for Bun-compiled mpi (jiti virtualModules): compiling TypeBox-heavy
- * src under that path can fail with "Type4 is not defined".
+ * Helps avoid jiti compiling TypeBox-heavy src under some loaders.
+ * Idempotent and process-memoized (NFS-friendly: do not rescan every tab).
  */
 export function preferDistExtensionEntries(agentDir: string): { rewritten: string[] } {
   if (process.env[SKIP_ENV]?.trim()) {
     return { rewritten: [] };
   }
 
-  const roots = [path.join(agentDir, "npm", "node_modules")];
-  const rewritten: string[] = [];
+  const resolvedAgentDir = path.resolve(agentDir);
+  if (normalizedAgentDirs.has(resolvedAgentDir)) {
+    return { rewritten: [] };
+  }
+  normalizedAgentDirs.add(resolvedAgentDir);
 
-  for (const root of roots) {
-    if (!fs.existsSync(root)) continue;
-    for (const pkgDir of listPackageDirs(root)) {
-      if (rewritePackageManifest(pkgDir)) rewritten.push(pkgDir);
-    }
+  const root = path.join(resolvedAgentDir, "npm", "node_modules");
+  const rewritten: string[] = [];
+  if (!fs.existsSync(root)) return { rewritten };
+
+  for (const pkgDir of listPackageDirs(root)) {
+    if (rewritePackageManifest(pkgDir)) rewritten.push(pkgDir);
   }
 
   return { rewritten };
@@ -35,7 +42,7 @@ export function preferDistExtensionEntries(agentDir: string): { rewritten: strin
 function listPackageDirs(nodeModules: string): string[] {
   const out: string[] = [];
   for (const name of fs.readdirSync(nodeModules)) {
-    if (name === ".bin") continue;
+    if (name === ".bin" || name.startsWith(".")) continue;
     const full = path.join(nodeModules, name);
     let st: fs.Stats;
     try {
@@ -68,6 +75,9 @@ function rewritePackageManifest(pkgDir: string): boolean {
   } catch {
     return false;
   }
+
+  // Fast path: most deps have no pi.extensions — skip JSON parse when absent.
+  if (!raw.includes('"pi"') || !raw.includes("extensions")) return false;
 
   let data: PiPackageJson;
   try {

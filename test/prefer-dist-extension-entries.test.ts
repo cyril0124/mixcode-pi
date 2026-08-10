@@ -73,4 +73,24 @@ describe("preferDistExtensionEntries", () => {
     expect(preferDistExtensionEntries(agentDir).rewritten).toEqual([]);
     expect(fs.readFileSync(path.join(pkgDir, "package.json"), "utf8")).toBe(before);
   });
+
+  test("process memo skips second scan of same agentDir", () => {
+    const { agentDir, pkgDir } = agentWithPkg(
+      "pi-schedule-prompt",
+      { pi: { extensions: ["./src/index.ts"] } },
+      {
+        "src/index.ts": "export default () => {}",
+        "dist/index.js": "export default () => {}",
+      },
+    );
+    expect(preferDistExtensionEntries(agentDir).rewritten).toEqual([pkgDir]);
+    // Force src again; memo must prevent a second rewrite pass.
+    fs.writeFileSync(
+      path.join(pkgDir, "package.json"),
+      `${JSON.stringify({ pi: { extensions: ["./src/index.ts"] } }, null, 2)}\n`,
+    );
+    expect(preferDistExtensionEntries(agentDir).rewritten).toEqual([]);
+    const data = JSON.parse(fs.readFileSync(path.join(pkgDir, "package.json"), "utf8"));
+    expect(data.pi.extensions).toEqual(["./src/index.ts"]);
+  });
 });
