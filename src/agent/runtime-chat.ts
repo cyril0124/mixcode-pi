@@ -152,6 +152,7 @@ export function surfaceAssistantStopReason(
   message: AssistantMessage,
 ): void {
   const text = assistantStopReasonText(message);
+  const isLengthStop = message.stopReason === "length";
   const pendingToolIndices = runtimeTab.chat
     .map((line, index) => ({ line, index }))
     .filter(
@@ -160,8 +161,9 @@ export function surfaceAssistantStopReason(
         (item.line.status === "pending" || item.line.status === "running"),
     )
     .map((item) => item.index);
-  if (pendingToolIndices.length) {
+  if (pendingToolIndices.length && !isLengthStop) {
     // Tools still in flight need a terminal status; generic aborts use a calm label.
+    // length is not a tool failure (Pi setArgsComplete path) — leave tools alone.
     const toolText = text || "Cancelled";
     for (const index of pendingToolIndices) {
       const line = runtimeTab.chat[index];
@@ -173,8 +175,9 @@ export function surfaceAssistantStopReason(
   // Empty aborted assistant with generic provider wording: stay silent.
   // Intentional aborts (compact, extension stop, etc.) surface their own status.
   if (!text) return;
-  if (!assistantText(message.content).trim()) {
-    appendSystemMessage(runtimeTab, text);
+  // length always surfaces (Pi shows it after partial content); aborted/error only when empty.
+  if (isLengthStop || !assistantText(message.content).trim()) {
+    appendSystemMessage(runtimeTab, text, isLengthStop ? "error" : undefined);
   }
 }
 
@@ -187,6 +190,10 @@ export function isGenericAbortMessage(errorMessage: string | undefined): boolean
 }
 
 function assistantStopReasonText(message: AssistantMessage): string {
+  // Match Pi AssistantMessageComponent: always surface length truncation.
+  if (message.stopReason === "length") {
+    return "Response was truncated before completion.";
+  }
   if (message.stopReason === "aborted") {
     // Generic abort wording is not a user-facing failure by itself; callers that
     // own the abort should surface a specific status. Non-generic messages still show.

@@ -24,6 +24,17 @@ function abortedAssistant(errorMessage: string): AssistantMessage {
   } as unknown as AssistantMessage;
 }
 
+function lengthAssistant(content: AssistantMessage["content"] = []): AssistantMessage {
+  return {
+    role: "assistant",
+    stopReason: "length",
+    content,
+    usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 },
+  } as unknown as AssistantMessage;
+}
+
+const TRUNCATED_NOTICE = "Response was truncated before completion.";
+
 test("isGenericAbortMessage matches provider boilerplate", () => {
   assert.equal(isGenericAbortMessage(undefined), true);
   assert.equal(isGenericAbortMessage("Request was aborted"), true);
@@ -45,4 +56,33 @@ test("empty non-generic abort still surfaces the provider message", () => {
   assert.equal(tab.chat.length, 1);
   assert.equal(tab.chat[0]?.role, "system");
   assert.match(tab.chat[0]?.text ?? "", /upstream cancelled stream/);
+});
+
+test("length stop always surfaces Pi truncation notice, even with assistant text", () => {
+  const tab = emptyTab();
+  surfaceAssistantStopReason(
+    tab,
+    lengthAssistant([{ type: "text", text: "partial answer" }]),
+  );
+  assert.equal(tab.chat.length, 1);
+  assert.equal(tab.chat[0]?.role, "system");
+  assert.equal(tab.chat[0]?.text, TRUNCATED_NOTICE);
+  assert.equal(tab.chat[0]?.variant, "system-error");
+});
+
+test("length stop with pending tools shows notice and does not mark tools cancelled", () => {
+  const tab = emptyTab();
+  tab.chat.push({
+    role: "tool",
+    title: "edit",
+    status: "pending",
+    toolCallId: "t1",
+    text: "",
+  });
+  surfaceAssistantStopReason(tab, lengthAssistant([{ type: "text", text: "…" }]));
+  assert.equal(tab.chat[0]?.role, "tool");
+  assert.equal(tab.chat[0]?.status, "pending");
+  assert.equal(tab.chat[1]?.role, "system");
+  assert.equal(tab.chat[1]?.text, TRUNCATED_NOTICE);
+  assert.equal(tab.chat[1]?.variant, "system-error");
 });
