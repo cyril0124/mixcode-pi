@@ -6,7 +6,11 @@ import {
   type IconMode,
 } from "../../core/mixcode-settings.js";
 import type { MouseHitRegion } from "../../core/mouse.js";
-import { retryStatusMessage, tabHasPendingUserInteraction } from "../../core/tab-state.js";
+import {
+  retryStatusMessage,
+  tabHasPendingUserInteraction,
+  workingActivityMessage,
+} from "../../core/tab-state.js";
 import type { MixCodeState, MixCodeTabInfo } from "../../core/types.js";
 import { buildLabeledTopBorder } from "../editor-top-border.js";
 import type { MixCodeTheme } from "../themes.js";
@@ -663,7 +667,7 @@ function renderWorkingIndicatorInner(
   const detail = isPendingEscapeActive(tab, "abort-agent", now.getTime())
     ? "esc again to interrupt"
     : "esc to interrupt";
-  const message = tab.extensionUi.workingMessage?.trim() || "Working";
+  const message = workingActivityMessage(tab);
   const indicator = workingIndicatorFrame(tab, now);
   if (indicator === "") return [];
   const prefix = indicator ? `${indicator} ` : "";

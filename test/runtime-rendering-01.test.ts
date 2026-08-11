@@ -37,6 +37,26 @@ test("working indicator shows elapsed duration and interrupt hint while busy", (
   assert.match(stripAnsi(lines.join("\n")), /Working \(2m 22s . esc to interrupt\)/);
 });
 
+test("working indicator identifies compaction reason", () => {
+  const cases = [
+    ["manual", "Compacting context..."],
+    ["threshold", "Auto-compacting..."],
+    ["overflow", "Context overflow detected, Auto-compacting..."],
+  ] as const;
+
+  for (const [reason, expected] of cases) {
+    const tab = createTab(1, "s1", "/repo", {
+      status: "running",
+      workingStartedAt: "2026-05-10T00:00:00.000Z",
+      activeCompactionReason: reason,
+    });
+    const plain = stripAnsi(
+      renderWorkingIndicator(tab, 100, new Date("2026-05-10T00:00:03.000Z")).join("\n"),
+    );
+    assert.ok(plain.includes(expected), `${reason} should render ${expected}, got ${plain}`);
+  }
+});
+
 test("working indicator shows completed duration after work ends", () => {
   const lines = renderWorkingIndicator(
     createTab(1, "s1", "/repo", { lastWorkedDurationSeconds: 291 }),

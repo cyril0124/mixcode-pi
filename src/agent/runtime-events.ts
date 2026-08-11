@@ -136,6 +136,7 @@ export function applyEvent(
     case "turn_end":
       break;
     case "compaction_start":
+      runtimeTab.tab.activeCompactionReason = event.reason;
       // SDK post-run auto-compaction starts after agent_end clears the active timer.
       // Preserve an existing stamp; otherwise reuse the post-run start or stamp now.
       {
@@ -153,6 +154,7 @@ export function applyEvent(
       break;
     case "compaction_end": {
       // SDK compact-and-retry (willRetry) calls agent.continue() after this event.
+      runtimeTab.tab.activeCompactionReason = undefined;
       const sdkWillContinue = Boolean(event.result && event.willRetry);
       if (sdkWillContinue) runtimeTab.sdkRunContinuation = true;
       const nextStatus: typeof runtimeTab.tab.status = event.errorMessage

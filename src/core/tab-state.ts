@@ -152,6 +152,19 @@ export function retryStatusMessage(tab: MixCodeTabInfo, now: Date): string | und
   return `Retrying (${retry.attempt}/${retry.maxAttempts}) in ${seconds}s... (esc to cancel)`;
 }
 
+export function workingActivityMessage(tab: MixCodeTabInfo): string {
+  switch (tab.activeCompactionReason) {
+    case "manual":
+      return "Compacting context...";
+    case "threshold":
+      return "Auto-compacting...";
+    case "overflow":
+      return "Context overflow detected, Auto-compacting...";
+    default:
+      return tab.extensionUi.workingMessage?.trim() || "Working";
+  }
+}
+
 export function tabHasPendingUserInteraction(tab: MixCodeTabInfo): boolean {
   return tab.pendingDialogs.length > 0 || tab.extensionUi.pendingUserInteractions.length > 0;
 }

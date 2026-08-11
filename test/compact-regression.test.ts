@@ -12,7 +12,12 @@ import {
   type Model,
   type ToolCall,
 } from "@earendil-works/pi-ai";
-import { MIXCODE_FAUX_MODEL, MixCodeRuntime, createTab } from "../src/index.js";
+import {
+  MIXCODE_FAUX_MODEL,
+  MixCodeRuntime,
+  createTab,
+  renderWorkingIndicator,
+} from "../src/index.js";
 
 function waitForRuntime(predicate: () => boolean, attempts = 50): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -137,6 +142,16 @@ test("SDK post-run compaction preserves the original working timer", async () =>
     assert.equal(tab.status, "running");
     assert.equal(tab.workingStartedAt, startedAt);
     assert.equal(tab.lastWorkedDurationSeconds, undefined);
+    assert.match(
+      renderWorkingIndicator(tab, 80, new Date("2026-06-04T00:00:03.000Z")).join("\n"),
+      /Auto-compacting/,
+    );
+
+    applyRuntimeEvent(runtimeTab, { type: "compaction_end" });
+    assert.doesNotMatch(
+      renderWorkingIndicator(tab, 80, new Date("2026-06-04T00:00:04.000Z")).join("\n"),
+      /Compacting/,
+    );
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }

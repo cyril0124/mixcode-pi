@@ -1358,14 +1358,16 @@ export class MixCodeRuntime {
       runtimeTab.compactionInFlight = false;
       throw new Error("Cannot compact while compaction is running");
     }
+    runtimeTab.tab.activeCompactionReason = "manual";
     setTabStatus(runtimeTab.tab, "running", { restart: true });
     clearPendingEscape(runtimeTab.tab);
-    this.emitChange({ type: "extension_ui_update" }, runtimeTab);
     // Compaction rewrites the branch, so it must hold the cross-process turn
     // lock just like a prompt does — and reload first so the rewrite is a child
     // of any messages another instance already appended.
-    const lock = this.sync.acquire(sessionId);
+    let lock: SessionLockHandle | undefined;
     try {
+      this.emitChange({ type: "extension_ui_update" }, runtimeTab);
+      lock = this.sync.acquire(sessionId);
       if (lock) reloadRuntimeSessionFromDisk(runtimeTab);
       // compact() emits compaction_end which triggers applyEvent to rebuild chat
       await runtimeTab.agentSession.compact(customInstructions);
@@ -1376,11 +1378,13 @@ export class MixCodeRuntime {
       // fits the keep-recent window). That is a benign no-op, not an error:
       // surface it as a system message, return to idle, and don't propagate.
       if (isNothingToCompactError(message)) {
+        runtimeTab.tab.activeCompactionReason = undefined;
         setTabStatus(runtimeTab.tab, "idle", { discardTimer: true });
         appendSystemMessage(runtimeTab, "Nothing to compact (session too small).");
         this.emitChange({ type: "extension_ui_update" }, runtimeTab);
         return;
       }
+      runtimeTab.tab.activeCompactionReason = undefined;
       // Drop the timer silently either way; compaction_end did not record a duration.
       // On a real error also flip to "error"; an abort leaves status untouched.
       if (aborted) {
@@ -1391,6 +1395,7 @@ export class MixCodeRuntime {
       this.emitChange({ type: "extension_ui_update" }, runtimeTab);
       throw error;
     } finally {
+      runtimeTab.tab.activeCompactionReason = undefined;
       runtimeTab.compactionInFlight = false;
       this.sync.markLocalWrite(sessionId);
       this.sync.release(sessionId, lock);

@@ -6,7 +6,7 @@ import {
   DEFAULT_ICON_MODE,
   DEFAULT_OVERSIZED_ASSISTANT_MESSAGE,
 } from "../core/mixcode-settings.js";
-import { retryStatusMessage } from "../core/tab-state.js";
+import { retryStatusMessage, workingActivityMessage } from "../core/tab-state.js";
 import type { MixCodeState } from "../core/types.js";
 import { getActiveTab } from "../core/tabs.js";
 import type { EditorSlot } from "./app-editor.js";
@@ -578,7 +578,7 @@ function workingLoaderKey(active: MixCodeState["tabs"][number], themeName: strin
   return JSON.stringify([
     active.sessionId,
     themeName,
-    active.extensionUi.workingMessage?.trim() || "Working",
+    workingActivityMessage(active),
     active.extensionUi.workingIndicatorFrames,
     active.extensionUi.workingIndicatorIntervalMs,
   ]);
@@ -589,7 +589,7 @@ function workingLoaderMessage(active: MixCodeState["tabs"][number], now: Date): 
   // redraw drives the live ticking; see retryStatusMessage.
   const retry = retryStatusMessage(active, now);
   if (retry) return retry;
-  const message = active.extensionUi.workingMessage?.trim() || "Working";
+  const message = workingActivityMessage(active);
   const elapsed = formatElapsed(active.workingStartedAt, now);
   const detail = isPendingEscapeActive(active, "abort-agent", now.getTime())
     ? "esc again to interrupt"

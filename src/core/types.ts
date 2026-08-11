@@ -20,6 +20,7 @@ import type { TreeSelectorState } from "./tree-selector.js";
 import type { WorkspaceOverlayState } from "./workspace-ui.js";
 
 export type TabStatus = "Not Ready" | "idle" | "running" | "thinking" | "error" | "done";
+export type CompactionReason = "manual" | "threshold" | "overflow";
 
 export interface QuestionOptionInfo {
   label: string;
@@ -212,6 +213,8 @@ export interface MixCodeTabInfo {
   retryInfo?: { attempt: number; maxAttempts: number; delayMs: number; startedAt: number };
   unreadDone: boolean;
   workingStartedAt?: string;
+  /** Non-persisted: reason for the active Pi compaction operation. */
+  activeCompactionReason?: CompactionReason;
   lastWorkedDurationSeconds?: number;
   /** ISO timestamp captured when work last ended; rendered next to the duration. */
   lastWorkedAt?: string;

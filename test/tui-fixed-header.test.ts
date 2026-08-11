@@ -883,12 +883,18 @@ test("working indicator is driven by the Pi TUI loader animation", async () => {
   try {
     tui.start();
     await sleep(130);
+    const normal = stripAnsi(writes);
+    assert.match(normal, /A Working \(\d+s . esc to interrupt\)/);
+    assert.match(normal, /B Working \(\d+s . esc to interrupt\)/);
+    tab.activeCompactionReason = "threshold";
+    tui.requestRender(true);
+    await sleep(80);
   } finally {
     tui.stop();
   }
   const plain = stripAnsi(writes);
-  assert.match(plain, /A Working \(\d+s . esc to interrupt\)/);
-  assert.match(plain, /B Working \(\d+s . esc to interrupt\)/);
+  assert.match(plain, /A Auto-compacting\.\.\. \(\d+s . esc to interrupt\)/);
+  assert.match(plain, /B Auto-compacting\.\.\. \(\d+s . esc to interrupt\)/);
 });
 
 test("rendering overlay defaults cover closed and fallback branches", () => {

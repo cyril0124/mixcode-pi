@@ -733,6 +733,10 @@ test("runtime abortTab aborts compaction and leaves status idle", async () => {
     releaseCompact();
     await compactPromise;
     assert.equal(tab.status, "idle");
+    assert.doesNotMatch(
+      renderWorkingIndicator(tab, 80, new Date()).join("\n"),
+      /Compacting/,
+    );
     // Chat should contain cancellation message, not a dangling "started" only
     const chatTexts = runtime.getTab("s1")!.chat.map((l) => l.text);
     assert.ok(chatTexts.some((t) => /[Cc]ancell?ed/.test(t)));
