@@ -123,7 +123,7 @@ export function formatModelSkillsHelp(configPath: string): string {
     "| Form | Meaning |",
     "|------|---------|",
     "| `skill-name` | From currently loaded skills |",
-    "| `/abs`, `~/…`, `$VAR`, `${VAR}` | Load skill from absolute path (dir or `SKILL.md`) |",
+    "| `/abs`, `~/…`, `$VAR`, `$" + "{VAR}` | Load skill from absolute path (dir or `SKILL.md`) |",
     "",
     "Relative paths are **rejected**. Same name: **add overwrites**.",
     "",

@@ -39,7 +39,7 @@ function completedContextResetNavigation(before: PostCompletionActionState[] | u
 	for (const action of after ?? []) {
 		if (action.type !== "context.reset" || action.status !== "done") continue;
 		const previous = before?.find((candidate) => candidate.id === action.id);
-		if (!previous || previous.status !== "done") return true;
+		if (previous?.status !== "done") return true;
 	}
 	return false;
 }

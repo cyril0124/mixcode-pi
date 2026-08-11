@@ -86,25 +86,17 @@ test("tmux TUI smoke covers max thinking, theme, navigation, and exit", {
     const maxThinking = await waitForPane(tmux, session, /smoke\/max-model[\s\S]*Max/, 5_000);
     assert.match(maxThinking.plain, /smoke\/max-model[\s\S]*Max/);
 
-    // Theme is edited via /settings (not /theme). Open settings, select Theme,
-    // pick tokyo-night, and verify the Tokyo Night selection color appears.
+    // Theme is edited via /settings (not /theme). Select rows by their visible
+    // labels so adding unrelated settings cannot redirect this keyboard flow.
     await delay(400);
     await tmuxRun(tmux, session, ["send-keys", "-l", "-t", session, "/settings"]);
     await delay(400);
     await tmuxRun(tmux, session, ["send-keys", "-t", session, "Enter"]);
     await waitForPane(tmux, session, /Settings[\s\S]*Theme/, 5_000);
-    // Theme is the first Mixcode row after 5 Pi items (indices 0-4).
-    for (let i = 0; i < 5; i++) {
-      await tmuxRun(tmux, session, ["send-keys", "-t", session, "Down"]);
-      await delay(80);
-    }
+    await selectRowByLabel(tmux, session, "Theme");
     await tmuxRun(tmux, session, ["send-keys", "-t", session, "Enter"]);
     await delay(200);
-    // tokyo-night is typically 3rd theme after mixcode-dark, claude-warm
-    await tmuxRun(tmux, session, ["send-keys", "-t", session, "Down"]);
-    await delay(80);
-    await tmuxRun(tmux, session, ["send-keys", "-t", session, "Down"]);
-    await delay(80);
+    await selectRowByLabel(tmux, session, "tokyo-night");
     await tmuxRun(tmux, session, ["send-keys", "-t", session, "Enter"]);
     await delay(400);
     await tmuxRun(tmux, session, ["send-keys", "-t", session, "Escape"]);
@@ -125,8 +117,8 @@ test("tmux TUI smoke covers max thinking, theme, navigation, and exit", {
 
     await sendLiteral(tmux, session, "/new-session Smoke");
     await tmuxRun(tmux, session, ["send-keys", "-t", session, "Enter"]);
-    const twoTabs = await waitForPane(tmux, session, /^ MixCode Home.*Agent-01.*Agent-02/m, 5_000);
-    assert.match(twoTabs.plain, /Send message to Agent-02/);
+    const twoTabs = await waitForPane(tmux, session, /^ MixCode Home.*Agent-01.*Smoke/m, 5_000);
+    assert.match(twoTabs.plain, /Send message to Smoke/);
     await sendSgrMouse(tmux, session, 20, 1);
     await delay(300);
     const clickedTab = await capturePane(tmux, session);
@@ -194,6 +186,22 @@ function shellQuote(value: string): string {
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolveDelay) => setTimeout(resolveDelay, ms));
+}
+
+async function selectRowByLabel(tmux: string, session: string, label: string): Promise<void> {
+  const seen = new Set<string>();
+  for (;;) {
+    const pane = await capturePane(tmux, session);
+    const selected = pane.plain.split("\n").filter((line) => line.includes("› "));
+    if (selected.some((line) => line.includes(label))) return;
+    const selectionState = selected.join("\n");
+    if (!selectionState || seen.has(selectionState)) {
+      throw new Error(`Could not select TUI row: ${label}`);
+    }
+    seen.add(selectionState);
+    await tmuxRun(tmux, session, ["send-keys", "-t", session, "Down"]);
+    await delay(80);
+  }
 }
 
 async function waitForPane(

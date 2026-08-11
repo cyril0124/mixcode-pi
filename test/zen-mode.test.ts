@@ -182,6 +182,7 @@ test("zen mode removes hidden tab-bar rows from extension overlay reservations",
   let reservedRows: ((sessionId: string) => number) | undefined;
   const runtime = {
     getTab: () => ({ chat: [] }),
+    applyExtensionAutocompleteProviders: (_sessionId: string, base: unknown) => base,
     onChange: () => () => undefined,
     getAllExtensionCommands: () => [],
     setExtensionUiHost: (host?: { topReservedRows?: (sessionId: string) => number }) => {
@@ -209,6 +210,7 @@ test("zen mode removes hidden tab-bar rows from extension overlay reservations",
 test("zen mode hides the tab bar but keeps agent chrome", () => {
   const runtime = {
     getTab: () => ({ chat: [{ role: "assistant", text: "chat-line" }] }),
+    applyExtensionAutocompleteProviders: (_sessionId: string, base: unknown) => base,
     onChange: () => () => undefined,
     getAllExtensionCommands: () => [],
     getPromptHistory: () => [],

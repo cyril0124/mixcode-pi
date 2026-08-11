@@ -22,6 +22,7 @@ import { closeAppOverlay, showNoticeTextOverlay } from "../src/ui/app-overlays.j
 import { handleTreeSelectorKey } from "../src/ui/tree-selector.js";
 import { renderTreeSelector } from "../src/ui/tree-selector-render.js";
 import { handleSettingsPanelKey, renderSettingsPanel } from "../src/ui/settings-panel.js";
+import { selectSettingsItemByLabel } from "./helpers/settings-panel.js";
 
 function messageNode(
   id: string,
@@ -100,7 +101,7 @@ test("#76 settings number edit accepts unit suffixes and prefills compact form",
     const state = createInitialState(dir);
     state.settingsPanel = {
       open: true,
-      selectedIndex: 6, // history.maxBytes
+      selectedIndex: 0,
       editMode: false,
       editText: "",
       enumOpen: false,
@@ -117,6 +118,7 @@ test("#76 settings number edit accepts unit suffixes and prefills compact form",
       hideOverlay: () => undefined,
     };
 
+    selectSettingsItemByLabel(state, "History max bytes");
     handleSettingsPanelKey(state, "\r", tui); // enter edit
     assert.equal(state.settingsPanel.editMode, true);
     assert.equal(state.settingsPanel.editText, "5mb");
@@ -149,7 +151,7 @@ test("#76 non-byte number fields reject unit suffixes", async () => {
     const state = createInitialState(dir);
     state.settingsPanel = {
       open: true,
-      selectedIndex: 9, // oversized.maxLines
+      selectedIndex: 0,
       editMode: false,
       editText: "",
       enumOpen: false,
@@ -166,6 +168,7 @@ test("#76 non-byte number fields reject unit suffixes", async () => {
       hideOverlay: () => undefined,
     };
 
+    selectSettingsItemByLabel(state, "Oversized max lines");
     handleSettingsPanelKey(state, "\r", tui); // enter edit
     assert.equal(state.settingsPanel.editMode, true);
     assert.equal(state.settingsPanel.editText, "12");

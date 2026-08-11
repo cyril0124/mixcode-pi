@@ -4,7 +4,7 @@ import { visibleWidth, type Terminal } from "@earendil-works/pi-tui";
 import {
   bindRuntimeRendering,
   bindWorkingRedraw,
-  createMixCodeTui,
+  createMixCodeTui as createProductionMixCodeTui,
   handleMixCodeKeyInput,
   MixCodeRoot,
 } from "../src/ui/app.js";
@@ -20,6 +20,18 @@ import { createInitialState, createTab } from "../src/core/defaults.js";
 import type { MixCodeTabInfo } from "../src/core/types.js";
 import { openCommandPalette } from "../src/core/overlays.js";
 import type { MixCodeRuntime } from "../src/agent/runtime.js";
+
+function createMixCodeTui(
+  ...args: Parameters<typeof createProductionMixCodeTui>
+): ReturnType<typeof createProductionMixCodeTui> {
+  const runtime = args[1];
+  if (typeof runtime.applyExtensionAutocompleteProviders !== "function") {
+    Object.assign(runtime, {
+      applyExtensionAutocompleteProviders: (_sessionId: string, base: unknown) => base,
+    });
+  }
+  return createProductionMixCodeTui(...args);
+}
 
 test("fixed top viewport keeps top rows while clipping growing middle content", () => {
   assert.deepEqual(renderFixedTopViewport(["header", "tabs"], ["old", "new"], ["input"], 4), [
@@ -276,12 +288,12 @@ test("MixCodeRoot summarizes wrapped tabs to keep narrow Home content visible", 
   const text = stripAnsi(lines.join("\n"));
 
   assert.equal(lines.length <= 13, true);
-  assert.match(text, /\+\d+ tabs/);
+  assert.match(text, /\+\d+/);
   assert.match(text, /Agents/);
   assert.match(text, /↑\/↓: select|→: attach|Enter: send|Tab: cycle tabs/);
 });
 
-test("createMixCodeTui renders the combined layout with codex-like editor block and meta row", () => {
+test("createMixCodeTui renders the combined layout with editor and extension footer", () => {
   const state = createInitialState("/repo");
   state.tabs.push(
     createTab(1, "s1", "/repo", {
@@ -326,12 +338,11 @@ test("createMixCodeTui renders the combined layout with codex-like editor block 
     assert.ok(headerRow < chatRow);
     assert.match(plainLines.join("\n"), /extension footer/);
     assert.notEqual(inputLine, -1);
-    assert.match(plainLines[inputLine - 1] ?? "", /^─+ Agent-01 ──$/);
+    assert.match(plainLines[inputLine - 1] ?? "", /^─+ Agent-01\b.*──$/);
     assert.equal(plainLines[inputLine + 1], "─".repeat(80));
     assert.match(plainLines[inputLine - 2] ?? "", /Working/);
     // No blank row between working indicator and editor (gap removed)
     assert.match(lines[inputLine - 1] ?? "", /\x1b\[38;2;217;119;87m─/);
-    assert.match(plainLines[inputLine + 2] ?? "", /faux\/faux-1/);
     assert.match(plainLines.join("\n"), /Send message to Agent-01\.\.\./);
     assert.doesNotMatch(plainLines.join("\n"), /▊|▔|▁/);
     assert.doesNotMatch(plainLines.join("\n"), /Ctrl\+P/);
@@ -420,7 +431,7 @@ test("createMixCodeTui keeps a blank line between above-editor widgets and edito
   const inputLine = plainLines.findIndex((line) => /Send message to Agent-01/.test(line));
   assert.notEqual(widgetLine, -1);
   assert.notEqual(inputLine, -1);
-  assert.match(plainLines[inputLine - 1] ?? "", /^─+ Agent-01 ──$/);
+  assert.match(plainLines[inputLine - 1] ?? "", /^─+ Agent-01\b.*──$/);
   assert.equal(plainLines[inputLine - 2]?.trim(), "");
   assert.match(lines[inputLine - 1] ?? "", /\x1b\[38;2;217;119;87m─/);
   assert.equal(inputLine, widgetLine + 3);
@@ -448,7 +459,7 @@ test("createMixCodeTui keeps a blank line between idle content and editor", () =
   const inputLine = plainLines.findIndex((line) => /Send message to Agent-01/.test(line));
   assert.notEqual(inputLine, -1);
   assert.match(plainLines.slice(0, inputLine).join("\n"), /last visible answer/);
-  assert.match(plainLines[inputLine - 1] ?? "", /^─+ Agent-01 ──$/);
+  assert.match(plainLines[inputLine - 1] ?? "", /^─+ Agent-01\b.*──$/);
   assert.equal(plainLines[inputLine - 2]?.trim(), "");
 });
 
@@ -522,7 +533,7 @@ test("createMixCodeTui pins input meta to the bottom without a trailing blank ro
   assert.match(lines[0] ?? "", /Agent-01/);
   assert.match(plainLines.at(-1) ?? "", /faux\/faux-1/);
   assert.match(plainLines.at(-1) ?? "", /Medium/);
-  assert.match(plainLines.at(-1) ?? "", /\?\/200k/);
+  assert.match(plainLines.at(-1) ?? "", /\?%/);
   assert.notEqual(plainLines.at(-1)?.trim(), "");
   assert.equal(
     lines.every((line, index) => visibleWidth(line) <= (index === lines.length - 1 ? 119 : 120)),

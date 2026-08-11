@@ -176,6 +176,7 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
   const modelBundle = await createPiModelRegistryBundle(
     options.modelConfigPath ?? path.join(agentDir, "models.json"),
     path.join(agentDir, "auth.json"),
+    { allowModelNetwork: true },
   );
   configureDisabledModelRuntime(
     modelBundle.modelRuntime,

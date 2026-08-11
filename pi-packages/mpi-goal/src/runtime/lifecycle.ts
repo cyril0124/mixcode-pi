@@ -290,7 +290,7 @@ async function handleAgentSettled(pi: ExtensionAPI, ctx: ExtensionContext): Prom
 function armPendingAgentEndContinue(pi: ExtensionAPI, ctx: ExtensionContext, goal: GoalState | null): void {
 	clearPendingAgentEndContinue();
 	lifecycleState().agentEndContinueDispatched = false;
-	if (!goal || goal.status !== "active") {
+	if (goal?.status !== "active") {
 		lifecycleState().expectAgentEndContinue = false;
 		return;
 	}
@@ -312,7 +312,7 @@ function dispatchAgentEndContinue(pi: ExtensionAPI, ctx: ExtensionContext): void
 	if (!lifecycleState().expectAgentEndContinue || lifecycleState().agentEndContinueDispatched) return;
 	ensureGoalHydrated(ctx);
 	const goal = getGoal();
-	if (!goal || goal.status !== "active") return;
+	if (goal?.status !== "active") return;
 	lifecycleState().agentEndContinueDispatched = true;
 	lifecycleState().expectAgentEndContinue = false;
 	// Upstream API exhausted retries: pause goal (not active+idle fake work).
@@ -363,7 +363,7 @@ function handleGoalSteeringMessageStart(
 	ctx: ExtensionContext,
 ): void {
 	const message = event.message;
-	if (!message || message.role !== "custom") return;
+	if (message?.role !== "custom") return;
 	if (message.customType !== CONTINUATION_MESSAGE_TYPE) return;
 	ensureGoalHydrated(ctx);
 	const goal = getGoal();
@@ -399,7 +399,7 @@ function handleMessageUpdate(pi: ExtensionAPI, event: MessageUpdateEvent, ctx: E
 	if (event.message.role !== "assistant") return;
 
 	const goal = getGoal();
-	if (!goal || goal.status !== "active") return;
+	if (goal?.status !== "active") return;
 
 	// Live estimate only — never persist on this hot path.
 	const streamTokens = event.message.usage?.totalTokens ?? 0;
@@ -480,7 +480,10 @@ function handleToolResult(pi: ExtensionAPI, event: ToolResultEvent): void {
 	// Mid-turn checkpoint: persist only whole seconds (avoids per-tool write storms).
 	if (liveActiveExtraSeconds() >= 1) flushGoalActiveTime(pi, "turn");
 	if (event.isError) return;
-	if (event.toolName === "update_goal") return noteGoalUpdateResult(event.details);
+	if (event.toolName === "update_goal") {
+		noteGoalUpdateResult(event.details);
+		return;
+	}
 	turn.progressCount++;
 }
 

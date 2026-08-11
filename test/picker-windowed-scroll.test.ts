@@ -4,6 +4,7 @@ import { SettingsManager } from "@earendil-works/pi-coding-agent";
 import { createInitialState, createPicker, stripAnsi } from "../src/index.js";
 import { renderPickerOverlay } from "../src/ui/rendering/overlays.js";
 import { renderSettingsPanel } from "../src/ui/settings-panel.js";
+import { selectSettingsItemByLabel } from "./helpers/settings-panel.js";
 
 function manyModels(count: number) {
   return Array.from({ length: count }, (_, i) => ({
@@ -119,7 +120,7 @@ test("settings main list windows so deep selection stays under overlay maxHeight
     const state = createInitialState("/repo");
     state.settingsPanel = {
       open: true,
-      selectedIndex: 10, // Oversized max bytes (last item)
+      selectedIndex: 0,
       editMode: false,
       editText: "",
       enumOpen: false,
@@ -130,6 +131,7 @@ test("settings main list windows so deep selection stays under overlay maxHeight
       settingsManager: SettingsManager.inMemory(),
     };
 
+    selectSettingsItemByLabel(state, "Oversized max bytes");
     const lines = renderSettingsPanel(state, 80);
     const plain = stripAnsi(lines.join("\n"));
     assert.match(plain, /› Oversized max bytes|Oversized max bytes/);

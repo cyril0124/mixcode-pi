@@ -448,18 +448,19 @@ test("runtime refreshes live editor autocomplete providers registered after cach
         getText: () => "",
         setText: () => undefined,
         pasteToEditor: () => undefined,
-        setAutocompleteProvider: async (provider) => {
+        setAutocompleteProvider: () => {
           setProviderCalls++;
-          const suggestions = await provider.getSuggestions(["%"], 0, 1, {
-            signal: new AbortController().signal,
-          });
-          assert.equal(suggestions?.items[0]?.value, "%done");
         },
       },
     });
-    runtime.applyExtensionAutocompleteProviders("s1", base);
+    runtime.applyExtensionAutocompleteProviders("s1", base); // warm the cache
     await runtime.prompt("s1", "/add-provider");
     assert.equal(setProviderCalls, 1);
+    const provider = runtime.applyExtensionAutocompleteProviders("s1", base);
+    const suggestions = await provider.getSuggestions(["%"], 0, 1, {
+      signal: new AbortController().signal,
+    });
+    assert.equal(suggestions?.items[0]?.value, "%done");
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

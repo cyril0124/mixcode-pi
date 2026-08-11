@@ -49,6 +49,7 @@ function makeRuntime(): MixCodeRuntime {
   }));
   return {
     getTab: () => ({ chat }),
+    applyExtensionAutocompleteProviders: (_sessionId: string, base: unknown) => base,
     onChange: () => () => undefined,
     getAllExtensionCommands: () => [],
     getExtensionCommands: () => [],
@@ -461,6 +462,7 @@ test("Ctrl+E defers to the extension editor component when a pending interaction
     | undefined;
   const runtime = {
     getTab: () => ({ chat: [] }),
+    applyExtensionAutocompleteProviders: (_sessionId: string, base: unknown) => base,
     onChange: () => () => undefined,
     getAllExtensionCommands: () => [],
     getExtensionCommands: () => [],

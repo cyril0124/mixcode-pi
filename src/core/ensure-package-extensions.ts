@@ -30,8 +30,9 @@ const AGENT_EXTENSION_RUNTIME_PACKAGES = [
  * (see bootstrap's defaultMixCodeAgentDir); otherwise built-in packages install
  * under one root while discovery scans another and never loads them.
  *
- * - Dev mode (stable repoRoot): creates symlinks for live-reload.
- * - Binary mode (ephemeral runtimeDir): copies files so they persist after exit.
+ * `copy: true` copies package files; the startup path uses this in both source
+ * and compiled runtimes. The default symlink mode remains available to direct
+ * callers that explicitly want live package files.
  *
  * Safe to call multiple times — existing correct installs are left untouched.
  */

@@ -138,7 +138,11 @@ test("image-only user message still renders (no text body required)", () => {
     activeRenderTheme,
     { showImages: true },
   );
-  assert.ok(lines.length > 0);
+  const plain = stripAnsi(lines.join("\n"));
+  assert.ok(
+    lines.some((line) => line.includes("\x1b")) || /image\/png|\[image/i.test(plain),
+    `expected image output, got: ${JSON.stringify(plain)}`,
+  );
 });
 
 test("entriesToChatLines carries user images and text-only body", () => {

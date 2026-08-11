@@ -145,13 +145,14 @@ export function defaultPiAuthPath(): string {
 export async function createPiModelRegistryBundle(
   modelsPath = defaultPiModelsPath(),
   authPath = defaultPiAuthPath(),
+  options: { allowModelNetwork?: boolean } = {},
 ): Promise<PiModelRegistryBundle> {
   await assertPathIsNotDirectory(modelsPath);
-  // Interactive startup needs remote catalogs; create() only refreshes when opted in.
+  // Network catalog refresh is opt-in; interactive bootstrap enables it explicitly.
   const modelRuntime = await ModelRuntime.create({
     authPath,
     modelsPath,
-    allowModelNetwork: true,
+    allowModelNetwork: options.allowModelNetwork ?? false,
   });
   const registry = new ModelRegistry(modelRuntime);
   const sources = modelRuntime.getModels().map((model) => ({

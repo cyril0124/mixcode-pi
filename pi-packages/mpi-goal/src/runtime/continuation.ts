@@ -101,7 +101,8 @@ export function beginGoalCompaction(pi: ExtensionAPI, ctx: ExtensionContext): vo
 	skip(pi, "compacting");
 	if (ctx.isIdle()) {
 		logRuntime("beginGoalCompaction.prequeueSkippedIdle", workFields(work));
-		return finishCompactionTelemetry(pi, "prequeue", work.key, 0, "prequeueSkippedIdle");
+		finishCompactionTelemetry(pi, "prequeue", work.key, 0, "prequeueSkippedIdle");
+		return;
 	}
 	const prequeued = prequeueCompactionWork(pi, work);
 	if (prequeued) contState().prequeuedCompactionKey = work.key;
@@ -122,12 +123,14 @@ export function finishGoalCompaction(pi: ExtensionAPI, ctx: ExtensionContext): v
 	}
 	if (!compactionWorkStillApplies(work)) {
 		logRuntime("finishGoalCompaction.workNoLongerApplies", workFields(work));
-		return clearCompactionRuntime();
+		clearCompactionRuntime();
+		return;
 	}
 	if (contState().prequeuedCompactionKey === work.key) {
 		logRuntime("finishGoalCompaction.prequeuedAlready", workFields(work));
 		finishCompactionTelemetry(pi, "fallbackFinished", work.key, 0, "prequeued");
-		return clearCompactionRuntime({ keepPrequeueKey: true });
+		clearCompactionRuntime({ keepPrequeueKey: true });
+		return;
 	}
 	logRuntime("finishGoalCompaction.scheduleFallback", workFields(work));
 	scheduleCompactionFallbackRetry(pi, ctx, work);
@@ -135,7 +138,7 @@ export function finishGoalCompaction(pi: ExtensionAPI, ctx: ExtensionContext): v
 
 export function scheduleMaybeContinueGoal(pi: ExtensionAPI, ctx: ExtensionContext, reason: ContinuationReason): void {
 	const goal = getGoal();
-	if (!goal || goal.status !== "active") {
+	if (goal?.status !== "active") {
 		logRuntime("scheduleMaybeContinueGoal.skip.notActive", { reason });
 		if (isUserConfirmedContinuation(reason) && ctx.hasUI) {
 			notifyWarning(ctx, "Could not start goal continuation: no active goal in this session.");
@@ -147,11 +150,13 @@ export function scheduleMaybeContinueGoal(pi: ExtensionAPI, ctx: ExtensionContex
 		openApiGate(pi);
 	} else if (reason === "agentEnd" && isApiGateBlocked(getTelemetry())) {
 		logRuntime("scheduleMaybeContinueGoal.skip.apiError", { reason, goalId: goal.goalId });
-		return skip(pi, "apiError");
+		skip(pi, "apiError");
+		return;
 	}
 	if (shouldSuppressAgentEndContinuation(reason)) {
 		logRuntime("scheduleMaybeContinueGoal.skip.noProgress", { reason, goalId: goal.goalId });
-		return skip(pi, "noProgress");
+		skip(pi, "noProgress");
+		return;
 	}
 	cancelGoalContinuation(goal.goalId, "reschedule-continuation");
 	const telemetry = noteContinuationScheduled(getTelemetry(), reason);
@@ -469,7 +474,7 @@ function shouldSuppressAgentEndContinuation(reason: ContinuationReason): boolean
 	const noProgressAutoTurn = telemetry?.lastTurnOrigin === "auto" && telemetry.lastTurnToolCallCount === 0 && telemetry.lastTurnToolResultCount === 0 && !telemetry.lastTurnCompletedGoal;
 	if (!noProgressAutoTurn) return false;
 	const goal = getGoal();
-	if (!goal || goal.status !== "active") return true;
+	if (goal?.status !== "active") return true;
 	const floor = evaluateCompletionFloor(goal);
 	if (floor.anyFloorConfigured && !floor.allFloorsMet && !isBudgetExhausted(goal) && telemetry.floorQualityState !== "exhausted") return false;
 	return true;

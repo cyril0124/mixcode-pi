@@ -71,7 +71,7 @@ describe("isPathRef / expandEnvPath", () => {
     expect(isPathRef("/abs/skill")).toBe(true);
     expect(isPathRef("~/skills/x")).toBe(true);
     expect(isPathRef("$HOME/skills/x")).toBe(true);
-    expect(isPathRef("${HOME}/skills/x")).toBe(true);
+    expect(isPathRef("$" + "{HOME}/skills/x")).toBe(true);
     expect(isPathRef("./relative")).toBe(false);
   });
 
@@ -84,7 +84,7 @@ describe("isPathRef / expandEnvPath", () => {
     expect(tilde.ok).toBe(true);
     if (tilde.ok) expect(tilde.path).toBe(path.join(os.homedir(), "bar"));
 
-    const brace = expandEnvPath("${HOME}/baz");
+    const brace = expandEnvPath("$" + "{HOME}/baz");
     expect(brace.ok).toBe(true);
     if (brace.ok) expect(brace.path).toBe(path.join(os.homedir(), "baz"));
 

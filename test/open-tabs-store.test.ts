@@ -38,11 +38,55 @@ test("open_tabs rejects corrupt state without overwriting it", async () => {
 test("open_tabs lock wait yields CPU under contention", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mixcode-open-tabs-lock-"));
   const filePath = openTabsFile(dir);
+  const readyPath = join(dir, "waiter-ready");
+  const goPath = join(dir, "waiter-go");
+  let worker: Worker | undefined;
+  let child: ReturnType<typeof Bun.spawn> | undefined;
   try {
     writeOpenTabs(filePath, []);
     configureOpenTabsPath(filePath);
 
-    const worker = new Worker(
+    const moduleUrl = new URL("../src/index.ts", import.meta.url).href;
+    child = Bun.spawn(
+      [
+        process.execPath,
+        "--eval",
+        `
+        const api = await import(${JSON.stringify(moduleUrl)});
+        const filePath = process.env.MIXCODE_TEST_OPEN_TABS_FILE;
+        const readyPath = process.env.MIXCODE_TEST_READY_FILE;
+        const goPath = process.env.MIXCODE_TEST_GO_FILE;
+        await Bun.write(readyPath, "ready");
+        while (!(await Bun.file(goPath).exists())) await Bun.sleep(5);
+        api.configureOpenTabsPath(filePath);
+        const cpu0 = process.cpuUsage();
+        const t0 = Date.now();
+        api.noteTabOpened("session-after-wait");
+        const wallMs = Date.now() - t0;
+        const cpu = process.cpuUsage(cpu0);
+        const cpuMs = (cpu.user + cpu.system) / 1000;
+        process.stdout.write(JSON.stringify({ wallMs, cpuMs }));
+        `,
+      ],
+      {
+        env: {
+          ...process.env,
+          MIXCODE_TEST_OPEN_TABS_FILE: filePath,
+          MIXCODE_TEST_READY_FILE: readyPath,
+          MIXCODE_TEST_GO_FILE: goPath,
+        },
+        stdout: "pipe",
+        stderr: "pipe",
+      },
+    );
+    const stdout = new Response(child.stdout).text();
+    const stderr = new Response(child.stderr).text();
+    while (!(await Bun.file(readyPath).exists())) {
+      if (child.exitCode !== null) throw new Error(await stderr);
+      await Bun.sleep(5);
+    }
+
+    worker = new Worker(
       `
       const { parentPort, workerData } = require("node:worker_threads");
       const { openSync, writeSync, closeSync, rmSync, readFileSync } = require("node:fs");
@@ -65,27 +109,33 @@ test("open_tabs lock wait yields CPU under contention", async () => {
         closeSync(fd);
         rmSync(lockPath, { force: true });
         parentPort.postMessage("released");
+        parentPort.close();
       }, workerData.holdMs);
       `,
       { eval: true, workerData: { lockPath: `${filePath}.lock`, holdMs: 200 } },
     );
+    const workerExited = new Promise<void>((resolve, reject) => {
+      worker!.once("exit", (code) => (code === 0 ? resolve() : reject(new Error(`worker exit ${code}`))));
+      worker!.once("error", reject);
+    });
 
     await new Promise<void>((resolve, reject) => {
-      worker.once("message", (msg) => (msg === "held" ? resolve() : reject(new Error(String(msg)))));
-      worker.once("error", reject);
+      worker!.once("message", (msg) => (msg === "held" ? resolve() : reject(new Error(String(msg)))));
+      worker!.once("error", reject);
     });
-
-    const cpu0 = process.cpuUsage();
-    const t0 = Date.now();
-    noteTabOpened("session-after-wait");
-    const wallMs = Date.now() - t0;
-    const cpu = process.cpuUsage(cpu0);
-    const cpuMs = (cpu.user + cpu.system) / 1000;
-
-    await new Promise<void>((resolve) => {
-      worker.once("message", () => resolve());
+    const released = new Promise<void>((resolve) => {
+      worker!.once("message", () => resolve());
     });
-    await worker.terminate();
+    await Bun.write(goPath, "go");
+
+    const exitCode = await child.exited;
+    const errorText = await stderr;
+    assert.equal(exitCode, 0, errorText);
+    const { wallMs, cpuMs } = JSON.parse(await stdout) as { wallMs: number; cpuMs: number };
+
+    await released;
+    await workerExited;
+    worker = undefined;
 
     assert.ok(wallMs >= 150, `expected ~200ms block, got ${wallMs}ms`);
     assert.deepEqual(readOpenTabs(filePath), ["session-after-wait"]);
@@ -94,6 +144,9 @@ test("open_tabs lock wait yields CPU under contention", async () => {
       `lock wait burned too much CPU: cpu=${cpuMs.toFixed(1)}ms wall=${wallMs}ms`,
     );
   } finally {
+    child?.kill();
+    worker?.unref();
+    void worker?.terminate();
     configureOpenTabsPath(undefined);
     await rm(dir, { recursive: true, force: true });
   }

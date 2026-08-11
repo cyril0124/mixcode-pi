@@ -33,7 +33,7 @@ const BLOCKED_CLEAR_REPAINT_MS = 50;
 
 function debugLogPath(): string | undefined {
   const p = process.env.MIXCODE_STDOUT_GUARD_LOG;
-  return p && p.trim() ? p.trim() : undefined;
+  return p?.trim() ? p.trim() : undefined;
 }
 
 function writeDebugLog(): void {

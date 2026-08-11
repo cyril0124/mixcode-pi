@@ -15,6 +15,7 @@ import {
 import { renderDeleteAllSessionsConfirm } from "../src/ui/app-overlays.js";
 import { handleSettingsPanelKey, renderSettingsPanel } from "../src/ui/settings-panel.js";
 import { themeForId } from "../src/ui/themes.js";
+import { selectSettingsItemByLabel } from "./helpers/settings-panel.js";
 
 test("home logo is hidden when terminal width cannot fit the banner", () => {
   const state = createInitialState("/repo");
@@ -61,7 +62,7 @@ test("theme enum opens on the effective default theme", () => {
   state.theme = "claude-warm";
   state.settingsPanel = {
     open: true,
-    selectedIndex: 5,
+    selectedIndex: 0,
     editMode: false,
     editText: "",
     enumOpen: false,
@@ -78,6 +79,7 @@ test("theme enum opens on the effective default theme", () => {
     hideOverlay: () => undefined,
   };
 
+  selectSettingsItemByLabel(state, "Theme");
   handleSettingsPanelKey(state, "\r", tui);
 
   assert.equal(state.theme, "claude-warm");
@@ -89,11 +91,11 @@ test("theme enum browse applies live preview and Esc restores previous theme", (
   state.theme = "claude-warm";
   state.settingsPanel = {
     open: true,
-    selectedIndex: 5, // Theme item
+    selectedIndex: 0,
     editMode: false,
     editText: "",
-    enumOpen: true,
-    enumIndex: 1, // claude-warm in THEMES order: mixcode-dark, claude-warm, ...
+    enumOpen: false,
+    enumIndex: 0,
     mixcodeRaw: { theme: "claude-warm" },
     mixcodeFile: "/tmp/mixcode_settings.json",
     piSettingsFile: "/tmp/settings.json",
@@ -105,6 +107,9 @@ test("theme enum browse applies live preview and Esc restores previous theme", (
     hasOverlay: () => true,
     hideOverlay: () => undefined,
   };
+
+  selectSettingsItemByLabel(state, "Theme");
+  handleSettingsPanelKey(state, "\r", tui); // open enum on the effective theme
 
   // Browse to another theme id.
   handleSettingsPanelKey(state, "\x1b[B", tui); // down

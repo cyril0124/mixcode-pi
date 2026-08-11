@@ -60,7 +60,7 @@ describe("isPathRef / expandEnvPath", () => {
     expect(isPathRef("/abs/ext")).toBe(true);
     expect(isPathRef("~/exts/x")).toBe(true);
     expect(isPathRef("$HOME/exts/x")).toBe(true);
-    expect(isPathRef("${HOME}/exts/x")).toBe(true);
+    expect(isPathRef("$" + "{HOME}/exts/x")).toBe(true);
     expect(isPathRef("./relative")).toBe(false);
   });
 

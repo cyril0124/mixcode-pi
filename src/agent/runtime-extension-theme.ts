@@ -1,8 +1,8 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import {
-  type KeybindingsManager as ExtensionKeybindingsManager,
-  type Theme,
+import type {
+  KeybindingsManager as ExtensionKeybindingsManager,
+  Theme,
 } from "@earendil-works/pi-coding-agent";
 import {
   type KeybindingDefinitions,

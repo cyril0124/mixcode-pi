@@ -419,6 +419,7 @@ export async function runBatchDryRun(args: MainArgs): Promise<void> {
   const modelBundle = await createPiModelRegistryBundle(
     path.join(agentDir, "models.json"),
     path.join(agentDir, "auth.json"),
+    { allowModelNetwork: false },
   );
   registerModels(modelBundle.sources.map((source) => source.model));
   const configuredModels = modelBundle.sources

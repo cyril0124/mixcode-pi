@@ -140,7 +140,7 @@ function collectMarkdown(dir: string, visit: (filePath: string) => void): void {
 	}
 	for (const entry of entries) {
 		const filePath = path.join(dir, entry);
-		let stats;
+		let stats: fs.Stats;
 		try {
 			stats = fs.statSync(filePath);
 		} catch {

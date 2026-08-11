@@ -635,7 +635,7 @@ function renderMainSettingsLines(
   // If chrome pushed us over budget, drop blank separators first then trim head
   // while keeping the selected row if possible.
   while (lines.length > bodyBudget) {
-    const blank = lines.findIndex((l) => l === "");
+    const blank = lines.indexOf("");
     if (blank >= 0) {
       lines.splice(blank, 1);
       continue;

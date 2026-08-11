@@ -113,7 +113,7 @@ export function formatModelExtensionsHelp(configPath: string): string {
     "",
     "| Form | Meaning |",
     "|------|---------|",
-    "| `/abs`, `~/…`, `$VAR`, `${VAR}` | Load extension entry from absolute path |",
+    "| `/abs`, `~/…`, `$VAR`, `$" + "{VAR}` | Load extension entry from absolute path |",
     "| `name` | Resolve under `<agentDir>/extensions/<name>` (dir or `index.ts`/`index.js`) |",
     "",
     "Relative paths are **rejected**. Same path: load once.",

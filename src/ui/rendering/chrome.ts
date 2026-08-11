@@ -288,7 +288,7 @@ function limitTabRows(
   return { rows: visibleRows, hiddenCount };
 }
 
-/** Drop trailing tabs on the last visible row until ` … +N` fits; keep ≥1 tab. */
+/** Drop or truncate trailing tabs on the last visible row until ` … +N` fits. */
 function trimRowForOverflowHint(
   row: TabSegment[],
   rowIndex: number,
@@ -309,10 +309,19 @@ function trimRowForOverflowHint(
     if (prefix + tabsW + hintW <= width) {
       return { row: kept, hiddenFromRow };
     }
-    // Keep one tab even if the line is still tight — padLine clips rather than
-    // rendering a tabs-only-empty overflow row.
+    // Keep the final visible tab when it can be truncated without hiding the
+    // overflow count. If even the count cannot coexist with it, count that tab
+    // as hidden too so narrow layouts still expose the complete overflow state.
     if (kept.length <= 1) {
-      return { row: kept, hiddenFromRow };
+      const availableTabWidth = Math.max(0, width - prefix - hintW);
+      const only = kept[0];
+      if (only && availableTabWidth > 0) {
+        return {
+          row: [{ ...only, text: truncateToWidth(only.text, availableTabWidth, "…") }],
+          hiddenFromRow,
+        };
+      }
+      return { row: [], hiddenFromRow: hiddenFromRow + kept.length };
     }
     kept = kept.slice(0, -1);
     hiddenFromRow += 1;

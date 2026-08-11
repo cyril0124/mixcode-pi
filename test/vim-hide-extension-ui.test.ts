@@ -42,6 +42,7 @@ function makeRuntime(): MixCodeRuntime {
   }));
   return {
     getTab: () => ({ chat }),
+    applyExtensionAutocompleteProviders: (_sessionId: string, base: unknown) => base,
     onChange: () => () => undefined,
     getAllExtensionCommands: () => [],
     getPromptHistory: () => [],

@@ -1,6 +1,6 @@
 import { evaluateCompletionFloor, type CompletionFloorEvaluation } from "../../domain/floor.js";
 import { formatElapsed } from "../../domain/format.js";
-import { listGoalTemplateMetadata } from "../../templates/discover.js";
+import type { listGoalTemplateMetadata } from "../../templates/discover.js";
 import { getGoal, getTelemetry } from "../../persistence/goal-store.js";
 import type { FloorValuePassId, GoalState, GoalTelemetrySnapshot, NoMoreValuableWorkReason } from "../../domain/types.js";
 

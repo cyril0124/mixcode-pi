@@ -74,7 +74,6 @@ import {
   scheduleRuntimePendingMessageFlush,
 } from "./runtime-follow-up.js";
 import {
-  bindRuntimeExtensions,
   createRuntimeServices,
   createRuntimeTabWithFallback,
   disposeRuntimeTabAfterShutdown,
@@ -1563,10 +1562,6 @@ export class MixCodeRuntime {
 
   private disabledExtensionKeys(): Set<string> {
     return new Set(this.extensionManagerConfig.disabledExtensionKeys);
-  }
-
-  private async bindExtensions(runtimeTab: RuntimeTab): Promise<void> {
-    await bindRuntimeExtensions(runtimeTab, this.lifecycleContext());
   }
 
   private applyEvent(runtimeTab: RuntimeTab, event: RuntimeEvent): void {
