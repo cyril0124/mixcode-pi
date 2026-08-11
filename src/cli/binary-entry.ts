@@ -32,6 +32,8 @@ import chatViewIndex from "../../pi-packages/mpi-chat-view/index.ts" with { type
 import chatViewPackageJson from "../../pi-packages/mpi-chat-view/package.json" with { type: "text" };
 import bashDefaultTimeoutIndex from "../../pi-packages/mpi-bash-default-timeout/index.ts" with { type: "text" };
 import bashDefaultTimeoutPackageJson from "../../pi-packages/mpi-bash-default-timeout/package.json" with { type: "text" };
+import herdrReportIndex from "../../pi-packages/mpi-herdr-report/index.ts" with { type: "text" };
+import herdrReportPackageJson from "../../pi-packages/mpi-herdr-report/package.json" with { type: "text" };
 import loopIndex from "../../pi-packages/mpi-loop/index.ts" with { type: "text" };
 import loopHelpers from "../../pi-packages/mpi-loop/loop-helpers.ts" with { type: "text" };
 import loopManagementView from "../../pi-packages/mpi-loop/loop-management-view.ts" with { type: "text" };
@@ -162,6 +164,10 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
     "mpi-bash-default-timeout": {
       "index.ts": bashDefaultTimeoutIndex,
       "package.json": bashDefaultTimeoutPackageJson,
+    },
+    "mpi-herdr-report": {
+      "index.ts": herdrReportIndex,
+      "package.json": herdrReportPackageJson,
     },
     "mpi-loop": {
       "index.ts": loopIndex,
