@@ -4,10 +4,42 @@ import {
   createAssistantMessageEventStream,
   type SimpleStreamOptions,
 } from "@earendil-works/pi-ai";
-import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
+import type {
+  ExtensionFactory,
+  InlineExtension,
+  ModelRuntime,
+} from "@earendil-works/pi-coding-agent";
 import type { MixCodeModel } from "../core/types.js";
 import { mixcodeFauxStream } from "./faux-stream.js";
 import type { MixCodeStreamFn, SystemPromptOverride } from "./runtime-types.js";
+
+const EXTRA_RETRYABLE_RUNTIME_ERROR_PATTERN = /upstream.?error|upstream request failed/i;
+const PI_RETRYABLE_PROVIDER_ERROR_PATTERN = /provider.?returned.?error/i;
+
+export function normalizeRuntimeProviderErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  if (
+    PI_RETRYABLE_PROVIDER_ERROR_PATTERN.test(message) ||
+    !EXTRA_RETRYABLE_RUNTIME_ERROR_PATTERN.test(message)
+  ) {
+    return message;
+  }
+  return `Provider returned error: ${message}`;
+}
+
+/** Map proxy-specific transient errors into Pi's public retry classifier vocabulary. */
+export const runtimeRetryNormalizationExtension = {
+  name: "mixcode-retry-normalization",
+  hidden: true,
+  factory: ((pi) => {
+    pi.on("message_end", (event) => {
+      if (event.message.role !== "assistant" || event.message.stopReason !== "error") return;
+      const errorMessage = normalizeRuntimeProviderErrorMessage(event.message.errorMessage ?? "");
+      if (errorMessage === event.message.errorMessage) return;
+      return { message: { ...event.message, errorMessage } };
+    });
+  }) satisfies ExtensionFactory,
+} satisfies InlineExtension;
 
 export async function registerMixCodeRuntimeProvider(
   modelRuntime: ModelRuntime,

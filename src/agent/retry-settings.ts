@@ -1,19 +1,10 @@
-import { AgentSession, type SettingsManager } from "@earendil-works/pi-coding-agent";
+import type { SettingsManager } from "@earendil-works/pi-coding-agent";
 
 export const MIXCODE_RETRY_DEFAULTS = {
   maxRetries: 10,
   baseDelayMs: 200,
   jitterRatio: 0.1,
 } as const;
-
-/**
- * Some proxy gateways wrap transient upstream failures as `upstream_error` /
- * "Upstream request failed" without the original HTTP status, so the Pi SDK's
- * retry allowlist never matches them. Treat this wording as retryable; the SDK
- * deny-list (quota/billing) is checked first by the original classifier only,
- * but its wording cannot collide with this narrow pattern.
- */
-export const MIXCODE_EXTRA_RETRYABLE_ERROR_PATTERN = /upstream.?error|upstream request failed/i;
 
 const SDK_RETRY_DEFAULTS = {
   maxRetries: 3,
@@ -142,33 +133,4 @@ export function applyRetryJitter(delayMs: number, random = Math.random()): numbe
   const minFactor = 1 - MIXCODE_RETRY_DEFAULTS.jitterRatio;
   const jitterRange = MIXCODE_RETRY_DEFAULTS.jitterRatio * 2;
   return Math.round(delayMs * (minFactor + random * jitterRange));
-}
-
-type RetryClassifiedMessage = { stopReason?: string; errorMessage?: string };
-
-let retryClassificationPatched = false;
-
-/**
- * Widen AgentSession's retry classification with MixCode's extra pattern.
- * Patches the prototype once, so every session (all creation sites) inherits
- * it. The original classifier runs first: context-overflow errors still return
- * false there and the extra pattern cannot match overflow wording, so
- * compaction handling is unaffected.
- */
-export function configureMixCodeRetryClassification(): void {
-  if (retryClassificationPatched) return;
-
-  const proto = AgentSession.prototype as unknown as {
-    _isRetryableError(message: RetryClassifiedMessage): boolean;
-  };
-  const original = proto._isRetryableError;
-  proto._isRetryableError = function (message) {
-    if (original.call(this, message)) return true;
-    return (
-      message.stopReason === "error" &&
-      typeof message.errorMessage === "string" &&
-      MIXCODE_EXTRA_RETRYABLE_ERROR_PATTERN.test(message.errorMessage)
-    );
-  };
-  retryClassificationPatched = true;
 }

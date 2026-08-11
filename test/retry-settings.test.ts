@@ -1,19 +1,24 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { AgentSession, SettingsManager } from "@earendil-works/pi-coding-agent";
+import { isRetryableAssistantError, type AssistantMessage } from "@earendil-works/pi-ai";
+import { SettingsManager } from "@earendil-works/pi-coding-agent";
 import {
   applyRetryJitter,
-  configureMixCodeRetryClassification,
   configureMixCodeRetrySettings,
   MIXCODE_RETRY_DEFAULTS,
 } from "../src/agent/retry-settings.js";
+import { normalizeRuntimeProviderErrorMessage } from "../src/agent/runtime-provider.js";
 
-/** Invoke AgentSession's private retry classifier with a stub `this`. */
-function classifyRetryable(message: { stopReason: string; errorMessage?: string }): boolean {
-  const proto = AgentSession.prototype as unknown as {
-    _isRetryableError(message: unknown): boolean;
-  };
-  return proto._isRetryableError.call({ model: undefined }, message);
+function classifyRetryable(message: {
+  stopReason: AssistantMessage["stopReason"];
+  errorMessage?: string;
+}): boolean {
+  return isRetryableAssistantError({
+    ...message,
+    errorMessage: message.errorMessage
+      ? normalizeRuntimeProviderErrorMessage(message.errorMessage)
+      : undefined,
+  } as AssistantMessage);
 }
 
 test("configureMixCodeRetrySettings applies MixCode retry defaults over SDK defaults", () => {
@@ -77,9 +82,7 @@ test("applyRetryJitter applies Codex-style ±10% jitter", () => {
   assert.equal(applyRetryJitter(200, 1), 220);
 });
 
-test("configureMixCodeRetryClassification treats proxy upstream errors as retryable", () => {
-  configureMixCodeRetryClassification();
-
+test("the runtime maps proxy upstream errors to Pi's public retry classifier", () => {
   assert.equal(
     classifyRetryable({
       stopReason: "error",
@@ -90,14 +93,17 @@ test("configureMixCodeRetryClassification treats proxy upstream errors as retrya
   );
 });
 
-test("configureMixCodeRetryClassification is idempotent and preserves SDK classification", () => {
-  configureMixCodeRetryClassification();
-  configureMixCodeRetryClassification();
-
+test("Pi's public retry classifier preserves its allowlist and deny-list", () => {
   // SDK allowlist still works through the wrapper.
   assert.equal(classifyRetryable({ stopReason: "error", errorMessage: "500 server error" }), true);
-  // SDK deny-list (quota/billing) still wins over generic wording.
-  assert.equal(classifyRetryable({ stopReason: "error", errorMessage: "quota exceeded" }), false);
+  // SDK deny-list (quota/billing) still wins when wrapped in an upstream error.
+  assert.equal(
+    classifyRetryable({
+      stopReason: "error",
+      errorMessage: '{"type":"upstream_error","message":"quota exceeded"}',
+    }),
+    false,
+  );
   // Non-transient errors stay non-retryable.
   assert.equal(classifyRetryable({ stopReason: "error", errorMessage: "invalid api key" }), false);
   assert.equal(classifyRetryable({ stopReason: "error" }), false);

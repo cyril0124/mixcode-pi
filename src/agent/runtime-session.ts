@@ -164,19 +164,15 @@ export async function createSession(
  * Pi defers writing a new session JSONL until the first assistant message
  * (`flushed === false`, exclusive create on first flush). Multi-instance tab
  * discovery needs the file present as soon as a tab is open, so materialize
- * the in-memory header (+ any already-appended entries) and mark the manager
- * flushed so later appends use appendFile instead of wx.
+ * the in-memory header (+ any already-appended entries), then reopen it through
+ * Pi so the manager restores its own persistence state.
  */
 export function materializeSessionFile(session: SessionManager): void {
   const file = session.getSessionFile();
   if (!file) return;
-  // Pi keeps `flushed` private; multi-instance discovery needs the file on disk
-  // before the first assistant reply, so write then mark flushed for append path.
-  const mutable = session as unknown as { flushed?: boolean };
+  // Reopen through Pi's public API so it restores its own persistence state.
   if (fs.existsSync(file)) {
-    // File already on disk (reopened or previously materialized): ensure later
-    // appends do not attempt exclusive create.
-    mutable.flushed = true;
+    session.setSessionFile(file);
     return;
   }
   const header = session.getHeader();
@@ -185,7 +181,8 @@ export function materializeSessionFile(session: SessionManager): void {
   const lines = [header, ...session.getEntries()].map((entry) => JSON.stringify(entry));
   // Exclusive create (wx): keep node:fs; Bun.write has no exclusive-create flag.
   fs.writeFileSync(file, `${lines.join("\n")}\n`, { flag: "wx" });
-  mutable.flushed = true;
+  // Reopen through Pi's public API so later appends use Pi's normal append path.
+  session.setSessionFile(file);
   invalidateSessionCatalog(path.dirname(file));
 }
 

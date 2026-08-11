@@ -4,6 +4,7 @@ import * as path from "node:path";
 import * as os from "node:os";
 import test from "node:test";
 import { createTab, MIXCODE_FAUX_MODEL, MixCodeRuntime } from "../src/index.js";
+import { mixcodeFauxStream } from "../src/agent/faux-stream.js";
 import { MIXCODE_RETRY_DEFAULTS } from "../src/agent/retry-settings.js";
 
 test("runtime sessions use MixCode retry defaults without persisting settings", async () => {
@@ -25,6 +26,49 @@ test("runtime sessions use MixCode retry defaults without persisting settings", 
     assert.ok(retry.baseDelayMs <= 220);
     assert.equal(runtimeTab.agentSession.settingsManager.getGlobalSettings().retry, undefined);
     assert.equal(runtimeTab.agentSession.settingsManager.getProjectSettings().retry, undefined);
+  } finally {
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("runtime maps proxy upstream errors through Pi's public retry lifecycle", async () => {
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-retry-public-lifecycle-"));
+  try {
+    let attempts = 0;
+    const runtime = new MixCodeRuntime({
+      sessionsRoot: path.join(dir, "sessions"),
+      agentDir: path.join(dir, "agent"),
+      streamFn: (model, context, options) => {
+        attempts += 1;
+        if (attempts === 1) {
+          throw new Error('{"type":"upstream_error","message":"Upstream request failed"}');
+        }
+        return mixcodeFauxStream(model, context, options);
+      },
+    });
+    const model = {
+      ...MIXCODE_FAUX_MODEL,
+      provider: "retry-test",
+      id: "retry-test",
+      name: "Retry Test",
+      api: "retry-test",
+    };
+    const runtimeTab = await runtime.createTab(createTab(1, "s1", dir), {
+      model,
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: dir,
+    });
+    runtimeTab.agentSession.settingsManager.getRetrySettings = () => ({
+      enabled: true,
+      maxRetries: 1,
+      baseDelayMs: 1,
+    });
+
+    await runtime.prompt("s1", "retry once");
+
+    assert.equal(attempts, 2);
+    assert.equal(runtimeTab.agentSession.messages.at(-1)?.role, "assistant");
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }

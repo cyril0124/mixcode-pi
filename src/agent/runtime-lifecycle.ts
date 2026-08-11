@@ -15,22 +15,20 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { captureCompactionBaseline } from "../core/context-limit.js";
 import { detectSearchTools, type SearchToolAvailability } from "../core/detect-search-tools.js";
-import { preferDistExtensionEntries } from "../core/prefer-dist-extension-entries.js";
 import {
   type ExtensionManagerEntry,
   extensionManagerEntriesFromResult,
   filterDisabledExtensions,
 } from "../core/extension-manager.js";
 import {
-  buildMixCodeSystemPromptFromParts,
-  buildMixCodeSystemPromptOptionsFromSession,
-  MIXCODE_SYSTEM_PROMPT,
-} from "../core/system-prompt.js";
-import {
-  isExtensionToolOwner,
   type ExtensionToolOwnerPolicy,
+  isExtensionToolOwner,
 } from "../core/extension-tool-owners.js";
+import { preferDistExtensionEntries } from "../core/prefer-dist-extension-entries.js";
+import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import type { AgentRuntimeConfig, MixCodeModel, MixCodeTabInfo } from "../core/types.js";
+import { applyMixCodeSystemPrompt } from "./pi-session-internals.js";
+import { configureMixCodeRetrySettings } from "./retry-settings.js";
 import {
   appendSystemMessage,
   applyRuntimeTabModel,
@@ -50,13 +48,12 @@ import { consumeDeferredPendingMessageFlush } from "./runtime-follow-up.js";
 import {
   buildMixCodeSystemPromptOverride,
   registerMixCodeRuntimeProvider,
+  runtimeRetryNormalizationExtension,
 } from "./runtime-provider.js";
-import {
-  configureMixCodeRetryClassification,
-  configureMixCodeRetrySettings,
-} from "./retry-settings.js";
 import { refreshStartupHeader } from "./runtime-startup-header.js";
+
 export { refreshStartupHeader } from "./runtime-startup-header.js";
+
 import {
   bindRuntimeSessionCore,
   getExtensionManagerEntriesForServices,
@@ -216,7 +213,7 @@ async function createRuntimeTabWithServices(
   runtimeTab.requestRender = () => context.emitChange({ type: "extension_ui_update" }, runtimeTab);
   try {
     activateMixCodeTools(agentSession, extensionToolOwnerPolicy);
-    applyMixCodeSystemPrompt(services, config.workdir, agentSession);
+    applyMixCodeSystemPrompt(services, config.workdir, agentSession, cachedSearchTools);
     const restoredChat = await rebuildRuntimeChat(runtimeTab);
     if (tab.previewMessages.length === 0) {
       syncPreviewFromChat(tab, restoredChat);
@@ -224,7 +221,7 @@ async function createRuntimeTabWithServices(
     runtimeTab.chat = restoredChat;
     await bindRuntimeExtensions(runtimeTab, context);
     activateMixCodeTools(agentSession, extensionToolOwnerPolicy);
-    applyMixCodeSystemPrompt(services, config.workdir, agentSession);
+    applyMixCodeSystemPrompt(services, config.workdir, agentSession, cachedSearchTools);
     refreshStartupHeader(runtimeTab);
     syncContextUsage(runtimeTab);
     // Opening an existing on-disk session (bootstrap / peer / openExisting) must
@@ -341,7 +338,7 @@ async function createAgentSessionForReplacementWithServices(
   });
   const extensionToolOwnerPolicy = resolveExtensionToolOwnerPolicy(context);
   activateMixCodeTools(result.session, extensionToolOwnerPolicy);
-  applyMixCodeSystemPrompt(services, config.workdir, result.session);
+  applyMixCodeSystemPrompt(services, config.workdir, result.session, cachedSearchTools);
   return { ...result, services, toolLog };
 }
 
@@ -491,7 +488,7 @@ async function replaceRuntimeTabSessionUnlocked(
   // Repopulate preview after identity-switch reset cleared previewMessages
   syncPreviewFromChat(runtimeTab.tab, runtimeTab.chat);
   activateMixCodeTools(created.session, runtimeTab.extensionToolOwnerPolicy);
-  applyMixCodeSystemPrompt(created.services, runtimeTab.tab.workdir, created.session);
+  applyMixCodeSystemPrompt(created.services, runtimeTab.tab.workdir, created.session, cachedSearchTools);
   applyRuntimeTabModel(runtimeTab, created.session.agent.state.model);
   runtimeTab.tab.thinkingLevel = created.session.agent.state.thinkingLevel;
   refreshStartupHeader(runtimeTab);
@@ -526,6 +523,7 @@ export async function createRuntimeServices(
       ...(options.additionalExtensionPaths ?? []),
     ],
     extensionFactories: [
+      runtimeRetryNormalizationExtension,
       ...(options.resourceLoaderOptions?.extensionFactories ?? []),
       ...(options.extensionFactories ?? []),
     ],
@@ -567,7 +565,6 @@ export async function createRuntimeServices(
   // Record the user's compaction baseline before any /context-limit override so
   // a later reset restores these values, not hardcoded SDK defaults.
   captureCompactionBaseline(services.settingsManager);
-  configureMixCodeRetryClassification();
   // Merge ResourceLoader-discovered themes (packages, ~/.pi/agent/themes, …).
   const { registerMixCodeThemes } = await import("./runtime-extension-theme.js");
   registerMixCodeThemes(services.resourceLoader.getThemes().themes);
@@ -578,74 +575,6 @@ export async function createRuntimeServices(
 
 /** Cached search tool availability, detected once at module load. */
 const cachedSearchTools: SearchToolAvailability = detectSearchTools();
-
-function runtimeTabPromptOptions(services: AgentSessionServices, cwd: string) {
-  const appendSystemPrompt = services.resourceLoader.getAppendSystemPrompt().join("\n\n");
-  return {
-    customPrompt: services.resourceLoader.getSystemPrompt() || undefined,
-    appendSystemPrompt,
-    contextFiles: services.resourceLoader.getAgentsFiles().agentsFiles,
-    skills: services.resourceLoader.getSkills().skills,
-    cwd,
-    searchTools: cachedSearchTools,
-  };
-}
-
-/**
- * Route Pi's own system-prompt rebuilds through MixCode's builder.
- *
- * Pi rebuilds the base system prompt via AgentSession._rebuildSystemPrompt on
- * construction, on setActiveToolsByName (which extensions can trigger at runtime
- * through pi.setActiveTools), and on reload. Without this override those rebuilds
- * replace MixCode's prompt (history recall, search guidelines, MixCode project-
- * context format) with Pi's default builder output. Overriding the method keeps
- * MixCode's builder authoritative across every rebuild path, and passing the
- * rebuild's own toolNames captures each tool's promptSnippet and promptGuidelines.
- */
-function installMixCodeSystemPromptBuilder(
-  agentSession: RuntimeTab["agentSession"],
-  services: AgentSessionServices,
-  cwd: string,
-): void {
-  const writableSession = agentSession as unknown as {
-    _rebuildSystemPrompt?: (toolNames: string[]) => string;
-    _baseSystemPromptOptions?: ReturnType<typeof buildMixCodeSystemPromptOptionsFromSession>;
-  };
-  if (typeof writableSession._rebuildSystemPrompt !== "function") {
-    throw new Error(
-      "Pi AgentSession._rebuildSystemPrompt internals changed; MixCode cannot own system prompt assembly.",
-    );
-  }
-  writableSession._rebuildSystemPrompt = (toolNames: string[]) => {
-    const options = buildMixCodeSystemPromptOptionsFromSession(
-      {
-        getActiveToolNames: () => toolNames,
-        getToolDefinition: (name) => agentSession.getToolDefinition(name),
-      },
-      runtimeTabPromptOptions(services, cwd),
-    );
-    // Pi reads _baseSystemPromptOptions in before_agent_start; keep it in sync.
-    writableSession._baseSystemPromptOptions = options;
-    return buildMixCodeSystemPromptFromParts(options);
-  };
-}
-
-function applyMixCodeSystemPrompt(
-  services: AgentSessionServices,
-  cwd: string,
-  agentSession: RuntimeTab["agentSession"],
-): void {
-  installMixCodeSystemPromptBuilder(agentSession, services, cwd);
-  const writableSession = agentSession as unknown as {
-    _rebuildSystemPrompt: (toolNames: string[]) => string;
-    _baseSystemPrompt?: string;
-    _systemPromptOverride?: string;
-  };
-  const prompt = writableSession._rebuildSystemPrompt(agentSession.getActiveToolNames());
-  writableSession._baseSystemPrompt = prompt;
-  // Respect an active extension system-prompt override, matching Pi semantics.
-  agentSession.agent.state.systemPrompt = writableSession._systemPromptOverride ?? prompt;
-}
 
 export async function bindRuntimeExtensions(
   runtimeTab: RuntimeTab,
@@ -682,6 +611,7 @@ export async function bindRuntimeExtensions(
     runtimeTab.services,
     runtimeTab.tab.workdir,
     runtimeTab.agentSession,
+    cachedSearchTools,
   );
 }
 
@@ -724,7 +654,6 @@ export async function reloadRuntimeTabWithFreshServices(
   syncPreviewFromChat(runtimeTab.tab, runtimeTab.chat);
   await bindRuntimeExtensions(runtimeTab, context);
   activateMixCodeTools(agentSession, runtimeTab.extensionToolOwnerPolicy);
-  applyMixCodeSystemPrompt(services, runtimeTab.tab.workdir, agentSession);
   // Pi refreshes the same loadedResourcesContainer on session_start and /reload;
   // the tab-level header is the MixCode analogue, so recompute it here too.
   refreshStartupHeader(runtimeTab);
