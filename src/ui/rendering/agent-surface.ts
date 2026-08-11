@@ -208,7 +208,7 @@ function renderAgentSurfaceInner(
   keepScrolledViewStable(tab, lines.length, surfaceWidth, viewport);
   const maxOffset = Math.max(0, lines.length - viewport);
   if (tab.chatScrollOffset > maxOffset) tab.chatScrollOffset = maxOffset;
-  applyScrollFreezeAnchor(tab, lines, viewport, surfaceWidth);
+  applyScrollFreezeAnchor(tab, lines, viewport, surfaceWidth, true);
   applyPendingScrollUserDelta(tab);
   if (tab.chatScrollOffset > maxOffset) tab.chatScrollOffset = maxOffset;
   const fitted = fitScrolledLinesWithInfo(lines, maxHeight, surfaceWidth, tab.chatScrollOffset);

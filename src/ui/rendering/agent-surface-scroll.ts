@@ -1,3 +1,4 @@
+import { stripTerminalSequences } from "@earendil-works/pi-tui";
 import type { ChatLine } from "../../agent/runtime.js";
 import type { MixCodeTabInfo } from "../../core/types.js";
 import { activeRenderTheme } from "./context.js";
@@ -116,13 +117,15 @@ export function applyScrollFreezeAnchor(
   lines: string[],
   viewport: number,
   width: number,
+  allowChatLineFallback = false,
 ): void {
   const state = scrollFreezeStates.get(tab);
   if (tab.chatScrollOffset <= 0 || !state?.frozen || !state.line) {
     return;
   }
-  // Prefer ChatLine re-anchor when available (handled by applyChatBlockScrollAnchor).
-  if (state.chatLine) return;
+  // Windowed rendering applies the stronger ChatLine anchor first. Full
+  // rendering has no block layouts, so it must fall back to the rendered line.
+  if (state.chatLine && !allowChatLineFallback) return;
   const index = findScrollFreezeAnchorIndex(
     lines,
     state.line,
@@ -184,9 +187,9 @@ export function applyChatBlockScrollAnchor(
   });
 }
 
-/** Strip ANSI so blank themed rows (bg color + spaces) are not treated as content. */
+/** Strip terminal controls so invisible rows are not treated as content. */
 function visibleText(line: string): string {
-  return line.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "").trim();
+  return stripTerminalSequences(line).trim();
 }
 
 /** Remember the top visible non-marker line as the freeze anchor for next frame. */

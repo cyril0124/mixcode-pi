@@ -251,6 +251,30 @@ test("windowed renderer keeps scrolled view stable as streaming tail grows", () 
   assert.match(bottom, /new streaming words wrap/);
 });
 
+test("renderer transition keeps a historical scroll anchor when streaming completes", () => {
+  const chat = [
+    ...buildLongChat(30),
+    { role: "assistant" as const, text: "active streaming tail" },
+  ];
+  const tab = createTab(44, "s44", "/repo", { status: "running", chatScrollOffset: 30 });
+  const before = renderAgentSurface(tab, { chat } as never, WIDTH, HEIGHT).map(stripAnsi);
+  const anchorRow = before.findIndex((line) =>
+    /\b(?:assistant|user|output|system)-\d+\b/.test(line),
+  );
+  const anchor = before[anchorRow];
+
+  assert.ok(anchor, "expected a visible historical message");
+
+  chat[chat.length - 1] = {
+    role: "assistant",
+    text: Array.from({ length: 120 }, (_, index) => `STREAM-${index + 1}`).join("\n"),
+  };
+  tab.status = "idle";
+  const after = renderAgentSurface(tab, { chat } as never, WIDTH, HEIGHT).map(stripAnsi);
+
+  assert.equal(after[anchorRow], anchor);
+});
+
 // Growth can arrive in the same frame as a user scroll. Freeze must still absorb
 // the growth; otherwise the view drifts toward the streaming tail.
 test("windowed renderer stays stable when user scrolls in the same frame as growth", () => {
