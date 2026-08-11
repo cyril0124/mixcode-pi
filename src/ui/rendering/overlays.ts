@@ -13,7 +13,7 @@ import {
 import { filteredPickerItems, workdirBreadcrumb } from "../../core/pickers.js";
 import { activeToast } from "../../core/toast.js";
 import type { MixCodeState, MixCodeTabInfo, PreviewMessage } from "../../core/types.js";
-import { tabHasPendingUserInteraction } from "../../core/tab-state.js";
+import { tabIsWaitingForInput } from "../../core/tab-state.js";
 import { type MixCodeTheme, themeForId } from "../themes.js";
 import { tabStatusGlyph } from "./chrome.js";
 import { activeRenderTheme, renderWithTheme } from "./context.js";
@@ -289,7 +289,7 @@ function renderPreviewPanel(
 
 function formatAgentCardTitleSegment(tab: MixCodeState["tabs"][number], text: string): string {
   if (tab.status === "error") return activeRenderTheme.error(text);
-  if (tabHasPendingUserInteraction(tab)) return activeRenderTheme.toolTitle(text);
+  if (tabIsWaitingForInput(tab)) return activeRenderTheme.toolTitle(text);
   if (tab.status === "running" || tab.status === "thinking") return activeRenderTheme.accent(text);
   if (tab.status === "done" || tab.unreadDone) return activeRenderTheme.done(text);
   return text;
@@ -552,7 +552,7 @@ function renderTabJumpRow(
 }
 
 function formatTabJumpStatus(entry: ReturnType<typeof filterTabJumpEntries>[number]): string {
-  if (entry.question) return activeRenderTheme.warning("?");
+  if (entry.waitingForInput) return activeRenderTheme.warning("?");
   if (entry.busy) return activeRenderTheme.accent("*");
   if (entry.done) return activeRenderTheme.done("!");
   return " ";
@@ -569,7 +569,7 @@ function formatTabJumpId(id: string, label: string, availableWidth: number): str
 function tabJumpBaseStyle(
   entry: ReturnType<typeof filterTabJumpEntries>[number],
 ): (text: string) => string {
-  if (entry.question) return activeRenderTheme.toolTitle;
+  if (entry.waitingForInput) return activeRenderTheme.toolTitle;
   if (entry.busy) return activeRenderTheme.accent;
   if (entry.done) return activeRenderTheme.done;
   return (text: string) => text;

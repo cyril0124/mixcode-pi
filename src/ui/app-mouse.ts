@@ -170,7 +170,7 @@ export function handleMouseInput(
     tui.requestRender();
     return true;
   }
-  if (mouse.wheel && active.extensionUi.pendingUserInteractions.length > 0) {
+  if (mouse.wheel && active.extensionUi.waitingForInputs.length > 0) {
     scrollChat(active, mouse.wheel === "up" ? 3 : -3);
     tui.requestRender();
     return true;
@@ -186,7 +186,7 @@ export function handleMouseInput(
   // but do not let panel selection/scroll steal clicks or drags from the modal.
   const panelInteractive =
     active.panelOpen &&
-    active.extensionUi.pendingUserInteractions.length === 0 &&
+    active.extensionUi.waitingForInputs.length === 0 &&
     active.pendingDialogs.length === 0;
   if (panelInteractive && handlePanelSelectionMouse(active, mouse, tui, copyToClipboard)) {
     return true;

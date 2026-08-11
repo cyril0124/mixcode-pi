@@ -26,7 +26,7 @@ function makeState(vimMode: boolean) {
           { key: "fleet", placement: "belowEditor", lines: [WIDGET_BELOW] },
         ],
         toolsExpanded: false,
-        pendingUserInteractions: [],
+        waitingForInputs: [],
         workingVisible: true,
       },
     }),

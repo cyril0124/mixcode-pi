@@ -53,7 +53,7 @@ function createMockTab(overrides: Partial<MixCodeTabInfo> = {}): MixCodeTabInfo 
       statuses: [],
       widgets: [],
       toolsExpanded: false,
-      pendingUserInteractions: [],
+      waitingForInputs: [],
       workingVisible: false,
     },
     ...overrides,

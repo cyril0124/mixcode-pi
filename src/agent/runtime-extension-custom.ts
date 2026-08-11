@@ -22,9 +22,9 @@ import type {
 
 const EXTENSION_OVERLAY_ROWS = Symbol.for("mixcode:extension-overlay-rows");
 
-function nextPendingInteractionId(runtimeTab: RuntimeTab, kind: "custom" | "editor"): string {
+function nextWaitingForInputId(runtimeTab: RuntimeTab, kind: "custom" | "editor"): string {
   const prefix = `extension-${kind}-`;
-  const maxIndex = runtimeTab.tab.extensionUi.pendingUserInteractions.reduce((max, interaction) => {
+  const maxIndex = runtimeTab.tab.extensionUi.waitingForInputs.reduce((max, interaction) => {
     if (!interaction.id.startsWith(prefix)) return max;
     const index = Number(interaction.id.slice(prefix.length));
     return Number.isInteger(index) ? Math.max(max, index) : max;
@@ -32,16 +32,16 @@ function nextPendingInteractionId(runtimeTab: RuntimeTab, kind: "custom" | "edit
   return `${prefix}${maxIndex + 1}`;
 }
 
-function addPendingUserInteraction(runtimeTab: RuntimeTab, id: string, kind: "custom" | "editor") {
+function addWaitingForInput(runtimeTab: RuntimeTab, id: string, kind: "custom" | "editor") {
   // Side-panel open/close is user-owned (→ toggle). Pending interactions only
-  // take input focus via pendingUserInteractions guards — they must not change
+  // take input focus via waitingForInputs guards — they must not change
   // panelOpen, or every extension UI (custom/dialog/editor) would dismiss it.
-  runtimeTab.tab.extensionUi.pendingUserInteractions.push({ id, kind });
+  runtimeTab.tab.extensionUi.waitingForInputs.push({ id, kind });
 }
 
-function removePendingUserInteraction(runtimeTab: RuntimeTab, id: string): void {
-  runtimeTab.tab.extensionUi.pendingUserInteractions =
-    runtimeTab.tab.extensionUi.pendingUserInteractions.filter(
+function removeWaitingForInput(runtimeTab: RuntimeTab, id: string): void {
+  runtimeTab.tab.extensionUi.waitingForInputs =
+    runtimeTab.tab.extensionUi.waitingForInputs.filter(
       (interaction) => interaction.id !== id,
     );
 }
@@ -64,14 +64,14 @@ export function createExtensionCustomOverlay<T>(
     let component: ExtensionCustomComponent | undefined;
     let handle: OverlayHandle | undefined;
     let settled = false;
-    const interactionId = nextPendingInteractionId(runtimeTab, "custom");
-    addPendingUserInteraction(runtimeTab, interactionId, "custom");
+    const interactionId = nextWaitingForInputId(runtimeTab, "custom");
+    addWaitingForInput(runtimeTab, interactionId, "custom");
     const close = (result: T) => {
       if (settled) return;
       settled = true;
       runtimeTab.extensionCustomOverlayClosers.delete(closeWithoutResult);
       if (handle) runtimeTab.extensionCustomOverlayHandles.delete(handle);
-      removePendingUserInteraction(runtimeTab, interactionId);
+      removeWaitingForInput(runtimeTab, interactionId);
       handle?.hide();
       try {
         component?.dispose?.();
@@ -117,7 +117,7 @@ export function createExtensionCustomOverlay<T>(
         settled = true;
         runtimeTab.extensionCustomOverlayClosers.delete(closeWithoutResult);
         if (handle) runtimeTab.extensionCustomOverlayHandles.delete(handle);
-        removePendingUserInteraction(runtimeTab, interactionId);
+        removeWaitingForInput(runtimeTab, interactionId);
         try {
           component?.dispose?.();
         } finally {
@@ -143,12 +143,12 @@ function createExtensionCustomEditor<T>(
     const previousFactory = host.editor?.getEditorComponent?.(sessionId);
     const previousText =
       host.editor?.getExpandedText?.(sessionId) ?? host.editor?.getText?.(sessionId) ?? "";
-    const interactionId = nextPendingInteractionId(runtimeTab, "custom");
+    const interactionId = nextWaitingForInputId(runtimeTab, "custom");
     const close = (result: T) => {
       if (settled) return;
       settled = true;
       runtimeTab.extensionCustomOverlayClosers.delete(closeWithoutResult);
-      removePendingUserInteraction(runtimeTab, interactionId);
+      removeWaitingForInput(runtimeTab, interactionId);
       try {
         host.editor?.setEditorComponent?.(previousFactory, sessionId);
         host.editor?.setText(previousText, sessionId);
@@ -160,7 +160,7 @@ function createExtensionCustomEditor<T>(
     };
     const closeWithoutResult = () => close(undefined as T);
     runtimeTab.extensionCustomOverlayClosers.add(closeWithoutResult);
-    addPendingUserInteraction(runtimeTab, interactionId, "custom");
+    addWaitingForInput(runtimeTab, interactionId, "custom");
     const tui = createTerminalRowsProxy(host.tui, () =>
       host.editor?.getEmbeddedTerminalRows?.(sessionId),
     );
@@ -188,7 +188,7 @@ function createExtensionCustomEditor<T>(
         if (settled) return;
         settled = true;
         runtimeTab.extensionCustomOverlayClosers.delete(closeWithoutResult);
-        removePendingUserInteraction(runtimeTab, interactionId);
+        removeWaitingForInput(runtimeTab, interactionId);
         try {
           component?.dispose?.();
         } finally {
@@ -252,12 +252,12 @@ export function createExtensionEditorOverlay(
   return new Promise<string | undefined>((resolve) => {
     let component: ExtensionEditorComponent | undefined;
     let settled = false;
-    const interactionId = nextPendingInteractionId(runtimeTab, "editor");
+    const interactionId = nextWaitingForInputId(runtimeTab, "editor");
     const finish = (value: string | undefined) => {
       if (settled) return;
       settled = true;
       runtimeTab.extensionCustomOverlayClosers.delete(cancel);
-      removePendingUserInteraction(runtimeTab, interactionId);
+      removeWaitingForInput(runtimeTab, interactionId);
       setEditorComponent(previousFactory, sessionId);
       editor.setText(previousText, sessionId);
       resolve(value);
@@ -265,7 +265,7 @@ export function createExtensionEditorOverlay(
     };
     const cancel = () => finish(undefined);
     runtimeTab.extensionCustomOverlayClosers.add(cancel);
-    addPendingUserInteraction(runtimeTab, interactionId, "editor");
+    addWaitingForInput(runtimeTab, interactionId, "editor");
     const tui = createTerminalRowsProxy(host.tui, () =>
       editor.getEmbeddedTerminalRows?.(sessionId),
     );

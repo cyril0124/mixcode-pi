@@ -78,7 +78,7 @@ export function isPendingEditorTakeover(
   editorActions?: MixCodeEditorActions,
 ): boolean {
   if (editorActions?.hasInputComponent?.()) return true;
-  return Boolean(active?.extensionUi.pendingUserInteractions.length);
+  return Boolean(active?.extensionUi.waitingForInputs.length);
 }
 
 /** Switch tabs and close Session Tree if it would steal keys on the destination. */
@@ -120,7 +120,7 @@ export function handleMixCodeKeyInput(
       active &&
       state.activeTabId !== "config" &&
       !hasAnyOverlay(tui) &&
-      !active.extensionUi.pendingUserInteractions.length
+      !active.extensionUi.waitingForInputs.length
     ) {
       runtime?.dispatchTerminalInput?.(active.sessionId, data);
     }
@@ -243,7 +243,7 @@ export function handleMixCodeKeyInput(
     !hasAnyOverlay(tui) &&
     !hasFocusedAppControl(state, active) &&
     !isEditorAutocompleteOpen() &&
-    !active.extensionUi.pendingUserInteractions.length &&
+    !active.extensionUi.waitingForInputs.length &&
     handleVimUserMessageNavigation(active, data, runtime)
   ) {
     clearPendingEscape(active, "abort-agent");
@@ -261,7 +261,7 @@ export function handleMixCodeKeyInput(
     active &&
     state.activeTabId !== "config" &&
     !hasAnyOverlay(tui) &&
-    !active.extensionUi.pendingUserInteractions.length
+    !active.extensionUi.waitingForInputs.length
   ) {
     const extensionInput = runtime?.dispatchTerminalInput?.(active.sessionId, data);
     if (extensionInput?.consume) return { consume: true };
@@ -521,7 +521,7 @@ function handleAgentSurfaceKeys(
     !isEditorAutocompleteOpen() &&
     !active.previewOpen &&
     !active.pendingDialogs.length &&
-    !active.extensionUi.pendingUserInteractions.length &&
+    !active.extensionUi.waitingForInputs.length &&
     editorActions &&
     editorActions.getText().length === 0
   ) {
@@ -563,7 +563,7 @@ function handleAgentSurfaceKeys(
     !isEditorAutocompleteOpen() &&
     !active.previewOpen &&
     !active.pendingDialogs.length &&
-    !active.extensionUi.pendingUserInteractions.length &&
+    !active.extensionUi.waitingForInputs.length &&
     editorActions &&
     editorActions.getText().length === 0
   ) {
@@ -674,7 +674,7 @@ function handleEditorControlKeys(
     active &&
     state.activeTabId !== "config" &&
     !hasAnyOverlay(tui) &&
-    active.extensionUi.pendingUserInteractions.length === 0 &&
+    active.extensionUi.waitingForInputs.length === 0 &&
     !shouldRouteLineBoundaryKeyToEditor(data, editorActions) &&
     handleChatScrollKey(active, data)
   ) {

@@ -204,7 +204,7 @@ async function createRuntimeTabWithServices(
     statuses: [],
     widgets: [],
     toolsExpanded: false,
-    pendingUserInteractions: [],
+    waitingForInputs: [],
     workingVisible: true,
   };
   // Pi may restore a different model and clamps thinking during session creation.
@@ -453,7 +453,7 @@ async function replaceRuntimeTabSessionUnlocked(
     statuses: [],
     widgets: [],
     toolsExpanded: false,
-    pendingUserInteractions: [],
+    waitingForInputs: [],
     workingVisible: true,
   };
   // Rebuild chat and bind extensions BEFORE mutating tab identity.

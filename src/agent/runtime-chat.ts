@@ -657,7 +657,7 @@ export function resetTabForNewSession(tab: MixCodeTabInfo, sessionId: string): v
     statuses: [],
     widgets: [],
     toolsExpanded: false,
-    pendingUserInteractions: [],
+    waitingForInputs: [],
     workingVisible: true,
   };
   // The startup header belongs to the outgoing session's services; every

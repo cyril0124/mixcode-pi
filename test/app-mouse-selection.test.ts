@@ -105,7 +105,7 @@ test("handleMouseInput keeps wheel scrolling separate from selection", () => {
 
 test("handleMouseInput scrolls chat wheel during extension user interaction overlays", () => {
   const { state, tab } = setup();
-  tab.extensionUi.pendingUserInteractions.push({ id: "ask-user-question", kind: "custom" });
+  tab.extensionUi.waitingForInputs.push({ id: "ask-user-question", kind: "custom" });
   let renders = 0;
   const tui = {
     requestRender: () => renders++,

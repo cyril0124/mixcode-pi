@@ -36,7 +36,7 @@ function snapshot(overrides: Partial<InstanceRegistrySnapshot>): InstanceRegistr
         status: "idle",
         unreadDone: false,
         pendingDialogCount: 0,
-        pendingUserInteractionCount: 0,
+        waitingForInputCount: 0,
       },
     ],
     ...overrides,
@@ -82,7 +82,7 @@ test("createInstanceSnapshot captures live tab metadata without chat content", (
     customAnswers: [],
     dirty: false,
   });
-  tab.extensionUi.pendingUserInteractions.push({ id: "u1", kind: "custom" });
+  tab.extensionUi.waitingForInputs.push({ id: "u1", kind: "custom" });
   state.tabs.push(tab);
   state.activeTabId = tab.sessionId;
 
@@ -96,7 +96,7 @@ test("createInstanceSnapshot captures live tab metadata without chat content", (
   assert.equal(captured.activeTabId, "session-full-id");
   assert.equal(captured.tabs[0]?.title, "Worker");
   assert.equal(captured.tabs[0]?.pendingDialogCount, 1);
-  assert.equal(captured.tabs[0]?.pendingUserInteractionCount, 1);
+  assert.equal(captured.tabs[0]?.waitingForInputCount, 1);
   assert.equal(JSON.stringify(captured).includes("questions"), false);
 });
 
@@ -147,13 +147,13 @@ test("loadLiveInstanceStatus derives tab state and sorts instances by workdir", 
         tabs: [
           {
             index: 1,
-            sessionId: "needs-input-session",
-            title: "Needs Input",
+            sessionId: "waiting-for-input-session",
+            title: "Waiting For Input",
             workdir: "/z-repo",
             status: "done",
             unreadDone: true,
             pendingDialogCount: 1,
-            pendingUserInteractionCount: 0,
+            waitingForInputCount: 0,
             lastWorkedDurationSeconds: 3,
           },
           {
@@ -164,7 +164,7 @@ test("loadLiveInstanceStatus derives tab state and sorts instances by workdir", 
             status: "running",
             unreadDone: false,
             pendingDialogCount: 0,
-            pendingUserInteractionCount: 0,
+            waitingForInputCount: 0,
             workingStartedAt: "2026-06-06T00:00:00.000Z",
           },
           {
@@ -175,7 +175,7 @@ test("loadLiveInstanceStatus derives tab state and sorts instances by workdir", 
             status: "idle",
             unreadDone: true,
             pendingDialogCount: 0,
-            pendingUserInteractionCount: 0,
+            waitingForInputCount: 0,
             lastWorkedDurationSeconds: 7,
           },
         ],
@@ -197,7 +197,7 @@ test("loadLiveInstanceStatus derives tab state and sorts instances by workdir", 
             status: "idle",
             unreadDone: false,
             pendingDialogCount: 0,
-            pendingUserInteractionCount: 0,
+            waitingForInputCount: 0,
           },
         ],
       }),
@@ -217,7 +217,7 @@ test("loadLiveInstanceStatus derives tab state and sorts instances by workdir", 
     assert.deepEqual(
       zRepo.tabs.map((tab) => [tab.title, tab.state, tab.status, tab.elapsedSeconds]),
       [
-        ["Needs Input", "needs-input", "done", 3],
+        ["Waiting For Input", "waiting-for-input", "done", 3],
         ["Running", "working", "running", 12],
         ["Finished", "finished", "idle", 7],
       ],
@@ -246,7 +246,7 @@ test("formatInstanceStatusTable renders grouped instances and active tabs", asyn
             status: "thinking",
             unreadDone: false,
             pendingDialogCount: 0,
-            pendingUserInteractionCount: 0,
+            waitingForInputCount: 0,
             workingStartedAt: "2026-06-06T00:00:00.000Z",
           },
         ],

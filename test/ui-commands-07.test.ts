@@ -91,7 +91,7 @@ test("extension widget input handlers are suppressed while a modal dialog is act
       statuses: [],
       widgets: [{ key: "fleet", placement: "belowEditor", lines: ["fleet"] }],
       toolsExpanded: false,
-      pendingUserInteractions: [{ id: "extension-select-1", kind: "custom" }],
+      waitingForInputs: [{ id: "extension-select-1", kind: "custom" }],
       workingVisible: true,
     },
   });
@@ -116,7 +116,7 @@ test("extension widget input handlers are suppressed while a modal dialog is act
   assert.equal(dispatched, 0);
 
   // Without a pending interaction the widget listener runs normally.
-  tab.extensionUi.pendingUserInteractions = [];
+  tab.extensionUi.waitingForInputs = [];
   handleMixCodeKeyInput(state, "\x1b[A", tui, undefined, runtime, undefined, () => false, editor);
   assert.equal(dispatched, 1);
 });

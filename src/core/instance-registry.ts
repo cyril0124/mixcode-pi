@@ -8,7 +8,7 @@ export const INSTANCE_HEARTBEAT_INTERVAL_MS = 5_000;
 export const DEFAULT_INSTANCE_STALE_AFTER_MS = 15_000;
 
 export type ProcessVerification = "linux-start-time" | "pid-only";
-export type InstanceTabState = "needs-input" | "error" | "working" | "finished" | "idle";
+export type InstanceTabState = "waiting-for-input" | "error" | "working" | "finished" | "idle";
 
 export interface ProcessIdentity {
   alive: boolean;
@@ -24,7 +24,7 @@ export interface InstanceRegistryTabSnapshot {
   status: TabStatus;
   unreadDone: boolean;
   pendingDialogCount: number;
-  pendingUserInteractionCount: number;
+  waitingForInputCount: number;
   workingStartedAt?: string;
   lastWorkedDurationSeconds?: number;
 }
@@ -119,7 +119,7 @@ export function createInstanceSnapshot(
         status: tab.status,
         unreadDone: tab.unreadDone,
         pendingDialogCount: tab.pendingDialogs.length,
-        pendingUserInteractionCount: tab.extensionUi.pendingUserInteractions.length,
+        waitingForInputCount: tab.extensionUi.waitingForInputs.length,
         workingStartedAt: tab.workingStartedAt,
         lastWorkedDurationSeconds: tab.lastWorkedDurationSeconds,
       })),
@@ -282,7 +282,7 @@ function resolveStatusTab(
 }
 
 function deriveTabState(tab: InstanceRegistryTabSnapshot): InstanceTabState {
-  if (tab.pendingDialogCount > 0 || tab.pendingUserInteractionCount > 0) return "needs-input";
+  if (tab.pendingDialogCount > 0 || tab.waitingForInputCount > 0) return "waiting-for-input";
   if (tab.status === "error") return "error";
   if (tab.status === "running" || tab.status === "thinking") return "working";
   if (tab.status === "done" || tab.unreadDone) return "finished";
@@ -402,7 +402,7 @@ function parseTabSnapshot(
     status: status as TabStatus,
     unreadDone: booleanField(raw, "unreadDone", filePath),
     pendingDialogCount: numberField(raw, "pendingDialogCount", filePath),
-    pendingUserInteractionCount: numberField(raw, "pendingUserInteractionCount", filePath),
+    waitingForInputCount: numberField(raw, "waitingForInputCount", filePath),
     workingStartedAt: optionalStringField(raw, "workingStartedAt", filePath),
     lastWorkedDurationSeconds: optionalNumberField(raw, "lastWorkedDurationSeconds", filePath),
   };

@@ -79,7 +79,7 @@ export interface MixCodeEditorActions {
    */
   hasCustomEditorSkin?: () => boolean;
   /**
-   * @deprecated Ownership must use pendingUserInteractions / hasInputComponent
+   * @deprecated Ownership must use waitingForInputs / hasInputComponent
    * (see isPendingEditorTakeover in app-input). This flag alone no longer gates
    * MixCode editor shortcuts; kept for older tests and diagnostics.
    */

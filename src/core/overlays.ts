@@ -3,7 +3,7 @@ import { fuzzyFilter } from "@earendil-works/pi-tui";
 import { fuzzyMatch, fuzzyMatchAllPositions } from "./fuzzy.js";
 import { activateTab, findActiveTab } from "./tabs.js";
 import type { CommandPaletteEntry, MixCodeState, MixCodeTabInfo } from "./types.js";
-import { tabHasPendingUserInteraction } from "./tab-state.js";
+import { tabIsWaitingForInput } from "./tab-state.js";
 
 export function togglePreview(tab: MixCodeTabInfo): void {
   tab.previewOpen = !tab.previewOpen;
@@ -119,15 +119,15 @@ function previewRoleLabel(role: string): string {
 
 export function tabJumpEntries(
   state: MixCodeState,
-): Array<{ id: string; label: string; busy: boolean; done: boolean; question: boolean }> {
+): Array<{ id: string; label: string; busy: boolean; done: boolean; waitingForInput: boolean }> {
   return [
-    { id: "config", label: "MixCode Home", busy: false, done: false, question: false },
+    { id: "config", label: "MixCode Home", busy: false, done: false, waitingForInput: false },
     ...state.tabs.map((tab) => ({
       id: tab.sessionId,
       label: tab.alias || tab.title,
       busy: tab.status === "running" || tab.status === "thinking",
       done: tab.unreadDone,
-      question: tabHasPendingUserInteraction(tab),
+      waitingForInput: tabIsWaitingForInput(tab),
     })),
   ];
 }
@@ -148,7 +148,7 @@ export function filterTabJumpEntries(
             tab.status === "error" ||
             tab.status === "done" ||
             tab.unreadDone ||
-            tabHasPendingUserInteraction(tab),
+            tabIsWaitingForInput(tab),
         )
         .map((tab) => tab.sessionId),
     );

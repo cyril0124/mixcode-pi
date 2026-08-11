@@ -74,7 +74,7 @@ test("paste-newline heuristic keeps intercepting Enter on the default editor", (
 
 test("paste-newline heuristic does not swallow Enter while a pending extension interaction owns input", () => {
   const state = makeState();
-  state.tabs[0]!.extensionUi.pendingUserInteractions.push({
+  state.tabs[0]!.extensionUi.waitingForInputs.push({
     id: "extension-custom-1",
     kind: "custom",
   });
@@ -99,7 +99,7 @@ test("paste-newline heuristic does not swallow Enter while a pending extension i
 // exit/cancel key and must fall through instead of being consumed as clear-input.
 test("Ctrl+C does not clear/consume while a pending extension interaction owns input", () => {
   const state = makeState();
-  state.tabs[0]!.extensionUi.pendingUserInteractions.push({
+  state.tabs[0]!.extensionUi.waitingForInputs.push({
     id: "extension-custom-1",
     kind: "custom",
   });
@@ -153,7 +153,7 @@ test("Ctrl+C still clears draft with a permanent editor replacement", () => {
 // interaction owns the slot (e.g. /btw bring-to-main), Ctrl+R must fall through.
 test("Ctrl+R does not rename/consume while a pending extension interaction owns input", () => {
   const state = makeState();
-  state.tabs[0]!.extensionUi.pendingUserInteractions.push({
+  state.tabs[0]!.extensionUi.waitingForInputs.push({
     id: "extension-custom-1",
     kind: "custom",
   });
@@ -206,7 +206,7 @@ test("Ctrl+R still prefills /rename with a permanent editor replacement", () => 
 // actions. Temporary takeovers (e.g. /btw) own those keys; permanent skins do not.
 test("Ctrl+J and Shift+Enter do not insert/consume while a pending extension interaction owns input", () => {
   const state = makeState();
-  state.tabs[0]!.extensionUi.pendingUserInteractions.push({
+  state.tabs[0]!.extensionUi.waitingForInputs.push({
     id: "extension-custom-1",
     kind: "custom",
   });
@@ -269,7 +269,7 @@ test("PgUp/PgDn do not scroll/consume while a pending extension interaction owns
   const state = makeState();
   const tab = state.tabs[0]!;
   tab.chatScrollOffset = 0;
-  tab.extensionUi.pendingUserInteractions.push({ id: "extension-custom-1", kind: "custom" });
+  tab.extensionUi.waitingForInputs.push({ id: "extension-custom-1", kind: "custom" });
   const { actions } = makeEditorActions({ hasEditorReplacement: () => true });
   for (const key of [PAGE_UP, PAGE_DOWN]) {
     const result = handleMixCodeKeyInput(
@@ -322,7 +322,7 @@ test("PgUp/PgDn do not scroll/consume while a pending extension interaction is o
   const state = makeState();
   const tab = state.tabs[0]!;
   tab.chatScrollOffset = 0;
-  tab.extensionUi.pendingUserInteractions.push({ id: "extension-custom-1", kind: "custom" });
+  tab.extensionUi.waitingForInputs.push({ id: "extension-custom-1", kind: "custom" });
   const { actions } = makeEditorActions({ hasEditorReplacement: () => false });
   const result = handleMixCodeKeyInput(
     state,
@@ -342,7 +342,7 @@ test("Ctrl+U is not consumed while a pending extension interaction owns input", 
   const state = makeState();
   const tab = state.tabs[0]!;
   tab.pendingMessages.push("queued prompt");
-  tab.extensionUi.pendingUserInteractions.push({ id: "extension-custom-1", kind: "custom" });
+  tab.extensionUi.waitingForInputs.push({ id: "extension-custom-1", kind: "custom" });
   let text = "draft";
   let popped = 0;
   const { actions } = makeEditorActions({
@@ -376,7 +376,7 @@ test("Ctrl+U is not consumed while a pending extension interaction owns input", 
 test("Tab keeps switching MixCode tabs while an extension interaction is pending", () => {
   const state = makeState();
   const first = state.tabs[0]!;
-  first.extensionUi.pendingUserInteractions.push({ id: "extension-custom-1", kind: "custom" });
+  first.extensionUi.waitingForInputs.push({ id: "extension-custom-1", kind: "custom" });
   state.tabs.push(createTab(2, "s2", "/repo"));
   const { actions } = makeEditorActions({});
 

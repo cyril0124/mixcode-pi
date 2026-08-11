@@ -62,7 +62,7 @@ export function createExtensionDialog(
 
     const abort = () => finish(undefined);
 
-    // Track as pending user interaction so agent waits
+    // Track as waitingForInput so agent waits
     const interactionId = nextDialogInteractionId(runtimeTab);
     addDialogInteraction(runtimeTab, interactionId);
     runtimeTab.extensionCustomOverlayClosers.add(abort);
@@ -152,7 +152,7 @@ function extensionComponentEditor(component: Component, tui: PiTui | undefined) 
 
 function nextDialogInteractionId(runtimeTab: RuntimeTab): string {
   const prefix = "extension-dialog-";
-  const maxIndex = runtimeTab.tab.extensionUi.pendingUserInteractions.reduce((max, interaction) => {
+  const maxIndex = runtimeTab.tab.extensionUi.waitingForInputs.reduce((max, interaction) => {
     if (!interaction.id.startsWith(prefix)) return max;
     const index = Number(interaction.id.slice(prefix.length));
     return Number.isInteger(index) ? Math.max(max, index) : max;
@@ -161,14 +161,14 @@ function nextDialogInteractionId(runtimeTab: RuntimeTab): string {
 }
 
 function addDialogInteraction(runtimeTab: RuntimeTab, id: string): void {
-  // Dialog focus is tracked via pendingUserInteractions. Do not change panelOpen:
+  // Dialog focus is tracked via waitingForInputs. Do not change panelOpen:
   // the widget side panel is user-owned; key/mouse routing blocks it while pending.
-  runtimeTab.tab.extensionUi.pendingUserInteractions.push({ id, kind: "custom" });
+  runtimeTab.tab.extensionUi.waitingForInputs.push({ id, kind: "custom" });
 }
 
 function removeDialogInteraction(runtimeTab: RuntimeTab, id: string): void {
-  runtimeTab.tab.extensionUi.pendingUserInteractions =
-    runtimeTab.tab.extensionUi.pendingUserInteractions.filter(
+  runtimeTab.tab.extensionUi.waitingForInputs =
+    runtimeTab.tab.extensionUi.waitingForInputs.filter(
       (interaction) => interaction.id !== id,
     );
 }

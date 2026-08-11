@@ -165,8 +165,8 @@ export function workingActivityMessage(tab: MixCodeTabInfo): string {
   }
 }
 
-export function tabHasPendingUserInteraction(tab: MixCodeTabInfo): boolean {
-  return tab.pendingDialogs.length > 0 || tab.extensionUi.pendingUserInteractions.length > 0;
+export function tabIsWaitingForInput(tab: MixCodeTabInfo): boolean {
+  return tab.pendingDialogs.length > 0 || tab.extensionUi.waitingForInputs.length > 0;
 }
 
 export function statusFromAgentEvent(event: AgentEvent): TabStatus | undefined {

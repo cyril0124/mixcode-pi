@@ -159,7 +159,7 @@ test("extension string widgets wrap long lines instead of truncating", () => {
         },
       ],
       toolsExpanded: false,
-      pendingUserInteractions: [],
+      waitingForInputs: [],
       workingVisible: true,
     },
   });
@@ -183,7 +183,7 @@ test("extension header and footer preserve full-width component output", () => {
       statuses: [],
       widgets: [],
       toolsExpanded: false,
-      pendingUserInteractions: [],
+      waitingForInputs: [],
       workingVisible: true,
       header: { lines: [], render: (width) => [fullWidthLine("header", width)] },
       footer: { lines: [], render: (width) => [fullWidthLine("footer", width)] },

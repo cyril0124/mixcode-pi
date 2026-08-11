@@ -286,7 +286,7 @@ test("zen mode passes tab through while a pending extension interaction owns inp
   const second = createTab(2, "s2", "/repo");
   state.tabs.push(first, second);
   state.activeTabId = "s1";
-  first.extensionUi.pendingUserInteractions.push({ id: "extension-custom-1", kind: "custom" });
+  first.extensionUi.waitingForInputs.push({ id: "extension-custom-1", kind: "custom" });
   const tui = {
     requestRender: () => undefined,
     showOverlay: () => ({}) as never,
@@ -482,7 +482,7 @@ test("from Home, Tab activates agent and keeps zen from the source agent", () =>
 test("zenStatusMarkers exposes meaningful background states with existing glyph priority", () => {
   const pendingDialog = {
     requestId: "q",
-    sessionId: "question",
+    sessionId: "waiting",
     questions: [],
     currentQuestionIndex: 0,
     highlightedOptionIndices: [],
@@ -494,7 +494,7 @@ test("zenStatusMarkers exposes meaningful background states with existing glyph 
     createTab(1, "active", "/repo", { status: "running" }),
     createTab(2, "running", "/repo", { status: "running" }),
     createTab(3, "thinking", "/repo", { status: "thinking" }),
-    createTab(4, "question", "/repo", {
+    createTab(4, "waiting", "/repo", {
       status: "running",
       pendingDialogs: [pendingDialog],
     }),
@@ -511,7 +511,7 @@ test("zenStatusMarkers exposes meaningful background states with existing glyph 
   assert.deepEqual(zenStatusMarkers(tabs, "active"), [
     "working",
     "working",
-    "question",
+    "waiting",
     "error",
     "done",
     "done",
@@ -562,7 +562,7 @@ test("zen separator uses colored solid dots for every background state", () => {
   } as unknown as MixCodeTheme;
   const line = renderTabBarSeparator(
     40,
-    { iconMode: "nerd", zenMode: true, zenStatusMarkers: ["working", "question", "done", "error"] },
+    { iconMode: "nerd", zenMode: true, zenStatusMarkers: ["working", "waiting", "done", "error"] },
     theme,
   )[0]!;
 
@@ -600,7 +600,7 @@ test("non-zen separator never shows status markers", () => {
   const line = stripAnsi(
     renderTabBarSeparator(40, { iconMode: "nerd",
       zenMode: false,
-      zenStatusMarkers: ["working", "question", "done", "error"],
+      zenStatusMarkers: ["working", "waiting", "done", "error"],
     })[0]!,
   );
   assert.equal(line, "\u2500".repeat(40));
@@ -648,7 +648,7 @@ test("zen separator uses neutral overflow color whenever visible states are mixe
   } as unknown as MixCodeTheme;
   const line = renderTabBarSeparator(
     40,
-    { iconMode: "nerd", zenMode: true, zenStatusMarkers: ["working", "question", "error", "done", "done", "done"] },
+    { iconMode: "nerd", zenMode: true, zenStatusMarkers: ["working", "waiting", "error", "done", "done", "done"] },
     identityTheme,
   )[0]!;
 
@@ -659,7 +659,7 @@ test("zen separator drops markers when the row is too narrow", () => {
   const line = stripAnsi(
     renderTabBarSeparator(4, { iconMode: "nerd",
       zenMode: true,
-      zenStatusMarkers: ["working", "question", "done"],
+      zenStatusMarkers: ["working", "waiting", "done"],
     })[0]!,
   );
   assert.equal(line, "────");

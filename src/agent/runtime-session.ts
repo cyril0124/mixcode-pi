@@ -85,7 +85,7 @@ export function resetExtensionHostState(
   }
   runtimeTab.extensionDialogResolvers.clear();
   closeExtensionCustomOverlays(runtimeTab);
-  runtimeTab.tab.extensionUi.pendingUserInteractions = [];
+  runtimeTab.tab.extensionUi.waitingForInputs = [];
   runtimeTab.extensionAutocompleteProviderFactories = [];
   runtimeTab.extensionAutocompleteProviderCache = undefined;
   runtimeTab.tab.pendingDialogs = runtimeTab.tab.pendingDialogs.filter(
@@ -96,7 +96,7 @@ export function resetExtensionHostState(
     statuses: [],
     widgets: [],
     toolsExpanded: false,
-    pendingUserInteractions: [],
+    waitingForInputs: [],
     workingVisible: true,
   };
   if (cachedBaseAutocompleteProvider) {

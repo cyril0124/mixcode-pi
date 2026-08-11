@@ -333,7 +333,7 @@ export function createMixCodeTui(
     const activeForEdit = state.activeTabId === "config" ? undefined : getActiveTab(state);
     if (
       matchesKey(data, "ctrl+e") &&
-      !(activeForEdit?.extensionUi.pendingUserInteractions.length)
+      !(activeForEdit?.extensionUi.waitingForInputs.length)
     ) {
       void editTextWithTuiPaused(tui, editor.getText(), options.externalEditor)
         .then((text) => {

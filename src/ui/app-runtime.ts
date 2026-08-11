@@ -73,7 +73,7 @@ function tabHasLiveExtensionUi(tab: MixCodeState["tabs"][number]): boolean {
     tab.extensionUi.header?.render ||
       tab.extensionUi.footer?.render ||
       tab.extensionUi.widgets.some((widget) => widget.render) ||
-      tab.extensionUi.pendingUserInteractions.length > 0,
+      tab.extensionUi.waitingForInputs.length > 0,
   );
 }
 export function bindRuntimeRendering(
@@ -96,7 +96,7 @@ export function bindRuntimeRendering(
     const prevCount = previousInteractionCount.get(sessionId) ?? 0;
     const currentCount =
       runtimeTab.tab.pendingDialogs.length +
-      runtimeTab.tab.extensionUi.pendingUserInteractions.length;
+      runtimeTab.tab.extensionUi.waitingForInputs.length;
     if (currentCount > prevCount) {
       tui.terminal?.write("\x07");
     }

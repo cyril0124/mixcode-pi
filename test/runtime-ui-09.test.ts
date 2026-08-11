@@ -416,9 +416,9 @@ test("runtime resolves pending extension dialogs when closing a tab", async () =
     });
 
     const prompt = runtime.prompt("s1", "/wait-dialog");
-    // Wait for the dialog to be installed (pending user interaction)
+    // Wait for the dialog to be installed (waitingForInput)
     await waitForRuntime(
-      () => runtime.getTab("s1")?.tab.extensionUi.pendingUserInteractions.length === 1,
+      () => runtime.getTab("s1")?.tab.extensionUi.waitingForInputs.length === 1,
     );
     await runtime.deleteTab("s1");
     await prompt;
@@ -464,7 +464,7 @@ test("extension dialog keeps the widget side panel open", async () => {
 
     const prompt = runtime.prompt("s1", "/wait-dialog");
     await waitForRuntime(
-      () => runtime.getTab("s1")?.tab.extensionUi.pendingUserInteractions.length === 1,
+      () => runtime.getTab("s1")?.tab.extensionUi.waitingForInputs.length === 1,
     );
     assert.equal(runtime.getTab("s1")?.tab.panelOpen, true);
     await runtime.deleteTab("s1");
@@ -513,7 +513,7 @@ test("extension custom editor keeps the widget side panel open", async () => {
 
     const prompt = runtime.prompt("s1", "/wait-custom");
     await waitForRuntime(
-      () => runtime.getTab("s1")?.tab.extensionUi.pendingUserInteractions.length === 1,
+      () => runtime.getTab("s1")?.tab.extensionUi.waitingForInputs.length === 1,
     );
     assert.equal(runtime.getTab("s1")?.tab.panelOpen, true);
     await runtime.deleteTab("s1");

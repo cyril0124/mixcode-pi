@@ -93,10 +93,10 @@ test("runtime rendering rings terminal bell when a new user interaction appears"
   listener?.({ type: "extension_ui_update" }, { tab });
   assert.deepEqual(writes, ["\x07"], "no extra bell when count unchanged");
 
-  // Simulate a new pendingUserInteraction appearing
-  tab.extensionUi.pendingUserInteractions.push({ id: "ext-1", kind: "custom" });
+  // Simulate a new waitingForInput appearing
+  tab.extensionUi.waitingForInputs.push({ id: "ext-1", kind: "custom" });
   listener?.({ type: "extension_ui_update" }, { tab });
-  assert.deepEqual(writes, ["\x07", "\x07"], "bell should ring for new pendingUserInteraction");
+  assert.deepEqual(writes, ["\x07", "\x07"], "bell should ring for new waitingForInput");
 
   unsubscribe();
 });

@@ -8,7 +8,7 @@ import {
 import type { MouseHitRegion } from "../../core/mouse.js";
 import {
   retryStatusMessage,
-  tabHasPendingUserInteraction,
+  tabIsWaitingForInput,
   workingActivityMessage,
 } from "../../core/tab-state.js";
 import type { MixCodeState, MixCodeTabInfo } from "../../core/types.js";
@@ -89,7 +89,7 @@ export function renderTabBar(
 
 /** Max background-agent status markers shown before collapsing to [+N]. */
 export const ZEN_STATUS_MARKER_CAP = 5;
-export type ZenStatusMarker = "working" | "question" | "done" | "error";
+export type ZenStatusMarker = "working" | "waiting" | "done" | "error";
 
 /**
  * Full-width horizontal rule rendered directly under the tab bar (agent view
@@ -196,7 +196,7 @@ function paintZenStatusMarkerCluster(
   const paintedMarkers = shownMarkers
     .map((marker) => {
       if (marker === "working") return activeRenderTheme.accent(statusDot);
-      if (marker === "question") return activeRenderTheme.warning(statusDot);
+      if (marker === "waiting") return activeRenderTheme.warning(statusDot);
       if (marker === "error") return activeRenderTheme.error(statusDot);
       return activeRenderTheme.done(statusDot);
     })
@@ -220,7 +220,7 @@ export function zenStatusMarkers(
     const glyph = tabStatusGlyph(tab);
     if (glyph === "!") markers.push("done");
     else if (glyph === "*") markers.push("working");
-    else if (glyph === "?") markers.push("question");
+    else if (glyph === "?") markers.push("waiting");
     else if (glyph === "x") markers.push("error");
   }
   return markers;
@@ -906,7 +906,7 @@ function tabBarSegments(state: MixCodeState): Array<{ id: string; text: string }
 }
 
 function renderTabSegmentText(tab: MixCodeTabInfo, text: string, active: boolean): string {
-  const statusColor = tabHasPendingUserInteraction(tab)
+  const statusColor = tabIsWaitingForInput(tab)
     ? activeRenderTheme.toolTitle
     : tab.status === "running" || tab.status === "thinking"
       ? activeRenderTheme.accent
@@ -920,7 +920,7 @@ function renderTabSegmentText(tab: MixCodeTabInfo, text: string, active: boolean
 export function tabStatusGlyph(tab: MixCodeTabInfo): string {
   if (tab.status === "Not Ready") return "◌";
   if (tab.status === "error") return "x";
-  if (tabHasPendingUserInteraction(tab)) return "?";
+  if (tabIsWaitingForInput(tab)) return "?";
   if (tab.status === "running" || tab.status === "thinking") return "*";
   if (tab.status === "done" || tab.unreadDone) return "!";
   return "-";

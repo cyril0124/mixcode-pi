@@ -28,7 +28,7 @@ function makeTab(overrides: Record<string, unknown> = {}) {
         { key: "fleet", placement: "belowEditor", lines: [WIDGET_BELOW] },
       ],
       toolsExpanded: false,
-      pendingUserInteractions: [],
+      waitingForInputs: [],
       workingVisible: true,
     },
     ...overrides,
@@ -145,7 +145,7 @@ test("Right does not open the panel when the tab has no widgets", () => {
       statuses: [],
       widgets: [],
       toolsExpanded: false,
-      pendingUserInteractions: [],
+      waitingForInputs: [],
       workingVisible: true,
     },
   });
@@ -210,7 +210,7 @@ test("panel shows full live widget output without a truncation marker", () => {
         },
       ],
       toolsExpanded: false,
-      pendingUserInteractions: [],
+      waitingForInputs: [],
       workingVisible: true,
     },
   });
@@ -239,7 +239,7 @@ test("panel shows a scroll-down marker when live widget output overflows", () =>
         },
       ],
       toolsExpanded: false,
-      pendingUserInteractions: [],
+      waitingForInputs: [],
       workingVisible: true,
     },
   });
@@ -262,7 +262,7 @@ test("panel wraps wide widget lines instead of truncating with an ellipsis", () 
       statuses: [],
       widgets: [{ key: "w", placement: "aboveEditor", lines: [], render: () => [longLine] }],
       toolsExpanded: false,
-      pendingUserInteractions: [],
+      waitingForInputs: [],
       workingVisible: true,
     },
   });
@@ -331,7 +331,7 @@ test("tall panel scrolls with clamped offset and shows up/down markers", () => {
       statuses: [],
       widgets: [{ key: "big", placement: "aboveEditor", lines }],
       toolsExpanded: false,
-      pendingUserInteractions: [],
+      waitingForInputs: [],
       workingVisible: true,
     },
   });
@@ -371,7 +371,7 @@ test("wheel routes to panel or chat by region, never both", () => {
         },
       ],
       toolsExpanded: false,
-      pendingUserInteractions: [],
+      waitingForInputs: [],
       workingVisible: true,
     },
   });
@@ -453,7 +453,7 @@ function silentTerminal(columns: number, rows = 24): Terminal {
 // skins still use MixCode Ctrl+E; only pending interactions own the key.
 test("Ctrl+E defers to the extension editor component when a pending interaction owns the slot", () => {
   const state = makeState();
-  state.tabs[0]!.extensionUi.pendingUserInteractions.push({
+  state.tabs[0]!.extensionUi.waitingForInputs.push({
     id: "extension-editor-1",
     kind: "editor",
   });

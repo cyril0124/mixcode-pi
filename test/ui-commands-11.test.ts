@@ -12,7 +12,7 @@ test("Shift+Up/Down are not consumed as chat scroll during extension user intera
   // interactions remains available via mouse wheel.
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo");
-  tab.extensionUi.pendingUserInteractions.push({ id: "ask-user-question", kind: "custom" });
+  tab.extensionUi.waitingForInputs.push({ id: "ask-user-question", kind: "custom" });
   state.tabs.push(tab);
   state.activeTabId = "s1";
   const tui = {

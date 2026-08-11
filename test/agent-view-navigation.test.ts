@@ -85,7 +85,7 @@ test("Left on empty input returns to MixCode Home and selects source agent", () 
 test("Left on empty input does NOT return to Home when extension UI interaction is pending", () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo");
-  tab.extensionUi.pendingUserInteractions.push({ id: "ext-1", kind: "custom" });
+  tab.extensionUi.waitingForInputs.push({ id: "ext-1", kind: "custom" });
   state.tabs.push(tab);
   state.activeTabId = "s1";
   const tui = makeTui();

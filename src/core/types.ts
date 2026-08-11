@@ -338,7 +338,7 @@ export interface ExtensionDynamicLines {
   dispose?: () => void;
 }
 
-export interface ExtensionPendingUserInteraction {
+export interface WaitingForInput {
   id: string;
   kind: "custom" | "editor";
 }
@@ -347,7 +347,7 @@ export interface ExtensionUiState {
   statuses: ExtensionStatusLine[];
   widgets: ExtensionWidgetLine[];
   toolsExpanded: boolean;
-  pendingUserInteractions: ExtensionPendingUserInteraction[];
+  waitingForInputs: WaitingForInput[];
   workingIndicatorFrames?: string[];
   workingIndicatorIntervalMs?: number;
   workingMessage?: string;

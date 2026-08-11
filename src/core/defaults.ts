@@ -125,7 +125,7 @@ export function createTab(
       statuses: [],
       widgets: [],
       toolsExpanded: false,
-      pendingUserInteractions: [],
+      waitingForInputs: [],
       workingVisible: true,
     },
     chatSurfaceBounds: undefined,
