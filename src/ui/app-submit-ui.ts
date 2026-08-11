@@ -3,6 +3,7 @@ import { MIXCODE_EXTENSION_KEYBINDINGS } from "../agent/runtime-extension-theme.
 import type { LocalCommand } from "../core/commands.js";
 import { pushToast } from "../core/toast.js";
 import type { MixCodeState, PendingEscapeAction } from "../core/types.js";
+import { emitMarkDone } from "../core/extension-event-bus.js";
 import { appendActiveSystemMessage } from "./app-actions.js";
 import { editTextWithTuiPaused, showTextOverlay } from "./app-overlays.js";
 import {
@@ -26,6 +27,8 @@ const handleMarkDone: LocalCommandHandler = ({ active }) => {
   // when focus leaves and returns (see core/tabs.ts).
   active!.unreadDone = true;
   active!.status = "done";
+  // Fan-out to extension EventBuses (e.g. completion notification consumers).
+  emitMarkDone({ reason: "command" });
   // Ring terminal bell after 5s so the user gets an audible notification
   // even if they have switched away from the terminal window.
   setTimeout(() => process.stdout.write("\x07"), 5_000);

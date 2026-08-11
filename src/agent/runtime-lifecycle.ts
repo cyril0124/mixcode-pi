@@ -15,7 +15,7 @@ import {
   SettingsManager,
 } from "@earendil-works/pi-coding-agent";
 import { captureCompactionBaseline } from "../core/context-limit.js";
-import { registerExtensionEventBus } from "../core/waiting-for-input-signal.js";
+import { registerExtensionEventBus } from "../core/extension-event-bus.js";
 import { detectSearchTools, type SearchToolAvailability } from "../core/detect-search-tools.js";
 import {
   type ExtensionManagerEntry,

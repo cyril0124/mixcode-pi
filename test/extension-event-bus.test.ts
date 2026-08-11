@@ -3,11 +3,13 @@ import { createEventBus } from "@earendil-works/pi-coding-agent";
 import { afterEach, test } from "bun:test";
 import {
   adjustWaitingForInput,
+  emitMarkDone,
   getWaitingForInputCount,
+  MARK_DONE_EVENT,
   registerExtensionEventBus,
   unregisterExtensionEventBus,
   WAITING_FOR_INPUT_EVENT,
-} from "../src/core/waiting-for-input-signal.js";
+} from "../src/core/extension-event-bus.js";
 
 const servicesA = { id: "a" };
 const servicesB = { id: "b" };
@@ -58,4 +60,18 @@ test("unregistered bus no longer receives waiting events", () => {
   assert.equal(seen.length, 1); // no new event
 
   adjustWaitingForInput(-2); // reset count
+});
+
+test("emitMarkDone fans out mpi:mark-done on all registered buses", () => {
+  registerExtensionEventBus(servicesA, busA);
+  registerExtensionEventBus(servicesB, busB);
+
+  const seenA: unknown[] = [];
+  const seenB: unknown[] = [];
+  busA.on(MARK_DONE_EVENT, (data) => seenA.push(data));
+  busB.on(MARK_DONE_EVENT, (data) => seenB.push(data));
+
+  emitMarkDone({ reason: "command" });
+  assert.deepEqual(seenA, [{ reason: "command" }]);
+  assert.deepEqual(seenB, [{ reason: "command" }]);
 });

@@ -1,9 +1,9 @@
 /**
- * Process-wide WaitingForInput fan-out over Pi extension EventBus instances.
+ * Process-wide fan-out over Pi extension EventBus instances.
  *
  * Each AgentSession services object gets its own EventBus (passed into the
- * resource loader). Waiting changes are broadcast on every registered bus as
- * `mpi:waiting-for-input` so multi-tab extension listeners all recompute.
+ * resource loader). Host signals are broadcast on every registered bus so
+ * multi-tab extension listeners all see the same process-level events.
  */
 
 import type { EventBus } from "@earendil-works/pi-coding-agent";
@@ -11,9 +11,16 @@ import type { EventBus } from "@earendil-works/pi-coding-agent";
 /** Public pi.events channel for WaitingForInput state. */
 export const WAITING_FOR_INPUT_EVENT = "mpi:waiting-for-input" as const;
 
+/** Public pi.events channel for explicit user/agent "mark done" intent. */
+export const MARK_DONE_EVENT = "mpi:mark-done" as const;
+
 export interface WaitingForInputEventPayload {
   count: number;
   active: boolean;
+}
+
+export interface MarkDoneEventPayload {
+  reason: "command";
 }
 
 const buses = new Set<EventBus>();
@@ -47,15 +54,19 @@ export function getWaitingForInputCount(): number {
 export function adjustWaitingForInput(delta: number): void {
   if (delta === 0) return;
   waitingCount = Math.max(0, waitingCount + delta);
-  broadcastWaitingForInput();
-}
-
-function broadcastWaitingForInput(): void {
-  const payload: WaitingForInputEventPayload = {
+  broadcast(WAITING_FOR_INPUT_EVENT, {
     count: waitingCount,
     active: waitingCount > 0,
-  };
+  } satisfies WaitingForInputEventPayload);
+}
+
+/** Broadcast explicit mark-done (e.g. /mark-done). */
+export function emitMarkDone(payload: MarkDoneEventPayload = { reason: "command" }): void {
+  broadcast(MARK_DONE_EVENT, payload);
+}
+
+function broadcast(channel: string, payload: unknown): void {
   for (const bus of buses) {
-    bus.emit(WAITING_FOR_INPUT_EVENT, payload);
+    bus.emit(channel, payload);
   }
 }

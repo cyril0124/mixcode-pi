@@ -5,7 +5,7 @@ import type {
   OverlayOptions,
   TUI as PiTui,
 } from "@earendil-works/pi-tui";
-import { adjustWaitingForInput } from "../core/waiting-for-input-signal.js";
+import { adjustWaitingForInput } from "../core/extension-event-bus.js";
 import {
   currentExtensionTheme,
   ensureExtensionThemeInitialized,

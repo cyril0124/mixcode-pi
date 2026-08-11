@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "bun:test";
 import {
+  buildHerdrNotificationArgs,
   buildHerdrReportAgentArgs,
   deriveHerdrState,
   HERDR_REPORT_AGENT,
   HERDR_REPORT_SOURCE,
+  MARK_DONE_EVENT,
   parseWaitingForInputPayload,
   WAITING_FOR_INPUT_EVENT,
 } from "./index.ts";
@@ -33,8 +35,19 @@ test("buildHerdrReportAgentArgs includes blocked state", () => {
   ]);
 });
 
-test("WAITING_FOR_INPUT_EVENT channel name is stable", () => {
+test("buildHerdrNotificationArgs uses done sound", () => {
+  assert.deepEqual(buildHerdrNotificationArgs("Marked done", "done"), [
+    "notification",
+    "show",
+    "Marked done",
+    "--sound",
+    "done",
+  ]);
+});
+
+test("event channel names are stable", () => {
   assert.equal(WAITING_FOR_INPUT_EVENT, "mpi:waiting-for-input");
+  assert.equal(MARK_DONE_EVENT, "mpi:mark-done");
 });
 
 test("parseWaitingForInputPayload normalizes count", () => {

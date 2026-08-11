@@ -6,8 +6,11 @@
  * Only active when HERDR_ENV=1 and HERDR_PANE_ID are set (inside a Herdr pane).
  * Multi-tab: process-level refcounts so any busy/waiting session drives the pane.
  *
- * WaitingForInput arrives on pi.events channel `mpi:waiting-for-input`
- * (MixCode host fans out to every session EventBus). No import of host code.
+ * Events (host fans out on every session EventBus; string channels only):
+ * - `mpi:waiting-for-input` → blocked vs not
+ * - `mpi:mark-done` → completion notification (`--sound done`); ensure idle when
+ *   not blocked. Herdr has no reportable `done` state while the pane is focused
+ *   (done = idle + unseen); leaving the pane after idle still yields UI done.
  *
  * Pure Node — must also run under upstream pi (Node + jiti).
  */
@@ -23,8 +26,9 @@ export type HerdrReportState = "working" | "idle" | "blocked";
 export const HERDR_REPORT_SOURCE = "custom:mpi";
 export const HERDR_REPORT_AGENT = "mpi";
 
-/** Shared with MixCode host `WAITING_FOR_INPUT_EVENT` (string only — no import). */
+/** Shared with MixCode host channel names (string only — no import). */
 export const WAITING_FOR_INPUT_EVENT = "mpi:waiting-for-input" as const;
+export const MARK_DONE_EVENT = "mpi:mark-done" as const;
 
 export interface WaitingForInputEventPayload {
   count: number;
@@ -52,6 +56,8 @@ let previousReported: HerdrReportState | undefined;
 let seq = Date.now() * 1000;
 /** True after extension factory subscribed (avoids reporting before load). */
 let bridgeAttached = false;
+/** Coalesce multi-bus fan-out of the same mark-done into one notification. */
+let lastMarkDoneAt = 0;
 
 export function resolveHerdrPaneId(env: NodeJS.ProcessEnv = process.env): string | undefined {
   if (env.HERDR_ENV !== "1") return undefined;
@@ -79,6 +85,10 @@ export function buildHerdrReportAgentArgs(
   ];
 }
 
+export function buildHerdrNotificationArgs(title: string, sound: "done" | "request" | "none"): string[] {
+  return ["notification", "show", title, "--sound", sound];
+}
+
 export function resolveHerdrBin(env: NodeJS.ProcessEnv = process.env): string | undefined {
   const fromEnv = env.HERDR_BIN_PATH?.trim();
   if (fromEnv) return fromEnv;
@@ -100,19 +110,27 @@ function which(bin: string, env: NodeJS.ProcessEnv): string | undefined {
   return undefined;
 }
 
+function spawnHerdr(args: string[], env: NodeJS.ProcessEnv = process.env): void {
+  const bin = resolveHerdrBin(env);
+  if (!bin) return;
+  const child = spawn(bin, args, {
+    stdio: "ignore",
+    detached: true,
+  });
+  child.unref();
+}
+
 function spawnHerdrReportAgent(
   paneId: string,
   state: HerdrReportState,
   nextSeq: number,
   env: NodeJS.ProcessEnv = process.env,
 ): void {
-  const bin = resolveHerdrBin(env);
-  if (!bin) return;
-  const child = spawn(bin, buildHerdrReportAgentArgs(paneId, state, nextSeq), {
-    stdio: "ignore",
-    detached: true,
-  });
-  child.unref();
+  spawnHerdr(buildHerdrReportAgentArgs(paneId, state, nextSeq), env);
+}
+
+function spawnHerdrDoneNotification(env: NodeJS.ProcessEnv = process.env): void {
+  spawnHerdr(buildHerdrNotificationArgs("Marked done", "done"), env);
 }
 
 function report(state: HerdrReportState): void {
@@ -148,9 +166,28 @@ function onWaitingForInput(raw: unknown): void {
   recompute();
 }
 
+/**
+ * Explicit mark-done: always notify; only push idle when not blocked and no
+ * active runs (do not demote blocked or invent idle while work continues).
+ * Host fans out to every session bus; module-level coalesce avoids N toasts.
+ */
+function onMarkDone(): void {
+  if (!resolveHerdrPaneId()) return;
+  const now = Date.now();
+  if (now - lastMarkDoneAt < 100) return;
+  lastMarkDoneAt = now;
+  spawnHerdrDoneNotification();
+  if (waitingCount === 0 && activeRuns === 0) {
+    report("idle");
+  }
+}
+
 const herdrReportExtension: ExtensionFactory = (pi) => {
   bridgeAttached = true;
-  const unsubscribe = pi.events.on(WAITING_FOR_INPUT_EVENT, onWaitingForInput);
+  const unsubWaiting = pi.events.on(WAITING_FOR_INPUT_EVENT, onWaitingForInput);
+  const unsubMarkDone = pi.events.on(MARK_DONE_EVENT, () => {
+    onMarkDone();
+  });
   pi.on("agent_start", () => {
     onAgentStart();
   });
@@ -158,7 +195,8 @@ const herdrReportExtension: ExtensionFactory = (pi) => {
     onAgentSettled();
   });
   pi.on("session_shutdown", () => {
-    unsubscribe();
+    unsubWaiting();
+    unsubMarkDone();
   });
 };
 
