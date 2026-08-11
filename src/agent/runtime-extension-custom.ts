@@ -5,6 +5,7 @@ import type {
   OverlayOptions,
   TUI as PiTui,
 } from "@earendil-works/pi-tui";
+import { adjustWaitingForInput } from "../core/waiting-for-input-signal.js";
 import {
   currentExtensionTheme,
   ensureExtensionThemeInitialized,
@@ -32,18 +33,29 @@ function nextWaitingForInputId(runtimeTab: RuntimeTab, kind: "custom" | "editor"
   return `${prefix}${maxIndex + 1}`;
 }
 
-function addWaitingForInput(runtimeTab: RuntimeTab, id: string, kind: "custom" | "editor") {
+export function addWaitingForInput(runtimeTab: RuntimeTab, id: string, kind: "custom" | "editor") {
   // Side-panel open/close is user-owned (→ toggle). Pending interactions only
   // take input focus via waitingForInputs guards — they must not change
   // panelOpen, or every extension UI (custom/dialog/editor) would dismiss it.
   runtimeTab.tab.extensionUi.waitingForInputs.push({ id, kind });
+  adjustWaitingForInput(1);
 }
 
-function removeWaitingForInput(runtimeTab: RuntimeTab, id: string): void {
+export function removeWaitingForInput(runtimeTab: RuntimeTab, id: string): void {
+  const before = runtimeTab.tab.extensionUi.waitingForInputs.length;
   runtimeTab.tab.extensionUi.waitingForInputs =
     runtimeTab.tab.extensionUi.waitingForInputs.filter(
       (interaction) => interaction.id !== id,
     );
+  const removed = before - runtimeTab.tab.extensionUi.waitingForInputs.length;
+  if (removed > 0) adjustWaitingForInput(-removed);
+}
+
+/** Drop all waiting entries on a tab and broadcast the updated process-wide count. */
+export function clearWaitingForInputs(runtimeTab: RuntimeTab): void {
+  const n = runtimeTab.tab.extensionUi.waitingForInputs.length;
+  runtimeTab.tab.extensionUi.waitingForInputs = [];
+  if (n > 0) adjustWaitingForInput(-n);
 }
 
 export function createExtensionCustomOverlay<T>(

@@ -16,6 +16,7 @@ import {
   invalidateSessionCatalog,
   listSessionsInBackground,
 } from "../core/session-catalog.js";
+import { clearWaitingForInputs } from "./runtime-extension-custom.js";
 import { closeExtensionCustomOverlays, disposeExtensionWidgets } from "./runtime-extension-ui.js";
 import type { ExtensionCustomUiHost, RuntimeTab } from "./runtime-types.js";
 
@@ -85,7 +86,8 @@ export function resetExtensionHostState(
   }
   runtimeTab.extensionDialogResolvers.clear();
   closeExtensionCustomOverlays(runtimeTab);
-  runtimeTab.tab.extensionUi.waitingForInputs = [];
+  // Overlays/dialogs should already have popped; clear any leftover WaitingForInput.
+  clearWaitingForInputs(runtimeTab);
   runtimeTab.extensionAutocompleteProviderFactories = [];
   runtimeTab.extensionAutocompleteProviderCache = undefined;
   runtimeTab.tab.pendingDialogs = runtimeTab.tab.pendingDialogs.filter(

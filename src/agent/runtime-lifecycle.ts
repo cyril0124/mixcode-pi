@@ -5,6 +5,7 @@ import {
   type CreateAgentSessionServicesOptions,
   createAgentSessionFromServices,
   createAgentSessionServices,
+  createEventBus,
   type ExtensionFactory,
   type LoadExtensionsResult,
   type ModelRuntime,
@@ -14,6 +15,7 @@ import {
   SettingsManager,
 } from "@earendil-works/pi-coding-agent";
 import { captureCompactionBaseline } from "../core/context-limit.js";
+import { registerExtensionEventBus } from "../core/waiting-for-input-signal.js";
 import { detectSearchTools, type SearchToolAvailability } from "../core/detect-search-tools.js";
 import {
   type ExtensionManagerEntry,
@@ -551,13 +553,20 @@ export async function createRuntimeServices(
   const settingsManager = SettingsManager.create(options.workdir, options.agentDir, {
     projectTrusted: options.settingsManager?.isProjectTrusted() ?? true,
   });
+  // Per-services EventBus so host can fan-out WaitingForInput on pi.events without
+  // private loader access. Registered for multi-tab broadcast in the signal module.
+  const eventBus = createEventBus();
   const services = await createAgentSessionServices({
     cwd: options.workdir,
     agentDir: options.agentDir,
     modelRuntime: options.modelRuntime,
     settingsManager,
-    resourceLoaderOptions,
+    resourceLoaderOptions: {
+      ...resourceLoaderOptions,
+      eventBus,
+    },
   });
+  registerExtensionEventBus(services, eventBus);
   if (services.diagnostics.some((diagnostic) => diagnostic.type === "error")) {
     throw new Error(services.diagnostics.map((diagnostic) => diagnostic.message).join("\n"));
   }

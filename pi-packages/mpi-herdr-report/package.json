@@ -2,7 +2,7 @@
   "name": "mpi-herdr-report",
   "version": "0.1.0",
   "type": "module",
-  "description": "Report agent working/idle to Herdr panes (HERDR_ENV=1).",
+  "description": "Report agent working/idle/blocked to Herdr panes (HERDR_ENV=1).",
   "pi": {
     "extensions": ["./index.ts"]
   }

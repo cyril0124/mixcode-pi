@@ -4,6 +4,10 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import type { Component, TUI as PiTui } from "@earendil-works/pi-tui";
 
+import {
+  addWaitingForInput,
+  removeWaitingForInput,
+} from "./runtime-extension-custom.js";
 import { ensureExtensionThemeInitialized } from "./runtime-extension-theme.js";
 import { applyMixCodeKeybindings } from "./runtime-pi-tui-bridge.js";
 import type { ExtensionCustomUiHost, RuntimeTab } from "./runtime-types.js";
@@ -163,12 +167,9 @@ function nextDialogInteractionId(runtimeTab: RuntimeTab): string {
 function addDialogInteraction(runtimeTab: RuntimeTab, id: string): void {
   // Dialog focus is tracked via waitingForInputs. Do not change panelOpen:
   // the widget side panel is user-owned; key/mouse routing blocks it while pending.
-  runtimeTab.tab.extensionUi.waitingForInputs.push({ id, kind: "custom" });
+  addWaitingForInput(runtimeTab, id, "custom");
 }
 
 function removeDialogInteraction(runtimeTab: RuntimeTab, id: string): void {
-  runtimeTab.tab.extensionUi.waitingForInputs =
-    runtimeTab.tab.extensionUi.waitingForInputs.filter(
-      (interaction) => interaction.id !== id,
-    );
+  removeWaitingForInput(runtimeTab, id);
 }
