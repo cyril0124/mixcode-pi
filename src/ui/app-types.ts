@@ -1,7 +1,7 @@
 import type { SettingsManager } from "@earendil-works/pi-coding-agent";
 import type { Component, TUI as TuiType } from "@earendil-works/pi-tui";
 import type { MixCodeRuntime } from "../agent/runtime.js";
-import type { MixCodeState } from "../core/types.js";
+import type { MixCodeState, MixCodeTabInfo } from "../core/types.js";
 
 // UI host surface is the real runtime. Do not reintroduce Partial/Pick kitchen
 // sinks here — narrow at the call site only when a helper truly needs 1–2 methods.
@@ -9,17 +9,43 @@ import type { MixCodeState } from "../core/types.js";
 export type MixCodeKeyRuntime = MixCodeRuntime;
 export type MixCodeSubmitRuntime = MixCodeRuntime;
 
+export interface AuthInputHost {
+  setInputComponent: (component: Component, sessionId?: string) => void;
+  clearInputComponent: (sessionId?: string) => void;
+  requestRender: () => void;
+}
+
+export interface SettingsPanelDependencies {
+  settingsManager: SettingsManager;
+  mixcodeFile: string;
+  piSettingsFile: string;
+}
+
+export const SKIP_FINALIZE = Symbol("skip-finalize");
+
+export interface LocalCommandContext {
+  state: MixCodeState;
+  runtime: MixCodeSubmitRuntime;
+  active: MixCodeTabInfo | undefined;
+  args: string;
+  tui: OverlayTui;
+  onStateChanged?: (state: MixCodeState) => void | Promise<void>;
+  authInputHost?: AuthInputHost;
+  workspaceFile?: string;
+  settingsDeps?: SettingsPanelDependencies;
+}
+
+export type LocalCommandHandler = (
+  context: LocalCommandContext,
+) => undefined | typeof SKIP_FINALIZE | Promise<undefined | typeof SKIP_FINALIZE>;
+
 export type RuntimeChangeSource = Pick<MixCodeRuntime, "onChange">;
 export interface WorkspaceKeyOptions {
   workspaceFile?: string;
   /** Agent-dir state root; when set, Home sends also append conversation history. */
   rootStateDir?: string;
   /** Settings dependencies required by config-scoped commands entered from Home. */
-  settingsDeps?: {
-    settingsManager: SettingsManager;
-    mixcodeFile: string;
-    piSettingsFile: string;
-  };
+  settingsDeps?: SettingsPanelDependencies;
 }
 
 export interface TreeSelectorDisplayHost {
