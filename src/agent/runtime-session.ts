@@ -2,6 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import {
   type AgentSessionServices,
+  CURRENT_SESSION_VERSION,
   type LoadExtensionsResult,
   type SessionInfo,
   SessionManager,
@@ -199,7 +200,7 @@ export async function copySession(
   const file = path.join(sessionsRoot, `${fileTimestamp}_${newSessionId}.jsonl`);
   const header = {
     type: "session",
-    version: 3,
+    version: CURRENT_SESSION_VERSION,
     id: newSessionId,
     timestamp,
     cwd,
@@ -230,7 +231,13 @@ async function createReplacementSession(
   const timestamp = new Date().toISOString();
   const fileTimestamp = timestamp.replace(/[:.]/g, "-");
   const file = path.join(sessionsRoot, `${fileTimestamp}_${source.getSessionId()}.jsonl`);
-  const header = { type: "session", version: 3, id: source.getSessionId(), timestamp, cwd };
+  const header = {
+    type: "session",
+    version: CURRENT_SESSION_VERSION,
+    id: source.getSessionId(),
+    timestamp,
+    cwd,
+  };
   const lines = [header, ...source.getBranch()].map((entry) => JSON.stringify(entry)).join("\n");
   await Bun.write(file, `${lines}\n`);
   invalidateSessionCatalog(sessionsRoot);

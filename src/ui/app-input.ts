@@ -113,24 +113,29 @@ export function handleMixCodeKeyInput(
   commandPaletteActions?: CommandPaletteActions,
   workspaceOptions: WorkspaceKeyOptions = {},
 ): KeyResult {
+  const active = getActiveTab(state);
+  if (isKeyRelease(data)) {
+    // Pi input listeners receive raw releases; app controls do not.
+    if (
+      active &&
+      state.activeTabId !== "config" &&
+      !hasAnyOverlay(tui) &&
+      !active.extensionUi.pendingUserInteractions.length
+    ) {
+      runtime?.dispatchTerminalInput?.(active.sessionId, data);
+    }
+    return { consume: true };
+  }
   pasteDetector.recordInput(data);
   // A non-editor input component (e.g. /login provider selector or login
   // dialog) owns the input area: forward keys to it and bypass all global
   // key handling, mirroring Pi agent's editorContainer takeover.
-  // Drop Kitty flag-2 releases here: SessionSelector Tab matches both press
-  // and release (\x1b[9;1:3u), so forwarding the release would toggle scope
-  // twice and bounce All back to Current Folder. Same as pi-tui focused
-  // dispatch (skip release unless wantsKeyRelease).
   if (editorActions?.hasInputComponent?.()) {
-    if (isKeyRelease(data)) return { consume: true };
     editorActions.forwardToInputComponent?.(data);
     return { consume: true };
   }
-  const active = getActiveTab(state);
   // Resolve empty-queue Ctrl+U → (u|Ctrl+U) enter-vim arm before other dispatch.
-  // Kitty flag-2 release events must not clear the arm.
   if (active && active.vimEnterArmedAt !== undefined) {
-    if (isKeyRelease(data)) return { consume: true };
     const armedAt = active.vimEnterArmedAt;
     active.vimEnterArmedAt = undefined;
     if (
@@ -698,7 +703,6 @@ function handleEditorControlKeys(
     editorActions &&
     !isPendingEditorTakeover(active, editorActions)
   ) {
-    if (isKeyRelease(data)) return { consume: true };
     if (active) clearPendingEscape(active, "abort-agent");
     void clipboardPasteForEditor()
       .then((result) => {
@@ -754,8 +758,6 @@ function handleEditorControlKeys(
     if (state.activeTabId !== "config" && isPendingEditorTakeover(active, editorActions)) {
       return undefined;
     }
-    // Kitty flag-2 sends press+release; only the press dequeues/arms.
-    if (isKeyRelease(data)) return { consume: true };
     clearPendingEscape(active, "abort-agent");
     // On Home, getActiveTab() is the selected agent — never dequeue that agent's queue here.
     if (state.activeTabId !== "config") {

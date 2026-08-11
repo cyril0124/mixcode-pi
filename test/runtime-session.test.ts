@@ -3,14 +3,44 @@ import * as fsPromises from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
-import { SessionManager } from "@earendil-works/pi-coding-agent";
+import { CURRENT_SESSION_VERSION, SessionManager } from "@earendil-works/pi-coding-agent";
 import { invalidateSessionCatalog } from "../src/core/session-catalog.js";
 import {
+  copySession,
   findSessionFileByName,
   listAllSessionsGlobal,
   listSessionsForCwd,
   openOrCreateSession,
+  reopenSessionInWorkdir,
 } from "../src/agent/runtime-session.js";
+
+test("session copies use Pi's current session format version", async () => {
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-session-version-"));
+  const sessionsRoot = path.join(dir, "sessions");
+  const cwd = path.join(dir, "workspace");
+  const nextCwd = path.join(dir, "next-workspace");
+  try {
+    await fsPromises.mkdir(cwd, { recursive: true });
+    await fsPromises.mkdir(nextCwd, { recursive: true });
+
+    const copied = await copySession(
+      SessionManager.inMemory(cwd),
+      cwd,
+      "copied-session",
+      sessionsRoot,
+    );
+    const replaced = await reopenSessionInWorkdir(
+      SessionManager.inMemory(cwd),
+      nextCwd,
+      sessionsRoot,
+    );
+
+    assert.equal(copied.getHeader()?.version, CURRENT_SESSION_VERSION);
+    assert.equal(replaced.getHeader()?.version, CURRENT_SESSION_VERSION);
+  } finally {
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});
 
 test("findSessionFileByName matches the full filename session id", async () => {
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-session-file-id-"));

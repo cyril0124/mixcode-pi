@@ -339,6 +339,33 @@ test("global key input cycles tabs unless editor autocomplete is open", () => {
   assert.equal(state.activeTabId, "s1");
 });
 
+test("global key input ignores Kitty key-release events", () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"), createTab(2, "s2", "/repo"));
+  state.activeTabId = "s1";
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({}) as never,
+    hideOverlay: () => undefined,
+    hasOverlay: () => false,
+  };
+
+  let terminalInputs = 0;
+  const runtime = {
+    dispatchTerminalInput: (_sessionId: string, data: string) => {
+      assert.equal(data, "\x1b[9;1:3u");
+      terminalInputs++;
+      return undefined;
+    },
+  };
+
+  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[9;1:3u", tui, undefined, runtime), {
+    consume: true,
+  });
+  assert.equal(terminalInputs, 1);
+  assert.equal(state.activeTabId, "s1");
+});
+
 test("tab jump to Home preserves vim mode on the agent (like Left)", () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo", { vimMode: true });
