@@ -269,15 +269,13 @@ export async function listSessionsForCwd(
  * 2. Pi default layout siblings: parent of sessionsRoot is sessions/ and each
  *    child is an encoded-cwd directory under agentDir/sessions/.
  *    Without this, All-scope only sees the active workdir.
- * 3. MixCode isolation layout: rootStateDir/workdirs/.../sessions
  */
 export async function listAllSessionsGlobal(
   sessionsRoot: string,
-  rootStateDir?: string,
   signal?: AbortSignal,
   onProgress?: SessionListProgress,
 ): Promise<SessionInfo[]> {
-  const dirs = collectAllSessionDirs(sessionsRoot, rootStateDir);
+  const dirs = collectAllSessionDirs(sessionsRoot);
 
   if (onProgress) {
     return listAllSessionDirsWithProgress([...dirs], onProgress);
@@ -286,7 +284,7 @@ export async function listAllSessionsGlobal(
   return listSessionsInBackground({ mode: "all", sessionDirs: [...dirs] }, signal);
 }
 
-function collectAllSessionDirs(sessionsRoot: string, rootStateDir?: string): Set<string> {
+function collectAllSessionDirs(sessionsRoot: string): Set<string> {
   const dirs = new Set<string>([sessionsRoot]);
 
   // Pi layout: agentDir/sessions/<encoded-cwd>/ — scan siblings of sessionsRoot.
@@ -298,23 +296,6 @@ function collectAllSessionDirs(sessionsRoot: string, rootStateDir?: string): Set
       }
     } catch {
       // Ignore read errors on the sessions parent.
-    }
-  }
-
-  if (rootStateDir) {
-    // MixCode/test isolation: rootStateDir/workdirs/*/sessions
-    const workdirsDir = path.join(rootStateDir, "workdirs");
-    if (fs.existsSync(workdirsDir)) {
-      try {
-        const entries = fs.readdirSync(workdirsDir, { withFileTypes: true });
-        for (const entry of entries) {
-          if (!entry.isDirectory()) continue;
-          const candidate = path.join(workdirsDir, entry.name, "sessions");
-          if (fs.existsSync(candidate)) dirs.add(candidate);
-        }
-      } catch {
-        // Ignore read errors on workdirs directory
-      }
     }
   }
 

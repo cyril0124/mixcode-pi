@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { appendFile, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import * as fsPromises from "node:fs/promises";
+import * as nodePath from "node:path";
+import * as os from "node:os";
 import { test } from "node:test";
 import { listSessionsForCwd } from "../src/agent/runtime-session.js";
 import {
@@ -17,7 +17,7 @@ import {
 import { acquireSessionTurnLock } from "../src/core/session-lock.js";
 
 async function readJsonl(path: string): Promise<Record<string, unknown>[]> {
-  const text = await readFile(path, "utf8");
+  const text = await fsPromises.readFile(path, "utf8");
   return text
     .trim()
     .split(/\r?\n/)
@@ -30,9 +30,9 @@ async function writeSessionFixture(
   id: string,
   entries: Record<string, unknown>[],
 ): Promise<string> {
-  await mkdir(sessionsRoot, { recursive: true });
-  const path = join(sessionsRoot, `2026-06-20T00-00-00-000Z_${id}.jsonl`);
-  await writeFile(path, `${entries.map((entry) => JSON.stringify(entry)).join("\n")}\n`, "utf8");
+  await fsPromises.mkdir(sessionsRoot, { recursive: true });
+  const path = nodePath.join(sessionsRoot, `2026-06-20T00-00-00-000Z_${id}.jsonl`);
+  await fsPromises.writeFile(path, `${entries.map((entry) => JSON.stringify(entry)).join("\n")}\n`, "utf8");
   return path;
 }
 
@@ -44,8 +44,8 @@ test("conversation history paths live under the global state dir", () => {
 });
 
 test("appendHistoryEntry writes strict Codex-compatible fields and trims oldest lines", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-history-append-"));
-  const file = join(dir, "history.jsonl");
+  const dir = await fsPromises.mkdtemp(nodePath.join(os.tmpdir(), "mixcode-history-append-"));
+  const file = nodePath.join(dir, "history.jsonl");
   try {
     await appendHistoryEntry(file, { sessionId: "s1", text: "first", timestampSeconds: 10 }, { maxBytes: 95 });
     await appendHistoryEntry(file, { sessionId: "s1", text: "second", timestampSeconds: 11 }, { maxBytes: 95 });
@@ -55,15 +55,15 @@ test("appendHistoryEntry writes strict Codex-compatible fields and trims oldest 
       { session_id: "s1", ts: 11, text: "second" },
       { session_id: "s2", ts: 12, text: "third" },
     ]);
-    assert.equal((await stat(file)).mode & 0o777, 0o600);
+    assert.equal((await fsPromises.stat(file)).mode & 0o777, 0o600);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("appendHistoryEntry preserves raw submitted text", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-history-raw-"));
-  const file = join(dir, "history.jsonl");
+  const dir = await fsPromises.mkdtemp(nodePath.join(os.tmpdir(), "mixcode-history-raw-"));
+  const file = nodePath.join(dir, "history.jsonl");
   try {
     await appendHistoryEntry(
       file,
@@ -74,13 +74,13 @@ test("appendHistoryEntry preserves raw submitted text", async () => {
       { session_id: "s1", ts: 10, text: "!! echo hi  " },
     ]);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("appendHistoryEntry serializes concurrent appends", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-history-concurrent-"));
-  const file = join(dir, "history.jsonl");
+  const dir = await fsPromises.mkdtemp(nodePath.join(os.tmpdir(), "mixcode-history-concurrent-"));
+  const file = nodePath.join(dir, "history.jsonl");
   try {
     await Promise.all(
       Array.from({ length: 12 }, (_, index) =>
@@ -102,13 +102,13 @@ test("appendHistoryEntry serializes concurrent appends", async () => {
       })),
     );
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("appendHistoryEntry reclaims a stale lock left by a crashed process", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-history-stale-lock-"));
-  const file = join(dir, "history.jsonl");
+  const dir = await fsPromises.mkdtemp(nodePath.join(os.tmpdir(), "mixcode-history-stale-lock-"));
+  const file = nodePath.join(dir, "history.jsonl");
   try {
     // Simulate a crashed holder: lock file owned by a dead PID, never released.
     acquireSessionTurnLock(dir, HISTORY_LOCK_ID, {
@@ -126,13 +126,13 @@ test("appendHistoryEntry reclaims a stale lock left by a crashed process", async
       { session_id: "s1", ts: 10, text: "after crash" },
     ]);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("appendHistoryEntry waits for a live history lock instead of stealing it", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-history-live-lock-"));
-  const file = join(dir, "history.jsonl");
+  const dir = await fsPromises.mkdtemp(nodePath.join(os.tmpdir(), "mixcode-history-live-lock-"));
+  const file = nodePath.join(dir, "history.jsonl");
   let held: ReturnType<typeof acquireSessionTurnLock> | undefined;
   try {
     held = acquireSessionTurnLock(dir, HISTORY_LOCK_ID);
@@ -145,7 +145,7 @@ test("appendHistoryEntry waits for a live history lock instead of stealing it", 
       settled = true;
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 60));
+    await Bun.sleep(60);
     assert.equal(settled, false, "append must wait while the live lock is held");
     held.release();
     held = undefined;
@@ -156,13 +156,13 @@ test("appendHistoryEntry waits for a live history lock instead of stealing it", 
     ]);
   } finally {
     held?.release();
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("appendHistoryEntry reclaims a dead-PID lock without waiting for mtime stale", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-history-dead-pid-lock-"));
-  const file = join(dir, "history.jsonl");
+  const dir = await fsPromises.mkdtemp(nodePath.join(os.tmpdir(), "mixcode-history-dead-pid-lock-"));
+  const file = nodePath.join(dir, "history.jsonl");
   try {
     acquireSessionTurnLock(dir, HISTORY_LOCK_ID, {
       pid: 999_999_998,
@@ -179,33 +179,33 @@ test("appendHistoryEntry reclaims a dead-PID lock without waiting for mtime stal
       { session_id: "s1", ts: 10, text: "recovered" },
     ]);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("appendHistoryEntry skips invalid prompt-history entries", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-history-invalid-"));
-  const file = join(dir, "history.jsonl");
+  const dir = await fsPromises.mkdtemp(nodePath.join(os.tmpdir(), "mixcode-history-invalid-"));
+  const file = nodePath.join(dir, "history.jsonl");
   try {
     assert.equal(await appendHistoryEntry(file, { sessionId: "", text: "ignored", timestampSeconds: 10 }, { maxBytes: 1024 }), false);
     assert.equal(await appendHistoryEntry(file, { sessionId: "s1", text: "   ", timestampSeconds: 10 }, { maxBytes: 1024 }), false);
-    await assert.rejects(readFile(file, "utf8"), /ENOENT/);
+    await assert.rejects(fsPromises.readFile(file, "utf8"), /ENOENT/);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("backfillHistoryFromSessions imports recent user messages and deduplicates", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-history-backfill-"));
+  const dir = await fsPromises.mkdtemp(nodePath.join(os.tmpdir(), "mixcode-history-backfill-"));
   try {
-    const sessionsRoot = join(dir, "sessions");
+    const sessionsRoot = nodePath.join(dir, "sessions");
     await writeSessionFixture(sessionsRoot, "s1", [
       { type: "session", id: "s1", cwd: "/repo", timestamp: "2026-06-20T00:00:00.000Z" },
       { type: "message", id: "u1", message: { role: "user", content: [{ type: "text", text: "recent prompt" }], timestamp: Date.UTC(2026, 5, 20) } },
       { type: "message", id: "a1", message: { role: "assistant", content: [{ type: "text", text: "reply" }], timestamp: Date.UTC(2026, 5, 20) } },
       { type: "message", id: "u2", message: { role: "user", content: "old prompt", timestamp: Date.UTC(2026, 3, 1) } },
     ]);
-    const historyFile = join(dir, "history.jsonl");
+    const historyFile = nodePath.join(dir, "history.jsonl");
     await appendHistoryEntry(historyFile, { sessionId: "s1", text: "recent prompt", timestampSeconds: Date.UTC(2026, 5, 20) / 1000 }, { maxBytes: 1024 * 1024 });
 
     const result = await backfillHistoryFromSessions({
@@ -221,14 +221,14 @@ test("backfillHistoryFromSessions imports recent user messages and deduplicates"
       { session_id: "s1", ts: Date.UTC(2026, 5, 20) / 1000, text: "recent prompt" },
     ]);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("backfillHistoryFromSessions accepts entry timestamp strings", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-history-string-ts-"));
+  const dir = await fsPromises.mkdtemp(nodePath.join(os.tmpdir(), "mixcode-history-string-ts-"));
   try {
-    const sessionsRoot = join(dir, "sessions");
+    const sessionsRoot = nodePath.join(dir, "sessions");
     await writeSessionFixture(sessionsRoot, "s1", [
       { type: "session", id: "s1", cwd: "/repo", timestamp: "2026-06-20T00:00:00.000Z" },
       {
@@ -238,7 +238,7 @@ test("backfillHistoryFromSessions accepts entry timestamp strings", async () => 
         message: { role: "user", content: "string timestamp prompt" },
       },
     ]);
-    const historyFile = join(dir, "history.jsonl");
+    const historyFile = nodePath.join(dir, "history.jsonl");
     const result = await backfillHistoryFromSessions({
       historyFile,
       sessionsRoots: [sessionsRoot],
@@ -250,14 +250,14 @@ test("backfillHistoryFromSessions accepts entry timestamp strings", async () => 
       { session_id: "s1", ts: Date.UTC(2026, 5, 20, 1, 2, 3) / 1000, text: "string timestamp prompt" },
     ]);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("buildSessionIndex writes snapshot records with session name fallback", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-session-index-"));
+  const dir = await fsPromises.mkdtemp(nodePath.join(os.tmpdir(), "mixcode-session-index-"));
   try {
-    const sessionsRoot = join(dir, "sessions");
+    const sessionsRoot = nodePath.join(dir, "sessions");
     const namedPath = await writeSessionFixture(sessionsRoot, "named", [
       { type: "session", id: "named", cwd: "/repo", timestamp: "2026-06-19T00:00:00.000Z" },
       { type: "message", id: "u1", message: { role: "user", content: "first user prompt", timestamp: Date.UTC(2026, 5, 19) } },
@@ -268,7 +268,7 @@ test("buildSessionIndex writes snapshot records with session name fallback", asy
       { type: "message", id: "u1", message: { role: "user", content: "fallback title that is reasonably long", timestamp: Date.UTC(2026, 5, 20) } },
     ]);
 
-    const indexFile = join(dir, "session_index.jsonl");
+    const indexFile = nodePath.join(dir, "session_index.jsonl");
     const result = await buildSessionIndex({ indexFile, sessionsRoots: [sessionsRoot] });
     assert.equal(result.indexed, 2);
     const records = await readJsonl(indexFile);
@@ -277,35 +277,35 @@ test("buildSessionIndex writes snapshot records with session name fallback", asy
     assert.ok(records.some((record) => record.id === "unnamed" && record.title === "fallback title that is reasonably long" && record.path === unnamedPath && record.cwd === "/repo"));
     assert.equal(records[0]?.id, "unnamed");
     assert.equal("thread_name" in records[0]!, false);
-    assert.equal((await stat(indexFile)).mode & 0o777, 0o600);
+    assert.equal((await fsPromises.stat(indexFile)).mode & 0o777, 0o600);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("shouldRebuildSessionIndex compares sessions mtime with index mtime", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-session-stale-"));
+  const dir = await fsPromises.mkdtemp(nodePath.join(os.tmpdir(), "mixcode-session-stale-"));
   try {
-    const sessionsRoot = join(dir, "sessions");
-    await mkdir(sessionsRoot, { recursive: true });
-    const sessionFile = join(sessionsRoot, "s.jsonl");
-    const indexFile = join(dir, "session_index.jsonl");
-    await writeFile(sessionFile, "{}\n", "utf8");
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    await writeFile(indexFile, "{}\n", "utf8");
+    const sessionsRoot = nodePath.join(dir, "sessions");
+    await fsPromises.mkdir(sessionsRoot, { recursive: true });
+    const sessionFile = nodePath.join(sessionsRoot, "s.jsonl");
+    const indexFile = nodePath.join(dir, "session_index.jsonl");
+    await fsPromises.writeFile(sessionFile, "{}\n", "utf8");
+    await Bun.sleep(20);
+    await fsPromises.writeFile(indexFile, "{}\n", "utf8");
     assert.equal(await shouldRebuildSessionIndex(indexFile, [sessionsRoot]), false);
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    await writeFile(sessionFile, "{}\n{}\n", "utf8");
+    await Bun.sleep(20);
+    await fsPromises.writeFile(sessionFile, "{}\n{}\n", "utf8");
     assert.equal(await shouldRebuildSessionIndex(indexFile, [sessionsRoot]), true);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("ensureConversationHistoryState backfills history and builds stale index", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-history-ensure-"));
+  const dir = await fsPromises.mkdtemp(nodePath.join(os.tmpdir(), "mixcode-history-ensure-"));
   try {
-    const scoped = join(dir, "workdirs", "repo", "sessions");
+    const scoped = nodePath.join(dir, "workdirs", "repo", "sessions");
     const sessionPath = await writeSessionFixture(scoped, "s1", [
       { type: "session", id: "s1", cwd: "/repo", timestamp: "2026-06-20T00:00:00.000Z" },
       { type: "message", id: "u1", message: { role: "user", content: "hello history", timestamp: Date.UTC(2026, 5, 20) } },
@@ -317,10 +317,10 @@ test("ensureConversationHistoryState backfills history and builds stale index", 
     });
     assert.equal(result.warnings.length, 0);
     assert.equal(result.scannedSessions, 1);
-    assert.deepEqual(await readJsonl(join(dir, "history.jsonl")), [
+    assert.deepEqual(await readJsonl(nodePath.join(dir, "history.jsonl")), [
       { session_id: "s1", ts: Date.UTC(2026, 5, 20) / 1000, text: "hello history" },
     ]);
-    assert.equal((await readJsonl(join(dir, "session_index.jsonl"))).length, 1);
+    assert.equal((await readJsonl(nodePath.join(dir, "session_index.jsonl"))).length, 1);
 
     const catalogStartedAt = performance.now();
     const catalogSessions = await listSessionsForCwd("/repo", scoped);
@@ -337,8 +337,8 @@ test("ensureConversationHistoryState backfills history and builds stale index", 
     });
     assert.equal(unchanged.scannedSessions, 0);
 
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    await appendFile(
+    await Bun.sleep(20);
+    await fsPromises.appendFile(
       sessionPath,
       `${JSON.stringify({
         type: "message",
@@ -357,12 +357,12 @@ test("ensureConversationHistoryState backfills history and builds stale index", 
       now: () => new Date(Date.UTC(2026, 5, 21)),
     });
     assert.equal(changed.scannedSessions, 1);
-    assert.deepEqual(await readJsonl(join(dir, "history.jsonl")), [
+    assert.deepEqual(await readJsonl(nodePath.join(dir, "history.jsonl")), [
       { session_id: "s1", ts: Date.UTC(2026, 5, 20) / 1000, text: "hello history" },
       { session_id: "s1", ts: Date.UTC(2026, 5, 21) / 1000, text: "new external prompt" },
     ]);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 

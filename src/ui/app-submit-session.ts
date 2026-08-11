@@ -15,6 +15,7 @@ import {
   completeAgentTabClear,
   createAgentTab,
   prepareAgentTabClear,
+  type PreparedAgentTabClear,
 } from "./agent-tab-actions.js";
 import {
   appendActiveSystemMessage,
@@ -46,7 +47,7 @@ const handleClear: LocalCommandHandler = ({ state, active, runtime, tui }) => {
   // Home send keeps activeTabId=config while overriding the target tab; stay there
   // after clear instead of following completeAgentTabClear's activateTab(next).
   const stayOnHome = state.activeTabId === "config";
-  let prepared: ReturnType<typeof prepareAgentTabClear>;
+  let prepared: PreparedAgentTabClear;
   try {
     prepared = prepareAgentTabClear(state, runtime, active!.sessionId);
   } catch (error: unknown) {

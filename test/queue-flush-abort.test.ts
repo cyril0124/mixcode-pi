@@ -1,8 +1,8 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import * as fsPromises from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { test } from "node:test";
 import {
   Type,
@@ -119,7 +119,7 @@ function lastUserText(context: Context): string {
 // hits Esc (abort + flush). The queued message must be re-sent as a fresh
 // prompt, not silently drained into the aborted turn and dropped.
 test("escape during a tool call flushes the queued message instead of dropping it", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-queue-flush-repro-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-queue-flush-repro-"));
   try {
     let releaseTool!: () => void;
     const toolReleased = new Promise<void>((resolve) => {
@@ -215,6 +215,6 @@ test("escape during a tool call flushes the queued message instead of dropping i
         `pendingMessages=${JSON.stringify(tab.pendingMessages)} queuedPromptCount=${runtimeTab.queuedPromptCount}`,
     );
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

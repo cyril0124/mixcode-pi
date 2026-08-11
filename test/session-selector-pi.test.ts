@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import * as fsPromises from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { test } from "node:test";
 import {
   SessionManager,
@@ -202,7 +202,7 @@ test("session selector render includes key hints when keybindings bridge is appl
     input.host,
   );
   // Wait a tick for async list load inside Pi component
-  await new Promise((r) => setTimeout(r, 30));
+  await Bun.sleep(30);
   const host = input.mounted as { render: (w: number) => string[] };
   assert.ok(host?.render);
   const plain = host
@@ -254,7 +254,7 @@ async function openMountedSelector(runtime: {
     undefined,
     input,
   );
-  await new Promise((r) => setTimeout(r, 30));
+  await Bun.sleep(30);
   assert.ok(mounted);
   return {
     state,
@@ -305,14 +305,14 @@ test("All scope load reports Loading n/m progress to the header", async () => {
   });
 
   sel.tab("\t");
-  await new Promise((r) => setTimeout(r, 20));
+  await Bun.sleep(20);
   assert.ok(reportProgress, "first All load must accept an onProgress sink");
   reportProgress!(3, 10);
-  await new Promise((r) => setTimeout(r, 10));
+  await Bun.sleep(10);
   assert.match(sel.plain(), /Loading\s+3\/10/);
 
   resolveAll(current);
-  await new Promise((r) => setTimeout(r, 20));
+  await Bun.sleep(20);
   sel.close();
 });
 
@@ -342,7 +342,7 @@ test("All scope clears current-folder rows while the global list is still loadin
 
   // Tab to All while the global scan is still in flight.
   sel.tab("\t");
-  await new Promise((r) => setTimeout(r, 30));
+  await Bun.sleep(30);
   const loadingPlain = sel.plain(100);
   assert.match(loadingPlain, /Resume Session \(All\)/);
   assert.doesNotMatch(
@@ -365,7 +365,7 @@ test("All scope clears current-folder rows while the global list is still loadin
       allMessagesText: "other",
     },
   ]);
-  await new Promise((r) => setTimeout(r, 30));
+  await Bun.sleep(30);
   assert.match(sel.plain(100), /FromOther/);
   sel.close();
 });
@@ -399,7 +399,7 @@ test("Tab scope toggle survives Kitty key-release (does not bounce back to Curre
   // Release (\x1b[9;1:3u) also matches tui.input.tab — must not re-toggle.
   assert.deepEqual(sel.tab("\x1b[9;1u"), { consume: true });
   assert.deepEqual(sel.tab("\x1b[9;1:3u"), { consume: true });
-  await new Promise((r) => setTimeout(r, 30));
+  await Bun.sleep(30);
 
   assert.equal(allCalls, 1, "All-scope loader must run once, not bounce back");
   const plain = sel.plain();
@@ -455,7 +455,7 @@ test("resumeSelectedSession opens a new tab and switches to the target session",
     runtime as never,
   );
 
-  await new Promise((r) => setTimeout(r, 30));
+  await Bun.sleep(30);
 
   assert.equal(switched.length, 1);
   assert.equal(switched[0]!.path, "/sessions/session-a.jsonl");
@@ -505,7 +505,7 @@ test("resumeSelectedSession focuses an already-open tab instead of creating anot
 });
 
 test("renameOpenSession updates title of any open tab, not only active", async () => {
-  const root = await mkdtemp(join(tmpdir(), "mixcode-rename-pi-"));
+  const root = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-rename-pi-"));
   try {
     const otherSession = SessionManager.create(root, root);
     const otherPath = otherSession.getSessionFile()!;
@@ -529,6 +529,6 @@ test("renameOpenSession updates title of any open tab, not only active", async (
     assert.equal(other.title, "New-Other-Name");
     assert.equal(active.title, "Active-Tab");
   } finally {
-    await rm(root, { recursive: true, force: true });
+    await fsPromises.rm(root, { recursive: true, force: true });
   }
 });

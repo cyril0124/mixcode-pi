@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import * as fsPromises from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { test } from "node:test";
 import { SettingsManager } from "@earendil-works/pi-coding-agent";
 import {
@@ -94,9 +94,9 @@ function toolResultTree(): SessionTreeNode[] {
 }
 
 test("#76 settings number edit accepts unit suffixes and prefills compact form", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-settings-unit-"));
-  const mixcodeFile = join(dir, "mixcode_settings.json");
-  await writeFile(mixcodeFile, JSON.stringify({ history: { maxBytes: 5 * 1024 * 1024 } }));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-settings-unit-"));
+  const mixcodeFile = path.join(dir, "mixcode_settings.json");
+  await fsPromises.writeFile(mixcodeFile, JSON.stringify({ history: { maxBytes: 5 * 1024 * 1024 } }));
   try {
     const state = createInitialState(dir);
     state.settingsPanel = {
@@ -108,7 +108,7 @@ test("#76 settings number edit accepts unit suffixes and prefills compact form",
       enumIndex: 0,
       mixcodeRaw: { history: { maxBytes: 5 * 1024 * 1024 } },
       mixcodeFile,
-      piSettingsFile: join(dir, "settings.json"),
+      piSettingsFile: path.join(dir, "settings.json"),
       settingsManager: SettingsManager.inMemory(),
     };
     const tui = {
@@ -128,20 +128,20 @@ test("#76 settings number edit accepts unit suffixes and prefills compact form",
     for (const ch of "2kb") handleSettingsPanelKey(state, ch, tui);
     await handleSettingsPanelKey(state, "\r", tui);
     // setValue is async
-    await new Promise((r) => setTimeout(r, 30));
+    await Bun.sleep(30);
     assert.equal(state.settingsPanel.editMode, false);
     assert.equal(state.settingsPanel.mixcodeRaw.history?.maxBytes, 2 * 1024);
 
     assert.match(stripAnsi(renderSettingsPanel(state, 80).join("\n")), /2 KB/);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("#76 non-byte number fields reject unit suffixes", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-settings-retries-"));
-  const mixcodeFile = join(dir, "mixcode_settings.json");
-  await writeFile(
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-settings-retries-"));
+  const mixcodeFile = path.join(dir, "mixcode_settings.json");
+  await fsPromises.writeFile(
     mixcodeFile,
     JSON.stringify({
       ui: { oversizedAssistantMessage: { maxLines: 12 } },
@@ -158,7 +158,7 @@ test("#76 non-byte number fields reject unit suffixes", async () => {
       enumIndex: 0,
       mixcodeRaw: { ui: { oversizedAssistantMessage: { maxLines: 12 } } },
       mixcodeFile,
-      piSettingsFile: join(dir, "settings.json"),
+      piSettingsFile: path.join(dir, "settings.json"),
       settingsManager: SettingsManager.inMemory(),
     };
     const tui = {
@@ -176,7 +176,7 @@ test("#76 non-byte number fields reject unit suffixes", async () => {
     state.settingsPanel.editText = "";
     for (const ch of "5k") handleSettingsPanelKey(state, ch, tui);
     await handleSettingsPanelKey(state, "\r", tui);
-    await new Promise((r) => setTimeout(r, 30));
+    await Bun.sleep(30);
     // Invalid unit input keeps edit mode and the prior explicit value.
     assert.equal(state.settingsPanel.editMode, true);
     assert.equal(state.settingsPanel.editText, "5k");
@@ -191,11 +191,11 @@ test("#76 non-byte number fields reject unit suffixes", async () => {
     state.settingsPanel.editText = "";
     for (const ch of "8") handleSettingsPanelKey(state, ch, tui);
     await handleSettingsPanelKey(state, "\r", tui);
-    await new Promise((r) => setTimeout(r, 30));
+    await Bun.sleep(30);
     assert.equal(state.settingsPanel.editMode, false);
     assert.equal(state.settingsPanel.mixcodeRaw.ui?.oversizedAssistantMessage?.maxLines, 8);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import * as fsPromises from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { describe, it } from "node:test";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
@@ -140,13 +140,13 @@ describe("shouldCompactForWindow / fitCompactionBudgetsToWindow", () => {
 
 describe("resolveCompactionBudgets", () => {
   it("merges absolute Pi settings: project over global, defaults 16384/20000", async () => {
-    const root = await mkdtemp(join(tmpdir(), "mpi-mid-turn-budgets-"));
-    const agentDir = join(root, "agent");
-    const cwd = join(root, "cwd");
-    await mkdir(join(agentDir), { recursive: true });
-    await mkdir(join(cwd, ".pi"), { recursive: true });
-    await writeFile(
-      join(agentDir, "settings.json"),
+    const root = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mpi-mid-turn-budgets-"));
+    const agentDir = path.join(root, "agent");
+    const cwd = path.join(root, "cwd");
+    await fsPromises.mkdir(path.join(agentDir), { recursive: true });
+    await fsPromises.mkdir(path.join(cwd, ".pi"), { recursive: true });
+    await fsPromises.writeFile(
+      path.join(agentDir, "settings.json"),
       JSON.stringify({ compaction: { reserveTokens: 5000, keepRecentTokens: 12_000 } }),
     );
     assert.deepEqual(resolveCompactionBudgets(cwd, agentDir), {
@@ -154,8 +154,8 @@ describe("resolveCompactionBudgets", () => {
       reserveTokens: 5000,
       keepRecentTokens: 12_000,
     });
-    await writeFile(
-      join(cwd, ".pi", "settings.json"),
+    await fsPromises.writeFile(
+      path.join(cwd, ".pi", "settings.json"),
       JSON.stringify({ compaction: { reserveTokens: 800, keepRecentTokens: 4000 } }),
     );
     assert.deepEqual(resolveCompactionBudgets(cwd, agentDir), {
@@ -163,15 +163,15 @@ describe("resolveCompactionBudgets", () => {
       reserveTokens: 800,
       keepRecentTokens: 4000,
     });
-    await rm(join(cwd, ".pi", "settings.json"));
-    await rm(join(agentDir, "settings.json"));
+    await fsPromises.rm(path.join(cwd, ".pi", "settings.json"));
+    await fsPromises.rm(path.join(agentDir, "settings.json"));
     // No fraction rewrite: defaults stay absolute even for small windows.
     assert.deepEqual(resolveCompactionBudgets(cwd, agentDir), {
       enabled: true,
       reserveTokens: 16_384,
       keepRecentTokens: 20_000,
     });
-    await rm(root, { recursive: true, force: true });
+    await fsPromises.rm(root, { recursive: true, force: true });
   });
 });
 
@@ -468,9 +468,9 @@ describe("context handler non-blocking compact", () => {
       sendMessage() {},
     } as unknown as ExtensionAPI;
 
-    const agentDir = await mkdtemp(join(tmpdir(), "mpi-mid-turn-disk-keep-"));
-    await writeFile(
-      join(agentDir, "settings.json"),
+    const agentDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mpi-mid-turn-disk-keep-"));
+    await fsPromises.writeFile(
+      path.join(agentDir, "settings.json"),
       JSON.stringify({
         compaction: { reserveTokens: 16_384, keepRecentTokens: 20_000 },
       }),
@@ -517,7 +517,7 @@ describe("context handler non-blocking compact", () => {
 
     assert.equal(seenKeep, 20_000);
     assert.equal(aborted, false);
-    await rm(agentDir, { recursive: true, force: true });
+    await fsPromises.rm(agentDir, { recursive: true, force: true });
   });
 
   it("does not abort when prepareCompaction says nothing to compact", async () => {

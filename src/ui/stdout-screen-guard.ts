@@ -53,7 +53,7 @@ function writeDebugLog(): void {
   }
 }
 
-export function withHostStdoutWrite<T>(fn: () => T): T {
+function withHostStdoutWrite<T>(fn: () => T): T {
   hostWriteDepth += 1;
   try {
     return fn();
@@ -62,12 +62,7 @@ export function withHostStdoutWrite<T>(fn: () => T): T {
   }
 }
 
-export function isHostStdoutWriteActive(): boolean {
-  return hostWriteDepth > 0;
-}
-
-/** Test helper: strip full-screen clear sequences from a string chunk. */
-export function stripUnauthorizedScreenClears(text: string): {
+function stripUnauthorizedScreenClears(text: string): {
   text: string;
   stripped: boolean;
 } {
@@ -145,7 +140,7 @@ export function installStdoutScreenGuard(options: {
   return uninstallStdoutScreenGuard;
 }
 
-export function uninstallStdoutScreenGuard(): void {
+function uninstallStdoutScreenGuard(): void {
   if (!installed || !originalWrite) return;
   process.stdout.write = originalWrite;
   originalWrite = undefined;
@@ -159,11 +154,6 @@ export function uninstallStdoutScreenGuard(): void {
   blockedClearCount = 0;
   hostClearCount = 0;
   hostWriteDepth = 0;
-}
-
-/** Test helper: how many unauthorized clears were stripped since install. */
-export function getBlockedScreenClearCount(): number {
-  return blockedClearCount;
 }
 
 function scheduleBlockedClearRepaint(): void {

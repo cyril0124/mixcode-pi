@@ -8,7 +8,7 @@
 //
 // The watch and stat functions are injectable so behavior is deterministic in
 // tests; production uses node:fs (watch has no Bun equivalent).
-import type { FSWatcher } from "node:fs";
+
 import * as fs from "node:fs";
 import * as path from "node:path";
 
@@ -49,7 +49,7 @@ export interface SessionSyncCoordinatorOptions {
 const DEFAULT_DEBOUNCE_MS = 250;
 
 const defaultWatchFactory: SessionWatchFactory = (dir, onEvent, onError) => {
-  let watcher: FSWatcher;
+  let watcher: fs.FSWatcher;
   try {
     watcher = fs.watch(dir, { persistent: false }, (_type, filename) => {
       onEvent(typeof filename === "string" ? filename : null);

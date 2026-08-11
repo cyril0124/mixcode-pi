@@ -2,9 +2,9 @@
 // wrapping an assistant-continue refusal as "Compaction failed".
 
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import * as fsPromises from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { test } from "node:test";
 import {
   Type,
@@ -85,8 +85,8 @@ function streamAssistantMessage(message: AssistantMessage) {
 }
 
 test("manual compact after assistant stop does not report continue failure", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-auto-compact-guard-"));
-  const agentDir = join(dir, "agent");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-auto-compact-guard-"));
+  const agentDir = path.join(dir, "agent");
   try {
     let turn = 0;
     const runtime = new MixCodeRuntime({
@@ -185,6 +185,6 @@ test("manual compact after assistant stop does not report continue failure", asy
     assert.equal(tab.status, "idle");
     assert.equal(runtimeTab.session.getBranch().at(-1)?.type, "compaction");
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

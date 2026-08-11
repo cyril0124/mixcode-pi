@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import * as fsPromises from "node:fs/promises";
+import * as path from "node:path";
+import * as os from "node:os";
 import { test } from "node:test";
 import { CURSOR_MARKER, visibleWidth, type AutocompleteProvider, type Component, type OverlayOptions, type Terminal } from "@earendil-works/pi-tui";
 import {
@@ -16,7 +16,7 @@ import {
 async function waitFor(predicate: () => boolean, attempts = 25): Promise<void> {
   for (let i = 0; i < attempts; i += 1) {
     if (predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await Bun.sleep(10);
   }
   assert.equal(predicate(), true);
 }
@@ -55,7 +55,7 @@ function silentTerminal(): Terminal {
 }
 
 test("createMixCodeTui submit hook persists prompt history", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-tui-history-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-tui-history-"));
   try {
     const state = createInitialState("/repo");
     const tab = createTab(1, "s1", "/repo");
@@ -89,18 +89,18 @@ test("createMixCodeTui submit hook persists prompt history", async () => {
       layout.editor.setText("hello tui-history  ");
       layout.editor.submitCurrentText();
       await waitFor(() => prompts.length === 1);
-      const historyFile = join(dir, "history.jsonl");
+      const historyFile = path.join(dir, "history.jsonl");
       for (let i = 0; i < 25; i += 1) {
-        if (/hello tui-history/.test(await readFile(historyFile, "utf8").catch(() => ""))) break;
-        await new Promise((resolve) => setTimeout(resolve, 10));
+        if (/hello tui-history/.test(await fsPromises.readFile(historyFile, "utf8").catch(() => ""))) break;
+        await Bun.sleep(10);
       }
       assert.deepEqual(prompts, ["hello tui-history"]);
-      assert.match(await readFile(historyFile, "utf8"), /"text":"hello tui-history"/);
+      assert.match(await fsPromises.readFile(historyFile, "utf8"), /"text":"hello tui-history"/);
     } finally {
       tui.stop();
     }
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
@@ -180,11 +180,11 @@ test("createMixCodeTui editor submits prompts and surfaces slash errors", async 
 });
 
 test("createMixCodeTui external editor rewrites focused draft and surfaces exit errors", async () => {
-  const externalDir = await mkdtemp(join(tmpdir(), "mixcode-external-editor-ok-"));
-  const failureDir = await mkdtemp(join(tmpdir(), "mixcode-external-editor-fail-"));
+  const externalDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-external-editor-ok-"));
+  const failureDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-external-editor-fail-"));
   try {
-    const editorScript = join(externalDir, "editor.sh");
-    await writeFile(editorScript, `#!/bin/sh\nprintf changed > "$1"\n`, { mode: 0o755 });
+    const editorScript = path.join(externalDir, "editor.sh");
+    await fsPromises.writeFile(editorScript, `#!/bin/sh\nprintf changed > "$1"\n`, { mode: 0o755 });
     const state = createInitialState("/repo");
     const tab = createTab(1, "s1", "/repo");
     state.tabs.push(tab);
@@ -229,8 +229,8 @@ test("createMixCodeTui external editor rewrites focused draft and surfaces exit 
       tui.stop();
     }
 
-    const failureScript = join(failureDir, "editor.sh");
-    await writeFile(failureScript, "#!/bin/sh\nexit 7\n", { mode: 0o755 });
+    const failureScript = path.join(failureDir, "editor.sh");
+    await fsPromises.writeFile(failureScript, "#!/bin/sh\nexit 7\n", { mode: 0o755 });
     const failureState = createInitialState("/repo");
     const failureTab = createTab(2, "s2", "/repo");
     failureState.tabs.push(failureTab);
@@ -252,8 +252,8 @@ test("createMixCodeTui external editor rewrites focused draft and surfaces exit 
       failureTui.stop();
     }
   } finally {
-    await rm(externalDir, { recursive: true, force: true });
-    await rm(failureDir, { recursive: true, force: true });
+    await fsPromises.rm(externalDir, { recursive: true, force: true });
+    await fsPromises.rm(failureDir, { recursive: true, force: true });
   }
 });
 

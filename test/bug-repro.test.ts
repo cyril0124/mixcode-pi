@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import * as fsPromises from "node:fs/promises";
+import * as path from "node:path";
+import * as os from "node:os";
 import { test } from "node:test";
 import { promisify } from "node:util";
 import {
@@ -24,19 +24,19 @@ test("runLuaScript rejects non-string open_tab fields with clear field errors", 
 });
 
 test("external editor supports executable paths containing spaces", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-editor-space-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-editor-space-"));
   try {
-    const editorDir = join(dir, "editor dir");
-    await mkdir(editorDir);
-    const script = join(editorDir, "editor.sh");
-    await writeFile(script, "#!/bin/sh\nprintf 'edited through spaced path\\n' > \"$1\"\n", "utf8");
-    await chmod(script, 0o755);
+    const editorDir = path.join(dir, "editor dir");
+    await fsPromises.mkdir(editorDir);
+    const script = path.join(editorDir, "editor.sh");
+    await fsPromises.writeFile(script, "#!/bin/sh\nprintf 'edited through spaced path\\n' > \"$1\"\n", "utf8");
+    await fsPromises.chmod(script, 0o755);
     assert.equal(
       await editTextInExternalEditor("initial", { editor: script, tempRoot: dir }),
       "edited through spaced path\n",
     );
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
@@ -44,10 +44,10 @@ test("external editor supports executable paths containing spaces", async () => 
 // materializeBinaryRuntimeAssets (runtime write of photon_rs_bg.wasm).
 
 test("package bin symlink starts the CLI instead of silently exiting", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-bin-link-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-bin-link-"));
   try {
-    const linkPath = join(dir, "mpi");
-    await symlink(join(process.cwd(), "src", "cli", "main.ts"), linkPath);
+    const linkPath = path.join(dir, "mpi");
+    await fsPromises.symlink(path.join(process.cwd(), "src", "cli", "main.ts"), linkPath);
     // Bun runs .ts natively; --import tsx was the Node-era loader and fails
     // under Bun with an unrelated cjs resolution error.
     const { stdout } = await execFileAsync(process.execPath, [linkPath, "--help"], {
@@ -56,6 +56,6 @@ test("package bin symlink starts the CLI instead of silently exiting", async () 
     });
     assert.match(stdout, /Usage: mpi \[options\]/);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

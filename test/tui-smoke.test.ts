@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import * as fsPromises from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { promisify } from "node:util";
 import { test } from "node:test";
 
@@ -15,19 +15,19 @@ test("tmux TUI smoke covers max thinking, theme, navigation, and exit", {
       : false,
 }, async () => {
   const tmux = await resolveTmux();
-  const repo = resolve(".");
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-tmux-smoke-"));
+  const repo = path.resolve(".");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-tmux-smoke-"));
   const session = `mixcode-tmux-smoke-${process.pid}-${Date.now()}`;
   try {
-    const workdir = join(dir, "workdir");
-    const configHome = join(dir, "xdg");
-    const agentDir = join(dir, "agent");
-    await mkdir(workdir, { recursive: true });
-    await mkdir(configHome, { recursive: true });
-    await mkdir(agentDir, { recursive: true });
-    await writeFile(join(workdir, "probe.txt"), "probe\n");
-    await writeFile(
-      join(agentDir, "models.json"),
+    const workdir = path.join(dir, "workdir");
+    const configHome = path.join(dir, "xdg");
+    const agentDir = path.join(dir, "agent");
+    await fsPromises.mkdir(workdir, { recursive: true });
+    await fsPromises.mkdir(configHome, { recursive: true });
+    await fsPromises.mkdir(agentDir, { recursive: true });
+    await fsPromises.writeFile(path.join(workdir, "probe.txt"), "probe\n");
+    await fsPromises.writeFile(
+      path.join(agentDir, "models.json"),
       JSON.stringify({
         providers: {
           smoke: {
@@ -133,7 +133,7 @@ test("tmux TUI smoke covers max thinking, theme, navigation, and exit", {
     await assert.rejects(() => tmuxRun(tmux, session, ["has-session", "-t", session]));
   } finally {
     await tmuxRun(tmux, session, ["kill-session", "-t", session]).catch(() => undefined);
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
@@ -185,7 +185,7 @@ function shellQuote(value: string): string {
 }
 
 function delay(ms: number): Promise<void> {
-  return new Promise((resolveDelay) => setTimeout(resolveDelay, ms));
+  return Bun.sleep(ms);
 }
 
 async function selectRowByLabel(tmux: string, session: string, label: string): Promise<void> {

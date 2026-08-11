@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import * as fsPromises from "node:fs/promises";
+import * as path from "node:path";
+import * as os from "node:os";
 import { performance } from "node:perf_hooks";
 import { test } from "node:test";
 import { availableThinkingLevelsForModel } from "../src/core/thinking-levels.js";
@@ -286,11 +286,11 @@ test("picker query starts selection at the first filtered result", () => {
 });
 
 test("workdir picker completes direct child directories only", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-workdir-picker-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-workdir-picker-"));
   try {
-    await mkdir(join(dir, "alpha"), { recursive: true });
-    await mkdir(join(dir, "beta"), { recursive: true });
-    await writeFile(join(dir, "app.ts"), "");
+    await fsPromises.mkdir(path.join(dir, "alpha"), { recursive: true });
+    await fsPromises.mkdir(path.join(dir, "beta"), { recursive: true });
+    await fsPromises.writeFile(path.join(dir, "app.ts"), "");
 
     const state = createInitialState(dir);
     const picker = createPicker("workdir", state);
@@ -306,29 +306,29 @@ test("workdir picker completes direct child directories only", async () => {
       filteredPickerItems(picker).map((item) => item.description),
       ["directory"],
     );
-    assert.equal(acceptPickerSelection(picker)?.id, join(dir, "alpha"));
+    assert.equal(acceptPickerSelection(picker)?.id, path.join(dir, "alpha"));
 
     // Path-style query (contains /) treated as custom path input
     updatePickerQuery(picker, "alpha/");
-    assert.equal(acceptPickerSelection(picker)?.id, join(dir, "alpha"));
+    assert.equal(acceptPickerSelection(picker)?.id, path.join(dir, "alpha"));
 
     updatePickerQuery(picker, "missing/path");
     assert.equal(filteredPickerItems(picker)[0]?.description, "custom path");
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("workdir picker covers home absolute and empty query branches", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-workdir-branches-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-workdir-branches-"));
   const oldHome = process.env.HOME;
   try {
-    const home = join(dir, "home");
-    await mkdir(join(home, "proj"), { recursive: true });
-    await mkdir(join(dir, "abs"), { recursive: true });
+    const home = path.join(dir, "home");
+    await fsPromises.mkdir(path.join(home, "proj"), { recursive: true });
+    await fsPromises.mkdir(path.join(dir, "abs"), { recursive: true });
     process.env.HOME = home;
 
-    const state = createInitialState(join(dir, "base"));
+    const state = createInitialState(path.join(dir, "base"));
     const picker = createPicker("workdir", state);
     // browsingDir is non-existent, shows error item
     assert.match(filteredPickerItems(picker)[0]?.description ?? "", /error/);
@@ -346,11 +346,11 @@ test("workdir picker covers home absolute and empty query branches", async () =>
       filteredPickerItems(picker).map((item) => item.label),
       ["~/p"],
     );
-    assert.equal(acceptPickerSelection(picker)?.id, join(home, "p"));
+    assert.equal(acceptPickerSelection(picker)?.id, path.join(home, "p"));
 
     // Absolute path with partial match treated as custom path
     updatePickerQuery(picker, `${dir}/a`);
-    assert.equal(acceptPickerSelection(picker)?.id, join(dir, "a"));
+    assert.equal(acceptPickerSelection(picker)?.id, path.join(dir, "a"));
 
     assert.equal(completeWorkdirPickerSelection(createPicker("models", state)), false);
     // no-match filter on unreadable dir still shows error, no completeValue
@@ -360,18 +360,18 @@ test("workdir picker covers home absolute and empty query branches", async () =>
   } finally {
     if (oldHome === undefined) delete process.env.HOME;
     else process.env.HOME = oldHome;
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("workdir picker reuses directory listing across query keystrokes", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-workdir-cache-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-workdir-cache-"));
   try {
     // Enough entries that repeated readdir+sort is clearly more expensive than filter-only.
     await Promise.all(
-      Array.from({ length: 2500 }, (_, i) => mkdir(join(dir, `d${String(i).padStart(4, "0")}`))),
+      Array.from({ length: 2500 }, (_, i) => fsPromises.mkdir(path.join(dir, `d${String(i).padStart(4, "0")}`))),
     );
-    await mkdir(join(dir, "target-hit"));
+    await fsPromises.mkdir(path.join(dir, "target-hit"));
 
     const state = createInitialState(dir);
     const picker = createPicker("workdir", state);
@@ -407,12 +407,12 @@ test("workdir picker reuses directory listing across query keystrokes", async ()
     // browsingDir change must drop the old listing (navigate into target-hit).
     picker.selectedIndex = 0;
     assert.equal(completeWorkdirPickerSelection(picker), true);
-    assert.equal(picker.browsingDir, join(dir, "target-hit"));
+    assert.equal(picker.browsingDir, path.join(dir, "target-hit"));
     updatePickerQuery(picker, "");
     assert.deepEqual(filteredPickerItems(picker), []);
-    assert.equal(picker.workdirListingCache?.browsingDir, join(dir, "target-hit"));
+    assert.equal(picker.workdirListingCache?.browsingDir, path.join(dir, "target-hit"));
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 

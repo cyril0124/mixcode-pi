@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import * as fsPromises from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { test } from "node:test";
 import extension from "./index.js";
 import type { ReviewDraft } from "./review.js";
@@ -60,7 +60,7 @@ const branch = [
 
 test("/diff inserts submitted review feedback into the Pi editor", async () => {
   const commands = registerDiff();
-  const cwd = await mkdtemp(join(tmpdir(), "mpi-diff-review-"));
+  const cwd = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mpi-diff-review-"));
   let editorText = "";
   try {
     await commands.get("diff")!.handler("", {
@@ -76,7 +76,7 @@ test("/diff inserts submitted review feedback into the Pi editor", async () => {
       },
     } as never);
   } finally {
-    await rm(cwd, { recursive: true, force: true });
+    await fsPromises.rm(cwd, { recursive: true, force: true });
   }
 
   assert.match(editorText, /FIX/);
@@ -87,7 +87,7 @@ test("/diff inserts submitted review feedback into the Pi editor", async () => {
 
 test("/diff appends review feedback after existing editor text", async () => {
   const commands = registerDiff();
-  const cwd = await mkdtemp(join(tmpdir(), "mpi-diff-review-append-"));
+  const cwd = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mpi-diff-review-append-"));
   let editorText = "Keep this draft.";
   try {
     await commands.get("diff")!.handler("", {
@@ -103,7 +103,7 @@ test("/diff appends review feedback after existing editor text", async () => {
       },
     } as never);
   } finally {
-    await rm(cwd, { recursive: true, force: true });
+    await fsPromises.rm(cwd, { recursive: true, force: true });
   }
 
   assert.match(editorText, /^Keep this draft\.\n\n/);

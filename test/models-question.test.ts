@@ -1,7 +1,8 @@
+import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import * as fsPromises from "node:fs/promises";
+import * as os from "node:os";
+import * as nodePath from "node:path";
 import { test } from "node:test";
 import {
   createAssistantMessageEventStream,
@@ -45,14 +46,14 @@ test("model helpers map pi models into MixCode state", () => {
 });
 
 test("proxy-gpt model loads through pi models.json registry as OpenAI Responses without storing secrets", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-model-config-"));
+  const dir = await fsPromises.mkdtemp(nodePath.join(os.tmpdir(), "mixcode-model-config-"));
   const oldKey = process.env.MIXCODE_TEST_PROXY_KEY;
   const oldAgentDir = process.env.PI_CODING_AGENT_DIR;
   try {
     process.env.MIXCODE_TEST_PROXY_KEY = "secret-key";
     process.env.PI_CODING_AGENT_DIR = dir;
-    const configPath = join(dir, "models.json");
-    await writeFile(
+    const configPath = nodePath.join(dir, "models.json");
+    await fsPromises.writeFile(
       configPath,
       `{
         "providers": {
@@ -123,7 +124,7 @@ test("proxy-gpt model loads through pi models.json registry as OpenAI Responses 
     else process.env.MIXCODE_TEST_PROXY_KEY = oldKey;
     if (oldAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
     else process.env.PI_CODING_AGENT_DIR = oldAgentDir;
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
@@ -136,13 +137,13 @@ test("configured proxy model sends a real OpenAI Responses request", {
     ? "set MIXCODE_RESPONSES_SMOKE_MODEL=<provider>/<model-id> to send a real request"
     : false,
 }, async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-responses-smoke-"));
+  const dir = await fsPromises.mkdtemp(nodePath.join(os.tmpdir(), "mixcode-responses-smoke-"));
   try {
-    const workdir = join(dir, "repo");
-    await mkdir(workdir, { recursive: true });
+    const workdir = nodePath.join(dir, "repo");
+    await fsPromises.mkdir(workdir, { recursive: true });
     const agentDir =
-      process.env.PI_CODING_AGENT_DIR ?? join(process.env.HOME ?? "", ".pi", "agent");
-    const bundle = await createPiModelRegistryBundle(undefined, join(agentDir, "auth.json"));
+      process.env.PI_CODING_AGENT_DIR ?? nodePath.join(process.env.HOME ?? "", ".pi", "agent");
+    const bundle = await createPiModelRegistryBundle(undefined, nodePath.join(agentDir, "auth.json"));
     const slash = RESPONSES_SMOKE_MODEL.indexOf("/");
     const provider = RESPONSES_SMOKE_MODEL.slice(0, slash);
     const modelId = RESPONSES_SMOKE_MODEL.slice(slash + 1);
@@ -156,7 +157,7 @@ test("configured proxy model sends a real OpenAI Responses request", {
     );
 
     const runtime = new MixCodeRuntime({
-      sessionsRoot: join(dir, "sessions"),
+      sessionsRoot: nodePath.join(dir, "sessions"),
       agentDir,
       modelRuntime: bundle.modelRuntime,
       modelRegistry: bundle.registry,
@@ -184,12 +185,12 @@ test("configured proxy model sends a real OpenAI Responses request", {
     const chat = runtimeTab.chat.map((line) => `${line.role}:${line.text}`).join("\n");
     assert.match(chat, /assistant:MIXCODE_RESPONSES_SMOKE_OK/);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("pi model defaults follow PI_CODING_AGENT_DIR and runtime auth preserves explicit fallbacks", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-pi-model-defaults-"));
+  const dir = await fsPromises.mkdtemp(nodePath.join(os.tmpdir(), "mixcode-pi-model-defaults-"));
   const oldAgentDir = process.env.PI_CODING_AGENT_DIR;
   const modelRuntime = await ModelRuntime.create({
     credentials: new InMemoryCredentialStore(),
@@ -229,8 +230,8 @@ test("pi model defaults follow PI_CODING_AGENT_DIR and runtime auth preserves ex
   });
   try {
     process.env.PI_CODING_AGENT_DIR = dir;
-    assert.equal(defaultPiModelsPath(), join(dir, "models.json"));
-    assert.equal(defaultPiAuthPath(), join(dir, "auth.json"));
+    assert.equal(defaultPiModelsPath(), nodePath.join(dir, "models.json"));
+    assert.equal(defaultPiAuthPath(), nodePath.join(dir, "auth.json"));
 
     const runtimeAuth = createPiModelRuntimeAuth(modelRuntime);
     const streamed = await runtimeAuth.stream(
@@ -242,17 +243,17 @@ test("pi model defaults follow PI_CODING_AGENT_DIR and runtime auth preserves ex
   } finally {
     if (oldAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
     else process.env.PI_CODING_AGENT_DIR = oldAgentDir;
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("pi model runtime auth merges request headers and surfaces auth errors", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-pi-runtime-auth-"));
+  const dir = await fsPromises.mkdtemp(nodePath.join(os.tmpdir(), "mixcode-pi-runtime-auth-"));
   const oldKey = process.env.MIXCODE_TEST_API_KEY;
   try {
     process.env.MIXCODE_TEST_API_KEY = "resolved-test-key";
-    const configPath = join(dir, "models.json");
-    await writeFile(
+    const configPath = nodePath.join(dir, "models.json");
+    await fsPromises.writeFile(
       configPath,
       JSON.stringify({
         providers: {
@@ -327,8 +328,8 @@ test("pi model runtime auth merges request headers and surfaces auth errors", as
     );
     assert.equal((await streamed.result()).content[0]?.type, "text");
 
-    const missingConfigPath = join(dir, "missing-key-models.json");
-    await writeFile(
+    const missingConfigPath = nodePath.join(dir, "missing-key-models.json");
+    await fsPromises.writeFile(
       missingConfigPath,
       JSON.stringify({
         providers: {
@@ -353,7 +354,7 @@ test("pi model runtime auth merges request headers and surfaces auth errors", as
   } finally {
     if (oldKey === undefined) delete process.env.MIXCODE_TEST_API_KEY;
     else process.env.MIXCODE_TEST_API_KEY = oldKey;
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
@@ -368,36 +369,36 @@ function streamSingleMessage(message: AssistantMessage) {
 }
 
 test("pi model registry rejects directory paths and incomplete provider config", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-model-config-missing-"));
+  const dir = await fsPromises.mkdtemp(nodePath.join(os.tmpdir(), "mixcode-model-config-missing-"));
   try {
-    const directoryPath = join(dir, "directory.jsonc");
-    await mkdir(directoryPath);
+    const directoryPath = nodePath.join(dir, "directory.jsonc");
+    await fsPromises.mkdir(directoryPath);
     await assert.rejects(
       loadPiModelSources(directoryPath),
       /EISDIR|illegal operation on a directory/,
     );
 
-    const noApiPath = join(dir, "no-api.jsonc");
-    await writeFile(
+    const noApiPath = nodePath.join(dir, "no-api.jsonc");
+    await fsPromises.writeFile(
       noApiPath,
       customConfigBody({ baseUrl: "https://no-api.example/v1", api: false }),
       "utf8",
     );
     await assert.rejects(loadPiModelSources(noApiPath), /no "api" specified/);
 
-    const missingBasePath = join(dir, "missing-base.jsonc");
-    await writeFile(missingBasePath, customConfigBody({ baseUrl: undefined }), "utf8");
+    const missingBasePath = nodePath.join(dir, "missing-base.jsonc");
+    await fsPromises.writeFile(missingBasePath, customConfigBody({ baseUrl: undefined }), "utf8");
     await assert.rejects(loadPiModelSources(missingBasePath), /"baseUrl" is required/);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("pi model registry applies literal and minimal models.json fields", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-model-config-fields-"));
+  const dir = await fsPromises.mkdtemp(nodePath.join(os.tmpdir(), "mixcode-model-config-fields-"));
   try {
-    const literalValidPath = join(dir, "literal-valid.jsonc");
-    await writeFile(
+    const literalValidPath = nodePath.join(dir, "literal-valid.jsonc");
+    await fsPromises.writeFile(
       literalValidPath,
       customConfigBody({
         baseUrl: "https://literal.example/v1",
@@ -419,8 +420,8 @@ test("pi model registry applies literal and minimal models.json fields", async (
       "MIXCODE_TEST_UNSET_API_KEY",
     );
 
-    const minimalPath = join(dir, "minimal.jsonc");
-    await writeFile(
+    const minimalPath = nodePath.join(dir, "minimal.jsonc");
+    await fsPromises.writeFile(
       minimalPath,
       customConfigBody({ baseUrl: "https://minimal.example/v1", minimal: true }),
       "utf8",
@@ -436,12 +437,12 @@ test("pi model registry applies literal and minimal models.json fields", async (
     assert.equal(minimal.model.maxTokens, 16384);
     assert.equal(minimal.model.thinkingLevelMap, undefined);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("pi model registry rejects invalid models.json schemas", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-pi-models-schema-"));
+  const dir = await fsPromises.mkdtemp(nodePath.join(os.tmpdir(), "mixcode-pi-models-schema-"));
   try {
     for (const [name, body] of [
       ["scalar.json", "[]"],
@@ -475,12 +476,12 @@ test("pi model registry rejects invalid models.json schemas", async () => {
         }),
       ],
     ] as const) {
-      const path = join(dir, name);
-      await writeFile(path, body, "utf8");
+      const path = nodePath.join(dir, name);
+      await fsPromises.writeFile(path, body, "utf8");
       await assert.rejects(loadPiModelSources(path), /Invalid models\.json schema/);
     }
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
@@ -490,14 +491,14 @@ test("defaultPiModelsPath expands PI_CODING_AGENT_DIR and ~", () => {
     delete process.env.PI_CODING_AGENT_DIR;
     assert.equal(
       defaultPiModelsPath(),
-      join(process.env.HOME ?? "", ".pi", "agent", "models.json"),
+      nodePath.join(process.env.HOME ?? "", ".pi", "agent", "models.json"),
     );
     process.env.PI_CODING_AGENT_DIR = "~";
-    assert.equal(defaultPiModelsPath(), join(process.env.HOME ?? "", "models.json"));
+    assert.equal(defaultPiModelsPath(), nodePath.join(process.env.HOME ?? "", "models.json"));
     process.env.PI_CODING_AGENT_DIR = "~/pi-agent-test";
     assert.equal(
       defaultPiModelsPath(),
-      join(process.env.HOME ?? "", "pi-agent-test", "models.json"),
+      nodePath.join(process.env.HOME ?? "", "pi-agent-test", "models.json"),
     );
   } finally {
     if (oldAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
@@ -506,12 +507,12 @@ test("defaultPiModelsPath expands PI_CODING_AGENT_DIR and ~", () => {
 });
 
 test("pi model registry applies per-model overrides over provider defaults", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-pi-models-overrides-"));
+  const dir = await fsPromises.mkdtemp(nodePath.join(os.tmpdir(), "mixcode-pi-models-overrides-"));
   const oldApiKey = process.env.MIXCODE_TEST_API_KEY;
   try {
     process.env.MIXCODE_TEST_API_KEY = "resolved-test-key";
-    const configPath = join(dir, "models.json");
-    await writeFile(
+    const configPath = nodePath.join(dir, "models.json");
+    await fsPromises.writeFile(
       configPath,
       JSON.stringify({
         providers: {
@@ -564,7 +565,7 @@ test("pi model registry applies per-model overrides over provider defaults", asy
   } finally {
     if (oldApiKey === undefined) delete process.env.MIXCODE_TEST_API_KEY;
     else process.env.MIXCODE_TEST_API_KEY = oldApiKey;
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
@@ -609,12 +610,12 @@ function customConfigBody(options: {
 }
 
 test("runtime.reloadModelConfig skips models-changed emit when models.json is invalid", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-reload-models-bad-"));
+  const dir = await fsPromises.mkdtemp(nodePath.join(os.tmpdir(), "mixcode-reload-models-bad-"));
   const oldKey = process.env.MIXCODE_RELOAD_KEY;
   try {
     process.env.MIXCODE_RELOAD_KEY = "reload-secret";
-    const configPath = join(dir, "models.json");
-    await writeFile(
+    const configPath = nodePath.join(dir, "models.json");
+    await fsPromises.writeFile(
       configPath,
       JSON.stringify({
         providers: {
@@ -630,7 +631,7 @@ test("runtime.reloadModelConfig skips models-changed emit when models.json is in
     );
     const bundle = await createPiModelRegistryBundle(configPath);
     const runtime = new MixCodeRuntime({
-      sessionsRoot: join(dir, "sessions"),
+      sessionsRoot: nodePath.join(dir, "sessions"),
       agentDir: dir,
       modelRuntime: bundle.modelRuntime,
       modelRegistry: bundle.registry,
@@ -642,7 +643,7 @@ test("runtime.reloadModelConfig skips models-changed emit when models.json is in
       emitted.push(1);
     });
 
-    await writeFile(configPath, "{ not valid json", "utf8");
+    await fsPromises.writeFile(configPath, "{ not valid json", "utf8");
     await runtime.reloadModelConfig();
 
     assert.match(runtime.getSharedModelRuntime()?.getError() ?? "", /Failed to parse models\.json/);
@@ -650,16 +651,16 @@ test("runtime.reloadModelConfig skips models-changed emit when models.json is in
   } finally {
     if (oldKey === undefined) delete process.env.MIXCODE_RELOAD_KEY;
     else process.env.MIXCODE_RELOAD_KEY = oldKey;
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime.reloadModelConfig re-reads models.json from disk after it changes", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-reload-models-"));
+  const dir = await fsPromises.mkdtemp(nodePath.join(os.tmpdir(), "mixcode-reload-models-"));
   const oldKey = process.env.MIXCODE_RELOAD_KEY;
   try {
     process.env.MIXCODE_RELOAD_KEY = "reload-secret";
-    const configPath = join(dir, "models.json");
+    const configPath = nodePath.join(dir, "models.json");
     const provider = (modelId: string) => ({
       providers: {
         "reload-proxy": {
@@ -670,10 +671,10 @@ test("runtime.reloadModelConfig re-reads models.json from disk after it changes"
         },
       },
     });
-    await writeFile(configPath, JSON.stringify(provider("alpha")), "utf8");
+    await fsPromises.writeFile(configPath, JSON.stringify(provider("alpha")), "utf8");
     const bundle = await createPiModelRegistryBundle(configPath);
     const runtime = new MixCodeRuntime({
-      sessionsRoot: join(dir, "sessions"),
+      sessionsRoot: nodePath.join(dir, "sessions"),
       agentDir: dir,
       modelRuntime: bundle.modelRuntime,
       modelRegistry: bundle.registry,
@@ -683,7 +684,7 @@ test("runtime.reloadModelConfig re-reads models.json from disk after it changes"
     assert.equal(runtime.resolveModel("reload-proxy", "alpha").id, "alpha");
 
     // Replace the model on disk; before reload the registry still serves the old one.
-    await writeFile(configPath, JSON.stringify(provider("beta")), "utf8");
+    await fsPromises.writeFile(configPath, JSON.stringify(provider("beta")), "utf8");
     const configured = await runtime.reloadModelConfig();
 
     assert.ok(
@@ -698,6 +699,6 @@ test("runtime.reloadModelConfig re-reads models.json from disk after it changes"
   } finally {
     if (oldKey === undefined) delete process.env.MIXCODE_RELOAD_KEY;
     else process.env.MIXCODE_RELOAD_KEY = oldKey;
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

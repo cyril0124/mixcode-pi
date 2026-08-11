@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import { mkdir, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import * as fsPromises from "node:fs/promises";
+import * as path from "node:path";
+import * as os from "node:os";
 import { test } from "node:test";
-import { mkdtemp } from "node:fs/promises";
+
 import { parseMainArgs } from "../src/cli/main.js";
 import { createInitialState, createTab } from "../src/core/defaults.js";
 import {
@@ -101,7 +101,7 @@ test("createInstanceSnapshot captures live tab metadata without chat content", (
 });
 
 test("loadLiveInstanceStatus filters stale dead and pid-reused snapshots", async () => {
-  const root = await mkdtemp(join(tmpdir(), "mixcode-instance-registry-"));
+  const root = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-instance-registry-"));
   try {
     await writeInstanceSnapshot(root, snapshot({ pid: 100, workdir: "/b-repo" }));
     await writeInstanceSnapshot(
@@ -116,8 +116,8 @@ test("loadLiveInstanceStatus filters stale dead and pid-reused snapshots", async
     await writeInstanceSnapshot(root, snapshot({ pid: 102, processStartTime: undefined }));
     await writeInstanceSnapshot(root, snapshot({ pid: 103, processStartTime: "old-start" }));
     await writeInstanceSnapshot(root, snapshot({ pid: 104, processStartTime: undefined }));
-    await mkdir(instanceRegistryDir(root), { recursive: true });
-    await writeFile(join(instanceRegistryDir(root), "999.json"), "not-json", "utf8");
+    await fsPromises.mkdir(instanceRegistryDir(root), { recursive: true });
+    await fsPromises.writeFile(path.join(instanceRegistryDir(root), "999.json"), "not-json", "utf8");
 
     const result = await loadLiveInstanceStatus(root, {
       now: new Date("2026-06-06T00:00:12.000Z"),
@@ -131,12 +131,12 @@ test("loadLiveInstanceStatus filters stale dead and pid-reused snapshots", async
     assert.equal(result.warnings.length, 1);
     assert.match(result.warnings[0]?.message ?? "", /JSON|Unexpected|invalid/i);
   } finally {
-    await rm(root, { recursive: true, force: true });
+    await fsPromises.rm(root, { recursive: true, force: true });
   }
 });
 
 test("loadLiveInstanceStatus derives tab state and sorts instances by workdir", async () => {
-  const root = await mkdtemp(join(tmpdir(), "mixcode-instance-registry-state-"));
+  const root = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-instance-registry-state-"));
   try {
     await writeInstanceSnapshot(
       root,
@@ -223,12 +223,12 @@ test("loadLiveInstanceStatus derives tab state and sorts instances by workdir", 
       ],
     );
   } finally {
-    await rm(root, { recursive: true, force: true });
+    await fsPromises.rm(root, { recursive: true, force: true });
   }
 });
 
 test("formatInstanceStatusTable renders grouped instances and active tabs", async () => {
-  const root = await mkdtemp(join(tmpdir(), "mixcode-instance-registry-format-"));
+  const root = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-instance-registry-format-"));
   try {
     await writeInstanceSnapshot(
       root,
@@ -265,12 +265,12 @@ test("formatInstanceStatusTable renders grouped instances and active tabs", asyn
     assert.match(table, /\*\s+working\s+thinking\s+12s\s+Active Worker\s+active-session-abcdef/);
     assert.equal(formatInstanceStatusTable({ ...result, instances: [] }), "No live mpi instances.");
   } finally {
-    await rm(root, { recursive: true, force: true });
+    await fsPromises.rm(root, { recursive: true, force: true });
   }
 });
 
 test("cleanupInstanceRegistry removes stale dead and reused-pid snapshots", async () => {
-  const root = await mkdtemp(join(tmpdir(), "mixcode-instance-registry-clean-"));
+  const root = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-instance-registry-clean-"));
   try {
     await writeInstanceSnapshot(root, snapshot({ pid: 100 }));
     await writeInstanceSnapshot(
@@ -297,22 +297,22 @@ test("cleanupInstanceRegistry removes stale dead and reused-pid snapshots", asyn
     });
     assert.deepEqual(live.instances.map((instance) => instance.pid), [100]);
   } finally {
-    await rm(root, { recursive: true, force: true });
+    await fsPromises.rm(root, { recursive: true, force: true });
   }
 });
 
 test("loadLiveInstanceStatus ignores atomic-write temp files beside snapshots", async () => {
-  const root = await mkdtemp(join(tmpdir(), "mixcode-instance-registry-tmp-"));
+  const root = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-instance-registry-tmp-"));
   try {
     await writeInstanceSnapshot(root, snapshot({ pid: 100 }));
     // Leftover / in-flight writeInstanceSnapshot temps must not trip directory listing.
-    await writeFile(
-      join(instanceRegistryDir(root), "100.json.100.aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.tmp"),
+    await fsPromises.writeFile(
+      path.join(instanceRegistryDir(root), "100.json.100.aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.tmp"),
       "{incomplete\n",
       "utf8",
     );
-    await writeFile(
-      join(instanceRegistryDir(root), "999.json.999.ffffffff-0000-1111-2222-333333333333.tmp"),
+    await fsPromises.writeFile(
+      path.join(instanceRegistryDir(root), "999.json.999.ffffffff-0000-1111-2222-333333333333.tmp"),
       "",
       "utf8",
     );
@@ -323,6 +323,6 @@ test("loadLiveInstanceStatus ignores atomic-write temp files beside snapshots", 
     assert.deepEqual(result.instances.map((instance) => instance.pid), [100]);
     assert.equal(result.warnings.length, 0);
   } finally {
-    await rm(root, { recursive: true, force: true });
+    await fsPromises.rm(root, { recursive: true, force: true });
   }
 });

@@ -1,9 +1,9 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import * as fsPromises from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { test } from "node:test";
 import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import { MixCodeRuntime, createTab } from "../src/index.js";
@@ -17,7 +17,7 @@ async function waitForBranch(
   while (Date.now() < deadline) {
     const value = read();
     if (value) return value;
-    await new Promise((resolve) => setTimeout(resolve, 40));
+    await Bun.sleep(40);
   }
   return read() ?? null;
 }
@@ -32,18 +32,18 @@ test("gitBranchForWorkdir returns current branch for a git workdir", async () =>
 });
 
 test("gitBranchForWorkdir stays empty outside a git repo", async () => {
-  const bare = await mkdtemp(join(tmpdir(), "mixcode-no-git-"));
+  const bare = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-no-git-"));
   try {
     gitBranchForWorkdir(bare);
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await Bun.sleep(200);
     assert.equal(gitBranchForWorkdir(bare), "");
   } finally {
-    await rm(bare, { recursive: true, force: true });
+    await fsPromises.rm(bare, { recursive: true, force: true });
   }
 });
 
 test("extension footerData.getGitBranch exposes workdir branch", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-footer-git-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-footer-git-"));
   let readBranch: (() => string | null) | undefined;
 
   const extension: ExtensionFactory = (pi) => {
@@ -71,16 +71,16 @@ test("extension footerData.getGitBranch exposes workdir branch", async () => {
     assert.ok(branch, "footerData.getGitBranch() should resolve for a git workdir");
     assert.equal(branch, gitBranchForWorkdir(process.cwd()) || null);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 async function initTempGitRepo(): Promise<string> {
-  const workdir = await mkdtemp(join(tmpdir(), "mixcode-git-onbranch-"));
+  const workdir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-git-onbranch-"));
   execFileSync("git", ["init", "-q"], { cwd: workdir });
   execFileSync("git", ["config", "user.email", "t@t.com"], { cwd: workdir });
   execFileSync("git", ["config", "user.name", "t"], { cwd: workdir });
-  await writeFile(join(workdir, "f"), "x\n");
+  await fsPromises.writeFile(path.join(workdir, "f"), "x\n");
   execFileSync("git", ["add", "f"], { cwd: workdir });
   execFileSync("git", ["commit", "-qm", "init"], { cwd: workdir });
   execFileSync("git", ["branch", "-M", "base-branch"], { cwd: workdir });
@@ -89,11 +89,12 @@ async function initTempGitRepo(): Promise<string> {
 
 test("onGitBranchChange fires when the cached branch value changes", async () => {
   const workdir = await initTempGitRepo();
+  let unsub: (() => void) | undefined;
   try {
     // Pi FooterDataProvider resolves sync on first read and only notifies on later changes.
     assert.equal(gitBranchForWorkdir(workdir), "base-branch");
     let fires = 0;
-    const unsub = onGitBranchChange(workdir, () => {
+    unsub = onGitBranchChange(workdir, () => {
       fires += 1;
     });
 
@@ -101,15 +102,15 @@ test("onGitBranchChange fires when the cached branch value changes", async () =>
     await waitForBranch(() => (fires > 0 ? "ok" : null), 6_000);
     assert.ok(fires > 0, "expected notify after checkout");
     assert.equal(gitBranchForWorkdir(workdir), "feature-branch");
-    unsub();
   } finally {
-    await rm(workdir, { recursive: true, force: true });
+    unsub?.();
+    await fsPromises.rm(workdir, { recursive: true, force: true });
   }
 });
 
 test("extension footerData.onBranchChange notifies after branch switch", async () => {
   const workdir = await initTempGitRepo();
-  const sessionsRoot = await mkdtemp(join(tmpdir(), "mixcode-footer-onbranch-"));
+  const sessionsRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-footer-onbranch-"));
   let fires = 0;
   let unsub: (() => void) | undefined;
 
@@ -138,14 +139,13 @@ test("extension footerData.onBranchChange notifies after branch switch", async (
       workdir,
     });
 
-    await waitForBranch(() => (fires > 0 ? "ok" : null));
     const before = fires;
     execFileSync("git", ["checkout", "-qb", "ext-feature"], { cwd: workdir });
     await waitForBranch(() => (fires > before ? "ok" : null), 6_000);
     assert.ok(fires > before, "footer onBranchChange should fire after checkout");
-    unsub?.();
   } finally {
-    await rm(workdir, { recursive: true, force: true });
-    await rm(sessionsRoot, { recursive: true, force: true });
+    unsub?.();
+    await fsPromises.rm(workdir, { recursive: true, force: true });
+    await fsPromises.rm(sessionsRoot, { recursive: true, force: true });
   }
 });

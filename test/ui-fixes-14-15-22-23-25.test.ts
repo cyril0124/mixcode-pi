@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import * as fsPromises from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { test } from "node:test";
 import { SettingsManager } from "@earendil-works/pi-coding-agent";
 import {
@@ -41,10 +41,10 @@ test("delete-all-sessions confirm names permanent session-file deletion", () => 
 });
 
 test("workdir picker lists more than 20 dirs with overflow affordance", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-workdir-many-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-workdir-many-"));
   try {
     for (let i = 0; i < 30; i++) {
-      await mkdir(join(dir, `dir-${String(i).padStart(2, "0")}`));
+      await fsPromises.mkdir(path.join(dir, `dir-${String(i).padStart(2, "0")}`));
     }
     const state = createInitialState(dir);
     const tab = createTab(1, "s1", dir);
@@ -53,7 +53,7 @@ test("workdir picker lists more than 20 dirs with overflow affordance", async ()
     const items = filteredPickerItems(picker);
     assert.ok(items.length > 20, `expected >20 dirs, got ${items.length}`);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 

@@ -26,7 +26,7 @@ async function waitFor<T>(read: () => Promise<T>, attempts = 25): Promise<T> {
       return await read();
     } catch (error) {
       lastError = error;
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await Bun.sleep(10);
     }
   }
   throw lastError;

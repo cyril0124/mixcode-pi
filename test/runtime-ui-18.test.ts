@@ -1,8 +1,8 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import * as fsPromises from "node:fs/promises";
+import * as path from "node:path";
+import * as os from "node:os";
 import { test } from "node:test";
 import {
   Type,
@@ -129,7 +129,7 @@ function lastRuntimeUserText(context: Context): string {
 async function waitForRuntime(predicate: () => boolean, attempts = 25): Promise<void> {
   for (let i = 0; i < attempts; i += 1) {
     if (predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await Bun.sleep(10);
   }
   assert.equal(predicate(), true);
 }
@@ -176,7 +176,7 @@ function escapeRegExp(text: string): string {
 }
 
 test("runtime surfaces assistant error and abort stop reasons", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-stop-reasons-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-stop-reasons-"));
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir });
     const tab = createTab(1, "s1", process.cwd());
@@ -299,12 +299,12 @@ test("runtime surfaces assistant error and abort stop reasons", async () => {
     });
     assert.equal(runtimeTab.chat.filter((line) => line.role === "system").length, systemCount);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime keeps assistant thinking out of chat assistant text", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-thinking-keep-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-thinking-keep-"));
   const runtime = new MixCodeRuntime({ sessionsRoot: dir });
   const tab = createTab(1, "s1", process.cwd());
   const runtimeTab = await runtime.createTab(tab, {
@@ -368,12 +368,12 @@ test("runtime keeps assistant thinking out of chat assistant text", async () => 
       ["public answer"],
     );
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime streams thinking from partial assistant messages", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-thinking-stream-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-thinking-stream-"));
   const runtime = new MixCodeRuntime({ sessionsRoot: dir });
   const tab = createTab(1, "s1", process.cwd());
   try {
@@ -465,6 +465,6 @@ test("runtime streams thinking from partial assistant messages", async () => {
       ["thinking:final thinking", "assistant:final answer"],
     );
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

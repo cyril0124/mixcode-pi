@@ -1,16 +1,16 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import * as fsPromises from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { test } from "node:test";
 import { SettingsManager } from "@earendil-works/pi-coding-agent";
 import { createInitialState, loadMixCodeSettings, stripAnsi } from "../src/index.js";
 import { handleSettingsPanelKey, renderSettingsPanel } from "../src/ui/settings-panel.js";
 
 test("settings panel changes Pi mermaid mode and mirrors live state", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-settings-mermaid-"));
-  const mixcodeFile = join(dir, "mixcode_settings.json");
-  await writeFile(mixcodeFile, "{}\n");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-settings-mermaid-"));
+  const mixcodeFile = path.join(dir, "mixcode_settings.json");
+  await fsPromises.writeFile(mixcodeFile, "{}\n");
   try {
     const state = createInitialState(dir);
     const settingsManager = SettingsManager.inMemory();
@@ -23,7 +23,7 @@ test("settings panel changes Pi mermaid mode and mirrors live state", async () =
       enumIndex: 0,
       mixcodeRaw: {},
       mixcodeFile,
-      piSettingsFile: join(dir, "settings.json"),
+      piSettingsFile: path.join(dir, "settings.json"),
       settingsManager,
     };
     const tui = {
@@ -43,16 +43,16 @@ test("settings panel changes Pi mermaid mode and mirrors live state", async () =
     assert.equal(settingsManager.getMermaidRenderingMode(), "off");
     assert.equal(state.mermaidRenderingMode, "off");
     // MixCode file is untouched — mermaid lives in Pi settings.json.
-    assert.deepEqual(JSON.parse(await readFile(mixcodeFile, "utf8")), {});
+    assert.deepEqual(JSON.parse(await fsPromises.readFile(mixcodeFile, "utf8")), {});
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("mixcode settings default history and oversized assistant message policy", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-history-settings-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-history-settings-"));
   try {
-    assert.deepEqual(await loadMixCodeSettings(join(dir, "missing.json")), {
+    assert.deepEqual(await loadMixCodeSettings(path.join(dir, "missing.json")), {
       history: { maxBytes: 5 * 1024 * 1024 },
       ui: {
         oversizedAssistantMessage: { enabled: true, maxLines: 5000, maxBytes: 128 * 1024 },
@@ -61,8 +61,8 @@ test("mixcode settings default history and oversized assistant message policy", 
       disabledProviders: [],
       disabledModels: [],
     });
-    await writeFile(
-      join(dir, "mixcode_settings.json"),
+    await fsPromises.writeFile(
+      path.join(dir, "mixcode_settings.json"),
       JSON.stringify({
         history: { persistence: "none", maxBytes: 128 },
         ui: {
@@ -74,7 +74,7 @@ test("mixcode settings default history and oversized assistant message policy", 
       }),
       "utf8",
     );
-    assert.deepEqual(await loadMixCodeSettings(join(dir, "mixcode_settings.json")), {
+    assert.deepEqual(await loadMixCodeSettings(path.join(dir, "mixcode_settings.json")), {
       history: { maxBytes: 128 },
       ui: {
         oversizedAssistantMessage: { enabled: false, maxLines: 42, maxBytes: 2048 },
@@ -84,15 +84,15 @@ test("mixcode settings default history and oversized assistant message policy", 
       disabledModels: [],
     });
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("mixcode settings accept jsonc comments and trailing commas", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-history-jsonc-settings-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-history-jsonc-settings-"));
   try {
-    await writeFile(
-      join(dir, "mixcode_settings.json"),
+    await fsPromises.writeFile(
+      path.join(dir, "mixcode_settings.json"),
       `{
         // Keep at most 256 bytes of prompt history.
         "history": {
@@ -102,7 +102,7 @@ test("mixcode settings accept jsonc comments and trailing commas", async () => {
       "utf8",
     );
 
-    assert.deepEqual(await loadMixCodeSettings(join(dir, "mixcode_settings.json")), {
+    assert.deepEqual(await loadMixCodeSettings(path.join(dir, "mixcode_settings.json")), {
       history: { maxBytes: 256 },
       ui: {
         oversizedAssistantMessage: { enabled: true, maxLines: 5000, maxBytes: 128 * 1024 },
@@ -112,13 +112,13 @@ test("mixcode settings accept jsonc comments and trailing commas", async () => {
       disabledModels: [],
     });
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("mixcode settings reject invalid oversized assistant message policy", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-ui-settings-invalid-"));
-  const file = join(dir, "mixcode_settings.json");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-ui-settings-invalid-"));
+  const file = path.join(dir, "mixcode_settings.json");
   try {
     for (const [value, message] of [
       [{ maxLines: "many" }, /ui\.oversizedAssistantMessage\.maxLines must be a positive integer/],
@@ -126,19 +126,19 @@ test("mixcode settings reject invalid oversized assistant message policy", async
       [{ enabled: "yes" }, /ui\.oversizedAssistantMessage\.enabled must be a boolean/],
       ["bad", /ui\.oversizedAssistantMessage must be an object/],
     ] as const) {
-      await writeFile(file, JSON.stringify({ ui: { oversizedAssistantMessage: value } }), "utf8");
+      await fsPromises.writeFile(file, JSON.stringify({ ui: { oversizedAssistantMessage: value } }), "utf8");
       await assert.rejects(() => loadMixCodeSettings(file), message);
     }
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("legacy ui.renderMermaid in mixcode_settings is ignored", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-render-mermaid-legacy-"));
-  const file = join(dir, "mixcode_settings.json");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-render-mermaid-legacy-"));
+  const file = path.join(dir, "mixcode_settings.json");
   try {
-    await writeFile(file, JSON.stringify({ ui: { renderMermaid: "yes" } }), "utf8");
+    await fsPromises.writeFile(file, JSON.stringify({ ui: { renderMermaid: "yes" } }), "utf8");
     // Unknown / obsolete fields must not throw.
     assert.deepEqual(await loadMixCodeSettings(file), {
       history: { maxBytes: 5 * 1024 * 1024 },
@@ -150,28 +150,28 @@ test("legacy ui.renderMermaid in mixcode_settings is ignored", async () => {
       disabledModels: [],
     });
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("mixcode settings reject invalid icons.mode", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-icons-mode-invalid-"));
-  const file = join(dir, "mixcode_settings.json");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-icons-mode-invalid-"));
+  const file = path.join(dir, "mixcode_settings.json");
   try {
-    await writeFile(file, JSON.stringify({ ui: { icons: { mode: "emoji" } } }), "utf8");
+    await fsPromises.writeFile(file, JSON.stringify({ ui: { icons: { mode: "emoji" } } }), "utf8");
     await assert.rejects(
       () => loadMixCodeSettings(file),
       /ui\.icons\.mode must be one of auto, nerd, ascii/,
     );
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("settings panel cycles icons.mode and persists it", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-settings-icons-"));
-  const mixcodeFile = join(dir, "mixcode_settings.json");
-  await writeFile(mixcodeFile, "{}\n");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-settings-icons-"));
+  const mixcodeFile = path.join(dir, "mixcode_settings.json");
+  await fsPromises.writeFile(mixcodeFile, "{}\n");
   try {
     const state = createInitialState(dir);
     state.settingsPanel = {
@@ -183,7 +183,7 @@ test("settings panel cycles icons.mode and persists it", async () => {
       enumIndex: 0,
       mixcodeRaw: {},
       mixcodeFile,
-      piSettingsFile: join(dir, "settings.json"),
+      piSettingsFile: path.join(dir, "settings.json"),
       settingsManager: SettingsManager.inMemory(),
     };
     const tui = {
@@ -202,10 +202,86 @@ test("settings panel cycles icons.mode and persists it", async () => {
 
     assert.equal(state.settingsPanel.mixcodeRaw.ui?.icons?.mode, "ascii");
     assert.equal(state.ui?.icons?.mode, "ascii");
-    assert.deepEqual(JSON.parse(await readFile(mixcodeFile, "utf8")), {
+    assert.deepEqual(JSON.parse(await fsPromises.readFile(mixcodeFile, "utf8")), {
       ui: { icons: { mode: "ascii" } },
     });
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("settings panel restores Pi values when persistence fails", async () => {
+  const storage = {
+    withLock(
+      scope: "global" | "project",
+      update: (current: string | undefined) => string | undefined,
+    ) {
+      const next = update(scope === "global" ? "{}" : undefined);
+      if (next !== undefined) throw new Error("settings disk is read-only");
+    },
+  };
+  const settingsManager = SettingsManager.fromStorage(storage as never);
+  const state = createInitialState("/repo");
+  state.settingsPanel = {
+    open: true,
+    selectedIndex: 0, // hideThinkingBlock
+    editMode: false,
+    editText: "",
+    enumOpen: false,
+    enumIndex: 0,
+    mixcodeRaw: {},
+    mixcodeFile: "/tmp/unused-mixcode-settings.json",
+    piSettingsFile: "/tmp/unused-pi-settings.json",
+    settingsManager,
+  };
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({ hide: () => undefined }) as never,
+    hasOverlay: () => true,
+    hideOverlay: () => undefined,
+  };
+
+  handleSettingsPanelKey(state, "\r", tui);
+  await Bun.sleep(30);
+
+  assert.match(state.settingsPanel.editError ?? "", /settings disk is read-only/);
+  assert.equal(settingsManager.getHideThinkingBlock(), false);
+  assert.equal(state.hideThinkingBlock ?? false, false);
+});
+
+test("settings panel surfaces write failures without applying the new value", async () => {
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-settings-write-error-"));
+  try {
+    const state = createInitialState(dir);
+    state.settingsPanel = {
+      open: true,
+      selectedIndex: 11, // icons.mode
+      editMode: false,
+      editText: "",
+      enumOpen: false,
+      enumIndex: 0,
+      mixcodeRaw: {},
+      mixcodeFile: dir, // Writing JSON to a directory must fail.
+      piSettingsFile: path.join(dir, "settings.json"),
+      settingsManager: SettingsManager.inMemory(),
+    };
+    const tui = {
+      requestRender: () => undefined,
+      showOverlay: () => ({ hide: () => undefined }) as never,
+      hasOverlay: () => true,
+      hideOverlay: () => undefined,
+    };
+
+    handleSettingsPanelKey(state, "\r", tui);
+    state.settingsPanel.enumIndex = 2;
+    handleSettingsPanelKey(state, "\r", tui);
+    await Bun.sleep(30);
+
+    assert.match(state.settingsPanel.editError ?? "", /Failed to save Icon mode/);
+    assert.equal(state.settingsPanel.enumOpen, true);
+    assert.equal(state.settingsPanel.mixcodeRaw.ui?.icons?.mode, undefined);
+    assert.equal(state.ui?.icons.mode, "nerd");
+  } finally {
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

@@ -1,8 +1,8 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import * as fsPromises from "node:fs/promises";
+import * as path from "node:path";
+import * as os from "node:os";
 import { test } from "node:test";
 import {
   Type,
@@ -129,7 +129,7 @@ function lastRuntimeUserText(context: Context): string {
 async function waitForRuntime(predicate: () => boolean, attempts = 25): Promise<void> {
   for (let i = 0; i < attempts; i += 1) {
     if (predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await Bun.sleep(10);
   }
   assert.equal(predicate(), true);
 }
@@ -240,7 +240,7 @@ test("runtime restores redacted thinking and unknown assistant content explicitl
 });
 
 test("runtime ignores blank thinking and updates streaming thinking in place", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-thinking-blank-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-thinking-blank-"));
   const runtime = new MixCodeRuntime({ sessionsRoot: dir });
   const tab = createTab(1, "s1", process.cwd());
   const runtimeTab = await runtime.createTab(tab, {
@@ -308,7 +308,7 @@ test("runtime ignores blank thinking and updates streaming thinking in place", a
       ["second thought"],
     );
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 

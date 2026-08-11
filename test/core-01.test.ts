@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import * as fsPromises from "node:fs/promises";
+import * as path from "node:path";
+import * as os from "node:os";
 import { test } from "node:test";
 import {
   commandSuggestions,
@@ -247,7 +247,7 @@ test("jsonc helper accepts comments and trailing commas", () => {
 });
 
 test("state serializes, persists, normalizes workspaces, and deletes empty workspace file", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-state-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-state-"));
   try {
     const state = createInitialState("/repo/");
     state.activeTabId = "s1";
@@ -295,8 +295,8 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
     assert.equal(restored.tabs[1]?.contextLimit, 123_000);
     assert.equal(restored.tabs[1]?.thinkingLevel, "max");
 
-    assert.equal(stateFileForPort(dir, 0), join(dir, "mixcode_state.json"));
-    assert.equal(stateFileForPort(dir, 3010), join(dir, "mixcode_state_3010.json"));
+    assert.equal(stateFileForPort(dir, 0), path.join(dir, "mixcode_state.json"));
+    assert.equal(stateFileForPort(dir, 3010), path.join(dir, "mixcode_state_3010.json"));
     assert.notEqual(scopedStateDir(dir, "/repo-a"), scopedStateDir(dir, "/repo-b"));
     assert.equal(scopedStateDir(dir, "/repo-a///"), scopedStateDir(dir, "/repo-a"));
 
@@ -310,7 +310,7 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
     );
     assert.equal((await loadStateFile(concurrentFile, "/fallback")).workdir, "/repo");
     await assert.rejects(
-      writeFile(stateFile, "[]").then(() => loadStateFile(stateFile, "/fallback")),
+      fsPromises.writeFile(stateFile, "[]").then(() => loadStateFile(stateFile, "/fallback")),
       /Invalid state file/,
     );
     const invalidTheme = deserializeState({ theme: "not-a-theme" }, "/fallback");
@@ -363,7 +363,7 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
     ]);
     assert.equal(normalizedPreview.tabs[0]?.previewIndex, 1);
 
-    const workspaceFile = join(dir, "workspaces.json");
+    const workspaceFile = path.join(dir, "workspaces.json");
     await saveWorkspaces(workspaceFile, [
       { name: " main ", children: ["s1", ""], startupWorkdir: "/repo///", updatedAt: "now" },
       { name: "", children: ["bad"], startupWorkdir: "", updatedAt: "" },
@@ -371,7 +371,7 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
     assert.deepEqual(await loadWorkspaces(workspaceFile), [
       { name: "main", children: ["s1"], startupWorkdir: "/repo", updatedAt: "now", tabs: [] },
     ]);
-    await writeFile(
+    await fsPromises.writeFile(
       workspaceFile,
       JSON.stringify([
         { name: "partial", children: ["x"] },
@@ -385,7 +385,7 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
     ]);
     assert.equal(normalizeStartupWorkdir(" /tmp/// "), "/tmp");
     await assert.rejects(
-      writeFile(workspaceFile, "{}").then(() => loadWorkspaces(workspaceFile)),
+      fsPromises.writeFile(workspaceFile, "{}").then(() => loadWorkspaces(workspaceFile)),
       /Invalid workspace file/,
     );
     await saveWorkspaces(workspaceFile, [
@@ -395,16 +395,16 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
     await deleteWorkspace(workspaceFile, "main");
     assert.equal((await loadWorkspaces(workspaceFile)).length, 1);
     await deleteWorkspace(workspaceFile, "keep");
-    await assert.rejects(readFile(workspaceFile), /ENOENT/);
+    await assert.rejects(fsPromises.readFile(workspaceFile), /ENOENT/);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 
 test("deleteWorkspace rejects unknown names", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-ws-unknown-"));
-  const workspaceFile = join(dir, "workspaces.json");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-ws-unknown-"));
+  const workspaceFile = path.join(dir, "workspaces.json");
   try {
     await saveWorkspaces(workspaceFile, [
       { name: "keep", children: ["s1"], startupWorkdir: "/repo", updatedAt: "now" },
@@ -412,6 +412,6 @@ test("deleteWorkspace rejects unknown names", async () => {
     await assert.rejects(deleteWorkspace(workspaceFile, "missing"), /Unknown workspace: missing/);
     assert.equal((await loadWorkspaces(workspaceFile)).length, 1);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

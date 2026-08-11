@@ -183,7 +183,6 @@ function promptsFromSessionEntry(entry: UserSessionEntry): string[] {
 
 export class MixCodeRuntime {
   private readonly sessionsRoot: string;
-  private readonly rootStateDir: string | undefined;
   private readonly agentDir: string;
   private readonly tabs = new Map<string, RuntimeTab>();
   private readonly changeListeners = new Set<
@@ -252,7 +251,6 @@ export class MixCodeRuntime {
   constructor(
     options: {
       sessionsRoot?: string;
-      rootStateDir?: string;
       agentDir?: string;
       modelRuntime?: ModelRuntime;
       modelRegistry?: RuntimeModelRegistry;
@@ -266,7 +264,6 @@ export class MixCodeRuntime {
     } = {},
   ) {
     this.sessionsRoot = options.sessionsRoot ?? path.join(os.tmpdir(), "mixcode-pi-sessions");
-    this.rootStateDir = options.rootStateDir;
     this.agentDir = options.agentDir ?? getAgentDir();
     this.modelRuntime = options.modelRuntime;
     this.modelRegistry = options.modelRegistry;
@@ -447,13 +444,16 @@ export class MixCodeRuntime {
     return inspectSessionImport(inputPath, cwdOverride, fallbackCwd);
   }
 
-  /**
-   * Persist the thinking-block visibility toggle through Pi's native
-   * SettingsManager so it survives restarts (same store /settings uses).
-   * No-op when no settings manager is wired (e.g. faux/test runtimes).
-   */
-  setHideThinkingBlock(hide: boolean): void {
-    this.settingsManager?.setHideThinkingBlock(hide);
+  /** Persist thinking-block visibility through Pi's native SettingsManager. */
+  async setHideThinkingBlock(hide: boolean): Promise<void> {
+    const settingsManager = this.settingsManager;
+    if (!settingsManager) throw new Error("Settings manager is not available");
+    settingsManager.setHideThinkingBlock(hide);
+    await settingsManager.flush();
+    const errors = settingsManager.drainErrors();
+    if (errors.length > 0) {
+      throw new Error(errors.map(({ scope, error }) => `${scope}: ${error.message}`).join("; "));
+    }
   }
 
   listTabs(): RuntimeTab[] {
@@ -1154,16 +1154,12 @@ export class MixCodeRuntime {
     return listSessionsForCwd(cwd, this.sessionsRoot, signal, onProgress);
   }
 
-  /**
-   * List all sessions across all working directories.
-   * Scans every workdir's sessions directory under rootStateDir,
-   * plus the legacy root sessions directory.
-   */
+  /** List all sessions across Pi's current per-workdir session directories. */
   async listAllSessions(
     signal?: AbortSignal,
     onProgress?: (loaded: number, total: number) => void,
   ): Promise<SessionInfo[]> {
-    return listAllSessionsGlobal(this.sessionsRoot, this.rootStateDir, signal, onProgress);
+    return listAllSessionsGlobal(this.sessionsRoot, signal, onProgress);
   }
 
   /**
@@ -1254,8 +1250,8 @@ export class MixCodeRuntime {
    */
   async reloadModelConfig(): Promise<MixCodeModelRef[]> {
     if (!this.modelRuntime?.refresh) return [];
-    // pi 0.82: ModelRuntime.reloadConfig was removed; refresh() reloads models.json from disk.
-    await this.modelRuntime.refresh();
+    // Reload only the user-owned models.json; provider catalogs are unrelated to /reload.
+    await this.modelRuntime.refresh({ allowNetwork: false });
     // Re-install sync after refresh in case the runtime object was replaced
     // (normally the same instance; wrap is idempotent via __mixcodeUiSync).
     this.installProviderRegistryUiSync();

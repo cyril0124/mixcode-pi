@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import * as fsPromises from "node:fs/promises";
+import * as path from "node:path";
+import * as os from "node:os";
 import { test } from "node:test";
 import type { MixCodeRuntime } from "../src/index.js";
 import {
@@ -120,8 +120,8 @@ test("workspace snapshot on Home records the selected agent, not tabs[0]", () =>
 });
 
 test("workspace store round-trips new schema and reads legacy children", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-workspace-schema-"));
-  const workspaceFile = join(dir, "workspaces.json");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-workspace-schema-"));
+  const workspaceFile = path.join(dir, "workspaces.json");
   try {
     await saveWorkspaces(workspaceFile, [
       {
@@ -162,18 +162,18 @@ test("workspace store round-trips new schema and reads legacy children", async (
       },
     ]);
 
-    await writeFile(workspaceFile, JSON.stringify([{ name: "legacy", children: ["a", ""] }]), "utf8");
+    await fsPromises.writeFile(workspaceFile, JSON.stringify([{ name: "legacy", children: ["a", ""] }]), "utf8");
     assert.deepEqual(await loadWorkspaces(workspaceFile), [
       { name: "legacy", children: ["a"], startupWorkdir: "", updatedAt: "", tabs: [] },
     ]);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("workspace commands open save input and selector overlays without arguments", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-workspace-ui-"));
-  const workspaceFile = join(dir, "workspaces.json");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-workspace-ui-"));
+  const workspaceFile = path.join(dir, "workspaces.json");
   try {
     const state = createInitialState("/repo");
     state.tabs.push(createTab(1, "s1", "/repo", { title: "plan" }));
@@ -199,13 +199,13 @@ test("workspace commands open save input and selector overlays without arguments
     assert.equal(state.workspaceOverlay.mode, "delete");
     assert.match(tui.overlays.at(-1) ?? "", /enter: delete/);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("save workspace input confirms overwrite before saving", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-workspace-save-"));
-  const workspaceFile = join(dir, "workspaces.json");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-workspace-save-"));
+  const workspaceFile = path.join(dir, "workspaces.json");
   try {
     const state = createInitialState("/repo");
     state.tabs.push(createTab(1, "s1", "/repo", { title: "new plan" }));
@@ -225,23 +225,23 @@ test("save workspace input confirms overwrite before saving", async () => {
     assert.match(tui.overlays.at(-1) ?? "", /Confirm Update Workspace/);
 
     handleMixCodeKeyInput(state, "\r", tui, undefined, runtime, undefined, undefined, undefined, undefined, { workspaceFile });
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await Bun.sleep(20);
 
     const saved = await loadWorkspaces(workspaceFile);
     assert.deepEqual(saved[0]?.children, ["s1"]);
     assert.equal(state.tabs[0]?.toast?.message, "Workspace updated: main");
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("restore workspace reopens saved sessions, closes extra tabs, and reports missing", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-workspace-restore-"));
-  const workspaceFile = join(dir, "workspaces.json");
-  const existingSessionPath = join(dir, "s1.jsonl");
-  const missingSessionPath = join(dir, "missing.jsonl");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-workspace-restore-"));
+  const workspaceFile = path.join(dir, "workspaces.json");
+  const existingSessionPath = path.join(dir, "s1.jsonl");
+  const missingSessionPath = path.join(dir, "missing.jsonl");
   try {
-    await writeFile(existingSessionPath, "{}\n", "utf8");
+    await fsPromises.writeFile(existingSessionPath, "{}\n", "utf8");
     const state = createInitialState("/repo");
     state.tabs.push(createTab(1, "extra", "/repo", { title: "extra" }));
     state.activeTabId = "extra";
@@ -259,13 +259,13 @@ test("restore workspace reopens saved sessions, closes extra tabs, and reports m
       },
     ]);
     const { runtime, created, closed, switched } = createRuntime(
-      { extra: join(dir, "extra.jsonl") },
+      { extra: path.join(dir, "extra.jsonl") },
       { [existingSessionPath]: ["old prompt", "new prompt"] },
     );
     const tui = createOverlayTui();
 
     await handleSubmittedInput(state, runtime, "/restore-workspace main", tui, undefined, undefined, workspaceFile);
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await Bun.sleep(50);
 
     assert.equal(state.tabs.length, 1);
     assert.equal(state.tabs[0]?.title, "plan");
@@ -280,7 +280,7 @@ test("restore workspace reopens saved sessions, closes extra tabs, and reports m
     const toastMsg = state.tabs[0]?.toast?.message ?? "";
     assert.match(toastMsg, /Workspace restored: main · restored 1, skipped 1/);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
@@ -318,13 +318,13 @@ test("restore workspace order-only path hydrates prompt history", async () => {
 });
 
 test("restore workspace keeps active tab when earlier workspace items are skipped", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-workspace-active-"));
-  const workspaceFile = join(dir, "workspaces.json");
-  const secondSessionPath = join(dir, "second.jsonl");
-  const thirdSessionPath = join(dir, "third.jsonl");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-workspace-active-"));
+  const workspaceFile = path.join(dir, "workspaces.json");
+  const secondSessionPath = path.join(dir, "second.jsonl");
+  const thirdSessionPath = path.join(dir, "third.jsonl");
   try {
-    await writeFile(secondSessionPath, "{}\n", "utf8");
-    await writeFile(thirdSessionPath, "{}\n", "utf8");
+    await fsPromises.writeFile(secondSessionPath, "{}\n", "utf8");
+    await fsPromises.writeFile(thirdSessionPath, "{}\n", "utf8");
     const state = createInitialState("/repo");
     state.tabs.push(createTab(1, "extra", "/repo", { title: "extra" }));
     state.activeTabId = "extra";
@@ -342,7 +342,7 @@ test("restore workspace keeps active tab when earlier workspace items are skippe
         ],
       },
     ]);
-    const { runtime } = createRuntime({ extra: join(dir, "extra.jsonl") });
+    const { runtime } = createRuntime({ extra: path.join(dir, "extra.jsonl") });
     const tui = createOverlayTui();
 
     await handleSubmittedInput(state, runtime, "/restore-workspace main", tui, undefined, undefined, workspaceFile);
@@ -350,13 +350,13 @@ test("restore workspace keeps active tab when earlier workspace items are skippe
     assert.equal(state.tabs.find((tab) => tab.sessionId === state.activeTabId)?.title, "third");
     assert.deepEqual(state.workspaceOverlay.skippedMissing, ["missing (no session path saved)"]);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("delete workspace selector requires confirmation", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-workspace-delete-"));
-  const workspaceFile = join(dir, "workspaces.json");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-workspace-delete-"));
+  const workspaceFile = path.join(dir, "workspaces.json");
   try {
     const state = createInitialState("/repo");
     state.tabs.push(createTab(1, "s1", "/repo"));
@@ -370,11 +370,11 @@ test("delete workspace selector requires confirmation", async () => {
     assert.match(tui.overlays.at(-1) ?? "", /Delete Workspace "main"/);
 
     handleMixCodeKeyInput(state, "\r", tui, undefined, runtime, undefined, undefined, undefined, undefined, { workspaceFile });
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await Bun.sleep(20);
     await assert.rejects(loadWorkspaces(workspaceFile), /ENOENT/);
     assert.equal(state.tabs[0]?.toast?.message, "Workspace deleted: main");
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 

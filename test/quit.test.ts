@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { quitMixCode, shutdownRuntimeAndStopTui } from "../src/ui/quit.js";
 
 function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return Bun.sleep(ms);
 }
 
 test("shutdownRuntimeAndStopTui aborts work and stops the TUI before awaiting runtime cleanup", async () => {

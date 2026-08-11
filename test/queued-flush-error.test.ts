@@ -19,7 +19,7 @@ test("scheduleRuntimePendingMessageFlush surfaces flush failure through onError 
   );
 
   // Let the waitForIdle().then(flush).catch(onError) microtask chain settle.
-  await new Promise((resolve) => setTimeout(resolve, 20));
+  await Bun.sleep(20);
 
   assert.equal(errors.length, 1);
   assert.equal(errors[0]?.sessionId, "s1");

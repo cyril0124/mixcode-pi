@@ -1,8 +1,8 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import * as fsPromises from "node:fs/promises";
+import * as path from "node:path";
+import * as os from "node:os";
 import { test } from "node:test";
 import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import { Text, TuiMainScreen, type Terminal } from "@earendil-works/pi-tui";
@@ -40,7 +40,7 @@ function silentTerminal(): Terminal {
 }
 
 test("runtime extension reload rejects active streaming or compaction state", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-reload-busy-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-reload-busy-"));
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir });
     const runtimeTab = await runtime.createTab(createTab(1, "s1", process.cwd()), {
@@ -65,12 +65,12 @@ test("runtime extension reload rejects active streaming or compaction state", as
     });
     await assert.rejects(() => runtime.extensionReload("s1"), /compaction/);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime wires extension command session actions into MixCode sessions", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-actions-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-actions-"));
   const events: string[] = [];
   const extension: ExtensionFactory = (pi) => {
     pi.registerCommand("new-action-session", {
@@ -226,12 +226,12 @@ test("runtime wires extension command session actions into MixCode sessions", as
     assert.ok(events.includes("switch:false"));
     runtime.setExtensionUiHost(undefined);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime extension newSession works without optional parent setup or callback", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-new-plain-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-new-plain-"));
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir });
     await runtime.createTab(createTab(1, "plain", process.cwd()), {
@@ -247,12 +247,12 @@ test("runtime extension newSession works without optional parent setup or callba
     assert.notEqual(replacement.tab.sessionId, "plain");
     assert.equal(replacement.session.getHeader()?.parentSession, undefined);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime extension session actions expose cancellation and boundary errors", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-action-boundaries-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-action-boundaries-"));
   let forkCancelEntryId: string | undefined;
   let cancelNextResume = false;
   const extension: ExtensionFactory = (pi) => {
@@ -294,12 +294,12 @@ test("runtime extension session actions expose cancellation and boundary errors"
     await assert.rejects(() => runtime.extensionFork("s1", "missing-entry"), /Invalid entry ID/);
     await assert.rejects(() => runtime.extensionFork("s1", assistantId), /Invalid entry ID/);
     await assert.rejects(
-      () => runtime.extensionSwitchSession("s1", join(dir, "missing.jsonl")),
+      () => runtime.extensionSwitchSession("s1", path.join(dir, "missing.jsonl")),
       /Session file not found/,
     );
 
-    const importPath = join(dir, "cancel-import.jsonl");
-    await writeFile(
+    const importPath = path.join(dir, "cancel-import.jsonl");
+    await fsPromises.writeFile(
       importPath,
       `${JSON.stringify({ type: "session", version: 3, id: "cancel-import", timestamp: "2026-05-10T00:00:00.000Z", cwd: process.cwd() })}\n`,
       "utf8",
@@ -308,6 +308,6 @@ test("runtime extension session actions expose cancellation and boundary errors"
     assert.deepEqual(await runtime.importFromJsonl("s1", importPath), { cancelled: true });
     assert.equal(runtime.getTab("s1"), runtimeTab);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

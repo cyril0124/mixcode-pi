@@ -1,8 +1,8 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import * as fsPromises from "node:fs/promises";
+import * as path from "node:path";
+import * as os from "node:os";
 import { test } from "node:test";
 import {
   Type,
@@ -129,7 +129,7 @@ function lastRuntimeUserText(context: Context): string {
 async function waitForRuntime(predicate: () => boolean, attempts = 25): Promise<void> {
   for (let i = 0; i < attempts; i += 1) {
     if (predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await Bun.sleep(10);
   }
   assert.equal(predicate(), true);
 }
@@ -200,7 +200,7 @@ test("extension header and footer preserve full-width component output", () => {
 });
 
 test("runtime exposes extension UI context as TUI during startup and clear", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-ui-mode-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-ui-mode-"));
   const modes: string[] = [];
   const extension: ExtensionFactory = (pi) => {
     pi.on("session_start", (_event, ctx) => {
@@ -238,12 +238,12 @@ test("runtime exposes extension UI context as TUI during startup and clear", asy
       "guarded header",
     ]);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("clearTab keeps a non-colliding title, never the tab list position", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-clear-title-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-clear-title-"));
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir, extensionFactories: [] });
     // Post-close layout: positions no longer match titles (Agent-02 was closed).
@@ -279,12 +279,12 @@ test("clearTab keeps a non-colliding title, never the tab list position", async 
       `cleared tab must not take an existing title, got ${cleared.tab.title}`,
     );
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("clearTab drops a custom name for the next free generic title", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-clear-custom-title-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-clear-custom-title-"));
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir, extensionFactories: [] });
     await runtime.createTab(createTab(1, "s1", process.cwd(), { title: "Agent-01" }), {
@@ -317,7 +317,7 @@ test("clearTab drops a custom name for the next free generic title", async () =>
     assert.notEqual(cleared.tab.title, "Agent-02");
     assert.notEqual(cleared.tab.title, "my-project");
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
@@ -352,7 +352,7 @@ function escapeRegExp(text: string): string {
 }
 
 test("runtime maps supported pi extension UI primitives into MixCode tab state", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-ui-noop-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-ui-noop-"));
   const events: string[] = [];
   const modes: string[] = [];
   const extension: ExtensionFactory = (pi) => {
@@ -468,12 +468,12 @@ test("runtime maps supported pi extension UI primitives into MixCode tab state",
     assert.deepEqual(renderExtensionHeader(runtimeTab.tab, 80), []);
     assert.deepEqual(renderExtensionFooter(runtimeTab.tab, 80), []);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime maps extension theme primitives to MixCode themes", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-theme-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-theme-"));
   const seen: string[] = [];
   let mixTheme = "mixcode-dark";
   const appliedThemes: string[] = [];
@@ -524,12 +524,12 @@ test("runtime maps extension theme primitives to MixCode themes", async () => {
     assert.equal(mixTheme, "mixcode-dark");
     assert.match(missing.error ?? "", /Unknown theme: missing-theme/);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime dispatches pi extension terminal input handlers in order", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-input-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-input-"));
   const seen: string[] = [];
   const extension: ExtensionFactory = (pi) => {
     pi.on("session_start", (_event, ctx) => {
@@ -555,6 +555,6 @@ test("runtime dispatches pi extension terminal input handlers in order", async (
     assert.deepEqual(runtime.dispatchTerminalInput("s1", "\x1b"), { consume: true });
     assert.deepEqual(seen, ['one:"\\u001b"', 'two:"changed"']);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

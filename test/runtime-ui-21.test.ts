@@ -1,8 +1,8 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import * as fsPromises from "node:fs/promises";
+import * as path from "node:path";
+import * as os from "node:os";
 import { test } from "node:test";
 import {
   Type,
@@ -129,7 +129,7 @@ function lastRuntimeUserText(context: Context): string {
 async function waitForRuntime(predicate: () => boolean, attempts = 25): Promise<void> {
   for (let i = 0; i < attempts; i += 1) {
     if (predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await Bun.sleep(10);
   }
   assert.equal(predicate(), true);
 }
@@ -176,13 +176,13 @@ function escapeRegExp(text: string): string {
 }
 
 test("runtime lets Pi resource loader discover project system prompt before MixCode fallback", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-system-resource-"));
-  const repo = join(dir, "repo");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-system-resource-"));
+  const repo = path.join(dir, "repo");
   try {
-    await mkdir(join(repo, ".pi"), { recursive: true });
-    await writeFile(join(repo, ".pi", "SYSTEM.md"), "Project system prompt", "utf8");
-    await writeFile(join(repo, ".pi", "APPEND_SYSTEM.md"), "Append prompt", "utf8");
-    const runtime = new MixCodeRuntime({ sessionsRoot: join(dir, "sessions") });
+    await fsPromises.mkdir(path.join(repo, ".pi"), { recursive: true });
+    await fsPromises.writeFile(path.join(repo, ".pi", "SYSTEM.md"), "Project system prompt", "utf8");
+    await fsPromises.writeFile(path.join(repo, ".pi", "APPEND_SYSTEM.md"), "Append prompt", "utf8");
+    const runtime = new MixCodeRuntime({ sessionsRoot: path.join(dir, "sessions") });
     const runtimeTab = await runtime.createTab(createTab(1, "s1", repo), {
       systemPrompt: "Fallback prompt",
       thinkingLevel: "medium",
@@ -193,7 +193,7 @@ test("runtime lets Pi resource loader discover project system prompt before MixC
     assert.match(runtimeTab.agent.state.systemPrompt, /Append prompt/);
     assert.doesNotMatch(runtimeTab.agent.state.systemPrompt, /Fallback prompt/);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 

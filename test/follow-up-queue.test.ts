@@ -1,8 +1,8 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import * as fsPromises from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { test } from "node:test";
 import type { MixCodeTabInfo } from "../src/core/types.js";
 import {
@@ -141,7 +141,7 @@ async function withSlowToolRuntime(
     toolRunning: Promise<void>;
   }) => Promise<void>,
 ): Promise<void> {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-follow-up-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-follow-up-"));
   try {
     let releaseTool!: () => void;
     const toolReleased = new Promise<void>((resolve) => {
@@ -205,7 +205,7 @@ async function withSlowToolRuntime(
 
     await run({ runtime, tab, runtimeTab, releaseTool, toolRunning });
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 }
 

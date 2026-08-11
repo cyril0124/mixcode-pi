@@ -1,8 +1,8 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import * as fsPromises from "node:fs/promises";
+import * as path from "node:path";
+import * as os from "node:os";
 import { test } from "node:test";
 import { cachedChatBlockHeight, createTab, MixCodeRuntime, renderChat } from "../src/index.js";
 
@@ -144,9 +144,9 @@ test("stable assistant markdown stays height-cached when only streaming text cha
 });
 
 test("edit tool results render old and new file content", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-edit-render-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-edit-render-"));
   try {
-    await writeFile(join(dir, "run.sh"), "echo old\n", "utf8");
+    await fsPromises.writeFile(path.join(dir, "run.sh"), "echo old\n", "utf8");
     const runtime = new MixCodeRuntime({ sessionsRoot: dir });
     const runtimeTab = await runtime.createTab(createTab(1, "s1", dir), {
       systemPrompt: "system",
@@ -183,6 +183,6 @@ test("edit tool results render old and new file content", async () => {
     assert.match(plain, /echo new/);
     assert.doesNotMatch(plain, /Successfully replaced/);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

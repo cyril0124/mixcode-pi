@@ -1,4 +1,4 @@
-import type { Dirent } from "node:fs";
+import type * as fsTypes from "node:fs";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { parseSessionEntries, type SessionInfo } from "@earendil-works/pi-coding-agent";
@@ -192,10 +192,7 @@ export async function ensureConversationHistoryState(options: {
   try {
     await ensurePrivateDir(options.rootStateDir);
     const settings = await loadMixCodeSettings(paths.settingsFile);
-    const sessionsRoots = await discoverSessionRoots(
-      options.rootStateDir,
-      options.activeSessionsRoot,
-    );
+    const sessionsRoots = discoverSessionRoots(options.activeSessionsRoot);
     const historyMissing = !(await pathExists(paths.historyFile));
     const indexStale = await shouldRebuildSessionIndex(paths.sessionIndexFile, sessionsRoots);
     if (historyMissing || indexStale) {
@@ -221,10 +218,7 @@ export async function updateConversationSessionIndex(options: {
   activeSessionsRoot: string;
 }): Promise<void> {
   const paths = conversationHistoryPaths(options.rootStateDir);
-  const sessionsRoots = await discoverSessionRoots(
-    options.rootStateDir,
-    options.activeSessionsRoot,
-  );
+  const sessionsRoots = discoverSessionRoots(options.activeSessionsRoot);
   await buildSessionIndex({ indexFile: paths.sessionIndexFile, sessionsRoots });
 }
 
@@ -413,7 +407,7 @@ async function parseSessionFile(filePath: string): Promise<ParsedSessionFile | u
 async function listSessionJsonlFiles(sessionsRoots: string[]): Promise<string[]> {
   const result: string[] = [];
   async function walk(dir: string): Promise<void> {
-    let entries: Dirent[];
+    let entries: fsTypes.Dirent[];
     try {
       entries = await fs.readdir(dir, { withFileTypes: true });
     } catch {
@@ -470,26 +464,14 @@ function trimHistoryText(text: string, maxBytes: number): string {
   return lines.length ? `${lines.join("\n")}\n` : "";
 }
 
-async function discoverSessionRoots(
-  rootStateDir: string,
-  activeSessionsRoot: string,
-): Promise<string[]> {
-  const roots = new Set<string>([activeSessionsRoot]);
-  const workdirs = path.join(rootStateDir, "workdirs");
-  try {
-    for (const entry of await fs.readdir(workdirs, { withFileTypes: true })) {
-      if (entry.isDirectory()) roots.add(path.join(workdirs, entry.name, "sessions"));
-    }
-  } catch {
-    // Missing workdirs directory is normal on first launch.
-  }
-  return [...roots];
+function discoverSessionRoots(activeSessionsRoot: string): string[] {
+  return [activeSessionsRoot];
 }
 
 async function latestSessionsMtime(sessionsRoots: string[]): Promise<number> {
   let latest = 0;
   async function walk(dir: string): Promise<void> {
-    let entries: Dirent[];
+    let entries: fsTypes.Dirent[];
     try {
       entries = await fs.readdir(dir, { withFileTypes: true });
     } catch {

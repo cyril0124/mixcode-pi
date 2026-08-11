@@ -30,12 +30,6 @@ export type GoalState = {
 	updatedAt: number;
 	sourceQueueId?: string;
 	postCompletionActions?: PostCompletionActionState[];
-	/** Legacy ISSUE-043 compatibility. Prefer postCompletionActions. */
-	postCompletionContext?: ContextResetMode | "none";
-	contextResetAnchorEntryId?: string;
-	contextResetStatus?: PostCompletionActionStatus;
-	contextResetFailure?: string;
-	contextResetCompletedAt?: number;
 };
 
 export type TurnOrigin = "user" | "auto" | "budgetWrapUp";

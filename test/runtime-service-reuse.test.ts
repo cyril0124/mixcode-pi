@@ -1,8 +1,8 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import * as fsPromises from "node:fs/promises";
+import * as path from "node:path";
+import * as os from "node:os";
 import { test } from "node:test";
 import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import {
@@ -18,15 +18,15 @@ async function withRuntime(
   name: string,
   run: (runtime: MixCodeRuntime, dir: string) => Promise<void>,
 ): Promise<void> {
-  const dir = await mkdtemp(join(tmpdir(), name));
-  const runtime = new MixCodeRuntime({ sessionsRoot: join(dir, "sessions") });
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), name));
+  const runtime = new MixCodeRuntime({ sessionsRoot: path.join(dir, "sessions") });
   try {
     await run(runtime, dir);
   } finally {
     try {
       await runtime.closeAllTabs();
     } finally {
-      await rm(dir, { recursive: true, force: true });
+      await fsPromises.rm(dir, { recursive: true, force: true });
     }
   }
 }
@@ -111,7 +111,7 @@ test("clear drops session name and resets tab title like Pi /new", async () => {
 });
 
 test("extension commands work after clearTab without stale ctx error", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-clear-extension-cmd-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-clear-extension-cmd-"));
   const events: string[] = [];
   const extension: ExtensionFactory = (pi) => {
     pi.registerCommand("ping", {
@@ -124,7 +124,7 @@ test("extension commands work after clearTab without stale ctx error", async () 
   };
   try {
     const runtime = new MixCodeRuntime({
-      sessionsRoot: join(dir, "sessions"),
+      sessionsRoot: path.join(dir, "sessions"),
       extensionFactories: [extension],
     });
     await runtime.createTab(createTab(1, "s1", process.cwd()), {
@@ -147,12 +147,12 @@ test("extension commands work after clearTab without stale ctx error", async () 
       0,
     );
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("extension commands work after clearTab on a forked session", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-fork-clear-ext-cmd-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-fork-clear-ext-cmd-"));
   const events: string[] = [];
   const extension: ExtensionFactory = (pi) => {
     pi.registerCommand("ping", {
@@ -165,7 +165,7 @@ test("extension commands work after clearTab on a forked session", async () => {
   };
   try {
     const runtime = new MixCodeRuntime({
-      sessionsRoot: join(dir, "sessions"),
+      sessionsRoot: path.join(dir, "sessions"),
       extensionFactories: [extension],
     });
     const source = await runtime.createTab(createTab(1, "source", process.cwd()), {
@@ -201,7 +201,7 @@ test("extension commands work after clearTab on a forked session", async () => {
       0,
     );
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
@@ -258,7 +258,7 @@ test("slash fork keeps and persists the fork suffix for a named source tab", asy
       assert.equal(runtime.getTab(forked.sessionId)?.session.getSessionName(), "Worker-fork");
 
       await runtime.closeAllTabs();
-      const reopenedRuntime = new MixCodeRuntime({ sessionsRoot: join(dir, "sessions") });
+      const reopenedRuntime = new MixCodeRuntime({ sessionsRoot: path.join(dir, "sessions") });
       try {
         const reopenedTab = createTab(1, forked.sessionId, dir);
         await reopenedRuntime.createTab(reopenedTab, {
@@ -335,7 +335,7 @@ test("service reuse failure falls back to fresh services with a target system me
 });
 
 test("service reuse startup failure falls back with a system message", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-reuse-startup-fallback-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-reuse-startup-fallback-"));
   let failAfterForkStart = false;
   const extension: ExtensionFactory = (pi) => {
     pi.on("session_start", (_event, ctx) => {
@@ -344,7 +344,7 @@ test("service reuse startup failure falls back with a system message", async () 
   };
   try {
     const runtime = new MixCodeRuntime({
-      sessionsRoot: join(dir, "sessions"),
+      sessionsRoot: path.join(dir, "sessions"),
       extensionFactories: [extension],
     });
     const source = await runtime.createTab(createTab(1, "source", process.cwd()), {
@@ -374,7 +374,7 @@ test("service reuse startup failure falls back with a system message", async () 
       forked.chat.some((line) => line.role === "system" && line.text.includes("startup boom")),
     );
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 

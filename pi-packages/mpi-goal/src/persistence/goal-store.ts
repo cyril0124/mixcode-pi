@@ -185,8 +185,6 @@ function toGoalState(value: unknown): GoalState | null {
 	const v = value as Record<string, unknown>;
 	const required = requiredGoalFields(v);
 	if (!required) return null;
-	const legacyContext = parseContextResetMode(v.postCompletionContext);
-	const legacyStatus = parseActionStatus(v.contextResetStatus);
 	return {
 		goalId: required.goalId,
 		objective: required.objective,
@@ -200,12 +198,7 @@ function toGoalState(value: unknown): GoalState | null {
 		createdAt: finiteNumber(v.createdAt) ?? Date.now(),
 		updatedAt: finiteNumber(v.updatedAt) ?? Date.now(),
 		sourceQueueId: optionalString(v.sourceQueueId),
-		postCompletionActions: parsePostCompletionActionStates(v.postCompletionActions, required.goalId, legacyContext, legacyStatus, v),
-		postCompletionContext: legacyContext,
-		contextResetAnchorEntryId: optionalString(v.contextResetAnchorEntryId),
-		contextResetStatus: legacyStatus,
-		contextResetFailure: optionalString(v.contextResetFailure),
-		contextResetCompletedAt: finiteNumber(v.contextResetCompletedAt),
+		postCompletionActions: parsePostCompletionActionStates(v.postCompletionActions),
 	};
 }
 
@@ -215,19 +208,8 @@ function requiredGoalFields(value: Record<string, unknown>): Pick<GoalState, "go
 	return { goalId: value.goalId, objective: value.objective, status: value.status };
 }
 
-function parsePostCompletionActionStates(value: unknown, goalId: string, legacyContext: ContextResetMode | "none" | undefined, legacyStatus: PostCompletionActionStatus | undefined, raw: Record<string, unknown>): PostCompletionActionState[] | undefined {
-	if (Array.isArray(value)) return parseActionStateArray(value);
-	if (!legacyContext || legacyContext === "none") return undefined;
-	return [{
-		id: `legacy-context-reset-${goalId}`,
-		type: "context.reset",
-		mode: legacyContext,
-		status: legacyStatus ?? "pending",
-		anchorEntryId: optionalString(raw.contextResetAnchorEntryId),
-		failure: optionalString(raw.contextResetFailure),
-		completedAt: finiteNumber(raw.contextResetCompletedAt),
-		updatedAt: finiteNumber(raw.updatedAt),
-	}];
+function parsePostCompletionActionStates(value: unknown): PostCompletionActionState[] | undefined {
+	return Array.isArray(value) ? parseActionStateArray(value) : undefined;
 }
 
 function parseActionStateArray(values: unknown[]): PostCompletionActionState[] | undefined {

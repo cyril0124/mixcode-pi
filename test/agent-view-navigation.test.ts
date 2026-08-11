@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import * as fsPromises from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { test } from "node:test";
 import { SettingsManager } from "@earendil-works/pi-coding-agent";
 import {
@@ -451,8 +451,8 @@ test("Home Enter opens settings with the app configuration", async () => {
   const editorActions = makeEditorActions("/settings");
   const settingsDeps = {
     settingsManager: SettingsManager.inMemory(),
-    mixcodeFile: join(tmpdir(), "mixcode-home-settings.json"),
-    piSettingsFile: join(tmpdir(), "pi-home-settings.json"),
+    mixcodeFile: path.join(os.tmpdir(), "mixcode-home-settings.json"),
+    piSettingsFile: path.join(os.tmpdir(), "pi-home-settings.json"),
   };
 
   const result = handleMixCodeKeyInput(
@@ -467,7 +467,7 @@ test("Home Enter opens settings with the app configuration", async () => {
     undefined,
     { settingsDeps },
   );
-  await new Promise<void>((resolve) => setTimeout(resolve, 50));
+  await Bun.sleep(50);
 
   assert.deepEqual(result, { consume: true });
   assert.equal(state.activeTabId, "config");
@@ -549,8 +549,8 @@ test("Home Enter restores text and shows transient error when selected agent rej
 });
 
 test("Home Enter passes workspaceFile so /save-workspace works", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-home-ws-"));
-  const workspaceFile = join(dir, "workspaces.json");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-home-ws-"));
+  const workspaceFile = path.join(dir, "workspaces.json");
   try {
     const state = createInitialState("/repo");
     state.tabs.push(createTab(1, "s1", "/repo"));
@@ -575,7 +575,7 @@ test("Home Enter passes workspaceFile so /save-workspace works", async () => {
       undefined,
       { workspaceFile },
     );
-    await new Promise<void>((resolve) => setTimeout(resolve, 50));
+    await Bun.sleep(50);
 
     assert.deepEqual(result, { consume: true });
     assert.equal(state.activeTabId, "config");
@@ -584,10 +584,10 @@ test("Home Enter passes workspaceFile so /save-workspace works", async () => {
       tui.overlays.some((o) => o.includes("Workspace file is not configured")),
       false,
     );
-    const saved = JSON.parse(await readFile(workspaceFile, "utf8")) as unknown[];
+    const saved = JSON.parse(await fsPromises.readFile(workspaceFile, "utf8")) as unknown[];
     assert.ok(Array.isArray(saved) && saved.length >= 1);
   } finally {
-    await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+    await fsPromises.rm(dir, { recursive: true, force: true }).catch(() => undefined);
   }
 });
 
@@ -619,7 +619,7 @@ test("Home /clear stays on Home after session replacement", async () => {
     () => false,
     editorActions,
   );
-  await new Promise<void>((resolve) => setTimeout(resolve, 50));
+  await Bun.sleep(50);
 
   assert.equal(state.activeTabId, "config");
   assert.equal(tab.sessionId, "s1-cleared");

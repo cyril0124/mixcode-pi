@@ -1,8 +1,8 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import * as fsPromises from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { test } from "node:test";
 import {
   type AssistantMessage,
@@ -74,9 +74,9 @@ function runtimeAssistantMessage(text: string): AssistantMessage {
 }
 
 test("runtime restores prompt history from the active SDK branch", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-branch-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-branch-"));
   const sessionId = "branch-history";
-  const file = join(dir, `2026-06-27T00-00-00-000Z_${sessionId}.jsonl`);
+  const file = path.join(dir, `2026-06-27T00-00-00-000Z_${sessionId}.jsonl`);
   try {
     const lines = [
       {
@@ -116,7 +116,7 @@ test("runtime restores prompt history from the active SDK branch", async () => {
         message: { role: "user", content: "active prompt", timestamp: 0 },
       },
     ];
-    await writeFile(
+    await fsPromises.writeFile(
       file,
       `${lines.map((line) => (typeof line === "string" ? line : JSON.stringify(line))).join("\n")}\n`,
       "utf8",
@@ -125,14 +125,14 @@ test("runtime restores prompt history from the active SDK branch", async () => {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir });
     assert.deepEqual(runtime.getPromptHistory(sessionId), ["root prompt", "active prompt"]);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime restores prompt history from legacy linear session files", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-legacy-history-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-legacy-history-"));
   const sessionId = "legacy-history";
-  const file = join(dir, `2026-06-27T00-00-00-000Z_${sessionId}.jsonl`);
+  const file = path.join(dir, `2026-06-27T00-00-00-000Z_${sessionId}.jsonl`);
   try {
     const lines = [
       {
@@ -163,17 +163,17 @@ test("runtime restores prompt history from legacy linear session files", async (
         message: runtimeAssistantMessage("answer"),
       },
     ];
-    await writeFile(file, `${lines.map((line) => JSON.stringify(line)).join("\n")}\n`, "utf8");
+    await fsPromises.writeFile(file, `${lines.map((line) => JSON.stringify(line)).join("\n")}\n`, "utf8");
 
     const runtime = new MixCodeRuntime({ sessionsRoot: dir });
     assert.deepEqual(runtime.getPromptHistory(sessionId), ["first legacy", "second legacy"]);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime creates sessions, streams responses, restores chat, and supports compact/fork/delete", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-"));
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir });
     const tab = createTab(1, "s1", process.cwd());
@@ -242,12 +242,12 @@ test("runtime creates sessions, streams responses, restores chat, and supports c
     assert.equal(runtime.getTab("s1"), undefined);
     await assert.rejects(runtime.deleteTab("s1"), /Unknown tab session/);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime compacts imported replay session with stream signal", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-compact-replay-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-compact-replay-"));
   try {
     let compactSignal: AbortSignal | undefined;
     const runtime = new MixCodeRuntime({
@@ -257,7 +257,7 @@ test("runtime compacts imported replay session with stream signal", async () => 
         return delayedAssistantStream("replay summary", Promise.resolve(), options);
       },
     });
-    const importPath = join(dir, "2026-06-07T00-00-00-000Z_replay-session.jsonl");
+    const importPath = path.join(dir, "2026-06-07T00-00-00-000Z_replay-session.jsonl");
     const replayAssistantMessage = (text: string): AssistantMessage => ({
       ...runtimeAssistantMessage(text),
       api: "replay",
@@ -344,7 +344,7 @@ test("runtime compacts imported replay session with stream signal", async () => 
         message: replayAssistantMessage("latest answer"),
       },
     ];
-    await writeFile(
+    await fsPromises.writeFile(
       importPath,
       `${replayEntries.map((entry) => JSON.stringify(entry)).join("\n")}\n`,
       "utf8",
@@ -372,21 +372,21 @@ test("runtime compacts imported replay session with stream signal", async () => 
     assert.ok(compactSignal instanceof AbortSignal);
     assert.equal(tab.status, "idle");
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime import rejects a same-name destination without overwriting it", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-import-collision-"));
-  const sessionsRoot = join(dir, "sessions");
-  const sourceDir = join(dir, "source");
-  const workdir = join(dir, "workdir");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-import-collision-"));
+  const sessionsRoot = path.join(dir, "sessions");
+  const sourceDir = path.join(dir, "source");
+  const workdir = path.join(dir, "workdir");
   const runtime = new MixCodeRuntime({ sessionsRoot });
   try {
     await Promise.all([
-      mkdir(sessionsRoot, { recursive: true }),
-      mkdir(sourceDir, { recursive: true }),
-      mkdir(workdir, { recursive: true }),
+      fsPromises.mkdir(sessionsRoot, { recursive: true }),
+      fsPromises.mkdir(sourceDir, { recursive: true }),
+      fsPromises.mkdir(workdir, { recursive: true }),
     ]);
     await runtime.createTab(createTab(1, "s1", workdir), {
       systemPrompt: "system",
@@ -394,34 +394,34 @@ test("runtime import rejects a same-name destination without overwriting it", as
       workdir,
     });
     const fileName = `${"x".repeat(240)}.jsonl`;
-    const sourcePath = join(sourceDir, fileName);
-    const destinationPath = join(sessionsRoot, fileName);
+    const sourcePath = path.join(sourceDir, fileName);
+    const destinationPath = path.join(sessionsRoot, fileName);
     const existing = "existing session must survive\n";
-    await writeFile(destinationPath, existing, "utf8");
-    await writeFile(
+    await fsPromises.writeFile(destinationPath, existing, "utf8");
+    await fsPromises.writeFile(
       sourcePath,
       `${JSON.stringify({ type: "session", version: 3, id: "import-collision", timestamp: "2026-05-10T00:00:00.000Z", cwd: workdir })}\n`,
       "utf8",
     );
 
     await assert.rejects(() => runtime.importFromJsonl("s1", sourcePath), /already exists/);
-    assert.equal(await readFile(destinationPath, "utf8"), existing);
+    assert.equal(await fsPromises.readFile(destinationPath, "utf8"), existing);
   } finally {
     await runtime.closeAllTabs().catch(() => undefined);
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime imports pi session JSONL into the active tab", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-import-"));
-  const sessionsRoot = join(dir, "sessions");
-  const sourceDir = join(dir, "source");
-  const importedCwd = join(dir, "imported-cwd");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-import-"));
+  const sessionsRoot = path.join(dir, "sessions");
+  const sourceDir = path.join(dir, "source");
+  const importedCwd = path.join(dir, "imported-cwd");
   try {
     await Promise.all([
-      mkdir(sessionsRoot, { recursive: true }),
-      mkdir(sourceDir, { recursive: true }),
-      mkdir(importedCwd, { recursive: true }),
+      fsPromises.mkdir(sessionsRoot, { recursive: true }),
+      fsPromises.mkdir(sourceDir, { recursive: true }),
+      fsPromises.mkdir(importedCwd, { recursive: true }),
     ]);
     const runtime = new MixCodeRuntime({ sessionsRoot });
     const tab = createTab(1, "s1", process.cwd());
@@ -430,8 +430,8 @@ test("runtime imports pi session JSONL into the active tab", async () => {
       thinkingLevel: "medium",
       workdir: process.cwd(),
     });
-    const importPath = join(sourceDir, "external-session.jsonl");
-    await writeFile(
+    const importPath = path.join(sourceDir, "external-session.jsonl");
+    await fsPromises.writeFile(
       importPath,
       [
         JSON.stringify({
@@ -465,16 +465,16 @@ test("runtime imports pi session JSONL into the active tab", async () => {
     const importedTab = runtime.getTab("imported-session");
     assert.equal(importedTab, runtimeTab);
     assert.match(importedTab?.chat.map((line) => line.text).join("\n") ?? "", /imported hello/);
-    const importedFile = await readFile(join(sessionsRoot, "external-session.jsonl"), "utf8");
+    const importedFile = await fsPromises.readFile(path.join(sessionsRoot, "external-session.jsonl"), "utf8");
     assert.equal(JSON.parse(importedFile.split("\n")[0]!).version, 3);
 
     await assert.rejects(
-      () => runtime.importFromJsonl("imported-session", join(dir, "missing.jsonl")),
+      () => runtime.importFromJsonl("imported-session", path.join(dir, "missing.jsonl")),
       /Session import file not found/,
     );
 
-    const noCwdPath = join(sourceDir, "no-cwd.jsonl");
-    await writeFile(
+    const noCwdPath = path.join(sourceDir, "no-cwd.jsonl");
+    await fsPromises.writeFile(
       noCwdPath,
       `${JSON.stringify({ type: "session", version: 3, id: "no-cwd", timestamp: "2026-05-10T00:00:00.000Z" })}\n`,
       "utf8",
@@ -487,13 +487,13 @@ test("runtime imports pi session JSONL into the active tab", async () => {
     assert.equal(tab.sessionId, "no-cwd");
     assert.equal(tab.workdir, process.cwd());
 
-    const emptyPath = join(sourceDir, "empty.jsonl");
-    await writeFile(emptyPath, "\n", "utf8");
+    const emptyPath = path.join(sourceDir, "empty.jsonl");
+    await fsPromises.writeFile(emptyPath, "\n", "utf8");
     await assert.rejects(
       () => runtime.importFromJsonl("no-cwd", emptyPath),
       /Session import file is empty/,
     );
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

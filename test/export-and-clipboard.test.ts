@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import * as fsPromises from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { test } from "node:test";
 import {
   commandSuggestions,
@@ -75,7 +75,7 @@ test("handleSubmittedInput /export routes html vs jsonl via Pi APIs", async () =
 });
 
 test("clipboardPasteForEditor prefers image temp path over text", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-clipboard-paste-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-clipboard-paste-"));
   try {
     const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
     const image = await clipboardPasteForEditor({
@@ -88,7 +88,7 @@ test("clipboardPasteForEditor prefers image temp path over text", async () => {
     if (image?.kind !== "image") return;
     assert.ok(image.path.startsWith(dir));
     assert.ok(image.path.endsWith(".png"));
-    assert.deepEqual(new Uint8Array(await readFile(image.path)), png);
+    assert.deepEqual(new Uint8Array(await fsPromises.readFile(image.path)), png);
 
     const text = await clipboardPasteForEditor({
       tempDir: dir,
@@ -104,6 +104,6 @@ test("clipboardPasteForEditor prefers image temp path over text", async () => {
     });
     assert.equal(empty, null);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

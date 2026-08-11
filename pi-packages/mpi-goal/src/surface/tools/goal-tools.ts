@@ -182,7 +182,6 @@ function updateGoalGuidelines(): string[] {
 }
 
 type PostCompletionToolInput = {
-	post_completion_context?: "none" | "clear" | "summarize";
 	post_completion_actions?: Array<{ type: "context.reset"; mode: "clear" | "summarize" }>;
 };
 
@@ -225,7 +224,7 @@ function goalBudgets(params: CreateGoalInput | CreateGoalFromTemplateInput) {
 
 function createGoalFromTemplateTool(pi: ExtensionAPI, runtime: GoalToolRuntime, params: CreateGoalFromTemplateInput, ctx: ExtensionContext) {
 	const invocationArgs = params.args?.trim() ? ` ${params.args.trim()}` : "";
-	const intent = buildTemplateGoalIntent({ invocation: `${params.template}${invocationArgs}`, postCompletionContext: params.post_completion_context, postCompletionActions: params.post_completion_actions, budgets: goalBudgets(params) });
+	const intent = buildTemplateGoalIntent({ invocation: `${params.template}${invocationArgs}`, postCompletionActions: params.post_completion_actions, budgets: goalBudgets(params) });
 	if (!intent.ok) return errorResult(intent.error);
 	const created = createGoalWithPolicy(pi, runtime, { ...params, objective: intent.intent.objective, post_completion_actions: intent.intent.postCompletionActions }, ctx, { replaceCompleted: true, replaceBudgetLimitedForQueuedWork: true });
 	if (!created.details.error && intent.intent.kind === "template") created.details.resolved_template = { name: intent.intent.template, path: intent.intent.template };
@@ -254,7 +253,7 @@ function createGoalWithPolicy(
 type NormalizedCreateGoalInput = { ok: true; objective: string; postCompletionActions: Array<{ type: "context.reset"; mode: "clear" | "summarize" }> } | { ok: false; error: string };
 
 function normalizeCreateGoalInput(params: CreateGoalInput): NormalizedCreateGoalInput {
-	const intent = buildDirectGoalIntent({ objective: params.objective, postCompletionContext: params.post_completion_context, postCompletionActions: params.post_completion_actions, budgets: goalBudgets(params) });
+	const intent = buildDirectGoalIntent({ objective: params.objective, postCompletionActions: params.post_completion_actions, budgets: goalBudgets(params) });
 	if (!intent.ok) return { ok: false, error: intent.error };
 	const validation = validateObjective(intent.intent.objective);
 	if (!validation.ok) return { ok: false, error: validation.hint ? `${validation.message} ${validation.hint}` : validation.message };

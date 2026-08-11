@@ -1,8 +1,8 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import * as fsPromises from "node:fs/promises";
+import * as path from "node:path";
+import * as os from "node:os";
 import { test } from "node:test";
 import {
   Type,
@@ -129,7 +129,7 @@ function lastRuntimeUserText(context: Context): string {
 async function waitForRuntime(predicate: () => boolean, attempts = 25): Promise<void> {
   for (let i = 0; i < attempts; i += 1) {
     if (predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await Bun.sleep(10);
   }
   assert.equal(predicate(), true);
 }
@@ -176,7 +176,7 @@ function escapeRegExp(text: string): string {
 }
 
 test("runtime custom non-overlay editor exposes missing host and teardown paths", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-custom-editor-edges-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-custom-editor-edges-"));
   const events: string[] = [];
   let releaseFactory: (() => void) | undefined;
   const extension: ExtensionFactory = (pi) => {
@@ -254,12 +254,12 @@ test("runtime custom non-overlay editor exposes missing host and teardown paths"
       tui.stop();
     }
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime custom overlay exposes host and delayed-close paths", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-custom-overlay-edges-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-custom-overlay-edges-"));
   const events: string[] = [];
   const extension: ExtensionFactory = (pi) => {
     pi.registerCommand("custom-no-host", {
@@ -279,7 +279,7 @@ test("runtime custom overlay exposes host and delayed-close paths", async () => 
       handler: async (_args, ctx) => {
         const result = await ctx.ui.custom<string>(
           async () => {
-            await new Promise((resolve) => setTimeout(resolve, 5));
+            await Bun.sleep(5);
             return {
               width: 42,
               render: () => ["delayed"],
@@ -373,12 +373,12 @@ test("runtime custom overlay exposes host and delayed-close paths", async () => 
     assert.ok(events.includes("throws:broken custom overlay"));
   } finally {
     tui.stop();
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime maps pi extension editor text primitives into the active MixCode editor", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-editor-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-editor-"));
   const events: string[] = [];
   const extension: ExtensionFactory = (pi) => {
     pi.registerCommand("editor-smoke", {
@@ -413,12 +413,12 @@ test("runtime maps pi extension editor text primitives into the active MixCode e
       tui.stop();
     }
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime maps pi extension editor component into the active MixCode editor slot", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-editor-component-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-editor-component-"));
   const events: string[] = [];
   const extension: ExtensionFactory = (pi) => {
     pi.registerCommand("editor-component", {
@@ -488,6 +488,6 @@ test("runtime maps pi extension editor component into the active MixCode editor 
       tui.stop();
     }
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

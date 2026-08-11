@@ -1,8 +1,8 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { access, mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import * as fsPromises from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { test } from "node:test";
 import { MixCodeRuntime, createTab } from "../src/index.js";
 
@@ -13,7 +13,7 @@ import { MixCodeRuntime, createTab } from "../src/index.js";
 // on the tab-bar [ - ]/[ x ] buttons (or /close-session, /delete-session
 // themselves) can never yank a session out from under an in-flight turn.
 test("runtime rejects closing a session while the agent is streaming", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-close-streaming-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-close-streaming-"));
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir });
     const runtimeTab = await runtime.createTab(createTab(1, "s1", process.cwd()), {
@@ -34,12 +34,12 @@ test("runtime rejects closing a session while the agent is streaming", async () 
     // The tab must still be there: the guard must fire before any teardown.
     assert.ok(runtime.getTab("s1"));
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime rejects deleting a session while the agent is streaming", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-delete-streaming-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-delete-streaming-"));
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir });
     const runtimeTab = await runtime.createTab(createTab(1, "s1", process.cwd()), {
@@ -65,8 +65,8 @@ test("runtime rejects deleting a session while the agent is streaming", async ()
       mutableSession._isAgentRunActive = false;
     }
     // Guard must fire before the session file is removed.
-    await assert.doesNotReject(() => access(sessionFile!));
+    await assert.doesNotReject(() => fsPromises.access(sessionFile!));
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

@@ -39,9 +39,6 @@ test("cold jiti load of index stays under budget (thin shell)", async () => {
 });
 
 test("full app graph remains loadable (features not deleted)", async () => {
-	const ms = await coldImportMsAsync(APP);
-	// Sanity: full wire module still exists and imports; no upper bound (can be hundreds of ms).
-	assert.ok(ms >= 0);
 	const mod = await createJiti(`${import.meta.url}-app-check`, { moduleCache: true }).import(APP);
 	assert.equal(typeof (mod as { wireMpiGoal?: unknown }).wireMpiGoal, "function");
 });

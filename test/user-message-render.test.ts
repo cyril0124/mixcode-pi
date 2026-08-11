@@ -100,17 +100,6 @@ test("user message renders image fallback/protocol lines", () => {
 });
 
 test("user message hides images when showImages is false", () => {
-  const withImages = renderChatBlock(
-    {
-      role: "user",
-      text: "see this",
-      images: [{ type: "image", data: TINY_PNG_BASE64, mimeType: "image/png" }],
-    },
-    40,
-    undefined,
-    activeRenderTheme,
-    { showImages: true, imageWidthCells: 20 },
-  );
   const without = renderChatBlock(
     {
       role: "user",
@@ -122,8 +111,9 @@ test("user message hides images when showImages is false", () => {
     activeRenderTheme,
     { showImages: false },
   );
-  assert.ok(withImages.length >= without.length);
-  assert.match(stripAnsi(without.join("\n")), /see this/);
+  const rendered = without.join("\n");
+  assert.match(stripAnsi(rendered), /see this/);
+  assert.doesNotMatch(rendered, /\x1b_G|\x1b\]1337|image\/png|\[image/i);
 });
 
 test("image-only user message still renders (no text body required)", () => {

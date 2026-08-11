@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import * as fsPromises from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { test } from "node:test";
 import { SettingsManager } from "@earendil-works/pi-coding-agent";
 import { createTab, MixCodeRuntime } from "../src/index.js";
@@ -14,11 +14,11 @@ function textFromToolResult(result: { content?: Array<{ type: string; text?: str
 }
 
 test("builtin bash keeps ExtensionContext after MixCode tool activation", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-builtin-tool-ctx-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-builtin-tool-ctx-"));
   try {
     const runtime = new MixCodeRuntime({
       sessionsRoot: dir,
-      agentDir: join(dir, "agent"),
+      agentDir: path.join(dir, "agent"),
       settingsManager: SettingsManager.inMemory({ packages: [] }),
     });
     const runtimeTab = await runtime.createTab(createTab(1, "s1", process.cwd()), {
@@ -41,6 +41,6 @@ test("builtin bash keeps ExtensionContext after MixCode tool activation", async 
     const sessionId = runtimeTab.session.getSessionId();
     assert.equal(textFromToolResult(result), sessionId);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

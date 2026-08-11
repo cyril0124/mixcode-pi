@@ -14,9 +14,9 @@ import "./helpers/isolated-agent-dir.js";
 // injected streamFn, so the event sequences are the SDK's own.
 
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import * as fsPromises from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { test } from "node:test";
 import {
   Type,
@@ -138,7 +138,7 @@ function traceRuntime(runtime: MixCodeRuntime, sessionId: string): TraceEntry[] 
 }
 
 test("session-start turn is shown as running after runtime subscription", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-timer-startup-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-timer-startup-"));
   const message = assistantText("startup turn done");
   const stream = createAssistantMessageEventStream();
   try {
@@ -177,12 +177,12 @@ test("session-start turn is shown as running after runtime subscription", async 
       await runtimeTab.agentSession.waitForIdle();
     }
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("auto-retry continuation preserves the working timer stamp", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-timer-retry-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-timer-retry-"));
   try {
     let call = 0;
     const runtime = new MixCodeRuntime({
@@ -221,12 +221,12 @@ test("auto-retry continuation preserves the working timer stamp", async () => {
     assert.ok(tab.lastWorkedDurationSeconds !== undefined);
     assert.equal(tab.workingStartedAt, undefined);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("overflow compact-and-retry continuation preserves the working timer stamp", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-timer-overflow-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-timer-overflow-"));
   try {
     let overflowFired = false;
     const runtime = new MixCodeRuntime({
@@ -245,7 +245,7 @@ test("overflow compact-and-retry continuation preserves the working timer stamp"
       extensionFactories: [
         (pi) => {
           pi.on("session_before_compact", async (event) => {
-            await new Promise((r) => setTimeout(r, 10));
+            await Bun.sleep(10);
             return {
               compaction: {
                 summary: "auto summary",
@@ -300,12 +300,12 @@ test("overflow compact-and-retry continuation preserves the working timer stamp"
     // ...and the continuation run keeps counting from the original stamp.
     assert.equal(starts[1]!.workingStartedAt, starts[0]!.workingStartedAt);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("multi-turn tool loop keeps one stamp for the whole run", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-timer-control-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-timer-control-"));
   try {
     let toolIssued = false;
     const runtime = new MixCodeRuntime({
@@ -327,7 +327,7 @@ test("multi-turn tool loop keeps one stamp for the whole run", async () => {
             description: "test tool",
             parameters: Type.Object({ text: Type.String() }),
             execute: async (_id, params) => {
-              await new Promise((r) => setTimeout(r, 15));
+              await Bun.sleep(15);
               return { content: [{ type: "text", text: `echo:${params.text}` }], details: params };
             },
           });
@@ -359,12 +359,12 @@ test("multi-turn tool loop keeps one stamp for the whole run", async () => {
     assert.ok(stamp);
     for (const t of turnStarts) assert.equal(t.workingStartedAt, stamp);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("cancelling a retry countdown records the worked duration", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-timer-retry-cancel-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-timer-retry-cancel-"));
   try {
     const runtime = new MixCodeRuntime({
       sessionsRoot: dir,
@@ -397,12 +397,12 @@ test("cancelling a retry countdown records the worked duration", async () => {
     assert.equal(tab.workingStartedAt, undefined);
     assert.ok(tab.lastWorkedDurationSeconds !== undefined);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("!shell during a streaming run does not clobber the agent timer", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-timer-shell-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-timer-shell-"));
   try {
     let releaseRun!: () => void;
     const releaseRunPromise = new Promise<void>((resolve) => {
@@ -446,12 +446,12 @@ test("!shell during a streaming run does not clobber the agent timer", async () 
     await waitForRuntime(() => tab.status === "idle");
     assert.equal(tab.workingStartedAt, undefined);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("!shell from idle still stamps and closes its own timer", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-timer-shell-idle-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-timer-shell-idle-"));
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir });
     const tab = createTab(1, "s1", process.cwd(), timerTabConfig());
@@ -467,6 +467,6 @@ test("!shell from idle still stamps and closes its own timer", async () => {
     assert.equal(tab.workingStartedAt, undefined);
     assert.ok(tab.lastWorkedDurationSeconds !== undefined);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

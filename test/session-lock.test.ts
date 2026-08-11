@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, readdir, writeFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import * as fsPromises from "node:fs/promises";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import * as os from "node:os";
 import { test } from "node:test";
 import {
   acquireSessionTurnLock,
@@ -13,11 +13,11 @@ import {
 const LIVE = { alive: true, startTime: "111", verification: "linux-start-time" as const };
 
 async function withRoot(fn: (root: string) => Promise<void>): Promise<void> {
-  const root = await mkdtemp(join(tmpdir(), "mixcode-lock-"));
+  const root = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-lock-"));
   try {
     await fn(root);
   } finally {
-    await rm(root, { recursive: true, force: true });
+    await fsPromises.rm(root, { recursive: true, force: true });
   }
 }
 
@@ -97,10 +97,10 @@ test("PID reuse (start-time mismatch) is treated as stale, not a live holder", a
 test("a corrupt lock file is treated as stale", async () => {
   await withRoot(async (root) => {
     const dir = sessionLockDir(root);
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
     const { mkdir } = await import("node:fs/promises");
     await mkdir(dir, { recursive: true });
-    await writeFile(join(dir, "s1.lock"), "{ not json", "utf8");
+    await fsPromises.writeFile(path.join(dir, "s1.lock"), "{ not json", "utf8");
     const handle = acquireSessionTurnLock(root, "s1", { pid: 100, processInfo: () => LIVE });
     assert.throws(
       () => acquireSessionTurnLock(root, "s1", { pid: 200, processInfo: () => LIVE }),
@@ -113,10 +113,10 @@ test("a corrupt lock file is treated as stale", async () => {
 test("release removes the lock file", async () => {
   await withRoot(async (root) => {
     const handle = acquireSessionTurnLock(root, "s1", { pid: 100, processInfo: () => LIVE });
-    const before = await readdir(sessionLockDir(root));
+    const before = await fsPromises.readdir(sessionLockDir(root));
     assert.deepEqual(before, ["s1.lock"]);
     handle.release();
-    assert.equal(existsSync(join(sessionLockDir(root), "s1.lock")), false);
+    assert.equal(fs.existsSync(path.join(sessionLockDir(root), "s1.lock")), false);
     // Double release is a no-op.
     handle.release();
   });
@@ -126,7 +126,7 @@ test("successful acquire never leaves an empty lock file", async () => {
   await withRoot(async (root) => {
     const handle = acquireSessionTurnLock(root, "s1", { pid: 100, processInfo: () => LIVE });
     const raw = await import("node:fs/promises").then((fs) =>
-      fs.readFile(join(sessionLockDir(root), "s1.lock"), "utf8"),
+      fs.readFile(path.join(sessionLockDir(root), "s1.lock"), "utf8"),
     );
     assert.ok(raw.trim().length > 0, "lock path must not be empty after acquire");
     const parsed = JSON.parse(raw) as { pid?: number };
@@ -139,12 +139,12 @@ test("concurrent acquires never overlap the critical section", async () => {
   await withRoot(async (root) => {
     const { spawn } = await import("node:child_process");
     const { writeFile } = await import("node:fs/promises");
-    const workerPath = join(root, "worker.mjs");
+    const workerPath = path.join(root, "worker.mjs");
     // Worker uses the same module under test; log IN/OUT around the held section.
     await writeFile(
       workerPath,
       `
-import { appendFileSync } from "node:fs";
+import * as fs from "node:fs";
 import { acquireSessionTurnLock } from ${JSON.stringify(new URL("../src/core/session-lock.ts", import.meta.url).pathname)};
 const root = process.argv[2];
 const log = process.argv[3];
@@ -153,15 +153,15 @@ const sleep = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 
 while (Date.now() < endAt) {
   try {
     const h = acquireSessionTurnLock(root, "s1");
-    appendFileSync(log, "IN " + process.pid + "\\n");
+    fs.appendFileSync(log, "IN " + process.pid + "\\n");
     sleep(1);
-    appendFileSync(log, "OUT " + process.pid + "\\n");
+    fs.appendFileSync(log, "OUT " + process.pid + "\\n");
     h.release();
   } catch {}
 }
 `,
     );
-    const logPath = join(root, "cs.log");
+    const logPath = path.join(root, "cs.log");
     const kids = Array.from({ length: 6 }, () =>
       spawn(process.execPath, [workerPath, root, logPath], { stdio: "ignore" }),
     );

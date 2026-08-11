@@ -319,7 +319,7 @@ test("panel content is mouse-selectable and copies to clipboard", async () => {
   handleMouseInput(state, tab, `\x1b[<32;${endCol};${screenRow}M`, tui, undefined, undefined, copy);
   handleMouseInput(state, tab, `\x1b[<0;${endCol};${screenRow}m`, tui, undefined, undefined, copy);
 
-  await new Promise((r) => setTimeout(r, 10));
+  await Bun.sleep(10);
   assert.match(copied, new RegExp(WIDGET_ABOVE));
 });
 

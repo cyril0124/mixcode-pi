@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import * as assert from "node:assert/strict";
+import { afterEach, describe, test } from "node:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -67,54 +68,54 @@ const withVision: ModelLike = { id: "claude-sonnet", provider: "anthropic", inpu
 
 describe("isPathRef / expandEnvPath", () => {
   test("classifies path vs name", () => {
-    expect(isPathRef("vision-proxy")).toBe(false);
-    expect(isPathRef("/abs/skill")).toBe(true);
-    expect(isPathRef("~/skills/x")).toBe(true);
-    expect(isPathRef("$HOME/skills/x")).toBe(true);
-    expect(isPathRef("$" + "{HOME}/skills/x")).toBe(true);
-    expect(isPathRef("./relative")).toBe(false);
+    assert.equal(isPathRef("vision-proxy"), false);
+    assert.equal(isPathRef("/abs/skill"), true);
+    assert.equal(isPathRef("~/skills/x"), true);
+    assert.equal(isPathRef("$HOME/skills/x"), true);
+    assert.equal(isPathRef("$" + "{HOME}/skills/x"), true);
+    assert.equal(isPathRef("./relative"), false);
   });
 
   test("expands HOME and rejects relative", () => {
     const home = expandEnvPath("$HOME/foo");
-    expect(home.ok).toBe(true);
-    if (home.ok) expect(home.path).toBe(path.join(os.homedir(), "foo"));
+    assert.equal(home.ok, true);
+    if (home.ok) assert.equal(home.path, path.join(os.homedir(), "foo"));
 
     const tilde = expandEnvPath("~/bar");
-    expect(tilde.ok).toBe(true);
-    if (tilde.ok) expect(tilde.path).toBe(path.join(os.homedir(), "bar"));
+    assert.equal(tilde.ok, true);
+    if (tilde.ok) assert.equal(tilde.path, path.join(os.homedir(), "bar"));
 
     const brace = expandEnvPath("$" + "{HOME}/baz");
-    expect(brace.ok).toBe(true);
-    if (brace.ok) expect(brace.path).toBe(path.join(os.homedir(), "baz"));
+    assert.equal(brace.ok, true);
+    if (brace.ok) assert.equal(brace.path, path.join(os.homedir(), "baz"));
 
     const missing = expandEnvPath("$MPI_MODEL_SKILLS_NO_SUCH_VAR/x");
-    expect(missing.ok).toBe(false);
+    assert.equal(missing.ok, false);
 
     const rel = expandEnvPath("$HOME/../nope-not-how-we-check");
     // Still absolute after expand — ok. Relative without abs fails:
     const pureRel = expandEnvPath("relative/path");
     // isPathRef false so expand not used for names; if forced:
-    expect(expandEnvPath("relative/path").ok).toBe(false);
+    assert.equal(expandEnvPath("relative/path").ok, false);
     void rel;
   });
 });
 
 describe("matchGlob / ruleMatches", () => {
   test("model glob", () => {
-    expect(matchGlob("deepseek/*", "deepseek/deepseek-v4-flash")).toBe(true);
-    expect(matchGlob("deepseek/*", "anthropic/claude")).toBe(false);
-    expect(matchGlob("*/deepseek-v4-flash", "deepseek/deepseek-v4-flash")).toBe(true);
-    expect(matchGlob("*", "a/b")).toBe(true);
+    assert.equal(matchGlob("deepseek/*", "deepseek/deepseek-v4-flash"), true);
+    assert.equal(matchGlob("deepseek/*", "anthropic/claude"), false);
+    assert.equal(matchGlob("*/deepseek-v4-flash", "deepseek/deepseek-v4-flash"), true);
+    assert.equal(matchGlob("*", "a/b"), true);
   });
 
   test("missingInput / hasInput", () => {
-    expect(ruleMatches({ missingInput: ["image"] }, noVision)).toBe(true);
-    expect(ruleMatches({ missingInput: ["image"] }, withVision)).toBe(false);
-    expect(ruleMatches({ hasInput: ["image"] }, withVision)).toBe(true);
-    expect(ruleMatches({ hasInput: ["image"] }, noVision)).toBe(false);
-    expect(ruleMatches({ model: "deepseek/*", missingInput: ["image"] }, noVision)).toBe(true);
-    expect(ruleMatches({ model: "deepseek/*", missingInput: ["image"] }, withVision)).toBe(false);
+    assert.equal(ruleMatches({ missingInput: ["image"] }, noVision), true);
+    assert.equal(ruleMatches({ missingInput: ["image"] }, withVision), false);
+    assert.equal(ruleMatches({ hasInput: ["image"] }, withVision), true);
+    assert.equal(ruleMatches({ hasInput: ["image"] }, noVision), false);
+    assert.equal(ruleMatches({ model: "deepseek/*", missingInput: ["image"] }, noVision), true);
+    assert.equal(ruleMatches({ model: "deepseek/*", missingInput: ["image"] }, withVision), false);
   });
 });
 
@@ -126,27 +127,27 @@ describe("parseModelSkillsConfig / loadModelSkillsConfig", () => {
         { match: { model: "deepseek/*" }, add: ["$HOME/skills/v"], remove: ["x"] },
       ],
     });
-    expect(parsed.ok).toBe(true);
+    assert.equal(parsed.ok, true);
     if (parsed.ok) {
-      expect(parsed.config.rules).toHaveLength(2);
-      expect(isModelSkillsEnabled(parsed.config)).toBe(true);
+      assert.equal(parsed.config.rules.length, 2);
+      assert.equal(isModelSkillsEnabled(parsed.config), true);
     }
   });
 
   test("enabled false is preserved", () => {
     const parsed = parseModelSkillsConfig({ enabled: false, rules: [] });
-    expect(parsed.ok).toBe(true);
+    assert.equal(parsed.ok, true);
     if (parsed.ok) {
-      expect(parsed.config.enabled).toBe(false);
-      expect(isModelSkillsEnabled(parsed.config)).toBe(false);
+      assert.equal(parsed.config.enabled, false);
+      assert.equal(isModelSkillsEnabled(parsed.config), false);
     }
   });
 
   test("rejects bad shape", () => {
-    expect(parseModelSkillsConfig([]).ok).toBe(false);
-    expect(parseModelSkillsConfig({ rules: [{ match: "x" }] }).ok).toBe(false);
-    expect(parseModelSkillsConfig({ rules: [{ match: {}, add: [1] }] }).ok).toBe(false);
-    expect(parseModelSkillsConfig({ enabled: "yes", rules: [] }).ok).toBe(false);
+    assert.equal(parseModelSkillsConfig([]).ok, false);
+    assert.equal(parseModelSkillsConfig({ rules: [{ match: "x" }] }).ok, false);
+    assert.equal(parseModelSkillsConfig({ rules: [{ match: {}, add: [1] }] }).ok, false);
+    assert.equal(parseModelSkillsConfig({ enabled: "yes", rules: [] }).ok, false);
   });
 
   test("setModelSkillsEnabled persists and preserves rules", () => {
@@ -157,27 +158,27 @@ describe("parseModelSkillsConfig / loadModelSkillsConfig", () => {
       "utf8",
     );
     const off = setModelSkillsEnabled(dir, false);
-    expect(off.ok).toBe(true);
+    assert.equal(off.ok, true);
     if (off.ok) {
-      expect(off.config.enabled).toBe(false);
-      expect(off.config.rules).toHaveLength(1);
+      assert.equal(off.config.enabled, false);
+      assert.equal(off.config.rules.length, 1);
     }
     const loaded = loadModelSkillsConfig(dir);
-    expect(loaded.ok && loaded.config && isModelSkillsEnabled(loaded.config)).toBe(false);
+    assert.equal(loaded.ok && loaded.config && isModelSkillsEnabled(loaded.config), false);
 
     const on = setModelSkillsEnabled(dir, true);
-    expect(on.ok).toBe(true);
-    if (on.ok) expect(on.config.enabled).toBe(true);
+    assert.equal(on.ok, true);
+    if (on.ok) assert.equal(on.config.enabled, true);
   });
 
   test("load missing vs invalid vs ok", () => {
     const dir = tmpDir();
     const missing = loadModelSkillsConfig(dir);
-    expect(missing.ok && "missing" in missing && missing.missing).toBe(true);
+    assert.equal(missing.ok && "missing" in missing && missing.missing, true);
 
     fs.writeFileSync(path.join(dir, "model-skills.json"), "{not json", "utf8");
     const bad = loadModelSkillsConfig(dir);
-    expect(bad.ok).toBe(false);
+    assert.equal(bad.ok, false);
 
     fs.writeFileSync(
       path.join(dir, "model-skills.json"),
@@ -185,7 +186,7 @@ describe("parseModelSkillsConfig / loadModelSkillsConfig", () => {
       "utf8",
     );
     const ok = loadModelSkillsConfig(dir);
-    expect(ok.ok && !("missing" in ok)).toBe(true);
+    assert.equal(ok.ok && !("missing" in ok), true);
   });
 });
 
@@ -207,9 +208,9 @@ describe("applyModelSkillRules", () => {
     );
 
     const names = result.skills.map((s) => s.name).sort();
-    expect(names).toEqual(["a", "vision-proxy"]);
-    expect(result.matchedRuleIndexes).toEqual([0, 1]);
-    expect(result.warnings).toEqual([]);
+    assert.deepEqual(names, ["a", "vision-proxy"]);
+    assert.deepEqual(result.matchedRuleIndexes, [0, 1]);
+    assert.deepEqual(result.warnings, []);
   });
 
   test("remove missing warns; add missing warns", () => {
@@ -220,9 +221,9 @@ describe("applyModelSkillRules", () => {
       base,
       new Map(base.map((s) => [s.name, s])),
     );
-    expect(result.skills.map((s) => s.name)).toEqual(["a"]);
-    expect(result.warnings.some((w) => w.kind === "remove")).toBe(true);
-    expect(result.warnings.some((w) => w.kind === "add")).toBe(true);
+    assert.deepEqual(result.skills.map((s) => s.name), ["a"]);
+    assert.equal(result.warnings.some((w) => w.kind === "remove"), true);
+    assert.equal(result.warnings.some((w) => w.kind === "add"), true);
   });
 
   test("add path loads skill from disk", () => {
@@ -235,8 +236,8 @@ describe("applyModelSkillRules", () => {
       base,
       new Map(base.map((s) => [s.name, s])),
     );
-    expect(result.skills.map((s) => s.name).sort()).toEqual(["keep", "vision-proxy"]);
-    expect(result.warnings).toEqual([]);
+    assert.deepEqual(result.skills.map((s) => s.name).sort(), ["keep", "vision-proxy"]);
+    assert.deepEqual(result.warnings, []);
   });
 
   test("path with $HOME", () => {
@@ -247,7 +248,7 @@ describe("applyModelSkillRules", () => {
     process.env.HOME = root;
     try {
       const loaded = loadSkillFromAbsolutePath(path.join(root, "from-home"));
-      expect(loaded.ok).toBe(true);
+      assert.equal(loaded.ok, true);
 
       const base = [syntheticSkill("keep")];
       const result = applyModelSkillRules(
@@ -256,7 +257,7 @@ describe("applyModelSkillRules", () => {
         base,
         new Map(),
       );
-      expect(result.skills.map((s) => s.name).sort()).toEqual(["from-home", "keep"]);
+      assert.deepEqual(result.skills.map((s) => s.name).sort(), ["from-home", "keep"]);
     } finally {
       if (prev === undefined) delete process.env.HOME;
       else process.env.HOME = prev;
@@ -271,23 +272,23 @@ describe("applyModelSkillRules", () => {
       base,
       new Map(),
     );
-    expect(result.matchedRuleIndexes).toEqual([]);
-    expect(result.skills.map((s) => s.name)).toEqual(["a"]);
+    assert.deepEqual(result.matchedRuleIndexes, []);
+    assert.deepEqual(result.skills.map((s) => s.name), ["a"]);
   });
 });
 
 describe("formatModelSkillsHelp", () => {
   test("documents config path, match, add, and example as markdown", () => {
     const help = formatModelSkillsHelp("/tmp/agent/model-skills.json");
-    expect(help).toContain("# /model-skills");
-    expect(help).toContain("/model-skills help");
-    expect(help).toContain("/model-skills on");
-    expect(help).toContain("/model-skills off");
-    expect(help).toContain("/tmp/agent/model-skills.json");
-    expect(help).toContain("missingInput");
-    expect(help).toContain("$HOME");
-    expect(help).toContain("vision-proxy");
-    expect(help).toContain("```json");
+    assert.ok(help.includes("# /model-skills"));
+    assert.ok(help.includes("/model-skills help"));
+    assert.ok(help.includes("/model-skills on"));
+    assert.ok(help.includes("/model-skills off"));
+    assert.ok(help.includes("/tmp/agent/model-skills.json"));
+    assert.ok(help.includes("missingInput"));
+    assert.ok(help.includes("$HOME"));
+    assert.ok(help.includes("vision-proxy"));
+    assert.ok(help.includes("```json"));
   });
 });
 
@@ -298,24 +299,24 @@ describe("replaceSkillsInSystemPrompt", () => {
     const originalBlock = formatSkillsForPrompt([a]);
     const prompt = `You are pi.${originalBlock}\nCurrent working directory: /tmp`;
     const next = replaceSkillsInSystemPrompt(prompt, [b]);
-    expect(next).toContain("<name>b</name>");
-    expect(next).not.toContain("<name>a</name>");
-    expect(next).toContain("Current working directory: /tmp");
+    assert.ok(next.includes("<name>b</name>"));
+    assert.ok(!next.includes("<name>a</name>"));
+    assert.ok(next.includes("Current working directory: /tmp"));
   });
 
   test("removes section when skills empty", () => {
     const a = syntheticSkill("a", "Skill A");
     const prompt = `Head.${formatSkillsForPrompt([a])}\nCurrent working directory: /tmp`;
     const next = replaceSkillsInSystemPrompt(prompt, []);
-    expect(next).not.toContain("available_skills");
-    expect(next).toContain("Current working directory: /tmp");
+    assert.ok(!next.includes("available_skills"));
+    assert.ok(next.includes("Current working directory: /tmp"));
   });
 
   test("inserts before cwd when section missing", () => {
     const a = syntheticSkill("a", "Skill A");
     const prompt = "Head.\nCurrent working directory: /tmp";
     const next = replaceSkillsInSystemPrompt(prompt, [a]);
-    expect(next).toContain("<name>a</name>");
-    expect(next.indexOf("available_skills")).toBeLessThan(next.indexOf("Current working directory"));
+    assert.ok(next.includes("<name>a</name>"));
+    assert.ok(next.indexOf("available_skills") < next.indexOf("Current working directory"));
   });
 });

@@ -1,8 +1,8 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import * as fsPromises from "node:fs/promises";
+import * as path from "node:path";
+import * as os from "node:os";
 import { test } from "node:test";
 import {
   type AssistantMessage,
@@ -93,7 +93,7 @@ function delayedAbortStream(delayMs: number, options?: SimpleStreamOptions) {
       if (options?.signal?.aborted) return resolve();
       options?.signal?.addEventListener("abort", () => resolve(), { once: true });
     });
-    if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
+    if (delayMs > 0) await Bun.sleep(delayMs);
     const aborted = {
       ...message,
       stopReason: "aborted" as const,
@@ -112,13 +112,13 @@ function fauxModel(): Model<string> {
 async function waitFor(predicate: () => boolean, attempts = 50): Promise<void> {
   for (let i = 0; i < attempts; i += 1) {
     if (predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await Bun.sleep(10);
   }
   assert.equal(predicate(), true);
 }
 
 test("retractCurrentTurn rewinds the leaf and returns the user message text when no output was produced", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-retract-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-retract-"));
   try {
     let release!: () => void;
     const released = new Promise<void>((resolve) => {
@@ -163,12 +163,12 @@ test("retractCurrentTurn rewinds the leaf and returns the user message text when
       false,
     );
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("retractCurrentTurn returns undefined once the assistant has produced visible output", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-retract-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-retract-"));
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir });
     const tab = createTab(1, "s1", process.cwd());
@@ -191,7 +191,7 @@ test("retractCurrentTurn returns undefined once the assistant has produced visib
       runtimeTab.session.getBranch().some((e) => e.type === "message" && e.message.role === "user"),
     );
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
@@ -301,13 +301,13 @@ test("double escape does not clobber a non-empty editor draft on retract", async
   handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime, undefined, () => false, editorActions);
   // Plain abort, no retract attempted, draft untouched.
   assert.equal(aborts, 1);
-  await new Promise((resolve) => setTimeout(resolve, 20));
+  await Bun.sleep(20);
   assert.equal(retractCalls, 0);
   assert.equal(editorText, "draft I am typing");
 });
 
 test("retractCurrentTurn restores editor text before a delayed abort settles", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-retract-optimistic-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-retract-optimistic-"));
   try {
     let editorText = "";
     const runtime = new MixCodeRuntime({
@@ -355,7 +355,7 @@ test("retractCurrentTurn restores editor text before a delayed abort settles", a
       false,
     );
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 

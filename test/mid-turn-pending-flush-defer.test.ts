@@ -62,7 +62,7 @@ test("pending flush waits for compact and skips when a resume run is active", as
     },
   );
 
-  await new Promise((resolve) => setTimeout(resolve, 50));
+  await Bun.sleep(50);
   assert.deepEqual(flushes, []);
 });
 
@@ -102,7 +102,7 @@ test("pending flush waits when compact flips isCompacting only after await abort
     },
   );
 
-  await new Promise((resolve) => setTimeout(resolve, 50));
+  await Bun.sleep(50);
   assert.deepEqual(flushes, []);
 });
 
@@ -126,6 +126,6 @@ test("pending flush still runs when no compact or resume follows agent_end", asy
     },
   );
 
-  await new Promise((resolve) => setTimeout(resolve, 50));
+  await Bun.sleep(50);
   assert.deepEqual(flushes, [2]);
 });

@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { existsSync, unlinkSync } from "node:fs";
+import * as fsPromises from "node:fs/promises";
+import * as fs from "node:fs";
 import { createRequire } from "node:module";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import * as os from "node:os";
+import * as path from "node:path";
 import { test } from "node:test";
 
 // Both delete paths shell out to the `trash` CLI: mixcode's own copy via
@@ -16,24 +16,24 @@ const trashCalls: string[][] = [];
 function fakeTrash(args: string[]): { exitCode: number; status: number; stderr: string } {
   trashCalls.push(args);
   const file = args[1]; // ["trash", sessionPath]
-  if (file !== undefined && existsSync(file)) {
-    unlinkSync(file);
+  if (file !== undefined && fs.existsSync(file)) {
+    fs.unlinkSync(file);
     return { exitCode: 0, status: 0, stderr: "" };
   }
   return { exitCode: 1, status: 1, stderr: "trash: no such file" };
 }
 
 test("deleting a session via the selector invokes trash exactly once", async () => {
-  const root = await mkdtemp(join(tmpdir(), "mixcode-delete-once-"));
-  const sessionRoot = join(root, "sessions");
-  await mkdir(sessionRoot, { recursive: true });
+  const root = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-delete-once-"));
+  const sessionRoot = path.join(root, "sessions");
+  await fsPromises.mkdir(sessionRoot, { recursive: true });
   const sessionId = "delete-once-test";
-  const sessionPath = join(sessionRoot, `2026-08-03T12-00-00-000Z_${sessionId}.jsonl`);
-  await writeFile(
+  const sessionPath = path.join(sessionRoot, `2026-08-03T12-00-00-000Z_${sessionId}.jsonl`);
+  await fsPromises.writeFile(
     sessionPath,
     `${JSON.stringify({ type: "session", version: 3, id: sessionId, timestamp: "2026-08-03T12:00:00.000Z", cwd: root })}\n`,
   );
-  assert.ok(existsSync(sessionPath));
+  assert.ok(fs.existsSync(sessionPath));
 
   const require = createRequire(import.meta.url);
   const childProcess = require("node:child_process") as {
@@ -100,7 +100,7 @@ test("deleting a session via the selector invokes trash exactly once", async () 
       undefined,
       input,
     );
-    await new Promise((r) => setTimeout(r, 30));
+    await Bun.sleep(30);
     assert.ok(mounted, "selector must be mounted");
 
     const component = state.sessionSelector.component as InstanceType<
@@ -115,10 +115,10 @@ test("deleting a session via the selector invokes trash exactly once", async () 
       1,
       `one UI delete must run \`trash\` exactly once, got ${trashInvocations}:\n${JSON.stringify(trashCalls)}`,
     );
-    assert.equal(existsSync(sessionPath), false, "session file must be removed");
+    assert.equal(fs.existsSync(sessionPath), false, "session file must be removed");
   } finally {
     childProcess.spawnSync = originalNodeSpawnSync;
     (Bun as unknown as { spawnSync: unknown }).spawnSync = originalBunSpawnSync;
-    await rm(root, { recursive: true, force: true });
+    await fsPromises.rm(root, { recursive: true, force: true });
   }
 });

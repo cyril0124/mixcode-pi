@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
-import { homedir } from "node:os";
-import { dirname } from "node:path";
+import * as os from "node:os";
+import * as path from "node:path";
 import { test } from "node:test";
 import { inspectBashCommand, tokenize } from "./index.js";
 
 const CWD = "/project/myapp";
-const HOME = homedir();
-const PARENT_HOME = dirname(HOME);
+const HOME = os.homedir();
+const PARENT_HOME = path.dirname(HOME);
 
 // ─── tokenize ────────────────────────────────────────────────────────────────
 

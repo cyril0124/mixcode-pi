@@ -817,7 +817,7 @@ test("differential renders do not force full redraws after the first paint", asy
   assert.equal(tui.fullRedraws, 1);
   const before = writes.length;
   tui.requestRender();
-  await new Promise((resolve) => setTimeout(resolve, 25));
+  await Bun.sleep(25);
 
   assert.equal(tui.fullRedraws, 1);
   assert.equal(writes.slice(before).includes("\x1b[2J"), false);
@@ -935,7 +935,7 @@ test("handleMixCodeKeyInput lets q pass through to the editor", () => {
 });
 
 function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return Bun.sleep(ms);
 }
 
 function stripAnsi(text: string): string {

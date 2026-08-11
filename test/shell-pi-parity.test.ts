@@ -1,8 +1,8 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import * as fsPromises from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { test } from "node:test";
 import {
   createAssistantMessageEventStream,
@@ -75,7 +75,7 @@ test("BashAlreadyRunningError is recognizable for submit restore", () => {
 });
 
 test("concurrent !shell restores editor text and warns (Pi parity)", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-bash-conflict-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-bash-conflict-"));
   try {
     const state = createInitialState(dir);
     const tab = createTab(1, "s1", dir);
@@ -108,7 +108,7 @@ test("concurrent !shell restores editor text and warns (Pi parity)", async () =>
       undefined,
       editorActions,
     );
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await Bun.sleep(20);
     await handleSubmittedInput(
       state,
       runtime,
@@ -134,7 +134,7 @@ test("concurrent !shell restores editor text and warns (Pi parity)", async () =>
     );
     await first;
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
@@ -181,7 +181,7 @@ test("pending user-bash rendering preserves original chat indices", () => {
 });
 
 test("streaming-started user bash stays pending until agent_end", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-bash-pending-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-bash-pending-"));
   try {
     let releaseRun!: () => void;
     const releaseRunPromise = new Promise<void>((resolve) => {
@@ -258,6 +258,6 @@ test("streaming-started user bash stays pending until agent_end", async () => {
     assert.ok(after);
     assert.equal(after.pendingBash, undefined);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

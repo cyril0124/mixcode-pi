@@ -1,8 +1,8 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import * as fsPromises from "node:fs/promises";
+import * as path from "node:path";
+import * as os from "node:os";
 import { test } from "node:test";
 import { InMemoryCredentialStore } from "@earendil-works/pi-ai";
 import { ModelRegistry, ModelRuntime } from "@earendil-works/pi-coding-agent";
@@ -10,7 +10,7 @@ import { MixCodeRuntime, createInitialState, createTab } from "../src/index.js";
 import { openPiLogin, openPiLogout } from "../src/ui/pi-auth.js";
 
 test("MixCodeRuntime shares the provided ModelRuntime across tabs", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-auth-shared-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-auth-shared-"));
   try {
     const modelRuntime = await ModelRuntime.create({
       credentials: new InMemoryCredentialStore(),
@@ -20,7 +20,7 @@ test("MixCodeRuntime shares the provided ModelRuntime across tabs", async () => 
     const registry = new ModelRegistry(modelRuntime);
 
     const runtime = new MixCodeRuntime({
-      sessionsRoot: join(dir, "sessions"),
+      sessionsRoot: path.join(dir, "sessions"),
       modelRuntime,
       modelRegistry: registry,
     });
@@ -40,7 +40,7 @@ test("MixCodeRuntime shares the provided ModelRuntime across tabs", async () => 
     assert.equal(tab1.services.modelRuntime, modelRuntime);
     assert.equal(tab2.services.modelRuntime, modelRuntime);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 

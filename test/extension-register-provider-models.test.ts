@@ -1,8 +1,8 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import * as fsPromises from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { test } from "node:test";
 import { fauxProvider, InMemoryCredentialStore } from "@earendil-works/pi-ai";
 import {
@@ -14,7 +14,7 @@ import { MixCodeRuntime, configureDisabledModelRuntime, createTab } from "../src
 import type { MixCodeModelRef } from "../src/core/types.js";
 
 test("extension registerProvider notifies onModelsChanged with selectable model refs", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-ext-provider-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-ext-provider-"));
   const modelRuntime = await ModelRuntime.create({
     credentials: new InMemoryCredentialStore(),
     modelsPath: null,
@@ -80,12 +80,12 @@ test("extension registerProvider notifies onModelsChanged with selectable model 
       "collectSelectableModelRefs should include extension provider model",
     );
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("extension registerProvider(native) notifies onModelsChanged with selectable model refs", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-ext-native-provider-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-ext-native-provider-"));
   const modelRuntime = await ModelRuntime.create({
     credentials: new InMemoryCredentialStore(),
     modelsPath: null,
@@ -135,6 +135,6 @@ test("extension registerProvider(native) notifies onModelsChanged with selectabl
       "collectSelectableModelRefs should include native provider model",
     );
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

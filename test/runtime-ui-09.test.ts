@@ -1,8 +1,8 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import * as fsPromises from "node:fs/promises";
+import * as path from "node:path";
+import * as os from "node:os";
 import { test } from "node:test";
 import {
   Type,
@@ -129,7 +129,7 @@ function lastRuntimeUserText(context: Context): string {
 async function waitForRuntime(predicate: () => boolean, attempts = 25): Promise<void> {
   for (let i = 0; i < attempts; i += 1) {
     if (predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await Bun.sleep(10);
   }
   assert.equal(predicate(), true);
 }
@@ -176,7 +176,7 @@ function escapeRegExp(text: string): string {
 }
 
 test("runtime maps extension select, confirm, and input UI primitives into editor component", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-dialogs-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-dialogs-"));
   const events: string[] = [];
   let abortController: AbortController | undefined;
   const extension: ExtensionFactory = (pi) => {
@@ -330,12 +330,12 @@ test("runtime maps extension select, confirm, and input UI primitives into edito
     await inputTitleTask;
     assert.equal(events.at(-1), "input-title:Named");
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("extension select/confirm/input throw when MixCode TUI editor host is missing", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-dialog-no-host-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-dialog-no-host-"));
   const events: string[] = [];
   const extension: ExtensionFactory = (pi) => {
     pi.registerCommand("dialog-no-host", {
@@ -376,12 +376,12 @@ test("extension select/confirm/input throw when MixCode TUI editor host is missi
       "missing host must not look like a successful cancel/choice",
     );
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime resolves pending extension dialogs when closing a tab", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-dialog-shutdown-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-dialog-shutdown-"));
   const events: string[] = [];
   const extension: ExtensionFactory = (pi) => {
     pi.registerCommand("wait-dialog", {
@@ -425,12 +425,12 @@ test("runtime resolves pending extension dialogs when closing a tab", async () =
 
     assert.deepEqual(events, ["closed:none"]);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("extension dialog keeps the widget side panel open", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-panel-keep-dialog-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-panel-keep-dialog-"));
   const extension: ExtensionFactory = (pi) => {
     pi.registerCommand("wait-dialog", {
       description: "Dialog opens without closing the side panel",
@@ -470,12 +470,12 @@ test("extension dialog keeps the widget side panel open", async () => {
     await runtime.deleteTab("s1");
     await prompt;
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("extension custom editor keeps the widget side panel open", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-panel-keep-custom-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-panel-keep-custom-"));
   const extension: ExtensionFactory = (pi) => {
     pi.registerCommand("wait-custom", {
       description: "Custom editor opens without closing the side panel",
@@ -519,12 +519,12 @@ test("extension custom editor keeps the widget side panel open", async () => {
     await runtime.deleteTab("s1");
     await prompt;
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("extension message/entry renderers receive toolsExpanded as options.expanded", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-expanded-renderer-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-expanded-renderer-"));
   const extension: ExtensionFactory = (pi) => {
     pi.registerMessageRenderer(
       "exp-msg",
@@ -572,12 +572,12 @@ test("extension message/entry renderers receive toolsExpanded as options.expande
     assert.match(surface, /msg expanded=false/);
     assert.match(surface, /entry expanded=false/);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime renders custom session entries from appendEntry and EntryRenderer", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-custom-entry-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-custom-entry-"));
   const extension: ExtensionFactory = (pi) => {
     pi.registerEntryRenderer("marker", (entry) => new Text(`entry:${String(entry.data)}`, 0, 0));
     pi.registerEntryRenderer("broken-entry", () => {
@@ -627,12 +627,12 @@ test("runtime renders custom session entries from appendEntry and EntryRenderer"
       false,
     );
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime renders pi custom messages with renderer, fallback, errors, and restored history", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-custom-message-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-custom-message-"));
   const extension: ExtensionFactory = (pi) => {
     pi.registerMessageRenderer(
       "rendered-note",
@@ -716,6 +716,6 @@ test("runtime renders pi custom messages with renderer, fallback, errors, and re
     await runtime.closeTab("s1");
     await reopened.closeTab("s1");
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

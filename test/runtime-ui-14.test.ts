@@ -1,8 +1,8 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import * as fsPromises from "node:fs/promises";
+import * as path from "node:path";
+import * as os from "node:os";
 import { test } from "node:test";
 import {
   Type,
@@ -129,7 +129,7 @@ function lastRuntimeUserText(context: Context): string {
 async function waitForRuntime(predicate: () => boolean, attempts = 25): Promise<void> {
   for (let i = 0; i < attempts; i += 1) {
     if (predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await Bun.sleep(10);
   }
   assert.equal(predicate(), true);
 }
@@ -176,7 +176,7 @@ function escapeRegExp(text: string): string {
 }
 
 test("runtime keeps the previous editor component when extension editor factory fails", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-editor-component-error-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-editor-component-error-"));
   const events: string[] = [];
   const extension: ExtensionFactory = (pi) => {
     pi.registerCommand("editor-component-error", {
@@ -235,12 +235,12 @@ test("runtime keeps the previous editor component when extension editor factory 
       tui.stop();
     }
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime maps pi extension multiline editor primitive into an in-place editor swap", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-multiline-editor-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-multiline-editor-"));
   const events: string[] = [];
   const extension: ExtensionFactory = (pi) => {
     pi.registerCommand("edit-smoke", {
@@ -316,12 +316,12 @@ test("runtime maps pi extension multiline editor primitive into an in-place edit
     assert.equal(events.at(-1), "cancel:none");
   } finally {
     tui.stop();
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime extension multiline editor requires a live TUI host", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-editor-no-host-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-editor-no-host-"));
   const events: string[] = [];
   const extension: ExtensionFactory = (pi) => {
     pi.registerCommand("edit-no-host", {
@@ -346,12 +346,12 @@ test("runtime extension multiline editor requires a live TUI host", async () => 
     await runtime.prompt("s1", "/edit-no-host");
     assert.match(events[0] ?? "", /requires an active MixCode TUI host: editor/);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime applies pi extension autocomplete providers on top of MixCode completions", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-autocomplete-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-autocomplete-"));
   const seen: string[] = [];
   const extension: ExtensionFactory = (pi) => {
     pi.on("session_start", (_event, ctx) => {
@@ -407,12 +407,12 @@ test("runtime applies pi extension autocomplete providers on top of MixCode comp
     assert.deepEqual(seen, ["wrapper:try #a", "wrapper:/th"]);
     assert.equal(provider.shouldTriggerFileCompletion?.(["see @src"], 0, 8), true);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime refreshes live editor autocomplete providers registered after cache warmup", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-autocomplete-live-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-autocomplete-live-"));
   let setProviderCalls = 0;
   const extension: ExtensionFactory = (pi) => {
     pi.registerCommand("add-provider", {
@@ -462,6 +462,6 @@ test("runtime refreshes live editor autocomplete providers registered after cach
     });
     assert.equal(suggestions?.items[0]?.value, "%done");
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

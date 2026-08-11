@@ -151,13 +151,6 @@ interface CompactionBaselineSource {
   getCompactionSettings: () => { reserveTokens: number; keepRecentTokens: number };
 }
 
-// Fallback used only when a manager's real baseline was never captured (e.g.
-// bare test mocks). Matches Pi's SDK compaction defaults.
-const SDK_COMPACTION_FALLBACK: Required<CompactionBudget> = {
-  reserveTokens: 16384,
-  keepRecentTokens: 20000,
-};
-
 // Per-manager baseline compaction budgets, captured once before any
 // /context-limit override mutates the manager. Keyed by manager identity so
 // each tab's own SettingsManager restores its own user-configured values on
@@ -190,10 +183,8 @@ export function adjustCompactionSettingsForLimit(
   overridden: boolean,
 ): void {
   if (!overridden) {
-    // Reset restores the manager's captured baseline (its user-configured
-    // compaction values), falling back to SDK defaults only when no baseline
-    // was captured for this manager.
-    const baseline = compactionBaselines.get(settingsManager) ?? SDK_COMPACTION_FALLBACK;
+    const baseline = compactionBaselines.get(settingsManager);
+    if (!baseline) throw new Error("Compaction baseline was not captured");
     settingsManager.applyOverrides({ compaction: { ...baseline } });
     return;
   }

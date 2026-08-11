@@ -1,5 +1,5 @@
 import { Type } from "typebox";
-import { CreateGoalParams, EmptyParams, PostCompletionActionParam, PostCompletionContextParam } from "./schemas.js";
+import { CreateGoalParams, EmptyParams } from "./schemas.js";
 import { withGoalSessionFromCtxAsync } from "../../domain/session-scope.js";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { validateObjective } from "../../domain/format.js";
@@ -78,7 +78,7 @@ function registerEnqueueGoalTool(pi: ExtensionAPI): void {
 		parameters: CreateGoalParams,
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 			return withSessionTool(ctx, async () => {
-				const intent = buildDirectGoalIntent({ objective: params.objective, postCompletionContext: params.post_completion_context, postCompletionActions: params.post_completion_actions });
+				const intent = buildDirectGoalIntent({ objective: params.objective, postCompletionActions: params.post_completion_actions });
 				if (!intent.ok) return errorResult(intent.error);
 				const validation = validateObjective(intent.intent.objective);
 				if (!validation.ok) return errorResult(validation.hint ? `${validation.message} ${validation.hint}` : validation.message);

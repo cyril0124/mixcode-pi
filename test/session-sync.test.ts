@@ -1,9 +1,9 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { appendFileSync, readFileSync } from "node:fs";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import * as fs from "node:fs";
+import * as fsPromises from "node:fs/promises";
+import * as path from "node:path";
+import * as os from "node:os";
 import { test } from "node:test";
 import { randomUUID } from "node:crypto";
 import {
@@ -67,7 +67,7 @@ function retractModel() {
 async function waitFor(predicate: () => boolean, attempts = 50): Promise<void> {
   for (let i = 0; i < attempts; i += 1) {
     if (predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await Bun.sleep(10);
   }
   assert.equal(predicate(), true);
 }
@@ -94,8 +94,8 @@ function conversationEntryCount(runtime: MixCodeRuntime, sessionId: string): num
 }
 
 test("sync on a fresh session preserves the session id exposed to extensions", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-sync-fresh-"));
-  const runtime = new MixCodeRuntime({ sessionsRoot: join(dir, "sessions") });
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-sync-fresh-"));
+  const runtime = new MixCodeRuntime({ sessionsRoot: path.join(dir, "sessions") });
   try {
     const rt = await runtime.createTab(createTab(1, "s1", dir), {
       systemPrompt: "system",
@@ -113,7 +113,7 @@ test("sync on a fresh session preserves the session id exposed to extensions", a
     assert.equal(rt.session.getSessionId(), sessionId);
   } finally {
     await runtime.closeAllTabs();
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
@@ -122,8 +122,8 @@ test("sync on a fresh session preserves the session id exposed to extensions", a
 // new conversation by reloading from disk, and its next prompt must include the
 // externally-synced messages in the model context.
 test("second instance syncs another instance's appended conversation", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-sync-"));
-  const sessionsRoot = join(dir, "sessions");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-sync-"));
+  const sessionsRoot = path.join(dir, "sessions");
   const runtimeA = new MixCodeRuntime({ sessionsRoot });
   const runtimeB = new MixCodeRuntime({ sessionsRoot });
   try {
@@ -168,13 +168,13 @@ test("second instance syncs another instance's appended conversation", async () 
   } finally {
     await runtimeA.closeAllTabs();
     await runtimeB.closeAllTabs();
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("reload status survives the local session writes performed by reload", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-sync-reload-status-"));
-  const sessionsRoot = join(dir, "sessions");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-sync-reload-status-"));
+  const sessionsRoot = path.join(dir, "sessions");
   const runtime = new MixCodeRuntime({ sessionsRoot });
   try {
     await runtime.createTab(createTab(1, "s1", dir), {
@@ -193,17 +193,17 @@ test("reload status survives the local session writes performed by reload", asyn
     await runtime.updateTabModel("s1", MIXCODE_FAUX_MODEL);
     runtime.appendSystemMessage("s1", "Reloaded keybindings, extensions, skills, prompts, and themes");
 
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await Bun.sleep(500);
     assert.match(chatText(runtime, "s1"), /Reloaded keybindings/);
   } finally {
     await runtime.closeAllTabs();
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("a new prompt keeps the previous turn's extension info notification", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-sync-extension-info-"));
-  const sessionsRoot = join(dir, "sessions");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-sync-extension-info-"));
+  const sessionsRoot = path.join(dir, "sessions");
   let turn = 0;
   const extension: ExtensionFactory = (pi) => {
     pi.on("turn_end", (_event, ctx) => {
@@ -232,7 +232,7 @@ test("a new prompt keeps the previous turn's extension info notification", async
     assert.match(chatText(runtime, "s1"), /TPS turn 2/);
   } finally {
     await runtime.closeAllTabs();
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
@@ -241,8 +241,8 @@ test("a new prompt keeps the previous turn's extension info notification", async
 // shared JSONL, and the user's text is preserved by the caller (dispatch
 // rethrows without appending).
 test("prompt is rejected while another instance holds the session turn lock", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-sync-lock-"));
-  const sessionsRoot = join(dir, "sessions");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-sync-lock-"));
+  const sessionsRoot = path.join(dir, "sessions");
   const runtime = new MixCodeRuntime({ sessionsRoot });
   try {
     await runtime.createTab(createTab(1, "s1", dir), {
@@ -272,7 +272,7 @@ test("prompt is rejected while another instance holds the session turn lock", as
     assert.match(chatText(runtime, "s1"), /hello/);
   } finally {
     await runtime.closeAllTabs();
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
@@ -280,8 +280,8 @@ test("prompt is rejected while another instance holds the session turn lock", as
 // JSONL, so it must also honor the cross-process turn lock: it is rejected
 // while another live instance holds the lock, and no bash entry is appended.
 test("standalone shell command is rejected while the session is turn-locked", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-sync-bash-"));
-  const sessionsRoot = join(dir, "sessions");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-sync-bash-"));
+  const sessionsRoot = path.join(dir, "sessions");
   const runtime = new MixCodeRuntime({ sessionsRoot });
   try {
     await runtime.createTab(createTab(1, "s1", dir), {
@@ -312,14 +312,14 @@ test("standalone shell command is rejected while the session is turn-locked", as
     assert.equal(after?.length ?? 0, 1);
   } finally {
     await runtime.closeAllTabs();
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 // Large synthetic JSONL: reload materializes every conversation message into chat.
 test("large-session reload materializes every conversation entry into chat", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-sync-perf-"));
-  const sessionsRoot = join(dir, "sessions");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-sync-perf-"));
+  const sessionsRoot = path.join(dir, "sessions");
   const { mkdir } = await import("node:fs/promises");
   await mkdir(sessionsRoot, { recursive: true });
 
@@ -342,7 +342,7 @@ test("large-session reload materializes every conversation entry into chat", asy
     parentId = id;
   }
   const fileName = `2026-01-01T00-00-00-000Z_${sessionId}.jsonl`;
-  await writeFile(join(sessionsRoot, fileName), `${lines.join("\n")}\n`, "utf8");
+  await fsPromises.writeFile(path.join(sessionsRoot, fileName), `${lines.join("\n")}\n`, "utf8");
 
   const runtime = new MixCodeRuntime({ sessionsRoot });
   try {
@@ -357,7 +357,7 @@ test("large-session reload materializes every conversation entry into chat", asy
     assert.equal(chat.filter((l) => l.role === "user" || l.role === "assistant").length, ENTRY_COUNT);
   } finally {
     await runtime.closeAllTabs();
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
@@ -366,8 +366,8 @@ test("large-session reload materializes every conversation entry into chat", asy
 // still holds the entry; reload must preserve the rewound leaf when the file
 // gained no genuinely new entries.
 test("reload after retract does not resurrect the retracted message", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-retract-reload-"));
-  const sessionsRoot = join(dir, "sessions");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-retract-reload-"));
+  const sessionsRoot = path.join(dir, "sessions");
   let release!: () => void;
   const released = new Promise<void>((r) => { release = r; });
   const runtime = new MixCodeRuntime({
@@ -398,7 +398,7 @@ test("reload after retract does not resurrect the retracted message", async () =
     assert.equal(conversationEntryCount(runtime, "s1"), 0);
   } finally {
     await runtime.closeAllTabs();
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
@@ -407,8 +407,8 @@ test("reload after retract does not resurrect the retracted message", async () =
 // the file tail; descendant-aware reload must keep the rewound leaf when the
 // new entries hang off the abandoned path rather than the active one.
 test("reload after retract ignores new entries on the abandoned branch", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-retract-abandoned-"));
-  const sessionsRoot = join(dir, "sessions");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-retract-abandoned-"));
+  const sessionsRoot = path.join(dir, "sessions");
   let release!: () => void;
   const released = new Promise<void>((r) => { release = r; });
   const runtime = new MixCodeRuntime({
@@ -436,13 +436,13 @@ test("reload after retract ignores new entries on the abandoned branch", async (
     // File still holds the retracted user message; a peer continuing from that
     // abandoned leaf appends a child. That is a genuine new entry, but not on
     // our active branch.
-    const fileEntries = readFileSync(sessionFile, "utf8")
+    const fileEntries = fs.readFileSync(sessionFile, "utf8")
       .split(/\r?\n/)
       .filter(Boolean)
       .map((line) => JSON.parse(line) as { type?: string; id?: string; parentId?: string | null });
     const retracted = [...fileEntries].reverse().find((e) => e.type === "message");
     assert.ok(retracted?.id, "retracted message must remain on disk");
-    appendFileSync(
+    fs.appendFileSync(
       sessionFile,
       `${JSON.stringify({
         type: "message",
@@ -463,14 +463,14 @@ test("reload after retract ignores new entries on the abandoned branch", async (
     assert.equal(conversationEntryCount(runtime, "s1"), 0);
   } finally {
     await runtime.closeAllTabs();
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 // Peer appends that extend the active leaf must still advance the local leaf.
 test("reload advances to new descendants of the active leaf", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-reload-descendant-"));
-  const sessionsRoot = join(dir, "sessions");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-reload-descendant-"));
+  const sessionsRoot = path.join(dir, "sessions");
   const runtime = new MixCodeRuntime({ sessionsRoot });
   try {
     const rt = await runtime.createTab(createTab(1, "s1", dir), {
@@ -486,7 +486,7 @@ test("reload advances to new descendants of the active leaf", async () => {
     assert.ok(sessionFile);
     const leafId = rt.session.getLeafId();
     assert.ok(leafId);
-    appendFileSync(
+    fs.appendFileSync(
       sessionFile,
       `${JSON.stringify({
         type: "message",
@@ -506,7 +506,7 @@ test("reload advances to new descendants of the active leaf", async () => {
     assert.match(chatText(runtime, "s1"), /PEER-ON-ACTIVE/);
   } finally {
     await runtime.closeAllTabs();
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
@@ -514,8 +514,8 @@ test("reload advances to new descendants of the active leaf", async () => {
 // queued-message flush (the Esc path) must not self-conflict on the lock. The
 // lock is reentrant within one process; only other instances are blocked.
 test("queued-message flush during a streaming turn does not self-conflict on the lock", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-flush-lock-"));
-  const sessionsRoot = join(dir, "sessions");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-flush-lock-"));
+  const sessionsRoot = path.join(dir, "sessions");
   let release!: () => void;
   const released = new Promise<void>((r) => { release = r; });
   const runtime = new MixCodeRuntime({
@@ -548,7 +548,7 @@ test("queued-message flush during a streaming turn does not self-conflict on the
     assert.equal(chatText(runtime, "s1").includes("MSG-2-queued"), true);
   } finally {
     await runtime.closeAllTabs();
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
@@ -556,8 +556,8 @@ test("queued-message flush during a streaming turn does not self-conflict on the
 // remains — prompt()'s pre-send reload must not resurrect MSG-A. This is the
 // exact user-reported "extra message after double-Esc undo" flow.
 test("sending a new message after retract keeps only the new message", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-retract-newmsg-"));
-  const sessionsRoot = join(dir, "sessions");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-retract-newmsg-"));
+  const sessionsRoot = path.join(dir, "sessions");
   let release!: () => void;
   let released = new Promise<void>((r) => { release = r; });
   const runtime = new MixCodeRuntime({
@@ -590,7 +590,7 @@ test("sending a new message after retract keeps only the new message", async () 
     assert.equal(chatText(runtime, "s1").includes("MSG-A"), false);
   } finally {
     await runtime.closeAllTabs();
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
@@ -598,8 +598,8 @@ test("sending a new message after retract keeps only the new message", async () 
 // Without that, B can compact a stale leaf and orphan A's newer turn as a
 // sibling of the compaction entry (multi-instance history loss).
 test("compactSession reloads remote turns before rewriting the branch", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-sync-compact-"));
-  const sessionsRoot = join(dir, "sessions");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-sync-compact-"));
+  const sessionsRoot = path.join(dir, "sessions");
   const runtimeA = new MixCodeRuntime({ sessionsRoot });
   const runtimeB = new MixCodeRuntime({ sessionsRoot });
   const MARKER = "UNIQUE_MARKER_FROM_A_BEFORE_COMPACT";
@@ -684,6 +684,6 @@ test("compactSession reloads remote turns before rewriting the branch", async ()
   } finally {
     await runtimeA.closeAllTabs();
     await runtimeB.closeAllTabs();
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

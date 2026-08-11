@@ -1,8 +1,8 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import * as fsPromises from "node:fs/promises";
+import * as path from "node:path";
+import * as os from "node:os";
 import { test } from "node:test";
 import {
   Type,
@@ -129,7 +129,7 @@ function lastRuntimeUserText(context: Context): string {
 async function waitForRuntime(predicate: () => boolean, attempts = 25): Promise<void> {
   for (let i = 0; i < attempts; i += 1) {
     if (predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await Bun.sleep(10);
   }
   assert.equal(predicate(), true);
 }
@@ -214,11 +214,11 @@ test("runtime restores a session whose filename id differs from its header id", 
   // (created by SessionManager.create before newSession rewrote it). Looking
   // sessions up purely by header id makes openOrCreateSession miss the real
   // file and create an empty session, dropping the whole conversation.
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-id-mismatch-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-id-mismatch-"));
   try {
-    const workdir = join(dir, "wd");
-    await mkdir(workdir, { recursive: true });
-    const sessionFile = join(dir, "2026-06-04T00-00-00-000Z_session-12345.jsonl");
+    const workdir = path.join(dir, "wd");
+    await fsPromises.mkdir(workdir, { recursive: true });
+    const sessionFile = path.join(dir, "2026-06-04T00-00-00-000Z_session-12345.jsonl");
     const entries = [
       {
         type: "session",
@@ -248,7 +248,7 @@ test("runtime restores a session whose filename id differs from its header id", 
         },
       },
     ];
-    await writeFile(sessionFile, `${entries.map((e) => JSON.stringify(e)).join("\n")}\n`, "utf8");
+    await fsPromises.writeFile(sessionFile, `${entries.map((e) => JSON.stringify(e)).join("\n")}\n`, "utf8");
 
     const runtime = new MixCodeRuntime({ sessionsRoot: dir });
     const restored = await runtime.createTab(createTab(1, "session-12345", workdir), {
@@ -265,12 +265,12 @@ test("runtime restores a session whose filename id differs from its header id", 
     );
     await runtime.closeAllTabs();
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime clear replaces the active pi session and resets tab state", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-clear-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-clear-"));
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir });
     const tab = createTab(1, "s1", process.cwd(), {
@@ -330,12 +330,12 @@ test("runtime clear replaces the active pi session and resets tab state", async 
         .includes("old message"),
     );
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime clear rejects active streaming sessions", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-clear-busy-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-clear-busy-"));
   const { runtime, release, model } = createBlockedRuntime(dir);
   let prompt: Promise<void> | undefined;
   try {
@@ -361,12 +361,12 @@ test("runtime clear rejects active streaming sessions", async () => {
   } finally {
     release();
     await prompt;
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime rejects compaction when there is no useful history", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-"));
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir });
     const runtimeTab = await runtime.createTab(createTab(1, "empty", process.cwd()), {
@@ -385,12 +385,12 @@ test("runtime rejects compaction when there is no useful history", async () => {
     await runtime.compactSession("empty");
     await assert.rejects(runtime.compactSession("empty"), /already compacted/i);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime deletes all tracked tabs", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-"));
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir });
     await runtime.createTab(createTab(1, "s1", process.cwd()), {
@@ -407,7 +407,7 @@ test("runtime deletes all tracked tabs", async () => {
     await runtime.deleteAllTabs();
     assert.equal(runtime.listTabs().length, 0);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
@@ -572,15 +572,15 @@ test("runtime updates tab model and rejects changes while streaming", async () =
 });
 
 test("runtime updates workdir, system prompt, and tool closures", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-workdir-"));
-  const oldDir = join(dir, "old");
-  const newDir = join(dir, "new");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-workdir-"));
+  const oldDir = path.join(dir, "old");
+  const newDir = path.join(dir, "new");
   try {
-    await mkdir(oldDir, { recursive: true });
-    await mkdir(newDir, { recursive: true });
-    await writeFile(join(oldDir, "marker.txt"), "old", "utf8");
-    await writeFile(join(newDir, "marker.txt"), "new", "utf8");
-    const runtime = new MixCodeRuntime({ sessionsRoot: join(dir, "sessions") });
+    await fsPromises.mkdir(oldDir, { recursive: true });
+    await fsPromises.mkdir(newDir, { recursive: true });
+    await fsPromises.writeFile(path.join(oldDir, "marker.txt"), "old", "utf8");
+    await fsPromises.writeFile(path.join(newDir, "marker.txt"), "new", "utf8");
+    const runtime = new MixCodeRuntime({ sessionsRoot: path.join(dir, "sessions") });
     const tab = createTab(1, "s1", oldDir);
     const runtimeTab = await runtime.createTab(tab, {
       systemPrompt: "system",
@@ -610,7 +610,7 @@ test("runtime updates workdir, system prompt, and tool closures", async () => {
     assert.deepEqual(result.content, [{ type: "text", text: "new" }]);
 
     const { runtime: busyRuntime, release, model: busyModel } = createBlockedRuntime(
-      join(dir, "busy-sessions"),
+      path.join(dir, "busy-sessions"),
     );
     const busyTab = createTab(1, "busy", newDir);
     await busyRuntime.createTab(busyTab, {
@@ -627,6 +627,6 @@ test("runtime updates workdir, system prompt, and tool closures", async () => {
     release();
     await prompt;
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

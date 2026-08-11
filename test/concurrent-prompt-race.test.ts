@@ -1,8 +1,8 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import * as fsPromises from "node:fs/promises";
+import * as path from "node:path";
+import * as os from "node:os";
 import { test } from "node:test";
 import type { Context, Model, SimpleStreamOptions } from "@earendil-works/pi-ai";
 import { createAssistantMessageEventStream } from "@earendil-works/pi-ai";
@@ -59,7 +59,7 @@ async function waitFor(predicate: () => boolean, timeoutMs = 500): Promise<void>
     if (Date.now() - start > timeoutMs) {
       assert.fail(`waitFor timeout: predicate never became true after ${timeoutMs}ms`);
     }
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await Bun.sleep(10);
   }
 }
 
@@ -68,7 +68,7 @@ for (const [scenario, firstMessage, secondMessage] of [
   ["slash-prefixed agent turns", "/skill:missing first message", "/skill:missing second message"],
 ] as const) {
   test(`concurrent ${scenario} are serialized via dispatchTurn gate`, async () => {
-    const dir = await mkdtemp(join(tmpdir(), "mixcode-concurrent-"));
+    const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-concurrent-"));
     try {
       let releaseFirstRun!: () => void;
       const firstRunSignal = new Promise<void>((resolve) => {
@@ -133,13 +133,13 @@ for (const [scenario, firstMessage, secondMessage] of [
       const userMessages = runtime.getForkableUserMessages("s1").map((message) => message.text);
       assert.deepEqual(userMessages.slice(-2), [firstMessage, secondMessage]);
     } finally {
-      await rm(dir, { recursive: true, force: true });
+      await fsPromises.rm(dir, { recursive: true, force: true });
     }
   });
 }
 
 test("flush and user submit at idle boundary do not collide", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-flush-race-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-flush-race-"));
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir });
     const tab = createTab(1, "s1", process.cwd());
@@ -174,6 +174,6 @@ test("flush and user submit at idle boundary do not collide", async () => {
     assert.equal(runtimeTab.tab.pendingMessages.length, 0);
     assert.equal(runtimeTab.queuedPromptCount, 0);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

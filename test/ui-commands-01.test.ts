@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import * as fsPromises from "node:fs/promises";
+import * as path from "node:path";
+import * as os from "node:os";
 import { test } from "node:test";
 import {
   createInitialState,
@@ -39,7 +39,7 @@ async function waitFor<T>(read: () => Promise<T>, attempts = 25): Promise<T> {
       return await read();
     } catch (error) {
       lastError = error;
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await Bun.sleep(10);
     }
   }
   throw lastError;
@@ -280,12 +280,12 @@ test("unknown slash commands keep focus on the active tab", async () => {
 });
 
 test("submitted input opens TUI state JSON in external editor", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-tui-state-editor-"));
-  const captureFile = join(dir, "capture.txt");
-  const editorScript = join(dir, "editor.sh");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-tui-state-editor-"));
+  const captureFile = path.join(dir, "capture.txt");
+  const editorScript = path.join(dir, "editor.sh");
   const previousEditor = process.env.EDITOR;
   try {
-    await writeFile(editorScript, `#!/bin/sh\ncp "$1" "${captureFile}"\n`, { mode: 0o755 });
+    await fsPromises.writeFile(editorScript, `#!/bin/sh\ncp "$1" "${captureFile}"\n`, { mode: 0o755 });
     const state = createInitialState("/repo");
     const tab = createTab(1, "s1", "/repo");
     state.tabs.push(tab);
@@ -321,7 +321,7 @@ test("submitted input opens TUI state JSON in external editor", async () => {
     process.env.EDITOR = editorScript;
     await handleSubmittedInput(state, runtime, "/tui-state", tui);
 
-    const exported = await readFile(captureFile, "utf8");
+    const exported = await fsPromises.readFile(captureFile, "utf8");
     assert.match(exported, /"activeTabId": "s1"/);
     assert.match(exported, /"workdir": "\/repo"/);
     assert.doesNotMatch(exported, /availableModels/);
@@ -338,6 +338,6 @@ test("submitted input opens TUI state JSON in external editor", async () => {
   } finally {
     if (previousEditor === undefined) delete process.env.EDITOR;
     else process.env.EDITOR = previousEditor;
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

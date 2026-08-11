@@ -1,8 +1,8 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import * as fsPromises from "node:fs/promises";
+import * as path from "node:path";
+import * as os from "node:os";
 import { test } from "node:test";
 import { createAssistantMessageEventStream, type AssistantMessage } from "@earendil-works/pi-ai";
 import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
@@ -19,7 +19,7 @@ import { createTab, MixCodeRuntime } from "../src/index.js";
  * Slow session_start widens the race window via the real bind path (no test hooks).
  */
 test("concurrent replace on one tab does not stale session_start ctx", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-replace-lock-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-replace-lock-"));
   const starts: string[] = [];
   const extension: ExtensionFactory = (pi) => {
     pi.on("session_start", async (_event, ctx) => {
@@ -34,7 +34,7 @@ test("concurrent replace on one tab does not stale session_start ctx", async () 
   };
   try {
     const runtime = new MixCodeRuntime({
-      sessionsRoot: join(dir, "sessions"),
+      sessionsRoot: path.join(dir, "sessions"),
       extensionFactories: [extension],
     });
     await runtime.createTab(createTab(1, "s1", process.cwd()), {
@@ -72,7 +72,7 @@ test("concurrent replace on one tab does not stale session_start ctx", async () 
     );
     assert.equal(runtime.listTabs()[0]!.tab.sessionId, "b");
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
@@ -84,9 +84,9 @@ test("concurrent replace on one tab does not stale session_start ctx", async () 
  * a plain "Agent-NN".
  */
 test("resume restores tab title from the resumed session's persisted name", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-resume-title-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-resume-title-"));
   try {
-    const runtime = new MixCodeRuntime({ sessionsRoot: join(dir, "sessions") });
+    const runtime = new MixCodeRuntime({ sessionsRoot: path.join(dir, "sessions") });
     const seed = await runtime.createTab(createTab(1, "seed", process.cwd()), {
       systemPrompt: "system",
       thinkingLevel: "medium",
@@ -112,12 +112,12 @@ test("resume restores tab title from the resumed session's persisted name", asyn
       `resume must restore persisted name; got "${resumed.tab.title}"`,
     );
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("resume keeps a session-start turn visibly running", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-resume-running-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-resume-running-"));
   const stream = createAssistantMessageEventStream();
   let releaseContext!: () => void;
   let markContextEntered!: () => void;
@@ -132,7 +132,7 @@ test("resume keeps a session-start turn visibly running", async () => {
   let runtime: MixCodeRuntime | undefined;
   try {
     runtime = new MixCodeRuntime({
-      sessionsRoot: join(dir, "sessions"),
+      sessionsRoot: path.join(dir, "sessions"),
       streamFn: () => stream,
       extensionFactories: [
         (pi) => {
@@ -142,7 +142,7 @@ test("resume keeps a session-start turn visibly running", async () => {
               { customType: "resume-running", content: "continue", display: false },
               { triggerTurn: true, deliverAs: "followUp" },
             );
-            await new Promise((resolve) => setTimeout(resolve, 20));
+            await Bun.sleep(20);
           });
           pi.on("context", async (event) => {
             markContextEntered();
@@ -202,7 +202,7 @@ test("resume keeps a session-start turn visibly running", async () => {
       timestamp: Date.now(),
     } satisfies AssistantMessage);
     await resumed?.agentSession.waitForIdle();
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
@@ -212,9 +212,9 @@ test("resume keeps a session-start turn visibly running", async () => {
  * title-restore leaking into other reasons.
  */
 test("fork does not overwrite tab title from an inherited session name", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-fork-title-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-fork-title-"));
   try {
-    const runtime = new MixCodeRuntime({ sessionsRoot: join(dir, "sessions") });
+    const runtime = new MixCodeRuntime({ sessionsRoot: path.join(dir, "sessions") });
     const src = await runtime.createTab(createTab(1, "src", process.cwd()), {
       systemPrompt: "system",
       thinkingLevel: "medium",
@@ -233,7 +233,7 @@ test("fork does not overwrite tab title from an inherited session name", async (
     // Fork keeps the tab's existing title; it is not driven by resume restore.
     assert.equal(forked.tab.title, "Named Source");
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
@@ -244,7 +244,7 @@ test("fork does not overwrite tab title from an inherited session name", async (
  * when services are shared across the shutdown→create boundary).
  */
 test("serial replace reloads reused services so session_start is not stale", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-replace-reload-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-replace-reload-"));
   const starts: string[] = [];
   const extension: ExtensionFactory = (pi) => {
     pi.on("session_start", (_event, ctx) => {
@@ -257,7 +257,7 @@ test("serial replace reloads reused services so session_start is not stale", asy
   };
   try {
     const runtime = new MixCodeRuntime({
-      sessionsRoot: join(dir, "sessions"),
+      sessionsRoot: path.join(dir, "sessions"),
       extensionFactories: [extension],
     });
     const seed = await runtime.createTab(createTab(1, "seed", process.cwd()), {
@@ -286,6 +286,6 @@ test("serial replace reloads reused services so session_start is not stale", asy
       `expected successful session_start; starts=${JSON.stringify(starts)}`,
     );
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

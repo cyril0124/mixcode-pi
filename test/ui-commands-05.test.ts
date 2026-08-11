@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import * as fsPromises from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { test } from "node:test";
 import {
   configureOpenTabsPath,
@@ -40,7 +40,7 @@ async function waitFor<T>(read: () => Promise<T>, attempts = 25): Promise<T> {
       return await read();
     } catch (error) {
       lastError = error;
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await Bun.sleep(10);
     }
   }
   throw lastError;
@@ -480,7 +480,7 @@ test("submitted input closes all sessions through runtime after Y/N confirmation
 });
 
 test("close-all-sessions clears the shared open-tab set", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-close-all-open-tabs-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-close-all-open-tabs-"));
   const filePath = openTabsFile(dir);
   try {
     configureOpenTabsPath(filePath);
@@ -513,12 +513,12 @@ test("close-all-sessions clears the shared open-tab set", async () => {
     assert.deepEqual(readOpenTabs(filePath), []);
   } finally {
     configureOpenTabsPath(undefined);
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("delete-all-sessions clears the shared open-tab set", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-delete-all-open-tabs-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-delete-all-open-tabs-"));
   const filePath = openTabsFile(dir);
   try {
     configureOpenTabsPath(filePath);
@@ -551,7 +551,7 @@ test("delete-all-sessions clears the shared open-tab set", async () => {
     assert.deepEqual(readOpenTabs(filePath), []);
   } finally {
     configureOpenTabsPath(undefined);
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 

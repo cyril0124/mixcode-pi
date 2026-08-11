@@ -1,8 +1,8 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import * as fsPromises from "node:fs/promises";
+import * as path from "node:path";
+import * as os from "node:os";
 import { test } from "node:test";
 import {
   createAssistantMessageEventStream,
@@ -42,13 +42,13 @@ function silentTerminal(): Terminal {
 async function waitFor(predicate: () => boolean, attempts = 80): Promise<void> {
   for (let i = 0; i < attempts; i += 1) {
     if (predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await Bun.sleep(10);
   }
   assert.equal(predicate(), true);
 }
 
 test("runtime extension fork covers root and at-position branches", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-fork-branches-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-fork-branches-"));
   const events: string[] = [];
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir });
@@ -95,12 +95,12 @@ test("runtime extension fork covers root and at-position branches", async () => 
     assert.deepEqual(events, ["editor:"]);
     runtime.setExtensionUiHost(undefined);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime extension fork treats visible non-user entries as prior conversation", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-fork-visible-prior-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-fork-visible-prior-"));
   try {
     const cases: Array<{
       name: string;
@@ -164,7 +164,7 @@ test("runtime extension fork treats visible non-user entries as prior conversati
       },
     ];
     for (const item of cases) {
-      const runtime = new MixCodeRuntime({ sessionsRoot: join(dir, item.name) });
+      const runtime = new MixCodeRuntime({ sessionsRoot: path.join(dir, item.name) });
       const runtimeTab = await runtime.createTab(createTab(1, `s-${item.name}`, process.cwd()), {
         systemPrompt: "system",
         thinkingLevel: "medium",
@@ -205,12 +205,12 @@ test("runtime extension fork treats visible non-user entries as prior conversati
       );
     }
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("ctx.shutdown() closes the current tab when idle", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-shutdown-idle-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-shutdown-idle-"));
   const extension: ExtensionFactory = (pi) => {
     pi.registerCommand("shutdown-smoke", {
       description: "Request session shutdown",
@@ -246,12 +246,12 @@ test("ctx.shutdown() closes the current tab when idle", async () => {
       "s2",
     );
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("ctx.shutdown() defers close until the tab is no longer streaming", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-shutdown-defer-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-shutdown-defer-"));
   let release!: () => void;
   const released = new Promise<void>((resolve) => {
     release = resolve;
@@ -332,6 +332,6 @@ test("ctx.shutdown() defers close until the tab is no longer streaming", async (
     assert.equal(runtime.getTab("s1"), undefined);
     assert.ok(runtime.getTab("s2"));
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

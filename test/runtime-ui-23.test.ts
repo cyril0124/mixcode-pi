@@ -1,8 +1,8 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import * as fsPromises from "node:fs/promises";
+import * as path from "node:path";
+import * as os from "node:os";
 import { test } from "node:test";
 import {
   Type,
@@ -129,7 +129,7 @@ function lastRuntimeUserText(context: Context): string {
 async function waitForRuntime(predicate: () => boolean, attempts = 25): Promise<void> {
   for (let i = 0; i < attempts; i += 1) {
     if (predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await Bun.sleep(10);
   }
   assert.equal(predicate(), true);
 }
@@ -261,7 +261,7 @@ test("runtime summarizes long tool results instead of flooding chat", async () =
 });
 
 test("runtime queues prompts while busy, pops them, and flushes when idle", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-queue-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-queue-"));
   const { runtime, release, model } = createBlockedQueueRuntime(dir);
   try {
     const tab = createTab(1, "s1", process.cwd());
@@ -291,12 +291,12 @@ test("runtime queues prompts while busy, pops them, and flushes when idle", asyn
     assert.deepEqual(tab.pendingMessages, []);
   } finally {
     release();
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime pop removes matching Pi steering queue entries", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-queue-pop-steer-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-queue-pop-steer-"));
   const { runtime, release, model } = createBlockedQueueRuntime(dir);
   try {
     const tab = createTab(1, "s1", process.cwd());
@@ -319,12 +319,12 @@ test("runtime pop removes matching Pi steering queue entries", async () => {
     await prompt;
   } finally {
     release();
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime pop prefers follow-up over steer (Ctrl+U edit order)", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-queue-pop-prefer-follow-up-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-queue-pop-prefer-follow-up-"));
   const { runtime, release, model } = createBlockedQueueRuntime(dir);
   try {
     const tab = createTab(1, "s1", process.cwd());
@@ -357,12 +357,12 @@ test("runtime pop prefers follow-up over steer (Ctrl+U edit order)", async () =>
     await prompt;
   } finally {
     release();
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime consecutive pops remove every returned steering message", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-queue-pop-consecutive-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-queue-pop-consecutive-"));
   const { runtime, release, model } = createBlockedQueueRuntime(dir);
   let prompt: Promise<void> | undefined;
   try {
@@ -391,14 +391,14 @@ test("runtime consecutive pops remove every returned steering message", async ()
   } finally {
     release();
     await prompt?.catch(() => undefined);
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime pop tolerates agent queue already drained for a tracked steer", async () => {
   // Pi drains agent.steeringQueue before message_start clears _steeringMessages.
   // Pop during that window must not throw or re-surface the delivered text.
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-queue-pop-drained-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-queue-pop-drained-"));
   const { runtime, release, model } = createBlockedQueueRuntime(dir);
   let prompt: Promise<void> | undefined;
   try {
@@ -428,12 +428,12 @@ test("runtime pop tolerates agent queue already drained for a tracked steer", as
   } finally {
     release();
     await prompt?.catch(() => undefined);
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime pop preserves an unrelated custom follow-up", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-queue-pop-custom-follow-up-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-queue-pop-custom-follow-up-"));
   const { runtime, release, model } = createBlockedQueueRuntime(dir);
   let prompt: Promise<void> | undefined;
   try {
@@ -464,12 +464,12 @@ test("runtime pop preserves an unrelated custom follow-up", async () => {
   } finally {
     release();
     await prompt?.catch(() => undefined);
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime waits for idle before flushing queued prompts", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-queue-wait-idle-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-queue-wait-idle-"));
   const { runtime, release, model } = createBlockedQueueRuntime(dir);
   try {
     const tab = createTab(1, "s1", process.cwd());
@@ -487,7 +487,7 @@ test("runtime waits for idle before flushing queued prompts", async () => {
     const flush = runtime.flushPendingMessage("s1", 1).then(() => {
       flushed = true;
     });
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await Bun.sleep(20);
     assert.equal(flushed, false);
 
     release();
@@ -499,12 +499,12 @@ test("runtime waits for idle before flushing queued prompts", async () => {
     assert.ok(runtimeTab.chat.some((line) => line.text.includes("queued prompt")));
   } finally {
     release();
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime flush preserves unrelated Pi follow-up queue entries", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-queue-flush-preserve-follow-up-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-queue-flush-preserve-follow-up-"));
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir });
     const tab = createTab(1, "s1", process.cwd());
@@ -533,12 +533,12 @@ test("runtime flush preserves unrelated Pi follow-up queue entries", async () =>
       "follow-up from extension",
     ]);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime keeps queued prompts when flush prompt fails", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-queue-fail-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-queue-fail-"));
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir });
     const tab = createTab(1, "s1", process.cwd());
@@ -570,12 +570,12 @@ test("runtime keeps queued prompts when flush prompt fails", async () => {
     assert.deepEqual(tab.pendingMessages, ["restored pending", "queued prompt"]);
     assert.equal(runtimeTab.queuedPromptCount, 1);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime flush syncs pending messages from Pi steering queue first", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-queue-sync-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-queue-sync-"));
   const { runtime, release, model } = createBlockedQueueRuntime(dir);
   try {
     const tab = createTab(1, "s1", process.cwd());
@@ -602,6 +602,6 @@ test("runtime flush syncs pending messages from Pi steering queue first", async 
     assert.equal(runtimeTab.queuedPromptCount, 0);
   } finally {
     release();
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

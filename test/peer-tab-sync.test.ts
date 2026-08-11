@@ -1,8 +1,8 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import * as fsPromises from "node:fs/promises";
+import * as path from "node:path";
+import * as os from "node:os";
 import { test } from "node:test";
 import {
   MIXCODE_FAUX_MODEL,
@@ -66,9 +66,9 @@ test("listTabsToReconcile without peer hints leaves title unset", () => {
 });
 
 test("openExistingAgentTab without title uses sequential Agent-NN", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-peer-title-"));
-  const sessionsRoot = join(dir, "sessions");
-  const workdir = join(dir, "repo");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-peer-title-"));
+  const sessionsRoot = path.join(dir, "sessions");
+  const workdir = path.join(dir, "repo");
   const runtimeA = new MixCodeRuntime({ sessionsRoot });
   const runtimeB = new MixCodeRuntime({ sessionsRoot });
   try {
@@ -92,12 +92,12 @@ test("openExistingAgentTab without title uses sequential Agent-NN", async () => 
   } finally {
     await runtimeA.closeAllTabs();
     await runtimeB.closeAllTabs();
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("open_tabs store add/remove is durable", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-open-tabs-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-open-tabs-"));
   try {
     const file = openTabsFile(dir);
     writeOpenTabs(file, ["a", "tail"]);
@@ -111,14 +111,14 @@ test("open_tabs store add/remove is durable", async () => {
     removeOpenTab(file, "a");
     assert.deepEqual(readOpenTabs(file), ["fork", "tail-new", "b"]);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("openExistingAgentTab opens disk session without stealing focus", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-peer-open-"));
-  const sessionsRoot = join(dir, "sessions");
-  const workdir = join(dir, "repo");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-peer-open-"));
+  const sessionsRoot = path.join(dir, "sessions");
+  const workdir = path.join(dir, "repo");
   const runtimeA = new MixCodeRuntime({ sessionsRoot });
   const runtimeB = new MixCodeRuntime({ sessionsRoot });
   try {
@@ -143,15 +143,15 @@ test("openExistingAgentTab opens disk session without stealing focus", async () 
   } finally {
     await runtimeA.closeAllTabs();
     await runtimeB.closeAllTabs();
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("startPeerTabSync opens and closes against shared open_tabs", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-peer-sync-"));
-  const sessionsRoot = join(dir, "sessions");
-  const workdir = join(dir, "repo");
-  const openTabsPath = openTabsFile(join(dir, "state"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-peer-sync-"));
+  const sessionsRoot = path.join(dir, "sessions");
+  const workdir = path.join(dir, "repo");
+  const openTabsPath = openTabsFile(path.join(dir, "state"));
   const runtimeA = new MixCodeRuntime({ sessionsRoot });
   const runtimeB = new MixCodeRuntime({ sessionsRoot });
   runtimeB.enableSessionSync();
@@ -172,7 +172,7 @@ test("startPeerTabSync opens and closes against shared open_tabs", async () => {
     const orders: string[][] = [];
     const sync = startPeerTabSync({
       openTabsPath,
-      rootStateDir: join(dir, "root"),
+      rootStateDir: path.join(dir, "root"),
       workdir,
       selfPid: 2002,
       debounceMs: 1,
@@ -218,13 +218,13 @@ test("startPeerTabSync opens and closes against shared open_tabs", async () => {
     configureOpenTabsPath(undefined);
     await runtimeA.closeAllTabs();
     await runtimeB.closeAllTabs();
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("createAgentTab publishes open_tabs before create finishes so reconcile keeps the new tab", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-new-session-race-"));
-  const openTabsPath = openTabsFile(join(dir, "state"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-new-session-race-"));
+  const openTabsPath = openTabsFile(path.join(dir, "state"));
   configureOpenTabsPath(openTabsPath);
   try {
     const state = createInitialState(dir);
@@ -259,7 +259,7 @@ test("createAgentTab publishes open_tabs before create finishes so reconcile kee
     const reopened: string[] = [];
     const sync = startPeerTabSync({
       openTabsPath,
-      rootStateDir: join(dir, "root"),
+      rootStateDir: path.join(dir, "root"),
       workdir: dir,
       debounceMs: 1,
       pollIntervalMs: 60_000,
@@ -311,13 +311,13 @@ test("createAgentTab publishes open_tabs before create finishes so reconcile kee
     sync.dispose();
   } finally {
     configureOpenTabsPath(undefined);
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("createAgentTab rolls open_tabs back when createTab fails", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-new-session-rollback-"));
-  const openTabsPath = openTabsFile(join(dir, "state"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-new-session-rollback-"));
+  const openTabsPath = openTabsFile(path.join(dir, "state"));
   configureOpenTabsPath(openTabsPath);
   try {
     const state = createInitialState(dir);
@@ -344,13 +344,13 @@ test("createAgentTab rolls open_tabs back when createTab fails", async () => {
     assert.deepEqual(readOpenTabs(openTabsPath), [existing.sessionId]);
   } finally {
     configureOpenTabsPath(undefined);
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("completeAgentTabClear publishes open_tabs before session id swaps so reconcile keeps the title", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-clear-race-"));
-  const openTabsPath = openTabsFile(join(dir, "state"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-clear-race-"));
+  const openTabsPath = openTabsFile(path.join(dir, "state"));
   configureOpenTabsPath(openTabsPath);
   try {
     const state = createInitialState(dir);
@@ -420,7 +420,7 @@ test("completeAgentTabClear publishes open_tabs before session id swaps so recon
     const opened: Array<{ sessionId: string; title: string }> = [];
     const sync = startPeerTabSync({
       openTabsPath,
-      rootStateDir: join(dir, "root"),
+      rootStateDir: path.join(dir, "root"),
       workdir: dir,
       debounceMs: 1,
       pollIntervalMs: 60_000,
@@ -464,17 +464,17 @@ test("completeAgentTabClear publishes open_tabs before session id swaps so recon
     sync.dispose();
   } finally {
     configureOpenTabsPath(undefined);
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("prepareAgentTabClear rejects corrupt open_tabs before wiping the tab", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-clear-corrupt-open-tabs-"));
-  const openTabsPath = openTabsFile(join(dir, "state"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-clear-corrupt-open-tabs-"));
+  const openTabsPath = openTabsFile(path.join(dir, "state"));
   configureOpenTabsPath(openTabsPath);
   try {
-    await mkdir(join(dir, "state"), { recursive: true });
-    await writeFile(openTabsPath, '{"version":1,"sessionIds":[', "utf8");
+    await fsPromises.mkdir(path.join(dir, "state"), { recursive: true });
+    await fsPromises.writeFile(openTabsPath, '{"version":1,"sessionIds":[', "utf8");
     const state = createInitialState(dir);
     const tab = createTab(1, "keep-session", dir, { status: "idle" });
     tab.previewMessages = [{ role: "user", text: "keep this message" }];
@@ -499,13 +499,13 @@ test("prepareAgentTabClear rejects corrupt open_tabs before wiping the tab", asy
     assert.equal(tab.sessionId, "keep-session");
   } finally {
     configureOpenTabsPath(undefined);
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("clear restores local identity when shared rollback also fails", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-clear-rollback-failure-"));
-  const openTabsPath = openTabsFile(join(dir, "state"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-clear-rollback-failure-"));
+  const openTabsPath = openTabsFile(path.join(dir, "state"));
   configureOpenTabsPath(openTabsPath);
   try {
     const state = createInitialState(dir);
@@ -520,7 +520,7 @@ test("clear restores local identity when shared rollback also fails", async () =
       }),
       clearTabChatProjection: () => undefined,
       clearTab: async () => {
-        await writeFile(openTabsPath, '{"version":1,"sessionIds":[', "utf8");
+        await fsPromises.writeFile(openTabsPath, '{"version":1,"sessionIds":[', "utf8");
         throw runtimeFailure;
       },
     };
@@ -539,13 +539,13 @@ test("clear restores local identity when shared rollback also fails", async () =
     assert.equal(state.activeTabId, "old-session");
   } finally {
     configureOpenTabsPath(undefined);
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("resume publishes open_tabs before switch so reconcile keeps session title", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-resume-race-"));
-  const openTabsPath = openTabsFile(join(dir, "state"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-resume-race-"));
+  const openTabsPath = openTabsFile(path.join(dir, "state"));
   configureOpenTabsPath(openTabsPath);
   try {
     const state = createInitialState(dir);
@@ -555,8 +555,8 @@ test("resume publishes open_tabs before switch so reconcile keeps session title"
     writeOpenTabs(openTabsPath, [existing.sessionId]);
 
     const durableId = "019f72f8-durable-resume-id";
-    const sessionPath = join(dir, "zen.jsonl");
-    await writeFile(sessionPath, "{}\n");
+    const sessionPath = path.join(dir, "zen.jsonl");
+    await fsPromises.writeFile(sessionPath, "{}\n");
 
     let releaseSwitch!: () => void;
     const switchGate = new Promise<void>((resolve) => {
@@ -621,7 +621,7 @@ test("resume publishes open_tabs before switch so reconcile keeps session title"
     const opened: Array<{ sessionId: string; title: string }> = [];
     const sync = startPeerTabSync({
       openTabsPath,
-      rootStateDir: join(dir, "root"),
+      rootStateDir: path.join(dir, "root"),
       workdir: dir,
       debounceMs: 1,
       pollIntervalMs: 60_000,
@@ -667,10 +667,10 @@ test("resume publishes open_tabs before switch so reconcile keeps session title"
       runtime as never,
     );
     // Allow async resume to publish durable id then hit switch gate.
-    await new Promise((r) => setTimeout(r, 20));
+    await Bun.sleep(20);
     await sync.reconcileNow();
     releaseSwitch();
-    await new Promise((r) => setTimeout(r, 30));
+    await Bun.sleep(30);
     await sync.reconcileNow();
 
     assert.deepEqual(closed, [], "in-flight resume must not be closed by peer reconcile");
@@ -684,14 +684,14 @@ test("resume publishes open_tabs before switch so reconcile keeps session title"
     sync.dispose();
   } finally {
     configureOpenTabsPath(undefined);
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("peer reconcile syncTabTitles updates already-open local tab titles", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-peer-sync-title-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-peer-sync-title-"));
   try {
-    const openTabsPath = join(dir, "open_tabs.json");
+    const openTabsPath = path.join(dir, "open_tabs.json");
     writeOpenTabs(openTabsPath, ["s1"]);
     const titles: Array<{ sessionId: string; title: string }> = [];
     const sync = startPeerTabSync({
@@ -725,14 +725,14 @@ test("peer reconcile syncTabTitles updates already-open local tab titles", async
     assert.deepEqual(titles, [{ sessionId: "s1", title: "PeerRealName" }]);
     sync.dispose();
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("syncTabTitles prefers freshest registry snapshot over later pid order", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-peer-sync-title-fresh-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-peer-sync-title-fresh-"));
   try {
-    const openTabsPath = join(dir, "open_tabs.json");
+    const openTabsPath = path.join(dir, "open_tabs.json");
     writeOpenTabs(openTabsPath, ["s1"]);
     const titles: Array<{ sessionId: string; title: string }> = [];
     const sync = startPeerTabSync({
@@ -775,6 +775,6 @@ test("syncTabTitles prefers freshest registry snapshot over later pid order", as
     assert.deepEqual(titles, [{ sessionId: "s1", title: "New" }]);
     sync.dispose();
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

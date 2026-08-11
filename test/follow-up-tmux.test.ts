@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import * as fsPromises from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { promisify } from "node:util";
 import { test } from "node:test";
 
@@ -15,16 +15,16 @@ test("tmux TUI shows separate Steer and Follow-up queues", {
       : false,
 }, async () => {
   const tmux = await resolveTmux();
-  const repo = resolve(".");
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-followup-tmux-"));
+  const repo = path.resolve(".");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-followup-tmux-"));
   // Isolated socket label — never use default socket kill-server.
   const label = `mixcode-followup-${process.pid}-${Date.now()}`;
   const session = "followup";
-  const marker = join(dir, "ready.json");
-  const capturePath = join(dir, "pane.txt");
+  const marker = path.join(dir, "ready.json");
+  const capturePath = path.join(dir, "pane.txt");
 
   try {
-    const harness = resolve(repo, "test/follow-up-tui-harness.ts");
+    const harness = path.resolve(repo, "test/follow-up-tui-harness.ts");
     const cmd = [
       `MIXCODE_FOLLOWUP_HARNESS_DIR=${shellQuote(dir)}`,
       `MIXCODE_FOLLOWUP_MARKER=${shellQuote(marker)}`,
@@ -50,7 +50,7 @@ test("tmux TUI shows separate Steer and Follow-up queues", {
     let ready = false;
     while (Date.now() < deadline) {
       try {
-        const raw = await readFile(marker, "utf8");
+        const raw = await fsPromises.readFile(marker, "utf8");
         const data = JSON.parse(raw) as {
           pendingMessages: string[];
           pendingFollowUps: string[];
@@ -72,7 +72,7 @@ test("tmux TUI shows separate Steer and Follow-up queues", {
     // Give the TUI a frame to paint queue boxes.
     await delay(500);
     const pane = await capturePane(tmux, label, session);
-    await writeFile(capturePath, pane.plain);
+    await fsPromises.writeFile(capturePath, pane.plain);
 
     assert.match(pane.plain, /Steer/);
     assert.match(pane.plain, /Follow-up/);
@@ -93,12 +93,12 @@ test("tmux TUI shows separate Steer and Follow-up queues", {
     );
 
     // Release the blocked tool so follow-up can deliver after idle.
-    await writeFile(join(dir, "release"), "1");
+    await fsPromises.writeFile(path.join(dir, "release"), "1");
     const idleDeadline = Date.now() + 15_000;
     let idleOk = false;
     while (Date.now() < idleDeadline) {
       try {
-        const idle = JSON.parse(await readFile(join(dir, "idle.json"), "utf8")) as {
+        const idle = JSON.parse(await fsPromises.readFile(path.join(dir, "idle.json"), "utf8")) as {
           pendingFollowUps: string[];
         };
         if (Array.isArray(idle.pendingFollowUps) && idle.pendingFollowUps.length === 0) {
@@ -115,7 +115,7 @@ test("tmux TUI shows separate Steer and Follow-up queues", {
     await tmuxRun(tmux, label, ["kill-session", "-t", session]).catch(() => undefined);
     // Safe: isolated socket only.
     await tmuxRun(tmux, label, ["kill-server"]).catch(() => undefined);
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
@@ -154,5 +154,5 @@ function shellQuote(value: string): string {
 }
 
 function delay(ms: number): Promise<void> {
-  return new Promise((resolveDelay) => setTimeout(resolveDelay, ms));
+  return Bun.sleep(ms);
 }

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rename, rm, utimes, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import * as fsPromises from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { test } from "node:test";
 import {
   type FileFingerprint,
@@ -85,21 +85,21 @@ test("a real fingerprint change triggers exactly one debounced reload", async ()
   w.emit("a.jsonl");
   w.emit("a.jsonl");
   w.emit("a.jsonl");
-  await new Promise((r) => setTimeout(r, 20));
+  await Bun.sleep(20);
   assert.deepEqual(changed, ["sa"], "burst collapses to one reload");
   coord.dispose();
 });
 
 test("same size and mtime with replaced content still reloads", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-session-sync-replace-"));
-  const sessionPath = join(dir, "a.jsonl");
-  const replacementPath = join(dir, "replacement.jsonl");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-session-sync-replace-"));
+  const sessionPath = path.join(dir, "a.jsonl");
+  const replacementPath = path.join(dir, "replacement.jsonl");
   const fixedTime = new Date("2026-01-01T00:00:00.000Z");
   const w = makeControllableWatch();
   const changed: string[] = [];
   try {
-    await writeFile(sessionPath, "old\n", "utf8");
-    await utimes(sessionPath, fixedTime, fixedTime);
+    await fsPromises.writeFile(sessionPath, "old\n", "utf8");
+    await fsPromises.utimes(sessionPath, fixedTime, fixedTime);
     const coord = new SessionSyncCoordinator({
       sessionsRoot: dir,
       onExternalChange: (id) => changed.push(id),
@@ -108,15 +108,15 @@ test("same size and mtime with replaced content still reloads", async () => {
     });
     coord.register("sa", sessionPath);
 
-    await writeFile(replacementPath, "new\n", "utf8");
-    await utimes(replacementPath, fixedTime, fixedTime);
-    await rename(replacementPath, sessionPath);
+    await fsPromises.writeFile(replacementPath, "new\n", "utf8");
+    await fsPromises.utimes(replacementPath, fixedTime, fixedTime);
+    await fsPromises.rename(replacementPath, sessionPath);
     w.emit("a.jsonl");
     await Bun.sleep(20);
     assert.deepEqual(changed, ["sa"]);
     coord.dispose();
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
@@ -136,7 +136,7 @@ test("repeat events with an unchanged fingerprint do not reload", async () => {
   // Same fingerprint -> not a real change.
   w.emit("a.jsonl");
   w.emit("a.jsonl");
-  await new Promise((r) => setTimeout(r, 20));
+  await Bun.sleep(20);
   assert.deepEqual(changed, []);
   coord.dispose();
 });
@@ -156,7 +156,7 @@ test("events for an unrelated file are ignored", async () => {
   coord.register("sa", "/root/a.jsonl");
   stat.set("other.jsonl", { size: 999, mtimeMs: 999 });
   w.emit("other.jsonl");
-  await new Promise((r) => setTimeout(r, 20));
+  await Bun.sleep(20);
   assert.deepEqual(changed, []);
   coord.dispose();
 });
@@ -178,7 +178,7 @@ test("markLocalWrite suppresses the echo reload of our own write", async () => {
   stat.set("a.jsonl", { size: 30, mtimeMs: 300 });
   coord.markLocalWrite("sa");
   w.emit("a.jsonl");
-  await new Promise((r) => setTimeout(r, 20));
+  await Bun.sleep(20);
   assert.deepEqual(changed, [], "our own write must not echo back as a reload");
   coord.dispose();
 });
@@ -198,7 +198,7 @@ test("filename-less events re-check only registered sessions", async () => {
   coord.register("sa", "/root/a.jsonl");
   stat.set("a.jsonl", { size: 20, mtimeMs: 200 });
   w.emit(null); // platform without filename
-  await new Promise((r) => setTimeout(r, 20));
+  await Bun.sleep(20);
   assert.deepEqual(changed, ["sa"]);
   coord.dispose();
 });
@@ -219,7 +219,7 @@ test("unregister stops reloads and clears pending timers", async () => {
   stat.set("a.jsonl", { size: 20, mtimeMs: 200 });
   w.emit("a.jsonl"); // schedules a debounced reload
   coord.unregister("sa"); // ...which must be cancelled
-  await new Promise((r) => setTimeout(r, 40));
+  await Bun.sleep(40);
   assert.deepEqual(changed, []);
   coord.dispose();
 });

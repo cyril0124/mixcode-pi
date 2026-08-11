@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import * as fsPromises from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { test } from "node:test";
 import { Type } from "@earendil-works/pi-ai";
 import { SettingsManager, type ExtensionFactory } from "@earendil-works/pi-coding-agent";
@@ -20,10 +20,10 @@ function builtinNamedExtension(toolName: string): ExtensionFactory {
 }
 
 async function createRuntimeWithBuiltinNameExtension(toolName: string) {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-extension-tool-owner-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-extension-tool-owner-"));
   const runtime = new MixCodeRuntime({
     sessionsRoot: dir,
-    agentDir: join(dir, "agent"),
+    agentDir: path.join(dir, "agent"),
     settingsManager: SettingsManager.inMemory({ packages: [] }),
     extensionFactories: [builtinNamedExtension(toolName)],
   });
@@ -36,11 +36,11 @@ async function createRuntimeWithBuiltinNameExtension(toolName: string) {
 }
 
 async function createRuntimeWithLocalPiToolDisplay(toolName: string) {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-pi-tool-display-owner-"));
-  const extensionDir = join(dir, "pi-tool-display");
-  await mkdir(extensionDir, { recursive: true });
-  await writeFile(
-    join(extensionDir, "index.ts"),
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-pi-tool-display-owner-"));
+  const extensionDir = path.join(dir, "pi-tool-display");
+  await fsPromises.mkdir(extensionDir, { recursive: true });
+  await fsPromises.writeFile(
+    path.join(extensionDir, "index.ts"),
     `import { Type } from "@earendil-works/pi-ai";\n` +
       `export default function extension(pi) {\n` +
       `  pi.registerTool({\n` +
@@ -56,9 +56,9 @@ async function createRuntimeWithLocalPiToolDisplay(toolName: string) {
 
   const runtime = new MixCodeRuntime({
     sessionsRoot: dir,
-    agentDir: join(dir, "agent"),
+    agentDir: path.join(dir, "agent"),
     settingsManager: SettingsManager.inMemory({ packages: [] }),
-    additionalExtensionPaths: [join(extensionDir, "index.ts")],
+    additionalExtensionPaths: [path.join(extensionDir, "index.ts")],
   });
   const runtimeTab = await runtime.createTab(createTab(1, "s1", process.cwd()), {
     systemPrompt: "system",
@@ -69,11 +69,11 @@ async function createRuntimeWithLocalPiToolDisplay(toolName: string) {
 }
 
 async function createRuntimeWithDeferredBuiltinNameExtension(toolName: string) {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-deferred-builtin-extension-"));
-  const extensionDir = join(dir, "ordinary-extension");
-  await mkdir(extensionDir, { recursive: true });
-  await writeFile(
-    join(extensionDir, "index.ts"),
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-deferred-builtin-extension-"));
+  const extensionDir = path.join(dir, "ordinary-extension");
+  await fsPromises.mkdir(extensionDir, { recursive: true });
+  await fsPromises.writeFile(
+    path.join(extensionDir, "index.ts"),
     `import { Type } from "@earendil-works/pi-ai";\n` +
       `export default function extension(pi) {\n` +
       `  pi.on("session_start", () => {\n` +
@@ -91,9 +91,9 @@ async function createRuntimeWithDeferredBuiltinNameExtension(toolName: string) {
 
   const runtime = new MixCodeRuntime({
     sessionsRoot: dir,
-    agentDir: join(dir, "agent"),
+    agentDir: path.join(dir, "agent"),
     settingsManager: SettingsManager.inMemory({ packages: [] }),
-    additionalExtensionPaths: [join(extensionDir, "index.ts")],
+    additionalExtensionPaths: [path.join(extensionDir, "index.ts")],
   });
   const runtimeTab = await runtime.createTab(createTab(1, "s1", process.cwd()), {
     systemPrompt: "system",
@@ -104,11 +104,11 @@ async function createRuntimeWithDeferredBuiltinNameExtension(toolName: string) {
 }
 
 async function createRuntimeWithDeferredLocalPiToolDisplay() {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-pi-tool-display-deferred-owner-"));
-  const extensionDir = join(dir, "pi-tool-display");
-  await mkdir(extensionDir, { recursive: true });
-  await writeFile(
-    join(extensionDir, "index.ts"),
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-pi-tool-display-deferred-owner-"));
+  const extensionDir = path.join(dir, "pi-tool-display");
+  await fsPromises.mkdir(extensionDir, { recursive: true });
+  await fsPromises.writeFile(
+    path.join(extensionDir, "index.ts"),
     `import { Type } from "@earendil-works/pi-ai";\n` +
       `export default function extension(pi) {\n` +
       `  pi.registerTool({\n` +
@@ -133,9 +133,9 @@ async function createRuntimeWithDeferredLocalPiToolDisplay() {
 
   const runtime = new MixCodeRuntime({
     sessionsRoot: dir,
-    agentDir: join(dir, "agent"),
+    agentDir: path.join(dir, "agent"),
     settingsManager: SettingsManager.inMemory({ packages: [] }),
-    additionalExtensionPaths: [join(extensionDir, "index.ts")],
+    additionalExtensionPaths: [path.join(extensionDir, "index.ts")],
   });
   const runtimeTab = await runtime.createTab(createTab(1, "s1", process.cwd()), {
     systemPrompt: "system",
@@ -162,7 +162,7 @@ test("ordinary extensions own builtin tool names by default", async () => {
     );
     assert.match(runtimeTab.tab.startupSummary ?? "", /ls -> inline/);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
@@ -174,7 +174,7 @@ test("ordinary deferred extensions own builtin tool names", async () => {
     assert.equal(tool.sourceInfo?.source, "cli");
     assert.match(runtimeTab.tab.startupSummary ?? "", /bash -> cli/);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
@@ -197,7 +197,7 @@ test("pi-tool-display style wrappers own builtin tool names without user config"
     assert.match(runtimeTab.tab.startupSummary ?? "", /\[Tool Owners\]/);
     assert.match(runtimeTab.tab.startupSummary ?? "", /ls -> cli/);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
@@ -212,6 +212,6 @@ test("deferred pi-tool-display bash owners appear in startup summary", async () 
     assert.match(startup, /ls -> cli/);
     assert.match(startup, /bash -> cli/);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

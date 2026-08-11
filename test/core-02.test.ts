@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile, mkdir } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import * as fsPromises from "node:fs/promises";
+import * as path from "node:path";
+import * as os from "node:os";
 import { test } from "node:test";
 import {
   createInitialState,
@@ -17,7 +17,7 @@ import {
 } from "../src/index.js";
 
 test("model picker filters by query and refuses empty selection", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-picker-model-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-picker-model-"));
   try {
     const state = createInitialState(dir);
     const tab = createTab(1, "s1", dir);
@@ -43,15 +43,15 @@ test("model picker filters by query and refuses empty selection", async () => {
     assert.equal(acceptPickerSelection(modelPicker), undefined);
     assert.equal(completeWorkdirPickerSelection(modelPicker), false);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("workdir picker completes directories and keeps custom path input", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-picker-workdir-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-picker-workdir-"));
   try {
-    await mkdir(join(dir, "alpha"), { recursive: true });
-    await mkdir(join(dir, "beta"), { recursive: true });
+    await fsPromises.mkdir(path.join(dir, "alpha"), { recursive: true });
+    await fsPromises.mkdir(path.join(dir, "beta"), { recursive: true });
     const state = createInitialState(dir);
     const tab = createTab(1, "s1", dir);
     state.tabs.push(tab);
@@ -60,47 +60,47 @@ test("workdir picker completes directories and keeps custom path input", async (
     const workdirPicker = createPicker("workdir", state, tab);
     assert.equal(workdirPicker.query, "");
     assert.equal(workdirPicker.browsingDir, dir);
-    assert.ok(filteredPickerItems(workdirPicker).some((item) => item.id === join(dir, "alpha")));
+    assert.ok(filteredPickerItems(workdirPicker).some((item) => item.id === path.join(dir, "alpha")));
 
     updatePickerQuery(workdirPicker, "al");
-    assert.equal(filteredPickerItems(workdirPicker)[0]?.completeValue, join(dir, "alpha"));
+    assert.equal(filteredPickerItems(workdirPicker)[0]?.completeValue, path.join(dir, "alpha"));
     assert.equal(completeWorkdirPickerSelection(workdirPicker), true);
     assert.equal(workdirPicker.query, "");
-    assert.equal(workdirPicker.browsingDir, join(dir, "alpha"));
+    assert.equal(workdirPicker.browsingDir, path.join(dir, "alpha"));
 
     updatePickerQuery(workdirPicker, `${dir}/`);
     assert.ok(filteredPickerItems(workdirPicker).some((item) => item.id === dir));
-    updatePickerQuery(workdirPicker, `${join(dir, "missing")}/a`);
+    updatePickerQuery(workdirPicker, `${path.join(dir, "missing")}/a`);
     assert.equal(filteredPickerItems(workdirPicker)[0]?.description, "custom path");
-    assert.equal(filteredPickerItems(workdirPicker)[0]?.id, `${join(dir, "missing")}/a`);
+    assert.equal(filteredPickerItems(workdirPicker)[0]?.id, `${path.join(dir, "missing")}/a`);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("skill scanning finds flat and nested skills with parsed descriptions", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-attachments-"));
-  const home = join(dir, "home");
-  const workdir = join(dir, "repo");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-attachments-"));
+  const home = path.join(dir, "home");
+  const workdir = path.join(dir, "repo");
   try {
-    await mkdir(join(workdir, ".agents", "skills", "review"), { recursive: true });
-    await mkdir(join(workdir, ".agents", "skills", "not-a-skill", "SKILL.md"), { recursive: true });
-    await mkdir(join(home, ".agents", "skills", "nested-ns", "audit"), { recursive: true });
-    await writeFile(
-      join(workdir, ".agents", "skills", "review", "SKILL.md"),
+    await fsPromises.mkdir(path.join(workdir, ".agents", "skills", "review"), { recursive: true });
+    await fsPromises.mkdir(path.join(workdir, ".agents", "skills", "not-a-skill", "SKILL.md"), { recursive: true });
+    await fsPromises.mkdir(path.join(home, ".agents", "skills", "nested-ns", "audit"), { recursive: true });
+    await fsPromises.writeFile(
+      path.join(workdir, ".agents", "skills", "review", "SKILL.md"),
       "---\ndescription: Review code\n---\n\nBody",
       "utf8",
     );
-    await writeFile(
-      join(home, ".agents", "skills", "nested-ns", "audit", "SKILL.md"),
+    await fsPromises.writeFile(
+      path.join(home, ".agents", "skills", "nested-ns", "audit", "SKILL.md"),
       "---\ndescription: |\n  Check details across files.\n  Report concise findings.\n---\n\n# Audit\n",
       "utf8",
     );
     assert.deepEqual(
       (await scanSkillEntries(workdir, home)).map((skill) => skill.path),
       [
-        join(home, ".agents", "skills", "nested-ns", "audit", "SKILL.md"),
-        join(workdir, ".agents", "skills", "review", "SKILL.md"),
+        path.join(home, ".agents", "skills", "nested-ns", "audit", "SKILL.md"),
+        path.join(workdir, ".agents", "skills", "review", "SKILL.md"),
       ],
     );
     assert.deepEqual(
@@ -112,23 +112,23 @@ test("skill scanning finds flat and nested skills with parsed descriptions", asy
       resolveSkillDirs(workdir, workdir).length,
     );
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("scanSkillEntries uses first-wins for same-name skills across directories", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-skill-priority-"));
-  const home = join(dir, "home");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-skill-priority-"));
+  const home = path.join(dir, "home");
   try {
-    await mkdir(join(dir, ".agents", "skills", "demo"), { recursive: true });
-    await writeFile(
-      join(dir, ".agents", "skills", "demo", "SKILL.md"),
+    await fsPromises.mkdir(path.join(dir, ".agents", "skills", "demo"), { recursive: true });
+    await fsPromises.writeFile(
+      path.join(dir, ".agents", "skills", "demo", "SKILL.md"),
       "---\ndescription: Demo skill from project\n---\n\nBody",
       "utf8",
     );
-    await mkdir(join(home, ".agents", "skills", "demo"), { recursive: true });
-    await writeFile(
-      join(home, ".agents", "skills", "demo", "SKILL.md"),
+    await fsPromises.mkdir(path.join(home, ".agents", "skills", "demo"), { recursive: true });
+    await fsPromises.writeFile(
+      path.join(home, ".agents", "skills", "demo", "SKILL.md"),
       "---\ndescription: Demo skill from home\n---\n\nBody",
       "utf8",
     );
@@ -136,6 +136,6 @@ test("scanSkillEntries uses first-wins for same-name skills across directories",
     assert.equal(entries.length, 1);
     assert.equal(entries[0]?.description, "Demo skill from project");
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

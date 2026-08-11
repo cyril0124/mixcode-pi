@@ -103,7 +103,7 @@ export interface SettingsPanelState {
   piSettingsFile: string;
   /** Bound at open time so key handlers can write Pi settings. */
   settingsManager?: SettingsManager;
-  setHideThinkingBlock?: (hide: boolean) => void;
+  setHideThinkingBlock?: (hide: boolean) => Promise<void>;
 }
 
 export interface CommandPaletteState {

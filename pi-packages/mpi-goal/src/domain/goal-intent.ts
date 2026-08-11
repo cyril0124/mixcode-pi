@@ -17,7 +17,6 @@ export type ActionSpecResult = { ok: true; actions: PostCompletionActionSpec[] }
 export type ParsedDirectiveResult = { objective: string; action?: PostCompletionActionSpec };
 
 export type PostCompletionActionInput = {
-	postCompletionContext?: "none" | ContextResetMode;
 	postCompletionActions?: PostCompletionActionSpec[];
 };
 
@@ -34,12 +33,7 @@ export function parseTrailingPostCompletionDirective(input: string): ParsedDirec
 }
 
 export function normalizePostCompletionActionSpecs(input: PostCompletionActionInput): ActionSpecResult {
-	const context = input.postCompletionContext;
-	if (context === "none" && input.postCompletionActions && input.postCompletionActions.length > 0) {
-		return { ok: false, error: "post_completion_context none conflicts with post_completion_actions." };
-	}
-	const fromContext: PostCompletionActionSpec[] = context && context !== "none" ? [{ type: "context.reset", mode: context }] : [];
-	return mergePostCompletionActionSpecs(fromContext, input.postCompletionActions ?? []);
+	return mergePostCompletionActionSpecs([], input.postCompletionActions ?? []);
 }
 
 export function mergePostCompletionActionSpecs(left: PostCompletionActionSpec[], right: PostCompletionActionSpec[]): ActionSpecResult {
@@ -72,7 +66,6 @@ export function buildTemplateGoalIntent(input: TemplateGoalIntentInput): GoalInt
 }
 
 function normalizeIntentActions(parsedAction: PostCompletionActionSpec | undefined, input: PostCompletionActionInput): ActionSpecResult {
-	if (parsedAction && input.postCompletionContext === "none") return { ok: false, error: "post_completion_context none conflicts with trailing post-completion context directive." };
 	const explicit = normalizePostCompletionActionSpecs(input);
 	if (!explicit.ok) return explicit;
 	return mergePostCompletionActionSpecs(parsedAction ? [parsedAction] : [], explicit.actions);

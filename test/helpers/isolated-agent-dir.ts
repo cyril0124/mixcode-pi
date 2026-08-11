@@ -1,6 +1,6 @@
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 import { after } from "node:test";
 
 // Isolate the Pi agent directory for tests that construct a MixCodeRuntime
@@ -23,13 +23,15 @@ const ENV_AGENT_DIRS = ["PI_CODING_AGENT_DIR", "MIXCODE_CODING_AGENT_DIR"] as co
 // and making PI_CODING_AGENT_DIR isolation ineffective.
 delete process.env.PI_PACKAGE_DIR;
 
-const isolatedAgentDir = mkdtempSync(join(tmpdir(), "mixcode-test-agent-"));
+const isolatedAgentDir = fs.mkdtempSync(path.join(os.tmpdir(), "mixcode-test-agent-"));
 for (const key of ENV_AGENT_DIRS) {
   process.env[key] = isolatedAgentDir;
 }
+// Unit tests must not depend on provider catalog network availability.
+process.env.PI_OFFLINE = "1";
 
 export { isolatedAgentDir };
 
 after(() => {
-  rmSync(isolatedAgentDir, { recursive: true, force: true });
+  fs.rmSync(isolatedAgentDir, { recursive: true, force: true });
 });

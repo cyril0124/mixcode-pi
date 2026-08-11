@@ -1,18 +1,18 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import * as fsPromises from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { test } from "node:test";
 import { materializeBinaryRuntimeAssets } from "../src/cli/binary-assets.js";
 import { ensurePackageExtensions } from "../src/core/ensure-package-extensions.js";
 
 test("binary runtime assets are written for both upstream Bun and dist layouts", async () => {
-  const runtimeDir = await mkdtemp(join(tmpdir(), "mixcode-binary-assets-"));
+  const runtimeDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-binary-assets-"));
   try {
-    const sourceAsset = join(runtimeDir, "clankolas.png.source");
-    const photonWasm = join(runtimeDir, "photon_rs_bg.wasm.source");
-    await writeFile(sourceAsset, "image-bytes", "utf8");
-    await writeFile(photonWasm, "wasm-bytes", "utf8");
+    const sourceAsset = path.join(runtimeDir, "clankolas.png.source");
+    const photonWasm = path.join(runtimeDir, "photon_rs_bg.wasm.source");
+    await fsPromises.writeFile(sourceAsset, "image-bytes", "utf8");
+    await fsPromises.writeFile(photonWasm, "wasm-bytes", "utf8");
 
     await materializeBinaryRuntimeAssets(runtimeDir, {
       darkTheme: { name: "dark" },
@@ -37,7 +37,7 @@ test("binary runtime assets are written for both upstream Bun and dist layouts",
       },
     });
 
-    const packageJson = JSON.parse(await readFile(join(runtimeDir, "package.json"), "utf8"));
+    const packageJson = JSON.parse(await fsPromises.readFile(path.join(runtimeDir, "package.json"), "utf8"));
     assert.equal(packageJson.name, "mixcode-pi");
     assert.equal(packageJson.version, "1.2.3");
     assert.equal(packageJson.piConfig.preserved, true);
@@ -47,51 +47,51 @@ test("binary runtime assets are written for both upstream Bun and dist layouts",
     assert.equal(packageJson.piConfig.configDir, ".pi");
 
     for (const themeDir of [
-      join(runtimeDir, "theme"),
-      join(runtimeDir, "dist", "modes", "interactive", "theme"),
+      path.join(runtimeDir, "theme"),
+      path.join(runtimeDir, "dist", "modes", "interactive", "theme"),
     ]) {
-      assert.equal(await readFile(join(themeDir, "dark.json"), "utf8"), JSON.stringify({ name: "dark" }));
-      assert.equal(await readFile(join(themeDir, "light.json"), "utf8"), JSON.stringify({ name: "light" }));
+      assert.equal(await fsPromises.readFile(path.join(themeDir, "dark.json"), "utf8"), JSON.stringify({ name: "dark" }));
+      assert.equal(await fsPromises.readFile(path.join(themeDir, "light.json"), "utf8"), JSON.stringify({ name: "light" }));
     }
 
     for (const exportHtmlDir of [
-      join(runtimeDir, "export-html"),
-      join(runtimeDir, "dist", "core", "export-html"),
+      path.join(runtimeDir, "export-html"),
+      path.join(runtimeDir, "dist", "core", "export-html"),
     ]) {
-      assert.equal(await readFile(join(exportHtmlDir, "template.css"), "utf8"), "css");
-      assert.equal(await readFile(join(exportHtmlDir, "template.html"), "utf8"), "html");
-      assert.equal(await readFile(join(exportHtmlDir, "template.js"), "utf8"), "js");
-      assert.equal(await readFile(join(exportHtmlDir, "vendor", "marked.min.js"), "utf8"), "marked");
+      assert.equal(await fsPromises.readFile(path.join(exportHtmlDir, "template.css"), "utf8"), "css");
+      assert.equal(await fsPromises.readFile(path.join(exportHtmlDir, "template.html"), "utf8"), "html");
+      assert.equal(await fsPromises.readFile(path.join(exportHtmlDir, "template.js"), "utf8"), "js");
+      assert.equal(await fsPromises.readFile(path.join(exportHtmlDir, "vendor", "marked.min.js"), "utf8"), "marked");
       assert.equal(
-        await readFile(join(exportHtmlDir, "vendor", "highlight.min.js"), "utf8"),
+        await fsPromises.readFile(path.join(exportHtmlDir, "vendor", "highlight.min.js"), "utf8"),
         "highlight",
       );
     }
 
     for (const assetsDir of [
-      join(runtimeDir, "assets"),
-      join(runtimeDir, "dist", "modes", "interactive", "assets"),
+      path.join(runtimeDir, "assets"),
+      path.join(runtimeDir, "dist", "modes", "interactive", "assets"),
     ]) {
-      assert.equal((await stat(assetsDir)).isDirectory(), true);
-      assert.equal(await readFile(join(assetsDir, "clankolas.png"), "utf8"), "image-bytes");
+      assert.equal((await fsPromises.stat(assetsDir)).isDirectory(), true);
+      assert.equal(await fsPromises.readFile(path.join(assetsDir, "clankolas.png"), "utf8"), "image-bytes");
     }
 
-    assert.equal(await readFile(join(runtimeDir, "photon_rs_bg.wasm"), "utf8"), "wasm-bytes");
+    assert.equal(await fsPromises.readFile(path.join(runtimeDir, "photon_rs_bg.wasm"), "utf8"), "wasm-bytes");
 
     // Built-in packages: nested-path files (e.g. "state/store.ts") must land in
     // their subdirectory, not flattened.
-    const pkgDir = join(runtimeDir, "packages", "mpi-example");
-    assert.equal(await readFile(join(pkgDir, "index.ts"), "utf8"), "export default () => {};");
-    assert.equal(await readFile(join(pkgDir, "state", "store.ts"), "utf8"), "export const x = 1;");
+    const pkgDir = path.join(runtimeDir, "packages", "mpi-example");
+    assert.equal(await fsPromises.readFile(path.join(pkgDir, "index.ts"), "utf8"), "export default () => {};");
+    assert.equal(await fsPromises.readFile(path.join(pkgDir, "state", "store.ts"), "utf8"), "export const x = 1;");
   } finally {
-    await rm(runtimeDir, { recursive: true, force: true });
+    await fsPromises.rm(runtimeDir, { recursive: true, force: true });
   }
 });
 
 test("binary runtime built-in packages are installed as Pi extensions", async () => {
   const oldHome = process.env.HOME;
-  const homeDir = await mkdtemp(join(tmpdir(), "mixcode-binary-home-"));
-  const runtimeDir = await mkdtemp(join(tmpdir(), "mixcode-binary-assets-"));
+  const homeDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-binary-home-"));
+  const runtimeDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-binary-assets-"));
   try {
     process.env.HOME = homeDir;
     await materializeBinaryRuntimeAssets(runtimeDir, {
@@ -119,22 +119,22 @@ test("binary runtime built-in packages are installed as Pi extensions", async ()
     ensurePackageExtensions(runtimeDir, { copy: true });
 
     assert.equal(
-      await readFile(join(homeDir, ".pi", "agent", "extensions", "probe-extension", "index.ts"), "utf8"),
+      await fsPromises.readFile(path.join(homeDir, ".pi", "agent", "extensions", "probe-extension", "index.ts"), "utf8"),
       "export default () => {};",
     );
   } finally {
     if (oldHome === undefined) delete process.env.HOME;
     else process.env.HOME = oldHome;
-    await rm(runtimeDir, { recursive: true, force: true });
-    await rm(homeDir, { recursive: true, force: true });
+    await fsPromises.rm(runtimeDir, { recursive: true, force: true });
+    await fsPromises.rm(homeDir, { recursive: true, force: true });
   }
 });
 
 test("ensurePackageExtensions installs under the given agentDir, not global home", async () => {
   const oldHome = process.env.HOME;
-  const homeDir = await mkdtemp(join(tmpdir(), "mixcode-agentdir-home-"));
-  const agentDir = await mkdtemp(join(tmpdir(), "mixcode-agentdir-"));
-  const runtimeDir = await mkdtemp(join(tmpdir(), "mixcode-agentdir-runtime-"));
+  const homeDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-agentdir-home-"));
+  const agentDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-agentdir-"));
+  const runtimeDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-agentdir-runtime-"));
   try {
     // Point HOME at an empty dir so a leak into the default root would be visible.
     process.env.HOME = homeDir;
@@ -164,20 +164,20 @@ test("ensurePackageExtensions installs under the given agentDir, not global home
 
     // Installed under the effective agentDir/extensions ...
     assert.equal(
-      await readFile(join(agentDir, "extensions", "probe-extension", "index.ts"), "utf8"),
+      await fsPromises.readFile(path.join(agentDir, "extensions", "probe-extension", "index.ts"), "utf8"),
       "export default () => {};",
     );
-    assert.deepEqual(installedExtensionPaths, [join(agentDir, "extensions", "probe-extension")]);
+    assert.deepEqual(installedExtensionPaths, [path.join(agentDir, "extensions", "probe-extension")]);
     // ... and NOT under the default global home root.
     await assert.rejects(
-      stat(join(homeDir, ".pi", "agent", "extensions", "probe-extension")),
+      fsPromises.stat(path.join(homeDir, ".pi", "agent", "extensions", "probe-extension")),
       /ENOENT/,
     );
   } finally {
     if (oldHome === undefined) delete process.env.HOME;
     else process.env.HOME = oldHome;
-    await rm(runtimeDir, { recursive: true, force: true });
-    await rm(homeDir, { recursive: true, force: true });
-    await rm(agentDir, { recursive: true, force: true });
+    await fsPromises.rm(runtimeDir, { recursive: true, force: true });
+    await fsPromises.rm(homeDir, { recursive: true, force: true });
+    await fsPromises.rm(agentDir, { recursive: true, force: true });
   }
 });

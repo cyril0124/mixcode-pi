@@ -15,7 +15,6 @@ export type QueuedGoal = {
 	templateFlags?: Record<string, string>;
 	templateArgs?: string;
 	postCompletionActions?: PostCompletionActionSpec[];
-	postCompletionContext?: "none" | "clear" | "summarize";
 	createdAt: number;
 };
 
@@ -99,7 +98,7 @@ export function cloneQueuedGoal(goal: QueuedGoal): QueuedGoal {
 	};
 }
 
-export function enqueueGoal(objective: string, source: "command" | "tool", opts?: { tokenBudget?: number; timeBudgetSeconds?: number; minTokensBeforeWrapUp?: number; minTimeSecondsBeforeWrapUp?: number; template?: string; templateFlags?: Record<string, string>; templateArgs?: string; postCompletionActions?: PostCompletionActionSpec[]; postCompletionContext?: "none" | "clear" | "summarize" }): QueuedGoal {
+export function enqueueGoal(objective: string, source: "command" | "tool", opts?: { tokenBudget?: number; timeBudgetSeconds?: number; minTokensBeforeWrapUp?: number; minTimeSecondsBeforeWrapUp?: number; template?: string; templateFlags?: Record<string, string>; templateArgs?: string; postCompletionActions?: PostCompletionActionSpec[] }): QueuedGoal {
 	const goal: QueuedGoal = {
 		queueId: generateQueueId(),
 		objective,
@@ -112,7 +111,6 @@ export function enqueueGoal(objective: string, source: "command" | "tool", opts?
 		templateFlags: opts?.templateFlags,
 		templateArgs: opts?.templateArgs,
 		postCompletionActions: opts?.postCompletionActions,
-		postCompletionContext: opts?.postCompletionContext,
 		createdAt: Date.now(),
 	};
 	getQueueRuntime().queue.push(goal);
@@ -287,7 +285,6 @@ function toQueuedGoal(value: unknown): QueuedGoal | null {
 		templateFlags: templateFlags.value,
 		templateArgs: templateArgs.value,
 		postCompletionActions: postCompletion.actions,
-		postCompletionContext: postCompletion.context,
 		createdAt,
 	};
 }
@@ -315,21 +312,13 @@ function parseOptionalStringField(value: unknown): ParsedOptionalField<string> {
 	return { ok: true, value };
 }
 
-function parseQueuedPostCompletion(raw: Record<string, unknown>): { ok: true; context: "none" | "clear" | "summarize" | undefined; actions: PostCompletionActionSpec[] | undefined } | { ok: false } {
-	const context = parseOptionalContextField(raw.postCompletionContext);
-	if (!context.ok) return { ok: false };
-	const actions = parseOptionalActionSpecs(raw.postCompletionActions, context.value);
-	return actions.ok ? { ok: true, context: context.value, actions: actions.value } : { ok: false };
+function parseQueuedPostCompletion(raw: Record<string, unknown>): { ok: true; actions: PostCompletionActionSpec[] | undefined } | { ok: false } {
+	const actions = parseOptionalActionSpecs(raw.postCompletionActions);
+	return actions.ok ? { ok: true, actions: actions.value } : { ok: false };
 }
 
-function parseOptionalContextField(value: unknown): ParsedOptionalField<"none" | "clear" | "summarize"> {
+function parseOptionalActionSpecs(value: unknown): ParsedOptionalField<PostCompletionActionSpec[]> {
 	if (value === undefined) return { ok: true, value: undefined };
-	if (value === "none" || value === "clear" || value === "summarize") return { ok: true, value };
-	return { ok: false };
-}
-
-function parseOptionalActionSpecs(value: unknown, legacyContext: "none" | "clear" | "summarize" | undefined): ParsedOptionalField<PostCompletionActionSpec[]> {
-	if (value === undefined) return { ok: true, value: legacyContext && legacyContext !== "none" ? [{ type: "context.reset", mode: legacyContext }] : undefined };
 	if (!Array.isArray(value)) return { ok: false };
 	const actions: PostCompletionActionSpec[] = [];
 	for (const item of value) {

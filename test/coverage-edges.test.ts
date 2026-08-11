@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import * as fsPromises from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { test } from "node:test";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
@@ -322,53 +322,12 @@ test("live autocomplete proxy keeps per-active-tab extension wrappers after rebi
 });
 
 
-test("runtime all-session listing includes sessions whose cwd is not filesystem root", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-list-all-sessions-"));
-  try {
-    const rootStateDir = join(dir, "state");
-    const currentSessionsRoot = join(rootStateDir, "workdirs", "current", "sessions");
-    const otherSessionsRoot = join(rootStateDir, "workdirs", "other", "sessions");
-    await mkdir(currentSessionsRoot, { recursive: true });
-    await mkdir(otherSessionsRoot, { recursive: true });
-
-    const current = SessionManager.create("/repo-current", currentSessionsRoot);
-    current.newSession({ id: "current-session" });
-    current.appendMessage({ role: "user", content: "current cwd session", timestamp: 1 });
-    current.appendMessage({
-      role: "assistant",
-      content: [{ type: "text", text: "current response" }],
-      provider: "faux",
-      model: "faux-1",
-      timestamp: 2,
-    });
-
-    const other = SessionManager.create("/repo-other", otherSessionsRoot);
-    other.newSession({ id: "other-session" });
-    other.appendMessage({ role: "user", content: "other cwd session", timestamp: 3 });
-    other.appendMessage({
-      role: "assistant",
-      content: [{ type: "text", text: "other response" }],
-      provider: "faux",
-      model: "faux-1",
-      timestamp: 4,
-    });
-
-    const sessions = await listAllSessionsGlobal(currentSessionsRoot, rootStateDir);
-    assert.deepEqual(
-      sessions.map((session) => session.id).sort(),
-      ["current-session", "other-session"],
-    );
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-});
-
 test("runtime session reopens non-persisted sessions in a new cwd", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-reopen-session-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-reopen-session-"));
   try {
-    const oldDir = join(dir, "old");
-    const newDir = join(dir, "new");
-    const sessionsRoot = join(dir, "sessions");
+    const oldDir = path.join(dir, "old");
+    const newDir = path.join(dir, "new");
+    const sessionsRoot = path.join(dir, "sessions");
     const source = SessionManager.inMemory(oldDir);
     source.newSession({ id: "s1" });
     source.appendMessage({ role: "user", content: "hello", timestamp: Date.now() });
@@ -380,7 +339,7 @@ test("runtime session reopens non-persisted sessions in a new cwd", async () => 
     assert.ok(reopened.getSessionFile());
     assert.equal(reopened.getBranch()[0]?.type, "message");
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 

@@ -1,8 +1,8 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import * as fsPromises from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { test } from "node:test";
 import {
   Type,
@@ -114,7 +114,7 @@ function lastRuntimeUserText(context: Context): string {
 }
 
 test("SDK post-run compaction preserves the original working timer", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-compact-working-timer-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-compact-working-timer-"));
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir });
     const tab = createTab(1, "s1", process.cwd());
@@ -138,12 +138,12 @@ test("SDK post-run compaction preserves the original working timer", async () =>
     assert.equal(tab.workingStartedAt, startedAt);
     assert.equal(tab.lastWorkedDurationSeconds, undefined);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("pre-prompt auto-compaction starts a fresh working timer", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-compact-pre-prompt-timer-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-compact-pre-prompt-timer-"));
   try {
     let releaseCompact!: () => void;
     const releaseCompactPromise = new Promise<void>((resolve) => {
@@ -220,12 +220,12 @@ test("pre-prompt auto-compaction starts a fresh working timer", async () => {
       await secondPrompt;
     }
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime rejects a second manual compaction while one is running", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-compact-concurrent-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-compact-concurrent-"));
   try {
     let releaseCompact!: () => void;
     const releaseCompactPromise = new Promise<void>((resolve) => {
@@ -282,12 +282,12 @@ test("runtime rejects a second manual compaction while one is running", async ()
     assert.match(secondResult, /Cannot compact while compaction is running/);
     assert.equal(runtimeTab.session.getBranch().filter((entry) => entry.type === "compaction").length, 1);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime rejects manual compaction while the agent is streaming", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-compact-streaming-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-compact-streaming-"));
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir });
     const runtimeTab = await runtime.createTab(createTab(1, "s1", process.cwd()), {
@@ -308,14 +308,14 @@ test("runtime rejects manual compaction while the agent is streaming", async () 
       mutableSession._isAgentRunActive = false;
     }
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("core does not terminate a tool loop for mid-turn compaction pressure", async () => {
   // Core must not afterToolCall-terminate and private-continue when usage exceeds
   // the compaction threshold; only Pi-native turn-boundary/overflow paths compact.
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-compact-no-mid-turn-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-compact-no-mid-turn-"));
   try {
     const seenContexts: Context[] = [];
     let toolCallTriggered = false;
@@ -405,6 +405,6 @@ test("core does not terminate a tool loop for mid-turn compaction pressure", asy
     );
     assert.equal(tab.status, "idle");
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

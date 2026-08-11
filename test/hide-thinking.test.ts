@@ -62,6 +62,27 @@ test("/hide-thinking from Home pushes toast on the selected agent", async () => 
   assert.match(state.tabs[0]?.toast?.message ?? "", /Thinking blocks: hidden/i);
 });
 
+test("/hide-thinking keeps state unchanged when persistence fails", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"));
+  state.activeTabId = "s1";
+  const messages: string[] = [];
+  const runtime = {
+    appendSystemMessage: (_sessionId: string, message: string) => messages.push(message),
+    getTab: () => undefined,
+    setHideThinkingBlock: () => {
+      throw new Error("settings disk is read-only");
+    },
+  } as unknown as MixCodeRuntime;
+  const tui = { requestRender: () => undefined } as unknown as OverlayTui;
+
+  await handleSubmittedInput(state, runtime, "/hide-thinking", tui);
+
+  assert.equal(state.hideThinkingBlock ?? false, false);
+  assert.equal(state.tabs[0]?.toast, undefined);
+  assert.deepEqual(messages, ["Hide thinking failed: settings disk is read-only"]);
+});
+
 test("renderAgentSurface hides thinking content behind a placeholder", () => {
   const chat = [
     { role: "thinking", text: "secret reasoning trace" },

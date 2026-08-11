@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 import { test } from "node:test";
 import { buildSessionDiff, parseHunks, parseUnifiedPatch, reversePatch } from "./session-diff.js";
 
@@ -68,10 +68,10 @@ test("parseUnifiedPatch preserves no-newline markers on both sides", () => {
 });
 
 test("buildSessionDiff uses baseline write content when turn starts with overwrite write", () => {
-  const cwd = mkdtempSync(join(tmpdir(), "mpi-diff-baseline-"));
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "mpi-diff-baseline-"));
   try {
     // Disk already has the post-turn content (write already applied).
-    writeFileSync(join(cwd, "sample.lua"), "new without info\n");
+    fs.writeFileSync(path.join(cwd, "sample.lua"), "new without info\n");
     const baseline = [
       {
         type: "message",
@@ -118,15 +118,15 @@ test("buildSessionDiff uses baseline write content when turn starts with overwri
       [{ kind: "replace", oldText: "old with source_info", newText: "new without info" }],
     );
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    fs.rmSync(cwd, { recursive: true, force: true });
   }
 });
 
 test("buildSessionDiff generates a modified-file model without executables on PATH", () => {
-  const cwd = mkdtempSync(join(tmpdir(), "mpi-diff-v2-"));
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "mpi-diff-v2-"));
   const previousPath = process.env.PATH;
   try {
-    writeFileSync(join(cwd, "sample.ts"), "one\nnew\nthree\n");
+    fs.writeFileSync(path.join(cwd, "sample.ts"), "one\nnew\nthree\n");
     const patch = [
       "--- sample.ts",
       "+++ sample.ts",
@@ -191,6 +191,6 @@ test("buildSessionDiff generates a modified-file model without executables on PA
   } finally {
     if (previousPath === undefined) delete process.env.PATH;
     else process.env.PATH = previousPath;
-    rmSync(cwd, { recursive: true, force: true });
+    fs.rmSync(cwd, { recursive: true, force: true });
   }
 });

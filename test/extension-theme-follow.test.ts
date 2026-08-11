@@ -1,8 +1,8 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import * as fsPromises from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { test } from "node:test";
 import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import { MixCodeRuntime, createTab } from "../src/index.js";
@@ -16,7 +16,7 @@ function stripAnsi(text: string): string {
 }
 
 test("extension footer rebuilds with current theme after noteActiveExtensionThemeId", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-ext-theme-follow-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-ext-theme-follow-"));
   let factoryBuilds = 0;
 
   const extension: ExtensionFactory = (pi) => {
@@ -62,12 +62,12 @@ test("extension footer rebuilds with current theme after noteActiveExtensionThem
     // Tokyo-night extension theme uses a distinct Theme.name when mapped.
     // At minimum rebuild proves we no longer freeze the first factory theme forever.
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("message renderer receives updated theme after noteActiveExtensionThemeId", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-ext-theme-msg-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-ext-theme-msg-"));
   const names: string[] = [];
 
   const extension: ExtensionFactory = (pi) => {
@@ -107,6 +107,6 @@ test("message renderer receives updated theme after noteActiveExtensionThemeId",
 
     assert.notEqual(afterDark, afterTokyo, "renderer theme should follow active extension theme id");
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

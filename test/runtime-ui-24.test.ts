@@ -1,8 +1,8 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import * as fsPromises from "node:fs/promises";
+import * as path from "node:path";
+import * as os from "node:os";
 import { test } from "node:test";
 import {
   Type,
@@ -200,7 +200,7 @@ function lastRuntimeUserText(context: Context): string {
 async function waitForRuntime(predicate: () => boolean, attempts = 25): Promise<void> {
   for (let i = 0; i < attempts; i += 1) {
     if (predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await Bun.sleep(10);
   }
   assert.equal(predicate(), true);
 }
@@ -247,7 +247,7 @@ function escapeRegExp(text: string): string {
 }
 
 test("runtime drains queued prompts automatically after agent_end reaches idle", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-queue-auto-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-queue-auto-"));
   try {
     const streamTexts: string[] = [];
     const streamUserTextSnapshots: string[][] = [];
@@ -310,12 +310,12 @@ test("runtime drains queued prompts automatically after agent_end reaches idle",
       ),
     );
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime leaves restored pending messages queued when no runtime prompt was queued", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-queue-restored-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-queue-restored-"));
   try {
     const streamTexts: string[] = [];
     const runtime = new MixCodeRuntime({
@@ -346,12 +346,12 @@ test("runtime leaves restored pending messages queued when no runtime prompt was
     assert.deepEqual(tab.pendingMessages, ["restored pending"]);
     assert.deepEqual(streamTexts, ["first"]);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime compacts without custom instructions", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-compact-default-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-compact-default-"));
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir });
     const runtimeTab = await runtime.createTab(createTab(1, "s1", process.cwd()), {
@@ -375,12 +375,12 @@ test("runtime compacts without custom instructions", async () => {
     assert.doesNotMatch(summary, /Custom compaction instruction/);
     assert.ok(runtimeTab.chat.some((line) => line.compactionSummary === true));
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime shows working state while compaction runs", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-compact-working-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-compact-working-"));
   try {
     let releaseCompact!: () => void;
     const releaseCompactPromise = new Promise<void>((resolve) => {
@@ -437,7 +437,7 @@ test("runtime shows working state while compaction runs", async () => {
     assert.equal(tab.workingStartedAt, undefined);
     assert.equal(typeof tab.lastWorkedDurationSeconds, "number");
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
@@ -506,7 +506,7 @@ test("faux stream emits assistant text without external provider", async () => {
 
 
 test("core leaves long tool turns to Pi / packages (no mid-turn private continue)", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-no-mid-turn-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-no-mid-turn-"));
   try {
     let postToolAssistantCalls = 0;
     let toolCallTriggered = false;
@@ -584,12 +584,12 @@ test("core leaves long tool turns to Pi / packages (no mid-turn private continue
     assert.equal(runtimeTab.chat.some((line) => /Compaction failed/i.test(line.text)), false);
     assert.equal(tab.status, "idle");
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime keeps restored pending messages when they are not runtime-queued", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-pending-not-flushed-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-pending-not-flushed-"));
   try {
     const seenContexts: Context[] = [];
     const runtime = new MixCodeRuntime({
@@ -633,12 +633,12 @@ test("runtime keeps restored pending messages when they are not runtime-queued",
       false,
     );
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime rejects prompt while compaction is running", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-compact-prompt-guard-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-compact-prompt-guard-"));
   try {
     let releaseCompact!: () => void;
     const releaseCompactPromise = new Promise<void>((resolve) => {
@@ -681,12 +681,12 @@ test("runtime rejects prompt while compaction is running", async () => {
     releaseCompact();
     await compactPromise;
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime abortTab aborts compaction and leaves status idle", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-compact-abort-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-compact-abort-"));
   try {
     let releaseCompact!: () => void;
     const releaseCompactPromise = new Promise<void>((resolve) => {
@@ -737,6 +737,6 @@ test("runtime abortTab aborts compaction and leaves status idle", async () => {
     const chatTexts = runtime.getTab("s1")!.chat.map((l) => l.text);
     assert.ok(chatTexts.some((t) => /[Cc]ancell?ed/.test(t)));
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import * as assert from "node:assert/strict";
+import { afterEach, describe, test } from "node:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -56,38 +57,38 @@ const withVision: ModelLike = { id: "claude-sonnet", provider: "anthropic", inpu
 
 describe("isPathRef / expandEnvPath", () => {
   test("classifies path vs name", () => {
-    expect(isPathRef("vision-helper")).toBe(false);
-    expect(isPathRef("/abs/ext")).toBe(true);
-    expect(isPathRef("~/exts/x")).toBe(true);
-    expect(isPathRef("$HOME/exts/x")).toBe(true);
-    expect(isPathRef("$" + "{HOME}/exts/x")).toBe(true);
-    expect(isPathRef("./relative")).toBe(false);
+    assert.equal(isPathRef("vision-helper"), false);
+    assert.equal(isPathRef("/abs/ext"), true);
+    assert.equal(isPathRef("~/exts/x"), true);
+    assert.equal(isPathRef("$HOME/exts/x"), true);
+    assert.equal(isPathRef("$" + "{HOME}/exts/x"), true);
+    assert.equal(isPathRef("./relative"), false);
   });
 
   test("expands HOME and rejects unknown env / relative", () => {
     const home = expandEnvPath("$HOME/foo");
-    expect(home.ok).toBe(true);
-    if (home.ok) expect(home.path).toBe(path.join(os.homedir(), "foo"));
+    assert.equal(home.ok, true);
+    if (home.ok) assert.equal(home.path, path.join(os.homedir(), "foo"));
 
     const missing = expandEnvPath("$MPI_MODEL_EXTENSIONS_NO_SUCH_VAR/x");
-    expect(missing.ok).toBe(false);
+    assert.equal(missing.ok, false);
 
-    expect(expandEnvPath("relative/path").ok).toBe(false);
+    assert.equal(expandEnvPath("relative/path").ok, false);
   });
 });
 
 describe("matchGlob / ruleMatches", () => {
   test("model glob", () => {
-    expect(matchGlob("deepseek/*", "deepseek/deepseek-v4-flash")).toBe(true);
-    expect(matchGlob("deepseek/*", "anthropic/claude")).toBe(false);
-    expect(matchGlob("*", "a/b")).toBe(true);
+    assert.equal(matchGlob("deepseek/*", "deepseek/deepseek-v4-flash"), true);
+    assert.equal(matchGlob("deepseek/*", "anthropic/claude"), false);
+    assert.equal(matchGlob("*", "a/b"), true);
   });
 
   test("missingInput / hasInput", () => {
-    expect(ruleMatches({ missingInput: ["image"] }, noVision)).toBe(true);
-    expect(ruleMatches({ missingInput: ["image"] }, withVision)).toBe(false);
-    expect(ruleMatches({ hasInput: ["image"] }, withVision)).toBe(true);
-    expect(ruleMatches({ hasInput: ["image"] }, noVision)).toBe(false);
+    assert.equal(ruleMatches({ missingInput: ["image"] }, noVision), true);
+    assert.equal(ruleMatches({ missingInput: ["image"] }, withVision), false);
+    assert.equal(ruleMatches({ hasInput: ["image"] }, withVision), true);
+    assert.equal(ruleMatches({ hasInput: ["image"] }, noVision), false);
   });
 });
 
@@ -97,25 +98,25 @@ describe("parseModelExtensionsConfig / load / setEnabled", () => {
       enabled: true,
       rules: [{ match: { model: "deepseek/*" }, add: ["vision-helper"], remove: ["x"] }],
     });
-    expect(parsed.ok).toBe(true);
+    assert.equal(parsed.ok, true);
     if (parsed.ok) {
-      expect(isModelExtensionsEnabled(parsed.config)).toBe(true);
-      expect(parsed.config.rules).toHaveLength(1);
+      assert.equal(isModelExtensionsEnabled(parsed.config), true);
+      assert.equal(parsed.config.rules.length, 1);
     }
   });
 
   test("enabled false and missing defaults", () => {
     const off = parseModelExtensionsConfig({ enabled: false, rules: [] });
-    expect(off.ok).toBe(true);
-    if (off.ok) expect(isModelExtensionsEnabled(off.config)).toBe(false);
-    expect(isModelExtensionsEnabled(null)).toBe(true);
+    assert.equal(off.ok, true);
+    if (off.ok) assert.equal(isModelExtensionsEnabled(off.config), false);
+    assert.equal(isModelExtensionsEnabled(null), true);
   });
 
   test("rejects bad shapes", () => {
-    expect(parseModelExtensionsConfig([]).ok).toBe(false);
-    expect(parseModelExtensionsConfig({ rules: [{ match: "x" }] }).ok).toBe(false);
-    expect(parseModelExtensionsConfig({ rules: [{ match: {}, add: [1] }] }).ok).toBe(false);
-    expect(parseModelExtensionsConfig({ enabled: "yes", rules: [] }).ok).toBe(false);
+    assert.equal(parseModelExtensionsConfig([]).ok, false);
+    assert.equal(parseModelExtensionsConfig({ rules: [{ match: "x" }] }).ok, false);
+    assert.equal(parseModelExtensionsConfig({ rules: [{ match: {}, add: [1] }] }).ok, false);
+    assert.equal(parseModelExtensionsConfig({ enabled: "yes", rules: [] }).ok, false);
   });
 
   test("setModelExtensionsEnabled persists and preserves rules", () => {
@@ -126,27 +127,27 @@ describe("parseModelExtensionsConfig / load / setEnabled", () => {
       "utf8",
     );
     const off = setModelExtensionsEnabled(dir, false);
-    expect(off.ok).toBe(true);
+    assert.equal(off.ok, true);
     if (off.ok) {
-      expect(off.config.enabled).toBe(false);
-      expect(off.config.rules).toHaveLength(1);
+      assert.equal(off.config.enabled, false);
+      assert.equal(off.config.rules.length, 1);
     }
     const loaded = loadModelExtensionsConfig(dir);
-    expect(loaded.ok && loaded.config && isModelExtensionsEnabled(loaded.config)).toBe(false);
+    assert.equal(loaded.ok && loaded.config && isModelExtensionsEnabled(loaded.config), false);
 
     const on = setModelExtensionsEnabled(dir, true);
-    expect(on.ok).toBe(true);
-    if (on.ok) expect(on.config.enabled).toBe(true);
+    assert.equal(on.ok, true);
+    if (on.ok) assert.equal(on.config.enabled, true);
   });
 
   test("load missing / bad json / ok", () => {
     const dir = tmpDir();
     const missing = loadModelExtensionsConfig(dir);
-    expect(missing.ok && "missing" in missing && missing.missing).toBe(true);
+    assert.equal(missing.ok && "missing" in missing && missing.missing, true);
 
     fs.writeFileSync(path.join(dir, "model-extensions.json"), "{not json", "utf8");
     const bad = loadModelExtensionsConfig(dir);
-    expect(bad.ok).toBe(false);
+    assert.equal(bad.ok, false);
 
     fs.writeFileSync(
       path.join(dir, "model-extensions.json"),
@@ -154,7 +155,7 @@ describe("parseModelExtensionsConfig / load / setEnabled", () => {
       "utf8",
     );
     const ok = loadModelExtensionsConfig(dir);
-    expect(ok.ok && !("missing" in ok)).toBe(true);
+    assert.equal(ok.ok && !("missing" in ok), true);
   });
 });
 
@@ -163,23 +164,23 @@ describe("resolve + planModelExtensionLoads", () => {
     const dir = tmpDir();
     const file = writeExt(dir, "alpha");
     const asFile = resolveExtensionEntry(file);
-    expect(asFile.ok).toBe(true);
-    if (asFile.ok) expect(asFile.path).toBe(path.resolve(file));
+    assert.equal(asFile.ok, true);
+    if (asFile.ok) assert.equal(asFile.path, path.resolve(file));
 
     const asDir = resolveExtensionEntry(path.join(dir, "alpha"));
-    expect(asDir.ok).toBe(true);
-    if (asDir.ok) expect(asDir.path).toBe(path.resolve(file));
+    assert.equal(asDir.ok, true);
+    if (asDir.ok) assert.equal(asDir.path, path.resolve(file));
   });
 
   test("resolve name under agentDir/extensions", () => {
     const agentDir = tmpDir();
     const file = writeExt(path.join(agentDir, "extensions"), "vision-helper");
     const hit = resolveExtensionName(agentDir, "vision-helper");
-    expect(hit.ok).toBe(true);
-    if (hit.ok) expect(hit.path).toBe(path.resolve(file));
+    assert.equal(hit.ok, true);
+    if (hit.ok) assert.equal(hit.path, path.resolve(file));
 
-    expect(resolveExtensionName(agentDir, "../escape").ok).toBe(false);
-    expect(resolveExtensionName(agentDir, "missing").ok).toBe(false);
+    assert.equal(resolveExtensionName(agentDir, "../escape").ok, false);
+    assert.equal(resolveExtensionName(agentDir, "missing").ok, false);
   });
 
   test("plan applies match, add path/name, remove by friendly name, order", () => {
@@ -204,12 +205,12 @@ describe("resolve + planModelExtensionLoads", () => {
       agentDir,
     );
 
-    expect(plan.matchedRuleIndexes).toEqual([0, 1]);
-    expect(plan.paths).toContain(path.resolve(b));
-    expect(plan.paths).toContain(path.resolve(side));
-    expect(plan.paths).not.toContain(path.resolve(a));
+    assert.deepEqual(plan.matchedRuleIndexes, [0, 1]);
+    assert.ok(plan.paths.includes(path.resolve(b)));
+    assert.ok(plan.paths.includes(path.resolve(side)));
+    assert.ok(!plan.paths.includes(path.resolve(a)));
     // ext-b re-added last among names; side kept
-    expect(plan.paths[plan.paths.length - 1]).toBe(path.resolve(b));
+    assert.equal(plan.paths[plan.paths.length - 1], path.resolve(b));
   });
 
   test("plan skips non-matching model and warns on bad add", () => {
@@ -223,21 +224,21 @@ describe("resolve + planModelExtensionLoads", () => {
       withVision,
       agentDir,
     );
-    expect(plan.matchedRuleIndexes).toEqual([1]);
-    expect(plan.paths).toEqual([]);
-    expect(plan.warnings.some((w) => w.kind === "name")).toBe(true);
+    assert.deepEqual(plan.matchedRuleIndexes, [1]);
+    assert.deepEqual(plan.paths, []);
+    assert.equal(plan.warnings.some((w) => w.kind === "name"), true);
   });
 
   test("friendlyExtensionName", () => {
-    expect(friendlyExtensionName("/x/y/ext-a/index.ts")).toBe("ext-a");
-    expect(friendlyExtensionName("/x/y/ext-a.ts")).toBe("ext-a");
+    assert.equal(friendlyExtensionName("/x/y/ext-a/index.ts"), "ext-a");
+    assert.equal(friendlyExtensionName("/x/y/ext-a.ts"), "ext-a");
   });
 
   test("resolveExtensionRef path form", () => {
     const dir = tmpDir();
     const file = writeExt(dir, "p");
     const r = resolveExtensionRef(dir, file);
-    expect(r.ok).toBe(true);
+    assert.equal(r.ok, true);
   });
 });
 
@@ -254,37 +255,37 @@ describe("createDynamicExtensionLoader", () => {
 
     const loader = createDynamicExtensionLoader();
     const first = await loader.loadPaths([file], pi);
-    expect(first).toEqual([{ path: file, ok: true }]);
-    expect(tools).toEqual(["dyn_tool"]);
-    expect(loader.loadedPaths.has(file)).toBe(true);
+    assert.deepEqual(first, [{ path: file, ok: true }]);
+    assert.deepEqual(tools, ["dyn_tool"]);
+    assert.equal(loader.loadedPaths.has(file), true);
 
     const second = await loader.loadPaths([file], pi);
-    expect(second).toEqual([{ path: file, ok: true }]);
-    expect(tools).toEqual(["dyn_tool"]);
+    assert.deepEqual(second, [{ path: file, ok: true }]);
+    assert.deepEqual(tools, ["dyn_tool"]);
   });
 
   test("reports error for missing file", async () => {
     const loader = createDynamicExtensionLoader();
     const pi = { registerTool: () => {} } as unknown as ExtensionAPI;
     const results = await loader.loadPaths(["/no/such/ext/index.ts"], pi);
-    expect(results).toHaveLength(1);
-    expect(results[0]!.ok).toBe(false);
+    assert.equal(results.length, 1);
+    assert.equal(results[0]!.ok, false);
   });
 });
 
 describe("formatModelExtensionsHelp", () => {
   test("includes command surface and path", () => {
     const help = formatModelExtensionsHelp("/tmp/agent/model-extensions.json");
-    expect(help).toContain("# /model-extensions");
-    expect(help).toContain("/model-extensions help");
-    expect(help).toContain("/model-extensions on");
-    expect(help).toContain("/model-extensions off");
-    expect(help).toContain("/tmp/agent/model-extensions.json");
+    assert.ok(help.includes("# /model-extensions"));
+    assert.ok(help.includes("/model-extensions help"));
+    assert.ok(help.includes("/model-extensions on"));
+    assert.ok(help.includes("/model-extensions off"));
+    assert.ok(help.includes("/tmp/agent/model-extensions.json"));
   });
 });
 
 describe("modelKey", () => {
   test("joins provider/id", () => {
-    expect(modelKey(noVision)).toBe("deepseek/deepseek-v4-flash");
+    assert.equal(modelKey(noVision), "deepseek/deepseek-v4-flash");
   });
 });

@@ -5,7 +5,7 @@ import { bindLiveExtensionRedraw, createInitialState, createTab } from "../src/i
 async function waitFor(predicate: () => boolean, attempts = 25): Promise<void> {
   for (let i = 0; i < attempts; i += 1) {
     if (predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await Bun.sleep(10);
   }
   assert.equal(predicate(), true);
 }
@@ -34,7 +34,7 @@ test("live extension redraw requests renders for active time-dependent UI", asyn
   await waitFor(() => renders > 0);
   const beforeStop = renders;
   stop();
-  await new Promise((resolve) => setTimeout(resolve, 20));
+  await Bun.sleep(20);
 
   assert.equal(renders, beforeStop);
 });
@@ -61,7 +61,7 @@ test("live extension redraw stays idle when active tab has only static extension
     },
     5,
   );
-  await new Promise((resolve) => setTimeout(resolve, 20));
+  await Bun.sleep(20);
   stop();
 
   assert.equal(renders, 0);

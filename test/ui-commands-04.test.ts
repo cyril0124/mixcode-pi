@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import * as fsPromises from "node:fs/promises";
+import * as path from "node:path";
+import * as os from "node:os";
 import { test } from "node:test";
 import {
   createInitialState,
@@ -59,7 +59,7 @@ async function waitFor<T>(read: () => Promise<T>, attempts = 25): Promise<T> {
       return await read();
     } catch (error) {
       lastError = error;
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await Bun.sleep(10);
     }
   }
   throw lastError;
@@ -262,8 +262,8 @@ test("hotkeys text includes bash commands without extensions", () => {
 });
 
 test("submitted input saves, restores, and deletes workspaces", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-workspace-"));
-  const workspaceFile = join(dir, "workspaces.json");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-workspace-"));
+  const workspaceFile = path.join(dir, "workspaces.json");
   try {
     const state = createInitialState("/repo");
     state.tabs.push(createTab(1, "s1", "/repo"), createTab(2, "s2", "/repo"));
@@ -333,7 +333,7 @@ test("submitted input saves, restores, and deletes workspaces", async () => {
     // Full restore path paints progress overlays; count is higher than the old
     // partial-runtime short-circuit path that only reordered open tabs.
     assert.ok(renders.length >= 3);
-    await writeFile(workspaceFile, "[]", "utf8");
+    await fsPromises.writeFile(workspaceFile, "[]", "utf8");
     await assert.rejects(
       () =>
         handleSubmittedInput(
@@ -348,7 +348,7 @@ test("submitted input saves, restores, and deletes workspaces", async () => {
       /Unknown workspace/,
     );
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
@@ -380,16 +380,16 @@ test("workspace commands expose missing configuration and arguments", async () =
     overlayTui,
     undefined,
     undefined,
-    join(tmpdir(), "unused-workspaces.json"),
+    path.join(os.tmpdir(), "unused-workspaces.json"),
   );
   assert.equal(state.workspaceOverlay.mode, "save");
 });
 
 test("workspace save surfaces invalid workspace files instead of treating them as missing", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-workspace-invalid-"));
-  const workspaceFile = join(dir, "workspaces.json");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-workspace-invalid-"));
+  const workspaceFile = path.join(dir, "workspaces.json");
   try {
-    await writeFile(workspaceFile, "{ invalid json", "utf8");
+    await fsPromises.writeFile(workspaceFile, "{ invalid json", "utf8");
     const state = createInitialState("/repo");
     state.tabs.push(createTab(1, "s1", "/repo"));
     state.activeTabId = "s1";
@@ -412,23 +412,23 @@ test("workspace save surfaces invalid workspace files instead of treating them a
       /Unexpected token|Expected property name|JSON Parse error/,
     );
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("submitted input marks done, exports state, imports sessions, and exits directly", async (t) => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-tui-state-toggle-"));
-  const openTabsPath = join(dir, "open_tabs.json");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-tui-state-toggle-"));
+  const openTabsPath = path.join(dir, "open_tabs.json");
   configureOpenTabsPath(openTabsPath);
   t.after(() => configureOpenTabsPath(undefined));
-  const captureFile = join(dir, "capture.txt");
-  const editorScript = join(dir, "editor.sh");
-  const sessionFile = join(dir, "session.jsonl");
-  const cancelledFile = join(dir, "cancelled.jsonl");
-  await writeFile(editorScript, `#!/bin/sh\ncp "$1" "${captureFile}"\n`, { mode: 0o755 });
+  const captureFile = path.join(dir, "capture.txt");
+  const editorScript = path.join(dir, "editor.sh");
+  const sessionFile = path.join(dir, "session.jsonl");
+  const cancelledFile = path.join(dir, "cancelled.jsonl");
+  await fsPromises.writeFile(editorScript, `#!/bin/sh\ncp "$1" "${captureFile}"\n`, { mode: 0o755 });
   const sessionContents = `${JSON.stringify({ type: "session", version: 1, id: "imported", timestamp: "2026-05-10T00:00:00.000Z", cwd: dir })}\n`;
-  await writeFile(sessionFile, sessionContents);
-  await writeFile(
+  await fsPromises.writeFile(sessionFile, sessionContents);
+  await fsPromises.writeFile(
     cancelledFile,
     `${JSON.stringify({ type: "session", version: 3, id: "cancelled", timestamp: "2026-05-10T00:00:00.000Z", cwd: dir })}\n`,
   );
@@ -486,13 +486,13 @@ test("submitted input marks done, exports state, imports sessions, and exits dir
   assert.equal(tab.status, "done");
   assert.equal(tab.unreadDone, true);
   await handleSubmittedInput(state, runtime, `/tui-state --editor=${editorScript}`, tui);
-  assert.match(await readFile(captureFile, "utf8"), /"activeTabId": "s1"/);
+  assert.match(await fsPromises.readFile(captureFile, "utf8"), /"activeTabId": "s1"/);
   assert.deepEqual(tab.previewMessages, []);
   assert.deepEqual(lifecycle, ["stop", "start"]);
   await handleSubmittedInput(state, runtime, `/import ${sessionFile} /repo`, tui);
   assert.equal(overlays.at(-1), `import:${sessionFile}:/repo`);
   assert.equal(tab.toast?.message, `Imported session: ${sessionFile}`);
-  assert.equal(await readFile(sessionFile, "utf8"), sessionContents);
+  assert.equal(await fsPromises.readFile(sessionFile, "utf8"), sessionContents);
   runtime.importFromJsonl = async (sessionId: string, path: string, cwdOverride?: string) => {
     assert.equal(sessionId, "imported");
     assert.equal(tab.sessionId, "cancelled");
@@ -511,7 +511,7 @@ test("submitted input marks done, exports state, imports sessions, and exits dir
   assert.equal(closedAll, 1);
   assert.equal(state.quitConfirmOpen, false);
   assert.equal(renders.length, 7);
-  await rm(dir, { recursive: true, force: true });
+  await fsPromises.rm(dir, { recursive: true, force: true });
 });
 
 test("submitted quit command exposes missing TUI stop support", async () => {
@@ -530,12 +530,12 @@ test("submitted quit command exposes missing TUI stop support", async () => {
 });
 
 test("submitted input opens system prompt in external editor by default", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-system-prompt-editor-"));
-  const captureFile = join(dir, "capture.txt");
-  const editorScript = join(dir, "editor.sh");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-system-prompt-editor-"));
+  const captureFile = path.join(dir, "capture.txt");
+  const editorScript = path.join(dir, "editor.sh");
   const previousEditor = process.env.EDITOR;
   try {
-    await writeFile(editorScript, `#!/bin/sh\ncp "$1" "${captureFile}"\n`, { mode: 0o755 });
+    await fsPromises.writeFile(editorScript, `#!/bin/sh\ncp "$1" "${captureFile}"\n`, { mode: 0o755 });
     const state = createInitialState("/repo");
     const tab = createTab(1, "s1", "/repo", { status: "done" });
     state.tabs.push(tab);
@@ -569,7 +569,7 @@ test("submitted input opens system prompt in external editor by default", async 
     process.env.EDITOR = editorScript;
     await handleSubmittedInput(state, runtime, "/system-prompt", tui);
 
-    assert.match(await readFile(captureFile, "utf8"), /system from runtime/);
+    assert.match(await fsPromises.readFile(captureFile, "utf8"), /system from runtime/);
     assert.deepEqual(tab.previewMessages, []);
     assert.equal(
       overlays.some((overlay) => /Opened system prompt in external editor/.test(overlay)),
@@ -579,17 +579,17 @@ test("submitted input opens system prompt in external editor by default", async 
   } finally {
     if (previousEditor === undefined) delete process.env.EDITOR;
     else process.env.EDITOR = previousEditor;
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("submitted input opens system tools in external editor by default", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-system-tools-editor-"));
-  const captureFile = join(dir, "capture.txt");
-  const editorScript = join(dir, "editor.sh");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-system-tools-editor-"));
+  const captureFile = path.join(dir, "capture.txt");
+  const editorScript = path.join(dir, "editor.sh");
   const previousEditor = process.env.EDITOR;
   try {
-    await writeFile(editorScript, `#!/bin/sh\ncp "$1" "${captureFile}"\n`, { mode: 0o755 });
+    await fsPromises.writeFile(editorScript, `#!/bin/sh\ncp "$1" "${captureFile}"\n`, { mode: 0o755 });
     const state = createInitialState("/repo");
     const tab = createTab(1, "s1", "/repo", { status: "done" });
     state.tabs.push(tab);
@@ -636,7 +636,7 @@ test("submitted input opens system tools in external editor by default", async (
     process.env.EDITOR = editorScript;
     await handleSubmittedInput(state, runtime, "/system-tools", tui);
 
-    const exported = await readFile(captureFile, "utf8");
+    const exported = await fsPromises.readFile(captureFile, "utf8");
     assert.match(exported, /System Tools/);
     assert.match(exported, /## extension_echo/);
     assert.match(exported, /Echo extension input/);
@@ -651,6 +651,6 @@ test("submitted input opens system tools in external editor by default", async (
   } finally {
     if (previousEditor === undefined) delete process.env.EDITOR;
     else process.env.EDITOR = previousEditor;
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

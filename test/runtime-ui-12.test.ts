@@ -1,8 +1,8 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import * as fsPromises from "node:fs/promises";
+import * as path from "node:path";
+import * as os from "node:os";
 import { test } from "node:test";
 import {
   Type,
@@ -129,7 +129,7 @@ function lastRuntimeUserText(context: Context): string {
 async function waitForRuntime(predicate: () => boolean, attempts = 25): Promise<void> {
   for (let i = 0; i < attempts; i += 1) {
     if (predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await Bun.sleep(10);
   }
   assert.equal(predicate(), true);
 }
@@ -176,7 +176,7 @@ function escapeRegExp(text: string): string {
 }
 
 test("runtime initializes pi theme before rendering extension custom markdown overlays", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-custom-markdown-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-custom-markdown-"));
   const themeKey = Symbol.for("@earendil-works/pi-coding-agent:theme");
   const previousTheme = (globalThis as Record<symbol, unknown>)[themeKey];
   delete (globalThis as Record<symbol, unknown>)[themeKey];
@@ -226,12 +226,12 @@ test("runtime initializes pi theme before rendering extension custom markdown ov
     if (previousTheme === undefined) delete (globalThis as Record<symbol, unknown>)[themeKey];
     else (globalThis as Record<symbol, unknown>)[themeKey] = previousTheme;
     tui.stop();
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime keeps enter as the extension select confirmation key", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-custom-enter-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-custom-enter-"));
   const terminal = silentTerminal();
   const tui = new TuiMainScreen(terminal);
   let overlayComponent: Component | undefined;
@@ -277,12 +277,12 @@ test("runtime keeps enter as the extension select confirmation key", async () =>
     assert.deepEqual(events, ["result:selected"]);
   } finally {
     tui.stop();
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime renders custom overlays with their scoped terminal row budget", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-custom-rows-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-custom-rows-"));
   const terminal = silentTerminal();
   const tui = new TuiMainScreen(terminal);
   let overlayComponent: Component | undefined;
@@ -338,12 +338,12 @@ test("runtime renders custom overlays with their scoped terminal row budget", as
     await task;
   } finally {
     tui.stop();
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime scopes extension custom overlays to the active tab", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-custom-tab-scope-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-custom-tab-scope-"));
   const events: string[] = [];
   let overlayOptions: OverlayOptions | undefined;
   const extension: ExtensionFactory = (pi) => {
@@ -415,12 +415,12 @@ test("runtime scopes extension custom overlays to the active tab", async () => {
       tui.stop();
     }
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime focuses extension custom overlay triggered while its tab was inactive", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-custom-inactive-focus-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-custom-inactive-focus-"));
   const events: string[] = [];
   let overlayShown = false;
   const extension: ExtensionFactory = (pi) => {
@@ -497,12 +497,12 @@ test("runtime focuses extension custom overlay triggered while its tab was inact
       tui.stop();
     }
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime maps pi extension custom non-overlay into the live editor slot", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-custom-editor-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-custom-editor-"));
   const events: string[] = [];
   const extension: ExtensionFactory = (pi) => {
     pi.registerCommand("custom-editor", {
@@ -566,12 +566,12 @@ test("runtime maps pi extension custom non-overlay into the live editor slot", a
       tui.stop();
     }
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime scopes extension custom non-overlay editors to their owning tab", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-custom-editor-scope-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-custom-editor-scope-"));
   const events: string[] = [];
   const extension: ExtensionFactory = (pi) => {
     pi.registerCommand("custom-editor", {
@@ -643,12 +643,12 @@ test("runtime scopes extension custom non-overlay editors to their owning tab", 
       tui.stop();
     }
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime tracks concurrent extension custom interactions independently", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-custom-concurrent-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-custom-concurrent-"));
   const events: string[] = [];
   const overlayComponents: Component[] = [];
   const extension: ExtensionFactory = (pi) => {
@@ -722,6 +722,6 @@ test("runtime tracks concurrent extension custom interactions independently", as
       tui.stop();
     }
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

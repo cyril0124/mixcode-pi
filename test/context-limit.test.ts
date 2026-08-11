@@ -1,9 +1,9 @@
 import "./helpers/isolated-agent-dir.js";
 import { describe, it, test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import * as fsPromises from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import {
   parseContextLimitValue,
   contextLimitPickerItems,
@@ -130,10 +130,12 @@ describe("adjustCompactionSettingsForLimit", () => {
     assert.deepEqual(overrides, [{ compaction: { reserveTokens: 100, keepRecentTokens: 250 } }]);
   });
 
-  it("resets to SDK defaults when no baseline was captured", () => {
-    const overrides: Array<{ compaction?: { reserveTokens?: number; keepRecentTokens?: number } }> = [];
-    adjustCompactionSettingsForLimit({ applyOverrides: (override) => overrides.push(override) }, 1000, false);
-    assert.deepEqual(overrides, [{ compaction: { reserveTokens: 16384, keepRecentTokens: 20000 } }]);
+  it("rejects reset when the manager baseline was not captured", () => {
+    const settingsManager = { applyOverrides: () => undefined };
+    assert.throws(
+      () => adjustCompactionSettingsForLimit(settingsManager, 1000, false),
+      /Compaction baseline was not captured/,
+    );
   });
 });
 
@@ -205,7 +207,7 @@ describe("syncContextLimitToSessionModel / applyContextLimitToSession", () => {
 });
 
 test("session context limits do not mutate another session's model", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-context-limit-model-isolation-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-context-limit-model-isolation-"));
   try {
     const sharedModel = {
       ...MIXCODE_FAUX_MODEL,
@@ -238,12 +240,12 @@ test("session context limits do not mutate another session's model", async () =>
     assert.equal(second.tab.contextLimit, 128_000);
     assert.equal(sharedModel.contextWindow, 128_000);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("refreshTabStatus keeps canonical capacity so context-limit reset works", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-context-limit-refresh-reset-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-context-limit-refresh-reset-"));
   try {
     const model = {
       ...MIXCODE_FAUX_MODEL,
@@ -282,6 +284,6 @@ test("refreshTabStatus keeps canonical capacity so context-limit reset works", a
     assert.equal(runtimeTab.tab.model.contextWindow, 128_000);
     assert.equal(runtimeTab.agentSession.model?.contextWindow, 128_000);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

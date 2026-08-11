@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import * as fsPromises from "node:fs/promises";
+import * as path from "node:path";
+import * as os from "node:os";
 import test from "node:test";
 import { adjustCompactionSettingsForLimit } from "../src/core/context-limit.js";
 import { createTab, MIXCODE_FAUX_MODEL, MixCodeRuntime } from "../src/index.js";
@@ -10,11 +10,11 @@ import { createTab, MIXCODE_FAUX_MODEL, MixCodeRuntime } from "../src/index.js";
 // other tabs. Each tab owns its own SettingsManager, so adjusting one tab's
 // budget leaves sibling tabs (independent services) untouched.
 test("context-limit override on one tab does not contaminate another tab", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-ctx-isolation-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-ctx-isolation-"));
   try {
     const runtime = new MixCodeRuntime({
-      sessionsRoot: join(dir, "sessions"),
-      agentDir: join(dir, "agent"),
+      sessionsRoot: path.join(dir, "sessions"),
+      agentDir: path.join(dir, "agent"),
     });
     const tabA = await runtime.createTab(createTab(1, "sA", dir), {
       model: MIXCODE_FAUX_MODEL,
@@ -40,18 +40,18 @@ test("context-limit override on one tab does not contaminate another tab", async
     assert.deepEqual(afterB, beforeB);
     assert.notDeepEqual(afterA, afterB);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 // Reset restores the tab's own captured baseline, not hardcoded SDK defaults,
 // and still does not touch a sibling tab.
 test("context-limit reset restores the tab baseline without touching siblings", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-ctx-reset-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-ctx-reset-"));
   try {
     const runtime = new MixCodeRuntime({
-      sessionsRoot: join(dir, "sessions"),
-      agentDir: join(dir, "agent"),
+      sessionsRoot: path.join(dir, "sessions"),
+      agentDir: path.join(dir, "agent"),
     });
     const tabA = await runtime.createTab(createTab(1, "sA", dir), {
       model: MIXCODE_FAUX_MODEL,
@@ -75,6 +75,6 @@ test("context-limit reset restores the tab baseline without touching siblings", 
     assert.deepEqual(tabA.agentSession.settingsManager.getCompactionSettings(), baselineA);
     assert.deepEqual(tabB.agentSession.settingsManager.getCompactionSettings(), beforeB);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import * as fsPromises from "node:fs/promises";
+import * as path from "node:path";
+import * as os from "node:os";
 import { test } from "node:test";
 import {
   createInitialState,
@@ -35,7 +35,7 @@ async function waitFor<T>(read: () => Promise<T>, attempts = 25): Promise<T> {
       return await read();
     } catch (error) {
       lastError = error;
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await Bun.sleep(10);
     }
   }
   throw lastError;

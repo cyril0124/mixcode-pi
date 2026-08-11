@@ -1,8 +1,8 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import * as fsPromises from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { test } from "node:test";
 import { Type } from "@earendil-works/pi-ai";
 import { SettingsManager, type ExtensionFactory } from "@earendil-works/pi-coding-agent";
@@ -25,10 +25,10 @@ function guidelineToolExtension(): ExtensionFactory {
 }
 
 async function createRuntimeTab() {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-system-prompt-rebuild-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-system-prompt-rebuild-"));
   const runtime = new MixCodeRuntime({
     sessionsRoot: dir,
-    agentDir: join(dir, "agent"),
+    agentDir: path.join(dir, "agent"),
     settingsManager: SettingsManager.inMemory({ packages: [] }),
     extensionFactories: [guidelineToolExtension()],
   });
@@ -51,7 +51,7 @@ test("MixCode system prompt includes active tool promptGuidelines", async () => 
     // Extension-provided guideline for the active custom tool must be present.
     assert.match(runtimeTab.agent.state.systemPrompt, new RegExp(GUIDELINE.replace(/\./g, "\\.")));
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
@@ -71,6 +71,6 @@ test("Pi-triggered setActiveTools rebuild keeps the MixCode system prompt", asyn
     assert.doesNotMatch(runtimeTab.agent.state.systemPrompt, /Pi documentation/);
     assert.match(runtimeTab.agent.state.systemPrompt, new RegExp(GUIDELINE.replace(/\./g, "\\.")));
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

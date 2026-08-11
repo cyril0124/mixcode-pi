@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import * as fsPromises from "node:fs/promises";
+import * as path from "node:path";
+import * as os from "node:os";
 import { test } from "node:test";
 import {
   createInitialState,
@@ -36,7 +36,7 @@ async function waitFor<T>(read: () => Promise<T>, attempts = 25): Promise<T> {
       return await read();
     } catch (error) {
       lastError = error;
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await Bun.sleep(10);
     }
   }
   throw lastError;
@@ -137,7 +137,7 @@ test("submitted input opens local pickers and picker keys apply selections", asy
   assert.deepEqual(handleMixCodeKeyInput(state, "p", tui), { consume: true });
   assert.match(stripAnsi(overlays.at(-1) ?? ""), /openai\/gpt-4.1/);
   assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui), { consume: true });
-  await new Promise((resolve) => setTimeout(resolve, 0));
+  await Bun.sleep(0);
   assert.equal(tab.model.modelId, "gpt-4.1");
   assert.equal(state.picker, undefined);
 
@@ -168,7 +168,7 @@ test("submitted input opens local pickers and picker keys apply selections", asy
   assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui), { consume: true });
   assert.equal(tab.workdir, "/repo");
 
-  const workdirTarget = await mkdtemp(join(tmpdir(), "mixcode-workdir-picker-"));
+  const workdirTarget = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-workdir-picker-"));
   try {
     await handleSubmittedInput(state, runtime, "/workdir", tui);
     assert.equal(state.picker?.kind, "workdir");
@@ -179,7 +179,7 @@ test("submitted input opens local pickers and picker keys apply selections", asy
     assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui), { consume: true });
     assert.equal(tab.workdir, workdirTarget);
   } finally {
-    await rm(workdirTarget, { recursive: true, force: true });
+    await fsPromises.rm(workdirTarget, { recursive: true, force: true });
   }
 
   await handleSubmittedInput(state, runtime, "/workdir", tui);
@@ -223,7 +223,7 @@ test("submitted thinking command updates the Pi runtime session", async () => {
 });
 
 test("workdir picker applies async runtime workdir updates", async () => {
-  const workdirTarget = await mkdtemp(join(tmpdir(), "mixcode-workdir-runtime-"));
+  const workdirTarget = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-workdir-runtime-"));
   try {
     const state = createInitialState("/repo");
     const tab = createTab(1, "s1", "/repo");
@@ -284,15 +284,15 @@ test("workdir picker applies async runtime workdir updates", async () => {
     assert.equal(overlayOpen, false);
     assert.match(overlays[0] ?? "", /Change Workdir/);
   } finally {
-    await rm(workdirTarget, { recursive: true, force: true });
+    await fsPromises.rm(workdirTarget, { recursive: true, force: true });
   }
 });
 
 test("workdir picker completes directories before applying selection", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-workdir-complete-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-workdir-complete-"));
   try {
-    await mkdir(join(dir, "alpha"), { recursive: true });
-    await writeFile(join(dir, "app.ts"), "");
+    await fsPromises.mkdir(path.join(dir, "alpha"), { recursive: true });
+    await fsPromises.writeFile(path.join(dir, "app.ts"), "");
     const state = createInitialState(dir);
     const tab = createTab(1, "s1", dir);
     state.tabs.push(tab);
@@ -317,13 +317,13 @@ test("workdir picker completes directories before applying selection", async () 
     assert.match(stripAnsi(renderPickerOverlay(state, 80).join("\n")), /alpha\//);
     // Tab navigates into the selected directory
     assert.deepEqual(handleMixCodeKeyInput(state, "\t", tui), { consume: true });
-    assert.equal(state.picker?.browsingDir, join(dir, "alpha"));
+    assert.equal(state.picker?.browsingDir, path.join(dir, "alpha"));
     assert.equal(state.picker?.query, "");
     // Enter confirms the current browsing directory as workdir
     assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui), { consume: true });
-    assert.equal(tab.workdir, join(dir, "alpha"));
+    assert.equal(tab.workdir, path.join(dir, "alpha"));
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 

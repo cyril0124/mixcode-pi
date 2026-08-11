@@ -1,8 +1,8 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import * as fsPromises from "node:fs/promises";
+import * as path from "node:path";
+import * as os from "node:os";
 import { test } from "node:test";
 import {
   Type,
@@ -129,7 +129,7 @@ function lastRuntimeUserText(context: Context): string {
 async function waitForRuntime(predicate: () => boolean, attempts = 25): Promise<void> {
   for (let i = 0; i < attempts; i += 1) {
     if (predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await Bun.sleep(10);
   }
   assert.equal(predicate(), true);
 }
@@ -176,7 +176,7 @@ function escapeRegExp(text: string): string {
 }
 
 test("runtime restores assistant tool calls and matching tool results as one tool block", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-tool-restore-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-tool-restore-"));
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir });
     const tab = createTab(1, "s1", process.cwd());
@@ -233,12 +233,12 @@ test("runtime restores assistant tool calls and matching tool results as one too
     assert.deepEqual(restoredTools[0]?.args, { path: "package.json" });
     assert.match(restoredTools[0]?.text ?? "", /merged result/);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime restores bash tool results through assistant tool call args", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-bash-result-only-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-bash-result-only-"));
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir });
     const tab = createTab(1, "s1", process.cwd());
@@ -293,12 +293,12 @@ test("runtime restores bash tool results through assistant tool call args", asyn
     assert.match(rendered, /\$ pwd/);
     assert.doesNotMatch(rendered, /\$ \.\.\./);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime ignores restored orphan tool results like pi interactive rendering", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-orphan-tool-result-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-orphan-tool-result-"));
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir });
     const tab = createTab(1, "s1", process.cwd());
@@ -343,12 +343,12 @@ test("runtime ignores restored orphan tool results like pi interactive rendering
     assert.doesNotMatch(rendered, /\$ \.\.\./);
     assert.doesNotMatch(rendered, /orphan output/);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime restores bash execution status details", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-bash-status-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-bash-status-"));
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir });
     const tab = createTab(1, "s1", process.cwd());
@@ -409,7 +409,7 @@ test("runtime restores bash execution status details", async () => {
     assert.match(rendered, /\(exit 2\)/);
     assert.match(rendered, /Output truncated\. Full output: \/tmp\/full-output\.log/);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
@@ -499,7 +499,7 @@ test("runtime does not leave blank assistant placeholders for thinking or tool-o
 });
 
 test("runtime keeps streaming tool calls stable when ids arrive after content index", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-late-tool-id-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-late-tool-id-"));
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir });
     const tab = createTab(1, "s1", process.cwd());
@@ -566,6 +566,6 @@ test("runtime keeps streaming tool calls stable when ids arrive after content in
     assert.equal(toolLines[0]?.status, "success");
     assert.match(toolLines[0]?.text ?? "", /done/);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

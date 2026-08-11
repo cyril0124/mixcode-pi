@@ -1,8 +1,8 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import * as fsPromises from "node:fs/promises";
+import * as path from "node:path";
+import * as os from "node:os";
 import { test } from "node:test";
 import {
   Type,
@@ -129,7 +129,7 @@ function lastRuntimeUserText(context: Context): string {
 async function waitForRuntime(predicate: () => boolean, attempts = 25): Promise<void> {
   for (let i = 0; i < attempts; i += 1) {
     if (predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await Bun.sleep(10);
   }
   assert.equal(predicate(), true);
 }
@@ -176,7 +176,7 @@ function escapeRegExp(text: string): string {
 }
 
 test("runtime renders extension tool results with registered tool renderers", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-tool-renderer-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-tool-renderer-"));
   const extension: ExtensionFactory = (pi) => {
     pi.registerTool({
       name: "rendered_tool",
@@ -407,16 +407,16 @@ test("runtime renders extension tool results with registered tool renderers", as
       /rendered gamma partial=false error=false/,
     );
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime renders compact skill read calls with configured expand key", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-skill-read-key-"));
-  const skillDir = join(dir, "find-skills");
-  await mkdir(skillDir, { recursive: true });
-  await writeFile(
-    join(skillDir, "SKILL.md"),
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-skill-read-key-"));
+  const skillDir = path.join(dir, "find-skills");
+  await fsPromises.mkdir(skillDir, { recursive: true });
+  await fsPromises.writeFile(
+    path.join(skillDir, "SKILL.md"),
     "---\nname: find-skills\ndescription: Find skills\n---\n# Find Skills\n",
     "utf8",
   );
@@ -434,7 +434,7 @@ test("runtime renders compact skill read calls with configured expand key", asyn
       type: "tool_execution_start",
       toolCallId: "read-skill",
       toolName: "read",
-      args: { path: join(skillDir, "SKILL.md") },
+      args: { path: path.join(skillDir, "SKILL.md") },
     });
     const surface = stripAnsi(renderAgentSurface(runtimeTab.tab, runtimeTab, 100).join("\n"));
     // Pi's read tool renders SKILL.md reads as a compact [skill] block whose
@@ -442,6 +442,6 @@ test("runtime renders compact skill read calls with configured expand key", asyn
     assert.match(surface, /\[skill\] find-skills/);
     assert.match(surface, /\(ctrl\+o to expand\)/);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

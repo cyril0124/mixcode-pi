@@ -6,8 +6,8 @@
  *   MIXCODE_FOLLOWUP_HARNESS_DIR  - workdir/sessions root
  *   MIXCODE_FOLLOWUP_MARKER       - file written when dual queues are ready
  */
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import {
   Type,
   createAssistantMessageEventStream,
@@ -32,7 +32,7 @@ if (!root || !marker) {
   process.exit(2);
 }
 
-mkdirSync(root, { recursive: true });
+fs.mkdirSync(root, { recursive: true });
 
 let releaseTool!: () => void;
 const toolReleased = new Promise<void>((resolve) => {
@@ -137,7 +137,7 @@ const model: Model<string> = {
 };
 
 const runtime = new MixCodeRuntime({
-  sessionsRoot: join(root, "sessions"),
+  sessionsRoot: path.join(root, "sessions"),
   streamFn: (_m, context, options) => {
     const text = lastUserText(context);
     if (text === "do work") {
@@ -189,7 +189,7 @@ tui.start();
 
 // Drive dual-queue scenario after the TUI is up.
 void (async () => {
-  await new Promise((r) => setTimeout(r, 400));
+  await Bun.sleep(400);
   void runtime.prompt("s1", "do work");
   await toolRunning;
   await runtime.prompt("s1", "steer now");
@@ -199,7 +199,7 @@ void (async () => {
   for (let i = 0; i < 100; i++) {
     if (tab.pendingMessages.includes("steer now") && tab.pendingFollowUps.includes("follow later")) {
       tui.requestRender();
-      writeFileSync(
+      fs.writeFileSync(
         marker,
         JSON.stringify({
           pendingMessages: tab.pendingMessages,
@@ -208,26 +208,26 @@ void (async () => {
       );
       break;
     }
-    await new Promise((r) => setTimeout(r, 50));
+    await Bun.sleep(50);
   }
 })();
 
 // Poll for release signal file written by the tmux driver after Esc checks.
-const releaseFile = join(root, "release");
+const releaseFile = path.join(root, "release");
 void (async () => {
   for (let i = 0; i < 600; i++) {
-    if (existsSync(releaseFile)) {
+    if (fs.existsSync(releaseFile)) {
       releaseTool();
       // Wait for follow-up delivery after idle.
       for (let j = 0; j < 100; j++) {
         if (tab.pendingFollowUps.length === 0 && !runtime.getTab("s1")?.agentSession.isStreaming) {
-          writeFileSync(
-            join(root, "idle.json"),
+          fs.writeFileSync(
+            path.join(root, "idle.json"),
             JSON.stringify({ pendingFollowUps: tab.pendingFollowUps }),
           );
           break;
         }
-        await new Promise((r) => setTimeout(r, 50));
+        await Bun.sleep(50);
       }
       try {
         tui.stop();
@@ -236,7 +236,7 @@ void (async () => {
       }
       process.exit(0);
     }
-    await new Promise((r) => setTimeout(r, 100));
+    await Bun.sleep(100);
   }
 })();
 

@@ -1,9 +1,9 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { readFileSync, writeFileSync } from "node:fs";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import * as fs from "node:fs";
+import * as fsPromises from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { test } from "node:test";
 import { Worker } from "node:worker_threads";
 import {
@@ -16,30 +16,30 @@ import {
 } from "../src/index.js";
 
 test("open_tabs rejects corrupt state without overwriting it", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-open-tabs-corrupt-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-open-tabs-corrupt-"));
   const filePath = openTabsFile(dir);
   const corrupt = '{"version":1,"sessionIds":[';
   try {
     assert.deepEqual(readOpenTabs(filePath), [], "a missing file starts with no open tabs");
-    writeFileSync(filePath, corrupt, "utf8");
+    fs.writeFileSync(filePath, corrupt, "utf8");
 
     assert.throws(() => addOpenTab(filePath, "must-not-be-written"), SyntaxError);
-    assert.equal(readFileSync(filePath, "utf8"), corrupt);
+    assert.equal(fs.readFileSync(filePath, "utf8"), corrupt);
 
     const incomplete = '{"version":1,"sessionIds":["existing"]}';
-    writeFileSync(filePath, incomplete, "utf8");
+    fs.writeFileSync(filePath, incomplete, "utf8");
     assert.throws(() => addOpenTab(filePath, "must-not-be-written"), /Invalid open tabs snapshot/);
-    assert.equal(readFileSync(filePath, "utf8"), incomplete);
+    assert.equal(fs.readFileSync(filePath, "utf8"), incomplete);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("open_tabs lock wait yields CPU under contention", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-open-tabs-lock-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-open-tabs-lock-"));
   const filePath = openTabsFile(dir);
-  const readyPath = join(dir, "waiter-ready");
-  const goPath = join(dir, "waiter-go");
+  const readyPath = path.join(dir, "waiter-ready");
+  const goPath = path.join(dir, "waiter-go");
   let worker: Worker | undefined;
   let child: ReturnType<typeof Bun.spawn> | undefined;
   try {
@@ -148,12 +148,12 @@ test("open_tabs lock wait yields CPU under contention", async () => {
     worker?.unref();
     void worker?.terminate();
     configureOpenTabsPath(undefined);
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("open_tabs does not drop concurrent updates when a live holder outlives 5s", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-open-tabs-no-steal-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-open-tabs-no-steal-"));
   const filePath = openTabsFile(dir);
   try {
     writeOpenTabs(filePath, ["s1"]);
@@ -221,17 +221,17 @@ test("open_tabs does not drop concurrent updates when a live holder outlives 5s"
     assert.deepEqual(readOpenTabs(filePath).sort(), afterAdd.slice().sort());
     assert.ok(workerResult.wrote.includes("slow-A"));
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("open_tabs reclaims a lock left by a dead pid", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-open-tabs-stale-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-open-tabs-stale-"));
   const filePath = openTabsFile(dir);
   try {
     writeOpenTabs(filePath, ["keep"]);
     const lockPath = `${filePath}.lock`;
-    writeFileSync(
+    fs.writeFileSync(
       lockPath,
       `${JSON.stringify({
         pid: 2_147_483_646,
@@ -245,18 +245,18 @@ test("open_tabs reclaims a lock left by a dead pid", async () => {
     assert.ok(Date.now() - t0 < 1000, "stale lock must be reclaimed promptly");
     assert.deepEqual(readOpenTabs(filePath), ["keep", "after-reclaim"]);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("open_tabs concurrent mutators never lose updates", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-open-tabs-race-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-open-tabs-race-"));
   const filePath = openTabsFile(dir);
   try {
     writeOpenTabs(filePath, ["seed"]);
     const { spawn } = await import("node:child_process");
     const { writeFile } = await import("node:fs/promises");
-    const workerPath = join(dir, "worker.mjs");
+    const workerPath = path.join(dir, "worker.mjs");
     await writeFile(
       workerPath,
       `
@@ -308,6 +308,6 @@ process.stdout.write(String(ops));
     );
     assert.ok(final.includes("seed"));
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

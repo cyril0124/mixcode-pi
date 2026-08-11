@@ -5,9 +5,9 @@ import "./helpers/isolated-agent-dir.js";
 // (retract, tree navigation, compaction) therefore can never clear it.
 
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import * as fsPromises from "node:fs/promises";
+import * as path from "node:path";
+import * as os from "node:os";
 import { test } from "node:test";
 import {
   type AssistantMessage,
@@ -72,13 +72,13 @@ function pendingStream(release: Promise<void>, options?: SimpleStreamOptions) {
 async function waitFor(predicate: () => boolean, attempts = 50): Promise<void> {
   for (let i = 0; i < attempts; i += 1) {
     if (predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await Bun.sleep(10);
   }
   assert.equal(predicate(), true);
 }
 
 test("startup summary survives retractCurrentTurn (double-Esc undo)", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-hdr-retract-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-hdr-retract-"));
   try {
     let release!: () => void;
     const released = new Promise<void>((resolve) => {
@@ -109,12 +109,12 @@ test("startup summary survives retractCurrentTurn (double-Esc undo)", async () =
     assert.equal(result?.editorText, "please retract me");
     assert.equal(runtimeTab.tab.startupSummary, summaryBefore);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("startup summary survives extension tree navigation", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-hdr-tree-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-hdr-tree-"));
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir });
     const tab = createTab(1, "s1", process.cwd());
@@ -137,12 +137,12 @@ test("startup summary survives extension tree navigation", async () => {
     await runtime.extensionNavigateTree("s1", userEntry.id);
     assert.equal(runtimeTab.tab.startupSummary, summaryBefore);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("startup summary renders at the top of the agent surface and contains resources", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-hdr-render-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-hdr-render-"));
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir });
     const tab = createTab(1, "s1", process.cwd());
@@ -166,16 +166,16 @@ test("startup summary renders at the top of the agent surface and contains resou
     assert.match(joined, /\[Context\]/);
     assert.match(joined, /\[Extensions\]/);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("extension load errors land in the startup summary diagnostics section", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-hdr-diag-"));
-  const extensionPath = join(dir, "missing-extension.ts");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-hdr-diag-"));
+  const extensionPath = path.join(dir, "missing-extension.ts");
   try {
     const runtime = new MixCodeRuntime({
-      sessionsRoot: join(dir, "sessions"),
+      sessionsRoot: path.join(dir, "sessions"),
       additionalExtensionPaths: [extensionPath],
     });
     const runtimeTab = await runtime.createTab(createTab(1, "s1", process.cwd()), {
@@ -187,19 +187,19 @@ test("extension load errors land in the startup summary diagnostics section", as
     assert.match(runtimeTab.tab.startupSummary ?? "", /\[Diagnostics\]/);
     assert.match(runtimeTab.tab.startupSummary ?? "", /Extension load error/);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("skill name collisions render a [Skill conflicts] section like Pi", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-hdr-skill-conflict-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-hdr-skill-conflict-"));
   const home = process.env.HOME ?? dir;
-  const winnerPath = join(home, ".pi/agent/skills/dup-skill/SKILL.md");
-  const loserPath = join(home, ".agents/skills/dup-skill/SKILL.md");
-  const winnerBaseDir = join(home, ".pi/agent/skills/dup-skill");
+  const winnerPath = path.join(home, ".pi/agent/skills/dup-skill/SKILL.md");
+  const loserPath = path.join(home, ".agents/skills/dup-skill/SKILL.md");
+  const winnerBaseDir = path.join(home, ".pi/agent/skills/dup-skill");
   try {
     const runtime = new MixCodeRuntime({
-      sessionsRoot: join(dir, "sessions"),
+      sessionsRoot: path.join(dir, "sessions"),
       resourceLoaderOptions: {
         // Inject a Pi-shaped skill-collision diagnostic plus the surviving skill
         // so the header formatter can resolve the winner's source label.
@@ -251,15 +251,15 @@ test("skill name collisions render a [Skill conflicts] section like Pi", async (
     const winnerLines = summary.split("\n").filter((line) => line.includes("✓"));
     assert.equal(winnerLines.length, 1, "winner path appears exactly once");
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("no [Skill conflicts] section when there are no skill diagnostics", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-hdr-skill-clean-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-hdr-skill-clean-"));
   try {
     const runtime = new MixCodeRuntime({
-      sessionsRoot: join(dir, "sessions"),
+      sessionsRoot: path.join(dir, "sessions"),
       // Force an empty diagnostics set so the assertion does not depend on the
       // host machine's real skill collisions.
       resourceLoaderOptions: {
@@ -273,22 +273,22 @@ test("no [Skill conflicts] section when there are no skill diagnostics", async (
     });
     assert.doesNotMatch(runtimeTab.tab.startupSummary ?? "", /\[Skill conflicts\]/);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("skill conflicts render package source labels and non-collision diagnostics", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-hdr-skill-pkg-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-hdr-skill-pkg-"));
   const home = process.env.HOME ?? dir;
   // npm package skill: baseDir + npm: source drives getShortPath's relative path
   // and getDisplaySourceInfo's accent (source + scope) label branch.
-  const pkgBaseDir = join(home, ".pi/agent/npm/node_modules/pi-skills/skills/pkg-skill");
-  const winnerPath = join(pkgBaseDir, "SKILL.md");
-  const loserPath = join(home, "project/.agents/skills/pkg-skill/SKILL.md");
-  const warnPath = join(home, ".agents/skills/bad-skill/SKILL.md");
+  const pkgBaseDir = path.join(home, ".pi/agent/npm/node_modules/pi-skills/skills/pkg-skill");
+  const winnerPath = path.join(pkgBaseDir, "SKILL.md");
+  const loserPath = path.join(home, "project/.agents/skills/pkg-skill/SKILL.md");
+  const warnPath = path.join(home, ".agents/skills/bad-skill/SKILL.md");
   try {
     const runtime = new MixCodeRuntime({
-      sessionsRoot: join(dir, "sessions"),
+      sessionsRoot: path.join(dir, "sessions"),
       resourceLoaderOptions: {
         skillsOverride: () => ({
           skills: [
@@ -344,6 +344,6 @@ test("skill conflicts render package source labels and non-collision diagnostics
     // Non-collision warning renders path line then message line.
     assert.match(summary, /~\/\.agents\/skills\/bad-skill\/SKILL\.md\n\s+name contains invalid characters/);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

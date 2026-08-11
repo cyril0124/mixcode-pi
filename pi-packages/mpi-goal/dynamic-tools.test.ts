@@ -11,13 +11,13 @@ import {
 import { GOAL_TOOL_NAMES } from "./src/surface/tools/names.js";
 
 function createFakePi(initialActive: string[] = ["bash", "read"]) {
-	const tools = new Map<string, { name: string; description?: string }>();
+	const tools = new Map<string, { name: string; description?: string; parameters?: unknown }>();
 	const commands = new Map<string, { handler: (args: string, ctx: unknown) => Promise<void> }>();
 	const active = new Set(initialActive);
 	const events: Array<{ name: string }> = [];
 
 	const pi = {
-		registerTool(tool: { name: string; description?: string }) {
+		registerTool(tool: { name: string; description?: string; parameters?: unknown }) {
 			tools.set(tool.name, tool);
 		},
 		registerCommand(name: string, def: { handler: (args: string, ctx: unknown) => Promise<void> }) {
@@ -77,7 +77,7 @@ test("factory load does not call setActiveTools (runtime unbound)", () => {
 		events: { on() {}, emit() {} },
 	} as unknown as ExtensionAPI;
 
-	assert.doesNotThrow(() => mpiGoal(pi));
+	mpiGoal(pi);
 	assert.equal(setActiveCalls, 0);
 	// Cold shell: command only; tools arrive after ensureMpiGoalWired / wireMpiGoal.
 	assert.equal(tools.size, 0);
@@ -92,6 +92,16 @@ test("cold shell does not register tools until full wire", async () => {
 	assert.ok(commands.has("goal"));
 	await ensureMpiGoalWired(pi);
 	assert.equal(tools.size, GOAL_TOOL_NAMES.length);
+});
+
+test("goal creation schemas expose actions without the removed context alias", () => {
+	const { pi, tools } = createFakePi();
+	wireMpiGoal(pi);
+	for (const name of ["create_goal", "create_goal_from_template", "enqueue_goal"]) {
+		const schema = tools.get(name)?.parameters as { properties?: Record<string, unknown> } | undefined;
+		assert.ok(schema?.properties?.post_completion_actions, `${name} must expose actions`);
+		assert.equal("post_completion_context" in (schema?.properties ?? {}), false);
+	}
 });
 
 test("registers all goal tools but leaves them inactive by default", () => {

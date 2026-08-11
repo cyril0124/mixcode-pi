@@ -1,8 +1,8 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import * as fsPromises from "node:fs/promises";
+import * as path from "node:path";
+import * as os from "node:os";
 import { test } from "node:test";
 import { Type } from "@earendil-works/pi-ai";
 import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
@@ -49,7 +49,7 @@ function silentTerminal(): Terminal {
 }
 
 test("runtime loads extension tools, commands, and lifecycle hooks", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-"));
   const events: string[] = [];
   const extension: ExtensionFactory = (pi) => {
     pi.registerTool({
@@ -122,12 +122,12 @@ test("runtime loads extension tools, commands, and lifecycle hooks", async () =>
       /rendered hello world/,
     );
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime keeps extension runtimes isolated across same-workdir tabs", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-isolation-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-isolation-"));
   const extension: ExtensionFactory = (pi) => {
     pi.registerMessageRenderer("isolation-note", (message) => new Text(String(message.content), 0, 0));
     pi.registerCommand("poke", {
@@ -159,12 +159,12 @@ test("runtime keeps extension runtimes isolated across same-workdir tabs", async
       second.chat.some((line) => line.role === "extension" && line.text.includes("still alive")),
     );
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime extension terminal input and UI setters expose exact state changes", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-terminal-ui-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-terminal-ui-"));
   const extension: ExtensionFactory = (pi) => {
     pi.registerCommand("terminal-ui", {
       description: "Terminal input and UI state smoke",
@@ -208,12 +208,12 @@ test("runtime extension terminal input and UI setters expose exact state changes
     );
     assert.match(renderExtensionWidgets(runtimeTab.tab, 40, "belowEditor").join("\n"), /line one/);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime extension manager disables extension entries across reloads", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-manager-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-manager-"));
   let disabledExtensionKeys: string[] = [];
   const extension: ExtensionFactory = (pi) => {
     pi.registerTool({
@@ -264,12 +264,12 @@ test("runtime extension manager disables extension entries across reloads", asyn
       false,
     );
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime extension manager disables extensions for new tabs", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-manager-cache-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-manager-cache-"));
   let disabledExtensionKeys: string[] = [];
   const extension: ExtensionFactory = (pi) => {
     pi.registerTool({
@@ -323,12 +323,12 @@ test("runtime extension manager disables extensions for new tabs", async () => {
       false,
     );
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime extension factory widgets render live state after requestRender", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-live-widget-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-live-widget-"));
   let count = 0;
   let widgetTui: TUI | undefined;
   const extension: ExtensionFactory = (pi) => {
@@ -363,12 +363,12 @@ test("runtime extension factory widgets render live state after requestRender", 
       /Todos \(1\/5\)/,
     );
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime extension reload resets host UI state and rebinds extension resources", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-command-reload-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-command-reload-"));
   const events: string[] = [];
   const extension: ExtensionFactory = (pi) => {
     pi.on("session_start", (event, ctx) => {
@@ -439,12 +439,12 @@ test("runtime extension reload resets host UI state and rebinds extension resour
     assert.deepEqual(events, ["start:startup", "shutdown:reload", "start:reload", "after-reload"]);
     runtime.setExtensionUiHost(undefined);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime preserves interior blank lines in factory widgets", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-widget-blank-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-widget-blank-"));
   const extension: ExtensionFactory = (pi) => {
     pi.registerCommand("blank-widget", {
       description: "Widget with an interior blank separator line",
@@ -479,12 +479,12 @@ test("runtime preserves interior blank lines in factory widgets", async () => {
     assert.equal(rendered.length, 3);
     assert.equal(stripAnsi(rendered[1] ?? "x").trim(), "");
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("extension notify matches Pi info/warning/error rendering", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-notify-parity-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-notify-parity-"));
   let ui: { notify: (message: string, type?: "info" | "warning" | "error") => void } | undefined;
   const extension: ExtensionFactory = (pi) => {
     pi.on("session_start", (_event, ctx) => {
@@ -570,12 +570,12 @@ test("extension notify matches Pi info/warning/error rendering", async () => {
       new RegExp(escapeRegExp(MIXCODE_DARK_THEME.error("Error: fail **literal**"))),
     );
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("extension info history survives an intervening user message", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-notify-history-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-notify-history-"));
   let ui: { notify: (message: string, type?: "info" | "warning" | "error") => void } | undefined;
   const extension: ExtensionFactory = (pi) => {
     pi.on("session_start", (_event, ctx) => {
@@ -595,7 +595,7 @@ test("extension info history survives an intervening user message", async () => 
     await runtime.prompt("s1", "hello");
     for (let i = 0; i < 50; i += 1) {
       if (runtime.getTab("s1")?.agentSession.isStreaming === false) break;
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await Bun.sleep(10);
     }
     ui.notify("after");
 
@@ -608,7 +608,7 @@ test("extension info history survives an intervening user message", async () => 
     assert.ok(afterIdx > userIdx, "after info should follow user message");
     assert.doesNotMatch(texts.join("\n"), /Extension/);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 

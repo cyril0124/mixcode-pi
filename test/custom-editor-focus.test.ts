@@ -1,8 +1,8 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import * as fsPromises from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { test } from "node:test";
 import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import { CURSOR_MARKER, type Terminal } from "@earendil-works/pi-tui";
@@ -20,7 +20,7 @@ import {
 async function waitFor(predicate: () => boolean, attempts = 40): Promise<void> {
   for (let i = 0; i < attempts; i += 1) {
     if (predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await Bun.sleep(10);
   }
   assert.equal(predicate(), true);
 }
@@ -52,7 +52,7 @@ function silentTerminal(): Terminal {
 }
 
 test("ctx.ui.custom editor replacement forwards focus so nested cursor is visible", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-custom-editor-focus-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-custom-editor-focus-"));
   let nestedFocused = false;
   let closeCustom: ((value: string) => void) | undefined;
   const extension: ExtensionFactory = (pi) => {
@@ -119,6 +119,6 @@ test("ctx.ui.custom editor replacement forwards focus so nested cursor is visibl
       tui.stop();
     }
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

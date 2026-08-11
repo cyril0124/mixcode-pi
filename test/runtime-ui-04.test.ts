@@ -1,8 +1,8 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import * as fsPromises from "node:fs/promises";
+import * as path from "node:path";
+import * as os from "node:os";
 import { test } from "node:test";
 import type { Model } from "@earendil-works/pi-ai";
 import type { Terminal } from "@earendil-works/pi-tui";
@@ -122,7 +122,7 @@ test("createMixCodeTui hydrates editor history per tab from restored runtime use
 });
 
 test("submitted input handles prompt, shell, local commands, clear, and missing active tab", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-submit-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-submit-"));
   const openTabsPath = openTabsFile(dir);
   configureOpenTabsPath(openTabsPath);
   const state = createInitialState(dir);
@@ -200,20 +200,20 @@ test("submitted input handles prompt, shell, local commands, clear, and missing 
     showOverlay: () => ({}) as never,
   };
   try {
-    await mkdir(join(dir, ".agents", "skills", "review"), { recursive: true });
-    await writeFile(
-      join(dir, ".agents", "skills", "review", "SKILL.md"),
+    await fsPromises.mkdir(path.join(dir, ".agents", "skills", "review"), { recursive: true });
+    await fsPromises.writeFile(
+      path.join(dir, ".agents", "skills", "review", "SKILL.md"),
       "description: review",
       "utf8",
     );
-    await writeFile(join(dir, "AGENTS.md"), "Follow repo rules", "utf8");
+    await fsPromises.writeFile(path.join(dir, "AGENTS.md"), "Follow repo rules", "utf8");
     await handleSubmittedInput(state, runtime, "hello $review @src/index.ts", tui);
     await handleSubmittedInput(state, runtime, "!pwd", tui);
     await handleSubmittedInput(state, runtime, "/clear", tui);
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await Bun.sleep(50);
     await handleSubmittedInput(state, runtime, "/thinking high", tui);
-    const workdirTarget = join(dir, "work");
-    await mkdir(workdirTarget, { recursive: true });
+    const workdirTarget = path.join(dir, "work");
+    await fsPromises.mkdir(workdirTarget, { recursive: true });
     await handleSubmittedInput(state, runtime, `/workdir ${workdirTarget}`, tui);
     const { setTheme } = await import("../src/ui/themes.js");
     setTheme(state, "tokyo-night");
@@ -230,14 +230,14 @@ test("submitted input handles prompt, shell, local commands, clear, and missing 
     );
     await handleSubmittedInput(state, runtime, "/delete-session", tui);
     handleMixCodeKeyInput(state, "y", tui, undefined, runtime);
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await Bun.sleep(0);
     await handleSubmittedInput(state, runtime, "/new-session s2", tui);
     const newSessionId = state.activeTabId;
     assert.match(newSessionId, UUIDV7_SESSION_ID_PATTERN);
     assert.notEqual(newSessionId, "s2");
     await handleSubmittedInput(state, runtime, "/close-session", tui);
     handleMixCodeKeyInput(state, "y", tui, undefined, runtime);
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await Bun.sleep(0);
     setTheme(state, "mixcode-dark");
     await handleSubmittedInput(state, runtime, "/help", tui);
     await handleSubmittedInput(state, runtime, "/run worker task", tui);
@@ -259,7 +259,7 @@ test("submitted input handles prompt, shell, local commands, clear, and missing 
     await handleSubmittedInput(state, runtime, "ignored", tui);
   } finally {
     configureOpenTabsPath(undefined);
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
@@ -315,11 +315,11 @@ test("submitted clear fires session replacement without blocking the caller", as
   assert.ok(renderCalled.length >= 1, "/clear must request at least one render before replacement settles");
   assert.equal(tab.status, "idle");
   assert.equal(clearStarted, false);
-  await new Promise((resolve) => setTimeout(resolve, 50));
+  await Bun.sleep(50);
   assert.equal(clearStarted, true);
   assert.notEqual(state.activeTabId, "cleared");
   finishClear();
-  await new Promise((resolve) => setTimeout(resolve, 0));
+  await Bun.sleep(0);
   assert.equal(state.activeTabId, "cleared");
 });
 
@@ -356,16 +356,16 @@ test("submitted clear resets tab state when replacement fails", async () => {
       showOverlay: () => ({}) as never,
     },
   );
-  await new Promise((resolve) => setTimeout(resolve, 50));
+  await Bun.sleep(50);
   assert.equal(tab.status, "idle");
   assert.ok(systemMessages.some((msg) => msg.includes("clear failed")));
 });
 
 test("runtime enables Pi builtin tools", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-tools-"));
-  const agentDir = join(dir, "agent");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-tools-"));
+  const agentDir = path.join(dir, "agent");
   try {
-    await writeFile(join(dir, "a.txt"), "hello", "utf8");
+    await fsPromises.writeFile(path.join(dir, "a.txt"), "hello", "utf8");
     // Empty agentDir: no global extensions. Contract = pi default active set only.
     const runtime = new MixCodeRuntime({ sessionsRoot: dir, agentDir });
     const runtimeTab = await runtime.createTab(createTab(1, "s1", dir), {
@@ -410,12 +410,12 @@ test("runtime enables Pi builtin tools", async () => {
     assert.match(editResult.content[0]?.text ?? "", /Successfully replaced/);
     await write.execute("4", { path: "b.txt", content: "created" }, undefined);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("submitted bang command streams Pi bash locally instead of prompting the model", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-bang-bash-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-bang-bash-"));
   try {
     const state = createInitialState(dir);
     const tab = createTab(1, "s1", dir);
@@ -469,7 +469,7 @@ test("submitted bang command streams Pi bash locally instead of prompting the mo
       ),
     );
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
@@ -554,7 +554,7 @@ test("submitted clear restores chat when replacement fails after prepare", async
       showOverlay: () => ({}) as never,
     },
   );
-  await new Promise((resolve) => setTimeout(resolve, 50));
+  await Bun.sleep(50);
   assert.ok(systemMessages.some((msg) => msg.includes("clear failed after prepare")));
   assert.ok(
     runtimeTab.chat.some((line) => line.role === "user" && line.text.includes("restored")),

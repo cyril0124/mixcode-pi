@@ -1,6 +1,6 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { join } from "node:path";
+import * as path from "node:path";
 import { test } from "node:test";
 import { createTab } from "../src/core/defaults.js";
 import { renderInputMeta, shortModelName } from "../src/ui/rendering/chrome.js";
@@ -17,7 +17,7 @@ function stripAnsi(text: string): string {
 function metaRow(displayName: string, width: number): string {
   // Non-existent path so the git badge stays " - " (no repo) and the row width
   // is deterministic across machines.
-  const workdir = join(process.env.HOME ?? "/", "workspace/project/mixcode-pi-demo");
+  const workdir = path.join(process.env.HOME ?? "/", "workspace/project/mixcode-pi-demo");
   const tab = createTab(1, "s1", workdir, {
     model: {
       provider: "anthropic",

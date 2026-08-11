@@ -44,7 +44,7 @@ interface PanelCtx {
   mixcodeRaw: RawMixCodeSettings;
   mixcodeFile: string;
   piSettingsFile: string;
-  setHideThinkingBlock?: (hide: boolean) => void;
+  setHideThinkingBlock?: (hide: boolean) => Promise<void>;
   availableModels: MixCodeModelRef[];
 }
 
@@ -96,9 +96,9 @@ const ITEMS: SettingItem[] = [
     defaultValue: false,
     getValue: ({ settingsManager }) => settingsManager.getGlobalSettings().hideThinkingBlock,
     setValue: async ({ settingsManager, setHideThinkingBlock }, v) => {
-      // Persist via SettingsManager; live UI state is synced in applyLiveEffects.
-      settingsManager.setHideThinkingBlock(v);
-      setHideThinkingBlock?.(v);
+      // Production uses the runtime method so persistence errors are surfaced.
+      if (setHideThinkingBlock) await setHideThinkingBlock(v);
+      else settingsManager.setHideThinkingBlock(v);
     },
   },
   {
@@ -212,8 +212,8 @@ const ITEMS: SettingItem[] = [
       const next: RawMixCodeSettings = { ...ctx.mixcodeRaw };
       if (v === undefined) delete next.theme;
       else next.theme = v;
-      replaceRaw(ctx.mixcodeRaw, next);
       await writeRawMixCodeSettings(ctx.mixcodeFile, next);
+      replaceRaw(ctx.mixcodeRaw, next);
       // Live preview: apply default when clearing, else the chosen id.
       setTheme(ctx.state, v ?? DEFAULT_THEME_ID);
     },
@@ -228,8 +228,8 @@ const ITEMS: SettingItem[] = [
       const next: RawMixCodeSettings = { ...ctx.mixcodeRaw };
       if (v === undefined) delete next.history;
       else next.history = { ...next.history, maxBytes: v };
-      replaceRaw(ctx.mixcodeRaw, next);
       await writeRawMixCodeSettings(ctx.mixcodeFile, next);
+      replaceRaw(ctx.mixcodeRaw, next);
     },
   },
   {
@@ -257,8 +257,8 @@ const ITEMS: SettingItem[] = [
           icons: { ...next.ui?.icons, mode: v as IconMode },
         };
       }
-      replaceRaw(ctx.mixcodeRaw, next);
       await writeRawMixCodeSettings(ctx.mixcodeFile, next);
+      replaceRaw(ctx.mixcodeRaw, next);
     },
   },
   {
@@ -269,8 +269,8 @@ const ITEMS: SettingItem[] = [
     getValue: ({ mixcodeRaw }) => mixcodeRaw.ui?.oversizedAssistantMessage?.enabled,
     setValue: async (ctx, v) => {
       const next = mergeOversized(ctx.mixcodeRaw, { enabled: v });
-      replaceRaw(ctx.mixcodeRaw, next);
       await writeRawMixCodeSettings(ctx.mixcodeFile, next);
+      replaceRaw(ctx.mixcodeRaw, next);
     },
   },
   {
@@ -281,8 +281,8 @@ const ITEMS: SettingItem[] = [
     getValue: ({ mixcodeRaw }) => mixcodeRaw.ui?.oversizedAssistantMessage?.maxLines,
     setValue: async (ctx, v) => {
       const next = mergeOversized(ctx.mixcodeRaw, { maxLines: v });
-      replaceRaw(ctx.mixcodeRaw, next);
       await writeRawMixCodeSettings(ctx.mixcodeFile, next);
+      replaceRaw(ctx.mixcodeRaw, next);
     },
   },
   {
@@ -293,8 +293,8 @@ const ITEMS: SettingItem[] = [
     getValue: ({ mixcodeRaw }) => mixcodeRaw.ui?.oversizedAssistantMessage?.maxBytes,
     setValue: async (ctx, v) => {
       const next = mergeOversized(ctx.mixcodeRaw, { maxBytes: v });
-      replaceRaw(ctx.mixcodeRaw, next);
       await writeRawMixCodeSettings(ctx.mixcodeFile, next);
+      replaceRaw(ctx.mixcodeRaw, next);
     },
   },
   {
@@ -310,8 +310,8 @@ const ITEMS: SettingItem[] = [
       const next: RawMixCodeSettings = { ...ctx.mixcodeRaw };
       if (v === undefined || v.length === 0) delete next.disabledProviders;
       else next.disabledProviders = v;
-      replaceRaw(ctx.mixcodeRaw, next);
       await writeRawMixCodeSettings(ctx.mixcodeFile, next);
+      replaceRaw(ctx.mixcodeRaw, next);
     },
   },
   {
@@ -329,8 +329,8 @@ const ITEMS: SettingItem[] = [
       const next: RawMixCodeSettings = { ...ctx.mixcodeRaw };
       if (v === undefined || v.length === 0) delete next.disabledModels;
       else next.disabledModels = v;
-      replaceRaw(ctx.mixcodeRaw, next);
       await writeRawMixCodeSettings(ctx.mixcodeFile, next);
+      replaceRaw(ctx.mixcodeRaw, next);
     },
   },
 ];
@@ -370,7 +370,7 @@ export async function openSettingsPanel(
   mixcodeFile: string,
   piSettingsFile: string,
   runtimeRef: {
-    setHideThinkingBlock?: (hide: boolean) => void;
+    setHideThinkingBlock?: (hide: boolean) => Promise<void>;
   },
 ): Promise<void> {
   const mixcodeRaw = await loadRawMixCodeSettings(mixcodeFile);
@@ -548,7 +548,7 @@ function renderMainSettingsLines(
   },
 ): string[] {
   const { dim, accent, sel, innerWidth, labelCol, valueCol, gap, sectionHeader, pathLine } = ui;
-  const footerHint = panel.editMode && panel.editError
+  const footerHint = panel.editError
     ? dim(`  ${panel.editError}  ⏎ retry  esc cancel`)
     : dim("  ↑↓ select  ⏎ edit/toggle  esc close");
   const footer = ["", footerHint];
@@ -831,6 +831,46 @@ export function handleSettingsPanelKey(
   return true;
 }
 
+function saveSetting(
+  state: MixCodeState,
+  tui: OverlayTui,
+  item: SettingItem,
+  ctx: PanelCtx,
+  write: () => Promise<void>,
+  onSuccess: () => void,
+): void {
+  state.settingsPanel.editError = undefined;
+  void (async () => {
+    try {
+      await write();
+      await ctx.settingsManager.flush();
+      const errors = ctx.settingsManager.drainErrors();
+      if (errors.length > 0) {
+        throw new Error(errors.map(({ scope, error }) => `${scope}: ${error.message}`).join("; "));
+      }
+      onSuccess();
+    } catch (error) {
+      const messages = [error instanceof Error ? error.message : String(error)];
+      try {
+        await ctx.settingsManager.reload();
+        messages.push(
+          ...ctx.settingsManager
+            .drainErrors()
+            .map(({ scope, error: reloadError }) => `${scope}: ${reloadError.message}`),
+        );
+      } catch (reloadError) {
+        messages.push(
+          `reload failed: ${reloadError instanceof Error ? reloadError.message : String(reloadError)}`,
+        );
+      }
+      applyLiveEffects(state);
+      const label = ITEM_LABELS[item.label] ?? item.label;
+      state.settingsPanel.editError = `Failed to save ${label}: ${messages.join("; ")}`;
+      refreshSettingsPanel(state, tui);
+    }
+  })();
+}
+
 function handleNormal(
   state: MixCodeState,
   data: string,
@@ -849,10 +889,17 @@ function handleNormal(
     if (!item || !ctx) return;
     if (item.kind === "boolean") {
       const cur = item.getValue(ctx) ?? item.defaultValue;
-      void item.setValue(ctx, !cur).then(() => {
-        applyLiveEffects(state);
-        refreshSettingsPanel(state, tui);
-      });
+      saveSetting(
+        state,
+        tui,
+        item,
+        ctx,
+        () => item.setValue(ctx, !cur),
+        () => {
+          applyLiveEffects(state);
+          refreshSettingsPanel(state, tui);
+        },
+      );
     } else if (item.kind === "number") {
       const cur = item.getValue(ctx);
       panel.editMode = true;
@@ -892,13 +939,20 @@ function handleEdit(
       const trimmed = panel.editText.trim();
       // Empty input clears the explicit override (restore default).
       if (trimmed === "") {
-        void item.setValue(ctx, undefined).then(() => {
-          applyLiveEffects(state);
-          panel.editMode = false;
-          panel.editText = "";
-          panel.editError = undefined;
-          refreshSettingsPanel(state, tui);
-        });
+        saveSetting(
+          state,
+          tui,
+          item,
+          ctx,
+          () => item.setValue(ctx, undefined),
+          () => {
+            applyLiveEffects(state);
+            panel.editMode = false;
+            panel.editText = "";
+            panel.editError = undefined;
+            refreshSettingsPanel(state, tui);
+          },
+        );
         return;
       }
       const parsed = parseSettingsNumber(trimmed, isByteSizeSetting(item));
@@ -910,13 +964,20 @@ function handleEdit(
         refreshSettingsPanel(state, tui);
         return;
       }
-      void item.setValue(ctx, parsed).then(() => {
-        applyLiveEffects(state);
-        panel.editMode = false;
-        panel.editText = "";
-        panel.editError = undefined;
-        refreshSettingsPanel(state, tui);
-      });
+      saveSetting(
+        state,
+        tui,
+        item,
+        ctx,
+        () => item.setValue(ctx, parsed),
+        () => {
+          applyLiveEffects(state);
+          panel.editMode = false;
+          panel.editText = "";
+          panel.editError = undefined;
+          refreshSettingsPanel(state, tui);
+        },
+      );
       return;
     }
     panel.editMode = false;
@@ -967,16 +1028,28 @@ function handleEnum(
         else current.add(opt);
       }
       const next = [...current].sort();
-      void item.setValues(ctx, next.length > 0 ? next : undefined).then(() => {
-        refreshSettingsPanel(state, tui);
-      });
+      saveSetting(
+        state,
+        tui,
+        item,
+        ctx,
+        () => item.setValues(ctx, next.length > 0 ? next : undefined),
+        () => refreshSettingsPanel(state, tui),
+      );
       return;
     }
-    void item.setValue(ctx, opts[panel.enumIndex]).then(() => {
-      applyLiveEffects(state);
-      panel.enumOpen = false;
-      refreshSettingsPanel(state, tui);
-    });
+    saveSetting(
+      state,
+      tui,
+      item,
+      ctx,
+      () => item.setValue(ctx, opts[panel.enumIndex]),
+      () => {
+        applyLiveEffects(state);
+        panel.enumOpen = false;
+        refreshSettingsPanel(state, tui);
+      },
+    );
   } else if (matchesKey(data, "escape") || data === "\x1b") {
     // Cancel browse preview for theme: restore the persisted/file value.
     if (item.kind === "enum" && item.label === "theme") {

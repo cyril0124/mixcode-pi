@@ -1,8 +1,8 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import * as fsPromises from "node:fs/promises";
+import * as path from "node:path";
+import * as os from "node:os";
 import { test } from "node:test";
 import {
   Type,
@@ -129,7 +129,7 @@ function lastRuntimeUserText(context: Context): string {
 async function waitForRuntime(predicate: () => boolean, attempts = 25): Promise<void> {
   for (let i = 0; i < attempts; i += 1) {
     if (predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await Bun.sleep(10);
   }
   assert.equal(predicate(), true);
 }
@@ -176,7 +176,7 @@ function escapeRegExp(text: string): string {
 }
 
 test("runtime merges resource loader and runtime extension factories across workdir reloads", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-reload-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-reload-"));
   const events: string[] = [];
   const first: ExtensionFactory = (pi) => {
     pi.registerCommand("first", { description: "First command", handler: async () => undefined });
@@ -190,12 +190,12 @@ test("runtime merges resource loader and runtime extension factories across work
   };
 
   try {
-    const oldDir = join(dir, "old");
-    const newDir = join(dir, "new");
-    await mkdir(oldDir, { recursive: true });
-    await mkdir(newDir, { recursive: true });
+    const oldDir = path.join(dir, "old");
+    const newDir = path.join(dir, "new");
+    await fsPromises.mkdir(oldDir, { recursive: true });
+    await fsPromises.mkdir(newDir, { recursive: true });
     const runtime = new MixCodeRuntime({
-      sessionsRoot: join(dir, "sessions"),
+      sessionsRoot: path.join(dir, "sessions"),
       resourceLoaderOptions: { extensionFactories: [first] },
       extensionFactories: [second],
     });
@@ -222,12 +222,12 @@ test("runtime merges resource loader and runtime extension factories across work
       "second:reload",
     ]);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime emits pi extension shutdown on close, close-all, delete, delete-all, and clear", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-shutdown-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-shutdown-"));
   const events: string[] = [];
   const extension: ExtensionFactory = (pi) => {
     pi.on("session_shutdown", (event, ctx) => {
@@ -301,12 +301,12 @@ test("runtime emits pi extension shutdown on close, close-all, delete, delete-al
       "all-b:quit:none",
     ]);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime exposes editor component replacement as an explicit error without a live TUI host", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-ui-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-ui-"));
   const extension: ExtensionFactory = (pi) => {
     pi.on("session_start", async (_event, ctx) => {
       ctx.ui.setEditorComponent(() => ({
@@ -335,12 +335,12 @@ test("runtime exposes editor component replacement as an explicit error without 
       ),
     );
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime maps pi extension custom overlay into a live TUI overlay", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-custom-overlay-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-custom-overlay-"));
   const events: string[] = [];
   const terminal = silentTerminal();
   const tui = new TuiMainScreen(terminal);
@@ -427,6 +427,6 @@ test("runtime maps pi extension custom overlay into a live TUI overlay", async (
     assert.ok(events.includes("result:updated"));
   } finally {
     tui.stop();
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

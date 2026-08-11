@@ -1,8 +1,8 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import * as fsPromises from "node:fs/promises";
+import * as path from "node:path";
+import * as os from "node:os";
 import { test } from "node:test";
 import {
   Type,
@@ -129,7 +129,7 @@ function lastRuntimeUserText(context: Context): string {
 async function waitForRuntime(predicate: () => boolean, attempts = 25): Promise<void> {
   for (let i = 0; i < attempts; i += 1) {
     if (predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await Bun.sleep(10);
   }
   assert.equal(predicate(), true);
 }
@@ -176,7 +176,7 @@ function escapeRegExp(text: string): string {
 }
 
 test("runtime dispatches pi extension shortcuts and surfaces handler errors", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-shortcuts-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-shortcuts-"));
   const seen: string[] = [];
   const extension: ExtensionFactory = (pi) => {
     pi.registerShortcut("ctrl+x", {
@@ -219,12 +219,12 @@ test("runtime dispatches pi extension shortcuts and surfaces handler errors", as
     assert.equal(runtime.dispatchExtensionShortcut("s1", "\x1a"), false);
     assert.equal(runtime.dispatchExtensionShortcut("missing", "\x18"), false);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime reports extension command and shortcut conflicts while extension tools can own builtin names", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-conflict-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-conflict-"));
   const extension: ExtensionFactory = (pi) => {
     pi.registerCommand("clear", {
       description: "Conflicting local command",
@@ -267,16 +267,16 @@ test("runtime reports extension command and shortcut conflicts while extension t
     );
     assert.match(runtimeTab.tab.startupSummary ?? "", /read -> inline/);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime surfaces pi extension load errors explicitly", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-extension-load-error-"));
-  const extensionPath = join(dir, "missing-extension.ts");
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-extension-load-error-"));
+  const extensionPath = path.join(dir, "missing-extension.ts");
   try {
     const runtime = new MixCodeRuntime({
-      sessionsRoot: join(dir, "sessions"),
+      sessionsRoot: path.join(dir, "sessions"),
       additionalExtensionPaths: [extensionPath],
     });
     const runtimeTab = await runtime.createTab(createTab(1, "s1", process.cwd()), {
@@ -292,18 +292,18 @@ test("runtime surfaces pi extension load errors explicitly", async () => {
       (runtimeTab.tab.startupSummary ?? "").includes(`Extension load error: ${extensionPath}`),
     );
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
 test("runtime loads pi package resources from project package sources", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-runtime-package-extension-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-package-extension-"));
   try {
-    const packageRoot = join(dir, "package");
-    const extensionPath = join(packageRoot, "src", "extension", "index.ts");
-    await mkdir(join(packageRoot, "src", "extension"), { recursive: true });
-    await writeFile(
-      join(packageRoot, "package.json"),
+    const packageRoot = path.join(dir, "package");
+    const extensionPath = path.join(packageRoot, "src", "extension", "index.ts");
+    await fsPromises.mkdir(path.join(packageRoot, "src", "extension"), { recursive: true });
+    await fsPromises.writeFile(
+      path.join(packageRoot, "package.json"),
       JSON.stringify({
         name: "mixcode-package-extension",
         type: "module",
@@ -311,7 +311,7 @@ test("runtime loads pi package resources from project package sources", async ()
       }),
       "utf8",
     );
-    await writeFile(
+    await fsPromises.writeFile(
       extensionPath,
       [
         "export default function extension(pi) {",
@@ -328,15 +328,15 @@ test("runtime loads pi package resources from project package sources", async ()
       ].join("\n"),
       "utf8",
     );
-    const agentDir = join(dir, "agent");
-    const workdir = join(dir, "repo");
-    await mkdir(workdir, { recursive: true });
+    const agentDir = path.join(dir, "agent");
+    const workdir = path.join(dir, "repo");
+    await fsPromises.mkdir(workdir, { recursive: true });
     const settings = SettingsManager.create(workdir, agentDir);
     settings.setProjectPackages([packageRoot]);
     await settings.flush();
 
     const runtime = new MixCodeRuntime({
-      sessionsRoot: join(dir, "sessions"),
+      sessionsRoot: path.join(dir, "sessions"),
       agentDir,
       settingsManager: settings,
     });
@@ -349,7 +349,7 @@ test("runtime loads pi package resources from project package sources", async ()
     assert.ok(runtimeTab.agentSession.getAllTools().some((tool) => tool.name === "pkg_tool"));
     assert.ok(runtime.getExtensionCommands("s1").some((command) => command.name === "pkg-smoke"));
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 

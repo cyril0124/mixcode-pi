@@ -108,8 +108,10 @@ function readInstalledSources(): Set<string> {
   try {
     const data = JSON.parse(fs.readFileSync(settingsPath, "utf8")) as { packages?: string[] };
     return new Set(data.packages ?? []);
-  } catch {
-    return new Set();
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return new Set();
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Failed to read ${settingsPath}: ${message}`, { cause: error });
   }
 }
 

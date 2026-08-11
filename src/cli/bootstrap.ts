@@ -81,21 +81,13 @@ export function defaultPiSessionDir(workdir: string, agentDir = defaultMixCodeAg
   return path.join(path.resolve(agentDir), "sessions", safePath);
 }
 
-/**
- * Resolve the session root, mirroring Pi's precedence (main.js):
- * explicit stateDir (test/isolation) wins for backward compatibility; otherwise
- * follow PI_CODING_AGENT_SESSION_DIR env, then settings.sessionDir, then the
- * per-workdir default under the effective agent dir.
- */
+/** Resolve the session root using Pi's current precedence. */
 export function resolveSessionsRoot(input: {
   workdir: string;
   agentDir: string;
-  stateDir?: string;
-  scopedStateDir: string;
   envSessionDir?: string;
   settingsSessionDir?: string;
 }): string {
-  if (input.stateDir) return path.join(input.scopedStateDir, "sessions");
   return (
     resolveAgentDirEnv(input.envSessionDir) ??
     input.settingsSessionDir ??
@@ -134,8 +126,6 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
   const sessionsRoot = resolveSessionsRoot({
     workdir: options.workdir,
     agentDir,
-    stateDir: options.stateDir,
-    scopedStateDir: stateDir,
     envSessionDir: process.env.PI_CODING_AGENT_SESSION_DIR,
     settingsSessionDir: settingsManager.getSessionDir(),
   });
@@ -247,7 +237,6 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
   });
   const runtime = new MixCodeRuntime({
     sessionsRoot,
-    rootStateDir,
     agentDir,
     modelRuntime: modelBundle.modelRuntime,
     modelRegistry: modelBundle.registry,

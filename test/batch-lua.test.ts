@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import * as fsPromises from "node:fs/promises";
+import * as path from "node:path";
+import * as os from "node:os";
 import { test } from "node:test";
 import {
   applyBatchRequests,
@@ -403,7 +403,7 @@ test("applyBatchRequests awaits same-tab prompts in order", async () => {
     ],
     host,
   );
-  await new Promise((resolve) => setTimeout(resolve, 0));
+  await Bun.sleep(0);
   assert.deepEqual(order, ["start-1"]);
   releaseFirst?.();
   await batch;
@@ -416,7 +416,7 @@ test("applyBatchRequests runs all prompts in parallel", async () => {
   // Override submitInput to track execution order with delays
   host.submitInput = async (sessionId, input) => {
     order.push(`start-${sessionId}`);
-    await new Promise((r) => setTimeout(r, 10));
+    await Bun.sleep(10);
     order.push(`end-${sessionId}`);
   };
   const requests: BatchTabRequest[] = [
@@ -432,10 +432,10 @@ test("applyBatchRequests runs all prompts in parallel", async () => {
 // --- executeBatchScript integration test ---
 
 test("executeBatchScript reads file and applies requests", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "batch-lua-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "batch-lua-"));
   try {
-    const scriptPath = join(dir, "test.lua");
-    await writeFile(
+    const scriptPath = path.join(dir, "test.lua");
+    await fsPromises.writeFile(
       scriptPath,
       'mixcode.open_tab({ name = "from-file", prompt = "file prompt" })\n',
     );
@@ -445,7 +445,7 @@ test("executeBatchScript reads file and applies requests", async () => {
     assert.equal(host.created[0]!.name, "from-file");
     assert.equal(host.inputs[0]!.input, "file prompt");
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
 
@@ -747,13 +747,13 @@ test("formatBatchPlan marks system_prompt", () => {
 
 
 test("runBatchDryRun prints plan without writing state file", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "batch-dry-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "batch-dry-"));
   try {
-    const scriptPath = join(dir, "s.lua");
-    await writeFile(scriptPath, 'mixcode.open_tab({ name = "only", prompt = "hi" })\n');
+    const scriptPath = path.join(dir, "s.lua");
+    await fsPromises.writeFile(scriptPath, 'mixcode.open_tab({ name = "only", prompt = "hi" })\n');
     // Isolate agent/state under temp so dry-run cannot touch the real agent dir.
     const prevAgent = process.env.MIXCODE_CODING_AGENT_DIR;
-    process.env.MIXCODE_CODING_AGENT_DIR = join(dir, "agent");
+    process.env.MIXCODE_CODING_AGENT_DIR = path.join(dir, "agent");
     let out = "";
     const origWrite = process.stdout.write.bind(process.stdout);
     process.stdout.write = ((chunk: any) => {
@@ -777,8 +777,8 @@ test("runBatchDryRun prints plan without writing state file", async () => {
     assert.match(out, /prompt: hi/);
     // defaultStateDir is <agentDir>/mixcode-pi — must stay absent (no mkdir/save).
     const { access } = await import("node:fs/promises");
-    await assert.rejects(() => access(join(dir, "agent", "mixcode-pi")), /ENOENT/);
+    await assert.rejects(() => access(path.join(dir, "agent", "mixcode-pi")), /ENOENT/);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

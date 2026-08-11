@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 import { after, test } from "node:test";
 import skillRefsExtension from "./index.js";
 import {
@@ -18,20 +18,20 @@ import {
 const tempDirs: string[] = [];
 
 function makeTempDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), "skill-refs-test-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "skill-refs-test-"));
   tempDirs.push(dir);
   return dir;
 }
 
 after(() => {
-  for (const dir of tempDirs) rmSync(dir, { recursive: true, force: true });
+  for (const dir of tempDirs) fs.rmSync(dir, { recursive: true, force: true });
 });
 
 function writeSkill(baseDir: string, name: string, description: string): string {
-  const skillDir = join(baseDir, name);
-  mkdirSync(skillDir, { recursive: true });
-  const file = join(skillDir, "SKILL.md");
-  writeFileSync(file, `---\nname: ${name}\ndescription: ${description}\n---\n\n# ${name}\n\nBody of ${name}.\n`);
+  const skillDir = path.join(baseDir, name);
+  fs.mkdirSync(skillDir, { recursive: true });
+  const file = path.join(skillDir, "SKILL.md");
+  fs.writeFileSync(file, `---\nname: ${name}\ndescription: ${description}\n---\n\n# ${name}\n\nBody of ${name}.\n`);
   return file;
 }
 
@@ -60,7 +60,7 @@ function createFakePi() {
 }
 
 function authoritativeSkill(name: string, filePath = `/skills/${name}/SKILL.md`) {
-  return { name, description: `${name} description`, filePath, baseDir: join(filePath, "..") };
+  return { name, description: `${name} description`, filePath, baseDir: path.join(filePath, "..") };
 }
 
 async function emitBeforeAgentStart(
@@ -139,10 +139,10 @@ test("buildSkillBlock: renders instruction and skill XML", () => {
 test("scanSkillDirs: finds flat and nested skills across dirs", async () => {
   const project = makeTempDir();
   const home = makeTempDir();
-  writeSkill(join(project, ".agents", "skills"), "flat-skill", "Flat one.");
+  writeSkill(path.join(project, ".agents", "skills"), "flat-skill", "Flat one.");
   // Nested layout: <dir>/<group>/<name>/SKILL.md
-  writeSkill(join(home, ".agents", "skills", "group"), "nested-skill", "Nested one.");
-  writeSkill(join(home, ".pi", "agent", "skills"), "home-skill", "Home one.");
+  writeSkill(path.join(home, ".agents", "skills", "group"), "nested-skill", "Nested one.");
+  writeSkill(path.join(home, ".pi", "agent", "skills"), "home-skill", "Home one.");
 
   const entries = await scanSkillDirs(project, home);
   const names = [...entries.keys()].sort();
@@ -155,8 +155,8 @@ test("scanSkillDirs: finds flat and nested skills across dirs", async () => {
 test("scanSkillDirs: project dir takes precedence over home for duplicates", async () => {
   const project = makeTempDir();
   const home = makeTempDir();
-  writeSkill(join(project, ".agents", "skills"), "dup", "From project.");
-  writeSkill(join(home, ".agents", "skills"), "dup", "From home.");
+  writeSkill(path.join(project, ".agents", "skills"), "dup", "From project.");
+  writeSkill(path.join(home, ".agents", "skills"), "dup", "From home.");
   const entries = await scanSkillDirs(project, home);
   assert.equal(entries.get("dup")?.description, "From project.");
 });
@@ -164,15 +164,15 @@ test("scanSkillDirs: project dir takes precedence over home for duplicates", asy
 test("scanSkillDirs: finds npm and git package-contributed skills", async () => {
   const project = makeTempDir();
   const home = makeTempDir();
-  const agentDir = join(home, ".pi", "agent");
-  writeSkill(join(agentDir, "npm", "node_modules", "plain-pkg", "skills"), "plain-pkg-skill", "From plain npm package.");
+  const agentDir = path.join(home, ".pi", "agent");
+  writeSkill(path.join(agentDir, "npm", "node_modules", "plain-pkg", "skills"), "plain-pkg-skill", "From plain npm package.");
   writeSkill(
-    join(agentDir, "npm", "node_modules", "@scope", "scoped-pkg", "skills"),
+    path.join(agentDir, "npm", "node_modules", "@scope", "scoped-pkg", "skills"),
     "scoped-pkg-skill",
     "From scoped npm package.",
   );
   writeSkill(
-    join(agentDir, "git", "github.com", "org", "repo", "skills"),
+    path.join(agentDir, "git", "github.com", "org", "repo", "skills"),
     "git-pkg-skill",
     "From git package.",
   );
@@ -187,9 +187,9 @@ test("scanSkillDirs: finds npm and git package-contributed skills", async () => 
 test("scanSkillDirs: user skills take precedence over package skills", async () => {
   const project = makeTempDir();
   const home = makeTempDir();
-  const agentDir = join(home, ".pi", "agent");
-  writeSkill(join(agentDir, "skills"), "dup", "From user agent skills.");
-  writeSkill(join(agentDir, "npm", "node_modules", "pkg", "skills"), "dup", "From package.");
+  const agentDir = path.join(home, ".pi", "agent");
+  writeSkill(path.join(agentDir, "skills"), "dup", "From user agent skills.");
+  writeSkill(path.join(agentDir, "npm", "node_modules", "pkg", "skills"), "dup", "From package.");
   const entries = await scanSkillDirs(project, home, agentDir);
   assert.equal(entries.get("dup")?.description, "From user agent skills.");
 });
@@ -297,7 +297,7 @@ test("input: steered text without refs sends nothing", async () => {
 
 test("session_start: scans filesystem and registers $ autocomplete", async () => {
   const project = makeTempDir();
-  writeSkill(join(project, ".agents", "skills"), "cold-skill", "Cold start skill.");
+  writeSkill(path.join(project, ".agents", "skills"), "cold-skill", "Cold start skill.");
 
   const fake = createFakePi();
   (fake.ctx as { cwd: string }).cwd = project;

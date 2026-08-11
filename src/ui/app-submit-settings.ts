@@ -119,14 +119,23 @@ const handleSettings: LocalCommandHandler = async ({
   return SKIP_FINALIZE;
 };
 
-const handleHideThinking: LocalCommandHandler = ({ state, active, runtime, tui }) => {
-  // App-level toggle mirroring Pi's hideThinkingBlock: folds thinking content
-  // to a placeholder across every tab, persists via Pi's SettingsManager, and
-  // invalidates cached conversation lines so the change shows immediately.
-  state.hideThinkingBlock = !(state.hideThinkingBlock ?? false);
-  runtime.setHideThinkingBlock(state.hideThinkingBlock);
+const handleHideThinking: LocalCommandHandler = async ({ state, active, runtime, tui }) => {
+  // Persist before changing live state so a failed global write cannot report success.
+  const hide = !(state.hideThinkingBlock ?? false);
+  try {
+    await runtime.setHideThinkingBlock(hide);
+  } catch (error) {
+    appendActiveSystemMessage(
+      state,
+      runtime,
+      `Hide thinking failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    tui.requestRender();
+    return SKIP_FINALIZE;
+  }
+  state.hideThinkingBlock = hide;
   for (const tab of state.tabs) clearConversationCache(tab.sessionId);
-  const message = state.hideThinkingBlock ? "Thinking blocks: hidden" : "Thinking blocks: visible";
+  const message = hide ? "Thinking blocks: hidden" : "Thinking blocks: visible";
   // Home paints the selected agent's toast (renderConfig + applyToastOverlay).
   if (active) pushToast(active, { type: "info", message });
   tui.requestRender();

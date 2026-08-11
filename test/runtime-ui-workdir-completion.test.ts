@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import * as fsPromises from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { test } from "node:test";
 import { ensureTool } from "@earendil-works/pi-coding-agent";
 import type { Component, Terminal } from "@earendil-works/pi-tui";
@@ -15,7 +15,7 @@ import {
 async function waitForRuntime(predicate: () => boolean, attempts = 100): Promise<void> {
   for (let index = 0; index < attempts; index++) {
     if (predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await Bun.sleep(10);
   }
   assert.ok(predicate());
 }
@@ -52,14 +52,14 @@ test("createMixCodeTui uses the active tab workdir for Pi file completion", asyn
     t.skip("Pi could not provide fd");
     return;
   }
-  const dir = await mkdtemp(join(tmpdir(), "mixcode-completion-workdir-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-completion-workdir-"));
   try {
-    const oldDir = join(dir, "old");
-    const newDir = join(dir, "new");
-    await mkdir(oldDir, { recursive: true });
-    await mkdir(newDir, { recursive: true });
-    await writeFile(join(oldDir, "old-only.ts"), "");
-    await writeFile(join(newDir, "new-only.ts"), "");
+    const oldDir = path.join(dir, "old");
+    const newDir = path.join(dir, "new");
+    await fsPromises.mkdir(oldDir, { recursive: true });
+    await fsPromises.mkdir(newDir, { recursive: true });
+    await fsPromises.writeFile(path.join(oldDir, "old-only.ts"), "");
+    await fsPromises.writeFile(path.join(newDir, "new-only.ts"), "");
     const state = createInitialState(oldDir);
     const tab = createTab(1, "s1", oldDir);
     state.tabs.push(tab);
@@ -117,6 +117,6 @@ test("createMixCodeTui uses the active tab workdir for Pi file completion", asyn
       tui.stop();
     }
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
