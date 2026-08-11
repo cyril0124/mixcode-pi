@@ -65,7 +65,7 @@ Press `Right` on an empty editor to open the extension widget panel (demo: task 
 
 ### Skill references
 
-Type `$` to attach project skills (demo skill: `list-open-todos` in `demo/readme-todo`).
+Type `$` to attach project skills.
 
 <p align="center">
   <img src="assets/readme-skill.gif" alt="Skill references" width="900">
@@ -129,4 +129,4 @@ mpi --builtin-extensions-only   # load only MixCode built-in extensions
 
 ## Configuration
 
-Local MixCode settings live in workdir `mixcode_settings.json`. Pi-compatible packages, themes, skills, and auth use the usual Pi agent directory (`settings.json`, `packages`, etc.).
+Local MixCode settings live in the root state directory (`~/.pi/agent/mixcode-pi/mixcode_settings.json` by default). Pi-compatible packages, themes, skills, and auth use the usual Pi agent directory (`settings.json`, `packages`, etc.).

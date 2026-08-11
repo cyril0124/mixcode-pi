@@ -65,7 +65,7 @@ mpi
 
 ### Skill 引用
 
-输入 `$` 引用项目 skill（演示 skill：`demo/readme-todo` 中的 `list-open-todos`）。
+输入 `$` 引用项目 skill。
 
 <p align="center">
   <img src="assets/readme-skill.gif" alt="Skill 引用" width="900">
@@ -129,4 +129,4 @@ mpi --builtin-extensions-only   # 仅加载 MixCode 内置扩展
 
 ## 配置
 
-本仓库级 MixCode 设置写在工作目录的 `mixcode_settings.json`。Pi 兼容的 packages、themes、skills、auth 仍走 Pi 的 agent 目录（`settings.json`、`packages` 等）。
+MixCode 设置位于根状态目录（默认是 `~/.pi/agent/mixcode-pi/mixcode_settings.json`）。Pi 兼容的 packages、themes、skills、auth 仍走 Pi 的 agent 目录（`settings.json`、`packages` 等）。
