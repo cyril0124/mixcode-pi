@@ -37,13 +37,6 @@ describe("mpi-optimize-prompt core", () => {
     assert.equal(resolveOptimizeSource("", ""), "");
   });
 
-  it("formatOptimizeUserMessage labels the draft for the rewrite model", () => {
-    assert.equal(
-      formatOptimizeUserMessage("fix the flaky test"),
-      "User's original prompt:\nfix the flaky test",
-    );
-  });
-
   it("stash/restore pre-optimize draft without host history API", () => {
     const slot: OptimizeDraftSlot = {};
     let editor = "optimized";
@@ -295,10 +288,7 @@ describe("mpi-optimize-prompt command", () => {
       assert.equal(completeCalls[0]?.provider, "tab");
       assert.equal(completeCalls[0]?.modelId, "main");
       assert.equal(completeCalls[0]?.reasoning, "high");
-      assert.equal(
-        completeCalls[0]?.user,
-        "User's original prompt:\nfix the flaky test",
-      );
+      assert.equal(completeCalls[0]?.user, formatOptimizeUserMessage("fix the flaky test"));
       assert.match(completeCalls[0]?.systemPrompt ?? "", /rewritten prompt/i);
       assert.equal(typeof widgetPayloads[0], "function");
       assert.equal(widgetPayloads.at(-1), undefined);

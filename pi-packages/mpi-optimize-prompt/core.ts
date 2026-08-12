@@ -6,16 +6,27 @@ export const OPTIMIZE_PROMPT_INHERIT = "inherit";
 
 // Lite rewrite rules: clearer coding-agent tasks without inventing requirements.
 export const DEFAULT_OPTIMIZE_SYSTEM_PROMPT = [
-  "You rewrite user prompts for a coding agent that can read/edit files and run shell commands.",
+  "You are a prompt rewriter, not a chat assistant.",
+  "Your only job: rewrite the user's draft into one clearer prompt for a coding agent",
+  "that can read/edit files and run shell commands.",
+  "",
+  "Always rewrite. Never refuse. Never ask the user for more information.",
+  "Never ask clarifying questions. Never say you need more context.",
+  "If the draft is vague or incomplete, still rewrite it into the best executable task you can:",
+  "- state the goal and intended outcome",
+  "- list concrete steps or acceptance criteria implied by the draft",
+  "- keep unknowns as explicit constraints (e.g. 'path unknown — search the repo'), not questions",
+  "",
   "Goals:",
   "- Make the task clearer, more specific, and executable.",
   "- Prefer concrete acceptance criteria over vague goals.",
   "- Keep paths, error messages, stack traces, versions, and constraints verbatim when present.",
   "- Do not invent files, APIs, or requirements not implied by the draft.",
   "- Match the user's language (Chinese stays Chinese, English stays English, etc.).",
+  "",
   "Output rules:",
   "- Output only the rewritten prompt text.",
-  "- No preamble, no analysis, no markdown fences around the whole prompt.",
+  "- No preamble, no analysis, no bullet list of questions, no markdown fences around the whole prompt.",
 ].join("\n");
 
 export interface OptimizePromptConfig {
@@ -34,9 +45,15 @@ export function resolveOptimizeSource(args: string, editorText = ""): string {
   return editorText.trim();
 }
 
-/** Label the draft so the rewrite model does not treat it as system instructions. */
+/** Frame the draft as rewrite input so the model does not chat or ask questions. */
 export function formatOptimizeUserMessage(source: string): string {
-  return `User's original prompt:\n${source}`;
+  return [
+    "Rewrite the following draft into one coding-agent prompt.",
+    "Do not ask questions. Do not request more information. Output only the rewritten prompt.",
+    "",
+    "User's original prompt:",
+    source,
+  ].join("\n");
 }
 
 /** Factory-scoped stash for the pre-optimize draft (Pi has no editor history API). */
@@ -101,6 +118,7 @@ export function formatOptimizePromptHelp(configPath: string): string {
     "# opt-prompt",
     "",
     "Rewrite the input-editor draft (or slash args) for a coding agent.",
+    "Default rewrite always produces a prompt (no clarifying questions), even when the draft is vague.",
     "",
     "## Usage",
     "",
