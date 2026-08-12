@@ -4,7 +4,7 @@ Per-model skill **add/remove** by rebuilding the system prompt `<available_skill
 
 ## Config
 
-`~/.pi/agent/model-skills.json` (or `$PI_CODING_AGENT_DIR` / `$MIXCODE_CODING_AGENT_DIR`):
+`~/.pi/agent/model-skills.json` (or `$PI_CODING_AGENT_DIR`):
 
 ```json
 {

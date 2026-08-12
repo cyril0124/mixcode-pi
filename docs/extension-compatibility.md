@@ -239,12 +239,6 @@ accent      : 38;2;125;207;255
 
 另一次逐步 tmux 验证通过 `/settings` 选中 Theme 并选择 tokyo-night，捕获到 `48;2;51;70;124` selection bg。
 
-可重复 smoke：
-
-```bash
-MIXCODE_RUN_TMUX_TUI_SMOKE=1 timeout 60s node --test --import tsx test/tui-smoke.test.ts
-```
-
 ## 验收新 package 的流程
 
 每安装一个新 package，至少按下面三步验收：

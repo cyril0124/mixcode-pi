@@ -7,7 +7,6 @@ import { preferDistExtensionEntries } from "../src/core/prefer-dist-extension-en
 const dirs: string[] = [];
 afterEach(() => {
   for (const d of dirs.splice(0)) fs.rmSync(d, { recursive: true, force: true });
-  delete process.env.MIXCODE_SKIP_PI_EXT_NORMALIZE;
 });
 
 function agentWithPkg(name: string, manifest: object, files: Record<string, string>) {
@@ -45,18 +44,6 @@ describe("preferDistExtensionEntries", () => {
       "only-src",
       { pi: { extensions: ["./src/index.ts"] } },
       { "src/index.ts": "export default () => {}" },
-    );
-    expect(preferDistExtensionEntries(agentDir).rewritten).toEqual([]);
-    const data = JSON.parse(fs.readFileSync(path.join(pkgDir, "package.json"), "utf8"));
-    expect(data.pi.extensions).toEqual(["./src/index.ts"]);
-  });
-
-  test("skips when env set", () => {
-    process.env.MIXCODE_SKIP_PI_EXT_NORMALIZE = "1";
-    const { agentDir, pkgDir } = agentWithPkg(
-      "pi-schedule-prompt",
-      { pi: { extensions: ["./src/index.ts"] } },
-      { "src/index.ts": "x", "dist/index.js": "y" },
     );
     expect(preferDistExtensionEntries(agentDir).rewritten).toEqual([]);
     const data = JSON.parse(fs.readFileSync(path.join(pkgDir, "package.json"), "utf8"));

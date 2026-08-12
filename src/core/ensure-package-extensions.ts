@@ -27,7 +27,7 @@ const AGENT_EXTENSION_RUNTIME_PACKAGES = [
  * (`<agentDir>/extensions/`, default `~/.pi/agent/extensions/`).
  *
  * `agentDir` must match the effective agent directory Pi's ResourceLoader uses
- * (see bootstrap's defaultMixCodeAgentDir); otherwise built-in packages install
+ * (see Pi getAgentDir()); otherwise built-in packages install
  * under one root while discovery scans another and never loads them.
  *
  * `copy: true` copies package files; the startup path uses this in both source

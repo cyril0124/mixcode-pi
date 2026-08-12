@@ -13,7 +13,6 @@
  */
 
 import type { Terminal } from "@earendil-works/pi-tui";
-import * as fs from "node:fs";
 
 /** Full-screen erase: CSI 2J (screen) / 3J (scrollback). */
 const FULL_SCREEN_CLEAR_RE = /\x1b\[(?:2|3)J/g;
@@ -24,34 +23,10 @@ let hostWriteDepth = 0;
 let installed = false;
 let originalWrite: typeof process.stdout.write | undefined;
 let repaintTimer: ReturnType<typeof setTimeout> | undefined;
-let blockedClearCount = 0;
-let hostClearCount = 0;
 let onBlockedClear: (() => void) | undefined;
 
 /** Trailing coalesce window for restore storms (many async session_start clears). */
 const BLOCKED_CLEAR_REPAINT_MS = 50;
-
-function debugLogPath(): string | undefined {
-  const p = process.env.MIXCODE_STDOUT_GUARD_LOG;
-  return p?.trim() ? p.trim() : undefined;
-}
-
-function writeDebugLog(): void {
-  const path = debugLogPath();
-  if (!path) return;
-  const line = JSON.stringify({
-    blockedClearCount,
-    hostClearCount,
-    hostWriteDepth,
-    t: Date.now(),
-  });
-  // Sync append: debug-only, rare, must survive abrupt stop.
-  try {
-    fs.appendFileSync(path, `${line}\n`);
-  } catch {
-    // ignore debug log failures
-  }
-}
 
 function withHostStdoutWrite<T>(fn: () => T): T {
   hostWriteDepth += 1;
@@ -99,15 +74,6 @@ export function installStdoutScreenGuard(options: {
   ): boolean => {
     if (!originalWrite) return false;
     if (hostWriteDepth > 0) {
-      const asHost = chunkToString(chunk);
-      if (asHost !== undefined && FULL_SCREEN_CLEAR_RE.test(asHost)) {
-        // Reset lastIndex — global regex keeps state across tests.
-        FULL_SCREEN_CLEAR_RE.lastIndex = 0;
-        hostClearCount += 1;
-        writeDebugLog();
-      } else {
-        FULL_SCREEN_CLEAR_RE.lastIndex = 0;
-      }
       return (
         originalWrite as (c: typeof chunk, e?: typeof encoding, f?: typeof cb) => boolean
       )(chunk, encoding, cb);
@@ -125,7 +91,6 @@ export function installStdoutScreenGuard(options: {
       )(chunk, encoding, cb);
     }
     scheduleBlockedClearRepaint();
-    writeDebugLog();
     if (text.length === 0) {
       // Preserve write() callback semantics for empty filtered chunks.
       if (typeof encoding === "function") encoding();
@@ -150,14 +115,10 @@ function uninstallStdoutScreenGuard(): void {
     clearTimeout(repaintTimer);
     repaintTimer = undefined;
   }
-  writeDebugLog();
-  blockedClearCount = 0;
-  hostClearCount = 0;
   hostWriteDepth = 0;
 }
 
 function scheduleBlockedClearRepaint(): void {
-  blockedClearCount += 1;
   // Trailing debounce: multi-tab session_start is async; a microtask per event
   // would still fire N host repaints. Wait for the storm to settle.
   if (repaintTimer !== undefined) clearTimeout(repaintTimer);

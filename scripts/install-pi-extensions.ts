@@ -90,12 +90,7 @@ function parseMode(argv: string[]): Mode {
 }
 
 function agentDir(): string {
-  // Match MixCode product resolution: MIXCODE → PI → default.
-  return (
-    process.env.MIXCODE_CODING_AGENT_DIR ||
-    process.env.PI_CODING_AGENT_DIR ||
-    path.join(os.homedir(), ".pi", "agent")
-  );
+  return process.env.PI_CODING_AGENT_DIR || path.join(os.homedir(), ".pi", "agent");
 }
 
 /** Env so `pi install` writes into the same agentDir MixCode uses. */

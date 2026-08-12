@@ -41,13 +41,12 @@ import { createBatchExecutorHost } from "./batch-host.js";
 import {
   bootstrapMixCode,
   DEFAULT_STATE_PORT,
-  defaultMixCodeAgentDir,
   defaultStateDir,
 } from "./bootstrap.js";
 import { ensurePackageExtensions } from "../core/ensure-package-extensions.js";
 import { installConsoleTuiBridge, wireConsoleSink } from "./console-tui-bridge.js";
 import { showNoticeTextOverlay } from "../ui/app-overlays.js";
-import { configureHttpDispatcher } from "@earendil-works/pi-coding-agent";
+import { configureHttpDispatcher, getAgentDir } from "@earendil-works/pi-coding-agent";
 
 /**
  * Root that contains built-in packages (`pi-packages/` in dev, `packages/` in
@@ -107,7 +106,7 @@ export async function main(): Promise<void> {
   installConsoleTuiBridge();
   // Install built-in packages under the same effective agent dir Pi's
   // ResourceLoader scans, so discovery and installation share one root.
-  const agentDir = defaultMixCodeAgentDir();
+  const agentDir = getAgentDir();
   const builtinExtensionPaths = ensurePackageExtensions(packageRoot, {
     copy: true,
     agentDir,
@@ -402,7 +401,7 @@ async function runStatusCommand(args: MainArgs): Promise<void> {
 export async function runBatchDryRun(args: MainArgs): Promise<void> {
   if (!args.batch) throw new Error("--batch-dry-run requires --batch <file>");
 
-  const agentDir = defaultMixCodeAgentDir();
+  const agentDir = getAgentDir();
   const rootStateDir = defaultStateDir();
   const stateDir = scopedStateDir(rootStateDir, args.workdir);
   const stateFile = stateFileForPort(stateDir, DEFAULT_STATE_PORT);

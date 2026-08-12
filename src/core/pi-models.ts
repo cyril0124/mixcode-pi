@@ -7,7 +7,7 @@ import type {
   ProviderHeaders,
   SimpleStreamOptions,
 } from "@earendil-works/pi-ai";
-import { ModelRegistry, ModelRuntime } from "@earendil-works/pi-coding-agent";
+import { getAgentDir, ModelRegistry, ModelRuntime } from "@earendil-works/pi-coding-agent";
 import type { MixCodeModel } from "./types.js";
 
 export interface PiModelSource {
@@ -121,25 +121,22 @@ function runtimeModelDisabled(model: MixCodeModel, policy: DisabledModelRuntimeP
   );
 }
 
+/** Expand `~` in optional path values (e.g. session-dir overrides). */
 export function resolveAgentDirEnv(value: string | undefined): string | undefined {
   if (!value) return undefined;
-  if (value === "~") return (process.env.HOME || os.homedir());
+  if (value === "~") return process.env.HOME || os.homedir();
   if (value.startsWith("~/") || (process.platform === "win32" && value.startsWith("~\\"))) {
-    return path.join((process.env.HOME || os.homedir()), value.slice(2));
+    return path.join(process.env.HOME || os.homedir(), value.slice(2));
   }
   return value;
 }
 
-export function defaultPiAgentDir(): string {
-  return resolveAgentDirEnv(process.env.PI_CODING_AGENT_DIR) ?? path.join((process.env.HOME || os.homedir()), ".pi", "agent");
-}
-
 export function defaultPiModelsPath(): string {
-  return path.join(defaultPiAgentDir(), "models.json");
+  return path.join(getAgentDir(), "models.json");
 }
 
 export function defaultPiAuthPath(): string {
-  return path.join(defaultPiAgentDir(), "auth.json");
+  return path.join(getAgentDir(), "auth.json");
 }
 
 export async function createPiModelRegistryBundle(

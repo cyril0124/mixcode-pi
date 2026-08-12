@@ -39,7 +39,6 @@ import {
 import {
   configureDisabledModelRuntime,
   createPiModelRegistryBundle,
-  defaultPiAgentDir,
   resolveAgentDirEnv,
 } from "../core/pi-models.js";
 import {
@@ -67,15 +66,11 @@ export interface BootstrapOptions {
 
 export const DEFAULT_STATE_PORT = 0;
 
-export function defaultMixCodeAgentDir(): string {
-  return resolveAgentDirEnv(process.env.MIXCODE_CODING_AGENT_DIR) ?? defaultPiAgentDir();
-}
-
 export function defaultStateDir(): string {
-  return path.join(defaultMixCodeAgentDir(), "mixcode-pi");
+  return path.join(getAgentDir(), "mixcode-pi");
 }
 
-export function defaultPiSessionDir(workdir: string, agentDir = defaultMixCodeAgentDir()): string {
+export function defaultPiSessionDir(workdir: string, agentDir = getAgentDir()): string {
   const resolved = path.resolve(workdir);
   const safePath = `--${resolved.replace(/^[/\\]/, "").replace(/[/\\:]/g, "-")}--`;
   return path.join(path.resolve(agentDir), "sessions", safePath);
@@ -119,7 +114,7 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
 }> {
   const rootStateDir = options.stateDir ?? defaultStateDir();
   const stateDir = scopedStateDir(rootStateDir, options.workdir);
-  const agentDir = options.agentDir ?? defaultMixCodeAgentDir();
+  const agentDir = options.agentDir ?? getAgentDir();
   // Create SettingsManager early so its sessionDir/httpProxy settings can be
   // read before we resolve the session root or issue any network request.
   const settingsManager = SettingsManager.create(options.workdir, agentDir, { projectTrusted: true });
@@ -160,9 +155,7 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
   state.showImages = settingsManager.getShowImages();
   state.imageWidthCells = settingsManager.getImageWidthCells();
   state.mermaidRenderingMode = settingsManager.getMermaidRenderingMode();
-  // Derive auth/models from the effective agent dir so a custom
-  // MIXCODE_CODING_AGENT_DIR keeps credentials, models, settings, sessions and
-  // extensions under one root instead of splitting across PI_CODING_AGENT_DIR.
+  // Derive auth/models from the effective agent dir (PI_CODING_AGENT_DIR or default).
   const modelBundle = await createPiModelRegistryBundle(
     options.modelConfigPath ?? path.join(agentDir, "models.json"),
     path.join(agentDir, "auth.json"),

@@ -16,22 +16,22 @@
   - Local MixCode↔Pi compatibility: `docs/extension-compatibility.md`
   - Local architecture mapping (not upstream API source): `docs/architecture.md`
   - Local MixCode TUI component catalog (chrome / overlays / transient): `docs/tui-components.md`
+  - MixCode product env (user-facing `src/` knobs only): `docs/environment.md` — do not list upstream `PI_*`, or `run.sh` / test / GIF tooling envs there
 
 ## Built-in Extensions
 
 - Built-in Pi extensions live in `pi-packages/<name>/`. Each package has a `package.json` with a `pi.extensions` field and an `index.ts` default-exporting an `ExtensionFactory`.
 - Name first-party packages with the `mpi-` prefix (directory, `package.json` name, and `binary-entry.ts` `builtinPackages` key must all match, e.g. `mpi-skill-refs`). Vendored upstream packages keep their original name. Do not prefix runtime protocol strings such as command names, `customType`, or keymap actions.
-- At startup, `ensurePackageExtensions` (in `src/core/ensure-package-extensions.ts`) copies all valid packages to the effective agent dir's `extensions/` (`<agentDir>/extensions/`, where `agentDir` follows `MIXCODE_CODING_AGENT_DIR` → `PI_CODING_AGENT_DIR` → default `~/.pi/agent`), making them discoverable by Pi's file-system loader — including subagent sessions.
+- At startup, `ensurePackageExtensions` (in `src/core/ensure-package-extensions.ts`) copies all valid packages to the effective agent dir's `extensions/` (`<agentDir>/extensions/`, where `agentDir` follows `PI_CODING_AGENT_DIR` → default `~/.pi/agent`), making them discoverable by Pi's file-system loader — including subagent sessions.
 - For the compiled binary, `binary-entry.ts` embeds each package's files via `import ... with { type: "text" }` and passes them as `builtinPackages` to `materializeBinaryRuntimeAssets`, which writes them to `runtimeDir/packages/` before `ensurePackageExtensions` runs.
 - To add a new built-in extension: create `pi-packages/mpi-<name>/package.json` + `index.ts`, then add the corresponding text imports in `binary-entry.ts`.
 - **No Bun APIs in `pi-packages/`.** These packages are installed into `~/.pi/agent/extensions/` and also run under pure upstream `pi` (Node + jiti), not only under `mpi` (Bun). Use `node:*` stdlib (`fs`, `fs/promises`, `child_process`, `path`, `os`, …). Do not call `Bun.*`, `bun:*` imports, or Bun Shell (`` $`…` ``). Product code under `src/` may still prefer Bun; this rule is package-only.
-- MixCode sets `MIXCODE=1` after it decides not to delegate to upstream `pi`. Built-in packages that must not activate under pure `pi` should gate on this env (treat unset / `0` / `false` / `off` as off).
+- MixCode sets `MIXCODE=1` after it decides not to delegate to upstream `pi`. Built-in packages that must not activate under pure `pi` should gate on this env (treat unset / `0` / `false` / `off` as off). User-facing MixCode env catalog: `docs/environment.md` (only `src/` product knobs; no Pi / `run.sh` / test tooling vars).
 
 ### Third-party package load (compiled `mpi`)
 
 - Bun `--compile` + jiti `virtualModules` can break TypeBox when extensions import `Type` via `@earendil-works/pi-ai` re-exports (`Type4 is not defined`). The `patches/@earendil-works+pi-coding-agent+*.patch` re-binds `Type` from the bundled `typebox` module for those virtual entries.
 - Separately, some npm packages declare `pi.extensions: ["./src/....ts"]` while shipping a working `dist/`. At `createRuntimeServices`, `preferDistExtensionEntries` rewrites those entries under `<agentDir>/npm/node_modules` to `./dist/....js` when the dist file exists (idempotent; only that path is scanned).
-- Opt out: set `MIXCODE_SKIP_PI_EXT_NORMALIZE=1` (or any non-empty value). Do not hand-edit package manifests for this purpose unless debugging.
 
 ## Slash Commands
 
@@ -230,5 +230,5 @@ Test the contract the system exposes — not the easiest internal detail to asse
 - `postinstall` runs `patch-package`, then `bun run scripts/install-pi-extensions.ts --postinstall` (TTY: optional interactive install of missing recommended third-party Pi packages; CI/non-TTY: warn only; never fails the parent install). Manual: `bun run install:extensions` or `./install-pi-extensions.sh`.
 - pi-tui keybindings bridge supports both single-instance (bun/npm dedupe) and dual-instance (npm shrinkwrap nested) layouts without layout scripts.
 - When running backend unit tests, enforce a hard timeout of 60 seconds to avoid stuck tasks.
-- TUI/UI claims still require interactive proof per **TUI Validation**; unit tests alone are not enough. Optional automated smoke: `MIXCODE_RUN_TMUX_TUI_SMOKE=1` with `test/tui-smoke.test.ts`.
+- TUI/UI claims still require interactive proof per **TUI Validation**; unit tests alone are not enough.
 - Before finishing a TypeScript behavior change: run the focused test(s) you added or changed until green, then the narrowest gate that covers the touch surface (`test:packages` for package work, `bun run check` and/or `./test-all.sh` as appropriate). Fix until green.

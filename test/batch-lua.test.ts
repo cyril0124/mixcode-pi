@@ -752,8 +752,8 @@ test("runBatchDryRun prints plan without writing state file", async () => {
     const scriptPath = path.join(dir, "s.lua");
     await fsPromises.writeFile(scriptPath, 'mixcode.open_tab({ name = "only", prompt = "hi" })\n');
     // Isolate agent/state under temp so dry-run cannot touch the real agent dir.
-    const prevAgent = process.env.MIXCODE_CODING_AGENT_DIR;
-    process.env.MIXCODE_CODING_AGENT_DIR = path.join(dir, "agent");
+    const prevAgent = process.env.PI_CODING_AGENT_DIR;
+    process.env.PI_CODING_AGENT_DIR = path.join(dir, "agent");
     let out = "";
     const origWrite = process.stdout.write.bind(process.stdout);
     process.stdout.write = ((chunk: any) => {
@@ -770,8 +770,8 @@ test("runBatchDryRun prints plan without writing state file", async () => {
       });
     } finally {
       process.stdout.write = origWrite;
-      if (prevAgent === undefined) delete process.env.MIXCODE_CODING_AGENT_DIR;
-      else process.env.MIXCODE_CODING_AGENT_DIR = prevAgent;
+      if (prevAgent === undefined) delete process.env.PI_CODING_AGENT_DIR;
+      else process.env.PI_CODING_AGENT_DIR = prevAgent;
     }
     assert.match(out, /name=only/);
     assert.match(out, /prompt: hi/);

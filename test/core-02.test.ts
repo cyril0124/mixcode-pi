@@ -1,3 +1,4 @@
+import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
 import * as fsPromises from "node:fs/promises";
 import * as path from "node:path";

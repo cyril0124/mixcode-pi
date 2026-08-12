@@ -5,13 +5,11 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
 import { Type } from "@earendil-works/pi-ai";
-import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
+import { getAgentDir, type ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import {
   bootstrapMixCode,
   createInitialState,
   createTab,
-  defaultMixCodeAgentDir,
-  defaultPiAgentDir,
   defaultPiAuthPath,
   defaultPiModelsPath,
   defaultPiSessionDir,
@@ -261,40 +259,24 @@ test("bootstrap builds completion sources from Pi-managed fd and skills", async 
 
 test("default pi model paths stay compatible with pi agent config", () => {
   const oldPiDir = process.env.PI_CODING_AGENT_DIR;
-  const oldMixCodeDir = process.env.MIXCODE_CODING_AGENT_DIR;
   try {
     process.env.PI_CODING_AGENT_DIR = "/tmp/pi-agent";
-    delete process.env.MIXCODE_CODING_AGENT_DIR;
-    assert.equal(defaultPiAgentDir(), "/tmp/pi-agent");
+    assert.equal(getAgentDir(), "/tmp/pi-agent");
     assert.equal(defaultPiModelsPath(), "/tmp/pi-agent/models.json");
     assert.equal(defaultPiAuthPath(), "/tmp/pi-agent/auth.json");
-    assert.equal(defaultMixCodeAgentDir(), "/tmp/pi-agent");
 
     process.env.PI_CODING_AGENT_DIR = "";
-    assert.equal(defaultPiAgentDir(), path.join(os.homedir(), ".pi", "agent"));
+    assert.equal(getAgentDir(), path.join(os.homedir(), ".pi", "agent"));
     assert.equal(defaultPiModelsPath(), path.join(os.homedir(), ".pi", "agent", "models.json"));
     assert.equal(defaultPiAuthPath(), path.join(os.homedir(), ".pi", "agent", "auth.json"));
-    assert.equal(defaultMixCodeAgentDir(), path.join(os.homedir(), ".pi", "agent"));
 
     process.env.PI_CODING_AGENT_DIR = "~/pi-agent";
-    assert.equal(defaultPiAgentDir(), path.join(os.homedir(), "pi-agent"));
+    assert.equal(getAgentDir(), path.join(os.homedir(), "pi-agent"));
     assert.equal(defaultPiModelsPath(), path.join(os.homedir(), "pi-agent", "models.json"));
     assert.equal(defaultPiAuthPath(), path.join(os.homedir(), "pi-agent", "auth.json"));
-    assert.equal(defaultMixCodeAgentDir(), path.join(os.homedir(), "pi-agent"));
-
-    process.env.MIXCODE_CODING_AGENT_DIR = "";
-    assert.equal(defaultMixCodeAgentDir(), path.join(os.homedir(), "pi-agent"));
-
-    process.env.MIXCODE_CODING_AGENT_DIR = "~/mix-agent";
-    assert.equal(defaultMixCodeAgentDir(), path.join(os.homedir(), "mix-agent"));
-
-    process.env.MIXCODE_CODING_AGENT_DIR = "/tmp/mix-agent";
-    assert.equal(defaultMixCodeAgentDir(), "/tmp/mix-agent");
   } finally {
     if (oldPiDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
     else process.env.PI_CODING_AGENT_DIR = oldPiDir;
-    if (oldMixCodeDir === undefined) delete process.env.MIXCODE_CODING_AGENT_DIR;
-    else process.env.MIXCODE_CODING_AGENT_DIR = oldMixCodeDir;
   }
 });
 
@@ -580,11 +562,8 @@ test("bootstrap repairs persisted tabs that reference unavailable models", async
 test("default state dir lives under Pi agent dir and ignores XDG_CONFIG_HOME", () => {
   const oldXdg = process.env.XDG_CONFIG_HOME;
   const oldPi = process.env.PI_CODING_AGENT_DIR;
-  const oldMix = process.env.MIXCODE_CODING_AGENT_DIR;
   process.env.XDG_CONFIG_HOME = "/tmp/xdg-test";
   process.env.PI_CODING_AGENT_DIR = "/tmp/pi-agent";
-  // defaultMixCodeAgentDir prefers MIXCODE_CODING_AGENT_DIR over PI_CODING_AGENT_DIR.
-  delete process.env.MIXCODE_CODING_AGENT_DIR;
   try {
     assert.equal(defaultStateDir(), "/tmp/pi-agent/mixcode-pi");
   } finally {
@@ -592,8 +571,6 @@ test("default state dir lives under Pi agent dir and ignores XDG_CONFIG_HOME", (
     else process.env.XDG_CONFIG_HOME = oldXdg;
     if (oldPi === undefined) delete process.env.PI_CODING_AGENT_DIR;
     else process.env.PI_CODING_AGENT_DIR = oldPi;
-    if (oldMix === undefined) delete process.env.MIXCODE_CODING_AGENT_DIR;
-    else process.env.MIXCODE_CODING_AGENT_DIR = oldMix;
   }
 });
 
@@ -601,11 +578,8 @@ test("bootstrap stores default UI state under Pi agent and sessions in Pi SDK di
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-bootstrap-defaults-"));
   const oldXdg = process.env.XDG_CONFIG_HOME;
   const oldPi = process.env.PI_CODING_AGENT_DIR;
-  const oldMix = process.env.MIXCODE_CODING_AGENT_DIR;
   process.env.XDG_CONFIG_HOME = path.join(dir, "xdg");
   process.env.PI_CODING_AGENT_DIR = path.join(dir, "pi-agent");
-  // Prefer the PI_* path under test; clear MIXCODE_* isolation override.
-  delete process.env.MIXCODE_CODING_AGENT_DIR;
   try {
     const boot = await bootstrapMixCode({
       workdir: dir,
@@ -624,8 +598,6 @@ test("bootstrap stores default UI state under Pi agent and sessions in Pi SDK di
     else process.env.XDG_CONFIG_HOME = oldXdg;
     if (oldPi === undefined) delete process.env.PI_CODING_AGENT_DIR;
     else process.env.PI_CODING_AGENT_DIR = oldPi;
-    if (oldMix === undefined) delete process.env.MIXCODE_CODING_AGENT_DIR;
-    else process.env.MIXCODE_CODING_AGENT_DIR = oldMix;
     await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });

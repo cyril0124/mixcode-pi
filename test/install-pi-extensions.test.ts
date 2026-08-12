@@ -12,7 +12,7 @@ test("extension postinstall reports malformed settings instead of treating them 
       [process.execPath, "run", "scripts/install-pi-extensions.ts", "--postinstall"],
       {
         cwd: process.cwd(),
-        env: { ...process.env, MIXCODE_CODING_AGENT_DIR: agentDir },
+        env: { ...process.env, PI_CODING_AGENT_DIR: agentDir },
         stdout: "pipe",
         stderr: "pipe",
       },

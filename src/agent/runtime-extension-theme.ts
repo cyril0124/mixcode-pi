@@ -15,7 +15,7 @@ import {
   getActiveExtensionThemeId,
   noteActiveExtensionThemeId,
 } from "../core/active-extension-theme-id.js";
-import { defaultPiAgentDir, resolveAgentDirEnv } from "../core/pi-models.js";
+import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import {
   applyPiThemeInstance,
   initTheme,
@@ -118,7 +118,7 @@ const MIXCODE_EXTENSION_KEYBINDING_DEFINITIONS = {
 } satisfies KeybindingDefinitions;
 
 function mixcodeAgentDir(): string {
-  return resolveAgentDirEnv(process.env.MIXCODE_CODING_AGENT_DIR) ?? defaultPiAgentDir();
+  return getAgentDir();
 }
 
 /** User overrides from `~/.pi/agent/keybindings.json` (Pi-native path). */

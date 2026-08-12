@@ -181,7 +181,7 @@ async function isDirectory(dirPath: string): Promise<boolean> {
  */
 function resolveAgentDir(homeDir: string, agentDir?: string): string {
   if (agentDir) return path.resolve(agentDir);
-  const fromEnv = process.env.MIXCODE_CODING_AGENT_DIR || process.env.PI_CODING_AGENT_DIR;
+  const fromEnv = process.env.PI_CODING_AGENT_DIR;
   if (fromEnv) return path.resolve(fromEnv);
   return path.resolve(path.join(homeDir, ".pi", "agent"));
 }

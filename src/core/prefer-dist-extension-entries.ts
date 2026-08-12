@@ -1,8 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-const SKIP_ENV = "MIXCODE_SKIP_PI_EXT_NORMALIZE";
-
 /** One normalize pass per agentDir per process — createRuntimeServices can run per tab. */
 const normalizedAgentDirs = new Set<string>();
 
@@ -18,10 +16,6 @@ type PiPackageJson = {
  * Idempotent and process-memoized (NFS-friendly: do not rescan every tab).
  */
 export function preferDistExtensionEntries(agentDir: string): { rewritten: string[] } {
-  if (process.env[SKIP_ENV]?.trim()) {
-    return { rewritten: [] };
-  }
-
   const resolvedAgentDir = path.resolve(agentDir);
   if (normalizedAgentDirs.has(resolvedAgentDir)) {
     return { rewritten: [] };

@@ -6,7 +6,7 @@ Independent Pi package — no MixCode `src/` runtime coupling.
 
 ## Config
 
-`~/.pi/agent/model-extensions.json` (or `$PI_CODING_AGENT_DIR` / `$MIXCODE_CODING_AGENT_DIR`):
+`~/.pi/agent/model-extensions.json` (or `$PI_CODING_AGENT_DIR`):
 
 ```json
 {

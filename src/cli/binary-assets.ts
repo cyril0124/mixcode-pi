@@ -48,9 +48,7 @@ async function writePackageJson(
 ): Promise<void> {
   // Keep configDir under ~/.pi so credentials/sessions stay shared with Pi.
   // Do NOT set piConfig.name to "mixcode": PI_PACKAGE_DIR is process-global and
-  // inherited by child `pi` CLIs; name drives APP_NAME / ENV_AGENT_DIR, which
-  // would make `pi --help` show MIXCODE_CODING_AGENT_DIR. Mixcode agent-dir
-  // overrides stay on MIXCODE_CODING_AGENT_DIR via bootstrap only.
+  // inherited by child `pi` CLIs; name drives APP_NAME / ENV_AGENT_DIR.
   const piConfig = isRecord(packageJson.piConfig) ? { ...packageJson.piConfig } : {};
   delete piConfig.name;
   piConfig.configDir = ".pi";

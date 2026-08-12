@@ -252,7 +252,6 @@ export function shouldCompactForWindow(
 export function resolveCompactionBudgets(cwd: string, agentDir?: string): CompactionBudgets {
   const globalDir =
     agentDir ??
-    process.env.MIXCODE_CODING_AGENT_DIR ??
     process.env.PI_CODING_AGENT_DIR ??
     path.join((process.env.HOME || os.homedir()), ".pi", "agent");
   const global = readCompactionSettings(path.join(globalDir, "settings.json"));

@@ -1,7 +1,7 @@
 import * as os from "node:os";
 import * as path from "node:path";
 import { loadSkills } from "@earendil-works/pi-coding-agent";
-import { defaultPiAgentDir, resolveAgentDirEnv } from "./pi-models.js";
+import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
 function uniqueInOrder(values: Iterable<string>): string[] {
   const seen = new Set<string>();
@@ -19,7 +19,7 @@ export function resolveSkillDirs(baseWorkdir: string, homeDir = (process.env.HOM
   const dirs = [
     path.join(baseWorkdir, ".agents", "skills"),
     path.join(homeDir, ".agents", "skills"),
-    path.join(homeDir, ".pi", "agent", "skills"),
+    path.join(getAgentDir(), "skills"),
   ];
   return uniqueInOrder(dirs.map((dir) => path.resolve(dir)));
 }
@@ -41,7 +41,7 @@ export async function scanSkillEntries(
   // (agentDir/skills + .pi/skills) winning same-name collisions.
   const { skills } = loadSkills({
     cwd: baseWorkdir,
-    agentDir: resolveAgentDirEnv(process.env.MIXCODE_CODING_AGENT_DIR) ?? defaultPiAgentDir(),
+    agentDir: getAgentDir(),
     skillPaths: resolveSkillDirs(baseWorkdir, homeDir),
     includeDefaults: false,
   });
