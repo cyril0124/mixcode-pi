@@ -25,6 +25,7 @@ export type LocalCommand =
   | "export"
   | "compact"
   | "clear"
+  | "reset"
   | "mark-done"
   | "vim"
   | "toggle-zen-mode"
@@ -278,6 +279,16 @@ export const LOCAL_COMMANDS: Array<{
     name: "clear",
     description: "Replace active session with a fresh child session (resets title)",
     palette: { label: "Clear Session", requires: "session" },
+  },
+  {
+    name: "reset",
+    description:
+      "Reset current branch to session root (same file; history stays in the tree; keeps title)",
+    palette: {
+      label: "Reset Branch",
+      description: "Same session file; leaf back to root; title and tab slot kept",
+      requires: "session",
+    },
   },
   {
     name: "mark-done",

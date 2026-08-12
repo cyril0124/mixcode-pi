@@ -92,6 +92,8 @@ mpi
 | `/toggle-zen-mode` | Zen 模式 |
 | `/vim` 或空队列 `Ctrl+U` 再 `u` | Vim 模式 |
 | `/new-session` / `/new-session 标题` | 新建会话（可选标题） |
+| `/reset` | 同文件将当前分支指回根（历史仍在树里；保留标题） |
+| `/clear` | 同 tab 换全新 child 会话文件（标题重置） |
 
 ## 安装
 

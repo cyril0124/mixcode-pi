@@ -203,7 +203,7 @@ Ctrl+P
        ├─ /models /thinking /context-limit /settings /tui-state
        ├─ /system-tools /system-prompt /toggle-hidden-messages /hide-thinking /extension-manager /reload /session /export
        ├─ /rename /workdir /import /mark-done /vim /toggle-zen-mode
-       ├─ /fork /compact /clear /navigate /tree
+       ├─ /fork /compact /clear /reset /navigate /tree
        ├─ /help /hotkeys /quit /exit
        ├─ /new-session /resume /close-session /delete-session
        ├─ /follow-up
@@ -248,7 +248,7 @@ src/core/commands.ts
     │   /toggle-todo /settings /context-limit /tui-state /goal
         │
     ├─ session command
-    │   /new-session /fork /clear /close-session /delete-session
+    │   /new-session /fork /clear /reset /close-session /delete-session
     │   /close-all-sessions /delete-all-sessions /compact /import
         │
         ├─ workspace command

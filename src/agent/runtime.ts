@@ -444,6 +444,32 @@ export class MixCodeRuntime {
     runtimeTab.chat = [];
   }
 
+  /**
+   * Same session file: move the leaf pointer before any entries (`resetLeaf`).
+   * Next append creates a new root; DAG history remains for /tree.
+   * Does not change session id, title, or open_tabs identity.
+   */
+  resetTabToRoot(sessionId: string): { noop: boolean } {
+    const runtimeTab = this.requireTab(sessionId);
+    if (!runtimeTab.agentSession) {
+      throw new Error("Cannot reset a session without a live agent session");
+    }
+    if (runtimeTab.agentSession.isStreaming) {
+      throw new Error("Cannot reset a session while it is streaming");
+    }
+    if (runtimeTab.agentSession.isBashRunning) {
+      throw new Error("Cannot reset a session while bash is running");
+    }
+    if (runtimeTab.session.getLeafId() === null) {
+      return { noop: true };
+    }
+    runtimeTab.session.resetLeaf();
+    // Match navigateTree / session-reload: agent context follows the new leaf path.
+    runtimeTab.agent.state.messages = runtimeTab.session.buildSessionContext().messages;
+    this.rebuildChatFromSession(sessionId);
+    return { noop: false };
+  }
+
   /** True when a session JSONL for this id exists under sessionsRoot. */
   hasSessionOnDisk(sessionId: string): boolean {
     return findSessionFileByName(this.sessionsRoot, sessionId) !== undefined;

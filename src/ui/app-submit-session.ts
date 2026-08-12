@@ -43,6 +43,30 @@ const handleFollowUp: LocalCommandHandler = async ({ active, args, runtime, tui 
   await runtime.prompt(active!.sessionId, message, { streamingBehavior: "followUp" });
 };
 
+const handleReset: LocalCommandHandler = ({ state, active, runtime, tui }) => {
+  try {
+    const result = runtime.resetTabToRoot(active!.sessionId);
+    // Same-file reset: keep title/sessionId; only drop ephemeral view state.
+    active!.previewMessages = [];
+    active!.previewIndex = 0;
+    active!.chatScrollOffset = 0;
+    active!.chatScrollAnchorEntryId = undefined;
+    active!.chatScrollAnchorIndex = undefined;
+    active!.chatScrollAnchorText = undefined;
+    if (result.noop) {
+      appendActiveSystemMessage(state, runtime, "Already at session root (nothing to reset).");
+    }
+  } catch (error: unknown) {
+    appendActiveSystemMessage(
+      state,
+      runtime,
+      `Reset failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  tui.requestRender();
+  return SKIP_FINALIZE;
+};
+
 const handleClear: LocalCommandHandler = ({ state, active, runtime, tui }) => {
   // Home send keeps activeTabId=config while overriding the target tab; stay there
   // after clear instead of following completeAgentTabClear's activateTab(next).
@@ -278,6 +302,7 @@ export const SESSION_COMMAND_HANDLERS = {
   session: handleSession,
   compact: handleCompact,
   clear: handleClear,
+  reset: handleReset,
   "new-session": handleNewSession,
   resume: handleResume,
   rename: handleRename,

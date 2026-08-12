@@ -92,6 +92,8 @@ Core keys (not the full map — open **Help** / Command Palette in-app for every
 | `/toggle-zen-mode` | Zen mode |
 | `/vim` or empty-queue `Ctrl+U` then `u` | Vim mode |
 | `/new-session` / `/new-session Title` | New session (optional title) |
+| `/reset` | Same file: move branch leaf to root (history stays in tree; keeps title) |
+| `/clear` | Same tab: fresh child session file (resets title) |
 
 ## Install
 
