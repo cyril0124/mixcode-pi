@@ -4,6 +4,7 @@ import {
   buildHerdrNotificationArgs,
   buildHerdrReleaseAgentArgs,
   buildHerdrReportAgentArgs,
+  buildHerdrReportAgentSessionArgs,
   deriveHerdrState,
   HERDR_REPORT_AGENT,
   HERDR_REPORT_SOURCE,
@@ -28,6 +29,20 @@ test("buildHerdrReleaseAgentArgs drops ownership on exit", () => {
     "mpi",
     "--seq",
     "9",
+  ]);
+});
+
+test("buildHerdrReportAgentSessionArgs claims the pane agent", () => {
+  assert.deepEqual(buildHerdrReportAgentSessionArgs("w1:p1", 3), [
+    "pane",
+    "report-agent-session",
+    "w1:p1",
+    "--source",
+    "mpi",
+    "--agent",
+    "mpi",
+    "--seq",
+    "3",
   ]);
 });
 

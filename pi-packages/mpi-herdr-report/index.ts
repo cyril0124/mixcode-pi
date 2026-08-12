@@ -109,6 +109,20 @@ export function buildHerdrReleaseAgentArgs(paneId: string, nextSeq: number): str
   ];
 }
 
+export function buildHerdrReportAgentSessionArgs(paneId: string, nextSeq: number): string[] {
+  return [
+    "pane",
+    "report-agent-session",
+    paneId,
+    "--source",
+    HERDR_REPORT_SOURCE,
+    "--agent",
+    HERDR_REPORT_AGENT,
+    "--seq",
+    String(nextSeq),
+  ];
+}
+
 export function resolveHerdrBin(env: NodeJS.ProcessEnv = process.env): string | undefined {
   const fromEnv = env.HERDR_BIN_PATH?.trim();
   if (fromEnv) return fromEnv;
@@ -210,6 +224,21 @@ function recompute(): void {
   report(deriveHerdrState(activeRuns, waitingCount));
 }
 
+/**
+ * Claim the pane agent and push current state (usually idle) so the sidebar
+ * shows mpi before the first turn. Without this, Herdr only learns about us
+ * after agent_start/settled — a fresh idle session is invisible.
+ */
+function announcePresence(): void {
+  const paneId = resolveHerdrPaneId();
+  if (!paneId) return;
+  seq += 1;
+  spawnHerdr(buildHerdrReportAgentSessionArgs(paneId, seq));
+  // Prefer force so a brand-new process always lands idle even if a previous
+  // in-process report left previousReported set (extension reload).
+  forceReport(deriveHerdrState(activeRuns, waitingCount));
+}
+
 function onAgentStart(): void {
   if (!resolveHerdrPaneId()) return;
   activeRuns += 1;
@@ -269,6 +298,12 @@ const herdrReportExtension: ExtensionFactory = (pi) => {
   });
   pi.on("agent_settled", () => {
     onAgentSettled();
+  });
+  // Factory runs at extension load (often before session_start). Announce once
+  // here; session_start re-announces after replace/clear so idle returns.
+  announcePresence();
+  pi.on("session_start", () => {
+    announcePresence();
   });
 };
 
