@@ -34,6 +34,11 @@ export function resolveOptimizeSource(args: string, editorText = ""): string {
   return editorText.trim();
 }
 
+/** Label the draft so the rewrite model does not treat it as system instructions. */
+export function formatOptimizeUserMessage(source: string): string {
+  return `User's original prompt:\n${source}`;
+}
+
 /** Parse `provider/modelId`; rejects bare ids and trailing slashes. */
 export function parseOptimizeModelRef(
   ref: string,
@@ -86,7 +91,8 @@ export function formatOptimizePromptHelp(configPath: string): string {
     "- `/opt-prompt <text>` — optimize the given text and write it into the editor",
     "- `/opt-prompt config` — open config overlay (pick model/thinking, edit system prompt)",
     "- `/opt-prompt help` — show this help",
-    "- `/opt-prompt-cancel` — abort an in-flight optimize (draft is kept)",
+    "- `/opt-prompt cancel` or `/opt-prompt-cancel` — abort in-flight optimize (draft kept)",
+    "- `Ctrl+Shift+C` — same cancel, without waiting on the slash-command queue",
     "",
     "## Config",
     "",
@@ -115,7 +121,7 @@ export function formatOptimizePromptHelp(configPath: string): string {
     "",
     "Missing file = all defaults. Invalid JSON is reported as an error.",
     "Progress shows above the editor; the input editor is not taken over.",
-    "While optimizing: `/opt-prompt-cancel` aborts (draft is kept).",
+    "While optimizing: `/opt-prompt cancel`, `/opt-prompt-cancel`, or Ctrl+Shift+C aborts (draft kept).",
   ].join("\n");
 }
 

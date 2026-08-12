@@ -17,7 +17,7 @@ import {
   type ExtensionCommandContext,
   type ExtensionFactory,
 } from "@earendil-works/pi-coding-agent";
-import { Markdown } from "@earendil-works/pi-tui";
+import { Key, Markdown, truncateToWidth } from "@earendil-works/pi-tui";
 import {
   loadOptimizePromptConfig,
   optimizePromptConfigPath,
@@ -28,6 +28,7 @@ import {
   DEFAULT_OPTIMIZE_SYSTEM_PROMPT,
   extractOptimizedText,
   formatOptimizePromptHelp,
+  formatOptimizeUserMessage,
   OPTIMIZE_PROMPT_INHERIT,
   resolveOptimizeSource,
   resolveOptimizeSystemPrompt,
@@ -39,6 +40,7 @@ export {
   DEFAULT_OPTIMIZE_SYSTEM_PROMPT,
   extractOptimizedText,
   formatOptimizePromptHelp,
+  formatOptimizeUserMessage,
   OPTIMIZE_PROMPT_INHERIT,
   parseOptimizeModelRef,
   resolveOptimizeSource,
@@ -62,13 +64,36 @@ type CompleteFn = typeof completeSimple;
 type PanelData = { markdown: string };
 
 /** Per-factory cancel slot so each MixCode tab isolates in-flight optimize. */
-export type OptimizeAbortSlot = { controller?: AbortController };
+export type OptimizeAbortSlot = {
+  controller?: AbortController;
+  /** Tear down progress widget immediately on cancel (provider may ignore abort). */
+  stopProgress?: () => void;
+};
 
-/** Abort in-flight optimize on the given slot; used by /opt-prompt-cancel. */
+/** Abort in-flight optimize; stops progress UI even if the HTTP stream hangs. */
 export function cancelOptimize(slot: OptimizeAbortSlot): boolean {
-  if (!slot.controller || slot.controller.signal.aborted) return false;
-  slot.controller.abort();
+  const controller = slot.controller;
+  if (!controller || controller.signal.aborted) return false;
+  controller.abort();
+  try {
+    slot.stopProgress?.();
+  } finally {
+    slot.stopProgress = undefined;
+    // Drop slot so a second cancel reports idle; the run still sees its local signal.
+    if (slot.controller === controller) slot.controller = undefined;
+  }
   return true;
+}
+
+function notifyOptimizeCancel(
+  ctx: { ui: { notify(message: string, type?: string): void } },
+  slot: OptimizeAbortSlot,
+): void {
+  if (cancelOptimize(slot)) {
+    ctx.ui.notify("Optimize cancelled", "info");
+    return;
+  }
+  ctx.ui.notify("No optimize run in progress", "warning");
 }
 
 function compactHeaders(
@@ -108,6 +133,10 @@ function formatElapsed(ms: number): string {
   return `${min}m ${sec.toString().padStart(2, "0")}s`;
 }
 
+function collapsePromptPreview(source: string): string {
+  return source.replace(/\s+/g, " ").trim();
+}
+
 function renderOptimizeProgressLines(
   theme: { fg(color: string, text: string): string; bold?(text: string): string },
   state: {
@@ -116,7 +145,9 @@ function renderOptimizeProgressLines(
     modelLabel: string;
     thinkingLabel: string;
     sourceChars: number;
+    sourcePreview: string;
   },
+  width = 80,
 ): string[] {
   const spinner = SPINNER_FRAMES[state.frame % SPINNER_FRAMES.length]!;
   const elapsed = formatElapsed(Date.now() - state.startedAt);
@@ -132,13 +163,19 @@ function renderOptimizeProgressLines(
     theme.fg("success", `${state.sourceChars} chars`),
     theme.fg("warning", "/opt-prompt-cancel"),
   ].join(theme.fg("border", " · "));
-  return [` ${title}  ${meta}`];
+  const statusLine = ` ${title}  ${meta}`;
+  // Second line: original draft under an L-branch (└─), single-line dim preview.
+  const prefix = " └─ ";
+  const previewBudget = Math.max(8, width - prefix.length);
+  const preview = truncateToWidth(state.sourcePreview, previewBudget, "…");
+  const sourceLine = theme.fg("dim", `${prefix}${preview}`);
+  return [statusLine, sourceLine];
 }
 
-/** Live aboveEditor widget: spinner + elapsed + model/thinking/source size. */
+/** Live aboveEditor widget: spinner + elapsed + dim original prompt preview. */
 function startOptimizeProgressWidget(
   ctx: ExtensionCommandContext,
-  info: { modelLabel: string; thinkingLabel: string; sourceChars: number },
+  info: { modelLabel: string; thinkingLabel: string; sourceChars: number; sourcePreview: string },
 ): () => void {
   const startedAt = Date.now();
   let frame = 0;
@@ -152,14 +189,19 @@ function startOptimizeProgressWidget(
         tui.requestRender();
       }, 120);
       return {
-        render: () =>
-          renderOptimizeProgressLines(theme, {
-            frame,
-            startedAt,
-            modelLabel: info.modelLabel,
-            thinkingLabel: info.thinkingLabel,
-            sourceChars: info.sourceChars,
-          }),
+        render: (width: number) =>
+          renderOptimizeProgressLines(
+            theme,
+            {
+              frame,
+              startedAt,
+              modelLabel: info.modelLabel,
+              thinkingLabel: info.thinkingLabel,
+              sourceChars: info.sourceChars,
+              sourcePreview: info.sourcePreview,
+            },
+            width,
+          ),
         invalidate: () => {},
         dispose: () => {
           if (timer) {
@@ -188,6 +230,7 @@ function startOptimizeProgressWidget(
 const SUBCOMMANDS = [
   { value: "help", label: "help", description: "Usage and config docs" },
   { value: "config", label: "config", description: "Open config overlay (model/thinking/prompt)" },
+  { value: "cancel", label: "cancel", description: "Abort in-flight optimize (keeps draft)" },
 ] as const;
 
 const THINKING_OPTIONS = [
@@ -322,19 +365,46 @@ export async function runOptimizePrompt(options: {
     const result = await runOptimizePromptConfig({ ctx, agentDir });
     return result.ok ? { ok: false, reason: "config_saved" } : { ok: false, reason: result.reason };
   }
+  if (sub === "cancel") {
+    // Prefer /opt-prompt cancel (or /opt-prompt-cancel); never treat "cancel" as draft text.
+    if (!options.abortSlot) {
+      ctx.ui.notify("No optimize run in progress", "warning");
+      return { ok: false, reason: "no_run" };
+    }
+    const cancelled = cancelOptimize(options.abortSlot);
+    ctx.ui.notify(
+      cancelled ? "Optimize cancelled" : "No optimize run in progress",
+      cancelled ? "info" : "warning",
+    );
+    return { ok: false, reason: cancelled ? "cancelled" : "no_run" };
+  }
 
   const editorText = ctx.ui.getEditorText?.() ?? "";
   const source = resolveOptimizeSource(options.args, editorText);
   if (!source) {
     ctx.ui.notify(
-      "Nothing to optimize. Use Ctrl+P with a draft, or /opt-prompt <text> (help|config)",
+      "Nothing to optimize. Draft first, then /opt-prompt (or /opt-prompt <text>). Cancel: /opt-prompt cancel",
       "warning",
     );
     return { ok: false, reason: "empty_source" };
   }
 
+  // Claim the cancel slot before slow auth so /opt-prompt-cancel can land early.
+  const abortSlot = options.abortSlot ?? {};
+  const abort = new AbortController();
+  if (abortSlot.controller && !abortSlot.controller.signal.aborted) {
+    abortSlot.controller.abort();
+  }
+  try {
+    abortSlot.stopProgress?.();
+  } finally {
+    abortSlot.stopProgress = undefined;
+  }
+  abortSlot.controller = abort;
+
   const loaded = loadOptimizePromptConfig(agentDir);
   if (!loaded.ok) {
+    if (abortSlot.controller === abort) abortSlot.controller = undefined;
     ctx.ui.notify(`Optimize config error (${loaded.path}): ${loaded.error}`, "error");
     return { ok: false, reason: "bad_config" };
   }
@@ -342,8 +412,15 @@ export async function runOptimizePrompt(options: {
 
   const activeModel = ctx.model;
   if (!activeModel && !config.model) {
+    if (abortSlot.controller === abort) abortSlot.controller = undefined;
     ctx.ui.notify("No model selected", "error");
     return { ok: false, reason: "no_model" };
+  }
+
+  if (abort.signal.aborted) {
+    if (abortSlot.controller === abort) abortSlot.controller = undefined;
+    ctx.ui.notify("Optimize cancelled", "info");
+    return { ok: false, reason: "cancelled" };
   }
 
   const target = resolveOptimizeTarget(
@@ -360,6 +437,7 @@ export async function runOptimizePrompt(options: {
       ? ctx.modelRegistry.find(target.provider, target.modelId)
       : activeModel;
   if (!model) {
+    if (abortSlot.controller === abort) abortSlot.controller = undefined;
     ctx.ui.notify(`Unknown model: ${target.provider}/${target.modelId}`, "error");
     return { ok: false, reason: "unknown_model" };
   }
@@ -367,6 +445,11 @@ export async function runOptimizePrompt(options: {
   let auth: { apiKey?: string; headers?: Record<string, string>; env?: Record<string, string> };
   try {
     const resolved = await ctx.modelRegistry.getApiKeyAndHeaders(model);
+    if (abort.signal.aborted) {
+      if (abortSlot.controller === abort) abortSlot.controller = undefined;
+      ctx.ui.notify("Optimize cancelled", "info");
+      return { ok: false, reason: "cancelled" };
+    }
     if (
       !resolved.ok ||
       !hasRequestAuth({
@@ -375,6 +458,7 @@ export async function runOptimizePrompt(options: {
         env: resolved.ok ? resolved.env : undefined,
       })
     ) {
+      if (abortSlot.controller === abort) abortSlot.controller = undefined;
       ctx.ui.notify(
         resolved.ok ? `No credentials for ${model.provider}` : resolved.error,
         "error",
@@ -387,21 +471,24 @@ export async function runOptimizePrompt(options: {
       env: resolved.env,
     };
   } catch (error: unknown) {
+    if (abortSlot.controller === abort) abortSlot.controller = undefined;
+    if (abort.signal.aborted) {
+      ctx.ui.notify("Optimize cancelled", "info");
+      return { ok: false, reason: "cancelled" };
+    }
     ctx.ui.notify(formatError(error), "error");
     return { ok: false, reason: "no_auth" };
   }
 
   const systemPrompt = resolveOptimizeSystemPrompt(config);
   const runComplete = options.complete ?? completeSimple;
-  const abortSlot = options.abortSlot ?? {};
-  const abort = new AbortController();
-  // One in-flight optimize per factory/tab; nested is last-writer for cancel.
-  abortSlot.controller = abort;
   const stopProgress = startOptimizeProgressWidget(ctx, {
     modelLabel: `${target.provider}/${target.modelId}`,
     thinkingLabel: target.thinkingLevel,
     sourceChars: source.length,
+    sourcePreview: collapsePromptPreview(source),
   });
+  abortSlot.stopProgress = stopProgress;
   try {
     const streamOptions: {
       apiKey?: string;
@@ -437,7 +524,7 @@ export async function runOptimizePrompt(options: {
         messages: [
           {
             role: "user",
-            content: [{ type: "text", text: source }],
+            content: [{ type: "text", text: formatOptimizeUserMessage(source) }],
             timestamp: Date.now(),
           },
         ],
@@ -459,6 +546,7 @@ export async function runOptimizePrompt(options: {
     ctx.ui.notify(`Optimize failed: ${formatError(error)}`, "error");
     return { ok: false, reason: formatError(error) };
   } finally {
+    if (abortSlot.stopProgress === stopProgress) abortSlot.stopProgress = undefined;
     if (abortSlot.controller === abort) abortSlot.controller = undefined;
     stopProgress();
   }
@@ -476,30 +564,49 @@ const optimizePrompt: ExtensionFactory = (pi: ExtensionAPI) => {
   });
 
   pi.registerCommand("opt-prompt", {
-    description: "Optimize editor draft (or args); config edits optimize-prompt.json; help",
+    description: "Optimize editor draft (or args); config|help|cancel",
     getArgumentCompletions: (prefix: string) => {
       const filtered = SUBCOMMANDS.filter((item) => item.value.startsWith(prefix));
       return filtered.length > 0 ? filtered.map((item) => ({ ...item })) : null;
     },
     handler: async (args, ctx) => {
-      await runOptimizePrompt({
+      const shared = {
         ctx,
         args,
         getThinkingLevel: () => pi.getThinkingLevel(),
-        showMarkdown: (markdown) => pi.appendEntry<PanelData>(PANEL_ENTRY_TYPE, { markdown }),
+        showMarkdown: (markdown: string) =>
+          pi.appendEntry<PanelData>(PANEL_ENTRY_TYPE, { markdown }),
         abortSlot,
-      });
+      };
+      // Pi awaits extension command handlers serially. Sync subcommands await;
+      // the rewrite path must return immediately so cancel can run.
+      const sub = args.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
+      if (
+        sub === "help" ||
+        sub === "--help" ||
+        sub === "-h" ||
+        sub === "config" ||
+        sub === "cancel"
+      ) {
+        await runOptimizePrompt(shared);
+        return;
+      }
+      void runOptimizePrompt(shared);
     },
   });
 
   pi.registerCommand("opt-prompt-cancel", {
     description: "Abort in-flight /opt-prompt rewrite (keeps editor draft)",
     handler: async (_args, ctx) => {
-      if (cancelOptimize(abortSlot)) {
-        ctx.ui.notify("Optimize cancel requested", "info");
-        return;
-      }
-      ctx.ui.notify("No optimize run in progress", "warning");
+      notifyOptimizeCancel(ctx, abortSlot);
+    },
+  });
+
+  // Key path — does not go through the serial slash-command queue.
+  pi.registerShortcut(Key.ctrlShift("c"), {
+    description: "Cancel in-flight /opt-prompt",
+    handler: (ctx) => {
+      notifyOptimizeCancel(ctx, abortSlot);
     },
   });
 };

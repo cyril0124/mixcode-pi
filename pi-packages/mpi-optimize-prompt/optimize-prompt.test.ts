@@ -14,6 +14,7 @@ import { createOptimizePromptConfigOverlay } from "./config-overlay.js";
 import {
   extractOptimizedText,
   formatOptimizePromptHelp,
+  formatOptimizeUserMessage,
   resolveOptimizeSource,
   resolveOptimizeSystemPrompt,
   resolveOptimizeTarget,
@@ -31,6 +32,13 @@ describe("mpi-optimize-prompt core", () => {
     assert.equal(resolveOptimizeSource(" from args ", "from editor"), "from args");
     assert.equal(resolveOptimizeSource("  ", "  draft  "), "draft");
     assert.equal(resolveOptimizeSource("", ""), "");
+  });
+
+  it("formatOptimizeUserMessage labels the draft for the rewrite model", () => {
+    assert.equal(
+      formatOptimizeUserMessage("fix the flaky test"),
+      "User's original prompt:\nfix the flaky test",
+    );
   });
 
   it("resolveOptimizeTarget inherits session unless config overrides", () => {
@@ -54,7 +62,9 @@ describe("mpi-optimize-prompt core", () => {
     const help = formatOptimizePromptHelp("/tmp/agent/optimize-prompt.json");
     assert.match(help, /\/opt-prompt help/);
     assert.match(help, /\/opt-prompt config/);
+    assert.match(help, /\/opt-prompt cancel/);
     assert.match(help, /\/opt-prompt-cancel/);
+    assert.match(help, /Ctrl\+Shift\+C/);
     assert.match(help, /overlay/i);
     assert.match(help, /\/tmp\/agent\/optimize-prompt\.json/);
     assert.match(help, /systemPrompt/);
@@ -157,6 +167,7 @@ describe("mpi-optimize-prompt command", () => {
   it("registers opt-prompt and opt-prompt-cancel commands plus markdown panel", () => {
     const names: string[] = [];
     const renderers: string[] = [];
+    const shortcuts: string[] = [];
     optimizePrompt({
       registerCommand: (name: string) => {
         names.push(name);
@@ -164,10 +175,14 @@ describe("mpi-optimize-prompt command", () => {
       registerEntryRenderer: (type: string) => {
         renderers.push(type);
       },
+      registerShortcut: (key: string) => {
+        shortcuts.push(key);
+      },
       getThinkingLevel: () => "medium",
     } as never);
     assert.deepEqual(names, ["opt-prompt", "opt-prompt-cancel"]);
     assert.deepEqual(renderers, ["mpi-optimize-prompt-panel"]);
+    assert.ok(shortcuts.some((key) => /ctrl\+shift\+c/i.test(key)));
   });
 
   it("rewrites editor via completeSimple with live aboveEditor progress widget", async () => {
@@ -203,7 +218,7 @@ describe("mpi-optimize-prompt command", () => {
               | ((
                   tui: { requestRender: () => void },
                   theme: { fg: (c: string, t: string) => string; bold?: (t: string) => string },
-                ) => { render: () => string[]; dispose?: () => void }),
+                ) => { render: (width?: number) => string[]; dispose?: () => void }),
           ) => {
             widgetPayloads.push(content);
             if (typeof content === "function") {
@@ -214,13 +229,15 @@ describe("mpi-optimize-prompt command", () => {
                   bold: (t: string) => t,
                 },
               );
-              const lines = component.render().join("\n");
+              const lines = component.render(80).join("\n");
               assert.match(lines, /Optimizing prompt/);
               assert.match(lines, /tab\/main/);
               assert.match(lines, /think:high/);
               assert.match(lines, /\d+ chars/);
               assert.match(lines, /\/opt-prompt-cancel/);
-              assert.doesNotMatch(lines, /\[dim\]/);
+              // Status stays bright; original draft is dim on the second line.
+              assert.match(lines, /\[dim\]\s*└─ fix the flaky test/);
+              assert.equal(lines.split("\n").length, 2);
               component.dispose?.();
             }
           },
@@ -260,7 +277,10 @@ describe("mpi-optimize-prompt command", () => {
       assert.equal(completeCalls[0]?.provider, "tab");
       assert.equal(completeCalls[0]?.modelId, "main");
       assert.equal(completeCalls[0]?.reasoning, "high");
-      assert.equal(completeCalls[0]?.user, "fix the flaky test");
+      assert.equal(
+        completeCalls[0]?.user,
+        "User's original prompt:\nfix the flaky test",
+      );
       assert.match(completeCalls[0]?.systemPrompt ?? "", /rewritten prompt/i);
       assert.equal(typeof widgetPayloads[0], "function");
       assert.equal(widgetPayloads.at(-1), undefined);
@@ -540,6 +560,7 @@ describe("mpi-optimize-prompt command", () => {
           commandHandlers.set(name, options.handler);
         },
         registerEntryRenderer: () => undefined,
+        registerShortcut: () => undefined,
         getThinkingLevel: () => "off",
       } as never);
 
@@ -602,6 +623,261 @@ describe("mpi-optimize-prompt command", () => {
       notifies.length = 0;
       await commandHandlers.get("opt-prompt-cancel")?.("", ctx);
       assert.match(notifies.join("\n"), /No optimize run/);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("/opt-prompt cancel aborts and never treats cancel as draft text", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-optimize-sub-cancel-"));
+    try {
+      let editor = "real draft";
+      const abortSlot: OptimizeAbortSlot = {};
+      const { promise: holdComplete, resolve: releaseComplete } = Promise.withResolvers<void>();
+      const { promise: enteredComplete, resolve: markEntered } = Promise.withResolvers<void>();
+      const notifies: string[] = [];
+      let completeCalls = 0;
+
+      const ctx = {
+        model: { provider: "tab", id: "main" },
+        modelRegistry: {
+          find: () => ({ provider: "tab", id: "main" }),
+          getApiKeyAndHeaders: async () => ({ ok: true as const, apiKey: "k" }),
+        },
+        ui: {
+          getEditorText: () => editor,
+          setEditorText: (text: string) => {
+            editor = text;
+          },
+          setWidget: () => undefined,
+          notify: (message: string) => {
+            notifies.push(message);
+          },
+        },
+      } as unknown as ExtensionCommandContext;
+
+      const runPromise = runOptimizePrompt({
+        ctx,
+        args: "rewrite me",
+        getThinkingLevel: () => "off",
+        agentDir: dir,
+        abortSlot,
+        complete: async () => {
+          completeCalls += 1;
+          markEntered();
+          await holdComplete;
+          return {
+            content: [{ type: "text", text: "should not land" }],
+            stopReason: "stop",
+          } as never;
+        },
+      });
+
+      await enteredComplete;
+      const cancelResult = await runOptimizePrompt({
+        ctx,
+        args: "cancel",
+        getThinkingLevel: () => "off",
+        agentDir: dir,
+        abortSlot,
+        complete: async () => {
+          completeCalls += 1;
+          return {
+            content: [{ type: "text", text: "wrong" }],
+            stopReason: "stop",
+          } as never;
+        },
+      });
+      releaseComplete();
+
+      const runResult = await runPromise;
+      assert.equal(cancelResult.ok, false);
+      assert.equal(cancelResult.reason, "cancelled");
+      assert.equal(runResult.ok, false);
+      assert.equal(runResult.reason, "cancelled");
+      assert.equal(editor, "real draft");
+      assert.equal(completeCalls, 1);
+      assert.match(notifies.join("\n"), /cancelled/i);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("cancel stops progress widget even if complete hangs after abort", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-optimize-stop-progress-"));
+    try {
+      let editor = "draft";
+      const abortSlot: OptimizeAbortSlot = {};
+      const widgets: unknown[] = [];
+      const { promise: hang, resolve: releaseHang } = Promise.withResolvers<void>();
+      const { promise: entered, resolve: markEntered } = Promise.withResolvers<void>();
+
+      const ctx = {
+        model: { provider: "tab", id: "main" },
+        modelRegistry: {
+          find: () => ({ provider: "tab", id: "main" }),
+          getApiKeyAndHeaders: async () => ({ ok: true as const, apiKey: "k" }),
+        },
+        ui: {
+          getEditorText: () => editor,
+          setEditorText: (text: string) => {
+            editor = text;
+          },
+          setWidget: (_key: string, content: unknown) => {
+            widgets.push(content);
+          },
+          notify: () => undefined,
+        },
+      } as unknown as ExtensionCommandContext;
+
+      const runPromise = runOptimizePrompt({
+        ctx,
+        args: "hang please",
+        getThinkingLevel: () => "off",
+        agentDir: dir,
+        abortSlot,
+        complete: async (_m, _c, options) => {
+          markEntered();
+          await hang; // cancel must clear UI before this resumes
+          if (options?.signal?.aborted) throw new Error("aborted");
+          return {
+            content: [{ type: "text", text: "late" }],
+            stopReason: "stop",
+          } as never;
+        },
+      });
+
+      await entered;
+      assert.equal(typeof widgets[0], "function");
+      assert.equal(cancelOptimize(abortSlot), true);
+      assert.equal(widgets.at(-1), undefined);
+      assert.equal(editor, "draft");
+      releaseHang();
+      const result = await runPromise;
+      assert.equal(result.ok, false);
+      assert.equal(result.reason, "cancelled");
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("Pi serial loop: optimize runs in background so cancel can abort after start returns", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-optimize-bg-"));
+    try {
+      let editor = "keep draft";
+      const abortSlot: OptimizeAbortSlot = {};
+      const { promise: holdComplete, resolve: releaseComplete } = Promise.withResolvers<void>();
+      const { promise: enteredComplete, resolve: markEntered } = Promise.withResolvers<void>();
+
+      const ctx = {
+        model: { provider: "tab", id: "main" },
+        modelRegistry: {
+          find: () => ({ provider: "tab", id: "main" }),
+          getApiKeyAndHeaders: async () => ({ ok: true as const, apiKey: "k" }),
+        },
+        ui: {
+          getEditorText: () => editor,
+          setEditorText: (text: string) => {
+            editor = text;
+          },
+          setWidget: () => undefined,
+          notify: () => undefined,
+        },
+      } as unknown as ExtensionCommandContext;
+
+      // Same pattern as the factory: do not await the rewrite path.
+      const runPromise = runOptimizePrompt({
+        ctx,
+        args: "rewrite me",
+        getThinkingLevel: () => "off",
+        agentDir: dir,
+        abortSlot,
+        complete: async (_m, _c, options) => {
+          markEntered();
+          await holdComplete;
+          if (options?.signal?.aborted) throw new Error("aborted");
+          return {
+            content: [{ type: "text", text: "should not land" }],
+            stopReason: "stop",
+          } as never;
+        },
+      });
+
+      await enteredComplete;
+      // Handler has already "returned" from the caller's perspective; cancel must still work.
+      assert.equal(cancelOptimize(abortSlot), true);
+      releaseComplete();
+
+      const result = await runPromise;
+      assert.equal(result.ok, false);
+      assert.equal(result.reason, "cancelled");
+      assert.equal(editor, "keep draft");
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("starting a new optimize aborts the previous run on the same slot", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-optimize-replace-"));
+    try {
+      let editor = "draft";
+      const abortSlot: OptimizeAbortSlot = {};
+      const { promise: holdFirst, resolve: releaseFirst } = Promise.withResolvers<void>();
+      const { promise: firstEntered, resolve: markFirst } = Promise.withResolvers<void>();
+
+      const ctx = {
+        model: { provider: "tab", id: "main" },
+        modelRegistry: {
+          find: () => ({ provider: "tab", id: "main" }),
+          getApiKeyAndHeaders: async () => ({ ok: true as const, apiKey: "k" }),
+        },
+        ui: {
+          getEditorText: () => editor,
+          setEditorText: (text: string) => {
+            editor = text;
+          },
+          setWidget: () => undefined,
+          notify: () => undefined,
+        },
+      } as unknown as ExtensionCommandContext;
+
+      const first = runOptimizePrompt({
+        ctx,
+        args: "first",
+        getThinkingLevel: () => "off",
+        agentDir: dir,
+        abortSlot,
+        complete: async (_m, _c, options) => {
+          markFirst();
+          await holdFirst;
+          if (options?.signal?.aborted) throw new Error("aborted");
+          return {
+            content: [{ type: "text", text: "first-done" }],
+            stopReason: "stop",
+          } as never;
+        },
+      });
+
+      await firstEntered;
+      const second = runOptimizePrompt({
+        ctx,
+        args: "second",
+        getThinkingLevel: () => "off",
+        agentDir: dir,
+        abortSlot,
+        complete: async () =>
+          ({
+            content: [{ type: "text", text: "second-done" }],
+            stopReason: "stop",
+          }) as never,
+      });
+
+      releaseFirst();
+      const [firstResult, secondResult] = await Promise.all([first, second]);
+      assert.equal(firstResult.ok, false);
+      assert.equal(firstResult.reason, "cancelled");
+      assert.equal(secondResult.ok, true);
+      assert.equal(editor, "second-done");
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }
