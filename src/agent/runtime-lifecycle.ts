@@ -71,6 +71,7 @@ import type {
   RuntimeTab,
   SessionReplacementReason,
 } from "./runtime-types.js";
+import { createMixCodeBashCustomTools } from "./mixcode-bash-env.js";
 import { activateMixCodeTools, ToolLog } from "./tools.js";
 
 export type RuntimeTabConfig = Omit<AgentRuntimeConfig, "sessionId" | "model"> & {
@@ -81,6 +82,8 @@ export type RuntimeTabConfig = Omit<AgentRuntimeConfig, "sessionId" | "model"> &
   preserveCallerTitle?: boolean;
   /** Skip resourceLoader.reload() — caller already reloaded extensions. */
   skipExtensionReload?: boolean;
+  /** Live tab title for bash MIXCODE_TAB_TITLE (replacement path). */
+  getTabTitle?: () => string;
 };
 
 export interface RuntimeServiceOptions {
@@ -117,6 +120,19 @@ export interface RuntimeLifecycleContext {
   getApiKey?: (provider: string) => Promise<string | undefined> | string | undefined;
   getDisabledExtensionKeys?: (workdir: string) => ReadonlySet<string>;
   extensionToolOwnerPolicy?: ExtensionToolOwnerPolicy;
+  /** UI-focused agent tab title for bash env; empty when Home/config is focused. */
+  getFocusedTabTitle?: () => string | undefined;
+}
+
+function mixcodeBashCustomTools(
+  services: AgentSessionServices,
+  getTabTitle: () => string,
+  context: RuntimeLifecycleContext,
+) {
+  return createMixCodeBashCustomTools(services.cwd, services.settingsManager, () => ({
+    tabTitle: getTabTitle(),
+    focusedTabTitle: context.getFocusedTabTitle?.(),
+  }));
 }
 
 export function applyMixCodeSessionDefaults(settingsManager: SettingsManager): void {
@@ -181,6 +197,7 @@ async function createRuntimeTabWithServices(
     sessionManager: session,
     model: { ...model },
     thinkingLevel: config.thinkingLevel,
+    customTools: mixcodeBashCustomTools(services, () => tab.title, context),
   });
   const extensionToolOwnerPolicy = resolveExtensionToolOwnerPolicy(context);
   const runtimeTab: RuntimeTab = {
@@ -337,6 +354,11 @@ async function createAgentSessionForReplacementWithServices(
     model: { ...model },
     thinkingLevel: config.thinkingLevel,
     sessionStartEvent: config.sessionStartEvent,
+    customTools: mixcodeBashCustomTools(
+      services,
+      config.getTabTitle ?? (() => ""),
+      context,
+    ),
   });
   const extensionToolOwnerPolicy = resolveExtensionToolOwnerPolicy(context);
   activateMixCodeTools(result.session, extensionToolOwnerPolicy);
@@ -436,6 +458,7 @@ async function replaceRuntimeTabSessionUnlocked(
       // Reload-on-reuse keeps a fresh extension runtime after dispose (see above).
       reuseServices: previousServices,
       sessionStartEvent: { type: "session_start", reason, previousSessionFile },
+      getTabTitle: () => runtimeTab.tab.title,
     },
     context,
   );
@@ -651,6 +674,7 @@ export async function reloadRuntimeTabWithFreshServices(
     model,
     thinkingLevel: runtimeTab.tab.thinkingLevel,
     sessionStartEvent: { type: "session_start", reason: "reload" },
+    customTools: mixcodeBashCustomTools(services, () => runtimeTab.tab.title, context),
   });
   bindRuntimeSessionCore(runtimeTab, {
     agentSession,
@@ -712,6 +736,7 @@ export async function updateRuntimeTabWorkdir(
     model,
     thinkingLevel: runtimeTab.tab.thinkingLevel,
     sessionStartEvent: { type: "session_start", reason: "reload" },
+    customTools: mixcodeBashCustomTools(services, () => runtimeTab.tab.title, context),
   });
   const extensionToolOwnerPolicy = resolveExtensionToolOwnerPolicy(context);
   activateMixCodeTools(agentSession, extensionToolOwnerPolicy);

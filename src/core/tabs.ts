@@ -1,6 +1,16 @@
 import { createTab, nextAvailableAgentTitle } from "./defaults.js";
 import type { MixCodeState, MixCodeTabInfo } from "./types.js";
 
+const activeTabListeners = new Set<(tabId: string) => void>();
+
+/** Subscribe to UI focus changes (`activateTab`). Returns unsubscribe. */
+export function onActiveTabChange(listener: (tabId: string) => void): () => void {
+  activeTabListeners.add(listener);
+  return () => {
+    activeTabListeners.delete(listener);
+  };
+}
+
 /** Returns the active agent, using the Home selection while the config tab is active. */
 export function getActiveTab(
   state: Pick<MixCodeState, "tabs" | "activeTabId" | "homeSelectedTabIndex">,
@@ -79,6 +89,7 @@ export function activateTab(state: MixCodeState, tabId: string): void {
     }
   }
   state.activeTabId = tabId;
+  for (const listener of activeTabListeners) listener(tabId);
   const tab = state.tabs.find((item) => item.sessionId === tabId);
   if (!tab) return;
   // /mark-done sets status=done + unreadDone; both drive the "!" glyph. Clear both

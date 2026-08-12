@@ -14,6 +14,15 @@ Not listed here: `run.sh` / test / GIF tooling knobs, or upstream Pi (`PI_*`) â€
 | --- | --- | --- |
 | `MIXCODE` | MixCode (`src/cli/main.ts`) after it decides **not** to delegate to upstream `pi` | Process is MixCode, not bare `pi`. Built-in packages that must not activate under pure Pi should gate on this (e.g. `mpi-herdr-report`). Default when MixCode runs: `1` (`??=`, does not override an explicit value). Off when unset / empty / `0` / `false` / `off`. |
 
+## Agent bash tool (per spawn)
+
+Injected into the **agent bash tool** child environment only (same surface as Pi `PI_SESSION_*`). Not set on the host process; not injected into user `!` / `!!` shells.
+
+| Variable | Set by | Meaning |
+| --- | --- | --- |
+| `MIXCODE_TAB_TITLE` | Bash tool spawn | Title of the tab that owns this agent (e.g. `Agent-01`). Follows renames on the next spawn. |
+| `MIXCODE_FOCUSED_TAB_TITLE` | Bash tool spawn | Title of the UI-focused agent tab. Unset when focus is Home/config or unknown. May differ from `MIXCODE_TAB_TITLE` when a background tab runs bash. |
+
 ## Related external hosts
 
 Pane multiplexers may inject their own env (e.g. `HERDR_*`). Those are defined by the host, not MixCode. Built-in packages that talk to such hosts should document required vars in the package itself and still gate MixCode-only behavior on `MIXCODE`.

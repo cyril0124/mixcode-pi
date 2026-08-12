@@ -18,6 +18,7 @@ import { type AutocompleteProvider, matchesKey as matchesPiKey } from "@earendil
 import { contentText } from "./runtime-tool-chat.js";
 import { modelToRef, replaceRegisteredModels } from "../core/models.js";
 import { nextAvailableAgentTitle } from "../core/defaults.js";
+import { onActiveTabChange } from "../core/tabs.js";
 import {
   clearPendingEscape,
   setPendingFollowUps,
@@ -212,6 +213,9 @@ export class MixCodeRuntime {
   private readonly tabClosedListeners = new Set<(sessionId: string) => void>();
   /** UI rebuilds /model list when extensions registerProvider/unregisterProvider. */
   private readonly modelsChangedListeners = new Set<(refs: MixCodeModelRef[]) => void>();
+  /** UI-focused agent session id; undefined when Home/config is focused. */
+  private focusedSessionId: string | undefined;
+  private readonly stopActiveTabTracking: () => void;
 
   private lifecycleContext(): RuntimeLifecycleContext {
     return {
@@ -231,7 +235,17 @@ export class MixCodeRuntime {
       getApiKey: this.getApiKey,
       getDisabledExtensionKeys: () => this.disabledExtensionKeys(),
       extensionToolOwnerPolicy: isExtensionToolOwner,
+      getFocusedTabTitle: () => this.getFocusedTabTitle(),
     };
+  }
+
+  private getFocusedTabTitle(): string | undefined {
+    const focusedId = this.focusedSessionId;
+    if (!focusedId) return undefined;
+    for (const runtimeTab of this.tabs.values()) {
+      if (runtimeTab.tab.sessionId === focusedId) return runtimeTab.tab.title;
+    }
+    return undefined;
   }
 
   private extensionSessionContext(): RuntimeExtensionSessionContext {
@@ -282,6 +296,9 @@ export class MixCodeRuntime {
     // Extension pi.registerProvider updates ModelRegistry but MixCode UI reads
     // state.availableModels; keep them in sync when providers are registered.
     this.installProviderRegistryUiSync();
+    this.stopActiveTabTracking = onActiveTabChange((tabId) => {
+      this.focusedSessionId = tabId === "config" ? undefined : tabId;
+    });
   }
 
   /**
