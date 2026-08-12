@@ -39,6 +39,23 @@ export function formatOptimizeUserMessage(source: string): string {
   return `User's original prompt:\n${source}`;
 }
 
+/** Factory-scoped stash for the pre-optimize draft (Pi has no editor history API). */
+export type OptimizeDraftSlot = { previous?: string };
+
+export function stashPreOptimizeDraft(slot: OptimizeDraftSlot, source: string): void {
+  slot.previous = source;
+}
+
+/** Restore the last stashed draft into the editor. */
+export function restorePreOptimizeDraft(
+  slot: OptimizeDraftSlot,
+  setEditorText: (text: string) => void,
+): { ok: true; text: string } | { ok: false } {
+  if (slot.previous === undefined) return { ok: false };
+  setEditorText(slot.previous);
+  return { ok: true, text: slot.previous };
+}
+
 /** Parse `provider/modelId`; rejects bare ids and trailing slashes. */
 export function parseOptimizeModelRef(
   ref: string,
@@ -93,6 +110,7 @@ export function formatOptimizePromptHelp(configPath: string): string {
     "- `/opt-prompt help` — show this help",
     "- `/opt-prompt cancel` or `/opt-prompt-cancel` — abort in-flight optimize (draft kept)",
     "- `Ctrl+Shift+C` — same cancel, without waiting on the slash-command queue",
+    "- `/opt-prompt undo` — restore the pre-optimize draft (extension stash; not Up-history)",
     "",
     "## Config",
     "",

@@ -18,7 +18,10 @@ import {
   resolveOptimizeSource,
   resolveOptimizeSystemPrompt,
   resolveOptimizeTarget,
+  restorePreOptimizeDraft,
+  stashPreOptimizeDraft,
   DEFAULT_OPTIMIZE_SYSTEM_PROMPT,
+  type OptimizeDraftSlot,
 } from "./core.js";
 import optimizePrompt, {
   cancelOptimize,
@@ -39,6 +42,20 @@ describe("mpi-optimize-prompt core", () => {
       formatOptimizeUserMessage("fix the flaky test"),
       "User's original prompt:\nfix the flaky test",
     );
+  });
+
+  it("stash/restore pre-optimize draft without host history API", () => {
+    const slot: OptimizeDraftSlot = {};
+    let editor = "optimized";
+    assert.equal(restorePreOptimizeDraft(slot, (t) => {
+      editor = t;
+    }).ok, false);
+    stashPreOptimizeDraft(slot, "original draft");
+    const restored = restorePreOptimizeDraft(slot, (t) => {
+      editor = t;
+    });
+    assert.deepEqual(restored, { ok: true, text: "original draft" });
+    assert.equal(editor, "original draft");
   });
 
   it("resolveOptimizeTarget inherits session unless config overrides", () => {
@@ -64,6 +81,7 @@ describe("mpi-optimize-prompt core", () => {
     assert.match(help, /\/opt-prompt config/);
     assert.match(help, /\/opt-prompt cancel/);
     assert.match(help, /\/opt-prompt-cancel/);
+    assert.match(help, /\/opt-prompt undo/);
     assert.match(help, /Ctrl\+Shift\+C/);
     assert.match(help, /overlay/i);
     assert.match(help, /\/tmp\/agent\/optimize-prompt\.json/);
@@ -623,6 +641,57 @@ describe("mpi-optimize-prompt command", () => {
       notifies.length = 0;
       await commandHandlers.get("opt-prompt-cancel")?.("", ctx);
       assert.match(notifies.join("\n"), /No optimize run/);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("successful optimize stashes draft for /opt-prompt undo", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-optimize-undo-"));
+    try {
+      let editor = "original draft";
+      const draftSlot: OptimizeDraftSlot = {};
+      const ctx = {
+        model: { provider: "tab", id: "main" },
+        modelRegistry: {
+          find: () => ({ provider: "tab", id: "main" }),
+          getApiKeyAndHeaders: async () => ({ ok: true as const, apiKey: "k" }),
+        },
+        ui: {
+          getEditorText: () => editor,
+          setEditorText: (text: string) => {
+            editor = text;
+          },
+          setWidget: () => undefined,
+          notify: () => undefined,
+        },
+      } as unknown as ExtensionCommandContext;
+
+      const optimized = await runOptimizePrompt({
+        ctx,
+        args: "",
+        getThinkingLevel: () => "off",
+        agentDir: dir,
+        draftSlot,
+        complete: async () =>
+          ({
+            content: [{ type: "text", text: "clearer draft" }],
+            stopReason: "stop",
+          }) as never,
+      });
+      assert.equal(optimized.ok, true);
+      assert.equal(editor, "clearer draft");
+      assert.equal(draftSlot.previous, "original draft");
+
+      const undone = await runOptimizePrompt({
+        ctx,
+        args: "undo",
+        getThinkingLevel: () => "off",
+        agentDir: dir,
+        draftSlot,
+      });
+      assert.equal(undone.ok, true);
+      assert.equal(editor, "original draft");
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }

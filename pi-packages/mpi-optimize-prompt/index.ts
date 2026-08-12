@@ -33,6 +33,9 @@ import {
   resolveOptimizeSource,
   resolveOptimizeSystemPrompt,
   resolveOptimizeTarget,
+  restorePreOptimizeDraft,
+  stashPreOptimizeDraft,
+  type OptimizeDraftSlot,
   type OptimizePromptConfig,
 } from "./core.js";
 
@@ -46,6 +49,9 @@ export {
   resolveOptimizeSource,
   resolveOptimizeSystemPrompt,
   resolveOptimizeTarget,
+  restorePreOptimizeDraft,
+  stashPreOptimizeDraft,
+  type OptimizeDraftSlot,
   type OptimizePromptConfig,
 } from "./core.js";
 export {
@@ -231,6 +237,7 @@ const SUBCOMMANDS = [
   { value: "help", label: "help", description: "Usage and config docs" },
   { value: "config", label: "config", description: "Open config overlay (model/thinking/prompt)" },
   { value: "cancel", label: "cancel", description: "Abort in-flight optimize (keeps draft)" },
+  { value: "undo", label: "undo", description: "Restore pre-optimize draft" },
 ] as const;
 
 const THINKING_OPTIONS = [
@@ -350,6 +357,8 @@ export async function runOptimizePrompt(options: {
   showMarkdown?: (markdown: string) => void;
   /** Factory-scoped abort slot; omit only in single-shot tests. */
   abortSlot?: OptimizeAbortSlot;
+  /** Factory-scoped pre-optimize draft stash for /opt-prompt undo. */
+  draftSlot?: OptimizeDraftSlot;
 }): Promise<{ ok: true; text: string } | { ok: false; reason: string }> {
   const { ctx } = options;
   const agentDir = options.agentDir ?? getAgentDir();
@@ -377,6 +386,20 @@ export async function runOptimizePrompt(options: {
       cancelled ? "info" : "warning",
     );
     return { ok: false, reason: cancelled ? "cancelled" : "no_run" };
+  }
+  if (sub === "undo") {
+    // Extension-local stash: Pi has no addToHistory on ExtensionUIContext.
+    if (!options.draftSlot) {
+      ctx.ui.notify("No pre-optimize draft to restore", "warning");
+      return { ok: false, reason: "no_draft" };
+    }
+    const restored = restorePreOptimizeDraft(options.draftSlot, (text) => ctx.ui.setEditorText(text));
+    if (!restored.ok) {
+      ctx.ui.notify("No pre-optimize draft to restore", "warning");
+      return { ok: false, reason: "no_draft" };
+    }
+    ctx.ui.notify("Restored pre-optimize draft", "info");
+    return { ok: true, text: restored.text };
   }
 
   const editorText = ctx.ui.getEditorText?.() ?? "";
@@ -536,6 +559,8 @@ export async function runOptimizePrompt(options: {
       return { ok: false, reason: "cancelled" };
     }
     const optimized = extractOptimizedText(response);
+    // Stash original for /opt-prompt undo (cannot push real editor Up-history from an extension).
+    if (options.draftSlot) stashPreOptimizeDraft(options.draftSlot, source);
     ctx.ui.setEditorText(optimized);
     return { ok: true, text: optimized };
   } catch (error: unknown) {
@@ -553,8 +578,9 @@ export async function runOptimizePrompt(options: {
 }
 
 const optimizePrompt: ExtensionFactory = (pi: ExtensionAPI) => {
-  // Factory-scoped so each MixCode tab (each ExtensionRunner load) isolates cancel.
+  // Factory-scoped so each MixCode tab (each ExtensionRunner load) isolates cancel/undo.
   const abortSlot: OptimizeAbortSlot = {};
+  const draftSlot: OptimizeDraftSlot = {};
 
   pi.registerEntryRenderer<PanelData>(PANEL_ENTRY_TYPE, (entry, _options, theme) => {
     const markdown = entry.data?.markdown ?? "";
@@ -564,7 +590,7 @@ const optimizePrompt: ExtensionFactory = (pi: ExtensionAPI) => {
   });
 
   pi.registerCommand("opt-prompt", {
-    description: "Optimize editor draft (or args); config|help|cancel",
+    description: "Optimize editor draft (or args); config|help|cancel|undo",
     getArgumentCompletions: (prefix: string) => {
       const filtered = SUBCOMMANDS.filter((item) => item.value.startsWith(prefix));
       return filtered.length > 0 ? filtered.map((item) => ({ ...item })) : null;
@@ -577,6 +603,7 @@ const optimizePrompt: ExtensionFactory = (pi: ExtensionAPI) => {
         showMarkdown: (markdown: string) =>
           pi.appendEntry<PanelData>(PANEL_ENTRY_TYPE, { markdown }),
         abortSlot,
+        draftSlot,
       };
       // Pi awaits extension command handlers serially. Sync subcommands await;
       // the rewrite path must return immediately so cancel can run.
@@ -586,7 +613,8 @@ const optimizePrompt: ExtensionFactory = (pi: ExtensionAPI) => {
         sub === "--help" ||
         sub === "-h" ||
         sub === "config" ||
-        sub === "cancel"
+        sub === "cancel" ||
+        sub === "undo"
       ) {
         await runOptimizePrompt(shared);
         return;
