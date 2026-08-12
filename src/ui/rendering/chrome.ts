@@ -33,10 +33,10 @@ export function renderExtensionHeader(tab: MixCodeTabInfo | undefined, width: nu
 }
 
 /** Tab bar may use at most this fraction of the terminal height (rows). */
-export const TAB_BAR_VIEWPORT_RATIO = 0.15;
+export const TAB_BAR_VIEWPORT_RATIO = 0.1;
 
 /**
- * Row budget for the tab bar: min(floor(terminalRows * 15%), contentCap), at least 1.
+ * Row budget for the tab bar: min(floor(terminalRows * 10%), contentCap), at least 1.
  * Either input may be omitted; both omitted → unlimited (undefined).
  */
 export function tabBarMaxRows(
@@ -63,26 +63,25 @@ export function renderTabBar(
   maxRows?: number,
 ): string[] {
   return renderWithTheme(theme, () => {
-    const { rows, hiddenCount, indent } = visibleTabBarLayout(state, width, maxRows);
-    // Same activeTab chrome as a selected tab — only when active lives in the overflow.
-    const activeHidden =
-      hiddenCount > 0 &&
-      !rows.some((row) => row.some((segment) => segment.id === state.activeTabId));
+    const { rows, hiddenLeft, hiddenRight, indent } = visibleTabBarLayout(state, width, maxRows);
     return rows.map((row, rowIndex) => {
       const prefix = rowIndex === 0 ? "" : " ".repeat(indent);
       const tabsText = row.map((segment) => segment.text).join(" ");
+      const isFirst = rowIndex === 0;
       const isLast = rowIndex === rows.length - 1;
-      // Overflow stays on the last visible row (` … +N`); no extra hint line.
-      if (isLast && hiddenCount > 0) {
-        // Only `+N` takes activeTab chrome; the leading `…` stays dim so it
-        // reads as overflow punctuation, not a selected tab chip.
-        const count = `+${hiddenCount}`;
-        const hint = activeHidden
-          ? activeRenderTheme.dim(" … ") + activeRenderTheme.activeTab(count)
-          : activeRenderTheme.dim(` … ${count}`);
-        return padLine(activeRenderTheme.text(prefix + tabsText) + hint, width);
-      }
-      return activeRenderTheme.text(padLine(prefix + tabsText, width));
+      // When Home is scrolled out of the window, pin a compact same-color "H" anchor.
+      const homeAnchor =
+        isFirst && hiddenLeft > 0 ? activeRenderTheme.homeTab(homeAnchorBare()) : "";
+      // +L counts only hidden agents (Home is the H chip, not part of +N).
+      const leftAgents = Math.max(0, hiddenLeft - 1);
+      const leftHint =
+        isFirst && leftAgents > 0 ? activeRenderTheme.dim(leftOverflowHint(leftAgents)) : "";
+      const rightHint =
+        isLast && hiddenRight > 0 ? activeRenderTheme.dim(rightOverflowHint(hiddenRight)) : "";
+      return padLine(
+        homeAnchor + leftHint + activeRenderTheme.text(prefix + tabsText) + rightHint,
+        width,
+      );
     });
   });
 }
@@ -231,12 +230,18 @@ export function tabBarHitRegions(
   width = Number.POSITIVE_INFINITY,
   maxRows?: number,
 ): MouseHitRegion[] {
-  const { rows, indent } = visibleTabBarLayout(state, width, maxRows);
+  const { rows, hiddenLeft, indent } = visibleTabBarLayout(state, width, maxRows);
   const regions: MouseHitRegion[] = [];
   rows.forEach((row, rowIndex) => {
-    // Wrapped rows start under the first tab (after "MixCode Home"); the first
-    // row starts at the left edge.
+    // First row may start with H (hidden Home) and/or a left agent overflow hint.
     let cursor = rowIndex === 0 ? 1 : indent + 1;
+    if (rowIndex === 0 && hiddenLeft > 0) {
+      const homeW = visibleWidth(homeAnchorBare());
+      regions.push({ id: "config", startX: cursor, endX: cursor + homeW - 1, row: 0 });
+      cursor += homeW;
+      const leftAgents = Math.max(0, hiddenLeft - 1);
+      if (leftAgents > 0) cursor += visibleWidth(leftOverflowHint(leftAgents));
+    }
     for (const segment of row) {
       const startX = cursor;
       const endX = cursor + visibleWidth(segment.text) - 1;
@@ -249,86 +254,224 @@ export function tabBarHitRegions(
 
 type TabSegment = { id: string; text: string };
 
+type TabBarLayout = {
+  rows: TabSegment[][];
+  /** Segments before the window (includes Home when it is scrolled out). */
+  hiddenLeft: number;
+  hiddenRight: number;
+  indent: number;
+};
+
+/** Compact Home stand-in when the full "MixCode Home" chip is off-window. */
+function homeAnchorBare(): string {
+  return " H ";
+}
+
+function leftOverflowHint(count: number): string {
+  return `+${count} … `;
+}
+
+function rightOverflowHint(count: number): string {
+  return ` … +${count}`;
+}
+
+/** Width of leading Home anchor + agent-only left overflow hint. */
+function leftClusterWidth(hiddenLeft: number): number {
+  if (hiddenLeft <= 0) return 0;
+  const agents = Math.max(0, hiddenLeft - 1);
+  return (
+    visibleWidth(homeAnchorBare()) +
+    (agents > 0 ? visibleWidth(leftOverflowHint(agents)) : 0)
+  );
+}
+
+function visibleTabCount(rows: TabSegment[][]): number {
+  return rows.reduce((count, row) => count + row.length, 0);
+}
+
 function visibleTabBarLayout(
   state: MixCodeState,
   width: number,
   maxRows?: number,
-): { rows: TabSegment[][]; hiddenCount: number; indent: number } {
+): TabBarLayout {
   const segments = tabBarSegments(state);
-  const indent = wrappedRowIndent(segments, width);
-  const packed = packTabRows(segments, width, indent);
-  const limited = limitTabRows(packed, maxRows, width, indent);
-  return { ...limited, indent };
-}
-
-function limitTabRows(
-  rows: TabSegment[][],
-  maxRows: number | undefined,
-  width: number,
-  indent: number,
-): { rows: TabSegment[][]; hiddenCount: number } {
+  const homeIndent = wrappedRowIndent(segments, width);
   // Unlimited budget: keep every packed row (no overflow hint).
   if (maxRows === undefined || !Number.isFinite(maxRows)) {
-    return { rows, hiddenCount: 0 };
+    return {
+      rows: packTabRows(segments, width, homeIndent),
+      hiddenLeft: 0,
+      hiddenRight: 0,
+      indent: homeIndent,
+    };
   }
   const limit = Math.max(1, Math.floor(maxRows));
-  // All `limit` rows are real tab rows now — overflow is inlined on the last one,
-  // so we no longer reserve a whole row for a separate "… +N tabs" line.
-  if (rows.length <= limit) {
-    return { rows, hiddenCount: 0 };
+  // Everything fits without clipping — no sliding window.
+  if (packTabRows(segments, width, homeIndent).length <= limit) {
+    return {
+      rows: packTabRows(segments, width, homeIndent),
+      hiddenLeft: 0,
+      hiddenRight: 0,
+      indent: homeIndent,
+    };
   }
-  const visibleRows = rows.slice(0, limit).map((row) => row.slice());
-  let hiddenCount = rows.slice(limit).reduce((count, row) => count + row.length, 0);
-  const lastIndex = visibleRows.length - 1;
-  const trimmed = trimRowForOverflowHint(
-    visibleRows[lastIndex]!,
-    lastIndex,
-    width,
-    indent,
-    hiddenCount,
-  );
-  visibleRows[lastIndex] = trimmed.row;
-  hiddenCount += trimmed.hiddenFromRow;
-  return { rows: visibleRows, hiddenCount };
+
+  const activeId = state.activeTabId;
+  let activeIdx = segments.findIndex((segment) => segment.id === activeId);
+  if (activeIdx < 0) activeIdx = 0;
+
+  // Seed with the active tab alone (always keep it visible, truncating if needed).
+  let lo = activeIdx;
+  let hi = activeIdx + 1;
+  let best =
+    fitTabWindow(segments, lo, hi, width, limit, activeId) ??
+    forceActiveOnlyLayout(segments, activeIdx, width, limit);
+
+  // Grow a contiguous window around active while newly included tabs stay visible.
+  let grew = true;
+  while (grew) {
+    grew = false;
+    if (hi < segments.length) {
+      const next = fitTabWindow(segments, lo, hi + 1, width, limit, activeId);
+      if (next && visibleTabCount(next.rows) > visibleTabCount(best.rows)) {
+        hi += 1;
+        best = next;
+        grew = true;
+      }
+    }
+    if (lo > 0) {
+      const next = fitTabWindow(segments, lo - 1, hi, width, limit, activeId);
+      if (next && visibleTabCount(next.rows) > visibleTabCount(best.rows)) {
+        lo -= 1;
+        best = next;
+        grew = true;
+      }
+    }
+  }
+
+  return best;
 }
 
-/** Drop or truncate trailing tabs on the last visible row until ` … +N` fits. */
-function trimRowForOverflowHint(
+/**
+ * Pack [lo, hi) and reserve room for left/right overflow hints. Returns null when
+ * the window needs more than maxRows or would drop the active tab.
+ */
+function fitTabWindow(
+  segments: TabSegment[],
+  lo: number,
+  hi: number,
+  width: number,
+  maxRows: number,
+  activeId: string,
+): TabBarLayout | null {
+  if (lo < 0 || hi > segments.length || lo >= hi) return null;
+  const homeVisible = lo === 0;
+  const indent = homeVisible ? wrappedRowIndent(segments, width) : 0;
+  let hiddenLeft = lo;
+  let hiddenRight = segments.length - hi;
+  let rows = packTabRows(segments.slice(lo, hi), width, indent).map((row) => row.slice());
+  if (rows.length > maxRows) return null;
+
+  // First row: leave room for H / left +N by dropping leading tabs (rare; expand
+  // usually avoids this). Last row: same for right hint.
+  if (hiddenLeft > 0 && rows[0]) {
+    const trimmed = trimRowForHints(rows[0]!, 0, width, indent, hiddenLeft, 0, "start");
+    hiddenLeft += trimmed.dropped;
+    rows[0] = trimmed.row;
+  }
+  if (hiddenRight > 0 && rows.length > 0) {
+    const last = rows.length - 1;
+    const leftOnSameRow = hiddenLeft > 0 && rows.length === 1 ? hiddenLeft : 0;
+    const trimmed = trimRowForHints(
+      rows[last]!,
+      last,
+      width,
+      indent,
+      leftOnSameRow,
+      hiddenRight,
+      "end",
+    );
+    hiddenRight += trimmed.dropped;
+    rows[last] = trimmed.row;
+  }
+
+  rows = rows.filter((row) => row.length > 0);
+  if (rows.length === 0 || rows.length > maxRows) return null;
+  if (!rows.some((row) => row.some((segment) => segment.id === activeId))) return null;
+  return { rows, hiddenLeft, hiddenRight, indent };
+}
+
+function forceActiveOnlyLayout(
+  segments: TabSegment[],
+  activeIdx: number,
+  width: number,
+  maxRows: number,
+): TabBarLayout {
+  const active = segments[activeIdx] ?? segments[0]!;
+  const hiddenLeft = Math.max(0, activeIdx);
+  const hiddenRight = Math.max(0, segments.length - activeIdx - 1);
+  const indent = hiddenLeft === 0 ? wrappedRowIndent(segments, width) : 0;
+  const leftW = leftClusterWidth(hiddenLeft);
+  const rightW = hiddenRight > 0 ? visibleWidth(rightOverflowHint(hiddenRight)) : 0;
+  const available = Math.max(1, width - leftW - rightW);
+  const text =
+    visibleWidth(active.text) <= available
+      ? active.text
+      : truncateToWidth(active.text, available, "…");
+  void maxRows;
+  return {
+    rows: [[{ ...active, text }]],
+    hiddenLeft,
+    hiddenRight,
+    indent,
+  };
+}
+
+/**
+ * Drop tabs from `side` until H/left/right hints + row content fit in width.
+ * When only one tab remains, truncate it rather than dropping the active chip.
+ */
+function trimRowForHints(
   row: TabSegment[],
   rowIndex: number,
   width: number,
   indent: number,
-  hiddenAfterRow: number,
-): { row: TabSegment[]; hiddenFromRow: number } {
+  hiddenLeft: number,
+  hiddenRight: number,
+  side: "start" | "end",
+): { row: TabSegment[]; dropped: number } {
   const prefix = rowIndex === 0 ? 0 : indent;
   let kept = row.slice();
-  let hiddenFromRow = 0;
-  // N grows as we drop; re-measure each time (` … +10` is wider than ` … +9`).
+  let dropped = 0;
   while (true) {
-    const n = hiddenAfterRow + hiddenFromRow;
-    if (n <= 0) return { row: kept, hiddenFromRow: 0 };
-    const hintW = visibleWidth(` … +${n}`);
+    // hiddenLeft>0 reserves the H chip (+ optional agent +N); 0 means no left cluster.
+    const leftW = rowIndex === 0 ? leftClusterWidth(hiddenLeft) : 0;
+    const rightW = hiddenRight > 0 ? visibleWidth(rightOverflowHint(hiddenRight)) : 0;
     const tabsW =
       kept.length === 0 ? 0 : visibleWidth(kept.map((segment) => segment.text).join(" "));
-    if (prefix + tabsW + hintW <= width) {
-      return { row: kept, hiddenFromRow };
+    if (prefix + leftW + tabsW + rightW <= width) {
+      return { row: kept, dropped };
     }
-    // Keep the final visible tab when it can be truncated without hiding the
-    // overflow count. If even the count cannot coexist with it, count that tab
-    // as hidden too so narrow layouts still expose the complete overflow state.
     if (kept.length <= 1) {
-      const availableTabWidth = Math.max(0, width - prefix - hintW);
+      const availableTabWidth = Math.max(0, width - prefix - leftW - rightW);
       const only = kept[0];
       if (only && availableTabWidth > 0) {
         return {
           row: [{ ...only, text: truncateToWidth(only.text, availableTabWidth, "…") }],
-          hiddenFromRow,
+          dropped,
         };
       }
-      return { row: [], hiddenFromRow: hiddenFromRow + kept.length };
+      return { row: [], dropped: dropped + kept.length };
     }
-    kept = kept.slice(0, -1);
-    hiddenFromRow += 1;
+    if (side === "start") {
+      kept = kept.slice(1);
+      // Dropping from the start increases the left overflow count.
+      hiddenLeft += 1;
+    } else {
+      kept = kept.slice(0, -1);
+      hiddenRight += 1;
+    }
+    dropped += 1;
   }
 }
 

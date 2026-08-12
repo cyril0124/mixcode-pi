@@ -9,12 +9,8 @@ import {
   renderTabBarSeparator,
   tabBarHitRegions,
   tabBarMaxRows,
-  themeForId,
 } from "../src/index.js";
 import type { OverlayTui } from "../src/index.js";
-
-// Terminal theme paints activeTab with inverse video — easy to assert without RGB.
-const terminalTheme = themeForId("terminal");
 
 const stripAnsi = (text: string): string =>
   // eslint-disable-next-line no-control-regex
@@ -174,58 +170,91 @@ test("tab bar separator agentChrome can omit context when not overridden", () =>
   assert.doesNotMatch(plain, /k\//);
 });
 
-test("tab bar capped to one row inlines hidden count on the last visible row", () => {
+test("tab bar capped to one row keeps active visible with right overflow hint", () => {
   const width = 40;
   const state = manyTabState(12);
-  // Budget of 1 row: no separate overflow line; last visible row ends with … +N.
+  // Home active: window anchors at the start → right-side +R only.
   const lines = renderTabBar(state, width, undefined, 1).map(stripAnsi);
   assert.equal(lines.length, 1, "overflow must not add an extra row");
-  assert.match(lines[0] ?? "", /Agent-1/, "first row should still show a tab");
-  assert.match(lines[0] ?? "", /… \+\d+$|… \+\d+\s*$/);
+  assert.match(lines[0] ?? "", /MixCode Home/);
+  assert.match(lines[0] ?? "", /… \+\d+/);
+  assert.doesNotMatch(lines[0] ?? "", /^\+\d+ …/);
   assert.doesNotMatch(lines[0] ?? "", /\+\d+ tabs/);
   assert.ok(visibleWidth(lines[0]!) <= width);
 });
 
-test("tabBarMaxRows takes the tighter of 15% terminal height and content cap", () => {
-  // 40-row terminal → floor(6); content cap 3 wins.
+test("tabBarMaxRows takes the tighter of 10% terminal height and content cap", () => {
+  // 40-row terminal → floor(4); content cap 3 wins.
   assert.equal(tabBarMaxRows(40, 3), 3);
-  // Content cap looser than 15% → percent wins.
-  assert.equal(tabBarMaxRows(40, 20), 6);
+  // Content cap looser than 10% → percent wins.
+  assert.equal(tabBarMaxRows(40, 20), 4);
   // Never below 1.
   assert.equal(tabBarMaxRows(3, 0), 1);
   assert.equal(tabBarMaxRows(undefined, 4), 4);
-  assert.equal(tabBarMaxRows(40, undefined), 6);
+  assert.equal(tabBarMaxRows(40, undefined), 4);
   assert.equal(tabBarMaxRows(undefined, undefined), undefined);
 });
 
-test("last visible row drops trailing tabs so the inline … +N fits", () => {
+test("sliding window: active tab stays visible with left/right +N counts", () => {
   const width = 40;
   const state = manyTabState(12);
-  const lines = renderTabBar(state, width, undefined, 1).map(stripAnsi);
-  const line = lines[0]!;
-  const match = line.match(/… \+(\d+)/);
-  assert.ok(match, `expected inline overflow hint, got: ${line}`);
-  const hidden = Number(match[1]);
-  assert.ok(hidden >= 1, "at least one tab must be hidden");
-  // Hit regions only cover still-visible segments (not the hint, not hidden tabs).
-  const regions = tabBarHitRegions(state, width, 1).filter((r) => r.id !== "config");
-  assert.equal(regions.length + hidden, 12);
+  // total segments = Home + 12 agents = 13
+
+  // Active near the end → H anchor + left agent overflow; active still hit-testable.
+  state.activeTabId = "s12";
+  const endLine = stripAnsi(renderTabBar(state, width, undefined, 1)[0] ?? "");
+  assert.match(endLine, /Agent-12/);
+  assert.match(endLine, /^ H /);
+  assert.match(endLine, /\+\d+ …/);
+  const endRegions = tabBarHitRegions(state, width, 1);
+  assert.ok(endRegions.some((region) => region.id === "s12"));
+  assert.ok(endRegions.some((region) => region.id === "config"), "H must hit MixCode Home");
+  const endLeft = Number(endLine.match(/\+(\d+) …/)?.[1] ?? 0);
+  const endRight = Number(endLine.match(/… \+(\d+)/)?.[1] ?? 0);
+  assert.ok(endLeft >= 1, "expected left agent overflow when active is last");
+  // regions include H(config) + visible window tabs; +L is agents only; +R right hidden.
+  assert.equal(endRegions.length + endLeft + endRight, 13);
+
+  // Active at Home → full Home chip, only right overflow, no H stub.
+  state.activeTabId = "config";
+  const homeLine = stripAnsi(renderTabBar(state, width, undefined, 1)[0] ?? "");
+  assert.match(homeLine, /MixCode Home/);
+  assert.doesNotMatch(homeLine, /^ H /);
+  assert.doesNotMatch(homeLine, /^\+\d+ …/);
+  assert.match(homeLine, /… \+\d+/);
+  const homeRegions = tabBarHitRegions(state, width, 1);
+  assert.ok(homeRegions.some((region) => region.id === "config"));
+  const homeRight = Number(homeLine.match(/… \+(\d+)/)?.[1] ?? 0);
+  assert.equal(homeRegions.length + homeRight, 13);
+
+  // Active in the middle: H when Home is off-window; active remains visible.
+  state.activeTabId = "s6";
+  const midLine = stripAnsi(renderTabBar(state, width, undefined, 1)[0] ?? "");
+  assert.match(midLine, /Agent-6/);
+  assert.match(midLine, /^ H /);
+  assert.ok(tabBarHitRegions(state, width, 1).some((region) => region.id === "s6"));
+  assert.ok(tabBarHitRegions(state, width, 1).some((region) => region.id === "config"));
+  const midLeft = Number(midLine.match(/\+(\d+) …/)?.[1] ?? 0);
+  const midRight = Number(midLine.match(/… \+(\d+)/)?.[1] ?? 0);
+  assert.equal(tabBarHitRegions(state, width, 1).length + midLeft + midRight, 13);
 });
 
-test("… +N uses activeTab style only when the active tab is hidden", () => {
+test("H home anchor click activates MixCode Home", () => {
   const width = 40;
   const state = manyTabState(12);
-  // s12 is past the first packed row under a 1-row cap → active is hidden.
   state.activeTabId = "s12";
-  const hiddenActiveLine = renderTabBar(state, width, terminalTheme, 1)[0]!;
-  assert.match(stripAnsi(hiddenActiveLine), /… \+\d+/);
-  // Only `+N` is inverse; the leading `…` stays outside activeTab chrome.
-  assert.match(hiddenActiveLine, /\x1b\[7m\+\d+\x1b\[27m/);
-  assert.doesNotMatch(hiddenActiveLine, /\x1b\[7m … /);
-
-  // s1 stays on the first row → active visible; neither … nor +N is inverse.
-  state.activeTabId = "s1";
-  const visibleActiveLine = renderTabBar(state, width, terminalTheme, 1)[0]!;
-  assert.match(stripAnsi(visibleActiveLine), /… \+\d+/);
-  assert.doesNotMatch(visibleActiveLine, /\x1b\[7m\+\d+\x1b\[27m/);
+  state.tabBarTopRow = 1;
+  // One visible tab-bar row so hit regions match the sliding-window layout.
+  state.tabBarHitRow = 1;
+  state.lastRenderWidth = width;
+  const home = tabBarHitRegions(state, width, 1).find((region) => region.id === "config");
+  assert.ok(home, "expected H hit region for config");
+  const y = (state.tabBarTopRow ?? 1) + (home.row ?? 0);
+  const result = handleMixCodeKeyInput(
+    state,
+    `\x1b[<0;${home.startX};${y}M`,
+    noopTui(),
+  );
+  assert.deepEqual(result, { consume: true });
+  assert.equal(state.activeTabId, "config");
 });

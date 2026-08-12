@@ -79,7 +79,7 @@ export class MixCodeRoot implements Component {
       !active || this.state.activeTabId === "config"
         ? MIN_HOME_CONTENT_ROWS
         : MIN_CHAT_AND_EDITOR_ROWS;
-    // Cap tab-bar height: min(15% of terminal rows, rows left after min content).
+    // Cap tab-bar height: min(10% of terminal rows, rows left after min content).
     const contentCap = limit === undefined ? undefined : Math.max(1, limit - minContentRows);
     const maxTabRows = tabBarMaxRows(viewportRows, contentCap);
     // Zen mode hides the tab bar only; separator and header stay so chrome
