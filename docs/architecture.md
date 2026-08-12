@@ -355,7 +355,7 @@ bootstrap         initial state / persisted restore / completion sources
 ```text
 refs/mixcode 行为                         mixcode-pi 当前状态
 ──────────────────────────────────────    ─────────────────────────────
-Textual widget click / hover / scroll      已覆盖 preview 滚轮、tab bar 点击切换、input meta 点击 picker、@ file picker 键盘流；pi-tui 事件层没有 Textual hover API
+Textual widget click / hover / scroll      已覆盖 preview 滚轮、tab bar 点击切换/再点当前 tab 打开 Tab Jump、Command Palette / Tab Jump 滚轮与点击、input meta 点击 picker、@ file picker 键盘流；pi-tui 事件层没有 Textual hover API
 r 应用级 refresh 绑定                      保留为按键刷新状态；不暴露 slash command，避免和用户命令面混在一起
 模型/思考/workdir modal picker             已有 pi-tui overlay picker，非 Textual modal
 @ file picker fuzzy/tree/Ctrl+G            已覆盖 fuzzy、tree、ignored toggle、j/k/gg/G、Enter 插入、Esc/empty-backspace 取消

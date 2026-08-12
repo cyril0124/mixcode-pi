@@ -1,15 +1,30 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createInitialState, createTab, tabBarHitRegions } from "../src/index.js";
+import {
+  createInitialState,
+  createTab,
+  openCommandPalette,
+  openTabJump,
+  tabBarHitRegions,
+} from "../src/index.js";
 import { handleMixCodeKeyInput } from "../src/ui/app-input.js";
-import { handleMouseInput } from "../src/ui/app-mouse.js";
+import {
+  handleCommandPaletteMouse,
+  handleMouseInput,
+  handleTabJumpMouse,
+  hitTestCommandPaletteEntry,
+  hitTestTabJumpEntry,
+} from "../src/ui/app-mouse.js";
 import {
   closeAppOverlay,
+  defaultOverlayOptions,
   getActiveNotice,
   hasAnyOverlay,
+  resolveAppOverlayLayout,
   showLinesOverlay,
   showNoticeTextOverlay,
 } from "../src/ui/app-overlays.js";
+import { planCommandPaletteList, planTabJumpList } from "../src/ui/rendering.js";
 
 function setup() {
   const state = createInitialState("/repo");
@@ -376,6 +391,185 @@ test("tab drag motion does not switch tabs", () => {
     true,
   );
   assert.equal(state.activeTabId, "s2");
+});
+
+test("Command Palette wheel moves selection and click runs the row", () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"));
+  state.activeTabId = "s1";
+  openCommandPalette(state);
+  assert.equal(state.commandPaletteOpen, true);
+  assert.ok(planCommandPaletteList(state).entries.length >= 2);
+
+  const ran: string[] = [];
+  let overlayOpen = false;
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => {
+      overlayOpen = true;
+      return { hide: () => (overlayOpen = false) } as never;
+    },
+    hasOverlay: () => overlayOpen,
+  };
+  showLinesOverlay(tui, () => ["Command Palette"]);
+  const actions = {
+    executeCommand: (command: string) => {
+      ran.push(command);
+    },
+  };
+
+  const start = state.commandPalette.selectedIndex;
+  assert.equal(handleCommandPaletteMouse(state, "\x1b[<65;10;10M", tui, actions), true);
+  assert.equal(state.commandPaletteOpen, true);
+  assert.equal(state.commandPalette.selectedIndex, start + 1);
+  assert.equal(handleCommandPaletteMouse(state, "\x1b[<64;10;10M", tui, actions), true);
+  assert.equal(state.commandPalette.selectedIndex, start);
+
+  const termWidth = process.stdout.columns || 80;
+  const termHeight = process.stdout.rows || 24;
+  const plan = planCommandPaletteList(state);
+  const target = plan.entryBodyLines.find((hit) => hit.entryIndex === 1);
+  assert.ok(target);
+  const layout = resolveAppOverlayLayout(
+    defaultOverlayOptions(),
+    plan.bodyLineCount + 2,
+    termWidth,
+    termHeight,
+  );
+  const y = layout.row + 1 + target.bodyLine + 1;
+  const x = layout.col + 2;
+  assert.equal(hitTestCommandPaletteEntry(state, { x, y }, [], termWidth, termHeight), 1);
+
+  const expected = plan.entries[1]!.command;
+  assert.equal(handleCommandPaletteMouse(state, `\x1b[<0;${x};${y}M`, tui, actions), true);
+  assert.equal(state.commandPaletteOpen, false);
+  assert.deepEqual(ran, [expected]);
+  assert.equal(overlayOpen, false);
+});
+
+test("Tab Jump wheel moves selection and click jumps to the row", () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(
+    createTab(1, "s1", "/repo", { alias: "alpha" }),
+    createTab(2, "s2", "/repo", { alias: "beta" }),
+    createTab(3, "s3", "/repo", { alias: "gamma" }),
+  );
+  state.activeTabId = "s1";
+  openTabJump(state);
+  assert.equal(state.tabJumpIndex, 1); // Home=0, s1=1
+
+  let overlayOpen = false;
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => {
+      overlayOpen = true;
+      return { hide: () => (overlayOpen = false) } as never;
+    },
+    hasOverlay: () => overlayOpen,
+  };
+  // Seed the lines overlay so closeAppOverlay has a handle after jump.
+  showLinesOverlay(tui, () => ["Tab Jump"]);
+  assert.equal(overlayOpen, true);
+
+  // Wheel down moves selection toward later tabs.
+  assert.equal(handleTabJumpMouse(state, "\x1b[<65;10;10M", tui), true);
+  assert.equal(state.tabJumpOpen, true);
+  assert.equal(state.tabJumpIndex, 2);
+  assert.equal(handleTabJumpMouse(state, "\x1b[<64;10;10M", tui), true);
+  assert.equal(state.tabJumpIndex, 1);
+
+  // Match handleTabJumpMouse defaults (process.stdout, with the same fallbacks).
+  const termWidth = process.stdout.columns || 80;
+  const termHeight = process.stdout.rows || 24;
+  const plan = planTabJumpList(state);
+  const layout = resolveAppOverlayLayout(
+    defaultOverlayOptions(),
+    plan.bodyLineCount + 2,
+    termWidth,
+    termHeight,
+  );
+  const target = plan.entryBodyLines.find((hit) => hit.entryIndex === 3); // s3
+  assert.ok(target);
+  // screen y is 1-based: layout.row (0-based) + top border + bodyLine + 1
+  const y = layout.row + 1 + target.bodyLine + 1;
+  const x = layout.col + 2;
+  assert.equal(hitTestTabJumpEntry(state, { x, y }, termWidth, termHeight), 3);
+
+  assert.equal(handleTabJumpMouse(state, `\x1b[<0;${x};${y}M`, tui), true);
+  assert.equal(state.tabJumpOpen, false);
+  assert.equal(state.activeTabId, "s3");
+  assert.equal(overlayOpen, false);
+});
+
+test("re-clicking the active tab opens Tab Jump", () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"), createTab(2, "s2", "/repo"));
+  state.tabBarTopRow = 1;
+  state.lastRenderWidth = 120;
+  let overlayOpen = false;
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => {
+      overlayOpen = true;
+      return { hide: () => (overlayOpen = false) } as never;
+    },
+    hasOverlay: () => overlayOpen,
+  };
+  const regions = tabBarHitRegions(state, 120);
+  const home = regions.find((region) => region.id === "config");
+  const agent = regions.find((region) => region.id === "s1");
+  const other = regions.find((region) => region.id === "s2");
+  assert.ok(home && agent && other);
+
+  // Home re-click → Tab Jump.
+  state.activeTabId = "config";
+  assert.equal(
+    handleMouseInput(
+      state,
+      state.tabs[0],
+      `\x1b[<0;${home.startX};${state.tabBarTopRow + (home.row ?? 0)}M`,
+      tui,
+    ),
+    true,
+  );
+  assert.equal(state.activeTabId, "config");
+  assert.equal(state.tabJumpOpen, true);
+  assert.equal(overlayOpen, true);
+  closeAppOverlay(tui);
+  state.tabJumpOpen = false;
+  overlayOpen = false;
+
+  // Agent re-click → Tab Jump, stay on that tab.
+  state.activeTabId = "s1";
+  assert.equal(
+    handleMouseInput(
+      state,
+      state.tabs[0],
+      `\x1b[<0;${agent.startX};${state.tabBarTopRow + (agent.row ?? 0)}M`,
+      tui,
+    ),
+    true,
+  );
+  assert.equal(state.activeTabId, "s1");
+  assert.equal(state.tabJumpOpen, true);
+  assert.equal(overlayOpen, true);
+  closeAppOverlay(tui);
+  state.tabJumpOpen = false;
+  overlayOpen = false;
+
+  // Click a different tab → switch only, no Tab Jump.
+  assert.equal(
+    handleMouseInput(
+      state,
+      state.tabs[0],
+      `\x1b[<0;${other.startX};${state.tabBarTopRow + (other.row ?? 0)}M`,
+      tui,
+    ),
+    true,
+  );
+  assert.equal(state.activeTabId, "s2");
+  assert.equal(state.tabJumpOpen, false);
+  assert.equal(overlayOpen, false);
 });
 
 test("input meta drag motion does not open pickers", () => {

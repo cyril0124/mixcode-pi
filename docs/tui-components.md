@@ -148,7 +148,7 @@
 | 表面 | 打开方式 | 主要文件 | 说明 |
 | --- | --- | --- | --- |
 | Command Palette | `Ctrl+P` | `rendering/overlays.ts`, `core/overlays.ts` | 按当前 tab 语境过滤，不是全量 slash 列表 |
-| Tab Jump | `Ctrl+T` | `rendering/overlays.ts`, `core/overlays.ts` | 模糊跳转 tab；`Ctrl+F` 切换 non-idle 过滤 |
+| Tab Jump | `Ctrl+T`；再点当前 tab | `rendering/overlays.ts`, `core/overlays.ts`, `list-overlay-mouse.ts` | 模糊跳转 tab；`Ctrl+F` 切换 non-idle 过滤；列表支持滚轮与点击 |
 | Picker | `/models` `/workdir` `/thinking` `/context-limit` | `core/pickers.ts`, `rendering/overlays.ts` | 过滤后单选 |
 | Settings Panel | `/settings` | `settings-panel.ts` | 主题 / UI 选项；workdir 级设置 |
 | Extension Manager | palette / command | `extension-manager.ts` | 启停 package extension |
@@ -292,6 +292,7 @@ pushToast(tab, { type: "success", message: "Copied." });
 │├── app-layout.ts                 MixCodeRoot / FooterRoot / LayoutRoot                           │
 │├── app-editor.ts                 CompactPromptEditor, EditorSlot                                 │
 │├── app-overlays.ts               Lines / Text / Notice / Error / Confirm                         │
+│├── list-overlay-mouse.ts         center list overlay hit-test / wheel / click                    │
 │├── app-input.ts                  global key routing into components                              │
 │├── completion.ts                 / @ $ autocomplete provider                                     │
 │├── settings-panel.ts             Settings Panel                                                  │

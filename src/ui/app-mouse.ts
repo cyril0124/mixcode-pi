@@ -13,22 +13,45 @@ import {
 } from "../core/chat-selection.js";
 import { copyToClipboard as writeClipboard } from "@earendil-works/pi-coding-agent";
 import { parseSgrMouseInput, type SgrMouseInput } from "../core/mouse.js";
-import { scrollChat, scrollExtensionPanel, scrollPreview, clearChatScrollAnchor } from "../core/overlays.js";
+import {
+  acceptCommandPaletteSelection,
+  acceptTabJumpSelection,
+  clearChatScrollAnchor,
+  moveCommandPaletteSelection,
+  moveTabJumpSelection,
+  openTabJump,
+  scrollChat,
+  scrollExtensionPanel,
+  scrollPreview,
+} from "../core/overlays.js";
 import { pushToast } from "../core/toast.js";
 import { createPicker } from "../core/pickers.js";
 import { activateTab } from "../core/tabs.js";
 import { closeTreeSelector } from "./tree-selector.js";
 import type { MixCodeState } from "../core/types.js";
 import {
+  closeAppOverlay,
   getActiveNotice,
   hasActiveNotice,
   hasAnyOverlay,
   setActiveNoticeSelection,
+  showErrorOverlay,
   showLinesOverlay,
 } from "./app-overlays.js";
 import { activeExtensionCommands } from "./app-runtime.js";
-import type { MixCodeKeyRuntime, OverlayTui } from "./app-types.js";
-import { renderCommandPalette, renderPickerOverlay, tabBarHitRegions } from "./rendering.js";
+import type { CommandPaletteActions, MixCodeKeyRuntime, OverlayTui } from "./app-types.js";
+import { handleListOverlayMouse, hitTestListOverlay } from "./list-overlay-mouse.js";
+import {
+  planCommandPaletteList,
+  planTabJumpList,
+  renderCommandPalette,
+  renderPickerOverlay,
+  renderTabJumpOverlay,
+  tabBarHitRegions,
+} from "./rendering.js";
+
+export { handleListOverlayMouse, hitTestListOverlay } from "./list-overlay-mouse.js";
+export type { ListOverlayMouseHandlers, ListOverlayPlan } from "./list-overlay-mouse.js";
 
 type ClipboardWriter = (text: string) => Promise<void>;
 type ActiveTab = MixCodeState["tabs"][number];
@@ -225,6 +248,90 @@ export function handleChromeMouseInput(
   return mouse ? handleChromeMouse(state, active, mouse, tui) : false;
 }
 
+/** Map a screen click onto a visible Tab Jump entry index, or undefined. */
+export function hitTestTabJumpEntry(
+  state: MixCodeState,
+  mouse: Pick<SgrMouseInput, "x" | "y">,
+  termWidth = process.stdout.columns || 80,
+  termHeight = process.stdout.rows || 24,
+): number | undefined {
+  if (!state.tabJumpOpen) return undefined;
+  return hitTestListOverlay(planTabJumpList(state), mouse, undefined, termWidth, termHeight);
+}
+
+/** Wheel scrolls the selection; click on a row jumps (same as Enter). */
+export function handleTabJumpMouse(
+  state: MixCodeState,
+  data: string,
+  tui: OverlayTui,
+): boolean {
+  return handleListOverlayMouse(data, {
+    isOpen: () => state.tabJumpOpen,
+    plan: () => planTabJumpList(state),
+    onMove: (delta) => moveTabJumpSelection(state, delta),
+    onAccept: (entryIndex) => {
+      state.tabJumpIndex = entryIndex;
+      acceptTabJumpSelection(state);
+      closeAppOverlay(tui);
+      tui.requestRender();
+    },
+    reshow: () => showLinesOverlay(tui, (width) => renderTabJumpOverlay(state, width)),
+  });
+}
+
+/** Map a screen click onto a visible Command Palette entry index, or undefined. */
+export function hitTestCommandPaletteEntry(
+  state: MixCodeState,
+  mouse: Pick<SgrMouseInput, "x" | "y">,
+  extensionCommands: Array<{ name: string; description?: string }> = [],
+  termWidth = process.stdout.columns || 80,
+  termHeight = process.stdout.rows || 24,
+): number | undefined {
+  if (!state.commandPaletteOpen) return undefined;
+  return hitTestListOverlay(
+    planCommandPaletteList(state, extensionCommands),
+    mouse,
+    undefined,
+    termWidth,
+    termHeight,
+  );
+}
+
+/** Wheel scrolls palette selection; click runs the row (same as Enter). */
+export function handleCommandPaletteMouse(
+  state: MixCodeState,
+  data: string,
+  tui: OverlayTui,
+  commandPaletteActions?: CommandPaletteActions,
+): boolean {
+  const extensionCommands = commandPaletteActions?.extensionCommands?.() ?? [];
+  return handleListOverlayMouse(data, {
+    isOpen: () => state.commandPaletteOpen,
+    plan: () => planCommandPaletteList(state, extensionCommands),
+    onMove: (delta) => moveCommandPaletteSelection(state, delta, extensionCommands),
+    onAccept: (entryIndex) => {
+      state.commandPalette.selectedIndex = entryIndex;
+      const selected = planCommandPaletteList(state, extensionCommands).entries[entryIndex];
+      if (selected && !commandPaletteActions?.executeCommand) {
+        throw new Error("Command palette selection requires command execution support");
+      }
+      const command = acceptCommandPaletteSelection(state, extensionCommands);
+      closeAppOverlay(tui);
+      if (command) {
+        void Promise.resolve(commandPaletteActions!.executeCommand(command)).catch(
+          (error: unknown) => {
+            showErrorOverlay(tui, error);
+            tui.requestRender();
+          },
+        );
+      }
+      tui.requestRender();
+    },
+    reshow: () =>
+      showLinesOverlay(tui, (width) => renderCommandPalette(state, width, extensionCommands)),
+  });
+}
+
 /**
  * Click on the rightmost chat gutter (scrollbar track/thumb) maps y → chatScrollOffset.
  * offset 0 = bottom (newest); maxOffset = top (oldest). Matches fitScrolledLinesWithInfo.
@@ -295,6 +402,13 @@ function handleChromeMouse(
       // Tree is global; close owner editor before focusing another tab.
       if (state.treeSelector.open && state.activeTabId !== tabId) {
         closeTreeSelector(state, tui);
+      }
+      // Re-click the active tab (Home or agent) → same as Ctrl+T Tab Jump.
+      if (tabId === state.activeTabId) {
+        if (state.treeSelector.open) closeTreeSelector(state, tui);
+        openTabJump(state);
+        showLinesOverlay(tui, (width) => renderTabJumpOverlay(state, width));
+        return true;
       }
       activateTab(state, tabId);
       tui.requestRender();

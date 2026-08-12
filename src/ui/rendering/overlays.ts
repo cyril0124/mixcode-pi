@@ -394,14 +394,69 @@ export function renderCommandPalette(
   );
 }
 
+/** Body-line plan for Command Palette list rows; shared by render + mouse hit-testing. */
+export function planCommandPaletteList(
+  state: MixCodeState,
+  extensionCommands: Array<{ name: string; description?: string }> = [],
+): {
+  entries: ReturnType<typeof selectableCommandPaletteEntries>;
+  startIndex: number;
+  endIndex: number;
+  showMoreAbove: boolean;
+  showMoreBelow: boolean;
+  empty: boolean;
+  /** 0-based body line (inside the box, under the top border) → entry index. */
+  entryBodyLines: Array<{ bodyLine: number; entryIndex: number }>;
+  bodyLineCount: number;
+} {
+  const entries = selectableCommandPaletteEntries(state, extensionCommands);
+  if (!entries.length) {
+    // search, separator, "No matching commands", blank, help
+    return {
+      entries,
+      startIndex: 0,
+      endIndex: 0,
+      showMoreAbove: false,
+      showMoreBelow: false,
+      empty: true,
+      entryBodyLines: [],
+      bodyLineCount: 5,
+    };
+  }
+  const maxVisible = halfScreenRows();
+  const startIndex = windowStart(state.commandPalette.selectedIndex, entries.length, maxVisible);
+  const endIndex = Math.min(startIndex + maxVisible, entries.length);
+  const showMoreAbove = startIndex > 0;
+  const showMoreBelow = endIndex < entries.length;
+  // search + separator, optional more-above, entries, optional more-below, blank + help
+  let bodyLine = 2;
+  if (showMoreAbove) bodyLine += 1;
+  const entryBodyLines: Array<{ bodyLine: number; entryIndex: number }> = [];
+  for (let entryIndex = startIndex; entryIndex < endIndex; entryIndex++) {
+    entryBodyLines.push({ bodyLine, entryIndex });
+    bodyLine += 1;
+  }
+  if (showMoreBelow) bodyLine += 1;
+  bodyLine += 2;
+  return {
+    entries,
+    startIndex,
+    endIndex,
+    showMoreAbove,
+    showMoreBelow,
+    empty: false,
+    entryBodyLines,
+    bodyLineCount: bodyLine,
+  };
+}
+
 function renderCommandPaletteInner(
   state: MixCodeState,
   width: number,
   extensionCommands: Array<{ name: string; description?: string }> = [],
 ): string[] {
   if (!state.commandPaletteOpen) return [];
-  // Keep in lockstep with move/accept: only enabled rows are selectable.
-  const entries = selectableCommandPaletteEntries(state, extensionCommands);
+  const plan = planCommandPaletteList(state, extensionCommands);
   const innerWidth = Math.max(1, width - 2);
 
   // Search row with ">" prefix
@@ -422,21 +477,17 @@ function renderCommandPaletteInner(
 
   const lines: string[] = [searchLine, separator];
 
-  if (!entries.length) {
+  if (plan.empty) {
     lines.push(activeRenderTheme.dim("  No matching commands"));
   } else {
     // Highlight only the searchable columns. Description stays dim because it
     // does not participate in command palette filtering.
     const paletteQuery = state.commandPalette.query.trim();
-    // Window the list so selection stays visible under TUI maxHeight (~80%).
-    const maxVisible = halfScreenRows();
-    const startIndex = windowStart(state.commandPalette.selectedIndex, entries.length, maxVisible);
-    const endIndex = Math.min(startIndex + maxVisible, entries.length);
-    if (startIndex > 0) {
-      lines.push(activeRenderTheme.dim(`  ... (${startIndex} more above)`));
+    if (plan.showMoreAbove) {
+      lines.push(activeRenderTheme.dim(`  ... (${plan.startIndex} more above)`));
     }
-    for (let index = startIndex; index < endIndex; index++) {
-      const entry = entries[index]!;
+    for (let index = plan.startIndex; index < plan.endIndex; index++) {
+      const entry = plan.entries[index]!;
       const isSelected = index === state.commandPalette.selectedIndex;
       const marker = isSelected ? "› " : "  ";
       const label = truncateToWidth(entry.label, labelCol, "…");
@@ -471,8 +522,8 @@ function renderCommandPaletteInner(
         lines.push(row);
       }
     }
-    if (endIndex < entries.length) {
-      lines.push(activeRenderTheme.dim(`  ... (${entries.length - endIndex} more below)`));
+    if (plan.showMoreBelow) {
+      lines.push(activeRenderTheme.dim(`  ... (${plan.entries.length - plan.endIndex} more below)`));
     }
   }
 
@@ -484,37 +535,88 @@ export function renderTabJumpOverlay(state: MixCodeState, width: number): string
   return renderWithTheme(themeForId(state.theme), () => renderTabJumpOverlayInner(state, width));
 }
 
+/** Body-line plan for Tab Jump list rows; shared by render + mouse hit-testing. */
+export function planTabJumpList(state: MixCodeState): {
+  entries: ReturnType<typeof filterTabJumpEntries>;
+  startIndex: number;
+  endIndex: number;
+  showMoreAbove: boolean;
+  showMoreBelow: boolean;
+  empty: boolean;
+  /** 0-based body line (inside the box, under the top border) → entry index. */
+  entryBodyLines: Array<{ bodyLine: number; entryIndex: number }>;
+  /** Total body lines before the box border is applied. */
+  bodyLineCount: number;
+} {
+  const entries = filterTabJumpEntries(state, state.tabJumpQuery);
+  if (!entries.length) {
+    // search, blank, "No matching tabs", blank, help
+    return {
+      entries,
+      startIndex: 0,
+      endIndex: 0,
+      showMoreAbove: false,
+      showMoreBelow: false,
+      empty: true,
+      entryBodyLines: [],
+      bodyLineCount: 5,
+    };
+  }
+  const maxVisible = halfScreenRows();
+  const startIndex = windowStart(state.tabJumpIndex, entries.length, maxVisible);
+  const endIndex = Math.min(startIndex + maxVisible, entries.length);
+  const showMoreAbove = startIndex > 0;
+  const showMoreBelow = endIndex < entries.length;
+  // search + blank, optional more-above, entries, optional more-below, blank + help
+  let bodyLine = 2;
+  if (showMoreAbove) bodyLine += 1;
+  const entryBodyLines: Array<{ bodyLine: number; entryIndex: number }> = [];
+  for (let entryIndex = startIndex; entryIndex < endIndex; entryIndex++) {
+    entryBodyLines.push({ bodyLine, entryIndex });
+    bodyLine += 1;
+  }
+  if (showMoreBelow) bodyLine += 1;
+  bodyLine += 2;
+  return {
+    entries,
+    startIndex,
+    endIndex,
+    showMoreAbove,
+    showMoreBelow,
+    empty: false,
+    entryBodyLines,
+    bodyLineCount: bodyLine,
+  };
+}
+
 function renderTabJumpOverlayInner(state: MixCodeState, width: number): string[] {
   if (!state.tabJumpOpen) return [];
-  const entries = filterTabJumpEntries(state, state.tabJumpQuery);
+  const plan = planTabJumpList(state);
   // Denominator is unfiltered total so 2/5 still means "2 of 5 tabs match".
   const totalTabs = tabJumpEntries(state).length;
   const innerWidth = Math.max(1, width - 2);
   const searchText = state.tabJumpQuery || "";
   const modeTag = state.tabJumpNonIdleOnly ? " non-idle" : "";
-  const countText = `${entries.length}/${totalTabs} tabs${modeTag}`;
+  const countText = `${plan.entries.length}/${totalTabs} tabs${modeTag}`;
   const searchPrefix = activeRenderTheme.dim("Search");
   const searchLeft = ` ${searchPrefix}  ${activeRenderTheme.accent(searchText)}`;
   const searchGap = Math.max(1, innerWidth - visibleWidth(searchLeft) - visibleWidth(countText));
   const lines = [`${searchLeft}${" ".repeat(searchGap)}${activeRenderTheme.dim(countText)}`, ""];
-  if (!entries.length) {
+  if (plan.empty) {
     lines.push(activeRenderTheme.dim("No matching tabs"));
   } else {
-    const maxVisible = halfScreenRows();
-    const startIndex = windowStart(state.tabJumpIndex, entries.length, maxVisible);
-    const endIndex = Math.min(startIndex + maxVisible, entries.length);
-    if (startIndex > 0) {
-      lines.push(activeRenderTheme.dim(`... (${startIndex} more above)`));
+    if (plan.showMoreAbove) {
+      lines.push(activeRenderTheme.dim(`... (${plan.startIndex} more above)`));
     }
-    for (let index = startIndex; index < endIndex; index++) {
-      const entry = entries[index]!;
+    for (let index = plan.startIndex; index < plan.endIndex; index++) {
+      const entry = plan.entries[index]!;
       const line = renderTabJumpRow(entry, index === state.tabJumpIndex, innerWidth, state.tabJumpQuery);
       lines.push(
         index === state.tabJumpIndex ? activeRenderTheme.selectedBg(padLine(line, innerWidth)) : line,
       );
     }
-    if (endIndex < entries.length) {
-      lines.push(activeRenderTheme.dim(`... (${entries.length - endIndex} more below)`));
+    if (plan.showMoreBelow) {
+      lines.push(activeRenderTheme.dim(`... (${plan.entries.length - plan.endIndex} more below)`));
     }
   }
   lines.push(

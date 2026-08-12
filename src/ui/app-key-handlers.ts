@@ -72,9 +72,14 @@ export { handleVimUserMessageNavigation } from "./vim-user-message-navigation.js
 export {
   handleChatSelectionMouseInput,
   handleChromeMouseInput,
+  handleCommandPaletteMouse,
   handleInputSelectionMouseInput,
   handleMouseInput,
+  handleTabJumpMouse,
+  hitTestCommandPaletteEntry,
+  hitTestTabJumpEntry,
 } from "./app-mouse.js";
+import { handleCommandPaletteMouse, handleTabJumpMouse } from "./app-mouse.js";
 export function handleStreamingAbortKey(
   active: MixCodeState["tabs"][number],
   tui: Pick<TuiType, "requestRender">,
@@ -335,6 +340,7 @@ export function handleCommandPaletteKey(
   tui: OverlayTui,
   commandPaletteActions?: CommandPaletteActions,
 ): boolean {
+  if (handleCommandPaletteMouse(state, data, tui, commandPaletteActions)) return true;
   const extensionCommands = commandPaletteActions?.extensionCommands?.() ?? [];
   if (matchesKey(data, "escape")) {
     closeCommandPalette(state);
@@ -404,6 +410,7 @@ export function handleCommandPaletteKey(
 }
 
 export function handleTabJumpKey(state: MixCodeState, data: string, tui: OverlayTui): boolean {
+  if (handleTabJumpMouse(state, data, tui)) return true;
   if (matchesKey(data, "escape")) {
     closeTabJump(state);
     closeAppOverlay(tui);

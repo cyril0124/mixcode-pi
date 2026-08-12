@@ -131,13 +131,62 @@ function isOverlayHandle(value: unknown): value is OverlayHandle {
   );
 }
 
-function defaultOverlayOptions(): OverlayOptions {
+export function defaultOverlayOptions(): OverlayOptions {
   return {
     anchor: "center",
     width: "78%",
     maxHeight: `${DEFAULT_OVERLAY_MAX_HEIGHT_PERCENT}%`,
     margin: 1,
   };
+}
+
+function parseOverlaySize(value: unknown, referenceSize: number): number | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value === "number") return value;
+  if (typeof value !== "string") return undefined;
+  const match = /^(\d+(?:\.\d+)?)%$/.exec(value);
+  if (!match) return undefined;
+  return Math.floor((referenceSize * Number.parseFloat(match[1]!)) / 100);
+}
+
+/**
+ * Mirror pi-tui resolveOverlayLayout for center/percent overlays (Tab Jump, etc.)
+ * so mouse hit-testing matches compositor placement.
+ */
+export function resolveAppOverlayLayout(
+  options: OverlayOptions,
+  overlayHeight: number,
+  termWidth: number,
+  termHeight: number,
+): { width: number; row: number; col: number; maxHeight?: number } {
+  const margin =
+    typeof options.margin === "number"
+      ? { top: options.margin, right: options.margin, bottom: options.margin, left: options.margin }
+      : (options.margin ?? {});
+  const marginTop = Math.max(0, margin.top ?? 0);
+  const marginRight = Math.max(0, margin.right ?? 0);
+  const marginBottom = Math.max(0, margin.bottom ?? 0);
+  const marginLeft = Math.max(0, margin.left ?? 0);
+  const availWidth = Math.max(1, termWidth - marginLeft - marginRight);
+  const availHeight = Math.max(1, termHeight - marginTop - marginBottom);
+
+  let width = parseOverlaySize(options.width, termWidth) ?? Math.min(80, availWidth);
+  if (options.minWidth !== undefined) width = Math.max(width, options.minWidth);
+  width = Math.max(1, Math.min(width, availWidth));
+
+  let maxHeight = parseOverlaySize(options.maxHeight, termHeight);
+  if (maxHeight !== undefined) maxHeight = Math.max(1, Math.min(maxHeight, availHeight));
+  const effectiveHeight =
+    maxHeight !== undefined ? Math.min(overlayHeight, maxHeight) : overlayHeight;
+
+  // Default center (Tab Jump / command palette / quit). Notice keeps its own bottom-center helper.
+  let row = marginTop + Math.floor((availHeight - effectiveHeight) / 2);
+  let col = marginLeft + Math.floor((availWidth - width) / 2);
+  if (options.offsetY !== undefined) row += options.offsetY;
+  if (options.offsetX !== undefined) col += options.offsetX;
+  row = Math.max(marginTop, Math.min(row, termHeight - marginBottom - effectiveHeight));
+  col = Math.max(marginLeft, Math.min(col, termWidth - marginRight - width));
+  return { width, row, col, maxHeight };
 }
 
 export function quitOverlayOptions(): OverlayOptions {
