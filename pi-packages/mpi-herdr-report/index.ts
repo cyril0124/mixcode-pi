@@ -3,7 +3,8 @@
  * (Herdr: idle + unseen) and `blocked` (waiting for user input).
  * BEL alone does not drive Herdr agent state.
  *
- * Only active when HERDR_ENV=1 and HERDR_PANE_ID are set (inside a Herdr pane).
+ * Only active when MIXCODE is set (MixCode host, not upstream pi), and
+ * HERDR_ENV=1 with HERDR_PANE_ID (inside a Herdr pane).
  * Multi-tab: process-level refcounts so any busy/waiting session drives the pane.
  *
  * Events (host fans out on every session EventBus; string channels only):
@@ -33,9 +34,19 @@ export const HERDR_REPORT_AGENT = "mpi";
 export const WAITING_FOR_INPUT_EVENT = "mpi:waiting-for-input" as const;
 export const MARK_DONE_EVENT = "mpi:mark-done" as const;
 
+/** Env MixCode sets so this package no-ops under upstream `pi`. */
+export const MIXCODE_ENV = "MIXCODE" as const;
+
 export interface WaitingForInputEventPayload {
   count: number;
   active: boolean;
+}
+
+/** True when running under MixCode (not bare upstream pi). */
+export function isMixcodeProcess(env: NodeJS.ProcessEnv = process.env): boolean {
+  const raw = env[MIXCODE_ENV]?.trim().toLowerCase();
+  if (!raw) return false;
+  return raw !== "0" && raw !== "false" && raw !== "off";
 }
 
 /** Pure priority: blocked > working > idle. */
@@ -66,6 +77,7 @@ let exitHooksInstalled = false;
 let released = false;
 
 export function resolveHerdrPaneId(env: NodeJS.ProcessEnv = process.env): string | undefined {
+  if (!isMixcodeProcess(env)) return undefined;
   if (env.HERDR_ENV !== "1") return undefined;
   const paneId = env.HERDR_PANE_ID?.trim();
   return paneId || undefined;
@@ -283,6 +295,8 @@ function onMarkDone(): void {
 }
 
 const herdrReportExtension: ExtensionFactory = (pi) => {
+  // Shared agent-dir install also loads under upstream pi — stay silent there.
+  if (!isMixcodeProcess()) return;
   bridgeAttached = true;
   installExitHooks();
   // Keep process-level listeners for the life of this extension runtime.

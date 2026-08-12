@@ -8,10 +8,32 @@ import {
   deriveHerdrState,
   HERDR_REPORT_AGENT,
   HERDR_REPORT_SOURCE,
+  isMixcodeProcess,
   MARK_DONE_EVENT,
   parseWaitingForInputPayload,
+  resolveHerdrPaneId,
   WAITING_FOR_INPUT_EVENT,
 } from "./index.ts";
+
+test("isMixcodeProcess requires MIXCODE truthy", () => {
+  assert.equal(isMixcodeProcess({}), false);
+  assert.equal(isMixcodeProcess({ MIXCODE: "" }), false);
+  assert.equal(isMixcodeProcess({ MIXCODE: "0" }), false);
+  assert.equal(isMixcodeProcess({ MIXCODE: "false" }), false);
+  assert.equal(isMixcodeProcess({ MIXCODE: "off" }), false);
+  assert.equal(isMixcodeProcess({ MIXCODE: "1" }), true);
+  assert.equal(isMixcodeProcess({ MIXCODE: "true" }), true);
+  assert.equal(isMixcodeProcess({ MIXCODE: "yes" }), true);
+});
+
+test("resolveHerdrPaneId requires MIXCODE and HERDR pane env", () => {
+  assert.equal(resolveHerdrPaneId({ HERDR_ENV: "1", HERDR_PANE_ID: "w1:p1" }), undefined);
+  assert.equal(
+    resolveHerdrPaneId({ MIXCODE: "1", HERDR_ENV: "1", HERDR_PANE_ID: "w1:p1" }),
+    "w1:p1",
+  );
+  assert.equal(resolveHerdrPaneId({ MIXCODE: "1", HERDR_ENV: "1" }), undefined);
+});
 
 test("report source is mpi (custom:mpi is ignored by Herdr pane ownership)", () => {
   assert.equal(HERDR_REPORT_SOURCE, "mpi");

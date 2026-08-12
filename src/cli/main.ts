@@ -90,6 +90,7 @@ export async function main(): Promise<void> {
     process.exitCode = await delegateToRealPiCli(rawArgs);
     return;
   }
+  process.env.MIXCODE ??= "1";
   const args = parseMainArgs(rawArgs, cwd());
   if (args.command === "status") {
     await runStatusCommand(args);

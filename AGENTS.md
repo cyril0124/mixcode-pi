@@ -25,6 +25,7 @@
 - For the compiled binary, `binary-entry.ts` embeds each package's files via `import ... with { type: "text" }` and passes them as `builtinPackages` to `materializeBinaryRuntimeAssets`, which writes them to `runtimeDir/packages/` before `ensurePackageExtensions` runs.
 - To add a new built-in extension: create `pi-packages/mpi-<name>/package.json` + `index.ts`, then add the corresponding text imports in `binary-entry.ts`.
 - **No Bun APIs in `pi-packages/`.** These packages are installed into `~/.pi/agent/extensions/` and also run under pure upstream `pi` (Node + jiti), not only under `mpi` (Bun). Use `node:*` stdlib (`fs`, `fs/promises`, `child_process`, `path`, `os`, …). Do not call `Bun.*`, `bun:*` imports, or Bun Shell (`` $`…` ``). Product code under `src/` may still prefer Bun; this rule is package-only.
+- MixCode sets `MIXCODE=1` after it decides not to delegate to upstream `pi`. Built-in packages that must not activate under pure `pi` should gate on this env (treat unset / `0` / `false` / `off` as off).
 
 ### Third-party package load (compiled `mpi`)
 
