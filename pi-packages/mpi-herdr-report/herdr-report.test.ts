@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "bun:test";
 import {
   buildHerdrNotificationArgs,
+  buildHerdrReleaseAgentArgs,
   buildHerdrReportAgentArgs,
   deriveHerdrState,
   HERDR_REPORT_AGENT,
@@ -14,6 +15,20 @@ import {
 test("report source is mpi (custom:mpi is ignored by Herdr pane ownership)", () => {
   assert.equal(HERDR_REPORT_SOURCE, "mpi");
   assert.equal(HERDR_REPORT_AGENT, "mpi");
+});
+
+test("buildHerdrReleaseAgentArgs drops ownership on exit", () => {
+  assert.deepEqual(buildHerdrReleaseAgentArgs("w1:p1", 9), [
+    "pane",
+    "release-agent",
+    "w1:p1",
+    "--source",
+    "mpi",
+    "--agent",
+    "mpi",
+    "--seq",
+    "9",
+  ]);
 });
 
 test("deriveHerdrState: blocked wins over working", () => {

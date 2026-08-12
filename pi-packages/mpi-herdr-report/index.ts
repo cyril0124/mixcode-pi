@@ -16,7 +16,7 @@
  * Pure Node — must also run under upstream pi (Node + jiti).
  */
 
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
@@ -61,6 +61,9 @@ let seq = Date.now() * 1000;
 let bridgeAttached = false;
 /** Coalesce multi-bus fan-out of the same mark-done into one notification. */
 let lastMarkDoneAt = 0;
+/** Install process-exit release hooks once per process. */
+let exitHooksInstalled = false;
+let released = false;
 
 export function resolveHerdrPaneId(env: NodeJS.ProcessEnv = process.env): string | undefined {
   if (env.HERDR_ENV !== "1") return undefined;
@@ -90,6 +93,20 @@ export function buildHerdrReportAgentArgs(
 
 export function buildHerdrNotificationArgs(title: string, sound: "done" | "request" | "none"): string[] {
   return ["notification", "show", title, "--sound", sound];
+}
+
+export function buildHerdrReleaseAgentArgs(paneId: string, nextSeq: number): string[] {
+  return [
+    "pane",
+    "release-agent",
+    paneId,
+    "--source",
+    HERDR_REPORT_SOURCE,
+    "--agent",
+    HERDR_REPORT_AGENT,
+    "--seq",
+    String(nextSeq),
+  ];
 }
 
 export function resolveHerdrBin(env: NodeJS.ProcessEnv = process.env): string | undefined {
@@ -134,6 +151,43 @@ function spawnHerdrReportAgent(
 
 function spawnHerdrDoneNotification(env: NodeJS.ProcessEnv = process.env): void {
   spawnHerdr(buildHerdrNotificationArgs("Marked done", "done"), env);
+}
+
+/**
+ * Drop our report-agent ownership so the sidebar agent disappears when mpi
+ * exits. Must be sync — fire-and-forget spawn is killed with the parent.
+ */
+export function releaseHerdrAgent(env: NodeJS.ProcessEnv = process.env): void {
+  if (released) return;
+  const paneId = resolveHerdrPaneId(env);
+  if (!paneId) return;
+  const bin = resolveHerdrBin(env);
+  if (!bin) return;
+  released = true;
+  seq += 1;
+  spawnSync(bin, buildHerdrReleaseAgentArgs(paneId, seq), { stdio: "ignore" });
+  previousReported = undefined;
+  activeRuns = 0;
+}
+
+function installExitHooks(): void {
+  if (exitHooksInstalled) return;
+  exitHooksInstalled = true;
+  const onExit = () => {
+    try {
+      releaseHerdrAgent();
+    } catch {
+      // best-effort on teardown
+    }
+  };
+  process.once("exit", onExit);
+  // Signals: release then re-raise default so the process still terminates.
+  for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) {
+    process.once(signal, () => {
+      onExit();
+      process.kill(process.pid, signal);
+    });
+  }
 }
 
 function report(state: HerdrReportState): void {
@@ -201,6 +255,7 @@ function onMarkDone(): void {
 
 const herdrReportExtension: ExtensionFactory = (pi) => {
   bridgeAttached = true;
+  installExitHooks();
   // Keep process-level listeners for the life of this extension runtime.
   // Do not unsubscribe on session_shutdown — that runs on /clear and session
   // replace while the same EventBus is reused, which would silently kill
