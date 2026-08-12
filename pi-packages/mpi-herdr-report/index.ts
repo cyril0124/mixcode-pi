@@ -14,6 +14,10 @@
  *   `notification show --sound done` (may be disabled in herdr toast config).
  *   Herdr UI `done` = idle + unseen; while focused you stay idle, not done.
  *
+ * Idle reclaim: Herdr may drop report-agent ownership while mpi stays idle.
+ * A low-frequency heartbeat force-reports the current state so the sidebar
+ * reclaims `mpi` without waiting for the next turn.
+ *
  * Pure Node — must also run under upstream pi (Node + jiti).
  */
 
@@ -29,6 +33,12 @@ export type HerdrReportState = "working" | "idle" | "blocked";
 // API but ignored for pane state when screen detection already owns label `mpi`.
 export const HERDR_REPORT_SOURCE = "mpi";
 export const HERDR_REPORT_AGENT = "mpi";
+
+/** Process-level re-claim interval while the extension is active. */
+export const HERDR_HEARTBEAT_MS = 45_000;
+
+/** Min gap between stderr spawn-error lines. */
+export const SPAWN_ERROR_THROTTLE_MS = 30_000;
 
 /** Shared with MixCode host channel names (string only — no import). */
 export const WAITING_FOR_INPUT_EVENT = "mpi:waiting-for-input" as const;
@@ -63,6 +73,15 @@ export function parseWaitingForInputPayload(raw: unknown): WaitingForInputEventP
   return { count: n, active: n > 0 };
 }
 
+/** Pure throttle check for spawn-error stderr. */
+export function shouldThrottleSpawnError(
+  lastAt: number,
+  now: number,
+  throttleMs: number = SPAWN_ERROR_THROTTLE_MS,
+): boolean {
+  return lastAt > 0 && now - lastAt < throttleMs;
+}
+
 // Process-wide across all sessions in this mpi process (multi-tab).
 let activeRuns = 0;
 let waitingCount = 0;
@@ -75,6 +94,8 @@ let lastMarkDoneAt = 0;
 /** Install process-exit release hooks once per process. */
 let exitHooksInstalled = false;
 let released = false;
+let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
+let lastSpawnErrorAt = 0;
 
 export function resolveHerdrPaneId(env: NodeJS.ProcessEnv = process.env): string | undefined {
   if (!isMixcodeProcess(env)) return undefined;
@@ -156,12 +177,25 @@ function which(bin: string, env: NodeJS.ProcessEnv): string | undefined {
   return undefined;
 }
 
+function logSpawnError(message: string): void {
+  const now = Date.now();
+  if (shouldThrottleSpawnError(lastSpawnErrorAt, now)) return;
+  lastSpawnErrorAt = now;
+  console.error(`[mpi-herdr-report] ${message}`);
+}
+
 function spawnHerdr(args: string[], env: NodeJS.ProcessEnv = process.env): void {
   const bin = resolveHerdrBin(env);
-  if (!bin) return;
+  if (!bin) {
+    logSpawnError("herdr binary not found on PATH / HERDR_BIN_PATH");
+    return;
+  }
   const child = spawn(bin, args, {
     stdio: "ignore",
     detached: true,
+  });
+  child.on("error", (err) => {
+    logSpawnError(`herdr spawn failed: ${err instanceof Error ? err.message : String(err)}`);
   });
   child.unref();
 }
@@ -179,12 +213,34 @@ function spawnHerdrDoneNotification(env: NodeJS.ProcessEnv = process.env): void 
   spawnHerdr(buildHerdrNotificationArgs("Marked done", "done"), env);
 }
 
+export function stopHerdrHeartbeat(): void {
+  if (heartbeatTimer === undefined) return;
+  clearInterval(heartbeatTimer);
+  heartbeatTimer = undefined;
+}
+
+/**
+ * Single process-level timer: force-report current state so Herdr ownership
+ * recovers after idle drops. No-op without pane env or when already running.
+ */
+export function startHerdrHeartbeat(env: NodeJS.ProcessEnv = process.env): void {
+  if (heartbeatTimer !== undefined) return;
+  if (!resolveHerdrPaneId(env)) return;
+  heartbeatTimer = setInterval(() => {
+    if (released || !bridgeAttached) return;
+    if (!resolveHerdrPaneId()) return;
+    announcePresence();
+  }, HERDR_HEARTBEAT_MS);
+  heartbeatTimer.unref?.();
+}
+
 /**
  * Drop our report-agent ownership so the sidebar agent disappears when mpi
  * exits. Must be sync — fire-and-forget spawn is killed with the parent.
  */
 export function releaseHerdrAgent(env: NodeJS.ProcessEnv = process.env): void {
   if (released) return;
+  stopHerdrHeartbeat();
   const paneId = resolveHerdrPaneId(env);
   if (!paneId) return;
   const bin = resolveHerdrBin(env);
@@ -237,9 +293,9 @@ function recompute(): void {
 }
 
 /**
- * Claim the pane agent and push current state (usually idle) so the sidebar
- * shows mpi before the first turn. Without this, Herdr only learns about us
- * after agent_start/settled — a fresh idle session is invisible.
+ * Claim the pane agent and push current state so the sidebar shows mpi.
+ * Used at load, session_start, agent_start, and heartbeat so idle ownership
+ * loss is repaired without waiting for a state transition.
  */
 function announcePresence(): void {
   const paneId = resolveHerdrPaneId();
@@ -254,7 +310,8 @@ function announcePresence(): void {
 function onAgentStart(): void {
   if (!resolveHerdrPaneId()) return;
   activeRuns += 1;
-  recompute();
+  // Re-claim even when already working (Herdr may have dropped ownership).
+  announcePresence();
 }
 
 function onAgentSettled(): void {
@@ -316,6 +373,7 @@ const herdrReportExtension: ExtensionFactory = (pi) => {
   // Factory runs at extension load (often before session_start). Announce once
   // here; session_start re-announces after replace/clear so idle returns.
   announcePresence();
+  startHerdrHeartbeat();
   pi.on("session_start", () => {
     announcePresence();
   });
