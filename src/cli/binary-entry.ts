@@ -85,6 +85,11 @@ import promptHistoryBrowser from "../../pi-packages/mpi-prompt-history/prompt-hi
 import promptHistoryPackageJson from "../../pi-packages/mpi-prompt-history/package.json" with { type: "text" };
 import autoRenameIndex from "../../pi-packages/mpi-auto-rename/index.ts" with { type: "text" };
 import autoRenamePackageJson from "../../pi-packages/mpi-auto-rename/package.json" with { type: "text" };
+import optimizePromptIndex from "../../pi-packages/mpi-optimize-prompt/index.ts" with { type: "text" };
+import optimizePromptCore from "../../pi-packages/mpi-optimize-prompt/core.ts" with { type: "text" };
+import optimizePromptConfig from "../../pi-packages/mpi-optimize-prompt/config.ts" with { type: "text" };
+import optimizePromptConfigOverlay from "../../pi-packages/mpi-optimize-prompt/config-overlay.ts" with { type: "text" };
+import optimizePromptPackageJson from "../../pi-packages/mpi-optimize-prompt/package.json" with { type: "text" };
 import midTurnCompactIndex from "../../pi-packages/mpi-mid-turn-compact/index.ts" with { type: "text" };
 import midTurnCompactPackageJson from "../../pi-packages/mpi-mid-turn-compact/package.json" with { type: "text" };
 import modelSkillsIndex from "../../pi-packages/mpi-model-skills/index.ts" with { type: "text" };
@@ -229,6 +234,13 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
     "mpi-auto-rename": {
       "index.ts": autoRenameIndex,
       "package.json": autoRenamePackageJson,
+    },
+    "mpi-optimize-prompt": {
+      "index.ts": optimizePromptIndex,
+      "core.ts": optimizePromptCore,
+      "config.ts": optimizePromptConfig,
+      "config-overlay.ts": optimizePromptConfigOverlay,
+      "package.json": optimizePromptPackageJson,
     },
     "mpi-mid-turn-compact": {
       "index.ts": midTurnCompactIndex,
