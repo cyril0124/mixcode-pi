@@ -60,7 +60,12 @@ export function adjustWaitingForInput(delta: number): void {
   } satisfies WaitingForInputEventPayload);
 }
 
-/** Broadcast explicit mark-done (e.g. /mark-done). */
+/**
+ * Broadcast explicit mark-done (e.g. /mark-done).
+ * Callers that want "user can leave the pane first" should delay this (see
+ * MARK_DONE_SIGNAL_DELAY_MS in app-submit-ui) — some hosts map done to idle+unseen.
+ * Herdr pulse lives in mpi-herdr-report (knows blocked / multi-tab refcounts).
+ */
 export function emitMarkDone(payload: MarkDoneEventPayload = { reason: "command" }): void {
   broadcast(MARK_DONE_EVENT, payload);
 }

@@ -11,6 +11,11 @@ import {
   WAITING_FOR_INPUT_EVENT,
 } from "./index.ts";
 
+test("report source is mpi (custom:mpi is ignored by Herdr pane ownership)", () => {
+  assert.equal(HERDR_REPORT_SOURCE, "mpi");
+  assert.equal(HERDR_REPORT_AGENT, "mpi");
+});
+
 test("deriveHerdrState: blocked wins over working", () => {
   assert.equal(deriveHerdrState(2, 1), "blocked");
   assert.equal(deriveHerdrState(0, 1), "blocked");

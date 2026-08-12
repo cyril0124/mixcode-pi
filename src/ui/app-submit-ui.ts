@@ -20,6 +20,9 @@ import { clearConversationCache } from "./rendering.js";
 import { renderSystemToolsText } from "./system-tools.js";
 import { openTreeSelector, type TreeSelectorRuntime } from "./tree-selector.js";
 
+/** Delay before bell + external done signals so the user can leave the pane first. */
+const MARK_DONE_SIGNAL_DELAY_MS = 5_000;
+
 const handleMarkDone: LocalCommandHandler = ({ active }) => {
   // Intentional: unlike agent_end (unread only until the tab is viewed),
   // /mark-done forces a sticky "!" on the current tab so the user can flag
@@ -27,11 +30,12 @@ const handleMarkDone: LocalCommandHandler = ({ active }) => {
   // when focus leaves and returns (see core/tabs.ts).
   active!.unreadDone = true;
   active!.status = "done";
-  // Fan-out to extension EventBuses (e.g. completion notification consumers).
-  emitMarkDone({ reason: "command" });
-  // Ring terminal bell after 5s so the user gets an audible notification
-  // even if they have switched away from the terminal window.
-  setTimeout(() => process.stdout.write("\x07"), 5_000);
+  // External hosts often treat "done" as idle+unseen: wait so the user can
+  // switch away before we emit the mark-done signal (same delay as the bell).
+  setTimeout(() => {
+    emitMarkDone({ reason: "command" });
+    process.stdout.write("\x07");
+  }, MARK_DONE_SIGNAL_DELAY_MS);
   return undefined;
 };
 

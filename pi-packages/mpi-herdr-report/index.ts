@@ -8,9 +8,10 @@
  *
  * Events (host fans out on every session EventBus; string channels only):
  * - `mpi:waiting-for-input` → blocked vs not
- * - `mpi:mark-done` → completion notification (`--sound done`); ensure idle when
- *   not blocked. Herdr has no reportable `done` state while the pane is focused
- *   (done = idle + unseen); leaving the pane after idle still yields UI done.
+ * - `mpi:mark-done` → force a working→idle pulse (Herdr only notifies on state
+ *   *change*; already-idle is a no-op with plain report). Also try
+ *   `notification show --sound done` (may be disabled in herdr toast config).
+ *   Herdr UI `done` = idle + unseen; while focused you stay idle, not done.
  *
  * Pure Node — must also run under upstream pi (Node + jiti).
  */
@@ -23,7 +24,9 @@ import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
 /** Herdr `pane report-agent --state` values we emit. */
 export type HerdrReportState = "working" | "idle" | "blocked";
 
-export const HERDR_REPORT_SOURCE = "custom:mpi";
+// Must match Herdr's detected agent ownership. `custom:mpi` is accepted by the
+// API but ignored for pane state when screen detection already owns label `mpi`.
+export const HERDR_REPORT_SOURCE = "mpi";
 export const HERDR_REPORT_AGENT = "mpi";
 
 /** Shared with MixCode host channel names (string only — no import). */
@@ -135,6 +138,11 @@ function spawnHerdrDoneNotification(env: NodeJS.ProcessEnv = process.env): void 
 
 function report(state: HerdrReportState): void {
   if (previousReported === state) return;
+  forceReport(state);
+}
+
+/** Always emit report-agent (new seq), even when state is unchanged. */
+function forceReport(state: HerdrReportState): void {
   const paneId = resolveHerdrPaneId();
   if (!paneId) return;
   previousReported = state;
@@ -167,25 +175,38 @@ function onWaitingForInput(raw: unknown): void {
 }
 
 /**
- * Explicit mark-done: always notify; only push idle when not blocked and no
- * active runs (do not demote blocked or invent idle while work continues).
- * Host fans out to every session bus; module-level coalesce avoids N toasts.
+ * Explicit mark-done:
+ * - Coalesce multi-bus fan-out (host emits on every session bus).
+ * - If blocked, keep blocked; still try notification.
+ * - Else force working→idle so Herdr sees a real state transition (plain
+ *   report("idle") is a no-op when already idle, so completion UX never runs).
+ * - notification.show often returns disabled in herdr config; pulse is primary.
  */
 function onMarkDone(): void {
   if (!resolveHerdrPaneId()) return;
   const now = Date.now();
   if (now - lastMarkDoneAt < 100) return;
   lastMarkDoneAt = now;
+
   spawnHerdrDoneNotification();
-  if (waitingCount === 0 && activeRuns === 0) {
-    report("idle");
-  }
+
+  if (waitingCount > 0) return;
+
+  // Pulse for Herdr state-change notifications without discarding multi-tab
+  // run refcount; recompute restores true busy/idle after the pulse.
+  forceReport("working");
+  forceReport("idle");
+  recompute();
 }
 
 const herdrReportExtension: ExtensionFactory = (pi) => {
   bridgeAttached = true;
-  const unsubWaiting = pi.events.on(WAITING_FOR_INPUT_EVENT, onWaitingForInput);
-  const unsubMarkDone = pi.events.on(MARK_DONE_EVENT, () => {
+  // Keep process-level listeners for the life of this extension runtime.
+  // Do not unsubscribe on session_shutdown — that runs on /clear and session
+  // replace while the same EventBus is reused, which would silently kill
+  // mark-done / waiting handlers until a full extension reload.
+  pi.events.on(WAITING_FOR_INPUT_EVENT, onWaitingForInput);
+  pi.events.on(MARK_DONE_EVENT, () => {
     onMarkDone();
   });
   pi.on("agent_start", () => {
@@ -193,10 +214,6 @@ const herdrReportExtension: ExtensionFactory = (pi) => {
   });
   pi.on("agent_settled", () => {
     onAgentSettled();
-  });
-  pi.on("session_shutdown", () => {
-    unsubWaiting();
-    unsubMarkDone();
   });
 };
 
