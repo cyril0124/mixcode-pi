@@ -311,15 +311,17 @@ test("full and windowed tails leave the same gap between widgets and the queue",
   assert.equal(gap(short), gap(long));
 });
 
-test("vim hides inline widgets but keeps the queue", () => {
+test("vim keeps inline widgets in the chat tail with the queue", () => {
   const tab = widgetTab({ vimMode: true, pendingMessages: ["steer-me"] });
   const text = stripAnsi(
     renderAgentSurface(tab, { chat: [{ role: "user", text: "hello-user" }] } as never, 80).join(
       "\n",
     ),
   );
-  assert.doesNotMatch(text, /INLINE-ABOVE|INLINE-BELOW/);
+  assert.match(text, /INLINE-ABOVE/);
+  assert.match(text, /INLINE-BELOW/);
   assert.match(text, /Steer/);
+  assert.ok(text.indexOf("INLINE-BELOW") < text.indexOf("Steer"));
 });
 
 test("an open side panel keeps widgets out of the chat tail", () => {

@@ -138,7 +138,8 @@ function scrollableHeaderLines(tab: MixCodeTabInfo, width: number): string[] {
 }
 
 function shouldRenderInlineWidgets(tab: MixCodeTabInfo): boolean {
-  return tab.inlineWidgets === true && tab.vimMode !== true && tab.panelOpen !== true;
+  // Vim still hides the editor dock; inline widgets stay in the chat tail.
+  return tab.inlineWidgets === true && tab.panelOpen !== true;
 }
 
 function renderInlineWidgetLines(tab: MixCodeTabInfo, width: number): string[] {

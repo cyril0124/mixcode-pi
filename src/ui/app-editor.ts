@@ -109,7 +109,7 @@ export class CompactPromptEditor extends Editor {
       return lines.map((line, index) =>
         index === 1
           ? renderStaticPlaceholderLine(
-              "Vim: → newer user msg · Shift+→ older user msg · q exit · widgets/status hidden",
+              "Vim: → newer user msg · Shift+→ older user msg · q exit · dock widgets/status hidden",
               width,
               theme,
             )
