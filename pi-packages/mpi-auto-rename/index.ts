@@ -2,16 +2,40 @@
  * mpi-auto-rename — Generate a short kebab-case session title from current context.
  *
  * Usage: /auto-rename
+ * Cancel: /auto-rename-cancel
+ * Config: /auto-rename config
+ *   <agentDir>/auto-rename.json  { "model"?: "provider/id" }
+ * Progress: aboveEditor widget (does not take over the input editor).
  */
 
 import { completeSimple, type AssistantMessage, type Model } from "@earendil-works/pi-ai/compat";
-import type {
-  ExtensionAPI,
-  ExtensionCommandContext,
-  ExtensionFactory,
-  SessionEntry,
+import {
+  getAgentDir,
+  type ExtensionAPI,
+  type ExtensionCommandContext,
+  type ExtensionFactory,
+  type SessionEntry,
 } from "@earendil-works/pi-coding-agent";
-import { BorderedLoader } from "@earendil-works/pi-coding-agent";
+import {
+  AUTO_RENAME_INHERIT,
+  loadAutoRenameConfig,
+  resolveAutoRenameTarget,
+  writeAutoRenameConfig,
+} from "./config.js";
+import { createAutoRenameConfigOverlay } from "./config-overlay.js";
+
+export {
+  AUTO_RENAME_CONFIG_FILENAME,
+  AUTO_RENAME_INHERIT,
+  autoRenameConfigPath,
+  loadAutoRenameConfig,
+  parseAutoRenameConfig,
+  parseAutoRenameModelRef,
+  resolveAutoRenameTarget,
+  writeAutoRenameConfig,
+  type AutoRenameConfig,
+} from "./config.js";
+export { createAutoRenameConfigOverlay } from "./config-overlay.js";
 
 export const MAX_CONTEXT_CHARS = 1_000;
 export const RECENT_MESSAGE_WINDOW = 20;
@@ -183,6 +207,139 @@ function formatError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+const WIDGET_KEY = "mpi-auto-rename";
+const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+
+/** Per-factory cancel slot so each MixCode tab isolates in-flight rename. */
+export type AutoRenameAbortSlot = {
+  controller?: AbortController;
+  stopProgress?: () => void;
+};
+
+/** Abort in-flight rename; stops progress UI even if the HTTP stream hangs. */
+export function cancelAutoRename(slot: AutoRenameAbortSlot): boolean {
+  const controller = slot.controller;
+  if (!controller || controller.signal.aborted) return false;
+  controller.abort();
+  try {
+    slot.stopProgress?.();
+  } finally {
+    slot.stopProgress = undefined;
+    if (slot.controller === controller) slot.controller = undefined;
+  }
+  return true;
+}
+
+function notifyAutoRenameCancel(
+  ctx: { ui: { notify(message: string, type?: string): void } },
+  slot: AutoRenameAbortSlot,
+): void {
+  if (cancelAutoRename(slot)) {
+    ctx.ui.notify("Cancelled", "info");
+    return;
+  }
+  ctx.ui.notify("No auto-rename run in progress", "warning");
+}
+
+function formatElapsed(ms: number): string {
+  const totalSec = Math.max(0, Math.floor(ms / 1000));
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  if (min <= 0) return `${sec}s`;
+  return `${min}m ${sec.toString().padStart(2, "0")}s`;
+}
+
+function renderAutoRenameProgressLines(
+  theme: { fg(color: string, text: string): string; bold?(text: string): string },
+  state: {
+    frame: number;
+    startedAt: number;
+    modelLabel: string;
+    thinkingLabel: string;
+    sourceChars: number;
+  },
+): string[] {
+  const spinner = SPINNER_FRAMES[state.frame % SPINNER_FRAMES.length]!;
+  const elapsed = formatElapsed(Date.now() - state.startedAt);
+  const bold = (text: string) => theme.bold?.(text) ?? text;
+  const title = bold(
+    `${theme.fg("accent", spinner)} ${theme.fg("accent", "Generating title")}`,
+  );
+  const meta = [
+    theme.fg("success", elapsed),
+    theme.fg("warning", state.modelLabel),
+    theme.fg("accent", `think:${state.thinkingLabel}`),
+    theme.fg("success", `${state.sourceChars} chars`),
+    theme.fg("warning", "/auto-rename-cancel"),
+  ].join(theme.fg("border", " · "));
+  return [` ${title}  ${meta}`];
+}
+
+function startAutoRenameProgressWidget(
+  ctx: ExtensionCommandContext,
+  info: { modelLabel: string; thinkingLabel: string; sourceChars: number },
+): () => void {
+  const startedAt = Date.now();
+  let frame = 0;
+  let timer: ReturnType<typeof setInterval> | undefined;
+
+  ctx.ui.setWidget(
+    WIDGET_KEY,
+    (tui, theme) => {
+      timer = setInterval(() => {
+        frame += 1;
+        tui.requestRender();
+      }, 120);
+      return {
+        render: () =>
+          renderAutoRenameProgressLines(theme, {
+            frame,
+            startedAt,
+            modelLabel: info.modelLabel,
+            thinkingLabel: info.thinkingLabel,
+            sourceChars: info.sourceChars,
+          }),
+        invalidate: () => {},
+        dispose: () => {
+          if (timer) {
+            clearInterval(timer);
+            timer = undefined;
+          }
+        },
+      };
+    },
+    { placement: "aboveEditor" },
+  );
+
+  return () => {
+    if (timer) {
+      clearInterval(timer);
+      timer = undefined;
+    }
+    try {
+      ctx.ui.setWidget(WIDGET_KEY, undefined);
+    } catch {
+      // Session may already be gone.
+    }
+  };
+}
+
+function listModelOptions(ctx: ExtensionCommandContext): string[] {
+  const registry = ctx.modelRegistry as {
+    getAvailable?: () => Array<{ provider: string; id: string }>;
+    getAll?: () => Array<{ provider: string; id: string }>;
+    find?: (provider: string, id: string) => { provider: string; id: string } | undefined;
+  };
+  const models = registry.getAvailable?.() ?? registry.getAll?.() ?? [];
+  const refs = models
+    .filter((model) => model.provider && model.id && model.provider !== "faux")
+    .map((model) => `${model.provider}/${model.id}`);
+  if (ctx.model?.provider && ctx.model.id) {
+    refs.unshift(`${ctx.model.provider}/${ctx.model.id}`);
+  }
+  return [...new Set(refs)].sort();
+}
+
 export async function generateValidTitle(options: {
   model: Model<string>;
   conversationContext: string;
@@ -261,18 +418,78 @@ export async function generateValidTitle(options: {
   };
 }
 
+export async function runAutoRenameConfig(options: {
+  ctx: ExtensionCommandContext;
+  agentDir?: string;
+}): Promise<{ ok: true; path: string } | { ok: false; reason: string }> {
+  const { ctx } = options;
+  const agentDir = options.agentDir ?? getAgentDir();
+  const loaded = loadAutoRenameConfig(agentDir);
+  if (!loaded.ok) {
+    ctx.ui.notify(`Auto-rename config error (${loaded.path}): ${loaded.error}`, "error");
+    return { ok: false, reason: "bad_config" };
+  }
+
+  let draft = { ...loaded.config };
+  const persist = (config: typeof draft): boolean => {
+    draft = { ...config };
+    const written = writeAutoRenameConfig(agentDir, draft);
+    if (!written.ok) {
+      ctx.ui.notify(`Failed to write ${written.path}: ${written.error}`, "error");
+      return false;
+    }
+    return true;
+  };
+
+  await ctx.ui.custom(
+    (tui, theme, _kb, done) =>
+      createAutoRenameConfigOverlay({
+        theme,
+        requestRender: () => tui.requestRender(),
+        done,
+        onChange: (config) => {
+          void persist(config);
+        },
+        initial: draft,
+        modelOptions: listModelOptions(ctx),
+        getMaxVisible: () => Math.max(3, Math.floor(tui.terminal.rows * 0.8) - 6),
+      }),
+    {
+      overlay: true,
+      overlayOptions: {
+        anchor: "center",
+        width: "72%",
+        maxHeight: "80%",
+        margin: 1,
+      },
+    },
+  );
+  return { ok: true, path: loaded.path };
+}
+
 export async function runAutoRename(options: {
   ctx: ExtensionCommandContext;
   setSessionName: (name: string) => void;
   getThinkingLevel: () => string;
   complete?: CompleteFn;
+  agentDir?: string;
+  abortSlot?: AutoRenameAbortSlot;
 }): Promise<AutoRenameResult> {
   const { ctx } = options;
   const notify = (message: string, level: "info" | "warning" | "error" = "info") => {
     ctx.ui.notify(message, level);
   };
 
-  if (!ctx.model) {
+  const agentDir = options.agentDir ?? getAgentDir();
+  const loaded = loadAutoRenameConfig(agentDir);
+  if (!loaded.ok) {
+    notify(`Auto-rename config error (${loaded.path}): ${loaded.error}`, "error");
+    return { ok: false, reason: "bad_config" };
+  }
+  const config = loaded.config;
+
+  const activeModel = ctx.model;
+  if (!activeModel && !config.model) {
     notify("No model selected", "error");
     return { ok: false, reason: "no_model" };
   }
@@ -283,15 +500,60 @@ export async function runAutoRename(options: {
     return { ok: false, reason: "empty_context" };
   }
 
+  const abortSlot = options.abortSlot ?? {};
+  const abort = new AbortController();
+  if (abortSlot.controller && !abortSlot.controller.signal.aborted) {
+    abortSlot.controller.abort();
+  }
+  try {
+    abortSlot.stopProgress?.();
+  } finally {
+    abortSlot.stopProgress = undefined;
+  }
+  abortSlot.controller = abort;
+
+  const target = resolveAutoRenameTarget(
+    {
+      provider: activeModel?.provider ?? "",
+      modelId: activeModel?.id ?? "",
+    },
+    config,
+  );
+  const registry = ctx.modelRegistry as {
+    find?: (provider: string, id: string) => unknown;
+    getApiKeyAndHeaders: ExtensionCommandContext["modelRegistry"]["getApiKeyAndHeaders"];
+  };
+  const model =
+    config.model && config.model !== AUTO_RENAME_INHERIT
+      ? (registry.find?.(target.provider, target.modelId) as typeof activeModel)
+      : activeModel;
+  if (!model) {
+    if (abortSlot.controller === abort) abortSlot.controller = undefined;
+    notify(`Unknown model: ${target.provider}/${target.modelId}`, "error");
+    return { ok: false, reason: "unknown_model" };
+  }
+
+  if (abort.signal.aborted) {
+    if (abortSlot.controller === abort) abortSlot.controller = undefined;
+    notify("Cancelled", "info");
+    return { ok: false, reason: "cancelled" };
+  }
+
   let auth: { apiKey?: string; headers?: Record<string, string>; env?: Record<string, string> };
   try {
-    const resolved = await ctx.modelRegistry.getApiKeyAndHeaders(ctx.model);
+    const resolved = await ctx.modelRegistry.getApiKeyAndHeaders(model);
+    if (abort.signal.aborted) {
+      if (abortSlot.controller === abort) abortSlot.controller = undefined;
+      notify("Cancelled", "info");
+      return { ok: false, reason: "cancelled" };
+    }
     if (!resolved.ok || !hasRequestAuth({
       apiKey: resolved.ok ? resolved.apiKey : undefined,
       headers: resolved.ok ? compactHeaders(resolved.headers) : undefined,
       env: resolved.ok ? resolved.env : undefined,
     })) {
-      notify(resolved.ok ? `No credentials for ${ctx.model.provider}` : resolved.error, "error");
+      if (abortSlot.controller === abort) abortSlot.controller = undefined;
+      notify(resolved.ok ? `No credentials for ${model.provider}` : resolved.error, "error");
       return { ok: false, reason: "no_auth" };
     }
     auth = {
@@ -300,33 +562,43 @@ export async function runAutoRename(options: {
       env: resolved.env,
     };
   } catch (error: unknown) {
+    if (abortSlot.controller === abort) abortSlot.controller = undefined;
+    if (abort.signal.aborted) {
+      notify("Cancelled", "info");
+      return { ok: false, reason: "cancelled" };
+    }
     notify(formatError(error), "error");
     return { ok: false, reason: "no_auth" };
   }
 
   const thinkingLevel = options.getThinkingLevel();
-  const generate = (signal?: AbortSignal) =>
-    generateValidTitle({
-      model: ctx.model as Model<string>,
+  const stopProgress = ctx.hasUI
+    ? startAutoRenameProgressWidget(ctx, {
+        modelLabel: `${target.provider}/${target.modelId}`,
+        thinkingLabel: thinkingLevel,
+        sourceChars: conversationContext.length,
+      })
+    : () => {};
+  abortSlot.stopProgress = stopProgress;
+
+  let result: AutoRenameResult;
+  try {
+    result = await generateValidTitle({
+      model: model as Model<string>,
       conversationContext,
       thinkingLevel,
       auth,
-      signal,
+      signal: abort.signal,
       complete: options.complete,
     });
-
-  let result: AutoRenameResult;
-  if (ctx.hasUI) {
-    result = await ctx.ui.custom<AutoRenameResult>((tui, theme, _keybindings, done) => {
-      const loader = new BorderedLoader(tui, theme, "Generating session title...");
-      loader.onAbort = () => done({ ok: false, reason: "cancelled" });
-      generate(loader.signal)
-        .then(done)
-        .catch((error: unknown) => done({ ok: false, reason: formatError(error) }));
-      return loader;
-    });
-  } else {
-    result = await generate();
+  } catch (error: unknown) {
+    result = abort.signal.aborted
+      ? { ok: false, reason: "cancelled" }
+      : { ok: false, reason: formatError(error) };
+  } finally {
+    if (abortSlot.stopProgress === stopProgress) abortSlot.stopProgress = undefined;
+    if (abortSlot.controller === abort) abortSlot.controller = undefined;
+    stopProgress();
   }
 
   if (!result.ok) {
@@ -354,14 +626,36 @@ export async function runAutoRename(options: {
 }
 
 const autoRename: ExtensionFactory = (pi) => {
+  const abortSlot: AutoRenameAbortSlot = {};
+
   pi.registerCommand("auto-rename", {
-    description: "Generate a short kebab-case title from current context and rename this session",
-    handler: async (_args, ctx) => {
-      await runAutoRename({
+    description: "Generate a kebab-case session title; config picks model",
+    getArgumentCompletions: (prefix: string) => {
+      const items = [
+        { value: "config", label: "config", description: "Pick rename model (inherit or provider/id)" },
+      ];
+      const filtered = items.filter((item) => item.value.startsWith(prefix));
+      return filtered.length > 0 ? filtered : null;
+    },
+    handler: async (args, ctx) => {
+      const sub = args.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
+      if (sub === "config") {
+        await runAutoRenameConfig({ ctx });
+        return;
+      }
+      void runAutoRename({
         ctx,
         setSessionName: (name) => pi.setSessionName(name),
         getThinkingLevel: () => pi.getThinkingLevel(),
+        abortSlot,
       });
+    },
+  });
+
+  pi.registerCommand("auto-rename-cancel", {
+    description: "Abort in-flight /auto-rename title generation",
+    handler: async (_args, ctx) => {
+      notifyAutoRenameCancel(ctx, abortSlot);
     },
   });
 };

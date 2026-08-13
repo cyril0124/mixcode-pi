@@ -84,6 +84,8 @@ import promptHistoryIndex from "../../pi-packages/mpi-prompt-history/index.ts" w
 import promptHistoryBrowser from "../../pi-packages/mpi-prompt-history/prompt-history-browser.ts" with { type: "text" };
 import promptHistoryPackageJson from "../../pi-packages/mpi-prompt-history/package.json" with { type: "text" };
 import autoRenameIndex from "../../pi-packages/mpi-auto-rename/index.ts" with { type: "text" };
+import autoRenameConfig from "../../pi-packages/mpi-auto-rename/config.ts" with { type: "text" };
+import autoRenameConfigOverlay from "../../pi-packages/mpi-auto-rename/config-overlay.ts" with { type: "text" };
 import autoRenamePackageJson from "../../pi-packages/mpi-auto-rename/package.json" with { type: "text" };
 import optimizePromptIndex from "../../pi-packages/mpi-optimize-prompt/index.ts" with { type: "text" };
 import optimizePromptCore from "../../pi-packages/mpi-optimize-prompt/core.ts" with { type: "text" };
@@ -233,6 +235,8 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
     },
     "mpi-auto-rename": {
       "index.ts": autoRenameIndex,
+      "config.ts": autoRenameConfig,
+      "config-overlay.ts": autoRenameConfigOverlay,
       "package.json": autoRenamePackageJson,
     },
     "mpi-optimize-prompt": {
