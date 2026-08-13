@@ -1029,11 +1029,12 @@ function wrapExtensionWidgetLines(lines: string[], width: number): string[] {
 // Fraction of terminal width given to the side panel when it is open.
 const EXTENSION_PANEL_WIDTH_RATIO = 0.33;
 const EXTENSION_PANEL_MIN_WIDTH = 30;
+// Below this, a split would crush chat. Toggle refuses to open; render falls back.
+export const EXTENSION_PANEL_MIN_TERMINAL_WIDTH = 80;
 
 /**
  * Compute the side panel column width for a given terminal width. Clamped to a
- * usable minimum; callers gate opening on a wide-enough terminal so the chat
- * column is never crushed.
+ * usable minimum. Callers must not split below EXTENSION_PANEL_MIN_TERMINAL_WIDTH.
  */
 export function extensionPanelWidth(terminalWidth: number): number {
   const target = Math.floor(terminalWidth * EXTENSION_PANEL_WIDTH_RATIO);

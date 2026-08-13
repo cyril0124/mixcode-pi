@@ -21,6 +21,7 @@ import {
   renderExtensionPanel,
   renderExtensionWidgets,
   extensionPanelWidth,
+  EXTENSION_PANEL_MIN_TERMINAL_WIDTH,
   renderFloatingPanelOverlay,
   renderFooter,
   renderHeader,
@@ -171,7 +172,7 @@ export class MixCodeRoot implements Component {
     topRows: number,
     theme: MixCodeTheme,
   ): string[] {
-    if (!active.panelOpen) {
+    if (!active.panelOpen || width < EXTENSION_PANEL_MIN_TERMINAL_WIDTH) {
       active.panelSurfaceBounds = undefined;
       active.lastRenderedPanelLines = [];
       active.chatSurfaceBounds = {
@@ -289,7 +290,8 @@ export class MixCodeLayoutRoot implements Component {
     // it is open (they render inside the panel via MixCodeRoot).
     const isVim = active?.vimMode === true;
     const panelOpen = active?.panelOpen === true;
-    const hideEditorWidgets = isVim || panelOpen;
+    const hideEditorWidgets =
+      isVim || (panelOpen && width >= EXTENSION_PANEL_MIN_TERMINAL_WIDTH);
     const iconMode = this.state.ui?.icons?.mode ?? DEFAULT_ICON_MODE;
     const metaProbe = isAgentTab
       ? renderInputMeta(active, width, 0, theme, false, iconMode)
@@ -329,6 +331,7 @@ export class MixCodeLayoutRoot implements Component {
       uncappedBelow,
       widgetBudget,
       theme,
+      width,
     );
     const workingBottomGapRows = 0;
     let editorLines = this.editor.render(width);
@@ -632,13 +635,14 @@ function fitEditorWidgets(
   below: string[],
   budget: number | undefined,
   theme: MixCodeTheme,
+  width: number,
 ): { above: string[]; below: string[] } {
   if (budget === undefined) return { above, below };
   const total = above.length + below.length;
   if (total <= budget) return { above, below };
   if (budget <= 0) return { above: [], below: [] };
 
-  const marker = theme.dim("… (widgets truncated)");
+  const marker = padLine(theme.dim("… (widgets truncated)"), width);
   // Reserve one row for the marker when we have content to show.
   const contentBudget = Math.max(0, budget - 1);
   const keptAbove = above.slice(0, contentBudget);

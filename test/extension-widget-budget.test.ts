@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { visibleWidth } from "@earendil-works/pi-tui";
 import {
   MixCodeFooterRoot,
   MixCodeLayoutRoot,
@@ -90,4 +91,34 @@ test("many above/below editor widgets keep the tab bar on screen", () => {
   assert.match(text, /editor-line-0/, "editor must remain usable");
   // Truncation affordance when the budget cannot fit every widget line.
   assert.match(text, /widget|truncated|more/i);
+});
+
+test("widgets-truncated marker fits a 20-column terminal", () => {
+  const viewportRows = 24;
+  const width = 20;
+  const { layout, tab } = buildLayout(viewportRows, width);
+
+  tab.extensionUi.widgets = [
+    ...Array.from({ length: 12 }, (_, i) => ({
+      id: `above-${i}`,
+      placement: "aboveEditor" as const,
+      lines: [`ABOVE-${i}`],
+    })),
+    ...Array.from({ length: 10 }, (_, i) => ({
+      id: `below-${i}`,
+      placement: "belowEditor" as const,
+      lines: [`BELOW-${i}`],
+    })),
+  ];
+
+  layout.render(width);
+  const lines = layout.render(width);
+  assert.match(stripAnsi(lines.join("\n")), /widget|truncated|more/i);
+  for (const [index, line] of lines.entries()) {
+    const lineWidth = visibleWidth(line);
+    assert.ok(
+      lineWidth <= width,
+      `line ${index} width ${lineWidth} > ${width}: ${JSON.stringify(stripAnsi(line))}`,
+    );
+  }
 });

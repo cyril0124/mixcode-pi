@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { Terminal } from "@earendil-works/pi-tui";
+import { type Terminal, visibleWidth } from "@earendil-works/pi-tui";
 import { createMixCodeTui, handleMixCodeKeyInput } from "../src/ui/app.js";
 import { handleMouseInput } from "../src/ui/app-mouse.js";
 import { createInitialState, createTab } from "../src/core/defaults.js";
@@ -189,6 +189,28 @@ test("open panel shows a dim hint on how to close it", () => {
   // The close hint is present only while the panel is open, on the panel side.
   assert.match(open.join("\n"), /\u2192 to close/);
   assert.doesNotMatch(closed.join("\n"), /\u2192 to close/);
+});
+
+test("open panel on a 20-column terminal does not overflow", () => {
+  const state = makeState({ panelOpen: true });
+  const tui = createMixCodeTui(state, makeRuntime(), { terminal: silentTerminal(20) });
+  try {
+    const lines = tui.render(20);
+    for (const [index, line] of lines.entries()) {
+      const lineWidth = visibleWidth(line);
+      assert.ok(
+        lineWidth <= 20,
+        `line ${index} width ${lineWidth} > 20: ${JSON.stringify(stripAnsi(line))}`,
+      );
+    }
+    const text = lines.map(stripAnsi).join("\n");
+    assert.match(text, new RegExp(WIDGET_ABOVE));
+    assert.equal(state.tabs[0]!.panelOpen, true);
+    const wide = tui.render(100).map(stripAnsi).join("\n");
+    assert.match(wide, /\u2192 to close/);
+  } finally {
+    tui.stop();
+  }
 });
 
 test("panel shows full live widget output without a truncation marker", () => {

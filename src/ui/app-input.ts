@@ -52,6 +52,7 @@ import type {
   WorkspaceKeyOptions,
 } from "./app-types.js";
 import { recordSubmittedHistory } from "../core/conversation-history.js";
+import { EXTENSION_PANEL_MIN_TERMINAL_WIDTH } from "./rendering/chrome.js";
 import { showSystemMessageOrToast } from "./app-actions.js";
 import { handleSubmittedInput } from "./app-submit.js";
 import { handleExtensionManagerKey } from "./extension-manager.js";
@@ -894,11 +895,6 @@ function inlineSubmitText(data: string): string | undefined {
   }
   return body;
 }
-
-// Minimum terminal width before the side panel may open. Below this a split
-// would crush the chat column, so we toast instead. Mirrors the
-// extension-manager two-pane threshold for consistency.
-export const EXTENSION_PANEL_MIN_TERMINAL_WIDTH = 80;
 
 /**
  * Toggle the extension widget side panel for the active tab. Opening is gated
