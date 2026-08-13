@@ -314,10 +314,12 @@ function onAgentStart(): void {
   announcePresence();
 }
 
-function onAgentSettled(): void {
+// Pair with agent_start 1:1. MixCode maps idle to agent_end; agent_settled can
+// be skipped on some abort/reload paths, which left Herdr stuck on working.
+function onAgentFinished(): void {
   if (!resolveHerdrPaneId()) return;
   activeRuns = Math.max(0, activeRuns - 1);
-  recompute();
+  announcePresence();
 }
 
 function onWaitingForInput(raw: unknown): void {
@@ -367,8 +369,8 @@ const herdrReportExtension: ExtensionFactory = (pi) => {
   pi.on("agent_start", () => {
     onAgentStart();
   });
-  pi.on("agent_settled", () => {
-    onAgentSettled();
+  pi.on("agent_end", () => {
+    onAgentFinished();
   });
   // Factory runs at extension load (often before session_start). Announce once
   // here; session_start re-announces after replace/clear so idle returns.
