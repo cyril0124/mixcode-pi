@@ -236,6 +236,7 @@ export function handleDeleteAllSessionsConfirmKey(
       // Same bulk-close publish as /close-all-sessions so peer sync cannot reopen.
       noteTabsReplaced([]);
       state.tabs.length = 0;
+      state.recentAgentTabIds = [];
       activateTab(state, "config");
       clampHomeSelectedTabIndex(state);
       await onStateChanged?.(state);
@@ -275,6 +276,7 @@ export function handleCloseAllSessionsConfirmKey(
       // Publish the bulk close before local state becomes empty so peer sync cannot reopen it.
       noteTabsReplaced([]);
       state.tabs.length = 0;
+      state.recentAgentTabIds = [];
       activateTab(state, "config");
       clampHomeSelectedTabIndex(state);
       await onStateChanged?.(state);

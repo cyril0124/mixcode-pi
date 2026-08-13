@@ -1,6 +1,7 @@
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { isPendingEscapeActive } from "../../core/escape.js";
 import { gitBranchForWorkdir } from "../../core/git-branch.js";
+import { recentAgentTabRank } from "../../core/tabs.js";
 import {
   DEFAULT_ICON_MODE,
   type IconMode,
@@ -1195,13 +1196,25 @@ function tabBarSegments(state: MixCodeState): Array<{ id: string; text: string }
       const text = ` ${status} ${tab.title} `;
       return {
         id: tab.sessionId,
-        text: renderTabSegmentText(tab, text, state.activeTabId === tab.sessionId),
+        text: renderTabSegmentText(
+          tab,
+          text,
+          state.activeTabId === tab.sessionId,
+          recentAgentTabRank(state, tab.sessionId),
+          state.activeTabId === "config",
+        ),
       };
     }),
   ];
 }
 
-function renderTabSegmentText(tab: MixCodeTabInfo, text: string, active: boolean): string {
+function renderTabSegmentText(
+  tab: MixCodeTabInfo,
+  text: string,
+  active: boolean,
+  recentRank: number,
+  onHome: boolean,
+): string {
   const statusColor = tabIsWaitingForInput(tab)
     ? activeRenderTheme.toolTitle
     : tab.status === "running" || tab.status === "thinking"
@@ -1210,7 +1223,15 @@ function renderTabSegmentText(tab: MixCodeTabInfo, text: string, active: boolean
         ? activeRenderTheme.done
         : undefined;
   const colored = statusColor ? statusColor(text) : text;
-  return active ? activeRenderTheme.activeTab(colored) : activeRenderTheme.tab(colored);
+  if (active) return activeRenderTheme.activeTab(colored);
+  if (onHome) {
+    if (recentRank === 0) return activeRenderTheme.recentTab(colored);
+    if (recentRank === 1) return activeRenderTheme.olderRecentTab(colored);
+    return activeRenderTheme.tab(colored);
+  }
+  if (recentRank === 1) return activeRenderTheme.recentTab(colored);
+  if (recentRank === 2) return activeRenderTheme.olderRecentTab(colored);
+  return activeRenderTheme.tab(colored);
 }
 
 export function tabStatusGlyph(tab: MixCodeTabInfo): string {

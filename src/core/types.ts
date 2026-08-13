@@ -390,6 +390,8 @@ export interface MixCodeState {
   tabs: MixCodeTabInfo[];
   ui?: MixCodeUiSettings;
   activeTabId: string;
+  /** In-process MRU of agent tabs (max 3). Home is never recorded. */
+  recentAgentTabIds: string[];
   packageUpdates: string[];
   quitConfirmOpen: boolean;
   deleteAllSessionsConfirmOpen: boolean;

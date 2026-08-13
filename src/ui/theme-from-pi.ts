@@ -31,6 +31,8 @@ export interface MixCodeTheme {
   customMessageBg: { start: string; end: string };
   tab: (text: string) => string;
   activeTab: (text: string) => string;
+  recentTab: (text: string) => string;
+  olderRecentTab: (text: string) => string;
   homeTab: (text: string) => string;
   homeTabActive: (text: string) => string;
   userMessageBg: (text: string) => string;
@@ -86,7 +88,9 @@ export function mixCodeThemeFromPi(theme: Theme): MixCodeTheme {
     systemBackground: { start: bgStart("toolPendingBg"), end: "\x1b[49m" },
     customMessageBg: { start: bgStart("customMessageBg"), end: "\x1b[49m" },
     tab: (text) => theme.bg("toolPendingBg", theme.fg("muted", text)),
-    activeTab: (text) => theme.bg("selectedBg", theme.fg("text", text)),
+    activeTab: (text) => theme.bg("selectedBg", theme.fg("borderAccent", text)),
+    recentTab: (text) => theme.bg("customMessageBg", theme.fg("text", text)),
+    olderRecentTab: (text) => theme.bg("toolPendingBg", theme.fg("accent", text)),
     homeTab: (text) => theme.bg("selectedBg", theme.fg("accent", text)),
     homeTabActive: (text) => theme.bg("selectedBg", theme.fg("borderAccent", text)),
     userMessageBg: persistentBg("userMessageBg"),

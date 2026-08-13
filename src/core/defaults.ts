@@ -29,6 +29,7 @@ export function createInitialState(workdir: string, defaultThinkingLevel?: Think
       icons: { mode: DEFAULT_ICON_MODE },
     },
     activeTabId: "config",
+    recentAgentTabIds: [],
     packageUpdates: [],
     quitConfirmOpen: false,
     deleteAllSessionsConfirmOpen: false,

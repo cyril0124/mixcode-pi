@@ -47,6 +47,7 @@ export function closeAgentTab(state: MixCodeState, sessionId: string): MixCodeTa
   state.tabs.forEach((tab, tabIndex) => {
     tab.index = tabIndex + 1;
   });
+  forgetRecentAgentTab(state, sessionId);
   if (state.activeTabId === sessionId) {
     activateTab(state, state.tabs[Math.min(index, state.tabs.length - 1)]?.sessionId ?? "config");
   }
@@ -55,6 +56,30 @@ export function closeAgentTab(state: MixCodeState, sessionId: string): MixCodeTa
   if (index < state.homeSelectedTabIndex) state.homeSelectedTabIndex -= 1;
   clampHomeSelectedTabIndex(state);
   return removed!;
+}
+
+const RECENT_AGENT_TAB_LIMIT = 3;
+
+function liveRecentAgentTabIds(state: MixCodeState): string[] {
+  const live = new Set(state.tabs.map((tab) => tab.sessionId));
+  return (state.recentAgentTabIds ?? []).filter((id) => live.has(id));
+}
+
+export function noteRecentAgentTab(state: MixCodeState, sessionId: string): void {
+  if (!sessionId || sessionId === "config") return;
+  const current = liveRecentAgentTabIds(state);
+  state.recentAgentTabIds = [sessionId, ...current.filter((id) => id !== sessionId)].slice(
+    0,
+    RECENT_AGENT_TAB_LIMIT,
+  );
+}
+
+export function forgetRecentAgentTab(state: MixCodeState, sessionId: string): void {
+  state.recentAgentTabIds = liveRecentAgentTabIds(state).filter((id) => id !== sessionId);
+}
+
+export function recentAgentTabRank(state: MixCodeState, sessionId: string): number {
+  return liveRecentAgentTabIds(state).indexOf(sessionId);
 }
 
 export function activateTab(state: MixCodeState, tabId: string): void {
@@ -89,6 +114,7 @@ export function activateTab(state: MixCodeState, tabId: string): void {
     }
   }
   state.activeTabId = tabId;
+  if (tabId !== "config") noteRecentAgentTab(state, tabId);
   for (const listener of activeTabListeners) listener(tabId);
   const tab = state.tabs.find((item) => item.sessionId === tabId);
   if (!tab) return;
