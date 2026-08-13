@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
+import * as fs from "node:fs/promises";
+import * as net from "node:net";
+import * as os from "node:os";
+import * as path from "node:path";
 import { test } from "bun:test";
 import {
+  applyAgentSettled,
+  applyAgentStart,
+  applySessionShutdown,
+  applySessionStart,
   buildNotificationShowRequest,
   buildReportAgentRequest,
   buildReportAgentSessionRequest,
@@ -11,9 +19,12 @@ import {
   HERDR_REPORT_AGENT,
   HERDR_REPORT_SOURCE,
   isMixcodeProcess,
+  isStaleCtxError,
   MARK_DONE_EVENT,
   parseWaitingForInputPayload,
+  readCtxIdle,
   resolveHerdrPaneId,
+  sessionKeyFrom,
   shouldClearAgentActive,
   socketEndpoint,
   WAITING_FOR_INPUT_EVENT,
@@ -82,6 +93,47 @@ test("shouldClearAgentActive matches official isIdle gate", () => {
   assert.equal(shouldClearAgentActive(undefined), false);
 });
 
+test("readCtxIdle swallows only session-replacement stale errors", () => {
+  assert.equal(
+    readCtxIdle({
+      isIdle: () => {
+        throw new Error("This extension ctx is stale after session replacement or reload.");
+      },
+    }),
+    undefined,
+  );
+  assert.equal(isStaleCtxError(new Error("This extension ctx is stale after session replacement")), true);
+  assert.throws(
+    () =>
+      readCtxIdle({
+        isIdle: () => {
+          throw new Error("disk is read-only");
+        },
+      }),
+    /disk is read-only/,
+  );
+});
+
+test("busy ledger survives resume without undoing a later agent_start", () => {
+  const busy = new Set<string>();
+  assert.equal(sessionKeyFrom({ agent_session_id: "old" }), "old");
+  applySessionStart(busy, "old", false);
+  applySessionShutdown(busy, "old");
+  assert.equal(busy.size, 0);
+
+  applySessionStart(busy, "new", true);
+  assert.equal(busy.size, 0);
+  applyAgentStart(busy, "new");
+  assert.deepEqual([...busy], ["new"]);
+
+  applyAgentSettled(busy, "new", false);
+  assert.deepEqual([...busy], ["new"]);
+  applyAgentSettled(busy, "new", undefined);
+  assert.deepEqual([...busy], ["new"]);
+  applyAgentSettled(busy, "new", true);
+  assert.equal(busy.size, 0);
+});
+
 test("enqueueLatest keeps only the newest slot", () => {
   assert.deepEqual(enqueueLatest(undefined, { state: "working", seq: 1 }), { state: "working", seq: 1 });
   assert.deepEqual(
@@ -135,3 +187,91 @@ test("parseWaitingForInputPayload normalizes count", () => {
   assert.deepEqual(parseWaitingForInputPayload(null), { count: 0, active: false });
   assert.deepEqual(parseWaitingForInputPayload({ count: 1.9 }), { count: 1, active: true });
 });
+
+test("session_start does not read isIdle after the session ctx is replaced", async () => {
+  const { default: herdrReportExtension } = await import("./index.ts");
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-herdr-report-stale-"));
+  const socketPath = path.join(dir, "herdr.sock");
+  const prev = {
+    MIXCODE: process.env.MIXCODE,
+    HERDR_ENV: process.env.HERDR_ENV,
+    HERDR_SOCKET_PATH: process.env.HERDR_SOCKET_PATH,
+    HERDR_PANE_ID: process.env.HERDR_PANE_ID,
+  };
+  process.env.MIXCODE = "1";
+  process.env.HERDR_ENV = "1";
+  process.env.HERDR_SOCKET_PATH = socketPath;
+  process.env.HERDR_PANE_ID = "w1:p1";
+
+  const reports: Array<{ method?: string; params?: { state?: string } }> = [];
+  const server = net.createServer((socket) => {
+    socket.on("data", (buf) => {
+      for (const line of String(buf).split("\n").filter(Boolean)) {
+        reports.push(JSON.parse(line) as (typeof reports)[number]);
+      }
+      socket.write("{}" + "\n");
+      socket.end();
+    });
+  });
+  await new Promise<void>((resolve) => server.listen(socketPath, resolve));
+
+  const rejections: unknown[] = [];
+  const onReject = (reason: unknown) => {
+    rejections.push(reason);
+  };
+  process.on("unhandledRejection", onReject);
+
+  let stale = false;
+  let sessionStart: ((event: { reason: string }, ctx: unknown) => void) | undefined;
+  let sessionShutdown: (() => void) | undefined;
+  let agentStart: ((event: unknown, ctx: unknown) => void) | undefined;
+  herdrReportExtension({
+    on(event: string, handler: (event: unknown, ctx: unknown) => void) {
+      if (event === "session_start") sessionStart = handler as typeof sessionStart;
+      if (event === "session_shutdown") sessionShutdown = handler as typeof sessionShutdown;
+      if (event === "agent_start") agentStart = handler;
+    },
+    events: { on() {} },
+  } as never);
+
+  const ctx = {
+    mode: "tui",
+    sessionManager: { getSessionId: () => "s1" },
+    isIdle() {
+      if (stale) {
+        throw new Error("This extension ctx is stale after session replacement or reload.");
+      }
+      return true;
+    },
+  };
+
+  try {
+    assert.ok(sessionStart, "session_start handler must register when herdr is enabled");
+    sessionStart!({ reason: "resume" }, ctx);
+    stale = true;
+    agentStart?.({}, ctx);
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    assert.equal(rejections.length, 0, String(rejections[0]));
+    const states = reports.filter((r) => r.method === "pane.report_agent").map((r) => r.params?.state);
+    assert.ok(states.includes("working"), `expected a working report, got ${JSON.stringify(states)}`);
+    assert.notEqual(states.at(-1), "idle");
+    sessionShutdown?.();
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    assert.equal(rejections.length, 0, String(rejections[0]));
+    const afterShutdown = reports.filter((r) => r.method === "pane.report_agent").map((r) => r.params?.state);
+    assert.equal(afterShutdown.at(-1), "idle");
+  } finally {
+    process.off("unhandledRejection", onReject);
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+    await fs.rm(dir, { recursive: true, force: true });
+    restoreEnv("MIXCODE", prev.MIXCODE);
+    restoreEnv("HERDR_ENV", prev.HERDR_ENV);
+    restoreEnv("HERDR_SOCKET_PATH", prev.HERDR_SOCKET_PATH);
+    restoreEnv("HERDR_PANE_ID", prev.HERDR_PANE_ID);
+  }
+});
+
+function restoreEnv(name: string, value: string | undefined): void {
+  if (value === undefined) delete process.env[name];
+  else process.env[name] = value;
+}

@@ -65,6 +65,55 @@ export function shouldClearAgentActive(isIdle: unknown): boolean {
   return isIdle === true;
 }
 
+export function isStaleCtxError(error: unknown): boolean {
+  return /stale after session replacement/.test(String(error));
+}
+
+/** Sync only. Stale ctx after /resume must not throw into the host. */
+export function readCtxIdle(ctx: { isIdle: () => boolean }): boolean | undefined {
+  try {
+    return ctx.isIdle();
+  } catch (error) {
+    if (isStaleCtxError(error)) return undefined;
+    throw error;
+  }
+}
+
+export function sessionKeyFrom(extra: Record<string, unknown>): string | undefined {
+  const path = extra.agent_session_path;
+  if (typeof path === "string" && path.length > 0) return path;
+  const id = extra.agent_session_id;
+  if (typeof id === "string" && id.length > 0) return id;
+  return undefined;
+}
+
+export function applySessionStart(
+  busy: Set<string>,
+  key: string | undefined,
+  idle: boolean | undefined,
+): void {
+  if (!key || idle === undefined) return;
+  if (idle) busy.delete(key);
+  else busy.add(key);
+}
+
+export function applyAgentStart(busy: Set<string>, key: string | undefined): void {
+  if (key) busy.add(key);
+}
+
+export function applyAgentSettled(
+  busy: Set<string>,
+  key: string | undefined,
+  idle: boolean | undefined,
+): void {
+  if (!key || !shouldClearAgentActive(idle)) return;
+  busy.delete(key);
+}
+
+export function applySessionShutdown(busy: Set<string>, key: string | undefined): void {
+  if (key) busy.delete(key);
+}
+
 export function parseWaitingForInputPayload(raw: unknown): WaitingForInputEventPayload {
   if (!raw || typeof raw !== "object") return { count: 0, active: false };
   const count = (raw as { count?: unknown }).count;
@@ -246,9 +295,7 @@ const herdrReportExtension: ExtensionFactory = (pi) => {
 
   function rememberSession(ctx: unknown): void {
     sessionExtra = sessionFieldsFrom(ctx);
-    sessionKey =
-      (sessionExtra.agent_session_path as string | undefined) ??
-      (sessionExtra.agent_session_id as string | undefined);
+    sessionKey = sessionKeyFrom(sessionExtra);
   }
 
   function publishState(force = false): void {
@@ -292,24 +339,32 @@ const herdrReportExtension: ExtensionFactory = (pi) => {
     if (ctx.mode !== "tui") return;
     rootSession = true;
     rememberSession(ctx);
+    applySessionStart(busySessions, sessionKey, readCtxIdle(ctx));
     void reportSession(event.reason).then(() => {
-      if (sessionKey && ctx.isIdle() === false) busySessions.add(sessionKey);
-      else if (sessionKey) busySessions.delete(sessionKey);
       publishState(true);
     });
+  });
+
+  pi.on("session_shutdown", () => {
+    applySessionShutdown(busySessions, sessionKey);
+    rootSession = false;
+    sessionKey = undefined;
+    sessionExtra = {};
+    publishState(true);
   });
 
   pi.on("agent_start", (_event, ctx) => {
     if (!rootSession) return;
     rememberSession(ctx);
-    void reportSession();
-    if (sessionKey) busySessions.add(sessionKey);
+    applyAgentStart(busySessions, sessionKey);
     publishState();
+    void reportSession();
   });
 
   pi.on("agent_settled", (_event, ctx) => {
-    if (!rootSession || !shouldClearAgentActive(ctx.isIdle())) return;
-    if (sessionKey) busySessions.delete(sessionKey);
+    if (!rootSession) return;
+    rememberSession(ctx);
+    applyAgentSettled(busySessions, sessionKey, readCtxIdle(ctx));
     publishState();
   });
 };
