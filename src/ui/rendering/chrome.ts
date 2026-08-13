@@ -1191,30 +1191,25 @@ function tabBarSegments(state: MixCodeState): Array<{ id: string; text: string }
     : activeRenderTheme.homeTab(configText);
   return [
     { id: "config", text: config },
-    ...state.tabs.map((tab) => {
-      const status = tabStatusGlyph(tab);
-      const text = ` ${status} ${tab.title} `;
-      return {
-        id: tab.sessionId,
-        text: renderTabSegmentText(
-          tab,
-          text,
-          state.activeTabId === tab.sessionId,
-          recentAgentTabRank(state, tab.sessionId),
-          state.activeTabId === "config",
-        ),
-      };
-    }),
+    ...state.tabs.map((tab) => ({
+      id: tab.sessionId,
+      text: renderTabSegmentText(
+        tab,
+        state.activeTabId === tab.sessionId,
+        recentAgentTabRank(state, tab.sessionId),
+        state.activeTabId === "config",
+      ),
+    })),
   ];
 }
 
 function renderTabSegmentText(
   tab: MixCodeTabInfo,
-  text: string,
   active: boolean,
   recentRank: number,
   onHome: boolean,
 ): string {
+  const glyph = tabStatusGlyph(tab);
   const statusColor = tabIsWaitingForInput(tab)
     ? activeRenderTheme.toolTitle
     : tab.status === "running" || tab.status === "thinking"
@@ -1222,16 +1217,19 @@ function renderTabSegmentText(
       : tab.status !== "error" && tab.unreadDone
         ? activeRenderTheme.done
         : undefined;
-  const colored = statusColor ? statusColor(text) : text;
-  if (active) return activeRenderTheme.activeTab(colored);
+  // Color only the glyph. Painting the whole chip with accent/done then wrapping
+  // activeTab (same hue) makes the title disappear on working tabs.
+  const paintedGlyph = statusColor ? statusColor(glyph) : glyph;
+  const text = ` ${paintedGlyph} ${tab.title} `;
+  if (active) return activeRenderTheme.activeTab(text);
   if (onHome) {
-    if (recentRank === 0) return activeRenderTheme.recentTab(colored);
-    if (recentRank === 1) return activeRenderTheme.olderRecentTab(colored);
-    return activeRenderTheme.tab(colored);
+    if (recentRank === 0) return activeRenderTheme.recentTab(text);
+    if (recentRank === 1) return activeRenderTheme.olderRecentTab(text);
+    return activeRenderTheme.tab(text);
   }
-  if (recentRank === 1) return activeRenderTheme.recentTab(colored);
-  if (recentRank === 2) return activeRenderTheme.olderRecentTab(colored);
-  return activeRenderTheme.tab(colored);
+  if (recentRank === 1) return activeRenderTheme.recentTab(text);
+  if (recentRank === 2) return activeRenderTheme.olderRecentTab(text);
+  return activeRenderTheme.tab(text);
 }
 
 export function tabStatusGlyph(tab: MixCodeTabInfo): string {

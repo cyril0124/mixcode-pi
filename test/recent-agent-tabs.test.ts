@@ -59,6 +59,18 @@ test("on Home the most recent agent uses recentTab, not idle tab", () => {
   assert.match(stripAnsi(line), /Beta/);
 });
 
+test("working active tab keeps the title readable", () => {
+  const state = createInitialState("/repo");
+  state.theme = "mixcode-dark";
+  state.tabs.push(createTab(1, "s1", "/repo", { title: "Worker", status: "running" }));
+  activateTab(state, "s1");
+  const line = renderTabBar(state, 80, themeForId("mixcode-dark"))[0] ?? "";
+  assert.match(stripAnsi(line), /Worker/);
+  // Title must not be painted with accent-on-accent (invisible on the teal chip).
+  const accentedTitle = themeForId("mixcode-dark").accent(" Worker ");
+  assert.ok(!line.includes(accentedTitle), "working status must not recolor the whole chip");
+});
+
 test("Pi-derived theme maps recency paints without new Pi tokens", () => {
   const theme = themeForId("light");
   assert.equal(typeof theme.recentTab, "function");
