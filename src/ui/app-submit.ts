@@ -112,6 +112,7 @@ const CONFIG_SCOPED_COMMANDS: ReadonlySet<LocalCommand> = new Set([
   "extension-manager",
   "vim",
   "toggle-zen-mode",
+  "toggle-inline-widgets",
   "login",
   "logout",
   "quit",

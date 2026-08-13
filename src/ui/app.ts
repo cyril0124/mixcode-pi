@@ -109,6 +109,7 @@ export function createMixCodeTui(
     },
     // Custom input skins only (setEditorComponent), not temporary dialog overrides.
     () => editorSlot?.getEditorComponent() !== undefined,
+    () => editorSlot?.hasInputComponent() === true,
   );
   const defaultEditor = new CompactPromptEditor(
     tui,

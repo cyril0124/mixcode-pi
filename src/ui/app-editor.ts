@@ -99,7 +99,7 @@ export class CompactPromptEditor extends Editor {
       : isShellMode
         ? theme.bashMode
         : theme.thinkingBorder(this.activeTab()?.thinkingLevel);
-    // Top-border agent chrome (title / xxk/xxk* / VIM|ZEN|sys) is applied by
+    // Top-border agent chrome (title / xxk/xxk* / VIM|ZEN|WID|sys) is applied by
     // EditorSlot so setEditorComponent replacements keep the same contract.
     const lines = super.render(width);
     // Bottom border stays a plain frame edge; model/bar/git live in the meta row
@@ -279,6 +279,7 @@ export class EditorSlot implements Component {
     const theme = themeForId(this.mixState.theme);
     const isVimMode = active.vimMode === true;
     const isZenMode = active.zenMode === true;
+    const isInlineWidgets = active.inlineWidgets === true;
     // Title follows the vim border color in vim mode, accent in normal mode.
     const titleLabel = isVimMode ? theme.vimBorder : theme.accent;
     // [ZEN] matches the frame: vimBorder when coexisting with vim, else accent.
@@ -292,6 +293,7 @@ export class EditorSlot implements Component {
       title: active.title ?? "",
       vimMode: isVimMode,
       zenMode: isZenMode,
+      inlineWidgets: isInlineWidgets,
       customBasePrompt: active.customBasePrompt === true,
       contextText: exactContextUsageText(active),
       dash,

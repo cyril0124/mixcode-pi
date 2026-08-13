@@ -29,6 +29,7 @@ export type LocalCommand =
   | "mark-done"
   | "vim"
   | "toggle-zen-mode"
+  | "toggle-inline-widgets"
   | "navigate"
   | "new-session"
   | "resume"
@@ -304,6 +305,11 @@ export const LOCAL_COMMANDS: Array<{
     name: "toggle-zen-mode",
     description: "Toggle Zen mode (hide tab bar; Tab switches only via Ctrl+T)",
     palette: { label: "Toggle Zen Mode", requires: "session" },
+  },
+  {
+    name: "toggle-inline-widgets",
+    description: "Toggle showing extension widgets in chat (bottom; Steer/Follow-up stays last)",
+    palette: { label: "Toggle Inline Widgets", requires: "session" },
   },
   {
     name: "navigate",

@@ -32,9 +32,11 @@
 │|                                                                                                |│
 │| [scrollable chat surface]                                                                      |│
 │| (extension header scrolls here)                                                                |│
+│| optional: /toggle-inline-widgets moves setWidget chrome here,                                  |│
+│| after messages and before Steer/Follow-up; editor top border shows [WID]                       |│
 │| optional: extension side panel may split this row                                              |│
 │|------------------------------------------------------------------------------------------------|│
-│| [extension widgets above editor]                                                               |│
+│| [extension widgets above editor]  (hidden in inline / vim / side-panel)                        |│
 │|------------------------------------------------------------------------------------------------|│
 │| > prompt editor   CompactPromptEditor / EditorSlot                                             |│
 │|   / @ $ autocomplete  |  vim  |  bash-mode !                                                   |│
@@ -278,7 +280,7 @@ pushToast(tab, { type: "success", message: "Copied." });
 | Chat blocks | `renderChat` / `renderChatBlock` | user / asst / tool / bash |
 | Extension header | `renderExtensionHeader` | 随 chat 滚动 |
 | Extension side panel | `renderExtensionPanel` | 非 vim 时 `Right` 切换 |
-| Extension widgets | `renderExtensionWidgets` | 编辑器上下 |
+| Extension widgets | `renderExtensionWidgets` | 默认编辑器上下；`/toggle-inline-widgets` 时进 chat 尾部（Steer/Follow-up 仍在最后） |
 | Input meta | `renderInputMeta` | model / thinking / workdir 可点 |
 | Working indicator | pi-tui `Loader` | streaming / working |
 | Footer | `renderFooter` / `renderExtensionFooter` | 底栏 |

@@ -16,6 +16,7 @@ export function isPlainBorderLine(line: string): boolean {
 /** Visible-width geometry for the labels embedded in the editor's top border. */
 const VIM_BADGE_TEXT = "[VIM]";
 const ZEN_BADGE_TEXT = "[ZEN]";
+const WID_BADGE_TEXT = "[WID]";
 export const SYS_BADGE_TEXT = "[sys]";
 // Right chunk around the title: " <title> " + 2 trailing dashes.
 const TITLE_FRAME_WIDTH = 1 /* leading space */ + 1 /* trailing space */ + 2 /* trailing dashes */;
@@ -36,6 +37,8 @@ export interface LabeledTopBorderOptions {
   vimMode: boolean;
   /** When true, show [ZEN] next to [VIM] (or alone) near the left. */
   zenMode?: boolean;
+  /** When true, show [WID] after [ZEN] / [VIM] (inline widget mode). */
+  inlineWidgets?: boolean;
   /** When true, append [sys] after the title (custom base system prompt). */
   customBasePrompt?: boolean;
   /**
@@ -49,6 +52,8 @@ export interface LabeledTopBorderOptions {
   vimLabel: (text: string) => string;
   /** Colorizer for the [ZEN] badge; defaults to titleLabel (agent accent). */
   zenLabel?: (text: string) => string;
+  /** Colorizer for the [WID] badge; defaults to zenLabel. */
+  widLabel?: (text: string) => string;
   /** Colorizer for the agent title. */
   titleLabel: (text: string) => string;
   /** Colorizer for the [sys] badge; defaults to titleLabel. */
@@ -65,18 +70,21 @@ export interface LabeledTopBorderOptions {
  *   custom:  ────────────────── Agent-1 [sys] ──
  *   vim:     ── [VIM] ────────── Agent-1 ──
  *   zen:     ── [ZEN] ────────── Agent-1 ──
- *   both:    ── [VIM] [ZEN] ──── Agent-1 ──
+ *   wid:     ── [WID] ────────── Agent-1 ──
+ *   all:     ── [VIM] [ZEN] [WID] ── Agent-1 ──
  *
  * The title is truncated with an ellipsis when space is tight; left badges and
  * context are dropped (title preserved) before the line degrades to a plain
- * dashed border. Drop order when tight: zen, then vim, then sys, then context,
- * then title. The returned string always has an exact visible width of `width`.
+ * dashed border. Drop order when tight: wid, then zen, then vim, then sys,
+ * then context, then title. The returned string always has an exact visible width of `width`.
  */
 export function buildLabeledTopBorder(opts: LabeledTopBorderOptions): string {
   const { width, title, vimMode, dash, vimLabel, titleLabel } = opts;
   const zenMode = opts.zenMode === true;
+  const inlineWidgets = opts.inlineWidgets === true;
   const sysLabel = opts.sysLabel ?? titleLabel;
   const zenLabel = opts.zenLabel ?? titleLabel;
+  const widLabel = opts.widLabel ?? zenLabel;
   const contextLabel = opts.contextLabel ?? titleLabel;
   if (width <= 0) return "";
   const dashes = (n: number) => dash("\u2500".repeat(Math.max(0, n)));
@@ -87,23 +95,26 @@ export function buildLabeledTopBorder(opts: LabeledTopBorderOptions): string {
 
   const wantVim = vimMode;
   const wantZen = zenMode;
+  const wantWid = inlineWidgets;
   const wantSys = Boolean(opts.customBasePrompt);
   const contextText = opts.contextText?.trim() ?? "";
   const wantContext = contextText.length > 0;
   const leftWidth =
-    wantVim || wantZen
+    wantVim || wantZen || wantWid
       ? LEFT_LEAD_DASHES +
         (wantVim ? BADGE_UNIT(VIM_BADGE_TEXT) : 0) +
         (wantZen ? BADGE_UNIT(ZEN_BADGE_TEXT) : 0) +
+        (wantWid ? BADGE_UNIT(WID_BADGE_TEXT) : 0) +
         1 /* trailing space after last badge */
       : 0;
   const sysWidth = wantSys ? SYS_BADGE_FRAME_WIDTH : 0;
   const contextWidth = wantContext ? CONTEXT_SEP_WIDTH + visibleWidth(contextText) : 0;
-  const minLead = wantVim || wantZen ? MIN_BADGE_LEAD_DASHES : MIN_TITLE_LEAD_DASHES;
+  const minLead = wantVim || wantZen || wantWid ? MIN_BADGE_LEAD_DASHES : MIN_TITLE_LEAD_DASHES;
   const maxTitleWidth =
     width - leftWidth - minLead - TITLE_FRAME_WIDTH - sysWidth - contextWidth;
   if (maxTitleWidth <= 0) {
-    // Prefer dropping zen first, then vim, then sys, then context, so title can still show.
+    // Prefer dropping wid first, then zen, then vim, then sys, then context.
+    if (wantWid) return buildLabeledTopBorder({ ...opts, inlineWidgets: false });
     if (wantZen) return buildLabeledTopBorder({ ...opts, zenMode: false });
     if (wantVim) return buildLabeledTopBorder({ ...opts, vimMode: false });
     if (wantSys) return buildLabeledTopBorder({ ...opts, customBasePrompt: false });
@@ -120,6 +131,7 @@ export function buildLabeledTopBorder(opts: LabeledTopBorderOptions): string {
   // Fill dashes that span from the left chunk to the title separator.
   const fill = width - leftWidth - TITLE_FRAME_WIDTH - titleWidth - sysWidth - contextWidth;
   if (fill < minLead) {
+    if (wantWid) return buildLabeledTopBorder({ ...opts, inlineWidgets: false });
     if (wantZen) return buildLabeledTopBorder({ ...opts, zenMode: false });
     if (wantVim) return buildLabeledTopBorder({ ...opts, vimMode: false });
     if (wantSys) return buildLabeledTopBorder({ ...opts, customBasePrompt: false });
@@ -130,11 +142,13 @@ export function buildLabeledTopBorder(opts: LabeledTopBorderOptions): string {
   const contextChunk = wantContext ? ` · ${contextLabel(contextText)}` : "";
   const sysChunk = wantSys ? ` ${sysLabel(SYS_BADGE_TEXT)}` : "";
   const rightChunk = ` ${titleLabel(titleText)}${contextChunk}${sysChunk} ${dash("\u2500\u2500")}`;
-  if (!wantVim && !wantZen) {
+  if (!wantVim && !wantZen && !wantWid) {
     return `${dashes(fill)}${rightChunk}`;
   }
   const badges =
-    (wantVim ? ` ${vimLabel(VIM_BADGE_TEXT)}` : "") + (wantZen ? ` ${zenLabel(ZEN_BADGE_TEXT)}` : "");
+    (wantVim ? ` ${vimLabel(VIM_BADGE_TEXT)}` : "") +
+    (wantZen ? ` ${zenLabel(ZEN_BADGE_TEXT)}` : "") +
+    (wantWid ? ` ${widLabel(WID_BADGE_TEXT)}` : "");
   const leftChunk = `${dash("\u2500".repeat(LEFT_LEAD_DASHES))}${badges} `;
   return `${leftChunk}${dashes(fill)}${rightChunk}`;
 }

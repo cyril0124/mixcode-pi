@@ -67,6 +67,8 @@ export class MixCodeRoot implements Component {
     private readonly getReservedRows: () => number = () => 2,
     /** True when the active agent tab uses setEditorComponent (not dialogs). */
     private readonly hasCustomEditor: () => boolean = () => false,
+    /** True when setInputComponent currently owns the input slot. */
+    private readonly hasInputComponent: () => boolean = () => false,
   ) {}
 
   invalidate(): void {}
@@ -114,6 +116,13 @@ export class MixCodeRoot implements Component {
         thinkingLevel: active.thinkingLevel,
         vimMode: active.vimMode,
         zenMode: active.zenMode === true,
+        // Temporary custom()/dialog/setInputComponent takeovers keep VIM/ZEN
+        // chrome as today, but do not advertise inline-widget mode on the
+        // separator — the plugin/dialog owns the slot until it restores.
+        inlineWidgets:
+          active.inlineWidgets === true &&
+          active.extensionUi.waitingForInputs.length === 0 &&
+          !this.hasInputComponent(),
         zenStatusMarkers: active.zenMode
           ? zenStatusMarkers(this.state.tabs, active.sessionId)
           : [],
@@ -290,8 +299,12 @@ export class MixCodeLayoutRoot implements Component {
     // it is open (they render inside the panel via MixCodeRoot).
     const isVim = active?.vimMode === true;
     const panelOpen = active?.panelOpen === true;
+    const panelShowing = panelOpen && width >= EXTENSION_PANEL_MIN_TERMINAL_WIDTH;
+    // Inline mode relocates widgets into the chat tail. A live side panel still
+    // owns them (same as today). Narrow panelOpen does not actually split, so
+    // leave widgets in the dock unless inline is on and the panel is closed.
     const hideEditorWidgets =
-      isVim || (panelOpen && width >= EXTENSION_PANEL_MIN_TERMINAL_WIDTH);
+      isVim || panelShowing || (active?.inlineWidgets === true && !panelOpen);
     const iconMode = this.state.ui?.icons?.mode ?? DEFAULT_ICON_MODE;
     const metaProbe = isAgentTab
       ? renderInputMeta(active, width, 0, theme, false, iconMode)

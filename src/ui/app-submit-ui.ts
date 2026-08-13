@@ -51,6 +51,11 @@ const handleToggleZenMode: LocalCommandHandler = ({ active }) => {
   return undefined;
 };
 
+const handleToggleInlineWidgets: LocalCommandHandler = ({ active }) => {
+  active!.inlineWidgets = !active!.inlineWidgets;
+  return undefined;
+};
+
 const handleToggleHiddenMessages: LocalCommandHandler = ({ active, runtime, tui }) => {
   const runtimeTab = runtime.getTab(active!.sessionId);
   if (!runtimeTab) {
@@ -164,6 +169,7 @@ export const UI_COMMAND_HANDLERS = {
   "mark-done": handleMarkDone,
   vim: handleVim,
   "toggle-zen-mode": handleToggleZenMode,
+  "toggle-inline-widgets": handleToggleInlineWidgets,
   navigate: handleNavigate,
   help: handleHotkeys,
   hotkeys: handleHotkeys,

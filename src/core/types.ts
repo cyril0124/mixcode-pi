@@ -205,6 +205,12 @@ export interface MixCodeTabInfo {
   vimEnterArmedAt?: number;
   /** Distraction-free chrome: hide tab bar; tab/shift-tab swallowed; ctrl+t transfers. */
   zenMode: boolean;
+  /**
+   * Per-tab toggle: render aboveEditor/belowEditor widgets at the chat tail
+   * (after messages, before Steer/Follow-up) instead of around the editor.
+   * Non-persisted; migrates with the active agent like zen/vim.
+   */
+  inlineWidgets: boolean;
   pendingEscapeAction?: PendingEscapeAction;
   pendingEscapeArmedAt?: number;
   /** Timestamp of last Escape press for double-escape tree detection */

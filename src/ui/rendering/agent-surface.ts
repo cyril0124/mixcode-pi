@@ -23,7 +23,7 @@ import {
   oversizedPolicyKey,
   type AgentSurfaceRenderOptions,
 } from "./agent-surface-options.js";
-import { renderExtensionHeader } from "./chrome.js";
+import { renderExtensionHeader, renderExtensionWidgets } from "./chrome.js";
 import { activeRenderTheme, renderWithTheme } from "./context.js";
 import {
   BLOCK_HEIGHT_FALLBACK,
@@ -77,7 +77,9 @@ const WINDOW_RENDER_STREAMING_THRESHOLD = 20;
 // extra block renders per frame.
 const WINDOW_OVERSCAN_LINES = 20;
 
-// Cache the expensive renderConversation + renderQueuePreview result per tab.
+// Cache the expensive renderConversation result per tab.
+// Queue preview and inline widgets are appended after the cache so live
+// widget ticks cannot bust the conversation cache.
 // Invalidated when chat content, width, theme, or relevant UI state changes.
 // The full-render cache is bypassed while active tool renderers may have
 // lifecycle side effects that need to run on every frame.
@@ -90,10 +92,6 @@ interface ConversationCache {
   width: number;
   themeName: string;
   toolsExpanded: boolean;
-  pendingMessagesLength: number;
-  lastPendingMessage: string;
-  pendingFollowUpsLength: number;
-  lastPendingFollowUp: string;
   oversizedPolicyKey: string;
   hideThinking: boolean;
   hiddenThinkingLabel: string;
@@ -137,6 +135,38 @@ function scrollableHeaderLines(tab: MixCodeTabInfo, width: number): string[] {
     index === 0 ? block : [chatBlockSeparator(width), ...block],
   );
   return [...lines, chatBlockSeparator(width)];
+}
+
+function shouldRenderInlineWidgets(tab: MixCodeTabInfo): boolean {
+  return tab.inlineWidgets === true && tab.vimMode !== true && tab.panelOpen !== true;
+}
+
+function renderInlineWidgetLines(tab: MixCodeTabInfo, width: number): string[] {
+  if (!shouldRenderInlineWidgets(tab)) return [];
+  const lines = [
+    ...renderExtensionWidgets(tab, width, "aboveEditor"),
+    ...renderExtensionWidgets(tab, width, "belowEditor"),
+  ];
+  // Lift the chat-tail band off the transcript. Dock/panel keep dim-only chrome.
+  return lines.map((line) => activeRenderTheme.surface(line));
+}
+
+/** Messages → widgets → Steer/Follow-up. Widgets are omitted unless inline mode is on. */
+function renderChatTailLines(tab: MixCodeTabInfo, width: number): string[] {
+  return joinTailBlocks(
+    [renderInlineWidgetLines(tab, width), renderQueuePreview(tab, width)],
+    chatBlockSeparator(width),
+  );
+}
+
+function joinTailBlocks(blocks: readonly string[][], separator: string): string[] {
+  const out: string[] = [];
+  for (const block of blocks) {
+    if (block.length === 0) continue;
+    if (out.length > 0) out.push(separator);
+    out.push(...block);
+  }
+  return out;
 }
 
 export function renderAgentSurface(
@@ -198,7 +228,14 @@ function renderAgentSurfaceInner(
   // Extension header rides at the very top of the scrollable conversation
   // (like Pi): visible when scrolled to the top, scrolls away otherwise.
   const headerLines = scrollableHeaderLines(tab, mainWidth);
-  const lines = headerLines.length ? [...headerLines, ...body] : body;
+  const tailLines = renderChatTailLines(tab, mainWidth);
+  const withHeader = headerLines.length ? [...headerLines, ...body] : body;
+  const lines =
+    tailLines.length === 0
+      ? withHeader
+      : withHeader.length
+        ? [...withHeader, chatBlockSeparator(mainWidth), ...tailLines]
+        : tailLines;
   if (maxHeight === undefined) return lines;
   // Clamp chatScrollOffset to the actual scrollable range so that sentinel
   // values (e.g. 1_000_000 from chatHome) don't leave the offset far above
@@ -334,7 +371,9 @@ function renderAgentSurfaceAnchored(
 
   const suffix: string[] = [];
   let suffixHasContent = prefix.length > 0;
-  for (let i = anchorIndex; i < chat.length && suffix.length < viewport + Math.max(0, -localOffset); i++) {
+  const suffixLimit = viewport + Math.max(0, -localOffset);
+  let i = anchorIndex;
+  for (; i < chat.length && suffix.length < suffixLimit; i++) {
     const line = chat[i]!;
     const block = renderChatBlock(
       line,
@@ -349,6 +388,11 @@ function renderAgentSurfaceAnchored(
     for (const renderedLine of block) suffix.push(renderedLine);
     suffixHasContent = true;
   }
+  const tailLines = renderChatTailLines(tab, mainWidth);
+  if (i >= chat.length && tailLines.length > 0) {
+    if (suffixHasContent) suffix.push(chatBlockSeparator(mainWidth));
+    suffix.push(...tailLines);
+  }
   const lines = [...prefix, ...suffix];
   const anchorStart = prefix.length;
   const requestedStart = anchorStart - localOffset;
@@ -358,7 +402,7 @@ function renderAgentSurfaceAnchored(
 
   const total = estimateTotalHeight(
     chat,
-    renderQueuePreview(tab, mainWidth).length,
+    tailLines.length,
     mainWidth,
     frameBlockHeights,
   );
@@ -409,8 +453,8 @@ function renderAgentSurfaceWindowed(
   // Extension header rides at the very top of the scrollable conversation.
   const headerLines = scrollableHeaderLines(tab, mainWidth);
 
-  // Bottom-anchored content.
-  const queueLines = renderQueuePreview(tab, mainWidth);
+  // Bottom-anchored content: inline widgets, then Steer/Follow-up.
+  const tailLines = renderChatTailLines(tab, mainWidth);
   // Pending user-bash renders after the main stream (Pi pending-area parity).
   const displayChat = chatLinesForDisplay(chat);
   const originalIndices = originalChatIndicesForDisplay(chat, displayChat);
@@ -422,9 +466,9 @@ function renderAgentSurfaceWindowed(
   const newerFirstChatLines: ChatLine[] = [];
   const frameBlockHeights = new Map<ChatLine, number>();
   let oldestEmittedIndex = displayChat.length;
-  // Count rows the same way unshift path did: queue first, then each older block
+  // Count rows the same way unshift path did: tail first, then each older block
   // plus a separator when content already exists below.
-  let assembledRows = queueLines.length;
+  let assembledRows = tailLines.length;
   for (let i = displayChat.length - 1; i >= 0; i--) {
     if (assembledRows >= targetRows) break;
     const line = displayChat[i]!;
@@ -472,9 +516,9 @@ function renderAgentSurfaceWindowed(
   } else {
     lines = olderLines;
   }
-  if (queueLines.length > 0) {
+  if (tailLines.length > 0) {
     if (olderLines.length > 0) lines.push(chatBlockSeparator(mainWidth));
-    lines.push(...queueLines);
+    lines.push(...tailLines);
   }
 
   // Empty-state placeholder mirrors what renderConversation would produce.
@@ -491,7 +535,7 @@ function renderAgentSurfaceWindowed(
   // approximate for the un-rendered prefix, exact for what's on screen.
   const total = estimateTotalHeight(
     displayChat,
-    queueLines.length,
+    tailLines.length,
     mainWidth,
     frameBlockHeights,
     headerLines.length,
@@ -581,16 +625,11 @@ function getCachedConversationLines(
     chatBlockRenderOptions(runtimeTab, index, options);
   if (tab.status === "running" || tab.status === "thinking" || hasRunningTool(chat)) {
     conversationCacheMap.delete(tab.sessionId);
-    return [
-      ...renderConversation(chat, width, tab, { blockOptions }),
-      ...renderQueuePreview(tab, width),
-    ];
+    return renderConversation(chat, width, tab, { blockOptions });
   }
 
   const lastChat = chat[chat.length - 1];
   const toolsExpanded = tab.extensionUi.toolsExpanded ?? false;
-  const lastPending = tab.pendingMessages[tab.pendingMessages.length - 1] ?? "";
-  const lastFollowUp = tab.pendingFollowUps[tab.pendingFollowUps.length - 1] ?? "";
   const policyKey = oversizedPolicyKey(options.oversizedAssistantMessage);
   const hideThinking = options.hideThinking ?? false;
   const hiddenThinkingLabel = tab.extensionUi.hiddenThinkingLabel ?? "";
@@ -608,10 +647,6 @@ function getCachedConversationLines(
     cached.width === width &&
     cached.themeName === activeRenderTheme.name &&
     cached.toolsExpanded === toolsExpanded &&
-    cached.pendingMessagesLength === tab.pendingMessages.length &&
-    cached.lastPendingMessage === lastPending &&
-    cached.pendingFollowUpsLength === tab.pendingFollowUps.length &&
-    cached.lastPendingFollowUp === lastFollowUp &&
     cached.oversizedPolicyKey === policyKey &&
     cached.hideThinking === hideThinking &&
     cached.hiddenThinkingLabel === hiddenThinkingLabel &&
@@ -622,10 +657,7 @@ function getCachedConversationLines(
     return cached.lines;
   }
 
-  const lines = [
-    ...renderConversation(chat, width, tab, { blockOptions }),
-    ...renderQueuePreview(tab, width),
-  ];
+  const lines = renderConversation(chat, width, tab, { blockOptions });
 
   conversationCacheMap.set(tab.sessionId, {
     lines,
@@ -636,10 +668,6 @@ function getCachedConversationLines(
     width,
     themeName: activeRenderTheme.name,
     toolsExpanded,
-    pendingMessagesLength: tab.pendingMessages.length,
-    lastPendingMessage: lastPending,
-    pendingFollowUpsLength: tab.pendingFollowUps.length,
-    lastPendingFollowUp: lastFollowUp,
     oversizedPolicyKey: policyKey,
     hideThinking,
     hiddenThinkingLabel,
