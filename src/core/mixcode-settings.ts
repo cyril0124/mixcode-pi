@@ -20,6 +20,8 @@ export interface RawMixCodeSettings {
     };
     /** Input-meta icon glyph mode. */
     icons?: { mode?: IconMode };
+    /** Default for new tabs: show setWidget chrome in the chat tail. */
+    inlineWidgets?: boolean;
   };
   /** Provider ids disabled for selection/use (global). */
   disabledProviders?: string[];
@@ -43,7 +45,10 @@ export interface HistorySettings {
 export interface MixCodeUiSettings {
   oversizedAssistantMessage: OversizedAssistantMessageSettings;
   icons: { mode: IconMode };
+  inlineWidgets: boolean;
 }
+
+export const DEFAULT_INLINE_WIDGETS = false;
 
 export interface OversizedAssistantMessageSettings {
   enabled: boolean;
@@ -64,6 +69,7 @@ export function defaultMixCodeSettings(): MixCodeSettings {
     ui: {
       oversizedAssistantMessage: { ...DEFAULT_OVERSIZED_ASSISTANT_MESSAGE },
       icons: { mode: DEFAULT_ICON_MODE },
+      inlineWidgets: DEFAULT_INLINE_WIDGETS,
     },
     disabledProviders: [],
     disabledModels: [],
@@ -105,9 +111,10 @@ export async function loadRawMixCodeSettings(settingsFile: string): Promise<RawM
   const rawMaxLines = positiveInteger(oversized.maxLines);
   const rawOversizedBytes = positiveInteger(oversized.maxBytes);
   const rawIconMode = rawIconModeValue(objectRecord(ui.icons).mode);
+  const rawInlineWidgets = typeof ui.inlineWidgets === "boolean" ? ui.inlineWidgets : undefined;
   const hasOversized =
     rawEnabled !== undefined || rawMaxLines !== undefined || rawOversizedBytes !== undefined;
-  if (hasOversized || rawIconMode !== undefined) {
+  if (hasOversized || rawIconMode !== undefined || rawInlineWidgets !== undefined) {
     result.ui = {
       ...(hasOversized
         ? {
@@ -119,6 +126,7 @@ export async function loadRawMixCodeSettings(settingsFile: string): Promise<RawM
           }
         : {}),
       ...(rawIconMode !== undefined ? { icons: { mode: rawIconMode } } : {}),
+      ...(rawInlineWidgets !== undefined ? { inlineWidgets: rawInlineWidgets } : {}),
     };
   }
   const disabledProviders = stringList(source.disabledProviders);
@@ -186,7 +194,14 @@ function parseUiSettings(value: unknown, settingsFile: string): MixCodeUiSetting
       settingsFile,
     ),
     icons: { mode: parseIconMode(objectRecord(ui.icons).mode, settingsFile) },
+    inlineWidgets: parseInlineWidgets(ui.inlineWidgets, settingsFile),
   };
+}
+
+function parseInlineWidgets(value: unknown, settingsFile: string): boolean {
+  if (value === undefined) return DEFAULT_INLINE_WIDGETS;
+  if (typeof value === "boolean") return value;
+  throw new Error(`${settingsFile}: ui.inlineWidgets must be a boolean`);
 }
 
 function rawIconModeValue(value: unknown): IconMode | undefined {

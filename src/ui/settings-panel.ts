@@ -9,6 +9,7 @@ import * as os from "node:os";
 import {
   DEFAULT_HISTORY_MAX_BYTES,
   DEFAULT_ICON_MODE,
+  DEFAULT_INLINE_WIDGETS,
   DEFAULT_OVERSIZED_ASSISTANT_MESSAGE,
   ICON_MODES,
   loadRawMixCodeSettings,
@@ -333,6 +334,30 @@ const ITEMS: SettingItem[] = [
       replaceRaw(ctx.mixcodeRaw, next);
     },
   },
+  {
+    kind: "boolean",
+    label: "inlineWidgets",
+    section: "mixcode",
+    defaultValue: DEFAULT_INLINE_WIDGETS,
+    getValue: ({ mixcodeRaw }) => mixcodeRaw.ui?.inlineWidgets,
+    setValue: async (ctx, v) => {
+      const next: RawMixCodeSettings = { ...ctx.mixcodeRaw };
+      if (v === undefined) {
+        if (next.ui) {
+          const ui = { ...next.ui };
+          delete ui.inlineWidgets;
+          if (Object.keys(ui).length > 0) next.ui = ui;
+          else delete next.ui;
+        }
+      } else {
+        next.ui = { ...next.ui, inlineWidgets: v };
+      }
+      await writeRawMixCodeSettings(ctx.mixcodeFile, next);
+      replaceRaw(ctx.mixcodeRaw, next);
+      const enabled = v === true;
+      if (ctx.state.ui) ctx.state.ui.inlineWidgets = enabled;
+    },
+  },
 ];
 
 function replaceRaw(target: RawMixCodeSettings, next: RawMixCodeSettings): void {
@@ -428,6 +453,7 @@ function applyLiveEffects(state: MixCodeState): void {
       maxBytes: oversized?.maxBytes ?? DEFAULT_OVERSIZED_ASSISTANT_MESSAGE.maxBytes,
     },
     icons: { mode: raw.ui?.icons?.mode ?? DEFAULT_ICON_MODE },
+    inlineWidgets: raw.ui?.inlineWidgets === true,
   };
   for (const tab of state.tabs) clearConversationCache(tab.sessionId);
 }
@@ -448,6 +474,7 @@ const ITEM_LABELS: Record<string, string> = {
   "markdown.mermaid": "Mermaid diagrams",
   "history.maxBytes": "History max bytes",
   "icons.mode": "Icon mode",
+  inlineWidgets: "Inline widgets",
   "oversized.enabled": "Collapse oversized messages",
   "oversized.maxLines": "Oversized max lines",
   "oversized.maxBytes": "Oversized max bytes",

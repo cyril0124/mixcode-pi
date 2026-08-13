@@ -60,6 +60,7 @@ export async function createAgentTab(
     thinkingLevel,
     // Visible while runtime/extensions start; flipped to idle on success.
     status: "Not Ready",
+    inlineWidgets: state.ui?.inlineWidgets === true,
     ...(customBasePrompt ? { customBasePrompt: true } : {}),
   });
   // Publish before runtime startup so local peer reconcile cannot treat the
@@ -129,6 +130,7 @@ export async function openExistingAgentTab(
     model: { ...model },
     contextLimit: model.contextWindow,
     thinkingLevel,
+    inlineWidgets: state.ui?.inlineWidgets === true,
     ...(customBasePrompt ? { customBasePrompt: true } : {}),
   });
   state.tabs.push(tab);

@@ -216,6 +216,7 @@ const handleFork: LocalCommandHandler = async ({ state, active, runtime }) => {
     model: { ...active!.model },
     thinkingLevel: active!.thinkingLevel,
     title: `${active!.title}-fork`,
+    inlineWidgets: state.ui?.inlineWidgets === true,
   });
   state.tabs.splice(activeIndex + 1, 0, tab);
   state.tabs.forEach((item, index) => {

@@ -342,6 +342,7 @@ export function resumeSelectedSession(
       contextLimit: active?.contextLimit ?? state.model.contextWindow,
       thinkingLevel: active?.thinkingLevel ?? state.thinkingLevel,
       status: "Not Ready",
+      inlineWidgets: state.ui?.inlineWidgets === true,
     },
   );
   noteTabOpened(ephemeralSessionId);

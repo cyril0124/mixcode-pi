@@ -5,7 +5,7 @@ import { MixCodeRuntime } from "../src/agent/runtime.js";
 import { parseInput, commandSuggestions } from "../src/core/commands.js";
 import { createInitialState, createTab } from "../src/core/defaults.js";
 import { serializeState } from "../src/core/state-store.js";
-import { activateTab } from "../src/core/tabs.js";
+import { activateTab, addAgentTab } from "../src/core/tabs.js";
 import { CompactPromptEditor, EditorSlot, editorThemeFor } from "../src/ui/app-editor.js";
 import {
   MixCodeFooterRoot,
@@ -195,6 +195,13 @@ test("activateTab to Home keeps inlineWidgets on the agent", () => {
   state.activeTabId = "s1";
   activateTab(state, "config");
   assert.equal(first.inlineWidgets, true);
+});
+
+test("new tabs inherit ui.inlineWidgets from mixcode settings", () => {
+  const state = createInitialState("/repo");
+  state.ui = { ...state.ui!, inlineWidgets: true };
+  const tab = addAgentTab(state, "s1", "/repo");
+  assert.equal(tab.inlineWidgets, true);
 });
 
 test("serializeState does not persist inlineWidgets", () => {

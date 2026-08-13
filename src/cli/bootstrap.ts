@@ -146,6 +146,7 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
     restoredFromDisk = false;
   }
   state.ui = mixCodeSettings.ui;
+  for (const tab of state.tabs) tab.inlineWidgets = state.ui.inlineWidgets === true;
   // Validate and apply the effective theme at the UI composition boundary.
   setTheme(state, mixCodeSettings.theme ?? state.theme);
   // Thinking-block visibility follows Pi's native hideThinkingBlock setting
@@ -215,6 +216,7 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
       model: { ...state.model },
       contextLimit: state.model.contextWindow,
       thinkingLevel: state.thinkingLevel,
+      inlineWidgets: state.ui.inlineWidgets === true,
     });
     state.tabs.push(firstTab);
   }

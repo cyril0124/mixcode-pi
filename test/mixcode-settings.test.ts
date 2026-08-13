@@ -4,7 +4,8 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
 import { SettingsManager } from "@earendil-works/pi-coding-agent";
-import { createInitialState, loadMixCodeSettings, stripAnsi } from "../src/index.js";
+import { createInitialState, createTab, loadMixCodeSettings, stripAnsi } from "../src/index.js";
+import { addAgentTab } from "../src/core/tabs.js";
 import { handleSettingsPanelKey, renderSettingsPanel } from "../src/ui/settings-panel.js";
 
 test("settings panel changes Pi mermaid mode and mirrors live state", async () => {
@@ -57,6 +58,7 @@ test("mixcode settings default history and oversized assistant message policy", 
       ui: {
         oversizedAssistantMessage: { enabled: true, maxLines: 5000, maxBytes: 128 * 1024 },
         icons: { mode: "nerd" },
+        inlineWidgets: false,
       },
       disabledProviders: [],
       disabledModels: [],
@@ -79,6 +81,7 @@ test("mixcode settings default history and oversized assistant message policy", 
       ui: {
         oversizedAssistantMessage: { enabled: false, maxLines: 42, maxBytes: 2048 },
         icons: { mode: "ascii" },
+        inlineWidgets: false,
       },
       disabledProviders: [],
       disabledModels: [],
@@ -107,6 +110,7 @@ test("mixcode settings accept jsonc comments and trailing commas", async () => {
       ui: {
         oversizedAssistantMessage: { enabled: true, maxLines: 5000, maxBytes: 128 * 1024 },
         icons: { mode: "nerd" },
+        inlineWidgets: false,
       },
       disabledProviders: [],
       disabledModels: [],
@@ -145,6 +149,7 @@ test("legacy ui.renderMermaid in mixcode_settings is ignored", async () => {
       ui: {
         oversizedAssistantMessage: { enabled: true, maxLines: 5000, maxBytes: 128 * 1024 },
         icons: { mode: "nerd" },
+        inlineWidgets: false,
       },
       disabledProviders: [],
       disabledModels: [],
@@ -281,6 +286,59 @@ test("settings panel surfaces write failures without applying the new value", as
     assert.equal(state.settingsPanel.enumOpen, true);
     assert.equal(state.settingsPanel.mixcodeRaw.ui?.icons?.mode, undefined);
     assert.equal(state.ui?.icons.mode, "nerd");
+  } finally {
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("mixcode settings load ui.inlineWidgets and reject non-booleans", async () => {
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-inline-widgets-settings-"));
+  try {
+    const file = path.join(dir, "mixcode_settings.json");
+    await fsPromises.writeFile(file, JSON.stringify({ ui: { inlineWidgets: true } }), "utf8");
+    assert.equal((await loadMixCodeSettings(file)).ui.inlineWidgets, true);
+    await fsPromises.writeFile(file, JSON.stringify({ ui: { inlineWidgets: "yes" } }), "utf8");
+    await assert.rejects(() => loadMixCodeSettings(file), /ui\.inlineWidgets must be a boolean/);
+  } finally {
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("settings panel toggles inlineWidgets and persists the default for new tabs", async () => {
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-settings-inline-widgets-"));
+  const mixcodeFile = path.join(dir, "mixcode_settings.json");
+  await fsPromises.writeFile(mixcodeFile, "{}\n");
+  try {
+    const state = createInitialState(dir);
+    const tab = createTab(1, "s1", dir);
+    state.tabs.push(tab);
+    state.settingsPanel = {
+      open: true,
+      selectedIndex: 17, // inlineWidgets
+      editMode: false,
+      editText: "",
+      enumOpen: false,
+      enumIndex: 0,
+      mixcodeRaw: {},
+      mixcodeFile,
+      piSettingsFile: path.join(dir, "settings.json"),
+      settingsManager: SettingsManager.inMemory(),
+    };
+    const tui = {
+      requestRender: () => undefined,
+      showOverlay: () => ({ hide: () => undefined }) as never,
+      hasOverlay: () => true,
+      hideOverlay: () => undefined,
+    };
+
+    assert.match(stripAnsi(renderSettingsPanel(state, 80).join("\n")), /Inline widgets/);
+    handleSettingsPanelKey(state, "\r", tui);
+    await Bun.sleep(30);
+
+    assert.equal(JSON.parse(await fsPromises.readFile(mixcodeFile, "utf8")).ui.inlineWidgets, true);
+    assert.equal(state.ui?.inlineWidgets, true);
+    assert.equal(tab.inlineWidgets, false);
+    assert.equal(addAgentTab(state, "s2", dir).inlineWidgets, true);
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }

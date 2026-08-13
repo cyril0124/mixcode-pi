@@ -34,6 +34,7 @@ export function addAgentTab(
   }
   const tab = createTab(state.tabs.length + 1, sessionId, workdir, {
     title: nextAvailableAgentTitle(state.tabs),
+    inlineWidgets: state.ui?.inlineWidgets === true,
   });
   state.tabs.push(tab);
   activateTab(state, sessionId);

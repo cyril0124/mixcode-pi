@@ -131,6 +131,7 @@ function createWorkspaceRuntimeTab(
     model: item.model ? { ...item.model } : { ...state.model },
     contextLimit: item.model?.contextWindow ?? state.model.contextWindow,
     thinkingLevel: item.thinkingLevel ?? state.thinkingLevel,
+    inlineWidgets: state.ui?.inlineWidgets === true,
   });
 }
 

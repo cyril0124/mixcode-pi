@@ -27,6 +27,7 @@ export function createInitialState(workdir: string, defaultThinkingLevel?: Think
     ui: {
       oversizedAssistantMessage: { ...DEFAULT_OVERSIZED_ASSISTANT_MESSAGE },
       icons: { mode: DEFAULT_ICON_MODE },
+      inlineWidgets: false,
     },
     activeTabId: "config",
     recentAgentTabIds: [],
