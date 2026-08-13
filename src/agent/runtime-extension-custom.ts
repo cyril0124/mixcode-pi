@@ -1,9 +1,10 @@
 import { ExtensionEditorComponent } from "@earendil-works/pi-coding-agent";
-import type {
-  Component,
-  OverlayHandle,
-  OverlayOptions,
-  TUI as PiTui,
+import {
+  matchesKey,
+  type Component,
+  type OverlayHandle,
+  type OverlayOptions,
+  type TUI as PiTui,
 } from "@earendil-works/pi-tui";
 import { adjustWaitingForInput } from "../core/extension-event-bus.js";
 import {
@@ -211,6 +212,17 @@ function createExtensionCustomEditor<T>(
   });
 }
 
+// Plugins like pi-session-recall compare raw CSI bytes (`\x1b[A`). Kitty
+// protocol and application-cursor mode send other encodings that matchesKey
+// understands but those plugins drop. Canonicalize unmodified nav keys.
+function canonicalizeCustomNavKey(data: string): string {
+  if (matchesKey(data, "up")) return "\x1b[A";
+  if (matchesKey(data, "down")) return "\x1b[B";
+  if (matchesKey(data, "enter")) return "\r";
+  if (matchesKey(data, "escape")) return "\x1b";
+  return data;
+}
+
 function customComponentEditor(component: ExtensionCustomComponent) {
   // Forward Focusable.focused so nested editors emit CURSOR_MARKER. Without
   // this, EditorSlot.syncEditorFocus is a no-op (`"focused" in component` is
@@ -218,7 +230,9 @@ function customComponentEditor(component: ExtensionCustomComponent) {
   return {
     render: (width: number) => renderWithPiExtensionContext(() => component.render(width)),
     handleInput: (data: string) =>
-      renderWithPiExtensionContext(() => component.handleInput?.(data)),
+      renderWithPiExtensionContext(() =>
+        component.handleInput?.(canonicalizeCustomNavKey(data)),
+      ),
     invalidate: () => renderWithPiExtensionContext(() => component.invalidate()),
     getText: () => "",
     setText: () => undefined,

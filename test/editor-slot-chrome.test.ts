@@ -133,3 +133,29 @@ test("EditorSlot Up/Down browses prompt history with a permanent editor replacem
   assert.equal(slot.browsePromptHistory("\x1b[B"), true);
   assert.equal(text, "");
 });
+
+test("EditorSlot Up/Down reach a custom editor while a pending interaction owns input", () => {
+  const { slot, tab } = makeSlot();
+  tab.promptHistory = ["newest", "older"];
+  tab.draftInput = "";
+  tab.extensionUi.waitingForInputs.push({ id: "extension-custom-1", kind: "custom" });
+  let text = "";
+  const received: string[] = [];
+  slot.setEditorComponent(() =>
+    stubEditor(["body"], {
+      getText: () => text,
+      setText: (next) => {
+        text = next;
+      },
+    }),
+  );
+  const editor = slot.current as EditorComponent & { handleInput: (data: string) => void };
+  editor.handleInput = (data: string) => {
+    received.push(data);
+  };
+  slot.handleInput("\x1b[A");
+  slot.handleInput("\x1b[B");
+  assert.deepEqual(received, ["\x1b[A", "\x1b[B"]);
+  assert.equal(text, "", "pending custom UI must not load prompt history");
+  assert.equal(slot.browsePromptHistory("\x1b[A"), false);
+});

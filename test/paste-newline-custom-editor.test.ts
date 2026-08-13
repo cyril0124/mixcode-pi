@@ -373,6 +373,85 @@ test("Ctrl+U is not consumed while a pending extension interaction owns input", 
   assert.equal(tab.vimEnterArmedAt, undefined);
 });
 
+test("Up/Down do not browse prompt history while a pending extension interaction owns input", () => {
+  const state = makeState();
+  state.tabs[0]!.extensionUi.waitingForInputs.push({
+    id: "extension-custom-1",
+    kind: "custom",
+  });
+  let historyBrowsed = 0;
+  const { actions } = makeEditorActions({
+    browsePromptHistory: () => {
+      historyBrowsed++;
+      return true;
+    },
+  });
+  for (const key of ["\x1b[A", "\x1b[B"]) {
+    const result = handleMixCodeKeyInput(
+      state,
+      key,
+      silentTui(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      actions,
+    );
+    assert.equal(result, undefined, `${JSON.stringify(key)} must pass through to the custom component`);
+  }
+  assert.equal(historyBrowsed, 0, "pending custom UI must not enter prompt history");
+});
+
+test("Up still browses prompt history with a permanent editor replacement", () => {
+  const state = makeState();
+  let historyBrowsed = 0;
+  const { actions } = makeEditorActions({
+    hasEditorReplacement: () => true,
+    browsePromptHistory: () => {
+      historyBrowsed++;
+      return true;
+    },
+  });
+  const result = handleMixCodeKeyInput(
+    state,
+    "\x1b[A",
+    silentTui(),
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    actions,
+  );
+  assert.deepEqual(result, { consume: true });
+  assert.equal(historyBrowsed, 1);
+});
+
+test("vim Up/Down do not scroll chat while a pending extension interaction owns input", () => {
+  const state = makeState();
+  const tab = state.tabs[0]!;
+  tab.vimMode = true;
+  tab.chatScrollOffset = 0;
+  tab.extensionUi.waitingForInputs.push({
+    id: "extension-custom-1",
+    kind: "custom",
+  });
+  const { actions } = makeEditorActions({});
+  for (const key of ["\x1b[A", "\x1b[B"]) {
+    const result = handleMixCodeKeyInput(
+      state,
+      key,
+      silentTui(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      actions,
+    );
+    assert.equal(result, undefined, `${JSON.stringify(key)} must pass through to the custom component`);
+  }
+  assert.equal(tab.chatScrollOffset, 0, "vim must not scroll chat under a pending interaction");
+});
+
 test("Tab keeps switching MixCode tabs while an extension interaction is pending", () => {
   const state = makeState();
   const first = state.tabs[0]!;

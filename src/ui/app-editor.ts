@@ -337,7 +337,8 @@ export class EditorSlot implements Component {
       return;
     }
     this.syncActiveTab();
-    if (this.activeTab()?.vimMode) {
+    const active = this.activeTab();
+    if (active?.vimMode && active.extensionUi.waitingForInputs.length === 0) {
       this.tui.requestRender();
       return;
     }
@@ -591,11 +592,12 @@ export class EditorSlot implements Component {
   }
 
   private handleTabHistoryInput(data: string): boolean {
-    // Works for default and permanent setEditorComponent skins. Temporary input
-    // components never reach here (handleInput short-circuits earlier).
+    // Works for default and permanent setEditorComponent skins. Temporary
+    // custom()/dialog takeovers own Up/Down; input-component overrides never
+    // reach here (handleInput short-circuits earlier).
     if (!matchesKey(data, "up") && !matchesKey(data, "down")) return false;
     const active = this.mixState.tabs.find((tab) => tab.sessionId === this.activeTabId);
-    if (!active) return false;
+    if (!active || active.extensionUi.waitingForInputs.length > 0) return false;
     const browsing = this.historyIndex !== -1;
     if (
       matchesKey(data, "up") &&

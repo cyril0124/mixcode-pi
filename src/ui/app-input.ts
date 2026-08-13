@@ -548,6 +548,7 @@ function handleAgentSurfaceKeys(
     !hasAnyOverlay(tui) &&
     !hasFocusedAppControl(state, active) &&
     !isEditorAutocompleteOpen() &&
+    !isPendingEditorTakeover(active, editorActions) &&
     editorActions?.browsePromptHistory?.(data)
   ) {
     clearPendingEscape(active, "abort-agent");
@@ -606,6 +607,7 @@ function handleAgentSurfaceKeys(
     active &&
     state.activeTabId !== "config" &&
     !hasAnyOverlay(tui) &&
+    !isPendingEditorTakeover(active, editorActions) &&
     handleVimModeKey(active, data)
   ) {
     clearPendingEscape(active, "abort-agent");
