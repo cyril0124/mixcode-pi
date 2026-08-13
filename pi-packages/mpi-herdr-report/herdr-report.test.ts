@@ -1,22 +1,21 @@
 import assert from "node:assert/strict";
 import { test } from "bun:test";
 import {
-  buildHerdrNotificationArgs,
-  buildHerdrReleaseAgentArgs,
-  buildHerdrReportAgentArgs,
-  buildHerdrReportAgentSessionArgs,
-  deriveHerdrState,
-  HERDR_HEARTBEAT_MS,
+  buildNotificationShowRequest,
+  buildReportAgentRequest,
+  buildReportAgentSessionRequest,
+  desiredBusy,
+  desiredState,
+  enqueueLatest,
+  herdrBridgeEnabled,
   HERDR_REPORT_AGENT,
   HERDR_REPORT_SOURCE,
   isMixcodeProcess,
   MARK_DONE_EVENT,
   parseWaitingForInputPayload,
   resolveHerdrPaneId,
-  shouldThrottleSpawnError,
-  SPAWN_ERROR_THROTTLE_MS,
-  startHerdrHeartbeat,
-  stopHerdrHeartbeat,
+  shouldClearAgentActive,
+  socketEndpoint,
   WAITING_FOR_INPUT_EVENT,
 } from "./index.ts";
 
@@ -31,80 +30,95 @@ test("isMixcodeProcess requires MIXCODE truthy", () => {
   assert.equal(isMixcodeProcess({ MIXCODE: "yes" }), true);
 });
 
-test("resolveHerdrPaneId requires MIXCODE and HERDR pane env", () => {
-  assert.equal(resolveHerdrPaneId({ HERDR_ENV: "1", HERDR_PANE_ID: "w1:p1" }), undefined);
+test("herdrBridgeEnabled requires MIXCODE plus herdr pane env", () => {
+  assert.equal(herdrBridgeEnabled({ HERDR_ENV: "1", HERDR_SOCKET_PATH: "/s", HERDR_PANE_ID: "w1:p1" }), false);
   assert.equal(
-    resolveHerdrPaneId({ MIXCODE: "1", HERDR_ENV: "1", HERDR_PANE_ID: "w1:p1" }),
-    "w1:p1",
+    herdrBridgeEnabled({
+      MIXCODE: "1",
+      HERDR_ENV: "1",
+      HERDR_SOCKET_PATH: "/s",
+      HERDR_PANE_ID: "w1:p1",
+    }),
+    true,
   );
-  assert.equal(resolveHerdrPaneId({ MIXCODE: "1", HERDR_ENV: "1" }), undefined);
+  assert.equal(herdrBridgeEnabled({ MIXCODE: "1", HERDR_ENV: "1", HERDR_PANE_ID: "w1:p1" }), false);
 });
 
-test("report source is mpi (custom:mpi is ignored by Herdr pane ownership)", () => {
+test("resolveHerdrPaneId requires full bridge env", () => {
+  assert.equal(resolveHerdrPaneId({ HERDR_ENV: "1", HERDR_PANE_ID: "w1:p1" }), undefined);
+  assert.equal(
+    resolveHerdrPaneId({
+      MIXCODE: "1",
+      HERDR_ENV: "1",
+      HERDR_SOCKET_PATH: "/s",
+      HERDR_PANE_ID: "w1:p1",
+    }),
+    "w1:p1",
+  );
+});
+
+test("MIXCODE on reports mpi identity", () => {
   assert.equal(HERDR_REPORT_SOURCE, "mpi");
   assert.equal(HERDR_REPORT_AGENT, "mpi");
 });
 
-test("buildHerdrReleaseAgentArgs drops ownership on exit", () => {
-  assert.deepEqual(buildHerdrReleaseAgentArgs("w1:p1", 9), [
-    "pane",
-    "release-agent",
-    "w1:p1",
-    "--source",
-    "mpi",
-    "--agent",
-    "mpi",
-    "--seq",
-    "9",
-  ]);
+test("desiredState: blocked wins over working", () => {
+  assert.equal(desiredState(true, 1), "blocked");
+  assert.equal(desiredState(false, 1), "blocked");
+  assert.equal(desiredState(true, 0), "working");
+  assert.equal(desiredState(false, 0), "idle");
 });
 
-test("buildHerdrReportAgentSessionArgs claims the pane agent", () => {
-  assert.deepEqual(buildHerdrReportAgentSessionArgs("w1:p1", 3), [
-    "pane",
-    "report-agent-session",
-    "w1:p1",
-    "--source",
-    "mpi",
-    "--agent",
-    "mpi",
-    "--seq",
-    "3",
-  ]);
+test("desiredBusy stays working while any session is busy", () => {
+  assert.equal(desiredBusy(2, 0), "working");
+  assert.equal(desiredBusy(1, 0), "working");
+  assert.equal(desiredBusy(0, 0), "idle");
+  assert.equal(desiredBusy(0, 1), "blocked");
 });
 
-test("deriveHerdrState: blocked wins over working", () => {
-  assert.equal(deriveHerdrState(2, 1), "blocked");
-  assert.equal(deriveHerdrState(0, 1), "blocked");
-  assert.equal(deriveHerdrState(1, 0), "working");
-  assert.equal(deriveHerdrState(0, 0), "idle");
+test("shouldClearAgentActive matches official isIdle gate", () => {
+  assert.equal(shouldClearAgentActive(true), true);
+  assert.equal(shouldClearAgentActive(false), false);
+  assert.equal(shouldClearAgentActive(undefined), false);
 });
 
-test("buildHerdrReportAgentArgs includes blocked state", () => {
-  const args = buildHerdrReportAgentArgs("pane-1", "blocked", 42);
-  assert.deepEqual(args, [
-    "pane",
-    "report-agent",
-    "pane-1",
-    "--source",
-    HERDR_REPORT_SOURCE,
-    "--agent",
-    HERDR_REPORT_AGENT,
-    "--state",
-    "blocked",
-    "--seq",
-    "42",
-  ]);
+test("enqueueLatest keeps only the newest slot", () => {
+  assert.deepEqual(enqueueLatest(undefined, { state: "working", seq: 1 }), { state: "working", seq: 1 });
+  assert.deepEqual(
+    enqueueLatest({ state: "working", seq: 1 }, { state: "idle", seq: 2 }),
+    { state: "idle", seq: 2 },
+  );
 });
 
-test("buildHerdrNotificationArgs uses done sound", () => {
-  assert.deepEqual(buildHerdrNotificationArgs("Marked done", "done"), [
-    "notification",
-    "show",
-    "Marked done",
-    "--sound",
-    "done",
-  ]);
+test("buildReportAgentRequest is official socket shape with mpi labels", () => {
+  const req = buildReportAgentRequest("w1:p1", "blocked", 42);
+  assert.equal(req.method, "pane.report_agent");
+  assert.deepEqual(req.params, {
+    pane_id: "w1:p1",
+    source: "mpi",
+    agent: "mpi",
+    state: "blocked",
+    seq: 42,
+  });
+});
+
+test("buildReportAgentSessionRequest claims the pane agent", () => {
+  const req = buildReportAgentSessionRequest("w1:p1", 3, { agent_session_id: "s1" });
+  assert.equal(req.method, "pane.report_agent_session");
+  assert.equal((req.params as { agent: string }).agent, "mpi");
+  assert.equal((req.params as { source: string }).source, "mpi");
+  assert.equal((req.params as { agent_session_id: string }).agent_session_id, "s1");
+});
+
+test("buildNotificationShowRequest uses done sound", () => {
+  const req = buildNotificationShowRequest("Marked done", "done");
+  assert.equal(req.method, "notification.show");
+  assert.deepEqual(req.params, { title: "Marked done", sound: "done" });
+});
+
+test("socketEndpoint uses named pipe only on win32", () => {
+  assert.equal(socketEndpoint("/tmp/herdr.sock", "linux"), "/tmp/herdr.sock");
+  assert.equal(socketEndpoint("herdr.sock", "win32"), "\\\\.\\pipe\\herdr.sock");
 });
 
 test("event channel names are stable", () => {
@@ -120,43 +134,4 @@ test("parseWaitingForInputPayload normalizes count", () => {
   assert.deepEqual(parseWaitingForInputPayload({ count: -3 }), { count: 0, active: false });
   assert.deepEqual(parseWaitingForInputPayload(null), { count: 0, active: false });
   assert.deepEqual(parseWaitingForInputPayload({ count: 1.9 }), { count: 1, active: true });
-});
-
-test("heartbeat interval is a fixed low-frequency reclaim period", () => {
-  assert.equal(HERDR_HEARTBEAT_MS, 45_000);
-  assert.ok(HERDR_HEARTBEAT_MS >= 30_000);
-  assert.ok(HERDR_HEARTBEAT_MS <= 60_000);
-});
-
-test("shouldThrottleSpawnError enforces gap after first error", () => {
-  assert.equal(shouldThrottleSpawnError(0, 1000), false);
-  assert.equal(shouldThrottleSpawnError(1000, 1000 + SPAWN_ERROR_THROTTLE_MS - 1), true);
-  assert.equal(shouldThrottleSpawnError(1000, 1000 + SPAWN_ERROR_THROTTLE_MS), false);
-});
-
-test("startHerdrHeartbeat no-ops without MIXCODE/HERDR pane env", () => {
-  const prev = {
-    MIXCODE: process.env.MIXCODE,
-    HERDR_ENV: process.env.HERDR_ENV,
-    HERDR_PANE_ID: process.env.HERDR_PANE_ID,
-  };
-  try {
-    delete process.env.MIXCODE;
-    delete process.env.HERDR_ENV;
-    delete process.env.HERDR_PANE_ID;
-    stopHerdrHeartbeat();
-    startHerdrHeartbeat({});
-    // Second call must stay a no-op even if env appears later on process.env only
-    // for the default arg path — explicit empty env stays idle.
-    startHerdrHeartbeat({});
-    stopHerdrHeartbeat();
-  } finally {
-    if (prev.MIXCODE === undefined) delete process.env.MIXCODE;
-    else process.env.MIXCODE = prev.MIXCODE;
-    if (prev.HERDR_ENV === undefined) delete process.env.HERDR_ENV;
-    else process.env.HERDR_ENV = prev.HERDR_ENV;
-    if (prev.HERDR_PANE_ID === undefined) delete process.env.HERDR_PANE_ID;
-    else process.env.HERDR_PANE_ID = prev.HERDR_PANE_ID;
-    stopHerdrHeartbeat();
-  }
 });

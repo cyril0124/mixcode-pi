@@ -1,69 +1,68 @@
 /**
- * Report mpi turn lifecycle to Herdr so background panes can show `done`
- * (Herdr: idle + unseen) and `blocked` (waiting for user input).
- * BEL alone does not drive Herdr agent state.
+ * Report mpi turn lifecycle to Herdr the same way the official Pi hook does:
+ * socket JSON-RPC, latest-state queue, settled/isIdle.
  *
- * Only active when MIXCODE is set (MixCode host, not upstream pi), and
- * HERDR_ENV=1 with HERDR_PANE_ID (inside a Herdr pane).
- * Multi-tab: process-level refcounts so any busy/waiting session drives the pane.
+ * Active when MIXCODE is on and HERDR_ENV=1, HERDR_SOCKET_PATH, HERDR_PANE_ID
+ * are set. MIXCODE off stays silent (do not fight official herdr:pi).
+ * Multi-tab: process-level busy set so any running session keeps the pane working.
  *
- * Events (host fans out on every session EventBus; string channels only):
- * - `mpi:waiting-for-input` → blocked vs not
- * - `mpi:mark-done` → force a working→idle pulse (Herdr only notifies on state
- *   *change*; already-idle is a no-op with plain report). Also try
- *   `notification show --sound done` (may be disabled in herdr toast config).
- *   Herdr UI `done` = idle + unseen; while focused you stay idle, not done.
- *
- * Idle reclaim: Herdr may drop report-agent ownership while mpi stays idle.
- * A low-frequency heartbeat force-reports the current state so the sidebar
- * reclaims `mpi` without waiting for the next turn.
- *
+ * MixCode extras: `mpi:waiting-for-input` → blocked, `mpi:mark-done` notify.
  * Pure Node — must also run under upstream pi (Node + jiti).
  */
 
-import { spawn, spawnSync } from "node:child_process";
-import * as fs from "node:fs";
-import * as path from "node:path";
-import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
+import * as net from "node:net";
+import type {
+  ExtensionContext,
+  ExtensionFactory,
+  SessionStartEvent,
+} from "@earendil-works/pi-coding-agent";
 
-/** Herdr `pane report-agent --state` values we emit. */
 export type HerdrReportState = "working" | "idle" | "blocked";
 
-// Must match Herdr's detected agent ownership. `custom:mpi` is accepted by the
-// API but ignored for pane state when screen detection already owns label `mpi`.
 export const HERDR_REPORT_SOURCE = "mpi";
 export const HERDR_REPORT_AGENT = "mpi";
-
-/** Process-level re-claim interval while the extension is active. */
-export const HERDR_HEARTBEAT_MS = 45_000;
-
-/** Min gap between stderr spawn-error lines. */
-export const SPAWN_ERROR_THROTTLE_MS = 30_000;
-
-/** Shared with MixCode host channel names (string only — no import). */
+export const MIXCODE_ENV = "MIXCODE" as const;
 export const WAITING_FOR_INPUT_EVENT = "mpi:waiting-for-input" as const;
 export const MARK_DONE_EVENT = "mpi:mark-done" as const;
-
-/** Env MixCode sets so this package no-ops under upstream `pi`. */
-export const MIXCODE_ENV = "MIXCODE" as const;
 
 export interface WaitingForInputEventPayload {
   count: number;
   active: boolean;
 }
 
-/** True when running under MixCode (not bare upstream pi). */
 export function isMixcodeProcess(env: NodeJS.ProcessEnv = process.env): boolean {
   const raw = env[MIXCODE_ENV]?.trim().toLowerCase();
   if (!raw) return false;
   return raw !== "0" && raw !== "false" && raw !== "off";
 }
 
-/** Pure priority: blocked > working > idle. */
-export function deriveHerdrState(activeRuns: number, waitingCount: number): HerdrReportState {
-  if (waitingCount > 0) return "blocked";
-  if (activeRuns > 0) return "working";
+export function herdrBridgeEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return isMixcodeProcess(env) && env.HERDR_ENV === "1" && !!env.HERDR_SOCKET_PATH?.trim() && !!env.HERDR_PANE_ID?.trim();
+}
+
+export function resolveHerdrPaneId(env: NodeJS.ProcessEnv = process.env): string | undefined {
+  if (!herdrBridgeEnabled(env)) return undefined;
+  return env.HERDR_PANE_ID?.trim() || undefined;
+}
+
+export function socketEndpoint(socketPath: string, platform: NodeJS.Platform = process.platform): string {
+  return platform === "win32" ? `\\\\.\\pipe\\${socketPath}` : socketPath;
+}
+
+/** Official-style desired state: blocked > working > idle. */
+export function desiredState(agentActive: boolean, blockedCount: number): HerdrReportState {
+  if (blockedCount > 0) return "blocked";
+  if (agentActive) return "working";
   return "idle";
+}
+
+export function desiredBusy(busyCount: number, blockedCount: number): HerdrReportState {
+  return desiredState(busyCount > 0, blockedCount);
+}
+
+/** Official: only clear busy when settled reports isIdle === true. */
+export function shouldClearAgentActive(isIdle: unknown): boolean {
+  return isIdle === true;
 }
 
 export function parseWaitingForInputPayload(raw: unknown): WaitingForInputEventPayload {
@@ -73,311 +72,245 @@ export function parseWaitingForInputPayload(raw: unknown): WaitingForInputEventP
   return { count: n, active: n > 0 };
 }
 
-/** Pure throttle check for spawn-error stderr. */
-export function shouldThrottleSpawnError(
-  lastAt: number,
-  now: number,
-  throttleMs: number = SPAWN_ERROR_THROTTLE_MS,
-): boolean {
-  return lastAt > 0 && now - lastAt < throttleMs;
-}
-
-// Process-wide across all sessions in this mpi process (multi-tab).
-let activeRuns = 0;
-let waitingCount = 0;
-let previousReported: HerdrReportState | undefined;
-let seq = Date.now() * 1000;
-/** True after extension factory subscribed (avoids reporting before load). */
-let bridgeAttached = false;
-/** Coalesce multi-bus fan-out of the same mark-done into one notification. */
-let lastMarkDoneAt = 0;
-/** Install process-exit release hooks once per process. */
-let exitHooksInstalled = false;
-let released = false;
-let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
-let lastSpawnErrorAt = 0;
-
-export function resolveHerdrPaneId(env: NodeJS.ProcessEnv = process.env): string | undefined {
-  if (!isMixcodeProcess(env)) return undefined;
-  if (env.HERDR_ENV !== "1") return undefined;
-  const paneId = env.HERDR_PANE_ID?.trim();
-  return paneId || undefined;
-}
-
-export function buildHerdrReportAgentArgs(
+export function buildReportAgentRequest(
   paneId: string,
   state: HerdrReportState,
-  nextSeq: number,
-): string[] {
-  return [
-    "pane",
-    "report-agent",
-    paneId,
-    "--source",
-    HERDR_REPORT_SOURCE,
-    "--agent",
-    HERDR_REPORT_AGENT,
-    "--state",
-    state,
-    "--seq",
-    String(nextSeq),
-  ];
-}
-
-export function buildHerdrNotificationArgs(title: string, sound: "done" | "request" | "none"): string[] {
-  return ["notification", "show", title, "--sound", sound];
-}
-
-export function buildHerdrReleaseAgentArgs(paneId: string, nextSeq: number): string[] {
-  return [
-    "pane",
-    "release-agent",
-    paneId,
-    "--source",
-    HERDR_REPORT_SOURCE,
-    "--agent",
-    HERDR_REPORT_AGENT,
-    "--seq",
-    String(nextSeq),
-  ];
-}
-
-export function buildHerdrReportAgentSessionArgs(paneId: string, nextSeq: number): string[] {
-  return [
-    "pane",
-    "report-agent-session",
-    paneId,
-    "--source",
-    HERDR_REPORT_SOURCE,
-    "--agent",
-    HERDR_REPORT_AGENT,
-    "--seq",
-    String(nextSeq),
-  ];
-}
-
-export function resolveHerdrBin(env: NodeJS.ProcessEnv = process.env): string | undefined {
-  const fromEnv = env.HERDR_BIN_PATH?.trim();
-  if (fromEnv) return fromEnv;
-  return which("herdr", env);
-}
-
-function which(bin: string, env: NodeJS.ProcessEnv): string | undefined {
-  const pathEnv = env.PATH ?? process.env.PATH ?? "";
-  for (const dir of pathEnv.split(path.delimiter)) {
-    if (!dir) continue;
-    const candidate = path.join(dir, bin);
-    try {
-      fs.accessSync(candidate, fs.constants.X_OK);
-      return candidate;
-    } catch {
-      // try next
-    }
-  }
-  return undefined;
-}
-
-function logSpawnError(message: string): void {
-  const now = Date.now();
-  if (shouldThrottleSpawnError(lastSpawnErrorAt, now)) return;
-  lastSpawnErrorAt = now;
-  console.error(`[mpi-herdr-report] ${message}`);
-}
-
-function spawnHerdr(args: string[], env: NodeJS.ProcessEnv = process.env): void {
-  const bin = resolveHerdrBin(env);
-  if (!bin) {
-    logSpawnError("herdr binary not found on PATH / HERDR_BIN_PATH");
-    return;
-  }
-  const child = spawn(bin, args, {
-    stdio: "ignore",
-    detached: true,
-  });
-  child.on("error", (err) => {
-    logSpawnError(`herdr spawn failed: ${err instanceof Error ? err.message : String(err)}`);
-  });
-  child.unref();
-}
-
-function spawnHerdrReportAgent(
-  paneId: string,
-  state: HerdrReportState,
-  nextSeq: number,
-  env: NodeJS.ProcessEnv = process.env,
-): void {
-  spawnHerdr(buildHerdrReportAgentArgs(paneId, state, nextSeq), env);
-}
-
-function spawnHerdrDoneNotification(env: NodeJS.ProcessEnv = process.env): void {
-  spawnHerdr(buildHerdrNotificationArgs("Marked done", "done"), env);
-}
-
-export function stopHerdrHeartbeat(): void {
-  if (heartbeatTimer === undefined) return;
-  clearInterval(heartbeatTimer);
-  heartbeatTimer = undefined;
-}
-
-/**
- * Single process-level timer: force-report current state so Herdr ownership
- * recovers after idle drops. No-op without pane env or when already running.
- */
-export function startHerdrHeartbeat(env: NodeJS.ProcessEnv = process.env): void {
-  if (heartbeatTimer !== undefined) return;
-  if (!resolveHerdrPaneId(env)) return;
-  heartbeatTimer = setInterval(() => {
-    if (released || !bridgeAttached) return;
-    if (!resolveHerdrPaneId()) return;
-    announcePresence();
-  }, HERDR_HEARTBEAT_MS);
-  heartbeatTimer.unref?.();
-}
-
-/**
- * Drop our report-agent ownership so the sidebar agent disappears when mpi
- * exits. Must be sync — fire-and-forget spawn is killed with the parent.
- */
-export function releaseHerdrAgent(env: NodeJS.ProcessEnv = process.env): void {
-  if (released) return;
-  stopHerdrHeartbeat();
-  const paneId = resolveHerdrPaneId(env);
-  if (!paneId) return;
-  const bin = resolveHerdrBin(env);
-  if (!bin) return;
-  released = true;
-  seq += 1;
-  spawnSync(bin, buildHerdrReleaseAgentArgs(paneId, seq), { stdio: "ignore" });
-  previousReported = undefined;
-  activeRuns = 0;
-}
-
-function installExitHooks(): void {
-  if (exitHooksInstalled) return;
-  exitHooksInstalled = true;
-  const onExit = () => {
-    try {
-      releaseHerdrAgent();
-    } catch {
-      // best-effort on teardown
-    }
+  seq: number,
+  extra: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    id: `${HERDR_REPORT_SOURCE}:${Date.now()}:${Math.random().toString(36).slice(2)}`,
+    method: "pane.report_agent",
+    params: {
+      pane_id: paneId,
+      source: HERDR_REPORT_SOURCE,
+      agent: HERDR_REPORT_AGENT,
+      state,
+      seq,
+      ...extra,
+    },
   };
-  process.once("exit", onExit);
-  // Signals: release then re-raise default so the process still terminates.
-  for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) {
-    process.once(signal, () => {
-      onExit();
-      process.kill(process.pid, signal);
-    });
+}
+
+export function buildReportAgentSessionRequest(
+  paneId: string,
+  seq: number,
+  extra: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    id: `${HERDR_REPORT_SOURCE}:session:${Date.now()}:${Math.random().toString(36).slice(2)}`,
+    method: "pane.report_agent_session",
+    params: {
+      pane_id: paneId,
+      source: HERDR_REPORT_SOURCE,
+      agent: HERDR_REPORT_AGENT,
+      seq,
+      ...extra,
+    },
+  };
+}
+
+export function buildNotificationShowRequest(
+  title: string,
+  sound: "done" | "request" | "none",
+): Record<string, unknown> {
+  return {
+    id: `${HERDR_REPORT_SOURCE}:notify:${Date.now()}:${Math.random().toString(36).slice(2)}`,
+    method: "notification.show",
+    params: { title, sound },
+  };
+}
+
+/** Latest-wins queue slot used by the official hook. */
+export function enqueueLatest<T>(queued: T | undefined, next: T): T {
+  return next;
+}
+
+type QueuedState = {
+  state: HerdrReportState;
+  message?: string;
+  extra?: Record<string, unknown>;
+  seq: number;
+};
+
+let reportSeq = Date.now() * 1000;
+let sendInFlight = false;
+let queuedState: QueuedState | undefined;
+let lastMarkDoneAt = 0;
+const busySessions = new Set<string>();
+
+function nextReportSeq(): number {
+  reportSeq += 1;
+  return reportSeq;
+}
+
+function sessionFieldsFrom(ctx: unknown): Record<string, unknown> {
+  const sessionManager = (ctx as { sessionManager?: { getSessionFile?: () => unknown; getSessionId?: () => unknown } })
+    ?.sessionManager;
+  try {
+    const file = sessionManager?.getSessionFile?.();
+    if (typeof file === "string" && file.startsWith("/")) return { agent_session_path: file };
+  } catch {
+    // fall through to id
+  }
+  try {
+    const id = sessionManager?.getSessionId?.();
+    if (typeof id === "string" && id.length > 0) return { agent_session_id: id };
+  } catch {
+    // no session ref
+  }
+  return {};
+}
+
+export function sendRequestAttempt(
+  request: unknown,
+  timeoutMs: number,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<boolean> {
+  if (!herdrBridgeEnabled(env)) return Promise.resolve(true);
+  const path = env.HERDR_SOCKET_PATH!.trim();
+  const endpoint = socketEndpoint(path);
+
+  return new Promise((resolve) => {
+    let done = false;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const finish = (delivered: boolean) => {
+      if (done) return;
+      done = true;
+      if (timeout) clearTimeout(timeout);
+      socket.destroy();
+      resolve(delivered);
+    };
+
+    const socket = net.createConnection(endpoint);
+    socket.on("error", () => finish(false));
+    socket.on("connect", () => socket.write(`${JSON.stringify(request)}\n`));
+    socket.on("data", () => finish(true));
+    socket.on("end", () => finish(false));
+    timeout = setTimeout(() => finish(false), timeoutMs);
+    timeout.unref?.();
+  });
+}
+
+async function sendRequest(request: unknown): Promise<void> {
+  if (await sendRequestAttempt(request, 500)) return;
+  await sendRequestAttempt(request, 1500);
+}
+
+function sendState(
+  state: HerdrReportState,
+  message: string | undefined,
+  seq: number,
+  extra: Record<string, unknown> = {},
+): Promise<void> {
+  const paneId = resolveHerdrPaneId();
+  if (!paneId) return Promise.resolve();
+  return sendRequest(
+    buildReportAgentRequest(paneId, state, seq, {
+      ...extra,
+      ...(message ? { message } : {}),
+    }),
+  );
+}
+
+async function drainStateQueue(): Promise<void> {
+  if (sendInFlight) return;
+  sendInFlight = true;
+  try {
+    while (queuedState) {
+      const next = queuedState;
+      queuedState = undefined;
+      await sendState(next.state, next.message, next.seq, next.extra ?? {});
+    }
+  } finally {
+    sendInFlight = false;
+    if (queuedState) void drainStateQueue();
   }
 }
 
-function report(state: HerdrReportState): void {
-  if (previousReported === state) return;
-  forceReport(state);
-}
-
-/** Always emit report-agent (new seq), even when state is unchanged. */
-function forceReport(state: HerdrReportState): void {
-  const paneId = resolveHerdrPaneId();
-  if (!paneId) return;
-  previousReported = state;
-  seq += 1;
-  spawnHerdrReportAgent(paneId, state, seq);
-}
-
-function recompute(): void {
-  if (!bridgeAttached) return;
-  if (!resolveHerdrPaneId()) return;
-  report(deriveHerdrState(activeRuns, waitingCount));
-}
-
-/**
- * Claim the pane agent and push current state so the sidebar shows mpi.
- * Used at load, session_start, agent_start, and heartbeat so idle ownership
- * loss is repaired without waiting for a state transition.
- */
-function announcePresence(): void {
-  const paneId = resolveHerdrPaneId();
-  if (!paneId) return;
-  seq += 1;
-  spawnHerdr(buildHerdrReportAgentSessionArgs(paneId, seq));
-  // Prefer force so a brand-new process always lands idle even if a previous
-  // in-process report left previousReported set (extension reload).
-  forceReport(deriveHerdrState(activeRuns, waitingCount));
-}
-
-function onAgentStart(): void {
-  if (!resolveHerdrPaneId()) return;
-  activeRuns += 1;
-  // Re-claim even when already working (Herdr may have dropped ownership).
-  announcePresence();
-}
-
-// Pair with agent_start 1:1. MixCode maps idle to agent_end; agent_settled can
-// be skipped on some abort/reload paths, which left Herdr stuck on working.
-function onAgentFinished(): void {
-  if (!resolveHerdrPaneId()) return;
-  activeRuns = Math.max(0, activeRuns - 1);
-  announcePresence();
-}
-
-function onWaitingForInput(raw: unknown): void {
-  const payload = parseWaitingForInputPayload(raw);
-  waitingCount = payload.count;
-  recompute();
-}
-
-/**
- * Explicit mark-done:
- * - Coalesce multi-bus fan-out (host emits on every session bus).
- * - If blocked, keep blocked; still try notification.
- * - Else force working→idle so Herdr sees a real state transition (plain
- *   report("idle") is a no-op when already idle, so completion UX never runs).
- * - notification.show often returns disabled in herdr config; pulse is primary.
- */
-function onMarkDone(): void {
-  if (!resolveHerdrPaneId()) return;
-  const now = Date.now();
-  if (now - lastMarkDoneAt < 100) return;
-  lastMarkDoneAt = now;
-
-  spawnHerdrDoneNotification();
-
-  if (waitingCount > 0) return;
-
-  // Pulse for Herdr state-change notifications without discarding multi-tab
-  // run refcount; recompute restores true busy/idle after the pulse.
-  forceReport("working");
-  forceReport("idle");
-  recompute();
+function queueState(state: HerdrReportState, message?: string, extra: Record<string, unknown> = {}): void {
+  queuedState = enqueueLatest(queuedState, { state, message, extra, seq: nextReportSeq() });
+  if (!sendInFlight) void drainStateQueue();
 }
 
 const herdrReportExtension: ExtensionFactory = (pi) => {
-  // Shared agent-dir install also loads under upstream pi — stay silent there.
-  if (!isMixcodeProcess()) return;
-  bridgeAttached = true;
-  installExitHooks();
-  // Keep process-level listeners for the life of this extension runtime.
-  // Do not unsubscribe on session_shutdown — that runs on /clear and session
-  // replace while the same EventBus is reused, which would silently kill
-  // mark-done / waiting handlers until a full extension reload.
-  pi.events.on(WAITING_FOR_INPUT_EVENT, onWaitingForInput);
+  if (!herdrBridgeEnabled()) return;
+
+  let blockedCount = 0;
+  let blockedMessage: string | undefined;
+  let lastState: HerdrReportState | undefined;
+  let lastMessage: string | undefined;
+  let rootSession = false;
+  let sessionKey: string | undefined;
+  let sessionExtra: Record<string, unknown> = {};
+
+  function rememberSession(ctx: unknown): void {
+    sessionExtra = sessionFieldsFrom(ctx);
+    sessionKey =
+      (sessionExtra.agent_session_path as string | undefined) ??
+      (sessionExtra.agent_session_id as string | undefined);
+  }
+
+  function publishState(force = false): void {
+    const next = {
+      state: desiredBusy(busySessions.size, blockedCount),
+      message: blockedCount > 0 ? blockedMessage : undefined,
+    };
+    if (!force && next.state === lastState && next.message === lastMessage) return;
+    lastState = next.state;
+    lastMessage = next.message;
+    queueState(next.state, next.message, sessionExtra);
+  }
+
+  async function reportSession(sessionStartSource?: string): Promise<void> {
+    const paneId = resolveHerdrPaneId();
+    const extra = { ...sessionExtra };
+    if (!paneId || Object.keys(extra).length === 0) return;
+    if (sessionStartSource) extra.session_start_source = sessionStartSource;
+    await sendRequest(buildReportAgentSessionRequest(paneId, nextReportSeq(), extra));
+  }
+
+  pi.events.on(WAITING_FOR_INPUT_EVENT, (raw: unknown) => {
+    if (!rootSession) return;
+    const payload = parseWaitingForInputPayload(raw);
+    blockedCount = payload.count;
+    if (blockedCount === 0) blockedMessage = undefined;
+    else blockedMessage = "waiting for input";
+    publishState();
+  });
+
   pi.events.on(MARK_DONE_EVENT, () => {
-    onMarkDone();
+    if (!rootSession) return;
+    const now = Date.now();
+    if (now - lastMarkDoneAt < 100) return;
+    lastMarkDoneAt = now;
+    void sendRequest(buildNotificationShowRequest("Marked done", "done"));
+    publishState(true);
   });
-  pi.on("agent_start", () => {
-    onAgentStart();
+
+  pi.on("session_start", (event: SessionStartEvent, ctx: ExtensionContext) => {
+    if (ctx.mode !== "tui") return;
+    rootSession = true;
+    rememberSession(ctx);
+    void reportSession(event.reason).then(() => {
+      if (sessionKey && ctx.isIdle() === false) busySessions.add(sessionKey);
+      else if (sessionKey) busySessions.delete(sessionKey);
+      publishState(true);
+    });
   });
-  pi.on("agent_end", () => {
-    onAgentFinished();
+
+  pi.on("agent_start", (_event, ctx) => {
+    if (!rootSession) return;
+    rememberSession(ctx);
+    void reportSession();
+    if (sessionKey) busySessions.add(sessionKey);
+    publishState();
   });
-  // Factory runs at extension load (often before session_start). Announce once
-  // here; session_start re-announces after replace/clear so idle returns.
-  announcePresence();
-  startHerdrHeartbeat();
-  pi.on("session_start", () => {
-    announcePresence();
+
+  pi.on("agent_settled", (_event, ctx) => {
+    if (!rootSession || !shouldClearAgentActive(ctx.isIdle())) return;
+    if (sessionKey) busySessions.delete(sessionKey);
+    publishState();
   });
 };
 
