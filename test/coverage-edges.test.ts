@@ -38,7 +38,7 @@ test("extension theme lookup and apply reject unknown or hostless switches", () 
   assert.equal(extensionThemeByName("mixcode-dark"), MIXCODE_EXTENSION_THEME);
   assert.equal(extensionThemeByName("missing"), undefined);
 
-  assert.deepEqual(applyExtensionTheme("dark", undefined, () => undefined), {
+  assert.deepEqual(applyExtensionTheme("mixcode-dark", undefined, () => undefined), {
     success: false,
     error: "Pi extension theme switching requires an active MixCode TUI host",
   });

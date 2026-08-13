@@ -32,7 +32,7 @@ The file uses JSONC syntax: regular JSON plus comments and trailing commas. If t
 
 | Setting | Values | Default | Description |
 | --- | --- | --- | --- |
-| `theme` | theme id string | unset → runtime default | Explicit UI theme id. Built-ins (`claude-warm`, `mixcode-dark`, `tokyo-night`, `terminal`), Pi themes (`dark`/`light` — note `dark` aliases to `mixcode-dark`), and any theme discovered by Pi (`~/.pi/agent/themes`, packages). Editable via `/settings`. |
+| `theme` | theme id string | unset → runtime default | Explicit UI theme id. Built-ins (`mixcode-dark`, `claude-warm`, `tokyo-night`, `terminal`, `catppuccin`, `kanagawa`, `rose-pine`), Pi themes (`dark`/`light`), and any theme discovered by Pi (`~/.pi/agent/themes`, packages). Ids are exact; there are no MixCode aliases. Editable via `/settings`. |
 | `history.maxBytes` | positive integer | `5242880` | Maximum size, in bytes, kept in `history.jsonl`. Older entries are trimmed when the file exceeds this size. |
 | `ui.icons.mode` | `auto` \| `nerd` \| `ascii` | `nerd` | Glyph set for input-meta icons, context meter, zen status dots, and extension-manager status. `auto` picks nerd glyphs on known Nerd Font terminals, otherwise ascii. Editable via `/settings` as “Icon mode”. |
 | `ui.oversizedAssistantMessage.enabled` | boolean | `true` | Fold oversized assistant/thinking provider output in the TUI while keeping full content in the session; use `/view` to inspect the full content. |

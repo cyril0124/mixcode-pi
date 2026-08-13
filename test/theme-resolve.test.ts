@@ -7,18 +7,12 @@ import {
   themeArgumentCompletions,
 } from "../src/index.js";
 
-test("normalizeThemeId maps known id and alias to canonical id, unknown to undefined, trims/case-folds", () => {
+test("normalizeThemeId maps known id to itself, unknown to undefined, trims/case-folds", () => {
   const [primary] = THEMES;
   assert.ok(primary);
 
   assert.equal(normalizeThemeId(primary.id), primary.id);
   assert.equal(normalizeThemeId(`  ${primary.id.toUpperCase()}  `), primary.id);
-
-  const aliased = THEMES.find((theme) => (theme.aliases ?? []).length > 0);
-  assert.ok(aliased?.aliases?.[0]);
-  assert.equal(normalizeThemeId(aliased.aliases[0]), aliased.id);
-  assert.equal(normalizeThemeId(` ${aliased.aliases[0].toUpperCase()} `), aliased.id);
-
   assert.equal(normalizeThemeId("not-a-theme"), undefined);
   assert.equal(normalizeThemeId("  "), undefined);
 });
@@ -27,9 +21,6 @@ test("resolveThemeInput returns exact id for known themes", () => {
   for (const theme of THEMES) {
     assert.equal(resolveThemeInput(theme.id), theme.id);
     assert.equal(resolveThemeInput(`  ${theme.id.toUpperCase()}  `), theme.id);
-    for (const alias of theme.aliases ?? []) {
-      assert.equal(resolveThemeInput(alias), theme.id);
-    }
   }
 });
 
@@ -47,15 +38,12 @@ test("themeArgumentCompletions lists known values and hides exact matches", () =
   const values = themeArgumentCompletions("").map((item) => item.value);
   for (const required of [
     "mixcode-dark",
-    "dark",
-    "mixcode",
     "claude-warm",
-    "claude",
-    "warm",
     "tokyo-night",
-    "tokyo",
-    "toyko",
     "terminal",
+    "catppuccin",
+    "kanagawa",
+    "rose-pine",
     "light",
   ]) {
     assert.ok(values.includes(required), `missing completion: ${required}`);

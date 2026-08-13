@@ -47,11 +47,11 @@ async function waitFor<T>(read: () => Promise<T>, attempts = 25): Promise<T> {
 
 test("theme registry validates and suggests themes", () => {
   const state = createInitialState("/repo");
-  setTheme(state, "dark");
+  setTheme(state, "mixcode-dark");
   assert.equal(state.theme, "mixcode-dark");
-  setTheme(state, "claude");
+  setTheme(state, "claude-warm");
   assert.equal(state.theme, "claude-warm");
-  setTheme(state, "toyko");
+  setTheme(state, "tokyo-night");
   assert.equal(state.theme, "tokyo-night");
   assert.ok(themeSuggestions("mix").length >= 1);
   assert.equal(themeSuggestions("claude")[0]?.id, "claude-warm");
@@ -68,7 +68,15 @@ test("theme registry validates and suggests themes", () => {
 
 test("thinking border colors follow Pi levels without collisions", () => {
   const levels = allKnownThinkingLevels();
-  for (const themeId of ["mixcode-dark", "claude-warm", "tokyo-night", "terminal"]) {
+  for (const themeId of [
+    "mixcode-dark",
+    "claude-warm",
+    "tokyo-night",
+    "terminal",
+    "catppuccin",
+    "kanagawa",
+    "rose-pine",
+  ]) {
     const theme = themeForId(themeId);
     const colors = levels.map((level) => theme.thinkingBorder(level)("border"));
     assert.equal(new Set(colors).size, levels.length, themeId);

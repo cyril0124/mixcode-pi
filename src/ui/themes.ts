@@ -17,7 +17,6 @@ export interface ThemeInfo {
   id: string;
   label: string;
   dark: boolean;
-  aliases?: string[];
 }
 
 const rgb = (hex: string) => {
@@ -344,6 +343,129 @@ export const TERMINAL_THEME: MixCodeTheme = {
   italic: (text: string) => `\x1b[3m${text}\x1b[23m`,
 };
 
+export const CATPPUCCIN_THEME: MixCodeTheme = {
+  name: "catppuccin",
+  border: rgb("#89b4fa"),
+  borderMuted: rgb("#45475a"),
+  text: rgb("#cdd6f4"),
+  dim: rgb("#6c7086"),
+  muted: rgb("#a6adc8"),
+  accent: rgb("#94e2d5"),
+  error: rgb("#f38ba8"),
+  warning: rgb("#f9e2af"),
+  success: rgb("#a6e3a1"),
+  done: rgb("#a6e3a1"),
+  background: persistentBgRgb("#1e1e2e"),
+  surface: persistentBgRgb("#181825"),
+  panel: persistentBgRgb("#313244"),
+  setupPanel: persistentBgRgb("#313244"),
+  selectedBg: persistentBgRgb("#45475a"),
+  promptSurface: persistentBgRgb("#181825"),
+  shellPromptSurface: persistentBgRgb("#1e2b2a"),
+  vimPromptSurface: persistentBgRgb("#2a2438"),
+  bashMode: rgb("#a6e3a1"),
+  vimBorder: rgb("#cba6f7"),
+  thinkingBorder: thinkingBorderFor(["#45475a", "#6c7086", "#89b4fa", "#cba6f7", "#fab387", "#f38ba8"]),
+  toolPendingBg: bgPair("#313244"),
+  toolSuccessBg: bgPair("#1e2b22"),
+  toolErrorBg: bgPair("#3a2228"),
+  systemBackground: bgPair("#181825"),
+  customMessageBg: bgPair("#2a2438"),
+  tab: (text: string) => `${bgRgb("#313244")(rgb("#6c7086")(text))}`,
+  activeTab: (text: string) => `${bgRgb("#94e2d5")(rgb("#1e1e2e")(text))}`,
+  recentTab: (text: string) => `${bgRgb("#3a5552")(rgb("#cdd6f4")(text))}`,
+  olderRecentTab: (text: string) => `${bgRgb("#313244")(rgb("#a6adc8")(text))}`,
+  homeTab: (text: string) => `${bgRgb("#89b4fa")(rgb("#1e1e2e")(text))}`,
+  homeTabActive: (text: string) => `${bgRgb("#45475a")(rgb("#89b4fa")(text))}`,
+  userMessageBg: persistentBgRgb("#181825"),
+  thinkingText: rgb("#6c7086"),
+  toolTitle: rgb("#fab387"),
+  bold: (text: string) => `\x1b[1m${text}\x1b[22m`,
+  italic: (text: string) => `\x1b[3m${text}\x1b[23m`,
+};
+
+export const KANAGAWA_THEME: MixCodeTheme = {
+  name: "kanagawa",
+  border: rgb("#7E9CD8"),
+  borderMuted: rgb("#2A2A37"),
+  text: rgb("#DCD7BA"),
+  dim: rgb("#727169"),
+  muted: rgb("#727169"),
+  accent: rgb("#7AA89F"),
+  error: rgb("#E82424"),
+  warning: rgb("#E6C384"),
+  success: rgb("#98BB6C"),
+  done: rgb("#98BB6C"),
+  background: persistentBgRgb("#1F1F28"),
+  surface: persistentBgRgb("#16161D"),
+  panel: persistentBgRgb("#2A2A37"),
+  setupPanel: persistentBgRgb("#2A2A37"),
+  selectedBg: persistentBgRgb("#363646"),
+  promptSurface: persistentBgRgb("#16161D"),
+  shellPromptSurface: persistentBgRgb("#1b2a28"),
+  vimPromptSurface: persistentBgRgb("#2a2438"),
+  bashMode: rgb("#98BB6C"),
+  vimBorder: rgb("#957FB8"),
+  thinkingBorder: thinkingBorderFor(["#2A2A37", "#727169", "#7E9CD8", "#957FB8", "#E6C384", "#FF5D62"]),
+  toolPendingBg: bgPair("#2A2A37"),
+  toolSuccessBg: bgPair("#1e2b22"),
+  toolErrorBg: bgPair("#3a2228"),
+  systemBackground: bgPair("#16161D"),
+  customMessageBg: bgPair("#2a2438"),
+  tab: (text: string) => `${bgRgb("#2A2A37")(rgb("#727169")(text))}`,
+  activeTab: (text: string) => `${bgRgb("#7AA89F")(rgb("#1F1F28")(text))}`,
+  recentTab: (text: string) => `${bgRgb("#3a4a46")(rgb("#DCD7BA")(text))}`,
+  olderRecentTab: (text: string) => `${bgRgb("#2A2A37")(rgb("#C8C4A9")(text))}`,
+  homeTab: (text: string) => `${bgRgb("#7E9CD8")(rgb("#1F1F28")(text))}`,
+  homeTabActive: (text: string) => `${bgRgb("#363646")(rgb("#7E9CD8")(text))}`,
+  userMessageBg: persistentBgRgb("#181820"),
+  thinkingText: rgb("#727169"),
+  toolTitle: rgb("#E6C384"),
+  bold: (text: string) => `\x1b[1m${text}\x1b[22m`,
+  italic: (text: string) => `\x1b[3m${text}\x1b[23m`,
+};
+
+export const ROSE_PINE_THEME: MixCodeTheme = {
+  name: "rose-pine",
+  border: rgb("#c4a7e7"),
+  borderMuted: rgb("#26233a"),
+  text: rgb("#e0def4"),
+  dim: rgb("#6e6a86"),
+  muted: rgb("#908caa"),
+  accent: rgb("#9ccfd8"),
+  error: rgb("#eb6f92"),
+  warning: rgb("#f6c177"),
+  success: rgb("#31748f"),
+  done: rgb("#9ccfd8"),
+  background: persistentBgRgb("#191724"),
+  surface: persistentBgRgb("#1f1d2e"),
+  panel: persistentBgRgb("#26233a"),
+  setupPanel: persistentBgRgb("#26233a"),
+  selectedBg: persistentBgRgb("#403d52"),
+  promptSurface: persistentBgRgb("#1f1d2e"),
+  shellPromptSurface: persistentBgRgb("#1b2a2c"),
+  vimPromptSurface: persistentBgRgb("#2a2438"),
+  bashMode: rgb("#31748f"),
+  vimBorder: rgb("#c4a7e7"),
+  thinkingBorder: thinkingBorderFor(["#26233a", "#6e6a86", "#31748f", "#c4a7e7", "#f6c177", "#eb6f92"]),
+  toolPendingBg: bgPair("#26233a"),
+  toolSuccessBg: bgPair("#1b2a22"),
+  toolErrorBg: bgPair("#3a2228"),
+  systemBackground: bgPair("#1f1d2e"),
+  customMessageBg: bgPair("#2a2438"),
+  tab: (text: string) => `${bgRgb("#26233a")(rgb("#6e6a86")(text))}`,
+  activeTab: (text: string) => `${bgRgb("#9ccfd8")(rgb("#191724")(text))}`,
+  recentTab: (text: string) => `${bgRgb("#2a4448")(rgb("#e0def4")(text))}`,
+  olderRecentTab: (text: string) => `${bgRgb("#26233a")(rgb("#908caa")(text))}`,
+  homeTab: (text: string) => `${bgRgb("#c4a7e7")(rgb("#191724")(text))}`,
+  homeTabActive: (text: string) => `${bgRgb("#403d52")(rgb("#c4a7e7")(text))}`,
+  userMessageBg: persistentBgRgb("#1f1d2e"),
+  thinkingText: rgb("#6e6a86"),
+  toolTitle: rgb("#f6c177"),
+  bold: (text: string) => `\x1b[1m${text}\x1b[22m`,
+  italic: (text: string) => `\x1b[3m${text}\x1b[23m`,
+};
+
 export const MIXCODE_EXTENSION_THEME = new Theme(
   {
     accent: "#8abeb7",
@@ -509,40 +631,208 @@ export const MIXCODE_EXTENSION_CLAUDE_WARM_THEME = new Theme(
   { name: "claude-warm" },
 );
 
+export const MIXCODE_EXTENSION_CATPPUCCIN_THEME = new Theme(
+  {
+    accent: "#94e2d5",
+    border: "#89b4fa",
+    borderAccent: "#cba6f7",
+    borderMuted: "#45475a",
+    success: "#a6e3a1",
+    error: "#f38ba8",
+    warning: "#f9e2af",
+    muted: "#a6adc8",
+    dim: "#6c7086",
+    text: "#cdd6f4",
+    thinkingText: "#6c7086",
+    userMessageText: "#cdd6f4",
+    customMessageText: "#cdd6f4",
+    customMessageLabel: "#cba6f7",
+    toolTitle: "#cdd6f4",
+    toolOutput: "#6c7086",
+    mdHeading: "#f9e2af",
+    mdLink: "#89b4fa",
+    mdLinkUrl: "#6c7086",
+    mdCode: "#94e2d5",
+    mdCodeBlock: "#a6e3a1",
+    mdCodeBlockBorder: "#6c7086",
+    mdQuote: "#6c7086",
+    mdQuoteBorder: "#45475a",
+    mdHr: "#45475a",
+    mdListBullet: "#94e2d5",
+    toolDiffAdded: "#a6e3a1",
+    toolDiffRemoved: "#f38ba8",
+    toolDiffContext: "#6c7086",
+    syntaxComment: "#6c7086",
+    syntaxKeyword: "#cba6f7",
+    syntaxFunction: "#89b4fa",
+    syntaxVariable: "#cdd6f4",
+    syntaxString: "#a6e3a1",
+    syntaxNumber: "#fab387",
+    syntaxType: "#94e2d5",
+    syntaxOperator: "#89dceb",
+    syntaxPunctuation: "#cdd6f4",
+    ...thinkingThemeColors(["#45475a", "#6c7086", "#89b4fa", "#cba6f7", "#fab387", "#f38ba8"]),
+    bashMode: "#a6e3a1",
+  },
+  {
+    selectedBg: "#45475a",
+    userMessageBg: "#181825",
+    customMessageBg: "#2a2438",
+    toolPendingBg: "#313244",
+    toolSuccessBg: "#1e2b22",
+    toolErrorBg: "#3a2228",
+  },
+  "truecolor",
+  { name: "catppuccin" },
+);
+
+export const MIXCODE_EXTENSION_KANAGAWA_THEME = new Theme(
+  {
+    accent: "#7AA89F",
+    border: "#7E9CD8",
+    borderAccent: "#957FB8",
+    borderMuted: "#2A2A37",
+    success: "#98BB6C",
+    error: "#E82424",
+    warning: "#E6C384",
+    muted: "#727169",
+    dim: "#727169",
+    text: "#DCD7BA",
+    thinkingText: "#727169",
+    userMessageText: "#DCD7BA",
+    customMessageText: "#DCD7BA",
+    customMessageLabel: "#957FB8",
+    toolTitle: "#DCD7BA",
+    toolOutput: "#727169",
+    mdHeading: "#E6C384",
+    mdLink: "#7E9CD8",
+    mdLinkUrl: "#727169",
+    mdCode: "#7AA89F",
+    mdCodeBlock: "#98BB6C",
+    mdCodeBlockBorder: "#727169",
+    mdQuote: "#727169",
+    mdQuoteBorder: "#2A2A37",
+    mdHr: "#2A2A37",
+    mdListBullet: "#7AA89F",
+    toolDiffAdded: "#98BB6C",
+    toolDiffRemoved: "#E82424",
+    toolDiffContext: "#727169",
+    syntaxComment: "#727169",
+    syntaxKeyword: "#957FB8",
+    syntaxFunction: "#7E9CD8",
+    syntaxVariable: "#DCD7BA",
+    syntaxString: "#98BB6C",
+    syntaxNumber: "#D27E99",
+    syntaxType: "#7AA89F",
+    syntaxOperator: "#C0A36E",
+    syntaxPunctuation: "#DCD7BA",
+    ...thinkingThemeColors(["#2A2A37", "#727169", "#7E9CD8", "#957FB8", "#E6C384", "#FF5D62"]),
+    bashMode: "#98BB6C",
+  },
+  {
+    selectedBg: "#363646",
+    userMessageBg: "#181820",
+    customMessageBg: "#2a2438",
+    toolPendingBg: "#2A2A37",
+    toolSuccessBg: "#1e2b22",
+    toolErrorBg: "#3a2228",
+  },
+  "truecolor",
+  { name: "kanagawa" },
+);
+
+export const MIXCODE_EXTENSION_ROSE_PINE_THEME = new Theme(
+  {
+    accent: "#9ccfd8",
+    border: "#c4a7e7",
+    borderAccent: "#ebbcba",
+    borderMuted: "#26233a",
+    success: "#31748f",
+    error: "#eb6f92",
+    warning: "#f6c177",
+    muted: "#908caa",
+    dim: "#6e6a86",
+    text: "#e0def4",
+    thinkingText: "#6e6a86",
+    userMessageText: "#e0def4",
+    customMessageText: "#e0def4",
+    customMessageLabel: "#c4a7e7",
+    toolTitle: "#e0def4",
+    toolOutput: "#6e6a86",
+    mdHeading: "#f6c177",
+    mdLink: "#c4a7e7",
+    mdLinkUrl: "#6e6a86",
+    mdCode: "#9ccfd8",
+    mdCodeBlock: "#31748f",
+    mdCodeBlockBorder: "#6e6a86",
+    mdQuote: "#6e6a86",
+    mdQuoteBorder: "#26233a",
+    mdHr: "#26233a",
+    mdListBullet: "#9ccfd8",
+    toolDiffAdded: "#31748f",
+    toolDiffRemoved: "#eb6f92",
+    toolDiffContext: "#6e6a86",
+    syntaxComment: "#6e6a86",
+    syntaxKeyword: "#c4a7e7",
+    syntaxFunction: "#9ccfd8",
+    syntaxVariable: "#e0def4",
+    syntaxString: "#f6c177",
+    syntaxNumber: "#eb6f92",
+    syntaxType: "#31748f",
+    syntaxOperator: "#ebbcba",
+    syntaxPunctuation: "#e0def4",
+    ...thinkingThemeColors(["#26233a", "#6e6a86", "#31748f", "#c4a7e7", "#f6c177", "#eb6f92"]),
+    bashMode: "#31748f",
+  },
+  {
+    selectedBg: "#403d52",
+    userMessageBg: "#1f1d2e",
+    customMessageBg: "#2a2438",
+    toolPendingBg: "#26233a",
+    toolSuccessBg: "#1b2a22",
+    toolErrorBg: "#3a2228",
+  },
+  "truecolor",
+  { name: "rose-pine" },
+);
+
 /** Terminal uses the same Pi Theme tokens as mixcode-dark; TUI chrome stays ANSI via TERMINAL_THEME. */
 export const MIXCODE_EXTENSION_TERMINAL_THEME = MIXCODE_EXTENSION_THEME;
 
-/** Built-in MixCode themes with stable ids / aliases (chrome may be hand-tuned). */
+/** Built-in MixCode themes with stable ids (chrome may be hand-tuned). */
 export const THEMES: ThemeInfo[] = [
-  { id: "mixcode-dark", label: "MixCode Dark", dark: true, aliases: ["dark", "mixcode"] },
-  { id: "claude-warm", label: "Claude Warm", dark: true, aliases: ["claude", "warm"] },
-  { id: "tokyo-night", label: "Tokyo Night", dark: true, aliases: ["tokyo", "toyko"] },
+  { id: "mixcode-dark", label: "MixCode Dark", dark: true },
+  { id: "claude-warm", label: "Claude Warm", dark: true },
+  { id: "tokyo-night", label: "Tokyo Night", dark: true },
   { id: "terminal", label: "Terminal", dark: true },
+  { id: "catppuccin", label: "Catppuccin", dark: true },
+  { id: "kanagawa", label: "Kanagawa", dark: true },
+  { id: "rose-pine", label: "Rosé Pine", dark: true },
 ];
 
-const THEME_ALIASES: Record<string, string> = Object.fromEntries(
-  THEMES.flatMap((theme) => [
-    [theme.id, theme.id],
-    ...(theme.aliases ?? []).map((alias) => [alias, theme.id] as const),
-  ]),
-);
-// Legacy extension theme name used by older tests / packages.
-THEME_ALIASES["mixcode-extension"] = "mixcode-dark";
+/** Internal Pi Theme.name; not a user-facing MixCode theme id. */
+const INTERNAL_THEME_IDS = new Set(["mixcode-extension"]);
 
 const BUILTIN_MIXCODE: Record<string, MixCodeTheme> = {
   "mixcode-dark": MIXCODE_DARK_THEME,
   "claude-warm": CLAUDE_WARM_THEME,
   "tokyo-night": TOKYO_NIGHT_THEME,
   terminal: TERMINAL_THEME,
+  catppuccin: CATPPUCCIN_THEME,
+  kanagawa: KANAGAWA_THEME,
+  "rose-pine": ROSE_PINE_THEME,
 };
 
 const BUILTIN_PI_THEMES: Theme[] = [
   MIXCODE_EXTENSION_THEME,
   MIXCODE_EXTENSION_CLAUDE_WARM_THEME,
   MIXCODE_EXTENSION_TOKYO_NIGHT_THEME,
+  MIXCODE_EXTENSION_CATPPUCCIN_THEME,
+  MIXCODE_EXTENSION_KANAGAWA_THEME,
+  MIXCODE_EXTENSION_ROSE_PINE_THEME,
 ];
 
-/** MixCode resolution map: id → Theme (includes aliases and loader themes). */
+/** MixCode resolution map: id → Theme (includes loader themes). */
 let themeRegistry = new Map<string, Theme>();
 /** Last loader themes so in-memory register can re-merge without dropping them. */
 let lastLoaderThemes: Theme[] = [];
@@ -553,6 +843,9 @@ function builtinPiById(id: string): Theme | undefined {
   if (id === "mixcode-dark" || id === "terminal") return MIXCODE_EXTENSION_THEME;
   if (id === "claude-warm") return MIXCODE_EXTENSION_CLAUDE_WARM_THEME;
   if (id === "tokyo-night") return MIXCODE_EXTENSION_TOKYO_NIGHT_THEME;
+  if (id === "catppuccin") return MIXCODE_EXTENSION_CATPPUCCIN_THEME;
+  if (id === "kanagawa") return MIXCODE_EXTENSION_KANAGAWA_THEME;
+  if (id === "rose-pine") return MIXCODE_EXTENSION_ROSE_PINE_THEME;
   return undefined;
 }
 
@@ -601,25 +894,16 @@ export function registerAdditionalTheme(theme: Theme): void {
 registerMixCodeThemes();
 
 export function resolvePiTheme(themeId: string): Theme | undefined {
-  const canonical = THEME_ALIASES[themeId.trim().toLowerCase()] ?? themeId.trim();
+  const canonical = themeId.trim();
   if (!canonical) return undefined;
-  return (
-    themeRegistry.get(canonical) ??
-    builtinPiById(canonical) ??
-    // Skip pure alias keys that shadow Pi builtins (e.g. "dark" → mixcode-dark).
-    (THEME_ALIASES[canonical] && THEME_ALIASES[canonical] !== canonical
-      ? undefined
-      : getThemeByName(canonical))
-  );
+  return themeRegistry.get(canonical) ?? builtinPiById(canonical) ?? getThemeByName(canonical);
 }
 
 export function listThemeInfos(): ThemeInfo[] {
   const infos = new Map<string, ThemeInfo>();
   for (const theme of THEMES) infos.set(theme.id, theme);
   for (const id of themeRegistry.keys()) {
-    if (infos.has(id)) continue;
-    // Hide pure alias keys from the picker.
-    if (THEME_ALIASES[id] && THEME_ALIASES[id] !== id) continue;
+    if (infos.has(id) || INTERNAL_THEME_IDS.has(id)) continue;
     infos.set(id, {
       id,
       label: id,
@@ -627,8 +911,7 @@ export function listThemeInfos(): ThemeInfo[] {
     });
   }
   for (const name of getAvailableThemes()) {
-    if (infos.has(name)) continue;
-    if (THEME_ALIASES[name] && THEME_ALIASES[name] !== name) continue;
+    if (infos.has(name) || INTERNAL_THEME_IDS.has(name)) continue;
     infos.set(name, { id: name, label: name, dark: !isLightThemeName(name) });
   }
   return [...infos.values()].sort((a, b) => a.id.localeCompare(b.id));
@@ -676,18 +959,15 @@ export function themeSuggestions(prefix: string): ThemeInfo[] {
   return listThemeInfos().filter(
     (theme) =>
       !query ||
-      theme.id.startsWith(query) ||
-      theme.label.toLowerCase().includes(query) ||
-      (theme.aliases ?? []).some((alias) => alias.startsWith(query)),
+      theme.id.startsWith(query) || theme.label.toLowerCase().includes(query),
   );
 }
 
 export function normalizeThemeId(themeId: string): string | undefined {
   const normalized = themeId.trim().toLowerCase();
-  if (!normalized) return undefined;
-  const aliased = THEME_ALIASES[normalized] ?? normalized;
-  if (BUILTIN_MIXCODE[aliased] || themeRegistry.has(aliased) || resolvePiTheme(aliased)) {
-    return aliased;
+  if (!normalized || INTERNAL_THEME_IDS.has(normalized)) return undefined;
+  if (BUILTIN_MIXCODE[normalized] || themeRegistry.has(normalized) || resolvePiTheme(normalized)) {
+    return normalized;
   }
   return undefined;
 }
@@ -698,7 +978,7 @@ export function resolveThemeInput(themeId: string): string {
   const query = themeId.trim().toLowerCase();
   const matches = listThemeInfos().filter(
     (theme) =>
-      theme.id.startsWith(query) || (theme.aliases ?? []).some((alias) => alias.startsWith(query)),
+      theme.id.startsWith(query),
   );
   if (matches.length === 1) return matches[0]!.id;
   if (matches.length > 1) {
@@ -716,14 +996,11 @@ export function themeArgumentCompletions(
   const labelMatches = new Map<string, { value: string; label: string; description: string }>();
   for (const theme of listThemeInfos()) {
     const description = theme.dark ? "dark theme" : "light theme";
-    const names = [theme.id, ...(theme.aliases ?? [])];
-    for (const name of names) {
-      const item = { value: name, label: name, description };
-      if (!query || name.startsWith(query)) {
-        prefixMatches.set(name, item);
-      } else if (theme.label.toLowerCase().includes(query)) {
-        labelMatches.set(name, item);
-      }
+    const item = { value: theme.id, label: theme.id, description };
+    if (!query || theme.id.startsWith(query)) {
+      prefixMatches.set(theme.id, item);
+    } else if (theme.label.toLowerCase().includes(query)) {
+      labelMatches.set(theme.id, item);
     }
   }
   return [...prefixMatches.values(), ...labelMatches.values()];
