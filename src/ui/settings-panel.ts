@@ -905,10 +905,10 @@ function handleNormal(
   panel: SettingsPanelState,
 ): void {
   if (matchesKey(data, "up") || data === "\x1b[A") {
-    panel.selectedIndex = Math.max(0, panel.selectedIndex - 1);
+    panel.selectedIndex = (panel.selectedIndex - 1 + ITEMS.length) % ITEMS.length;
     refreshSettingsPanel(state, tui);
   } else if (matchesKey(data, "down") || data === "\x1b[B") {
-    panel.selectedIndex = Math.min(ITEMS.length - 1, panel.selectedIndex + 1);
+    panel.selectedIndex = (panel.selectedIndex + 1) % ITEMS.length;
     refreshSettingsPanel(state, tui);
   } else if (matchesKey(data, "return") || data === "\r" || data === "\n") {
     const item = ITEMS[panel.selectedIndex];
@@ -1039,11 +1039,11 @@ function handleEnum(
   const opts = item.getOptions(ctx);
 
   if (matchesKey(data, "up") || data === "\x1b[A") {
-    panel.enumIndex = Math.max(0, panel.enumIndex - 1);
+    panel.enumIndex = opts.length === 0 ? 0 : (panel.enumIndex - 1 + opts.length) % opts.length;
     if (item.kind === "enum") previewEnumSelection(state, item, opts[panel.enumIndex]);
     refreshSettingsPanel(state, tui);
   } else if (matchesKey(data, "down") || data === "\x1b[B") {
-    panel.enumIndex = Math.min(Math.max(0, opts.length - 1), panel.enumIndex + 1);
+    panel.enumIndex = opts.length === 0 ? 0 : (panel.enumIndex + 1) % opts.length;
     if (item.kind === "enum") previewEnumSelection(state, item, opts[panel.enumIndex]);
     refreshSettingsPanel(state, tui);
   } else if (matchesKey(data, "return") || data === "\r" || data === "\n") {

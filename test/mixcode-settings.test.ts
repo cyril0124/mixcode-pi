@@ -291,6 +291,36 @@ test("settings panel surfaces write failures without applying the new value", as
   }
 });
 
+test("settings panel wraps selection from the first item to the last", () => {
+  const state = createInitialState("/repo");
+  state.settingsPanel = {
+    open: true,
+    selectedIndex: 0,
+    editMode: false,
+    editText: "",
+    enumOpen: false,
+    enumIndex: 0,
+    mixcodeRaw: {},
+    mixcodeFile: "/tmp/unused-mixcode-settings.json",
+    piSettingsFile: "/tmp/unused-pi-settings.json",
+    settingsManager: SettingsManager.inMemory(),
+  };
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({ hide: () => undefined }) as never,
+    hasOverlay: () => true,
+    hideOverlay: () => undefined,
+  };
+
+  handleSettingsPanelKey(state, "\x1b[A", tui);
+  assert.ok(state.settingsPanel.selectedIndex > 0);
+  const last = state.settingsPanel.selectedIndex;
+  handleSettingsPanelKey(state, "\x1b[B", tui);
+  assert.equal(state.settingsPanel.selectedIndex, 0);
+  handleSettingsPanelKey(state, "\x1b[A", tui);
+  assert.equal(state.settingsPanel.selectedIndex, last);
+});
+
 test("mixcode settings load ui.inlineWidgets and reject non-booleans", async () => {
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-inline-widgets-settings-"));
   try {
