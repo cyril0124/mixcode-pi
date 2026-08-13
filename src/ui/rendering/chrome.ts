@@ -1187,11 +1187,17 @@ function sanitizeWidgetLine(text: string): string {
     .trimEnd();
 }
 
+const TAB_FOCUS_MARK = "▌";
+
+function withFocusMark(paint: (text: string) => string, body: string): string {
+  return paintTabChip(paint, `${activeRenderTheme.vimBorder(TAB_FOCUS_MARK)}${body}`);
+}
+
 function tabBarSegments(state: MixCodeState): Array<{ id: string; text: string }> {
   const configText = " MixCode Home ";
   const isHomeActive = state.activeTabId === "config";
   const config = isHomeActive
-    ? activeRenderTheme.homeTabActive(configText)
+    ? withFocusMark(activeRenderTheme.homeTabActive, configText.slice(1))
     : activeRenderTheme.homeTab(configText);
   return [
     { id: "config", text: config },
@@ -1238,8 +1244,11 @@ function renderTabSegmentText(
 ): string {
   const raw = ` ${tabStatusGlyph(tab)} ${tab.title} `;
   const fg = tabStatusFg(tab);
+  if (active) {
+    const rest = raw.slice(1);
+    return withFocusMark(activeRenderTheme.activeTab, fg ? fg(rest) : rest);
+  }
   const text = fg ? fg(raw) : raw;
-  if (active) return paintTabChip(activeRenderTheme.activeTab, text);
   if (onHome) {
     if (recentRank === 0) return paintTabChip(activeRenderTheme.recentTab, text);
     if (recentRank === 1) return paintTabChip(activeRenderTheme.olderRecentTab, text);

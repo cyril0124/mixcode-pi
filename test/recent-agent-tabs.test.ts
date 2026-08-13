@@ -68,7 +68,7 @@ test("working active tab keeps the title readable", () => {
   const plain = stripAnsi(line);
   assert.match(plain, /● Worker/);
   const theme = themeForId("mixcode-dark");
-  assert.ok(line.includes(theme.workingFg(" ● Worker ")), "working paints the whole chip text");
+  assert.ok(line.includes(theme.workingFg("● Worker ")), "working paints the chip text after the focus mark");
 });
 
 test("waiting tab keeps a colored ? without washing out the title", () => {
@@ -92,7 +92,30 @@ test("waiting tab keeps a colored ? without washing out the title", () => {
   const line = renderTabBar(state, 80, themeForId("mixcode-dark"))[0] ?? "";
   const theme = themeForId("mixcode-dark");
   assert.match(stripAnsi(line), /\? Asker/);
-  assert.ok(line.includes(theme.waitingFg(" ? Asker ")), "waiting paints the whole chip text");
+  assert.ok(line.includes(theme.waitingFg("? Asker ")), "waiting paints the chip text after the focus mark");
+});
+
+test("focused tab chip includes a left focus mark", () => {
+  const state = createInitialState("/repo");
+  state.theme = "mixcode-dark";
+  state.tabs.push(createTab(1, "s1", "/repo", { title: "FocusMe" }));
+  activateTab(state, "s1");
+  const agentLine = stripAnsi(renderTabBar(state, 80, themeForId("mixcode-dark"))[0] ?? "");
+  assert.match(agentLine, /▌- FocusMe/);
+  activateTab(state, "config");
+  const homeLine = stripAnsi(renderTabBar(state, 80, themeForId("mixcode-dark"))[0] ?? "");
+  assert.match(homeLine, /▌MixCode Home/);
+  assert.doesNotMatch(homeLine, /▌- FocusMe/);
+});
+
+test("focused working tab keeps the focus mark inside the leading pad", () => {
+  const state = createInitialState("/repo");
+  state.theme = "mixcode-dark";
+  state.tabs.push(createTab(1, "s1", "/repo", { title: "FocusMe", status: "running" }));
+  activateTab(state, "s1");
+  const agentLine = stripAnsi(renderTabBar(state, 80, themeForId("mixcode-dark"))[0] ?? "");
+  assert.match(agentLine, /▌● FocusMe/);
+  assert.doesNotMatch(agentLine, /▌ ● FocusMe/);
 });
 
 test("Pi-derived theme maps recency paints without new Pi tokens", () => {
