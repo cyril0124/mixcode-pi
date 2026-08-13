@@ -573,8 +573,14 @@ function renderAgentSurfaceWindowed(
       cursor += block.length;
     }
   }
-  applyChatBlockScrollAnchor(tab, blockLayouts, lines.length, viewport, surfaceWidth);
-  applyScrollFreezeAnchor(tab, lines, viewport, surfaceWidth);
+  const blockAnchorApplied = applyChatBlockScrollAnchor(
+    tab,
+    blockLayouts,
+    lines.length,
+    viewport,
+    surfaceWidth,
+  );
+  applyScrollFreezeAnchor(tab, lines, viewport, surfaceWidth, !blockAnchorApplied);
   applyPendingScrollUserDelta(tab);
   if (tab.chatScrollOffset > maxOffset) tab.chatScrollOffset = maxOffset;
   const clampedOffset = Math.max(0, Math.min(tab.chatScrollOffset, maxOffset));

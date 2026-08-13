@@ -149,7 +149,8 @@ export function applyScrollFreezeAnchor(
 
 /**
  * Re-align offset using a stable ChatLine + progress through that block.
- * Survives width reflow where rendered line text no longer matches.
+ * Survives width reflow where rendered line text no longer matches. Returns
+ * false when callers must fall back to the rendered-line anchor.
  */
 export function applyChatBlockScrollAnchor(
   tab: MixCodeTabInfo,
@@ -157,9 +158,9 @@ export function applyChatBlockScrollAnchor(
   linesLength: number,
   viewport: number,
   width: number,
-): void {
+): boolean {
   const state = scrollFreezeStates.get(tab);
-  if (tab.chatScrollOffset <= 0 || !state?.frozen || !state.chatLine) return;
+  if (tab.chatScrollOffset <= 0 || !state?.frozen || !state.chatLine) return false;
   let block = blocks.find((entry) => entry.line === state.chatLine);
   if (!block) {
     // Session rebuild may drop object identity; fall back to entryId/text match.
@@ -171,7 +172,7 @@ export function applyChatBlockScrollAnchor(
           entry.line.text === state.chatLine.text),
     );
   }
-  if (!block || block.height <= 0) return;
+  if (!block || block.height <= 0) return false;
   const progress = Math.min(1, Math.max(0, state.blockProgress ?? 0));
   const rowInBlock = Math.min(block.height - 1, Math.floor(progress * block.height));
   const index = block.start + rowInBlock;
@@ -185,6 +186,7 @@ export function applyChatBlockScrollAnchor(
     offset: tab.chatScrollOffset,
     frozen: true,
   });
+  return true;
 }
 
 /** Strip terminal controls so invisible rows are not treated as content. */

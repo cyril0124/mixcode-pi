@@ -275,6 +275,51 @@ test("renderer transition keeps a historical scroll anchor when streaming comple
   assert.equal(after[anchorRow], anchor);
 });
 
+test("streaming completion keeps a PageUp anchor when the viewport grows", () => {
+  const streamingLines = Array.from(
+    { length: 120 },
+    (_, index) => `STREAM-LINE-${String(index).padStart(4, "0")} ${"content ".repeat(8)}`,
+  );
+  const streamingText = streamingLines.slice(0, 60).join("\n");
+  const chat: ChatLine[] = [...buildLongChat(64), { role: "assistant", text: streamingText }];
+  const streamingIndex = chat.length - 1;
+  const tab = createTab(45, "s45", "/repo", { status: "running", chatScrollOffset: 0 });
+  const streamingRuntimeTab = {
+    tab,
+    chat,
+    streamingAssistant: {
+      chatIndex: streamingIndex,
+      blockIndices: new Map([[0, streamingIndex]]),
+      toolCallIndices: new Map<string, number>(),
+    },
+  };
+
+  renderAgentSurface(tab, streamingRuntimeTab as never, WIDTH, HEIGHT);
+  scrollChat(tab, 10);
+  const before = renderAgentSurface(tab, streamingRuntimeTab as never, WIDTH, HEIGHT).map(stripAnsi);
+  const anchorRow = before.findIndex((line) => line.includes("STREAM-LINE-"));
+  const anchor = before[anchorRow];
+
+  assert.ok(anchor, "expected the PageUp viewport inside the streaming message");
+
+  for (let length = 70; length <= streamingLines.length; length += 10) {
+    chat[streamingIndex] = { role: "assistant", text: streamingLines.slice(0, length).join("\n") };
+    renderAgentSurface(tab, streamingRuntimeTab as never, WIDTH, HEIGHT);
+  }
+  chat[streamingIndex] = {
+    role: "assistant",
+    text: `${streamingLines.join("\n")}\nFINAL-COMPLETION-MARKER`,
+  };
+  const completedRuntimeTab = { tab, chat, streamingAssistant: undefined };
+  renderAgentSurface(tab, completedRuntimeTab as never, WIDTH, HEIGHT);
+  tab.status = "idle";
+  const after = renderAgentSurface(tab, completedRuntimeTab as never, WIDTH, HEIGHT + 1).map(
+    stripAnsi,
+  );
+
+  assert.equal(after[anchorRow], anchor);
+});
+
 // Growth can arrive in the same frame as a user scroll. Freeze must still absorb
 // the growth; otherwise the view drifts toward the streaming tail.
 test("windowed renderer stays stable when user scrolls in the same frame as growth", () => {
