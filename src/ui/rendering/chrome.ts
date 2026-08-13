@@ -36,6 +36,12 @@ export function renderExtensionHeader(tab: MixCodeTabInfo | undefined, width: nu
 export const TAB_BAR_VIEWPORT_RATIO = 0.1;
 
 /**
+ * When the full "MixCode Home" chip would occupy more than this fraction of the
+ * tab-bar width, pin the compact "H" stand-in instead.
+ */
+export const HOME_PIN_FULL_MAX_RATIO = 0.15;
+
+/**
  * Row budget for the tab bar: min(floor(terminalRows * 10%), contentCap), at least 1.
  * Either input may be omitted; both omitted → unlimited (undefined).
  */
@@ -63,19 +69,25 @@ export function renderTabBar(
   maxRows?: number,
 ): string[] {
   return renderWithTheme(theme, () => {
-    const { rows, hiddenLeft, hiddenRight, indent } = visibleTabBarLayout(state, width, maxRows);
+    const layout = visibleTabBarLayout(state, width, maxRows);
+    const { rows, hiddenLeftAgents, hiddenRight, indent, homePin, homeSegment } = layout;
     return rows.map((row, rowIndex) => {
       const prefix = rowIndex === 0 ? "" : " ".repeat(indent);
       const tabsText = row.map((segment) => segment.text).join(" ");
       const isFirst = rowIndex === 0;
       const isLast = rowIndex === rows.length - 1;
-      // When Home is scrolled out of the window, pin a compact same-color "H" anchor.
+      // Home is pinned left (full or H) unless it is already inline in `rows`.
       const homeAnchor =
-        isFirst && hiddenLeft > 0 ? activeRenderTheme.homeTab(homeAnchorBare()) : "";
-      // +L counts only hidden agents (Home is the H chip, not part of +N).
-      const leftAgents = Math.max(0, hiddenLeft - 1);
+        isFirst && homePin === "full"
+          ? homeSegment.text
+          : isFirst && homePin === "compact"
+            ? activeRenderTheme.homeTab(homeAnchorBare())
+            : "";
+      // Agent-only left overflow; gap outside the Home chip avoids "H+3".
       const leftHint =
-        isFirst && leftAgents > 0 ? activeRenderTheme.dim(leftOverflowHint(leftAgents)) : "";
+        isFirst && hiddenLeftAgents > 0
+          ? ` ${activeRenderTheme.dim(leftOverflowHint(hiddenLeftAgents))}`
+          : "";
       const rightHint =
         isLast && hiddenRight > 0 ? activeRenderTheme.dim(rightOverflowHint(hiddenRight)) : "";
       return padLine(
@@ -230,17 +242,21 @@ export function tabBarHitRegions(
   width = Number.POSITIVE_INFINITY,
   maxRows?: number,
 ): MouseHitRegion[] {
-  const { rows, hiddenLeft, indent } = visibleTabBarLayout(state, width, maxRows);
+  const { rows, hiddenLeftAgents, indent, homePin, homeSegment } = visibleTabBarLayout(
+    state,
+    width,
+    maxRows,
+  );
   const regions: MouseHitRegion[] = [];
   rows.forEach((row, rowIndex) => {
-    // First row may start with H (hidden Home) and/or a left agent overflow hint.
     let cursor = rowIndex === 0 ? 1 : indent + 1;
-    if (rowIndex === 0 && hiddenLeft > 0) {
-      const homeW = visibleWidth(homeAnchorBare());
+    if (rowIndex === 0 && homePin !== "inline") {
+      const homeText = homePin === "full" ? homeSegment.text : homeAnchorBare();
+      const homeW = visibleWidth(homeText);
       regions.push({ id: "config", startX: cursor, endX: cursor + homeW - 1, row: 0 });
       cursor += homeW;
-      const leftAgents = Math.max(0, hiddenLeft - 1);
-      if (leftAgents > 0) cursor += visibleWidth(leftOverflowHint(leftAgents));
+      // Match render: one column gap, then `+N … ` for hidden agents only.
+      if (hiddenLeftAgents > 0) cursor += 1 + visibleWidth(leftOverflowHint(hiddenLeftAgents));
     }
     for (const segment of row) {
       const startX = cursor;
@@ -254,15 +270,19 @@ export function tabBarHitRegions(
 
 type TabSegment = { id: string; text: string };
 
+type HomePin = "inline" | "full" | "compact";
+
 type TabBarLayout = {
   rows: TabSegment[][];
-  /** Segments before the window (includes Home when it is scrolled out). */
-  hiddenLeft: number;
+  /** Hidden agents before the agent window (Home is pinned separately). */
+  hiddenLeftAgents: number;
   hiddenRight: number;
+  homePin: HomePin;
+  homeSegment: TabSegment;
   indent: number;
 };
 
-/** Compact Home stand-in when the full "MixCode Home" chip is off-window. */
+/** Compact Home stand-in when the full chip does not fit beside the agent window. */
 function homeAnchorBare(): string {
   return " H ";
 }
@@ -275,18 +295,122 @@ function rightOverflowHint(count: number): string {
   return ` … +${count}`;
 }
 
-/** Width of leading Home anchor + agent-only left overflow hint. */
-function leftClusterWidth(hiddenLeft: number): number {
-  if (hiddenLeft <= 0) return 0;
-  const agents = Math.max(0, hiddenLeft - 1);
+function homePinWidth(homePin: Exclude<HomePin, "inline">, homeSegment: TabSegment): number {
+  return homePin === "full"
+    ? visibleWidth(homeSegment.text)
+    : visibleWidth(homeAnchorBare());
+}
+
+/** Leading Home pin + optional agent left-overflow hint. */
+function leftChromeWidth(
+  homePin: Exclude<HomePin, "inline">,
+  homeSegment: TabSegment,
+  hiddenLeftAgents: number,
+): number {
   return (
-    visibleWidth(homeAnchorBare()) +
-    (agents > 0 ? visibleWidth(leftOverflowHint(agents)) : 0)
+    homePinWidth(homePin, homeSegment) +
+    (hiddenLeftAgents > 0 ? 1 + visibleWidth(leftOverflowHint(hiddenLeftAgents)) : 0)
   );
 }
 
 function visibleTabCount(rows: TabSegment[][]): number {
   return rows.reduce((count, row) => count + row.length, 0);
+}
+
+/** Agent-window only: more tabs, then less left overflow, then less right. */
+function isBetterAgentWindow(candidate: TabBarLayout, current: TabBarLayout): boolean {
+  const cCount = visibleTabCount(candidate.rows);
+  const bCount = visibleTabCount(current.rows);
+  if (cCount !== bCount) return cCount > bCount;
+  if (candidate.hiddenLeftAgents !== current.hiddenLeftAgents) {
+    return candidate.hiddenLeftAgents < current.hiddenLeftAgents;
+  }
+  if (candidate.hiddenRight !== current.hiddenRight) {
+    return candidate.hiddenRight < current.hiddenRight;
+  }
+  return false;
+}
+
+/**
+ * Grow a contiguous agent window around the active agent (or from the start when
+ * Home is active). Uses a fixed Home pin only for width budgeting.
+ */
+function growAgentWindow(
+  agents: TabSegment[],
+  width: number,
+  maxRows: number,
+  activeId: string,
+  activeAgentIdx: number,
+  homeActive: boolean,
+  homePin: Exclude<HomePin, "inline">,
+  homeSegment: TabSegment,
+): TabBarLayout {
+  let lo = homeActive ? 0 : activeAgentIdx;
+  let hi = homeActive ? 0 : activeAgentIdx + 1;
+  let current =
+    fitAgentWindow(agents, lo, hi, width, maxRows, activeId, homePin, homeSegment) ??
+    (homeActive
+      ? {
+          rows: [[]],
+          hiddenLeftAgents: 0,
+          hiddenRight: agents.length,
+          homePin,
+          homeSegment,
+          indent: homePinWidth(homePin, homeSegment),
+        }
+      : forceAgentLayout(agents, activeAgentIdx, width, homePin, homeSegment));
+
+  let improved = true;
+  while (improved) {
+    improved = false;
+    if (lo > 0) {
+      const next = fitAgentWindow(agents, lo - 1, hi, width, maxRows, activeId, homePin, homeSegment);
+      if (next && isBetterAgentWindow(next, current)) {
+        lo -= 1;
+        current = next;
+        improved = true;
+      }
+    }
+    if (hi < agents.length) {
+      const next = fitAgentWindow(agents, lo, hi + 1, width, maxRows, activeId, homePin, homeSegment);
+      if (next && isBetterAgentWindow(next, current)) {
+        hi += 1;
+        current = next;
+        improved = true;
+      }
+    }
+    if (!homeActive && lo > 0 && hi > activeAgentIdx + 1) {
+      const next = fitAgentWindow(
+        agents,
+        lo - 1,
+        hi - 1,
+        width,
+        maxRows,
+        activeId,
+        homePin,
+        homeSegment,
+      );
+      if (next && isBetterAgentWindow(next, current)) {
+        lo -= 1;
+        hi -= 1;
+        current = next;
+        improved = true;
+      }
+    }
+  }
+  return current;
+}
+
+/** Full Home pin only when its chip width is ≤ {@link HOME_PIN_FULL_MAX_RATIO} of the bar. */
+function choosePinnedHomeForm(
+  homeSegment: TabSegment,
+  width: number,
+  homeActive: boolean,
+): Exclude<HomePin, "inline"> {
+  // On Home itself, always show the full label for orientation.
+  if (homeActive) return "full";
+  const ratio = visibleWidth(homeSegment.text) / Math.max(1, width);
+  return ratio > HOME_PIN_FULL_MAX_RATIO ? "compact" : "full";
 }
 
 function visibleTabBarLayout(
@@ -295,184 +419,175 @@ function visibleTabBarLayout(
   maxRows?: number,
 ): TabBarLayout {
   const segments = tabBarSegments(state);
+  const homeSegment = segments[0] ?? { id: "config", text: activeRenderTheme.homeTab(" MixCode Home ") };
+  const agents = segments.slice(1);
   const homeIndent = wrappedRowIndent(segments, width);
-  // Unlimited budget: keep every packed row (no overflow hint).
+
+  // Unlimited budget: keep every packed row (Home inline, no overflow hint).
   if (maxRows === undefined || !Number.isFinite(maxRows)) {
     return {
       rows: packTabRows(segments, width, homeIndent),
-      hiddenLeft: 0,
+      hiddenLeftAgents: 0,
       hiddenRight: 0,
+      homePin: "inline",
+      homeSegment,
       indent: homeIndent,
     };
   }
   const limit = Math.max(1, Math.floor(maxRows));
-  // Everything fits without clipping — no sliding window.
+  // Everything fits without clipping — Home stays inline with agents.
   if (packTabRows(segments, width, homeIndent).length <= limit) {
     return {
       rows: packTabRows(segments, width, homeIndent),
-      hiddenLeft: 0,
+      hiddenLeftAgents: 0,
       hiddenRight: 0,
+      homePin: "inline",
+      homeSegment,
       indent: homeIndent,
     };
   }
 
   const activeId = state.activeTabId;
-  let activeIdx = segments.findIndex((segment) => segment.id === activeId);
-  if (activeIdx < 0) activeIdx = 0;
-
-  // Seed with the active tab alone (always keep it visible, truncating if needed).
-  let lo = activeIdx;
-  let hi = activeIdx + 1;
-  let best =
-    fitTabWindow(segments, lo, hi, width, limit, activeId) ??
-    forceActiveOnlyLayout(segments, activeIdx, width, limit);
-
-  // Grow a contiguous window around active while newly included tabs stay visible.
-  let grew = true;
-  while (grew) {
-    grew = false;
-    if (hi < segments.length) {
-      const next = fitTabWindow(segments, lo, hi + 1, width, limit, activeId);
-      if (next && visibleTabCount(next.rows) > visibleTabCount(best.rows)) {
-        hi += 1;
-        best = next;
-        grew = true;
-      }
-    }
-    if (lo > 0) {
-      const next = fitTabWindow(segments, lo - 1, hi, width, limit, activeId);
-      if (next && visibleTabCount(next.rows) > visibleTabCount(best.rows)) {
-        lo -= 1;
-        best = next;
-        grew = true;
-      }
-    }
+  if (agents.length === 0) {
+    return {
+      rows: [[{ ...homeSegment }]],
+      hiddenLeftAgents: 0,
+      hiddenRight: 0,
+      homePin: "inline",
+      homeSegment,
+      indent: 0,
+    };
   }
 
-  return best;
+  const homeActive = activeId === "config";
+  let activeAgentIdx = agents.findIndex((segment) => segment.id === activeId);
+  if (!homeActive && activeAgentIdx < 0) activeAgentIdx = 0;
+
+  // Pick H vs full Home by width share, then grow the agent window under that pin.
+  const homePin = choosePinnedHomeForm(homeSegment, width, homeActive);
+  return growAgentWindow(
+    agents,
+    width,
+    limit,
+    activeId,
+    activeAgentIdx,
+    homeActive,
+    homePin,
+    homeSegment,
+  );
 }
 
 /**
- * Pack [lo, hi) and reserve room for left/right overflow hints. Returns null when
- * the window needs more than maxRows or would drop the active tab.
+ * Fit agent window [lo, hi) beside a pinned Home chip. Home is not part of the
+ * contiguous agent window — so full "MixCode Home" can appear whenever width
+ * allows, without pulling every intermediate agent into view.
  */
-function fitTabWindow(
-  segments: TabSegment[],
+function fitAgentWindow(
+  agents: TabSegment[],
   lo: number,
   hi: number,
   width: number,
   maxRows: number,
   activeId: string,
+  homePin: Exclude<HomePin, "inline">,
+  homeSegment: TabSegment,
 ): TabBarLayout | null {
-  if (lo < 0 || hi > segments.length || lo >= hi) return null;
-  const homeVisible = lo === 0;
-  const indent = homeVisible ? wrappedRowIndent(segments, width) : 0;
-  let hiddenLeft = lo;
-  let hiddenRight = segments.length - hi;
-  let rows = packTabRows(segments.slice(lo, hi), width, indent).map((row) => row.slice());
+  if (lo < 0 || hi > agents.length || lo > hi) return null;
+  const hiddenLeftAgents = lo;
+  const hiddenRight = agents.length - hi;
+  const windowSegs = agents.slice(lo, hi);
+  // Active agent must stay inside the window (Home-active allows empty window).
+  if (activeId !== "config") {
+    if (!windowSegs.some((segment) => segment.id === activeId)) return null;
+  }
+
+  const leftChrome = leftChromeWidth(homePin, homeSegment, hiddenLeftAgents);
+  const rightChrome =
+    hiddenRight > 0 ? visibleWidth(rightOverflowHint(hiddenRight)) : 0;
+  // Agents pack in the remaining width after Home pin AND trailing …+R (same row).
+  // Forgetting rightChrome left empty padding while refusing a full Home upgrade.
+  const packWidth = Math.max(1, width - leftChrome - rightChrome);
+  const rows = packTabRows(windowSegs, packWidth, 0).map((row) => row.slice());
+  // Wrapped agent rows indent under the first agent column (after H / full Home + +N).
+  const indent = leftChrome;
+  if (windowSegs.length === 0) {
+    // Home-only row: still valid when active is Home.
+    if (activeId !== "config") return null;
+    if (leftChrome + rightChrome > width) return null;
+    return {
+      rows: [[]],
+      hiddenLeftAgents,
+      hiddenRight,
+      homePin,
+      homeSegment,
+      indent,
+    };
+  }
   if (rows.length > maxRows) return null;
 
-  // First row: leave room for H / left +N by dropping leading tabs (rare; expand
-  // usually avoids this). Last row: same for right hint.
-  if (hiddenLeft > 0 && rows[0]) {
-    const trimmed = trimRowForHints(rows[0]!, 0, width, indent, hiddenLeft, 0, "start");
-    hiddenLeft += trimmed.dropped;
-    rows[0] = trimmed.row;
-  }
-  if (hiddenRight > 0 && rows.length > 0) {
-    const last = rows.length - 1;
-    const leftOnSameRow = hiddenLeft > 0 && rows.length === 1 ? hiddenLeft : 0;
-    const trimmed = trimRowForHints(
-      rows[last]!,
-      last,
-      width,
-      indent,
-      leftOnSameRow,
-      hiddenRight,
-      "end",
-    );
-    hiddenRight += trimmed.dropped;
-    rows[last] = trimmed.row;
+  for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+    const row = rows[rowIndex]!;
+    // Row 0 sits beside the Home pin; later rows use the same left indent.
+    const leftW = rowIndex === 0 ? leftChrome : indent;
+    const rightW = rowIndex === rows.length - 1 ? rightChrome : 0;
+    const tabsW =
+      row.length === 0 ? 0 : visibleWidth(row.map((segment) => segment.text).join(" "));
+    if (leftW + tabsW + rightW <= width) continue;
+    if (windowSegs.length === 1 && row.length === 1) {
+      const available = Math.max(1, width - leftW - rightW);
+      row[0] = { ...row[0]!, text: truncateToWidth(row[0]!.text, available, "…") };
+      continue;
+    }
+    return null;
   }
 
-  rows = rows.filter((row) => row.length > 0);
-  if (rows.length === 0 || rows.length > maxRows) return null;
-  if (!rows.some((row) => row.some((segment) => segment.id === activeId))) return null;
-  return { rows, hiddenLeft, hiddenRight, indent };
-}
-
-function forceActiveOnlyLayout(
-  segments: TabSegment[],
-  activeIdx: number,
-  width: number,
-  maxRows: number,
-): TabBarLayout {
-  const active = segments[activeIdx] ?? segments[0]!;
-  const hiddenLeft = Math.max(0, activeIdx);
-  const hiddenRight = Math.max(0, segments.length - activeIdx - 1);
-  const indent = hiddenLeft === 0 ? wrappedRowIndent(segments, width) : 0;
-  const leftW = leftClusterWidth(hiddenLeft);
-  const rightW = hiddenRight > 0 ? visibleWidth(rightOverflowHint(hiddenRight)) : 0;
-  const available = Math.max(1, width - leftW - rightW);
-  const text =
-    visibleWidth(active.text) <= available
-      ? active.text
-      : truncateToWidth(active.text, available, "…");
-  void maxRows;
   return {
-    rows: [[{ ...active, text }]],
-    hiddenLeft,
+    rows,
+    hiddenLeftAgents,
     hiddenRight,
+    homePin,
+    homeSegment,
     indent,
   };
 }
 
-/**
- * Drop tabs from `side` until H/left/right hints + row content fit in width.
- * When only one tab remains, truncate it rather than dropping the active chip.
- */
-function trimRowForHints(
-  row: TabSegment[],
-  rowIndex: number,
+function forceAgentLayout(
+  agents: TabSegment[],
+  activeAgentIdx: number,
   width: number,
-  indent: number,
-  hiddenLeft: number,
-  hiddenRight: number,
-  side: "start" | "end",
-): { row: TabSegment[]; dropped: number } {
-  const prefix = rowIndex === 0 ? 0 : indent;
-  let kept = row.slice();
-  let dropped = 0;
-  while (true) {
-    // hiddenLeft>0 reserves the H chip (+ optional agent +N); 0 means no left cluster.
-    const leftW = rowIndex === 0 ? leftClusterWidth(hiddenLeft) : 0;
-    const rightW = hiddenRight > 0 ? visibleWidth(rightOverflowHint(hiddenRight)) : 0;
-    const tabsW =
-      kept.length === 0 ? 0 : visibleWidth(kept.map((segment) => segment.text).join(" "));
-    if (prefix + leftW + tabsW + rightW <= width) {
-      return { row: kept, dropped };
-    }
-    if (kept.length <= 1) {
-      const availableTabWidth = Math.max(0, width - prefix - leftW - rightW);
-      const only = kept[0];
-      if (only && availableTabWidth > 0) {
-        return {
-          row: [{ ...only, text: truncateToWidth(only.text, availableTabWidth, "…") }],
-          dropped,
-        };
-      }
-      return { row: [], dropped: dropped + kept.length };
-    }
-    if (side === "start") {
-      kept = kept.slice(1);
-      // Dropping from the start increases the left overflow count.
-      hiddenLeft += 1;
-    } else {
-      kept = kept.slice(0, -1);
-      hiddenRight += 1;
-    }
-    dropped += 1;
+  homePin: Exclude<HomePin, "inline">,
+  homeSegment: TabSegment,
+): TabBarLayout {
+  if (agents.length === 0) {
+    return {
+      rows: [[]],
+      hiddenLeftAgents: 0,
+      hiddenRight: 0,
+      homePin,
+      homeSegment,
+      indent: 0,
+    };
   }
+  const idx = Math.min(Math.max(0, activeAgentIdx), agents.length - 1);
+  const active = agents[idx]!;
+  const hiddenLeftAgents = idx;
+  const hiddenRight = agents.length - idx - 1;
+  const leftChrome = leftChromeWidth(homePin, homeSegment, hiddenLeftAgents);
+  const rightChrome =
+    hiddenRight > 0 ? visibleWidth(rightOverflowHint(hiddenRight)) : 0;
+  const available = Math.max(1, width - leftChrome - rightChrome);
+  const text =
+    visibleWidth(active.text) <= available
+      ? active.text
+      : truncateToWidth(active.text, available, "…");
+  return {
+    rows: [[{ ...active, text }]],
+    hiddenLeftAgents,
+    hiddenRight,
+    homePin,
+    homeSegment,
+    indent: leftChrome,
+  };
 }
 
 /**

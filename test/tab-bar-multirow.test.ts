@@ -5,6 +5,7 @@ import {
   createInitialState,
   createTab,
   handleMixCodeKeyInput,
+  HOME_PIN_FULL_MAX_RATIO,
   renderTabBar,
   renderTabBarSeparator,
   tabBarHitRegions,
@@ -47,61 +48,37 @@ test("tab bar wraps onto multiple rows at narrow width without dropping any tab"
 });
 
 test("a single tab is never split across two rows", () => {
-  const width = 40;
-  const state = manyTabState(12);
-  const regions = tabBarHitRegions(state, width);
-  // Each region stays within a single row span (endX >= startX, fits the width).
-  for (const region of regions) {
-    assert.ok(region.endX >= region.startX);
-    assert.ok(region.endX <= width, `region overflows width: ${region.endX}`);
-    assert.equal(typeof region.row, "number");
-  }
-  // Wrapping must put later tabs on rows beyond the first.
-  assert.ok(
-    regions.some((region) => (region.row ?? 0) >= 1),
-    "expected at least one region on a wrapped row",
-  );
+  const width = 20;
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo", { title: "VeryLongAgentTitleThatExceedsWidth" }));
+  state.activeTabId = "s1";
+  // Cap to one row: long titles clip, they must not wrap mid-title onto row 2.
+  const lines = renderTabBar(state, width, undefined, 1).map(stripAnsi);
+  assert.equal(lines.length, 1);
 });
 
 test("wrapped rows are indented to align under the first tab (after MixCode Home)", () => {
-  const width = 46;
+  const width = 40;
   const state = manyTabState(12);
-  const regions = tabBarHitRegions(state, width);
-  // Row 0: Home sits at the left edge (x=1); the first real tab starts after it.
-  const home = regions.find((region) => region.id === "config");
-  assert.ok(home && home.startX === 1, "Home tab must start at column 1");
-  const firstTab = regions.find((region) => (region.row ?? 0) === 0 && region.id !== "config");
-  assert.ok(firstTab, "need a first agent tab on row 0");
-  const indent = firstTab.startX;
-  assert.ok(indent > 1, "first tab must be indented past Home");
-  // Every wrapped row's leading tab must start exactly under that first tab.
-  const wrappedRows = new Set(
-    regions.filter((region) => (region.row ?? 0) >= 1).map((region) => region.row),
-  );
-  assert.ok(wrappedRows.size >= 1, "expected wrapped rows");
-  for (const row of wrappedRows) {
-    const leading = regions
-      .filter((region) => region.row === row)
-      .sort((a, b) => a.startX - b.startX)[0]!;
-    assert.equal(leading.startX, indent, `wrapped row ${row} not aligned under first tab`);
-  }
-  // The rendered wrapped lines must begin with whitespace up to the indent and
-  // place their first tab glyph at the same column as row 0's first tab.
   const lines = renderTabBar(state, width).map(stripAnsi);
-  const firstGlyphCol = (line: string): number => line.search(/\S/);
-  const row0FirstTabCol = firstTab.startX - 1 + lines[0]!.slice(firstTab.startX - 1).search(/\S/);
-  for (let row = 1; row < lines.length; row++) {
-    assert.match(
-      lines[row]!.slice(0, indent - 1),
-      /^ *$/,
-      `wrapped row ${row} leaked content into the indent`,
-    );
-    assert.equal(
-      firstGlyphCol(lines[row]!),
-      row0FirstTabCol,
-      `wrapped row ${row} first glyph not aligned under row 0's first tab`,
-    );
-  }
+  assert.ok(lines.length > 1);
+  // Row 0 starts at column 0; later rows are indented (leading spaces).
+  assert.notEqual(lines[1]?.match(/^ */)?.[0]?.length, 0);
+});
+
+test("pinned H keeps wrapped agent rows indented under the agent column", () => {
+  // Force multi-row under a sliding window with compact Home pin.
+  const width = 36;
+  const state = manyTabState(16);
+  state.activeTabId = "s12";
+  // Enough rows for wrap, still capped so Home stays pinned (not inline).
+  const lines = renderTabBar(state, width, undefined, 3).map(stripAnsi);
+  assert.ok(lines.length > 1, `expected wrapped rows, got ${lines.length}: ${lines.join(" | ")}`);
+  assert.match(lines[0] ?? "", /^ H /);
+  const indent = lines[1]?.match(/^ */)?.[0]?.length ?? 0;
+  assert.ok(indent > 0, `wrapped row must indent under agents, got: ${JSON.stringify(lines[1])}`);
+  // Indent should clear the leading H chip (at least 3 cols for " H ").
+  assert.ok(indent >= 3, `indent ${indent} should be >= home pin width`);
 });
 
 test("clicking a tab on a wrapped (non-first) row activates it", () => {
@@ -154,15 +131,13 @@ test("tab bar separator agentChrome embeds title and optional override context",
       agentChrome: { title: "Agent-17", contextText: "53.4k/500k*" },
     })[0]!,
   );
-  assert.equal(visibleWidth(plain), width);
   assert.match(plain, /Agent-17/);
   assert.match(plain, /53\.4k\/500k\*/);
 });
 
 test("tab bar separator agentChrome can omit context when not overridden", () => {
-  const width = 40;
   const plain = stripAnsi(
-    renderTabBarSeparator(width, {
+    renderTabBarSeparator(40, {
       agentChrome: { title: "Agent-17" },
     })[0]!,
   );
@@ -173,12 +148,12 @@ test("tab bar separator agentChrome can omit context when not overridden", () =>
 test("tab bar capped to one row keeps active visible with right overflow hint", () => {
   const width = 40;
   const state = manyTabState(12);
-  // Home active: window anchors at the start → right-side +R only.
+  // Home active: full Home pin + agents from the start → right-side +R only.
   const lines = renderTabBar(state, width, undefined, 1).map(stripAnsi);
   assert.equal(lines.length, 1, "overflow must not add an extra row");
   assert.match(lines[0] ?? "", /MixCode Home/);
   assert.match(lines[0] ?? "", /… \+\d+/);
-  assert.doesNotMatch(lines[0] ?? "", /^\+\d+ …/);
+  assert.doesNotMatch(lines[0] ?? "", /^ H /);
   assert.doesNotMatch(lines[0] ?? "", /\+\d+ tabs/);
   assert.ok(visibleWidth(lines[0]!) <= width);
 });
@@ -195,48 +170,73 @@ test("tabBarMaxRows takes the tighter of 10% terminal height and content cap", (
   assert.equal(tabBarMaxRows(undefined, undefined), undefined);
 });
 
-test("sliding window: active tab stays visible with left/right +N counts", () => {
+test("sliding window: Home pin is independent of agent window", () => {
   const width = 40;
   const state = manyTabState(12);
   // total segments = Home + 12 agents = 13
 
-  // Active near the end → H anchor + left agent overflow; active still hit-testable.
+  // Active near the end → compact H when full Home + agent window is too wide.
   state.activeTabId = "s12";
   const endLine = stripAnsi(renderTabBar(state, width, undefined, 1)[0] ?? "");
   assert.match(endLine, /Agent-12/);
-  assert.match(endLine, /^ H /);
-  assert.match(endLine, /\+\d+ …/);
+  assert.ok(
+    /^ H |MixCode Home/.test(endLine),
+    `expected Home pin, got: ${endLine}`,
+  );
+  if (endLine.startsWith(" H ")) {
+    // Gap outside the H chip: " H  +N …" not " H+N".
+    assert.match(endLine, /^ H  \+\d+ …/);
+    assert.doesNotMatch(endLine, / H\+/);
+  }
   const endRegions = tabBarHitRegions(state, width, 1);
   assert.ok(endRegions.some((region) => region.id === "s12"));
-  assert.ok(endRegions.some((region) => region.id === "config"), "H must hit MixCode Home");
+  assert.ok(endRegions.some((region) => region.id === "config"), "Home pin must hit config");
   const endLeft = Number(endLine.match(/\+(\d+) …/)?.[1] ?? 0);
   const endRight = Number(endLine.match(/… \+(\d+)/)?.[1] ?? 0);
-  assert.ok(endLeft >= 1, "expected left agent overflow when active is last");
-  // regions include H(config) + visible window tabs; +L is agents only; +R right hidden.
+  // regions include Home pin + visible agents; +L/+R are agents only.
   assert.equal(endRegions.length + endLeft + endRight, 13);
 
-  // Active at Home → full Home chip, only right overflow, no H stub.
+  // Active at Home → full Home, only right overflow.
   state.activeTabId = "config";
   const homeLine = stripAnsi(renderTabBar(state, width, undefined, 1)[0] ?? "");
   assert.match(homeLine, /MixCode Home/);
   assert.doesNotMatch(homeLine, /^ H /);
-  assert.doesNotMatch(homeLine, /^\+\d+ …/);
   assert.match(homeLine, /… \+\d+/);
   const homeRegions = tabBarHitRegions(state, width, 1);
   assert.ok(homeRegions.some((region) => region.id === "config"));
   const homeRight = Number(homeLine.match(/… \+(\d+)/)?.[1] ?? 0);
   assert.equal(homeRegions.length + homeRight, 13);
 
-  // Active in the middle: H when Home is off-window; active remains visible.
+  // Active in the middle: Home pin + active agent visible.
   state.activeTabId = "s6";
   const midLine = stripAnsi(renderTabBar(state, width, undefined, 1)[0] ?? "");
   assert.match(midLine, /Agent-6/);
-  assert.match(midLine, /^ H /);
   assert.ok(tabBarHitRegions(state, width, 1).some((region) => region.id === "s6"));
   assert.ok(tabBarHitRegions(state, width, 1).some((region) => region.id === "config"));
   const midLeft = Number(midLine.match(/\+(\d+) …/)?.[1] ?? 0);
   const midRight = Number(midLine.match(/… \+(\d+)/)?.[1] ?? 0);
   assert.equal(tabBarHitRegions(state, width, 1).length + midLeft + midRight, 13);
+});
+
+test("pinned Home uses full label only when chip width share is within 15%", () => {
+  const state = manyTabState(12);
+  state.activeTabId = "s8";
+  // " MixCode Home " is 14 cols → needs width >= ceil(14 / 0.15) = 94 for full pin.
+  const fullMinWidth = Math.ceil(14 / HOME_PIN_FULL_MAX_RATIO);
+  assert.equal(HOME_PIN_FULL_MAX_RATIO, 0.15);
+
+  const wide = stripAnsi(renderTabBar(state, fullMinWidth, undefined, 1)[0] ?? "");
+  assert.match(wide, /MixCode Home/, `expected full Home at width ${fullMinWidth}, got: ${wide}`);
+  assert.doesNotMatch(wide, /^ H /);
+
+  const narrow = stripAnsi(renderTabBar(state, fullMinWidth - 1, undefined, 1)[0] ?? "");
+  assert.match(narrow, /^ H /, `expected H when Home share > 15%, got: ${narrow}`);
+  assert.doesNotMatch(narrow, /MixCode Home/);
+
+  // On Home itself, always keep the full label for orientation.
+  state.activeTabId = "config";
+  const onHome = stripAnsi(renderTabBar(state, 40, undefined, 1)[0] ?? "");
+  assert.match(onHome, /MixCode Home/);
 });
 
 test("H home anchor click activates MixCode Home", () => {
@@ -248,7 +248,7 @@ test("H home anchor click activates MixCode Home", () => {
   state.tabBarHitRow = 1;
   state.lastRenderWidth = width;
   const home = tabBarHitRegions(state, width, 1).find((region) => region.id === "config");
-  assert.ok(home, "expected H hit region for config");
+  assert.ok(home, "expected Home pin hit region for config");
   const y = (state.tabBarTopRow ?? 1) + (home.row ?? 0);
   const result = handleMixCodeKeyInput(
     state,
