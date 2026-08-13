@@ -65,10 +65,34 @@ test("working active tab keeps the title readable", () => {
   state.tabs.push(createTab(1, "s1", "/repo", { title: "Worker", status: "running" }));
   activateTab(state, "s1");
   const line = renderTabBar(state, 80, themeForId("mixcode-dark"))[0] ?? "";
-  assert.match(stripAnsi(line), /Worker/);
-  // Title must not be painted with accent-on-accent (invisible on the teal chip).
-  const accentedTitle = themeForId("mixcode-dark").accent(" Worker ");
-  assert.ok(!line.includes(accentedTitle), "working status must not recolor the whole chip");
+  const plain = stripAnsi(line);
+  assert.match(plain, /● Worker/);
+  const theme = themeForId("mixcode-dark");
+  assert.ok(line.includes(theme.workingFg(" ● Worker ")), "working paints the whole chip text");
+});
+
+test("waiting tab keeps a colored ? without washing out the title", () => {
+  const state = createInitialState("/repo");
+  state.theme = "mixcode-dark";
+  const tab = createTab(1, "s1", "/repo", { title: "Asker" });
+  tab.pendingDialogs = [
+    {
+      requestId: "q",
+      sessionId: "s1",
+      questions: [],
+      currentQuestionIndex: 0,
+      highlightedOptionIndices: [],
+      selectedAnswers: [],
+      customAnswers: [],
+      dirty: false,
+    },
+  ];
+  state.tabs.push(tab);
+  activateTab(state, "s1");
+  const line = renderTabBar(state, 80, themeForId("mixcode-dark"))[0] ?? "";
+  const theme = themeForId("mixcode-dark");
+  assert.match(stripAnsi(line), /\? Asker/);
+  assert.ok(line.includes(theme.waitingFg(" ? Asker ")), "waiting paints the whole chip text");
 });
 
 test("Pi-derived theme maps recency paints without new Pi tokens", () => {

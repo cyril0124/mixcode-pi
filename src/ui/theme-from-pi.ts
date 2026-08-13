@@ -35,6 +35,10 @@ export interface MixCodeTheme {
   olderRecentTab: (text: string) => string;
   homeTab: (text: string) => string;
   homeTabActive: (text: string) => string;
+  workingFg: (text: string) => string;
+  waitingFg: (text: string) => string;
+  doneFg: (text: string) => string;
+  errorFg: (text: string) => string;
   userMessageBg: (text: string) => string;
   thinkingText: (text: string) => string;
   toolTitle: (text: string) => string;
@@ -93,6 +97,10 @@ export function mixCodeThemeFromPi(theme: Theme): MixCodeTheme {
     olderRecentTab: (text) => theme.bg("toolPendingBg", theme.fg("accent", text)),
     homeTab: (text) => theme.bg("selectedBg", theme.fg("accent", text)),
     homeTabActive: (text) => theme.bg("selectedBg", theme.fg("borderAccent", text)),
+    workingFg: fg("warning"),
+    waitingFg: fg("toolTitle"),
+    doneFg: fg("success"),
+    errorFg: fg("error"),
     userMessageBg: persistentBg("userMessageBg"),
     thinkingText: fg("thinkingText"),
     toolTitle: fg("toolTitle"),

@@ -233,7 +233,7 @@ export function zenStatusMarkers(
     if (tab.sessionId === activeSessionId) continue;
     const glyph = tabStatusGlyph(tab);
     if (glyph === "!") markers.push("done");
-    else if (glyph === "*") markers.push("working");
+    else if (glyph === "●") markers.push("working");
     else if (glyph === "?") markers.push("waiting");
     else if (glyph === "x") markers.push("error");
   }
@@ -1204,40 +1204,54 @@ function tabBarSegments(state: MixCodeState): Array<{ id: string; text: string }
   ];
 }
 
+function tabChipOpenSeq(paint: (text: string) => string): string {
+  const marked = paint("\u0000");
+  const index = marked.indexOf("\u0000");
+  return index >= 0 ? marked.slice(0, index) : "";
+}
+
+function paintTabChip(paint: (text: string) => string, body: string): string {
+  const open = tabChipOpenSeq(paint);
+  if (!open) return paint(body);
+  // Status glyphs reset fg (39) and inverse (27); restore chip chrome after both.
+  return paint(
+    body.replace(/\x1b\[39m/g, `\x1b[39m${open}`).replace(/\x1b\[27m/g, `\x1b[27m${open}`),
+  );
+}
+
+function tabStatusFg(tab: MixCodeTabInfo): ((text: string) => string) | undefined {
+  if (tabIsWaitingForInput(tab)) return activeRenderTheme.waitingFg;
+  if (tab.status === "running" || tab.status === "thinking") return activeRenderTheme.workingFg;
+  if (tab.status === "error") return activeRenderTheme.errorFg;
+  if (tab.status === "done" || tab.unreadDone) return activeRenderTheme.doneFg;
+  return undefined;
+}
+
 function renderTabSegmentText(
   tab: MixCodeTabInfo,
   active: boolean,
   recentRank: number,
   onHome: boolean,
 ): string {
-  const glyph = tabStatusGlyph(tab);
-  const statusColor = tabIsWaitingForInput(tab)
-    ? activeRenderTheme.toolTitle
-    : tab.status === "running" || tab.status === "thinking"
-      ? activeRenderTheme.accent
-      : tab.status !== "error" && tab.unreadDone
-        ? activeRenderTheme.done
-        : undefined;
-  // Color only the glyph. Painting the whole chip with accent/done then wrapping
-  // activeTab (same hue) makes the title disappear on working tabs.
-  const paintedGlyph = statusColor ? statusColor(glyph) : glyph;
-  const text = ` ${paintedGlyph} ${tab.title} `;
-  if (active) return activeRenderTheme.activeTab(text);
+  const raw = ` ${tabStatusGlyph(tab)} ${tab.title} `;
+  const fg = tabStatusFg(tab);
+  const text = fg ? fg(raw) : raw;
+  if (active) return paintTabChip(activeRenderTheme.activeTab, text);
   if (onHome) {
-    if (recentRank === 0) return activeRenderTheme.recentTab(text);
-    if (recentRank === 1) return activeRenderTheme.olderRecentTab(text);
-    return activeRenderTheme.tab(text);
+    if (recentRank === 0) return paintTabChip(activeRenderTheme.recentTab, text);
+    if (recentRank === 1) return paintTabChip(activeRenderTheme.olderRecentTab, text);
+    return paintTabChip(activeRenderTheme.tab, text);
   }
-  if (recentRank === 1) return activeRenderTheme.recentTab(text);
-  if (recentRank === 2) return activeRenderTheme.olderRecentTab(text);
-  return activeRenderTheme.tab(text);
+  if (recentRank === 1) return paintTabChip(activeRenderTheme.recentTab, text);
+  if (recentRank === 2) return paintTabChip(activeRenderTheme.olderRecentTab, text);
+  return paintTabChip(activeRenderTheme.tab, text);
 }
 
 export function tabStatusGlyph(tab: MixCodeTabInfo): string {
   if (tab.status === "Not Ready") return "◌";
   if (tab.status === "error") return "x";
   if (tabIsWaitingForInput(tab)) return "?";
-  if (tab.status === "running" || tab.status === "thinking") return "*";
+  if (tab.status === "running" || tab.status === "thinking") return "●";
   if (tab.status === "done" || tab.unreadDone) return "!";
   return "-";
 }
