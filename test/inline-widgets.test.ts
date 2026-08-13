@@ -49,7 +49,7 @@ function border(opts: {
       dash: identity,
       vimLabel: identity,
       zenLabel: identity,
-      widLabel: identity,
+      inlLabel: identity,
       titleLabel: identity,
     }),
   );
@@ -374,13 +374,13 @@ test("inline widgets stay in the chat column, not the editor dock", () => {
   assert.equal(full.split("INLINE-ABOVE").length - 1, 1);
 });
 
-test("inline mode embeds [WID] on the default editor top border", () => {
+test("inline mode embeds [INL] on the default editor top border", () => {
   const line = border({ width: 40, title: "Agent-1", inlineWidgets: true });
-  assert.match(line, /^── \[WID\] /);
+  assert.match(line, /^── \[INL\] /);
   assert.match(line, /Agent-1/);
 });
 
-test("VIM ZEN WID badges share the left slot in that order", () => {
+test("VIM ZEN INL badges share the left slot in that order", () => {
   const line = border({
     width: 56,
     title: "Agent-1",
@@ -388,10 +388,10 @@ test("VIM ZEN WID badges share the left slot in that order", () => {
     zenMode: true,
     inlineWidgets: true,
   });
-  assert.match(line, /^── \[VIM\] \[ZEN\] \[WID\] /);
+  assert.match(line, /^── \[VIM\] \[ZEN\] \[INL\] /);
 });
 
-test("narrow borders drop [WID] before [ZEN] and [VIM]", () => {
+test("narrow borders drop [INL] before [ZEN] and [VIM]", () => {
   const line = border({
     width: 18,
     title: "Agent-1",
@@ -399,25 +399,25 @@ test("narrow borders drop [WID] before [ZEN] and [VIM]", () => {
     zenMode: true,
     inlineWidgets: true,
   });
-  assert.doesNotMatch(line, /\[WID\]/);
+  assert.doesNotMatch(line, /\[INL\]/);
   assert.match(line, /\[VIM\]|\[ZEN\]|Agent-1/);
 });
 
-test("default editor chrome shows [WID] when inline widgets are on", () => {
+test("default editor chrome shows [INL] when inline widgets are on", () => {
   const { slot } = makeSlot();
   const plain = stripAnsi(slot.render(64).join("\n"));
-  assert.match(plain, /\[WID\]/);
+  assert.match(plain, /\[INL\]/);
   assert.match(plain, /Agent-01/);
 });
 
-test("setEditorComponent body stays unlabeled; [WID] moves to the separator", () => {
+test("setEditorComponent body stays unlabeled; [INL] moves to the separator", () => {
   const { slot } = makeSlot();
   const width = 56;
   const plainTop = "─".repeat(width);
   slot.setEditorComponent(() => stubEditor([plainTop, " plugin-body ", plainTop]));
   const body = stripAnsi(slot.render(width).join("\n"));
   assert.match(body, /plugin-body/);
-  assert.doesNotMatch(body, /\[WID\]|Agent-01/);
+  assert.doesNotMatch(body, /\[INL\]|Agent-01/);
 
   const separator = stripAnsi(
     renderTabBarSeparator(width, {
@@ -425,11 +425,11 @@ test("setEditorComponent body stays unlabeled; [WID] moves to the separator", ()
       agentChrome: { title: "Agent-01" },
     }).join("\n"),
   );
-  assert.match(separator, /\[WID\]/);
+  assert.match(separator, /\[INL\]/);
   assert.match(separator, /Agent-01/);
 });
 
-test("temporary input override does not receive [WID]", () => {
+test("temporary input override does not receive [INL]", () => {
   const { slot, state } = makeSlot();
   slot.setInputComponent(
     {
@@ -441,13 +441,13 @@ test("temporary input override does not receive [WID]", () => {
   );
   const plain = stripAnsi(slot.render(40).join("\n"));
   assert.match(plain, /dialog body/);
-  assert.doesNotMatch(plain, /\[WID\]|Agent-01/);
+  assert.doesNotMatch(plain, /\[INL\]|Agent-01/);
 
   const separator = stripAnsi(renderTabBarSeparator(40, { inlineWidgets: true }).join("\n"));
-  assert.doesNotMatch(separator, /\[WID\]/);
+  assert.doesNotMatch(separator, /\[INL\]/);
 });
 
-test("custom()/dialog takeover hides [WID] on the separator until restore", () => {
+test("custom()/dialog takeover hides [INL] on the separator until restore", () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo", {
     title: "Agent-01",
@@ -467,15 +467,15 @@ test("custom()/dialog takeover hides [WID] on the separator until restore", () =
 
   const during = stripAnsi(main.render(80).join("\n"));
   assert.match(during, /Agent-01/);
-  assert.doesNotMatch(during, /\[WID\]/);
+  assert.doesNotMatch(during, /\[INL\]/);
 
   tab.extensionUi.waitingForInputs = [];
   const restored = stripAnsi(main.render(80).join("\n"));
-  assert.match(restored, /\[WID\]/);
+  assert.match(restored, /\[INL\]/);
   assert.match(restored, /Agent-01/);
 });
 
-test("setInputComponent takeover hides [WID] on a permanent-skin separator", () => {
+test("setInputComponent takeover hides [INL] on a permanent-skin separator", () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo", { title: "Agent-01", inlineWidgets: true });
   state.tabs = [tab];
@@ -493,14 +493,14 @@ test("setInputComponent takeover hides [WID] on a permanent-skin separator", () 
 
   const during = stripAnsi(main.render(80).join("\n"));
   assert.match(during, /Agent-01/);
-  assert.doesNotMatch(during, /\[WID\]/);
+  assert.doesNotMatch(during, /\[INL\]/);
 
   inputOpen = false;
   const restored = stripAnsi(main.render(80).join("\n"));
-  assert.match(restored, /\[WID\]/);
+  assert.match(restored, /\[INL\]/);
 });
 
-test("turning inline widgets off restores the dock and drops [WID]", () => {
+test("turning inline widgets off restores the dock and drops [INL]", () => {
   const { layout, main, tab } = buildLayout(24);
   tab.extensionUi.widgets = [{ id: "above", placement: "aboveEditor", lines: ["INLINE-ABOVE"] }];
   tab.inlineWidgets = true;
@@ -511,10 +511,10 @@ test("turning inline widgets off restores the dock and drops [WID]", () => {
   layout.render(80);
   assert.doesNotMatch(stripAnsi(main.render(80).join("\n")), /INLINE-ABOVE/);
   assert.match(stripAnsi(layout.render(80).join("\n")), /INLINE-ABOVE/);
-  assert.doesNotMatch(border({ width: 40, title: "Agent-1" }), /\[WID\]/);
+  assert.doesNotMatch(border({ width: 40, title: "Agent-1" }), /\[INL\]/);
 });
 
-test("zen + custom editor keeps status dots and [WID] on one separator", () => {
+test("zen + custom editor keeps status dots and [INL] on one separator", () => {
   const line = stripAnsi(
     renderTabBarSeparator(64, {
       zenMode: true,
@@ -524,15 +524,15 @@ test("zen + custom editor keeps status dots and [WID] on one separator", () => {
     }).join("\n"),
   );
   assert.match(line, /●/);
-  assert.match(line, /\[WID\]/);
+  assert.match(line, /\[INL\]/);
   assert.match(line, /Agent-17/);
 });
 
-test("side panel leaves [WID] on the default editor", () => {
+test("side panel leaves [INL] on the default editor", () => {
   const { slot, tab } = makeSlot();
   tab.panelOpen = true;
   const plain = stripAnsi(slot.render(64).join("\n"));
-  assert.match(plain, /\[WID\]/);
+  assert.match(plain, /\[INL\]/);
 });
 
 test("anchored chat still places widgets before the queue", () => {

@@ -33,7 +33,7 @@
 │| [scrollable chat surface]                                                                      |│
 │| (extension header scrolls here)                                                                |│
 │| optional: /toggle-inline-widgets moves setWidget chrome here,                                  |│
-│| after messages and before Steer/Follow-up; editor top border shows [WID]                       |│
+│| after messages and before Steer/Follow-up; editor top border shows [INL]                       |│
 │| optional: extension side panel may split this row                                              |│
 │|------------------------------------------------------------------------------------------------|│
 │| [extension widgets above editor]  (hidden in inline / vim / side-panel)                        |│

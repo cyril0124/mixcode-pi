@@ -99,7 +99,7 @@ export class CompactPromptEditor extends Editor {
       : isShellMode
         ? theme.bashMode
         : theme.thinkingBorder(this.activeTab()?.thinkingLevel);
-    // Top-border agent chrome (title / xxk/xxk* / VIM|ZEN|WID|sys) is applied by
+    // Top-border agent chrome (title / xxk/xxk* / VIM|ZEN|INL|sys) is applied by
     // EditorSlot so setEditorComponent replacements keep the same contract.
     const lines = super.render(width);
     // Bottom border stays a plain frame edge; model/bar/git live in the meta row

@@ -117,7 +117,7 @@ export type ZenStatusMarker = "working" | "waiting" | "done" | "error";
  * green for done, and red for errors. The cluster is capped at five markers,
  * then `[+N]`; dashes keep the frame color.
  * When `agentChrome` is set (custom setEditorComponent skins), the rule carries
- * the active agent title / optional override context / VIM|ZEN|WID|sys badges so
+ * the active agent title / optional override context / VIM|ZEN|INL|sys badges so
  * EditorSlot does not paint a second label strip above the input editor.
  */
 export function renderTabBarSeparator(
@@ -156,7 +156,7 @@ export function renderTabBarSeparator(
     if (options.agentChrome) {
       const isVim = options.vimMode === true;
       const isZen = options.zenMode === true;
-      const isWid = options.inlineWidgets === true;
+      const isInl = options.inlineWidgets === true;
       const titleLabel = isVim ? activeRenderTheme.vimBorder : activeRenderTheme.accent;
       const zenLabel = isVim ? activeRenderTheme.vimBorder : activeRenderTheme.accent;
       const left = zenLeft?.painted ?? "";
@@ -169,7 +169,7 @@ export function renderTabBarSeparator(
         title: options.agentChrome.title,
         vimMode: isVim,
         zenMode: isZen,
-        inlineWidgets: isWid,
+        inlineWidgets: isInl,
         customBasePrompt: options.agentChrome.customBasePrompt === true,
         contextText: options.agentChrome.contextText,
         dash: frame,
