@@ -35,6 +35,7 @@ import {
   setRetryMaxRetries,
 } from "../agent/retry-settings.js";
 import { DEFAULT_THEME_ID } from "../core/defaults.js";
+import { fuzzyMatch } from "../core/fuzzy.js";
 import { listThemeInfos, setTheme, themeForId } from "./themes.js";
 
 // ─── Setting item descriptors ────────────────────────────────────────────────
@@ -402,6 +403,7 @@ export async function openSettingsPanel(
   state.settingsPanel = {
     open: true,
     selectedIndex: 0,
+    filterQuery: "",
     editMode: false,
     editText: "",
     editError: undefined,
@@ -418,6 +420,7 @@ export async function openSettingsPanel(
 
 export function closeSettingsPanel(state: MixCodeState, tui: OverlayTui): void {
   state.settingsPanel.open = false;
+  state.settingsPanel.filterQuery = "";
   state.settingsPanel.editMode = false;
   state.settingsPanel.enumOpen = false;
   closeAppOverlay(tui);
@@ -481,6 +484,17 @@ const ITEM_LABELS: Record<string, string> = {
   disabledProviders: "Disabled providers",
   disabledModels: "Disabled models",
 };
+
+function filteredSettingIndexes(panel: SettingsPanelState): number[] {
+  const query = panel.filterQuery?.trim() ?? "";
+  if (!query) return ITEMS.map((_, index) => index);
+  return ITEMS.flatMap((item, index) => {
+    const label = ITEM_LABELS[item.label] ?? item.label;
+    const matchesLabel = fuzzyMatch(query, label) !== undefined;
+    const matchesKey = fuzzyMatch(query, item.label) !== undefined;
+    return matchesLabel || matchesKey ? [index] : [];
+  });
+}
 
 export function renderSettingsPanel(state: MixCodeState, width: number): string[] {
   return renderWithTheme(themeForId(state.theme), () => renderSettingsPanelInner(state, width));
@@ -575,14 +589,20 @@ function renderMainSettingsLines(
   },
 ): string[] {
   const { dim, accent, sel, innerWidth, labelCol, valueCol, gap, sectionHeader, pathLine } = ui;
+  const filterQuery = panel.filterQuery ?? "";
+  const visibleIndexes = filteredSettingIndexes(panel);
+  const filterLine = filterQuery
+    ? `  ${dim("filter:")} ${filterQuery}  ${dim(`${visibleIndexes.length}/${ITEMS.length}`)}`
+    : dim(`  filter: type to filter  ${ITEMS.length}/${ITEMS.length}`);
   const footerHint = panel.editError
     ? dim(`  ${panel.editError}  ⏎ retry  esc cancel`)
-    : dim("  ↑↓ select  ⏎ edit/toggle  esc close");
+    : dim("  ↑↓ select  ⏎ edit/toggle  type to filter  esc close");
   const footer = ["", footerHint];
   const bodyBudget = Math.max(4, settingsOverlayBodyBudget() - footer.length);
 
-  // Build flat item rows first (no section headers yet), then window them.
-  const itemRows = ITEMS.map((item, idx) => {
+  // Keep absolute ITEMS indexes so writes and existing callers retain their contract.
+  const itemRows = visibleIndexes.map((idx) => {
+    const item = ITEMS[idx]!;
     const isSelected = idx === panel.selectedIndex;
     const marker = isSelected ? accent("› ") : "  ";
     const label = ITEM_LABELS[item.label] ?? item.label;
@@ -627,14 +647,21 @@ function renderMainSettingsLines(
     };
   });
 
-  // Prefer showing as many items as fit; reserve 2 lines for active section header+path
-  // and 2 for more-above/below markers when needed.
-  const maxItems = Math.max(3, bodyBudget - 4);
-  const start = windowStart(panel.selectedIndex, itemRows.length, maxItems);
+  if (itemRows.length === 0) {
+    return [filterLine, "", dim("  No matching settings"), ...footer];
+  }
+
+  // Prefer showing as many items as fit; reserve filter plus active section chrome.
+  const maxItems = Math.max(1, bodyBudget - 6);
+  const selectedPosition = Math.max(
+    0,
+    itemRows.findIndex((row) => row.idx === panel.selectedIndex),
+  );
+  const start = windowStart(selectedPosition, itemRows.length, maxItems);
   const end = Math.min(start + maxItems, itemRows.length);
   const slice = itemRows.slice(start, end);
 
-  const lines: string[] = [];
+  const lines: string[] = [filterLine, ""];
   let shownPi = false;
   let shownMixcode = false;
   if (start > 0) lines.push(dim(`  ... (${start} more above)`));
@@ -659,16 +686,29 @@ function renderMainSettingsLines(
 
   if (end < itemRows.length) lines.push(dim(`  ... (${itemRows.length - end} more below)`));
 
-  // If chrome pushed us over budget, drop blank separators first then trim head
-  // while keeping the selected row if possible.
+  // If chrome pushed us over budget, preserve the filter, selected section,
+  // selected row, and footer; paths and off-screen detail are expendable first.
   while (lines.length > bodyBudget) {
     const blank = lines.indexOf("");
     if (blank >= 0) {
       lines.splice(blank, 1);
       continue;
     }
-    // Drop oldest non-selected chrome/item from the top.
-    const dropAt = lines.findIndex((l, i) => i > 0 && !l.includes("›"));
+    const path = lines.findIndex(
+      (line) => line.includes(panel.piSettingsFile) || line.includes(panel.mixcodeFile),
+    );
+    if (path >= 0) {
+      lines.splice(path, 1);
+      continue;
+    }
+    const moreBelow = lines.findIndex((line) => line.includes("more below"));
+    if (moreBelow >= 0) {
+      lines.splice(moreBelow, 1);
+      continue;
+    }
+    const dropAt = lines.findIndex(
+      (line) => !line.includes("›") && !line.includes("filter:") && !line.includes("─"),
+    );
     if (dropAt >= 0) lines.splice(dropAt, 1);
     else break;
   }
@@ -904,13 +944,21 @@ function handleNormal(
   tui: OverlayTui,
   panel: SettingsPanelState,
 ): void {
+  const visibleIndexes = filteredSettingIndexes(panel);
+  const selectedPosition = visibleIndexes.indexOf(panel.selectedIndex);
   if (matchesKey(data, "up") || data === "\x1b[A") {
-    panel.selectedIndex = (panel.selectedIndex - 1 + ITEMS.length) % ITEMS.length;
+    if (visibleIndexes.length === 0) return;
+    const nextPosition =
+      (Math.max(0, selectedPosition) - 1 + visibleIndexes.length) % visibleIndexes.length;
+    panel.selectedIndex = visibleIndexes[nextPosition]!;
     refreshSettingsPanel(state, tui);
   } else if (matchesKey(data, "down") || data === "\x1b[B") {
-    panel.selectedIndex = (panel.selectedIndex + 1) % ITEMS.length;
+    if (visibleIndexes.length === 0) return;
+    const nextPosition = (Math.max(-1, selectedPosition) + 1) % visibleIndexes.length;
+    panel.selectedIndex = visibleIndexes[nextPosition]!;
     refreshSettingsPanel(state, tui);
   } else if (matchesKey(data, "return") || data === "\r" || data === "\n") {
+    if (!visibleIndexes.includes(panel.selectedIndex)) return;
     const item = ITEMS[panel.selectedIndex];
     const ctx = panelCtx(state);
     if (!item || !ctx) return;
@@ -949,7 +997,26 @@ function handleNormal(
       refreshSettingsPanel(state, tui);
     }
   } else if (matchesKey(data, "escape") || data === "\x1b") {
-    closeSettingsPanel(state, tui);
+    if (panel.filterQuery) {
+      updateSettingsFilter(panel, "");
+      refreshSettingsPanel(state, tui);
+    } else {
+      closeSettingsPanel(state, tui);
+    }
+  } else if (matchesKey(data, "backspace") || data === "\x7f") {
+    updateSettingsFilter(panel, (panel.filterQuery ?? "").slice(0, -1));
+    refreshSettingsPanel(state, tui);
+  } else if (data.length > 0 && !/[\x00-\x1f\x7f]/.test(data)) {
+    updateSettingsFilter(panel, (panel.filterQuery ?? "") + data);
+    refreshSettingsPanel(state, tui);
+  }
+}
+
+function updateSettingsFilter(panel: SettingsPanelState, query: string): void {
+  panel.filterQuery = query;
+  const visibleIndexes = filteredSettingIndexes(panel);
+  if (!visibleIndexes.includes(panel.selectedIndex) && visibleIndexes[0] !== undefined) {
+    panel.selectedIndex = visibleIndexes[0];
   }
 }
 

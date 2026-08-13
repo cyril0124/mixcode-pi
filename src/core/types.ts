@@ -91,6 +91,8 @@ export interface PickerState {
 export interface SettingsPanelState {
   open: boolean;
   selectedIndex: number;
+  /** Main-list filter; optional for restored/test state created before search existed. */
+  filterQuery?: string;
   editMode: boolean;
   editText: string;
   /** Inline validation error shown in the settings footer while editing. */

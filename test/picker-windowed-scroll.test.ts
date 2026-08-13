@@ -111,6 +111,33 @@ test("settings enum open keeps panel short so selection is not head-clipped", ()
   assert.ok(lines.length <= 20, `enum panel too tall for short terminals: ${lines.length}`);
 });
 
+test("settings main list keeps the selected section visible on a very short terminal", () => {
+  const previousRows = process.stdout.rows;
+  Object.defineProperty(process.stdout, "rows", { value: 10, configurable: true });
+  try {
+    const state = createInitialState("/repo");
+    state.settingsPanel = {
+      ...state.settingsPanel,
+      open: true,
+      selectedIndex: 15, // disabledProviders, in the Mixcode section
+      mixcodeRaw: {},
+      mixcodeFile: "/tmp/mixcode_settings.json",
+      piSettingsFile: "/tmp/settings.json",
+      settingsManager: SettingsManager.inMemory(),
+    };
+
+    const plain = stripAnsi(renderSettingsPanel(state, 80).join("\n"));
+    assert.match(plain, /Mixcode/);
+    assert.match(plain, /› Disabled providers|Disabled providers/);
+    assert.match(plain, /type to filter/);
+  } finally {
+    Object.defineProperty(process.stdout, "rows", {
+      value: previousRows,
+      configurable: true,
+    });
+  }
+});
+
 test("settings main list windows so deep selection stays under overlay maxHeight", () => {
   // 20-line settings panel is head-clipped by TUI maxHeight on short terminals,
   // so selectedIndex near the bottom must not rely on a full static dump.

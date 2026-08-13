@@ -321,6 +321,80 @@ test("settings panel wraps selection from the first item to the last", () => {
   assert.equal(state.settingsPanel.selectedIndex, last);
 });
 
+test("settings panel filters the main list and activates the selected match", () => {
+  const state = createInitialState("/repo");
+  state.settingsPanel = {
+    ...state.settingsPanel,
+    open: true,
+    mixcodeFile: "/tmp/unused-mixcode-settings.json",
+    piSettingsFile: "/tmp/unused-pi-settings.json",
+    settingsManager: SettingsManager.inMemory(),
+  };
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({ hide: () => undefined }) as never,
+    hasOverlay: () => true,
+    hideOverlay: () => undefined,
+  };
+
+  for (const char of "image") handleSettingsPanelKey(state, char, tui);
+
+  const filtered = stripAnsi(renderSettingsPanel(state, 100).join("\n"));
+  assert.match(filtered, /filter: image/i);
+  assert.match(filtered, /Show images/);
+  assert.match(filtered, /Image width \(cells\)/);
+  assert.match(filtered, /Block images to model/);
+  assert.doesNotMatch(filtered, /Hide thinking blocks/);
+
+  handleSettingsPanelKey(state, "\x1b[B", tui);
+  handleSettingsPanelKey(state, "\r", tui);
+  assert.equal(state.settingsPanel.editMode, true);
+  assert.equal(state.settingsPanel.selectedIndex, 6); // imageWidthCells in ITEMS
+
+  handleSettingsPanelKey(state, "\x1b", tui);
+  assert.equal(state.settingsPanel.editMode, false);
+  handleSettingsPanelKey(state, "\x7f", tui);
+  assert.equal(state.settingsPanel.filterQuery, "imag");
+  handleSettingsPanelKey(state, "\x1b", tui);
+  assert.equal(state.settingsPanel.filterQuery, "");
+  assert.equal(state.settingsPanel.open, true);
+
+  for (const char of "markdown.mermaid") handleSettingsPanelKey(state, char, tui);
+  const keyFiltered = stripAnsi(renderSettingsPanel(state, 100).join("\n"));
+  assert.match(keyFiltered, /Mermaid diagrams/);
+  assert.doesNotMatch(keyFiltered, /Show images/);
+
+  handleSettingsPanelKey(state, "\x1b", tui);
+  handleSettingsPanelKey(state, "\x1b", tui);
+  assert.equal(state.settingsPanel.open, false);
+});
+
+test("settings panel handles a filter with no matching settings", () => {
+  const state = createInitialState("/repo");
+  state.settingsPanel = {
+    ...state.settingsPanel,
+    open: true,
+    mixcodeFile: "/tmp/unused-mixcode-settings.json",
+    piSettingsFile: "/tmp/unused-pi-settings.json",
+    settingsManager: SettingsManager.inMemory(),
+  };
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({ hide: () => undefined }) as never,
+    hasOverlay: () => true,
+    hideOverlay: () => undefined,
+  };
+
+  for (const char of "zzzzz") handleSettingsPanelKey(state, char, tui);
+  assert.match(stripAnsi(renderSettingsPanel(state, 100).join("\n")), /No matching settings/);
+
+  handleSettingsPanelKey(state, "\x1b[A", tui);
+  handleSettingsPanelKey(state, "\r", tui);
+  assert.equal(state.settingsPanel.editMode, false);
+  assert.equal(state.settingsPanel.enumOpen, false);
+  assert.equal(state.settingsPanel.open, true);
+});
+
 test("mixcode settings load ui.inlineWidgets and reject non-booleans", async () => {
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-inline-widgets-settings-"));
   try {

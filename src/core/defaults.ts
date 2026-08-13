@@ -41,6 +41,7 @@ export function createInitialState(workdir: string, defaultThinkingLevel?: Think
     settingsPanel: {
       open: false,
       selectedIndex: 0,
+      filterQuery: "",
       editMode: false,
       editText: "",
       editError: undefined,
