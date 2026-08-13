@@ -1,31 +1,27 @@
-# MixCode Pi 技术方案
+# MixCode Pi 架构
 
-本文记录 MixCode TUI 体验到 `mixcode-pi` 的迁移方案。目标是把相同的 TUI 体验映射到 Pi 的 TUI、Agent、AI 三层模型上，运行时使用远程 Pi npm packages。
+MixCode 是基于 Pi（`pi-tui` / `pi-agent-core` / `pi-ai`）的多 tab TUI agent。本文记录当前实现的分层、运行时、快捷键和命令。
 
 ## 总体结构
 
 ```text
-legacy MixCode TUI                   mixcode-pi
-Python + Textual                     TypeScript
-legacy mediated runtime              Pi packages
-
-┌────────────────────┐               ┌────────────────────────┐
-│ Textual App         │               │ @earendil-works/pi-tui │
-│ tabs / overlays     │──────────────>│ Root + Editor + Overlay │
-└─────────┬──────────┘               └────────────┬───────────┘
-          │                                       │
-          v                                       v
-┌────────────────────┐               ┌────────────────────────┐
-│ session commands    │               │ pi-agent-core Agent     │
-│ runtime events      │──────────────>│ SessionManager          │
-│ tool events         │               │ AgentEvent stream       │
-└─────────┬──────────┘               └────────────┬───────────┘
-          │                                       │
-          v                                       v
-┌────────────────────┐               ┌────────────────────────┐
-│ provider / tools    │               │ @earendil-works/pi-ai   │
-│ legacy mediated     │──────────────>│ Model + stream + tools   │
-└────────────────────┘               └────────────────────────┘
+┌────────────────────────┐
+│ @earendil-works/pi-tui │
+│ Root + Editor + Overlay │
+└────────────┬───────────┘
+             │
+             v
+┌────────────────────────┐
+│ pi-agent-core Agent     │
+│ SessionManager          │
+│ AgentEvent stream       │
+└────────────┬───────────┘
+             │
+             v
+┌────────────────────────┐
+│ @earendil-works/pi-ai   │
+│ Model + stream + tools   │
+└────────────────────────┘
 ```
 
 ## 模块分层
@@ -50,7 +46,7 @@ src/
 └── ui/
     ├── app.ts                pi-tui Root、Editor、全局键处理
     ├── agent-tab-actions.ts  openExistingAgentTab / closeExistingAgentTab 等 tab 生命周期操作
-    ├── rendering.ts          类 MixCode 的 header/tab/status/panel/floating panel 渲染
+    ├── rendering.ts          header/tab/status/panel/floating panel 渲染
     └── completion.ts         /、@ 两类补全（$skill 补全由 mpi-skill-refs 扩展提供）
 ```
 
@@ -88,7 +84,7 @@ MixCodeRuntime
 
 ## UI 和快捷键
 
-当前实现把原项目的主要全局绑定映射为 pi-tui 输入监听。`Tab` 与 `Shift+Tab` 只有在 Editor 补全没有打开时才切换标签，避免抢走 `/`、`$`、`@` 补全的接受候选行为。
+`Tab` 与 `Shift+Tab` 只有在 Editor 补全没有打开时才切换标签，避免抢走 `/`、`$`、`@` 补全的接受候选行为。
 
 ```text
 ┌────────────────────────────────────────────────────────────┐
@@ -109,7 +105,7 @@ MixCodeRuntime
 └────────────────────────────────────────────────────────────┘
 ```
 
-Config tab 只渲染配置面板和可点击操作，不渲染 prompt editor；这是为了避免在配置页出现无效的 Input Message 输入框。输入区下方不保留 refs/mixcode 的完整快捷键 footer；对话顶部 header 显示紧凑快捷键提示，`Ctrl+O` 可展开为完整全局键表，分作用域的完整列表仍在 help overlay（`/hotkeys`）中。
+Config tab 只渲染配置面板和可点击操作，不渲染 prompt editor。对话顶部 header 显示紧凑快捷键提示，`Ctrl+O` 可展开为完整全局键表，分作用域的完整列表仍在 help overlay（`/hotkeys`）中。
 
 | 快捷键 | 当前行为 |
 | --- | --- |
@@ -128,7 +124,7 @@ Config tab 只渲染配置面板和可点击操作，不渲染 prompt editor；�
 | `Up` / `Down` | 普通输入为空且无 overlay、preview、补全、extension terminal input 消费时浏览当前 tab 的 prompt 历史；其它场景交给局部控件 |
 | `Right` | Vim 模式跳到更新的 user message，并短暂显示右锚定 `User Messages` 预览；非 Vim 普通输入为空且无 overlay、preview、补全、extension user interaction 时切换 extension widget side panel；无 widget 或终端过窄时显示 toast；有输入时交给 Editor 光标移动 |
 | `Shift+Right` | Vim 模式跳到更旧的 user message，并短暂显示右锚定 `User Messages` 预览 |
-| `@` | 打开 mixcode 风格全局文件 picker，选择后插入 `@path ` |
+| `@` | 打开全局文件 picker，选择后插入 `@path ` |
 | `Esc` | 关闭 overlay、preview 或 tab jump；standalone `!shell` 一次中止；bash-mode 草稿 `!...` 清空 |
 | `Ctrl+Q` | 打开退出确认；`y` 确认、`n`/`Esc` 取消；`/quit` 和 `/exit` 直接退出，不弹确认 |
 | `q` | 普通输入字符，不绑定退出，避免破坏 prompt 输入 |
@@ -166,7 +162,7 @@ key input
 
 `/models`、`/thinking`、`/context-limit`、`/workdir` 在无参数时会打开本地 picker overlay，支持输入过滤、上下移动、回车选择、Esc 取消。`/settings` 主列表同样支持直接输入，按显示标签或稳定设置键名模糊过滤；有查询时 Esc 先清空查询，再按 Esc 关闭面板。`/thinking` 的候选来自当前 tab 模型能力；不支持 reasoning 的模型只显示 `off`，带 `thinkingLevelMap` 的模型可显示 Pi 支持的新 level（如 `max`）。UI 主题改由 `/settings` 面板编辑（写入 `mixcode_settings.json` 的 `theme`，未设置时保留 runtime/default）；Pi extension `ctx.ui.setTheme` 接受精确 theme id（内置 `mixcode-dark` / `claude-warm` / `tokyo-night` / `terminal` / `catppuccin` / `kanagawa` / `rose-pine`，以及 Pi `dark`/`light` 与已发现主题），无 MixCode 别名，仍走同一套归一化并请求 redraw。Agent 输入 meta 行里的 workdir、model、thinking 三段也可用鼠标点击，分别复用 `/workdir`、`/models`、`/thinking` picker；当 tab 设置了 extension footer 时 meta 整行折叠（footer 已承载 cwd/model/context/git/status，避免双层重复），点击 picker 亦随之不可用。编辑器补全覆盖 `/` slash commands、`$skill` 和 `@path`；`@path` 候选同时包含文件与带尾斜杠的目录，目录 query 如 `@src/` 会列出直接子项，带空格路径会插入为 `@"dir with spaces/"`。
 
-全局 `@` 文件 picker 参考 `refs/mixcode/mixcode/widgets/file_picker.py` 的真实实现，而不是 README 推测：
+全局 `@` 文件 picker：
 
 ```text
 @ key
@@ -190,7 +186,7 @@ key input
        └─ Esc / empty backspace cancels
 ```
 
-Command palette 不是全量 slash command 列表，而是复刻原项目的当前 tab 语境入口；其中与原项目专有 attach 终端绑定的入口不迁移到 pi 版本：
+Command palette 不是全量 slash command 列表，而是按当前 tab 语境过滤：
 
 ```text
 Ctrl+P
@@ -238,12 +234,9 @@ Editor !cmd / !!cmd
        └─ bash-mode draft (!...) → clear editor
 ```
 
-## Slash Command 映射
+## Slash Command
 
 ```text
-legacy local/runtime commands
-        │
-        v
 src/core/commands.ts
         │
     ├─ UI state command
@@ -318,14 +311,14 @@ Core **不再**在 `afterToolCall` 上做 mid-turn terminate + 私有 `_handlePo
 
 能力边界与安装约定见 `pi-packages/mpi-goal/README.md`。
 
-## 测试和验收
+## 测试
 
 ```text
 bun run check
   │
   ├─ typecheck      tsc --noEmit
   ├─ build          tsup ESM + d.ts
-  └─ test           node --test
+  └─ test           bun test --isolate --timeout=60000
 ```
 
 当前测试重点：
@@ -336,41 +329,4 @@ agent runtime     session repo / stream events / tools / compaction
 ui rendering      header / tabs / status / command palette
 ui input          global keys / tab jump
 bootstrap         initial state / persisted restore / completion sources
-```
-
-验收时需要逐项对照：
-
-```text
-显式要求
-  ├─ TypeScript 源码和构建产物
-  ├─ pi-tui / pi-agent-core / pi-ai 依赖和实际 import
-  ├─ 无 legacy server 运行依赖
-  ├─ refs/mixcode 仅作为参考
-  ├─ 主要功能、快捷键、UI、鼠标行为复刻程度
-  ├─ legacy session/tool/provider 能力到 Pi 模型的映射
-  ├─ 自动化测试可运行
-  └─ docs 中文技术方案与 ASCII 图
-```
-
-## 真实源码对照
-
-```text
-refs/mixcode 行为                         mixcode-pi 当前状态
-──────────────────────────────────────    ─────────────────────────────
-Textual widget click / hover / scroll      已覆盖 preview 滚轮、tab bar 点击切换/再点当前 tab 打开 Tab Jump、Command Palette / Tab Jump 滚轮与点击、input meta 点击 picker、@ file picker 键盘流；pi-tui 事件层没有 Textual hover API
-r 应用级 refresh 绑定                      保留为按键刷新状态；不暴露 slash command，避免和用户命令面混在一起
-模型/思考/workdir modal picker             已有 pi-tui overlay picker，非 Textual modal
-@ file picker fuzzy/tree/Ctrl+G            已覆盖 fuzzy、tree、ignored toggle、j/k/gg/G、Enter 插入、Esc/empty-backspace 取消
-复杂 shell terminal 鼠标转发与 scrollback  已覆盖本地 scrollback、滚轮、alternate-screen wheel、SGR wheel/down/up、单 Esc 关闭；高层 hover 语义受 pi-tui 事件模型限制
-quit confirm overlay                      使用 center 小框（Ctrl+Q / close-session 等共用 quitOverlayOptions）；见 tmp/tui-verify-200743/02-quit.png
-```
-
-处理原则：
-
-```text
-不做静默假复刻
-  │
-  ├─ 有 pi-tui 能力时：实现行为并补测试
-  ├─ 会破坏 prompt 输入时：保留输入正确性并记录差异
-  └─ pi-tui 缺少事件层时：先暴露缺口，不写不可验证的模拟成功路径
 ```

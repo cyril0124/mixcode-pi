@@ -291,6 +291,6 @@ known limits:
 
 ## 与主架构文档的关系
 
-`docs/architecture.md` 记录 MixCode TUI、runtime、快捷键和 session 迁移方案；本文只记录 Pi package / extension 兼容面。
+`docs/architecture.md` 记录 MixCode TUI、runtime、快捷键和 session；本文只记录 Pi package / extension 兼容面。
 
 更细的实现状态和测试清单见仓库根目录的 `PI_EXTENSION_COMPAT_PLAN.md`。
