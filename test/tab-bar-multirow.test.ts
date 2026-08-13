@@ -239,6 +239,21 @@ test("pinned Home uses full label only when chip width share is within 15%", () 
   assert.match(onHome, /MixCode Home/);
 });
 
+test("pinned Home/H leaves a gutter before the first agent tab", () => {
+  const state = manyTabState(12);
+  state.activeTabId = "s8";
+  const width = 80;
+  const regions = tabBarHitRegions(state, width, 2);
+  const home = regions.find((region) => region.id === "config");
+  const firstAgent = regions.find((region) => region.id.startsWith("s") && (region.row ?? 0) === 0);
+  assert.ok(home && firstAgent);
+  assert.equal(
+    firstAgent.startX,
+    home.endX + 2,
+    `expected one unstyled column between Home and first agent (home ${home.startX}-${home.endX}, agent ${firstAgent.startX})`,
+  );
+});
+
 test("H home anchor click activates MixCode Home", () => {
   const width = 40;
   const state = manyTabState(12);

@@ -45,15 +45,15 @@ test("wide rows show the full provider/module model name, icons, and workdir", (
 });
 
 test("drop provider before compacting or truncating workdir", () => {
-  // Full provider/model leaves too little room for the natural workdir, but the
-  // short model name still fits it — must drop the provider, not ellipsize path.
-  // Wider right-side context bar needs more columns before icons drop.
+  // Full provider/model + token bar leaves too little room for the natural
+  // workdir; short model + bar still fits it. Left compresses first; bar stays.
   const row = metaRow("anthropic/claude-sonnet-4-5", 98);
   assert.match(row, /claude-sonnet-4-5/);
   assert.doesNotMatch(row, /anthropic\//);
   assert.match(row, / Medium/);
   assert.match(row, /~\/workspace\/project\/mixcode-pi-demo/);
   assert.doesNotMatch(row, /\.\.\./);
+  assert.match(row, /\?%/);
 });
 
 test("narrow rows drop icons and tighten spacing to single spaces", () => {
@@ -63,7 +63,25 @@ test("narrow rows drop icons and tighten spacing to single spaces", () => {
 });
 
 test("very narrow rows fall back to model truncation with an ellipsis", () => {
-  const row = metaRow("anthropic/claude-sonnet-4-5", 34);
-  // Bar+percent on the right leaves less room; truncation may cut earlier.
+  const row = metaRow("anthropic/claude-sonnet-4-5", 24);
   assert.match(row, /cl.*\.\.\./);
+});
+
+test("leftover width keeps the empty token meter including ?%", () => {
+  const row = metaRow("anthropic/claude-sonnet-4-5", 120);
+  assert.match(row, /\[░+\] \?%|\[-+\] \?%/);
+});
+
+test("drop token bar before hiding workdir", () => {
+  // At this width the bar would force workdir off the left; drop the bar instead.
+  const row = metaRow("anthropic/claude-sonnet-4-5", 40);
+  assert.match(row, /~/);
+  assert.doesNotMatch(row, /\?%/);
+});
+
+test("drop right chrome before ellipsizing workdir", () => {
+  // Screenshot case: `~/w/p/m...` plus bar+branch is not allowed. Drop right first.
+  const row = metaRow("anthropic/claude-sonnet-4-5", 55);
+  assert.match(row, /~/);
+  assert.doesNotMatch(row, /\.\.\./);
 });

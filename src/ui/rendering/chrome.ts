@@ -90,8 +90,10 @@ export function renderTabBar(
           : "";
       const rightHint =
         isLast && hiddenRight > 0 ? activeRenderTheme.dim(rightOverflowHint(hiddenRight)) : "";
+      // Unstyled column between the Home/H chip (or +N hint) and the first agent tab.
+      const gutter = isFirst && homePin !== "inline" && tabsText ? " " : "";
       return padLine(
-        homeAnchor + leftHint + activeRenderTheme.text(prefix + tabsText) + rightHint,
+        homeAnchor + leftHint + gutter + activeRenderTheme.text(prefix + tabsText) + rightHint,
         width,
       );
     });
@@ -257,6 +259,8 @@ export function tabBarHitRegions(
       cursor += homeW;
       // Match render: one column gap, then `+N … ` for hidden agents only.
       if (hiddenLeftAgents > 0) cursor += 1 + visibleWidth(leftOverflowHint(hiddenLeftAgents));
+      // Same unstyled gutter as renderTabBar before the first agent chip.
+      if (row.length > 0) cursor += 1;
     }
     for (const segment of row) {
       const startX = cursor;
@@ -301,15 +305,17 @@ function homePinWidth(homePin: Exclude<HomePin, "inline">, homeSegment: TabSegme
     : visibleWidth(homeAnchorBare());
 }
 
-/** Leading Home pin + optional agent left-overflow hint. */
+/** Leading Home pin + optional agent left-overflow hint + gutter before agents. */
 function leftChromeWidth(
   homePin: Exclude<HomePin, "inline">,
   homeSegment: TabSegment,
   hiddenLeftAgents: number,
+  hasAgents = true,
 ): number {
   return (
     homePinWidth(homePin, homeSegment) +
-    (hiddenLeftAgents > 0 ? 1 + visibleWidth(leftOverflowHint(hiddenLeftAgents)) : 0)
+    (hiddenLeftAgents > 0 ? 1 + visibleWidth(leftOverflowHint(hiddenLeftAgents)) : 0) +
+    (hasAgents ? 1 : 0)
   );
 }
 
@@ -501,7 +507,12 @@ function fitAgentWindow(
     if (!windowSegs.some((segment) => segment.id === activeId)) return null;
   }
 
-  const leftChrome = leftChromeWidth(homePin, homeSegment, hiddenLeftAgents);
+  const leftChrome = leftChromeWidth(
+    homePin,
+    homeSegment,
+    hiddenLeftAgents,
+    windowSegs.length > 0,
+  );
   const rightChrome =
     hiddenRight > 0 ? visibleWidth(rightOverflowHint(hiddenRight)) : 0;
   // Agents pack in the remaining width after Home pin AND trailing …+R (same row).
@@ -735,22 +746,36 @@ function renderInputMetaInner(
   const model = tab.model.displayName || "-";
   const thinking = tab.thinkingLevel[0]!.toUpperCase() + tab.thinkingLevel.slice(1);
   // Absolute xxk/xxk lives on the editor top border; bottom meta only shows bar+%.
+  // Unknown usage still paints `?%` — never omit the meter just because count is pending.
   const contextBadge = ` ${contextBarAndPercentText(tab, iconMode)} `;
-  const right = chooseInputMetaRight(contextBadge, lineWidth, [
-    () => {
-      const gitBadge = ` ${glyphs.git} ${gitBranchForWorkdir(tab.workdir) || "-"} `;
-      const git = activeRenderTheme.accent(activeRenderTheme.bold(gitBadge));
-      return `${contextBadge} ${git}`;
-    },
-    () => contextBadge,
-  ]);
-  const leftBudget = Math.max(0, lineWidth - visibleWidth(right) - 1);
-  const left = renderInputMetaLeft(tab.workdir, model, thinking, "", leftBudget, glyphs);
+  const branch = gitBranchForWorkdir(tab.workdir);
+  const git = branch
+    ? activeRenderTheme.accent(activeRenderTheme.bold(` ${glyphs.git} ${branch} `))
+    : "";
+  // Compress left first (provider → short model → icons/gaps → truncate).
+  // Only then drop right: branch first, token bar last.
+  const rightOptions = [git ? `${contextBadge} ${git}` : contextBadge, contextBadge, ""];
+  let left = renderInputMetaLeft(tab.workdir, model, thinking, "", lineWidth, glyphs);
+  let right = "";
+  for (const candidate of rightOptions) {
+    const rightW = visibleWidth(candidate);
+    const leftBudget = candidate ? Math.max(0, lineWidth - rightW - 1) : lineWidth;
+    const attempt = renderInputMetaLeft(tab.workdir, model, thinking, "", leftBudget, glyphs);
+    if (!attempt.text) continue;
+    if (candidate && visibleWidth(attempt.text) + 1 + rightW > lineWidth) continue;
+    // If workdir was squeezed off, drop more of the right instead of hiding it.
+    if (candidate && !leftKeepsWorkdir(attempt)) continue;
+    left = attempt;
+    right = candidate;
+    break;
+  }
   const gap = Math.max(1, lineWidth - visibleWidth(left.text) - visibleWidth(right));
   const metaRow =
-    visibleWidth(left.text) + visibleWidth(right) + 1 <= lineWidth
+    right && visibleWidth(left.text) + visibleWidth(right) + 1 <= lineWidth
       ? `${left.text}${" ".repeat(gap)}${right}`
-      : `${left.text} ${right}`;
+      : right
+        ? `${left.text} ${right}`
+        : left.text;
   if (updateHitRegions) {
     tab.inputMetaHitRegions = left.regions.map((region) => ({ ...region, row }));
   }
@@ -768,6 +793,10 @@ function renderInputMetaInner(
 // mode falls back to truncation when nothing fits.
 type InputMetaMode = { model: string; thinking: string; gap: string };
 
+function leftKeepsWorkdir(left: { workdirIntact?: boolean }): boolean {
+  return left.workdirIntact === true;
+}
+
 function renderInputMetaLeft(
   workdirPath: string,
   model: string,
@@ -778,8 +807,9 @@ function renderInputMetaLeft(
 ): {
   text: string;
   regions: Array<{ action: "models" | "thinking" | "workdir"; startX: number; endX: number }>;
+  workdirIntact: boolean;
 } {
-  if (width <= 0) return { text: "", regions: [] };
+  if (width <= 0) return { text: "", regions: [], workdirIntact: false };
   const moduleName = shortModelName(model);
   const modes: InputMetaMode[] = [
     {
@@ -813,9 +843,11 @@ function layoutInputMetaLeft(
   text: string;
   regions: Array<{ action: "models" | "thinking" | "workdir"; startX: number; endX: number }>;
   fits: boolean;
+  workdirIntact: boolean;
 } {
   const pieces: Array<{ action?: "models" | "thinking" | "workdir"; text: string }> = [];
   let remaining = Math.max(0, width - 2);
+  let workdirIntact = false;
   const escapeText = escapeHint ? activeRenderTheme.dim(escapeHint) : "";
   const escapeWidth = visibleWidth(escapeText);
   const thinkingWidth = visibleWidth(mode.thinking);
@@ -823,7 +855,7 @@ function layoutInputMetaLeft(
   const gapWidth = visibleWidth(mode.gap);
   const fixedWidth = thinkingWidth + escapeWidth + (escapeText ? 1 : 0);
   if (strict && remaining - fixedWidth - 2 * gapWidth < modelFullWidth) {
-    return { text: "", regions: [], fits: false };
+    return { text: "", regions: [], fits: false, workdirIntact: false };
   }
   const modelWidth = strict
     ? modelFullWidth
@@ -842,7 +874,7 @@ function layoutInputMetaLeft(
     });
     remaining -= gapWidth + thinkingWidth;
   } else if (strict) {
-    return { text: "", regions: [], fits: false };
+    return { text: "", regions: [], fits: false, workdirIntact: false };
   }
   const escapeGap = escapeText ? 1 + escapeWidth : 0;
   const workdirBudget = Math.max(0, remaining - escapeGap - gapWidth);
@@ -851,16 +883,19 @@ function layoutInputMetaLeft(
   // compact segments or ellipsize. Otherwise provider stays while workdir gets "...".
   if (strict) {
     if (visibleWidth(workdirNatural) > workdirBudget) {
-      return { text: "", regions: [], fits: false };
+      return { text: "", regions: [], fits: false, workdirIntact: false };
     }
     pieces.push({ text: mode.gap });
     pieces.push({ action: "workdir", text: activeRenderTheme.accent(workdirNatural) });
     remaining -= gapWidth + visibleWidth(workdirNatural);
+    workdirIntact = true;
   } else if (workdirBudget >= 4) {
     pieces.push({ text: mode.gap });
     const workdir = compactWorkdir(workdirNatural, workdirBudget);
     pieces.push({ action: "workdir", text: activeRenderTheme.accent(workdir) });
     remaining -= gapWidth + visibleWidth(workdir);
+    // Segment-compressed paths are ok; `...` truncation counts as obscured.
+    workdirIntact = !workdir.includes("...");
   }
   if (escapeText && remaining >= escapeGap) {
     pieces.push({ text: " " });
@@ -881,22 +916,7 @@ function layoutInputMetaLeft(
     text += piece.text;
     cursor += pieceWidth;
   }
-  return { text, regions, fits: true };
-}
-
-function chooseInputMetaRight(
-  required: string,
-  lineWidth: number,
-  candidates: Array<() => string>,
-): string {
-  const minLeftWidth = 8;
-  for (const candidate of candidates) {
-    const text = candidate();
-    if (visibleWidth(text) + minLeftWidth + 1 <= lineWidth) return text;
-  }
-  return visibleWidth(required) <= lineWidth
-    ? required
-    : truncateToWidth(required, lineWidth, "...");
+  return { text, regions, fits: true, workdirIntact };
 }
 
 export function renderWorkingIndicator(
