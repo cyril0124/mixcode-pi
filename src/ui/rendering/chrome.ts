@@ -515,10 +515,11 @@ function fitAgentWindow(
   );
   const rightChrome =
     hiddenRight > 0 ? visibleWidth(rightOverflowHint(hiddenRight)) : 0;
-  // Agents pack in the remaining width after Home pin AND trailing …+R (same row).
-  // Forgetting rightChrome left empty padding while refusing a full Home upgrade.
-  const packWidth = Math.max(1, width - leftChrome - rightChrome);
-  const rows = packTabRows(windowSegs, packWidth, 0).map((row) => row.slice());
+  // Agent column is everything after the Home pin. Reserve `… +N` only on the
+  // last row — subtracting it from every row left a hole on row 0 (screenshot).
+  const agentColWidth = Math.max(1, width - leftChrome);
+  const rows = packTabRows(windowSegs, agentColWidth, 0).map((row) => row.slice());
+  reflowLastRowForRightHint(rows, agentColWidth, rightChrome);
   // Wrapped agent rows indent under the first agent column (after H / full Home + +N).
   const indent = leftChrome;
   if (windowSegs.length === 0) {
@@ -560,6 +561,23 @@ function fitAgentWindow(
     homeSegment,
     indent,
   };
+}
+
+/** Move trailing tabs onto a new last row until `… +N` fits beside the previous row. */
+function reflowLastRowForRightHint(
+  rows: TabSegment[][],
+  agentColWidth: number,
+  rightChrome: number,
+): void {
+  if (rightChrome <= 0 || rows.length === 0) return;
+  const rowWidth = (row: TabSegment[]) =>
+    row.length === 0 ? 0 : visibleWidth(row.map((segment) => segment.text).join(" "));
+  for (;;) {
+    const last = rows[rows.length - 1]!;
+    if (rowWidth(last) + rightChrome <= agentColWidth) return;
+    if (last.length <= 1) return;
+    rows.push([last.pop()!]);
+  }
 }
 
 function forceAgentLayout(

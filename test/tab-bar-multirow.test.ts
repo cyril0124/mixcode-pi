@@ -66,6 +66,17 @@ test("wrapped rows are indented to align under the first tab (after MixCode Home
   assert.notEqual(lines[1]?.match(/^ */)?.[0]?.length, 0);
 });
 
+test("first tab-bar row fills leftover space instead of reserving last-row … +N", () => {
+  const width = 40;
+  const state = manyTabState(16);
+  state.activeTabId = "s1";
+  const lines = renderTabBar(state, width, undefined, 2).map(stripAnsi);
+  assert.ok(lines.length >= 2, `expected wrap, got: ${lines.join(" | ")}`);
+  // Agent-3 must sit on row 0 when the first row still has a hole the size of `… +N`.
+  assert.match(lines[0] ?? "", /Agent-3/);
+  assert.doesNotMatch(lines[1] ?? "", /^\s*- Agent-3/);
+});
+
 test("pinned H keeps wrapped agent rows indented under the agent column", () => {
   // Force multi-row under a sliding window with compact Home pin.
   const width = 36;
