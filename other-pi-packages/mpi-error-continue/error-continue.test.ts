@@ -6,10 +6,13 @@ import {
   COMMAND_NAME,
   createErrorContinueExtension,
   delayForAttempt,
+  endsWithThinkingOrToolCall,
+  isEmptyResponse,
   isResumeMarker,
   lastAssistant,
   MAX_INVISIBLE,
   MAX_VISIBLE,
+  MIDWORK_CONTINUE_TEXT,
   readEnabledFromBranch,
   RESUME_CUSTOM_TYPE,
   STATE_CUSTOM_TYPE,
@@ -110,6 +113,26 @@ function assistantStop(text = "ok") {
   };
 }
 
+function assistantThinking(thinking = "working...") {
+  return {
+    role: "assistant",
+    stopReason: "stop",
+    content: [{ type: "thinking", thinking }],
+  };
+}
+
+function assistantToolCall(name = "bash") {
+  return {
+    role: "assistant",
+    stopReason: "stop",
+    content: [{ type: "toolCall", id: "tc-1", name, arguments: {} }],
+  };
+}
+
+function assistantEmpty(stopReason = "stop", content: unknown[] = []) {
+  return { role: "assistant", stopReason, content };
+}
+
 function stateEntry(enabled: boolean) {
   return {
     type: "custom",
@@ -128,6 +151,11 @@ async function stopSettle(harness: ReturnType<typeof createHarness>) {
   await harness.emit("agent_settled");
 }
 
+async function midWorkSettle(harness: ReturnType<typeof createHarness>, message: unknown) {
+  await harness.emit("agent_end", { messages: [message] });
+  await harness.emit("agent_settled");
+}
+
 test("delayForAttempt uses exponential backoff from base", () => {
   assert.equal(delayForAttempt(0), 1000);
   assert.equal(delayForAttempt(1), 2000);
@@ -137,7 +165,7 @@ test("delayForAttempt uses exponential backoff from base", () => {
 
 test("lastAssistant and isResumeMarker helpers", () => {
   assert.equal(lastAssistant([]), undefined);
-  assert.equal(lastAssistant([{ role: "user" }, assistantError()]).stopReason, "error");
+  assert.equal(lastAssistant([{ role: "user" }, assistantError()])?.stopReason, "error");
   assert.equal(isResumeMarker({ role: "custom", customType: RESUME_CUSTOM_TYPE }), true);
   assert.equal(isResumeMarker({ role: "custom", customType: "other" }), false);
 });
@@ -248,6 +276,21 @@ test("successful settle resets phase counters but keeps cumulative status count"
   assert.deepEqual(harness.delays, [1000, 1000]);
 });
 
+test("endsWithThinkingOrToolCall helper", () => {
+  assert.equal(
+    endsWithThinkingOrToolCall({ content: [{ type: "thinking", thinking: "t" }] }),
+    true,
+  );
+  assert.equal(
+    endsWithThinkingOrToolCall({ content: [{ type: "toolCall", id: "x", name: "bash", arguments: {} }] }),
+    true,
+  );
+  assert.equal(endsWithThinkingOrToolCall({ content: [{ type: "text", text: "ok" }] }), false);
+  assert.equal(endsWithThinkingOrToolCall({ content: [] }), false);
+  assert.equal(endsWithThinkingOrToolCall({}), false);
+  assert.equal(endsWithThinkingOrToolCall({ content: "plain string" }), false);
+});
+
 test("stop or aborted settle does not send", async () => {
   const harness = createHarness();
   await harness.emit("session_start");
@@ -255,6 +298,146 @@ test("stop or aborted settle does not send", async () => {
   await harness.emit("agent_end", {
     messages: [{ role: "assistant", stopReason: "aborted", content: [] }],
   });
+  await harness.emit("agent_settled");
+  assert.equal(harness.sent.length, 0);
+});
+
+test("aborted settle ending in thinking or tool call does not send", async () => {
+  const harness = createHarness();
+  await harness.emit("session_start");
+  await midWorkSettle(harness, { ...assistantThinking(), stopReason: "aborted" });
+  await midWorkSettle(harness, { ...assistantToolCall(), stopReason: "aborted" });
+  assert.equal(harness.sent.length, 0);
+});
+
+test("isEmptyResponse helper", () => {
+  assert.equal(isEmptyResponse({ content: [] }), true);
+  assert.equal(isEmptyResponse({ content: [{ type: "text", text: "" }] }), true);
+  assert.equal(isEmptyResponse({ content: [{ type: "text", text: "  " }] }), true);
+  assert.equal(isEmptyResponse({ content: [{ type: "text", text: "ok" }] }), false);
+  assert.equal(isEmptyResponse({ content: [{ type: "thinking", thinking: "t" }] }), false);
+  assert.equal(
+    isEmptyResponse({ content: [{ type: "toolCall", id: "x", name: "bash", arguments: {} }] }),
+    false,
+  );
+  assert.equal(isEmptyResponse({}), true);
+});
+
+test("empty response settle (stop, no content) sends invisible continue", async () => {
+  const harness = createHarness();
+  await harness.emit("session_start");
+  await harness.emit("agent_end", { messages: [assistantEmpty()] });
+  await harness.emit("agent_settled");
+
+  assert.equal(harness.sent.length, 1);
+  assert.equal(harness.sent[0]?.kind, "message");
+  assert.equal(harness.sent[0]?.payload.customType, RESUME_CUSTOM_TYPE);
+  assert.deepEqual(harness.delays, [BASE_DELAY_MS]);
+  assert.deepEqual(harness.statuses.at(-1), {
+    key: STATUS_KEY,
+    text: `${STATUS_PREFIX} (1)`,
+  });
+});
+
+test("empty response with blank text block also continues", async () => {
+  const harness = createHarness();
+  await harness.emit("session_start");
+  await harness.emit("agent_end", {
+    messages: [assistantEmpty("stop", [{ type: "text", text: " " }])],
+  });
+  await harness.emit("agent_settled");
+
+  assert.equal(harness.sent.length, 1);
+  assert.equal(harness.sent[0]?.kind, "message");
+});
+
+test("empty settles escalate from invisible to visible continues", async () => {
+  const harness = createHarness();
+  await harness.emit("session_start");
+
+  for (let i = 0; i < MAX_INVISIBLE; i++) {
+    await harness.emit("agent_end", { messages: [assistantEmpty("length")] });
+    await harness.emit("agent_settled");
+  }
+  assert.equal(harness.sent.length, MAX_INVISIBLE);
+  assert.ok(harness.sent.every((item) => item.kind === "message"));
+
+  await harness.emit("agent_end", { messages: [assistantEmpty()] });
+  await harness.emit("agent_settled");
+  assert.equal(harness.sent.length, MAX_INVISIBLE + 1);
+  assert.equal(harness.sent.at(-1)?.kind, "user");
+  assert.equal(harness.sent.at(-1)?.payload, VISIBLE_CONTINUE_TEXT);
+  assert.deepEqual(harness.delays, [1000, 2000, 4000, 1000]);
+});
+
+test("mid-work stop ending in thinking sends continue $simple-plan", async () => {
+  const harness = createHarness();
+  await harness.emit("session_start");
+  await midWorkSettle(harness, assistantThinking());
+
+  assert.equal(harness.sent.length, 1);
+  assert.equal(harness.sent[0]?.kind, "user");
+  assert.equal(harness.sent[0]?.payload, MIDWORK_CONTINUE_TEXT);
+  assert.deepEqual(harness.sent[0]?.options, { deliverAs: "followUp" });
+  assert.deepEqual(harness.statuses.at(-1), {
+    key: STATUS_KEY,
+    text: `${STATUS_PREFIX} (1)`,
+  });
+});
+
+test("mid-work stop ending in tool call sends continue $simple-plan", async () => {
+  const harness = createHarness();
+  await harness.emit("session_start");
+  await midWorkSettle(harness, assistantToolCall());
+
+  assert.equal(harness.sent.length, 1);
+  assert.equal(harness.sent[0]?.kind, "user");
+  assert.equal(harness.sent[0]?.payload, MIDWORK_CONTINUE_TEXT);
+  assert.deepEqual(harness.sent[0]?.options, { deliverAs: "followUp" });
+});
+
+test("error stop ending in thinking uses error flow, not continue $simple-plan", async () => {
+  const harness = createHarness();
+  await harness.emit("session_start");
+  await midWorkSettle(harness, { ...assistantThinking(), stopReason: "error", errorMessage: "boom" });
+
+  assert.equal(harness.sent.length, 1);
+  assert.equal(harness.sent[0]?.kind, "message");
+  assert.equal(harness.sent[0]?.payload.customType, RESUME_CUSTOM_TYPE);
+});
+
+test("mid-work continue respects /error-continue off", async () => {
+  const harness = createHarness();
+  await harness.emit("session_start");
+  await harness.runCommand("off");
+  await midWorkSettle(harness, assistantThinking());
+  assert.equal(harness.sent.length, 0);
+
+  await harness.runCommand("on");
+  await midWorkSettle(harness, assistantThinking());
+  assert.equal(harness.sent.length, 1);
+  assert.equal(harness.sent.at(-1)?.payload, MIDWORK_CONTINUE_TEXT);
+});
+
+test("each mid-work stop sends its own continue and counts status", async () => {
+  const harness = createHarness();
+  await harness.emit("session_start");
+  await midWorkSettle(harness, assistantThinking());
+  await midWorkSettle(harness, assistantToolCall());
+
+  assert.equal(harness.sent.length, 2);
+  assert.ok(harness.sent.every((s) => s.kind === "user" && s.payload === MIDWORK_CONTINUE_TEXT));
+  assert.deepEqual(harness.statuses.at(-1), {
+    key: STATUS_KEY,
+    text: `${STATUS_PREFIX} (2)`,
+  });
+});
+
+test("real user message disarms mid-work continue", async () => {
+  const harness = createHarness();
+  await harness.emit("session_start");
+  await harness.emit("agent_end", { messages: [assistantThinking()] });
+  await harness.emit("message_start", { message: { role: "user", content: "manual input" } });
   await harness.emit("agent_settled");
   assert.equal(harness.sent.length, 0);
 });

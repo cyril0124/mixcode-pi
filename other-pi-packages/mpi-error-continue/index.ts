@@ -6,6 +6,7 @@ export const BASE_DELAY_MS = 1000;
 export const RESUME_CUSTOM_TYPE = "mpi-error-continue:resume";
 export const STATE_CUSTOM_TYPE = "mpi-error-continue:state";
 export const VISIBLE_CONTINUE_TEXT = "continue";
+export const MIDWORK_CONTINUE_TEXT = "continue $simple-plan";
 export const STATUS_KEY = "error-continue";
 export const STATUS_PREFIX = "error-continue: on";
 export const COMMAND_NAME = "error-continue";
@@ -22,6 +23,7 @@ type AssistantMessageLike = {
   role?: unknown;
   stopReason?: unknown;
   errorMessage?: unknown;
+  content?: unknown;
 };
 
 type StateEvent = {
@@ -54,6 +56,30 @@ export function isResumeMarker(message: unknown): boolean {
   if (typeof message !== "object" || message === null) return false;
   const candidate = message as { role?: unknown; customType?: unknown };
   return candidate.role === "custom" && candidate.customType === RESUME_CUSTOM_TYPE;
+}
+
+/** True when an assistant message has no output blocks: no text, thinking, or tool call. */
+export function isEmptyResponse(message: { content?: unknown }): boolean {
+  const content = message.content;
+  if (!Array.isArray(content) || content.length === 0) return true;
+  return content.every((block) => {
+    if (typeof block !== "object" || block === null) return true;
+    const candidate = block as { type?: unknown; text?: unknown };
+    if (candidate.type === "text") {
+      return typeof candidate.text !== "string" || candidate.text.trim() === "";
+    }
+    return candidate.type !== "thinking" && candidate.type !== "toolCall";
+  });
+}
+
+/** True when the last content block of an assistant message is a thinking block or a tool call. */
+export function endsWithThinkingOrToolCall(message: { content?: unknown }): boolean {
+  const content = message.content;
+  if (!Array.isArray(content) || content.length === 0) return false;
+  const last = content[content.length - 1];
+  if (typeof last !== "object" || last === null) return false;
+  const type = (last as { type?: unknown }).type;
+  return type === "thinking" || type === "toolCall";
 }
 
 export function lastAssistant(messages: readonly unknown[]): AssistantMessageLike | undefined {
@@ -121,6 +147,7 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
     // Default on until /error-continue off or a session branch state entry says otherwise.
     let enabled = true;
     let retryArmed = false;
+    let midWorkArmed = false;
     let invisibleUsed = 0;
     let visibleUsed = 0;
     let retryCount = 0;
@@ -176,6 +203,7 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
         if (mode === "on") {
           enabled = true;
           retryArmed = false;
+          midWorkArmed = false;
           pendingAutoContinue = false;
           abortSleep();
           persistEnabled(true);
@@ -186,6 +214,7 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
         if (mode === "off") {
           enabled = false;
           retryArmed = false;
+          midWorkArmed = false;
           pendingAutoContinue = false;
           abortSleep();
           persistEnabled(false);
@@ -211,6 +240,7 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
       }
       pendingAutoContinue = false;
       retryArmed = false;
+      midWorkArmed = false;
       clearPhaseCounters();
       abortSleep();
     });
@@ -219,17 +249,40 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
     pi.on("agent_end", (event) => {
       if (!enabled) {
         retryArmed = false;
+        midWorkArmed = false;
         return;
       }
       const last = lastAssistant(event.messages);
-      retryArmed = last?.stopReason === "error";
+      // Error stop, or a non-error stop that produced no output at all (the
+      // "Agent finished without a response." case): use the error-settle flow.
+      // User-initiated aborts stay untouched.
+      retryArmed =
+        last?.stopReason === "error" ||
+        (!!last && last.stopReason !== "aborted" && isEmptyResponse(last));
+      // Non-error stop that ended mid-work (last block is thinking or a tool call):
+      // fire a single visible "continue $simple-plan" on settle.
+      midWorkArmed =
+        !retryArmed &&
+        !!last &&
+        last.stopReason !== "aborted" &&
+        endsWithThinkingOrToolCall(last);
       if (!retryArmed) {
         clearPhaseCounters();
       }
     });
 
     pi.on("agent_settled", async (_event, ctx) => {
-      if (!enabled || !retryArmed || inFlight) return;
+      if (!enabled || inFlight) return;
+
+      if (midWorkArmed) {
+        midWorkArmed = false;
+        ctx.ui.notify("Agent stopped mid-work; queued continue $simple-plan.", "info");
+        pi.sendUserMessage(MIDWORK_CONTINUE_TEXT, { deliverAs: "followUp" });
+        noteRetry(ctx);
+        return;
+      }
+
+      if (!retryArmed) return;
       retryArmed = false;
 
       if (invisibleUsed < MAX_INVISIBLE) {
@@ -242,7 +295,7 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
         const signal = sleepAbort.signal;
         try {
           ctx.ui.notify(
-            `Error settle; invisible continue ${attempt}/${MAX_INVISIBLE} after ${delayMs}ms.`,
+            `No response; invisible continue ${attempt}/${MAX_INVISIBLE} after ${delayMs}ms.`,
             "warning",
           );
           await sleep(delayMs, signal);
@@ -281,7 +334,7 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
         const signal = sleepAbort.signal;
         try {
           ctx.ui.notify(
-            `Error settle; visible continue ${attempt}/${MAX_VISIBLE} after ${delayMs}ms.`,
+            `No response; visible continue ${attempt}/${MAX_VISIBLE} after ${delayMs}ms.`,
             "warning",
           );
           await sleep(delayMs, signal);
@@ -299,7 +352,7 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
       }
 
       ctx.ui.notify(
-        `Error continues exhausted (${MAX_INVISIBLE} invisible + ${MAX_VISIBLE} visible).`,
+        `Continue attempts exhausted (${MAX_INVISIBLE} invisible + ${MAX_VISIBLE} visible).`,
         "error",
       );
     });
@@ -307,6 +360,7 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
     pi.on("session_start", (_event, ctx) => {
       enabled = readEnabledFromBranch(ctx.sessionManager.getBranch());
       retryArmed = false;
+      midWorkArmed = false;
       pendingAutoContinue = false;
       retryCount = 0;
       clearPhaseCounters();
@@ -317,6 +371,7 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
 
     pi.on("session_shutdown", (_event, ctx) => {
       retryArmed = false;
+      midWorkArmed = false;
       pendingAutoContinue = false;
       clearPhaseCounters();
       abortSleep();
