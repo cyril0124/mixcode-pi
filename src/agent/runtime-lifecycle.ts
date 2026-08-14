@@ -656,7 +656,7 @@ export async function reloadRuntimeTabWithFreshServices(
   context: RuntimeLifecycleContext,
 ): Promise<void> {
   const services = await context.createServices(runtimeTab.tab.workdir, MIXCODE_SYSTEM_PROMPT);
-  const model = runtimeTab.agent.state.model;
+  const model = { ...runtimeTab.agent.state.model };
   await registerMixCodeRuntimeProvider(
     services.modelRuntime,
     model,
@@ -713,7 +713,7 @@ export async function updateRuntimeTabWorkdir(
     throw new Error("Cannot change workdir while the agent is streaming");
   }
   const services = await context.createServices(workdir, systemPrompt);
-  const model = runtimeTab.agent.state.model;
+  const model = { ...runtimeTab.agent.state.model };
   await registerMixCodeRuntimeProvider(
     services.modelRuntime,
     model,

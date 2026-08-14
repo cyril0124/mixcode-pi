@@ -39,11 +39,17 @@ export function resolveRuntimeModelFromSession(
 ): MixCodeModel {
   const context = session.buildSessionContext();
   if (context.model) {
-    return resolveRuntimeModel(context.model.provider, context.model.modelId, modelLookup);
+    const restored = resolveRuntimeModel(
+      context.model.provider,
+      context.model.modelId,
+      modelLookup,
+    );
+    if (restored) return restored;
   }
   if (fallback && "provider" in fallback) {
     const modelId = "modelId" in fallback ? fallback.modelId : fallback.id;
-    return resolveRuntimeModel(fallback.provider, modelId, modelLookup);
+    const fromFallback = resolveRuntimeModel(fallback.provider, modelId, modelLookup);
+    if (fromFallback) return fromFallback;
   }
   return resolveRuntimeModel(MIXCODE_FAUX_MODEL.provider, MIXCODE_FAUX_MODEL.id, modelLookup);
 }

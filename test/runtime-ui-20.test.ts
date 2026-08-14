@@ -18,6 +18,7 @@ import {
   type ExtensionFactory,
 } from "@earendil-works/pi-coding-agent";
 import { Markdown, Text, TuiMainScreen, visibleWidth, type AutocompleteProvider, type Component, type OverlayOptions, type Terminal } from "@earendil-works/pi-tui";
+import { defaultPiSessionDir } from "../src/cli/bootstrap.js";
 import {
   MIXCODE_FAUX_MODEL,
   MixCodeCompletionProvider,
@@ -628,5 +629,49 @@ test("runtime updates workdir, system prompt, and tool closures", async () => {
     await prompt;
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("resume after /workdir keeps a resolvable model via the published session link", async () => {
+  const agentDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-workdir-resume-"));
+  const dir1 = path.join(agentDir, "dir1");
+  const dir2 = path.join(agentDir, "dir2");
+  try {
+    await fsPromises.mkdir(dir1, { recursive: true });
+    await fsPromises.mkdir(dir2, { recursive: true });
+    const dir1Root = defaultPiSessionDir(dir1, agentDir);
+    const dir2Root = defaultPiSessionDir(dir2, agentDir);
+    const runtime = new MixCodeRuntime({ sessionsRoot: dir1Root });
+    const tab = createTab(1, "s1", dir1);
+    await runtime.createTab(tab, {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: dir1,
+    });
+    await runtime.prompt("s1", "hello");
+    const originalFile = runtime.getTab("s1")?.session.getSessionFile();
+    assert.ok(originalFile);
+    await runtime.updateTabWorkdir("s1", dir2, "system");
+    await runtime.closeTab("s1");
+
+    const published = path.join(dir2Root, path.basename(originalFile));
+    assert.equal(await Bun.file(published).exists(), true);
+
+    const ephemeral = createTab(2, "ephemeral", dir2);
+    await runtime.createTab(ephemeral, {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: dir2,
+    });
+    await runtime.extensionSwitchSession("ephemeral", published);
+
+    const resumed = runtime.getTab(ephemeral.sessionId) ?? runtime.listTabs()[0];
+    assert.ok(resumed);
+    assert.equal(typeof resumed.tab.model.provider, "string");
+    assert.ok(resumed.tab.model.provider.length > 0);
+    assert.ok(resumed.agent.state.model);
+    assert.equal(typeof resumed.agent.state.model.provider, "string");
+  } finally {
+    await fsPromises.rm(agentDir, { recursive: true, force: true });
   }
 });

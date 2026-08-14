@@ -1504,6 +1504,8 @@ export class MixCodeRuntime {
         },
       },
     );
+    // Header rewrite is a local write; suppress the session-file watcher echo.
+    this.sync.markLocalWrite(sessionId);
     // Workdir change reopens the session (possibly a new file path): retrack it.
     this.sync.register(runtimeTab);
   }

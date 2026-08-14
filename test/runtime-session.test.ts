@@ -4,15 +4,84 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
 import { CURRENT_SESSION_VERSION, SessionManager } from "@earendil-works/pi-coding-agent";
+import { resolveRuntimeModelFromSession } from "../src/agent/runtime-model.js";
+import { defaultPiSessionDir } from "../src/cli/bootstrap.js";
 import { invalidateSessionCatalog } from "../src/core/session-catalog.js";
 import {
   copySession,
   findSessionFileByName,
   listAllSessionsGlobal,
   listSessionsForCwd,
+  materializeSessionFile,
   openOrCreateSession,
   reopenSessionInWorkdir,
 } from "../src/agent/runtime-session.js";
+
+test("resolveRuntimeModelFromSession falls back when the session model is unknown", async () => {
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-session-unknown-model-"));
+  const file = path.join(dir, "2026-01-01T00-00-00-000Z_unknown-model.jsonl");
+  try {
+    await Bun.write(
+      file,
+      `${JSON.stringify({
+        type: "session",
+        version: 3,
+        id: "unknown-model",
+        timestamp: "2026-01-01T00:00:00.000Z",
+        cwd: dir,
+      })}\n${JSON.stringify({
+        type: "model_change",
+        id: "m1",
+        parentId: null,
+        timestamp: "2026-01-01T00:00:01.000Z",
+        provider: "missing-provider",
+        modelId: "missing-model",
+      })}\n`,
+    );
+    const session = SessionManager.open(file, dir);
+    const resolved = resolveRuntimeModelFromSession(session, undefined, undefined);
+    assert.ok(resolved);
+    assert.equal(resolved.provider, "faux");
+  } finally {
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("reopenSessionInWorkdir persists cwd so resume without override keeps it", async () => {
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-workdir-persist-"));
+  const sessionsRoot = path.join(dir, "sessions");
+  const oldCwd = path.join(dir, "old");
+  const newCwd = path.join(dir, "new");
+  try {
+    await fsPromises.mkdir(oldCwd, { recursive: true });
+    await fsPromises.mkdir(newCwd, { recursive: true });
+    const source = SessionManager.create(oldCwd, sessionsRoot);
+    source.newSession({ id: "persist-cwd" });
+    source.appendMessage({ role: "user", content: "hello", timestamp: Date.now() });
+    materializeSessionFile(source);
+    const sessionFile = source.getSessionFile();
+    assert.ok(sessionFile);
+    assert.equal(source.getHeader()?.cwd, oldCwd);
+
+    const reopened = await reopenSessionInWorkdir(source, newCwd, sessionsRoot);
+    assert.equal(reopened.getSessionFile(), sessionFile);
+    assert.equal(reopened.getCwd(), newCwd);
+    assert.equal(reopened.getHeader()?.cwd, newCwd);
+
+    const resumed = SessionManager.open(sessionFile);
+    assert.equal(resumed.getCwd(), newCwd);
+    assert.equal(resumed.getHeader()?.cwd, newCwd);
+
+    invalidateSessionCatalog(sessionsRoot);
+    const inNew = await listSessionsForCwd(newCwd, sessionsRoot);
+    const inOld = await listSessionsForCwd(oldCwd, sessionsRoot);
+    assert.equal(inNew.length, 1);
+    assert.equal(inNew[0]?.path, sessionFile);
+    assert.equal(inOld.length, 0);
+  } finally {
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});
 
 test("session copies use Pi's current session format version", async () => {
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-session-version-"));
@@ -162,6 +231,86 @@ test("listAllSessionsGlobal scans Pi sessions/ sibling encoded-cwd directories",
     );
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("listSessionsForCwd only reads the given session dir, not sibling cwd dirs", async () => {
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-session-cwd-noscan-"));
+  const sessionsParent = path.join(dir, "sessions");
+  const dir1Root = path.join(sessionsParent, "--dir1--");
+  const dir2Root = path.join(sessionsParent, "--dir2--");
+  const dir2 = path.join(dir, "dir2");
+  try {
+    await fsPromises.mkdir(dir1Root, { recursive: true });
+    await fsPromises.mkdir(dir2Root, { recursive: true });
+    await fsPromises.writeFile(
+      path.join(dir1Root, "2026-01-01T00-00-00-000Z_elsewhere.jsonl"),
+      `${JSON.stringify({
+        type: "session",
+        version: 3,
+        id: "elsewhere",
+        timestamp: "2026-01-01T00:00:00.000Z",
+        cwd: dir2,
+      })}\n`,
+      "utf8",
+    );
+
+    const current = await listSessionsForCwd(dir2, dir2Root);
+    assert.equal(current.length, 0);
+  } finally {
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("reopenSessionInWorkdir publishes a link so the new cwd's Current Folder can see it", async () => {
+  const agentDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-session-cwd-link-"));
+  const dir1 = path.join(agentDir, "dir1");
+  const dir2 = path.join(agentDir, "dir2");
+  try {
+    await fsPromises.mkdir(dir1, { recursive: true });
+    await fsPromises.mkdir(dir2, { recursive: true });
+    const dir1Root = defaultPiSessionDir(dir1, agentDir);
+    const dir2Root = defaultPiSessionDir(dir2, agentDir);
+    const source = SessionManager.create(dir1, dir1Root);
+    source.newSession({ id: "moved-cwd" });
+    source.appendMessage({ role: "user", content: "hello", timestamp: Date.now() });
+    materializeSessionFile(source);
+    const sessionFile = source.getSessionFile();
+    assert.ok(sessionFile);
+
+    await reopenSessionInWorkdir(source, dir2, dir1Root);
+
+    const published = path.join(dir2Root, path.basename(sessionFile));
+    assert.equal(await Bun.file(published).exists(), true);
+    const listed = await listSessionsForCwd(dir2, dir2Root);
+    assert.equal(listed.length, 1);
+    assert.equal(listed[0]?.cwd, dir2);
+    assert.equal(path.basename(listed[0]?.path ?? ""), path.basename(sessionFile));
+  } finally {
+    await fsPromises.rm(agentDir, { recursive: true, force: true });
+  }
+});
+
+test("listAllSessionsGlobal lists a /workdir session once", async () => {
+  const agentDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-session-cwd-all-once-"));
+  const dir1 = path.join(agentDir, "dir1");
+  const dir2 = path.join(agentDir, "dir2");
+  try {
+    await fsPromises.mkdir(dir1, { recursive: true });
+    await fsPromises.mkdir(dir2, { recursive: true });
+    const dir1Root = defaultPiSessionDir(dir1, agentDir);
+    const source = SessionManager.create(dir1, dir1Root);
+    source.newSession({ id: "moved-cwd-all" });
+    source.appendMessage({ role: "user", content: "hello", timestamp: Date.now() });
+    materializeSessionFile(source);
+    await reopenSessionInWorkdir(source, dir2, dir1Root);
+
+    const all = await listAllSessionsGlobal(dir1Root);
+    assert.equal(all.length, 1);
+    assert.equal(all[0]?.id, "moved-cwd-all");
+    assert.equal(all[0]?.cwd, dir2);
+  } finally {
+    await fsPromises.rm(agentDir, { recursive: true, force: true });
   }
 });
 

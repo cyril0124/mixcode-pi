@@ -1,3 +1,4 @@
+import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import {
@@ -212,14 +213,43 @@ export async function copySession(
   return SessionManager.open(file, sessionsRoot, cwd);
 }
 
-export function reopenSessionInWorkdir(
+export async function reopenSessionInWorkdir(
   source: SessionManager,
   cwd: string,
   sessionsRoot: string,
 ): Promise<SessionManager> {
   const sessionFile = source.getSessionFile();
-  if (sessionFile) return Promise.resolve(SessionManager.open(sessionFile, sessionsRoot, cwd));
-  return createReplacementSession(source, cwd, sessionsRoot);
+  if (!sessionFile) return createReplacementSession(source, cwd, sessionsRoot);
+  await persistSessionHeaderCwd(sessionFile, cwd);
+  await publishSessionToCwdDir(sessionFile, cwd, sessionsRoot);
+  invalidateSessionCatalog(sessionsRoot);
+  return SessionManager.open(sessionFile, sessionsRoot, cwd);
+}
+
+/** Rewrite the JSONL session header cwd in place so resume without override keeps it. */
+async function persistSessionHeaderCwd(sessionFile: string, cwd: string): Promise<void> {
+  const text = await Bun.file(sessionFile).text();
+  const newline = text.indexOf("\n");
+  const first = newline === -1 ? text : text.slice(0, newline);
+  const rest = newline === -1 ? "\n" : text.slice(newline);
+  let header: unknown;
+  try {
+    header = JSON.parse(first);
+  } catch (error) {
+    throw new Error(`Invalid session header in ${sessionFile}`, { cause: error });
+  }
+  if (
+    !header ||
+    typeof header !== "object" ||
+    Array.isArray(header) ||
+    (header as { type?: unknown }).type !== "session"
+  ) {
+    throw new Error(`Session file is missing a session header: ${sessionFile}`);
+  }
+  if ((header as { cwd?: unknown }).cwd === cwd) return;
+  const temp = `${sessionFile}.${process.pid}.${crypto.randomUUID()}.tmp`;
+  await Bun.write(temp, `${JSON.stringify({ ...header, cwd })}${rest}`);
+  await fs.promises.rename(temp, sessionFile);
 }
 
 async function createReplacementSession(
@@ -239,17 +269,19 @@ async function createReplacementSession(
   };
   const lines = [header, ...source.getBranch()].map((entry) => JSON.stringify(entry)).join("\n");
   await Bun.write(file, `${lines}\n`);
+  await publishSessionToCwdDir(file, cwd, sessionsRoot);
   invalidateSessionCatalog(sessionsRoot);
   return SessionManager.open(file, sessionsRoot, cwd);
 }
 
-/**
- * List sessions for a specific working directory.
- * Filters results to only include sessions whose cwd matches.
- */
 /** Pi SessionSelectorComponent loader progress: (loaded, total) file counts. */
 export type SessionListProgress = (loaded: number, total: number) => void;
 
+/**
+ * List sessions whose header cwd matches, from this sessionsRoot only.
+ * After /workdir, a symlink in the new cwd's encoded dir makes Current Folder
+ * find the session without scanning every sibling project.
+ */
 export async function listSessionsForCwd(
   cwd: string,
   sessionsRoot: string,
@@ -257,14 +289,45 @@ export async function listSessionsForCwd(
   onProgress?: SessionListProgress,
 ): Promise<SessionInfo[]> {
   // Progress needs main-thread SessionManager.list so the selector can show Loading n/m.
-  // Background worker path has no progress channel.
   const all = onProgress
     ? await SessionManager.list(cwd, sessionsRoot, onProgress)
     : await listSessionsInBackground({ mode: "current", cwd, sessionsRoot }, signal);
-  // SessionManager.list with explicit sessionsRoot returns all sessions in that dir.
-  // Filter to only sessions matching the requested cwd.
   const normalizedCwd = cwd.replace(/\/+$/, "");
   return all.filter((session) => session.cwd.replace(/\/+$/, "") === normalizedCwd);
+}
+
+function encodedCwdSessionDirName(cwd: string): string {
+  const resolved = path.resolve(cwd);
+  return `--${resolved.replace(/^[/\\]/, "").replace(/[/\\:]/g, "-")}--`;
+}
+
+function siblingSessionDirForCwd(sessionsRoot: string, cwd: string): string | undefined {
+  const parent = path.dirname(sessionsRoot);
+  if (path.basename(parent) !== "sessions") return undefined;
+  return path.join(parent, encodedCwdSessionDirName(cwd));
+}
+
+/** Point the new cwd's Pi session dir at the canonical jsonl (symlink, same inode not required). */
+async function publishSessionToCwdDir(
+  sessionFile: string,
+  cwd: string,
+  sessionsRoot: string,
+): Promise<void> {
+  const destDir = siblingSessionDirForCwd(sessionsRoot, cwd);
+  if (!destDir) return;
+  const dest = path.join(destDir, path.basename(sessionFile));
+  if (path.resolve(dest) === path.resolve(sessionFile)) return;
+  await fs.promises.mkdir(destDir, { recursive: true });
+  const target = path.relative(destDir, sessionFile);
+  try {
+    await fs.promises.symlink(target, dest);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+    const existing = await fs.promises.readlink(dest).catch(() => undefined);
+    if (existing === target) return;
+    throw error;
+  }
+  invalidateSessionCatalog(destDir);
 }
 
 /**
@@ -284,10 +347,29 @@ export async function listAllSessionsGlobal(
   const dirs = collectAllSessionDirs(sessionsRoot);
 
   if (onProgress) {
-    return listAllSessionDirsWithProgress([...dirs], onProgress);
+    return dedupeSessionsByRealpath(await listAllSessionDirsWithProgress([...dirs], onProgress));
   }
 
-  return listSessionsInBackground({ mode: "all", sessionDirs: [...dirs] }, signal);
+  return dedupeSessionsByRealpath(
+    await listSessionsInBackground({ mode: "all", sessionDirs: [...dirs] }, signal),
+  );
+}
+
+async function dedupeSessionsByRealpath(sessions: SessionInfo[]): Promise<SessionInfo[]> {
+  const seen = new Set<string>();
+  const unique: SessionInfo[] = [];
+  for (const session of sessions) {
+    let key: string;
+    try {
+      key = await fs.promises.realpath(session.path);
+    } catch {
+      key = path.resolve(session.path);
+    }
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(session);
+  }
+  return unique;
 }
 
 function collectAllSessionDirs(sessionsRoot: string): Set<string> {
