@@ -14,6 +14,7 @@ import * as net from "node:net";
 import type {
   ExtensionContext,
   ExtensionFactory,
+  SessionShutdownEvent,
   SessionStartEvent,
 } from "@earendil-works/pi-coding-agent";
 
@@ -114,6 +115,38 @@ export function applySessionShutdown(busy: Set<string>, key: string | undefined)
   if (key) busy.delete(key);
 }
 
+export interface HerdrLedger {
+  live: number;
+  blocked: number;
+  busy: Set<string>;
+}
+
+export function createHerdrLedger(): HerdrLedger {
+  return { live: 0, blocked: 0, busy: new Set() };
+}
+
+export function retainSession(ledger: HerdrLedger): void {
+  ledger.live += 1;
+}
+
+/** Returns true when this was the last live session. Last session forces idle. */
+export function releaseSession(ledger: HerdrLedger, key?: string): boolean {
+  applySessionShutdown(ledger.busy, key);
+  ledger.live = Math.max(0, ledger.live - 1);
+  if (ledger.live > 0) return false;
+  ledger.busy.clear();
+  ledger.blocked = 0;
+  return true;
+}
+
+export function applyWaitingCount(ledger: HerdrLedger, count: number): void {
+  ledger.blocked = Math.max(0, Math.floor(count));
+}
+
+export function ledgerState(ledger: HerdrLedger): HerdrReportState {
+  return desiredBusy(ledger.busy.size, ledger.blocked);
+}
+
 export function parseWaitingForInputPayload(raw: unknown): WaitingForInputEventPayload {
   if (!raw || typeof raw !== "object") return { count: 0, active: false };
   const count = (raw as { count?: unknown }).count;
@@ -186,7 +219,7 @@ let reportSeq = Date.now() * 1000;
 let sendInFlight = false;
 let queuedState: QueuedState | undefined;
 let lastMarkDoneAt = 0;
-const busySessions = new Set<string>();
+const processLedger = createHerdrLedger();
 
 function nextReportSeq(): number {
   reportSeq += 1;
@@ -215,6 +248,7 @@ export function sendRequestAttempt(
   request: unknown,
   timeoutMs: number,
   env: NodeJS.ProcessEnv = process.env,
+  options: { unrefTimeout?: boolean } = {},
 ): Promise<boolean> {
   if (!herdrBridgeEnabled(env)) return Promise.resolve(true);
   const path = env.HERDR_SOCKET_PATH!.trim();
@@ -237,13 +271,16 @@ export function sendRequestAttempt(
     socket.on("data", () => finish(true));
     socket.on("end", () => finish(false));
     timeout = setTimeout(() => finish(false), timeoutMs);
-    timeout.unref?.();
+    if (options.unrefTimeout !== false) timeout.unref?.();
   });
 }
 
-async function sendRequest(request: unknown): Promise<void> {
-  if (await sendRequestAttempt(request, 500)) return;
-  await sendRequestAttempt(request, 1500);
+async function sendRequest(
+  request: unknown,
+  options: { unrefTimeout?: boolean } = {},
+): Promise<void> {
+  if (await sendRequestAttempt(request, 500, process.env, options)) return;
+  await sendRequestAttempt(request, 1500, process.env, options);
 }
 
 function sendState(
@@ -251,6 +288,7 @@ function sendState(
   message: string | undefined,
   seq: number,
   extra: Record<string, unknown> = {},
+  options: { unrefTimeout?: boolean } = {},
 ): Promise<void> {
   const paneId = resolveHerdrPaneId();
   if (!paneId) return Promise.resolve();
@@ -259,6 +297,7 @@ function sendState(
       ...extra,
       ...(message ? { message } : {}),
     }),
+    options,
   );
 }
 
@@ -285,8 +324,6 @@ function queueState(state: HerdrReportState, message?: string, extra: Record<str
 const herdrReportExtension: ExtensionFactory = (pi) => {
   if (!herdrBridgeEnabled()) return;
 
-  let blockedCount = 0;
-  let blockedMessage: string | undefined;
   let lastState: HerdrReportState | undefined;
   let lastMessage: string | undefined;
   let rootSession = false;
@@ -298,15 +335,26 @@ const herdrReportExtension: ExtensionFactory = (pi) => {
     sessionKey = sessionKeyFrom(sessionExtra);
   }
 
+  function currentMessage(): string | undefined {
+    return processLedger.blocked > 0 ? "waiting for input" : undefined;
+  }
+
   function publishState(force = false): void {
     const next = {
-      state: desiredBusy(busySessions.size, blockedCount),
-      message: blockedCount > 0 ? blockedMessage : undefined,
+      state: ledgerState(processLedger),
+      message: currentMessage(),
     };
     if (!force && next.state === lastState && next.message === lastMessage) return;
     lastState = next.state;
     lastMessage = next.message;
     queueState(next.state, next.message, sessionExtra);
+  }
+
+  async function flushIdle(): Promise<void> {
+    queuedState = undefined;
+    lastState = "idle";
+    lastMessage = undefined;
+    await sendState("idle", undefined, nextReportSeq(), {}, { unrefTimeout: false });
   }
 
   async function reportSession(sessionStartSource?: string): Promise<void> {
@@ -318,11 +366,9 @@ const herdrReportExtension: ExtensionFactory = (pi) => {
   }
 
   pi.events.on(WAITING_FOR_INPUT_EVENT, (raw: unknown) => {
-    if (!rootSession) return;
     const payload = parseWaitingForInputPayload(raw);
-    blockedCount = payload.count;
-    if (blockedCount === 0) blockedMessage = undefined;
-    else blockedMessage = "waiting for input";
+    applyWaitingCount(processLedger, payload.count);
+    if (!rootSession) return;
     publishState();
   });
 
@@ -337,26 +383,32 @@ const herdrReportExtension: ExtensionFactory = (pi) => {
 
   pi.on("session_start", (event: SessionStartEvent, ctx: ExtensionContext) => {
     if (ctx.mode !== "tui") return;
+    if (!rootSession) retainSession(processLedger);
     rootSession = true;
     rememberSession(ctx);
-    applySessionStart(busySessions, sessionKey, readCtxIdle(ctx));
+    applySessionStart(processLedger.busy, sessionKey, readCtxIdle(ctx));
     void reportSession(event.reason).then(() => {
       publishState(true);
     });
   });
 
-  pi.on("session_shutdown", () => {
-    applySessionShutdown(busySessions, sessionKey);
+  pi.on("session_shutdown", (event: SessionShutdownEvent) => {
+    const last = releaseSession(processLedger, sessionKey);
     rootSession = false;
     sessionKey = undefined;
     sessionExtra = {};
+    if (last) {
+      applyWaitingCount(processLedger, 0);
+      return flushIdle();
+    }
     publishState(true);
+    return undefined;
   });
 
   pi.on("agent_start", (_event, ctx) => {
     if (!rootSession) return;
     rememberSession(ctx);
-    applyAgentStart(busySessions, sessionKey);
+    applyAgentStart(processLedger.busy, sessionKey);
     publishState();
     void reportSession();
   });
@@ -364,7 +416,7 @@ const herdrReportExtension: ExtensionFactory = (pi) => {
   pi.on("agent_settled", (_event, ctx) => {
     if (!rootSession) return;
     rememberSession(ctx);
-    applyAgentSettled(busySessions, sessionKey, readCtxIdle(ctx));
+    applyAgentSettled(processLedger.busy, sessionKey, readCtxIdle(ctx));
     publishState();
   });
 };

@@ -9,6 +9,11 @@ import {
   applyAgentStart,
   applySessionShutdown,
   applySessionStart,
+  applyWaitingCount,
+  createHerdrLedger,
+  ledgerState,
+  releaseSession,
+  retainSession,
   buildNotificationShowRequest,
   buildReportAgentRequest,
   buildReportAgentSessionRequest,
@@ -134,6 +139,21 @@ test("busy ledger survives resume without undoing a later agent_start", () => {
   assert.equal(busy.size, 0);
 });
 
+test("last session release clears blocked so exit cannot stick", () => {
+  const ledger = createHerdrLedger();
+  retainSession(ledger);
+  retainSession(ledger);
+  applyWaitingCount(ledger, 2);
+  applyAgentStart(ledger.busy, "a");
+  assert.equal(ledgerState(ledger), "blocked");
+  assert.equal(releaseSession(ledger, "a"), false);
+  assert.equal(ledgerState(ledger), "blocked");
+  assert.equal(releaseSession(ledger, "b"), true);
+  assert.equal(ledger.blocked, 0);
+  assert.equal(ledger.busy.size, 0);
+  assert.equal(ledgerState(ledger), "idle");
+});
+
 test("enqueueLatest keeps only the newest slot", () => {
   assert.deepEqual(enqueueLatest(undefined, { state: "working", seq: 1 }), { state: "working", seq: 1 });
   assert.deepEqual(
@@ -223,15 +243,20 @@ test("session_start does not read isIdle after the session ctx is replaced", asy
 
   let stale = false;
   let sessionStart: ((event: { reason: string }, ctx: unknown) => void) | undefined;
-  let sessionShutdown: (() => void) | undefined;
+  let sessionShutdown: ((event: { type: string; reason: string }) => void | Promise<void>) | undefined;
   let agentStart: ((event: unknown, ctx: unknown) => void) | undefined;
+  let waitingForInput: ((raw: unknown) => void) | undefined;
   herdrReportExtension({
     on(event: string, handler: (event: unknown, ctx: unknown) => void) {
       if (event === "session_start") sessionStart = handler as typeof sessionStart;
       if (event === "session_shutdown") sessionShutdown = handler as typeof sessionShutdown;
       if (event === "agent_start") agentStart = handler;
     },
-    events: { on() {} },
+    events: {
+      on(event: string, handler: (raw: unknown) => void) {
+        if (event === WAITING_FOR_INPUT_EVENT) waitingForInput = handler;
+      },
+    },
   } as never);
 
   const ctx = {
@@ -255,8 +280,11 @@ test("session_start does not read isIdle after the session ctx is replaced", asy
     const states = reports.filter((r) => r.method === "pane.report_agent").map((r) => r.params?.state);
     assert.ok(states.includes("working"), `expected a working report, got ${JSON.stringify(states)}`);
     assert.notEqual(states.at(-1), "idle");
-    sessionShutdown?.();
+    waitingForInput?.({ count: 1, active: true });
     await new Promise((resolve) => setTimeout(resolve, 80));
+    const blocked = reports.filter((r) => r.method === "pane.report_agent").map((r) => r.params?.state);
+    assert.equal(blocked.at(-1), "blocked");
+    await sessionShutdown?.({ type: "session_shutdown", reason: "quit" });
     assert.equal(rejections.length, 0, String(rejections[0]));
     const afterShutdown = reports.filter((r) => r.method === "pane.report_agent").map((r) => r.params?.state);
     assert.equal(afterShutdown.at(-1), "idle");
