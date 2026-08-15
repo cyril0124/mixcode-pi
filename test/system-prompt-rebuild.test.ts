@@ -48,6 +48,18 @@ test("MixCode system prompt includes active tool promptGuidelines", async () => 
       runtimeTab.agent.state.systemPrompt,
       /Use read to examine files instead of cat or sed\./,
     );
+    assert.match(
+      runtimeTab.agent.state.systemPrompt,
+      /Use write only for new files or complete rewrites\./,
+    );
+    assert.match(
+      runtimeTab.agent.state.systemPrompt,
+      /Keep edits\[\]\.oldText as small as possible while still being unique in the file\. Do not pad with large unchanged regions\./,
+    );
+    assert.match(
+      runtimeTab.agent.state.systemPrompt,
+      /Use bash for file operations like ls, rg, find/,
+    );
     // Extension-provided guideline for the active custom tool must be present.
     assert.match(runtimeTab.agent.state.systemPrompt, new RegExp(GUIDELINE.replace(/\./g, "\\.")));
   } finally {

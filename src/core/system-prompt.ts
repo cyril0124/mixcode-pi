@@ -111,12 +111,29 @@ function buildGuidelines(
     for (const g of buildSearchGuidelines(availability)) {
       addGuideline(g);
     }
+    // Pi's conditional: bash covers file ops when no dedicated grep/find/ls tools.
+    if (!tools.includes("grep") && !tools.includes("find") && !tools.includes("ls")) {
+      addGuideline("Use bash for file operations like ls, rg, find");
+    }
   }
   for (const guideline of promptGuidelines ?? []) {
     const normalized = guideline.trim();
     if (normalized.length > 0) {
       addGuideline(normalized);
     }
+  }
+  // Re-state the builtin read/write constraints explicitly so they hold even if
+  // Pi's promptGuidelines forwarding ever drops them.
+  if (tools.includes("read")) {
+    addGuideline("Use read to examine files instead of cat or sed.");
+  }
+  if (tools.includes("write")) {
+    addGuideline("Use write only for new files or complete rewrites.");
+  }
+  if (tools.includes("edit")) {
+    addGuideline(
+      "Keep edits[].oldText as small as possible while still being unique in the file. Do not pad with large unchanged regions.",
+    );
   }
   addGuideline("Be concise in your responses");
   addGuideline("Show file paths clearly when working with files");
