@@ -1,4 +1,5 @@
-import * as fs from "node:fs";
+import * as fsPromises from "node:fs/promises";
+import * as path from "node:path";
 import { Worker } from "node:worker_threads";
 import { SessionManager, type SessionInfo } from "@earendil-works/pi-coding-agent";
 
@@ -52,7 +53,12 @@ try {
 const cache = new Map<string, CachedListing>();
 const rootCache = new Map<string, SessionInfo[]>();
 const inFlight = new Map<string, Promise<SessionInfo[]>>();
-const watchers = new Map<string, fs.FSWatcher | null>();
+
+// Per-root snapshots (name + size + mtime). Other instances appending to an
+// existing jsonl must invalidate too; names-only leaves /resume previews and
+// search text stale. Poll replaces fs.watch (inotify is a scarce per-user quota).
+const DEFAULT_CATALOG_POLL_INTERVAL_MS = 5_000;
+const rootSnapshots = new Map<string, { timer: ReturnType<typeof setInterval>; names: string[] | undefined }>();
 
 export function listSessionsInBackground(
   request: SessionCatalogRequest,
@@ -73,9 +79,9 @@ export function listSessionsInBackground(
   }
 
   const roots = requestRoots(request);
-  const cacheable = roots.every(ensureRootWatcher);
+  for (const root of roots) ensureSessionCatalogPoll(root);
   const listing = runBackgroundListing(request, signal).then((sessions) => {
-    if (cacheable) cache.set(key, { roots, sessions });
+    cache.set(key, { roots, sessions });
     return sessions;
   });
   if (signal) return listing;
@@ -93,7 +99,6 @@ export function listSessionsInBackground(
 }
 
 export function seedSessionCatalogRoot(root: string, sessions: SessionInfo[]): void {
-  if (!ensureRootWatcher(root)) return;
   invalidateSessionCatalog(root);
   rootCache.set(root, sessions.map(restoreSessionDates));
 }
@@ -241,22 +246,55 @@ async function runListingSubprocess(
   }
 }
 
-function ensureRootWatcher(root: string): boolean {
-  const existing = watchers.get(root);
-  if (existing !== undefined) return existing !== null;
-  try {
-    const watcher = fs.watch(root, { persistent: false }, () => invalidateSessionCatalog(root));
-    watcher.on("error", () => {
+/**
+ * Start (once per root) a lightweight poll that invalidates the catalog cache
+ * when session files in a root appear, disappear, or change size/mtime.
+ * Listing requests start it lazily; the interval is injectable for tests.
+ */
+export function ensureSessionCatalogPoll(root: string, intervalMs = DEFAULT_CATALOG_POLL_INTERVAL_MS): void {
+  if (rootSnapshots.has(root)) return;
+  const entry: { timer: ReturnType<typeof setInterval>; names: string[] | undefined } = {
+    timer: undefined as unknown as ReturnType<typeof setInterval>,
+    names: undefined,
+  };
+  rootSnapshots.set(root, entry);
+  const poll = async () => {
+    const names = await catalogRootSnapshot(root);
+    if (!names) return; // Root may not exist yet; keep polling.
+    const current = rootSnapshots.get(root);
+    if (!current) return;
+    // First snapshot only seeds the baseline; later changes invalidate.
+    if (current.names === undefined) {
+      current.names = names;
+      return;
+    }
+    if (current.names.join("\0") !== names.join("\0")) {
       invalidateSessionCatalog(root);
-      watcher.close();
-      watchers.set(root, null);
-    });
-    watchers.set(root, watcher);
-    return true;
+      current.names = names;
+    }
+  };
+  entry.timer = setInterval(poll, intervalMs);
+  entry.timer.unref?.();
+  void poll();
+}
+
+async function catalogRootSnapshot(root: string): Promise<string[] | undefined> {
+  let names: string[];
+  try {
+    names = (await fsPromises.readdir(root)).sort();
   } catch {
-    watchers.set(root, null);
-    return false;
+    return undefined;
   }
+  const lines: string[] = [];
+  for (const name of names) {
+    try {
+      const stat = await fsPromises.stat(path.join(root, name));
+      lines.push(`${name}\0${stat.size}\0${stat.mtimeMs}`);
+    } catch {
+      lines.push(name);
+    }
+  }
+  return lines;
 }
 
 function listingFromRootCache(request: SessionCatalogRequest): SessionInfo[] | undefined {

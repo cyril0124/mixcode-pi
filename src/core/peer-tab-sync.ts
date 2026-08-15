@@ -1,9 +1,10 @@
 // Keep local Agent tabs aligned with the shared open_tabs.json set.
 //
 // Create adds a session id to open_tabs; close/delete removes it. Every live
-// instance watches (and polls) that file and opens/closes tabs to match.
-// Instance registry is only used here for optional title lookup.
-import * as fsSync from "node:fs";
+// instance polls that file and opens/closes tabs to match. Polling (no
+// fs.watch: inotify instances are a scarce per-user kernel quota on shared
+// boxes) is also what makes this work on NFS, where dir watches can miss
+// events. Instance registry is only used here for optional title lookup.
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import {
@@ -94,7 +95,7 @@ export interface StartPeerTabSyncOptions {
   syncTabTitles?: (titles: Array<{ sessionId: string; title: string }>) => void | Promise<void>;
   onError?: (error: unknown) => void;
   debounceMs?: number;
-  /** Polling fallback: NFS/dir watch can miss events. Default 2000ms. */
+  /** Poll cadence. Default 2000ms. */
   pollIntervalMs?: number;
   loadStatus?: (
     rootStateDir: string,
@@ -105,20 +106,15 @@ export interface StartPeerTabSyncOptions {
     tabs: Array<{ sessionId: string; title: string; workdir: string }>;
   }> }>;
   readDesired?: (openTabsPath: string) => string[];
-  watchFactory?: (
-    dir: string,
-    onEvent: () => void,
-    onError: (error: unknown) => void,
-  ) => { close(): void };
 }
 
 const DEFAULT_DEBOUNCE_MS = 250;
 const DEFAULT_POLL_INTERVAL_MS = 2_000;
 
 /**
- * Watch + poll open_tabs.json and open/close local tabs to match.
+ * Poll open_tabs.json and open/close local tabs to match.
  * Opening failures (e.g. session file not on disk yet) surface via onError and
- * are retried on the next event — no silent disable.
+ * are retried on the next poll — no silent disable.
  */
 export function startPeerTabSync(options: StartPeerTabSyncOptions): {
   dispose(): void;
@@ -128,7 +124,6 @@ export function startPeerTabSync(options: StartPeerTabSyncOptions): {
   const pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
   const loadStatus = options.loadStatus ?? loadLiveInstanceStatus;
   const readDesired = options.readDesired ?? readOpenTabs;
-  const watchFactory = options.watchFactory ?? defaultWatchFactory;
   const openTabsDir = path.dirname(options.openTabsPath);
 
   let disposed = false;
@@ -138,7 +133,6 @@ export function startPeerTabSync(options: StartPeerTabSyncOptions): {
   let reconcileAgain = false;
   const opening = new Set<string>();
   const closing = new Set<string>();
-  let watchHandle: { close(): void } | undefined;
 
   const schedule = () => {
     if (disposed) return;
@@ -257,7 +251,6 @@ export function startPeerTabSync(options: StartPeerTabSyncOptions): {
   void fs.mkdir(openTabsDir, { recursive: true })
     .then(() => {
       if (disposed) return;
-      watchHandle = watchFactory(openTabsDir, schedule, (error) => options.onError?.(error));
       pollTimer = setInterval(schedule, pollIntervalMs);
       pollTimer.unref?.();
       schedule();
@@ -271,27 +264,9 @@ export function startPeerTabSync(options: StartPeerTabSyncOptions): {
       debounceTimer = undefined;
       if (pollTimer) clearInterval(pollTimer);
       pollTimer = undefined;
-      watchHandle?.close();
-      watchHandle = undefined;
     },
     reconcileNow: reconcile,
   };
-}
-
-function defaultWatchFactory(
-  dir: string,
-  onEvent: () => void,
-  onError: (error: unknown) => void,
-): { close(): void } {
-  let watcher: fsSync.FSWatcher;
-  try {
-    watcher = fsSync.watch(dir, { persistent: false }, () => onEvent());
-  } catch (error) {
-    onError(error);
-    return { close: () => {} };
-  }
-  watcher.on("error", onError);
-  return { close: () => watcher.close() };
 }
 
 function normalizeWorkdir(workdir: string): string {

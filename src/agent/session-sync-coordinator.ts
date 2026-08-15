@@ -1,13 +1,13 @@
 // Detects external appends to session files and drives per-session reloads.
 //
-// One coordinator per process. It watches the sessionsRoot directory ONCE (not
-// once per tab), maps changed filenames back to registered sessions, dedupes
-// repeat notifications with a metadata fingerprint, and debounces bursts so a
-// single conversation turn (which the SDK may flush as several appends) causes
-// at most one reload.
+// One coordinator per process. It polls the fingerprints of all registered
+// session files on an interval (no fs.watch: inotify instances are a scarce
+// per-user kernel quota on shared boxes), dedupes repeat notifications with a
+// metadata fingerprint, and debounces bursts so a single conversation turn
+// (which the SDK may flush as several appends) causes at most one reload.
 //
-// The watch and stat functions are injectable so behavior is deterministic in
-// tests; production uses node:fs (watch has no Bun equivalent).
+// The poll interval and stat function are injectable so behavior is
+// deterministic in tests; production uses node:fs stat.
 
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -23,44 +23,20 @@ export interface FileFingerprint {
   ino?: number;
 }
 
-export interface SessionWatchHandle {
-  close(): void;
-}
-
-export type SessionWatchFactory = (
-  dir: string,
-  onEvent: (filename: string | null) => void,
-  onError: (error: unknown) => void,
-) => SessionWatchHandle;
-
 export type StatFingerprintFn = (filePath: string) => FileFingerprint | undefined;
 
 export interface SessionSyncCoordinatorOptions {
   sessionsRoot: string;
   /** Called (debounced) when a registered session's file changed externally. */
   onExternalChange: (sessionId: string) => void;
-  /** Surface watch failures explicitly instead of silently disabling sync. */
-  onError?: (error: unknown) => void;
   debounceMs?: number;
-  watchFactory?: SessionWatchFactory;
+  /** Fingerprint poll cadence. Default 2s. */
+  pollIntervalMs?: number;
   statFingerprint?: StatFingerprintFn;
 }
 
 const DEFAULT_DEBOUNCE_MS = 250;
-
-const defaultWatchFactory: SessionWatchFactory = (dir, onEvent, onError) => {
-  let watcher: fs.FSWatcher;
-  try {
-    watcher = fs.watch(dir, { persistent: false }, (_type, filename) => {
-      onEvent(typeof filename === "string" ? filename : null);
-    });
-  } catch (error) {
-    onError(error);
-    return { close: () => {} };
-  }
-  watcher.on("error", onError);
-  return { close: () => watcher.close() };
-};
+const DEFAULT_POLL_INTERVAL_MS = 2_000;
 
 const defaultStatFingerprint: StatFingerprintFn = (filePath) => {
   try {
@@ -81,24 +57,19 @@ interface TrackedSession {
 export class SessionSyncCoordinator {
   private readonly sessionsRoot: string;
   private readonly onExternalChange: (sessionId: string) => void;
-  private readonly onError?: (error: unknown) => void;
   private readonly debounceMs: number;
-  private readonly watchFactory: SessionWatchFactory;
+  private readonly pollIntervalMs: number;
   private readonly statFingerprint: StatFingerprintFn;
 
-  // Two indexes over the same tracked sessions: by session id (register/
-  // unregister/markLocalWrite) and by file basename (watcher event resolution).
   private readonly bySessionId = new Map<string, TrackedSession>();
-  private readonly byFileName = new Map<string, TrackedSession>();
-  private watchHandle?: SessionWatchHandle;
+  private pollTimer?: ReturnType<typeof setInterval>;
   private disposed = false;
 
   constructor(options: SessionSyncCoordinatorOptions) {
     this.sessionsRoot = options.sessionsRoot;
     this.onExternalChange = options.onExternalChange;
-    this.onError = options.onError;
     this.debounceMs = options.debounceMs ?? DEFAULT_DEBOUNCE_MS;
-    this.watchFactory = options.watchFactory ?? defaultWatchFactory;
+    this.pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
     this.statFingerprint = options.statFingerprint ?? defaultStatFingerprint;
   }
 
@@ -114,8 +85,7 @@ export class SessionSyncCoordinator {
       fingerprint: this.statFingerprint(path.join(this.sessionsRoot, fileName)),
     };
     this.bySessionId.set(sessionId, tracked);
-    this.byFileName.set(fileName, tracked);
-    this.ensureWatching();
+    this.ensurePolling();
   }
 
   unregister(sessionId: string): void {
@@ -123,11 +93,6 @@ export class SessionSyncCoordinator {
     if (!tracked) return;
     if (tracked.debounceTimer) clearTimeout(tracked.debounceTimer);
     this.bySessionId.delete(sessionId);
-    // Only drop the filename index if it still points at this session (a
-    // re-register under a new file could have replaced it).
-    if (this.byFileName.get(tracked.fileName) === tracked) {
-      this.byFileName.delete(tracked.fileName);
-    }
   }
 
   /**
@@ -145,24 +110,15 @@ export class SessionSyncCoordinator {
     tracked.fingerprint = this.statFingerprint(path.join(this.sessionsRoot, tracked.fileName));
   }
 
-  private ensureWatching(): void {
-    if (this.watchHandle || this.disposed) return;
-    this.watchHandle = this.watchFactory(
-      this.sessionsRoot,
-      (filename) => this.handleEvent(filename),
-      (error) => this.onError?.(error),
-    );
+  private ensurePolling(): void {
+    if (this.pollTimer || this.disposed) return;
+    this.pollTimer = setInterval(() => this.poll(), this.pollIntervalMs);
+    this.pollTimer.unref?.();
   }
 
-  private handleEvent(filename: string | null): void {
+  /** Re-check every tracked session's fingerprint; changed files debounce a reload. */
+  private poll(): void {
     if (this.disposed) return;
-    if (filename !== null) {
-      const tracked = this.byFileName.get(filename);
-      if (tracked) this.considerReload(tracked);
-      return;
-    }
-    // Some platforms omit the filename. Re-check every tracked session instead
-    // of scanning the (potentially large) directory of historical sessions.
     for (const tracked of this.bySessionId.values()) this.considerReload(tracked);
   }
 
@@ -186,9 +142,8 @@ export class SessionSyncCoordinator {
       if (tracked.debounceTimer) clearTimeout(tracked.debounceTimer);
     }
     this.bySessionId.clear();
-    this.byFileName.clear();
-    this.watchHandle?.close();
-    this.watchHandle = undefined;
+    if (this.pollTimer) clearInterval(this.pollTimer);
+    this.pollTimer = undefined;
   }
 }
 

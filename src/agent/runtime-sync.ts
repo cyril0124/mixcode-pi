@@ -29,7 +29,6 @@ export class RuntimeSyncManager {
   constructor(
     private readonly sessionsRoot: string,
     private readonly onExternalChange: (sessionId: string) => void,
-    private readonly onError?: (error: unknown) => void,
   ) {}
 
   get enabled(): boolean {
@@ -41,7 +40,6 @@ export class RuntimeSyncManager {
     this.coordinator = new SessionSyncCoordinator({
       sessionsRoot: this.sessionsRoot,
       onExternalChange: this.onExternalChange,
-      onError: this.onError,
     });
   }
 

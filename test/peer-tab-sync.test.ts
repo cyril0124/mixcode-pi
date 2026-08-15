@@ -195,7 +195,6 @@ test("startPeerTabSync opens and closes against shared open_tabs", async () => {
         orders.push([...sessionIds]);
       },
       loadStatus: async () => ({ instances: [] }),
-      watchFactory: () => ({ close: () => undefined }),
     });
 
     await sync.reconcileNow();
@@ -278,7 +277,6 @@ test("createAgentTab publishes open_tabs before create finishes so reconcile kee
         await closeExistingAgentTab(state, runtime, sessionId, { publishClose: false });
       },
       loadStatus: async () => ({ instances: [] }),
-      watchFactory: () => ({ close: () => undefined }),
     });
 
     const queuedStatuses: string[] = [];
@@ -442,7 +440,6 @@ test("completeAgentTabClear publishes open_tabs before session id swaps so recon
         await closeExistingAgentTab(state, runtime, sessionId, { publishClose: false });
       },
       loadStatus: async () => ({ instances: [] }),
-      watchFactory: () => ({ close: () => undefined }),
     });
     reconcileDuringClear = () => sync.reconcileNow();
 
@@ -643,7 +640,6 @@ test("resume publishes open_tabs before switch so reconcile keeps session title"
         await closeExistingAgentTab(state, runtime, sessionId, { publishClose: false });
       },
       loadStatus: async () => ({ instances: [] }),
-      watchFactory: () => ({ close: () => undefined }),
     });
     reconcileDuringSwitch = () => sync.reconcileNow();
 
@@ -719,7 +715,6 @@ test("peer reconcile syncTabTitles updates already-open local tab titles", async
       }),
       debounceMs: 10,
       pollIntervalMs: 60_000,
-      watchFactory: () => ({ close: () => undefined }),
     });
     await sync.reconcileNow();
     assert.deepEqual(titles, [{ sessionId: "s1", title: "PeerRealName" }]);
@@ -769,7 +764,6 @@ test("syncTabTitles prefers freshest registry snapshot over later pid order", as
       }),
       debounceMs: 10,
       pollIntervalMs: 60_000,
-      watchFactory: () => ({ close: () => undefined }),
     });
     await sync.reconcileNow();
     assert.deepEqual(titles, [{ sessionId: "s1", title: "New" }]);

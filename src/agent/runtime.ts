@@ -205,8 +205,6 @@ export class MixCodeRuntime {
   private extensionUiHost?: ExtensionCustomUiHost;
   private shellExecutionSequence = 0;
   private readonly sync: RuntimeSyncManager;
-  /** Optional host surface for session-sync failures (TUI notice). */
-  private syncErrorHandler?: (error: unknown) => void;
   /** sessionIds that called ctx.shutdown() while streaming/compacting. */
   private readonly pendingExtensionShutdown = new Set<string>();
   /** UI host removes the tab from MixCodeState after runtime closeTab. */
@@ -291,7 +289,6 @@ export class MixCodeRuntime {
     this.sync = new RuntimeSyncManager(
       this.sessionsRoot,
       (sessionId) => this.syncSessionFromDisk(sessionId),
-      (error) => this.reportSyncError(error),
     );
     // Extension pi.registerProvider updates ModelRegistry but MixCode UI reads
     // state.availableModels; keep them in sync when providers are registered.
@@ -302,30 +299,14 @@ export class MixCodeRuntime {
   }
 
   /**
-   * Enable cross-process session sync: watch this sessionsRoot for external
-   * appends and serialize this instance's session writes with a turn lock.
-   * Opt-in (the CLI calls it at startup) so batch/test runtimes that share a
-   * sessionsRoot do not watch files or contend on locks.
+   * Enable cross-process session sync: poll registered session files for
+   * external appends and serialize this instance's session writes with a turn
+   * lock. Opt-in (the CLI calls it at startup) so batch/test runtimes that
+   * share a sessionsRoot do not poll files or contend on locks.
    */
   enableSessionSync(): void {
     this.sync.enable();
     for (const runtimeTab of this.tabs.values()) this.sync.register(runtimeTab);
-  }
-
-  private reportSyncError(error: unknown): void {
-    const message = error instanceof Error ? error.message : String(error);
-    // Prefer the host-installed handler (TUI notice). Fall back to stderr so
-    // batch/test runtimes still surface the failure without a TUI.
-    if (this.syncErrorHandler) {
-      this.syncErrorHandler(error);
-      return;
-    }
-    process.stderr.write(`mixcode-pi session sync error: ${message}\n`);
-  }
-
-  /** Host installs a TUI-safe surface for session-sync failures. */
-  setSyncErrorHandler(handler: (error: unknown) => void): void {
-    this.syncErrorHandler = handler;
   }
 
   async loadExtensionManagerConfig(): Promise<void> {

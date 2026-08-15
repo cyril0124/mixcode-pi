@@ -220,11 +220,6 @@ export async function main(): Promise<void> {
     showNoticeTextOverlay(tui, `mpi instance registry update failed: ${message}`);
     tui.requestRender();
   };
-  runtime.setSyncErrorHandler((error) => {
-    const message = error instanceof Error ? error.message : String(error);
-    showNoticeTextOverlay(tui, `mpi session sync error: ${message}`);
-    tui.requestRender();
-  });
   const originalRequestRender = tui.requestRender.bind(tui);
   tui.requestRender = (force?: boolean) => {
     scheduleRegistrySnapshot();

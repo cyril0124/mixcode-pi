@@ -175,7 +175,7 @@ export async function openSessionSelector(
     // status message) to Pi's own onDeleteSession. Deleting here ourselves
     // first made `trash` run twice for one deletion.
     if (piDelete) await piDelete(sessionPath);
-    // The sessions-root fs.watch invalidation is async; invalidate eagerly so
+    // Catalog invalidation is poll-based (up to ~5s); invalidate eagerly so
     // the next catalog load never returns the just-deleted file.
     invalidateSessionCatalog(path.dirname(sessionPath));
   };

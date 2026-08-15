@@ -3,33 +3,7 @@ import * as fsPromises from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
-import {
-  type FileFingerprint,
-  SessionSyncCoordinator,
-  type SessionWatchFactory,
-} from "../src/index.js";
-
-// A controllable watcher: tests push events through `emit`; closing flips a flag.
-function makeControllableWatch(): {
-  factory: SessionWatchFactory;
-  emit: (filename: string | null) => void;
-  closed: () => boolean;
-  watchCount: () => number;
-} {
-  let emit!: (filename: string | null) => void;
-  let closed = false;
-  let watchCount = 0;
-  const factory: SessionWatchFactory = (_dir, onEvent) => {
-    watchCount += 1;
-    emit = onEvent;
-    return {
-      close: () => {
-        closed = true;
-      },
-    };
-  };
-  return { factory, emit: (f) => emit(f), closed: () => closed, watchCount: () => watchCount };
-}
+import { type FileFingerprint, SessionSyncCoordinator } from "../src/index.js";
 
 // A mutable fingerprint table keyed by absolute path; `bump` simulates a write.
 function makeStatTable(): {
@@ -47,46 +21,49 @@ function makeStatTable(): {
   };
 }
 
-test("only one watcher is created regardless of session count", () => {
-  const w = makeControllableWatch();
-  const stat = makeStatTable();
-  const coord = new SessionSyncCoordinator({
-    sessionsRoot: "/root",
-    onExternalChange: () => {},
-    watchFactory: w.factory,
-    statFingerprint: stat.stat,
-    debounceMs: 0,
-  });
-  stat.set("a.jsonl", { size: 1, mtimeMs: 1 });
-  stat.set("b.jsonl", { size: 1, mtimeMs: 1 });
-  coord.register("sa", "/root/a.jsonl");
-  coord.register("sb", "/root/b.jsonl");
-  assert.equal(w.watchCount(), 1);
-  coord.dispose();
-  assert.equal(w.closed(), true);
-});
+// 1ms poll so tests observe a few ticks within a short sleep.
+// Poll ticks faster than the debounce so the debounce can fire between ticks.
+const POLL_MS = 10;
 
 test("a real fingerprint change triggers exactly one debounced reload", async () => {
-  const w = makeControllableWatch();
   const stat = makeStatTable();
   const changed: string[] = [];
   const coord = new SessionSyncCoordinator({
     sessionsRoot: "/root",
     onExternalChange: (id) => changed.push(id),
-    watchFactory: w.factory,
     statFingerprint: stat.stat,
     debounceMs: 5,
+    pollIntervalMs: POLL_MS,
   });
   stat.set("a.jsonl", { size: 10, mtimeMs: 100 });
   coord.register("sa", "/root/a.jsonl");
 
-  // External append: size + mtime grow. Fire several watcher events for it.
+  // External append: size + mtime grow. Many poll ticks see the new state.
   stat.set("a.jsonl", { size: 40, mtimeMs: 200 });
-  w.emit("a.jsonl");
-  w.emit("a.jsonl");
-  w.emit("a.jsonl");
-  await Bun.sleep(20);
-  assert.deepEqual(changed, ["sa"], "burst collapses to one reload");
+  await Bun.sleep(30);
+  assert.deepEqual(changed, ["sa"], "burst of ticks collapses to one reload");
+  coord.dispose();
+});
+
+test("multiple registered sessions are all polled", async () => {
+  const stat = makeStatTable();
+  const changed: string[] = [];
+  const coord = new SessionSyncCoordinator({
+    sessionsRoot: "/root",
+    onExternalChange: (id) => changed.push(id),
+    statFingerprint: stat.stat,
+    debounceMs: 0,
+    pollIntervalMs: POLL_MS,
+  });
+  stat.set("a.jsonl", { size: 1, mtimeMs: 1 });
+  stat.set("b.jsonl", { size: 1, mtimeMs: 1 });
+  coord.register("sa", "/root/a.jsonl");
+  coord.register("sb", "/root/b.jsonl");
+
+  stat.set("a.jsonl", { size: 2, mtimeMs: 2 });
+  stat.set("b.jsonl", { size: 2, mtimeMs: 2 });
+  await Bun.sleep(30);
+  assert.deepEqual(changed.sort(), ["sa", "sb"]);
   coord.dispose();
 });
 
@@ -95,7 +72,6 @@ test("same size and mtime with replaced content still reloads", async () => {
   const sessionPath = path.join(dir, "a.jsonl");
   const replacementPath = path.join(dir, "replacement.jsonl");
   const fixedTime = new Date("2026-01-01T00:00:00.000Z");
-  const w = makeControllableWatch();
   const changed: string[] = [];
   try {
     await fsPromises.writeFile(sessionPath, "old\n", "utf8");
@@ -103,16 +79,15 @@ test("same size and mtime with replaced content still reloads", async () => {
     const coord = new SessionSyncCoordinator({
       sessionsRoot: dir,
       onExternalChange: (id) => changed.push(id),
-      watchFactory: w.factory,
       debounceMs: 5,
+      pollIntervalMs: POLL_MS,
     });
     coord.register("sa", sessionPath);
 
     await fsPromises.writeFile(replacementPath, "new\n", "utf8");
     await fsPromises.utimes(replacementPath, fixedTime, fixedTime);
     await fsPromises.rename(replacementPath, sessionPath);
-    w.emit("a.jsonl");
-    await Bun.sleep(20);
+    await Bun.sleep(30);
     assert.deepEqual(changed, ["sa"]);
     coord.dispose();
   } finally {
@@ -120,106 +95,78 @@ test("same size and mtime with replaced content still reloads", async () => {
   }
 });
 
-test("repeat events with an unchanged fingerprint do not reload", async () => {
-  const w = makeControllableWatch();
+test("poll ticks with an unchanged fingerprint do not reload", async () => {
   const stat = makeStatTable();
   const changed: string[] = [];
   const coord = new SessionSyncCoordinator({
     sessionsRoot: "/root",
     onExternalChange: (id) => changed.push(id),
-    watchFactory: w.factory,
     statFingerprint: stat.stat,
     debounceMs: 5,
+    pollIntervalMs: POLL_MS,
   });
   stat.set("a.jsonl", { size: 10, mtimeMs: 100 });
   coord.register("sa", "/root/a.jsonl");
   // Same fingerprint -> not a real change.
-  w.emit("a.jsonl");
-  w.emit("a.jsonl");
-  await Bun.sleep(20);
-  assert.deepEqual(changed, []);
-  coord.dispose();
-});
-
-test("events for an unrelated file are ignored", async () => {
-  const w = makeControllableWatch();
-  const stat = makeStatTable();
-  const changed: string[] = [];
-  const coord = new SessionSyncCoordinator({
-    sessionsRoot: "/root",
-    onExternalChange: (id) => changed.push(id),
-    watchFactory: w.factory,
-    statFingerprint: stat.stat,
-    debounceMs: 5,
-  });
-  stat.set("a.jsonl", { size: 10, mtimeMs: 100 });
-  coord.register("sa", "/root/a.jsonl");
-  stat.set("other.jsonl", { size: 999, mtimeMs: 999 });
-  w.emit("other.jsonl");
   await Bun.sleep(20);
   assert.deepEqual(changed, []);
   coord.dispose();
 });
 
 test("markLocalWrite suppresses the echo reload of our own write", async () => {
-  const w = makeControllableWatch();
   const stat = makeStatTable();
   const changed: string[] = [];
   const coord = new SessionSyncCoordinator({
     sessionsRoot: "/root",
     onExternalChange: (id) => changed.push(id),
-    watchFactory: w.factory,
     statFingerprint: stat.stat,
     debounceMs: 5,
+    pollIntervalMs: POLL_MS,
   });
   stat.set("a.jsonl", { size: 10, mtimeMs: 100 });
   coord.register("sa", "/root/a.jsonl");
-  // Local write grows the file; we record it BEFORE the watcher event lands.
+  // Local write grows the file; we record it BEFORE a poll tick sees it.
   stat.set("a.jsonl", { size: 30, mtimeMs: 300 });
   coord.markLocalWrite("sa");
-  w.emit("a.jsonl");
   await Bun.sleep(20);
   assert.deepEqual(changed, [], "our own write must not echo back as a reload");
   coord.dispose();
 });
 
-test("filename-less events re-check only registered sessions", async () => {
-  const w = makeControllableWatch();
-  const stat = makeStatTable();
-  const changed: string[] = [];
-  const coord = new SessionSyncCoordinator({
-    sessionsRoot: "/root",
-    onExternalChange: (id) => changed.push(id),
-    watchFactory: w.factory,
-    statFingerprint: stat.stat,
-    debounceMs: 5,
-  });
-  stat.set("a.jsonl", { size: 10, mtimeMs: 100 });
-  coord.register("sa", "/root/a.jsonl");
-  stat.set("a.jsonl", { size: 20, mtimeMs: 200 });
-  w.emit(null); // platform without filename
-  await Bun.sleep(20);
-  assert.deepEqual(changed, ["sa"]);
-  coord.dispose();
-});
-
 test("unregister stops reloads and clears pending timers", async () => {
-  const w = makeControllableWatch();
   const stat = makeStatTable();
   const changed: string[] = [];
   const coord = new SessionSyncCoordinator({
     sessionsRoot: "/root",
     onExternalChange: (id) => changed.push(id),
-    watchFactory: w.factory,
     statFingerprint: stat.stat,
     debounceMs: 20,
+    pollIntervalMs: POLL_MS,
   });
   stat.set("a.jsonl", { size: 10, mtimeMs: 100 });
   coord.register("sa", "/root/a.jsonl");
   stat.set("a.jsonl", { size: 20, mtimeMs: 200 });
-  w.emit("a.jsonl"); // schedules a debounced reload
+  await Bun.sleep(15); // a tick schedules the debounced reload
   coord.unregister("sa"); // ...which must be cancelled
   await Bun.sleep(40);
   assert.deepEqual(changed, []);
   coord.dispose();
+});
+
+test("dispose stops polling so no reloads fire after shutdown", async () => {
+  const stat = makeStatTable();
+  const changed: string[] = [];
+  const coord = new SessionSyncCoordinator({
+    sessionsRoot: "/root",
+    onExternalChange: (id) => changed.push(id),
+    statFingerprint: stat.stat,
+    debounceMs: 5,
+    pollIntervalMs: POLL_MS,
+  });
+  stat.set("a.jsonl", { size: 10, mtimeMs: 100 });
+  coord.register("sa", "/root/a.jsonl");
+  coord.dispose();
+  stat.set("a.jsonl", { size: 20, mtimeMs: 200 });
+  await Bun.sleep(20);
+  assert.deepEqual(changed, []);
 });
