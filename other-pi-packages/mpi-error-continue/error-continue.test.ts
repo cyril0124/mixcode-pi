@@ -233,20 +233,20 @@ test("three invisible continues use progressive delays then switch to visible", 
   assert.deepEqual(harness.delays, [1000, 2000, 4000, 1000]);
 });
 
-test("six error settles send 3 invisible + 3 visible; seventh sends nothing", async () => {
+test("MAX_INVISIBLE + MAX_VISIBLE error settles send all continues; extra sends nothing", async () => {
   const harness = createHarness();
   await harness.emit("session_start");
 
   for (let i = 0; i < MAX_INVISIBLE + MAX_VISIBLE; i++) {
     await errorSettle(harness, `err-${i}`);
   }
-  assert.equal(harness.sent.length, 6);
-  assert.equal(harness.sent.filter((s) => s.kind === "message").length, 3);
-  assert.equal(harness.sent.filter((s) => s.kind === "user").length, 3);
-  assert.deepEqual(harness.delays, [1000, 2000, 4000, 1000, 2000, 4000]);
+  assert.equal(harness.sent.length, MAX_INVISIBLE + MAX_VISIBLE);
+  assert.equal(harness.sent.filter((s) => s.kind === "message").length, MAX_INVISIBLE);
+  assert.equal(harness.sent.filter((s) => s.kind === "user").length, MAX_VISIBLE);
+  assert.deepEqual(harness.delays, [1000, 2000, 4000, 1000, 2000, 4000, 8000, 16000]);
   assert.deepEqual(harness.statuses.at(-1), {
     key: STATUS_KEY,
-    text: `${STATUS_PREFIX} (6)`,
+    text: `${STATUS_PREFIX} (${MAX_INVISIBLE + MAX_VISIBLE})`,
   });
 
   const before = harness.sent.length;

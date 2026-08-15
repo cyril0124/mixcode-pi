@@ -1,7 +1,7 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 export const MAX_INVISIBLE = 3;
-export const MAX_VISIBLE = 3;
+export const MAX_VISIBLE = 5;
 export const BASE_DELAY_MS = 1000;
 export const RESUME_CUSTOM_TYPE = "mpi-error-continue:resume";
 export const STATE_CUSTOM_TYPE = "mpi-error-continue:state";
