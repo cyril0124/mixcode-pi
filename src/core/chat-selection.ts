@@ -124,7 +124,7 @@ export function selectedChatText(lines: string[], selection: ChatSelectionState)
   const normalized = normalizeChatSelection(selection);
   const parts: string[] = [];
   for (let row = normalized.start.row; row <= normalized.end.row; row++) {
-    const text = stripAnsi(lines[row] ?? "").trimEnd();
+    const text = stripTerminalSequences(lines[row] ?? "").trimEnd();
     const startCol = row === normalized.start.row ? normalized.start.col : 0;
     const endCol = row === normalized.end.row ? normalized.end.col : visibleWidth(text);
     parts.push(sliceByColumn(text, startCol, Math.max(0, endCol - startCol), true));
@@ -177,7 +177,7 @@ export function highlightChatSelectionLine(
   if (!selection || isCollapsedChatSelection(selection)) return line;
   const normalized = normalizeChatSelection(selection);
   if (row < normalized.start.row || row > normalized.end.row) return line;
-  const plain = stripAnsi(line);
+  const plain = stripTerminalSequences(line);
   const lineWidth = visibleWidth(plain);
   const startCol = row === normalized.start.row ? normalized.start.col : 0;
   const endCol = row === normalized.end.row ? normalized.end.col : lineWidth;
@@ -235,12 +235,12 @@ function isFramedInputHintLine(line: string): boolean {
 }
 
 function isChatScrollMarker(line: string): boolean {
-  const text = stripAnsi(line).trim();
+  const text = stripTerminalSequences(line).trim();
   return text === "↑ older above" || text === "↓ newer below";
 }
 
 function selectableChatRow(lines: string[], row: number): number {
-  const text = stripAnsi(lines[row] ?? "").trim();
+  const text = stripTerminalSequences(lines[row] ?? "").trim();
   if (text === "↑ older above") return Math.min(lines.length - 1, row + 1);
   if (text === "↓ newer below") return Math.max(0, row - 1);
   return row;

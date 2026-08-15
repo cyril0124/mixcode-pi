@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { visibleWidth } from "@earendil-works/pi-tui";
+import { stripTerminalSequences, visibleWidth } from "@earendil-works/pi-tui";
 import { createDiffViewerComponent, type ReviewEditor } from "./diff-viewer.js";
 import type { ReviewDraft } from "./review.js";
 import type { DiffFile, DiffRow, SessionDiff } from "./session-diff.js";
@@ -71,13 +71,9 @@ function fixture(): SessionDiff {
   return { files: [alpha, beta], additions: 2, deletions: 1, trackedFiles: 2 };
 }
 
-function stripAnsi(text: string): string {
-  return text.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "");
-}
-
 function styledSpans(output: string, open: string, close: string): string[] {
   const pattern = new RegExp(`${open}(.*?)${close}`, "g");
-  return Array.from(output.matchAll(pattern), (match) => stripAnsi(match[1]!));
+  return Array.from(output.matchAll(pattern), (match) => stripTerminalSequences(match[1]!));
 }
 
 function createEditor(): ReviewEditor {
@@ -160,8 +156,8 @@ test("replace rows highlight English identifiers as whole words", () => {
   assert.match(output, /\x1b\[36m/);
   assert.ok(styledSpans(output, "\\x1b\\[4m", "\\x1b\\[24m").includes("src/changed.ts"));
 
-  const oldLine = stripAnsi(output.split("\n").find((line) => line.includes("abc123xyz")) ?? "");
-  const newLine = stripAnsi(output.split("\n").find((line) => line.includes("abc923xyq")) ?? "");
+  const oldLine = stripTerminalSequences(output.split("\n").find((line) => line.includes("abc123xyz")) ?? "");
+  const newLine = stripTerminalSequences(output.split("\n").find((line) => line.includes("abc923xyq")) ?? "");
   assert.match(oldLine, /\s+1\s+:\s+│ const code/);
   assert.match(newLine, /\s+:\s+1\s+│ const code/);
   assert.doesNotMatch(oldLine, /\s-\s/);
@@ -339,7 +335,7 @@ test("n selects the next changed file", () => {
 
   component.handleInput("n");
 
-  assert.match(stripAnsi(component.render(120).join("\n")), /src\/beta\.ts/);
+  assert.match(stripTerminalSequences(component.render(120).join("\n")), /src\/beta\.ts/);
 });
 
 test("j/k walk every tree node and n/p skip directories", () => {
@@ -383,13 +379,13 @@ test("j/k walk every tree node and n/p skip directories", () => {
 
   // Tree order: / → src → a.ts → c.ts → test → b.ts. Start on first file a.ts.
   component.handleInput("j");
-  assert.match(stripAnsi(component.render(120).join("\n")), /src\/c\.ts/);
+  assert.match(stripTerminalSequences(component.render(120).join("\n")), /src\/c\.ts/);
   component.handleInput("j");
-  assert.match(stripAnsi(component.render(120).join("\n")), / test|│ test/);
+  assert.match(stripTerminalSequences(component.render(120).join("\n")), / test|│ test/);
   component.handleInput("n");
-  assert.match(stripAnsi(component.render(120).join("\n")), /test\/b\.ts/);
+  assert.match(stripTerminalSequences(component.render(120).join("\n")), /test\/b\.ts/);
   component.handleInput("p");
-  assert.match(stripAnsi(component.render(120).join("\n")), /src\/c\.ts/);
+  assert.match(stripTerminalSequences(component.render(120).join("\n")), /src\/c\.ts/);
 });
 
 test("selecting a directory shows every descendant file diff with path headers", () => {
@@ -429,7 +425,7 @@ test("selecting a directory shows every descendant file diff with path headers",
 
   // From a.ts, k moves to the parent src directory.
   component.handleInput("k");
-  const output = stripAnsi(component.render(120).join("\n"));
+  const output = stripTerminalSequences(component.render(120).join("\n"));
   assert.match(output, /src\/a\.ts/);
   assert.match(output, /src\/c\.ts/);
   assert.match(output, /a-before/);
@@ -441,13 +437,13 @@ test("comment mode saves a DISCUSS comment on the selected changed line by defau
   const { component } = createViewer();
 
   component.handleInput("c");
-  assert.match(stripAnsi(component.render(120).join("\n")), /Comment mode.*deleted 1/);
+  assert.match(stripTerminalSequences(component.render(120).join("\n")), /Comment mode.*deleted 1/);
   component.handleInput("\r");
-  assert.match(stripAnsi(component.render(120).join("\n")), /Edit DISCUSS comment/);
+  assert.match(stripTerminalSequences(component.render(120).join("\n")), /Edit DISCUSS comment/);
   for (const character of "Handle null input.") component.handleInput(character);
   component.handleInput("\r");
 
-  const output = stripAnsi(component.render(120).join("\n"));
+  const output = stripTerminalSequences(component.render(120).join("\n"));
   assert.match(output, /alpha\.ts\s+1●/);
   assert.match(output, /●.*const value = 1/);
 });
@@ -473,7 +469,7 @@ test("V creates a same-side range and Review lists its DISCUSS comment", () => {
   component.handleInput("\x1b");
   component.handleInput("r");
 
-  const output = stripAnsi(component.render(120).join("\n"));
+  const output = stripTerminalSequences(component.render(120).join("\n"));
   assert.match(output, /Review comments/);
   assert.match(output, /DISCUSS.*src\/range\.ts:10-11 \(added\)/);
   assert.match(output, /Can these be combined\?/);
@@ -485,7 +481,7 @@ test("side-by-side arrows select the added side of the same changed row", () => 
   component.handleInput("c");
   component.handleInput("\x1b[C");
 
-  assert.match(stripAnsi(component.render(120).join("\n")), /Comment mode.*added 1/);
+  assert.match(stripTerminalSequences(component.render(120).join("\n")), /Comment mode.*added 1/);
 });
 
 test("comment cursor keeps the selected changed line visible", () => {
@@ -507,7 +503,7 @@ test("comment cursor keeps the selected changed line visible", () => {
 
   component.handleInput("c");
   for (let index = 0; index < 20; index++) component.handleInput("j");
-  const output = stripAnsi(component.render(100).join("\n"));
+  const output = stripTerminalSequences(component.render(100).join("\n"));
 
   assert.match(output, /Comment mode.*added 21/);
   assert.match(output, /target-21/);
@@ -559,7 +555,7 @@ test("comment selection skips context lines and ranges cannot cross hunks", () =
   component.handleInput("V");
   component.handleInput("j");
 
-  assert.match(stripAnsi(component.render(120).join("\n")), /Comment mode.*added 1/);
+  assert.match(stripTerminalSequences(component.render(120).join("\n")), /Comment mode.*added 1/);
 });
 
 test("Review x deletes the selected comment and clears its markers", () => {
@@ -571,7 +567,7 @@ test("Review x deletes the selected comment and clears its markers", () => {
   component.handleInput("r");
   component.handleInput("x");
 
-  const output = stripAnsi(component.render(120).join("\n"));
+  const output = stripTerminalSequences(component.render(120).join("\n"));
   assert.match(output, /No comments yet\./);
   assert.doesNotMatch(output, /alpha\.ts\s+1●/);
 });
@@ -588,7 +584,7 @@ test("file and entire-diff comments require confirmation before discard", () => 
   component.handleInput("q");
 
   assert.equal(closed(), 0);
-  assert.match(stripAnsi(component.render(120).join("\n")), /Discard 2 review comments/);
+  assert.match(stripTerminalSequences(component.render(120).join("\n")), /Discard 2 review comments/);
   component.handleInput("\r");
   assert.equal(closed(), 0);
   component.handleInput("q");
@@ -657,7 +653,7 @@ test("e hides the navigator and gives the diff the full width", () => {
   const output = component.render(120).join("\n");
 
   assert.doesNotMatch(output, /Navigator/);
-  assert.match(stripAnsi(output), /src\/alpha\.ts/);
+  assert.match(stripTerminalSequences(output), /src\/alpha\.ts/);
 });
 
 test("file filtering accepts s characters while review comments exist", () => {
@@ -669,7 +665,7 @@ test("file filtering accepts s characters while review comments exist", () => {
   component.handleInput("t");
   for (const character of "session") component.handleInput(character);
 
-  const output = stripAnsi(component.render(120).join("\n"));
+  const output = stripTerminalSequences(component.render(120).join("\n"));
   assert.match(output, /Filter: session_/);
   assert.equal(closed(), 0);
   assert.deepEqual(submissions, []);
@@ -684,7 +680,7 @@ test("t filters files and keeps the selected match", () => {
 
   const output = component.render(120).join("\n");
   assert.match(output, /Filter: beta/);
-  assert.match(stripAnsi(output), /src\/beta\.ts/);
+  assert.match(stripTerminalSequences(output), /src\/beta\.ts/);
   assert.doesNotMatch(output, /src\/alpha\.ts/);
 });
 
@@ -706,11 +702,11 @@ test("comment mode Ctrl+D/U jumps the selected changed line by half a page", () 
   );
 
   component.handleInput("c");
-  assert.match(stripAnsi(component.render(100).join("\n")), /Comment mode.*added 1/);
+  assert.match(stripTerminalSequences(component.render(100).join("\n")), /Comment mode.*added 1/);
   component.handleInput("\x04");
-  assert.match(stripAnsi(component.render(100).join("\n")), /Comment mode.*added (?:[5-9]|1[0-9])/);
+  assert.match(stripTerminalSequences(component.render(100).join("\n")), /Comment mode.*added (?:[5-9]|1[0-9])/);
   component.handleInput("\x15");
-  assert.match(stripAnsi(component.render(100).join("\n")), /Comment mode.*added 1/);
+  assert.match(stripTerminalSequences(component.render(100).join("\n")), /Comment mode.*added 1/);
 });
 
 test("Ctrl+D and Ctrl+U scroll the diff viewport by half a page", () => {
@@ -775,22 +771,22 @@ test("comment mode Enter/x reuse a covering range comment", () => {
   // Leave the range anchor, move to the first covered line, and reopen the same comment.
   component.handleInput("k");
   component.handleInput("\r");
-  assert.match(stripAnsi(component.render(120).join("\n")), /Edit DISCUSS comment/);
-  assert.match(stripAnsi(component.render(120).join("\n")), /Can these be combined\?/);
+  assert.match(stripTerminalSequences(component.render(120).join("\n")), /Edit DISCUSS comment/);
+  assert.match(stripTerminalSequences(component.render(120).join("\n")), /Can these be combined\?/);
   for (const character of "!") component.handleInput(character);
   component.handleInput("\r");
 
   component.handleInput("x");
-  assert.doesNotMatch(stripAnsi(component.render(120).join("\n")), /●/);
+  assert.doesNotMatch(stripTerminalSequences(component.render(120).join("\n")), /●/);
   component.handleInput("\x1b");
   component.handleInput("r");
-  assert.match(stripAnsi(component.render(120).join("\n")), /No comments yet\./);
+  assert.match(stripTerminalSequences(component.render(120).join("\n")), /No comments yet\./);
 });
 
 test("help yields to comment editor instead of trapping input", () => {
   const { component } = createViewer();
   component.handleInput("?");
-  assert.match(stripAnsi(component.render(120).join("\n")), /j\/k or/);
+  assert.match(stripTerminalSequences(component.render(120).join("\n")), /j\/k or/);
   component.handleInput("l");
-  assert.match(stripAnsi(component.render(120).join("\n")), /Edit DISCUSS comment/);
+  assert.match(stripTerminalSequences(component.render(120).join("\n")), /Edit DISCUSS comment/);
 });

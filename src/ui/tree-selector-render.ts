@@ -35,10 +35,10 @@ function renderTreeSelectorInner(
 }
 
 function customizeNavigateHeader(lines: string[]): void {
-  const titleIndex = lines.findIndex((line) => stripAnsi(line).includes("Session Tree"));
+  const titleIndex = lines.findIndex((line) => stripTerminalSequences(line).includes("Session Tree"));
   if (titleIndex < 0) return;
   const borderIndex = lines.findIndex(
-    (line, index) => index > titleIndex && /^─+$/.test(stripAnsi(line).trim()),
+    (line, index) => index > titleIndex && /^─+$/.test(stripTerminalSequences(line).trim()),
   );
   if (borderIndex < 0) return;
   lines.splice(
@@ -89,8 +89,4 @@ function renderSummarizePrompt(selector: TreeSelectorState, width: number): stri
 
 function border(width: number): string {
   return activeRenderTheme.border("─".repeat(Math.max(1, width)));
-}
-
-function stripAnsi(text: string): string {
-  return stripTerminalSequences(text);
 }
