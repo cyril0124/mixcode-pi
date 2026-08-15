@@ -8,7 +8,6 @@ import {
   buildSkillBlock,
   createSkillCompletionWrapper,
   extractSkillRefs,
-  parseSkillDescription,
   scanSkillDirs,
   type ResolvedSkillRef,
 } from "./skill-core.js";
@@ -96,27 +95,6 @@ test("extractSkillRefs: requires a boundary before the dollar", () => {
 
 test("extractSkillRefs: names must start with a letter", () => {
   assert.deepEqual(extractSkillRefs("$1abc $_x $ok-name $with:colon"), ["ok-name", "with:colon"]);
-});
-
-// ─── parseSkillDescription ───────────────────────────────────────────────────
-
-test("parseSkillDescription: reads frontmatter description", () => {
-  const content = "---\nname: x\ndescription: Does things well.\n---\n\nBody.";
-  assert.equal(parseSkillDescription(content), "Does things well.");
-});
-
-test("parseSkillDescription: joins folded multi-line description", () => {
-  const content = "---\ndescription: >-\n  Line one\n  and line two.\n---\nBody.";
-  assert.equal(parseSkillDescription(content), "Line one and line two.");
-});
-
-test("parseSkillDescription: falls back to first paragraph", () => {
-  const content = "# Title\n\nFirst paragraph here.\n\nSecond.";
-  assert.equal(parseSkillDescription(content), "First paragraph here.");
-});
-
-test("parseSkillDescription: undefined when nothing usable", () => {
-  assert.equal(parseSkillDescription(""), undefined);
 });
 
 // ─── buildSkillBlock ─────────────────────────────────────────────────────────

@@ -1,12 +1,12 @@
 // +---------------------------------------------------------------------------+
 // |  skill-refs core logic                                                    |
-// |  Pure helpers: $ref extraction, SKILL.md scanning, skill block rendering, |
-// |  and the $ autocomplete wrapper. No ExtensionAPI dependency so everything |
-// |  here is directly unit-testable.                                          |
+// |  Pure helpers: $ref extraction, skill loading via Pi, skill block         |
+// |  rendering, and the $ autocomplete wrapper.                               |
 // +---------------------------------------------------------------------------+
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import { loadSkillsFromDir } from "@earendil-works/pi-coding-agent";
 import type { AutocompleteItem, AutocompleteProvider } from "@earendil-works/pi-tui";
 
 /** A skill usable for $ref expansion and completion. */
@@ -100,73 +100,6 @@ export function buildSkillBlock(skills: ResolvedSkillRef[]): string {
   return `${INJECTION_INSTRUCTION}\n${xml}`;
 }
 
-/**
- * Parse a skill description from SKILL.md content without a YAML dependency.
- * Handles single-line values, quoted values, folded/literal block scalars
- * (`>-`, `|`), and falls back to the first body paragraph.
- */
-export function parseSkillDescription(content: string): string | undefined {
-  const normalized = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  let body = normalized;
-  if (normalized.startsWith("---\n")) {
-    const end = normalized.indexOf("\n---", 4);
-    if (end !== -1) {
-      const frontmatter = normalized.slice(4, end);
-      body = normalized.slice(end + 4).trim();
-      const fromFrontmatter = descriptionFromFrontmatter(frontmatter);
-      if (fromFrontmatter) return fromFrontmatter;
-    }
-  }
-  const firstParagraph = body
-    .split(/\n\n/)
-    .map((part) => part.replace(/^#\s+.+\n?/, "").trim())
-    .find(Boolean);
-  if (!firstParagraph) return undefined;
-  return firstParagraph.split("\n").join(" ").slice(0, 300);
-}
-
-function descriptionFromFrontmatter(frontmatter: string): string | undefined {
-  const lines = frontmatter.split("\n");
-  for (let i = 0; i < lines.length; i++) {
-    const match = lines[i]!.match(/^description\s*:\s*(.*)$/);
-    if (!match) continue;
-    const inline = match[1]!.trim();
-    // Block scalar (>- / > / |- / |): join indented continuation lines.
-    if (/^[>|][+-]?$/.test(inline)) {
-      const parts: string[] = [];
-      for (let j = i + 1; j < lines.length; j++) {
-        const line = lines[j]!;
-        if (!/^\s+\S/.test(line)) break;
-        parts.push(line.trim());
-      }
-      const joined = parts.join(" ").trim();
-      return joined || undefined;
-    }
-    if (!inline) return undefined;
-    return stripYamlQuotes(inline);
-  }
-  return undefined;
-}
-
-function stripYamlQuotes(value: string): string {
-  if (
-    (value.startsWith('"') && value.endsWith('"')) ||
-    (value.startsWith("'") && value.endsWith("'"))
-  ) {
-    return value.slice(1, -1);
-  }
-  return value;
-}
-
-async function maybeSkillFile(filePath: string): Promise<string | undefined> {
-  try {
-    const info = await fs.stat(filePath);
-    return info.isFile() ? filePath : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 async function isDirectory(dirPath: string): Promise<boolean> {
   try {
     return (await fs.stat(dirPath)).isDirectory();
@@ -188,9 +121,6 @@ function resolveAgentDir(homeDir: string, agentDir?: string): string {
 
 /**
  * Package-contributed skill roots under a Pi agent dir.
- * - npm: <agentDir>/npm/node_modules/<pkg>/skills
- * - scoped npm: <agentDir>/npm/node_modules/@scope/<pkg>/skills
- * - git: <agentDir>/git/.../<pkgRoot>/skills (stop at first skills/ per branch)
  */
 export async function listPackageSkillDirs(agentDir: string): Promise<string[]> {
   const roots: string[] = [];
@@ -227,7 +157,6 @@ async function collectNpmPackageSkillDirs(nodeModules: string, roots: string[]):
   }
 }
 
-// host/user/repo is typically depth 3; allow a little room without scanning forever.
 const GIT_PACKAGE_MAX_DEPTH = 6;
 
 async function collectGitPackageSkillDirs(
@@ -236,7 +165,6 @@ async function collectGitPackageSkillDirs(
   depth: number,
 ): Promise<void> {
   if (depth > GIT_PACKAGE_MAX_DEPTH) return;
-  // Package root: first directory that has a skills/ child contributes that root.
   const skillsDir = path.join(dir, "skills");
   if (await isDirectory(skillsDir)) {
     roots.push(skillsDir);
@@ -255,43 +183,9 @@ async function collectGitPackageSkillDirs(
   }
 }
 
-async function scanOneSkillDir(
-  dir: string,
-  entries: Map<string, SkillRefEntry>,
-): Promise<void> {
-  let names: string[] = [];
-  try {
-    names = await fs.readdir(dir);
-  } catch {
-    return;
-  }
-  for (const name of names) {
-    if (name.startsWith(".")) continue;
-    const flat = await maybeSkillFile(path.join(dir, name, "SKILL.md"));
-    if (flat) {
-      await addScannedEntry(entries, name, flat);
-      continue;
-    }
-    // Nested layout: <dir>/<group>/<name>/SKILL.md
-    let nestedNames: string[] = [];
-    try {
-      nestedNames = await fs.readdir(path.join(dir, name));
-    } catch {
-      continue;
-    }
-    for (const nested of nestedNames) {
-      if (nested.startsWith(".")) continue;
-      const nestedFile = await maybeSkillFile(path.join(dir, name, nested, "SKILL.md"));
-      if (nestedFile) await addScannedEntry(entries, nested, nestedFile);
-    }
-  }
-}
-
 /**
  * Cold-start filesystem scan over standard skill directories plus package-
- * contributed skill roots (npm/git under the agent dir). Mirrors Pi's native
- * discovery so $ completion works before the first prompt; the authoritative
- * list from before_agent_start still replaces this for the live set.
+ * contributed skill roots using Pi's loadSkillsFromDir parser.
  */
 export async function scanSkillDirs(
   cwd: string,
@@ -305,28 +199,23 @@ export async function scanSkillDirs(
     path.join(resolvedAgentDir, "skills"),
     ...(await listPackageSkillDirs(resolvedAgentDir)),
   ].map((dir) => path.resolve(dir));
+
   const entries = new Map<string, SkillRefEntry>();
-  // Earlier dirs win (project → user → agent → packages).
   for (const dir of [...new Set(dirs)]) {
-    await scanOneSkillDir(dir, entries);
+    if (!(await isDirectory(dir))) continue;
+    const loaded = loadSkillsFromDir({ dir, source: "path" });
+    for (const skill of loaded.skills) {
+      if (!entries.has(skill.name)) {
+        entries.set(skill.name, {
+          name: skill.name,
+          filePath: skill.filePath,
+          baseDir: skill.baseDir,
+          description: skill.description,
+        });
+      }
+    }
   }
   return entries;
-}
-
-async function addScannedEntry(
-  entries: Map<string, SkillRefEntry>,
-  name: string,
-  filePath: string,
-): Promise<void> {
-  if (entries.has(name)) return; // earlier dirs win (project before home)
-  try {
-    // Use node:fs so pure-pi (Node) and mpi (Bun) both cold-scan $ completions.
-    const description = parseSkillDescription(await fs.readFile(filePath, "utf8"));
-    if (!description) return; // parity with host: skills need a description
-    entries.set(name, { name, filePath, baseDir: path.dirname(filePath), description });
-  } catch {
-    // Unreadable skill files are simply not offered.
-  }
 }
 
 /** Extract the current $/@-style token immediately before the cursor. */
@@ -336,7 +225,6 @@ function currentToken(lines: string[], cursorLine: number, cursorCol: number): s
 }
 
 function fuzzyIncludes(name: string, query: string): boolean {
-  // Simple subsequence match keeps this dependency-free; skill lists are small.
   let index = 0;
   const lower = name.toLowerCase();
   for (const ch of query.toLowerCase()) {
@@ -367,30 +255,34 @@ export function createSkillCompletionWrapper(
         .filter((entry) => fuzzyIncludes(entry.name, query))
         .map((entry) => ({
           value: `$${entry.name}`,
-          label: entry.name,
-          description: entry.description ? `[Skill] ${entry.description}` : "[Skill]",
+          label: `$${entry.name}`,
+          description: entry.description,
         }));
-      if (items.length === 0) return null;
-      return { prefix: token, items };
+      return {
+        items,
+        prefix: token,
+      };
     },
     applyCompletion(lines, cursorLine, cursorCol, item, prefix) {
-      const token = currentToken(lines, cursorLine, cursorCol);
-      if (!token.startsWith("$")) {
-        return base.applyCompletion(lines, cursorLine, cursorCol, item, prefix);
+      if (item.value.startsWith("$")) {
+        const line = lines[cursorLine] ?? "";
+        const start = cursorCol - prefix.length;
+        const updated = line.slice(0, start) + item.value + line.slice(cursorCol);
+        return {
+          lines: lines.map((l, i) => (i === cursorLine ? updated : l)),
+          cursorLine,
+          cursorCol: start + item.value.length,
+        };
       }
-      // Replace the whole $query token with the chosen value.
-      const line = lines[cursorLine] ?? "";
-      const start = cursorCol - token.length;
-      const nextLine = `${line.slice(0, start)}${item.value}${line.slice(cursorCol)}`;
-      const nextLines = lines.slice();
-      nextLines[cursorLine] = nextLine;
-      return { lines: nextLines, cursorLine, cursorCol: start + item.value.length };
+      return base.applyCompletion(lines, cursorLine, cursorCol, item, prefix);
     },
     shouldTriggerFileCompletion(lines, cursorLine, cursorCol) {
-      if (currentToken(lines, cursorLine, cursorCol).startsWith("$")) return true;
-      // Pi Editor: missing shouldTriggerFileCompletion means allow.
-      if (!base.shouldTriggerFileCompletion) return true;
-      return base.shouldTriggerFileCompletion(lines, cursorLine, cursorCol);
+      const token = currentToken(lines, cursorLine, cursorCol);
+      if (token.startsWith("$")) return true;
+      if (base.shouldTriggerFileCompletion) {
+        return base.shouldTriggerFileCompletion(lines, cursorLine, cursorCol);
+      }
+      return true;
     },
   };
 }
