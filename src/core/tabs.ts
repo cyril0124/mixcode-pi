@@ -83,6 +83,15 @@ export function recentAgentTabRank(state: MixCodeState, sessionId: string): numb
   return liveRecentAgentTabIds(state).indexOf(sessionId);
 }
 
+export function discardVimTranscriptSearch(tab: MixCodeTabInfo): void {
+  const editorText = tab.vimTranscriptSearch?.cancelSnapshot?.editorText;
+  if (editorText !== undefined) {
+    tab.draftInput = editorText;
+    tab.vimSearchDraftRestorePending = true;
+  }
+  tab.vimTranscriptSearch = undefined;
+}
+
 export function activateTab(state: MixCodeState, tabId: string): void {
   // Tab / mouse paths reach Home via activateTab("config") without the Left-key
   // helper that sets homeSelectedTabIndex. Remember the agent we left so Home
@@ -101,9 +110,11 @@ export function activateTab(state: MixCodeState, tabId: string): void {
       const vimSource = state.tabs.find((tab) => tab.vimMode && tab.sessionId !== next.sessionId);
       if (vimSource) {
         vimSource.vimMode = false;
+        discardVimTranscriptSearch(vimSource);
         vimSource.vimPendingEscapeAt = undefined;
         vimSource.vimPendingHome = false;
         next.vimMode = true;
+        discardVimTranscriptSearch(next);
         next.vimPendingEscapeAt = undefined;
         next.vimPendingHome = false;
       }

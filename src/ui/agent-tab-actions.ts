@@ -10,7 +10,7 @@ import {
   noteTabReplaced,
 } from "../core/open-tabs-store.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
-import { activateTab, closeAgentTab } from "../core/tabs.js";
+import { activateTab, closeAgentTab, discardVimTranscriptSearch } from "../core/tabs.js";
 import type { MixCodeModel, MixCodeModelRef, MixCodeState, MixCodeTabInfo } from "../core/types.js";
 import type { MixCodeSubmitRuntime } from "./app-types.js";
 import { clearConversationCache } from "./rendering/agent-surface.js";
@@ -193,6 +193,7 @@ export function prepareAgentTabClear(
   tab.chatScrollAnchorEntryId = undefined;
   tab.chatScrollAnchorIndex = undefined;
   tab.chatScrollAnchorText = undefined;
+  discardVimTranscriptSearch(tab);
   tab.status = "idle";
   tab.workingStartedAt = undefined;
   tab.lastWorkedDurationSeconds = undefined;

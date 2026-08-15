@@ -10,7 +10,7 @@ import {
   visibleWidth,
 } from "@earendil-works/pi-tui";
 import { type EditorFactory, MIXCODE_EXTENSION_KEYBINDINGS_MANAGER } from "../agent/runtime.js";
-import type { MixCodeState } from "../core/types.js";
+import type { MixCodeState, VimTranscriptSearchState } from "../core/types.js";
 import type { MixCodeEditorActions } from "./app-types.js";
 import { buildLabeledTopBorder, isPlainBorderLine } from "./editor-top-border.js";
 import { exactContextUsageText } from "./rendering/chrome.js";
@@ -40,11 +40,16 @@ export class CompactPromptEditor extends Editor {
       this.rootTui.requestRender();
       return;
     }
-    if (this.activeTab()?.vimMode) {
+    const active = this.activeTab();
+    if (active?.vimMode && !active.vimTranscriptSearch?.promptOpen) {
       this.rootTui.requestRender();
       return;
     }
     super.handleInput(data);
+    if (active?.vimTranscriptSearch?.promptOpen) {
+      this.rootTui.requestRender();
+      return;
+    }
     this.triggerSymbolAutocomplete(data);
     this.reopenDirectoryFileAutocomplete();
     this.closeStaleSymbolAutocomplete();
@@ -109,7 +114,7 @@ export class CompactPromptEditor extends Editor {
       return lines.map((line, index) =>
         index === 1
           ? renderStaticPlaceholderLine(
-              "Vim: → newer user msg · Shift+→ older user msg · q exit · dock widgets/status hidden",
+              "Vim: / find · n/N · → newer · Shift+→ older · j/k scroll · q exit",
               width,
               theme,
             )
@@ -250,19 +255,30 @@ export class EditorSlot implements Component {
       // On Agent View, render the default editor (for sending messages).
       return this.defaultEditor.render(width);
     }
-    this.syncActiveEditorBorder();
-    const body = this.activeEditor.render(width);
+    const active = this.activeTab();
+    const editor = this.editorForInput(active);
+    this.syncEditorFocus();
+    this.syncActiveEditorBorder(editor);
+    const body = editor.render(width);
+    const search = active?.vimTranscriptSearch;
+    const editorBody = search
+      ? search.promptOpen
+        ? body.map((line, index) =>
+            index === 1
+              ? renderVimSearchInputLine(line, search, width, themeForId(this.mixState.theme))
+              : line,
+          )
+        : renderCommittedVimSearchBody(body, search, width, themeForId(this.mixState.theme))
+      : body;
     // Default editor: label the top border in-place. Custom setEditorComponent
     // skins move title / override context / badges to the tab-bar separator
     // (renderTabBarSeparator agentChrome) so the input body stays uncluttered.
     const lines =
-      this.activeEditor === this.defaultEditor
-        ? this.applyAgentEditorChrome(body, width)
-        : body;
+      editor === this.defaultEditor ? this.applyAgentEditorChrome(editorBody, width) : editorBody;
     // Extension editor components may not pad lines to full width.
     // Ensure every line fills the terminal width so the differential
     // renderer clears leftover characters from previous frames.
-    if (this.activeEditor !== this.defaultEditor) {
+    if (editor !== this.defaultEditor) {
       return lines.map((line) => padLine(line, width));
     }
     return lines;
@@ -339,6 +355,13 @@ export class EditorSlot implements Component {
     this.syncActiveTab();
     const active = this.activeTab();
     if (active?.vimMode && active.extensionUi.waitingForInputs.length === 0) {
+      if (!active.vimTranscriptSearch?.promptOpen) {
+        this.tui.requestRender();
+        return;
+      }
+      this.defaultEditor.handleInput(data);
+      this.syncVimTranscriptSearchQuery();
+      this.historyIndex = -1;
       this.tui.requestRender();
       return;
     }
@@ -355,13 +378,14 @@ export class EditorSlot implements Component {
   getText(sessionId = this.mixState.activeTabId): string {
     if (sessionId !== this.mixState.activeTabId) return this.textForSession(sessionId);
     this.syncActiveTab();
-    return this.activeEditor.getText();
+    return this.editorForInput().getText();
   }
 
   getExpandedText(sessionId = this.mixState.activeTabId): string {
     if (sessionId !== this.mixState.activeTabId) return this.textForSession(sessionId, true);
     this.syncActiveTab();
-    return this.activeEditor.getExpandedText?.() ?? this.activeEditor.getText();
+    const editor = this.editorForInput();
+    return editor.getExpandedText?.() ?? editor.getText();
   }
 
   setText(text: string, sessionId = this.mixState.activeTabId): void {
@@ -373,8 +397,9 @@ export class EditorSlot implements Component {
       return;
     }
     this.syncActiveTab();
-    this.activeEditor.setText(text);
-    this.updateActiveTabDraft();
+    const editor = this.editorForInput();
+    editor.setText(text);
+    if (!this.syncVimTranscriptSearchQuery()) this.updateActiveTabDraft();
     this.historyIndex = -1;
     this.tui.requestRender();
   }
@@ -401,13 +426,15 @@ export class EditorSlot implements Component {
 
   insertTextAtCursor(text: string): void {
     this.syncActiveTab();
-    if (this.activeTab()?.vimMode) {
+    const active = this.activeTab();
+    if (active?.vimMode && !active.vimTranscriptSearch?.promptOpen) {
       this.tui.requestRender();
       return;
     }
-    if (this.activeEditor.insertTextAtCursor) this.activeEditor.insertTextAtCursor(text);
-    else this.activeEditor.setText(`${this.activeEditor.getText()}${text}`);
-    this.updateActiveTabDraft();
+    const editor = this.editorForInput(active);
+    if (editor.insertTextAtCursor) editor.insertTextAtCursor(text);
+    else editor.setText(`${editor.getText()}${text}`);
+    if (!this.syncVimTranscriptSearchQuery()) this.updateActiveTabDraft();
     this.historyIndex = -1;
     this.tui.requestRender();
   }
@@ -445,23 +472,41 @@ export class EditorSlot implements Component {
   }
 
   isShowingAutocomplete(): boolean {
-    return Boolean(
-      (this.activeEditor as { isShowingAutocomplete?: () => boolean }).isShowingAutocomplete?.(),
-    );
+    const editor = this.editorForInput();
+    return Boolean((editor as { isShowingAutocomplete?: () => boolean }).isShowingAutocomplete?.());
   }
 
   syncActiveTab(): void {
     const nextActiveTabId = this.mixState.activeTabId;
-    if (this.activeTabId === this.mixState.activeTabId) return;
+    if (this.activeTabId === nextActiveTabId) {
+      const active = this.activeTab();
+      if (active?.vimSearchDraftRestorePending) {
+        this.defaultEditor.setText(active.draftInput);
+        this.activeEditor.setText(active.draftInput);
+        active.vimSearchDraftRestorePending = undefined;
+        this.historyIndex = -1;
+        this.syncEditorFocus();
+      }
+      return;
+    }
     const previous = this.mixState.tabs.find((tab) => tab.sessionId === this.activeTabId);
-    if (previous)
-      previous.draftInput =
-        this.activeEditor.getExpandedText?.() ?? this.activeEditor.getText();
+    if (previous?.vimSearchDraftRestorePending) {
+      this.defaultEditor.setText(previous.draftInput);
+      previous.vimSearchDraftRestorePending = undefined;
+    } else if (previous && !previous.vimTranscriptSearch?.promptOpen) {
+      previous.draftInput = this.activeEditor.getExpandedText?.() ?? this.activeEditor.getText();
+    }
     this.activeTabId = nextActiveTabId;
     this.historyIndex = -1;
+    const active = this.mixState.tabs.find((tab) => tab.sessionId === this.activeTabId);
     const replacement = this.editorReplacements.get(this.activeTabId);
     if (replacement) {
       this.activeEditor = replacement.editor;
+      if (active?.vimSearchDraftRestorePending) {
+        this.defaultEditor.setText(active.draftInput);
+        this.activeEditor.setText(active.draftInput);
+        active.vimSearchDraftRestorePending = undefined;
+      }
       this.syncEditorFocus();
       return;
     }
@@ -471,9 +516,9 @@ export class EditorSlot implements Component {
     // previous agent buffer into config — that made Home send agent draft + new text.
     if (this.activeTabId === "config") {
       this.defaultEditor.setText("");
-    } else {
-      const active = this.mixState.tabs.find((tab) => tab.sessionId === this.activeTabId);
-      if (active) this.defaultEditor.setText(active.draftInput);
+    } else if (active) {
+      this.defaultEditor.setText(active.draftInput);
+      active.vimSearchDraftRestorePending = undefined;
     }
     this.syncEditorFocus();
   }
@@ -625,6 +670,20 @@ export class EditorSlot implements Component {
     return false;
   }
 
+  private syncVimTranscriptSearchQuery(): boolean {
+    const search = this.activeTab()?.vimTranscriptSearch;
+    if (!search?.promptOpen) return false;
+    search.query = this.editorForInput().getText();
+    search.selectionMode = "query";
+    return true;
+  }
+
+  private editorForInput(
+    active: MixCodeState["tabs"][number] | undefined = this.activeTab(),
+  ): EditorComponent {
+    return active?.vimTranscriptSearch ? this.defaultEditor : this.activeEditor;
+  }
+
   private updateActiveTabDraft(): void {
     const active = this.mixState.tabs.find((tab) => tab.sessionId === this.activeTabId);
     // Keep draft for both default and custom editors so history Down restores it.
@@ -657,21 +716,16 @@ export class EditorSlot implements Component {
   }
 
   private syncEditorFocus(): void {
-    setFocusableState(this.defaultEditor, this.activeEditor === this.defaultEditor && this.focused);
+    const focusedEditor = this.editorForInput();
+    setFocusableState(this.defaultEditor, focusedEditor === this.defaultEditor && this.focused);
     for (const replacement of this.editorReplacements.values()) {
-      setFocusableState(
-        replacement.editor,
-        replacement.editor === this.activeEditor && this.focused,
-      );
+      setFocusableState(replacement.editor, replacement.editor === focusedEditor && this.focused);
     }
   }
 
-  private syncActiveEditorBorder(): void {
-    if (this.activeEditor.borderColor === undefined) return;
-    this.activeEditor.borderColor = this.borderColorForSession(
-      this.activeTabId,
-      this.activeEditor,
-    );
+  private syncActiveEditorBorder(editor = this.activeEditor): void {
+    if (editor.borderColor === undefined) return;
+    editor.borderColor = this.borderColorForSession(this.activeTabId, editor);
   }
 
   private borderColorForSession(
@@ -737,6 +791,41 @@ function renderStaticPlaceholderLine(placeholder: string, width: number, theme: 
   const prefix = " ";
   const available = Math.max(0, width - prefix.length);
   return padLine(`${prefix}${theme.dim(truncateToWidth(placeholder, available))}`, width);
+}
+
+function renderCommittedVimSearchBody(
+  body: string[],
+  search: VimTranscriptSearchState,
+  width: number,
+  theme: MixCodeTheme,
+): string[] {
+  const statusLine = renderVimSearchInputLine(
+    search.query.replace(/\s+/g, " ").trim(),
+    search,
+    width,
+    theme,
+  );
+  if (body.length < 2) return [statusLine];
+  return [body[0]!, statusLine, body.at(-1)!];
+}
+
+function renderVimSearchInputLine(
+  editorLine: string,
+  search: VimTranscriptSearchState,
+  width: number,
+  theme: MixCodeTheme,
+): string {
+  const prefix = theme.accent("/");
+  const current = search.selectedIndex >= 0 ? search.selectedIndex + 1 : 0;
+  const rawStatus = `${current}/${search.resultCount}`;
+  const status = truncateToWidth(rawStatus, Math.max(0, width - visibleWidth(prefix) - 1), "");
+  const separator = status ? " " : "";
+  const available = Math.max(
+    0,
+    width - visibleWidth(prefix) - visibleWidth(status) - visibleWidth(separator),
+  );
+  const input = truncateToWidth(editorLine.trimEnd(), available, "");
+  return padLine(`${prefix}${input}${separator}${theme.accent(status)}`, width);
 }
 
 function setFocusableState(component: EditorComponent, focused: boolean): void {

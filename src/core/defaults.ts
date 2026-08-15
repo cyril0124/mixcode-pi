@@ -113,6 +113,7 @@ export function createTab(
     previewHint: "",
     previewPendingHome: false,
     vimMode: false,
+    vimTranscriptSearch: undefined,
     vimPendingEscapeAt: undefined,
     vimPendingHome: false,
     vimEnterArmedAt: undefined,

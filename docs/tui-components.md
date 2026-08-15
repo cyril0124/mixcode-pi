@@ -95,8 +95,9 @@
 │  FROM pi-tui (reuse, do not reimplement)     MIXCODE-LOCAL (owned here)                          │
 │  ---------------------------------------     ---------------------------                         │
 │  TUI / Container / OverlayHandle             MixCodeLayoutRoot stack                             │
-│  Editor / Input / SelectList                 CompactPromptEditor                                 │
-│  Markdown / Image / Loader                   Agent Surface + chat blocks                         │
+│  Editor / Input / SelectList                 CompactPromptEditor + Vim Search row                    │
+│  Markdown / Image / Loader                   Agent Surface + chat blocks                            │
+│                                              Transcript matcher + viewport highlight                │
 │  Box / Spacer / Text / TruncateText          chrome (header/tab/status)                          │
 │  SettingsList (when fits)                    Settings Panel                                      │
 │  keybindings / autocomplete APIs             Command Palette / Tab Jump                          │
@@ -109,7 +110,7 @@
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-## Overlay / Selector 目录
+## Overlay / Selector / Editor Mode 目录
 
 状态级 overlay 同一时刻只开一个（`src/core/overlays.ts` 的 `OverlayKind` 优先级）。
 通用 Text/Lines 与 Notice/Error 走 `src/ui/app-overlays.ts` -> pi-tui `showOverlay()`。
@@ -138,9 +139,9 @@
 │  │ delete / action          │   │ c/y copy  Esc            │   │ help / hotkeys           │      │
 │  └──────────────────────────┘   └──────────────────────────┘   └──────────────────────────┘      │
 │                                                                                                  │
-│  ┌─ Preview overlay ────────┐   ┌─ Question dialog ────────┐   ┌─ File picker @ ──────────┐      │
-│  │ markdown / tool          │   │ pendingDialogs           │   │ fuzzy + tree             │      │
-│  │ h/l j/k g/G              │   │ multi-question           │   │ insert @path             │      │
+│  ┌─ Preview overlay ────────┐   ┌─ Question dialog ────────┐   ┌─ Transcript Search ──────┐      │
+│  │ markdown / tool          │   │ pendingDialogs           │   │ Vim editor input row     │      │
+│  │ h/l j/k g/G              │   │ multi-question           │   │ literal + N/M + n/N      │      │
 │  └──────────────────────────┘   └──────────────────────────┘   └──────────────────────────┘      │
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -162,6 +163,7 @@
 | Notice / Error | console bridge / errors | `app-overlays.ts` | 底中、`c/y` 复制、Esc 关 |
 | Text / Lines | help、hotkeys、通用 | `app-overlays.ts` | `showTextOverlay` / `showLinesOverlay` |
 | Preview | preview toggle | `rendering/overlays.ts`, `core/overlays.ts` | markdown / tool 预览 |
+| Transcript Search | Vim `/` | `vim-transcript-search.ts`, `app-editor.ts`, `rendering/agent-surface.ts` | 复用 Vim editor 行并持续显示 `/query N/M`，无 overlay；Enter 后 `n/N` 循环匹配并同步更新序号 |
 | Question dialog | extension / agent questions | `core/dialogs.ts`, `pendingDialogs` | 多题 / 多选 |
 | File picker `@` | `@` | editor + file picker 路径 | fuzzy + tree 两种模式 |
 

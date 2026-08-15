@@ -1,6 +1,7 @@
 import { isKeyRelease, matchesKey } from "@earendil-works/pi-tui";
 import { MIXCODE_EXTENSION_KEYBINDINGS_MANAGER } from "../agent/runtime.js";
 import { copyToClipboard } from "@earendil-works/pi-coding-agent";
+import { parseSgrMouseInput } from "../core/mouse.js";
 import {
   closeActiveOverlay,
   isOverlayActive,
@@ -58,6 +59,12 @@ import { handleSubmittedInput } from "./app-submit.js";
 import { handleExtensionManagerKey } from "./extension-manager.js";
 import { errorMessage } from "./app-overlays.js";
 import { renderCommandPalette, renderTabJumpOverlay } from "./rendering.js";
+import {
+  handleVimTranscriptSearchPromptKey,
+  handleVimTranscriptSearchRepeat,
+  isVimTranscriptSearchOpenKey,
+  openVimTranscriptSearch,
+} from "./vim-transcript-search.js";
 import { handleSessionSelectorKey } from "./session-selector.js";
 import { handleForkSelectorKey } from "./fork-selector.js";
 import {
@@ -134,6 +141,14 @@ export function handleMixCodeKeyInput(
   if (editorActions?.hasInputComponent?.()) {
     editorActions.forwardToInputComponent?.(data);
     return { consume: true };
+  }
+  // Vim search temporarily owns the existing editor row. Special keys stay in
+  // the global listener; ordinary editing keys fall through to EditorSlot.
+  if (active?.vimTranscriptSearch?.promptOpen && editorActions && !parseSgrMouseInput(data)) {
+    if (handleVimTranscriptSearchPromptKey(active, data, tui, editorActions)) {
+      return { consume: true };
+    }
+    return undefined;
   }
   // Resolve empty-queue Ctrl+U → (u|Ctrl+U) enter-vim arm before other dispatch.
   if (active && active.vimEnterArmedAt !== undefined) {
@@ -251,6 +266,27 @@ export function handleMixCodeKeyInput(
     scheduleFloatingPanelExpiryRender(active, tui);
     tui.requestRender();
     return { consume: true };
+  }
+  if (
+    active &&
+    state.activeTabId !== "config" &&
+    active.vimMode &&
+    !hasAnyOverlay(tui) &&
+    !hasFocusedAppControl(state, active) &&
+    !isEditorAutocompleteOpen() &&
+    !active.extensionUi.waitingForInputs.length
+  ) {
+    if (isVimTranscriptSearchOpenKey(data) && editorActions) {
+      clearPendingEscape(active, "abort-agent");
+      if (openVimTranscriptSearch(active, editorActions)) {
+        tui.requestRender();
+        return { consume: true };
+      }
+    }
+    if (handleVimTranscriptSearchRepeat(active, data, tui)) {
+      clearPendingEscape(active, "abort-agent");
+      return { consume: true };
+    }
   }
   // Route raw input to extension widget input listeners (e.g. pi-subagents'
   // belowEditor fleet list navigation). Suppressed while a modal extension

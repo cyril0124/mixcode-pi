@@ -47,6 +47,18 @@ const MIN_CHAT_AND_EDITOR_ROWS = 6;
 // Preserve enough Home rows for one agent card and its navigation hint.
 const MIN_HOME_CONTENT_ROWS = 10;
 
+function clampEditorLines(
+  lines: string[],
+  maxRows: number | undefined,
+  autocompleteOpen: boolean,
+): string[] {
+  if (!maxRows || lines.length <= maxRows) return lines;
+  if (autocompleteOpen) return lines.slice(-maxRows);
+  return maxRows >= 2
+    ? [...lines.slice(0, maxRows - 1), lines[lines.length - 1]!]
+    : lines.slice(0, maxRows);
+}
+
 export function renderVisibleTabBar(
   state: MixCodeState,
   width: number,
@@ -413,14 +425,11 @@ export class MixCodeLayoutRoot implements Component {
     // Pi uses flex minSize on the editor dock instead of slicing render output;
     // when we must clamp, keep head+last for selectors, and the tail while
     // autocomplete is open so the dropdown stays visible (custom skins are taller).
-    const clampedEditorLines =
-      maxEditorRows && editorLines.length > maxEditorRows
-        ? this.editor.isShowingAutocomplete()
-          ? editorLines.slice(-maxEditorRows)
-          : maxEditorRows >= 2
-            ? [...editorLines.slice(0, maxEditorRows - 1), editorLines[editorLines.length - 1]!]
-            : editorLines.slice(0, maxEditorRows)
-        : editorLines;
+    let clampedEditorLines = clampEditorLines(
+      editorLines,
+      maxEditorRows,
+      this.editor.isShowingAutocomplete(),
+    );
     this.setEditorRows(clampedEditorLines.length);
     this.setMetaRows(
       controlTopGapRows +
@@ -432,6 +441,14 @@ export class MixCodeLayoutRoot implements Component {
         metaProbe.length,
     );
     const mainLines = this.main.render(width);
+    if (active?.vimTranscriptSearch) {
+      clampedEditorLines = clampEditorLines(
+        this.editor.render(width),
+        maxEditorRows,
+        this.editor.isShowingAutocomplete(),
+      );
+      this.setEditorRows(clampedEditorLines.length);
+    }
     const footerLines = this.footer.render(width);
     const viewportRows = this.getViewportRows?.();
     const floatingRows = viewportRows

@@ -8,7 +8,7 @@ import {
   noteTabOpened,
 } from "../core/open-tabs-store.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
-import { activateTab, renameAgentTab } from "../core/tabs.js";
+import { activateTab, discardVimTranscriptSearch, renameAgentTab } from "../core/tabs.js";
 import { pushToast } from "../core/toast.js";
 import type { MixCodeState } from "../core/types.js";
 import {
@@ -53,6 +53,7 @@ const handleReset: LocalCommandHandler = ({ state, active, runtime, tui }) => {
     active!.chatScrollAnchorEntryId = undefined;
     active!.chatScrollAnchorIndex = undefined;
     active!.chatScrollAnchorText = undefined;
+    discardVimTranscriptSearch(active!);
     if (result.noop) {
       appendActiveSystemMessage(state, runtime, "Already at session root (nothing to reset).");
     }

@@ -323,7 +323,7 @@ test("createMixCodeTui editor slot renders the input cursor while focused", () =
     assert.equal(vimSurface.includes(CURSOR_MARKER), false);
     assert.match(
       stripAnsi(vimSurface),
-      /^ Vim: → newer user msg · Shift\+→ older user msg · q exit · widgets\/status hidden/m,
+      /^ Vim: \/ find · n\/N · → newer · Shift\+→ older · j\/k scroll · q exit/m,
     );
     assert.match(
       stripAnsi(vimSurface).split("\n")[0]!,

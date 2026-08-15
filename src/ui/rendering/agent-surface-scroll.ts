@@ -78,9 +78,7 @@ export function keepScrolledViewStable(
   const canFreeze = scrolledUp && sameSize && previous !== undefined;
   // Stay frozen across size changes so apply* can re-align to the anchor.
   const keepFrozen =
-    scrolledUp &&
-    Boolean(previous?.line || previous?.chatLine) &&
-    (canFreeze || !sameSize);
+    scrolledUp && Boolean(previous?.line || previous?.chatLine) && (canFreeze || !sameSize);
   scrollFreezeStates.set(tab, {
     ...previous,
     total,
@@ -226,6 +224,10 @@ export function rememberScrollFreezeAnchor(
     frozen: current.frozen === true && current.offset === tab.chatScrollOffset,
     line: row >= 0 ? visible[row] : undefined,
     row: row >= 0 ? row : undefined,
+    // A full-render anchor owns the rendered line; stale windowed ChatLine
+    // metadata would otherwise snap the next windowed frame back to old content.
+    chatLine: undefined,
+    blockProgress: undefined,
   });
 }
 
