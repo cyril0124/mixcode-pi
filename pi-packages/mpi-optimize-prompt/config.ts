@@ -58,35 +58,6 @@ export function loadOptimizePromptConfig(agentDir: string): OptimizePromptConfig
   }
 }
 
-/** Prefill text for `/opt-prompt config` (raw file, or a starter template). */
-export function readOptimizePromptConfigEditorText(agentDir: string): {
-  path: string;
-  text: string;
-  missing: boolean;
-} {
-  const filePath = optimizePromptConfigPath(agentDir);
-  try {
-    return { path: filePath, text: fs.readFileSync(filePath, "utf8"), missing: false };
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return { path: filePath, text: defaultOptimizePromptConfigTemplate(), missing: true };
-    }
-    throw error;
-  }
-}
-
-export function defaultOptimizePromptConfigTemplate(): string {
-  return `${JSON.stringify(
-    {
-      model: "provider/modelId",
-      thinking: "low",
-      systemPrompt: "",
-    },
-    null,
-    2,
-  )}\n`;
-}
-
 export function formatOptimizePromptConfig(config: OptimizePromptConfig): string {
   return `${JSON.stringify(config, null, 2)}\n`;
 }

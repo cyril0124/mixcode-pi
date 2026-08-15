@@ -21,10 +21,6 @@ export function isGoalToolsActive(pi: ExtensionAPI): boolean {
 	return GOAL_TOOL_NAMES.every((name) => active.has(name));
 }
 
-export function anyGoalToolActive(pi: ExtensionAPI): boolean {
-	return pi.getActiveTools().some((name) => GOAL_TOOL_NAME_SET.has(name));
-}
-
 /** Drop goal tools from the active set while keeping every other tool. */
 export function disableGoalTools(pi: ExtensionAPI): void {
 	const next = pi.getActiveTools().filter((name) => !GOAL_TOOL_NAME_SET.has(name));

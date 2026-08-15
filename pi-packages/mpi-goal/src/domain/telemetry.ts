@@ -199,47 +199,6 @@ export function noteFloorCompletionDeferred(
 	};
 }
 
-export function noteProductiveFloorWork(
-	telemetry: GoalTelemetrySnapshot | null,
-	now = Date.now(),
-): GoalTelemetrySnapshot | null {
-	if (!telemetry?.lastFloorCardId) return telemetry;
-	const completed = uniqueFloorCards([...(telemetry.completedFloorCardIds ?? []), telemetry.lastFloorCardId]);
-	return {
-		...telemetry,
-		completedFloorCardIds: completed,
-		floorQualityState: "eligible",
-		updatedAt: now,
-	};
-}
-
-export function noteFloorChurnSteer(
-	telemetry: GoalTelemetrySnapshot | null,
-	now = Date.now(),
-): GoalTelemetrySnapshot | null {
-	if (!telemetry) return null;
-	return {
-		...telemetry,
-		floorChurnSteerCount: (telemetry.floorChurnSteerCount ?? 0) + 1,
-		floorQualityState: "qualityWarning",
-		updatedAt: now,
-	};
-}
-
-export function noteFloorQualityExhausted(
-	telemetry: GoalTelemetrySnapshot | null,
-	now = Date.now(),
-): GoalTelemetrySnapshot | null {
-	if (!telemetry) return null;
-	return {
-		...telemetry,
-		floorQualityState: "exhausted",
-		noMoreValuableWorkReason: "no_safe_autonomous_work",
-		updatedAt: now,
-	};
-}
-
-
 export function makeTurnSnapshot(goalId: string, origin: TurnOrigin, startedAt = Date.now()): TurnAccountingSnapshot {
 	return { goalId, origin, startedAt, toolCallCount: 0, toolResultCount: 0, progressCount: 0, completedGoal: false };
 }

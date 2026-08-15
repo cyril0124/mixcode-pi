@@ -95,38 +95,6 @@ export function isNothingToCompactError(message: string): boolean {
   return /nothing to compact|session too small/i.test(message);
 }
 
-/**
- * Check if the compaction error is benign (nothing to compact or already compacted).
- * These are not real errors - they indicate the session doesn't need compaction.
- *
- * SDK throws exact strings from agent-session.js:
- * - "Already compacted" when last entry is already a compaction
- * - "Nothing to compact (session too small)" when session has no content to summarize
- */
-export function isBenignCompactionError(error: unknown): boolean {
-  if (!(error instanceof Error)) return false;
-
-  const message = error.message;
-
-  // SDK 0.80+ throws these exact strings from agent-session.js:1307-1310
-  // Match them explicitly to be upgrade-resilient
-  if (message === "Already compacted" ||
-      message === "Nothing to compact (session too small)") {
-    return true;
-  }
-
-  // Fallback: case-insensitive partial match for similar wording
-  // (in case SDK changes exact wording but keeps the meaning)
-  const normalized = message.toLowerCase();
-  if (normalized.includes("already compacted") ||
-      normalized.includes("nothing to compact") ||
-      normalized.includes("session too small")) {
-    return true;
-  }
-
-  return false;
-}
-
 export function appendEmptyRunNotice(runtimeTab: RuntimeTab): void {
   const start = runtimeTab.currentRunChatStartIndex;
   if (start === undefined) return;

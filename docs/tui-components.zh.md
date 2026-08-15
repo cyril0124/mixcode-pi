@@ -1,17 +1,19 @@
-# MixCode TUI Component Catalog
+# MixCode TUI 组件目录
 
-[中文文档](tui-components.zh.md)
+[English Documentation](tui-components.md)
 
-Current surface inventory of MixCode TUI. Check here before altering UI: reuse when possible, prefer `@earendil-works/pi-tui` over local rewrites (see AGENTS.md Pi Integration).
+当前 mixcode-pi 的 TUI 表面清单。改 UI 前先看这里：能复用就复用；能用 `@earendil-works/pi-tui` 就不要本地重写（见 AGENTS.md Pi Integration）。
 
-Covers:
+覆盖：
 
-- Full-screen chrome / agent surface
-- State-level overlays / selectors
-- Transient UI feedback (Toast / Floating Panel / Notice)
-- Ownership boundary with `pi-tui`
+- 全屏 chrome / agent surface
+- 状态级 overlay / selector
+- 短生命周期反馈（Toast / Floating Panel / Notice）
+- 与 pi-tui 的所有权边界
 
-## Full-Screen Layout
+不是快捷键手册（见 `docs/architecture.zh.md` 与 `/hotkeys`）。
+
+## 全屏布局
 
 ```text
 ┌─ Full-screen layout ─────────────────────────────────────────────────────────────────────────────┐
@@ -50,7 +52,7 @@ Covers:
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-## Component Tree
+## 组件树
 
 ```text
 ┌─ Component tree ─────────────────────────────────────────────────────────────────────────────────┐
@@ -87,7 +89,7 @@ Covers:
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-## Ownership Boundaries
+## 所有权边界
 
 ```text
 ┌─ Ownership split ────────────────────────────────────────────────────────────────────────────────┐

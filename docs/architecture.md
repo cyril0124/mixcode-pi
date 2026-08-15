@@ -1,8 +1,10 @@
-# MixCode Pi 架构
+# MixCode Pi Architecture
 
-MixCode 是基于 Pi（`pi-tui` / `pi-agent-core` / `pi-ai`）的多 tab TUI agent。本文记录当前实现的分层、运行时、快捷键和命令。
+[中文文档](architecture.zh.md)
 
-## 总体结构
+MixCode is a multi-tab TUI agent built on top of Pi (`pi-tui` / `pi-agent-core` / `pi-ai`). This document records the layering, runtime mapping, keybindings, and commands of the current implementation.
+
+## Overall Structure
 
 ```text
 ┌────────────────────────┐
@@ -24,67 +26,67 @@ MixCode 是基于 Pi（`pi-tui` / `pi-agent-core` / `pi-ai`）的多 tab TUI age
 └────────────────────────┘
 ```
 
-## 模块分层
+## Module Layering
 
 ```text
 src/
 ├── cli/
-│   └── bootstrap.ts          启动状态、workspace、completion source
+│   └── bootstrap.ts          Startup state, workspace, completion source
 ├── core/
-│   ├── commands.ts           本地 slash command 解析与补全源
-│   ├── tabs.ts               tab 增删改与前后环绕切换
-│   ├── overlays.ts           preview、tab jump、shell 等纯状态逻辑
-│   ├── questions.ts          question UI 的选择/提交模型
-│   ├── open-tabs-store.ts    open_tabs.json 读写与跨实例 tab 集合变更
-│   ├── peer-tab-sync.ts      跨实例 tab 监听与对账（open/close 协调）
-│   ├── state-store.ts        TUI 状态与 workspace 持久化
-│   └── system-prompt.ts        通过 Pi resource loader 构建 system prompt
+│   ├── commands.ts           Local slash command parsing and completion sources
+│   ├── tabs.ts               Tab creation, deletion, modification, and cycling
+│   ├── overlays.ts           Pure state logic for preview, tab jump, shell, etc.
+│   ├── questions.ts          Selection and submission models for question UI
+│   ├── open-tabs-store.ts    open_tabs.json I/O and cross-instance tab set mutations
+│   ├── peer-tab-sync.ts      Cross-instance tab listener and reconciliation (open/close)
+│   ├── state-store.ts        TUI state and workspace persistence
+│   └── system-prompt.ts      Construct system prompt via Pi resource loader
 ├── agent/
-│   ├── runtime.ts            MixCodeRuntime -> pi Agent/Session
-│   ├── tools.ts              Pi built-in tools、extension tool owner 合并与 Tool Owners 摘要
-│   └── faux-stream.ts        测试和本地演示用 faux model stream
+│   ├── runtime.ts            MixCodeRuntime -> Pi Agent/Session
+│   ├── tools.ts              Merge Pi built-in tools and extension tool owners with Tool Owners summary
+│   └── faux-stream.ts        Faux model stream for testing and local demo
 └── ui/
-    ├── app.ts                pi-tui Root、Editor、全局键处理
-    ├── agent-tab-actions.ts  openExistingAgentTab / closeExistingAgentTab 等 tab 生命周期操作
-    ├── rendering.ts          header/tab/status/panel/floating panel 渲染
-    └── completion.ts         /、@ 两类补全（$skill 补全由 mpi-skill-refs 扩展提供）
+    ├── app.ts                pi-tui Root, Editor, and global key handling
+    ├── agent-tab-actions.ts  Tab lifecycle actions like openExistingAgentTab / closeExistingAgentTab
+    ├── rendering.ts          Rendering for header/tab/status/panel/floating panel
+    └── completion.ts         Completion for / and @ ($skill completion provided by mpi-skill-refs extension)
 ```
 
-## 运行时映射
+## Runtime Mapping
 
 ```text
-用户输入
+User Input
   │
-  ├─ 普通 prompt
-  │    └─ 原样透传给 Pi AgentSession.prompt()
-  │        ├─ $skill 引用（由 mpi-skill-refs 扩展在 Pi 原生管线中展开）
-  │        ├─ /skill: 与 prompt 模板（由 Pi 原生 _expandSkillCommand / expandPromptTemplate 展开）
-  │        ├─ @file 引用
-  │        └─ 不注入 AGENTS.md；项目上下文进入 system prompt
+  ├─ Normal prompt
+  │    └─ Forwarded as-is to Pi AgentSession.prompt()
+  │        ├─ $skill reference (expanded by mpi-skill-refs extension in Pi native pipeline)
+  │        ├─ /skill: and prompt templates (expanded by Pi native _expandSkillCommand / expandPromptTemplate)
+  │        ├─ @file reference
+  │        └─ Does not inject AGENTS.md directly; project context enters system prompt
   │
   ├─ /local-command
-  │    ├─ 纯 UI 状态：/toggle-todo /preview /mark-done
-  │    ├─ 会话操作：/new-session /fork /compact /delete-session
-  │    └─ prompt 模板：/goal /compact
+  │    ├─ Pure UI state: /toggle-todo /preview /mark-done
+  │    ├─ Session operations: /new-session /fork /compact /delete-session
+  │    └─ Prompt templates: /goal /compact
   │
   └─ !shell / !!shell
-       └─ 走 Pi AgentSession.executeBash（!! = excludeFromContext）
-            ├─ 写入 session bashExecution
-            ├─ UI 渲染为 user-bash 块
-            └─ streaming 期间先挂 pending 区，agent_end 后并入主 chat
+       └─ Dispatched to Pi AgentSession.executeBash (!! = excludeFromContext)
+            ├─ Appended to session bashExecution
+            ├─ UI rendered as user-bash block
+            └─ Kept in pending area during streaming, merged into main chat after agent_end
 
 MixCodeRuntime
   │
-  ├─ SessionManager        保存/恢复/分叉/清空替换/删除 session
-  ├─ prompt history        getPromptHistory() 读取当前 SDK branch 的 user prompt；workspace restore 后回灌 tab.promptHistory
-  ├─ Agent                 执行 prompt 和工具
-  ├─ AgentEvent            映射为 tab status、chat、todos、questions、goal
-  └─ pi-ai Model           provider/modelId 解析，faux provider 用本地 stream
+  ├─ SessionManager        Save / restore / fork / clear-replace / delete session
+  ├─ Prompt History        getPromptHistory() reads user prompts on current SDK branch; restored to tab.promptHistory
+  ├─ Agent                 Executes prompts and tools
+  ├─ AgentEvent            Mapped to tab status, chat, todos, questions, goal
+  └─ pi-ai Model           Resolves provider/modelId; faux provider uses local stream
 ```
 
-## UI 和快捷键
+## UI and Keybindings
 
-`Tab` 与 `Shift+Tab` 只有在 Editor 补全没有打开时才切换标签，避免抢走 `/`、`$`、`@` 补全的接受候选行为。
+`Tab` and `Shift+Tab` cycle tabs only when Editor autocomplete is inactive, avoiding stealing candidate selection behavior for `/`, `$`, and `@`.
 
 ```text
 ┌────────────────────────────────────────────────────────────┐
@@ -99,236 +101,20 @@ MixCodeRuntime
 ├────────────────────────────────────────────────────────────┤
 │ Shell / Markdown Preview overlays                           │
 ├────────────────────────────────────────────────────────────┤
-│ > prompt editor                                             │
-├────────────────────────────────────────────────────────────┤
-│ status meta: model / thinking / workdir / git (hidden if extension footer set) │
+│ Prompt Editor (with / $ @ completion)                      │
 └────────────────────────────────────────────────────────────┘
 ```
 
-Config tab 只渲染配置面板和可点击操作，不渲染 prompt editor。对话顶部 header 显示紧凑快捷键提示，`Ctrl+O` 可展开为完整全局键表，分作用域的完整列表仍在 help overlay（`/hotkeys`）中。
-
-| 快捷键 | 当前行为 |
-| --- | --- |
-| `Tab` | 下一个 tab，补全打开时交给 Editor 接受候选；**Zen 模式**下吞掉（不切换 tab，也不走 vim tab-cycle） |
-| `Shift+Tab` | 上一个 tab，补全打开时不抢占；**Zen 模式**下同样吞掉 |
-| `r` | config tab 或 overlay 场景从 pi runtime 刷新 tab 状态；agent 输入中保留普通字符 |
-| `Ctrl+P` | 可过滤命令面板；按 Config/Agent tab 显示当前语境命令，回车执行可用命令 |
-| `Ctrl+T` | tab jump 模糊跳转；打开后 `Tab`/`Shift+Tab` 在候选中移动，`Ctrl+F` 切换仅显示非 idle（busy/done/waitingForInput/error）tab，不穿透到全局 tab 切换 |
-| `Ctrl+E` | 外部编辑器编辑输入 |
-| `Ctrl+C` | 清空普通编辑输入 |
-| `Ctrl+J` / `Shift+Enter` | 在当前 Editor 光标处插入换行 |
-| `Ctrl+O` | 展开/收起 tool 输出块与 header 快捷键提示（共用 tools-expand 状态） |
-| `Ctrl+R` | 预填 `/rename 当前标题`，复用 slash command 重命名 |
-| `Esc Esc` | 编辑器为空时打开 session tree（既有 double-Esc 路径） |
-| `Alt+Up` / `Ctrl+U` | 将队列里最后一条消息弹回编辑器（**优先 follow-up，再 steer**）；**两队列都空时 Ctrl+U 武装 1s 内 `u`/`Ctrl+U` 进入 Vim**（toast 提示 `Again: u or Ctrl+U → vim`；Home / Alt+Up 不武装；始终消费以免落到 Editor 行首删除） |
-| `Up` / `Down` | 普通输入为空且无 overlay、preview、补全、extension terminal input 消费时浏览当前 tab 的 prompt 历史；其它场景交给局部控件 |
-| `Right` | Vim 模式跳到更新的 user message，并短暂显示右锚定 `User Messages` 预览；非 Vim 普通输入为空且无 overlay、preview、补全、extension user interaction 时切换 extension widget side panel；无 widget 或终端过窄时显示 toast；有输入时交给 Editor 光标移动 |
-| `Shift+Right` | Vim 模式跳到更旧的 user message，并短暂显示右锚定 `User Messages` 预览 |
-| `/` | Vim 模式下在 editor 行搜索已渲染 transcript（无 overlay）；非 Vim 为普通输入 |
-| `n` / `N` | Vim 模式下跳到下一个 / 上一个 transcript 匹配 |
-| `@` | 打开全局文件 picker，选择后插入 `@path ` |
-| `Esc` | 关闭 overlay、preview 或 tab jump；standalone `!shell` 一次中止；bash-mode 草稿 `!...` 清空 |
-| `Ctrl+Q` | 打开退出确认；`y` 确认、`n`/`Esc` 取消；`/quit` 和 `/exit` 直接退出，不弹确认 |
-| `q` | 普通输入字符，不绑定退出，避免破坏 prompt 输入 |
-
-Session tree 默认无全局和弦（可用 `/tree`、空输入 Double-Esc，或在 `keybindings.json` 自绑 `app.session.tree`）；`/resume`、`/fork`、`/new-session` 走 slash / palette。
-
-Vim user-message 导航预览是一个自动过期的 floating panel，覆盖在 editor 上方，列出附近 user prompts 和 `<NEWEST>`；Vim 状态提示为 `Vim: / find · n/N · → newer · Shift+→ older · j/k scroll · q exit`。Vim `/` 复用 editor 行搜索已渲染 transcript，Enter 后 `n/N` 循环匹配。
-
-`/toggle-zen-mode` 切换当前 agent 的 Zen 模式（tab 级、不写全局 settings）：隐藏 tab bar；Tab/Shift+Tab 被吞掉，换 tab 只靠 Ctrl+T（或 Home attach）；editor 顶栏显示 `[ZEN]`；分隔线左侧用彩色实心圆 `●` 显示其他 agent 的有效状态：强调色表示 running/thinking，黄色表示等待输入，绿色表示 done/unreadDone，红色表示 error。活动 agent、idle 和 Not Ready 不显示；状态优先级与 tab bar 一致（error > 等待输入 > working > done），最多显示 5 个标记，超出显示 `[+N]`。与 Vim 可并存；agent→agent 切换时 vim/zen 随目标转移，回 Home 时标志留在 agent 上。
-
-`/toggle-inline-widgets` 翻转当前 agent 的 inline 模式（不写盘）：把 `setWidget` 的 aboveEditor/belowEditor 从 editor 上下挪到 chat 滚动面（顺序：消息 → widgets → Steer/Follow-up）。`[INL]` 跟 `[VIM]`/`[ZEN]` 同槽：默认 editor 画在顶栏；永久 `setEditorComponent` 只画在 tab 分隔线，不写进插件 editor 正文；临时 `custom()`/dialog 接管时不画。侧栏打开时 widgets 仍走右栏；Vim 只藏 editor dock，inline 模式的 widgets 仍留在 chat 尾部。agent→agent 切换时标志随目标转移。默认值在 `mixcode_settings.json` 的 `ui.inlineWidgets`（`/settings` → Inline widgets），新 tab / 重启按该默认落地。
-
-`src/core/keymap.ts` 是带作用域的可审计 keymap，不只记录全局键。`global` 作用域覆盖主输入表面，`file-picker`、`picker`、`command-palette`、`tab-jump`、`export`、`preview` 作用域覆盖 overlay 或局部交互；`describeKeymap()` 保持旧的简短输出，`describeScopedKeymap()` 用于审计完整局部键表。
-
-```text
-key input
-  │
-  ├─ global
-  │    ├─ Tab / Shift+Tab / Ctrl+P / Ctrl+T
-  │    ├─ Ctrl+E / Ctrl+V / Ctrl+C / Ctrl+R / Ctrl+O / Ctrl+Q
-  │    └─ @ / Esc / Esc Esc / Alt+Up / Ctrl+U / Up / Down / Right / Shift+Right
-  │
-  └─ scoped overlays
-       ├─ picker:          Tab Shift+Tab Up Down Enter Esc
-       ├─ file-picker:     Tab Ctrl+G j/k g/G Enter Esc
-       ├─ command-palette: Tab Shift+Tab Up Down Enter Esc
-       ├─ tab-jump:        Tab Shift+Tab Up Down Enter Esc
-       ├─ export:          Tab Shift+Tab T/C/A/U Enter Esc
-       └─ preview:         h/l j/k g/G Home End Esc
-```
-
-`!` / `!!` 不是独立 shell overlay：输入以 `!` 开头时 editor 进入 bash-mode 边框，提交后走 Pi `executeBash`。standalone bash 运行中 Esc 一次中止；agent streaming 时 Esc 仍走 agent abort 二次确认。
-
-`/thinking` 与 `/hide-thinking` 是两件不同的事：`/thinking` 调整当前 tab 模型的 reasoning level（`off`/`low`/`medium`/`high`/`max`），影响模型实际推理量；`/hide-thinking` 只切换 thinking 内容在 TUI 的可见性，隐藏时折叠为斜体 `Thinking...` 占位，不改变推理 level、不改写会话内容。`/hide-thinking` 是全 tab 生效的应用级 toggle，复用 Pi 原生 `hideThinkingBlock` 设置持久化（启动时 `SettingsManager.getHideThinkingBlock()` 读取，切换时 `setHideThinkingBlock()` 写回全局 `settings.json`），跨重启保持，并沿用 Pi 的状态文案 `Thinking blocks: hidden|visible`。因为它写入 Pi 全局 `settings.json`（跨重启、跨 workdir、与 Pi agent 共享），其 `description` 以 `[global]` 前缀标注，让用户在 palette / slash 补全里执行前即可看出这是全局持久化设置；约定见 AGENTS.md 的 Slash Commands。
-
-`/models`、`/thinking`、`/context-limit`、`/workdir` 在无参数时会打开本地 picker overlay，支持输入过滤、上下移动、回车选择、Esc 取消。`/workdir` 会把新目录写入当前 session 的 header.cwd，并在新 cwd 对应的 `sessions/--encoded--/` 下放一个指向原 jsonl 的符号链接。`/resume` Current Folder 仍只扫当前目录，所以在新目录再开 mpi 能看到这条 session，又不会去扫其它项目。`/settings` 主列表同样支持直接输入，按显示标签或稳定设置键名模糊过滤；有查询时 Esc 先清空查询，再按 Esc 关闭面板。`/thinking` 的候选来自当前 tab 模型能力；不支持 reasoning 的模型只显示 `off`，带 `thinkingLevelMap` 的模型可显示 Pi 支持的新 level（如 `max`）。UI 主题改由 `/settings` 面板编辑（写入 `mixcode_settings.json` 的 `theme`，未设置时保留 runtime/default）；Pi extension `ctx.ui.setTheme` 接受精确 theme id（内置 `mixcode-dark` / `claude-warm` / `tokyo-night` / `terminal` / `catppuccin` / `kanagawa` / `rose-pine`，以及 Pi `dark`/`light` 与已发现主题），无 MixCode 别名，仍走同一套归一化并请求 redraw。Agent 输入 meta 行里的 workdir、model、thinking 三段也可用鼠标点击，分别复用 `/workdir`、`/models`、`/thinking` picker；当 tab 设置了 extension footer 时 meta 整行折叠（footer 已承载 cwd/model/context/git/status，避免双层重复），点击 picker 亦随之不可用。编辑器补全覆盖 `/` slash commands、`$skill` 和 `@path`；`@path` 候选同时包含文件与带尾斜杠的目录，目录 query 如 `@src/` 会列出直接子项，带空格路径会插入为 `@"dir with spaces/"`。
-
-全局 `@` 文件 picker：
-
-```text
-@ key
-  │
-  ├─ insert literal "@"
-  └─ open @ File Picker
-       │
-       ├─ fuzzy mode
-       │    ├─ printable chars update query
-       │    ├─ up/down select
-       │    └─ Tab -> tree mode
-       │
-       ├─ tree mode
-       │    ├─ direct children for directory queries
-       │    ├─ j/k select
-       │    ├─ gg/G top/end
-       │    └─ Tab -> fuzzy mode
-       │
-       ├─ Ctrl+G toggles ignored-path visibility
-       ├─ Enter inserts @path or @"path with spaces"
-       └─ Esc / empty backspace cancels
-```
-
-Command palette 不是全量 slash command 列表，而是按当前 tab 语境过滤：
-
-```text
-Ctrl+P
-  │
-  ├─ Config tab
-  │    ├─ /settings /tui-state /new-session /hide-thinking
-  │    ├─ /save-workspace /restore-workspace /delete-workspace
-  │    ├─ /close-all-sessions /delete-all-sessions
-  │    └─ /login /logout
-  │
-  └─ Agent tab
-       ├─ /models /thinking /context-limit /settings /tui-state
-       ├─ /system-tools /system-prompt /toggle-hidden-messages /hide-thinking /extension-manager /reload /session /export
-       ├─ /rename /workdir /import /mark-done /vim /toggle-zen-mode /toggle-inline-widgets
-       ├─ /fork /compact /clear /reset /navigate /tree
-       ├─ /help /hotkeys /quit /exit
-       ├─ /new-session /resume /close-session /delete-session
-       ├─ /follow-up
-       ├─ /close-all-sessions /delete-all-sessions
-       └─ /login /logout
-```
-
-不可用命令不会出现在 palette 列表中；回车在空列表上直接关闭 palette，不执行任何操作。
-
-为避免抢占其它交互，以下场景下 `Ctrl+P` 不打开 command palette：
-
-```text
-completion/picker/tab-jump overlay 打开
-preview overlay 打开
-当前 tab 没有可用 palette command
-```
-
-`!` / `!!` shell（Pi bash 对齐）：
-
-```text
-Editor !cmd / !!cmd
-  │
-  ├─ parseInput → kind:shell
-  ├─ AgentSession.executeBash / emitUserBash
-  ├─ chat: user-bash 块
-  │    Running... (Esc to cancel) | agent busy → Running... (agent Esc aborts run)
-  ├─ session: bashExecution（!! excludeFromContext）
-  └─ Esc:
-       ├─ isBashRunning && !streaming → abortBash
-       └─ bash-mode draft (!...) → clear editor
-```
-
-## Slash Command
-
-```text
-src/core/commands.ts
-        │
-    ├─ UI state command
-    │   /toggle-todo /settings /context-limit /tui-state /goal
-        │
-    ├─ session command
-    │   /new-session /fork /clear /reset /close-session /delete-session
-    │   /close-all-sessions /delete-all-sessions /compact /import
-        │
-        ├─ workspace command
-        │   /save-workspace /restore-workspace /delete-workspace
-        │
-        ├─ auth command
-        │   /login /logout
-        │
-        └─ prompt-template command
-            /goal /compact
-```
-
-`/context-limit <tokens|reset>` 会设置当前 tab 的上下文窗口限制；自定义限制会同步调整 SDK compaction 的 `reserveTokens` 与 `keepRecentTokens`，`reset` 会恢复该 tab 启动时捕获的用户基线 compaction 配置；若未捕获基线则报错（不再回落到 SDK 默认）。每个 tab 拥有独立的 `SettingsManager`，因此 `/context-limit` 覆盖不会在独立 tab 之间泄漏；同源 fork/reuse 的 tab 仍共享同一 manager。
-
-`/context-limit` 还会把当前 tab 的有效窗口写入该 session 的 live `model.contextWindow`，让 Pi 原生 compaction 与读取 `ctx.model` / `getContextUsage().contextWindow` 的 extension 看到同一值；这是 session 内临时覆盖，不回写 `models.json`。`tab.model.contextWindow` 仍保留模型 canonical capacity，供 reset / picker 使用。创建 session 与切模型时会对 model 做浅拷贝，避免一个 tab 的 limit 改到另一个共享同一 model 对象的 session。
-
-### Compaction 边界
-
-```text
-core (mixcode runtime)
-  ├─ overflow        → Pi AgentSession compact + willRetry continue
-  ├─ turn 边界 threshold → Pi agent_end / 下次 prompt 前 _checkCompaction
-  └─ /compact        → agentSession.compact()
-
-pi-packages/mpi-mid-turn-compact (built-in extension)
-  └─ complete tool batch on `context` + usage over window-reserve
-       → abort → native compact (Pi summarization retry) → short followUp resume
-```
-
-Core **不再**在 `afterToolCall` 上做 mid-turn terminate + 私有 `_handlePostAgentRun` 续跑。
-长 tool loop 的 mid-turn 路径由内置扩展 `mpi-mid-turn-compact` 承担（`MPI_MID_TURN_COMPACT=0` 可关）。
-
-`/import <jsonl-path> [cwdOverride]` 复用 Pi session JSONL 导入语义：
-
-```text
-/import path.jsonl
-  │
-  ├─ 校验文件存在、header 有 session/cwd
-  ├─ cwd 不存在时显式报错，用户可提供 cwdOverride
-  ├─ 外部 JSONL 先在私有临时文件上完成 Pi 迁移，再原子、无覆盖地发布到当前 session dir
-  │    └─ 同名目标已存在时显式失败，保留原文件
-  ├─ 触发 session_before_switch(reason=resume)
-  └─ SessionManager.open(...) 后替换当前 AgentSession
-```
-
-## Goal 状态映射
-
-`/goal` 由内置扩展 `pi-packages/mpi-goal` 提供（`ensurePackageExtensions` /
-`binary-entry` 嵌入）。目标状态保存在当前 session 分支的 custom entry
-（`mpi-goal-*` 前缀），不是 `MixCodeTabInfo` 字段。
-
-```text
-/goal ship feature
-  │
-  ├─ mpi-goal /goal command
-  ├─ session appendEntry(mpi-goal-*)
-  ├─ progressive tools activated (create/queue/pause/...)
-  └─ lifecycle continues work toward the objective
-
-/goal                 open management overlay
-/goal tools           activate goal model tools
-/goal pause|resume|clear
-/goal queue ...
-```
-
-能力边界与安装约定见 `pi-packages/mpi-goal/README.md`。
-
-## 测试
-
-```text
-bun run check
-  │
-  ├─ typecheck      tsc --noEmit
-  ├─ build          tsup ESM + d.ts
-  └─ test           bun test --isolate --timeout=60000
-```
-
-当前测试重点：
-
-```text
-core state        commands / tabs / open-tabs-store / peer-tab-sync / overlays / command palette / workspace
-agent runtime     session repo / stream events / tools / compaction
-ui rendering      header / tabs / status / command palette
-ui input          global keys / tab jump
-bootstrap         initial state / persisted restore / completion sources
-```
+| Keybinding | Action | Description |
+|---|---|---|
+| `Tab` | Next Tab | Does not switch tabs when autocomplete is active |
+| `Shift+Tab` | Previous Tab | Does not switch tabs when autocomplete is active |
+| `Ctrl+P` | Open Command Palette | Filter and execute slash commands and local commands |
+| `Ctrl+T` | Tab Jump | Open full-screen tab list overlay for quick switching |
+| `Escape` | Close Overlay / Exit Vim | Close preview / jump / palette / vim modes |
+| `Ctrl+C` | Interrupt Agent Run | Stop generation or tool execution |
+| `Ctrl+Q` | Quit MixCode | Save state and exit safely |
+| `Right` (empty input) | Toggle Extension Side Panel | Expand/collapse right-hand extension widget panel |
+| `$` | Skill Autocomplete | Trigger available skill completion |
+| `@` | File Autocomplete | Trigger workspace file path completion |
+| `!` | Single-line Bash Command | Quick shell execution |

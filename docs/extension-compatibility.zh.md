@@ -1,0 +1,120 @@
+# Pi Extension 兼容性说明
+
+[English Documentation](extension-compatibility.md)
+
+本文记录 MixCode 对 Pi packages / extensions 的兼容边界、安装方式、已验证能力和已知限制。Pi 官方 package catalog 当前把 packages 定义为发布到 npm 的 extensions、skills、prompt templates 和 themes，安装形式是 `pi install npm:<package>`；MixCode 当前走同一套 Pi resource loader / package discovery 语义。
+
+参考：
+
+- https://pi.dev/packages
+- https://pi.dev/docs/latest/sdk
+- https://pi.dev/docs/latest/tui
+
+## 当前结论
+
+```text
+pi.dev/packages
+  │
+  ├─ extension / skill / prompt / theme npm package
+  │
+  v
+.pi/settings.json packages
+  │
+  v
+Pi resource loader
+  │
+  ├─ extensions -> ExtensionRunner
+  ├─ skills     -> system prompt / completion / prompt build
+  ├─ prompts    -> slash command / prompt template
+  └─ themes     -> theme discovery / MixCode theme switching
+        │
+        v
+MixCode adapters
+  ├─ tools / commands
+  ├─ lifecycle events
+  ├─ UI primitives
+  ├─ message renderer
+  └─ tool renderer
+```
+
+MixCode 现在可以安装并加载 Pi package，但不能宣称对 package catalog 中所有 package 100% 兼容。判断标准不是“能安装”，而是 package 的核心 command/tool 是否能真实执行。
+
+当前 `ctx.ui.custom()` 覆盖两种 Pi TUI 语义：
+
+```text
+ctx.ui.custom(factory)
+  └─ 临时替换 MixCode editor，done() 后恢复原 editor
+
+ctx.ui.custom(factory, { overlay: true })
+  └─ 通过 pi-tui overlay 显示浮层，hide/done 后 dispose
+```
+
+## 安装方式
+
+目前推荐直接写项目级 Pi settings：
+
+```json
+{
+  "packages": [
+    "npm:<package-name>",
+    "npm:pi-web-access"
+  ]
+}
+```
+
+文件位置：
+
+```text
+<project>/.pi/settings.json
+```
+
+MixCode 启动时会让 Pi resource loader 读取 project package sources。不要依赖 `refs/` 里的 package；`refs/` 只用于 UI/交互参考。
+
+## 兼容等级
+
+```text
+Level 0: 可安装
+  package 被 npm 安装并被 resource loader 发现。
+
+Level 1: 可加载
+  extension factory 成功执行，tools / commands / renderers 注册成功。
+
+Level 2: 可交互
+  command、tool、UI primitive、renderer 在 MixCode TUI 中能正常显示和响应。
+
+Level 3: 核心功能真实可用
+  package 的主要功能跑过真实 smoke，不是 mock，不是只看注册表。
+```
+
+MixCode 只维护通用 Pi extension 兼容层，不内置特定 package 的专用命令、侧栏或 smoke。用户安装的 package 应按下方“验收新 package 的流程”自行验证。
+
+## 已接入能力
+
+### Runtime
+
+```text
+MixCodeRuntime
+  -> createAgentSessionServices()
+  -> createAgentSessionFromServices()
+  -> AgentSession
+  -> bindExtensions()
+  -> ExtensionRunner
+```
+
+已支持：
+
+- extension factory loading
+- package resource discovery
+- `session_start`
+- `session_shutdown`
+- `session_before_switch`
+- `session_before_fork`
+- `session_tree`
+- `ctx.newSession()`
+- `ctx.fork()`
+- `ctx.switchSession()`
+- `ctx.navigateTree()`
+- `ctx.reload()`
+- `/import <jsonl-path> [cwdOverride]` 的 MixCode 等价实现
+
+AGENTS / project context / system prompt 走 Pi resource loader 链路，不再靠 prompt injection 拼 workdir instructions。

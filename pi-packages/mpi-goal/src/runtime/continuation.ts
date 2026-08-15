@@ -289,16 +289,6 @@ export function openApiGate(pi: ExtensionAPI): void {
 	if (telemetry) persistTelemetry(pi, telemetry, "continuation");
 }
 
-export function blockApiGate(pi: ExtensionAPI): boolean {
-	const wasBlocked = isApiGateBlocked(getTelemetry());
-	const telemetry = noteApiGate(getTelemetry(), "blocked");
-	if (telemetry) {
-		const withSkip = noteContinuationSkipped(telemetry, "apiError");
-		if (withSkip) persistTelemetry(pi, withSkip, "continuation");
-	}
-	return !wasBlocked;
-}
-
 async function maybeSendBudgetWrapUp(pi: ExtensionAPI, ctx: ExtensionContext, goalId: string): Promise<void> {
 	const goal = getGoal();
 	if (!goal || goal.goalId !== goalId || goal.status !== "budgetLimited") return;

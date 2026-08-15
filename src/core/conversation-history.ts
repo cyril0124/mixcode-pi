@@ -213,15 +213,6 @@ export async function ensureConversationHistoryState(options: {
   return { warnings, paths, scannedSessions };
 }
 
-export async function updateConversationSessionIndex(options: {
-  rootStateDir: string;
-  activeSessionsRoot: string;
-}): Promise<void> {
-  const paths = conversationHistoryPaths(options.rootStateDir);
-  const sessionsRoots = discoverSessionRoots(options.activeSessionsRoot);
-  await buildSessionIndex({ indexFile: paths.sessionIndexFile, sessionsRoots });
-}
-
 export async function recordSubmittedHistory(options: {
   rootStateDir: string;
   sessionId: string;

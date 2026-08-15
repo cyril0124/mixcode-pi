@@ -33,11 +33,6 @@ export function evaluateCompletionFloor(goal: GoalState): CompletionFloorEvaluat
 	};
 }
 
-export function isCompletionFloorUnmet(goal: GoalState): boolean {
-	const floor = evaluateCompletionFloor(goal);
-	return floor.anyFloorConfigured && !floor.allFloorsMet;
-}
-
 export function validateFloorConfig(config: GoalFloorConfig): string | undefined {
 	if (config.minTokensBeforeWrapUp !== undefined) {
 		const error = validatePositiveInteger("min_tokens_before_wrap_up", config.minTokensBeforeWrapUp);

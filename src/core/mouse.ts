@@ -46,7 +46,3 @@ function parseSgrWheel(button: number): SgrMouseInput["wheel"] {
   if (direction === 1) return "down";
   return undefined;
 }
-
-export function hitMouseRegion(regions: MouseHitRegion[], x: number): string | undefined {
-  return regions.find((region) => x >= region.startX && x <= region.endX)?.id;
-}

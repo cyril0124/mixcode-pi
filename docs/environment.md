@@ -1,6 +1,8 @@
-# Environment variables
+# Environment Variables
 
-User-facing MixCode product env owned or set by `src/`.
+[中文文档](environment.zh.md)
+
+User-facing MixCode product environment variables owned or set by `src/`.
 Not listed here: `run.sh` / test / GIF tooling knobs, or upstream Pi (`PI_*`) — see Pi docs for those.
 
 **Conventions**
@@ -8,13 +10,13 @@ Not listed here: `run.sh` / test / GIF tooling knobs, or upstream Pi (`PI_*`) �
 - Product / host vars use the `MIXCODE` / `MIXCODE_*` prefix.
 - Unless noted, “set” means a non-empty string. Boolean-style flags treat `0`, `false`, and `off` (case-insensitive) as off when the code normalizes them that way.
 
-## Host identity
+## Host Identity
 
 | Variable | Set by | Meaning |
 | --- | --- | --- |
 | `MIXCODE` | MixCode (`src/cli/main.ts`) after it decides **not** to delegate to upstream `pi` | Process is MixCode, not bare `pi`. Built-in packages that must not activate under pure Pi should gate on this (e.g. `mpi-herdr-report`). Default when MixCode runs: `1` (`??=`, does not override an explicit value). Off when unset / empty / `0` / `false` / `off`. |
 
-## Agent bash tool (per spawn)
+## Agent Bash Tool (Per Spawn)
 
 Injected into the **agent bash tool** child environment only (same surface as Pi `PI_SESSION_*`). Not set on the host process; not injected into user `!` / `!!` shells.
 
@@ -23,14 +25,14 @@ Injected into the **agent bash tool** child environment only (same surface as Pi
 | `MIXCODE_TAB_TITLE` | Bash tool spawn | Title of the tab that owns this agent (e.g. `Agent-01`). Follows renames on the next spawn. |
 | `MIXCODE_FOCUSED_TAB_TITLE` | Bash tool spawn | Title of the UI-focused agent tab. Unset when focus is Home/config or unknown. May differ from `MIXCODE_TAB_TITLE` when a background tab runs bash. |
 
-## Related external hosts
+## Related External Hosts
 
 Pane multiplexers may inject their own env (e.g. `HERDR_*`). Those are defined by the host, not MixCode. Built-in packages that talk to such hosts should document required vars in the package itself and still gate MixCode-only behavior on `MIXCODE`.
 
-## Adding a new variable
+## Adding a New Variable
 
 1. Prefer `MIXCODE_*` for MixCode-owned, user-facing knobs in `src/`.
 2. Document it in this file (table row + who sets it + semantics).
-3. If built-in packages or pure-`pi` co-loading is affected, note the gate under **Host identity** or the package `README` / header comment.
+3. If built-in packages or pure-`pi` co-loading is affected, note the gate under **Host Identity** or the package `README` / header comment.
 4. Avoid silent dual names; pick one canonical variable.
 5. Do not put script-only, test-only, or upstream Pi env vars in this file.

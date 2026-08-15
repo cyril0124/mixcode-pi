@@ -1,5 +1,7 @@
 # `mixcode_settings.json`
 
+[中文文档](mixcode-settings.zh.md)
+
 MixCode Pi reads `mixcode_settings.json` from its root state directory. By default, that is:
 
 ```text
