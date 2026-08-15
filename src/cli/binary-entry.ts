@@ -6,6 +6,24 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth";
+import { bedrockProviderModule } from "@earendil-works/pi-ai/bedrock-provider";
+import { setBedrockProviderModule } from "@earendil-works/pi-ai/compat";
+
+registerBunOAuthFlows();
+setBedrockProviderModule(bedrockProviderModule);
+
+if (process.versions?.bun && Object.keys(process.env).length === 0) {
+  try {
+    const data = fs.readFileSync("/proc/self/environ", "utf-8");
+    for (const entry of data.split("\0")) {
+      const idx = entry.indexOf("=");
+      if (idx > 0) {
+        process.env[entry.slice(0, idx)] = entry.slice(idx + 1);
+      }
+    }
+  } catch {}
+}
 
 import darkTheme from "../../node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/theme/dark.json" with { type: "json" };
 import lightTheme from "../../node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/theme/light.json" with { type: "json" };

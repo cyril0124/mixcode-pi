@@ -135,6 +135,8 @@ export function applyEvent(
       break;
     case "turn_end":
       break;
+    case "bash_execution_update":
+      break;
     case "compaction_start":
       runtimeTab.tab.activeCompactionReason = event.reason;
       // SDK post-run auto-compaction starts after agent_end clears the active timer.

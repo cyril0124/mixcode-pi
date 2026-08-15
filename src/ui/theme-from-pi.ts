@@ -40,7 +40,11 @@ export interface MixCodeTheme {
   doneFg: (text: string) => string;
   errorFg: (text: string) => string;
   userMessageBg: (text: string) => string;
+  searchMatchBg: (text: string) => string;
+  searchMatchText: (text: string) => string;
+  scrollbarThumb: (text: string) => string;
   thinkingText: (text: string) => string;
+  thinkingMax: (text: string) => string;
   toolTitle: (text: string) => string;
   bold: (text: string) => string;
   italic: (text: string) => string;
@@ -102,7 +106,11 @@ export function mixCodeThemeFromPi(theme: Theme): MixCodeTheme {
     doneFg: fg("success"),
     errorFg: fg("error"),
     userMessageBg: persistentBg("userMessageBg"),
+    searchMatchBg: persistentBg("searchMatchBg"),
+    searchMatchText: fg("searchMatchText"),
+    scrollbarThumb: persistentBg("scrollbarThumb"),
     thinkingText: fg("thinkingText"),
+    thinkingMax: fg("thinkingMax"),
     toolTitle: fg("toolTitle"),
     bold: (text) => theme.bold(text),
     italic: (text) => theme.italic(text),
