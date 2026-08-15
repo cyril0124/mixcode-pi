@@ -184,7 +184,6 @@ export function createOptimizePromptConfigOverlay(options: OptimizePromptConfigO
     return clipped + " ".repeat(Math.max(0, width - visibleWidth(clipped)));
   }
 
-  /** Full box chrome (same style as mpi-loop management overlay). */
   function renderPanel(body: string[], width: number, panelTitle: string): string[] {
     const innerWidth = Math.max(0, width - 2);
     const title = ` ${panelTitle} `;

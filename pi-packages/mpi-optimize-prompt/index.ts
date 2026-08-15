@@ -23,7 +23,10 @@ import {
   optimizePromptConfigPath,
   writeOptimizePromptConfig,
 } from "./config.js";
-import { createOptimizePromptConfigOverlay } from "./config-overlay.js";
+import {
+  createOptimizePromptConfigOverlay,
+  type ConfigOverlayResult,
+} from "./config-overlay.js";
 import {
   DEFAULT_OPTIMIZE_SYSTEM_PROMPT,
   extractOptimizedText,
@@ -297,7 +300,7 @@ export async function runOptimizePromptConfig(options: {
   };
 
   for (;;) {
-    const result = await ctx.ui.custom(
+    const result = (await ctx.ui.custom(
       (tui, theme, _kb, done) =>
         createOptimizePromptConfigOverlay({
           theme,
@@ -321,7 +324,7 @@ export async function runOptimizePromptConfig(options: {
           margin: 1,
         },
       },
-    );
+    )) as ConfigOverlayResult | undefined;
 
     if (!result || result.action === "close") {
       return { ok: true, path: configPath };
@@ -342,7 +345,6 @@ export async function runOptimizePromptConfig(options: {
         }
         if (!persist(next)) return { ok: false, reason: "write_failed" };
       }
-      continue;
     }
   }
 }

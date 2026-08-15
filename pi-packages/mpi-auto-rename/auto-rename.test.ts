@@ -10,7 +10,6 @@ import {
   resolveAutoRenameTarget,
   writeAutoRenameConfig,
 } from "./config.js";
-import { createAutoRenameConfigOverlay } from "./config-overlay.js";
 import autoRename, {
   MAX_ATTEMPTS,
   MAX_CONTEXT_CHARS,
@@ -610,32 +609,11 @@ test("runAutoRename reports invalid config JSON without calling the model", asyn
   }
 });
 
-test("config overlay Enter persists the selected model and closes", async () => {
-  const changes: Array<{ model?: string }> = [];
-  const results: Array<{ action: string }> = [];
-  const view = createAutoRenameConfigOverlay({
-    theme: { fg: (_c: string, t: string) => t, bold: (t: string) => t },
-    requestRender: () => undefined,
-    done: (result) => results.push(result),
-    onChange: (config) => changes.push(config),
-    initial: {},
-    modelOptions: ["tab/main", "acme/cheap"],
-  });
-
-  const rendered = view.render(60).join("\n");
-  assert.match(rendered, /Auto-rename model/);
-  assert.match(rendered, /inherit/);
-  assert.match(rendered, /acme\/cheap/);
-
-  view.handleInput("\x1b[B"); // inherit -> first listed model
-  view.handleInput("\r");
-  assert.deepEqual(changes.at(-1), { model: "tab/main" });
-  assert.deepEqual(results.at(-1), { action: "close" });
-});
-
 test("runAutoRenameConfig writes the picked model to auto-rename.json", async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-auto-rename-config-cmd-"));
   try {
+    let selectPrompt = "";
+    let selectOptions: string[] = [];
     const result = await runAutoRenameConfig({
       agentDir: dir,
       ctx: {
@@ -644,24 +622,10 @@ test("runAutoRenameConfig writes the picked model to auto-rename.json", async ()
           getAvailable: () => [{ provider: "acme", id: "cheap" }],
         },
         ui: {
-          custom: async (
-            factory: (
-              tui: { requestRender: () => void; terminal: { rows: number; columns: number } },
-              theme: { fg: (c: string, t: string) => string },
-              kb: unknown,
-              done: (value: unknown) => void,
-            ) => { handleInput(data: string): void },
-          ) => {
-            await new Promise<void>((resolve) => {
-              const view = factory(
-                { requestRender: () => undefined, terminal: { rows: 40, columns: 80 } },
-                { fg: (_c: string, t: string) => t },
-                {},
-                () => resolve(),
-              );
-              view.handleInput("\x1b[B");
-              view.handleInput("\r");
-            });
+          select: async (prompt: string, options: string[]) => {
+            selectPrompt = prompt;
+            selectOptions = options;
+            return "acme/cheap";
           },
           notify: () => undefined,
         },
@@ -669,10 +633,13 @@ test("runAutoRenameConfig writes the picked model to auto-rename.json", async ()
     });
 
     assert.equal(result.ok, true);
+    assert.match(selectPrompt, /Auto-rename model/);
+    assert.ok(selectOptions.includes("inherit"));
+    assert.ok(selectOptions.includes("acme/cheap"));
     const loaded = loadAutoRenameConfig(dir);
     assert.equal(loaded.ok, true);
     if (loaded.ok) {
-      assert.ok(loaded.config.model === "acme/cheap" || loaded.config.model === "tab/main");
+      assert.equal(loaded.config.model, "acme/cheap");
     }
   } finally {
     await fs.rm(dir, { recursive: true, force: true });

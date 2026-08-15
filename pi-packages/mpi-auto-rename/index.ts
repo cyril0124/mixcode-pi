@@ -22,7 +22,6 @@ import {
   resolveAutoRenameTarget,
   writeAutoRenameConfig,
 } from "./config.js";
-import { createAutoRenameConfigOverlay } from "./config-overlay.js";
 
 export {
   AUTO_RENAME_CONFIG_FILENAME,
@@ -35,7 +34,6 @@ export {
   writeAutoRenameConfig,
   type AutoRenameConfig,
 } from "./config.js";
-export { createAutoRenameConfigOverlay } from "./config-overlay.js";
 
 export const MAX_CONTEXT_CHARS = 1_000;
 export const RECENT_MESSAGE_WINDOW = 20;
@@ -430,40 +428,22 @@ export async function runAutoRenameConfig(options: {
     return { ok: false, reason: "bad_config" };
   }
 
-  let draft = { ...loaded.config };
-  const persist = (config: typeof draft): boolean => {
-    draft = { ...config };
-    const written = writeAutoRenameConfig(agentDir, draft);
+  const modelOptions = [AUTO_RENAME_INHERIT, ...listModelOptions(ctx)];
+  const current = loaded.config.model?.trim() || AUTO_RENAME_INHERIT;
+  const chosen = await ctx.ui.select(
+    `Auto-rename model (current: ${current})`,
+    modelOptions,
+  );
+
+  if (chosen !== undefined) {
+    const nextConfig = !chosen || chosen === AUTO_RENAME_INHERIT ? {} : { model: chosen };
+    const written = writeAutoRenameConfig(agentDir, nextConfig);
     if (!written.ok) {
       ctx.ui.notify(`Failed to write ${written.path}: ${written.error}`, "error");
-      return false;
+      return { ok: false, reason: "write_failed" };
     }
-    return true;
-  };
+  }
 
-  await ctx.ui.custom(
-    (tui, theme, _kb, done) =>
-      createAutoRenameConfigOverlay({
-        theme,
-        requestRender: () => tui.requestRender(),
-        done,
-        onChange: (config) => {
-          void persist(config);
-        },
-        initial: draft,
-        modelOptions: listModelOptions(ctx),
-        getMaxVisible: () => Math.max(3, Math.floor(tui.terminal.rows * 0.8) - 6),
-      }),
-    {
-      overlay: true,
-      overlayOptions: {
-        anchor: "center",
-        width: "72%",
-        maxHeight: "80%",
-        margin: 1,
-      },
-    },
-  );
   return { ok: true, path: loaded.path };
 }
 

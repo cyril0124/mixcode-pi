@@ -33,7 +33,7 @@ import {
   shouldClearAgentActive,
   socketEndpoint,
   WAITING_FOR_INPUT_EVENT,
-} from "./index.ts";
+} from "./index.js";
 
 test("isMixcodeProcess requires MIXCODE truthy", () => {
   assert.equal(isMixcodeProcess({}), false);
@@ -209,7 +209,7 @@ test("parseWaitingForInputPayload normalizes count", () => {
 });
 
 test("session_start does not read isIdle after the session ctx is replaced", async () => {
-  const { default: herdrReportExtension } = await import("./index.ts");
+  const { default: herdrReportExtension } = await import("./index.js");
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-herdr-report-stale-"));
   const socketPath = path.join(dir, "herdr.sock");
   const prev = {
