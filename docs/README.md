@@ -8,6 +8,7 @@ Documentation library for MixCode Pi, a multi-tab terminal AI coding agent built
 
 - **[System Architecture](architecture.md)**: Overall layered structure, runtime event mapping, and global UI layout.
 - **[TUI Component Catalog](tui-components.md)**: Full-screen frame layout, chrome elements, and component ownership boundaries.
+- **[Narrow & Mobile Terminal Optimizations](narrow-terminals-and-mobile.md)**: Progressive UI degradation, compact tab overflows, and mobile touch/mouse interactions.
 - **[Keybindings & Shortcuts](keybindings-and-escape.md)**: Core keyboard shortcuts, command palette, external editor, and Escape retraction.
 - **[Mouse Support & Clickable Surfaces](mouse-support.md)**: SGR 1006 mouse protocol, clickable tabs/pickers, scrollbar drag, and text drag-copy.
 - **[CLI & Flags](cli-and-flags.md)**: `mpi` options (`--workdir`, `--builtin-extensions-only`, `--batch`), `status` subcommand, and delegation rules.
