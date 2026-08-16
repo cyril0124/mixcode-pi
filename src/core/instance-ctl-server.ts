@@ -401,10 +401,10 @@ export function startInstanceCtlServer(options: StartInstanceCtlServerOptions): 
       });
     });
   });
-  // Restrictive umask covers the bind->listening gap; the socket is never group/world connectable.
-  const previousUmask = process.umask(0o177);
+  // Socket mode 0600 after bind. Do not process.umask(): it is process-global and
+  // poisons concurrent mkdir (sessions dirs lose +x) until the listen callback.
+  // Parent rootStateDir is 0700, so the bind→chmod window is not world-reachable.
   server.listen(socketPath, () => {
-    process.umask(previousUmask);
     fs.chmodSync(socketPath, 0o600);
   });
   return {
