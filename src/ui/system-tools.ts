@@ -14,7 +14,7 @@ export function renderSystemToolsText(tools: RuntimeToolInfo[]): string {
 
 function formatSystemTool(tool: RuntimeToolInfo): string {
   const name = String(tool.name ?? "(unnamed)");
-  const lines = [`## ${name}`];
+  const lines = [`## == ${name} ==`];
   if (typeof tool.description === "string" && tool.description.trim()) {
     lines.push("~~~", tool.description.trim(), "~~~");
   }

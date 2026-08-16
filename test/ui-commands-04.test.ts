@@ -638,7 +638,7 @@ test("submitted input opens system tools in external editor by default", async (
 
     const exported = await fsPromises.readFile(captureFile, "utf8");
     assert.match(exported, /System Tools/);
-    assert.match(exported, /## extension_echo/);
+    assert.match(exported, /## == extension_echo ==/);
     assert.match(exported, /Echo extension input/);
     assert.match(exported, /npm:example-extension@1\.0\.0/);
     assert.match(exported, /parameters:/);

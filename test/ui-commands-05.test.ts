@@ -89,7 +89,7 @@ test("submitted input shows system tools when editor is disabled", async () => {
   };
 
   await handleSubmittedInput(state, runtime, "/system-tools --editor=false", tui);
-  assert.match(overlays.at(-1) ?? "", /## read/);
+  assert.match(overlays.at(-1) ?? "", /## == read ==/);
   assert.match(overlays.at(-1) ?? "", /Read file contents/);
   await assert.rejects(
     () =>
