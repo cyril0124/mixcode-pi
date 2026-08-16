@@ -86,7 +86,8 @@ MixCodeRuntime
 
 ## UI 和快捷键
 
-`Tab` 与 `Shift+Tab` 只有在 Editor 补全没有打开时才切换标签，避免抢走 `/`、`$`、`@` 补全的接受候选行为。
+快捷键与 Escape 分发的权威说明见 [快捷键与 Escape](keybindings-and-escape.zh.md)。
+`Tab` / `Shift+Tab` 仅在补全关闭且非 Zen 时轮转 Tab。
 
 ```text
 ┌────────────────────────────────────────────────────────────┐
@@ -104,17 +105,3 @@ MixCodeRuntime
 │ Prompt Editor (with / $ @ completion)                      │
 └────────────────────────────────────────────────────────────┘
 ```
-
-| 快捷键 | 动作 | 说明 |
-|---|---|---|
-| `Tab` | 下一个 Tab | 补全激活时不切 tab |
-| `Shift+Tab` | 上一个 Tab | 补全激活时不切 tab |
-| `Ctrl+P` | 打开命令面板 | 过滤/执行 slash commands、local commands |
-| `Ctrl+T` | Tab 跳转 | 弹出全屏 tab 列表，快速切 tab |
-| `Escape` | 关闭 Overlay / 退出 Vim | 关闭 preview / jump / palette / vim 模式 |
-| `Ctrl+C` | 中断当前 Agent 运行 | 停止生成或工具执行 |
-| `Ctrl+Q` | 退出 MixCode | 保存当前状态并安全退出 |
-| `Right`（空输入框） | 打开/切换扩展侧边栏 | 展开/折叠右侧扩展挂件面板 |
-| `$` | Skill 补全 | 提示可用技能 |
-| `@` | 文件路径补全 | 提示工作区文件 |
-| `!` | 单行 Bash 命令 | 快捷执行 shell |

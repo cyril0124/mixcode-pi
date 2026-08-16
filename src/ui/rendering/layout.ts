@@ -46,15 +46,6 @@ export function fitTailLines(lines: string[], maxHeight: number, width: number):
   return [marker, ...lines.slice(-(height - 1))];
 }
 
-export function fitScrolledLines(
-  lines: string[],
-  maxHeight: number,
-  width: number,
-  scrollOffset: number,
-): string[] {
-  return fitScrolledLinesWithInfo(lines, maxHeight, width, scrollOffset).lines;
-}
-
 export interface ScrolledLinesResult {
   lines: string[];
   total: number;

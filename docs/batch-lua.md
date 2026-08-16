@@ -4,6 +4,15 @@
 
 Run Lua scripts to batch-open agent tabs and dispatch prompts after launch. Ideal for monorepo parallel workflows, model comparisons, and resuming conversations in existing tabs.
 
+## Design Motivation
+
+In large multi-package repositories (monorepos) or comparative evaluation tasks, manually opening dozens of tabs, switching working directories, configuring models/thinking tiers, and dispatching prompts is repetitive, error-prone, and non-reproducible.
+
+Batch Lua acts as a **programmable, declarative dispatch language**:
+- **Scriptable Automation**: Parameterize runs with CLI flags (`-- <args...>`) and environment variables (`os.getenv`).
+- **Fail-Fast Validation**: Pre-validates model and thinking compatibility before dispatching work.
+- **Dry-Run Predictability**: Inspects execution plans without spinning up TUI instances or mutating disk state.
+
 ## Running
 
 ```bash

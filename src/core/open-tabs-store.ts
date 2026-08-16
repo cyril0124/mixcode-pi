@@ -29,10 +29,6 @@ export function configureOpenTabsPath(filePath: string | undefined): void {
   configuredOpenTabsPath = filePath;
 }
 
-export function getConfiguredOpenTabsPath(): string | undefined {
-  return configuredOpenTabsPath;
-}
-
 /** Fail before mutating runtime or UI state when the shared snapshot is unreadable. */
 export function assertConfiguredOpenTabsReadable(): void {
   if (configuredOpenTabsPath) readOpenTabs(configuredOpenTabsPath);

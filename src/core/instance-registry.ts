@@ -144,10 +144,6 @@ export async function writeInstanceSnapshot(
   await fs.rename(temp, filePath);
 }
 
-export async function removeInstanceSnapshot(rootStateDir: string, pid = process.pid): Promise<void> {
-  await fs.rm(instanceRegistryFile(rootStateDir, pid), { force: true });
-}
-
 export function removeInstanceSnapshotSync(rootStateDir: string, pid = process.pid): void {
   fsSync.rmSync(instanceRegistryFile(rootStateDir, pid), { force: true });
 }

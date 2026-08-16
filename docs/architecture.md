@@ -86,7 +86,8 @@ MixCodeRuntime
 
 ## UI and Keybindings
 
-`Tab` and `Shift+Tab` cycle tabs only when Editor autocomplete is inactive, avoiding stealing candidate selection behavior for `/`, `$`, and `@`.
+Authoritative key list and Escape dispatch: [Keybindings & Escape](keybindings-and-escape.md).
+`Tab` / `Shift+Tab` cycle tabs only when autocomplete is closed and Zen mode is off.
 
 ```text
 ┌────────────────────────────────────────────────────────────┐
@@ -104,17 +105,3 @@ MixCodeRuntime
 │ Prompt Editor (with / $ @ completion)                      │
 └────────────────────────────────────────────────────────────┘
 ```
-
-| Keybinding | Action | Description |
-|---|---|---|
-| `Tab` | Next Tab | Does not switch tabs when autocomplete is active |
-| `Shift+Tab` | Previous Tab | Does not switch tabs when autocomplete is active |
-| `Ctrl+P` | Open Command Palette | Filter and execute slash commands and local commands |
-| `Ctrl+T` | Tab Jump | Open full-screen tab list overlay for quick switching |
-| `Escape` | Close Overlay / Exit Vim | Close preview / jump / palette / vim modes |
-| `Ctrl+C` | Interrupt Agent Run | Stop generation or tool execution |
-| `Ctrl+Q` | Quit MixCode | Save state and exit safely |
-| `Right` (empty input) | Toggle Extension Side Panel | Expand/collapse right-hand extension widget panel |
-| `$` | Skill Autocomplete | Trigger available skill completion |
-| `@` | File Autocomplete | Trigger workspace file path completion |
-| `!` | Single-line Bash Command | Quick shell execution |

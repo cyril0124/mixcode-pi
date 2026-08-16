@@ -1,45 +1,23 @@
 # mpi-goal
 
+[中文文档](README.zh.md)
+
 MixCode built-in goal tracking for long-running agent work.
 
-## Credits
+## Overview
 
-This package is adapted from the community **pi-goals** extension
-([transcendr/pi-goals](https://github.com/transcendr/pi-goals)), which in turn
-was inspired by Codex CLI’s `/goal` workflow.
+`mpi-goal` is a session-scoped autonomous goal tracking engine with dynamic progressive tool disclosure, continuation budgets, and queue orchestration.
 
-mpi-goal keeps a similar capability surface (persistent goal, queue, templates,
-budgets/floors, continuation, `/goal` UI) while changing packaging and runtime
-behavior for MixCode:
-
-- First-party package under `pi-packages/mpi-goal/` (loaded via
-  `ensurePackageExtensions` / binary embed)
-- Progressive Dynamic Tool Loading: goal tools are registered at load but stay
-  out of the active set until `/goal`, `/goal tools`, overlay `t`, or restore of
-  an unfinished goal
-- No external churn-monitor subprocess
-- Session custom entry types use the `mpi-goal-*` prefix
-
-Upstream license: MIT (see `LICENSE` in this package / the original repository).
-
-## Usage (short)
+## Usage
 
 | Command | Effect |
-|---------|--------|
+|---|---|
 | `/goal` | Open management overlay |
 | `/goal <objective>` | Create / replace / queue a goal |
 | `/goal tools` | Activate all goal model tools |
-| `/goal pause` / `resume` / `clear` | Lifecycle |
+| `/goal pause` / `resume` / `clear` | Goal lifecycle |
 | `/goal queue …` | List or enqueue |
 
-Goal state is session-scoped (Pi `appendEntry` on the current branch), not a
-global database.
-
-**Active time** (`timeUsedSeconds`) is wall-clock time while the parent agent is
-in an active turn (including tool waits). It is *not* calendar time since the
-goal was created: idle between turns, paused time, and overnight gaps do not
-count. The UI label is **Active** to make that explicit.
-
-In-memory goal/queue state is keyed by Pi `sessionId` (via AsyncLocalStorage) so
-multiple MixCode tabs in one process do not share one another’s goal. `/goal`
-rehydrates from the current session branch before reading state.
+- **Session-Scoped Isolation**: State is persisted via `mpi-goal-state` session entries on the current branch.
+- **Progressive Dynamic Tool Loading**: Tools are only loaded into the LLM context when active.
+- **Active Time Accounting**: Measures wall-clock execution time during active agent turns only (excluding idle/paused periods).
