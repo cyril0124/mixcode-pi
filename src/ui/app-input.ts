@@ -10,7 +10,7 @@ import {
 } from "../core/overlays.js";
 import { pushToast } from "../core/toast.js";
 import { activateTab, dismissExtensionPanel, getActiveTab, nextTabId } from "../core/tabs.js";
-import type { MixCodeState } from "../core/types.js";
+import { HOME_TAB_ID, type MixCodeState } from "../core/types.js";
 import { clearPendingEscape, openQuitConfirm } from "./app-actions.js";
 import { insertEditorText } from "./app-editor.js";
 import { clipboardPasteForEditor } from "../core/pi-private.js";
@@ -126,7 +126,7 @@ export function handleMixCodeKeyInput(
     // Pi input listeners receive raw releases; app controls do not.
     if (
       active &&
-      state.activeTabId !== "config" &&
+      state.activeTabId !== HOME_TAB_ID &&
       !hasAnyOverlay(tui) &&
       !active.extensionUi.waitingForInputs.length
     ) {
@@ -156,7 +156,7 @@ export function handleMixCodeKeyInput(
     active.vimEnterArmedAt = undefined;
     if (
       isVimEnterConfirmKey(data) &&
-      state.activeTabId !== "config" &&
+      state.activeTabId !== HOME_TAB_ID &&
       !active.vimMode &&
       !hasFocusedAppControl(state, active) &&
       !hasAnyOverlay(tui) &&
@@ -224,7 +224,7 @@ export function handleMixCodeKeyInput(
   // it is already focused.
   if (
     active &&
-    state.activeTabId !== "config" &&
+    state.activeTabId !== HOME_TAB_ID &&
     !hasAppOverlay(tui) &&
     !hasFocusedAppControl(state, active)
   ) {
@@ -255,7 +255,7 @@ export function handleMixCodeKeyInput(
   }
   if (
     active &&
-    state.activeTabId !== "config" &&
+    state.activeTabId !== HOME_TAB_ID &&
     !hasAnyOverlay(tui) &&
     !hasFocusedAppControl(state, active) &&
     !isEditorAutocompleteOpen() &&
@@ -269,7 +269,7 @@ export function handleMixCodeKeyInput(
   }
   if (
     active &&
-    state.activeTabId !== "config" &&
+    state.activeTabId !== HOME_TAB_ID &&
     active.vimMode &&
     !hasAnyOverlay(tui) &&
     !hasFocusedAppControl(state, active) &&
@@ -296,7 +296,7 @@ export function handleMixCodeKeyInput(
   // dialog's arrow keys (e.g. Up/Down during `/agents`).
   if (
     active &&
-    state.activeTabId !== "config" &&
+    state.activeTabId !== HOME_TAB_ID &&
     !hasAnyOverlay(tui) &&
     !active.extensionUi.waitingForInputs.length
   ) {
@@ -353,7 +353,7 @@ function handleHomeAgentViewKey(
   workspaceOptions: WorkspaceKeyOptions,
 ): KeyResult {
   if (
-    state.activeTabId !== "config" ||
+    state.activeTabId !== HOME_TAB_ID ||
     hasAnyOverlay(tui) ||
     isEditorAutocompleteOpen() ||
     state.tabs.length === 0
@@ -552,7 +552,7 @@ function handleAgentSurfaceKeys(
   // so this remains the non-Vim empty-input shortcut.
   if (
     active &&
-    state.activeTabId !== "config" &&
+    state.activeTabId !== HOME_TAB_ID &&
     matchesKey(data, "right") &&
     !hasAnyOverlay(tui) &&
     !isEditorAutocompleteOpen() &&
@@ -568,7 +568,7 @@ function handleAgentSurfaceKeys(
   }
   if (
     active &&
-    state.activeTabId !== "config" &&
+    state.activeTabId !== HOME_TAB_ID &&
     !hasAnyOverlay(tui) &&
     !hasFocusedAppControl(state, active) &&
     runtime?.dispatchExtensionShortcut?.(active.sessionId, data)
@@ -579,7 +579,7 @@ function handleAgentSurfaceKeys(
   }
   if (
     active &&
-    state.activeTabId !== "config" &&
+    state.activeTabId !== HOME_TAB_ID &&
     !active.vimMode &&
     !hasAnyOverlay(tui) &&
     !hasFocusedAppControl(state, active) &&
@@ -595,7 +595,7 @@ function handleAgentSurfaceKeys(
   // Keep this before vim key handling so vim mode does not consume Left first.
   if (
     active &&
-    state.activeTabId !== "config" &&
+    state.activeTabId !== HOME_TAB_ID &&
     matchesKey(data, "left") &&
     !hasAnyOverlay(tui) &&
     !isEditorAutocompleteOpen() &&
@@ -608,7 +608,7 @@ function handleAgentSurfaceKeys(
     clearPendingEscape(active, "abort-agent");
     const tabIndex = state.tabs.findIndex((tab) => tab.sessionId === active.sessionId);
     if (tabIndex >= 0) state.homeSelectedTabIndex = tabIndex;
-    activateTabClosingTree(state, tui, "config");
+    activateTabClosingTree(state, tui, HOME_TAB_ID);
     tui.requestRender();
     return { consume: true };
   }
@@ -617,7 +617,7 @@ function handleAgentSurfaceKeys(
   // When an extension owns the editor, pass Tab through instead of swallowing.
   if (
     active &&
-    state.activeTabId !== "config" &&
+    state.activeTabId !== HOME_TAB_ID &&
     active.zenMode &&
     !isEditorAutocompleteOpen() &&
     !hasAppOverlay(tui) &&
@@ -632,7 +632,7 @@ function handleAgentSurfaceKeys(
   }
   if (
     active &&
-    state.activeTabId !== "config" &&
+    state.activeTabId !== HOME_TAB_ID &&
     !hasAnyOverlay(tui) &&
     handleVimModeTabCycle(state, active, data, tui)
   ) {
@@ -641,7 +641,7 @@ function handleAgentSurfaceKeys(
   }
   if (
     active &&
-    state.activeTabId !== "config" &&
+    state.activeTabId !== HOME_TAB_ID &&
     !hasAnyOverlay(tui) &&
     !isPendingEditorTakeover(active, editorActions) &&
     handleVimModeKey(active, data)
@@ -652,7 +652,7 @@ function handleAgentSurfaceKeys(
   }
   if (
     active &&
-    state.activeTabId !== "config" &&
+    state.activeTabId !== HOME_TAB_ID &&
     !hasAnyOverlay(tui) &&
     MIXCODE_EXTENSION_KEYBINDINGS_MANAGER.matches(data, "app.tools.expand")
   ) {
@@ -711,7 +711,7 @@ function handleEditorControlKeys(
   // history. Permanent setEditorComponent skins still scroll the main chat.
   if (
     active &&
-    state.activeTabId !== "config" &&
+    state.activeTabId !== HOME_TAB_ID &&
     !hasAnyOverlay(tui) &&
     active.extensionUi.waitingForInputs.length === 0 &&
     !shouldRouteLineBoundaryKeyToEditor(data, editorActions) &&
@@ -765,7 +765,7 @@ function handleEditorControlKeys(
     if (isPendingEditorTakeover(active, editorActions)) return undefined;
     if (active) clearPendingEscape(active, "abort-agent");
     const text = editorActions.getText();
-    // On Home (activeTabId=config) this is a no-op: addToHistory needs a real tab.
+    // On Home (activeTabId=home) this is a no-op: addToHistory needs a real tab.
     // Intentional — Ctrl+C only clears; agent-tab history is per-session only.
     if (text.trim()) editorActions.addToHistory?.(text);
     editorActions.setText("");
@@ -784,7 +784,7 @@ function handleEditorControlKeys(
     matchesKey(data, "ctrl+r") &&
     editorActions &&
     active &&
-    state.activeTabId !== "config" &&
+    state.activeTabId !== HOME_TAB_ID &&
     !isPendingEditorTakeover(active, editorActions)
   ) {
     clearPendingEscape(active, "abort-agent");
@@ -794,12 +794,12 @@ function handleEditorControlKeys(
   }
   if ((matchesKey(data, "alt+up") || matchesKey(data, "ctrl+u")) && editorActions && active) {
     // Temporary takeovers own Ctrl+U; permanent skins still dequeue / enter-vim.
-    if (state.activeTabId !== "config" && isPendingEditorTakeover(active, editorActions)) {
+    if (state.activeTabId !== HOME_TAB_ID && isPendingEditorTakeover(active, editorActions)) {
       return undefined;
     }
     clearPendingEscape(active, "abort-agent");
     // On Home, getActiveTab() is the selected agent — never dequeue that agent's queue here.
-    if (state.activeTabId !== "config") {
+    if (state.activeTabId !== HOME_TAB_ID) {
       const text =
         runtime?.popPendingMessage?.(active.sessionId) ??
         active.pendingFollowUps.pop() ??
@@ -896,7 +896,7 @@ function handleBatchedSubmitInput(
   const text = inlineSubmitText(data);
   if (text === undefined) return false;
   if (!editorActions?.submitCurrentText) return false;
-  if (state.activeTabId === "config") return false;
+  if (state.activeTabId === HOME_TAB_ID) return false;
   if (isEditorAutocompleteOpen() || hasAnyOverlay(tui)) return false;
   if (isOverlayActive(state)) return false;
   if (active?.previewOpen || active?.pendingDialogs.length) return false;

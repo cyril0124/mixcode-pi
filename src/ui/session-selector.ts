@@ -18,7 +18,7 @@ import {
 import { invalidateSessionCatalog } from "../core/session-catalog.js";
 import { createSessionSelectorState } from "../core/session-selector.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
-import { activateTab, closeAgentTab, getActiveTab } from "../core/tabs.js";
+import { activateTab, closeAgentTab, getActiveTab, HOME_TAB_ID } from "../core/tabs.js";
 import { pushToast } from "../core/toast.js";
 import type { MixCodeState, MixCodeTabInfo } from "../core/types.js";
 import { showErrorOverlay } from "./app-overlays.js";
@@ -415,7 +415,7 @@ function discardResumeTabState(
     closeAgentTab(state, sessionId);
   }
   if (
-    previousActiveTabId === "config" ||
+    previousActiveTabId === HOME_TAB_ID ||
     state.tabs.some((tab) => tab.sessionId === previousActiveTabId)
   ) {
     activateTab(state, previousActiveTabId);

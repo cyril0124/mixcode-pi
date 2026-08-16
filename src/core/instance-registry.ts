@@ -2,7 +2,7 @@ import * as fsSync from "node:fs";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { MixCodeState, TabStatus } from "./types.js";
+import { HOME_TAB_ID, type MixCodeState, type TabStatus } from "./types.js";
 
 export const INSTANCE_REGISTRY_VERSION = 1;
 export const INSTANCE_HEARTBEAT_INTERVAL_MS = 5_000;
@@ -206,7 +206,7 @@ export function formatInstanceStatusJson(report: InstanceStatusReport): string {
     instances: report.instances.map((instance) => {
       const activeTab = instance.tabs.find((tab) => tab.active);
       const activeTabTitle =
-        activeTab?.title ?? (instance.activeTabId === "config" ? "<config>" : undefined);
+        activeTab?.title ?? (instance.activeTabId === HOME_TAB_ID ? "home" : undefined);
       return {
         pid: instance.pid,
         workdir: formatDisplayWorkdir(instance.workdir),
@@ -275,7 +275,7 @@ function resolveStatusInstance(
   return {
     ...snapshot,
     stale: false,
-    activeLabel: snapshot.activeTabId === "config" ? "<config>" : snapshot.activeTabId,
+    activeLabel: snapshot.activeTabId === HOME_TAB_ID ? "home" : snapshot.activeTabId,
     tabs,
   };
 }

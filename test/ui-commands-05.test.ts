@@ -316,7 +316,7 @@ test("submitted input confirms a single session close/delete before touching run
   await waitFor(async () => assert.deepEqual(deleted, ["s2"]));
   assert.equal(state.sessionActionConfirm, null);
   assert.deepEqual(state.tabs, []);
-  assert.equal(state.activeTabId, "config");
+  assert.equal(state.activeTabId, "home");
 
   // /delete-all-sessions keeps its existing Y/N confirmation path.
   await handleSubmittedInput(state, runtime, "/delete-all-sessions", tui);
@@ -329,7 +329,7 @@ test("submitted input confirms a single session close/delete before touching run
   await waitFor(async () => assert.deepEqual(deleted, ["s2", "*"]));
   assert.equal(state.deleteAllSessionsConfirmOpen, false);
   assert.deepEqual(state.tabs, []);
-  assert.equal(state.activeTabId, "config");
+  assert.equal(state.activeTabId, "home");
 });
 
 test("single session close/delete confirmation cancel leaves tabs untouched", async () => {
@@ -476,7 +476,7 @@ test("submitted input closes all sessions through runtime after Y/N confirmation
   await waitFor(async () => assert.deepEqual(closedAll, ["*"]));
   assert.equal(state.closeAllSessionsConfirmOpen, false);
   assert.deepEqual(state.tabs, []);
-  assert.equal(state.activeTabId, "config");
+  assert.equal(state.activeTabId, "home");
 });
 
 test("close-all-sessions clears the shared open-tab set", async () => {
@@ -588,7 +588,7 @@ test("delete-all-sessions confirmation calls runtime.deleteAllTabs bound to the 
   await waitFor(async () => assert.equal(fakeRuntime.tabs.size, 0));
   assert.equal(state.deleteAllSessionsConfirmOpen, false);
   assert.deepEqual(state.tabs, []);
-  assert.equal(state.activeTabId, "config");
+  assert.equal(state.activeTabId, "home");
 });
 
 test("close-all-sessions confirmation calls runtime.closeAllTabs bound to the runtime instance", async () => {
@@ -617,7 +617,7 @@ test("close-all-sessions confirmation calls runtime.closeAllTabs bound to the ru
   await waitFor(async () => assert.equal(fakeRuntime.tabs.size, 0));
   assert.equal(state.closeAllSessionsConfirmOpen, false);
   assert.deepEqual(state.tabs, []);
-  assert.equal(state.activeTabId, "config");
+  assert.equal(state.activeTabId, "home");
 });
 
 test("close-all-sessions confirmation cancel (n or Escape) leaves tabs untouched", async () => {
@@ -785,7 +785,7 @@ test("fork from Home inserts after the selected source tab, not at bar head", as
     createTab(2, "s2", "/repo", { title: "Agent-02" }),
     createTab(3, "s3", "/repo", { title: "Agent-03" }),
   );
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   state.homeSelectedTabIndex = 1; // Agent-02
   let forkedId = "";
   const runtime = {
@@ -910,7 +910,7 @@ test("config-scoped submitted input runs without an active agent tab", async () 
   state.tabs.push(debugTab);
   state.activeTabId = "debug";
   await handleSubmittedInput(state, runtime, "/tui-state --editor=false", tui);
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   state.picker = undefined;
   await handleSubmittedInput(state, runtime, "/new-session s1", tui);
   await handleSubmittedInput(state, runtime, "/new-session", tui);
@@ -932,7 +932,7 @@ test("config-scoped submitted input runs without an active agent tab", async () 
     state.tabs.filter((tab) => tab.sessionId !== "debug").map((tab) => tab.sessionId),
   );
   assert.match(overlays.join("\n"), /"version": 1/);
-  assert.match(overlays.join("\n"), /"activeTabId": "config"/);
+  assert.match(overlays.join("\n"), /"activeTabId": "home"/);
   assert.match(overlays.join("\n"), /"activeTabId": "debug"/);
   assert.match(overlays.join("\n"), /"picker": \{/);
   assert.match(overlays.join("\n"), /"statusCount": 1/);

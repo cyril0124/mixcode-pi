@@ -5,7 +5,7 @@ import {
 } from "../core/open-tabs-store.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import { activateTab, clampHomeSelectedTabIndex, closeAgentTab } from "../core/tabs.js";
-import type { MixCodeState, MixCodeTabInfo, WorkspaceSnapshot, WorkspaceTabSnapshot } from "../core/types.js";
+import { HOME_TAB_ID, type MixCodeState, type MixCodeTabInfo, type WorkspaceSnapshot, type WorkspaceTabSnapshot } from "../core/types.js";
 import { reindexWorkspaceTabs } from "../core/workspace.js";
 import { hydrateTabPromptHistory } from "./app-runtime.js";
 import type { OverlayTui } from "./app-types.js";
@@ -116,7 +116,7 @@ function restoreAlreadyOpenWorkspaceOrder(state: MixCodeState, workspace: Worksp
   activateTab(
     state,
     (active && state.tabs.some((tab) => tab.sessionId === active) ? active : state.tabs[0]?.sessionId) ??
-      "config",
+      HOME_TAB_ID,
   );
   clampHomeSelectedTabIndex(state);
 }
@@ -146,7 +146,7 @@ function finishWorkspaceRestore(
   const activeTab = workspace.activeSessionId
     ? restoredTabs.find((restored) => restored.item.sessionId === workspace.activeSessionId)?.tab
     : undefined;
-  activateTab(state, activeTab?.sessionId ?? state.tabs[0]?.sessionId ?? "config");
+  activateTab(state, activeTab?.sessionId ?? state.tabs[0]?.sessionId ?? HOME_TAB_ID);
   clampHomeSelectedTabIndex(state);
   state.workspaceOverlay.restoredCount = restoredTabs.length;
   state.workspaceOverlay.skippedMissing = missing;

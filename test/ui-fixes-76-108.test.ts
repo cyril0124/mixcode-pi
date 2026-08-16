@@ -208,7 +208,7 @@ test("#78 Home card shows unread-done chip and non-assistant preview", () => {
     previewMessages: [{ role: "shell", text: "hello from bash" }],
   });
   state.tabs.push(tab);
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   const plain = stripAnsi(renderConfig(state, 100).join("\n"));
   assert.match(plain, /\[done\]/);
   assert.match(plain, /hello from bash/);
@@ -224,7 +224,7 @@ test("Home card Updated uses lastWorkedAt recency, not run duration", () => {
     lastWorkedAt: new Date(Date.now() - 5_000).toISOString(),
   });
   state.tabs.push(tab);
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   const plain = stripAnsi(renderConfig(state, 100).join("\n"));
   assert.match(plain, /Updated [0-5]s ago/);
   assert.doesNotMatch(plain, /Updated 3m ago/);

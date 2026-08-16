@@ -26,7 +26,7 @@ import {
   setTabStatus,
 } from "../core/tab-state.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
-import type { AgentRuntimeConfig, MixCodeModel, MixCodeModelRef, MixCodeTabInfo } from "../core/types.js";
+import { HOME_TAB_ID, type AgentRuntimeConfig, type MixCodeModel, type MixCodeModelRef, type MixCodeTabInfo } from "../core/types.js";
 import { MIXCODE_EXTENSION_KEYBINDINGS } from "./runtime-extension-theme.js";
 import { getActiveToolInfos } from "./tools.js";
 
@@ -211,7 +211,7 @@ export class MixCodeRuntime {
   private readonly tabClosedListeners = new Set<(sessionId: string) => void>();
   /** UI rebuilds /model list when extensions registerProvider/unregisterProvider. */
   private readonly modelsChangedListeners = new Set<(refs: MixCodeModelRef[]) => void>();
-  /** UI-focused agent session id; undefined when Home/config is focused. */
+  /** UI-focused agent session id; undefined when Home is focused. */
   private focusedSessionId: string | undefined;
   private readonly stopActiveTabTracking: () => void;
 
@@ -294,7 +294,7 @@ export class MixCodeRuntime {
     // state.availableModels; keep them in sync when providers are registered.
     this.installProviderRegistryUiSync();
     this.stopActiveTabTracking = onActiveTabChange((tabId) => {
-      this.focusedSessionId = tabId === "config" ? undefined : tabId;
+      this.focusedSessionId = tabId === HOME_TAB_ID ? undefined : tabId;
     });
   }
 

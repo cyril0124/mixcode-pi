@@ -124,7 +124,7 @@ export interface RuntimeLifecycleContext {
   getApiKey?: (provider: string) => Promise<string | undefined> | string | undefined;
   getDisabledExtensionKeys?: (workdir: string) => ReadonlySet<string>;
   extensionToolOwnerPolicy?: ExtensionToolOwnerPolicy;
-  /** UI-focused agent tab title for bash env; empty when Home/config is focused. */
+  /** UI-focused agent tab title for bash env; empty when Home is focused. */
   getFocusedTabTitle?: () => string | undefined;
 }
 

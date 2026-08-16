@@ -8,7 +8,7 @@ import {
   DEFAULT_ICON_MODE,
   DEFAULT_OVERSIZED_ASSISTANT_MESSAGE,
 } from "./mixcode-settings.js";
-import type { MixCodeModelRef, MixCodeState, MixCodeTabInfo } from "./types.js";
+import { HOME_TAB_ID, type MixCodeModelRef, type MixCodeState, type MixCodeTabInfo } from "./types.js";
 
 export const DEFAULT_THEME_ID = "claude-warm";
 
@@ -29,7 +29,7 @@ export function createInitialState(workdir: string, defaultThinkingLevel?: Think
       icons: { mode: DEFAULT_ICON_MODE },
       inlineWidgets: false,
     },
-    activeTabId: "config",
+    activeTabId: HOME_TAB_ID,
     recentAgentTabIds: [],
     packageUpdates: [],
     quitConfirmOpen: false,

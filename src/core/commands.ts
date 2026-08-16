@@ -63,7 +63,7 @@ export interface LocalCommandPaletteMeta {
   /** Palette-facing description; falls back to the command description. */
   description?: string;
   /** Which palette views show this entry. Default: "agent". */
-  scope?: "agent" | "config" | "both";
+  scope?: "agent" | "home" | "both";
   /** Agent-view enable requirement. Omitted = always enabled. */
   requires?: PaletteRequirement;
   /** Config-view enable requirement. Omitted = always enabled. */
@@ -182,7 +182,7 @@ export const LOCAL_COMMANDS: Array<{
     palette: {
       label: "Save Workspace",
       description: "Save the current open agent tabs as a workspace",
-      scope: "config",
+      scope: "home",
       configRequires: "tabs",
     },
   },
@@ -192,13 +192,13 @@ export const LOCAL_COMMANDS: Array<{
     palette: {
       label: "Restore Workspace",
       description: "Restore a saved workspace",
-      scope: "config",
+      scope: "home",
     },
   },
   {
     name: "delete-workspace",
     description: "Delete a saved workspace",
-    palette: { label: "Delete Workspace", scope: "config" },
+    palette: { label: "Delete Workspace", scope: "home" },
   },
   {
     name: "import",

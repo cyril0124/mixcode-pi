@@ -12,7 +12,7 @@ test("activateTab records agent recency and ignores Home", () => {
   activateTab(state, "s1");
   activateTab(state, "s2");
   activateTab(state, "s3");
-  activateTab(state, "config");
+  activateTab(state, "home");
   assert.deepEqual(state.recentAgentTabIds, ["s3", "s2", "s1"]);
   activateTab(state, "s1");
   assert.deepEqual(state.recentAgentTabIds, ["s1", "s3", "s2"]);
@@ -39,7 +39,7 @@ test("stale session ids do not occupy recency ranks", () => {
   // /clear replaces the live tab id in place and then activates the new id.
   state.tabs[1]!.sessionId = "s2-cleared";
   activateTab(state, "s2-cleared");
-  activateTab(state, "config");
+  activateTab(state, "home");
   assert.deepEqual(state.recentAgentTabIds, ["s2-cleared", "s1"]);
 });
 
@@ -52,7 +52,7 @@ test("on Home the most recent agent uses recentTab, not idle tab", () => {
   );
   activateTab(state, "s1");
   activateTab(state, "s2");
-  activateTab(state, "config");
+  activateTab(state, "home");
   const line = renderTabBar(state, 80, themeForId("terminal"))[0] ?? "";
   const recent = themeForId("terminal").recentTab(" - Beta ");
   assert.ok(line.includes(recent), "last agent on Home should use recentTab paint");
@@ -102,7 +102,7 @@ test("focused tab chip includes a left focus mark", () => {
   activateTab(state, "s1");
   const agentLine = stripAnsi(renderTabBar(state, 80, themeForId("mixcode-dark"))[0] ?? "");
   assert.match(agentLine, /▌- FocusMe/);
-  activateTab(state, "config");
+  activateTab(state, "home");
   const homeLine = stripAnsi(renderTabBar(state, 80, themeForId("mixcode-dark"))[0] ?? "");
   assert.match(homeLine, /▌MixCode Home/);
   assert.doesNotMatch(homeLine, /▌- FocusMe/);

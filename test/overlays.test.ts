@@ -124,11 +124,11 @@ test("tab jump entries expose busy, done, question, and fuzzy filtering", () => 
   const entries = tabJumpEntries(state);
   assert.deepEqual(
     entries.map((entry) => entry.id),
-    ["config", "s1", "s2"],
+    ["home", "s1", "s2"],
   );
   assert.equal(entries[1]?.busy, true);
   assert.equal(entries[1]?.done, true);
-  assert.equal(entries[2]?.question, true);
+  assert.equal(entries[2]?.waitingForInput, true);
   assert.deepEqual(
     filterTabJumpEntries(state, "bt").map((entry) => entry.id),
     ["s2"],
@@ -204,7 +204,7 @@ test("tab jump ctrl+f toggles non-idle filter and resets on reopen", () => {
   openTabJump(state);
   assert.deepEqual(
     filterTabJumpEntries(state, "").map((entry) => entry.id),
-    ["config", "s1", "s2", "s3", "s4"],
+    ["home", "s1", "s2", "s3", "s4"],
   );
 
   toggleTabJumpNonIdleOnly(state);
@@ -230,7 +230,7 @@ test("tab jump ctrl+f toggles non-idle filter and resets on reopen", () => {
   assert.equal(state.tabJumpNonIdleOnly, false);
   assert.deepEqual(
     filterTabJumpEntries(state, "").map((entry) => entry.id),
-    ["config", "s1", "s2", "s3", "s4"],
+    ["home", "s1", "s2", "s3", "s4"],
   );
 });
 
@@ -377,7 +377,7 @@ test("command palette selection skips disabled entries (matches visible rows)", 
   // Home with no tabs: Close All / Save Workspace are disabled and hidden in the
   // renderer. Down once must select the second *visible* command, not all[1].
   const state = createInitialState("/repo");
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   assert.equal(state.tabs.length, 0);
 
   const all = commandPaletteEntries(state);

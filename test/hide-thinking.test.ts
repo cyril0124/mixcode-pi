@@ -39,7 +39,7 @@ test("/hide-thinking toggles state, persists via runtime, and toasts", async () 
 test("/hide-thinking from Home pushes toast on the selected agent", async () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"));
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   state.homeSelectedTabIndex = 0;
   const runtime = {
     getTab: () => undefined,

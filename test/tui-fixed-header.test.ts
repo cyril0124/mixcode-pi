@@ -275,7 +275,7 @@ test("MixCodeRoot summarizes wrapped tabs to keep narrow Home content visible", 
     tab.title = `task-${index}-long-title`;
     state.tabs.push(tab);
   }
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   const runtime = { getTab: () => undefined } as unknown as MixCodeRuntime;
   const root = new MixCodeRoot(
     state,
@@ -723,7 +723,7 @@ test("working indicator requests periodic renders while the active tab is busy",
   await sleep(95);
   assert.equal(renders > 0, true);
   const runningRenders = renders;
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   await sleep(95);
   assert.equal(renders > runningRenders, true);
   const homeRenders = renders;
@@ -742,7 +742,7 @@ test("working indicator requests periodic renders while the active tab is busy",
 test("createMixCodeTui binds working redraw for Home Agent View spinners", async () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo", { status: "running" }));
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   const runtime = {
     getTab: () => ({ chat: [] }),
     onChange: () => () => undefined,

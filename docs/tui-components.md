@@ -75,7 +75,7 @@ Covers:
 │   +-------------------+--------------------------------+                                         │
 │                       |                                                                          │
 │          +------------+-------------+                                                            │
-│          | config tab               | agent tab                                                  │
+│          | home tab                 | agent tab                                                  │
 │          v                          v                                                            │
 │    renderConfig()            Agent Surface                                                       │
 │    home actions                |                                                                 │

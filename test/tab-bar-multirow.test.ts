@@ -22,7 +22,7 @@ function manyTabState(count: number) {
   for (let index = 1; index <= count; index++) {
     state.tabs.push(createTab(index, `s${index}`, "/repo", { title: `Agent-${index}` }));
   }
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   return state;
 }
 
@@ -201,20 +201,20 @@ test("sliding window: Home pin is independent of agent window", () => {
   }
   const endRegions = tabBarHitRegions(state, width, 1);
   assert.ok(endRegions.some((region) => region.id === "s12"));
-  assert.ok(endRegions.some((region) => region.id === "config"), "Home pin must hit config");
+  assert.ok(endRegions.some((region) => region.id === "home"), "Home pin must hit config");
   const endLeft = Number(endLine.match(/\+(\d+) …/)?.[1] ?? 0);
   const endRight = Number(endLine.match(/… \+(\d+)/)?.[1] ?? 0);
   // regions include Home pin + visible agents; +L/+R are agents only.
   assert.equal(endRegions.length + endLeft + endRight, 13);
 
   // Active at Home → full Home, only right overflow.
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   const homeLine = stripAnsi(renderTabBar(state, width, undefined, 1)[0] ?? "");
   assert.match(homeLine, /MixCode Home/);
   assert.doesNotMatch(homeLine, /^ H /);
   assert.match(homeLine, /… \+\d+/);
   const homeRegions = tabBarHitRegions(state, width, 1);
-  assert.ok(homeRegions.some((region) => region.id === "config"));
+  assert.ok(homeRegions.some((region) => region.id === "home"));
   const homeRight = Number(homeLine.match(/… \+(\d+)/)?.[1] ?? 0);
   assert.equal(homeRegions.length + homeRight, 13);
 
@@ -223,7 +223,7 @@ test("sliding window: Home pin is independent of agent window", () => {
   const midLine = stripAnsi(renderTabBar(state, width, undefined, 1)[0] ?? "");
   assert.match(midLine, /Agent-6/);
   assert.ok(tabBarHitRegions(state, width, 1).some((region) => region.id === "s6"));
-  assert.ok(tabBarHitRegions(state, width, 1).some((region) => region.id === "config"));
+  assert.ok(tabBarHitRegions(state, width, 1).some((region) => region.id === "home"));
   const midLeft = Number(midLine.match(/\+(\d+) …/)?.[1] ?? 0);
   const midRight = Number(midLine.match(/… \+(\d+)/)?.[1] ?? 0);
   assert.equal(tabBarHitRegions(state, width, 1).length + midLeft + midRight, 13);
@@ -245,7 +245,7 @@ test("pinned Home uses full label only when chip width share is within 15%", () 
   assert.doesNotMatch(narrow, /MixCode Home/);
 
   // On Home itself, always keep the full label for orientation.
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   const onHome = stripAnsi(renderTabBar(state, 40, undefined, 1)[0] ?? "");
   assert.match(onHome, /MixCode Home/);
 });
@@ -255,7 +255,7 @@ test("pinned Home/H leaves a gutter before the first agent tab", () => {
   state.activeTabId = "s8";
   const width = 80;
   const regions = tabBarHitRegions(state, width, 2);
-  const home = regions.find((region) => region.id === "config");
+  const home = regions.find((region) => region.id === "home");
   const firstAgent = regions.find((region) => region.id.startsWith("s") && (region.row ?? 0) === 0);
   assert.ok(home && firstAgent);
   assert.equal(
@@ -273,7 +273,7 @@ test("H home anchor click activates MixCode Home", () => {
   // One visible tab-bar row so hit regions match the sliding-window layout.
   state.tabBarHitRow = 1;
   state.lastRenderWidth = width;
-  const home = tabBarHitRegions(state, width, 1).find((region) => region.id === "config");
+  const home = tabBarHitRegions(state, width, 1).find((region) => region.id === "home");
   assert.ok(home, "expected Home pin hit region for config");
   const y = (state.tabBarTopRow ?? 1) + (home.row ?? 0);
   const result = handleMixCodeKeyInput(
@@ -282,5 +282,5 @@ test("H home anchor click activates MixCode Home", () => {
     noopTui(),
   );
   assert.deepEqual(result, { consume: true });
-  assert.equal(state.activeTabId, "config");
+  assert.equal(state.activeTabId, "home");
 });

@@ -398,7 +398,7 @@ test("tab jump to Home preserves zen mode on the agent", () => {
   assert.deepEqual(handleMixCodeKeyInput(state, "\x14", tui), { consume: true });
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[A", tui), { consume: true }); // Up → Home
   assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui), { consume: true });
-  assert.equal(state.activeTabId, "config");
+  assert.equal(state.activeTabId, "home");
   assert.equal(tab.zenMode, true);
 });
 
@@ -407,7 +407,7 @@ test("Home attach transfers zen mode to the selected agent", () => {
   const first = createTab(1, "s1", "/repo", { zenMode: true });
   const second = createTab(2, "s2", "/repo");
   state.tabs.push(first, second);
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   state.homeSelectedTabIndex = 1;
 
   const tui = {
@@ -436,7 +436,7 @@ test("from Home, Tab activates agent and keeps zen from the source agent", () =>
   const first = createTab(1, "s1", "/repo", { zenMode: true });
   const second = createTab(2, "s2", "/repo");
   state.tabs.push(first, second);
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   state.homeSelectedTabIndex = 0;
   const tui = {
     requestRender: () => undefined,
@@ -469,7 +469,7 @@ test("from Home, Tab activates agent and keeps zen from the source agent", () =>
     ),
     { consume: true },
   );
-  assert.equal(state.activeTabId, "config");
+  assert.equal(state.activeTabId, "home");
   assert.equal(first.zenMode, true);
 
   // Shift+Tab from Home → last agent; zen must transfer s1 → s2.

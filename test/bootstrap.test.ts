@@ -122,7 +122,7 @@ test("bootstrap restores persisted tab order and runtime tabs", async () => {
       restored.state.tabs.map((tab) => tab.sessionId),
       ["s1", "s2"],
     );
-    assert.equal(restored.state.activeTabId, "config");
+    assert.equal(restored.state.activeTabId, "home");
     await restored.tabsReady;
     assert.ok(restored.runtime.getTab("s1"));
     assert.ok(restored.runtime.getTab("s2"));

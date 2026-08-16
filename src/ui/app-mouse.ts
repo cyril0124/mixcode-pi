@@ -28,7 +28,7 @@ import { pushToast } from "../core/toast.js";
 import { createPicker } from "../core/pickers.js";
 import { activateTab } from "../core/tabs.js";
 import { closeTreeSelector } from "./tree-selector.js";
-import type { MixCodeState } from "../core/types.js";
+import { HOME_TAB_ID, type MixCodeState } from "../core/types.js";
 import {
   closeAppOverlay,
   getActiveNotice,
@@ -159,7 +159,7 @@ export function handleChatSelectionMouseInput(
   copyToClipboard: ClipboardWriter = writeClipboard,
 ): boolean {
   const mouse = parseSgrMouseInput(data);
-  if (!mouse || !active || state.activeTabId === "config") return false;
+  if (!mouse || !active || state.activeTabId === HOME_TAB_ID) return false;
   return handleChatSelectionMouse(active, mouse, tui, copyToClipboard);
 }
 
@@ -230,7 +230,7 @@ export function handleMouseInput(
     tui.requestRender();
     return true;
   }
-  if (mouse.wheel && state.activeTabId !== "config") {
+  if (mouse.wheel && state.activeTabId !== HOME_TAB_ID) {
     scrollChat(active, mouse.wheel === "up" ? 3 : -3);
     tui.requestRender();
     return true;
@@ -342,7 +342,7 @@ function handleChatScrollbarMouse(
   mouse: SgrMouseInput,
   tui: OverlayTui,
 ): boolean {
-  if (state.activeTabId === "config") return false;
+  if (state.activeTabId === HOME_TAB_ID) return false;
   if (mouse.wheel || mouse.release || mouse.button !== 0) return false;
   const bounds = active.chatSurfaceBounds;
   const metrics = active.lastChatScrollMetrics;
@@ -378,7 +378,7 @@ function handleChromeMouse(
   // Zen hides the tab bar; ghost hit-regions must not steal clicks on the
   // separator / chat that now occupy those screen rows.
   const tabBarVisible =
-    !(active?.zenMode === true && state.activeTabId !== "config");
+    !(active?.zenMode === true && state.activeTabId !== HOME_TAB_ID);
   const tabBarTop = state.tabBarTopRow ?? tabBarMouseRow(state, active);
   if (
     tabBarVisible &&
@@ -419,7 +419,7 @@ function handleChromeMouse(
   // while config is active so Home clicks cannot open model/thinking/workdir pickers.
   if (
     active &&
-    state.activeTabId !== "config" &&
+    state.activeTabId !== HOME_TAB_ID &&
     mouse.button === 0 &&
     !mouse.release &&
     !mouse.motion &&

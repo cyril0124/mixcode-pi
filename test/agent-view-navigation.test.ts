@@ -78,7 +78,7 @@ test("Left on empty input returns to MixCode Home and selects source agent", () 
   );
 
   assert.deepEqual(result, { consume: true });
-  assert.equal(state.activeTabId, "config");
+  assert.equal(state.activeTabId, "home");
   assert.equal(state.homeSelectedTabIndex, 1); // s2 is at index 1
 });
 
@@ -177,7 +177,7 @@ test("Left on empty input returns to MixCode Home and preserves vimMode", () => 
   const result = handleMixCodeKeyInput(state, "\x1b[D", tui, undefined, undefined, undefined, () => false, editorActions);
 
   assert.deepEqual(result, { consume: true });
-  assert.equal(state.activeTabId, "config");
+  assert.equal(state.activeTabId, "home");
   assert.equal(state.homeSelectedTabIndex, 0);
   assert.equal(tab.vimMode, true);
 });
@@ -200,14 +200,14 @@ test("Left on non-empty input does NOT return to Home in vim mode", () => {
 test("Left on empty input does NOT trigger when already on config", () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"));
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   const tui = makeTui();
   const editorActions = makeEditorActions("");
 
   const result = handleMixCodeKeyInput(state, "\x1b[D", tui, undefined, undefined, undefined, () => false, editorActions);
   // On config, Up/Down/Right/Enter are handled but Left is not
   assert.notDeepEqual(result, { consume: true });
-  assert.equal(state.activeTabId, "config");
+  assert.equal(state.activeTabId, "home");
 });
 
 // --- Home Agent View table navigation ---
@@ -215,7 +215,7 @@ test("Left on empty input does NOT trigger when already on config", () => {
 test("Home Up/Down moves selected agent row", () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"), createTab(2, "s2", "/repo"), createTab(3, "s3", "/repo"));
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   state.homeSelectedTabIndex = 0;
   const tui = makeTui();
 
@@ -244,7 +244,7 @@ test("Home Up/Down moves selected agent row", () => {
 test("Home navigation takes priority over extension terminal input handlers", () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"), createTab(2, "s2", "/repo"));
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   state.homeSelectedTabIndex = 0;
   const tui = makeTui();
   let dispatches = 0;
@@ -265,7 +265,7 @@ test("Home navigation takes priority over extension terminal input handlers", ()
 test("Home Right activates selected agent", () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"), createTab(2, "s2", "/repo"));
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   state.homeSelectedTabIndex = 1;
   const tui = makeTui();
 
@@ -276,7 +276,7 @@ test("Home Right activates selected agent", () => {
 test("Home Enter expands paste markers before sending", async () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"));
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   state.homeSelectedTabIndex = 0;
   const tui = makeTui();
   const prompted: string[] = [];
@@ -302,7 +302,7 @@ test("Home Enter expands paste markers before sending", async () => {
 test("Home Ctrl+J inserts newline instead of submitting", () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"));
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   state.homeSelectedTabIndex = 0;
   const tui = makeTui();
   let prompted = false;
@@ -318,7 +318,7 @@ test("Home Ctrl+J inserts newline instead of submitting", () => {
     handleMixCodeKeyInput(state, "\n", tui, undefined, runtime, undefined, () => false, editorActions),
     { consume: true },
   );
-  assert.equal(state.activeTabId, "config");
+  assert.equal(state.activeTabId, "home");
   assert.equal(prompted, false);
   assert.equal(editorActions.getText(), "line-one\n");
 });
@@ -326,7 +326,7 @@ test("Home Ctrl+J inserts newline instead of submitting", () => {
 test("Home Enter with whitespace-only input does not clear the editor", () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"));
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   state.homeSelectedTabIndex = 0;
   const tui = makeTui();
   let prompted = false;
@@ -341,7 +341,7 @@ test("Home Enter with whitespace-only input does not clear the editor", () => {
     handleMixCodeKeyInput(state, "\r", tui, undefined, runtime, undefined, () => false, editorActions),
     { consume: true },
   );
-  assert.equal(state.activeTabId, "config");
+  assert.equal(state.activeTabId, "home");
   assert.equal(prompted, false);
   assert.equal(editorActions.getText(), "   \t  ");
 });
@@ -359,7 +359,7 @@ test("Tab to Home selects the agent you left (not a stale homeSelectedTabIndex)"
     handleMixCodeKeyInput(state, "\t", tui, undefined, undefined, undefined, () => false, editorActions),
     { consume: true },
   );
-  assert.equal(state.activeTabId, "config");
+  assert.equal(state.activeTabId, "home");
   assert.equal(state.homeSelectedTabIndex, 1);
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[C", tui), { consume: true });
   assert.equal(state.activeTabId, "s2");
@@ -381,7 +381,7 @@ test("Home attach transfers vimMode to selected agent", () => {
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[D", tui, undefined, undefined, undefined, () => false, editorActions), {
     consume: true,
   });
-  assert.equal(state.activeTabId, "config");
+  assert.equal(state.activeTabId, "home");
   assert.equal(first.vimMode, true);
   state.homeSelectedTabIndex = 1;
 
@@ -400,7 +400,7 @@ test("Home attach does not create vimMode when none is active", () => {
   const first = createTab(1, "s1", "/repo");
   const second = createTab(2, "s2", "/repo");
   state.tabs.push(first, second);
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   state.homeSelectedTabIndex = 1;
   const tui = makeTui();
 
@@ -413,7 +413,7 @@ test("Home attach does not create vimMode when none is active", () => {
 test("Home Enter with text sends message to selected agent and stays on Home", async () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo", { title: "Worker" }), createTab(2, "s2", "/repo"));
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   state.homeSelectedTabIndex = 0;
   const tui = makeTui();
   let prompted: { sessionId: string; text: string } | undefined;
@@ -436,8 +436,8 @@ test("Home Enter with text sends message to selected agent and stays on Home", a
   await new Promise<void>((resolve) => setImmediate(resolve));
 
   assert.deepEqual(result, { consume: true });
-  assert.equal(state.activeTabId, "config");
-  assert.equal(activeWhilePrompt, "config", "must not spoof activeTabId during Home send");
+  assert.equal(state.activeTabId, "home");
+  assert.equal(activeWhilePrompt, "home", "must not spoof activeTabId during Home send");
   assert.deepEqual(prompted, { sessionId: "s1", text: "fix the bug" });
   assert.deepEqual(history, [{ text: "fix the bug", sessionId: "s1" }]);
   assert.equal(editorActions.getText(), "");
@@ -446,7 +446,7 @@ test("Home Enter with text sends message to selected agent and stays on Home", a
 test("Home Enter opens settings with the app configuration", async () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo", { title: "Worker" }));
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   const tui = makeTui();
   const editorActions = makeEditorActions("/settings");
   const settingsDeps = {
@@ -470,7 +470,7 @@ test("Home Enter opens settings with the app configuration", async () => {
   await Bun.sleep(50);
 
   assert.deepEqual(result, { consume: true });
-  assert.equal(state.activeTabId, "config");
+  assert.equal(state.activeTabId, "home");
   assert.equal(state.settingsPanel.open, true);
   assert.match(stripAnsi(tui.overlays.at(-1) ?? ""), /Settings[\s\S]*Theme/);
 });
@@ -479,7 +479,7 @@ test("Home Enter runs local slash commands on selected agent (not as model promp
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo", { title: "Worker" });
   state.tabs.push(tab);
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   state.homeSelectedTabIndex = 0;
   const tui = makeTui();
   let prompted = false;
@@ -495,7 +495,7 @@ test("Home Enter runs local slash commands on selected agent (not as model promp
   await new Promise<void>((resolve) => setImmediate(resolve));
 
   assert.deepEqual(result, { consume: true });
-  assert.equal(state.activeTabId, "config");
+  assert.equal(state.activeTabId, "home");
   assert.equal(prompted, false);
   assert.equal(tab.status, "done");
   assert.equal(tab.unreadDone, true);
@@ -510,7 +510,7 @@ test("Home Enter send does not clear unread ! badge without viewing the tab", as
     unreadDone: true,
   });
   state.tabs.push(tab);
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   state.homeSelectedTabIndex = 0;
   const tui = makeTui();
   const runtime = {
@@ -522,7 +522,7 @@ test("Home Enter send does not clear unread ! badge without viewing the tab", as
   await new Promise<void>((resolve) => setImmediate(resolve));
   await new Promise<void>((resolve) => setImmediate(resolve));
 
-  assert.equal(state.activeTabId, "config");
+  assert.equal(state.activeTabId, "home");
   assert.equal(tab.unreadDone, true);
   assert.equal(tab.status, "done");
 });
@@ -530,7 +530,7 @@ test("Home Enter send does not clear unread ! badge without viewing the tab", as
 test("Home Enter restores text and shows transient error when selected agent rejects prompt", async () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo", { title: "Worker" }), createTab(2, "s2", "/repo"));
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   state.homeSelectedTabIndex = 0;
   const tui = makeTui();
   const runtime = {
@@ -543,7 +543,7 @@ test("Home Enter restores text and shows transient error when selected agent rej
   await new Promise<void>((resolve) => setImmediate(resolve));
 
   assert.deepEqual(result, { consume: true });
-  assert.equal(state.activeTabId, "config");
+  assert.equal(state.activeTabId, "home");
   assert.equal(editorActions.getText(), "fix the bug");
   assert.match(tui.overlays.at(-1) ?? "", /Cannot prompt while compaction is running/);
 });
@@ -554,7 +554,7 @@ test("Home Enter passes workspaceFile so /save-workspace works", async () => {
   try {
     const state = createInitialState("/repo");
     state.tabs.push(createTab(1, "s1", "/repo"));
-    state.activeTabId = "config";
+    state.activeTabId = "home";
     state.homeSelectedTabIndex = 0;
     const tui = makeTui();
     const runtime = {
@@ -578,7 +578,7 @@ test("Home Enter passes workspaceFile so /save-workspace works", async () => {
     await Bun.sleep(50);
 
     assert.deepEqual(result, { consume: true });
-    assert.equal(state.activeTabId, "config");
+    assert.equal(state.activeTabId, "home");
     // Must not surface "Workspace file is not configured".
     assert.equal(
       tui.overlays.some((o) => o.includes("Workspace file is not configured")),
@@ -595,7 +595,7 @@ test("Home /clear stays on Home after session replacement", async () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo");
   state.tabs.push(tab);
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   state.homeSelectedTabIndex = 0;
   const tui = makeTui();
   const runtime = {
@@ -621,7 +621,7 @@ test("Home /clear stays on Home after session replacement", async () => {
   );
   await Bun.sleep(50);
 
-  assert.equal(state.activeTabId, "config");
+  assert.equal(state.activeTabId, "home");
   assert.equal(tab.sessionId, "s1-cleared");
   assert.equal(state.homeSelectedTabIndex, 0);
 });
@@ -629,7 +629,7 @@ test("Home /clear stays on Home after session replacement", async () => {
 test("Home Right does NOT attach when editor has text", () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"));
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   state.homeSelectedTabIndex = 0;
   const tui = makeTui();
   const editorActions = makeEditorActions("some text");
@@ -638,13 +638,13 @@ test("Home Right does NOT attach when editor has text", () => {
 
   // Leave Right to the editor for cursor movement when input is non-empty.
   assert.notDeepEqual(result, { consume: true });
-  assert.equal(state.activeTabId, "config");
+  assert.equal(state.activeTabId, "home");
   assert.equal(editorActions.getText(), "some text");
 });
 
 test("Home Right/Enter does NOT consume when no tabs exist", () => {
   const state = createInitialState("/repo");
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   const tui = makeTui();
 
   const result = handleMixCodeKeyInput(state, "\x1b[C", tui); // Right
@@ -654,7 +654,7 @@ test("Home Right/Enter does NOT consume when no tabs exist", () => {
 
 test("Home Up/Down does NOT consume when no tabs exist", () => {
   const state = createInitialState("/repo");
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   const tui = makeTui();
 
   const result = handleMixCodeKeyInput(state, "\x1b[B", tui); // Down
@@ -668,7 +668,7 @@ test("renderConfig paints the selected agent toast", () => {
   const tab = createTab(1, "s1", "/repo");
   tab.toast = { type: "info", message: "Hidden extension messages shown", createdAt: Date.now() };
   state.tabs.push(tab);
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   state.homeSelectedTabIndex = 0;
 
   const output = renderConfig(state, 100).join("\n");
@@ -911,7 +911,7 @@ test("renderConfig lists all package updates without a hidden-count summary", ()
 test("homeSelectedTabIndex clamps when tab is closed", async () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"), createTab(2, "s2", "/repo"));
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   state.homeSelectedTabIndex = 1;
 
   // Import closeAgentTab
@@ -928,7 +928,7 @@ test("closing an earlier tab keeps the Home-selected agent", async () => {
     createTab(2, "b", "/repo", { title: "B" }),
     createTab(3, "c", "/repo", { title: "C" }),
   );
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   state.homeSelectedTabIndex = 1; // B
 
   const { closeAgentTab, getActiveTab } = await import("../src/index.js");
@@ -949,7 +949,7 @@ test("homeSelectedTabIndex clamps when workspace restore removes selected tab", 
     createTab(2, "s2", "/repo"),
     createTab(3, "s3", "/repo"),
   );
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   state.homeSelectedTabIndex = 2;
 
   restoreWorkspaceOrder(state, {
@@ -960,7 +960,7 @@ test("homeSelectedTabIndex clamps when workspace restore removes selected tab", 
   });
 
   assert.equal(state.homeSelectedTabIndex, 0);
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[C", makeTui()), { consume: true });
   assert.equal(state.activeTabId, "s1");
 });
@@ -976,7 +976,7 @@ test("Left from agent then Right from Home returns to same agent", () => {
 
   // Left from s2 (vim mode)
   handleMixCodeKeyInput(state, "\x1b[D", tui, undefined, undefined, undefined, () => false, editorActions);
-  assert.equal(state.activeTabId, "config");
+  assert.equal(state.activeTabId, "home");
   assert.equal(state.homeSelectedTabIndex, 1);
 
   // Right from Home

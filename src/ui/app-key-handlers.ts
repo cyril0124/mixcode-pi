@@ -34,7 +34,7 @@ import {
   togglePickerHidden,
   updatePickerQuery,
 } from "../core/pickers.js";
-import type { MixCodeState } from "../core/types.js";
+import { HOME_TAB_ID, type MixCodeState } from "../core/types.js";
 import {
   assertConfiguredOpenTabsReadable,
   noteTabsReplaced,
@@ -148,7 +148,7 @@ export function handleQueuedFlushKey(
   isEditorAutocompleteOpen: () => boolean,
 ): boolean {
   if (!matchesKey(data, "escape")) return false;
-  if (state.activeTabId === "config") return false;
+  if (state.activeTabId === HOME_TAB_ID) return false;
   if (hasAnyOverlay(tui) || isEditorAutocompleteOpen()) return false;
   if (active.previewOpen || active.pendingDialogs.length > 0) return false;
   const runtimeTab = runtime?.getTab(active.sessionId);
@@ -238,7 +238,7 @@ export function handleDeleteAllSessionsConfirmKey(
       noteTabsReplaced([]);
       state.tabs.length = 0;
       state.recentAgentTabIds = [];
-      activateTab(state, "config");
+      activateTab(state, HOME_TAB_ID);
       clampHomeSelectedTabIndex(state);
       await onStateChanged?.(state);
       tui.requestRender();
@@ -278,7 +278,7 @@ export function handleCloseAllSessionsConfirmKey(
       noteTabsReplaced([]);
       state.tabs.length = 0;
       state.recentAgentTabIds = [];
-      activateTab(state, "config");
+      activateTab(state, HOME_TAB_ID);
       clampHomeSelectedTabIndex(state);
       await onStateChanged?.(state);
       tui.requestRender();
@@ -562,7 +562,7 @@ export function handleEscapeKey(
   //    block in handleMixCodeKeyInput, which runs right after this dispatch.
   if (
     active &&
-    state.activeTabId !== "config" &&
+    state.activeTabId !== HOME_TAB_ID &&
     runtime?.hasExtensionCustomOverlay?.(active.sessionId)
   ) {
     clearPendingEscape(active, "abort-agent");
@@ -579,7 +579,7 @@ export function handleEscapeKey(
 
   // 3. Streaming/working abort: arm then confirm (or retract if no output).
   // Standalone user bash (Pi parity): first Esc aborts immediately — no double-confirm.
-  if (active && state.activeTabId !== "config" && !hasAnyOverlay(tui)) {
+  if (active && state.activeTabId !== HOME_TAB_ID && !hasAnyOverlay(tui)) {
     const runtimeTab = runtime?.getTab?.(active.sessionId);
     const isStreaming = runtimeTab?.agentSession?.isStreaming ?? false;
     const isBashRunning = runtimeTab?.agentSession?.isBashRunning ?? false;
@@ -620,7 +620,7 @@ export function handleEscapeKey(
   // 4. Bash-mode editor text (!...) → clear input (Pi parity; not a running bash).
   if (
     active &&
-    state.activeTabId !== "config" &&
+    state.activeTabId !== HOME_TAB_ID &&
     !hasAnyOverlay(tui) &&
     editorActions?.getText()?.trimStart().startsWith("!")
   ) {
@@ -634,7 +634,7 @@ export function handleEscapeKey(
   // Vim owns Esc for mode exit; do not arm/open session tree while vim is on.
   if (
     active &&
-    state.activeTabId !== "config" &&
+    state.activeTabId !== HOME_TAB_ID &&
     !active.vimMode &&
     !hasAnyOverlay(tui) &&
     !state.commandPaletteOpen &&

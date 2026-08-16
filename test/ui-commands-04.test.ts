@@ -236,7 +236,7 @@ test("submitted hotkeys command shows built-in and extension shortcuts", async (
   assert.match(message, /Keyboard Shortcuts/);
 
   // Home has no chat surface for this dump — command is a no-op there.
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   const before = chat.length;
   await handleSubmittedInput(state, runtime, "/hotkeys", tui);
   assert.equal(chat.length, before);

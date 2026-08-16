@@ -152,7 +152,7 @@ test("Home Ctrl+U does not dequeue the selected agent queue", () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo", { pendingMessages: ["agent-queued"] });
   state.tabs.push(tab);
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   state.homeSelectedTabIndex = 0;
   let text = "home-draft";
   const tui = {
@@ -665,7 +665,7 @@ test("Home empty-queue Ctrl+U does not arm vim enter", () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo");
   state.tabs.push(tab);
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   state.homeSelectedTabIndex = 0;
   const tui = {
     requestRender: () => undefined,

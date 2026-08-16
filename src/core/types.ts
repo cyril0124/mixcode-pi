@@ -20,6 +20,9 @@ import type { TreeSelectorState } from "./tree-selector.js";
 import type { WorkspaceOverlayState } from "./workspace-ui.js";
 
 export type TabStatus = "Not Ready" | "idle" | "running" | "thinking" | "error" | "done";
+
+/** Sentinel `activeTabId` / tab-bar id for MixCode Home. */
+export const HOME_TAB_ID = "home";
 export type CompactionReason = "manual" | "threshold" | "overflow";
 
 export interface QuestionOptionInfo {

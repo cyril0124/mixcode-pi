@@ -189,7 +189,7 @@ test("global key input toggles MixCode overlays and passes through regular input
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui), { consume: true });
   // Stale agent meta hit regions must not fire while MixCode Home is active.
   renderInputMeta(tab, 120, 31);
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   state.homeSelectedTabIndex = 0;
   const homeWorkdirRegion = tab.inputMetaHitRegions?.find((region) => region.action === "workdir");
   assert.ok(homeWorkdirRegion);
@@ -239,7 +239,7 @@ test("global key input toggles MixCode overlays and passes through regular input
   assert.equal(handleMixCodeKeyInput(state, "\x1b[<0;0;1M", tui), undefined);
   assert.equal(state.activeTabId, "s2");
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[<0;1;1M", tui), { consume: true });
-  assert.equal(state.activeTabId, "config");
+  assert.equal(state.activeTabId, "home");
   state.activeTabId = "s1";
   assert.equal(handleMixCodeKeyInput(state, "\x1b[<0;80;1M", tui), undefined);
   assert.equal(state.activeTabId, "s1");
@@ -478,7 +478,7 @@ test("global key input toggles MixCode overlays and passes through regular input
     consume: true,
   });
   assert.equal(state.extensionManager.open, false);
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   renderConfig(state, 100);
   assert.equal(handleMixCodeKeyInput(state, "\x1b[<0;10;10M", tui), undefined);
   assert.equal(state.picker, undefined);
@@ -492,7 +492,7 @@ test("global key input toggles MixCode overlays and passes through regular input
   assert.equal(state.commandPaletteOpen, false);
   assert.equal(state.picker, undefined);
   overlayOpen = false;
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   assert.equal(handleMixCodeKeyInput(state, "q", tui), undefined);
   assert.equal(state.quitConfirmOpen, false);
   assert.deepEqual(handleMixCodeKeyInput(state, "\x11", tui), { consume: true });

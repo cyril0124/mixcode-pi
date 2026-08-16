@@ -123,7 +123,7 @@ test("system messages go to the active tab; config falls back to overlay toast",
     hasOverlay: () => false,
   };
 
-  showSystemMessageOrToast({ ...state, activeTabId: "config" }, {}, tui, "toast");
+  showSystemMessageOrToast({ ...state, activeTabId: "home" }, {}, tui, "toast");
   assert.match(overlays.at(-1) ?? "", /toast/);
 
   const systemMessages: string[] = [];
@@ -177,7 +177,7 @@ test("active extension commands come from the active tab, or all tabs on config"
     [{ name: "s1" }],
   );
 
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   assert.deepEqual(
     activeExtensionCommands(state, {
       getAllExtensionCommands: () => [{ name: "all" }],

@@ -80,7 +80,7 @@ test("openExistingAgentTab without title uses sequential Agent-NN", async () => 
 
     const stateB = createInitialState(workdir);
     stateB.tabs.push(createTab(1, "local-keep", workdir, { title: "Agent-01" }));
-    stateB.activeTabId = "config";
+    stateB.activeTabId = "home";
     const opened = await openExistingAgentTab(stateB, runtimeB, {
       sessionId: created.sessionId,
       workdir,
@@ -129,7 +129,7 @@ test("openExistingAgentTab opens disk session without stealing focus", async () 
     });
 
     const stateB = createInitialState(workdir);
-    stateB.activeTabId = "config";
+    stateB.activeTabId = "home";
     const opened = await openExistingAgentTab(stateB, runtimeB, {
       sessionId: created.sessionId,
       title: "From A",
@@ -138,7 +138,7 @@ test("openExistingAgentTab opens disk session without stealing focus", async () 
     });
 
     assert.equal(opened.sessionId, created.sessionId);
-    assert.equal(stateB.activeTabId, "config");
+    assert.equal(stateB.activeTabId, "home");
     assert.ok(runtimeB.getTab(created.sessionId));
   } finally {
     await runtimeA.closeAllTabs();
@@ -166,7 +166,7 @@ test("startPeerTabSync opens and closes against shared open_tabs", async () => {
     assert.ok(readOpenTabs(openTabsPath).includes(created.sessionId));
 
     const stateB = createInitialState(workdir);
-    stateB.activeTabId = "config";
+    stateB.activeTabId = "home";
     const opened: string[] = [];
     const closed: string[] = [];
     const orders: string[][] = [];
@@ -199,7 +199,7 @@ test("startPeerTabSync opens and closes against shared open_tabs", async () => {
 
     await sync.reconcileNow();
     assert.deepEqual(opened, [created.sessionId]);
-    assert.equal(stateB.activeTabId, "config");
+    assert.equal(stateB.activeTabId, "home");
     assert.deepEqual(orders.at(-1), [created.sessionId]);
     // loadStatus empty → no peer title; production path must assign Agent-NN.
     const peerOpened = stateB.tabs.find((tab) => tab.sessionId === created.sessionId);

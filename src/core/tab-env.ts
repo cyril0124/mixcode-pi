@@ -9,7 +9,7 @@ export const MIXCODE_FOCUSED_TAB_TITLE_ENV = "MIXCODE_FOCUSED_TAB_TITLE" as cons
 export type MixCodeTabEnvTitles = {
   /** Title of the tab that owns the agent running bash (e.g. Agent-01). */
   tabTitle: string;
-  /** UI-focused agent tab title; omit/empty when focus is Home/config or unknown. */
+  /** UI-focused agent tab title; omit/empty when focus is Home or unknown. */
   focusedTabTitle?: string;
 };
 

@@ -40,7 +40,7 @@ MixCode 在每帧渲染时精准计算各 UI 元素的矩形命中区域（`Mous
 | UI 元素 | 点击响应行为 |
 |---|---|
 | Tab 芯片 | 切换到该 Tab。再点一次当前芯片打开 Tab Jump。 |
-| MixCode Home 芯片 | 打开 Config/Home。窄屏为 ` H `。 |
+| MixCode Home 芯片 | 打开 Home。窄屏为 ` H `。 |
 | Zen 状态圆点 (`●`) | 只显示状态，不可点击。 |
 | 底部 Meta 栏模型徽标 | 打开 `/models` 模型选择器。 |
 | 底部 Meta 栏思考档位徽标 | 打开 `/thinking` 深度调整选择器。 |

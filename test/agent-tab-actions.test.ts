@@ -169,5 +169,5 @@ test("batch create rolls back state when runtime creation fails", async () => {
     /create failed/,
   );
   assert.equal(state.tabs.length, 0);
-  assert.equal(state.activeTabId, "config");
+  assert.equal(state.activeTabId, "home");
 });

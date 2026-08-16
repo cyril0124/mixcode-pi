@@ -1,5 +1,7 @@
 import { createTab, nextAvailableAgentTitle } from "./defaults.js";
-import type { MixCodeState, MixCodeTabInfo } from "./types.js";
+import { HOME_TAB_ID, type MixCodeState, type MixCodeTabInfo } from "./types.js";
+
+export { HOME_TAB_ID } from "./types.js";
 
 const activeTabListeners = new Set<(tabId: string) => void>();
 
@@ -11,11 +13,11 @@ export function onActiveTabChange(listener: (tabId: string) => void): () => void
   };
 }
 
-/** Returns the active agent, using the Home selection while the config tab is active. */
+/** Returns the active agent, using the Home selection while Home is focused. */
 export function getActiveTab(
   state: Pick<MixCodeState, "tabs" | "activeTabId" | "homeSelectedTabIndex">,
 ): MixCodeTabInfo | undefined {
-  if (state.activeTabId === "config") return state.tabs[state.homeSelectedTabIndex];
+  if (state.activeTabId === HOME_TAB_ID) return state.tabs[state.homeSelectedTabIndex];
   return state.tabs.find((tab) => tab.sessionId === state.activeTabId);
 }
 
@@ -50,7 +52,7 @@ export function closeAgentTab(state: MixCodeState, sessionId: string): MixCodeTa
   });
   forgetRecentAgentTab(state, sessionId);
   if (state.activeTabId === sessionId) {
-    activateTab(state, state.tabs[Math.min(index, state.tabs.length - 1)]?.sessionId ?? "config");
+    activateTab(state, state.tabs[Math.min(index, state.tabs.length - 1)]?.sessionId ?? HOME_TAB_ID);
   }
   // Closing a tab before the Home selection shifts later tabs down — keep the
   // same agent selected by moving the index with them.
@@ -67,7 +69,7 @@ function liveRecentAgentTabIds(state: MixCodeState): string[] {
 }
 
 export function noteRecentAgentTab(state: MixCodeState, sessionId: string): void {
-  if (!sessionId || sessionId === "config") return;
+  if (!sessionId || sessionId === HOME_TAB_ID) return;
   const current = liveRecentAgentTabIds(state);
   state.recentAgentTabIds = [sessionId, ...current.filter((id) => id !== sessionId)].slice(
     0,
@@ -93,18 +95,18 @@ export function discardVimTranscriptSearch(tab: MixCodeTabInfo): void {
 }
 
 export function activateTab(state: MixCodeState, tabId: string): void {
-  // Tab / mouse paths reach Home via activateTab("config") without the Left-key
+  // Tab / mouse paths reach Home via activateTab(HOME_TAB_ID) without the Left-key
   // helper that sets homeSelectedTabIndex. Remember the agent we left so Home
   // highlight / Enter / getActiveTab stay on that row.
-  if (tabId === "config" && state.activeTabId !== "config") {
+  if (tabId === HOME_TAB_ID && state.activeTabId !== HOME_TAB_ID) {
     const leaving = state.tabs.findIndex((tab) => tab.sessionId === state.activeTabId);
     if (leaving >= 0) state.homeSelectedTabIndex = leaving;
   }
   // Transfer vim/zen/inline-widgets onto the destination agent. Source is the mode-owning
   // agent (any tab with the flag), not only activeTabId — on Home activeTabId
-  // is "config" while the highlighted agent still holds the mode.
+  // is HOME_TAB_ID while the highlighted agent still holds the mode.
   // Jumping to Home keeps flags on the agent (same as Left → Home).
-  if (tabId !== "config" && tabId !== state.activeTabId) {
+  if (tabId !== HOME_TAB_ID && tabId !== state.activeTabId) {
     const next = state.tabs.find((tab) => tab.sessionId === tabId);
     if (next) {
       const vimSource = state.tabs.find((tab) => tab.vimMode && tab.sessionId !== next.sessionId);
@@ -133,7 +135,7 @@ export function activateTab(state: MixCodeState, tabId: string): void {
     }
   }
   state.activeTabId = tabId;
-  if (tabId !== "config") noteRecentAgentTab(state, tabId);
+  if (tabId !== HOME_TAB_ID) noteRecentAgentTab(state, tabId);
   for (const listener of activeTabListeners) listener(tabId);
   const tab = state.tabs.find((item) => item.sessionId === tabId);
   if (!tab) return;
@@ -166,7 +168,7 @@ export function renameAgentTab(state: MixCodeState, sessionId: string, title: st
 }
 
 export function nextTabId(state: MixCodeState, delta: number): string {
-  const ids = ["config", ...state.tabs.map((tab) => tab.sessionId)];
+  const ids = [HOME_TAB_ID, ...state.tabs.map((tab) => tab.sessionId)];
   const current = Math.max(0, ids.indexOf(state.activeTabId));
   return ids[(current + delta + ids.length) % ids.length]!;
 }

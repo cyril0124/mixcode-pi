@@ -10,7 +10,7 @@ import {
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import { activateTab, discardVimTranscriptSearch, renameAgentTab } from "../core/tabs.js";
 import { pushToast } from "../core/toast.js";
-import type { MixCodeState } from "../core/types.js";
+import { HOME_TAB_ID, type MixCodeState } from "../core/types.js";
 import {
   completeAgentTabClear,
   createAgentTab,
@@ -69,9 +69,9 @@ const handleReset: LocalCommandHandler = ({ state, active, runtime, tui }) => {
 };
 
 const handleClear: LocalCommandHandler = ({ state, active, runtime, tui }) => {
-  // Home send keeps activeTabId=config while overriding the target tab; stay there
+  // Home send keeps activeTabId=home while overriding the target tab; stay there
   // after clear instead of following completeAgentTabClear's activateTab(next).
-  const stayOnHome = state.activeTabId === "config";
+  const stayOnHome = state.activeTabId === HOME_TAB_ID;
   let prepared: PreparedAgentTabClear;
   try {
     prepared = prepareAgentTabClear(state, runtime, active!.sessionId);
@@ -90,7 +90,7 @@ const handleClear: LocalCommandHandler = ({ state, active, runtime, tui }) => {
   setTimeout(() => {
     completeAgentTabClear(state, runtime, prepared)
       .then(() => {
-        if (stayOnHome) activateTab(state, "config");
+        if (stayOnHome) activateTab(state, HOME_TAB_ID);
         tui.requestRender();
       })
       .catch((error: unknown) => {
@@ -211,7 +211,7 @@ const handleFork: LocalCommandHandler = async ({ state, active, runtime }) => {
   // The fork file now exists. Publish its ordered position before runtime tab
   // startup so the local reconciler cannot treat the in-progress tab as extra.
   noteTabOpened(sessionId, active!.sessionId);
-  // Use the source tab, not activeTabId — on Home the latter is "config" (-1 → insert at 0).
+  // Use the source tab, not activeTabId — on Home the latter is "home" (-1 → insert at 0).
   const activeIndex = state.tabs.findIndex((tab) => tab.sessionId === active!.sessionId);
   const tab = createTab(state.tabs.length + 1, sessionId, active!.workdir, {
     model: { ...active!.model },
@@ -279,7 +279,7 @@ const handleRename: LocalCommandHandler = ({ state, active, args, runtime }) => 
 
 const handleSession: LocalCommandHandler = ({ state, active, runtime }) => {
   // Agent-tab only: session stats dump into the active chat.
-  if (state.activeTabId === "config") return SKIP_FINALIZE;
+  if (state.activeTabId === HOME_TAB_ID) return SKIP_FINALIZE;
   const runtimeTab = runtime.getTab(active!.sessionId);
   if (!runtimeTab) throw new Error(`Unknown tab session: ${active!.sessionId}`);
   const info = runtimeTab.agentSession.getSessionStats();

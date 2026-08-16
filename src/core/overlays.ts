@@ -2,7 +2,7 @@ import { LOCAL_COMMANDS, type LocalCommandPaletteMeta, type PaletteRequirement }
 import { fuzzyFilter } from "@earendil-works/pi-tui";
 import { fuzzyMatch, fuzzyMatchAllPositions } from "./fuzzy.js";
 import { activateTab, findActiveTab } from "./tabs.js";
-import type { CommandPaletteEntry, MixCodeState, MixCodeTabInfo } from "./types.js";
+import { HOME_TAB_ID, type CommandPaletteEntry, type MixCodeState, type MixCodeTabInfo } from "./types.js";
 import { tabIsWaitingForInput } from "./tab-state.js";
 
 export function togglePreview(tab: MixCodeTabInfo): void {
@@ -121,7 +121,7 @@ export function tabJumpEntries(
   state: MixCodeState,
 ): Array<{ id: string; label: string; busy: boolean; done: boolean; waitingForInput: boolean }> {
   return [
-    { id: "config", label: "MixCode Home", busy: false, done: false, waitingForInput: false },
+    { id: HOME_TAB_ID, label: "MixCode Home", busy: false, done: false, waitingForInput: false },
     ...state.tabs.map((tab) => ({
       id: tab.sessionId,
       label: tab.alias || tab.title,
@@ -379,7 +379,7 @@ function commandPaletteBaseEntries(
   state: MixCodeState,
   extensionCommands: Array<{ name: string; description?: string }>,
 ): CommandPaletteEntry[] {
-  if (state.activeTabId === "config") return configCommandPaletteEntries(state);
+  if (state.activeTabId === HOME_TAB_ID) return configCommandPaletteEntries(state);
   const active = findActiveTab(state);
   if (!active) return [];
   return [
@@ -395,9 +395,9 @@ function configCommandPaletteEntries(state: MixCodeState): CommandPaletteEntry[]
     hasTabs: state.tabs.length > 0,
   };
   return LOCAL_COMMANDS.filter(
-    (command) => command.palette && (command.palette.scope === "config" || command.palette.scope === "both"),
+    (command) => command.palette && (command.palette.scope === "home" || command.palette.scope === "both"),
   ).map((command) =>
-    paletteEntryFromCommand("config", command.name, command.description, command.palette!, flags),
+    paletteEntryFromCommand(HOME_TAB_ID, command.name, command.description, command.palette!, flags),
   );
 }
 
@@ -411,7 +411,7 @@ function agentCommandPaletteEntries(
     hasTabs: state.tabs.length > 0,
   };
   return LOCAL_COMMANDS.filter(
-    (command) => command.palette && command.palette.scope !== "config",
+    (command) => command.palette && command.palette.scope !== "home",
   ).map((command) =>
     paletteEntryFromCommand("agent", command.name, command.description, command.palette!, flags),
   );
@@ -425,7 +425,7 @@ interface PaletteFlags {
 
 /** Build a palette entry from a LOCAL_COMMANDS definition for the given view. */
 function paletteEntryFromCommand(
-  view: "agent" | "config",
+  view: "agent" | "home",
   name: string,
   commandDescription: string,
   meta: LocalCommandPaletteMeta,

@@ -282,7 +282,7 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
     assert.equal((serialized.tab_variants as Record<string, string>).s2, "max");
     const restored = deserializeState(serialized, "/fallback");
     assert.equal(restored.theme, "claude-warm");
-    assert.equal(restored.activeTabId, "config");
+    assert.equal(restored.activeTabId, "home");
     assert.equal(restored.tabs[0]?.sessionId, "s1");
     assert.equal(restored.tabs[0]?.title, "Renamed Agent");
     assert.equal(restored.tabs[0]?.workdir, "/repo");
@@ -317,7 +317,7 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
     assert.equal(invalidTheme.theme, "not-a-theme");
     const fallback = deserializeState({ variant: "bad" }, "/fallback");
     assert.equal(fallback.workdir, "/fallback");
-    assert.equal(fallback.activeTabId, "config");
+    assert.equal(fallback.activeTabId, "home");
     const defaultTitle = createInitialState("/fallback");
     defaultTitle.tabs.push(createTab(1, "default-title", "/fallback"));
     const defaultTitleRestored = deserializeState(serializeState(defaultTitle), "/fallback");

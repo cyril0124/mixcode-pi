@@ -107,7 +107,7 @@ function renderConfigInner(
   ];
   const framed = fitConfigRows(configPanelBox("", lines, width), maxRows, width);
   // Home has no agent surface — paint the selected agent tab's toast here so
-  // pushToast(getActiveTab()) remains visible while activeTabId is config.
+  // pushToast(getActiveTab()) remains visible while activeTabId is home.
   const selected = state.tabs[state.homeSelectedTabIndex];
   if (!selected) return framed;
   const height = maxRows === undefined ? framed.length : Math.max(framed.length, Math.floor(maxRows));

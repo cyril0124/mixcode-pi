@@ -12,7 +12,7 @@ import {
   tabIsWaitingForInput,
   workingActivityMessage,
 } from "../../core/tab-state.js";
-import type { MixCodeState, MixCodeTabInfo } from "../../core/types.js";
+import { HOME_TAB_ID, type MixCodeState, type MixCodeTabInfo } from "../../core/types.js";
 import { buildLabeledTopBorder } from "../editor-top-border.js";
 import type { MixCodeTheme } from "../themes.js";
 import { activeRenderTheme, renderWithTheme } from "./context.js";
@@ -259,7 +259,7 @@ export function tabBarHitRegions(
     if (rowIndex === 0 && homePin !== "inline") {
       const homeText = homePin === "full" ? homeSegment.text : homeAnchorBare();
       const homeW = visibleWidth(homeText);
-      regions.push({ id: "config", startX: cursor, endX: cursor + homeW - 1, row: 0 });
+      regions.push({ id: HOME_TAB_ID, startX: cursor, endX: cursor + homeW - 1, row: 0 });
       cursor += homeW;
       // Match render: one column gap, then `+N … ` for hidden agents only.
       if (hiddenLeftAgents > 0) cursor += 1 + visibleWidth(leftOverflowHint(hiddenLeftAgents));
@@ -429,7 +429,7 @@ function visibleTabBarLayout(
   maxRows?: number,
 ): TabBarLayout {
   const segments = tabBarSegments(state);
-  const homeSegment = segments[0] ?? { id: "config", text: activeRenderTheme.homeTab(" MixCode Home ") };
+  const homeSegment = segments[0] ?? { id: HOME_TAB_ID, text: activeRenderTheme.homeTab(" MixCode Home ") };
   const agents = segments.slice(1);
   const homeIndent = wrappedRowIndent(segments, width);
 
@@ -469,7 +469,7 @@ function visibleTabBarLayout(
     };
   }
 
-  const homeActive = activeId === "config";
+  const homeActive = activeId === HOME_TAB_ID;
   let activeAgentIdx = agents.findIndex((segment) => segment.id === activeId);
   if (!homeActive && activeAgentIdx < 0) activeAgentIdx = 0;
 
@@ -507,7 +507,7 @@ function fitAgentWindow(
   const hiddenRight = agents.length - hi;
   const windowSegs = agents.slice(lo, hi);
   // Active agent must stay inside the window (Home-active allows empty window).
-  if (activeId !== "config") {
+  if (activeId !== HOME_TAB_ID) {
     if (!windowSegs.some((segment) => segment.id === activeId)) return null;
   }
 
@@ -528,7 +528,7 @@ function fitAgentWindow(
   const indent = leftChrome;
   if (windowSegs.length === 0) {
     // Home-only row: still valid when active is Home.
-    if (activeId !== "config") return null;
+    if (activeId !== HOME_TAB_ID) return null;
     if (leftChrome + rightChrome > width) return null;
     return {
       rows: [[]],
@@ -1197,19 +1197,19 @@ function withFocusMark(paint: (text: string) => string, body: string): string {
 
 function tabBarSegments(state: MixCodeState): Array<{ id: string; text: string }> {
   const configText = " MixCode Home ";
-  const isHomeActive = state.activeTabId === "config";
+  const isHomeActive = state.activeTabId === HOME_TAB_ID;
   const config = isHomeActive
     ? withFocusMark(activeRenderTheme.homeTabActive, configText.slice(1))
     : activeRenderTheme.homeTab(configText);
   return [
-    { id: "config", text: config },
+    { id: HOME_TAB_ID, text: config },
     ...state.tabs.map((tab) => ({
       id: tab.sessionId,
       text: renderTabSegmentText(
         tab,
         state.activeTabId === tab.sessionId,
         recentAgentTabRank(state, tab.sessionId),
-        state.activeTabId === "config",
+        state.activeTabId === HOME_TAB_ID,
       ),
     })),
   ];

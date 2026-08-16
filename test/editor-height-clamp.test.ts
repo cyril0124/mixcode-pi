@@ -445,7 +445,7 @@ test("layout records visible input editor rows for mouse selection", () => {
     height: 3,
   });
 
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   layout.render(40);
   assert.equal(active.inputSurfaceBounds?.width, 40);
   assert.equal(active.lastRenderedInputLines?.length, 3);

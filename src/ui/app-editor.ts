@@ -10,7 +10,7 @@ import {
   visibleWidth,
 } from "@earendil-works/pi-tui";
 import { type EditorFactory, MIXCODE_EXTENSION_KEYBINDINGS_MANAGER } from "../agent/runtime.js";
-import type { MixCodeState, VimTranscriptSearchState } from "../core/types.js";
+import { HOME_TAB_ID, type MixCodeState, type VimTranscriptSearchState } from "../core/types.js";
 import type { MixCodeEditorActions } from "./app-types.js";
 import { buildLabeledTopBorder, isPlainBorderLine } from "./editor-top-border.js";
 import { exactContextUsageText } from "./rendering/chrome.js";
@@ -31,7 +31,7 @@ export class CompactPromptEditor extends Editor {
   }
 
   override handleInput(data: string): void {
-    if (this.mixState.activeTabId === "config") {
+    if (this.mixState.activeTabId === HOME_TAB_ID) {
       // Allow typing on Agent View for sending messages to selected agent.
       super.handleInput(data);
       this.triggerSymbolAutocomplete(data);
@@ -81,7 +81,7 @@ export class CompactPromptEditor extends Editor {
       this.lastThemeId = this.mixState.theme;
       (this as unknown as { theme: EditorTheme }).theme = editorThemeFor(theme);
     }
-    if (this.mixState.activeTabId === "config") {
+    if (this.mixState.activeTabId === HOME_TAB_ID) {
       // Render editor on Agent View with a placeholder targeting the selected agent.
       this.borderColor = theme.thinkingBorder();
       const lines = super.render(width);
@@ -251,7 +251,7 @@ export class EditorSlot implements Component {
       const lines = this.inputComponentOverride.render(width);
       return lines.map((line) => padLine(line, width));
     }
-    if (this.mixState.activeTabId === "config") {
+    if (this.mixState.activeTabId === HOME_TAB_ID) {
       // On Agent View, render the default editor (for sending messages).
       return this.defaultEditor.render(width);
     }
@@ -344,7 +344,7 @@ export class EditorSlot implements Component {
       }
       return;
     }
-    if (this.mixState.activeTabId === "config") {
+    if (this.mixState.activeTabId === HOME_TAB_ID) {
       // Sync first: switching to Home clears the previous agent draft. Without
       // this, the first keystroke lands then getText()/render sync wipes it.
       this.syncActiveTab();
@@ -514,7 +514,7 @@ export class EditorSlot implements Component {
     this.applyDefaultEditorBindings();
     // Home is an ephemeral composer for the selected agent. Never carry the
     // previous agent buffer into config — that made Home send agent draft + new text.
-    if (this.activeTabId === "config") {
+    if (this.activeTabId === HOME_TAB_ID) {
       this.defaultEditor.setText("");
     } else if (active) {
       this.defaultEditor.setText(active.draftInput);

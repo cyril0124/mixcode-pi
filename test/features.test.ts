@@ -65,7 +65,7 @@ test("workspace snapshots preserve tab order and auto-save name", () => {
   );
   assert.equal(state.activeTabId, "a");
   restoreWorkspaceOrder(state, { ...snapshot, children: [] });
-  assert.equal(state.activeTabId, "config");
+  assert.equal(state.activeTabId, "home");
 });
 
 test("question state tracks answers, movement, progress, and bounds", () => {
@@ -186,15 +186,15 @@ test("tab operations add, close, rename, and rotate through config", () => {
   renameAgentTab(state, "s2", " Worker ");
   assert.equal(state.tabs[1]?.title, "Worker");
   assert.throws(() => renameAgentTab(state, "s2", " "), /cannot be empty/);
-  assert.equal(nextTabId(state, 1), "config");
-  state.activeTabId = "config";
+  assert.equal(nextTabId(state, 1), "home");
+  state.activeTabId = "home";
   assert.equal(nextTabId(state, -1), "s2");
   const removed = closeAgentTab(state, "s2");
   assert.equal(removed.sessionId, "s2");
-  assert.equal(state.activeTabId, "config");
+  assert.equal(state.activeTabId, "home");
   state.activeTabId = "s1";
   closeAgentTab(state, "s1");
-  assert.equal(state.activeTabId, "config");
+  assert.equal(state.activeTabId, "home");
   addAgentTab(state, "s3");
   addAgentTab(state, "s4");
   state.activeTabId = "s3";

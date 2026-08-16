@@ -111,7 +111,7 @@ test("workspace snapshot on Home records the selected agent, not tabs[0]", () =>
     createTab(1, "s1", "/repo", { title: "Agent-01" }),
     createTab(2, "s2", "/repo", { title: "Agent-02" }),
   );
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   state.homeSelectedTabIndex = 1;
 
   const snapshot = snapshotWorkspace(state, "from-home");
@@ -177,7 +177,7 @@ test("workspace commands open save input and selector overlays without arguments
   try {
     const state = createInitialState("/repo");
     state.tabs.push(createTab(1, "s1", "/repo", { title: "plan" }));
-    state.activeTabId = "config";
+    state.activeTabId = "home";
     await saveWorkspaces(workspaceFile, [snapshotWorkspace(state, "main")]);
     const { runtime } = createRuntime();
     const tui = createOverlayTui();

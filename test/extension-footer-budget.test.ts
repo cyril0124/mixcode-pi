@@ -102,7 +102,7 @@ test("Home does not paint the selected agent extension footer", () => {
       "FOOTER-LINE-3  → tab bar overflows viewport",
     ],
   };
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   state.homeSelectedTabIndex = 0;
 
   layout.render(width);

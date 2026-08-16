@@ -193,7 +193,7 @@ test("activateTab to Home keeps inlineWidgets on the agent", () => {
   const first = createTab(1, "s1", "/repo", { inlineWidgets: true });
   state.tabs.push(first);
   state.activeTabId = "s1";
-  activateTab(state, "config");
+  activateTab(state, "home");
   assert.equal(first.inlineWidgets, true);
 });
 

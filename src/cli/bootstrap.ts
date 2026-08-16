@@ -48,7 +48,7 @@ import {
   stateFileForPort,
 } from "../core/state-store.js";
 import { MIXCODE_SYSTEM_PROMPT, setGlobalConversationHistoryPrompt } from "../core/system-prompt.js";
-import type { MixCodeModelRef, MixCodeState } from "../core/types.js";
+import { HOME_TAB_ID, type MixCodeModelRef, type MixCodeState } from "../core/types.js";
 import type { MixCodeCompletionSources } from "../ui/completion.js";
 import { applyHttpProxySettings, configureHttpDispatcher } from "@earendil-works/pi-coding-agent";
 
@@ -220,7 +220,7 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
     });
     state.tabs.push(firstTab);
   }
-  state.activeTabId = "config";
+  state.activeTabId = HOME_TAB_ID;
   const modelRepairs = repairUnavailableTabModels(state);
   // The history recall prompt is a static path string (no file scanning), so
   // it is set synchronously to ensure every session's system prompt includes

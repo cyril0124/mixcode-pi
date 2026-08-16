@@ -2,7 +2,7 @@ import type { RuntimeTab } from "../agent/runtime.js";
 import { MIXCODE_EXTENSION_KEYBINDINGS } from "../agent/runtime-extension-theme.js";
 import type { LocalCommand } from "../core/commands.js";
 import { pushToast } from "../core/toast.js";
-import type { MixCodeState, PendingEscapeAction } from "../core/types.js";
+import { HOME_TAB_ID, type MixCodeState, type PendingEscapeAction } from "../core/types.js";
 import { emitMarkDone } from "../core/extension-event-bus.js";
 import { appendActiveSystemMessage } from "./app-actions.js";
 import { editTextWithTuiPaused, showTextOverlay } from "./app-overlays.js";
@@ -119,7 +119,7 @@ const handleNavigate: LocalCommandHandler = async ({
 
 const handleHotkeys: LocalCommandHandler = ({ state, active, runtime }) => {
   // Agent-tab only: Home has no chat surface for permanent shortcut dumps.
-  if (state.activeTabId === "config") return SKIP_FINALIZE;
+  if (state.activeTabId === HOME_TAB_ID) return SKIP_FINALIZE;
   const shortcuts = active ? getExtensionShortcuts(runtime, active.sessionId) : [];
   // Pi handleHotkeysCommand permanently appends Markdown (not showStatus).
   appendActiveSystemMessage(state, runtime, renderHotkeysText(shortcuts), "block");

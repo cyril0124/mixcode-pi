@@ -102,7 +102,7 @@ test("EditorSlot skips agent chrome for input-component overrides", () => {
 
 test("EditorSlot skips agent chrome on Home/config", () => {
   const { slot, state, defaultEditor } = makeSlot();
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   defaultEditor.setText("");
   const plain = stripAnsi(slot.render(48).join("\n"));
   assert.doesNotMatch(plain, /100k\/200k/);

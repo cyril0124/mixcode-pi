@@ -24,7 +24,7 @@ test("activateTab clears /mark-done badge so ! does not stick after focus", () =
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo", { status: "done", unreadDone: true });
   state.tabs.push(tab);
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   assert.equal(tabStatusGlyph(tab), "!");
 
   activateTab(state, tab.sessionId);
@@ -40,9 +40,9 @@ test("activateTab to Home selects the agent you left", () => {
   state.activeTabId = "s2";
   state.homeSelectedTabIndex = 0; // stale (Agent-01)
 
-  activateTab(state, "config");
+  activateTab(state, "home");
 
-  assert.equal(state.activeTabId, "config");
+  assert.equal(state.activeTabId, "home");
   assert.equal(state.homeSelectedTabIndex, 1);
   assert.equal(getActiveTab(state)?.sessionId, "s2");
 });

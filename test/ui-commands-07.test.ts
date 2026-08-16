@@ -325,7 +325,7 @@ test("global key input cycles tabs unless editor autocomplete is open", () => {
   assert.equal(s2.unreadDone, false);
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[Z", tui), { consume: true });
   assert.equal(state.activeTabId, "s1");
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   s2.unreadDone = true;
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[Z", tui), { consume: true });
   assert.equal(state.activeTabId, "s2");
@@ -383,7 +383,7 @@ test("tab jump to Home preserves vim mode on the agent (like Left)", () => {
   // Home is index 0; openTabJump selects current agent (1) — move to Home.
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[A", tui), { consume: true }); // Up
   assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui), { consume: true });
-  assert.equal(state.activeTabId, "config");
+  assert.equal(state.activeTabId, "home");
   assert.equal(tab.vimMode, true);
 
   // Right attach transfers vim back onto the agent surface.
@@ -489,7 +489,7 @@ test("global key input clears editor and prepares rename command", () => {
     { consume: true },
   );
   assert.equal(text, "/rename Worker");
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   assert.equal(
     handleMixCodeKeyInput(
       state,

@@ -13,7 +13,7 @@ MixCode computes exact hit regions (`MouseHitRegion`) during frame rendering to 
 │ MixCode Home  [Agent-01*] [Agent-02] [Agent-03]                          │
 │  │             │                                                         │
 │  ▼             ▼                                                         │
-│ Config         Switch tab. Re-click the active chip to open Tab Jump.    │
+│ Home           Switch tab. Re-click the active chip to open Tab Jump.    │
 ├──────────────────────────────────────────────────────────────────────────┤
 │ ── ● (running) ● (waiting) [+1] ──────────────────────────────────────── │
 │    │                                                                     │
@@ -40,7 +40,7 @@ MixCode computes exact hit regions (`MouseHitRegion`) during frame rendering to 
 | UI Element | Action on Click |
 |---|---|
 | Tab chip | Focus that tab. Re-click the already-active chip to open Tab Jump. |
-| MixCode Home chip | Opens the Config/Home tab. Compact form is ` H `. |
+| MixCode Home chip | Opens the Home tab. Compact form is ` H `. |
 | Zen background dots (`●`) | Visual status only. Not clickable. |
 | Model Badge in Meta Bar | Opens the `/models` model selection picker. |
 | Thinking Badge in Meta Bar | Opens the `/thinking` effort level picker. |

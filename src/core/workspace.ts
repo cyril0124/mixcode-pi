@@ -1,5 +1,5 @@
 import { clampHomeSelectedTabIndex, getActiveTab } from "./tabs.js";
-import type { MixCodeState, WorkspaceSnapshot, WorkspaceTabSnapshot } from "./types.js";
+import { HOME_TAB_ID, type MixCodeState, type WorkspaceSnapshot, type WorkspaceTabSnapshot } from "./types.js";
 
 export const AUTO_SAVED_WORKSPACE = "[auto-saved]";
 
@@ -67,7 +67,7 @@ export function restoreWorkspaceOrder(state: MixCodeState, workspace: WorkspaceS
   state.activeTabId =
     (preferredActive && state.tabs.some((tab) => tab.sessionId === preferredActive)
       ? preferredActive
-      : state.tabs[0]?.sessionId) ?? "config";
+      : state.tabs[0]?.sessionId) ?? HOME_TAB_ID;
   clampHomeSelectedTabIndex(state);
 }
 

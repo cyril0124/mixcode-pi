@@ -21,7 +21,7 @@ function stripAnsi(text: string): string {
 test("tab bar shows MixCode Home and the agent label", () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"));
-  assert.match(stripAnsi(renderTabBar({ ...state, activeTabId: "config" }, 80)[0] ?? ""), /MixCode Home/);
+  assert.match(stripAnsi(renderTabBar({ ...state, activeTabId: "home" }, 80)[0] ?? ""), /MixCode Home/);
   assert.match(stripAnsi(renderTabBar(state, 80)[0] ?? ""), /Agent-01/);
 });
 

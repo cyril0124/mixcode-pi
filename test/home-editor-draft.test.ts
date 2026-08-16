@@ -28,7 +28,7 @@ test("leaving agent for Home clears editor and keeps agent draftInput", () => {
   (slot as unknown as { activeTabId: string }).activeTabId = "s1";
   editor.setText("AGENT-DRAFT");
 
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   slot.current; // syncActiveTab
 
   assert.equal(editor.getText(), "");
@@ -39,12 +39,12 @@ test("returning to agent restores draftInput without Home text", () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo", { draftInput: "AGENT-DRAFT" });
   state.tabs.push(tab);
-  state.activeTabId = "config";
+  state.activeTabId = "home";
 
   const tui = makeTui();
   const editor = new CompactPromptEditor(tui, {} as never, undefined, state);
   const slot = new EditorSlot(tui, editor, state);
-  (slot as unknown as { activeTabId: string }).activeTabId = "config";
+  (slot as unknown as { activeTabId: string }).activeTabId = "home";
   editor.setText("HOME-ONLY");
 
   state.activeTabId = "s1";

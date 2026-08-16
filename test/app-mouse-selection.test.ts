@@ -165,7 +165,7 @@ test("handleMixCodeKeyInput lets input selection run before extension terminal m
 
 test("handleMouseInput drags and copies home input editor body", async () => {
   const { state, tab, tui } = setup();
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   tab.inputSurfaceBounds = { top: 9, left: 1, width: 30, height: 3 };
   tab.lastRenderedInputLines = [
     "──────────────────────────────",
@@ -516,13 +516,13 @@ test("re-clicking the active tab opens Tab Jump", () => {
     hasOverlay: () => overlayOpen,
   };
   const regions = tabBarHitRegions(state, 120);
-  const home = regions.find((region) => region.id === "config");
+  const home = regions.find((region) => region.id === "home");
   const agent = regions.find((region) => region.id === "s1");
   const other = regions.find((region) => region.id === "s2");
   assert.ok(home && agent && other);
 
   // Home re-click → Tab Jump.
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   assert.equal(
     handleMouseInput(
       state,
@@ -532,7 +532,7 @@ test("re-clicking the active tab opens Tab Jump", () => {
     ),
     true,
   );
-  assert.equal(state.activeTabId, "config");
+  assert.equal(state.activeTabId, "home");
   assert.equal(state.tabJumpOpen, true);
   assert.equal(overlayOpen, true);
   closeAppOverlay(tui);

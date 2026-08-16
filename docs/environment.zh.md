@@ -23,7 +23,7 @@
 | 变量 | 设置方 | 含义 |
 | --- | --- | --- |
 | `MIXCODE_TAB_TITLE` | Bash 工具派生 | 拥有该 Agent 的 Tab 标题（例如 `Agent-01`）。在下次派生时跟随重命名。 |
-| `MIXCODE_FOCUSED_TAB_TITLE` | Bash 工具派生 | UI 处于焦点状态的 Agent Tab 标题。当焦点处于 Home/配置或未知时未设置。当后台 Tab 运行 bash 时可能与 `MIXCODE_TAB_TITLE` 不同。 |
+| `MIXCODE_FOCUSED_TAB_TITLE` | Bash 工具派生 | UI 处于焦点状态的 Agent Tab 标题。当焦点处于 Home 或未知时未设置。当后台 Tab 运行 bash 时可能与 `MIXCODE_TAB_TITLE` 不同。 |
 
 ## 资源发现与隔离
 

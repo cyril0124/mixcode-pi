@@ -5,6 +5,7 @@ import { activateTab } from "../core/tabs.js";
 import { pushToast } from "../core/toast.js";
 import { applyWorkdirSelection } from "./app-actions.js";
 import { showLinesOverlay } from "./app-overlays.js";
+import { HOME_TAB_ID } from "../core/types.js";
 import { type LocalCommandHandler, type MixCodeSubmitRuntime, SKIP_FINALIZE } from "./app-types.js";
 import { renderPickerOverlay } from "./rendering.js";
 import {
@@ -138,7 +139,7 @@ const handleImport: LocalCommandHandler = async ({ state, active, args, runtime 
 
 const handleExport: LocalCommandHandler = async ({ state, active, args, runtime }) => {
   // Pi handleExportCommand: .jsonl path -> exportToJsonl, else HTML.
-  if (state.activeTabId === "config") return SKIP_FINALIZE;
+  if (state.activeTabId === HOME_TAB_ID) return SKIP_FINALIZE;
   const runtimeTab = runtime.getTab(active!.sessionId);
   if (!runtimeTab) throw new Error(`Unknown tab session: ${active!.sessionId}`);
   const outputPath = args.trim() || undefined;

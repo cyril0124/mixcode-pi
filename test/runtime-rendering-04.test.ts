@@ -42,7 +42,7 @@ test("tab bar treats unreadDone as a done marker", () => {
     renderTabBar(
       {
         ...state,
-        activeTabId: "config",
+        activeTabId: "home",
         tabs: [
           createTab(12, "idle-done", "/repo", { unreadDone: true }),
           createTab(13, "err-done", "/repo", { status: "error", unreadDone: true }),

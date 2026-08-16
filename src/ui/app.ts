@@ -5,7 +5,7 @@ import { scanSkillEntries } from "../core/attachments.js";
 import { recordSubmittedHistory } from "../core/conversation-history.js";
 import { applyDisabledModelFlags, buildAvailableModelRefs } from "../core/models.js";
 import { noteTabClosed } from "../core/open-tabs-store.js";
-import type { MixCodeState } from "../core/types.js";
+import { HOME_TAB_ID, type MixCodeState } from "../core/types.js";
 import { closeAgentTab, getActiveTab } from "../core/tabs.js";
 import { appendActiveSystemMessage } from "./app-actions.js";
 import { CompactPromptEditor, EditorSlot, editorThemeFor } from "./app-editor.js";
@@ -86,7 +86,7 @@ export function createMixCodeTui(
   const stopWorkingRedraw = bindWorkingRedraw(state, tui);
   const stopLiveExtensionRedraw = bindLiveExtensionRedraw(state, tui);
   let editorRows = 0;
-  let metaRows = state.activeTabId === "config" ? 0 : 1;
+  let metaRows = state.activeTabId === HOME_TAB_ID ? 0 : 1;
   // Filled after EditorSlot construction; MixCodeRoot reads it lazily each render.
   let editorSlot: EditorSlot | undefined;
   const main = new MixCodeRoot(
@@ -96,7 +96,7 @@ export function createMixCodeTui(
     () => {
       // Home has no agent extension footer; only count it on agent tabs.
       const active =
-        state.activeTabId === "config" ? undefined : getActiveTab(state);
+        state.activeTabId === HOME_TAB_ID ? undefined : getActiveTab(state);
       // Extension footer is real footer chrome; include it in the main surface budget
       // so multi-line setFooter cannot push the tab bar into scrollback.
       return (
@@ -132,7 +132,7 @@ export function createMixCodeTui(
   editor.onSubmit = (text) => {
     const activeSessionId = state.activeTabId;
     editor.addToHistory(text, activeSessionId);
-    if (activeSessionId !== "config" && options.rootStateDir) {
+    if (activeSessionId !== HOME_TAB_ID && options.rootStateDir) {
       void recordSubmittedHistory({
         rootStateDir: options.rootStateDir,
         sessionId: activeSessionId,
@@ -161,7 +161,7 @@ export function createMixCodeTui(
       // Avoid secondary Unknown tab session when the active tab has no runtime yet
       // (e.g. create failed and rolled back to a Not Ready tab, or peer closed it).
       const active = getActiveTab(state);
-      if (active && state.activeTabId !== "config" && runtime.getTab(active.sessionId)) {
+      if (active && state.activeTabId !== HOME_TAB_ID && runtime.getTab(active.sessionId)) {
         try {
           runtime.appendSystemMessage(active.sessionId, errorMessage(error));
         } catch {
@@ -181,7 +181,7 @@ export function createMixCodeTui(
     commands: () => {
       const active = getActiveTab(state);
       const extensionCommands =
-        active && state.activeTabId !== "config"
+        active && state.activeTabId !== HOME_TAB_ID
           ? runtime.getExtensionCommands(active.sessionId)
           : runtime.getAllExtensionCommands();
       return [
@@ -204,7 +204,7 @@ export function createMixCodeTui(
       // Dynamically resolve prompt templates from the active tab's resource loader,
       // which includes extension-contributed templates.
       const active = getActiveTab(state);
-      if (active && state.activeTabId !== "config") {
+      if (active && state.activeTabId !== HOME_TAB_ID) {
         const runtimeTab = runtime.getTab(active.sessionId);
         if (runtimeTab?.services?.resourceLoader) {
           return runtimeTab.services.resourceLoader
@@ -331,7 +331,7 @@ export function createMixCodeTui(
     // Global Ctrl+E opens the active input editor in an external editor.
     // Pending extension interactions (e.g. /view dialog) own the key; permanent
     // setEditorComponent skins still use MixCode external-edit on active text.
-    const activeForEdit = state.activeTabId === "config" ? undefined : getActiveTab(state);
+    const activeForEdit = state.activeTabId === HOME_TAB_ID ? undefined : getActiveTab(state);
     if (
       matchesKey(data, "ctrl+e") &&
       !(activeForEdit?.extensionUi.waitingForInputs.length)
@@ -395,7 +395,7 @@ export function createActiveSkillCompletionSource(
 
   function readSkillsFromLoader(): Array<string | MixCodeSkillCompletionSource> | undefined {
     const active = getActiveTab(state);
-    if (active && state.activeTabId !== "config") {
+    if (active && state.activeTabId !== HOME_TAB_ID) {
       const runtimeTab = runtime.getTab(active.sessionId);
       if (runtimeTab?.services?.resourceLoader) {
         return runtimeTab.services.resourceLoader
@@ -466,7 +466,7 @@ export function createActiveSkillCompletionSource(
 }
 
 function activeCompletionWorkdir(state: MixCodeState): string {
-  if (state.activeTabId === "config") {
+  if (state.activeTabId === HOME_TAB_ID) {
     // On Agent View, use the selected agent's workdir for file completion.
     const selected = state.tabs[state.homeSelectedTabIndex];
     return selected?.workdir ?? state.workdir;

@@ -53,7 +53,7 @@ test("MixCodeRoot renders config and agent views", () => {
   state.activeTabId = "s1";
   assert.match(root.render(100).join("\n"), /No messages yet/);
 
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   assert.match(root.render(100).join("\n"), /Agents/);
 
   const compactRoot = new MixCodeRoot(state, runtime, () => 8);

@@ -1,7 +1,7 @@
 import type { AutocompleteProvider, TUI as TuiType } from "@earendil-works/pi-tui";
 import type { MixCodeRuntime } from "../agent/runtime.js";
 import { getActiveTab } from "../core/tabs.js";
-import type { MixCodeState } from "../core/types.js";
+import { HOME_TAB_ID, type MixCodeState } from "../core/types.js";
 import { addPromptHistory } from "./app-editor.js";
 import type { RuntimeChangeSource } from "./app-types.js";
 
@@ -57,13 +57,13 @@ function bindConditionalRedraw(
 }
 
 function activeTabNeedsWorkingRedraw(state: MixCodeState): boolean {
-  if (state.activeTabId === "config") return state.tabs.some((tab) => isWorkingStatus(tab.status));
+  if (state.activeTabId === HOME_TAB_ID) return state.tabs.some((tab) => isWorkingStatus(tab.status));
   const active = getActiveTab(state);
   return isWorkingStatus(active?.status);
 }
 
 function activeTabNeedsLiveExtensionRedraw(state: MixCodeState): boolean {
-  if (state.activeTabId === "config") return state.tabs.some(tabHasLiveExtensionUi);
+  if (state.activeTabId === HOME_TAB_ID) return state.tabs.some(tabHasLiveExtensionUi);
   const active = getActiveTab(state);
   return active ? tabHasLiveExtensionUi(active) : false;
 }
@@ -135,7 +135,7 @@ export function activeExtensionCommands(
 ): Array<{ name: string; description?: string }> {
   if (!runtime) return [];
   const active = getActiveTab(state);
-  if (active && state.activeTabId !== "config") {
+  if (active && state.activeTabId !== HOME_TAB_ID) {
     return runtime.getExtensionCommands(active.sessionId);
   }
   return runtime.getAllExtensionCommands();
@@ -173,7 +173,7 @@ function resolveActiveAutocompleteProvider(
   base: AutocompleteProvider,
 ): AutocompleteProvider {
   const active = getActiveTab(state);
-  if (!active || state.activeTabId === "config") {
+  if (!active || state.activeTabId === HOME_TAB_ID) {
     // On the Agent (home) view, messages are sent to the selected tab, so
     // stack that tab's extension autocomplete providers on top of the base
     // provider before applying the home filter.

@@ -20,7 +20,7 @@ import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import { getActiveTab } from "../core/tabs.js";
 import { isThinkingLevelAvailable, validThinkingLevelsMessage } from "../core/thinking-levels.js";
 import { pushToast } from "../core/toast.js";
-import type { MixCodeState } from "../core/types.js";
+import { HOME_TAB_ID, type MixCodeState } from "../core/types.js";
 import {
   quitOverlayOptions,
   renderCloseAllSessionsConfirm,
@@ -208,7 +208,7 @@ export async function reloadRuntimeModels(
       : nextStateModel,
   );
   // The active tab is the one /reload operates on (mirrors the submit handler:
-  // activeTabId may be "config", in which case the first tab is treated active).
+  // activeTabId may be HOME_TAB_ID, in which case the first tab is treated active).
   const active = getActiveTab(state);
   if (active && runtime.updateTabModel && runtime.resolveModel) {
     const activeIndex = state.tabs.indexOf(active);
@@ -273,7 +273,7 @@ export function showSystemMessageOrToast(
   kind?: Parameters<MixCodeRuntime["appendSystemMessage"]>[2],
 ): void {
   const active = getActiveTab(state);
-  if (!active || state.activeTabId === "config") {
+  if (!active || state.activeTabId === HOME_TAB_ID) {
     showNoticeTextOverlay(tui, message);
     return;
   }

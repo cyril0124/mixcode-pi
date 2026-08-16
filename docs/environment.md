@@ -23,7 +23,7 @@ Injected into the **agent bash tool** child environment only (same surface as Pi
 | Variable | Set by | Meaning |
 | --- | --- | --- |
 | `MIXCODE_TAB_TITLE` | Bash tool spawn | Title of the tab that owns this agent (e.g. `Agent-01`). Follows renames on the next spawn. |
-| `MIXCODE_FOCUSED_TAB_TITLE` | Bash tool spawn | Title of the UI-focused agent tab. Unset when focus is Home/config or unknown. May differ from `MIXCODE_TAB_TITLE` when a background tab runs bash. |
+| `MIXCODE_FOCUSED_TAB_TITLE` | Bash tool spawn | Title of the UI-focused agent tab. Unset when focus is Home or unknown. May differ from `MIXCODE_TAB_TITLE` when a background tab runs bash. |
 
 ## Resource Discovery & Isolation
 

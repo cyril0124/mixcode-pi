@@ -7,7 +7,7 @@ import {
   DEFAULT_OVERSIZED_ASSISTANT_MESSAGE,
 } from "../core/mixcode-settings.js";
 import { retryStatusMessage, workingActivityMessage } from "../core/tab-state.js";
-import type { MixCodeState } from "../core/types.js";
+import { HOME_TAB_ID, type MixCodeState } from "../core/types.js";
 import { getActiveTab } from "../core/tabs.js";
 import type { EditorSlot } from "./app-editor.js";
 import {
@@ -66,7 +66,7 @@ export function renderVisibleTabBar(
   maxRows?: number,
 ): string[] {
   const active = getActiveTab(state);
-  return active?.zenMode === true && state.activeTabId !== "config"
+  return active?.zenMode === true && state.activeTabId !== HOME_TAB_ID
     ? []
     : renderTabBar(state, width, theme, maxRows);
 }
@@ -91,7 +91,7 @@ export class MixCodeRoot implements Component {
     const viewportRows = this.getViewportRows?.();
     const limit = viewportRows ? Math.max(0, viewportRows - this.getReservedRows()) : undefined;
     const minContentRows =
-      !active || this.state.activeTabId === "config"
+      !active || this.state.activeTabId === HOME_TAB_ID
         ? MIN_HOME_CONTENT_ROWS
         : MIN_CHAT_AND_EDITOR_ROWS;
     // Cap tab-bar height: min(10% of terminal rows, rows left after min content).
@@ -108,7 +108,7 @@ export class MixCodeRoot implements Component {
     // handlers use this with lastRenderWidth to map clicks onto wrapped rows.
     this.state.tabBarTopRow = top.length - tabBarLines.length + 1;
     this.state.lastRenderWidth = width;
-    if (!active || this.state.activeTabId === "config") {
+    if (!active || this.state.activeTabId === HOME_TAB_ID) {
       const configRows = limit === undefined ? undefined : Math.max(0, limit - top.length);
       return this.fitRootLines(
         [...top, ...renderConfig(this.state, width, theme, top.length, configRows)],
@@ -267,8 +267,8 @@ export class MixCodeFooterRoot implements Component {
 
   render(width: number): string[] {
     // Home uses getActiveTab() as the selected agent for previews/toasts, but
-    // extension footer is per-agent chrome and must not paint on the config tab.
-    if (this.state.activeTabId === "config") return [...renderFooter(width)];
+    // extension footer is per-agent chrome and must not paint on Home.
+    if (this.state.activeTabId === HOME_TAB_ID) return [...renderFooter(width)];
     const active = getActiveTab(this.state);
     return [...renderExtensionFooter(active, width), ...renderFooter(width)];
   }
@@ -303,7 +303,7 @@ export class MixCodeLayoutRoot implements Component {
     const theme = themeForId(this.state.theme);
     setCurrentUiTheme(theme);
     const active = getActiveTab(this.state);
-    const isAgentTab = active && this.state.activeTabId !== "config";
+    const isAgentTab = active && this.state.activeTabId !== HOME_TAB_ID;
     // Vim mode is a read-only chat-scrolling surface; suppress extension
     // widgets (above/below editor) so reclaimed rows grow the chat history.
     // Widget registration/lifecycle is untouched — this only gates rendering.
@@ -323,7 +323,7 @@ export class MixCodeLayoutRoot implements Component {
       : [];
     const workingLines = isAgentTab ? this.renderWorkingLoader(active, width, theme) : [];
     const viewportRowsForClamp = this.getViewportRows?.();
-    const activeForFooter = this.state.activeTabId === "config" ? undefined : active;
+    const activeForFooter = this.state.activeTabId === HOME_TAB_ID ? undefined : active;
     // Count real extension footer lines (renderFooter is intentionally empty).
     const footerRows =
       renderExtensionFooter(activeForFooter, width).length + renderFooter(width).length;
@@ -508,7 +508,7 @@ export class MixCodeLayoutRoot implements Component {
     // Exact xxk/xxk is on the top border; without an extension footer this
     // row shows model/bar+%/git. When a footer is set, meta collapses.
     const metaLines =
-      active && this.state.activeTabId !== "config"
+      active && this.state.activeTabId !== HOME_TAB_ID
         ? renderInputMeta(active, width, metaRow, theme, true, iconMode)
         : [];
     const assembled = [
@@ -525,7 +525,7 @@ export class MixCodeLayoutRoot implements Component {
       ...footerLines,
       ...Array.from({ length: guardRows }, () => padLine("", Math.max(0, width - 1))),
     ];
-    return active && this.state.activeTabId !== "config"
+    return active && this.state.activeTabId !== HOME_TAB_ID
       ? renderFloatingPanelOverlay(assembled, active.floatingPanel, {
           width,
           editorTopRow: editorTop,

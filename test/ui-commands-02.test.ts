@@ -392,7 +392,7 @@ test("picker key handling covers no-match, empty selection, and no active tab", 
     items: [{ id: "faux-1", label: "faux/faux-1", description: "" }],
   };
   state.tabs.length = 0;
-  state.activeTabId = "config";
+  state.activeTabId = "home";
   assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui), { consume: true });
   assert.equal(state.picker, undefined);
 
