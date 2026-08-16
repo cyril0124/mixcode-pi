@@ -15,7 +15,6 @@
 | 变量 | 设置方 | 含义 |
 | --- | --- | --- |
 | `MIXCODE` | MixCode (`src/cli/main.ts`) 在决定**不**委托给上游 `pi` 之后设置 | 表明当前进程是 MixCode 而非纯 `pi`。必须不能在纯 Pi 下激活的内置包应以此为门控（例如 `mpi-herdr-report`）。MixCode 运行时的默认值：`1`（`??=`，不会覆盖显式设置的值）。未设置 / 为空 / `0` / `false` / `off` 时视为关闭。 |
-| `MIXCODE_BUILTIN_EXTENSIONS_ONLY` | 用户 / 环境 | 启用时（`1`、`true`、`on`、`yes`），仅加载 MixCode 内置扩展（`pi-packages/*`），跳过第三方/全局/工作区扩展的自动发现。等同于命令行参数 `--builtin-extensions-only`。未设置 / 为空 / `0` / `false` / `off` / `no` 时视为关闭。 |
 
 ## Agent Bash 工具（每次派生）
 
@@ -25,6 +24,34 @@
 | --- | --- | --- |
 | `MIXCODE_TAB_TITLE` | Bash 工具派生 | 拥有该 Agent 的 Tab 标题（例如 `Agent-01`）。在下次派生时跟随重命名。 |
 | `MIXCODE_FOCUSED_TAB_TITLE` | Bash 工具派生 | UI 处于焦点状态的 Agent Tab 标题。当焦点处于 Home/配置或未知时未设置。当后台 Tab 运行 bash 时可能与 `MIXCODE_TAB_TITLE` 不同。 |
+
+## 资源发现与隔离
+
+用于将资源扫描（skills、extensions）限制在项目/工作区或内置范围内的环境变量。
+
+| 变量 | 设置方 | 含义 |
+| --- | --- | --- |
+| `MIXCODE_BUILTIN_EXTENSIONS_ONLY` | 用户 / 环境 | 启用时（`1`、`true`、`on`、`yes`），仅加载 MixCode 内置扩展（`pi-packages/*`），跳过第三方/全局/工作区扩展的自动发现。等同于命令行参数 `--builtin-extensions-only`。未设置 / 为空 / `0` / `false` / `off` / `no` 时视为关闭。 |
+| `MIXCODE_PROJECT_SKILLS_ONLY` | 用户 / 环境 | 启用时（`1`、`true`、`on`、`yes`），从 `$` 补全和会话提示词中排除全局用户 Skill（`~/.agents/skills`、`<agentDir>/skills`）。未设置 / 为空 / `0` / `false` / `off` / `no` 时视为关闭。 |
+
+### Skill 隔离语义 (`MIXCODE_PROJECT_SKILLS_ONLY`)
+
+默认情况下，MixCode 按照以下层级优先级发现并合并 Skill：
+1. 项目/工作区：`<workdir>/.agents/skills`（以及 `<workdir>/.pi/skills`）
+2. 用户全局：`~/.agents/skills`
+3. Agent 全局：`<agentDir>/skills`（默认 `~/.pi/agent/skills`）
+
+当设置 `MIXCODE_PROJECT_SKILLS_ONLY` 为 `1` / `true` / `on` / `yes` 时：
+- **`$` 补全**：`scanSkillEntries` 只扫描 `<workdir>/.agents/skills`。
+- **会话提示词**：Pi 仍会发现默认 Skill 根目录；MixCode 随后丢弃 `scope === "user"` 的 Skill，以及 `filePath` 不在 workdir 下的 Skill。`<workdir>/.agents/skills` 与 `<workdir>/.pi/skills` 会保留。
+- **适用场景**：多仓库隔离、评测，或避免全局个人 Skill 进入项目会话提示词。
+
+### 纯内置扩展隔离 (`MIXCODE_BUILTIN_EXTENSIONS_ONLY`)
+
+启用时：
+- MixCode 跳过 `<agentDir>/extensions/` 与 npm node_modules 中第三方/全局扩展的自动扫描发现。
+- 仅加载 MixCode 原生第一方内置包（`pi-packages/mpi-*`）。
+- 等同于启动时传入 `--builtin-extensions-only` 命令行参数。
 
 ## 界面展示覆盖 (UI 渲染)
 

@@ -15,7 +15,6 @@ Not listed here: `run.sh` / test / GIF tooling knobs, or upstream Pi (`PI_*`) â€
 | Variable | Set by | Meaning |
 | --- | --- | --- |
 | `MIXCODE` | MixCode (`src/cli/main.ts`) after it decides **not** to delegate to upstream `pi` | Process is MixCode, not bare `pi`. Built-in packages that must not activate under pure Pi should gate on this (e.g. `mpi-herdr-report`). Default when MixCode runs: `1` (`??=`, does not override an explicit value). Off when unset / empty / `0` / `false` / `off`. |
-| `MIXCODE_BUILTIN_EXTENSIONS_ONLY` | User / Environment | When enabled (`1`, `true`, `on`, `yes`), loads MixCode built-in extensions (`pi-packages/*`) only, skipping discovery of third-party/global/workspace extensions. Equivalent to `--builtin-extensions-only`. Off when unset / empty / `0` / `false` / `off` / `no`. |
 
 ## Agent Bash Tool (Per Spawn)
 
@@ -25,6 +24,34 @@ Injected into the **agent bash tool** child environment only (same surface as Pi
 | --- | --- | --- |
 | `MIXCODE_TAB_TITLE` | Bash tool spawn | Title of the tab that owns this agent (e.g. `Agent-01`). Follows renames on the next spawn. |
 | `MIXCODE_FOCUSED_TAB_TITLE` | Bash tool spawn | Title of the UI-focused agent tab. Unset when focus is Home/config or unknown. May differ from `MIXCODE_TAB_TITLE` when a background tab runs bash. |
+
+## Resource Discovery & Isolation
+
+Variables to restrict resource scanning (skills, extensions) to project/workdir or built-in scope.
+
+| Variable | Set by | Meaning |
+| --- | --- | --- |
+| `MIXCODE_BUILTIN_EXTENSIONS_ONLY` | User / Environment | When enabled (`1`, `true`, `on`, `yes`), loads MixCode built-in extensions (`pi-packages/*`) only, skipping discovery of third-party/global/workspace extensions. Equivalent to `--builtin-extensions-only`. Off when unset / empty / `0` / `false` / `off` / `no`. |
+| `MIXCODE_PROJECT_SKILLS_ONLY` | User / Environment | When enabled (`1`, `true`, `on`, `yes`), drops global user skills (`~/.agents/skills`, `<agentDir>/skills`) from `$` completion and the session prompt. Off when unset / empty / `0` / `false` / `off` / `no`. |
+
+### Skill Isolation Semantics (`MIXCODE_PROJECT_SKILLS_ONLY`)
+
+By default, MixCode discovers skills from three locations in hierarchical precedence:
+1. Project/workdir: `<workdir>/.agents/skills` (and `<workdir>/.pi/skills`)
+2. User global: `~/.agents/skills`
+3. Agent global: `<agentDir>/skills` (default `~/.pi/agent/skills`)
+
+When `MIXCODE_PROJECT_SKILLS_ONLY` is set to `1` / `true` / `on` / `yes`:
+- **`$` completion**: `scanSkillEntries` only scans `<workdir>/.agents/skills`.
+- **Session prompt**: Pi still discovers default skill roots; MixCode then drops `scope === "user"` skills and any skill whose `filePath` is outside the workdir. `<workdir>/.agents/skills` and `<workdir>/.pi/skills` remain.
+- **Use Case**: Multi-repo isolation, evaluation benchmarks, or keeping global personal skills out of a project-specific prompt.
+
+### Built-in Extensions Isolation (`MIXCODE_BUILTIN_EXTENSIONS_ONLY`)
+
+When enabled:
+- MixCode skips auto-discovering extensions in `<agentDir>/extensions/` and npm node_modules.
+- Only first-party built-in packages (`pi-packages/mpi-*`) are loaded.
+- Equivalent to passing the CLI flag `--builtin-extensions-only`.
 
 ## Display Overrides (UI Rendering)
 

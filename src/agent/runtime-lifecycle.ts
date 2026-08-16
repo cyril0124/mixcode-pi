@@ -1,3 +1,4 @@
+import * as path from "node:path";
 import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import {
   type AgentSessionServices,
@@ -9,11 +10,14 @@ import {
   type ExtensionFactory,
   type LoadExtensionsResult,
   type ModelRuntime,
+  type ResourceDiagnostic,
   type SessionManager,
   type SessionShutdownEvent,
   type SessionStartEvent,
   SettingsManager,
+  type Skill,
 } from "@earendil-works/pi-coding-agent";
+import { isProjectSkillsOnlyEnabled } from "../core/attachments.js";
 import { captureCompactionBaseline } from "../core/context-limit.js";
 import { registerExtensionEventBus } from "../core/extension-event-bus.js";
 import { detectSearchTools, type SearchToolAvailability } from "../core/detect-search-tools.js";
@@ -567,6 +571,21 @@ export async function createRuntimeServices(
       options.resourceLoaderOptions?.systemPromptOverride,
       options.systemPrompt,
     ),
+    skillsOverride: (result: { skills: Skill[]; diagnostics: ResourceDiagnostic[] }) => {
+      const overridden = options.resourceLoaderOptions?.skillsOverride
+        ? options.resourceLoaderOptions.skillsOverride(result)
+        : result;
+      if (!isProjectSkillsOnlyEnabled()) return overridden;
+      const normalizedWorkdir = path.resolve(options.workdir);
+      return {
+        ...overridden,
+        skills: overridden.skills.filter((skill) => {
+          if (skill.sourceInfo?.scope === "user") return false;
+          const skillPath = path.resolve(skill.filePath);
+          return skillPath === normalizedWorkdir || skillPath.startsWith(`${normalizedWorkdir}${path.sep}`);
+        }),
+      };
+    },
   };
   // Give every tab its own SettingsManager (Pi's native per-cwd design) instead
   // of sharing the bootstrap manager. /context-limit mutates compaction budgets

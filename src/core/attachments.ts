@@ -15,7 +15,20 @@ function uniqueInOrder(values: Iterable<string>): string[] {
   return result;
 }
 
-export function resolveSkillDirs(baseWorkdir: string, homeDir = (process.env.HOME || os.homedir())): string[] {
+export function isProjectSkillsOnlyEnabled(env = process.env): boolean {
+  const raw = env.MIXCODE_PROJECT_SKILLS_ONLY?.trim().toLowerCase();
+  if (!raw) return false;
+  return raw !== "0" && raw !== "false" && raw !== "off" && raw !== "no";
+}
+
+export function resolveSkillDirs(
+  baseWorkdir: string,
+  homeDir = (process.env.HOME || os.homedir()),
+  env = process.env,
+): string[] {
+  if (isProjectSkillsOnlyEnabled(env)) {
+    return [path.resolve(path.join(baseWorkdir, ".agents", "skills"))];
+  }
   const dirs = [
     path.join(baseWorkdir, ".agents", "skills"),
     path.join(homeDir, ".agents", "skills"),
