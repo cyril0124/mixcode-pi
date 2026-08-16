@@ -17,7 +17,7 @@ MixCode Pi provides comprehensive global and context-sensitive keyboard shortcut
 | `Ctrl+C` | Global | Clear Input | Clears the editor. Does not abort a running turn (`Esc` does). |
 | `Ctrl+U` | Input / Queue | Dequeue / Vim | Pops queued messages back into editor; on empty queue arms entry to Vim mode. |
 | `Right` | Empty Input | Side Panel | Expands / collapses right-hand extension widget panel. |
-| `$` | Editor | Skill Completion | Triggers project and global skill autocompletion. |
+| `$` | Editor | Skill Completion | Triggers project, global, and installed package skill autocompletion. |
 | `@` | Editor | File Completion | Triggers workspace file path autocompletion. |
 | `!` | Editor | Bash Execution | Enters single-line inline bash command mode. |
 

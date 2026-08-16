@@ -124,15 +124,16 @@ function resolveAgentDir(homeDir: string, agentDir?: string): string {
  */
 export async function listPackageSkillDirs(agentDir: string): Promise<string[]> {
   const roots: string[] = [];
-  await collectNpmPackageSkillDirs(path.join(agentDir, "npm", "node_modules"), roots);
+  await collectPackageSkillDirs(path.join(agentDir, "npm", "node_modules"), roots);
+  await collectPackageSkillDirs(path.join(agentDir, "extensions"), roots);
   await collectGitPackageSkillDirs(path.join(agentDir, "git"), roots, 0);
   return roots;
 }
 
-async function collectNpmPackageSkillDirs(nodeModules: string, roots: string[]): Promise<void> {
+async function collectPackageSkillDirs(packagesDir: string, roots: string[]): Promise<void> {
   let names: string[] = [];
   try {
-    names = await fs.readdir(nodeModules);
+    names = await fs.readdir(packagesDir);
   } catch {
     return;
   }
@@ -141,18 +142,18 @@ async function collectNpmPackageSkillDirs(nodeModules: string, roots: string[]):
     if (name.startsWith("@")) {
       let scoped: string[] = [];
       try {
-        scoped = await fs.readdir(path.join(nodeModules, name));
+        scoped = await fs.readdir(path.join(packagesDir, name));
       } catch {
         continue;
       }
       for (const pkg of scoped) {
         if (pkg.startsWith(".")) continue;
-        const skillsDir = path.join(nodeModules, name, pkg, "skills");
+        const skillsDir = path.join(packagesDir, name, pkg, "skills");
         if (await isDirectory(skillsDir)) roots.push(skillsDir);
       }
       continue;
     }
-    const skillsDir = path.join(nodeModules, name, "skills");
+    const skillsDir = path.join(packagesDir, name, "skills");
     if (await isDirectory(skillsDir)) roots.push(skillsDir);
   }
 }
@@ -191,14 +192,27 @@ export async function scanSkillDirs(
   cwd: string,
   homeDir = (process.env.HOME || os.homedir()),
   agentDir?: string,
+  env: NodeJS.ProcessEnv = process.env,
 ): Promise<Map<string, SkillRefEntry>> {
   const resolvedAgentDir = resolveAgentDir(homeDir, agentDir);
-  const dirs = [
-    path.join(cwd, ".agents", "skills"),
-    path.join(homeDir, ".agents", "skills"),
-    path.join(resolvedAgentDir, "skills"),
-    ...(await listPackageSkillDirs(resolvedAgentDir)),
-  ].map((dir) => path.resolve(dir));
+  const projectSkillsDir = path.join(cwd, ".agents", "skills");
+  const rawProjectOnly = env.MIXCODE_PROJECT_SKILLS_ONLY?.trim().toLowerCase();
+  const projectOnly =
+    rawProjectOnly !== undefined &&
+    rawProjectOnly !== "" &&
+    rawProjectOnly !== "0" &&
+    rawProjectOnly !== "false" &&
+    rawProjectOnly !== "off" &&
+    rawProjectOnly !== "no";
+  const dirs = (projectOnly
+    ? [projectSkillsDir]
+    : [
+        projectSkillsDir,
+        path.join(homeDir, ".agents", "skills"),
+        path.join(resolvedAgentDir, "skills"),
+        ...(await listPackageSkillDirs(resolvedAgentDir)),
+      ]
+  ).map((dir) => path.resolve(dir));
 
   const entries = new Map<string, SkillRefEntry>();
   for (const dir of [...new Set(dirs)]) {

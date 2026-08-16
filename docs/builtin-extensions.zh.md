@@ -2,7 +2,7 @@
 
 [English Documentation](builtin-extensions.md)
 
-MixCode 随附了位于 `pi-packages/mpi-*` 的第一方内置扩展。这些包遵循 Pi 扩展标准，并在启动时自动释放并安装到 `<agentDir>/extensions/` 中。
+MixCode 随附位于 `pi-packages/mpi-*` 的第一方内置 Pi 包。启动时，每个包都会释放到 `<agentDir>/extensions/`；package extension 通过 Pi 公开的 `resources_discover` 事件提供运行时发现的 skill，不会复制到 `<agentDir>/skills`。
 
 ## 功能目录
 
@@ -27,17 +27,18 @@ MixCode 随附了位于 `pi-packages/mpi-*` 的第一方内置扩展。这些包
 | `mpi-herdr-report` | `HERDR_ENV=1` 环境生效 | 将 Agent 的运行状态（working / idle / waiting）同步上报至 Herdr 终端复用器窗格。 |
 | `mpi-ctl` | `$mpi-ctl`，`mpi status` / `mpi ctl` | Skill：用 `MIXCODE_*` 定位 tab，再用 `mpi status` / `mpi ctl` 控制正在跑的 TUI。 |
 
-## 扩展加载生命周期
+## 内置包加载生命周期
 
 ```text
-MixCode 交互 / TUI 启动
+MixCode 交互 / TUI 或独立 Pi subagent 启动
   │
-  ├─ 释放二进制资产 -> runtimeDir/packages/（编译版 mpi 使用临时目录）
+  ├─ 释放二进制资产 -> runtimeDir/packages/（仅编译版 mpi）
   ├─ ensurePackageExtensions -> 拷贝 mpi-* 到 <agentDir>/extensions/
-  └─ Pi Resource Loader 发现并加载扩展
-        │
-        ├─ bindExtensions()
-        └─ session_start 触发扩展初始化
+  ├─ Pi Resource Loader 发现 package extension
+  └─ AgentSession.bindExtensions()
+        ├─ session_start 触发扩展初始化
+        ├─ resources_discover -> package skills/ 根目录
+        └─ Pi Resource Loader 扩展已加载的 skill
 ```
 
 ## 仅加载内置扩展

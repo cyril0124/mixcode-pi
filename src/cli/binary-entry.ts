@@ -72,6 +72,7 @@ import loopPackageJson from "../../pi-packages/mpi-loop/package.json" with { typ
 import skillRefsIndex from "../../pi-packages/mpi-skill-refs/index.ts" with { type: "text" };
 import skillRefsCore from "../../pi-packages/mpi-skill-refs/skill-core.ts" with { type: "text" };
 import skillRefsPackageJson from "../../pi-packages/mpi-skill-refs/package.json" with { type: "text" };
+import mpiCtlIndex from "../../pi-packages/mpi-ctl/index.ts" with { type: "text" };
 import mpiCtlPackageJson from "../../pi-packages/mpi-ctl/package.json" with { type: "text" };
 import mpiCtlSkillMd from "../../pi-packages/mpi-ctl/skills/mpi-ctl/SKILL.md" with { type: "text" };
 import mpiGoal_index_ts from "../../pi-packages/mpi-goal/index.ts" with { type: "text" };
@@ -229,6 +230,7 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
       "package.json": skillRefsPackageJson,
     },
     "mpi-ctl": {
+      "index.ts": mpiCtlIndex,
       "package.json": mpiCtlPackageJson,
       "skills/mpi-ctl/SKILL.md": mpiCtlSkillMd,
     },

@@ -32,14 +32,15 @@
 | 变量 | 设置方 | 含义 |
 | --- | --- | --- |
 | `MIXCODE_BUILTIN_EXTENSIONS_ONLY` | 用户 / 环境 | 启用时（`1`、`true`、`on`、`yes`），仅加载 MixCode 内置扩展（`pi-packages/*`），跳过第三方/全局/工作区扩展的自动发现。等同于命令行参数 `--builtin-extensions-only`。未设置 / 为空 / `0` / `false` / `off` / `no` 时视为关闭。 |
-| `MIXCODE_PROJECT_SKILLS_ONLY` | 用户 / 环境 | 启用时（`1`、`true`、`on`、`yes`），从 `$` 补全和会话提示词中排除全局用户 Skill（`~/.agents/skills`、`<agentDir>/skills`）。未设置 / 为空 / `0` / `false` / `off` / `no` 时视为关闭。 |
+| `MIXCODE_PROJECT_SKILLS_ONLY` | 用户 / 环境 | 启用时（`1`、`true`、`on`、`yes`），从 `$` 补全和会话提示词中排除 workdir 外的 Skill，包括全局用户 Skill 和内置 package Skill。未设置 / 为空 / `0` / `false` / `off` / `no` 时视为关闭。 |
 
 ### Skill 隔离语义 (`MIXCODE_PROJECT_SKILLS_ONLY`)
 
-默认情况下，MixCode 按照以下层级优先级发现并合并 Skill：
+默认情况下，MixCode 按照以下层级优先级从四类来源发现并合并 Skill：
 1. 项目/工作区：`<workdir>/.agents/skills`（以及 `<workdir>/.pi/skills`）
 2. 用户全局：`~/.agents/skills`
 3. Agent 全局：`<agentDir>/skills`（默认 `~/.pi/agent/skills`）
+4. 已安装 package：npm/git package 的 `skills/` 目录，以及通过 `resources_discover` 提供的内置 `<agentDir>/extensions/<package>/skills` 根目录
 
 当设置 `MIXCODE_PROJECT_SKILLS_ONLY` 为 `1` / `true` / `on` / `yes` 时：
 - **`$` 补全**：`scanSkillEntries` 只扫描 `<workdir>/.agents/skills`。

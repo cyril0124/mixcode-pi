@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "type": "module",
   "description": "Skill for controlling a live MixCode TUI via mpi status and mpi ctl.",
+  "keywords": ["pi-package"],
   "pi": {
-    "skills": ["./skills/mpi-ctl/SKILL.md"]
+    "extensions": ["./index.ts"],
+    "skills": ["./skills"]
   }
 }

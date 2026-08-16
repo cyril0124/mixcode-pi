@@ -32,14 +32,15 @@ Variables to restrict resource scanning (skills, extensions) to project/workdir 
 | Variable | Set by | Meaning |
 | --- | --- | --- |
 | `MIXCODE_BUILTIN_EXTENSIONS_ONLY` | User / Environment | When enabled (`1`, `true`, `on`, `yes`), loads MixCode built-in extensions (`pi-packages/*`) only, skipping discovery of third-party/global/workspace extensions. Equivalent to `--builtin-extensions-only`. Off when unset / empty / `0` / `false` / `off` / `no`. |
-| `MIXCODE_PROJECT_SKILLS_ONLY` | User / Environment | When enabled (`1`, `true`, `on`, `yes`), drops global user skills (`~/.agents/skills`, `<agentDir>/skills`) from `$` completion and the session prompt. Off when unset / empty / `0` / `false` / `off` / `no`. |
+| `MIXCODE_PROJECT_SKILLS_ONLY` | User / Environment | When enabled (`1`, `true`, `on`, `yes`), drops skills outside the workdir from `$` completion and the session prompt, including global user and built-in package skills. Off when unset / empty / `0` / `false` / `off` / `no`. |
 
 ### Skill Isolation Semantics (`MIXCODE_PROJECT_SKILLS_ONLY`)
 
-By default, MixCode discovers skills from three locations in hierarchical precedence:
+By default, MixCode discovers skills from four sources in hierarchical precedence:
 1. Project/workdir: `<workdir>/.agents/skills` (and `<workdir>/.pi/skills`)
 2. User global: `~/.agents/skills`
 3. Agent global: `<agentDir>/skills` (default `~/.pi/agent/skills`)
+4. Installed packages: npm/git package `skills/` trees and built-in `<agentDir>/extensions/<package>/skills` roots contributed through `resources_discover`
 
 When `MIXCODE_PROJECT_SKILLS_ONLY` is set to `1` / `true` / `on` / `yes`:
 - **`$` completion**: `scanSkillEntries` only scans `<workdir>/.agents/skills`.

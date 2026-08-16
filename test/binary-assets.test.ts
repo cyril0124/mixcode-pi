@@ -154,8 +154,9 @@ test("ensurePackageExtensions installs under the given agentDir, not global home
             name: "probe-extension",
             version: "0.0.0",
             type: "module",
-            pi: { extensions: ["./index.ts"] },
+            pi: { extensions: ["./index.ts"], skills: ["./skills"] },
           }),
+          "skills/probe-skill/SKILL.md": "---\nname: probe-skill\ndescription: probe\n---\n",
         },
       },
     });
@@ -168,6 +169,8 @@ test("ensurePackageExtensions installs under the given agentDir, not global home
       "export default () => {};",
     );
     assert.deepEqual(installedExtensionPaths, [path.join(agentDir, "extensions", "probe-extension")]);
+    await assert.rejects(fsPromises.stat(path.join(agentDir, "skills", "probe-skill")), /ENOENT/);
+
     // ... and NOT under the default global home root.
     await assert.rejects(
       fsPromises.stat(path.join(homeDir, ".pi", "agent", "extensions", "probe-extension")),

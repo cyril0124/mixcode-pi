@@ -2,7 +2,7 @@
 
 [中文文档](builtin-extensions.zh.md)
 
-MixCode ships first-party built-in extensions located in `pi-packages/mpi-*`. These packages conform to Pi extension standards and are automatically materialized and installed into `<agentDir>/extensions/` at startup.
+MixCode ships first-party built-in Pi packages located in `pi-packages/mpi-*`. Startup materializes each package under `<agentDir>/extensions/`; package extensions contribute any runtime-discovered skills through Pi's public `resources_discover` event without copying them into `<agentDir>/skills`.
 
 ## Catalog
 
@@ -27,17 +27,18 @@ MixCode ships first-party built-in extensions located in `pi-packages/mpi-*`. Th
 | `mpi-herdr-report` | `HERDR_ENV=1` | Notifies Herdr terminal multiplexer panes of agent status (working / idle / waiting). |
 | `mpi-ctl` | `$mpi-ctl`, `mpi status` / `mpi ctl` | Skill that teaches the model to locate tabs via `MIXCODE_*` and drive a live TUI with `mpi status` / `mpi ctl`. |
 
-## Extension Loading Lifecycle
+## Built-in Package Loading Lifecycle
 
 ```text
-Startup (MixCode Interactive / TUI)
+Startup (MixCode Interactive / TUI or independent Pi subagent)
   │
-  ├─ Materialize binary assets -> runtimeDir/packages/ (temp dir for compiled mpi)
+  ├─ Materialize binary assets -> runtimeDir/packages/ (compiled mpi only)
   ├─ ensurePackageExtensions -> copy mpi-* to <agentDir>/extensions/
-  └─ Pi Resource Loader discovers extensions
-        │
-        ├─ bindExtensions()
-        └─ session_start lifecycle event
+  ├─ Pi Resource Loader discovers package extensions
+  └─ AgentSession.bindExtensions()
+        ├─ session_start lifecycle event
+        ├─ resources_discover -> package skills/ roots
+        └─ Pi Resource Loader extends the loaded skills
 ```
 
 ## Running Only Built-ins

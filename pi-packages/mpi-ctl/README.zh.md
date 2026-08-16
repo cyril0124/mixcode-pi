@@ -1,7 +1,7 @@
 # mpi-ctl
 
-内置 Pi skill（`pi.skills`），教模型用 `mpi status` / `mpi ctl` 控制正在跑的 MixCode TUI。
+Pi 包，提供 `mpi-ctl` skill（`pi.skills: ["./skills"]`）。
 
-没有 ExtensionFactory，也不新增 CLI。Skill 名是 `mpi-ctl`。
+正常安装 Pi package 时由 `pi.skills` 加载 skill。MixCode 把内置包安装到 `<agentDir>/extensions/` 时，`index.ts` 通过 `resources_discover` 提供同一个 `skills/` 目录；`$` 补全直接扫描该包目录。Package skill 不会复制到 `<agentDir>/skills`。
 
-命令、flag、环境变量（`MIXCODE`、`MIXCODE_TAB_TITLE`、`MIXCODE_FOCUSED_TAB_TITLE`）和失败条件都在 [skills/mpi-ctl/SKILL.md](skills/mpi-ctl/SKILL.md)。
+不新增 CLI。手册：[skills/mpi-ctl/SKILL.md](skills/mpi-ctl/SKILL.md)。

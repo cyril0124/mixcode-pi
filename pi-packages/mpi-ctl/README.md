@@ -1,7 +1,7 @@
 # mpi-ctl
 
-Built-in Pi skill (`pi.skills`) that teaches the model how to drive a live MixCode TUI with `mpi status` and `mpi ctl`.
+Pi package that ships the `mpi-ctl` skill (`pi.skills: ["./skills"]`).
 
-There is no extension factory and no extra CLI. The skill name is `mpi-ctl`.
+Pi loads `pi.skills` when the package is installed normally. When MixCode installs the built-in package under `<agentDir>/extensions/`, `index.ts` contributes the same `skills/` tree through `resources_discover`; `$` completion scans that package tree directly. No package skill is copied into `<agentDir>/skills`.
 
-All commands, flags, env (`MIXCODE`, `MIXCODE_TAB_TITLE`, `MIXCODE_FOCUSED_TAB_TITLE`), and failure cases are in [skills/mpi-ctl/SKILL.md](skills/mpi-ctl/SKILL.md).
+No extra CLI. Cookbook: [skills/mpi-ctl/SKILL.md](skills/mpi-ctl/SKILL.md).

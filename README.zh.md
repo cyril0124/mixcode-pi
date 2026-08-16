@@ -77,7 +77,7 @@ mpi
 </p>
 
 ### 6. Prompt 内联技能引用与补全
-在输入框中输入 `$` 触发项目与全局 Skill 模糊自动补全，自动将技能规范内嵌至 Prompt 载荷中。
+在输入框中输入 `$` 触发项目、全局与已安装 package Skill 模糊自动补全，自动将技能规范内嵌至 Prompt 载荷中。
 
 <p align="center">
   <img src="assets/readme-skill.gif" alt="Skill 引用" width="900">
@@ -107,7 +107,7 @@ mpi
 | `Right` | 空输入框 | 扩展侧边栏 | 展开 / 折叠右侧扩展挂件面板。 |
 | `Escape` | 全局 | 智能 Escape | 关闭浮层 → 退出 Vim → 中断/撤回 Prompt。 |
 | `!` | 编辑器 | Bash 命令 | 进入单行 Shell 命令快速执行模式。 |
-| `$` | 编辑器 | Skill 补全 | 触发项目与全局技能自动补全。 |
+| `$` | 编辑器 | Skill 补全 | 触发项目、全局与已安装 package Skill 自动补全。 |
 | `@` | 编辑器 | 文件补全 | 触发工作区文件路径自动补全。 |
 
 ---

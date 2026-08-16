@@ -139,7 +139,7 @@ test("scanSkillDirs: project dir takes precedence over home for duplicates", asy
   assert.equal(entries.get("dup")?.description, "From project.");
 });
 
-test("scanSkillDirs: finds npm and git package-contributed skills", async () => {
+test("scanSkillDirs: finds npm, git, and extension package skills", async () => {
   const project = makeTempDir();
   const home = makeTempDir();
   const agentDir = path.join(home, ".pi", "agent");
@@ -155,10 +155,16 @@ test("scanSkillDirs: finds npm and git package-contributed skills", async () => 
     "From git package.",
   );
 
+  writeSkill(
+    path.join(agentDir, "extensions", "builtin-pkg", "skills"),
+    "builtin-pkg-skill",
+    "From built-in package.",
+  );
   const entries = await scanSkillDirs(project, home, agentDir);
   assert.equal(entries.get("plain-pkg-skill")?.description, "From plain npm package.");
   assert.equal(entries.get("scoped-pkg-skill")?.description, "From scoped npm package.");
   assert.equal(entries.get("git-pkg-skill")?.description, "From git package.");
+  assert.equal(entries.get("builtin-pkg-skill")?.description, "From built-in package.");
   assert.ok(entries.get("scoped-pkg-skill")?.filePath?.includes("@scope/scoped-pkg"));
 });
 
@@ -170,6 +176,16 @@ test("scanSkillDirs: user skills take precedence over package skills", async () 
   writeSkill(path.join(agentDir, "npm", "node_modules", "pkg", "skills"), "dup", "From package.");
   const entries = await scanSkillDirs(project, home, agentDir);
   assert.equal(entries.get("dup")?.description, "From user agent skills.");
+});
+
+test("scanSkillDirs: project-only mode excludes global and package skills", async () => {
+  const project = makeTempDir();
+  const home = makeTempDir();
+  const agentDir = path.join(home, ".pi", "agent");
+  writeSkill(path.join(project, ".agents", "skills"), "project-skill", "From project.");
+  writeSkill(path.join(agentDir, "extensions", "builtin-pkg", "skills"), "builtin-skill", "From built-in package.");
+  const entries = await scanSkillDirs(project, home, agentDir, { MIXCODE_PROJECT_SKILLS_ONLY: "1" });
+  assert.deepEqual([...entries.keys()], ["project-skill"]);
 });
 
 // ─── before_agent_start expansion ────────────────────────────────────────────

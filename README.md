@@ -77,7 +77,7 @@ Hide the top tab bar for a completely distraction-free editing canvas. Backgroun
 </p>
 
 ### 6. In-Prompt Skill References & Autocomplete
-Type `$` in the prompt editor to trigger fuzzy autocomplete for project and global skills, automatically embedding skill instructions into the prompt payload.
+Type `$` in the prompt editor to trigger fuzzy autocomplete for project, global, and installed package skills, automatically embedding skill instructions into the prompt payload.
 
 <p align="center">
   <img src="assets/readme-skill.gif" alt="Skill references" width="900">
@@ -107,7 +107,7 @@ Core keys (not the full map — open **Help** / Command Palette in-app for every
 | `Right` | Empty Input | Side Panel | Toggle right-hand extension widget panel. |
 | `Escape` | Global | Smart Escape | Close overlay → exit Vim → abort/retract prompt. |
 | `!` | Editor | Bash Command | Single-line shell execution mode. |
-| `$` | Editor | Skill Autocomplete | Trigger project and global skill completion. |
+| `$` | Editor | Skill Autocomplete | Trigger project, global, and installed package skill completion. |
 | `@` | Editor | File Autocomplete | Trigger workspace file path completion. |
 
 ---
