@@ -121,9 +121,7 @@ test("submitted input reloads active Pi resources", async () => {
   state.tabs.push(createTab(1, "s1", "/repo"));
   state.activeTabId = "s1";
   const reloaded: string[] = [];
-  const systemMessages: string[] = [];
   const runtime = {
-    appendSystemMessage: (_sessionId: string, text: string) => systemMessages.push(text),
     extensionReload: async (sessionId: string) => {
       reloaded.push(sessionId);
     },
@@ -138,10 +136,9 @@ test("submitted input reloads active Pi resources", async () => {
   await handleSubmittedInput(state, runtime, "/reload", tui);
 
   assert.deepEqual(reloaded, ["s1"]);
-  assert.ok(
-    systemMessages.some((message) =>
-      message.includes("Reloaded keybindings, extensions, skills, prompts, themes, and models"),
-    ),
+  assert.match(
+    state.tabs[0]!.toast?.message ?? "",
+    /Reloaded keybindings, extensions, skills, prompts, themes, and models/,
   );
   assert.equal(renders, 1);
 });
@@ -159,7 +156,6 @@ test("/reload refreshes models.json and rebuilds the selectable model list", asy
   });
   setTabModel(state.tabs[0]!, state.model);
 
-  const systemMessages: string[] = [];
   const updatedTabModels: Array<{ sessionId: string; modelId: string }> = [];
   // Simulate models.json now exposing only acme/new (acme/old was removed).
   const refreshed: Model<any>[] = [
@@ -171,7 +167,6 @@ test("/reload refreshes models.json and rebuilds the selectable model list", asy
     } as unknown as Model<any>,
   ];
   const runtime = {
-    appendSystemMessage: (_sessionId: string, text: string) => systemMessages.push(text),
     extensionReload: async () => {},
     reloadModelConfig: () =>
       refreshed.map((model) => ({
@@ -200,10 +195,7 @@ test("/reload refreshes models.json and rebuilds the selectable model list", asy
   assert.equal(state.tabs[0]!.model.modelId, "new");
   // The active tab's live runtime session is synced to the repaired model.
   assert.deepEqual(updatedTabModels, [{ sessionId: "s1", modelId: "new" }]);
-  assert.ok(
-    systemMessages.some((message) => message.includes("and models")),
-    "reload message should report that models were reloaded",
-  );
+  assert.match(state.tabs[0]!.toast?.message ?? "", /and models/);
 });
 
 test("/reload keeps model selection when models.json fails to load", async () => {
@@ -219,7 +211,6 @@ test("/reload keeps model selection when models.json fails to load", async () =>
   setTabModel(state.tabs[0]!, state.model);
   const beforeModels = state.availableModels.map((model) => `${model.provider}/${model.modelId}`);
 
-  const systemMessages: string[] = [];
   const updatedTabModels: Array<{ sessionId: string; modelId: string }> = [];
   const modelRuntime = await ModelRuntime.create({
     credentials: new InMemoryCredentialStore(),
@@ -228,7 +219,6 @@ test("/reload keeps model selection when models.json fails to load", async () =>
   });
   modelRuntime.getError = () => "Failed to parse models.json: Unexpected token";
   const runtime = {
-    appendSystemMessage: (_sessionId: string, text: string) => systemMessages.push(text),
     extensionReload: async () => {},
     reloadModelConfig: async () => [],
     getSharedModelRuntime: () => modelRuntime,
@@ -247,15 +237,10 @@ test("/reload keeps model selection when models.json fails to load", async () =>
   assert.equal(state.model.modelId, "old");
   assert.equal(state.tabs[0]!.model.modelId, "old");
   assert.deepEqual(updatedTabModels, []);
-  assert.ok(
-    systemMessages.some(
-      (message) =>
-        message.includes("models failed") && message.includes("Failed to parse models.json"),
-    ),
-  );
-  assert.ok(
-    systemMessages.every((message) => !message.includes("themes, and models")),
-  );
+  const toast = state.tabs[0]!.toast?.message ?? "";
+  assert.match(toast, /models failed/);
+  assert.match(toast, /Failed to parse models.json/);
+  assert.doesNotMatch(toast, /themes, and models/);
 });
 
 test("unknown slash commands keep focus on the active tab", async () => {

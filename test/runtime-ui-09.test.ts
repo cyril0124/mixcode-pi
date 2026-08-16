@@ -719,3 +719,123 @@ test("runtime renders pi custom messages with renderer, fallback, errors, and re
     await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
+
+test("/reload keeps factory-rendered custom entry and custom message", async () => {
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-reload-custom-"));
+  const extension: ExtensionFactory = (pi) => {
+    pi.registerEntryRenderer("marker", (entry) => new Text(`entry:${String(entry.data)}`, 0, 0));
+    pi.registerMessageRenderer(
+      "rendered-note",
+      (message) => new Text(`component:${message.content}`, 0, 0),
+    );
+    pi.registerCommand("reload-custom-smoke", {
+      description: "Persist custom transcript for reload",
+      handler: async () => {
+        pi.sendMessage({ customType: "rendered-note", content: "shown", display: true });
+        pi.appendEntry("marker", "hello-entry");
+        pi.appendEntry("no-renderer", { n: 1 });
+        pi.sendMessage({ customType: "hidden-note", content: "must not display", display: false });
+      },
+    });
+  };
+
+  try {
+    const runtime = new MixCodeRuntime({
+      sessionsRoot: dir,
+      agentDir: dir,
+      extensionFactories: [extension],
+    });
+    const runtimeTab = await runtime.createTab(createTab(1, "s1", process.cwd()), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+    });
+
+    await runtime.prompt("s1", "keep this user line");
+    await runtime.prompt("s1", "/reload-custom-smoke");
+    const before = stripAnsi(renderAgentSurface(runtimeTab.tab, runtimeTab, 100).join("\n"));
+    assert.match(before, /keep this user line/);
+    assert.match(before, /component:shown/);
+    assert.match(before, /entry:hello-entry/);
+    assert.doesNotMatch(before, /must not display/);
+    assert.equal(
+      runtimeTab.chat.some((line) => line.role === "extension" && line.customType === "no-renderer"),
+      false,
+    );
+
+    await runtime.extensionReload("s1");
+    const afterTab = runtime.getTab("s1");
+    assert.ok(afterTab);
+    const after = stripAnsi(renderAgentSurface(afterTab.tab, afterTab, 100).join("\n"));
+    assert.match(after, /keep this user line/);
+    assert.match(after, /component:shown/);
+    assert.match(after, /entry:hello-entry/);
+    assert.doesNotMatch(after, /must not display/);
+    assert.equal(
+      afterTab.chat.some((line) => line.role === "extension" && line.customType === "no-renderer"),
+      false,
+    );
+    await runtime.closeTab("s1");
+  } finally {
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("/reload keeps pi-tps-style deferred session_start notify", async () => {
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-reload-tps-"));
+  const extension: ExtensionFactory = (pi) => {
+    pi.on("session_start", (_event, ctx) => {
+      if (!ctx.hasUI) return;
+      setTimeout(() => {
+        ctx.ui.notify("TPS 12.3 tok/s · TTFT 0.2s", "info");
+      }, 0);
+    });
+  };
+
+  try {
+    const runtime = new MixCodeRuntime({
+      sessionsRoot: dir,
+      agentDir: dir,
+      extensionFactories: [extension],
+    });
+    const tab = createTab(1, "s1", dir);
+    const runtimeTab = await runtime.createTab(tab, {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: dir,
+    });
+    const state = createInitialState(dir);
+    state.tabs.push(runtimeTab.tab);
+    state.activeTabId = "s1";
+    const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
+    // Real /reload reads models.json after extensions; that await lets
+    // session_start setTimeout(0) notify land first. Then a coalesced
+    // Reloaded status must not replace it (pi-tps restore).
+    const reloadModelConfig = runtime.reloadModelConfig.bind(runtime);
+    runtime.reloadModelConfig = async () => {
+      await Bun.sleep(20);
+      return reloadModelConfig();
+    };
+
+    await handleSubmittedInput(state, runtime, "/reload", tui);
+    await Bun.sleep(0);
+
+    const after = runtime.getTab("s1");
+    assert.ok(after);
+    const surface = stripAnsi(renderAgentSurface(after.tab, after, 100).join("\n"));
+    assert.match(surface, /TPS 12\.3 tok\/s/);
+    assert.match(
+      after.tab.toast?.message ?? "",
+      /Reloaded keybindings, extensions, skills, prompts, themes, and models/,
+    );
+    assert.equal(
+      after.chat.some(
+        (line) => line.role === "system" && line.text.includes("Reloaded keybindings"),
+      ),
+      false,
+    );
+    await runtime.closeTab("s1");
+  } finally {
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});

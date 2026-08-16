@@ -150,21 +150,18 @@ const handleReload: LocalCommandHandler = async ({ state, active, runtime, setti
   const modelsResult = await reloadRuntimeModels(state, runtime, {
     mixcodeFile: settingsDeps?.mixcodeFile,
   });
-  // Short status line (Pi showStatus); agent tab required (not config-scoped).
+  // Toast, not chat: a coalesced status would replace session_start notifies
+  // (pi-tps restore via setTimeout(0)). Agent tab required (not config-scoped).
   if (modelsResult.ok) {
-    appendActiveSystemMessage(
-      state,
-      runtime,
-      "Reloaded keybindings, extensions, skills, prompts, themes, and models",
-    );
+    pushToast(active!, {
+      type: "info",
+      message: "Reloaded keybindings, extensions, skills, prompts, themes, and models",
+    });
   } else {
-    // Extensions already reloaded; keep prior model selection and surface Pi's error.
-    appendActiveSystemMessage(
-      state,
-      runtime,
-      `Reloaded keybindings, extensions, skills, prompts, and themes; models failed: ${modelsResult.error}`,
-      "error",
-    );
+    pushToast(active!, {
+      type: "error",
+      message: `Reloaded keybindings, extensions, skills, prompts, and themes; models failed: ${modelsResult.error}`,
+    });
   }
   return undefined;
 };
