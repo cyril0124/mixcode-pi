@@ -59,7 +59,7 @@ src/
   │
   ├─ 普通 prompt
   │    └─ 原样透传给 Pi AgentSession.prompt()
-  │        ├─ $skill 引用（由 mpi-skill-refs 扩展在 Pi 原生管线中展开）
+  │        ├─ $skill 引用（由 mpi-skill-refs 扩展在 Pi 原生流程中展开）
   │        ├─ /skill: 与 prompt 模板（由 Pi 原生 _expandSkillCommand / expandPromptTemplate 展开）
   │        ├─ @file 引用
   │        └─ 不注入 AGENTS.md；项目上下文进入 system prompt
@@ -77,8 +77,8 @@ src/
 
 MixCodeRuntime
   │
-  ├─ SessionManager        保存/恢复/分叉/清空替换/删除 session
-  ├─ prompt history        getPromptHistory() 读取当前 SDK branch 的 user prompt；workspace restore 后回灌 tab.promptHistory
+  ├─ SessionManager        保存/恢复/克隆分支/清空替换/删除 session
+  ├─ prompt history        getPromptHistory() 读取当前 SDK branch 的 user prompt；workspace restore 后回填 tab.promptHistory
   ├─ Agent                 执行 prompt 和工具
   ├─ AgentEvent            映射为 tab status、chat、todos、questions、goal
   └─ pi-ai Model           provider/modelId 解析，faux provider 用本地 stream

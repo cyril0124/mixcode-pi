@@ -27,7 +27,7 @@ MixCode Pi 从其根状态目录读取 `mixcode_settings.json`。默认路径为
       "maxBytes": 131072,
     },
   },
-  // 与 models.json 正交：在不删除目录条目的情况下禁用 provider/model。
+  // 与 models.json 相互独立：在不删除目录条目的情况下禁用 provider/model。
   "disabledProviders": ["openai"],
   "disabledModels": ["anthropic/claude-opus-4-5"],
 }

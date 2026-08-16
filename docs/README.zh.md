@@ -17,7 +17,7 @@ MixCode Pi 官方技术文档库。记录核心架构、特色工作流、命令
 
 - **[内置扩展总览 (Built-in Extensions)](builtin-extensions.zh.md)**：第一方 `mpi-*` 扩展目录与运行时加载生命周期（具体各扩展详情见 `pi-packages/<name>/README.md`）。
 - **[Zen 专注模式与后台感知 (Zen Mode)](zen-mode.zh.md)**：极简专注视图、后台状态圆点感知与跨 Tab 模式自动迁移。
-- **[内联挂件模式 (`[INL]`)](inline-widgets.zh.md)**：扩展挂件随 Chat 消息流自然滚动与编辑器垂直空间扩展。
+- **[内联组件模式 (`[INL]`)](inline-widgets.zh.md)**：扩展组件随 Chat 消息流自然滚动与编辑器垂直空间扩展。
 - **[Vim 模式与对话流检索 (Vim & Search)](vim-and-navigation.zh.md)**：Buffer 级浏览、用户提问正反向跳转与正则全文检索。
 - **[多标签与工作区管理 (Workspace & Tabs)](workspace-and-tabs.zh.md)**：多 Tab 工作流、`/reset` 与 `/clear` 差异、`/fork` 及工作区布局持久化。
 - **[转向与后续双队列 (Queue Management)](queue-and-follow-up.zh.md)**：轮次中 Steer 注入、轮次后 Follow-up 排队与 `Ctrl+U` 出队。
@@ -31,4 +31,4 @@ MixCode Pi 官方技术文档库。记录核心架构、特色工作流、命令
 - **[环境变量清单 (Environment Variables)](environment.zh.md)**：面向用户的产品级 `MIXCODE_*` 变量及工具子进程注入规则。
 - **[Pi 扩展生态兼容性 (Pi Compatibility)](extension-compatibility.zh.md)**：L0–L3 兼容分级与 Pi Packages 生命周期对接。
 - **[实例监控与注册表 (Instance Registry)](instance-registry.zh.md)**：`mpi status` 监控与跨进程实例追踪。
-- **[扩展 UI 体系与挂件 (Extension UI)](extension-ui-and-widgets.zh.md)**：5 大专属挂载区与内联挂件模式 (`/toggle-inline-widgets`)。
+- **[扩展 UI 体系与组件 (Extension UI)](extension-ui-and-widgets.zh.md)**：5 大专属挂载区与内联组件模式 (`/toggle-inline-widgets`)。

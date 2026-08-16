@@ -39,7 +39,7 @@ mpi status --workdir /path/to/project
 
 ## Tab 运行状态推导
 
-快照中的每个 Tab 会被派生计算为五种运行状态之一：
+快照中的每个 Tab 会自动推导为以下五种运行状态之一：
 
 ```text
                ┌──> working（正在运行 / 正在思考）

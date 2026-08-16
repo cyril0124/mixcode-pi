@@ -28,9 +28,9 @@ Tab 实时展示运行状态指示符：`●`（运行中/工作中）、`-`（�
 |---|---|---|
 | 新建 Tab | `/new-session [title]` | 创建全新的 Agent Tab，可指定自定义标题。 |
 | 关闭 Tab | `/close-session` | 关闭当前 Tab 并释放其内存中的运行时。 |
-| 重置会话 | `/reset` | 在当前 Tab 中将分支叶节点重置回根节点（保留标题与会话文件）。 |
+| 重置会话 | `/reset` | 在当前 Tab 中将分支指针重置回根节点（保留标题与会话文件）。 |
 | 清空会话 | `/clear` | 在当前 Tab 内生成全新的 Session 文件（重置标题）。 |
-| 分叉 Tab | `/fork [suffix]` | 将当前对话历史复制到新 Tab 中，复用已有底层服务。 |
+| 分支复制 | `/fork [suffix]` | 将当前对话历史克隆到新 Tab 中，复用已有底层服务。 |
 | Tab 跳转 | `Ctrl+T` | 打开全屏 Tab 检索面板，支持模糊搜索与快速切换。 |
 | Tab 轮转 | `Tab` / `Shift+Tab` | 补全关闭时轮转 Tab。Zen 模式下被吞掉（用 `Ctrl+T`）。 |
 | Zen 模式 | `/toggle-zen-mode` | 隐藏顶部 Tab 栏，获得专注的 Agent 会话视图。 |

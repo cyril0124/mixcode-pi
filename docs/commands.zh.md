@@ -34,7 +34,7 @@ MixCode 在 `src/core/commands.ts` 中注册了内置本地 Slash 命令。这�
 | `/navigate` | - | Session | 打开过滤为用户提问的对话快速定位器。 |
 | `/vim` | - | Session | 进入基于 Buffer 滚动的 Vim 对话浏览与全文检索模式。 |
 | `/toggle-zen-mode` | - | Session | 开启 / 关闭顶部 Tab 栏的 Zen 专注模式。 |
-| `/toggle-inline-widgets` | - | Session | 切换挂件是在 Chat 消息流内联渲染还是固定在编辑器上方。 |
+| `/toggle-inline-widgets` | - | Session | 切换扩展组件是在 Chat 消息流内联渲染还是固定在编辑器上方。 |
 | `/toggle-hidden-messages` | - | Session | 显示 / 隐藏扩展内部自定义生成的隐藏消息。 |
 | `/hide-thinking` | - | `[global]` | 切换是否将 Thinking 推理内容折叠为占位符。 |
 | `/settings` | - | Global | 打开全局主题、图标与 UI 偏好设置面板。 |
