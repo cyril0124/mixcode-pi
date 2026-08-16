@@ -1,0 +1,9 @@
+{
+  "name": "mpi-tool-block",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Hide selected tools from the model via /tool-block overlay",
+  "pi": {
+    "extensions": ["./index.ts"]
+  }
+}

@@ -21,6 +21,7 @@ MixCode 随附了位于 `pi-packages/mpi-*` 的第一方内置扩展。这些包
 | `mpi-model-extensions` | `/model-extensions`，`<agentDir>/model-extensions.json` | 按当前模型动态加载 Pi 扩展。 |
 | `mpi-mid-turn-compact` | Token 达到阈值时自动触发 | 轮次中上下文自动压缩策略，防止多工具连续调用耗尽上下文窗口。 |
 | `mpi-search-guard` | 触发大范围目录遍历时拦截 | 拦截对根目录、`~` 等高基数目录的盲目递归搜索，引导 Agent 缩小搜索范围。 |
+| `mpi-tool-block` | `/tool-block`，`<agentDir>/tool-block.json` | 弹出 overlay 勾选要隐藏的 tool，从 active 集合拿掉，模型看不见。 |
 | `mpi-bash-default-timeout` | 执行 Bash 工具时自动生效 | 为 Bash 工具命令注入默认超时机制，防止任务无限期阻塞。 |
 | `mpi-image-hoist` | 多模态输入时自动生效 | 提取并提升图片载荷，适配多模态模型与工具协议。 |
 | `mpi-herdr-report` | `HERDR_ENV=1` 环境生效 | 将 Agent 的运行状态（working / idle / waiting）同步上报至 Herdr 终端复用器窗格。 |

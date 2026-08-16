@@ -131,6 +131,10 @@ import modelExtensionsIndex from "../../pi-packages/mpi-model-extensions/index.t
 import modelExtensionsCore from "../../pi-packages/mpi-model-extensions/model-extensions-core.ts" with { type: "text" };
 import modelExtensionsLoader from "../../pi-packages/mpi-model-extensions/model-extensions-loader.ts" with { type: "text" };
 import modelExtensionsPackageJson from "../../pi-packages/mpi-model-extensions/package.json" with { type: "text" };
+import toolBlockIndex from "../../pi-packages/mpi-tool-block/index.ts" with { type: "text" };
+import toolBlockCore from "../../pi-packages/mpi-tool-block/tool-block-core.ts" with { type: "text" };
+import toolBlockOverlay from "../../pi-packages/mpi-tool-block/tool-block-overlay.ts" with { type: "text" };
+import toolBlockPackageJson from "../../pi-packages/mpi-tool-block/package.json" with { type: "text" };
 import packageJson from "../../package.json" with { type: "json" };
 import { materializeBinaryRuntimeAssets } from "./binary-assets.js";
 
@@ -289,6 +293,12 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
       "model-extensions-core.ts": modelExtensionsCore,
       "model-extensions-loader.ts": modelExtensionsLoader,
       "package.json": modelExtensionsPackageJson,
+    },
+    "mpi-tool-block": {
+      "index.ts": toolBlockIndex,
+      "tool-block-core.ts": toolBlockCore,
+      "tool-block-overlay.ts": toolBlockOverlay,
+      "package.json": toolBlockPackageJson,
     },
   },
 });
