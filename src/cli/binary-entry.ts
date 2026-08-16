@@ -6,6 +6,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { isCtlCliArgs } from "./ctl.js";
 import { isStatusCliArgs } from "./status.js";
 
 if (process.versions?.bun && Object.keys(process.env).length === 0) {
@@ -22,13 +23,12 @@ if (process.versions?.bun && Object.keys(process.env).length === 0) {
 
 const BINARY_ENTRY_IMPORT_FLAG = Symbol.for("mixcode-pi.binary-entry-import");
 
-// Fast path for status command: skip OAuth registration, temp directory creation,
-// and binary asset materialization since status only reads registry json files.
-if (isStatusCliArgs(process.argv.slice(2))) {
+// Fast path for status/ctl: skip OAuth, temp dir, and asset materialization.
+if (isStatusCliArgs(process.argv.slice(2)) || isCtlCliArgs(process.argv.slice(2))) {
   (globalThis as Record<symbol, unknown>)[BINARY_ENTRY_IMPORT_FLAG] = true;
   const { main } = await import("./main.js");
   await main();
-  process.exit(0);
+  process.exit(process.exitCode ?? 0);
 }
 
 import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth";
@@ -72,6 +72,8 @@ import loopPackageJson from "../../pi-packages/mpi-loop/package.json" with { typ
 import skillRefsIndex from "../../pi-packages/mpi-skill-refs/index.ts" with { type: "text" };
 import skillRefsCore from "../../pi-packages/mpi-skill-refs/skill-core.ts" with { type: "text" };
 import skillRefsPackageJson from "../../pi-packages/mpi-skill-refs/package.json" with { type: "text" };
+import mpiCtlPackageJson from "../../pi-packages/mpi-ctl/package.json" with { type: "text" };
+import mpiCtlSkillMd from "../../pi-packages/mpi-ctl/skills/mpi-ctl/SKILL.md" with { type: "text" };
 import mpiGoal_index_ts from "../../pi-packages/mpi-goal/index.ts" with { type: "text" };
 import mpiGoal_package_json from "../../pi-packages/mpi-goal/package.json" with { type: "text" };
 import mpiGoal_src_app_ts from "../../pi-packages/mpi-goal/src/app.ts" with { type: "text" };
@@ -225,6 +227,10 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
       "index.ts": skillRefsIndex,
       "skill-core.ts": skillRefsCore,
       "package.json": skillRefsPackageJson,
+    },
+    "mpi-ctl": {
+      "package.json": mpiCtlPackageJson,
+      "skills/mpi-ctl/SKILL.md": mpiCtlSkillMd,
     },
     "mpi-goal": {
       "index.ts": mpiGoal_index_ts,

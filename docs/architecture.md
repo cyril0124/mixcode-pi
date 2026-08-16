@@ -7,23 +7,23 @@ MixCode is a multi-tab TUI agent built on top of Pi (`pi-tui` / `pi-agent-core` 
 ## Overall Structure
 
 ```text
-┌────────────────────────┐
-│ @earendil-works/pi-tui │
+┌─────────────────────────┐
+│ @earendil-works/pi-tui  │
 │ Root + Editor + Overlay │
-└────────────┬───────────┘
+└────────────┬────────────┘
              │
              v
-┌────────────────────────┐
+┌─────────────────────────┐
 │ pi-agent-core Agent     │
 │ SessionManager          │
 │ AgentEvent stream       │
-└────────────┬───────────┘
+└────────────┬────────────┘
              │
              v
-┌────────────────────────┐
+┌─────────────────────────┐
 │ @earendil-works/pi-ai   │
-│ Model + stream + tools   │
-└────────────────────────┘
+│ Model + stream + tools  │
+└─────────────────────────┘
 ```
 
 ## Module Layering
@@ -100,7 +100,7 @@ Authoritative key list and Escape dispatch: [Keybindings & Escape](keybindings-a
 │ Chat (user / assistant / tool / bash)                      │
 │ optional: extension side panel on the right                │
 ├────────────────────────────────────────────────────────────┤
-│ Shell / Markdown Preview overlays                           │
+│ Shell / Markdown Preview overlays                          │
 ├────────────────────────────────────────────────────────────┤
 │ Prompt Editor (with / $ @ completion)                      │
 └────────────────────────────────────────────────────────────┘

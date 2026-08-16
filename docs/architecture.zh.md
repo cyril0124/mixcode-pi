@@ -7,23 +7,23 @@ MixCode 是基于 Pi（`pi-tui` / `pi-agent-core` / `pi-ai`）的多 tab TUI age
 ## 总体结构
 
 ```text
-┌────────────────────────┐
-│ @earendil-works/pi-tui │
+┌─────────────────────────┐
+│ @earendil-works/pi-tui  │
 │ Root + Editor + Overlay │
-└────────────┬───────────┘
+└────────────┬────────────┘
              │
              v
-┌────────────────────────┐
+┌─────────────────────────┐
 │ pi-agent-core Agent     │
 │ SessionManager          │
 │ AgentEvent stream       │
-└────────────┬───────────┘
+└────────────┬────────────┘
              │
              v
-┌────────────────────────┐
+┌─────────────────────────┐
 │ @earendil-works/pi-ai   │
-│ Model + stream + tools   │
-└────────────────────────┘
+│ Model + stream + tools  │
+└─────────────────────────┘
 ```
 
 ## 模块分层
@@ -100,7 +100,7 @@ MixCodeRuntime
 │ Chat (user / assistant / tool / bash)                      │
 │ optional: extension side panel on the right                │
 ├────────────────────────────────────────────────────────────┤
-│ Shell / Markdown Preview overlays                           │
+│ Shell / Markdown Preview overlays                          │
 ├────────────────────────────────────────────────────────────┤
 │ Prompt Editor (with / $ @ completion)                      │
 └────────────────────────────────────────────────────────────┘

@@ -25,6 +25,7 @@ MixCode ships first-party built-in extensions located in `pi-packages/mpi-*`. Th
 | `mpi-bash-default-timeout` | Auto on bash spawn | Enforces explicit default execution timeouts on bash commands. |
 | `mpi-image-hoist` | Auto on multimodal prompt | Re-orders and extracts image payloads for multimodal tool compatibility. |
 | `mpi-herdr-report` | `HERDR_ENV=1` | Notifies Herdr terminal multiplexer panes of agent status (working / idle / waiting). |
+| `mpi-ctl` | `$mpi-ctl`, `mpi status` / `mpi ctl` | Skill that teaches the model to locate tabs via `MIXCODE_*` and drive a live TUI with `mpi status` / `mpi ctl`. |
 
 ## Extension Loading Lifecycle
 

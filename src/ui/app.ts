@@ -35,7 +35,7 @@ import {
   type MixCodeSkillCompletionSource,
 } from "./completion.js";
 import { renderExtensionFooter, renderFooter, renderHeader } from "./rendering.js";
-import { withMouseReporting } from "./terminal.js";
+import { InjectingTerminal, withMouseReporting } from "./terminal.js";
 import { installStdoutScreenGuard, withHostStdoutGuard } from "./stdout-screen-guard.js";
 import { noteActiveExtensionThemeId } from "../agent/runtime-extension-theme.js";
 import { setTheme, themeForId } from "./themes.js";
@@ -65,18 +65,21 @@ export interface MixCodeTuiOptions {
     piSettingsFile: string;
   };
 }
+export type MixCodeTui = TuiType & { injectInput(data: string): void };
+
 export function createMixCodeTui(
   state: MixCodeState,
   runtime: MixCodeRuntime,
   options: MixCodeTuiOptions = {},
-): TuiType {
+): MixCodeTui {
   noteActiveExtensionThemeId(state.theme);
   // Host owns the tty: Terminal writes run under host depth; extension-direct
   // full-screen clears (CSI 2J/3J) are stripped and coalesced into one repaint.
-  const terminal = withHostStdoutGuard(
-    withMouseReporting(options.terminal ?? new ProcessTerminal()),
+  const injecting = new InjectingTerminal(
+    withHostStdoutGuard(withMouseReporting(options.terminal ?? new ProcessTerminal())),
   );
-  const tui = new TuiMainScreen(terminal);
+  const tui = new TuiMainScreen(injecting) as unknown as MixCodeTui;
+  tui.injectInput = (data) => injecting.inject(data);
   // Strip only: extension clears never hit the wire, so the previous frame is still
   // valid. Do not requestRender/clearScreen on block — that reintroduces the flash.
   const uninstallStdoutGuard = installStdoutScreenGuard({});

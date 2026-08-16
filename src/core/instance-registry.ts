@@ -92,6 +92,10 @@ export function instanceRegistryFile(rootStateDir: string, pid = process.pid): s
   return path.join(instanceRegistryDir(rootStateDir), `${pid}.json`);
 }
 
+export function instanceCtlSocketFile(rootStateDir: string, pid = process.pid): string {
+  return path.join(instanceRegistryDir(rootStateDir), `${pid}.sock`);
+}
+
 export function createInstanceSnapshot(
   state: MixCodeState,
   options: { now?: Date; pid?: number; processIdentity?: ProcessIdentity } = {},
@@ -142,6 +146,7 @@ export async function writeInstanceSnapshot(
 
 export function removeInstanceSnapshotSync(rootStateDir: string, pid = process.pid): void {
   fsSync.rmSync(instanceRegistryFile(rootStateDir, pid), { force: true });
+  fsSync.rmSync(instanceCtlSocketFile(rootStateDir, pid), { force: true });
 }
 
 export async function loadLiveInstanceStatus(

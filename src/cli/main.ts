@@ -4,6 +4,7 @@ import * as path from "node:path";
 import { cwd } from "node:process";
 import { fileURLToPath } from "node:url";
 import { isDirectCliEntry } from "./direct-cli-entry.js";
+import { isCtlCliArgs, runCtlCommand } from "./ctl.js";
 import {
   expandTilde,
   isStatusCliArgs,
@@ -59,6 +60,7 @@ export interface MainArgs {
 
 const HELP_TEXT = `Usage: mpi [options] [-- <script-args...>]
        mpi status [--json] [--workdir <path>]
+       mpi ctl [--pid <n> | --workdir <path>] [--focus-tab <title> | --focus-session <id>] <command>
 
 Options:
   --workdir <path>           Set working directory (default: cwd)
@@ -71,6 +73,7 @@ Options:
 
 Commands:
   status             Show live mpi instances and tabs
+  ctl                Control a live instance (last-message, last-tool, wait, dump-screen, send-keys, …)
 `;
 
 export function parseMainArgs(args: string[], fallbackWorkdir: string): MainArgs {
@@ -256,6 +259,16 @@ export async function main(): Promise<void> {
     process.env.MIXCODE ??= "1";
     const args = parseMainArgs(rawArgs, cwd());
     await runStatusCommand(args);
+    return;
+  }
+  if (isCtlCliArgs(rawArgs)) {
+    process.env.MIXCODE ??= "1";
+    try {
+      await runCtlCommand(rawArgs.slice(1));
+    } catch (error) {
+      process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+      process.exitCode = 1;
+    }
     return;
   }
 

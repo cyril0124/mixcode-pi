@@ -25,6 +25,7 @@ MixCode 随附了位于 `pi-packages/mpi-*` 的第一方内置扩展。这些包
 | `mpi-bash-default-timeout` | 执行 Bash 工具时自动生效 | 为 Bash 工具命令注入默认超时机制，防止任务无限期阻塞。 |
 | `mpi-image-hoist` | 多模态输入时自动生效 | 提取并提升图片载荷，适配多模态模型与工具协议。 |
 | `mpi-herdr-report` | `HERDR_ENV=1` 环境生效 | 将 Agent 的运行状态（working / idle / waiting）同步上报至 Herdr 终端复用器窗格。 |
+| `mpi-ctl` | `$mpi-ctl`，`mpi status` / `mpi ctl` | Skill：用 `MIXCODE_*` 定位 tab，再用 `mpi status` / `mpi ctl` 控制正在跑的 TUI。 |
 
 ## 扩展加载生命周期
 

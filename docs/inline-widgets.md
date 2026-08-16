@@ -15,7 +15,7 @@ Inline widgets mode moves widget rendering to the tail of the conversation log:
 │ [Chat Message Stream]                                                    │
 │                                                                          │
 │ ┌ Widget Dock Above Editor ────────────────────────────────────────────┐ │
-│ │ Goal (active) | 3 tasks remaining | tokens: 12.4k                     │ │
+│ │ Goal (active) | 3 tasks remaining | tokens: 12.4k                    │ │
 │ └──────────────────────────────────────────────────────────────────────┘ │
 │ ── Agent-01 ──────────────────────────────────────────────────────────── │
 │ > prompt editor                                                          │

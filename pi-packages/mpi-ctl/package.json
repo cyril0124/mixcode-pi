@@ -1,0 +1,9 @@
+{
+  "name": "mpi-ctl",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Skill for controlling a live MixCode TUI via mpi status and mpi ctl.",
+  "pi": {
+    "skills": ["./skills/mpi-ctl/SKILL.md"]
+  }
+}

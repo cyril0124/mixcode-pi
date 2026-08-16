@@ -9,20 +9,20 @@ MixCode Pi provides complete hosting for Pi extension UI primitives (`src/agent/
 Extensions mount UI components into five dedicated layout zones:
 
 ```text
-┌────────────────────────────────────────────────────────────┐
-│ Header (scrolls with chat)      ctx.ui.setHeader()         │
-├────────────────────────────────────────────────────────────┤
-│ Chat Surface                    Optional Side Panel        │
-│                                 ctx.ui.setSidePanel()      │
-├────────────────────────────────────────────────────────────┤
-│ Above-Editor Dock               ctx.ui.setWidget(aboveEditor)│
-├────────────────────────────────────────────────────────────┤
-│ Editor / Prompt Input                                      │
-├────────────────────────────────────────────────────────────┤
-│ Below-Editor Dock               ctx.ui.setWidget(belowEditor)│
-├────────────────────────────────────────────────────────────┤
-│ Footer / Status Bar             ctx.ui.setFooter()         │
-└────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────┐
+│ Header (scrolls with chat)      ctx.ui.setHeader()             │
+├────────────────────────────────────────────────────────────────┤
+│ Chat Surface                    Optional Side Panel            │
+│                                 ctx.ui.setSidePanel()          │
+├────────────────────────────────────────────────────────────────┤
+│ Above-Editor Dock               ctx.ui.setWidget(aboveEditor)  │
+├────────────────────────────────────────────────────────────────┤
+│ Editor / Prompt Input                                          │
+├────────────────────────────────────────────────────────────────┤
+│ Below-Editor Dock               ctx.ui.setWidget(belowEditor)  │
+├────────────────────────────────────────────────────────────────┤
+│ Footer / Status Bar             ctx.ui.setFooter()             │
+└────────────────────────────────────────────────────────────────┘
 ```
 
 | UI Zone | API Method | Behavior & Lifetime |

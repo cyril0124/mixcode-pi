@@ -26,6 +26,7 @@ import {
   noteTabOpened,
   openTabsFile,
 } from "../core/open-tabs-store.js";
+import { startInstanceCtlServer } from "../core/instance-ctl-server.js";
 import { startPeerTabSync } from "../core/peer-tab-sync.js";
 import { loadStateFile, saveStateFile, scopedStateDir, stateFileForPort } from "../core/state-store.js";
 import type { MixCodeState } from "../core/types.js";
@@ -316,13 +317,23 @@ export async function runInteractiveApp(args: MainArgs, selfRoot: string): Promi
       tui.requestRender();
     },
   });
+  let ctlServer: { dispose(): void } | undefined;
   const originalStop = tui.stop.bind(tui);
   tui.stop = () => {
     peerTabSync.dispose();
+    ctlServer?.dispose();
     removeRegistrySnapshot();
     originalStop();
   };
   tui.start();
+  ctlServer = startInstanceCtlServer({
+    rootStateDir: stateRoot,
+    state,
+    runtime,
+    injectInput: (data) => tui.injectInput(data),
+    requestRender: () => tui.requestRender(),
+    screenWidth: () => tui.terminal.columns,
+  });
   // Registry cleanup and initial snapshot are deferred to after the first frame.
   // They are cheap on their own (~10ms), but their `await` yields the event loop
   // to the deferred background extension loading (CPU-heavy jiti compilation that
