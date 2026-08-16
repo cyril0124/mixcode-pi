@@ -5,8 +5,10 @@ import * as path from "node:path";
 import { test } from "node:test";
 import type { MixCodeRuntime } from "../src/agent/runtime.js";
 import {
+  ctlClientTimeoutMs,
   isCtlCliArgs,
   parseCtlArgs,
+  resolveSendPromptText,
   requestCtl,
   selectCtlInstance,
   shouldTruncateCtlOutput,
@@ -20,6 +22,7 @@ import {
   handleCtlRequest,
   IMPLIED_FOCUS_REASON,
   startInstanceCtlServer,
+  wrapCtlSubmitText,
 } from "../src/core/instance-ctl-server.js";
 import { writeInstanceSnapshot } from "../src/core/instance-registry.js";
 import { createInitialState, createTab } from "../src/core/defaults.js";
@@ -78,6 +81,11 @@ test("parseCtlArgs parses target flags and send-keys tokens", () => {
   assert.equal(parseCtlArgs(["dump-screen", "--ansi"], "/caller").ansi, true);
   const waitDefault = parseCtlArgs(["wait"], "/caller");
   assert.equal(waitDefault.op, "wait");
+  assert.equal(ctlClientTimeoutMs({ op: "last-message" }), 10_000);
+  assert.equal(ctlClientTimeoutMs({ op: "send-keys" }), 10_000);
+  assert.equal(ctlClientTimeoutMs({ op: "wait" }), 65_000);
+  assert.equal(ctlClientTimeoutMs({ op: "wait", timeout: 180 }), 185_000);
+  assert.equal(ctlClientTimeoutMs({ op: "wait", timeout: 0 }), 5_000);
   assert.equal(waitDefault.timeout, 60);
   const waitArgs = parseCtlArgs(["wait", "--timeout", "5"], "/caller");
   assert.equal(waitArgs.op, "wait");
@@ -284,8 +292,26 @@ test("handleCtlRequest last-assistant-message send-keys and dump-screen", async 
     opts,
   );
   assert.equal(submitKeys.ok, true);
+  await Promise.resolve();
   assert.deepEqual(submitted, [{ sessionId: "s1", text: "hello" }]);
   assert.equal(state.activeTabId, "s2");
+  let hangingResolved = false;
+  const hanging = Promise.withResolvers<void>();
+  const hangingOpts = {
+    ...opts,
+    submitToTab: async () => {
+      await hanging.promise;
+      hangingResolved = true;
+    },
+  };
+  const acked = await handleCtlRequest(
+    { op: "send-keys", tabTitle: "Agent-01", keys: ["later", "\r"] },
+    hangingOpts,
+  );
+  assert.equal(acked.ok, true);
+  assert.equal(hangingResolved, false);
+  hanging.resolve();
+  await hanging.promise;
   const uiKeys = await handleCtlRequest(
     { op: "send-keys", tabTitle: "Agent-01", keys: ["\x1b[B"] },
     opts,
@@ -434,6 +460,111 @@ test("ctl socket server answers a client request", async () => {
     server.dispose();
     await fsPromises.rm(root, { recursive: true, force: true });
   }
+});
+
+test("parseCtlArgs and handleCtlRequest send-prompt", async () => {
+  const parsed = parseCtlArgs(["send-prompt", "hello\nworld"], "/caller");
+  assert.equal(parsed.op, "send-prompt");
+  assert.equal(parsed.prompt, "hello\nworld");
+  assert.equal(parsed.promptFromStdin, false);
+  assert.equal(parseCtlArgs(["send-prompt", "a", "b"], "/caller").prompt, "a b");
+  const heredoc = parseCtlArgs(["send-prompt"], "/caller");
+  assert.equal(heredoc.promptFromStdin, true);
+  assert.equal(parseCtlArgs(["send-prompt", "-"], "/caller").promptFromStdin, true);
+  assert.equal(
+    await resolveSendPromptText({ prompt: "hi" }),
+    "hi",
+  );
+  assert.equal(
+    await resolveSendPromptText({ promptFromStdin: true }, { isTTY: false, readStdin: async () => "line1\nline2\n" }),
+    "line1\nline2\n",
+  );
+  await assert.rejects(
+    resolveSendPromptText({ promptFromStdin: true }, { isTTY: true }),
+    /heredoc\/pipe/,
+  );
+  assert.equal(shouldTruncateCtlOutput("send-prompt"), false);
+
+  const submitted: string[] = [];
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo", { title: "Agent-01" }));
+  state.activeTabId = "s1";
+  const opts = {
+    state,
+    runtime: { getTab: () => ({ chat: [] }) } as unknown as MixCodeRuntime,
+    injectInput: () => undefined,
+    submitToTab: (_tab: { sessionId: string }, text: string) => {
+      submitted.push(text);
+    },
+    screenWidth: () => 80,
+  };
+  assert.equal(wrapCtlSubmitText("hello", "Agent-01"), "[mpi ctl] from tab: Agent-01\n\nhello");
+  assert.equal(wrapCtlSubmitText("hello"), "hello");
+  assert.equal(wrapCtlSubmitText("/compact", "Agent-01"), "/compact");
+  assert.equal(wrapCtlSubmitText("!ls"), "!ls");
+  assert.equal(wrapCtlSubmitText("!!ls"), "!!ls");
+
+  const sent = await handleCtlRequest(
+    { op: "send-prompt", tabTitle: "Agent-01", prompt: "hello\nworld", fromTabTitle: "Sender" },
+    opts,
+  );
+  assert.equal(sent.ok, true);
+  assert.deepEqual(submitted, ["[mpi ctl] from tab: Sender\n\nhello\nworld"]);
+  submitted.length = 0;
+  const slash = await handleCtlRequest(
+    { op: "send-prompt", tabTitle: "Agent-01", prompt: "/compact", fromTabTitle: "Sender" },
+    opts,
+  );
+  assert.equal(slash.ok, true);
+  assert.deepEqual(submitted, ["/compact"]);
+  submitted.length = 0;
+  const keyedSlash = await handleCtlRequest(
+    { op: "send-keys", tabTitle: "Agent-01", keys: ["/compact", "\r"], fromTabTitle: "Sender" },
+    opts,
+  );
+  assert.equal(keyedSlash.ok, true);
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.deepEqual(submitted, ["/compact"]);
+  submitted.length = 0;
+  const keyed = await handleCtlRequest(
+    { op: "send-keys", tabTitle: "Agent-01", keys: ["hi", "\r"], fromTabTitle: "Sender" },
+    opts,
+  );
+  assert.equal(keyed.ok, true);
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.deepEqual(submitted, ["[mpi ctl] from tab: Sender\n\nhi"]);
+  assert.equal(state.activeTabId, "s1");
+});
+
+test("wait stays busy until fire-and-forget send-prompt settles", async () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo", { title: "Agent-01" });
+  state.tabs.push(tab);
+  state.activeTabId = "s1";
+  const gate = Promise.withResolvers<void>();
+  const opts = {
+    state,
+    runtime: { getTab: () => ({ chat: [] }) } as unknown as MixCodeRuntime,
+    injectInput: () => undefined,
+    submitToTab: async () => {
+      await gate.promise;
+    },
+  };
+  const sent = await handleCtlRequest(
+    { op: "send-prompt", tabTitle: "Agent-01", prompt: "hello" },
+    opts,
+  );
+  assert.equal(sent.ok, true);
+  const once = await handleCtlRequest({ op: "wait", tabTitle: "Agent-01", timeout: 0 }, opts);
+  assert.equal(once.ok, false);
+  assert.match(once.text ?? "", /status: running/);
+  const waiting = handleCtlRequest({ op: "wait", tabTitle: "Agent-01", timeout: 1 }, opts);
+  gate.resolve();
+  const done = await waiting;
+  assert.equal(done.ok, true);
+  assert.match(done.text ?? "", /status: finished/);
 });
 
 test("truncateCtlStdout leaves short output unchanged and dumps long output to tmp", async () => {

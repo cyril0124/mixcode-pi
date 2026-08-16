@@ -104,6 +104,41 @@ function withPreamble(
   })}${body}`;
 }
 
+export function wrapCtlSubmitText(text: string, fromTabTitle?: string): string {
+  const title = fromTabTitle?.trim();
+  if (!title) return text;
+  const trimmed = text.trimStart();
+  if (trimmed.startsWith("/") || trimmed.startsWith("!")) return text;
+  return `[mpi ctl] from tab: ${title}\n\n${text}`;
+}
+
+const pendingCtlSubmits = new WeakMap<MixCodeTabInfo, number>();
+
+function trackCtlSubmit(tab: MixCodeTabInfo, work: Promise<unknown>): void {
+  pendingCtlSubmits.set(tab, (pendingCtlSubmits.get(tab) ?? 0) + 1);
+  void work.then(
+    () => finishCtlSubmit(tab),
+    () => {
+      // submit failed after ACK; no ctl response channel left.
+      finishCtlSubmit(tab);
+    },
+  );
+}
+
+function finishCtlSubmit(tab: MixCodeTabInfo): void {
+  const next = (pendingCtlSubmits.get(tab) ?? 1) - 1;
+  if (next <= 0) pendingCtlSubmits.delete(tab);
+  else pendingCtlSubmits.set(tab, next);
+}
+
+function hasPendingCtlSubmit(tab: MixCodeTabInfo): boolean {
+  return (pendingCtlSubmits.get(tab) ?? 0) > 0;
+}
+
+function isCtlWaitSettled(tab: MixCodeTabInfo): boolean {
+  return tabIsWaitingForInput(tab) || (!CTL_WAIT_BUSY.has(tab.status) && !hasPendingCtlSubmit(tab));
+}
+
 function isBackgroundSendKeysText(chunk: string): boolean {
   for (let index = 0; index < chunk.length; index++) {
     if (chunk.charCodeAt(index) < 32) return false;
@@ -111,21 +146,37 @@ function isBackgroundSendKeysText(chunk: string): boolean {
   return true;
 }
 
-async function applyBackgroundSendKeys(
-  tab: MixCodeTabInfo,
+function assertBackgroundSendKeys(
   keys: string[],
-  options: Pick<StartInstanceCtlServerOptions, "submitToTab" | "requestRender">,
-): Promise<void> {
-  let pending = "";
+  options: Pick<StartInstanceCtlServerOptions, "submitToTab">,
+): void {
+  let needsSubmit = false;
   for (const chunk of keys) {
     if (chunk === "\r" || chunk === "\n") {
-      if (!options.submitToTab) throw new Error("send-keys --tab/--session requires submitToTab");
-      await options.submitToTab(tab, pending);
-      pending = "";
+      needsSubmit = true;
       continue;
     }
     if (!isBackgroundSendKeysText(chunk)) {
       throw new Error("send-keys --tab/--session only supports text and Enter; use --focus-tab for UI keys");
+    }
+  }
+  if (needsSubmit && !options.submitToTab) {
+    throw new Error("send-keys --tab/--session requires submitToTab");
+  }
+}
+
+async function applyBackgroundSendKeys(
+  tab: MixCodeTabInfo,
+  keys: string[],
+  options: Pick<StartInstanceCtlServerOptions, "submitToTab" | "requestRender">,
+  fromTabTitle?: string,
+): Promise<void> {
+  let pending = "";
+  for (const chunk of keys) {
+    if (chunk === "\r" || chunk === "\n") {
+      await options.submitToTab!(tab, wrapCtlSubmitText(pending, fromTabTitle));
+      pending = "";
+      continue;
     }
     pending += chunk;
   }
@@ -214,6 +265,8 @@ export function lastChatTools(
 
 function ctlWaitStatus(tab: MixCodeTabInfo): string {
   if (tabIsWaitingForInput(tab)) return "wait-for-input";
+  if (CTL_WAIT_BUSY.has(tab.status)) return tab.status;
+  if (hasPendingCtlSubmit(tab)) return "running";
   if (tab.status === "idle" || tab.status === "done") return "finished";
   return tab.status;
 }
@@ -224,7 +277,7 @@ export async function waitForTabIdle(
 ): Promise<{ status: string; timedOut: boolean }> {
   const deadline = Date.now() + timeoutSec * 1000;
   for (;;) {
-    if (tabIsWaitingForInput(tab) || !CTL_WAIT_BUSY.has(tab.status)) {
+    if (isCtlWaitSettled(tab)) {
       return { status: ctlWaitStatus(tab), timedOut: false };
     }
     if (timeoutSec === 0 || Date.now() >= deadline) {
@@ -266,13 +319,34 @@ export async function handleCtlRequest(
     }
     const wrap = (body: string, extras?: { time?: string; messages?: string }) =>
       withPreamble(request, options.state, sessionId, body, extras);
+    if (request.op === "send-prompt") {
+      if (request.prompt === undefined) throw new Error("send-prompt requires text");
+      if (sessionId === HOME_TAB_ID) throw new Error("Home has no agent run");
+      const tab = options.state.tabs.find((candidate) => candidate.sessionId === sessionId);
+      if (!tab) throw new Error(`Unknown session: ${sessionId}`);
+      if (!options.submitToTab) throw new Error("send-prompt requires submitToTab");
+      trackCtlSubmit(
+        tab,
+        Promise.resolve(options.submitToTab(tab, wrapCtlSubmitText(request.prompt, request.fromTabTitle))),
+      );
+      return { ok: true, text: wrap("") };
+    }
     if (request.op === "send-keys") {
       if (!request.keys) throw new Error("send-keys requires keys");
       if (targetWithoutFocus) {
         if (sessionId === HOME_TAB_ID) throw new Error("Home has no agent run");
         const tab = options.state.tabs.find((candidate) => candidate.sessionId === sessionId);
         if (!tab) throw new Error(`Unknown session: ${sessionId}`);
-        await applyBackgroundSendKeys(tab, request.keys, options);
+        assertBackgroundSendKeys(request.keys, options);
+        // ACK before submitToTab finishes; the client idle timeout must not wait on the agent turn.
+        const work = applyBackgroundSendKeys(tab, request.keys, options, request.fromTabTitle);
+        if (request.keys.some((chunk) => chunk === "\r" || chunk === "\n")) {
+          trackCtlSubmit(tab, work);
+        } else {
+          void work.catch(() => {
+            // draft update failed after ACK; no ctl response channel left.
+          });
+        }
       } else {
         for (const chunk of request.keys) options.injectInput(chunk);
       }

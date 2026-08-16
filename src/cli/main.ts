@@ -75,7 +75,7 @@ Options:
 
 Commands:
   status             Show live mpi instances and tabs
-  ctl                Control a live instance (--tab/--session or --focus-*; last-message, last-tool, wait, dump-screen, send-keys)
+  ctl                Control a live instance (--tab/--session or --focus-*; last-message, wait, send-prompt, send-keys, …)
   commands           List slash commands (local, extension, prompt)
 `;
 

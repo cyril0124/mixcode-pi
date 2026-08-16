@@ -19,6 +19,7 @@ export const CTL_OPS = [
   "wait",
   "dump-screen",
   "send-keys",
+  "send-prompt",
 ] as const;
 export type CtlOp = (typeof CTL_OPS)[number];
 
@@ -31,6 +32,10 @@ export interface CtlRequest {
   tabTitle?: string;
   /** Encoded stdin chunks; each chunk is one inject() (one send-keys token). */
   keys?: string[];
+  /** Raw prompt for send-prompt (newlines kept). */
+  prompt?: string;
+  /** Sender tab title from MIXCODE_TAB_TITLE; used to wrap non-slash submits. */
+  fromTabTitle?: string;
   /** 1-based from the end; only with last-*-message / last-tool. Pair with `to`. */
   from?: number;
   to?: number;
@@ -53,6 +58,8 @@ export interface CtlArgs {
   tabTitle?: string;
   op: CtlOp;
   keys?: string[];
+  prompt?: string;
+  promptFromStdin?: boolean;
   from?: number;
   to?: number;
   timeout?: number;
@@ -70,6 +77,7 @@ Commands:
   wait                    Block until the focused tab is not running/thinking
   dump-screen             Print the focused tab/home surface as text
   send-keys [-l] [key...] Inject tmux-style keys into the live TUI input path
+  send-prompt [text...]   Submit text to the target tab; no text reads stdin (heredoc/pipe)
 
 Target:
   --pid <n>               Control this live instance (mutually exclusive with --workdir)
@@ -232,10 +240,10 @@ export function parseCtlArgs(args: string[], fallbackWorkdir: string): CtlArgs {
   const op = rest[0];
   if (!op || !CTL_OPS.includes(op as CtlOp)) {
     throw new Error(
-      `Unknown ctl command: ${op ?? "(missing)"}. Use last-message, last-assistant-message, last-user-message, last-tool, wait, dump-screen, or send-keys.`,
+      `Unknown ctl command: ${op ?? "(missing)"}. Use last-message, last-assistant-message, last-user-message, last-tool, wait, dump-screen, send-keys, or send-prompt.`,
     );
   }
-  if (op !== "send-keys" && rest.length > 1) {
+  if (op !== "send-keys" && op !== "send-prompt" && rest.length > 1) {
     throw new Error(`Unexpected argument: ${rest[1]}`);
   }
   if ((from === undefined) !== (to === undefined)) {
@@ -266,6 +274,9 @@ export function parseCtlArgs(args: string[], fallbackWorkdir: string): CtlArgs {
     op === "send-keys"
       ? rest.slice(1).map((token) => encodeSendKeys([token], { literal }))
       : undefined;
+  const promptArgs = op === "send-prompt" ? rest.slice(1) : [];
+  const promptFromStdin = op === "send-prompt" && (promptArgs.length === 0 || (promptArgs.length === 1 && promptArgs[0] === "-"));
+  const prompt = op === "send-prompt" && !promptFromStdin ? promptArgs.join(" ") : undefined;
   return {
     pid,
     workdir,
@@ -275,6 +286,8 @@ export function parseCtlArgs(args: string[], fallbackWorkdir: string): CtlArgs {
     tabTitle,
     op: op as CtlOp,
     keys,
+    prompt,
+    promptFromStdin,
     from,
     to,
     timeout,
@@ -326,6 +339,17 @@ export async function selectCtlInstance(
   return instances[0]!;
 }
 
+export const CTL_CLIENT_IDLE_TIMEOUT_MS = 10_000;
+export const CTL_CLIENT_WAIT_SLACK_SEC = 5;
+
+/** Client socket deadline. `wait` must outlive `--timeout`; other ops stay at 10s. */
+export function ctlClientTimeoutMs(request: Pick<CtlRequest, "op" | "timeout">): number {
+  if (request.op === "wait") {
+    return ((request.timeout ?? 60) + CTL_CLIENT_WAIT_SLACK_SEC) * 1000;
+  }
+  return CTL_CLIENT_IDLE_TIMEOUT_MS;
+}
+
 export async function requestCtl(
   socketPath: string,
   request: CtlRequest,
@@ -333,7 +357,7 @@ export async function requestCtl(
   const payload = `${JSON.stringify(request)}\n`;
   return await new Promise((resolve, reject) => {
     const socket = net.createConnection(socketPath);
-    socket.setTimeout(10_000, () => socket.destroy(new Error("ctl socket timed out")));
+    socket.setTimeout(ctlClientTimeoutMs(request), () => socket.destroy(new Error("ctl socket timed out")));
     let buf = "";
     socket.setEncoding("utf8");
     socket.on("connect", () => {
@@ -361,7 +385,7 @@ export const CTL_STDOUT_LIMIT_BYTES = 8192;
 export const CTL_STDOUT_PREVIEW_BYTES = 4096;
 
 export function shouldTruncateCtlOutput(op: CtlOp): boolean {
-  return op !== "send-keys" && op !== "wait";
+  return op !== "send-keys" && op !== "send-prompt" && op !== "wait";
 }
 
 /** Strip CSI/OSC so dump-screen is readable without a TUI import on the ctl fast path. */
@@ -419,6 +443,23 @@ export async function truncateCtlStdout(
   };
 }
 
+export async function resolveSendPromptText(
+  parsed: Pick<CtlArgs, "prompt" | "promptFromStdin">,
+  options: { isTTY?: boolean; readStdin?: () => Promise<string> } = {},
+): Promise<string> {
+  if (!parsed.promptFromStdin) {
+    if (!parsed.prompt) throw new Error("send-prompt requires text");
+    return parsed.prompt;
+  }
+  const isTTY = options.isTTY ?? Boolean(process.stdin.isTTY);
+  if (isTTY) {
+    throw new Error("send-prompt: no text on argv; pass arguments or a heredoc/pipe (stdin is a TTY)");
+  }
+  const text = options.readStdin ? await options.readStdin() : await Bun.stdin.text();
+  if (!text) throw new Error("send-prompt requires text");
+  return text;
+}
+
 export async function runCtlCommand(
   rawArgs: string[],
   options: { fallbackWorkdir?: string; stateDir?: string } = {},
@@ -428,6 +469,8 @@ export async function runCtlCommand(
     process.stdout.write(`${CTL_HELP}\n`);
     return;
   }
+  const prompt =
+    parsed.op === "send-prompt" ? await resolveSendPromptText(parsed) : parsed.prompt;
   const stateDir = options.stateDir ?? resolveMixcodeStateDir();
   const instance = await selectCtlInstance(parsed, { stateDir });
   const response = await requestCtl(instanceCtlSocketFile(stateDir, instance.pid), {
@@ -437,6 +480,8 @@ export async function runCtlCommand(
     sessionId: parsed.sessionId,
     tabTitle: parsed.tabTitle,
     keys: parsed.keys,
+    prompt,
+    fromTabTitle: process.env.MIXCODE_TAB_TITLE?.trim() || undefined,
     from: parsed.from,
     to: parsed.to,
     timeout: parsed.timeout,
