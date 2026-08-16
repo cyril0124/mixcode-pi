@@ -24,6 +24,7 @@
 | --- | --- | --- |
 | `MIXCODE_TAB_TITLE` | Bash 工具派生 | 拥有该 Agent 的 Tab 标题（例如 `Agent-01`）。在下次派生时跟随重命名。 |
 | `MIXCODE_FOCUSED_TAB_TITLE` | Bash 工具派生 | UI 处于焦点状态的 Agent Tab 标题。当焦点处于 Home 或未知时未设置。当后台 Tab 运行 bash 时可能与 `MIXCODE_TAB_TITLE` 不同。 |
+| `MIXCODE_PID` | Bash 工具派生 | 拥有该 Agent 的 mpi 宿主进程 PID。`mpi ctl` 将其作为隐式 `--pid`（显式 `--pid`/`--workdir` 仍优先生效）。对脱离进程树的后代（nohup/setsid）比 `$PPID` 更可靠。 |
 
 ## 资源发现与隔离
 

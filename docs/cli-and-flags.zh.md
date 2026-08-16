@@ -51,7 +51,7 @@ mpi ctl --workdir ~/proj send-keys /compact Enter
 mpi ctl send-keys --literal Enter
 ```
 
-- 选实例：`--pid` 与 `--workdir` 互斥（`--workdir` 解析规则与 `status` 相同）；都未给则用当前工作目录。0 个匹配、或多个匹配且未给 `--pid` 时非 0 退出。
+- 选实例：显式 `--pid` 或 `--workdir` 优先（二者互斥；`--workdir` 解析规则与 `status` 相同），其次使用已设置的 `MIXCODE_PID`，最后使用当前工作目录。非法或失效的 `MIXCODE_PID` 会失败；0 个匹配或 cwd/workdir 匹配到多个实例时非 0 退出。
 - 每个命令先打头再空一行：`tab:`、`session:`；未给 `--focus-tab`/`--focus-session` 时才有 `reason:`。`last-message` / `last-assistant-message` / `last-user-message` 每条消息先是 `----------`，再是 `time:`（本地时间 `YYYY-MM-DD HH:MM:SS ±HH:MM`，没有则为 `unknown`），然后是正文。`last-message` 另打 `role:`，user 和 assistant 都算。`last-tool` 打 `tool:` / `status:` / 可选 `command:` / `time:`，然后是 tool 或 `!bash` 输出。可选 `--from <n> --to <m>`（必须成对）从末尾 1-based 取闭区间（`1` 是最新；按角色的命令只数该角色），按时间正序打印。条数不够时有多少打多少，头里加 `messages: N (requested A-B)`。Home 上 last-message / last-tool 先把头发到 stdout，再在 stderr 失败。
 - `wait`：挡住直到聚焦的 agent tab 不是 `running`/`thinking`，或在等输入（`pendingDialogs` / extension UI）。一定有超时：`--timeout <sec>` 默认 60；`0` 只查一次。打 `status:`（`finished` / `wait-for-input` / `error`；超时则是 `running`/`thinking`）和 `timeout:`。超时先打这两行再失败。Home 没有 agent run。
 - `dump-screen`：用 `renderAgentSurface` / `renderConfig` 拼出的文本，不是 PNG / 终端像素缓冲。客户端默认去掉 ANSI 和行尾空格；`--ansi` 保留颜色。两种模式都会去掉行尾空格。

@@ -94,6 +94,48 @@ test("parseCtlArgs parses target flags and send-keys tokens", () => {
   assert.throws(() => parseCtlArgs(["last-message", "--ansi"], "/caller"), /--ansi only applies/);
 });
 
+test("selectCtlInstance targets MIXCODE_PID before cwd workdir", async () => {
+  const root = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mpi-ctl-envpid-"));
+  const other = Bun.spawn(["sleep", "5"], { stdout: "ignore", stderr: "ignore" });
+  const snapshot = (pid: number, workdir: string) =>
+    writeInstanceSnapshot(root, {
+      version: 1,
+      pid,
+      processVerification: "pid-only",
+      workdir,
+      activeTabId: "s1",
+      updatedAt: new Date().toISOString(),
+      tabs: [],
+    });
+  try {
+    await snapshot(process.pid, "/repo-cwd");
+    await snapshot(other.pid, "/repo-env");
+    const picked = await selectCtlInstance(
+      { op: "last-assistant-message" },
+      { stateDir: root, env: { MIXCODE_PID: String(other.pid) } },
+    );
+    assert.equal(picked.pid, other.pid);
+    // Explicit --workdir beats the env pid.
+    const byWorkdir = await selectCtlInstance(
+      { op: "last-assistant-message", workdir: "/repo-cwd" },
+      { stateDir: root, env: { MIXCODE_PID: String(other.pid) } },
+    );
+    assert.equal(byWorkdir.pid, process.pid);
+    // Stale env pid surfaces a targeted error instead of silently retargeting cwd.
+    await assert.rejects(
+      selectCtlInstance({ op: "last-assistant-message" }, { stateDir: root, env: { MIXCODE_PID: "999999" } }),
+      /MIXCODE_PID=999999/,
+    );
+    await assert.rejects(
+      selectCtlInstance({ op: "last-assistant-message" }, { stateDir: root, env: { MIXCODE_PID: "42junk" } }),
+      /Invalid MIXCODE_PID/,
+    );
+  } finally {
+    other.kill();
+    await fsPromises.rm(root, { recursive: true, force: true });
+  }
+});
+
 test("selectCtlInstance errors on zero or multiple matches", async () => {
   const root = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mpi-ctl-select-"));
   try {

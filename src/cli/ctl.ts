@@ -2,7 +2,7 @@ import * as fs from "node:fs/promises";
 import * as net from "node:net";
 import * as os from "node:os";
 import * as path from "node:path";
-import { cwd } from "node:process";
+import { cwd, env as processEnv } from "node:process";
 import {
   instanceCtlSocketFile,
   loadLiveInstanceStatus,
@@ -69,7 +69,7 @@ Commands:
 Target:
   --pid <n>               Control this live instance (mutually exclusive with --workdir)
   --workdir <path>        Control the unique live instance in this workdir (mutually exclusive with --pid)
-  (default)               Same as --workdir <cwd>; errors if 0 or >1 instances
+  (default)               MIXCODE_PID env (bash tool children), else --workdir <cwd>; errors if 0 or >1 instances
 
   --focus-tab <title>     Focus the tab with this exact title (mutually exclusive with --focus-session)
   --focus-session <id>    Focus this session id, or home for Home
@@ -234,18 +234,42 @@ export function parseCtlArgs(args: string[], fallbackWorkdir: string): CtlArgs {
   return { pid, workdir, focusSessionId, focusTabTitle, op: op as CtlOp, keys, from, to, timeout, ansi };
 }
 
+/** Structural env slice so both `process.env` and test literals satisfy it. */
+type MixCodePidEnv = Record<string, string | undefined>;
+
+/** Read MIXCODE_PID; unset falls back to workdir matching, while invalid values fail explicitly. */
+function mixcodePidFromEnv(env: MixCodePidEnv = processEnv): number | undefined {
+  const raw = env.MIXCODE_PID;
+  if (raw === undefined) return undefined;
+  const normalized = raw.trim();
+  const pid = Number(normalized);
+  if (!/^\d+$/.test(normalized) || !Number.isSafeInteger(pid) || pid <= 0) {
+    throw new Error("Invalid MIXCODE_PID; expected a positive integer.");
+  }
+  return pid;
+}
+
 export async function selectCtlInstance(
   args: CtlArgs,
-  options: { stateDir?: string; now?: Date } = {},
+  options: { stateDir?: string; now?: Date; env?: MixCodePidEnv } = {},
 ): Promise<InstanceStatusInstance> {
   const stateDir = options.stateDir ?? resolveMixcodeStateDir();
+  // Target precedence: explicit --pid/--workdir > MIXCODE_PID env > cwd workdir.
+  const envPid = args.pid || args.workdir ? undefined : mixcodePidFromEnv(options.env);
+  const pid = args.pid ?? envPid;
   const report = await loadLiveInstanceStatus(stateDir, {
-    workdir: args.pid ? undefined : (args.workdir ?? path.resolve(cwd())),
+    workdir: pid ? undefined : (args.workdir ?? path.resolve(cwd())),
     now: options.now,
   });
   let instances = report.instances;
-  if (args.pid) instances = instances.filter((instance) => instance.pid === args.pid);
-  if (instances.length === 0) throw new Error("No live mpi instance matches the target.");
+  if (pid) instances = instances.filter((instance) => instance.pid === pid);
+  if (instances.length === 0) {
+    throw new Error(
+      envPid !== undefined
+        ? `No live mpi instance matches MIXCODE_PID=${envPid}; unset it or pass --pid/--workdir.`
+        : "No live mpi instance matches the target.",
+    );
+  }
   if (instances.length > 1) {
     throw new Error(
       `Multiple live mpi instances match (${instances.map((i) => i.pid).join(", ")}); pass --pid.`,

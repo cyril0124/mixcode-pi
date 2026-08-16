@@ -1,7 +1,10 @@
 /**
- * MixCode tab titles injected into agent bash tool child env (Pi PI_* style).
+ * MixCode env injected into agent bash tool child env (Pi PI_* style).
  * Only the bash tool spawn path sets these — not the host process, not user `!`.
  */
+
+/** PID of the mpi host process that owns this agent; `mpi ctl` treats it as an implicit `--pid`. */
+export const MIXCODE_PID_ENV = "MIXCODE_PID" as const;
 
 export const MIXCODE_TAB_TITLE_ENV = "MIXCODE_TAB_TITLE" as const;
 export const MIXCODE_FOCUSED_TAB_TITLE_ENV = "MIXCODE_FOCUSED_TAB_TITLE" as const;

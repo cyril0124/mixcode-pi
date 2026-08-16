@@ -1,5 +1,9 @@
 # AGENTS.md
 
+## Documentation Standards
+
+- Changes to `mpi status`, `mpi ctl`, or the MixCode env contracts the `mpi-ctl` skill uses (`MIXCODE`, `MIXCODE_PID`, `MIXCODE_TAB_TITLE`, `MIXCODE_FOCUSED_TAB_TITLE`) must update `pi-packages/mpi-ctl/skills/mpi-ctl/SKILL.md` in the same task (and the package README pair if the package description changes).
+
 ## TUI Validation
 
 - For TUI work, code inspection and unit tests are not sufficient evidence. Run the TUI interactively, capture screenshots, and verify core keyboard flows before claiming the UI works.

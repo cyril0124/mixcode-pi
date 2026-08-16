@@ -38,6 +38,7 @@ These exist only in the **agent bash tool** child. They are unset on the host an
 | Variable | Meaning |
 |---|---|
 | `MIXCODE` | Set (`1`) when this process is MixCode, not bare `pi`. Off if unset / `0` / `false` / `off`. |
+| `MIXCODE_PID` | PID of the **mpi host process** owning this agent. `mpi ctl` uses it as an implicit `--pid` when you pass neither `--pid` nor `--workdir`; a stale value errors with `No live mpi instance matches MIXCODE_PID=<n>`. More durable than `$PPID` after nohup/setsid. |
 | `MIXCODE_TAB_TITLE` | Title of **this** agent tab (follows rename on the next bash spawn). |
 | `MIXCODE_FOCUSED_TAB_TITLE` | Title of the **UI-focused** agent tab. Unset when focus is Home or unknown. Differs from `MIXCODE_TAB_TITLE` when a background tab runs bash. |
 
@@ -63,6 +64,7 @@ mpi ctl [--pid <n> | --workdir <path>] [--focus-tab <title> | --focus-session <i
 - `--focus-tab` / `--focus-session` are mutually exclusive. Title match is exact; duplicates need `--focus-session`.
 - `--focus-session home` focuses Home.
 - Omit focus: uses live UI focus; stdout header includes `reason: no --focus-tab/--focus-session; using live UI focus`.
+- Targeting default (no `--pid` / `--workdir`): `MIXCODE_PID` env when set (bash tool children), else the unique live instance in `<cwd>`.
 
 If any agent tab is `Not Ready`, every ctl command fails: `Tab is still loading extensions. Please wait a moment.` Restart a TUI that predates the ctl socket; compiled `mpi` must include the server.
 

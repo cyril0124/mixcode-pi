@@ -3,11 +3,12 @@ import {
   type SettingsManager,
   type ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
-import { applyMixCodeTabEnv, type MixCodeTabEnvTitles } from "../core/tab-env.js";
+import { applyMixCodeTabEnv, MIXCODE_PID_ENV, type MixCodeTabEnvTitles } from "../core/tab-env.js";
 
 /**
  * Bash ToolDefinition that overrides the builtin bash tool and injects
- * MIXCODE_TAB_TITLE / MIXCODE_FOCUSED_TAB_TITLE on each spawn (after Pi PI_*).
+ * MIXCODE_PID / MIXCODE_TAB_TITLE / MIXCODE_FOCUSED_TAB_TITLE on each spawn
+ * (after Pi PI_*).
  */
 export function createMixCodeBashCustomTools(
   cwd: string,
@@ -21,7 +22,7 @@ export function createMixCodeBashCustomTools(
       shellPath: settingsManager.getShellPath(),
       spawnHook: (ctx) => ({
         ...ctx,
-        env: applyMixCodeTabEnv({ ...ctx.env }, getTitles()),
+        env: applyMixCodeTabEnv({ ...ctx.env, [MIXCODE_PID_ENV]: String(process.pid) }, getTitles()),
       }),
     }) as ToolDefinition,
   ];
