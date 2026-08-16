@@ -1,5 +1,5 @@
 /**
- * Load `<agentDir>/auto-rename.json` (optional `model` only).
+ * Load `<agentDir>/auto-rename.json` (optional `model` / `thinking`).
  * Pure Node — no Bun APIs.
  */
 
@@ -12,6 +12,8 @@ export const AUTO_RENAME_INHERIT = "inherit";
 export type AutoRenameConfig = {
   /** `provider/modelId`; omit or "inherit" = use active session model. */
   model?: string;
+  /** Thinking level; omit or "inherit" = use active session thinking. */
+  thinking?: string;
 };
 
 export function autoRenameConfigPath(agentDir: string): string {
@@ -23,14 +25,18 @@ export type AutoRenameConfigLoad =
   | { ok: true; path: string; config: AutoRenameConfig; missing: true }
   | { ok: false; path: string; error: string };
 
-/** Non-empty trimmed `model` only; unknown keys ignored. */
+/** Non-empty trimmed `model` / `thinking` only; unknown keys ignored. */
 export function parseAutoRenameConfig(raw: unknown): AutoRenameConfig {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
   const source = raw as Record<string, unknown>;
+  const config: AutoRenameConfig = {};
   if (typeof source.model === "string" && source.model.trim()) {
-    return { model: source.model.trim() };
+    config.model = source.model.trim();
   }
-  return {};
+  if (typeof source.thinking === "string" && source.thinking.trim()) {
+    config.thinking = source.thinking.trim();
+  }
+  return config;
 }
 
 export function loadAutoRenameConfig(agentDir: string): AutoRenameConfigLoad {
@@ -88,15 +94,24 @@ export function parseAutoRenameModelRef(
 }
 
 /**
- * Resolve rename model. Unset / inherit / unparsable `model` falls back to the session.
+ * Resolve rename model + thinking. Unset / inherit / unparsable fields fall back to the session.
  */
 export function resolveAutoRenameTarget(
-  active: { provider: string; modelId: string },
-  config?: Pick<AutoRenameConfig, "model">,
-): { provider: string; modelId: string } {
+  active: { provider: string; modelId: string; thinkingLevel: string },
+  config?: Pick<AutoRenameConfig, "model" | "thinking">,
+): { provider: string; modelId: string; thinkingLevel: string } {
+  let provider = active.provider;
+  let modelId = active.modelId;
+  let thinkingLevel = active.thinkingLevel;
   if (config?.model && config.model !== AUTO_RENAME_INHERIT) {
     const parsed = parseAutoRenameModelRef(config.model);
-    if (parsed) return parsed;
+    if (parsed) {
+      provider = parsed.provider;
+      modelId = parsed.modelId;
+    }
   }
-  return { provider: active.provider, modelId: active.modelId };
+  if (config?.thinking && config.thinking !== AUTO_RENAME_INHERIT) {
+    thinkingLevel = config.thinking;
+  }
+  return { provider, modelId, thinkingLevel };
 }

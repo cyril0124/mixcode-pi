@@ -410,6 +410,30 @@ describe("mpi-optimize-prompt command", () => {
     });
   });
 
+  it("thinking picker lists the selected model's supported levels", () => {
+    const view = createOptimizePromptConfigOverlay({
+      theme: { fg: (_c: string, text: string) => text, bold: (text: string) => text },
+      requestRender: () => undefined,
+      done: () => undefined,
+      initial: {},
+      modelOptions: ["a/m1", "b/m2"],
+      thinkingOptions: ["low"],
+      getThinkingOptions: (modelRef) => (modelRef === "b/m2" ? ["off", "high"] : ["low"]),
+    });
+
+    view.handleInput("\r"); // model picker
+    view.handleInput("\x1b[B"); // inherit -> a/m1
+    view.handleInput("\x1b[B"); // a/m1 -> b/m2
+    view.handleInput("\r");
+    view.handleInput("\x1b[B"); // thinking
+    view.handleInput("\r");
+    const text = view.render(60).join("\n");
+    assert.match(text, /Select thinking/);
+    assert.match(text, /\bhigh\b/);
+    assert.match(text, /\boff\b/);
+    assert.doesNotMatch(text, /\blow\b/);
+  });
+
   it("config subcommand persists on change and on system-prompt editor", async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-optimize-config-cmd-"));
     try {
@@ -454,9 +478,13 @@ describe("mpi-optimize-prompt command", () => {
         });
 
       const ctx = {
-        model: { provider: "tab", id: "main" },
+        model: { provider: "tab", id: "main", reasoning: true },
         modelRegistry: {
-          getAvailable: () => [{ provider: "ov", id: "cheap" }],
+          getAvailable: () => [{ provider: "ov", id: "cheap", reasoning: true }],
+          find: (provider: string, id: string) =>
+            provider === "ov" && id === "cheap"
+              ? { provider, id, reasoning: true }
+              : undefined,
         },
         ui: {
           custom: async (factory: never) => driveOverlay(factory, "pick-and-close"),

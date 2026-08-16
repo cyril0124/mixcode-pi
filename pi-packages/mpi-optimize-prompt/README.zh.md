@@ -2,24 +2,35 @@
 
 [English Documentation](README.md)
 
-MixCode 内置的基于 Meta-prompt 技术的提示词优化扩展，将简短或模糊的用户指令转化为清晰、结构化可执行的高质量 Prompt。
+把输入框草稿（或斜杠命令参数）改写成更清晰的 coding-agent 提示词。
 
-## 命令与使用
+## 命令
 
 ```bash
-/optimize-prompt [instructions]
-/optimize-prompt-config
+/opt-prompt                  # 优化当前编辑器草稿
+/opt-prompt <text>           # 优化给定文本并写入编辑器
+/opt-prompt config           # 覆盖层：模型、thinking、系统提示词
+/opt-prompt help             # 用法与配置说明
+/opt-prompt cancel           # 中止进行中的优化（保留草稿）
+/opt-prompt undo             # 恢复优化前的草稿
 ```
 
-- 若未指定参数，直接执行 `/optimize-prompt` 将自动使用当前编辑器中的文本进行润色。
-- 生成的优化结果将直接替换当前输入框内容。
-- 支持按 `Ctrl+U` 撤销并恢复优化前的原始文本草稿。
+`Ctrl+Shift+C` 也可中止进行中的优化。
 
-## 配置文件 (`~/.pi/agent/optimize-prompt.json`)
+## 配置（`<agentDir>/optimize-prompt.json`）
 
-```jsonc
+```json
 {
-  "model": "anthropic/claude-3-7-sonnet", // 或 "inherit" 跟随当前 Tab
-  "systemPrompt": "自定义优化指令..."
+  "model": "provider/modelId",
+  "thinking": "low",
+  "systemPrompt": "自定义改写指令..."
 }
 ```
+
+| 字段 | 默认 | 说明 |
+| --- | --- | --- |
+| `model` | 继承当前会话模型 | `provider/modelId` |
+| `thinking` | 继承当前会话 thinking | 所选模型支持的级别，如 `off`、`low`、`high` |
+| `systemPrompt` | 内置改写指令 | 完整覆盖；必须要求只输出改写后的提示词 |
+
+`/opt-prompt config` 会立即写入 model/thinking。省略字段（或设为 `"inherit"`）则跟随当前会话。

@@ -9,7 +9,12 @@
  * Progress: aboveEditor widget (does not take over the input editor).
  */
 
-import { completeSimple, type AssistantMessage, type Model } from "@earendil-works/pi-ai/compat";
+import {
+  completeSimple,
+  getSupportedThinkingLevels,
+  type AssistantMessage,
+  type Model,
+} from "@earendil-works/pi-ai/compat";
 import {
   getAgentDir,
   getMarkdownTheme,
@@ -33,6 +38,7 @@ import {
   formatOptimizePromptHelp,
   formatOptimizeUserMessage,
   OPTIMIZE_PROMPT_INHERIT,
+  parseOptimizeModelRef,
   resolveOptimizeSource,
   resolveOptimizeSystemPrompt,
   resolveOptimizeTarget,
@@ -273,6 +279,27 @@ function listModelOptions(ctx: ExtensionCommandContext): string[] {
   return [...new Set(refs)].sort();
 }
 
+function findConfiguredModel(
+  ctx: ExtensionCommandContext,
+  modelRef: string | undefined,
+): unknown {
+  if (!modelRef || modelRef === OPTIMIZE_PROMPT_INHERIT) return ctx.model;
+  const parsed = parseOptimizeModelRef(modelRef);
+  if (!parsed) return ctx.model;
+  const registry = ctx.modelRegistry as {
+    find?: (provider: string, id: string) => unknown;
+  };
+  return registry.find?.(parsed.provider, parsed.modelId) ?? ctx.model;
+}
+
+function listThinkingOptions(model: unknown): string[] {
+  const levels =
+    model && typeof model === "object"
+      ? getSupportedThinkingLevels(model as Model<string>)
+      : THINKING_OPTIONS.filter((level) => level !== OPTIMIZE_PROMPT_INHERIT);
+  return [OPTIMIZE_PROMPT_INHERIT, ...new Set(levels)];
+}
+
 export async function runOptimizePromptConfig(options: {
   ctx: ExtensionCommandContext;
   agentDir?: string;
@@ -313,6 +340,7 @@ export async function runOptimizePromptConfig(options: {
           initial: draft,
           modelOptions,
           thinkingOptions: THINKING_OPTIONS,
+          getThinkingOptions: (modelRef) => listThinkingOptions(findConfiguredModel(ctx, modelRef)),
           getMaxVisible: () => Math.max(3, Math.floor(tui.terminal.rows * 0.8) - 10),
         }),
       {

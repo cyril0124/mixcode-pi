@@ -262,21 +262,23 @@ test("extension registers /auto-rename, cancel, and config completions", () => {
 });
 
 test("resolveAutoRenameTarget inherits session unless config overrides", () => {
-  const active = { provider: "a", modelId: "m1" };
+  const active = { provider: "a", modelId: "m1", thinkingLevel: "medium" };
   assert.deepEqual(resolveAutoRenameTarget(active), active);
-  assert.deepEqual(resolveAutoRenameTarget(active, { model: "inherit" }), active);
-  assert.deepEqual(resolveAutoRenameTarget(active, { model: "b/m2" }), {
+  assert.deepEqual(resolveAutoRenameTarget(active, { model: "inherit", thinking: "inherit" }), active);
+  assert.deepEqual(resolveAutoRenameTarget(active, { model: "b/m2", thinking: "high" }), {
     provider: "b",
     modelId: "m2",
+    thinkingLevel: "high",
   });
   assert.deepEqual(resolveAutoRenameTarget(active, { model: "bad" }), active);
 });
 
-test("parseAutoRenameConfig keeps only a non-empty model field", () => {
-  assert.deepEqual(parseAutoRenameConfig({ model: "  acme/cheap  ", extra: 1 }), {
+test("parseAutoRenameConfig keeps non-empty model and thinking fields", () => {
+  assert.deepEqual(parseAutoRenameConfig({ model: "  acme/cheap  ", thinking: " low ", extra: 1 }), {
     model: "acme/cheap",
+    thinking: "low",
   });
-  assert.deepEqual(parseAutoRenameConfig({ model: "   " }), {});
+  assert.deepEqual(parseAutoRenameConfig({ model: "   ", thinking: "   " }), {});
   assert.deepEqual(parseAutoRenameConfig(null), {});
 });
 
@@ -522,6 +524,50 @@ test("runAutoRename uses configured model override", async () => {
   }
 });
 
+test("runAutoRename uses configured thinking override", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-auto-rename-thinking-"));
+  try {
+    const written = writeAutoRenameConfig(dir, { thinking: "high" });
+    assert.equal(written.ok, true);
+    const used: Array<string | undefined> = [];
+
+    const result = await runAutoRename({
+      setSessionName: () => undefined,
+      getThinkingLevel: () => "off",
+      agentDir: dir,
+      complete: async (_model, _context, options) => {
+        used.push(options?.reasoning);
+        return {
+          role: "assistant",
+          content: [{ type: "text", text: "rename-with-thinking" }],
+          stopReason: "stop",
+        } as never;
+      },
+      ctx: {
+        model: { provider: "test", id: "model", api: "openai-completions" },
+        modelRegistry: {
+          getApiKeyAndHeaders: async () => ({ ok: true, apiKey: "k" }),
+        },
+        sessionManager: {
+          buildContextEntries: () => [messageEntry("user", "override thinking please")],
+          getSessionName: () => undefined,
+        },
+        ui: {
+          notify: () => undefined,
+          confirm: async () => true,
+          setWidget: () => undefined,
+        },
+        hasUI: false,
+      } as unknown as ExtensionCommandContext,
+    });
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(used, ["high"]);
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("runAutoRename rejects an unknown configured model", async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-auto-rename-unknown-"));
   try {
@@ -609,23 +655,28 @@ test("runAutoRename reports invalid config JSON without calling the model", asyn
   }
 });
 
-test("runAutoRenameConfig writes the picked model to auto-rename.json", async () => {
+test("runAutoRenameConfig writes the picked model and thinking to auto-rename.json", async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-auto-rename-config-cmd-"));
   try {
-    let selectPrompt = "";
-    let selectOptions: string[] = [];
+    const prompts: string[] = [];
+    const optionSets: string[][] = [];
     const result = await runAutoRenameConfig({
       agentDir: dir,
       ctx: {
-        model: { provider: "tab", id: "main" },
+        model: { provider: "tab", id: "main", reasoning: true },
         modelRegistry: {
-          getAvailable: () => [{ provider: "acme", id: "cheap" }],
+          getAvailable: () => [{ provider: "acme", id: "cheap", reasoning: true }],
+          find: (provider: string, id: string) =>
+            provider === "acme" && id === "cheap"
+              ? { provider, id, reasoning: true }
+              : undefined,
         },
         ui: {
           select: async (prompt: string, options: string[]) => {
-            selectPrompt = prompt;
-            selectOptions = options;
-            return "acme/cheap";
+            prompts.push(prompt);
+            optionSets.push(options);
+            if (prompt.includes("model")) return "acme/cheap";
+            return "low";
           },
           notify: () => undefined,
         },
@@ -633,13 +684,16 @@ test("runAutoRenameConfig writes the picked model to auto-rename.json", async ()
     });
 
     assert.equal(result.ok, true);
-    assert.match(selectPrompt, /Auto-rename model/);
-    assert.ok(selectOptions.includes("inherit"));
-    assert.ok(selectOptions.includes("acme/cheap"));
+    assert.match(prompts[0] ?? "", /Auto-rename model/);
+    assert.match(prompts[1] ?? "", /Auto-rename thinking/);
+    assert.ok(optionSets[0]?.includes("inherit"));
+    assert.ok(optionSets[0]?.includes("acme/cheap"));
+    assert.ok(optionSets[1]?.includes("inherit"));
+    assert.ok(optionSets[1]?.includes("low"));
     const loaded = loadAutoRenameConfig(dir);
     assert.equal(loaded.ok, true);
     if (loaded.ok) {
-      assert.equal(loaded.config.model, "acme/cheap");
+      assert.deepEqual(loaded.config, { model: "acme/cheap", thinking: "low" });
     }
   } finally {
     await fs.rm(dir, { recursive: true, force: true });

@@ -2,23 +2,28 @@
 
 [English Documentation](README.md)
 
-MixCode 内置的轻量化后台 Tab 标题自动生成扩展。
+根据当前对话生成短横线风格（kebab-case）的会话标题。
 
-## 功能概述
-
-在新建 Agent 会话的首轮交互完成后，`mpi-auto-rename` 在后台异步调用轻量级模型生成简明、规范的短横线命名标题（例如 `fix-auth-token`），并自动同步至 `open_tabs.json`。
-
-## 命令与配置
+## 命令
 
 ```bash
-/auto-rename [name]          # 手动触发或指定 Tab 标题
-/auto-rename-config          # 交互式选择用于重命名的专用模型
+/auto-rename                 # 根据最近对话生成标题
+/auto-rename config          # 选择模型和 thinking
+/auto-rename-cancel          # 中止进行中的生成
 ```
 
-配置持久化保存于 `~/.pi/agent/auto-rename.json`：
+## 配置（`<agentDir>/auto-rename.json`）
 
-```jsonc
+```json
 {
-  "model": "anthropic/claude-3-5-haiku" // 或 "inherit"
+  "model": "provider/modelId",
+  "thinking": "low"
 }
 ```
+
+| 字段 | 默认 | 说明 |
+| --- | --- | --- |
+| `model` | 继承当前会话模型 | `provider/modelId` |
+| `thinking` | 继承当前会话 thinking | 所选模型支持的级别，如 `off`、`low`、`high` |
+
+`/auto-rename config` 会写入这两个字段。省略字段（或设为 `"inherit"`）则跟随当前会话。

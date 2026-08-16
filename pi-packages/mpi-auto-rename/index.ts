@@ -4,11 +4,16 @@
  * Usage: /auto-rename
  * Cancel: /auto-rename-cancel
  * Config: /auto-rename config
- *   <agentDir>/auto-rename.json  { "model"?: "provider/id" }
+ *   <agentDir>/auto-rename.json  { "model"?: "provider/id", "thinking"?: "low" }
  * Progress: aboveEditor widget (does not take over the input editor).
  */
 
-import { completeSimple, type AssistantMessage, type Model } from "@earendil-works/pi-ai/compat";
+import {
+  completeSimple,
+  getSupportedThinkingLevels,
+  type AssistantMessage,
+  type Model,
+} from "@earendil-works/pi-ai/compat";
 import {
   getAgentDir,
   type ExtensionAPI,
@@ -19,8 +24,10 @@ import {
 import {
   AUTO_RENAME_INHERIT,
   loadAutoRenameConfig,
+  parseAutoRenameModelRef,
   resolveAutoRenameTarget,
   writeAutoRenameConfig,
+  type AutoRenameConfig,
 } from "./config.js";
 
 export {
@@ -322,6 +329,8 @@ function startAutoRenameProgressWidget(
   };
 }
 
+const FALLBACK_THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
+
 function listModelOptions(ctx: ExtensionCommandContext): string[] {
   const registry = ctx.modelRegistry as {
     getAvailable?: () => Array<{ provider: string; id: string }>;
@@ -336,6 +345,27 @@ function listModelOptions(ctx: ExtensionCommandContext): string[] {
     refs.unshift(`${ctx.model.provider}/${ctx.model.id}`);
   }
   return [...new Set(refs)].sort();
+}
+
+function findConfiguredModel(
+  ctx: ExtensionCommandContext,
+  modelRef: string | undefined,
+): unknown {
+  if (!modelRef || modelRef === AUTO_RENAME_INHERIT) return ctx.model;
+  const parsed = parseAutoRenameModelRef(modelRef);
+  if (!parsed) return ctx.model;
+  const registry = ctx.modelRegistry as {
+    find?: (provider: string, id: string) => unknown;
+  };
+  return registry.find?.(parsed.provider, parsed.modelId) ?? ctx.model;
+}
+
+function listThinkingOptions(model: unknown): string[] {
+  const levels =
+    model && typeof model === "object"
+      ? getSupportedThinkingLevels(model as Model<string>)
+      : FALLBACK_THINKING_LEVELS;
+  return [AUTO_RENAME_INHERIT, ...new Set(levels)];
 }
 
 export async function generateValidTitle(options: {
@@ -428,20 +458,32 @@ export async function runAutoRenameConfig(options: {
     return { ok: false, reason: "bad_config" };
   }
 
+  const next: AutoRenameConfig = { ...loaded.config };
   const modelOptions = [AUTO_RENAME_INHERIT, ...listModelOptions(ctx)];
-  const current = loaded.config.model?.trim() || AUTO_RENAME_INHERIT;
-  const chosen = await ctx.ui.select(
-    `Auto-rename model (current: ${current})`,
+  const currentModel = next.model?.trim() || AUTO_RENAME_INHERIT;
+  const chosenModel = await ctx.ui.select(
+    `Auto-rename model (current: ${currentModel})`,
     modelOptions,
   );
+  if (chosenModel === undefined) return { ok: true, path: loaded.path };
+  if (!chosenModel || chosenModel === AUTO_RENAME_INHERIT) delete next.model;
+  else next.model = chosenModel;
 
-  if (chosen !== undefined) {
-    const nextConfig = !chosen || chosen === AUTO_RENAME_INHERIT ? {} : { model: chosen };
-    const written = writeAutoRenameConfig(agentDir, nextConfig);
-    if (!written.ok) {
-      ctx.ui.notify(`Failed to write ${written.path}: ${written.error}`, "error");
-      return { ok: false, reason: "write_failed" };
-    }
+  const thinkingOptions = listThinkingOptions(findConfiguredModel(ctx, next.model));
+  const currentThinking = next.thinking?.trim() || AUTO_RENAME_INHERIT;
+  const chosenThinking = await ctx.ui.select(
+    `Auto-rename thinking (current: ${currentThinking})`,
+    thinkingOptions,
+  );
+  if (chosenThinking !== undefined) {
+    if (!chosenThinking || chosenThinking === AUTO_RENAME_INHERIT) delete next.thinking;
+    else next.thinking = chosenThinking;
+  }
+
+  const written = writeAutoRenameConfig(agentDir, next);
+  if (!written.ok) {
+    ctx.ui.notify(`Failed to write ${written.path}: ${written.error}`, "error");
+    return { ok: false, reason: "write_failed" };
   }
 
   return { ok: true, path: loaded.path };
@@ -496,6 +538,7 @@ export async function runAutoRename(options: {
     {
       provider: activeModel?.provider ?? "",
       modelId: activeModel?.id ?? "",
+      thinkingLevel: options.getThinkingLevel(),
     },
     config,
   );
@@ -551,7 +594,7 @@ export async function runAutoRename(options: {
     return { ok: false, reason: "no_auth" };
   }
 
-  const thinkingLevel = options.getThinkingLevel();
+  const thinkingLevel = target.thinkingLevel;
   const stopProgress = ctx.hasUI
     ? startAutoRenameProgressWidget(ctx, {
         modelLabel: `${target.provider}/${target.modelId}`,
@@ -609,10 +652,10 @@ const autoRename: ExtensionFactory = (pi) => {
   const abortSlot: AutoRenameAbortSlot = {};
 
   pi.registerCommand("auto-rename", {
-    description: "Generate a kebab-case session title; config picks model",
+    description: "Generate a kebab-case session title; config picks model/thinking",
     getArgumentCompletions: (prefix: string) => {
       const items = [
-        { value: "config", label: "config", description: "Pick rename model (inherit or provider/id)" },
+        { value: "config", label: "config", description: "Pick rename model and thinking" },
       ];
       const filtered = items.filter((item) => item.value.startsWith(prefix));
       return filtered.length > 0 ? filtered : null;

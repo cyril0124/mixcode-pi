@@ -2,23 +2,28 @@
 
 [中文文档](README.zh.md)
 
-Lightweight background tab title generator for MixCode.
+Generate a short kebab-case session title from the current conversation.
 
-## Overview
-
-After Turn 1 of a new agent conversation settles, `mpi-auto-rename` calls a fast model in the background to generate a concise, 2-to-5 word kebab-case title (e.g. `fix-auth-token`) and automatically updates `open_tabs.json`.
-
-## Usage & Configuration
+## Commands
 
 ```bash
-/auto-rename [name]          # Manually trigger or set title
-/auto-rename-config          # Pick model for auto-rename
+/auto-rename                 # Generate a title from recent conversation
+/auto-rename config          # Pick model and thinking
+/auto-rename-cancel          # Abort an in-flight generate
 ```
 
-Configuration is persisted to `~/.pi/agent/auto-rename.json`:
+## Config (`<agentDir>/auto-rename.json`)
 
-```jsonc
+```json
 {
-  "model": "anthropic/claude-3-5-haiku" // Or "inherit"
+  "model": "provider/modelId",
+  "thinking": "low"
 }
 ```
+
+| Field | Default | Notes |
+| --- | --- | --- |
+| `model` | inherit active session model | `provider/modelId` |
+| `thinking` | inherit active session thinking | Chosen model's supported levels, e.g. `off`, `low`, `high` |
+
+`/auto-rename config` writes both fields. Omit a field (or `"inherit"`) to follow the active session.

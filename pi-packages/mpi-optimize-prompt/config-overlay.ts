@@ -32,6 +32,8 @@ export interface OptimizePromptConfigOverlayOptions {
   initial: OptimizePromptConfig;
   modelOptions: string[];
   thinkingOptions: string[];
+  /** If set, thinking picker options come from the currently selected model. */
+  getThinkingOptions?: (modelRef: string) => string[];
   /** Max list rows for pickers (excluding chrome). */
   getMaxVisible?: () => number;
 }
@@ -49,7 +51,11 @@ export function createOptimizePromptConfigOverlay(options: OptimizePromptConfigO
   let pickQuery = "";
 
   const modelOptions = uniqueOptions([OPTIMIZE_PROMPT_INHERIT, ...options.modelOptions]);
-  const thinkingOptions = uniqueOptions([OPTIMIZE_PROMPT_INHERIT, ...options.thinkingOptions]);
+
+  function currentThinkingOptions(): string[] {
+    const extra = options.getThinkingOptions?.(currentModelLabel()) ?? options.thinkingOptions;
+    return uniqueOptions([OPTIMIZE_PROMPT_INHERIT, ...extra]);
+  }
 
   function currentModelLabel(): string {
     return draft.model?.trim() || OPTIMIZE_PROMPT_INHERIT;
@@ -90,7 +96,7 @@ export function createOptimizePromptConfigOverlay(options: OptimizePromptConfigO
   }
 
   function filteredPickOptions(): string[] {
-    const all = mode === "pick-model" ? modelOptions : thinkingOptions;
+    const all = mode === "pick-model" ? modelOptions : currentThinkingOptions();
     const q = pickQuery.trim().toLowerCase();
     if (!q) return all;
     return all.filter((item) => item.toLowerCase().includes(q));
@@ -99,7 +105,7 @@ export function createOptimizePromptConfigOverlay(options: OptimizePromptConfigO
   function openPicker(next: "pick-model" | "pick-thinking"): void {
     mode = next;
     pickQuery = "";
-    const optionsList = next === "pick-model" ? modelOptions : thinkingOptions;
+    const optionsList = next === "pick-model" ? modelOptions : currentThinkingOptions();
     const current = next === "pick-model" ? currentModelLabel() : currentThinkingLabel();
     const idx = optionsList.indexOf(current);
     pickIndex = idx >= 0 ? idx : 0;
