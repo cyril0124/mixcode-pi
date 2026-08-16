@@ -9,7 +9,8 @@
 ```bash
 mpi [options] [-- <script-args...>]
 mpi status [--json] [--workdir <path>]
-mpi ctl [--pid <n> | --workdir <path>] [--focus-tab <title> | --focus-session <id>] <command>
+mpi ctl [--pid <n> | --workdir <path>] [--tab <title> | --session <id> | --focus-tab <title> | --focus-session <id>] <command>
+mpi commands [--json] [--workdir <path>]
 ```
 
 ## 选项参数清单
@@ -52,14 +53,27 @@ mpi ctl send-keys --literal Enter
 ```
 
 - 选实例：显式 `--pid` 或 `--workdir` 优先（二者互斥；`--workdir` 解析规则与 `status` 相同），其次使用已设置的 `MIXCODE_PID`，最后使用当前工作目录。非法或失效的 `MIXCODE_PID` 会失败；0 个匹配或 cwd/workdir 匹配到多个实例时非 0 退出。
-- 每个命令先打头再空一行：`tab:`、`session:`；未给 `--focus-tab`/`--focus-session` 时才有 `reason:`。`last-message` / `last-assistant-message` / `last-user-message` 每条消息先是 `----------`，再是 `time:`（本地时间 `YYYY-MM-DD HH:MM:SS ±HH:MM`，没有则为 `unknown`），然后是正文。`last-message` 另打 `role:`，user 和 assistant 都算。`last-tool` 打 `tool:` / `status:` / 可选 `command:` / `time:`，然后是 tool 或 `!bash` 输出。可选 `--from <n> --to <m>`（必须成对）从末尾 1-based 取闭区间（`1` 是最新；按角色的命令只数该角色），按时间正序打印。条数不够时有多少打多少，头里加 `messages: N (requested A-B)`。Home 上 last-message / last-tool 先把头发到 stdout，再在 stderr 失败。
+- 每个命令先打头再空一行：`tab:`、`session:`；未给 `--tab` / `--session` / `--focus-tab` / `--focus-session` 时才有 `reason:`。`last-message` / `last-assistant-message` / `last-user-message` 每条消息先是 `----------`，再是 `time:`（本地时间 `YYYY-MM-DD HH:MM:SS ±HH:MM`，没有则为 `unknown`），然后是正文。`last-message` 另打 `role:`，user 和 assistant 都算。`last-tool` 打 `tool:` / `status:` / 可选 `command:` / `time:`，然后是 tool 或 `!bash` 输出。可选 `--from <n> --to <m>`（必须成对）从末尾 1-based 取闭区间（`1` 是最新；按角色的命令只数该角色），按时间正序打印。条数不够时有多少打多少，头里加 `messages: N (requested A-B)`。Home 上 last-message / last-tool 先把头发到 stdout，再在 stderr 失败。
 - `wait`：挡住直到聚焦的 agent tab 不是 `running`/`thinking`，或在等输入（`pendingDialogs` / extension UI）。一定有超时：`--timeout <sec>` 默认 60；`0` 只查一次。打 `status:`（`finished` / `wait-for-input` / `error`；超时则是 `running`/`thinking`）和 `timeout:`。超时先打这两行再失败。Home 没有 agent run。
 - `dump-screen`：用 `renderAgentSurface` / `renderConfig` 拼出的文本，不是 PNG / 终端像素缓冲。客户端默认去掉 ANSI 和行尾空格；`--ansi` 保留颜色。两种模式都会去掉行尾空格。
-- `--focus-tab <title>` 与 `--focus-session <id>` 互斥。标题精确匹配；重名必须用 `--focus-session`。`--focus-session home` 切到 Home。
-- `send-keys`：把 tmux 风格按键注入与键盘同一条输入通路（`Enter`、`Escape`、`Tab`、`BSpace`、方向键、`C-a`…`C-z`、`M-x`、以及普通字符串）。可选先切 tab，再打到该 tab。`--literal` / `-l` 关闭键名映射。
+- `--tab <title>` / `--session <id>` 只点名、不改 UI 焦点。`--focus-tab` / `--focus-session` 点名并留下焦点。四个旗标互斥。标题精确匹配；重名用 `--session` 或 `--focus-session`。`home` 是 Home。
+- `send-keys`：当前焦点或 `--focus-*` 时，按键注入键盘通路（`Enter`、`Escape`、`Tab`、`BSpace`、方向键、`C-a`…`C-z`、`M-x`、普通字符串）。`--tab` / `--session` 只允许文本和 `Enter`：`Enter` 按 Home 发送那条路径提交（不改 `activeTabId`）；没回车的文本追加该 tab 的 `draftInput`。UI 键要用 `--focus-tab`。`--literal` / `-l` 关闭键名映射。
 - 任一 agent tab 为 `Not Ready` 时，所有 `ctl` 命令失败（`Tab is still loading extensions. Please wait a moment.`），包括打 Home。
 - `ctl` 与 `status` 一样走轻量启动路径（不 boot TUI；编译包跳过 materialize）。
-- `last-message`、`last-assistant-message`、`last-user-message`、`last-tool`、`dump-screen` 超过 8192 字节时 stdout 只留前 4096 字节，全文写到 `/tmp/mpi-ctl-<pid>-<command>-<ms>.txt`（权限 `0600`）。`send-keys` 和 `wait` 不截断。
+- `last-message`、`last-assistant-message`、`last-user-message`、`last-tool`、`dump-screen` 超过 8192 字节时 stdout 只留前 4096 字节，全文写到 `/tmp/mpi-ctl-<pid>-<command>-<ms>.txt`（权限 `0600`）。提示：`[Full output: <path>. Truncated: N lines shown (4.0KB limit)]`。`send-keys` 和 `wait` 不截断。
+
+## Commands 子命令
+
+列出这个 workdir 会注册的 slash 命令（不启动 TUI）。
+
+```bash
+mpi commands
+mpi commands --json --workdir ~/proj
+```
+
+- 打印 `/name` 和可选 `argumentHint`，再打印 description。包含 MixCode 本地命令、扩展 `registerCommand`、prompt 模板。不列出 `/skill:*`。
+- `--json` 为 `{ name, usage, description, source, path? }` 数组，`source` 为 `local` | `extension` | `prompt`。扩展和 prompt 的 `path` 是 Pi `sourceInfo.path`（扩展文件或包目录）。同名时本地命令优先。
+- 按 TUI 同一套 `agentDir` 加载扩展和 skill。不走 status/ctl 快路径。
 
 ## 上游 Pi 自动委托机制
 

@@ -31,6 +31,7 @@ import { startPeerTabSync } from "../core/peer-tab-sync.js";
 import { loadStateFile, saveStateFile, scopedStateDir, stateFileForPort } from "../core/state-store.js";
 import type { MixCodeState } from "../core/types.js";
 import { createMixCodeTui } from "../ui/app.js";
+import { handleSubmittedInput } from "../ui/app-submit.js";
 import { closeExistingAgentTab, openExistingAgentTab } from "../ui/agent-tab-actions.js";
 import { createBatchExecutorHost } from "./batch-host.js";
 import {
@@ -331,6 +332,20 @@ export async function runInteractiveApp(args: MainArgs, selfRoot: string): Promi
     state,
     runtime,
     injectInput: (data) => tui.injectInput(data),
+    submitToTab: (tab, text) =>
+      handleSubmittedInput(
+        state,
+        runtime,
+        text,
+        tui,
+        async (nextState) => {
+          await saveStateFile(stateFile, nextState);
+        },
+        undefined,
+        workspaceFile,
+        tab,
+        settingsDeps,
+      ),
     requestRender: () => tui.requestRender(),
     screenWidth: () => tui.terminal.columns,
   });

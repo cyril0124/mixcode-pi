@@ -4,6 +4,7 @@ import * as path from "node:path";
 import { cwd } from "node:process";
 import { fileURLToPath } from "node:url";
 import { isDirectCliEntry } from "./direct-cli-entry.js";
+import { isCommandsCliArgs, runCommandsCommand } from "./commands-list.js";
 import { isCtlCliArgs, runCtlCommand } from "./ctl.js";
 import {
   expandTilde,
@@ -60,7 +61,8 @@ export interface MainArgs {
 
 const HELP_TEXT = `Usage: mpi [options] [-- <script-args...>]
        mpi status [--json] [--workdir <path>]
-       mpi ctl [--pid <n> | --workdir <path>] [--focus-tab <title> | --focus-session <id>] <command>
+       mpi ctl [--pid <n> | --workdir <path>] [--tab <title> | --session <id> | --focus-tab <title> | --focus-session <id>] <command>
+       mpi commands [--json] [--workdir <path>]
 
 Options:
   --workdir <path>           Set working directory (default: cwd)
@@ -73,7 +75,8 @@ Options:
 
 Commands:
   status             Show live mpi instances and tabs
-  ctl                Control a live instance (last-message, last-tool, wait, dump-screen, send-keys, …)
+  ctl                Control a live instance (--tab/--session or --focus-*; last-message, last-tool, wait, dump-screen, send-keys)
+  commands           List slash commands (local, extension, prompt)
 `;
 
 export function parseMainArgs(args: string[], fallbackWorkdir: string): MainArgs {
@@ -265,6 +268,17 @@ export async function main(): Promise<void> {
     process.env.MIXCODE ??= "1";
     try {
       await runCtlCommand(rawArgs.slice(1));
+    } catch (error) {
+      process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+      process.exitCode = 1;
+    }
+    return;
+  }
+  if (isCommandsCliArgs(rawArgs)) {
+    process.env.MIXCODE ??= "1";
+    const selfRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+    try {
+      await runCommandsCommand(rawArgs.slice(1), { packageRoot: selfRoot });
     } catch (error) {
       process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
       process.exitCode = 1;

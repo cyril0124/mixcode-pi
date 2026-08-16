@@ -65,7 +65,14 @@ test("parseCtlArgs parses target flags and send-keys tokens", () => {
   );
   assert.throws(
     () => parseCtlArgs(["--focus-tab", "A", "--focus-session", "s1", "last-assistant-message"], "/caller"),
-    /--focus-tab and --focus-session are mutually exclusive/,
+    /mutually exclusive/,
+  );
+  const byTab = parseCtlArgs(["--tab", "Agent-01", "last-message"], "/caller");
+  assert.equal(byTab.tabTitle, "Agent-01");
+  assert.equal(parseCtlArgs(["--session", "home", "dump-screen"], "/caller").sessionId, "home");
+  assert.throws(
+    () => parseCtlArgs(["--tab", "A", "--focus-tab", "B", "last-message"], "/caller"),
+    /mutually exclusive/,
   );
   assert.equal(parseCtlArgs(["dump-screen"], "/caller").ansi, false);
   assert.equal(parseCtlArgs(["dump-screen", "--ansi"], "/caller").ansi, true);
@@ -208,6 +215,7 @@ test("InjectingTerminal forwards start callback to inject", () => {
 
 test("handleCtlRequest last-assistant-message send-keys and dump-screen", async () => {
   const injected: string[] = [];
+  const submitted: { sessionId: string; text: string }[] = [];
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo", { title: "Agent-01" }));
   state.tabs.push(createTab(2, "s2", "/repo", { title: "gif" }));
@@ -241,6 +249,9 @@ test("handleCtlRequest last-assistant-message send-keys and dump-screen", async 
     state,
     runtime,
     injectInput: (data: string) => injected.push(data),
+    submitToTab: (tab: { sessionId: string }, text: string) => {
+      submitted.push({ sessionId: tab.sessionId, text });
+    },
     screenWidth: () => 80,
   };
   const reply = await handleCtlRequest({ op: "last-assistant-message" }, opts);
@@ -257,6 +268,30 @@ test("handleCtlRequest last-assistant-message send-keys and dump-screen", async 
   assert.equal(screen.ok, true);
   assert.match(screen.text ?? "", /^tab: gif\nsession: s2\nreason:/);
   assert.match(screen.text ?? "", /from gif/);
+  const peek = await handleCtlRequest({ op: "last-assistant-message", tabTitle: "Agent-01" }, opts);
+  assert.equal(peek.ok, true);
+  assert.match(peek.text ?? "", /hello from agent/);
+  assert.equal(state.activeTabId, "s2");
+  const draftKeys = await handleCtlRequest(
+    { op: "send-keys", tabTitle: "Agent-01", keys: ["draft"] },
+    opts,
+  );
+  assert.equal(draftKeys.ok, true);
+  assert.equal(state.tabs.find((tab) => tab.sessionId === "s1")?.draftInput, "draft");
+  assert.deepEqual(injected, ["/compact", "\r"]);
+  const submitKeys = await handleCtlRequest(
+    { op: "send-keys", tabTitle: "Agent-01", keys: ["hello", "\r"] },
+    opts,
+  );
+  assert.equal(submitKeys.ok, true);
+  assert.deepEqual(submitted, [{ sessionId: "s1", text: "hello" }]);
+  assert.equal(state.activeTabId, "s2");
+  const uiKeys = await handleCtlRequest(
+    { op: "send-keys", tabTitle: "Agent-01", keys: ["\x1b[B"] },
+    opts,
+  );
+  assert.equal(uiKeys.ok, false);
+  assert.match(uiKeys.error ?? "", /only supports text and Enter/);
   const missing = await handleCtlRequest({ op: "last-assistant-message", focusSessionId: "nope" }, opts);
   assert.equal(missing.ok, false);
   assert.equal(missing.text, undefined);
@@ -432,10 +467,12 @@ test("truncateCtlStdout leaves short output unchanged and dumps long output to t
     assert.equal(await Bun.file(long.overflowPath!).text(), full);
     const st = await fsPromises.stat(long.overflowPath!);
     assert.equal(st.mode & 0o777, 0o600);
-    assert.match(long.text, /\[truncated\] full output: /);
-    assert.match(long.text, /\(\d+ bytes\)/);
+    assert.match(
+      long.text,
+      /\[Full output: .*mpi-ctl-99-last-user-message-123\.txt\. Truncated: \d+ lines shown \(4\.0KB limit\)\]/,
+    );
     assert.ok(!long.text.includes("\u4e2d"), "preview must not split the trailing CJK code point");
-    const preview = long.text.split("\n\n[truncated]")[0]!;
+    const preview = long.text.split("\n\n[Full output:")[0]!;
     assert.ok(Buffer.byteLength(preview, "utf8") <= 4096);
   } finally {
     await fsPromises.rm(tmp, { recursive: true, force: true });

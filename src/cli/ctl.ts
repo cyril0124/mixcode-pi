@@ -26,6 +26,9 @@ export interface CtlRequest {
   op: CtlOp;
   focusSessionId?: string;
   focusTabTitle?: string;
+  /** Target without changing UI focus. */
+  sessionId?: string;
+  tabTitle?: string;
   /** Encoded stdin chunks; each chunk is one inject() (one send-keys token). */
   keys?: string[];
   /** 1-based from the end; only with last-*-message / last-tool. Pair with `to`. */
@@ -46,6 +49,8 @@ export interface CtlArgs {
   workdir?: string;
   focusSessionId?: string;
   focusTabTitle?: string;
+  sessionId?: string;
+  tabTitle?: string;
   op: CtlOp;
   keys?: string[];
   from?: number;
@@ -55,7 +60,7 @@ export interface CtlArgs {
   help?: boolean;
 }
 
-export const CTL_HELP = `Usage: mpi ctl [--pid <n> | --workdir <path>] [--focus-tab <title> | --focus-session <id>] <command>
+export const CTL_HELP = `Usage: mpi ctl [--pid <n> | --workdir <path>] [--tab <title> | --session <id> | --focus-tab <title> | --focus-session <id>] <command>
 
 Commands:
   last-message            Print the focused tab's last user/assistant text (includes time)
@@ -71,8 +76,10 @@ Target:
   --workdir <path>        Control the unique live instance in this workdir (mutually exclusive with --pid)
   (default)               MIXCODE_PID env (bash tool children), else --workdir <cwd>; errors if 0 or >1 instances
 
-  --focus-tab <title>     Focus the tab with this exact title (mutually exclusive with --focus-session)
-  --focus-session <id>    Focus this session id, or home for Home
+  --tab <title>           Target this tab title without changing UI focus
+  --session <id>          Target this session id without changing UI focus (home for Home)
+  --focus-tab <title>     Target and leave UI focus on this tab title
+  --focus-session <id>    Target and leave UI focus on this session id (home for Home)
   --from <n> --to <m>     last-*-message / last-tool: 1-based range from the end (both required; 1=newest)
   --timeout <sec>         wait: max seconds (default 60; 0 checks once)
   --ansi                  dump-screen: keep color/escape sequences (default strips them)
@@ -80,7 +87,8 @@ Target:
 
 Output larger than 8192 bytes for last-message, last-assistant-message, last-user-message, last-tool, and
 dump-screen is truncated to 4096 bytes on stdout; the full text is written to
-/tmp/mpi-ctl-<pid>-<command>-<ms>.txt (mode 0600).
+/tmp/mpi-ctl-<pid>-<command>-<ms>.txt (mode 0600). Notice:
+[Full output: <path>. Truncated: N lines shown (4.0KB limit)]
 `;
 
 export function isCtlCliArgs(args: string[]): boolean {
@@ -93,6 +101,8 @@ export function parseCtlArgs(args: string[], fallbackWorkdir: string): CtlArgs {
   let workdir: string | undefined;
   let focusSessionId: string | undefined;
   let focusTabTitle: string | undefined;
+  let sessionId: string | undefined;
+  let tabTitle: string | undefined;
   let literal = false;
   let from: number | undefined;
   let to: number | undefined;
@@ -154,6 +164,30 @@ export function parseCtlArgs(args: string[], fallbackWorkdir: string): CtlArgs {
       focusTabTitle = value;
       continue;
     }
+    if (arg === "--tab") {
+      const value = args[++index];
+      if (!value) throw new Error("--tab requires a title");
+      tabTitle = value;
+      continue;
+    }
+    if (arg?.startsWith("--tab=")) {
+      const value = arg.slice("--tab=".length);
+      if (!value) throw new Error("--tab requires a title");
+      tabTitle = value;
+      continue;
+    }
+    if (arg === "--session") {
+      const value = args[++index];
+      if (!value) throw new Error("--session requires an id");
+      sessionId = value;
+      continue;
+    }
+    if (arg?.startsWith("--session=")) {
+      const value = arg.slice("--session=".length);
+      if (!value) throw new Error("--session requires an id");
+      sessionId = value;
+      continue;
+    }
     if (arg === "--literal" || arg === "-l") {
       literal = true;
       continue;
@@ -191,8 +225,9 @@ export function parseCtlArgs(args: string[], fallbackWorkdir: string): CtlArgs {
   if (pid !== undefined && workdir !== undefined) {
     throw new Error("--pid and --workdir are mutually exclusive");
   }
-  if (focusSessionId !== undefined && focusTabTitle !== undefined) {
-    throw new Error("--focus-tab and --focus-session are mutually exclusive");
+  const selectors = [focusSessionId, focusTabTitle, sessionId, tabTitle].filter((value) => value !== undefined);
+  if (selectors.length > 1) {
+    throw new Error("--tab, --session, --focus-tab, and --focus-session are mutually exclusive");
   }
   const op = rest[0];
   if (!op || !CTL_OPS.includes(op as CtlOp)) {
@@ -231,7 +266,20 @@ export function parseCtlArgs(args: string[], fallbackWorkdir: string): CtlArgs {
     op === "send-keys"
       ? rest.slice(1).map((token) => encodeSendKeys([token], { literal }))
       : undefined;
-  return { pid, workdir, focusSessionId, focusTabTitle, op: op as CtlOp, keys, from, to, timeout, ansi };
+  return {
+    pid,
+    workdir,
+    focusSessionId,
+    focusTabTitle,
+    sessionId,
+    tabTitle,
+    op: op as CtlOp,
+    keys,
+    from,
+    to,
+    timeout,
+    ansi,
+  };
 }
 
 /** Structural env slice so both `process.env` and test literals satisfy it. */
@@ -326,6 +374,12 @@ export function normalizeCtlStdout(text: string, ansi = false): string {
   return body.replace(/[ \t]+$/gm, "");
 }
 
+function formatCtlSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes}B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+}
+
 export function sliceUtf8Prefix(text: string, maxBytes: number): string {
   const encoder = new TextEncoder();
   if (encoder.encode(text).byteLength <= maxBytes) return text;
@@ -358,8 +412,9 @@ export async function truncateCtlStdout(
     await handle.close();
   }
   const preview = sliceUtf8Prefix(text, CTL_STDOUT_PREVIEW_BYTES);
+  const linesShown = preview.length === 0 ? 0 : preview.split("\n").length;
   return {
-    text: `${preview}\n\n[truncated] full output: ${overflowPath} (${bytes} bytes)\n`,
+    text: `${preview}\n\n[Full output: ${overflowPath}. Truncated: ${linesShown} lines shown (${formatCtlSize(CTL_STDOUT_PREVIEW_BYTES)} limit)]\n`,
     overflowPath,
   };
 }
@@ -379,6 +434,8 @@ export async function runCtlCommand(
     op: parsed.op,
     focusSessionId: parsed.focusSessionId,
     focusTabTitle: parsed.focusTabTitle,
+    sessionId: parsed.sessionId,
+    tabTitle: parsed.tabTitle,
     keys: parsed.keys,
     from: parsed.from,
     to: parsed.to,

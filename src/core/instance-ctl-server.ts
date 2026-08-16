@@ -20,26 +20,30 @@ export interface StartInstanceCtlServerOptions {
   state: MixCodeState;
   runtime: MixCodeRuntime;
   injectInput: (data: string) => void;
+  /** Submit text to a tab without changing UI focus (Home-send path). */
+  submitToTab?: (tab: MixCodeTabInfo, text: string) => void | Promise<void>;
   requestRender?: () => void;
   screenWidth?: () => number;
 }
 
 export function resolveCtlFocusSessionId(
   state: MixCodeState,
-  request: Pick<CtlRequest, "focusSessionId" | "focusTabTitle">,
+  request: Pick<CtlRequest, "focusSessionId" | "focusTabTitle" | "sessionId" | "tabTitle">,
 ): string {
-  if (request.focusSessionId) {
-    if (request.focusSessionId === HOME_TAB_ID) return HOME_TAB_ID;
-    if (!state.tabs.some((tab) => tab.sessionId === request.focusSessionId)) {
-      throw new Error(`Unknown session: ${request.focusSessionId}`);
+  const sessionKey = request.focusSessionId ?? request.sessionId;
+  if (sessionKey) {
+    if (sessionKey === HOME_TAB_ID) return HOME_TAB_ID;
+    if (!state.tabs.some((tab) => tab.sessionId === sessionKey)) {
+      throw new Error(`Unknown session: ${sessionKey}`);
     }
-    return request.focusSessionId;
+    return sessionKey;
   }
-  if (request.focusTabTitle) {
-    const matches = state.tabs.filter((tab) => tab.title === request.focusTabTitle);
-    if (matches.length === 0) throw new Error(`Unknown tab title: ${request.focusTabTitle}`);
+  const titleKey = request.focusTabTitle ?? request.tabTitle;
+  if (titleKey) {
+    const matches = state.tabs.filter((tab) => tab.title === titleKey);
+    if (matches.length === 0) throw new Error(`Unknown tab title: ${titleKey}`);
     if (matches.length > 1) {
-      throw new Error(`Multiple tabs titled '${request.focusTabTitle}'; pass --focus-session`);
+      throw new Error(`Multiple tabs titled '${titleKey}'; pass --session or --focus-session`);
     }
     return matches[0]!.sessionId;
   }
@@ -47,7 +51,7 @@ export function resolveCtlFocusSessionId(
 }
 
 export const IMPLIED_FOCUS_REASON =
-  "no --focus-tab/--focus-session; using live UI focus";
+  "no --tab/--session/--focus-tab/--focus-session; using live UI focus";
 export const CTL_MESSAGE_DIVIDER = "----------";
 export const CTL_WAIT_DEFAULT_TIMEOUT_SEC = 60;
 const CTL_WAIT_POLL_MS = 50;
@@ -91,12 +95,44 @@ function withPreamble(
   body: string,
   extras: { time?: string; messages?: string } = {},
 ): string {
-  const implied = !request.focusSessionId && !request.focusTabTitle;
+  const implied =
+    !request.focusSessionId && !request.focusTabTitle && !request.sessionId && !request.tabTitle;
   return `${formatCtlPreamble(ctlTabTitle(state, sessionId), sessionId, {
     reason: implied ? IMPLIED_FOCUS_REASON : undefined,
     time: extras.time,
     messages: extras.messages,
   })}${body}`;
+}
+
+function isBackgroundSendKeysText(chunk: string): boolean {
+  for (let index = 0; index < chunk.length; index++) {
+    if (chunk.charCodeAt(index) < 32) return false;
+  }
+  return true;
+}
+
+async function applyBackgroundSendKeys(
+  tab: MixCodeTabInfo,
+  keys: string[],
+  options: Pick<StartInstanceCtlServerOptions, "submitToTab" | "requestRender">,
+): Promise<void> {
+  let pending = "";
+  for (const chunk of keys) {
+    if (chunk === "\r" || chunk === "\n") {
+      if (!options.submitToTab) throw new Error("send-keys --tab/--session requires submitToTab");
+      await options.submitToTab(tab, pending);
+      pending = "";
+      continue;
+    }
+    if (!isBackgroundSendKeysText(chunk)) {
+      throw new Error("send-keys --tab/--session only supports text and Enter; use --focus-tab for UI keys");
+    }
+    pending += chunk;
+  }
+  if (pending) {
+    tab.draftInput = `${tab.draftInput}${pending}`;
+    options.requestRender?.();
+  }
 }
 
 export function lastChatMessages(
@@ -219,7 +255,9 @@ export async function handleCtlRequest(
 ): Promise<CtlResponse> {
   try {
     const sessionId = resolveCtlFocusSessionId(options.state, request);
-    if (sessionId !== options.state.activeTabId) {
+    const stealFocus = Boolean(request.focusSessionId || request.focusTabTitle);
+    const targetWithoutFocus = Boolean(request.sessionId || request.tabTitle);
+    if (stealFocus && sessionId !== options.state.activeTabId) {
       activateTab(options.state, sessionId);
       options.requestRender?.();
     }
@@ -230,7 +268,14 @@ export async function handleCtlRequest(
       withPreamble(request, options.state, sessionId, body, extras);
     if (request.op === "send-keys") {
       if (!request.keys) throw new Error("send-keys requires keys");
-      for (const chunk of request.keys) options.injectInput(chunk);
+      if (targetWithoutFocus) {
+        if (sessionId === HOME_TAB_ID) throw new Error("Home has no agent run");
+        const tab = options.state.tabs.find((candidate) => candidate.sessionId === sessionId);
+        if (!tab) throw new Error(`Unknown session: ${sessionId}`);
+        await applyBackgroundSendKeys(tab, request.keys, options);
+      } else {
+        for (const chunk of request.keys) options.injectInput(chunk);
+      }
       return { ok: true, text: wrap("") };
     }
     if (
