@@ -56,28 +56,35 @@ Install community extensions directly through Pi package declarations (`npm:pi-w
   <img src="assets/readme-right-widget.gif" alt="Extension side panel" width="900">
 </p>
 
-### 3. Vim Navigation & Transcript Search
+### 3. Inline & Docked Extension Widgets
+Switch dynamically between docked editor widgets and inline chat-stream widgets using `/toggle-inline-widgets`. In inline mode, widgets follow transcript scrolling rather than taking up fixed vertical editor space.
+
+<p align="center">
+  <img src="assets/readme-inline-widget.gif" alt="Inline widgets mode" width="900">
+</p>
+
+### 4. Vim Navigation & Transcript Search
 Treat the conversation transcript as a Vim buffer: scroll line-by-line, jump between milestone user turns (`Right` / `Shift+Right`), and search with WeakMap-cached live regex (`/`). Enter via `/vim` or empty-queue `Ctrl+U` then `u`.
 
 <p align="center">
   <img src="assets/readme-vim.gif" alt="Vim mode" width="900">
 </p>
 
-### 4. Zen Mode & Ambient Status
+### 5. Zen Mode & Ambient Status
 Hide the top tab bar for a completely distraction-free editing canvas. Background agents with notable state changes (running, waiting for input, error, done) are rendered as compact status dots (`●`) on the top border.
 
 <p align="center">
   <img src="assets/readme-zen.gif" alt="Zen mode" width="900">
 </p>
 
-### 5. In-Prompt Skill References & Autocomplete
+### 6. In-Prompt Skill References & Autocomplete
 Type `$` in the prompt editor to trigger fuzzy autocomplete for project and global skills, automatically embedding skill instructions into the prompt payload.
 
 <p align="center">
   <img src="assets/readme-skill.gif" alt="Skill references" width="900">
 </p>
 
-### 6. Command Palette
+### 7. Command Palette
 Press `Ctrl+P` to fuzzy search and execute slash commands, model switches, and extension actions for the current tab context.
 
 <p align="center">

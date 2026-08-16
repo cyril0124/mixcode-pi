@@ -56,28 +56,35 @@ mpi
   <img src="assets/readme-right-widget.gif" alt="扩展侧栏" width="900">
 </p>
 
-### 3. Vim 模式与对话全文检索
+### 3. 内联与停靠扩展挂件 (Inline & Docked Widgets)
+使用 `/toggle-inline-widgets` 可动态在编辑器顶部停靠挂件与消息流内联挂件之间切换。内联模式下，挂件随对话内容自然滚动，不占用固定的编辑器高度。
+
+<p align="center">
+  <img src="assets/readme-inline-widget.gif" alt="内联挂件模式" width="900">
+</p>
+
+### 4. Vim 模式与对话全文检索
 将对话流作为 Vim 文本 Buffer 浏览：逐行滚动、在关键用户提问间跳跃（`Right` / `Shift+Right`），并支持基于 WeakMap 缓存的高性能 `/` 正则搜索。通过 `/vim` 或空队列 `Ctrl+U` 再按 `u` 进入。
 
 <p align="center">
   <img src="assets/readme-vim.gif" alt="Vim 模式" width="900">
 </p>
 
-### 4. Zen 专注模式与后台感知
+### 5. Zen 专注模式与后台感知
 隐藏顶部 Tab 栏，获得极致沉浸的编码画布。有状态变更的后台 Agent（运行中、等待输入、报错、完成）会在顶部边框紧凑显示为状态圆点（`●`）。圆点仅展示状态，不可点击。
 
 <p align="center">
   <img src="assets/readme-zen.gif" alt="Zen 模式" width="900">
 </p>
 
-### 5. Prompt 内联技能引用与补全
+### 6. Prompt 内联技能引用与补全
 在输入框中输入 `$` 触发项目与全局 Skill 模糊自动补全，自动将技能规范内嵌至 Prompt 载荷中。
 
 <p align="center">
   <img src="assets/readme-skill.gif" alt="Skill 引用" width="900">
 </p>
 
-### 6. 命令面板 (Command Palette)
+### 7. 命令面板 (Command Palette)
 按 `Ctrl+P` 快速模糊检索并执行当前 Tab 语境下的 Slash 命令、模型切换与扩展指令。
 
 <p align="center">
