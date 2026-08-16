@@ -15,7 +15,6 @@ A **multi-tab**, terminal-native AI coding agent fully compatible with the [Pi](
 
 - 🗂️ **Native Multi-Tab Concurrency**: Run multiple agent sessions simultaneously. Switch instantly with `Tab` / `Shift+Tab` or fuzzy jump via `Ctrl+T`. Background tasks show live status indicators (`●` running, `!` unread, `x` error).
 - 🧩 **100% Pi Extension Compatible**: Works out-of-the-box with Pi packages (`settings.json` `packages`, npm extensions, custom tools, widgets, and themes). Ships with powerful first-party `mpi-*` extensions (Goal tracking, diff review, prompt optimization, auto-rename).
-- ⚡ **Dual-Queue Interaction**: Steer running agents mid-turn (injected on next tool step) or enqueue clean follow-ups (`/follow-up`) without breaking workflow.
 - 🧘 **Zen & Inline Modes**: Maximize editor space with Zen mode (`/toggle-zen-mode`) and ambient background status dots, or relocate widgets into the chat stream with Inline Widgets (`/toggle-inline-widgets`).
 - 📱 **Mobile & Touch Optimized**: Engineered for narrow terminals, split panes, and mobile SSH emulators (Termux, iOS Blink) with touch-clickable tabs and pickers, and smooth progressive UI degradation.
 - ⌨️ **Terminal-First Workflow**: Buffer-style Vim navigation (`j`/`k`, `Right`/`Shift+Right` user-turn jumps, `/` regex search), command palette (`Ctrl+P`), `$skill` autocompletion, and external editor delegation (`Ctrl+E`).
