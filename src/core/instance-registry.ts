@@ -1,5 +1,6 @@
 import * as fsSync from "node:fs";
 import * as fs from "node:fs/promises";
+import * as os from "node:os";
 import * as path from "node:path";
 import type { MixCodeState, TabStatus } from "./types.js";
 
@@ -25,8 +26,6 @@ export interface InstanceRegistryTabSnapshot {
   unreadDone: boolean;
   pendingDialogCount: number;
   waitingForInputCount: number;
-  workingStartedAt?: string;
-  lastWorkedDurationSeconds?: number;
 }
 
 export interface InstanceRegistrySnapshot {
@@ -43,7 +42,6 @@ export interface InstanceRegistrySnapshot {
 export interface InstanceStatusTab extends InstanceRegistryTabSnapshot {
   active: boolean;
   state: InstanceTabState;
-  elapsedSeconds?: number;
   shortSessionId: string;
 }
 
@@ -120,8 +118,6 @@ export function createInstanceSnapshot(
         unreadDone: tab.unreadDone,
         pendingDialogCount: tab.pendingDialogs.length,
         waitingForInputCount: tab.extensionUi.waitingForInputs.length,
-        workingStartedAt: tab.workingStartedAt,
-        lastWorkedDurationSeconds: tab.lastWorkedDurationSeconds,
       })),
   };
 }
@@ -197,18 +193,26 @@ export async function cleanupInstanceRegistry(
   return { removed, removedFiles, warnings };
 }
 
+export function formatDisplayWorkdir(workdir: string, home = os.homedir()): string {
+  if (workdir === home) return "~";
+  if (workdir.startsWith(`${home}/`) || (process.platform === "win32" && workdir.startsWith(`${home}\\`))) {
+    return `~${workdir.slice(home.length)}`;
+  }
+  return workdir;
+}
+
 export function formatInstanceStatusTable(report: InstanceStatusReport): string {
   if (report.instances.length === 0) return "No live mpi instances.";
   const groups: string[] = [];
   for (const instance of report.instances) {
     const lines = [
-      `PID ${instance.pid}  workdir: ${instance.workdir}  active=${instance.activeLabel}`,
-      "  A  STATE        STATUS     ELAPSED  TITLE          SESSION",
+      `PID ${instance.pid}  workdir: ${formatDisplayWorkdir(instance.workdir)}`,
+      "  A  STATE        STATUS     TAB_TITLE      SESSION",
       ...instance.tabs.map(formatStatusTabRow),
     ];
     groups.push(lines.join("\n"));
   }
-  return groups.join("\n\n");
+  return `${groups.join("\n\n")}\n\n  (* = focused tab)`;
 }
 
 export function currentProcessIdentity(pid = process.pid): ProcessIdentity {
@@ -225,22 +229,9 @@ function formatStatusTabRow(tab: InstanceStatusTab): string {
     `  ${active}`,
     pad(tab.state, 12),
     pad(tab.status, 10),
-    pad(formatElapsedSeconds(tab.elapsedSeconds), 8),
     pad(tab.title, 14),
     tab.sessionId,
   ].join(" ");
-}
-
-function formatElapsedSeconds(seconds: number | undefined): string {
-  if (seconds === undefined) return "-";
-  const value = Math.max(0, Math.floor(seconds));
-  if (value < 60) return `${value}s`;
-  const minutes = Math.floor(value / 60);
-  const remainingSeconds = value % 60;
-  if (minutes < 60) return `${minutes}m${String(remainingSeconds).padStart(2, "0")}s`;
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
-  return `${hours}h${String(remainingMinutes).padStart(2, "0")}m${String(remainingSeconds).padStart(2, "0")}s`;
 }
 
 function pad(value: string, width: number): string {
@@ -266,13 +257,12 @@ function resolveStatusInstance(
 function resolveStatusTab(
   tab: InstanceRegistryTabSnapshot,
   activeTabId: string,
-  now: Date,
+  _now: Date,
 ): InstanceStatusTab {
   return {
     ...tab,
     active: tab.sessionId === activeTabId,
     state: deriveTabState(tab),
-    elapsedSeconds: tabElapsedSeconds(tab, now),
     shortSessionId: shortSessionId(tab.sessionId),
   };
 }
@@ -283,16 +273,6 @@ function deriveTabState(tab: InstanceRegistryTabSnapshot): InstanceTabState {
   if (tab.status === "running" || tab.status === "thinking") return "working";
   if (tab.status === "done" || tab.unreadDone) return "finished";
   return "idle";
-}
-
-function tabElapsedSeconds(tab: InstanceRegistryTabSnapshot, now: Date): number | undefined {
-  if ((tab.status === "running" || tab.status === "thinking") && tab.workingStartedAt) {
-    const startedAt = Date.parse(tab.workingStartedAt);
-    if (Number.isFinite(startedAt)) return Math.max(0, Math.floor((now.getTime() - startedAt) / 1000));
-  }
-  return typeof tab.lastWorkedDurationSeconds === "number" && Number.isFinite(tab.lastWorkedDurationSeconds)
-    ? Math.max(0, Math.floor(tab.lastWorkedDurationSeconds))
-    : undefined;
 }
 
 function shortSessionId(sessionId: string): string {
@@ -399,8 +379,6 @@ function parseTabSnapshot(
     unreadDone: booleanField(raw, "unreadDone", filePath),
     pendingDialogCount: numberField(raw, "pendingDialogCount", filePath),
     waitingForInputCount: numberField(raw, "waitingForInputCount", filePath),
-    workingStartedAt: optionalStringField(raw, "workingStartedAt", filePath),
-    lastWorkedDurationSeconds: optionalNumberField(raw, "lastWorkedDurationSeconds", filePath),
   };
 }
 

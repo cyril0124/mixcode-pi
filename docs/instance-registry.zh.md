@@ -10,13 +10,16 @@ MixCode 在状态目录下维护活跃终端进程与其 Tab 状态的实例注�
 
 ## CLI 状态查询命令
 
-使用 `mpi status` 命令检视所有运行中的 MixCode 进程、活跃 Tab 以及执行耗时：
+使用 `mpi status` 命令检视所有运行中的 MixCode 进程与活跃 Tab：
 
 ```bash
 mpi status
 mpi status --json
 mpi status --workdir /path/to/project
 ```
+
+- 表格输出中，`A` 列的 `*` 标识当前获得焦点（focused）的活跃 Tab。
+- `TAB_TITLE` 列显示各 Tab 的标题。
 
 ## 快照字段 Schema
 

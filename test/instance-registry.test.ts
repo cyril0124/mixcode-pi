@@ -10,6 +10,7 @@ import {
   cleanupInstanceRegistry,
   createInstanceSnapshot,
   DEFAULT_INSTANCE_STALE_AFTER_MS,
+  formatDisplayWorkdir,
   formatInstanceStatusTable,
   instanceRegistryDir,
   loadLiveInstanceStatus,
@@ -215,16 +216,23 @@ test("loadLiveInstanceStatus derives tab state and sorts instances by workdir", 
     const zRepo = result.instances[1]!;
     assert.equal(zRepo.activeLabel, "<config>");
     assert.deepEqual(
-      zRepo.tabs.map((tab) => [tab.title, tab.state, tab.status, tab.elapsedSeconds]),
+      zRepo.tabs.map((tab) => [tab.title, tab.state, tab.status]),
       [
-        ["Waiting For Input", "waiting-for-input", "done", 3],
-        ["Running", "working", "running", 12],
-        ["Finished", "finished", "idle", 7],
+        ["Waiting For Input", "waiting-for-input", "done"],
+        ["Running", "working", "running"],
+        ["Finished", "finished", "idle"],
       ],
     );
   } finally {
     await fsPromises.rm(root, { recursive: true, force: true });
   }
+});
+
+test("formatDisplayWorkdir contracts homedir prefix to tilde", () => {
+  assert.equal(formatDisplayWorkdir("/home/user", "/home/user"), "~");
+  assert.equal(formatDisplayWorkdir("/home/user/project", "/home/user"), "~/project");
+  assert.equal(formatDisplayWorkdir("/home/user/workspace/repo", "/home/user"), "~/workspace/repo");
+  assert.equal(formatDisplayWorkdir("/other/path", "/home/user"), "/other/path");
 });
 
 test("formatInstanceStatusTable renders grouped instances and active tabs", async () => {
@@ -260,9 +268,9 @@ test("formatInstanceStatusTable renders grouped instances and active tabs", asyn
     const table = formatInstanceStatusTable(result);
     assert.match(table, /PID 101/);
     assert.match(table, /workdir: \/repo/);
-    assert.match(table, /active=active-session/);
-    assert.match(table, /TITLE\s+SESSION/);
-    assert.match(table, /\*\s+working\s+thinking\s+12s\s+Active Worker\s+active-session-abcdef/);
+    assert.match(table, /TAB_TITLE\s+SESSION/);
+    assert.match(table, /\*\s+working\s+thinking\s+Active Worker\s+active-session-abcdef/);
+    assert.match(table, /\(\* = focused tab\)/);
     assert.equal(formatInstanceStatusTable({ ...result, instances: [] }), "No live mpi instances.");
   } finally {
     await fsPromises.rm(root, { recursive: true, force: true });

@@ -6,12 +6,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth";
-import { bedrockProviderModule } from "@earendil-works/pi-ai/bedrock-provider";
-import { setBedrockProviderModule } from "@earendil-works/pi-ai/compat";
-
-registerBunOAuthFlows();
-setBedrockProviderModule(bedrockProviderModule);
+import { isStatusCliArgs } from "./status.js";
 
 if (process.versions?.bun && Object.keys(process.env).length === 0) {
   try {
@@ -24,6 +19,24 @@ if (process.versions?.bun && Object.keys(process.env).length === 0) {
     }
   } catch {}
 }
+
+const BINARY_ENTRY_IMPORT_FLAG = Symbol.for("mixcode-pi.binary-entry-import");
+
+// Fast path for status command: skip OAuth registration, temp directory creation,
+// and binary asset materialization since status only reads registry json files.
+if (isStatusCliArgs(process.argv.slice(2))) {
+  (globalThis as Record<symbol, unknown>)[BINARY_ENTRY_IMPORT_FLAG] = true;
+  const { main } = await import("./main.js");
+  await main();
+  process.exit(0);
+}
+
+import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth";
+import { bedrockProviderModule } from "@earendil-works/pi-ai/bedrock-provider";
+import { setBedrockProviderModule } from "@earendil-works/pi-ai/compat";
+
+registerBunOAuthFlows();
+setBedrockProviderModule(bedrockProviderModule);
 
 import darkTheme from "../../node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/theme/dark.json" with { type: "json" };
 import lightTheme from "../../node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/theme/light.json" with { type: "json" };
@@ -290,7 +303,6 @@ const NESTED_PI_TUI_SYMBOL = Symbol.for("mixcode-pi.nested-pi-tui");
 // Dynamic import ensures PI_PACKAGE_DIR is set before pi-coding-agent loads.
 // Bun's compiled executable can make main.ts look like the direct argv[1]
 // entrypoint, so mark this import as wrapper-owned before loading it.
-const BINARY_ENTRY_IMPORT_FLAG = Symbol.for("mixcode-pi.binary-entry-import");
 (globalThis as Record<symbol, unknown>)[BINARY_ENTRY_IMPORT_FLAG] = true;
 const { main } = await import("./main.js");
 await main();

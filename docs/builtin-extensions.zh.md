@@ -28,7 +28,7 @@ MixCode 随附了位于 `pi-packages/mpi-*` 的第一方内置扩展。这些包
 ## 扩展加载生命周期
 
 ```text
-MixCode 启动
+MixCode 交互 / TUI 启动
   │
   ├─ 释放二进制资产 -> runtimeDir/packages/（编译版 mpi 使用临时目录）
   ├─ ensurePackageExtensions -> 拷贝 mpi-* 到 <agentDir>/extensions/

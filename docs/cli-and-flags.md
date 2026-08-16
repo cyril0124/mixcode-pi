@@ -33,6 +33,7 @@ mpi status --workdir /path/to/project
 
 - `--json`: Outputs structured machine-readable JSON matching `InstanceStatusReport`.
 - `--workdir <path>`: Filters status report to instances matching the specified workspace.
+- The `status` command executes on a fast lightweight path that directly reads the instance registry without booting the TUI, importing Pi runtime components, or materializing binary assets.
 
 ## Upstream Pi Delegation Rules
 

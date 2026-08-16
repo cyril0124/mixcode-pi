@@ -28,7 +28,7 @@ MixCode ships first-party built-in extensions located in `pi-packages/mpi-*`. Th
 ## Extension Loading Lifecycle
 
 ```text
-Startup (MixCode)
+Startup (MixCode Interactive / TUI)
   │
   ├─ Materialize binary assets -> runtimeDir/packages/ (temp dir for compiled mpi)
   ├─ ensurePackageExtensions -> copy mpi-* to <agentDir>/extensions/

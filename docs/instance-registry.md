@@ -10,13 +10,16 @@ MixCode tracks active terminal processes and their tabs in an instance registry 
 
 ## CLI Status Command
 
-To inspect all running MixCode instances, active tabs, and working durations:
+To inspect all running MixCode instances and active tabs:
 
 ```bash
 mpi status
 mpi status --json
 mpi status --workdir /path/to/project
 ```
+
+- In the table output, `A` indicates the active/focused tab marked with `*`.
+- `TAB_TITLE` shows the user-facing title of each tab.
 
 ## Snapshot Schema
 
