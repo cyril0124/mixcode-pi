@@ -15,8 +15,9 @@ export function renderSystemToolsText(tools: RuntimeToolInfo[]): string {
 function formatSystemTool(tool: RuntimeToolInfo): string {
   const name = String(tool.name ?? "(unnamed)");
   const lines = [`## ${name}`];
-  if (typeof tool.description === "string" && tool.description.trim())
-    lines.push(tool.description.trim());
+  if (typeof tool.description === "string" && tool.description.trim()) {
+    lines.push("~~~", tool.description.trim(), "~~~");
+  }
   const source = formatToolSource(tool.sourceInfo);
   if (source) lines.push(`source: ${source}`);
   if (tool.parameters !== undefined)

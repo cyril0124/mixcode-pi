@@ -80,7 +80,7 @@ test("system tools text includes name, description, and source metadata", () => 
     },
   ]);
   assert.match(text, /## read/);
-  assert.match(text, /Read a file/);
+  assert.match(text, /~~~\nRead a file\n~~~/);
   assert.match(text, /source: pi-builtin \| project \| top-level \| <pi-builtin:read>/);
   assert.match(renderSystemToolsText([]), /No tools available/);
 });
