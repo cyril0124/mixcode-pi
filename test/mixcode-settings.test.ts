@@ -408,7 +408,7 @@ test("mixcode settings load ui.inlineWidgets and reject non-booleans", async () 
   }
 });
 
-test("settings panel toggles inlineWidgets and persists the default for new tabs", async () => {
+test("settings panel toggles inlineWidgets on live tabs and new tabs", async () => {
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-settings-inline-widgets-"));
   const mixcodeFile = path.join(dir, "mixcode_settings.json");
   await fsPromises.writeFile(mixcodeFile, "{}\n");
@@ -441,7 +441,7 @@ test("settings panel toggles inlineWidgets and persists the default for new tabs
 
     assert.equal(JSON.parse(await fsPromises.readFile(mixcodeFile, "utf8")).ui.inlineWidgets, true);
     assert.equal(state.ui?.inlineWidgets, true);
-    assert.equal(tab.inlineWidgets, false);
+    assert.equal(tab.inlineWidgets, true);
     assert.equal(addAgentTab(state, "s2", dir).inlineWidgets, true);
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });

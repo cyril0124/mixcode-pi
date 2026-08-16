@@ -458,7 +458,10 @@ function applyLiveEffects(state: MixCodeState): void {
     icons: { mode: raw.ui?.icons?.mode ?? DEFAULT_ICON_MODE },
     inlineWidgets: raw.ui?.inlineWidgets === true,
   };
-  for (const tab of state.tabs) clearConversationCache(tab.sessionId);
+  for (const tab of state.tabs) {
+    tab.inlineWidgets = state.ui.inlineWidgets;
+    clearConversationCache(tab.sessionId);
+  }
 }
 
 // ─── Render ──────────────────────────────────────────────────────────────────
