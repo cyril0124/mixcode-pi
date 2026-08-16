@@ -20,6 +20,7 @@ mpi status --workdir /path/to/project
 
 - 表格输出中，`A` 列的 `*` 标识当前获得焦点（focused）的活跃 Tab。
 - `TAB_TITLE` 列显示各 Tab 的标题。
+- `--workdir <path>` 按实例根 workdir 精确过滤（支持 `~`、相对路径、绝对路径）。
 
 ## 快照字段 Schema
 

@@ -201,14 +201,40 @@ export function formatDisplayWorkdir(workdir: string, home = os.homedir()): stri
   return workdir;
 }
 
+export function formatInstanceStatusJson(report: InstanceStatusReport): string {
+  const data = {
+    instances: report.instances.map((instance) => {
+      const activeTab = instance.tabs.find((tab) => tab.active);
+      const activeTabTitle =
+        activeTab?.title ?? (instance.activeTabId === "config" ? "<config>" : undefined);
+      return {
+        pid: instance.pid,
+        workdir: formatDisplayWorkdir(instance.workdir),
+        ...(activeTabTitle !== undefined ? { activeTabTitle } : {}),
+        tabs: instance.tabs.map((tab) => ({
+          state: tab.state,
+          status: tab.status,
+          tabTitle: tab.title,
+          sessionId: tab.sessionId,
+        })),
+      };
+    }),
+  };
+  return JSON.stringify(data, null, 2);
+}
+
 export function formatInstanceStatusTable(report: InstanceStatusReport): string {
   if (report.instances.length === 0) return "No live mpi instances.";
+  const maxTitleLen = report.instances
+    .flatMap((i) => i.tabs)
+    .reduce((max, t) => Math.max(max, t.title.length), "TAB_TITLE".length);
+
   const groups: string[] = [];
   for (const instance of report.instances) {
     const lines = [
       `PID ${instance.pid}  workdir: ${formatDisplayWorkdir(instance.workdir)}`,
-      "  A  STATE        STATUS     TAB_TITLE      SESSION",
-      ...instance.tabs.map(formatStatusTabRow),
+      `  A  STATE        STATUS     ${pad("TAB_TITLE", maxTitleLen)}  SESSION`,
+      ...instance.tabs.map((tab) => formatStatusTabRow(tab, maxTitleLen)),
     ];
     groups.push(lines.join("\n"));
   }
@@ -223,13 +249,13 @@ export function currentProcessIdentity(pid = process.pid): ProcessIdentity {
   return { alive: pidIsAlive(pid), verification: "pid-only" };
 }
 
-function formatStatusTabRow(tab: InstanceStatusTab): string {
+function formatStatusTabRow(tab: InstanceStatusTab, titleWidth = 14): string {
   const active = tab.active ? "*" : " ";
   return [
     `  ${active}`,
     pad(tab.state, 12),
     pad(tab.status, 10),
-    pad(tab.title, 14),
+    pad(tab.title, titleWidth),
     tab.sessionId,
   ].join(" ");
 }

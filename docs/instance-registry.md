@@ -20,6 +20,7 @@ mpi status --workdir /path/to/project
 
 - In the table output, `A` indicates the active/focused tab marked with `*`.
 - `TAB_TITLE` shows the user-facing title of each tab.
+- `--workdir <path>` filters to instances whose root workdir equals the resolved path (`~` / relative / absolute).
 
 ## Snapshot Schema
 

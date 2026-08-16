@@ -4,6 +4,7 @@ import * as path from "node:path";
 import { cwd } from "node:process";
 import { fileURLToPath } from "node:url";
 import {
+  expandTilde,
   isStatusCliArgs,
   runStatusCommand as executeStatusCommand,
 } from "./status.js";
@@ -153,13 +154,13 @@ function parseStatusArgs(args: string[], baseWorkdir: string): MainArgs {
     if (arg === "--workdir") {
       const value = args[++index];
       if (!value) throw new Error("--workdir requires a path");
-      statusWorkdir = path.resolve(baseWorkdir, value);
+      statusWorkdir = path.resolve(baseWorkdir, expandTilde(value));
       continue;
     }
     if (arg?.startsWith("--workdir=")) {
       const value = arg.slice("--workdir=".length);
       if (!value) throw new Error("--workdir requires a path");
-      statusWorkdir = path.resolve(baseWorkdir, value);
+      statusWorkdir = path.resolve(baseWorkdir, expandTilde(value));
       continue;
     }
     throw new Error(`Unknown status argument: ${arg}`);

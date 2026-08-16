@@ -31,8 +31,8 @@ mpi status --json
 mpi status --workdir /path/to/project
 ```
 
-- `--json`：输出与 `InstanceStatusReport` 结构一致的机器可读 JSON 数据。
-- `--workdir <path>`：仅筛选匹配指定工作区路径的实例。
+- `--json`：输出与表格字段一致的机器可读 JSON（`pid`、`workdir`、`activeTabTitle`、tabs）。
+- `--workdir <path>`：仅保留实例根 workdir 与解析后路径完全相等的进程。相对路径相对当前工作目录解析。`~` 与 `~/...` 展开为家目录。也接受 `--workdir=<path>`。
 - `status` 命令运行在独立的轻量路径上，直接读取实例注册表，不启动 TUI、不导入 Pi 运行时组件，编译版亦不释放二进制资产。
 
 ## 上游 Pi 自动委托机制

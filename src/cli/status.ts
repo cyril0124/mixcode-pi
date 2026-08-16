@@ -1,6 +1,7 @@
 import * as os from "node:os";
 import * as path from "node:path";
 import {
+  formatInstanceStatusJson,
   formatInstanceStatusTable,
   loadLiveInstanceStatus,
 } from "../core/instance-registry.js";
@@ -14,7 +15,7 @@ export function isStatusCliArgs(args: string[]): boolean {
  * Expand leading ~ or ~/ to user homedir.
  * Replicates Pi's expandTildePath without importing pi-coding-agent.
  */
-function expandTilde(filepath: string): string {
+export function expandTilde(filepath: string): string {
   if (filepath === "~") return os.homedir();
   if (filepath.startsWith("~/") || (process.platform === "win32" && filepath.startsWith("~\\"))) {
     return path.join(os.homedir(), filepath.slice(2));
@@ -50,6 +51,6 @@ export interface StatusCliOptions {
 export async function runStatusCommand(options: StatusCliOptions = {}): Promise<void> {
   const rootStateDir = options.stateDir ?? resolveMixcodeStateDir();
   const report = await loadLiveInstanceStatus(rootStateDir, { workdir: options.workdir });
-  const output = options.json ? JSON.stringify(report, null, 2) : formatInstanceStatusTable(report);
+  const output = options.json ? formatInstanceStatusJson(report) : formatInstanceStatusTable(report);
   process.stdout.write(`${output}\n`);
 }
