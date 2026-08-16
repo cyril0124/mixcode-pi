@@ -3,6 +3,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { cwd } from "node:process";
 import { fileURLToPath } from "node:url";
+import { isDirectCliEntry } from "./direct-cli-entry.js";
 import {
   expandTilde,
   isStatusCliArgs,
@@ -280,9 +281,7 @@ export async function main(): Promise<void> {
   await runInteractiveApp(args, selfRoot);
 }
 
-const BINARY_ENTRY_IMPORT_FLAG = Symbol.for("mixcode-pi.binary-entry-import");
-
-if (isDirectCliEntry()) {
+if (isDirectCliEntry(import.meta.url)) {
   main().catch((error) => {
     // Bypass the console bridge here: a startup crash can happen after the bridge
     // is installed but before the TUI sink is wired, which would queue this fatal
@@ -291,14 +290,4 @@ if (isDirectCliEntry()) {
     process.stderr.write(`${message}\n`);
     process.exitCode = 1;
   });
-}
-
-function isDirectCliEntry(entryUrl = import.meta.url, argv1 = process.argv[1]): boolean {
-  if ((globalThis as Record<symbol, unknown>)[BINARY_ENTRY_IMPORT_FLAG]) return false;
-  if (!argv1) return false;
-  try {
-    return fileURLToPath(entryUrl) === fs.realpathSync(argv1);
-  } catch {
-    return entryUrl === `file://${argv1}`;
-  }
 }
