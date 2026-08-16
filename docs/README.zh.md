@@ -9,6 +9,7 @@ MixCode Pi 官方技术文档库。记录核心架构、特色工作流、命令
 - **[系统架构 (Architecture)](architecture.zh.md)**：总体分层结构、运行时事件映射与全局界面布局。
 - **[TUI 组件目录 (TUI Components)](tui-components.zh.md)**：全屏帧布局、Chrome 元素与组件所有权边界。
 - **[快捷键与热键映射 (Keybindings)](keybindings-and-escape.zh.md)**：核心快捷键、命令面板、外部编辑器与 Escape 撤回流。
+- **[鼠标交互与可点击区域 (Mouse Support)](mouse-support.zh.md)**：SGR 1006 鼠标协议、Tab 标签/选择器点击、滚动条拖拽与文本划选复制。
 - **[CLI 命令行与参数 (CLI & Flags)](cli-and-flags.zh.md)**：`mpi` 参数选项 (`--workdir`, `--builtin-extensions-only`, `--batch`)、`status` 子命令与委托规则。
 
 ## 核心特色功能与工作流
