@@ -765,8 +765,10 @@ function renderInputMetaInner(
     if (updateHitRegions) tab.inputMetaHitRegions = [];
     return [];
   }
-  const model = tab.model.displayName || "-";
-  const thinking = tab.thinkingLevel[0]!.toUpperCase() + tab.thinkingLevel.slice(1);
+  const model = process.env.MIXCODE_DISPLAY_MODEL?.trim() || tab.model.displayName || "-";
+  const rawThinking = tab.thinkingLevel[0]!.toUpperCase() + tab.thinkingLevel.slice(1);
+  const thinking = process.env.MIXCODE_DISPLAY_THINKING?.trim() || rawThinking;
+  const workdir = process.env.MIXCODE_DISPLAY_WORKDIR?.trim() || tab.workdir;
   // Absolute xxk/xxk lives on the editor top border; bottom meta only shows bar+%.
   // Unknown usage still paints `?%` — never omit the meter just because count is pending.
   const contextBadge = ` ${contextBarAndPercentText(tab, iconMode)} `;
@@ -777,12 +779,12 @@ function renderInputMetaInner(
   // Compress left first (provider → short model → icons/gaps → truncate).
   // Only then drop right: branch first, token bar last.
   const rightOptions = [git ? `${contextBadge} ${git}` : contextBadge, contextBadge, ""];
-  let left = renderInputMetaLeft(tab.workdir, model, thinking, "", lineWidth, glyphs);
+  let left = renderInputMetaLeft(workdir, model, thinking, "", lineWidth, glyphs);
   let right = "";
   for (const candidate of rightOptions) {
     const rightW = visibleWidth(candidate);
     const leftBudget = candidate ? Math.max(0, lineWidth - rightW - 1) : lineWidth;
-    const attempt = renderInputMetaLeft(tab.workdir, model, thinking, "", leftBudget, glyphs);
+    const attempt = renderInputMetaLeft(workdir, model, thinking, "", leftBudget, glyphs);
     if (!attempt.text) continue;
     if (candidate && visibleWidth(attempt.text) + 1 + rightW > lineWidth) continue;
     // If workdir was squeezed off, drop more of the right instead of hiding it.

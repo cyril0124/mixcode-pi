@@ -15,6 +15,7 @@ Not listed here: `run.sh` / test / GIF tooling knobs, or upstream Pi (`PI_*`) â€
 | Variable | Set by | Meaning |
 | --- | --- | --- |
 | `MIXCODE` | MixCode (`src/cli/main.ts`) after it decides **not** to delegate to upstream `pi` | Process is MixCode, not bare `pi`. Built-in packages that must not activate under pure Pi should gate on this (e.g. `mpi-herdr-report`). Default when MixCode runs: `1` (`??=`, does not override an explicit value). Off when unset / empty / `0` / `false` / `off`. |
+| `MIXCODE_BUILTIN_EXTENSIONS_ONLY` | User / Environment | When enabled (`1`, `true`, `on`, `yes`), loads MixCode built-in extensions (`pi-packages/*`) only, skipping discovery of third-party/global/workspace extensions. Equivalent to `--builtin-extensions-only`. Off when unset / empty / `0` / `false` / `off` / `no`. |
 
 ## Agent Bash Tool (Per Spawn)
 
@@ -24,6 +25,16 @@ Injected into the **agent bash tool** child environment only (same surface as Pi
 | --- | --- | --- |
 | `MIXCODE_TAB_TITLE` | Bash tool spawn | Title of the tab that owns this agent (e.g. `Agent-01`). Follows renames on the next spawn. |
 | `MIXCODE_FOCUSED_TAB_TITLE` | Bash tool spawn | Title of the UI-focused agent tab. Unset when focus is Home/config or unknown. May differ from `MIXCODE_TAB_TITLE` when a background tab runs bash. |
+
+## Display Overrides (UI Rendering)
+
+Variables to override display metadata in the TUI (e.g. for screen recordings, demonstrations, or path/model masking) without modifying actual runtime models, session data, thinking levels, or filesystem paths.
+
+| Variable | Set by | Meaning |
+| --- | --- | --- |
+| `MIXCODE_DISPLAY_MODEL` | User / Environment | Overrides the provider/model string shown in the bottom metadata bar (e.g. `custom-model`). |
+| `MIXCODE_DISPLAY_THINKING` | User / Environment | Overrides the thinking level text shown in the bottom metadata bar (e.g. `High`, `DeepThinking`). |
+| `MIXCODE_DISPLAY_WORKDIR` | User / Environment | Overrides the displayed workdir path in the bottom metadata bar and Home tab cards (e.g. `/virtual/demo`). |
 
 ## Related External Hosts
 

@@ -72,6 +72,16 @@ export function resolveMixcodePackageRoot(selfRoot: string, env = process.env): 
   return selfRoot;
 }
 
+export function isBuiltinExtensionsOnlyEnabled(
+  flagValue?: boolean,
+  env = process.env,
+): boolean {
+  if (flagValue) return true;
+  const raw = env.MIXCODE_BUILTIN_EXTENSIONS_ONLY?.trim().toLowerCase();
+  if (!raw) return false;
+  return raw !== "0" && raw !== "false" && raw !== "off" && raw !== "no";
+}
+
 export async function main(): Promise<void> {
   const rawArgs = process.argv.slice(2);
   if (await runSessionCatalogWorkerCommand(rawArgs)) return;
@@ -111,6 +121,7 @@ export async function main(): Promise<void> {
     copy: true,
     agentDir,
   });
+  const builtinExtensionsOnly = isBuiltinExtensionsOnlyEnabled(args.builtinExtensionsOnly);
   const {
     state,
     runtime,
@@ -124,7 +135,7 @@ export async function main(): Promise<void> {
     settingsDeps,
   } = await bootstrapMixCode({
     workdir: args.workdir,
-    ...(args.builtinExtensionsOnly
+    ...(builtinExtensionsOnly
       ? {
           additionalExtensionPaths: builtinExtensionPaths,
           resourceLoaderOptions: { noExtensions: true },

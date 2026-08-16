@@ -15,6 +15,7 @@
 | 变量 | 设置方 | 含义 |
 | --- | --- | --- |
 | `MIXCODE` | MixCode (`src/cli/main.ts`) 在决定**不**委托给上游 `pi` 之后设置 | 表明当前进程是 MixCode 而非纯 `pi`。必须不能在纯 Pi 下激活的内置包应以此为门控（例如 `mpi-herdr-report`）。MixCode 运行时的默认值：`1`（`??=`，不会覆盖显式设置的值）。未设置 / 为空 / `0` / `false` / `off` 时视为关闭。 |
+| `MIXCODE_BUILTIN_EXTENSIONS_ONLY` | 用户 / 环境 | 启用时（`1`、`true`、`on`、`yes`），仅加载 MixCode 内置扩展（`pi-packages/*`），跳过第三方/全局/工作区扩展的自动发现。等同于命令行参数 `--builtin-extensions-only`。未设置 / 为空 / `0` / `false` / `off` / `no` 时视为关闭。 |
 
 ## Agent Bash 工具（每次派生）
 
@@ -24,6 +25,16 @@
 | --- | --- | --- |
 | `MIXCODE_TAB_TITLE` | Bash 工具派生 | 拥有该 Agent 的 Tab 标题（例如 `Agent-01`）。在下次派生时跟随重命名。 |
 | `MIXCODE_FOCUSED_TAB_TITLE` | Bash 工具派生 | UI 处于焦点状态的 Agent Tab 标题。当焦点处于 Home/配置或未知时未设置。当后台 Tab 运行 bash 时可能与 `MIXCODE_TAB_TITLE` 不同。 |
+
+## 界面展示覆盖 (UI 渲染)
+
+用于在 TUI 中覆盖元数据展示（例如录屏、演示或敏感路径/模型脱敏）的环境变量，仅影响展示层，不修改底层的实际模型调用、会话数据、思考级别或文件系统路径。
+
+| 变量 | 设置方 | 含义 |
+| --- | --- | --- |
+| `MIXCODE_DISPLAY_MODEL` | 用户 / 环境 | 覆盖底部元数据栏中显示的 provider/model 字符串（例如 `custom-model`）。 |
+| `MIXCODE_DISPLAY_THINKING` | 用户 / 环境 | 覆盖底部元数据栏中显示的 thinking 级别文本（例如 `High`、`DeepThinking`）。 |
+| `MIXCODE_DISPLAY_WORKDIR` | 用户 / 环境 | 覆盖底部元数据栏以及 Home 卡片中显示的工作目录路径（例如 `/virtual/demo`）。 |
 
 ## 相关外部宿主
 

@@ -330,7 +330,8 @@ function formatTabStatusChip(tab: MixCodeState["tabs"][number]): string {
 }
 
 function projectName(tab: MixCodeState["tabs"][number]): string {
-  return tab.workdir.split("/").filter(Boolean).pop() ?? tab.workdir;
+  const workdir = process.env.MIXCODE_DISPLAY_WORKDIR?.trim() || tab.workdir;
+  return workdir.split("/").filter(Boolean).pop() ?? workdir;
 }
 
 /** Relative recency for Home cards from lastWorkedAt — not run duration. */
