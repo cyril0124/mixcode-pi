@@ -320,6 +320,172 @@ test("streaming completion keeps a PageUp anchor when the viewport grows", () =>
   assert.equal(after[anchorRow], anchor);
 });
 
+test("short-chat renderer switch keeps an anchor inside the completed streaming message", () => {
+  const streamingLines = Array.from(
+    { length: 80 },
+    (_, index) => `STREAM-LINE-${String(index).padStart(4, "0")} ${"content ".repeat(8)}`,
+  );
+  // 24 blocks: windowed while running (>=20), full render once idle (<60).
+  const chat: ChatLine[] = [...buildLongChat(23), { role: "assistant", text: streamingLines.slice(0, 40).join("\n") }];
+  const streamingIndex = chat.length - 1;
+  const tab = createTab(46, "s46", "/repo", { status: "running", chatScrollOffset: 0 });
+  const streamingRuntimeTab = {
+    tab,
+    chat,
+    streamingAssistant: {
+      chatIndex: streamingIndex,
+      blockIndices: new Map([[0, streamingIndex]]),
+      toolCallIndices: new Map<string, number>(),
+    },
+  };
+
+  renderAgentSurface(tab, streamingRuntimeTab as never, WIDTH, HEIGHT);
+  scrollChat(tab, 10);
+  const before = renderAgentSurface(tab, streamingRuntimeTab as never, WIDTH, HEIGHT).map(stripAnsi);
+  const anchorRow = before.findIndex((line) => line.includes("STREAM-LINE-"));
+  const anchor = before[anchorRow];
+
+  assert.ok(anchor, "expected the PageUp viewport inside the streaming message");
+
+  chat[streamingIndex] = { role: "assistant", text: streamingLines.join("\n") };
+  const completedRuntimeTab = { tab, chat, streamingAssistant: undefined };
+  renderAgentSurface(tab, completedRuntimeTab as never, WIDTH, HEIGHT);
+  tab.status = "idle";
+  const after = renderAgentSurface(tab, completedRuntimeTab as never, WIDTH, HEIGHT + 1).map(
+    stripAnsi,
+  );
+
+  assert.equal(after[anchorRow], anchor);
+});
+
+test("deep scroll keeps its history anchor across streaming growth and completion", () => {
+  const chat: ChatLine[] = [
+    ...buildLongChat(200),
+    { role: "assistant", text: Array.from({ length: 60 }, (_, i) => `TAIL-${i}`).join("\n") },
+  ];
+  const streamingIndex = chat.length - 1;
+  const tab = createTab(47, "s47", "/repo", { status: "running", chatScrollOffset: 0 });
+  const runtimeTab = {
+    tab,
+    chat,
+    streamingAssistant: {
+      chatIndex: streamingIndex,
+      blockIndices: new Map([[0, streamingIndex]]),
+      toolCallIndices: new Map<string, number>(),
+    },
+  };
+
+  renderAgentSurface(tab, runtimeTab as never, WIDTH, HEIGHT);
+  for (let page = 0; page < 6; page++) {
+    scrollChat(tab, 10);
+    renderAgentSurface(tab, runtimeTab as never, WIDTH, HEIGHT);
+  }
+  const before = renderAgentSurface(tab, runtimeTab as never, WIDTH, HEIGHT).map(stripAnsi);
+  const anchorRow = before.findIndex((line) => /(?:assistant|user|output|system)-\d+/.test(line));
+  const anchor = before[anchorRow];
+
+  assert.ok(anchor, "expected a visible history message after deep scroll");
+  assert.doesNotMatch(anchor, /TAIL-/);
+
+  chat[streamingIndex] = {
+    role: "assistant",
+    text: Array.from({ length: 160 }, (_, i) => `TAIL-${i}`).join("\n"),
+  };
+  renderAgentSurface(tab, runtimeTab as never, WIDTH, HEIGHT);
+  const completedRuntimeTab = { tab, chat, streamingAssistant: undefined };
+  renderAgentSurface(tab, completedRuntimeTab as never, WIDTH, HEIGHT);
+  tab.status = "idle";
+  const after = renderAgentSurface(tab, completedRuntimeTab as never, WIDTH, HEIGHT + 1).map(
+    stripAnsi,
+  );
+
+  assert.equal(after[anchorRow], anchor);
+});
+
+test("tool completion and agent-end notices do not shift a frozen history anchor", () => {
+  const chat: ChatLine[] = [
+    ...buildLongChat(80),
+    {
+      role: "tool",
+      title: "bash",
+      toolCallId: "t-run",
+      status: "running",
+      text: "working...",
+      args: { command: "sleep 1" },
+    },
+  ];
+  const toolIndex = chat.length - 1;
+  const tab = createTab(48, "s48", "/repo", { status: "running", chatScrollOffset: 0 });
+  const runtimeTab = {
+    tab,
+    chat,
+    streamingAssistant: {
+      chatIndex: undefined,
+      blockIndices: new Map(),
+      toolCallIndices: new Map([["t-run", toolIndex]]),
+    },
+  };
+
+  renderAgentSurface(tab, runtimeTab as never, WIDTH, HEIGHT);
+  scrollChat(tab, 10);
+  const before = renderAgentSurface(tab, runtimeTab as never, WIDTH, HEIGHT).map(stripAnsi);
+  const anchorRow = before.findIndex((line) => /(?:assistant|user|output|system)-\d+/.test(line));
+  const anchor = before[anchorRow];
+
+  assert.ok(anchor, "expected a visible history message above the running tool");
+
+  // tool_execution_end: running renderer swaps to the success renderer.
+  chat[toolIndex] = { ...chat[toolIndex]!, status: "success", text: "done" };
+  // agent_end: empty-run notice lands below.
+  chat.push({ role: "system", text: "(agent ended)" });
+  const endedRuntimeTab = { tab, chat, streamingAssistant: undefined };
+  renderAgentSurface(tab, endedRuntimeTab as never, WIDTH, HEIGHT);
+  tab.status = "idle";
+  const after = renderAgentSurface(tab, endedRuntimeTab as never, WIDTH, HEIGHT + 1).map(
+    stripAnsi,
+  );
+
+  assert.equal(after[anchorRow], anchor);
+});
+
+test("scrolling up past the streaming markdown limit does not snap on the next frame", () => {
+  const streamingLines = Array.from(
+    { length: 200 },
+    (_, index) => `STREAM-LINE-${String(index).padStart(4, "0")} ${"content ".repeat(8)}`,
+  );
+  // 120 rendered lines ≈ 8.6k chars: past STREAMING_MARKDOWN_CHAR_LIMIT at PageUp.
+  const chat: ChatLine[] = [
+    ...buildLongChat(24),
+    { role: "assistant", text: streamingLines.slice(0, 120).join("\n") },
+  ];
+  const streamingIndex = chat.length - 1;
+  const tab = createTab(49, "s49", "/repo", { status: "running", chatScrollOffset: 0 });
+  const runtimeTab = {
+    tab,
+    chat,
+    streamingAssistant: {
+      chatIndex: streamingIndex,
+      blockIndices: new Map([[0, streamingIndex]]),
+      toolCallIndices: new Map<string, number>(),
+    },
+  };
+
+  renderAgentSurface(tab, runtimeTab as never, WIDTH, HEIGHT);
+  scrollChat(tab, 10);
+  const frozen = renderAgentSurface(tab, runtimeTab as never, WIDTH, HEIGHT).map(stripAnsi);
+  const anchorRow = frozen.findIndex((line) => line.includes("STREAM-LINE-"));
+  const anchor = frozen[anchorRow];
+
+  assert.ok(anchor, "expected the PageUp viewport inside the streaming message");
+
+  // Next frame: the freeze disables tail truncation, so the block re-renders in
+  // full. The anchor line must not move.
+  chat[streamingIndex] = { role: "assistant", text: streamingLines.slice(0, 130).join("\n") };
+  const after = renderAgentSurface(tab, runtimeTab as never, WIDTH, HEIGHT).map(stripAnsi);
+
+  assert.equal(after[anchorRow], anchor);
+});
+
 // Growth can arrive in the same frame as a user scroll. Freeze must still absorb
 // the growth; otherwise the view drifts toward the streaming tail.
 test("windowed renderer stays stable when user scrolls in the same frame as growth", () => {

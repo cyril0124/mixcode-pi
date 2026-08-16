@@ -24,6 +24,9 @@ interface ScrollFreezeState {
   chatLine?: ChatLine;
   /** 0–1 progress through the anchored chat block (top of viewport content). */
   blockProgress?: number;
+  /** Exact row inside the anchored block and the height it was recorded at. */
+  blockRow?: number;
+  blockRowHeight?: number;
   /**
    * User scroll delta this frame (wheel/key). Applied after anchor re-pin so
    * stream growth can be absorbed without undoing intentional scrolling.
@@ -172,7 +175,13 @@ export function applyChatBlockScrollAnchor(
   }
   if (!block || block.height <= 0) return false;
   const progress = Math.min(1, Math.max(0, state.blockProgress ?? 0));
-  const rowInBlock = Math.min(block.height - 1, Math.floor(progress * block.height));
+  // Prefer the exact remembered row when the block height is unchanged:
+  // floor(progress * height) is not round-trip stable (56/142*142 floors to 55
+  // under IEEE rounding) and intermittently drifts the viewport up one row.
+  const rowInBlock =
+    state.blockRow !== undefined && state.blockRowHeight === block.height
+      ? Math.min(block.height - 1, state.blockRow)
+      : Math.min(block.height - 1, Math.round(progress * block.height));
   const index = block.start + rowInBlock;
   const maxStart = Math.max(0, linesLength - viewport);
   const start = Math.max(0, Math.min(index - (state.row ?? 0), maxStart));
@@ -275,6 +284,8 @@ export function rememberChatBlockScrollAnchor(
     row: row >= 0 ? row : undefined,
     chatLine: block?.line,
     blockProgress,
+    blockRow: block ? absolute - block.start : undefined,
+    blockRowHeight: block?.height,
   });
 }
 
