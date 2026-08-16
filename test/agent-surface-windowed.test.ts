@@ -831,6 +831,36 @@ test("windowed rendering scales sublinearly with block count", () => {
   );
 });
 
+test("PageUp after stick-to-bottom without an idle render does not snap to the old reply", () => {
+  const replyOne = Array.from(
+    { length: 80 },
+    (_, index) => `REPLY-ONE-${String(index).padStart(3, "0")} ${"alpha ".repeat(8)}`,
+  ).join("\n");
+  const replyTwo = Array.from(
+    { length: 80 },
+    (_, index) => `REPLY-TWO-${String(index).padStart(3, "0")} ${"beta ".repeat(8)}`,
+  ).join("\n");
+  const chat: ChatLine[] = [
+    ...buildLongChat(64),
+    { role: "user", text: "prompt-one" },
+    { role: "assistant", text: replyOne },
+  ];
+  const tab = createTab(51, "s51", "/repo", { status: "idle", chatScrollOffset: 0 });
+
+  renderAgentSurface(tab, { chat } as never, WIDTH, HEIGHT);
+  for (let page = 0; page < 5; page++) {
+    scrollChat(tab, 10);
+    renderAgentSurface(tab, { chat } as never, WIDTH, HEIGHT);
+  }
+
+  tab.chatScrollOffset = 0;
+  chat.push({ role: "user", text: "prompt-two" }, { role: "assistant", text: replyTwo });
+  scrollChat(tab, 3);
+  const after = renderAgentSurface(tab, { chat } as never, WIDTH, HEIGHT).map(stripAnsi).join("\n");
+  assert.match(after, /REPLY-TWO-/);
+  assert.doesNotMatch(after, /REPLY-ONE-/);
+});
+
 test("deep scroll paint stays near bottom paint cost (no unshift O(n^2))", () => {
   // Regression: Array.unshift while assembling scrolled history made deep
   // offset paint hundreds of times slower than bottom pin for large chats.

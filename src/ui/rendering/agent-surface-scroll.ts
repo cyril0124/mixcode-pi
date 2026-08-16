@@ -35,6 +35,11 @@ interface ScrollFreezeState {
 }
 const scrollFreezeStates = new WeakMap<MixCodeTabInfo, ScrollFreezeState>();
 
+/** Drop freeze metadata so the next scroll starts from the live tail. */
+export function clearScrollFreeze(tab: MixCodeTabInfo): void {
+  scrollFreezeStates.delete(tab);
+}
+
 export interface ChatBlockLayout {
   line: ChatLine;
   start: number;

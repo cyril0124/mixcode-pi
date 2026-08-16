@@ -4,6 +4,7 @@ import { fuzzyMatch, fuzzyMatchAllPositions } from "./fuzzy.js";
 import { activateTab, findActiveTab } from "./tabs.js";
 import { HOME_TAB_ID, type CommandPaletteEntry, type MixCodeState, type MixCodeTabInfo } from "./types.js";
 import { tabIsWaitingForInput } from "./tab-state.js";
+import { clearScrollFreeze } from "../ui/rendering/agent-surface-scroll.js";
 
 export function togglePreview(tab: MixCodeTabInfo): void {
   tab.previewOpen = !tab.previewOpen;
@@ -41,6 +42,8 @@ export function scrollPreview(tab: MixCodeTabInfo, delta: number): boolean {
 }
 
 export function scrollChat(tab: MixCodeTabInfo, delta: number): boolean {
+  // Stick-to-bottom (offset 0) must not resurrect a freeze from an earlier turn.
+  if (tab.chatScrollOffset === 0 && delta > 0) clearScrollFreeze(tab);
   if (tab.chatScrollAnchorEntryId) {
     tab.chatScrollOffset = Math.min(1_000_000, Math.max(-1_000_000, tab.chatScrollOffset + delta));
     return true;
