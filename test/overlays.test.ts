@@ -12,18 +12,11 @@ import {
   closeTabJump,
   moveCommandPaletteSelection,
   moveTabJumpSelection,
-  navigatePreview,
   openCommandPalette,
   openTabJump,
-  previewEnd,
-  previewHome,
-  previewTitle,
   renderCommandPalette,
-  renderPreviewOverlay,
   renderTabJumpOverlay,
-  scrollPreview,
   tabJumpEntries,
-  togglePreview,
   toggleTabJumpNonIdleOnly,
   updateCommandPaletteQuery,
   commandPaletteEntriesWithExtensions,
@@ -45,60 +38,6 @@ test("command palette derives every palette-visible LOCAL_COMMANDS entry", () =>
     commandPaletteEntries(configState).map((entry) => entry.command),
   );
   assert.ok(configCommands.has("/save-workspace"), "config palette keeps workspace commands");
-});
-
-test("preview overlay toggles, navigates messages, and scrolls content", () => {
-  const tab = createTab(1, "s1", "/repo");
-  assert.deepEqual(renderPreviewOverlay(tab, 80), []);
-  togglePreview(tab);
-  assert.equal(tab.previewOpen, true);
-  assert.equal(navigatePreview(tab, 1), false);
-  assert.equal(scrollPreview(tab, 1), true);
-  togglePreview(tab);
-  assert.equal(scrollPreview(tab, 1), false);
-  assert.equal(previewHome(tab), false);
-  assert.equal(previewEnd(tab), false);
-
-  togglePreview(tab);
-  assert.match(renderPreviewOverlay(tab, 80).join("\n"), /No preview messages yet/);
-  tab.previewMessages.push(
-    { role: "user", text: "Prompt" },
-    { role: "assistant", text: "# Answer\n\nDetails\nMore" },
-  );
-  assert.equal(previewTitle(tab), "User Message 1 / 2");
-  assert.match(renderPreviewOverlay(tab, 80).join("\n"), /Prompt/);
-
-  assert.equal(navigatePreview(tab, 1), true);
-  assert.equal(previewTitle(tab), "Assistant Message 2 / 2");
-  assert.match(renderPreviewOverlay(tab, 80).join("\n"), /# Answer/);
-  assert.equal(scrollPreview(tab, 2), true);
-  assert.match(renderPreviewOverlay(tab, 80).join("\n"), /scroll: 3\/4/);
-  assert.equal(previewHome(tab), true);
-  assert.match(renderPreviewOverlay(tab, 80).join("\n"), /scroll: 1\/4/);
-  assert.equal(previewEnd(tab), true);
-  assert.match(renderPreviewOverlay(tab, 80).join("\n"), /scroll: 4\/4/);
-
-  assert.equal(navigatePreview(tab, 1), true);
-  assert.equal(previewTitle(tab), "No newer message");
-  assert.equal(navigatePreview(tab, -1), true);
-  assert.equal(previewTitle(tab), "User Message 1 / 2");
-  assert.equal(navigatePreview(tab, -1), true);
-  assert.equal(previewTitle(tab), "No older message");
-});
-
-test("previewTitle labels known roles and falls back for unknown ones", () => {
-  const tab = createTab(1, "s1", "/repo");
-  togglePreview(tab);
-  tab.previewMessages = [{ role: "shell", text: "cmd" }];
-  assert.equal(previewTitle(tab), "Shell Message 1 / 1");
-  tab.previewMessages = [{ role: "tool", text: "out" }];
-  assert.equal(previewTitle(tab), "Tool Message 1 / 1");
-  tab.previewMessages = [{ role: "thinking", text: "thought" }];
-  assert.equal(previewTitle(tab), "Thinking Message 1 / 1");
-  tab.previewMessages = [{ role: "system", text: "notice" }];
-  assert.equal(previewTitle(tab), "System Message 1 / 1");
-  tab.previewMessages = [{ role: "empty", text: "empty" }];
-  assert.equal(previewTitle(tab), "Message Message 1 / 1");
 });
 
 test("tab jump entries expose busy, done, question, and fuzzy filtering", () => {

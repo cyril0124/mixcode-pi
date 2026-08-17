@@ -35,8 +35,7 @@ src/
 ├── core/
 │   ├── commands.ts           Local slash command parsing and completion sources
 │   ├── tabs.ts               Tab creation, deletion, modification, and cycling
-│   ├── overlays.ts           Pure state logic for preview, tab jump, shell, etc.
-│   ├── questions.ts          Selection and submission models for question UI
+│   ├── overlays.ts           Pure state logic for tab jump, command palette, and overlay routing
 │   ├── open-tabs-store.ts    open_tabs.json I/O and cross-instance tab set mutations
 │   ├── peer-tab-sync.ts      Cross-instance tab listener and reconciliation (open/close)
 │   ├── state-store.ts        TUI state and workspace persistence
@@ -65,7 +64,7 @@ User Input
   │        └─ Does not inject AGENTS.md directly; project context enters system prompt
   │
   ├─ /local-command
-  │    ├─ Pure UI state: /toggle-todo /preview /mark-done
+  │    ├─ Pure UI state: /toggle-todo /mark-done
   │    ├─ Session operations: /new-session /fork /compact /delete-session
   │    └─ Prompt templates: /goal /compact
   │
@@ -100,7 +99,7 @@ Authoritative key list and Escape dispatch: [Keybindings & Escape](keybindings-a
 │ Chat (user / assistant / tool / bash)                      │
 │ optional: extension side panel on the right                │
 ├────────────────────────────────────────────────────────────┤
-│ Shell / Markdown Preview overlays                          │
+│ Shell overlay                                              │
 ├────────────────────────────────────────────────────────────┤
 │ Prompt Editor (with / $ @ completion)                      │
 └────────────────────────────────────────────────────────────┘

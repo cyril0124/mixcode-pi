@@ -17,11 +17,7 @@ import {
   selectableCommandPaletteEntries,
   moveCommandPaletteSelection,
   moveTabJumpSelection,
-  navigatePreview,
-  previewEnd,
-  previewHome,
   scrollChat,
-  scrollPreview,
   toggleTabJumpNonIdleOnly,
   updateCommandPaletteQueryWithExtensions,
   updateTabJumpQuery,
@@ -49,8 +45,8 @@ import {
   armPendingEscape,
   clearPendingEscape,
   hasPendingEscape,
+  isPendingEscapeActive,
 } from "./app-actions.js";
-import { isPendingEscapeActive } from "../core/escape.js";
 import {
   closeAppOverlay,
   hasAnyOverlay,
@@ -96,8 +92,8 @@ export function handleStreamingAbortKey(
   const working = streaming ||
     (isAgentStreaming === false && (active.status === "running" || active.status === "thinking"));
   if (!working) return false;
-  if (!hasPendingEscape(active, "abort-agent")) {
-    armPendingEscape(active, "abort-agent");
+  if (!hasPendingEscape(active)) {
+    armPendingEscape(active);
     pushToast(active, { type: "info", message: "Esc again: stop" });
     tui.requestRender();
     return true;
@@ -107,13 +103,13 @@ export function handleStreamingAbortKey(
   // when the run produced no visible output. Retract owns the abort internally;
   // a non-empty draft or an ineligible turn falls through to a plain abort.
   if (!editorActions?.getText()?.trim()) {
-    clearPendingEscape(active, "abort-agent");
+    clearPendingEscape(active);
     tui.requestRender();
     void retractOrAbort(active, tui, runtime, editorActions);
     return true;
   }
   runtime.abortTab(active.sessionId);
-  clearPendingEscape(active, "abort-agent");
+  clearPendingEscape(active);
   tui.requestRender();
   return true;
 }
@@ -150,7 +146,7 @@ export function handleQueuedFlushKey(
   if (!matchesKey(data, "escape")) return false;
   if (state.activeTabId === HOME_TAB_ID) return false;
   if (hasAnyOverlay(tui) || isEditorAutocompleteOpen()) return false;
-  if (active.previewOpen || active.pendingDialogs.length > 0) return false;
+  if (active.pendingDialogs.length > 0) return false;
   const runtimeTab = runtime?.getTab(active.sessionId);
   const runtimeQueuedCount = runtimeQueuedMessageCount(runtimeTab);
   if (active.pendingMessages.length === 0 && runtimeQueuedCount === 0) return false;
@@ -159,7 +155,7 @@ export function handleQueuedFlushKey(
     (active.status === "running" || active.status === "thinking");
   if (!runtime) throw new Error("Flushing queued messages requires runtime queue support");
   if (streaming) runtime.abortTab(active.sessionId);
-  clearPendingEscape(active, "abort-agent");
+  clearPendingEscape(active);
   void runtime
     .flushPendingMessage(active.sessionId, runtimeQueuedCount || undefined)
     .then(() => {
@@ -333,7 +329,7 @@ export function canOpenCommandPalette(
   if (hasAnyOverlay(tui)) return false;
   if (state.picker || state.sessionSelector.open || state.treeSelector.open || state.tabJumpOpen)
     return false;
-  if (active?.previewOpen || active?.pendingDialogs.length) return false;
+  if (active?.pendingDialogs.length) return false;
   return commandPaletteEntriesWithExtensions(state, extensionCommands).length > 0;
 }
 
@@ -461,43 +457,6 @@ export function handleTabJumpKey(state: MixCodeState, data: string, tui: Overlay
   return true;
 }
 
-export function handlePreviewKey(active: MixCodeState["tabs"][number], data: string): boolean {
-  if (matchesKey(data, "escape")) {
-    active.previewPendingHome = false;
-    active.previewOpen = false;
-    return true;
-  }
-  if (matchesKey(data, "left") || data === "h") {
-    active.previewPendingHome = false;
-    return navigatePreview(active, -1);
-  }
-  if (matchesKey(data, "right") || data === "l") {
-    active.previewPendingHome = false;
-    return navigatePreview(active, 1);
-  }
-  if (matchesKey(data, "down") || data === "j") {
-    active.previewPendingHome = false;
-    return scrollPreview(active, 3);
-  }
-  if (matchesKey(data, "up") || data === "k") {
-    active.previewPendingHome = false;
-    return scrollPreview(active, -3);
-  }
-  if (matchesKey(data, "end") || data === "G") {
-    active.previewPendingHome = false;
-    return previewEnd(active);
-  }
-  if (matchesKey(data, "home") || (data === "g" && active.previewPendingHome)) {
-    active.previewPendingHome = false;
-    return previewHome(active);
-  }
-  if (data === "g") {
-    active.previewPendingHome = true;
-    return true;
-  }
-  return false;
-}
-
 export function handleVimModeKey(active: MixCodeState["tabs"][number], data: string): boolean {
   if (!active.vimMode) return false;
   if (matchesKey(data, "tab") || matchesKey(data, "shift+tab")) return false;
@@ -565,7 +524,7 @@ export function handleEscapeKey(
     state.activeTabId !== HOME_TAB_ID &&
     runtime?.hasExtensionCustomOverlay?.(active.sessionId)
   ) {
-    clearPendingEscape(active, "abort-agent");
+    clearPendingEscape(active);
     return undefined;
   }
 
@@ -586,17 +545,16 @@ export function handleEscapeKey(
     const isWorking = active.status === "running" || active.status === "thinking";
 
     if (isBashRunning && !isStreaming) {
-      active.pendingEscapeAction = undefined;
-      active.pendingEscapeArmedAt = undefined;
+      clearPendingEscape(active);
       runtime?.abortTab?.(active.sessionId);
       tui.requestRender();
       return { consume: true };
     }
 
     if (isStreaming || isWorking) {
-      if (active.pendingEscapeAction === "abort-agent" && isPendingEscapeActive(active, "abort-agent")) {
+      if (isPendingEscapeActive(active)) {
         // Confirming Esc: prefer retract when no output and editor is empty
-        active.pendingEscapeAction = undefined;
+        clearPendingEscape(active);
         if (runtime?.retractCurrentTurn && !editorActions?.getText()?.trim()) {
           // Immediate render while retract awaits stream idle (optimistic setText
           // also runs inside retractCurrentTurn when an editor host is wired).
@@ -609,8 +567,7 @@ export function handleEscapeKey(
         return { consume: true };
       }
       // First Esc: arm abort (toast, not meta row).
-      active.pendingEscapeAction = "abort-agent";
-      active.pendingEscapeArmedAt = Date.now();
+      armPendingEscape(active);
       pushToast(active, { type: "info", message: "Esc again: stop" });
       tui.requestRender();
       return { consume: true };
@@ -624,7 +581,7 @@ export function handleEscapeKey(
     !hasAnyOverlay(tui) &&
     editorActions?.getText()?.trimStart().startsWith("!")
   ) {
-    clearPendingEscape(active, "abort-agent");
+    clearPendingEscape(active);
     editorActions.setText("");
     tui.requestRender();
     return { consume: true };
@@ -638,7 +595,6 @@ export function handleEscapeKey(
     !active.vimMode &&
     !hasAnyOverlay(tui) &&
     !state.commandPaletteOpen &&
-    !active.previewOpen &&
     !active.pendingDialogs.length &&
     !editorActions?.getText()?.trim()
   ) {

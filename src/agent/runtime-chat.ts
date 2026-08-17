@@ -11,7 +11,7 @@ import type {
 import { type Component, TuiMainScreen as PiTui } from "@earendil-works/pi-tui";
 import { modelToRef } from "../core/models.js";
 import type { MixCodeModel, MixCodeTabInfo, PreviewMessageRole } from "../core/types.js";
-import { clearPendingEscape } from "../core/tab-state.js";
+import { clearPendingEscape } from "../core/escape.js";
 import { discardVimTranscriptSearch } from "../core/tabs.js";
 import {
   currentExtensionTheme,
@@ -616,8 +616,6 @@ export function resetTabForNewSession(tab: MixCodeTabInfo, sessionId: string): v
   discardVimTranscriptSearch(tab);
   tab.previewMessages = [];
   tab.previewIndex = 0;
-  tab.previewScrollOffset = 0;
-  tab.previewHint = "";
   clearPendingEscape(tab);
   tab.unreadDone = false;
   tab.workingStartedAt = undefined;

@@ -874,12 +874,9 @@ test("config-scoped submitted input runs without an active agent tab", async () 
     status: "running",
     alias: "debugger",
     chatScrollOffset: 2,
-    previewOpen: true,
     previewIndex: 1,
-    previewScrollOffset: 3,
-    previewHint: "preview",
     unreadDone: true,
-    pendingEscapeAction: "abort",
+
     workingStartedAt: "2026-05-10T00:00:00.000Z",
     lastWorkedDurationSeconds: 12,
     todos: ["one", "two"],

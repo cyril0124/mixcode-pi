@@ -181,7 +181,7 @@ test("global key input gives extension custom escape priority over streaming abo
 
   assert.equal(handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime), undefined);
   assert.equal(handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime), undefined);
-  assert.equal(tab.pendingEscapeAction, undefined);
+  assert.equal(tab.pendingEscapeArmedAt, undefined);
   assert.equal(aborts, 0);
   assert.equal(focused, 2);
 });

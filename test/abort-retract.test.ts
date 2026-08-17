@@ -225,7 +225,7 @@ test("double escape with no assistant output retracts the message into an empty 
 
   // First Esc arms the abort prompt.
   handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime, undefined, () => false, editorActions);
-  assert.equal(tab.pendingEscapeAction, "abort-agent");
+  assert.equal(typeof tab.pendingEscapeArmedAt, "number");
   // Second Esc retracts because the turn produced no output; no separate abort.
   handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime, undefined, () => false, editorActions);
   await waitFor(() => editorText === "please retract me");

@@ -12,7 +12,6 @@ import { test } from "node:test";
 import { createTab } from "../src/core/defaults.js";
 import {
   addTabTokens,
-  clearPendingEscape,
   retryStatusMessage,
   setTabContextTokens,
   setTabStatus,
@@ -136,18 +135,6 @@ test("setTabContextTokens distinguishes a real count from cleared (undefined)", 
   assert.equal(t.currentContextTokens, 1234);
   setTabContextTokens(t, undefined);
   assert.equal(t.currentContextTokens, undefined);
-});
-
-test("clearPendingEscape clears both halves of the armed-escape pair together", () => {
-  // pendingEscapeAction and pendingEscapeArmedAt were cleared as a pair in 8
-  // sites; clearing only one leaves a half-armed escape that the key handler
-  // can misread. The seam makes the pair atomic.
-  const t = tab();
-  t.pendingEscapeAction = "abort-agent";
-  t.pendingEscapeArmedAt = 1735689600000;
-  clearPendingEscape(t);
-  assert.equal(t.pendingEscapeAction, undefined);
-  assert.equal(t.pendingEscapeArmedAt, undefined);
 });
 
 test("retryStatusMessage: absent when no retry is in progress", () => {

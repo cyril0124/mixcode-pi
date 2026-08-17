@@ -87,7 +87,7 @@ test("escape aborts the active run and flushes queued messages before double-esc
   await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(events, ["abort:s1", "flush:s1"]);
   assert.deepEqual(tab.pendingMessages, []);
-  assert.equal(tab.pendingEscapeAction, undefined);
+  assert.equal(tab.pendingEscapeArmedAt, undefined);
 });
 
 test("escape flushes runtime queued messages even before tab queue state catches up", async () => {
@@ -121,7 +121,7 @@ test("escape flushes runtime queued messages even before tab queue state catches
   });
   await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(events, ["abort:s1", "flush:s1:1"]);
-  assert.equal(tab.pendingEscapeAction, undefined);
+  assert.equal(tab.pendingEscapeArmedAt, undefined);
 });
 
 test("escape flush queued message errors are shown in an overlay", async () => {

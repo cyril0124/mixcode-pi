@@ -19,8 +19,8 @@ import { contentText } from "./runtime-tool-chat.js";
 import { modelToRef, replaceRegisteredModels } from "../core/models.js";
 import { nextAvailableAgentTitle } from "../core/defaults.js";
 import { onActiveTabChange } from "../core/tabs.js";
+import { clearPendingEscape } from "../core/escape.js";
 import {
-  clearPendingEscape,
   setPendingFollowUps,
   setPendingMessages,
   setTabStatus,

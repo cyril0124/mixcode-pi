@@ -22,7 +22,6 @@ import {
   openTabJump,
   scrollChat,
   scrollExtensionPanel,
-  scrollPreview,
 } from "../core/overlays.js";
 import { pushToast } from "../core/toast.js";
 import { createPicker } from "../core/pickers.js";
@@ -188,11 +187,6 @@ export function handleMouseInput(
   if (!mouse) return false;
   if (handleChromeMouse(state, active, mouse, tui)) return true;
   if (!active) return false;
-  if (mouse.wheel && active.previewOpen) {
-    scrollPreview(active, mouse.wheel === "up" ? -3 : 3);
-    tui.requestRender();
-    return true;
-  }
   if (mouse.wheel && active.extensionUi.waitingForInputs.length > 0) {
     scrollChat(active, mouse.wheel === "up" ? 3 : -3);
     tui.requestRender();

@@ -42,11 +42,8 @@ function createMockTab(overrides: Partial<MixCodeTabInfo> = {}): MixCodeTabInfo 
     promptHistory: [],
     draftInput: "",
     chatScrollOffset: 0,
-    previewOpen: false,
     previewMessages: [],
     previewIndex: 0,
-    previewScrollOffset: 0,
-    previewHint: "",
     vimMode: false,
     unreadDone: false,
     extensionUi: {

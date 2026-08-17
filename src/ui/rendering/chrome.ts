@@ -966,7 +966,7 @@ function renderWorkingIndicatorInner(
     return [padLine(activeRenderTheme.dim(text), width)];
   }
   const elapsed = formatElapsed(tab.workingStartedAt, now);
-  const detail = isPendingEscapeActive(tab, "abort-agent", now.getTime())
+  const detail = isPendingEscapeActive(tab, now.getTime())
     ? "esc again to interrupt"
     : "esc to interrupt";
   const message = workingActivityMessage(tab);

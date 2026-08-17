@@ -6,56 +6,25 @@ import {
 } from "../../core/fuzzy.js";
 import {
   filterTabJumpEntries,
-  previewTitle,
   selectableCommandPaletteEntries,
   tabJumpEntries,
 } from "../../core/overlays.js";
 import { filteredPickerItems, workdirBreadcrumb } from "../../core/pickers.js";
 import { activeToast } from "../../core/toast.js";
-import type { MixCodeState, MixCodeTabInfo, PreviewMessage } from "../../core/types.js";
+import type { MixCodeState, PreviewMessage } from "../../core/types.js";
 import { tabIsWaitingForInput } from "../../core/tab-state.js";
 import { type MixCodeTheme, themeForId } from "../themes.js";
 import { tabStatusGlyph } from "./chrome.js";
 import { activeRenderTheme, renderWithTheme } from "./context.js";
 import { highlightRanges } from "./highlight.js";
 import { centerLine } from "./layout.js";
-import { box, overlayPanel, padLine, panelBox, renderBoxTop } from "./primitives.js";
+import { overlayPanel, padLine, panelBox, renderBoxTop } from "./primitives.js";
 import { applyToastOverlay } from "./toast-overlay.js";
 import { halfScreenRows, windowStart } from "./scroll-window.js";
 
 /** Shared match style for dynamic fuzzy-search highlighting across overlays: bold + accent. */
 function matchHighlight(text: string): string {
   return activeRenderTheme.bold(activeRenderTheme.accent(text));
-}
-
-export function renderPreviewOverlay(
-  tab: MixCodeTabInfo,
-  width: number,
-  theme: MixCodeTheme = activeRenderTheme,
-): string[] {
-  return renderWithTheme(theme, () => renderPreviewOverlayInner(tab, width));
-}
-
-function renderPreviewOverlayInner(tab: MixCodeTabInfo, width: number): string[] {
-  if (!tab.previewOpen) return [];
-  const messages = tab.previewMessages.length
-    ? tab.previewMessages
-    : [{ role: "empty" as const, text: "No preview messages yet." }];
-  const index = Math.min(Math.max(tab.previewIndex, 0), messages.length - 1);
-  const message = messages[index]!;
-  const contentLines = message.text.split(/\r?\n/);
-  const offset = Math.min(
-    Math.max(tab.previewScrollOffset, 0),
-    Math.max(0, contentLines.length - 1),
-  );
-  const lines = [
-    `session: ${tab.sessionId}`,
-    previewTitle(tab),
-    `scroll: ${offset + 1}/${Math.max(1, contentLines.length)}`,
-    "",
-    ...contentLines.slice(offset, offset + 16),
-  ];
-  return box("Markdown Preview", lines, width);
 }
 
 export function renderConfig(

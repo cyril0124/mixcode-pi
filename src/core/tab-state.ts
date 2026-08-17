@@ -128,17 +128,6 @@ export function setPendingFollowUps(tab: MixCodeTabInfo, messages: string[]): vo
 }
 
 /**
- * Clear the armed-escape pair atomically. pendingEscapeAction (what a second
- * Esc would do) and pendingEscapeArmedAt (when it was armed) must always clear
- * together — a half-cleared pair leaves the key handler reading a stale arm.
- */
-export function clearPendingEscape(tab: MixCodeTabInfo): void {
-  tab.pendingEscapeAction = undefined;
-  tab.pendingEscapeArmedAt = undefined;
-  tab.lastEscapeTime = undefined;
-}
-
-/**
  * Format the auto-retry countdown status line, mirroring Pi's
  * `Retrying (2/3) in 4s... (esc to cancel)`. Returns undefined when no retry is
  * in progress. The remaining seconds are computed live off startedAt+delayMs so

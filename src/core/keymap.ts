@@ -174,20 +174,6 @@ export const MIXCODE_KEYMAP: KeyAction[] = [
   },
   { key: "escape", action: "tab-jump-close", description: "Close tab jump", scope: "tab-jump" },
   {
-    key: "h/l",
-    action: "preview-message",
-    description: "Move between preview messages",
-    scope: "preview",
-  },
-  { key: "j/k", action: "preview-scroll", description: "Scroll preview", scope: "preview" },
-  {
-    key: "g/G",
-    action: "preview-boundary",
-    description: "Jump to top or bottom",
-    scope: "preview",
-  },
-  { key: "escape", action: "preview-close", description: "Close preview", scope: "preview" },
-  {
     key: "left",
     action: "return-home",
     description: "Return to Agent View when input is empty",

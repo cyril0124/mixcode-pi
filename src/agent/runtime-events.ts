@@ -15,9 +15,9 @@ import {
   syncPreviewFromChat,
   updatePreviewMessage,
 } from "./runtime-chat.js";
+import { clearPendingEscape } from "../core/escape.js";
 import {
   addTabTokens,
-  clearPendingEscape,
   setTabContextTokens,
   setPendingFollowUps,
   setPendingMessages,

@@ -86,7 +86,7 @@ test("agent surface shows thinking content only once", () => {
 
 test("pending escape arm no longer paints Esc-again stop in input meta", () => {
   const tab = createTab(1, "s1", "/repo", {
-    pendingEscapeAction: "abort-agent",
+    pendingEscapeArmedAt: 1_700_000_000_000,
     pendingEscapeArmedAt: Date.now(),
   });
   // Arm feedback is toast-only (see handleEscapeKey); meta stays free of chord hints.

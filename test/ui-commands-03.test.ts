@@ -100,7 +100,7 @@ test("global @ input stays in editor", () => {
 
 test("ctrl+q opens a quit confirmation overlay when the prompt is empty", async () => {
   const state = createInitialState("/repo");
-  state.tabs.push(createTab(1, "s1", "/repo", { pendingEscapeAction: "abort-agent" }));
+  state.tabs.push(createTab(1, "s1", "/repo", { pendingEscapeArmedAt: 1_700_000_000_000 }));
   state.activeTabId = "s1";
   let overlayOpen = false;
   let rendered = "";
@@ -139,7 +139,7 @@ test("ctrl+q opens a quit confirmation overlay when the prompt is empty", async 
     { consume: true },
   );
   assert.equal(state.quitConfirmOpen, true);
-  assert.equal(state.tabs[0]?.pendingEscapeAction, undefined);
+  assert.equal(state.tabs[0]?.pendingEscapeArmedAt, undefined);
   assertQuitOverlay(rendered);
   assert.deepEqual(handleMixCodeKeyInput(state, "n", tui), { consume: true });
   assert.equal(state.quitConfirmOpen, false);

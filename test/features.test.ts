@@ -12,26 +12,17 @@ import {
   autoSaveWorkspace,
   closeAgentTab,
   createInitialState,
-  createDialogRequest,
   createTab,
   acceptPickerSelection,
-  buildDialogAnswerPrompt,
-  buildDialogRejectionPrompt,
   completeWorkdirPickerSelection,
   createPicker,
   filteredPickerItems,
-  finalizeDialogRequest,
   movePickerSelection,
-  moveQuestion,
-  moveQuestionOption,
   nextTabId,
-  questionProgress,
   renameAgentTab,
   restoreWorkspaceOrder,
   snapshotWorkspace,
-  toggleCurrentQuestionOption,
   upsertWorkspace,
-  answerCurrentQuestion,
   updatePickerQuery,
 } from "../src/index.js";
 
@@ -66,114 +57,6 @@ test("workspace snapshots preserve tab order and auto-save name", () => {
   assert.equal(state.activeTabId, "a");
   restoreWorkspaceOrder(state, { ...snapshot, children: [] });
   assert.equal(state.activeTabId, "home");
-});
-
-test("question state tracks answers, movement, progress, and bounds", () => {
-  const request = createDialogRequest("r1", "s1", [
-    {
-      header: "H1",
-      question: "Choose",
-      options: [{ label: "A", description: "a" }],
-      multiple: false,
-      custom: true,
-    },
-    { header: "H2", question: "Why", options: [], multiple: false, custom: true },
-  ]);
-  assert.equal(questionProgress(request), "1/2");
-  assert.deepEqual(request.highlightedOptionIndices, [0, 0]);
-  moveQuestionOption(request, 1);
-  assert.equal(request.highlightedOptionIndices[0], 1);
-  toggleCurrentQuestionOption(request);
-  assert.equal(request.editingCustomIndex, 0);
-  request.editingCustomIndex = undefined;
-  assert.equal(buildDialogRejectionPrompt(request), "Question request r1 was rejected by user.");
-  answerCurrentQuestion(request, ["A"], "custom");
-  moveQuestion(request, 1);
-  moveQuestionOption(request, 1);
-  answerCurrentQuestion(request, [], "because");
-  assert.equal(questionProgress(request), "2/2");
-  assert.deepEqual(finalizeDialogRequest(request), [
-    { question: "Choose", answers: ["A"], customAnswer: "custom" },
-    { question: "Why", answers: [], customAnswer: "because" },
-  ]);
-  assert.match(buildDialogAnswerPrompt(request), /Selected answers: A/);
-  assert.match(buildDialogAnswerPrompt(request), /Custom answer: because/);
-  assert.throws(() => moveQuestion(request, 1), /out of range/);
-  request.currentQuestionIndex = 99;
-  assert.throws(() => answerCurrentQuestion(request, [], ""), /out of range/);
-  assert.throws(() => moveQuestionOption(request, 1), /out of range/);
-  assert.throws(() => toggleCurrentQuestionOption(request), /out of range/);
-  assert.equal(questionProgress(createDialogRequest("empty", "s1", [])), "0/0");
-});
-
-test("question option toggles single, multiple, empty, and invalid option states", () => {
-  const request = createDialogRequest("r2", "s1", [
-    {
-      header: "Single",
-      question: "Pick one",
-      options: [
-        { label: "A", description: "" },
-        { label: "B", description: "" },
-      ],
-      multiple: false,
-      custom: false,
-    },
-    {
-      header: "Multi",
-      question: "Pick many",
-      options: [
-        { label: "C", description: "" },
-        { label: "D", description: "" },
-      ],
-      multiple: true,
-      custom: false,
-    },
-    { header: "Empty", question: "No options", options: [], multiple: false, custom: false },
-  ]);
-
-  toggleCurrentQuestionOption(request);
-  assert.deepEqual(request.selectedAnswers[0], ["A"]);
-  toggleCurrentQuestionOption(request);
-  assert.deepEqual(request.selectedAnswers[0], []);
-  moveQuestionOption(request, 1);
-  toggleCurrentQuestionOption(request);
-  assert.deepEqual(request.selectedAnswers[0], ["B"]);
-  moveQuestion(request, 1);
-  toggleCurrentQuestionOption(request);
-  moveQuestionOption(request, 1);
-  toggleCurrentQuestionOption(request);
-  assert.deepEqual(request.selectedAnswers[1], ["C", "D"]);
-  toggleCurrentQuestionOption(request);
-  assert.deepEqual(request.selectedAnswers[1], ["C"]);
-  moveQuestion(request, 1);
-  toggleCurrentQuestionOption(request);
-  assert.deepEqual(request.selectedAnswers[2], []);
-  request.currentQuestionIndex = 0;
-  request.highlightedOptionIndices[0] = 99;
-  assert.throws(() => toggleCurrentQuestionOption(request), /Question option index out of range/);
-
-  const sparse = createDialogRequest("r3", "s1", [
-    {
-      header: "Sparse",
-      question: "Defaults?",
-      options: [{ label: "A", description: "" }],
-      multiple: false,
-      custom: false,
-    },
-  ]);
-  sparse.highlightedOptionIndices = [];
-  sparse.selectedAnswers = [];
-  sparse.customAnswers = [];
-  moveQuestionOption(sparse, 0);
-  toggleCurrentQuestionOption(sparse);
-  assert.deepEqual(sparse.selectedAnswers[0], ["A"]);
-  sparse.selectedAnswers = [];
-  sparse.customAnswers = [];
-  assert.deepEqual(finalizeDialogRequest(sparse), [
-    { question: "Defaults?", answers: [], customAnswer: "" },
-  ]);
-  assert.match(buildDialogAnswerPrompt(sparse), /\(no selected option\)/);
-  assert.doesNotMatch(buildDialogAnswerPrompt(sparse), /Custom answer:/);
 });
 
 test("tab operations add, close, rename, and rotate through config", () => {

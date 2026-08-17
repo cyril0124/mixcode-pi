@@ -275,8 +275,6 @@ test("runtime clear replaces the active pi session and resets tab state", async 
       pendingMessages: ["queued"],
       previewMessages: [{ role: "assistant", text: "old preview" }],
       previewIndex: 0,
-      previewScrollOffset: 4,
-      previewHint: "old hint",
       unreadDone: true,
       status: "done",
     });
@@ -309,8 +307,6 @@ test("runtime clear replaces the active pi session and resets tab state", async 
     );
     assert.deepEqual(tab.pendingMessages, []);
     assert.deepEqual(tab.previewMessages, []);
-    assert.equal(tab.previewScrollOffset, 0);
-    assert.equal(tab.previewHint, "");
     assert.equal(tab.unreadDone, false);
     assert.equal(tab.status, "idle");
     await assert.rejects(runtime.prompt("s1", "after clear"), /Unknown tab session/);

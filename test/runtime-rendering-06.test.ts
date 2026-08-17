@@ -134,7 +134,7 @@ test("system markdown tables render as visible table text", () => {
 test("narrow input meta stays width-bounded and keeps a models hit region", () => {
   const tab = createTab(1, "s1", "/repo/" + "long/".repeat(8), {
     pendingMessages: ["queued"],
-    pendingEscapeAction: "abort-agent",
+    pendingEscapeArmedAt: 1_700_000_000_000,
   });
   const line = renderInputMeta(tab, 28).join("\n");
   assert.equal(visibleWidth(line), 27);

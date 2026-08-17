@@ -2,7 +2,7 @@ import type { RuntimeTab } from "../agent/runtime.js";
 import { MIXCODE_EXTENSION_KEYBINDINGS } from "../agent/runtime-extension-theme.js";
 import type { LocalCommand } from "../core/commands.js";
 import { pushToast } from "../core/toast.js";
-import { HOME_TAB_ID, type MixCodeState, type PendingEscapeAction } from "../core/types.js";
+import { HOME_TAB_ID, type MixCodeState } from "../core/types.js";
 import { emitMarkDone } from "../core/extension-event-bus.js";
 import { appendActiveSystemMessage } from "./app-actions.js";
 import { editTextWithTuiPaused, showTextOverlay } from "./app-overlays.js";
@@ -259,12 +259,9 @@ interface MixCodeTuiDebugState {
     thinkingLevel: string;
     pendingDialogCount: number;
     chatScrollOffset: number;
-    previewOpen: boolean;
     previewIndex: number;
-    previewScrollOffset: number;
-    previewHint: string;
     unreadDone: boolean;
-    pendingEscapeAction?: PendingEscapeAction;
+    pendingEscapeArmedAt?: number;
     workingStartedAt?: string;
     lastWorkedDurationSeconds?: number;
     extensionUi: {
@@ -323,12 +320,9 @@ function createTuiDebugState(state: MixCodeState): MixCodeTuiDebugState {
       thinkingLevel: tab.thinkingLevel,
       pendingDialogCount: tab.pendingDialogs.length,
       chatScrollOffset: tab.chatScrollOffset,
-      previewOpen: tab.previewOpen,
       previewIndex: tab.previewIndex,
-      previewScrollOffset: tab.previewScrollOffset,
-      previewHint: tab.previewHint,
       unreadDone: tab.unreadDone,
-      pendingEscapeAction: tab.pendingEscapeAction,
+      pendingEscapeArmedAt: tab.pendingEscapeArmedAt,
       workingStartedAt: tab.workingStartedAt,
       lastWorkedDurationSeconds: tab.lastWorkedDurationSeconds,
       extensionUi: {

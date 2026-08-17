@@ -7,6 +7,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { currentProcessIdentity } from "./instance-registry.js";
+import { acquirePidFileLock } from "./pid-file-lock.js";
 
 export const OPEN_TABS_VERSION = 1;
 
@@ -173,111 +174,33 @@ interface OpenTabsLockRecord {
   acquiredAt: string;
 }
 
-/**
- * Exclusive lock for open_tabs read-modify-write.
- * Same ownership rule as session-lock: reclaim only when the holder PID is dead
- * or reused. Never steal after a wall-clock deadline — that races a live holder
- * and drops concurrent add/remove updates.
- */
-function withOpenTabsLock<T>(filePath: string, fn: () => T): T {
-  const lockPath = `${filePath}.lock`;
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  const pid = process.pid;
-  const payload = `${JSON.stringify({
-    pid,
-    acquiredAt: new Date().toISOString(),
-  } satisfies OpenTabsLockRecord)}\n`;
-
-  for (;;) {
-    // Publish fully-written lock via temp+linkSync (no empty-file window).
-    // Reclaim stale locks via rename, not rm — concurrent rm reclaimers used to
-    // delete each other's freshly published lock and dual-enter the CS.
-    const tempPath = `${lockPath}.${pid}.${crypto.randomUUID()}.tmp`;
-    try {
-      fs.writeFileSync(tempPath, payload, "utf8");
-      try {
-        fs.linkSync(tempPath, lockPath);
-      } catch (error) {
-        const code = (error as NodeJS.ErrnoException).code;
-        if (code !== "EEXIST") throw error;
-        // EEXIST then ENOENT: holder released — retry, do not reclaim (avoids
-        // renaming away a lock published after our failed read).
-        const existing = readOpenTabsLockSnapshot(lockPath);
-        if (existing.kind === "missing") continue;
-        if (existing.kind === "ok" && !openTabsLockIsStale(existing.record)) {
-          Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20);
-          continue;
-        }
-        // Stale dead-pid record or corrupt content still on disk.
-        if (!tryReclaimStaleOpenTabsLock(lockPath)) {
-          Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20);
-        }
-        continue;
-      }
-      try {
-        return fn();
-      } finally {
-        // Only remove if we still own it (another process may have reclaimed a
-        // crash mid-section and replaced the record).
-        const current = readOpenTabsLockRecord(lockPath);
-        if (!current || current.pid === pid) {
-          fs.rmSync(lockPath, { force: true });
-        }
-      }
-    } finally {
-      fs.rmSync(tempPath, { force: true });
-    }
-  }
-}
-
-/** Take a suspected-stale lock aside, re-verify, drop only if still stale. */
-function tryReclaimStaleOpenTabsLock(lockPath: string): boolean {
-  const quarantine = `${lockPath}.reclaim.${process.pid}.${crypto.randomUUID()}`;
+function parseOpenTabsLockRecord(raw: string): OpenTabsLockRecord | undefined {
   try {
-    fs.renameSync(lockPath, quarantine);
+    const value = JSON.parse(raw) as Partial<OpenTabsLockRecord>;
+    if (typeof value.pid !== "number") return undefined;
+    return value as OpenTabsLockRecord;
   } catch {
-    return false;
+    return undefined;
   }
-  const taken = readOpenTabsLockRecord(quarantine);
-  if (!openTabsLockIsStale(taken)) {
-    try {
-      fs.renameSync(quarantine, lockPath);
-    } catch {
-      try {
-        fs.linkSync(quarantine, lockPath);
-        fs.rmSync(quarantine, { force: true });
-      } catch {
-        // Path occupied; keep quarantine rather than destroy a live record.
-      }
-    }
-    return false;
-  }
-  fs.rmSync(quarantine, { force: true });
-  return true;
 }
 
-type OpenTabsLockSnapshot =
-  | { kind: "missing" }
-  | { kind: "invalid" }
-  | { kind: "ok"; record: OpenTabsLockRecord };
-
-function readOpenTabsLockSnapshot(lockPath: string): OpenTabsLockSnapshot {
+/** Exclusive lock for open_tabs RMW. Reclaim only when the holder PID is dead. */
+function withOpenTabsLock<T>(filePath: string, fn: () => T): T {
+  const lock = acquirePidFileLock({
+    lockPath: `${filePath}.lock`,
+    payload: `${JSON.stringify({
+      pid: process.pid,
+      acquiredAt: new Date().toISOString(),
+    } satisfies OpenTabsLockRecord)}\n`,
+    parseRecord: parseOpenTabsLockRecord,
+    isStale: (record) => !record || !currentProcessIdentity(record.pid).alive,
+    onBusy: () => {
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20);
+    },
+  });
   try {
-    const value = JSON.parse(fs.readFileSync(lockPath, "utf8")) as Partial<OpenTabsLockRecord>;
-    if (typeof value.pid !== "number") return { kind: "invalid" };
-    return { kind: "ok", record: value as OpenTabsLockRecord };
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return { kind: "missing" };
-    return { kind: "invalid" };
+    return fn();
+  } finally {
+    lock.release();
   }
-}
-
-function readOpenTabsLockRecord(lockPath: string): OpenTabsLockRecord | undefined {
-  const snap = readOpenTabsLockSnapshot(lockPath);
-  return snap.kind === "ok" ? snap.record : undefined;
-}
-
-function openTabsLockIsStale(record: OpenTabsLockRecord | undefined): boolean {
-  if (!record) return true;
-  return !currentProcessIdentity(record.pid).alive;
 }

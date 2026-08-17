@@ -91,7 +91,7 @@ test("escape aborts standalone bash on first press (Pi parity)", () => {
   const first = handleMixCodeKeyInput(state, ESC, silentTui(), undefined, runtime);
   assert.deepEqual(first, { consume: true });
   assert.equal(aborts, 1, "first Esc aborts bash immediately");
-  assert.equal(tab.pendingEscapeAction, undefined, "bash Esc does not arm double-confirm");
+  assert.equal(tab.pendingEscapeArmedAt, undefined, "bash Esc does not arm double-confirm");
 });
 
 test("escape arms then aborts a normal streaming run", () => {
@@ -109,10 +109,10 @@ test("escape arms then aborts a normal streaming run", () => {
   };
 
   handleMixCodeKeyInput(state, ESC, silentTui(), undefined, runtime);
-  assert.equal(tab.pendingEscapeAction, "abort-agent", "first Esc arms abort");
+  assert.equal(typeof tab.pendingEscapeArmedAt, "number", "first Esc arms abort");
   handleMixCodeKeyInput(state, ESC, silentTui(), undefined, runtime);
   assert.equal(aborts, 1, "second Esc aborts");
-  assert.equal(tab.pendingEscapeAction, undefined, "arm cleared after abort");
+  assert.equal(tab.pendingEscapeArmedAt, undefined, "arm cleared after abort");
 });
 
 test("escape uses AgentSession streaming state when low-level agent state is stale", () => {
@@ -129,7 +129,7 @@ test("escape uses AgentSession streaming state when low-level agent state is sta
   };
 
   handleMixCodeKeyInput(state, ESC, silentTui(), undefined, runtime);
-  assert.equal(tab.pendingEscapeAction, "abort-agent");
+  assert.equal(typeof tab.pendingEscapeArmedAt, "number");
 });
 
 test("escape aborts during retry when the agent is not streaming (regression guard)", () => {
@@ -157,7 +157,7 @@ test("escape aborts during retry when the agent is not streaming (regression gua
   // through to the double-escape tree branch.
   const first = handleMixCodeKeyInput(state, ESC, silentTui(), undefined, runtime);
   assert.deepEqual(first, { consume: true }, "retry Esc is consumed by abort branch");
-  assert.equal(tab.pendingEscapeAction, "abort-agent", "retry Esc arms abort");
+  assert.equal(typeof tab.pendingEscapeArmedAt, "number", "retry Esc arms abort");
   assert.equal(tab.lastEscapeTime, undefined, "retry Esc does not arm the tree double-press");
 
   const second = handleMixCodeKeyInput(state, ESC, silentTui(), undefined, runtime);
@@ -183,7 +183,7 @@ test("expired abort arm re-arms instead of aborting", () => {
   tab.pendingEscapeArmedAt = Date.now() - PENDING_ESCAPE_CONFIRM_WINDOW_MS - 1;
   handleMixCodeKeyInput(state, ESC, silentTui(), undefined, runtime);
   assert.equal(aborts, 0, "expired arm does not abort");
-  assert.equal(tab.pendingEscapeAction, "abort-agent", "expired arm re-arms");
+  assert.equal(typeof tab.pendingEscapeArmedAt, "number", "expired arm re-arms");
 });
 
 test("extension custom overlay takes escape before the abort branch", () => {
@@ -208,7 +208,7 @@ test("extension custom overlay takes escape before the abort branch", () => {
   handleMixCodeKeyInput(state, ESC, silentTui(), undefined, runtime);
   assert.equal(focused, 1, "overlay is refocused");
   assert.equal(aborts, 0, "abort branch is not reached");
-  assert.equal(tab.pendingEscapeAction, undefined, "abort is not armed behind the overlay");
+  assert.equal(tab.pendingEscapeArmedAt, undefined, "abort is not armed behind the overlay");
 });
 
 test("queued-message flush wins over double-escape stop", () => {
@@ -238,7 +238,7 @@ test("queued-message flush wins over double-escape stop", () => {
   const result = handleMixCodeKeyInput(state, ESC, silentTui(), undefined, runtime);
   assert.deepEqual(result, { consume: true });
   assert.equal(flushed, 1, "queued flush runs");
-  assert.equal(tab.pendingEscapeAction, undefined, "double-escape stop is not armed");
+  assert.equal(tab.pendingEscapeArmedAt, undefined, "double-escape stop is not armed");
 });
 
 test("queued-message flush uses AgentSession streaming state", () => {

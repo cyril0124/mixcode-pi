@@ -41,7 +41,7 @@ test("nextAvailableAgentTitle reuses lowest free Agent-NN", () => {
 test("clearPendingEscape cancels double-Esc tree arm", () => {
   const tab = createTab(1, "s1", "/repo");
   tab.lastEscapeTime = Date.now();
-  clearPendingEscape(tab, "abort-agent");
+  clearPendingEscape(tab);
   assert.equal(tab.lastEscapeTime, undefined);
 });
 

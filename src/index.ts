@@ -25,7 +25,6 @@ export * from "./core/open-tabs-store.js";
 export * from "./core/peer-tab-sync.js";
 export * from "./core/pi-models.js";
 export * from "./core/pickers.js";
-export * from "./core/dialogs.js";
 export * from "./core/session-lock.js";
 export * from "./core/session-selector.js";
 export * from "./core/state-store.js";

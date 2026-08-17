@@ -35,8 +35,7 @@ src/
 ├── core/
 │   ├── commands.ts           本地 slash command 解析与补全源
 │   ├── tabs.ts               tab 增删改与前后环绕切换
-│   ├── overlays.ts           preview、tab jump、shell 等纯状态逻辑
-│   ├── questions.ts          question UI 的选择/提交模型
+│   ├── overlays.ts           tab jump、command palette、overlay 路由等纯状态逻辑
 │   ├── open-tabs-store.ts    open_tabs.json 读写与跨实例 tab 集合变更
 │   ├── peer-tab-sync.ts      跨实例 tab 监听与对账（open/close 协调）
 │   ├── state-store.ts        TUI 状态与 workspace 持久化
@@ -65,7 +64,7 @@ src/
   │        └─ 不注入 AGENTS.md；项目上下文进入 system prompt
   │
   ├─ /local-command
-  │    ├─ 纯 UI 状态：/toggle-todo /preview /mark-done
+  │    ├─ 纯 UI 状态：/toggle-todo /mark-done
   │    ├─ 会话操作：/new-session /fork /compact /delete-session
   │    └─ prompt 模板：/goal /compact
   │
@@ -100,7 +99,7 @@ MixCodeRuntime
 │ Chat (user / assistant / tool / bash)                      │
 │ optional: extension side panel on the right                │
 ├────────────────────────────────────────────────────────────┤
-│ Shell / Markdown Preview overlays                          │
+│ Shell overlay                                              │
 ├────────────────────────────────────────────────────────────┤
 │ Prompt Editor (with / $ @ completion)                      │
 └────────────────────────────────────────────────────────────┘

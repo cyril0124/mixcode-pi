@@ -28,7 +28,7 @@ Pressing `Escape` executes prioritized state-aware operations:
 ```text
 User presses Escape
         │
-        ├─ 1. Overlay Open? ─────────> Closes active Overlay (Preview / Tab Jump / Picker)
+        ├─ 1. Overlay Open? ─────────> Closes active Overlay (Tab Jump / Picker)
         ├─ 2. Autocomplete Active? ──> Closes candidate popup
         ├─ 3. In Vim Mode? ──────────> Exits Vim mode, focuses Editor
         ├─ 4. Steer queue non-empty? ─> Flushes queued steer now (aborts current turn if streaming)

@@ -58,7 +58,7 @@ Modal overlays support direct mouse navigation:
 ## 3. Mouse Wheel Scrolling
 
 - **Chat Transcript**: Wheel up/down scrolls the conversation history.
-- **Markdown Previews & Side Panels**: Hovering and scrolling over the extension side panel or preview overlay scrolls that specific pane independently.
+- **Side Panels**: Hovering and scrolling over the extension side panel scrolls that pane independently.
 
 ## 4. Mouse Drag Text Selection & Auto-Copy
 

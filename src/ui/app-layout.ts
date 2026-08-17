@@ -26,7 +26,6 @@ import {
   renderFooter,
   renderHeader,
   renderInputMeta,
-  renderPreviewOverlay,
   renderTabBar,
   renderTabBarSeparator,
   tabBarMaxRows,
@@ -152,23 +151,18 @@ export class MixCodeRoot implements Component {
       },
       theme,
     );
-    const preview = renderPreviewOverlay(active, width, theme);
-    const bottomBeforeMeta = [...preview];
     if (!viewportRows || limit === undefined) {
       const middle = renderAgentSurface(active, runtimeTab, width, undefined, theme, {
         oversizedAssistantMessage: this.oversizedAssistantMessagePolicy(),
         hideThinking: this.state.hideThinkingBlock ?? false,
         ...this.chatSurfaceRenderOptions(),
       });
-      return [...top, ...contentGap, ...middle, ...bottomBeforeMeta];
+      return [...top, ...contentGap, ...middle];
     }
     if (top.length >= limit) return top.slice(0, limit);
     const fixedTop = [...top, ...contentGap];
     if (fixedTop.length >= limit) return fixedTop.slice(0, limit);
-    const maxBottomRows = Math.max(0, limit - fixedTop.length);
-    const placeholderBottom = bottomBeforeMeta;
-    const visibleBottom = placeholderBottom.slice(0, maxBottomRows);
-    const middleHeight = Math.max(0, limit - fixedTop.length - visibleBottom.length);
+    const middleHeight = Math.max(0, limit - fixedTop.length);
     const middle = this.renderMiddle(
       active,
       runtimeTab,
@@ -177,7 +171,7 @@ export class MixCodeRoot implements Component {
       fixedTop.length,
       theme,
     );
-    return [...fixedTop, ...middle, ...visibleBottom];
+    return [...fixedTop, ...middle];
   }
 
   /**
@@ -624,7 +618,7 @@ function workingLoaderMessage(active: MixCodeState["tabs"][number], now: Date): 
   if (retry) return retry;
   const message = workingActivityMessage(active);
   const elapsed = formatElapsed(active.workingStartedAt, now);
-  const detail = isPendingEscapeActive(active, "abort-agent", now.getTime())
+  const detail = isPendingEscapeActive(active, now.getTime())
     ? "esc again to interrupt"
     : "esc to interrupt";
   return `${message} (${elapsed} • ${detail})`;

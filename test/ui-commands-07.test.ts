@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   createInitialState,
-  createDialogRequest,
   createTab,
   handleMixCodeKeyInput,
   handleSubmittedInput,
@@ -33,14 +32,14 @@ test("double escape stops an active agent run", () => {
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime), {
     consume: true,
   });
-  assert.equal(tab.pendingEscapeAction, "abort-agent");
+  assert.equal(typeof tab.pendingEscapeArmedAt, "number");
   assert.equal(tab.toast?.type, "info");
   assert.match(tab.toast?.message ?? "", /Esc again: stop/);
   assert.doesNotMatch(renderInputMeta(tab, 80).join("\n"), /Esc again: stop/);
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime), {
     consume: true,
   });
-  assert.equal(tab.pendingEscapeAction, undefined);
+  assert.equal(tab.pendingEscapeArmedAt, undefined);
   assert.equal(aborts, 1);
 });
 
@@ -72,7 +71,7 @@ test("double escape stop takes priority over extension terminal input handlers",
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime), {
     consume: true,
   });
-  assert.equal(tab.pendingEscapeAction, "abort-agent");
+  assert.equal(typeof tab.pendingEscapeArmedAt, "number");
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime), {
     consume: true,
   });
@@ -148,7 +147,7 @@ test("expired double escape arm resets before stopping an active run", () => {
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime), {
     consume: true,
   });
-  assert.equal(tab.pendingEscapeAction, "abort-agent");
+  assert.equal(typeof tab.pendingEscapeArmedAt, "number");
   assert.equal(aborts, 0);
 });
 
@@ -169,11 +168,11 @@ test("single escape abort prompt is cleared by later non-abort actions", () => {
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime), {
     consume: true,
   });
-  assert.equal(tab.pendingEscapeAction, "abort-agent");
+  assert.equal(typeof tab.pendingEscapeArmedAt, "number");
   assert.deepEqual(handleMixCodeKeyInput(state, "\x0f", tui, undefined, runtime), {
     consume: true,
   });
-  assert.equal(tab.pendingEscapeAction, undefined);
+  assert.equal(tab.pendingEscapeArmedAt, undefined);
 });
 
 test("command palette hides disabled entries and does not execute them", () => {
@@ -283,16 +282,16 @@ test("ctrl-p does not open command palette while another input mode owns focus",
   assert.equal(state.commandPaletteOpen, false);
   state.tabJumpOpen = false;
 
-  tab.previewOpen = true;
-  assert.equal(handleMixCodeKeyInput(state, "\x10", tui), undefined);
-  assert.equal(state.commandPaletteOpen, false);
-  tab.previewOpen = false;
-
-  tab.pendingDialogs.push(
-    createDialogRequest("r1", "s1", [
-      { header: "Question", question: "Pick?", options: [], multiple: false, custom: false },
-    ]),
-  );
+  tab.pendingDialogs.push({
+    requestId: "r1",
+    sessionId: "s1",
+    questions: [{ header: "Question", question: "Pick?", options: [], multiple: false, custom: false }],
+    currentQuestionIndex: 0,
+    highlightedOptionIndices: [0],
+    selectedAnswers: [[]],
+    customAnswers: [""],
+    dirty: false,
+  });
   assert.equal(handleMixCodeKeyInput(state, "\x10", tui), undefined);
   assert.equal(state.commandPaletteOpen, false);
   tab.pendingDialogs = [];

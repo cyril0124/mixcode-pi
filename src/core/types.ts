@@ -222,12 +222,8 @@ export interface MixCodeTabInfo {
   chatScrollAnchorEntryId?: string;
   chatScrollAnchorIndex?: number;
   chatScrollAnchorText?: string;
-  previewOpen: boolean;
   previewMessages: PreviewMessage[];
   previewIndex: number;
-  previewScrollOffset: number;
-  previewHint: string;
-  previewPendingHome?: boolean;
   vimMode: boolean;
   /** Non-persisted Vim transcript search state; rendered corpus lives in a WeakMap cache. */
   vimTranscriptSearch?: VimTranscriptSearchState;
@@ -245,7 +241,6 @@ export interface MixCodeTabInfo {
    * Non-persisted; migrates with the active agent like zen/vim.
    */
   inlineWidgets: boolean;
-  pendingEscapeAction?: PendingEscapeAction;
   pendingEscapeArmedAt?: number;
   /** Timestamp of last Escape press for double-escape tree detection */
   lastEscapeTime?: number;
@@ -346,8 +341,6 @@ export interface FloatingPanelState {
   expiresAt: number;
   style?: FloatingPanelStyle;
 }
-
-export type PendingEscapeAction = "abort-agent";
 
 export type InputMetaAction = "workdir" | "models" | "thinking";
 

@@ -153,19 +153,6 @@ test("Left on empty input does NOT trigger when autocomplete is open", () => {
   assert.equal(state.activeTabId, "s1");
 });
 
-test("Left on empty input does NOT trigger when preview is open", () => {
-  const state = createInitialState("/repo");
-  const tab = createTab(1, "s1", "/repo", { previewOpen: true });
-  state.tabs.push(tab);
-  state.activeTabId = "s1";
-  const tui = makeTui();
-  const editorActions = makeEditorActions("");
-
-  const result = handleMixCodeKeyInput(state, "\x1b[D", tui, undefined, undefined, undefined, () => false, editorActions);
-  assert.equal(result, undefined);
-  assert.equal(state.activeTabId, "s1");
-});
-
 test("Left on empty input returns to MixCode Home and preserves vimMode", () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo", { vimMode: true });

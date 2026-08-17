@@ -6,41 +6,6 @@ import { HOME_TAB_ID, type CommandPaletteEntry, type MixCodeState, type MixCodeT
 import { tabIsWaitingForInput } from "./tab-state.js";
 import { clearScrollFreeze } from "../ui/rendering/agent-surface-scroll.js";
 
-export function togglePreview(tab: MixCodeTabInfo): void {
-  tab.previewOpen = !tab.previewOpen;
-  if (tab.previewOpen) {
-    tab.previewIndex = clampPreviewIndex(tab);
-    tab.previewScrollOffset = 0;
-    tab.previewHint = "";
-  }
-}
-
-export function navigatePreview(tab: MixCodeTabInfo, direction: number): boolean {
-  if (!tab.previewOpen || tab.previewMessages.length === 0) return false;
-  const next = clampPreviewIndex(tab) + direction;
-  if (next < 0) {
-    tab.previewHint = "No older message";
-    return true;
-  }
-  if (next >= tab.previewMessages.length) {
-    tab.previewHint = "No newer message";
-    return true;
-  }
-  tab.previewIndex = next;
-  tab.previewScrollOffset = 0;
-  tab.previewHint = "";
-  return true;
-}
-
-export function scrollPreview(tab: MixCodeTabInfo, delta: number): boolean {
-  if (!tab.previewOpen) return false;
-  const message = tab.previewMessages[clampPreviewIndex(tab)];
-  const maxOffset = Math.max(0, (message?.text.split(/\r?\n/).length ?? 0) - 1);
-  tab.previewScrollOffset = Math.min(maxOffset, Math.max(0, tab.previewScrollOffset + delta));
-  tab.previewHint = "";
-  return true;
-}
-
 export function scrollChat(tab: MixCodeTabInfo, delta: number): boolean {
   // Stick-to-bottom (offset 0) must not resurrect a freeze from an earlier turn.
   if (tab.chatScrollOffset === 0 && delta > 0) clearScrollFreeze(tab);
@@ -81,44 +46,6 @@ export function clearChatScrollAnchor(tab: MixCodeTabInfo): void {
   tab.chatScrollAnchorText = undefined;
 }
 
-export function previewHome(tab: MixCodeTabInfo): boolean {
-  if (!tab.previewOpen) return false;
-  tab.previewScrollOffset = 0;
-  tab.previewHint = "";
-  return true;
-}
-
-export function previewEnd(tab: MixCodeTabInfo): boolean {
-  if (!tab.previewOpen) return false;
-  const message = tab.previewMessages[clampPreviewIndex(tab)];
-  tab.previewScrollOffset = Math.max(0, (message?.text.split(/\r?\n/).length ?? 0) - 1);
-  tab.previewHint = "";
-  return true;
-}
-
-export function previewTitle(tab: MixCodeTabInfo): string {
-  if (tab.previewHint) return tab.previewHint;
-  if (tab.previewMessages.length === 0) return "No message yet";
-  const index = clampPreviewIndex(tab);
-  const role = tab.previewMessages[index]?.role ?? "empty";
-  return `${previewRoleLabel(role)} Message ${index + 1} / ${tab.previewMessages.length}`;
-}
-
-function clampPreviewIndex(tab: MixCodeTabInfo): number {
-  if (tab.previewMessages.length === 0) return 0;
-  tab.previewIndex = Math.min(Math.max(tab.previewIndex, 0), tab.previewMessages.length - 1);
-  return tab.previewIndex;
-}
-
-function previewRoleLabel(role: string): string {
-  if (role === "user") return "User";
-  if (role === "assistant") return "Assistant";
-  if (role === "thinking") return "Thinking";
-  if (role === "tool") return "Tool";
-  if (role === "system") return "System";
-  if (role === "shell") return "Shell";
-  return "Message";
-}
 
 export function tabJumpEntries(
   state: MixCodeState,

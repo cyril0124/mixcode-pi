@@ -454,10 +454,10 @@ test("runtime aborts an active pi agent run", async () => {
     aborted = true;
     mutableSession._isAgentRunActive = false;
   };
-  tab.pendingEscapeAction = "abort-agent";
+  tab.pendingEscapeArmedAt = 1_700_000_000_000;
   assert.equal(runtime.abortTab("s1"), true);
   assert.equal(aborted, true);
-  assert.equal(tab.pendingEscapeAction, undefined);
+  assert.equal(tab.pendingEscapeArmedAt, undefined);
   assert.ok(runtimeTab.chat.some((line) => line.text.includes("Abort requested")));
   assert.equal(runtime.abortTab("s1"), false);
 });
@@ -481,10 +481,10 @@ test("runtime abortTab aborts standalone user bash (Pi Esc parity)", async () =>
   session.abortBash = () => {
     bashAborted = true;
   };
-  tab.pendingEscapeAction = "abort-agent";
+  tab.pendingEscapeArmedAt = 1_700_000_000_000;
   tab.status = "running";
 
   assert.equal(runtime.abortTab("s1"), true);
   assert.equal(bashAborted, true);
-  assert.equal(tab.pendingEscapeAction, undefined);
+  assert.equal(tab.pendingEscapeArmedAt, undefined);
 });

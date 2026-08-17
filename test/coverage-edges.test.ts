@@ -95,13 +95,11 @@ test("model selection rejects unregistered models and commits registered ones", 
   assert.equal(state.model.displayName, "p/m");
 });
 
-test("pending escape clears only the matching action", () => {
+test("clearPendingEscape clears an armed abort confirm", () => {
   const tab = createTab(1, "s1", "/repo");
-  tab.pendingEscapeAction = "close-shell";
-  clearPendingEscape(tab, "abort-agent");
-  assert.equal(tab.pendingEscapeAction, "close-shell");
-  clearPendingEscape(tab, "close-shell");
-  assert.equal(tab.pendingEscapeAction, undefined);
+  tab.pendingEscapeArmedAt = 1_700_000_000_000;
+  clearPendingEscape(tab);
+  assert.equal(tab.pendingEscapeArmedAt, undefined);
 });
 
 test("system messages go to the active tab; config falls back to overlay toast", () => {

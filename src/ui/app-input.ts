@@ -26,7 +26,6 @@ import {
   handleInputSelectionMouseInput,
   handleMouseInput,
   handlePickerKey,
-  handlePreviewKey,
   handleQuitConfirmKey,
   handleSessionActionConfirmKey,
   handleTabJumpKey,
@@ -193,7 +192,7 @@ export function handleMixCodeKeyInput(
     (matchesKey(data, "tab") || matchesKey(data, "shift+tab")) &&
     !isEditorAutocompleteOpen()
   ) {
-    if (active) clearPendingEscape(active, "abort-agent");
+    if (active) clearPendingEscape(active);
     const nextId = nextTabId(state, matchesKey(data, "shift+tab") ? -1 : 1);
     activateTabClosingTree(state, tui, nextId);
     tui.requestRender();
@@ -262,7 +261,7 @@ export function handleMixCodeKeyInput(
     !active.extensionUi.waitingForInputs.length &&
     handleVimUserMessageNavigation(active, data, runtime)
   ) {
-    clearPendingEscape(active, "abort-agent");
+    clearPendingEscape(active);
     scheduleFloatingPanelExpiryRender(active, tui);
     tui.requestRender();
     return { consume: true };
@@ -277,14 +276,14 @@ export function handleMixCodeKeyInput(
     !active.extensionUi.waitingForInputs.length
   ) {
     if (isVimTranscriptSearchOpenKey(data) && editorActions) {
-      clearPendingEscape(active, "abort-agent");
+      clearPendingEscape(active);
       if (openVimTranscriptSearch(active, editorActions)) {
         tui.requestRender();
         return { consume: true };
       }
     }
     if (handleVimTranscriptSearchRepeat(active, data, tui)) {
-      clearPendingEscape(active, "abort-agent");
+      clearPendingEscape(active);
       return { consume: true };
     }
   }
@@ -497,7 +496,7 @@ function handleModalOverlayKeys(
     return { consume: true };
   }
   if (matchesKey(data, "ctrl+q")) {
-    if (active) clearPendingEscape(active, "abort-agent");
+    if (active) clearPendingEscape(active);
     openQuitConfirm(state, tui);
     return { consume: true };
   }
@@ -556,13 +555,12 @@ function handleAgentSurfaceKeys(
     matchesKey(data, "right") &&
     !hasAnyOverlay(tui) &&
     !isEditorAutocompleteOpen() &&
-    !active.previewOpen &&
     !active.pendingDialogs.length &&
     !active.extensionUi.waitingForInputs.length &&
     editorActions &&
     editorActions.getText().length === 0
   ) {
-    clearPendingEscape(active, "abort-agent");
+    clearPendingEscape(active);
     toggleExtensionPanel(active, tui);
     return { consume: true };
   }
@@ -573,7 +571,7 @@ function handleAgentSurfaceKeys(
     !hasFocusedAppControl(state, active) &&
     runtime?.dispatchExtensionShortcut?.(active.sessionId, data)
   ) {
-    clearPendingEscape(active, "abort-agent");
+    clearPendingEscape(active);
     tui.requestRender();
     return { consume: true };
   }
@@ -587,7 +585,7 @@ function handleAgentSurfaceKeys(
     !isPendingEditorTakeover(active, editorActions) &&
     editorActions?.browsePromptHistory?.(data)
   ) {
-    clearPendingEscape(active, "abort-agent");
+    clearPendingEscape(active);
     tui.requestRender();
     return { consume: true };
   }
@@ -599,13 +597,12 @@ function handleAgentSurfaceKeys(
     matchesKey(data, "left") &&
     !hasAnyOverlay(tui) &&
     !isEditorAutocompleteOpen() &&
-    !active.previewOpen &&
     !active.pendingDialogs.length &&
     !active.extensionUi.waitingForInputs.length &&
     editorActions &&
     editorActions.getText().length === 0
   ) {
-    clearPendingEscape(active, "abort-agent");
+    clearPendingEscape(active);
     const tabIndex = state.tabs.findIndex((tab) => tab.sessionId === active.sessionId);
     if (tabIndex >= 0) state.homeSelectedTabIndex = tabIndex;
     activateTabClosingTree(state, tui, HOME_TAB_ID);
@@ -623,7 +620,7 @@ function handleAgentSurfaceKeys(
     !hasAppOverlay(tui) &&
     (matchesKey(data, "tab") || matchesKey(data, "shift+tab"))
   ) {
-    clearPendingEscape(active, "abort-agent");
+    clearPendingEscape(active);
     if (isPendingEditorTakeover(active, editorActions)) {
       // Fall through to temporary extension UI — permanent skins still swallow Tab.
       return undefined;
@@ -636,7 +633,7 @@ function handleAgentSurfaceKeys(
     !hasAnyOverlay(tui) &&
     handleVimModeTabCycle(state, active, data, tui)
   ) {
-    clearPendingEscape(active, "abort-agent");
+    clearPendingEscape(active);
     return { consume: true };
   }
   if (
@@ -646,7 +643,7 @@ function handleAgentSurfaceKeys(
     !isPendingEditorTakeover(active, editorActions) &&
     handleVimModeKey(active, data)
   ) {
-    clearPendingEscape(active, "abort-agent");
+    clearPendingEscape(active);
     tui.requestRender();
     return { consume: true };
   }
@@ -656,13 +653,8 @@ function handleAgentSurfaceKeys(
     !hasAnyOverlay(tui) &&
     MIXCODE_EXTENSION_KEYBINDINGS_MANAGER.matches(data, "app.tools.expand")
   ) {
-    clearPendingEscape(active, "abort-agent");
+    clearPendingEscape(active);
     active.extensionUi.toolsExpanded = !active.extensionUi.toolsExpanded;
-    tui.requestRender();
-    return { consume: true };
-  }
-  if (active?.previewOpen && handlePreviewKey(active, data)) {
-    clearPendingEscape(active, "abort-agent");
     tui.requestRender();
     return { consume: true };
   }
@@ -671,13 +663,13 @@ function handleAgentSurfaceKeys(
     !isEditorAutocompleteOpen() &&
     !hasAppOverlay(tui)
   ) {
-    if (active) clearPendingEscape(active, "abort-agent");
+    if (active) clearPendingEscape(active);
     activateTabClosingTree(state, tui, nextTabId(state, matchesKey(data, "shift+tab") ? -1 : 1));
     tui.requestRender();
     return { consume: true };
   }
   if (matchesKey(data, "ctrl+t")) {
-    if (active) clearPendingEscape(active, "abort-agent");
+    if (active) clearPendingEscape(active);
     // Navigate installs a tree editor that falls through Ctrl+T; close it first
     // so Tab Jump is the only layer and Esc dismisses it (not the tree under it).
     if (state.treeSelector.open) closeTreeSelector(state, tui);
@@ -686,7 +678,7 @@ function handleAgentSurfaceKeys(
     return { consume: true };
   }
   if (matchesKey(data, "ctrl+p")) {
-    if (active) clearPendingEscape(active, "abort-agent");
+    if (active) clearPendingEscape(active);
     const extensionCommands = activeExtensionCommands(state, runtime);
     if (!canOpenCommandPalette(state, active, tui, isEditorAutocompleteOpen, extensionCommands))
       return undefined;
@@ -717,14 +709,14 @@ function handleEditorControlKeys(
     !shouldRouteLineBoundaryKeyToEditor(data, editorActions) &&
     handleChatScrollKey(active, data)
   ) {
-    clearPendingEscape(active, "abort-agent");
+    clearPendingEscape(active);
     tui.requestRender();
     return { consume: true };
   }
   // Temporary takeovers own newline keys (wrapper often no-ops setText).
   // Permanent skins still get MixCode newline insertion.
   if (matchesKey(data, "shift+enter") && editorActions && !isPendingEditorTakeover(active, editorActions)) {
-    if (active) clearPendingEscape(active, "abort-agent");
+    if (active) clearPendingEscape(active);
     insertEditorText(editorActions, "\n");
     tui.requestRender();
     return { consume: true };
@@ -742,7 +734,7 @@ function handleEditorControlKeys(
     editorActions &&
     !isPendingEditorTakeover(active, editorActions)
   ) {
-    if (active) clearPendingEscape(active, "abort-agent");
+    if (active) clearPendingEscape(active);
     void clipboardPasteForEditor()
       .then((result) => {
         if (!result) return;
@@ -763,7 +755,7 @@ function handleEditorControlKeys(
   }
   if (matchesKey(data, "ctrl+c") && editorActions) {
     if (isPendingEditorTakeover(active, editorActions)) return undefined;
-    if (active) clearPendingEscape(active, "abort-agent");
+    if (active) clearPendingEscape(active);
     const text = editorActions.getText();
     // On Home (activeTabId=home) this is a no-op: addToHistory needs a real tab.
     // Intentional — Ctrl+C only clears; agent-tab history is per-session only.
@@ -773,7 +765,7 @@ function handleEditorControlKeys(
     return { consume: true };
   }
   if (matchesKey(data, "ctrl+j") && editorActions && !isPendingEditorTakeover(active, editorActions)) {
-    if (active) clearPendingEscape(active, "abort-agent");
+    if (active) clearPendingEscape(active);
     insertEditorText(editorActions, "\n");
     tui.requestRender();
     return { consume: true };
@@ -787,7 +779,7 @@ function handleEditorControlKeys(
     state.activeTabId !== HOME_TAB_ID &&
     !isPendingEditorTakeover(active, editorActions)
   ) {
-    clearPendingEscape(active, "abort-agent");
+    clearPendingEscape(active);
     editorActions.setText(`/rename ${active.title}`);
     tui.requestRender();
     return { consume: true };
@@ -797,7 +789,7 @@ function handleEditorControlKeys(
     if (state.activeTabId !== HOME_TAB_ID && isPendingEditorTakeover(active, editorActions)) {
       return undefined;
     }
-    clearPendingEscape(active, "abort-agent");
+    clearPendingEscape(active);
     // On Home, getActiveTab() is the selected agent — never dequeue that agent's queue here.
     if (state.activeTabId !== HOME_TAB_ID) {
       const text =
@@ -899,7 +891,7 @@ function handleBatchedSubmitInput(
   if (state.activeTabId === HOME_TAB_ID) return false;
   if (isEditorAutocompleteOpen() || hasAnyOverlay(tui)) return false;
   if (isOverlayActive(state)) return false;
-  if (active?.previewOpen || active?.pendingDialogs.length) return false;
+  if (active?.pendingDialogs.length) return false;
   insertEditorText(editorActions, text);
   editorActions.submitCurrentText();
   tui.requestRender();
@@ -911,7 +903,7 @@ function hasFocusedAppControl(
   active: MixCodeState["tabs"][number] | undefined,
 ): boolean {
   return Boolean(
-    isOverlayActive(state) || active?.previewOpen || active?.pendingDialogs.length,
+    isOverlayActive(state) || active?.pendingDialogs.length,
   );
 }
 
