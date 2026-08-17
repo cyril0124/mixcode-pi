@@ -1,4 +1,3 @@
-import { getBuiltinModels, getBuiltinProviders } from "@earendil-works/pi-ai/providers/all";
 import { DEFAULT_MODEL_REF } from "./defaults.js";
 import { isModelDisabled } from "./mixcode-settings.js";
 import type { MixCodeModelRef, MixCodeModel, MixCodeState, MixCodeTabInfo } from "./types.js";
@@ -14,13 +13,6 @@ export function modelToRef(model: MixCodeModel): MixCodeModelRef {
     reasoning: model.reasoning,
     thinkingLevelMap: model.thinkingLevelMap,
   };
-}
-
-export function listAvailableModelRefs(): MixCodeModelRef[] {
-  return mergeModelRefs(
-    getBuiltinProviders().flatMap((provider) => getBuiltinModels(provider).map(modelToRef)),
-    [...registeredModels.values()].map(modelToRef),
-  );
 }
 
 export function registerModel(model: MixCodeModel): void {
@@ -126,10 +118,6 @@ function upsertModelRef(models: MixCodeModelRef[], model: MixCodeModelRef): MixC
     ...models.filter((item) => item.provider !== model.provider || item.modelId !== model.modelId),
     model,
   ];
-}
-
-function mergeModelRefs(base: MixCodeModelRef[], extra: MixCodeModelRef[]): MixCodeModelRef[] {
-  return extra.reduce(upsertModelRef, base);
 }
 
 function modelKey(provider: string, modelId: string): string {

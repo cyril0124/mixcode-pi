@@ -78,43 +78,6 @@ export {
   hitTestTabJumpEntry,
 } from "./app-mouse.js";
 import { handleCommandPaletteMouse, handleTabJumpMouse } from "./app-mouse.js";
-export function handleStreamingAbortKey(
-  active: MixCodeState["tabs"][number],
-  tui: Pick<TuiType, "requestRender">,
-  runtime?: MixCodeKeyRuntime,
-  editorActions?: MixCodeEditorActions,
-): boolean {
-  const runtimeTab = runtime?.getTab(active.sessionId);
-  const isAgentStreaming = runtimeTab?.agentSession?.isStreaming;
-  const streaming =
-    isAgentStreaming ?? (active.status === "running" || active.status === "thinking");
-  // Also treat tab as "working" if status is running/thinking even when agent is not streaming
-  // (e.g., branch summarization in progress, or retry waiting)
-  const working = streaming ||
-    (isAgentStreaming === false && (active.status === "running" || active.status === "thinking"));
-  if (!working) return false;
-  if (!hasPendingEscape(active)) {
-    armPendingEscape(active);
-    pushToast(active, { type: "info", message: "Esc again: stop" });
-    tui.requestRender();
-    return true;
-  }
-  if (!runtime) throw new Error("Stopping an active agent requires runtime abort support");
-  // On the confirming Esc, prefer retracting the message back to an empty editor
-  // when the run produced no visible output. Retract owns the abort internally;
-  // a non-empty draft or an ineligible turn falls through to a plain abort.
-  if (!editorActions?.getText()?.trim()) {
-    clearPendingEscape(active);
-    tui.requestRender();
-    void retractOrAbort(active, tui, runtime, editorActions);
-    return true;
-  }
-  runtime.abortTab(active.sessionId);
-  clearPendingEscape(active);
-  tui.requestRender();
-  return true;
-}
-
 // Try a retract (no-output rewind); if the turn is ineligible, abort normally.
 // Refills the editor only when it is still empty, so a draft typed during the
 // async hop is never clobbered.

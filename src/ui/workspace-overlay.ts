@@ -20,7 +20,6 @@ import {
   selectedWorkspace,
   type WorkspaceSelectorMode,
   workspaceItems,
-  workspaceRuntimeWithHistory,
   workspaceTabCount,
 } from "./workspace-shared.js";
 import { pushToast } from "../core/toast.js";
@@ -102,7 +101,7 @@ export async function restoreWorkspaceByName(
 ): Promise<void> {
   const workspace = (await loadOptionalWorkspaces(workspaceFile)).find((item) => item.name === name);
   if (!workspace) throw new Error(`Unknown workspace: ${name}`);
-  await restoreWorkspace(state, workspaceRuntimeWithHistory(runtime), tui, workspace, onStateChanged);
+  await restoreWorkspace(state, runtime, tui, workspace, onStateChanged);
 }
 
 export async function deleteWorkspaceByName(
@@ -282,7 +281,7 @@ function handleWorkspaceListKey(
   if (extraTabCount > 0) return startRestoreConfirmation(state, tui, workspace, extraTabCount);
   void restoreWorkspace(
     state,
-    workspaceRuntimeWithHistory(runtime),
+    runtime,
     tui,
     workspace,
     onStateChanged,
@@ -339,7 +338,7 @@ function handleRestoreConfirmKey(
   if (!workspace) return true;
   void restoreWorkspace(
     state,
-    workspaceRuntimeWithHistory(runtime),
+    runtime,
     tui,
     workspace,
     onStateChanged,

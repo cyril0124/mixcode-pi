@@ -56,7 +56,7 @@ function feedRapidInput(state: MixCodeState, actions: MixCodeEditorActions): voi
 
 test("paste-newline heuristic keeps intercepting Enter on the default editor", () => {
   const state = makeState();
-  const { actions, inserted } = makeEditorActions({ hasEditorReplacement: () => false });
+  const { actions, inserted } = makeEditorActions({});
   feedRapidInput(state, actions);
   const result = handleMixCodeKeyInput(
     state,
@@ -78,7 +78,7 @@ test("paste-newline heuristic does not swallow Enter while a pending extension i
     id: "extension-custom-1",
     kind: "custom",
   });
-  const { actions, inserted } = makeEditorActions({ hasEditorReplacement: () => true });
+  const { actions, inserted } = makeEditorActions({});
   feedRapidInput(state, actions);
   const result = handleMixCodeKeyInput(
     state,
@@ -105,7 +105,6 @@ test("Ctrl+C does not clear/consume while a pending extension interaction owns i
   });
   let cleared = false;
   const { actions } = makeEditorActions({
-    hasEditorReplacement: () => true,
     getText: () => "draft",
     setText: () => {
       cleared = true;
@@ -129,7 +128,6 @@ test("Ctrl+C still clears draft with a permanent editor replacement", () => {
   const state = makeState();
   let text = "draft";
   const { actions } = makeEditorActions({
-    hasEditorReplacement: () => true,
     getText: () => text,
     setText: (next) => {
       text = next;
@@ -159,7 +157,6 @@ test("Ctrl+R does not rename/consume while a pending extension interaction owns 
   });
   let renamedText: string | undefined;
   const { actions } = makeEditorActions({
-    hasEditorReplacement: () => true,
     setText: (text) => {
       renamedText = text;
     },
@@ -182,7 +179,6 @@ test("Ctrl+R still prefills /rename with a permanent editor replacement", () => 
   const state = makeState();
   let text = "draft";
   const { actions } = makeEditorActions({
-    hasEditorReplacement: () => true,
     getText: () => text,
     setText: (next) => {
       text = next;
@@ -210,7 +206,7 @@ test("Ctrl+J and Shift+Enter do not insert/consume while a pending extension int
     id: "extension-custom-1",
     kind: "custom",
   });
-  const { actions, inserted } = makeEditorActions({ hasEditorReplacement: () => true });
+  const { actions, inserted } = makeEditorActions({});
   // "\n" is the legacy Ctrl+J (and Ghostty Shift+Enter) byte; CSI u is Kitty Shift+Enter.
   for (const data of ["\n", "\x1b[13;2u"] as const) {
     const result = handleMixCodeKeyInput(
@@ -238,7 +234,7 @@ test("PgUp/PgDn still scroll the main chat on the default editor", () => {
   const state = makeState();
   const tab = state.tabs[0]!;
   tab.chatScrollOffset = 0;
-  const { actions } = makeEditorActions({ hasEditorReplacement: () => false });
+  const { actions } = makeEditorActions({});
   const up = handleMixCodeKeyInput(
     state,
     PAGE_UP,
@@ -270,7 +266,7 @@ test("PgUp/PgDn do not scroll/consume while a pending extension interaction owns
   const tab = state.tabs[0]!;
   tab.chatScrollOffset = 0;
   tab.extensionUi.waitingForInputs.push({ id: "extension-custom-1", kind: "custom" });
-  const { actions } = makeEditorActions({ hasEditorReplacement: () => true });
+  const { actions } = makeEditorActions({});
   for (const key of [PAGE_UP, PAGE_DOWN]) {
     const result = handleMixCodeKeyInput(
       state,
@@ -291,7 +287,7 @@ test("PgUp/PgDn still scroll the main chat with a permanent editor replacement",
   const state = makeState();
   const tab = state.tabs[0]!;
   tab.chatScrollOffset = 0;
-  const { actions } = makeEditorActions({ hasEditorReplacement: () => true });
+  const { actions } = makeEditorActions({});
   const up = handleMixCodeKeyInput(
     state,
     PAGE_UP,
@@ -323,7 +319,7 @@ test("PgUp/PgDn do not scroll/consume while a pending extension interaction is o
   const tab = state.tabs[0]!;
   tab.chatScrollOffset = 0;
   tab.extensionUi.waitingForInputs.push({ id: "extension-custom-1", kind: "custom" });
-  const { actions } = makeEditorActions({ hasEditorReplacement: () => false });
+  const { actions } = makeEditorActions({});
   const result = handleMixCodeKeyInput(
     state,
     PAGE_UP,
@@ -406,7 +402,6 @@ test("Up still browses prompt history with a permanent editor replacement", () =
   const state = makeState();
   let historyBrowsed = 0;
   const { actions } = makeEditorActions({
-    hasEditorReplacement: () => true,
     browsePromptHistory: () => {
       historyBrowsed++;
       return true;

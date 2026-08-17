@@ -35,6 +35,8 @@ export { MIXCODE_EXTENSION_KEYBINDINGS_MANAGER } from "./runtime-extension-theme
 import {
   defaultExtensionManagerConfig,
   type ExtensionManagerConfig,
+  type ExtensionManagerEntry,
+  type ExtensionReloadResult,
 } from "../core/extension-manager.js";
 import {
   appendSystemMessage,
@@ -104,8 +106,6 @@ import type {
   ExtensionSwitchSessionOptions,
   MixCodeStreamFn,
   RuntimeEvent,
-  RuntimeExtensionManagerEntry,
-  RuntimeExtensionReloadResult,
   RuntimeModelRegistry,
   RuntimeTab,
   SessionReplacementReason,
@@ -722,7 +722,7 @@ export class MixCodeRuntime {
     return getActiveToolInfos(this.requireTab(sessionId).agentSession);
   }
 
-  getExtensionManagerEntries(sessionId: string): RuntimeExtensionManagerEntry[] {
+  getExtensionManagerEntries(sessionId: string): ExtensionManagerEntry[] {
     const runtimeTab = this.requireTab(sessionId);
     return [...runtimeTab.extensionManagerEntries];
   }
@@ -739,7 +739,7 @@ export class MixCodeRuntime {
     await this.extensionManagerStore?.save(this.extensionManagerConfig);
   }
 
-  async reloadExtensionManagerTab(sessionId: string): Promise<RuntimeExtensionReloadResult> {
+  async reloadExtensionManagerTab(sessionId: string): Promise<ExtensionReloadResult> {
     const runtimeTab = this.requireTab(sessionId);
     if (runtimeTab.agentSession.isStreaming) {
       return {
@@ -770,11 +770,11 @@ export class MixCodeRuntime {
     }
   }
 
-  async reloadExtensionManagerWorkdir(workdir: string): Promise<RuntimeExtensionReloadResult[]> {
+  async reloadExtensionManagerWorkdir(workdir: string): Promise<ExtensionReloadResult[]> {
     const targets = this.listTabs()
       .filter((runtimeTab) => runtimeTab.tab.workdir === workdir)
       .map((runtimeTab) => runtimeTab.tab.sessionId);
-    const results: RuntimeExtensionReloadResult[] = [];
+    const results: ExtensionReloadResult[] = [];
     for (const sessionId of targets) {
       results.push(await this.reloadExtensionManagerTab(sessionId));
     }
@@ -1102,19 +1102,6 @@ export class MixCodeRuntime {
       return true;
     }
     return false;
-  }
-
-  resolveExtensionDialog(
-    sessionId: string,
-    requestId: string,
-    result: string | boolean | undefined,
-  ): boolean {
-    const runtimeTab = this.tabs.get(sessionId);
-    const resolver = runtimeTab?.extensionDialogResolvers.get(requestId);
-    if (!runtimeTab || !resolver) return false;
-    runtimeTab.extensionDialogResolvers.delete(requestId);
-    resolver(result);
-    return true;
   }
 
   async flushPendingMessage(sessionId: string, count?: number): Promise<void> {

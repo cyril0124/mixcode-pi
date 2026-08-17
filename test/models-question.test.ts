@@ -23,9 +23,9 @@ import {
   defaultPiAuthPath,
   defaultPiModelsPath,
   findModelRef,
-  listAvailableModelRefs,
   modelToRef,
   registerModels,
+  resolveRegisteredModel,
   setStateModel,
   setTabModel,
 } from "../src/index.js";
@@ -113,10 +113,7 @@ test("proxy-gpt model loads through pi models.json registry as OpenAI Responses 
     if (auth.ok) assert.equal(auth.apiKey, "secret-key");
 
     registerModels([source.model]);
-    assert.equal(
-      findModelRef(listAvailableModelRefs(), "proxy-gpt/gpt-5.5").contextWindow,
-      256000,
-    );
+    assert.equal(resolveRegisteredModel("proxy-gpt", "gpt-5.5")?.contextWindow, 256000);
     const runtime = new MixCodeRuntime({
       getApiKey: bundle.runtimeAuth.getApiKey,
       streamFn: bundle.runtimeAuth.stream,

@@ -15,7 +15,6 @@ import {
   tabBarHitRegions,
   setTheme,
   themeForId,
-  themeSuggestions,
 } from "../src/index.js";
 import type { MixCodeRuntime } from "../src/index.js";
 import type { Model } from "@earendil-works/pi-ai";

@@ -209,7 +209,6 @@ async function createRuntimeTabWithServices(
     queuedPromptCount: 0,
     queuedFollowUpCount: 0,
     extensionTerminalInputHandlers: new Set(),
-    extensionDialogResolvers: new Map(),
     extensionCustomOverlayClosers: new Set(),
     extensionCustomOverlayHandles: new Set(),
     extensionCustomOverlayComponents: new Set(),

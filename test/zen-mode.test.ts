@@ -295,7 +295,6 @@ test("zen mode passes tab through while a pending extension interaction owns inp
   const editorActions = {
     getText: () => "",
     setText: () => undefined,
-    hasEditorReplacement: () => true,
   };
 
   assert.equal(

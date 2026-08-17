@@ -305,9 +305,6 @@ export function createMixCodeTui(
         browsePromptHistory: (input) => editor.browsePromptHistory(input),
         // Skin vs takeover: permanent setEditorComponent is visual only.
         hasCustomEditorSkin: () => editor.getEditorComponent() !== undefined,
-        // Deprecated dual-meaning flag; ownership uses isPendingEditorTakeover.
-        hasEditorReplacement: () =>
-          editor.getEditorComponent() !== undefined || editor.hasInputComponent(),
         hasInputComponent: () => editor.hasInputComponent(),
         forwardToInputComponent: (data) => editor.handleInput(data),
         setInputComponent: (component, sessionId) => editor.setInputComponent(component, sessionId),

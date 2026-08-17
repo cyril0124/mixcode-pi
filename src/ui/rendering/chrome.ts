@@ -668,19 +668,6 @@ function packTabRows(segments: TabSegment[], width: number, indent: number): Tab
   return rows.length > 0 ? rows : [[]];
 }
 
-export function renderStatus(
-  tab: MixCodeTabInfo | undefined,
-  width: number,
-  theme: MixCodeTheme = activeRenderTheme,
-): string[] {
-  return renderWithTheme(theme, () => renderStatusInner(tab, width));
-}
-
-function renderStatusInner(tab: MixCodeTabInfo | undefined, width: number): string[] {
-  if (!tab) return [padLine(activeRenderTheme.dim("MixCode Home | no active agent"), width)];
-  return [];
-}
-
 /** Bar width for the bottom-meta context meter. */
 const CONTEXT_BAR_WIDTH = 8;
 

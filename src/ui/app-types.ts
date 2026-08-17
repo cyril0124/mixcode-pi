@@ -79,12 +79,6 @@ export interface MixCodeEditorActions {
    */
   hasCustomEditorSkin?: () => boolean;
   /**
-   * @deprecated Ownership must use waitingForInputs / hasInputComponent
-   * (see isPendingEditorTakeover in app-input). This flag alone no longer gates
-   * MixCode editor shortcuts; kept for older tests and diagnostics.
-   */
-  hasEditorReplacement?: () => boolean;
-  /**
    * True when a non-editor input component (e.g. the /login provider selector
    * or login dialog) currently owns the input area. When true, all keys must
    * be forwarded to it verbatim, bypassing global key handling — mirroring
@@ -116,5 +110,3 @@ export type RuntimeShortcutInfo = {
   description?: string;
   source?: string;
 };
-
-export type MixCodeTab = MixCodeState["tabs"][number];

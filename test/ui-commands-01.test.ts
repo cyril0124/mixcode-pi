@@ -16,7 +16,7 @@ import {
   tabBarHitRegions,
   setTheme,
   themeForId,
-  themeSuggestions,
+  listThemeInfos,
 } from "../src/index.js";
 import type { MixCodeRuntime } from "../src/index.js";
 import { allKnownThinkingLevels } from "../src/core/thinking-levels.js";
@@ -53,10 +53,11 @@ test("theme registry validates and suggests themes", () => {
   assert.equal(state.theme, "claude-warm");
   setTheme(state, "tokyo-night");
   assert.equal(state.theme, "tokyo-night");
-  assert.ok(themeSuggestions("mix").length >= 1);
-  assert.equal(themeSuggestions("claude")[0]?.id, "claude-warm");
-  assert.equal(themeSuggestions("tokyo")[0]?.id, "tokyo-night");
-  assert.ok(themeSuggestions("terminal").some((theme) => theme.id === "terminal"));
+  const ids = listThemeInfos().map((theme) => theme.id);
+  assert.ok(ids.includes("mixcode-dark"));
+  assert.ok(ids.includes("claude-warm"));
+  assert.ok(ids.includes("tokyo-night"));
+  assert.ok(ids.includes("terminal"));
   assert.match(themeForId("claude-warm").homeTab(" MixCode Home "), /\x1b\[48;2;217;119;87m/);
   assert.match(themeForId("tokyo-night").homeTab(" MixCode Home "), /\x1b\[48;2;122;162;247m/);
   assert.equal(themeForId("terminal").surface("plain"), "plain");

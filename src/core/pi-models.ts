@@ -164,15 +164,17 @@ export async function createPiModelRegistryBundle(
     modelRuntime,
     registry,
     sources,
-    runtimeAuth: createPiModelRuntimeAuth(modelRuntime),
+    runtimeAuth: createPiModelRuntimeAuth(modelRuntime, registry),
     modelsPath,
   };
 }
 
-export function createPiModelRuntimeAuth(modelRuntime: ModelRuntime): PiModelRuntimeAuth {
+export function createPiModelRuntimeAuth(
+  modelRuntime: ModelRuntime,
+  registry: ModelRegistry = new ModelRegistry(modelRuntime),
+): PiModelRuntimeAuth {
   // Use the extension-facing registry facade so stream auth matches
   // getApiKeyAndHeaders semantics (ok without apiKey for no-auth-header models).
-  const registry = new ModelRegistry(modelRuntime);
   return {
     getApiKey: async (provider) => registry.getApiKeyForProvider(provider),
     stream: async (model, context, options) => {

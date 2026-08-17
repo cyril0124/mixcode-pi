@@ -2,6 +2,7 @@ import type { SettingsManager } from "@earendil-works/pi-coding-agent";
 import type { Model, ThinkingLevelMap } from "@earendil-works/pi-ai";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { MixCodeUiSettings, RawMixCodeSettings } from "./mixcode-settings.js";
+import type { ExtensionManagerEntry } from "./extension-manager.js";
 
 /** Pi SettingsManager markdown.mermaid (not re-exported from package entry). */
 export type MermaidRenderingMode = "off" | "final" | "streaming";
@@ -99,29 +100,13 @@ export interface CommandPaletteEntry {
   disabledReason: string;
 }
 
-export interface ExtensionManagerEntryInfo {
-  key: string;
-  enabled: boolean;
-  path: string;
-  resolvedPath: string;
-  source: string;
-  scope: string;
-  origin: string;
-  baseDir?: string;
-  toolCount: number;
-  commandCount: number;
-  toolNames: string[];
-  commandNames: string[];
-  error?: string;
-}
-
 export interface ExtensionManagerPanelState {
   open: boolean;
   selectedIndex: number;
   detailScrollOffset: number;
   searchActive: boolean;
   searchQuery: string;
-  entries: ExtensionManagerEntryInfo[];
+  entries: ExtensionManagerEntry[];
   selectedKeys: string[];
   message: string;
   error: string;

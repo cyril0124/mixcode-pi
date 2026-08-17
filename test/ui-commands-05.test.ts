@@ -17,7 +17,6 @@ import {
   tabBarHitRegions,
   setTheme,
   themeForId,
-  themeSuggestions,
   writeOpenTabs,
 } from "../src/index.js";
 import { UUIDV7_SESSION_ID_PATTERN } from "./helpers/session-id.js";

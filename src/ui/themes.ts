@@ -1011,15 +1011,6 @@ export function setTheme(state: MixCodeState, themeId: string): void {
   applyPiThemeInstance(piTheme);
 }
 
-export function themeSuggestions(prefix: string): ThemeInfo[] {
-  const query = prefix.trim().toLowerCase();
-  return listThemeInfos().filter(
-    (theme) =>
-      !query ||
-      theme.id.startsWith(query) || theme.label.toLowerCase().includes(query),
-  );
-}
-
 export function normalizeThemeId(themeId: string): string | undefined {
   const normalized = themeId.trim().toLowerCase();
   if (!normalized || INTERNAL_THEME_IDS.has(normalized)) return undefined;
@@ -1027,38 +1018,4 @@ export function normalizeThemeId(themeId: string): string | undefined {
     return normalized;
   }
   return undefined;
-}
-
-export function resolveThemeInput(themeId: string): string {
-  const exact = normalizeThemeId(themeId);
-  if (exact) return exact;
-  const query = themeId.trim().toLowerCase();
-  const matches = listThemeInfos().filter(
-    (theme) =>
-      theme.id.startsWith(query),
-  );
-  if (matches.length === 1) return matches[0]!.id;
-  if (matches.length > 1) {
-    throw new Error(`Ambiguous theme: ${themeId} (${matches.map((theme) => theme.id).join(", ")})`);
-  }
-  throw new Error(`Unknown theme: ${themeId}`);
-}
-
-export function themeArgumentCompletions(
-  prefix: string,
-): Array<{ value: string; label: string; description: string }> {
-  const query = prefix.trim().toLowerCase();
-  if (query && normalizeThemeId(query)) return [];
-  const prefixMatches = new Map<string, { value: string; label: string; description: string }>();
-  const labelMatches = new Map<string, { value: string; label: string; description: string }>();
-  for (const theme of listThemeInfos()) {
-    const description = theme.dark ? "dark theme" : "light theme";
-    const item = { value: theme.id, label: theme.id, description };
-    if (!query || theme.id.startsWith(query)) {
-      prefixMatches.set(theme.id, item);
-    } else if (theme.label.toLowerCase().includes(query)) {
-      labelMatches.set(theme.id, item);
-    }
-  }
-  return [...prefixMatches.values(), ...labelMatches.values()];
 }

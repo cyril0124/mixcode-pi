@@ -626,7 +626,6 @@ test("empty-queue Ctrl+U still arms vim with a permanent editor replacement", ()
     setText: (next: string) => {
       text = next;
     },
-    hasEditorReplacement: () => true,
   };
 
   assert.deepEqual(

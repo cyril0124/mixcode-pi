@@ -42,7 +42,6 @@ import {
   renderAgentSurface,
   renderPickerOverlay,
   renderQueuePreview,
-  renderStatus,
   renderTabBar,
   renderTabJumpOverlay,
   renderWorkingIndicator,

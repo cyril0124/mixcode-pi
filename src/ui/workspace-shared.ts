@@ -10,12 +10,6 @@ export type WorkspaceRuntime = Pick<
   "createTab" | "closeTab" | "extensionSwitchSession" | "getTab" | "getPromptHistory"
 >;
 
-export function workspaceRuntimeWithHistory(
-  runtime: MixCodeRuntime | undefined,
-): WorkspaceRuntime | undefined {
-  return runtime;
-}
-
 export async function loadOptionalWorkspaces(workspaceFile: string): Promise<WorkspaceSnapshot[]> {
   try {
     return await loadWorkspaces(workspaceFile);

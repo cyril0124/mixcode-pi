@@ -79,10 +79,6 @@ export function resetExtensionHostState(
 ): void {
   const cachedBaseAutocompleteProvider = runtimeTab.extensionAutocompleteProviderCache?.base;
   runtimeTab.extensionTerminalInputHandlers.clear();
-  for (const resolve of runtimeTab.extensionDialogResolvers.values()) {
-    resolve(undefined);
-  }
-  runtimeTab.extensionDialogResolvers.clear();
   closeExtensionCustomOverlays(runtimeTab);
   // Overlays/dialogs should already have popped; clear any leftover WaitingForInput.
   clearWaitingForInputs(runtimeTab);

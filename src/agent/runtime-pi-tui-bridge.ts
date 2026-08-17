@@ -51,17 +51,6 @@ const injectedNestedPiTui: PiTuiKeybindingsModule | undefined = (() => {
   return candidate;
 })();
 
-/**
- * Inject the nested pi-tui module for environments (bun --compile) where
- * runtime resolution cannot locate it. Can also be called explicitly in tests.
- */
-export function injectNestedPiTui(mod: PiTuiKeybindingsModule): void {
-  // Only accept if it's genuinely a different module instance.
-  if (mod.setKeybindings !== (setOuterKeybindings as unknown)) {
-    (globalThis as Record<symbol, unknown>)[NESTED_PI_TUI_SYMBOL] = mod;
-  }
-}
-
 // Resolve the nested copy lazily: kick off the async lookup at module load
 // without blocking module evaluation. Top-level await would guarantee the
 // copy is ready before any caller under Node (which pauses importers), but Bun
@@ -145,8 +134,7 @@ function resolveNestedViaCjs(): PiTuiKeybindingsModule | undefined {
 // Resolve the effective nested module: prefer injected (for compiled binary)
 // over the eagerly-resolved one (for dev/node).
 function getNestedPiTui(): PiTuiKeybindingsModule | undefined {
-  // Re-read from globalThis each time in case injectNestedPiTui was called
-  // after module initialization.
+  // Re-read from globalThis each time — binary-entry writes the compiled nested copy here.
   const fromGlobal = (globalThis as Record<symbol, unknown>)[NESTED_PI_TUI_SYMBOL] as
     | PiTuiKeybindingsModule
     | undefined;

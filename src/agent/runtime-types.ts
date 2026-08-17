@@ -16,7 +16,6 @@ import type {
   ExtensionUIContext,
   LoadExtensionsResult,
   ModelRegistry,
-  ModelRuntime,
   SessionManager,
   SessionShutdownEvent,
   TerminalInputHandler,
@@ -32,7 +31,6 @@ import type {
 import type {
   ExtensionManagerConfig,
   ExtensionManagerEntry,
-  ExtensionReloadResult,
 } from "../core/extension-manager.js";
 import type { MixCodeTabInfo } from "../core/types.js";
 import type { mixcodeFauxStream } from "./faux-stream.js";
@@ -61,7 +59,6 @@ export type RuntimeModelRegistry = Pick<
   | "getApiKeyForProvider"
 >;
 
-export type RuntimeModelRuntime = ModelRuntime;
 export type ExtensionArgumentCompleter = (
   argumentPrefix: string,
 ) => AutocompleteItem[] | null | Promise<AutocompleteItem[] | null>;
@@ -136,7 +133,6 @@ export type ToolResultLike = {
 };
 
 export type TerminalInputResult = ReturnType<TerminalInputHandler>;
-export type ExtensionDialogResolver = (result: string | boolean | undefined) => void;
 export type ExtensionCustomComponent = Component & {
   dispose?(): void;
   onInput?: (data: string) => void;
@@ -215,7 +211,6 @@ export interface RuntimeTab {
    */
   replaceLock?: Promise<void>;
   extensionTerminalInputHandlers: Set<TerminalInputHandler>;
-  extensionDialogResolvers: Map<string, ExtensionDialogResolver>;
   extensionCustomOverlayClosers: Set<ExtensionCustomOverlayCloser>;
   extensionCustomOverlayHandles: Set<OverlayHandle>;
   /** Live custom overlay components; dump-screen renders these. */
@@ -261,6 +256,3 @@ export interface ExtensionManagerStore {
   load: () => Promise<ExtensionManagerConfig>;
   save: (config: ExtensionManagerConfig) => Promise<void>;
 }
-
-export type RuntimeExtensionManagerEntry = ExtensionManagerEntry;
-export type RuntimeExtensionReloadResult = ExtensionReloadResult;

@@ -4,8 +4,8 @@ import {
   truncateToWidth,
   wrapTextWithAnsi,
 } from "@earendil-works/pi-tui";
-import type { ExtensionReloadResult } from "../core/extension-manager.js";
-import type { ExtensionManagerEntryInfo, MixCodeState } from "../core/types.js";
+import type { ExtensionManagerEntry, ExtensionReloadResult } from "../core/extension-manager.js";
+import type { MixCodeState } from "../core/types.js";
 import { getActiveTab } from "../core/tabs.js";
 import {
   closeAppOverlay,
@@ -139,7 +139,7 @@ type IconStyle = { glyphs: IconGlyphs; resolved: "nerd" | "ascii" };
 
 function renderSinglePane(
   manager: MixCodeState["extensionManager"],
-  entries: ExtensionManagerEntryInfo[],
+  entries: ExtensionManagerEntry[],
   width: number,
   maxBody: number,
   iconStyle: IconStyle,
@@ -166,7 +166,7 @@ function renderSinglePane(
 // selected entry on the right, separated by a thin vertical rule.
 function renderDoublePane(
   manager: MixCodeState["extensionManager"],
-  entries: ExtensionManagerEntryInfo[],
+  entries: ExtensionManagerEntry[],
   contentWidth: number,
   maxBody: number,
   iconStyle: IconStyle,
@@ -240,7 +240,7 @@ function scrollFooter(
 }
 
 function extensionStatusIcon(
-  entry: ExtensionManagerEntryInfo,
+  entry: ExtensionManagerEntry,
   iconStyle: IconStyle,
 ): string {
   if (entry.error) {
@@ -251,7 +251,7 @@ function extensionStatusIcon(
     : activeRenderTheme.dim(iconStyle.glyphs.statusOff);
 }
 
-function colorizeName(entry: ExtensionManagerEntryInfo, name: string): string {
+function colorizeName(entry: ExtensionManagerEntry, name: string): string {
   if (entry.error) return activeRenderTheme.error(name);
   return entry.enabled ? activeRenderTheme.text(name) : activeRenderTheme.dim(name);
 }
@@ -260,7 +260,7 @@ function colorizeName(entry: ExtensionManagerEntryInfo, name: string): string {
 // the wide single-pane variant also appends right-aligned source/metrics or the
 // load error message.
 function buildListRow(
-  entry: ExtensionManagerEntryInfo,
+  entry: ExtensionManagerEntry,
   selected: boolean,
   pending: boolean,
   compact: boolean,
@@ -280,7 +280,7 @@ function buildListRow(
 
 // Full field listing for the selected entry shown in the detail pane.
 function buildDetailLines(
-  entry: ExtensionManagerEntryInfo,
+  entry: ExtensionManagerEntry,
   width: number,
   pending: boolean,
   iconStyle: IconStyle,
@@ -369,7 +369,7 @@ function meaningfulSegment(segments: string[]): string | undefined {
 // Derive a human-friendly extension name: package sources use their package
 // directory (baseDir); other sources use the entry path. Generic container
 // dirs like src/dist are skipped in favor of the real extension directory.
-function friendlyExtensionName(entry: ExtensionManagerEntryInfo): string {
+function friendlyExtensionName(entry: ExtensionManagerEntry): string {
   const base = entry.baseDir?.trim();
   if (base && (entry.source.startsWith("npm:") || entry.source.startsWith("git:"))) {
     const segment = meaningfulSegment(base.split(/[/\\]/).filter(Boolean));
@@ -387,7 +387,7 @@ function friendlyExtensionName(entry: ExtensionManagerEntryInfo): string {
 
 function filteredExtensionManagerEntries(
   manager: MixCodeState["extensionManager"],
-): ExtensionManagerEntryInfo[] {
+): ExtensionManagerEntry[] {
   const terms = manager.searchQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
   if (!terms.length) return manager.entries;
   return manager.entries.filter((entry) => {
@@ -672,7 +672,7 @@ function formatReloadResults(results: ExtensionReloadResult[]): string {
   ].join("  ");
 }
 
-function formatExtensionSource(entry: ExtensionManagerEntryInfo): string {
+function formatExtensionSource(entry: ExtensionManagerEntry): string {
   const prefix = entry.source === "local" ? "local" : `ext:${entry.source}`;
   return `${prefix}/${entry.scope}`;
 }
