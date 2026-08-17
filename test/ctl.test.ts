@@ -228,6 +228,30 @@ test("InjectingTerminal forwards start callback to inject", () => {
   assert.deepEqual(seen, ["\x10"]);
 });
 
+test("handleCtlRequest wait and dump-screen see MixCode app overlays", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo", { title: "Agent-01" }));
+  state.activeTabId = "s1";
+  const opts = {
+    state,
+    runtime: { getTab: () => ({ chat: [] }) } as unknown as MixCodeRuntime,
+    injectInput: () => undefined,
+    hasAppOverlay: () => true,
+    renderAppOverlay: () => ["Close Session", "[Y] Close    [N] Cancel"],
+  };
+  const wait = await handleCtlRequest({ op: "wait", timeout: 0 }, opts);
+  assert.equal(wait.ok, true);
+  assert.match(wait.text ?? "", /status: wait-for-input/);
+  const screen = await handleCtlRequest({ op: "dump-screen" }, opts);
+  assert.match(screen.text ?? "", /Close Session/);
+  assert.match(screen.text ?? "", /\[Y\] Close/);
+  const idle = await handleCtlRequest(
+    { op: "wait", timeout: 0 },
+    { ...opts, hasAppOverlay: () => false, renderAppOverlay: () => [] },
+  );
+  assert.match(idle.text ?? "", /status: finished/);
+});
+
 test("handleCtlRequest last-assistant-message send-keys and dump-screen", async () => {
   const injected: string[] = [];
   const submitted: { sessionId: string; text: string }[] = [];

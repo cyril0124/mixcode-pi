@@ -28,6 +28,9 @@ export interface StartInstanceCtlServerOptions {
   screenWidth?: () => number;
   /** Focused-tab dump: live TUI children (chrome + editor slot). Overlays are appended separately. */
   renderTui?: (width: number) => string[];
+  /** MixCode showLinesOverlay / showComponentOverlay is open. */
+  hasAppOverlay?: () => boolean;
+  renderAppOverlay?: (width: number) => string[];
 }
 
 export function resolveCtlFocusSessionId(
@@ -198,8 +201,15 @@ function hasPendingCtlSubmit(tab: MixCodeTabInfo): boolean {
   return (pendingCtlSubmits.get(tab) ?? 0) > 0;
 }
 
-function isCtlWaitSettled(tab: MixCodeTabInfo): boolean {
-  return tabIsWaitingForInput(tab) || (!CTL_WAIT_BUSY.has(tab.status) && !hasPendingCtlSubmit(tab));
+function isCtlWaitSettled(
+  tab: MixCodeTabInfo,
+  options: Pick<StartInstanceCtlServerOptions, "hasAppOverlay">,
+): boolean {
+  return (
+    options.hasAppOverlay?.() === true ||
+    tabIsWaitingForInput(tab) ||
+    (!CTL_WAIT_BUSY.has(tab.status) && !hasPendingCtlSubmit(tab))
+  );
 }
 
 function isBackgroundSendKeysText(chunk: string): boolean {
@@ -326,8 +336,11 @@ function lastChatTools(
   return chronological.slice(start, end + 1);
 }
 
-function ctlWaitStatus(tab: MixCodeTabInfo): string {
-  if (tabIsWaitingForInput(tab)) return "wait-for-input";
+function ctlWaitStatus(
+  tab: MixCodeTabInfo,
+  options: Pick<StartInstanceCtlServerOptions, "hasAppOverlay"> = {},
+): string {
+  if (options.hasAppOverlay?.() === true || tabIsWaitingForInput(tab)) return "wait-for-input";
   if (CTL_WAIT_BUSY.has(tab.status)) return tab.status;
   if (hasPendingCtlSubmit(tab)) return "running";
   if (tab.status === "idle" || tab.status === "done") return "finished";
@@ -337,14 +350,15 @@ function ctlWaitStatus(tab: MixCodeTabInfo): string {
 async function waitForTabIdle(
   tab: MixCodeTabInfo,
   timeoutSec: number,
+  options: Pick<StartInstanceCtlServerOptions, "hasAppOverlay"> = {},
 ): Promise<{ status: string; timedOut: boolean }> {
   const deadline = Date.now() + timeoutSec * 1000;
   for (;;) {
-    if (isCtlWaitSettled(tab)) {
-      return { status: ctlWaitStatus(tab), timedOut: false };
+    if (isCtlWaitSettled(tab, options)) {
+      return { status: ctlWaitStatus(tab, options), timedOut: false };
     }
     if (timeoutSec === 0 || Date.now() >= deadline) {
-      return { status: ctlWaitStatus(tab), timedOut: true };
+      return { status: ctlWaitStatus(tab, options), timedOut: true };
     }
     await Bun.sleep(CTL_WAIT_POLL_MS);
   }
@@ -487,7 +501,7 @@ export async function handleCtlRequest(
       const tab = options.state.tabs.find((candidate) => candidate.sessionId === sessionId);
       if (!tab) throw new Error(`Unknown session: ${sessionId}`);
       const timeout = request.timeout ?? CTL_WAIT_DEFAULT_TIMEOUT_SEC;
-      const result = await waitForTabIdle(tab, timeout);
+      const result = await waitForTabIdle(tab, timeout, options);
       const body = `status: ${result.status}\ntimeout: ${timeout}\n`;
       if (result.timedOut) {
         return {
@@ -522,7 +536,10 @@ export async function handleCtlRequest(
                 if (!tab) throw new Error(`Unknown session: ${sessionId}`);
                 return renderAgentSurface(tab, options.runtime.getTab(sessionId), dumpWidth);
               })();
-      const overlay = renderCtlOverlayDump(options.runtime.getTab(sessionId), overlayWidth);
+      const overlay = [
+        ...renderCtlOverlayDump(options.runtime.getTab(sessionId), overlayWidth),
+        ...(options.renderAppOverlay?.(overlayWidth) ?? []),
+      ];
       const body = overlay.length === 0 ? base.join("\n") : `${base.join("\n")}\n${overlay.join("\n")}`;
       return { ok: true, text: wrap(body) };
     }

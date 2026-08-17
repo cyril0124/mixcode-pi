@@ -17,6 +17,10 @@ import { getCurrentUiTheme, renderWithTheme } from "./rendering/context.js";
 import type { MixCodeTheme } from "./themes.js";
 
 const activeOverlayHandles = new WeakMap<object, OverlayHandle>();
+const activeOverlayComponents = new WeakMap<
+  object,
+  { component: Component; capturing: boolean }
+>();
 
 export const DEFAULT_OVERLAY_MAX_HEIGHT_PERCENT = 80;
 
@@ -94,6 +98,10 @@ export function showComponentOverlay(
   const handle = tui.showOverlay(component, options);
   if (!isOverlayHandle(handle)) return undefined;
   activeOverlayHandles.set(tui, handle);
+  activeOverlayComponents.set(tui, {
+    component,
+    capturing: options.nonCapturing !== true,
+  });
   return handle;
 }
 
@@ -107,10 +115,20 @@ export function closeAppOverlay(tui: OverlayTui): void {
   if (!handle) return;
   handle.hide();
   activeOverlayHandles.delete(tui);
+  activeOverlayComponents.delete(tui);
 }
 
 export function hasAppOverlay(tui: OverlayTui): boolean {
   return activeOverlayHandles.has(tui);
+}
+
+export function hasCapturingAppOverlay(tui: OverlayTui): boolean {
+  return activeOverlayComponents.get(tui)?.capturing === true;
+}
+
+export function renderAppOverlay(tui: OverlayTui, width: number): string[] {
+  const active = activeOverlayComponents.get(tui);
+  return active ? active.component.render(width) : [];
 }
 
 export function hasAnyOverlay(tui: OverlayTui): boolean {

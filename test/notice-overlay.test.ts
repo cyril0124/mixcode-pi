@@ -15,6 +15,8 @@ import {
   copyActiveNoticeText,
   getActiveNotice,
   hasActiveNotice,
+  hasAppOverlay,
+  hasCapturingAppOverlay,
   renderNoticePanel,
   resolveNoticeOverlayLayout,
   showLinesOverlay,
@@ -88,6 +90,22 @@ test("showNoticeTextOverlay tracks active notice and clears on close", () => {
   assert.ok((getActiveNotice()?.renderedLines.length ?? 0) > 0);
   closeAppOverlay(tui);
   assert.equal(hasActiveNotice(), false);
+});
+
+test("notices are app overlays but do not count as capturing wait-for-input", () => {
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({ hide: () => undefined }),
+    hasOverlay: () => true,
+  };
+  showNoticeTextOverlay(tui, "console leftover");
+  assert.equal(hasAppOverlay(tui), true);
+  assert.equal(hasCapturingAppOverlay(tui), false);
+  closeAppOverlay(tui);
+  showLinesOverlay(tui, () => ["[Y] Close    [N] Cancel"]);
+  assert.equal(hasAppOverlay(tui), true);
+  assert.equal(hasCapturingAppOverlay(tui), true);
+  closeAppOverlay(tui);
 });
 
 test("copyActiveNoticeText copies full body via injected writer", async () => {

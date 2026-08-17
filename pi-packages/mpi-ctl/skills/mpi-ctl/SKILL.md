@@ -145,13 +145,13 @@ timeout: <sec>
 
 Timeout (still `running`/`thinking`) prints `status:` + `timeout:` then fails. Home: `Home has no agent run`.
 
-On `wait-for-input`, run `dump-screen` on that tab and read the **bottom** of the output (question header, options, `Enter to select`). Do not guess the question from `last-message`.
+On `wait-for-input`, run `dump-screen` on that tab and **start from the tail**. Questions and Y/N confirms are at the end, not the chat JSON above. A leftover Notice/Error is not `wait-for-input`. If stdout is truncated, `read` the `/tmp/mpi-ctl-…` file from the end. Do not guess from `last-message`.
 
 ### `dump-screen`
 
 Default: strip ANSI and trailing spaces. `--ansi` keeps color (still strips trailing spaces).
 
-`--tab` / `--session` dump that tab's chat plus its overlay — not the live workspace chrome. Implied / `--focus-*` dumps the live frame, then the overlay. Overlay width is `max(live TUI columns, 100)`. `--width <n>` sets both. Read the **bottom** for the question and options.
+`--tab` / `--session` dump that tab's chat plus its extension overlay and the current MixCode app overlay (Y/N confirms, notices) — not the live workspace chrome. Implied / `--focus-*` dumps the live frame, then those overlays. Overlay width is `max(live TUI columns, 100)`. `--width <n>` sets both. **Start from the tail** (last ~30 lines). If truncated, open the `/tmp` file and seek the end.
 
 ### `send-keys`
 
@@ -205,7 +205,7 @@ If you receive that block: read the skill at the given path, finish the request,
 ```text
 mpi ctl --tab <title> wait --timeout 90
 # finished        -> mpi ctl --tab <title> last-message
-# wait-for-input  -> mpi ctl --tab <title> dump-screen  (read the bottom)
+# wait-for-input  -> mpi ctl --tab <title> dump-screen  (start from the tail)
 #                   single-tab Y/N -> send-prompt /close-session yes or /delete-session yes
 #                   picker / close-all / delete-all / question overlay -> --focus-tab send-keys; wait again
 # error / timeout -> last-message / dump-screen; do not assume success
@@ -276,7 +276,7 @@ echo "$MIXCODE" "$MIXCODE_TAB_TITLE" "$MIXCODE_FOCUSED_TAB_TITLE"
 mpi status --json
 mpi ctl --pid <n> --tab <other> send-prompt '…'
 mpi ctl --pid <n> --tab <other> wait --timeout 90
-# status: wait-for-input  -> dump-screen (read the bottom); --focus-tab send-keys only if it is a picker/overlay you must click
+# status: wait-for-input  -> dump-screen (start from the tail); --focus-tab send-keys only if it is a picker/overlay you must click
 # status: finished        -> last-message / last-tool
 ```
 
@@ -285,7 +285,7 @@ mpi ctl --pid <n> --tab <other> wait --timeout 90
 - **Do not start another `mpi` TUI** to inspect a tab. Use `status`/`ctl` against the live process.
 - **Never default to `--focus-tab`.** Use `--tab`. `--focus-tab` leaves the UI on that tab — only after `dump-screen` shows a picker/overlay that needs keys. `--session` is not an alias of `--focus-session`.
 - **After `send-prompt`, always `wait` then read output.** ACK ≠ finished. Skipping `wait`/`last-message` is a bug.
-- **On `wait-for-input`, `dump-screen` first.** Single-tab close/delete: `send-prompt /close-session yes` (or `/delete-session yes`). close-all / delete-all and question pickers: `--focus-tab` + `send-keys`. Do not answer from `last-message` alone.
+- **On `wait-for-input`, `dump-screen` first and start from the tail.** The confirm or question is at the end. If truncated, read `/tmp/mpi-ctl-…` from the end. Single-tab close/delete: `send-prompt /close-session yes` (or `/delete-session yes`). close-all / delete-all and pickers: `--focus-tab` + `send-keys`. Do not answer from `last-message` alone.
 - **Do not preface prompts with “I am &lt;tab&gt;”.** ctl already wraps plain text with the MixCode-tab preface. Slash/`!` are not wrapped. If the preface includes `--expect-response` instructions, follow the skill path and reply with the given `send-prompt`; do not add `--expect-response` on that reply.
 - **`mpi commands` is TUI slashes (`/compact`), not CLI subcommands (`mpi ctl`).** Slash commands: `send-prompt /compact`, not `send-keys '/compact' Enter`. `send-keys` is for real keypresses (pickers, `down`/`Enter` on a question, `C-q`). `--tab` send-keys is text+Enter only; multi-line body uses `send-prompt <<'EOF'`. `--literal` makes `Enter` the letters E-n-t-e-r.
 - **`--from` and `--to` must both be present.** One alone errors. `1` is newest, print is oldest-first. `last-message` is user+assistant only; tools are `last-tool`.
@@ -293,5 +293,5 @@ mpi ctl --pid <n> --tab <other> wait --timeout 90
 - **Not Ready / no sock:** only the target tab still loading fails that ctl command. No `.sock` means that TUI predates ctl — restart it. `status` 0 or >1 instance without `--pid` fails; same workdir with two TUIs needs `--pid` or `MIXCODE_PID`.
 - **Env:** `MIXCODE_*` exist only in the **bash tool**, not `!` shells. Do not `--tab`/`--focus-tab` yourself (`MIXCODE_TAB_TITLE`) when the user asked about another tab. `MIXCODE_FOCUSED_TAB_TITLE` is empty on Home. Wrong `PI_CODING_AGENT_DIR` lists the wrong instances.
 - **`/close-session` keeps the file; `/delete-session` removes it.** Pass `yes` to skip the single-tab Y/N overlay. **Do not** pass `yes` to `/close-all-sessions` or `/delete-all-sessions` — those always confirm; use `--focus-tab` and `y`/`n`. `/clear` makes a new child session; `/reset` stays on the same file. `/new-session Title` creates a **new** tab; `/rename Title` renames the target tab.
-- **`dump-screen` is for overlays/drafts/streaming**, not history. Default is no ANSI; `--ansi` keeps color. Huge output is truncated to `/tmp/mpi-ctl-…`.
+- **`dump-screen` is for overlays/drafts/streaming**, not history. **Start from the tail.** Default is no ANSI; `--ansi` keeps color. Huge output is truncated to `/tmp/mpi-ctl-…` — read that file from the end.
 - **Home** has no last-message / last-tool / wait / `--tab` send-keys. `--session home` is Home, not `config`.
