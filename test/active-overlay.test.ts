@@ -23,12 +23,6 @@ function state() {
 }
 
 const FLAG_KINDS: FlagOverlayKind[] = [
-  "workspace",
-  "tree-selector",
-  "session-selector",
-  "command-palette",
-  "extension-manager",
-  "tab-jump",
   "quit-confirm",
   "delete-all-sessions-confirm",
   "close-all-sessions-confirm",
@@ -48,22 +42,20 @@ test("openOverlay activates exactly the requested flag overlay", () => {
   }
 });
 
-test("openOverlay is mutually exclusive: opening a new overlay closes the previous", () => {
+test("openOverlay is mutually exclusive", () => {
   const s = state();
-  openOverlay(s, "command-palette");
-  assert.equal(activeOverlay(s), "command-palette");
-  openOverlay(s, "tab-jump");
-  // tab-jump now active, command-palette must be cleared
-  assert.equal(activeOverlay(s), "tab-jump");
+  s.commandPaletteOpen = true;
+  openOverlay(s, "quit-confirm");
+  assert.equal(activeOverlay(s), "quit-confirm");
   assert.equal(s.commandPaletteOpen, false);
 });
 
-test("openOverlay closes an active picker (mutual exclusion across representations)", () => {
+test("openOverlay closes an active picker", () => {
   const s = state();
   s.picker = { kind: "models", title: "", query: "", selectedIndex: 0, items: [] };
   assert.equal(activeOverlay(s), "picker");
-  openOverlay(s, "command-palette");
-  assert.equal(activeOverlay(s), "command-palette");
+  openOverlay(s, "quit-confirm");
+  assert.equal(activeOverlay(s), "quit-confirm");
   assert.equal(s.picker, undefined);
 });
 
@@ -90,7 +82,7 @@ test("activeOverlay follows the fixed priority when multiple flags are set", () 
   // Force two overlays on simultaneously (a state that should not occur in
   // practice) and assert the higher-priority one wins deterministically.
   const s = state();
-  openOverlay(s, "tab-jump");
+  s.tabJumpOpen = true;
   // raise a higher-priority flag directly, bypassing openOverlay's exclusion
   s.commandPaletteOpen = true;
   assert.equal(activeOverlay(s), "command-palette");

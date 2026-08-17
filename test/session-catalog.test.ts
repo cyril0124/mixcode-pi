@@ -47,6 +47,23 @@ test("catalog poll invalidates the cache when session files appear in the root",
   }
 });
 
+test("catalog all mode deduplicates paths and sorts newest first", async () => {
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-catalog-all-"));
+  try {
+    await fsPromises.writeFile(path.join(dir, "old.jsonl"), `${sessionHeader(dir, "old")}\n`, "utf8");
+    await Bun.sleep(20);
+    await fsPromises.writeFile(path.join(dir, "new.jsonl"), `${sessionHeader(dir, "new")}\n`, "utf8");
+
+    const sessions = await listSessionsInBackground({
+      mode: "all",
+      sessionDirs: [dir, dir],
+    });
+    assert.deepEqual(sessions.map((session) => session.id), ["new", "old"]);
+  } finally {
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("catalog poll invalidates the cache when an existing session file grows", async () => {
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-catalog-append-"));
   const file = path.join(dir, "live.jsonl");

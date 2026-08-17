@@ -94,7 +94,6 @@ export interface StartPeerTabSyncOptions {
   /** Apply peer registry titles onto already-open local tabs (e.g. after /rename). */
   syncTabTitles?: (titles: Array<{ sessionId: string; title: string }>) => void | Promise<void>;
   onError?: (error: unknown) => void;
-  debounceMs?: number;
   /** Poll cadence. Default 2000ms. */
   pollIntervalMs?: number;
   loadStatus?: (
@@ -108,7 +107,6 @@ export interface StartPeerTabSyncOptions {
   readDesired?: (openTabsPath: string) => string[];
 }
 
-const DEFAULT_DEBOUNCE_MS = 250;
 const DEFAULT_POLL_INTERVAL_MS = 2_000;
 
 /**
@@ -120,29 +118,17 @@ export function startPeerTabSync(options: StartPeerTabSyncOptions): {
   dispose(): void;
   reconcileNow(): Promise<void>;
 } {
-  const debounceMs = options.debounceMs ?? DEFAULT_DEBOUNCE_MS;
   const pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
   const loadStatus = options.loadStatus ?? loadLiveInstanceStatus;
   const readDesired = options.readDesired ?? readOpenTabs;
   const openTabsDir = path.dirname(options.openTabsPath);
 
   let disposed = false;
-  let debounceTimer: ReturnType<typeof setTimeout> | undefined;
   let pollTimer: ReturnType<typeof setInterval> | undefined;
   let reconcileInFlight: Promise<void> | undefined;
   let reconcileAgain = false;
   const opening = new Set<string>();
   const closing = new Set<string>();
-
-  const schedule = () => {
-    if (disposed) return;
-    if (debounceTimer) clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(() => {
-      debounceTimer = undefined;
-      void reconcile();
-    }, debounceMs);
-    debounceTimer.unref?.();
-  };
 
   const reconcile = async (): Promise<void> => {
     if (disposed) return;
@@ -251,17 +237,15 @@ export function startPeerTabSync(options: StartPeerTabSyncOptions): {
   void fs.mkdir(openTabsDir, { recursive: true })
     .then(() => {
       if (disposed) return;
-      pollTimer = setInterval(schedule, pollIntervalMs);
+      pollTimer = setInterval(() => void reconcile(), pollIntervalMs);
       pollTimer.unref?.();
-      schedule();
+      void reconcile();
     })
     .catch((error: unknown) => options.onError?.(error));
 
   return {
     dispose() {
       disposed = true;
-      if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = undefined;
       if (pollTimer) clearInterval(pollTimer);
       pollTimer = undefined;
     },

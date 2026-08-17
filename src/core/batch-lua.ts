@@ -241,12 +241,13 @@ export function validateBatchRequests(
   requests: BatchTabRequest[],
   resolveModel: (query: string) => MixCodeModelRef,
   resolveImplicitModel: (request: BatchTabRequest) => MixCodeModelRef | undefined = () => undefined,
-): void {
+): Map<BatchTabRequest, MixCodeModelRef> {
+  const resolvedModels = new Map<BatchTabRequest, MixCodeModelRef>();
   const effectiveModels = new Map<string, MixCodeModelRef>();
   for (const request of requests) {
-    const model = request.model
-      ? resolveModel(request.model)
-      : (effectiveModels.get(request.name) ?? resolveImplicitModel(request));
+    const explicitModel = request.model ? resolveModel(request.model) : undefined;
+    if (explicitModel) resolvedModels.set(request, explicitModel);
+    const model = explicitModel ?? effectiveModels.get(request.name) ?? resolveImplicitModel(request);
     if (model) effectiveModels.set(request.name, model);
     if (request.thinking && !isThinkingLevelAvailable(request.thinking, model)) {
       throw new Error(
@@ -260,6 +261,7 @@ export function validateBatchRequests(
       );
     }
   }
+  return resolvedModels;
 }
 
 /**
@@ -299,7 +301,7 @@ export async function applyBatchRequests(
 ): Promise<void> {
   if (requests.length === 0) return;
 
-  validateBatchRequests(
+  const resolvedModels = validateBatchRequests(
     requests,
     (query) => host.resolveModel(query),
     (request) =>
@@ -319,10 +321,7 @@ export async function applyBatchRequests(
 
   for (const request of requests) {
     const existing = host.findTabByTitle(request.name);
-    let model: MixCodeModelRef | undefined;
-    if (request.model) {
-      model = host.resolveModel(request.model);
-    }
+    const model = resolvedModels.get(request);
     const thinking = request.thinking as ThinkingLevel | undefined;
     resolved.push({ request, existingSessionId: existing?.sessionId, model, thinking });
   }

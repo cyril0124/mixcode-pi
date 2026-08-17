@@ -175,7 +175,6 @@ test("startPeerTabSync opens and closes against shared open_tabs", async () => {
       rootStateDir: path.join(dir, "root"),
       workdir,
       selfPid: 2002,
-      debounceMs: 1,
       pollIntervalMs: 60_000,
       getLocalSessionIds: () => stateB.tabs.map((tab) => tab.sessionId),
       openTab: async (candidate) => {
@@ -260,7 +259,6 @@ test("createAgentTab publishes open_tabs before create finishes so reconcile kee
       openTabsPath,
       rootStateDir: path.join(dir, "root"),
       workdir: dir,
-      debounceMs: 1,
       pollIntervalMs: 60_000,
       getLocalSessionIds: () => state.tabs.map((tab) => tab.sessionId),
       openTab: async (candidate) => {
@@ -420,7 +418,6 @@ test("completeAgentTabClear publishes open_tabs before session id swaps so recon
       openTabsPath,
       rootStateDir: path.join(dir, "root"),
       workdir: dir,
-      debounceMs: 1,
       pollIntervalMs: 60_000,
       getLocalSessionIds: () => state.tabs.map((tab) => tab.sessionId),
       openTab: async (candidate) => {
@@ -620,7 +617,6 @@ test("resume publishes open_tabs before switch so reconcile keeps session title"
       openTabsPath,
       rootStateDir: path.join(dir, "root"),
       workdir: dir,
-      debounceMs: 1,
       pollIntervalMs: 60_000,
       getLocalSessionIds: () => state.tabs.map((tab) => tab.sessionId),
       openTab: async (candidate) => {
@@ -713,7 +709,6 @@ test("peer reconcile syncTabTitles updates already-open local tab titles", async
           },
         ],
       }),
-      debounceMs: 10,
       pollIntervalMs: 60_000,
     });
     await sync.reconcileNow();
@@ -762,7 +757,6 @@ test("syncTabTitles prefers freshest registry snapshot over later pid order", as
           },
         ],
       }),
-      debounceMs: 10,
       pollIntervalMs: 60_000,
     });
     await sync.reconcileNow();

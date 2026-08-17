@@ -13,7 +13,8 @@ import {
   type BatchExecutorHost,
   type BatchTabRequest,
 } from "../src/core/batch-lua.js";
-import { parseMainArgs, runBatchDryRun } from "../src/cli/main.js";
+import { parseMainArgs } from "../src/cli/main.js";
+import { runBatchDryRun } from "../src/cli/interactive-app.js";
 import { createInitialState, createTab } from "../src/index.js";
 import type { MixCodeModelRef } from "../src/core/types.js";
 
@@ -373,6 +374,18 @@ test("applyBatchRequests throws on unknown model", async () => {
   const host = createMockHost();
   const requests: BatchTabRequest[] = [{ name: "x", prompt: "y", model: "unknown-model" }];
   await assert.rejects(() => applyBatchRequests(requests, host), /Unknown model/);
+});
+
+test("applyBatchRequests resolves each explicit model once", async () => {
+  const host = createMockHost();
+  const resolveModel = host.resolveModel;
+  let calls = 0;
+  host.resolveModel = (query) => {
+    calls++;
+    return resolveModel(query);
+  };
+  await applyBatchRequests([{ name: "x", prompt: "y", model: "known-model" }], host);
+  assert.equal(calls, 1);
 });
 
 test("applyBatchRequests does nothing for empty requests", async () => {

@@ -186,47 +186,16 @@ export function closeActiveOverlay(state: MixCodeState): void {
   state.closeAllSessionsConfirmOpen = false;
 }
 
-// Flag/.open overlays openOverlay can flip on its own. picker is excluded: it
-// is presence-based and needs a PickerState payload, so callers assign it
-// directly (after closeActiveOverlay) rather than through openOverlay.
-const FLAG_OPENERS: Partial<Record<OverlayKind, (s: MixCodeState) => void>> = {
-  workspace: (s) => {
-    s.workspaceOverlay.open = true;
-  },
-  "tree-selector": (s) => {
-    s.treeSelector.open = true;
-  },
-  "session-selector": (s) => {
-    s.sessionSelector.open = true;
-  },
-  "command-palette": openCommandPalette,
-  "extension-manager": (s) => {
-    s.extensionManager.open = true;
-  },
-  "tab-jump": openTabJump,
-  "quit-confirm": (s) => {
-    s.quitConfirmOpen = true;
-  },
-  "delete-all-sessions-confirm": (s) => {
-    s.deleteAllSessionsConfirmOpen = true;
-  },
-  "close-all-sessions-confirm": (s) => {
-    s.closeAllSessionsConfirmOpen = true;
-  },
-};
-
-/**
- * Open a flag/.open overlay with mutual exclusion: any currently-active overlay
- * is closed first. picker is presence-based (needs a payload) and is opened by
- * direct assignment after closeActiveOverlay, not through this entry point.
- */
-export type FlagOverlayKind = Exclude<OverlayKind, "picker" | "session-action-confirm">;
+export type FlagOverlayKind =
+  | "quit-confirm"
+  | "delete-all-sessions-confirm"
+  | "close-all-sessions-confirm";
 
 export function openOverlay(state: MixCodeState, kind: FlagOverlayKind): void {
   closeActiveOverlay(state);
-  const open = FLAG_OPENERS[kind];
-  if (!open) throw new Error(`openOverlay: unsupported kind ${kind}`);
-  open(state);
+  if (kind === "quit-confirm") state.quitConfirmOpen = true;
+  else if (kind === "delete-all-sessions-confirm") state.deleteAllSessionsConfirmOpen = true;
+  else state.closeAllSessionsConfirmOpen = true;
 }
 
 export function moveTabJumpSelection(state: MixCodeState, delta: number): void {
@@ -452,9 +421,7 @@ export function updateCommandPaletteQueryWithExtensions(
   query: string,
   extensionCommands: Array<{ name: string; description?: string }> = [],
 ): void {
-  state.commandPalette.query = query;
-  // Ranking reorders on every keystroke; keep the highlight on the new top hit.
-  state.commandPalette.selectedIndex = 0;
+  updateCommandPaletteQuery(state, query);
   void extensionCommands;
 }
 
@@ -487,10 +454,6 @@ export function acceptCommandPaletteSelection(
     ];
   closeCommandPalette(state);
   return selected?.command ?? "";
-}
-
-function clampCommandPaletteIndex(state: MixCodeState, index: number): number {
-  return clampCommandPaletteIndexWithExtensions(state, index);
 }
 
 function clampCommandPaletteIndexWithExtensions(

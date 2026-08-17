@@ -19,28 +19,35 @@ type CachedListing = {
 export const SESSION_CATALOG_WORKER_ARG = "--mixcode-session-catalog-worker";
 const SESSION_CATALOG_REQUEST_ENV = "MIXCODE_SESSION_CATALOG_REQUEST";
 
+async function executeSessionCatalogRequestWithManager(
+  request: SessionCatalogRequest,
+  manager: Pick<typeof SessionManager, "list" | "listAll">,
+): Promise<SessionInfo[]> {
+  if (request.mode === "current") {
+    return manager.list(request.cwd, request.sessionsRoot);
+  }
+  const seen = new Set<string>();
+  const sessions: SessionInfo[] = [];
+  for (const dir of request.sessionDirs) {
+    const listed = await manager.listAll(dir);
+    for (const session of listed) {
+      if (seen.has(session.path)) continue;
+      seen.add(session.path);
+      sessions.push(session);
+    }
+  }
+  sessions.sort((left, right) => right.modified.getTime() - left.modified.getTime());
+  return sessions;
+}
+
 const SESSION_LIST_WORKER_SOURCE = `
 import { parentPort, workerData } from "node:worker_threads";
 
+const executeSessionCatalogRequest = ${executeSessionCatalogRequestWithManager.toString()};
+
 try {
   const { SessionManager } = await import(workerData.sessionManagerUrl);
-  const request = workerData.request;
-  let sessions;
-  if (request.mode === "current") {
-    sessions = await SessionManager.list(request.cwd, request.sessionsRoot);
-  } else {
-    const seen = new Set();
-    sessions = [];
-    for (const dir of request.sessionDirs) {
-      const listed = await SessionManager.listAll(dir);
-      for (const session of listed) {
-        if (seen.has(session.path)) continue;
-        seen.add(session.path);
-        sessions.push(session);
-      }
-    }
-    sessions.sort((left, right) => right.modified.getTime() - left.modified.getTime());
-  }
+  const sessions = await executeSessionCatalogRequest(workerData.request, SessionManager);
   parentPort.postMessage({ type: "result", sessions });
 } catch (error) {
   parentPort.postMessage({
@@ -127,21 +134,7 @@ export async function runSessionCatalogWorkerCommand(args: string[]): Promise<bo
 }
 
 async function executeSessionCatalogRequest(request: SessionCatalogRequest): Promise<SessionInfo[]> {
-  if (request.mode === "current") {
-    return SessionManager.list(request.cwd, request.sessionsRoot);
-  }
-  const seen = new Set<string>();
-  const sessions: SessionInfo[] = [];
-  for (const dir of request.sessionDirs) {
-    const listed = await SessionManager.listAll(dir);
-    for (const session of listed) {
-      if (seen.has(session.path)) continue;
-      seen.add(session.path);
-      sessions.push(session);
-    }
-  }
-  sessions.sort((left, right) => right.modified.getTime() - left.modified.getTime());
-  return sessions;
+  return executeSessionCatalogRequestWithManager(request, SessionManager);
 }
 
 function runBackgroundListing(

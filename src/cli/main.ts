@@ -175,15 +175,6 @@ export async function runStatusCommand(args: MainArgs): Promise<void> {
   });
 }
 
-/**
- * Validate and print a batch plan without booting TUI/runtime or writing state.
- * Reads existing state only if present; never creates session files.
- */
-export async function runBatchDryRun(args: MainArgs): Promise<void> {
-  const { runBatchDryRun: executeBatchDryRun } = await import("./interactive-app.js");
-  await executeBatchDryRun(args);
-}
-
 export function exposeLocalPiCli(
   env: NodeJS.ProcessEnv = process.env,
   entryUrl = import.meta.url,
