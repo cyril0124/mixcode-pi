@@ -67,9 +67,9 @@ mpi ctl --tab Agent-01 send-prompt '/rename New Title'
 mpi ctl --tab Agent-01 send-prompt '/new-session Worker'
 ```
 
-`--tab` does not steal UI focus. **Always close the loop:** `wait` then `last-message` (or `last-tool` / `dump-screen`). ACK from `send-prompt` only means accept, not done.
+`--tab` does not steal UI focus. **Default to `--tab` / `--session`.** Do not use `--focus-tab` / `--focus-session` unless the next action is UI keys on a picker or overlay that `--tab` cannot drive. **Always close the loop:** `wait` then `last-message` (or `last-tool` / `dump-screen`). ACK from `send-prompt` only means accept, not done.
 
-Use **`send-keys` + `--focus-tab`** only when the command opens a picker/overlay (`/resume`, extension question UI, `C-q`).
+Use **`send-keys` + `--focus-tab`** only after `dump-screen` shows a picker/overlay you must click (`/resume`, `/models`, `/close-all-sessions`, `/delete-all-sessions`, extension question UI, `C-q`). Single-tab close/delete: `send-prompt /close-session yes` — do not focus.
 
 Common MixCode session/tab commands:
 
@@ -77,17 +77,17 @@ Common MixCode session/tab commands:
 |---|---|
 | `/new-session` | Create a new agent tab. `/new-session Title` also names it. |
 | `/rename Title` | Rename the **target** tab (the one `--tab` / `--focus-tab` selected). |
-| `/close-session` | Close that tab; session file stays on disk. |
-| `/delete-session` | Delete that tab's session file and close the tab. |
-| `/close-all-sessions` | Close every agent tab; keep session files. |
-| `/delete-all-sessions` | Delete every open agent session and close those tabs. |
+| `/close-session [yes]` | Close that tab; session file stays on disk. `yes` skips the Y/N overlay. |
+| `/delete-session [yes]` | Delete that tab's session file and close the tab. `yes` skips the Y/N overlay. |
+| `/close-all-sessions` | Close every agent tab; keep session files. Always Y/N — `--focus-tab` then `y`/`n`. |
+| `/delete-all-sessions` | Delete every open agent session and close those tabs. Always Y/N — `--focus-tab` then `y`/`n`. |
 | `/resume` | Open the session picker (needs `--focus-tab`; it is UI). |
 | `/clear` | Replace the tab's session with a fresh child (title resets). |
 | `/reset` | Reset the branch to session root; keep title and tab slot. |
 | `/compact` | Compact that tab's context. |
 | `/mark-done` | Mark that tab done. |
 
-Send these with `send-prompt` and `--tab`. `/resume` and other pickers still need `--focus-tab` plus `send-keys` UI keys.
+Send these with `send-prompt` and `--tab`. `/resume`, `/models`, close-all / delete-all, and other pickers still need `--focus-tab` plus `send-keys`.
 
 ## Discover instances
 
@@ -106,8 +106,8 @@ mutual-exclusion and unique-match rules apply to `mpi ctl` below.
 mpi ctl [--pid <n> | --workdir <path>] [--tab <title> | --session <id> | --focus-tab <title> | --focus-session <id>] <command>
 ```
 
-- `--tab` / `--session`: operate this tab **without** changing UI focus. Prefer these to read or prompt a background tab.
-- `--focus-tab` / `--focus-session`: operate and **leave** UI focus on that tab.
+- `--tab` / `--session`: operate this tab **without** changing UI focus. **Default.** Use these to read or prompt any tab.
+- `--focus-tab` / `--focus-session`: operate and **leave** UI focus on that tab. Only for UI keys after `dump-screen` shows a picker/overlay `--tab` cannot drive.
 - Targeting default (no `--pid` / `--workdir`): `MIXCODE_PID` env when set (bash tool children), else the unique live instance in `<cwd>`.
 - The four flags are mutually exclusive. Title match is exact; duplicates need `--session` or `--focus-session`.
 - `home` is Home (`--session home` or `--focus-session home`).
@@ -188,8 +188,9 @@ Review the current diff for risks only.
 ```text
 mpi ctl --tab <title> wait --timeout 90
 # finished        -> mpi ctl --tab <title> last-message
-# wait-for-input  -> mpi ctl --tab <title> dump-screen  (read the bottom: question/options)
-#                   then --focus-tab send-keys if you must click the overlay; wait again
+# wait-for-input  -> mpi ctl --tab <title> dump-screen  (read the bottom)
+#                   single-tab Y/N -> send-prompt /close-session yes or /delete-session yes
+#                   picker / close-all / delete-all / question overlay -> --focus-tab send-keys; wait again
 # error / timeout -> last-message / dump-screen; do not assume success
 ```
 
@@ -258,22 +259,22 @@ echo "$MIXCODE" "$MIXCODE_TAB_TITLE" "$MIXCODE_FOCUSED_TAB_TITLE"
 mpi status --json
 mpi ctl --pid <n> --tab <other> send-prompt '…'
 mpi ctl --pid <n> --tab <other> wait --timeout 90
-# status: wait-for-input  -> dump-screen (read the bottom overlay), then maybe --focus-tab send-keys
+# status: wait-for-input  -> dump-screen (read the bottom); --focus-tab send-keys only if it is a picker/overlay you must click
 # status: finished        -> last-message / last-tool
 ```
 
 ## Pitfalls (common agent mistakes)
 
 - **Do not start another `mpi` TUI** to inspect a tab. Use `status`/`ctl` against the live process.
-- **`--tab` vs `--focus-tab`:** prefer `--tab` so you do not steal the user's cursor. `--focus-tab` leaves the UI on that tab. `--session` is not an alias of `--focus-session`.
+- **Never default to `--focus-tab`.** Use `--tab`. `--focus-tab` leaves the UI on that tab — only after `dump-screen` shows a picker/overlay that needs keys. `--session` is not an alias of `--focus-session`.
 - **After `send-prompt`, always `wait` then read output.** ACK ≠ finished. Skipping `wait`/`last-message` is a bug.
-- **On `wait-for-input`, `dump-screen` first** and read the bottom of the screen (the question overlay). Then `--focus-tab` + `send-keys` if you must pick an option. Do not answer from `last-message` alone.
+- **On `wait-for-input`, `dump-screen` first.** Single-tab close/delete: `send-prompt /close-session yes` (or `/delete-session yes`). close-all / delete-all and question pickers: `--focus-tab` + `send-keys`. Do not answer from `last-message` alone.
 - **Do not preface prompts with “I am &lt;tab&gt;”.** ctl already wraps plain text as `[mpi ctl] from tab: …`. Slash/`!` are not wrapped.
 - **`mpi commands` is TUI slashes (`/compact`), not CLI subcommands (`mpi ctl`).** Slash commands: `send-prompt /compact`, not `send-keys '/compact' Enter`. `send-keys` is for real keypresses (pickers, `down`/`Enter` on a question, `C-q`). `--tab` send-keys is text+Enter only; multi-line body uses `send-prompt <<'EOF'`. `--literal` makes `Enter` the letters E-n-t-e-r.
 - **`--from` and `--to` must both be present.** One alone errors. `1` is newest, print is oldest-first. `last-message` is user+assistant only; tools are `last-tool`.
 - **`wait` always has a timeout** (default 60s). Client waits `--timeout`+5s; `ctl socket timed out` before that is a bug. `wait-for-input` means a question/dialog — do not keep waiting. `finished` is idle/done. Home: `Home has no agent run`.
 - **Not Ready / no sock:** any tab still loading fails every ctl. No `.sock` means that TUI predates ctl — restart it. `status` 0 or >1 instance without `--pid` fails; same workdir with two TUIs needs `--pid` or `MIXCODE_PID`.
 - **Env:** `MIXCODE_*` exist only in the **bash tool**, not `!` shells. Do not `--tab`/`--focus-tab` yourself (`MIXCODE_TAB_TITLE`) when the user asked about another tab. `MIXCODE_FOCUSED_TAB_TITLE` is empty on Home. Wrong `PI_CODING_AGENT_DIR` lists the wrong instances.
-- **`/close-session` keeps the file; `/delete-session` removes it.** `/clear` makes a new child session; `/reset` stays on the same file. `/new-session Title` creates a **new** tab; `/rename Title` renames the target tab.
+- **`/close-session` keeps the file; `/delete-session` removes it.** Pass `yes` to skip the single-tab Y/N overlay. **Do not** pass `yes` to `/close-all-sessions` or `/delete-all-sessions` — those always confirm; use `--focus-tab` and `y`/`n`. `/clear` makes a new child session; `/reset` stays on the same file. `/new-session Title` creates a **new** tab; `/rename Title` renames the target tab.
 - **`dump-screen` is for overlays/drafts/streaming**, not history. Default is no ANSI; `--ansi` keeps color. Huge output is truncated to `/tmp/mpi-ctl-…`.
 - **Home** has no last-message / last-tool / wait / `--tab` send-keys. `--session home` is Home, not `config`.

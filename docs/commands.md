@@ -26,9 +26,9 @@ Commands operate across three distinct persistence tiers:
 | `/compact` | `[custom instructions]` | Session | Manually triggers context compaction on the current branch. |
 | `/reset` | - | Session | Resets the conversation leaf to root while retaining session file and tab title. |
 | `/clear` | - | Session | Generates a fresh session file in the active tab and resets tab title. |
-| `/close-session` | - | Session | Closes the active tab and tears down in-memory agent runtime. |
+| `/close-session` | `[yes]` | Session | Closes the active tab and tears down in-memory agent runtime. `yes` skips the confirmation overlay. |
 | `/close-all-sessions`| - | Session | Closes all open agent tabs after user confirmation. |
-| `/delete-session` | - | Session | Closes current tab and permanently deletes its `.jsonl` session file. |
+| `/delete-session` | `[yes]` | Session | Closes current tab and permanently deletes its `.jsonl` session file. `yes` skips the confirmation overlay. |
 | `/delete-all-sessions` | - | Session | Permanently deletes all `.jsonl` session files for the current workspace. |
 | `/tree` | - | Session | Opens interactive session branch tree viewer. |
 | `/navigate` | - | Session | Opens message navigator filtered to user turns. |

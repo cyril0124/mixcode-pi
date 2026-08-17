@@ -70,6 +70,14 @@ export interface LocalCommandPaletteMeta {
   configRequires?: "tabs";
 }
 
+function sessionActionYesCompletions(
+  prefix: string,
+): Array<{ value: string; label: string; description?: string }> {
+  const needle = prefix.trim().toLowerCase();
+  if (needle && !"yes".startsWith(needle)) return [];
+  return [{ value: "yes", label: "yes", description: "Skip confirmation" }];
+}
+
 export const LOCAL_COMMANDS: Array<{
   name: LocalCommand;
   description: string;
@@ -140,6 +148,8 @@ export const LOCAL_COMMANDS: Array<{
   {
     name: "close-session",
     description: "Close active tab",
+    argumentHint: "[yes]",
+    getArgumentCompletions: sessionActionYesCompletions,
     palette: {
       label: "Close Session",
       description: "Close the current tab but keep its session",
@@ -149,6 +159,8 @@ export const LOCAL_COMMANDS: Array<{
   {
     name: "delete-session",
     description: "Delete active session",
+    argumentHint: "[yes]",
+    getArgumentCompletions: sessionActionYesCompletions,
     palette: {
       label: "Delete Session",
       description: "Delete the session bound to the current tab",

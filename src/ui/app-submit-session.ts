@@ -12,8 +12,10 @@ import { activateTab, discardVimTranscriptSearch, renameAgentTab } from "../core
 import { pushToast } from "../core/toast.js";
 import { HOME_TAB_ID, type MixCodeState } from "../core/types.js";
 import {
+  closeExistingAgentTab,
   completeAgentTabClear,
   createAgentTab,
+  deleteAgentTab,
   prepareAgentTabClear,
   type PreparedAgentTabClear,
 } from "./agent-tab-actions.js";
@@ -157,25 +159,48 @@ const handleResume: LocalCommandHandler = async ({
   return SKIP_FINALIZE;
 };
 
+function sessionActionSkipsConfirm(args: string, command: "close-session" | "delete-session"): boolean {
+  const token = args.trim().toLowerCase();
+  if (!token) return false;
+  if (token === "yes" || token === "y") return true;
+  throw new Error(`Usage: /${command} [yes]`);
+}
+
 const handleCloseSession: LocalCommandHandler = async ({
   state,
+  runtime,
   active,
+  args,
   tui,
   onStateChanged,
 }): Promise<typeof SKIP_FINALIZE> => {
-  openSessionActionConfirm(state, tui, "close", active!);
+  if (!sessionActionSkipsConfirm(args, "close-session")) {
+    openSessionActionConfirm(state, tui, "close", active!);
+    await onStateChanged?.(state);
+    return SKIP_FINALIZE;
+  }
+  await closeExistingAgentTab(state, runtime, active!.sessionId);
   await onStateChanged?.(state);
+  tui.requestRender();
   return SKIP_FINALIZE;
 };
 
 const handleDeleteSession: LocalCommandHandler = async ({
   state,
+  runtime,
   active,
+  args,
   tui,
   onStateChanged,
 }): Promise<typeof SKIP_FINALIZE> => {
-  openSessionActionConfirm(state, tui, "delete", active!);
+  if (!sessionActionSkipsConfirm(args, "delete-session")) {
+    openSessionActionConfirm(state, tui, "delete", active!);
+    await onStateChanged?.(state);
+    return SKIP_FINALIZE;
+  }
+  await deleteAgentTab(state, runtime, active!.sessionId);
   await onStateChanged?.(state);
+  tui.requestRender();
   return SKIP_FINALIZE;
 };
 

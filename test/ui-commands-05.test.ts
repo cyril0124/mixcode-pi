@@ -331,6 +331,61 @@ test("submitted input confirms a single session close/delete before touching run
   assert.equal(state.activeTabId, "home");
 });
 
+test("submitted input /close-session yes and /delete-session yes skip confirmation", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"), createTab(2, "s2", "/repo"));
+  state.activeTabId = "s1";
+  const deleted: string[] = [];
+  const closed: string[] = [];
+  const runtime = {
+    getTab: () => undefined,
+    closeTab: async (sessionId: string) => closed.push(sessionId),
+    deleteTab: async (sessionId: string) => deleted.push(sessionId),
+    getPromptHistory: () => [],
+    setExtensionUiHost: () => undefined,
+    getExtensionCommands: () => [],
+    getAllExtensionCommands: () => [],
+    onTabClosed: () => () => undefined,
+    onModelsChanged: () => () => undefined,
+    appendSystemMessage: () => undefined,
+    getSharedModelRuntime: () => undefined,
+    getExtensionTools: () => [],
+    applyExtensionAutocompleteProviders: (_sessionId: string, base: AutocompleteProvider) => base,
+  } as unknown as MixCodeRuntime;
+  let overlayOpened = false;
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => {
+      overlayOpened = true;
+      return {} as never;
+    },
+  };
+
+  await handleSubmittedInput(state, runtime, "/close-session yes", tui);
+  assert.equal(overlayOpened, false);
+  assert.equal(state.sessionActionConfirm, null);
+  assert.deepEqual(closed, ["s1"]);
+  assert.equal(state.activeTabId, "s2");
+
+  await handleSubmittedInput(state, runtime, "/delete-session y", tui);
+  assert.equal(overlayOpened, false);
+  assert.deepEqual(deleted, ["s2"]);
+  assert.deepEqual(state.tabs, []);
+  assert.equal(state.activeTabId, "home");
+
+  state.tabs.push(createTab(1, "s3", "/repo"));
+  state.activeTabId = "s3";
+  await assert.rejects(
+    () => handleSubmittedInput(state, runtime, "/close-session maybe", tui),
+    /Usage: \/close-session \[yes\]/,
+  );
+  assert.equal(state.sessionActionConfirm, null);
+  assert.deepEqual(
+    state.tabs.map((tab) => tab.sessionId),
+    ["s3"],
+  );
+});
+
 test("single session close/delete confirmation cancel leaves tabs untouched", async () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"), createTab(2, "s2", "/repo"));

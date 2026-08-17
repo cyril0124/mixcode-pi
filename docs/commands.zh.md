@@ -26,9 +26,9 @@ MixCode 在 `src/core/commands.ts` 中注册了内置本地 Slash 命令。这�
 | `/compact` | `[custom instructions]` | Session | 手动触发当前分支的上下文压缩（Compaction）。 |
 | `/reset` | - | Session | 将会话重置回根节点，保留 Session 文件与 Tab 标题。 |
 | `/clear` | - | Session | 在当前 Tab 生成全新 Session 文件，重置 Tab 标题。 |
-| `/close-session` | - | Session | 关闭当前 Tab 并释放其内存运行时。 |
+| `/close-session` | `[yes]` | Session | 关闭当前 Tab 并释放其内存运行时。加 `yes` 跳过确认框。 |
 | `/close-all-sessions`| - | Session | 用户确认后关闭所有打开的 Agent Tab。 |
-| `/delete-session` | - | Session | 关闭当前 Tab 并永久删除其 `.jsonl` 会话文件。 |
+| `/delete-session` | `[yes]` | Session | 关闭当前 Tab 并永久删除其 `.jsonl` 会话文件。加 `yes` 跳过确认框。 |
 | `/delete-all-sessions` | - | Session | 永久删除当前工作目录关联的所有 `.jsonl` 会话文件。 |
 | `/tree` | - | Session | 打开交互式会话分支树状查看器。 |
 | `/navigate` | - | Session | 打开过滤为用户提问的对话快速定位器。 |
