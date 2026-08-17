@@ -9,6 +9,8 @@
  * - Loader failure (prepare unavailable): still attempt compact (no silent disable).
  * - Compact race empty prep: benign resume via EMPTY_COMPACT_RESUME_PROMPT.
  * - Compact is never awaited inside the context handler (waitForIdle deadlock).
+ * - Abort leftover (empty error/aborted assistant while compact is in flight) is
+ *   rewritten to stop on message_end so the host does not show a fake error.
  * - Resume via hidden custom message (display: false → still user-role for the LLM).
  * No custom ledger synthesis and no slash-command UI.
  * Host-agnostic: works under plain Pi or any shell that loads this extension.
@@ -60,6 +62,7 @@ export type AssistantUsageLike = {
   };
   content?: unknown;
   stopReason?: string;
+  errorMessage?: string;
 };
 
 export type ToolResultLike = {
@@ -365,6 +368,31 @@ function assistantToolCallIds(message: AssistantUsageLike): string[] {
   return ids;
 }
 
+function hasSubstantialAssistantContent(message: AssistantUsageLike): boolean {
+  if (!Array.isArray(message.content)) return false;
+  for (const block of message.content) {
+    if (!block || typeof block !== "object") continue;
+    const type = (block as { type?: string }).type;
+    if (type === "toolCall") return true;
+    if (type === "text" && typeof (block as { text?: string }).text === "string") {
+      if ((block as { text: string }).text.trim()) return true;
+    }
+    if (type === "thinking" && typeof (block as { thinking?: string }).thinking === "string") {
+      if ((block as { thinking: string }).thinking.trim()) return true;
+    }
+  }
+  return false;
+}
+
+/** Empty abort leftover from ctx.abort() before the next LLM setup. */
+export function isEmptyCompactAbortAssistant(message: unknown): boolean {
+  if (!isAssistant(message)) return false;
+  if (message.stopReason !== "error" && message.stopReason !== "aborted") return false;
+  if (hasSubstantialAssistantContent(message)) return false;
+  if (message.stopReason === "aborted") return true;
+  return /abort|cancel/i.test(message.errorMessage ?? "");
+}
+
 /** Run after the current emitContext stack unwinds (avoids waitForIdle deadlock). */
 function scheduleDetached(task: () => void | Promise<void>): void {
   setImmediate(() => {
@@ -452,7 +480,11 @@ export function createMidTurnCompactExtension(options?: {
     let lastNoCompactableKey: string | undefined;
 
     pi.on("message_end", (event) => {
-      const message = event.message as AssistantUsageLike | undefined;
+      const original = event.message as AssistantUsageLike | undefined;
+      const message =
+        inFlight && original && isEmptyCompactAbortAssistant(original)
+          ? { ...original, stopReason: "stop", errorMessage: undefined }
+          : original;
       if (message?.role === "assistant" && typeof message.stopReason === "string") {
         lastAssistantStopReason = message.stopReason;
         lastAssistantOutputTokens =
@@ -461,6 +493,7 @@ export function createMidTurnCompactExtension(options?: {
           typeof message.usage?.totalTokens === "number" ? message.usage.totalTokens : undefined;
         if (message.stopReason !== "length") consecutiveLengthResumes = 0;
       }
+      if (message && message !== original) return { message };
     });
 
     // May await prepareCompaction load only — never await compact/waitForIdle here.

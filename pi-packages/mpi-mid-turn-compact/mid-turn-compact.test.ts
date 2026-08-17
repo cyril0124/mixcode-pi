@@ -11,6 +11,7 @@ import {
   estimateContextTokensFromMessages,
   fitCompactionBudgetsToWindow,
   isBranchCompactable,
+  isEmptyCompactAbortAssistant,
   isTinyLengthStall,
   loadPrepareCompaction,
   resolveCompactionBudgets,
@@ -638,5 +639,132 @@ describe("context handler non-blocking compact", () => {
     await new Promise<void>((resolve) => setImmediate(resolve));
     assert.equal(resumeSent?.customType, "mpi-mid-turn-resume");
     assert.equal(resumeSent?.display, false);
+  });
+});
+
+describe("isEmptyCompactAbortAssistant", () => {
+  it("accepts empty abort leftovers", () => {
+    assert.equal(
+      isEmptyCompactAbortAssistant({
+        role: "assistant",
+        stopReason: "error",
+        errorMessage: "The operation was aborted.",
+        content: [],
+      }),
+      true,
+    );
+    assert.equal(
+      isEmptyCompactAbortAssistant({
+        role: "assistant",
+        stopReason: "aborted",
+        content: [{ type: "text", text: "" }],
+      }),
+      true,
+    );
+  });
+
+  it("rejects real errors and messages with content", () => {
+    assert.equal(
+      isEmptyCompactAbortAssistant({
+        role: "assistant",
+        stopReason: "error",
+        errorMessage: "model timeout",
+        content: [],
+      }),
+      false,
+    );
+    assert.equal(
+      isEmptyCompactAbortAssistant({
+        role: "assistant",
+        stopReason: "error",
+        errorMessage: "The operation was aborted.",
+        content: [{ type: "text", text: "partial" }],
+      }),
+      false,
+    );
+    assert.equal(
+      isEmptyCompactAbortAssistant({
+        role: "assistant",
+        stopReason: "error",
+        errorMessage: "The operation was aborted.",
+        content: [{ type: "toolCall", id: "a", name: "read", arguments: {} }],
+      }),
+      false,
+    );
+  });
+});
+
+describe("message_end rewrite of compact abort leftover", () => {
+  type Handler = (event: { message?: unknown }, ctx: ExtensionContext) => unknown;
+
+  it("rewrites in-flight empty abort error to stop", async () => {
+    const handlers = new Map<string, Handler>();
+    const pi = {
+      on(event: string, handler: Handler) {
+        handlers.set(event, handler);
+      },
+      sendMessage() {},
+    } as unknown as ExtensionAPI;
+    const ctx = {
+      cwd: process.cwd(),
+      hasUI: false,
+      model: { contextWindow: 40_000 },
+      getContextUsage: () => ({ contextWindow: 40_000, tokens: 37_000 }),
+      sessionManager: { getBranch: () => [{ type: "message", id: "1" }] },
+      abort() {},
+      compact() {},
+    } as unknown as ExtensionContext;
+
+    createMidTurnCompactExtension({
+      enabled: true,
+      prepareCompaction: prepareOk,
+    })(pi);
+
+    const contextHandler = handlers.get("context") as
+      | ((event: { type: "context"; messages: unknown[] }, ctx: ExtensionContext) => Promise<void>)
+      | undefined;
+    await contextHandler!({ type: "context", messages: overThresholdMessages() }, ctx);
+
+    const result = handlers.get("message_end")?.({
+      message: {
+        role: "assistant",
+        stopReason: "error",
+        errorMessage: "The operation was aborted.",
+        content: [],
+      },
+    }, ctx) as { message?: { stopReason?: string; errorMessage?: string } } | undefined;
+
+    assert.equal(result?.message?.stopReason, "stop");
+    assert.equal(result?.message?.errorMessage, undefined);
+  });
+
+  it("does not rewrite when compact is not in flight", () => {
+    const handlers = new Map<string, Handler>();
+    const pi = {
+      on(event: string, handler: Handler) {
+        handlers.set(event, handler);
+      },
+      sendMessage() {},
+    } as unknown as ExtensionAPI;
+    const ctx = {
+      cwd: process.cwd(),
+      hasUI: false,
+      model: { contextWindow: 40_000 },
+      getContextUsage: () => ({ contextWindow: 40_000, tokens: 1000 }),
+      abort() {},
+    } as unknown as ExtensionContext;
+
+    createMidTurnCompactExtension({ enabled: true, prepareCompaction: prepareOk })(pi);
+
+    const result = handlers.get("message_end")?.({
+      message: {
+        role: "assistant",
+        stopReason: "error",
+        errorMessage: "The operation was aborted.",
+        content: [],
+      },
+    }, ctx);
+
+    assert.equal(result, undefined);
   });
 });

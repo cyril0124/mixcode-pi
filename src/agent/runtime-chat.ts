@@ -150,7 +150,7 @@ export function surfaceAssistantStopReason(
 /** Provider boilerplate for intentional aborts (Esc, extension stop, compact, etc.). */
 export function isGenericAbortMessage(errorMessage: string | undefined): boolean {
   if (!errorMessage?.trim()) return true;
-  return /^(request was aborted|request aborted|operation aborted|aborted)\.?$/i.test(
+  return /^(request was aborted|request aborted|operation aborted|the operation was aborted|aborted)\.?$/i.test(
     errorMessage.trim(),
   );
 }

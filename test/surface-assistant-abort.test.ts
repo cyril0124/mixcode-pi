@@ -24,6 +24,16 @@ function abortedAssistant(errorMessage: string): AssistantMessage {
   } as unknown as AssistantMessage;
 }
 
+function errorAssistant(errorMessage: string): AssistantMessage {
+  return {
+    role: "assistant",
+    stopReason: "error",
+    errorMessage,
+    content: [],
+    usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 },
+  } as unknown as AssistantMessage;
+}
+
 function lengthAssistant(content: AssistantMessage["content"] = []): AssistantMessage {
   return {
     role: "assistant",
@@ -40,6 +50,8 @@ test("isGenericAbortMessage matches provider boilerplate", () => {
   assert.equal(isGenericAbortMessage("Request was aborted"), true);
   assert.equal(isGenericAbortMessage("Request aborted"), true);
   assert.equal(isGenericAbortMessage("Operation aborted"), true);
+  assert.equal(isGenericAbortMessage("The operation was aborted"), true);
+  assert.equal(isGenericAbortMessage("The operation was aborted."), true);
   assert.equal(isGenericAbortMessage("model timeout"), false);
 });
 
@@ -47,7 +59,30 @@ test("empty generic abort does not append a system line", () => {
   const tab = emptyTab();
   surfaceAssistantStopReason(tab, abortedAssistant("Request was aborted"));
   surfaceAssistantStopReason(tab, abortedAssistant("Request aborted"));
+  surfaceAssistantStopReason(tab, abortedAssistant("The operation was aborted."));
   assert.equal(tab.chat.length, 0);
+});
+
+test("empty error abort still surfaces as Error (host does not guess abort from error)", () => {
+  const tab = emptyTab();
+  surfaceAssistantStopReason(tab, errorAssistant("The operation was aborted."));
+  assert.equal(tab.chat.length, 1);
+  assert.equal(tab.chat[0]?.text, "Error: The operation was aborted.");
+});
+
+test("empty non-generic error still surfaces the provider message", () => {
+  const tab = emptyTab();
+  surfaceAssistantStopReason(tab, errorAssistant("model timeout"));
+  assert.equal(tab.chat.length, 1);
+  assert.equal(tab.chat[0]?.role, "system");
+  assert.equal(tab.chat[0]?.text, "Error: model timeout");
+});
+
+test("empty error with no message still surfaces Unknown error", () => {
+  const tab = emptyTab();
+  surfaceAssistantStopReason(tab, errorAssistant(""));
+  assert.equal(tab.chat.length, 1);
+  assert.equal(tab.chat[0]?.text, "Error: Unknown error");
 });
 
 test("empty non-generic abort still surfaces the provider message", () => {
