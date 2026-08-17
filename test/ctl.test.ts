@@ -20,6 +20,7 @@ import {
   formatCtlTime,
   handleCtlRequest,
   IMPLIED_FOCUS_REASON,
+  mpiCtlSkillPath,
   resolveCtlDumpWidths,
   startInstanceCtlServer,
   wrapCtlSubmitText,
@@ -81,6 +82,11 @@ test("parseCtlArgs parses target flags and send-keys tokens", () => {
   assert.equal(parseCtlArgs(["dump-screen", "--ansi"], "/caller").ansi, true);
   assert.equal(parseCtlArgs(["dump-screen", "--width", "120"], "/caller").width, 120);
   assert.throws(() => parseCtlArgs(["wait", "--width", "80"], "/caller"), /only applies to dump-screen/);
+  assert.equal(parseCtlArgs(["send-prompt", "--expect-response", "hi"], "/caller").expectResponse, true);
+  assert.throws(
+    () => parseCtlArgs(["wait", "--expect-response"], "/caller"),
+    /only applies to send-prompt/,
+  );
   assert.deepEqual(resolveCtlDumpWidths(undefined, 40), { dumpWidth: 40, overlayWidth: 100 });
   assert.deepEqual(resolveCtlDumpWidths(60, 40), { dumpWidth: 60, overlayWidth: 60 });
   const waitDefault = parseCtlArgs(["wait"], "/caller");
@@ -508,18 +514,33 @@ test("parseCtlArgs and handleCtlRequest send-prompt", async () => {
     },
     screenWidth: () => 80,
   };
-  assert.equal(wrapCtlSubmitText("hello", "Agent-01"), "[mpi ctl] from tab: Agent-01\n\nhello");
+  const origin01 =
+    "This prompt came from another MixCode tab (Agent-01) via `mpi ctl`, not from the human user.";
+  const originSender =
+    "This prompt came from another MixCode tab (Sender) via `mpi ctl`, not from the human user.";
+  assert.equal(wrapCtlSubmitText("hello", "Agent-01"), `${origin01}\n\nhello`);
   assert.equal(wrapCtlSubmitText("hello"), "hello");
   assert.equal(wrapCtlSubmitText("/compact", "Agent-01"), "/compact");
   assert.equal(wrapCtlSubmitText("!ls"), "!ls");
   assert.equal(wrapCtlSubmitText("!!ls"), "!!ls");
+  const skillPath = mpiCtlSkillPath();
+  assert.match(skillPath, /\/extensions\/mpi-ctl\/skills\/mpi-ctl\/SKILL\.md$/);
+  assert.equal(path.isAbsolute(skillPath), true);
+  const expectedReply = wrapCtlSubmitText("hello", "Agent-01", true);
+  assert.match(expectedReply, /^This prompt came from another MixCode tab \(Agent-01\) via `mpi ctl`/);
+  assert.ok(expectedReply.includes(`When finished, follow the mpi-ctl skill at:\n${skillPath}\n`));
+  assert.ok(expectedReply.includes("Send your result back with `mpi ctl`:"));
+  assert.ok(expectedReply.includes("mpi ctl --tab 'Agent-01' send-prompt <<'EOF'"));
+  assert.match(expectedReply, /Do not pass --expect-response on that reply\.\n\nhello$/);
+  assert.throws(() => wrapCtlSubmitText("hello", undefined, true), /MIXCODE_TAB_TITLE/);
+  assert.throws(() => wrapCtlSubmitText("/compact", "Agent-01", true), /does not apply to \/ or !/);
 
   const sent = await handleCtlRequest(
     { op: "send-prompt", tabTitle: "Agent-01", prompt: "hello\nworld", fromTabTitle: "Sender" },
     opts,
   );
   assert.equal(sent.ok, true);
-  assert.deepEqual(submitted, ["[mpi ctl] from tab: Sender\n\nhello\nworld"]);
+  assert.deepEqual(submitted, [`${originSender}\n\nhello\nworld`]);
   submitted.length = 0;
   const slash = await handleCtlRequest(
     { op: "send-prompt", tabTitle: "Agent-01", prompt: "/compact", fromTabTitle: "Sender" },
@@ -544,7 +565,33 @@ test("parseCtlArgs and handleCtlRequest send-prompt", async () => {
   assert.equal(keyed.ok, true);
   await Promise.resolve();
   await Promise.resolve();
-  assert.deepEqual(submitted, ["[mpi ctl] from tab: Sender\n\nhi"]);
+  assert.deepEqual(submitted, [`${originSender}\n\nhi`]);
+  submitted.length = 0;
+  const expectReply = await handleCtlRequest(
+    {
+      op: "send-prompt",
+      tabTitle: "Agent-01",
+      prompt: "review",
+      fromTabTitle: "Sender",
+      expectResponse: true,
+    },
+    opts,
+  );
+  assert.equal(expectReply.ok, true);
+  assert.equal(submitted[0], wrapCtlSubmitText("review", "Sender", true));
+  submitted.length = 0;
+  const expectSlash = await handleCtlRequest(
+    {
+      op: "send-prompt",
+      tabTitle: "Agent-01",
+      prompt: "/compact",
+      fromTabTitle: "Sender",
+      expectResponse: true,
+    },
+    opts,
+  );
+  assert.equal(expectSlash.ok, false);
+  assert.match(expectSlash.error ?? "", /does not apply to \/ or !/);
   assert.equal(state.activeTabId, "s1");
 });
 

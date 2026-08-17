@@ -173,15 +173,32 @@ EOF
 
 Joins remaining args with spaces. TTY + no text errors (does not hang). Home fails. ACK after accept; not truncated.
 
-Plain prompts (not `/…` or `!`/`!!`) are wrapped so the receiving tab can see they came from ctl, not the human:
+Plain prompts (not `/…` or `!`/`!!`) are wrapped so the receiving tab can see they came from another MixCode tab via ctl, not the human:
 
 ```text
-[mpi ctl] from tab: Agent-01
+This prompt came from another MixCode tab (Agent-01) via `mpi ctl`, not from the human user.
 
 Review the current diff for risks only.
 ```
 
-`from tab:` is `MIXCODE_TAB_TITLE`. If that env is unset (plain terminal), the prompt is submitted unchanged — no `[mpi ctl]` header. Do **not** write “I am &lt;title&gt;” yourself. Slash and shell lines are never wrapped.
+The tab name is `MIXCODE_TAB_TITLE`. If that env is unset (plain terminal), the prompt is submitted unchanged. Do **not** write “I am &lt;title&gt;” yourself. Slash and shell lines are never wrapped.
+
+`--expect-response` (requires `MIXCODE_TAB_TITLE`; fails on `/` or `!`) adds the installed mpi-ctl skill path and the reply command:
+
+```text
+This prompt came from another MixCode tab (Agent-01) via `mpi ctl`, not from the human user.
+When finished, follow the mpi-ctl skill at:
+<agentDir>/extensions/mpi-ctl/skills/mpi-ctl/SKILL.md
+Send your result back with `mpi ctl`:
+mpi ctl --tab 'Agent-01' send-prompt <<'EOF'
+<your result>
+EOF
+Do not pass --expect-response on that reply.
+
+Review the current diff for risks only.
+```
+
+If you receive that block: read the skill at the given path, finish the request, then send the result with that `send-prompt` (do **not** add `--expect-response` unless asked).
 
 **Required follow-up (do not stop after ACK):**
 
@@ -269,7 +286,7 @@ mpi ctl --pid <n> --tab <other> wait --timeout 90
 - **Never default to `--focus-tab`.** Use `--tab`. `--focus-tab` leaves the UI on that tab — only after `dump-screen` shows a picker/overlay that needs keys. `--session` is not an alias of `--focus-session`.
 - **After `send-prompt`, always `wait` then read output.** ACK ≠ finished. Skipping `wait`/`last-message` is a bug.
 - **On `wait-for-input`, `dump-screen` first.** Single-tab close/delete: `send-prompt /close-session yes` (or `/delete-session yes`). close-all / delete-all and question pickers: `--focus-tab` + `send-keys`. Do not answer from `last-message` alone.
-- **Do not preface prompts with “I am &lt;tab&gt;”.** ctl already wraps plain text as `[mpi ctl] from tab: …`. Slash/`!` are not wrapped.
+- **Do not preface prompts with “I am &lt;tab&gt;”.** ctl already wraps plain text with the MixCode-tab preface. Slash/`!` are not wrapped. If the preface includes `--expect-response` instructions, follow the skill path and reply with the given `send-prompt`; do not add `--expect-response` on that reply.
 - **`mpi commands` is TUI slashes (`/compact`), not CLI subcommands (`mpi ctl`).** Slash commands: `send-prompt /compact`, not `send-keys '/compact' Enter`. `send-keys` is for real keypresses (pickers, `down`/`Enter` on a question, `C-q`). `--tab` send-keys is text+Enter only; multi-line body uses `send-prompt <<'EOF'`. `--literal` makes `Enter` the letters E-n-t-e-r.
 - **`--from` and `--to` must both be present.** One alone errors. `1` is newest, print is oldest-first. `last-message` is user+assistant only; tools are `last-tool`.
 - **`wait` always has a timeout** (default 60s). Client waits `--timeout`+5s; `ctl socket timed out` before that is a bug. `wait-for-input` means a question/dialog — do not keep waiting. `finished` is idle/done. Home: `Home has no agent run`.

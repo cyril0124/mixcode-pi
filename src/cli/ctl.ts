@@ -37,6 +37,8 @@ export interface CtlRequest {
   prompt?: string;
   /** Sender tab title from MIXCODE_TAB_TITLE; used to wrap non-slash submits. */
   fromTabTitle?: string;
+  /** send-prompt: ask the target to read mpi-ctl skill and send a result back. */
+  expectResponse?: boolean;
   /** 1-based from the end; only with last-*-message / last-tool. Pair with `to`. */
   from?: number;
   to?: number;
@@ -68,6 +70,7 @@ export interface CtlArgs {
   timeout?: number;
   ansi?: boolean;
   width?: number;
+  expectResponse?: boolean;
   help?: boolean;
 }
 
@@ -96,6 +99,7 @@ Target:
   --timeout <sec>         wait: max seconds (default 60; 0 checks once)
   --ansi                  dump-screen: keep color/escape sequences (default strips them)
   --width <n>             dump-screen: render width (default: live TUI columns; overlay floor 100)
+  --expect-response       send-prompt: ask the target to reply via mpi ctl (requires MIXCODE_TAB_TITLE)
   --literal, -l           send-keys: join tokens as literal text (no Enter/C-p mapping)
 
 Output larger than 8192 bytes for last-message, last-assistant-message, last-user-message, last-tool, and
@@ -122,6 +126,7 @@ export function parseCtlArgs(args: string[], fallbackWorkdir: string): CtlArgs {
   let timeout: number | undefined;
   let ansi = false;
   let width: number | undefined;
+  let expectResponse = false;
   const rest: string[] = [];
   for (let index = 0; index < args.length; index++) {
     const arg = args[index];
@@ -210,6 +215,10 @@ export function parseCtlArgs(args: string[], fallbackWorkdir: string): CtlArgs {
       ansi = true;
       continue;
     }
+    if (arg === "--expect-response") {
+      expectResponse = true;
+      continue;
+    }
     if (arg === "--width" || arg?.startsWith("--width=")) {
       const value = arg === "--width" ? args[++index] : arg.slice("--width=".length);
       if (!value) throw new Error("--width requires a positive integer");
@@ -286,6 +295,9 @@ export function parseCtlArgs(args: string[], fallbackWorkdir: string): CtlArgs {
   if (width !== undefined && op !== "dump-screen") {
     throw new Error("--width only applies to dump-screen");
   }
+  if (expectResponse && op !== "send-prompt") {
+    throw new Error("--expect-response only applies to send-prompt");
+  }
   if (op === "wait" && timeout === undefined) timeout = 60;
   const keys =
     op === "send-keys"
@@ -310,6 +322,7 @@ export function parseCtlArgs(args: string[], fallbackWorkdir: string): CtlArgs {
     timeout,
     ansi,
     width,
+    expectResponse: expectResponse || undefined,
   };
 }
 
@@ -484,6 +497,10 @@ export async function runCtlCommand(
   }
   const prompt =
     parsed.op === "send-prompt" ? await resolveSendPromptText(parsed) : parsed.prompt;
+  const fromTabTitle = process.env.MIXCODE_TAB_TITLE?.trim() || undefined;
+  if (parsed.expectResponse && !fromTabTitle) {
+    throw new Error("send-prompt --expect-response requires MIXCODE_TAB_TITLE");
+  }
   const stateDir = options.stateDir ?? resolveMixcodeStateDir();
   const instance = await selectCtlInstance(parsed, { stateDir });
   const response = await requestCtl(instanceCtlSocketFile(stateDir, instance.pid), {
@@ -494,7 +511,8 @@ export async function runCtlCommand(
     tabTitle: parsed.tabTitle,
     keys: parsed.keys,
     prompt,
-    fromTabTitle: process.env.MIXCODE_TAB_TITLE?.trim() || undefined,
+    fromTabTitle,
+    expectResponse: parsed.expectResponse,
     from: parsed.from,
     to: parsed.to,
     timeout: parsed.timeout,

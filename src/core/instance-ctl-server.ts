@@ -1,6 +1,8 @@
 import * as fs from "node:fs";
 import * as net from "node:net";
+import * as path from "node:path";
 import type { MixCodeRuntime } from "../agent/runtime.js";
+import { resolveMixcodeAgentDir } from "../cli/status.js";
 import type { CtlRequest, CtlResponse } from "../cli/ctl.js";
 import { renderAgentSurface } from "../ui/rendering/agent-surface.js";
 import { renderConfig } from "../ui/rendering/overlays.js";
@@ -129,12 +131,48 @@ function renderCtlOverlayDump(
   return lines;
 }
 
-export function wrapCtlSubmitText(text: string, fromTabTitle?: string): string {
+export function mpiCtlSkillPath(env: NodeJS.ProcessEnv = process.env): string {
+  return path.join(
+    resolveMixcodeAgentDir(env),
+    "extensions",
+    "mpi-ctl",
+    "skills",
+    "mpi-ctl",
+    "SKILL.md",
+  );
+}
+
+function shellSingleQuote(value: string): string {
+  return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
+export function wrapCtlSubmitText(
+  text: string,
+  fromTabTitle?: string,
+  expectResponse = false,
+): string {
   const title = fromTabTitle?.trim();
-  if (!title) return text;
   const trimmed = text.trimStart();
-  if (trimmed.startsWith("/") || trimmed.startsWith("!")) return text;
-  return `[mpi ctl] from tab: ${title}\n\n${text}`;
+  const isCommand = trimmed.startsWith("/") || trimmed.startsWith("!");
+  if (expectResponse) {
+    if (!title) throw new Error("send-prompt --expect-response requires MIXCODE_TAB_TITLE");
+    if (isCommand) throw new Error("send-prompt --expect-response does not apply to / or ! lines");
+  }
+  if (!title || isCommand) return text;
+  const origin = `This prompt came from another MixCode tab (${title}) via \`mpi ctl\`, not from the human user.`;
+  if (!expectResponse) return `${origin}\n\n${text}`;
+  return [
+    origin,
+    "When finished, follow the mpi-ctl skill at:",
+    mpiCtlSkillPath(),
+    "Send your result back with `mpi ctl`:",
+    `mpi ctl --tab ${shellSingleQuote(title)} send-prompt <<'EOF'`,
+    "<your result>",
+    "EOF",
+    "Do not pass --expect-response on that reply.",
+    "",
+    text,
+  ].join("\n");
 }
 
 const pendingCtlSubmits = new WeakMap<MixCodeTabInfo, number>();
@@ -352,7 +390,12 @@ export async function handleCtlRequest(
       if (!options.submitToTab) throw new Error("send-prompt requires submitToTab");
       trackCtlSubmit(
         tab,
-        Promise.resolve(options.submitToTab(tab, wrapCtlSubmitText(request.prompt, request.fromTabTitle))),
+        Promise.resolve(
+          options.submitToTab(
+            tab,
+            wrapCtlSubmitText(request.prompt, request.fromTabTitle, request.expectResponse === true),
+          ),
+        ),
       );
       return { ok: true, text: wrap("") };
     }
