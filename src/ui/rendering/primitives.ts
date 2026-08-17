@@ -58,7 +58,38 @@ export function renderBackgroundLine(
 }
 
 function reapplyBackgroundAfterSgr(text: string, backgroundStart: string): string {
-  return text.replace(/\x1b\[[0-?]*[ -/]*m/g, (sequence) => `${sequence}${backgroundStart}`);
+  return text.replace(/\x1b\[([0-9;:]*)m/g, (sequence, params: string) =>
+    sgrLeavesBackgroundReset(params) ? `${sequence}${backgroundStart}` : sequence,
+  );
+}
+
+function sgrLeavesBackgroundReset(rawParams: string): boolean {
+  const params = rawParams === "" ? ["0"] : rawParams.split(";");
+  let reset = false;
+
+  for (let index = 0; index < params.length; index++) {
+    const raw = params[index] ?? "";
+    const code = Number.parseInt(raw.split(":", 1)[0] || "0", 10);
+    if (!Number.isFinite(code)) continue;
+
+    if (code === 0 || code === 49) {
+      reset = true;
+    } else if ((code >= 40 && code <= 47) || (code >= 100 && code <= 107)) {
+      reset = false;
+    }
+
+    // Skip extended-color operands so an RGB/index value of 49 is not a reset.
+    if (!raw.includes(":") && (code === 38 || code === 48 || code === 58)) {
+      if (code === 48) reset = false;
+      const mode = Number.parseInt(params[index + 1] ?? "", 10);
+      if (mode === 2) index += 4;
+      else if (mode === 5) index += 2;
+    } else if (code === 48) {
+      reset = false;
+    }
+  }
+
+  return reset;
 }
 
 function isPrintableOrWhitespace(char: string): boolean {

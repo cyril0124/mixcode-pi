@@ -172,6 +172,7 @@ function escapeRegExp(text: string): string {
 
 test("runtime renders extension tool results with registered tool renderers", async () => {
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-tool-renderer-"));
+  const nestedBackground = "\x1b[48;2;53;67;48m";
   const extension: ExtensionFactory = (pi) => {
     pi.registerTool({
       name: "rendered_tool",
@@ -196,6 +197,14 @@ test("runtime renders extension tool results with registered tool renderers", as
           0,
         );
       },
+    });
+    pi.registerTool({
+      name: "nested_background_tool",
+      label: "Nested Background",
+      description: "Tool renderer with its own row background.",
+      parameters: Type.Object({}),
+      execute: async () => ({ content: [{ type: "text", text: "raw nested" }], details: {} }),
+      renderResult: () => new Text(`${nestedBackground}nested background\x1b[49m`, 0, 0),
     });
     pi.registerTool({
       name: "empty_render_tool",
@@ -288,6 +297,16 @@ test("runtime renders extension tool results with registered tool renderers", as
     assert.match(surface, /call alpha started=true complete=true/);
     assert.match(surface, /rendered alpha partial=false error=false/);
     assert.doesNotMatch(surface, /raw alpha/);
+
+    anyRuntime.applyEvent(runtimeTab, {
+      type: "tool_execution_end",
+      toolCallId: "nested-background-1",
+      toolName: "nested_background_tool",
+      result: { content: [{ type: "text", text: "raw nested" }], details: {} },
+      isError: false,
+    });
+    const nestedSurface = renderAgentSurface(runtimeTab.tab, runtimeTab, 100).join("\n");
+    assert.ok(nestedSurface.includes(`${nestedBackground}nested background`));
 
     anyRuntime.applyEvent(runtimeTab, {
       type: "tool_execution_start",
