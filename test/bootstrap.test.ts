@@ -15,11 +15,11 @@ import {
   defaultPiSessionDir,
   defaultStateDir,
   resolveSessionsRoot,
-  UUIDV7_SESSION_ID_PATTERN,
   saveStateFile,
   scopedStateDir,
   stateFileForPort,
 } from "../src/index.js";
+import { UUIDV7_SESSION_ID_PATTERN } from "./helpers/session-id.js";
 import { delegateToRealPiCli, exposeLocalPiCli, parseMainArgs, shouldDelegateToRealPiCli } from "../src/cli/main.js";
 
 test("bootstrap creates initial state and persists it when no state exists", async () => {

@@ -5,26 +5,10 @@ export interface SearchToolAvailability {
   hasFd: boolean;
 }
 
-/**
- * Detect whether rg and fd are available by running `--version`.
- */
+/** Detect whether rg and fd are on PATH. */
 export function detectSearchTools(): SearchToolAvailability {
   return {
-    hasRg: isCommandAvailable("rg", ["--version"]),
-    hasFd: isCommandAvailable("fd", ["--version"]),
+    hasRg: Boolean(Bun.which("rg")),
+    hasFd: Boolean(Bun.which("fd")),
   };
-}
-
-function isCommandAvailable(command: string, args: string[]): boolean {
-  if (!Bun.which(command)) return false;
-  try {
-    const result = Bun.spawnSync([command, ...args], {
-      stdout: "ignore",
-      stderr: "ignore",
-      timeout: 5000,
-    });
-    return result.exitCode === 0;
-  } catch {
-    return false;
-  }
 }

@@ -33,7 +33,7 @@ export function refreshStartupHeader(runtimeTab: RuntimeTab): void {
   );
   const diagnostics = [
     ...extensionLoadErrorLines(runtimeTab),
-    ...extensionConflictDiagnosticLines(runtimeTab, runtimeTab.extensionToolOwnerPolicy),
+    ...extensionConflictDiagnosticLines(runtimeTab),
   ];
   const skillConflicts = skillConflictSection(skillsResult.skills, skillsResult.diagnostics);
   const leadingSections = [

@@ -12,7 +12,6 @@ import {
   type ExtensionManagerEntry,
   syncExtensionManagerEntrySources,
 } from "../core/extension-manager.js";
-import type { ExtensionToolOwnerPolicy } from "../core/extension-tool-owners.js";
 import {
   invalidateSessionCatalog,
   listSessionsInBackground,
@@ -54,7 +53,7 @@ export function getExtensionManagerEntriesForServices(
 
 /**
  * Rebind the session-owned core of a {@link RuntimeTab} after a new AgentSession
- * is created (clear / reload / workdir change). Sets the four source fields and
+ * is created (clear / reload / workdir change). Sets the three source fields and
  * derives `agent` and `extensionManagerEntries` from them, so the derived fields
  * can never drift out of sync with their source — the bug class that arose from
  * three call sites hand-copying this assignment block.
@@ -65,13 +64,11 @@ export function bindRuntimeSessionCore(
     agentSession: RuntimeTab["agentSession"];
     services: AgentSessionServices;
     extensionsResult: LoadExtensionsResult;
-    extensionToolOwnerPolicy: ExtensionToolOwnerPolicy;
   },
 ): void {
   runtimeTab.agentSession = core.agentSession;
   runtimeTab.services = core.services;
   runtimeTab.extensionsResult = core.extensionsResult;
-  runtimeTab.extensionToolOwnerPolicy = core.extensionToolOwnerPolicy;
   runtimeTab.agent = core.agentSession.agent;
   runtimeTab.extensionManagerEntries = getExtensionManagerEntriesForServices(core.services);
 }

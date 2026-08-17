@@ -1,5 +1,3 @@
-import { parseJsoncObject } from "./json.js";
-
 export const MIXCODE_SETTINGS_FILENAME = "mixcode_settings.json";
 export const DEFAULT_HISTORY_MAX_BYTES = 5 * 1024 * 1024;
 
@@ -256,6 +254,14 @@ function positiveIntegerSetting(
   const parsed = positiveInteger(value);
   if (parsed !== undefined) return parsed;
   throw new Error(`${settingsFile}: ui.oversizedAssistantMessage.${field} must be a positive integer`);
+}
+
+function parseJsoncObject(text: string): Record<string, unknown> {
+  const value = Bun.JSON5.parse(text);
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Expected JSON object");
+  }
+  return value as Record<string, unknown>;
 }
 
 function objectRecord(value: unknown): Record<string, unknown> {

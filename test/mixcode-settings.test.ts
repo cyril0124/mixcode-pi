@@ -105,7 +105,8 @@ test("mixcode settings accept jsonc comments and trailing commas", async () => {
       "utf8",
     );
 
-    assert.deepEqual(await loadMixCodeSettings(path.join(dir, "mixcode_settings.json")), {
+    const file = path.join(dir, "mixcode_settings.json");
+    assert.deepEqual(await loadMixCodeSettings(file), {
       history: { maxBytes: 256 },
       ui: {
         oversizedAssistantMessage: { enabled: true, maxLines: 5000, maxBytes: 128 * 1024 },
@@ -115,6 +116,10 @@ test("mixcode settings accept jsonc comments and trailing commas", async () => {
       disabledProviders: [],
       disabledModels: [],
     });
+    await fsPromises.writeFile(file, "[]", "utf8");
+    await assert.rejects(() => loadMixCodeSettings(file), /Expected JSON object/);
+    await fsPromises.writeFile(file, '{"a":1,', "utf8");
+    await assert.rejects(() => loadMixCodeSettings(file), SyntaxError);
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }

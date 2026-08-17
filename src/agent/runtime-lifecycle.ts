@@ -29,10 +29,6 @@ import {
   extensionManagerEntriesFromResult,
   filterDisabledExtensions,
 } from "../core/extension-manager.js";
-import {
-  type ExtensionToolOwnerPolicy,
-  isExtensionToolOwner,
-} from "../core/extension-tool-owners.js";
 import { preferDistExtensionEntries } from "../core/prefer-dist-extension-entries.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import type { AgentRuntimeConfig, MixCodeModel, MixCodeTabInfo } from "../core/types.js";
@@ -79,7 +75,7 @@ import type {
   SessionReplacementReason,
 } from "./runtime-types.js";
 import { createMixCodeBashCustomTools } from "./mixcode-bash-env.js";
-import { activateMixCodeTools, ToolLog } from "./tools.js";
+import { activateMixCodeTools } from "./tools.js";
 
 export type RuntimeTabConfig = Omit<AgentRuntimeConfig, "sessionId" | "model"> & {
   model?: MixCodeModel;
@@ -126,7 +122,6 @@ export interface RuntimeLifecycleContext {
   streamFn?: MixCodeStreamFn;
   getApiKey?: (provider: string) => Promise<string | undefined> | string | undefined;
   getDisabledExtensionKeys?: (workdir: string) => ReadonlySet<string>;
-  extensionToolOwnerPolicy?: ExtensionToolOwnerPolicy;
   /** UI-focused agent tab title for bash env; empty when Home is focused. */
   getFocusedTabTitle?: () => string | undefined;
 }
@@ -152,7 +147,6 @@ export async function createRuntimeTab(
   config: RuntimeTabConfig,
   context: RuntimeLifecycleContext,
 ): Promise<RuntimeTab> {
-  const toolLog = new ToolLog();
   const model = config.model
     ? config.model
     : context.resolveModel(tab.model.provider, tab.model.modelId);
@@ -179,7 +173,6 @@ export async function createRuntimeTab(
     context,
     model,
     reusedServices ?? (await context.createServices(config.workdir, config.systemPrompt)),
-    toolLog,
   );
 }
 
@@ -190,7 +183,6 @@ async function createRuntimeTabWithServices(
   context: RuntimeLifecycleContext,
   model: MixCodeModel,
   services: AgentSessionServices,
-  toolLog: ToolLog,
 ): Promise<RuntimeTab> {
   await registerMixCodeRuntimeProvider(
     services.modelRuntime,
@@ -206,7 +198,6 @@ async function createRuntimeTabWithServices(
     thinkingLevel: config.thinkingLevel,
     customTools: mixcodeBashCustomTools(services, () => tab.title, context),
   });
-  const extensionToolOwnerPolicy = resolveExtensionToolOwnerPolicy(context);
   const runtimeTab: RuntimeTab = {
     tab,
     agentSession,
@@ -215,7 +206,6 @@ async function createRuntimeTabWithServices(
     agent: agentSession.agent,
     session,
     chat: [],
-    toolLog,
     queuedPromptCount: 0,
     queuedFollowUpCount: 0,
     extensionTerminalInputHandlers: new Set(),
@@ -224,7 +214,6 @@ async function createRuntimeTabWithServices(
     extensionCustomOverlayHandles: new Set(),
     extensionAutocompleteProviderFactories: [],
     extensionManagerEntries: getExtensionManagerEntriesForServices(services),
-    extensionToolOwnerPolicy,
   };
   tab.extensionUi = {
     statuses: [],
@@ -238,7 +227,7 @@ async function createRuntimeTabWithServices(
   tab.thinkingLevel = agentSession.thinkingLevel;
   runtimeTab.requestRender = () => context.emitChange({ type: "extension_ui_update" }, runtimeTab);
   try {
-    activateMixCodeTools(agentSession, extensionToolOwnerPolicy);
+    activateMixCodeTools(agentSession);
     applyMixCodeSystemPrompt(services, config.workdir, agentSession, cachedSearchTools);
     const restoredChat = await rebuildRuntimeChat(runtimeTab);
     if (tab.previewMessages.length === 0) {
@@ -246,7 +235,7 @@ async function createRuntimeTabWithServices(
     }
     runtimeTab.chat = restoredChat;
     await bindRuntimeExtensions(runtimeTab, context);
-    activateMixCodeTools(agentSession, extensionToolOwnerPolicy);
+    activateMixCodeTools(agentSession);
     applyMixCodeSystemPrompt(services, config.workdir, agentSession, cachedSearchTools);
     refreshStartupHeader(runtimeTab);
     syncContextUsage(runtimeTab);
@@ -314,8 +303,7 @@ export async function createAgentSessionForReplacement(
   sessionManager: SessionManager,
   config: RuntimeTabConfig & { sessionStartEvent: SessionStartEvent },
   context: RuntimeLifecycleContext,
-): Promise<CreateAgentSessionResult & { services: AgentSessionServices; toolLog: ToolLog }> {
-  const toolLog = new ToolLog();
+): Promise<CreateAgentSessionResult & { services: AgentSessionServices }> {
   const model = config.model
     ? config.model
     : context.resolveModelFromSession(sessionManager, config.model);
@@ -336,7 +324,6 @@ export async function createAgentSessionForReplacement(
     context,
     model,
     services ?? (await context.createServices(config.workdir, config.systemPrompt)),
-    toolLog,
   );
 }
 
@@ -346,8 +333,7 @@ async function createAgentSessionForReplacementWithServices(
   context: RuntimeLifecycleContext,
   model: MixCodeModel,
   services: AgentSessionServices,
-  toolLog: ToolLog,
-): Promise<CreateAgentSessionResult & { services: AgentSessionServices; toolLog: ToolLog }> {
+): Promise<CreateAgentSessionResult & { services: AgentSessionServices }> {
   await registerMixCodeRuntimeProvider(
     services.modelRuntime,
     model,
@@ -367,10 +353,9 @@ async function createAgentSessionForReplacementWithServices(
       context,
     ),
   });
-  const extensionToolOwnerPolicy = resolveExtensionToolOwnerPolicy(context);
-  activateMixCodeTools(result.session, extensionToolOwnerPolicy);
+  activateMixCodeTools(result.session);
   applyMixCodeSystemPrompt(services, config.workdir, result.session, cachedSearchTools);
-  return { ...result, services, toolLog };
+  return { ...result, services };
 }
 
 export async function shutdownRuntimeTab(
@@ -474,10 +459,8 @@ async function replaceRuntimeTabSessionUnlocked(
     agentSession: created.session,
     services: created.services,
     extensionsResult: created.extensionsResult,
-    extensionToolOwnerPolicy: resolveExtensionToolOwnerPolicy(context),
   });
   runtimeTab.session = sessionManager;
-  runtimeTab.toolLog = created.toolLog;
   runtimeTab.queuedPromptCount = 0;
   runtimeTab.queuedFollowUpCount = 0;
   runtimeTab.streamingAssistant = undefined;
@@ -520,7 +503,7 @@ async function replaceRuntimeTabSessionUnlocked(
   context.tabs.set(runtimeTab.tab.sessionId, runtimeTab);
   // Repopulate preview after identity-switch reset cleared previewMessages
   syncPreviewFromChat(runtimeTab.tab, runtimeTab.chat);
-  activateMixCodeTools(created.session, runtimeTab.extensionToolOwnerPolicy);
+  activateMixCodeTools(created.session);
   applyMixCodeSystemPrompt(created.services, runtimeTab.tab.workdir, created.session, cachedSearchTools);
   applyRuntimeTabModel(runtimeTab, created.session.agent.state.model);
   runtimeTab.tab.thinkingLevel = created.session.agent.state.thinkingLevel;
@@ -670,10 +653,6 @@ export async function bindRuntimeExtensions(
   );
 }
 
-function resolveExtensionToolOwnerPolicy(context: RuntimeLifecycleContext): ExtensionToolOwnerPolicy {
-  return context.extensionToolOwnerPolicy ?? isExtensionToolOwner;
-}
-
 export async function reloadRuntimeTabWithFreshServices(
   runtimeTab: RuntimeTab,
   context: RuntimeLifecycleContext,
@@ -703,13 +682,12 @@ export async function reloadRuntimeTabWithFreshServices(
     agentSession,
     services,
     extensionsResult,
-    extensionToolOwnerPolicy: resolveExtensionToolOwnerPolicy(context),
   });
-  activateMixCodeTools(agentSession, runtimeTab.extensionToolOwnerPolicy);
+  activateMixCodeTools(agentSession);
   runtimeTab.chat = await rebuildRuntimeChat(runtimeTab);
   syncPreviewFromChat(runtimeTab.tab, runtimeTab.chat);
   await bindRuntimeExtensions(runtimeTab, context);
-  activateMixCodeTools(agentSession, runtimeTab.extensionToolOwnerPolicy);
+  activateMixCodeTools(agentSession);
   // Pi refreshes the same loadedResourcesContainer on session_start and /reload;
   // the tab-level header is the MixCode analogue, so recompute it here too.
   refreshStartupHeader(runtimeTab);
@@ -761,14 +739,12 @@ export async function updateRuntimeTabWorkdir(
     sessionStartEvent: { type: "session_start", reason: "reload" },
     customTools: mixcodeBashCustomTools(services, () => runtimeTab.tab.title, context),
   });
-  const extensionToolOwnerPolicy = resolveExtensionToolOwnerPolicy(context);
-  activateMixCodeTools(agentSession, extensionToolOwnerPolicy);
+  activateMixCodeTools(agentSession);
   runtimeTab.session = sessionManager;
   bindRuntimeSessionCore(runtimeTab, {
     agentSession,
     services,
     extensionsResult,
-    extensionToolOwnerPolicy,
   });
   runtimeTab.tab.workdir = workdir;
   options?.onSessionRebound?.(runtimeTab);

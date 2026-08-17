@@ -36,7 +36,6 @@ import {
   defaultExtensionManagerConfig,
   type ExtensionManagerConfig,
 } from "../core/extension-manager.js";
-import { isExtensionToolOwner } from "../core/extension-tool-owners.js";
 import {
   appendSystemMessage,
   applyRuntimeTabModel,
@@ -232,7 +231,6 @@ export class MixCodeRuntime {
       streamFn: this.streamFn,
       getApiKey: this.getApiKey,
       getDisabledExtensionKeys: () => this.disabledExtensionKeys(),
-      extensionToolOwnerPolicy: isExtensionToolOwner,
       getFocusedTabTitle: () => this.getFocusedTabTitle(),
     };
   }

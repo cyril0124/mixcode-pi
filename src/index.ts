@@ -15,7 +15,6 @@ export * from "./core/extension-manager.js";
 export * from "./core/external-editor.js";
 export * from "./core/fuzzy.js";
 export * from "./core/instance-registry.js";
-export * from "./core/json.js";
 export * from "./core/keymap.js";
 export * from "./core/models.js";
 export * from "./core/mixcode-settings.js";

@@ -1,5 +1,4 @@
 import type { ExtensionUIContext } from "@earendil-works/pi-coding-agent";
-import type { ExtensionToolOwnerPolicy } from "../core/extension-tool-owners.js";
 import type { AutocompleteProvider } from "@earendil-works/pi-tui";
 import { LOCAL_COMMANDS } from "../core/commands.js";
 import { appendSystemMessage } from "./runtime-chat.js";
@@ -40,17 +39,7 @@ export function extensionLoadErrorLines(runtimeTab: RuntimeTab): string[] {
   );
 }
 
-export function extensionConflictDiagnosticLines(
-  runtimeTab: RuntimeTab,
-  extensionToolOwnerPolicy?: ExtensionToolOwnerPolicy,
-): string[] {
-  return extensionConflictDiagnostics(runtimeTab, extensionToolOwnerPolicy);
-}
-
-function extensionConflictDiagnostics(
-  runtimeTab: RuntimeTab,
-  extensionToolOwnerPolicy?: ExtensionToolOwnerPolicy,
-): string[] {
+export function extensionConflictDiagnosticLines(runtimeTab: RuntimeTab): string[] {
   const diagnostics: string[] = [];
   const localCommands = new Set(LOCAL_COMMANDS.map((command) => command.name));
   for (const command of runtimeTab.agentSession.extensionRunner.getRegisteredCommands()) {
@@ -66,10 +55,9 @@ function extensionConflictDiagnostics(
     if (seenExtensionTools.has(name) || !builtInToolNames.has(name as never)) continue;
     seenExtensionTools.add(name);
     const source = formatSourceInfo(extensionTool.sourceInfo);
+    // Extension-registered tools own the name (Pi refresh overwrites builtins).
     diagnostics.push(
-      extensionToolOwnerPolicy?.(extensionTool.sourceInfo, name)
-        ? `Extension tool override: ${name} from ${source} overrides Pi builtin tool ${name}.`
-        : `Extension tool conflict: ${name} from ${source} is shadowed by Pi builtin tool ${name}.`,
+      `Extension tool override: ${name} from ${source} overrides Pi builtin tool ${name}.`,
     );
   }
   runtimeTab.agentSession.extensionRunner.getShortcuts(MIXCODE_EXTENSION_KEYBINDINGS);

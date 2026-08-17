@@ -19,7 +19,6 @@ import {
   AUTOWRAP_DISABLE,
   AUTOWRAP_ENABLE,
   parseInput,
-  parseJsoncObject,
   saveStateFile,
   saveWorkspaces,
   scopedStateDir,
@@ -225,19 +224,6 @@ test("commands parse prompts, slash commands, shell commands, and suggestions", 
   assert.ok(names.includes("hotkeys"));
   assert.equal(names.includes("toggle-todo"), false);
   assert.ok(names.includes("import"));
-});
-
-test("jsonc helper accepts comments and trailing commas", () => {
-  assert.deepEqual(
-    parseJsoncObject(`{
-      // Comments are accepted.
-      "items": [1, 2,],
-      "text": "literal ,} and escaped \\" quote",
-    }`),
-    { items: [1, 2], text: 'literal ,} and escaped " quote' },
-  );
-  assert.throws(() => parseJsoncObject("[]"), /Expected JSON object/);
-  assert.throws(() => parseJsoncObject('{"a":1,'), SyntaxError);
 });
 
 test("state serializes, persists, normalizes workspaces, and deletes empty workspace file", async () => {

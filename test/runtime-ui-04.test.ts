@@ -18,9 +18,9 @@ import {
   openTabsFile,
   readOpenTabs,
   renderChat,
-  UUIDV7_SESSION_ID_PATTERN,
   type MixCodeRuntime as RuntimeType,
 } from "../src/index.js";
+import { UUIDV7_SESSION_ID_PATTERN } from "./helpers/session-id.js";
 import { hydrateTabPromptHistory } from "../src/ui/app-runtime.js";
 
 function stripAnsi(text: string): string {

@@ -14,8 +14,8 @@ import {
   saveWorkspaces,
   snapshotWorkspace,
   type MixCodeState,
-  UUIDV7_SESSION_ID_PATTERN,
 } from "../src/index.js";
+import { UUIDV7_SESSION_ID_PATTERN } from "./helpers/session-id.js";
 import { restoreWorkspace } from "../src/ui/workspace-restore.js";
 
 function stripAnsi(text: string): string {

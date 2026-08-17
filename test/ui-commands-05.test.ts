@@ -18,9 +18,9 @@ import {
   setTheme,
   themeForId,
   themeSuggestions,
-  UUIDV7_SESSION_ID_PATTERN,
   writeOpenTabs,
 } from "../src/index.js";
+import { UUIDV7_SESSION_ID_PATTERN } from "./helpers/session-id.js";
 import type { MixCodeRuntime } from "../src/index.js";
 import type { Model } from "@earendil-works/pi-ai";
 import { MIXCODE_FAUX_MODEL } from "../src/index.js";

@@ -1,5 +1,4 @@
-import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
-export { createSessionId, UUIDV7_SESSION_ID_PATTERN } from "./session-ids.js";
+import { type ThinkingLevel, uuidv7 } from "@earendil-works/pi-agent-core";
 import { createSessionSelectorState } from "./session-selector.js";
 import { createForkSelectorState } from "./fork-selector.js";
 import { createTreeSelectorState } from "./tree-selector.js";
@@ -19,6 +18,10 @@ export const DEFAULT_MODEL_REF: MixCodeModelRef = {
   contextWindow: 200_000,
   reasoning: true,
 };
+
+export function createSessionId(): string {
+  return uuidv7();
+}
 
 export function createInitialState(workdir: string, defaultThinkingLevel?: ThinkingLevel): MixCodeState {
   return {
