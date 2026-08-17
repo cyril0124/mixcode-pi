@@ -251,10 +251,6 @@ function clampTabJumpIndex(state: MixCodeState, index: number): number {
   return ((index % entries.length) + entries.length) % entries.length;
 }
 
-export function commandPaletteEntries(state: MixCodeState): CommandPaletteEntry[] {
-  return commandPaletteEntriesWithExtensions(state);
-}
-
 export function commandPaletteEntriesWithExtensions(
   state: MixCodeState,
   extensionCommands: Array<{ name: string; description?: string }> = [],

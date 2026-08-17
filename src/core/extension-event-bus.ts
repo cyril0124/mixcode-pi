@@ -25,7 +25,6 @@ export interface MarkDoneEventPayload {
 
 const buses = new Set<EventBus>();
 const busByServices = new WeakMap<object, EventBus>();
-let waitingCount = 0;
 
 /** Register a bus already installed on the resource loader for this services object. */
 export function registerExtensionEventBus(services: object, bus: EventBus): void {
@@ -44,13 +43,12 @@ export function unregisterExtensionEventBus(services: object): void {
   busByServices.delete(services);
 }
 
-/** +1 when a WaitingForInput entry is added, -N when removed. */
-export function adjustWaitingForInput(delta: number): void {
-  if (delta === 0) return;
-  waitingCount = Math.max(0, waitingCount + delta);
+/** Broadcast process-wide WaitingForInput count. Callers pass the current sum. */
+export function setWaitingForInputCount(count: number): void {
+  const n = Math.max(0, count);
   broadcast(WAITING_FOR_INPUT_EVENT, {
-    count: waitingCount,
-    active: waitingCount > 0,
+    count: n,
+    active: n > 0,
   } satisfies WaitingForInputEventPayload);
 }
 

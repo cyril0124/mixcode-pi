@@ -16,8 +16,8 @@ test("Enter on empty filter stays open instead of closing", () => {
     },
     theme: theme as never,
     items: [
-      { entryId: "1", text: "HISTORY-ITEM-ALPHA" },
-      { entryId: "2", text: "HISTORY-ITEM-BETA" },
+      { text: "HISTORY-ITEM-ALPHA" },
+      { text: "HISTORY-ITEM-BETA" },
     ],
     done: (result) => results.push(result),
   });
@@ -44,9 +44,9 @@ test("Up from first item wraps to last, Down from last wraps to first", () => {
     },
     theme: theme as never,
     items: [
-      { entryId: "1", text: "HISTORY-ITEM-ALPHA" },
-      { entryId: "2", text: "HISTORY-ITEM-BETA" },
-      { entryId: "3", text: "HISTORY-ITEM-GAMMA" },
+      { text: "HISTORY-ITEM-ALPHA" },
+      { text: "HISTORY-ITEM-BETA" },
+      { text: "HISTORY-ITEM-GAMMA" },
     ],
     done: (result) => results.push(result),
   });
@@ -64,9 +64,9 @@ test("Up from first item wraps to last, Down from last wraps to first", () => {
     },
     theme: theme as never,
     items: [
-      { entryId: "1", text: "HISTORY-ITEM-ALPHA" },
-      { entryId: "2", text: "HISTORY-ITEM-BETA" },
-      { entryId: "3", text: "HISTORY-ITEM-GAMMA" },
+      { text: "HISTORY-ITEM-ALPHA" },
+      { text: "HISTORY-ITEM-BETA" },
+      { text: "HISTORY-ITEM-GAMMA" },
     ],
     done: (result) => wrapResults.push(result),
   });

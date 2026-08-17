@@ -1,5 +1,5 @@
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
-import { noteActiveExtensionThemeId } from "../core/active-extension-theme-id.js";
+import { DEFAULT_THEME_ID } from "../core/defaults.js";
 import { allKnownThinkingLevels } from "../core/thinking-levels.js";
 import type { MixCodeState } from "../core/types.js";
 import {
@@ -994,6 +994,17 @@ export function themeForId(themeId: string): MixCodeTheme {
   const adapted = mixCodeThemeFromPi(piTheme);
   mixCodeThemeCache.set(canonical, adapted);
   return adapted;
+}
+
+let activeExtensionThemeId = DEFAULT_THEME_ID;
+
+export function noteActiveExtensionThemeId(themeId: string): void {
+  const normalized = themeId.trim();
+  if (normalized) activeExtensionThemeId = normalized;
+}
+
+export function getActiveExtensionThemeId(): string {
+  return activeExtensionThemeId;
 }
 
 export function setTheme(state: MixCodeState, themeId: string): void {

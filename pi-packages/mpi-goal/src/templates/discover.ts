@@ -69,18 +69,6 @@ export function listGoalTemplateMetadata(root = process.cwd()): GoalTemplateMeta
 	});
 }
 
-export function resolveGoalTemplateInvocation(input: string, root = process.cwd()): TemplateResolution {
-	const parsed = parseGoalTemplateInvocation(input);
-	if (!parsed) return { ok: false, notTemplate: true };
-	return resolveGoalTemplateByName(parsed.name, parsed.flags, parsed.args, root);
-}
-
-export function resolveGoalTemplateInvocationArgs(nameOrAlias: string, invocationArgs = "", flags: Record<string, string> = {}, root = process.cwd()): TemplateResolution {
-	const parsed = parseGoalTemplateInvocation(`${nameOrAlias}${invocationArgs.trim() ? ` ${invocationArgs.trim()}` : ""}`);
-	if (!parsed) return { ok: false, notTemplate: true };
-	return resolveGoalTemplateByName(parsed.name, { ...parsed.flags, ...flags }, parsed.args, root);
-}
-
 export function resolveGoalTemplateByName(nameOrAlias: string, flags: Record<string, string>, args = "", root = process.cwd()): TemplateResolution {
 	const matches = findTemplates(nameOrAlias, root);
 	if (matches.length === 0) return { ok: false, notTemplate: true };

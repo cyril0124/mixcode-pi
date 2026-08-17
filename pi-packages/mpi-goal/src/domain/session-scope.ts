@@ -30,20 +30,9 @@ export function runInGoalSession<T>(sessionKey: string, fn: () => T): T {
 	return storage.run(sessionKey, fn);
 }
 
-export function runInGoalSessionAsync<T>(sessionKey: string, fn: () => Promise<T>): Promise<T> {
-	return storage.run(sessionKey, fn);
-}
-
 export function withGoalSessionFromCtx<T>(
 	ctx: { sessionManager: SessionIdSource },
 	fn: () => T,
 ): T {
 	return runInGoalSession(goalSessionKeyFromManager(ctx.sessionManager), fn);
-}
-
-export async function withGoalSessionFromCtxAsync<T>(
-	ctx: { sessionManager: SessionIdSource },
-	fn: () => Promise<T>,
-): Promise<T> {
-	return runInGoalSessionAsync(goalSessionKeyFromManager(ctx.sessionManager), fn);
 }

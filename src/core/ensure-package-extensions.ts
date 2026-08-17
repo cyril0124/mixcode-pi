@@ -112,7 +112,7 @@ function copyTreeSync(srcDir: string, destDir: string): void {
  * loaded from `<agentDir>/extensions/**` can resolve them via Node/Bun package
  * walk-up (needed for lazy dynamic import outside jiti aliases).
  */
-export function ensureAgentExtensionRuntimePackages(agentDir: string): void {
+function ensureAgentExtensionRuntimePackages(agentDir: string): void {
   const nodeModules = path.join(agentDir, "node_modules");
   fs.mkdirSync(nodeModules, { recursive: true });
   for (const name of AGENT_EXTENSION_RUNTIME_PACKAGES) {

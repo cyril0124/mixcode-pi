@@ -123,16 +123,6 @@ function safeEstimateTokens(message: unknown): number {
   }
 }
 
-export function lastAssistantUsageTokens(messages: readonly unknown[]): number | undefined {
-  for (let i = messages.length - 1; i >= 0; i -= 1) {
-    const msg = messages[i];
-    if (!isAssistant(msg) || !isValidAssistantUsage(msg)) continue;
-    const tokens = calculateContextTokens(msg.usage as Usage);
-    return tokens > 0 ? tokens : undefined;
-  }
-  return undefined;
-}
-
 export type ContextUsageEstimate = {
   tokens: number;
   usageTokens: number;
@@ -176,12 +166,6 @@ export function estimateContextTokensFromMessages(
     trailingTokens,
     lastUsageIndex,
   };
-}
-
-/** Total tokens for threshold checks (Pi estimateContextTokens.tokens). */
-export function estimateTokensForNextCall(messages: readonly unknown[]): number | undefined {
-  const tokens = estimateContextTokensFromMessages(messages).tokens;
-  return tokens > 0 ? tokens : undefined;
 }
 
 /**
@@ -272,16 +256,6 @@ export function shouldResumeAfterNativeCompact(options: {
   if (options.willRetry) return false;
   if (options.reason === "manual") return false;
   return options.lastAssistantStopReason === "length";
-}
-
-/** True when compact left too little free room for another full tool loop. */
-export function stillOverThresholdAfterCompact(
-  estimatedTokensAfter: number | undefined,
-  contextWindow: number,
-  reserveTokens: number,
-): boolean {
-  if (estimatedTokensAfter === undefined) return false;
-  return shouldCompactForWindow(estimatedTokensAfter, contextWindow, reserveTokens);
 }
 
 /** Length-stop with almost no output while near the ceiling → no generation room. */
@@ -495,8 +469,8 @@ export function createMidTurnCompactExtension(options?: {
       if (!endsWithCompleteToolResultBatch(event.messages)) return;
 
       // Threshold from message estimate (Pi estimateContextTokens), not UI usage alone.
-      const tokens = estimateTokensForNextCall(event.messages);
-      if (tokens === undefined) return;
+      const tokens = estimateContextTokensFromMessages(event.messages).tokens;
+      if (!(tokens > 0)) return;
 
       const contextWindow =
         ctx.model?.contextWindow ?? ctx.getContextUsage()?.contextWindow ?? 0;
@@ -682,11 +656,8 @@ async function runCompactCycle(
   try {
     const result = await compactOnce(ctx);
     if (
-      stillOverThresholdAfterCompact(
-        result?.estimatedTokensAfter,
-        opts.contextWindow,
-        opts.reserve,
-      )
+      result?.estimatedTokensAfter !== undefined &&
+      shouldCompactForWindow(result.estimatedTokensAfter, opts.contextWindow, opts.reserve)
     ) {
       opts.onStillTight();
       queueResume(

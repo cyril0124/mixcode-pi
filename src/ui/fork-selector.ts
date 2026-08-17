@@ -12,8 +12,8 @@ import { overlayPanel } from "./rendering/primitives.js";
 import { activeRenderTheme, renderWithTheme } from "./rendering/context.js";
 import { themeForId } from "./themes.js";
 
-export { createForkSelectorState } from "../core/fork-selector.js";
-export type { ForkSelectorState } from "../core/fork-selector.js";
+export { createForkSelectorState } from "../core/defaults.js";
+export type { ForkSelectorState } from "../core/types.js";
 
 export function openForkSelector(
   state: MixCodeState,

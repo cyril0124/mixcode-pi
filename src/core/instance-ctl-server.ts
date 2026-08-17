@@ -59,7 +59,7 @@ export const CTL_WAIT_DEFAULT_TIMEOUT_SEC = 60;
 const CTL_WAIT_POLL_MS = 50;
 const CTL_WAIT_BUSY = new Set(["running", "thinking"]);
 
-export function formatCtlPreamble(
+function formatCtlPreamble(
   tabTitle: string,
   sessionId: string,
   extras: { reason?: string; time?: string; messages?: string } = {},
@@ -211,7 +211,7 @@ async function applyBackgroundSendKeys(
   }
 }
 
-export function lastChatMessages(
+function lastChatMessages(
   runtime: MixCodeRuntime,
   sessionId: string,
   role: "user" | "assistant" | undefined,
@@ -245,7 +245,7 @@ export function lastChatMessages(
   return chronological.slice(start, end + 1);
 }
 
-export function lastChatTools(
+function lastChatTools(
   runtime: MixCodeRuntime,
   sessionId: string,
   from = 1,
@@ -296,7 +296,7 @@ function ctlWaitStatus(tab: MixCodeTabInfo): string {
   return tab.status;
 }
 
-export async function waitForTabIdle(
+async function waitForTabIdle(
   tab: MixCodeTabInfo,
   timeoutSec: number,
 ): Promise<{ status: string; timedOut: boolean }> {

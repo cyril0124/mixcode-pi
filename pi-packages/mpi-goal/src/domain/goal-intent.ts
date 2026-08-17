@@ -1,16 +1,9 @@
 import type { ContextResetMode, PostCompletionActionSpec } from "./types.js";
 import { parseGoalTemplateInvocation, resolveGoalTemplateByName } from "../templates/discover.js";
 
-export type GoalBudgetSpec = {
-	tokenBudget?: number;
-	timeBudgetSeconds?: number;
-	minTokensBeforeWrapUp?: number;
-	minTimeSecondsBeforeWrapUp?: number;
-};
-
 export type GoalIntent =
-	| { kind: "direct"; objective: string; budgets?: GoalBudgetSpec; postCompletionActions: PostCompletionActionSpec[] }
-	| { kind: "template"; template: string; flags: Record<string, string>; args: string; objective: string; budgets?: GoalBudgetSpec; postCompletionActions: PostCompletionActionSpec[] };
+	| { kind: "direct"; objective: string; postCompletionActions: PostCompletionActionSpec[] }
+	| { kind: "template"; template: string; flags: Record<string, string>; args: string; objective: string; postCompletionActions: PostCompletionActionSpec[] };
 
 export type GoalIntentResult = { ok: true; intent: GoalIntent } | { ok: false; error: string };
 export type ActionSpecResult = { ok: true; actions: PostCompletionActionSpec[] } | { ok: false; error: string };
@@ -20,8 +13,8 @@ export type PostCompletionActionInput = {
 	postCompletionActions?: PostCompletionActionSpec[];
 };
 
-export type DirectGoalIntentInput = PostCompletionActionInput & { objective: string; budgets?: GoalBudgetSpec };
-export type TemplateGoalIntentInput = PostCompletionActionInput & { invocation: string; budgets?: GoalBudgetSpec };
+export type DirectGoalIntentInput = PostCompletionActionInput & { objective: string };
+export type TemplateGoalIntentInput = PostCompletionActionInput & { invocation: string };
 
 const TRAILING_DIRECTIVE = /(?:\s+and\s+(summarize|clear)(?:\s+the)?\s+context)\s*[.!?]?\s*$/i;
 
@@ -51,7 +44,7 @@ export function buildDirectGoalIntent(input: DirectGoalIntentInput): GoalIntentR
 	const parsed = parseTrailingPostCompletionDirective(input.objective);
 	const actions = normalizeIntentActions(parsed.action, input);
 	if (!actions.ok) return actions;
-	return { ok: true, intent: { kind: "direct", objective: parsed.objective, budgets: input.budgets, postCompletionActions: actions.actions } };
+	return { ok: true, intent: { kind: "direct", objective: parsed.objective, postCompletionActions: actions.actions } };
 }
 
 export function buildTemplateGoalIntent(input: TemplateGoalIntentInput): GoalIntentResult {
@@ -62,7 +55,7 @@ export function buildTemplateGoalIntent(input: TemplateGoalIntentInput): GoalInt
 	if (!actions.ok) return actions;
 	const resolved = resolveGoalTemplateByName(parsedInvocation.name, parsedInvocation.flags, parsedArgs.objective);
 	if (!resolved.ok) return "notTemplate" in resolved ? { ok: false, error: `Unknown goal template '${parsedInvocation.name}'.` } : { ok: false, error: resolved.error };
-	return { ok: true, intent: { kind: "template", template: resolved.template.name, flags: resolved.template.flags, args: parsedArgs.objective, objective: resolved.template.objective, budgets: input.budgets, postCompletionActions: actions.actions } };
+	return { ok: true, intent: { kind: "template", template: resolved.template.name, flags: resolved.template.flags, args: parsedArgs.objective, objective: resolved.template.objective, postCompletionActions: actions.actions } };
 }
 
 function normalizeIntentActions(parsedAction: PostCompletionActionSpec | undefined, input: PostCompletionActionInput): ActionSpecResult {

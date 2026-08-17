@@ -202,7 +202,3 @@ export function noteFloorCompletionDeferred(
 export function makeTurnSnapshot(goalId: string, origin: TurnOrigin, startedAt = Date.now()): TurnAccountingSnapshot {
 	return { goalId, origin, startedAt, toolCallCount: 0, toolResultCount: 0, progressCount: 0, completedGoal: false };
 }
-
-function uniqueFloorCards(cards: FloorValuePassId[]): FloorValuePassId[] {
-	return Array.from(new Set(cards));
-}

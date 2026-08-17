@@ -62,22 +62,6 @@ export function formatOptimizePromptConfig(config: OptimizePromptConfig): string
   return `${JSON.stringify(config, null, 2)}\n`;
 }
 
-/**
- * Parse editor buffer: empty/{} clears overrides (inherit defaults).
- * Rejects invalid JSON so callers can re-open or report.
- */
-export function parseOptimizePromptConfigText(
-  text: string,
-): { ok: true; config: OptimizePromptConfig } | { ok: false; error: string } {
-  const trimmed = text.trim();
-  if (!trimmed) return { ok: true, config: {} };
-  try {
-    return { ok: true, config: parseOptimizePromptConfig(JSON.parse(trimmed) as unknown) };
-  } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : String(error) };
-  }
-}
-
 export function writeOptimizePromptConfig(
   agentDir: string,
   config: OptimizePromptConfig,

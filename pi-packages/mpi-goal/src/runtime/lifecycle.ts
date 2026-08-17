@@ -32,9 +32,7 @@ import {
 import {
 	currentGoalSessionKey,
 	runInGoalSession,
-	runInGoalSessionAsync,
 	withGoalSessionFromCtx,
-	withGoalSessionFromCtxAsync,
 } from "../domain/session-scope.js";
 import {
 	beginActiveTime,
@@ -149,13 +147,13 @@ export function registerGoalLifecycle(
 ): void {
 	const onStateRestored = options.onStateRestored;
 	pi.on("session_start", async (event, ctx) => {
-		await withGoalSessionFromCtxAsync(ctx, async () => {
+		await withGoalSessionFromCtx(ctx, async () => {
 			await handleSessionStart(pi, event, ctx);
 			onStateRestored?.();
 		});
 	});
 	pi.on("session_tree", async (_event, ctx) => {
-		await withGoalSessionFromCtxAsync(ctx, async () => {
+		await withGoalSessionFromCtx(ctx, async () => {
 			const state = replayGoalState(ctx);
 			replayQueueState(ctx);
 			syncGoalUi(ctx, state.goal);
@@ -169,7 +167,7 @@ export function registerGoalLifecycle(
 		});
 	});
 	pi.on("session_compact", async (_event, ctx) => {
-		await withGoalSessionFromCtxAsync(ctx, async () => {
+		await withGoalSessionFromCtx(ctx, async () => {
 			handleSessionCompact(pi, ctx);
 			onStateRestored?.();
 		});
@@ -187,16 +185,16 @@ export function registerGoalLifecycle(
 		withGoalSessionFromCtx(ctx, () => handleToolResult(pi, event));
 	});
 	pi.on("turn_end", async (event, ctx) => {
-		await withGoalSessionFromCtxAsync(ctx, async () => handleTurnEnd(pi, event, ctx, postCompletionRunner));
+		await withGoalSessionFromCtx(ctx, async () => handleTurnEnd(pi, event, ctx, postCompletionRunner));
 	});
 	// agent_end fires while isIdle is still false (Pi keeps the run active until
 	// post-run work finishes). Queue handoff can still arm on agent_end; auto-continue
 	// must wait for agent_settled so attemptContinueGoal does not silent-skip notIdle.
 	pi.on("agent_end", async (event, ctx) => {
-		await withGoalSessionFromCtxAsync(ctx, async () => handleAgentEnd(pi, event, ctx, postCompletionRunner));
+		await withGoalSessionFromCtx(ctx, async () => handleAgentEnd(pi, event, ctx, postCompletionRunner));
 	});
 	pi.on("agent_settled", async (_event, ctx) => {
-		await withGoalSessionFromCtxAsync(ctx, async () => handleAgentSettled(pi, ctx));
+		await withGoalSessionFromCtx(ctx, async () => handleAgentSettled(pi, ctx));
 	});
 	// Drop already-queued goal continuations after pause/clear: they still message_start
 	// even when status is no longer active (Pi followUp queue is not cleared by extensions).
@@ -264,7 +262,7 @@ async function handleAgentEnd(
 		lifecycleState().agentEndContinueDispatched = true;
 		const sessionKey = currentGoalSessionKey();
 		setTimeout(() => {
-			void runInGoalSessionAsync(sessionKey, async () => {
+			void runInGoalSession(sessionKey, async () => {
 				await processTerminalGoalWorkflow(pi, ctx, { goal, reason: "turn", runner: postCompletionRunner });
 			});
 		}, AGENT_END_HANDOFF_DELAY_MS);
@@ -593,7 +591,6 @@ async function pauseForSafety(
 		telemetry = noteContinuationSkipped(telemetry, "apiError");
 	}
 	persistUpdateGoal(pi, paused, telemetry, reason === "abort" ? "abort" : "safety");
-	if (telemetry) persistTelemetry(pi, telemetry, reason === "abort" ? "abort" : "safety");
 	syncGoalUi(ctx, paused);
 	notifyWarning(ctx, message);
 }

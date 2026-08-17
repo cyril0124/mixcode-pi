@@ -13,6 +13,7 @@ import { modelToRef } from "../core/models.js";
 import type { MixCodeModel, MixCodeTabInfo, PreviewMessageRole } from "../core/types.js";
 import { clearPendingEscape } from "../core/escape.js";
 import { discardVimTranscriptSearch } from "../core/tabs.js";
+import { syncWaitingForInput } from "./runtime-extension-custom.js";
 import {
   currentExtensionTheme,
   getActiveExtensionThemeId,
@@ -627,6 +628,7 @@ export function resetTabForNewSession(tab: MixCodeTabInfo, sessionId: string): v
     waitingForInputs: [],
     workingVisible: true,
   };
+  syncWaitingForInput(tab);
   // The startup header belongs to the outgoing session's services; every
   // session-replacement path recomputes it via refreshStartupHeader.
   tab.startupSummary = undefined;

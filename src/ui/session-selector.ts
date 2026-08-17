@@ -8,7 +8,7 @@ import {
 import { type Component, type Focusable, isKeyRelease } from "@earendil-works/pi-tui";
 
 import { applyMixCodeKeybindings } from "../agent/runtime-pi-tui-bridge.js";
-import { createSessionId, createTab } from "../core/defaults.js";
+import { createSessionId, createSessionSelectorState, createTab } from "../core/defaults.js";
 import {
   assertConfiguredOpenTabsReadable,
   noteTabClosed,
@@ -16,11 +16,10 @@ import {
   noteTabReplaced,
 } from "../core/open-tabs-store.js";
 import { invalidateSessionCatalog } from "../core/session-catalog.js";
-import { createSessionSelectorState } from "../core/session-selector.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
-import { activateTab, closeAgentTab, getActiveTab, HOME_TAB_ID } from "../core/tabs.js";
+import { activateTab, closeAgentTab, getActiveTab } from "../core/tabs.js";
 import { pushToast } from "../core/toast.js";
-import type { MixCodeState, MixCodeTabInfo } from "../core/types.js";
+import { HOME_TAB_ID, type MixCodeState, type MixCodeTabInfo } from "../core/types.js";
 import { showErrorOverlay } from "./app-overlays.js";
 import type { MixCodeKeyRuntime, OverlayTui } from "./app-types.js";
 import type { AuthInputHost } from "./app-submit.js";

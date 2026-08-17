@@ -2,7 +2,6 @@ import * as os from "node:os";
 import * as path from "node:path";
 import type { ResourceDiagnostic, Skill, SourceInfo } from "@earendil-works/pi-coding-agent";
 import type { ExtensionManagerEntry } from "../core/extension-manager.js";
-import { displayToolOwner } from "../core/extension-tool-owners.js";
 import {
   extensionConflictDiagnosticLines,
   extensionLoadErrorLines,
@@ -404,6 +403,6 @@ function toolOwnerSummary(runtimeTab: RuntimeTab): string[] {
   return runtimeTab.agentSession
     .getAllTools()
     .filter((tool) => builtInToolNames.has(tool.name) && tool.sourceInfo?.source !== "builtin")
-    .map((tool) => `${tool.name} -> ${displayToolOwner(tool.sourceInfo)}`)
+    .map((tool) => `${tool.name} -> ${tool.sourceInfo?.source || tool.sourceInfo?.path || "unknown"}`)
     .sort((left, right) => left.localeCompare(right));
 }

@@ -3,7 +3,7 @@ import type { AutocompleteItem } from "@earendil-works/pi-tui";
 import type { PostCompletionActionSpec } from "../../domain/types.js";
 import { GOAL_USAGE, GOAL_USAGE_HINT } from "../../domain/constants.js";
 import { canActivateGoal, budgetLimitReason } from "../../domain/budget.js";
-import { validateObjective, goalStatusLabel } from "../../domain/format.js";
+import { validateObjective } from "../../domain/format.js";
 import { discoverGoalTemplates, parseGoalTemplateInvocation } from "../../templates/discover.js";
 import { buildDirectGoalIntent, buildTemplateGoalIntent } from "../../domain/goal-intent.js";
 import { createPostCompletionActionStates, recordPostStartActionAnchors } from "../../runtime/post-completion.js";
@@ -11,7 +11,7 @@ import { captureContextResetCommandContext } from "../../runtime/context-reset.j
 import {
 	goalSessionKeyFromManager,
 	runInGoalSession,
-	withGoalSessionFromCtxAsync,
+	withGoalSessionFromCtx,
 } from "../../domain/session-scope.js";
 import { flushAndStopGoalActiveTime } from "../../runtime/lifecycle.js";
 import { createTelemetry, resetSafetyCounters } from "../../domain/telemetry.js";
@@ -21,7 +21,6 @@ import {
 	getTelemetry,
 	persistClearGoal,
 	persistSetGoal,
-	persistTelemetry,
 	persistUpdateGoal,
 	replayGoalState,
 } from "../../persistence/goal-store.js";
@@ -116,7 +115,7 @@ export async function handleGoalCommand(
 ): Promise<void> {
 	// Bind per-tab session scope and rehydrate from this session's branch so
 	// another MixCode tab's in-memory goal cannot leak into this command.
-	await withGoalSessionFromCtxAsync(ctx, async () => {
+	await withGoalSessionFromCtx(ctx, async () => {
 		replayGoalState(ctx);
 		replayQueueState(ctx);
 		const trimmed = args.trim();
@@ -128,7 +127,7 @@ export async function handleGoalCommand(
 		const handled = handleGoalControlCommand(pi, trimmed, ctx, runtime);
 		if (handled) return;
 
-		const resolved = resolveTemplateOrObjective(trimmed, ctx);
+		const resolved = resolveTemplateOrObjectiveDetails(trimmed, ctx);
 		if (resolved) await setGoalObjective(pi, resolved, ctx, runtime);
 	});
 }
@@ -223,10 +222,6 @@ type ResolvedObjectiveInput = {
 	postCompletionActions?: PostCompletionActionSpec[];
 };
 
-function resolveTemplateOrObjective(input: string, ctx: ExtensionCommandContext): ResolvedObjectiveInput | null {
-	return resolveTemplateOrObjectiveDetails(input, ctx);
-}
-
 function resolveTemplateOrObjectiveDetails(input: string, ctx: ExtensionCommandContext): ResolvedObjectiveInput | null {
 	if (parseGoalTemplateInvocation(input)) {
 		const templateIntent = buildTemplateGoalIntent({ invocation: input });
@@ -270,7 +265,7 @@ async function setGoalObjective(
 	}
 
 	let goal = createGoalState({ objective: validation.objective, postCompletionActions: createPostCompletionActionStates(input.postCompletionActions ?? []) });
-	goal = recordPostStartActionAnchors(pi, ctx, goal, "command");
+	goal = recordPostStartActionAnchors(ctx, goal);
 	const telemetry = createTelemetry(goal.goalId, goal.createdAt);
 	persistSetGoal(pi, goal, telemetry, "command");
 	syncGoalUi(ctx, goal);
@@ -337,7 +332,6 @@ function resumeGoal(pi: ExtensionAPI, ctx: ExtensionCommandContext, runtime: Goa
 	const active: GoalState = { ...goal, status: "active", updatedAt: Date.now() };
 	const telemetry = resetSafetyCounters(getTelemetry());
 	persistUpdateGoal(pi, active, telemetry, "resume");
-	if (telemetry) persistTelemetry(pi, telemetry, "resume");
 	syncGoalUi(ctx, active);
 	notifyGoal(ctx, active);
 	runtime.scheduleContinuation(ctx, "resumed");

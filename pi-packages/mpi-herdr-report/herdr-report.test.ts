@@ -17,9 +17,7 @@ import {
   buildNotificationShowRequest,
   buildReportAgentRequest,
   buildReportAgentSessionRequest,
-  desiredBusy,
   desiredState,
-  enqueueLatest,
   herdrBridgeEnabled,
   HERDR_REPORT_AGENT,
   HERDR_REPORT_SOURCE,
@@ -30,7 +28,6 @@ import {
   readCtxIdle,
   resolveHerdrPaneId,
   sessionKeyFrom,
-  shouldClearAgentActive,
   socketEndpoint,
   WAITING_FOR_INPUT_EVENT,
 } from "./index.js";
@@ -83,19 +80,6 @@ test("desiredState: blocked wins over working", () => {
   assert.equal(desiredState(false, 1), "blocked");
   assert.equal(desiredState(true, 0), "working");
   assert.equal(desiredState(false, 0), "idle");
-});
-
-test("desiredBusy stays working while any session is busy", () => {
-  assert.equal(desiredBusy(2, 0), "working");
-  assert.equal(desiredBusy(1, 0), "working");
-  assert.equal(desiredBusy(0, 0), "idle");
-  assert.equal(desiredBusy(0, 1), "blocked");
-});
-
-test("shouldClearAgentActive matches official isIdle gate", () => {
-  assert.equal(shouldClearAgentActive(true), true);
-  assert.equal(shouldClearAgentActive(false), false);
-  assert.equal(shouldClearAgentActive(undefined), false);
 });
 
 test("readCtxIdle swallows only session-replacement stale errors", () => {
@@ -154,14 +138,6 @@ test("last session release clears blocked so exit cannot stick", () => {
   assert.equal(ledgerState(ledger), "idle");
 });
 
-test("enqueueLatest keeps only the newest slot", () => {
-  assert.deepEqual(enqueueLatest(undefined, { state: "working", seq: 1 }), { state: "working", seq: 1 });
-  assert.deepEqual(
-    enqueueLatest({ state: "working", seq: 1 }, { state: "idle", seq: 2 }),
-    { state: "idle", seq: 2 },
-  );
-});
-
 test("buildReportAgentRequest is official socket shape with mpi labels", () => {
   const req = buildReportAgentRequest("w1:p1", "blocked", 42);
   assert.equal(req.method, "pane.report_agent");
@@ -199,13 +175,10 @@ test("event channel names are stable", () => {
 });
 
 test("parseWaitingForInputPayload normalizes count", () => {
-  assert.deepEqual(parseWaitingForInputPayload({ count: 2, active: true }), {
-    count: 2,
-    active: true,
-  });
-  assert.deepEqual(parseWaitingForInputPayload({ count: -3 }), { count: 0, active: false });
-  assert.deepEqual(parseWaitingForInputPayload(null), { count: 0, active: false });
-  assert.deepEqual(parseWaitingForInputPayload({ count: 1.9 }), { count: 1, active: true });
+  assert.deepEqual(parseWaitingForInputPayload({ count: 2, active: true }), { count: 2 });
+  assert.deepEqual(parseWaitingForInputPayload({ count: -3 }), { count: 0 });
+  assert.deepEqual(parseWaitingForInputPayload(null), { count: 0 });
+  assert.deepEqual(parseWaitingForInputPayload({ count: 1.9 }), { count: 1 });
 });
 
 test("session_start does not read isIdle after the session ctx is replaced", async () => {

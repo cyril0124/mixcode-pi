@@ -1,6 +1,6 @@
-import { CreateGoalFromTemplateParams, CreateGoalParams, EmptyParams, NullableNumber, UpdateGoalParams } from "./schemas.js";
+import { CreateGoalFromTemplateParams, CreateGoalParams, EmptyParams, UpdateGoalParams } from "./schemas.js";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { withGoalSessionFromCtxAsync } from "../../domain/session-scope.js";
+import { withGoalSessionFromCtx } from "../../domain/session-scope.js";
 import { validateObjective } from "../../domain/format.js";
 import { isBudgetExhausted, canActivateGoal } from "../../domain/budget.js";
 import { decideGoalCompletion, type CompletionDecision } from "../../domain/completion-gate.js";
@@ -14,7 +14,7 @@ import { createGoalState, getGoal, getTelemetry, persistClearGoal, persistSetGoa
 import { replayQueueState } from "../../persistence/queue-store.js";
 import { registerGoalQueueTools } from "./queue-tools.js";
 import { syncGoalUi } from "../ui/notify.js";
-import { errorResult, formatToolGoal, remainingTime, remainingTokens, resultForGoal, resultForTemplates, type ToolDetails } from "./results.js";
+import { errorResult, formatToolGoal, resultForGoal, resultForTemplates, type ToolDetails } from "./results.js";
 import type { GoalCommandScheduler, GoalContinuationCanceller, GoalQueueSteeringSender, GoalState, GoalStatus, GoalTelemetrySnapshot } from "../../domain/types.js";
 
 type GoalToolRuntime = {
@@ -31,7 +31,7 @@ async function withSessionTool<T>(
 	ctx: ExtensionContext,
 	run: () => Promise<T>,
 ): Promise<T> {
-	return withGoalSessionFromCtxAsync(ctx, async () => {
+	return withGoalSessionFromCtx(ctx, async () => {
 		replayGoalState(ctx);
 		replayQueueState(ctx);
 		return run();
@@ -218,13 +218,9 @@ function createGoalFromTool(pi: ExtensionAPI, runtime: GoalToolRuntime, params: 
 	return createGoalWithPolicy(pi, runtime, params, ctx, { replaceCompleted: false });
 }
 
-function goalBudgets(params: CreateGoalInput | CreateGoalFromTemplateInput) {
-	return { tokenBudget: params.token_budget, timeBudgetSeconds: params.time_budget_seconds, minTokensBeforeWrapUp: params.min_tokens_before_wrap_up, minTimeSecondsBeforeWrapUp: params.min_time_seconds_before_wrap_up };
-}
-
 function createGoalFromTemplateTool(pi: ExtensionAPI, runtime: GoalToolRuntime, params: CreateGoalFromTemplateInput, ctx: ExtensionContext) {
 	const invocationArgs = params.args?.trim() ? ` ${params.args.trim()}` : "";
-	const intent = buildTemplateGoalIntent({ invocation: `${params.template}${invocationArgs}`, postCompletionActions: params.post_completion_actions, budgets: goalBudgets(params) });
+	const intent = buildTemplateGoalIntent({ invocation: `${params.template}${invocationArgs}`, postCompletionActions: params.post_completion_actions });
 	if (!intent.ok) return errorResult(intent.error);
 	const created = createGoalWithPolicy(pi, runtime, { ...params, objective: intent.intent.objective, post_completion_actions: intent.intent.postCompletionActions }, ctx, { replaceCompleted: true, replaceBudgetLimitedForQueuedWork: true });
 	if (!created.details.error && intent.intent.kind === "template") created.details.resolved_template = { name: intent.intent.template, path: intent.intent.template };
@@ -243,7 +239,7 @@ function createGoalWithPolicy(
 	const normalized = normalizeCreateGoalInput(params);
 	if (!normalized.ok) return errorResult(normalized.error);
 	let goal = createGoalState({ objective: normalized.objective, tokenBudget: params.token_budget, timeBudgetSeconds: params.time_budget_seconds, minTokensBeforeWrapUp: params.min_tokens_before_wrap_up, minTimeSecondsBeforeWrapUp: params.min_time_seconds_before_wrap_up, postCompletionActions: createPostCompletionActionStates(normalized.postCompletionActions) });
-	goal = recordPostStartActionAnchors(pi, ctx, goal, "tool");
+	goal = recordPostStartActionAnchors(ctx, goal);
 	const telemetry = createTelemetry(goal.goalId, goal.createdAt);
 	persistSetGoal(pi, goal, telemetry, "tool");
 	syncGoalUi(ctx, goal);
@@ -253,7 +249,7 @@ function createGoalWithPolicy(
 type NormalizedCreateGoalInput = { ok: true; objective: string; postCompletionActions: Array<{ type: "context.reset"; mode: "clear" | "summarize" }> } | { ok: false; error: string };
 
 function normalizeCreateGoalInput(params: CreateGoalInput): NormalizedCreateGoalInput {
-	const intent = buildDirectGoalIntent({ objective: params.objective, postCompletionActions: params.post_completion_actions, budgets: goalBudgets(params) });
+	const intent = buildDirectGoalIntent({ objective: params.objective, postCompletionActions: params.post_completion_actions });
 	if (!intent.ok) return { ok: false, error: intent.error };
 	const validation = validateObjective(intent.intent.objective);
 	if (!validation.ok) return { ok: false, error: validation.hint ? `${validation.message} ${validation.hint}` : validation.message };

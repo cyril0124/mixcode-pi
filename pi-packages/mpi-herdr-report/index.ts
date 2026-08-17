@@ -28,7 +28,6 @@ export const MARK_DONE_EVENT = "mpi:mark-done" as const;
 
 export interface WaitingForInputEventPayload {
   count: number;
-  active: boolean;
 }
 
 export function isMixcodeProcess(env: NodeJS.ProcessEnv = process.env): boolean {
@@ -57,14 +56,6 @@ export function desiredState(agentActive: boolean, blockedCount: number): HerdrR
   return "idle";
 }
 
-export function desiredBusy(busyCount: number, blockedCount: number): HerdrReportState {
-  return desiredState(busyCount > 0, blockedCount);
-}
-
-/** Official: only clear busy when settled reports isIdle === true. */
-export function shouldClearAgentActive(isIdle: unknown): boolean {
-  return isIdle === true;
-}
 
 export function isStaleCtxError(error: unknown): boolean {
   return /stale after session replacement/.test(String(error));
@@ -107,7 +98,7 @@ export function applyAgentSettled(
   key: string | undefined,
   idle: boolean | undefined,
 ): void {
-  if (!key || !shouldClearAgentActive(idle)) return;
+  if (!key || idle !== true) return;
   busy.delete(key);
 }
 
@@ -144,14 +135,14 @@ export function applyWaitingCount(ledger: HerdrLedger, count: number): void {
 }
 
 export function ledgerState(ledger: HerdrLedger): HerdrReportState {
-  return desiredBusy(ledger.busy.size, ledger.blocked);
+  return desiredState(ledger.busy.size > 0, ledger.blocked);
 }
 
 export function parseWaitingForInputPayload(raw: unknown): WaitingForInputEventPayload {
-  if (!raw || typeof raw !== "object") return { count: 0, active: false };
+  if (!raw || typeof raw !== "object") return { count: 0 };
   const count = (raw as { count?: unknown }).count;
   const n = typeof count === "number" && Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0;
-  return { count: n, active: n > 0 };
+  return { count: n };
 }
 
 export function buildReportAgentRequest(
@@ -201,11 +192,6 @@ export function buildNotificationShowRequest(
     method: "notification.show",
     params: { title, sound },
   };
-}
-
-/** Latest-wins queue slot used by the official hook. */
-export function enqueueLatest<T>(queued: T | undefined, next: T): T {
-  return next;
 }
 
 type QueuedState = {
@@ -317,7 +303,7 @@ async function drainStateQueue(): Promise<void> {
 }
 
 function queueState(state: HerdrReportState, message?: string, extra: Record<string, unknown> = {}): void {
-  queuedState = enqueueLatest(queuedState, { state, message, extra, seq: nextReportSeq() });
+  queuedState = { state, message, extra, seq: nextReportSeq() };
   if (!sendInFlight) void drainStateQueue();
 }
 

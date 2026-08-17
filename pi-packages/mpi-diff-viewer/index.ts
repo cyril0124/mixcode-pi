@@ -13,17 +13,6 @@ function userMessageIndexes(entries: SessionEntry[]): number[] {
   return indexes;
 }
 
-function getNthLastTurnSlice(
-  entries: SessionEntry[],
-  turn: number,
-): { baseline: SessionEntry[]; scope: SessionEntry[] } {
-  const indexes = userMessageIndexes(entries);
-  if (turn < 1 || turn > indexes.length) return { baseline: [], scope: [] };
-  const start = indexes[indexes.length - turn]!;
-  const end = turn > 1 ? indexes[indexes.length - turn + 1]! : entries.length;
-  return { baseline: entries.slice(0, start), scope: entries.slice(start, end) };
-}
-
 function getRangeTurnSlice(
   entries: SessionEntry[],
   first: number,
@@ -89,9 +78,10 @@ const extension: ExtensionFactory = (pi) => {
 
       if (!value) scope = entries;
       else if (value === "last") {
-        ({ baseline, scope } = getNthLastTurnSlice(entries, 1));
+        ({ baseline, scope } = getRangeTurnSlice(entries, 1, 1));
       } else if (/^\d+$/.test(value)) {
-        ({ baseline, scope } = getNthLastTurnSlice(entries, Number(value)));
+        const n = Number(value);
+        ({ baseline, scope } = getRangeTurnSlice(entries, n, n));
       } else if (/^\d+-\d+$/.test(value)) {
         const [first, last] = value.split("-").map(Number);
         ({ baseline, scope } = getRangeTurnSlice(entries, first!, last!));
@@ -108,7 +98,7 @@ const extension: ExtensionFactory = (pi) => {
     description: "Show file changes from the last turn (alias for /diff last)",
     handler: async (_args, ctx) => {
       const entries = ctx.sessionManager.getBranch() as unknown as SessionEntry[];
-      const { baseline, scope } = getNthLastTurnSlice(entries, 1);
+      const { baseline, scope } = getRangeTurnSlice(entries, 1, 1);
       await showDiff(scope, ctx.cwd, ctx, baseline);
     },
   });

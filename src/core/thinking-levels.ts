@@ -2,26 +2,19 @@ import { getSupportedThinkingLevels, type ModelThinkingLevel } from "@earendil-w
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { MixCodeModel, MixCodeModelRef } from "./types.js";
 
-const DISCOVERY_THINKING_LEVEL_MAP = new Proxy(Object.create(null) as Record<string, string>, {
-  get: (_target, property) => (typeof property === "string" ? property : undefined),
-}) as Partial<Record<ModelThinkingLevel, string>>;
-
-const DISCOVERY_MODEL: MixCodeModel = {
-  id: "mixcode-thinking-discovery",
-  name: "MixCode Thinking Discovery",
-  api: "mixcode-thinking-discovery",
-  provider: "mixcode",
-  baseUrl: "local://mixcode-thinking-discovery",
-  reasoning: true,
-  thinkingLevelMap: DISCOVERY_THINKING_LEVEL_MAP,
-  input: ["text"],
-  cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-  contextWindow: 1,
-  maxTokens: 1,
-};
+// Closed Pi ModelThinkingLevel set. getSupportedThinkingLevels is unexported-list + filter.
+const ALL_THINKING_LEVELS = [
+  "off",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+] as const satisfies readonly ModelThinkingLevel[];
 
 export function allKnownThinkingLevels(): ThinkingLevel[] {
-  return getSupportedThinkingLevels(DISCOVERY_MODEL) as ThinkingLevel[];
+  return [...ALL_THINKING_LEVELS] as ThinkingLevel[];
 }
 
 export function availableThinkingLevelsForModel(model: MixCodeModelRef | MixCodeModel | undefined): ThinkingLevel[] {
@@ -47,12 +40,16 @@ export function validThinkingLevelsMessage(model: MixCodeModelRef | MixCodeModel
 function toCapabilityModel(model: MixCodeModelRef | MixCodeModel): MixCodeModel {
   if ("id" in model) return model;
   return {
-    ...DISCOVERY_MODEL,
     id: model.modelId,
     name: model.displayName,
+    api: "mixcode-thinking-discovery",
     provider: model.provider,
+    baseUrl: "local://mixcode-thinking-discovery",
     reasoning: model.reasoning ?? false,
     thinkingLevelMap: model.thinkingLevelMap as Partial<Record<ModelThinkingLevel, string | null>> | undefined,
+    input: ["text"],
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     contextWindow: model.contextWindow,
+    maxTokens: 1,
   };
 }

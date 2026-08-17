@@ -2,7 +2,7 @@ import { evaluateCompletionFloor, type CompletionFloorEvaluation } from "../../d
 import { formatElapsed } from "../../domain/format.js";
 import type { listGoalTemplateMetadata } from "../../templates/discover.js";
 import { getGoal, getTelemetry } from "../../persistence/goal-store.js";
-import type { FloorValuePassId, GoalState, GoalTelemetrySnapshot, NoMoreValuableWorkReason } from "../../domain/types.js";
+import type { FloorValuePassId, GoalState, GoalTelemetrySnapshot } from "../../domain/types.js";
 
 export type ToolDetails = {
 	goal: GoalState | null;
@@ -22,7 +22,6 @@ export type ToolDetails = {
 		required_evidence: string[];
 		avoid: string[];
 	};
-	no_more_valuable_work_reason?: NoMoreValuableWorkReason | "max_budget_requires_wrap_up";
 };
 
 export function resultForGoal(goal: GoalState | null, telemetry: GoalTelemetrySnapshot | null, prefix?: string) {

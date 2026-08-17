@@ -2,10 +2,9 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 export type GoalStatus = "active" | "paused" | "budgetLimited" | "complete";
 export type ContextResetMode = "clear" | "summarize";
-export type PostCompletionActionType = "context.reset";
 export type PostCompletionActionSpec = { type: "context.reset"; mode: ContextResetMode };
 export type PostCompletionActionStatus = "pending" | "running" | "done" | "failed" | "skipped";
-export type ContextResetPostCompletionActionState = PostCompletionActionSpec & {
+export type PostCompletionActionState = PostCompletionActionSpec & {
 	id: string;
 	status: PostCompletionActionStatus;
 	anchorEntryId?: string;
@@ -14,7 +13,6 @@ export type ContextResetPostCompletionActionState = PostCompletionActionSpec & {
 	completedAt?: number;
 	updatedAt?: number;
 };
-export type PostCompletionActionState = ContextResetPostCompletionActionState;
 
 export type GoalState = {
 	goalId: string;
@@ -38,11 +36,8 @@ export type ContinuationSkipReason =
 	| "notIdle"
 	| "pendingMessages"
 	| "notActive"
-	| "budgetLimited"
 	| "safetyCap"
 	| "noProgress"
-	| "floorExhausted"
-	| "budgetExhausted"
 	| "compacting"
 	| "apiError";
 export type ApiGateState = "open" | "blocked";
@@ -63,9 +58,9 @@ export type FloorValuePassId =
 	| "compatibility_review"
 	| "docs_handoff_evidence";
 
-export type FloorQualityState = "inactive" | "eligible" | "steering" | "qualityWarning" | "exhausted" | "overriddenByMaxBudget";
+export type FloorQualityState = "steering" | "overriddenByMaxBudget";
 
-export type NoMoreValuableWorkReason = "objective_fully_satisfied" | "no_safe_autonomous_work" | "max_budget_requires_wrap_up" | "user_requested_stop";
+export type NoMoreValuableWorkReason = "no_safe_autonomous_work" | "max_budget_requires_wrap_up";
 
 
 export type CompactionContinuationAction = "prequeue" | "fallbackRetry" | "fallbackFinished";
@@ -95,9 +90,7 @@ export type GoalTelemetrySnapshot = {
 	tokenBudgetWarningSent?: boolean;
 	timeBudgetWarningSent?: boolean;
 	lastFloorCardId?: FloorValuePassId;
-	completedFloorCardIds?: FloorValuePassId[];
 	floorSteerCount?: number;
-	floorChurnSteerCount?: number;
 	floorQualityState?: FloorQualityState;
 	noMoreValuableWorkReason?: NoMoreValuableWorkReason;
 	lastCompactionContinuationAction?: CompactionContinuationAction;
@@ -115,11 +108,9 @@ export type PiGoalEventReason =
 	| "budget"
 	| "abort"
 	| "resume"
-	| "reload"
 	| "continuation"
 	| "safety"
 	| "floor"
-	| "reset"
 	| "compact";
 
 export type PiGoalStateEvent = {

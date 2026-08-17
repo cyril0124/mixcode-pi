@@ -1,15 +1,10 @@
 import * as os from "node:os";
 import * as path from "node:path";
 import {
-  type ClipboardImage,
   extensionForImageMimeType,
   readClipboardImage,
   readClipboardText,
 } from "@earendil-works/pi-coding-agent";
-
-export type { ClipboardImage };
-export { extensionForImageMimeType, readClipboardImage, readClipboardText };
-
 /**
  * Pi-parity clipboard paste: prefer image (temp path for the editor), else text.
  * Returns null when neither source has content.

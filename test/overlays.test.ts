@@ -6,7 +6,6 @@ import {
   createTab,
   acceptCommandPaletteSelection,
   acceptTabJumpSelection,
-  commandPaletteEntries,
   filterTabJumpEntries,
   closeCommandPalette,
   closeTabJump,
@@ -28,14 +27,14 @@ test("command palette derives every palette-visible LOCAL_COMMANDS entry", () =>
   state.tabs.push(createTab(1, "s1", "/repo"));
   state.activeTabId = "s1";
   openCommandPalette(state);
-  const commands = new Set(commandPaletteEntries(state).map((entry) => entry.command));
+  const commands = new Set(commandPaletteEntriesWithExtensions(state).map((entry) => entry.command));
   // Newly registered local commands must appear without touching overlays.ts.
   assert.ok(commands.has("/toggle-hidden-messages"), "palette derives /toggle-hidden-messages");
   // Config-scoped view must also derive from the same source.
   const configState = createInitialState("/repo");
   openCommandPalette(configState);
   const configCommands = new Set(
-    commandPaletteEntries(configState).map((entry) => entry.command),
+    commandPaletteEntriesWithExtensions(configState).map((entry) => entry.command),
   );
   assert.ok(configCommands.has("/save-workspace"), "config palette keeps workspace commands");
 });
@@ -173,18 +172,18 @@ test("command palette filters, accepts, disables, and closes without OpenCode en
   openCommandPalette(state);
   assert.equal(state.commandPaletteOpen, true);
   assert.ok(
-    commandPaletteEntries(state).some(
+    commandPaletteEntriesWithExtensions(state).some(
       (entry) => entry.label === "Settings" && entry.command === "/settings",
     ),
   );
   assert.equal(
-    commandPaletteEntries(state).some((entry) => entry.command === "/review"),
+    commandPaletteEntriesWithExtensions(state).some((entry) => entry.command === "/review"),
     false,
   );
-  assertNoOpenCodePaletteEntries(commandPaletteEntries(state));
+  assertNoOpenCodePaletteEntries(commandPaletteEntriesWithExtensions(state));
   updateCommandPaletteQuery(state, "settings");
   assert.deepEqual(
-    commandPaletteEntries(state).map((entry) => entry.command),
+    commandPaletteEntriesWithExtensions(state).map((entry) => entry.command),
     ["/settings"],
   );
   assert.equal(acceptCommandPaletteSelection(state), "/settings");
@@ -193,7 +192,7 @@ test("command palette filters, accepts, disables, and closes without OpenCode en
   state.tabs.push(createTab(1, "s1", "/repo"));
   state.activeTabId = "s1";
   openCommandPalette(state);
-  const sessionCommands = new Set(commandPaletteEntries(state).map((entry) => entry.command));
+  const sessionCommands = new Set(commandPaletteEntriesWithExtensions(state).map((entry) => entry.command));
   for (const command of [
     "/models",
     "/thinking",
@@ -208,18 +207,18 @@ test("command palette filters, accepts, disables, and closes without OpenCode en
     assert.ok(sessionCommands.has(command), `session palette includes ${command}`);
   }
   assert.equal(sessionCommands.has("/review"), false);
-  assertNoOpenCodePaletteEntries(commandPaletteEntries(state));
+  assertNoOpenCodePaletteEntries(commandPaletteEntriesWithExtensions(state));
 
   updateCommandPaletteQuery(state, "system prompt");
   assert.deepEqual(
-    commandPaletteEntries(state).map((entry) => entry.command),
+    commandPaletteEntriesWithExtensions(state).map((entry) => entry.command),
     ["/system-prompt"],
   );
   assert.equal(acceptCommandPaletteSelection(state), "/system-prompt");
   openCommandPalette(state);
   updateCommandPaletteQuery(state, "vim mode");
   assert.deepEqual(
-    commandPaletteEntries(state).map((entry) => entry.command),
+    commandPaletteEntriesWithExtensions(state).map((entry) => entry.command),
     ["/vim"],
   );
   assert.equal(acceptCommandPaletteSelection(state), "/vim");
@@ -245,7 +244,7 @@ test("command palette filters, accepts, disables, and closes without OpenCode en
   );
   updateCommandPaletteQuery(state, "inspect");
   assert.deepEqual(
-    commandPaletteEntries(state).map((entry) => entry.command),
+    commandPaletteEntriesWithExtensions(state).map((entry) => entry.command),
     [],
   );
   assert.match(stripAnsi(renderCommandPalette(state, 100, extensionCommands).join("\n")), /inspect-context/);
@@ -253,11 +252,11 @@ test("command palette filters, accepts, disables, and closes without OpenCode en
 
   state.availableModels = [];
   openCommandPalette(state);
-  const modelEntry = commandPaletteEntries(state).find((entry) => entry.command === "/models");
+  const modelEntry = commandPaletteEntriesWithExtensions(state).find((entry) => entry.command === "/models");
   assert.equal(modelEntry?.enabled, false);
   assert.equal(modelEntry?.disabledReason, "No models loaded");
   // Disabled rows are omitted from selection; Enter runs the first visible command.
-  const firstVisible = commandPaletteEntries(state).find((entry) => entry.enabled);
+  const firstVisible = commandPaletteEntriesWithExtensions(state).find((entry) => entry.enabled);
   assert.ok(firstVisible);
   assert.notEqual(firstVisible.command, "/models");
   assert.equal(acceptCommandPaletteSelection(state), firstVisible.command);
@@ -266,7 +265,7 @@ test("command palette filters, accepts, disables, and closes without OpenCode en
   state.tabs[0]!.sessionId = "";
   state.activeTabId = "";
   openCommandPalette(state);
-  const sessionEntries = commandPaletteEntries(state);
+  const sessionEntries = commandPaletteEntriesWithExtensions(state);
   assert.equal(sessionEntries.find((entry) => entry.command === "/thinking")?.enabled, false);
   assert.equal(
     sessionEntries.find((entry) => entry.command === "/thinking")?.disabledReason,
@@ -277,7 +276,7 @@ test("command palette filters, accepts, disables, and closes without OpenCode en
     true,
   );
   state.activeTabId = "missing";
-  assert.deepEqual(commandPaletteEntries(state), []);
+  assert.deepEqual(commandPaletteEntriesWithExtensions(state), []);
   state.tabs[0]!.sessionId = "s1";
   state.activeTabId = "s1";
 
@@ -285,7 +284,7 @@ test("command palette filters, accepts, disables, and closes without OpenCode en
   moveCommandPaletteSelection(state, -1);
   assert.ok(state.commandPalette.selectedIndex > 0);
   updateCommandPaletteQuery(state, "missing");
-  assert.deepEqual(commandPaletteEntries(state), []);
+  assert.deepEqual(commandPaletteEntriesWithExtensions(state), []);
   assert.match(renderCommandPalette(state, 80).join("\n"), /No matching commands/);
   // Query change always resets selection to the new top hit (0).
   assert.equal(state.commandPalette.selectedIndex, 0);
@@ -298,7 +297,7 @@ test("command palette filters, accepts, disables, and closes without OpenCode en
   assert.ok(secondIndex > 0);
   updateCommandPaletteQuery(state, "new");
   assert.equal(state.commandPalette.selectedIndex, 0);
-  const filtered = commandPaletteEntries(state);
+  const filtered = commandPaletteEntriesWithExtensions(state);
   assert.ok(filtered.some((entry) => entry.command === "/new-session"));
   assert.equal(acceptCommandPaletteSelection(state), "/new-session");
 
@@ -314,7 +313,7 @@ test("command palette selection skips disabled entries (matches visible rows)", 
   state.activeTabId = "home";
   assert.equal(state.tabs.length, 0);
 
-  const all = commandPaletteEntries(state);
+  const all = commandPaletteEntriesWithExtensions(state);
   const visible = all.filter((entry) => entry.enabled);
   assert.ok(all.some((entry) => !entry.enabled), "fixture needs disabled rows");
   assert.ok(visible.length >= 2);
@@ -338,12 +337,12 @@ test("command palette filter matches per-token subsequence, not scattered fuzzy"
   openCommandPalette(state);
   updateCommandPaletteQuery(state, "done");
   assert.deepEqual(
-    commandPaletteEntries(state).map((entry) => entry.command),
+    commandPaletteEntriesWithExtensions(state).map((entry) => entry.command),
     ["/mark-done"],
   );
 });
 
-function assertNoOpenCodePaletteEntries(entries: ReturnType<typeof commandPaletteEntries>): void {
+function assertNoOpenCodePaletteEntries(entries: ReturnType<typeof commandPaletteEntriesWithExtensions>): void {
   const text = entries
     .map((entry) => `${entry.label} ${entry.command} ${entry.description}`)
     .join("\n");

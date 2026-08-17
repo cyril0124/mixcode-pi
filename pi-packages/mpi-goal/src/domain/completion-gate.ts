@@ -44,9 +44,9 @@ export function decideGoalCompletion(input: GoalCompletionGateInput): Completion
 }
 
 function canAllowNoValuableWorkEscape(telemetry: GoalTelemetrySnapshot | null): boolean {
-	return telemetry?.floorQualityState === "exhausted" || Boolean(telemetry?.noMoreValuableWorkReason);
+	return Boolean(telemetry?.noMoreValuableWorkReason);
 }
 
 function hasPriorFloorWork(telemetry: GoalTelemetrySnapshot | null): boolean {
-	return (telemetry?.floorSteerCount ?? 0) > 0 || (telemetry?.completedFloorCardIds?.length ?? 0) > 0;
+	return (telemetry?.floorSteerCount ?? 0) > 0;
 }

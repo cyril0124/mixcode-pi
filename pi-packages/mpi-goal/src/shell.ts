@@ -36,11 +36,6 @@ export function ensureMpiGoalWired(pi: ExtensionAPI): Promise<void> {
 	return state.promise;
 }
 
-/** Test/helper: whether full wire has completed for this pi instance. */
-export function isMpiGoalWired(pi: ExtensionAPI): boolean {
-	return stateFor(pi).wired;
-}
-
 const GOAL_SUBCOMMANDS: Array<{ name: string; description: string }> = [
 	{ name: "pause", description: "Pause the current goal" },
 	{ name: "resume", description: "Resume a paused goal" },
@@ -71,15 +66,7 @@ function shellGoalCompletions(argumentPrefix: string): AutocompleteItem[] | null
 export function registerMpiGoalShell(pi: ExtensionAPI): void {
 	pi.registerCommand("goal", {
 		description: "Set or view the goal for a long-running task",
-		getArgumentCompletions: (argumentPrefix: string) => {
-			// After full wire, prefer the rich completer (templates, etc.).
-			if (isMpiGoalWired(pi)) {
-				// Sync path: use already-loaded module if present in the graph.
-				// Dynamic import is async; keep shell completions when not wired.
-				return shellGoalCompletions(argumentPrefix);
-			}
-			return shellGoalCompletions(argumentPrefix);
-		},
+		getArgumentCompletions: (argumentPrefix: string) => shellGoalCompletions(argumentPrefix),
 		handler: async (args: string, ctx: ExtensionCommandContext) => {
 			await ensureMpiGoalWired(pi);
 			const { dispatchGoalCommand } = await import("./app.js");

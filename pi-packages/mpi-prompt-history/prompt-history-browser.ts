@@ -33,7 +33,6 @@ interface PromptItem {
   index: number; // Sequence number (newest = highest)
   text: string;
   searchText: string; // Lowercase for matching
-  timestamp?: string; // ISO timestamp
   timeDisplay: string; // Formatted time string
 }
 
@@ -81,7 +80,7 @@ function formatTime(timestamp?: string): string {
   return `${relative} (${absoluteFull})`;
 }
 
-function buildItems(rawItems: Array<{ entryId: string; text: string; timestamp?: string }>): PromptItem[] {
+function buildItems(rawItems: Array<{ text: string; timestamp?: string }>): PromptItem[] {
   // Reverse so newest is first, assign sequence numbers
   return rawItems
     .slice()
@@ -90,7 +89,6 @@ function buildItems(rawItems: Array<{ entryId: string; text: string; timestamp?:
       index: rawItems.length - idx,
       text: item.text,
       searchText: item.text.toLowerCase(),
-      timestamp: item.timestamp,
       timeDisplay: formatTime(item.timestamp),
     }));
 }
@@ -168,7 +166,7 @@ function renderList(
 export interface PromptHistoryBrowserConfig {
   tui: { terminal: { columns: number; rows: number }; requestRender(): void };
   theme: Theme;
-  items: Array<{ entryId: string; text: string; timestamp?: string }>;
+  items: Array<{ text: string; timestamp?: string }>;
   done: (result: string | null) => void;
 }
 
@@ -272,7 +270,7 @@ export function createPromptHistoryBrowserComponent(config: PromptHistoryBrowser
 // ─── Public API ──────────────────────────────────────────────────────────────
 
 export async function openPromptHistoryBrowser(
-  items: Array<{ entryId: string; text: string; timestamp?: string }>,
+  items: Array<{ text: string; timestamp?: string }>,
   ctx: {
     ui: {
       custom<T>(

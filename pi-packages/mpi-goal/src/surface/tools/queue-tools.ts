@@ -1,6 +1,6 @@
 import { Type } from "typebox";
 import { CreateGoalParams, EmptyParams } from "./schemas.js";
-import { withGoalSessionFromCtxAsync } from "../../domain/session-scope.js";
+import { withGoalSessionFromCtx } from "../../domain/session-scope.js";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { validateObjective } from "../../domain/format.js";
 import { validateFloorConfig } from "../../domain/floor.js";
@@ -36,7 +36,7 @@ type GoalQueueToolRuntime = {
 
 
 async function withSessionTool<T>(ctx: ExtensionContext, run: () => Promise<T>): Promise<T> {
-	return withGoalSessionFromCtxAsync(ctx, async () => {
+	return withGoalSessionFromCtx(ctx, async () => {
 		replayGoalState(ctx);
 		replayQueueState(ctx);
 		return run();
@@ -200,7 +200,7 @@ function createAndDequeueQueuedGoal(pi: ExtensionAPI, runtime: GoalQueueToolRunt
 	const floorError = validateFloorConfig({ tokenBudget: next.tokenBudget, timeBudgetSeconds: next.timeBudgetSeconds, minTokensBeforeWrapUp: next.minTokensBeforeWrapUp, minTimeSecondsBeforeWrapUp: next.minTimeSecondsBeforeWrapUp });
 	if (floorError) return errorResult(floorError);
 	let goal = createGoalState({ objective, tokenBudget: next.tokenBudget, timeBudgetSeconds: next.timeBudgetSeconds, minTokensBeforeWrapUp: next.minTokensBeforeWrapUp, minTimeSecondsBeforeWrapUp: next.minTimeSecondsBeforeWrapUp, postCompletionActions: createPostCompletionActionStates(next.postCompletionActions ?? []), sourceQueueId: next.queueId });
-	goal = recordPostStartActionAnchors(pi, ctx, goal, "tool");
+	goal = recordPostStartActionAnchors(ctx, goal);
 	const telemetry = createTelemetry(goal.goalId, goal.createdAt);
 	persistSetGoal(pi, goal, telemetry, "tool");
 	const dequeued = dequeueGoal();

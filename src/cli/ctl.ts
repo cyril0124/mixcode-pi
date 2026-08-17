@@ -417,7 +417,7 @@ function formatCtlSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
 }
 
-export function sliceUtf8Prefix(text: string, maxBytes: number): string {
+function sliceUtf8Prefix(text: string, maxBytes: number): string {
   const encoder = new TextEncoder();
   if (encoder.encode(text).byteLength <= maxBytes) return text;
   let out = "";

@@ -59,7 +59,6 @@ interface LoopEntry {
   prompt: string;
   intervalMs: number;
   intervalLabel: string;
-  createdAt: Date;
   fireCount: number;
   nextRunAt: number;
   /** Timer-tick conflict policy. Manual fire / first immediate fire ignore this. */
@@ -607,7 +606,6 @@ export default function (pi: ExtensionAPI) {
         prompt,
         intervalMs: effectiveMs,
         intervalLabel: formatInterval(effectiveMs),
-        createdAt: new Date(),
         fireCount: 0,
         nextRunAt: Date.now() + effectiveMs,
         mode: "defer",

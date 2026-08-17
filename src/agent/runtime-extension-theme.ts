@@ -11,22 +11,20 @@ import {
   KeybindingsManager as PiTuiKeybindingsManager,
   TUI_KEYBINDINGS,
 } from "@earendil-works/pi-tui";
-import {
-  getActiveExtensionThemeId,
-  noteActiveExtensionThemeId,
-} from "../core/active-extension-theme-id.js";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import {
   applyPiThemeInstance,
   initTheme,
 } from "../ui/pi-theme-api.js";
 import {
+  getActiveExtensionThemeId,
   listThemeInfos,
   MIXCODE_EXTENSION_CLAUDE_WARM_THEME,
   MIXCODE_EXTENSION_TERMINAL_THEME,
   MIXCODE_EXTENSION_THEME,
   MIXCODE_EXTENSION_TOKYO_NIGHT_THEME,
   normalizeThemeId,
+  noteActiveExtensionThemeId,
   registerAdditionalTheme,
   registerMixCodeThemes,
   resolvePiTheme,

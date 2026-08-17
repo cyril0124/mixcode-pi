@@ -3,7 +3,7 @@ import { deleteWorkspace, saveWorkspaces } from "../core/state-store.js";
 import type { ToastType } from "../core/toast.js";
 import { getActiveTab } from "../core/tabs.js";
 import type { MixCodeState, WorkspaceSnapshot } from "../core/types.js";
-import { createWorkspaceOverlayState } from "../core/workspace-ui.js";
+import { createWorkspaceOverlayState } from "../core/defaults.js";
 import { snapshotWorkspace, upsertWorkspace } from "../core/workspace.js";
 import { closeAppOverlay, showLinesOverlay, showNoticeTextOverlay } from "./app-overlays.js";
 import type { OverlayOptions } from "@earendil-works/pi-tui";

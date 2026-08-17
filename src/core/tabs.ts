@@ -1,7 +1,5 @@
 import { HOME_TAB_ID, type MixCodeState, type MixCodeTabInfo } from "./types.js";
 
-export { HOME_TAB_ID } from "./types.js";
-
 const activeTabListeners = new Set<(tabId: string) => void>();
 
 /** Subscribe to UI focus changes (`activateTab`). Returns unsubscribe. */
@@ -50,7 +48,7 @@ function liveRecentAgentTabIds(state: MixCodeState): string[] {
   return (state.recentAgentTabIds ?? []).filter((id) => live.has(id));
 }
 
-export function noteRecentAgentTab(state: MixCodeState, sessionId: string): void {
+function noteRecentAgentTab(state: MixCodeState, sessionId: string): void {
   if (!sessionId || sessionId === HOME_TAB_ID) return;
   const current = liveRecentAgentTabIds(state);
   state.recentAgentTabIds = [sessionId, ...current.filter((id) => id !== sessionId)].slice(
@@ -59,7 +57,7 @@ export function noteRecentAgentTab(state: MixCodeState, sessionId: string): void
   );
 }
 
-export function forgetRecentAgentTab(state: MixCodeState, sessionId: string): void {
+function forgetRecentAgentTab(state: MixCodeState, sessionId: string): void {
   state.recentAgentTabIds = liveRecentAgentTabIds(state).filter((id) => id !== sessionId);
 }
 

@@ -1,4 +1,4 @@
-import type { SettingsManager } from "@earendil-works/pi-coding-agent";
+import type { SessionSelectorComponent, SettingsManager } from "@earendil-works/pi-coding-agent";
 import type { Model, ThinkingLevelMap } from "@earendil-works/pi-ai";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { MixCodeUiSettings, RawMixCodeSettings } from "./mixcode-settings.js";
@@ -14,11 +14,8 @@ export type MermaidRenderingMode = "off" | "final" | "streaming";
 export type MixCodeModel = Model<any>;
 
 import type { ChatSelectionState, ChatSurfaceBounds } from "./chat-selection.js";
-import type { SessionSelectorState } from "./session-selector.js";
-import type { ForkSelectorState } from "./fork-selector.js";
 import type { ToastNotification } from "./toast.js";
 import type { TreeSelectorState } from "./tree-selector.js";
-import type { WorkspaceOverlayState } from "./workspace-ui.js";
 
 export type TabStatus = "Not Ready" | "idle" | "running" | "thinking" | "error" | "done";
 
@@ -374,6 +371,52 @@ export type SessionActionConfirm = {
   action: "close" | "delete";
   sessionId: string;
 };
+
+export interface ForkSelectorState {
+  open: boolean;
+  sessionId: string;
+  items: Array<{ entryId: string; text: string }>;
+  selectedIndex: number;
+}
+
+/** Host state for the session resume selector. List UI is Pi's SessionSelectorComponent. */
+export interface SessionSelectorState {
+  open: boolean;
+  /** Active session file path when the selector opened (blocks self-delete / self-resume). */
+  currentSessionPath: string | null;
+  /** Live Pi component while open; cleared on close. */
+  component?: SessionSelectorComponent;
+  /** Clear editor input slot / other host resources; set while open. */
+  dispose?: () => void;
+}
+
+export type WorkspaceOverlayMode =
+  | "save"
+  | "save-confirm-overwrite"
+  | "restore"
+  | "restore-confirm-close"
+  | "restoring"
+  | "delete"
+  | "delete-confirm"
+  | "missing";
+
+export interface WorkspaceOverlayState {
+  open: boolean;
+  mode: WorkspaceOverlayMode;
+  query: string;
+  selectedIndex: number;
+  workspaces: WorkspaceSnapshot[];
+  workdir: string;
+  message: string;
+  input: string;
+  pendingName?: string;
+  pendingWorkspace?: WorkspaceSnapshot;
+  extraTabCount: number;
+  restoredCount: number;
+  skippedMissing: string[];
+  progressCurrent: number;
+  progressTotal: number;
+}
 
 export interface MixCodeState {
   workdir: string;

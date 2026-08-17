@@ -39,8 +39,8 @@ import {
 import {
   configureDisabledModelRuntime,
   createPiModelRegistryBundle,
-  resolveAgentDirEnv,
 } from "../core/pi-models.js";
+import { expandTilde } from "./status.js";
 import {
   loadStateFile,
   saveStateFile,
@@ -84,7 +84,7 @@ export function resolveSessionsRoot(input: {
   settingsSessionDir?: string;
 }): string {
   return (
-    resolveAgentDirEnv(input.envSessionDir) ??
+    (input.envSessionDir?.trim() ? expandTilde(input.envSessionDir) : undefined) ??
     input.settingsSessionDir ??
     defaultPiSessionDir(input.workdir, input.agentDir)
   );

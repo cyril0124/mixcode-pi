@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { createTelemetry } from "./src/domain/telemetry.js";
-import { runInGoalSession, withGoalSessionFromCtxAsync } from "./src/domain/session-scope.js";
+import { runInGoalSession, withGoalSessionFromCtx } from "./src/domain/session-scope.js";
 import {
 	createGoalState,
 	getGoal,
@@ -61,7 +61,7 @@ test("overlay-style getSnapshot must re-enter session key or it shows No active 
 
 	let leakedGetSnapshot: (() => { goal: ReturnType<typeof getGoal> }) | undefined;
 
-	await withGoalSessionFromCtxAsync(ctx, async () => {
+	await withGoalSessionFromCtx(ctx, async () => {
 		const goal = createGoalState({ objective: "widget says active", now: 1 });
 		const telemetry = createTelemetry(goal.goalId);
 		persistSetGoal(pi, goal, telemetry, "command");

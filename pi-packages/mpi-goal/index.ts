@@ -24,4 +24,4 @@ export default function mpiGoal(pi: ExtensionAPI): void {
 // Do not re-export wireMpiGoal from this entry — a static export pulls the full
 // module graph back into the cold load path. Import `./src/app.js` directly when
 // tests need the full synchronous wire helper.
-export { ensureMpiGoalWired, isMpiGoalWired } from "./src/shell.js";
+export { ensureMpiGoalWired } from "./src/shell.js";

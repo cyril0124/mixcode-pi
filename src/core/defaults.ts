@@ -1,13 +1,49 @@
 import { type ThinkingLevel, uuidv7 } from "@earendil-works/pi-agent-core";
-import { createSessionSelectorState } from "./session-selector.js";
-import { createForkSelectorState } from "./fork-selector.js";
 import { createTreeSelectorState } from "./tree-selector.js";
-import { createWorkspaceOverlayState } from "./workspace-ui.js";
 import {
   DEFAULT_ICON_MODE,
   DEFAULT_OVERSIZED_ASSISTANT_MESSAGE,
 } from "./mixcode-settings.js";
-import { HOME_TAB_ID, type MixCodeModelRef, type MixCodeState, type MixCodeTabInfo } from "./types.js";
+import {
+  HOME_TAB_ID,
+  type ForkSelectorState,
+  type MixCodeModelRef,
+  type MixCodeState,
+  type MixCodeTabInfo,
+  type SessionSelectorState,
+  type WorkspaceOverlayState,
+} from "./types.js";
+
+export function createForkSelectorState(): ForkSelectorState {
+  return { open: false, sessionId: "", items: [], selectedIndex: 0 };
+}
+
+export function createSessionSelectorState(): SessionSelectorState {
+  return {
+    open: false,
+    currentSessionPath: null,
+  };
+}
+
+export function createWorkspaceOverlayState(): WorkspaceOverlayState {
+  return {
+    open: false,
+    mode: "restore",
+    query: "",
+    selectedIndex: 0,
+    workspaces: [],
+    workdir: "",
+    message: "",
+    input: "",
+    pendingName: undefined,
+    pendingWorkspace: undefined,
+    extraTabCount: 0,
+    restoredCount: 0,
+    skippedMissing: [],
+    progressCurrent: 0,
+    progressTotal: 0,
+  };
+}
 
 export const DEFAULT_THEME_ID = "claude-warm";
 

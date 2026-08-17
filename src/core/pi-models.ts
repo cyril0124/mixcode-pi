@@ -1,5 +1,4 @@
 import * as fs from "node:fs/promises";
-import * as os from "node:os";
 import * as path from "node:path";
 import type {
   AssistantMessageEventStream,
@@ -8,6 +7,7 @@ import type {
   SimpleStreamOptions,
 } from "@earendil-works/pi-ai";
 import { getAgentDir, ModelRegistry, ModelRuntime } from "@earendil-works/pi-coding-agent";
+import { isModelDisabled } from "./mixcode-settings.js";
 import type { MixCodeModel } from "./types.js";
 
 export interface PiModelSource {
@@ -115,20 +115,12 @@ function assertRuntimeModelEnabled(model: MixCodeModel, policy: DisabledModelRun
 }
 
 function runtimeModelDisabled(model: MixCodeModel, policy: DisabledModelRuntimePolicy): boolean {
-  return (
-    policy.disabledProviders.has(model.provider) ||
-    policy.disabledModels.has(`${model.provider}/${model.id}`)
+  return isModelDisabled(
+    model.provider,
+    model.id,
+    [...policy.disabledProviders],
+    [...policy.disabledModels],
   );
-}
-
-/** Expand `~` in optional path values (e.g. session-dir overrides). */
-export function resolveAgentDirEnv(value: string | undefined): string | undefined {
-  if (!value) return undefined;
-  if (value === "~") return process.env.HOME || os.homedir();
-  if (value.startsWith("~/") || (process.platform === "win32" && value.startsWith("~\\"))) {
-    return path.join(process.env.HOME || os.homedir(), value.slice(2));
-  }
-  return value;
 }
 
 export function defaultPiModelsPath(): string {

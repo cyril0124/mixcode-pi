@@ -10,8 +10,7 @@ import { LOCAL_COMMANDS } from "../core/commands.js";
 import { ensurePackageExtensions } from "../core/ensure-package-extensions.js";
 import { expandTilde } from "./status.js";
 
-export const COMMAND_LIST_SOURCES = ["local", "extension", "prompt"] as const;
-export type CommandListSource = (typeof COMMAND_LIST_SOURCES)[number];
+export type CommandListSource = "local" | "extension" | "prompt";
 
 export interface CommandListEntry {
   name: string;

@@ -7,7 +7,6 @@ export type { FloorValuePassId };
 export type FloorWorkCard = {
 	id: FloorValuePassId;
 	label: string;
-	chooseWhen: string;
 	concreteFirstAction: string;
 	requiredEvidence: string[];
 	avoid: string[];
@@ -23,7 +22,6 @@ export const FLOOR_VALUE_PASS_CATALOG: readonly FloorWorkCard[] = [
 	{
 		id: "requirement_gap_audit",
 		label: "Requirement gap audit",
-		chooseWhen: "Explicit requirements may not all be mapped to evidence.",
 		concreteFirstAction: "Re-read the objective and map each explicit requirement to a concrete artifact, command, file, or proof.",
 		requiredEvidence: ["requirement-to-evidence delta", "fixed gap or precise no-gap finding"],
 		avoid: ["restating the checklist without inspecting evidence"],
@@ -31,7 +29,6 @@ export const FLOOR_VALUE_PASS_CATALOG: readonly FloorWorkCard[] = [
 	{
 		id: "adversarial_review",
 		label: "Adversarial review",
-		chooseWhen: "Existing solution may false-green or miss edge cases.",
 		concreteFirstAction: "Attack assumptions, enumerate failure modes, and add or tighten a mitigation, test, or proof row.",
 		requiredEvidence: ["new risk, test, validation row, or mitigation"],
 		avoid: ["generic looks-good review"],
@@ -39,7 +36,6 @@ export const FLOOR_VALUE_PASS_CATALOG: readonly FloorWorkCard[] = [
 	{
 		id: "alternate_perspective",
 		label: "Alternate perspective review",
-		chooseWhen: "Design, product, API, operator, or runtime tradeoffs may be under-examined.",
 		concreteFirstAction: "Review the work from one concrete alternate perspective and reconcile the consequence into the artifact or design.",
 		requiredEvidence: ["design adjustment, rejected alternative, or documented invariant"],
 		avoid: ["brainstorming with no decision or writeback"],
@@ -47,7 +43,6 @@ export const FLOOR_VALUE_PASS_CATALOG: readonly FloorWorkCard[] = [
 	{
 		id: "research_expansion",
 		label: "Research expansion",
-		chooseWhen: "More local, external, docs, code, web, GitHub, or open-source evidence can improve quality.",
 		concreteFirstAction: "Inspect one relevant source and write back the finding only if it changes the design, proof, or artifact.",
 		requiredEvidence: ["cited finding with concrete impact"],
 		avoid: ["unrelated browsing or source dumping"],
@@ -55,7 +50,6 @@ export const FLOOR_VALUE_PASS_CATALOG: readonly FloorWorkCard[] = [
 	{
 		id: "validation_expansion",
 		label: "Validation expansion",
-		chooseWhen: "Proof coverage is thin or completion depends on unverified behavior.",
 		concreteFirstAction: "Run or add one targeted probe that would fail if the main invariant is wrong.",
 		requiredEvidence: ["command/probe output", "why the probe covers the invariant"],
 		avoid: ["rerunning unrelated green checks only"],
@@ -63,7 +57,6 @@ export const FLOOR_VALUE_PASS_CATALOG: readonly FloorWorkCard[] = [
 	{
 		id: "simplification_deslop",
 		label: "Simplification/deslop",
-		chooseWhen: "Artifact, code, or design looks overcomplex, duplicated, or AI-sloppy.",
 		concreteFirstAction: "Remove duplication, simplify an API/flow, or tighten wording while preserving behavior.",
 		requiredEvidence: ["concrete diff or simplified section"],
 		avoid: ["style-only churn"],
@@ -71,7 +64,6 @@ export const FLOOR_VALUE_PASS_CATALOG: readonly FloorWorkCard[] = [
 	{
 		id: "compatibility_review",
 		label: "Compatibility review",
-		chooseWhen: "Change may affect replay, queue, budgets, UI, safety, security, performance, or accessibility.",
 		concreteFirstAction: "Inspect one cross-surface compatibility point and add a guardrail, invariant, or acceptance criterion.",
 		requiredEvidence: ["compatibility finding, invariant, or acceptance criterion"],
 		avoid: ["speculative concern with no action"],
@@ -79,7 +71,6 @@ export const FLOOR_VALUE_PASS_CATALOG: readonly FloorWorkCard[] = [
 	{
 		id: "docs_handoff_evidence",
 		label: "Docs/handoff evidence",
-		chooseWhen: "Work is technically done but hard to verify or continue.",
 		concreteFirstAction: "Improve README, issue, comments, closeout, proof links, or handoff evidence with one concrete missing detail.",
 		requiredEvidence: ["clearer handoff/evidence artifact"],
 		avoid: ["summary-only final answer"],
@@ -87,9 +78,8 @@ export const FLOOR_VALUE_PASS_CATALOG: readonly FloorWorkCard[] = [
 ];
 
 export function selectFloorWorkCard(context: FloorWorkSelectionContext): FloorWorkCard | undefined {
-	const completed = new Set(context.telemetry?.completedFloorCardIds ?? []);
 	const last = context.telemetry?.lastFloorCardId;
-	const candidates = FLOOR_VALUE_PASS_CATALOG.filter((card) => card.id !== last).filter((card) => !completed.has(card.id));
+	const candidates = FLOOR_VALUE_PASS_CATALOG.filter((card) => card.id !== last);
 	return preferByObjective(candidates, context.goal.objective) ?? candidates.find((card) => card.id === "requirement_gap_audit") ?? candidates[0];
 }
 
@@ -123,10 +113,6 @@ ${context.card.requiredEvidence.map((item) => `- ${item}`).join("\n")}
 Autonomous fallback ladder if this pass is not viable: requirement/gap audit → validation/proof expansion → alternate-perspective or adversarial review → deeper local/external research → simplification/deslop/maintainability pass → documentation, handoff, and evidence hardening.
 
 Do not ask the user what else to do unless the original objective explicitly required a user decision or a separate safety/destructive-action boundary blocks autonomous work. Do not fill quota with repeated summaries or unrelated churn.`;
-}
-
-export function objectiveAllowsUserFloorFallback(objective: string): boolean {
-	return [/\bask me\b/i, /\bconfirm with me\b/i, /\bwait for my decision\b/i, /\blet me choose\b/i, /\bbefore choosing\b/i].some((pattern) => pattern.test(objective));
 }
 
 export function formatFloorBlock(floor: CompletionFloorEvaluation): string {

@@ -24,7 +24,6 @@ function loop(overrides: Partial<LoopViewEntry> = {}): LoopViewEntry {
     name: "review",
     prompt: "First line\nSecond line with 中文 and a long suffix that wraps.",
     intervalLabel: "10m",
-    createdAt: new Date("2026-07-13T00:00:00Z"),
     fireCount: 3,
     nextRunAt: Date.now() + 60_000,
     mode: "defer",

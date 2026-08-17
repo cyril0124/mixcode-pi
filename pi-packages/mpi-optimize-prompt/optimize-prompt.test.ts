@@ -7,7 +7,6 @@ import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import {
   loadOptimizePromptConfig,
   parseOptimizePromptConfig,
-  parseOptimizePromptConfigText,
   writeOptimizePromptConfig,
 } from "./config.js";
 import { createOptimizePromptConfigOverlay } from "./config-overlay.js";
@@ -157,7 +156,7 @@ describe("mpi-optimize-prompt config", () => {
     }
   });
 
-  it("writeOptimizePromptConfig persists and parseOptimizePromptConfigText validates", async () => {
+  it("writeOptimizePromptConfig persists and loadOptimizePromptConfig reads it back", async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-optimize-write-"));
     try {
       const written = writeOptimizePromptConfig(dir, { model: "a/b", thinking: "low" });
@@ -165,9 +164,6 @@ describe("mpi-optimize-prompt config", () => {
       const loaded = loadOptimizePromptConfig(dir);
       assert.equal(loaded.ok, true);
       if (loaded.ok) assert.deepEqual(loaded.config, { model: "a/b", thinking: "low" });
-
-      assert.deepEqual(parseOptimizePromptConfigText(""), { ok: true, config: {} });
-      assert.equal(parseOptimizePromptConfigText("{not json").ok, false);
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }

@@ -9,16 +9,13 @@ import {
   EMPTY_COMPACT_RESUME_PROMPT,
   endsWithCompleteToolResultBatch,
   estimateContextTokensFromMessages,
-  estimateTokensForNextCall,
   fitCompactionBudgetsToWindow,
   isBranchCompactable,
   isTinyLengthStall,
-  lastAssistantUsageTokens,
   loadPrepareCompaction,
   resolveCompactionBudgets,
   shouldCompactForWindow,
   shouldResumeAfterNativeCompact,
-  stillOverThresholdAfterCompact,
 } from "./index.js";
 
 const budgets = {
@@ -80,30 +77,6 @@ describe("endsWithCompleteToolResultBatch", () => {
         { role: "toolResult", toolCallId: "z" },
       ]),
       false,
-    );
-  });
-});
-
-describe("lastAssistantUsageTokens", () => {
-  it("prefers totalTokens on the latest assistant", () => {
-    const messages = [
-      { role: "assistant", usage: { totalTokens: 100 } },
-      { role: "toolResult", toolCallId: "a" },
-      { role: "assistant", usage: { totalTokens: 2500 } },
-      { role: "toolResult", toolCallId: "b" },
-    ];
-    assert.equal(lastAssistantUsageTokens(messages), 2500);
-  });
-
-  it("falls back to summing usage parts", () => {
-    assert.equal(
-      lastAssistantUsageTokens([
-        {
-          role: "assistant",
-          usage: { input: 1000, output: 20, cacheRead: 5, cacheWrite: 5 },
-        },
-      ]),
-      1030,
     );
   });
 });
@@ -175,11 +148,10 @@ describe("resolveCompactionBudgets", () => {
   });
 });
 
-describe("stillOverThresholdAfterCompact / isTinyLengthStall", () => {
-  it("detects post-compact thrash and tiny length stalls", () => {
-    assert.equal(stillOverThresholdAfterCompact(35_000, 40_000, 10_000), true);
-    assert.equal(stillOverThresholdAfterCompact(20_000, 40_000, 10_000), false);
-    assert.equal(stillOverThresholdAfterCompact(undefined, 40_000, 10_000), false);
+describe("isTinyLengthStall", () => {
+  it("detects tiny length stalls near the ceiling", () => {
+    assert.equal(shouldCompactForWindow(35_000, 40_000, 10_000), true);
+    assert.equal(shouldCompactForWindow(20_000, 40_000, 10_000), false);
     assert.equal(isTinyLengthStall(90, 37_000, 40_000), true);
     assert.equal(isTinyLengthStall(1200, 37_000, 40_000), false);
     assert.equal(isTinyLengthStall(90, 10_000, 40_000), false);
@@ -272,7 +244,6 @@ describe("estimateContextTokensFromMessages", () => {
     assert.equal(estimate.usageTokens, 1000);
     assert.equal(estimate.trailingTokens, 100);
     assert.equal(estimate.tokens, 1100);
-    assert.equal(estimateTokensForNextCall(messages), 1100);
   });
 
   it("skips aborted assistant usage and falls back to earlier valid usage", () => {

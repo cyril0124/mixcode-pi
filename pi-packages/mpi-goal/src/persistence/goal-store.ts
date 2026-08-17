@@ -242,8 +242,8 @@ function parseActionState(value: unknown): PostCompletionActionState | null {
 	};
 }
 
-function parseContextResetMode(value: unknown): ContextResetMode | "none" | undefined {
-	if (value === "clear" || value === "summarize" || value === "none") return value;
+function parseContextResetMode(value: unknown): ContextResetMode | undefined {
+	if (value === "clear" || value === "summarize") return value;
 	return undefined;
 }
 

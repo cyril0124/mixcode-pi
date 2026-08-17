@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import { createEventBus } from "@earendil-works/pi-coding-agent";
 import { afterEach, test } from "bun:test";
+import { syncWaitingForInput } from "../src/agent/runtime-extension-custom.js";
+import { createTab } from "../src/core/defaults.js";
 import {
-  adjustWaitingForInput,
+  setWaitingForInputCount,
   emitMarkDone,
   MARK_DONE_EVENT,
   registerExtensionEventBus,
@@ -18,10 +20,10 @@ const busB = createEventBus();
 afterEach(() => {
   unregisterExtensionEventBus(servicesA);
   unregisterExtensionEventBus(servicesB);
-  adjustWaitingForInput(-100);
+  setWaitingForInputCount(0);
 });
 
-test("adjustWaitingForInput fans out mpi:waiting-for-input on all registered buses", () => {
+test("setWaitingForInputCount fans out mpi:waiting-for-input on all registered buses", () => {
   registerExtensionEventBus(servicesA, busA);
   registerExtensionEventBus(servicesB, busB);
 
@@ -30,15 +32,15 @@ test("adjustWaitingForInput fans out mpi:waiting-for-input on all registered bus
   busA.on(WAITING_FOR_INPUT_EVENT, (data) => seenA.push(data));
   busB.on(WAITING_FOR_INPUT_EVENT, (data) => seenB.push(data));
 
-  adjustWaitingForInput(1);
+  setWaitingForInputCount(1);
   assert.deepEqual(seenA, [{ count: 1, active: true }]);
   assert.deepEqual(seenB, [{ count: 1, active: true }]);
 
-  adjustWaitingForInput(1);
-  adjustWaitingForInput(-1);
+  setWaitingForInputCount(2);
+  setWaitingForInputCount(1);
   assert.deepEqual(seenA.at(-1), { count: 1, active: true });
 
-  adjustWaitingForInput(-1);
+  setWaitingForInputCount(0);
   assert.deepEqual(seenA.at(-1), { count: 0, active: false });
   assert.deepEqual(seenB.at(-1), { count: 0, active: false });
 });
@@ -48,12 +50,31 @@ test("unregistered bus no longer receives waiting events", () => {
   const seen: unknown[] = [];
   busA.on(WAITING_FOR_INPUT_EVENT, (data) => seen.push(data));
 
-  adjustWaitingForInput(1);
+  setWaitingForInputCount(1);
   assert.equal(seen.length, 1);
 
   unregisterExtensionEventBus(servicesA);
-  adjustWaitingForInput(1);
+  setWaitingForInputCount(2);
   assert.equal(seen.length, 1);
+});
+
+test("syncWaitingForInput publishes the sum across tabs", () => {
+  registerExtensionEventBus(servicesA, busA);
+  const seen: unknown[] = [];
+  busA.on(WAITING_FOR_INPUT_EVENT, (data) => seen.push(data));
+  const a = createTab(1, "s1", "/repo");
+  const b = createTab(2, "s2", "/repo");
+  a.extensionUi.waitingForInputs.push({ id: "1", kind: "custom" });
+  b.extensionUi.waitingForInputs.push({ id: "2", kind: "custom" });
+  syncWaitingForInput(a);
+  syncWaitingForInput(b);
+  assert.deepEqual(seen.at(-1), { count: 2, active: true });
+  a.extensionUi.waitingForInputs = [];
+  syncWaitingForInput(a);
+  assert.deepEqual(seen.at(-1), { count: 1, active: true });
+  b.extensionUi.waitingForInputs = [];
+  syncWaitingForInput(b);
+  assert.deepEqual(seen.at(-1), { count: 0, active: false });
 });
 
 test("emitMarkDone fans out mpi:mark-done on all registered buses", () => {

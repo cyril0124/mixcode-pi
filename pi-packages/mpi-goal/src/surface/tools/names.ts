@@ -13,6 +13,4 @@ export const GOAL_TOOL_NAMES = [
 	"remove_queued_goal",
 ] as const;
 
-export type GoalToolName = (typeof GOAL_TOOL_NAMES)[number];
-
 export const GOAL_TOOL_NAME_SET = new Set<string>(GOAL_TOOL_NAMES);

@@ -1,5 +1,4 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { getGoalFeatureFlags } from "./domain/feature-flags.js";
 import { getGoal } from "./persistence/goal-store.js";
 import { createContextResetActionRunner } from "./runtime/context-reset.js";
 import {
@@ -9,7 +8,6 @@ import {
 	scheduleMaybeContinueGoal,
 } from "./runtime/continuation.js";
 import { cancelAgentEndContinueArm, registerGoalLifecycle } from "./runtime/lifecycle.js";
-import { createNoopPostCompletionActionRunner } from "./runtime/post-completion.js";
 import { getQueue } from "./persistence/queue-store.js";
 import { sendQueueHandoff, sendQueueSteering } from "./queue/steering.js";
 import { handleGoalCommand, registerGoalCommand, type GoalCommandRuntime } from "./surface/command/register.js";
@@ -69,10 +67,7 @@ export type WireMpiGoalOptions = {
  */
 export function wireMpiGoal(pi: ExtensionAPI, options: WireMpiGoalOptions = {}): void {
 	const registerCommand = options.registerCommand !== false;
-	const flags = getGoalFeatureFlags();
-	const postCompletionRunner = flags.postCompletionActions
-		? createContextResetActionRunner(flags)
-		: createNoopPostCompletionActionRunner("disabled by PI_GOAL_POST_COMPLETION_ACTIONS");
+	const postCompletionRunner = createContextResetActionRunner();
 
 	const commandRuntime = buildGoalCommandRuntime(pi);
 	const scheduleContinuation = commandRuntime.scheduleContinuation;

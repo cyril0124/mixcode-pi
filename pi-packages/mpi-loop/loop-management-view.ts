@@ -7,6 +7,7 @@ import {
   visibleWidth,
   wrapTextWithAnsi,
 } from "@earendil-works/pi-tui";
+import { formatRelativeTime } from "./loop-helpers.js";
 
 /** Theme surface used by the loop management overlay. */
 type LoopTheme = Pick<Theme, "fg" | "bg">;
@@ -18,7 +19,6 @@ export interface LoopViewEntry {
   name: string;
   prompt: string;
   intervalLabel: string;
-  createdAt: Date;
   fireCount: number;
   nextRunAt: number;
   mode: LoopConflictMode;
@@ -366,15 +366,4 @@ export class LoopManagementView implements Component {
       : truncateToWidth(singleLine, width, "…");
     return clipped + " ".repeat(Math.max(0, width - visibleWidth(clipped)));
   }
-}
-
-function formatRelativeTime(date: Date | number): string {
-  const target = typeof date === "number" ? date : date.getTime();
-  const diff = target - Date.now();
-  const seconds = Math.floor(Math.abs(diff) / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
-  const value = days > 0 ? `${days}d` : hours > 0 ? `${hours}h` : minutes > 0 ? `${minutes}m` : `${seconds}s`;
-  return diff > 0 ? `in ${value}` : `${value} ago`;
 }

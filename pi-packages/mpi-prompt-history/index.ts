@@ -11,7 +11,7 @@ export default function (pi: ExtensionAPI) {
     handler: async (_args, ctx) => {
       // Extract user messages from session entries
       const entries = ctx.sessionManager.getEntries();
-      const userMessages: Array<{ entryId: string; text: string; timestamp?: string }> = [];
+      const userMessages: Array<{ text: string; timestamp?: string }> = [];
 
       for (const entry of entries) {
         if (entry.type === "message" && entry.message?.role === "user") {
@@ -28,7 +28,6 @@ export default function (pi: ExtensionAPI) {
           }
           if (text.length > 0) {
             userMessages.push({
-              entryId: entry.id ?? "",
               text,
               timestamp: entry.timestamp,
             });

@@ -2,10 +2,6 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { generateUnifiedPatch } from "@earendil-works/pi-coding-agent";
 
-export interface EditPair {
-  oldText: string;
-  newText: string;
-}
 
 interface ToolCallBlock {
   type: "toolCall";
@@ -28,7 +24,7 @@ export interface SessionEntry {
   message?: SessionMessage;
 }
 
-type Mod = { kind: "write"; content: string } | { kind: "edit"; patch: string; edits: EditPair[] };
+type Mod = { kind: "write"; content: string } | { kind: "edit"; patch: string };
 
 interface FileMods {
   path: string;
@@ -212,12 +208,11 @@ function collectFileMods(entries: SessionEntry[], cwd: string): Map<string, File
         continue;
       }
 
-      const edits = call.arguments?.edits as EditPair[] | undefined;
       const details = call.id
         ? (resultById.get(call.id)?.details as { patch?: string } | undefined)
         : undefined;
-      if (!details?.patch && !edits) continue;
-      file.mods.push({ kind: "edit", patch: details?.patch ?? "", edits: edits ?? [] });
+      if (!details?.patch) continue;
+      file.mods.push({ kind: "edit", patch: details.patch });
     }
   }
 

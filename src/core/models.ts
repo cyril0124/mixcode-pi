@@ -15,7 +15,7 @@ export function modelToRef(model: MixCodeModel): MixCodeModelRef {
   };
 }
 
-export function registerModel(model: MixCodeModel): void {
+function registerModel(model: MixCodeModel): void {
   registeredModels.set(modelKey(model.provider, model.id), model);
 }
 
