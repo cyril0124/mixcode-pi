@@ -1,7 +1,11 @@
+import { existsSync, realpathSync } from "node:fs";
+import * as path from "node:path";
 import {
   type BuildSystemPromptOptions,
   buildSystemPrompt,
+  getDocsPath,
 } from "@earendil-works/pi-coding-agent";
+import { resolveMixcodeAgentDir } from "./paths.js";
 
 export interface SearchToolAvailability {
   /** Whether `rg` (ripgrep) is available on PATH. */
@@ -64,6 +68,7 @@ export function buildMixCodeSystemPromptFromParts(
     promptGuidelines,
     searchTools,
   });
+  const docsSection = buildDocsSection();
 
   let append = appendSystemPrompt;
   if (conversationHistoryPrompt) {
@@ -71,7 +76,7 @@ export function buildMixCodeSystemPromptFromParts(
   }
 
   const prompt = buildSystemPrompt({
-    customPrompt: identity + toolsSection,
+    customPrompt: identity + toolsSection + docsSection,
     selectedTools,
     appendSystemPrompt: append,
     cwd,
@@ -84,6 +89,131 @@ export function buildMixCodeSystemPromptFromParts(
     /(\nCurrent working directory: [^\n]*)$/,
     `\nCurrent date: ${currentDate()}$1`,
   );
+}
+
+/**
+ * Locate MixCode's own `docs/` tree by walking up from this module.
+ *
+ * The source tree wins so a checkout always reports its live docs. A fixed
+ * relative depth does not work there: this file is `src/core/system-prompt.ts`
+ * when bun runs the sources but is emitted into `dist/chunk-*.js` one level
+ * higher by tsup. `architecture.md` is the marker so an unrelated parent
+ * `docs/` cannot be mistaken for MixCode's.
+ *
+ * The compiled binary has no source tree (`import.meta.dir` is the virtual
+ * `/$bunfs/root`, where the walk finds nothing), so `binary-entry.ts` installs
+ * the docs into `<agentDir>/mixcode-docs` at startup and that is the fallback.
+ * Resolved per call rather than at module load because that install happens
+ * after the binary's own top-level imports have been evaluated.
+ */
+function findMixcodeDocsPath(startDir = import.meta.dir): string | undefined {
+  let dir = path.resolve(startDir);
+  for (;;) {
+    const candidate = path.join(dir, "docs");
+    if (existsSync(path.join(candidate, "architecture.md"))) return candidate;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  const installed = path.join(resolveMixcodeAgentDir(), "mixcode-docs");
+  return existsSync(path.join(installed, "architecture.md")) ? installed : undefined;
+}
+
+/**
+ * Locate Pi's own package directory containing `docs/index.md`.
+ *
+ * In source or npm/dist mode, Pi's standard `getDocsPath()` works directly.
+ * In the standalone compiled binary, `PI_PACKAGE_DIR` points to a temporary
+ * runtimeDir with no docs, so `getDocsPath()` fails. We fall back to locating
+ * the actual installed Pi package on disk from:
+ * 1. `<agentDir>/node_modules/@earendil-works/pi-coding-agent` (maintained by `ensureAgentExtensionRuntimePackages`)
+ * 2. Global `pi` CLI binary on PATH (via `which pi` -> realpath -> package root)
+ * 3. `node_modules/@earendil-works/pi-coding-agent` in the current working directory
+ */
+function findPiPackageDir(): string | undefined {
+  const defaultDocs = getDocsPath();
+  if (existsSync(path.join(defaultDocs, "index.md"))) {
+    return path.dirname(defaultDocs);
+  }
+
+  const candidates: string[] = [];
+
+  // 1. Agent dir node_modules
+  const agentDir = resolveMixcodeAgentDir();
+  candidates.push(path.join(agentDir, "node_modules", "@earendil-works", "pi-coding-agent"));
+
+  // 2. Global `pi` executable on PATH
+  const piBin = Bun.which("pi");
+  if (piBin) {
+    let realBin: string | undefined;
+    try {
+      realBin = realpathSync(piBin);
+    } catch (error) {
+      // realpathSync ENOENT/ELOOP/EACCES: `pi` on PATH is a dangling or unreadable symlink.
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== "ENOENT" && code !== "ELOOP" && code !== "EACCES") throw error;
+    }
+    if (realBin) {
+      let dir = path.dirname(realBin);
+      for (let i = 0; i < 5; i++) {
+        candidates.push(dir);
+        const parent = path.dirname(dir);
+        if (parent === dir) break;
+        dir = parent;
+      }
+    }
+  }
+
+  // 3. Current working directory node_modules
+  candidates.push(path.join(process.cwd(), "node_modules", "@earendil-works", "pi-coding-agent"));
+
+  for (const dir of candidates) {
+    if (existsSync(path.join(dir, "docs", "index.md")) && existsSync(path.join(dir, "package.json"))) {
+      return dir;
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Documentation pointers for "how does MixCode/pi itself work" questions.
+ *
+ * Only paths that exist on disk are emitted, and an empty string is returned
+ * when none do. Pi's docs are resolved through pi's own package location
+ * (via `getDocsPath()` in source/dist mode, or dynamically locating the installed
+ * `@earendil-works/pi-coding-agent` package on disk in binary mode). MixCode
+ * never vendors Pi docs.
+ */
+function buildDocsSection(): string {
+  const lines: string[] = [];
+  const mixcodeDocs = findMixcodeDocsPath();
+  if (mixcodeDocs) {
+    lines.push(
+      `- MixCode docs: ${mixcodeDocs} (architecture, tabs, batch Lua, slash commands, settings, environment)`,
+    );
+  }
+
+  const piPkg = findPiPackageDir();
+  if (piPkg) {
+    const piReadme = path.join(piPkg, "README.md");
+    const piDocs = path.join(piPkg, "docs");
+    const piExamples = path.join(piPkg, "examples");
+
+    if (existsSync(piReadme)) lines.push(`- Pi overview: ${piReadme}`);
+    if (existsSync(path.join(piDocs, "index.md"))) {
+      lines.push(`- Pi docs: ${piDocs} (extensions, skills, themes, TUI, SDK, keybindings, models)`);
+    }
+    if (existsSync(piExamples)) {
+      lines.push(`- Pi examples: ${piExamples} (extensions, custom tools, SDK)`);
+    }
+  }
+
+  if (lines.length === 0) return "";
+  lines.push(
+    "- Resolve any docs/... or examples/... reference under the directories above, not the current working directory; list the directory to pick the right file, read it completely, and follow its cross-references before implementing.",
+  );
+  return `\n\nDocumentation (read only when the user asks about MixCode or pi itself \u2014 its CLI, SDK, extensions, skills, themes, or TUI):\n${lines.join("\n")}`;
 }
 
 function buildToolsAndGuidelinesSection(
@@ -145,9 +275,16 @@ function buildGuidelines(
     addGuideline("Use write only for new files or complete rewrites.");
   }
   if (tools.includes("edit")) {
-    addGuideline(
+    // Same bullets as Pi editToolSystemPromptContribution — MixCode owns this
+    // section and must not depend on getToolDefinition forwarding.
+    for (const guideline of [
+      "Use edit for precise changes (edits[].oldText must match exactly)",
+      "When changing multiple separate locations in one file, use one edit call with multiple entries in edits[] instead of multiple edit calls",
+      "Each edits[].oldText is matched against the original file, not after earlier edits are applied. Do not emit overlapping or nested edits. Merge nearby changes into one edit.",
       "Keep edits[].oldText as small as possible while still being unique in the file. Do not pad with large unchanged regions.",
-    );
+    ]) {
+      addGuideline(guideline);
+    }
   }
   addGuideline("Be concise in your responses");
   addGuideline("Show file paths clearly when working with files");
@@ -167,48 +304,6 @@ function buildSearchGuidelines(availability: SearchToolAvailability): string[] {
     guidelines.push("For file search, ALWAYS use `fd`.");
   }
   return guidelines;
-}
-
-export function buildMixCodeSystemPromptOptionsFromSession(
-  session: {
-    getActiveToolNames(): string[];
-    getToolDefinition(
-      name: string,
-    ): { promptSnippet?: string; promptGuidelines?: string[] } | undefined;
-  },
-  base: Omit<MixCodeSystemPromptPartsOptions, "selectedTools" | "toolSnippets" | "promptGuidelines">,
-): MixCodeSystemPromptPartsOptions {
-  const selectedTools = session.getActiveToolNames();
-  const toolSnippets: Record<string, string> = {};
-  // Collect per-tool guidelines alongside snippets. Pi's own _rebuildSystemPrompt
-  // feeds both builtin (read/edit/write) and extension tool promptGuidelines into
-  // the prompt; dropping them here would silently lose those usage constraints.
-  const promptGuidelines: string[] = [];
-  for (const name of selectedTools) {
-    const definition = session.getToolDefinition(name);
-    const snippet = normalizePromptSnippet(definition?.promptSnippet);
-    if (snippet) {
-      toolSnippets[name] = snippet;
-    }
-    for (const guideline of definition?.promptGuidelines ?? []) {
-      promptGuidelines.push(guideline);
-    }
-  }
-  return {
-    ...base,
-    selectedTools,
-    toolSnippets,
-    promptGuidelines,
-  };
-}
-
-function normalizePromptSnippet(text: string | undefined): string | undefined {
-  if (!text) return undefined;
-  const oneLine = text
-    .replace(/[\r\n]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  return oneLine.length > 0 ? oneLine : undefined;
 }
 
 function currentDate(date = new Date()): string {

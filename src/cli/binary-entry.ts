@@ -138,8 +138,32 @@ import toolBlockIndex from "../../pi-packages/mpi-tool-block/index.ts" with { ty
 import toolBlockCore from "../../pi-packages/mpi-tool-block/tool-block-core.ts" with { type: "text" };
 import toolBlockOverlay from "../../pi-packages/mpi-tool-block/tool-block-overlay.ts" with { type: "text" };
 import toolBlockPackageJson from "../../pi-packages/mpi-tool-block/package.json" with { type: "text" };
+// Documentation embedded for the system-prompt pointers; the binary has no
+// package tree on disk, so these are installed to <agentDir>/mixcode-docs.
+import mixcodeDoc_README_md from "../../docs/README.md" with { type: "text" };
+import mixcodeDoc_architecture_md from "../../docs/architecture.md" with { type: "text" };
+import mixcodeDoc_batch_lua_md from "../../docs/batch-lua.md" with { type: "text" };
+import mixcodeDoc_builtin_extensions_md from "../../docs/builtin-extensions.md" with { type: "text" };
+import mixcodeDoc_cli_and_flags_md from "../../docs/cli-and-flags.md" with { type: "text" };
+import mixcodeDoc_commands_md from "../../docs/commands.md" with { type: "text" };
+import mixcodeDoc_environment_md from "../../docs/environment.md" with { type: "text" };
+import mixcodeDoc_extension_compatibility_md from "../../docs/extension-compatibility.md" with { type: "text" };
+import mixcodeDoc_extension_ui_and_widgets_md from "../../docs/extension-ui-and-widgets.md" with { type: "text" };
+import mixcodeDoc_inline_widgets_md from "../../docs/inline-widgets.md" with { type: "text" };
+import mixcodeDoc_instance_registry_md from "../../docs/instance-registry.md" with { type: "text" };
+import mixcodeDoc_keybindings_and_escape_md from "../../docs/keybindings-and-escape.md" with { type: "text" };
+import mixcodeDoc_mixcode_settings_md from "../../docs/mixcode-settings.md" with { type: "text" };
+import mixcodeDoc_model_management_md from "../../docs/model-management.md" with { type: "text" };
+import mixcodeDoc_mouse_support_md from "../../docs/mouse-support.md" with { type: "text" };
+import mixcodeDoc_narrow_terminals_and_mobile_md from "../../docs/narrow-terminals-and-mobile.md" with { type: "text" };
+import mixcodeDoc_queue_and_follow_up_md from "../../docs/queue-and-follow-up.md" with { type: "text" };
+import mixcodeDoc_tui_components_md from "../../docs/tui-components.md" with { type: "text" };
+import mixcodeDoc_vim_and_navigation_md from "../../docs/vim-and-navigation.md" with { type: "text" };
+import mixcodeDoc_workspace_and_tabs_md from "../../docs/workspace-and-tabs.md" with { type: "text" };
+import mixcodeDoc_zen_mode_md from "../../docs/zen-mode.md" with { type: "text" };
 import packageJson from "../../package.json" with { type: "json" };
-import { materializeBinaryRuntimeAssets } from "./binary-assets.js";
+import { installMixcodeDocs, materializeBinaryRuntimeAssets } from "./binary-assets.js";
+import { resolveMixcodeAgentDir } from "../core/paths.js";
 
 // Static import of the nested pi-tui keybindings module that pi-coding-agent
 // ships via its shrinkwrap. In a compiled binary, runtime module resolution
@@ -309,6 +333,32 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
       "package.json": toolBlockPackageJson,
     },
   },
+});
+
+// MixCode's own docs go to the stable agent dir, not the per-process runtime
+// dir: findMixcodeDocsPath falls back there when no source tree is reachable.
+await installMixcodeDocs(resolveMixcodeAgentDir(), {
+  "README.md": mixcodeDoc_README_md,
+  "architecture.md": mixcodeDoc_architecture_md,
+  "batch-lua.md": mixcodeDoc_batch_lua_md,
+  "builtin-extensions.md": mixcodeDoc_builtin_extensions_md,
+  "cli-and-flags.md": mixcodeDoc_cli_and_flags_md,
+  "commands.md": mixcodeDoc_commands_md,
+  "environment.md": mixcodeDoc_environment_md,
+  "extension-compatibility.md": mixcodeDoc_extension_compatibility_md,
+  "extension-ui-and-widgets.md": mixcodeDoc_extension_ui_and_widgets_md,
+  "inline-widgets.md": mixcodeDoc_inline_widgets_md,
+  "instance-registry.md": mixcodeDoc_instance_registry_md,
+  "keybindings-and-escape.md": mixcodeDoc_keybindings_and_escape_md,
+  "mixcode-settings.md": mixcodeDoc_mixcode_settings_md,
+  "model-management.md": mixcodeDoc_model_management_md,
+  "mouse-support.md": mixcodeDoc_mouse_support_md,
+  "narrow-terminals-and-mobile.md": mixcodeDoc_narrow_terminals_and_mobile_md,
+  "queue-and-follow-up.md": mixcodeDoc_queue_and_follow_up_md,
+  "tui-components.md": mixcodeDoc_tui_components_md,
+  "vim-and-navigation.md": mixcodeDoc_vim_and_navigation_md,
+  "workspace-and-tabs.md": mixcodeDoc_workspace_and_tabs_md,
+  "zen-mode.md": mixcodeDoc_zen_mode_md,
 });
 
 process.env.PI_PACKAGE_DIR = runtimeDir;

@@ -33,6 +33,7 @@ MixCode 随附位于 `pi-packages/mpi-*` 的第一方内置 Pi 包。启动时�
 MixCode 交互 / TUI 或独立 Pi subagent 启动
   │
   ├─ 释放二进制资产 -> runtimeDir/packages/（仅编译版 mpi）
+  ├─ installMixcodeDocs -> 写入 docs/*.md 到 <agentDir>/mixcode-docs/（仅编译版 mpi）
   ├─ ensurePackageExtensions -> 拷贝 mpi-* 到 <agentDir>/extensions/
   ├─ Pi Resource Loader 发现 package extension
   └─ AgentSession.bindExtensions()
@@ -40,6 +41,11 @@ MixCode 交互 / TUI 或独立 Pi subagent 启动
         ├─ resources_discover -> package skills/ 根目录
         └─ Pi Resource Loader 扩展已加载的 skill
 ```
+
+`installMixcodeDocs` 仅在编译版二进制中执行，因为它磁盘上没有源码树。它把 MixCode 自身的
+`docs/*.md` 写入 `<agentDir>/mixcode-docs/` —— 与 `<agentDir>/extensions/` 平级的稳定目录，
+而非随进程生灭的 runtimeDir —— 供 system prompt 指引模型查阅。源码与 npm 装法跳过这一步，
+直接解析仓库的 `docs/`。Pi 自身的文档从不拷贝到这里，而是由 Pi 的 `config.ts` 在 pi 包路径下解析。
 
 ## 仅加载内置扩展
 

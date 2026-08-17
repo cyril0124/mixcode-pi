@@ -2,6 +2,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { contextLimitPickerItems } from "./context-limit.js";
+import { expandTilde } from "./paths.js";
 import { fuzzyMatch } from "./fuzzy.js";
 import { modelRefId } from "./models.js";
 import { availableThinkingLevelsForModel } from "./thinking-levels.js";
@@ -232,8 +233,8 @@ function workdirDirectoryListing(
 export function normalizeWorkdirInput(base: string, input: string): string {
   const trimmed = input.trim();
   if (!trimmed) return path.resolve(base);
-  if (trimmed === "~") return (process.env.HOME || os.homedir());
-  if (trimmed.startsWith("~/")) return path.join((process.env.HOME || os.homedir()), trimmed.slice(2));
+  const expanded = expandTilde(trimmed);
+  if (expanded !== trimmed) return path.resolve(expanded);
   if (path.isAbsolute(trimmed)) return path.resolve(trimmed);
   return path.resolve(base, trimmed);
 }

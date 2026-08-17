@@ -42,6 +42,26 @@ export async function materializeBinaryRuntimeAssets(
   if (assets.builtinPackages) await writeBuiltinPackages(runtimeDir, assets.builtinPackages);
 }
 
+/**
+ * Install MixCode's own docs into `<agentDir>/mixcode-docs`, the stable location
+ * `findMixcodeDocsPath` falls back to when no source tree is reachable.
+ *
+ * Deliberately not written under the per-process runtime dir: that directory is
+ * recreated per launch and leaks on SIGKILL. Sibling of `<agentDir>/extensions`,
+ * and like `ensurePackageExtensions` it overwrites on every launch and never
+ * deletes files that disappeared upstream. Concurrent launches may write the
+ * same paths; contents are byte-identical, so interleaving is harmless.
+ */
+export async function installMixcodeDocs(
+  agentDir: string,
+  files: Record<string, string>,
+): Promise<void> {
+  const docsDir = path.join(agentDir, "mixcode-docs");
+  for (const [name, content] of Object.entries(files)) {
+    await Bun.write(path.join(docsDir, name), content);
+  }
+}
+
 async function writePackageJson(
   runtimeDir: string,
   packageJson: Record<string, unknown>,

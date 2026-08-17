@@ -1,12 +1,13 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 import * as fsPromises from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
 import { Type } from "@earendil-works/pi-ai";
 import { SettingsManager, type ExtensionFactory } from "@earendil-works/pi-coding-agent";
-import { createTab, MixCodeRuntime } from "../src/index.js";
+import { buildMixCodeSystemPromptFromParts, createTab, MixCodeRuntime } from "../src/index.js";
 
 const GUIDELINE = "Always call frobnicate before defrobbing.";
 
@@ -54,6 +55,14 @@ test("MixCode system prompt includes active tool promptGuidelines", async () => 
     );
     assert.match(
       runtimeTab.agent.state.systemPrompt,
+      /- edit: Make precise file edits with exact text replacement/,
+    );
+    assert.match(
+      runtimeTab.agent.state.systemPrompt,
+      /Each edits\[\]\.oldText is matched against the original file, not after earlier edits are applied/,
+    );
+    assert.match(
+      runtimeTab.agent.state.systemPrompt,
       /Keep edits\[\]\.oldText as small as possible while still being unique in the file\. Do not pad with large unchanged regions\./,
     );
     assert.match(
@@ -64,6 +73,85 @@ test("MixCode system prompt includes active tool promptGuidelines", async () => 
     assert.match(runtimeTab.agent.state.systemPrompt, new RegExp(GUIDELINE.replace(/\./g, "\\.")));
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("edit guidelines stay complete even without forwarded tool metadata", () => {
+  const prompt = buildMixCodeSystemPromptFromParts({
+    selectedTools: ["edit"],
+    cwd: process.cwd(),
+  });
+  assert.match(prompt, /Use edit for precise changes \(edits\[\]\.oldText must match exactly\)/);
+  assert.match(
+    prompt,
+    /When changing multiple separate locations in one file, use one edit call with multiple entries in edits\[\]/,
+  );
+  assert.match(
+    prompt,
+    /Each edits\[\]\.oldText is matched against the original file, not after earlier edits are applied/,
+  );
+  assert.match(
+    prompt,
+    /Keep edits\[\]\.oldText as small as possible while still being unique in the file/,
+  );
+});
+
+test("documentation pointers never reference a path that is missing on disk", () => {
+  const prompt = buildMixCodeSystemPromptFromParts({ selectedTools: ["read"], cwd: process.cwd() });
+  const section = /\nDocumentation \([^\n]*\n((?:- [^\n]*\n?)+)/.exec(prompt)?.[1] ?? "";
+  const paths = [...section.matchAll(/^- [^:]+: (\S+)/gm)].map((m) => m[1] as string);
+
+  // A source checkout always ships docs/, so the section must not be vacuous here.
+  assert.ok(
+    paths.some((p) => p.endsWith("/docs")),
+    `expected a MixCode docs pointer, got: ${section}`,
+  );
+  for (const p of paths) {
+    assert.ok(existsSync(p), `system prompt points at a missing path: ${p}`);
+  }
+});
+
+test("an unrelated docs directory is not reported as Pi's documentation", async () => {
+  // getPackageDir() falls back to the executable's directory in compiled
+  // binaries, so any stray sibling `docs/` must not be advertised as pi's.
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-fake-package-"));
+  const previous = process.env.PI_PACKAGE_DIR;
+  process.env.PI_PACKAGE_DIR = dir;
+  try {
+    await fsPromises.mkdir(path.join(dir, "docs"));
+    await fsPromises.writeFile(path.join(dir, "docs", "something.md"), "not pi");
+    await fsPromises.writeFile(path.join(dir, "README.md"), "not pi");
+
+    const prompt = buildMixCodeSystemPromptFromParts({
+      selectedTools: ["read"],
+      cwd: process.cwd(),
+    });
+    assert.doesNotMatch(prompt, new RegExp(`Pi docs: ${dir}`));
+    assert.doesNotMatch(prompt, new RegExp(`Pi overview: ${dir}`));
+  } finally {
+    if (previous === undefined) delete process.env.PI_PACKAGE_DIR;
+    else process.env.PI_PACKAGE_DIR = previous;
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("Pi documentation is resolved from disk when PI_PACKAGE_DIR lacks docs", async () => {
+  // Simulate binary mode where PI_PACKAGE_DIR points to a runtimeDir without docs
+  const emptyRuntimeDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-empty-runtime-"));
+  const previous = process.env.PI_PACKAGE_DIR;
+  process.env.PI_PACKAGE_DIR = emptyRuntimeDir;
+  try {
+    const prompt = buildMixCodeSystemPromptFromParts({
+      selectedTools: ["read"],
+      cwd: process.cwd(),
+    });
+    // Should still resolve Pi docs from the installed Pi package on disk
+    assert.match(prompt, /Pi docs: .*\/docs/);
+    assert.doesNotMatch(prompt, new RegExp(`Pi docs: ${emptyRuntimeDir}`));
+  } finally {
+    if (previous === undefined) delete process.env.PI_PACKAGE_DIR;
+    else process.env.PI_PACKAGE_DIR = previous;
+    await fsPromises.rm(emptyRuntimeDir, { recursive: true, force: true });
   }
 });
 

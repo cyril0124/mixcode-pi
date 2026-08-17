@@ -139,18 +139,13 @@ async function buildSessionIndexFromParsedSessions(
   return { indexed: ordered.length };
 }
 
-async function shouldRebuildSessionIndex(
-  indexFile: string,
-  sessionsRoots: string[],
-): Promise<boolean> {
-  let indexMtime = 0;
+async function isIndexStale(indexFile: string, latestMtime: number): Promise<boolean> {
   try {
-    indexMtime = (await fs.stat(indexFile)).mtimeMs;
+    return latestMtime > (await fs.stat(indexFile)).mtimeMs;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return true;
     throw error;
   }
-  return (await latestSessionsMtime(sessionsRoots)) > indexMtime;
 }
 
 export async function ensureConversationHistoryState(options: {
@@ -170,9 +165,10 @@ export async function ensureConversationHistoryState(options: {
     const settings = await loadMixCodeSettings(paths.settingsFile);
     const sessionsRoots = [options.activeSessionsRoot];
     const historyMissing = !(await pathExists(paths.historyFile));
-    const indexStale = await shouldRebuildSessionIndex(paths.sessionIndexFile, sessionsRoots);
+    const tree = await listSessionJsonlTree(sessionsRoots);
+    const indexStale = await isIndexStale(paths.sessionIndexFile, tree.latestMtime);
     if (historyMissing || indexStale) {
-      const sessions = await readSessionFiles(sessionsRoots);
+      const sessions = await parseSessionFiles(tree.files);
       scannedSessions = sessions.length;
       seedParsedSessionCatalog(sessionsRoots, sessions);
       const now = options.now ? options.now() : new Date();
@@ -343,8 +339,7 @@ function extractSearchText(content: unknown): string {
     .join(" ");
 }
 
-async function readSessionFiles(sessionsRoots: string[]): Promise<ParsedSessionFile[]> {
-  const files = await listSessionJsonlFiles(sessionsRoots);
+async function parseSessionFiles(files: string[]): Promise<ParsedSessionFile[]> {
   const parsed: ParsedSessionFile[] = [];
   for (const file of files) {
     const session = await parseSessionFile(file);
@@ -371,8 +366,11 @@ async function parseSessionFile(filePath: string): Promise<ParsedSessionFile | u
   }
 }
 
-async function listSessionJsonlFiles(sessionsRoots: string[]): Promise<string[]> {
-  const result: string[] = [];
+async function listSessionJsonlTree(
+  sessionsRoots: string[],
+): Promise<{ files: string[]; latestMtime: number }> {
+  const files: string[] = [];
+  let latestMtime = 0;
   async function walk(dir: string): Promise<void> {
     let entries: fsTypes.Dirent[];
     try {
@@ -382,12 +380,17 @@ async function listSessionJsonlFiles(sessionsRoots: string[]): Promise<string[]>
     }
     for (const entry of entries) {
       const child = path.join(dir, entry.name);
-      if (entry.isDirectory()) await walk(child);
-      else if (entry.isFile() && entry.name.endsWith(".jsonl")) result.push(child);
+      if (entry.isDirectory()) {
+        await walk(child);
+      } else if (entry.isFile() && entry.name.endsWith(".jsonl")) {
+        files.push(child);
+        latestMtime = Math.max(latestMtime, (await fs.stat(child)).mtimeMs);
+      }
     }
   }
   for (const root of unique(sessionsRoots)) await walk(root);
-  return result.sort();
+  files.sort();
+  return { files, latestMtime };
 }
 
 function latestSessionName(entries: RawSessionMessageEntry[]): string {
@@ -429,28 +432,6 @@ function trimHistoryText(text: string, maxBytes: number): string {
     lines.shift();
   }
   return lines.length ? `${lines.join("\n")}\n` : "";
-}
-
-async function latestSessionsMtime(sessionsRoots: string[]): Promise<number> {
-  let latest = 0;
-  async function walk(dir: string): Promise<void> {
-    let entries: fsTypes.Dirent[];
-    try {
-      entries = await fs.readdir(dir, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const entry of entries) {
-      const child = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        await walk(child);
-      } else if (entry.isFile() && entry.name.endsWith(".jsonl")) {
-        latest = Math.max(latest, (await fs.stat(child)).mtimeMs);
-      }
-    }
-  }
-  for (const root of unique(sessionsRoots)) await walk(root);
-  return latest;
 }
 
 async function pathExists(filePath: string): Promise<boolean> {

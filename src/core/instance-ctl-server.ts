@@ -2,7 +2,7 @@ import * as fs from "node:fs";
 import * as net from "node:net";
 import * as path from "node:path";
 import type { MixCodeRuntime } from "../agent/runtime.js";
-import { resolveMixcodeAgentDir } from "../cli/status.js";
+import { resolveMixcodeAgentDir } from "./paths.js";
 import type { CtlRequest, CtlResponse } from "../cli/ctl.js";
 import { renderAgentSurface } from "../ui/rendering/agent-surface.js";
 import { renderConfig } from "../ui/rendering/overlays.js";

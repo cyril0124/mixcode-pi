@@ -5,10 +5,7 @@ import type {
   BuildSystemPromptOptions,
 } from "@earendil-works/pi-coding-agent";
 import type { SearchToolAvailability } from "../core/system-prompt.js";
-import {
-  buildMixCodeSystemPromptFromParts,
-  buildMixCodeSystemPromptOptionsFromSession,
-} from "../core/system-prompt.js";
+import { buildMixCodeSystemPromptFromParts } from "../core/system-prompt.js";
 import type { RuntimeTab } from "./runtime-types.js";
 
 export type QueueKind = "steering" | "followUp";
@@ -30,6 +27,8 @@ type SystemPromptInternals = {
   _baseSystemPromptOptions?: BuildSystemPromptOptions;
   _systemPromptOverride?: string;
 };
+
+const originalRebuildBySession = new WeakMap<AgentSession, (toolNames: string[]) => string>();
 
 /**
  * Pi 0.84.1 has no public targeted dequeue API. Keep both internal queue layers
@@ -120,23 +119,26 @@ export function applyMixCodeSystemPrompt(
     );
   }
 
+  // Reuse Pi's collector (_toolPromptSnippets / _toolPromptGuidelines) instead of
+  // re-reading getToolDefinition. Then assemble with MixCode identity/docs/search.
+  let originalRebuild = originalRebuildBySession.get(agentSession);
+  if (!originalRebuild) {
+    originalRebuild = internals._rebuildSystemPrompt.bind(agentSession);
+    originalRebuildBySession.set(agentSession, originalRebuild);
+  }
+
   internals._rebuildSystemPrompt = (toolNames: string[]) => {
-    const options = buildMixCodeSystemPromptOptionsFromSession(
-      {
-        getActiveToolNames: () => toolNames,
-        getToolDefinition: (name) => agentSession.getToolDefinition(name),
-      },
-      {
-        customPrompt: services.resourceLoader.getSystemPrompt() || undefined,
-        appendSystemPrompt: services.resourceLoader.getAppendSystemPrompt().join("\n\n"),
-        contextFiles: services.resourceLoader.getAgentsFiles().agentsFiles,
-        skills: services.resourceLoader.getSkills().skills,
-        cwd,
-        searchTools,
-      },
-    );
+    originalRebuild(toolNames);
+    const collected = internals._baseSystemPromptOptions;
+    if (!collected) {
+      throw new Error(
+        "Pi AgentSession._rebuildSystemPrompt did not publish _baseSystemPromptOptions; MixCode cannot assemble tools/guidelines.",
+      );
+    }
+    const options = { ...collected, searchTools };
+    const prompt = buildMixCodeSystemPromptFromParts(options);
     internals._baseSystemPromptOptions = options;
-    return buildMixCodeSystemPromptFromParts(options);
+    return prompt;
   };
 
   const prompt = internals._rebuildSystemPrompt(agentSession.getActiveToolNames());

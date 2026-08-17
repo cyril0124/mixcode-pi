@@ -33,6 +33,7 @@ MixCode ships first-party built-in Pi packages located in `pi-packages/mpi-*`. S
 Startup (MixCode Interactive / TUI or independent Pi subagent)
   │
   ├─ Materialize binary assets -> runtimeDir/packages/ (compiled mpi only)
+  ├─ installMixcodeDocs -> write docs/*.md to <agentDir>/mixcode-docs/ (compiled mpi only)
   ├─ ensurePackageExtensions -> copy mpi-* to <agentDir>/extensions/
   ├─ Pi Resource Loader discovers package extensions
   └─ AgentSession.bindExtensions()
@@ -40,6 +41,13 @@ Startup (MixCode Interactive / TUI or independent Pi subagent)
         ├─ resources_discover -> package skills/ roots
         └─ Pi Resource Loader extends the loaded skills
 ```
+
+`installMixcodeDocs` runs only in the compiled binary, which has no source tree
+on disk. It writes MixCode's own `docs/*.md` to `<agentDir>/mixcode-docs/` — a
+stable sibling of `<agentDir>/extensions/`, not the per-process runtime dir — so
+the system prompt can point the model at them. Source and npm installs skip it
+and resolve the repository's `docs/` directly. Pi's own documentation is never
+copied here; it is resolved from the pi package by Pi's `config.ts` helpers.
 
 ## Running Only Built-ins
 

@@ -145,13 +145,7 @@ export async function writeRawMixCodeSettings(
   raw: RawMixCodeSettings,
 ): Promise<void> {
   // Preserve unknown top-level keys; comments are still dropped because we rewrite JSON.
-  let existing: Record<string, unknown> = {};
-  try {
-    existing = objectRecord(parseJsoncObject(await Bun.file(settingsFile).text()));
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-  }
-  const next: Record<string, unknown> = { ...existing };
+  const next: Record<string, unknown> = { ...(await readSettingsSource(settingsFile)) };
   if (raw.theme === undefined) delete next.theme;
   else next.theme = raw.theme;
   if (raw.history === undefined) delete next.history;

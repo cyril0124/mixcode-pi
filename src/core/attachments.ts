@@ -3,18 +3,6 @@ import * as path from "node:path";
 import { loadSkills } from "@earendil-works/pi-coding-agent";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
-function uniqueInOrder(values: Iterable<string>): string[] {
-  const seen = new Set<string>();
-  const result: string[] = [];
-  for (const value of values) {
-    if (!seen.has(value)) {
-      seen.add(value);
-      result.push(value);
-    }
-  }
-  return result;
-}
-
 export function isProjectSkillsOnlyEnabled(env = process.env): boolean {
   const raw = env.MIXCODE_PROJECT_SKILLS_ONLY?.trim().toLowerCase();
   if (!raw) return false;
@@ -34,7 +22,7 @@ export function resolveSkillDirs(
     path.join(homeDir, ".agents", "skills"),
     path.join(getAgentDir(), "skills"),
   ];
-  return uniqueInOrder(dirs.map((dir) => path.resolve(dir)));
+  return [...new Set(dirs.map((dir) => path.resolve(dir)))];
 }
 
 export interface SkillEntry {
