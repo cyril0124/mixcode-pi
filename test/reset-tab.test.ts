@@ -51,7 +51,7 @@ test("resetTabToRoot keeps session file and id, clears leaf and chat", async () 
     assert.equal(runtimeTab.session.getSessionFile(), sessionFile);
     assert.equal(runtimeTab.tab.title, "Keep-My-Title");
     assert.equal(runtimeTab.session.getLeafId(), null);
-    assert.deepEqual(runtimeTab.agent.state.messages, []);
+    assert.deepEqual(runtimeTab.agentSession.agent.state.messages, []);
     assert.equal(runtimeTab.chat.length, 0);
     // Entries remain on disk/tree; only the leaf moved.
     assert.ok(runtimeTab.session.getEntries().length >= 2);

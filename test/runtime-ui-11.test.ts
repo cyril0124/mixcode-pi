@@ -37,7 +37,6 @@ import {
   renderExtensionFooter,
   renderExtensionHeader,
   renderExtensionWidgets,
-  renderHeader,
   renderInputMeta,
   renderAgentSurface,
   renderPickerOverlay,

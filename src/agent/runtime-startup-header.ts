@@ -26,9 +26,9 @@ export function refreshStartupHeader(runtimeTab: RuntimeTab): void {
   const skills = skillsResult.skills.map((skill) => skill.name);
   // Re-read via services so package sourceInfo is synced after Pi's post-override
   // applyExtensionSourceInfo (entries captured in extensionsOverride are stale).
-  runtimeTab.extensionManagerEntries = getExtensionManagerEntriesForServices(runtimeTab.services);
+  const extensionManagerEntries = getExtensionManagerEntriesForServices(runtimeTab.services);
   const extensions = formatExtensionSummaries(
-    runtimeTab.extensionManagerEntries.filter((entry) => entry.enabled),
+    extensionManagerEntries.filter((entry) => entry.enabled),
   );
   const diagnostics = [
     ...extensionLoadErrorLines(runtimeTab),

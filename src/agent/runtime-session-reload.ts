@@ -90,7 +90,7 @@ export function reloadRuntimeSessionFromDisk(runtimeTab: RuntimeTab): ReloadSess
   if (entriesChanged) {
     // The agent's LLM context must reflect the reloaded branch, or the next turn
     // would send a stale message list even though the UI looks up to date.
-    runtimeTab.agent.state.messages = runtimeTab.session.buildSessionContext().messages;
+    runtimeTab.agentSession.agent.state.messages = runtimeTab.session.buildSessionContext().messages;
 
     const nextChat: ChatLine[] = entriesToChatLines(runtimeTab.session.getBranch(), runtimeTab);
     disposeChatRenderers(runtimeTab.chat);

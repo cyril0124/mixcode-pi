@@ -191,10 +191,10 @@ test("bootstrap maintains global history files and exposes paths in prompt", asy
     assert.match(await fsPromises.readFile(path.join(stateDir, "session_index.jsonl"), "utf8"), /"id":"s1"/);
     assert.equal((await fsPromises.stat(stateDir)).mode & 0o777, 0o700);
     assert.equal((await fsPromises.stat(path.join(stateDir, "history.jsonl"))).mode & 0o777, 0o600);
-    assert.match(runtimeTab.agent.state.systemPrompt, /Local conversation history:/);
-    assert.match(runtimeTab.agent.state.systemPrompt, new RegExp(`${stateDir.replace(/[\\\\/]/g, "[\\\\/]")}[/\\\\]history\\.jsonl`));
-    assert.doesNotMatch(runtimeTab.agent.state.systemPrompt, /stores full session transcripts under/);
-    assert.doesNotMatch(runtimeTab.agent.state.systemPrompt, /hello boot/);
+    assert.match(runtimeTab.agentSession.agent.state.systemPrompt, /Local conversation history:/);
+    assert.match(runtimeTab.agentSession.agent.state.systemPrompt, new RegExp(`${stateDir.replace(/[\\\\/]/g, "[\\\\/]")}[/\\\\]history\\.jsonl`));
+    assert.doesNotMatch(runtimeTab.agentSession.agent.state.systemPrompt, /stores full session transcripts under/);
+    assert.doesNotMatch(runtimeTab.agentSession.agent.state.systemPrompt, /hello boot/);
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }
@@ -441,7 +441,7 @@ test("bootstrap wires pi model registry and extension options into runtime", asy
     await boot.tabsReady;
     const runtimeTab = boot.runtime.getTab(boot.state.tabs[0]!.sessionId);
     assert.ok(runtimeTab);
-    assert.equal(runtimeTab.agent.state.model.provider, "mixcode-bootstrap-extension");
+    assert.equal(runtimeTab.agentSession.agent.state.model.provider, "mixcode-bootstrap-extension");
     assert.ok(
       runtimeTab.agentSession.modelRuntime.getModel(
         "mixcode-bootstrap-extension",
@@ -494,9 +494,9 @@ test("bootstrap wires configured pi models into runtime auth streaming", async (
     await boot.tabsReady;
     const runtimeTab = boot.runtime.getTab(tab.sessionId);
     assert.ok(runtimeTab);
-    assert.equal(runtimeTab.agent.state.model.provider, "mixcode-bootstrap-stream");
-    assert.equal(runtimeTab.agent.state.model.id, "stream-model");
-    assert.equal(runtimeTab.agent.state.model.api, "openai-responses");
+    assert.equal(runtimeTab.agentSession.agent.state.model.provider, "mixcode-bootstrap-stream");
+    assert.equal(runtimeTab.agentSession.agent.state.model.id, "stream-model");
+    assert.equal(runtimeTab.agentSession.agent.state.model.api, "openai-responses");
     assert.equal(
       (await runtimeTab.agentSession.modelRuntime.getAuth("mixcode-bootstrap-stream"))?.auth.apiKey,
       "stream-secret",

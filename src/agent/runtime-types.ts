@@ -1,4 +1,3 @@
-import type { Agent } from "@earendil-works/pi-agent-core";
 import type {
   Context,
   ImageContent,
@@ -14,7 +13,6 @@ import type {
   ExtensionCommandContextActions,
   KeybindingsManager as ExtensionKeybindingsManager,
   ExtensionUIContext,
-  LoadExtensionsResult,
   ModelRegistry,
   SessionManager,
   SessionShutdownEvent,
@@ -28,10 +26,7 @@ import type {
   OverlayHandle,
   TUI as PiTui,
 } from "@earendil-works/pi-tui";
-import type {
-  ExtensionManagerConfig,
-  ExtensionManagerEntry,
-} from "../core/extension-manager.js";
+import type { ExtensionManagerConfig } from "../core/extension-manager.js";
 import type { MixCodeTabInfo } from "../core/types.js";
 import type { mixcodeFauxStream } from "./faux-stream.js";
 
@@ -197,8 +192,6 @@ export interface RuntimeTab {
   tab: MixCodeTabInfo;
   agentSession: AgentSession;
   services: AgentSessionServices;
-  extensionsResult: LoadExtensionsResult;
-  agent: Agent;
   session: SessionManager;
   chat: ChatLine[];
   /** Count of runtime-mirrored steer messages at the tail of tab.pendingMessages. */
@@ -216,7 +209,6 @@ export interface RuntimeTab {
   /** Live custom overlay components; dump-screen renders these. */
   extensionCustomOverlayComponents: Set<Component>;
   extensionAutocompleteProviderFactories: ExtensionAutocompleteProviderFactory[];
-  extensionManagerEntries: ExtensionManagerEntry[];
   extensionAutocompleteProviderCache?: ExtensionAutocompleteProviderCache;
   /**
    * When true, custom messages with display:false are rendered in the chat

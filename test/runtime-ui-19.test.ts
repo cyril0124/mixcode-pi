@@ -37,7 +37,6 @@ import {
   renderExtensionFooter,
   renderExtensionHeader,
   renderExtensionWidgets,
-  renderHeader,
   renderInputMeta,
   renderAgentSurface,
   renderPickerOverlay,
@@ -407,7 +406,7 @@ test("runtime applies assistant usage outside streaming state", async () => {
     runtime as unknown as {
       applyEvent: (
         runtimeTab: typeof runtimeTab,
-        event: Parameters<Parameters<typeof runtimeTab.agent.subscribe>[0]>[0],
+        event: Parameters<Parameters<typeof runtimeTab.agentSession.agent.subscribe>[0]>[0],
       ) => void;
     }
   ).applyEvent(runtimeTab, {
@@ -427,7 +426,7 @@ test("runtime applies assistant usage outside streaming state", async () => {
     runtime as unknown as {
       applyEvent: (
         runtimeTab: typeof runtimeTab,
-        event: Parameters<Parameters<typeof runtimeTab.agent.subscribe>[0]>[0],
+        event: Parameters<Parameters<typeof runtimeTab.agentSession.agent.subscribe>[0]>[0],
       ) => void;
     }
   ).applyEvent(runtimeTab, {

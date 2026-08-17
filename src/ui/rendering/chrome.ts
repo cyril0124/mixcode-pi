@@ -22,12 +22,6 @@ import { padLine, sanitizeTerminalText } from "./primitives.js";
 const DEFAULT_WORKING_INDICATOR_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 const DEFAULT_WORKING_INDICATOR_INTERVAL_MS = 80;
 
-export function renderHeader(width: number, theme: MixCodeTheme = activeRenderTheme): string[] {
-  void width;
-  void theme;
-  return [];
-}
-
 export function renderExtensionHeader(tab: MixCodeTabInfo | undefined, width: number): string[] {
   const header = tab?.extensionUi.header;
   return renderExtensionComponentSlot(header?.render ? header.render(width) : header?.lines, width);

@@ -37,7 +37,6 @@ import {
   renderExtensionFooter,
   renderExtensionHeader,
   renderExtensionWidgets,
-  renderHeader,
   renderInputMeta,
   renderAgentSurface,
   renderPickerOverlay,
@@ -446,10 +445,10 @@ test("runtime pop preserves an unrelated custom follow-up", async () => {
       { deliverAs: "followUp" },
     );
 
-    assert.equal(runtimeTab.agent.hasQueuedMessages(), true);
+    assert.equal(runtimeTab.agentSession.agent.hasQueuedMessages(), true);
     assert.equal(runtime.popPendingMessage("s1"), "edit me");
     assert.deepEqual([...runtimeTab.agentSession.getSteeringMessages()], []);
-    assert.equal(runtimeTab.agent.hasQueuedMessages(), true);
+    assert.equal(runtimeTab.agentSession.agent.hasQueuedMessages(), true);
   } finally {
     release();
     await prompt?.catch(() => undefined);
@@ -502,13 +501,13 @@ test("runtime flush preserves unrelated Pi follow-up queue entries", async () =>
       thinkingLevel: "medium",
       workdir: process.cwd(),
     });
-    const anyAgent = runtimeTab.agent as unknown as { _state: { isStreaming: boolean } };
+    const anyAgent = runtimeTab.agentSession.agent as unknown as { _state: { isStreaming: boolean } };
     anyAgent._state.isStreaming = true;
     await runtime.prompt("s1", "steer queued");
     await runtimeTab.agentSession.followUp("follow-up from extension");
     anyAgent._state.isStreaming = false;
     (
-      runtimeTab.agent as unknown as {
+      runtimeTab.agentSession.agent as unknown as {
         prompt: (messages: Array<{ content: Array<{ text?: string }> }>) => Promise<void>;
       }
     ).prompt = async () => {};
@@ -540,7 +539,7 @@ test("runtime keeps queued prompts when flush prompt fails", async () => {
     runtimeTab.queuedPromptCount = 1;
     let promptText = "";
     (
-      runtimeTab.agent as unknown as {
+      runtimeTab.agentSession.agent as unknown as {
         prompt: (messages: Array<{ content: Array<{ text?: string }> }>) => Promise<void>;
       }
     ).prompt = async (messages) => {

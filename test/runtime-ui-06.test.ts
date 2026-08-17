@@ -152,7 +152,10 @@ test("runtime keeps extension runtimes isolated across same-workdir tabs", async
       workdir,
     });
 
-    assert.notEqual(first.extensionsResult.runtime, second.extensionsResult.runtime);
+    assert.notEqual(
+      first.services.resourceLoader.getExtensions().runtime,
+      second.services.resourceLoader.getExtensions().runtime,
+    );
     first.agentSession.dispose();
     await runtime.prompt("s2", "/poke");
     assert.ok(

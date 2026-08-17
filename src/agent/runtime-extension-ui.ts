@@ -34,9 +34,9 @@ export { disposeExtensionWidgets } from "./runtime-extension-widgets.js";
  * chat rebuilds from session entries.
  */
 export function extensionLoadErrorLines(runtimeTab: RuntimeTab): string[] {
-  return runtimeTab.extensionsResult.errors.map(
-    (error) => `Extension load error: ${error.path}: ${error.error}`,
-  );
+  return runtimeTab.services.resourceLoader
+    .getExtensions()
+    .errors.map((error) => `Extension load error: ${error.path}: ${error.error}`);
 }
 
 export function extensionConflictDiagnosticLines(runtimeTab: RuntimeTab): string[] {

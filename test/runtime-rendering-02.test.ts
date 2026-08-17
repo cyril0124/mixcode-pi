@@ -148,7 +148,7 @@ test("edit tool results render old and new file content", async () => {
       thinkingLevel: "medium",
       workdir: dir,
     });
-    const editTool = runtimeTab.agent.state.tools.find((tool) => tool.name === "edit");
+    const editTool = runtimeTab.agentSession.agent.state.tools.find((tool) => tool.name === "edit");
     assert.ok(editTool);
     const args = {
       path: "run.sh",

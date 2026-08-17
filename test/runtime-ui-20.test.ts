@@ -38,7 +38,6 @@ import {
   renderExtensionFooter,
   renderExtensionHeader,
   renderExtensionWidgets,
-  renderHeader,
   renderInputMeta,
   renderAgentSurface,
   renderPickerOverlay,
@@ -413,7 +412,7 @@ test("runtime accepts an explicit model and renders pi content blocks as separat
     workdir: process.cwd(),
     model: explicit,
   });
-  assert.equal(runtimeTab.agent.state.model.id, "explicit");
+  assert.equal(runtimeTab.agentSession.agent.state.model.id, "explicit");
   const anyRuntime = runtime as unknown as {
     applyEvent: (runtimeTab: unknown, event: unknown) => void;
   };
@@ -539,7 +538,7 @@ test("runtime updates tab model and rejects changes while streaming", async () =
     contextWindow: 12345,
   };
   await runtime.updateTabModel("s1", model);
-  assert.equal(runtimeTab.agent.state.model.id, "custom-model");
+  assert.equal(runtimeTab.agentSession.agent.state.model.id, "custom-model");
   assert.equal(tab.model.displayName, `${model.provider}/custom-model`);
   assert.equal(tab.contextLimit, 12345);
 
@@ -593,10 +592,10 @@ test("runtime updates workdir, system prompt, and tool closures", async () => {
     assert.equal(runtimeTab.session.getCwd(), newDir);
     assert.equal(runtimeTab.agentSession.sessionManager.getCwd(), newDir);
     assert.match(
-      runtimeTab.agent.state.systemPrompt,
+      runtimeTab.agentSession.agent.state.systemPrompt,
       new RegExp(`Current working directory: ${escapeRegExp(newDir)}`),
     );
-    const readTool = runtimeTab.agent.state.tools.find((tool) => tool.name === "read");
+    const readTool = runtimeTab.agentSession.agent.state.tools.find((tool) => tool.name === "read");
     assert.ok(readTool);
     const result = await readTool.execute("call-1", { path: "marker.txt" });
     assert.deepEqual(result.content, [{ type: "text", text: "new" }]);
@@ -660,8 +659,8 @@ test("resume after /workdir keeps a resolvable model via the published session l
     assert.ok(resumed);
     assert.equal(typeof resumed.tab.model.provider, "string");
     assert.ok(resumed.tab.model.provider.length > 0);
-    assert.ok(resumed.agent.state.model);
-    assert.equal(typeof resumed.agent.state.model.provider, "string");
+    assert.ok(resumed.agentSession.agent.state.model);
+    assert.equal(typeof resumed.agentSession.agent.state.model.provider, "string");
   } finally {
     await fsPromises.rm(agentDir, { recursive: true, force: true });
   }

@@ -169,14 +169,14 @@ test("manual compact after assistant stop does not report continue failure", asy
       );
     }
 
-    assert.equal(runtimeTab.agent.state.messages.at(-1)?.role, "assistant");
+    assert.equal(runtimeTab.agentSession.agent.state.messages.at(-1)?.role, "assistant");
     await runtime.compactSession("s1");
     assert.equal(
       runtimeTab.session.getBranch().at(-1)?.type,
       "compaction",
       `compact must succeed; last chat=${JSON.stringify(runtimeTab.chat.slice(-3).map((l) => l.text.slice(0, 80)))}`,
     );
-    assert.equal(runtimeTab.agent.state.messages.at(-1)?.role, "assistant");
+    assert.equal(runtimeTab.agentSession.agent.state.messages.at(-1)?.role, "assistant");
 
     const continueFailure = runtimeTab.chat.some((line) =>
       /Compaction failed:.*Cannot continue from message role: assistant/i.test(line.text),

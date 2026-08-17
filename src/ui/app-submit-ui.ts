@@ -129,7 +129,7 @@ const handleSystemPrompt: LocalCommandHandler = async ({ active, args, runtime, 
   if (args.trim()) throw new Error("Usage: /system-prompt");
   const runtimeTab = runtime.getTab(active!.sessionId);
   if (!runtimeTab) throw new Error(`Unknown tab session: ${active!.sessionId}`);
-  await editTextWithTuiPaused(tui, runtimeTab.agent.state.systemPrompt);
+  await editTextWithTuiPaused(tui, runtimeTab.agentSession.systemPrompt);
   return undefined;
 };
 

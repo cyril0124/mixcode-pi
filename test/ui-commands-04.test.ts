@@ -545,7 +545,7 @@ test("submitted input opens system prompt in external editor by default", async 
       appendSystemMessage: (_sessionId: string, text: string) => {
         tab.previewMessages.push({ role: "system", text });
       },
-      getTab: () => ({ agent: { state: { systemPrompt: "system from runtime" } } }),
+      getTab: () => ({ agentSession: { systemPrompt: "system from runtime" } }),
     } as unknown as MixCodeRuntime;
     const tui = {
       requestRender: () => undefined,

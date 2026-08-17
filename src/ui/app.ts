@@ -33,7 +33,7 @@ import {
   type MixCodeCompletionSources,
   type MixCodeSkillCompletionSource,
 } from "./completion.js";
-import { renderExtensionFooter, renderFooter, renderHeader } from "./rendering.js";
+import { renderExtensionFooter, renderFooter } from "./rendering.js";
 import { InjectingTerminal, withMouseReporting } from "./terminal.js";
 import { installStdoutScreenGuard, withHostStdoutGuard } from "./stdout-screen-guard.js";
 import { noteActiveExtensionThemeId } from "../agent/runtime-extension-theme.js";
@@ -262,7 +262,7 @@ export function createMixCodeTui(
       if (!active) return 0;
       const width = tui.terminal.columns;
       const theme = themeForId(state.theme);
-      return renderHeader(width, theme).length + renderVisibleTabBar(state, width, theme).length;
+      return renderVisibleTabBar(state, width, theme).length;
     },
   } satisfies ExtensionCustomUiHost);
   // Extension ctx.shutdown() closes the runtime tab; mirror into MixCodeState.

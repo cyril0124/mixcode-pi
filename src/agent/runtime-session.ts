@@ -4,7 +4,6 @@ import * as path from "node:path";
 import {
   type AgentSessionServices,
   CURRENT_SESSION_VERSION,
-  type LoadExtensionsResult,
   type SessionInfo,
   SessionManager,
 } from "@earendil-works/pi-coding-agent";
@@ -51,26 +50,16 @@ export function getExtensionManagerEntriesForServices(
   return entries;
 }
 
-/**
- * Rebind the session-owned core of a {@link RuntimeTab} after a new AgentSession
- * is created (clear / reload / workdir change). Sets the three source fields and
- * derives `agent` and `extensionManagerEntries` from them, so the derived fields
- * can never drift out of sync with their source — the bug class that arose from
- * three call sites hand-copying this assignment block.
- */
+/** Rebind the session-owned core after clear / reload / workdir change. */
 export function bindRuntimeSessionCore(
   runtimeTab: RuntimeTab,
   core: {
     agentSession: RuntimeTab["agentSession"];
     services: AgentSessionServices;
-    extensionsResult: LoadExtensionsResult;
   },
 ): void {
   runtimeTab.agentSession = core.agentSession;
   runtimeTab.services = core.services;
-  runtimeTab.extensionsResult = core.extensionsResult;
-  runtimeTab.agent = core.agentSession.agent;
-  runtimeTab.extensionManagerEntries = getExtensionManagerEntriesForServices(core.services);
 }
 
 export function resetExtensionHostState(

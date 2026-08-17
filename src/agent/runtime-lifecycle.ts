@@ -59,13 +59,11 @@ import { refreshStartupHeader } from "./runtime-startup-header.js";
 
 import {
   bindRuntimeSessionCore,
-  getExtensionManagerEntriesForServices,
   reopenSessionInWorkdir,
   resetExtensionHostState,
   setExtensionManagerEntriesForServices,
 } from "./runtime-session.js";
 import type {
-  ChatLine,
   ExtensionCustomUiHost,
   MixCodeStreamFn,
   RuntimeEvent,
@@ -189,7 +187,7 @@ async function createRuntimeTabWithServices(
     context.getApiKey,
   );
   applyMixCodeSessionDefaults(services.settingsManager);
-  const { session: agentSession, extensionsResult } = await createAgentSessionFromServices({
+  const { session: agentSession } = await createAgentSessionFromServices({
     services,
     sessionManager: session,
     model: { ...model },
@@ -200,8 +198,6 @@ async function createRuntimeTabWithServices(
     tab,
     agentSession,
     services,
-    extensionsResult,
-    agent: agentSession.agent,
     session,
     chat: [],
     queuedPromptCount: 0,
@@ -211,7 +207,6 @@ async function createRuntimeTabWithServices(
     extensionCustomOverlayHandles: new Set(),
     extensionCustomOverlayComponents: new Set(),
     extensionAutocompleteProviderFactories: [],
-    extensionManagerEntries: getExtensionManagerEntriesForServices(services),
   };
   tab.extensionUi = {
     statuses: [],
@@ -227,7 +222,7 @@ async function createRuntimeTabWithServices(
   try {
     activateMixCodeTools(agentSession);
     applyMixCodeSystemPrompt(services, config.workdir, agentSession, cachedSearchTools);
-    const restoredChat = await rebuildRuntimeChat(runtimeTab);
+    const restoredChat = entriesToChatLines(runtimeTab.session.getBranch(), runtimeTab);
     if (tab.previewMessages.length === 0) {
       syncPreviewFromChat(tab, restoredChat);
     }
@@ -456,7 +451,6 @@ async function replaceRuntimeTabSessionUnlocked(
   bindRuntimeSessionCore(runtimeTab, {
     agentSession: created.session,
     services: created.services,
-    extensionsResult: created.extensionsResult,
   });
   runtimeTab.session = sessionManager;
   runtimeTab.queuedPromptCount = 0;
@@ -472,7 +466,7 @@ async function replaceRuntimeTabSessionUnlocked(
   };
   // Rebuild chat and bind extensions BEFORE mutating tab identity.
   // If either throws, the caller's state is still intact — no orphaned tab.
-  runtimeTab.chat = await rebuildRuntimeChat(runtimeTab);
+  runtimeTab.chat = entriesToChatLines(runtimeTab.session.getBranch(), runtimeTab);
   syncPreviewFromChat(runtimeTab.tab, runtimeTab.chat);
   // Resume title before bind so the tab bar never flashes Agent-NN if bind is slow
   // or a session_start handler races a UI render. new/fork keep the caller title.
@@ -512,13 +506,9 @@ async function replaceRuntimeTabSessionUnlocked(
 
 export async function syncRuntimeChatFromSession(runtimeTab: RuntimeTab): Promise<void> {
   disposeChatRenderers(runtimeTab.chat);
-  runtimeTab.chat = await rebuildRuntimeChat(runtimeTab);
+  runtimeTab.chat = entriesToChatLines(runtimeTab.session.getBranch(), runtimeTab);
   syncPreviewFromChat(runtimeTab.tab, runtimeTab.chat);
   runtimeTab.tab.status = runtimeTab.agentSession.isStreaming ? "running" : "idle";
-}
-
-export async function rebuildRuntimeChat(runtimeTab: RuntimeTab): Promise<ChatLine[]> {
-  return entriesToChatLines(runtimeTab.session.getBranch(), runtimeTab);
 }
 
 export async function createRuntimeServices(
@@ -656,7 +646,7 @@ export async function reloadRuntimeTabWithFreshServices(
   context: RuntimeLifecycleContext,
 ): Promise<void> {
   const services = await context.createServices(runtimeTab.tab.workdir, MIXCODE_SYSTEM_PROMPT);
-  const model = { ...runtimeTab.agent.state.model };
+  const model = { ...runtimeTab.agentSession.agent.state.model };
   await registerMixCodeRuntimeProvider(
     services.modelRuntime,
     model,
@@ -668,7 +658,7 @@ export async function reloadRuntimeTabWithFreshServices(
     { type: "session_shutdown", reason: "reload" },
     context.getExtensionUiHost(),
   );
-  const { session: agentSession, extensionsResult } = await createAgentSessionFromServices({
+  const { session: agentSession } = await createAgentSessionFromServices({
     services,
     sessionManager: runtimeTab.session,
     model,
@@ -679,10 +669,9 @@ export async function reloadRuntimeTabWithFreshServices(
   bindRuntimeSessionCore(runtimeTab, {
     agentSession,
     services,
-    extensionsResult,
   });
   activateMixCodeTools(agentSession);
-  runtimeTab.chat = await rebuildRuntimeChat(runtimeTab);
+  runtimeTab.chat = entriesToChatLines(runtimeTab.session.getBranch(), runtimeTab);
   syncPreviewFromChat(runtimeTab.tab, runtimeTab.chat);
   await bindRuntimeExtensions(runtimeTab, context);
   activateMixCodeTools(agentSession);
@@ -712,7 +701,7 @@ export async function updateRuntimeTabWorkdir(
     throw new Error("Cannot change workdir while the agent is streaming");
   }
   const services = await context.createServices(workdir, systemPrompt);
-  const model = { ...runtimeTab.agent.state.model };
+  const model = { ...runtimeTab.agentSession.agent.state.model };
   await registerMixCodeRuntimeProvider(
     services.modelRuntime,
     model,
@@ -729,7 +718,7 @@ export async function updateRuntimeTabWorkdir(
     workdir,
     sessionsRoot,
   );
-  const { session: agentSession, extensionsResult } = await createAgentSessionFromServices({
+  const { session: agentSession } = await createAgentSessionFromServices({
     services,
     sessionManager,
     model,
@@ -742,7 +731,6 @@ export async function updateRuntimeTabWorkdir(
   bindRuntimeSessionCore(runtimeTab, {
     agentSession,
     services,
-    extensionsResult,
   });
   runtimeTab.tab.workdir = workdir;
   options?.onSessionRebound?.(runtimeTab);

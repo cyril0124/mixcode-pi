@@ -37,7 +37,6 @@ import {
   renderExtensionFooter,
   renderExtensionHeader,
   renderExtensionWidgets,
-  renderHeader,
   renderInputMeta,
   renderAgentSurface,
   renderPickerOverlay,
@@ -444,7 +443,7 @@ test("runtime aborts an active pi agent run", async () => {
     workdir: process.cwd(),
   });
   const mutableSession = runtimeTab.agentSession as unknown as { _isAgentRunActive: boolean };
-  const anyAgent = runtimeTab.agent as unknown as { abort: () => void };
+  const anyAgent = runtimeTab.agentSession.agent as unknown as { abort: () => void };
   let aborted = false;
   mutableSession._isAgentRunActive = true;
   anyAgent.abort = () => {

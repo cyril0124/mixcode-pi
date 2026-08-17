@@ -167,7 +167,7 @@ test("closeAppOverlay only hides tracked app handles, never hideOverlay stack to
     },
   };
 
-  // Extension overlay is shown outside activeOverlayHandles tracking.
+  // Extension overlay is shown outside app overlay tracking.
   tui.showOverlay({ render: () => ["ext"] });
   assert.equal(stack.map((e) => e.name).join(","), "extension");
 

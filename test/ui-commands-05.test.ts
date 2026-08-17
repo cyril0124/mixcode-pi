@@ -108,7 +108,7 @@ test("submitted input only accepts bare system prompt command", async () => {
   state.tabs.push(tab);
   state.activeTabId = "s1";
   const runtime = {
-    getTab: () => ({ agent: { state: { systemPrompt: "system from runtime" } } }),
+    getTab: () => ({ agentSession: { systemPrompt: "system from runtime" } }),
     getPromptHistory: () => [],
     setExtensionUiHost: () => undefined,
     getExtensionCommands: () => [],

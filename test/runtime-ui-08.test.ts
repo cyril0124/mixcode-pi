@@ -319,7 +319,7 @@ test("ctx.shutdown() defers close until the tab is no longer streaming", async (
     await waitFor(
       () =>
         runtimeTab.agentSession.isStreaming === true ||
-        runtimeTab.agent.state.isStreaming === true,
+        runtimeTab.agentSession.agent.state.isStreaming === true,
     );
 
     runtime.requestExtensionShutdown("s1");

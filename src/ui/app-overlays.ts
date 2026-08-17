@@ -16,10 +16,9 @@ import { overlayPanel, padLine } from "./rendering.js";
 import { getCurrentUiTheme, renderWithTheme } from "./rendering/context.js";
 import type { MixCodeTheme } from "./themes.js";
 
-const activeOverlayHandles = new WeakMap<object, OverlayHandle>();
-const activeOverlayComponents = new WeakMap<
+const activeAppOverlays = new WeakMap<
   object,
-  { component: Component; capturing: boolean }
+  { handle: OverlayHandle; component: Component; capturing: boolean }
 >();
 
 export const DEFAULT_OVERLAY_MAX_HEIGHT_PERCENT = 80;
@@ -97,8 +96,8 @@ export function showComponentOverlay(
   closeAppOverlay(tui);
   const handle = tui.showOverlay(component, options);
   if (!isOverlayHandle(handle)) return undefined;
-  activeOverlayHandles.set(tui, handle);
-  activeOverlayComponents.set(tui, {
+  activeAppOverlays.set(tui, {
+    handle,
     component,
     capturing: options.nonCapturing !== true,
   });
@@ -111,28 +110,27 @@ export function closeAppOverlay(tui: OverlayTui): void {
   // destroy an extension custom overlay whose close()/pending-interaction
   // bookkeeping never runs (zombie hasExtensionCustomOverlay → Esc freezes).
   activeNotice = undefined;
-  const handle = activeOverlayHandles.get(tui);
-  if (!handle) return;
-  handle.hide();
-  activeOverlayHandles.delete(tui);
-  activeOverlayComponents.delete(tui);
+  const active = activeAppOverlays.get(tui);
+  if (!active) return;
+  active.handle.hide();
+  activeAppOverlays.delete(tui);
 }
 
 export function hasAppOverlay(tui: OverlayTui): boolean {
-  return activeOverlayHandles.has(tui);
+  return activeAppOverlays.has(tui);
 }
 
 export function hasCapturingAppOverlay(tui: OverlayTui): boolean {
-  return activeOverlayComponents.get(tui)?.capturing === true;
+  return activeAppOverlays.get(tui)?.capturing === true;
 }
 
 export function renderAppOverlay(tui: OverlayTui, width: number): string[] {
-  const active = activeOverlayComponents.get(tui);
+  const active = activeAppOverlays.get(tui);
   return active ? active.component.render(width) : [];
 }
 
 export function hasAnyOverlay(tui: OverlayTui): boolean {
-  return activeOverlayHandles.has(tui) || (tui.hasOverlay?.() ?? false);
+  return activeAppOverlays.has(tui) || (tui.hasOverlay?.() ?? false);
 }
 
 function isOverlayHandle(value: unknown): value is OverlayHandle {

@@ -58,7 +58,7 @@ export async function extensionNewRuntimeSession(
   const result = await context.replaceRuntimeTabSession(runtimeTab, sessionManager, "new");
   if (options?.setup) {
     await options.setup(result.session);
-    result.agent.state.messages = result.session.buildSessionContext().messages;
+    result.agentSession.agent.state.messages = result.session.buildSessionContext().messages;
     await context.syncChatFromSession(result);
   }
   await options?.withSession?.(result.agentSession.createReplacedSessionContext());

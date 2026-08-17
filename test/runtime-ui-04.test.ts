@@ -377,10 +377,10 @@ test("runtime enables Pi builtin tools", async () => {
     const activeNames = runtimeTab.agentSession.getActiveToolNames().slice().sort();
     assert.deepEqual(activeNames, ["bash", "edit", "read", "write"]);
     assert.deepEqual(
-      runtimeTab.agent.state.tools.map((tool) => tool.name).sort(),
+      runtimeTab.agentSession.agent.state.tools.map((tool) => tool.name).sort(),
       ["bash", "edit", "read", "write"],
     );
-    const tools = runtimeTab.agent.state.tools;
+    const tools = runtimeTab.agentSession.agent.state.tools;
     const read = tools.find((tool) => tool.name === "read");
     const bash = tools.find((tool) => tool.name === "bash");
     const edit = tools.find((tool) => tool.name === "edit");

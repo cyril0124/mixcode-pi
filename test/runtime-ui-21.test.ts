@@ -37,7 +37,6 @@ import {
   renderExtensionFooter,
   renderExtensionHeader,
   renderExtensionWidgets,
-  renderHeader,
   renderInputMeta,
   renderAgentSurface,
   renderPickerOverlay,
@@ -184,9 +183,9 @@ test("runtime lets Pi resource loader discover project system prompt before MixC
       workdir: repo,
     });
 
-    assert.match(runtimeTab.agent.state.systemPrompt, /Project system prompt/);
-    assert.match(runtimeTab.agent.state.systemPrompt, /Append prompt/);
-    assert.doesNotMatch(runtimeTab.agent.state.systemPrompt, /Fallback prompt/);
+    assert.match(runtimeTab.agentSession.agent.state.systemPrompt, /Project system prompt/);
+    assert.match(runtimeTab.agentSession.agent.state.systemPrompt, /Append prompt/);
+    assert.doesNotMatch(runtimeTab.agentSession.agent.state.systemPrompt, /Fallback prompt/);
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }
@@ -279,7 +278,7 @@ test("runtime thinking update delegates to Pi agent session", async () => {
   const effective = runtime.updateTabThinkingLevel("s1", "max");
 
   assert.equal(effective, "max");
-  assert.equal(runtimeTab.agent.state.thinkingLevel, "max");
+  assert.equal(runtimeTab.agentSession.agent.state.thinkingLevel, "max");
   assert.equal(runtimeTab.agentSession.thinkingLevel, "max");
   assert.equal(tab.thinkingLevel, "max");
 });
@@ -307,7 +306,7 @@ test("refreshTabStatus maps streaming and error agent state onto tab status", as
     configurable: true,
     get: () => false,
   });
-  Object.defineProperty(runtimeTab.agent.state, "errorMessage", {
+  Object.defineProperty(runtimeTab.agentSession.agent.state, "errorMessage", {
     configurable: true,
     value: "provider failed",
   });

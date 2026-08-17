@@ -38,7 +38,6 @@ import {
   renderExtensionFooter,
   renderExtensionHeader,
   renderExtensionWidgets,
-  renderHeader,
   renderInputMeta,
   renderAgentSurface,
   renderPickerOverlay,
@@ -287,7 +286,7 @@ test("runtime drains queued prompts automatically after agent_end reaches idle",
     await runtime.prompt("s1", "first queued");
     await runtime.prompt("s1", "second queued");
     assert.deepEqual(tab.pendingMessages, ["first queued", "second queued"]);
-    assert.equal(runtimeTab.agent.state.isStreaming, true);
+    assert.equal(runtimeTab.agentSession.agent.state.isStreaming, true);
     releaseFirst();
     await firstPrompt;
     await waitForRuntime(

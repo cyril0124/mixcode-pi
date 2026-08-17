@@ -37,7 +37,6 @@ import {
   renderExtensionFooter,
   renderExtensionHeader,
   renderExtensionWidgets,
-  renderHeader,
   renderInputMeta,
   renderAgentSurface,
   renderPickerOverlay,
@@ -280,7 +279,7 @@ test("runtime surfaces pi extension load errors explicitly", async () => {
       workdir: process.cwd(),
     });
 
-    assert.ok(runtimeTab.extensionsResult.errors.some((error) => error.path === extensionPath));
+    assert.ok(runtimeTab.services.resourceLoader.getExtensions().errors.some((error) => error.path === extensionPath));
     // Load errors surface in the startup header's [Diagnostics] section.
     assert.match(runtimeTab.tab.startupSummary ?? "", /\[Diagnostics\]/);
     assert.ok(

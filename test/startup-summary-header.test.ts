@@ -101,7 +101,7 @@ test("startup summary survives retractCurrentTurn (double-Esc undo)", async () =
     assert.match(summaryBefore, /\[Context\]/);
 
     const pending = runtime.prompt("s1", "please retract me");
-    await waitFor(() => runtimeTab.agent.state.isStreaming === true);
+    await waitFor(() => runtimeTab.agentSession.agent.state.isStreaming === true);
     const result = await runtime.retractCurrentTurn("s1");
     release();
     await pending.catch(() => undefined);
@@ -128,7 +128,7 @@ test("startup summary survives extension tree navigation", async () => {
     assert.ok(summaryBefore);
 
     await runtime.prompt("s1", "first message");
-    await waitFor(() => runtimeTab.agent.state.isStreaming === false);
+    await waitFor(() => runtimeTab.agentSession.agent.state.isStreaming === false);
     const userEntry = runtimeTab.session
       .getBranch()
       .find((e) => e.type === "message" && e.message.role === "user");
@@ -183,7 +183,7 @@ test("extension load errors land in the startup summary diagnostics section", as
       thinkingLevel: "medium",
       workdir: process.cwd(),
     });
-    assert.ok(runtimeTab.extensionsResult.errors.some((error) => error.path === extensionPath));
+    assert.ok(runtimeTab.services.resourceLoader.getExtensions().errors.some((error) => error.path === extensionPath));
     assert.match(runtimeTab.tab.startupSummary ?? "", /\[Diagnostics\]/);
     assert.match(runtimeTab.tab.startupSummary ?? "", /Extension load error/);
   } finally {

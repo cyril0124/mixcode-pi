@@ -24,7 +24,6 @@ import {
   EXTENSION_PANEL_MIN_TERMINAL_WIDTH,
   renderFloatingPanelOverlay,
   renderFooter,
-  renderHeader,
   renderInputMeta,
   renderTabBar,
   renderTabBarSeparator,
@@ -100,7 +99,7 @@ export class MixCodeRoot implements Component {
     const tabBarLines = renderVisibleTabBar(this.state, width, theme, maxTabRows);
     // Extension header is no longer pinned here; it now scrolls with the
     // conversation (rendered at the top of the agent surface), matching Pi.
-    const top = [...renderHeader(width, theme), ...tabBarLines];
+    const top = tabBarLines;
     this.state.tabBarHitRow = top.length;
     // First absolute (1-indexed) row of the tab bar = rows above it + 1. Mouse
     // handlers use this with lastRenderWidth to map clicks onto wrapped rows.

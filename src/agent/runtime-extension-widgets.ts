@@ -58,7 +58,7 @@ function createLiveExtensionFooter(
   runtimeTab: RuntimeTab,
   factory: ExtensionFooterFactory,
 ): ExtensionDynamicLines {
-  return createLiveExtensionLines(
+  return createLiveExtensionRenderer(
     (tui) =>
       factory(tui, currentExtensionTheme(), createMixCodeFooterDataProvider(runtimeTab)),
     runtimeTab.requestRender,
@@ -69,16 +69,22 @@ function createLiveExtensionHeader(
   factory: ExtensionHeaderFactory,
   requestRender: (() => void) | undefined,
 ): ExtensionDynamicLines {
-  return createLiveExtensionLines(
+  return createLiveExtensionRenderer(
     (tui) => factory(tui, currentExtensionTheme()),
     requestRender,
   );
 }
 
-function createLiveExtensionLines(
+interface LiveExtensionRenderer {
+  lines: string[];
+  render: (width: number, maxLines?: number) => string[];
+  dispose: () => void;
+}
+
+function createLiveExtensionRenderer(
   factory: (tui: PiTui) => Component & { dispose?(): void },
   requestRender: (() => void) | undefined,
-): ExtensionDynamicLines {
+): LiveExtensionRenderer {
   ensureExtensionThemeInitialized();
   const terminal = new NullTerminal();
   if (requestRender) terminal.requestRender = requestRender;
@@ -88,7 +94,7 @@ function createLiveExtensionLines(
   let component = factory(tui);
   return {
     lines: renderExtensionLines(component, terminal.columns),
-    render: (width) => {
+    render: (width, maxLines) => {
       // Rebuild when theme changes so factories re-bind accent colors.
       const nextTheme = getActiveExtensionThemeId();
       if (nextTheme !== themeKey) {
@@ -97,7 +103,7 @@ function createLiveExtensionLines(
         component = factory(tui);
       }
       terminal.columns = Math.max(1, Math.floor(width));
-      return renderExtensionLines(component, terminal.columns);
+      return renderExtensionLines(component, terminal.columns, maxLines);
     },
     dispose: () => {
       component.dispose?.();
@@ -158,31 +164,13 @@ function createLiveExtensionWidget(
   factory: (tui: PiTui, theme: Theme) => Component & { dispose?(): void },
   requestRender: () => void,
 ): MixCodeTabInfo["extensionUi"]["widgets"][number] {
-  ensureExtensionThemeInitialized();
-  const terminal = new NullTerminal();
-  terminal.requestRender = requestRender;
-  const tui = new PiTui(terminal);
-  tui.requestRender = () => requestRender();
-  let themeKey = getActiveExtensionThemeId();
-  let component = factory(tui, currentExtensionTheme());
   return {
     key,
     placement,
-    lines: renderExtensionLines(component, terminal.columns),
-    render: (width, maxLines) => {
-      const nextTheme = getActiveExtensionThemeId();
-      if (nextTheme !== themeKey) {
-        component.dispose?.();
-        themeKey = nextTheme;
-        component = factory(tui, currentExtensionTheme());
-      }
-      terminal.columns = Math.max(1, Math.floor(width));
-      return renderExtensionLines(component, terminal.columns, maxLines);
-    },
-    dispose: () => {
-      component.dispose?.();
-      tui.stop();
-    },
+    ...createLiveExtensionRenderer(
+      (tui) => factory(tui, currentExtensionTheme()),
+      requestRender,
+    ),
   };
 }
 

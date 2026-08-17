@@ -139,7 +139,7 @@ test("retractCurrentTurn rewinds the leaf and returns the user message text when
 
     const branchBefore = runtimeTab.session.getBranch().length;
     const pending = runtime.prompt("s1", "please retract me");
-    await waitFor(() => runtimeTab.agent.state.isStreaming === true);
+    await waitFor(() => runtimeTab.agentSession.agent.state.isStreaming === true);
     // The submitted user message is now part of the branch.
     assert.ok(runtimeTab.session.getBranch().some((e) => e.type === "message" && e.message.role === "user"));
 
@@ -157,7 +157,7 @@ test("retractCurrentTurn rewinds the leaf and returns the user message text when
     );
     // Context sent to the model no longer contains the retracted message.
     assert.equal(
-      runtimeTab.agent.state.messages.some(
+      runtimeTab.agentSession.agent.state.messages.some(
         (m) => m.role === "user" && JSON.stringify(m.content).includes("please retract me"),
       ),
       false,
@@ -181,7 +181,7 @@ test("retractCurrentTurn returns undefined once the assistant has produced visib
     });
     // Default faux model echoes a reply, so the turn completes with assistant text.
     await runtime.prompt("s1", "answer me");
-    await waitFor(() => runtimeTab.agent.state.isStreaming === false);
+    await waitFor(() => runtimeTab.agentSession.agent.state.isStreaming === false);
     assert.ok(runtimeTab.chat.some((line) => line.role === "assistant" && line.text.trim()));
 
     const result = await runtime.retractCurrentTurn("s1");
@@ -333,7 +333,7 @@ test("retractCurrentTurn restores editor text before a delayed abort settles", a
 
     const branchBefore = runtimeTab.session.getBranch().length;
     const pending = runtime.prompt("s1", "please retract me");
-    await waitFor(() => runtimeTab.agent.state.isStreaming === true);
+    await waitFor(() => runtimeTab.agentSession.agent.state.isStreaming === true);
 
     let settled = false;
     const retractPromise = runtime.retractCurrentTurn("s1").then((result) => {

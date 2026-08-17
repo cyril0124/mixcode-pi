@@ -91,6 +91,7 @@ import {
   copySession,
   createSession,
   findSessionFileByName,
+  getExtensionManagerEntriesForServices,
   listAllSessionsGlobal,
   listSessionsForCwd,
   openOrCreateSession,
@@ -444,7 +445,7 @@ export class MixCodeRuntime {
     }
     runtimeTab.session.resetLeaf();
     // Match navigateTree / session-reload: agent context follows the new leaf path.
-    runtimeTab.agent.state.messages = runtimeTab.session.buildSessionContext().messages;
+    runtimeTab.agentSession.agent.state.messages = runtimeTab.session.buildSessionContext().messages;
     this.rebuildChatFromSession(sessionId);
     return { noop: false };
   }
@@ -724,7 +725,7 @@ export class MixCodeRuntime {
 
   getExtensionManagerEntries(sessionId: string): ExtensionManagerEntry[] {
     const runtimeTab = this.requireTab(sessionId);
-    return [...runtimeTab.extensionManagerEntries];
+    return [...getExtensionManagerEntriesForServices(runtimeTab.services)];
   }
 
   async setExtensionEnabled(sessionId: string, key: string, enabled: boolean): Promise<void> {
@@ -783,7 +784,7 @@ export class MixCodeRuntime {
 
   refreshTabStatus(sessionId: string): MixCodeTabInfo {
     const runtimeTab = this.requireTab(sessionId);
-    const agentState = runtimeTab.agent.state;
+    const agentState = runtimeTab.agentSession.agent.state;
     runtimeTab.tab.status = agentState.errorMessage
       ? "error"
       : runtimeTab.agentSession.isStreaming
@@ -1431,7 +1432,7 @@ export class MixCodeRuntime {
       // Use agentSession.setModel() to trigger model_select event and persist to session
       await runtimeTab.agentSession.setModel(sessionModel);
       // Sync local state after SDK updates its own state
-      runtimeTab.agent.state.model = sessionModel;
+      runtimeTab.agentSession.agent.state.model = sessionModel;
       applyRuntimeTabModel(runtimeTab, sessionModel);
       // Sync thinking level after Pi clamps it to new model's capability
       runtimeTab.tab.thinkingLevel = runtimeTab.agentSession.thinkingLevel;
@@ -1443,7 +1444,7 @@ export class MixCodeRuntime {
   updateTabThinkingLevel(sessionId: string, level: ThinkingLevel): ThinkingLevel {
     const runtimeTab = this.requireTab(sessionId);
     runtimeTab.agentSession.setThinkingLevel(level);
-    runtimeTab.tab.thinkingLevel = runtimeTab.agent.state.thinkingLevel;
+    runtimeTab.tab.thinkingLevel = runtimeTab.agentSession.agent.state.thinkingLevel;
     return runtimeTab.tab.thinkingLevel;
   }
 
