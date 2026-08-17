@@ -9,7 +9,6 @@ export * from "./core/chat-selection.js";
 export * from "./core/commands.js";
 export * from "./core/conversation-history.js";
 export * from "./core/defaults.js";
-export * from "./core/detect-search-tools.js";
 export * from "./core/escape.js";
 export * from "./core/extension-manager.js";
 export * from "./core/external-editor.js";

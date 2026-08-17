@@ -10,7 +10,7 @@ import {
   type InstanceStatusInstance,
 } from "../core/instance-registry.js";
 import { encodeSendKeys } from "./ctl-keys.js";
-import { expandTilde, resolveMixcodeStateDir } from "./status.js";
+import { resolveMixcodeStateDir, takeWorkdirFlag } from "./status.js";
 
 export const CTL_OPS = [
   "last-message",
@@ -147,16 +147,9 @@ export function parseCtlArgs(args: string[], fallbackWorkdir: string): CtlArgs {
       pid = parsed;
       continue;
     }
-    if (arg === "--workdir") {
-      const value = args[++index];
-      if (!value) throw new Error("--workdir requires a path");
-      workdir = path.resolve(baseWorkdir, expandTilde(value));
-      continue;
-    }
-    if (arg?.startsWith("--workdir=")) {
-      const value = arg.slice("--workdir=".length);
-      if (!value) throw new Error("--workdir requires a path");
-      workdir = path.resolve(baseWorkdir, expandTilde(value));
+    const parsedWorkdir = takeWorkdirFlag(arg, () => args[++index], baseWorkdir);
+    if (parsedWorkdir !== undefined) {
+      workdir = parsedWorkdir;
       continue;
     }
     if (arg === "--focus-session") {

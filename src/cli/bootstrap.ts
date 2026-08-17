@@ -40,7 +40,7 @@ import {
   configureDisabledModelRuntime,
   createPiModelRegistryBundle,
 } from "../core/pi-models.js";
-import { expandTilde } from "./status.js";
+import { expandTilde, resolveMixcodeStateDir } from "./status.js";
 import {
   loadStateFile,
   saveStateFile,
@@ -67,7 +67,7 @@ export interface BootstrapOptions {
 export const DEFAULT_STATE_PORT = 0;
 
 export function defaultStateDir(): string {
-  return path.join(getAgentDir(), "mixcode-pi");
+  return resolveMixcodeStateDir();
 }
 
 export function defaultPiSessionDir(workdir: string, agentDir = getAgentDir()): string {

@@ -14,12 +14,6 @@ export function armPendingEscape(tab: MixCodeTabInfo, now = Date.now()): void {
   tab.pendingEscapeArmedAt = now;
 }
 
-export function hasPendingEscape(tab: MixCodeTabInfo, now = Date.now()): boolean {
-  if (isPendingEscapeActive(tab, now)) return true;
-  if (tab.pendingEscapeArmedAt !== undefined) clearPendingEscape(tab);
-  return false;
-}
-
 export function isPendingEscapeActive(tab: MixCodeTabInfo, now = Date.now()): boolean {
   const armedAt = tab.pendingEscapeArmedAt;
   if (typeof armedAt !== "number") return false;

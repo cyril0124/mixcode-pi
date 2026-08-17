@@ -4,7 +4,7 @@ import type {
   AgentSessionServices,
   BuildSystemPromptOptions,
 } from "@earendil-works/pi-coding-agent";
-import type { SearchToolAvailability } from "../core/detect-search-tools.js";
+import type { SearchToolAvailability } from "../core/system-prompt.js";
 import {
   buildMixCodeSystemPromptFromParts,
   buildMixCodeSystemPromptOptionsFromSession,

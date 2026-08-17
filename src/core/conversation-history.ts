@@ -95,22 +95,6 @@ export async function appendHistoryEntry(
   return true;
 }
 
-export async function backfillHistoryFromSessions(options: {
-  historyFile: string;
-  sessionsRoots: string[];
-  since: Date;
-  settings: HistorySettings;
-}): Promise<{ scannedSessions: number; imported: number }> {
-  const sessions = await readSessionFiles(options.sessionsRoots);
-  const imported = await backfillHistoryFromParsedSessions(
-    options.historyFile,
-    sessions,
-    options.since,
-    options.settings,
-  );
-  return { scannedSessions: sessions.length, imported };
-}
-
 async function backfillHistoryFromParsedSessions(
   historyFile: string,
   sessions: ParsedSessionFile[],
@@ -135,14 +119,6 @@ async function backfillHistoryFromParsedSessions(
   });
 }
 
-export async function buildSessionIndex(options: {
-  indexFile: string;
-  sessionsRoots: string[];
-}): Promise<{ indexed: number }> {
-  const sessions = await readSessionFiles(options.sessionsRoots);
-  return buildSessionIndexFromParsedSessions(options.indexFile, sessions);
-}
-
 async function buildSessionIndexFromParsedSessions(
   indexFile: string,
   sessions: ParsedSessionFile[],
@@ -163,7 +139,7 @@ async function buildSessionIndexFromParsedSessions(
   return { indexed: ordered.length };
 }
 
-export async function shouldRebuildSessionIndex(
+async function shouldRebuildSessionIndex(
   indexFile: string,
   sessionsRoots: string[],
 ): Promise<boolean> {
@@ -192,7 +168,7 @@ export async function ensureConversationHistoryState(options: {
   try {
     await ensurePrivateDir(options.rootStateDir);
     const settings = await loadMixCodeSettings(paths.settingsFile);
-    const sessionsRoots = discoverSessionRoots(options.activeSessionsRoot);
+    const sessionsRoots = [options.activeSessionsRoot];
     const historyMissing = !(await pathExists(paths.historyFile));
     const indexStale = await shouldRebuildSessionIndex(paths.sessionIndexFile, sessionsRoots);
     if (historyMissing || indexStale) {
@@ -453,10 +429,6 @@ function trimHistoryText(text: string, maxBytes: number): string {
     lines.shift();
   }
   return lines.length ? `${lines.join("\n")}\n` : "";
-}
-
-function discoverSessionRoots(activeSessionsRoot: string): string[] {
-  return [activeSessionsRoot];
 }
 
 async function latestSessionsMtime(sessionsRoots: string[]): Promise<number> {

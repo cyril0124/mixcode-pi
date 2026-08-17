@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { detectSearchTools } from "../src/core/detect-search-tools.js";
+import { detectSearchTools } from "../src/core/system-prompt.js";
 
 test("detectSearchTools reports boolean availability", () => {
   const availability = detectSearchTools();

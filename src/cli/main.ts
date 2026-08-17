@@ -7,9 +7,9 @@ import { isDirectCliEntry } from "./direct-cli-entry.js";
 import { isCommandsCliArgs, runCommandsCommand } from "./commands-list.js";
 import { isCtlCliArgs, runCtlCommand } from "./ctl.js";
 import {
-  expandTilde,
   isStatusCliArgs,
   runStatusCommand as executeStatusCommand,
+  takeWorkdirFlag,
 } from "./status.js";
 
 function hasMixcodePackages(dir: string): boolean {
@@ -105,16 +105,9 @@ export function parseMainArgs(args: string[], fallbackWorkdir: string): MainArgs
       batchArgs = args.slice(index + 1);
       break;
     }
-    if (arg === "--workdir") {
-      const value = args[++index];
-      if (!value) throw new Error("--workdir requires a path");
-      workdir = path.resolve(baseWorkdir, value);
-      continue;
-    }
-    if (arg?.startsWith("--workdir=")) {
-      const value = arg.slice("--workdir=".length);
-      if (!value) throw new Error("--workdir requires a path");
-      workdir = path.resolve(baseWorkdir, value);
+    const parsedWorkdir = takeWorkdirFlag(arg, () => args[++index], baseWorkdir);
+    if (parsedWorkdir !== undefined) {
+      workdir = parsedWorkdir;
       continue;
     }
     if (arg === "--batch") {
@@ -165,16 +158,9 @@ function parseStatusArgs(args: string[], baseWorkdir: string): MainArgs {
       json = true;
       continue;
     }
-    if (arg === "--workdir") {
-      const value = args[++index];
-      if (!value) throw new Error("--workdir requires a path");
-      statusWorkdir = path.resolve(baseWorkdir, expandTilde(value));
-      continue;
-    }
-    if (arg?.startsWith("--workdir=")) {
-      const value = arg.slice("--workdir=".length);
-      if (!value) throw new Error("--workdir requires a path");
-      statusWorkdir = path.resolve(baseWorkdir, expandTilde(value));
+    const parsedWorkdir = takeWorkdirFlag(arg, () => args[++index], baseWorkdir);
+    if (parsedWorkdir !== undefined) {
+      statusWorkdir = parsedWorkdir;
       continue;
     }
     throw new Error(`Unknown status argument: ${arg}`);

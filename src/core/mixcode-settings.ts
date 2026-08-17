@@ -60,7 +60,7 @@ export const DEFAULT_OVERSIZED_ASSISTANT_MESSAGE: OversizedAssistantMessageSetti
   maxBytes: 128 * 1024,
 };
 
-export function defaultMixCodeSettings(): MixCodeSettings {
+function defaultMixCodeSettings(): MixCodeSettings {
   return {
     // theme omitted: unset, so UI can dim-display the runtime default
     history: { maxBytes: DEFAULT_HISTORY_MAX_BYTES },
@@ -86,16 +86,21 @@ export function isModelDisabled(
   return disabledModels.includes(ref);
 }
 
-/** Load raw settings preserving undefined for unset fields (no defaults applied). */
-export async function loadRawMixCodeSettings(settingsFile: string): Promise<RawMixCodeSettings> {
-  let raw: unknown;
+async function readSettingsSource(
+  settingsFile: string,
+): Promise<Record<string, unknown> | undefined> {
   try {
-    raw = parseJsoncObject(await Bun.file(settingsFile).text());
+    return objectRecord(parseJsoncObject(await Bun.file(settingsFile).text()));
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return {};
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
     throw error;
   }
-  const source = objectRecord(raw);
+}
+
+/** Load raw settings preserving undefined for unset fields (no defaults applied). */
+export async function loadRawMixCodeSettings(settingsFile: string): Promise<RawMixCodeSettings> {
+  const source = await readSettingsSource(settingsFile);
+  if (!source) return {};
   const history = objectRecord(source.history);
   const ui = objectRecord(source.ui);
   const oversized = objectRecord(ui.oversizedAssistantMessage);
@@ -162,14 +167,8 @@ export async function writeRawMixCodeSettings(
 }
 
 export async function loadMixCodeSettings(settingsFile: string): Promise<MixCodeSettings> {
-  let raw: unknown;
-  try {
-    raw = parseJsoncObject(await Bun.file(settingsFile).text());
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return defaultMixCodeSettings();
-    throw error;
-  }
-  const source = objectRecord(raw);
+  const source = await readSettingsSource(settingsFile);
+  if (!source) return defaultMixCodeSettings();
   const history = objectRecord(source.history);
   const theme =
     typeof source.theme === "string" && source.theme.trim() ? source.theme.trim() : undefined;

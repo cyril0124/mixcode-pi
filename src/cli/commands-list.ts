@@ -8,7 +8,7 @@ import {
 import { createRuntimeServices } from "../agent/runtime-lifecycle.js";
 import { LOCAL_COMMANDS } from "../core/commands.js";
 import { ensurePackageExtensions } from "../core/ensure-package-extensions.js";
-import { expandTilde } from "./status.js";
+import { takeWorkdirFlag } from "./status.js";
 
 export type CommandListSource = "local" | "extension" | "prompt";
 
@@ -42,16 +42,9 @@ export function parseCommandsArgs(args: string[], fallbackWorkdir: string): Comm
       json = true;
       continue;
     }
-    if (arg === "--workdir") {
-      const value = args[++index];
-      if (!value) throw new Error("--workdir requires a path");
-      workdir = path.resolve(baseWorkdir, expandTilde(value));
-      continue;
-    }
-    if (arg?.startsWith("--workdir=")) {
-      const value = arg.slice("--workdir=".length);
-      if (!value) throw new Error("--workdir requires a path");
-      workdir = path.resolve(baseWorkdir, expandTilde(value));
+    const parsedWorkdir = takeWorkdirFlag(arg, () => args[++index], baseWorkdir);
+    if (parsedWorkdir !== undefined) {
+      workdir = parsedWorkdir;
       continue;
     }
     if (arg?.startsWith("-")) throw new Error(`Unknown commands argument: ${arg}`);

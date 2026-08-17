@@ -5,7 +5,6 @@ import {
   armPendingEscape,
   clearPendingEscape,
   createTab,
-  hasPendingEscape,
   isPendingEscapeActive,
 } from "../src/index.js";
 
@@ -33,22 +32,6 @@ test("isPendingEscapeActive is true inside window and false after window+1", () 
     isPendingEscapeActive(tab, now + PENDING_ESCAPE_CONFIRM_WINDOW_MS + 1),
     false,
   );
-});
-
-test("hasPendingEscape is true while active; when expired returns false and clears fields", () => {
-  const tab = createTab(1, "s1", "/repo");
-  const now = 5_000;
-
-  armPendingEscape(tab, now);
-
-  assert.equal(hasPendingEscape(tab, now + 1), true);
-  assert.equal(tab.pendingEscapeArmedAt, now);
-
-  assert.equal(
-    hasPendingEscape(tab, now + PENDING_ESCAPE_CONFIRM_WINDOW_MS + 1),
-    false,
-  );
-  assert.equal(tab.pendingEscapeArmedAt, undefined);
 });
 
 test("clearPendingEscape clears armedAt", () => {

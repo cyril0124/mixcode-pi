@@ -23,7 +23,7 @@ import {
   registerExtensionEventBus,
   unregisterExtensionEventBus,
 } from "../core/extension-event-bus.js";
-import { detectSearchTools, type SearchToolAvailability } from "../core/detect-search-tools.js";
+import { detectSearchTools, type SearchToolAvailability } from "../core/system-prompt.js";
 import {
   type ExtensionManagerEntry,
   extensionManagerEntriesFromResult,

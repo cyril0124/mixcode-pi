@@ -6,13 +6,10 @@ import { test } from "node:test";
 import { listSessionsForCwd } from "../src/agent/runtime-session.js";
 import {
   appendHistoryEntry,
-  backfillHistoryFromSessions,
   buildConversationHistoryPrompt,
-  buildSessionIndex,
   conversationHistoryPaths,
   ensureConversationHistoryState,
   HISTORY_LOCK_ID,
-  shouldRebuildSessionIndex,
 } from "../src/index.js";
 import { acquireSessionTurnLock } from "../src/core/session-lock.js";
 
@@ -195,7 +192,7 @@ test("appendHistoryEntry skips invalid prompt-history entries", async () => {
   }
 });
 
-test("backfillHistoryFromSessions imports recent user messages and deduplicates", async () => {
+test("ensureConversationHistoryState deduplicates existing history entries", async () => {
   const dir = await fsPromises.mkdtemp(nodePath.join(os.tmpdir(), "mixcode-history-backfill-"));
   try {
     const sessionsRoot = nodePath.join(dir, "sessions");
@@ -208,14 +205,12 @@ test("backfillHistoryFromSessions imports recent user messages and deduplicates"
     const historyFile = nodePath.join(dir, "history.jsonl");
     await appendHistoryEntry(historyFile, { sessionId: "s1", text: "recent prompt", timestampSeconds: Date.UTC(2026, 5, 20) / 1000 }, { maxBytes: 1024 * 1024 });
 
-    const result = await backfillHistoryFromSessions({
-      historyFile,
-      sessionsRoots: [sessionsRoot],
-      since: new Date(Date.UTC(2026, 4, 21)),
-      settings: { maxBytes: 1024 * 1024 },
+    const result = await ensureConversationHistoryState({
+      rootStateDir: dir,
+      activeSessionsRoot: sessionsRoot,
+      now: () => new Date(Date.UTC(2026, 5, 20)),
     });
 
-    assert.equal(result.imported, 0);
     assert.equal(result.scannedSessions, 1);
     assert.deepEqual(await readJsonl(historyFile), [
       { session_id: "s1", ts: Date.UTC(2026, 5, 20) / 1000, text: "recent prompt" },
@@ -225,7 +220,7 @@ test("backfillHistoryFromSessions imports recent user messages and deduplicates"
   }
 });
 
-test("backfillHistoryFromSessions accepts entry timestamp strings", async () => {
+test("ensureConversationHistoryState accepts entry timestamp strings", async () => {
   const dir = await fsPromises.mkdtemp(nodePath.join(os.tmpdir(), "mixcode-history-string-ts-"));
   try {
     const sessionsRoot = nodePath.join(dir, "sessions");
@@ -238,15 +233,13 @@ test("backfillHistoryFromSessions accepts entry timestamp strings", async () => 
         message: { role: "user", content: "string timestamp prompt" },
       },
     ]);
-    const historyFile = nodePath.join(dir, "history.jsonl");
-    const result = await backfillHistoryFromSessions({
-      historyFile,
-      sessionsRoots: [sessionsRoot],
-      since: new Date(Date.UTC(2026, 4, 21)),
-      settings: { maxBytes: 1024 * 1024 },
+    const result = await ensureConversationHistoryState({
+      rootStateDir: dir,
+      activeSessionsRoot: sessionsRoot,
+      now: () => new Date(Date.UTC(2026, 5, 20)),
     });
-    assert.equal(result.imported, 1);
-    assert.deepEqual(await readJsonl(historyFile), [
+    assert.equal(result.scannedSessions, 1);
+    assert.deepEqual(await readJsonl(nodePath.join(dir, "history.jsonl")), [
       { session_id: "s1", ts: Date.UTC(2026, 5, 20, 1, 2, 3) / 1000, text: "string timestamp prompt" },
     ]);
   } finally {
@@ -254,7 +247,7 @@ test("backfillHistoryFromSessions accepts entry timestamp strings", async () => 
   }
 });
 
-test("buildSessionIndex writes snapshot records with session name fallback", async () => {
+test("ensureConversationHistoryState writes snapshot records with session name fallback", async () => {
   const dir = await fsPromises.mkdtemp(nodePath.join(os.tmpdir(), "mixcode-session-index-"));
   try {
     const sessionsRoot = nodePath.join(dir, "sessions");
@@ -268,9 +261,13 @@ test("buildSessionIndex writes snapshot records with session name fallback", asy
       { type: "message", id: "u1", message: { role: "user", content: "fallback title that is reasonably long", timestamp: Date.UTC(2026, 5, 20) } },
     ]);
 
+    const result = await ensureConversationHistoryState({
+      rootStateDir: dir,
+      activeSessionsRoot: sessionsRoot,
+      now: () => new Date(Date.UTC(2026, 5, 20)),
+    });
+    assert.equal(result.scannedSessions, 2);
     const indexFile = nodePath.join(dir, "session_index.jsonl");
-    const result = await buildSessionIndex({ indexFile, sessionsRoots: [sessionsRoot] });
-    assert.equal(result.indexed, 2);
     const records = await readJsonl(indexFile);
     assert.equal(records.length, 2);
     assert.ok(records.some((record) => record.id === "named" && record.title === "Named Thread" && record.path === namedPath && record.cwd === "/repo"));
@@ -278,25 +275,6 @@ test("buildSessionIndex writes snapshot records with session name fallback", asy
     assert.equal(records[0]?.id, "unnamed");
     assert.equal("thread_name" in records[0]!, false);
     assert.equal((await fsPromises.stat(indexFile)).mode & 0o777, 0o600);
-  } finally {
-    await fsPromises.rm(dir, { recursive: true, force: true });
-  }
-});
-
-test("shouldRebuildSessionIndex compares sessions mtime with index mtime", async () => {
-  const dir = await fsPromises.mkdtemp(nodePath.join(os.tmpdir(), "mixcode-session-stale-"));
-  try {
-    const sessionsRoot = nodePath.join(dir, "sessions");
-    await fsPromises.mkdir(sessionsRoot, { recursive: true });
-    const sessionFile = nodePath.join(sessionsRoot, "s.jsonl");
-    const indexFile = nodePath.join(dir, "session_index.jsonl");
-    await fsPromises.writeFile(sessionFile, "{}\n", "utf8");
-    await Bun.sleep(20);
-    await fsPromises.writeFile(indexFile, "{}\n", "utf8");
-    assert.equal(await shouldRebuildSessionIndex(indexFile, [sessionsRoot]), false);
-    await Bun.sleep(20);
-    await fsPromises.writeFile(sessionFile, "{}\n{}\n", "utf8");
-    assert.equal(await shouldRebuildSessionIndex(indexFile, [sessionsRoot]), true);
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }

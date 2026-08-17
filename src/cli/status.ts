@@ -23,6 +23,25 @@ export function expandTilde(filepath: string): string {
   return filepath;
 }
 
+/** Parse `--workdir <path>` / `--workdir=<path>` and resolve against `baseWorkdir`. */
+export function takeWorkdirFlag(
+  arg: string | undefined,
+  next: () => string | undefined,
+  baseWorkdir: string,
+): string | undefined {
+  if (arg === "--workdir") {
+    const value = next();
+    if (!value) throw new Error("--workdir requires a path");
+    return path.resolve(baseWorkdir, expandTilde(value));
+  }
+  if (arg?.startsWith("--workdir=")) {
+    const value = arg.slice("--workdir=".length);
+    if (!value) throw new Error("--workdir requires a path");
+    return path.resolve(baseWorkdir, expandTilde(value));
+  }
+  return undefined;
+}
+
 /**
  * Resolve effective agent dir without importing @earendil-works/pi-coding-agent.
  * Matches Pi getAgentDir() contract: PI_CODING_AGENT_DIR ?? ~/.pi/agent.
