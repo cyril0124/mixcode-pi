@@ -63,7 +63,7 @@ EOF
 - `--tab <title>` / `--session <id>` 只点名、不改 UI 焦点。`--focus-tab` / `--focus-session` 点名并留下焦点。四个旗标互斥。标题精确匹配；重名用 `--session` 或 `--focus-session`。`home` 是 Home。
 - `send-keys`：当前焦点或 `--focus-*` 时，按键注入键盘通路（`Enter`、`Escape`、`Tab`、`BSpace`、方向键、`C-a`…`C-z`、`M-x`、普通字符串）。`--tab` / `--session` 只允许文本和 `Enter`：`Enter` 按 Home 发送路径提交（不改 `activeTabId`）；没回车的文本追加 `draftInput`。接受后立刻 ACK。UI 键要用 `--focus-tab`。`--literal` / `-l` 关闭键名映射。
 - `send-prompt [text...]`：把参数拼成一段正文（单个参数里的换行会保留）。没有正文或只有 `-` 时读 stdin（heredoc/管道）。stdin 是 TTY 且没给正文则报错。Home 失败。接受后立刻 ACK；不截断。有 `MIXCODE_TAB_TITLE` 时，普通提问会加一段英文说明：这是另一个 MixCode tab 经 ctl 发来的，不是用户手打。`--expect-response` 再附上 mpi-ctl skill 绝对路径（`<agentDir>/extensions/mpi-ctl/skills/mpi-ctl/SKILL.md`）和 `` `mpi ctl` --tab <title> send-prompt `` 回信命令；需要 `MIXCODE_TAB_TITLE`，`/` 或 `!` 行会失败。普通终端（没 title）原文提交。`--tab` 的 send-keys 提交只加短说明。编辑器手打的字不加。
-- 任一 agent tab 为 `Not Ready` 时，所有 `ctl` 命令失败（`Tab is still loading extensions. Please wait a moment.`），包括打 Home。
+- 目标 agent tab 为 `Not Ready` 时，该条 `ctl` 命令失败（`Tab is still loading extensions. Please wait a moment.`）。其它 tab 和 Home 仍可用。
 - `ctl` 与 `status` 一样走轻量启动路径（不 boot TUI；编译包跳过 materialize）。
 - `last-message`、`last-assistant-message`、`last-user-message`、`last-tool`、`dump-screen` 超过 8192 字节时 stdout 只留前 4096 字节，全文写到 `/tmp/mpi-ctl-<pid>-<command>-<ms>.txt`（权限 `0600`）。提示：`[Full output: <path>. Truncated: N lines shown (4.0KB limit)]`。`send-keys`、`send-prompt` 和 `wait` 不截断。
 

@@ -113,7 +113,7 @@ mpi ctl [--pid <n> | --workdir <path>] [--tab <title> | --session <id> | --focus
 - `home` is Home (`--session home` or `--focus-session home`).
 - Omit all four: live UI focus; header includes `reason: no --tab/--session/--focus-tab/--focus-session; using live UI focus`.
 
-If any agent tab is `Not Ready`, every ctl command fails: `Tab is still loading extensions. Please wait a moment.` Restart a TUI that predates the ctl socket; compiled `mpi` must include the server.
+If the **target** agent tab is `Not Ready`, that ctl command fails: `Tab is still loading extensions. Please wait a moment.` Other tabs (and Home) stay usable. Restart a TUI that predates the ctl socket; compiled `mpi` must include the server.
 
 ## Commands
 
@@ -290,7 +290,7 @@ mpi ctl --pid <n> --tab <other> wait --timeout 90
 - **`mpi commands` is TUI slashes (`/compact`), not CLI subcommands (`mpi ctl`).** Slash commands: `send-prompt /compact`, not `send-keys '/compact' Enter`. `send-keys` is for real keypresses (pickers, `down`/`Enter` on a question, `C-q`). `--tab` send-keys is text+Enter only; multi-line body uses `send-prompt <<'EOF'`. `--literal` makes `Enter` the letters E-n-t-e-r.
 - **`--from` and `--to` must both be present.** One alone errors. `1` is newest, print is oldest-first. `last-message` is user+assistant only; tools are `last-tool`.
 - **`wait` always has a timeout** (default 60s). Client waits `--timeout`+5s; `ctl socket timed out` before that is a bug. `wait-for-input` means a question/dialog — do not keep waiting. `finished` is idle/done. Home: `Home has no agent run`.
-- **Not Ready / no sock:** any tab still loading fails every ctl. No `.sock` means that TUI predates ctl — restart it. `status` 0 or >1 instance without `--pid` fails; same workdir with two TUIs needs `--pid` or `MIXCODE_PID`.
+- **Not Ready / no sock:** only the target tab still loading fails that ctl command. No `.sock` means that TUI predates ctl — restart it. `status` 0 or >1 instance without `--pid` fails; same workdir with two TUIs needs `--pid` or `MIXCODE_PID`.
 - **Env:** `MIXCODE_*` exist only in the **bash tool**, not `!` shells. Do not `--tab`/`--focus-tab` yourself (`MIXCODE_TAB_TITLE`) when the user asked about another tab. `MIXCODE_FOCUSED_TAB_TITLE` is empty on Home. Wrong `PI_CODING_AGENT_DIR` lists the wrong instances.
 - **`/close-session` keeps the file; `/delete-session` removes it.** Pass `yes` to skip the single-tab Y/N overlay. **Do not** pass `yes` to `/close-all-sessions` or `/delete-all-sessions` — those always confirm; use `--focus-tab` and `y`/`n`. `/clear` makes a new child session; `/reset` stays on the same file. `/new-session Title` creates a **new** tab; `/rename Title` renames the target tab.
 - **`dump-screen` is for overlays/drafts/streaming**, not history. Default is no ANSI; `--ansi` keeps color. Huge output is truncated to `/tmp/mpi-ctl-…`.

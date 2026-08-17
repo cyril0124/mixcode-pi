@@ -377,8 +377,11 @@ export async function handleCtlRequest(
       activateTab(options.state, sessionId);
       options.requestRender?.();
     }
-    if (options.state.tabs.some((tab) => tab.status === "Not Ready")) {
-      throw new Error("Tab is still loading extensions. Please wait a moment.");
+    if (sessionId !== HOME_TAB_ID) {
+      const target = options.state.tabs.find((tab) => tab.sessionId === sessionId);
+      if (target?.status === "Not Ready") {
+        throw new Error("Tab is still loading extensions. Please wait a moment.");
+      }
     }
     const wrap = (body: string, extras?: { time?: string; messages?: string }) =>
       withPreamble(request, options.state, sessionId, body, extras);

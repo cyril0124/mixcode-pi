@@ -433,10 +433,27 @@ test("handleCtlRequest last-assistant-message send-keys and dump-screen", async 
   assert.equal(notReady.ok, false);
   assert.equal(notReady.text, undefined);
   assert.match(notReady.error ?? "", /still loading extensions/);
+  const readySibling = await handleCtlRequest(
+    { op: "last-assistant-message", tabTitle: "Agent-01" },
+    opts,
+  );
+  assert.equal(readySibling.ok, true);
+  assert.match(readySibling.text ?? "", /hello from agent/);
+  const waitSibling = await handleCtlRequest(
+    { op: "wait", tabTitle: "Agent-01", timeout: 0 },
+    opts,
+  );
+  assert.equal(waitSibling.ok, true);
+  assert.match(waitSibling.text ?? "", /status: finished/);
+  const promptSibling = await handleCtlRequest(
+    { op: "send-prompt", tabTitle: "Agent-01", prompt: "hi" },
+    opts,
+  );
+  assert.equal(promptSibling.ok, true);
   state.activeTabId = "home";
   const homeWhileLoading = await handleCtlRequest({ op: "dump-screen" }, opts);
-  assert.equal(homeWhileLoading.ok, false);
-  assert.match(homeWhileLoading.error ?? "", /still loading extensions/);
+  assert.equal(homeWhileLoading.ok, true);
+  assert.match(homeWhileLoading.text ?? "", /^tab: home\nsession: home\nreason:/);
   loading.status = "idle";
   state.activeTabId = "home";
   const home = await handleCtlRequest({ op: "last-assistant-message" }, opts);
