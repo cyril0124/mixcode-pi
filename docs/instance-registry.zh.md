@@ -30,8 +30,6 @@ mpi status --workdir /path/to/project
 |---|---|---|
 | `version` | number (`1`) | 实例快照 Schema 版本。 |
 | `pid` | number | 宿主系统进程 PID。 |
-| `processStartTime` | string (ISO) | 进程启动时间（Linux 下读取自 `/proc/<pid>/stat`）。 |
-| `processVerification` | `"linux-start-time"` \| `"pid-only"` | 用于校验 PID 复用的进程验证策略。 |
 | `workdir` | string | 进程启动时的根工作目录。 |
 | `activeTabId` | string | 当前 UI 获得焦点的 Tab ID。 |
 | `updatedAt` | string (ISO) | 心跳时间戳（每 5,000 ms 更新一次）。 |
@@ -56,5 +54,5 @@ Tab Snapshot ──┼──> error（轮次执行失败）
 
 因异常终止残留的无主快照由清理机制自动回收：
 - 心跳时间 `updatedAt` 超过 `15,000 ms` 被视为过期。
-- 通过 `kill(pid, 0)` 及 Linux `/proc/<pid>/stat` 启动时间双重确认进程是否已死亡或 PID 被复用。
+- 通过 `kill(pid, 0)` 确认进程是否仍存活。
 - 启动新实例或执行 `mpi status` 时会自动清理无效快照文件。

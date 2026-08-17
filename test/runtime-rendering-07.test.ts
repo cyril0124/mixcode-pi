@@ -2,8 +2,6 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   MIXCODE_KEYMAP,
-  describeKeymap,
-  describeScopedKeymap,
   fitHeadLines,
   fitTailLines,
 } from "../src/index.js";
@@ -21,19 +19,8 @@ test("fitHeadLines keeps the oldest lines and marks overflow", () => {
 });
 
 test("keymap export documents global and scoped bindings", () => {
-  const lines = describeKeymap();
-  assert.ok(lines.some((line) => line.startsWith("ctrl+q:")));
-
   const scopes = new Set(MIXCODE_KEYMAP.map((item) => item.scope ?? "global"));
   for (const scope of ["global", "picker", "command-palette", "tab-jump", "preview"] as const) {
     assert.equal(scopes.has(scope), true, `${scope} scope should exist`);
-  }
-  const scoped = describeScopedKeymap();
-  for (const scope of ["picker", "command-palette", "tab-jump", "preview"]) {
-    assert.equal(
-      scoped.some((line) => line.startsWith(`${scope} `)),
-      true,
-      `${scope} should appear in scoped keymap text`,
-    );
   }
 });

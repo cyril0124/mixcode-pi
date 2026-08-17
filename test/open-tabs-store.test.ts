@@ -89,19 +89,11 @@ test("open_tabs lock wait yields CPU under contention", async () => {
     worker = new Worker(
       `
       const { parentPort, workerData } = require("node:worker_threads");
-      const { openSync, writeSync, closeSync, rmSync, readFileSync } = require("node:fs");
+      const { openSync, writeSync, closeSync, rmSync } = require("node:fs");
       const lockPath = workerData.lockPath;
       const fd = openSync(lockPath, "wx");
-      let startTime;
-      try {
-        const stat = readFileSync("/proc/" + process.pid + "/stat", "utf8");
-        const closeParen = stat.lastIndexOf(")");
-        startTime = closeParen >= 0 ? stat.slice(closeParen + 2).split(" ")[19] : undefined;
-      } catch {}
       writeSync(fd, JSON.stringify({
         pid: process.pid,
-        processStartTime: startTime,
-        processVerification: startTime ? "linux-start-time" : "pid-only",
         acquiredAt: new Date().toISOString(),
       }) + String.fromCharCode(10));
       parentPort.postMessage("held");
@@ -166,16 +158,8 @@ test("open_tabs does not drop concurrent updates when a live holder outlives 5s"
       const filePath = workerData.filePath;
       const lockPath = filePath + ".lock";
       const fd = fs.openSync(lockPath, "wx");
-      let startTime;
-      try {
-        const stat = fs.readFileSync("/proc/" + process.pid + "/stat", "utf8");
-        const closeParen = stat.lastIndexOf(")");
-        startTime = closeParen >= 0 ? stat.slice(closeParen + 2).split(" ")[19] : undefined;
-      } catch {}
       fs.writeSync(fd, JSON.stringify({
         pid: process.pid,
-        processStartTime: startTime,
-        processVerification: startTime ? "linux-start-time" : "pid-only",
         acquiredAt: new Date().toISOString(),
       }) + String.fromCharCode(10));
       parentPort.postMessage("held");
@@ -235,7 +219,6 @@ test("open_tabs reclaims a lock left by a dead pid", async () => {
       lockPath,
       `${JSON.stringify({
         pid: 2_147_483_646,
-        processVerification: "pid-only",
         acquiredAt: new Date().toISOString(),
       })}\n`,
     );

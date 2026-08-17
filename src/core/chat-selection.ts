@@ -189,11 +189,6 @@ export function highlightChatSelectionLine(
   return `${before}${highlight(selected)}${after}`;
 }
 
-/** Public alias for Pi stripTerminalSequences (kept name for existing callers/tests). */
-export function stripAnsi(text: string): string {
-  return stripTerminalSequences(text);
-}
-
 function normalizeInputSelectionLine(line: string): string | undefined {
   const visible = line.trimEnd();
   if (isBoxBorderLine(visible)) return undefined;

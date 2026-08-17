@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { MarkdownTransformer } from "@earendil-works/pi-coding-agent";
+import { stripTerminalSequences as stripAnsi } from "@earendil-works/pi-tui";
 import type { ChatLine } from "../src/agent/runtime.js";
-import { stripAnsi } from "../src/index.js";
 import { chatBlockRenderOptions } from "../src/ui/rendering/agent-surface-options.js";
 import { renderChatBlock } from "../src/ui/rendering/chat.js";
 import { applyMarkdownTransformers, renderMarkdown } from "../src/ui/rendering/markdown.js";

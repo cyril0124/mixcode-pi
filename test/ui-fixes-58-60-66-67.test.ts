@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { stripTerminalSequences as stripAnsi } from "@earendil-works/pi-tui";
 import {
   createInitialState,
   createTab,
   nextAvailableAgentTitle,
-  stripAnsi,
 } from "../src/index.js";
 import { commandPaletteEntriesWithExtensions } from "../src/core/overlays.js";
 import { clearPendingEscape } from "../src/core/escape.js";

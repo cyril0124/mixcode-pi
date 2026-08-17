@@ -10,7 +10,7 @@ import {
   sessionLockDir,
 } from "../src/index.js";
 
-const LIVE = { alive: true, startTime: "111", verification: "linux-start-time" as const };
+const LIVE = { alive: true };
 
 async function withRoot(fn: (root: string) => Promise<void>): Promise<void> {
   const root = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-lock-"));
@@ -64,30 +64,10 @@ test("a dead owner's stale lock is reclaimed", async () => {
     }); // never released — simulates a crash
     // A new process sees pid 999 as dead and reclaims the lock.
     const processInfo = (pid: number) =>
-      pid === 999 ? { alive: false, verification: "pid-only" as const } : LIVE;
+      pid === 999 ? { alive: false } : LIVE;
     const reclaimed = acquireSessionTurnLock(root, "s1", { pid: 200, processInfo });
     assert.throws(
       () => acquireSessionTurnLock(root, "s1", { pid: 300, processInfo }),
-      SessionLockConflictError,
-    );
-    reclaimed.release();
-  });
-});
-
-test("PID reuse (start-time mismatch) is treated as stale, not a live holder", async () => {
-  await withRoot(async (root) => {
-    // Owner recorded start time "111"; the same PID now reports "222" -> reused.
-    acquireSessionTurnLock(root, "s1", {
-      pid: 500,
-      processInfo: () => ({ alive: true, startTime: "111", verification: "linux-start-time" }),
-    });
-    const processInfo = (pid: number) =>
-      pid === 500
-        ? { alive: true, startTime: "222", verification: "linux-start-time" as const }
-        : LIVE;
-    const reclaimed = acquireSessionTurnLock(root, "s1", { pid: 600, processInfo });
-    assert.throws(
-      () => acquireSessionTurnLock(root, "s1", { pid: 700, processInfo }),
       SessionLockConflictError,
     );
     reclaimed.release();

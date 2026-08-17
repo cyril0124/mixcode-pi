@@ -8,8 +8,8 @@
 //
 // A lock is a small JSON file published atomically (temp write + linkSync) so the
 // path never appears empty. Ownership is verified with the same process-identity
-// check used by the instance registry (PID liveness + Linux process start time),
-// so a crashed owner's stale lock is reclaimed without stealing a live holder's.
+// check used by the instance registry (PID liveness), so a crashed owner's stale
+// lock is reclaimed without stealing a live holder's.
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { currentProcessIdentity, type ProcessIdentity } from "./instance-registry.js";
@@ -20,8 +20,6 @@ export interface SessionLockRecord {
   version: typeof SESSION_LOCK_VERSION;
   sessionId: string;
   pid: number;
-  processStartTime?: string;
-  processVerification: ProcessIdentity["verification"];
   acquiredAt: string;
 }
 
@@ -63,25 +61,16 @@ function parseLockRecord(raw: string): SessionLockRecord | undefined {
 }
 
 /**
- * A lock is stale when its owning process is gone, or the PID was reused by a
- * different process (start time mismatch). A corrupt/unparseable lock is also
- * treated as stale so a bad write never wedges a session forever.
+ * A lock is stale when its owning process is gone. A corrupt/unparseable lock
+ * is also treated as stale so a bad write never wedges a session forever.
+ * ponytail: pid-only liveness; add start-time if PID wrap/reuse becomes a problem.
  */
 function lockIsStale(
   record: SessionLockRecord | undefined,
   processInfo: (pid: number) => ProcessIdentity,
 ): boolean {
   if (!record) return true;
-  const identity = processInfo(record.pid);
-  if (!identity.alive) return true;
-  if (
-    identity.startTime &&
-    record.processStartTime &&
-    identity.startTime !== record.processStartTime
-  ) {
-    return true;
-  }
-  return false;
+  return !processInfo(record.pid).alive;
 }
 
 export interface AcquireSessionTurnLockOptions {
@@ -104,13 +93,10 @@ export function acquireSessionTurnLock(
   const filePath = sessionLockFile(sessionsRoot, sessionId);
   fs.mkdirSync(sessionLockDir(sessionsRoot), { recursive: true });
 
-  const identity = processInfo(pid);
   const record: SessionLockRecord = {
     version: SESSION_LOCK_VERSION,
     sessionId,
     pid,
-    processStartTime: identity.startTime,
-    processVerification: identity.verification,
     acquiredAt: (options.now ?? new Date()).toISOString(),
   };
   const payload = `${JSON.stringify(record)}\n`;

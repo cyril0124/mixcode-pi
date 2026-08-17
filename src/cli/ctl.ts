@@ -3,6 +3,7 @@ import * as net from "node:net";
 import * as os from "node:os";
 import * as path from "node:path";
 import { cwd, env as processEnv } from "node:process";
+import { stripTerminalSequences } from "@earendil-works/pi-tui";
 import {
   instanceCtlSocketFile,
   loadLiveInstanceStatus,
@@ -388,13 +389,8 @@ export function shouldTruncateCtlOutput(op: CtlOp): boolean {
   return op !== "send-keys" && op !== "send-prompt" && op !== "wait";
 }
 
-/** Strip CSI/OSC so dump-screen is readable without a TUI import on the ctl fast path. */
-export function stripCtlAnsi(text: string): string {
-  return text.replace(/\x1B\[[0-9;?]*[ -/]*[@-~]|\x1B\][\s\S]*?(?:\x07|\x1B\\)/g, "");
-}
-
 export function normalizeCtlStdout(text: string, ansi = false): string {
-  const body = ansi ? text : stripCtlAnsi(text);
+  const body = ansi ? text : stripTerminalSequences(text);
   return body.replace(/[ \t]+$/gm, "");
 }
 

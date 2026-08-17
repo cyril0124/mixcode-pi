@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { entriesToChatLines } from "../src/agent/runtime-chat.js";
 import type { RuntimeTab } from "../src/agent/runtime-types.js";
+import { stripTerminalSequences as stripAnsi } from "@earendil-works/pi-tui";
 import { contentImages, userMessageText } from "../src/agent/runtime-tool-chat.js";
-import { stripAnsi } from "../src/index.js";
 import { renderChatBlock } from "../src/ui/rendering/chat.js";
 import { activeRenderTheme } from "../src/ui/rendering/context.js";
 

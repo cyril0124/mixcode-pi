@@ -1,10 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { SettingsManager } from "@earendil-works/pi-coding-agent";
-import { getCapabilities } from "@earendil-works/pi-tui";
+import { getCapabilities, stripTerminalSequences as stripAnsi } from "@earendil-works/pi-tui";
 import { toolExecutionToChatLine } from "../src/agent/runtime-tool-chat.js";
 import type { RuntimeTab } from "../src/agent/runtime-types.js";
-import { stripAnsi } from "../src/index.js";
 
 // 1x1 PNG
 const TINY_PNG_BASE64 =

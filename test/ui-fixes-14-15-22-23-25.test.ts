@@ -4,13 +4,13 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
 import { SettingsManager } from "@earendil-works/pi-coding-agent";
+import { stripTerminalSequences as stripAnsi } from "@earendil-works/pi-tui";
 import {
   createInitialState,
   createPicker,
   createTab,
   filteredPickerItems,
   renderConfig,
-  stripAnsi,
 } from "../src/index.js";
 import { renderDeleteAllSessionsConfirm } from "../src/ui/app-overlays.js";
 import { handleSettingsPanelKey, renderSettingsPanel } from "../src/ui/settings-panel.js";

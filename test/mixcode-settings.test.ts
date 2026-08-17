@@ -4,7 +4,8 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
 import { SettingsManager } from "@earendil-works/pi-coding-agent";
-import { createInitialState, createTab, loadMixCodeSettings, stripAnsi } from "../src/index.js";
+import { stripTerminalSequences as stripAnsi } from "@earendil-works/pi-tui";
+import { createInitialState, createTab, loadMixCodeSettings } from "../src/index.js";
 import { addAgentTab } from "../src/core/tabs.js";
 import { handleSettingsPanelKey, renderSettingsPanel } from "../src/ui/settings-panel.js";
 

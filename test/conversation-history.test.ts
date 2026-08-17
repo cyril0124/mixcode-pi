@@ -113,7 +113,7 @@ test("appendHistoryEntry reclaims a stale lock left by a crashed process", async
     // Simulate a crashed holder: lock file owned by a dead PID, never released.
     acquireSessionTurnLock(dir, HISTORY_LOCK_ID, {
       pid: 999_999_999,
-      processInfo: () => ({ alive: true, startTime: "1", verification: "linux-start-time" }),
+      processInfo: () => ({ alive: true }),
     });
 
     await appendHistoryEntry(
@@ -166,7 +166,7 @@ test("appendHistoryEntry reclaims a dead-PID lock without waiting for mtime stal
   try {
     acquireSessionTurnLock(dir, HISTORY_LOCK_ID, {
       pid: 999_999_998,
-      processInfo: () => ({ alive: true, startTime: "1", verification: "linux-start-time" }),
+      processInfo: () => ({ alive: true }),
     });
 
     await appendHistoryEntry(

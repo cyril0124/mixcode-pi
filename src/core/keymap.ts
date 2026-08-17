@@ -212,11 +212,3 @@ export const MIXCODE_KEYMAP: KeyAction[] = [
     scope: "home",
   },
 ];
-
-export function describeKeymap(): string[] {
-  return MIXCODE_KEYMAP.map((item) => `${item.key}: ${item.description}`);
-}
-
-export function describeScopedKeymap(): string[] {
-  return MIXCODE_KEYMAP.map((item) => `${item.scope ?? "global"} ${item.key}: ${item.description}`);
-}

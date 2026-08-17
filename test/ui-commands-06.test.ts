@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { stripTerminalSequences as stripAnsi } from "@earendil-works/pi-tui";
 import {
   createInitialState,
   createTab,
@@ -7,7 +8,6 @@ import {
   handleSubmittedInput,
   renderConfig,
   renderInputMeta,
-  stripAnsi,
   tabBarHitRegions,
 } from "../src/index.js";
 import type { MixCodeRuntime } from "../src/index.js";

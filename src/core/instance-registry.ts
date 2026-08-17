@@ -8,13 +8,10 @@ export const INSTANCE_REGISTRY_VERSION = 1;
 export const INSTANCE_HEARTBEAT_INTERVAL_MS = 5_000;
 export const DEFAULT_INSTANCE_STALE_AFTER_MS = 15_000;
 
-export type ProcessVerification = "linux-start-time" | "pid-only";
 export type InstanceTabState = "waiting-for-input" | "error" | "working" | "finished" | "idle";
 
 export interface ProcessIdentity {
   alive: boolean;
-  startTime?: string;
-  verification: ProcessVerification;
 }
 
 export interface InstanceRegistryTabSnapshot {
@@ -31,8 +28,6 @@ export interface InstanceRegistryTabSnapshot {
 export interface InstanceRegistrySnapshot {
   version: typeof INSTANCE_REGISTRY_VERSION;
   pid: number;
-  processStartTime?: string;
-  processVerification: ProcessVerification;
   workdir: string;
   activeTabId: string;
   updatedAt: string;
@@ -98,15 +93,12 @@ export function instanceCtlSocketFile(rootStateDir: string, pid = process.pid): 
 
 export function createInstanceSnapshot(
   state: MixCodeState,
-  options: { now?: Date; pid?: number; processIdentity?: ProcessIdentity } = {},
+  options: { now?: Date; pid?: number } = {},
 ): InstanceRegistrySnapshot {
   const pid = options.pid ?? process.pid;
-  const identity = options.processIdentity ?? currentProcessIdentity(pid);
   return {
     version: INSTANCE_REGISTRY_VERSION,
     pid,
-    processStartTime: identity.startTime,
-    processVerification: identity.verification,
     workdir: normalizeWorkdir(state.workdir),
     activeTabId: state.activeTabId,
     updatedAt: (options.now ?? new Date()).toISOString(),
@@ -129,7 +121,7 @@ export function createInstanceSnapshot(
 export async function writeCurrentInstanceSnapshot(
   rootStateDir: string,
   state: MixCodeState,
-  options: { now?: Date; pid?: number; processIdentity?: ProcessIdentity } = {},
+  options: { now?: Date; pid?: number } = {},
 ): Promise<void> {
   await writeInstanceSnapshot(rootStateDir, createInstanceSnapshot(state, options));
 }
@@ -247,11 +239,7 @@ export function formatInstanceStatusTable(report: InstanceStatusReport): string 
 }
 
 export function currentProcessIdentity(pid = process.pid): ProcessIdentity {
-  if (process.platform === "linux") {
-    const startTime = readLinuxProcessStartTime(pid);
-    if (startTime) return { alive: true, startTime, verification: "linux-start-time" };
-  }
-  return { alive: pidIsAlive(pid), verification: "pid-only" };
+  return { alive: pidIsAlive(pid) };
 }
 
 function formatStatusTabRow(tab: InstanceStatusTab, titleWidth = 14): string {
@@ -320,20 +308,7 @@ function snapshotIsLive(
   const staleAfterMs = options.staleAfterMs ?? DEFAULT_INSTANCE_STALE_AFTER_MS;
   if (now.getTime() - updatedAt > staleAfterMs) return false;
   const identity = options.processInfo?.(snapshot.pid) ?? currentProcessIdentity(snapshot.pid);
-  if (!identity.alive) return false;
-  if (snapshot.processVerification === "linux-start-time" && !snapshot.processStartTime) return false;
-  if (identity.startTime && snapshot.processStartTime && identity.startTime !== snapshot.processStartTime) {
-    return false;
-  }
-  if (
-    identity.verification === "linux-start-time" &&
-    snapshot.processVerification === "linux-start-time" &&
-    snapshot.processStartTime &&
-    !identity.startTime
-  ) {
-    return false;
-  }
-  return true;
+  return identity.alive;
 }
 
 async function listRegistryFiles(rootStateDir: string): Promise<string[]> {
@@ -374,12 +349,9 @@ function parseSnapshot(value: unknown, filePath: string): InstanceRegistrySnapsh
     throw new Error(`Unsupported instance registry version in ${filePath}`);
   }
   const pid = numberField(raw, "pid", filePath);
-  const processVerification = processVerificationField(raw, "processVerification", filePath);
   const snapshot: InstanceRegistrySnapshot = {
     version: INSTANCE_REGISTRY_VERSION,
     pid,
-    processStartTime: optionalStringField(raw, "processStartTime", filePath),
-    processVerification,
     workdir: normalizeWorkdir(stringField(raw, "workdir", filePath)),
     activeTabId: stringField(raw, "activeTabId", filePath),
     updatedAt: stringField(raw, "updatedAt", filePath),
@@ -419,32 +391,8 @@ function stringField(raw: Record<string, unknown>, key: string, filePath: string
   return value;
 }
 
-function optionalStringField(
-  raw: Record<string, unknown>,
-  key: string,
-  filePath: string,
-): string | undefined {
-  const value = raw[key];
-  if (value === undefined) return undefined;
-  if (typeof value !== "string") throw new Error(`Invalid '${key}' in ${filePath}`);
-  return value;
-}
-
 function numberField(raw: Record<string, unknown>, key: string, filePath: string): number {
   const value = raw[key];
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    throw new Error(`Invalid '${key}' in ${filePath}`);
-  }
-  return value;
-}
-
-function optionalNumberField(
-  raw: Record<string, unknown>,
-  key: string,
-  filePath: string,
-): number | undefined {
-  const value = raw[key];
-  if (value === undefined) return undefined;
   if (typeof value !== "number" || !Number.isFinite(value)) {
     throw new Error(`Invalid '${key}' in ${filePath}`);
   }
@@ -461,29 +409,6 @@ function arrayField(raw: Record<string, unknown>, key: string, filePath: string)
   const value = raw[key];
   if (!Array.isArray(value)) throw new Error(`Invalid '${key}' in ${filePath}`);
   return value;
-}
-
-function processVerificationField(
-  raw: Record<string, unknown>,
-  key: string,
-  filePath: string,
-): ProcessVerification {
-  const value = raw[key];
-  if (value === "linux-start-time" || value === "pid-only") return value;
-  throw new Error(`Invalid '${key}' in ${filePath}`);
-}
-
-function readLinuxProcessStartTime(pid: number): string | undefined {
-  try {
-    // Sync /proc read on paint-adjacent path; keep sync fs.
-    const stat = fsSync.readFileSync(`/proc/${pid}/stat`, "utf8");
-    const closeParen = stat.lastIndexOf(") ");
-    if (closeParen < 0) return undefined;
-    const fieldsAfterCommand = stat.slice(closeParen + 2).trim().split(/\s+/);
-    return fieldsAfterCommand[19];
-  } catch {
-    return undefined;
-  }
 }
 
 function pidIsAlive(pid: number): boolean {

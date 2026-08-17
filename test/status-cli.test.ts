@@ -91,7 +91,6 @@ test("cli entry via bun on status outputs valid json and supports workdir filter
     await writeInstanceSnapshot(stateDir, {
       version: 1,
       pid: process.pid,
-      processVerification: "pid-only",
       workdir: "/test-workdir-a",
       activeTabId: "s1",
       updatedAt: new Date().toISOString(),
@@ -178,7 +177,6 @@ test("cli entry via bun on status outputs valid json and supports workdir filter
     await writeInstanceSnapshot(stateDir, {
       version: 1,
       pid: process.pid,
-      processVerification: "pid-only",
       workdir: homeWorkdir,
       activeTabId: "s2",
       updatedAt: new Date().toISOString(),

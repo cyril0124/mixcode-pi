@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { SettingsManager } from "@earendil-works/pi-coding-agent";
-import { createInitialState, createPicker, stripAnsi } from "../src/index.js";
+import { stripTerminalSequences as stripAnsi } from "@earendil-works/pi-tui";
+import { createInitialState, createPicker } from "../src/index.js";
 import { renderPickerOverlay } from "../src/ui/rendering/overlays.js";
 import { renderSettingsPanel } from "../src/ui/settings-panel.js";
 import { selectSettingsItemByLabel } from "./helpers/settings-panel.js";

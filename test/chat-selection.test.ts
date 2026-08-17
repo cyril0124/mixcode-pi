@@ -1,13 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { visibleWidth } from "@earendil-works/pi-tui";
+import { stripTerminalSequences as stripAnsi, visibleWidth } from "@earendil-works/pi-tui";
 import {
   highlightChatSelectionLine,
   normalizeChatSelection,
   pointInChatSurface,
   screenToChatSelectionPoint,
   selectedChatText,
-  stripAnsi,
   type ChatSelectionState,
 } from "../src/index.js";
 
@@ -58,8 +57,4 @@ test("highlightChatSelectionLine preserves wide characters at cell boundaries", 
   const plain = stripAnsi(highlighted);
   assert.equal(plain, line);
   assert.equal(visibleWidth(plain), visibleWidth(line));
-});
-
-test("stripAnsi removes CSI and OSC control sequences", () => {
-  assert.equal(stripAnsi("a\x1b[31mb\x1b[39m\x1b]133;A\x07c"), "abc");
 });

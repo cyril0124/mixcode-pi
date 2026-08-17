@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { stripTerminalSequences as stripAnsi } from "@earendil-works/pi-tui";
 import {
   createInitialState,
   createTab,
   renderCommandPalette,
   renderTabJumpOverlay,
-  stripAnsi,
 } from "../src/index.js";
 
 test("command palette windows long lists so the selected item stays visible", () => {

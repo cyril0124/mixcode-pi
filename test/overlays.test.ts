@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { stripTerminalSequences as stripAnsi } from "@earendil-works/pi-tui";
 import {
   createInitialState,
   createTab,
@@ -21,7 +22,6 @@ import {
   renderPreviewOverlay,
   renderTabJumpOverlay,
   scrollPreview,
-  stripAnsi,
   tabJumpEntries,
   togglePreview,
   toggleTabJumpNonIdleOnly,

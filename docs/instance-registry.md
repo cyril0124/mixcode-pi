@@ -30,8 +30,6 @@ Each running instance periodically writes a heartbeat snapshot:
 |---|---|---|
 | `version` | number (`1`) | Instance snapshot schema version. |
 | `pid` | number | Host OS process identifier. |
-| `processStartTime` | string (ISO) | Process creation time (on Linux, derived from `/proc/<pid>/stat`). |
-| `processVerification` | `"linux-start-time"` \| `"pid-only"` | Process verification method used to detect reused PIDs. |
 | `workdir` | string | Main workspace working directory of the process. |
 | `activeTabId` | string | Currently focused tab identifier. |
 | `updatedAt` | string (ISO) | Heartbeat timestamp (updated every 5,000 ms). |
@@ -56,5 +54,5 @@ Tab Snapshot ──┼──> error (failed turn)
 
 Stale snapshots left behind by abruptly terminated processes or dead PIDs are automatically identified and cleaned up:
 - A snapshot is considered stale when `updatedAt` exceeds `15,000 ms`.
-- Process existence is verified via `kill(pid, 0)` and `/proc/<pid>/stat` start-time checks.
+- Process existence is verified via `kill(pid, 0)`.
 - `mpi status` and instance startup purge dead entries automatically.

@@ -23,8 +23,6 @@ function snapshot(overrides: Partial<InstanceRegistrySnapshot>): InstanceRegistr
   return {
     version: 1,
     pid: 100,
-    processStartTime: "start-100",
-    processVerification: "linux-start-time",
     workdir: "/repo",
     activeTabId: "s1",
     updatedAt: "2026-06-06T00:00:10.000Z",
@@ -45,15 +43,13 @@ function snapshot(overrides: Partial<InstanceRegistrySnapshot>): InstanceRegistr
 }
 
 const liveProcesses = new Map<number, ProcessIdentity>([
-  [100, { alive: true, startTime: "start-100", verification: "linux-start-time" }],
-  [101, { alive: true, startTime: "start-101", verification: "linux-start-time" }],
-  [102, { alive: false, verification: "linux-start-time" }],
-  [103, { alive: true, startTime: "different-start", verification: "linux-start-time" }],
-  [104, { alive: true, startTime: "start-104", verification: "linux-start-time" }],
+  [100, { alive: true }],
+  [101, { alive: true }],
+  [102, { alive: false }],
 ]);
 
 const processInfo = (pid: number): ProcessIdentity =>
-  liveProcesses.get(pid) ?? { alive: false, verification: "linux-start-time" };
+  liveProcesses.get(pid) ?? { alive: false };
 
 test("parseMainArgs parses status subcommand without launching TUI args", () => {
   const args = parseMainArgs(["status", "--json", "--workdir", "repo"], "/home/user");
@@ -90,7 +86,6 @@ test("createInstanceSnapshot captures live tab metadata without chat content", (
   const captured = createInstanceSnapshot(state, {
     now: new Date("2026-06-06T00:00:12.000Z"),
     pid: 123,
-    processIdentity: { alive: true, startTime: "start-123", verification: "linux-start-time" },
   });
 
   assert.equal(captured.workdir, "/repo");
@@ -101,7 +96,7 @@ test("createInstanceSnapshot captures live tab metadata without chat content", (
   assert.equal(JSON.stringify(captured).includes("questions"), false);
 });
 
-test("loadLiveInstanceStatus filters stale dead and pid-reused snapshots", async () => {
+test("loadLiveInstanceStatus filters stale and dead snapshots", async () => {
   const root = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-instance-registry-"));
   try {
     await writeInstanceSnapshot(root, snapshot({ pid: 100, workdir: "/b-repo" }));
@@ -109,14 +104,11 @@ test("loadLiveInstanceStatus filters stale dead and pid-reused snapshots", async
       root,
       snapshot({
         pid: 101,
-        processStartTime: "start-101",
         workdir: "/a-repo",
         updatedAt: "2026-06-05T23:59:00.000Z",
       }),
     );
-    await writeInstanceSnapshot(root, snapshot({ pid: 102, processStartTime: undefined }));
-    await writeInstanceSnapshot(root, snapshot({ pid: 103, processStartTime: "old-start" }));
-    await writeInstanceSnapshot(root, snapshot({ pid: 104, processStartTime: undefined }));
+    await writeInstanceSnapshot(root, snapshot({ pid: 102 }));
     await fsPromises.mkdir(instanceRegistryDir(root), { recursive: true });
     await fsPromises.writeFile(path.join(instanceRegistryDir(root), "999.json"), "not-json", "utf8");
 
@@ -186,7 +178,6 @@ test("loadLiveInstanceStatus derives tab state and sorts instances by workdir", 
       root,
       snapshot({
         pid: 101,
-        processStartTime: "start-101",
         workdir: "/a-repo",
         activeTabId: "s2",
         tabs: [
@@ -242,7 +233,6 @@ test("formatInstanceStatusTable renders grouped instances and active tabs", asyn
       root,
       snapshot({
         pid: 101,
-        processStartTime: "start-101",
         workdir: "/repo",
         activeTabId: "active-session-abcdef",
         tabs: [
@@ -277,7 +267,7 @@ test("formatInstanceStatusTable renders grouped instances and active tabs", asyn
   }
 });
 
-test("cleanupInstanceRegistry removes stale dead and reused-pid snapshots", async () => {
+test("cleanupInstanceRegistry removes stale and dead snapshots", async () => {
   const root = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-instance-registry-clean-"));
   try {
     await writeInstanceSnapshot(root, snapshot({ pid: 100 }));
@@ -285,20 +275,17 @@ test("cleanupInstanceRegistry removes stale dead and reused-pid snapshots", asyn
       root,
       snapshot({
         pid: 101,
-        processStartTime: "start-101",
         updatedAt: "2026-06-05T23:59:00.000Z",
       }),
     );
-    await writeInstanceSnapshot(root, snapshot({ pid: 102, processStartTime: undefined }));
-    await writeInstanceSnapshot(root, snapshot({ pid: 103, processStartTime: "old-start" }));
-    await writeInstanceSnapshot(root, snapshot({ pid: 104, processStartTime: undefined }));
+    await writeInstanceSnapshot(root, snapshot({ pid: 102 }));
 
     const result = await cleanupInstanceRegistry(root, {
       now: new Date("2026-06-06T00:00:12.000Z"),
       processInfo,
     });
 
-    assert.deepEqual(result.removed.sort(), [101, 102, 103, 104]);
+    assert.deepEqual(result.removed.sort(), [101, 102]);
     const live = await loadLiveInstanceStatus(root, {
       now: new Date("2026-06-06T00:00:12.000Z"),
       processInfo,

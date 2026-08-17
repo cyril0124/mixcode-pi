@@ -3,6 +3,7 @@ import * as fsPromises from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
 import { test } from "node:test";
+import { stripTerminalSequences as stripAnsi } from "@earendil-works/pi-tui";
 import {
   createInitialState,
   createTab,
@@ -11,7 +12,6 @@ import {
   renderConfig,
   renderInputMeta,
   renderPickerOverlay,
-  stripAnsi,
   tabBarHitRegions,
   setTheme,
   themeForId,

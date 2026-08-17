@@ -6,7 +6,7 @@
 // workdir should keep open: create adds, close/delete removes, peers reconcile.
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { currentProcessIdentity, type ProcessIdentity } from "./instance-registry.js";
+import { currentProcessIdentity } from "./instance-registry.js";
 
 export const OPEN_TABS_VERSION = 1;
 
@@ -170,8 +170,6 @@ export function mutateOpenTabs(
 
 interface OpenTabsLockRecord {
   pid: number;
-  processStartTime?: string;
-  processVerification: ProcessIdentity["verification"];
   acquiredAt: string;
 }
 
@@ -185,11 +183,8 @@ function withOpenTabsLock<T>(filePath: string, fn: () => T): T {
   const lockPath = `${filePath}.lock`;
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   const pid = process.pid;
-  const identity = currentProcessIdentity(pid);
   const payload = `${JSON.stringify({
     pid,
-    processStartTime: identity.startTime,
-    processVerification: identity.verification,
     acquiredAt: new Date().toISOString(),
   } satisfies OpenTabsLockRecord)}\n`;
 
@@ -284,14 +279,5 @@ function readOpenTabsLockRecord(lockPath: string): OpenTabsLockRecord | undefine
 
 function openTabsLockIsStale(record: OpenTabsLockRecord | undefined): boolean {
   if (!record) return true;
-  const identity = currentProcessIdentity(record.pid);
-  if (!identity.alive) return true;
-  if (
-    identity.startTime &&
-    record.processStartTime &&
-    identity.startTime !== record.processStartTime
-  ) {
-    return true;
-  }
-  return false;
+  return !currentProcessIdentity(record.pid).alive;
 }

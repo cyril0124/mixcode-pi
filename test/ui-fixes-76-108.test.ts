@@ -4,13 +4,13 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
 import { SettingsManager } from "@earendil-works/pi-coding-agent";
+import { stripTerminalSequences as stripAnsi } from "@earendil-works/pi-tui";
 import {
   createInitialState,
   createTab,
   renderChat,
   renderConfig,
   selectedNoticeText,
-  stripAnsi,
 } from "../src/index.js";
 import {
   createTreeSelectorState,

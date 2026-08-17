@@ -13,7 +13,6 @@ import {
   selectCtlInstance,
   shouldTruncateCtlOutput,
   normalizeCtlStdout,
-  stripCtlAnsi,
   truncateCtlStdout,
 } from "../src/cli/ctl.js";
 import {
@@ -116,7 +115,6 @@ test("selectCtlInstance targets MIXCODE_PID before cwd workdir", async () => {
     writeInstanceSnapshot(root, {
       version: 1,
       pid,
-      processVerification: "pid-only",
       workdir,
       activeTabId: "s1",
       updatedAt: new Date().toISOString(),
@@ -161,7 +159,6 @@ test("selectCtlInstance errors on zero or multiple matches", async () => {
     await writeInstanceSnapshot(root, {
       version: 1,
       pid: process.pid,
-      processVerification: "pid-only",
       workdir: "/repo-a",
       activeTabId: "s1",
       updatedAt: new Date().toISOString(),
@@ -174,7 +171,6 @@ test("selectCtlInstance errors on zero or multiple matches", async () => {
       await writeInstanceSnapshot(root, {
         version: 1,
         pid: second.pid,
-        processVerification: "pid-only",
         workdir: "/repo-a",
         activeTabId: "s1",
         updatedAt: new Date().toISOString(),
@@ -572,7 +568,6 @@ test("truncateCtlStdout leaves short output unchanged and dumps long output to t
   assert.equal(shouldTruncateCtlOutput("wait"), false);
   assert.equal(shouldTruncateCtlOutput("dump-screen"), true);
   assert.equal(shouldTruncateCtlOutput("last-tool"), true);
-  assert.equal(stripCtlAnsi("\x1b[31mred\x1b[39m"), "red");
   assert.equal(normalizeCtlStdout("\x1b[31mred\x1b[39m   \nplain  "), "red\nplain");
   assert.equal(normalizeCtlStdout("keep  \x1b[0m  ", true), "keep  \x1b[0m");
   assert.equal(shouldTruncateCtlOutput("last-assistant-message"), true);
