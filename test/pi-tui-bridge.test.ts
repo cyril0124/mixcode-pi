@@ -10,12 +10,38 @@
 // it is mirrored too so upstream renderers do not show blank key hints.
 
 import assert from "node:assert/strict";
+import { createRequire } from "node:module";
+import * as path from "node:path";
 import { test } from "node:test";
 
-import { getKeybindings as getOuterKeybindings } from "@earendil-works/pi-tui";
+import {
+  getKeybindings as getOuterKeybindings,
+  setKeybindings as setOuterKeybindings,
+} from "@earendil-works/pi-tui";
 
-import { applyMixCodeKeybindings, loadNestedPiTui } from "../src/agent/runtime-pi-tui-bridge.js";
+import { applyMixCodeKeybindings } from "../src/agent/runtime-pi-tui-bridge.js";
 import { MIXCODE_EXTENSION_KEYBINDINGS_MANAGER } from "../src/agent/runtime-extension-theme.js";
+
+function probeNestedPiTui():
+  | { setKeybindings: (manager: unknown) => void; getKeybindings: () => unknown }
+  | undefined {
+  try {
+    const require = createRequire(import.meta.url);
+    const codingAgentMain = require.resolve("@earendil-works/pi-coding-agent");
+    const nestedPath = path.join(
+      path.dirname(path.dirname(codingAgentMain)),
+      "node_modules/@earendil-works/pi-tui/dist/keybindings.js",
+    );
+    const mod = require(nestedPath) as {
+      setKeybindings: (manager: unknown) => void;
+      getKeybindings: () => unknown;
+    };
+    if (mod.setKeybindings === (setOuterKeybindings as unknown)) return undefined;
+    return mod;
+  } catch {
+    return undefined;
+  }
+}
 
 test("applyMixCodeKeybindings installs mixcode manager on top-level pi-tui", () => {
   const previousOuter = getOuterKeybindings();
@@ -37,7 +63,7 @@ test("applyMixCodeKeybindings installs mixcode manager on top-level pi-tui", () 
 });
 
 test("when nested pi-tui exists, applyMixCodeKeybindings mirrors onto it", async () => {
-  const nested = await loadNestedPiTui();
+  const nested = probeNestedPiTui();
   if (!nested) {
     // bun (or any deduped install): single instance is correct; nothing to mirror.
     return;

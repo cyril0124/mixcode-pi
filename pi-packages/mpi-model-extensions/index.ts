@@ -298,6 +298,3 @@ export default function modelExtensionsExtension(pi: ExtensionAPI) {
     ...({ argumentHint: ARGUMENT_HINT } as Record<string, unknown>),
   });
 }
-
-// Re-export types used only for clarity in tests via package surface — not required.
-export type { ModelExtensionsConfig, ModelExtensionsRule };

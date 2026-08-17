@@ -24,7 +24,7 @@ import { showErrorOverlay } from "./app-overlays.js";
 import type { SessionListProgress } from "../agent/runtime-session.js";
 export type { SessionListProgress };
 import type { MixCodeKeyRuntime, OverlayTui } from "./app-types.js";
-import type { AuthInputHost } from "./app-submit.js";
+import type { AuthInputHost } from "./app-types.js";
 
 export function findOpenSessionTab(
   state: MixCodeState,

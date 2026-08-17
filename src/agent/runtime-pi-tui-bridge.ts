@@ -169,9 +169,3 @@ export function applyMixCodeKeybindings(): () => void {
     }
   };
 }
-
-// Test seam: lets focused tests verify the bridge actually located the nested
-// copy and that it is structurally distinct from the top-level module.
-export async function loadNestedPiTui(): Promise<PiTuiKeybindingsModule | undefined> {
-  return getNestedPiTui();
-}

@@ -1,8 +1,6 @@
 import type { AgentSession, ToolInfo } from "@earendil-works/pi-coding-agent";
 
-export type PiBuiltinToolName = "read" | "bash" | "edit" | "write" | "ls";
-
-export const PI_BUILTIN_TOOL_NAMES: PiBuiltinToolName[] = ["read", "bash", "edit", "write", "ls"];
+export const PI_BUILTIN_TOOL_NAMES = ["read", "bash", "edit", "write", "ls"] as const;
 // Match pi-coding-agent default active tools (sdk.js / AgentSession._buildRuntime).
 // grep/find/ls remain registered via createAllToolDefinitions but are inactive unless
 // the user/extension enables them.

@@ -853,9 +853,6 @@ export const MIXCODE_EXTENSION_ROSE_PINE_THEME = new Theme(
   { name: "rose-pine" },
 );
 
-/** Terminal uses the same Pi Theme tokens as mixcode-dark; TUI chrome stays ANSI via TERMINAL_THEME. */
-export const MIXCODE_EXTENSION_TERMINAL_THEME = MIXCODE_EXTENSION_THEME;
-
 /** Built-in MixCode themes with stable ids (chrome may be hand-tuned). */
 export const THEMES: ThemeInfo[] = [
   { id: "mixcode-dark", label: "MixCode Dark", dark: true },

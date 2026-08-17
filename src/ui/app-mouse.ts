@@ -49,9 +49,6 @@ import {
   tabBarHitRegions,
 } from "./rendering.js";
 
-export { handleListOverlayMouse, hitTestListOverlay } from "./list-overlay-mouse.js";
-export type { ListOverlayMouseHandlers, ListOverlayPlan } from "./list-overlay-mouse.js";
-
 type ClipboardWriter = (text: string) => Promise<void>;
 type ActiveTab = MixCodeState["tabs"][number];
 

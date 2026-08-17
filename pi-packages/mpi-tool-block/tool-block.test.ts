@@ -4,7 +4,6 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import {
-  applyToolBlockToggle,
   buildToolBlockRows,
   deniedToolNames,
   filterToolBlockRows,
@@ -14,6 +13,7 @@ import {
   planActiveTools,
   pluginTag,
   sameToolNames,
+  toggleToolBlockRow,
   toolBlockConfigPath,
   writeToolBlockConfig,
   type ToolBlockConfig,
@@ -204,12 +204,22 @@ describe("pluginTag / items / toggle", () => {
   });
 
   test("toggle hides, unhides, and flips enabled without dropping other rows", () => {
-    let next = applyToolBlockToggle({ enabled: true, hidden: [] }, tools, "tool:create_goal", "hidden");
+    let next = toggleToolBlockRow({ enabled: true, hidden: [] }, tools, {
+      kind: "tool",
+      name: "create_goal",
+      plugin: "mpi-goal",
+      hidden: false,
+    });
     assert.deepEqual(next.hidden, [{ tool: "create_goal", plugin: "mpi-goal" }]);
-    next = applyToolBlockToggle(next, tools, "enabled", "off");
+    next = toggleToolBlockRow(next, tools, { kind: "enabled" });
     assert.equal(isToolBlockEnabled(next), false);
     assert.equal(next.hidden.length, 1);
-    next = applyToolBlockToggle(next, tools, "tool:create_goal", "visible");
+    next = toggleToolBlockRow(next, tools, {
+      kind: "tool",
+      name: "create_goal",
+      plugin: "mpi-goal",
+      hidden: true,
+    });
     assert.deepEqual(next.hidden, []);
     assert.equal(next.enabled, false);
   });

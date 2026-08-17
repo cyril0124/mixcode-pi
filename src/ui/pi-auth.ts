@@ -18,7 +18,7 @@ import { reloadRuntimeModels } from "./app-actions.js";
 import type { MixCodeState } from "../core/types.js";
 import { pushToast } from "../core/toast.js";
 import { getActiveTab } from "../core/tabs.js";
-import type { AuthInputHost } from "./app-submit.js";
+import type { AuthInputHost } from "./app-types.js";
 
 type AuthSelectorProvider = {
   id: string;

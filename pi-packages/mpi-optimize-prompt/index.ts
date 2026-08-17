@@ -48,30 +48,6 @@ import {
   type OptimizePromptConfig,
 } from "./core.js";
 
-export {
-  DEFAULT_OPTIMIZE_SYSTEM_PROMPT,
-  extractOptimizedText,
-  formatOptimizePromptHelp,
-  formatOptimizeUserMessage,
-  OPTIMIZE_PROMPT_INHERIT,
-  parseOptimizeModelRef,
-  resolveOptimizeSource,
-  resolveOptimizeSystemPrompt,
-  resolveOptimizeTarget,
-  restorePreOptimizeDraft,
-  stashPreOptimizeDraft,
-  type OptimizeDraftSlot,
-  type OptimizePromptConfig,
-} from "./core.js";
-export {
-  loadOptimizePromptConfig,
-  OPTIMIZE_PROMPT_CONFIG_FILENAME,
-  optimizePromptConfigPath,
-  parseOptimizePromptConfig,
-  writeOptimizePromptConfig,
-} from "./config.js";
-export { createOptimizePromptConfigOverlay } from "./config-overlay.js";
-
 const WIDGET_KEY = "mpi-optimize-prompt";
 const PANEL_ENTRY_TYPE = "mpi-optimize-prompt-panel";
 
@@ -454,10 +430,10 @@ export async function runOptimizePrompt(options: {
     abortSlot.stopProgress = undefined;
   }
   abortSlot.controller = abort;
+  try {
 
   const loaded = loadOptimizePromptConfig(agentDir);
   if (!loaded.ok) {
-    if (abortSlot.controller === abort) abortSlot.controller = undefined;
     ctx.ui.notify(`Optimize config error (${loaded.path}): ${loaded.error}`, "error");
     return { ok: false, reason: "bad_config" };
   }
@@ -465,13 +441,11 @@ export async function runOptimizePrompt(options: {
 
   const activeModel = ctx.model;
   if (!activeModel && !config.model) {
-    if (abortSlot.controller === abort) abortSlot.controller = undefined;
     ctx.ui.notify("No model selected", "error");
     return { ok: false, reason: "no_model" };
   }
 
   if (abort.signal.aborted) {
-    if (abortSlot.controller === abort) abortSlot.controller = undefined;
     ctx.ui.notify("Optimize cancelled", "info");
     return { ok: false, reason: "cancelled" };
   }
@@ -490,7 +464,6 @@ export async function runOptimizePrompt(options: {
       ? ctx.modelRegistry.find(target.provider, target.modelId)
       : activeModel;
   if (!model) {
-    if (abortSlot.controller === abort) abortSlot.controller = undefined;
     ctx.ui.notify(`Unknown model: ${target.provider}/${target.modelId}`, "error");
     return { ok: false, reason: "unknown_model" };
   }
@@ -499,7 +472,6 @@ export async function runOptimizePrompt(options: {
   try {
     const resolved = await ctx.modelRegistry.getApiKeyAndHeaders(model);
     if (abort.signal.aborted) {
-      if (abortSlot.controller === abort) abortSlot.controller = undefined;
       ctx.ui.notify("Optimize cancelled", "info");
       return { ok: false, reason: "cancelled" };
     }
@@ -511,7 +483,6 @@ export async function runOptimizePrompt(options: {
         env: resolved.ok ? resolved.env : undefined,
       })
     ) {
-      if (abortSlot.controller === abort) abortSlot.controller = undefined;
       ctx.ui.notify(
         resolved.ok ? `No credentials for ${model.provider}` : resolved.error,
         "error",
@@ -524,7 +495,6 @@ export async function runOptimizePrompt(options: {
       env: resolved.env,
     };
   } catch (error: unknown) {
-    if (abortSlot.controller === abort) abortSlot.controller = undefined;
     if (abort.signal.aborted) {
       ctx.ui.notify("Optimize cancelled", "info");
       return { ok: false, reason: "cancelled" };
@@ -602,8 +572,10 @@ export async function runOptimizePrompt(options: {
     return { ok: false, reason: formatError(error) };
   } finally {
     if (abortSlot.stopProgress === stopProgress) abortSlot.stopProgress = undefined;
-    if (abortSlot.controller === abort) abortSlot.controller = undefined;
     stopProgress();
+  }
+  } finally {
+    if (abortSlot.controller === abort) abortSlot.controller = undefined;
   }
 }
 

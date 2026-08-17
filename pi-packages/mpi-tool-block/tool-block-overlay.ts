@@ -3,8 +3,7 @@ import {
   buildToolBlockRows,
   filterToolBlockRows,
   isToolBlockEnabled,
-  toggleToolBlockId,
-  toolBlockRowId,
+  toggleToolBlockRow,
   type ToolBlockConfig,
   type ToolBlockRow,
   type ToolRef,
@@ -24,7 +23,6 @@ export interface ToolBlockOverlayOptions {
   initial: ToolBlockConfig;
   configPath: string;
   persist: (config: ToolBlockConfig) => { ok: true; config: ToolBlockConfig } | { ok: false; error: string };
-  onChange?: (config: ToolBlockConfig) => void;
   onError?: (message: string) => void;
   getMaxVisible?: () => number;
 }
@@ -66,14 +64,13 @@ export function createToolBlockOverlay(options: ToolBlockOverlayOptions): {
     if (matchesKey(data, Key.enter) || data === " ") {
       const current = selectable(rows())[selected];
       if (!current) return;
-      const next = toggleToolBlockId(draft, tools, toolBlockRowId(current));
+      const next = toggleToolBlockRow(draft, tools, current);
       const written = options.persist(next);
       if (!written.ok) {
         options.onError?.(written.error);
         return;
       }
       draft = written.config;
-      options.onChange?.(draft);
       requestRender();
       return;
     }

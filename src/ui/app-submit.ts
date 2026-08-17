@@ -21,7 +21,6 @@ import {
 } from "./app-types.js";
 
 export { renderSessionInfoText } from "./app-submit-session.js";
-export type { AuthInputHost } from "./app-types.js";
 
 export async function handleSubmittedInput(
   state: MixCodeState,

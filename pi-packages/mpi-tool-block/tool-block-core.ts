@@ -6,7 +6,6 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 export const TOOL_BLOCK_CONFIG_FILENAME = "tool-block.json";
-export const ENABLED_ITEM_ID = "enabled";
 
 export type ToolBlockHidden = {
   tool: string;
@@ -50,10 +49,6 @@ export function toolBlockConfigPath(agentDir: string): string {
 export function isToolBlockEnabled(config: ToolBlockConfig | null | undefined): boolean {
   if (!config) return true;
   return config.enabled !== false;
-}
-
-export function toolItemId(toolName: string): string {
-  return `tool:${toolName}`;
 }
 
 /**
@@ -307,54 +302,26 @@ export function filterToolBlockRows(rows: readonly ToolBlockRow[], query: string
   return out;
 }
 
-export function toolBlockRowId(row: Extract<ToolBlockRow, { kind: "enabled" | "tool" }>): string {
-  return row.kind === "enabled" ? ENABLED_ITEM_ID : toolItemId(row.name);
-}
-
-/** Flip enabled or one tool's hidden flag. */
-export function toggleToolBlockId(
+/** Flip enabled or one tool's hidden flag. `tools` supplies plugin tags when hiding. */
+export function toggleToolBlockRow(
   config: ToolBlockConfig,
   tools: readonly ToolRef[],
-  id: string,
+  row: Extract<ToolBlockRow, { kind: "enabled" | "tool" }>,
 ): ToolBlockConfig {
-  if (id === ENABLED_ITEM_ID) {
-    return applyToolBlockToggle(config, tools, id, config.enabled ? "off" : "on");
+  if (row.kind === "enabled") {
+    return { enabled: !config.enabled, hidden: [...config.hidden] };
   }
-  if (!id.startsWith("tool:")) return config;
-  const tool = id.slice("tool:".length);
-  const hidden = config.hidden.some((item) => item.tool === tool);
-  return applyToolBlockToggle(config, tools, id, hidden ? "visible" : "hidden");
-}
-
-/**
- * Apply one overlay change.
- * `tools` supplies plugin tags when hiding a currently registered tool.
- */
-export function applyToolBlockToggle(
-  config: ToolBlockConfig,
-  tools: readonly ToolRef[],
-  id: string,
-  value: string,
-): ToolBlockConfig {
-  if (id === ENABLED_ITEM_ID) {
-    if (value !== "on" && value !== "off") return config;
-    return { enabled: value === "on", hidden: [...config.hidden] };
+  if (config.hidden.some((item) => item.tool === row.name)) {
+    return { enabled: config.enabled, hidden: config.hidden.filter((item) => item.tool !== row.name) };
   }
-  if (!id.startsWith("tool:")) return config;
-  const tool = id.slice("tool:".length);
-  if (!tool) return config;
-  if (value === "visible") {
-    return { enabled: config.enabled, hidden: config.hidden.filter((item) => item.tool !== tool) };
-  }
-  if (value !== "hidden") return config;
-  if (config.hidden.some((item) => item.tool === tool)) return config;
   const plugin =
-    tools.find((item) => item.name === tool)?.plugin ??
-    config.hidden.find((item) => item.tool === tool)?.plugin ??
+    tools.find((item) => item.name === row.name)?.plugin ??
+    config.hidden.find((item) => item.tool === row.name)?.plugin ??
+    row.plugin ??
     "";
   return {
     enabled: config.enabled,
-    hidden: sortHidden([...config.hidden, plugin ? { tool, plugin } : { tool }]),
+    hidden: sortHidden([...config.hidden, plugin ? { tool: row.name, plugin } : { tool: row.name }]),
   };
 }
 

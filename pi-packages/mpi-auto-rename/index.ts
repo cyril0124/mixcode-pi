@@ -30,18 +30,6 @@ import {
   type AutoRenameConfig,
 } from "./config.js";
 
-export {
-  AUTO_RENAME_CONFIG_FILENAME,
-  AUTO_RENAME_INHERIT,
-  autoRenameConfigPath,
-  loadAutoRenameConfig,
-  parseAutoRenameConfig,
-  parseAutoRenameModelRef,
-  resolveAutoRenameTarget,
-  writeAutoRenameConfig,
-  type AutoRenameConfig,
-} from "./config.js";
-
 export const MAX_CONTEXT_CHARS = 1_000;
 export const RECENT_MESSAGE_WINDOW = 20;
 export const MAX_ATTEMPTS = 5;
@@ -533,6 +521,7 @@ export async function runAutoRename(options: {
     abortSlot.stopProgress = undefined;
   }
   abortSlot.controller = abort;
+  try {
 
   const target = resolveAutoRenameTarget(
     {
@@ -551,13 +540,11 @@ export async function runAutoRename(options: {
       ? (registry.find?.(target.provider, target.modelId) as typeof activeModel)
       : activeModel;
   if (!model) {
-    if (abortSlot.controller === abort) abortSlot.controller = undefined;
     notify(`Unknown model: ${target.provider}/${target.modelId}`, "error");
     return { ok: false, reason: "unknown_model" };
   }
 
   if (abort.signal.aborted) {
-    if (abortSlot.controller === abort) abortSlot.controller = undefined;
     notify("Cancelled", "info");
     return { ok: false, reason: "cancelled" };
   }
@@ -566,7 +553,6 @@ export async function runAutoRename(options: {
   try {
     const resolved = await ctx.modelRegistry.getApiKeyAndHeaders(model);
     if (abort.signal.aborted) {
-      if (abortSlot.controller === abort) abortSlot.controller = undefined;
       notify("Cancelled", "info");
       return { ok: false, reason: "cancelled" };
     }
@@ -575,7 +561,6 @@ export async function runAutoRename(options: {
       headers: resolved.ok ? compactHeaders(resolved.headers) : undefined,
       env: resolved.ok ? resolved.env : undefined,
     })) {
-      if (abortSlot.controller === abort) abortSlot.controller = undefined;
       notify(resolved.ok ? `No credentials for ${model.provider}` : resolved.error, "error");
       return { ok: false, reason: "no_auth" };
     }
@@ -585,7 +570,6 @@ export async function runAutoRename(options: {
       env: resolved.env,
     };
   } catch (error: unknown) {
-    if (abortSlot.controller === abort) abortSlot.controller = undefined;
     if (abort.signal.aborted) {
       notify("Cancelled", "info");
       return { ok: false, reason: "cancelled" };
@@ -620,7 +604,6 @@ export async function runAutoRename(options: {
       : { ok: false, reason: formatError(error) };
   } finally {
     if (abortSlot.stopProgress === stopProgress) abortSlot.stopProgress = undefined;
-    if (abortSlot.controller === abort) abortSlot.controller = undefined;
     stopProgress();
   }
 
@@ -646,6 +629,9 @@ export async function runAutoRename(options: {
   options.setSessionName(result.title);
   notify(`Session renamed: ${result.title}`, "info");
   return result;
+  } finally {
+    if (abortSlot.controller === abort) abortSlot.controller = undefined;
+  }
 }
 
 const autoRename: ExtensionFactory = (pi) => {

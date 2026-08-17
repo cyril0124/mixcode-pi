@@ -19,10 +19,7 @@ import {
 import {
   getActiveExtensionThemeId,
   listThemeInfos,
-  MIXCODE_EXTENSION_CLAUDE_WARM_THEME,
-  MIXCODE_EXTENSION_TERMINAL_THEME,
   MIXCODE_EXTENSION_THEME,
-  MIXCODE_EXTENSION_TOKYO_NIGHT_THEME,
   normalizeThemeId,
   noteActiveExtensionThemeId,
   registerAdditionalTheme,
@@ -33,40 +30,9 @@ import type { ExtensionThemeHost } from "./runtime-types.js";
 
 export {
   getActiveExtensionThemeId,
-  MIXCODE_EXTENSION_CLAUDE_WARM_THEME,
-  MIXCODE_EXTENSION_TERMINAL_THEME,
   MIXCODE_EXTENSION_THEME,
-  MIXCODE_EXTENSION_TOKYO_NIGHT_THEME,
   noteActiveExtensionThemeId,
   registerMixCodeThemes,
-};
-
-export const MIXCODE_EXTENSION_KEYBINDINGS: KeybindingsConfig = {
-  "app.interrupt": "escape",
-  "app.clear": "ctrl+c",
-  "app.exit": "ctrl+q",
-  "app.suspend": "ctrl+z",
-  "app.thinking.cycle": "shift+tab",
-  "app.model.cycleForward": "ctrl+p",
-  "app.model.cycleBackward": "ctrl+t",
-  "app.tools.expand": "ctrl+o",
-  "app.thinking.toggle": "ctrl+r",
-  "app.editor.external": "ctrl+e",
-  "app.message.followUp": "alt+enter",
-  // Pi default: ctrl+v (alt+v on Windows) pastes clipboard image path, else text.
-  "app.clipboard.pasteImage": process.platform === "win32" ? "alt+v" : "ctrl+v",
-  // Session selector (Pi SessionSelectorComponent keyHint / getKeybindings)
-  "app.session.toggleNamedFilter": "ctrl+n",
-  "app.session.togglePath": "ctrl+p",
-  "app.session.toggleSort": "ctrl+s",
-  "app.session.rename": "ctrl+r",
-  "app.session.delete": "ctrl+d",
-  "app.session.deleteNoninvasive": "ctrl+backspace",
-  "tui.input.submit": "enter",
-  "tui.select.confirm": "enter",
-  "tui.select.cancel": "escape",
-  "tui.input.copy": "ctrl+c",
-  "tui.editor.deleteToLineEnd": "ctrl+k",
 };
 
 const MIXCODE_EXTENSION_KEYBINDING_DEFINITIONS = {
@@ -114,6 +80,41 @@ const MIXCODE_EXTENSION_KEYBINDING_DEFINITIONS = {
   "app.tree.filter.cycleForward": { defaultKeys: "ctrl+o" },
   "app.tree.filter.cycleBackward": { defaultKeys: "shift+ctrl+o" },
 } satisfies KeybindingDefinitions;
+
+// Keys passed to getShortcuts / user-binding base. Tree chords stay on the
+// manager only — they must not show up as extension shortcut entries.
+const MIXCODE_SHORTCUT_BINDING_IDS = [
+  "app.interrupt",
+  "app.clear",
+  "app.exit",
+  "app.suspend",
+  "app.thinking.cycle",
+  "app.model.cycleForward",
+  "app.model.cycleBackward",
+  "app.tools.expand",
+  "app.thinking.toggle",
+  "app.editor.external",
+  "app.message.followUp",
+  "app.clipboard.pasteImage",
+  "app.session.toggleNamedFilter",
+  "app.session.togglePath",
+  "app.session.toggleSort",
+  "app.session.rename",
+  "app.session.delete",
+  "app.session.deleteNoninvasive",
+  "tui.input.submit",
+  "tui.select.confirm",
+  "tui.select.cancel",
+  "tui.input.copy",
+  "tui.editor.deleteToLineEnd",
+] as const;
+
+export const MIXCODE_EXTENSION_KEYBINDINGS: KeybindingsConfig = Object.fromEntries(
+  MIXCODE_SHORTCUT_BINDING_IDS.map((id) => [
+    id,
+    MIXCODE_EXTENSION_KEYBINDING_DEFINITIONS[id].defaultKeys,
+  ]),
+);
 
 function mixcodeAgentDir(): string {
   return getAgentDir();

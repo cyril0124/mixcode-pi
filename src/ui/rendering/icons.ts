@@ -3,8 +3,6 @@ import {
   type IconMode,
 } from "../../core/mixcode-settings.js";
 
-export type { IconMode };
-
 export interface IconGlyphs {
   model: string;
   thinking: string;

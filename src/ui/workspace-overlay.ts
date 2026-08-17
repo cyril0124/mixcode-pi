@@ -25,7 +25,6 @@ import {
 import { pushToast } from "../core/toast.js";
 
 export { renderWorkspaceOverlay } from "./workspace-rendering.js";
-export type { WorkspaceSelectorMode } from "./workspace-shared.js";
 
 export async function workspaceNameCompletions(
   workspaceFile: string | undefined,
