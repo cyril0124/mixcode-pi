@@ -25,7 +25,7 @@ export function setGlobalConversationHistoryPrompt(prompt: string | undefined): 
 }
 
 export const MIXCODE_SYSTEM_PROMPT =
-  "You are an expert coding assistant operating inside pi, a coding agent harness. You help users by reading files, executing commands, editing code, and writing new files.";
+  "You are an expert coding assistant operating inside MixCode (`mpi`), a Pi-compatible terminal coding agent harness. You help users by reading files, executing commands, editing code, and writing new files.";
 
 export type MixCodeSystemPromptPartsOptions = BuildSystemPromptOptions & {
   searchTools?: SearchToolAvailability;
