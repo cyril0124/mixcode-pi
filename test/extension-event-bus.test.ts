@@ -4,7 +4,6 @@ import { afterEach, test } from "bun:test";
 import {
   adjustWaitingForInput,
   emitMarkDone,
-  getWaitingForInputCount,
   MARK_DONE_EVENT,
   registerExtensionEventBus,
   unregisterExtensionEventBus,
@@ -17,11 +16,9 @@ const busA = createEventBus();
 const busB = createEventBus();
 
 afterEach(() => {
-  // Drain count and unregister test buses so other tests stay isolated.
-  const n = getWaitingForInputCount();
-  if (n) adjustWaitingForInput(-n);
-  unregisterExtensionEventBus(busA);
-  unregisterExtensionEventBus(busB);
+  unregisterExtensionEventBus(servicesA);
+  unregisterExtensionEventBus(servicesB);
+  adjustWaitingForInput(-100);
 });
 
 test("adjustWaitingForInput fans out mpi:waiting-for-input on all registered buses", () => {
@@ -34,7 +31,6 @@ test("adjustWaitingForInput fans out mpi:waiting-for-input on all registered bus
   busB.on(WAITING_FOR_INPUT_EVENT, (data) => seenB.push(data));
 
   adjustWaitingForInput(1);
-  assert.equal(getWaitingForInputCount(), 1);
   assert.deepEqual(seenA, [{ count: 1, active: true }]);
   assert.deepEqual(seenB, [{ count: 1, active: true }]);
 
@@ -55,11 +51,9 @@ test("unregistered bus no longer receives waiting events", () => {
   adjustWaitingForInput(1);
   assert.equal(seen.length, 1);
 
-  unregisterExtensionEventBus(busA);
+  unregisterExtensionEventBus(servicesA);
   adjustWaitingForInput(1);
-  assert.equal(seen.length, 1); // no new event
-
-  adjustWaitingForInput(-2); // reset count
+  assert.equal(seen.length, 1);
 });
 
 test("emitMarkDone fans out mpi:mark-done on all registered buses", () => {

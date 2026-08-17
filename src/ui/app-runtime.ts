@@ -94,9 +94,7 @@ export function bindRuntimeRendering(
     // custom UI question overlay, confirm, etc.) so the user is notified even
     // if the terminal is in the background.
     const prevCount = previousInteractionCount.get(sessionId) ?? 0;
-    const currentCount =
-      runtimeTab.tab.pendingDialogs.length +
-      runtimeTab.tab.extensionUi.waitingForInputs.length;
+    const currentCount = runtimeTab.tab.extensionUi.waitingForInputs.length;
     if (currentCount > prevCount) {
       tui.terminal?.write("\x07");
     }

@@ -9,7 +9,8 @@ import {
   createTab,
   handleMixCodeKeyInput,
   renderConfig,
-  restoreWorkspaceOrder,
+  clampHomeSelectedTabIndex,
+  reindexWorkspaceTabs,
 } from "../src/index.js";
 
 function stripAnsi(text: string): string {
@@ -684,18 +685,13 @@ test("renderConfig colors Agent View glyph and title together for notable states
     createTab(1, "s1", "/repo", {
       status: "idle",
       title: "Question",
-      pendingDialogs: [
-        {
-          requestId: "q",
-          sessionId: "s1",
-          questions: [],
-          currentQuestionIndex: 0,
-          highlightedOptionIndices: [],
-          selectedAnswers: [],
-          customAnswers: [],
-          dirty: false,
-        },
-      ],
+      extensionUi: {
+        statuses: [],
+        widgets: [],
+        toolsExpanded: false,
+        waitingForInputs: [{ id: "q", kind: "custom" }],
+        workingVisible: true,
+      },
     }),
     createTab(2, "s2", "/repo", { status: "running", title: "Working" }),
     createTab(3, "s3", "/repo", { status: "idle", title: "Idle" }),
@@ -714,18 +710,13 @@ test("renderConfig mirrors Agent Tab glyphs in Agent View cards", () => {
     createTab(2, "s2", "/repo", {
       status: "idle",
       title: "Question",
-      pendingDialogs: [
-        {
-          requestId: "q",
-          sessionId: "s2",
-          questions: [],
-          currentQuestionIndex: 0,
-          highlightedOptionIndices: [],
-          selectedAnswers: [],
-          customAnswers: [],
-          dirty: false,
-        },
-      ],
+      extensionUi: {
+        statuses: [],
+        widgets: [],
+        toolsExpanded: false,
+        waitingForInputs: [{ id: "q", kind: "custom" }],
+        workingVisible: true,
+      },
     }),
     createTab(3, "s3", "/repo", { status: "running", title: "Working" }),
     createTab(4, "s4", "/repo", { status: "idle", title: "Done", unreadDone: true }),
@@ -939,12 +930,9 @@ test("homeSelectedTabIndex clamps when workspace restore removes selected tab", 
   state.activeTabId = "home";
   state.homeSelectedTabIndex = 2;
 
-  restoreWorkspaceOrder(state, {
-    name: "small",
-    children: ["s1"],
-    startupWorkdir: "/repo",
-    updatedAt: new Date().toISOString(),
-  });
+  state.tabs = state.tabs.filter((tab) => tab.sessionId === "s1");
+  reindexWorkspaceTabs(state);
+  clampHomeSelectedTabIndex(state);
 
   assert.equal(state.homeSelectedTabIndex, 0);
   state.activeTabId = "home";

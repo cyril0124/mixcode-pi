@@ -9,6 +9,7 @@ import {
   openTabJump,
 } from "../core/overlays.js";
 import { pushToast } from "../core/toast.js";
+import { tabIsWaitingForInput } from "../core/tab-state.js";
 import { activateTab, dismissExtensionPanel, getActiveTab, nextTabId } from "../core/tabs.js";
 import { HOME_TAB_ID, type MixCodeState } from "../core/types.js";
 import { clearPendingEscape, openQuitConfirm } from "./app-actions.js";
@@ -555,7 +556,6 @@ function handleAgentSurfaceKeys(
     matchesKey(data, "right") &&
     !hasAnyOverlay(tui) &&
     !isEditorAutocompleteOpen() &&
-    !active.pendingDialogs.length &&
     !active.extensionUi.waitingForInputs.length &&
     editorActions &&
     editorActions.getText().length === 0
@@ -597,7 +597,6 @@ function handleAgentSurfaceKeys(
     matchesKey(data, "left") &&
     !hasAnyOverlay(tui) &&
     !isEditorAutocompleteOpen() &&
-    !active.pendingDialogs.length &&
     !active.extensionUi.waitingForInputs.length &&
     editorActions &&
     editorActions.getText().length === 0
@@ -891,7 +890,7 @@ function handleBatchedSubmitInput(
   if (state.activeTabId === HOME_TAB_ID) return false;
   if (isEditorAutocompleteOpen() || hasAnyOverlay(tui)) return false;
   if (isOverlayActive(state)) return false;
-  if (active?.pendingDialogs.length) return false;
+  if (active && tabIsWaitingForInput(active)) return false;
   insertEditorText(editorActions, text);
   editorActions.submitCurrentText();
   tui.requestRender();
@@ -903,7 +902,7 @@ function hasFocusedAppControl(
   active: MixCodeState["tabs"][number] | undefined,
 ): boolean {
   return Boolean(
-    isOverlayActive(state) || active?.pendingDialogs.length,
+    isOverlayActive(state) || (active !== undefined && tabIsWaitingForInput(active)),
   );
 }
 

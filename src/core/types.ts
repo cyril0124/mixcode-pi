@@ -25,33 +25,6 @@ export type TabStatus = "Not Ready" | "idle" | "running" | "thinking" | "error" 
 export const HOME_TAB_ID = "home";
 export type CompactionReason = "manual" | "threshold" | "overflow";
 
-export interface QuestionOptionInfo {
-  label: string;
-  description: string;
-}
-
-export interface QuestionInfo {
-  question: string;
-  header: string;
-  options: QuestionOptionInfo[];
-  multiple: boolean;
-  custom: boolean;
-}
-
-export interface DialogRequestState {
-  requestId: string;
-  sessionId: string;
-  questions: QuestionInfo[];
-  extensionResolverId?: string;
-  extensionUiKind?: "select" | "confirm" | "input";
-  currentQuestionIndex: number;
-  highlightedOptionIndices: number[];
-  selectedAnswers: string[][];
-  customAnswers: string[];
-  editingCustomIndex?: number;
-  dirty: boolean;
-}
-
 export type PickerKind = "models" | "thinking" | "workdir" | "context-limit";
 
 export interface PickerItem {
@@ -212,7 +185,6 @@ export interface MixCodeTabInfo {
    */
   customBasePrompt?: boolean;
   alias: string;
-  pendingDialogs: DialogRequestState[];
   pendingMessages: string[];
   /** Follow-up queue (delivered after the agent is fully idle). Separate from steer pendingMessages. */
   pendingFollowUps: string[];

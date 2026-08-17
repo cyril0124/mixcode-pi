@@ -5,11 +5,8 @@ import * as os from "node:os";
 import { performance } from "node:perf_hooks";
 import { test } from "node:test";
 import { availableThinkingLevelsForModel } from "../src/core/thinking-levels.js";
-import { statusFromAgentEvent } from "../src/core/tab-state.js";
 import {
-  AUTO_SAVED_WORKSPACE,
-  addAgentTab,
-  autoSaveWorkspace,
+  activateTab,
   closeAgentTab,
   createInitialState,
   createTab,
@@ -20,7 +17,6 @@ import {
   movePickerSelection,
   nextTabId,
   renameAgentTab,
-  restoreWorkspaceOrder,
   snapshotWorkspace,
   upsertWorkspace,
   updatePickerQuery,
@@ -38,34 +34,30 @@ test("unknown model capabilities expose only off thinking", () => {
   );
 });
 
-test("workspace snapshots preserve tab order and auto-save name", () => {
+test("workspace snapshots preserve tab order", () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "b", "/repo"), createTab(2, "a", "/repo"));
   const now = new Date("2026-05-09T00:00:00.000Z");
   const snapshot = snapshotWorkspace(state, "main", now);
   assert.deepEqual(snapshot.children, ["b", "a"]);
   assert.equal(snapshot.updatedAt, now.toISOString());
-  const workspaces = autoSaveWorkspace(state, [snapshot], now);
-  assert.ok(workspaces.some((workspace) => workspace.name === AUTO_SAVED_WORKSPACE));
-  const replaced = upsertWorkspace(workspaces, { ...snapshot, children: ["a"] });
+  const replaced = upsertWorkspace([snapshot], { ...snapshot, children: ["a"] });
   assert.deepEqual(replaced.find((workspace) => workspace.name === "main")?.children, ["a"]);
-  restoreWorkspaceOrder(state, { ...snapshot, children: ["a", "missing", "b"] });
-  assert.deepEqual(
-    state.tabs.map((tab) => tab.sessionId),
-    ["a", "b"],
-  );
-  assert.equal(state.activeTabId, "a");
-  restoreWorkspaceOrder(state, { ...snapshot, children: [] });
-  assert.equal(state.activeTabId, "home");
 });
+
+function pushTab(state: ReturnType<typeof createInitialState>, sessionId: string) {
+  const tab = createTab(state.tabs.length + 1, sessionId, state.workdir);
+  state.tabs.push(tab);
+  activateTab(state, sessionId);
+  return tab;
+}
 
 test("tab operations add, close, rename, and rotate through config", () => {
   const state = createInitialState("/repo");
-  const one = addAgentTab(state, "s1");
-  const two = addAgentTab(state, "s2");
+  const one = pushTab(state, "s1");
+  const two = pushTab(state, "s2");
   assert.equal(one.index, 1);
   assert.equal(two.index, 2);
-  assert.throws(() => addAgentTab(state, "s1"), /already exists/);
   renameAgentTab(state, "s2", " Worker ");
   assert.equal(state.tabs[1]?.title, "Worker");
   assert.throws(() => renameAgentTab(state, "s2", " "), /cannot be empty/);
@@ -78,8 +70,8 @@ test("tab operations add, close, rename, and rotate through config", () => {
   state.activeTabId = "s1";
   closeAgentTab(state, "s1");
   assert.equal(state.activeTabId, "home");
-  addAgentTab(state, "s3");
-  addAgentTab(state, "s4");
+  pushTab(state, "s3");
+  pushTab(state, "s4");
   state.activeTabId = "s3";
   closeAgentTab(state, "s3");
   assert.equal(state.activeTabId, "s4");
@@ -297,34 +289,4 @@ test("workdir picker reuses directory listing across query keystrokes", async ()
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }
-});
-
-test("status mapping follows pi agent events", () => {
-  assert.equal(statusFromAgentEvent({ type: "agent_start" }), "running");
-  assert.equal(statusFromAgentEvent({ type: "turn_start" }), "thinking");
-  assert.equal(statusFromAgentEvent({ type: "agent_end", messages: [] }), "idle");
-  assert.equal(
-    statusFromAgentEvent({
-      type: "tool_execution_end",
-      toolCallId: "1",
-      toolName: "x",
-      result: {},
-      isError: true,
-    }),
-    "error",
-  );
-  assert.equal(
-    statusFromAgentEvent({
-      type: "tool_execution_end",
-      toolCallId: "1",
-      toolName: "x",
-      result: {},
-      isError: false,
-    }),
-    "running",
-  );
-  assert.equal(
-    statusFromAgentEvent({ type: "turn_end", message: {} as never, toolResults: [] }),
-    undefined,
-  );
 });

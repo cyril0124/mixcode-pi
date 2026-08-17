@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Terminal } from "@earendil-works/pi-tui";
 import { createInitialState, createTab } from "../src/core/defaults.js";
-import { parseInput, commandSuggestions } from "../src/core/commands.js";
+import { parseInput } from "../src/core/commands.js";
 import type { MixCodeRuntime } from "../src/agent/runtime.js";
 import { createMixCodeTui } from "../src/ui/app.js";
 import { handleMixCodeKeyInput } from "../src/ui/app-input.js";
@@ -48,7 +48,6 @@ test("parseInput accepts /toggle-zen-mode", () => {
     command: "toggle-zen-mode",
     args: "",
   });
-  assert.ok(commandSuggestions("/toggle-z").includes("toggle-zen-mode"));
 });
 
 test("/toggle-zen-mode flips zenMode on the active tab", async () => {
@@ -480,15 +479,12 @@ test("from Home, Tab activates agent and keeps zen from the source agent", () =>
 });
 
 test("zenStatusMarkers exposes meaningful background states with existing glyph priority", () => {
-  const pendingDialog = {
-    requestId: "q",
-    sessionId: "waiting",
-    questions: [],
-    currentQuestionIndex: 0,
-    highlightedOptionIndices: [],
-    selectedAnswers: [],
-    customAnswers: [],
-    dirty: false,
+  const waitingUi = {
+    statuses: [] as [],
+    widgets: [] as [],
+    toolsExpanded: false,
+    waitingForInputs: [{ id: "q", kind: "custom" as const }],
+    workingVisible: true,
   };
   const tabs = [
     createTab(1, "active", "/repo", { status: "running" }),
@@ -496,11 +492,11 @@ test("zenStatusMarkers exposes meaningful background states with existing glyph 
     createTab(3, "thinking", "/repo", { status: "thinking" }),
     createTab(4, "waiting", "/repo", {
       status: "running",
-      pendingDialogs: [pendingDialog],
+      extensionUi: waitingUi,
     }),
     createTab(5, "error", "/repo", {
       status: "error",
-      pendingDialogs: [{ ...pendingDialog, sessionId: "error" }],
+      extensionUi: { ...waitingUi, waitingForInputs: [{ id: "error", kind: "custom" }] },
     }),
     createTab(6, "done", "/repo", { status: "done" }),
     createTab(7, "unread", "/repo", { status: "idle", unreadDone: true }),

@@ -356,22 +356,11 @@ test("handleCtlRequest last-assistant-message send-keys and dump-screen", async 
   assert.equal(waitBusy.ok, false);
   assert.match(waitBusy.error ?? "", /Timed out after 0s/);
   assert.match(waitBusy.text ?? "", /status: running/);
-  running.pendingDialogs.push({
-    requestId: "q1",
-    sessionId: "s1",
-    questions: [],
-    multiple: false,
-    custom: false,
-    currentQuestionIndex: 0,
-    highlightedOptionIndices: [],
-    selectedAnswers: [],
-    customAnswers: [],
-    dirty: false,
-  });
+  running.extensionUi.waitingForInputs.push({ id: "q1", kind: "custom" });
   const waitInput = await handleCtlRequest({ op: "wait", timeout: 0 }, opts);
   assert.equal(waitInput.ok, true);
   assert.match(waitInput.text ?? "", /status: wait-for-input/);
-  running.pendingDialogs = [];
+  running.extensionUi.waitingForInputs = [];
   setTimeout(() => {
     running.status = "idle";
   }, 20);

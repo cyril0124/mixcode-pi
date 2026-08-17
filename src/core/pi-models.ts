@@ -169,12 +169,6 @@ export async function createPiModelRegistryBundle(
   };
 }
 
-export async function loadPiModelSources(
-  modelsPath = defaultPiModelsPath(),
-): Promise<PiModelSource[]> {
-  return (await createPiModelRegistryBundle(modelsPath)).sources;
-}
-
 export function createPiModelRuntimeAuth(modelRuntime: ModelRuntime): PiModelRuntimeAuth {
   // Use the extension-facing registry facade so stream auth matches
   // getApiKeyAndHeaders semantics (ok without apiKey for no-auth-header models).

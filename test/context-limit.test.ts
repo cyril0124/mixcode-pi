@@ -36,7 +36,6 @@ function createMockTab(overrides: Partial<MixCodeTabInfo> = {}): MixCodeTabInfo 
     thinkingLevel: "off",
     workdir: "/tmp",
     alias: "",
-    pendingDialogs: [],
     pendingMessages: [],
     pendingFollowUps: [],
     promptHistory: [],

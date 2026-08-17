@@ -6,7 +6,6 @@ import { test } from "node:test";
 import { SettingsManager } from "@earendil-works/pi-coding-agent";
 import { stripTerminalSequences as stripAnsi } from "@earendil-works/pi-tui";
 import { createInitialState, createTab, loadMixCodeSettings } from "../src/index.js";
-import { addAgentTab } from "../src/core/tabs.js";
 import { handleSettingsPanelKey, renderSettingsPanel } from "../src/ui/settings-panel.js";
 
 test("settings panel changes Pi mermaid mode and mirrors live state", async () => {
@@ -443,7 +442,11 @@ test("settings panel toggles inlineWidgets on live tabs and new tabs", async () 
     assert.equal(JSON.parse(await fsPromises.readFile(mixcodeFile, "utf8")).ui.inlineWidgets, true);
     assert.equal(state.ui?.inlineWidgets, true);
     assert.equal(tab.inlineWidgets, true);
-    assert.equal(addAgentTab(state, "s2", dir).inlineWidgets, true);
+    const next = createTab(state.tabs.length + 1, "s2", dir, {
+      inlineWidgets: state.ui?.inlineWidgets === true,
+    });
+    state.tabs.push(next);
+    assert.equal(next.inlineWidgets, true);
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }

@@ -411,10 +411,3 @@ export function parseInput(text: string): ParsedInput {
     args,
   };
 }
-
-export function commandSuggestions(prefix: string): string[] {
-  const normalized = prefix.replace(/^\//, "");
-  return LOCAL_COMMANDS.map((command) => command.name).filter((name) =>
-    name.startsWith(normalized),
-  );
-}

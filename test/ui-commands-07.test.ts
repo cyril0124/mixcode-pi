@@ -282,19 +282,10 @@ test("ctrl-p does not open command palette while another input mode owns focus",
   assert.equal(state.commandPaletteOpen, false);
   state.tabJumpOpen = false;
 
-  tab.pendingDialogs.push({
-    requestId: "r1",
-    sessionId: "s1",
-    questions: [{ header: "Question", question: "Pick?", options: [], multiple: false, custom: false }],
-    currentQuestionIndex: 0,
-    highlightedOptionIndices: [0],
-    selectedAnswers: [[]],
-    customAnswers: [""],
-    dirty: false,
-  });
+  tab.extensionUi.waitingForInputs.push({ id: "r1", kind: "custom" });
   assert.equal(handleMixCodeKeyInput(state, "\x10", tui), undefined);
   assert.equal(state.commandPaletteOpen, false);
-  tab.pendingDialogs = [];
+  tab.extensionUi.waitingForInputs = [];
 
   overlayOpen = true;
   assert.equal(handleMixCodeKeyInput(state, "\x10", tui), undefined);

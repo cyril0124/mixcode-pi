@@ -19,7 +19,10 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { isProjectSkillsOnlyEnabled } from "../core/attachments.js";
 import { captureCompactionBaseline } from "../core/context-limit.js";
-import { registerExtensionEventBus } from "../core/extension-event-bus.js";
+import {
+  registerExtensionEventBus,
+  unregisterExtensionEventBus,
+} from "../core/extension-event-bus.js";
 import { detectSearchTools, type SearchToolAvailability } from "../core/detect-search-tools.js";
 import {
   type ExtensionManagerEntry,
@@ -386,6 +389,7 @@ export function disposeRuntimeTabAfterShutdown(
   disposeChatRenderers(runtimeTab.chat);
   runtimeTab.agentSession.dispose();
   resetExtensionHostState(runtimeTab, extensionUiHost);
+  unregisterExtensionEventBus(runtimeTab.services);
 }
 
 /** Map key for a RuntimeTab — identity first, then tab.sessionId fallback. */

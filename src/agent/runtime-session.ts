@@ -91,9 +91,6 @@ export function resetExtensionHostState(
   clearWaitingForInputs(runtimeTab);
   runtimeTab.extensionAutocompleteProviderFactories = [];
   runtimeTab.extensionAutocompleteProviderCache = undefined;
-  runtimeTab.tab.pendingDialogs = runtimeTab.tab.pendingDialogs.filter(
-    (request) => !request.extensionResolverId,
-  );
   disposeExtensionWidgets(runtimeTab.tab);
   runtimeTab.tab.extensionUi = {
     statuses: [],

@@ -46,18 +46,13 @@ test("tab jump entries expose busy, done, question, and fuzzy filtering", () => 
     createTab(1, "s1", "/repo", { alias: "alpha", status: "running", unreadDone: true }),
     createTab(2, "s2", "/repo", {
       title: "Beta",
-      pendingDialogs: [
-        {
-          requestId: "q",
-          sessionId: "s2",
-          questions: [],
-          currentQuestionIndex: 0,
-          highlightedOptionIndices: [],
-          selectedAnswers: [],
-          customAnswers: [],
-          dirty: false,
-        },
-      ],
+      extensionUi: {
+        statuses: [],
+        widgets: [],
+        toolsExpanded: false,
+        waitingForInputs: [{ id: "q", kind: "custom" }],
+        workingVisible: true,
+      },
     }),
   );
   const entries = tabJumpEntries(state);
@@ -118,7 +113,7 @@ test("tab jump state opens, filters, moves, accepts, and closes", () => {
   updateTabJumpQuery(state, "");
   state.tabs[0]!.unreadDone = true;
   state.tabs[0]!.status = "idle";
-  state.tabs[1]!.pendingDialogs = [];
+  state.tabs[1]!.extensionUi.waitingForInputs = [];
   state.tabs[1]!.unreadDone = true;
   state.tabs[1]!.status = "done";
   const statusOverlay = stripAnsi(renderTabJumpOverlay(state, 80).join("\n"));

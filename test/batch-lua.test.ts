@@ -6,7 +6,7 @@ import { test } from "node:test";
 import {
   applyBatchRequests,
   contextFromState,
-  executeBatchScript,
+  loadBatchRequests,
   formatBatchPlan,
   renderTemplate,
   runLuaScript,
@@ -429,9 +429,7 @@ test("applyBatchRequests runs all prompts in parallel", async () => {
   assert.equal(order[1], "start-new-b");
 });
 
-// --- executeBatchScript integration test ---
-
-test("executeBatchScript reads file and applies requests", async () => {
+test("loadBatchRequests + applyBatchRequests reads file and applies requests", async () => {
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "batch-lua-"));
   try {
     const scriptPath = path.join(dir, "test.lua");
@@ -440,7 +438,8 @@ test("executeBatchScript reads file and applies requests", async () => {
       'mixcode.open_tab({ name = "from-file", prompt = "file prompt" })\n',
     );
     const host = createMockHost();
-    await executeBatchScript(scriptPath, host);
+    const plan = await loadBatchRequests(scriptPath, contextFromState(host.state));
+    await applyBatchRequests(plan.requests, host);
     assert.equal(host.created.length, 1);
     assert.equal(host.created[0]!.name, "from-file");
     assert.equal(host.inputs[0]!.input, "file prompt");
@@ -449,10 +448,10 @@ test("executeBatchScript reads file and applies requests", async () => {
   }
 });
 
-test("executeBatchScript throws on missing file", async () => {
+test("loadBatchRequests throws on missing file", async () => {
   const host = createMockHost();
   await assert.rejects(
-    () => executeBatchScript("/nonexistent/path.lua", host),
+    () => loadBatchRequests("/nonexistent/path.lua", contextFromState(host.state)),
     /ENOENT/,
   );
 });

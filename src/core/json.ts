@@ -1,7 +1,3 @@
-export function parseJsonObject(text: string): Record<string, unknown> {
-  return assertJsonObject(JSON.parse(text));
-}
-
 export function parseJsoncObject(text: string): Record<string, unknown> {
   return assertJsonObject(Bun.JSON5.parse(text));
 }

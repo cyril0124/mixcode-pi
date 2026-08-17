@@ -10,7 +10,6 @@
 // The fields stay public — this is a disciplinary seam in the existing
 // free-function/public-field style of core/tabs.ts, not an encapsulated class.
 
-import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import type { MixCodeTabInfo, TabStatus } from "./types.js";
 
 /** Statuses that represent the agent actively working (a timer is running). */
@@ -155,20 +154,5 @@ export function workingActivityMessage(tab: MixCodeTabInfo): string {
 }
 
 export function tabIsWaitingForInput(tab: MixCodeTabInfo): boolean {
-  return tab.pendingDialogs.length > 0 || tab.extensionUi.waitingForInputs.length > 0;
-}
-
-export function statusFromAgentEvent(event: AgentEvent): TabStatus | undefined {
-  switch (event.type) {
-    case "agent_start":
-      return "running";
-    case "turn_start":
-      return "thinking";
-    case "agent_end":
-      return "idle";
-    case "tool_execution_end":
-      return event.isError ? "error" : "running";
-    default:
-      return undefined;
-  }
+  return tab.extensionUi.waitingForInputs.length > 0;
 }

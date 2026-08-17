@@ -3,10 +3,7 @@ import * as fsPromises from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
-import {
-  commandSuggestions,
-  parseInput,
-} from "../src/core/commands.js";
+import { parseInput } from "../src/core/commands.js";
 import { clipboardPasteForEditor } from "../src/core/pi-private.js";
 import { createInitialState, createTab } from "../src/core/defaults.js";
 import { handleSubmittedInput } from "../src/ui/app-submit.js";
@@ -36,7 +33,6 @@ test("parseInput recognizes /export with optional path", () => {
     command: "export",
     args: "./branch.jsonl",
   });
-  assert.ok(commandSuggestions("/exp").includes("export"));
 });
 
 test("handleSubmittedInput /export routes html vs jsonl via Pi APIs", async () => {

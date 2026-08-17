@@ -379,7 +379,6 @@ test("runtime maps tool and thinking events into tab UI state", async () => {
     isError: false,
   });
   assert.equal(tab.status, "thinking");
-  assert.equal(tab.pendingDialogs.length, 0);
   assert.ok(
     runtimeTab.chat.some((line) => line.role === "thinking" && line.text.includes("think more")),
   );

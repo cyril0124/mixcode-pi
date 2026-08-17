@@ -21,7 +21,6 @@ export interface InstanceRegistryTabSnapshot {
   workdir: string;
   status: TabStatus;
   unreadDone: boolean;
-  pendingDialogCount: number;
   waitingForInputCount: number;
 }
 
@@ -112,7 +111,6 @@ export function createInstanceSnapshot(
         workdir: normalizeWorkdir(tab.workdir),
         status: tab.status,
         unreadDone: tab.unreadDone,
-        pendingDialogCount: tab.pendingDialogs.length,
         waitingForInputCount: tab.extensionUi.waitingForInputs.length,
       })),
   };
@@ -287,7 +285,7 @@ function resolveStatusTab(
 }
 
 function deriveTabState(tab: InstanceRegistryTabSnapshot): InstanceTabState {
-  if (tab.pendingDialogCount > 0 || tab.waitingForInputCount > 0) return "waiting-for-input";
+  if (tab.waitingForInputCount > 0) return "waiting-for-input";
   if (tab.status === "error") return "error";
   if (tab.status === "running" || tab.status === "thinking") return "working";
   if (tab.status === "done" || tab.unreadDone) return "finished";
@@ -380,7 +378,6 @@ function parseTabSnapshot(
     workdir: normalizeWorkdir(stringField(raw, "workdir", filePath)),
     status: status as TabStatus,
     unreadDone: booleanField(raw, "unreadDone", filePath),
-    pendingDialogCount: numberField(raw, "pendingDialogCount", filePath),
     waitingForInputCount: numberField(raw, "waitingForInputCount", filePath),
   };
 }

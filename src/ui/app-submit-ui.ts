@@ -257,7 +257,6 @@ interface MixCodeTuiDebugState {
     workdir: string;
     alias: string;
     thinkingLevel: string;
-    pendingDialogCount: number;
     chatScrollOffset: number;
     previewIndex: number;
     unreadDone: boolean;
@@ -318,7 +317,6 @@ function createTuiDebugState(state: MixCodeState): MixCodeTuiDebugState {
       workdir: tab.workdir,
       alias: tab.alias,
       thinkingLevel: tab.thinkingLevel,
-      pendingDialogCount: tab.pendingDialogs.length,
       chatScrollOffset: tab.chatScrollOffset,
       previewIndex: tab.previewIndex,
       unreadDone: tab.unreadDone,

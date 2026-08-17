@@ -880,20 +880,11 @@ test("config-scoped submitted input runs without an active agent tab", async () 
     workingStartedAt: "2026-05-10T00:00:00.000Z",
     lastWorkedDurationSeconds: 12,
     todos: ["one", "two"],
-    pendingDialogs: [
-      {
-        requestId: "q1",
-        sessionId: "debug",
-        questions: [],
-        selectedAnswers: [],
-        customAnswers: [],
-        highlightedOptionIndices: [],
-      },
-    ],
     extensionUi: {
       statuses: [{ label: "ext", status: "ok" }],
       widgets: [{ id: "w1", placement: "aboveEditor", lines: ["widget"] }],
       toolsExpanded: true,
+      waitingForInputs: [],
       workingVisible: false,
       workingIndicatorFrames: ["-", "\\"],
       workingIndicatorIntervalMs: 75,

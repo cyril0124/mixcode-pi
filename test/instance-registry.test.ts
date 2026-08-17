@@ -34,7 +34,6 @@ function snapshot(overrides: Partial<InstanceRegistrySnapshot>): InstanceRegistr
         workdir: "/repo",
         status: "idle",
         unreadDone: false,
-        pendingDialogCount: 0,
         waitingForInputCount: 0,
       },
     ],
@@ -69,16 +68,6 @@ test("createInstanceSnapshot captures live tab metadata without chat content", (
     unreadDone: true,
     workingStartedAt: "2026-06-06T00:00:00.000Z",
   });
-  tab.pendingDialogs.push({
-    requestId: "q1",
-    sessionId: tab.sessionId,
-    questions: [],
-    currentQuestionIndex: 0,
-    highlightedOptionIndices: [],
-    selectedAnswers: [],
-    customAnswers: [],
-    dirty: false,
-  });
   tab.extensionUi.waitingForInputs.push({ id: "u1", kind: "custom" });
   state.tabs.push(tab);
   state.activeTabId = tab.sessionId;
@@ -91,7 +80,6 @@ test("createInstanceSnapshot captures live tab metadata without chat content", (
   assert.equal(captured.workdir, "/repo");
   assert.equal(captured.activeTabId, "session-full-id");
   assert.equal(captured.tabs[0]?.title, "Worker");
-  assert.equal(captured.tabs[0]?.pendingDialogCount, 1);
   assert.equal(captured.tabs[0]?.waitingForInputCount, 1);
   assert.equal(JSON.stringify(captured).includes("questions"), false);
 });
@@ -145,8 +133,7 @@ test("loadLiveInstanceStatus derives tab state and sorts instances by workdir", 
             workdir: "/z-repo",
             status: "done",
             unreadDone: true,
-            pendingDialogCount: 1,
-            waitingForInputCount: 0,
+            waitingForInputCount: 1,
             lastWorkedDurationSeconds: 3,
           },
           {
@@ -156,7 +143,6 @@ test("loadLiveInstanceStatus derives tab state and sorts instances by workdir", 
             workdir: "/z-repo",
             status: "running",
             unreadDone: false,
-            pendingDialogCount: 0,
             waitingForInputCount: 0,
             workingStartedAt: "2026-06-06T00:00:00.000Z",
           },
@@ -167,7 +153,6 @@ test("loadLiveInstanceStatus derives tab state and sorts instances by workdir", 
             workdir: "/z-repo",
             status: "idle",
             unreadDone: true,
-            pendingDialogCount: 0,
             waitingForInputCount: 0,
             lastWorkedDurationSeconds: 7,
           },
@@ -188,7 +173,6 @@ test("loadLiveInstanceStatus derives tab state and sorts instances by workdir", 
             workdir: "/a-repo",
             status: "idle",
             unreadDone: false,
-            pendingDialogCount: 0,
             waitingForInputCount: 0,
           },
         ],
@@ -243,7 +227,6 @@ test("formatInstanceStatusTable renders grouped instances and active tabs", asyn
             workdir: "/repo",
             status: "thinking",
             unreadDone: false,
-            pendingDialogCount: 0,
             waitingForInputCount: 0,
             workingStartedAt: "2026-06-06T00:00:00.000Z",
           },

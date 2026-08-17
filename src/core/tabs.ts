@@ -1,4 +1,3 @@
-import { createTab, nextAvailableAgentTitle } from "./defaults.js";
 import { HOME_TAB_ID, type MixCodeState, type MixCodeTabInfo } from "./types.js";
 
 export { HOME_TAB_ID } from "./types.js";
@@ -24,23 +23,6 @@ export function getActiveTab(
 /** Finds the tab identified by activeTabId, without fallback. Returns undefined when not found. */
 export function findActiveTab(state: Pick<MixCodeState, "tabs" | "activeTabId">): MixCodeTabInfo | undefined {
   return state.tabs.find((tab) => tab.sessionId === state.activeTabId);
-}
-
-export function addAgentTab(
-  state: MixCodeState,
-  sessionId: string,
-  workdir = state.workdir,
-): MixCodeTabInfo {
-  if (state.tabs.some((tab) => tab.sessionId === sessionId)) {
-    throw new Error(`Tab already exists: ${sessionId}`);
-  }
-  const tab = createTab(state.tabs.length + 1, sessionId, workdir, {
-    title: nextAvailableAgentTitle(state.tabs),
-    inlineWidgets: state.ui?.inlineWidgets === true,
-  });
-  state.tabs.push(tab);
-  activateTab(state, sessionId);
-  return tab;
 }
 
 export function closeAgentTab(state: MixCodeState, sessionId: string): MixCodeTabInfo {

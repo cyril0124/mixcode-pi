@@ -69,7 +69,7 @@ mpi ctl --tab Agent-01 send-prompt '/new-session Worker'
 
 `--tab` does not steal UI focus. **Always close the loop:** `wait` then `last-message` (or `last-tool` / `dump-screen`). ACK from `send-prompt` only means accept, not done.
 
-Use **`send-keys` + `--focus-tab`** only when the command opens a picker/overlay (`/resume`, question dialogs, `C-q`).
+Use **`send-keys` + `--focus-tab`** only when the command opens a picker/overlay (`/resume`, extension question UI, `C-q`).
 
 Common MixCode session/tab commands:
 
@@ -218,7 +218,7 @@ mpi ctl --tab <title> wait --timeout 90
 }
 ```
 
-Empty live set: `{ "instances": [] }`. `state` is derived (`waiting-for-input` if dialogs; `working` if running/thinking; `finished` if done/unread). Use `tabTitle`/`sessionId` for ctl flags, `pid` for `--pid`.
+Empty live set: `{ "instances": [] }`. `state` is derived (`waiting-for-input` if extension UI is waiting for input; `working` if running/thinking; `finished` if done/unread). Use `tabTitle`/`sessionId` for ctl flags, `pid` for `--pid`.
 
 ### `mpi commands --json`
 

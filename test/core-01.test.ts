@@ -4,7 +4,7 @@ import * as path from "node:path";
 import * as os from "node:os";
 import { test } from "node:test";
 import {
-  commandSuggestions,
+  LOCAL_COMMANDS,
   createInitialState,
   createTab,
   deleteWorkspace,
@@ -19,7 +19,6 @@ import {
   AUTOWRAP_DISABLE,
   AUTOWRAP_ENABLE,
   parseInput,
-  parseJsonObject,
   parseJsoncObject,
   saveStateFile,
   saveWorkspaces,
@@ -217,20 +216,15 @@ test("commands parse prompts, slash commands, shell commands, and suggestions", 
     command: "unknown",
     args: "x",
   });
-  assert.ok(commandSuggestions("/set").includes("settings"));
-  assert.ok(commandSuggestions("/system").includes("system-tools"));
-  assert.ok(commandSuggestions("/se").includes("session"));
-  assert.ok(commandSuggestions("/re").includes("reload"));
-  assert.ok(commandSuggestions("/vi").includes("vim"));
-  assert.ok(commandSuggestions("/hot").includes("hotkeys"));
-  assert.equal(commandSuggestions("tog").includes("toggle-todo"), false);
-  assert.ok(commandSuggestions("im").includes("import"));
-});
-
-test("json helpers expose malformed and non-object input clearly", () => {
-  assert.deepEqual(parseJsonObject('{"a":1}'), { a: 1 });
-  assert.throws(() => parseJsonObject("[]"), /Expected JSON object/);
-  assert.throws(() => parseJsonObject("{"), SyntaxError);
+  const names = LOCAL_COMMANDS.map((command) => command.name);
+  assert.ok(names.includes("settings"));
+  assert.ok(names.includes("system-tools"));
+  assert.ok(names.includes("session"));
+  assert.ok(names.includes("reload"));
+  assert.ok(names.includes("vim"));
+  assert.ok(names.includes("hotkeys"));
+  assert.equal(names.includes("toggle-todo"), false);
+  assert.ok(names.includes("import"));
 });
 
 test("jsonc helper accepts comments and trailing commas", () => {

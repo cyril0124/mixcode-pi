@@ -36,6 +36,7 @@ import {
   noteTabsReplaced,
 } from "../core/open-tabs-store.js";
 import { pushToast } from "../core/toast.js";
+import { tabIsWaitingForInput } from "../core/tab-state.js";
 import { activateTab, clampHomeSelectedTabIndex, getActiveTab } from "../core/tabs.js";
 import { closeExistingAgentTab, deleteAgentTab } from "./agent-tab-actions.js";
 import {
@@ -146,7 +147,7 @@ export function handleQueuedFlushKey(
   if (!matchesKey(data, "escape")) return false;
   if (state.activeTabId === HOME_TAB_ID) return false;
   if (hasAnyOverlay(tui) || isEditorAutocompleteOpen()) return false;
-  if (active.pendingDialogs.length > 0) return false;
+  if (tabIsWaitingForInput(active)) return false;
   const runtimeTab = runtime?.getTab(active.sessionId);
   const runtimeQueuedCount = runtimeQueuedMessageCount(runtimeTab);
   if (active.pendingMessages.length === 0 && runtimeQueuedCount === 0) return false;
@@ -329,7 +330,7 @@ export function canOpenCommandPalette(
   if (hasAnyOverlay(tui)) return false;
   if (state.picker || state.sessionSelector.open || state.treeSelector.open || state.tabJumpOpen)
     return false;
-  if (active?.pendingDialogs.length) return false;
+  if (active && tabIsWaitingForInput(active)) return false;
   return commandPaletteEntriesWithExtensions(state, extensionCommands).length > 0;
 }
 
@@ -595,7 +596,7 @@ export function handleEscapeKey(
     !active.vimMode &&
     !hasAnyOverlay(tui) &&
     !state.commandPaletteOpen &&
-    !active.pendingDialogs.length &&
+    !tabIsWaitingForInput(active) &&
     !editorActions?.getText()?.trim()
   ) {
     const action = runtime?.getDoubleEscapeAction?.(active.sessionId) ?? "tree";

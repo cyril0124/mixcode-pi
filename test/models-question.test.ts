@@ -24,12 +24,15 @@ import {
   defaultPiModelsPath,
   findModelRef,
   listAvailableModelRefs,
-  loadPiModelSources,
   modelToRef,
   registerModels,
   setStateModel,
   setTabModel,
 } from "../src/index.js";
+
+async function loadSources(modelsPath: string) {
+  return (await createPiModelRegistryBundle(modelsPath)).sources;
+}
 
 test("model helpers map pi models into MixCode state", () => {
   const ref = modelToRef(MIXCODE_FAUX_MODEL);
@@ -374,7 +377,7 @@ test("pi model registry rejects directory paths and incomplete provider config",
     const directoryPath = nodePath.join(dir, "directory.jsonc");
     await fsPromises.mkdir(directoryPath);
     await assert.rejects(
-      loadPiModelSources(directoryPath),
+      loadSources(directoryPath),
       /EISDIR|illegal operation on a directory/,
     );
 
@@ -384,11 +387,11 @@ test("pi model registry rejects directory paths and incomplete provider config",
       customConfigBody({ baseUrl: "https://no-api.example/v1", api: false }),
       "utf8",
     );
-    await assert.rejects(loadPiModelSources(noApiPath), /no "api" specified/);
+    await assert.rejects(loadSources(noApiPath), /no "api" specified/);
 
     const missingBasePath = nodePath.join(dir, "missing-base.jsonc");
     await fsPromises.writeFile(missingBasePath, customConfigBody({ baseUrl: undefined }), "utf8");
-    await assert.rejects(loadPiModelSources(missingBasePath), /"baseUrl" is required/);
+    await assert.rejects(loadSources(missingBasePath), /"baseUrl" is required/);
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }
@@ -407,7 +410,7 @@ test("pi model registry applies literal and minimal models.json fields", async (
       }),
       "utf8",
     );
-    const source = (await loadPiModelSources(literalValidPath)).find(
+    const source = (await loadSources(literalValidPath)).find(
       (item) => item.provider === "proxy-gpt" && item.modelId === "gpt-5.5",
     );
     assert.ok(source);
@@ -426,7 +429,7 @@ test("pi model registry applies literal and minimal models.json fields", async (
       customConfigBody({ baseUrl: "https://minimal.example/v1", minimal: true }),
       "utf8",
     );
-    const minimal = (await loadPiModelSources(minimalPath)).find(
+    const minimal = (await loadSources(minimalPath)).find(
       (item) => item.provider === "proxy-gpt" && item.modelId === "gpt-5.5",
     );
     assert.ok(minimal);
@@ -478,7 +481,7 @@ test("pi model registry rejects invalid models.json schemas", async () => {
     ] as const) {
       const path = nodePath.join(dir, name);
       await fsPromises.writeFile(path, body, "utf8");
-      await assert.rejects(loadPiModelSources(path), /Invalid models\.json schema/);
+      await assert.rejects(loadSources(path), /Invalid models.json schema/);
     }
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });

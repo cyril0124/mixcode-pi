@@ -33,7 +33,7 @@ mpi status --workdir /path/to/project
 | `workdir` | string | 进程启动时的根工作目录。 |
 | `activeTabId` | string | 当前 UI 获得焦点的 Tab ID。 |
 | `updatedAt` | string (ISO) | 心跳时间戳（每 5,000 ms 更新一次）。 |
-| `tabs` | array | Tab 快照列表（索引、Session ID、标题、状态、工作目录、待处理对话框）。 |
+| `tabs` | array | Tab 快照列表（索引、Session ID、标题、状态、工作目录、waitingForInputCount）。 |
 
 ## Tab 运行状态推导
 
@@ -42,7 +42,7 @@ mpi status --workdir /path/to/project
 ```text
                ┌──> working（正在运行 / 正在思考）
                │
-               ├──> waiting-for-input（等待用户输入 / 待处理对话框）
+               ├──> waiting-for-input（extension UI 等待输入）
 Tab Snapshot ──┼──> error（轮次执行失败）
                │
                ├──> finished（已完成且包含未读结果）

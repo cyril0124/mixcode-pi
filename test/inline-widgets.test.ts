@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { EditorComponent, TUI as TuiType } from "@earendil-works/pi-tui";
 import { MixCodeRuntime } from "../src/agent/runtime.js";
-import { parseInput, commandSuggestions } from "../src/core/commands.js";
+import { parseInput } from "../src/core/commands.js";
 import { createInitialState, createTab } from "../src/core/defaults.js";
 import { serializeState } from "../src/core/state-store.js";
-import { activateTab, addAgentTab } from "../src/core/tabs.js";
+import { activateTab } from "../src/core/tabs.js";
 import { CompactPromptEditor, EditorSlot, editorThemeFor } from "../src/ui/app-editor.js";
 import {
   MixCodeFooterRoot,
@@ -157,7 +157,6 @@ test("parseInput accepts /toggle-inline-widgets", () => {
     command: "toggle-inline-widgets",
     args: "",
   });
-  assert.ok(commandSuggestions("/toggle-inline").includes("toggle-inline-widgets"));
 });
 
 test("/toggle-inline-widgets flips inlineWidgets on the active tab", async () => {
@@ -200,7 +199,8 @@ test("activateTab to Home keeps inlineWidgets on the agent", () => {
 test("new tabs inherit ui.inlineWidgets from mixcode settings", () => {
   const state = createInitialState("/repo");
   state.ui = { ...state.ui!, inlineWidgets: true };
-  const tab = addAgentTab(state, "s1", "/repo");
+  const tab = createTab(1, "s1", "/repo", { inlineWidgets: state.ui?.inlineWidgets === true });
+  state.tabs.push(tab);
   assert.equal(tab.inlineWidgets, true);
 });
 

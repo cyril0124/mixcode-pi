@@ -75,18 +75,7 @@ test("waiting tab keeps a colored ? without washing out the title", () => {
   const state = createInitialState("/repo");
   state.theme = "mixcode-dark";
   const tab = createTab(1, "s1", "/repo", { title: "Asker" });
-  tab.pendingDialogs = [
-    {
-      requestId: "q",
-      sessionId: "s1",
-      questions: [],
-      currentQuestionIndex: 0,
-      highlightedOptionIndices: [],
-      selectedAnswers: [],
-      customAnswers: [],
-      dirty: false,
-    },
-  ];
+  tab.extensionUi.waitingForInputs = [{ id: "q", kind: "custom" }];
   state.tabs.push(tab);
   activateTab(state, "s1");
   const line = renderTabBar(state, 80, themeForId("mixcode-dark"))[0] ?? "";

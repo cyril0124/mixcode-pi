@@ -102,14 +102,6 @@ export async function loadBatchRequests(
   return runLuaScript(source, absPath, context);
 }
 
-export async function executeBatchScript(
-  scriptPath: string,
-  host: BatchExecutorHost,
-): Promise<void> {
-  const plan = await loadBatchRequests(scriptPath, contextFromState(host.state));
-  await applyBatchRequests(plan.requests, host);
-}
-
 /**
  * Run the Lua source and collect all mixcode.open_tab() calls.
  * Pure Lua execution — no side effects on the TUI.

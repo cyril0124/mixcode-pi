@@ -33,7 +33,7 @@ Each running instance periodically writes a heartbeat snapshot:
 | `workdir` | string | Main workspace working directory of the process. |
 | `activeTabId` | string | Currently focused tab identifier. |
 | `updatedAt` | string (ISO) | Heartbeat timestamp (updated every 5,000 ms). |
-| `tabs` | array | List of tab snapshots (index, sessionId, title, status, workdir, dialogs). |
+| `tabs` | array | List of tab snapshots (index, sessionId, title, status, workdir, waitingForInputCount). |
 
 ## Tab Status Lifecycle
 
@@ -42,7 +42,7 @@ Individual tabs in a snapshot are derived into one of five operational states:
 ```text
                ┌──> working (running / thinking)
                │
-               ├──> waiting-for-input (pending questions / dialogs)
+               ├──> waiting-for-input (extension UI)
 Tab Snapshot ──┼──> error (failed turn)
                │
                ├──> finished (completed turn with unread result)

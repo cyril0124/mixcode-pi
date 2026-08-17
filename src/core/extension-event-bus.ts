@@ -37,17 +37,11 @@ export function registerExtensionEventBus(services: object, bus: EventBus): void
   busByServices.set(services, bus);
 }
 
-export function extensionEventBusForServices(services: object): EventBus | undefined {
-  return busByServices.get(services);
-}
-
-export function unregisterExtensionEventBus(bus: EventBus | undefined): void {
+export function unregisterExtensionEventBus(services: object): void {
+  const bus = busByServices.get(services);
   if (!bus) return;
   buses.delete(bus);
-}
-
-export function getWaitingForInputCount(): number {
-  return waitingCount;
+  busByServices.delete(services);
 }
 
 /** +1 when a WaitingForInput entry is added, -N when removed. */

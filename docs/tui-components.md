@@ -104,7 +104,6 @@ Covers:
 │                                              Picker / Tree / Session / Fork                      │
 │                                              Workspace Overlay                                   │
 │                                              Notice/Error + console bridge                       │
-│                                              Question dialogs                                    │
 │                                              Extension panel / widgets host                      │
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```

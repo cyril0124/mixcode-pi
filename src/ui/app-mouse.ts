@@ -203,8 +203,7 @@ export function handleMouseInput(
   // but do not let panel selection/scroll steal clicks or drags from the modal.
   const panelInteractive =
     active.panelOpen &&
-    active.extensionUi.waitingForInputs.length === 0 &&
-    active.pendingDialogs.length === 0;
+    active.extensionUi.waitingForInputs.length === 0;
   if (panelInteractive && handlePanelSelectionMouse(active, mouse, tui, copyToClipboard)) {
     return true;
   }

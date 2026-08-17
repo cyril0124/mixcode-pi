@@ -100,7 +100,6 @@ export function createTab(
     thinkingLevel: "medium",
     workdir,
     alias: "",
-    pendingDialogs: [],
     pendingMessages: [],
     pendingFollowUps: [],
     promptHistory: [],
