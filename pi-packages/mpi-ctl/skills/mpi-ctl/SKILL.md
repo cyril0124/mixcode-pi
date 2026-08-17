@@ -145,6 +145,8 @@ timeout: <sec>
 
 Timeout (still `running`/`thinking`) prints `status:` + `timeout:` then fails. Home: `Home has no agent run`.
 
+On `wait-for-input`, run `dump-screen` on that tab and read the **bottom** of the output (question header, options, `Enter to select`). Do not guess the question from `last-message`.
+
 ### `dump-screen`
 
 Default: strip ANSI and trailing spaces. `--ansi` keeps color (still strips trailing spaces).
@@ -184,7 +186,8 @@ Review the current diff for risks only.
 ```text
 mpi ctl --tab <title> wait --timeout 90
 # finished        -> mpi ctl --tab <title> last-message
-# wait-for-input  -> dump-screen or --focus-tab send-keys, then wait again
+# wait-for-input  -> mpi ctl --tab <title> dump-screen  (read the bottom: question/options)
+#                   then --focus-tab send-keys if you must click the overlay; wait again
 # error / timeout -> last-message / dump-screen; do not assume success
 ```
 
@@ -253,7 +256,7 @@ echo "$MIXCODE" "$MIXCODE_TAB_TITLE" "$MIXCODE_FOCUSED_TAB_TITLE"
 mpi status --json
 mpi ctl --pid <n> --tab <other> send-prompt '…'
 mpi ctl --pid <n> --tab <other> wait --timeout 90
-# status: wait-for-input  -> --focus-tab <other> send-keys down Enter
+# status: wait-for-input  -> dump-screen (read the bottom overlay), then maybe --focus-tab send-keys
 # status: finished        -> last-message / last-tool
 ```
 
@@ -262,6 +265,7 @@ mpi ctl --pid <n> --tab <other> wait --timeout 90
 - **Do not start another `mpi` TUI** to inspect a tab. Use `status`/`ctl` against the live process.
 - **`--tab` vs `--focus-tab`:** prefer `--tab` so you do not steal the user's cursor. `--focus-tab` leaves the UI on that tab. `--session` is not an alias of `--focus-session`.
 - **After `send-prompt`, always `wait` then read output.** ACK ≠ finished. Skipping `wait`/`last-message` is a bug.
+- **On `wait-for-input`, `dump-screen` first** and read the bottom of the screen (the question overlay). Then `--focus-tab` + `send-keys` if you must pick an option. Do not answer from `last-message` alone.
 - **Do not preface prompts with “I am &lt;tab&gt;”.** ctl already wraps plain text as `[mpi ctl] from tab: …`. Slash/`!` are not wrapped.
 - **`mpi commands` is TUI slashes (`/compact`), not CLI subcommands (`mpi ctl`).** Slash commands: `send-prompt /compact`, not `send-keys '/compact' Enter`. `send-keys` is for real keypresses (pickers, `down`/`Enter` on a question, `C-q`). `--tab` send-keys is text+Enter only; multi-line body uses `send-prompt <<'EOF'`. `--literal` makes `Enter` the letters E-n-t-e-r.
 - **`--from` and `--to` must both be present.** One alone errors. `1` is newest, print is oldest-first. `last-message` is user+assistant only; tools are `last-tool`.
