@@ -12,27 +12,34 @@ import {
   runStatusCommand as executeStatusCommand,
 } from "./status.js";
 
+function hasMixcodePackages(dir: string): boolean {
+  return fs.existsSync(path.join(dir, "pi-packages")) || fs.existsSync(path.join(dir, "packages"));
+}
+
+/** Walk up from `startDir` until a MixCode install root (`pi-packages/` or `packages/`). */
+function findMixcodeInstallRoot(startDir: string): string {
+  let dir = path.resolve(startDir);
+  while (true) {
+    if (hasMixcodePackages(dir)) return dir;
+    const parent = path.dirname(dir);
+    if (parent === dir) return path.resolve(startDir);
+    dir = parent;
+  }
+}
+
+function selfRootFromEntryUrl(entryUrl = import.meta.url): string {
+  return findMixcodeInstallRoot(path.dirname(fileURLToPath(entryUrl)));
+}
+
 /**
  * Root that contains built-in packages (`pi-packages/` in dev, `packages/` in
  * binary runtime). Prefer this install's tree when it has packages; only then
  * fall back to PI_PACKAGE_DIR (binary materialize path).
  */
 export function resolveMixcodePackageRoot(selfRoot: string, env = process.env): string {
-  // Directory existence: Bun.file().exists() is file-only.
-  if (
-    fs.existsSync(path.join(selfRoot, "pi-packages")) ||
-    fs.existsSync(path.join(selfRoot, "packages"))
-  ) {
-    return selfRoot;
-  }
+  if (hasMixcodePackages(selfRoot)) return selfRoot;
   const fromEnv = env.PI_PACKAGE_DIR?.trim();
-  if (
-    fromEnv &&
-    (fs.existsSync(path.join(fromEnv, "pi-packages")) ||
-      fs.existsSync(path.join(fromEnv, "packages")))
-  ) {
-    return fromEnv;
-  }
+  if (fromEnv && hasMixcodePackages(fromEnv)) return fromEnv;
   return selfRoot;
 }
 
@@ -195,7 +202,7 @@ export function exposeLocalPiCli(
   env: NodeJS.ProcessEnv = process.env,
   entryUrl = import.meta.url,
 ): string {
-  const repoDir = path.resolve(path.dirname(fileURLToPath(entryUrl)), "..", "..");
+  const repoDir = selfRootFromEntryUrl(entryUrl);
   const binDir = path.resolve(repoDir, "node_modules", ".bin");
   // In bun compiled binary, import.meta.url is a virtual path; skip if dir doesn't exist.
   if (!fs.existsSync(binDir)) return binDir;
@@ -276,7 +283,7 @@ export async function main(): Promise<void> {
   }
   if (isCommandsCliArgs(rawArgs)) {
     process.env.MIXCODE ??= "1";
-    const selfRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+    const selfRoot = selfRootFromEntryUrl();
     try {
       await runCommandsCommand(rawArgs.slice(1), { packageRoot: selfRoot });
     } catch (error) {
@@ -294,7 +301,7 @@ export async function main(): Promise<void> {
 
   // Built-in package install root is MixCode's own tree (pi-packages/ or packages/),
   // not Pi's PI_PACKAGE_DIR.
-  const selfRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+  const selfRoot = selfRootFromEntryUrl();
 
   if (shouldDelegateToRealPiCli(rawArgs, Boolean(process.stdin.isTTY))) {
     process.exitCode = await delegateToRealPiCli(rawArgs);
