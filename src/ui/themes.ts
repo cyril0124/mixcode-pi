@@ -975,12 +975,7 @@ export function listThemeInfos(): ThemeInfo[] {
 }
 
 function isLightThemeName(name: string): boolean {
-  try {
-    // Prefer Pi helper when the theme is loadable as JSON; fall back to id.
-    return name === "light";
-  } catch {
-    return false;
-  }
+  return name === "light";
 }
 
 export function themeForId(themeId: string): MixCodeTheme {

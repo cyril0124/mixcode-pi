@@ -4,7 +4,7 @@ import {
   appendEmptyRunNotice,
   appendPreviewMessage,
   appendSystemMessage,
-  assistantDisplayText,
+  assistantText,
   contextTokensFromUsage,
   customEntryToChatLine,
   customMessageToChatLine,
@@ -327,7 +327,7 @@ export function appendMessageStart(runtimeTab: RuntimeTab, message: AgentMessage
     appendPreviewMessage(runtimeTab.tab, "system", line.text || line.title || "extension message");
   } else if (message.role === "assistant") {
     const indices = syncAssistantBlocks(runtimeTab, message);
-    const text = assistantDisplayText(runtimeTab.tab, message);
+    const text = assistantText(message.content);
     const previewIndex = appendPreviewMessage(runtimeTab.tab, "assistant", text);
     runtimeTab.streamingAssistant = {
       chatIndex: indices.chatIndex,
@@ -360,7 +360,7 @@ export function updateStreamingAssistant(
   message: AssistantMessage,
   options: { final?: boolean } = {},
 ): void {
-  const text = assistantDisplayText(runtimeTab.tab, message);
+  const text = assistantText(message.content);
   let streaming = runtimeTab.streamingAssistant;
   if (!streaming) {
     const indices = syncAssistantBlocks(runtimeTab, message);

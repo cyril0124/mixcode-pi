@@ -48,7 +48,6 @@ import {
   renderWorkingIndicator,
   fitHeadLines,
   fitTailLines,
-  titledBox,
   themeForId,
 } from "../src/index.js";
 

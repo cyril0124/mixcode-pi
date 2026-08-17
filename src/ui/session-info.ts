@@ -9,14 +9,6 @@ import {
   type SessionEntry,
 } from "@earendil-works/pi-coding-agent";
 
-export {
-  computeCacheWaste,
-  getUsageCostBreakdown,
-  type CacheWasteTotals,
-  type ModelPriceSource,
-  type UsageCostBreakdownEntry,
-} from "@earendil-works/pi-coding-agent";
-
 export type SessionStatsLike = {
   sessionFile?: string;
   sessionId: string;

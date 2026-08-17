@@ -8,18 +8,10 @@
 export {
   Theme,
   getAvailableThemes,
-  getAvailableThemesWithPaths,
-  getEditorTheme,
   getMarkdownTheme,
-  getSelectListTheme,
   getThemeByName,
   highlightCode,
   initTheme,
-  isLightTheme,
-  loadThemeFromPath,
   setRegisteredThemes,
-  setTheme as applyPiThemeByName,
   setThemeInstance as applyPiThemeInstance,
-  type ThemeBg,
-  type ThemeColor,
 } from "@earendil-works/pi-coding-agent";

@@ -147,12 +147,6 @@ async function waitOutPostAbortCompactAndResume(agentSession: AgentSession): Pro
   }
 }
 
-export function consumeDeferredPendingMessageFlush(runtimeTab: RuntimeTab): boolean {
-  if (!runtimeTab.deferPendingMessageFlush) return false;
-  runtimeTab.deferPendingMessageFlush = false;
-  return true;
-}
-
 /**
  * Pop one queued message for Ctrl+U edit. Prefer follow-up (user is more often
  * revising "do this after") then fall back to steer.

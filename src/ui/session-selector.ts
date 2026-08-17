@@ -21,10 +21,10 @@ import { activateTab, closeAgentTab, getActiveTab } from "../core/tabs.js";
 import { pushToast } from "../core/toast.js";
 import { HOME_TAB_ID, type MixCodeState, type MixCodeTabInfo } from "../core/types.js";
 import { showErrorOverlay } from "./app-overlays.js";
+import type { SessionListProgress } from "../agent/runtime-session.js";
+export type { SessionListProgress };
 import type { MixCodeKeyRuntime, OverlayTui } from "./app-types.js";
 import type { AuthInputHost } from "./app-submit.js";
-
-export type SessionListProgress = (loaded: number, total: number) => void;
 
 export function findOpenSessionTab(
   state: MixCodeState,

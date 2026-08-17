@@ -241,11 +241,6 @@ export interface RuntimeTab {
    * the run next, so the following agent_start must not restart the timer.
    */
   sdkRunContinuation?: boolean;
-  /**
-   * When true, agent_end skips auto-flush of queued prompts once.
-   * Used by tests and any path that must suppress the idle resend.
-   */
-  deferPendingMessageFlush?: boolean;
   /** True while compactSession owns a manual compact (covers SDK pre-isCompacting gap). */
   compactionInFlight?: boolean;
   /** Gate to serialize prompt dispatch decisions (user submit, queued flush) at idle→active transition */

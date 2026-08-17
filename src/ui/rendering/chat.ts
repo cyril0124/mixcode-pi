@@ -123,25 +123,6 @@ export function renderChatBlock(
 }
 
 /**
- * Return the cached rendered height for a chat block under the current
- * (theme, width, tab) context, or undefined if it hasn't been rendered yet.
- * Used by the windowed renderer to estimate total scroll height without
- * forcing every block to render.
- */
-export function cachedChatBlockHeight(
-  line: ChatLine,
-  width: number,
-  tab?: MixCodeTabInfo,
-  theme = activeRenderTheme,
-): number | undefined {
-  const expectedKey = renderWithTheme(theme, () => chatLineRenderCacheKey(line, width, tab));
-  if (!expectedKey) return undefined;
-  const cached = chatLineRenderCache.get(line);
-  if (cached?.key === expectedKey) return cached.lines.length;
-  return undefined;
-}
-
-/**
  * Render the empty-state placeholder shown when the chat is empty. Pulled out
  * so windowed renderers can short-circuit with the same output as
  * renderConversation for that edge case.

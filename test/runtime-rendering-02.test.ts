@@ -4,7 +4,7 @@ import * as fsPromises from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
 import { test } from "node:test";
-import { cachedChatBlockHeight, createTab, MixCodeRuntime, renderChat } from "../src/index.js";
+import { createTab, MixCodeRuntime, renderChat } from "../src/index.js";
 
 function stripAnsi(text: string): string {
   return text
@@ -128,17 +128,12 @@ test("extension messages use custom renderers and fall back to text", () => {
   assert.match(plain, /fallback after empty render/);
 });
 
-test("stable assistant markdown stays height-cached when only streaming text changes", () => {
-  // Windowed scroll uses cachedChatBlockHeight so unchanged history lines must
-  // remain cacheable while the streaming tail mutates.
+test("stable assistant markdown stays visible when only streaming text changes", () => {
   const stable = { role: "assistant" as const, text: "stable **history**" };
   const streaming = { role: "assistant" as const, text: "partial one" };
   renderChat([stable, streaming], 80);
-  const height = cachedChatBlockHeight(stable, 80);
-  assert.ok(height !== undefined, "stable line must be cached after first render");
   streaming.text = "partial two";
   const out = stripAnsi(renderChat([stable, streaming], 80).join("\n"));
-  assert.equal(cachedChatBlockHeight(stable, 80), height);
   assert.match(out, /stable history/);
   assert.match(out, /partial two/);
 });

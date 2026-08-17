@@ -7,7 +7,6 @@ import {
   MixCodeFooterRoot,
   MixCodeLayoutRoot,
   MixCodeRoot,
-  TERMINAL_SCROLL_GUARD_ROWS,
 } from "../src/ui/app-layout.js";
 import type { EditorSlot } from "../src/ui/app-editor.js";
 import { renderExtensionFooter, renderFooter } from "../src/ui/rendering.js";
@@ -101,9 +100,8 @@ function buildRealLayoutWithEditor(editorLines: string[], viewportRows: number, 
       editorRows +
       metaRows +
       renderExtensionFooter(getActiveTab(state), width).length +
-      renderFooter(width).length +
-      TERMINAL_SCROLL_GUARD_ROWS,
-  );
+      renderFooter(width).length
+    );
   const editor = fakeEditor(editorLines);
   const layout = new MixCodeLayoutRoot(
     state,
@@ -152,9 +150,8 @@ function buildRealLayoutWithDynamicEditor(
       editorRows +
       metaRows +
       renderExtensionFooter(getActiveTab(state), width).length +
-      renderFooter(width).length +
-      TERMINAL_SCROLL_GUARD_ROWS,
-  );
+      renderFooter(width).length
+    );
   const layout = new MixCodeLayoutRoot(
     state,
     main,
@@ -177,6 +174,7 @@ function buildRealLayoutWithBtwStyleEditor(viewportRows: number) {
   const editor = {
     render: () => borderedPagerLines(embeddedTerminalRows),
     invalidate: () => undefined,
+    isShowingAutocomplete: () => false,
     setEmbeddedTerminalRows: (rows: number) => {
       if (embeddedTerminalRows === rows) return false;
       embeddedTerminalRows = rows;
@@ -193,6 +191,7 @@ function buildRealLayoutWithTreeEditor(viewportRows: number) {
   const editor = {
     render: (width: number) => renderTreeSelector(editorState!, width, editorMaxRows),
     invalidate: () => undefined,
+    isShowingAutocomplete: () => false,
     setEmbeddedTerminalRows: () => false,
     setEditorMaxRows: (rows: number | undefined) => {
       if (editorMaxRows === rows) return false;
@@ -380,6 +379,7 @@ function buildRealLayoutWithComposerEditor(viewportRows: number) {
     // are reserved — the old clamp then drops EDITOR-CONTENT.
     render: () => composerPagerLines(embeddedTerminalRows, 16),
     invalidate: () => undefined,
+    isShowingAutocomplete: () => false,
     setEmbeddedTerminalRows: (rows: number | undefined) => {
       const next = rows ?? viewportRows;
       if (embeddedTerminalRows === next) return false;

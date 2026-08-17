@@ -9,7 +9,6 @@ import {
   type ChatSelectionState,
   type ChatSurfaceBounds,
   highlightChatSelectionLine,
-  selectedChatText,
 } from "../core/chat-selection.js";
 import { editTextInExternalEditor } from "../core/external-editor.js";
 import type { OverlayTui } from "./app-types.js";
@@ -46,11 +45,6 @@ export function hasActiveNotice(): boolean {
 export function setActiveNoticeSelection(selection: ChatSelectionState | undefined): void {
   if (!activeNotice) return;
   activeNotice.selection = selection;
-}
-
-export function selectedNoticeText(): string {
-  if (!activeNotice?.selection) return "";
-  return selectedChatText(activeNotice.renderedLines, activeNotice.selection);
 }
 
 /** Copy the full active Notice body. Used by app key handler and tests. */

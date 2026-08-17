@@ -5,7 +5,6 @@ import {
   MixCodeFooterRoot,
   MixCodeLayoutRoot,
   MixCodeRoot,
-  TERMINAL_SCROLL_GUARD_ROWS,
 } from "../src/ui/app-layout.js";
 import type { EditorSlot } from "../src/ui/app-editor.js";
 import { renderExtensionFooter, renderFooter } from "../src/ui/rendering.js";
@@ -21,6 +20,7 @@ function fakeEditor(lines: string[]): EditorSlot {
   return {
     render: () => lines,
     invalidate: () => undefined,
+    isShowingAutocomplete: () => false,
     setEmbeddedTerminalRows: () => false,
     setEditorMaxRows: () => false,
   } as unknown as EditorSlot;
@@ -43,9 +43,8 @@ function buildLayout(viewportRows: number, width = 80) {
       editorRows +
       metaRows +
       renderExtensionFooter(getActiveTab(state), width).length +
-      renderFooter(width).length +
-      TERMINAL_SCROLL_GUARD_ROWS,
-  );
+      renderFooter(width).length
+    );
   const editor = fakeEditor(["editor-line-0", "editor-line-1"]);
   const layout = new MixCodeLayoutRoot(
     state,

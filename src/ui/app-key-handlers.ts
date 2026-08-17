@@ -43,11 +43,12 @@ import {
   applyModelSelection,
   applyThinkingLevel,
   applyWorkdirSelection,
+} from "./app-actions.js";
+import {
   armPendingEscape,
   clearPendingEscape,
-  hasPendingEscape,
   isPendingEscapeActive,
-} from "./app-actions.js";
+} from "../core/escape.js";
 import {
   closeAppOverlay,
   hasAnyOverlay,

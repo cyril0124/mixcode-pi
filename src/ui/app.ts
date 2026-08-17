@@ -16,7 +16,6 @@ import {
   MixCodeLayoutRoot,
   MixCodeRoot,
   renderVisibleTabBar,
-  TERMINAL_SCROLL_GUARD_ROWS,
 } from "./app-layout.js";
 import { editTextWithTuiPaused, errorMessage, showErrorOverlay } from "./app-overlays.js";
 import {
@@ -106,8 +105,7 @@ export function createMixCodeTui(
         editorRows +
         metaRows +
         renderExtensionFooter(active, tui.terminal.columns).length +
-        renderFooter(tui.terminal.columns).length +
-        TERMINAL_SCROLL_GUARD_ROWS
+        renderFooter(tui.terminal.columns).length
       );
     },
     // Custom input skins only (setEditorComponent), not temporary dialog overrides.

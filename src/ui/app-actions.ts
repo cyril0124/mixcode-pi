@@ -31,16 +31,7 @@ import {
   showNoticeTextOverlay,
 } from "./app-overlays.js";
 import type { OverlayTui } from "./app-types.js";
-import { shutdownRuntimeAndStopTui, type RuntimeQuitTarget } from "./quit.js";
 import { themeForId } from "./themes.js";
-
-export {
-  armPendingEscape,
-  clearPendingEscape,
-  hasPendingEscape,
-  isPendingEscapeActive,
-  PENDING_ESCAPE_CONFIRM_WINDOW_MS,
-} from "../core/escape.js";
 
 export function applyThinkingLevel(
   state: MixCodeState,
@@ -278,12 +269,4 @@ export function showSystemMessageOrToast(
     return;
   }
   runtime.appendSystemMessage(active.sessionId, message, kind);
-}
-
-export async function closeRuntimeAndStop(
-  runtime: RuntimeQuitTarget | undefined,
-  tui: OverlayTui,
-): Promise<void> {
-  await shutdownRuntimeAndStopTui(runtime, tui);
-  tui.requestRender();
 }

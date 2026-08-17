@@ -47,7 +47,6 @@ import {
   renderWorkingIndicator,
   fitHeadLines,
   fitTailLines,
-  titledBox,
   themeForId,
 } from "../src/index.js";
 
@@ -275,7 +274,6 @@ test("runtime queues prompts while busy, pops them, and flushes when idle", asyn
 
     assert.equal(runtime.popPendingMessage("s1"), "second queued");
     assert.deepEqual(tab.pendingMessages, ["first queued"]);
-    runtimeTab.deferPendingMessageFlush = true;
     release();
     await prompt;
     assert.ok(runtimeTab.chat.some((line) => line.text.includes("first queued")));
@@ -310,7 +308,6 @@ test("runtime pop removes matching Pi steering queue entries", async () => {
     assert.deepEqual(tab.pendingMessages, ["first queued"]);
     assert.equal(runtimeTab.queuedPromptCount, 1);
     assert.deepEqual([...runtimeTab.agentSession.getSteeringMessages()], ["first queued"]);
-    runtimeTab.deferPendingMessageFlush = true;
     release();
     await prompt;
   } finally {
@@ -348,7 +345,6 @@ test("runtime pop prefers follow-up over steer (Ctrl+U edit order)", async () =>
     assert.equal(runtimeTab.queuedPromptCount, 0);
     assert.deepEqual([...runtimeTab.agentSession.getSteeringMessages()], []);
 
-    runtimeTab.deferPendingMessageFlush = true;
     release();
     await prompt;
   } finally {
@@ -383,7 +379,6 @@ test("runtime consecutive pops remove every returned steering message", async ()
     assert.deepEqual(tab.pendingMessages, ["first queued"]);
     assert.equal(runtimeTab.queuedPromptCount, 1);
     assert.deepEqual([...runtimeTab.agentSession.getSteeringMessages()], ["first queued"]);
-    runtimeTab.deferPendingMessageFlush = true;
   } finally {
     release();
     await prompt?.catch(() => undefined);
@@ -420,7 +415,6 @@ test("runtime pop tolerates agent queue already drained for a tracked steer", as
     assert.deepEqual(tab.pendingMessages, []);
     assert.deepEqual(session._steeringMessages, []);
     assert.deepEqual(session.agent.steeringQueue.messages, []);
-    runtimeTab.deferPendingMessageFlush = true;
   } finally {
     release();
     await prompt?.catch(() => undefined);
@@ -456,7 +450,6 @@ test("runtime pop preserves an unrelated custom follow-up", async () => {
     assert.equal(runtime.popPendingMessage("s1"), "edit me");
     assert.deepEqual([...runtimeTab.agentSession.getSteeringMessages()], []);
     assert.equal(runtimeTab.agent.hasQueuedMessages(), true);
-    runtimeTab.deferPendingMessageFlush = true;
   } finally {
     release();
     await prompt?.catch(() => undefined);

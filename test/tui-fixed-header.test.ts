@@ -14,7 +14,6 @@ import {
   renderAgentSurface,
   renderCommandPalette,
   renderTabJumpOverlay,
-  renderFixedTopViewport,
 } from "../src/ui/rendering.js";
 import { createInitialState, createTab } from "../src/core/defaults.js";
 import type { MixCodeTabInfo } from "../src/core/types.js";
@@ -32,23 +31,6 @@ function createMixCodeTui(
   }
   return createProductionMixCodeTui(...args);
 }
-
-test("fixed top viewport keeps top rows while clipping growing middle content", () => {
-  assert.deepEqual(renderFixedTopViewport(["header", "tabs"], ["old", "new"], ["input"], 4), [
-    "header",
-    "tabs",
-    "new",
-    "input",
-  ]);
-  assert.deepEqual(renderFixedTopViewport(["header"], ["hidden"], ["input"], 2), [
-    "header",
-    "input",
-  ]);
-  assert.deepEqual(renderFixedTopViewport(["header", "tabs"], ["hidden"], ["input"], 1), [
-    "header",
-  ]);
-  assert.deepEqual(renderFixedTopViewport(["header"], ["hidden"], ["input"], 0), []);
-});
 
 test("head and tail clipping helpers cover empty, one-row, and unchanged layouts", () => {
   assert.deepEqual(fitTailLines(["a"], 2, 10), ["a"]);

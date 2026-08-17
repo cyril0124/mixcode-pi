@@ -1,12 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 import {
   computeCacheWaste,
-  formatSessionTokens,
   getUsageCostBreakdown,
-  renderSessionInfoText,
-} from "../src/ui/session-info.js";
+  type SessionEntry,
+} from "@earendil-works/pi-coding-agent";
+import { formatSessionTokens, renderSessionInfoText } from "../src/ui/session-info.js";
 
 function usage(
   input: number,

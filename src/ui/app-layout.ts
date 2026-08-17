@@ -35,7 +35,6 @@ import {
 } from "./rendering.js";
 import { themeForId, type MixCodeTheme } from "./themes.js";
 
-export const TERMINAL_SCROLL_GUARD_ROWS = 0;
 const WORKING_GAP_ROWS = 1;
 // Horizontal rule under the tab bar (renderTabBarSeparator). Always reserve so
 // a tall custom editor cannot squeeze main down to tabs-only and drop it.
@@ -461,8 +460,7 @@ export class MixCodeLayoutRoot implements Component {
             footerLines.length,
         )
       : 0;
-    const guardRows = Math.min(TERMINAL_SCROLL_GUARD_ROWS, floatingRows);
-    const spacerRows = Math.max(0, floatingRows - guardRows);
+    const spacerRows = floatingRows;
     const editorTop =
       mainLines.length +
       spacerRows +
@@ -517,7 +515,6 @@ export class MixCodeLayoutRoot implements Component {
       ...widgetsBelow,
       ...metaLines,
       ...footerLines,
-      ...Array.from({ length: guardRows }, () => padLine("", Math.max(0, width - 1))),
     ];
     return active && this.state.activeTabId !== HOME_TAB_ID
       ? renderFloatingPanelOverlay(assembled, active.floatingPanel, {

@@ -11,7 +11,6 @@ import {
   MixCodeFooterRoot,
   MixCodeLayoutRoot,
   MixCodeRoot,
-  TERMINAL_SCROLL_GUARD_ROWS,
 } from "../src/ui/app-layout.js";
 import { handleSubmittedInput } from "../src/ui/app-submit.js";
 import type { OverlayTui } from "../src/ui/app-types.js";
@@ -78,6 +77,7 @@ function fakeEditor(lines: string[]): EditorSlotType {
   return {
     render: () => lines,
     invalidate: () => undefined,
+    isShowingAutocomplete: () => false,
     setEmbeddedTerminalRows: () => false,
     setEditorMaxRows: () => false,
   } as unknown as EditorSlotType;
@@ -99,9 +99,8 @@ function buildLayout(viewportRows: number, width = 80) {
       editorRows +
       metaRows +
       renderExtensionFooter(tab, width).length +
-      renderFooter(width).length +
-      TERMINAL_SCROLL_GUARD_ROWS,
-  );
+      renderFooter(width).length
+    );
   const layout = new MixCodeLayoutRoot(
     state,
     main,

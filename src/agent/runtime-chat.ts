@@ -30,10 +30,6 @@ import {
 } from "./runtime-tool-chat.js";
 import type { ChatLine, CustomMessageLike, RuntimeTab } from "./runtime-types.js";
 
-export function assistantDisplayText(_tab: MixCodeTabInfo, message: AssistantMessage): string {
-  return assistantText(message.content);
-}
-
 /**
  * Pi interactive-mode display kinds:
  * - status: showStatus (consecutive lines coalesce / replace)

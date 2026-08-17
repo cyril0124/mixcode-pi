@@ -21,22 +21,6 @@ export function joinColumns(
   );
 }
 
-export function renderFixedTopViewport(
-  top: string[],
-  middle: string[],
-  bottom: string[],
-  maxRows: number,
-): string[] {
-  const limit = Math.max(0, Math.floor(maxRows));
-  if (limit === 0) return [];
-  if (top.length >= limit) return top.slice(0, limit);
-  const bottomLimit = Math.max(0, limit - top.length);
-  const visibleBottom = bottom.slice(0, bottomLimit);
-  const middleLimit = Math.max(0, limit - top.length - visibleBottom.length);
-  const visibleMiddle = middleLimit > 0 ? middle.slice(-middleLimit) : [];
-  return [...top, ...visibleMiddle, ...visibleBottom];
-}
-
 export function fitTailLines(lines: string[], maxHeight: number, width: number): string[] {
   const height = Math.max(0, Math.floor(maxHeight));
   if (height === 0) return [];

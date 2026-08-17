@@ -49,15 +49,13 @@ import {
   createMixCodeExtensionUiContext,
   disposeExtensionWidgets,
 } from "./runtime-extension-ui.js";
-import { consumeDeferredPendingMessageFlush } from "./runtime-follow-up.js";
+
 import {
   buildMixCodeSystemPromptOverride,
   registerMixCodeRuntimeProvider,
   runtimeRetryNormalizationExtension,
 } from "./runtime-provider.js";
 import { refreshStartupHeader } from "./runtime-startup-header.js";
-
-export { refreshStartupHeader } from "./runtime-startup-header.js";
 
 import {
   bindRuntimeSessionCore,
@@ -757,7 +755,6 @@ export function subscribeRuntimeTab(runtimeTab: RuntimeTab, context: RuntimeLife
   runtimeTab.agentSession.subscribe((event: AgentSessionEvent) => {
     context.applyEvent(runtimeTab, event);
     if (event.type === "agent_end") {
-      if (consumeDeferredPendingMessageFlush(runtimeTab)) return;
       context.schedulePendingMessageFlush(runtimeTab.tab.sessionId, runtimeTab.agentSession);
     }
   });

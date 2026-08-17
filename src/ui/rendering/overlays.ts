@@ -18,7 +18,7 @@ import { tabStatusGlyph } from "./chrome.js";
 import { activeRenderTheme, renderWithTheme } from "./context.js";
 import { highlightRanges } from "./highlight.js";
 import { centerLine } from "./layout.js";
-import { overlayPanel, padLine, panelBox, renderBoxTop } from "./primitives.js";
+import { overlayPanel, padLine, renderBoxTop } from "./primitives.js";
 import { applyToastOverlay } from "./toast-overlay.js";
 import { halfScreenRows, windowStart } from "./scroll-window.js";
 

@@ -14,11 +14,10 @@ import {
   extensionThemeByName,
   MIXCODE_EXTENSION_THEME,
 } from "../src/agent/runtime-extension-theme.js";
+import { clearPendingEscape } from "../src/core/escape.js";
 import {
   appendActiveSystemMessage,
   applyModelSelection,
-  clearPendingEscape,
-  closeRuntimeAndStop,
   showSystemMessageOrToast,
 } from "../src/ui/app-actions.js";
 import {
@@ -147,19 +146,6 @@ test("system messages go to the active tab; config falls back to overlay toast",
     () => appendActiveSystemMessage(state, { appendSystemMessage: () => undefined } as never, "x"),
     /No active tab/,
   );
-});
-
-test("closeRuntimeAndStop stops the TUI then closes tabs", async () => {
-  await assert.rejects(
-    closeRuntimeAndStop(undefined, { requestRender: () => undefined }),
-    /TUI stop/,
-  );
-  const closed: string[] = [];
-  await closeRuntimeAndStop(
-    { closeAllTabs: async () => closed.push("closed") },
-    { stop: () => closed.push("stopped"), requestRender: () => closed.push("render") },
-  );
-  assert.deepEqual(closed, ["stopped", "closed", "render"]);
 });
 
 test("active extension commands come from the active tab, or all tabs on config", () => {

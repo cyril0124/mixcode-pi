@@ -163,7 +163,7 @@ export function reloadMixCodeUserKeybindings(): void {
 
 export function currentExtensionTheme(host?: ExtensionThemeHost | undefined): Theme {
   const raw = host?.getTheme() ?? getActiveExtensionThemeId();
-  const current = normalizeExtensionThemeId(raw) ?? raw;
+  const current = normalizeThemeId(raw) ?? raw;
   return extensionThemeByName(current) ?? MIXCODE_EXTENSION_THEME;
 }
 
@@ -177,7 +177,7 @@ export function availableExtensionThemes(): Array<{ name: string; path: string |
 }
 
 export function extensionThemeByName(name: string): Theme | undefined {
-  const themeId = normalizeExtensionThemeId(name) ?? name.trim();
+  const themeId = normalizeThemeId(name) ?? name.trim();
   return resolvePiTheme(themeId);
 }
 
@@ -207,7 +207,7 @@ export function applyExtensionTheme(
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   }
-  const themeId = normalizeExtensionThemeId(theme);
+  const themeId = normalizeThemeId(theme);
   if (!themeId) return { success: false, error: `Unknown theme: ${theme}` };
   const piTheme = resolvePiTheme(themeId);
   if (!piTheme) return { success: false, error: `Unknown theme: ${theme}` };
@@ -221,10 +221,6 @@ export function applyExtensionTheme(
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
-}
-
-export function normalizeExtensionThemeId(name: string): string | undefined {
-  return normalizeThemeId(name);
 }
 
 // Tracks whether the SDK global theme was initialized for syntax highlighting.
