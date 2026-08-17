@@ -24,6 +24,8 @@ export interface StartInstanceCtlServerOptions {
   submitToTab?: (tab: MixCodeTabInfo, text: string) => void | Promise<void>;
   requestRender?: () => void;
   screenWidth?: () => number;
+  /** Focused-tab dump: live TUI children (chrome + editor slot). Overlays are appended separately. */
+  renderTui?: (width: number) => string[];
 }
 
 export function resolveCtlFocusSessionId(
@@ -102,6 +104,29 @@ function withPreamble(
     time: extras.time,
     messages: extras.messages,
   })}${body}`;
+}
+
+export const CTL_DUMP_OVERLAY_MIN_WIDTH = 100;
+
+export function resolveCtlDumpWidths(
+  requestWidth: number | undefined,
+  liveWidth: number,
+): { dumpWidth: number; overlayWidth: number } {
+  const dumpWidth = Math.max(20, requestWidth ?? liveWidth);
+  const overlayWidth = Math.max(20, requestWidth ?? Math.max(liveWidth, CTL_DUMP_OVERLAY_MIN_WIDTH));
+  return { dumpWidth, overlayWidth };
+}
+
+function renderCtlOverlayDump(
+  runtimeTab: { extensionCustomOverlayComponents?: Iterable<{ render: (width: number) => string[] }> } | undefined,
+  width: number,
+): string[] {
+  if (!runtimeTab?.extensionCustomOverlayComponents) return [];
+  const lines: string[] = [];
+  for (const component of runtimeTab.extensionCustomOverlayComponents) {
+    lines.push(...component.render(width));
+  }
+  return lines;
 }
 
 export function wrapCtlSubmitText(text: string, fromTabTitle?: string): string {
@@ -428,18 +453,32 @@ export async function handleCtlRequest(
       return { ok: true, text: wrap(body) };
     }
     if (request.op === "dump-screen") {
-      const width = Math.max(20, options.screenWidth?.() ?? process.stdout.columns ?? 80);
-      if (sessionId === HOME_TAB_ID) {
-        return { ok: true, text: wrap(renderConfig(options.state, width).join("\n")) };
-      }
-      const tab =
-        options.state.tabs.find((candidate) => candidate.sessionId === sessionId) ??
-        (sessionId === options.state.activeTabId ? getActiveTab(options.state) : undefined);
-      if (!tab) throw new Error(`Unknown session: ${sessionId}`);
-      return {
-        ok: true,
-        text: wrap(renderAgentSurface(tab, options.runtime.getTab(sessionId), width).join("\n")),
-      };
+      const liveWidth = Math.max(20, options.screenWidth?.() ?? process.stdout.columns ?? 80);
+      const { dumpWidth, overlayWidth } = resolveCtlDumpWidths(request.width, liveWidth);
+      // --tab/--session always dump that tab's surface. Live TUI chrome is only
+      // for implied focus / --focus-* (otherwise a focused --tab leaks the workspace).
+      const useLiveTui =
+        Boolean(options.renderTui) &&
+        sessionId === options.state.activeTabId &&
+        !request.tabTitle &&
+        !request.sessionId;
+      const base =
+        useLiveTui
+          ? options.renderTui!(dumpWidth)
+          : sessionId === HOME_TAB_ID
+            ? renderConfig(options.state, dumpWidth)
+            : (() => {
+                const tab =
+                  options.state.tabs.find((candidate) => candidate.sessionId === sessionId) ??
+                  (sessionId === options.state.activeTabId
+                    ? getActiveTab(options.state)
+                    : undefined);
+                if (!tab) throw new Error(`Unknown session: ${sessionId}`);
+                return renderAgentSurface(tab, options.runtime.getTab(sessionId), dumpWidth);
+              })();
+      const overlay = renderCtlOverlayDump(options.runtime.getTab(sessionId), overlayWidth);
+      const body = overlay.length === 0 ? base.join("\n") : `${base.join("\n")}\n${overlay.join("\n")}`;
+      return { ok: true, text: wrap(body) };
     }
     throw new Error(`Unknown ctl op: ${(request as { op: string }).op}`);
   } catch (error) {

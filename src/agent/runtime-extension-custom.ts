@@ -84,6 +84,7 @@ export function createExtensionCustomOverlay<T>(
       settled = true;
       runtimeTab.extensionCustomOverlayClosers.delete(closeWithoutResult);
       if (handle) runtimeTab.extensionCustomOverlayHandles.delete(handle);
+      if (component) runtimeTab.extensionCustomOverlayComponents.delete(component);
       removeWaitingForInput(runtimeTab, interactionId);
       handle?.hide();
       try {
@@ -122,6 +123,7 @@ export function createExtensionCustomOverlay<T>(
           resolveOverlayRows(hostTerminal.rows, overlayOptions);
         handle = host.tui.showOverlay(component, overlayOptions);
         runtimeTab.extensionCustomOverlayHandles.add(handle);
+        runtimeTab.extensionCustomOverlayComponents.add(component);
         options?.onHandle?.(handle);
         requestRender();
       })
@@ -130,6 +132,7 @@ export function createExtensionCustomOverlay<T>(
         settled = true;
         runtimeTab.extensionCustomOverlayClosers.delete(closeWithoutResult);
         if (handle) runtimeTab.extensionCustomOverlayHandles.delete(handle);
+        if (component) runtimeTab.extensionCustomOverlayComponents.delete(component);
         removeWaitingForInput(runtimeTab, interactionId);
         try {
           component?.dispose?.();

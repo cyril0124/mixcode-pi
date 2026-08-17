@@ -218,6 +218,8 @@ export interface RuntimeTab {
   extensionDialogResolvers: Map<string, ExtensionDialogResolver>;
   extensionCustomOverlayClosers: Set<ExtensionCustomOverlayCloser>;
   extensionCustomOverlayHandles: Set<OverlayHandle>;
+  /** Live custom overlay components; dump-screen renders these. */
+  extensionCustomOverlayComponents: Set<Component>;
   extensionAutocompleteProviderFactories: ExtensionAutocompleteProviderFactory[];
   extensionManagerEntries: ExtensionManagerEntry[];
   extensionAutocompleteProviderCache?: ExtensionAutocompleteProviderCache;

@@ -348,6 +348,7 @@ export async function runInteractiveApp(args: MainArgs, selfRoot: string): Promi
       ),
     requestRender: () => tui.requestRender(),
     screenWidth: () => tui.terminal.columns,
+    renderTui: (width) => tui.render(width),
   });
   // Registry cleanup and initial snapshot are deferred to after the first frame.
   // They are cheap on their own (~10ms), but their `await` yields the event loop

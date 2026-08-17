@@ -20,6 +20,7 @@ import {
   formatCtlTime,
   handleCtlRequest,
   IMPLIED_FOCUS_REASON,
+  resolveCtlDumpWidths,
   startInstanceCtlServer,
   wrapCtlSubmitText,
 } from "../src/core/instance-ctl-server.js";
@@ -78,6 +79,10 @@ test("parseCtlArgs parses target flags and send-keys tokens", () => {
   );
   assert.equal(parseCtlArgs(["dump-screen"], "/caller").ansi, false);
   assert.equal(parseCtlArgs(["dump-screen", "--ansi"], "/caller").ansi, true);
+  assert.equal(parseCtlArgs(["dump-screen", "--width", "120"], "/caller").width, 120);
+  assert.throws(() => parseCtlArgs(["wait", "--width", "80"], "/caller"), /only applies to dump-screen/);
+  assert.deepEqual(resolveCtlDumpWidths(undefined, 40), { dumpWidth: 40, overlayWidth: 100 });
+  assert.deepEqual(resolveCtlDumpWidths(60, 40), { dumpWidth: 60, overlayWidth: 60 });
   const waitDefault = parseCtlArgs(["wait"], "/caller");
   assert.equal(waitDefault.op, "wait");
   assert.equal(ctlClientTimeoutMs({ op: "last-message" }), 10_000);
@@ -246,6 +251,11 @@ test("handleCtlRequest last-assistant-message send-keys and dump-screen", async 
                 { role: "assistant", text: "older" },
                 { role: "assistant", text: "from gif" },
               ],
+              extensionCustomOverlayComponents: new Set([
+                {
+                  render: (width: number) => [`Ask User Question w=${width}`, "  [x] yes"],
+                },
+              ]),
             }
           : undefined,
   } as unknown as MixCodeRuntime;
@@ -268,10 +278,25 @@ test("handleCtlRequest last-assistant-message send-keys and dump-screen", async 
   assert.equal(keys.ok, true);
   assert.deepEqual(injected, ["/compact", "\r"]);
   assert.equal(keys.text, `tab: gif\nsession: s2\nreason: ${IMPLIED_FOCUS_REASON}\n\n`);
-  const screen = await handleCtlRequest({ op: "dump-screen" }, opts);
+  const screen = await handleCtlRequest({ op: "dump-screen" }, { ...opts, screenWidth: () => 40 });
   assert.equal(screen.ok, true);
   assert.match(screen.text ?? "", /^tab: gif\nsession: s2\nreason:/);
   assert.match(screen.text ?? "", /from gif/);
+  assert.match(screen.text ?? "", /Ask User Question w=100/);
+  assert.match(screen.text ?? "", /\[x\] yes/);
+  const wide = await handleCtlRequest({ op: "dump-screen", width: 60 }, { ...opts, screenWidth: () => 40 });
+  assert.match(wide.text ?? "", /Ask User Question w=60/);
+  const liveOpts = {
+    ...opts,
+    screenWidth: () => 40,
+    renderTui: () => ["LIVE TUI"],
+  };
+  const live = await handleCtlRequest({ op: "dump-screen" }, liveOpts);
+  assert.match(live.text ?? "", /LIVE TUI/);
+  const byTab = await handleCtlRequest({ op: "dump-screen", tabTitle: "gif" }, liveOpts);
+  assert.doesNotMatch(byTab.text ?? "", /LIVE TUI/);
+  assert.match(byTab.text ?? "", /from gif/);
+  assert.match(byTab.text ?? "", /Ask User Question w=100/);
   const peek = await handleCtlRequest({ op: "last-assistant-message", tabTitle: "Agent-01" }, opts);
   assert.equal(peek.ok, true);
   assert.match(peek.text ?? "", /hello from agent/);

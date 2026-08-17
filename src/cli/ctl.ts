@@ -42,6 +42,8 @@ export interface CtlRequest {
   to?: number;
   /** wait: max seconds (default 60; 0 checks once). */
   timeout?: number;
+  /** dump-screen: render width; overlay still uses a 100-col floor when omitted. */
+  width?: number;
 }
 
 export interface CtlResponse {
@@ -65,6 +67,7 @@ export interface CtlArgs {
   to?: number;
   timeout?: number;
   ansi?: boolean;
+  width?: number;
   help?: boolean;
 }
 
@@ -92,6 +95,7 @@ Target:
   --from <n> --to <m>     last-*-message / last-tool: 1-based range from the end (both required; 1=newest)
   --timeout <sec>         wait: max seconds (default 60; 0 checks once)
   --ansi                  dump-screen: keep color/escape sequences (default strips them)
+  --width <n>             dump-screen: render width (default: live TUI columns; overlay floor 100)
   --literal, -l           send-keys: join tokens as literal text (no Enter/C-p mapping)
 
 Output larger than 8192 bytes for last-message, last-assistant-message, last-user-message, last-tool, and
@@ -117,6 +121,7 @@ export function parseCtlArgs(args: string[], fallbackWorkdir: string): CtlArgs {
   let to: number | undefined;
   let timeout: number | undefined;
   let ansi = false;
+  let width: number | undefined;
   const rest: string[] = [];
   for (let index = 0; index < args.length; index++) {
     const arg = args[index];
@@ -205,6 +210,14 @@ export function parseCtlArgs(args: string[], fallbackWorkdir: string): CtlArgs {
       ansi = true;
       continue;
     }
+    if (arg === "--width" || arg?.startsWith("--width=")) {
+      const value = arg === "--width" ? args[++index] : arg.slice("--width=".length);
+      if (!value) throw new Error("--width requires a positive integer");
+      const parsed = Number(value);
+      if (!Number.isInteger(parsed) || parsed < 1) throw new Error(`Invalid --width: ${value}`);
+      width = parsed;
+      continue;
+    }
     if (arg === "--from" || arg?.startsWith("--from=")) {
       const value = arg === "--from" ? args[++index] : arg.slice("--from=".length);
       if (!value) throw new Error("--from requires a positive integer");
@@ -270,6 +283,9 @@ export function parseCtlArgs(args: string[], fallbackWorkdir: string): CtlArgs {
   if (ansi && op !== "dump-screen") {
     throw new Error("--ansi only applies to dump-screen");
   }
+  if (width !== undefined && op !== "dump-screen") {
+    throw new Error("--width only applies to dump-screen");
+  }
   if (op === "wait" && timeout === undefined) timeout = 60;
   const keys =
     op === "send-keys"
@@ -293,6 +309,7 @@ export function parseCtlArgs(args: string[], fallbackWorkdir: string): CtlArgs {
     to,
     timeout,
     ansi,
+    width,
   };
 }
 
@@ -481,6 +498,7 @@ export async function runCtlCommand(
     from: parsed.from,
     to: parsed.to,
     timeout: parsed.timeout,
+    width: parsed.width,
   });
   if (response.text) {
     const text = normalizeCtlStdout(response.text, parsed.ansi === true);

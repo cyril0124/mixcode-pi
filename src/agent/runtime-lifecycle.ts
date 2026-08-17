@@ -212,6 +212,7 @@ async function createRuntimeTabWithServices(
     extensionDialogResolvers: new Map(),
     extensionCustomOverlayClosers: new Set(),
     extensionCustomOverlayHandles: new Set(),
+    extensionCustomOverlayComponents: new Set(),
     extensionAutocompleteProviderFactories: [],
     extensionManagerEntries: getExtensionManagerEntriesForServices(services),
   };

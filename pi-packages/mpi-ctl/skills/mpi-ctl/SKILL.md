@@ -124,7 +124,7 @@ If any agent tab is `Not Ready`, every ctl command fails: `Tab is still loading 
 | `last-user-message` | Last user only. |
 | `last-tool` | Last tool / `!bash` (`tool:` / `status:` / optional `command:`). |
 | `wait` | Block until not `running`/`thinking`, or until waiting for input. |
-| `dump-screen` | Focused tab/home surface as text. |
+| `dump-screen` | Live TUI frame, or `--tab`/`--session` chat surface, plus extension overlay. |
 | `send-prompt <text>` | **Default for text.** Submit a user message or `/slash` (newlines/heredoc OK). |
 | `send-keys [key...]` | **Keys only** (`down`, `Enter` on a question, `C-q`). Not for prompts. |
 
@@ -150,6 +150,8 @@ On `wait-for-input`, run `dump-screen` on that tab and read the **bottom** of th
 ### `dump-screen`
 
 Default: strip ANSI and trailing spaces. `--ansi` keeps color (still strips trailing spaces).
+
+`--tab` / `--session` dump that tab's chat plus its overlay — not the live workspace chrome. Implied / `--focus-*` dumps the live frame, then the overlay. Overlay width is `max(live TUI columns, 100)`. `--width <n>` sets both. Read the **bottom** for the question and options.
 
 ### `send-keys`
 
