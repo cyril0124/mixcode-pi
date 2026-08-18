@@ -2,28 +2,30 @@
 
 [中文文档](README.zh.md)
 
-A **multi-tab**, terminal-native AI coding agent fully compatible with the [Pi](https://pi.dev) extension ecosystem.
+A **multi-tab**, terminal-native AI coding agent fully compatible with the [Pi](https://pi.dev) extension ecosystem. Pi is an open, extensible terminal AI coding agent — MixCode runs its entire package ecosystem natively.
 
-> **Why MixCode Pi?**
-> Standard AI coding agents lock your terminal to a single session — blocking you from exploring, reviewing, or running parallel tasks while the model is thinking. MixCode brings **native multi-tab concurrency** and **complete Pi extension compatibility** to the terminal: run multiple agents side by side, organize workspaces across restarts, and use the full Pi package catalog (`npm:…`, tools, widgets, and commands) with zero friction.
-
-> **A note from the author**
-> This is an AI-developed project. My daily development now happens entirely in mpi — including developing mpi itself. The code quality may be poor, but please experience mpi for yourself.
->
-> Not interested in this project? Take a look at [`pi-packages/`](pi-packages/) instead — a set of high-quality Pi extensions that also work on plain [Pi](https://pi.dev).
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/cyril0124/mixcode-pi" alt="License"></a>
+  <a href="package.json"><img src="https://img.shields.io/github/package-json/v/cyril0124/mixcode-pi" alt="Version"></a>
+  <a href="https://bun.sh"><img src="https://img.shields.io/badge/runtime-Bun-black" alt="Bun"></a>
+  <a href="https://pi.dev"><img src="https://img.shields.io/badge/Pi-compatible-blue" alt="Pi compatible"></a>
+</p>
 
 <p align="center">
   <img src="assets/readme-multi-tab.gif" alt="MixCode Pi multi-tab workspace" width="900">
 </p>
 
+> **Why MixCode Pi?**
+> Standard AI coding agents lock your terminal to a single session — blocking you from exploring, reviewing, or running parallel tasks while the model is thinking. MixCode brings **native multi-tab concurrency** and **complete Pi extension compatibility** to the terminal: run multiple agents side by side, organize workspaces across restarts, and use the full Pi package catalog (`npm:…`, tools, widgets, and commands) with zero friction.
+
 ## Highlights
 
-- 🗂️ **Native Multi-Tab Concurrency**: Run multiple agent sessions simultaneously. Switch instantly with `Tab` / `Shift+Tab` or fuzzy jump via `Ctrl+T`. Background tasks show live status indicators (`●` running, `!` unread, `x` error).
-- 🧩 **100% Pi Extension Compatible**: Works out-of-the-box with Pi packages (`settings.json` `packages`, npm extensions, custom tools, widgets, and themes). Ships with powerful first-party `mpi-*` extensions (Goal tracking, diff review, prompt optimization, auto-rename).
-- 🧘 **Zen & Inline Modes**: Maximize editor space with Zen mode (`/toggle-zen-mode`) and ambient background status dots, or relocate widgets into the chat stream with Inline Widgets (`/toggle-inline-widgets`).
-- 📱 **Mobile & Touch Optimized**: Engineered for narrow terminals, split panes, and mobile SSH emulators (Termux, iOS Blink) with touch-clickable tabs and pickers, and smooth progressive UI degradation.
-- ⌨️ **Terminal-First Workflow**: Buffer-style Vim navigation (`j`/`k`, `Right`/`Shift+Right` user-turn jumps, `/` regex search), command palette (`Ctrl+P`), `$skill` autocompletion, and external editor delegation (`Ctrl+E`).
-- 📜 **Declarative Batch Automation**: Script multi-agent workflows across monorepos via embedded Lua (`mpi --batch script.lua`) with dry-run plan validation.
+- 🗂️ **Native Multi-Tab Concurrency** — run multiple agent sessions side by side with live status indicators.
+- 🧩 **100% Pi Extension Compatible** — the full Pi package catalog plus first-party `mpi-*` extensions, zero friction.
+- 🧘 **Zen & Inline Modes** — hide chrome for a distraction-free canvas, or move widgets into the chat stream.
+- 📱 **Mobile & Touch Optimized** — narrow terminals, split panes, and touch-friendly SSH clients (Termux, iOS Blink).
+- ⌨️ **Terminal-First Workflow** — Vim-style transcript navigation, command palette, `$skill` / `@file` autocomplete.
+- 📜 **Declarative Batch Automation** — script multi-agent workflows with embedded Lua and dry-run validation.
 
 ---
 
@@ -43,18 +45,15 @@ Ensure `~/.bun/bin` is on your `PATH`. Upgrade with the same command; remove wit
 ## Key Features
 
 ### 1. Multi-Tab Workspaces & Session Coordination
-Run isolated agent sessions side-by-side. Each tab maintains an independent conversation tree, tool runtime, and working directory. Workspaces persist tab layouts across restarts, while atomic file locks (`open_tabs.json.lock`) coordinate tabs across multiple terminal windows or tmux panes.
-
-<p align="center">
-  <img src="assets/readme-multi-tab.gif" alt="Multi-tab sessions" width="900">
-</p>
+Run isolated agent sessions side-by-side. Switch instantly with `Tab` / `Shift+Tab` or fuzzy jump via `Ctrl+T`; background tabs show live status indicators (`●` running, `!` unread, `x` error). Each tab maintains an independent conversation tree, tool runtime, and working directory. Workspaces persist tab layouts across restarts, while atomic file locks (`open_tabs.json.lock`) coordinate tabs across multiple terminal windows or tmux panes.
 
 ### 2. Full Pi Ecosystem & Built-in Extensions
-Install community extensions directly through Pi package declarations (`npm:pi-web-access`) or use MixCode's first-party `mpi-*` tools:
+Install community extensions directly through Pi package declarations (`settings.json` `packages`, e.g. `npm:pi-web-access`) — including custom tools, widgets, and themes — or use MixCode's first-party `mpi-*` tools:
 - **`mpi-goal`**: Long-running goal tracking with dynamic progressive tool loading.
 - **`mpi-diff-viewer`**: In-terminal visual diffs with line-level review comments (`/diff`).
 - **`mpi-loop`**: Recurring prompt scheduling with conflict handling (`/loop 5m /review`).
 - **`mpi-optimize-prompt`**: Metaprompt-based prompt expansion.
+- **`mpi-auto-rename`**: Context-derived session titles (`/auto-rename`).
 
 <p align="center">
   <img src="assets/readme-right-widget.gif" alt="Extension side panel" width="900">
@@ -68,14 +67,14 @@ Switch dynamically between docked editor widgets and inline chat-stream widgets 
 </p>
 
 ### 4. Vim Navigation & Transcript Search
-Treat the conversation transcript as a Vim buffer: scroll line-by-line, jump between milestone user turns (`Right` / `Shift+Right`), and search with WeakMap-cached live regex (`/`). Enter via `/vim` or empty-queue `Ctrl+U` then `u`.
+Treat the conversation transcript as a Vim buffer: scroll line-by-line (`j`/`k`), jump between milestone user turns (`Right` / `Shift+Right`), and search with WeakMap-cached live regex (`/`). Enter via `/vim` or empty-queue `Ctrl+U` then `u`.
 
 <p align="center">
   <img src="assets/readme-vim.gif" alt="Vim mode" width="900">
 </p>
 
 ### 5. Zen Mode & Ambient Status
-Hide the top tab bar for a completely distraction-free editing canvas. Background agents with notable state changes (running, waiting for input, error, done) are rendered as compact status dots (`●`) on the top border.
+Hide the top tab bar for a completely distraction-free editing canvas (`/toggle-zen-mode`). Background agents with notable state changes (running, waiting for input, error, done) are rendered as compact status dots (`●`) on the top border.
 
 <p align="center">
   <img src="assets/readme-zen.gif" alt="Zen mode" width="900">
@@ -126,7 +125,7 @@ bun install -g github:cyril0124/mixcode-pi
 mpi
 ```
 
-Requires a **public** GitHub repo. Upgrade with the same command. Uninstall: `bun remove -g mixcode-pi`.
+Upgrade by re-running the same command. Uninstall: `bun remove -g mixcode-pi`.
 
 ### From Local Checkout (Binary Build)
 
@@ -170,3 +169,13 @@ Full architectural specifications, guides, and manuals are available in the [`do
 - [MixCode Settings](docs/mixcode-settings.md)
 - [Environment Variables](docs/environment.md)
 - [Instance Registry & Monitoring](docs/instance-registry.md)
+
+---
+
+## About This Project
+
+This is an AI-developed project. My daily development now happens entirely in mpi — including developing mpi itself. The code quality may be poor, but please experience mpi for yourself.
+
+Not interested in this project? Take a look at [`pi-packages/`](pi-packages/) instead — a set of high-quality Pi extensions that also work on plain [Pi](https://pi.dev).
+
+Licensed under the [MIT License](LICENSE).
