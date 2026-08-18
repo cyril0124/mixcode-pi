@@ -6,7 +6,7 @@
 
 ## 命令
 
-`/tool-block` — 弹出 settings 风格的 overlay，列出全部已注册 tool。Layer 决定改动写到哪里。
+`/tool-block` — 弹出 settings 风格的 overlay，列出全部已注册 tool。Layer 决定改动写到哪里。值列是 Visible、Hidden 或 Inactive。
 
 ```text
 ┌─ Tool Block ───────────────────────────────────┐
@@ -14,15 +14,17 @@
 │  session (in-memory)                           │
 │  › Layer                           Session     │
 │    Enabled                         On          │
-│    bash                            Hidden      │
-│  ↑↓ select  ⏎ toggle  type to filter  esc      │
+│    bash                            Visible     │
+│    grep                            Inactive    │
+│    create_goal                     Hidden      │
+│  ↑↓ select  ⏎ toggle  Hidden/Visible/Inactive  │
 └────────────────────────────────────────────────┘
 ```
 
 | 按键 | 作用 |
 |------|------|
-| 输入 | 按 tool 名或插件短名过滤 |
-| Space / Enter | 切换 Layer、Enabled，或 Hidden / Visible |
+| 输入 | 按 tool 名、插件短名，或 `hidden` / `visible` / `inactive` 过滤 |
+| Space / Enter | 切换 Layer、Enabled，或 Hidden / Visible / Inactive |
 | Esc | 清空搜索，或关闭 |
 
 | Layer | 持久化 | 路径行 |
@@ -32,9 +34,15 @@
 
 第一次切到 Session 会拍一份当前全局配置。只要 session 配置存在，它就是整份生效配置（`session ?? global`）：多藏、解藏、`enabled: Off` 都只作用于这个 tab。切回 Global 只换编辑目标，不丢弃 session。session 在进程重启、`/reload`、关 tab、或 extension 重建后消失。
 
-每次切换立刻调用 `setActiveTools`。小屏开窗显示，标题和底栏保留。
+| 状态 | 含义 |
+|------|------|
+| Visible | 在当前 active 集合且不在 `hidden[]`。Enabled 打开时与 `/system-tools` 列出的名字相同。 |
+| Hidden | 在 `hidden[]` 里。Enabled 打开时从 active 集合拿掉。 |
+| Inactive | 已注册、不在 active、也不在 `hidden[]`（Pi 默认的 `grep`/`find`/`ls`、尚未披露的扩展工具）。 |
 
-`enabled: Off` 保留 `hidden` 列表，但把这些 tool 放回 active 集合。
+对 Inactive 按 Space 会写入 `hidden[]`（预藏），但不会激活该工具。再解藏回到 Inactive。每次切换立刻调用 `setActiveTools`。小屏开窗显示，标题和底栏保留。
+
+`enabled: Off` 保留 `hidden` 列表，但把这些 tool 放回 active 集合。overlay 仍标 Hidden。
 
 ## 配置
 

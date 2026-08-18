@@ -131,6 +131,7 @@ async function openToolBlockOverlay(
         session,
         initialLayer: session ? "session" : "global",
         configPath,
+        getActiveNames: () => pi.getActiveTools(),
         persist: (next, layer) => {
           if (layer === "session") {
             hooks.setSession(next);

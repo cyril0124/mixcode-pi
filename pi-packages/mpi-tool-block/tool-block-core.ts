@@ -33,7 +33,9 @@ export type ToolBlockRow =
   | { kind: "layer" }
   | { kind: "enabled" }
   | { kind: "header"; plugin: string }
-  | { kind: "tool"; name: string; plugin: string; hidden: boolean; orphan?: boolean };
+  | { kind: "tool"; name: string; plugin: string; hidden: boolean; inactive?: boolean; orphan?: boolean };
+
+export type ToolBlockToolState = "hidden" | "visible" | "inactive";
 
 export type ConfigLoadResult =
   | { ok: true; config: ToolBlockConfig; path: string; missing?: false }
@@ -228,12 +230,21 @@ export function sameToolNames(left: readonly string[], right: readonly string[])
   return left.every((name, index) => name === right[index]);
 }
 
+/** Overlay display state. Hidden wins over active/inactive. */
+export function toolBlockRowState(row: Extract<ToolBlockRow, { kind: "tool" }>): ToolBlockToolState {
+  if (row.hidden) return "hidden";
+  if (row.inactive) return "inactive";
+  return "visible";
+}
+
 /** Overlay rows: layer, enabled, then tools grouped by plugin, then orphan hidden names. */
 export function buildToolBlockRows(
   tools: readonly ToolRef[],
   config: ToolBlockConfig,
+  active: readonly string[],
 ): ToolBlockRow[] {
   const hiddenByName = new Set(config.hidden.map((item) => item.tool));
+  const activeSet = new Set(active);
   const rows: ToolBlockRow[] = [{ kind: "layer" }, { kind: "enabled" }];
   const seen = new Set<string>();
   const ungrouped: ToolRef[] = [];
@@ -253,22 +264,12 @@ export function buildToolBlockRows(
     grouped.set(tool.plugin, list);
   }
   for (const tool of ungrouped) {
-    rows.push({
-      kind: "tool",
-      name: tool.name,
-      plugin: "",
-      hidden: hiddenByName.has(tool.name),
-    });
+    rows.push(toolRow(tool.name, "", hiddenByName, activeSet));
   }
   for (const [plugin, pluginTools] of grouped) {
     rows.push({ kind: "header", plugin });
     for (const tool of pluginTools) {
-      rows.push({
-        kind: "tool",
-        name: tool.name,
-        plugin: tool.plugin,
-        hidden: hiddenByName.has(tool.name),
-      });
+      rows.push(toolRow(tool.name, tool.plugin, hiddenByName, activeSet));
     }
   }
   const orphans = config.hidden
@@ -281,7 +282,7 @@ export function buildToolBlockRows(
       orphanPlugin = plugin;
       rows.push({ kind: "header", plugin });
     }
-    rows.push({ kind: "tool", name: item.tool, plugin, hidden: true, orphan: true });
+    rows.push({ kind: "tool", name: item.tool, plugin, hidden: true, inactive: false, orphan: true });
   }
   return rows;
 }
@@ -306,7 +307,12 @@ export function filterToolBlockRows(rows: readonly ToolBlockRow[], query: string
       header = row;
       continue;
     }
-    if (row.name.toLowerCase().includes(q) || row.plugin.toLowerCase().includes(q)) {
+    const state = toolBlockRowState(row);
+    if (
+      row.name.toLowerCase().includes(q) ||
+      row.plugin.toLowerCase().includes(q) ||
+      state.includes(q)
+    ) {
       if (header) {
         out.push(header);
         header = undefined;
@@ -338,6 +344,16 @@ export function toggleToolBlockRow(
     enabled: config.enabled,
     hidden: sortHidden([...config.hidden, plugin ? { tool: row.name, plugin } : { tool: row.name }]),
   };
+}
+
+function toolRow(
+  name: string,
+  plugin: string,
+  hiddenByName: Set<string>,
+  activeSet: Set<string>,
+): Extract<ToolBlockRow, { kind: "tool" }> {
+  const hidden = hiddenByName.has(name);
+  return { kind: "tool", name, plugin, hidden, inactive: !hidden && !activeSet.has(name) };
 }
 
 function pluginKey(item: { plugin?: string }): string {

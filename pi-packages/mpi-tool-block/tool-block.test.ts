@@ -186,26 +186,56 @@ describe("pluginTag / items / toggle", () => {
   });
 
   test("buildToolBlockRows groups by plugin and marks hidden tools", () => {
-    const rows = buildToolBlockRows(tools, {
-      enabled: true,
-      hidden: [{ tool: "create_goal", plugin: "mpi-goal" }],
-    });
+    const rows = buildToolBlockRows(
+      tools,
+      {
+        enabled: true,
+        hidden: [{ tool: "create_goal", plugin: "mpi-goal" }],
+      },
+      ["bash", "create_goal", "browser_navigate"],
+    );
     assert.equal(rows[0]?.kind, "layer");
     assert.equal(rows[1]?.kind, "enabled");
     assert.ok(rows.some((row) => row.kind === "header" && row.plugin === "mpi-goal"));
     const goal = rows.find((row) => row.kind === "tool" && row.name === "create_goal");
     assert.ok(goal && goal.kind === "tool");
     assert.equal(goal.hidden, true);
+    assert.equal(goal.inactive, false);
     const bash = rows.find((row) => row.kind === "tool" && row.name === "bash");
     assert.ok(bash && bash.kind === "tool");
     assert.equal(bash.hidden, false);
+    assert.equal(bash.inactive, false);
+  });
+
+  test("marks registered tools inactive when they are not in the active set", () => {
+    const rows = buildToolBlockRows(
+      [...tools, { name: "grep", plugin: "" }],
+      { enabled: true, hidden: [{ tool: "create_goal", plugin: "mpi-goal" }] },
+      ["bash"],
+    );
+    const grep = rows.find((row) => row.kind === "tool" && row.name === "grep");
+    assert.ok(grep && grep.kind === "tool");
+    assert.equal(grep.hidden, false);
+    assert.equal(grep.inactive, true);
+    const hiddenGoal = rows.find((row) => row.kind === "tool" && row.name === "create_goal");
+    assert.ok(hiddenGoal && hiddenGoal.kind === "tool");
+    assert.equal(hiddenGoal.hidden, true);
+    assert.equal(hiddenGoal.inactive, false);
+    const bash = rows.find((row) => row.kind === "tool" && row.name === "bash");
+    assert.ok(bash && bash.kind === "tool");
+    assert.equal(bash.hidden, false);
+    assert.equal(bash.inactive, false);
   });
 
   test("keeps orphan hidden tools in the list", () => {
-    const rows = buildToolBlockRows(tools, {
-      enabled: true,
-      hidden: [{ tool: "gone_tool", plugin: "old-plugin" }],
-    });
+    const rows = buildToolBlockRows(
+      tools,
+      {
+        enabled: true,
+        hidden: [{ tool: "gone_tool", plugin: "old-plugin" }],
+      },
+      ["bash", "create_goal", "browser_navigate"],
+    );
     const orphan = rows.find((row) => row.kind === "tool" && row.name === "gone_tool");
     assert.ok(orphan && orphan.kind === "tool");
     assert.equal(orphan.hidden, true);
@@ -214,13 +244,34 @@ describe("pluginTag / items / toggle", () => {
   });
 
   test("filterToolBlockRows keeps plugin headers for matches", () => {
-    const rows = buildToolBlockRows(tools, { enabled: true, hidden: [] });
+    const rows = buildToolBlockRows(tools, { enabled: true, hidden: [] }, ["bash", "create_goal", "browser_navigate"]);
     const filtered = filterToolBlockRows(rows, "goal");
     assert.equal(filtered[0]?.kind, "layer");
     assert.ok(filtered.some((row) => row.kind === "header" && row.plugin === "mpi-goal"));
     assert.ok(filtered.some((row) => row.kind === "tool" && row.name === "create_goal"));
     assert.equal(
       filtered.some((row) => row.kind === "tool" && row.name === "bash"),
+      false,
+    );
+  });
+
+  test("filterToolBlockRows matches hidden/visible/inactive state words", () => {
+    const rows = buildToolBlockRows(
+      [...tools, { name: "grep", plugin: "" }],
+      { enabled: true, hidden: [{ tool: "create_goal", plugin: "mpi-goal" }] },
+      ["bash"],
+    );
+    const inactive = filterToolBlockRows(rows, "inactive");
+    assert.equal(inactive[0]?.kind, "layer");
+    assert.ok(inactive.some((row) => row.kind === "tool" && row.name === "grep"));
+    assert.equal(
+      inactive.some((row) => row.kind === "tool" && row.name === "bash"),
+      false,
+    );
+    const hidden = filterToolBlockRows(rows, "hidden");
+    assert.ok(hidden.some((row) => row.kind === "tool" && row.name === "create_goal"));
+    assert.equal(
+      hidden.some((row) => row.kind === "tool" && row.name === "grep"),
       false,
     );
   });
@@ -285,6 +336,7 @@ describe("tool-block overlay", () => {
     { name: "bash", plugin: "" },
     { name: "create_goal", plugin: "mpi-goal" },
   ];
+  const allActive = () => tools.map((tool) => tool.name);
 
   test("renders settings-style rows, title, and config path", async () => {
     const { createToolBlockOverlay } = await import("./tool-block-overlay.js");
@@ -308,6 +360,7 @@ describe("tool-block overlay", () => {
         draft = config;
         return { ok: true, config };
       },
+      getActiveNames: allActive,
     });
     const text = view.render(60).join("\n");
     const lines = text.split("\n");
@@ -346,6 +399,7 @@ describe("tool-block overlay", () => {
         writes.push({ config, layer });
         return { ok: true, config };
       },
+      getActiveNames: allActive,
     });
     view.handleInput("\x1b[B"); // skip layer -> enabled
     view.handleInput("\x1b[B"); // skip enabled -> bash
@@ -378,6 +432,7 @@ describe("tool-block overlay", () => {
         writes.push({ config, layer });
         return { ok: true, config };
       },
+      getActiveNames: allActive,
     });
     view.handleInput(" "); // Layer -> Session, snapshot global
     assert.equal(writes.at(-1)?.layer, "session");
@@ -410,6 +465,49 @@ describe("tool-block overlay", () => {
     ]);
   });
 
+  test("renders inactive for registered tools that are not in the active set", async () => {
+    const { createToolBlockOverlay } = await import("./tool-block-overlay.js");
+    const theme = {
+      fg: (_c: string, text: string) => text,
+      bg: (_c: string, text: string) => text,
+      bold: (text: string) => text,
+    };
+    const listed: ToolRef[] = [...tools, { name: "grep", plugin: "" }];
+    let hidden: ToolBlockConfig["hidden"] = [];
+    const view = createToolBlockOverlay({
+      theme,
+      requestRender: () => undefined,
+      done: () => undefined,
+      tools: listed,
+      initial: { enabled: true, hidden },
+      configPath: "/tmp/agent/tool-block.json",
+      persist: (config) => {
+        hidden = config.hidden;
+        return { ok: true, config };
+      },
+      getActiveNames: () => ["bash", "create_goal"],
+    });
+    const text = view.render(60).join("\n");
+    assert.match(text, /bash\s+Visible/);
+    assert.match(text, /grep\s+Inactive/);
+    assert.match(text, /create_goal\s+Visible/);
+
+    view.handleInput("i");
+    view.handleInput("n");
+    const filtered = view.render(60).join("\n");
+    assert.match(filtered, /grep[\s\S]*Inactive/);
+    assert.doesNotMatch(filtered, /\bbash\b/);
+    assert.match(filtered, /Layer/);
+
+    view.handleInput("\x1b"); // clear filter
+    view.handleInput("\x1b[B"); // enabled
+    view.handleInput("\x1b[B"); // bash
+    view.handleInput("\x1b[B"); // grep
+    view.handleInput(" ");
+    assert.deepEqual(hidden, [{ tool: "grep" }]);
+    assert.match(view.render(60).join("\n"), /grep[\s\S]*Hidden/);
+  });
+
   test("windows the list when the overlay body budget is short", async () => {
     const { createToolBlockOverlay } = await import("./tool-block-overlay.js");
     const theme = {
@@ -426,6 +524,7 @@ describe("tool-block overlay", () => {
       initial: { enabled: true, hidden: [] },
       configPath: "/tmp/agent/tool-block.json",
       persist: (config) => ({ ok: true, config }),
+      getActiveNames: () => many.map((tool) => tool.name),
       getMaxVisible: () => 8,
     });
     for (let i = 0; i < 21; i++) view.handleInput("\x1b[B");

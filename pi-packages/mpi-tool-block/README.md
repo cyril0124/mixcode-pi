@@ -6,7 +6,7 @@ Hide selected tools from the model by removing them from the active set. Definit
 
 ## Command
 
-`/tool-block` — opens a settings-style overlay of every registered tool. Layer chooses where edits go.
+`/tool-block` — opens a settings-style overlay of every registered tool. Layer chooses where edits go. The value column is Visible, Hidden, or Inactive.
 
 ```text
 ┌─ Tool Block ───────────────────────────────────┐
@@ -14,15 +14,17 @@ Hide selected tools from the model by removing them from the active set. Definit
 │  session (in-memory)                           │
 │  › Layer                           Session     │
 │    Enabled                         On          │
-│    bash                            Hidden      │
-│  ↑↓ select  ⏎ toggle  type to filter  esc      │
+│    bash                            Visible     │
+│    grep                            Inactive    │
+│    create_goal                     Hidden      │
+│  ↑↓ select  ⏎ toggle  Hidden/Visible/Inactive  │
 └────────────────────────────────────────────────┘
 ```
 
 | Key | Action |
 |-----|--------|
-| Type | Filter by tool name or plugin |
-| Space / Enter | Toggle Layer, Enabled, or Hidden / Visible |
+| Type | Filter by tool name, plugin, or `hidden` / `visible` / `inactive` |
+| Space / Enter | Toggle Layer, Enabled, or Hidden / Visible / Inactive |
 | Esc | Clear search, or close |
 
 | Layer | Persist | Location line |
@@ -32,9 +34,15 @@ Hide selected tools from the model by removing them from the active set. Definit
 
 First switch to Session snapshots the current global config. While a session config exists it is the entire effective config (`session ?? global`): extra hides, unhides, and `enabled: Off` apply only to this tab. Switching Layer back to Global changes the edit target only; the session override stays until process restart, `/reload`, tab close, or extension rebuild.
 
-Toggles call `setActiveTools` immediately. Small terminals window the list; title and footer stay visible.
+| State | Meaning |
+|-------|---------|
+| Visible | In the current active set and not in `hidden[]`. Same names `/system-tools` shows while this overlay is Enabled. |
+| Hidden | In `hidden[]`. Removed from the active set when Enabled is on. |
+| Inactive | Registered, not in the active set, not in `hidden[]` (Pi default `grep`/`find`/`ls`, undisclosed extension tools). |
 
-`enabled: Off` keeps the `hidden` list but puts those tools back in the active set.
+Toggling Inactive writes `hidden[]` (pre-hide) but does not activate the tool. Unhiding it returns to Inactive. Toggles call `setActiveTools` immediately. Small terminals window the list; title and footer stay visible.
+
+`enabled: Off` keeps the `hidden` list but puts those tools back in the active set. Overlay still labels them Hidden.
 
 ## Config
 

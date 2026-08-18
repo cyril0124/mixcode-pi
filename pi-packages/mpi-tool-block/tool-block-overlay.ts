@@ -4,6 +4,7 @@ import {
   filterToolBlockRows,
   isToolBlockEnabled,
   toggleToolBlockRow,
+  toolBlockRowState,
   type ToolBlockConfig,
   type ToolBlockLayer,
   type ToolBlockRow,
@@ -29,6 +30,7 @@ export interface ToolBlockOverlayOptions {
     config: ToolBlockConfig,
     layer: ToolBlockLayer,
   ) => { ok: true; config: ToolBlockConfig } | { ok: false; error: string };
+  getActiveNames: () => readonly string[];
   onError?: (message: string) => void;
   getMaxVisible?: () => number;
 }
@@ -47,7 +49,7 @@ export function createToolBlockOverlay(options: ToolBlockOverlayOptions): {
   let selected = 0;
 
   function rows(): ToolBlockRow[] {
-    return filterToolBlockRows(buildToolBlockRows(tools, draft), query);
+    return filterToolBlockRows(buildToolBlockRows(tools, draft, options.getActiveNames()), query);
   }
 
   function selectable(
@@ -147,7 +149,6 @@ export function createToolBlockOverlay(options: ToolBlockOverlayOptions): {
       const list = rows();
       const picks = selectable(list);
       const enabled = isToolBlockEnabled(draft);
-      const hidden = new Set(draft.hidden.map((item) => item.tool));
       const bodyBudget = Math.max(6, options.getMaxVisible?.() ?? 12);
       const inner = Math.max(1, width - 2);
       const clip = (text: string) => truncateToWidth(text, inner, "…");
@@ -166,13 +167,13 @@ export function createToolBlockOverlay(options: ToolBlockOverlayOptions): {
             ? `session override · ${options.configPath}`
             : options.configPath;
       const pathLine = clip(dim(`  ${location}`));
-      const hint = clip(dim("  ↑↓ select  ⏎ toggle  type to filter  esc close"));
+      const hint = clip(dim("  ↑↓ select  ⏎ toggle  Hidden/Visible/Inactive  esc"));
       const chrome = [filterLine, "", pathLine, ""];
       const footer = ["", hint];
       const listBudget = Math.max(1, bodyBudget - chrome.length - footer.length);
 
       const painted = list.map((row, index) =>
-        paintRow(row, index === indexOfSelectable(list, selected), theme, inner, enabled, hidden, layer),
+        paintRow(row, index === indexOfSelectable(list, selected), theme, inner, enabled, layer),
       );
       const windowed = windowLines(painted, indexOfSelectable(list, selected), listBudget, dim);
       const body = fitBody([...chrome, ...windowed], footer, bodyBudget, pathLine);
@@ -181,13 +182,19 @@ export function createToolBlockOverlay(options: ToolBlockOverlayOptions): {
   };
 }
 
+function paintToolState(row: Extract<ToolBlockRow, { kind: "tool" }>): string {
+  const state = toolBlockRowState(row);
+  if (state === "hidden") return "Hidden";
+  if (state === "inactive") return "Inactive";
+  return "Visible";
+}
+
 function paintRow(
   row: ToolBlockRow,
   selected: boolean,
   theme: ThemeLike,
   innerWidth: number,
   enabled: boolean,
-  hidden: Set<string>,
   layer: ToolBlockLayer,
 ): string {
   if (row.kind === "header") {
@@ -210,9 +217,7 @@ function paintRow(
         ? enabled
           ? "On"
           : "Off"
-        : hidden.has(row.name)
-          ? "Hidden"
-          : "Visible";
+        : paintToolState(row);
   const labelText = truncateToWidth(label, labelCol, "…");
   const valueText = truncateToWidth(valuePlain, valueCol, "…");
   const valueColored =
@@ -222,7 +227,7 @@ function paintRow(
         ? enabled
           ? theme.fg("accent", valueText)
           : theme.fg("dim", valueText)
-        : hidden.has(row.name)
+        : toolBlockRowState(row) === "hidden"
           ? theme.fg("accent", valueText)
           : theme.fg("dim", valueText);
   const labelPadded = labelText + " ".repeat(Math.max(0, labelCol - visibleWidth(labelText)));
