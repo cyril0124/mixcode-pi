@@ -750,7 +750,7 @@ test("renderConfig shows empty state when no tabs", () => {
   assert.match(output, /No agent sessions/);
 });
 
-test("renderConfig marks selected card without selection background", () => {
+test("renderConfig fills the selected card with selection background", () => {
   const state = createInitialState("/repo");
   state.tabs.push(
     createTab(1, "s1", "/repo", { title: "First" }),
@@ -760,10 +760,15 @@ test("renderConfig marks selected card without selection background", () => {
   const output = renderConfig(state, 100).join("\n");
   const plain = stripAnsi(output);
 
-  // The selected card should use only the › marker plus an accent border, not any background fill.
   assert.match(plain, /› - Second/);
   const selectedLine = output.split("\n").find((line) => stripAnsi(line).includes("› - Second")) ?? "";
-  assert.doesNotMatch(selectedLine, /\x1b\[48;/);
+  assert.match(selectedLine, /\x1b\[48;/);
+  const unselectedLine =
+    output.split("\n").find((line) => {
+      const text = stripAnsi(line);
+      return text.includes("First") && !text.includes("›");
+    }) ?? "";
+  assert.doesNotMatch(unselectedLine, /\x1b\[48;/);
 });
 
 test("renderConfig shows spinner for working agent cards", () => {
@@ -870,6 +875,53 @@ test("renderConfig shows compact preview for all cards including selected", () =
   assert.match(output, /⎿ Second output/);
 });
 
+test("renderConfig uses the same 4-row card for selected and unselected agents", () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(
+    createTab(1, "s1", "/repo", {
+      title: "First",
+      currentContextTokens: 21_000,
+      lastWorkedAt: new Date(Date.now() - 5_000).toISOString(),
+      previewMessages: [{ role: "assistant", text: "First output" }],
+    }),
+    createTab(2, "s2", "/repo", {
+      title: "Second",
+      model: {
+        provider: "x",
+        modelId: "grok-4.6",
+        displayName: "x/grok-4.6",
+        contextWindow: 500_000,
+      },
+      contextLimit: 500_000,
+      currentContextTokens: 8_000,
+      previewMessages: [{ role: "assistant", text: "Second output" }],
+    }),
+  );
+  state.homeSelectedTabIndex = 0;
+  const rendered = renderConfig(state, 100);
+  const plainLines = rendered.map((line) => stripAnsi(line));
+  const plain = plainLines.join("\n");
+
+  assert.doesNotMatch(plain, /Project /);
+  assert.doesNotMatch(plain, /Updated/);
+
+  const selected = plainLines.findIndex((line) => line.includes("›") && line.includes("First"));
+  assert.ok(selected >= 0);
+  assert.match(plainLines[selected]!, /\[idle\]/);
+  assert.match(plainLines[selected + 1]!, /faux-1 · 21k\/200k · [0-5]s ago/);
+  assert.match(plainLines[selected + 2]!, /⎿ First output/);
+  assert.match(plainLines[selected + 3]!, /┘/);
+  assert.match(rendered[selected]!, /\x1b\[48;/);
+
+  const unselected = plainLines.findIndex((line) => line.includes("Second") && line.includes("┌"));
+  assert.ok(unselected >= 0);
+  assert.match(plainLines[unselected]!, /\[idle\]/);
+  assert.match(plainLines[unselected + 1]!, /grok-4\.6 · 8k\/500k/);
+  assert.match(plainLines[unselected + 2]!, /⎿ Second output/);
+  assert.match(plainLines[unselected + 3]!, /┘/);
+  assert.doesNotMatch(rendered[unselected]!, /\x1b\[48;/);
+});
+
 test("renderConfig dynamically windows agent cards around selection", () => {
   const state = createInitialState("/repo");
   for (let i = 1; i <= 6; i++) {
@@ -880,6 +932,27 @@ test("renderConfig dynamically windows agent cards around selection", () => {
 
   assert.match(output, /› - Agent-6/);
   assert.doesNotMatch(output, /Agent-1/);
+});
+
+test("renderConfig shows older above / newer below when agent cards are windowed", () => {
+  const state = createInitialState("/repo");
+  for (let i = 1; i <= 6; i++) {
+    state.tabs.push(createTab(i, `s${i}`, "/repo", { title: `Agent-${i}` }));
+  }
+
+  state.homeSelectedTabIndex = 5;
+  const bottom = stripAnsi(renderConfig(state, 100, undefined, 0, 26).join("\n"));
+  assert.match(bottom, /↑ older above/);
+  assert.match(bottom, /› - Agent-6/);
+  assert.doesNotMatch(bottom, /Agent-1/);
+  assert.doesNotMatch(bottom, /↓ newer below/);
+
+  state.homeSelectedTabIndex = 0;
+  const top = stripAnsi(renderConfig(state, 100, undefined, 0, 26).join("\n"));
+  assert.match(top, /↓ newer below/);
+  assert.match(top, /› - Agent-1/);
+  assert.doesNotMatch(top, /Agent-6/);
+  assert.doesNotMatch(top, /↑ older above/);
 });
 
 test("renderConfig lists all package updates without a hidden-count summary", () => {

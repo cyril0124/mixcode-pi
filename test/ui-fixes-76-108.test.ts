@@ -226,8 +226,10 @@ test("Home card Updated uses lastWorkedAt recency, not run duration", () => {
   state.tabs.push(tab);
   state.activeTabId = "home";
   const plain = stripAnsi(renderConfig(state, 100).join("\n"));
-  assert.match(plain, /Updated [0-5]s ago/);
-  assert.doesNotMatch(plain, /Updated 3m ago/);
+  assert.match(plain, /faux-1 · \?\/200k · [0-5]s ago/);
+  assert.doesNotMatch(plain, /3m ago/);
+  assert.doesNotMatch(plain, /Updated/);
+  assert.doesNotMatch(plain, /Project /);
 });
 
 test("#88 tree ctrl+d resets filter to default", () => {

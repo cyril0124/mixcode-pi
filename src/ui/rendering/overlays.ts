@@ -15,7 +15,7 @@ import { activeToast } from "../../core/toast.js";
 import type { MixCodeState, PreviewMessage } from "../../core/types.js";
 import { tabIsWaitingForInput } from "../../core/tab-state.js";
 import { type MixCodeTheme, themeForId } from "../themes.js";
-import { tabStatusGlyph } from "./chrome.js";
+import { exactContextUsageText, tabStatusGlyph } from "./chrome.js";
 import { activeRenderTheme, renderWithTheme } from "./context.js";
 import { highlightRanges } from "./highlight.js";
 import { centerLine } from "./layout.js";
@@ -136,22 +136,41 @@ function renderAgentViewTable(state: MixCodeState, width: number, maxRows?: numb
     rowsAfterHeader !== undefined && rowsAfterHeader >= AGENT_CARD_HEIGHT + 3 ? 3 : 0;
   const availableForCards =
     rowsAfterHeader === undefined ? undefined : Math.max(0, rowsAfterHeader - previewAndHintReserve);
-  const maxCards = availableForCards === undefined
-    ? state.tabs.length
-    : Math.max(0, Math.floor(availableForCards / AGENT_CARD_HEIGHT));
+  const totalCards = state.tabs.length;
+  const fitsAllCards =
+    availableForCards === undefined || totalCards * AGENT_CARD_HEIGHT <= availableForCards;
+  const markerReserve =
+    !fitsAllCards && availableForCards !== undefined && availableForCards >= AGENT_CARD_HEIGHT
+      ? 2
+      : 0;
+  const maxCards =
+    availableForCards === undefined
+      ? totalCards
+      : Math.max(0, Math.floor((availableForCards - markerReserve) / AGENT_CARD_HEIGHT));
   // Leave one row for the hint whenever any space remains after the header.
   const cardBudget =
     budget === undefined
       ? undefined
       : Math.max(lines.length, budget - (budget > lines.length ? 1 : 0));
-  const { start, end } = agentCardWindow(state.tabs.length, selectedIndex, maxCards);
+  const { start, end } = agentCardWindow(totalCards, selectedIndex, maxCards);
+  const showAbove = maxCards > 0 && start > 0;
+  const showBelow = maxCards > 0 && end < totalCards;
+  const listBudget =
+    cardBudget === undefined ? undefined : Math.max(0, cardBudget - (showAbove ? 1 : 0) - (showBelow ? 1 : 0));
+  if (showAbove) {
+    pushAgentRows(lines, [agentWindowMarker("↑ older above", width)], budget);
+  }
   if (maxCards === 0 && rowsAfterHeader !== undefined && rowsAfterHeader > 0) {
     pushAgentRows(lines, renderAgentCard(state.tabs[selectedIndex]!, width, true, now), cardBudget);
   } else {
     for (let i = start; i < end; i++) {
-      if (cardBudget !== undefined && lines.length + AGENT_CARD_HEIGHT > cardBudget) break;
-      lines.push(...renderAgentCard(state.tabs[i]!, width, i === selectedIndex, now));
+      const card = renderAgentCard(state.tabs[i]!, width, i === selectedIndex, now);
+      if (listBudget !== undefined && lines.length + card.length > listBudget) break;
+      lines.push(...card);
     }
+  }
+  if (showBelow) {
+    pushAgentRows(lines, [agentWindowMarker("↓ newer below", width)], budget);
   }
 
   const selectedTab = state.tabs[selectedIndex];
@@ -179,6 +198,10 @@ function pushAgentRows(lines: string[], rows: string[], budget: number | undefin
 function fitAgentRows(lines: string[], budget: number | undefined): string[] {
   if (budget === undefined) return lines;
   return lines.slice(0, budget);
+}
+
+function agentWindowMarker(label: string, width: number): string {
+  return activeRenderTheme.dim(padLine(`  ${label}`, width));
 }
 
 function agentCardWindow(
@@ -216,18 +239,15 @@ function renderAgentCard(
   const title = `${marker}${titleSegment}`;
   const titleFill = Math.max(0, innerWidth - visibleWidth(title) - visibleWidth(statusGroup) - 2);
   const top = `${border("┌")}${title} ${border("─".repeat(titleFill))} ${statusGroup}${border("┐")}`;
-  const meta = truncateToWidth(
-    ` Project ${projectName(tab)}   Updated ${formatTabUpdated(tab)}`,
-    innerWidth,
-    "...",
-  );
+  const meta = truncateToWidth(` ${formatAgentCardMeta(tab)}`, innerWidth, "...");
   const preview = truncateToWidth(` ⎿ ${latestAssistantPreview(tab)}`, innerWidth, "...");
-  return [
+  const lines = [
     top,
     `${border("│")}${padLine(meta, innerWidth)}${border("│")}`,
     `${border("│")}${activeRenderTheme.dim(padLine(preview, innerWidth))}${border("│")}`,
     `${border("└")}${border("─".repeat(innerWidth))}${border("┘")}`,
   ];
+  return selected ? lines.map((line) => activeRenderTheme.selectedBg(padLine(line, width))) : lines;
 }
 
 function renderPreviewPanel(
@@ -299,17 +319,19 @@ function formatTabStatusChip(tab: MixCodeState["tabs"][number]): string {
   }
 }
 
-function projectName(tab: MixCodeState["tabs"][number]): string {
-  const workdir = process.env.MIXCODE_DISPLAY_WORKDIR?.trim() || tab.workdir;
-  return workdir.split("/").filter(Boolean).pop() ?? workdir;
+function formatAgentCardMeta(tab: MixCodeState["tabs"][number], now = new Date()): string {
+  const model = tab.model.modelId.split("/").pop() || tab.model.modelId;
+  const tokens = exactContextUsageText(tab);
+  const updated = formatTabUpdated(tab, now);
+  return updated ? `${model} · ${tokens} · ${updated}` : `${model} · ${tokens}`;
 }
 
 /** Relative recency for Home cards from lastWorkedAt — not run duration. */
 function formatTabUpdated(tab: MixCodeState["tabs"][number], now = new Date()): string {
   if (tab.status === "running" || tab.status === "thinking") return "now";
-  if (!tab.lastWorkedAt) return "—";
+  if (!tab.lastWorkedAt) return "";
   const at = Date.parse(tab.lastWorkedAt);
-  if (!Number.isFinite(at)) return "—";
+  if (!Number.isFinite(at)) return "";
   const secs = Math.max(0, Math.floor((now.getTime() - at) / 1000));
   if (secs < 60) return `${secs}s ago`;
   if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
