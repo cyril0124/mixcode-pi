@@ -1,22 +1,28 @@
 /**
  * Overlay for /auto-rename config.
- * Main list shows model / thinking / onFirstMessage.
+ * Main list shows model / thinking / onFirstMessage / maxContextChars.
  * Enter on a value opens a picker; Enter on onFirstMessage toggles.
  * Changes persist immediately via onChange.
  */
 
 import { matchesKey, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
-import { AUTO_RENAME_INHERIT, type AutoRenameConfig } from "./config.js";
+import {
+  AUTO_RENAME_INHERIT,
+  DEFAULT_MAX_CONTEXT_CHARS,
+  resolveMaxContextChars,
+  type AutoRenameConfig,
+} from "./config.js";
 
 type ThemeLike = {
   fg(color: string, text: string): string;
   bold?(text: string): string;
 };
 
-type Mode = "main" | "pick-model" | "pick-thinking";
-type MainRow = "model" | "thinking" | "onFirstMessage";
+type Mode = "main" | "pick-model" | "pick-thinking" | "pick-max-context";
+type MainRow = "model" | "thinking" | "onFirstMessage" | "maxContextChars";
 
-const MAIN_ROWS: MainRow[] = ["model", "thinking", "onFirstMessage"];
+const MAIN_ROWS: MainRow[] = ["model", "thinking", "onFirstMessage", "maxContextChars"];
+const CONTEXT_CHAR_PRESETS = [1000, 4000, 8000, 16000];
 
 export interface AutoRenameConfigOverlayOptions {
   theme: ThemeLike;
@@ -61,6 +67,17 @@ export function createAutoRenameConfigOverlay(options: AutoRenameConfigOverlayOp
     return draft.onFirstMessage === true ? "on" : "off";
   }
 
+  function currentMaxContextLabel(): string {
+    return String(resolveMaxContextChars(draft));
+  }
+
+  function contextCharOptions(): string[] {
+    const current = resolveMaxContextChars(draft);
+    const values = new Set(CONTEXT_CHAR_PRESETS);
+    values.add(current);
+    return [...values].sort((a, b) => a - b).map(String);
+  }
+
   function commit(next: AutoRenameConfig): void {
     draft = next;
     onChange?.({ ...draft });
@@ -93,18 +110,40 @@ export function createAutoRenameConfigOverlay(options: AutoRenameConfigOverlayOp
     commit({ ...draft, onFirstMessage: true });
   }
 
+  function setMaxContextChars(value: string): void {
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed) || parsed <= 0 || parsed === DEFAULT_MAX_CONTEXT_CHARS) {
+      const { maxContextChars: _drop, ...rest } = draft;
+      commit(rest);
+      return;
+    }
+    commit({ ...draft, maxContextChars: parsed });
+  }
+
+  function pickerOptions(next: Exclude<Mode, "main">): string[] {
+    if (next === "pick-model") return modelOptions;
+    if (next === "pick-thinking") return currentThinkingOptions();
+    return contextCharOptions();
+  }
+
   function filteredPickOptions(): string[] {
-    const all = mode === "pick-model" ? modelOptions : currentThinkingOptions();
+    if (mode === "main") return [];
+    const all = pickerOptions(mode);
     const q = pickQuery.trim().toLowerCase();
     if (!q) return all;
     return all.filter((item) => item.toLowerCase().includes(q));
   }
 
-  function openPicker(next: "pick-model" | "pick-thinking"): void {
+  function openPicker(next: Exclude<Mode, "main">): void {
     mode = next;
     pickQuery = "";
-    const list = next === "pick-model" ? modelOptions : currentThinkingOptions();
-    const current = next === "pick-model" ? currentModelLabel() : currentThinkingLabel();
+    const list = pickerOptions(next);
+    const current =
+      next === "pick-model"
+        ? currentModelLabel()
+        : next === "pick-thinking"
+          ? currentThinkingLabel()
+          : currentMaxContextLabel();
     const idx = list.indexOf(current);
     pickIndex = idx >= 0 ? idx : 0;
     requestRender();
@@ -129,6 +168,7 @@ export function createAutoRenameConfigOverlay(options: AutoRenameConfigOverlayOp
       const row = MAIN_ROWS[mainIndex];
       if (row === "model") openPicker("pick-model");
       else if (row === "thinking") openPicker("pick-thinking");
+      else if (row === "maxContextChars") openPicker("pick-max-context");
       else {
         toggleOnFirst();
         requestRender();
@@ -160,7 +200,8 @@ export function createAutoRenameConfigOverlay(options: AutoRenameConfigOverlayOp
       const chosen = opts[Math.min(Math.max(pickIndex, 0), Math.max(0, opts.length - 1))];
       if (chosen) {
         if (mode === "pick-model") setModel(chosen);
-        else setThinking(chosen);
+        else if (mode === "pick-thinking") setThinking(chosen);
+        else setMaxContextChars(chosen);
       }
       mode = "main";
       pickQuery = "";
@@ -205,6 +246,7 @@ export function createAutoRenameConfigOverlay(options: AutoRenameConfigOverlayOp
       { label: "Model", value: currentModelLabel() },
       { label: "Thinking", value: currentThinkingLabel() },
       { label: "On first message", value: currentOnFirstLabel() },
+      { label: "Max context chars", value: currentMaxContextLabel() },
     ];
     const body: string[] = [theme.fg("dim", " Changes apply immediately · Enter edit / toggle"), ""];
     for (let i = 0; i < rows.length; i++) {
@@ -221,7 +263,12 @@ export function createAutoRenameConfigOverlay(options: AutoRenameConfigOverlayOp
   }
 
   function renderPicker(width: number): string[] {
-    const title = mode === "pick-model" ? "Select model" : "Select thinking";
+    const title =
+      mode === "pick-model"
+        ? "Select model"
+        : mode === "pick-thinking"
+          ? "Select thinking"
+          : "Select max context chars";
     const opts = filteredPickOptions();
     const maxVisible = Math.max(3, options.getMaxVisible?.() ?? 10);
     const body: string[] = [

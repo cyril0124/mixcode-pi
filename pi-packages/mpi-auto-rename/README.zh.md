@@ -8,7 +8,7 @@
 
 ```bash
 /auto-rename                 # 根据最近对话生成标题
-/auto-rename config          # 设置列表：模型、thinking、首条消息自动触发
+/auto-rename config          # 设置列表：模型、thinking、首条消息自动触发、上下文字符上限
 /auto-rename-cancel          # 中止进行中的生成
 ```
 
@@ -18,7 +18,8 @@
 {
   "model": "provider/modelId",
   "thinking": "low",
-  "onFirstMessage": true
+  "onFirstMessage": true,
+  "maxContextChars": 4000
 }
 ```
 
@@ -27,5 +28,6 @@
 | `model` | 继承当前会话模型 | `provider/modelId` |
 | `thinking` | 继承当前会话 thinking | 所选模型支持的级别，如 `off`、`low`、`high` |
 | `onFirstMessage` | `false`（省略） | 为 `true` 时，在该 session 发出第一条用户消息时生成标题。已有标题或后续轮次不自动触发。 |
+| `maxContextChars` | `4000`（省略） | 正整数。先取最近 20 段 user/assistant，再截到该字符数（留尾巴）。 |
 
-`/auto-rename config` 打开设置列表。Enter 编辑该项（`onFirstMessage` 为开关）；Esc 关闭。改动立即写入。省略 `model` / `thinking`（或设为 `"inherit"`）则跟随当前会话。
+`/auto-rename config` 打开设置列表。Enter 编辑该项（`onFirstMessage` 为开关；`maxContextChars` 选 `1000` / `4000` / `8000` / `16000`）；Esc 关闭。改动立即写入。省略 `model` / `thinking`（或设为 `"inherit"`）则跟随当前会话。省略 `maxContextChars`（或设为 `4000`）即用默认值。JSON 可写任意正整数。

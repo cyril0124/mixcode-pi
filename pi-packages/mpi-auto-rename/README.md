@@ -8,7 +8,7 @@ Generate a short kebab-case session title from the current conversation.
 
 ```bash
 /auto-rename                 # Generate a title from recent conversation
-/auto-rename config          # Settings list: model, thinking, first-message auto
+/auto-rename config          # Settings list: model, thinking, first-message auto, max context chars
 /auto-rename-cancel          # Abort an in-flight generate
 ```
 
@@ -18,7 +18,8 @@ Generate a short kebab-case session title from the current conversation.
 {
   "model": "provider/modelId",
   "thinking": "low",
-  "onFirstMessage": true
+  "onFirstMessage": true,
+  "maxContextChars": 4000
 }
 ```
 
@@ -27,5 +28,6 @@ Generate a short kebab-case session title from the current conversation.
 | `model` | inherit active session model | `provider/modelId` |
 | `thinking` | inherit active session thinking | Chosen model's supported levels, e.g. `off`, `low`, `high` |
 | `onFirstMessage` | `false` (omit) | If `true`, generate a title when the session's first user message is sent. Skips named sessions and later turns. |
+| `maxContextChars` | `4000` (omit) | Positive integer. Last 20 user/assistant sections, then tail-sliced to this many characters. |
 
-`/auto-rename config` opens a settings list. Enter edits a row (toggles `onFirstMessage`); Esc closes. Changes write immediately. Omit `model` / `thinking` (or `"inherit"`) to follow the active session.
+`/auto-rename config` opens a settings list. Enter edits a row (toggles `onFirstMessage`; `maxContextChars` picks `1000` / `4000` / `8000` / `16000`). Esc closes. Changes write immediately. Omit `model` / `thinking` (or `"inherit"`) to follow the active session. Omit `maxContextChars` (or set `4000`) to use the default. JSON accepts any positive integer.

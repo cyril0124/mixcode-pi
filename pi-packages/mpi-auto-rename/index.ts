@@ -4,7 +4,7 @@
  * Usage: /auto-rename
  * Cancel: /auto-rename-cancel
  * Config: /auto-rename config
- *   <agentDir>/auto-rename.json  { "model"?: "provider/id", "thinking"?: "low", "onFirstMessage"?: true }
+ *   <agentDir>/auto-rename.json  { "model"?: "provider/id", "thinking"?: "low", "onFirstMessage"?: true, "maxContextChars"?: 4000 }
  * Progress: aboveEditor widget (does not take over the input editor).
  */
 
@@ -24,14 +24,16 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import {
   AUTO_RENAME_INHERIT,
+  DEFAULT_MAX_CONTEXT_CHARS,
   loadAutoRenameConfig,
   parseAutoRenameModelRef,
   resolveAutoRenameTarget,
+  resolveMaxContextChars,
   writeAutoRenameConfig,
 } from "./config.js";
 import { createAutoRenameConfigOverlay } from "./config-overlay.js";
 
-export const MAX_CONTEXT_CHARS = 1_000;
+export const MAX_CONTEXT_CHARS = DEFAULT_MAX_CONTEXT_CHARS;
 export const RECENT_MESSAGE_WINDOW = 20;
 export const MAX_ATTEMPTS = 5;
 export const MAX_TITLE_LENGTH = 50;
@@ -136,7 +138,10 @@ export function shouldAutoRenameOnFirstMessage(options: {
   );
 }
 
-export function buildConversationContext(entries: readonly SessionEntry[]): string {
+export function buildConversationContext(
+  entries: readonly SessionEntry[],
+  maxChars: number = MAX_CONTEXT_CHARS,
+): string {
   const sections: string[] = [];
   for (const entry of entries) {
     const section = entrySection(entry);
@@ -145,8 +150,8 @@ export function buildConversationContext(entries: readonly SessionEntry[]): stri
 
   const recent = sections.slice(-RECENT_MESSAGE_WINDOW);
   const joined = recent.join("\n\n");
-  if (joined.length <= MAX_CONTEXT_CHARS) return joined;
-  return joined.slice(-MAX_CONTEXT_CHARS);
+  if (joined.length <= maxChars) return joined;
+  return joined.slice(-maxChars);
 }
 
 export function parseCandidateTitle(raw: string): string {
@@ -536,7 +541,10 @@ export async function runAutoRename(options: {
     return { ok: false, reason: "no_model" };
   }
 
-  const fromSession = buildConversationContext(ctx.sessionManager.buildContextEntries());
+  const fromSession = buildConversationContext(
+    ctx.sessionManager.buildContextEntries(),
+    resolveMaxContextChars(config),
+  );
   const seed = options.seedPrompt?.trim();
   const conversationContext = fromSession || (seed ? `User: ${seed}` : "");
   if (!conversationContext.trim()) {
@@ -719,7 +727,7 @@ const autoRename: ExtensionFactory = (pi) => {
     description: "Generate a kebab-case session title; config opens the settings list",
     getArgumentCompletions: (prefix: string) => {
       const items = [
-        { value: "config", label: "config", description: "Open settings list (model / thinking / first message)" },
+        { value: "config", label: "config", description: "Open settings list (model / thinking / first message / max context chars)" },
       ];
       const filtered = items.filter((item) => item.value.startsWith(prefix));
       return filtered.length > 0 ? filtered : null;

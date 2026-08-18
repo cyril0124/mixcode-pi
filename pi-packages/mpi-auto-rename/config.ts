@@ -1,5 +1,5 @@
 /**
- * Load `<agentDir>/auto-rename.json` (optional `model` / `thinking` / `onFirstMessage`).
+ * Load `<agentDir>/auto-rename.json` (optional `model` / `thinking` / `onFirstMessage` / `maxContextChars`).
  * Pure Node — no Bun APIs.
  */
 
@@ -8,6 +8,7 @@ import * as path from "node:path";
 
 export const AUTO_RENAME_CONFIG_FILENAME = "auto-rename.json";
 export const AUTO_RENAME_INHERIT = "inherit";
+export const DEFAULT_MAX_CONTEXT_CHARS = 4000;
 
 export type AutoRenameConfig = {
   /** `provider/modelId`; omit or "inherit" = use active session model. */
@@ -16,6 +17,8 @@ export type AutoRenameConfig = {
   thinking?: string;
   /** If true, generate a title when the session's first user message is sent. */
   onFirstMessage?: boolean;
+  /** Conversation excerpt budget in characters; omit = DEFAULT_MAX_CONTEXT_CHARS. */
+  maxContextChars?: number;
 };
 
 export function autoRenameConfigPath(agentDir: string): string {
@@ -27,7 +30,7 @@ export type AutoRenameConfigLoad =
   | { ok: true; path: string; config: AutoRenameConfig; missing: true }
   | { ok: false; path: string; error: string };
 
-/** Non-empty trimmed `model` / `thinking`, boolean `onFirstMessage`; unknown keys ignored. */
+/** Non-empty trimmed `model` / `thinking`, boolean `onFirstMessage`, positive-int `maxContextChars`; unknown keys ignored. */
 export function parseAutoRenameConfig(raw: unknown): AutoRenameConfig {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
   const source = raw as Record<string, unknown>;
@@ -41,7 +44,19 @@ export function parseAutoRenameConfig(raw: unknown): AutoRenameConfig {
   if (typeof source.onFirstMessage === "boolean") {
     config.onFirstMessage = source.onFirstMessage;
   }
+  if (
+    typeof source.maxContextChars === "number" &&
+    Number.isInteger(source.maxContextChars) &&
+    source.maxContextChars > 0
+  ) {
+    config.maxContextChars = source.maxContextChars;
+  }
   return config;
+}
+
+/** Omit / invalid -> DEFAULT_MAX_CONTEXT_CHARS. */
+export function resolveMaxContextChars(config?: Pick<AutoRenameConfig, "maxContextChars">): number {
+  return config?.maxContextChars ?? DEFAULT_MAX_CONTEXT_CHARS;
 }
 
 export function loadAutoRenameConfig(agentDir: string): AutoRenameConfigLoad {

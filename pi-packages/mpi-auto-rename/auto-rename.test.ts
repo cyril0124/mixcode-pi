@@ -75,12 +75,18 @@ test("buildConversationContext keeps recent visible dialog and tails to the char
 
   const context = buildConversationContext(entries as never);
   assert.ok(context.length <= MAX_CONTEXT_CHARS);
+  assert.equal(MAX_CONTEXT_CHARS, 4000);
   assert.match(context, /final answer text/);
   assert.doesNotMatch(context, /secret chain of thought/);
   assert.doesNotMatch(context, /tool dump should not appear/);
   assert.doesNotMatch(context, /Tool call/);
   // Window + tail means the oldest padded messages drop first.
   assert.doesNotMatch(context, /msg-0-/);
+
+  const tight = buildConversationContext(entries as never, 80);
+  assert.equal(tight.length, 80);
+  assert.match(tight, /final answer text/);
+  assert.doesNotMatch(tight, /msg-1-/);
 });
 
 test("titleValidationError accepts 2-5 kebab segments under 50 chars", () => {
@@ -295,6 +301,14 @@ test("parseAutoRenameConfig keeps boolean onFirstMessage only", () => {
   assert.deepEqual(parseAutoRenameConfig({ onFirstMessage: false }), { onFirstMessage: false });
   assert.deepEqual(parseAutoRenameConfig({ onFirstMessage: "true" }), {});
   assert.deepEqual(parseAutoRenameConfig({ onFirstMessage: 1 }), {});
+});
+
+test("parseAutoRenameConfig keeps positive integer maxContextChars only", () => {
+  assert.deepEqual(parseAutoRenameConfig({ maxContextChars: 1000 }), { maxContextChars: 1000 });
+  assert.deepEqual(parseAutoRenameConfig({ maxContextChars: 0 }), {});
+  assert.deepEqual(parseAutoRenameConfig({ maxContextChars: -8 }), {});
+  assert.deepEqual(parseAutoRenameConfig({ maxContextChars: 4000.5 }), {});
+  assert.deepEqual(parseAutoRenameConfig({ maxContextChars: "4000" }), {});
 });
 
 test("runAutoRename shows a one-line aboveEditor widget and clears it", async () => {
@@ -693,7 +707,9 @@ test("config overlay lists all settings and toggles onFirstMessage in place", ()
   assert.match(main, /Model/);
   assert.match(main, /Thinking/);
   assert.match(main, /On first message/);
+  assert.match(main, /Max context chars/);
   assert.match(main, /\boff\b/);
+  assert.match(main, /\b4000\b/);
 
   view.handleInput("\x1b[B");
   view.handleInput("\x1b[B");
@@ -731,6 +747,35 @@ test("config overlay picks model and thinking from nested lists", () => {
   view.handleInput("\x1b[B");
   view.handleInput("\r");
   assert.deepEqual(changes.at(-1), { model: "acme/cheap", thinking: "low" });
+});
+
+test("config overlay picks maxContextChars and omits the default", () => {
+  const changes: Array<Record<string, unknown>> = [];
+  const view = createAutoRenameConfigOverlay({
+    theme: plainTheme(),
+    requestRender: () => undefined,
+    done: () => undefined,
+    onChange: (config) => {
+      changes.push({ ...config });
+    },
+    initial: {},
+    modelOptions: ["acme/cheap"],
+    thinkingOptions: ["inherit", "low"],
+  });
+
+  view.handleInput("\x1b[B");
+  view.handleInput("\x1b[B");
+  view.handleInput("\x1b[B");
+  view.handleInput("\r");
+  assert.match(view.render(60).join("\n"), /Select max context chars/);
+  view.handleInput("\x1b[A");
+  view.handleInput("\r");
+  assert.deepEqual(changes.at(-1), { maxContextChars: 1000 });
+
+  view.handleInput("\r");
+  view.handleInput("\x1b[B");
+  view.handleInput("\r");
+  assert.equal((changes.at(-1) as { maxContextChars?: number }).maxContextChars, undefined);
 });
 
 test("runAutoRenameConfig persists overlay edits to auto-rename.json", async () => {
@@ -861,6 +906,50 @@ test("runAutoRename uses seedPrompt when the session has no context", async () =
   assert.equal(result.ok, true);
   assert.deepEqual(names, ["fix-auth-middleware"]);
   assert.match(prompts[0] ?? "", /please rename this session about auth/);
+});
+
+test("runAutoRename tails conversation context to configured maxContextChars", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-auto-rename-context-budget-"));
+  try {
+    writeAutoRenameConfig(dir, { maxContextChars: 40 });
+    const prompts: string[] = [];
+    const result = await runAutoRename({
+      setSessionName: () => undefined,
+      getThinkingLevel: () => "off",
+      agentDir: dir,
+      complete: async (_model, context) => {
+        prompts.push(JSON.stringify(context));
+        return {
+          role: "assistant",
+          content: [{ type: "text", text: "fix-auth-middleware" }],
+          stopReason: "stop",
+        } as never;
+      },
+      ctx: {
+        model: { provider: "test", id: "model", api: "openai-completions" },
+        modelRegistry: {
+          getApiKeyAndHeaders: async () => ({ ok: true, apiKey: "k" }),
+        },
+        sessionManager: {
+          buildContextEntries: () => [
+            messageEntry("user", `HEAD-${"x".repeat(200)}-TAIL-MARKER`),
+          ],
+          getSessionName: () => undefined,
+        },
+        ui: {
+          notify: () => undefined,
+          confirm: async () => true,
+        },
+        hasUI: false,
+      } as unknown as ExtensionCommandContext,
+    });
+
+    assert.equal(result.ok, true);
+    assert.match(prompts[0] ?? "", /TAIL-MARKER/);
+    assert.doesNotMatch(prompts[0] ?? "", /HEAD-/);
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
 });
 
 function firstMessageCtx(entries: unknown[], sessionName?: string) {
