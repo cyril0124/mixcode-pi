@@ -2,7 +2,7 @@
 
 [English Documentation](builtin-extensions.md)
 
-MixCode 随附位于 `pi-packages/mpi-*` 的第一方内置 Pi 包。启动时，每个包都会释放到 `<agentDir>/extensions/`；package extension 通过 Pi 公开的 `resources_discover` 事件提供运行时发现的 skill，不会复制到 `<agentDir>/skills`。
+MixCode 随附位于 `pi-packages/mpi-*` 的第一方内置 Pi 包。启动时，每个包都会通过内容哈希同步到 `<agentDir>/extensions/`：哈希匹配时跳过目标写入，发生变化时替换已安装的包目录；package extension 通过 Pi 公开的 `resources_discover` 事件提供运行时发现的 skill，不会复制到 `<agentDir>/skills`。
 
 ## 功能目录
 
@@ -34,13 +34,15 @@ MixCode 交互 / TUI 或独立 Pi subagent 启动
   │
   ├─ 释放二进制资产 -> runtimeDir/packages/（仅编译版 mpi）
   ├─ installMixcodeDocs -> 写入 docs/*.md 到 <agentDir>/mixcode-docs/（仅编译版 mpi）
-  ├─ ensurePackageExtensions -> 拷贝 mpi-* 到 <agentDir>/extensions/
+  ├─ ensurePackageExtensions -> 按哈希同步 mpi-* 到 <agentDir>/extensions/
   ├─ Pi Resource Loader 发现 package extension
   └─ AgentSession.bindExtensions()
         ├─ session_start 触发扩展初始化
         ├─ resources_discover -> package skills/ 根目录
         └─ Pi Resource Loader 扩展已加载的 skill
 ```
+
+`ensurePackageExtensions` 会根据每个包的相对文件路径和文件内容计算确定性的 SHA-256。已安装包把哈希记录在 `<agentDir>/extensions/<package>/.mixcode-package-hash`；哈希匹配时跳过写入，发生变化时替换已安装的包目录，然后发布新的标记。包内 skill 保留在扩展目录中，由 `resources_discover` 加载。
 
 `installMixcodeDocs` 仅在编译版二进制中执行，因为它磁盘上没有源码树。它把 MixCode 自身的
 `docs/*.md` 写入 `<agentDir>/mixcode-docs/` —— 与 `<agentDir>/extensions/` 平级的稳定目录，

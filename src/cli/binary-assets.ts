@@ -48,9 +48,9 @@ export async function materializeBinaryRuntimeAssets(
  *
  * Deliberately not written under the per-process runtime dir: that directory is
  * recreated per launch and leaks on SIGKILL. Sibling of `<agentDir>/extensions`,
- * and like `ensurePackageExtensions` it overwrites on every launch and never
- * deletes files that disappeared upstream. Concurrent launches may write the
- * same paths; contents are byte-identical, so interleaving is harmless.
+ * it overwrites on every compiled launch and never deletes files that
+ * disappeared upstream. Concurrent launches may write the same paths; contents
+ * are byte-identical, so interleaving is harmless.
  */
 export async function installMixcodeDocs(
   agentDir: string,

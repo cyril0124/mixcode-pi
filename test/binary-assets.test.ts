@@ -116,7 +116,7 @@ test("binary runtime built-in packages are installed as Pi extensions", async ()
       },
     });
 
-    ensurePackageExtensions(runtimeDir, { copy: true });
+    ensurePackageExtensions(runtimeDir);
 
     assert.equal(
       await fsPromises.readFile(path.join(homeDir, ".pi", "agent", "extensions", "probe-extension", "index.ts"), "utf8"),
@@ -127,6 +127,88 @@ test("binary runtime built-in packages are installed as Pi extensions", async ()
     else process.env.HOME = oldHome;
     await fsPromises.rm(runtimeDir, { recursive: true, force: true });
     await fsPromises.rm(homeDir, { recursive: true, force: true });
+  }
+});
+
+test("ensurePackageExtensions uses the same hash sync for source and binary package roots", async () => {
+  for (const packageRootName of ["pi-packages", "packages"]) {
+    const rootDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), `mixcode-${packageRootName}-`));
+    const agentDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), `mixcode-${packageRootName}-agent-`));
+    const packageName = `probe-${packageRootName}`;
+    const packageDir = path.join(rootDir, packageRootName, packageName);
+    try {
+      await fsPromises.mkdir(packageDir, { recursive: true });
+      await fsPromises.writeFile(
+        path.join(packageDir, "package.json"),
+        JSON.stringify({
+          name: packageName,
+          version: "0.0.0",
+          type: "module",
+          pi: { extensions: ["./index.ts"] },
+        }),
+        "utf8",
+      );
+      await fsPromises.writeFile(path.join(packageDir, "index.ts"), "export default 0;\n", "utf8");
+
+      const installed = path.join(agentDir, "extensions", packageName);
+      ensurePackageExtensions(rootDir, { agentDir });
+      assert.equal((await fsPromises.lstat(installed)).isSymbolicLink(), false);
+
+      const oldTime = new Date("2000-01-01T00:00:00.000Z");
+      const installedIndex = path.join(installed, "index.ts");
+      const installedHash = path.join(installed, ".mixcode-package-hash");
+      await fsPromises.utimes(installedIndex, oldTime, oldTime);
+      await fsPromises.utimes(installedHash, oldTime, oldTime);
+      const unchangedTime = (await fsPromises.stat(installedIndex)).mtimeMs;
+      const unchangedHashTime = (await fsPromises.stat(installedHash)).mtimeMs;
+      ensurePackageExtensions(rootDir, { agentDir });
+      assert.equal((await fsPromises.stat(installedIndex)).mtimeMs, unchangedTime);
+      assert.equal((await fsPromises.stat(installedHash)).mtimeMs, unchangedHashTime);
+
+      await fsPromises.writeFile(path.join(installed, "stale.ts"), "stale\n", "utf8");
+      await fsPromises.writeFile(path.join(packageDir, "index.ts"), "export default 1;\n", "utf8");
+      ensurePackageExtensions(rootDir, { agentDir });
+      assert.equal(await fsPromises.readFile(installedIndex, "utf8"), "export default 1;\n");
+      await assert.rejects(fsPromises.stat(path.join(installed, "stale.ts")), /ENOENT/);
+    } finally {
+      await fsPromises.rm(rootDir, { recursive: true, force: true });
+      await fsPromises.rm(agentDir, { recursive: true, force: true });
+    }
+  }
+});
+
+test("ensurePackageExtensions leaves no success hash after a failed sync", async () => {
+  const rootDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-failed-sync-"));
+  const agentDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-failed-sync-agent-"));
+  const packageDir = path.join(rootDir, "pi-packages", "probe-extension");
+  const extensionsDir = path.join(agentDir, "extensions");
+  const installedDir = path.join(extensionsDir, "probe-extension");
+  const installedIndex = path.join(installedDir, "index.ts");
+  try {
+    await fsPromises.mkdir(packageDir, { recursive: true });
+    await fsPromises.writeFile(
+      path.join(packageDir, "package.json"),
+      JSON.stringify({ name: "probe-extension", pi: { extensions: ["./index.ts"] } }),
+      "utf8",
+    );
+    await fsPromises.writeFile(path.join(packageDir, "index.ts"), "export default 1;\n", "utf8");
+    await fsPromises.mkdir(extensionsDir, { recursive: true });
+    await fsPromises.chmod(extensionsDir, 0o500);
+
+    assert.throws(() => ensurePackageExtensions(rootDir, { agentDir }), /EACCES|EPERM/);
+    await assert.rejects(fsPromises.stat(path.join(installedDir, ".mixcode-package-hash")), /ENOENT/);
+
+    await fsPromises.chmod(extensionsDir, 0o700);
+    ensurePackageExtensions(rootDir, { agentDir });
+    assert.equal(await fsPromises.readFile(installedIndex, "utf8"), "export default 1;\n");
+  } finally {
+    try {
+      await fsPromises.chmod(extensionsDir, 0o700);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+    await fsPromises.rm(rootDir, { recursive: true, force: true });
+    await fsPromises.rm(agentDir, { recursive: true, force: true });
   }
 });
 
@@ -161,7 +243,7 @@ test("ensurePackageExtensions installs under the given agentDir, not global home
       },
     });
 
-    const installedExtensionPaths = ensurePackageExtensions(runtimeDir, { copy: true, agentDir });
+    const installedExtensionPaths = ensurePackageExtensions(runtimeDir, { agentDir });
 
     // Installed under the effective agentDir/extensions ...
     assert.equal(

@@ -116,7 +116,6 @@ export async function runInteractiveApp(args: MainArgs, selfRoot: string): Promi
   // ResourceLoader scans, so discovery and installation share one root.
   const agentDir = getAgentDir();
   const builtinExtensionPaths = ensurePackageExtensions(packageRoot, {
-    copy: true,
     agentDir,
   });
   const builtinExtensionsOnly = isBuiltinExtensionsOnlyEnabled(args.builtinExtensionsOnly);

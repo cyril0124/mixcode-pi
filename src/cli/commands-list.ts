@@ -109,7 +109,7 @@ export async function loadCommandCatalog(options: {
 }): Promise<CommandListEntry[]> {
   const agentDir = options.agentDir ?? getAgentDir();
   if (options.packageRoot) {
-    ensurePackageExtensions(options.packageRoot, { copy: true, agentDir });
+    ensurePackageExtensions(options.packageRoot, { agentDir });
   }
   const services = await createRuntimeServices({
     workdir: options.workdir,

@@ -2,7 +2,7 @@
 
 [中文文档](builtin-extensions.zh.md)
 
-MixCode ships first-party built-in Pi packages located in `pi-packages/mpi-*`. Startup materializes each package under `<agentDir>/extensions/`; package extensions contribute any runtime-discovered skills through Pi's public `resources_discover` event without copying them into `<agentDir>/skills`.
+MixCode ships first-party built-in Pi packages located in `pi-packages/mpi-*`. Startup synchronizes each package into `<agentDir>/extensions/` using a content hash: matching packages skip destination writes, while changed packages replace the installed package tree. Package extensions contribute any runtime-discovered skills through Pi's public `resources_discover` event without copying them into `<agentDir>/skills`.
 
 ## Catalog
 
@@ -34,13 +34,15 @@ Startup (MixCode Interactive / TUI or independent Pi subagent)
   │
   ├─ Materialize binary assets -> runtimeDir/packages/ (compiled mpi only)
   ├─ installMixcodeDocs -> write docs/*.md to <agentDir>/mixcode-docs/ (compiled mpi only)
-  ├─ ensurePackageExtensions -> copy mpi-* to <agentDir>/extensions/
+  ├─ ensurePackageExtensions -> hash-sync mpi-* to <agentDir>/extensions/
   ├─ Pi Resource Loader discovers package extensions
   └─ AgentSession.bindExtensions()
         ├─ session_start lifecycle event
         ├─ resources_discover -> package skills/ roots
         └─ Pi Resource Loader extends the loaded skills
 ```
+
+`ensurePackageExtensions` computes a deterministic SHA-256 over each package's relative file paths and contents. The installed package records the hash in `<agentDir>/extensions/<package>/.mixcode-package-hash`; matching hashes skip writes, while changed hashes replace the installed package tree before publishing the new marker. Package-contained skills stay under the extension directory and are loaded through `resources_discover`.
 
 `installMixcodeDocs` runs only in the compiled binary, which has no source tree
 on disk. It writes MixCode's own `docs/*.md` to `<agentDir>/mixcode-docs/` — a

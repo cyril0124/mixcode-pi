@@ -5,6 +5,8 @@ import { homeDir } from "./paths.js";
 
 const require = createRequire(import.meta.url);
 
+const PACKAGE_HASH_FILE = ".mixcode-package-hash";
+
 /**
  * Packages that extensions may import after being copied under
  * `<agentDir>/extensions/`. Native dynamic `import()` (e.g. mpi-goal lazy wire)
@@ -30,15 +32,12 @@ const AGENT_EXTENSION_RUNTIME_PACKAGES = [
  * (see Pi getAgentDir()); otherwise built-in packages install
  * under one root while discovery scans another and never loads them.
  *
- * `copy: true` copies package files; the startup path uses this in both source
- * and compiled runtimes. The default symlink mode remains available to direct
- * callers that explicitly want live package files.
- *
- * Safe to call multiple times — existing correct installs are left untouched.
+ * Each installed package stores a content hash. Repeated calls hash the source
+ * tree but skip all destination writes when the installed hash matches.
  */
 export function ensurePackageExtensions(
   repoRoot: string,
-  options?: { copy?: boolean; agentDir?: string },
+  options?: { agentDir?: string },
 ): string[] {
   // Sync install at startup: keep node:fs sync APIs (no Bun dir/symlink tree API).
   const packageDirs = [path.join(repoRoot, "pi-packages"), path.join(repoRoot, "packages")].filter(
@@ -51,7 +50,6 @@ export function ensurePackageExtensions(
   const installedExtensionPaths = new Set<string>();
   fs.mkdirSync(extensionsDir, { recursive: true });
   ensureAgentExtensionRuntimePackages(agentDir);
-  const shouldCopy = options?.copy ?? false;
 
   for (const packagesDir of packageDirs) {
     for (const entry of fs.readdirSync(packagesDir, { withFileTypes: true })) {
@@ -68,32 +66,50 @@ export function ensurePackageExtensions(
       }
 
       const destDir = path.join(extensionsDir, entry.name);
-      const target = path.resolve(pkgDir);
-
-      if (shouldCopy) {
-        // Copy mode: write files directly into ~/.pi/agent/extensions/<name>/,
-        // recursing into subdirectories. Multi-file packages (nested modules
-        // under state/, tool/, view/, etc.) would otherwise lose paths and fail.
-        copyTreeSync(pkgDir, destDir);
-      } else {
-        // Symlink mode: skip if already a symlink pointing to the correct target
-        try {
-          const stat = fs.lstatSync(destDir);
-          if (stat.isSymbolicLink() && path.resolve(fs.readlinkSync(destDir)) === target) {
-            installedExtensionPaths.add(destDir);
-            continue;
-          }
-          // Exists but wrong target or not a symlink — remove and recreate
-          fs.unlinkSync(destDir);
-        } catch {
-          // ENOENT: path doesn't exist — proceed to create symlink
-        }
-        fs.symlinkSync(target, destDir);
+      const packageHash = hashPackageTree(pkgDir);
+      if (!hasPackageHash(destDir, packageHash)) {
+        installPackageTree(pkgDir, destDir, packageHash);
       }
       installedExtensionPaths.add(destDir);
     }
   }
   return [...installedExtensionPaths].sort();
+}
+
+function hashPackageTree(packageDir: string): string {
+  const hash = new Bun.CryptoHasher("sha256");
+  updatePackageHash(hash, packageDir, "");
+  return `sha256:${hash.digest("hex")}`;
+}
+
+function updatePackageHash(hash: Bun.CryptoHasher, dir: string, relativeDir: string): void {
+  const entries = fs.readdirSync(dir, { withFileTypes: true }).sort((left, right) => left.name.localeCompare(right.name));
+  for (const entry of entries) {
+    const relativePath = relativeDir ? `${relativeDir}/${entry.name}` : entry.name;
+    const sourcePath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      updatePackageHash(hash, sourcePath, relativePath);
+      continue;
+    }
+    const content = fs.readFileSync(sourcePath);
+    hash.update(`file:${relativePath.length}:${relativePath}:${content.byteLength}\n`);
+    hash.update(content);
+  }
+}
+
+function hasPackageHash(destDir: string, expectedHash: string): boolean {
+  try {
+    return fs.readFileSync(path.join(destDir, PACKAGE_HASH_FILE), "utf8").trim() === expectedHash;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw error;
+  }
+}
+
+function installPackageTree(sourceDir: string, destDir: string, packageHash: string): void {
+  fs.rmSync(destDir, { recursive: true, force: true });
+  copyTreeSync(sourceDir, destDir);
+  fs.writeFileSync(path.join(destDir, PACKAGE_HASH_FILE), `${packageHash}\n`);
 }
 
 /** Recursively copy a directory tree (files + nested subdirectories). */

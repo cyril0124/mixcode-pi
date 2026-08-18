@@ -262,7 +262,9 @@ export async function main(): Promise<void> {
     process.env.MIXCODE ??= "1";
     const selfRoot = selfRootFromEntryUrl();
     try {
-      await runCommandsCommand(rawArgs.slice(1), { packageRoot: selfRoot });
+      await runCommandsCommand(rawArgs.slice(1), {
+        packageRoot: resolveMixcodePackageRoot(selfRoot),
+      });
     } catch (error) {
       process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
       process.exitCode = 1;
