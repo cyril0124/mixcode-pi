@@ -10,6 +10,7 @@ import {
   resolveAutoRenameTarget,
   writeAutoRenameConfig,
 } from "./config.js";
+import { createAutoRenameConfigOverlay } from "./config-overlay.js";
 import autoRename, {
   MAX_ATTEMPTS,
   MAX_CONTEXT_CHARS,
@@ -20,7 +21,9 @@ import autoRename, {
   parseCandidateTitle,
   runAutoRename,
   runAutoRenameConfig,
+  shouldAutoRenameOnFirstMessage,
   titleValidationError,
+  tryAutoRenameOnFirstMessage,
   type AutoRenameAbortSlot,
 } from "./index.js";
 
@@ -238,8 +241,9 @@ test("runAutoRename surfaces request errors without retrying", async () => {
   assert.ok(notices.some((n) => n.level === "error" && /429 rate limited/.test(n.message)));
 });
 
-test("extension registers /auto-rename, cancel, and config completions", () => {
+test("extension registers /auto-rename, cancel, config completions, and first-message hook", () => {
   const commands: string[] = [];
+  const events: string[] = [];
   let hasConfigCompletion = false;
   const pi = {
     registerCommand: (
@@ -252,12 +256,16 @@ test("extension registers /auto-rename, cancel, and config completions", () => {
         hasConfigCompletion = found.some((item) => item.value === "config");
       }
     },
+    on: (event: string) => {
+      events.push(event);
+    },
     setSessionName: () => undefined,
     getThinkingLevel: () => "off",
   } as unknown as ExtensionAPI;
 
   autoRename(pi);
   assert.deepEqual(commands, ["auto-rename", "auto-rename-cancel"]);
+  assert.deepEqual(events, ["before_agent_start"]);
   assert.equal(hasConfigCompletion, true);
 });
 
@@ -280,6 +288,13 @@ test("parseAutoRenameConfig keeps non-empty model and thinking fields", () => {
   });
   assert.deepEqual(parseAutoRenameConfig({ model: "   ", thinking: "   " }), {});
   assert.deepEqual(parseAutoRenameConfig(null), {});
+});
+
+test("parseAutoRenameConfig keeps boolean onFirstMessage only", () => {
+  assert.deepEqual(parseAutoRenameConfig({ onFirstMessage: true }), { onFirstMessage: true });
+  assert.deepEqual(parseAutoRenameConfig({ onFirstMessage: false }), { onFirstMessage: false });
+  assert.deepEqual(parseAutoRenameConfig({ onFirstMessage: "true" }), {});
+  assert.deepEqual(parseAutoRenameConfig({ onFirstMessage: 1 }), {});
 });
 
 test("runAutoRename shows a one-line aboveEditor widget and clears it", async () => {
@@ -655,11 +670,72 @@ test("runAutoRename reports invalid config JSON without calling the model", asyn
   }
 });
 
-test("runAutoRenameConfig writes the picked model and thinking to auto-rename.json", async () => {
+function plainTheme() {
+  return { fg: (_c: string, text: string) => text, bold: (text: string) => text };
+}
+
+test("config overlay lists all settings and toggles onFirstMessage in place", () => {
+  const changes: Array<Record<string, unknown>> = [];
+  const view = createAutoRenameConfigOverlay({
+    theme: plainTheme(),
+    requestRender: () => undefined,
+    done: () => undefined,
+    onChange: (config) => {
+      changes.push({ ...config });
+    },
+    initial: {},
+    modelOptions: ["acme/cheap"],
+    thinkingOptions: ["inherit", "low", "high"],
+  });
+
+  const main = view.render(60).join("\n");
+  assert.match(main, /Auto-rename/);
+  assert.match(main, /Model/);
+  assert.match(main, /Thinking/);
+  assert.match(main, /On first message/);
+  assert.match(main, /\boff\b/);
+
+  view.handleInput("\x1b[B");
+  view.handleInput("\x1b[B");
+  view.handleInput("\r");
+  assert.match(view.render(60).join("\n"), /\bon\b/);
+  assert.deepEqual(changes.at(-1), { onFirstMessage: true });
+
+  view.handleInput("\r");
+  assert.equal((changes.at(-1) as { onFirstMessage?: boolean }).onFirstMessage, undefined);
+});
+
+test("config overlay picks model and thinking from nested lists", () => {
+  const changes: Array<Record<string, unknown>> = [];
+  const view = createAutoRenameConfigOverlay({
+    theme: plainTheme(),
+    requestRender: () => undefined,
+    done: () => undefined,
+    onChange: (config) => {
+      changes.push({ ...config });
+    },
+    initial: {},
+    modelOptions: ["acme/cheap"],
+    thinkingOptions: ["inherit", "low"],
+  });
+
+  view.handleInput("\r");
+  assert.match(view.render(60).join("\n"), /Select model/);
+  view.handleInput("\x1b[B");
+  view.handleInput("\r");
+  assert.deepEqual(changes.at(-1), { model: "acme/cheap" });
+
+  view.handleInput("\x1b[B");
+  view.handleInput("\r");
+  assert.match(view.render(60).join("\n"), /Select thinking/);
+  view.handleInput("\x1b[B");
+  view.handleInput("\r");
+  assert.deepEqual(changes.at(-1), { model: "acme/cheap", thinking: "low" });
+});
+
+test("runAutoRenameConfig persists overlay edits to auto-rename.json", async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-auto-rename-config-cmd-"));
   try {
-    const prompts: string[] = [];
-    const optionSets: string[][] = [];
     const result = await runAutoRenameConfig({
       agentDir: dir,
       ctx: {
@@ -672,11 +748,28 @@ test("runAutoRenameConfig writes the picked model and thinking to auto-rename.js
               : undefined,
         },
         ui: {
-          select: async (prompt: string, options: string[]) => {
-            prompts.push(prompt);
-            optionSets.push(options);
-            if (prompt.includes("model")) return "acme/cheap";
-            return "low";
+          custom: async (
+            factory: (
+              tui: { requestRender: () => void; terminal: { rows: number } },
+              theme: { fg: (c: string, t: string) => string },
+              kb: unknown,
+              done: () => void,
+            ) => { handleInput: (data: string) => void },
+          ) => {
+            let closed = false;
+            const view = factory(
+              { requestRender: () => undefined, terminal: { rows: 24 } },
+              { fg: (_c: string, t: string) => t },
+              undefined,
+              () => {
+                closed = true;
+              },
+            );
+            view.handleInput("\x1b[B");
+            view.handleInput("\x1b[B");
+            view.handleInput("\r");
+            view.handleInput("\x1b");
+            assert.equal(closed, true);
           },
           notify: () => undefined,
         },
@@ -684,17 +777,185 @@ test("runAutoRenameConfig writes the picked model and thinking to auto-rename.js
     });
 
     assert.equal(result.ok, true);
-    assert.match(prompts[0] ?? "", /Auto-rename model/);
-    assert.match(prompts[1] ?? "", /Auto-rename thinking/);
-    assert.ok(optionSets[0]?.includes("inherit"));
-    assert.ok(optionSets[0]?.includes("acme/cheap"));
-    assert.ok(optionSets[1]?.includes("inherit"));
-    assert.ok(optionSets[1]?.includes("low"));
     const loaded = loadAutoRenameConfig(dir);
     assert.equal(loaded.ok, true);
     if (loaded.ok) {
-      assert.deepEqual(loaded.config, { model: "acme/cheap", thinking: "low" });
+      assert.deepEqual(loaded.config, { onFirstMessage: true });
     }
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("shouldAutoRenameOnFirstMessage only passes on an unnamed first user prompt", () => {
+  const empty: never[] = [];
+  const withUser = [messageEntry("user", "hello")] as never;
+  assert.equal(
+    shouldAutoRenameOnFirstMessage({ onFirstMessage: true, entries: empty, prompt: "fix login" }),
+    true,
+  );
+  assert.equal(
+    shouldAutoRenameOnFirstMessage({ onFirstMessage: false, entries: empty, prompt: "fix login" }),
+    false,
+  );
+  assert.equal(
+    shouldAutoRenameOnFirstMessage({ entries: empty, prompt: "fix login" }),
+    false,
+  );
+  assert.equal(
+    shouldAutoRenameOnFirstMessage({
+      onFirstMessage: true,
+      entries: withUser,
+      prompt: "second",
+    }),
+    false,
+  );
+  assert.equal(
+    shouldAutoRenameOnFirstMessage({
+      onFirstMessage: true,
+      entries: empty,
+      sessionName: "already-named",
+      prompt: "fix login",
+    }),
+    false,
+  );
+  assert.equal(
+    shouldAutoRenameOnFirstMessage({ onFirstMessage: true, entries: empty, prompt: "   " }),
+    false,
+  );
+});
+
+test("runAutoRename uses seedPrompt when the session has no context", async () => {
+  const names: string[] = [];
+  const prompts: string[] = [];
+  const result = await runAutoRename({
+    setSessionName: (name) => names.push(name),
+    getThinkingLevel: () => "off",
+    agentDir: ABSENT_AGENT_DIR,
+    seedPrompt: "please rename this session about auth",
+    complete: async (_model, context) => {
+      prompts.push(JSON.stringify(context));
+      return {
+        role: "assistant",
+        content: [{ type: "text", text: "fix-auth-middleware" }],
+        stopReason: "stop",
+      } as never;
+    },
+    ctx: {
+      model: { provider: "test", id: "model", api: "openai-completions" },
+      modelRegistry: {
+        getApiKeyAndHeaders: async () => ({ ok: true, apiKey: "k" }),
+      },
+      sessionManager: {
+        buildContextEntries: () => [],
+        getSessionName: () => undefined,
+      },
+      ui: {
+        notify: () => undefined,
+        confirm: async () => true,
+      },
+      hasUI: false,
+    } as unknown as ExtensionCommandContext,
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(names, ["fix-auth-middleware"]);
+  assert.match(prompts[0] ?? "", /please rename this session about auth/);
+});
+
+function firstMessageCtx(entries: unknown[], sessionName?: string) {
+  const notices: Array<{ message: string; level?: string }> = [];
+  return {
+    notices,
+    ctx: {
+      model: { provider: "test", id: "model", api: "openai-completions" },
+      modelRegistry: {
+        getApiKeyAndHeaders: async () => ({ ok: true, apiKey: "k" }),
+      },
+      sessionManager: {
+        buildContextEntries: () => entries,
+        getSessionName: () => sessionName,
+      },
+      ui: {
+        notify: (message: string, level?: string) => notices.push({ message, level }),
+        confirm: async () => true,
+      },
+      hasUI: false,
+    } as unknown as ExtensionCommandContext,
+  };
+}
+
+test("tryAutoRenameOnFirstMessage starts only for an enabled unnamed first prompt", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-auto-rename-first-"));
+  try {
+    writeAutoRenameConfig(dir, { onFirstMessage: true });
+    const names: string[] = [];
+    const { ctx, notices } = firstMessageCtx([]);
+    const started = tryAutoRenameOnFirstMessage({
+      prompt: "fix the login button race",
+      ctx,
+      setSessionName: (name) => names.push(name),
+      getThinkingLevel: () => "off",
+      agentDir: dir,
+      complete: async () =>
+        ({
+          role: "assistant",
+          content: [{ type: "text", text: "fix-login-button" }],
+          stopReason: "stop",
+        }) as never,
+    });
+    assert.ok(started);
+    const result = await started;
+    assert.equal(result.ok, true);
+    assert.deepEqual(names, ["fix-login-button"]);
+    assert.ok(notices.some((n) => n.message.includes("fix-login-button")));
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("tryAutoRenameOnFirstMessage skips off, history, named, and empty prompts", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-auto-rename-skip-"));
+  try {
+    let completeCalls = 0;
+    const complete = async () => {
+      completeCalls += 1;
+      return { role: "assistant", content: [], stopReason: "stop" } as never;
+    };
+    const run = (opts: {
+      config?: { onFirstMessage?: boolean };
+      entries?: unknown[];
+      sessionName?: string;
+      prompt: string;
+    }) => {
+      writeAutoRenameConfig(dir, opts.config ?? {});
+      const { ctx, notices } = firstMessageCtx(opts.entries ?? [], opts.sessionName);
+      const started = tryAutoRenameOnFirstMessage({
+        prompt: opts.prompt,
+        ctx,
+        setSessionName: () => {
+          throw new Error("should not rename");
+        },
+        getThinkingLevel: () => "off",
+        agentDir: dir,
+        complete,
+      });
+      return { started, notices };
+    };
+
+    assert.equal(run({ prompt: "fix login" }).started, undefined);
+    assert.equal(
+      run({ config: { onFirstMessage: true }, entries: [messageEntry("user", "old")], prompt: "next" })
+        .started,
+      undefined,
+    );
+    assert.equal(
+      run({ config: { onFirstMessage: true }, sessionName: "kept", prompt: "fix login" }).started,
+      undefined,
+    );
+    assert.equal(run({ config: { onFirstMessage: true }, prompt: "   " }).started, undefined);
+    assert.equal(completeCalls, 0);
+    assert.deepEqual(run({ prompt: "fix login" }).notices, []);
   } finally {
     await fs.rm(dir, { recursive: true, force: true });
   }

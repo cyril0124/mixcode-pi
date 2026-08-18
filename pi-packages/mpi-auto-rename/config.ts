@@ -1,5 +1,5 @@
 /**
- * Load `<agentDir>/auto-rename.json` (optional `model` / `thinking`).
+ * Load `<agentDir>/auto-rename.json` (optional `model` / `thinking` / `onFirstMessage`).
  * Pure Node — no Bun APIs.
  */
 
@@ -14,6 +14,8 @@ export type AutoRenameConfig = {
   model?: string;
   /** Thinking level; omit or "inherit" = use active session thinking. */
   thinking?: string;
+  /** If true, generate a title when the session's first user message is sent. */
+  onFirstMessage?: boolean;
 };
 
 export function autoRenameConfigPath(agentDir: string): string {
@@ -25,7 +27,7 @@ export type AutoRenameConfigLoad =
   | { ok: true; path: string; config: AutoRenameConfig; missing: true }
   | { ok: false; path: string; error: string };
 
-/** Non-empty trimmed `model` / `thinking` only; unknown keys ignored. */
+/** Non-empty trimmed `model` / `thinking`, boolean `onFirstMessage`; unknown keys ignored. */
 export function parseAutoRenameConfig(raw: unknown): AutoRenameConfig {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
   const source = raw as Record<string, unknown>;
@@ -35,6 +37,9 @@ export function parseAutoRenameConfig(raw: unknown): AutoRenameConfig {
   }
   if (typeof source.thinking === "string" && source.thinking.trim()) {
     config.thinking = source.thinking.trim();
+  }
+  if (typeof source.onFirstMessage === "boolean") {
+    config.onFirstMessage = source.onFirstMessage;
   }
   return config;
 }

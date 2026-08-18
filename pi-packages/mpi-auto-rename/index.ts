@@ -4,7 +4,7 @@
  * Usage: /auto-rename
  * Cancel: /auto-rename-cancel
  * Config: /auto-rename config
- *   <agentDir>/auto-rename.json  { "model"?: "provider/id", "thinking"?: "low" }
+ *   <agentDir>/auto-rename.json  { "model"?: "provider/id", "thinking"?: "low", "onFirstMessage"?: true }
  * Progress: aboveEditor widget (does not take over the input editor).
  */
 
@@ -18,6 +18,7 @@ import {
   getAgentDir,
   type ExtensionAPI,
   type ExtensionCommandContext,
+  type ExtensionContext,
   type ExtensionFactory,
   type SessionEntry,
 } from "@earendil-works/pi-coding-agent";
@@ -27,8 +28,8 @@ import {
   parseAutoRenameModelRef,
   resolveAutoRenameTarget,
   writeAutoRenameConfig,
-  type AutoRenameConfig,
 } from "./config.js";
+import { createAutoRenameConfigOverlay } from "./config-overlay.js";
 
 export const MAX_CONTEXT_CHARS = 1_000;
 export const RECENT_MESSAGE_WINDOW = 20;
@@ -109,6 +110,30 @@ function entrySection(entry: SessionEntry): string | undefined {
 
   const label = message.role === "user" ? "User" : "Assistant";
   return `${label}: ${lines.join("\n")}`;
+}
+
+function hasPriorUserMessage(entries: readonly SessionEntry[]): boolean {
+  for (const entry of entries) {
+    if (entry.type !== "message") continue;
+    const message = entry.message as SessionMessage;
+    if (message.role === "user") return true;
+  }
+  return false;
+}
+
+/** True only when first-message auto-rename should start. Named sessions and later turns stay manual. */
+export function shouldAutoRenameOnFirstMessage(options: {
+  onFirstMessage?: boolean;
+  entries: readonly SessionEntry[];
+  sessionName?: string;
+  prompt: string;
+}): boolean {
+  return (
+    options.onFirstMessage === true &&
+    Boolean(options.prompt.trim()) &&
+    !options.sessionName &&
+    !hasPriorUserMessage(options.entries)
+  );
 }
 
 export function buildConversationContext(entries: readonly SessionEntry[]): string {
@@ -269,7 +294,7 @@ function renderAutoRenameProgressLines(
 }
 
 function startAutoRenameProgressWidget(
-  ctx: ExtensionCommandContext,
+  ctx: ExtensionContext,
   info: { modelLabel: string; thinkingLabel: string; sourceChars: number },
 ): () => void {
   const startedAt = Date.now();
@@ -448,44 +473,49 @@ export async function runAutoRenameConfig(options: {
     return { ok: false, reason: "bad_config" };
   }
 
-  const next: AutoRenameConfig = { ...loaded.config };
-  const modelOptions = [AUTO_RENAME_INHERIT, ...listModelOptions(ctx)];
-  const currentModel = next.model?.trim() || AUTO_RENAME_INHERIT;
-  const chosenModel = await ctx.ui.select(
-    `Auto-rename model (current: ${currentModel})`,
-    modelOptions,
-  );
-  if (chosenModel === undefined) return { ok: true, path: loaded.path };
-  if (!chosenModel || chosenModel === AUTO_RENAME_INHERIT) delete next.model;
-  else next.model = chosenModel;
+  let draft = { ...loaded.config };
+  const persist = (config: typeof draft): void => {
+    draft = { ...config };
+    const written = writeAutoRenameConfig(agentDir, draft);
+    if (!written.ok) {
+      ctx.ui.notify(`Failed to write ${written.path}: ${written.error}`, "error");
+    }
+  };
 
-  const thinkingOptions = listThinkingOptions(findConfiguredModel(ctx, next.model));
-  const currentThinking = next.thinking?.trim() || AUTO_RENAME_INHERIT;
-  const chosenThinking = await ctx.ui.select(
-    `Auto-rename thinking (current: ${currentThinking})`,
-    thinkingOptions,
+  await ctx.ui.custom(
+    (tui, theme, _kb, done) =>
+      createAutoRenameConfigOverlay({
+        theme,
+        requestRender: () => tui.requestRender(),
+        done: () => done(undefined),
+        onChange: persist,
+        initial: draft,
+        modelOptions: listModelOptions(ctx),
+        getThinkingOptions: (modelRef) => listThinkingOptions(findConfiguredModel(ctx, modelRef)),
+        getMaxVisible: () => Math.max(3, Math.floor(tui.terminal.rows * 0.8) - 10),
+      }),
+    {
+      overlay: true,
+      overlayOptions: {
+        anchor: "center",
+        width: "72%",
+        maxHeight: "80%",
+        margin: 1,
+      },
+    },
   );
-  if (chosenThinking !== undefined) {
-    if (!chosenThinking || chosenThinking === AUTO_RENAME_INHERIT) delete next.thinking;
-    else next.thinking = chosenThinking;
-  }
-
-  const written = writeAutoRenameConfig(agentDir, next);
-  if (!written.ok) {
-    ctx.ui.notify(`Failed to write ${written.path}: ${written.error}`, "error");
-    return { ok: false, reason: "write_failed" };
-  }
 
   return { ok: true, path: loaded.path };
 }
 
 export async function runAutoRename(options: {
-  ctx: ExtensionCommandContext;
+  ctx: ExtensionContext;
   setSessionName: (name: string) => void;
   getThinkingLevel: () => string;
   complete?: CompleteFn;
   agentDir?: string;
   abortSlot?: AutoRenameAbortSlot;
+  seedPrompt?: string;
 }): Promise<AutoRenameResult> {
   const { ctx } = options;
   const notify = (message: string, level: "info" | "warning" | "error" = "info") => {
@@ -506,7 +536,9 @@ export async function runAutoRename(options: {
     return { ok: false, reason: "no_model" };
   }
 
-  const conversationContext = buildConversationContext(ctx.sessionManager.buildContextEntries());
+  const fromSession = buildConversationContext(ctx.sessionManager.buildContextEntries());
+  const seed = options.seedPrompt?.trim();
+  const conversationContext = fromSession || (seed ? `User: ${seed}` : "");
   if (!conversationContext.trim()) {
     notify("No conversation context available to rename", "error");
     return { ok: false, reason: "empty_context" };
@@ -636,14 +668,58 @@ export async function runAutoRename(options: {
   }
 }
 
+/** Start first-message auto-rename when the gate passes. Returns the in-flight run, or undefined. */
+export function tryAutoRenameOnFirstMessage(options: {
+  prompt: string;
+  ctx: ExtensionContext;
+  setSessionName: (name: string) => void;
+  getThinkingLevel: () => string;
+  abortSlot?: AutoRenameAbortSlot;
+  agentDir?: string;
+  complete?: CompleteFn;
+}): Promise<AutoRenameResult> | undefined {
+  const agentDir = options.agentDir ?? getAgentDir();
+  const loaded = loadAutoRenameConfig(agentDir);
+  if (!loaded.ok) return undefined;
+  if (
+    !shouldAutoRenameOnFirstMessage({
+      onFirstMessage: loaded.config.onFirstMessage,
+      entries: options.ctx.sessionManager.buildContextEntries(),
+      sessionName: options.ctx.sessionManager.getSessionName(),
+      prompt: options.prompt,
+    })
+  ) {
+    return undefined;
+  }
+  return runAutoRename({
+    ctx: options.ctx,
+    setSessionName: options.setSessionName,
+    getThinkingLevel: options.getThinkingLevel,
+    abortSlot: options.abortSlot,
+    agentDir,
+    complete: options.complete,
+    seedPrompt: options.prompt,
+  });
+}
+
 const autoRename: ExtensionFactory = (pi) => {
   const abortSlot: AutoRenameAbortSlot = {};
 
+  pi.on("before_agent_start", (event, ctx) => {
+    void tryAutoRenameOnFirstMessage({
+      prompt: event.prompt,
+      ctx,
+      setSessionName: (name) => pi.setSessionName(name),
+      getThinkingLevel: () => pi.getThinkingLevel(),
+      abortSlot,
+    });
+  });
+
   pi.registerCommand("auto-rename", {
-    description: "Generate a kebab-case session title; config picks model/thinking",
+    description: "Generate a kebab-case session title; config opens the settings list",
     getArgumentCompletions: (prefix: string) => {
       const items = [
-        { value: "config", label: "config", description: "Pick rename model and thinking" },
+        { value: "config", label: "config", description: "Open settings list (model / thinking / first message)" },
       ];
       const filtered = items.filter((item) => item.value.startsWith(prefix));
       return filtered.length > 0 ? filtered : null;

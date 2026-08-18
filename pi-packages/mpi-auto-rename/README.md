@@ -8,7 +8,7 @@ Generate a short kebab-case session title from the current conversation.
 
 ```bash
 /auto-rename                 # Generate a title from recent conversation
-/auto-rename config          # Pick model and thinking
+/auto-rename config          # Settings list: model, thinking, first-message auto
 /auto-rename-cancel          # Abort an in-flight generate
 ```
 
@@ -17,7 +17,8 @@ Generate a short kebab-case session title from the current conversation.
 ```json
 {
   "model": "provider/modelId",
-  "thinking": "low"
+  "thinking": "low",
+  "onFirstMessage": true
 }
 ```
 
@@ -25,5 +26,6 @@ Generate a short kebab-case session title from the current conversation.
 | --- | --- | --- |
 | `model` | inherit active session model | `provider/modelId` |
 | `thinking` | inherit active session thinking | Chosen model's supported levels, e.g. `off`, `low`, `high` |
+| `onFirstMessage` | `false` (omit) | If `true`, generate a title when the session's first user message is sent. Skips named sessions and later turns. |
 
-`/auto-rename config` writes both fields. Omit a field (or `"inherit"`) to follow the active session.
+`/auto-rename config` opens a settings list. Enter edits a row (toggles `onFirstMessage`); Esc closes. Changes write immediately. Omit `model` / `thinking` (or `"inherit"`) to follow the active session.

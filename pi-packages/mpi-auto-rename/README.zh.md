@@ -8,7 +8,7 @@
 
 ```bash
 /auto-rename                 # 根据最近对话生成标题
-/auto-rename config          # 选择模型和 thinking
+/auto-rename config          # 设置列表：模型、thinking、首条消息自动触发
 /auto-rename-cancel          # 中止进行中的生成
 ```
 
@@ -17,7 +17,8 @@
 ```json
 {
   "model": "provider/modelId",
-  "thinking": "low"
+  "thinking": "low",
+  "onFirstMessage": true
 }
 ```
 
@@ -25,5 +26,6 @@
 | --- | --- | --- |
 | `model` | 继承当前会话模型 | `provider/modelId` |
 | `thinking` | 继承当前会话 thinking | 所选模型支持的级别，如 `off`、`low`、`high` |
+| `onFirstMessage` | `false`（省略） | 为 `true` 时，在该 session 发出第一条用户消息时生成标题。已有标题或后续轮次不自动触发。 |
 
-`/auto-rename config` 会写入这两个字段。省略字段（或设为 `"inherit"`）则跟随当前会话。
+`/auto-rename config` 打开设置列表。Enter 编辑该项（`onFirstMessage` 为开关）；Esc 关闭。改动立即写入。省略 `model` / `thinking`（或设为 `"inherit"`）则跟随当前会话。

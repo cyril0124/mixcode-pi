@@ -11,7 +11,7 @@ MixCode ships first-party built-in Pi packages located in `pi-packages/mpi-*`. S
 | `mpi-goal` | `/goal [objective]`, `/goal tools`, `/goal pause\|resume\|clear` | Session-scoped goal tracking with progressive dynamic tool disclosure, continuation budgets, and live status widget. |
 | `mpi-loop` | `/loop [interval] <prompt>`, `/loop stop <id\|name>`, `/loop interval <id> <time>` | Recurring prompt execution engine with timer conflict policies (`skip` / `defer`), editor dock status widget, and interactive management overlay. |
 | `mpi-optimize-prompt` | `/optimize-prompt [prompt]`, `/optimize-prompt-config` | Metaprompt-based prompt optimizer that refines vague user instructions into structured, executable prompts. |
-| `mpi-auto-rename` | Auto on turn 1, `/auto-rename [name]` | Background lightweight LLM invocation generating concise tab titles from initial user prompts. |
+| `mpi-auto-rename` | Optional auto on first message, `/auto-rename` | Generates a kebab-case session title; enable `onFirstMessage` in `<agentDir>/auto-rename.json`. |
 | `mpi-skill-refs` | `$` completion trigger | Project and global skill autocomplete and in-prompt expansion. |
 | `mpi-prompt-history` | `/prompt-history` | Interactive prompt history browser, filtering, and insertion into the active editor. |
 | `mpi-chat-view` | `/view [chat\|thinking\|last\|user]` | Views conversation transcripts, thinking blocks, or last messages in `$VISUAL` / `$EDITOR` or within the in-app viewer. |
