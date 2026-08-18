@@ -298,6 +298,23 @@ test("ctrl-p does not open command palette while another input mode owns focus",
   assert.equal(overlays, 0);
 });
 
+test("ctrl-p on Home opens command palette even if selected agent is waiting for input", () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo", { status: "Not Ready" });
+  tab.extensionUi.waitingForInputs.push({ id: "r1", kind: "custom" });
+  state.tabs.push(tab);
+  state.homeSelectedTabIndex = 0;
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({} as never),
+    hideOverlay: () => undefined,
+    hasOverlay: () => false,
+  };
+
+  assert.deepEqual(handleMixCodeKeyInput(state, "\x10", tui), { consume: true });
+  assert.equal(state.commandPaletteOpen, true);
+});
+
 test("global key input cycles tabs unless editor autocomplete is open", () => {
   const state = createInitialState("/repo");
   const s2 = createTab(2, "s2", "/repo", { unreadDone: true });

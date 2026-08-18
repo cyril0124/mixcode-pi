@@ -292,7 +292,8 @@ export function canOpenCommandPalette(
   if (hasAnyOverlay(tui)) return false;
   if (state.picker || state.sessionSelector.open || state.treeSelector.open || state.tabJumpOpen)
     return false;
-  if (active && tabIsWaitingForInput(active)) return false;
+  // Home only highlights a send target; that agent's extension dialog is not on this surface.
+  if (state.activeTabId !== HOME_TAB_ID && active && tabIsWaitingForInput(active)) return false;
   return commandPaletteEntriesWithExtensions(state, extensionCommands).length > 0;
 }
 
