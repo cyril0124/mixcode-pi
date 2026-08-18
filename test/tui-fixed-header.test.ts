@@ -688,13 +688,9 @@ test("working indicator requests periodic renders while the active tab is busy",
   );
   state.activeTabId = "s1";
   let renders = 0;
-  let stops = 0;
   const tui = {
     requestRender: () => {
       renders++;
-    },
-    stop: () => {
-      stops++;
     },
   };
   const dispose = bindWorkingRedraw(state, tui);
@@ -712,13 +708,11 @@ test("working indicator requests periodic renders while the active tab is busy",
   state.tabs[0]!.status = "idle";
   await sleep(95);
   assert.equal(renders, homeRenders);
-  tui.stop();
-  assert.equal(stops, 1);
+  dispose();
   state.activeTabId = "s1";
   state.tabs[0]!.status = "running";
   await sleep(95);
   assert.equal(renders, homeRenders);
-  dispose();
 });
 
 test("createMixCodeTui binds working redraw for Home Agent View spinners", async () => {
@@ -748,6 +742,9 @@ test("createMixCodeTui binds working redraw for Home Agent View spinners", async
   } finally {
     tui.stop();
   }
+  const rendersAfterStop = renders;
+  await sleep(95);
+  assert.equal(renders, rendersAfterStop);
 });
 
 test("differential renders do not force full redraws after the first paint", async () => {

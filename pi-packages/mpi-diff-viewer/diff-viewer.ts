@@ -7,6 +7,7 @@ import {
 import {
   Editor,
   type EditorTheme,
+  fuzzyFilter,
   Key,
   matchesKey,
   sliceByColumn,
@@ -194,26 +195,6 @@ function buildNavigatorRows(files: DiffFile[], fileIndexes: number[]): Navigator
 
   for (const child of root.children) appendNode(child, 1, "");
   return rows;
-}
-
-function fuzzyScore(query: string, candidate: string): number {
-  const needle = query.trim().toLowerCase().replace(/\s+/g, "");
-  const haystack = candidate.toLowerCase();
-  if (!needle) return 0;
-  const exactIndex = haystack.indexOf(needle);
-  if (exactIndex >= 0) return 1_000 - exactIndex;
-
-  let needleIndex = 0;
-  let score = 0;
-  let previousMatch = -2;
-  for (let index = 0; index < haystack.length && needleIndex < needle.length; index++) {
-    if (haystack[index] !== needle[needleIndex]) continue;
-    score += index === previousMatch + 1 ? 8 : 2;
-    if (index === 0 || "/_.-".includes(haystack[index - 1] ?? "")) score += 5;
-    previousMatch = index;
-    needleIndex++;
-  }
-  return needleIndex === needle.length ? score : -1;
 }
 
 function renderPanel(
@@ -607,15 +588,11 @@ export class DiffViewer {
   }
 
   private visibleFileIndexes(): number[] {
-    const rankedIndexes = this.config.diff.files
-      .map((file, index) => {
-        const pathScore = fuzzyScore(this.searchQuery, file.path);
-        const baseScore = fuzzyScore(this.searchQuery, file.path.split("/").pop() ?? file.path);
-        return { index, score: Math.max(pathScore, baseScore < 0 ? -1 : baseScore + 20) };
-      })
-      .filter((entry) => entry.score >= 0)
-      .sort((left, right) => right.score - left.score || left.index - right.index)
-      .map((entry) => entry.index);
+    const rankedIndexes = fuzzyFilter(
+      this.config.diff.files.map((file, index) => ({ file, index })),
+      this.searchQuery,
+      ({ file }) => file.path,
+    ).map(({ index }) => index);
     return buildNavigatorRows(this.config.diff.files, rankedIndexes).flatMap((row) =>
       row.kind === "file" ? [row.fileIndex] : [],
     );

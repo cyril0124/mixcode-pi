@@ -10,7 +10,7 @@ import {
 import { cancelAgentEndContinueArm, registerGoalLifecycle } from "./runtime/lifecycle.js";
 import { getQueue } from "./persistence/queue-store.js";
 import { sendQueueHandoff, sendQueueSteering } from "./queue/steering.js";
-import { handleGoalCommand, registerGoalCommand, type GoalCommandRuntime } from "./surface/command/register.js";
+import { handleGoalCommand, type GoalCommandRuntime } from "./surface/command/register.js";
 import { disableGoalTools, enableGoalTools } from "./surface/tools/dynamic.js";
 import { registerGoalTools } from "./surface/tools/goal-tools.js";
 
@@ -56,26 +56,16 @@ function buildGoalCommandRuntime(pi: ExtensionAPI): GoalCommandRuntime {
 	};
 }
 
-export type WireMpiGoalOptions = {
-	/** When false, skip registerCommand (shell already owns /goal). Default true. */
-	registerCommand?: boolean;
-};
-
 /**
  * Wire the full mpi-goal surface into a Pi ExtensionAPI.
  * Goal/queue tools are registered but left inactive until /goal (or unfinished state).
  */
-export function wireMpiGoal(pi: ExtensionAPI, options: WireMpiGoalOptions = {}): void {
-	const registerCommand = options.registerCommand !== false;
+export function wireMpiGoal(pi: ExtensionAPI): void {
 	const postCompletionRunner = createContextResetActionRunner();
 
 	const commandRuntime = buildGoalCommandRuntime(pi);
 	const scheduleContinuation = commandRuntime.scheduleContinuation;
 	const cancelContinuation = commandRuntime.cancelContinuation;
-
-	if (registerCommand) {
-		registerGoalCommand(pi, commandRuntime);
-	}
 
 	registerGoalTools(pi, {
 		scheduleContinuation,

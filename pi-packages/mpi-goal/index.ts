@@ -20,8 +20,3 @@ import { registerMpiGoalShell } from "./src/shell.js";
 export default function mpiGoal(pi: ExtensionAPI): void {
 	registerMpiGoalShell(pi);
 }
-
-// Do not re-export wireMpiGoal from this entry — a static export pulls the full
-// module graph back into the cold load path. Import `./src/app.js` directly when
-// tests need the full synchronous wire helper.
-export { ensureMpiGoalWired } from "./src/shell.js";

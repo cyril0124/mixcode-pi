@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import mpiGoal, { ensureMpiGoalWired } from "./index.js";
+import mpiGoal from "./index.js";
 import { wireMpiGoal } from "./src/app.js";
 import {
 	disableGoalTools,
@@ -79,19 +79,10 @@ test("factory load does not call setActiveTools (runtime unbound)", () => {
 
 	mpiGoal(pi);
 	assert.equal(setActiveCalls, 0);
-	// Cold shell: command only; tools arrive after ensureMpiGoalWired / wireMpiGoal.
+	// Cold shell: command only; tools arrive when the command loads the full app.
 	assert.equal(tools.size, 0);
 	assert.ok(commands.has("goal"));
 	assert.equal(commands.has("goal-tools"), false);
-});
-
-test("cold shell does not register tools until full wire", async () => {
-	const { pi, tools, commands } = createFakePi();
-	mpiGoal(pi);
-	assert.equal(tools.size, 0);
-	assert.ok(commands.has("goal"));
-	await ensureMpiGoalWired(pi);
-	assert.equal(tools.size, GOAL_TOOL_NAMES.length);
 });
 
 test("goal creation schemas expose actions without the removed context alias", () => {
@@ -131,10 +122,11 @@ test("enableGoalTools is additive and keeps existing tools", () => {
 });
 
 test("/goal command enables tools", async () => {
-	const { pi, commands, active } = createFakePi();
+	const { pi, tools, commands, active } = createFakePi();
 	mpiGoal(pi);
 	const command = commands.get("goal");
 	assert.ok(command);
+	assert.equal(tools.size, 0);
 
 	const ctx = {
 		hasUI: false,
@@ -154,6 +146,7 @@ test("/goal command enables tools", async () => {
 
 	assert.equal(active.has("get_goal"), false);
 	await command.handler("", ctx);
+	assert.equal(tools.size, GOAL_TOOL_NAMES.length);
 	assert.equal(active.has("get_goal"), true);
 	assert.equal(isGoalToolsActive(pi), true);
 });

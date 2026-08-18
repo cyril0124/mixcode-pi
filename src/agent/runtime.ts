@@ -1,4 +1,3 @@
-import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
@@ -10,7 +9,8 @@ import {
   getAgentDir,
   type ModelRuntime,
   type SessionInfo,
-  type SessionManager,
+  type SessionEntry,
+  SessionManager,
   type SessionShutdownEvent,
   type SettingsManager,
 } from "@earendil-works/pi-coding-agent";
@@ -140,44 +140,15 @@ export function isBashAlreadyRunningError(error: unknown): boolean {
   );
 }
 
-type UserSessionEntry = {
-  id?: string;
-  parentId?: string | null;
-  type?: string;
-  message?: { role?: string; content?: string | Array<{ type: string; text?: string }> };
-};
-
 function promptsFromSessionFile(file: string | undefined): string[] {
   if (!file) return [];
-  return sessionFileBranch(file).flatMap((entry) => promptsFromSessionEntry(entry));
+  return SessionManager.open(file)
+    .getBranch()
+    .flatMap((entry) => promptsFromSessionEntry(entry));
 }
 
-function sessionFileBranch(file: string): UserSessionEntry[] {
-  // Sync interface (getPromptHistory); Bun.file().text() is async-only.
-  const entries = fs.readFileSync(file, "utf8")
-    .split(/\r?\n/)
-    .flatMap((line) => {
-      if (!line.trim()) return [];
-      try {
-        return [JSON.parse(line) as UserSessionEntry];
-      } catch {
-        return [];
-      }
-    });
-  if (entries[0]?.type !== "session") return [];
-  const messages = entries.filter((entry) => entry.type !== "session");
-  if (messages.some((entry) => !entry.id || entry.parentId === undefined)) return messages;
-  const byId = new Map(messages.flatMap((entry) => (entry.id ? [[entry.id, entry]] : [])));
-  const branch: UserSessionEntry[] = [];
-  for (let entry = messages.at(-1); entry; entry = entry.parentId ? byId.get(entry.parentId) : undefined) {
-    branch.push(entry);
-  }
-  return branch.reverse();
-}
-
-function promptsFromSessionEntry(entry: UserSessionEntry): string[] {
-  if (entry.type !== "message" || entry.message?.role !== "user" || !entry.message.content)
-    return [];
+function promptsFromSessionEntry(entry: SessionEntry): string[] {
+  if (entry.type !== "message" || entry.message.role !== "user") return [];
   const text = contentText(entry.message.content).trim();
   return text ? [text] : [];
 }

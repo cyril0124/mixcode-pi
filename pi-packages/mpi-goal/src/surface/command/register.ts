@@ -1,10 +1,9 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import type { AutocompleteItem } from "@earendil-works/pi-tui";
 import type { PostCompletionActionSpec } from "../../domain/types.js";
 import { GOAL_USAGE, GOAL_USAGE_HINT } from "../../domain/constants.js";
 import { canActivateGoal, budgetLimitReason } from "../../domain/budget.js";
 import { validateObjective } from "../../domain/format.js";
-import { discoverGoalTemplates, parseGoalTemplateInvocation } from "../../templates/discover.js";
+import { parseGoalTemplateInvocation } from "../../templates/discover.js";
 import { buildDirectGoalIntent, buildTemplateGoalIntent } from "../../domain/goal-intent.js";
 import { createPostCompletionActionStates, recordPostStartActionAnchors } from "../../runtime/post-completion.js";
 import { captureContextResetCommandContext } from "../../runtime/context-reset.js";
@@ -40,72 +39,6 @@ export type GoalCommandRuntime = {
 	/** Called for every /goal invocation so goal tools can be progressively enabled. */
 	onCommand?: () => void;
 };
-
-type GoalSubcommand = {
-	name: "pause" | "resume" | "clear" | "queue" | "tools";
-	description: string;
-};
-
-const GOAL_SUBCOMMANDS: GoalSubcommand[] = [
-	{ name: "pause", description: "Pause the current goal" },
-	{ name: "resume", description: "Resume a paused goal" },
-	{ name: "clear", description: "Clear the current goal" },
-	{ name: "queue", description: "List queued goals or enqueue a new goal" },
-	{ name: "tools", description: "Activate all goal/queue model tools (Dynamic Tool Loading)" },
-];
-
-export function registerGoalCommand(
-	pi: ExtensionAPI,
-	runtime: GoalCommandRuntime,
-): void {
-	pi.registerCommand("goal", {
-		description: "Set or view the goal for a long-running task",
-		getArgumentCompletions: goalArgumentCompletions,
-		handler: async (args, ctx) => {
-			runtime.onCommand?.();
-			await handleGoalCommand(pi, args, ctx, runtime);
-		},
-	});
-}
-
-export function goalArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
-	const query = argumentPrefix.trimStart();
-	if (/^queue\s/.test(query)) return templateCompletions(query.slice("queue".length).trimStart(), "queue ");
-	if (/\s/.test(query)) return null;
-	const scored = GOAL_SUBCOMMANDS.map((subcommand) => ({
-		...subcommand,
-		score: subcommandScore(subcommand.name, query),
-	})).filter((item): item is GoalSubcommand & { score: number } => item.score !== undefined);
-	scored.sort((a, b) => a.score - b.score || a.name.localeCompare(b.name));
-	const subcommands = scored.map(({ name, description }) => ({ value: name, label: name, description }));
-	return [...subcommands, ...templateCompletions(query)];
-}
-
-function templateCompletions(query: string, valuePrefix = ""): AutocompleteItem[] {
-	if (/\s/.test(query)) return [];
-	return discoverGoalTemplates()
-		.filter((template) => template.name.toLowerCase().includes(query.toLowerCase()) || template.aliases.some((alias) => alias.toLowerCase().includes(query.toLowerCase())))
-		.slice(0, 20)
-		.map((template) => ({ value: `${valuePrefix}${template.name}`, label: template.name, description: template.description ?? `Goal template from ${template.path}` }));
-}
-
-function subcommandScore(value: string, query: string): number | undefined {
-	const normalized = query.toLowerCase();
-	if (!normalized) return 0;
-	if (value.startsWith(normalized)) return 1;
-	if (value.includes(normalized)) return 2;
-	return isOrderedMatch(value, normalized) ? 3 : undefined;
-}
-
-function isOrderedMatch(value: string, query: string): boolean {
-	let index = 0;
-	for (const char of query) {
-		index = value.indexOf(char, index);
-		if (index < 0) return false;
-		index++;
-	}
-	return true;
-}
 
 export async function handleGoalCommand(
 	pi: ExtensionAPI,

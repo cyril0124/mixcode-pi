@@ -684,6 +684,27 @@ test("t filters files and keeps the selected match", () => {
   assert.doesNotMatch(output, /src\/alpha\.ts/);
 });
 
+test("file filtering ranks tighter fuzzy matches first", () => {
+  const rows: DiffRow[] = [
+    { kind: "insert", newLineNumber: 1, oldText: "", newText: "changed" },
+  ];
+  const weak = file("b-e-t-a.ts", rows);
+  const strong = file("beta.ts", rows);
+  const { component } = createViewer({
+    files: [weak, strong],
+    additions: 2,
+    deletions: 0,
+    trackedFiles: 2,
+  });
+
+  component.handleInput("t");
+  for (const character of "beta") component.handleInput(character);
+  component.handleInput("\r");
+
+  const output = stripTerminalSequences(component.render(120).join("\n"));
+  assert.ok(output.indexOf("beta.ts") < output.indexOf("b-e-t-a.ts"));
+});
+
 test("comment mode Ctrl+D/U jumps the selected changed line by half a page", () => {
   const rows = Array.from(
     { length: 30 },

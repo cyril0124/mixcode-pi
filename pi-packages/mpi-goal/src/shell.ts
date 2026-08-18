@@ -24,12 +24,12 @@ function stateFor(pi: ExtensionAPI): WireState {
 }
 
 /** Load and apply the full wireMpiGoal surface (tools + lifecycle; command stays on shell). */
-export function ensureMpiGoalWired(pi: ExtensionAPI): Promise<void> {
+function ensureMpiGoalWired(pi: ExtensionAPI): Promise<void> {
 	const state = stateFor(pi);
 	if (state.wired) return Promise.resolve();
 	if (!state.promise) {
 		state.promise = import("./app.js").then(({ wireMpiGoal }) => {
-			wireMpiGoal(pi, { registerCommand: false });
+			wireMpiGoal(pi);
 			state.wired = true;
 		});
 	}

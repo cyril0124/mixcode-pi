@@ -19,14 +19,14 @@ export function hydrateTabPromptHistory(
 }
 export function bindWorkingRedraw(
   state: MixCodeState,
-  tui: Pick<TuiType, "requestRender" | "stop">,
+  tui: Pick<TuiType, "requestRender">,
 ): () => void {
   return bindConditionalRedraw(state, tui, WORKING_REDRAW_INTERVAL_MS, activeTabNeedsWorkingRedraw);
 }
 
 export function bindLiveExtensionRedraw(
   state: MixCodeState,
-  tui: Pick<TuiType, "requestRender" | "stop">,
+  tui: Pick<TuiType, "requestRender">,
   intervalMs = LIVE_EXTENSION_REDRAW_INTERVAL_MS,
 ): () => void {
   return bindConditionalRedraw(state, tui, intervalMs, activeTabNeedsLiveExtensionRedraw);
@@ -34,7 +34,7 @@ export function bindLiveExtensionRedraw(
 
 function bindConditionalRedraw(
   state: MixCodeState,
-  tui: Pick<TuiType, "requestRender" | "stop">,
+  tui: Pick<TuiType, "requestRender">,
   intervalMs: number,
   shouldRedraw: (state: MixCodeState) => boolean,
 ): () => void {
@@ -42,18 +42,7 @@ function bindConditionalRedraw(
     if (shouldRedraw(state)) tui.requestRender();
   }, intervalMs);
   interval.unref?.();
-  const originalStop = tui.stop.bind(tui);
-  let stopped = false;
-  const stop = () => {
-    if (stopped) return;
-    stopped = true;
-    clearInterval(interval);
-  };
-  tui.stop = () => {
-    stop();
-    originalStop();
-  };
-  return stop;
+  return () => clearInterval(interval);
 }
 
 function activeTabNeedsWorkingRedraw(state: MixCodeState): boolean {

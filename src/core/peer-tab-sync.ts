@@ -127,8 +127,6 @@ export function startPeerTabSync(options: StartPeerTabSyncOptions): {
   let pollTimer: ReturnType<typeof setInterval> | undefined;
   let reconcileInFlight: Promise<void> | undefined;
   let reconcileAgain = false;
-  const opening = new Set<string>();
-  const closing = new Set<string>();
 
   const reconcile = async (): Promise<void> => {
     if (disposed) return;
@@ -174,31 +172,23 @@ export function startPeerTabSync(options: StartPeerTabSyncOptions): {
 
     for (const candidate of plan.toOpen) {
       if (disposed) return;
-      if (opening.has(candidate.sessionId) || closing.has(candidate.sessionId)) continue;
       const local = new Set(options.getLocalSessionIds());
       if (local.has(candidate.sessionId)) continue;
-      opening.add(candidate.sessionId);
       try {
         await options.openTab(candidate);
       } catch (error) {
         options.onError?.(error);
-      } finally {
-        opening.delete(candidate.sessionId);
       }
     }
 
     for (const sessionId of plan.toClose) {
       if (disposed) return;
-      if (closing.has(sessionId) || opening.has(sessionId)) continue;
       const local = new Set(options.getLocalSessionIds());
       if (!local.has(sessionId)) continue;
-      closing.add(sessionId);
       try {
         await options.closeTab(sessionId);
       } catch (error) {
         options.onError?.(error);
-      } finally {
-        closing.delete(sessionId);
       }
     }
 
