@@ -9,8 +9,8 @@ import {
   renderConfig,
   renderInputMeta,
   tabBarHitRegions,
-} from "../src/index.js";
-import type { MixCodeRuntime } from "../src/index.js";
+} from "./helpers/mixcode.js";
+import type { MixCodeRuntime } from "./helpers/mixcode.js";
 import { closeAppOverlay } from "../src/ui/app-overlays.js";
 
 function assertQuitOverlay(text: string | undefined): void {
@@ -473,16 +473,10 @@ test("global key input toggles MixCode overlays and passes through regular input
   assert.equal(stopped, true);
   assert.equal(overlayOpen, false);
   assert.deepEqual(closedAll, ["closeAll"]);
-  const refreshRuntime = {
-    refreshAllTabStatuses: () => {
-      tab.status = "running";
-      return [tab];
-    },
-  };
-  assert.equal(handleMixCodeKeyInput(state, "r", tui, undefined, refreshRuntime), undefined);
+  assert.equal(handleMixCodeKeyInput(state, "r", tui), undefined);
   assert.notEqual(tab.status, "running");
   state.activeTabId = "s1";
   overlayOpen = false;
   assert.equal(handleMixCodeKeyInput(state, "q", tui), undefined);
-  assert.equal(handleMixCodeKeyInput(state, "r", tui, undefined, refreshRuntime), undefined);
+  assert.equal(handleMixCodeKeyInput(state, "r", tui), undefined);
 });

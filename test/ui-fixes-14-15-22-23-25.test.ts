@@ -11,7 +11,7 @@ import {
   createTab,
   filteredPickerItems,
   renderConfig,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 import { renderDeleteAllSessionsConfirm } from "../src/ui/app-overlays.js";
 import { handleSettingsPanelKey, renderSettingsPanel } from "../src/ui/settings-panel.js";
 import { themeForId } from "../src/ui/themes.js";

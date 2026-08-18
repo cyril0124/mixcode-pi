@@ -3,7 +3,7 @@
 // |  Registers /commands --> opens grouped overlay --> fills editor        |
 // +----------------------------------------------------------------------+
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { openCommandBrowser } from "./command-browser.js";
+import { createCommandBrowserComponent } from "./command-browser.js";
 
 export default function (pi: ExtensionAPI) {
   pi.registerCommand("commands", {
@@ -14,7 +14,9 @@ export default function (pi: ExtensionAPI) {
         ctx.ui.notify("No extension/skill/prompt commands registered.", "info");
         return;
       }
-      const selected = await openCommandBrowser(commands, ctx);
+      const selected = await ctx.ui.custom<string | null>((tui, theme, _keybindings, done) =>
+        createCommandBrowserComponent({ tui, theme, commands, done }),
+      );
       if (selected) {
         ctx.ui.setEditorText(`/${selected} `);
       }

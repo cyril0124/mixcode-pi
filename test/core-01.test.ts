@@ -25,7 +25,7 @@ import {
   serializeState,
   stateFileForPort,
   withMouseReporting,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 import type { Terminal } from "@earendil-works/pi-tui";
 
 test("SGR mouse parser recognizes wheel and leaves non-mouse input untouched", () => {

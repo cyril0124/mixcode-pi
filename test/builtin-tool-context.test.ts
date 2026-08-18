@@ -4,7 +4,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
 import { SettingsManager } from "@earendil-works/pi-coding-agent";
-import { createTab, MixCodeRuntime } from "../src/index.js";
+import { createTab, MixCodeRuntime } from "./helpers/mixcode.js";
 
 function textFromToolResult(result: { content?: Array<{ type: string; text?: string }> }): string {
   return (result.content ?? [])

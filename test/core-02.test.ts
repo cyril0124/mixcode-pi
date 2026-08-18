@@ -15,7 +15,7 @@ import {
   movePickerSelection,
   acceptPickerSelection,
   completeWorkdirPickerSelection,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 
 test("model picker filters by query and refuses empty selection", async () => {
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-picker-model-"));

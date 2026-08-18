@@ -17,12 +17,12 @@ import {
   setTheme,
   themeForId,
   listThemeInfos,
-} from "../src/index.js";
-import type { MixCodeRuntime } from "../src/index.js";
+} from "./helpers/mixcode.js";
+import type { MixCodeRuntime } from "./helpers/mixcode.js";
 import { allKnownThinkingLevels } from "../src/core/thinking-levels.js";
 import { InMemoryCredentialStore, type Model } from "@earendil-works/pi-ai";
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
-import { MIXCODE_FAUX_MODEL } from "../src/index.js";
+import { MIXCODE_FAUX_MODEL } from "./helpers/mixcode.js";
 
 type TestChatLine = { role: "system"; text: string };
 

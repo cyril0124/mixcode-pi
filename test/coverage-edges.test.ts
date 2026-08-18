@@ -7,7 +7,7 @@ import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { InMemoryCredentialStore } from "@earendil-works/pi-ai";
 import type { AutocompleteItem, AutocompleteProvider } from "@earendil-works/pi-tui";
-import { createInitialState, createTab } from "../src/index.js";
+import { createInitialState, createTab } from "./helpers/mixcode.js";
 import { listAllSessionsGlobal, reopenSessionInWorkdir } from "../src/agent/runtime-session.js";
 import {
   applyExtensionTheme,

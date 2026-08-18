@@ -6,7 +6,7 @@ import * as os from "node:os";
 import { test } from "node:test";
 import type { Context, Model, SimpleStreamOptions } from "@earendil-works/pi-ai";
 import { createAssistantMessageEventStream } from "@earendil-works/pi-ai";
-import { MIXCODE_FAUX_MODEL, MixCodeRuntime, createTab } from "../src/index.js";
+import { MIXCODE_FAUX_MODEL, MixCodeRuntime, createTab } from "./helpers/mixcode.js";
 
 function fauxModel(): Model<string> {
   return {

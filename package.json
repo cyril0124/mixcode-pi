@@ -15,7 +15,7 @@
     "install:global": "bun install -g .",
     "install:extensions": "bun run scripts/install-pi-extensions.ts --yes",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "build": "tsup src/index.ts src/cli/main.ts --format esm --dts --sourcemap --clean",
+    "build": "tsup",
     "test": "bun test --isolate --timeout=60000 test/*.test.ts",
     "test:packages": "bun test --isolate --timeout=60000 pi-packages/*/*.test.ts",
     "check": "bun run typecheck && bun run build && bun run test",

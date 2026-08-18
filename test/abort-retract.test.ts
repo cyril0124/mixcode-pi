@@ -17,7 +17,7 @@ import {
   createInitialState,
   createTab,
   handleMixCodeKeyInput,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 
 // Stream that stays open (never produces text) until aborted or `release` resolves,
 // so the run is genuinely mid-flight with zero visible output when we abort it.

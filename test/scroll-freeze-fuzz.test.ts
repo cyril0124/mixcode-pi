@@ -7,7 +7,7 @@
 // streaming block only appends below the anchor.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createTab, scrollChat, type ChatLine, type MixCodeTabInfo } from "../src/index.js";
+import { createTab, scrollChat, type ChatLine, type MixCodeTabInfo } from "./helpers/mixcode.js";
 import { renderAgentSurface } from "../src/ui/rendering/agent-surface.js";
 
 const WIDTH = 96;

@@ -50,7 +50,7 @@ test("deleting a session via the selector invokes trash exactly once", async () 
   try {
     const [{ createInitialState, createTab }, { openSessionSelector }, { SessionSelectorComponent }] =
       await Promise.all([
-        import("../src/index.js"),
+        import("./helpers/mixcode.js"),
         import("../src/ui/session-selector.js"),
         import("@earendil-works/pi-coding-agent"),
       ]);

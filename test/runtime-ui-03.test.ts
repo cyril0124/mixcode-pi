@@ -11,7 +11,7 @@ import {
   createMixCodeTui,
   handleSubmittedInput,
   type MixCodeRuntime,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 
 async function waitFor(predicate: () => boolean, attempts = 25): Promise<void> {
   for (let i = 0; i < attempts; i += 1) {

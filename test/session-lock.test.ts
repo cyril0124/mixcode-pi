@@ -8,7 +8,7 @@ import {
   acquireSessionTurnLock,
   SessionLockConflictError,
   sessionLockDir,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 
 const LIVE = { alive: true };
 

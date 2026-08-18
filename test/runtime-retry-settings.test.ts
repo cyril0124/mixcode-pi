@@ -3,7 +3,7 @@ import * as fsPromises from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
 import test from "node:test";
-import { createTab, MIXCODE_FAUX_MODEL, MixCodeRuntime } from "../src/index.js";
+import { createTab, MIXCODE_FAUX_MODEL, MixCodeRuntime } from "./helpers/mixcode.js";
 import { mixcodeFauxStream } from "../src/agent/faux-stream.js";
 import { MIXCODE_RETRY_DEFAULTS } from "../src/agent/retry-settings.js";
 

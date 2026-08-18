@@ -20,7 +20,7 @@ import {
   snapshotWorkspace,
   upsertWorkspace,
   updatePickerQuery,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 
 test("unknown model capabilities expose only off thinking", () => {
   assert.deepEqual(

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createInitialState, createTab, handleMixCodeKeyInput, type MixCodeState } from "../src/index.js";
+import { createInitialState, createTab, handleMixCodeKeyInput, type MixCodeState } from "./helpers/mixcode.js";
 import type { MixCodeEditorActions } from "../src/ui/app-types.js";
 
 // Regression guard for the paste-newline heuristic swallowing Enter while an

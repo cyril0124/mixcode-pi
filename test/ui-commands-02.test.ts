@@ -15,10 +15,10 @@ import {
   tabBarHitRegions,
   setTheme,
   themeForId,
-} from "../src/index.js";
-import type { MixCodeRuntime } from "../src/index.js";
+} from "./helpers/mixcode.js";
+import type { MixCodeRuntime } from "./helpers/mixcode.js";
 import type { Model } from "@earendil-works/pi-ai";
-import { MIXCODE_FAUX_MODEL } from "../src/index.js";
+import { MIXCODE_FAUX_MODEL } from "./helpers/mixcode.js";
 
 type TestChatLine = { role: "system"; text: string };
 

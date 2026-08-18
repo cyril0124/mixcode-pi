@@ -3,7 +3,7 @@
 // |  Registers /prompt-history --> opens history browser --> fills editor|
 // +----------------------------------------------------------------------+
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { openPromptHistoryBrowser } from "./prompt-history-browser.js";
+import { createPromptHistoryBrowserComponent } from "./prompt-history-browser.js";
 
 export default function (pi: ExtensionAPI) {
   pi.registerCommand("prompt-history", {
@@ -40,7 +40,9 @@ export default function (pi: ExtensionAPI) {
         return;
       }
 
-      const selected = await openPromptHistoryBrowser(userMessages, ctx);
+      const selected = await ctx.ui.custom<string | null>((tui, theme, _keybindings, done) =>
+        createPromptHistoryBrowserComponent({ tui, theme, items: userMessages, done }),
+      );
       if (selected) {
         ctx.ui.setEditorText(selected);
       }

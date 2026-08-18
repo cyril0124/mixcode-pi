@@ -4,7 +4,7 @@ import {
   MIXCODE_KEYMAP,
   fitHeadLines,
   fitTailLines,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 
 test("fitTailLines keeps the newest lines and marks overflow", () => {
   assert.deepEqual(fitTailLines(["a", "b"], 3, 10), ["a", "b"]);

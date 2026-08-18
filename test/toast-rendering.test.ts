@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { visibleWidth } from "@earendil-works/pi-tui";
-import { createTab, pushToast, renderAgentSurface } from "../src/index.js";
+import { createTab, pushToast, renderAgentSurface } from "./helpers/mixcode.js";
 
 const stripAnsi = (text: string) => text.replace(/\x1b\[[0-9;]*m/g, "");
 

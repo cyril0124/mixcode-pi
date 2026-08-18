@@ -7,7 +7,7 @@ import {
   renderConfig,
   renderPickerOverlay,
   renderTabJumpOverlay,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 
 function stripAnsi(text: string): string {
   return text

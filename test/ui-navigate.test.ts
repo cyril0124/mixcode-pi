@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { NEWEST_TREE_ENTRY_ID, type SessionTreeNode } from "../src/core/tree-selector.js";
-import type { MixCodeRuntime } from "../src/index.js";
+import type { MixCodeRuntime } from "./helpers/mixcode.js";
 import {
   createInitialState,
   createTab,
   handleMixCodeKeyInput,
   handleSubmittedInput,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 import { scrollChatToUserEntry } from "../src/ui/chat-scroll-target.js";
 import { renderAgentSurface } from "../src/ui/rendering/agent-surface.js";
 import { renderTreeSelector } from "../src/ui/tree-selector-render.js";

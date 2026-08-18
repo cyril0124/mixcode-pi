@@ -16,7 +16,7 @@ import {
   type SimpleStreamOptions,
   createAssistantMessageEventStream,
 } from "@earendil-works/pi-ai";
-import { MIXCODE_FAUX_MODEL, MixCodeRuntime, createTab } from "../src/index.js";
+import { MIXCODE_FAUX_MODEL, MixCodeRuntime, createTab } from "./helpers/mixcode.js";
 import { renderAgentSurface } from "../src/ui/rendering/agent-surface.js";
 
 function stripAnsi(s: string): string {

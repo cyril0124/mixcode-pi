@@ -23,7 +23,6 @@ import {
   type ApplyWarning,
   type ModelLike,
   type ModelSkillsConfig,
-  type ModelSkillsRule,
 } from "./model-skills-core.js";
 
 const PANEL_ENTRY_TYPE = "mpi-model-skills-panel";
@@ -127,24 +126,6 @@ export default function modelSkillsExtension(pi: ExtensionAPI) {
     };
   }
 
-  function computeEffective(
-    model: ModelLike,
-    baseSkills: readonly Skill[],
-  ): { skills: Skill[]; warnings: ApplyWarning[]; matched: number[]; rules: ModelSkillsRule[] } | null {
-    if (cached.status === "error" || cached.status === "missing") {
-      return null;
-    }
-    if (!isModelSkillsEnabled(cached.config)) return null;
-    const rules = cached.config.rules;
-    const applied = applyModelSkillRules(rules, model, baseSkills, skillsByName(baseSkills));
-    return {
-      skills: applied.skills,
-      warnings: applied.warnings,
-      matched: applied.matchedRuleIndexes,
-      rules,
-    };
-  }
-
   pi.on("session_start", (_event, ctx) => {
     reloadConfig(ctx);
   });
@@ -161,13 +142,17 @@ export default function modelSkillsExtension(pi: ExtensionAPI) {
     if (!model) return;
 
     const baseSkills = (event.systemPromptOptions.skills ?? []) as Skill[];
-    const effective = computeEffective(model, baseSkills);
-    if (!effective) return;
+    const effective = applyModelSkillRules(
+      cached.config.rules,
+      model,
+      baseSkills,
+      skillsByName(baseSkills),
+    );
 
     notifyWarnings(ctx, effective.warnings);
 
     // No matched rules and no warnings → nothing to rewrite.
-    if (effective.matched.length === 0) return;
+    if (effective.matchedRuleIndexes.length === 0) return;
 
     const nextPrompt = replaceSkillsInSystemPrompt(event.systemPrompt, effective.skills);
     if (nextPrompt === event.systemPrompt) return;

@@ -11,7 +11,7 @@ import {
 } from "@earendil-works/pi-ai";
 import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import { TuiMainScreen, type Terminal } from "@earendil-works/pi-tui";
-import { MIXCODE_FAUX_MODEL, MixCodeRuntime, createTab, type RuntimeTab } from "../src/index.js";
+import { MIXCODE_FAUX_MODEL, MixCodeRuntime, createTab, type RuntimeTab } from "./helpers/mixcode.js";
 
 function silentTerminal(): Terminal {
   return {

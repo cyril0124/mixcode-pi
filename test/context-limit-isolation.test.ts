@@ -4,7 +4,7 @@ import * as path from "node:path";
 import * as os from "node:os";
 import test from "node:test";
 import { adjustCompactionSettingsForLimit } from "../src/core/context-limit.js";
-import { createTab, MIXCODE_FAUX_MODEL, MixCodeRuntime } from "../src/index.js";
+import { createTab, MIXCODE_FAUX_MODEL, MixCodeRuntime } from "./helpers/mixcode.js";
 
 // Regression: /context-limit must not leak one tab's compaction override into
 // other tabs. Each tab owns its own SettingsManager, so adjusting one tab's

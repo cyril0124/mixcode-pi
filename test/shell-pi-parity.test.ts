@@ -19,7 +19,7 @@ import {
   handleSubmittedInput,
   isBashAlreadyRunningError,
   renderChat,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 import { renderConversation } from "../src/ui/rendering/chat.js";
 
 function stripAnsi(text: string): string {

@@ -753,36 +753,6 @@ export class MixCodeRuntime {
     return results;
   }
 
-  refreshTabStatus(sessionId: string): MixCodeTabInfo {
-    const runtimeTab = this.requireTab(sessionId);
-    const agentState = runtimeTab.agentSession.agent.state;
-    runtimeTab.tab.status = agentState.errorMessage
-      ? "error"
-      : runtimeTab.agentSession.isStreaming
-        ? "running"
-        : runtimeTab.tab.status === "done"
-          ? "done"
-          : "idle";
-    const nextModel = modelToRef(agentState.model);
-    // /context-limit mutates the live session model.contextWindow for Pi/extensions.
-    // Keep MixCodeModelRef.contextWindow as the canonical capacity for reset/picker.
-    if (runtimeTab.tab.contextLimitOverridden) {
-      nextModel.contextWindow = runtimeTab.tab.model.contextWindow;
-    }
-    runtimeTab.tab.model = nextModel;
-    // Only sync contextLimit from model if the user hasn't overridden it
-    if (!runtimeTab.tab.contextLimitOverridden) {
-      runtimeTab.tab.contextLimit = agentState.model.contextWindow;
-    }
-    runtimeTab.tab.thinkingLevel = agentState.thinkingLevel;
-    syncContextUsage(runtimeTab);
-    return runtimeTab.tab;
-  }
-
-  refreshAllTabStatuses(): MixCodeTabInfo[] {
-    return this.listTabs().map((runtimeTab) => this.refreshTabStatus(runtimeTab.tab.sessionId));
-  }
-
   setExtensionUiHost(host: ExtensionCustomUiHost | undefined): void {
     this.extensionUiHost = host;
     if (!host) {
@@ -1495,11 +1465,6 @@ export class MixCodeRuntime {
 
   private async syncChatFromSession(runtimeTab: RuntimeTab): Promise<void> {
     await syncRuntimeChatFromSession(runtimeTab);
-  }
-
-  /** The directory holding this runtime's session JSONL files (and .locks). */
-  getSessionsRoot(): string {
-    return this.sessionsRoot;
   }
 
   /**

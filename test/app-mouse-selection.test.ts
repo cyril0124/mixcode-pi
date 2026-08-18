@@ -6,7 +6,7 @@ import {
   openCommandPalette,
   openTabJump,
   tabBarHitRegions,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 import { handleMixCodeKeyInput } from "../src/ui/app-input.js";
 import {
   handleCommandPaletteMouse,

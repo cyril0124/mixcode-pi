@@ -21,7 +21,7 @@ import {
   createTab,
   parseInput,
   renderQueuePreview,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 
 function waitForRuntime(predicate: () => boolean, attempts = 100): Promise<void> {
   return new Promise((resolve, reject) => {

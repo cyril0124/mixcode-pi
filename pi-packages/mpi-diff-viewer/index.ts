@@ -1,6 +1,6 @@
 import type { ExtensionCommandContext, ExtensionFactory } from "@earendil-works/pi-coding-agent";
-import { openDiffViewer } from "./diff-viewer.js";
-import { composeReviewPrompt } from "./review.js";
+import { createDiffViewerComponent } from "./diff-viewer.js";
+import { composeReviewPrompt, type ReviewDraft } from "./review.js";
 import { buildSessionDiff, type SessionEntry } from "./session-diff.js";
 
 function userMessageIndexes(entries: SessionEntry[]): number[] {
@@ -48,7 +48,20 @@ async function showDiff(
     return;
   }
 
-  const review = await openDiffViewer(diff, ctx);
+  const review = await ctx.ui.custom<ReviewDraft | undefined>(
+    (tui, theme, _keybindings, done) =>
+      createDiffViewerComponent({ tui, theme, diff, done }),
+    {
+      overlay: true,
+      overlayOptions: {
+        anchor: "center",
+        width: "100%",
+        maxHeight: "100%",
+        minWidth: 40,
+        margin: 1,
+      },
+    },
+  );
   if (!review) return;
   const prompt = composeReviewPrompt(review);
   const existing = ctx.ui.getEditorText?.() ?? "";

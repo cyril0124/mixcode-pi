@@ -6,7 +6,7 @@ import "./helpers/isolated-agent-dir.js";
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { MixCodeRuntime, createTab } from "../src/index.js";
+import { MixCodeRuntime, createTab } from "./helpers/mixcode.js";
 import { retryStatusMessage } from "../src/core/tab-state.js";
 
 test("summarization_retry_scheduled arms retryInfo countdown and surfaces error", async () => {

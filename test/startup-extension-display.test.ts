@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createTab } from "../src/index.js";
+import { createTab } from "./helpers/mixcode.js";
 import { formatExtensionSummaries } from "../src/agent/runtime-startup-header.js";
 import { renderAgentSurface } from "../src/ui/rendering/agent-surface.js";
 

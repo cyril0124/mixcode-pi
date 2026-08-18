@@ -3,7 +3,7 @@ import * as fsPromises from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
-import { type FileFingerprint, SessionSyncCoordinator } from "../src/index.js";
+import { type FileFingerprint, SessionSyncCoordinator } from "./helpers/mixcode.js";
 
 // A mutable fingerprint table keyed by absolute path; `bump` simulates a write.
 function makeStatTable(): {

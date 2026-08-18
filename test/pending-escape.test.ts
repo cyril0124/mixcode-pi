@@ -6,7 +6,7 @@ import {
   clearPendingEscape,
   createTab,
   isPendingEscapeActive,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 
 test("armPendingEscape sets armedAt to the provided now", () => {
   const tab = createTab(1, "s1", "/repo");

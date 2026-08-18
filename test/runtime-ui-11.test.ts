@@ -47,7 +47,7 @@ import {
   fitHeadLines,
   fitTailLines,
   themeForId,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 
 function delayedAssistantStream(text: string, ready: Promise<void>, options?: SimpleStreamOptions) {
   const stream = createAssistantMessageEventStream();

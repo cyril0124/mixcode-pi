@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createInitialState, createTab } from "../src/core/defaults.js";
 import { activateTab, closeAgentTab } from "../src/core/tabs.js";
-import { renderTabBar, themeForId } from "../src/index.js";
+import { renderTabBar, themeForId } from "./helpers/mixcode.js";
 
 const stripAnsi = (text: string): string => text.replace(/\x1b\[[0-9;]*m/g, "");
 

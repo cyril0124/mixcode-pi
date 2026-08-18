@@ -14,7 +14,7 @@ import {
   createTab,
   handleSubmittedInput,
   type MixCodeRuntime,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 import { applyMixCodeKeybindings } from "../src/agent/runtime-pi-tui-bridge.js";
 import { handleMixCodeKeyInput } from "../src/ui/app-input.js";
 import {

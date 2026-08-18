@@ -20,7 +20,7 @@ import {
   modelToRef,
   writeRawMixCodeSettings,
   type MixCodeModelRef,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 import { pickerItems } from "../src/core/pickers.js";
 import { applyModelSelection, reloadRuntimeModels } from "../src/ui/app-actions.js";
 import { submitAgentInput } from "../src/ui/agent-tab-actions.js";

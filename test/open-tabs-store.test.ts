@@ -13,7 +13,7 @@ import {
   openTabsFile,
   readOpenTabs,
   writeOpenTabs,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 
 test("open_tabs rejects corrupt state without overwriting it", async () => {
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-open-tabs-corrupt-"));
@@ -46,7 +46,7 @@ test("open_tabs lock wait yields CPU under contention", async () => {
     writeOpenTabs(filePath, []);
     configureOpenTabsPath(filePath);
 
-    const moduleUrl = new URL("../src/index.ts", import.meta.url).href;
+    const moduleUrl = new URL("../src/core/open-tabs-store.ts", import.meta.url).href;
     child = Bun.spawn(
       [
         process.execPath,

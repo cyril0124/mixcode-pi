@@ -14,7 +14,7 @@ import {
   updateCommandPaletteQuery,
   updatePickerQuery,
   updateTabJumpQuery,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 import { highlightRanges } from "../src/ui/rendering/highlight.js";
 
 test("fuzzyMatchPositions finds a greedy leftmost subsequence, or [] when it doesn't fully match", () => {

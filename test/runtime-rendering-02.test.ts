@@ -4,7 +4,7 @@ import * as fsPromises from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
 import { test } from "node:test";
-import { createTab, MixCodeRuntime, renderChat } from "../src/index.js";
+import { createTab, MixCodeRuntime, renderChat } from "./helpers/mixcode.js";
 
 function stripAnsi(text: string): string {
   return text

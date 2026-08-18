@@ -11,7 +11,7 @@ import {
   MixCodeRuntime,
   createTab,
   renderAgentSurface,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 
 function silentTerminal(): Terminal {
   return {

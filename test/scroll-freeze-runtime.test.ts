@@ -15,7 +15,7 @@ import {
   type Context,
   type SimpleStreamOptions,
 } from "@earendil-works/pi-ai";
-import { MixCodeRoot, MixCodeRuntime, MIXCODE_FAUX_MODEL, createInitialState, createTab, scrollChat } from "../src/index.js";
+import { MixCodeRoot, MixCodeRuntime, MIXCODE_FAUX_MODEL, createInitialState, createTab, scrollChat } from "./helpers/mixcode.js";
 
 const bigText = [
   "# Long streaming answer",

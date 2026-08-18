@@ -5,7 +5,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
 import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
-import { MixCodeRuntime, createTab } from "../src/index.js";
+import { MixCodeRuntime, createTab } from "./helpers/mixcode.js";
 import {
   getActiveExtensionThemeId,
   noteActiveExtensionThemeId,

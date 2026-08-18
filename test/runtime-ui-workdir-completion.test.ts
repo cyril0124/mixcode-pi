@@ -10,7 +10,7 @@ import {
   createMixCodeTui,
   createTab,
   type MixCodeRuntime,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 
 async function waitForRuntime(predicate: () => boolean, attempts = 100): Promise<void> {
   for (let index = 0; index < attempts; index++) {

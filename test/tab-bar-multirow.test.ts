@@ -10,8 +10,8 @@ import {
   renderTabBarSeparator,
   tabBarHitRegions,
   tabBarMaxRows,
-} from "../src/index.js";
-import type { OverlayTui } from "../src/index.js";
+} from "./helpers/mixcode.js";
+import type { OverlayTui } from "./helpers/mixcode.js";
 
 const stripAnsi = (text: string): string =>
   // eslint-disable-next-line no-control-regex

@@ -5,7 +5,7 @@ import {
   initTreeSelector,
   type SessionTreeNode,
 } from "../src/core/tree-selector.js";
-import { createInitialState, createTab, setTheme } from "../src/index.js";
+import { createInitialState, createTab, setTheme } from "./helpers/mixcode.js";
 import { handleMixCodeKeyInput } from "../src/ui/app-input.js";
 import {
   attachTreeSelectorDisplayHost,

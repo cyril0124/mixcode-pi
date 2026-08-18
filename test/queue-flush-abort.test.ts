@@ -13,7 +13,7 @@ import {
   type SimpleStreamOptions,
   type ToolCall,
 } from "@earendil-works/pi-ai";
-import { MIXCODE_FAUX_MODEL, MixCodeRuntime, createTab } from "../src/index.js";
+import { MIXCODE_FAUX_MODEL, MixCodeRuntime, createTab } from "./helpers/mixcode.js";
 
 function waitForRuntime(predicate: () => boolean, attempts = 100): Promise<void> {
   return new Promise((resolve, reject) => {

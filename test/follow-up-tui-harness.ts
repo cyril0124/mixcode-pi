@@ -23,7 +23,7 @@ import {
   createInitialState,
   createMixCodeTui,
   createTab,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 
 const root = process.env.MIXCODE_FOLLOWUP_HARNESS_DIR;
 const marker = process.env.MIXCODE_FOLLOWUP_MARKER;

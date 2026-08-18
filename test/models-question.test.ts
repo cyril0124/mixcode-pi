@@ -28,7 +28,7 @@ import {
   resolveRegisteredModel,
   setStateModel,
   setTabModel,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 
 async function loadSources(modelsPath: string) {
   return (await createPiModelRegistryBundle(modelsPath)).sources;

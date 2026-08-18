@@ -20,7 +20,7 @@ import {
   updateCommandPaletteQuery,
   commandPaletteEntriesWithExtensions,
   updateTabJumpQuery,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 
 test("command palette derives every palette-visible LOCAL_COMMANDS entry", () => {
   const state = createInitialState("/repo");

@@ -10,7 +10,7 @@ import {
   conversationHistoryPaths,
   ensureConversationHistoryState,
   HISTORY_LOCK_ID,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 import { acquireSessionTurnLock } from "../src/core/session-lock.js";
 
 async function readJsonl(path: string): Promise<Record<string, unknown>[]> {

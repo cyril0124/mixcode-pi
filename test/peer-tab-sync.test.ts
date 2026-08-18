@@ -21,7 +21,7 @@ import {
   removeOpenTab,
   startPeerTabSync,
   writeOpenTabs,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 import type { MixCodeTabInfo } from "../src/core/types.js";
 import {
   closeExistingAgentTab,
@@ -250,7 +250,6 @@ test("createAgentTab publishes open_tabs before create finishes so reconcile kee
         if (!runtimeTabs.has(id)) throw new Error(`Unknown tab session: ${id}`);
         runtimeTabs.delete(id);
       },
-      getSessionsRoot: () => dir,
     };
 
     const closed: string[] = [];
@@ -409,7 +408,6 @@ test("completeAgentTabClear publishes open_tabs before session id swaps so recon
         const rt = runtimeTabs.get(id);
         if (rt) rt.chat = [];
       },
-      getSessionsRoot: () => dir,
     };
 
     const closed: string[] = [];
@@ -608,7 +606,6 @@ test("resume publishes open_tabs before switch so reconcile keeps session title"
         if (!runtimeTabs.has(id)) throw new Error(`Unknown tab session: ${id}`);
         runtimeTabs.delete(id);
       },
-      getSessionsRoot: () => dir,
     };
 
     const closed: string[] = [];

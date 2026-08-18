@@ -5,7 +5,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createTab } from "../src/index.js";
+import { createTab } from "./helpers/mixcode.js";
 import { renderAgentSurface } from "../src/ui/rendering/agent-surface.js";
 import { renderHeaderKeyHints } from "../src/ui/rendering/header-hints.js";
 

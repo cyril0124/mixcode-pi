@@ -19,7 +19,7 @@ import {
   readOpenTabs,
   renderChat,
   type MixCodeRuntime as RuntimeType,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 import { UUIDV7_SESSION_ID_PATTERN } from "./helpers/session-id.js";
 import { hydrateTabPromptHistory } from "../src/ui/app-runtime.js";
 

@@ -4,7 +4,7 @@ import * as fsPromises from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
-import { MixCodeRuntime, createTab } from "../src/index.js";
+import { MixCodeRuntime, createTab } from "./helpers/mixcode.js";
 
 // Mirrors compact-regression.test.ts's technique: create a real runtime tab,
 // flip Pi's session-level active-run flag directly, then assert the guarded

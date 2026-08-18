@@ -240,7 +240,7 @@ test("session context limits do not mutate another session's model", async () =>
   }
 });
 
-test("refreshTabStatus keeps canonical capacity so context-limit reset works", async () => {
+test("context-limit reset keeps canonical model capacity", async () => {
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-context-limit-refresh-reset-"));
   try {
     const model = {
@@ -265,7 +265,6 @@ test("refreshTabStatus keeps canonical capacity so context-limit reset works", a
     assert.equal(runtimeTab.tab.model.contextWindow, 128_000);
     assert.equal(runtimeTab.agentSession.model?.contextWindow, 32_000);
 
-    runtime.refreshTabStatus("s1");
     assert.equal(runtimeTab.tab.contextLimitOverridden, true);
     assert.equal(runtimeTab.tab.contextLimit, 32_000);
     assert.equal(runtimeTab.tab.model.contextWindow, 128_000);

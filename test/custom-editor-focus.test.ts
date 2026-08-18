@@ -11,7 +11,7 @@ import {
   createInitialState,
   createMixCodeTui,
   createTab,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 
 // Regression: a ctx.ui.custom editor replacement looked like its input row was
 // missing because focus never reached the nested Focusable component, so

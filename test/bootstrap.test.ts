@@ -18,7 +18,7 @@ import {
   saveStateFile,
   scopedStateDir,
   stateFileForPort,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 import { UUIDV7_SESSION_ID_PATTERN } from "./helpers/session-id.js";
 import { delegateToRealPiCli, exposeLocalPiCli, parseMainArgs, shouldDelegateToRealPiCli } from "../src/cli/main.js";
 

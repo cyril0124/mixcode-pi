@@ -11,7 +11,7 @@ import {
   renderConfig,
   clampHomeSelectedTabIndex,
   reindexWorkspaceTabs,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 
 function stripAnsi(text: string): string {
   return text.replace(/\x1b\[[0-9;:]*m/g, "");
@@ -893,7 +893,7 @@ test("homeSelectedTabIndex clamps when tab is closed", async () => {
   state.homeSelectedTabIndex = 1;
 
   // Import closeAgentTab
-  const { closeAgentTab } = await import("../src/index.js");
+  const { closeAgentTab } = await import("./helpers/mixcode.js");
   closeAgentTab(state, "s2");
 
   assert.equal(state.homeSelectedTabIndex, 0);
@@ -909,7 +909,7 @@ test("closing an earlier tab keeps the Home-selected agent", async () => {
   state.activeTabId = "home";
   state.homeSelectedTabIndex = 1; // B
 
-  const { closeAgentTab, getActiveTab } = await import("../src/index.js");
+  const { closeAgentTab, getActiveTab } = await import("./helpers/mixcode.js");
   closeAgentTab(state, "a");
 
   assert.deepEqual(

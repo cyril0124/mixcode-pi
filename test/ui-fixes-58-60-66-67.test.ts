@@ -5,7 +5,7 @@ import {
   createInitialState,
   createTab,
   nextAvailableAgentTitle,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 import { commandPaletteEntriesWithExtensions } from "../src/core/overlays.js";
 import { clearPendingEscape } from "../src/core/escape.js";
 import { handleEscapeKey } from "../src/ui/app-key-handlers.js";

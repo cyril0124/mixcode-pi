@@ -6,7 +6,7 @@ import * as os from "node:os";
 import { test } from "node:test";
 import { createAssistantMessageEventStream, type AssistantMessage } from "@earendil-works/pi-ai";
 import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
-import { createTab, MixCodeRuntime } from "../src/index.js";
+import { createTab, MixCodeRuntime } from "./helpers/mixcode.js";
 
 /**
  * Contract: concurrent replaceRuntimeTabSession on one tab must not bind a

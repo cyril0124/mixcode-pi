@@ -266,26 +266,3 @@ export function createPromptHistoryBrowserComponent(config: PromptHistoryBrowser
     handleInput,
   };
 }
-
-// ─── Public API ──────────────────────────────────────────────────────────────
-
-export async function openPromptHistoryBrowser(
-  items: Array<{ text: string; timestamp?: string }>,
-  ctx: {
-    ui: {
-      custom<T>(
-        factory: (
-          tui: { terminal: { columns: number; rows: number }; requestRender(): void },
-          theme: Theme,
-          keybindings: unknown,
-          done: (result: T) => void,
-        ) => { render(width: number): string[]; invalidate(): void; handleInput(data: string): void },
-        options?: { overlay?: boolean },
-      ): Promise<T>;
-    };
-  },
-): Promise<string | null> {
-  return ctx.ui.custom<string | null>((tui, theme, _kb, done) =>
-    createPromptHistoryBrowserComponent({ tui, theme, items, done }),
-  );
-}

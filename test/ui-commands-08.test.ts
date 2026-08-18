@@ -6,7 +6,7 @@ import {
   createTab,
   handleMixCodeKeyInput,
   renderInputMeta,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 
 test("global key input submits batched inline text ending with enter", () => {
   const state = createInitialState("/repo");

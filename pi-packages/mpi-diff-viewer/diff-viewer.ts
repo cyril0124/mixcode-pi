@@ -1,5 +1,4 @@
 import {
-  type ExtensionCommandContext,
   getLanguageFromPath,
   highlightCode,
   type Theme,
@@ -1816,23 +1815,4 @@ export class DiffViewer {
 
 export function createDiffViewerComponent(config: DiffViewerConfig): DiffViewer {
   return new DiffViewer(config);
-}
-
-export async function openDiffViewer(
-  diff: SessionDiff,
-  ctx: Pick<ExtensionCommandContext, "ui">,
-): Promise<ReviewDraft | undefined> {
-  return ctx.ui.custom<ReviewDraft | undefined>(
-    (tui, theme, _keybindings, done) => createDiffViewerComponent({ tui, theme, diff, done }),
-    {
-      overlay: true,
-      overlayOptions: {
-        anchor: "center",
-        width: "100%",
-        maxHeight: "100%",
-        minWidth: 40,
-        margin: 1,
-      },
-    },
-  );
 }

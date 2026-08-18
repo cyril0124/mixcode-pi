@@ -4,7 +4,7 @@ import {
   listThemeInfos,
   normalizeThemeId,
   THEMES,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 
 test("normalizeThemeId maps known id to itself, unknown to undefined, trims/case-folds", () => {
   const [primary] = THEMES;

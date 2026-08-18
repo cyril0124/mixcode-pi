@@ -11,7 +11,7 @@ import {
   renderChat,
   renderConfig,
   selectedNoticeText,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 import {
   createTreeSelectorState,
   initTreeSelector,

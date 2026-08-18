@@ -7,7 +7,7 @@ import {
   handleSubmittedInput,
   renderInputMeta,
   PENDING_ESCAPE_CONFIRM_WINDOW_MS,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 
 test("double escape stops an active agent run", () => {
   const state = createInitialState("/repo");

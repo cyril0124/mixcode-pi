@@ -17,7 +17,7 @@ import {
   MixCodeRuntime,
   createTab,
   renderWorkingIndicator,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 
 function waitForRuntime(predicate: () => boolean, attempts = 50): Promise<void> {
   return new Promise((resolve, reject) => {

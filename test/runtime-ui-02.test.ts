@@ -7,7 +7,7 @@ import {
   createInitialState,
   createTab,
   createMixCodeTui,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 
 function stripAnsi(text: string): string {
   return text

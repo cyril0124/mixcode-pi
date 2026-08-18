@@ -14,7 +14,7 @@ import {
   scrollChat,
   type ChatLine,
   type MixCodeTabInfo,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 import { renderAgentSurface } from "../src/ui/rendering/agent-surface.js";
 import { renderChat } from "../src/ui/rendering/chat.js";
 

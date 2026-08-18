@@ -8,7 +8,7 @@ import { promisify } from "node:util";
 import {
   editTextInExternalEditor,
   runLuaScript,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 
 const execFileAsync = promisify(execFile);
 

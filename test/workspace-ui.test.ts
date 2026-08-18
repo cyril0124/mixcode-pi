@@ -3,7 +3,7 @@ import * as fsPromises from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
 import { test } from "node:test";
-import type { MixCodeRuntime } from "../src/index.js";
+import type { MixCodeRuntime } from "./helpers/mixcode.js";
 import {
   createInitialState,
   createTab,
@@ -14,7 +14,7 @@ import {
   saveWorkspaces,
   snapshotWorkspace,
   type MixCodeState,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 import { UUIDV7_SESSION_ID_PATTERN } from "./helpers/session-id.js";
 import { restoreWorkspace } from "../src/ui/workspace-restore.js";
 

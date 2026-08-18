@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { bindLiveExtensionRedraw, createInitialState, createTab } from "../src/index.js";
+import { bindLiveExtensionRedraw, createInitialState, createTab } from "./helpers/mixcode.js";
 
 async function waitFor(predicate: () => boolean, attempts = 25): Promise<void> {
   for (let i = 0; i < attempts; i += 1) {

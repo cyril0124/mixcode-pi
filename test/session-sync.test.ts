@@ -17,7 +17,7 @@ import {
   SessionLockConflictError,
   acquireSessionTurnLock,
   createTab,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 
 // A run that stays open with no visible output until `release` resolves, so a
 // mid-flight turn can be retracted (double-Esc undo) before it produces text.

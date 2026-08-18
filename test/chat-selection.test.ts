@@ -8,7 +8,7 @@ import {
   screenToChatSelectionPoint,
   selectedChatText,
   type ChatSelectionState,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 
 const selection: ChatSelectionState = {
   anchor: { row: 1, col: 6 },

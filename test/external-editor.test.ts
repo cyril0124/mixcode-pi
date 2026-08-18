@@ -3,7 +3,7 @@ import * as fsPromises from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
-import { editTextInExternalEditor } from "../src/index.js";
+import { editTextInExternalEditor } from "./helpers/mixcode.js";
 
 test("external editor edits text through a real temporary file", async () => {
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-editor-"));

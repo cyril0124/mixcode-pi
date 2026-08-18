@@ -5,7 +5,7 @@ import {
   createTab,
   handleMixCodeKeyInput,
   PENDING_ESCAPE_CONFIRM_WINDOW_MS,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 import { hasAppOverlay, showErrorOverlay } from "../src/ui/app-overlays.js";
 
 // Baseline behavior contracts for Escape-key dispatch. These lock the observable

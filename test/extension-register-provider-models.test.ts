@@ -10,7 +10,7 @@ import {
   ModelRuntime,
   type ExtensionFactory,
 } from "@earendil-works/pi-coding-agent";
-import { MixCodeRuntime, configureDisabledModelRuntime, createTab } from "../src/index.js";
+import { MixCodeRuntime, configureDisabledModelRuntime, createTab } from "./helpers/mixcode.js";
 import type { MixCodeModelRef } from "../src/core/types.js";
 
 test("extension registerProvider notifies onModelsChanged with selectable model refs", async () => {

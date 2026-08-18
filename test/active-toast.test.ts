@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createTab, pushToast, activeToast } from "../src/index.js";
+import { createTab, pushToast, activeToast } from "./helpers/mixcode.js";
 
 test("pushToast stores type+message and sets createdAt as number", () => {
   const tab = createTab(1, "s1", "/repo");

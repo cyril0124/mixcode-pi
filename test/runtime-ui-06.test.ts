@@ -13,7 +13,7 @@ import {
   createTab,
   renderAgentSurface,
   renderExtensionWidgets,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 
 function stripAnsi(text: string): string {
   return text
@@ -591,7 +591,7 @@ test("extension info history survives an intervening user message", async () => 
       systemPrompt: "system",
       thinkingLevel: "medium",
       workdir: process.cwd(),
-      model: (await import("../src/index.js")).MIXCODE_FAUX_MODEL,
+      model: (await import("./helpers/mixcode.js")).MIXCODE_FAUX_MODEL,
     });
     assert.ok(ui);
     ui.notify("before");

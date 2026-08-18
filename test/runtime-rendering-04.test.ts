@@ -5,7 +5,7 @@ import {
   createTab,
   renderInputMeta,
   renderTabBar,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 
 function stripAnsi(text: string): string {
   return text

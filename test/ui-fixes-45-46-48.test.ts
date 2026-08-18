@@ -6,7 +6,7 @@ import {
   createTab,
   renderCommandPalette,
   renderTabJumpOverlay,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 
 test("command palette windows long lists so the selected item stays visible", () => {
   const state = createInitialState("/repo");

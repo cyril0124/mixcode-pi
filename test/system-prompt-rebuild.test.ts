@@ -7,7 +7,7 @@ import * as path from "node:path";
 import { test } from "node:test";
 import { Type } from "@earendil-works/pi-ai";
 import { SettingsManager, type ExtensionFactory } from "@earendil-works/pi-coding-agent";
-import { buildMixCodeSystemPromptFromParts, createTab, MixCodeRuntime } from "../src/index.js";
+import { buildMixCodeSystemPromptFromParts, createTab, MixCodeRuntime } from "./helpers/mixcode.js";
 
 const GUIDELINE = "Always call frobnicate before defrobbing.";
 

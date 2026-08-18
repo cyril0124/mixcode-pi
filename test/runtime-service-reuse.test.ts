@@ -12,7 +12,7 @@ import {
   handleSubmittedInput,
   MixCodeRuntime,
   openTabsFile,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 
 async function withRuntime(
   name: string,

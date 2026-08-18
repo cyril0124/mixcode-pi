@@ -4,7 +4,7 @@ import {
   createInitialState,
   createTab,
   handleMixCodeKeyInput,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 
 test("Shift+Up/Down are not consumed as chat scroll during extension user interactions", () => {
   // C3: interaction-period Shift+Up/Down is free for extension overlay/widget

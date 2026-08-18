@@ -9,7 +9,7 @@ import {
   renderTabBar,
   renderWorkingIndicator,
   themeForId,
-} from "../src/index.js";
+} from "./helpers/mixcode.js";
 
 function stripAnsi(text: string): string {
   return text

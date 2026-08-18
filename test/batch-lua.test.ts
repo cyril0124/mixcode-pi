@@ -15,7 +15,7 @@ import {
 } from "../src/core/batch-lua.js";
 import { parseMainArgs } from "../src/cli/main.js";
 import { runBatchDryRun } from "../src/cli/interactive-app.js";
-import { createInitialState, createTab } from "../src/index.js";
+import { createInitialState, createTab } from "./helpers/mixcode.js";
 import type { MixCodeModelRef } from "../src/core/types.js";
 
 // --- parseMainArgs --batch tests ---

@@ -6,7 +6,7 @@ import * as os from "node:os";
 import { test } from "node:test";
 import { InMemoryCredentialStore } from "@earendil-works/pi-ai";
 import { ModelRegistry, ModelRuntime } from "@earendil-works/pi-coding-agent";
-import { MixCodeRuntime, createInitialState, createTab } from "../src/index.js";
+import { MixCodeRuntime, createInitialState, createTab } from "./helpers/mixcode.js";
 import { openPiLogin, openPiLogout } from "../src/ui/pi-auth.js";
 
 test("MixCodeRuntime shares the provided ModelRuntime across tabs", async () => {

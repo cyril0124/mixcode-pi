@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { MixCodeCompletionProvider } from "../src/index.js";
+import { MixCodeCompletionProvider } from "./helpers/mixcode.js";
 
 const signal = new AbortController().signal;
 
