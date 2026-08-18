@@ -792,6 +792,107 @@ test("/new-session <name> creates a tab titled like /new-session then /rename", 
   assert.deepEqual(renamed, [{ sessionId: created.sessionId, title: "API-Gateway" }]);
 });
 
+function commandRuntime(overrides: Record<string, unknown> = {}) {
+  return {
+    getTab: () => undefined,
+    createTab: async () => undefined,
+    renameSession: () => undefined,
+    forkSession: async () => undefined,
+    getPromptHistory: () => [],
+    setExtensionUiHost: () => undefined,
+    getExtensionCommands: () => [],
+    getAllExtensionCommands: () => [],
+    onTabClosed: () => () => undefined,
+    onModelsChanged: () => () => undefined,
+    appendSystemMessage: () => undefined,
+    getSharedModelRuntime: () => undefined,
+    getExtensionTools: () => [],
+    applyExtensionAutocompleteProviders: (_sessionId: string, base: unknown) => base,
+    ...overrides,
+  } as unknown as MixCodeRuntime;
+}
+
+test("/new-session <name> suffixes a title already used by an open tab", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo", { title: "Worker" }));
+  state.activeTabId = "s1";
+  const renamed: Array<{ sessionId: string; title: string }> = [];
+  const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
+
+  await handleSubmittedInput(
+    state,
+    commandRuntime({
+      renameSession: (sessionId: string, title: string) => {
+        renamed.push({ sessionId, title });
+      },
+    }),
+    "/new-session Worker",
+    tui,
+  );
+
+  const created = state.tabs.find((tab) => tab.sessionId !== "s1");
+  assert.ok(created, "new tab was created");
+  assert.equal(created.title, "Worker-1");
+  assert.deepEqual(renamed, [{ sessionId: created.sessionId, title: "Worker-1" }]);
+});
+
+test("/fork of the same source a second time suffixes -1", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo", { title: "Worker" }));
+  state.activeTabId = "s1";
+  const renamed: string[] = [];
+  const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
+  const runtime = commandRuntime({
+    renameSession: (_sessionId: string, title: string) => {
+      renamed.push(title);
+    },
+  });
+
+  await handleSubmittedInput(state, runtime, "/fork", tui);
+  assert.equal(state.tabs[1]?.title, "Worker-fork");
+  state.activeTabId = "s1";
+  await handleSubmittedInput(state, runtime, "/fork", tui);
+
+  // Second fork inserts after the source, so it sits before the first fork.
+  assert.deepEqual(
+    state.tabs.map((tab) => tab.title),
+    ["Worker", "Worker-fork-1", "Worker-fork"],
+  );
+  assert.deepEqual(renamed, ["Worker-fork", "Worker-fork-1"]);
+});
+
+test("/rename refuses a title already used by another open tab", async () => {
+  const state = createInitialState("/repo");
+  const worker = createTab(1, "s1", "/repo", { title: "Worker" });
+  const other = createTab(2, "s2", "/repo", { title: "Other" });
+  state.tabs.push(worker, other);
+  state.activeTabId = "s2";
+  const renamed: string[] = [];
+  const system: string[] = [];
+  const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
+
+  await handleSubmittedInput(
+    state,
+    commandRuntime({
+      renameSession: (_sessionId: string, title: string) => {
+        renamed.push(title);
+      },
+      appendSystemMessage: (_sessionId: string, text: string) => {
+        system.push(text);
+      },
+    }),
+    "/rename Worker",
+    tui,
+  );
+
+  assert.equal(other.title, "Other");
+  assert.equal(worker.title, "Worker");
+  assert.deepEqual(renamed, []);
+  assert.deepEqual(system, []);
+  assert.equal(other.toast?.type, "warning");
+  assert.match(other.toast?.message ?? "", /already in use: Worker/);
+});
+
 test("fork rolls back the fork tab and restores the source tab when createTab fails", async () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo", { status: "done" }));

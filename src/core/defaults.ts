@@ -185,3 +185,17 @@ export function nextAvailableAgentTitle(tabs: ReadonlyArray<{ title: string }>):
   }
   return `Agent-${String(tabs.length + 1).padStart(2, "0")}`;
 }
+
+/**
+ * First unused title among `tabs`: `desired` itself, else `desired-1`, `desired-2`, …
+ * Does not parse an existing numeric suffix on `desired`; always appends `-n`.
+ */
+export function uniqueTabTitle(desired: string, tabs: ReadonlyArray<{ title: string }>): string {
+  const used = new Set(tabs.map((tab) => tab.title));
+  if (!used.has(desired)) return desired;
+  for (let n = 1; n < 10_000; n++) {
+    const title = `${desired}-${n}`;
+    if (!used.has(title)) return title;
+  }
+  return `${desired}-${tabs.length + 1}`;
+}

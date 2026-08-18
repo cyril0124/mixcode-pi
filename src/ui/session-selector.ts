@@ -17,7 +17,7 @@ import {
 } from "../core/open-tabs-store.js";
 import { invalidateSessionCatalog } from "../core/session-catalog.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
-import { activateTab, closeAgentTab, getActiveTab } from "../core/tabs.js";
+import { activateTab, closeAgentTab, getActiveTab, renameAgentTab } from "../core/tabs.js";
 import { pushToast } from "../core/toast.js";
 import { HOME_TAB_ID, type MixCodeState, type MixCodeTabInfo } from "../core/types.js";
 import { showErrorOverlay } from "./app-overlays.js";
@@ -225,11 +225,21 @@ export async function renameOpenSession(
 ): Promise<void> {
   const next = (nextName ?? "").trim();
   if (!next) return;
+  const openTab = findOpenSessionTab(state, runtime, sessionFilePath);
+  if (openTab) {
+    try {
+      renameAgentTab(state, openTab.sessionId, next);
+    } catch (error) {
+      pushToast(openTab, {
+        type: "warning",
+        message: error instanceof Error ? error.message : String(error),
+      });
+      return;
+    }
+  }
   const mgr = SessionManager.open(sessionFilePath);
   mgr.appendSessionInfo(next);
   invalidateSessionCatalog(path.dirname(sessionFilePath));
-  const openTab = findOpenSessionTab(state, runtime, sessionFilePath);
-  if (openTab) openTab.title = next;
 }
 
 function readSessionNameAndId(sessionPath: string): { name?: string; id?: string } {

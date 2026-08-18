@@ -5,6 +5,7 @@ import {
   createInitialState,
   createTab,
   nextAvailableAgentTitle,
+  uniqueTabTitle,
 } from "./helpers/mixcode.js";
 import { commandPaletteEntriesWithExtensions } from "../src/core/overlays.js";
 import { clearPendingEscape } from "../src/core/escape.js";
@@ -36,6 +37,14 @@ test("nextAvailableAgentTitle reuses lowest free Agent-NN", () => {
   assert.equal(nextAvailableAgentTitle(tabs), "Agent-01");
   tabs.push(createTab(3, "c", "/repo", { title: "Agent-01" }));
   assert.equal(nextAvailableAgentTitle(tabs), "Agent-04");
+});
+
+test("uniqueTabTitle keeps a free name and appends -N on collision", () => {
+  const tabs = [createTab(1, "a", "/repo", { title: "Worker" })];
+  assert.equal(uniqueTabTitle("Other", tabs), "Other");
+  assert.equal(uniqueTabTitle("Worker", tabs), "Worker-1");
+  tabs.push(createTab(2, "b", "/repo", { title: "Worker-1" }));
+  assert.equal(uniqueTabTitle("Worker", tabs), "Worker-2");
 });
 
 test("clearPendingEscape cancels double-Esc tree arm", () => {

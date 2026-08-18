@@ -30,10 +30,17 @@ Tabs display live status glyphs: `●` (running/working), `-` (idle/ready), `!` 
 | Close Tab | `/close-session [yes]` | Closes the current tab and cleans up its in-memory runtime. `yes` skips confirmation. |
 | Reset Session | `/reset` | Resets tree leaf back to root in the same tab, retaining title and session ID. |
 | Clear Session | `/clear` | Generates a fresh session file in the same tab, resetting the title. |
-| Fork Tab | `/fork [suffix]` | Clones conversation history into a new tab with reused services. |
+| Fork Tab | `/fork` | Clones conversation history into a new tab with reused services. |
+| Rename Tab | `/rename <title>` | Sets the active tab title. |
 | Tab Jump | `Ctrl+T` | Displays an interactive modal to jump to any open tab. |
 | Tab Cycle | `Tab` / `Shift+Tab` | Cycles tabs when autocomplete is closed. Swallowed in Zen mode (use `Ctrl+T`). |
 | Zen Mode | `/toggle-zen-mode` | Toggles the top tab bar for an uncluttered focus view. |
+
+### Tab titles
+
+`/fork` names the new tab `{source}-fork`. `/new-session <name>` uses the given name. If that exact title is already open, MixCode appends `-1`, `-2`, … to the **new** tab only and persists the uniquified name. A nameless `/new-session` still uses the next free `Agent-NN`.
+
+`/rename` and the session-selector rename refuse a title already used by another open tab (warning toast; no change). Resume, workspace restore, peer sync, and auto-rename keep the persisted session name even when it matches another open tab. `mpi ctl --tab` still errors when more than one open tab has the same title.
 
 ## Workspace Persistence
 

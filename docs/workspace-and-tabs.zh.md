@@ -30,10 +30,17 @@ Tab 实时展示运行状态指示符：`●`（运行中/工作中）、`-`（�
 | 关闭 Tab | `/close-session [yes]` | 关闭当前 Tab 并释放其内存中的运行时。加 `yes` 跳过确认。 |
 | 重置会话 | `/reset` | 在当前 Tab 中将分支指针重置回根节点（保留标题与会话文件）。 |
 | 清空会话 | `/clear` | 在当前 Tab 内生成全新的 Session 文件（重置标题）。 |
-| 分支复制 | `/fork [suffix]` | 将当前对话历史克隆到新 Tab 中，复用已有底层服务。 |
+| 分支复制 | `/fork` | 将当前对话历史克隆到新 Tab 中，复用已有底层服务。 |
+| 重命名 Tab | `/rename <title>` | 设置当前 Tab 标题。 |
 | Tab 跳转 | `Ctrl+T` | 打开全屏 Tab 检索面板，支持模糊搜索与快速切换。 |
 | Tab 轮转 | `Tab` / `Shift+Tab` | 补全关闭时轮转 Tab。Zen 模式下被吞掉（用 `Ctrl+T`）。 |
 | Zen 模式 | `/toggle-zen-mode` | 隐藏顶部 Tab 栏，获得专注的 Agent 会话视图。 |
+
+### Tab 标题
+
+`/fork` 把新 Tab 命名为 `{source}-fork`。`/new-session <name>` 使用给定名字。若该精确标题已被打开的 Tab 占用，MixCode 只给**新** Tab 追加 `-1`、`-2`…，并把去重后的名字写入 session 文件。不带 name 的 `/new-session` 仍使用下一个空闲 `Agent-NN`。
+
+`/rename` 和 session 选择器改名会拒绝已被其它打开 Tab 占用的标题（warning toast，不改名）。Resume、工作区恢复、peer 同步和自动改名沿用磁盘上的 session 名，即使与另一个打开 Tab 同名。多个打开 Tab 同名时，`mpi ctl --tab` 仍报错。
 
 ## 工作区持久化 (Workspace)
 

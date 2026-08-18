@@ -144,6 +144,9 @@ export function renameAgentTab(state: MixCodeState, sessionId: string, title: st
   if (!tab) throw new Error(`Unknown tab: ${sessionId}`);
   const clean = title.trim();
   if (!clean) throw new Error("Tab title cannot be empty");
+  if (state.tabs.some((item) => item.sessionId !== sessionId && item.title === clean)) {
+    throw new Error(`Tab title already in use: ${clean}`);
+  }
   tab.title = clean;
 }
 

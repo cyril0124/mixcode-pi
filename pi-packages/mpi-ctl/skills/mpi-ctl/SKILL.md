@@ -109,7 +109,7 @@ mpi ctl [--pid <n> | --workdir <path>] [--tab <title> | --session <id> | --focus
 - `--tab` / `--session`: operate this tab **without** changing UI focus. **Default.** Use these to read or prompt any tab.
 - `--focus-tab` / `--focus-session`: operate and **leave** UI focus on that tab. Only for UI keys after `dump-screen` shows a picker/overlay `--tab` cannot drive.
 - Targeting default (no `--pid` / `--workdir`): `MIXCODE_PID` env when set (bash tool children), else the unique live instance in `<cwd>`.
-- The four flags are mutually exclusive. Title match is exact; duplicates need `--session` or `--focus-session`.
+- The four flags are mutually exclusive. Title match is exact; duplicates (possible after resume) need `--session` or `--focus-session`.
 - `home` is Home (`--session home` or `--focus-session home`).
 - Omit all four: live UI focus; header includes `reason: no --tab/--session/--focus-tab/--focus-session; using live UI focus`.
 

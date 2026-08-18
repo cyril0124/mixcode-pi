@@ -1,6 +1,6 @@
 import type { RuntimeTab } from "../agent/runtime.js";
 import type { LocalCommand } from "../core/commands.js";
-import { createSessionId, createTab } from "../core/defaults.js";
+import { createSessionId, createTab, uniqueTabTitle } from "../core/defaults.js";
 import { assertModelEnabled } from "../core/models.js";
 import {
   assertConfiguredOpenTabsReadable,
@@ -118,14 +118,15 @@ const handleClear: LocalCommandHandler = ({ state, active, runtime, tui }) => {
 const handleNewSession: LocalCommandHandler = async ({ state, args, runtime, tui }) => {
   // Paint Not Ready immediately; createAgentTab still awaits full runtime startup.
   // Do not reuse services here — independent SettingsManager isolation.
-  // Optional args: `/new-session Name` is create + rename (same as `/rename Name`).
-  const title = args.trim();
+  // Optional args: `/new-session Name` sets a caller title; collisions get `-N`.
+  const requested = args.trim();
+  const title = requested ? uniqueTabTitle(requested, state.tabs) : undefined;
   const tab = await createAgentTab(state, runtime, {
     onQueued: () => tui.requestRender(),
     ...(title ? { title } : {}),
   });
   if (title) {
-    // createAgentTab already set tab.title; keep session-file metadata in sync.
+    // createAgentTab already set tab.title; persist the uniquified name.
     runtime.renameSession(tab.sessionId, title);
   }
   return undefined;
@@ -241,7 +242,7 @@ const handleFork: LocalCommandHandler = async ({ state, active, runtime }) => {
   const tab = createTab(state.tabs.length + 1, sessionId, active!.workdir, {
     model: { ...active!.model },
     thinkingLevel: active!.thinkingLevel,
-    title: `${active!.title}-fork`,
+    title: uniqueTabTitle(`${active!.title}-fork`, state.tabs),
     inlineWidgets: state.ui?.inlineWidgets === true,
   });
   state.tabs.splice(activeIndex + 1, 0, tab);
@@ -296,9 +297,18 @@ const handleTree: LocalCommandHandler = async ({
   return SKIP_FINALIZE;
 };
 
-const handleRename: LocalCommandHandler = ({ state, active, args, runtime }) => {
-  renameAgentTab(state, active!.sessionId, args);
-  runtime.renameSession(active!.sessionId, args);
+const handleRename: LocalCommandHandler = ({ state, active, args, runtime, tui }) => {
+  try {
+    renameAgentTab(state, active!.sessionId, args);
+  } catch (error) {
+    pushToast(active!, {
+      type: "warning",
+      message: error instanceof Error ? error.message : String(error),
+    });
+    tui.requestRender();
+    return SKIP_FINALIZE;
+  }
+  runtime.renameSession(active!.sessionId, active!.title);
   return undefined;
 };
 

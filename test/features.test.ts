@@ -61,6 +61,10 @@ test("tab operations add, close, rename, and rotate through config", () => {
   renameAgentTab(state, "s2", " Worker ");
   assert.equal(state.tabs[1]?.title, "Worker");
   assert.throws(() => renameAgentTab(state, "s2", " "), /cannot be empty/);
+  assert.throws(() => renameAgentTab(state, "s1", "Worker"), /already in use/);
+  assert.equal(state.tabs[0]?.title, "Agent-01");
+  renameAgentTab(state, "s2", "Worker");
+  assert.equal(state.tabs[1]?.title, "Worker");
   assert.equal(nextTabId(state, 1), "home");
   state.activeTabId = "home";
   assert.equal(nextTabId(state, -1), "s2");

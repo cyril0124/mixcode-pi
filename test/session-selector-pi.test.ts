@@ -532,3 +532,35 @@ test("renameOpenSession updates title of any open tab, not only active", async (
     await fsPromises.rm(root, { recursive: true, force: true });
   }
 });
+
+test("renameOpenSession refuses a title already used by another open tab", async () => {
+  const root = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-rename-taken-"));
+  try {
+    const otherSession = SessionManager.create(root, root);
+    const otherPath = otherSession.getSessionFile()!;
+    otherSession.appendSessionInfo("Old-Other-Name");
+
+    const state = createInitialState("/repo");
+    const active = createTab(1, "s-active", "/repo", { title: "Active-Tab" });
+    const other = createTab(2, "s-other", "/repo", { title: "Old-Other-Name" });
+    state.tabs.push(active, other);
+    state.activeTabId = "s-active";
+
+    const runtime = {
+      getTab: (sessionId: string) => {
+        if (sessionId !== "s-other") return undefined;
+        return { session: { getSessionFile: () => otherPath } };
+      },
+    };
+
+    await renameOpenSession(state, runtime as never, otherPath, "Active-Tab");
+
+    assert.equal(other.title, "Old-Other-Name");
+    assert.equal(active.title, "Active-Tab");
+    assert.equal(other.toast?.type, "warning");
+    assert.match(other.toast?.message ?? "", /already in use: Active-Tab/);
+    assert.equal(otherSession.getSessionName(), "Old-Other-Name");
+  } finally {
+    await fsPromises.rm(root, { recursive: true, force: true });
+  }
+});
