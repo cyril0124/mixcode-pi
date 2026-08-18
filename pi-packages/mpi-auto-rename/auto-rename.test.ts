@@ -126,7 +126,7 @@ test("runAutoRename retries format failures up to five total calls then keeps ol
       calls.push(prompt);
       return {
         role: "assistant",
-        content: [{ type: "text", text: "Not A Valid Title" }],
+        content: [{ type: "text", text: "123-456" }],
         stopReason: "stop",
       } as never;
     },
@@ -170,7 +170,7 @@ test("runAutoRename confirms overwrite and sets session name on valid title", as
     complete: async () =>
       ({
         role: "assistant",
-        content: [{ type: "text", text: "fix-auth-middleware" }],
+        content: [{ type: "text", text: "Fix_Auth Middleware" }],
         stopReason: "stop",
       }) as never,
     ctx: {

@@ -377,14 +377,12 @@ export async function generateValidTitle(options: {
         headers?: Record<string, string>;
         env?: Record<string, string>;
         signal?: AbortSignal;
-        maxTokens: number;
         reasoning?: "minimal" | "low" | "medium" | "high" | "xhigh";
       } = {
         apiKey: options.auth.apiKey,
         headers: options.auth.headers,
         env: options.auth.env,
         signal: options.signal,
-        maxTokens: 64,
       };
       if (options.thinkingLevel !== "off") {
         streamOptions.reasoning = options.thinkingLevel as
@@ -421,7 +419,11 @@ export async function generateValidTitle(options: {
     }
 
     const raw = assistantText(response);
-    const candidate = parseCandidateTitle(raw);
+    const candidate = parseCandidateTitle(raw)
+      .toLowerCase()
+      .replace(/[_\s]+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "");
     const error = titleValidationError(candidate);
     if (!error) return { ok: true, title: candidate };
 
