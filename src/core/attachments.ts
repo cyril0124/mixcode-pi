@@ -1,5 +1,5 @@
-import * as os from "node:os";
 import * as path from "node:path";
+import { homeDir as resolveHomeDir } from "./paths.js";
 import { loadSkills } from "@earendil-works/pi-coding-agent";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
@@ -11,7 +11,7 @@ export function isProjectSkillsOnlyEnabled(env = process.env): boolean {
 
 export function resolveSkillDirs(
   baseWorkdir: string,
-  homeDir = (process.env.HOME || os.homedir()),
+  homeDir = resolveHomeDir(),
   env = process.env,
 ): string[] {
   if (isProjectSkillsOnlyEnabled(env)) {
@@ -33,7 +33,7 @@ export interface SkillEntry {
 
 export async function scanSkillEntries(
   baseWorkdir: string,
-  homeDir = (process.env.HOME || os.homedir()),
+  homeDir = resolveHomeDir(),
 ): Promise<SkillEntry[]> {
   // Delegate discovery, validation, collision handling and ignore-file support
   // to pi's public skill loader. skillPaths preserve MixCode's scan order

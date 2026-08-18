@@ -47,6 +47,23 @@ test("resolveMixcodeAgentDir respects PI_CODING_AGENT_DIR precedence and tilde e
   }
 });
 
+test("resolveMixcodeAgentDir default and ~ follow $HOME like expandTilde", () => {
+  const oldHome = process.env.HOME;
+  const oldAgentDir = process.env.PI_CODING_AGENT_DIR;
+  try {
+    process.env.HOME = "/tmp/fake-home";
+    delete process.env.PI_CODING_AGENT_DIR;
+    assert.equal(resolveMixcodeAgentDir(), path.join("/tmp/fake-home", ".pi", "agent"));
+    process.env.PI_CODING_AGENT_DIR = "~/agent";
+    assert.equal(resolveMixcodeAgentDir(), path.join("/tmp/fake-home", "agent"));
+  } finally {
+    if (oldHome === undefined) delete process.env.HOME;
+    else process.env.HOME = oldHome;
+    if (oldAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+    else process.env.PI_CODING_AGENT_DIR = oldAgentDir;
+  }
+});
+
 test("parseMainArgs resolves status --workdir as absolute, relative, and ~", () => {
   const home = os.homedir();
   const abs = parseMainArgs(["status", "--workdir", "/abs/project"], "/caller");

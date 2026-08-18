@@ -1,8 +1,7 @@
 import * as fs from "node:fs";
-import * as os from "node:os";
 import * as path from "node:path";
 import { contextLimitPickerItems } from "./context-limit.js";
-import { expandTilde } from "./paths.js";
+import { expandTilde, homeDir } from "./paths.js";
 import { fuzzyMatch } from "./fuzzy.js";
 import { modelRefId } from "./models.js";
 import { availableThinkingLevelsForModel } from "./thinking-levels.js";
@@ -138,7 +137,7 @@ export function togglePickerHidden(picker: PickerState): boolean {
 export function workdirBreadcrumb(picker: PickerState): string[] {
   if (picker.kind !== "workdir" || !picker.browsingDir) return [];
   const dir = picker.browsingDir;
-  const home = (process.env.HOME || os.homedir());
+  const home = homeDir();
   if (dir === home) return ["~"];
   if (dir.startsWith(home + "/")) {
     return [

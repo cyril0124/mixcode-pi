@@ -220,15 +220,13 @@ export function handleMixCodeKeyInput(
   // show time, and MixCode scopes overlay visibility to the owning tab.
   // Restore focus lazily before dispatch so this same key already reaches
   // the overlay after switching back. Guarded so app overlays and modal
-  // app controls (palette, pickers, quit confirm, ...) keep focus priority;
-  // focusExtensionCustomOverlay itself no-ops when there is no overlay or
-  // it is already focused.
-  if (
-    active &&
-    state.activeTabId !== HOME_TAB_ID &&
-    !hasAppOverlay(tui) &&
-    !hasFocusedAppControl(state, active)
-  ) {
+  // app controls (palette, pickers, quit confirm, ...) keep focus priority.
+  // Deliberately NOT hasFocusedAppControl: that also reports true for this
+  // tab's own waitingForInputs, which a pending custom overlay always sets --
+  // using it here would make the overlay block its own refocus. Editor-slot
+  // dialogs register no overlay handle, so focusExtensionCustomOverlay no-ops
+  // for them (as it does when there is no overlay or it is already focused).
+  if (active && state.activeTabId !== HOME_TAB_ID && !hasAppOverlay(tui) && !isOverlayActive(state)) {
     runtime?.focusExtensionCustomOverlay?.(active.sessionId);
   }
   // Agent View table navigation on MixCode Home must run before per-session

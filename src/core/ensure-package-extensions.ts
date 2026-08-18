@@ -1,7 +1,7 @@
 import { createRequire } from "node:module";
 import * as fs from "node:fs";
-import * as os from "node:os";
 import * as path from "node:path";
+import { homeDir } from "./paths.js";
 
 const require = createRequire(import.meta.url);
 
@@ -46,7 +46,7 @@ export function ensurePackageExtensions(
   );
   if (packageDirs.length === 0) return [];
 
-  const agentDir = options?.agentDir ?? path.join((process.env.HOME || os.homedir()), ".pi", "agent");
+  const agentDir = options?.agentDir ?? path.join(homeDir(), ".pi", "agent");
   const extensionsDir = path.join(agentDir, "extensions");
   const installedExtensionPaths = new Set<string>();
   fs.mkdirSync(extensionsDir, { recursive: true });

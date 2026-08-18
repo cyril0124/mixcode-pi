@@ -873,7 +873,10 @@ function renderAgentSurfaceWindowed(
     lines = olderLines;
   }
   if (tailLines.length > 0) {
-    if (olderLines.length > 0) lines.push(chatBlockSeparator(mainWidth));
+    // Separate on whatever is already above the tail, not just chat blocks: a
+    // header with only empty-rendering blocks below it still needs the gap, and
+    // the full-render path uses the same rule (see renderConversation above).
+    if (lines.length > 0) lines.push(chatBlockSeparator(mainWidth));
     lines.push(...tailLines);
   }
 

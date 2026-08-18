@@ -1,4 +1,4 @@
-import * as os from "node:os";
+import { homeDir } from "../core/paths.js";
 import * as path from "node:path";
 import type { ResourceDiagnostic, Skill, SourceInfo } from "@earendil-works/pi-coding-agent";
 import type { ExtensionManagerEntry } from "../core/extension-manager.js";
@@ -394,7 +394,7 @@ function displayResourcePath(resourcePath: string): string {
 
 /** Replace the home directory prefix with `~`, matching Pi's formatDisplayPath. */
 function formatDisplayPath(resourcePath: string): string {
-  const home = (process.env.HOME || os.homedir());
+  const home = homeDir();
   return resourcePath.startsWith(home) ? `~${resourcePath.slice(home.length)}` : resourcePath;
 }
 
