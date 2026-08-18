@@ -9,6 +9,8 @@ A **multi-tab**, terminal-native AI coding agent fully compatible with the [Pi](
 
 > **A note from the author**
 > This is an AI-developed project. My daily development now happens entirely in mpi — including developing mpi itself. The code quality may be poor, but please experience mpi for yourself.
+>
+> Not interested in this project? Take a look at [`pi-packages/`](pi-packages/) instead — a set of high-quality Pi extensions that also work on plain [Pi](https://pi.dev).
 
 <p align="center">
   <img src="assets/readme-multi-tab.gif" alt="MixCode Pi multi-tab workspace" width="900">

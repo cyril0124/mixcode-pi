@@ -9,6 +9,8 @@
 
 > **作者的话**
 > 这是一个 AI 开发的项目。我现在的日常开发已完全使用 mpi——包括开发 mpi 本身。代码质量可能很差，但请亲自感受 mpi。
+>
+> 如果你对当前项目不感兴趣，也可以看看 [`pi-packages/`](pi-packages/)，里面都是高质量的 Pi 扩展插件，在原生 [Pi](https://pi.dev) 上也能正常使用。
 
 <p align="center">
   <img src="assets/readme-multi-tab.gif" alt="MixCode Pi 多 Tab 工作台" width="900">
