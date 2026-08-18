@@ -138,10 +138,12 @@ test("narrow input meta stays width-bounded and keeps a models hit region", () =
   });
   const line = renderInputMeta(tab, 28).join("\n");
   assert.equal(visibleWidth(line), 27);
-  const actions = tab.inputMetaHitRegions.map((region) => region.action);
-  assert.ok(actions.includes("models"));
-  // Non-strict layout may still paint a compacted workdir when ≥4 cols remain.
-  assert.ok(actions.every((action) => action === "models" || action === "workdir"));
+  const regions = tab.inputMetaHitRegions;
+  assert.ok(regions.some((region) => region.action === "models"));
+  // Which chips survive the narrow-width compactor is layout policy, but every
+  // emitted hit target must sit inside the line it was painted on: a region
+  // past the right edge is a click target the user can never reach.
+  assert.ok(regions.every((region) => region.startX >= 0 && region.endX <= 27));
 });
 
 test("blank custom working message still shows Working duration", () => {

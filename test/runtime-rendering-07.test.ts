@@ -20,7 +20,14 @@ test("fitHeadLines keeps the oldest lines and marks overflow", () => {
 
 test("keymap export documents global and scoped bindings", () => {
   const scopes = new Set(MIXCODE_KEYMAP.map((item) => item.scope ?? "global"));
-  for (const scope of ["global", "picker", "command-palette", "tab-jump", "preview"] as const) {
+  for (const scope of [
+    "global",
+    "picker",
+    "command-palette",
+    "tab-jump",
+    "agent",
+    "home",
+  ] as const) {
     assert.equal(scopes.has(scope), true, `${scope} scope should exist`);
   }
 });

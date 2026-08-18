@@ -30,7 +30,7 @@ test("tab bar marks running, error, and done agents", () => {
       160,
     ).join("\n"),
   );
-  assert.match(line, /\* Agent-08/);
+  assert.match(line, /● Agent-08/);
   assert.match(line, /x Agent-09/);
   assert.match(line, /! Agent-10/);
   assert.match(line, /- Agent-11/);

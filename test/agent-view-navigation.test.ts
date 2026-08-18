@@ -460,7 +460,9 @@ test("Home Enter opens settings with the app configuration", async () => {
   assert.deepEqual(result, { consume: true });
   assert.equal(state.activeTabId, "home");
   assert.equal(state.settingsPanel.open, true);
-  assert.match(stripAnsi(tui.overlays.at(-1) ?? ""), /Settings[\s\S]*Theme/);
+  // The injected piSettingsFile proves the panel is wired to settingsDeps
+  // rather than to a default settings location.
+  assert.match(stripAnsi(tui.overlays.at(-1) ?? ""), /Settings[\s\S]*pi-home-settings\.json/);
 });
 
 test("Home Enter runs local slash commands on selected agent (not as model prompt)", async () => {
@@ -699,7 +701,7 @@ test("renderConfig colors Agent View glyph and title together for notable states
   const output = renderConfig(state, 120).join("\n");
 
   assert.match(output, /\x1b\[[0-9;:]*m\? Question\x1b\[39m/);
-  assert.match(output, /\x1b\[[0-9;:]*m\* Working\x1b\[39m/);
+  assert.match(output, /\x1b\[[0-9;:]*m● Working\x1b\[39m/);
   assert.doesNotMatch(output, /\x1b\[[0-9;:]*m- Idle\x1b\[39m/);
 });
 
@@ -726,7 +728,7 @@ test("renderConfig mirrors Agent Tab glyphs in Agent View cards", () => {
 
   assert.match(output, /x Broken/);
   assert.match(output, /\? Question/);
-  assert.match(output, /\* Working/);
+  assert.match(output, /● Working/);
   assert.match(output, /! Done/);
   assert.match(output, /- Idle/);
 });

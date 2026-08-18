@@ -350,7 +350,9 @@ test("runtime maps pi extension custom overlay into a live TUI overlay", async (
         const result = await ctx.ui.custom<string>(
           (hostTui, theme, keybindings, done) => {
             events.push(`host:${hostTui === tui}`);
-            events.push(`kb:${keybindings.getKeys("tui.select.cancel").join("+")}`);
+            // Assert the handed-over manager resolves MixCode's escape routing,
+            // not pi-tui's full default key list (upstream may add keys).
+            events.push(`kb:${keybindings.getKeys("tui.select.cancel").includes("escape")}`);
             let value = "initial";
             return {
               render: (width: number) => [theme.fg("accent", `custom ${value} ${width}`)],
@@ -407,7 +409,7 @@ test("runtime maps pi extension custom overlay into a live TUI overlay", async (
     assert.equal(runtime.hasExtensionCustomOverlay("s1"), true);
     assert.equal(stripAnsi(overlayRenders[0] ?? ""), "custom initial 100");
     assert.deepEqual(overlayOptions[0], { anchor: "center", width: 84, maxHeight: "80%" });
-    assert.deepEqual(events.slice(0, 3), ["host:true", "kb:escape", "handle:true"]);
+    assert.deepEqual(events.slice(0, 3), ["host:true", "kb:true", "handle:true"]);
 
     overlayComponent!.handleInput?.("x");
     overlayRenders.push(overlayComponent!.render(100).join("\n"));
