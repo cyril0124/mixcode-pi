@@ -7,6 +7,9 @@ A **multi-tab**, terminal-native AI coding agent fully compatible with the [Pi](
 > **Why MixCode Pi?**
 > Standard AI coding agents lock your terminal to a single session — blocking you from exploring, reviewing, or running parallel tasks while the model is thinking. MixCode brings **native multi-tab concurrency** and **complete Pi extension compatibility** to the terminal: run multiple agents side by side, organize workspaces across restarts, and use the full Pi package catalog (`npm:…`, tools, widgets, and commands) with zero friction.
 
+> **A note from the author**
+> This is an AI-developed project. My daily development now happens entirely in mpi — including developing mpi itself. The code quality may be poor, but please experience mpi for yourself.
+
 <p align="center">
   <img src="assets/readme-multi-tab.gif" alt="MixCode Pi multi-tab workspace" width="900">
 </p>
