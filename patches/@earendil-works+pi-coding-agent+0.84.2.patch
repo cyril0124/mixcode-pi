@@ -145,7 +145,7 @@ index 4bcf0d4..cbfc897 100644
  //# sourceMappingURL=agent-session.js.map
 \ No newline at end of file
 diff --git a/node_modules/@earendil-works/pi-coding-agent/dist/core/extensions/loader.js b/node_modules/@earendil-works/pi-coding-agent/dist/core/extensions/loader.js
-index 324d30a..86234a5 100644
+index 324d30a..5619a62 100644
 --- a/node_modules/@earendil-works/pi-coding-agent/dist/core/extensions/loader.js
 +++ b/node_modules/@earendil-works/pi-coding-agent/dist/core/extensions/loader.js
 @@ -54,6 +54,20 @@ const VIRTUAL_MODULES = {
@@ -169,10 +169,12 @@ index 324d30a..86234a5 100644
  const require = createRequire(import.meta.url);
  const isTypeScriptSourceRuntime = !isBunBinary && path.extname(fileURLToPath(import.meta.url)) === ".ts";
  /**
-@@ -348,6 +362,22 @@ function isCurrentCacheToken(cacheToken) {
+@@ -348,6 +362,24 @@ function isCurrentCacheToken(cacheToken) {
          extensionCacheCwd === cacheToken.cwd &&
          extensionCacheGeneration === cacheToken.generation);
  }
++// MIXCODE_JITI_SHARED_CACHE: one jiti instance with moduleCache so loading
++// many extensions does not re-transform shared modules on every factory load.
 +let _sharedJiti = null;
 +function getSharedJiti() {
 +    if (!_sharedJiti) {
@@ -192,7 +194,7 @@ index 324d30a..86234a5 100644
  async function loadExtensionModule(extensionPath, cacheToken) {
      if (isCurrentCacheToken(cacheToken)) {
          const cachedFactory = extensionCache.get(extensionPath);
-@@ -355,16 +385,7 @@ async function loadExtensionModule(extensionPath, cacheToken) {
+@@ -355,16 +387,7 @@ async function loadExtensionModule(extensionPath, cacheToken) {
              return cachedFactory;
          }
      }
@@ -210,16 +212,16 @@ index 324d30a..86234a5 100644
      const module = await jiti.import(extensionPath, { default: true });
      const factory = module;
      if (typeof factory !== "function") {
-@@ -430,6 +451,8 @@ export async function loadExtensionFromFactory(factory, cwd, eventBus, runtime,
+@@ -430,6 +453,8 @@ export async function loadExtensionFromFactory(factory, cwd, eventBus, runtime,
   * Load extensions from paths.
   */
  async function loadExtensionsInternal(paths, cwd, eventBus, runtime, useCache = false) {
-+    // Reset shared jiti so reloaded extensions pick up file changes
++    // MIXCODE_JITI_SHARED_CACHE: reset so reloaded extensions pick up file changes
 +    _sharedJiti = null;
      const extensions = [];
      const errors = [];
      const cacheToken = useCache ? useExtensionCacheCwd(cwd) : undefined;
-@@ -440,11 +463,12 @@ async function loadExtensionsInternal(paths, cwd, eventBus, runtime, useCache =
+@@ -440,11 +465,12 @@ async function loadExtensionsInternal(paths, cwd, eventBus, runtime, useCache =
          const { extension, error } = await loadExtension(extPath, resolvedCwd, resolvedEventBus, resolvedRuntime, cacheToken);
          if (error) {
              errors.push({ path: extPath, error });
@@ -229,7 +231,7 @@ index 324d30a..86234a5 100644
 +        else if (extension) {
              extensions.push(extension);
          }
-+        // Yield to the event loop between extensions so the TUI stays responsive
++        // MIXCODE_EXTENSION_LOAD_YIELD: yield between extensions so the TUI stays responsive
 +        await new Promise((resolve) => setImmediate(resolve));
      }
      return {
@@ -372,10 +374,10 @@ index 92e8070..2a487a1 100644
      const resolvedAgentDir = resolvePath(agentDir);
      const safePath = `--${resolvedCwd.replace(/^[/\\]/, "").replace(/[/\\:]/g, "-")}--`;
 diff --git a/node_modules/@earendil-works/pi-coding-agent/dist/index.d.ts b/node_modules/@earendil-works/pi-coding-agent/dist/index.d.ts
-index f43bc96..79a0837 100644
+index f43bc96..815ee4b 100644
 --- a/node_modules/@earendil-works/pi-coding-agent/dist/index.d.ts
 +++ b/node_modules/@earendil-works/pi-coding-agent/dist/index.d.ts
-@@ -26,10 +26,67 @@ export { hasTrustRequiringProjectResources, type ProjectTrustDecision, ProjectTr
+@@ -26,10 +26,42 @@ export { hasTrustRequiringProjectResources, type ProjectTrustDecision, ProjectTr
  export { type MainOptions, main } from "./main.ts";
  export { InteractiveMode, type InteractiveModeOptions, type JsonAgentSessionEvent, type ModelInfo, type PrintModeOptions, RpcClient, type RpcClientOptions, type RpcCommand, type RpcEventListener, type RpcExtensionUIRequest, type RpcExtensionUIResponse, type RpcResponse, type RpcSessionState, runPrintMode, runRpcMode, } from "./modes/index.ts";
  export { ArminComponent, AssistantMessageComponent, BashExecutionComponent, BorderedLoader, BranchSummaryMessageComponent, CompactionSummaryMessageComponent, CustomEditor, CustomMessageComponent, DynamicBorder, ExtensionEditorComponent, ExtensionInputComponent, ExtensionSelectorComponent, FooterComponent, keyHint, keyText, LoginDialogComponent, ModelSelectorComponent, OAuthSelectorComponent, type RenderDiffOptions, rawKeyHint, renderDiff, SessionSelectorComponent, type SettingsCallbacks, type SettingsConfig, SettingsSelectorComponent, ShowImagesSelectorComponent, SkillInvocationMessageComponent, ThemeSelectorComponent, ThinkingSelectorComponent, ToolExecutionComponent, type ToolExecutionOptions, TreeSelectorComponent, truncateToVisualLines, UserMessageComponent, UserMessageSelectorComponent, type VisualTruncateResult, } from "./modes/interactive/components/index.ts";
@@ -383,8 +385,6 @@ index f43bc96..79a0837 100644
 +export {
 +    Theme,
 +    getAvailableThemes,
-+    getAvailableThemesWithPaths,
-+    getEditorTheme,
 +    getLanguageFromPath,
 +    getMarkdownTheme,
 +    getSelectListTheme,
@@ -392,12 +392,8 @@ index f43bc96..79a0837 100644
 +    getThemeByName,
 +    highlightCode,
 +    initTheme,
-+    isLightTheme,
-+    loadThemeFromPath,
 +    setRegisteredThemes,
-+    setTheme,
 +    setThemeInstance,
-+    type ThemeBg,
 +    type ThemeColor,
 +} from "./modes/interactive/theme/theme.ts";
  export { copyToClipboard } from "./utils/clipboard.ts";
@@ -414,31 +410,12 @@ index f43bc96..79a0837 100644
 +    formatHttpIdleTimeoutMs,
 +    parseHttpIdleTimeoutMs,
 +} from "./core/http-dispatcher.ts";
-+export {
-+    CACHE_TTL_MS,
-+    type CacheMiss,
-+    type CacheWasteTotals,
-+    collectCacheMisses,
-+    computeCacheWaste,
-+    detectCacheMiss,
-+    type ModelPriceSource,
-+} from "./core/cache-stats.ts";
-+export {
-+    addUsageToTotals,
-+    createUsageTotals,
-+    getUsageCostBreakdown,
-+    type UsageCostBreakdownEntry,
-+    type UsageTotals,
-+} from "./core/usage-totals.ts";
++export { computeCacheWaste, type ModelPriceSource } from "./core/cache-stats.ts";
++export { getUsageCostBreakdown } from "./core/usage-totals.ts";
 +export { buildSystemPrompt } from "./core/system-prompt.ts";
-+export { FooterDataProvider, findGitPaths, type GitPaths } from "./core/footer-data-provider.ts";
++export { FooterDataProvider } from "./core/footer-data-provider.ts";
 +export { readClipboardText } from "./utils/clipboard.ts";
-+export {
-+    type ClipboardImage,
-+    extensionForImageMimeType,
-+    isWaylandSession,
-+    readClipboardImage,
-+} from "./utils/clipboard-image.ts";
++export { extensionForImageMimeType, readClipboardImage } from "./utils/clipboard-image.ts";
 +export { createMermaidMarkdownTransformer } from "./modes/interactive/components/mermaid.ts";
 +export { loadKeybindingsConfigFile } from "./core/keybindings.ts";
 +export { getDefaultSessionDirPath } from "./core/session-manager.ts";
@@ -446,10 +423,10 @@ index f43bc96..79a0837 100644
  //# sourceMappingURL=index.d.ts.map
 \ No newline at end of file
 diff --git a/node_modules/@earendil-works/pi-coding-agent/dist/index.js b/node_modules/@earendil-works/pi-coding-agent/dist/index.js
-index 76d728e..ba4c985 100644
+index 76d728e..5cf4512 100644
 --- a/node_modules/@earendil-works/pi-coding-agent/dist/index.js
 +++ b/node_modules/@earendil-works/pi-coding-agent/dist/index.js
-@@ -36,7 +36,24 @@ export { InteractiveMode, RpcClient, runPrintMode, runRpcMode, } from "./modes/i
+@@ -36,7 +36,19 @@ export { InteractiveMode, RpcClient, runPrintMode, runRpcMode, } from "./modes/i
  // UI components for extensions
  export { ArminComponent, AssistantMessageComponent, BashExecutionComponent, BorderedLoader, BranchSummaryMessageComponent, CompactionSummaryMessageComponent, CustomEditor, CustomMessageComponent, DynamicBorder, ExtensionEditorComponent, ExtensionInputComponent, ExtensionSelectorComponent, FooterComponent, keyHint, keyText, LoginDialogComponent, ModelSelectorComponent, OAuthSelectorComponent, rawKeyHint, renderDiff, SessionSelectorComponent, SettingsSelectorComponent, ShowImagesSelectorComponent, SkillInvocationMessageComponent, ThemeSelectorComponent, ThinkingSelectorComponent, ToolExecutionComponent, TreeSelectorComponent, truncateToVisualLines, UserMessageComponent, UserMessageSelectorComponent, } from "./modes/interactive/components/index.js";
  // Theme utilities for custom tools and extensions
@@ -457,8 +434,6 @@ index 76d728e..ba4c985 100644
 +export {
 +    Theme,
 +    getAvailableThemes,
-+    getAvailableThemesWithPaths,
-+    getEditorTheme,
 +    getLanguageFromPath,
 +    getMarkdownTheme,
 +    getSelectListTheme,
@@ -466,16 +441,13 @@ index 76d728e..ba4c985 100644
 +    getThemeByName,
 +    highlightCode,
 +    initTheme,
-+    isLightTheme,
-+    loadThemeFromPath,
 +    setRegisteredThemes,
-+    setTheme,
 +    setThemeInstance,
 +} from "./modes/interactive/theme/theme.js";
  // Clipboard utilities
  export { copyToClipboard } from "./utils/clipboard.js";
  export { parseFrontmatter, stripFrontmatter } from "./utils/frontmatter.js";
-@@ -44,4 +61,45 @@ export { convertToPng } from "./utils/image-convert.js";
+@@ -44,4 +56,32 @@ export { convertToPng } from "./utils/image-convert.js";
  export { formatDimensionNote, resizeImage } from "./utils/image-resize.js";
  // Shell utilities
  export { getShellConfig } from "./utils/shell.js";
@@ -491,29 +463,16 @@ index 76d728e..ba4c985 100644
 +    parseHttpIdleTimeoutMs,
 +} from "./core/http-dispatcher.js";
 +// Cache waste stats; used by MixCode /session dump
-+export {
-+    CACHE_TTL_MS,
-+    collectCacheMisses,
-+    computeCacheWaste,
-+    detectCacheMiss,
-+} from "./core/cache-stats.js";
++export { computeCacheWaste } from "./core/cache-stats.js";
 +// Usage cost breakdown; used by MixCode /session dump
-+export {
-+    addUsageToTotals,
-+    createUsageTotals,
-+    getUsageCostBreakdown,
-+} from "./core/usage-totals.js";
++export { getUsageCostBreakdown } from "./core/usage-totals.js";
 +// System prompt builder; used by MixCode system-prompt assembly
 +export { buildSystemPrompt } from "./core/system-prompt.js";
 +// Git branch footer data; used by MixCode chrome + extension footerData
-+export { FooterDataProvider, findGitPaths } from "./core/footer-data-provider.js";
++export { FooterDataProvider } from "./core/footer-data-provider.js";
 +// Clipboard reads; used by MixCode editor paste
 +export { readClipboardText } from "./utils/clipboard.js";
-+export {
-+    extensionForImageMimeType,
-+    isWaylandSession,
-+    readClipboardImage,
-+} from "./utils/clipboard-image.js";
++export { extensionForImageMimeType, readClipboardImage } from "./utils/clipboard-image.js";
 +// Mermaid markdown rendering; used by MixCode chat rendering
 +export { createMermaidMarkdownTransformer } from "./modes/interactive/components/mermaid.js";
 +// MIXCODE_EXPORTS: upstream helpers surfaced for the MixCode host.
