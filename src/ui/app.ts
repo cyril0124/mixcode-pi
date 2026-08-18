@@ -361,7 +361,14 @@ export function createMixCodeTui(
     () => tui.terminal.rows,
     tui,
   );
+  const originalStart = tui.start.bind(tui);
   const originalStop = tui.stop.bind(tui);
+  tui.start = () => {
+    originalStart();
+    // MouseReportingTerminal.start() clears the screen. Force a full paint so
+    // unchanged chrome (input meta) is rewritten after extension stop/start.
+    tui.renderNow(true);
+  };
   tui.stop = () => {
     stopWorkingRedraw();
     stopLiveExtensionRedraw();
