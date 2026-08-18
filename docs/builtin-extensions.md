@@ -21,7 +21,7 @@ MixCode ships first-party built-in Pi packages located in `pi-packages/mpi-*`. S
 | `mpi-model-extensions` | `/model-extensions`, `<agentDir>/model-extensions.json` | Dynamically loads model-specific Pi extensions. |
 | `mpi-mid-turn-compact` | Auto on token threshold | Mid-turn compaction strategy preventing context window overflow during multi-turn tool loops. |
 | `mpi-search-guard` | Auto on high-cardinality search | Intercepts broad directory traversals in root/home directories and guides agents to narrower paths. |
-| `mpi-tool-block` | `/tool-block`, `<agentDir>/tool-block.json` | Overlay to hide selected tools from the model by dropping them from the active set. |
+| `mpi-tool-block` | `/tool-block`, `<agentDir>/tool-block.json` or in-memory session | Overlay to hide selected tools from the model by dropping them from the active set. |
 | `mpi-bash-default-timeout` | Auto on bash spawn | Enforces explicit default execution timeouts on bash commands. |
 | `mpi-image-hoist` | Auto on multimodal prompt | Re-orders and extracts image payloads for multimodal tool compatibility. |
 | `mpi-herdr-report` | `HERDR_ENV=1` | Notifies Herdr terminal multiplexer panes of agent status (working / idle / waiting). |

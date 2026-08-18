@@ -6,6 +6,7 @@ import * as path from "node:path";
 import {
   buildToolBlockRows,
   deniedToolNames,
+  effectiveToolBlockConfig,
   filterToolBlockRows,
   isToolBlockEnabled,
   loadToolBlockConfig,
@@ -96,6 +97,25 @@ describe("deniedToolNames / planActiveTools", () => {
     assert.deepEqual(deniedToolNames(config), ["browser_navigate", "create_goal"]);
   });
 
+  test("session config replaces global while present", () => {
+    const globalCfg: ToolBlockConfig = {
+      enabled: true,
+      hidden: [{ tool: "bash" }],
+    };
+    const sessionCfg: ToolBlockConfig = {
+      enabled: true,
+      hidden: [{ tool: "read", plugin: "" }],
+    };
+    assert.deepEqual(effectiveToolBlockConfig(globalCfg, null), globalCfg);
+    assert.deepEqual(effectiveToolBlockConfig(globalCfg, sessionCfg), sessionCfg);
+    assert.equal(effectiveToolBlockConfig(null, null), null);
+    assert.deepEqual(deniedToolNames(effectiveToolBlockConfig(globalCfg, sessionCfg)), ["read"]);
+    assert.deepEqual(
+      deniedToolNames(effectiveToolBlockConfig(globalCfg, { enabled: false, hidden: [{ tool: "read" }] })),
+      [],
+    );
+  });
+
   test("disabled or missing config denies nothing", () => {
     assert.deepEqual(deniedToolNames({ ...config, enabled: false }), []);
     assert.deepEqual(deniedToolNames(null), []);
@@ -170,7 +190,8 @@ describe("pluginTag / items / toggle", () => {
       enabled: true,
       hidden: [{ tool: "create_goal", plugin: "mpi-goal" }],
     });
-    assert.equal(rows[0]?.kind, "enabled");
+    assert.equal(rows[0]?.kind, "layer");
+    assert.equal(rows[1]?.kind, "enabled");
     assert.ok(rows.some((row) => row.kind === "header" && row.plugin === "mpi-goal"));
     const goal = rows.find((row) => row.kind === "tool" && row.name === "create_goal");
     assert.ok(goal && goal.kind === "tool");
@@ -195,6 +216,7 @@ describe("pluginTag / items / toggle", () => {
   test("filterToolBlockRows keeps plugin headers for matches", () => {
     const rows = buildToolBlockRows(tools, { enabled: true, hidden: [] });
     const filtered = filterToolBlockRows(rows, "goal");
+    assert.equal(filtered[0]?.kind, "layer");
     assert.ok(filtered.some((row) => row.kind === "header" && row.plugin === "mpi-goal"));
     assert.ok(filtered.some((row) => row.kind === "tool" && row.name === "create_goal"));
     assert.equal(
@@ -294,6 +316,8 @@ describe("tool-block overlay", () => {
     assert.ok(lines.slice(1, -1).every((line) => line.startsWith("│") && line.endsWith("│")));
     assert.doesNotMatch(text, /builtin/i);
     assert.match(text, /mpi-goal/);
+    assert.match(text, /Layer/);
+    assert.match(text, /Global/);
     assert.match(text, /Enabled/);
     assert.match(text, /On/);
     assert.match(text, /create_goal/);
@@ -310,7 +334,7 @@ describe("tool-block overlay", () => {
       bg: (_c: string, text: string) => text,
       bold: (text: string) => text,
     };
-    const writes: ToolBlockConfig[] = [];
+    const writes: Array<{ config: ToolBlockConfig; layer: string }> = [];
     const view = createToolBlockOverlay({
       theme,
       requestRender: () => undefined,
@@ -318,15 +342,72 @@ describe("tool-block overlay", () => {
       tools,
       initial: { enabled: true, hidden: [] },
       configPath: "/tmp/agent/tool-block.json",
-      persist: (config) => {
-        writes.push(config);
+      persist: (config, layer) => {
+        writes.push({ config, layer });
         return { ok: true, config };
       },
     });
+    view.handleInput("\x1b[B"); // skip layer -> enabled
     view.handleInput("\x1b[B"); // skip enabled -> bash
     view.handleInput(" ");
-    assert.deepEqual(writes.at(-1)?.hidden, [{ tool: "bash" }]);
+    assert.equal(writes.at(-1)?.layer, "global");
+    assert.deepEqual(writes.at(-1)?.config.hidden, [{ tool: "bash" }]);
     assert.match(view.render(60).join("\n"), /bash[\s\S]*Hidden/);
+  });
+
+  test("layer switch snapshots global into session and later tool toggles stay in-memory", async () => {
+    const { createToolBlockOverlay } = await import("./tool-block-overlay.js");
+    const theme = {
+      fg: (_c: string, text: string) => text,
+      bg: (_c: string, text: string) => text,
+      bold: (text: string) => text,
+    };
+    const writes: Array<{ config: ToolBlockConfig; layer: string }> = [];
+    const global: ToolBlockConfig = {
+      enabled: true,
+      hidden: [{ tool: "create_goal", plugin: "mpi-goal" }],
+    };
+    const view = createToolBlockOverlay({
+      theme,
+      requestRender: () => undefined,
+      done: () => undefined,
+      tools,
+      initial: global,
+      configPath: "/tmp/agent/tool-block.json",
+      persist: (config, layer) => {
+        writes.push({ config, layer });
+        return { ok: true, config };
+      },
+    });
+    view.handleInput(" "); // Layer -> Session, snapshot global
+    assert.equal(writes.at(-1)?.layer, "session");
+    assert.deepEqual(writes.at(-1)?.config.hidden, [{ tool: "create_goal", plugin: "mpi-goal" }]);
+    assert.match(view.render(60).join("\n"), /session \(in-memory\)/);
+    assert.match(view.render(60).join("\n"), /Layer[\s\S]*Session/);
+
+    view.handleInput("\x1b[B"); // enabled
+    view.handleInput("\x1b[B"); // bash
+    view.handleInput(" ");
+    assert.equal(writes.at(-1)?.layer, "session");
+    assert.deepEqual(writes.at(-1)?.config.hidden, [
+      { tool: "bash" },
+      { tool: "create_goal", plugin: "mpi-goal" },
+    ]);
+
+    view.handleInput("\x1b[A");
+    view.handleInput("\x1b[A");
+    view.handleInput(" "); // Layer -> Global, session stays
+    assert.match(view.render(60).join("\n"), /session override · \/tmp\/agent\/tool-block.json/);
+    const beforeGlobalEdit = writes.length;
+    view.handleInput("\x1b[B"); // enabled
+    view.handleInput("\x1b[B"); // bash on global draft (still empty hidden)
+    view.handleInput(" ");
+    assert.equal(writes.length, beforeGlobalEdit + 1);
+    assert.equal(writes.at(-1)?.layer, "global");
+    assert.deepEqual(writes.at(-1)?.config.hidden, [
+      { tool: "bash" },
+      { tool: "create_goal", plugin: "mpi-goal" },
+    ]);
   });
 
   test("windows the list when the overlay body budget is short", async () => {
@@ -347,7 +428,7 @@ describe("tool-block overlay", () => {
       persist: (config) => ({ ok: true, config }),
       getMaxVisible: () => 8,
     });
-    for (let i = 0; i < 20; i++) view.handleInput("\x1b[B");
+    for (let i = 0; i < 21; i++) view.handleInput("\x1b[B");
     const lines = view.render(60).join("\n").split("\n");
     assert.ok(lines.length <= 10, `height ${lines.length} should stay near the 8-line body budget`);
     assert.match(lines[0] ?? "", /┌.*Tool Block/);

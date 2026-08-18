@@ -1,6 +1,6 @@
 // +---------------------------------------------------------------------------+
 // |  tool-block core                                                          |
-// |  Parse <agentDir>/tool-block.json, match hidden tools, plan active set.   |
+// |  Parse tool-block.json, merge session overlay, plan active set.           |
 // +---------------------------------------------------------------------------+
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -27,7 +27,10 @@ export type SourceLike = {
   path?: string;
 };
 
+export type ToolBlockLayer = "global" | "session";
+
 export type ToolBlockRow =
+  | { kind: "layer" }
   | { kind: "enabled" }
   | { kind: "header"; plugin: string }
   | { kind: "tool"; name: string; plugin: string; hidden: boolean; orphan?: boolean };
@@ -182,6 +185,14 @@ export function deniedToolNames(config: ToolBlockConfig | null | undefined): str
   return config.hidden.map((item) => item.tool);
 }
 
+/** Session replaces global while present. Missing session falls back to global. */
+export function effectiveToolBlockConfig(
+  global: ToolBlockConfig | null | undefined,
+  session: ToolBlockConfig | null | undefined,
+): ToolBlockConfig | null {
+  return session ?? global ?? null;
+}
+
 /**
  * Compute the next active tool list.
  * Only restores names previously removed by this package; never activates
@@ -217,13 +228,13 @@ export function sameToolNames(left: readonly string[], right: readonly string[])
   return left.every((name, index) => name === right[index]);
 }
 
-/** Overlay rows: enabled, then tools grouped by plugin, then orphan hidden names. */
+/** Overlay rows: layer, enabled, then tools grouped by plugin, then orphan hidden names. */
 export function buildToolBlockRows(
   tools: readonly ToolRef[],
   config: ToolBlockConfig,
 ): ToolBlockRow[] {
   const hiddenByName = new Set(config.hidden.map((item) => item.tool));
-  const rows: ToolBlockRow[] = [{ kind: "enabled" }];
+  const rows: ToolBlockRow[] = [{ kind: "layer" }, { kind: "enabled" }];
   const seen = new Set<string>();
   const ungrouped: ToolRef[] = [];
   const grouped = new Map<string, ToolRef[]>();
@@ -275,13 +286,17 @@ export function buildToolBlockRows(
   return rows;
 }
 
-/** Keep matching tools and their plugin headers. Empty query returns all rows. */
+/** Keep matching tools and their plugin headers. Empty query returns all rows. Layer stays visible. */
 export function filterToolBlockRows(rows: readonly ToolBlockRow[], query: string): ToolBlockRow[] {
   const q = query.trim().toLowerCase();
   if (!q) return [...rows];
   const out: ToolBlockRow[] = [];
   let header: Extract<ToolBlockRow, { kind: "header" }> | undefined;
   for (const row of rows) {
+    if (row.kind === "layer") {
+      out.push(row);
+      continue;
+    }
     if (row.kind === "enabled") {
       if ("enabled".includes(q)) out.push(row);
       header = undefined;

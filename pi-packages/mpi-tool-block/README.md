@@ -6,16 +6,15 @@ Hide selected tools from the model by removing them from the active set. Definit
 
 ## Command
 
-`/tool-block` — `[global]` opens a settings-style overlay of every registered tool.
+`/tool-block` — opens a settings-style overlay of every registered tool. Layer chooses where edits go.
 
 ```text
 ┌─ Tool Block ───────────────────────────────────┐
 │  filter: type to filter                        │
-│  ~/.pi/agent/tool-block.json                   │
-│   mpi-goal ──────────────────────────────────  │
-│  › Enabled                         On          │
-│    bash                            Visible     │
-│    create_goal                     Hidden      │
+│  session (in-memory)                           │
+│  › Layer                           Session     │
+│    Enabled                         On          │
+│    bash                            Hidden      │
 │  ↑↓ select  ⏎ toggle  type to filter  esc      │
 └────────────────────────────────────────────────┘
 ```
@@ -23,16 +22,25 @@ Hide selected tools from the model by removing them from the active set. Definit
 | Key | Action |
 |-----|--------|
 | Type | Filter by tool name or plugin |
-| Space / Enter | Toggle Hidden / Visible, or Enabled |
+| Space / Enter | Toggle Layer, Enabled, or Hidden / Visible |
 | Esc | Clear search, or close |
 
-Toggles write `<agentDir>/tool-block.json` immediately and call `setActiveTools`. Small terminals window the list; title and footer stay visible.
+| Layer | Persist | Location line |
+|-------|---------|---------------|
+| Global | `<agentDir>/tool-block.json` immediately | file path; if a session override exists, prefixed with `session override ·` |
+| Session | in-memory for this MixCode tab | `session (in-memory)` |
+
+First switch to Session snapshots the current global config. While a session config exists it is the entire effective config (`session ?? global`): extra hides, unhides, and `enabled: Off` apply only to this tab. Switching Layer back to Global changes the edit target only; the session override stays until process restart, `/reload`, tab close, or extension rebuild.
+
+Toggles call `setActiveTools` immediately. Small terminals window the list; title and footer stay visible.
 
 `enabled: Off` keeps the `hidden` list but puts those tools back in the active set.
 
 ## Config
 
-`<agentDir>/tool-block.json` (`$PI_CODING_AGENT_DIR`, default `~/.pi/agent`). Created on the first toggle; survives restart.
+Global file: `<agentDir>/tool-block.json` (`$PI_CODING_AGENT_DIR`, default `~/.pi/agent`). Created on the first Global-layer toggle; survives restart.
+
+Session config uses the same shape in memory. It is not written to disk.
 
 ```json
 {
@@ -49,12 +57,13 @@ Toggles write `<agentDir>/tool-block.json` immediately and call `setActiveTools`
 | `hidden[].tool` | string | Exact tool name (names are global). |
 | `hidden[].plugin` | string? | Optional extension tag (`npm:` package or `extensions/<name>`). Omitted for core/Pi tools. |
 
-Missing file = no-op. Invalid JSON or unknown keys fail loud: `/tool-block` notifies and does not open; the file is not overwritten.
+Missing file = no-op (no global hides). Invalid JSON or unknown keys fail loud: `/tool-block` notifies and does not open; the file is not overwritten.
 
-Reload on `session_start` / `/reload`. `before_agent_start` re-reads the file and re-applies.
+`session_start` and `before_agent_start` re-read the global file and re-apply the effective config. They do not clear an existing in-memory session override. MixCode `/reload` rebuilds the extension instance and drops the session override.
 
 ## Limits
 
 - No `unregisterTool`. Hidden tools remain registered; the model does not receive them.
 - Tool names are unique. Hiding `foo` hides that name, not "plugin A's copy".
 - Only names this package removed are restored when un-hidden or when `enabled` is off.
+- Session override is per extension instance (one MixCode tab). There is no in-overlay clear; drop it by restart, `/reload`, or closing the tab.

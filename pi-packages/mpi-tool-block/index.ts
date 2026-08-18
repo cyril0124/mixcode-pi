@@ -2,14 +2,15 @@
 // |  tool-block extension                                                     |
 // |  Hide selected tools from the model (active set).                         |
 // |                                                                           |
-// |  Config: <agentDir>/tool-block.json  (written on every overlay toggle)    |
+// |  Config: <agentDir>/tool-block.json (global) + in-memory session overlay  |
 // |  Apply:  session_start + before_agent_start                               |
-// |  UI:     /tool-block overlay                                              |
+// |  UI:     /tool-block overlay (Layer: Global | Session)                    |
 // +---------------------------------------------------------------------------+
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import {
   deniedToolNames,
+  effectiveToolBlockConfig,
   loadToolBlockConfig,
   planActiveTools,
   sameToolNames,
@@ -36,6 +37,7 @@ function cacheFromLoad(loaded: ConfigLoadResult): CachedConfig {
 
 export default function toolBlockExtension(pi: ExtensionAPI) {
   let cached: CachedConfig = { status: "missing", path: "" };
+  let sessionConfig: ToolBlockConfig | null = null;
   let previouslyRemoved: string[] = [];
 
   function reload(): CachedConfig {
@@ -52,7 +54,7 @@ export default function toolBlockExtension(pi: ExtensionAPI) {
     const planned = planActiveTools({
       active: pi.getActiveTools(),
       registered: tools.map((tool) => tool.name),
-      denied: deniedToolNames(currentConfig()),
+      denied: deniedToolNames(effectiveToolBlockConfig(currentConfig(), sessionConfig)),
       previouslyRemoved,
     });
     previouslyRemoved = planned.removed;
@@ -60,6 +62,8 @@ export default function toolBlockExtension(pi: ExtensionAPI) {
     pi.setActiveTools(planned.next);
   }
 
+  // Reload the global file only. Session override lives in this closure and
+  // drops when the extension instance is rebuilt (restart / /reload / new tab).
   pi.on("session_start", () => {
     reload();
     sync();
@@ -71,12 +75,16 @@ export default function toolBlockExtension(pi: ExtensionAPI) {
   });
 
   pi.registerCommand("tool-block", {
-    description: "[global] Hide tools from the model",
+    description: "Hide tools from the model (global file or this session)",
     handler: async (_args, ctx) => {
       await openToolBlockOverlay(pi, ctx, {
         reload,
         setCached: (next) => {
           cached = next;
+        },
+        getSession: () => sessionConfig,
+        setSession: (next) => {
+          sessionConfig = next;
         },
         sync,
       });
@@ -90,6 +98,8 @@ async function openToolBlockOverlay(
   hooks: {
     reload: () => CachedConfig;
     setCached: (next: CachedConfig) => void;
+    getSession: () => ToolBlockConfig | null;
+    setSession: (next: ToolBlockConfig) => void;
     sync: () => void;
   },
 ): Promise<void> {
@@ -108,6 +118,7 @@ async function openToolBlockOverlay(
   const configPath = toolBlockConfigPath(agentDir);
   const tools = toToolRefs(pi.getAllTools());
   const initial = snap.status === "ok" ? snap.config : EMPTY_CONFIG;
+  const session = hooks.getSession();
 
   await ctx.ui.custom(
     (tui, theme, _kb, done) =>
@@ -117,8 +128,15 @@ async function openToolBlockOverlay(
         done: () => done(undefined),
         tools,
         initial,
+        session,
+        initialLayer: session ? "session" : "global",
         configPath,
-        persist: (next) => {
+        persist: (next, layer) => {
+          if (layer === "session") {
+            hooks.setSession(next);
+            hooks.sync();
+            return { ok: true, config: next };
+          }
           const written = writeToolBlockConfig(agentDir, next);
           if (!written.ok) return { ok: false, error: `Failed to write ${written.path}: ${written.error}` };
           hooks.setCached({ status: "ok", path: written.path, config: written.config });

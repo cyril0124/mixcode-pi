@@ -5,6 +5,7 @@ import {
   isToolBlockEnabled,
   toggleToolBlockRow,
   type ToolBlockConfig,
+  type ToolBlockLayer,
   type ToolBlockRow,
   type ToolRef,
 } from "./tool-block-core.js";
@@ -21,8 +22,13 @@ export interface ToolBlockOverlayOptions {
   done: () => void;
   tools: readonly ToolRef[];
   initial: ToolBlockConfig;
+  session?: ToolBlockConfig | null;
+  initialLayer?: ToolBlockLayer;
   configPath: string;
-  persist: (config: ToolBlockConfig) => { ok: true; config: ToolBlockConfig } | { ok: false; error: string };
+  persist: (
+    config: ToolBlockConfig,
+    layer: ToolBlockLayer,
+  ) => { ok: true; config: ToolBlockConfig } | { ok: false; error: string };
   onError?: (message: string) => void;
   getMaxVisible?: () => number;
 }
@@ -33,7 +39,10 @@ export function createToolBlockOverlay(options: ToolBlockOverlayOptions): {
   handleInput(data: string): void;
 } {
   const { theme, requestRender, done, tools } = options;
-  let draft = options.initial;
+  let layer: ToolBlockLayer = options.initialLayer === "session" && options.session ? "session" : "global";
+  let globalDraft = options.initial;
+  let sessionDraft: ToolBlockConfig | null = options.session ?? null;
+  let draft = layer === "session" && sessionDraft ? sessionDraft : globalDraft;
   let query = "";
   let selected = 0;
 
@@ -41,8 +50,22 @@ export function createToolBlockOverlay(options: ToolBlockOverlayOptions): {
     return filterToolBlockRows(buildToolBlockRows(tools, draft), query);
   }
 
-  function selectable(list: ToolBlockRow[]): Extract<ToolBlockRow, { kind: "enabled" | "tool" }>[] {
-    return list.filter((row): row is Extract<ToolBlockRow, { kind: "enabled" | "tool" }> => row.kind !== "header");
+  function selectable(
+    list: ToolBlockRow[],
+  ): Extract<ToolBlockRow, { kind: "layer" | "enabled" | "tool" }>[] {
+    return list.filter(
+      (row): row is Extract<ToolBlockRow, { kind: "layer" | "enabled" | "tool" }> => row.kind !== "header",
+    );
+  }
+
+  function remember(next: ToolBlockConfig, target: ToolBlockLayer): void {
+    draft = next;
+    if (target === "session") sessionDraft = next;
+    else globalDraft = next;
+  }
+
+  function snapshotConfig(config: ToolBlockConfig): ToolBlockConfig {
+    return { enabled: config.enabled, hidden: config.hidden.map((item) => ({ ...item })) };
   }
 
   function clampSelected(): void {
@@ -64,13 +87,28 @@ export function createToolBlockOverlay(options: ToolBlockOverlayOptions): {
     if (matchesKey(data, Key.enter) || data === " ") {
       const current = selectable(rows())[selected];
       if (!current) return;
+      if (current.kind === "layer") {
+        const nextLayer: ToolBlockLayer = layer === "global" ? "session" : "global";
+        if (nextLayer === "session" && !sessionDraft) {
+          const written = options.persist(snapshotConfig(globalDraft), "session");
+          if (!written.ok) {
+            options.onError?.(written.error);
+            return;
+          }
+          remember(written.config, "session");
+        }
+        layer = nextLayer;
+        draft = layer === "session" && sessionDraft ? sessionDraft : globalDraft;
+        requestRender();
+        return;
+      }
       const next = toggleToolBlockRow(draft, tools, current);
-      const written = options.persist(next);
+      const written = options.persist(next, layer);
       if (!written.ok) {
         options.onError?.(written.error);
         return;
       }
-      draft = written.config;
+      remember(written.config, layer);
       requestRender();
       return;
     }
@@ -121,14 +159,20 @@ export function createToolBlockOverlay(options: ToolBlockOverlayOptions): {
           ? `  ${dim("filter:")} ${query}  ${dim(`${picks.filter((row) => row.kind === "tool").length}/${tools.length}`)}`
           : dim(`  filter: type to filter  ${tools.length}/${tools.length}`),
       );
-      const pathLine = clip(dim(`  ${options.configPath}`));
+      const location =
+        layer === "session"
+          ? "session (in-memory)"
+          : sessionDraft
+            ? `session override · ${options.configPath}`
+            : options.configPath;
+      const pathLine = clip(dim(`  ${location}`));
       const hint = clip(dim("  ↑↓ select  ⏎ toggle  type to filter  esc close"));
       const chrome = [filterLine, "", pathLine, ""];
       const footer = ["", hint];
       const listBudget = Math.max(1, bodyBudget - chrome.length - footer.length);
 
       const painted = list.map((row, index) =>
-        paintRow(row, index === indexOfSelectable(list, selected), theme, inner, enabled, hidden),
+        paintRow(row, index === indexOfSelectable(list, selected), theme, inner, enabled, hidden, layer),
       );
       const windowed = windowLines(painted, indexOfSelectable(list, selected), listBudget, dim);
       const body = fitBody([...chrome, ...windowed], footer, bodyBudget, pathLine);
@@ -144,6 +188,7 @@ function paintRow(
   innerWidth: number,
   enabled: boolean,
   hidden: Set<string>,
+  layer: ToolBlockLayer,
 ): string {
   if (row.kind === "header") {
     const left = ` ${truncateToWidth(row.plugin, Math.max(1, innerWidth - 3), "…")} `;
@@ -155,18 +200,31 @@ function paintRow(
   const labelCol = Math.max(12, Math.min(32, Math.floor((innerWidth - markerWidth - gap) * 0.55)));
   const valueCol = Math.max(6, innerWidth - markerWidth - gap - labelCol);
   const marker = selected ? theme.fg("accent", "› ") : "  ";
-  const label = row.kind === "enabled" ? "Enabled" : row.name;
-  const valuePlain = row.kind === "enabled" ? (enabled ? "On" : "Off") : hidden.has(row.name) ? "Hidden" : "Visible";
+  const label = row.kind === "layer" ? "Layer" : row.kind === "enabled" ? "Enabled" : row.name;
+  const valuePlain =
+    row.kind === "layer"
+      ? layer === "session"
+        ? "Session"
+        : "Global"
+      : row.kind === "enabled"
+        ? enabled
+          ? "On"
+          : "Off"
+        : hidden.has(row.name)
+          ? "Hidden"
+          : "Visible";
   const labelText = truncateToWidth(label, labelCol, "…");
   const valueText = truncateToWidth(valuePlain, valueCol, "…");
   const valueColored =
-    row.kind === "enabled"
-      ? enabled
-        ? theme.fg("accent", valueText)
-        : theme.fg("dim", valueText)
-      : hidden.has(row.name)
-        ? theme.fg("accent", valueText)
-        : theme.fg("dim", valueText);
+    row.kind === "layer"
+      ? theme.fg("accent", valueText)
+      : row.kind === "enabled"
+        ? enabled
+          ? theme.fg("accent", valueText)
+          : theme.fg("dim", valueText)
+        : hidden.has(row.name)
+          ? theme.fg("accent", valueText)
+          : theme.fg("dim", valueText);
   const labelPadded = labelText + " ".repeat(Math.max(0, labelCol - visibleWidth(labelText)));
   const line = `${marker}${labelPadded}${" ".repeat(gap)}${valueColored}`;
   if (selected && theme.bg) return theme.bg("selectedBg", padVisible(line, innerWidth));
