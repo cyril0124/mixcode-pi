@@ -25,6 +25,14 @@ function makeStatTable(): {
 // Poll ticks faster than the debounce so the debounce can fire between ticks.
 const POLL_MS = 10;
 
+// Wait for a condition instead of a fixed sleep: under full-suite load the
+// event loop can starve short timers, so fixed sleeps flake. On timeout we
+// fall through and let the assertion report the actual state.
+async function waitFor(cond: () => boolean, timeoutMs = 10_000): Promise<void> {
+  const start = Date.now();
+  while (!cond() && Date.now() - start < timeoutMs) await Bun.sleep(5);
+}
+
 test("a real fingerprint change triggers exactly one debounced reload", async () => {
   const stat = makeStatTable();
   const changed: string[] = [];
@@ -40,6 +48,9 @@ test("a real fingerprint change triggers exactly one debounced reload", async ()
 
   // External append: size + mtime grow. Many poll ticks see the new state.
   stat.set("a.jsonl", { size: 40, mtimeMs: 200 });
+  await waitFor(() => changed.length >= 1);
+  // Grace window for a duplicate fire; stretches under load, which only
+  // widens duplicate detection.
   await Bun.sleep(30);
   assert.deepEqual(changed, ["sa"], "burst of ticks collapses to one reload");
   coord.dispose();
@@ -62,7 +73,7 @@ test("multiple registered sessions are all polled", async () => {
 
   stat.set("a.jsonl", { size: 2, mtimeMs: 2 });
   stat.set("b.jsonl", { size: 2, mtimeMs: 2 });
-  await Bun.sleep(30);
+  await waitFor(() => changed.length >= 2);
   assert.deepEqual(changed.sort(), ["sa", "sb"]);
   coord.dispose();
 });
@@ -87,7 +98,7 @@ test("same size and mtime with replaced content still reloads", async () => {
     await fsPromises.writeFile(replacementPath, "new\n", "utf8");
     await fsPromises.utimes(replacementPath, fixedTime, fixedTime);
     await fsPromises.rename(replacementPath, sessionPath);
-    await Bun.sleep(30);
+    await waitFor(() => changed.length >= 1);
     assert.deepEqual(changed, ["sa"]);
     coord.dispose();
   } finally {

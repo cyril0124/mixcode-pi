@@ -9,9 +9,12 @@ import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import { MixCodeRuntime, createTab } from "./helpers/mixcode.js";
 import { gitBranchForWorkdir, onGitBranchChange } from "../src/core/git-branch.js";
 
+// Generous deadline: upstream FooterDataProvider polls HEAD at 1000ms with a
+// 500ms debounce, and full-suite parallel load stretches both. The wait
+// returns as soon as the condition holds, so green runs stay fast.
 async function waitForBranch(
   read: () => string | null | undefined,
-  timeoutMs = 3_000,
+  timeoutMs = 30_000,
 ): Promise<string | null> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -99,7 +102,7 @@ test("onGitBranchChange fires when the cached branch value changes", async () =>
     });
 
     execFileSync("git", ["checkout", "-qb", "feature-branch"], { cwd: workdir });
-    await waitForBranch(() => (fires > 0 ? "ok" : null), 6_000);
+    await waitForBranch(() => (fires > 0 ? "ok" : null));
     assert.ok(fires > 0, "expected notify after checkout");
     assert.equal(gitBranchForWorkdir(workdir), "feature-branch");
   } finally {
@@ -141,7 +144,7 @@ test("extension footerData.onBranchChange notifies after branch switch", async (
 
     const before = fires;
     execFileSync("git", ["checkout", "-qb", "ext-feature"], { cwd: workdir });
-    await waitForBranch(() => (fires > before ? "ok" : null), 6_000);
+    await waitForBranch(() => (fires > before ? "ok" : null));
     assert.ok(fires > before, "footer onBranchChange should fire after checkout");
   } finally {
     unsub?.();

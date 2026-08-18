@@ -1,4 +1,5 @@
 import {
+  applyMarkdownTransformers,
   createMermaidMarkdownTransformer,
   type MarkdownTransformContext,
   type MarkdownTransformer,
@@ -70,28 +71,9 @@ export function renderMarkdown(
   return markdown.render(width).map((line) => padRenderedMarkdownLine(line, width));
 }
 
-/**
- * Match Pi `applyMarkdownTransformers`: sequential apply; non-string / thrown
- * results keep the current markdown and continue.
- */
-export function applyMarkdownTransformers(
-  markdown: string,
-  context: MarkdownTransformContext,
-  transformers: readonly MarkdownTransformer[],
-): string {
-  let transformedMarkdown = markdown;
-  for (const transformer of transformers) {
-    try {
-      const transformed = transformer(transformedMarkdown, context);
-      if (typeof transformed === "string") {
-        transformedMarkdown = transformed;
-      }
-    } catch {
-      // Keep the current Markdown and continue with the next transformer.
-    }
-  }
-  return transformedMarkdown;
-}
+// Pi's transformer pipeline itself (patch export): sequential apply; non-string
+// / thrown results keep the current markdown and continue.
+export { applyMarkdownTransformers };
 
 function getMarkdownTheme(): MarkdownTheme {
   // Sync global Pi theme once, then use Pi md* tokens so third-party themes apply.

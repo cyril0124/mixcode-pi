@@ -1,4 +1,3 @@
-import * as fs from "node:fs";
 import * as path from "node:path";
 import type {
   KeybindingsManager as ExtensionKeybindingsManager,
@@ -7,11 +6,10 @@ import type {
 import {
   type KeybindingDefinitions,
   type KeybindingsConfig,
-  type KeyId,
   KeybindingsManager as PiTuiKeybindingsManager,
   TUI_KEYBINDINGS,
 } from "@earendil-works/pi-tui";
-import { getAgentDir } from "@earendil-works/pi-coding-agent";
+import { getAgentDir, loadKeybindingsConfigFile } from "@earendil-works/pi-coding-agent";
 import {
   applyPiThemeInstance,
   initTheme,
@@ -122,25 +120,9 @@ function mixcodeAgentDir(): string {
 
 /** User overrides from `~/.pi/agent/keybindings.json` (Pi-native path). */
 function loadUserKeybindingsFile(agentDir = mixcodeAgentDir()): KeybindingsConfig {
-  // Sync load at keybindings manager construction; Bun.file().text() is async-only.
-  const filePath = path.join(agentDir, "keybindings.json");
-  try {
-    const parsed = JSON.parse(fs.readFileSync(filePath, "utf-8")) as unknown;
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
-    const config: KeybindingsConfig = {};
-    for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
-      if (typeof value === "string") {
-        config[key] = value as KeyId;
-        continue;
-      }
-      if (Array.isArray(value) && value.every((entry) => typeof entry === "string")) {
-        config[key] = value as KeyId[];
-      }
-    }
-    return config;
-  } catch {
-    return {};
-  }
+  // Pi-parity load (patch export): raw JSON -> legacy-name migration ->
+  // string/string[] filter, so old-format configs Pi accepts also work here.
+  return loadKeybindingsConfigFile(path.join(agentDir, "keybindings.json"));
 }
 
 function buildMixCodeUserBindings(): KeybindingsConfig {

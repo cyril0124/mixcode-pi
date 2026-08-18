@@ -55,21 +55,29 @@ function feedRapidInput(state: MixCodeState, actions: MixCodeEditorActions): voi
 }
 
 test("paste-newline heuristic keeps intercepting Enter on the default editor", () => {
-  const state = makeState();
-  const { actions, inserted } = makeEditorActions({});
-  feedRapidInput(state, actions);
-  const result = handleMixCodeKeyInput(
-    state,
-    "\r",
-    silentTui(),
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    actions,
-  );
-  assert.deepEqual(result, { consume: true }, "rapid Enter is consumed as paste newline");
-  assert.deepEqual(inserted, ["\n"], "Enter is converted into an inserted newline");
+  // The heuristic is defined over real key-arrival timing (3+ events within a
+  // 5ms window). Under full-suite load one scripted burst can straddle that
+  // window, so retry fresh bursts until one lands inside it.
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const state = makeState();
+    const { actions, inserted } = makeEditorActions({});
+    feedRapidInput(state, actions);
+    const result = handleMixCodeKeyInput(
+      state,
+      "\r",
+      silentTui(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      actions,
+    );
+    if (result === undefined && inserted.length === 0) continue; // burst straddled the window
+    assert.deepEqual(result, { consume: true }, "rapid Enter is consumed as paste newline");
+    assert.deepEqual(inserted, ["\n"], "Enter is converted into an inserted newline");
+    return;
+  }
+  assert.fail("no input burst landed within the paste window after 50 attempts");
 });
 
 test("paste-newline heuristic does not swallow Enter while a pending extension interaction owns input", () => {

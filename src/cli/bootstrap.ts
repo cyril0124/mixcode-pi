@@ -8,6 +8,7 @@ import {
   DefaultPackageManager,
   ensureTool,
   getAgentDir,
+  getDefaultSessionDirPath,
   SettingsManager,
 } from "@earendil-works/pi-coding-agent";
 import { MixCodeRuntime } from "../agent/runtime.js";
@@ -71,9 +72,8 @@ export function defaultStateDir(): string {
 }
 
 export function defaultPiSessionDir(workdir: string, agentDir = getAgentDir()): string {
-  const resolved = path.resolve(workdir);
-  const safePath = `--${resolved.replace(/^[/\\]/, "").replace(/[/\\:]/g, "-")}--`;
-  return path.join(path.resolve(agentDir), "sessions", safePath);
+  // Pi's cwd->dir encoding (patch export of the pure variant; no mkdir side effect).
+  return getDefaultSessionDirPath(workdir, agentDir);
 }
 
 /** Resolve the session root using Pi's current precedence. */
