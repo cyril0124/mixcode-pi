@@ -22,6 +22,7 @@ import {
   renderExtensionWidgets,
   extensionPanelWidth,
   EXTENSION_PANEL_MIN_TERMINAL_WIDTH,
+  formatElapsed,
   renderFloatingPanelOverlay,
   renderFooter,
   renderInputMeta,
@@ -629,24 +630,6 @@ function workingLoaderIndicator(
     frames,
     intervalMs: active.extensionUi.workingIndicatorIntervalMs,
   };
-}
-
-function formatElapsed(startedAt: string | undefined, now: Date): string {
-  const start = startedAt ? Date.parse(startedAt) : NaN;
-  const elapsedSeconds = Number.isFinite(start)
-    ? Math.max(0, Math.floor((now.getTime() - start) / 1000))
-    : 0;
-  return formatDuration(elapsedSeconds);
-}
-
-function formatDuration(elapsedSeconds: number): string {
-  const hours = Math.floor(elapsedSeconds / 3600);
-  const minutes = Math.floor((elapsedSeconds % 3600) / 60);
-  const seconds = elapsedSeconds % 60;
-  if (hours > 0)
-    return `${hours}h ${String(minutes).padStart(2, "0")}m ${String(seconds).padStart(2, "0")}s`;
-  if (minutes === 0) return `${seconds}s`;
-  return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
 }
 
 /** Cap stacked editor widgets to a shared row budget; prefer aboveEditor first. */

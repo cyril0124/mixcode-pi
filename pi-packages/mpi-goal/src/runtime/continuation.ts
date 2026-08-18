@@ -29,12 +29,6 @@ import {
 } from "./continuation-ticket.js";
 import { buildBudgetLimitPrompt, buildContinuationPrompt, buildPausePrompt } from "./prompts.js";
 
-type PendingContinuation = {
-	goalId: string;
-	reason: ContinuationReason;
-	timer: ReturnType<typeof setTimeout>;
-};
-
 type PendingBudgetWrapUp = {
 	goalId: string;
 	timer: ReturnType<typeof setTimeout>;
@@ -55,7 +49,6 @@ type ContinuationAttemptResult =
 const DEFAULT_RETRY_DELAYS_MS = [100, 250, 500, 1_000, 2_000];
 
 type ContinuationSessionState = {
-	pendingContinuation?: PendingContinuation;
 	budgetWrapUps: Map<string, PendingBudgetWrapUp>;
 	compactionActive: boolean;
 	compactionWork?: CompactionContinuationWork;
@@ -97,11 +90,6 @@ export function beginGoalCompaction(pi: ExtensionAPI, ctx: ExtensionContext): vo
 	const work = currentCompactionWork();
 	contState().compactionWork = work;
 	if (!work) return;
-	const pending = contState().pendingContinuation;
-	if (work.kind === "activeGoal" && pending?.goalId === work.goalId) {
-		clearTimeout(pending.timer);
-		contState().pendingContinuation = undefined;
-	}
 	skip(pi, "compacting");
 	if (ctx.isIdle()) {
 		finishCompactionTelemetry(pi, "prequeue", work.key, 0, "prequeueSkippedIdle");
@@ -152,34 +140,19 @@ export function scheduleMaybeContinueGoal(
 		skip(pi, "noProgress");
 		return;
 	}
-	cancelGoalContinuation(goal.goalId, "reschedule-continuation");
+	cancelGoalContinuation(goal.goalId);
 	const telemetry = noteContinuationScheduled(getTelemetry(), reason);
 	if (telemetry) persistTelemetry(pi, telemetry, "continuation");
 	const goalId = goal.goalId;
-	// User-confirmed starts must fire now. The async wrapper catches send failures
-	// without delaying attemptContinueGoal before its first await.
-	if (isUserConfirmedContinuation(reason)) {
-		void safelyRun(async () => {
-			attemptContinueGoal(pi, ctx, reason, goalId, { force: true });
-		});
-		return;
-	}
-	// agent_settled / post-compact already mean the previous run finished. A 25ms
+	// Every ContinuationReason dispatches immediately. User-confirmed starts are
+	// forced; agentEnd/compacted already mean the previous run finished, so any
 	// delay only opens a race where process/subagent wakes steal idle and we drop.
-	if (reason === "agentEnd" || reason === "compacted") {
-		void safelyRun(async () => {
-			attemptContinueGoal(pi, ctx, reason, goalId);
-		});
-		return;
-	}
-	const timer = scheduleInSession(25, () => {
-		if (contState().pendingContinuation?.goalId === goalId)
-			contState().pendingContinuation = undefined;
-		void safelyRun(async () => {
-			attemptContinueGoal(pi, ctx, reason, goalId);
-		});
+	// The async wrapper catches send failures without delaying attemptContinueGoal
+	// before its first await.
+	const opts = isUserConfirmedContinuation(reason) ? { force: true } : {};
+	void safelyRun(async () => {
+		attemptContinueGoal(pi, ctx, reason, goalId, opts);
 	});
-	contState().pendingContinuation = { goalId, reason, timer };
 }
 
 export function scheduleBudgetLimitWrapUp(
@@ -195,12 +168,7 @@ export function scheduleBudgetLimitWrapUp(
 	contState().budgetWrapUps.set(goal.goalId, { goalId: goal.goalId, timer });
 }
 
-export function cancelGoalContinuation(goalId?: string, _reason = "cancelled"): void {
-	const pending = contState().pendingContinuation;
-	if (pending && (!goalId || pending.goalId === goalId)) {
-		clearTimeout(pending.timer);
-		contState().pendingContinuation = undefined;
-	}
+export function cancelGoalContinuation(goalId?: string): void {
 	for (const [pendingGoalId, pending] of contState().budgetWrapUps) {
 		if (!goalId || pendingGoalId === goalId) {
 			clearTimeout(pending.timer);

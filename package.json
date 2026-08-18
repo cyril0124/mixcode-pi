@@ -35,8 +35,7 @@
     "fengari": "^0.1.5",
     "fengari-interop": "^0.1.4",
     "patch-package": "^8.0.1",
-    "typebox": "1.3.7",
-    "yaml": "^2.8.4"
+    "typebox": "1.3.7"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.15",

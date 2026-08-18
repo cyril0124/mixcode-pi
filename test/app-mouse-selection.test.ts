@@ -12,9 +12,8 @@ import {
   handleCommandPaletteMouse,
   handleMouseInput,
   handleTabJumpMouse,
-  hitTestCommandPaletteEntry,
-  hitTestTabJumpEntry,
 } from "../src/ui/app-mouse.js";
+import { hitTestListOverlay } from "../src/ui/list-overlay-mouse.js";
 import {
   closeAppOverlay,
   defaultOverlayOptions,
@@ -438,7 +437,16 @@ test("Command Palette wheel moves selection and click runs the row", () => {
   );
   const y = layout.row + 1 + target.bodyLine + 1;
   const x = layout.col + 2;
-  assert.equal(hitTestCommandPaletteEntry(state, { x, y }, [], termWidth, termHeight), 1);
+  assert.equal(
+    hitTestListOverlay(
+      planCommandPaletteList(state, []),
+      { x, y },
+      undefined,
+      termWidth,
+      termHeight,
+    ),
+    1,
+  );
 
   const expected = plan.entries[1]!.command;
   assert.equal(handleCommandPaletteMouse(state, `\x1b[<0;${x};${y}M`, tui, actions), true);
@@ -493,7 +501,10 @@ test("Tab Jump wheel moves selection and click jumps to the row", () => {
   // screen y is 1-based: layout.row (0-based) + top border + bodyLine + 1
   const y = layout.row + 1 + target.bodyLine + 1;
   const x = layout.col + 2;
-  assert.equal(hitTestTabJumpEntry(state, { x, y }, termWidth, termHeight), 3);
+  assert.equal(
+    hitTestListOverlay(planTabJumpList(state), { x, y }, undefined, termWidth, termHeight),
+    3,
+  );
 
   assert.equal(handleTabJumpMouse(state, `\x1b[<0;${x};${y}M`, tui), true);
   assert.equal(state.tabJumpOpen, false);

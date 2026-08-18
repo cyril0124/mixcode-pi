@@ -828,7 +828,7 @@ export class MixCodeRuntime {
         await runtimeTab.agentSession.prompt(text, { preflightResult: signalRegistered });
       } finally {
         this.sync.markLocalWrite(sessionId);
-        this.sync.release(sessionId, lock);
+        lock?.release();
       }
     });
   }
@@ -945,7 +945,7 @@ export class MixCodeRuntime {
       // Only meaningful when this call acquired the lock (standalone idle bash).
       if (lock) {
         this.sync.markLocalWrite(sessionId);
-        this.sync.release(sessionId, lock);
+        lock.release();
       }
     }
   }
@@ -1058,7 +1058,7 @@ export class MixCodeRuntime {
       await flushRuntimePendingMessage(runtimeTab, count);
     } finally {
       this.sync.markLocalWrite(sessionId);
-      this.sync.release(sessionId, lock);
+      lock?.release();
     }
   }
 
@@ -1349,7 +1349,7 @@ export class MixCodeRuntime {
       runtimeTab.tab.activeCompactionReason = undefined;
       runtimeTab.compactionInFlight = false;
       this.sync.markLocalWrite(sessionId);
-      this.sync.release(sessionId, lock);
+      lock?.release();
     }
   }
 

@@ -5,7 +5,12 @@ import { getActiveTab } from "../core/tabs.js";
 import type { MixCodeState, WorkspaceSnapshot } from "../core/types.js";
 import { createWorkspaceOverlayState } from "../core/defaults.js";
 import { snapshotWorkspace, upsertWorkspace } from "../core/workspace.js";
-import { closeAppOverlay, showLinesOverlay, showNoticeTextOverlay } from "./app-overlays.js";
+import {
+  closeAppOverlay,
+  errorMessage,
+  showLinesOverlay,
+  showNoticeTextOverlay,
+} from "./app-overlays.js";
 import type { OverlayOptions } from "@earendil-works/pi-tui";
 import type { MixCodeKeyRuntime, OverlayTui } from "./app-types.js";
 import { renderWorkspaceOverlay } from "./workspace-rendering.js";
@@ -392,8 +397,4 @@ function countExtraTabs(
           (item.sessionPath && runtime?.getTab?.(tab.sessionId)?.session?.getSessionFile?.() === item.sessionPath),
       ),
   ).length;
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

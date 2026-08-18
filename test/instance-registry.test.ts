@@ -189,7 +189,7 @@ test("loadLiveInstanceStatus derives tab state and sorts instances by workdir", 
       ["/a-repo", "/z-repo"],
     );
     const zRepo = result.instances[1]!;
-    assert.equal(zRepo.activeLabel, "home");
+    assert.equal(zRepo.activeTabId, "home");
     assert.deepEqual(
       zRepo.tabs.map((tab) => [tab.title, tab.state, tab.status]),
       [

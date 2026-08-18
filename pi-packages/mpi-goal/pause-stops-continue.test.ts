@@ -113,7 +113,7 @@ function seedActiveGoal(): void {
 function pauseGoalLikeCommand(): void {
 	const goal = getGoal();
 	assert.ok(goal);
-	cancelGoalContinuation(goal.goalId, "pause");
+	cancelGoalContinuation(goal.goalId);
 	cancelAgentEndContinueArm();
 	const paused = { ...goal, status: "paused" as const, updatedAt: Date.now() };
 	persistUpdateGoal(pi, paused, createTelemetry(goal.goalId), "command");

@@ -157,7 +157,7 @@ function registerClearGoalTool(pi: ExtensionAPI, runtime: GoalToolRuntime): void
 		async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
 			return withSessionTool(ctx, async () => {
 				const goal = getGoal();
-				runtime.cancelContinuation?.(goal?.goalId, "tool-clear");
+				runtime.cancelContinuation?.(goal?.goalId);
 				flushAndStopGoalActiveTime(pi, "tool");
 				persistClearGoal(pi, "tool");
 				syncGoalUi(ctx, null);
@@ -289,7 +289,7 @@ function updateGoalFromTool(pi: ExtensionAPI, runtime: GoalToolRuntime, params: 
 	});
 	if (completionDecision.kind === "defer_and_steer") return floorCompletionDeferredResult(pi, ctx, goal, completionDecision);
 	if (update.goal.status !== "active") {
-		runtime.cancelContinuation?.(goal.goalId, "tool-status");
+		runtime.cancelContinuation?.(goal.goalId);
 	}
 	// Pause/complete: bill residual active seconds then stop the clock.
 	if (update.goal.status === "paused" || update.goal.status === "complete") {

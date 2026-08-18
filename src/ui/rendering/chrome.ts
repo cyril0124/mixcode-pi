@@ -1281,7 +1281,8 @@ export function compactWorkdir(workdir: string, maxWidth: number): string {
   return truncateToWidth(segments.join("/"), maxWidth, "...");
 }
 
-function formatElapsed(startedAt: string | undefined, now: Date): string {
+/** Seconds elapsed since an ISO stamp, rendered as `1h 02m 03s` / `2m 05s` / `7s`. */
+export function formatElapsed(startedAt: string | undefined, now: Date): string {
   const start = startedAt ? Date.parse(startedAt) : NaN;
   const elapsedSeconds = Number.isFinite(start)
     ? Math.max(0, Math.floor((now.getTime() - start) / 1000))

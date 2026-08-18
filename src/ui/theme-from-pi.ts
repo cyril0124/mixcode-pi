@@ -13,14 +13,9 @@ export interface MixCodeTheme {
   warning: (text: string) => string;
   success: (text: string) => string;
   done: (text: string) => string;
-  background: (text: string) => string;
   surface: (text: string) => string;
   panel: (text: string) => string;
-  setupPanel: (text: string) => string;
   selectedBg: (text: string) => string;
-  promptSurface: (text: string) => string;
-  shellPromptSurface: (text: string) => string;
-  vimPromptSurface: (text: string) => string;
   bashMode: (text: string) => string;
   vimBorder: (text: string) => string;
   thinkingBorder: (thinkingLevel?: string) => (text: string) => string;
@@ -42,9 +37,7 @@ export interface MixCodeTheme {
   userMessageBg: (text: string) => string;
   searchMatchBg: (text: string) => string;
   searchMatchText: (text: string) => string;
-  scrollbarThumb: (text: string) => string;
   thinkingText: (text: string) => string;
-  thinkingMax: (text: string) => string;
   toolTitle: (text: string) => string;
   bold: (text: string) => string;
   italic: (text: string) => string;
@@ -78,14 +71,9 @@ export function mixCodeThemeFromPi(theme: Theme): MixCodeTheme {
     warning: fg("warning"),
     success: fg("success"),
     done: fg("success"),
-    background: persistentBg("toolPendingBg"),
     surface: persistentBg("toolPendingBg"),
     panel: persistentBg("toolPendingBg"),
-    setupPanel: persistentBg("toolPendingBg"),
     selectedBg: persistentBg("selectedBg"),
-    promptSurface: persistentBg("toolPendingBg"),
-    shellPromptSurface: persistentBg("toolSuccessBg"),
-    vimPromptSurface: persistentBg("customMessageBg"),
     bashMode: (text) => theme.getBashModeBorderColor()(text),
     vimBorder: fg("borderAccent"),
     thinkingBorder: (thinkingLevel = "off") =>
@@ -108,9 +96,7 @@ export function mixCodeThemeFromPi(theme: Theme): MixCodeTheme {
     userMessageBg: persistentBg("userMessageBg"),
     searchMatchBg: persistentBg("searchMatchBg"),
     searchMatchText: fg("searchMatchText"),
-    scrollbarThumb: persistentBg("scrollbarThumb"),
     thinkingText: fg("thinkingText"),
-    thinkingMax: fg("thinkingMax"),
     toolTitle: fg("toolTitle"),
     bold: (text) => theme.bold(text),
     italic: (text) => theme.italic(text),

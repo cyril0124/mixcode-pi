@@ -36,8 +36,8 @@ function buildGoalCommandRuntime(pi: ExtensionAPI): GoalCommandRuntime {
 		ctx: Parameters<typeof scheduleMaybeContinueGoal>[1],
 		reason: Parameters<typeof scheduleMaybeContinueGoal>[2],
 	) => scheduleMaybeContinueGoal(pi, ctx, reason);
-	const cancelContinuation = (goalId?: string, reason?: string) => {
-		cancelGoalContinuation(goalId, reason);
+	const cancelContinuation = (goalId?: string) => {
+		cancelGoalContinuation(goalId);
 		// Pause/clear must also drop armed agent_end settle/fallback continues.
 		cancelAgentEndContinueArm();
 	};

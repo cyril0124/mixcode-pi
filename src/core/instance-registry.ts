@@ -36,12 +36,9 @@ export interface InstanceRegistrySnapshot {
 export interface InstanceStatusTab extends InstanceRegistryTabSnapshot {
   active: boolean;
   state: InstanceTabState;
-  shortSessionId: string;
 }
 
 export interface InstanceStatusInstance extends Omit<InstanceRegistrySnapshot, "tabs"> {
-  activeLabel: string;
-  stale: false;
   tabs: InstanceStatusTab[];
 }
 
@@ -158,7 +155,7 @@ export async function loadLiveInstanceStatus(
       continue;
     }
     if (!snapshotIsLive(snapshot, now, options)) continue;
-    instances.push(resolveStatusInstance(snapshot, now));
+    instances.push(resolveStatusInstance(snapshot));
   }
   instances.sort((a, b) => a.workdir.localeCompare(b.workdir) || a.pid - b.pid);
   return { generatedAt: now.toISOString(), instances, warnings };
@@ -255,32 +252,22 @@ function pad(value: string, width: number): string {
   return value.length >= width ? value : `${value}${" ".repeat(width - value.length)}`;
 }
 
-function resolveStatusInstance(
-  snapshot: InstanceRegistrySnapshot,
-  now: Date,
-): InstanceStatusInstance {
+function resolveStatusInstance(snapshot: InstanceRegistrySnapshot): InstanceStatusInstance {
   const tabs = snapshot.tabs
     .slice()
     .sort((a, b) => a.index - b.index)
-    .map((tab) => resolveStatusTab(tab, snapshot.activeTabId, now));
-  return {
-    ...snapshot,
-    stale: false,
-    activeLabel: snapshot.activeTabId === HOME_TAB_ID ? "home" : snapshot.activeTabId,
-    tabs,
-  };
+    .map((tab) => resolveStatusTab(tab, snapshot.activeTabId));
+  return { ...snapshot, tabs };
 }
 
 function resolveStatusTab(
   tab: InstanceRegistryTabSnapshot,
   activeTabId: string,
-  _now: Date,
 ): InstanceStatusTab {
   return {
     ...tab,
     active: tab.sessionId === activeTabId,
     state: deriveTabState(tab),
-    shortSessionId: shortSessionId(tab.sessionId),
   };
 }
 
@@ -290,10 +277,6 @@ function deriveTabState(tab: InstanceRegistryTabSnapshot): InstanceTabState {
   if (tab.status === "running" || tab.status === "thinking") return "working";
   if (tab.status === "done" || tab.unreadDone) return "finished";
   return "idle";
-}
-
-function shortSessionId(sessionId: string): string {
-  return sessionId.length <= 8 ? sessionId : sessionId.slice(0, 8);
 }
 
 function snapshotIsLive(

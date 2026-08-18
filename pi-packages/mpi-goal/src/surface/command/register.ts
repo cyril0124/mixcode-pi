@@ -194,7 +194,7 @@ async function setGoalObjective(
 			}
 			return;
 		}
-		runtime.cancelContinuation(existing.goalId, "replace");
+		runtime.cancelContinuation(existing.goalId);
 	}
 
 	let goal = createGoalState({ objective: validation.objective, postCompletionActions: createPostCompletionActionStates(input.postCompletionActions ?? []) });
@@ -222,7 +222,7 @@ function pauseGoal(
 		notifyInfo(ctx, `${GOAL_USAGE}\nNo goal is currently set.`);
 		return;
 	}
-	runtime.cancelContinuation(goal.goalId, "pause");
+	runtime.cancelContinuation(goal.goalId);
 	flushAndStopGoalActiveTime(pi, "command");
 	const current = getGoal() ?? goal;
 	const paused: GoalState = { ...current, status: "paused", updatedAt: Date.now() };
@@ -273,7 +273,7 @@ function resumeGoal(pi: ExtensionAPI, ctx: ExtensionCommandContext, runtime: Goa
 function clearGoal(pi: ExtensionAPI, ctx: ExtensionCommandContext, runtime: GoalCommandRuntime): void {
 	const goal = getGoal();
 	const hadGoal = Boolean(goal);
-	runtime.cancelContinuation(goal?.goalId, "clear");
+	runtime.cancelContinuation(goal?.goalId);
 	flushAndStopGoalActiveTime(pi, "command");
 	const result = persistClearGoal(pi, "command");
 	syncGoalUi(ctx, result.goal);

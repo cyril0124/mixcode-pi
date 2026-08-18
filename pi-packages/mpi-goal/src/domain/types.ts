@@ -152,7 +152,7 @@ export type GoalSteeringDetails = {
 export type StreamBudgetSignal = "hardStop" | "reached" | "warning";
 
 export type GoalCommandScheduler = (ctx: ExtensionContext, reason: ContinuationReason) => void;
-export type GoalContinuationCanceller = (goalId?: string, reason?: string) => void;
+export type GoalContinuationCanceller = (goalId?: string) => void;
 export type GoalPauseInterrupter = (ctx: ExtensionContext, goal: GoalState) => void;
 export type GoalQueueSteeringReason = "goal-complete" | "goal-clear" | "goal-resume" | "goal-budget-limited";
 export type GoalQueueSteeringSender = (reason: GoalQueueSteeringReason, opts?: { triggerTurn?: boolean; goalId?: string; deliverAs?: "steer" | "followUp"; force?: boolean }) => boolean;

@@ -422,7 +422,7 @@ function handleMessageUpdate(pi: ExtensionAPI, event: MessageUpdateEvent, ctx: E
 			{ deliverAs: "steer" },
 		);
 		sendQueueHandoff(pi, "goal-budget-limited", { goalId: goal.goalId });
-		cancelGoalContinuation(goal.goalId, "budget-hard-stop");
+		cancelGoalContinuation(goal.goalId);
 		ctx.abort();
 		return;
 	}
@@ -568,7 +568,7 @@ async function pauseForSafety(
 	reason: SafetyPauseReason,
 	message: string,
 ): Promise<void> {
-	cancelGoalContinuation(goal.goalId, reason);
+	cancelGoalContinuation(goal.goalId);
 	cancelAgentEndContinueArm();
 	flushAndStopGoalActiveTime(pi, reason === "abort" ? "abort" : "safety");
 	const current = getGoal() ?? goal;
@@ -612,7 +612,7 @@ function enforceBudgetHardStop(pi: ExtensionAPI, ctx: ExtensionContext, goal: Go
 		interruptActiveGoalTurn(pi, ctx, goal);
 		return { ok: true, goal, telemetry };
 	}
-	cancelGoalContinuation(goal.goalId, "budget-hard-stop");
+	cancelGoalContinuation(goal.goalId);
 	const stopped: GoalState = { ...goal, status: "budgetLimited", updatedAt: Date.now() };
 	const nextTelemetry = noteBudgetHardStop(noteBudgetLimit(telemetry, pressureBudgetLimitReason(pressure)), budgetHardStopReason(pressure));
 	const result = persistUpdateGoal(pi, stopped, nextTelemetry, "budget");
@@ -626,7 +626,7 @@ function enforceBudgetHardStop(pi: ExtensionAPI, ctx: ExtensionContext, goal: Go
 }
 
 function markBudgetReached(pi: ExtensionAPI, ctx: ExtensionContext, goal: GoalState, pressure: BudgetPressure, telemetry: GoalTelemetrySnapshot | null) {
-	cancelGoalContinuation(goal.goalId, "budget-reached");
+	cancelGoalContinuation(goal.goalId);
 	const limited: GoalState = { ...goal, status: "budgetLimited", updatedAt: Date.now() };
 	const result = persistUpdateGoal(pi, limited, noteBudgetLimit(telemetry, pressureBudgetLimitReason(pressure)), "budget");
 	if (result.goal) {

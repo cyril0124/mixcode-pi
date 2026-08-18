@@ -75,8 +75,6 @@ export {
   handleInputSelectionMouseInput,
   handleMouseInput,
   handleTabJumpMouse,
-  hitTestCommandPaletteEntry,
-  hitTestTabJumpEntry,
 } from "./app-mouse.js";
 import { handleCommandPaletteMouse, handleTabJumpMouse } from "./app-mouse.js";
 // Try a retract (no-output rewind); if the turn is ineligible, abort normally.

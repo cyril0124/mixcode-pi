@@ -92,13 +92,6 @@ export class RuntimeSyncManager {
     };
   }
 
-  release(sessionId: string, handle: SessionLockHandle | undefined): void {
-    // The token's own release() drives ref-counting; sessionId is kept for API
-    // symmetry with acquire() and callers that pass it explicitly.
-    void sessionId;
-    handle?.release();
-  }
-
   private releaseOwned(sessionId: string): void {
     const owned = this.ownedLocks.get(sessionId);
     if (!owned) return;

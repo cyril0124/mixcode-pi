@@ -32,6 +32,7 @@ import {
   closeAppOverlay,
   getActiveNotice,
   hasActiveNotice,
+  errorMessage,
   hasAnyOverlay,
   setActiveNoticeSelection,
   showErrorOverlay,
@@ -238,17 +239,6 @@ export function handleChromeMouseInput(
   return mouse ? handleChromeMouse(state, active, mouse, tui) : false;
 }
 
-/** Map a screen click onto a visible Tab Jump entry index, or undefined. */
-export function hitTestTabJumpEntry(
-  state: MixCodeState,
-  mouse: Pick<SgrMouseInput, "x" | "y">,
-  termWidth = process.stdout.columns || 80,
-  termHeight = process.stdout.rows || 24,
-): number | undefined {
-  if (!state.tabJumpOpen) return undefined;
-  return hitTestListOverlay(planTabJumpList(state), mouse, undefined, termWidth, termHeight);
-}
-
 /** Wheel scrolls the selection; click on a row jumps (same as Enter). */
 export function handleTabJumpMouse(
   state: MixCodeState,
@@ -267,24 +257,6 @@ export function handleTabJumpMouse(
     },
     reshow: () => showLinesOverlay(tui, (width) => renderTabJumpOverlay(state, width)),
   });
-}
-
-/** Map a screen click onto a visible Command Palette entry index, or undefined. */
-export function hitTestCommandPaletteEntry(
-  state: MixCodeState,
-  mouse: Pick<SgrMouseInput, "x" | "y">,
-  extensionCommands: Array<{ name: string; description?: string }> = [],
-  termWidth = process.stdout.columns || 80,
-  termHeight = process.stdout.rows || 24,
-): number | undefined {
-  if (!state.commandPaletteOpen) return undefined;
-  return hitTestListOverlay(
-    planCommandPaletteList(state, extensionCommands),
-    mouse,
-    undefined,
-    termWidth,
-    termHeight,
-  );
 }
 
 /** Wheel scrolls palette selection; click runs the row (same as Enter). */
@@ -619,10 +591,6 @@ function handleTextSelectionMouse(options: TextSelectionMouseOptions): boolean {
     return true;
   }
   return false;
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 function tabBarMouseRow(
