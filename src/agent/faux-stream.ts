@@ -1,19 +1,12 @@
 import {
-  type AssistantMessage,
   type Context,
-  createAssistantMessageEventStream,
+  createFauxCore,
+  fauxAssistantMessage,
+  fauxText,
+  fauxThinking,
   type SimpleStreamOptions,
 } from "@earendil-works/pi-ai";
 import type { MixCodeModel } from "../core/types.js";
-
-const EMPTY_USAGE = {
-  input: 0,
-  output: 0,
-  cacheRead: 0,
-  cacheWrite: 0,
-  totalTokens: 0,
-  cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-};
 
 export const MIXCODE_FAUX_MODEL: MixCodeModel = {
   id: "faux-1",
@@ -28,69 +21,40 @@ export const MIXCODE_FAUX_MODEL: MixCodeModel = {
   maxTokens: 8192,
 };
 
+// pi-ai faux core. Huge fixed tokenSize keeps one delta per content block and
+// avoids Math.random() chunking; no tokensPerSecond keeps microtask pacing.
+const fauxCore = createFauxCore({
+  api: MIXCODE_FAUX_MODEL.api,
+  provider: MIXCODE_FAUX_MODEL.provider,
+  tokenSize: { min: 1 << 20, max: 1 << 20 },
+});
+
+const echoStep = (context: Context) =>
+  fauxAssistantMessage([
+    fauxThinking("Inspecting the latest user request before answering."),
+    fauxText(`Echo: ${lastUserText(context)}`),
+  ]);
+
 export function mixcodeFauxStream(
   model: MixCodeModel,
   context: Context,
-  _options?: SimpleStreamOptions,
+  options?: SimpleStreamOptions,
 ) {
-  const stream = createAssistantMessageEventStream();
-  queueMicrotask(() => {
-    const text = `Echo: ${lastUserText(context)}`;
-    const thinking = "Inspecting the latest user request before answering.";
-    const message: AssistantMessage = {
-      role: "assistant",
-      content: [
-        { type: "thinking", thinking },
-        { type: "text", text },
-      ],
-      api: model.api,
-      provider: model.provider,
-      model: model.id,
-      usage: {
-        ...EMPTY_USAGE,
-        input: Math.ceil(JSON.stringify(context.messages).length / 4),
-        output: Math.ceil(text.length / 4),
-        totalTokens:
-          Math.ceil(JSON.stringify(context.messages).length / 4) + Math.ceil(text.length / 4),
-      },
-      stopReason: "stop",
-      timestamp: Date.now(),
-    };
-    stream.push({ type: "start", partial: { ...message, content: [] } });
-    stream.push({
-      type: "thinking_start",
-      contentIndex: 0,
-      partial: { ...message, content: [{ type: "thinking", thinking: "" }] },
-    });
-    stream.push({
-      type: "thinking_delta",
-      contentIndex: 0,
-      delta: thinking,
-      partial: { ...message, content: [{ type: "thinking", thinking }] },
-    });
-    stream.push({
-      type: "thinking_end",
-      contentIndex: 0,
-      content: thinking,
-      partial: { ...message, content: [{ type: "thinking", thinking }] },
-    });
-    stream.push({
-      type: "text_start",
-      contentIndex: 1,
-      partial: {
-        ...message,
-        content: [
-          { type: "thinking", thinking },
-          { type: "text", text: "" },
-        ],
-      },
-    });
-    stream.push({ type: "text_delta", contentIndex: 1, delta: text, partial: message });
-    stream.push({ type: "text_end", contentIndex: 1, content: text, partial: message });
-    stream.push({ type: "done", reason: "stop", message });
-    stream.end(message);
-  });
-  return stream;
+  // The core consumes one queued response per stream call and errors on an
+  // empty queue; queueing exactly one step per call keeps the echo infinite.
+  fauxCore.setResponses([echoStep]);
+  // Contract (runtime-ui-24): echo works even when context carries junk-role
+  // entries. The core's usage estimator dispatches on message.role and throws
+  // on anything outside user/assistant/toolResult, so strip unknown roles.
+  const safeContext: Context = {
+    ...context,
+    messages: context.messages.filter(
+      (m) => m.role === "user" || m.role === "assistant" || m.role === "toolResult",
+    ),
+  };
+  // cacheRetention "none" disables the core's prompt-cache simulation so faux
+  // usage never reports cacheRead/cacheWrite tokens.
+  return fauxCore.stream(model, safeContext, { ...options, cacheRetention: "none" });
 }
 
 function lastUserText(context: Context): string {

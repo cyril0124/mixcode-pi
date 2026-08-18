@@ -43,7 +43,7 @@ src/
 ├── agent/
 │   ├── runtime.ts            MixCodeRuntime -> Pi Agent/Session
 │   ├── tools.ts              Merge Pi built-in tools and extension tool owners with Tool Owners summary
-│   └── faux-stream.ts        Faux model stream for testing and local demo
+│   └── faux-stream.ts        Echo faux model on the pi-ai faux provider core (tests, local demo)
 └── ui/
     ├── app.ts                pi-tui Root, Editor, and global key handling
     ├── agent-tab-actions.ts  Tab lifecycle actions like openExistingAgentTab / closeExistingAgentTab
@@ -80,7 +80,7 @@ MixCodeRuntime
   ├─ Prompt History        getPromptHistory() reads user prompts on current SDK branch; restored to tab.promptHistory
   ├─ Agent                 Executes prompts and tools
   ├─ AgentEvent            Mapped to tab status, chat, todos, questions, goal
-  └─ pi-ai Model           Resolves provider/modelId; faux provider uses local stream
+  └─ pi-ai Model           Resolves provider/modelId; faux provider streams via pi-ai createFauxCore
 ```
 
 ## UI and Keybindings

@@ -43,7 +43,7 @@ src/
 ├── agent/
 │   ├── runtime.ts            MixCodeRuntime -> pi Agent/Session
 │   ├── tools.ts              Pi built-in tools、extension tool owner 合并与 Tool Owners 摘要
-│   └── faux-stream.ts        测试和本地演示用 faux model stream
+│   └── faux-stream.ts        基于 pi-ai faux provider core 的回显 faux 模型（测试、本地演示）
 └── ui/
     ├── app.ts                pi-tui Root、Editor、全局键处理
     ├── agent-tab-actions.ts  openExistingAgentTab / closeExistingAgentTab 等 tab 生命周期操作
@@ -80,7 +80,7 @@ MixCodeRuntime
   ├─ prompt history        getPromptHistory() 读取当前 SDK branch 的 user prompt；workspace restore 后回填 tab.promptHistory
   ├─ Agent                 执行 prompt 和工具
   ├─ AgentEvent            映射为 tab status、chat、todos、questions、goal
-  └─ pi-ai Model           provider/modelId 解析，faux provider 用本地 stream
+  └─ pi-ai Model           provider/modelId 解析，faux provider 经 pi-ai createFauxCore 流式输出
 ```
 
 ## UI 和快捷键
