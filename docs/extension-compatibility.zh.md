@@ -44,6 +44,7 @@ MixCode 现在可以安装并加载 Pi package，但不能宣称对 package cata
 ```text
 ctx.ui.custom(factory)
   └─ 临时替换 MixCode editor，done() 后恢复原 editor
+  └─ ctx.ui.getEditorText / setEditorText / pasteToEditor 仍读写底层 editor
 
 ctx.ui.custom(factory, { overlay: true })
   └─ 通过 pi-tui overlay 显示浮层，hide/done 后 dispose

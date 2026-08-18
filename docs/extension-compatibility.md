@@ -44,6 +44,7 @@ MixCode can load and run Pi packages, but does not claim 100% compatibility acro
 ```text
 ctx.ui.custom(factory)
   └─ Temporarily replaces the MixCode editor; restores previous editor upon done()
+  └─ ctx.ui.getEditorText / setEditorText / pasteToEditor still target the underlying editor
 
 ctx.ui.custom(factory, { overlay: true })
   └─ Displays floating overlay via pi-tui overlay; disposes upon hide()/done()

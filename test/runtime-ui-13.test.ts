@@ -485,3 +485,70 @@ test("runtime maps pi extension editor component into the active MixCode editor 
     await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
+
+test("runtime keeps custom() editor text primitives on the underlying editor", async () => {
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-custom-editor-text-"),
+  );
+  const events: string[] = [];
+  const extension: ExtensionFactory = (pi) => {
+    pi.registerCommand("btw-bring", {
+      description: "Bring-to-main editor text contract",
+      handler: async (_args, ctx) => {
+        ctx.ui.setEditorText("old-draft");
+        let live = ctx.ui.getEditorText();
+        await ctx.ui.custom((_tui, _theme, _keys, done) => ({
+          render: () => ["btw-ui"],
+          handleInput: (data: string) => {
+            if (data !== "r") return;
+            events.push(`during-open:${ctx.ui.getEditorText()}`);
+            ctx.ui.setEditorText("btw-context");
+            events.push(`during-set:${ctx.ui.getEditorText()}`);
+            live = ctx.ui.getEditorText();
+            done("ok");
+          },
+          invalidate: () => undefined,
+        }));
+        events.push(`after-close:${ctx.ui.getEditorText()}`);
+        if (ctx.ui.getEditorText() !== live) ctx.ui.setEditorText(live);
+        events.push(`after-restore:${ctx.ui.getEditorText()}`);
+      },
+    });
+  };
+
+  try {
+    const state = createInitialState(process.cwd());
+    const tab = createTab(1, "s1", process.cwd());
+    state.tabs.push(tab);
+    state.activeTabId = "s1";
+    const runtime = new MixCodeRuntime({ sessionsRoot: dir, extensionFactories: [extension] });
+    await runtime.createTab(tab, {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+    });
+    const tui = createMixCodeTui(state, runtime, { terminal: silentTerminal() });
+    try {
+      const editor = (
+        tui as unknown as {
+          children: Array<{ editor: { handleInput(data: string): void } }>;
+        }
+      ).children[0]!.editor;
+      const task = runtime.prompt("s1", "/btw-bring");
+      await waitFor(() => tui.render(80).join("\n").includes("btw-ui"));
+      editor.handleInput("r");
+      await task;
+      assert.deepEqual(events, [
+        "during-open:old-draft",
+        "during-set:btw-context",
+        "after-close:old-draft",
+        "after-restore:btw-context",
+      ]);
+      assert.match(tui.render(80).join("\n"), /btw-context/);
+    } finally {
+      tui.stop();
+    }
+  } finally {
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});

@@ -376,12 +376,14 @@ export class EditorSlot implements Component {
   }
 
   getText(sessionId = this.mixState.activeTabId): string {
+    if (this.isTakeoverSession(sessionId)) return this.draftForSession(sessionId);
     if (sessionId !== this.mixState.activeTabId) return this.textForSession(sessionId);
     this.syncActiveTab();
     return this.editorForInput().getText();
   }
 
   getExpandedText(sessionId = this.mixState.activeTabId): string {
+    if (this.isTakeoverSession(sessionId)) return this.draftForSession(sessionId);
     if (sessionId !== this.mixState.activeTabId) return this.textForSession(sessionId, true);
     this.syncActiveTab();
     const editor = this.editorForInput();
@@ -389,6 +391,16 @@ export class EditorSlot implements Component {
   }
 
   setText(text: string, sessionId = this.mixState.activeTabId): void {
+    if (this.isTakeoverSession(sessionId)) {
+      this.setDraftInput(sessionId, text);
+      if (sessionId === this.mixState.activeTabId) {
+        this.syncActiveTab();
+        this.defaultEditor.setText(text);
+      }
+      this.historyIndex = -1;
+      this.tui.requestRender();
+      return;
+    }
     if (sessionId !== this.mixState.activeTabId) {
       const replacement = this.editorReplacements.get(sessionId);
       if (replacement) replacement.editor.setText(text);
@@ -405,6 +417,10 @@ export class EditorSlot implements Component {
   }
 
   pasteToEditor(text: string, sessionId = this.mixState.activeTabId): void {
+    if (this.isTakeoverSession(sessionId)) {
+      this.setText(`${this.draftForSession(sessionId)}${text}`, sessionId);
+      return;
+    }
     if (sessionId !== this.mixState.activeTabId) {
       const replacement = this.editorReplacements.get(sessionId);
       if (replacement) replacement.editor.handleInput(`\x1b[200~${text}\x1b[201~`);
@@ -493,7 +509,11 @@ export class EditorSlot implements Component {
     if (previous?.vimSearchDraftRestorePending) {
       this.defaultEditor.setText(previous.draftInput);
       previous.vimSearchDraftRestorePending = undefined;
-    } else if (previous && !previous.vimTranscriptSearch?.promptOpen) {
+    } else if (
+      previous &&
+      !previous.vimTranscriptSearch?.promptOpen &&
+      !this.isTakeoverSession(previous.sessionId)
+    ) {
       previous.draftInput = this.activeEditor.getExpandedText?.() ?? this.activeEditor.getText();
     }
     this.activeTabId = nextActiveTabId;
@@ -694,6 +714,19 @@ export class EditorSlot implements Component {
     return this.mixState.tabs.find((tab) => tab.sessionId === this.activeTabId);
   }
 
+  // Temporary custom()/dialog takeovers replace the visible editor. Pi keeps
+  // this.editor as the real editor, so get/setEditorText still read/write that
+  // buffer. Route those primitives to draftInput instead of the stub wrapper.
+  private isTakeoverSession(sessionId = this.mixState.activeTabId): boolean {
+    if (this.hasInputComponent(sessionId)) return true;
+    const tab = this.mixState.tabs.find((item) => item.sessionId === sessionId);
+    return Boolean(tab?.extensionUi.waitingForInputs.length);
+  }
+
+  private draftForSession(sessionId: string): string {
+    return this.mixState.tabs.find((item) => item.sessionId === sessionId)?.draftInput ?? "";
+  }
+
   private textForSession(sessionId: string, expanded = false): string {
     const replacement = this.editorReplacements.get(sessionId)?.editor;
     if (replacement) {
@@ -701,7 +734,7 @@ export class EditorSlot implements Component {
         ? (replacement.getExpandedText?.() ?? replacement.getText())
         : replacement.getText();
     }
-    return this.mixState.tabs.find((tab) => tab.sessionId === sessionId)?.draftInput ?? "";
+    return this.draftForSession(sessionId);
   }
 
   private setDraftInput(sessionId: string, text: string): void {
