@@ -196,7 +196,7 @@ export const MIXCODE_DARK_THEME: MixCodeTheme = {
   panel: persistentBgRgb("#282832"),
   selectedBg: persistentBgRgb("#3a3a4a"),
   bashMode: rgb("#b5bd68"),
-  vimBorder: rgb("#8abeb7"),
+  vimBorder: rgb("#5f87ff"),
   thinkingBorder: thinkingBorderFor(["#505050", "#6e6e6e", "#5f87af", "#81a2be", "#b294bb", "#d183e8"]),
   toolPendingBg: bgPair("#282832"),
   toolSuccessBg: bgPair("#283228"),
