@@ -1,106 +1,16 @@
-import {
-  getKeybindings,
-  matchesKey,
-  stripTerminalSequences,
-  visibleWidth,
-} from "@earendil-works/pi-tui";
+import { getKeybindings, matchesKey } from "@earendil-works/pi-tui";
 import { discardVimTranscriptSearch } from "../core/tabs.js";
 import type { MixCodeTabInfo, VimTranscriptSearchState } from "../core/types.js";
 import type { MixCodeEditorActions, OverlayTui } from "./app-types.js";
 
-export interface TranscriptSearchSegment {
-  row: number;
-  startCol: number;
-  endCol: number;
-}
-
-export interface TranscriptSearchMatch {
-  segments: TranscriptSearchSegment[];
-}
-
-interface SearchCorpus {
-  text: string;
-  source: Array<TranscriptSearchSegment | undefined>;
-}
-
-const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
-
-function appendMappedText(
-  text: string,
-  span: TranscriptSearchSegment | undefined,
-  corpus: SearchCorpus,
-): void {
-  corpus.text += text;
-  for (let index = 0; index < text.length; index++) corpus.source.push(span);
-}
-
-function buildSearchCorpus(lines: readonly string[]): SearchCorpus {
-  const corpus: SearchCorpus = { text: "", source: [] };
-  let pendingSeparator = false;
-  for (let row = 0; row < lines.length; row++) {
-    const line = stripTerminalSequences(lines[row] ?? "");
-    let column = 0;
-    for (const item of graphemeSegmenter.segment(line)) {
-      const text = item.segment;
-      const width = visibleWidth(text);
-      if (/^\s+$/u.test(text)) {
-        if (corpus.text.length > 0) pendingSeparator = true;
-        column += width;
-        continue;
-      }
-      if (pendingSeparator) {
-        appendMappedText(" ", undefined, corpus);
-        pendingSeparator = false;
-      }
-      appendMappedText(text, { row, startCol: column, endCol: column + width }, corpus);
-      column += width;
-    }
-    if (corpus.text.length > 0) pendingSeparator = true;
-  }
-  return corpus;
-}
-
-function normalizeQuery(query: string): string {
-  return query.replace(/\s+/gu, " ").trim();
-}
-
-function escapeRegExp(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-export function findTranscriptSearchMatches(
-  lines: readonly string[],
-  query: string,
-): TranscriptSearchMatch[] {
-  const normalizedQuery = normalizeQuery(query);
-  if (!normalizedQuery) return [];
-  const corpus = buildSearchCorpus(lines);
-  const expression = new RegExp(escapeRegExp(normalizedQuery), "giu");
-  const matches: TranscriptSearchMatch[] = [];
-  for (const match of corpus.text.matchAll(expression)) {
-    const start = match.index;
-    const end = start + match[0].length;
-    const segments: TranscriptSearchSegment[] = [];
-    for (let index = start; index < end; index++) {
-      const span = corpus.source[index];
-      if (!span) continue;
-      const previous = segments.at(-1);
-      if (previous && previous.row === span.row && span.startCol <= previous.endCol) {
-        previous.endCol = Math.max(previous.endCol, span.endCol);
-      } else {
-        segments.push({ ...span });
-      }
-    }
-    if (segments.length > 0) matches.push({ segments });
-  }
-  return matches;
-}
-
-export function transcriptSearchMatchKey(match: TranscriptSearchMatch): string {
-  const first = match.segments[0];
-  const last = match.segments.at(-1);
-  return first && last ? `${first.row}:${first.startCol}:${last.row}:${last.endCol}` : "";
-}
+// Match discovery is pi-tui's alt-screen search engine (patch-exported); only
+// the vim prompt/repeat state machine below is MixCode-specific.
+export {
+  type AltScreenSearchMatch as TranscriptSearchMatch,
+  type AltScreenSearchSegment as TranscriptSearchSegment,
+  findAltScreenSearchMatches as findTranscriptSearchMatches,
+  getAltScreenSearchMatchKey as transcriptSearchMatchKey,
+} from "@earendil-works/pi-tui";
 
 export function isVimTranscriptSearchOpenKey(data: string): boolean {
   return data === "/";

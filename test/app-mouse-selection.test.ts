@@ -13,13 +13,13 @@ import {
   handleMouseInput,
   handleTabJumpMouse,
 } from "../src/ui/app-mouse.js";
+import { resolveOverlayLayout } from "@earendil-works/pi-tui";
 import { hitTestListOverlay } from "../src/ui/list-overlay-mouse.js";
 import {
   closeAppOverlay,
   defaultOverlayOptions,
   getActiveNotice,
   hasAnyOverlay,
-  resolveAppOverlayLayout,
   showLinesOverlay,
   showNoticeTextOverlay,
 } from "../src/ui/app-overlays.js";
@@ -429,7 +429,7 @@ test("Command Palette wheel moves selection and click runs the row", () => {
   const plan = planCommandPaletteList(state);
   const target = plan.entryBodyLines.find((hit) => hit.entryIndex === 1);
   assert.ok(target);
-  const layout = resolveAppOverlayLayout(
+  const layout = resolveOverlayLayout(
     defaultOverlayOptions(),
     plan.bodyLineCount + 2,
     termWidth,
@@ -490,7 +490,7 @@ test("Tab Jump wheel moves selection and click jumps to the row", () => {
   const termWidth = process.stdout.columns || 80;
   const termHeight = process.stdout.rows || 24;
   const plan = planTabJumpList(state);
-  const layout = resolveAppOverlayLayout(
+  const layout = resolveOverlayLayout(
     defaultOverlayOptions(),
     plan.bodyLineCount + 2,
     termWidth,

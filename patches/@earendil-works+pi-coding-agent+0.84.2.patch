@@ -1,8 +1,154 @@
+diff --git a/node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session.d.ts b/node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session.d.ts
+index e5d84dd..7944a7a 100644
+--- a/node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session.d.ts
++++ b/node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session.d.ts
+@@ -420,6 +420,29 @@ export declare class AgentSession {
+         steering: string[];
+         followUp: string[];
+     };
++    /**
++     * MIXCODE_QUEUE_DEQUEUE: remove specific queued messages, matched by exact
++     * text (last occurrence first), from both the session text mirror and the
++     * agent pending queue. Returns removed entries in queue order for restore.
++     */
++    removeQueuedMessages(kind: "steering" | "followUp", texts: readonly string[]): Array<{
++        message: AgentMessage;
++        text: string;
++    }>;
++    /** MIXCODE_QUEUE_DEQUEUE: re-append entries removed by removeQueuedMessages. */
++    restoreQueuedMessages(kind: "steering" | "followUp", removed: ReadonlyArray<{
++        message: AgentMessage;
++        text: string;
++    }>): void;
++    /**
++     * MIXCODE_SYSTEM_PROMPT_HOOK: install a host assembler that receives the
++     * collected BuildSystemPromptOptions and returns the final prompt plus the
++     * options to publish to extensions; rebuilds and applies immediately.
++     */
++    setSystemPromptAssembler(assembler: (options: import("./system-prompt.ts").BuildSystemPromptOptions) => {
++        prompt: string;
++        options: import("./system-prompt.ts").BuildSystemPromptOptions;
++    }): void;
+     /** Number of pending messages (includes both steering and follow-up) */
+     get pendingMessageCount(): number;
+     /** Get pending steering messages (read-only) */
+diff --git a/node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session.js b/node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session.js
+index 4bcf0d4..cbfc897 100644
+--- a/node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session.js
++++ b/node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session.js
+@@ -736,8 +736,24 @@ export class AgentSession {
+             toolSnippets,
+             promptGuidelines,
+         };
++        // MIXCODE_SYSTEM_PROMPT_HOOK: hosts may own final prompt assembly.
++        if (this._systemPromptAssembler) {
++            const assembled = this._systemPromptAssembler(this._baseSystemPromptOptions);
++            this._baseSystemPromptOptions = assembled.options;
++            return assembled.prompt;
++        }
+         return buildSystemPrompt(this._baseSystemPromptOptions);
+     }
++    /**
++     * MIXCODE_SYSTEM_PROMPT_HOOK: install a host assembler that receives the
++     * collected BuildSystemPromptOptions and returns the final prompt plus the
++     * options to publish to extensions; rebuilds and applies immediately.
++     */
++    setSystemPromptAssembler(assembler) {
++        this._systemPromptAssembler = assembler;
++        this._baseSystemPrompt = this._rebuildSystemPrompt(this.getActiveToolNames());
++        this.agent.state.systemPrompt = this._systemPromptOverride ?? this._baseSystemPrompt;
++    }
+     // =========================================================================
+     // Prompting
+     // =========================================================================
+@@ -1147,6 +1163,43 @@ export class AgentSession {
+         this._emitQueueUpdate();
+         return { steering, followUp };
+     }
++    /**
++     * MIXCODE_QUEUE_DEQUEUE: remove specific queued messages, matched by exact
++     * text (last occurrence first), from both the session text mirror and the
++     * agent pending queue. Returns removed entries in queue order for restore.
++     */
++    removeQueuedMessages(kind, texts) {
++        const tracked = kind === "steering" ? this._steeringMessages : this._followUpMessages;
++        const queue = kind === "steering" ? this.agent.steeringQueue : this.agent.followUpQueue;
++        const removed = [];
++        for (let requestedIndex = texts.length - 1; requestedIndex >= 0; requestedIndex -= 1) {
++            const text = texts[requestedIndex];
++            const trackedIndex = tracked.lastIndexOf(text);
++            if (trackedIndex === -1)
++                continue;
++            tracked.splice(trackedIndex, 1);
++            const pendingIndex = findQueuedUserMessageFromEnd(queue.messages, text);
++            if (pendingIndex === -1)
++                continue;
++            removed.push({ index: pendingIndex, message: queue.messages.splice(pendingIndex, 1)[0], text });
++        }
++        this._emitQueueUpdate();
++        return removed
++            .sort((left, right) => left.index - right.index)
++            .map(({ message, text }) => ({ message, text }));
++    }
++    /** MIXCODE_QUEUE_DEQUEUE: re-append entries removed by removeQueuedMessages. */
++    restoreQueuedMessages(kind, removed) {
++        if (removed.length === 0)
++            return;
++        const tracked = kind === "steering" ? this._steeringMessages : this._followUpMessages;
++        const queue = kind === "steering" ? this.agent.steeringQueue : this.agent.followUpQueue;
++        for (const item of removed) {
++            tracked.push(item.text);
++            queue.enqueue(item.message);
++        }
++        this._emitQueueUpdate();
++    }
+     /** Number of pending messages (includes both steering and follow-up) */
+     get pendingMessageCount() {
+         return this._steeringMessages.length + this._followUpMessages.length;
+@@ -1944,12 +1997,14 @@ export class AgentSession {
+         const excludedToolNames = this._excludedToolNames;
+         const isAllowedTool = (name) => (!allowedToolNames || allowedToolNames.has(name)) && !excludedToolNames?.has(name);
+         const registeredTools = this._extensionRunner.getAllRegisteredTools();
++        // MIXCODE_TOOL_PRECEDENCE: host customTools before extension-registered
++        // tools so extensions own colliding tool names (builtin < sdk < extension).
+         const allCustomTools = [
+-            ...registeredTools,
+             ...this._customTools.map((definition) => ({
+                 definition,
+                 sourceInfo: createSyntheticSourceInfo(`<sdk:${definition.name}>`, { source: "sdk" }),
+             })),
++            ...registeredTools,
+         ].filter((tool) => isAllowedTool(tool.definition.name));
+         const definitionRegistry = new Map(Array.from(this._baseToolDefinitions.entries())
+             .filter(([name]) => isAllowedTool(name))
+@@ -2684,4 +2739,21 @@ export class AgentSession {
+         return this._extensionRunner;
+     }
+ }
++// MIXCODE_QUEUE_DEQUEUE helpers: match queued user messages by joined text blocks.
++function findQueuedUserMessageFromEnd(messages, text) {
++    for (let index = messages.length - 1; index >= 0; index -= 1) {
++        const message = messages[index];
++        if (message.role === "user" && queuedUserText(message) === text)
++            return index;
++    }
++    return -1;
++}
++function queuedUserText(message) {
++    if (typeof message.content === "string")
++        return message.content;
++    return message.content
++        .filter((block) => block.type === "text")
++        .map((block) => block.text)
++        .join("\n");
++}
+ //# sourceMappingURL=agent-session.js.map
+\ No newline at end of file
 diff --git a/node_modules/@earendil-works/pi-coding-agent/dist/core/extensions/loader.js b/node_modules/@earendil-works/pi-coding-agent/dist/core/extensions/loader.js
-index 1111111..2222222 100644
+index 324d30a..86234a5 100644
 --- a/node_modules/@earendil-works/pi-coding-agent/dist/core/extensions/loader.js
 +++ b/node_modules/@earendil-works/pi-coding-agent/dist/core/extensions/loader.js
-@@ -54,6 +54,20 @@
+@@ -54,6 +54,20 @@ const VIRTUAL_MODULES = {
      "@mariozechner/pi-ai/providers/all": _bundledPiAiProviders,
      "@mariozechner/pi-coding-agent": _bundledPiCodingAgent,
  };
@@ -23,7 +169,7 @@ index 1111111..2222222 100644
  const require = createRequire(import.meta.url);
  const isTypeScriptSourceRuntime = !isBunBinary && path.extname(fileURLToPath(import.meta.url)) === ".ts";
  /**
-@@ -348,6 +362,22 @@
+@@ -348,6 +362,22 @@ function isCurrentCacheToken(cacheToken) {
          extensionCacheCwd === cacheToken.cwd &&
          extensionCacheGeneration === cacheToken.generation);
  }
@@ -46,7 +192,7 @@ index 1111111..2222222 100644
  async function loadExtensionModule(extensionPath, cacheToken) {
      if (isCurrentCacheToken(cacheToken)) {
          const cachedFactory = extensionCache.get(extensionPath);
-@@ -355,16 +385,7 @@
+@@ -355,16 +385,7 @@ async function loadExtensionModule(extensionPath, cacheToken) {
              return cachedFactory;
          }
      }
@@ -64,7 +210,7 @@ index 1111111..2222222 100644
      const module = await jiti.import(extensionPath, { default: true });
      const factory = module;
      if (typeof factory !== "function") {
-@@ -430,6 +451,8 @@
+@@ -430,6 +451,8 @@ export async function loadExtensionFromFactory(factory, cwd, eventBus, runtime,
   * Load extensions from paths.
   */
  async function loadExtensionsInternal(paths, cwd, eventBus, runtime, useCache = false) {
@@ -73,7 +219,7 @@ index 1111111..2222222 100644
      const extensions = [];
      const errors = [];
      const cacheToken = useCache ? useExtensionCacheCwd(cwd) : undefined;
-@@ -440,11 +463,12 @@
+@@ -440,11 +463,12 @@ async function loadExtensionsInternal(paths, cwd, eventBus, runtime, useCache =
          const { extension, error } = await loadExtension(extPath, resolvedCwd, resolvedEventBus, resolvedRuntime, cacheToken);
          if (error) {
              errors.push({ path: extPath, error });
@@ -89,10 +235,10 @@ index 1111111..2222222 100644
      return {
          extensions,
 diff --git a/node_modules/@earendil-works/pi-coding-agent/dist/index.d.ts b/node_modules/@earendil-works/pi-coding-agent/dist/index.d.ts
-index 1111111..2222222 100644
+index f43bc96..f43e00c 100644
 --- a/node_modules/@earendil-works/pi-coding-agent/dist/index.d.ts
 +++ b/node_modules/@earendil-works/pi-coding-agent/dist/index.d.ts
-@@ -26,10 +26,64 @@
+@@ -26,10 +26,64 @@ export { hasTrustRequiringProjectResources, type ProjectTrustDecision, ProjectTr
  export { type MainOptions, main } from "./main.ts";
  export { InteractiveMode, type InteractiveModeOptions, type JsonAgentSessionEvent, type ModelInfo, type PrintModeOptions, RpcClient, type RpcClientOptions, type RpcCommand, type RpcEventListener, type RpcExtensionUIRequest, type RpcExtensionUIResponse, type RpcResponse, type RpcSessionState, runPrintMode, runRpcMode, } from "./modes/index.ts";
  export { ArminComponent, AssistantMessageComponent, BashExecutionComponent, BorderedLoader, BranchSummaryMessageComponent, CompactionSummaryMessageComponent, CustomEditor, CustomMessageComponent, DynamicBorder, ExtensionEditorComponent, ExtensionInputComponent, ExtensionSelectorComponent, FooterComponent, keyHint, keyText, LoginDialogComponent, ModelSelectorComponent, OAuthSelectorComponent, type RenderDiffOptions, rawKeyHint, renderDiff, SessionSelectorComponent, type SettingsCallbacks, type SettingsConfig, SettingsSelectorComponent, ShowImagesSelectorComponent, SkillInvocationMessageComponent, ThemeSelectorComponent, ThinkingSelectorComponent, ToolExecutionComponent, type ToolExecutionOptions, TreeSelectorComponent, truncateToVisualLines, UserMessageComponent, UserMessageSelectorComponent, type VisualTruncateResult, } from "./modes/interactive/components/index.ts";
@@ -160,10 +306,10 @@ index 1111111..2222222 100644
  //# sourceMappingURL=index.d.ts.map
 \ No newline at end of file
 diff --git a/node_modules/@earendil-works/pi-coding-agent/dist/index.js b/node_modules/@earendil-works/pi-coding-agent/dist/index.js
-index 1111111..2222222 100644
+index 76d728e..a0bba09 100644
 --- a/node_modules/@earendil-works/pi-coding-agent/dist/index.js
 +++ b/node_modules/@earendil-works/pi-coding-agent/dist/index.js
-@@ -36,7 +36,24 @@
+@@ -36,7 +36,24 @@ export { InteractiveMode, RpcClient, runPrintMode, runRpcMode, } from "./modes/i
  // UI components for extensions
  export { ArminComponent, AssistantMessageComponent, BashExecutionComponent, BorderedLoader, BranchSummaryMessageComponent, CompactionSummaryMessageComponent, CustomEditor, CustomMessageComponent, DynamicBorder, ExtensionEditorComponent, ExtensionInputComponent, ExtensionSelectorComponent, FooterComponent, keyHint, keyText, LoginDialogComponent, ModelSelectorComponent, OAuthSelectorComponent, rawKeyHint, renderDiff, SessionSelectorComponent, SettingsSelectorComponent, ShowImagesSelectorComponent, SkillInvocationMessageComponent, ThemeSelectorComponent, ThinkingSelectorComponent, ToolExecutionComponent, TreeSelectorComponent, truncateToVisualLines, UserMessageComponent, UserMessageSelectorComponent, } from "./modes/interactive/components/index.js";
  // Theme utilities for custom tools and extensions
@@ -189,7 +335,7 @@ index 1111111..2222222 100644
  // Clipboard utilities
  export { copyToClipboard } from "./utils/clipboard.js";
  export { parseFrontmatter, stripFrontmatter } from "./utils/frontmatter.js";
-@@ -44,4 +61,41 @@
+@@ -44,4 +61,41 @@ export { convertToPng } from "./utils/image-convert.js";
  export { formatDimensionNote, resizeImage } from "./utils/image-resize.js";
  // Shell utilities
  export { getShellConfig } from "./utils/shell.js";

@@ -221,7 +221,7 @@ async function createRuntimeTabWithServices(
   runtimeTab.requestRender = () => context.emitChange({ type: "extension_ui_update" }, runtimeTab);
   try {
     activateMixCodeTools(agentSession);
-    applyMixCodeSystemPrompt(services, config.workdir, agentSession, cachedSearchTools);
+    applyMixCodeSystemPrompt(agentSession, cachedSearchTools);
     const restoredChat = entriesToChatLines(runtimeTab.session.getBranch(), runtimeTab);
     if (tab.previewMessages.length === 0) {
       syncPreviewFromChat(tab, restoredChat);
@@ -229,7 +229,7 @@ async function createRuntimeTabWithServices(
     runtimeTab.chat = restoredChat;
     await bindRuntimeExtensions(runtimeTab, context);
     activateMixCodeTools(agentSession);
-    applyMixCodeSystemPrompt(services, config.workdir, agentSession, cachedSearchTools);
+    applyMixCodeSystemPrompt(agentSession, cachedSearchTools);
     refreshStartupHeader(runtimeTab);
     syncContextUsage(runtimeTab);
     // Opening an existing on-disk session (bootstrap / peer / openExisting) must
@@ -347,7 +347,7 @@ async function createAgentSessionForReplacementWithServices(
     ),
   });
   activateMixCodeTools(result.session);
-  applyMixCodeSystemPrompt(services, config.workdir, result.session, cachedSearchTools);
+  applyMixCodeSystemPrompt(result.session, cachedSearchTools);
   return { ...result, services };
 }
 
@@ -496,7 +496,7 @@ async function replaceRuntimeTabSessionUnlocked(
   // Repopulate preview after identity-switch reset cleared previewMessages
   syncPreviewFromChat(runtimeTab.tab, runtimeTab.chat);
   activateMixCodeTools(created.session);
-  applyMixCodeSystemPrompt(created.services, runtimeTab.tab.workdir, created.session, cachedSearchTools);
+  applyMixCodeSystemPrompt(created.session, cachedSearchTools);
   applyRuntimeTabModel(runtimeTab, created.session.agent.state.model);
   runtimeTab.tab.thinkingLevel = created.session.agent.state.thinkingLevel;
   refreshStartupHeader(runtimeTab);
@@ -633,12 +633,7 @@ export async function bindRuntimeExtensions(
       );
     },
   });
-  applyMixCodeSystemPrompt(
-    runtimeTab.services,
-    runtimeTab.tab.workdir,
-    runtimeTab.agentSession,
-    cachedSearchTools,
-  );
+  applyMixCodeSystemPrompt(runtimeTab.agentSession, cachedSearchTools);
 }
 
 export async function reloadRuntimeTabWithFreshServices(

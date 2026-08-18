@@ -1,6 +1,6 @@
-import type { OverlayOptions } from "@earendil-works/pi-tui";
+import { type OverlayOptions, resolveOverlayLayout } from "@earendil-works/pi-tui";
 import { parseSgrMouseInput, type SgrMouseInput } from "../core/mouse.js";
-import { defaultOverlayOptions, resolveAppOverlayLayout } from "./app-overlays.js";
+import { defaultOverlayOptions } from "./app-overlays.js";
 
 /** Geometry shared by center list overlays (Tab Jump, Command Palette, …). */
 export interface ListOverlayPlan {
@@ -33,7 +33,7 @@ export function hitTestListOverlay(
   if (plan.empty) return undefined;
   // Body lines + top/bottom box borders — matches overlayPanel output height.
   const overlayHeight = plan.bodyLineCount + 2;
-  const layout = resolveAppOverlayLayout(options, overlayHeight, termWidth, termHeight);
+  const layout = resolveOverlayLayout(options, overlayHeight, termWidth, termHeight);
   const effectiveHeight =
     layout.maxHeight !== undefined ? Math.min(overlayHeight, layout.maxHeight) : overlayHeight;
   // mouse is 1-based; pi-tui layout row/col are 0-based.

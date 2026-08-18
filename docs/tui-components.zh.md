@@ -98,11 +98,11 @@
 │  TUI / Container / OverlayHandle             MixCodeLayoutRoot stack                             │
 │  Editor / Input / SelectList                 CompactPromptEditor + Vim Search row                │
 │  Markdown / Image / Loader                   Agent Surface + chat blocks                         │
-│                                              Transcript matcher + viewport highlight             │
+│  alt-screen search matcher (patch export)    Vim search state machine + viewport highlight      │
 │  Box / Spacer / Text / TruncateText          chrome (header/tab/status)                          │
 │  SettingsList (when fits)                    Settings Panel                                      │
 │  keybindings / autocomplete APIs             Command Palette / Tab Jump                          │
-│  showOverlay anchors                         Toast / Floating Panel                              │
+│  showOverlay anchors / resolveOverlayLayout  Toast / Floating Panel                              │
 │                                              Picker / Tree / Session / Fork                      │
 │                                              Workspace Overlay                                   │
 │                                              Notice/Error + console bridge                       │

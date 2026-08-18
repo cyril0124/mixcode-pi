@@ -9,7 +9,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { visibleWidth } from "@earendil-works/pi-tui";
+import { resolveOverlayLayout, visibleWidth } from "@earendil-works/pi-tui";
 import {
   closeAppOverlay,
   copyActiveNoticeText,
@@ -18,7 +18,6 @@ import {
   hasAppOverlay,
   hasCapturingAppOverlay,
   renderNoticePanel,
-  resolveNoticeOverlayLayout,
   showLinesOverlay,
   showNoticeTextOverlay,
 } from "../src/ui/app-overlays.js";
@@ -127,8 +126,8 @@ test("copyActiveNoticeText copies full body via injected writer", async () => {
   closeAppOverlay(tui);
 });
 
-test("resolveNoticeOverlayLayout places bottom-center notice within terminal", () => {
-  const layout = resolveNoticeOverlayLayout(
+test("resolveOverlayLayout places bottom-center notice within terminal", () => {
+  const layout = resolveOverlayLayout(
     { anchor: "bottom-center", width: 40, maxHeight: 12, margin: 1, offsetY: -4 },
     8,
     100,
