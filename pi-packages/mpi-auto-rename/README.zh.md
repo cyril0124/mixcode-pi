@@ -12,6 +12,8 @@
 /auto-rename-cancel          # 中止进行中的生成
 ```
 
+会话已有标题时，选 **Yes** 覆盖、**No** 保留，或 **Regenerate** 重新生成。
+
 ## 配置（`<agentDir>/auto-rename.json`）
 
 ```json

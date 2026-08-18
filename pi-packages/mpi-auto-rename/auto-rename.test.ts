@@ -167,21 +167,24 @@ test("runAutoRename retries format failures up to five total calls then keeps ol
   assert.match(calls[1]!, /Previous invalid title/);
 });
 
-test("runAutoRename confirms overwrite and sets session name on valid title", async () => {
-  const names: string[] = [];
-  let confirmed = false;
-  const notices: string[] = [];
-
-  const result = await runAutoRename({
-    setSessionName: (name) => names.push(name),
+function namedRenameCtx(options: {
+  names: string[];
+  notices: string[];
+  select: (title: string, choices: string[]) => Promise<string | undefined>;
+  complete?: () => Promise<unknown>;
+}) {
+  return {
+    setSessionName: (name: string) => options.names.push(name),
     getThinkingLevel: () => "off",
     agentDir: ABSENT_AGENT_DIR,
-    complete: async () =>
-      ({
-        role: "assistant",
-        content: [{ type: "text", text: "Fix_Auth Middleware" }],
-        stopReason: "stop",
-      }) as never,
+    complete:
+      options.complete ??
+      (async () =>
+        ({
+          role: "assistant",
+          content: [{ type: "text", text: "Fix_Auth Middleware" }],
+          stopReason: "stop",
+        }) as never),
     ctx: {
       model: { provider: "test", id: "model", api: "openai-completions" },
       modelRegistry: {
@@ -192,23 +195,112 @@ test("runAutoRename confirms overwrite and sets session name on valid title", as
         getSessionName: () => "old-title",
       },
       ui: {
-        notify: (message: string) => notices.push(message),
-        confirm: async (title: string) => {
-          confirmed = true;
-          assert.match(title, /old-title/);
-          assert.match(title, /fix-auth-middleware/);
-          assert.match(title, /->/);
-          return true;
-        },
+        notify: (message: string) => options.notices.push(message),
+        select: options.select,
       },
       hasUI: false,
     } as unknown as ExtensionCommandContext,
-  });
+  };
+}
+
+test("runAutoRename overwrites a named session when Yes is selected", async () => {
+  const names: string[] = [];
+  const notices: string[] = [];
+  let selected = false;
+
+  const result = await runAutoRename(
+    namedRenameCtx({
+      names,
+      notices,
+      select: async (title, choices) => {
+        selected = true;
+        assert.match(title, /old-title/);
+        assert.match(title, /fix-auth-middleware/);
+        assert.match(title, /->/);
+        assert.match(title, /Overwrite the current session title/);
+        assert.deepEqual(choices, ["Yes", "No", "Regenerate"]);
+        return "Yes";
+      },
+    }),
+  );
 
   assert.equal(result.ok, true);
-  assert.equal(confirmed, true);
+  assert.equal(selected, true);
   assert.deepEqual(names, ["fix-auth-middleware"]);
   assert.ok(notices.some((n) => n.includes("fix-auth-middleware")));
+});
+
+test("runAutoRename keeps the existing title when No is selected", async () => {
+  const names: string[] = [];
+  const notices: string[] = [];
+
+  const result = await runAutoRename(
+    namedRenameCtx({
+      names,
+      notices,
+      select: async () => "No",
+    }),
+  );
+
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.equal(result.reason, "declined");
+  assert.deepEqual(names, []);
+  assert.ok(notices.some((n) => n.includes("Kept existing title")));
+});
+
+test("runAutoRename keeps the existing title when overwrite select is dismissed", async () => {
+  const names: string[] = [];
+  const notices: string[] = [];
+
+  const result = await runAutoRename(
+    namedRenameCtx({
+      names,
+      notices,
+      select: async () => undefined,
+    }),
+  );
+
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.equal(result.reason, "declined");
+  assert.deepEqual(names, []);
+  assert.ok(notices.some((n) => n.includes("Kept existing title")));
+});
+
+test("runAutoRename regenerates a different title then overwrites on Yes", async () => {
+  const names: string[] = [];
+  const notices: string[] = [];
+  const prompts: string[] = [];
+  const titles: string[] = [];
+  let calls = 0;
+
+  const result = await runAutoRename(
+    namedRenameCtx({
+      names,
+      notices,
+      complete: async (_model?: unknown, context?: unknown) => {
+        calls += 1;
+        prompts.push(JSON.stringify(context));
+        return {
+          role: "assistant",
+          content: [{ type: "text", text: calls === 1 ? "first-generated-title" : "second-generated-title" }],
+          stopReason: "stop",
+        } as never;
+      },
+      select: async (title) => {
+        titles.push(title);
+        return title.includes("first-generated-title") ? "Regenerate" : "Yes";
+      },
+    }),
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(calls, 2);
+  assert.equal(titles.length, 2);
+  assert.match(titles[0]!, /first-generated-title/);
+  assert.match(titles[1]!, /second-generated-title/);
+  assert.match(prompts[1]!, /first-generated-title/);
+  assert.deepEqual(names, ["second-generated-title"]);
+  assert.ok(notices.some((n) => n.includes("second-generated-title")));
 });
 
 test("runAutoRename surfaces request errors without retrying", async () => {

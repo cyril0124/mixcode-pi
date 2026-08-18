@@ -393,9 +393,10 @@ export async function generateValidTitle(options: {
   auth: { apiKey?: string; headers?: Record<string, string>; env?: Record<string, string> };
   signal?: AbortSignal;
   complete?: CompleteFn;
+  previous?: TitleFailure;
 }): Promise<AutoRenameResult> {
   const runComplete = options.complete ?? completeSimple;
-  let previous: TitleFailure | undefined;
+  let previous: TitleFailure | undefined = options.previous;
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     if (options.signal?.aborted) return { ok: false, reason: "cancelled" };
@@ -621,56 +622,68 @@ export async function runAutoRename(options: {
   }
 
   const thinkingLevel = target.thinkingLevel;
-  const stopProgress = ctx.hasUI
-    ? startAutoRenameProgressWidget(ctx, {
-        modelLabel: `${target.provider}/${target.modelId}`,
-        thinkingLabel: thinkingLevel,
-        sourceChars: conversationContext.length,
-      })
-    : () => {};
-  abortSlot.stopProgress = stopProgress;
+  const generateTitle = async (previous?: TitleFailure): Promise<AutoRenameResult> => {
+    const stopProgress = ctx.hasUI
+      ? startAutoRenameProgressWidget(ctx, {
+          modelLabel: `${target.provider}/${target.modelId}`,
+          thinkingLabel: thinkingLevel,
+          sourceChars: conversationContext.length,
+        })
+      : () => {};
+    abortSlot.stopProgress = stopProgress;
+    try {
+      return await generateValidTitle({
+        model: model as Model<string>,
+        conversationContext,
+        thinkingLevel,
+        auth,
+        signal: abort.signal,
+        complete: options.complete,
+        previous,
+      });
+    } catch (error: unknown) {
+      return abort.signal.aborted
+        ? { ok: false, reason: "cancelled" }
+        : { ok: false, reason: formatError(error) };
+    } finally {
+      if (abortSlot.stopProgress === stopProgress) abortSlot.stopProgress = undefined;
+      stopProgress();
+    }
+  };
 
-  let result: AutoRenameResult;
-  try {
-    result = await generateValidTitle({
-      model: model as Model<string>,
-      conversationContext,
-      thinkingLevel,
-      auth,
-      signal: abort.signal,
-      complete: options.complete,
-    });
-  } catch (error: unknown) {
-    result = abort.signal.aborted
-      ? { ok: false, reason: "cancelled" }
-      : { ok: false, reason: formatError(error) };
-  } finally {
-    if (abortSlot.stopProgress === stopProgress) abortSlot.stopProgress = undefined;
-    stopProgress();
-  }
+  let previous: TitleFailure | undefined;
+  for (;;) {
+    const result = await generateTitle(previous);
+    if (!result.ok) {
+      if (result.reason === "cancelled") notify("Cancelled", "info");
+      else notify(`Auto-rename failed: ${result.reason}`, "error");
+      return result;
+    }
 
-  if (!result.ok) {
-    if (result.reason === "cancelled") notify("Cancelled", "info");
-    else notify(`Auto-rename failed: ${result.reason}`, "error");
+    const currentName = ctx.sessionManager.getSessionName();
+    if (currentName) {
+      // MixCode select shows title only; preview + question go in the title.
+      const choice = await ctx.ui.select(
+        `${currentName} -> ${result.title}\nOverwrite the current session title?`,
+        ["Yes", "No", "Regenerate"],
+      );
+      if (choice === "Regenerate") {
+        previous = {
+          raw: result.title,
+          error: "user rejected this title; generate a different one",
+        };
+        continue;
+      }
+      if (choice !== "Yes") {
+        notify("Kept existing title", "info");
+        return { ok: false, reason: "declined" };
+      }
+    }
+
+    options.setSessionName(result.title);
+    notify(`Session renamed: ${result.title}`, "info");
     return result;
   }
-
-  const currentName = ctx.sessionManager.getSessionName();
-  if (currentName) {
-    // MixCode's confirm dialog renders the title only; put the preview there.
-    const confirmed = await ctx.ui.confirm(
-      `${currentName} -> ${result.title}`,
-      "Overwrite the current session title?",
-    );
-    if (!confirmed) {
-      notify("Kept existing title", "info");
-      return { ok: false, reason: "declined" };
-    }
-  }
-
-  options.setSessionName(result.title);
-  notify(`Session renamed: ${result.title}`, "info");
-  return result;
   } finally {
     if (abortSlot.controller === abort) abortSlot.controller = undefined;
   }
