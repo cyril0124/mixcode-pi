@@ -49,6 +49,8 @@ export function renderSessionInfoText(
   options: {
     entries?: SessionEntry[];
     models?: ModelPriceSource;
+    tabTitle?: string;
+    workdir?: string;
   } = {},
 ): string {
   const name = session.getSessionName?.() ?? undefined;
@@ -57,6 +59,8 @@ export function renderSessionInfoText(
   const usageBreakdown = getUsageCostBreakdown(entries);
 
   const lines: string[] = ["Session Info", ""];
+  if (options.tabTitle !== undefined) lines.push(`Tab: ${options.tabTitle}`);
+  if (options.workdir !== undefined) lines.push(`Workdir: ${options.workdir}`);
   if (name) lines.push(`Name: ${name}`);
   lines.push(
     `File: ${info.sessionFile ?? "In-memory"}`,

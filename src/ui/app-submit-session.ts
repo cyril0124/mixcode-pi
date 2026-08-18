@@ -320,7 +320,14 @@ const handleSession: LocalCommandHandler = ({ state, active, runtime }) => {
   const info = runtimeTab.agentSession.getSessionStats();
   syncTabContextUsage(active!, info.contextUsage);
   // Pi handleSessionCommand adds a permanent plain Text child (not showStatus).
-  runtime.appendSystemMessage(active!.sessionId, renderSessionInfoText(runtimeTab, info), "plain");
+  runtime.appendSystemMessage(
+    active!.sessionId,
+    renderSessionInfoText(runtimeTab, info, {
+      tabTitle: active!.title,
+      workdir: active!.workdir,
+    }),
+    "plain",
+  );
 };
 
 const handleCompact: LocalCommandHandler = async ({ active, args, runtime }) => {
@@ -362,6 +369,7 @@ function syncTabContextUsage(
 export function renderSessionInfoText(
   runtimeTab: RuntimeTab,
   info: SessionStatsInfo = runtimeTab.agentSession.getSessionStats(),
+  identity: { tabTitle: string; workdir: string },
 ): string {
   // Pi handleSessionCommand: permanent stats dump with prompt-volume Input,
   // Cached/Uncached split, $cost, optional multi-model and cache re-bill lines.
@@ -369,5 +377,5 @@ export function renderSessionInfoText(
   const entries =
     typeof runtimeTab.session.getEntries === "function" ? runtimeTab.session.getEntries() : [];
   const models = runtimeTab.agentSession.modelRuntime;
-  return formatSessionInfoText(runtimeTab.session, info, { entries, models });
+  return formatSessionInfoText(runtimeTab.session, info, { entries, models, ...identity });
 }

@@ -210,6 +210,8 @@ test("submitted input shows session info from pi runtime", async () => {
   // Pi handleSessionCommand permanently appends (not showStatus coalesce).
   assert.equal(chat.at(-1)?.kind, "plain");
   assert.match(message, /Session Info/);
+  assert.match(message, /Tab: Agent-01/);
+  assert.match(message, /Workdir: \/repo/);
   assert.match(message, /Name: Daily work/);
   assert.match(message, /File: \/tmp\/session\.jsonl/);
   assert.match(message, /ID: abc123/);

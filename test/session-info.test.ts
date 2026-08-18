@@ -31,27 +31,48 @@ function usage(
   };
 }
 
-test("renderSessionInfoText matches Pi prompt-volume Input and Tools line", () => {
-  const text = renderSessionInfoText(
+const BASE_STATS = {
+  sessionFile: "/tmp/session.jsonl",
+  sessionId: "abc123",
+  userMessages: 3,
+  assistantMessages: 11,
+  toolCalls: 18,
+  toolResults: 18,
+  totalMessages: 32,
+  tokens: {
+    input: 24_152,
+    output: 3_077,
+    cacheRead: 148_736,
+    cacheWrite: 0,
+    total: 175_965,
+  },
+  cost: 1.23456,
+};
+
+test("renderSessionInfoText always includes Tab and Workdir when provided", () => {
+  const withName = renderSessionInfoText(
     { getSessionName: () => "Daily work" },
-    {
-      sessionFile: "/tmp/session.jsonl",
-      sessionId: "abc123",
-      userMessages: 3,
-      assistantMessages: 11,
-      toolCalls: 18,
-      toolResults: 18,
-      totalMessages: 32,
-      tokens: {
-        input: 24_152,
-        output: 3_077,
-        cacheRead: 148_736,
-        cacheWrite: 0,
-        total: 175_965,
-      },
-      cost: 1.23456,
-    },
+    BASE_STATS,
+    { tabTitle: "Agent-01", workdir: "/repo" },
   );
+  assert.match(
+    withName,
+    /^Session Info\n\nTab: Agent-01\nWorkdir: \/repo\nName: Daily work\nFile: \/tmp\/session\.jsonl/,
+  );
+  assert.doesNotMatch(withName, /\bContext\b/);
+
+  const noName = renderSessionInfoText(
+    { getSessionName: () => undefined },
+    { ...BASE_STATS, sessionFile: undefined, sessionId: "s1" },
+    { tabTitle: "Agent-01", workdir: "/repo" },
+  );
+  assert.match(noName, /^Session Info\n\nTab: Agent-01\nWorkdir: \/repo\nFile: In-memory/);
+  assert.doesNotMatch(noName, /Name:/);
+  assert.doesNotMatch(noName, /\bContext\b/);
+});
+
+test("renderSessionInfoText matches Pi prompt-volume Input and Tools line", () => {
+  const text = renderSessionInfoText({ getSessionName: () => "Daily work" }, BASE_STATS);
   assert.match(text, /Tools: 18 calls, 18 results/);
   assert.match(text, /Input: 172,888/);
   assert.match(text, /Cached: 148,736 \(86\.0%\)/);
@@ -138,23 +159,8 @@ test("system-plain session dump uses bold headers and dim labels", async () => {
   const { renderWithTheme } = await import("../src/ui/rendering/context.js");
   const text = renderSessionInfoText(
     { getSessionName: () => "Daily work" },
-    {
-      sessionFile: "/tmp/session.jsonl",
-      sessionId: "abc123",
-      userMessages: 3,
-      assistantMessages: 11,
-      toolCalls: 18,
-      toolResults: 18,
-      totalMessages: 32,
-      tokens: {
-        input: 24_152,
-        output: 3_077,
-        cacheRead: 148_736,
-        cacheWrite: 0,
-        total: 175_965,
-      },
-      cost: 1.23456,
-    },
+    BASE_STATS,
+    { tabTitle: "Agent-01", workdir: "/repo" },
   );
   const rendered = renderWithTheme(MIXCODE_DARK_THEME, () =>
     renderChat([{ role: "system", text, variant: "system-plain" }], 80).join("\n"),
@@ -163,6 +169,8 @@ test("system-plain session dump uses bold headers and dim labels", async () => {
   assert.match(rendered, new RegExp(escapeRegExp(MIXCODE_DARK_THEME.bold("Messages"))));
   assert.match(rendered, new RegExp(escapeRegExp(MIXCODE_DARK_THEME.bold("Tokens"))));
   assert.match(rendered, new RegExp(escapeRegExp(MIXCODE_DARK_THEME.bold("Cost"))));
+  assert.match(rendered, new RegExp(escapeRegExp(MIXCODE_DARK_THEME.dim("Tab:"))));
+  assert.match(rendered, new RegExp(escapeRegExp(MIXCODE_DARK_THEME.dim("Workdir:"))));
   assert.match(rendered, new RegExp(escapeRegExp(MIXCODE_DARK_THEME.dim("File:"))));
   assert.match(rendered, new RegExp(escapeRegExp(MIXCODE_DARK_THEME.dim("Name:"))));
   assert.match(rendered, new RegExp(escapeRegExp(MIXCODE_DARK_THEME.dim("Input:"))));
