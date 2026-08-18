@@ -7,7 +7,7 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { loadSkillsFromDir } from "@earendil-works/pi-coding-agent";
-import type { AutocompleteItem, AutocompleteProvider } from "@earendil-works/pi-tui";
+import { type AutocompleteItem, type AutocompleteProvider, fuzzyMatch } from "@earendil-works/pi-tui";
 
 /** A skill usable for $ref expansion and completion. */
 export interface SkillRefEntry {
@@ -238,17 +238,6 @@ function currentToken(lines: string[], cursorLine: number, cursorCol: number): s
   return before.match(/(?:^|\s)(\$[^\s]*)$/)?.[1] ?? "";
 }
 
-function fuzzyIncludes(name: string, query: string): boolean {
-  let index = 0;
-  const lower = name.toLowerCase();
-  for (const ch of query.toLowerCase()) {
-    index = lower.indexOf(ch, index);
-    if (index === -1) return false;
-    index++;
-  }
-  return true;
-}
-
 /**
  * Wrap a base autocomplete provider with `$` skill completion. Non-$ tokens
  * delegate to the base provider untouched.
@@ -266,7 +255,7 @@ export function createSkillCompletionWrapper(
       }
       const query = token.slice(1);
       const items: AutocompleteItem[] = getEntries()
-        .filter((entry) => fuzzyIncludes(entry.name, query))
+        .filter((entry) => fuzzyMatch(query, entry.name).matches)
         .map((entry) => ({
           value: `$${entry.name}`,
           label: `$${entry.name}`,

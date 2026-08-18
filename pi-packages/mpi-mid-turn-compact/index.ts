@@ -22,6 +22,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   calculateContextTokens,
   estimateTokens,
+  DEFAULT_COMPACTION_SETTINGS,
   shouldCompact,
   type ExtensionAPI,
   type ExtensionContext,
@@ -44,9 +45,8 @@ export const EMPTY_COMPACT_RESUME_PROMPT =
 /** Custom message type: participates in LLM context, hidden in TUI (display: false). */
 export const RESUME_CUSTOM_TYPE = "mpi-mid-turn-resume";
 
-/** Mirrors Pi core DEFAULT_COMPACTION_SETTINGS (absolute token counts). */
-const DEFAULT_RESERVE_TOKENS = 16_384;
-const DEFAULT_KEEP_RECENT_TOKENS = 20_000;
+const DEFAULT_RESERVE_TOKENS = DEFAULT_COMPACTION_SETTINGS.reserveTokens;
+const DEFAULT_KEEP_RECENT_TOKENS = DEFAULT_COMPACTION_SETTINGS.keepRecentTokens;
 
 /** Tiny length output near the ceiling ≈ no generation room left. */
 const TINY_LENGTH_OUTPUT_TOKENS = 256;
