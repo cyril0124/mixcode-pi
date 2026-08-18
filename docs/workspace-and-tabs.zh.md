@@ -46,6 +46,12 @@ Tab 实时展示运行状态指示符：`●`（运行中/工作中）、`-`（�
 
 工作区记录了多 Tab 布局、焦点 Tab、工作目录及模型配置，便于一键保存与跨会话恢复。
 
+### 文件契约
+
+每条 `workspaces.json` 记录仅通过必需的 `tabs` 数组保存 Tab 顺序和标识。记录字段为 `name`、`startup_workdir`、`updated_at`、可选的 `active_session_id` 和 `tabs`。每个 Tab 条目保存 `session_id`、可选的 `session_path`、`title`、`workdir`、可选的 `model` 和可选的 `thinking_level`。
+
+缺少 `tabs` 数组的具名记录无效。`loadWorkspaces()` 抛出 `Invalid workspace file: <path>: workspaces[<index>].tabs must be an array`。文件不会写入并行的 Session ID 列表。
+
 ### 工作区命令
 
 | 命令 | 说明 |

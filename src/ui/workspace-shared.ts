@@ -1,5 +1,5 @@
 import { loadWorkspaces } from "../core/state-store.js";
-import type { MixCodeState, WorkspaceSnapshot, WorkspaceTabSnapshot } from "../core/types.js";
+import type { MixCodeState, WorkspaceSnapshot } from "../core/types.js";
 import type { MixCodeRuntime } from "../agent/runtime.js";
 
 export type WorkspaceSelectorMode = "restore" | "delete";
@@ -30,18 +30,8 @@ export function formatWorkspaceDate(value: string): string {
   return date.toISOString().slice(0, 16).replace("T", " ");
 }
 
-export function workspaceItems(workspace: WorkspaceSnapshot): WorkspaceTabSnapshot[] {
-  if (workspace.tabs.length) return workspace.tabs;
-  return workspace.children.map((sessionId) => ({
-    sessionId,
-    title: sessionId,
-    workdir: workspace.startupWorkdir,
-  }));
-}
-
 export function workspaceTabCount(workspace: WorkspaceSnapshot | undefined): number {
-  if (!workspace) return 0;
-  return workspace.tabs.length || workspace.children.length;
+  return workspace?.tabs.length ?? 0;
 }
 
 export function selectedWorkspace(
@@ -56,7 +46,7 @@ export function filteredWorkspaces(overlay: MixCodeState["workspaceOverlay"]): W
   if (!query) return workspaces;
   return workspaces.filter((workspace) => {
     if (workspace.name.toLowerCase().includes(query)) return true;
-    return workspaceItems(workspace).some((item) => item.title.toLowerCase().includes(query));
+    return workspace.tabs.some((item) => item.title.toLowerCase().includes(query));
   });
 }
 

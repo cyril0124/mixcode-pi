@@ -39,10 +39,16 @@ test("workspace snapshots preserve tab order", () => {
   state.tabs.push(createTab(1, "b", "/repo"), createTab(2, "a", "/repo"));
   const now = new Date("2026-05-09T00:00:00.000Z");
   const snapshot = snapshotWorkspace(state, "main", now);
-  assert.deepEqual(snapshot.children, ["b", "a"]);
+  assert.deepEqual(
+    snapshot.tabs.map((tab) => tab.sessionId),
+    ["b", "a"],
+  );
   assert.equal(snapshot.updatedAt, now.toISOString());
-  const replaced = upsertWorkspace([snapshot], { ...snapshot, children: ["a"] });
-  assert.deepEqual(replaced.find((workspace) => workspace.name === "main")?.children, ["a"]);
+  const replaced = upsertWorkspace([snapshot], { ...snapshot, tabs: snapshot.tabs.slice(1) });
+  assert.deepEqual(
+    replaced.find((workspace) => workspace.name === "main")?.tabs.map((tab) => tab.sessionId),
+    ["a"],
+  );
 });
 
 function pushTab(state: ReturnType<typeof createInitialState>, sessionId: string) {

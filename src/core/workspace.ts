@@ -13,7 +13,6 @@ export function snapshotWorkspace(
 ): WorkspaceSnapshot {
   return {
     name,
-    children: state.tabs.map((tab) => tab.sessionId),
     startupWorkdir: state.workdir,
     updatedAt: now.toISOString(),
     // Home (config) should record the selected agent row, not always tabs[0].

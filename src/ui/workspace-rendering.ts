@@ -7,7 +7,6 @@ import {
   filteredWorkspaces,
   formatWorkspaceDate,
   selectedWorkspace,
-  workspaceItems,
   workspaceTabCount,
 } from "./workspace-shared.js";
 
@@ -176,7 +175,7 @@ function renderWorkspaceSelector(state: MixCodeState, width: number): string[] {
 }
 
 function workspaceSelectorRows(workspaceCount: number, workspace: WorkspaceSnapshot | undefined): number {
-  const detailRows = workspace ? Math.min(18, workspaceItems(workspace).length + 5) : 8;
+  const detailRows = workspace ? Math.min(18, workspace.tabs.length + 5) : 8;
   const listRows = workspaceCount + 2;
   return Math.max(10, Math.min(18, Math.max(detailRows, listRows)));
 }
@@ -209,7 +208,7 @@ function renderWorkspaceDetails(
   if (!workspace) {
     lines.push("No matching workspaces");
   } else {
-    const items = workspaceItems(workspace);
+    const items = workspace.tabs;
     const active = items.find((item) => item.sessionId === workspace.activeSessionId) ?? items[0];
     lines.push(
       `name: ${workspace.name}`,

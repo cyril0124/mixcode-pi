@@ -488,10 +488,10 @@ export interface WorkspaceTabSnapshot {
 
 export interface WorkspaceSnapshot {
   name: string;
-  children: string[];
   startupWorkdir: string;
   updatedAt: string;
   activeSessionId?: string;
+  /** Ordered tabs; sole owner of workspace tab order and identity. */
   tabs: WorkspaceTabSnapshot[];
 }
 

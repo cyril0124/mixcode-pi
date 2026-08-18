@@ -95,7 +95,7 @@ test("workspace snapshot stores tab metadata and active tab", () => {
   const snapshot = snapshotWorkspace(state, "main", new Date("2026-05-23T00:00:00.000Z"), runtime);
 
   assert.equal(snapshot.activeSessionId, "s2");
-  assert.deepEqual(snapshot.children, ["s1", "s2"]);
+  assert.equal("children" in snapshot, false);
   assert.deepEqual(
     snapshot.tabs.map((tab) => ({ id: tab.sessionId, path: tab.sessionPath, title: tab.title })),
     [
@@ -119,14 +119,13 @@ test("workspace snapshot on Home records the selected agent, not tabs[0]", () =>
   assert.equal(snapshot.activeSessionId, "s2");
 });
 
-test("workspace store round-trips new schema and reads legacy children", async () => {
+test("workspace store round-trips tabs schema and rejects records without tabs", async () => {
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-workspace-schema-"));
   const workspaceFile = path.join(dir, "workspaces.json");
   try {
     await saveWorkspaces(workspaceFile, [
       {
         name: " main ",
-        children: ["s1", ""],
         startupWorkdir: "/repo///",
         updatedAt: "now",
         activeSessionId: "s1",
@@ -145,7 +144,6 @@ test("workspace store round-trips new schema and reads legacy children", async (
     assert.deepEqual(await loadWorkspaces(workspaceFile), [
       {
         name: "main",
-        children: ["s1"],
         startupWorkdir: "/repo",
         updatedAt: "now",
         activeSessionId: "s1",
@@ -162,10 +160,12 @@ test("workspace store round-trips new schema and reads legacy children", async (
       },
     ]);
 
-    await fsPromises.writeFile(workspaceFile, JSON.stringify([{ name: "legacy", children: ["a", ""] }]), "utf8");
-    assert.deepEqual(await loadWorkspaces(workspaceFile), [
-      { name: "legacy", children: ["a"], startupWorkdir: "", updatedAt: "", tabs: [] },
-    ]);
+    await fsPromises.writeFile(
+      workspaceFile,
+      JSON.stringify([{ name: "invalid", children: ["a"] }]),
+      "utf8",
+    );
+    await assert.rejects(loadWorkspaces(workspaceFile), /workspaces\[0\]\.tabs must be an array/);
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }
@@ -211,7 +211,7 @@ test("save workspace input confirms overwrite before saving", async () => {
     state.tabs.push(createTab(1, "s1", "/repo", { title: "new plan" }));
     state.activeTabId = "s1";
     await saveWorkspaces(workspaceFile, [
-      { name: "main", children: ["old"], startupWorkdir: "/repo", updatedAt: "old", tabs: [] },
+      { name: "main", startupWorkdir: "/repo", updatedAt: "old", tabs: [] },
     ]);
     const { runtime } = createRuntime({ s1: "/sessions/s1.jsonl" });
     const tui = createOverlayTui();
@@ -228,7 +228,10 @@ test("save workspace input confirms overwrite before saving", async () => {
     await Bun.sleep(20);
 
     const saved = await loadWorkspaces(workspaceFile);
-    assert.deepEqual(saved[0]?.children, ["s1"]);
+    assert.deepEqual(
+      saved[0]?.tabs.map((tab) => tab.sessionId),
+      ["s1"],
+    );
     assert.equal(state.tabs[0]?.toast?.message, "Workspace updated: main");
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
@@ -248,7 +251,6 @@ test("restore workspace reopens saved sessions, closes extra tabs, and reports m
     await saveWorkspaces(workspaceFile, [
       {
         name: "main",
-        children: ["old-s1", "old-missing"],
         startupWorkdir: "/repo",
         updatedAt: "now",
         activeSessionId: "old-s1",
@@ -302,11 +304,13 @@ test("restore workspace order-only path hydrates prompt history", async () => {
     tui,
     {
       name: "main",
-      children: ["s2", "s1"],
       startupWorkdir: "/repo",
       updatedAt: "now",
       activeSessionId: "s2",
-      tabs: [],
+      tabs: [
+        { sessionId: "s2", title: "two", workdir: "/repo" },
+        { sessionId: "s1", title: "one", workdir: "/repo" },
+      ],
     },
   );
 
@@ -331,7 +335,6 @@ test("restore workspace keeps active tab when earlier workspace items are skippe
     await saveWorkspaces(workspaceFile, [
       {
         name: "main",
-        children: ["missing-no-path", "second", "third"],
         startupWorkdir: "/repo",
         updatedAt: "now",
         activeSessionId: "third",

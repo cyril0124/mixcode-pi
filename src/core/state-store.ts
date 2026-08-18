@@ -248,11 +248,10 @@ export async function saveWorkspaces(
     .filter((item) => item.name.trim())
     .map((item) => ({
       name: item.name.trim(),
-      children: item.children.filter((child) => child.trim()),
       startup_workdir: normalizeStartupWorkdir(item.startupWorkdir),
       updated_at: item.updatedAt,
       active_session_id: item.activeSessionId,
-      tabs: (item.tabs ?? [])
+      tabs: item.tabs
         .filter((tab) => tab.sessionId.trim())
         .map((tab) => ({
           session_id: tab.sessionId.trim(),
@@ -281,6 +280,7 @@ function tempFilePath(filePath: string): string {
   return `${filePath}.${process.pid}.${crypto.randomUUID()}.tmp`;
 }
 
+/** Load the tabs-only workspace schema; named records without `tabs` are invalid. */
 export async function loadWorkspaces(filePath: string): Promise<WorkspaceSnapshot[]> {
   const raw = await Bun.file(filePath).text();
   const parsed: unknown = JSON.parse(raw);
@@ -290,12 +290,15 @@ export async function loadWorkspaces(filePath: string): Promise<WorkspaceSnapsho
       (item): item is Record<string, unknown> =>
         Boolean(item) && typeof item === "object" && !Array.isArray(item),
     )
-    .filter((item) => typeof item.name === "string" && Array.isArray(item.children))
-    .map((item) => {
-      const children = (item.children as unknown[]).map(String).filter((child) => child.trim());
+    .filter((item) => typeof item.name === "string")
+    .map((item, index) => {
+      if (!Array.isArray(item.tabs)) {
+        throw new Error(
+          `Invalid workspace file: ${filePath}: workspaces[${index}].tabs must be an array`,
+        );
+      }
       return {
         name: String(item.name).trim(),
-        children,
         startupWorkdir: normalizeStartupWorkdir(
           typeof item.startup_workdir === "string" ? item.startup_workdir : "",
         ),
@@ -303,9 +306,7 @@ export async function loadWorkspaces(filePath: string): Promise<WorkspaceSnapsho
         ...(typeof item.active_session_id === "string" && item.active_session_id.trim()
           ? { activeSessionId: item.active_session_id.trim() }
           : {}),
-        tabs: Array.isArray(item.tabs)
-          ? item.tabs.flatMap((tab) => deserializeWorkspaceTab(tab))
-          : [],
+        tabs: item.tabs.flatMap((tab) => deserializeWorkspaceTab(tab)),
       };
     });
 }

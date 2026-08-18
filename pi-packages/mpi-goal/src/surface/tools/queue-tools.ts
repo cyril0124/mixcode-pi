@@ -11,7 +11,7 @@ import { createPostCompletionActionStates, recordPostStartActionAnchors } from "
 import { decideTerminalContinuationTicket, dispatchContinuationTicket, revalidateContinuationTicket, type ContinuationTicket } from "../../runtime/continuation-ticket.js";
 import { createGoalState, getGoal, getTelemetry, persistSetGoal, replayGoalState } from "../../persistence/goal-store.js";
 import { enqueueGoal, dequeueGoal, removeGoal, persistEnqueue, persistDequeue, persistRemove, getQueue, replayQueueState, type DequeueAudit, type QueuedGoal } from "../../persistence/queue-store.js";
-import type { GoalQueueSteeringSender, GoalState, GoalTelemetrySnapshot } from "../../domain/types.js";
+import type { GoalState, GoalTelemetrySnapshot } from "../../domain/types.js";
 import { syncGoalUi } from "../ui/notify.js";
 
 const DequeueGoalParams = Type.Object({
@@ -30,10 +30,6 @@ type QueueToolDetails = {
 	error?: string;
 };
 
-type GoalQueueToolRuntime = {
-	sendQueueHandoff?: GoalQueueSteeringSender;
-};
-
 
 async function withSessionTool<T>(ctx: ExtensionContext, run: () => Promise<T>): Promise<T> {
 	return withGoalSessionFromCtx(ctx, async () => {
@@ -44,11 +40,11 @@ async function withSessionTool<T>(ctx: ExtensionContext, run: () => Promise<T>):
 }
 
 
-export function registerGoalQueueTools(pi: ExtensionAPI, runtime: GoalQueueToolRuntime = {}): void {
+export function registerGoalQueueTools(pi: ExtensionAPI): void {
 	registerListGoalQueueTool(pi);
 	registerEnqueueGoalTool(pi);
-	registerStartQueuedGoalTool(pi, runtime);
-	registerDequeueGoalTool(pi, runtime);
+	registerStartQueuedGoalTool(pi);
+	registerDequeueGoalTool(pi);
 	registerRemoveQueuedGoalTool(pi);
 }
 
@@ -94,7 +90,7 @@ function registerEnqueueGoalTool(pi: ExtensionAPI): void {
 	});
 }
 
-function registerStartQueuedGoalTool(pi: ExtensionAPI, runtime: GoalQueueToolRuntime): void {
+function registerStartQueuedGoalTool(pi: ExtensionAPI): void {
 	pi.registerTool({
 		name: "start_queued_goal",
 		label: "Start Queued Goal",
@@ -110,14 +106,14 @@ function registerStartQueuedGoalTool(pi: ExtensionAPI, runtime: GoalQueueToolRun
 		parameters: EmptyParams,
 		async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
 			return withSessionTool(ctx, async () => {
-				return startQueuedGoal(pi, runtime, ctx);
+				return startQueuedGoal(pi, ctx);
 
 			});
 		},
 	});
 }
 
-function registerDequeueGoalTool(pi: ExtensionAPI, runtime: GoalQueueToolRuntime): void {
+function registerDequeueGoalTool(pi: ExtensionAPI): void {
 	pi.registerTool({
 		name: "dequeue_goal",
 		label: "Dequeue Goal",
@@ -142,7 +138,7 @@ function registerDequeueGoalTool(pi: ExtensionAPI, runtime: GoalQueueToolRuntime
 					};
 				}
 				persistDequeue(pi, "dequeued", { queueId: dequeued.queueId, audit: audit.value });
-				sendNextQueueHandoffAfterDequeue(pi, runtime);
+				sendNextQueueHandoffAfterDequeue(pi);
 				return {
 					content: [
 						{
@@ -184,7 +180,7 @@ function registerRemoveQueuedGoalTool(pi: ExtensionAPI): void {
 	});
 }
 
-function startQueuedGoal(pi: ExtensionAPI, runtime: GoalQueueToolRuntime, ctx: ExtensionContext) {
+function startQueuedGoal(pi: ExtensionAPI, ctx: ExtensionContext) {
 	const current = getGoal();
 	if (current && current.status !== "complete" && current.status !== "budgetLimited") return errorResult("A non-terminal goal is already active. The queued goal was left in the queue.");
 	const next = getQueue()[0];
@@ -193,10 +189,10 @@ function startQueuedGoal(pi: ExtensionAPI, runtime: GoalQueueToolRuntime, ctx: E
 	if (!objective.ok) return errorResult(objective.error);
 	const validation = validateObjective(objective.objective);
 	if (!validation.ok) return errorResult(validation.hint ? `${validation.message} ${validation.hint}` : validation.message);
-	return createAndDequeueQueuedGoal(pi, runtime, ctx, next, validation.objective);
+	return createAndDequeueQueuedGoal(pi, ctx, next, validation.objective);
 }
 
-function createAndDequeueQueuedGoal(pi: ExtensionAPI, runtime: GoalQueueToolRuntime, ctx: ExtensionContext, next: QueuedGoal, objective: string) {
+function createAndDequeueQueuedGoal(pi: ExtensionAPI, ctx: ExtensionContext, next: QueuedGoal, objective: string) {
 	const floorError = validateFloorConfig({ tokenBudget: next.tokenBudget, timeBudgetSeconds: next.timeBudgetSeconds, minTokensBeforeWrapUp: next.minTokensBeforeWrapUp, minTimeSecondsBeforeWrapUp: next.minTimeSecondsBeforeWrapUp });
 	if (floorError) return errorResult(floorError);
 	let goal = createGoalState({ objective, tokenBudget: next.tokenBudget, timeBudgetSeconds: next.timeBudgetSeconds, minTokensBeforeWrapUp: next.minTokensBeforeWrapUp, minTimeSecondsBeforeWrapUp: next.minTimeSecondsBeforeWrapUp, postCompletionActions: createPostCompletionActionStates(next.postCompletionActions ?? []), sourceQueueId: next.queueId });
@@ -210,12 +206,10 @@ function createAndDequeueQueuedGoal(pi: ExtensionAPI, runtime: GoalQueueToolRunt
 	return { content: [{ type: "text" as const, text: `Started queued goal: ${started.queueId}\nObjective: ${goal.objective}` }], details: { goal, telemetry, started, queue: getQueue() } as QueueToolDetails };
 }
 
-function sendNextQueueHandoffAfterDequeue(pi: ExtensionAPI, runtime: GoalQueueToolRuntime, ticket: ContinuationTicket = decideTerminalContinuationTicket(getGoal(), getQueue(), { triggerTurn: true })): void {
-	const goal = getGoal();
-	const queueLength = getQueue().length;
-	const validation = revalidateContinuationTicket(ticket, goal, getQueue());
+function sendNextQueueHandoffAfterDequeue(pi: ExtensionAPI, ticket: ContinuationTicket = decideTerminalContinuationTicket(getGoal(), getQueue(), { triggerTurn: true })): void {
+	const validation = revalidateContinuationTicket(ticket, getGoal(), getQueue());
 	if (!validation.ok) return;
-	const sent = dispatchContinuationTicket(pi, ticket);
+	dispatchContinuationTicket(pi, ticket);
 }
 
 type QueuedObjectiveResolution = { ok: true; objective: string } | { ok: false; error: string };

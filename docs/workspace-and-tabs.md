@@ -46,6 +46,12 @@ Tabs display live status glyphs: `●` (running/working), `-` (idle/ready), `!` 
 
 Workspaces store multi-tab layouts, active tab focus, working directories, and model assignments for quick restoration.
 
+### File Contract
+
+Each `workspaces.json` record stores tab order and identity only in the required `tabs` array. The record fields are `name`, `startup_workdir`, `updated_at`, optional `active_session_id`, and `tabs`. Each tab entry stores `session_id`, optional `session_path`, `title`, `workdir`, optional `model`, and optional `thinking_level`.
+
+A named record without a `tabs` array is invalid. `loadWorkspaces()` throws `Invalid workspace file: <path>: workspaces[<index>].tabs must be an array`. No parallel session-ID list is written.
+
 ### Commands
 
 | Command | Description |

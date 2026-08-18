@@ -4,7 +4,7 @@ import { withGoalSessionFromCtx } from "../../domain/session-scope.js";
 import { validateObjective } from "../../domain/format.js";
 import { isBudgetExhausted, canActivateGoal } from "../../domain/budget.js";
 import { decideGoalCompletion, type CompletionDecision } from "../../domain/completion-gate.js";
-import { evaluateCompletionFloor, validateFloorConfig, type CompletionFloorEvaluation } from "../../domain/floor.js";
+import { validateFloorConfig } from "../../domain/floor.js";
 import { createTelemetry, noteBudgetLimit, noteFloorCompletionDeferred } from "../../domain/telemetry.js";
 import { listGoalTemplateMetadata } from "../../templates/discover.js";
 import { buildDirectGoalIntent, buildTemplateGoalIntent } from "../../domain/goal-intent.js";
@@ -45,7 +45,7 @@ export function registerGoalTools(pi: ExtensionAPI, runtime: GoalToolRuntime = {
 	registerCreateGoalTool(pi, runtime);
 	registerCreateGoalFromTemplateTool(pi, runtime);
 	registerUpdateGoalTool(pi, runtime);
-	registerGoalQueueTools(pi, { sendQueueHandoff: runtime.sendQueueHandoff });
+	registerGoalQueueTools(pi);
 	registerClearGoalTool(pi, runtime);
 }
 

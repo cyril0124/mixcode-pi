@@ -10,7 +10,7 @@ import { reindexWorkspaceTabs } from "../core/workspace.js";
 import { hydrateTabPromptHistory } from "./app-runtime.js";
 import type { OverlayTui } from "./app-types.js";
 import { closeWorkspaceOverlay, showWorkspaceOverlay, showWorkspaceToast } from "./workspace-overlay.js";
-import { type WorkspaceRuntime, workspaceItems } from "./workspace-shared.js";
+import type { WorkspaceRuntime } from "./workspace-shared.js";
 
 interface RestoredWorkspaceTab {
   item: WorkspaceTabSnapshot;
@@ -32,7 +32,7 @@ export async function restoreWorkspace(
     showWorkspaceToast(state, tui, `Workspace restored: ${workspace.name}`, "success");
     return;
   }
-  const items = workspaceItems(workspace);
+  const items = workspace.tabs;
   state.workspaceOverlay.mode = "restoring";
   state.workspaceOverlay.pendingWorkspace = workspace;
   state.workspaceOverlay.progressCurrent = 0;
@@ -103,7 +103,7 @@ export async function restoreWorkspace(
 }
 
 function restoreAlreadyOpenWorkspaceOrder(state: MixCodeState, workspace: WorkspaceSnapshot): void {
-  const items = workspaceItems(workspace);
+  const items = workspace.tabs;
   const tabById = new Map(state.tabs.map((tab) => [tab.sessionId, tab]));
   state.tabs = items.flatMap((item) => {
     const tab = tabById.get(item.sessionId);

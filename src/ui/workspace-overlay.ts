@@ -18,13 +18,11 @@ import { restoreWorkspace } from "./workspace-restore.js";
 import {
   clampWorkspaceSelection,
   compareWorkspaceUpdatedDesc,
-  filteredWorkspaces,
   formatWorkspaceDate,
   loadOptionalWorkspaces,
   moveWorkspaceSelection,
   selectedWorkspace,
   type WorkspaceSelectorMode,
-  workspaceItems,
   workspaceTabCount,
 } from "./workspace-shared.js";
 import { pushToast } from "../core/toast.js";
@@ -388,10 +386,9 @@ function countExtraTabs(
   runtime: Pick<MixCodeKeyRuntime, "getTab"> | undefined,
   workspace: WorkspaceSnapshot,
 ): number {
-  const items = workspaceItems(workspace);
   return state.tabs.filter(
     (tab) =>
-      !items.some(
+      !workspace.tabs.some(
         (item) =>
           item.sessionId === tab.sessionId ||
           (item.sessionPath && runtime?.getTab?.(tab.sessionId)?.session?.getSessionFile?.() === item.sessionPath),

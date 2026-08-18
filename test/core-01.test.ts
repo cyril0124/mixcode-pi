@@ -345,32 +345,60 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
 
     const workspaceFile = path.join(dir, "workspaces.json");
     await saveWorkspaces(workspaceFile, [
-      { name: " main ", children: ["s1", ""], startupWorkdir: "/repo///", updatedAt: "now" },
-      { name: "", children: ["bad"], startupWorkdir: "", updatedAt: "" },
+      {
+        name: " main ",
+        startupWorkdir: "/repo///",
+        updatedAt: "now",
+        tabs: [{ sessionId: "s1", title: "Worker", workdir: "/repo///" }],
+      },
+      {
+        name: "",
+        startupWorkdir: "",
+        updatedAt: "",
+        tabs: [{ sessionId: "bad", title: "Bad", workdir: "" }],
+      },
     ]);
     assert.deepEqual(await loadWorkspaces(workspaceFile), [
-      { name: "main", children: ["s1"], startupWorkdir: "/repo", updatedAt: "now", tabs: [] },
+      {
+        name: "main",
+        startupWorkdir: "/repo",
+        updatedAt: "now",
+        tabs: [
+          {
+            sessionId: "s1",
+            sessionPath: undefined,
+            title: "Worker",
+            workdir: "/repo",
+            model: undefined,
+            thinkingLevel: undefined,
+          },
+        ],
+      },
     ]);
     await fsPromises.writeFile(
       workspaceFile,
-      JSON.stringify([
-        { name: "partial", children: ["x"] },
-        { name: 1, children: [] },
-        { name: "bad", children: "x" },
-      ]),
+      JSON.stringify([{ name: "invalid", children: ["x"] }]),
       "utf8",
     );
-    assert.deepEqual(await loadWorkspaces(workspaceFile), [
-      { name: "partial", children: ["x"], startupWorkdir: "", updatedAt: "", tabs: [] },
-    ]);
+    await assert.rejects(loadWorkspaces(workspaceFile), /workspaces\[0\]\.tabs must be an array/);
     assert.equal(normalizeStartupWorkdir(" /tmp/// "), "/tmp");
     await assert.rejects(
       fsPromises.writeFile(workspaceFile, "{}").then(() => loadWorkspaces(workspaceFile)),
       /Invalid workspace file/,
     );
     await saveWorkspaces(workspaceFile, [
-      { name: "main", children: ["s1"], startupWorkdir: "/repo", updatedAt: "now" },
-      { name: "keep", children: ["s2"], startupWorkdir: "/repo", updatedAt: "later" },
+      {
+        name: "main",
+        startupWorkdir: "/repo",
+        updatedAt: "now",
+        tabs: [{ sessionId: "s1", title: "One", workdir: "/repo" }],
+      },
+      {
+        name: "keep",
+        startupWorkdir: "/repo",
+        updatedAt: "later",
+        tabs: [{ sessionId: "s2", title: "Two", workdir: "/repo" }],
+      },
     ]);
     await deleteWorkspace(workspaceFile, "main");
     assert.equal((await loadWorkspaces(workspaceFile)).length, 1);
@@ -387,7 +415,12 @@ test("deleteWorkspace rejects unknown names", async () => {
   const workspaceFile = path.join(dir, "workspaces.json");
   try {
     await saveWorkspaces(workspaceFile, [
-      { name: "keep", children: ["s1"], startupWorkdir: "/repo", updatedAt: "now" },
+      {
+        name: "keep",
+        startupWorkdir: "/repo",
+        updatedAt: "now",
+        tabs: [{ sessionId: "s1", title: "One", workdir: "/repo" }],
+      },
     ]);
     await assert.rejects(deleteWorkspace(workspaceFile, "missing"), /Unknown workspace: missing/);
     assert.equal((await loadWorkspaces(workspaceFile)).length, 1);

@@ -28,10 +28,10 @@ export async function processTerminalGoalWorkflow(pi: ExtensionAPI, ctx: Extensi
 
 function repairContinuationQueueAfterReset(pi: ExtensionAPI, goal: GoalState | null, ticket: ContinuationTicket): ContinuationTicket {
 	if (goal?.sourceQueueId) {
-		const sourceConsume = consumeQueueIdForRepair(pi, goal.sourceQueueId, "context_reset_source_queue_repair");
+		consumeQueueIdForRepair(pi, goal.sourceQueueId, "context_reset_source_queue_repair");
 	}
 	if (ticket.kind === "none") return ticket;
-	const restored = restoreQueueHeadForRepair(pi, ticket.queuedGoal, "context_reset_queue_handoff_repair");
+	restoreQueueHeadForRepair(pi, ticket.queuedGoal, "context_reset_queue_handoff_repair");
 	return refreshContinuationTicketQueueRevision(ticket);
 }
 
