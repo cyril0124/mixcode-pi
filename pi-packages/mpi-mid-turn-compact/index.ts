@@ -493,7 +493,9 @@ export function createMidTurnCompactExtension(options?: {
           typeof message.usage?.totalTokens === "number" ? message.usage.totalTokens : undefined;
         if (message.stopReason !== "length") consecutiveLengthResumes = 0;
       }
-      if (message && message !== original) return { message };
+      // Replacement is the original AgentMessage spread with adjusted stop fields,
+      // so casting back to AgentMessage is sound (role is preserved).
+      if (message && message !== original) return { message: message as AgentMessage };
     });
 
     // May await prepareCompaction load only — never await compact/waitForIdle here.

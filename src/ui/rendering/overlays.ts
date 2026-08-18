@@ -1,4 +1,5 @@
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import pkg from "../../../package.json" with { type: "json" };
 import {
   fuzzyMatchAllPositions,
   fuzzyMatchPositions,
@@ -74,7 +75,7 @@ function renderConfigInner(
     ...updateRows.map((line) => `  ${line}`),
     ...agentTableRows.map((line) => `  ${line}`),
   ];
-  const framed = fitConfigRows(configPanelBox("", lines, width), maxRows, width);
+  const framed = fitConfigRows(configPanelBox("", lines, width, [`v${pkg.version}`]), maxRows, width);
   // Home has no agent surface — paint the selected agent tab's toast here so
   // pushToast(getActiveTab()) remains visible while activeTabId is home.
   const selected = state.tabs[state.homeSelectedTabIndex];
@@ -89,9 +90,9 @@ function fitConfigRows(lines: string[], maxRows: number | undefined, width: numb
   return lines.slice(0, Math.max(0, Math.floor(maxRows)));
 }
 
-function configPanelBox(title: string, lines: string[], width: number): string[] {
+function configPanelBox(title: string, lines: string[], width: number, meta: string[] = []): string[] {
   const innerWidth = Math.max(0, width - 2);
-  const top = renderBoxTop(title, [], innerWidth, {
+  const top = renderBoxTop(title, meta, innerWidth, {
     ...activeRenderTheme,
     border: activeRenderTheme.borderMuted,
   }, true);

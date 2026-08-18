@@ -653,6 +653,16 @@ test("Home Up/Down does NOT consume when no tabs exist", () => {
 
 // --- renderConfig shows Agent View table ---
 
+test("renderConfig shows the app version on the Home panel border", async () => {
+  const pkg = (await import("../package.json", { with: { type: "json" } })).default;
+  const state = createInitialState("/repo");
+  state.activeTabId = "home";
+
+  // Wide terminal (logo shown) and narrow terminal (logo hidden) both show it.
+  assert.ok(stripAnsi(renderConfig(state, 100).join("\n")).includes(`v${pkg.version}`));
+  assert.ok(stripAnsi(renderConfig(state, 50).join("\n")).includes(`v${pkg.version}`));
+});
+
 test("renderConfig paints the selected agent toast", () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo");
