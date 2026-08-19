@@ -229,6 +229,66 @@ test("Home Up/Down moves selected agent row", () => {
   assert.equal(state.homeSelectedTabIndex, 0);
 });
 
+test("Home Ctrl+F toggles non-idle filter and walks only matching agents", () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(
+    createTab(1, "s1", "/repo", { title: "Idle-A", status: "idle" }),
+    createTab(2, "s2", "/repo", { title: "Busy", status: "running" }),
+    createTab(3, "s3", "/repo", { title: "Idle-B", status: "idle" }),
+    createTab(4, "s4", "/repo", { title: "Done", status: "idle", unreadDone: true }),
+  );
+  state.activeTabId = "home";
+  state.homeSelectedTabIndex = 0;
+  const tui = makeTui();
+
+  assert.deepEqual(handleMixCodeKeyInput(state, "\x06", tui), { consume: true });
+  assert.equal(state.homeNonIdleOnly, true);
+  assert.equal(state.homeSelectedTabIndex, 1);
+
+  const filtered = stripAnsi(renderHome(state, 100).join("\n"));
+  assert.match(filtered, /Agents  ·  non-idle/);
+  assert.match(filtered, /Busy/);
+  assert.match(filtered, /Done/);
+  assert.doesNotMatch(filtered, /Idle-A/);
+  assert.doesNotMatch(filtered, /Idle-B/);
+  assert.match(filtered, /Ctrl\+F: non-idle/);
+
+  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[B", tui), { consume: true });
+  assert.equal(state.homeSelectedTabIndex, 3);
+  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[B", tui), { consume: true });
+  assert.equal(state.homeSelectedTabIndex, 1);
+
+  assert.deepEqual(handleMixCodeKeyInput(state, "\x06", tui), { consume: true });
+  assert.equal(state.homeNonIdleOnly, false);
+  assert.equal(state.homeSelectedTabIndex, 1);
+  assert.match(stripAnsi(renderHome(state, 100).join("\n")), /Idle-A/);
+});
+
+test("Home Ctrl+F empty filter still toggles off", () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(
+    createTab(1, "s1", "/repo", { title: "Idle-A", status: "idle" }),
+    createTab(2, "s2", "/repo", { title: "Idle-B", status: "idle" }),
+  );
+  state.activeTabId = "home";
+  state.homeSelectedTabIndex = 1;
+  const tui = makeTui();
+
+  assert.deepEqual(handleMixCodeKeyInput(state, "\x06", tui), { consume: true });
+  assert.equal(state.homeNonIdleOnly, true);
+  assert.equal(state.homeSelectedTabIndex, 1);
+  const empty = stripAnsi(renderHome(state, 100).join("\n"));
+  assert.match(empty, /No non-idle agents/);
+  assert.doesNotMatch(empty, /Idle-A/);
+
+  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[B", tui), { consume: true });
+  assert.equal(state.homeSelectedTabIndex, 1);
+
+  assert.deepEqual(handleMixCodeKeyInput(state, "\x06", tui), { consume: true });
+  assert.equal(state.homeNonIdleOnly, false);
+  assert.match(stripAnsi(renderHome(state, 100).join("\n")), /Idle-B/);
+});
+
 test("Home navigation takes priority over extension terminal input handlers", () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"), createTab(2, "s2", "/repo"));
@@ -661,6 +721,16 @@ test("renderHome shows the app version on the Home panel border", async () => {
   // Wide terminal (logo shown) and narrow terminal (logo hidden) both show it.
   assert.ok(stripAnsi(renderHome(state, 100).join("\n")).includes(`v${pkg.version}`));
   assert.ok(stripAnsi(renderHome(state, 50).join("\n")).includes(`v${pkg.version}`));
+});
+
+test("renderHome hides the MIXCODE logo when it would dominate the Home viewport", () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"));
+  const banner = /███╗   ███╗/;
+
+  assert.match(stripAnsi(renderHome(state, 100, undefined, 0, 40).join("\n")), banner);
+  assert.doesNotMatch(stripAnsi(renderHome(state, 100, undefined, 0, 20).join("\n")), banner);
+  assert.doesNotMatch(stripAnsi(renderHome(state, 50).join("\n")), banner);
 });
 
 test("renderHome paints the selected agent toast", () => {

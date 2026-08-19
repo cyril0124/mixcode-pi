@@ -118,6 +118,7 @@ export function createInitialState(workdir: string, defaultThinkingLevel?: Think
     disabledProviders: [],
     disabledModels: [],
     homeSelectedTabIndex: 0,
+    homeNonIdleOnly: false,
   };
 }
 

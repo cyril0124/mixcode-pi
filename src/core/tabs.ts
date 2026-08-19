@@ -1,3 +1,4 @@
+import { tabIsNonIdle } from "./tab-state.js";
 import { HOME_TAB_ID, type MixCodeState, type MixCodeTabInfo } from "./types.js";
 
 const activeTabListeners = new Set<(tabId: string) => void>();
@@ -156,6 +157,25 @@ export function nextTabId(state: MixCodeState, delta: number): string {
   return ids[(current + delta + ids.length) % ids.length]!;
 }
 
+/** Visible Home card indices; non-idle filter uses {@link tabIsNonIdle}. */
+export function homeVisibleTabIndices(state: MixCodeState): number[] {
+  if (!state.homeNonIdleOnly) return state.tabs.map((_, index) => index);
+  return state.tabs.flatMap((tab, index) => (tabIsNonIdle(tab) ? [index] : []));
+}
+
+export function toggleHomeNonIdleOnly(state: MixCodeState): void {
+  state.homeNonIdleOnly = !state.homeNonIdleOnly;
+  clampHomeSelectedTabIndex(state);
+}
+
+export function moveHomeSelection(state: MixCodeState, delta: number): void {
+  const visible = homeVisibleTabIndices(state);
+  if (visible.length === 0) return;
+  let position = visible.indexOf(state.homeSelectedTabIndex);
+  if (position < 0) position = 0;
+  state.homeSelectedTabIndex = visible[(position + delta + visible.length) % visible.length]!;
+}
+
 /** Clamp homeSelectedTabIndex to valid range after tab mutations. */
 export function clampHomeSelectedTabIndex(state: MixCodeState): void {
   if (state.tabs.length === 0) {
@@ -166,4 +186,8 @@ export function clampHomeSelectedTabIndex(state: MixCodeState): void {
     0,
     Math.min(state.homeSelectedTabIndex, state.tabs.length - 1),
   );
+  const visible = homeVisibleTabIndices(state);
+  if (visible.length === 0 || visible.includes(state.homeSelectedTabIndex)) return;
+  state.homeSelectedTabIndex =
+    visible.find((index) => index >= state.homeSelectedTabIndex) ?? visible[visible.length - 1]!;
 }

@@ -197,4 +197,10 @@ export const MIXCODE_KEYMAP: KeyAction[] = [
     description: "Send input to selected agent (empty input stays on Home)",
     scope: "home",
   },
+  {
+    key: "ctrl+f",
+    action: "home-toggle-non-idle",
+    description: "Toggle non-idle-only filter",
+    scope: "home",
+  },
 ];

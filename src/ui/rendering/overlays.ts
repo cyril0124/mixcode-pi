@@ -13,6 +13,7 @@ import {
 import { filteredPickerItems, workdirBreadcrumb } from "../../core/pickers.js";
 import { activeToast } from "../../core/toast.js";
 import type { MixCodeState, PreviewMessage } from "../../core/types.js";
+import { homeVisibleTabIndices } from "../../core/tabs.js";
 import { tabIsWaitingForInput } from "../../core/tab-state.js";
 import { type MixCodeTheme, themeForId } from "../themes.js";
 import { exactContextUsageText, tabStatusGlyph } from "./chrome.js";
@@ -54,14 +55,13 @@ function renderHomeInner(
   ];
   const bodyWidth = Math.max(1, width - 6);
   const updateRows = renderPackageUpdateNotice(state.packageUpdates, bodyWidth);
-  // Hide logo when terminal is too small to fit logo + at least 1 card + preview,
-  // or too narrow to show the full banner without width-clipping into garbage.
+  // Hide the wordmark when it would dominate the Home viewport.
   const LOGO_ROWS = logo.length + 2; // logo lines + blank before + blank after
-  const MIN_ROWS_FOR_LOGO = LOGO_ROWS + AGENT_CARD_HEIGHT + AGENT_CARD_CHROME_ROWS + 3; // + panel chrome
-  const MIN_COLS_FOR_LOGO = 54 + 6; // banner width + panel padding/borders
+  const logoWidth = logo[0]?.length ?? 0;
   const showLogo =
-    width >= MIN_COLS_FOR_LOGO &&
-    (maxRows === undefined || maxRows >= MIN_ROWS_FOR_LOGO + updateRows.length);
+    logoWidth / Math.max(1, width) <= LOGO_MAX_WIDTH_RATIO &&
+    (maxRows === undefined ||
+      (LOGO_ROWS + updateRows.length) / Math.max(1, maxRows) <= LOGO_MAX_HEIGHT_RATIO);
   const logoLines = showLogo
     ? ["", ...logo.map((line) => centerLine(activeRenderTheme.accent(line), Math.max(1, width - 2))), ""]
     : [""];
@@ -105,12 +105,17 @@ function configPanelBox(title: string, lines: string[], width: number, meta: str
 }
 
 const AGENT_CARD_HEIGHT = 4;
-const AGENT_CARD_CHROME_ROWS = 3;
+const LOGO_MAX_WIDTH_RATIO = 0.85;
+const LOGO_MAX_HEIGHT_RATIO = 0.3;
 const AGENT_VIEW_SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 const AGENT_VIEW_SPINNER_INTERVAL_MS = 80;
 
 function renderAgentViewTable(state: MixCodeState, width: number, maxRows?: number): string[] {
   const budget = maxRows === undefined ? undefined : Math.max(0, Math.floor(maxRows));
+  const heading = state.homeNonIdleOnly ? " Agents  ·  non-idle" : " Agents";
+  const hint = activeRenderTheme.dim(
+    "  ↑/↓: select  →: attach  Enter: send  Tab: cycle tabs  Ctrl+F: non-idle",
+  );
   if (state.tabs.length === 0) {
     return fitAgentRows(
       [
@@ -122,11 +127,24 @@ function renderAgentViewTable(state: MixCodeState, width: number, maxRows?: numb
     );
   }
 
+  const visible = homeVisibleTabIndices(state);
+  if (visible.length === 0) {
+    return fitAgentRows(
+      [
+        "",
+        activeRenderTheme.bold(heading),
+        activeRenderTheme.dim("  No non-idle agents. Ctrl+F to show all."),
+        hint,
+      ],
+      budget,
+    );
+  }
+
   const lines: string[] = [];
-  pushAgentRows(lines, ["", activeRenderTheme.bold(" Agents")], budget);
+  pushAgentRows(lines, ["", activeRenderTheme.bold(heading)], budget);
   const selectedIndex = Math.min(state.homeSelectedTabIndex, state.tabs.length - 1);
+  const selectedVisiblePos = Math.max(0, visible.indexOf(selectedIndex));
   const now = Date.now();
-  const hint = activeRenderTheme.dim("  ↑/↓: select  →: attach  Enter: send  Tab: cycle tabs");
 
   // Cards are the anchor of Agent View; preview and hint use the remaining rows.
   // Always prefer keeping the navigation hint over eating the last row with a
@@ -136,7 +154,7 @@ function renderAgentViewTable(state: MixCodeState, width: number, maxRows?: numb
     rowsAfterHeader !== undefined && rowsAfterHeader >= AGENT_CARD_HEIGHT + 3 ? 3 : 0;
   const availableForCards =
     rowsAfterHeader === undefined ? undefined : Math.max(0, rowsAfterHeader - previewAndHintReserve);
-  const totalCards = state.tabs.length;
+  const totalCards = visible.length;
   const fitsAllCards =
     availableForCards === undefined || totalCards * AGENT_CARD_HEIGHT <= availableForCards;
   const markerReserve =
@@ -152,7 +170,7 @@ function renderAgentViewTable(state: MixCodeState, width: number, maxRows?: numb
     budget === undefined
       ? undefined
       : Math.max(lines.length, budget - (budget > lines.length ? 1 : 0));
-  const { start, end } = agentCardWindow(totalCards, selectedIndex, maxCards);
+  const { start, end } = agentCardWindow(totalCards, selectedVisiblePos, maxCards);
   const showAbove = maxCards > 0 && start > 0;
   const showBelow = maxCards > 0 && end < totalCards;
   const listBudget =
@@ -161,10 +179,12 @@ function renderAgentViewTable(state: MixCodeState, width: number, maxRows?: numb
     pushAgentRows(lines, [agentWindowMarker("↑ older above", width)], budget);
   }
   if (maxCards === 0 && rowsAfterHeader !== undefined && rowsAfterHeader > 0) {
-    pushAgentRows(lines, renderAgentCard(state.tabs[selectedIndex]!, width, true, now), cardBudget);
+    const fallbackIndex = visible[selectedVisiblePos] ?? visible[0]!;
+    pushAgentRows(lines, renderAgentCard(state.tabs[fallbackIndex]!, width, true, now), cardBudget);
   } else {
     for (let i = start; i < end; i++) {
-      const card = renderAgentCard(state.tabs[i]!, width, i === selectedIndex, now);
+      const tabIndex = visible[i]!;
+      const card = renderAgentCard(state.tabs[tabIndex]!, width, tabIndex === selectedIndex, now);
       if (listBudget !== undefined && lines.length + card.length > listBudget) break;
       lines.push(...card);
     }

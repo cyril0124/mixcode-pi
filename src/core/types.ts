@@ -475,6 +475,8 @@ export interface MixCodeState {
   lastRenderWidth?: number;
   /** Non-persisted: selected row index in the Agent View table on MixCode Home. */
   homeSelectedTabIndex: number;
+  /** Non-persisted: Home Agent View shows non-idle/attention tabs only. */
+  homeNonIdleOnly: boolean;
 }
 
 export interface WorkspaceTabSnapshot {

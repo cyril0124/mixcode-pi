@@ -156,3 +156,15 @@ export function workingActivityMessage(tab: MixCodeTabInfo): string {
 export function tabIsWaitingForInput(tab: MixCodeTabInfo): boolean {
   return tab.extensionUi.waitingForInputs.length > 0;
 }
+
+/** Attention set shared by Tab Jump and Home non-idle filters. */
+export function tabIsNonIdle(tab: MixCodeTabInfo): boolean {
+  return (
+    tab.status === "running" ||
+    tab.status === "thinking" ||
+    tab.status === "error" ||
+    tab.status === "done" ||
+    tab.unreadDone ||
+    tabIsWaitingForInput(tab)
+  );
+}

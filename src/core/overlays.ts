@@ -3,7 +3,7 @@ import { fuzzyFilter } from "@earendil-works/pi-tui";
 import { fuzzyMatch, fuzzyMatchAllPositions } from "./fuzzy.js";
 import { activateTab, findActiveTab } from "./tabs.js";
 import { HOME_TAB_ID, type CommandPaletteEntry, type MixCodeState, type MixCodeTabInfo } from "./types.js";
-import { tabIsWaitingForInput } from "./tab-state.js";
+import { tabIsNonIdle, tabIsWaitingForInput } from "./tab-state.js";
 import { clearScrollFreeze } from "../ui/rendering/agent-surface-scroll.js";
 
 export function scrollChat(tab: MixCodeTabInfo, delta: number): boolean {
@@ -68,19 +68,8 @@ export function filterTabJumpEntries(
 ): ReturnType<typeof tabJumpEntries> {
   let entries = tabJumpEntries(state);
   if (state.tabJumpNonIdleOnly) {
-    // error is not encoded on the entry flags; include it via status.
     const attentionIds = new Set(
-      state.tabs
-        .filter(
-          (tab) =>
-            tab.status === "running" ||
-            tab.status === "thinking" ||
-            tab.status === "error" ||
-            tab.status === "done" ||
-            tab.unreadDone ||
-            tabIsWaitingForInput(tab),
-        )
-        .map((tab) => tab.sessionId),
+      state.tabs.filter(tabIsNonIdle).map((tab) => tab.sessionId),
     );
     entries = entries.filter((entry) => attentionIds.has(entry.id));
   }

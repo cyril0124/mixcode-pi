@@ -10,7 +10,15 @@ import {
 } from "../core/overlays.js";
 import { pushToast } from "../core/toast.js";
 import { tabIsWaitingForInput } from "../core/tab-state.js";
-import { activateTab, dismissExtensionPanel, getActiveTab, nextTabId } from "../core/tabs.js";
+import {
+  activateTab,
+  dismissExtensionPanel,
+  getActiveTab,
+  homeVisibleTabIndices,
+  moveHomeSelection,
+  nextTabId,
+  toggleHomeNonIdleOnly,
+} from "../core/tabs.js";
 import { HOME_TAB_ID, type MixCodeState } from "../core/types.js";
 import { clearPendingEscape } from "../core/escape.js";
 import { openQuitConfirm } from "./app-actions.js";
@@ -359,14 +367,18 @@ function handleHomeAgentViewKey(
   ) {
     return undefined;
   }
+  if (matchesKey(data, "ctrl+f")) {
+    toggleHomeNonIdleOnly(state);
+    tui.requestRender();
+    return { consume: true };
+  }
   if (matchesKey(data, "up")) {
-    state.homeSelectedTabIndex =
-      (state.homeSelectedTabIndex - 1 + state.tabs.length) % state.tabs.length;
+    moveHomeSelection(state, -1);
     tui.requestRender();
     return { consume: true };
   }
   if (matchesKey(data, "down")) {
-    state.homeSelectedTabIndex = (state.homeSelectedTabIndex + 1) % state.tabs.length;
+    moveHomeSelection(state, 1);
     tui.requestRender();
     return { consume: true };
   }
@@ -375,6 +387,9 @@ function handleHomeAgentViewKey(
   if (!(matchesKey(data, "right") || isHomeEnter)) return undefined;
   const target = state.tabs[state.homeSelectedTabIndex];
   if (!target) return undefined;
+  if (state.homeNonIdleOnly && !homeVisibleTabIndices(state).includes(state.homeSelectedTabIndex)) {
+    return { consume: true };
+  }
   // Match Pi Editor / agent-tab submit: expand paste markers before send.
   const text =
     (editorActions?.getExpandedText?.() ?? editorActions?.getText() ?? "").trim();

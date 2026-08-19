@@ -12,6 +12,7 @@ MixCode Pi 提供完整的全局与局部快捷键映射系统（`src/core/keyma
 | `Shift+Tab` | 全局 | 上一个 Tab | 切换至上一个 Tab。补全 / Zen 例外与 `Tab` 相同。 |
 | `Ctrl+P` | 全局 | 命令面板 | 打开支持模糊搜索的全局命令面板。 |
 | `Ctrl+T` | 全局 | Tab 跳转 | 打开全屏 Tab 快速跳转浮层。 |
+| `Ctrl+F` | Home | 非 Idle 过滤 | 切换 Agent View 只显示非 Idle agent。判定与 Tab 跳转的 `Ctrl+F` 相同。 |
 | `Ctrl+E` | 全局 | 外部编辑器 | 在 `$VISUAL` / `$EDITOR` 中编辑当前草稿。 |
 | `Ctrl+Q` | 全局 | 退出 | 安全保存工作区状态并退出程序。 |
 | `Ctrl+C` | 全局 | 清空输入 | 清空编辑器。不会中断正在跑的轮次（中断用 `Esc`）。 |

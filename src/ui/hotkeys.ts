@@ -13,6 +13,8 @@ export function renderHotkeysText(extensionShortcuts: RuntimeShortcutInfo[] = []
     "",
     ...formatHotkeyGroup("Tab Jump", hotkeysForScope("tab-jump")),
     "",
+    ...formatHotkeyGroup("Home", hotkeysForScope("home")),
+    "",
     "Other",
     "| Key | Action |",
     "|-----|--------|",
