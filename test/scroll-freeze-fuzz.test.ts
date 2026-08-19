@@ -69,7 +69,11 @@ function topContentLine(rendered: string[]): string | undefined {
 }
 
 test("seeded scroll-freeze property sweep holds the top visible line", () => {
-  const SCENARIOS = Number(process.env.FZ_N ?? 80);
+  // Budget: 80 seeds ran 46-61s on 2-core CI runners, flaking against the 60s
+  // per-test timeout. 40 keeps the same leading deterministic seeds at 29s
+  // local / ~38s projected on the slowest observed CI runner; set FZ_N higher
+  // for deep local sweeps.
+  const SCENARIOS = Number(process.env.FZ_N ?? 40);
   for (let scenario = 0; scenario < SCENARIOS; scenario++) {
     const rand = mulberry32(0x5c4011 + scenario * 7919);
     const chat = buildHistory(rand);
