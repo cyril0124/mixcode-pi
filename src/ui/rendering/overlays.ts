@@ -16,7 +16,7 @@ import type { MixCodeState, PreviewMessage } from "../../core/types.js";
 import { homeVisibleTabIndices } from "../../core/tabs.js";
 import { tabIsWaitingForInput } from "../../core/tab-state.js";
 import { type MixCodeTheme, themeForId } from "../themes.js";
-import { exactContextUsageText, tabStatusGlyph } from "./chrome.js";
+import { exactContextUsageText, formatElapsed, tabStatusGlyph } from "./chrome.js";
 import { activeRenderTheme, renderWithTheme } from "./context.js";
 import { highlightRanges } from "./highlight.js";
 import { centerLine } from "./layout.js";
@@ -302,22 +302,48 @@ function renderPreviewPanel(
   const innerWidth = Math.max(0, width - 2);
   const divider = `${activeRenderTheme.borderMuted("─".repeat(width))}`;
   if (maxRows === 1) return [divider];
-  const messages = tab.previewMessages.filter(
-    (msg) => msg.role === "user" || msg.role === "assistant",
-  );
+  const messages = previewPanelMessages(tab.previewMessages);
   if (messages.length === 0) {
     return [divider, activeRenderTheme.dim("  No messages yet")].slice(0, maxRows);
   }
   const recent = messages.slice(-(maxRows - 1));
   const lines = recent.map((msg) => {
-    const role = msg.role === "assistant" ? "assistant" : "user";
-    const prefix = ` ${activeRenderTheme.dim(`${role}:`)} `;
+    const prefix = ` ${activeRenderTheme.dim(`${msg.role}:`)} `;
     const prefixWidth = visibleWidth(prefix);
     const textBudget = Math.max(1, innerWidth - prefixWidth);
-    const text = truncateToWidth(singleLinePreview(msg.text), textBudget, "...");
-    return `${prefix}${text}`;
+    const text =
+      msg.role === "tools"
+        ? formatToolCallPreview(msg.count, textBudget)
+        : truncateToWidth(singleLinePreview(msg.text), textBudget, "...");
+    return `${prefix}${msg.role === "tools" ? activeRenderTheme.dim(text) : text}`;
   });
   return [divider, ...lines];
+}
+
+type PreviewPanelMessage =
+  | { role: "user" | "assistant"; text: string }
+  | { role: "tools"; count: number };
+
+function previewPanelMessages(messages: PreviewMessage[]): PreviewPanelMessage[] {
+  const rows: PreviewPanelMessage[] = [];
+  for (const message of messages) {
+    if (message.role === "tool") {
+      const previous = rows[rows.length - 1];
+      if (previous?.role === "tools") previous.count += 1;
+      else rows.push({ role: "tools", count: 1 });
+      continue;
+    }
+    if (message.role === "user" || message.role === "assistant") {
+      rows.push({ role: message.role, text: message.text });
+    }
+  }
+  return rows;
+}
+
+function formatToolCallPreview(count: number, width: number): string {
+  const countText = String(count);
+  const dots = "·".repeat(Math.min(count, Math.max(0, width - countText.length - 2)));
+  return truncateToWidth(`${dots}  ${countText}`, width, "");
 }
 
 function formatAgentCardTitleSegment(tab: MixCodeState["tabs"][number], text: string): string {
@@ -341,6 +367,9 @@ function formatAgentSpinner(tab: MixCodeState["tabs"][number], now: number): str
 }
 
 function formatTabStatusChip(tab: MixCodeState["tabs"][number]): string {
+  if (tabIsWaitingForInput(tab)) {
+    return activeRenderTheme.toolTitle("[input]");
+  }
   // Prefer unread-done over bare idle so Home cards match the tab-bar `!` glyph.
   if (tab.unreadDone && (tab.status === "idle" || tab.status === "done")) {
     return activeRenderTheme.toolTitle("[done]");
@@ -371,7 +400,9 @@ function formatAgentCardMeta(tab: MixCodeState["tabs"][number], now = new Date()
 
 /** Relative recency for Home cards from lastWorkedAt — not run duration. */
 function formatTabUpdated(tab: MixCodeState["tabs"][number], now = new Date()): string {
-  if (tab.status === "running" || tab.status === "thinking") return "now";
+  if (tab.status === "running" || tab.status === "thinking") {
+    return `${tab.status} ${formatElapsed(tab.workingStartedAt, now)}`;
+  }
   if (!tab.lastWorkedAt) return "";
   const at = Date.parse(tab.lastWorkedAt);
   if (!Number.isFinite(at)) return "";

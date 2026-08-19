@@ -790,6 +790,8 @@ test("renderHome colors Agent View glyph and title together for notable states",
   const output = renderHome(state, 120).join("\n");
 
   assert.match(output, /\x1b\[[0-9;:]*m\? Question\x1b\[39m/);
+  assert.match(stripAnsi(output), /Question .*\[input\]/);
+  assert.doesNotMatch(stripAnsi(output), /Question .*\[idle\]/);
   assert.match(output, /\x1b\[[0-9;:]*m● Working\x1b\[39m/);
   assert.doesNotMatch(output, /\x1b\[[0-9;:]*m- Idle\x1b\[39m/);
 });
@@ -856,13 +858,15 @@ test("renderHome shows spinner for working agent cards", () => {
     createTab(1, "s1", "/repo", {
       status: "running",
       title: "Worker",
-      workingStartedAt: new Date().toISOString(),
+      workingStartedAt: new Date(Date.now() - 65_000).toISOString(),
     }),
     createTab(2, "s2", "/repo", { status: "idle", title: "Idle" }),
   );
   const plain = stripAnsi(renderHome(state, 100).join("\n"));
 
   assert.match(plain, /[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] \[running\]/);
+  assert.match(plain, /faux-1 · \?\/200k · running 1m 0[5-9]s/);
+  assert.doesNotMatch(plain, / · now/);
   assert.match(plain, /Idle .*\[idle\]/);
   assert.doesNotMatch(plain, /[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] \[idle\]/);
 });
@@ -875,17 +879,21 @@ test("renderHome shows preview panel below card list for selected agent", () => 
       previewMessages: [
         { role: "user", text: "please explain" },
         { role: "tool", text: "read file" },
+        { role: "tool", text: "run tests" },
         { role: "assistant", text: "Here is the latest assistant output\nwith details" },
+        { role: "tool", text: "check diff" },
       ],
     }),
   );
   state.homeSelectedTabIndex = 0;
   const output = stripAnsi(renderHome(state, 100).join("\n"));
 
-  // Preview panel shows user/assistant below card list, not tool messages.
+  // Consecutive tool calls collapse to middle dots plus an exact count.
   assert.match(output, /user:.*please explain/);
+  assert.match(output, /tools: ··  2/);
   assert.match(output, /assistant:.*Here is the latest assistant output with details/);
-  assert.doesNotMatch(output, /tool:/);
+  assert.match(output, /tools: ·  1/);
+  assert.doesNotMatch(output, /read file|run tests|check diff|tool-call:/);
 });
 
 test("renderHome respects row budget for compact Agent View", () => {

@@ -17,7 +17,7 @@
     "install:extensions": "bun run scripts/install-pi-extensions.ts --yes",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "build": "tsup",
-    "test": "bun test --isolate --timeout=60000 test/*.test.ts",
+    "test": "bun test --parallel=$(bun -e 'console.log(Math.min(16, navigator.hardwareConcurrency))') --timeout=60000 test/*.test.ts",
     "test:packages": "bun test --isolate --timeout=60000 pi-packages/*/*.test.ts",
     "check": "bun run typecheck && bun run build && bun run test",
     "check:parallel": "bun run typecheck && bun run build && bun run lint",

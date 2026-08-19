@@ -21,6 +21,14 @@ import { themeForId } from "../src/ui/themes.js";
  * 3. Extension addAutocompleteProvider (skill-refs style) rebinds via
  *    EditorSlot.setAutocompleteProvider(liveProxy) — never a passthrough base.
  */
+async function waitFor(predicate: () => boolean, attempts = 250): Promise<void> {
+  for (let i = 0; i < attempts; i += 1) {
+    if (predicate()) return;
+    await Bun.sleep(20);
+  }
+  assert.equal(predicate(), true);
+}
+
 test("custom editor skin keeps @ file completion after extension $ wrapper rebind", async () => {
   const fdPath = Bun.which("fd") ?? undefined;
   assert.ok(fdPath, "fd required for @ fuzzy file completion (Pi CombinedAutocompleteProvider)");
@@ -87,12 +95,14 @@ test("custom editor skin keeps @ file completion after extension $ wrapper rebin
   const editor = slot.current;
   editor.setText("");
   editor.handleInput("@");
-  await Bun.sleep(200);
+  // fd-backed fuzzy completion is async (subprocess + debounce); poll instead
+  // of racing a fixed sleep so loaded (parallel/CI) runs cannot flake.
+  await waitFor(() => editor.isShowingAutocomplete?.() === true);
   assert.equal(editor.isShowingAutocomplete?.(), true, "@ must open file completion on custom skin");
 
   editor.setText("");
   editor.handleInput("$");
-  await Bun.sleep(200);
+  await waitFor(() => editor.isShowingAutocomplete?.() === true);
   assert.equal(editor.isShowingAutocomplete?.(), true, "$ must open skill completion on custom skin");
 });
 

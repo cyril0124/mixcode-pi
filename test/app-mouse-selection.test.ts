@@ -58,6 +58,14 @@ test("handleMouseInput drags and copies visible chat selection", async () => {
   assert.ok(renders() >= 3);
 });
 
+async function waitFor(predicate: () => boolean, attempts = 250): Promise<void> {
+  for (let i = 0; i < attempts; i += 1) {
+    if (predicate()) return;
+    await Bun.sleep(20);
+  }
+  assert.equal(predicate(), true);
+}
+
 test("handleMouseInput auto-scrolls a top-edge chat drag and copies off-screen rows", async () => {
   const { state, tab } = setup();
   const allLines = Array.from({ length: 8 }, (_, index) => `line-${index}`);
@@ -91,7 +99,9 @@ test("handleMouseInput auto-scrolls a top-edge chat drag and copies off-screen r
     true,
   );
 
-  await Bun.sleep(125);
+  // Auto-scroll ticks every 50ms; poll instead of racing a fixed sleep so
+  // loaded (parallel/CI) runs cannot flake on delayed timer delivery.
+  await waitFor(() => tab.chatScrollOffset >= 2);
   assert.ok(tab.chatScrollOffset >= 2, `expected auto-scroll, got ${tab.chatScrollOffset}`);
 
   assert.equal(

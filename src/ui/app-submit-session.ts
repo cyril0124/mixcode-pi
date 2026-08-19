@@ -1,3 +1,4 @@
+import type { SessionInfo } from "@earendil-works/pi-coding-agent";
 import type { RuntimeTab } from "../agent/runtime.js";
 import type { LocalCommand } from "../core/commands.js";
 import { createSessionId, createTab, uniqueTabTitle } from "../core/defaults.js";
@@ -19,15 +20,20 @@ import {
   prepareAgentTabClear,
   type PreparedAgentTabClear,
 } from "./agent-tab-actions.js";
+import { showErrorOverlay } from "./app-overlays.js";
 import {
   appendActiveSystemMessage,
   openCloseAllSessionsConfirm,
   openDeleteAllSessionsConfirm,
   openSessionActionConfirm,
 } from "./app-actions.js";
-import { type LocalCommandHandler, SKIP_FINALIZE } from "./app-types.js";
+import { type LocalCommandHandler, type MixCodeKeyRuntime, SKIP_FINALIZE } from "./app-types.js";
 import { renderSessionInfoText as formatSessionInfoText } from "./session-info.js";
-import { openSessionSelector, type SessionSelectorRuntime } from "./session-selector.js";
+import {
+  openSessionSelector,
+  resumeSelectedSession,
+  type SessionSelectorRuntime,
+} from "./session-selector.js";
 import { openTreeSelector, type TreeSelectorRuntime } from "./tree-selector.js";
 
 const handleFollowUp: LocalCommandHandler = async ({ active, args, runtime, tui }) => {
@@ -139,6 +145,7 @@ const handleResume: LocalCommandHandler = async ({
   tui,
   onStateChanged,
   authInputHost,
+  args,
 }): Promise<typeof SKIP_FINALIZE> => {
   const cwd = active?.workdir ?? state.workdir;
   const runtimeTab = active ? runtime.getTab(active.sessionId) : undefined;
@@ -146,9 +153,43 @@ const handleResume: LocalCommandHandler = async ({
     (
       runtimeTab as { session?: { getSessionFile?: () => string | null } } | undefined
     )?.session?.getSessionFile?.() ?? null;
+  const selectorRuntime = runtime as unknown as SessionSelectorRuntime;
+  const token = args.trim();
+  if (token) {
+    // `/resume <session-id>` — upstream `pi --resume <id>` resolution order:
+    // exact id then id prefix, current folder before all roots.
+    const byId = (sessions: SessionInfo[]) =>
+      sessions.find((s) => s.id === token) ?? sessions.find((s) => s.id.startsWith(token));
+    const target =
+      byId(await selectorRuntime.listSessions(cwd)) ??
+      byId(await selectorRuntime.listAllSessions());
+    if (!target) {
+      // Home has no tab to toast on; fail loud via the error overlay instead.
+      if (active) {
+        pushToast(active, { type: "warning", message: `No session found for id: ${token}` });
+      } else {
+        showErrorOverlay(tui, new Error(`No session found for id: ${token}`));
+      }
+      tui.requestRender();
+      return SKIP_FINALIZE;
+    }
+    // The already-active guard in resumeSelectedSession reads this field; it is
+    // otherwise only refreshed when the selector opens.
+    state.sessionSelector.currentSessionPath = currentSessionPath;
+    resumeSelectedSession(
+      state,
+      tui,
+      target.path,
+      target.name,
+      target.id,
+      runtime as unknown as MixCodeKeyRuntime,
+      onStateChanged,
+    );
+    return SKIP_FINALIZE;
+  }
   await openSessionSelector(
     state,
-    runtime as unknown as SessionSelectorRuntime,
+    selectorRuntime,
     tui,
     cwd,
     currentSessionPath,

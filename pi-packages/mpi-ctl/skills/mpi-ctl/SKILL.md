@@ -81,13 +81,13 @@ Common MixCode session/tab commands:
 | `/delete-session [yes]` | Delete that tab's session file and close the tab. `yes` skips the Y/N overlay. |
 | `/close-all-sessions` | Close every agent tab; keep session files. Always Y/N — `--focus-tab` then `y`/`n`. |
 | `/delete-all-sessions` | Delete every open agent session and close those tabs. Always Y/N — `--focus-tab` then `y`/`n`. |
-| `/resume` | Open the session picker (needs `--focus-tab`; it is UI). |
+| `/resume` | Bare: opens the session picker (needs `--focus-tab`; it is UI). `/resume <session-id>` (id or prefix) resumes directly via plain `send-prompt`, no focus. |
 | `/clear` | Replace the tab's session with a fresh child (title resets). |
 | `/reset` | Reset the branch to session root; keep title and tab slot. |
 | `/compact` | Compact that tab's context. |
 | `/mark-done` | Mark that tab done. |
 
-Send these with `send-prompt` and `--tab`. `/resume`, `/models`, close-all / delete-all, and other pickers still need `--focus-tab` plus `send-keys`.
+Send these with `send-prompt` and `--tab`. Bare `/resume`, `/models`, close-all / delete-all, and other pickers still need `--focus-tab` plus `send-keys`; `/resume <session-id>` does not (no picker).
 
 ## Discover instances
 

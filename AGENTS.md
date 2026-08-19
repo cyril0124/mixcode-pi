@@ -268,7 +268,7 @@ Test the contract the system exposes — not the easiest internal detail to asse
   - `bun test --isolate --timeout=60000 test/<file>.test.ts`
   - `bun test --isolate --timeout=60000 pi-packages/<pkg>/<file>.test.ts`
 - Package tests: `bun run test:packages`
-- Root suite: `bun run test` (`test/*.test.ts` only)
+- Root suite: `bun run test` (`test/*.test.ts` only; runs files in parallel workers via `--parallel=min(16, cores)` — capped because worker counts above the core count starve timing-sensitive tests)
 - Full sequential gate: `bun run check` (typecheck + build + root tests)
 - Parallel package-oriented gate: `./test-all.sh` (typecheck + build + lint + package tests; does **not** run full `test/*.test.ts`)
 - `postinstall` runs `patch-package`, then `bun run scripts/install-pi-extensions.ts --postinstall` (TTY: optional interactive install of missing recommended third-party Pi packages; CI/non-TTY: warn only; never fails the parent install). Manual: `bun run install:extensions` or `./install-pi-extensions.sh`.

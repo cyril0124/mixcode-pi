@@ -31,6 +31,7 @@ Commands operate across three distinct persistence tiers:
 | `/delete-session` | `[yes]` | Session | Closes current tab and permanently deletes its `.jsonl` session file. `yes` skips the confirmation overlay. |
 | `/delete-all-sessions` | - | Session | Permanently deletes all `.jsonl` session files for the current workspace. |
 | `/tree` | - | Session | Opens interactive session branch tree viewer. |
+| `/resume` | `[session-id]` | Session | Opens the interactive session selector; `/resume <session-id>` (exact id or prefix, current folder first, then all roots) resumes that session directly. |
 | `/navigate` | - | Session | Opens message navigator filtered to user turns. |
 | `/vim` | - | Session | Enters buffer-style Vim transcript navigation and search mode. |
 | `/toggle-zen-mode` | - | Session | Toggles tab bar visibility for distraction-free view. |

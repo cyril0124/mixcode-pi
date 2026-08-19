@@ -121,6 +121,105 @@ test("submitted /resume mounts SessionSelectorComponent in the editor input slot
   assert.notEqual(input.mounted, undefined);
 });
 
+function makeResumeByIdRuntime() {
+  const switched: Array<{ id: string; path: string }> = [];
+  const runtime = {
+    appendSystemMessage: () => undefined,
+    listSessions: async () => makeSessions(),
+    listAllSessions: async () => makeSessions(),
+    extensionSwitchSession: async (sessionId: string, sessionPath: string) => {
+      switched.push({ id: sessionId, path: sessionPath });
+      return { cancelled: false };
+    },
+    createTab: async () => undefined,
+    getTab: (sessionId: string) => {
+      if (sessionId === "s1") {
+        return { session: { getSessionFile: () => "/sessions/current.jsonl" } };
+      }
+      return {
+        session: {
+          getSessionFile: () => "/sessions/session-a.jsonl",
+          getSessionName: () => "My Session",
+        },
+      };
+    },
+    closeTab: async () => undefined,
+    prompt: async () => undefined,
+  } as unknown as MixCodeRuntime;
+  return { runtime, switched };
+}
+
+test("/resume <session-id> resumes the session directly without opening the selector", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"));
+  state.activeTabId = "s1";
+  const tui = { requestRender: () => undefined, showOverlay: () => ({ hide: () => undefined }) };
+  const { runtime, switched } = makeResumeByIdRuntime();
+
+  await handleSubmittedInput(state, runtime, "/resume session-a", tui as never);
+  await Bun.sleep(30);
+
+  assert.equal(state.sessionSelector.open, false);
+  assert.equal(switched.length, 1);
+  assert.equal(switched[0]!.path, "/sessions/session-a.jsonl");
+  const resumed = state.tabs.find((t) => t.sessionId === "session-a");
+  assert.ok(resumed);
+  assert.equal(resumed.title, "My Session");
+  assert.equal(state.activeTabId, "session-a");
+});
+
+test("/resume <session-id> works from Home with no open tabs", async () => {
+  const state = createInitialState("/repo"); // activeTabId = home, tabs empty
+  const tui = { requestRender: () => undefined, showOverlay: () => ({ hide: () => undefined }) };
+  const { runtime, switched } = makeResumeByIdRuntime();
+
+  await handleSubmittedInput(state, runtime, "/resume session-a", tui as never);
+  await Bun.sleep(30);
+
+  assert.equal(switched.length, 1);
+  const resumed = state.tabs.find((t) => t.sessionId === "session-a");
+  assert.ok(resumed);
+  assert.equal(state.activeTabId, "session-a");
+});
+
+test("/resume <unknown-id> from Home fails loud via error overlay", async () => {
+  const state = createInitialState("/repo");
+  const overlays: string[] = [];
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: (component: { render: (width: number) => string[] }) => {
+      overlays.push(component.render(60).join("\n"));
+      return { hide: () => undefined };
+    },
+  };
+  const { runtime, switched } = makeResumeByIdRuntime();
+
+  await handleSubmittedInput(state, runtime, "/resume nope-123", tui as never);
+
+  assert.equal(switched.length, 0);
+  assert.equal(state.tabs.length, 0);
+  assert.equal(overlays.length, 1);
+  assert.match(overlays[0]!, /No session found for id: nope-123/);
+});
+
+test("/resume <unknown-id> warns on the active tab and opens nothing", async () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo");
+  state.tabs.push(tab);
+  state.activeTabId = "s1";
+  const tui = { requestRender: () => undefined, showOverlay: () => ({ hide: () => undefined }) };
+  const { runtime, switched } = makeResumeByIdRuntime();
+
+  await handleSubmittedInput(state, runtime, "/resume nope-123", tui as never);
+  await Bun.sleep(30);
+
+  assert.equal(state.sessionSelector.open, false);
+  assert.equal(switched.length, 0);
+  assert.equal(state.tabs.length, 1);
+  assert.equal(tab.toast?.type, "warning");
+  assert.match(tab.toast?.message ?? "", /No session found for id: nope-123/);
+});
+
 test("openSessionSelector returns without waiting for listing; close clears input slot", async () => {
   const state = createInitialState("/repo");
   state.activeTabId = "s1";
