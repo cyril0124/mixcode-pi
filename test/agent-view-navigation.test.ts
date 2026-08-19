@@ -890,9 +890,9 @@ test("renderHome shows preview panel below card list for selected agent", () => 
 
   // Consecutive tool calls collapse to middle dots plus an exact count.
   assert.match(output, /user:.*please explain/);
-  assert.match(output, /tools: ··  2/);
+  assert.match(output, /tools: ·· {2}2/);
   assert.match(output, /assistant:.*Here is the latest assistant output with details/);
-  assert.match(output, /tools: ·  1/);
+  assert.match(output, /tools: · {2}1/);
   assert.doesNotMatch(output, /read file|run tests|check diff|tool-call:/);
 });
 
