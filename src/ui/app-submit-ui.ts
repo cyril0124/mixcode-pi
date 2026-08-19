@@ -23,7 +23,17 @@ import { openTreeSelector, type TreeSelectorRuntime } from "./tree-selector.js";
 /** Delay before bell + external done signals so the user can leave the pane first. */
 const MARK_DONE_SIGNAL_DELAY_MS = 5_000;
 
-const handleMarkDone: LocalCommandHandler = ({ active }) => {
+const handleMarkDone: LocalCommandHandler = ({ active, tui }) => {
+  // Marking a tab done while the agent is still busy would be immediately
+  // overwritten by agent_end and mislead external hosts watching the signal.
+  if (active!.status === "running" || active!.status === "thinking") {
+    pushToast(active!, {
+      type: "error",
+      message: "Agent is still working; /mark-done is only allowed when idle",
+    });
+    tui.requestRender();
+    return SKIP_FINALIZE;
+  }
   // Intentional: unlike agent_end (unread only until the tab is viewed),
   // /mark-done forces a sticky "!" on the current tab so the user can flag
   // work as done while still looking at it. activateTab() clears the badge

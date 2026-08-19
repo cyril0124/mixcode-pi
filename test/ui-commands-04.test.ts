@@ -415,6 +415,27 @@ test("workspace save surfaces invalid workspace files instead of treating them a
   }
 });
 
+test("submitted mark-done command rejects a busy tab with an error toast", async () => {
+  for (const status of ["running", "thinking"] as const) {
+    const state = createInitialState("/repo");
+    const tab = createTab(1, "s1", "/repo", { status });
+    state.tabs.push(tab);
+    state.activeTabId = "s1";
+    let renders = 0;
+    const tui = {
+      requestRender: () => {
+        renders++;
+      },
+    };
+    await handleSubmittedInput(state, {} as MixCodeRuntime, "/mark-done", tui);
+    assert.equal(tab.status, status);
+    assert.equal(tab.unreadDone, false);
+    assert.equal(tab.toast?.type, "error");
+    assert.match(tab.toast?.message ?? "", /still working/);
+    assert.equal(renders, 1);
+  }
+});
+
 test("submitted input marks done, exports state, imports sessions, and exits directly", async (t) => {
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-tui-state-toggle-"));
   const openTabsPath = path.join(dir, "open_tabs.json");
