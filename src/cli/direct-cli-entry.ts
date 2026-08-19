@@ -5,6 +5,11 @@ import { fileURLToPath } from "node:url";
 const BINARY_ENTRY_IMPORT_FLAG = Symbol.for("mixcode-pi.binary-entry-import");
 const TSUP_CHUNK = /^chunk-[A-Z0-9]+\.js$/;
 
+/** True when running inside the compiled binary (binary-entry.ts set the flag). */
+export function isBinaryEntry(): boolean {
+  return Boolean((globalThis as Record<symbol, unknown>)[BINARY_ENTRY_IMPORT_FLAG]);
+}
+
 export function isDirectCliEntry(entryUrl = import.meta.url, argv1 = process.argv[1]): boolean {
   if ((globalThis as Record<symbol, unknown>)[BINARY_ENTRY_IMPORT_FLAG]) return false;
   if (!argv1) return false;

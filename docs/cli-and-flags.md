@@ -11,6 +11,7 @@ mpi [options] [-- <script-args...>]
 mpi status [--json] [--workdir <path>]
 mpi ctl [--pid <n> | --workdir <path>] [--tab <title> | --session <id> | --focus-tab <title> | --focus-session <id>] <command>
 mpi commands [--json] [--workdir <path>]
+mpi install-extensions [--yes]
 ```
 
 ## Options Reference
@@ -79,6 +80,29 @@ mpi commands --json --workdir ~/proj
 - Prints `/name` plus optional `argumentHint`, then the description. Includes MixCode local commands, extension `registerCommand` names, and prompt templates. Does not list `/skill:*`.
 - `--json` is an array of `{ name, usage, description, source, path? }` where `source` is `local` | `extension` | `prompt`. Extension and prompt entries set `path` to the extension/template file or package directory from Pi `sourceInfo.path`. Same-name local commands win.
 - Loads extensions and skills for the workdir (same `agentDir` as the TUI). Not on the status/ctl fast path.
+
+## Install-Extensions Subcommand
+
+Install recommended third-party Pi extensions (the curated list lives in `src/cli/install-extensions.ts`):
+
+```bash
+mpi install-extensions          # interactive multi-select of missing extensions
+mpi install-extensions --yes    # install all missing without prompting
+```
+
+- Installs run in-process through pi-coding-agent's `DefaultPackageManager` (the same code path as `pi install`); no external `pi` CLI is required. Successful installs are persisted to global `settings.json` `packages`.
+- Already-installed extensions (present in `settings.json` `packages`) are skipped.
+- Unknown arguments fail with exit code 1.
+- Exit code 1 when any selected install fails.
+- In the repo, the same flow runs from `bun install` postinstall / `bun run install:extensions` (`scripts/install-pi-extensions.ts`).
+
+### First-Run Offer (Compiled Binary)
+
+On interactive startup the compiled binary asks once whether to install all missing recommended extensions:
+
+- Fires only when: running the compiled binary, stdin and stdout are TTYs, `PI_OFFLINE` is unset, the marker file is absent, and at least one recommended extension is missing.
+- Asked exactly once: the marker `<agentDir>/mixcode-pi/extensions-prompt-asked` is written before prompting, so declining or interrupting never re-asks. `mpi install-extensions` stays available afterwards.
+- Source (repo) installs never see this offer; postinstall owns that flow.
 
 ## Upstream Pi Delegation Rules
 

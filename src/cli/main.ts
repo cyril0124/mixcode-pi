@@ -3,8 +3,9 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { cwd } from "node:process";
 import { fileURLToPath } from "node:url";
-import { isDirectCliEntry } from "./direct-cli-entry.js";
+import { isBinaryEntry, isDirectCliEntry } from "./direct-cli-entry.js";
 import { isCommandsCliArgs, runCommandsCommand } from "./commands-list.js";
+import { isInstallExtensionsCliArgs } from "./install-extensions.js";
 import { isCtlCliArgs, runCtlCommand } from "./ctl.js";
 import {
   isStatusCliArgs,
@@ -272,6 +273,15 @@ export async function main(): Promise<void> {
     return;
   }
 
+  if (isInstallExtensionsCliArgs(rawArgs)) {
+    process.env.MIXCODE ??= "1";
+    // Dynamic import: the flow lazily loads pi-coding-agent, which must not be
+    // pulled in by the status/ctl fast paths above.
+    const { runInstallExtensionsCommand } = await import("./install-extensions.js");
+    await runInstallExtensionsCommand(rawArgs.slice(1));
+    return;
+  }
+
   // Configure undici's global dispatcher before provider SDKs issue requests.
   // Runtime settings are applied once SettingsManager has loaded global/project settings.
   const { configureHttpDispatcher } = await import("@earendil-works/pi-coding-agent");
@@ -289,6 +299,12 @@ export async function main(): Promise<void> {
 
   process.env.MIXCODE ??= "1";
   const args = parseMainArgs(rawArgs, cwd());
+
+  // Compiled binary only: source installs get the same offer from postinstall.
+  if (isBinaryEntry()) {
+    const { maybeOfferFirstRunInstall } = await import("./install-extensions.js");
+    await maybeOfferFirstRunInstall();
+  }
 
   const { runInteractiveApp } = await import("./interactive-app.js");
   await runInteractiveApp(args, selfRoot);

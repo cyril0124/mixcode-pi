@@ -2,7 +2,8 @@
 set -euo pipefail
 
 # Thin wrapper around the clack-based installer (skills-style UI).
-# See scripts/install-pi-extensions.ts for the package list and behavior.
+# Package list and flow live in src/cli/install-extensions.ts (also exposed
+# as `mpi install-extensions` in the compiled binary).
 #
 # Usage:
 #   ./install-pi-extensions.sh              # interactive UI if TTY

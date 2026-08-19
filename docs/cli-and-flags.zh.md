@@ -11,6 +11,7 @@ mpi [options] [-- <script-args...>]
 mpi status [--json] [--workdir <path>]
 mpi ctl [--pid <n> | --workdir <path>] [--tab <title> | --session <id> | --focus-tab <title> | --focus-session <id>] <command>
 mpi commands [--json] [--workdir <path>]
+mpi install-extensions [--yes]
 ```
 
 ## 选项参数清单
@@ -79,6 +80,29 @@ mpi commands --json --workdir ~/proj
 - 打印 `/name` 和可选 `argumentHint`，再打印 description。包含 MixCode 本地命令、扩展 `registerCommand`、prompt 模板。不列出 `/skill:*`。
 - `--json` 为 `{ name, usage, description, source, path? }` 数组，`source` 为 `local` | `extension` | `prompt`。扩展和 prompt 的 `path` 是 Pi `sourceInfo.path`（扩展文件或包目录）。同名时本地命令优先。
 - 按 TUI 同一套 `agentDir` 加载扩展和 skill。不走 status/ctl 快路径。
+
+## Install-Extensions 子命令
+
+安装推荐的第三方 Pi 扩展（推荐列表唯一归属：`src/cli/install-extensions.ts`）：
+
+```bash
+mpi install-extensions          # 交互多选缺失的扩展
+mpi install-extensions --yes    # 无提示安装全部缺失项
+```
+
+- 安装走 pi-coding-agent 公开的 `DefaultPackageManager` 进程内执行（与 `pi install` 同一代码路径），不依赖外部 `pi` CLI。安装成功后写入全局 `settings.json` `packages`。
+- 已在 `settings.json` `packages` 中的扩展会被跳过。
+- 未知参数以退出码 1 失败。
+- 任一选中项安装失败时退出码为 1。
+- 仓库内同一流程由 `bun install` postinstall / `bun run install:extensions`（`scripts/install-pi-extensions.ts`）触发。
+
+### 首次运行提示（编译 binary）
+
+编译 binary 交互启动时一次性询问是否安装全部缺失的推荐扩展：
+
+- 仅当同时满足：运行编译 binary、stdin 与 stdout 均为 TTY、未设置 `PI_OFFLINE`、标记文件不存在、且至少有一个推荐扩展缺失。
+- 只问一次：标记文件 `<agentDir>/mixcode-pi/extensions-prompt-asked` 在弹出询问前写入，拒绝或中断都不会再次询问；之后仍可随时运行 `mpi install-extensions`。
+- 源码（仓库）安装不会看到此提示；该场景由 postinstall 负责。
 
 ## 上游 Pi 自动委托机制
 
