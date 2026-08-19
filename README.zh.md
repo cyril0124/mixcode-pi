@@ -152,6 +152,21 @@ mpi --batch script.lua          # 启动后执行 Lua 批量自动化脚本
 mpi status                      # 检视运行中的实例与 Tab 状态
 ```
 
+## 遥控运行中的 mpi（`mpi-ctl`）
+
+Agent Tab 无需碰键盘，即可驱动自己所在的 TUI——或任何其他 `mpi`。内置 `mpi-ctl` 技能把 `mpi status` / `mpi ctl` CLI 暴露给 agent 的 bash 工具：向任意 Tab 发送 Prompt 与 Slash 命令、等待完成、读取结果，并通过 `--pid` / `--workdir` 操作其他目录的实例。
+
+```bash
+mpi status --json                        # 列出存活实例、Tab 与状态
+mpi ctl --tab Agent-01 send-prompt '/compact'
+mpi ctl --workdir ~/other-proj --tab Reviewer send-prompt 'review the diff'
+mpi ctl --tab Agent-01 wait && mpi ctl --tab Agent-01 last-message
+```
+
+mpi 开发 mpi 正是如此：一个 Tab 把审查或验证任务委派给其他实例的 Tab，再收集它们的回复。完整命令参考：[pi-packages/mpi-ctl/skills/mpi-ctl/SKILL.md](pi-packages/mpi-ctl/skills/mpi-ctl/SKILL.md)——运行时该技能安装于 `<agentDir>/extensions/mpi-ctl/skills/mpi-ctl/SKILL.md`（默认 `~/.pi/agent/…`）。
+
+灵感来自 [Herdr](https://herdr.dev)——一个面向编程 Agent 的终端复用器，它把会话控制能力暴露给运行其中的 Agent。
+
 ---
 
 ## 官方技术文档

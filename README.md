@@ -152,6 +152,21 @@ mpi --batch script.lua          # Run batch automation script
 mpi status                      # Inspect running instances and tab states
 ```
 
+## Controlling a Live mpi (`mpi-ctl`)
+
+An agent tab can drive the TUI it lives in — or any other `mpi` — without touching the keyboard. The built-in `mpi-ctl` skill exposes the `mpi status` / `mpi ctl` CLI to the agent's bash tool: send prompts and slash commands to any tab, wait for completion, read results, and target instances in other directories via `--pid` / `--workdir`.
+
+```bash
+mpi status --json                        # List live instances, tabs, states
+mpi ctl --tab Agent-01 send-prompt '/compact'
+mpi ctl --workdir ~/other-proj --tab Reviewer send-prompt 'review the diff'
+mpi ctl --tab Agent-01 wait && mpi ctl --tab Agent-01 last-message
+```
+
+This is how mpi develops mpi: one tab delegates review or verification tasks to tabs of other instances and collects their replies. Full command reference: [pi-packages/mpi-ctl/skills/mpi-ctl/SKILL.md](pi-packages/mpi-ctl/skills/mpi-ctl/SKILL.md) — at runtime the skill is installed at `<agentDir>/extensions/mpi-ctl/skills/mpi-ctl/SKILL.md` (default `~/.pi/agent/…`).
+
+Inspired by [Herdr](https://herdr.dev), a terminal multiplexer for coding agents that exposes session control to the agents running inside it.
+
 ---
 
 ## Documentation
