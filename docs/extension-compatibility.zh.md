@@ -48,6 +48,10 @@ ctx.ui.custom(factory)
 
 ctx.ui.custom(factory, { overlay: true })
   └─ 通过 pi-tui overlay 显示浮层，hide/done 后 dispose
+
+ctx.ui.select / confirm / input
+  └─ 打开期间顶替 editor 区域；关闭时保留关闭时刻的 editor 文本
+     （dialog 期间的 setEditorText 写入会存活，与 Pi 一致）
 ```
 
 `ctx.ui.onTerminalInput` handler 先于焦点编辑器执行，可 consume 或改写输入；但与 Pi 不同，MixCode 在 tui overlay 或待处理扩展交互（`select`/`confirm`/`input` dialog、pending `custom()`）激活期间不分发。Pi 下扩展可通过真实 TUI 的焦点组件自行避让；MixCode 传给 widget 工厂的是无焦点状态的 `NullTerminal` 沙箱 TUI，扩展无法感知 dialog 打开，故由宿主抑制分发以保住 dialog 按键。

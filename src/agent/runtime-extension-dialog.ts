@@ -38,8 +38,6 @@ export function createExtensionDialog(
   ensureExtensionThemeInitialized();
   const sessionId = runtimeTab.tab.sessionId;
   const previousFactory = host.editor.getEditorComponent?.(sessionId);
-  const previousText =
-    host.editor.getExpandedText?.(sessionId) ?? host.editor.getText(sessionId) ?? "";
 
   return new Promise<string | undefined>((resolve) => {
     let settled = false;
@@ -52,12 +50,18 @@ export function createExtensionDialog(
       if (timeout) clearTimeout(timeout);
       opts?.signal?.removeEventListener("abort", abort);
       runtimeTab.extensionCustomOverlayClosers.delete(abort);
+      // Pi parity: hideExtensionSelector never rewrites editor text, so
+      // mid-dialog setEditorText writes must survive close. Read the
+      // close-time text while takeover routing still serves the live draft,
+      // then repopulate the restored (possibly recreated) editor with it.
+      const currentText =
+        host.editor?.getExpandedText?.(sessionId) ?? host.editor?.getText(sessionId) ?? "";
       removeDialogInteraction(runtimeTab, interactionId);
       try {
         component?.dispose?.();
         // Restore previous editor
         host.editor?.setEditorComponent?.(previousFactory, sessionId);
-        host.editor?.setText(previousText, sessionId);
+        host.editor?.setText(currentText, sessionId);
       } finally {
         resolve(result);
         requestRender();

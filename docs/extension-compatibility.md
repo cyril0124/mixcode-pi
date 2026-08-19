@@ -48,6 +48,10 @@ ctx.ui.custom(factory)
 
 ctx.ui.custom(factory, { overlay: true })
   └─ Displays floating overlay via pi-tui overlay; disposes upon hide()/done()
+
+ctx.ui.select / confirm / input
+  └─ Replace the editor area while open; closing keeps the close-time editor text
+     (mid-dialog setEditorText writes survive, matching Pi)
 ```
 
 `ctx.ui.onTerminalInput` handlers fire before the focused editor and may consume or rewrite the input, but — deviating from Pi — MixCode suppresses them while a tui overlay or a pending extension interaction (`select`/`confirm`/`input` dialog, pending `custom()`) is active. Pi extensions self-guard by peeking the real TUI's focused component; MixCode widget factories receive an isolated `NullTerminal` TUI without focus state, so the host suppresses dispatch instead to keep an open dialog's keys.

@@ -608,3 +608,56 @@ test("runtime keeps custom() editor text primitives on the underlying editor", a
     await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
+
+test("runtime select dialog close keeps mid-dialog editor text writes", async () => {
+  const dir = await fsPromises.mkdtemp(
+    path.join(os.tmpdir(), "mixcode-runtime-dialog-editor-text-"),
+  );
+  const events: string[] = [];
+  const extension: ExtensionFactory = (pi) => {
+    pi.registerCommand("dialog-bring", {
+      description: "Dialog editor text contract",
+      handler: async (_args, ctx) => {
+        ctx.ui.setEditorText("old-draft");
+        // Dialog mounts synchronously inside select(); write while it is open.
+        const task = ctx.ui.select("Pick one", ["alpha", "beta"]);
+        ctx.ui.setEditorText("mid-dialog");
+        events.push(`during:${ctx.ui.getEditorText()}`);
+        const choice = await task;
+        events.push(`choice:${choice}`);
+        events.push(`after:${ctx.ui.getEditorText()}`);
+      },
+    });
+  };
+
+  try {
+    const state = createInitialState(process.cwd());
+    const tab = createTab(1, "s1", process.cwd());
+    state.tabs.push(tab);
+    state.activeTabId = "s1";
+    const runtime = new MixCodeRuntime({ sessionsRoot: dir, extensionFactories: [extension] });
+    await runtime.createTab(tab, {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+    });
+    const tui = createMixCodeTui(state, runtime, { terminal: silentTerminal() });
+    try {
+      const editor = (
+        tui as unknown as {
+          children: Array<{ editor: { handleInput(data: string): void } }>;
+        }
+      ).children[0]!.editor;
+      const task = runtime.prompt("s1", "/dialog-bring");
+      await waitFor(() => tui.render(80).join("\n").includes("Pick one"));
+      editor.handleInput("\r");
+      await task;
+      assert.deepEqual(events, ["during:mid-dialog", "choice:alpha", "after:mid-dialog"]);
+      assert.match(tui.render(80).join("\n"), /mid-dialog/);
+    } finally {
+      tui.stop();
+    }
+  } finally {
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});
