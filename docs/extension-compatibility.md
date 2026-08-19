@@ -50,6 +50,8 @@ ctx.ui.custom(factory, { overlay: true })
   └─ Displays floating overlay via pi-tui overlay; disposes upon hide()/done()
 ```
 
+`ctx.ui.onTerminalInput` handlers fire before the focused editor and may consume or rewrite the input, but — deviating from Pi — MixCode suppresses them while a tui overlay or a pending extension interaction (`select`/`confirm`/`input` dialog, pending `custom()`) is active. Pi extensions self-guard by peeking the real TUI's focused component; MixCode widget factories receive an isolated `NullTerminal` TUI without focus state, so the host suppresses dispatch instead to keep an open dialog's keys.
+
 `ctx.ui.setTitle(title)` writes the terminal title (OSC 0) immediately when the calling session's tab is active. Inactive tabs store the title, and it is re-applied when their tab becomes active. Switching to a tab without a stored title leaves the terminal title unchanged (Pi semantics: the title persists until overwritten).
 
 ## Installation

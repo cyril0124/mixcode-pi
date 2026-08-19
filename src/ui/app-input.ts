@@ -132,7 +132,9 @@ export function handleMixCodeKeyInput(
 ): KeyResult {
   const active = getActiveTab(state);
   if (isKeyRelease(data)) {
-    // Pi input listeners receive raw releases; app controls do not.
+    // Pi input listeners receive raw releases; app controls do not. Releases
+    // stay suppressed in the same states as presses so a handler never sees
+    // an orphan release for a press it was never given.
     if (
       active &&
       state.activeTabId !== HOME_TAB_ID &&
@@ -295,12 +297,16 @@ export function handleMixCodeKeyInput(
       return { consume: true };
     }
   }
-  // Route raw input to extension widget input listeners (e.g. pi-subagents'
-  // belowEditor fleet list navigation). Suppressed while a modal extension
-  // interaction is active: select/confirm/input dialogs replace the editor
-  // without registering a tui overlay, so `hasAnyOverlay` is false for them —
-  // without the pending-interaction guard a widget listener would steal the
-  // dialog's arrow keys (e.g. Up/Down during `/agents`).
+  // MixCode deviation from Pi: ctx.ui.onTerminalInput handlers are suppressed
+  // while a tui overlay or a pending extension interaction is active. In Pi,
+  // listeners run before the focused component and extensions self-guard by
+  // peeking the real TUI's focusedComponent; MixCode hands widget factories an
+  // isolated NullTerminal TUI whose focus is never set, so extensions cannot
+  // detect an open dialog (e.g. pi-subagents' fleet-list guard is a no-op
+  // here). Editor-slot dialogs (select/confirm/input) register no tui overlay
+  // — `hasAnyOverlay` is false for them — hence the pending-interaction guard,
+  // or a widget listener would steal the dialog's arrow keys (e.g. Up/Down
+  // during /agents). Home stays excluded: handlers belong to a session tab.
   if (
     active &&
     state.activeTabId !== HOME_TAB_ID &&
