@@ -50,6 +50,8 @@ ctx.ui.custom(factory, { overlay: true })
   └─ Displays floating overlay via pi-tui overlay; disposes upon hide()/done()
 ```
 
+`ctx.ui.setTitle(title)` writes the terminal title (OSC 0) immediately when the calling session's tab is active. Inactive tabs store the title, and it is re-applied when their tab becomes active. Switching to a tab without a stored title leaves the terminal title unchanged (Pi semantics: the title persists until overwritten).
+
 ## Installation
 
 Declare packages in project-level Pi settings:

@@ -6,7 +6,7 @@ import { recordSubmittedHistory } from "../core/conversation-history.js";
 import { applyDisabledModelFlags, buildAvailableModelRefs } from "../core/models.js";
 import { noteTabClosed } from "../core/open-tabs-store.js";
 import { HOME_TAB_ID, type MixCodeState } from "../core/types.js";
-import { closeAgentTab, getActiveTab } from "../core/tabs.js";
+import { closeAgentTab, getActiveTab, onActiveTabChange } from "../core/tabs.js";
 import { appendActiveSystemMessage } from "./app-actions.js";
 import { CompactPromptEditor, EditorSlot, editorThemeFor } from "./app-editor.js";
 import { stopChatSelectionAutoScroll } from "./app-mouse.js";
@@ -86,6 +86,14 @@ export function createMixCodeTui(
     options.exitProcessOnQuit === true;
   bindRuntimeRendering(runtime, tui, state, options.onStateChanged);
   const stopWorkingRedraw = bindWorkingRedraw(state, tui);
+  // Extension ctx.ui.setTitle owns the terminal title per tab: the active tab
+  // writes immediately (runtime ui context); stored titles re-apply on switch.
+  // Tabs without a title leave the current title untouched (Pi: persists until
+  // overwritten).
+  const stopExtensionTitleSync = onActiveTabChange((tabId) => {
+    const title = state.tabs.find((tab) => tab.sessionId === tabId)?.extensionUi.title;
+    if (title !== undefined) tui.terminal.setTitle(title);
+  });
   const stopLiveExtensionRedraw = bindLiveExtensionRedraw(state, tui);
   let editorRows = 0;
   let metaRows = state.activeTabId === HOME_TAB_ID ? 0 : 1;
@@ -373,6 +381,7 @@ export function createMixCodeTui(
     stopWorkingRedraw();
     stopLiveExtensionRedraw();
     stopChatSelectionAutoScroll();
+    stopExtensionTitleSync();
     root.dispose();
     originalStop();
     uninstallStdoutGuard();

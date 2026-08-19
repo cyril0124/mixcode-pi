@@ -21,6 +21,7 @@ import { Markdown, Text, TuiMainScreen, visibleWidth, type AutocompleteProvider,
 import {
   MIXCODE_FAUX_MODEL,
   MixCodeCompletionProvider,
+  activateTab,
   MixCodeRoot,
   MixCodeRuntime,
   box,
@@ -478,6 +479,61 @@ test("runtime maps pi extension editor component into the active MixCode editor 
         "restored:custom!:expanded",
       ]);
       assert.match(tui.render(80).join("\n"), /custom!/);
+    } finally {
+      tui.stop();
+    }
+  } finally {
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("ctx.ui.setTitle writes the terminal title for the active tab and re-applies on switch", async () => {
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-set-title-"));
+  const titles: string[] = [];
+  const extension: ExtensionFactory = (pi) => {
+    pi.registerCommand("retitle", {
+      description: "Set terminal title",
+      handler: async (args, ctx) => {
+        ctx.ui.setTitle(args ?? "");
+      },
+    });
+  };
+
+  try {
+    const state = createInitialState(process.cwd());
+    const tab1 = createTab(1, "s1", process.cwd());
+    const tab2 = createTab(2, "s2", process.cwd());
+    state.tabs.push(tab1, tab2);
+    state.activeTabId = "s1";
+    const runtime = new MixCodeRuntime({ sessionsRoot: dir, extensionFactories: [extension] });
+    const tabOptions = {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+    } as const;
+    await runtime.createTab(tab1, tabOptions);
+    await runtime.createTab(tab2, tabOptions);
+    const terminal: Terminal = {
+      ...silentTerminal(),
+      setTitle: (title: string) => {
+        titles.push(title);
+      },
+    };
+    const tui = createMixCodeTui(state, runtime, { terminal });
+    try {
+      // Active session writes the terminal title immediately (Pi parity).
+      await runtime.prompt("s1", "/retitle one");
+      assert.deepEqual(titles, ["one"]);
+      // Switching to a titleless tab leaves the current title untouched.
+      activateTab(state, "s2");
+      assert.deepEqual(titles, ["one"]);
+      // Inactive sessions store the title without writing it.
+      await runtime.prompt("s1", "/retitle two");
+      assert.deepEqual(titles, ["one"]);
+      assert.equal(tab1.extensionUi.title, "two");
+      // Switching back re-applies the stored title.
+      activateTab(state, "s1");
+      assert.deepEqual(titles, ["one", "two"]);
     } finally {
       tui.stop();
     }

@@ -195,6 +195,14 @@ export function createMixCodeExtensionUiContext(
     },
     setTitle: (title) => {
       runtimeTab.tab.extensionUi.title = title;
+      // Pi parity: setTitle writes the terminal title (OSC 0). Multi-tab: only
+      // the active session writes immediately; stored titles re-apply on tab
+      // switch (app.ts onActiveTabChange). Hosts without isSessionActive are
+      // single-session, so they always write, matching Pi.
+      const host = getCustomUiHost();
+      if (host && (host.isSessionActive?.(runtimeTab.tab.sessionId) ?? true)) {
+        host.tui.terminal.setTitle(title);
+      }
       requestRender();
     },
     custom: (factory, options) =>

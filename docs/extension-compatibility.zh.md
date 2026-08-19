@@ -50,6 +50,8 @@ ctx.ui.custom(factory, { overlay: true })
   └─ 通过 pi-tui overlay 显示浮层，hide/done 后 dispose
 ```
 
+`ctx.ui.setTitle(title)` 在调用方 session 所在 tab 处于激活状态时立即写终端标题（OSC 0）；非激活 tab 只存储标题，切回该 tab 时重新应用。切到没有存储标题的 tab 不改变当前终端标题（与 Pi 一致：标题保持到被覆盖）。
+
 ## 安装方式
 
 目前推荐直接写项目级 Pi settings：
