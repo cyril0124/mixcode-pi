@@ -519,6 +519,63 @@ test("ctl socket server answers a client request", async () => {
   }
 });
 
+test("ctl socket server reports async bind failure via onError and keeps running", async () => {
+  // Contract: a bind failure must reach onError instead of crashing the
+  // process through an unhandled 'error' event, and dispose() stays safe even
+  // though the server never listened. A read-only instances dir passes the
+  // sync fs prep (mkdir no-op, rm ENOENT) but makes bind fail (EACCES), which
+  // Bun reports asynchronously after listen() returns.
+  const base = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mpi-ctl-err-"));
+  const dir = path.join(base, "instances");
+  await fsPromises.mkdir(dir, { recursive: true });
+  await fsPromises.chmod(dir, 0o500);
+  const state = createInitialState("/repo");
+  const errors: Error[] = [];
+  const server = startInstanceCtlServer({
+    rootStateDir: base,
+    pid: process.pid,
+    state,
+    runtime: { getTab: () => ({ chat: [] }) } as unknown as MixCodeRuntime,
+    injectInput: () => undefined,
+    onError: (error) => errors.push(error),
+  });
+  try {
+    for (let i = 0; i < 100 && errors.length === 0; i++) {
+      await Bun.sleep(10);
+    }
+    assert.equal(errors.length, 1);
+    assert.match(errors[0]!.message, /listen|bind|EACCES/i);
+  } finally {
+    server.dispose();
+    await fsPromises.chmod(dir, 0o700);
+    await fsPromises.rm(base, { recursive: true, force: true });
+  }
+});
+
+test("startInstanceCtlServer surfaces sync fs failures to the caller", async () => {
+  // Contract: sync prep failures (mkdir/rm on the registry dir) must throw to
+  // the caller so the TUI can show a notice — never be swallowed silently.
+  const base = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mpi-ctl-sync-"));
+  const root = path.join(base, "state");
+  await fsPromises.writeFile(root, "not a dir");
+  const state = createInitialState("/repo");
+  try {
+    assert.throws(
+      () =>
+        startInstanceCtlServer({
+          rootStateDir: root,
+          pid: process.pid,
+          state,
+          runtime: { getTab: () => ({ chat: [] }) } as unknown as MixCodeRuntime,
+          injectInput: () => undefined,
+        }),
+      /ENOTDIR|EEXIST|ENOENT/,
+    );
+  } finally {
+    await fsPromises.rm(base, { recursive: true, force: true });
+  }
+});
+
 test("parseCtlArgs and handleCtlRequest send-prompt", async () => {
   const parsed = parseCtlArgs(["send-prompt", "hello\nworld"], "/caller");
   assert.equal(parsed.op, "send-prompt");

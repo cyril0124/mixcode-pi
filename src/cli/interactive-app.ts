@@ -327,31 +327,45 @@ export async function runInteractiveApp(args: MainArgs, selfRoot: string): Promi
     originalStop();
   };
   tui.start();
-  ctlServer = startInstanceCtlServer({
-    rootStateDir: stateRoot,
-    state,
-    runtime,
-    injectInput: (data) => tui.injectInput(data),
-    submitToTab: (tab, text) =>
-      handleSubmittedInput(
-        state,
-        runtime,
-        text,
-        tui,
-        async (nextState) => {
-          await saveStateFile(stateFile, nextState);
-        },
-        undefined,
-        workspaceFile,
-        tab,
-        settingsDeps,
-      ),
-    requestRender: () => tui.requestRender(),
-    screenWidth: () => tui.terminal.columns,
-    renderTui: (width) => tui.render(width),
-    hasAppOverlay: () => hasCapturingAppOverlay(tui),
-    renderAppOverlay: (width) => renderAppOverlay(tui, width),
-  });
+  // Ctl server failures (transient NFS errors in the sync fs prep, async bind
+  // errors) must neither crash the TUI nor degrade it silently: without this
+  // guard a sync throw here unwinds past tui.start() into main().catch, which
+  // leaves a working TUI running with no ctl socket and no visible diagnostic.
+  const reportCtlServerError = (error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    showNoticeTextOverlay(tui, `mpi ctl server unavailable: ${message}`);
+    tui.requestRender();
+  };
+  try {
+    ctlServer = startInstanceCtlServer({
+      rootStateDir: stateRoot,
+      state,
+      runtime,
+      onError: reportCtlServerError,
+      injectInput: (data) => tui.injectInput(data),
+      submitToTab: (tab, text) =>
+        handleSubmittedInput(
+          state,
+          runtime,
+          text,
+          tui,
+          async (nextState) => {
+            await saveStateFile(stateFile, nextState);
+          },
+          undefined,
+          workspaceFile,
+          tab,
+          settingsDeps,
+        ),
+      requestRender: () => tui.requestRender(),
+      screenWidth: () => tui.terminal.columns,
+      renderTui: (width) => tui.render(width),
+      hasAppOverlay: () => hasCapturingAppOverlay(tui),
+      renderAppOverlay: (width) => renderAppOverlay(tui, width),
+    });
+  } catch (error) {
+    reportCtlServerError(error);
+  }
   // Registry cleanup and initial snapshot are deferred to after the first frame.
   // They are cheap on their own (~10ms), but their `await` yields the event loop
   // to the deferred background extension loading (CPU-heavy jiti compilation that

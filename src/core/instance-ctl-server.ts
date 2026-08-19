@@ -31,6 +31,11 @@ export interface StartInstanceCtlServerOptions {
   /** MixCode showLinesOverlay / showComponentOverlay is open. */
   hasAppOverlay?: () => boolean;
   renderAppOverlay?: (width: number) => string[];
+  /**
+   * Async socket failures (e.g. bind errors after `listen` returns). Without
+   * this hook an unhandled 'error' event would kill the whole process.
+   */
+  onError?: (error: Error) => void;
 }
 
 export function resolveCtlFocusSessionId(
@@ -577,6 +582,9 @@ export function startInstanceCtlServer(options: StartInstanceCtlServerOptions): 
       });
     });
   });
+  // Bind failures (EADDRINUSE, EACCES, NFS hiccups) surface asynchronously.
+  // Without a handler the 'error' event would kill the whole TUI process.
+  server.on("error", (error) => options.onError?.(error));
   // Socket mode 0600 after bind. Do not process.umask(): it is process-global and
   // poisons concurrent mkdir (sessions dirs lose +x) until the listen callback.
   // Parent rootStateDir is 0700, so the bind→chmod window is not world-reachable.
