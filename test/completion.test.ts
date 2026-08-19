@@ -12,7 +12,8 @@ test("completion adapter assembles local, extension, and skill commands", async 
 
   const local = await provider.getSuggestions(["/th"], 0, 3, { signal });
   assert.equal(local?.items[0]?.value, "thinking");
-  assert.equal(local?.items[0]?.description, "Select thinking level");
+  // argumentHint is rendered into the suggestion description by pi-tui.
+  assert.equal(local?.items[0]?.description, "[level] — Select thinking level");
 
   const extension = await provider.getSuggestions(["/ins"], 0, 4, { signal });
   assert.equal(extension?.items[0]?.value, "inspect");

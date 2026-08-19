@@ -3,7 +3,8 @@ import { matchesKey, ProcessTerminal, TuiMainScreen, type TUI as TuiType } from 
 import type { ExtensionCustomUiHost, MixCodeRuntime } from "../agent/runtime.js";
 import { scanSkillEntries } from "../core/attachments.js";
 import { recordSubmittedHistory } from "../core/conversation-history.js";
-import { applyDisabledModelFlags, buildAvailableModelRefs } from "../core/models.js";
+import { applyDisabledModelFlags, buildAvailableModelRefs, modelRefId } from "../core/models.js";
+import { availableThinkingLevelsForModel } from "../core/thinking-levels.js";
 import { noteTabClosed } from "../core/open-tabs-store.js";
 import { HOME_TAB_ID, type MixCodeState } from "../core/types.js";
 import { closeAgentTab, getActiveTab, onActiveTabChange } from "../core/tabs.js";
@@ -196,14 +197,24 @@ export function createMixCodeTui(
       return [
         ...extensionCommands,
         {
+          name: "models",
+          argumentHint: "[provider/model-id]",
+          getArgumentCompletions: (prefix: string) => modelArgumentCompletions(state, prefix),
+        },
+        {
+          name: "thinking",
+          argumentHint: "[level]",
+          getArgumentCompletions: (prefix: string) => thinkingArgumentCompletions(state, prefix),
+        },
+        {
           name: "restore-workspace",
-          argumentHint: "<workspace>",
+          argumentHint: "[name]",
           getArgumentCompletions: (prefix: string) =>
             workspaceNameCompletions(options.workspaceFile, prefix),
         },
         {
           name: "delete-workspace",
-          argumentHint: "<workspace>",
+          argumentHint: "[name]",
           getArgumentCompletions: (prefix: string) =>
             workspaceNameCompletions(options.workspaceFile, prefix),
         },
@@ -477,6 +488,40 @@ export function createActiveSkillCompletionSource(
     // Fallback to static bootstrap skills
     return fallbackSkills ? (typeof fallbackSkills === "function" ? fallbackSkills() : fallbackSkills) : [];
   };
+}
+
+type ArgumentCompletion = { value: string; label: string; description?: string };
+
+/** /models argument completions: enabled models as provider/model-id. */
+function modelArgumentCompletions(state: MixCodeState, prefix: string): ArgumentCompletion[] {
+  const needle = prefix.trim().toLowerCase();
+  return state.availableModels
+    .filter((model) => !model.disabled)
+    .map((model) => ({
+      value: modelRefId(model),
+      label: modelRefId(model),
+      description: model.displayName,
+    }))
+    .filter(
+      (item) =>
+        !needle ||
+        item.value.toLowerCase().includes(needle) ||
+        item.description.toLowerCase().includes(needle),
+    );
+}
+
+/** /thinking argument completions: levels supported by the target tab's model. */
+function thinkingArgumentCompletions(state: MixCodeState, prefix: string): ArgumentCompletion[] {
+  const active = getActiveTab(state);
+  const needle = prefix.trim().toLowerCase();
+  const current = active?.thinkingLevel ?? state.thinkingLevel;
+  return availableThinkingLevelsForModel(active?.model ?? state.model)
+    .filter((level) => !needle || level.startsWith(needle))
+    .map((level) => ({
+      value: level,
+      label: level,
+      description: level === current ? "current" : "thinking level",
+    }));
 }
 
 function activeCompletionWorkdir(state: MixCodeState): string {

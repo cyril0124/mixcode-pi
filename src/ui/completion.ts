@@ -150,8 +150,17 @@ function compactSkillSummary(value: string): string {
   return `${plain.slice(0, 95).trimEnd()}…`;
 }
 
+// Built-in commands whose argument completions come from live TUI state
+// (injected via the commands source in app.ts) instead of LOCAL_COMMANDS.
+const AUGMENTABLE_BUILTIN_COMMANDS = new Set([
+  "restore-workspace",
+  "delete-workspace",
+  "models",
+  "thinking",
+]);
+
 function canAugmentBuiltInCommand(name: string): boolean {
-  return name === "restore-workspace" || name === "delete-workspace";
+  return AUGMENTABLE_BUILTIN_COMMANDS.has(name);
 }
 
 function mergedSlashCommands(

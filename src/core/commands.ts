@@ -91,6 +91,7 @@ export const LOCAL_COMMANDS: Array<{
   {
     name: "models",
     description: "Select model for the active agent",
+    argumentHint: "[provider/model-id]",
     palette: {
       label: "Choose Model",
       description: "Choose the current tab model",
@@ -100,6 +101,7 @@ export const LOCAL_COMMANDS: Array<{
   {
     name: "thinking",
     description: "Select thinking level",
+    argumentHint: "[level]",
     palette: {
       label: "Choose Thinking Tier",
       description: "Choose the current tab thinking tier",
@@ -119,6 +121,7 @@ export const LOCAL_COMMANDS: Array<{
   {
     name: "workdir",
     description: "Change active agent workdir",
+    argumentHint: "[path]",
     palette: {
       label: "Change Workdir",
       description: "Change the current tab working directory",
@@ -191,6 +194,7 @@ export const LOCAL_COMMANDS: Array<{
   {
     name: "save-workspace",
     description: "Save current workspace tab order",
+    argumentHint: "[name]",
     palette: {
       label: "Save Workspace",
       description: "Save the current open agent tabs as a workspace",
@@ -201,6 +205,7 @@ export const LOCAL_COMMANDS: Array<{
   {
     name: "restore-workspace",
     description: "Restore a saved workspace tab order",
+    argumentHint: "[name]",
     palette: {
       label: "Restore Workspace",
       description: "Restore a saved workspace",
@@ -210,11 +215,13 @@ export const LOCAL_COMMANDS: Array<{
   {
     name: "delete-workspace",
     description: "Delete a saved workspace",
+    argumentHint: "[name]",
     palette: { label: "Delete Workspace", scope: "home" },
   },
   {
     name: "import",
     description: "Import a Pi session JSONL file",
+    argumentHint: "<path> [cwd]",
     palette: {
       label: "Import Session",
       description: "Import a Pi session JSONL file into the current tab",
@@ -286,6 +293,7 @@ export const LOCAL_COMMANDS: Array<{
   {
     name: "compact",
     description: "Compact context",
+    argumentHint: "[instructions]",
     palette: { label: "Compact Context", requires: "session" },
   },
   {
@@ -331,6 +339,7 @@ export const LOCAL_COMMANDS: Array<{
   {
     name: "new-session",
     description: "Create a session (optional name: /new-session Title)",
+    argumentHint: "[title]",
     palette: {
       label: "New Session",
       description: "Create a new pi agent session; optional title becomes the tab name",
@@ -341,6 +350,7 @@ export const LOCAL_COMMANDS: Array<{
   {
     name: "resume",
     description: "Resume a different session (optional: /resume <session-id>)",
+    argumentHint: "[session-id]",
     palette: { label: "Resume Session", scope: "both", requires: "session" },
   },
   {
@@ -356,6 +366,7 @@ export const LOCAL_COMMANDS: Array<{
   {
     name: "rename",
     description: "Rename active tab",
+    argumentHint: "<title>",
     palette: { label: "Rename", description: "Rename the current tab", requires: "session" },
   },
   {
