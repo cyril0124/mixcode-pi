@@ -15,16 +15,21 @@ MixCode built-in recurring prompt execution engine with timer conflict handling,
 ```
 
 - **Intervals**: `s`, `m`, `h`, `d` (e.g. `10s`, `5m`, `1h`). Minimum is `10s`, defaults to `10m`.
+- **Total runs**: Open `/loop`, select a loop, press `Enter`, then press `c`. Enter a positive integer, or leave it blank for unlimited execution. The immediate first run counts toward the total.
 - **Conflict Modes**: `skip` (drops timer tick if agent is busy) or `defer` (coalesces and executes when agent becomes idle).
 
 ## Overlay Keybindings
 
 | Key | Action |
 |---|---|
-| `j` / `k` or `Down` / `Up` | Select loop from list |
-| `Space` | Toggle conflict mode (`skip` / `defer`) |
-| `f` | Fire immediate run now (bypasses timer) |
-| `i` | Edit interval for selected loop |
-| `p` | Edit prompt for selected loop |
-| `d` / `Backspace` | Delete selected loop |
-| `Escape` / `q` | Close management overlay |
+| `Down` / `Up` or `Tab` / `Shift+Tab` | Select loop from list |
+| `Enter` | Open the selected loop details |
+| `f` | Fire the selected loop immediately |
+| `x` | Remove the selected loop |
+| `c` | Remove all loops after confirmation |
+| `Escape` / `q` | Close the management overlay |
+| `c` (details) | Set total runs; blank means unlimited |
+| `m` (details) | Toggle conflict mode (`skip` / `defer`) |
+| `f` (details) | Fire the loop immediately |
+| `x` (details) | Remove the loop |
+| `Left` / `Escape` (details) | Return to the loop list |

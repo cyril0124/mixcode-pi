@@ -2,6 +2,7 @@ import type { Theme } from "@earendil-works/pi-coding-agent";
 import type { Component } from "@earendil-works/pi-tui";
 import {
   fuzzyFilter,
+  Input,
   matchesKey,
   truncateToWidth,
   visibleWidth,
@@ -20,6 +21,7 @@ export interface LoopViewEntry {
   prompt: string;
   intervalLabel: string;
   fireCount: number;
+  maxFireCount: number | null;
   nextRunAt: number;
   mode: LoopConflictMode;
   pending: boolean;
@@ -29,6 +31,7 @@ interface LoopManagementActions {
   getLoops: () => LoopViewEntry[];
   fire: (prompt: string) => void;
   setMode: (id: string, mode: LoopConflictMode) => void;
+  setMaxFireCount: (id: string, maxFireCount: number | null) => void;
   remove: (id: string) => void;
   clear: () => void;
 }
@@ -44,6 +47,8 @@ export class LoopManagementView implements Component {
   private promptScrollOffset = 0;
   private detailPromptLineCount = 0;
   private detailPromptRows = 1;
+  private countInput: Input | null = null;
+  private countInputError: string | null = null;
   private confirm: ConfirmState | null = null;
 
   constructor(
@@ -176,9 +181,19 @@ export class LoopManagementView implements Component {
   }
 
   private handleDetailInput(data: string): void {
+    if (this.countInput) {
+      this.countInput.handleInput(data);
+      this.requestRender();
+      return;
+    }
     if (matchesKey(data, "escape") || matchesKey(data, "left")) {
       this.mode = "list";
       this.requestRender();
+      return;
+    }
+    if (matchesKey(data, "c")) {
+      const loop = this.loops.find((entry) => entry.id === this.detailLoopId);
+      if (loop) this.beginCountEdit(loop);
       return;
     }
     if (matchesKey(data, "m")) {
@@ -233,6 +248,37 @@ export class LoopManagementView implements Component {
     }
   }
 
+  private beginCountEdit(loop: LoopViewEntry): void {
+    const input = new Input();
+    input.focused = true;
+    input.onEscape = () => {
+      this.countInput = null;
+      this.countInputError = null;
+    };
+    input.onSubmit = (value) => {
+      const trimmed = value.trim();
+      const maxFireCount = trimmed === "" ? null : Number(trimmed);
+      if (
+        maxFireCount !== null &&
+        (!/^\d+$/.test(trimmed) || !Number.isSafeInteger(maxFireCount) || maxFireCount < 1)
+      ) {
+        this.countInputError = "Enter a positive integer, or leave blank for unlimited.";
+        return;
+      }
+      if (maxFireCount !== null && maxFireCount < loop.fireCount) {
+        this.countInputError = `Total runs cannot be below the ${loop.fireCount} already executed.`;
+        return;
+      }
+      this.actions.setMaxFireCount(loop.id, maxFireCount);
+      this.countInput = null;
+      this.countInputError = null;
+      this.refresh();
+    };
+    this.countInput = input;
+    this.countInputError = null;
+    this.requestRender();
+  }
+
   private scrollPrompt(delta: number): void {
     const maxOffset = Math.max(0, this.detailPromptLineCount - this.detailPromptRows);
     this.promptScrollOffset = Math.min(maxOffset, Math.max(0, this.promptScrollOffset + delta));
@@ -281,6 +327,21 @@ export class LoopManagementView implements Component {
       this.mode = "list";
       return this.render(width);
     }
+    if (this.countInput) {
+      const current = loop.maxFireCount === null ? "unlimited" : String(loop.maxFireCount);
+      return this.renderPanel(
+        [
+          ` Executed: ${loop.fireCount}  Current total: ${current}`,
+          " Total runs (blank = unlimited):",
+          ...this.countInput.render(Math.max(1, innerWidth - 2)).map((line) => ` ${line}`),
+          ...(this.countInputError ? [this.theme.fg("error", ` ${this.countInputError}`)] : []),
+          "",
+          this.theme.fg("dim", "  Enter save  esc cancel"),
+        ],
+        width,
+        `Loop ${loop.id} - Count`,
+      );
+    }
 
     const promptWidth = Math.max(1, innerWidth - 2);
     const wrappedPrompt = wrapTextWithAnsi(loop.prompt, promptWidth);
@@ -301,14 +362,14 @@ export class LoopManagementView implements Component {
     return this.renderPanel(
       [
         ` Name: ${loop.name}`,
-        ` Interval: ${loop.intervalLabel}  Next: ${nextLabel}  Runs: ${loop.fireCount}`,
+        ` Interval: ${loop.intervalLabel}  Next: ${nextLabel}  Runs: ${loop.fireCount}${loop.maxFireCount === null ? "" : `/${loop.maxFireCount}`}`,
         ` Mode: ${modeLabel}${loop.pending ? " (pending)" : ""}`,
         this.theme.fg("border", "─".repeat(innerWidth)),
         ` ${this.theme.fg("accent", "Prompt")}  ${this.theme.fg("dim", `Lines ${rangeStart}-${rangeEnd}/${promptLines.length}`)}`,
         ...visiblePrompt.map((line) => `  ${line}`),
         "",
         this.theme.fg("dim", "  ↑↓ scroll  PgUp/PgDn page  Home/End jump"),
-        this.theme.fg("dim", "  m mode  f fire  x remove  ←/esc back"),
+        this.theme.fg("dim", "  c total runs  m mode  f fire  x remove  ←/esc back"),
       ],
       width,
       `Loop ${loop.id}`,
@@ -336,8 +397,11 @@ export class LoopManagementView implements Component {
       const name = truncateToWidth(`${loop.id}  ${modeTag}  ${loop.name}`, nameWidth, "…");
       const interval = truncateToWidth(loop.intervalLabel, intervalWidth, "…");
       const nextLabel = loop.pending ? "waiting" : formatRelativeTime(loop.nextRunAt);
+      const fireCount = loop.maxFireCount === null
+        ? `${loop.fireCount} fires`
+        : `${loop.fireCount}/${loop.maxFireCount} fires`;
       const detail = truncateToWidth(
-        `${loop.prompt}  ·  ${nextLabel}  ·  ${loop.fireCount} fires`,
+        `${loop.prompt}  ·  ${nextLabel}  ·  ${fireCount}`,
         detailWidth,
         "…",
       );

@@ -9,7 +9,7 @@ MixCode 随附位于 `pi-packages/mpi-*` 的第一方内置 Pi 包。启动时�
 | 扩展包 | 命令 / 触发方式 | 说明 |
 |---|---|---|
 | `mpi-goal` | `/goal [objective]`, `/goal tools`, `/goal pause\|resume\|clear` | 目标追踪系统，支持会话级隔离、渐进式模型工具暴露、连续执行预算控制与底部状态栏组件。 |
-| `mpi-loop` | `/loop [interval] <prompt>`, `/loop stop <id\|name>`, `/loop interval <id> <time>` | 定时循环任务引擎，支持定时器冲突处理（`skip` 跳过 / `defer` 延后排队）、编辑器下方常驻状态组件及全屏管理浮层。 |
+| `mpi-loop` | `/loop [interval] <prompt>`, `/loop stop <id\|name>`, `/loop interval <id> <time>` | 定时循环任务引擎，支持配置总执行次数、定时器冲突处理（`skip` 跳过 / `defer` 延后排队）、编辑器下方常驻状态组件及全屏管理浮层。 |
 | `mpi-optimize-prompt` | `/optimize-prompt [prompt]`, `/optimize-prompt-config` | 基于 Meta-prompt 的提示词优化器，将模糊指令细化为高清晰度、结构化可执行的 Prompt。 |
 | `mpi-auto-rename` | 可选首条消息自动触发, `/auto-rename` | 生成短横线风格会话标题；在 `<agentDir>/auto-rename.json` 将 `onFirstMessage` 设为 `true` 以启用。 |
 | `mpi-skill-refs` | `$` 补全触发符 | 项目和全局 Skill 自动补全及 Prompt 内联展开。 |

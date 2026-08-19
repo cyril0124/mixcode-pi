@@ -60,6 +60,7 @@ interface LoopEntry {
   intervalMs: number;
   intervalLabel: string;
   fireCount: number;
+  maxFireCount: number | null;
   nextRunAt: number;
   /** Timer-tick conflict policy. Manual fire / first immediate fire ignore this. */
   mode: LoopConflictMode;
@@ -157,11 +158,11 @@ class LoopWidget {
       const clipped = truncateToWidth(value.replace(/[\r\n]+/g, " "), cellWidth, "...");
       return clipped + " ".repeat(Math.max(0, cellWidth - visibleWidth(clipped)));
     };
-    const tableWidth = Math.max(52, width - 6);
-    const flexibleWidth = Math.max(20, tableWidth - 32);
+    const tableWidth = Math.max(57, width - 6);
+    const flexibleWidth = Math.max(20, tableWidth - 37);
     const nameWidth = Math.min(15, Math.max(8, Math.floor(flexibleWidth / 3)));
     const promptWidth = Math.min(28, Math.max(12, flexibleWidth - nameWidth));
-    const header = ` ${fitCell("ON", 2)} ${fitCell("ID", 3)} ${fitCell("M", 1)} ${fitCell("NAME", nameWidth)} ${fitCell("INTERVAL", 8)} ${fitCell("PROMPT", promptWidth)} ${fitCell("NEXT", 8)} ${fitCell("RUNS", 4)}`;
+    const header = ` ${fitCell("ON", 2)} ${fitCell("ID", 3)} ${fitCell("M", 1)} ${fitCell("NAME", nameWidth)} ${fitCell("INTERVAL", 8)} ${fitCell("PROMPT", promptWidth)} ${fitCell("NEXT", 8)} ${fitCell("RUNS", 9)}`;
     const lines: string[] = [theme.fg("dim", header)];
     for (const loop of loops) {
       const statusIcon = theme.fg("success", fitCell("✓", 2));
@@ -172,7 +173,10 @@ class LoopWidget {
       const promptText = theme.fg("dim", fitCell(loop.prompt, promptWidth));
       const nextLabel = loop.pending ? "waiting" : formatRelativeTime(loop.nextRunAt);
       const nextText = fitCell(nextLabel, 8);
-      const countText = theme.fg("accent", fitCell(String(loop.fireCount), 4));
+      const fireCount = loop.maxFireCount === null
+        ? String(loop.fireCount)
+        : `${loop.fireCount}/${loop.maxFireCount}`;
+      const countText = theme.fg("accent", fitCell(fireCount, 9));
 
       lines.push(
         ` ${statusIcon} ${idText} ${modeText} ${nameText} ${intervalText} ${promptText} ${nextText} ${countText}`,
@@ -256,6 +260,9 @@ export default function (pi: ExtensionAPI) {
     entry.pending = false;
     entry.fireCount++;
     entry.nextRunAt = Date.now() + entry.intervalMs;
+    const reachedLimit =
+      entry.maxFireCount !== null && entry.fireCount >= entry.maxFireCount;
+    if (reachedLimit) cancelLoop(entry);
     pi.events.emit("loop:change", {});
     if (!deliverPrompt(entry.prompt, idle)) {
       // Runtime/pi for this extension instance is dead — drop all local loops.
@@ -440,6 +447,15 @@ export default function (pi: ExtensionAPI) {
                   if (mode === "skip") entry.pending = false;
                   pi.events.emit("loop:change", {});
                 },
+                setMaxFireCount: (id, maxFireCount) => {
+                  const entry = activeLoops.get(id);
+                  if (!entry) return;
+                  entry.maxFireCount = maxFireCount;
+                  if (maxFireCount !== null && entry.fireCount >= maxFireCount) {
+                    cancelLoop(entry);
+                  }
+                  pi.events.emit("loop:change", {});
+                },
                 remove: (id) => {
                   const entry = activeLoops.get(id);
                   if (entry) cancelLoop(entry);
@@ -607,6 +623,7 @@ export default function (pi: ExtensionAPI) {
         intervalMs: effectiveMs,
         intervalLabel: formatInterval(effectiveMs),
         fireCount: 0,
+        maxFireCount: null,
         nextRunAt: Date.now() + effectiveMs,
         mode: "defer",
         pending: false,

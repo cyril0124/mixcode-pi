@@ -25,6 +25,7 @@ function loop(overrides: Partial<LoopViewEntry> = {}): LoopViewEntry {
     prompt: "First line\nSecond line with 中文 and a long suffix that wraps.",
     intervalLabel: "10m",
     fireCount: 3,
+    maxFireCount: null,
     nextRunAt: Date.now() + 60_000,
     mode: "defer",
     pending: false,
@@ -42,6 +43,10 @@ function createView(entries: LoopViewEntry[]) {
         entry.mode = mode;
         if (mode === "skip") entry.pending = false;
       }
+    },
+    setMaxFireCount: (id, maxFireCount) => {
+      const entry = entries.find((item) => item.id === id);
+      if (entry) entry.maxFireCount = maxFireCount;
     },
     remove: () => {},
     clear: () => {},
@@ -68,6 +73,7 @@ test("detail scrolling reaches every part of a long prompt", () => {
     getLoops: () => [loop({ prompt })],
     fire: () => {},
     setMode: () => {},
+    setMaxFireCount: () => {},
     remove: () => {},
     clear: () => {},
   });
@@ -101,6 +107,7 @@ test("Enter opens details and f fires the prompt then closes", () => {
     getLoops: () => [entry],
     fire: (prompt) => fired.push(prompt),
     setMode: () => {},
+    setMaxFireCount: () => {},
     remove: () => {},
     clear: () => {},
   });
@@ -126,6 +133,7 @@ test("m toggles conflict mode in detail and clears pending on skip", () => {
       entry.mode = mode;
       if (mode === "skip") entry.pending = false;
     },
+    setMaxFireCount: () => {},
     remove: () => {},
     clear: () => {},
   });
@@ -146,6 +154,21 @@ test("m toggles conflict mode in detail and clears pending on skip", () => {
   assert.match(view.render(60).join("\n"), /Mode: defer/);
 });
 
+test("c edits the total run count from loop details", () => {
+  const entry = loop({ fireCount: 1 });
+  const view = createView([entry]);
+
+  view.handleInput(ENTER);
+  view.handleInput("c");
+  assert.match(view.render(60).join("\n"), /Total runs \(blank = unlimited\)/);
+
+  view.handleInput("3");
+  view.handleInput(ENTER);
+
+  assert.equal(entry.maxFireCount, 3);
+  assert.match(view.render(60).join("\n"), /Runs: 1\/3/);
+});
+
 test("f fires directly from the list", () => {
   const fired: string[] = [];
   let closed = 0;
@@ -154,6 +177,7 @@ test("f fires directly from the list", () => {
     getLoops: () => [entry],
     fire: (prompt) => fired.push(prompt),
     setMode: () => {},
+    setMaxFireCount: () => {},
     remove: () => {},
     clear: () => {},
   });
@@ -206,6 +230,7 @@ test("deleting from details returns to the neighboring loop", () => {
     getLoops: () => entries,
     fire: () => {},
     setMode: () => {},
+    setMaxFireCount: () => {},
     remove: (id) => {
       entries = entries.filter((entry) => entry.id !== id);
     },
@@ -239,6 +264,7 @@ test("Esc on remove confirm cancels back to the list instead of closing", () => 
       getLoops: () => entries,
       fire: () => {},
       setMode: () => {},
+      setMaxFireCount: () => {},
       remove: () => {
         throw new Error("remove should not run on Esc cancel");
       },

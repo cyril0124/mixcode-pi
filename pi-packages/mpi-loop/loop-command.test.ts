@@ -3,6 +3,89 @@ import { test } from "node:test";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import loopExtension from "./index.js";
 
+test("mpi-loop stops after the configured total fire count", async () => {
+  const sent: string[] = [];
+  const intervalFns: Array<() => void> = [];
+  const clearedIntervals: unknown[] = [];
+  const realSetInterval = globalThis.setInterval;
+  const realClearInterval = globalThis.clearInterval;
+  const realSetTimeout = globalThis.setTimeout;
+  const realClearTimeout = globalThis.clearTimeout;
+  globalThis.setInterval = ((fn: () => void) => {
+    intervalFns.push(fn);
+    return 1 as unknown as ReturnType<typeof setInterval>;
+  }) as typeof setInterval;
+  globalThis.clearInterval = ((id) => {
+    clearedIntervals.push(id);
+  }) as typeof clearInterval;
+  globalThis.setTimeout = ((() => 2) as unknown) as typeof setTimeout;
+  globalThis.clearTimeout = (() => {}) as typeof clearTimeout;
+
+  let commandHandler:
+    | ((args: string, ctx: TestCommandContext) => Promise<void>)
+    | undefined;
+  let shutdownHandler: ((event: unknown, ctx: unknown) => unknown) | undefined;
+  let overlay: TestOverlay | undefined;
+  const ctx: TestCommandContext = {
+    ui: {
+      notify: () => {},
+      custom: async (factory) => {
+        overlay = factory(
+          { terminal: { rows: 30 }, requestRender: () => {} },
+          { fg: (_color, text) => text, bg: (_color, text) => text },
+          {},
+          () => {},
+        );
+      },
+    },
+    isIdle: () => true,
+  };
+  const pi = {
+    registerCommand: (_name: string, options: { handler: typeof commandHandler }) => {
+      commandHandler = options.handler;
+    },
+    on: (event: string, handler: (event: unknown, ctx: unknown) => unknown) => {
+      if (event === "session_shutdown") shutdownHandler = handler;
+    },
+    events: { emit: () => {}, on: () => () => {} },
+    sendUserMessage: (prompt: string) => sent.push(prompt),
+  } as unknown as ExtensionAPI;
+
+  try {
+    loopExtension(pi);
+    assert.ok(commandHandler);
+
+    await commandHandler("10m bounded prompt", ctx);
+    assert.deepEqual(sent, ["bounded prompt"], "immediate first fire counts toward the total");
+    assert.equal(intervalFns.length, 1);
+
+    await commandHandler("", ctx);
+    assert.ok(overlay);
+    overlay.handleInput("\r");
+    overlay.handleInput("c");
+    overlay.handleInput("2");
+    overlay.handleInput("\r");
+    assert.match(overlay.render(100).join("\n"), /Runs: 1\/2/);
+
+    intervalFns[0]!();
+    assert.deepEqual(sent, ["bounded prompt", "bounded prompt"]);
+    assert.deepEqual(clearedIntervals, [1], "timer must stop at the configured total");
+
+    intervalFns[0]!();
+    assert.equal(sent.length, 2, "ticks after the total must not deliver more prompts");
+
+    await commandHandler("", ctx);
+    assert.ok(overlay);
+    assert.match(overlay.render(100).join("\n"), /No matching loops/);
+  } finally {
+    await shutdownHandler?.({}, ctx);
+    globalThis.setInterval = realSetInterval;
+    globalThis.clearInterval = realClearInterval;
+    globalThis.setTimeout = realSetTimeout;
+    globalThis.clearTimeout = realClearTimeout;
+  }
+});
+
 test("mpi-loop preserves multiline prompt text after a leading interval", async () => {
   const sent: string[] = [];
   let commandHandler:
