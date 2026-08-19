@@ -40,6 +40,8 @@ mpi
 
 请确保 `~/.bun/bin` 在 `PATH` 中。升级用同一条命令；卸载：`bun remove -g mixcode-pi`。
 
+模型与凭证直接复用 Pi 的标准配置：`~/.pi/agent/models.json`（模型与自定义端点）加 `auth.json`（API 密钥）。内置 provider 直接在 mpi（或 pi）里执行 `/login`，支持订阅 OAuth 登录或录入 API 密钥，无需手写配置；凭证与 Pi 共享，已有 Pi 配置开箱即用——详见 [模型管理](docs/model-management.zh.md)。
+
 ---
 
 ## 核心特性
@@ -159,6 +161,7 @@ mpi status                      # 检视运行中的实例与 Tab 状态
 - [系统架构 (System Architecture)](docs/architecture.zh.md)
 - [TUI 组件目录与布局](docs/tui-components.zh.md)
 - [多标签与工作区管理](docs/workspace-and-tabs.zh.md)
+- [模型管理 (models.json)](docs/model-management.zh.md)
 - [转向与后续双队列管理](docs/queue-and-follow-up.zh.md)
 - [Zen 专注模式](docs/zen-mode.zh.md)
 - [内联挂件模式 (`[INL]`)](docs/inline-widgets.zh.md)
@@ -179,3 +182,7 @@ mpi status                      # 检视运行中的实例与 Tab 状态
 如果你对当前项目不感兴趣，也可以看看 [`pi-packages/`](pi-packages/)，里面都是高质量的 Pi 扩展插件，在原生 [Pi](https://pi.dev) 上也能正常使用。
 
 本项目基于 [MIT License](LICENSE) 开源。
+
+## 致谢
+
+- [Pi](https://pi.dev)（Mario Zechner，[earendil-works/pi](https://github.com/earendil-works/pi)）—— MixCode 构建在 Pi 的 Agent 内核、扩展系统与 TUI 工具链之上（`pi-coding-agent`、`pi-tui`、`pi-ai`、`pi-agent-core`）。正是它干净的 SDK 与开放的扩展生态让这个项目成为可能。

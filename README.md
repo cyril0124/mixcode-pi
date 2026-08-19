@@ -40,6 +40,8 @@ mpi
 
 Ensure `~/.bun/bin` is on your `PATH`. Upgrade with the same command; remove with `bun remove -g mixcode-pi`.
 
+Models and credentials use Pi's standard config: `~/.pi/agent/models.json` (models & custom endpoints) and `auth.json` (API keys). For built-in providers just run `/login` inside mpi (or pi) and authenticate via subscription OAuth or an API key — no manual config needed. Credentials are shared with Pi, so an existing Pi setup is picked up as-is; see [Model Management](docs/model-management.md).
+
 ---
 
 ## Key Features
@@ -159,6 +161,7 @@ Full architectural specifications, guides, and manuals are available in the [`do
 - [System Architecture](docs/architecture.md)
 - [TUI Components & Layout](docs/tui-components.md)
 - [Multi-Tab Workspaces](docs/workspace-and-tabs.md)
+- [Model Management](docs/model-management.md)
 - [Steering & Follow-up Queues](docs/queue-and-follow-up.md)
 - [Zen Mode](docs/zen-mode.md)
 - [Inline Widgets Mode](docs/inline-widgets.md)
@@ -179,3 +182,7 @@ This is an AI-developed project. My daily development now happens entirely in mp
 Not interested in this project? Take a look at [`pi-packages/`](pi-packages/) instead — a set of high-quality Pi extensions that also work on plain [Pi](https://pi.dev).
 
 Licensed under the [MIT License](LICENSE).
+
+## Acknowledgements
+
+- [Pi](https://pi.dev) by Mario Zechner ([earendil-works/pi](https://github.com/earendil-works/pi)) — MixCode is built on Pi's agent core, extension system, and TUI toolkit (`pi-coding-agent`, `pi-tui`, `pi-ai`, `pi-agent-core`). Its clean SDK and open extension ecosystem are what make a project like this possible.
