@@ -235,6 +235,10 @@ test("ctx.shutdown() closes the current tab when idle", async () => {
     assert.equal(runtime.listTabs().length, 2);
 
     await runtime.prompt("s1", "/shutdown-smoke");
+    // ctx.shutdown() closes via a fire-and-forget chain that yields one timer
+    // turn before dispose (shutdownRuntimeTab drain); poll like the streaming
+    // variant below instead of assuming same-tick completion.
+    await waitFor(() => runtime.getTab("s1") === undefined);
 
     assert.equal(runtime.getTab("s1"), undefined);
     assert.ok(runtime.getTab("s2"));

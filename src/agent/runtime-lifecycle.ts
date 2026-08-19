@@ -357,6 +357,13 @@ export async function shutdownRuntimeTab(
   extensionUiHost: ExtensionCustomUiHost | undefined,
 ): Promise<void> {
   await runtimeTab.agentSession.extensionRunner.emit(event);
+  // Drain one timer turn before dispose(): extensions defer UI work from
+  // session_start via setTimeout(0) (pi-tps deferred notify). On a loaded
+  // event loop those expired timers can stay pending across all the awaits
+  // above; dispose() would mark their captured ctx stale and the late
+  // callback would throw an uncaught stale-ctx error. Same-deadline timers
+  // run FIFO, so awaiting a fresh 0ms timer guarantees earlier ones fired.
+  await Bun.sleep(0);
   disposeRuntimeTabAfterShutdown(runtimeTab, extensionUiHost);
 }
 
