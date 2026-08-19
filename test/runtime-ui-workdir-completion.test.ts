@@ -47,7 +47,7 @@ function stripAnsi(text: string): string {
 }
 
 test("createMixCodeTui uses the active tab workdir for Pi file completion", async (t) => {
-  const fdPath = await ensureTool("fd", true);
+  const fdPath = await ensureTool("fd");
   if (!fdPath) {
     t.skip("Pi could not provide fd");
     return;

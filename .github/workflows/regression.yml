@@ -32,6 +32,15 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      # Tests need fd on PATH for Pi @ file completion (Bun.which("fd") and
+      # ensureTool("fd")); apt's fd-find ships the binary as fdfind, so link
+      # the canonical name instead of relying on Pi's GitHub download in CI.
+      - name: Install fd
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends fd-find
+          sudo ln -sf "$(command -v fdfind)" /usr/local/bin/fd
+
       - name: Typecheck
         run: bun run typecheck
 
