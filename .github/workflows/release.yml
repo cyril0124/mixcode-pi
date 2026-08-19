@@ -18,12 +18,14 @@ jobs:
         with:
           bun-version: 1.3.14
 
+      # Key covers patches/**; no restore-keys. See regression.yml: hardlinked
+      # installs let patch-package mutate this cache, so an entry is only valid
+      # for the exact (bun.lock, patches) pair it was saved with.
       - name: Cache bun install cache
         uses: actions/cache@v4
         with:
           path: ~/.bun/install/cache
-          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
-          restore-keys: bun-${{ runner.os }}-
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock', 'patches/**') }}
 
       # release.sh runs bun install, applies patches, and cross-compiles all
       # default targets (linux x64/arm64, darwin arm64/x64) on this runner.

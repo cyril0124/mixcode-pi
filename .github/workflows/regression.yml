@@ -20,12 +20,16 @@ jobs:
         with:
           bun-version: 1.3.14
 
+      # The key must cover patches/**: bun hardlinks node_modules from this
+      # cache, so postinstall patch-package mutates cached files in place. A
+      # restored cache therefore carries its run's patch state; reusing it with
+      # different patches breaks patch application. No restore-keys for the
+      # same reason (a partial hit would restore a mismatched patch state).
       - name: Cache bun install cache
         uses: actions/cache@v4
         with:
           path: ~/.bun/install/cache
-          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
-          restore-keys: bun-${{ runner.os }}-
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock', 'patches/**') }}
 
       # postinstall applies patches (patch-package --error-on-fail) and skips
       # the interactive extension installer in non-TTY environments.
