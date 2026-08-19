@@ -36,16 +36,14 @@
 
 ## TUI & E2E Validation
 
-- For TUI and runtime lifecycle work, code inspection and isolated unit tests are not sufficient evidence. Bugs in session lifecycle, tab management, goal tracking, performance lag, and interactive TUI flows must be reproduced end-to-end in real execution environments before claiming a bug or a fix. If a reported issue cannot be reproduced in tmux, it is not considered a bug.
+- For TUI and runtime lifecycle work, code inspection, isolated unit tests, and synthetic mocks are not sufficient evidence. Bugs in session lifecycle, tab management, goal tracking, performance lag, and interactive TUI flows must be reproduced end-to-end in tmux — capture screenshots and verify core keyboard/mouse flows before claiming a bug, a fix, or working UI. If a reported issue cannot be reproduced in tmux, it is not considered a bug.
 - When you need to actually launch mixcode-pi to test it, use tmux. Prefer an isolated socket via `tmux -L <label>` (e.g. `tmux -L mixcode-test`) so your sessions never collide with unrelated ones. On an isolated socket, `tmux -L <label> kill-server` is safe. Otherwise, on the default socket, do not run `tmux kill-server` (it would kill unrelated sessions); kill only the specific tmux session/window you created.
-- Capture screenshots and verify core keyboard/mouse flows in tmux before claiming the UI works. Never rely solely on synthetic unit mocks that isolate away the real runtime lifecycle.
-
 ## Pi Integration
 
-- Before implementing any feature, first check whether Pi-related packages already provide it. Prefer reusing components, APIs, and UI/TUI building blocks from installed `@earendil-works/pi-*` packages (and the Pi SDK docs at https://pi.dev/docs/latest/sdk and https://pi.dev/docs/latest/tui) over writing MixCode-local equivalents.
+- Before implementing any feature, check whether installed `@earendil-works/pi-*` packages already provide it (docs list below). Build custom code only when they do not cover the requirement (or the user explicitly requires different behavior); do not reimplement selectors, editors, dialogs, markdown, keybindings, session/tree UI, or similar just because a local rewrite is convenient.
 - If upstream Pi has implemented a feature or component but keeps it unexported/private, prefer creating a clean upstream export patch in `patches/` rather than writing a duplicate local reimplementation.
 - Regularly align `src/` core event handling, themes, and runtime hooks with upstream Pi agent conventions.
-- Only build custom code when the requirement is not covered by those packages (or the user explicitly requires a different behavior). Do not reimplement selectors, editors, dialogs, markdown, keybindings, session/tree UI, or similar just because a local rewrite is convenient.
+- The pi-tui keybindings bridge supports both single-instance (bun/npm dedupe) and dual-instance (npm shrinkwrap nested) module layouts without layout scripts.
 - Pi docs (check these before inventing local APIs or UI):
   - Upstream SDK: https://pi.dev/docs/latest/sdk
   - Upstream TUI: https://pi.dev/docs/latest/tui
@@ -64,7 +62,7 @@
 - To add a new built-in package: create `pi-packages/mpi-<name>/package.json` and its declared `pi.extensions` and/or `pi.skills` resources, then add the corresponding text imports in `binary-entry.ts`.
 - **No Bun APIs in `pi-packages/`.** These packages are installed into `~/.pi/agent/extensions/` and also run under pure upstream `pi` (Node + jiti), not only under `mpi` (Bun). Use `node:*` stdlib (`fs`, `fs/promises`, `child_process`, `path`, `os`, …). Do not call `Bun.*`, `bun:*` imports, or Bun Shell (`` $`…` ``). Product code under `src/` may still prefer Bun; this rule is package-only.
 - **Strict Isolation Across `pi-packages/`**: Packages under `pi-packages/` must remain completely independent and decoupled; they must NEVER import or depend on one another.
-- MixCode sets `MIXCODE=1` after it decides not to delegate to upstream `pi`. Built-in packages that must not activate under pure `pi` should gate on this env (treat unset / `0` / `false` / `off` as off). User-facing MixCode env catalog: `docs/environment.md` (only `src/` product knobs; no Pi / `run.sh` / test tooling vars).
+- MixCode sets `MIXCODE=1` after it decides not to delegate to upstream `pi`. Built-in packages that must not activate under pure `pi` should gate on this env (treat unset / `0` / `false` / `off` as off).
 
 ### Third-party package load (compiled `mpi`)
 
@@ -75,7 +73,7 @@
 
 - Slash commands are registered in `LOCAL_COMMANDS` (`src/core/commands.ts`); their `description` is shown in the command palette and slash autocomplete.
 - Persistence has three tiers: global (Pi's `<agentDir>/settings.json`, survives restart, shared across workdirs and with Pi), workdir (`mixcode_state.json`, per-workdir), and session (in-memory or `applyOverrides`, dropped on reload/restart).
-- Any command that persists to Pi's global `settings.json` (survives restart, shared across workdirs and with Pi) MUST prefix its `description` with `[global]`, so users can see the global-persistence effect before running it. Example: `/hide-thinking`.
+- Any command that persists to Pi's global `settings.json` MUST prefix its `description` with `[global]`, so users can see the global-persistence effect before running it. Example: `/hide-thinking`.
 - Do not add the `[global]` prefix to workdir-level or session-level commands; the absence of a prefix means the command is not a globally-persisted setting.
 
 ## Settings Management
@@ -110,7 +108,7 @@
 
 ## Commands
 
-- **Package tooling is Bun**: `bun install` only; lockfile is `bun.lock` (never commit `package-lock.json` / yarn.lock / pnpm-lock.yaml). Orchestrate scripts with `bun run …`. Do not use npm/yarn/pnpm for installs.
+- **Package tooling is Bun**: `bun install` only; lockfile is `bun.lock` (never commit `package-lock.json` / yarn.lock / pnpm-lock.yaml). Orchestrate scripts with `bun run …`. Do not use npm/yarn/pnpm for installs. Run product code with `bun` (`run.sh`, shebang); never Node for paths that call `Bun.*`.
 - **Search & File Exploration Tools**:
   - Always prefer `fd` over `find` for file and directory discovery.
   - Always prefer `rg` (ripgrep) over `grep` for content and symbol searches.
@@ -133,7 +131,7 @@ Use Bun APIs where they provide a cleaner alternative; fall back to `node:*` onl
 | Binary lookup   | `Bun.which("git")`                       | `spawnSync(["which", "git"])`   |
 | HTTP server     | `Bun.serve()`                             | `http.createServer()`           |
 | SQLite          | `bun:sqlite`                              | `better-sqlite3`                |
-| Hashing         | `Bun.hash()`, `Bun.password.*`, WebCrypto | `node:crypto`                   |
+| Hashing         | `Bun.hash()`, `Bun.password.hash/verify` (bcrypt), WebCrypto | `node:crypto`    |
 | Path resolution | `import.meta.dir`, `import.meta.path`     | `fileURLToPath` dance           |
 | JSON5           | `Bun.JSON5.parse()` / `.stringify()`      | `json5` package                 |
 | JSONL           | `Bun.JSONL.parse()` / `.parseChunk()`     | `text.split("\n").map(JSON.parse)` |
@@ -208,7 +206,6 @@ Use `node:fs/promises` for directory ops (`fs.mkdir`, `fs.rm`, `fs.readdir`) —
 
 - Multiple `Bun.file(path)` handles for the same path (including across `checkX`/`loadX` helpers).
 - `Buffer.from(await Bun.file(x).arrayBuffer())` → `await fs.readFile(path)`.
-- Existence check + try-catch around the same read → drop the existence check.
 
 ### Streams
 
@@ -238,10 +235,6 @@ for await (const line of readLines(stream)) {
 ```
 
 Manual reader loops only when the protocol requires it (SSE, streaming JSON-RPC).
-
-### Misc
-
-- **Password hashing**: `Bun.password.hash(pw, "bcrypt")` / `Bun.password.verify(pw, hash)`.
 
 ## Test Guidelines
 
@@ -278,7 +271,5 @@ Test the contract the system exposes — not the easiest internal detail to asse
 - Root suite: `bun run test` (`test/*.test.ts` only)
 - Full sequential gate: `bun run check` (typecheck + build + root tests)
 - Parallel package-oriented gate: `./test-all.sh` (typecheck + build + lint + package tests; does **not** run full `test/*.test.ts`)
-- Package manager / runtime: Bun — install with `bun install`; lockfile is `bun.lock` (do not commit `package-lock.json`). Run product code with `bun` (`run.sh`, shebang); do not use Node to execute product paths that call `Bun.*`.
 - `postinstall` runs `patch-package`, then `bun run scripts/install-pi-extensions.ts --postinstall` (TTY: optional interactive install of missing recommended third-party Pi packages; CI/non-TTY: warn only; never fails the parent install). Manual: `bun run install:extensions` or `./install-pi-extensions.sh`.
-- pi-tui keybindings bridge supports both single-instance (bun/npm dedupe) and dual-instance (npm shrinkwrap nested) layouts without layout scripts.
 - Before finishing a TypeScript behavior change: run the focused test(s) you added or changed until green, then the narrowest gate that covers the touch surface (`test:packages` for package work, `bun run check` and/or `./test-all.sh` as appropriate). Fix until green.
