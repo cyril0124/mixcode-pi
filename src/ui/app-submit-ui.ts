@@ -1,3 +1,4 @@
+import { getSystemPromptSections } from "../agent/pi-session-internals.js";
 import type { RuntimeTab } from "../agent/runtime.js";
 import { MIXCODE_EXTENSION_KEYBINDINGS } from "../agent/runtime-extension-theme.js";
 import type { LocalCommand } from "../core/commands.js";
@@ -18,6 +19,7 @@ import { renderHotkeysText } from "./hotkeys.js";
 import { getConfiguredQuitOptions, quitMixCode } from "./quit.js";
 import { clearConversationCache } from "./rendering.js";
 import { renderSystemToolsText } from "./system-tools.js";
+import { renderSystemPromptSectionStats } from "./system-prompt-stats.js";
 import { openTreeSelector, type TreeSelectorRuntime } from "./tree-selector.js";
 
 /** Delay before bell + external done signals so the user can leave the pane first. */
@@ -139,7 +141,10 @@ const handleSystemPrompt: LocalCommandHandler = async ({ active, args, runtime, 
   if (args.trim()) throw new Error("Usage: /system-prompt");
   const runtimeTab = runtime.getTab(active!.sessionId);
   if (!runtimeTab) throw new Error(`Unknown tab session: ${active!.sessionId}`);
-  await editTextWithTuiPaused(tui, runtimeTab.agentSession.systemPrompt);
+  let text = runtimeTab.agentSession.systemPrompt;
+  const sections = getSystemPromptSections(runtimeTab.agentSession);
+  if (sections) text += renderSystemPromptSectionStats(sections, text);
+  await editTextWithTuiPaused(tui, text);
   return undefined;
 };
 

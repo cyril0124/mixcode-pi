@@ -3,6 +3,7 @@ import * as path from "node:path";
 import {
   type BuildSystemPromptOptions,
   buildSystemPrompt,
+  formatSkillsForPrompt,
   getDocsPath,
 } from "@earendil-works/pi-coding-agent";
 import { resolveMixcodeAgentDir } from "./paths.js";
@@ -36,6 +37,13 @@ export type MixCodeSystemPromptPartsOptions = BuildSystemPromptOptions & {
   conversationHistoryPrompt?: string;
 };
 
+/** One named contiguous fragment of the final system prompt. */
+export interface SystemPromptSection {
+  name: string;
+  /** Exact prompt bytes owned by this section; sections concatenate to the prompt. */
+  text: string;
+}
+
 /**
  * MixCode system prompt on top of Pi's buildSystemPrompt.
  *
@@ -47,6 +55,21 @@ export type MixCodeSystemPromptPartsOptions = BuildSystemPromptOptions & {
 export function buildMixCodeSystemPromptFromParts(
   options: MixCodeSystemPromptPartsOptions,
 ): string {
+  return buildMixCodeSystemPromptSections(options).prompt;
+}
+
+/**
+ * Same assembly as buildMixCodeSystemPromptFromParts, plus an exact section
+ * breakdown for display (/system-prompt token stats). MixCode-owned fragments
+ * are captured directly; the Pi-assembled tail (project context, skills, cwd)
+ * is reconstructed with the same template Pi's buildSystemPrompt uses, so
+ * sections.concatenate === prompt by construction. Extension contributions
+ * (tool snippets/guidelines, appendSystemPrompt, skills, context files) all
+ * flow through these options and are therefore accounted for.
+ */
+export function buildMixCodeSystemPromptSections(
+  options: MixCodeSystemPromptPartsOptions,
+): { prompt: string; sections: SystemPromptSection[] } {
   const {
     customPrompt,
     selectedTools,
@@ -84,11 +107,56 @@ export function buildMixCodeSystemPromptFromParts(
     skills,
   });
 
-  // Pi ends with cwd only; MixCode also stamps the calendar date.
-  return prompt.replace(
-    /(\nCurrent working directory: [^\n]*)$/,
-    `\nCurrent date: ${currentDate()}$1`,
+  // Pi ends with cwd only; MixCode also stamps the calendar date. Pi's
+  // customPrompt branch ends the prompt with a trailing newline after the cwd
+  // line, so the stamp regex must carry it through instead of failing to match.
+  const date = currentDate();
+  const promptCwd = cwd.replace(/\\/g, "/");
+  const trailingNl = prompt.endsWith("\n") ? "\n" : "";
+  const stamped = prompt.replace(
+    /(\nCurrent working directory: [^\n]*)(\n?)$/,
+    `\nCurrent date: ${date}$1$2`,
   );
+
+  const sections: SystemPromptSection[] = [
+    { name: "Identity", text: identity },
+    { name: "Tools & Guidelines", text: toolsSection },
+  ];
+  if (docsSection) sections.push({ name: "Documentation", text: docsSection });
+  if (appendSystemPrompt) {
+    sections.push({ name: "Append (appendSystemPrompt)", text: `\n\n${appendSystemPrompt}` });
+  }
+  if (conversationHistoryPrompt) {
+    sections.push({ name: "Conversation history", text: `\n\n${conversationHistoryPrompt}` });
+  }
+
+  // Tail below mirrors Pi's buildSystemPrompt template (context files, skills,
+  // cwd). If upstream changes that format, section concatenation stops matching
+  // the prompt and the /system-prompt stats footer says so instead of lying.
+  const files = contextFiles ?? [];
+  if (files.length > 0) {
+    sections.push({
+      name: "Project context (frame)",
+      text: "\n\n<project_context>\n\nProject-specific instructions and guidelines:\n\n",
+    });
+    for (const { path: filePath, content } of files) {
+      sections.push({
+        name: `Project context: ${filePath}`,
+        text: `<project_instructions path="${filePath}">\n${content}\n</project_instructions>\n\n`,
+      });
+    }
+    sections.push({ name: "Project context (frame)", text: "</project_context>\n" });
+  }
+  const customPromptHasRead = !selectedTools || selectedTools.includes("read");
+  if (customPromptHasRead && skills && skills.length > 0) {
+    sections.push({ name: "Skills", text: formatSkillsForPrompt(skills) });
+  }
+  sections.push({
+    name: "Environment (date & cwd)",
+    text: `\nCurrent date: ${date}\nCurrent working directory: ${promptCwd}${trailingNl}`,
+  });
+
+  return { prompt: stamped, sections };
 }
 
 /**

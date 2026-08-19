@@ -46,7 +46,7 @@ Commands operate across three distinct persistence tiers:
 | `/import` | `<jsonl-path>` | Session | Imports an external session JSONL into the current workspace. |
 | `/extension-manager` | - | Workdir | Interactive manager to enable or disable discovered Pi extensions. |
 | `/reload` | - | Session | Reloads model configurations, project skills, and rebinds extensions. |
-| `/system-prompt` | - | Session | Inspects or edits the assembled system prompt in an external editor. |
+| `/system-prompt` | - | Session | Inspects or edits the assembled system prompt in an external editor; a footer lists each section's size and estimated token share. |
 | `/system-tools` | - | Session | Inspects active tool schemas and tool owners. |
 | `/hotkeys` | - | - | Displays full keyboard shortcut reference. |
 | `/quit` / `/exit` | - | - | Safely persists state and exits MixCode. |

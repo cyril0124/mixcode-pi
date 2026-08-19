@@ -1,7 +1,7 @@
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
-import type { SearchToolAvailability } from "../core/system-prompt.js";
-import { buildMixCodeSystemPromptFromParts } from "../core/system-prompt.js";
+import type { SearchToolAvailability, SystemPromptSection } from "../core/system-prompt.js";
+import { buildMixCodeSystemPromptSections } from "../core/system-prompt.js";
 import type { RuntimeTab } from "./runtime-types.js";
 
 // Single adapter over the MixCode patch exports on AgentSession
@@ -30,6 +30,16 @@ export function restoreSteeringMessages(
   runtimeTab.agentSession.restoreQueuedMessages("steering", removed);
 }
 
+/** Latest section breakdown per session; written on every assembler rebuild. */
+const systemPromptSectionsBySession = new WeakMap<AgentSession, SystemPromptSection[]>();
+
+/** Sections of the session's last assembled base system prompt, if built yet. */
+export function getSystemPromptSections(
+  agentSession: AgentSession,
+): SystemPromptSection[] | undefined {
+  return systemPromptSectionsBySession.get(agentSession);
+}
+
 /**
  * Own system prompt assembly: Pi collects tool snippets/guidelines/skills into
  * BuildSystemPromptOptions, MixCode assembles the final prompt (identity, docs,
@@ -41,6 +51,8 @@ export function applyMixCodeSystemPrompt(
 ): void {
   agentSession.setSystemPromptAssembler((collected) => {
     const options = { ...collected, searchTools };
-    return { prompt: buildMixCodeSystemPromptFromParts(options), options };
+    const { prompt, sections } = buildMixCodeSystemPromptSections(options);
+    systemPromptSectionsBySession.set(agentSession, sections);
+    return { prompt, options };
   });
 }
