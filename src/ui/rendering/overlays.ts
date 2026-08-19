@@ -85,9 +85,14 @@ function renderHomeInner(
 }
 
 function fitConfigRows(lines: string[], maxRows: number | undefined, width: number): string[] {
-  void width;
   if (maxRows === undefined) return lines;
-  return lines.slice(0, Math.max(0, Math.floor(maxRows)));
+  const limit = Math.max(0, Math.floor(maxRows));
+  if (lines.length >= limit) return lines.slice(0, limit);
+  const innerWidth = Math.max(0, width - 2);
+  const blank = `${activeRenderTheme.borderMuted("│")}${padLine("", innerWidth)}${activeRenderTheme.borderMuted("│")}`;
+  const fill = limit - lines.length;
+  if (lines.length === 0) return Array.from({ length: limit }, () => padLine("", width));
+  return [...lines.slice(0, -1), ...Array.from({ length: fill }, () => blank), lines[lines.length - 1]!];
 }
 
 function configPanelBox(title: string, lines: string[], width: number, meta: string[] = []): string[] {
@@ -107,6 +112,9 @@ function configPanelBox(title: string, lines: string[], width: number, meta: str
 const AGENT_CARD_HEIGHT = 4;
 const LOGO_MAX_WIDTH_RATIO = 0.85;
 const LOGO_MAX_HEIGHT_RATIO = 0.3;
+const PREVIEW_HEIGHT_PERCENT = 15;
+const MIN_PREVIEW_ROWS = 4;
+const DEFAULT_PREVIEW_ROWS = 6;
 const AGENT_VIEW_SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 const AGENT_VIEW_SPINNER_INTERVAL_MS = 80;
 
@@ -148,15 +156,10 @@ function renderAgentViewTable(state: MixCodeState, width: number, maxRows?: numb
   const selectedIndex = Math.min(state.homeSelectedTabIndex, state.tabs.length - 1);
   const selectedVisiblePos = Math.max(0, visible.indexOf(selectedIndex));
   const now = Date.now();
-
-  // Cards are the anchor of Agent View; preview and hint use the remaining rows.
-  // Always prefer keeping the navigation hint over eating the last row with a
-  // partial card or preview panel (short terminals must keep onboarding keys).
-  const rowsAfterHeader = budget === undefined ? undefined : Math.max(0, budget - lines.length);
-  const previewAndHintReserve =
-    rowsAfterHeader !== undefined && rowsAfterHeader >= AGENT_CARD_HEIGHT + 3 ? 3 : 0;
+  let previewRows = previewSlotRows(budget);
+  const reservedBottom = previewRows + 1;
   const availableForCards =
-    rowsAfterHeader === undefined ? undefined : Math.max(0, rowsAfterHeader - previewAndHintReserve);
+    budget === undefined ? undefined : Math.max(0, budget - lines.length - reservedBottom);
   const totalCards = visible.length;
   const fitsAllCards =
     availableForCards === undefined || totalCards * AGENT_CARD_HEIGHT <= availableForCards;
@@ -168,20 +171,17 @@ function renderAgentViewTable(state: MixCodeState, width: number, maxRows?: numb
     availableForCards === undefined
       ? totalCards
       : Math.max(0, Math.floor((availableForCards - markerReserve) / AGENT_CARD_HEIGHT));
-  // Leave one row for the hint whenever any space remains after the header.
   const cardBudget =
-    budget === undefined
-      ? undefined
-      : Math.max(lines.length, budget - (budget > lines.length ? 1 : 0));
+    budget === undefined ? undefined : Math.max(lines.length, budget - reservedBottom);
   const { start, end } = agentCardWindow(totalCards, selectedVisiblePos, maxCards);
   const showAbove = maxCards > 0 && start > 0;
   const showBelow = maxCards > 0 && end < totalCards;
   const listBudget =
     cardBudget === undefined ? undefined : Math.max(0, cardBudget - (showAbove ? 1 : 0) - (showBelow ? 1 : 0));
   if (showAbove) {
-    pushAgentRows(lines, [agentWindowMarker("↑ older above", width)], budget);
+    pushAgentRows(lines, [agentWindowMarker("↑ older above", width)], cardBudget);
   }
-  if (maxCards === 0 && rowsAfterHeader !== undefined && rowsAfterHeader > 0) {
+  if (maxCards === 0 && availableForCards !== undefined && availableForCards > 0) {
     const fallbackIndex = visible[selectedVisiblePos] ?? visible[0]!;
     pushAgentRows(lines, renderAgentCard(state.tabs[fallbackIndex]!, width, true, now), cardBudget);
   } else {
@@ -193,24 +193,35 @@ function renderAgentViewTable(state: MixCodeState, width: number, maxRows?: numb
     }
   }
   if (showBelow) {
-    pushAgentRows(lines, [agentWindowMarker("↓ newer below", width)], budget);
+    pushAgentRows(lines, [agentWindowMarker("↓ newer below", width)], cardBudget);
   }
 
   const selectedTab = state.tabs[selectedIndex];
-  const remainingRows = budget === undefined ? undefined : Math.max(0, budget - lines.length);
-  const previewRows = remainingPreviewRows(remainingRows);
+  if (budget !== undefined) {
+    const hintAt = Math.max(0, budget - 1);
+    if (previewRows > 0) {
+      previewRows += Math.max(0, hintAt - previewRows - lines.length);
+    } else {
+      while (lines.length < hintAt) lines.push("");
+    }
+  }
   if (selectedTab && previewRows > 0) {
     pushAgentRows(lines, renderPreviewPanel(selectedTab, width, previewRows), budget);
   }
   pushAgentRows(lines, [hint], budget);
+  if (budget !== undefined) {
+    while (lines.length < budget) lines.push("");
+  }
   return lines;
 }
 
-function remainingPreviewRows(remainingRows: number | undefined): number {
-  if (remainingRows === undefined) return 6; // divider + 5 recent messages
-  // Prefer the navigation hint over preview whenever any room remains.
-  if (remainingRows <= 1) return 0;
-  return remainingRows - 1;
+/** Preview is a bottom-pinned percent slot; hide it when that slot would be tiny. */
+function previewSlotRows(budget: number | undefined): number {
+  if (budget === undefined) return DEFAULT_PREVIEW_ROWS;
+  const slot = Math.floor((budget * PREVIEW_HEIGHT_PERCENT) / 100);
+  if (slot < MIN_PREVIEW_ROWS) return 0;
+  if (budget < AGENT_CARD_HEIGHT + 1 + slot) return 0;
+  return slot;
 }
 
 function pushAgentRows(lines: string[], rows: string[], budget: number | undefined): void {

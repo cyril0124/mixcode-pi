@@ -909,7 +909,40 @@ test("renderHome respects row budget for compact Agent View", () => {
   assert.doesNotMatch(output, /newer below/);
 });
 
-test("renderHome preserves full selected-agent preview when it fits", () => {
+test("renderHome fills a short viewport so the editor is not separated by a blank gap", () => {
+  const state = createInitialState("/repo");
+  for (let i = 1; i <= 8; i++) {
+    state.tabs.push(createTab(i, `s${i}`, "/repo", { title: `Agent-${i}` }));
+  }
+  state.homeSelectedTabIndex = 3;
+  const lines = renderHome(state, 80, undefined, 0, 16);
+  assert.equal(lines.length, 16);
+  const plain = stripAnsi(lines.join("\n"));
+  assert.match(plain, /↑\/↓: select/);
+  assert.doesNotMatch(plain, /user:/);
+});
+
+test("renderHome hides the message preview on a short viewport and keeps the hint", () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(
+    createTab(1, "s1", "/repo", {
+      title: "Previewer",
+      previewMessages: [
+        { role: "user", text: "please explain" },
+        { role: "assistant", text: "Here is the latest assistant output" },
+      ],
+    }),
+  );
+  state.homeSelectedTabIndex = 0;
+
+  const output = stripAnsi(renderHome(state, 100, undefined, 0, 12).join("\n"));
+  assert.match(output, /Previewer/);
+  assert.match(output, /↑\/↓: select|Ctrl\+F/);
+  assert.doesNotMatch(output, /user:.*please explain/);
+  assert.doesNotMatch(output, /assistant:.*Here is the latest assistant output/);
+});
+
+test("renderHome pins the message preview above the hint when the viewport is tall", () => {
   const state = createInitialState("/repo");
   state.tabs.push(
     createTab(1, "s1", "/repo", {
@@ -922,12 +955,39 @@ test("renderHome preserves full selected-agent preview when it fits", () => {
   );
   state.homeSelectedTabIndex = 0;
 
-  const output = stripAnsi(renderHome(state, 100, undefined, 0, 26).join("\n"));
-
-  for (let index = 1; index <= 7; index++) {
-    assert.match(output, new RegExp(`assistant: message ${index}`));
-  }
+  const lines = renderHome(state, 100, undefined, 0, 48).map((line) => stripAnsi(line));
+  const output = lines.join("\n");
+  const hintIndex = lines.findIndex((line) => line.includes("↑/↓: select"));
+  const previewIndex = lines.findIndex((line) => line.includes("assistant: message"));
+  assert.ok(hintIndex > 0);
+  assert.ok(previewIndex >= 0);
+  assert.ok(previewIndex < hintIndex);
+  assert.match(output, /assistant: message 7/);
   assert.doesNotMatch(output, /newer below/);
+  assert.ok(!/┘\s*\n(?:\s*│\s*│\s*\n)+\s*─/.test(output));
+});
+
+test("renderHome does not leave a blank gap between windowed cards and preview", () => {
+  const state = createInitialState("/repo");
+  for (let i = 1; i <= 8; i++) {
+    state.tabs.push(
+      createTab(i, `s${i}`, "/repo", {
+        title: `Agent-${i}`,
+        previewMessages: [{ role: "assistant", text: `message ${i}` }],
+      }),
+    );
+  }
+  state.homeSelectedTabIndex = 3;
+
+  const lines = renderHome(state, 100, undefined, 0, 48).map((line) => stripAnsi(line).trim());
+  const newer = lines.findIndex((line) => line.includes("newer below"));
+  const older = lines.findIndex((line) => line.includes("older above"));
+  const preview = lines.findIndex((line) => line.includes("assistant: message"));
+  const listEnd = Math.max(newer, ...lines.map((line, index) => (line.includes("┘") ? index : -1)));
+  assert.ok(older >= 0 || newer >= 0);
+  assert.ok(preview > listEnd);
+  const gap = lines.slice(listEnd + 1, preview).filter((line) => line === "│" || line === "");
+  assert.equal(gap.length, 0);
 });
 
 test("renderHome shows compact preview for all cards including selected", () => {
