@@ -112,9 +112,12 @@ const AGENT_VIEW_SPINNER_INTERVAL_MS = 80;
 
 function renderAgentViewTable(state: MixCodeState, width: number, maxRows?: number): string[] {
   const budget = maxRows === undefined ? undefined : Math.max(0, Math.floor(maxRows));
-  const heading = state.homeNonIdleOnly ? " Agents  ·  non-idle" : " Agents";
+  const heading = state.homeNonIdleOnly
+    ? `${activeRenderTheme.bold(" Agents  · ")}${activeRenderTheme.selectedBg(" non-idle ")}`
+    : activeRenderTheme.bold(" Agents");
+  const filterHint = state.homeNonIdleOnly ? "Ctrl+F: all" : "Ctrl+F: non-idle";
   const hint = activeRenderTheme.dim(
-    "  ↑/↓: select  →: attach  Enter: send  Tab: cycle tabs  Ctrl+F: non-idle",
+    `  ↑/↓: select  →: attach  Enter: send  Tab: cycle tabs  ${filterHint}`,
   );
   if (state.tabs.length === 0) {
     return fitAgentRows(

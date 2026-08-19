@@ -245,13 +245,22 @@ test("Home Ctrl+F toggles non-idle filter and walks only matching agents", () =>
   assert.equal(state.homeNonIdleOnly, true);
   assert.equal(state.homeSelectedTabIndex, 1);
 
-  const filtered = stripAnsi(renderHome(state, 100).join("\n"));
-  assert.match(filtered, /Agents  ·  non-idle/);
+  const filteredRaw = renderHome(state, 100).join("\n");
+  const filtered = stripAnsi(filteredRaw);
+  const chipLine =
+    filteredRaw.split("\n").find((line) => {
+      const text = stripAnsi(line);
+      return text.includes("non-idle") && !text.includes("Ctrl+F");
+    }) ?? "";
+  assert.match(chipLine, /\x1b\[48;/);
+  assert.match(filtered, /Agents  · /);
+  assert.match(filtered, /non-idle/);
   assert.match(filtered, /Busy/);
   assert.match(filtered, /Done/);
   assert.doesNotMatch(filtered, /Idle-A/);
   assert.doesNotMatch(filtered, /Idle-B/);
-  assert.match(filtered, /Ctrl\+F: non-idle/);
+  assert.match(filtered, /Ctrl\+F: all/);
+  assert.doesNotMatch(filtered, /Ctrl\+F: non-idle/);
 
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[B", tui), { consume: true });
   assert.equal(state.homeSelectedTabIndex, 3);
