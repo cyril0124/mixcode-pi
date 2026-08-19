@@ -4,7 +4,7 @@ import {
   createInitialState,
   createTab,
   renderCommandPalette,
-  renderConfig,
+  renderHome,
   renderPickerOverlay,
   renderTabJumpOverlay,
 } from "./helpers/mixcode.js";
@@ -19,13 +19,13 @@ function stripAnsi(text: string): string {
 test("config lists agents and surfaces package update notice", () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"));
-  const config = stripAnsi(renderConfig(state, 100).join("\n"));
+  const config = stripAnsi(renderHome(state, 100).join("\n"));
   assert.match(config, /Agents/);
   assert.match(config, /Agent-01/);
   assert.doesNotMatch(config, /Package Updates Available/);
 
   state.packageUpdates = ["@tintinweb/pi-tasks", "pi-codex-goal"];
-  const updates = stripAnsi(renderConfig(state, 100).join("\n"));
+  const updates = stripAnsi(renderHome(state, 100).join("\n"));
   assert.match(updates, /Package Updates Available/);
   assert.match(updates, /pi update/);
   assert.match(updates, /@tintinweb\/pi-tasks/);

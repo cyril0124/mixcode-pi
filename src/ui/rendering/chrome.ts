@@ -1177,13 +1177,13 @@ function withFocusMark(paint: (text: string) => string, body: string): string {
 }
 
 function tabBarSegments(state: MixCodeState): Array<{ id: string; text: string }> {
-  const configText = " MixCode Home ";
+  const homeText = " MixCode Home ";
   const isHomeActive = state.activeTabId === HOME_TAB_ID;
-  const config = isHomeActive
-    ? withFocusMark(activeRenderTheme.homeTabActive, configText.slice(1))
-    : activeRenderTheme.homeTab(configText);
+  const home = isHomeActive
+    ? withFocusMark(activeRenderTheme.homeTabActive, homeText.slice(1))
+    : activeRenderTheme.homeTab(homeText);
   return [
-    { id: HOME_TAB_ID, text: config },
+    { id: HOME_TAB_ID, text: home },
     ...state.tabs.map((tab) => ({
       id: tab.sessionId,
       text: renderTabSegmentText(

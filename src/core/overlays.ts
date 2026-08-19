@@ -274,7 +274,7 @@ function commandPaletteBaseEntries(
   state: MixCodeState,
   extensionCommands: Array<{ name: string; description?: string }>,
 ): CommandPaletteEntry[] {
-  if (state.activeTabId === HOME_TAB_ID) return configCommandPaletteEntries(state);
+  if (state.activeTabId === HOME_TAB_ID) return homeCommandPaletteEntries(state);
   const active = findActiveTab(state);
   if (!active) return [];
   return [
@@ -283,7 +283,7 @@ function commandPaletteBaseEntries(
   ];
 }
 
-function configCommandPaletteEntries(state: MixCodeState): CommandPaletteEntry[] {
+function homeCommandPaletteEntries(state: MixCodeState): CommandPaletteEntry[] {
   const flags = {
     hasSession: false,
     hasModels: state.availableModels.length > 0,

@@ -32,7 +32,7 @@ import {
   padLine,
   renderChat,
   renderCommandPalette,
-  renderConfig,
+  renderHome,
   renderSystemToolsText,
   renderExtensionFooter,
   renderExtensionHeader,

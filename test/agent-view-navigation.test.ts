@@ -8,7 +8,7 @@ import {
   createInitialState,
   createTab,
   handleMixCodeKeyInput,
-  renderConfig,
+  renderHome,
   clampHomeSelectedTabIndex,
   reindexWorkspaceTabs,
 } from "./helpers/mixcode.js";
@@ -651,19 +651,19 @@ test("Home Up/Down does NOT consume when no tabs exist", () => {
   assert.notDeepEqual(result, { consume: true });
 });
 
-// --- renderConfig shows Agent View table ---
+// --- renderHome shows Agent View table ---
 
-test("renderConfig shows the app version on the Home panel border", async () => {
+test("renderHome shows the app version on the Home panel border", async () => {
   const pkg = (await import("../package.json", { with: { type: "json" } })).default;
   const state = createInitialState("/repo");
   state.activeTabId = "home";
 
   // Wide terminal (logo shown) and narrow terminal (logo hidden) both show it.
-  assert.ok(stripAnsi(renderConfig(state, 100).join("\n")).includes(`v${pkg.version}`));
-  assert.ok(stripAnsi(renderConfig(state, 50).join("\n")).includes(`v${pkg.version}`));
+  assert.ok(stripAnsi(renderHome(state, 100).join("\n")).includes(`v${pkg.version}`));
+  assert.ok(stripAnsi(renderHome(state, 50).join("\n")).includes(`v${pkg.version}`));
 });
 
-test("renderConfig paints the selected agent toast", () => {
+test("renderHome paints the selected agent toast", () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo");
   tab.toast = { type: "info", message: "Hidden extension messages shown", createdAt: Date.now() };
@@ -671,18 +671,18 @@ test("renderConfig paints the selected agent toast", () => {
   state.activeTabId = "home";
   state.homeSelectedTabIndex = 0;
 
-  const output = renderConfig(state, 100).join("\n");
+  const output = renderHome(state, 100).join("\n");
   assert.match(output, /Hidden extension messages shown/);
 });
 
-test("renderConfig shows Agent View table with agent rows", () => {
+test("renderHome shows Agent View table with agent rows", () => {
   const state = createInitialState("/repo");
   state.tabs.push(
     createTab(1, "s1", "/repo", { status: "running", title: "Worker-01" }),
     createTab(2, "s2", "/repo", { status: "idle", title: "Research", unreadDone: true }),
   );
   state.homeSelectedTabIndex = 0;
-  const output = renderConfig(state, 100).join("\n");
+  const output = renderHome(state, 100).join("\n");
 
   assert.match(output, /Worker-01/);
   assert.match(output, /Research/);
@@ -691,7 +691,7 @@ test("renderConfig shows Agent View table with agent rows", () => {
   assert.match(output, /Agents/);
 });
 
-test("renderConfig colors Agent View glyph and title together for notable states", () => {
+test("renderHome colors Agent View glyph and title together for notable states", () => {
   const state = createInitialState("/repo");
   state.tabs.push(
     createTab(1, "s1", "/repo", {
@@ -708,14 +708,14 @@ test("renderConfig colors Agent View glyph and title together for notable states
     createTab(2, "s2", "/repo", { status: "running", title: "Working" }),
     createTab(3, "s3", "/repo", { status: "idle", title: "Idle" }),
   );
-  const output = renderConfig(state, 120).join("\n");
+  const output = renderHome(state, 120).join("\n");
 
   assert.match(output, /\x1b\[[0-9;:]*m\? Question\x1b\[39m/);
   assert.match(output, /\x1b\[[0-9;:]*m● Working\x1b\[39m/);
   assert.doesNotMatch(output, /\x1b\[[0-9;:]*m- Idle\x1b\[39m/);
 });
 
-test("renderConfig mirrors Agent Tab glyphs in Agent View cards", () => {
+test("renderHome mirrors Agent Tab glyphs in Agent View cards", () => {
   const state = createInitialState("/repo");
   state.tabs.push(
     createTab(1, "s1", "/repo", { status: "error", title: "Broken" }),
@@ -734,7 +734,7 @@ test("renderConfig mirrors Agent Tab glyphs in Agent View cards", () => {
     createTab(4, "s4", "/repo", { status: "idle", title: "Done", unreadDone: true }),
     createTab(5, "s5", "/repo", { status: "idle", title: "Idle" }),
   );
-  const output = stripAnsi(renderConfig(state, 120).join("\n"));
+  const output = stripAnsi(renderHome(state, 120).join("\n"));
 
   assert.match(output, /x Broken/);
   assert.match(output, /\? Question/);
@@ -743,21 +743,21 @@ test("renderConfig mirrors Agent Tab glyphs in Agent View cards", () => {
   assert.match(output, /- Idle/);
 });
 
-test("renderConfig shows empty state when no tabs", () => {
+test("renderHome shows empty state when no tabs", () => {
   const state = createInitialState("/repo");
-  const output = renderConfig(state, 100).join("\n");
+  const output = renderHome(state, 100).join("\n");
 
   assert.match(output, /No agent sessions/);
 });
 
-test("renderConfig fills the selected card with selection background", () => {
+test("renderHome fills the selected card with selection background", () => {
   const state = createInitialState("/repo");
   state.tabs.push(
     createTab(1, "s1", "/repo", { title: "First" }),
     createTab(2, "s2", "/repo", { title: "Second" }),
   );
   state.homeSelectedTabIndex = 1;
-  const output = renderConfig(state, 100).join("\n");
+  const output = renderHome(state, 100).join("\n");
   const plain = stripAnsi(output);
 
   assert.match(plain, /› - Second/);
@@ -771,7 +771,7 @@ test("renderConfig fills the selected card with selection background", () => {
   assert.doesNotMatch(unselectedLine, /\x1b\[48;/);
 });
 
-test("renderConfig shows spinner for working agent cards", () => {
+test("renderHome shows spinner for working agent cards", () => {
   const state = createInitialState("/repo");
   state.tabs.push(
     createTab(1, "s1", "/repo", {
@@ -781,14 +781,14 @@ test("renderConfig shows spinner for working agent cards", () => {
     }),
     createTab(2, "s2", "/repo", { status: "idle", title: "Idle" }),
   );
-  const plain = stripAnsi(renderConfig(state, 100).join("\n"));
+  const plain = stripAnsi(renderHome(state, 100).join("\n"));
 
   assert.match(plain, /[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] \[running\]/);
   assert.match(plain, /Idle .*\[idle\]/);
   assert.doesNotMatch(plain, /[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] \[idle\]/);
 });
 
-test("renderConfig shows preview panel below card list for selected agent", () => {
+test("renderHome shows preview panel below card list for selected agent", () => {
   const state = createInitialState("/repo");
   state.tabs.push(
     createTab(1, "s1", "/repo", {
@@ -801,7 +801,7 @@ test("renderConfig shows preview panel below card list for selected agent", () =
     }),
   );
   state.homeSelectedTabIndex = 0;
-  const output = stripAnsi(renderConfig(state, 100).join("\n"));
+  const output = stripAnsi(renderHome(state, 100).join("\n"));
 
   // Preview panel shows user/assistant below card list, not tool messages.
   assert.match(output, /user:.*please explain/);
@@ -809,7 +809,7 @@ test("renderConfig shows preview panel below card list for selected agent", () =
   assert.doesNotMatch(output, /tool:/);
 });
 
-test("renderConfig respects row budget for compact Agent View", () => {
+test("renderHome respects row budget for compact Agent View", () => {
   const state = createInitialState("/repo");
   state.tabs.push(
     createTab(1, "s1", "/repo", {
@@ -819,7 +819,7 @@ test("renderConfig respects row budget for compact Agent View", () => {
   );
   state.homeSelectedTabIndex = 0;
 
-  const lines = renderConfig(state, 100, undefined, 0, 9);
+  const lines = renderHome(state, 100, undefined, 0, 9);
   const output = stripAnsi(lines.join("\n"));
 
   assert.equal(lines.length, 9);
@@ -830,7 +830,7 @@ test("renderConfig respects row budget for compact Agent View", () => {
   assert.doesNotMatch(output, /newer below/);
 });
 
-test("renderConfig preserves full selected-agent preview when it fits", () => {
+test("renderHome preserves full selected-agent preview when it fits", () => {
   const state = createInitialState("/repo");
   state.tabs.push(
     createTab(1, "s1", "/repo", {
@@ -843,7 +843,7 @@ test("renderConfig preserves full selected-agent preview when it fits", () => {
   );
   state.homeSelectedTabIndex = 0;
 
-  const output = stripAnsi(renderConfig(state, 100, undefined, 0, 26).join("\n"));
+  const output = stripAnsi(renderHome(state, 100, undefined, 0, 26).join("\n"));
 
   for (let index = 1; index <= 7; index++) {
     assert.match(output, new RegExp(`assistant: message ${index}`));
@@ -851,7 +851,7 @@ test("renderConfig preserves full selected-agent preview when it fits", () => {
   assert.doesNotMatch(output, /newer below/);
 });
 
-test("renderConfig shows compact preview for all cards including selected", () => {
+test("renderHome shows compact preview for all cards including selected", () => {
   const state = createInitialState("/repo");
   state.tabs.push(
     createTab(1, "s1", "/repo", {
@@ -868,14 +868,14 @@ test("renderConfig shows compact preview for all cards including selected", () =
     }),
   );
   state.homeSelectedTabIndex = 0;
-  const output = stripAnsi(renderConfig(state, 100).join("\n"));
+  const output = stripAnsi(renderHome(state, 100).join("\n"));
 
   // Both cards show compact ⎿ preview
   assert.match(output, /⎿ First output/);
   assert.match(output, /⎿ Second output/);
 });
 
-test("renderConfig uses the same 4-row card for selected and unselected agents", () => {
+test("renderHome uses the same 4-row card for selected and unselected agents", () => {
   const state = createInitialState("/repo");
   state.tabs.push(
     createTab(1, "s1", "/repo", {
@@ -898,7 +898,7 @@ test("renderConfig uses the same 4-row card for selected and unselected agents",
     }),
   );
   state.homeSelectedTabIndex = 0;
-  const rendered = renderConfig(state, 100);
+  const rendered = renderHome(state, 100);
   const plainLines = rendered.map((line) => stripAnsi(line));
   const plain = plainLines.join("\n");
 
@@ -922,43 +922,43 @@ test("renderConfig uses the same 4-row card for selected and unselected agents",
   assert.doesNotMatch(rendered[unselected]!, /\x1b\[48;/);
 });
 
-test("renderConfig dynamically windows agent cards around selection", () => {
+test("renderHome dynamically windows agent cards around selection", () => {
   const state = createInitialState("/repo");
   for (let i = 1; i <= 6; i++) {
     state.tabs.push(createTab(i, `s${i}`, "/repo", { title: `Agent-${i}` }));
   }
   state.homeSelectedTabIndex = 5;
-  const output = stripAnsi(renderConfig(state, 100, undefined, 0, 18).join("\n"));
+  const output = stripAnsi(renderHome(state, 100, undefined, 0, 18).join("\n"));
 
   assert.match(output, /› - Agent-6/);
   assert.doesNotMatch(output, /Agent-1/);
 });
 
-test("renderConfig shows older above / newer below when agent cards are windowed", () => {
+test("renderHome shows older above / newer below when agent cards are windowed", () => {
   const state = createInitialState("/repo");
   for (let i = 1; i <= 6; i++) {
     state.tabs.push(createTab(i, `s${i}`, "/repo", { title: `Agent-${i}` }));
   }
 
   state.homeSelectedTabIndex = 5;
-  const bottom = stripAnsi(renderConfig(state, 100, undefined, 0, 26).join("\n"));
+  const bottom = stripAnsi(renderHome(state, 100, undefined, 0, 26).join("\n"));
   assert.match(bottom, /↑ older above/);
   assert.match(bottom, /› - Agent-6/);
   assert.doesNotMatch(bottom, /Agent-1/);
   assert.doesNotMatch(bottom, /↓ newer below/);
 
   state.homeSelectedTabIndex = 0;
-  const top = stripAnsi(renderConfig(state, 100, undefined, 0, 26).join("\n"));
+  const top = stripAnsi(renderHome(state, 100, undefined, 0, 26).join("\n"));
   assert.match(top, /↓ newer below/);
   assert.match(top, /› - Agent-1/);
   assert.doesNotMatch(top, /Agent-6/);
   assert.doesNotMatch(top, /↑ older above/);
 });
 
-test("renderConfig lists all package updates without a hidden-count summary", () => {
+test("renderHome lists all package updates without a hidden-count summary", () => {
   const state = createInitialState("/repo");
   state.packageUpdates = ["one", "two", "three", "four"];
-  const output = renderConfig(state, 100).join("\n");
+  const output = renderHome(state, 100).join("\n");
 
   assert.match(output, /- one/);
   assert.match(output, /- two/);

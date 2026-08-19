@@ -5,7 +5,7 @@ import type { MixCodeRuntime } from "../agent/runtime.js";
 import { resolveMixcodeAgentDir } from "./paths.js";
 import type { CtlRequest, CtlResponse } from "../cli/ctl.js";
 import { renderAgentSurface } from "../ui/rendering/agent-surface.js";
-import { renderConfig } from "../ui/rendering/overlays.js";
+import { renderHome } from "../ui/rendering/overlays.js";
 import { activateTab, getActiveTab } from "./tabs.js";
 import { tabIsWaitingForInput } from "./tab-state.js";
 import { HOME_TAB_ID, type MixCodeState, type MixCodeTabInfo } from "./types.js";
@@ -526,7 +526,7 @@ export async function handleCtlRequest(
         useLiveTui
           ? options.renderTui!(dumpWidth)
           : sessionId === HOME_TAB_ID
-            ? renderConfig(options.state, dumpWidth)
+            ? renderHome(options.state, dumpWidth)
             : (() => {
                 const tab =
                   options.state.tabs.find((candidate) => candidate.sessionId === sessionId) ??

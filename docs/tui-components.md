@@ -77,7 +77,7 @@ Covers:
 │          +------------+-------------+                                                            │
 │          | home tab                 | agent tab                                                  │
 │          v                          v                                                            │
-│    renderConfig()            Agent Surface                                                       │
+│    renderHome()              Agent Surface                                                       │
 │    home actions                |                                                                 │
 │                                +-- chat blocks (user/asst/tool/bash)                             │
 │                                +-- extension header (scrolls w/ chat)                            │

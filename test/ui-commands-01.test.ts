@@ -8,7 +8,7 @@ import {
   createTab,
   handleMixCodeKeyInput,
   handleSubmittedInput,
-  renderConfig,
+  renderHome,
   renderInputMeta,
   renderPickerOverlay,
   setStateModel,

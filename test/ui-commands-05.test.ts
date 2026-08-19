@@ -11,7 +11,7 @@ import {
   handleSubmittedInput,
   openTabsFile,
   readOpenTabs,
-  renderConfig,
+  renderHome,
   renderInputMeta,
   renderPickerOverlay,
   tabBarHitRegions,

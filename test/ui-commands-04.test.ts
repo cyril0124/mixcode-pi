@@ -9,7 +9,7 @@ import {
   configureOpenTabsPath,
   handleMixCodeKeyInput,
   handleSubmittedInput,
-  renderConfig,
+  renderHome,
   renderHotkeysText,
   renderInputMeta,
   renderPickerOverlay,

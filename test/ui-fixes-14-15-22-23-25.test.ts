@@ -10,7 +10,7 @@ import {
   createPicker,
   createTab,
   filteredPickerItems,
-  renderConfig,
+  renderHome,
 } from "./helpers/mixcode.js";
 import { renderDeleteAllSessionsConfirm } from "../src/ui/app-overlays.js";
 import { handleSettingsPanelKey, renderSettingsPanel } from "../src/ui/settings-panel.js";
@@ -21,7 +21,7 @@ test("home logo is hidden when terminal width cannot fit the banner", () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"));
   // Logo is ~55 columns; width 40 body should not paint the banner glyphs.
-  const narrow = stripAnsi(renderConfig(state, 40).join("\n"));
+  const narrow = stripAnsi(renderHome(state, 40).join("\n"));
   assert.doesNotMatch(narrow, /███/);
   assert.match(narrow, /Agents|Agent-01|No agent sessions/);
 });
@@ -29,8 +29,8 @@ test("home logo is hidden when terminal width cannot fit the banner", () => {
 test("home keeps navigation hints when height is short", () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"));
-  // renderConfig(state, width, theme, rowOffset, maxRows)
-  const short = stripAnsi(renderConfig(state, 80, undefined as never, 0, 10).join("\n"));
+  // renderHome(state, width, theme, rowOffset, maxRows)
+  const short = stripAnsi(renderHome(state, 80, undefined as never, 0, 10).join("\n"));
   assert.match(short, /↑\/↓: select|→: attach|Enter: send|Tab: cycle tabs/);
 });
 

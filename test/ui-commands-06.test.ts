@@ -6,7 +6,7 @@ import {
   createTab,
   handleMixCodeKeyInput,
   handleSubmittedInput,
-  renderConfig,
+  renderHome,
   renderInputMeta,
   tabBarHitRegions,
 } from "./helpers/mixcode.js";
@@ -438,7 +438,7 @@ test("global key input toggles MixCode overlays and passes through regular input
   });
   assert.equal(state.extensionManager.open, false);
   state.activeTabId = "home";
-  renderConfig(state, 100);
+  renderHome(state, 100);
   assert.equal(handleMixCodeKeyInput(state, "\x1b[<0;10;10M", tui), undefined);
   assert.equal(state.picker, undefined);
   assert.equal(state.commandPaletteOpen, false);

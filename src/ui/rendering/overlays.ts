@@ -28,17 +28,17 @@ function matchHighlight(text: string): string {
   return activeRenderTheme.bold(activeRenderTheme.accent(text));
 }
 
-export function renderConfig(
+export function renderHome(
   state: MixCodeState,
   width: number,
   theme: MixCodeTheme = activeRenderTheme,
   rowOffset = 0,
   maxRows?: number,
 ): string[] {
-  return renderWithTheme(theme, () => renderConfigInner(state, width, rowOffset, maxRows));
+  return renderWithTheme(theme, () => renderHomeInner(state, width, rowOffset, maxRows));
 }
 
-function renderConfigInner(
+function renderHomeInner(
   state: MixCodeState,
   width: number,
   rowOffset: number,

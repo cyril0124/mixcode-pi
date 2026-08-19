@@ -136,7 +136,7 @@ const handleHideThinking: LocalCommandHandler = async ({ state, active, runtime,
   state.hideThinkingBlock = hide;
   for (const tab of state.tabs) clearConversationCache(tab.sessionId);
   const message = hide ? "Thinking blocks: hidden" : "Thinking blocks: visible";
-  // Home paints the selected agent's toast (renderConfig + applyToastOverlay).
+  // Home paints the selected agent's toast (renderHome + applyToastOverlay).
   if (active) pushToast(active, { type: "info", message });
   tui.requestRender();
   return undefined;

@@ -9,7 +9,7 @@ import {
   createInitialState,
   createTab,
   renderChat,
-  renderConfig,
+  renderHome,
   selectedNoticeText,
 } from "./helpers/mixcode.js";
 import {
@@ -209,7 +209,7 @@ test("#78 Home card shows unread-done chip and non-assistant preview", () => {
   });
   state.tabs.push(tab);
   state.activeTabId = "home";
-  const plain = stripAnsi(renderConfig(state, 100).join("\n"));
+  const plain = stripAnsi(renderHome(state, 100).join("\n"));
   assert.match(plain, /\[done\]/);
   assert.match(plain, /hello from bash/);
 });
@@ -225,7 +225,7 @@ test("Home card Updated uses lastWorkedAt recency, not run duration", () => {
   });
   state.tabs.push(tab);
   state.activeTabId = "home";
-  const plain = stripAnsi(renderConfig(state, 100).join("\n"));
+  const plain = stripAnsi(renderHome(state, 100).join("\n"));
   assert.match(plain, /faux-1 · \?\/200k · [0-5]s ago/);
   assert.doesNotMatch(plain, /3m ago/);
   assert.doesNotMatch(plain, /Updated/);

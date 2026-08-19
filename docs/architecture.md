@@ -92,7 +92,7 @@ Authoritative key list and Escape dispatch: [Keybindings & Escape](keybindings-a
 ┌────────────────────────────────────────────────────────────┐
 │ Header: MixCode                                            │
 ├────────────────────────────────────────────────────────────┤
-│ [Config] [Agent-01] [Agent-02*]        Ctrl+T:Jump         │
+│ [Home] [Agent-01] [Agent-02*]          Ctrl+T:Jump         │
 ├────────────────────────────────────────────────────────────┤
 │ Status: Context / State / Model                            │
 ├────────────────────────────────────────────────────────────┤

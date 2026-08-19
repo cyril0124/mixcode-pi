@@ -16,7 +16,7 @@ import {
   padLine,
   renderAgentSurface,
   exactContextUsageText,
-  renderConfig,
+  renderHome,
   renderExtensionFooter,
   renderExtensionPanel,
   renderExtensionWidgets,
@@ -107,9 +107,9 @@ export class MixCodeRoot implements Component {
     this.state.tabBarTopRow = top.length - tabBarLines.length + 1;
     this.state.lastRenderWidth = width;
     if (!active || this.state.activeTabId === HOME_TAB_ID) {
-      const configRows = limit === undefined ? undefined : Math.max(0, limit - top.length);
+      const homeRows = limit === undefined ? undefined : Math.max(0, limit - top.length);
       return this.fitRootLines(
-        [...top, ...renderConfig(this.state, width, theme, top.length, configRows)],
+        [...top, ...renderHome(this.state, width, theme, top.length, homeRows)],
         width,
       );
     }
