@@ -202,11 +202,9 @@ test("ensurePackageExtensions leaves no success hash after a failed sync", async
     ensurePackageExtensions(rootDir, { agentDir });
     assert.equal(await fsPromises.readFile(installedIndex, "utf8"), "export default 1;\n");
   } finally {
-    try {
-      await fsPromises.chmod(extensionsDir, 0o700);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-    }
+    // Best-effort perm restore (dir may not exist) so rm can traverse; a
+    // throw here would mask the primary test failure, and rm fails loud anyway.
+    await fsPromises.chmod(extensionsDir, 0o700).catch(() => undefined);
     await fsPromises.rm(rootDir, { recursive: true, force: true });
     await fsPromises.rm(agentDir, { recursive: true, force: true });
   }

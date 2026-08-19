@@ -253,7 +253,7 @@ test("Home Ctrl+F toggles non-idle filter and walks only matching agents", () =>
       return text.includes("non-idle") && !text.includes("Ctrl+F");
     }) ?? "";
   assert.match(chipLine, /\x1b\[48;/);
-  assert.match(filtered, /Agents  · /);
+  assert.match(filtered, /Agents {2}· /);
   assert.match(filtered, /non-idle/);
   assert.match(filtered, /Busy/);
   assert.match(filtered, /Done/);
@@ -735,7 +735,7 @@ test("renderHome shows the app version on the Home panel border", async () => {
 test("renderHome hides the MIXCODE logo when it would dominate the Home viewport", () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"));
-  const banner = /███╗   ███╗/;
+  const banner = /███╗ {3}███╗/;
 
   assert.match(stripAnsi(renderHome(state, 100, undefined, 0, 40).join("\n")), banner);
   assert.doesNotMatch(stripAnsi(renderHome(state, 100, undefined, 0, 20).join("\n")), banner);

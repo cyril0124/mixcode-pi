@@ -184,7 +184,6 @@ export class MixCodeRuntime {
   private readonly modelsChangedListeners = new Set<(refs: MixCodeModelRef[]) => void>();
   /** UI-focused agent session id; undefined when Home is focused. */
   private focusedSessionId: string | undefined;
-  private readonly stopActiveTabTracking: () => void;
 
   private lifecycleContext(): RuntimeLifecycleContext {
     return {
@@ -263,7 +262,8 @@ export class MixCodeRuntime {
     // Extension pi.registerProvider updates ModelRegistry but MixCode UI reads
     // state.availableModels; keep them in sync when providers are registered.
     this.installProviderRegistryUiSync();
-    this.stopActiveTabTracking = onActiveTabChange((tabId) => {
+    // Runtime lives for the process lifetime; the subscription is never torn down.
+    onActiveTabChange((tabId) => {
       this.focusedSessionId = tabId === HOME_TAB_ID ? undefined : tabId;
     });
   }

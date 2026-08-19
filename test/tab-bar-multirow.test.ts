@@ -196,7 +196,7 @@ test("sliding window: Home pin is independent of agent window", () => {
   );
   if (endLine.startsWith(" H ")) {
     // Gap outside the H chip: " H  +N …" not " H+N".
-    assert.match(endLine, /^ H  \+\d+ …/);
+    assert.match(endLine, /^ H {2}\+\d+ …/);
     assert.doesNotMatch(endLine, / H\+/);
   }
   const endRegions = tabBarHitRegions(state, width, 1);

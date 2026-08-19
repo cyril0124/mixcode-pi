@@ -1,5 +1,5 @@
 import { getActiveTab } from "./tabs.js";
-import { type MixCodeState, type WorkspaceSnapshot, type WorkspaceTabSnapshot } from "./types.js";
+import type { MixCodeState, WorkspaceSnapshot, WorkspaceTabSnapshot } from "./types.js";
 
 export interface WorkspaceRuntimeSnapshotSource {
   getTab?: (sessionId: string) => { session?: { getSessionFile?: () => string | null | undefined } } | undefined;

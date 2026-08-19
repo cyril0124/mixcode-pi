@@ -121,7 +121,6 @@ test("input meta collapses when an extension footer is present", () => {
 test("input meta stays empty when extension footer is present even if Esc is armed", () => {
   const tab = createTab(1, "s1", "/nonexistent-no-git", {
     lastEscapeTime: Date.now(),
-    pendingEscapeArmedAt: 1_700_000_000_000,
     pendingEscapeArmedAt: Date.now(),
   });
   tab.extensionUi.footer = { lines: ["footer"], render: () => ["footer"] };

@@ -41,7 +41,7 @@ test("mergeCommandCatalog prefers local names and formats usage", () => {
   assert.equal(byName.commands?.path, "/ext/command-browser.ts");
   assert.equal(byName.review?.usage, "/review <file>");
   assert.equal(byName["skill:mpi-ctl"], undefined);
-  assert.match(formatCommandCatalog(catalog), /\/context-limit <tokens\|reset>\n  Set limit/);
+  assert.match(formatCommandCatalog(catalog), /\/context-limit <tokens\|reset>\n {2}Set limit/);
 });
 
 test("loadCommandCatalog includes local and a fixture extension command", async () => {

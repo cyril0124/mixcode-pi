@@ -3,6 +3,7 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
+import type { AssistantMessage } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import {
   loadAutoRenameConfig,
@@ -171,7 +172,9 @@ function namedRenameCtx(options: {
   names: string[];
   notices: string[];
   select: (title: string, choices: string[]) => Promise<string | undefined>;
-  complete?: () => Promise<unknown>;
+  // Loose params, strict return: runAutoRename consumes the AssistantMessage
+  // text as the generated title, so mocks must honor that contract.
+  complete?: (model?: unknown, context?: unknown, options?: unknown) => Promise<AssistantMessage>;
 }) {
   return {
     setSessionName: (name: string) => options.names.push(name),
