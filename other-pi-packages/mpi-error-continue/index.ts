@@ -246,10 +246,15 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
     });
 
     // Arm only from agent_end; fire on agent_settled so Pi auto-retry/compact finish first.
-    pi.on("agent_end", (event) => {
-      if (!enabled) {
+    pi.on("agent_end", (event, ctx) => {
+      // User abort (ctx.signal.aborted) can land after a completed thinking/toolCall
+      // assistant, so stopReason is not "aborted". Trust the run signal.
+      if (!enabled || ctx.signal?.aborted) {
         retryArmed = false;
         midWorkArmed = false;
+        pendingAutoContinue = false;
+        abortSleep();
+        if (ctx.signal?.aborted) clearPhaseCounters();
         return;
       }
       const last = lastAssistant(event.messages);

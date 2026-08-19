@@ -9,8 +9,9 @@ When an agent turn **settles on `stopReason: "error"`** (Pi built-in auto-retry 
 Additionally, when a turn **settles without an error** but the last assistant message ends in a
 **thinking block or a tool call** (agent stopped mid-work), it immediately sends one visible user
 message `continue $simple-plan` so the simple-plan skill is loaded on resume. One send per stop;
-the error flow above is unaffected. User-initiated aborts (`stopReason: "aborted"`, e.g. Esc)
-never trigger continues.
+the error flow above is unaffected. User-initiated aborts (`stopReason: "aborted"` or
+`ctx.signal.aborted`) never trigger continues, even if the last assistant still looks like
+mid-work (`thinking` / `toolCall` with a non-`aborted` stopReason).
 
 ## Commands
 

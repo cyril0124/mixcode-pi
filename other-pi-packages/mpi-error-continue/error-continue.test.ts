@@ -37,6 +37,7 @@ function createHarness(
   const statuses: Array<{ key: string; text: string | undefined }> = [];
   const entries: Array<{ customType: string; data: any }> = [];
   const delays: number[] = [];
+  let abortController = new AbortController();
 
   const ctx = {
     ui: {
@@ -45,6 +46,9 @@ function createHarness(
     },
     sessionManager: {
       getBranch: () => branch,
+    },
+    get signal() {
+      return abortController.signal;
     },
   } as unknown as ExtensionContext;
 
@@ -92,6 +96,10 @@ function createHarness(
       const command = commands.get(COMMAND_NAME);
       assert.ok(command);
       await command.handler(args, ctx);
+    },
+    abort: () => abortController.abort(),
+    resetSignal: () => {
+      abortController = new AbortController();
     },
   };
 }
@@ -308,6 +316,50 @@ test("aborted settle ending in thinking or tool call does not send", async () =>
   await midWorkSettle(harness, { ...assistantThinking(), stopReason: "aborted" });
   await midWorkSettle(harness, { ...assistantToolCall(), stopReason: "aborted" });
   assert.equal(harness.sent.length, 0);
+});
+
+test("run abort signal does not continue even when last assistant looks mid-work", async () => {
+  const harness = createHarness();
+  await harness.emit("session_start");
+  harness.abort();
+  await midWorkSettle(harness, assistantThinking());
+  await midWorkSettle(harness, assistantToolCall());
+  assert.equal(harness.sent.length, 0);
+});
+
+test("run abort signal does not continue on error or empty settle", async () => {
+  const harness = createHarness();
+  await harness.emit("session_start");
+  harness.abort();
+  await errorSettle(harness);
+  await harness.emit("agent_end", { messages: [assistantEmpty()] });
+  await harness.emit("agent_settled");
+  assert.equal(harness.sent.length, 0);
+});
+
+test("user abort resets phase counters but keeps session retry count", async () => {
+  const harness = createHarness();
+  await harness.emit("session_start");
+  await errorSettle(harness);
+  assert.deepEqual(harness.delays, [BASE_DELAY_MS]);
+  assert.deepEqual(harness.statuses.at(-1), {
+    key: STATUS_KEY,
+    text: `${STATUS_PREFIX} (1)`,
+  });
+
+  harness.abort();
+  await harness.emit("agent_end", { messages: [assistantError("aborted-run")] });
+  await harness.emit("agent_settled");
+  assert.equal(harness.sent.length, 1);
+
+  harness.resetSignal();
+  await errorSettle(harness, "after-abort");
+  assert.equal(harness.sent.length, 2);
+  assert.deepEqual(harness.delays, [BASE_DELAY_MS, BASE_DELAY_MS]);
+  assert.deepEqual(harness.statuses.at(-1), {
+    key: STATUS_KEY,
+    text: `${STATUS_PREFIX} (2)`,
+  });
 });
 
 test("isEmptyResponse helper", () => {
