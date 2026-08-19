@@ -183,11 +183,20 @@ function renderAgentViewTable(state: MixCodeState, width: number, maxRows?: numb
   }
   if (maxCards === 0 && availableForCards !== undefined && availableForCards > 0) {
     const fallbackIndex = visible[selectedVisiblePos] ?? visible[0]!;
-    pushAgentRows(lines, renderAgentCard(state.tabs[fallbackIndex]!, width, true, now), cardBudget);
+    pushAgentRows(
+      lines,
+      renderAgentCard(state.tabs[fallbackIndex]!, width, true, now),
+      cardBudget,
+    );
   } else {
     for (let i = start; i < end; i++) {
       const tabIndex = visible[i]!;
-      const card = renderAgentCard(state.tabs[tabIndex]!, width, tabIndex === selectedIndex, now);
+      const card = renderAgentCard(
+        state.tabs[tabIndex]!,
+        width,
+        tabIndex === selectedIndex,
+        now,
+      );
       if (listBudget !== undefined && lines.length + card.length > listBudget) break;
       lines.push(...card);
     }
@@ -273,7 +282,7 @@ function renderAgentCard(
   const title = `${marker}${titleSegment}`;
   const titleFill = Math.max(0, innerWidth - visibleWidth(title) - visibleWidth(statusGroup) - 2);
   const top = `${border("┌")}${title} ${border("─".repeat(titleFill))} ${statusGroup}${border("┐")}`;
-  const meta = truncateToWidth(` ${formatAgentCardMeta(tab)}`, innerWidth, "...");
+  const meta = truncateToWidth(` ${formatAgentCardMeta(tab, new Date(now))}`, innerWidth, "...");
   const preview = truncateToWidth(` ⎿ ${latestAssistantPreview(tab)}`, innerWidth, "...");
   const lines = [
     top,
@@ -355,9 +364,9 @@ function formatTabStatusChip(tab: MixCodeState["tabs"][number]): string {
 
 function formatAgentCardMeta(tab: MixCodeState["tabs"][number], now = new Date()): string {
   const model = tab.model.modelId.split("/").pop() || tab.model.modelId;
-  const tokens = exactContextUsageText(tab);
+  const context = activeRenderTheme.dim(exactContextUsageText(tab));
   const updated = formatTabUpdated(tab, now);
-  return updated ? `${model} · ${tokens} · ${updated}` : `${model} · ${tokens}`;
+  return updated ? `${model} · ${context} · ${updated}` : `${model} · ${context}`;
 }
 
 /** Relative recency for Home cards from lastWorkedAt — not run duration. */
