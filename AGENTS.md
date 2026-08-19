@@ -1,17 +1,50 @@
 # AGENTS.md
 
+- Do not preserve backward compatibility. Remove obsolete paths instead of adding compatibility layers, fallbacks, or migrations.
+- Choose the simplest implementation that fully meets the current requirements. Avoid speculative abstractions, configuration, and indirection.
+- Grow the system in layers. Start from the smallest version that works end to end, and add each new capability on top of a product that already works. Never trade a working product for unfinished complexity.
+- Keep components modular and concerns clearly separated.
+- Prefer established, well-maintained libraries when they reduce overall complexity or improve reliability. Do not reimplement common functionality without a clear reason.
+- Lean on the dependencies already in the project before writing your own implementation or adding packages. Do not assume a library lacks a capability without checking its documentation and types.
+- Make architectural decisions for the long term. Do not accept a stopgap that only works for now and is meant to be replaced later.
+
+## Conversational Style
+- Keep answers short and concise
+- No emojis in responses, PR comments, or code
+- Technical prose only, be direct
+- When the user asks a question, answer it first before making edits or running implementation commands.
+- When responding to user feedback or an analysis, explicitly say whether you agree or disagree before saying what you changed.
+- When spawning subagents via `Agent` or `TaskExecute`, always inherit or explicitly specify the same model as the current session (`PI_MODEL`). Prefer background execution (`run_in_background: true`) to avoid blocking interactive conversation, and continue with independent foreground tasks or respond to the user without polling or idling.
+- For any potentially long-running operations (builds, dev servers, watchers, long-running test suites, interactive servers), always use the `process` tool to run them as background processes instead of blocking the foreground shell.
+
 ## Documentation Standards
 
+- Before writing, reorganizing, reviewing, or trimming repository documentation, read and follow `.agents/skills/doc-standards/SKILL.md`.
+- **Proactive Documentation**: Actively document design decisions, architecture, workflows, API contracts, and usage patterns across the repository.
+- **Bilingual Documentation Pairing (EN / ZH)**:
+  - All documentation must be provided in both English and Chinese.
+  - English documents use standard names (e.g., `README.md`, `docs/architecture.md`, `<topic>.md`).
+  - Chinese documents use the `.zh.md` suffix (e.g., `README.zh.md`, `docs/architecture.zh.md`, `<topic>.zh.md`).
+  - Keep both language versions synchronized whenever documentation is created or updated.
+- **One Home Per Fact**: Every concept, architectural rule, or configuration schema has exactly one authoritative owner. Link across documents rather than duplicating text.
+- **Extension Documentation Isolation**: Dedicated extension documentation must live in the package's own directory (`pi-packages/<name>/README.md` and `README.zh.md`), never scattered as stand-alone topics in `docs/`. High-level core architecture, system runtime specifications, and product workflows remain in `docs/`.
+- **Present State, Not Historical Narrative**: Describe the system's current reality. Never write historical narratives ("previously", "now we support", "no longer") in technical docs; place change history in commits and PR notes.
+- **Concrete Facts Over Hand-Waving**: Avoid vague abstractions. State exact paths, command flags, parameter types, error names, and invariant boundaries.
+- **Contracts Over Reasoning**: Comments, JSDoc, and docs must state complete caller/callee contracts (inputs, side effects, throw conditions, concurrency, ownership), not step-by-step code narratives.
+- **Change-Synchronized Documentation (Zero Drift)**: Any code change that alters public behavior, configuration keys, or commands must update affected documentation and JSDoc in the same task. Delete obsolete documentation alongside obsolete code.
 - Changes to `mpi status`, `mpi ctl`, or the MixCode env contracts the `mpi-ctl` skill uses (`MIXCODE`, `MIXCODE_PID`, `MIXCODE_TAB_TITLE`, `MIXCODE_FOCUSED_TAB_TITLE`) must update `pi-packages/mpi-ctl/skills/mpi-ctl/SKILL.md` in the same task (and the package README pair if the package description changes).
 
-## TUI Validation
+## TUI & E2E Validation
 
-- For TUI work, code inspection and unit tests are not sufficient evidence. Run the TUI interactively, capture screenshots, and verify core keyboard flows before claiming the UI works.
+- For TUI and runtime lifecycle work, code inspection and isolated unit tests are not sufficient evidence. Bugs in session lifecycle, tab management, goal tracking, performance lag, and interactive TUI flows must be reproduced end-to-end in real execution environments before claiming a bug or a fix. If a reported issue cannot be reproduced in tmux, it is not considered a bug.
 - When you need to actually launch mixcode-pi to test it, use tmux. Prefer an isolated socket via `tmux -L <label>` (e.g. `tmux -L mixcode-test`) so your sessions never collide with unrelated ones. On an isolated socket, `tmux -L <label> kill-server` is safe. Otherwise, on the default socket, do not run `tmux kill-server` (it would kill unrelated sessions); kill only the specific tmux session/window you created.
+- Capture screenshots and verify core keyboard/mouse flows in tmux before claiming the UI works. Never rely solely on synthetic unit mocks that isolate away the real runtime lifecycle.
 
 ## Pi Integration
 
 - Before implementing any feature, first check whether Pi-related packages already provide it. Prefer reusing components, APIs, and UI/TUI building blocks from installed `@earendil-works/pi-*` packages (and the Pi SDK docs at https://pi.dev/docs/latest/sdk and https://pi.dev/docs/latest/tui) over writing MixCode-local equivalents.
+- If upstream Pi has implemented a feature or component but keeps it unexported/private, prefer creating a clean upstream export patch in `patches/` rather than writing a duplicate local reimplementation.
+- Regularly align `src/` core event handling, themes, and runtime hooks with upstream Pi agent conventions.
 - Only build custom code when the requirement is not covered by those packages (or the user explicitly requires a different behavior). Do not reimplement selectors, editors, dialogs, markdown, keybindings, session/tree UI, or similar just because a local rewrite is convenient.
 - Pi docs (check these before inventing local APIs or UI):
   - Upstream SDK: https://pi.dev/docs/latest/sdk
@@ -30,6 +63,7 @@
 - For the compiled binary, `binary-entry.ts` embeds each package's files via `import ... with { type: "text" }` and passes them as `builtinPackages` to `materializeBinaryRuntimeAssets`, which writes them to `runtimeDir/packages/` before `ensurePackageExtensions` runs.
 - To add a new built-in package: create `pi-packages/mpi-<name>/package.json` and its declared `pi.extensions` and/or `pi.skills` resources, then add the corresponding text imports in `binary-entry.ts`.
 - **No Bun APIs in `pi-packages/`.** These packages are installed into `~/.pi/agent/extensions/` and also run under pure upstream `pi` (Node + jiti), not only under `mpi` (Bun). Use `node:*` stdlib (`fs`, `fs/promises`, `child_process`, `path`, `os`, …). Do not call `Bun.*`, `bun:*` imports, or Bun Shell (`` $`…` ``). Product code under `src/` may still prefer Bun; this rule is package-only.
+- **Strict Isolation Across `pi-packages/`**: Packages under `pi-packages/` must remain completely independent and decoupled; they must NEVER import or depend on one another.
 - MixCode sets `MIXCODE=1` after it decides not to delegate to upstream `pi`. Built-in packages that must not activate under pure `pi` should gate on this env (treat unset / `0` / `false` / `off` as off). User-facing MixCode env catalog: `docs/environment.md` (only `src/` product knobs; no Pi / `run.sh` / test tooling vars).
 
 ### Third-party package load (compiled `mpi`)
@@ -44,13 +78,25 @@
 - Any command that persists to Pi's global `settings.json` (survives restart, shared across workdirs and with Pi) MUST prefix its `description` with `[global]`, so users can see the global-persistence effect before running it. Example: `/hide-thinking`.
 - Do not add the `[global]` prefix to workdir-level or session-level commands; the absence of a prefix means the command is not a globally-persisted setting.
 
+## Settings Management
+
+- All MixCode-specific configuration schemas, default values, file constants (`MIXCODE_SETTINGS_FILENAME`), and validation logic must reside strictly in `src/core/mixcode-settings.ts` — never scatter settings defaults or parsers across individual domain files.
+- Loading configuration must strictly validate schema types and fail loud on invalid keys or types rather than silently falling back to defaults.
+
 ## Code Quality
 
-- Follow a TDD flow for behavior changes and bug fixes **when the change protects a real contract**: focused failing test first, then the smallest fix. Do not invent a test for tiny low-risk restores (e.g. putting a flag back to its default) that would only assert an internal field — see **Test Guidelines**.
+- Testing and the finish gate: see **Test Guidelines**.
 - Prefer TypeScript source files under 1000 lines; split into focused modules when a file grows mainly by unrelated concerns. The limit is a guideline, not a hard block — a coherent file may exceed 1000 lines when splitting would only hurt clarity.
 - Split on real seams only: a boundary that is independently testable, has a single clear responsibility, or is a replaceable interface. File length alone is not a seam. Prefer putting new code in the existing neighbor module; prefer merging thin single-caller satellites over further splits.
 - Add concise English comments in TypeScript source files for non-obvious intent: invariants, side effects, ordering constraints, edge cases, and rationale for surprising decisions. Do not comment self-evident syntax or restate the code; add them when modifying an uncommented complex area as well.
-- Before finishing TypeScript behavior changes, follow **Test Guidelines** (focused test first, then the narrowest gate that covers the touch surface). Use `bun run format` only when formatting is intentionally requested or scoped, and do not claim formatting was run unless the command succeeds.
+- **Fail Loud on Misconfiguration**: User configuration errors, missing required dependencies, and schema violations must fail immediately at load or parse time. Never silently swallow configuration errors or return fake success paths.
+- **Public API Boundary Only**: `src/` core must rely strictly on public Pi APIs (`clearQueue`, `steer`, `followUp`). Never invoke or patch private `AgentSession` properties/methods (e.g. `_handlePostAgentRun`, `_steeringMessages`).
+- **Generic Solutions Over Patchwork**: Fixes in core runtime (`src/`) must be generic and protocol-compliant with Pi SDK standards, never hardcoding special-case exceptions or hacks for specific third-party extension names.
+- **Feature Isolation in Packages**: Domain-specific features (e.g. compaction strategies, prompt optimizers, external session reporters) belong in decoupled `pi-packages/mpi-<name>`, never hardcoded as core runtime logic in `src/`.
+- **Banned Third-Party Names**: Do not mention legacy or third-party harness names (such as `opencode`, `OpenCode`, `pi-continue`, or `open-tui`) in source code, comments, commit messages, or package descriptions.
+- **An Empty `catch` Names What It Swallows**: Allow swallowed catches strictly for expected optional probing (e.g. `ENOENT` on missing cache/history file on initial run, non-blocking cleanup during teardown). Always document the swallowed error type and why it is safe; keep the `try` block to a single statement.
+- **Trust TypeScript at Typed Same-Process Boundaries**: Avoid redundant runtime type checks for statically-typed internal variables; perform strict validation only at external boundaries (JSON parsing, config files, model outputs, file system, process I/O).
+- Use `bun run format` only when formatting is intentionally requested or scoped, and do not claim formatting was run unless the command succeeds.
 - Keep formatting changes intentional and scoped. Do not mix broad reformatting with behavioral changes unless the formatter requires it.
 - Do not add or keep `src/` exports (including via `src/index.ts` barrels) that exist only so tests can call them. Tests must exercise the real production call path or compose production helpers; if a helper is test-only, put it under `test/` — never promote it into product modules for test convenience.
 
@@ -60,11 +106,15 @@
 - When a function's return type is already a named type, reference it directly (`RuntimeTab`) instead of wrapping it in `ReturnType<...>`; keep `ReturnType` for anonymous/inferred shapes and third-party method return types.
 - Prefer `export * from "./module"` in pure barrels; when stars create ambiguity, remove the redundant export path instead of keeping named re-exports.
 - Prefer top-level `import type` over inline `import("pkg").Type` in type positions; dynamic `import()` stays for lazy-load / optional / binary-entry boundaries.
-- Prefer `Promise.withResolvers()` when a deferred must hand out its resolve/reject separately; keep `new Promise` for simple timer wrapping (`setTimeout`/`setImmediate`).
+- Prefer `Promise.withResolvers()` when a deferred must hand out its resolve/reject separately. Keep `new Promise` for event/callback adapters, rejectable timers, `setImmediate`, and `Promise.race` timers that return sentinel values. Pure-Node `pi-packages/` may wrap `setTimeout`.
 
 ## Commands
 
 - **Package tooling is Bun**: `bun install` only; lockfile is `bun.lock` (never commit `package-lock.json` / yarn.lock / pnpm-lock.yaml). Orchestrate scripts with `bun run …`. Do not use npm/yarn/pnpm for installs.
+- **Search & File Exploration Tools**:
+  - Always prefer `fd` over `find` for file and directory discovery.
+  - Always prefer `rg` (ripgrep) over `grep` for content and symbol searches.
+- **Git Commit Messages**: Use Conventional Commits format (e.g. `feat: ...`, `fix: ...`, `refactor: ...`, `test: ...`, `docs: ...`, `chore: ...`). No emojis.
 - NEVER commit unless asked.
 
 ## Bun Over Node
@@ -87,8 +137,8 @@ Use Bun APIs where they provide a cleaner alternative; fall back to `node:*` onl
 | Path resolution | `import.meta.dir`, `import.meta.path`     | `fileURLToPath` dance           |
 | JSON5           | `Bun.JSON5.parse()` / `.stringify()`      | `json5` package                 |
 | JSONL           | `Bun.JSONL.parse()` / `.parseChunk()`     | `text.split("\n").map(JSON.parse)` |
-| String width    | `Bun.stringWidth()`                       | `get-east-asian-width`, custom  |
-| Text wrapping   | `Bun.wrapAnsi()`                          | custom ANSI-aware wrappers      |
+| String width    | `Bun.stringWidth(text, { countAnsiEscapeCodes?: false })` | `get-east-asian-width`, custom  |
+| Text wrapping   | `Bun.wrapAnsi(text, width, { wordWrap, hard, trim })` | custom ANSI-aware wrappers      |
 
 ### Process execution
 
@@ -191,10 +241,7 @@ Manual reader loops only when the protocol requires it (SSE, streaming JSON-RPC)
 
 ### Misc
 
-- **Sleep**: `await Bun.sleep(ms)`, never `new Promise(r => setTimeout(r, ms))`.
 - **Password hashing**: `Bun.password.hash(pw, "bcrypt")` / `Bun.password.verify(pw, hash)`.
-- **String width**: `Bun.stringWidth(text, { countAnsiEscapeCodes?: false })`.
-- **Wrapping**: `Bun.wrapAnsi(text, width, { wordWrap, hard, trim })`.
 
 ## Test Guidelines
 
@@ -209,6 +256,7 @@ Test the contract the system exposes — not the easiest internal detail to asse
 - Assert exact strings, ordering, and formatting only when downstream code parses or depends on the exact bytes. Otherwise assert semantic content.
 - Compile-time guarantees → type checks / type tests, not runtime placeholders.
 - Prefer focused package-local or single-file verification for the changed area. Do not add tests for tiny low-risk changes unless they protect a real contract or a regression-prone edge.
+- For behavior changes and bug fixes that protect a real contract: focused failing test first, then the smallest fix. Do not invent a test for tiny low-risk restores (e.g. putting a flag back to its default) that would only assert an internal field.
 
 ### Banned
 
@@ -233,6 +281,4 @@ Test the contract the system exposes — not the easiest internal detail to asse
 - Package manager / runtime: Bun — install with `bun install`; lockfile is `bun.lock` (do not commit `package-lock.json`). Run product code with `bun` (`run.sh`, shebang); do not use Node to execute product paths that call `Bun.*`.
 - `postinstall` runs `patch-package`, then `bun run scripts/install-pi-extensions.ts --postinstall` (TTY: optional interactive install of missing recommended third-party Pi packages; CI/non-TTY: warn only; never fails the parent install). Manual: `bun run install:extensions` or `./install-pi-extensions.sh`.
 - pi-tui keybindings bridge supports both single-instance (bun/npm dedupe) and dual-instance (npm shrinkwrap nested) layouts without layout scripts.
-- When running backend unit tests, enforce a hard timeout of 60 seconds to avoid stuck tasks.
-- TUI/UI claims still require interactive proof per **TUI Validation**; unit tests alone are not enough.
 - Before finishing a TypeScript behavior change: run the focused test(s) you added or changed until green, then the narrowest gate that covers the touch surface (`test:packages` for package work, `bun run check` and/or `./test-all.sh` as appropriate). Fix until green.
