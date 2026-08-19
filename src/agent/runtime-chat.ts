@@ -92,25 +92,30 @@ export function isNothingToCompactError(message: string): boolean {
   return /nothing to compact|session too small/i.test(message);
 }
 
+// A tool line counts even with empty text: a running tool renders its call on
+// screen (name/args) before any partial result fills line.text.
+function hasVisibleRunLine(lines: ChatLine[]): boolean {
+  return lines.some((line) => line.role !== "user" && (line.role === "tool" || line.text.trim()));
+}
+
 export function appendEmptyRunNotice(runtimeTab: RuntimeTab): void {
   const start = runtimeTab.currentRunChatStartIndex;
   if (start === undefined) return;
-  const visibleOutput = runtimeTab.chat
-    .slice(start)
-    .some((line) => line.role !== "user" && line.text.trim());
-  if (!visibleOutput) appendSystemMessage(runtimeTab, "Agent finished without a response.");
+  if (!hasVisibleRunLine(runtimeTab.chat.slice(start))) {
+    appendSystemMessage(runtimeTab, "Agent finished without a response.");
+  }
 }
 
 /**
- * True when the in-flight run has produced no visible assistant output yet:
- * no assistant text and no tool lines with content since the run started.
- * Mirrors the zero-output check used by appendEmptyRunNotice so a double-Esc
- * retract and the "finished without a response" notice agree on what counts.
+ * True when the in-flight run has produced no visible output yet: no assistant
+ * or thinking text and no tool call at all since the run started. Shares the
+ * zero-output check with appendEmptyRunNotice so a double-Esc retract and the
+ * "finished without a response" notice agree on what counts.
  */
 export function hasNoVisibleRunOutput(runtimeTab: RuntimeTab): boolean {
   const start = runtimeTab.currentRunChatStartIndex;
   if (start === undefined) return false;
-  return !runtimeTab.chat.slice(start).some((line) => line.role !== "user" && line.text.trim());
+  return !hasVisibleRunLine(runtimeTab.chat.slice(start));
 }
 
 export function surfaceAssistantStopReason(

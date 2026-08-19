@@ -63,6 +63,10 @@ export function applyEvent(
   switch (event.type) {
     case "agent_start": {
       runtimeTab.currentRunChatStartIndex = runtimeTab.chat.length;
+      // This run's prompt is persisted later (at message_end), so the leaf here
+      // is the last pre-run entry. Retract uses it to tell this run's own user
+      // message apart from an older turn's.
+      runtimeTab.currentRunStartLeafId = runtimeTab.session.getLeafId();
       runtimeTab.postRunWorkingStartedAt = undefined;
       // Consume the marker unconditionally (no short-circuit leak).
       const sdkContinuation = consumeSdkRunContinuation(runtimeTab);
@@ -91,6 +95,7 @@ export function applyEvent(
       runtimeTab.tab.unreadDone = true;
       clearPendingEscape(runtimeTab.tab);
       runtimeTab.currentRunChatStartIndex = undefined;
+      runtimeTab.currentRunStartLeafId = undefined;
       break;
     case "message_start":
       appendMessageStart(runtimeTab, event.message);

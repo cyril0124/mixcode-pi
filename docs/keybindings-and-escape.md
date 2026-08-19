@@ -35,6 +35,9 @@ User presses Escape
         ├─ 4. Steer queue non-empty? ─> Flushes queued steer now (aborts current turn if streaming)
         ├─ 5. Agent Running?
         │      ├─ 1st press ─────────> Arms abort window (PENDING_ESCAPE_CONFIRM_WINDOW_MS = 1000ms)
-        │      └─ 2nd press (Double) ─> Aborts turn / retracts prompt if no visible output produced
+        │      └─ 2nd press (Double) ─> Aborts turn / retracts prompt if the run produced no output
+        │                               (no assistant/thinking text and no tool call) AND the run was
+        │                               started by this turn's own user message (extension custom-message
+        │                               runs always plain-abort)
         └─ 6. Empty Editor (Idle) ───> Double-Esc within 500ms opens session tree (or fork)
 ```

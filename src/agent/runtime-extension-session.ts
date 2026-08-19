@@ -115,11 +115,14 @@ export async function navigateRuntimeTree(
 
 /**
  * Retract the in-flight turn as if it was never submitted: abort the run, rewind
- * the branch leaf to before the last user message, and return that message text
- * so the caller can refill the input box.
+ * the branch leaf to before the current run's own user message, and return that
+ * message text so the caller can refill the input box.
  *
- * Returns undefined (no retract) when the run already produced visible output or
- * there is no user message to rewind to — the caller should then abort normally.
+ * Returns undefined (no retract) when the run already produced visible output
+ * (assistant/thinking text or any tool call) or when the run has no user message
+ * of its own — e.g. it was triggered by an extension custom message, where
+ * rewinding to an older user message would wipe completed turns. The caller
+ * should then abort normally.
  *
  * Refills an empty editor immediately (before awaiting abort idle) so double-Esc
  * undo does not feel stuck behind provider stream teardown. The key handler may
@@ -134,6 +137,7 @@ export async function retractRuntimeTurn(
   if (!hasNoVisibleRunOutput(runtimeTab)) return undefined;
   const lastUser = lastUserMessage(runtimeTab);
   if (!lastUser) return undefined;
+  if (!belongsToCurrentRun(runtimeTab, lastUser.id)) return undefined;
   // Optimistic prefill: abort() waits for stream idle, which can lag hundreds of
   // ms on a real provider. Restore the message first so the UI feels instant.
   if (!context.extensionUiHost()?.editor?.getText().trim()) {
@@ -146,6 +150,22 @@ export async function retractRuntimeTurn(
   await context.syncChatFromSession(runtimeTab);
   context.emitChange({ type: "extension_ui_update" }, runtimeTab);
   return { editorText: lastUser.text };
+}
+
+/**
+ * True when the entry was appended during the current run, i.e. after the leaf
+ * recorded at agent_start. Guards retract against rewinding to a user message
+ * from an earlier completed turn when the run was started by an extension
+ * custom message (which is not a user message).
+ */
+function belongsToCurrentRun(runtimeTab: RuntimeTab, entryId: string): boolean {
+  const startLeafId = runtimeTab.currentRunStartLeafId;
+  if (startLeafId === undefined) return false;
+  if (startLeafId === null) return true; // run started from an empty branch
+  const branch = runtimeTab.session.getBranch();
+  const startIndex = branch.findIndex((entry) => entry.id === startLeafId);
+  const entryIndex = branch.findIndex((entry) => entry.id === entryId);
+  return entryIndex > startIndex;
 }
 
 // Last user message on the current branch (root -> leaf order), with its text.

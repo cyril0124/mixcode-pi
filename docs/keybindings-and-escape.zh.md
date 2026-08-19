@@ -35,6 +35,9 @@ MixCode Pi 提供完整的全局与局部快捷键映射系统（`src/core/keyma
         ├─ 4. Steer 队列非空？ ──> 立即刷新转向消息（若正在生成则先中断）
         ├─ 5. Agent 正在运行？
         │      ├─ 第 1 次按下 ────> 预备中断窗口 (PENDING_ESCAPE_CONFIRM_WINDOW_MS = 1000ms)
-        │      └─ 第 2 次按下 ────> 中断轮次；若未产生可见输出则将 Prompt 撤回 (Retract) 回编辑器
+        │      └─ 第 2 次按下 ────> 中断轮次；仅当本轮未产生任何输出（无 assistant/thinking 文本
+        │                          且未发起任何工具调用）、且本轮由自己的用户消息发起时，才将
+        │                          Prompt 撤回 (Retract) 回编辑器（扩展 custom message 触发的
+        │                          轮次一律普通中断）
         └─ 6. 输入框为空且空闲？ ──> 500ms 内连按两次 Esc 打开会话树（或 fork）
 ```

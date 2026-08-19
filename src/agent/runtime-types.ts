@@ -218,6 +218,12 @@ export interface RuntimeTab {
   showHiddenMessages?: boolean;
   requestRender?: () => void;
   currentRunChatStartIndex?: number;
+  /**
+   * Session leaf id captured at agent_start (null for an empty branch).
+   * Retract eligibility: only user messages appended after this entry belong
+   * to the current run; undefined means no run marker was recorded.
+   */
+  currentRunStartLeafId?: string | null;
   streamingAssistant?: {
     chatIndex?: number;
     blockIndices: Map<number, number>;

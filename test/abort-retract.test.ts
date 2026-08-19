@@ -9,8 +9,11 @@ import {
   type Context,
   type Model,
   type SimpleStreamOptions,
+  Type,
   createAssistantMessageEventStream,
+  fauxToolCall,
 } from "@earendil-works/pi-ai";
+import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import {
   MIXCODE_FAUX_MODEL,
   MixCodeRuntime,
@@ -109,6 +112,38 @@ function fauxModel(): Model<string> {
   return { ...MIXCODE_FAUX_MODEL, provider: "retract-test", api: "retract-test", id: "retract-test-model" };
 }
 
+function baseAssistantMessage(): AssistantMessage {
+  return {
+    role: "assistant",
+    content: [],
+    api: "retract-test",
+    provider: "retract-test",
+    model: "retract-test-model",
+    usage: {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 0,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+    },
+    stopReason: "stop",
+    timestamp: Date.now(),
+  };
+}
+
+// Completed assistant message stream with the given content blocks.
+function completedStream(content: AssistantMessage["content"], stopReason: AssistantMessage["stopReason"] = "stop") {
+  const stream = createAssistantMessageEventStream();
+  queueMicrotask(() => {
+    const message: AssistantMessage = { ...baseAssistantMessage(), content, stopReason };
+    stream.push({ type: "start", partial: { ...message, content: [] } });
+    stream.push({ type: "done", reason: "stop", message });
+    stream.end(message);
+  });
+  return stream;
+}
+
 async function waitFor(predicate: () => boolean, attempts = 50): Promise<void> {
   for (let i = 0; i < attempts; i += 1) {
     if (predicate()) return;
@@ -190,6 +225,140 @@ test("retractCurrentTurn returns undefined once the assistant has produced visib
     assert.ok(
       runtimeTab.session.getBranch().some((e) => e.type === "message" && e.message.role === "user"),
     );
+  } finally {
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("retractCurrentTurn refuses a run triggered by an extension custom message", async () => {
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-retract-custom-"));
+  try {
+    let release!: () => void;
+    const released = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let calls = 0;
+    const runtime = new MixCodeRuntime({
+      sessionsRoot: dir,
+      streamFn: (_model: Model<any>, _context: Context, options?: SimpleStreamOptions) => {
+        calls += 1;
+        // Turn 1 (user prompt) completes with text; turn 2 (extension custom
+        // message) stays mid-flight with zero output.
+        if (calls === 1) return completedStream([{ type: "text", text: "FIRST_TURN_DONE" }]);
+        return pendingStream(released, options);
+      },
+    });
+    const tab = createTab(1, "s1", process.cwd());
+    const runtimeTab = await runtime.createTab(tab, {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+      model: fauxModel(),
+    });
+
+    await runtime.prompt("s1", "hello first turn");
+    await waitFor(() => runtimeTab.agentSession.agent.state.isStreaming === false);
+    const branchAfterFirstTurn = runtimeTab.session.getBranch().length;
+
+    // Extension-originated prompt: hidden custom message that triggers a turn.
+    const customRun = runtimeTab.agentSession.sendCustomMessage(
+      { customType: "retract-test", content: "EXTENSION_PROMPT", display: false },
+      { triggerTurn: true },
+    );
+    // Wait until the run marker is armed, not just isStreaming: retract reads
+    // currentRunChatStartIndex, which is set when agent_start is applied.
+    await waitFor(() => runtimeTab.agentSession.agent.state.isStreaming === true);
+    await waitFor(() => runtimeTab.currentRunChatStartIndex !== undefined);
+
+    // This run has no user message of its own; rewinding to "hello first turn"
+    // would wipe the completed first turn. Retract must refuse.
+    const result = await runtime.retractCurrentTurn("s1");
+    assert.equal(result, undefined);
+    assert.ok(runtimeTab.session.getBranch().length >= branchAfterFirstTurn);
+    assert.ok(
+      runtimeTab.session
+        .getBranch()
+        .some(
+          (e) =>
+            e.type === "message" &&
+            e.message.role === "user" &&
+            JSON.stringify(e.message.content).includes("hello first turn"),
+        ),
+    );
+
+    await runtimeTab.agentSession.abort();
+    release();
+    await customRun.catch(() => undefined);
+  } finally {
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("retractCurrentTurn refuses once a tool execution has started, even with no text output", async () => {
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-retract-tool-"));
+  try {
+    let releaseTool!: () => void;
+    const toolReleased = new Promise<void>((resolve) => {
+      releaseTool = resolve;
+    });
+    const slowToolExtension: ExtensionFactory = (pi) => {
+      pi.registerTool({
+        name: "slow_probe",
+        label: "Slow Probe",
+        description: "Waits until released or aborted; no partial output.",
+        parameters: Type.Object({}),
+        async execute(_toolCallId, _params, signal) {
+          await Promise.race([
+            toolReleased,
+            new Promise<void>((resolve) => {
+              if (signal?.aborted) return resolve();
+              signal?.addEventListener("abort", () => resolve(), { once: true });
+            }),
+          ]);
+          if (signal?.aborted) throw new Error("slow_probe aborted");
+          return { content: [{ type: "text" as const, text: "probe done" }], details: undefined };
+        },
+      });
+    };
+    let calls = 0;
+    const runtime = new MixCodeRuntime({
+      sessionsRoot: dir,
+      extensionFactories: [slowToolExtension],
+      streamFn: (_model: Model<any>, _context: Context, options?: SimpleStreamOptions) => {
+        calls += 1;
+        // First assistant message: tool call only, no text. Later calls stay
+        // pending so the run is still mid-flight if the tool ever finishes.
+        if (calls === 1) {
+          return completedStream([fauxToolCall("slow_probe", {})], "toolUse");
+        }
+        return pendingStream(new Promise<void>(() => undefined), options);
+      },
+    });
+    const tab = createTab(1, "s1", process.cwd());
+    const runtimeTab = await runtime.createTab(tab, {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: process.cwd(),
+      model: fauxModel(),
+    });
+
+    const pending = runtime.prompt("s1", "run the slow tool");
+    // Tool call is on screen and executing: visible progress, not a blank turn.
+    await waitFor(
+      () => runtimeTab.chat.some((line) => line.role === "tool" && line.status === "running"),
+      200,
+    );
+
+    const result = await runtime.retractCurrentTurn("s1");
+    assert.equal(result, undefined);
+    // The user prompt survives on the branch.
+    assert.ok(
+      runtimeTab.session.getBranch().some((e) => e.type === "message" && e.message.role === "user"),
+    );
+
+    await runtimeTab.agentSession.abort();
+    releaseTool();
+    await pending.catch(() => undefined);
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }
