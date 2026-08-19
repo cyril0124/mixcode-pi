@@ -66,7 +66,8 @@ function createSearchEditorHarness(
 test("transcript search matches literal text across ANSI lines and collapsed whitespace", () => {
   const lines = ["\x1b[31mRetry\x1b[39m   scheduled", "after 5 seconds"];
 
-  assert.deepEqual(findTranscriptSearchMatches(lines, "SCHEDULED after 5"), [
+  // All-lowercase query stays case-insensitive (matches "…scheduled after 5…").
+  assert.deepEqual(findTranscriptSearchMatches(lines, "scheduled after 5"), [
     {
       segments: [
         { row: 0, startCol: 8, endCol: 17 },
@@ -75,6 +76,19 @@ test("transcript search matches literal text across ANSI lines and collapsed whi
       ],
     },
   ]);
+});
+
+test("transcript search smartcase: uppercase query matches case-sensitively", () => {
+  const lines = ["foo Foo FOO", "café Café"];
+  const count = (query: string) => findTranscriptSearchMatches(lines, query).length;
+
+  // All-lowercase query (ASCII or non-ASCII) stays case-insensitive.
+  assert.equal(count("foo"), 3);
+  assert.equal(count("café"), 2);
+  // Any uppercase letter (incl. non-ASCII \p{Lu}) turns the query case-sensitive.
+  assert.equal(count("Foo"), 1);
+  assert.equal(count("FOO"), 1);
+  assert.equal(count("Café"), 1);
 });
 
 test("visible-column highlighting preserves existing ANSI styling", () => {

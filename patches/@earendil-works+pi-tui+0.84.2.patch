@@ -129,3 +129,17 @@ index 94adbdc..f6b1931 100644
 +}
  //# sourceMappingURL=tui.js.map
 \ No newline at end of file
+diff --git a/node_modules/@earendil-works/pi-tui/dist/alt-screen-search.js b/node_modules/@earendil-works/pi-tui/dist/alt-screen-search.js
+index 3437d5a..2865ace 100644
+@@ -44,7 +44,10 @@
+     if (!normalizedQuery)
+         return [];
+     const corpus = buildSearchCorpus(lines);
+-    const expression = new RegExp(escapeRegExp(normalizedQuery), "giu");
++    // MIXCODE_SMARTCASE: vim-style smartcase — any uppercase letter (incl.
++    // non-ASCII \p{Lu}) makes the query case-sensitive; all-lowercase stays
++    // case-insensitive.
++    const expression = new RegExp(escapeRegExp(normalizedQuery), /\p{Lu}/u.test(normalizedQuery) ? "gu" : "giu");
+     const matches = [];
+     for (const match of corpus.text.matchAll(expression)) {
+         const start = match.index;
