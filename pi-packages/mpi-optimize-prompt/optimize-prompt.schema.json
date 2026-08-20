@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Optimize-prompt config (mpi-optimize-prompt)",
+  "description": "Prompt optimizer settings. Unknown keys and invalid values are ignored at load time.",
+  "type": "object",
+  "properties": {
+    "$schema": { "type": "string" },
+    "model": {
+      "description": "`provider/modelId` used for optimization; omit or \"inherit\" = active session model.",
+      "type": "string",
+      "minLength": 1
+    },
+    "thinking": {
+      "description": "Thinking level for optimization; omit or \"inherit\" = active session thinking.",
+      "type": "string",
+      "minLength": 1
+    },
+    "systemPrompt": {
+      "description": "Full metaprompt override; omit = built-in default.",
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "additionalProperties": false
+}

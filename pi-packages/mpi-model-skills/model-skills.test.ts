@@ -150,6 +150,23 @@ describe("parseModelSkillsConfig / loadModelSkillsConfig", () => {
     assert.equal(parseModelSkillsConfig({ enabled: "yes", rules: [] }).ok, false);
   });
 
+  test("$schema: accepted as string, rejected otherwise, preserved by setModelSkillsEnabled", () => {
+    assert.equal(parseModelSkillsConfig({ $schema: 1, rules: [] }).ok, false);
+    const dir = tmpDir();
+    fs.writeFileSync(
+      path.join(dir, "model-skills.json"),
+      JSON.stringify({ $schema: "./model-skills.schema.json", rules: [] }),
+      "utf8",
+    );
+    const off = setModelSkillsEnabled(dir, false);
+    assert.equal(off.ok, true);
+    const raw = JSON.parse(fs.readFileSync(path.join(dir, "model-skills.json"), "utf8"));
+    assert.equal(Object.keys(raw)[0], "$schema");
+    const loaded = loadModelSkillsConfig(dir);
+    assert.equal(loaded.ok, true);
+    if (loaded.ok && loaded.config) assert.equal(loaded.config.schemaRef, "./model-skills.schema.json");
+  });
+
   test("setModelSkillsEnabled persists and preserves rules", () => {
     const dir = tmpDir();
     fs.writeFileSync(

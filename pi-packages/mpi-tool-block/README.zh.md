@@ -48,6 +48,8 @@
 
 全局文件：`<agentDir>/tool-block.json`（`$PI_CODING_AGENT_DIR`，默认 `~/.pi/agent`）。第一次在 Global 层勾选时创建，重启后仍生效。
 
+包内随带 `tool-block.schema.json`（安装于 `<agentDir>/extensions/mpi-tool-block/`），可在配置中用 `$schema` 键引用以获得编辑器补全；该键被接受并在写回时保留。
+
 Session 配置形状相同，只存在于内存，不写盘。
 
 ```json

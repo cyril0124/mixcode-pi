@@ -1,0 +1,57 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Model extensions config (mpi-model-extensions)",
+  "description": "Load model-specific Pi extensions from rules matched against the current model. Applied at session_start and (add-only) on model_select.",
+  "type": "object",
+  "properties": {
+    "$schema": { "type": "string" },
+    "enabled": {
+      "description": "false stops applying rules. Default true.",
+      "type": "boolean"
+    },
+    "rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "match": {
+            "description": "All present conditions must hold for the rule to apply.",
+            "type": "object",
+            "properties": {
+              "model": {
+                "description": "Glob against `provider/modelId`, e.g. `deepseek/*`.",
+                "type": "string",
+                "minLength": 1
+              },
+              "missingInput": {
+                "description": "Every listed modality must be absent from the model's inputs.",
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "hasInput": {
+                "description": "Every listed modality must be present on the model's inputs.",
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            },
+            "additionalProperties": false
+          },
+          "add": {
+            "description": "Extension entry paths (`~`, `$VAR`, `${VAR}` expand; relative paths are rejected) or friendly names.",
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "remove": {
+            "description": "Friendly names (path basename / package dir) whose adds are dropped.",
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "required": ["match"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["rules"],
+  "additionalProperties": false
+}

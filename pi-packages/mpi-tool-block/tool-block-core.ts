@@ -15,6 +15,8 @@ export type ToolBlockHidden = {
 export type ToolBlockConfig = {
   enabled: boolean;
   hidden: ToolBlockHidden[];
+  /** Editor `$schema` reference; ignored by behavior, preserved on write. */
+  schemaRef?: string;
 };
 
 export type ToolRef = {
@@ -42,7 +44,7 @@ export type ConfigLoadResult =
   | { ok: true; config: null; path: string; missing: true }
   | { ok: false; path: string; error: string };
 
-const ALLOWED_ROOT_KEYS = new Set(["enabled", "hidden"]);
+const ALLOWED_ROOT_KEYS = new Set(["enabled", "hidden", "$schema"]);
 const ALLOWED_HIDDEN_KEYS = new Set(["tool", "plugin"]);
 
 /** Config lives at `<agentDir>/tool-block.json`. */
@@ -95,6 +97,9 @@ export function parseToolBlockConfig(
   if (root.enabled !== undefined && typeof root.enabled !== "boolean") {
     return { ok: false, error: "config.enabled must be a boolean when set" };
   }
+  if (root.$schema !== undefined && typeof root.$schema !== "string") {
+    return { ok: false, error: "config.$schema must be a string when set" };
+  }
   if (root.hidden !== undefined && !Array.isArray(root.hidden)) {
     return { ok: false, error: "config.hidden must be an array when set" };
   }
@@ -133,6 +138,7 @@ export function parseToolBlockConfig(
     config: {
       enabled: root.enabled !== false,
       hidden: sortHidden(hidden),
+      ...(typeof root.$schema === "string" ? { schemaRef: root.$schema } : {}),
     },
   };
 }
@@ -171,10 +177,17 @@ export function writeToolBlockConfig(
   const normalized: ToolBlockConfig = {
     enabled: config.enabled !== false,
     hidden: sortHidden(config.hidden),
+    ...(config.schemaRef !== undefined ? { schemaRef: config.schemaRef } : {}),
+  };
+  // Serialize explicitly so schemaRef is written under its on-disk `$schema` key.
+  const out = {
+    ...(normalized.schemaRef !== undefined ? { $schema: normalized.schemaRef } : {}),
+    enabled: normalized.enabled,
+    hidden: normalized.hidden,
   };
   try {
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    fs.writeFileSync(filePath, `${JSON.stringify(normalized, null, 2)}\n`, "utf8");
+    fs.writeFileSync(filePath, `${JSON.stringify(out, null, 2)}\n`, "utf8");
     return { ok: true, path: filePath, config: normalized };
   } catch (err) {
     return { ok: false, path: filePath, error: err instanceof Error ? err.message : String(err) };
@@ -330,10 +343,10 @@ export function toggleToolBlockRow(
   row: Extract<ToolBlockRow, { kind: "enabled" | "tool" }>,
 ): ToolBlockConfig {
   if (row.kind === "enabled") {
-    return { enabled: !config.enabled, hidden: [...config.hidden] };
+    return { ...config, enabled: !config.enabled, hidden: [...config.hidden] };
   }
   if (config.hidden.some((item) => item.tool === row.name)) {
-    return { enabled: config.enabled, hidden: config.hidden.filter((item) => item.tool !== row.name) };
+    return { ...config, hidden: config.hidden.filter((item) => item.tool !== row.name) };
   }
   const plugin =
     tools.find((item) => item.name === row.name)?.plugin ??
@@ -341,7 +354,7 @@ export function toggleToolBlockRow(
     row.plugin ??
     "";
   return {
-    enabled: config.enabled,
+    ...config,
     hidden: sortHidden([...config.hidden, plugin ? { tool: row.name, plugin } : { tool: row.name }]),
   };
 }

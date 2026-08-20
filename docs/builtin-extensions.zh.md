@@ -4,6 +4,8 @@
 
 MixCode 随附位于 `pi-packages/mpi-*` 的第一方内置 Pi 包。启动时，每个包都会通过内容哈希同步到 `<agentDir>/extensions/`：哈希匹配时跳过目标写入，发生变化时替换已安装的包目录；package extension 通过 Pi 公开的 `resources_discover` 事件提供运行时发现的 skill，不会复制到 `<agentDir>/skills`。
 
+每个带用户可编辑 JSON 配置的包都随扩展附带 JSON Schema（`<agentDir>/extensions/<pkg>/<config>.schema.json`，如 `permission.schema.json`、`tool-block.schema.json`）。在配置文件中用 `$schema` 键引用即可获得编辑器补全；加载器接受该键并在写回时保留。细节见各包 README。
+
 ## 功能目录
 
 | 扩展包 | 命令 / 触发方式 | 说明 |

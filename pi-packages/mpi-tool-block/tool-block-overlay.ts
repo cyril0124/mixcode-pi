@@ -67,7 +67,7 @@ export function createToolBlockOverlay(options: ToolBlockOverlayOptions): {
   }
 
   function snapshotConfig(config: ToolBlockConfig): ToolBlockConfig {
-    return { enabled: config.enabled, hidden: config.hidden.map((item) => ({ ...item })) };
+    return { ...config, hidden: config.hidden.map((item) => ({ ...item })) };
   }
 
   function clampSelected(): void {

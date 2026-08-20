@@ -19,6 +19,8 @@
 
 ## 配置（`<agentDir>/optimize-prompt.json`）
 
+包内随带 `optimize-prompt.schema.json`（安装于 `<agentDir>/extensions/mpi-optimize-prompt/`），可在配置中用 `$schema` 键引用以获得编辑器补全；该键被接受并在写回时保留。
+
 ```json
 {
   "model": "provider/modelId",

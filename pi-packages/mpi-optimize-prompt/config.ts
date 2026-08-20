@@ -32,6 +32,9 @@ export function parseOptimizePromptConfig(raw: unknown): OptimizePromptConfig {
   if (typeof source.systemPrompt === "string" && source.systemPrompt.trim()) {
     config.systemPrompt = source.systemPrompt.trim();
   }
+  if (typeof source.$schema === "string" && source.$schema.trim()) {
+    config.schemaRef = source.$schema;
+  }
   return config;
 }
 
@@ -59,7 +62,10 @@ export function loadOptimizePromptConfig(agentDir: string): OptimizePromptConfig
 }
 
 export function formatOptimizePromptConfig(config: OptimizePromptConfig): string {
-  return `${JSON.stringify(config, null, 2)}\n`;
+  // Serialize explicitly so schemaRef is written under its on-disk `$schema` key.
+  const { schemaRef, ...fields } = config;
+  const out = { ...(schemaRef !== undefined ? { $schema: schemaRef } : {}), ...fields };
+  return `${JSON.stringify(out, null, 2)}\n`;
 }
 
 export function writeOptimizePromptConfig(

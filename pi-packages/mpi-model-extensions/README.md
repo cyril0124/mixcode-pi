@@ -4,9 +4,13 @@ Per-model extension **load** by dynamically invoking extension factories with th
 
 Independent Pi package — no MixCode `src/` runtime coupling.
 
+[中文文档](README.zh.md)
+
 ## Config
 
 `~/.pi/agent/model-extensions.json` (or `$PI_CODING_AGENT_DIR`):
+
+The package ships `model-extensions.schema.json` (installed to `<agentDir>/extensions/mpi-model-extensions/`); reference it via a `$schema` key for editor completion — the key is accepted and preserved on writes.
 
 ```json
 {

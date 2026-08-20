@@ -16,6 +16,8 @@
 
 ## 配置（`<agentDir>/auto-rename.json`）
 
+包内随带 `auto-rename.schema.json`（安装于 `<agentDir>/extensions/mpi-auto-rename/`），可在配置中用 `$schema` 键引用以获得编辑器补全；该键被接受并在写回时保留。
+
 ```json
 {
   "model": "provider/modelId",

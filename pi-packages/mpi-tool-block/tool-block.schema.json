@@ -1,0 +1,35 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Tool block config (mpi-tool-block)",
+  "description": "Hide selected tools from the model. Unknown keys are rejected at load time.",
+  "type": "object",
+  "properties": {
+    "$schema": { "type": "string" },
+    "enabled": {
+      "description": "false keeps the hidden list but stops hiding. Default true.",
+      "type": "boolean"
+    },
+    "hidden": {
+      "description": "Tools removed from the active set while enabled. Tool names must be unique.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "tool": {
+            "description": "Exact tool name (names are global).",
+            "type": "string",
+            "minLength": 1
+          },
+          "plugin": {
+            "description": "Optional extension tag (npm package or extensions/<name>). Omitted for core tools.",
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["tool"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

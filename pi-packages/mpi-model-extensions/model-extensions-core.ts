@@ -31,6 +31,8 @@ export type ModelExtensionsConfig = {
   /** When false, rules are not applied. Default true when omitted. */
   enabled?: boolean;
   rules: ModelExtensionsRule[];
+  /** Editor `$schema` reference; ignored by behavior, preserved on write. */
+  schemaRef?: string;
 };
 
 /** Effective enabled flag (missing → true). */
@@ -211,9 +213,12 @@ export function parseModelExtensionsConfig(
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     return { ok: false, error: "config root must be an object" };
   }
-  const root = raw as { rules?: unknown; enabled?: unknown };
+  const root = raw as { rules?: unknown; enabled?: unknown; $schema?: unknown };
   if (root.enabled !== undefined && typeof root.enabled !== "boolean") {
     return { ok: false, error: "config.enabled must be a boolean when set" };
+  }
+  if (root.$schema !== undefined && typeof root.$schema !== "string") {
+    return { ok: false, error: "config.$schema must be a string when set" };
   }
   const rulesRaw = root.rules;
   if (!Array.isArray(rulesRaw)) {
@@ -264,7 +269,14 @@ export function parseModelExtensionsConfig(
   }
   const config: ModelExtensionsConfig = { rules };
   if (typeof root.enabled === "boolean") config.enabled = root.enabled;
+  if (typeof root.$schema === "string") config.schemaRef = root.$schema;
   return { ok: true, config };
+}
+
+/** On-disk shape: schemaRef goes back under its `$schema` key, first. */
+export function serializeModelExtensionsConfig(config: ModelExtensionsConfig): Record<string, unknown> {
+  const { schemaRef, ...fields } = config;
+  return { ...(schemaRef !== undefined ? { $schema: schemaRef } : {}), ...fields };
 }
 
 /** Persist enabled flag; keeps existing rules. Creates file if missing. */
@@ -282,7 +294,7 @@ export function setModelExtensionsEnabled(
       ? { enabled, rules: [] }
       : { ...current.config!, enabled };
   try {
-    fs.writeFileSync(filePath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+    fs.writeFileSync(filePath, `${JSON.stringify(serializeModelExtensionsConfig(config), null, 2)}\n`, "utf8");
     return { ok: true, config, path: filePath };
   } catch (err) {
     return { ok: false, path: filePath, error: err instanceof Error ? err.message : String(err) };

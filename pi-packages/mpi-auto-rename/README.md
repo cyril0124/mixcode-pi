@@ -16,6 +16,8 @@ If the session already has a title, choose **Yes** to overwrite, **No** to keep 
 
 ## Config (`<agentDir>/auto-rename.json`)
 
+The package ships `auto-rename.schema.json` (installed to `<agentDir>/extensions/mpi-auto-rename/`); reference it via a `$schema` key for editor completion — the key is accepted and preserved on writes.
+
 ```json
 {
   "model": "provider/modelId",

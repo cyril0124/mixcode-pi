@@ -48,6 +48,8 @@ Toggling Inactive writes `hidden[]` (pre-hide) but does not activate the tool. U
 
 Global file: `<agentDir>/tool-block.json` (`$PI_CODING_AGENT_DIR`, default `~/.pi/agent`). Created on the first Global-layer toggle; survives restart.
 
+The package ships `tool-block.schema.json` (installed to `<agentDir>/extensions/mpi-tool-block/`); reference it via a `$schema` key for editor completion — the key is accepted and preserved on writes.
+
 Session config uses the same shape in memory. It is not written to disk.
 
 ```json

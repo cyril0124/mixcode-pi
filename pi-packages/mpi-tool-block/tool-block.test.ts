@@ -36,6 +36,31 @@ function tmpDir(): string {
 }
 
 describe("parseToolBlockConfig", () => {
+  test("$schema: accepted as string, preserved through toggle and file round-trip", () => {
+    const parsed = parseToolBlockConfig({ $schema: "./tool-block.schema.json", hidden: [{ tool: "grep" }] });
+    assert.equal(parsed.ok, true);
+    if (!parsed.ok) return;
+    assert.equal(parsed.config.schemaRef, "./tool-block.schema.json");
+    assert.equal(parseToolBlockConfig({ $schema: 42 }).ok, false);
+
+    const toggled = toggleToolBlockRow(parsed.config, [], {
+      kind: "tool",
+      name: "find",
+      plugin: "",
+      hidden: false,
+    });
+    const dir = tmpDir();
+    const written = writeToolBlockConfig(dir, toggled);
+    assert.equal(written.ok, true);
+    const raw = JSON.parse(fs.readFileSync(path.join(dir, "tool-block.json"), "utf8"));
+    assert.equal(Object.keys(raw)[0], "$schema");
+    const loaded = loadToolBlockConfig(dir);
+    assert.equal(loaded.ok, true);
+    if (!loaded.ok || !loaded.config) return;
+    assert.equal(loaded.config.schemaRef, "./tool-block.schema.json");
+    assert.deepEqual(loaded.config.hidden.map((item) => item.tool), ["find", "grep"]);
+  });
+
   test("accepts enabled + hidden tool/plugin pairs", () => {
     const parsed = parseToolBlockConfig({
       enabled: true,

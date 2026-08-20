@@ -119,6 +119,23 @@ describe("parseModelExtensionsConfig / load / setEnabled", () => {
     assert.equal(parseModelExtensionsConfig({ enabled: "yes", rules: [] }).ok, false);
   });
 
+  test("$schema: accepted as string, rejected otherwise, preserved by setModelExtensionsEnabled", () => {
+    assert.equal(parseModelExtensionsConfig({ $schema: 1, rules: [] }).ok, false);
+    const dir = tmpDir();
+    fs.writeFileSync(
+      path.join(dir, "model-extensions.json"),
+      JSON.stringify({ $schema: "./model-extensions.schema.json", rules: [] }),
+      "utf8",
+    );
+    const off = setModelExtensionsEnabled(dir, false);
+    assert.equal(off.ok, true);
+    const raw = JSON.parse(fs.readFileSync(path.join(dir, "model-extensions.json"), "utf8"));
+    assert.equal(Object.keys(raw)[0], "$schema");
+    const loaded = loadModelExtensionsConfig(dir);
+    assert.equal(loaded.ok, true);
+    if (loaded.ok && loaded.config) assert.equal(loaded.config.schemaRef, "./model-extensions.schema.json");
+  });
+
   test("setModelExtensionsEnabled persists and preserves rules", () => {
     const dir = tmpDir();
     fs.writeFileSync(

@@ -19,6 +19,8 @@ Rewrite the input-editor draft (or slash args) into a clearer coding-agent promp
 
 ## Config (`<agentDir>/optimize-prompt.json`)
 
+The package ships `optimize-prompt.schema.json` (installed to `<agentDir>/extensions/mpi-optimize-prompt/`); reference it via a `$schema` key for editor completion — the key is accepted and preserved on writes.
+
 ```json
 {
   "model": "provider/modelId",

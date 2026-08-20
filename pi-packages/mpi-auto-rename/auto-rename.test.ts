@@ -599,6 +599,22 @@ test("starting a new auto-rename aborts the previous run on the same slot", asyn
   assert.deepEqual(titles, ["second-run-title"]);
 });
 
+test("$schema: accepted, ignored by resolution, preserved through write/load round-trip", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-auto-rename-schema-"));
+  try {
+    const parsed = parseAutoRenameConfig({ $schema: "./auto-rename.schema.json", model: "acme/cheap" });
+    assert.equal(parsed.schemaRef, "./auto-rename.schema.json");
+    assert.equal(writeAutoRenameConfig(dir, parsed).ok, true);
+    const raw = JSON.parse(await fs.readFile(path.join(dir, "auto-rename.json"), "utf8"));
+    assert.deepEqual(Object.keys(raw), ["$schema", "model"]);
+    const loaded = loadAutoRenameConfig(dir);
+    assert.equal(loaded.ok, true);
+    if (loaded.ok) assert.equal(loaded.config.schemaRef, "./auto-rename.schema.json");
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("runAutoRename uses configured model override", async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-auto-rename-model-"));
   try {

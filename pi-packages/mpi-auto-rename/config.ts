@@ -19,6 +19,8 @@ export type AutoRenameConfig = {
   onFirstMessage?: boolean;
   /** Conversation excerpt budget in characters; omit = DEFAULT_MAX_CONTEXT_CHARS. */
   maxContextChars?: number;
+  /** Editor `$schema` reference; ignored by behavior, preserved on write. */
+  schemaRef?: string;
 };
 
 export function autoRenameConfigPath(agentDir: string): string {
@@ -51,6 +53,9 @@ export function parseAutoRenameConfig(raw: unknown): AutoRenameConfig {
   ) {
     config.maxContextChars = source.maxContextChars;
   }
+  if (typeof source.$schema === "string" && source.$schema.trim()) {
+    config.schemaRef = source.$schema;
+  }
   return config;
 }
 
@@ -82,7 +87,10 @@ export function loadAutoRenameConfig(agentDir: string): AutoRenameConfigLoad {
 }
 
 export function formatAutoRenameConfig(config: AutoRenameConfig): string {
-  return `${JSON.stringify(config, null, 2)}\n`;
+  // Serialize explicitly so schemaRef is written under its on-disk `$schema` key.
+  const { schemaRef, ...fields } = config;
+  const out = { ...(schemaRef !== undefined ? { $schema: schemaRef } : {}), ...fields };
+  return `${JSON.stringify(out, null, 2)}\n`;
 }
 
 export function writeAutoRenameConfig(

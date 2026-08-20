@@ -4,6 +4,8 @@
 
 MixCode ships first-party built-in Pi packages located in `pi-packages/mpi-*`. Startup synchronizes each package into `<agentDir>/extensions/` using a content hash: matching packages skip destination writes, while changed packages replace the installed package tree. Package extensions contribute any runtime-discovered skills through Pi's public `resources_discover` event without copying them into `<agentDir>/skills`.
 
+Every package with a user-edited JSON config ships a JSON Schema next to its extension (`<agentDir>/extensions/<pkg>/<config>.schema.json`, e.g. `permission.schema.json`, `tool-block.schema.json`). Reference it from the config file via a `$schema` key for editor completion; the key is accepted by the loader and preserved on writes. Details live in each package README.
+
 ## Catalog
 
 | Package | Command / Trigger | Description |

@@ -123,6 +123,22 @@ describe("mpi-optimize-prompt config", () => {
     );
   });
 
+  it("$schema: accepted and preserved through write/load round-trip", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-optimize-schema-"));
+    try {
+      const parsed = parseOptimizePromptConfig({ $schema: "./optimize-prompt.schema.json", model: "x/y" });
+      assert.equal(parsed.schemaRef, "./optimize-prompt.schema.json");
+      assert.equal(writeOptimizePromptConfig(dir, parsed).ok, true);
+      const raw = JSON.parse(await fs.readFile(path.join(dir, "optimize-prompt.json"), "utf8"));
+      assert.deepEqual(Object.keys(raw), ["$schema", "model"]);
+      const loaded = loadOptimizePromptConfig(dir);
+      assert.equal(loaded.ok, true);
+      if (loaded.ok) assert.equal(loaded.config.schemaRef, "./optimize-prompt.schema.json");
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it("loadOptimizePromptConfig reads file or missing", async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-optimize-config-"));
     try {

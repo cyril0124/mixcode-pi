@@ -36,6 +36,8 @@ export interface OptimizePromptConfig {
   thinking?: string;
   /** Full system prompt override; omit = built-in default. */
   systemPrompt?: string;
+  /** Editor `$schema` reference; ignored by behavior, preserved on write. */
+  schemaRef?: string;
 }
 
 /** Prefer slash args; otherwise use the live editor draft. */
