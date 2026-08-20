@@ -34,7 +34,7 @@ mpi status --json
 mpi status --workdir /path/to/project
 ```
 
-- `--json`：输出与表格字段一致的机器可读 JSON（`pid`、`workdir`、`activeTabTitle`、tabs）。
+- `--json`：输出与表格字段一致的机器可读 JSON（`pid`、`workdir`、`createdAt`、`focus`、`activeTabTitle`、tabs）。`focus` 在 Home 页聚焦时为 `"home"`，tab 聚焦时为 `"tab"`，未知时省略；`activeTabTitle` 仅在 `focus` 为 `"tab"` 时出现。
 - `--workdir <path>`：仅保留实例根 workdir 与解析后路径完全相等的进程。相对路径相对当前工作目录解析。`~` 与 `~/...` 展开为家目录。也接受 `--workdir=<path>`。
 - `status` 命令运行在独立的轻量路径上，直接读取实例注册表，不启动 TUI、不导入 Pi 运行时组件，编译版亦不释放二进制资产。
 

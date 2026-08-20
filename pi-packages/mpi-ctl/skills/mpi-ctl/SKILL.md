@@ -233,7 +233,8 @@ mpi ctl --tab <title> wait --timeout 90
     {
       "pid": 1234,                    // number, process id
       "workdir": "~/proj",            // string, ~ for $HOME
-      "activeTabTitle": "Agent-01",   // string, omitted if unknown; Home is "home"
+      "focus": "tab",                 // "home" | "tab"; omitted if unknown
+      "activeTabTitle": "Agent-01",   // string, only when focus is "tab"; a tab named "home" still gives focus "tab"
       "tabs": [
         {
           "state": "idle",            // waiting-for-input | error | working | finished | idle

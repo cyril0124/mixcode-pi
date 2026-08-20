@@ -11,6 +11,7 @@ import {
   createInstanceSnapshot,
   DEFAULT_INSTANCE_STALE_AFTER_MS,
   formatDisplayWorkdir,
+  formatInstanceStatusJson,
   formatInstanceStatusTable,
   instanceRegistryDir,
   loadLiveInstanceStatus,
@@ -240,6 +241,26 @@ test("formatInstanceStatusTable renders grouped instances and active tabs", asyn
         ],
       }),
     );
+    // Home-focused instance: no tab row carries "*"; focus shows in the header.
+    await writeInstanceSnapshot(
+      root,
+      snapshot({
+        pid: 100,
+        workdir: "/z-repo",
+        activeTabId: "home",
+        tabs: [
+          {
+            index: 1,
+            sessionId: "home-focused-session",
+            title: "Agent-02",
+            workdir: "/z-repo",
+            status: "idle",
+            unreadDone: false,
+            waitingForInputCount: 0,
+          },
+        ],
+      }),
+    );
     const result = await loadLiveInstanceStatus(root, {
       now: new Date("2026-06-06T00:00:12.000Z"),
       processInfo,
@@ -249,10 +270,20 @@ test("formatInstanceStatusTable renders grouped instances and active tabs", asyn
     assert.match(table, /PID 101/);
     assert.match(table, /workdir: \/repo/);
     assert.match(table, /started: \d{4}-\d{2}-\d{2} \d{2}:\d{2}/);
+    assert.match(table, /PID 100  workdir: \/z-repo  started: [^\n]*  focus: home/);
+    assert.doesNotMatch(table, /\*\s+idle\s+idle\s+Agent-02/);
     assert.match(table, /TAB_TITLE\s+SESSION/);
     assert.match(table, /\*\s+working\s+thinking\s+Active Worker\s+active-session-abcdef/);
     assert.match(table, /\(\* = focused tab\)/);
     assert.equal(formatInstanceStatusTable({ ...result, instances: [] }), "No live mpi instances.");
+
+    const json = JSON.parse(formatInstanceStatusJson(result));
+    const tabFocused = json.instances.find((i: { pid: number }) => i.pid === 101);
+    assert.equal(tabFocused.focus, "tab");
+    assert.equal(tabFocused.activeTabTitle, "Active Worker");
+    const homeFocused = json.instances.find((i: { pid: number }) => i.pid === 100);
+    assert.equal(homeFocused.focus, "home");
+    assert.equal(homeFocused.activeTabTitle, undefined);
   } finally {
     await fsPromises.rm(root, { recursive: true, force: true });
   }
@@ -278,6 +309,45 @@ test("loadLiveInstanceStatus reports a warning for snapshots missing createdAt",
     assert.equal(result.instances.length, 0);
     assert.equal(result.warnings.length, 1);
     assert.match(result.warnings[0]?.message ?? "", /Invalid 'createdAt'/);
+  } finally {
+    await fsPromises.rm(root, { recursive: true, force: true });
+  }
+});
+
+test("a tab titled home stays distinguishable from the Home surface", async () => {
+  const root = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-instance-registry-home-tab-"));
+  try {
+    await writeInstanceSnapshot(
+      root,
+      snapshot({
+        pid: 100,
+        activeTabId: "home-titled-session",
+        tabs: [
+          {
+            index: 1,
+            sessionId: "home-titled-session",
+            title: "home",
+            workdir: "/repo",
+            status: "idle",
+            unreadDone: false,
+            waitingForInputCount: 0,
+          },
+        ],
+      }),
+    );
+    const result = await loadLiveInstanceStatus(root, {
+      now: new Date("2026-06-06T00:00:12.000Z"),
+      processInfo,
+    });
+
+    // The focused surface is a tab (row marker), never the Home header suffix.
+    const table = formatInstanceStatusTable(result);
+    assert.doesNotMatch(table, /focus: home/);
+    assert.match(table, /\*\s+idle\s+idle\s+home\s+home-titled-session/);
+
+    const json = JSON.parse(formatInstanceStatusJson(result));
+    assert.equal(json.instances[0].focus, "tab");
+    assert.equal(json.instances[0].activeTabTitle, "home");
   } finally {
     await fsPromises.rm(root, { recursive: true, force: true });
   }

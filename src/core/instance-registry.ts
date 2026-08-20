@@ -197,6 +197,12 @@ export function formatDisplayWorkdir(workdir: string, home = os.homedir()): stri
   return workdir;
 }
 
+/** Which surface holds focus: "home", "tab", or undefined when unknown. */
+function instanceFocusOf(instance: InstanceStatusInstance): "home" | "tab" | undefined {
+  if (instance.activeTabId === HOME_TAB_ID) return "home";
+  return instance.tabs.some((tab) => tab.active) ? "tab" : undefined;
+}
+
 /** Display title of the focused surface: active tab title, "home" for Home, undefined when unknown. */
 export function activeTabTitleOf(instance: InstanceStatusInstance): string | undefined {
   return (
@@ -208,11 +214,15 @@ export function activeTabTitleOf(instance: InstanceStatusInstance): string | und
 export function formatInstanceStatusJson(report: InstanceStatusReport): string {
   const data = {
     instances: report.instances.map((instance) => {
-      const activeTabTitle = activeTabTitleOf(instance);
+      // Focus is an enum, never a title: a tab named "home" yields focus "tab",
+      // so it cannot be confused with the Home surface.
+      const focus = instanceFocusOf(instance);
+      const activeTabTitle = focus === "tab" ? instance.tabs.find((tab) => tab.active)?.title : undefined;
       return {
         pid: instance.pid,
         workdir: formatDisplayWorkdir(instance.workdir),
         createdAt: instance.createdAt,
+        ...(focus !== undefined ? { focus } : {}),
         ...(activeTabTitle !== undefined ? { activeTabTitle } : {}),
         tabs: instance.tabs.map((tab) => ({
           state: tab.state,
@@ -234,8 +244,11 @@ export function formatInstanceStatusTable(report: InstanceStatusReport): string 
 
   const groups: string[] = [];
   for (const instance of report.instances) {
+    // Header suffix only ever renders the Home surface; tab focus is shown by
+    // the "*" row marker, so a tab titled "home" can never trigger it.
+    const homeFocus = instance.activeTabId === HOME_TAB_ID ? "  focus: home" : "";
     const lines = [
-      `PID ${instance.pid}  workdir: ${formatDisplayWorkdir(instance.workdir)}  started: ${formatLocalDateTime(instance.createdAt)}`,
+      `PID ${instance.pid}  workdir: ${formatDisplayWorkdir(instance.workdir)}  started: ${formatLocalDateTime(instance.createdAt)}${homeFocus}`,
       `  A  STATE        STATUS     ${pad("TAB_TITLE", maxTitleLen)}  SESSION`,
       ...instance.tabs.map((tab) => formatStatusTabRow(tab, maxTitleLen)),
     ];

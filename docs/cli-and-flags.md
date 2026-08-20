@@ -34,7 +34,7 @@ mpi status --json
 mpi status --workdir /path/to/project
 ```
 
-- `--json`: Outputs structured machine-readable JSON matching the table fields (`pid`, `workdir`, `activeTabTitle`, tabs).
+- `--json`: Outputs structured machine-readable JSON matching the table fields (`pid`, `workdir`, `createdAt`, `focus`, `activeTabTitle`, tabs). `focus` is `"home"` when the Home surface holds focus, `"tab"` when a tab does, omitted when unknown; `activeTabTitle` appears only when `focus` is `"tab"`.
 - `--workdir <path>`: Filters to instances whose root workdir equals the resolved path. Relative paths resolve against the current working directory. `~` and `~/...` expand to the home directory. Also accepts `--workdir=<path>`.
 - The `status` command executes on a fast lightweight path that directly reads the instance registry without booting the TUI, importing Pi runtime components, or materializing binary assets.
 

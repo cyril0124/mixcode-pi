@@ -21,6 +21,8 @@ mpi status --workdir /path/to/project
 - 表格输出中，`A` 列的 `*` 标识当前获得焦点（focused）的活跃 Tab。
 - `TAB_TITLE` 列显示各 Tab 的标题。
 - `started` 显示实例（进程）的启动时间，本地时区 `YYYY-MM-DD HH:MM` 格式。
+- Home 页聚焦时头行显示 `focus: home`；tab 聚焦仍由行内 `*` 标识，因此名为 `home` 的 tab 聚焦不会触发头行标记。
+- `--json` 中 `focus` 为 `"home"` / `"tab"`（未知时省略），`activeTabTitle` 仅在 `focus` 为 `"tab"` 时出现。
 - `--workdir <path>` 按实例根 workdir 精确过滤（支持 `~`、相对路径、绝对路径）。
 
 ## 快照字段 Schema

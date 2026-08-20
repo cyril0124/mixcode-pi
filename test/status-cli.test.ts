@@ -146,6 +146,7 @@ test("cli entry via bun on status outputs valid json and supports workdir filter
       assert.equal(report.instances[0].workdir, "/test-workdir-a");
       assert.equal(report.instances[0].createdAt, "2026-06-05T23:00:00.000Z");
       assert.equal(report.instances[0].activeTabTitle, undefined);
+      assert.equal(report.instances[0].focus, undefined);
       assert.equal(report.instances[0].tabs[0].tabTitle, "TestTabA");
       assert.equal(report.instances[0].tabs[0].active, undefined);
       assert.equal(report.instances[0].tabs[0].state, "idle");

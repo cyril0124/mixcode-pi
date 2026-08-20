@@ -21,6 +21,8 @@ mpi status --workdir /path/to/project
 - In the table output, `A` indicates the active/focused tab marked with `*`.
 - `TAB_TITLE` shows the user-facing title of each tab.
 - `started` shows the instance (process) start time as local `YYYY-MM-DD HH:MM`.
+- `focus: home` appears in the header when the Home surface holds focus; a focused tab is marked with `*` instead, so a tab titled `home` never triggers the header marker.
+- In `--json`, `focus` is `"home"` / `"tab"` (omitted when unknown) and `activeTabTitle` appears only when `focus` is `"tab"`.
 - `--workdir <path>` filters to instances whose root workdir equals the resolved path (`~` / relative / absolute).
 
 ## Snapshot Schema
