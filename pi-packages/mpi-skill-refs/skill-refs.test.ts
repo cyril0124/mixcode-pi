@@ -97,6 +97,14 @@ test("extractSkillRefs: names must start with a letter", () => {
   assert.deepEqual(extractSkillRefs("$1abc $_x $ok-name $with:colon"), ["ok-name", "with:colon"]);
 });
 
+test("extractSkillRefs: returns nothing for shell mode input", () => {
+  assert.deepEqual(extractSkillRefs("!echo $review"), []);
+  assert.deepEqual(extractSkillRefs("!!secret $review"), []);
+  // Leading whitespace/newline still routes to the shell (parseInput parity),
+  // and $tokens on later lines of a !-prefixed input are shell variables.
+  assert.deepEqual(extractSkillRefs("  \n!multi $review\n$audit"), []);
+});
+
 // ─── buildSkillBlock ─────────────────────────────────────────────────────────
 
 test("buildSkillBlock: renders instruction and skill XML", () => {
@@ -215,6 +223,13 @@ test("before_agent_start: unknown refs are silently skipped", async () => {
   assert.equal(result, undefined);
 });
 
+test("before_agent_start: shell mode prompt injects nothing", async () => {
+  const fake = createFakePi();
+  skillRefsExtension(fake.pi as never);
+  const result = await emitBeforeAgentStart(fake, "!echo $review", [authoritativeSkill("review")]);
+  assert.equal(result, undefined);
+});
+
 test("before_agent_start: mixes known and unknown refs, keeping known", async () => {
   const fake = createFakePi();
   skillRefsExtension(fake.pi as never);
@@ -282,6 +297,19 @@ test("input: steered text without refs sends nothing", async () => {
   const handler = fake.handlers.get("input")!;
   await handler(
     { type: "input", text: "no refs", source: "interactive", streamingBehavior: "steer" },
+    fake.ctx,
+  );
+  assert.equal(fake.sent.length, 0);
+});
+
+test("input: shell mode steer sends nothing", async () => {
+  const fake = createFakePi();
+  skillRefsExtension(fake.pi as never);
+  await emitBeforeAgentStart(fake, "warm up", [authoritativeSkill("review")]);
+
+  const handler = fake.handlers.get("input")!;
+  await handler(
+    { type: "input", text: "!echo $review", source: "interactive", streamingBehavior: "steer" },
     fake.ctx,
   );
   assert.equal(fake.sent.length, 0);
@@ -411,6 +439,31 @@ test("completion wrapper: shouldTriggerFileCompletion true for $ token", () => {
   );
   assert.equal(strictBase.shouldTriggerFileCompletion?.(["$re"], 0, 3), true);
   assert.equal(strictBase.shouldTriggerFileCompletion?.(["plain"], 0, 5), false);
+});
+
+test("completion wrapper: shell mode input delegates to base (no $ skill items)", async () => {
+  let delegated = false;
+  const strictBase = createSkillCompletionWrapper(
+    {
+      getSuggestions: async () => {
+        delegated = true;
+        return null;
+      },
+      applyCompletion: () => ({ lines: [], cursorLine: 0, cursorCol: 0 }),
+      shouldTriggerFileCompletion: () => false,
+    },
+    () => [{ name: "review", description: "Review things" }],
+  );
+  // Shell mode is a whole-input property: a $token on any later line is a
+  // shell variable and must not produce skill suggestions.
+  const suggestions = await strictBase.getSuggestions(["!for f in *; do", "  echo $rev"], 1, 11, {
+    signal: new AbortController().signal,
+  });
+  assert.equal(delegated, true);
+  assert.equal(suggestions, null);
+  assert.equal(strictBase.shouldTriggerFileCompletion?.(["!echo $rev"], 0, 9), false);
+  // Non-shell text keeps $-trigger behavior.
+  assert.equal(strictBase.shouldTriggerFileCompletion?.(["echo $rev"], 0, 8), true);
 });
 
 // ─── authoritative refresh replaces stale entries ────────────────────────────

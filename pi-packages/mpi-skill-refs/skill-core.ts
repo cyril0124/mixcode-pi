@@ -31,6 +31,14 @@ export interface ResolvedSkillRef {
 const SKILL_REF_RE = /(?:^|(?<![\w/.-]))\$([A-Za-z][A-Za-z0-9_:-]*)/g;
 const FENCED_CODE_RE = /^[ \t]*```[^\n]*\n.*?^[ \t]*```/gms;
 
+// Shell mode: the whole input is a bash command (same rule as MixCode's
+// parseInput and the TUI bash-mode border). Any $token in it is a shell
+// variable, never a skill ref. Checked on the full text, not the cursor
+// line, because a !-prefixed multi-line input submits as one command.
+function isShellMode(text: string): boolean {
+  return text.trimStart().startsWith("!");
+}
+
 // Common environment variable names that should never be treated as skill refs.
 const COMMON_ENV_VARS = new Set([
   "PATH",
@@ -73,6 +81,7 @@ const INJECTION_INSTRUCTION = [
 
 /** Extract unique $SkillName refs in order, skipping fenced code and env vars. */
 export function extractSkillRefs(text: string): string[] {
+  if (isShellMode(text)) return [];
   const withoutCode = text.replace(FENCED_CODE_RE, "");
   const seen = new Set<string>();
   const refs: string[] = [];
@@ -249,6 +258,9 @@ export function createSkillCompletionWrapper(
   return {
     triggerCharacters: [...new Set([...(base.triggerCharacters ?? []), "$"])],
     async getSuggestions(lines, cursorLine, cursorCol, options) {
+      if (isShellMode(lines.join("\n"))) {
+        return base.getSuggestions(lines, cursorLine, cursorCol, options);
+      }
       const token = currentToken(lines, cursorLine, cursorCol);
       if (!token.startsWith("$")) {
         return base.getSuggestions(lines, cursorLine, cursorCol, options);
@@ -280,8 +292,10 @@ export function createSkillCompletionWrapper(
       return base.applyCompletion(lines, cursorLine, cursorCol, item, prefix);
     },
     shouldTriggerFileCompletion(lines, cursorLine, cursorCol) {
-      const token = currentToken(lines, cursorLine, cursorCol);
-      if (token.startsWith("$")) return true;
+      if (!isShellMode(lines.join("\n"))) {
+        const token = currentToken(lines, cursorLine, cursorCol);
+        if (token.startsWith("$")) return true;
+      }
       if (base.shouldTriggerFileCompletion) {
         return base.shouldTriggerFileCompletion(lines, cursorLine, cursorCol);
       }
