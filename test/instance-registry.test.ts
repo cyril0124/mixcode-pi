@@ -25,6 +25,7 @@ function snapshot(overrides: Partial<InstanceRegistrySnapshot>): InstanceRegistr
     pid: 100,
     workdir: "/repo",
     activeTabId: "s1",
+    createdAt: "2026-06-05T23:00:00.000Z",
     updatedAt: "2026-06-06T00:00:10.000Z",
     tabs: [
       {
@@ -75,10 +76,16 @@ test("createInstanceSnapshot captures live tab metadata without chat content", (
   const captured = createInstanceSnapshot(state, {
     now: new Date("2026-06-06T00:00:12.000Z"),
     pid: 123,
+    createdAt: "2026-06-05T23:00:00.000Z",
   });
 
   assert.equal(captured.workdir, "/repo");
   assert.equal(captured.activeTabId, "session-full-id");
+  assert.equal(captured.createdAt, "2026-06-05T23:00:00.000Z");
+  // Without an explicit value, createdAt defaults to this process's start time.
+  const defaulted = createInstanceSnapshot(state);
+  assert.equal(Number.isFinite(Date.parse(defaulted.createdAt)), true);
+  assert.ok(Math.abs(Date.now() - Date.parse(defaulted.createdAt) - process.uptime() * 1000) < 5_000);
   assert.equal(captured.tabs[0]?.title, "Worker");
   assert.equal(captured.tabs[0]?.waitingForInputCount, 1);
   assert.equal(JSON.stringify(captured).includes("questions"), false);
@@ -241,10 +248,36 @@ test("formatInstanceStatusTable renders grouped instances and active tabs", asyn
     const table = formatInstanceStatusTable(result);
     assert.match(table, /PID 101/);
     assert.match(table, /workdir: \/repo/);
+    assert.match(table, /started: \d{4}-\d{2}-\d{2} \d{2}:\d{2}/);
     assert.match(table, /TAB_TITLE\s+SESSION/);
     assert.match(table, /\*\s+working\s+thinking\s+Active Worker\s+active-session-abcdef/);
     assert.match(table, /\(\* = focused tab\)/);
     assert.equal(formatInstanceStatusTable({ ...result, instances: [] }), "No live mpi instances.");
+  } finally {
+    await fsPromises.rm(root, { recursive: true, force: true });
+  }
+});
+
+test("loadLiveInstanceStatus reports a warning for snapshots missing createdAt", async () => {
+  const root = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-instance-registry-create-"));
+  try {
+    const snapshotJson = { ...snapshot({ pid: 100 }) };
+    delete (snapshotJson as Partial<InstanceRegistrySnapshot>).createdAt;
+    await fsPromises.mkdir(instanceRegistryDir(root), { recursive: true });
+    await fsPromises.writeFile(
+      path.join(instanceRegistryDir(root), "100.json"),
+      JSON.stringify(snapshotJson),
+      "utf8",
+    );
+
+    const result = await loadLiveInstanceStatus(root, {
+      now: new Date("2026-06-06T00:00:12.000Z"),
+      processInfo,
+    });
+
+    assert.equal(result.instances.length, 0);
+    assert.equal(result.warnings.length, 1);
+    assert.match(result.warnings[0]?.message ?? "", /Invalid 'createdAt'/);
   } finally {
     await fsPromises.rm(root, { recursive: true, force: true });
   }

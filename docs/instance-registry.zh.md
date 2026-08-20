@@ -20,6 +20,7 @@ mpi status --workdir /path/to/project
 
 - 表格输出中，`A` 列的 `*` 标识当前获得焦点（focused）的活跃 Tab。
 - `TAB_TITLE` 列显示各 Tab 的标题。
+- `started` 显示实例（进程）的启动时间，本地时区 `YYYY-MM-DD HH:MM` 格式。
 - `--workdir <path>` 按实例根 workdir 精确过滤（支持 `~`、相对路径、绝对路径）。
 
 ## 快照字段 Schema
@@ -32,6 +33,7 @@ mpi status --workdir /path/to/project
 | `pid` | number | 宿主系统进程 PID。 |
 | `workdir` | string | 进程启动时的根工作目录。 |
 | `activeTabId` | string | 当前 UI 获得焦点的 Tab ID。 |
+| `createdAt` | string (ISO) | 实例（进程）启动时间；进程生命周期内固定不变。 |
 | `updatedAt` | string (ISO) | 心跳时间戳（每 5,000 ms 更新一次）。 |
 | `tabs` | array | Tab 快照列表（索引、Session ID、标题、状态、工作目录、waitingForInputCount）。 |
 

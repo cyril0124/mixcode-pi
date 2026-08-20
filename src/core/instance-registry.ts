@@ -29,6 +29,8 @@ export interface InstanceRegistrySnapshot {
   pid: number;
   workdir: string;
   activeTabId: string;
+  /** Instance (process) start time; fixed for the process lifetime, unlike updatedAt. */
+  createdAt: string;
   updatedAt: string;
   tabs: InstanceRegistryTabSnapshot[];
 }
@@ -89,7 +91,7 @@ export function instanceCtlSocketFile(rootStateDir: string, pid = process.pid): 
 
 export function createInstanceSnapshot(
   state: MixCodeState,
-  options: { now?: Date; pid?: number } = {},
+  options: { now?: Date; pid?: number; createdAt?: string } = {},
 ): InstanceRegistrySnapshot {
   const pid = options.pid ?? process.pid;
   return {
@@ -97,6 +99,8 @@ export function createInstanceSnapshot(
     pid,
     workdir: normalizeWorkdir(state.workdir),
     activeTabId: state.activeTabId,
+    // Derive from uptime so heartbeats rewrite the same value, not the write time.
+    createdAt: options.createdAt ?? new Date(Date.now() - process.uptime() * 1000).toISOString(),
     updatedAt: (options.now ?? new Date()).toISOString(),
     tabs: state.tabs
       .slice()
@@ -208,6 +212,7 @@ export function formatInstanceStatusJson(report: InstanceStatusReport): string {
       return {
         pid: instance.pid,
         workdir: formatDisplayWorkdir(instance.workdir),
+        createdAt: instance.createdAt,
         ...(activeTabTitle !== undefined ? { activeTabTitle } : {}),
         tabs: instance.tabs.map((tab) => ({
           state: tab.state,
@@ -230,7 +235,7 @@ export function formatInstanceStatusTable(report: InstanceStatusReport): string 
   const groups: string[] = [];
   for (const instance of report.instances) {
     const lines = [
-      `PID ${instance.pid}  workdir: ${formatDisplayWorkdir(instance.workdir)}`,
+      `PID ${instance.pid}  workdir: ${formatDisplayWorkdir(instance.workdir)}  started: ${formatLocalDateTime(instance.createdAt)}`,
       `  A  STATE        STATUS     ${pad("TAB_TITLE", maxTitleLen)}  SESSION`,
       ...instance.tabs.map((tab) => formatStatusTabRow(tab, maxTitleLen)),
     ];
@@ -252,6 +257,14 @@ function formatStatusTabRow(tab: InstanceStatusTab, titleWidth = 14): string {
     pad(tab.title, titleWidth),
     tab.sessionId,
   ].join(" ");
+}
+
+/** Local-time "YYYY-MM-DD HH:MM" for table display; manual padding keeps output locale-independent. */
+function formatLocalDateTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "?";
+  const two = (n: number) => `${n}`.padStart(2, "0");
+  return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}`;
 }
 
 function pad(value: string, width: number): string {
@@ -341,6 +354,7 @@ function parseSnapshot(value: unknown, filePath: string): InstanceRegistrySnapsh
     pid,
     workdir: normalizeWorkdir(stringField(raw, "workdir", filePath)),
     activeTabId: stringField(raw, "activeTabId", filePath),
+    createdAt: stringField(raw, "createdAt", filePath),
     updatedAt: stringField(raw, "updatedAt", filePath),
     tabs: arrayField(raw, "tabs", filePath).map((tab, index) => parseTabSnapshot(tab, filePath, index)),
   };

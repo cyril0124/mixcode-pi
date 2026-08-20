@@ -20,6 +20,7 @@ mpi status --workdir /path/to/project
 
 - In the table output, `A` indicates the active/focused tab marked with `*`.
 - `TAB_TITLE` shows the user-facing title of each tab.
+- `started` shows the instance (process) start time as local `YYYY-MM-DD HH:MM`.
 - `--workdir <path>` filters to instances whose root workdir equals the resolved path (`~` / relative / absolute).
 
 ## Snapshot Schema
@@ -32,6 +33,7 @@ Each running instance periodically writes a heartbeat snapshot:
 | `pid` | number | Host OS process identifier. |
 | `workdir` | string | Main workspace working directory of the process. |
 | `activeTabId` | string | Currently focused tab identifier. |
+| `createdAt` | string (ISO) | Instance (process) start time; fixed for the process lifetime. |
 | `updatedAt` | string (ISO) | Heartbeat timestamp (updated every 5,000 ms). |
 | `tabs` | array | List of tab snapshots (index, sessionId, title, status, workdir, waitingForInputCount). |
 

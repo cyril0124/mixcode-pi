@@ -110,6 +110,7 @@ test("cli entry via bun on status outputs valid json and supports workdir filter
       pid: process.pid,
       workdir: "/test-workdir-a",
       activeTabId: "s1",
+      createdAt: "2026-06-05T23:00:00.000Z",
       updatedAt: new Date().toISOString(),
       tabs: [
         {
@@ -143,6 +144,7 @@ test("cli entry via bun on status outputs valid json and supports workdir filter
       assert.equal(report.instances.length, 1);
       assert.equal(report.instances[0].pid, process.pid);
       assert.equal(report.instances[0].workdir, "/test-workdir-a");
+      assert.equal(report.instances[0].createdAt, "2026-06-05T23:00:00.000Z");
       assert.equal(report.instances[0].activeTabTitle, undefined);
       assert.equal(report.instances[0].tabs[0].tabTitle, "TestTabA");
       assert.equal(report.instances[0].tabs[0].active, undefined);
@@ -195,6 +197,7 @@ test("cli entry via bun on status outputs valid json and supports workdir filter
       pid: process.pid,
       workdir: homeWorkdir,
       activeTabId: "s2",
+      createdAt: "2026-06-05T23:00:00.000Z",
       updatedAt: new Date().toISOString(),
       tabs: [
         {

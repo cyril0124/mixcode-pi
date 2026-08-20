@@ -128,6 +128,7 @@ test("selectCtlInstance targets MIXCODE_PID before cwd workdir", async () => {
       pid,
       workdir,
       activeTabId: "s1",
+      createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       tabs: [],
     });
@@ -172,6 +173,7 @@ test("selectCtlInstance errors on zero or multiple matches", async () => {
       pid: process.pid,
       workdir: "/repo-a",
       activeTabId: "s1",
+      createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       tabs: [{ index: 0, sessionId: "s1", title: "Agent-01", workdir: "/repo-a", status: "idle", unreadDone: false, waitingForInputCount: 0 }],
     });
@@ -184,6 +186,7 @@ test("selectCtlInstance errors on zero or multiple matches", async () => {
         pid: second.pid,
         workdir: "/repo-a",
         activeTabId: "home",
+        createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         tabs: [{ index: 0, sessionId: "s1", title: "Worker", workdir: "/repo-a", status: "idle", unreadDone: false, waitingForInputCount: 0 }],
       });
