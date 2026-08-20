@@ -270,7 +270,7 @@ test("formatInstanceStatusTable renders grouped instances and active tabs", asyn
     assert.match(table, /PID 101/);
     assert.match(table, /workdir: \/repo/);
     assert.match(table, /started: \d{4}-\d{2}-\d{2} \d{2}:\d{2}/);
-    assert.match(table, /PID 100  workdir: \/z-repo  started: [^\n]*  focus: home/);
+    assert.match(table, /PID 100 {2}workdir: \/z-repo {2}started: [^\n]* {2}focus: home/);
     assert.doesNotMatch(table, /\*\s+idle\s+idle\s+Agent-02/);
     assert.match(table, /TAB_TITLE\s+SESSION/);
     assert.match(table, /\*\s+working\s+thinking\s+Active Worker\s+active-session-abcdef/);
