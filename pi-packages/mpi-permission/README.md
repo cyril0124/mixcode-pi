@@ -1,0 +1,125 @@
+# mpi-permission
+
+Gate tool calls with `allow` / `ask` / `deny` rules. Every `tool_call` is evaluated against layered wildcard rules; `ask` opens an approval dialog, `deny` blocks the call with the matched rule in the reason.
+
+The rule semantics (allow/ask/deny actions, per-tool wildcard rule objects, last-match-wins, ask approvals) are modeled on [opencode's permission configuration](https://opencode.ai/docs/permissions/), adapted to Pi tool names and MixCode's config layers.
+
+[中文文档](README.zh.md)
+
+## Config
+
+| Layer | File | Notes |
+|-------|------|-------|
+| Global | `<agentDir>/permission.json` (`$PI_CODING_AGENT_DIR`, default `~/.pi/agent`) | Always applied when present. |
+| Project | `<cwd>/.pi/permission.json` (directory name follows the distribution's `CONFIG_DIR_NAME`) | Applied only when the project is trusted; ignored entirely (including parse errors) otherwise. |
+| Session | in-memory | "Always allow" grants from ask dialogs plus overlay edits; dropped on restart, `/reload`, or tab close. |
+
+Missing files are a no-op: with no config anywhere the package does not intervene at all. A config file that exists but fails to parse **fails closed**: every tool call is blocked with the file path and error until it is fixed.
+
+Root value is an action string or an object. Keys are actual tool names (`bash`, `read`, `edit`, `write`, `grep`, `find`, `ls`, any extension tool name), `*` (fallback for tools without a matching rule of their own), plus the guards `external_directory` and `doom_loop`:
+
+```json
+{
+  "$schema": "extensions/mpi-permission/permission.schema.json",
+  "*": "allow",
+  "bash": { "*": "ask", "git *": "allow", "git push*": "deny" },
+  "read": { "*": "allow", "*.env": "deny", "*.env.example": "allow" },
+  "edit": { "*": "deny", "src/*": "allow" },
+  "external_directory": { "*": "ask", "~/notes/**": "allow" },
+  "doom_loop": "ask"
+}
+```
+
+| Form | Meaning |
+|------|---------|
+| `"<tool>": "allow" \| "ask" \| "deny"` | One action for every call of that tool. |
+| `"<tool>": { "<pattern>": action, ... }` | Pattern rules over the tool's subject; **last matching rule wins**, so put `"*"` first and specific rules after it. |
+| `"doom_loop": action` | Action string only, no patterns. Semantics: [Guards](#guards). |
+| `"$schema": string` | Optional editor schema reference; accepted, preserved on overlay writes, ignored by evaluation. |
+
+The package ships `permission.schema.json` (installed to `<agentDir>/extensions/mpi-permission/permission.schema.json`) for editor completion and validation. In the global file the relative form above works as-is; in a project file use an absolute path or your editor's schema mapping.
+
+## Matching
+
+- `*` matches zero or more characters (including `/`), `?` matches exactly one; everything else is literal.
+- A leading `~` or `$HOME` in a pattern expands to the home directory.
+- Layers concatenate global → project → session; last match wins across the whole list, so later layers override earlier ones.
+- Unmatched calls default to `allow`.
+
+Per-tool subject:
+
+| Tool | Matched against |
+|------|-----------------|
+| `bash` | Each parsed command segment (split on `\n`, `;`, `\|`, `&&`, `\|\|`; comments and heredoc bodies stripped; quotes removed; whitespace collapsed; leading env assignments and transparent wrappers `sudo` / `env` / `command` / `builtin` / `exec` dropped). A compound command takes the most severe segment decision (`deny` > `ask` > `allow`). |
+| `read` / `edit` / `write` / `ls` | Absolute file path. Relative patterns match both the cwd-relative and absolute forms, so `*.env`, `src/*`, and `/abs/*` all work. |
+| `grep` / `find` | The search `pattern` input. |
+| any other tool | `JSON.stringify(input)`; string-form rules (`"tool": "deny"`) always apply. |
+
+## Guards
+
+### `external_directory`
+
+When a path-taking tool (`read` / `edit` / `write` / `ls`, and `grep` / `find` with a `path` input) resolves outside the working directory, the path is also evaluated against the `external_directory` rules; the final decision is the more severe of the tool rule and the guard rule. Existing path ancestors are realpathed before containment is checked, so an in-project symlink cannot hide an external target; missing trailing segments are supported. No rules under the key = guard off (use `"*": "ask"` inside it to gate everything external). Bash commands are not inspected for paths.
+
+### `doom_loop`
+
+Breaks agent retry loops: when the same tool is called with byte-identical input (compared as `JSON.stringify(input)`) 3 times **in a row**, the configured action applies to the 3rd and every further consecutive repeat.
+
+- The streak is consecutive-only: a call with a different tool or different input resets it to 1. Approving a prompt does **not** reset it — the 4th identical call triggers again.
+- The guard is independent of tool rules and combines by severity (`deny` > `ask` > `allow`), so an `allow` tool rule — including a session "Always allow" grant — does not silence it. To turn it off, remove the key or set `"doom_loop": "allow"` in a later layer (session overrides project overrides global).
+- Its `ask` dialog offers only Allow once / Reject; an "always" grant would defeat the guard.
+- The counter is in-memory per MixCode tab and starts with the first call made after the guard is configured.
+
+With `"doom_loop": "ask"`:
+
+```text
+bash: echo same    #1 runs
+bash: echo same    #2 runs
+bash: echo same    #3 dialog "repeated with identical input"
+bash: echo same    #4 dialog again (streak continues)
+bash: echo other   streak resets; the next `echo same` counts as #1
+```
+
+## Ask dialog
+
+| Choice | Effect |
+|--------|--------|
+| Allow once | This call only. |
+| Always allow: `key[pattern]` | Appends a session-layer allow rule and proceeds. Bash suggests the first one or two command words plus `*` (e.g. `git status*`); paths and patterns grant the exact subject; external paths grant `<parent dir>/*`. |
+| Reject / Esc | Blocks the call with a `rejected by user` reason. |
+
+Without an interactive UI (`-p` / JSON mode, subagents), `ask` blocks with an explicit reason — approvals require a UI.
+
+While the dialog is open the command has **not** started: the process spawns only after approval, and a bash `timeout` starts counting from the spawn, not from the dialog. The tool row's elapsed display and the final `Took …` both start at `tool_execution_start` (before approval), so they include the time you spend deciding; the working row shows `waiting for permission approval…` during that wait.
+
+## Command
+
+`/permission` — settings-style overlay over the three layers.
+
+```text
+┌─ Permission ───────────────────────────────────┐
+│  /home/user/.pi/agent/permission.json          │
+│  › Layer                           Global      │
+│    doom_loop                       Off         │
+│      same tool + identical input 3×…          │
+│   bash ───────────────────────────────────     │
+│    *                               ask         │
+│    git *                           allow       │
+│  ↑↓ select  ⏎ cycle allow/ask/deny  n new  d   │
+└────────────────────────────────────────────────┘
+```
+
+| Key | Action |
+|-----|--------|
+| Enter / Space | Cycle Layer (Global → Project → Session), cycle a rule's action, or cycle `doom_loop` (Off → ask → deny → allow → Off). |
+| `n` | New-rule wizard, three steps: **1/3 key** — pick from the candidate list (`*`, `external_directory`, registered tool names; type to filter, ↑↓ to pick, Enter accepts the highlighted candidate or your free text); **2/3 pattern** — prefilled `*`, per-key examples shown; **3/3 action** — choose allow / ask / deny with Space/←→, Enter adds the rule. Esc steps back one step. |
+| `d` | Delete the selected rule (a key with no rules left disappears) or reset `doom_loop` to Off. |
+| Esc | Cancel the input line, or close. |
+
+Global and Project edits persist to their files immediately; Project edits are rejected while the project is untrusted. Session edits stay in memory.
+
+## Limits
+
+- No per-subagent rule sets; subagent sessions load the same config files and, having no UI, treat `ask` as block.
+- `bash` matching sees the normalized token form (quotes removed), so patterns match `git commit -m a b`, not the original quoting.
+- Session "always" grants are not persisted; re-approve or add a global/project rule to keep them.

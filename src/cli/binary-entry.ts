@@ -139,6 +139,11 @@ import modelExtensionsCore from "../../pi-packages/mpi-model-extensions/model-ex
 import modelExtensionsLoader from "../../pi-packages/mpi-model-extensions/model-extensions-loader.ts" with { type: "text" };
 import modelExtensionsPackageJson from "../../pi-packages/mpi-model-extensions/package.json" with { type: "text" };
 import modelExtensionsSchemaJson from "../../pi-packages/mpi-model-extensions/model-extensions.schema.json" with { type: "text" };
+import permissionIndex from "../../pi-packages/mpi-permission/index.ts" with { type: "text" };
+import permissionCore from "../../pi-packages/mpi-permission/permission-core.ts" with { type: "text" };
+import permissionOverlay from "../../pi-packages/mpi-permission/permission-overlay.ts" with { type: "text" };
+import permissionPackageJson from "../../pi-packages/mpi-permission/package.json" with { type: "text" };
+import permissionSchemaJson from "../../pi-packages/mpi-permission/permission.schema.json" with { type: "text" };
 import toolBlockIndex from "../../pi-packages/mpi-tool-block/index.ts" with { type: "text" };
 import toolBlockCore from "../../pi-packages/mpi-tool-block/tool-block-core.ts" with { type: "text" };
 import toolBlockOverlay from "../../pi-packages/mpi-tool-block/tool-block-overlay.ts" with { type: "text" };
@@ -304,6 +309,13 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
       "src/surface/ui/notify.ts": mpiGoal_src_surface_ui_notify_ts,
       "src/surface/ui/widget.ts": mpiGoal_src_surface_ui_widget_ts,
       "src/templates/discover.ts": mpiGoal_src_templates_discover_ts,
+    },
+    "mpi-permission": {
+      "index.ts": permissionIndex,
+      "permission-core.ts": permissionCore,
+      "permission-overlay.ts": permissionOverlay,
+      "package.json": permissionPackageJson,
+      "permission.schema.json": permissionSchemaJson,
     },
     "mpi-auto-rename": {
       "index.ts": autoRenameIndex,

@@ -1,0 +1,37 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Permission rules (mpi-permission)",
+  "description": "Gate tool calls with allow / ask / deny rules. Keys are tool names, \"*\", or \"external_directory\"; values are one action or an ordered pattern->action object where the last matching rule wins. \"doom_loop\" takes an action only.",
+  "definitions": {
+    "action": {
+      "description": "allow: run without approval; ask: prompt for approval; deny: block the call.",
+      "enum": ["allow", "ask", "deny"]
+    },
+    "rules": {
+      "anyOf": [
+        { "$ref": "#/definitions/action" },
+        {
+          "type": "object",
+          "description": "Ordered wildcard rules over the tool's subject (* = any chars, ? = one char, leading ~ or $HOME expands). Last matching rule wins; put \"*\" first.",
+          "minProperties": 1,
+          "propertyNames": { "minLength": 1 },
+          "additionalProperties": { "$ref": "#/definitions/action" }
+        }
+      ]
+    }
+  },
+  "anyOf": [
+    { "$ref": "#/definitions/action" },
+    {
+      "type": "object",
+      "properties": {
+        "$schema": { "type": "string" },
+        "doom_loop": {
+          "description": "Fires when the same tool is called with identical input 3 times in a row. Action string only; absent = off.",
+          "$ref": "#/definitions/action"
+        }
+      },
+      "additionalProperties": { "$ref": "#/definitions/rules" }
+    }
+  ]
+}

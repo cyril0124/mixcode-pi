@@ -24,6 +24,7 @@ Every package with a user-edited JSON config ships a JSON Schema next to its ext
 | `mpi-mid-turn-compact` | Auto on token threshold | Mid-turn compaction strategy preventing context window overflow during multi-turn tool loops. |
 | `mpi-search-guard` | Auto on high-cardinality search | Intercepts broad directory traversals in root/home directories and guides agents to narrower paths. |
 | `mpi-tool-block` | `/tool-block`, `<agentDir>/tool-block.json` or in-memory session | Overlay to hide selected tools from the model by dropping them from the active set. |
+| `mpi-permission` | `/permission`, `<agentDir>/permission.json`, `<cwd>/.pi/permission.json` | Gates tool calls with allow / ask / deny wildcard rules, external-directory and doom-loop guards; ask prompts once / always / reject (doom-loop ask: once / reject only). See [pi-packages/mpi-permission/README.md](../pi-packages/mpi-permission/README.md). |
 | `mpi-bash-default-timeout` | Auto on bash spawn | Enforces explicit default execution timeouts on bash commands. |
 | `mpi-image-hoist` | Auto on multimodal prompt | Re-orders and extracts image payloads for multimodal tool compatibility. |
 | `mpi-herdr-report` | `HERDR_ENV=1` | Notifies Herdr terminal multiplexer panes of agent status (working / idle / waiting). |

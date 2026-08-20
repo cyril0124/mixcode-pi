@@ -1,0 +1,9 @@
+{
+  "name": "mpi-permission",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Gate tool calls with allow/ask/deny permission rules via /permission overlay",
+  "pi": {
+    "extensions": ["./index.ts"]
+  }
+}
