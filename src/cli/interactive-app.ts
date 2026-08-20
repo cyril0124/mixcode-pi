@@ -26,7 +26,7 @@ import {
   noteTabOpened,
   openTabsFile,
 } from "../core/open-tabs-store.js";
-import { startInstanceCtlServer } from "../core/instance-ctl-server.js";
+import { startInstanceCtlServer, type InstanceCtlServer } from "../core/instance-ctl-server.js";
 import { startPeerTabSync } from "../core/peer-tab-sync.js";
 import { loadStateFile, saveStateFile, scopedStateDir, stateFileForPort } from "../core/state-store.js";
 import type { MixCodeState } from "../core/types.js";
@@ -172,7 +172,14 @@ export async function runInteractiveApp(args: MainArgs, selfRoot: string): Promi
       reportRegistryWriteError(error);
     }
   };
-  const heartbeat = setInterval(writeRegistrySnapshot, INSTANCE_HEARTBEAT_INTERVAL_MS);
+  // Assigned once the ctl server wiring exists; piggybacks on the heartbeat so
+  // a ctl socket lost to a transient NFS bind failure or external deletion is
+  // rebound within one interval instead of staying dead for the process life.
+  let ensureCtlServer: () => void = () => {};
+  const heartbeat = setInterval(() => {
+    void writeRegistrySnapshot();
+    ensureCtlServer();
+  }, INSTANCE_HEARTBEAT_INTERVAL_MS);
   heartbeat.unref?.();
   let scheduledRegistrySnapshot: NodeJS.Timeout | undefined;
   const scheduleRegistrySnapshot = () => {
@@ -318,7 +325,7 @@ export async function runInteractiveApp(args: MainArgs, selfRoot: string): Promi
       tui.requestRender();
     },
   });
-  let ctlServer: { dispose(): void } | undefined;
+  let ctlServer: InstanceCtlServer | undefined;
   const originalStop = tui.stop.bind(tui);
   tui.stop = () => {
     peerTabSync.dispose();
@@ -331,13 +338,18 @@ export async function runInteractiveApp(args: MainArgs, selfRoot: string): Promi
   // errors) must neither crash the TUI nor degrade it silently: without this
   // guard a sync throw here unwinds past tui.start() into main().catch, which
   // leaves a working TUI running with no ctl socket and no visible diagnostic.
+  // Reported once per outage: ensureCtlServer retries every heartbeat and
+  // resets the gate when the socket is confirmed back on disk.
+  let ctlServerErrorReported = false;
   const reportCtlServerError = (error: unknown) => {
+    if (ctlServerErrorReported) return;
+    ctlServerErrorReported = true;
     const message = error instanceof Error ? error.message : String(error);
     showNoticeTextOverlay(tui, `mpi ctl server unavailable: ${message}`);
     tui.requestRender();
   };
-  try {
-    ctlServer = startInstanceCtlServer({
+  const startCtlServer = () =>
+    startInstanceCtlServer({
       rootStateDir: stateRoot,
       state,
       runtime,
@@ -363,9 +375,23 @@ export async function runInteractiveApp(args: MainArgs, selfRoot: string): Promi
       hasAppOverlay: () => hasCapturingAppOverlay(tui),
       renderAppOverlay: (width) => renderAppOverlay(tui, width),
     });
-  } catch (error) {
-    reportCtlServerError(error);
-  }
+  ensureCtlServer = () => {
+    // A live server whose socket is still on disk is healthy. The socket file
+    // appears asynchronously (listen callback), so right after a start this
+    // stays false for one tick and simply re-checks on the next heartbeat.
+    if (ctlServer && fs.existsSync(ctlServer.socketPath)) {
+      ctlServerErrorReported = false;
+      return;
+    }
+    ctlServer?.dispose();
+    ctlServer = undefined;
+    try {
+      ctlServer = startCtlServer();
+    } catch (error) {
+      reportCtlServerError(error);
+    }
+  };
+  ensureCtlServer();
   // Registry cleanup and initial snapshot are deferred to after the first frame.
   // They are cheap on their own (~10ms), but their `await` yields the event loop
   // to the deferred background extension loading (CPU-heavy jiti compilation that

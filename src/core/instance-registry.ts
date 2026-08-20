@@ -77,8 +77,13 @@ const VALID_TAB_STATUSES = new Set<TabStatus>([
   "done",
 ]);
 
+// Host-scoped: the state dir can live on an NFS home shared by many cluster
+// nodes, while everything keyed here (pid file names, kill(pid, 0) liveness,
+// unix sockets) is only meaningful on the host that wrote it. A flat shared
+// dir lets a pid collision on another node delete this node's ctl socket and
+// makes cleanup treat other nodes' live instances as dead.
 export function instanceRegistryDir(rootStateDir: string): string {
-  return path.join(rootStateDir, "instances");
+  return path.join(rootStateDir, "instances", os.hostname());
 }
 
 export function instanceRegistryFile(rootStateDir: string, pid = process.pid): string {
@@ -184,6 +189,20 @@ export async function cleanupInstanceRegistry(
     if (snapshotIsLive(snapshot, now, options)) continue;
     await fs.rm(filePath, { force: true });
     removed.push(snapshot.pid);
+    removedFiles.push(filePath);
+  }
+  // The registry dir is host-scoped, so kill(pid, 0) is authoritative here:
+  // sweep ctl sockets and atomic-write temps left behind by SIGKILLed
+  // instances (their exit handlers never ran, and sockets are bound only once
+  // at startup, so this junk otherwise accumulates forever).
+  const pidAlive = (pid: number) =>
+    (options.processInfo?.(pid) ?? currentProcessIdentity(pid)).alive;
+  const dir = instanceRegistryDir(rootStateDir);
+  for (const name of await listRegistryDirNames(rootStateDir)) {
+    const owner = /^(\d+)\.sock$/.exec(name) ?? /^\d+\.json\.(\d+)\.[^.]+\.tmp$/.exec(name);
+    if (!owner || pidAlive(Number(owner[1]))) continue;
+    const filePath = path.join(dir, name);
+    await fs.rm(filePath, { force: true });
     removedFiles.push(filePath);
   }
   return { removed, removedFiles, warnings };
@@ -324,19 +343,21 @@ function snapshotIsLive(
   return identity.alive;
 }
 
+async function listRegistryDirNames(rootStateDir: string): Promise<string[]> {
+  try {
+    return await fs.readdir(instanceRegistryDir(rootStateDir));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw error;
+  }
+}
+
 async function listRegistryFiles(rootStateDir: string): Promise<string[]> {
   const dir = instanceRegistryDir(rootStateDir);
   // Name-only filter: avoid Dirent.isFile()/lstat. On NFS, readdir can list a
   // writeInstanceSnapshot temp (*.json.<pid>.<uuid>.tmp) that is renamed away
   // before isFile runs, throwing ENOENT into peer-tab-sync.
-  let names: string[];
-  try {
-    names = await fs.readdir(dir);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
-    throw error;
-  }
-  return names
+  return (await listRegistryDirNames(rootStateDir))
     .filter((name) => /^\d+\.json$/.test(name))
     .map((name) => path.join(dir, name));
 }

@@ -5,8 +5,11 @@
 MixCode tracks active terminal processes and their tabs in an instance registry located under the state directory:
 
 ```text
-~/.pi/agent/mixcode-pi/instances/<pid>.json
+~/.pi/agent/mixcode-pi/instances/<hostname>/<pid>.json    # heartbeat snapshot
+~/.pi/agent/mixcode-pi/instances/<hostname>/<pid>.sock    # mpi ctl socket
 ```
+
+The registry is scoped per host (`os.hostname()`): the state dir can live on an NFS home shared by several machines, while pid-keyed file names, `kill(pid, 0)` liveness checks, and Unix sockets are only meaningful on the host that created them. Each host reads and cleans only its own subdirectory.
 
 ## CLI Status Command
 
@@ -56,7 +59,12 @@ Tab Snapshot ──┼──> error (failed turn)
 
 ## Dead Process Cleanup
 
-Stale snapshots left behind by abruptly terminated processes or dead PIDs are automatically identified and cleaned up:
+Stale files left behind by abruptly terminated processes or dead PIDs are automatically identified and cleaned up:
 - A snapshot is considered stale when `updatedAt` exceeds `15,000 ms`.
-- Process existence is verified via `kill(pid, 0)`.
+- Process existence is verified via `kill(pid, 0)` (authoritative because the registry dir is host-scoped).
 - `mpi status` and instance startup purge dead entries automatically.
+- Cleanup also removes `<pid>.sock` and `<pid>.json.<pid>.<uuid>.tmp` files whose owning pid is dead (SIGKILLed instances never run their exit cleanup).
+
+## Ctl Socket Self-Healing
+
+The ctl socket is bound at startup and re-checked on every heartbeat: if the socket file is missing (transient NFS bind failure, external deletion), the instance disposes the old server and rebinds within one heartbeat interval. The `mpi ctl server unavailable` notice is shown once per outage.

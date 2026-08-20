@@ -5,8 +5,11 @@
 MixCode 在状态目录下维护活跃终端进程与其 Tab 状态的实例注册表：
 
 ```text
-~/.pi/agent/mixcode-pi/instances/<pid>.json
+~/.pi/agent/mixcode-pi/instances/<hostname>/<pid>.json    # 心跳快照
+~/.pi/agent/mixcode-pi/instances/<hostname>/<pid>.sock    # mpi ctl socket
 ```
+
+注册表按主机（`os.hostname()`）隔离：状态目录可能位于多台机器共享的 NFS 家目录上，而以 pid 命名的文件、`kill(pid, 0)` 存活探测和 Unix socket 都只在创建它们的主机上有意义。每台主机只读取并清理自己的子目录。
 
 ## CLI 状态查询命令
 
@@ -56,7 +59,12 @@ Tab Snapshot ──┼──> error（轮次执行失败）
 
 ## 僵尸进程与过期快照清理
 
-因异常终止残留的无主快照由清理机制自动回收：
+因异常终止残留的无主文件由清理机制自动回收：
 - 心跳时间 `updatedAt` 超过 `15,000 ms` 被视为过期。
-- 通过 `kill(pid, 0)` 确认进程是否仍存活。
+- 通过 `kill(pid, 0)` 确认进程是否仍存活（注册表按主机隔离后该判断是可信的）。
 - 启动新实例或执行 `mpi status` 时会自动清理无效快照文件。
+- 清理同时回收属主 pid 已死亡的 `<pid>.sock` 与 `<pid>.json.<pid>.<uuid>.tmp` 残留（被 SIGKILL 的实例不会执行退出清理）。
+
+## Ctl Socket 自愈
+
+ctl socket 在启动时绑定，并在每次心跳时复查：若 socket 文件缺失（NFS 瞬时 bind 失败、被外部删除），实例会销毁旧 server 并在一个心跳周期内重新绑定。`mpi ctl server unavailable` 通知每次故障期间只显示一次。

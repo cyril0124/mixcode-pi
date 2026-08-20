@@ -5,7 +5,7 @@ description: Control a live MixCode (mpi) TUI from the CLI. To send a user messa
 
 # mpi status / ctl
 
-Drive a **live** MixCode TUI. Do not start a new TUI for this. The target process must already be running and listening on `<agentDir>/mixcode-pi/instances/<pid>.sock`.
+Drive a **live** MixCode TUI. Do not start a new TUI for this. The target process must already be running and listening on `<agentDir>/mixcode-pi/instances/<hostname>/<pid>.sock`.
 
 ## agentDir
 
@@ -25,8 +25,8 @@ echo "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
 Then:
 
 ```text
-<agentDir>/mixcode-pi/instances/<pid>.sock    # ctl socket (mode 0600)
-<agentDir>/mixcode-pi/instances/<pid>.json    # status snapshot
+<agentDir>/mixcode-pi/instances/<hostname>/<pid>.sock    # ctl socket (mode 0600)
+<agentDir>/mixcode-pi/instances/<hostname>/<pid>.json    # status snapshot
 ```
 
 `mpi status` and `mpi ctl` resolve this themselves. Only look at the files when you need to confirm a sock exists or debug a missing instance. If `PI_CODING_AGENT_DIR` differs between your bash and the target TUI, you will see the wrong instances.

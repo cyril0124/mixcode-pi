@@ -382,6 +382,69 @@ test("cleanupInstanceRegistry removes stale and dead snapshots", async () => {
   }
 });
 
+test("cleanupInstanceRegistry sweeps sockets and snapshot temps of dead pids only", async () => {
+  const root = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-instance-registry-sock-"));
+  try {
+    const dir = instanceRegistryDir(root);
+    await fsPromises.mkdir(dir, { recursive: true });
+    // Regular files stand in for socket nodes; cleanup matches by name + pid.
+    await fsPromises.writeFile(path.join(dir, "100.sock"), "");
+    await fsPromises.writeFile(path.join(dir, "102.sock"), "");
+    await fsPromises.writeFile(
+      path.join(dir, "100.json.100.aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.tmp"),
+      "{incomplete\n",
+    );
+    await fsPromises.writeFile(
+      path.join(dir, "102.json.102.ffffffff-0000-1111-2222-333333333333.tmp"),
+      "",
+    );
+
+    const result = await cleanupInstanceRegistry(root, {
+      now: new Date("2026-06-06T00:00:12.000Z"),
+      processInfo,
+    });
+
+    const remaining = (await fsPromises.readdir(dir)).sort();
+    assert.deepEqual(remaining, [
+      "100.json.100.aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.tmp",
+      "100.sock",
+    ]);
+    assert.equal(result.removed.length, 0);
+    assert.deepEqual(
+      result.removedFiles.map((file) => path.basename(file)).sort(),
+      ["102.json.102.ffffffff-0000-1111-2222-333333333333.tmp", "102.sock"],
+    );
+  } finally {
+    await fsPromises.rm(root, { recursive: true, force: true });
+  }
+});
+
+test("cleanupInstanceRegistry never touches another host's registry files", async () => {
+  const root = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-instance-registry-host-"));
+  try {
+    // Another cluster node sharing this NFS state dir writes under its own
+    // hostname; its pids and sockets are meaningless on this host.
+    const otherHostDir = path.join(root, "instances", "other-node");
+    await fsPromises.mkdir(otherHostDir, { recursive: true });
+    const staleJson = path.join(otherHostDir, "102.json");
+    await fsPromises.writeFile(
+      staleJson,
+      JSON.stringify(snapshot({ pid: 102, updatedAt: "2020-01-01T00:00:00.000Z" })),
+    );
+    await fsPromises.writeFile(path.join(otherHostDir, "102.sock"), "");
+
+    const result = await cleanupInstanceRegistry(root, {
+      now: new Date("2026-06-06T00:00:12.000Z"),
+      processInfo,
+    });
+
+    assert.deepEqual(result.removed, []);
+    assert.deepEqual((await fsPromises.readdir(otherHostDir)).sort(), ["102.json", "102.sock"]);
+  } finally {
+    await fsPromises.rm(root, { recursive: true, force: true });
+  }
+});
+
 test("loadLiveInstanceStatus ignores atomic-write temp files beside snapshots", async () => {
   const root = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-instance-registry-tmp-"));
   try {

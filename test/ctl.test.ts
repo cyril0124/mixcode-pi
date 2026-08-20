@@ -25,7 +25,7 @@ import {
   startInstanceCtlServer,
   wrapCtlSubmitText,
 } from "../src/core/instance-ctl-server.js";
-import { writeInstanceSnapshot } from "../src/core/instance-registry.js";
+import { instanceRegistryDir, writeInstanceSnapshot } from "../src/core/instance-registry.js";
 import { createInitialState, createTab } from "../src/core/defaults.js";
 import { InjectingTerminal } from "../src/ui/terminal.js";
 import type { Terminal } from "@earendil-works/pi-tui";
@@ -537,7 +537,7 @@ test("ctl socket server reports async bind failure via onError and keeps running
   // sync fs prep (mkdir no-op, rm ENOENT) but makes bind fail (EACCES), which
   // Bun reports asynchronously after listen() returns.
   const base = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mpi-ctl-err-"));
-  const dir = path.join(base, "instances");
+  const dir = instanceRegistryDir(base);
   await fsPromises.mkdir(dir, { recursive: true });
   await fsPromises.chmod(dir, 0o500);
   const state = createInitialState("/repo");
