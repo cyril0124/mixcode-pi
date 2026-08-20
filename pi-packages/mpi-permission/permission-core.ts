@@ -6,7 +6,11 @@
 // |  last matching rule wins. Unmatched calls default to "allow".             |
 // +---------------------------------------------------------------------------+
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
+import { analyzeBashCommand, type BashAnalysis, splitBashCommand } from "./bash-policy.js";
+
+export { splitBashCommand } from "./bash-policy.js";
 
 export const PERMISSION_CONFIG_FILENAME = "mpi-permission.json";
 export const DOOM_LOOP_THRESHOLD = 3;
@@ -117,7 +121,11 @@ export function writePermissionConfig(
 ): { ok: true; path: string } | { ok: false; path: string; error: string } {
   try {
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    fs.writeFileSync(filePath, `${JSON.stringify(serializePermissionConfig(config), null, 2)}\n`, "utf8");
+    fs.writeFileSync(
+      filePath,
+      `${JSON.stringify(serializePermissionConfig(config), null, 2)}\n`,
+      "utf8",
+    );
     return { ok: true, path: filePath };
   } catch (err) {
     return { ok: false, path: filePath, error: err instanceof Error ? err.message : String(err) };
@@ -140,7 +148,9 @@ export function parsePermissionConfig(
     if (!ACTIONS.has(raw)) return { ok: false, error: `invalid action: ${JSON.stringify(raw)}` };
     return {
       ok: true,
-      config: { entries: [{ tool: "*", rules: [{ pattern: "*", action: raw as PermissionAction }] }] },
+      config: {
+        entries: [{ tool: "*", rules: [{ pattern: "*", action: raw as PermissionAction }] }],
+      },
     };
   }
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
@@ -165,17 +175,24 @@ export function parsePermissionConfig(
     }
     if (typeof value === "string") {
       if (!ACTIONS.has(value)) {
-        return { ok: false, error: `${JSON.stringify(key)}: invalid action ${JSON.stringify(value)}` };
+        return {
+          ok: false,
+          error: `${JSON.stringify(key)}: invalid action ${JSON.stringify(value)}`,
+        };
       }
       entries.push({ tool: key, rules: [{ pattern: "*", action: value as PermissionAction }] });
       continue;
     }
     if (!value || typeof value !== "object" || Array.isArray(value)) {
-      return { ok: false, error: `${JSON.stringify(key)}: value must be an action string or a pattern object` };
+      return {
+        ok: false,
+        error: `${JSON.stringify(key)}: value must be an action string or a pattern object`,
+      };
     }
     const rules: PermissionRule[] = [];
     for (const [pattern, action] of Object.entries(value)) {
-      if (!pattern) return { ok: false, error: `${JSON.stringify(key)}: patterns must be non-empty` };
+      if (!pattern)
+        return { ok: false, error: `${JSON.stringify(key)}: patterns must be non-empty` };
       if (typeof action !== "string" || !ACTIONS.has(action)) {
         return {
           ok: false,
@@ -184,7 +201,8 @@ export function parsePermissionConfig(
       }
       rules.push({ pattern, action: action as PermissionAction });
     }
-    if (rules.length === 0) return { ok: false, error: `${JSON.stringify(key)}: rules object must not be empty` };
+    if (rules.length === 0)
+      return { ok: false, error: `${JSON.stringify(key)}: rules object must not be empty` };
     entries.push({ tool: key, rules });
   }
   return {
@@ -264,167 +282,21 @@ export function isOutsideCwd(absPath: string, cwd: string): boolean {
  * Match one pattern against subject candidates. Absolute patterns (after home
  * expansion) only match the absolute candidate; relative patterns match any.
  */
-function patternMatchesCandidates(pattern: string, candidates: readonly string[], home: string): boolean {
+function patternMatchesCandidates(
+  pattern: string,
+  candidates: readonly string[],
+  home: string,
+  trimTrailingSeparator: boolean,
+): boolean {
   const expanded = expandHomeInPattern(pattern, home);
-  const pool = path.isAbsolute(expanded)
+  const normalized =
+    trimTrailingSeparator && expanded !== path.parse(expanded).root
+      ? expanded.replace(/[\\/]+$/, "")
+      : expanded;
+  const pool = path.isAbsolute(normalized)
     ? candidates.filter((candidate) => path.isAbsolute(candidate))
     : candidates;
-  return pool.some((candidate) => matchesPattern(expanded, candidate));
-}
-
-// ---------------------------------------------------------------------------
-// Bash command normalization
-// ---------------------------------------------------------------------------
-
-const TRANSPARENT_BASH_PREFIXES: ReadonlySet<string> = new Set([
-  "sudo",
-  "env",
-  "command",
-  "builtin",
-  "exec",
-]);
-
-/**
- * Split a bash command into normalized segments for rule matching:
- * heredoc bodies and comments are stripped, the script is split on
- * `\n ; | && ||`, each segment is tokenized (quotes removed) and rejoined
- * with single spaces, and leading env assignments / transparent wrappers are dropped.
- */
-export function splitBashCommand(command: string): string[] {
-  const segments: string[] = [];
-  for (const piece of stripComments(stripHeredocs(command)).split(/\n|&&|\|\||[|;]/)) {
-    const tokens = tokenize(piece.trim());
-    let start = 0;
-    while (
-      start < tokens.length &&
-      (/^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[start]!) || TRANSPARENT_BASH_PREFIXES.has(tokens[start]!))
-    ) {
-      start++;
-    }
-    const rest = tokens.slice(start);
-    if (rest.length > 0) segments.push(rest.join(" "));
-  }
-  return segments;
-}
-
-/** Heredoc delimiters outside quotes and comments, in shell consumption order. */
-function heredocDelimiters(line: string): string[] {
-  const delimiters: string[] = [];
-  let inSingle = false;
-  let inDouble = false;
-  let escaped = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i]!;
-    if (escaped) {
-      escaped = false;
-      continue;
-    }
-    if (ch === "\\" && !inSingle) {
-      escaped = true;
-      continue;
-    }
-    if (ch === "'" && !inDouble) {
-      inSingle = !inSingle;
-      continue;
-    }
-    if (ch === '"' && !inSingle) {
-      inDouble = !inDouble;
-      continue;
-    }
-    if (inSingle || inDouble) continue;
-    if (ch === "#" && (i === 0 || /\s/.test(line[i - 1]!))) break;
-    if (ch !== "<" || line[i - 1] === "<") continue;
-    const match = line.slice(i).match(/^<<-?\s*['"]?(\w+)['"]?/);
-    if (!match) continue; // Includes `<<<` here-strings.
-    delimiters.push(match[1]!);
-    i += match[0].length - 1;
-  }
-  return delimiters;
-}
-
-/** Strip heredoc bodies (`<< DELIM ... DELIM`) so they are not seen as commands. */
-function stripHeredocs(input: string): string {
-  const lines = input.split("\n");
-  const result: string[] = [];
-  let i = 0;
-  while (i < lines.length) {
-    const line = lines[i]!;
-    result.push(line);
-    i++;
-    for (const delimiter of heredocDelimiters(line)) {
-      while (i < lines.length && lines[i]!.trim() !== delimiter) i++;
-      if (i < lines.length) i++; // Skip the delimiter line itself.
-    }
-  }
-  return result.join("\n");
-}
-
-/** Remove `#` comments outside quotes (only when preceded by start/whitespace). */
-function stripComments(input: string): string {
-  return input
-    .split("\n")
-    .map((line) => {
-      let inSingle = false;
-      let inDouble = false;
-      let esc = false;
-      for (let i = 0; i < line.length; i++) {
-        const ch = line[i]!;
-        if (esc) {
-          esc = false;
-          continue;
-        }
-        if (ch === "\\" && !inSingle) {
-          esc = true;
-          continue;
-        }
-        if (ch === "'" && !inDouble) inSingle = !inSingle;
-        else if (ch === '"' && !inSingle) inDouble = !inDouble;
-        else if (ch === "#" && !inSingle && !inDouble && (i === 0 || /\s/.test(line[i - 1]!))) {
-          return line.slice(0, i);
-        }
-      }
-      return line;
-    })
-    .join("\n");
-}
-
-/** Minimal shell tokenizer: splits on whitespace, respects quotes and escapes. */
-export function tokenize(input: string): string[] {
-  const tokens: string[] = [];
-  let cur = "";
-  let inSingle = false;
-  let inDouble = false;
-  let esc = false;
-  for (const ch of input) {
-    if (esc) {
-      cur += ch;
-      esc = false;
-      continue;
-    }
-    if (ch === "\\" && !inSingle) {
-      esc = true;
-      continue;
-    }
-    if (ch === "'" && !inDouble) {
-      if (!inSingle && cur.endsWith("$")) cur = cur.slice(0, -1);
-      inSingle = !inSingle;
-      continue;
-    }
-    if (ch === '"' && !inSingle) {
-      inDouble = !inDouble;
-      continue;
-    }
-    if (/\s/.test(ch) && !inSingle && !inDouble) {
-      if (cur) {
-        tokens.push(cur);
-        cur = "";
-      }
-      continue;
-    }
-    cur += ch;
-  }
-  if (cur) tokens.push(cur);
-  return tokens;
+  return pool.some((candidate) => matchesPattern(normalized, candidate));
 }
 
 // ---------------------------------------------------------------------------
@@ -471,16 +343,31 @@ function realpathExisting(absPath: string): string {
   }
 }
 
+export function resolvePermissionPath(raw: string, cwd: string, home: string): string {
+  const expanded = raw
+    .replace(/^~(?=$|[\\/])/, home)
+    .replace(/^\$HOME(?=$|[\\/])/, home)
+    .replace(/^\$PWD(?=$|[\\/])/, cwd);
+  return realpathExisting(path.resolve(cwd, expanded));
+}
+
+/** Resolve one raw path and return its real external target, or null when inside cwd. */
+export function externalPathFromRaw(raw: string, cwd: string, home: string): string | null {
+  const realCwd = realpathExisting(cwd);
+  const abs = resolvePermissionPath(raw, cwd, home);
+  return isOutsideCwd(abs, realCwd) ? abs : null;
+}
+
 /**
  * Path this call touches for the external-directory guard, or null.
  * Existing ancestors are realpathed so a symlink inside cwd cannot hide an
  * external target; missing trailing segments are appended after resolution.
- * Bash commands are not inspected for paths (documented limitation).
  */
 export function externalPathOf(
   toolName: string,
   input: Record<string, unknown>,
   cwd: string,
+  home = process.env.HOME ?? os.homedir(),
 ): string | null {
   let raw: string | undefined;
   if (toolName === "read" || toolName === "edit" || toolName === "write" || toolName === "ls") {
@@ -488,10 +375,7 @@ export function externalPathOf(
   } else if (toolName === "grep" || toolName === "find") {
     raw = typeof input.path === "string" && input.path.trim() ? input.path : undefined;
   }
-  if (raw === undefined) return null;
-  const realCwd = realpathExisting(cwd);
-  const abs = realpathExisting(path.resolve(cwd, raw));
-  return isOutsideCwd(abs, realCwd) ? abs : null;
+  return raw === undefined ? null : externalPathFromRaw(raw, cwd, home);
 }
 
 // ---------------------------------------------------------------------------
@@ -517,10 +401,13 @@ function lastMatch(
   rules: readonly LayeredRule[],
   candidates: readonly string[],
   home: string,
+  trimTrailingSeparator: boolean,
 ): LayeredRule | null {
   let matched: LayeredRule | null = null;
   for (const layered of rules) {
-    if (patternMatchesCandidates(layered.rule.pattern, candidates, home)) matched = layered;
+    if (patternMatchesCandidates(layered.rule.pattern, candidates, home, trimTrailingSeparator)) {
+      matched = layered;
+    }
   }
   return matched;
 }
@@ -534,9 +421,13 @@ function evaluateKey(
   home: string,
   kind: PermissionSource["kind"],
 ): PermissionDecision {
-  const specific = lastMatch(rulesForKey(layers, key), candidates, home);
+  const trimTrailingSeparator = kind === "external_directory";
+  const specific = lastMatch(rulesForKey(layers, key), candidates, home, trimTrailingSeparator);
   const winner =
-    specific ?? (kind === "tool" ? lastMatch(rulesForKey(layers, "*"), candidates, home) : null);
+    specific ??
+    (kind === "tool"
+      ? lastMatch(rulesForKey(layers, "*"), candidates, home, trimTrailingSeparator)
+      : null);
   if (!winner) return { action: "allow" };
   return {
     action: winner.rule.action,
@@ -556,8 +447,28 @@ export function doomLoopAction(layers: readonly LayeredConfig[]): {
   return found;
 }
 
-function moreSevere(a: PermissionDecision, b: PermissionDecision): PermissionDecision {
+export function stricterPermissionDecision(
+  a: PermissionDecision,
+  b: PermissionDecision,
+): PermissionDecision {
   return SEVERITY[b.action] > SEVERITY[a.action] ? b : a;
+}
+
+/** Evaluate one already-resolved external path against external_directory rules. */
+export function evaluateExternalDirectoryPath(args: {
+  layers: readonly LayeredConfig[];
+  externalPath: string;
+  cwd: string;
+  home: string;
+}): PermissionDecision {
+  return evaluateKey(
+    args.layers,
+    EXTERNAL_DIRECTORY_KEY,
+    pathCandidates(args.externalPath, realpathExisting(args.cwd)),
+    args.externalPath,
+    args.home,
+    "external_directory",
+  );
 }
 
 /**
@@ -573,14 +484,21 @@ export function evaluateToolCall(args: {
   cwd: string;
   home: string;
   doomCount?: number;
+  bashAnalysis?: BashAnalysis;
 }): PermissionDecision {
   const { layers, toolName, input, cwd, home } = args;
-  const subject = extractSubject(toolName, input, cwd);
+  const subject: ToolCallSubject =
+    toolName === "bash" && args.bashAnalysis
+      ? { kind: "commands", segments: args.bashAnalysis.segments }
+      : extractSubject(toolName, input, cwd);
 
   let decision: PermissionDecision = { action: "allow" };
   if (subject.kind === "commands") {
     for (const segment of subject.segments) {
-      decision = moreSevere(decision, evaluateKey(layers, toolName, [segment], segment, home, "tool"));
+      decision = stricterPermissionDecision(
+        decision,
+        evaluateKey(layers, toolName, [segment], segment, home, "tool"),
+      );
     }
   } else if (subject.kind === "path") {
     const candidates = pathCandidates(subject.path, cwd);
@@ -592,22 +510,15 @@ export function evaluateToolCall(args: {
 
   const externalPath = externalPathOf(toolName, input, cwd);
   if (externalPath !== null) {
-    decision = moreSevere(
+    decision = stricterPermissionDecision(
       decision,
-      evaluateKey(
-        layers,
-        EXTERNAL_DIRECTORY_KEY,
-        pathCandidates(externalPath, cwd),
-        externalPath,
-        home,
-        "external_directory",
-      ),
+      evaluateExternalDirectoryPath({ layers, externalPath, cwd, home }),
     );
   }
 
   const doom = doomLoopAction(layers);
   if (doom && (args.doomCount ?? 0) >= DOOM_LOOP_THRESHOLD) {
-    decision = moreSevere(decision, {
+    decision = stricterPermissionDecision(decision, {
       action: doom.action,
       source: {
         kind: "doom_loop",
@@ -619,6 +530,47 @@ export function evaluateToolCall(args: {
     });
   }
   return decision;
+}
+
+/** Evaluate all independent permission surfaces for one call. */
+export function evaluateToolCallDecisions(args: {
+  layers: readonly LayeredConfig[];
+  toolName: string;
+  input: Record<string, unknown>;
+  cwd: string;
+  home: string;
+  doomCount?: number;
+}): PermissionDecision[] {
+  if (args.toolName !== "bash") return [evaluateToolCall(args)];
+
+  const command = typeof args.input.command === "string" ? args.input.command : "";
+  const bashAnalysis = analyzeBashCommand(command);
+  const raw = command.trim();
+  // Parse errors (including the depth limit and crash fallbacks) must not
+  // fail open: evaluate the raw command as an extra Bash subject so tool
+  // rules like `bash: "deny"` still apply to malformed input. Path scanning
+  // stays limited to what parsed cleanly (documented preflight boundary).
+  const segments =
+    bashAnalysis.errors.length > 0 && raw && !bashAnalysis.segments.includes(raw)
+      ? [...bashAnalysis.segments, raw]
+      : bashAnalysis.segments;
+  const decisions = [evaluateToolCall({ ...args, bashAnalysis: { ...bashAnalysis, segments } })];
+  const externalPaths = new Set<string>();
+  for (const raw of bashAnalysis.pathArguments) {
+    const externalPath = externalPathFromRaw(raw, args.cwd, args.home);
+    if (externalPath) externalPaths.add(externalPath);
+  }
+  for (const externalPath of externalPaths) {
+    decisions.push(
+      evaluateExternalDirectoryPath({
+        layers: args.layers,
+        externalPath,
+        cwd: args.cwd,
+        home: args.home,
+      }),
+    );
+  }
+  return decisions;
 }
 
 /** Consecutive-identical-call counter for the doom-loop guard. */
@@ -667,7 +619,9 @@ export function addRule(
   action: PermissionAction,
 ): PermissionConfig {
   const entries = config.entries.map((entry) =>
-    entry.tool === tool ? { tool: entry.tool, rules: [...entry.rules, { pattern, action }] } : entry,
+    entry.tool === tool
+      ? { tool: entry.tool, rules: [...entry.rules, { pattern, action }] }
+      : entry,
   );
   if (!config.entries.some((entry) => entry.tool === tool)) {
     entries.push({ tool, rules: [{ pattern, action }] });
@@ -676,7 +630,11 @@ export function addRule(
 }
 
 /** Remove one rule; a key with no rules left disappears entirely. */
-export function removeRule(config: PermissionConfig, tool: string, index: number): PermissionConfig {
+export function removeRule(
+  config: PermissionConfig,
+  tool: string,
+  index: number,
+): PermissionConfig {
   const entries = config.entries
     .map((entry) =>
       entry.tool === tool
@@ -687,7 +645,11 @@ export function removeRule(config: PermissionConfig, tool: string, index: number
   return { ...config, entries };
 }
 
-export function cycleRuleAction(config: PermissionConfig, tool: string, index: number): PermissionConfig {
+export function cycleRuleAction(
+  config: PermissionConfig,
+  tool: string,
+  index: number,
+): PermissionConfig {
   const entries = config.entries.map((entry) =>
     entry.tool === tool
       ? {

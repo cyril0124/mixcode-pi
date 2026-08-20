@@ -8,20 +8,23 @@ import {
   createDoomLoopTracker,
   cycleDoomLoop,
   cycleRuleAction,
+  evaluateExternalDirectoryPath,
   evaluateToolCall,
+  evaluateToolCallDecisions,
   expandHomeInPattern,
-  extractSubject,
+  externalPathFromRaw,
   externalPathOf,
+  extractSubject,
   isOutsideCwd,
+  type LayeredConfig,
   loadPermissionConfig,
   matchesPattern,
+  type PermissionConfig,
   parsePermissionConfig,
   removeRule,
   serializePermissionConfig,
   splitBashCommand,
   writePermissionConfig,
-  type LayeredConfig,
-  type PermissionConfig,
 } from "./permission-core.js";
 
 const CWD = "/project/myapp";
@@ -83,7 +86,10 @@ test("parse: root string shorthand applies to every tool", () => {
 
 test("parse: per-tool string shorthand and pattern object", () => {
   const config = parsed({ read: "allow", bash: { "git *": "allow", "*": "ask" } });
-  assert.deepEqual(config.entries.map((entry) => entry.tool), ["read", "bash"]);
+  assert.deepEqual(
+    config.entries.map((entry) => entry.tool),
+    ["read", "bash"],
+  );
   assert.equal(config.entries[1]!.rules.length, 2);
 });
 
@@ -109,7 +115,10 @@ test("$schema: accepted as string, preserved through mutations and file round-tr
   assert.equal(Object.keys(raw)[0], "$schema");
   const loaded = loadPermissionConfig(file);
   assert.equal(loaded.ok, true);
-  assert.equal((loaded as { config: PermissionConfig }).config.schemaRef, "./mpi-permission.schema.json");
+  assert.equal(
+    (loaded as { config: PermissionConfig }).config.schemaRef,
+    "./mpi-permission.schema.json",
+  );
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
@@ -121,7 +130,11 @@ test("$schema: non-string fails loud; evaluation ignores the key", () => {
 });
 
 test("serialize: single * rule collapses to string, order preserved", () => {
-  const config = parsed({ read: "allow", bash: { "git *": "allow", "*": "ask" }, doom_loop: "ask" });
+  const config = parsed({
+    read: "allow",
+    bash: { "git *": "allow", "*": "ask" },
+    doom_loop: "ask",
+  });
   assert.deepEqual(serializePermissionConfig(config), {
     read: "allow",
     bash: { "git *": "allow", "*": "ask" },
@@ -177,7 +190,10 @@ test("splitBashCommand: quotes collapse to single-space normalized tokens", () =
 
 test("splitBashCommand: comments and heredoc bodies are not segments", () => {
   assert.deepEqual(splitBashCommand("ls # rm -rf /"), ["ls"]);
-  assert.deepEqual(splitBashCommand("cat <<EOF\nrm -rf /\nEOF\necho done"), ["cat <<EOF", "echo done"]);
+  assert.deepEqual(splitBashCommand("cat <<EOF\nrm -rf /\nEOF\necho done"), [
+    "cat <<EOF",
+    "echo done",
+  ]);
 });
 
 test("splitBashCommand: quoted or commented heredoc markers do not hide following commands", () => {
@@ -204,7 +220,10 @@ test("splitBashCommand: logical-or and pipe operators split independently", () =
 // ─── evaluation: tool rules ──────────────────────────────────────────────────
 
 test("evaluate: last matching rule wins within one object", () => {
-  const layers = layersOf(["global", { bash: { "*": "ask", "git *": "allow", "git push *": "deny" } }]);
+  const layers = layersOf([
+    "global",
+    { bash: { "*": "ask", "git *": "allow", "git push *": "deny" } },
+  ]);
   assert.equal(evaluate(layers, "bash", { command: "git status" }).action, "allow");
   assert.equal(evaluate(layers, "bash", { command: "git push origin" }).action, "deny");
   assert.equal(evaluate(layers, "bash", { command: "npm install" }).action, "ask");
@@ -219,7 +238,10 @@ test("evaluate: later layers win over earlier layers (global -> project -> sessi
   assert.equal(decision.action, "ask");
   assert.equal(decision.source?.layer, "project");
 
-  const withSession = [...layers, ...layersOf(["session", { bash: { "git push origin": "allow" } }])];
+  const withSession = [
+    ...layers,
+    ...layersOf(["session", { bash: { "git push origin": "allow" } }]),
+  ];
   assert.equal(evaluate(withSession, "bash", { command: "git push origin" }).action, "allow");
 });
 
@@ -294,7 +316,10 @@ test("externalPathOf: resolves symlink escapes through the deepest existing ance
   try {
     fs.writeFileSync(path.join(outside, "existing.txt"), "secret", "utf8");
     fs.symlinkSync(outside, path.join(cwd, "leak"));
-    assert.equal(externalPathOf("read", { path: "leak/existing.txt" }, cwd), path.join(outside, "existing.txt"));
+    assert.equal(
+      externalPathOf("read", { path: "leak/existing.txt" }, cwd),
+      path.join(outside, "existing.txt"),
+    );
     assert.equal(
       externalPathOf("write", { path: "leak/missing/child.txt" }, cwd),
       path.join(outside, "missing/child.txt"),
@@ -302,6 +327,125 @@ test("externalPathOf: resolves symlink escapes through the deepest existing ance
   } finally {
     fs.rmSync(cwd, { recursive: true, force: true });
     fs.rmSync(outside, { recursive: true, force: true });
+  }
+});
+
+test("external_directory: trailing slash patterns match the directory itself without changing Bash rules", () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "mpi-permission-relative-"));
+  try {
+    const externalPath = externalPathFromRaw("..", cwd, HOME);
+    assert.equal(externalPath, path.dirname(cwd));
+    const decision = evaluateExternalDirectoryPath({
+      layers: layersOf(["global", { external_directory: { "../": "ask" } }]),
+      externalPath: externalPath!,
+      cwd,
+      home: HOME,
+    });
+    assert.equal(decision.action, "ask");
+    assert.equal(decision.source?.pattern, "../");
+    assert.equal(
+      evaluate(layersOf(["global", { bash: { "echo /": "deny" } }]), "bash", { command: "echo" })
+        .action,
+      "allow",
+    );
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("externalPathFromRaw: expands known home and cwd variables", () => {
+  assert.equal(externalPathFromRaw("$HOME/notes", CWD, HOME), "/home/alice/notes");
+  assert.equal(externalPathFromRaw("~/notes", CWD, HOME), "/home/alice/notes");
+  assert.equal(externalPathFromRaw("$PWD/src", CWD, HOME), null);
+});
+
+test("evaluateToolCallDecisions: bash file commands trigger external_directory", () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "mpi-permission-bash-path-"));
+  try {
+    const layers = layersOf(["global", { bash: "allow", external_directory: { "../": "ask" } }]);
+    const decisions = evaluateToolCallDecisions({
+      layers,
+      toolName: "bash",
+      input: { command: "ls -la .." },
+      cwd,
+      home: HOME,
+    });
+    assert.deepEqual(
+      decisions.map((decision) => decision.action),
+      ["allow", "ask"],
+    );
+    assert.equal(decisions[1]!.source?.kind, "external_directory");
+    assert.equal(decisions[1]!.source?.subject, path.dirname(cwd));
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("evaluateToolCallDecisions: nested commands and symlinks cannot hide static external paths", () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "mpi-permission-bash-symlink-"));
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "mpi-permission-bash-outside-"));
+  try {
+    fs.symlinkSync(outside, path.join(cwd, "leak"));
+    const decisions = evaluateToolCallDecisions({
+      layers: layersOf(["global", { external_directory: "deny" }]),
+      toolName: "bash",
+      input: { command: "echo $(cat leak/secret.txt)" },
+      cwd,
+      home: HOME,
+    });
+    assert.equal(
+      decisions.some((decision) => decision.action === "deny"),
+      true,
+    );
+    assert.equal(
+      decisions.find((decision) => decision.action === "deny")?.source?.subject,
+      path.join(outside, "secret.txt"),
+    );
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+    fs.rmSync(outside, { recursive: true, force: true });
+  }
+});
+
+test("evaluateToolCallDecisions: wrappers, -- operands, and deep nesting do not bypass deny", () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "mpi-permission-bash-bypass-"));
+  try {
+    let nested = "ls ../secret";
+    for (let i = 0; i < 12; i++) nested = `bash -c ${JSON.stringify(nested)}`;
+    const commands = [
+      "env -S 'ls ../secret'",
+      "env -S 'ls' ../secret",
+      "env -Sls ../secret",
+      "env --split-string=ls ../secret",
+      "bash -lc 'ls ../secret'",
+      "cat -- -x/../../../etc/passwd",
+      nested,
+    ];
+    for (const command of commands) {
+      const decisions = evaluateToolCallDecisions({
+        layers: layersOf(["global", { bash: "allow", external_directory: "deny" }]),
+        toolName: "bash",
+        input: { command },
+        cwd,
+        home: HOME,
+      });
+      assert.equal(
+        decisions.some((decision) => decision.action === "deny"),
+        true,
+        `expected external deny for ${command}`,
+      );
+    }
+
+    const bashDenied = evaluateToolCallDecisions({
+      layers: layersOf(["global", { bash: "deny" }]),
+      toolName: "bash",
+      input: { command: "env -S 'ls ../secret'" },
+      cwd,
+      home: HOME,
+    });
+    assert.equal(bashDenied[0]!.action, "deny");
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
   }
 });
 
@@ -361,7 +505,10 @@ test("extractSubject: per-tool subject kinds", () => {
     path: `${CWD}/src/a.ts`,
   });
   assert.deepEqual(extractSubject("ls", {}, CWD), { kind: "path", path: CWD });
-  assert.deepEqual(extractSubject("grep", { pattern: "foo" }, CWD), { kind: "pattern", pattern: "foo" });
+  assert.deepEqual(extractSubject("grep", { pattern: "foo" }, CWD), {
+    kind: "pattern",
+    pattern: "foo",
+  });
   assert.deepEqual(extractSubject("custom", { a: 1 }, CWD), { kind: "raw", text: '{"a":1}' });
 });
 
@@ -375,13 +522,19 @@ test("addRule: appended rule wins by last-match; new keys go to the end", () => 
   assert.equal(evaluate(layers, "bash", { command: "git push" }).action, "deny");
 
   const withNewKey = addRule(base, "read", "*.env", "deny");
-  assert.deepEqual(withNewKey.entries.map((entry) => entry.tool), ["bash", "read"]);
+  assert.deepEqual(
+    withNewKey.entries.map((entry) => entry.tool),
+    ["bash", "read"],
+  );
 });
 
 test("removeRule: drops the rule and empty keys disappear", () => {
   const base = parsed({ bash: { "git *": "allow" }, read: "deny" });
   const next = removeRule(base, "bash", 0);
-  assert.deepEqual(next.entries.map((entry) => entry.tool), ["read"]);
+  assert.deepEqual(
+    next.entries.map((entry) => entry.tool),
+    ["read"],
+  );
 });
 
 test("cycleRuleAction / cycleDoomLoop: full cycles", () => {
@@ -400,4 +553,59 @@ test("cycleRuleAction / cycleDoomLoop: full cycles", () => {
   assert.equal(config.doomLoop, "allow");
   config = cycleDoomLoop(config);
   assert.equal(config.doomLoop, undefined);
+});
+
+// ─── regression: fail-closed behavior at the production entry ───────────────
+
+test("evaluateToolCallDecisions: parse errors still apply bash tool rules to the raw command", () => {
+  const layers = layersOf(["global", { bash: "deny" }]);
+  const malformed = evaluateToolCallDecisions({
+    layers,
+    toolName: "bash",
+    input: { command: "a=(1 2" },
+    cwd: CWD,
+    home: HOME,
+  });
+  assert.equal(malformed[0]!.action, "deny");
+  const partial = evaluateToolCallDecisions({
+    layers: layersOf(["global", { bash: { "echo hi": "ask" } }]),
+    toolName: "bash",
+    input: { command: "echo hi '" },
+    cwd: CWD,
+    home: HOME,
+  });
+  assert.equal(
+    partial.some((decision) => decision.action === "ask"),
+    true,
+  );
+});
+
+test("evaluateToolCallDecisions: external deny applies to arithmetic-expansion commands", () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "mpi-permission-arith-"));
+  try {
+    const decisions = evaluateToolCallDecisions({
+      layers: layersOf(["global", { bash: "allow", external_directory: "deny" }]),
+      toolName: "bash",
+      input: { command: "echo $(( $(cat ../secret) + 1 ))" },
+      cwd,
+      home: HOME,
+    });
+    assert.equal(
+      decisions.some((decision) => decision.action === "deny"),
+      true,
+    );
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("evaluateToolCallDecisions: depth-limit overflow surfaces as a deny under bash rules", () => {
+  const decisions = evaluateToolCallDecisions({
+    layers: layersOf(["global", { bash: "deny" }]),
+    toolName: "bash",
+    input: { command: "env -S ".repeat(1000) + "cat ../x" },
+    cwd: CWD,
+    home: HOME,
+  });
+  assert.equal(decisions[0]!.action, "deny");
 });

@@ -8,6 +8,7 @@
 // |  Gate:   tool_call -> evaluate -> allow / ask dialog / deny block         |
 // |  UI:     /permission overlay (Layer: Global | Project | Session)          |
 // +---------------------------------------------------------------------------+
+import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
@@ -18,7 +19,7 @@ import {
   doomLoopAction,
   emptyPermissionConfig,
   EXTERNAL_DIRECTORY_KEY,
-  evaluateToolCall,
+  evaluateToolCallDecisions,
   hasAnyRules,
   loadPermissionConfig,
   permissionConfigPath,
@@ -53,27 +54,42 @@ function describeSource(source: PermissionSource): string {
   return `${source.layer} ${source.tool}[${source.pattern}] matched "${preview(source.subject)}"`;
 }
 
+function existingDirectory(filePath: string): boolean {
+  try {
+    return fs.statSync(filePath).isDirectory();
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === "ENOENT" || code === "ENOTDIR" || code === "EACCES") return false;
+    throw err;
+  }
+}
+
+type SuggestedRule = { tool: string; pattern: string };
+
 /**
- * Session "always" grant pattern suggested in the ask dialog.
+ * Session "always" grant patterns suggested in the ask dialog.
  * Bash grants the first one or two command words plus ` *`; path-like and
- * pattern subjects grant the exact subject; external paths grant the parent
- * directory. Doom-loop asks get no "always" option (it would defeat the guard).
+ * pattern subjects grant the exact subject; an existing external directory
+ * needs exact + contents rules. Doom-loop asks get no "always" option.
  */
-function suggestAlwaysRule(
-  source: PermissionSource,
-  toolName: string,
-): { tool: string; pattern: string } | null {
-  if (source.kind === "doom_loop") return null;
+function suggestAlwaysRules(source: PermissionSource, toolName: string): SuggestedRule[] {
+  if (source.kind === "doom_loop") return [];
   if (source.kind === "external_directory") {
-    return { tool: EXTERNAL_DIRECTORY_KEY, pattern: `${path.dirname(source.subject)}/*` };
+    if (existingDirectory(source.subject)) {
+      return [
+        { tool: EXTERNAL_DIRECTORY_KEY, pattern: source.subject },
+        { tool: EXTERNAL_DIRECTORY_KEY, pattern: `${source.subject}/*` },
+      ];
+    }
+    return [{ tool: EXTERNAL_DIRECTORY_KEY, pattern: `${path.dirname(source.subject)}/*` }];
   }
   if (toolName === "bash") {
     // `git status*` (no space) also matches the bare `git status` form.
     const words = source.subject.split(" ");
     const prefix = words.slice(0, Math.min(2, words.length)).join(" ");
-    return { tool: toolName, pattern: `${prefix}*` };
+    return [{ tool: toolName, pattern: `${prefix}*` }];
   }
-  return { tool: toolName, pattern: source.subject };
+  return [{ tool: toolName, pattern: source.subject }];
 }
 
 export default function permissionExtension(pi: ExtensionAPI) {
@@ -138,7 +154,7 @@ export default function permissionExtension(pi: ExtensionAPI) {
     const input = event.input as Record<string, unknown>;
     // An explicit "allow" disables the guard just like an absent setting.
     const doomCount = doomGuardActive ? doomTracker.record(event.toolName, input) : 0;
-    const decision = evaluateToolCall({
+    const decisions = evaluateToolCallDecisions({
       layers,
       toolName: event.toolName,
       input,
@@ -147,37 +163,60 @@ export default function permissionExtension(pi: ExtensionAPI) {
       doomCount,
     });
 
-    if (decision.action === "allow") return undefined;
-    if (decision.action === "deny") {
-      const detail = decision.source ? describeSource(decision.source) : "denied";
+    const denied = decisions.find((candidate) => candidate.action === "deny");
+    if (denied) {
+      const detail = denied.source ? describeSource(denied.source) : "denied";
       return { block: true, reason: `permission: denied — ${detail}` };
     }
-    return askUser(decision, event.toolName, ctx);
+    const asks = decisions.filter((candidate) => candidate.action === "ask");
+    if (asks.length === 0) return undefined;
+    return askUser(asks, event.toolName, ctx);
   });
 
   async function askUser(
-    decision: PermissionDecision,
+    decisions: readonly PermissionDecision[],
     toolName: string,
     ctx: ExtensionContext,
   ): Promise<{ block: true; reason: string } | undefined> {
-    const source = decision.source!; // ask decisions always carry a source
+    const sources = decisions.map((decision) => decision.source!); // ask decisions always carry a source
     if (!ctx.hasUI) {
       return {
         block: true,
         reason:
-          `permission: "ask" required — ${describeSource(source)}; ` +
+          `permission: "ask" required — ${sources.map(describeSource).join("; ")}; ` +
           "no interactive UI is available, add an allow rule or run interactively",
       };
     }
-    const suggestion = suggestAlwaysRule(source, toolName);
+    const suggestions = sources.some((source) => source.kind === "doom_loop")
+      ? []
+      : sources
+          .flatMap((source) => suggestAlwaysRules(source, toolName))
+          .filter(
+            (rule, index, list) =>
+              list.findIndex(
+                (candidate) => candidate.tool === rule.tool && candidate.pattern === rule.pattern,
+              ) === index,
+          );
     const ALLOW_ONCE = "Allow once";
     const REJECT = "Reject";
-    const always = suggestion ? `Always allow: ${suggestion.tool}[${suggestion.pattern}]` : null;
+    const always =
+      suggestions.length === 0
+        ? null
+        : suggestions.length === 1
+          ? `Always allow: ${suggestions[0]!.tool}[${suggestions[0]!.pattern}]`
+          : `Always allow these ${suggestions.length} rules`;
     const options = always ? [ALLOW_ONCE, always, REJECT] : [ALLOW_ONCE, REJECT];
-    const title =
-      source.kind === "doom_loop"
-        ? `Permission: ${toolName} repeated with identical input\n\n  ${preview(source.subject)}\n`
-        : `Permission: ${toolName}\n\n  ${preview(source.subject)}\n\n  rule: ${source.layer} ${source.tool}[${source.pattern}]\n`;
+    const doom = sources.find((source) => source.kind === "doom_loop");
+    const details = sources
+      .filter((source) => source.kind !== "doom_loop")
+      .map(
+        (source) =>
+          `  ${preview(source.subject)}\n\n  rule: ${source.layer} ${source.tool}[${source.pattern}]`,
+      )
+      .join("\n\n");
+    const title = doom
+      ? `Permission: ${toolName} repeated with identical input\n\n  ${preview(doom.subject)}\n${details ? `\n${details}\n` : ""}`
+      : `Permission: ${toolName}\n\n${details}\n`;
     // The tool row keeps counting from tool_execution_start while the dialog
     // is open even though nothing has spawned yet; make the wait explicit.
     ctx.ui.setWorkingMessage("waiting for permission approval…");
@@ -194,11 +233,16 @@ export default function permissionExtension(pi: ExtensionAPI) {
       ctx.ui.setWorkingMessage();
     }
     if (choice === ALLOW_ONCE) return undefined;
-    if (choice === always && suggestion) {
-      sessionConfig = addRule(sessionConfig, suggestion.tool, suggestion.pattern, "allow");
+    if (choice === always) {
+      for (const suggestion of suggestions) {
+        sessionConfig = addRule(sessionConfig, suggestion.tool, suggestion.pattern, "allow");
+      }
       return undefined;
     }
-    return { block: true, reason: `permission: rejected by user — ${describeSource(source)}` };
+    return {
+      block: true,
+      reason: `permission: rejected by user — ${sources.map(describeSource).join("; ")}`,
+    };
   }
 
   pi.registerCommand("permission", {

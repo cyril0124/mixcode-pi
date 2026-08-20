@@ -90,7 +90,7 @@ function patternExample(key: string): string {
   if (key === "read" || key === "edit" || key === "write" || key === "ls") {
     return "e.g. src/* · *.env · ~/dir/** · /abs/path/*";
   }
-  if (key === "external_directory") return "e.g. ~/notes/** · /srv/data/*";
+  if (key === "external_directory") return "e.g. .. · ../* · ~/notes/** · /srv/data/*";
   return "* matches all input · ? matches one character";
 }
 

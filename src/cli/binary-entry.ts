@@ -141,9 +141,15 @@ import modelExtensionsPackageJson from "../../pi-packages/mpi-model-extensions/p
 import modelExtensionsSchemaJson from "../../pi-packages/mpi-model-extensions/mpi-model-extensions.schema.json" with { type: "text" };
 import permissionIndex from "../../pi-packages/mpi-permission/index.ts" with { type: "text" };
 import permissionCore from "../../pi-packages/mpi-permission/permission-core.ts" with { type: "text" };
+import permissionBashPolicy from "../../pi-packages/mpi-permission/bash-policy.ts" with { type: "text" };
 import permissionOverlay from "../../pi-packages/mpi-permission/permission-overlay.ts" with { type: "text" };
 import permissionPackageJson from "../../pi-packages/mpi-permission/package.json" with { type: "text" };
 import permissionSchemaJson from "../../pi-packages/mpi-permission/mpi-permission.schema.json" with { type: "text" };
+import permissionUnbashJs from "../../pi-packages/mpi-permission/vendor/unbash.js" with { type: "text" };
+import permissionUnbashDts from "../../pi-packages/mpi-permission/vendor/unbash.d.ts" with { type: "text" };
+import permissionUnbashTypesDts from "../../pi-packages/mpi-permission/vendor/unbash-types.d.ts" with { type: "text" };
+import permissionUnbashLicense from "../../pi-packages/mpi-permission/vendor/UNBASH-LICENSE" with { type: "text" };
+import permissionUnbashNotice from "../../pi-packages/mpi-permission/vendor/UNBASH-NOTICE" with { type: "text" };
 import toolBlockIndex from "../../pi-packages/mpi-tool-block/index.ts" with { type: "text" };
 import toolBlockCore from "../../pi-packages/mpi-tool-block/tool-block-core.ts" with { type: "text" };
 import toolBlockOverlay from "../../pi-packages/mpi-tool-block/tool-block-overlay.ts" with { type: "text" };
@@ -313,9 +319,15 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
     "mpi-permission": {
       "index.ts": permissionIndex,
       "permission-core.ts": permissionCore,
+      "bash-policy.ts": permissionBashPolicy,
       "permission-overlay.ts": permissionOverlay,
       "package.json": permissionPackageJson,
       "mpi-permission.schema.json": permissionSchemaJson,
+      "vendor/unbash.js": permissionUnbashJs,
+      "vendor/unbash.d.ts": permissionUnbashDts,
+      "vendor/unbash-types.d.ts": permissionUnbashTypesDts,
+      "vendor/UNBASH-LICENSE": permissionUnbashLicense,
+      "vendor/UNBASH-NOTICE": permissionUnbashNotice,
     },
     "mpi-auto-rename": {
       "index.ts": autoRenameIndex,

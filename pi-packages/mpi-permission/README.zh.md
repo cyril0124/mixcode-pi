@@ -50,7 +50,7 @@
 
 | 工具 | 匹配对象 |
 |------|----------|
-| `bash` | 每个解析后的命令分段（按 `\n`、`;`、`\|`、`&&`、`\|\|` 切分；剥离注释与 heredoc 正文；去引号；空白折叠；丢弃前导环境变量赋值及透明包装器 `sudo` / `env` / `command` / `builtin` / `exec`）。复合命令取最严格分段的决策（`deny` > `ask` > `allow`）。 |
+| `bash` | AST 解析出的每个命令分段，包括命令/进程替换及静态的 `bash` / `sh` / `zsh` / `dash` / `ksh -c` 嵌套脚本。去除引号、规整空白，并丢弃前导环境变量赋值与透明包装器 `sudo` / `env` / `command` / `builtin` / `exec`。复合命令取最严格分段的决策（`deny` > `ask` > `allow`）。 |
 | `read` / `edit` / `write` / `ls` | 绝对文件路径。相对模式同时匹配 cwd 相对形式与绝对形式，所以 `*.env`、`src/*`、`/abs/*` 都可用。 |
 | `grep` / `find` | 搜索 `pattern` 输入。 |
 | 其他工具 | `JSON.stringify(input)`；字符串形式规则（`"tool": "deny"`）恒适用。 |
@@ -59,7 +59,9 @@
 
 ### `external_directory`
 
-路径类工具（`read` / `edit` / `write` / `ls`，以及带 `path` 输入的 `grep` / `find`）解析到工作目录之外时，该路径会额外按 `external_directory` 规则求值；最终决策取工具规则与防护规则中更严格者。containment 检查前会 realpath 最深的已存在祖先，因此项目内符号链接不能隐藏外部目标，末尾路径尚不存在时也能判定。该键下无规则即防护关闭（在其中写 `"*": "ask"` 可把关全部外部访问）。不解析 bash 命令中的路径。
+路径类工具（`read` / `edit` / `write` / `ls`，以及带 `path` 输入的 `grep` / `find`）解析到工作目录之外时，该路径会额外按 `external_directory` 规则求值。Bash AST 扫描也会把同一防护应用于常见文件命令（`cd`、`ls`、`cat`、`rm`、`cp`、`mv`、`mkdir`、`touch`、`chmod`、`chown`、`find` 及相关检查命令）的静态路径参数、重定向目标、命令/进程替换和静态嵌套 shell。containment 检查前会 realpath 最深的已存在祖先，因此项目内符号链接不能隐藏外部目标，末尾路径尚不存在时也能判定。同一命令的多项 ask 会合并成一次对话框。
+
+最终决策取工具规则与防护规则中更严格者（`deny` > `ask` > `allow`）。没有 `external_directory` 规则即关闭该防护；写 `"*": "ask"` 可把关所有检测到的外部路径。模式末尾 `/` 会被忽略，因此 `"../"` 匹配父目录本身，`"../*"` 匹配父目录中的内容。
 
 ### `doom_loop`
 
@@ -85,7 +87,7 @@ bash: echo other   计数重置；之后的 `echo same` 从 #1 重新计
 | 选项 | 效果 |
 |------|------|
 | Allow once | 仅放行本次调用。 |
-| Always allow: `键[模式]` | 追加一条会话层 allow 规则并放行。bash 建议前一到两个命令词加 `*`（如 `git status*`）；路径与 pattern 授予精确 subject；外部路径授予 `<父目录>/*`。 |
+| Always allow: `键[模式]` | 追加会话层 allow 规则并放行。单项决策显示具体规则，合并决策显示规则数量。bash 建议前一到两个命令词加 `*`；路径授予精确 subject。已存在的外部目录同时授予 `<目录>` 与 `<目录>/*`，文件或尚不存在的路径授予 `<父目录>/*`。 |
 | Reject / Esc | 拦截调用，原因为 `rejected by user`。 |
 
 无交互界面时（`-p` / JSON 模式、子代理），`ask` 以明确原因拦截——审批必须有 UI。
@@ -121,5 +123,7 @@ Global 与 Project 的编辑立即写入对应文件；项目未受信任时 Pro
 ## 限制
 
 - 不支持按子代理定制规则集；子代理会话加载同样的配置文件，且因无 UI，`ask` 视为拦截。
-- `bash` 匹配的是规整化后的 token 形式（引号已去除），模式匹配 `git commit -m a b` 而非原始引号形式。
+- Bash 路径扫描是静态 permission preflight，不是 OS sandbox；它无法推断任意程序内部的文件访问（如 `python -c 'open("../x")'`）、运行时定义的 alias/function 或无法解析的变量值。对内部 IO 不可见的命令应使用更严格的 Bash 规则。
+- Bash 解析使用 vendored [`unbash` 4.0.10](https://github.com/webpro-nl/unbash) ESM runtime，遵循 ISC 许可证（`vendor/UNBASH-LICENSE`）。
+- `bash` 规则匹配的是 AST 规整后的 token 形式（引号已去除），模式匹配 `git commit -m a b` 而非原始引号形式。
 - 会话层 "always" 授权不持久化；需长期生效请改写全局或项目规则。

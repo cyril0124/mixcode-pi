@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Permission rules (mpi-permission)",
-  "description": "Gate tool calls with allow / ask / deny rules. Keys are tool names, \"*\", or \"external_directory\"; values are one action or an ordered pattern->action object where the last matching rule wins. \"doom_loop\" takes an action only.",
+  "description": "Gate tool calls with allow / ask / deny rules. Keys are tool names, \"*\", or \"external_directory\"; values are one action or an ordered pattern->action object where the last matching rule wins. external_directory also evaluates statically parsed path arguments from common Bash file commands. \"doom_loop\" takes an action only.",
   "definitions": {
     "action": {
       "description": "allow: run without approval; ask: prompt for approval; deny: block the call.",

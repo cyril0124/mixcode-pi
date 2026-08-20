@@ -50,7 +50,7 @@ Per-tool subject:
 
 | Tool | Matched against |
 |------|-----------------|
-| `bash` | Each parsed command segment (split on `\n`, `;`, `\|`, `&&`, `\|\|`; comments and heredoc bodies stripped; quotes removed; whitespace collapsed; leading env assignments and transparent wrappers `sudo` / `env` / `command` / `builtin` / `exec` dropped). A compound command takes the most severe segment decision (`deny` > `ask` > `allow`). |
+| `bash` | Each AST-parsed command segment, including command/process substitutions and static nested `bash` / `sh` / `zsh` / `dash` / `ksh -c` scripts. Quotes are removed, whitespace is normalized, and leading assignments plus transparent wrappers `sudo` / `env` / `command` / `builtin` / `exec` are dropped. A compound command takes the most severe segment decision (`deny` > `ask` > `allow`). |
 | `read` / `edit` / `write` / `ls` | Absolute file path. Relative patterns match both the cwd-relative and absolute forms, so `*.env`, `src/*`, and `/abs/*` all work. |
 | `grep` / `find` | The search `pattern` input. |
 | any other tool | `JSON.stringify(input)`; string-form rules (`"tool": "deny"`) always apply. |
@@ -59,7 +59,9 @@ Per-tool subject:
 
 ### `external_directory`
 
-When a path-taking tool (`read` / `edit` / `write` / `ls`, and `grep` / `find` with a `path` input) resolves outside the working directory, the path is also evaluated against the `external_directory` rules; the final decision is the more severe of the tool rule and the guard rule. Existing path ancestors are realpathed before containment is checked, so an in-project symlink cannot hide an external target; missing trailing segments are supported. No rules under the key = guard off (use `"*": "ask"` inside it to gate everything external). Bash commands are not inspected for paths.
+When a path-taking tool (`read` / `edit` / `write` / `ls`, and `grep` / `find` with a `path` input) resolves outside the working directory, the path is also evaluated against the `external_directory` rules. Bash AST scanning applies the same guard to static path arguments of common file commands (`cd`, `ls`, `cat`, `rm`, `cp`, `mv`, `mkdir`, `touch`, `chmod`, `chown`, `find`, and related inspection commands), redirection targets, command/process substitutions, and static nested shell scripts. Existing path ancestors are realpathed before containment is checked, so an in-project symlink cannot hide an external target; missing trailing segments are supported. Multiple ask decisions from one command are combined into one dialog.
+
+The final decision is the most severe tool or guard action (`deny` > `ask` > `allow`). No rules under `external_directory` means the guard is off; use `"*": "ask"` to gate every detected external path. A trailing slash is equivalent to the same path without it, so `"../"` matches the parent directory itself while `"../*"` matches content under it.
 
 ### `doom_loop`
 
@@ -85,7 +87,7 @@ bash: echo other   streak resets; the next `echo same` counts as #1
 | Choice | Effect |
 |--------|--------|
 | Allow once | This call only. |
-| Always allow: `key[pattern]` | Appends a session-layer allow rule and proceeds. Bash suggests the first one or two command words plus `*` (e.g. `git status*`); paths and patterns grant the exact subject; external paths grant `<parent dir>/*`. |
+| Always allow: `key[pattern]` | Appends session-layer allow rules and proceeds. A single decision names its rule; combined decisions show the rule count. Bash suggests the first one or two command words plus `*`; paths grant the exact subject. An existing external directory grants both `<directory>` and `<directory>/*`; a file or missing path grants `<parent>/*`. |
 | Reject / Esc | Blocks the call with a `rejected by user` reason. |
 
 Without an interactive UI (`-p` / JSON mode, subagents), `ask` blocks with an explicit reason — approvals require a UI.
@@ -121,5 +123,7 @@ Global and Project edits persist to their files immediately; Project edits are r
 ## Limits
 
 - No per-subagent rule sets; subagent sessions load the same config files and, having no UI, treat `ask` as block.
-- `bash` matching sees the normalized token form (quotes removed), so patterns match `git commit -m a b`, not the original quoting.
+- Bash path scanning is static permission preflight, not an OS sandbox. It cannot infer filesystem access performed inside arbitrary programs (for example `python -c 'open("../x")'`), aliases/functions defined at runtime, or unresolved variable values. Use restrictive Bash rules for commands whose internal IO is not visible in the shell AST.
+- Bash parsing uses the vendored [`unbash` 4.0.10](https://github.com/webpro-nl/unbash) ESM runtime under its ISC license (`vendor/UNBASH-LICENSE`).
+- Bash rule matching sees the normalized AST token form (quotes removed), so patterns match `git commit -m a b`, not the original quoting.
 - Session "always" grants are not persisted; re-approve or add a global/project rule to keep them.

@@ -1,7 +1,16 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.4.16/schema.json",
   "files": {
-    "includes": ["**", "!coverage", "!dist", "!node_modules", "!refs", "!tmp", "!.pi"]
+    "includes": [
+      "**",
+      "!coverage",
+      "!dist",
+      "!node_modules",
+      "!refs",
+      "!tmp",
+      "!.pi",
+      "!pi-packages/mpi-permission/vendor/unbash.js"
+    ]
   },
   "formatter": {
     "enabled": true,

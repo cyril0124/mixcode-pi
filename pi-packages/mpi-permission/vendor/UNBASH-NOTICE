@@ -1,0 +1,12 @@
+unbash 4.0.10
+https://github.com/webpro-nl/unbash
+
+Source archive:
+  https://registry.npmjs.org/unbash/-/unbash-4.0.10.tgz
+  sha256 4fd73dc575092ce19128e4fe7836c670b792496fb2c0d2155e5928ae6080acbe
+
+The vendored ESM file is generated from the published dist/parser.js entry point:
+  bun build dist/parser.js --target=node --format=esm --outfile=unbash.js
+  sha256 44d607273d18cd1c613d72d275dd4e648b06ccc51da7ba9cdf19bbc452ea0cb4
+
+See UNBASH-LICENSE for the ISC license.
