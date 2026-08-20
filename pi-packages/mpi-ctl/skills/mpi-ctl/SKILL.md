@@ -31,15 +31,15 @@ Then:
 
 `mpi status` and `mpi ctl` resolve this themselves. Only look at the files when you need to confirm a sock exists or debug a missing instance. If `PI_CODING_AGENT_DIR` differs between your bash and the target TUI, you will see the wrong instances.
 
-## Locate yourself (bash tool env only)
+## Locate yourself
 
-These exist only in the **agent bash tool** child. They are unset on the host and in user `!` / `!!` shells. Read them with `echo`.
+`MIXCODE` and `MIXCODE_PID` live on the host process env, so every child sees them (bash tool, user `!` / `!!` shells, extension spawns). The tab titles are injected **per bash tool spawn only** and are unset in `!` / `!!` shells. Read them with `echo`.
 
 | Variable | Meaning |
 |---|---|
 | `MIXCODE` | Set (`1`) when this process is MixCode, not bare `pi`. Off if unset / `0` / `false` / `off`. |
-| `MIXCODE_PID` | PID of the **mpi host process** owning this agent. `mpi ctl` uses it as an implicit `--pid` when you pass neither `--pid` nor `--workdir`; a stale value errors with `No live mpi instance matches MIXCODE_PID=<n>`. More durable than `$PPID` after nohup/setsid. |
-| `MIXCODE_TAB_TITLE` | Title of **this** agent tab (follows rename on the next bash spawn). |
+| `MIXCODE_PID` | PID of the **mpi host process** owning this agent (host env, inherited everywhere). `mpi ctl` uses it as an implicit `--pid` when you pass neither `--pid` nor `--workdir`; a stale value errors with `No live mpi instance matches MIXCODE_PID=<n>`. More durable than `$PPID` after nohup/setsid. |
+| `MIXCODE_TAB_TITLE` | Title of **this** agent tab (follows rename on the next bash spawn). Survives display extensions that re-register the bash tool. |
 | `MIXCODE_FOCUSED_TAB_TITLE` | Title of the **UI-focused** agent tab. Unset when focus is Home or unknown. Differs from `MIXCODE_TAB_TITLE` when a background tab runs bash. |
 
 Use `MIXCODE_TAB_TITLE` as "me". To talk to another tab, do **not** default `--focus-tab` to yourself. Use `mpi status` titles, or `MIXCODE_FOCUSED_TAB_TITLE` only when you intend the current UI focus.
@@ -108,7 +108,7 @@ mpi ctl [--pid <n> | --workdir <path>] [--tab <title> | --session <id> | --focus
 
 - `--tab` / `--session`: operate this tab **without** changing UI focus. **Default.** Use these to read or prompt any tab.
 - `--focus-tab` / `--focus-session`: operate and **leave** UI focus on that tab. Only for UI keys after `dump-screen` shows a picker/overlay `--tab` cannot drive.
-- Targeting default (no `--pid` / `--workdir`): `MIXCODE_PID` env when set (bash tool children), else the unique live instance in `<cwd>`. With 0 or >1 matches it fails; >1 lists each candidate as `  <pid>  tabs: <n>  active: <title>` plus a `--pid` tip — copy one and retry.
+- Targeting default (no `--pid` / `--workdir`): `MIXCODE_PID` env when set (host env, inherited by all children), else the unique live instance in `<cwd>`. With 0 or >1 matches it fails; >1 lists each candidate as `  <pid>  tabs: <n>  active: <title>` plus a `--pid` tip — copy one and retry.
 - The four flags are mutually exclusive. Title match is exact; duplicates (possible after resume) need `--session` or `--focus-session`.
 - `home` is Home (`--session home` or `--focus-session home`).
 - Omit all four: live UI focus; header includes `reason: no --tab/--session/--focus-tab/--focus-session; using live UI focus`.
@@ -300,7 +300,7 @@ Callback variant (`--expect-response` / reply requested): stop after the `send-p
 - **`--from` and `--to` must both be present.** One alone errors. `1` is newest, print is oldest-first. `last-message` is user+assistant only; tools are `last-tool`.
 - **`wait` always has a timeout** (default 60s). Client waits `--timeout`+5s; `ctl socket timed out` before that is a bug. `wait-for-input` means a question/dialog — do not keep waiting. `finished` is idle/done. Home: `Home has no agent run`.
 - **Not Ready / no sock:** only the target tab still loading fails that ctl command. No `.sock` means that TUI predates ctl or its ctl server failed to start (the TUI showed a `mpi ctl server unavailable` notice) — restart it. `status` 0 or >1 instance without `--pid` fails; same workdir with two TUIs needs `--pid` or `MIXCODE_PID` (the >1 error lists candidate pids with active tab titles — pick from there or `mpi status`).
-- **Env:** `MIXCODE_*` exist only in the **bash tool**, not `!` shells. Do not `--tab`/`--focus-tab` yourself (`MIXCODE_TAB_TITLE`) when the user asked about another tab. `MIXCODE_FOCUSED_TAB_TITLE` is empty on Home. Wrong `PI_CODING_AGENT_DIR` lists the wrong instances.
+- **Env:** the tab titles exist only in the **bash tool**, not `!` shells; `MIXCODE` / `MIXCODE_PID` are host env and show up everywhere. Do not `--tab`/`--focus-tab` yourself (`MIXCODE_TAB_TITLE`) when the user asked about another tab. `MIXCODE_FOCUSED_TAB_TITLE` is empty on Home. Wrong `PI_CODING_AGENT_DIR` lists the wrong instances.
 - **`/close-session` keeps the file; `/delete-session` removes it.** Pass `yes` to skip the single-tab Y/N overlay. **Do not** pass `yes` to `/close-all-sessions` or `/delete-all-sessions` — those always confirm; use `--focus-tab` and `y`/`n`. `/clear` makes a new child session; `/reset` stays on the same file. `/new-session Title` creates a **new** tab; `/rename Title` renames the target tab.
 - **`dump-screen` is for overlays/drafts/streaming**, not history. **Start from the tail.** Default is no ANSI; `--ansi` keeps color. Huge output is truncated to `/tmp/mpi-ctl-…` — read that file from the end.
 - **Home** has no last-message / last-tool / wait / `--tab` send-keys. `--session home` is Home, not `config`.

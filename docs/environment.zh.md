@@ -18,13 +18,13 @@
 
 ## Agent Bash 工具（每次启动执行）
 
-仅注入到 **Agent bash 工具** 子进程环境中（与 Pi `PI_SESSION_*` 范围一致）。未在宿主进程上设置；也不会注入到用户的 `!` / `!!` shell 中。
+Tab 标题类变量仅注入到 **Agent bash 工具** 子进程环境中（与 Pi `PI_SESSION_*` 范围一致），即使扩展重新注册了 bash 工具也不会丢失；`MIXCODE_PID` 写在宿主进程环境上，所有子进程（包括用户的 `!` / `!!` shell）均可读到。
 
 | 变量 | 设置方 | 含义 |
 | --- | --- | --- |
 | `MIXCODE_TAB_TITLE` | Bash 工具调用 | 拥有该 Agent 的 Tab 标题（例如 `Agent-01`）。在下次调用子进程时跟随重命名。 |
 | `MIXCODE_FOCUSED_TAB_TITLE` | Bash 工具调用 | UI 处于焦点状态的 Agent Tab 标题。当焦点处于 Home 或未知时未设置。当后台 Tab 运行 bash 时可能与 `MIXCODE_TAB_TITLE` 不同。 |
-| `MIXCODE_PID` | Bash 工具调用 | 拥有该 Agent 的 mpi 宿主进程 PID。`mpi ctl` 将其作为隐式 `--pid`（显式 `--pid`/`--workdir` 仍优先生效）。对脱离进程树的后代（nohup/setsid）比 `$PPID` 更可靠。 |
+| `MIXCODE_PID` | 宿主进程 | mpi 宿主进程 PID，启动时写入一次，所有子进程（bash 工具、`!` shell、扩展派生进程）均继承。`mpi ctl` 将其作为隐式 `--pid`（显式 `--pid`/`--workdir` 仍优先生效）。对脱离进程树的后代（nohup/setsid）比 `$PPID` 更可靠。 |
 
 ## 资源发现与隔离
 

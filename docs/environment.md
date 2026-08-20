@@ -18,13 +18,13 @@ Not listed here: `run.sh` / test / GIF tooling knobs, or upstream Pi (`PI_*`) �
 
 ## Agent Bash Tool (Per Spawn)
 
-Injected into the **agent bash tool** child environment only (same surface as Pi `PI_SESSION_*`). Not set on the host process; not injected into user `!` / `!!` shells.
+Tab titles are injected into the **agent bash tool** child environment only (same surface as Pi `PI_SESSION_*`); they survive extensions that re-register the bash tool. `MIXCODE_PID` lives on the host process env, so every child — including user `!` / `!!` shells — inherits it.
 
 | Variable | Set by | Meaning |
 | --- | --- | --- |
 | `MIXCODE_TAB_TITLE` | Bash tool spawn | Title of the tab that owns this agent (e.g. `Agent-01`). Follows renames on the next spawn. |
 | `MIXCODE_FOCUSED_TAB_TITLE` | Bash tool spawn | Title of the UI-focused agent tab. Unset when focus is Home or unknown. May differ from `MIXCODE_TAB_TITLE` when a background tab runs bash. |
-| `MIXCODE_PID` | Bash tool spawn | PID of the mpi host process that owns this agent. `mpi ctl` uses it as an implicit `--pid` (explicit `--pid`/`--workdir` still win). More durable than `$PPID` for detached descendants (nohup/setsid). |
+| `MIXCODE_PID` | Host process | PID of the mpi host process, set once at startup and inherited by every child (bash tool, `!` shells, extension spawns). `mpi ctl` uses it as an implicit `--pid` (explicit `--pid`/`--workdir` still win). More durable than `$PPID` for detached descendants (nohup/setsid). |
 
 ## Resource Discovery & Isolation
 

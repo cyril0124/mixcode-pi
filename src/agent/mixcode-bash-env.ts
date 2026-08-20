@@ -3,12 +3,20 @@ import {
   type SettingsManager,
   type ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
-import { applyMixCodeTabEnv, MIXCODE_PID_ENV, type MixCodeTabEnvTitles } from "../core/tab-env.js";
+import { mixCodeSpawnEnvContribution, type MixCodeTabEnvTitles } from "../core/tab-env.js";
+
+/** ToolDefinition contract consumed by the MIXCODE_SPAWN_ENV_BRACKET patch hunk. */
+type SpawnEnvBracketToolDefinition = ToolDefinition & {
+  spawnEnvBracket?: () => Record<string, string | undefined>;
+};
 
 /**
- * Bash ToolDefinition that overrides the builtin bash tool and injects
- * MIXCODE_PID / MIXCODE_TAB_TITLE / MIXCODE_FOCUSED_TAB_TITLE on each spawn
- * (after Pi PI_*).
+ * Bash ToolDefinition that overrides the builtin bash tool and declares the
+ * per-spawn MIXCODE tab env via `spawnEnvBracket`. The patched AgentSession
+ * registry applies that contribution to process.env around the final "bash"
+ * owner's execute — this tool, or an extension override that re-registered
+ * "bash" (e.g. display extensions) — so the child env survives tool-name
+ * collisions that would silently drop a spawnHook.
  */
 export function createMixCodeBashCustomTools(
   cwd: string,
@@ -16,14 +24,10 @@ export function createMixCodeBashCustomTools(
   getTitles: () => MixCodeTabEnvTitles,
 ): ToolDefinition[] {
   // createBashToolDefinition is generic; createAgentSession customTools expects ToolDefinition[].
-  return [
-    createBashToolDefinition(cwd, {
-      commandPrefix: settingsManager.getShellCommandPrefix(),
-      shellPath: settingsManager.getShellPath(),
-      spawnHook: (ctx) => ({
-        ...ctx,
-        env: applyMixCodeTabEnv({ ...ctx.env, [MIXCODE_PID_ENV]: String(process.pid) }, getTitles()),
-      }),
-    }) as ToolDefinition,
-  ];
+  const bash: SpawnEnvBracketToolDefinition = createBashToolDefinition(cwd, {
+    commandPrefix: settingsManager.getShellCommandPrefix(),
+    shellPath: settingsManager.getShellPath(),
+  }) as ToolDefinition;
+  bash.spawnEnvBracket = () => mixCodeSpawnEnvContribution(getTitles());
+  return [bash];
 }

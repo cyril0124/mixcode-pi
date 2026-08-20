@@ -33,7 +33,7 @@ index e5d84dd..7944a7a 100644
      get pendingMessageCount(): number;
      /** Get pending steering messages (read-only) */
 diff --git a/node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session.js b/node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session.js
-index 4bcf0d4..cbfc897 100644
+index 4bcf0d4..c98d854 100644
 --- a/node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session.js
 +++ b/node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session.js
 @@ -736,8 +736,24 @@ export class AgentSession {
@@ -105,7 +105,7 @@ index 4bcf0d4..cbfc897 100644
      /** Number of pending messages (includes both steering and follow-up) */
      get pendingMessageCount() {
          return this._steeringMessages.length + this._followUpMessages.length;
-@@ -1944,12 +1997,14 @@ export class AgentSession {
+@@ -1944,13 +1997,29 @@ export class AgentSession {
          const excludedToolNames = this._excludedToolNames;
          const isAllowedTool = (name) => (!allowedToolNames || allowedToolNames.has(name)) && !excludedToolNames?.has(name);
          const registeredTools = this._extensionRunner.getAllRegisteredTools();
@@ -119,9 +119,42 @@ index 4bcf0d4..cbfc897 100644
              })),
 +            ...registeredTools,
          ].filter((tool) => isAllowedTool(tool.definition.name));
++        // MIXCODE_SPAWN_ENV_BRACKET: an sdk customTool may declare spawnEnvBracket()
++        // — a per-spawn process.env contribution (undefined value = ensure-unset).
++        // Every same-name candidate is wrapped so whichever wins the merge below
++        // (the sdk tool itself, or an extension override such as a display
++        // extension re-registering "bash") still applies that env around execute.
++        const spawnEnvBrackets = new Map(this._customTools
++            .filter((tool) => typeof tool.spawnEnvBracket === "function")
++            .map((tool) => [tool.name, tool.spawnEnvBracket]));
++        const bracketedCustomTools = allCustomTools.map((tool) => {
++            const spawnEnvBracket = spawnEnvBrackets.get(tool.definition.name);
++            if (!spawnEnvBracket)
++                return tool;
++            return { ...tool, definition: wrapDefinitionWithSpawnEnvBracket(tool.definition, spawnEnvBracket) };
++        });
          const definitionRegistry = new Map(Array.from(this._baseToolDefinitions.entries())
              .filter(([name]) => isAllowedTool(name))
-@@ -2684,4 +2739,21 @@ export class AgentSession {
+             .map(([name, definition]) => [
+@@ -1960,7 +2029,7 @@ export class AgentSession {
+                 sourceInfo: createSyntheticSourceInfo(`<builtin:${name}>`, { source: "builtin" }),
+             },
+         ]));
+-        for (const tool of allCustomTools) {
++        for (const tool of bracketedCustomTools) {
+             definitionRegistry.set(tool.definition.name, {
+                 definition: tool.definition,
+                 sourceInfo: tool.sourceInfo,
+@@ -1980,7 +2049,7 @@ export class AgentSession {
+         })
+             .filter((entry) => entry !== undefined));
+         const runner = this._extensionRunner;
+-        const wrappedExtensionTools = wrapRegisteredTools(allCustomTools, runner);
++        const wrappedExtensionTools = wrapRegisteredTools(bracketedCustomTools, runner);
+         const wrappedBuiltInTools = wrapRegisteredTools(Array.from(this._baseToolDefinitions.values())
+             .filter((definition) => isAllowedTool(definition.name))
+             .map((definition) => ({
+@@ -2684,4 +2753,53 @@ export class AgentSession {
          return this._extensionRunner;
      }
  }
@@ -141,6 +174,38 @@ index 4bcf0d4..cbfc897 100644
 +        .filter((block) => block.type === "text")
 +        .map((block) => block.text)
 +        .join("\n");
++}
++// MIXCODE_SPAWN_ENV_BRACKET helper: apply the env contribution, invoke execute,
++// and restore process.env in `finally` — synchronously after execute returns
++// its promise. Bash-style tools snapshot process.env (getShellEnv) in their
++// synchronous prefix, so a late (post-await) snapshot only ever sees restored
++// values: fail-absent, never another tab's values.
++function wrapDefinitionWithSpawnEnvBracket(definition, spawnEnvBracket) {
++    return {
++        ...definition,
++        execute(toolCallId, params, signal, onUpdate, ctx) {
++            const contribution = spawnEnvBracket();
++            const saved = new Map();
++            for (const [key, value] of Object.entries(contribution)) {
++                saved.set(key, process.env[key]);
++                if (value === undefined)
++                    delete process.env[key];
++                else
++                    process.env[key] = value;
++            }
++            try {
++                return definition.execute(toolCallId, params, signal, onUpdate, ctx);
++            }
++            finally {
++                for (const [key, value] of saved) {
++                    if (value === undefined)
++                        delete process.env[key];
++                    else
++                        process.env[key] = value;
++                }
++            }
++        },
++    };
 +}
  //# sourceMappingURL=agent-session.js.map
 \ No newline at end of file

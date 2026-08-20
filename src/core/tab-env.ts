@@ -1,6 +1,11 @@
 /**
- * MixCode env injected into agent bash tool child env (Pi PI_* style).
- * Only the bash tool spawn path sets these — not the host process, not user `!`.
+ * MixCode env visible to agent bash tool children (Pi PI_* style).
+ *
+ * MIXCODE_PID is host-process env (set once at startup in cli/main.ts) so every
+ * child inherits it. The per-tab titles are applied per spawn by the
+ * MIXCODE_SPAWN_ENV_BRACKET patch hunk (patches/@earendil-works+pi-coding-agent)
+ * around the winning "bash" tool's execute — MixCode's own tool, or an
+ * extension override that displaced it. Neither reaches user `!` shells.
  */
 
 /** PID of the mpi host process that owns this agent; `mpi ctl` treats it as an implicit `--pid`. */
@@ -17,18 +22,15 @@ export type MixCodeTabEnvTitles = {
 };
 
 /**
- * Clear prior MixCode tab keys then set non-empty titles.
- * Mutates and returns `env` (same object) for spawnHook chaining.
+ * Per-spawn env contribution consumed by the spawn-env bracket: a value of
+ * `undefined` means "ensure the key is unset while the bracket is active", so
+ * stale titles from the host env never leak into the child.
  */
-export function applyMixCodeTabEnv(
-  env: Record<string, string | undefined>,
+export function mixCodeSpawnEnvContribution(
   titles: MixCodeTabEnvTitles,
 ): Record<string, string | undefined> {
-  delete env[MIXCODE_TAB_TITLE_ENV];
-  delete env[MIXCODE_FOCUSED_TAB_TITLE_ENV];
-  const tabTitle = titles.tabTitle.trim();
-  if (tabTitle) env[MIXCODE_TAB_TITLE_ENV] = tabTitle;
-  const focused = titles.focusedTabTitle?.trim();
-  if (focused) env[MIXCODE_FOCUSED_TAB_TITLE_ENV] = focused;
-  return env;
+  return {
+    [MIXCODE_TAB_TITLE_ENV]: titles.tabTitle.trim() || undefined,
+    [MIXCODE_FOCUSED_TAB_TITLE_ENV]: titles.focusedTabTitle?.trim() || undefined,
+  };
 }

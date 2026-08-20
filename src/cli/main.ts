@@ -13,6 +13,7 @@ import {
   takeWorkdirFlag,
 } from "./status.js";
 import { resolveMixcodeStateDir } from "../core/paths.js";
+import { MIXCODE_PID_ENV } from "../core/tab-env.js";
 
 function hasMixcodePackages(dir: string): boolean {
   return fs.existsSync(path.join(dir, "pi-packages")) || fs.existsSync(path.join(dir, "packages"));
@@ -299,6 +300,11 @@ export async function main(): Promise<void> {
   }
 
   process.env.MIXCODE ??= "1";
+  // Host pid for `mpi ctl` implicit targeting. Lives on the host process env so
+  // every child (bash tool, user `!` shells, extension spawns) inherits it even
+  // when an extension re-registers the bash tool. Plain assignment: a nested
+  // mpi host must overwrite the value inherited from an outer instance.
+  process.env[MIXCODE_PID_ENV] = String(process.pid);
   const args = parseMainArgs(rawArgs, cwd());
 
   // Compiled binary only: source installs get the same offer from postinstall.
