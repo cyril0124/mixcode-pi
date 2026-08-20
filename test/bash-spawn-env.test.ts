@@ -52,8 +52,9 @@ function completedStream(
 }
 
 // Both env keys expand inside double quotes in the child bash; `-unset` marks
-// a deleted (not merely empty) focused title.
-const PROBE_COMMAND = "echo \"T=[$MIXCODE_TAB_TITLE] F=[${MIXCODE_FOCUSED_TAB_TITLE-unset}]\"";
+// a deleted (not merely empty) focused title. `\${` keeps the bash parameter
+// expansion literal while satisfying lint/suspicious/noTemplateCurlyInString.
+const PROBE_COMMAND = `echo "T=[$MIXCODE_TAB_TITLE] F=[\${MIXCODE_FOCUSED_TAB_TITLE-unset}]"`;
 
 function lastToolResultText(runtimeTab: { session: { getBranch(): unknown[] } }): string {
   const branch = runtimeTab.session.getBranch() as Array<{
