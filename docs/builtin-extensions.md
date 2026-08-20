@@ -4,7 +4,7 @@
 
 MixCode ships first-party built-in Pi packages located in `pi-packages/mpi-*`. Startup synchronizes each package into `<agentDir>/extensions/` using a content hash: matching packages skip destination writes, while changed packages replace the installed package tree. Package extensions contribute any runtime-discovered skills through Pi's public `resources_discover` event without copying them into `<agentDir>/skills`.
 
-Every package with a user-edited JSON config ships a JSON Schema next to its extension (`<agentDir>/extensions/<pkg>/<config>.schema.json`, e.g. `permission.schema.json`, `tool-block.schema.json`). Reference it from the config file via a `$schema` key for editor completion; the key is accepted by the loader and preserved on writes. Details live in each package README.
+Every package with a user-edited JSON config ships a JSON Schema next to its extension (`<agentDir>/extensions/<pkg>/<config>.schema.json`, e.g. `mpi-permission.schema.json`, `mpi-tool-block.schema.json`). Reference it from the config file via a `$schema` key for editor completion; the key is accepted by the loader and preserved on writes. Details live in each package README.
 
 ## Catalog
 
@@ -13,18 +13,18 @@ Every package with a user-edited JSON config ships a JSON Schema next to its ext
 | `mpi-goal` | `/goal [objective]`, `/goal tools`, `/goal pause\|resume\|clear` | Session-scoped goal tracking with progressive dynamic tool disclosure, continuation budgets, and live status widget. |
 | `mpi-loop` | `/loop [interval] <prompt>`, `/loop stop <id\|name>`, `/loop interval <id> <time>` | Recurring prompt execution engine with configurable total runs, timer conflict policies (`skip` / `defer`), editor dock status widget, and interactive management overlay. |
 | `mpi-optimize-prompt` | `/optimize-prompt [prompt]`, `/optimize-prompt-config` | Metaprompt-based prompt optimizer that refines vague user instructions into structured, executable prompts. |
-| `mpi-auto-rename` | Optional auto on first message, `/auto-rename` | Generates a kebab-case session title; enable `onFirstMessage` in `<agentDir>/auto-rename.json`. |
+| `mpi-auto-rename` | Optional auto on first message, `/auto-rename` | Generates a kebab-case session title; enable `onFirstMessage` in `<agentDir>/mpi-auto-rename.json`. |
 | `mpi-skill-refs` | `$` completion trigger | Project and global skill autocomplete and in-prompt expansion. |
 | `mpi-prompt-history` | `/prompt-history` | Interactive prompt history browser, filtering, and insertion into the active editor. |
 | `mpi-chat-view` | `/view [chat\|thinking\|last\|user]` | Views conversation transcripts, thinking blocks, or last messages in `$VISUAL` / `$EDITOR` or within the in-app viewer. |
 | `mpi-diff-viewer` | `/diff [ref]` | Terminal diff viewer with hunk navigation and inline review comments. |
 | `mpi-command-browser` | Slash `/` autocomplete | Fuzzy browser for discovering built-in slash commands and third-party extension actions. |
-| `mpi-model-skills` | `/model-skills`, `<agentDir>/model-skills.json` | Attaches or detaches skills from rules matched against the current model. |
-| `mpi-model-extensions` | `/model-extensions`, `<agentDir>/model-extensions.json` | Dynamically loads model-specific Pi extensions. |
+| `mpi-model-skills` | `/model-skills`, `<agentDir>/mpi-model-skills.json` | Attaches or detaches skills from rules matched against the current model. |
+| `mpi-model-extensions` | `/model-extensions`, `<agentDir>/mpi-model-extensions.json` | Dynamically loads model-specific Pi extensions. |
 | `mpi-mid-turn-compact` | Auto on token threshold | Mid-turn compaction strategy preventing context window overflow during multi-turn tool loops. |
 | `mpi-search-guard` | Auto on high-cardinality search | Intercepts broad directory traversals in root/home directories and guides agents to narrower paths. |
-| `mpi-tool-block` | `/tool-block`, `<agentDir>/tool-block.json` or in-memory session | Overlay to hide selected tools from the model by dropping them from the active set. |
-| `mpi-permission` | `/permission`, `<agentDir>/permission.json`, `<cwd>/.pi/permission.json` | Gates tool calls with allow / ask / deny wildcard rules, external-directory and doom-loop guards; ask prompts once / always / reject (doom-loop ask: once / reject only). See [pi-packages/mpi-permission/README.md](../pi-packages/mpi-permission/README.md). |
+| `mpi-tool-block` | `/tool-block`, `<agentDir>/mpi-tool-block.json` or in-memory session | Overlay to hide selected tools from the model by dropping them from the active set. |
+| `mpi-permission` | `/permission`, `<agentDir>/mpi-permission.json`, `<cwd>/.pi/mpi-permission.json` | Gates tool calls with allow / ask / deny wildcard rules, external-directory and doom-loop guards; ask prompts once / always / reject (doom-loop ask: once / reject only). See [pi-packages/mpi-permission/README.md](../pi-packages/mpi-permission/README.md). |
 | `mpi-bash-default-timeout` | Auto on bash spawn | Enforces explicit default execution timeouts on bash commands. |
 | `mpi-image-hoist` | Auto on multimodal prompt | Re-orders and extracts image payloads for multimodal tool compatibility. |
 | `mpi-herdr-report` | `HERDR_ENV=1` | Notifies Herdr terminal multiplexer panes of agent status (working / idle / waiting). |

@@ -68,7 +68,7 @@ describe("mpi-optimize-prompt core", () => {
   });
 
   it("formatOptimizePromptHelp documents config path and fields", () => {
-    const help = formatOptimizePromptHelp("/tmp/agent/optimize-prompt.json");
+    const help = formatOptimizePromptHelp("/tmp/agent/mpi-optimize-prompt.json");
     assert.match(help, /\/opt-prompt help/);
     assert.match(help, /\/opt-prompt config/);
     assert.match(help, /\/opt-prompt cancel/);
@@ -76,7 +76,7 @@ describe("mpi-optimize-prompt core", () => {
     assert.match(help, /\/opt-prompt undo/);
     assert.match(help, /Ctrl\+Shift\+C/);
     assert.match(help, /overlay/i);
-    assert.match(help, /\/tmp\/agent\/optimize-prompt\.json/);
+    assert.match(help, /\/tmp\/agent\/mpi-optimize-prompt\.json/);
     assert.match(help, /systemPrompt/);
     assert.match(help, /inherit active session model/);
   });
@@ -126,14 +126,14 @@ describe("mpi-optimize-prompt config", () => {
   it("$schema: accepted and preserved through write/load round-trip", async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-optimize-schema-"));
     try {
-      const parsed = parseOptimizePromptConfig({ $schema: "./optimize-prompt.schema.json", model: "x/y" });
-      assert.equal(parsed.schemaRef, "./optimize-prompt.schema.json");
+      const parsed = parseOptimizePromptConfig({ $schema: "./mpi-optimize-prompt.schema.json", model: "x/y" });
+      assert.equal(parsed.schemaRef, "./mpi-optimize-prompt.schema.json");
       assert.equal(writeOptimizePromptConfig(dir, parsed).ok, true);
-      const raw = JSON.parse(await fs.readFile(path.join(dir, "optimize-prompt.json"), "utf8"));
+      const raw = JSON.parse(await fs.readFile(path.join(dir, "mpi-optimize-prompt.json"), "utf8"));
       assert.deepEqual(Object.keys(raw), ["$schema", "model"]);
       const loaded = loadOptimizePromptConfig(dir);
       assert.equal(loaded.ok, true);
-      if (loaded.ok) assert.equal(loaded.config.schemaRef, "./optimize-prompt.schema.json");
+      if (loaded.ok) assert.equal(loaded.config.schemaRef, "./mpi-optimize-prompt.schema.json");
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }
@@ -150,7 +150,7 @@ describe("mpi-optimize-prompt config", () => {
       }
 
       await fs.writeFile(
-        path.join(dir, "optimize-prompt.json"),
+        path.join(dir, "mpi-optimize-prompt.json"),
         JSON.stringify({ model: "x/y", thinking: "high", systemPrompt: "S" }),
         "utf8",
       );
@@ -164,7 +164,7 @@ describe("mpi-optimize-prompt config", () => {
         });
       }
 
-      await fs.writeFile(path.join(dir, "optimize-prompt.json"), "{", "utf8");
+      await fs.writeFile(path.join(dir, "mpi-optimize-prompt.json"), "{", "utf8");
       const bad = loadOptimizePromptConfig(dir);
       assert.equal(bad.ok, false);
     } finally {
@@ -314,7 +314,7 @@ describe("mpi-optimize-prompt command", () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-optimize-cfg-run-"));
     try {
       await fs.writeFile(
-        path.join(dir, "optimize-prompt.json"),
+        path.join(dir, "mpi-optimize-prompt.json"),
         JSON.stringify({
           model: "override/cheap",
           thinking: "low",
@@ -585,7 +585,7 @@ describe("mpi-optimize-prompt command", () => {
     assert.equal(result.reason, "help");
     assert.equal(completeCalls, 0);
     assert.equal(panels.length, 1);
-    assert.match(panels[0] ?? "", /optimize-prompt\.json/);
+    assert.match(panels[0] ?? "", /mpi-optimize-prompt\.json/);
     assert.match(panels[0] ?? "", /systemPrompt/);
     assert.match(panels[0] ?? "", /^# opt-prompt/m);
   });

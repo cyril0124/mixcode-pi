@@ -2,7 +2,7 @@
 // |  tool-block extension                                                     |
 // |  Hide selected tools from the model (active set).                         |
 // |                                                                           |
-// |  Config: <agentDir>/tool-block.json (global) + in-memory session overlay  |
+// |  Config: <agentDir>/mpi-tool-block.json (global) + session overlay      |
 // |  Apply:  session_start + before_agent_start                               |
 // |  UI:     /tool-block overlay (Layer: Global | Session)                    |
 // +---------------------------------------------------------------------------+

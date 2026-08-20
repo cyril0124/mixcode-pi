@@ -10,8 +10,8 @@ The rule semantics (allow/ask/deny actions, per-tool wildcard rule objects, last
 
 | Layer | File | Notes |
 |-------|------|-------|
-| Global | `<agentDir>/permission.json` (`$PI_CODING_AGENT_DIR`, default `~/.pi/agent`) | Always applied when present. |
-| Project | `<cwd>/.pi/permission.json` (directory name follows the distribution's `CONFIG_DIR_NAME`) | Applied only when the project is trusted; ignored entirely (including parse errors) otherwise. |
+| Global | `<agentDir>/mpi-permission.json` (`$PI_CODING_AGENT_DIR`, default `~/.pi/agent`) | Always applied when present. |
+| Project | `<cwd>/.pi/mpi-permission.json` (directory name follows the distribution's `CONFIG_DIR_NAME`) | Applied only when the project is trusted; ignored entirely (including parse errors) otherwise. |
 | Session | in-memory | "Always allow" grants from ask dialogs plus overlay edits; dropped on restart, `/reload`, or tab close. |
 
 Missing files are a no-op: with no config anywhere the package does not intervene at all. A config file that exists but fails to parse **fails closed**: every tool call is blocked with the file path and error until it is fixed.
@@ -20,7 +20,7 @@ Root value is an action string or an object. Keys are actual tool names (`bash`,
 
 ```json
 {
-  "$schema": "extensions/mpi-permission/permission.schema.json",
+  "$schema": "extensions/mpi-permission/mpi-permission.schema.json",
   "*": "allow",
   "bash": { "*": "ask", "git *": "allow", "git push*": "deny" },
   "read": { "*": "allow", "*.env": "deny", "*.env.example": "allow" },
@@ -37,7 +37,7 @@ Root value is an action string or an object. Keys are actual tool names (`bash`,
 | `"doom_loop": action` | Action string only, no patterns. Semantics: [Guards](#guards). |
 | `"$schema": string` | Optional editor schema reference; accepted, preserved on overlay writes, ignored by evaluation. |
 
-The package ships `permission.schema.json` (installed to `<agentDir>/extensions/mpi-permission/permission.schema.json`) for editor completion and validation. In the global file the relative form above works as-is; in a project file use an absolute path or your editor's schema mapping.
+The package ships `mpi-permission.schema.json` (installed to `<agentDir>/extensions/mpi-permission/mpi-permission.schema.json`) for editor completion and validation. In the global file the relative form above works as-is; in a project file use an absolute path or your editor's schema mapping.
 
 ## Matching
 
@@ -98,7 +98,7 @@ While the dialog is open the command has **not** started: the process spawns onl
 
 ```text
 ┌─ Permission ───────────────────────────────────┐
-│  /home/user/.pi/agent/permission.json          │
+│  /home/user/.pi/agent/mpi-permission.json          │
 │  › Layer                           Global      │
 │    doom_loop                       Off         │
 │      same tool + identical input 3×…          │

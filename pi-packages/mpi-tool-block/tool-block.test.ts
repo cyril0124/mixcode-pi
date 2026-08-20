@@ -37,10 +37,10 @@ function tmpDir(): string {
 
 describe("parseToolBlockConfig", () => {
   test("$schema: accepted as string, preserved through toggle and file round-trip", () => {
-    const parsed = parseToolBlockConfig({ $schema: "./tool-block.schema.json", hidden: [{ tool: "grep" }] });
+    const parsed = parseToolBlockConfig({ $schema: "./mpi-tool-block.schema.json", hidden: [{ tool: "grep" }] });
     assert.equal(parsed.ok, true);
     if (!parsed.ok) return;
-    assert.equal(parsed.config.schemaRef, "./tool-block.schema.json");
+    assert.equal(parsed.config.schemaRef, "./mpi-tool-block.schema.json");
     assert.equal(parseToolBlockConfig({ $schema: 42 }).ok, false);
 
     const toggled = toggleToolBlockRow(parsed.config, [], {
@@ -52,12 +52,12 @@ describe("parseToolBlockConfig", () => {
     const dir = tmpDir();
     const written = writeToolBlockConfig(dir, toggled);
     assert.equal(written.ok, true);
-    const raw = JSON.parse(fs.readFileSync(path.join(dir, "tool-block.json"), "utf8"));
+    const raw = JSON.parse(fs.readFileSync(path.join(dir, "mpi-tool-block.json"), "utf8"));
     assert.equal(Object.keys(raw)[0], "$schema");
     const loaded = loadToolBlockConfig(dir);
     assert.equal(loaded.ok, true);
     if (!loaded.ok || !loaded.config) return;
-    assert.equal(loaded.config.schemaRef, "./tool-block.schema.json");
+    assert.equal(loaded.config.schemaRef, "./mpi-tool-block.schema.json");
     assert.deepEqual(loaded.config.hidden.map((item) => item.tool), ["find", "grep"]);
   });
 
@@ -323,7 +323,7 @@ describe("pluginTag / items / toggle", () => {
   });
 });
 
-describe("load / write tool-block.json", () => {
+describe("load / write mpi-tool-block.json", () => {
   test("missing file is a no-op config", () => {
     const dir = tmpDir();
     const loaded = loadToolBlockConfig(dir);
@@ -380,7 +380,7 @@ describe("tool-block overlay", () => {
       done: () => undefined,
       tools,
       initial: draft,
-      configPath: "/tmp/agent/tool-block.json",
+      configPath: "/tmp/agent/mpi-tool-block.json",
       persist: (config) => {
         draft = config;
         return { ok: true, config };
@@ -402,7 +402,7 @@ describe("tool-block overlay", () => {
     assert.match(text, /Hidden/);
     assert.match(text, /bash/);
     assert.match(text, /Visible/);
-    assert.match(text, /\/tmp\/agent\/tool-block.json/);
+    assert.match(text, /\/tmp\/agent\/mpi-tool-block.json/);
   });
 
   test("space toggles a tool and persist writes the next config", async () => {
@@ -419,7 +419,7 @@ describe("tool-block overlay", () => {
       done: () => undefined,
       tools,
       initial: { enabled: true, hidden: [] },
-      configPath: "/tmp/agent/tool-block.json",
+      configPath: "/tmp/agent/mpi-tool-block.json",
       persist: (config, layer) => {
         writes.push({ config, layer });
         return { ok: true, config };
@@ -452,7 +452,7 @@ describe("tool-block overlay", () => {
       done: () => undefined,
       tools,
       initial: global,
-      configPath: "/tmp/agent/tool-block.json",
+      configPath: "/tmp/agent/mpi-tool-block.json",
       persist: (config, layer) => {
         writes.push({ config, layer });
         return { ok: true, config };
@@ -477,7 +477,7 @@ describe("tool-block overlay", () => {
     view.handleInput("\x1b[A");
     view.handleInput("\x1b[A");
     view.handleInput(" "); // Layer -> Global, session stays
-    assert.match(view.render(60).join("\n"), /session override · \/tmp\/agent\/tool-block.json/);
+    assert.match(view.render(60).join("\n"), /session override · \/tmp\/agent\/mpi-tool-block.json/);
     const beforeGlobalEdit = writes.length;
     view.handleInput("\x1b[B"); // enabled
     view.handleInput("\x1b[B"); // bash on global draft (still empty hidden)
@@ -505,7 +505,7 @@ describe("tool-block overlay", () => {
       done: () => undefined,
       tools: listed,
       initial: { enabled: true, hidden },
-      configPath: "/tmp/agent/tool-block.json",
+      configPath: "/tmp/agent/mpi-tool-block.json",
       persist: (config) => {
         hidden = config.hidden;
         return { ok: true, config };
@@ -547,7 +547,7 @@ describe("tool-block overlay", () => {
       done: () => undefined,
       tools: many,
       initial: { enabled: true, hidden: [] },
-      configPath: "/tmp/agent/tool-block.json",
+      configPath: "/tmp/agent/mpi-tool-block.json",
       persist: (config) => ({ ok: true, config }),
       getActiveNames: () => many.map((tool) => tool.name),
       getMaxVisible: () => 8,

@@ -98,18 +98,18 @@ test("parse: fail loud on invalid action, empty object, bad shapes", () => {
 });
 
 test("$schema: accepted as string, preserved through mutations and file round-trip", () => {
-  const config = parsed({ $schema: "./permission.schema.json", bash: { "git *": "allow" } });
-  assert.equal(config.schemaRef, "./permission.schema.json");
+  const config = parsed({ $schema: "./mpi-permission.schema.json", bash: { "git *": "allow" } });
+  assert.equal(config.schemaRef, "./mpi-permission.schema.json");
 
   const mutated = cycleDoomLoop(addRule(config, "read", "*.env", "deny"));
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "mpi-permission-"));
-  const file = path.join(dir, "permission.json");
+  const file = path.join(dir, "mpi-permission.json");
   assert.equal(writePermissionConfig(file, mutated).ok, true);
   const raw = JSON.parse(fs.readFileSync(file, "utf8"));
   assert.equal(Object.keys(raw)[0], "$schema");
   const loaded = loadPermissionConfig(file);
   assert.equal(loaded.ok, true);
-  assert.equal((loaded as { config: PermissionConfig }).config.schemaRef, "./permission.schema.json");
+  assert.equal((loaded as { config: PermissionConfig }).config.schemaRef, "./mpi-permission.schema.json");
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
@@ -133,7 +133,7 @@ test("serialize: single * rule collapses to string, order preserved", () => {
 
 test("load/write: round-trips through a real file; missing file reported", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "mpi-permission-"));
-  const file = path.join(dir, "permission.json");
+  const file = path.join(dir, "mpi-permission.json");
   const missing = loadPermissionConfig(file);
   assert.deepEqual(missing, { ok: true, config: null, path: file, missing: true });
 
@@ -148,7 +148,7 @@ test("load/write: round-trips through a real file; missing file reported", () =>
 
 test("load: invalid JSON and invalid schema fail loud with the file path", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "mpi-permission-"));
-  const file = path.join(dir, "permission.json");
+  const file = path.join(dir, "mpi-permission.json");
   fs.writeFileSync(file, "{ nope", "utf8");
   const badJson = loadPermissionConfig(file);
   assert.equal(badJson.ok, false);

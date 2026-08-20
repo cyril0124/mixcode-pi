@@ -2,7 +2,7 @@
 // |  model-extensions extension                                               |
 // |  Per-model extension load by jiti-invoking factories with host pi API.    |
 // |                                                                           |
-// |  Config: <agentDir>/model-extensions.json (rules array).                  |
+// |  Config: <agentDir>/mpi-model-extensions.json (rules array).            |
 // |  Reload: session_start (config); loads on session_start + model_select.   |
 // |  UI:     /model-extensions — markdown panel (customMessageBg).            |
 // +---------------------------------------------------------------------------+

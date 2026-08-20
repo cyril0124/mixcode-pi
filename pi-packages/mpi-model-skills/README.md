@@ -6,9 +6,9 @@ Per-model skill **add/remove** by rebuilding the system prompt `<available_skill
 
 ## Config
 
-`~/.pi/agent/model-skills.json` (or `$PI_CODING_AGENT_DIR`):
+`~/.pi/agent/mpi-model-skills.json` (or `$PI_CODING_AGENT_DIR`):
 
-The package ships `model-skills.schema.json` (installed to `<agentDir>/extensions/mpi-model-skills/`); reference it via a `$schema` key for editor completion — the key is accepted and preserved on writes.
+The package ships `mpi-model-skills.schema.json` (installed to `<agentDir>/extensions/mpi-model-skills/`); reference it via a `$schema` key for editor completion — the key is accepted and preserved on writes.
 
 ```json
 {

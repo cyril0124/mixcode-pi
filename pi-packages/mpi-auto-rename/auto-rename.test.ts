@@ -602,14 +602,14 @@ test("starting a new auto-rename aborts the previous run on the same slot", asyn
 test("$schema: accepted, ignored by resolution, preserved through write/load round-trip", async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-auto-rename-schema-"));
   try {
-    const parsed = parseAutoRenameConfig({ $schema: "./auto-rename.schema.json", model: "acme/cheap" });
-    assert.equal(parsed.schemaRef, "./auto-rename.schema.json");
+    const parsed = parseAutoRenameConfig({ $schema: "./mpi-auto-rename.schema.json", model: "acme/cheap" });
+    assert.equal(parsed.schemaRef, "./mpi-auto-rename.schema.json");
     assert.equal(writeAutoRenameConfig(dir, parsed).ok, true);
-    const raw = JSON.parse(await fs.readFile(path.join(dir, "auto-rename.json"), "utf8"));
+    const raw = JSON.parse(await fs.readFile(path.join(dir, "mpi-auto-rename.json"), "utf8"));
     assert.deepEqual(Object.keys(raw), ["$schema", "model"]);
     const loaded = loadAutoRenameConfig(dir);
     assert.equal(loaded.ok, true);
-    if (loaded.ok) assert.equal(loaded.config.schemaRef, "./auto-rename.schema.json");
+    if (loaded.ok) assert.equal(loaded.config.schemaRef, "./mpi-auto-rename.schema.json");
   } finally {
     await fs.rm(dir, { recursive: true, force: true });
   }
@@ -755,7 +755,7 @@ test("runAutoRename rejects an unknown configured model", async () => {
 test("runAutoRename reports invalid config JSON without calling the model", async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-auto-rename-bad-json-"));
   try {
-    await fs.writeFile(path.join(dir, "auto-rename.json"), "{not-json", "utf8");
+    await fs.writeFile(path.join(dir, "mpi-auto-rename.json"), "{not-json", "utf8");
     let completeCalls = 0;
     const notices: string[] = [];
 
@@ -889,7 +889,7 @@ test("config overlay picks maxContextChars and omits the default", () => {
   assert.equal((changes.at(-1) as { maxContextChars?: number }).maxContextChars, undefined);
 });
 
-test("runAutoRenameConfig persists overlay edits to auto-rename.json", async () => {
+test("runAutoRenameConfig persists overlay edits to mpi-auto-rename.json", async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mpi-auto-rename-config-cmd-"));
   try {
     const result = await runAutoRenameConfig({

@@ -10,8 +10,8 @@ MixCode Pi 提供模型发现、选择、思考深度调整、全局模型禁用
 ~/.pi/agent/models.json            模型定义与自定义 API 端点
 ~/.pi/agent/auth.json              API 密钥与凭证
 ~/.pi/agent/mixcode-pi/mixcode_settings.json   disabledProviders 与 disabledModels
-~/.pi/agent/model-skills.json      基于模型的动态 Skill 挂载规则 (mpi-model-skills)
-~/.pi/agent/model-extensions.json  基于模型的动态 Extension 挂载规则 (mpi-model-extensions)
+~/.pi/agent/mpi-model-skills.json      基于模型的动态 Skill 挂载规则 (mpi-model-skills)
+~/.pi/agent/mpi-model-extensions.json  基于模型的动态 Extension 挂载规则 (mpi-model-extensions)
 ```
 
 ## 模型选择与思考深度
@@ -27,7 +27,7 @@ MixCode Pi 提供模型发现、选择、思考深度调整、全局模型禁用
 
 ### 1. 动态 Skill 挂载 (`mpi-model-skills`)
 
-配置文件 `~/.pi/agent/model-skills.json`：
+配置文件 `~/.pi/agent/mpi-model-skills.json`：
 
 ```jsonc
 {
@@ -43,7 +43,7 @@ MixCode Pi 提供模型发现、选择、思考深度调整、全局模型禁用
 
 ### 2. 动态 Extension 加载 (`mpi-model-extensions`)
 
-配置文件 `~/.pi/agent/model-extensions.json`：
+配置文件 `~/.pi/agent/mpi-model-extensions.json`：
 
 ```jsonc
 {

@@ -154,23 +154,23 @@ describe("parseModelSkillsConfig / loadModelSkillsConfig", () => {
     assert.equal(parseModelSkillsConfig({ $schema: 1, rules: [] }).ok, false);
     const dir = tmpDir();
     fs.writeFileSync(
-      path.join(dir, "model-skills.json"),
-      JSON.stringify({ $schema: "./model-skills.schema.json", rules: [] }),
+      path.join(dir, "mpi-model-skills.json"),
+      JSON.stringify({ $schema: "./mpi-model-skills.schema.json", rules: [] }),
       "utf8",
     );
     const off = setModelSkillsEnabled(dir, false);
     assert.equal(off.ok, true);
-    const raw = JSON.parse(fs.readFileSync(path.join(dir, "model-skills.json"), "utf8"));
+    const raw = JSON.parse(fs.readFileSync(path.join(dir, "mpi-model-skills.json"), "utf8"));
     assert.equal(Object.keys(raw)[0], "$schema");
     const loaded = loadModelSkillsConfig(dir);
     assert.equal(loaded.ok, true);
-    if (loaded.ok && loaded.config) assert.equal(loaded.config.schemaRef, "./model-skills.schema.json");
+    if (loaded.ok && loaded.config) assert.equal(loaded.config.schemaRef, "./mpi-model-skills.schema.json");
   });
 
   test("setModelSkillsEnabled persists and preserves rules", () => {
     const dir = tmpDir();
     fs.writeFileSync(
-      path.join(dir, "model-skills.json"),
+      path.join(dir, "mpi-model-skills.json"),
       JSON.stringify({ rules: [{ match: { model: "*" }, add: ["a"] }] }),
       "utf8",
     );
@@ -193,12 +193,12 @@ describe("parseModelSkillsConfig / loadModelSkillsConfig", () => {
     const missing = loadModelSkillsConfig(dir);
     assert.equal(missing.ok && "missing" in missing && missing.missing, true);
 
-    fs.writeFileSync(path.join(dir, "model-skills.json"), "{not json", "utf8");
+    fs.writeFileSync(path.join(dir, "mpi-model-skills.json"), "{not json", "utf8");
     const bad = loadModelSkillsConfig(dir);
     assert.equal(bad.ok, false);
 
     fs.writeFileSync(
-      path.join(dir, "model-skills.json"),
+      path.join(dir, "mpi-model-skills.json"),
       JSON.stringify({ rules: [{ match: { model: "*" }, add: ["a"] }] }),
       "utf8",
     );
@@ -296,12 +296,12 @@ describe("applyModelSkillRules", () => {
 
 describe("formatModelSkillsHelp", () => {
   test("documents config path, match, add, and example as markdown", () => {
-    const help = formatModelSkillsHelp("/tmp/agent/model-skills.json");
+    const help = formatModelSkillsHelp("/tmp/agent/mpi-model-skills.json");
     assert.ok(help.includes("# /model-skills"));
     assert.ok(help.includes("/model-skills help"));
     assert.ok(help.includes("/model-skills on"));
     assert.ok(help.includes("/model-skills off"));
-    assert.ok(help.includes("/tmp/agent/model-skills.json"));
+    assert.ok(help.includes("/tmp/agent/mpi-model-skills.json"));
     assert.ok(help.includes("missingInput"));
     assert.ok(help.includes("$HOME"));
     assert.ok(help.includes("vision-proxy"));

@@ -8,9 +8,9 @@
 
 ## 配置
 
-`~/.pi/agent/model-extensions.json`（或 `$PI_CODING_AGENT_DIR`）：
+`~/.pi/agent/mpi-model-extensions.json`（或 `$PI_CODING_AGENT_DIR`）：
 
-包内随带 `model-extensions.schema.json`（安装于 `<agentDir>/extensions/mpi-model-extensions/`），可在配置中用 `$schema` 键引用以获得编辑器补全；该键被接受并在写回时保留。
+包内随带 `mpi-model-extensions.schema.json`（安装于 `<agentDir>/extensions/mpi-model-extensions/`），可在配置中用 `$schema` 键引用以获得编辑器补全；该键被接受并在写回时保留。
 
 ```json
 {

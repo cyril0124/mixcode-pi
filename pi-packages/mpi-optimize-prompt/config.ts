@@ -1,5 +1,5 @@
 /**
- * Load `<agentDir>/optimize-prompt.json` (optional fields only).
+ * Load `<agentDir>/mpi-optimize-prompt.json` (optional fields only).
  * Pure Node — no Bun APIs.
  */
 
@@ -7,7 +7,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import type { OptimizePromptConfig } from "./core.js";
 
-export const OPTIMIZE_PROMPT_CONFIG_FILENAME = "optimize-prompt.json";
+export const OPTIMIZE_PROMPT_CONFIG_FILENAME = "mpi-optimize-prompt.json";
 
 export function optimizePromptConfigPath(agentDir: string): string {
   return path.join(agentDir, OPTIMIZE_PROMPT_CONFIG_FILENAME);

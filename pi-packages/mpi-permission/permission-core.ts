@@ -1,6 +1,6 @@
 // +---------------------------------------------------------------------------+
 // |  permission core                                                          |
-// |  Parse permission.json, match wildcard rules, evaluate tool calls.        |
+// |  Parse mpi-permission.json, match wildcard rules, evaluate tool calls.  |
 // |                                                                           |
 // |  Layers: global -> project -> session, concatenated per key;              |
 // |  last matching rule wins. Unmatched calls default to "allow".             |
@@ -8,7 +8,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-export const PERMISSION_CONFIG_FILENAME = "permission.json";
+export const PERMISSION_CONFIG_FILENAME = "mpi-permission.json";
 export const DOOM_LOOP_THRESHOLD = 3;
 
 export type PermissionAction = "allow" | "ask" | "deny";
@@ -77,12 +77,12 @@ export const EXTERNAL_DIRECTORY_KEY = "external_directory";
 // Config paths / IO
 // ---------------------------------------------------------------------------
 
-/** Global config lives at `<agentDir>/permission.json`. */
+/** Global config lives at `<agentDir>/mpi-permission.json`. */
 export function permissionConfigPath(agentDir: string): string {
   return path.join(agentDir, PERMISSION_CONFIG_FILENAME);
 }
 
-/** Project config lives at `<cwd>/<configDirName>/permission.json` (e.g. `.pi`). */
+/** Project config lives at `<cwd>/<configDirName>/mpi-permission.json` (e.g. `.pi`). */
 export function projectPermissionConfigPath(cwd: string, configDirName: string): string {
   return path.join(cwd, configDirName, PERMISSION_CONFIG_FILENAME);
 }

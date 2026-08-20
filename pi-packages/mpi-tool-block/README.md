@@ -29,7 +29,7 @@ Hide selected tools from the model by removing them from the active set. Definit
 
 | Layer | Persist | Location line |
 |-------|---------|---------------|
-| Global | `<agentDir>/tool-block.json` immediately | file path; if a session override exists, prefixed with `session override ·` |
+| Global | `<agentDir>/mpi-tool-block.json` immediately | file path; if a session override exists, prefixed with `session override ·` |
 | Session | in-memory for this MixCode tab | `session (in-memory)` |
 
 First switch to Session snapshots the current global config. While a session config exists it is the entire effective config (`session ?? global`): extra hides, unhides, and `enabled: Off` apply only to this tab. Switching Layer back to Global changes the edit target only; the session override stays until process restart, `/reload`, tab close, or extension rebuild.
@@ -46,9 +46,9 @@ Toggling Inactive writes `hidden[]` (pre-hide) but does not activate the tool. U
 
 ## Config
 
-Global file: `<agentDir>/tool-block.json` (`$PI_CODING_AGENT_DIR`, default `~/.pi/agent`). Created on the first Global-layer toggle; survives restart.
+Global file: `<agentDir>/mpi-tool-block.json` (`$PI_CODING_AGENT_DIR`, default `~/.pi/agent`). Created on the first Global-layer toggle; survives restart.
 
-The package ships `tool-block.schema.json` (installed to `<agentDir>/extensions/mpi-tool-block/`); reference it via a `$schema` key for editor completion — the key is accepted and preserved on writes.
+The package ships `mpi-tool-block.schema.json` (installed to `<agentDir>/extensions/mpi-tool-block/`); reference it via a `$schema` key for editor completion — the key is accepted and preserved on writes.
 
 Session config uses the same shape in memory. It is not written to disk.
 

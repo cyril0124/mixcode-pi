@@ -2,8 +2,8 @@
 // |  permission extension                                                     |
 // |  Gate tool calls with allow / ask / deny rules.                           |
 // |                                                                           |
-// |  Config: <agentDir>/permission.json (global)                              |
-// |          <cwd>/<CONFIG_DIR_NAME>/permission.json (project, trusted only)  |
+// |  Config: <agentDir>/mpi-permission.json (global)                        |
+// |          <cwd>/<CONFIG_DIR_NAME>/mpi-permission.json (project, trusted) |
 // |          in-memory session rules (ask "always" grants, overlay edits)     |
 // |  Gate:   tool_call -> evaluate -> allow / ask dialog / deny block         |
 // |  UI:     /permission overlay (Layer: Global | Project | Session)          |

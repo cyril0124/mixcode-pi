@@ -2,7 +2,7 @@
 // |  model-skills extension                                                   |
 // |  Per-model skill add/remove by rebuilding the system prompt skills block. |
 // |                                                                           |
-// |  Config: <agentDir>/model-skills.json (rules array).                      |
+// |  Config: <agentDir>/mpi-model-skills.json (rules array).                 |
 // |  Reload: session_start (startup / reload / new / resume / fork).          |
 // |  Apply:  before_agent_start — match rules, rewrite <available_skills>.    |
 // |  UI:     /model-skills — markdown panel (customMessageBg / light purple).  |

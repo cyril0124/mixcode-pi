@@ -55,9 +55,9 @@ export type LoadPlan = {
   matchedRuleIndexes: number[];
 };
 
-/** Config lives at `<agentDir>/model-extensions.json`. */
+/** Config lives at `<agentDir>/mpi-model-extensions.json`. */
 export function modelExtensionsConfigPath(agentDir: string): string {
-  return path.join(agentDir, "model-extensions.json");
+  return path.join(agentDir, "mpi-model-extensions.json");
 }
 
 /** Usage / config docs for `/model-extensions help` (markdown). */
@@ -206,7 +206,7 @@ function isStringArray(v: unknown): v is string[] {
   return Array.isArray(v) && v.every((x) => typeof x === "string");
 }
 
-/** Parse and validate model-extensions.json body. */
+/** Parse and validate mpi-model-extensions.json body. */
 export function parseModelExtensionsConfig(
   raw: unknown,
 ): { ok: true; config: ModelExtensionsConfig } | { ok: false; error: string } {

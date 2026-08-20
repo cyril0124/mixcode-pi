@@ -4,7 +4,7 @@
  * Usage: /auto-rename
  * Cancel: /auto-rename-cancel
  * Config: /auto-rename config
- *   <agentDir>/auto-rename.json  { "model"?: "provider/id", "thinking"?: "low", "onFirstMessage"?: true, "maxContextChars"?: 4000 }
+ *   <agentDir>/mpi-auto-rename.json  { "model"?: "provider/id", "thinking"?: "low", "onFirstMessage"?: true, "maxContextChars"?: 4000 }
  * Progress: aboveEditor widget (does not take over the input editor).
  */
 

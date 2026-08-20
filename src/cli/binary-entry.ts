@@ -121,34 +121,34 @@ import autoRenameIndex from "../../pi-packages/mpi-auto-rename/index.ts" with { 
 import autoRenameConfig from "../../pi-packages/mpi-auto-rename/config.ts" with { type: "text" };
 import autoRenameConfigOverlay from "../../pi-packages/mpi-auto-rename/config-overlay.ts" with { type: "text" };
 import autoRenamePackageJson from "../../pi-packages/mpi-auto-rename/package.json" with { type: "text" };
-import autoRenameSchemaJson from "../../pi-packages/mpi-auto-rename/auto-rename.schema.json" with { type: "text" };
+import autoRenameSchemaJson from "../../pi-packages/mpi-auto-rename/mpi-auto-rename.schema.json" with { type: "text" };
 import optimizePromptIndex from "../../pi-packages/mpi-optimize-prompt/index.ts" with { type: "text" };
 import optimizePromptCore from "../../pi-packages/mpi-optimize-prompt/core.ts" with { type: "text" };
 import optimizePromptConfig from "../../pi-packages/mpi-optimize-prompt/config.ts" with { type: "text" };
 import optimizePromptConfigOverlay from "../../pi-packages/mpi-optimize-prompt/config-overlay.ts" with { type: "text" };
 import optimizePromptPackageJson from "../../pi-packages/mpi-optimize-prompt/package.json" with { type: "text" };
-import optimizePromptSchemaJson from "../../pi-packages/mpi-optimize-prompt/optimize-prompt.schema.json" with { type: "text" };
+import optimizePromptSchemaJson from "../../pi-packages/mpi-optimize-prompt/mpi-optimize-prompt.schema.json" with { type: "text" };
 import midTurnCompactIndex from "../../pi-packages/mpi-mid-turn-compact/index.ts" with { type: "text" };
 import midTurnCompactPackageJson from "../../pi-packages/mpi-mid-turn-compact/package.json" with { type: "text" };
 import modelSkillsIndex from "../../pi-packages/mpi-model-skills/index.ts" with { type: "text" };
 import modelSkillsCore from "../../pi-packages/mpi-model-skills/model-skills-core.ts" with { type: "text" };
 import modelSkillsPackageJson from "../../pi-packages/mpi-model-skills/package.json" with { type: "text" };
-import modelSkillsSchemaJson from "../../pi-packages/mpi-model-skills/model-skills.schema.json" with { type: "text" };
+import modelSkillsSchemaJson from "../../pi-packages/mpi-model-skills/mpi-model-skills.schema.json" with { type: "text" };
 import modelExtensionsIndex from "../../pi-packages/mpi-model-extensions/index.ts" with { type: "text" };
 import modelExtensionsCore from "../../pi-packages/mpi-model-extensions/model-extensions-core.ts" with { type: "text" };
 import modelExtensionsLoader from "../../pi-packages/mpi-model-extensions/model-extensions-loader.ts" with { type: "text" };
 import modelExtensionsPackageJson from "../../pi-packages/mpi-model-extensions/package.json" with { type: "text" };
-import modelExtensionsSchemaJson from "../../pi-packages/mpi-model-extensions/model-extensions.schema.json" with { type: "text" };
+import modelExtensionsSchemaJson from "../../pi-packages/mpi-model-extensions/mpi-model-extensions.schema.json" with { type: "text" };
 import permissionIndex from "../../pi-packages/mpi-permission/index.ts" with { type: "text" };
 import permissionCore from "../../pi-packages/mpi-permission/permission-core.ts" with { type: "text" };
 import permissionOverlay from "../../pi-packages/mpi-permission/permission-overlay.ts" with { type: "text" };
 import permissionPackageJson from "../../pi-packages/mpi-permission/package.json" with { type: "text" };
-import permissionSchemaJson from "../../pi-packages/mpi-permission/permission.schema.json" with { type: "text" };
+import permissionSchemaJson from "../../pi-packages/mpi-permission/mpi-permission.schema.json" with { type: "text" };
 import toolBlockIndex from "../../pi-packages/mpi-tool-block/index.ts" with { type: "text" };
 import toolBlockCore from "../../pi-packages/mpi-tool-block/tool-block-core.ts" with { type: "text" };
 import toolBlockOverlay from "../../pi-packages/mpi-tool-block/tool-block-overlay.ts" with { type: "text" };
 import toolBlockPackageJson from "../../pi-packages/mpi-tool-block/package.json" with { type: "text" };
-import toolBlockSchemaJson from "../../pi-packages/mpi-tool-block/tool-block.schema.json" with { type: "text" };
+import toolBlockSchemaJson from "../../pi-packages/mpi-tool-block/mpi-tool-block.schema.json" with { type: "text" };
 // Documentation embedded for the system-prompt pointers; the binary has no
 // package tree on disk, so these are installed to <agentDir>/mixcode-docs.
 import mixcodeDoc_README_md from "../../docs/README.md" with { type: "text" };
@@ -315,14 +315,14 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
       "permission-core.ts": permissionCore,
       "permission-overlay.ts": permissionOverlay,
       "package.json": permissionPackageJson,
-      "permission.schema.json": permissionSchemaJson,
+      "mpi-permission.schema.json": permissionSchemaJson,
     },
     "mpi-auto-rename": {
       "index.ts": autoRenameIndex,
       "config.ts": autoRenameConfig,
       "config-overlay.ts": autoRenameConfigOverlay,
       "package.json": autoRenamePackageJson,
-      "auto-rename.schema.json": autoRenameSchemaJson,
+      "mpi-auto-rename.schema.json": autoRenameSchemaJson,
     },
     "mpi-optimize-prompt": {
       "index.ts": optimizePromptIndex,
@@ -330,7 +330,7 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
       "config.ts": optimizePromptConfig,
       "config-overlay.ts": optimizePromptConfigOverlay,
       "package.json": optimizePromptPackageJson,
-      "optimize-prompt.schema.json": optimizePromptSchemaJson,
+      "mpi-optimize-prompt.schema.json": optimizePromptSchemaJson,
     },
     "mpi-mid-turn-compact": {
       "index.ts": midTurnCompactIndex,
@@ -340,21 +340,21 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
       "index.ts": modelSkillsIndex,
       "model-skills-core.ts": modelSkillsCore,
       "package.json": modelSkillsPackageJson,
-      "model-skills.schema.json": modelSkillsSchemaJson,
+      "mpi-model-skills.schema.json": modelSkillsSchemaJson,
     },
     "mpi-model-extensions": {
       "index.ts": modelExtensionsIndex,
       "model-extensions-core.ts": modelExtensionsCore,
       "model-extensions-loader.ts": modelExtensionsLoader,
       "package.json": modelExtensionsPackageJson,
-      "model-extensions.schema.json": modelExtensionsSchemaJson,
+      "mpi-model-extensions.schema.json": modelExtensionsSchemaJson,
     },
     "mpi-tool-block": {
       "index.ts": toolBlockIndex,
       "tool-block-core.ts": toolBlockCore,
       "tool-block-overlay.ts": toolBlockOverlay,
       "package.json": toolBlockPackageJson,
-      "tool-block.schema.json": toolBlockSchemaJson,
+      "mpi-tool-block.schema.json": toolBlockSchemaJson,
     },
   },
 });

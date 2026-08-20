@@ -29,7 +29,7 @@
 
 | Layer | 持久化 | 路径行 |
 |-------|--------|--------|
-| Global | 立刻写入 `<agentDir>/tool-block.json` | 文件路径；若 session 覆盖仍在，前缀 `session override ·` |
+| Global | 立刻写入 `<agentDir>/mpi-tool-block.json` | 文件路径；若 session 覆盖仍在，前缀 `session override ·` |
 | Session | 当前 MixCode tab 内存 | `session (in-memory)` |
 
 第一次切到 Session 会拍一份当前全局配置。只要 session 配置存在，它就是整份生效配置（`session ?? global`）：多藏、解藏、`enabled: Off` 都只作用于这个 tab。切回 Global 只换编辑目标，不丢弃 session。session 在进程重启、`/reload`、关 tab、或 extension 重建后消失。
@@ -46,9 +46,9 @@
 
 ## 配置
 
-全局文件：`<agentDir>/tool-block.json`（`$PI_CODING_AGENT_DIR`，默认 `~/.pi/agent`）。第一次在 Global 层勾选时创建，重启后仍生效。
+全局文件：`<agentDir>/mpi-tool-block.json`（`$PI_CODING_AGENT_DIR`，默认 `~/.pi/agent`）。第一次在 Global 层勾选时创建，重启后仍生效。
 
-包内随带 `tool-block.schema.json`（安装于 `<agentDir>/extensions/mpi-tool-block/`），可在配置中用 `$schema` 键引用以获得编辑器补全；该键被接受并在写回时保留。
+包内随带 `mpi-tool-block.schema.json`（安装于 `<agentDir>/extensions/mpi-tool-block/`），可在配置中用 `$schema` 键引用以获得编辑器补全；该键被接受并在写回时保留。
 
 Session 配置形状相同，只存在于内存，不写盘。
 

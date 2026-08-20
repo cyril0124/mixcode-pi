@@ -6,9 +6,9 @@
 
 ## 配置
 
-`~/.pi/agent/model-skills.json`（或 `$PI_CODING_AGENT_DIR`）：
+`~/.pi/agent/mpi-model-skills.json`（或 `$PI_CODING_AGENT_DIR`）：
 
-包内随带 `model-skills.schema.json`（安装于 `<agentDir>/extensions/mpi-model-skills/`），可在配置中用 `$schema` 键引用以获得编辑器补全；该键被接受并在写回时保留。
+包内随带 `mpi-model-skills.schema.json`（安装于 `<agentDir>/extensions/mpi-model-skills/`），可在配置中用 `$schema` 键引用以获得编辑器补全；该键被接受并在写回时保留。
 
 ```json
 {

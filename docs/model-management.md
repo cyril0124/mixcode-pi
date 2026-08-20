@@ -10,8 +10,8 @@ MixCode Pi provides model discovery, selection, thinking tier adjustments, provi
 ~/.pi/agent/models.json            Model definitions & custom endpoint configurations
 ~/.pi/agent/auth.json              API keys & provider credentials
 ~/.pi/agent/mixcode-pi/mixcode_settings.json   disabledProviders & disabledModels
-~/.pi/agent/model-skills.json      Per-model dynamic skill attachments (mpi-model-skills)
-~/.pi/agent/model-extensions.json  Per-model dynamic extension attachments (mpi-model-extensions)
+~/.pi/agent/mpi-model-skills.json      Per-model dynamic skill attachments (mpi-model-skills)
+~/.pi/agent/mpi-model-extensions.json  Per-model dynamic extension attachments (mpi-model-extensions)
 ```
 
 ## Model Selection & Thinking
@@ -27,7 +27,7 @@ Disablement lives in [`mixcode_settings.json`](mixcode-settings.md) (`disabledPr
 
 ### 1. Dynamic Skills (`mpi-model-skills`)
 
-Configured via `~/.pi/agent/model-skills.json`:
+Configured via `~/.pi/agent/mpi-model-skills.json`:
 
 ```jsonc
 {
@@ -43,7 +43,7 @@ Configured via `~/.pi/agent/model-skills.json`:
 
 ### 2. Dynamic Extensions (`mpi-model-extensions`)
 
-Configured via `~/.pi/agent/model-extensions.json`:
+Configured via `~/.pi/agent/mpi-model-extensions.json`:
 
 ```jsonc
 {

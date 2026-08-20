@@ -14,9 +14,9 @@
 
 会话已有标题时，选 **Yes** 覆盖、**No** 保留，或 **Regenerate** 重新生成。
 
-## 配置（`<agentDir>/auto-rename.json`）
+## 配置（`<agentDir>/mpi-auto-rename.json`）
 
-包内随带 `auto-rename.schema.json`（安装于 `<agentDir>/extensions/mpi-auto-rename/`），可在配置中用 `$schema` 键引用以获得编辑器补全；该键被接受并在写回时保留。
+包内随带 `mpi-auto-rename.schema.json`（安装于 `<agentDir>/extensions/mpi-auto-rename/`），可在配置中用 `$schema` 键引用以获得编辑器补全；该键被接受并在写回时保留。
 
 ```json
 {

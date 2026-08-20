@@ -17,9 +17,9 @@ Rewrite the input-editor draft (or slash args) into a clearer coding-agent promp
 
 `Ctrl+Shift+C` also cancels an in-flight optimize.
 
-## Config (`<agentDir>/optimize-prompt.json`)
+## Config (`<agentDir>/mpi-optimize-prompt.json`)
 
-The package ships `optimize-prompt.schema.json` (installed to `<agentDir>/extensions/mpi-optimize-prompt/`); reference it via a `$schema` key for editor completion — the key is accepted and preserved on writes.
+The package ships `mpi-optimize-prompt.schema.json` (installed to `<agentDir>/extensions/mpi-optimize-prompt/`); reference it via a `$schema` key for editor completion — the key is accepted and preserved on writes.
 
 ```json
 {

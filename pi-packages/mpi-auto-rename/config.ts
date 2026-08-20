@@ -1,12 +1,12 @@
 /**
- * Load `<agentDir>/auto-rename.json` (optional `model` / `thinking` / `onFirstMessage` / `maxContextChars`).
+ * Load `<agentDir>/mpi-auto-rename.json` (optional `model` / `thinking` / `onFirstMessage` / `maxContextChars`).
  * Pure Node — no Bun APIs.
  */
 
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-export const AUTO_RENAME_CONFIG_FILENAME = "auto-rename.json";
+export const AUTO_RENAME_CONFIG_FILENAME = "mpi-auto-rename.json";
 export const AUTO_RENAME_INHERIT = "inherit";
 export const DEFAULT_MAX_CONTEXT_CHARS = 4000;
 

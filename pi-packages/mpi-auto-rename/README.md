@@ -14,9 +14,9 @@ Generate a short kebab-case session title from the current conversation.
 
 If the session already has a title, choose **Yes** to overwrite, **No** to keep it, or **Regenerate** to generate another title.
 
-## Config (`<agentDir>/auto-rename.json`)
+## Config (`<agentDir>/mpi-auto-rename.json`)
 
-The package ships `auto-rename.schema.json` (installed to `<agentDir>/extensions/mpi-auto-rename/`); reference it via a `$schema` key for editor completion — the key is accepted and preserved on writes.
+The package ships `mpi-auto-rename.schema.json` (installed to `<agentDir>/extensions/mpi-auto-rename/`); reference it via a `$schema` key for editor completion — the key is accepted and preserved on writes.
 
 ```json
 {

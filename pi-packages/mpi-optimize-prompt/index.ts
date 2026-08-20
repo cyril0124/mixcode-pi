@@ -3,7 +3,7 @@
  *
  * Usage: /opt-prompt [text]
  * Cancel: /opt-prompt-cancel
- * Config: <agentDir>/optimize-prompt.json
+ * Config: <agentDir>/mpi-optimize-prompt.json
  *   { "model"?: "provider/id", "thinking"?: "low", "systemPrompt"?: "..." }
  * Defaults: inherit active session model + thinking; built-in system prompt.
  * Progress: aboveEditor widget (does not take over the input editor).

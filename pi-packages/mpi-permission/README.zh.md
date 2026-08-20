@@ -10,8 +10,8 @@
 
 | 层级 | 文件 | 说明 |
 |------|------|------|
-| 全局 | `<agentDir>/permission.json`（`$PI_CODING_AGENT_DIR`，默认 `~/.pi/agent`） | 存在即生效。 |
-| 项目 | `<cwd>/.pi/permission.json`（目录名跟随发行版的 `CONFIG_DIR_NAME`） | 仅在项目受信任时生效；未受信任时整体忽略（包括解析错误）。 |
+| 全局 | `<agentDir>/mpi-permission.json`（`$PI_CODING_AGENT_DIR`，默认 `~/.pi/agent`） | 存在即生效。 |
+| 项目 | `<cwd>/.pi/mpi-permission.json`（目录名跟随发行版的 `CONFIG_DIR_NAME`） | 仅在项目受信任时生效；未受信任时整体忽略（包括解析错误）。 |
 | 会话 | 内存 | ask 对话框的 "Always allow" 授权与 overlay 编辑；重启、`/reload`、关标签页即丢弃。 |
 
 文件缺失即完全不介入：任何一层都没有配置时，该包不改变任何行为。配置文件存在但解析失败则**失败关闭**（fail closed）：所有工具调用都会被拦截，原因中带文件路径与错误，直到修复为止。
@@ -20,7 +20,7 @@
 
 ```json
 {
-  "$schema": "extensions/mpi-permission/permission.schema.json",
+  "$schema": "extensions/mpi-permission/mpi-permission.schema.json",
   "*": "allow",
   "bash": { "*": "ask", "git *": "allow", "git push*": "deny" },
   "read": { "*": "allow", "*.env": "deny", "*.env.example": "allow" },
@@ -37,7 +37,7 @@
 | `"doom_loop": 动作` | 仅接受动作字符串，不支持模式。语义见[防护项](#防护项)。 |
 | `"$schema": 字符串` | 可选的编辑器 schema 引用；解析接受、overlay 写回时保留，求值忽略。 |
 
-包内随带 `permission.schema.json`（安装于 `<agentDir>/extensions/mpi-permission/permission.schema.json`），供编辑器补全与校验。全局文件中直接使用上例的相对路径即可；项目文件请用绝对路径或编辑器的 schema 映射。
+包内随带 `mpi-permission.schema.json`（安装于 `<agentDir>/extensions/mpi-permission/mpi-permission.schema.json`），供编辑器补全与校验。全局文件中直接使用上例的相对路径即可；项目文件请用绝对路径或编辑器的 schema 映射。
 
 ## 匹配
 
@@ -98,7 +98,7 @@ bash: echo other   计数重置；之后的 `echo same` 从 #1 重新计
 
 ```text
 ┌─ Permission ───────────────────────────────────┐
-│  /home/user/.pi/agent/permission.json          │
+│  /home/user/.pi/agent/mpi-permission.json          │
 │  › Layer                           Global      │
 │    doom_loop                       Off         │
 │      same tool + identical input 3×…          │

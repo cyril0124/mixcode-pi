@@ -8,9 +8,9 @@ Independent Pi package — no MixCode `src/` runtime coupling.
 
 ## Config
 
-`~/.pi/agent/model-extensions.json` (or `$PI_CODING_AGENT_DIR`):
+`~/.pi/agent/mpi-model-extensions.json` (or `$PI_CODING_AGENT_DIR`):
 
-The package ships `model-extensions.schema.json` (installed to `<agentDir>/extensions/mpi-model-extensions/`); reference it via a `$schema` key for editor completion — the key is accepted and preserved on writes.
+The package ships `mpi-model-extensions.schema.json` (installed to `<agentDir>/extensions/mpi-model-extensions/`); reference it via a `$schema` key for editor completion — the key is accepted and preserved on writes.
 
 ```json
 {

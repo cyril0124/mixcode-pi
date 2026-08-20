@@ -1,11 +1,11 @@
 // +---------------------------------------------------------------------------+
 // |  tool-block core                                                          |
-// |  Parse tool-block.json, merge session overlay, plan active set.           |
+// |  Parse mpi-tool-block.json, merge session overlay, plan active set.     |
 // +---------------------------------------------------------------------------+
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-export const TOOL_BLOCK_CONFIG_FILENAME = "tool-block.json";
+export const TOOL_BLOCK_CONFIG_FILENAME = "mpi-tool-block.json";
 
 export type ToolBlockHidden = {
   tool: string;
@@ -47,7 +47,7 @@ export type ConfigLoadResult =
 const ALLOWED_ROOT_KEYS = new Set(["enabled", "hidden", "$schema"]);
 const ALLOWED_HIDDEN_KEYS = new Set(["tool", "plugin"]);
 
-/** Config lives at `<agentDir>/tool-block.json`. */
+/** Config lives at `<agentDir>/mpi-tool-block.json`. */
 export function toolBlockConfigPath(agentDir: string): string {
   return path.join(agentDir, TOOL_BLOCK_CONFIG_FILENAME);
 }
@@ -81,7 +81,7 @@ export function toToolRefs(
   }));
 }
 
-/** Parse and validate tool-block.json body. Unknown keys fail loud. */
+/** Parse and validate mpi-tool-block.json body. Unknown keys fail loud. */
 export function parseToolBlockConfig(
   raw: unknown,
 ): { ok: true; config: ToolBlockConfig } | { ok: false; error: string } {

@@ -123,23 +123,23 @@ describe("parseModelExtensionsConfig / load / setEnabled", () => {
     assert.equal(parseModelExtensionsConfig({ $schema: 1, rules: [] }).ok, false);
     const dir = tmpDir();
     fs.writeFileSync(
-      path.join(dir, "model-extensions.json"),
-      JSON.stringify({ $schema: "./model-extensions.schema.json", rules: [] }),
+      path.join(dir, "mpi-model-extensions.json"),
+      JSON.stringify({ $schema: "./mpi-model-extensions.schema.json", rules: [] }),
       "utf8",
     );
     const off = setModelExtensionsEnabled(dir, false);
     assert.equal(off.ok, true);
-    const raw = JSON.parse(fs.readFileSync(path.join(dir, "model-extensions.json"), "utf8"));
+    const raw = JSON.parse(fs.readFileSync(path.join(dir, "mpi-model-extensions.json"), "utf8"));
     assert.equal(Object.keys(raw)[0], "$schema");
     const loaded = loadModelExtensionsConfig(dir);
     assert.equal(loaded.ok, true);
-    if (loaded.ok && loaded.config) assert.equal(loaded.config.schemaRef, "./model-extensions.schema.json");
+    if (loaded.ok && loaded.config) assert.equal(loaded.config.schemaRef, "./mpi-model-extensions.schema.json");
   });
 
   test("setModelExtensionsEnabled persists and preserves rules", () => {
     const dir = tmpDir();
     fs.writeFileSync(
-      path.join(dir, "model-extensions.json"),
+      path.join(dir, "mpi-model-extensions.json"),
       JSON.stringify({ rules: [{ match: { model: "a/*" }, add: ["x"] }] }, null, 2),
       "utf8",
     );
@@ -162,12 +162,12 @@ describe("parseModelExtensionsConfig / load / setEnabled", () => {
     const missing = loadModelExtensionsConfig(dir);
     assert.equal(missing.ok && "missing" in missing && missing.missing, true);
 
-    fs.writeFileSync(path.join(dir, "model-extensions.json"), "{not json", "utf8");
+    fs.writeFileSync(path.join(dir, "mpi-model-extensions.json"), "{not json", "utf8");
     const bad = loadModelExtensionsConfig(dir);
     assert.equal(bad.ok, false);
 
     fs.writeFileSync(
-      path.join(dir, "model-extensions.json"),
+      path.join(dir, "mpi-model-extensions.json"),
       JSON.stringify({ rules: [] }),
       "utf8",
     );
@@ -292,12 +292,12 @@ describe("createDynamicExtensionLoader", () => {
 
 describe("formatModelExtensionsHelp", () => {
   test("includes command surface and path", () => {
-    const help = formatModelExtensionsHelp("/tmp/agent/model-extensions.json");
+    const help = formatModelExtensionsHelp("/tmp/agent/mpi-model-extensions.json");
     assert.ok(help.includes("# /model-extensions"));
     assert.ok(help.includes("/model-extensions help"));
     assert.ok(help.includes("/model-extensions on"));
     assert.ok(help.includes("/model-extensions off"));
-    assert.ok(help.includes("/tmp/agent/model-extensions.json"));
+    assert.ok(help.includes("/tmp/agent/mpi-model-extensions.json"));
   });
 });
 

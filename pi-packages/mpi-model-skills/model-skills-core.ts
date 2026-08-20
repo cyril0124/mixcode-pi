@@ -65,9 +65,9 @@ const SKILLS_SECTION_RE =
 const SKILLS_TAG_RE = /\n?<available_skills>[\s\S]*?<\/available_skills>/;
 const CWD_MARKER = "\nCurrent working directory: ";
 
-/** Config lives at `<agentDir>/model-skills.json`. */
+/** Config lives at `<agentDir>/mpi-model-skills.json`. */
 export function modelSkillsConfigPath(agentDir: string): string {
-  return path.join(agentDir, "model-skills.json");
+  return path.join(agentDir, "mpi-model-skills.json");
 }
 
 /** Usage / config docs for `/model-skills help` (markdown). */
@@ -222,7 +222,7 @@ function isStringArray(v: unknown): v is string[] {
   return Array.isArray(v) && v.every((x) => typeof x === "string");
 }
 
-/** Parse and validate model-skills.json body. */
+/** Parse and validate mpi-model-skills.json body. */
 export function parseModelSkillsConfig(raw: unknown): { ok: true; config: ModelSkillsConfig } | { ok: false; error: string } {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     return { ok: false, error: "config root must be an object" };
