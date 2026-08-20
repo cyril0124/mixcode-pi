@@ -1,6 +1,6 @@
 ---
 name: mpi-ctl
-description: Control a live MixCode (mpi) TUI from the CLI. To send a user message or slash command, use mpi ctl send-prompt (not send-keys), then always wait and read last-message (or last-tool / dump-screen) — never fire-and-forget. Also list instances, target a tab, send-keys only for real keypresses. Use when the user says mpi ctl, mpi status, another mpi, another tab, or remote-control the TUI.
+description: Control a live MixCode (mpi) TUI from the CLI. To send a user message or slash command, use mpi ctl send-prompt (not send-keys), then close the loop in one mode — poll (wait + last-message) or callback (--expect-response, end your turn) — never fire-and-forget. Also list instances, target a tab, send-keys only for real keypresses. Use when the user says mpi ctl, mpi status, another mpi, another tab, or remote-control the TUI.
 ---
 
 # mpi status / ctl
@@ -67,7 +67,7 @@ mpi ctl --tab Agent-01 send-prompt '/rename New Title'
 mpi ctl --tab Agent-01 send-prompt '/new-session Worker'
 ```
 
-`--tab` does not steal UI focus. **Default to `--tab` / `--session`.** Do not use `--focus-tab` / `--focus-session` unless the next action is UI keys on a picker or overlay that `--tab` cannot drive. **Always close the loop:** `wait` then `last-message` (or `last-tool` / `dump-screen`). ACK from `send-prompt` only means accept, not done.
+`--tab` does not steal UI focus. **Default to `--tab` / `--session`.** Do not use `--focus-tab` / `--focus-session` unless the next action is UI keys on a picker or overlay that `--tab` cannot drive. **Always close the loop:** ACK from `send-prompt` only means accept, not done. Poll with `wait` then `last-message` (or `last-tool` / `dump-screen`) — unless you requested a reply (callback mode, see `send-prompt`).
 
 Use **`send-keys` + `--focus-tab`** only after `dump-screen` shows a picker/overlay you must click (`/resume`, `/models`, `/close-all-sessions`, `/delete-all-sessions`, extension question UI, `C-q`). Single-tab close/delete: `send-prompt /close-session yes` — do not focus.
 
@@ -136,6 +136,8 @@ If the **target** agent tab is `Not Ready`, that ctl command fails: `Tab is stil
 
 Always timed. `--timeout <sec>` defaults to 60; `0` checks once. The client socket stays open for `--timeout` plus 5s (a 10s idle timeout used to kill long `wait`).
 
+`wait` watches the **target** tab only; it does not return early when your own tab receives a prompt. Do not use it to wait for a `send-prompt` reply — that is callback mode, see `send-prompt`.
+
 Stdout:
 
 ```text
@@ -198,9 +200,11 @@ Do not pass --expect-response on that reply.
 Review the current diff for risks only.
 ```
 
-If you receive that block: read the skill at the given path, finish the request, then send the result with that `send-prompt` (do **not** add `--expect-response` unless asked).
+If you receive that block: read the skill at the given path, finish the request, then send the result with that `send-prompt` (do **not** add `--expect-response` unless asked). After that reply is ACKed, **end your turn** — do not `wait` on the requester; it may still be mid-turn, and your reply is already queued for it.
 
-**Required follow-up (do not stop after ACK):**
+**Close the loop — pick exactly one mode per prompt; never stop at ACK:**
+
+**Poll** (default; you did not request a reply) — pull the result yourself:
 
 ```text
 mpi ctl --tab <title> wait --timeout 90
@@ -210,6 +214,8 @@ mpi ctl --tab <title> wait --timeout 90
 #                   picker / close-all / delete-all / question overlay -> --focus-tab send-keys; wait again
 # error / timeout -> last-message / dump-screen; do not assume success
 ```
+
+**Callback** (`--expect-response`, or your prompt asks for a reply) — the peer pushes the result back to your tab. After ACK, at most one short check (`wait --timeout 5`; on `wait-for-input`, unblock the peer first), then **end your turn** and say you are waiting for that tab's reply. Never sit in a long `wait` for the reply: it arrives as a queued message that is injected only after your current tool call returns, so a long `wait` delays your own wake-up — and if the peer also `wait`s on you, both tabs stall until timeout (mutual wait).
 
 ## Output / truncation
 
@@ -280,13 +286,15 @@ mpi ctl --pid <n> --tab <other> wait --timeout 90
 # status: finished        -> last-message / last-tool
 ```
 
+Callback variant (`--expect-response` / reply requested): stop after the `send-prompt` ACK (plus at most a short `wait`), end your turn, and let the reply wake this tab.
+
 ## Pitfalls (common agent mistakes)
 
 - **Do not start another `mpi` TUI** to inspect a tab. Use `status`/`ctl` against the live process.
 - **Never default to `--focus-tab`.** Use `--tab`. `--focus-tab` leaves the UI on that tab — only after `dump-screen` shows a picker/overlay that needs keys. `--session` is not an alias of `--focus-session`.
-- **After `send-prompt`, always `wait` then read output.** ACK ≠ finished. Skipping `wait`/`last-message` is a bug.
+- **After `send-prompt`, close the loop in exactly one mode.** ACK ≠ finished. Poll: `wait` then `last-message`. Callback (`--expect-response` / reply requested): end your turn after ACK. Fire-and-forget is a bug; so is a long `wait` for a reply — the reply injects only after your current tool call returns, so poll+callback stalls both tabs until timeout.
 - **On `wait-for-input`, `dump-screen` first and start from the tail.** The confirm or question is at the end. If truncated, read `/tmp/mpi-ctl-…` from the end. Single-tab close/delete: `send-prompt /close-session yes` (or `/delete-session yes`). close-all / delete-all and pickers: `--focus-tab` + `send-keys`. Do not answer from `last-message` alone.
-- **Do not preface prompts with “I am &lt;tab&gt;”.** ctl already wraps plain text with the MixCode-tab preface. Slash/`!` are not wrapped. If the preface includes `--expect-response` instructions, follow the skill path and reply with the given `send-prompt`; do not add `--expect-response` on that reply.
+- **Do not preface prompts with “I am &lt;tab&gt;”.** ctl already wraps plain text with the MixCode-tab preface. Slash/`!` are not wrapped. If the preface includes `--expect-response` instructions, follow the skill path and reply with the given `send-prompt`; do not add `--expect-response` on that reply. After replying, end your turn — do not `wait` on the requester.
 - **`mpi commands` is TUI slashes (`/compact`), not CLI subcommands (`mpi ctl`).** Slash commands: `send-prompt /compact`, not `send-keys '/compact' Enter`. `send-keys` is for real keypresses (pickers, `down`/`Enter` on a question, `C-q`). `--tab` send-keys is text+Enter only; multi-line body uses `send-prompt <<'EOF'`. `--literal` makes `Enter` the letters E-n-t-e-r.
 - **`--from` and `--to` must both be present.** One alone errors. `1` is newest, print is oldest-first. `last-message` is user+assistant only; tools are `last-tool`.
 - **`wait` always has a timeout** (default 60s). Client waits `--timeout`+5s; `ctl socket timed out` before that is a bug. `wait-for-input` means a question/dialog — do not keep waiting. `finished` is idle/done. Home: `Home has no agent run`.
