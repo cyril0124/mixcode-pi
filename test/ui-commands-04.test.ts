@@ -381,7 +381,8 @@ test("workspace commands expose missing configuration and arguments", async () =
     undefined,
     path.join(os.tmpdir(), "unused-workspaces.json"),
   );
-  assert.equal(state.workspaceOverlay.mode, "save");
+  assert.equal(state.workspaceOverlay.open, true);
+  assert.match(overlayTui.overlays.at(-1) ?? "", /Save Workspace/);
 });
 
 test("workspace save surfaces invalid workspace files instead of treating them as missing", async () => {

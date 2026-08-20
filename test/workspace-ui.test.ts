@@ -7,13 +7,13 @@ import type { MixCodeRuntime } from "./helpers/mixcode.js";
 import {
   createInitialState,
   createTab,
-  handleMixCodeKeyInput,
   handleSubmittedInput,
   loadWorkspaces,
   renderWorkspaceOverlay,
   saveWorkspaces,
   snapshotWorkspace,
-  type MixCodeState,
+  WorkspaceOverlay,
+  type WorkspaceOverlayView,
 } from "./helpers/mixcode.js";
 import { UUIDV7_SESSION_ID_PATTERN } from "./helpers/session-id.js";
 import { restoreWorkspace } from "../src/ui/workspace-restore.js";
@@ -27,14 +27,17 @@ function stripAnsi(text: string): string {
 
 function createOverlayTui() {
   const overlays: string[] = [];
+  const components: unknown[] = [];
   const renders: string[] = [];
   let hasOverlay = false;
   return {
     overlays,
+    components,
     renders,
     requestRender: () => renders.push("render"),
     showOverlay: (component: { render?: (width: number) => string[] } | string) => {
       hasOverlay = true;
+      components.push(component);
       overlays.push(
         typeof component === "string"
           ? component
@@ -51,6 +54,18 @@ function createOverlayTui() {
       hasOverlay = false;
     },
   };
+}
+
+/** The live workspace overlay component the fake TUI last presented. */
+function shownWorkspaceOverlay(tui: ReturnType<typeof createOverlayTui>): WorkspaceOverlay {
+  const component = tui.components.at(-1);
+  assert.ok(component instanceof WorkspaceOverlay, "workspace overlay must be shown");
+  return component;
+}
+
+/** Render the live overlay's CURRENT state (the real TUI repaints on requestRender). */
+function renderShownOverlay(tui: ReturnType<typeof createOverlayTui>): string {
+  return stripAnsi(shownWorkspaceOverlay(tui).render(100).join("\n"));
 }
 
 function createRuntime(
@@ -184,20 +199,17 @@ test("workspace commands open save input and selector overlays without arguments
 
     await handleSubmittedInput(state, runtime, "/save-workspace", tui, undefined, undefined, workspaceFile);
     assert.equal(state.workspaceOverlay.open, true);
-    assert.equal(state.workspaceOverlay.mode, "save");
-    const saveOverlay = stripAnsi(tui.overlays.at(-1) ?? "");
+    const saveOverlay = renderShownOverlay(tui);
     assert.match(saveOverlay, /Save Workspace/);
     assert.match(saveOverlay, /┌─+┐/);
     assert.match(saveOverlay, /Current layout: 1 tab/);
 
     await handleSubmittedInput(state, runtime, "/restore-workspace", tui, undefined, undefined, workspaceFile);
-    assert.equal(state.workspaceOverlay.mode, "restore");
-    assert.match(tui.overlays.at(-1) ?? "", /Project Workspaces/);
-    assert.match(tui.overlays.at(-1) ?? "", /Details/);
+    assert.match(renderShownOverlay(tui), /Project Workspaces/);
+    assert.match(renderShownOverlay(tui), /Details/);
 
     await handleSubmittedInput(state, runtime, "/delete-workspace", tui, undefined, undefined, workspaceFile);
-    assert.equal(state.workspaceOverlay.mode, "delete");
-    assert.match(tui.overlays.at(-1) ?? "", /enter: delete/);
+    assert.match(renderShownOverlay(tui), /enter: delete/);
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }
@@ -217,14 +229,13 @@ test("save workspace input confirms overwrite before saving", async () => {
     const tui = createOverlayTui();
 
     await handleSubmittedInput(state, runtime, "/save-workspace", tui, undefined, undefined, workspaceFile);
-    assert.equal(state.workspaceOverlay.mode, "save");
-    for (const char of "main") handleMixCodeKeyInput(state, char, tui, undefined, runtime, undefined, undefined, undefined, undefined, { workspaceFile });
-    assert.equal(state.workspaceOverlay.input, "main");
-    handleMixCodeKeyInput(state, "\r", tui, undefined, runtime, undefined, undefined, undefined, undefined, { workspaceFile });
-    assert.equal(state.workspaceOverlay.mode, "save-confirm-overwrite");
-    assert.match(tui.overlays.at(-1) ?? "", /Confirm Update Workspace/);
+    const overlay = shownWorkspaceOverlay(tui);
+    for (const char of "main") overlay.handleInput(char);
+    assert.match(renderShownOverlay(tui), /│main/);
+    overlay.handleInput("\r");
+    assert.match(renderShownOverlay(tui), /Confirm Update Workspace/);
 
-    handleMixCodeKeyInput(state, "\r", tui, undefined, runtime, undefined, undefined, undefined, undefined, { workspaceFile });
+    overlay.handleInput("\r");
     await Bun.sleep(20);
 
     const saved = await loadWorkspaces(workspaceFile);
@@ -278,9 +289,50 @@ test("restore workspace reopens saved sessions, closes extra tabs, and reports m
     assert.equal(switched.length, 1);
     assert.equal(switched[0]?.sessionPath, existingSessionPath);
     assert.deepEqual(state.tabs[0]?.promptHistory, ["new prompt", "old prompt"]);
-    assert.deepEqual(state.workspaceOverlay.skippedMissing, ["old qa"]);
+    const missingPanel = renderShownOverlay(tui);
+    assert.match(missingPanel, /Missing Sessions/);
+    assert.match(missingPanel, /- old qa/);
     const toastMsg = state.tabs[0]?.toast?.message ?? "";
     assert.match(toastMsg, /Workspace restored: main · restored 1, skipped 1/);
+  } finally {
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("restore workspace whose sessions are all missing re-presents the Missing Sessions panel", async () => {
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-workspace-all-missing-"));
+  const workspaceFile = path.join(dir, "workspaces.json");
+  try {
+    const state = createInitialState("/repo");
+    state.tabs.push(createTab(1, "extra", "/repo", { title: "extra" }));
+    state.activeTabId = "extra";
+    await saveWorkspaces(workspaceFile, [
+      {
+        name: "main",
+        startupWorkdir: "/repo",
+        updatedAt: "now",
+        activeSessionId: "old-gone",
+        tabs: [
+          // Session file never created: restore must end with 0 tabs (no
+          // active tab), so the toast falls back to a notice overlay that
+          // replaces the mounted component. The missing panel must still be
+          // re-presented (parity with the pre-component showWorkspaceOverlay).
+          { sessionId: "old-gone", sessionPath: path.join(dir, "gone.jsonl"), title: "gone qa", workdir: "/repo" },
+        ],
+      },
+    ]);
+    const { runtime, closed } = createRuntime({ extra: path.join(dir, "extra.jsonl") });
+    const tui = createOverlayTui();
+
+    await handleSubmittedInput(state, runtime, "/restore-workspace main", tui, undefined, undefined, workspaceFile);
+    await Bun.sleep(50);
+
+    assert.equal(state.tabs.length, 0);
+    assert.deepEqual(closed, ["extra"]);
+    assert.equal(state.workspaceOverlay.open, true);
+    const panel = renderShownOverlay(tui);
+    assert.match(panel, /Missing Sessions/);
+    assert.match(panel, /- gone qa/);
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }
@@ -351,7 +403,7 @@ test("restore workspace keeps active tab when earlier workspace items are skippe
     await handleSubmittedInput(state, runtime, "/restore-workspace main", tui, undefined, undefined, workspaceFile);
 
     assert.equal(state.tabs.find((tab) => tab.sessionId === state.activeTabId)?.title, "third");
-    assert.deepEqual(state.workspaceOverlay.skippedMissing, ["missing (no session path saved)"]);
+    assert.match(renderShownOverlay(tui), /- missing \(no session path saved\)/);
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }
@@ -368,11 +420,11 @@ test("delete workspace selector requires confirmation", async () => {
     const tui = createOverlayTui();
 
     await handleSubmittedInput(state, runtime, "/delete-workspace", tui, undefined, undefined, workspaceFile);
-    handleMixCodeKeyInput(state, "\r", tui, undefined, runtime, undefined, undefined, undefined, undefined, { workspaceFile });
-    assert.equal(state.workspaceOverlay.mode, "delete-confirm");
-    assert.match(tui.overlays.at(-1) ?? "", /Delete Workspace "main"/);
+    const overlay = shownWorkspaceOverlay(tui);
+    overlay.handleInput("\r");
+    assert.match(renderShownOverlay(tui), /Delete Workspace "main"/);
 
-    handleMixCodeKeyInput(state, "\r", tui, undefined, runtime, undefined, undefined, undefined, undefined, { workspaceFile });
+    overlay.handleInput("\r");
     await Bun.sleep(20);
     await assert.rejects(loadWorkspaces(workspaceFile), /ENOENT/);
     assert.equal(state.tabs[0]?.toast?.message, "Workspace deleted: main");
@@ -381,31 +433,40 @@ test("delete workspace selector requires confirmation", async () => {
   }
 });
 
+function makeOverlayView(partial: Partial<WorkspaceOverlayView>): WorkspaceOverlayView {
+  return {
+    mode: "restore",
+    query: "",
+    selectedIndex: 0,
+    workspaces: [],
+    workdir: "",
+    message: "",
+    input: "",
+    extraTabCount: 0,
+    restoredCount: 0,
+    skippedMissing: [],
+    progressCurrent: 0,
+    progressTotal: 0,
+    ...partial,
+  };
+}
+
 test("workspace overlay renders empty project state", () => {
   const state = createInitialState("/repo");
-  state.workspaceOverlay = {
-    ...state.workspaceOverlay,
-    open: true,
-    mode: "restore",
-    workspaces: [],
-    workdir: "/repo",
-  };
+  const view = makeOverlayView({ mode: "restore", workdir: "/repo" });
 
-  assert.match(renderWorkspaceOverlay(state, 80).join("\n"), /No saved workspaces for this directory/);
+  assert.match(
+    renderWorkspaceOverlay(view, state, 80).join("\n"),
+    /No saved workspaces for this directory/,
+  );
 });
 
 test("save workspace overlay renders a bordered input field", () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo", { title: "plan" }));
-  state.workspaceOverlay = {
-    ...state.workspaceOverlay,
-    open: true,
-    mode: "save",
-    input: "main",
-    workdir: "/repo",
-  };
+  const view = makeOverlayView({ mode: "save", input: "main", workdir: "/repo" });
 
-  const text = stripAnsi(renderWorkspaceOverlay(state, 80).join("\n"));
+  const text = stripAnsi(renderWorkspaceOverlay(view, state, 80).join("\n"));
   assert.match(text, /Name/);
   assert.match(text, /┌─+┐/);
   assert.match(text, /│main/);
@@ -418,15 +479,13 @@ test("workspace overlay shows tab details before constrained-height clipping", (
     createTab(index + 1, `s${index + 1}`, "/repo", { title: `Agent-${index + 1}` }),
   );
   state.tabs.push(...tabs);
-  state.workspaceOverlay = {
-    ...state.workspaceOverlay,
-    open: true,
+  const view = makeOverlayView({
     mode: "restore",
     workdir: "/repo",
     workspaces: [snapshotWorkspace(state, "main", new Date("2026-05-23T03:12:00.000Z"))],
-  };
+  });
 
-  const lines = stripAnsi(renderWorkspaceOverlay(state, 100).join("\n")).split("\n");
+  const lines = stripAnsi(renderWorkspaceOverlay(view, state, 100).join("\n")).split("\n");
   assert.match(lines.slice(0, 12).join("\n"), /1\. Agent-1/);
   assert.match(lines.join("\n"), /7\. Agent-7/);
 });

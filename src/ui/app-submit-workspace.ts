@@ -8,13 +8,12 @@ import { showLinesOverlay } from "./app-overlays.js";
 import { HOME_TAB_ID } from "../core/types.js";
 import { type LocalCommandHandler, type MixCodeSubmitRuntime, SKIP_FINALIZE } from "./app-types.js";
 import { renderPickerOverlay } from "./rendering.js";
+import { openSaveWorkspaceOverlay, openWorkspaceSelector } from "./components/workspace-overlay.js";
 import {
   deleteWorkspaceByName,
-  openSaveWorkspaceOverlay,
-  openWorkspaceSelector,
   restoreWorkspaceByName,
   saveWorkspaceByName,
-} from "./workspace-overlay.js";
+} from "./workspace-actions.js";
 
 const handleWorkdir: LocalCommandHandler = async ({
   state,
@@ -45,7 +44,7 @@ const handleSaveWorkspace: LocalCommandHandler = async ({
   if (!workspaceFile) throw new Error("Workspace file is not configured");
   const name = args.trim();
   if (!name) {
-    await openSaveWorkspaceOverlay(state, tui, workspaceFile);
+    await openSaveWorkspaceOverlay(state, tui, workspaceFile, runtime, onStateChanged);
     await onStateChanged?.(state);
     return SKIP_FINALIZE;
   }
@@ -63,7 +62,7 @@ const handleRestoreWorkspace: LocalCommandHandler = async ({
   if (!workspaceFile) throw new Error("Workspace file is not configured");
   const name = args.trim();
   if (!name) {
-    await openWorkspaceSelector(state, tui, workspaceFile, "restore");
+    await openWorkspaceSelector(state, tui, workspaceFile, "restore", runtime, onStateChanged);
     await onStateChanged?.(state);
     return SKIP_FINALIZE;
   }
@@ -73,6 +72,7 @@ const handleRestoreWorkspace: LocalCommandHandler = async ({
 const handleDeleteWorkspace: LocalCommandHandler = async ({
   state,
   args,
+  runtime,
   tui,
   onStateChanged,
   workspaceFile,
@@ -80,7 +80,7 @@ const handleDeleteWorkspace: LocalCommandHandler = async ({
   if (!workspaceFile) throw new Error("Workspace file is not configured");
   const name = args.trim();
   if (!name) {
-    await openWorkspaceSelector(state, tui, workspaceFile, "delete");
+    await openWorkspaceSelector(state, tui, workspaceFile, "delete", runtime, onStateChanged);
     await onStateChanged?.(state);
     return SKIP_FINALIZE;
   }

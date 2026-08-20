@@ -48,10 +48,14 @@ test("deleting a session via the selector invokes trash exactly once", async () 
     fakeTrash(cmd)) as never;
 
   try {
-    const [{ createInitialState, createTab }, { openSessionSelector }, { SessionSelectorComponent }] =
+    const [
+      { createInitialState, createTab },
+      { openSessionSelector, getSessionSelectorComponent },
+      { SessionSelectorComponent },
+    ] =
       await Promise.all([
         import("./helpers/mixcode.js"),
-        import("../src/ui/session-selector.js"),
+        import("../src/ui/session-resume.js"),
         import("@earendil-works/pi-coding-agent"),
       ]);
 
@@ -103,7 +107,7 @@ test("deleting a session via the selector invokes trash exactly once", async () 
     await Bun.sleep(30);
     assert.ok(mounted, "selector must be mounted");
 
-    const component = state.sessionSelector.component as InstanceType<
+    const component = getSessionSelectorComponent(state) as InstanceType<
       typeof SessionSelectorComponent
     >;
     assert.ok(component);

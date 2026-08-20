@@ -16,9 +16,9 @@ import {
 } from "./app-actions.js";
 import { showLinesOverlay } from "./app-overlays.js";
 import { type LocalCommandHandler, SKIP_FINALIZE } from "./app-types.js";
-import { openExtensionManager } from "./extension-manager.js";
+import { openExtensionManager } from "./components/extension-manager.js";
 import { clearConversationCache, renderPickerOverlay } from "./rendering.js";
-import { openSettingsPanel } from "./settings-panel.js";
+import { openSettingsPanel } from "./components/settings-panel.js";
 
 const handleModels: LocalCommandHandler = async ({
   state,
@@ -178,8 +178,8 @@ const handleLogout: LocalCommandHandler = async ({ state, runtime, authInputHost
   return undefined;
 };
 
-const handleExtensionManager: LocalCommandHandler = ({ state, runtime, tui }) => {
-  openExtensionManager(state, runtime, tui);
+const handleExtensionManager: LocalCommandHandler = ({ state, runtime, tui, onStateChanged }) => {
+  openExtensionManager(state, runtime, tui, onStateChanged);
   return undefined;
 };
 

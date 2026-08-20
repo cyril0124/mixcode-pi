@@ -15,7 +15,7 @@ import { loadMixCodeSettings } from "../core/mixcode-settings.js";
 import { configureDisabledModelRuntime } from "../core/pi-models.js";
 import { DEFAULT_MODEL_REF } from "../core/defaults.js";
 import { closeActiveOverlay, openOverlay } from "../core/overlays.js";
-import { closeTreeSelector } from "./tree-selector.js";
+import { closeTreeSelector } from "./components/tree-selector.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import { getActiveTab } from "../core/tabs.js";
 import { isThinkingLevelAvailable, validThinkingLevelsMessage } from "../core/thinking-levels.js";

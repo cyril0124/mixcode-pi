@@ -48,7 +48,8 @@ src/
     ├── app.ts                pi-tui Root、Editor、全局键处理
     ├── agent-tab-actions.ts  openExistingAgentTab / closeExistingAgentTab 等 tab 生命周期操作
     ├── rendering.ts          header/tab/status/panel/floating panel 渲染
-    └── completion.ts         /、@ 两类补全（$skill 补全由 mpi-skill-refs 扩展提供）
+    └── components/           自包含 widget/overlay（选择器、设置面板、扩展管理器等）
+        └── completion.ts     /、@ 两类补全（$skill 补全由 mpi-skill-refs 扩展提供）
 ```
 
 ## 运行时映射

@@ -4,8 +4,7 @@ import { SettingsManager } from "@earendil-works/pi-coding-agent";
 import { stripTerminalSequences as stripAnsi } from "@earendil-works/pi-tui";
 import { createInitialState, createPicker } from "./helpers/mixcode.js";
 import { renderPickerOverlay } from "../src/ui/rendering/overlays.js";
-import { renderSettingsPanel } from "../src/ui/settings-panel.js";
-import { selectSettingsItemByLabel } from "./helpers/settings-panel.js";
+import { createSettingsPanel, selectSettingsItemByLabel } from "./helpers/settings-panel.js";
 
 function manyModels(count: number) {
   return Array.from({ length: count }, (_, i) => ({
@@ -62,20 +61,12 @@ test("thinking picker windows long lists around the selection", () => {
 test("settings enum options window around enumIndex", () => {
   const state = createInitialState("/repo");
   state.availableModels = manyModels(40);
-  state.settingsPanel = {
-    open: true,
-    selectedIndex: 2, // Default model enum item
-    editMode: false,
-    editText: "",
-    enumOpen: true,
-    enumIndex: 30,
-    mixcodeRaw: {},
-    mixcodeFile: "/tmp/mixcode_settings.json",
-    piSettingsFile: "/tmp/settings.json",
-    settingsManager: SettingsManager.inMemory(),
-  };
+  const panel = createSettingsPanel(state, SettingsManager.inMemory());
+  panel.selectedIndex = 2; // Default model enum item
+  panel.enumOpen = true;
+  panel.enumIndex = 30;
 
-  const plain = stripAnsi(renderSettingsPanel(state, 80).join("\n"));
+  const plain = stripAnsi(panel.render(80).join("\n"));
   assert.match(plain, /› m30\b|m30/);
   const optionRows = plain.split("\n").filter((line) => /\bm\d{2}\b/.test(line)).length;
   assert.ok(optionRows < 40, `expected windowed enum options, got ${optionRows}`);
@@ -90,20 +81,12 @@ test("settings enum open keeps panel short so selection is not head-clipped", ()
   // row into the overlay; TUI maxHeight then sliced the head and hid the caret.
   const state = createInitialState("/repo");
   state.availableModels = manyModels(40);
-  state.settingsPanel = {
-    open: true,
-    selectedIndex: 2,
-    editMode: false,
-    editText: "",
-    enumOpen: true,
-    enumIndex: 30,
-    mixcodeRaw: {},
-    mixcodeFile: "/tmp/mixcode_settings.json",
-    piSettingsFile: "/tmp/settings.json",
-    settingsManager: SettingsManager.inMemory(),
-  };
+  const panel = createSettingsPanel(state, SettingsManager.inMemory());
+  panel.selectedIndex = 2;
+  panel.enumOpen = true;
+  panel.enumIndex = 30;
 
-  const lines = renderSettingsPanel(state, 80);
+  const lines = panel.render(80);
   const plain = stripAnsi(lines.join("\n"));
   assert.doesNotMatch(plain, /History max bytes/);
   assert.doesNotMatch(plain, /Collapse oversized messages/);
@@ -117,17 +100,10 @@ test("settings main list keeps the selected section visible on a very short term
   Object.defineProperty(process.stdout, "rows", { value: 10, configurable: true });
   try {
     const state = createInitialState("/repo");
-    state.settingsPanel = {
-      ...state.settingsPanel,
-      open: true,
-      selectedIndex: 15, // disabledProviders, in the Mixcode section
-      mixcodeRaw: {},
-      mixcodeFile: "/tmp/mixcode_settings.json",
-      piSettingsFile: "/tmp/settings.json",
-      settingsManager: SettingsManager.inMemory(),
-    };
+    const panel = createSettingsPanel(state, SettingsManager.inMemory());
+    panel.selectedIndex = 15; // disabledProviders, in the Mixcode section
 
-    const plain = stripAnsi(renderSettingsPanel(state, 80).join("\n"));
+    const plain = stripAnsi(panel.render(80).join("\n"));
     assert.match(plain, /Mixcode/);
     assert.match(plain, /› Disabled providers|Disabled providers/);
     assert.match(plain, /type to filter/);
@@ -146,21 +122,10 @@ test("settings main list windows so deep selection stays under overlay maxHeight
   Object.defineProperty(process.stdout, "rows", { value: 14, configurable: true });
   try {
     const state = createInitialState("/repo");
-    state.settingsPanel = {
-      open: true,
-      selectedIndex: 0,
-      editMode: false,
-      editText: "",
-      enumOpen: false,
-      enumIndex: 0,
-      mixcodeRaw: {},
-      mixcodeFile: "/tmp/mixcode_settings.json",
-      piSettingsFile: "/tmp/settings.json",
-      settingsManager: SettingsManager.inMemory(),
-    };
+    const panel = createSettingsPanel(state, SettingsManager.inMemory());
 
-    selectSettingsItemByLabel(state, "Oversized max bytes");
-    const lines = renderSettingsPanel(state, 80);
+    selectSettingsItemByLabel(panel, "Oversized max bytes");
+    const lines = panel.render(80);
     const plain = stripAnsi(lines.join("\n"));
     assert.match(plain, /› Oversized max bytes|Oversized max bytes/);
     assert.match(plain, /↑↓ select/);

@@ -42,11 +42,11 @@ import {
 } from "./chat.js";
 import { renderExtensionHeader, renderExtensionWidgets } from "./chrome.js";
 import { activeRenderTheme, renderWithTheme } from "./context.js";
-import { renderHeaderKeyHints } from "./header-hints.js";
+import { renderHeaderKeyHints } from "../components/header-hints.js";
 import { highlightVisibleColumnRanges } from "./highlight.js";
 import { fitScrolledLinesWithInfo, type ScrolledLinesResult } from "./layout.js";
 import { box, padLine } from "./primitives.js";
-import { applyToastOverlay } from "./toast-overlay.js";
+import { applyToastOverlay } from "../components/toast-overlay.js";
 
 /**
  * Convert persisted previewMessages to lightweight ChatLine[] for rendering

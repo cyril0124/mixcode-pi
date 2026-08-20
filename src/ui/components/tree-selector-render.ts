@@ -1,10 +1,10 @@
 import { stripTerminalSequences, truncateToWidth } from "@earendil-works/pi-tui";
-import { applyMixCodeKeybindings } from "../agent/runtime-pi-tui-bridge.js";
-import type { TreeSelectorState } from "../core/tree-selector.js";
-import { SUMMARIZE_OPTIONS } from "../core/tree-selector.js";
-import type { MixCodeState } from "../core/types.js";
-import { activeRenderTheme, renderWithTheme } from "./rendering/context.js";
-import { themeForId } from "./themes.js";
+import { applyMixCodeKeybindings } from "../../agent/runtime-pi-tui-bridge.js";
+import type { TreeSelectorState } from "../../core/tree-selector.js";
+import { SUMMARIZE_OPTIONS } from "../../core/tree-selector.js";
+import type { MixCodeState } from "../../core/types.js";
+import { activeRenderTheme, renderWithTheme } from "../rendering/context.js";
+import { themeForId } from "../themes.js";
 
 export function renderTreeSelector(state: MixCodeState, width: number, maxRows?: number): string[] {
   return renderWithTheme(themeForId(state.theme), () =>

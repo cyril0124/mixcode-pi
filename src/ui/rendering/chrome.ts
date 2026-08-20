@@ -13,7 +13,7 @@ import {
   workingActivityMessage,
 } from "../../core/tab-state.js";
 import { HOME_TAB_ID, type MixCodeState, type MixCodeTabInfo } from "../../core/types.js";
-import { buildLabeledTopBorder } from "../editor-top-border.js";
+import { buildLabeledTopBorder } from "../components/editor-top-border.js";
 import type { MixCodeTheme } from "../themes.js";
 import { activeRenderTheme, renderWithTheme } from "./context.js";
 import { resolveGlyphs, type IconGlyphs } from "./icons.js";

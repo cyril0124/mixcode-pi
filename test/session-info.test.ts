@@ -5,7 +5,7 @@ import {
   getUsageCostBreakdown,
   type SessionEntry,
 } from "@earendil-works/pi-coding-agent";
-import { formatSessionTokens, renderSessionInfoText } from "../src/ui/session-info.js";
+import { formatSessionTokens, renderSessionInfoText } from "../src/ui/components/session-info.js";
 
 function usage(
   input: number,

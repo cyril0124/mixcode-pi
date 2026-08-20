@@ -19,10 +19,9 @@ import {
 } from "../src/core/tree-selector.js";
 import { handleMouseInput } from "../src/ui/app-mouse.js";
 import { closeAppOverlay, showNoticeTextOverlay } from "../src/ui/app-overlays.js";
-import { handleTreeSelectorKey } from "../src/ui/tree-selector.js";
-import { renderTreeSelector } from "../src/ui/tree-selector-render.js";
-import { handleSettingsPanelKey, renderSettingsPanel } from "../src/ui/settings-panel.js";
-import { selectSettingsItemByLabel } from "./helpers/settings-panel.js";
+import { handleTreeSelectorKey } from "../src/ui/components/tree-selector.js";
+import { renderTreeSelector } from "../src/ui/components/tree-selector-render.js";
+import { createSettingsPanel, selectSettingsItemByLabel } from "./helpers/settings-panel.js";
 
 function messageNode(
   id: string,
@@ -99,40 +98,27 @@ test("#76 settings number edit accepts unit suffixes and prefills compact form",
   await fsPromises.writeFile(mixcodeFile, JSON.stringify({ history: { maxBytes: 5 * 1024 * 1024 } }));
   try {
     const state = createInitialState(dir);
-    state.settingsPanel = {
-      open: true,
-      selectedIndex: 0,
-      editMode: false,
-      editText: "",
-      enumOpen: false,
-      enumIndex: 0,
+    const panel = createSettingsPanel(state, SettingsManager.inMemory(), {
       mixcodeRaw: { history: { maxBytes: 5 * 1024 * 1024 } },
       mixcodeFile,
       piSettingsFile: path.join(dir, "settings.json"),
-      settingsManager: SettingsManager.inMemory(),
-    };
-    const tui = {
-      requestRender: () => undefined,
-      showOverlay: () => ({ hide: () => undefined }) as never,
-      hasOverlay: () => true,
-      hideOverlay: () => undefined,
-    };
+    });
 
-    selectSettingsItemByLabel(state, "History max bytes");
-    handleSettingsPanelKey(state, "\r", tui); // enter edit
-    assert.equal(state.settingsPanel.editMode, true);
-    assert.equal(state.settingsPanel.editText, "5mb");
+    selectSettingsItemByLabel(panel, "History max bytes");
+    panel.handleInput("\r"); // enter edit
+    assert.equal(panel.editMode, true);
+    assert.equal(panel.editText, "5mb");
 
     // Replace with 2kb
-    state.settingsPanel.editText = "";
-    for (const ch of "2kb") handleSettingsPanelKey(state, ch, tui);
-    await handleSettingsPanelKey(state, "\r", tui);
+    panel.editText = "";
+    for (const ch of "2kb") panel.handleInput(ch);
+    panel.handleInput("\r");
     // setValue is async
     await Bun.sleep(30);
-    assert.equal(state.settingsPanel.editMode, false);
-    assert.equal(state.settingsPanel.mixcodeRaw.history?.maxBytes, 2 * 1024);
+    assert.equal(panel.editMode, false);
+    assert.equal(panel.mixcodeRaw.history?.maxBytes, 2 * 1024);
 
-    assert.match(stripAnsi(renderSettingsPanel(state, 80).join("\n")), /2 KB/);
+    assert.match(stripAnsi(panel.render(80).join("\n")), /2 KB/);
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }
@@ -149,51 +135,35 @@ test("#76 non-byte number fields reject unit suffixes", async () => {
   );
   try {
     const state = createInitialState(dir);
-    state.settingsPanel = {
-      open: true,
-      selectedIndex: 0,
-      editMode: false,
-      editText: "",
-      enumOpen: false,
-      enumIndex: 0,
+    const panel = createSettingsPanel(state, SettingsManager.inMemory(), {
       mixcodeRaw: { ui: { oversizedAssistantMessage: { maxLines: 12 } } },
       mixcodeFile,
       piSettingsFile: path.join(dir, "settings.json"),
-      settingsManager: SettingsManager.inMemory(),
-    };
-    const tui = {
-      requestRender: () => undefined,
-      showOverlay: () => ({ hide: () => undefined }) as never,
-      hasOverlay: () => true,
-      hideOverlay: () => undefined,
-    };
+    });
 
-    selectSettingsItemByLabel(state, "Oversized max lines");
-    handleSettingsPanelKey(state, "\r", tui); // enter edit
-    assert.equal(state.settingsPanel.editMode, true);
-    assert.equal(state.settingsPanel.editText, "12");
+    selectSettingsItemByLabel(panel, "Oversized max lines");
+    panel.handleInput("\r"); // enter edit
+    assert.equal(panel.editMode, true);
+    assert.equal(panel.editText, "12");
 
-    state.settingsPanel.editText = "";
-    for (const ch of "5k") handleSettingsPanelKey(state, ch, tui);
-    await handleSettingsPanelKey(state, "\r", tui);
+    panel.editText = "";
+    for (const ch of "5k") panel.handleInput(ch);
+    panel.handleInput("\r");
     await Bun.sleep(30);
     // Invalid unit input keeps edit mode and the prior explicit value.
-    assert.equal(state.settingsPanel.editMode, true);
-    assert.equal(state.settingsPanel.editText, "5k");
-    assert.equal(state.settingsPanel.mixcodeRaw.ui?.oversizedAssistantMessage?.maxLines, 12);
-    assert.match(state.settingsPanel.editError ?? "", /Invalid number/);
-    assert.match(
-      stripAnsi(renderSettingsPanel(state, 80).join("\n")),
-      /Invalid number: "5k"/,
-    );
+    assert.equal(panel.editMode, true);
+    assert.equal(panel.editText, "5k");
+    assert.equal(panel.mixcodeRaw.ui?.oversizedAssistantMessage?.maxLines, 12);
+    assert.match(panel.editError ?? "", /Invalid number/);
+    assert.match(stripAnsi(panel.render(80).join("\n")), /Invalid number: "5k"/);
 
     // Valid plain integer still works for non-byte fields.
-    state.settingsPanel.editText = "";
-    for (const ch of "8") handleSettingsPanelKey(state, ch, tui);
-    await handleSettingsPanelKey(state, "\r", tui);
+    panel.editText = "";
+    for (const ch of "8") panel.handleInput(ch);
+    panel.handleInput("\r");
     await Bun.sleep(30);
-    assert.equal(state.settingsPanel.editMode, false);
-    assert.equal(state.settingsPanel.mixcodeRaw.ui?.oversizedAssistantMessage?.maxLines, 8);
+    assert.equal(panel.editMode, false);
+    assert.equal(panel.mixcodeRaw.ui?.oversizedAssistantMessage?.maxLines, 8);
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }

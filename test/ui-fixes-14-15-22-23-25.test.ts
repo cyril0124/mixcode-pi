@@ -13,7 +13,7 @@ import {
   renderHome,
 } from "./helpers/mixcode.js";
 import { renderDeleteAllSessionsConfirm } from "../src/ui/app-overlays.js";
-import { handleSettingsPanelKey, renderSettingsPanel } from "../src/ui/settings-panel.js";
+import { createSettingsPanel } from "./helpers/settings-panel.js";
 import { themeForId } from "../src/ui/themes.js";
 import { selectSettingsItemByLabel } from "./helpers/settings-panel.js";
 
@@ -60,67 +60,35 @@ test("workdir picker lists more than 20 dirs with overflow affordance", async ()
 test("theme enum opens on the effective default theme", () => {
   const state = createInitialState("/repo");
   state.theme = "claude-warm";
-  state.settingsPanel = {
-    open: true,
-    selectedIndex: 0,
-    editMode: false,
-    editText: "",
-    enumOpen: false,
-    enumIndex: 0,
-    mixcodeRaw: {},
-    mixcodeFile: "/tmp/mixcode_settings.json",
-    piSettingsFile: "/tmp/settings.json",
-    settingsManager: SettingsManager.inMemory(),
-  };
-  const tui = {
-    requestRender: () => undefined,
-    showOverlay: () => ({ hide: () => undefined }) as never,
-    hasOverlay: () => true,
-    hideOverlay: () => undefined,
-  };
+  const panel = createSettingsPanel(state, SettingsManager.inMemory());
 
-  selectSettingsItemByLabel(state, "Theme");
-  handleSettingsPanelKey(state, "\r", tui);
+  selectSettingsItemByLabel(panel, "Theme");
+  panel.handleInput("\r");
 
   assert.equal(state.theme, "claude-warm");
-  assert.match(stripAnsi(renderSettingsPanel(state, 80).join("\n")), /› claude-warm/);
+  assert.match(stripAnsi(panel.render(80).join("\n")), /› claude-warm/);
 });
 
 test("theme enum browse applies live preview and Esc restores previous theme", () => {
   const state = createInitialState("/repo");
   state.theme = "claude-warm";
-  state.settingsPanel = {
-    open: true,
-    selectedIndex: 0,
-    editMode: false,
-    editText: "",
-    enumOpen: false,
-    enumIndex: 0,
+  const panel = createSettingsPanel(state, SettingsManager.inMemory(), {
     mixcodeRaw: { theme: "claude-warm" },
-    mixcodeFile: "/tmp/mixcode_settings.json",
-    piSettingsFile: "/tmp/settings.json",
-    settingsManager: SettingsManager.inMemory(),
-  };
-  const tui = {
-    requestRender: () => undefined,
-    showOverlay: () => ({ hide: () => undefined }) as never,
-    hasOverlay: () => true,
-    hideOverlay: () => undefined,
-  };
+  });
 
-  selectSettingsItemByLabel(state, "Theme");
-  handleSettingsPanelKey(state, "\r", tui); // open enum on the effective theme
+  selectSettingsItemByLabel(panel, "Theme");
+  panel.handleInput("\r"); // open enum on the effective theme
 
   // Browse to another theme id.
-  handleSettingsPanelKey(state, "\x1b[B", tui); // down
+  panel.handleInput("\x1b[B"); // down
   assert.notEqual(state.theme, "claude-warm");
 
   // Esc cancels without persisting: restore file/original theme.
-  handleSettingsPanelKey(state, "\x1b", tui);
-  assert.equal(state.settingsPanel.enumOpen, false);
+  panel.handleInput("\x1b");
+  assert.equal(panel.enumOpen, false);
   assert.equal(state.theme, "claude-warm");
 
-  assert.match(stripAnsi(renderSettingsPanel(state, 80).join("\n")), /Theme/);
+  assert.match(stripAnsi(panel.render(80).join("\n")), /Theme/);
 });
 
 test("defaultModel enum only lists models for the selected defaultProvider", () => {
@@ -133,28 +101,12 @@ test("defaultModel enum only lists models for the selected defaultProvider", () 
   const settingsManager = SettingsManager.inMemory();
   settingsManager.setDefaultProvider("openai");
   settingsManager.setDefaultModel("gpt-4o");
-  state.settingsPanel = {
-    open: true,
-    selectedIndex: 2, // defaultModel (hideThinking, defaultProvider, defaultModel)
-    editMode: false,
-    editText: "",
-    enumOpen: false,
-    enumIndex: 0,
-    mixcodeRaw: {},
-    mixcodeFile: "/tmp/mixcode_settings.json",
-    piSettingsFile: "/tmp/settings.json",
-    settingsManager,
-  };
-  const tui = {
-    requestRender: () => undefined,
-    showOverlay: () => ({ hide: () => undefined }) as never,
-    hasOverlay: () => true,
-    hideOverlay: () => undefined,
-  };
+  const panel = createSettingsPanel(state, settingsManager);
+  panel.selectedIndex = 2; // defaultModel (hideThinking, defaultProvider, defaultModel)
 
-  handleSettingsPanelKey(state, "\r", tui); // open enum
-  assert.equal(state.settingsPanel.enumOpen, true);
-  const view = stripAnsi(renderSettingsPanel(state, 80).join("\n"));
+  panel.handleInput("\r"); // open enum
+  assert.equal(panel.enumOpen, true);
+  const view = stripAnsi(panel.render(80).join("\n"));
   assert.match(view, /gpt-4o/);
   assert.match(view, /\bo3\b/);
   assert.doesNotMatch(view, /claude-opus-4-5/);

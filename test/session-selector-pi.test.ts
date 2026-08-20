@@ -19,10 +19,11 @@ import { applyMixCodeKeybindings } from "../src/agent/runtime-pi-tui-bridge.js";
 import { handleMixCodeKeyInput } from "../src/ui/app-input.js";
 import {
   closeSessionSelector,
+  getSessionSelectorComponent,
   openSessionSelector,
   renameOpenSession,
   resumeSelectedSession,
-} from "../src/ui/session-selector.js";
+} from "../src/ui/session-resume.js";
 
 function makeSessions(): SessionInfo[] {
   return [
@@ -115,7 +116,7 @@ test("submitted /resume mounts SessionSelectorComponent in the editor input slot
   );
 
   assert.equal(state.sessionSelector.open, true);
-  assert.ok(state.sessionSelector.component instanceof SessionSelectorComponent);
+  assert.ok(getSessionSelectorComponent(state) instanceof SessionSelectorComponent);
   // Host wraps component for keybindings bridge; inner is still on state.
   assert.ok(input.mounted);
   assert.notEqual(input.mounted, undefined);
@@ -253,7 +254,7 @@ test("openSessionSelector returns without waiting for listing; close clears inpu
   ]);
   assert.equal(returned, true, "opening must not wait for disk scanning");
   assert.equal(state.sessionSelector.open, true);
-  assert.ok(state.sessionSelector.component);
+  assert.ok(getSessionSelectorComponent(state));
   assert.ok(input.mounted);
 
   closeSessionSelector(state, tui as never);
@@ -261,7 +262,7 @@ test("openSessionSelector returns without waiting for listing; close clears inpu
   await new Promise((resolve) => setImmediate(resolve));
 
   assert.equal(state.sessionSelector.open, false);
-  assert.equal(state.sessionSelector.component, undefined);
+  assert.equal(getSessionSelectorComponent(state), undefined);
   assert.ok(input.cleared >= 1);
   assert.equal(input.mounted, undefined);
 });
@@ -512,7 +513,6 @@ test("resumeSelectedSession opens a new tab and switches to the target session",
   const active = createTab(1, "s-active", "/repo", { title: "Active" });
   state.tabs.push(active);
   state.activeTabId = "s-active";
-  state.sessionSelector.currentSessionPath = "/sessions/current.jsonl";
 
   const switched: Array<{ id: string; path: string }> = [];
   const created: string[] = [];
@@ -551,6 +551,7 @@ test("resumeSelectedSession opens a new tab and switches to the target session",
     "/sessions/session-a.jsonl",
     "My Session",
     "session-a",
+    "/sessions/current.jsonl",
     runtime as never,
   );
 
@@ -596,6 +597,7 @@ test("resumeSelectedSession focuses an already-open tab instead of creating anot
     "/sessions/session-b.jsonl",
     "Two",
     "session-b",
+    null,
     runtime as never,
   );
 

@@ -1,11 +1,12 @@
 /**
- * /settings — floating overlay, same pattern as the command palette:
- *   state.settingsPanel + showLinesOverlay(renderSettingsPanel) + handleSettingsPanelKey
+ * /settings — floating overlay in upstream pi component style: filter / edit /
+ * enum state lives in the SettingsPanel class, input arrives via TUI focus,
+ * and app state keeps only the routing flag (state.settingsPanel.open).
  */
 
-import { isKeyRelease, matchesKey, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { matchesKey, truncateToWidth, visibleWidth, type Component } from "@earendil-works/pi-tui";
 import type { SettingsManager } from "@earendil-works/pi-coding-agent";
-import { homeDir } from "../core/paths.js";
+import { homeDir } from "../../core/paths.js";
 import {
   DEFAULT_HISTORY_MAX_BYTES,
   DEFAULT_ICON_MODE,
@@ -16,27 +17,22 @@ import {
   writeRawMixCodeSettings,
   type IconMode,
   type RawMixCodeSettings,
-} from "../core/mixcode-settings.js";
-import type {
-  MermaidRenderingMode,
-  MixCodeModelRef,
-  MixCodeState,
-  SettingsPanelState,
-} from "../core/types.js";
-import type { OverlayTui } from "./app-types.js";
-import { closeAppOverlay, showLinesOverlay } from "./app-overlays.js";
-import { clearConversationCache } from "./rendering/agent-surface.js";
-import { activeRenderTheme, renderWithTheme } from "./rendering/context.js";
-import { overlayPanel, padLine } from "./rendering/primitives.js";
-import { windowStart } from "./rendering/scroll-window.js";
+} from "../../core/mixcode-settings.js";
+import type { MixCodeModelRef, MixCodeState } from "../../core/types.js";
+import type { OverlayTui } from "../app-types.js";
+import { closeAppOverlay, showComponentOverlay } from "../app-overlays.js";
+import { clearConversationCache } from "../rendering/agent-surface.js";
+import { activeRenderTheme, renderWithTheme } from "../rendering/context.js";
+import { overlayPanel, padLine } from "../rendering/primitives.js";
+import { windowStart } from "../rendering/scroll-window.js";
 import {
   getExplicitRetryMaxRetries,
   MIXCODE_RETRY_DEFAULTS,
   setRetryMaxRetries,
-} from "../agent/retry-settings.js";
-import { DEFAULT_THEME_ID } from "../core/defaults.js";
-import { fuzzyMatch } from "../core/fuzzy.js";
-import { listThemeInfos, setTheme, themeForId } from "./themes.js";
+} from "../../agent/retry-settings.js";
+import { DEFAULT_THEME_ID } from "../../core/defaults.js";
+import { fuzzyMatch } from "../../core/fuzzy.js";
+import { listThemeInfos, setTheme, themeForId } from "../themes.js";
 
 // ─── Setting item descriptors ────────────────────────────────────────────────
 
@@ -389,6 +385,60 @@ function mergeOversized(
 
 // ─── Open / close ────────────────────────────────────────────────────────────
 
+export interface SettingsPanelDeps {
+  /** Read-only render source (theme, models) and live-effect target. */
+  state: MixCodeState;
+  tui: OverlayTui;
+  settingsManager: SettingsManager;
+  /** Production path for hideThinkingBlock so persistence errors surface. */
+  setHideThinkingBlock?: (hide: boolean) => Promise<void>;
+}
+
+export class SettingsPanel implements Component {
+  selectedIndex = 0;
+  filterQuery = "";
+  editMode = false;
+  editText = "";
+  /** Inline validation error shown in the settings footer while editing. */
+  editError?: string;
+  enumOpen = false;
+  enumIndex = 0;
+  /** Snapshot of raw mixcode settings; mutated in place on write. */
+  mixcodeRaw: RawMixCodeSettings;
+  mixcodeFile: string;
+  /** Absolute path to Pi global settings.json (display only). */
+  piSettingsFile: string;
+
+  constructor(
+    readonly deps: SettingsPanelDeps,
+    init: { mixcodeRaw: RawMixCodeSettings; mixcodeFile: string; piSettingsFile: string },
+  ) {
+    this.mixcodeRaw = init.mixcodeRaw;
+    this.mixcodeFile = init.mixcodeFile;
+    this.piSettingsFile = init.piSettingsFile;
+  }
+
+  invalidate(): void {}
+
+  render(width: number): string[] {
+    return renderWithTheme(themeForId(this.deps.state.theme), () =>
+      renderSettingsPanelInner(this, width),
+    );
+  }
+
+  handleInput(data: string): void {
+    if (this.editMode) {
+      handleEdit(this, data);
+      return;
+    }
+    if (this.enumOpen) {
+      handleEnum(this, data);
+      return;
+    }
+    handleNormal(this, data);
+  }
+}
+
 export async function openSettingsPanel(
   state: MixCodeState,
   tui: OverlayTui,
@@ -398,56 +448,42 @@ export async function openSettingsPanel(
   runtimeRef: {
     setHideThinkingBlock?: (hide: boolean) => Promise<void>;
   },
-): Promise<void> {
+): Promise<SettingsPanel> {
   const mixcodeRaw = await loadRawMixCodeSettings(mixcodeFile);
-  state.settingsPanel = {
-    open: true,
-    selectedIndex: 0,
-    filterQuery: "",
-    editMode: false,
-    editText: "",
-    editError: undefined,
-    enumOpen: false,
-    enumIndex: 0,
-    mixcodeRaw,
-    mixcodeFile,
-    piSettingsFile,
-    settingsManager,
-    setHideThinkingBlock: runtimeRef.setHideThinkingBlock,
-  };
-  refreshSettingsPanel(state, tui);
+  const panel = new SettingsPanel(
+    { state, tui, settingsManager, setHideThinkingBlock: runtimeRef.setHideThinkingBlock },
+    { mixcodeRaw, mixcodeFile, piSettingsFile },
+  );
+  state.settingsPanel.open = true;
+  showComponentOverlay(tui, panel);
+  tui.requestRender();
+  return panel;
 }
 
 export function closeSettingsPanel(state: MixCodeState, tui: OverlayTui): void {
   state.settingsPanel.open = false;
-  state.settingsPanel.filterQuery = "";
-  state.settingsPanel.editMode = false;
-  state.settingsPanel.enumOpen = false;
   closeAppOverlay(tui);
   tui.requestRender();
 }
 
-function refreshSettingsPanel(state: MixCodeState, tui: OverlayTui): void {
-  showLinesOverlay(tui, (width) => renderSettingsPanel(state, width));
-  tui.requestRender();
+function refreshSettingsPanel(panel: SettingsPanel): void {
+  panel.deps.tui.requestRender();
 }
 
 /**
  * Settings writes hit the persistent store first; live UI reads from MixCodeState.
  * Mirror the written values into state so the change is visible without restart.
  */
-function applyLiveEffects(state: MixCodeState): void {
-  const panel = state.settingsPanel;
-  if (panel.settingsManager) {
-    const sm = panel.settingsManager;
-    state.hideThinkingBlock = sm.getHideThinkingBlock();
-    state.showImages = sm.getShowImages();
-    state.imageWidthCells = sm.getImageWidthCells();
-    state.mermaidRenderingMode = sm.getMermaidRenderingMode();
-  }
+function applyLiveEffects(panel: SettingsPanel): void {
+  const state = panel.deps.state;
+  const sm = panel.deps.settingsManager;
+  state.hideThinkingBlock = sm.getHideThinkingBlock();
+  state.showImages = sm.getShowImages();
+  state.imageWidthCells = sm.getImageWidthCells();
+  state.mermaidRenderingMode = sm.getMermaidRenderingMode();
   const raw = panel.mixcodeRaw;
   // Theme: explicit file value, else runtime default (dim path in the panel).
-  setTheme(state, raw.theme ?? DEFAULT_THEME_ID);
+  setTheme(panel.deps.state, raw.theme ?? DEFAULT_THEME_ID);
   const oversized = raw.ui?.oversizedAssistantMessage;
   state.ui = {
     oversizedAssistantMessage: {
@@ -488,8 +524,8 @@ const ITEM_LABELS: Record<string, string> = {
   disabledModels: "Disabled models",
 };
 
-function filteredSettingIndexes(panel: SettingsPanelState): number[] {
-  const query = panel.filterQuery?.trim() ?? "";
+function filteredSettingIndexes(panel: SettingsPanel): number[] {
+  const query = panel.filterQuery.trim();
   if (!query) return ITEMS.map((_, index) => index);
   return ITEMS.flatMap((item, index) => {
     const label = ITEM_LABELS[item.label] ?? item.label;
@@ -499,14 +535,8 @@ function filteredSettingIndexes(panel: SettingsPanelState): number[] {
   });
 }
 
-export function renderSettingsPanel(state: MixCodeState, width: number): string[] {
-  return renderWithTheme(themeForId(state.theme), () => renderSettingsPanelInner(state, width));
-}
-
-function renderSettingsPanelInner(state: MixCodeState, width: number): string[] {
-  const panel = state.settingsPanel;
-  const ctx = panelCtx(state);
-  if (!ctx) return overlayPanel("Settings", ["Settings manager not available."], width);
+function renderSettingsPanelInner(panel: SettingsPanel, width: number): string[] {
+  const ctx = panelCtx(panel);
 
   const t = activeRenderTheme;
   const dim = (s: string) => t.dim(s);
@@ -577,7 +607,7 @@ function settingsOverlayBodyBudget(): number {
 }
 
 function renderMainSettingsLines(
-  panel: SettingsPanelState,
+  panel: SettingsPanel,
   ctx: PanelCtx,
   ui: {
     dim: (s: string) => string;
@@ -592,7 +622,7 @@ function renderMainSettingsLines(
   },
 ): string[] {
   const { dim, accent, sel, innerWidth, labelCol, valueCol, gap, sectionHeader, pathLine } = ui;
-  const filterQuery = panel.filterQuery ?? "";
+  const filterQuery = panel.filterQuery;
   const visibleIndexes = filteredSettingIndexes(panel);
   const filterLine = filterQuery
     ? `  ${dim("filter:")} ${filterQuery}  ${dim(`${visibleIndexes.length}/${ITEMS.length}`)}`
@@ -721,7 +751,7 @@ function renderMainSettingsLines(
 }
 
 function renderEnumFocusLines(
-  panel: SettingsPanelState,
+  panel: SettingsPanel,
   ctx: PanelCtx,
   item: EnumItem | MultiEnumItem,
   ui: {
@@ -864,52 +894,29 @@ export function formatSettingsPath(filePath: string, maxWidth: number): string {
   return `${display.slice(0, head)}${ellipsis}${display.slice(display.length - tail)}`;
 }
 
-function panelCtx(state: MixCodeState): PanelCtx | undefined {
-  const panel = state.settingsPanel;
-  if (!panel.settingsManager) return undefined;
+function panelCtx(panel: SettingsPanel): PanelCtx {
+  const { state, settingsManager, setHideThinkingBlock } = panel.deps;
   return {
     state,
-    settingsManager: panel.settingsManager,
+    settingsManager,
     mixcodeRaw: panel.mixcodeRaw,
     mixcodeFile: panel.mixcodeFile,
     piSettingsFile: panel.piSettingsFile,
-    setHideThinkingBlock: panel.setHideThinkingBlock,
+    setHideThinkingBlock,
     availableModels: state.availableModels,
   };
 }
 
 // ─── Key handler ─────────────────────────────────────────────────────────────
 
-export function handleSettingsPanelKey(
-  state: MixCodeState,
-  data: string,
-  tui: OverlayTui,
-): boolean {
-  if (!state.settingsPanel.open) return false;
-  if (isKeyRelease(data)) return true;
-
-  const panel = state.settingsPanel;
-  if (panel.editMode) {
-    handleEdit(state, data, tui, panel);
-    return true;
-  }
-  if (panel.enumOpen) {
-    handleEnum(state, data, tui, panel);
-    return true;
-  }
-  handleNormal(state, data, tui, panel);
-  return true;
-}
-
 function saveSetting(
-  state: MixCodeState,
-  tui: OverlayTui,
+  panel: SettingsPanel,
   item: SettingItem,
   ctx: PanelCtx,
   write: () => Promise<void>,
   onSuccess: () => void,
 ): void {
-  state.settingsPanel.editError = undefined;
+  panel.editError = undefined;
   void (async () => {
     try {
       await write();
@@ -933,20 +940,15 @@ function saveSetting(
           `reload failed: ${reloadError instanceof Error ? reloadError.message : String(reloadError)}`,
         );
       }
-      applyLiveEffects(state);
+      applyLiveEffects(panel);
       const label = ITEM_LABELS[item.label] ?? item.label;
-      state.settingsPanel.editError = `Failed to save ${label}: ${messages.join("; ")}`;
-      refreshSettingsPanel(state, tui);
+      panel.editError = `Failed to save ${label}: ${messages.join("; ")}`;
+      refreshSettingsPanel(panel);
     }
   })();
 }
 
-function handleNormal(
-  state: MixCodeState,
-  data: string,
-  tui: OverlayTui,
-  panel: SettingsPanelState,
-): void {
+function handleNormal(panel: SettingsPanel, data: string): void {
   const visibleIndexes = filteredSettingIndexes(panel);
   const selectedPosition = visibleIndexes.indexOf(panel.selectedIndex);
   if (matchesKey(data, "up") || data === "\x1b[A") {
@@ -954,35 +956,34 @@ function handleNormal(
     const nextPosition =
       (Math.max(0, selectedPosition) - 1 + visibleIndexes.length) % visibleIndexes.length;
     panel.selectedIndex = visibleIndexes[nextPosition]!;
-    refreshSettingsPanel(state, tui);
+    refreshSettingsPanel(panel);
   } else if (matchesKey(data, "down") || data === "\x1b[B") {
     if (visibleIndexes.length === 0) return;
     const nextPosition = (Math.max(-1, selectedPosition) + 1) % visibleIndexes.length;
     panel.selectedIndex = visibleIndexes[nextPosition]!;
-    refreshSettingsPanel(state, tui);
+    refreshSettingsPanel(panel);
   } else if (matchesKey(data, "return") || data === "\r" || data === "\n") {
     if (!visibleIndexes.includes(panel.selectedIndex)) return;
     const item = ITEMS[panel.selectedIndex];
-    const ctx = panelCtx(state);
-    if (!item || !ctx) return;
+    const ctx = panelCtx(panel);
+    if (!item) return;
     if (item.kind === "boolean") {
       const cur = item.getValue(ctx) ?? item.defaultValue;
       saveSetting(
-        state,
-        tui,
+        panel,
         item,
         ctx,
         () => item.setValue(ctx, !cur),
         () => {
-          applyLiveEffects(state);
-          refreshSettingsPanel(state, tui);
+          applyLiveEffects(panel);
+          refreshSettingsPanel(panel);
         },
       );
     } else if (item.kind === "number") {
       const cur = item.getValue(ctx);
       panel.editMode = true;
       panel.editText = settingsNumberEditPrefill(cur, isByteSizeSetting(item));
-      refreshSettingsPanel(state, tui);
+      refreshSettingsPanel(panel);
     } else if (item.kind === "enum" || item.kind === "multi-enum") {
       const opts = item.getOptions(ctx);
       panel.enumOpen = true;
@@ -992,30 +993,30 @@ function handleNormal(
         // Theme: start browse preview on the currently highlighted option.
         if (item.label === "theme") {
           const preview = opts[panel.enumIndex] ?? cur;
-          if (preview) setTheme(state, preview);
+          if (preview) setTheme(panel.deps.state, preview);
         }
       } else {
         panel.enumIndex = 0;
       }
-      refreshSettingsPanel(state, tui);
+      refreshSettingsPanel(panel);
     }
   } else if (matchesKey(data, "escape") || data === "\x1b") {
     if (panel.filterQuery) {
       updateSettingsFilter(panel, "");
-      refreshSettingsPanel(state, tui);
+      refreshSettingsPanel(panel);
     } else {
-      closeSettingsPanel(state, tui);
+      closeSettingsPanel(panel.deps.state, panel.deps.tui);
     }
   } else if (matchesKey(data, "backspace") || data === "\x7f") {
-    updateSettingsFilter(panel, (panel.filterQuery ?? "").slice(0, -1));
-    refreshSettingsPanel(state, tui);
+    updateSettingsFilter(panel, panel.filterQuery.slice(0, -1));
+    refreshSettingsPanel(panel);
   } else if (data.length > 0 && !/[\x00-\x1f\x7f]/.test(data)) {
-    updateSettingsFilter(panel, (panel.filterQuery ?? "") + data);
-    refreshSettingsPanel(state, tui);
+    updateSettingsFilter(panel, panel.filterQuery + data);
+    refreshSettingsPanel(panel);
   }
 }
 
-function updateSettingsFilter(panel: SettingsPanelState, query: string): void {
+function updateSettingsFilter(panel: SettingsPanel, query: string): void {
   panel.filterQuery = query;
   const visibleIndexes = filteredSettingIndexes(panel);
   if (!visibleIndexes.includes(panel.selectedIndex) && visibleIndexes[0] !== undefined) {
@@ -1023,31 +1024,25 @@ function updateSettingsFilter(panel: SettingsPanelState, query: string): void {
   }
 }
 
-function handleEdit(
-  state: MixCodeState,
-  data: string,
-  tui: OverlayTui,
-  panel: SettingsPanelState,
-): void {
+function handleEdit(panel: SettingsPanel, data: string): void {
   if (matchesKey(data, "return") || data === "\r" || data === "\n") {
     const item = ITEMS[panel.selectedIndex] as NumberItem | undefined;
-    const ctx = panelCtx(state);
-    if (item?.kind === "number" && ctx) {
+    const ctx = panelCtx(panel);
+    if (item?.kind === "number") {
       const trimmed = panel.editText.trim();
       // Empty input clears the explicit override (restore default).
       if (trimmed === "") {
         saveSetting(
-          state,
-          tui,
+          panel,
           item,
           ctx,
           () => item.setValue(ctx, undefined),
           () => {
-            applyLiveEffects(state);
+            applyLiveEffects(panel);
             panel.editMode = false;
             panel.editText = "";
             panel.editError = undefined;
-            refreshSettingsPanel(state, tui);
+            refreshSettingsPanel(panel);
           },
         );
         return;
@@ -1058,21 +1053,20 @@ function handleEdit(
         panel.editError = isByteSizeSetting(item)
           ? `Invalid number: "${trimmed}" (use N, Nkb, or Nmb)`
           : `Invalid number: "${trimmed}" (positive integer)`;
-        refreshSettingsPanel(state, tui);
+        refreshSettingsPanel(panel);
         return;
       }
       saveSetting(
-        state,
-        tui,
+        panel,
         item,
         ctx,
         () => item.setValue(ctx, parsed),
         () => {
-          applyLiveEffects(state);
+          applyLiveEffects(panel);
           panel.editMode = false;
           panel.editText = "";
           panel.editError = undefined;
-          refreshSettingsPanel(state, tui);
+          refreshSettingsPanel(panel);
         },
       );
       return;
@@ -1080,42 +1074,37 @@ function handleEdit(
     panel.editMode = false;
     panel.editText = "";
     panel.editError = undefined;
-    refreshSettingsPanel(state, tui);
+    refreshSettingsPanel(panel);
   } else if (matchesKey(data, "escape") || data === "\x1b") {
     panel.editMode = false;
     panel.editText = "";
     panel.editError = undefined;
-    refreshSettingsPanel(state, tui);
+    refreshSettingsPanel(panel);
   } else if (matchesKey(data, "backspace") || data === "\x7f") {
     panel.editText = panel.editText.slice(0, -1);
     panel.editError = undefined;
-    refreshSettingsPanel(state, tui);
+    refreshSettingsPanel(panel);
   } else if (data.length === 1 && /[\d.a-zA-Z]/.test(data)) {
     panel.editText += data;
     panel.editError = undefined;
-    refreshSettingsPanel(state, tui);
+    refreshSettingsPanel(panel);
   }
 }
 
-function handleEnum(
-  state: MixCodeState,
-  data: string,
-  tui: OverlayTui,
-  panel: SettingsPanelState,
-): void {
+function handleEnum(panel: SettingsPanel, data: string): void {
   const item = ITEMS[panel.selectedIndex];
-  const ctx = panelCtx(state);
-  if (!item || !ctx || (item.kind !== "enum" && item.kind !== "multi-enum")) return;
+  const ctx = panelCtx(panel);
+  if (!item || item.kind !== "enum" && item.kind !== "multi-enum") return;
   const opts = item.getOptions(ctx);
 
   if (matchesKey(data, "up") || data === "\x1b[A") {
     panel.enumIndex = opts.length === 0 ? 0 : (panel.enumIndex - 1 + opts.length) % opts.length;
-    if (item.kind === "enum") previewEnumSelection(state, item, opts[panel.enumIndex]);
-    refreshSettingsPanel(state, tui);
+    if (item.kind === "enum") previewEnumSelection(panel, item, opts[panel.enumIndex]);
+    refreshSettingsPanel(panel);
   } else if (matchesKey(data, "down") || data === "\x1b[B") {
     panel.enumIndex = opts.length === 0 ? 0 : (panel.enumIndex + 1) % opts.length;
-    if (item.kind === "enum") previewEnumSelection(state, item, opts[panel.enumIndex]);
-    refreshSettingsPanel(state, tui);
+    if (item.kind === "enum") previewEnumSelection(panel, item, opts[panel.enumIndex]);
+    refreshSettingsPanel(panel);
   } else if (matchesKey(data, "return") || data === "\r" || data === "\n") {
     if (item.kind === "multi-enum") {
       const current = new Set(item.getValues(ctx) ?? []);
@@ -1126,43 +1115,37 @@ function handleEnum(
       }
       const next = [...current].sort();
       saveSetting(
-        state,
-        tui,
+        panel,
         item,
         ctx,
         () => item.setValues(ctx, next.length > 0 ? next : undefined),
-        () => refreshSettingsPanel(state, tui),
+        () => refreshSettingsPanel(panel),
       );
       return;
     }
     saveSetting(
-      state,
-      tui,
+      panel,
       item,
       ctx,
       () => item.setValue(ctx, opts[panel.enumIndex]),
       () => {
-        applyLiveEffects(state);
+        applyLiveEffects(panel);
         panel.enumOpen = false;
-        refreshSettingsPanel(state, tui);
+        refreshSettingsPanel(panel);
       },
     );
   } else if (matchesKey(data, "escape") || data === "\x1b") {
     // Cancel browse preview for theme: restore the persisted/file value.
     if (item.kind === "enum" && item.label === "theme") {
-      setTheme(state, ctx.mixcodeRaw.theme ?? DEFAULT_THEME_ID);
+      setTheme(panel.deps.state, ctx.mixcodeRaw.theme ?? DEFAULT_THEME_ID);
     }
     panel.enumOpen = false;
-    refreshSettingsPanel(state, tui);
+    refreshSettingsPanel(panel);
   }
 }
 
 /** Live-preview enum values that only affect UI (currently theme). */
-function previewEnumSelection(
-  state: MixCodeState,
-  item: EnumItem,
-  value: string | undefined,
-): void {
+function previewEnumSelection(panel: SettingsPanel, item: EnumItem, value: string | undefined): void {
   if (item.label !== "theme" || value === undefined) return;
-  setTheme(state, value);
+  setTheme(panel.deps.state, value);
 }

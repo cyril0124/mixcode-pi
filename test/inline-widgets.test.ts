@@ -14,7 +14,7 @@ import {
 } from "../src/ui/app-layout.js";
 import { handleSubmittedInput } from "../src/ui/app-submit.js";
 import type { OverlayTui } from "../src/ui/app-types.js";
-import { buildLabeledTopBorder } from "../src/ui/editor-top-border.js";
+import { buildLabeledTopBorder } from "../src/ui/components/editor-top-border.js";
 import {
   renderAgentSurface,
   renderExtensionFooter,

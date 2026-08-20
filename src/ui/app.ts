@@ -18,7 +18,12 @@ import {
   MixCodeRoot,
   renderVisibleTabBar,
 } from "./app-layout.js";
-import { editTextWithTuiPaused, errorMessage, showErrorOverlay } from "./app-overlays.js";
+import {
+  appOverlayHandlesInput,
+  editTextWithTuiPaused,
+  errorMessage,
+  showErrorOverlay,
+} from "./app-overlays.js";
 import {
   activeExtensionCommands,
   bindLiveExtensionRedraw,
@@ -28,18 +33,18 @@ import {
   hydrateTabPromptHistory,
 } from "./app-runtime.js";
 import { handleSubmittedInput } from "./app-submit.js";
-import { attachTreeSelectorDisplayHost } from "./tree-selector.js";
+import { attachTreeSelectorDisplayHost } from "./components/tree-selector.js";
 import {
   MixCodeCompletionProvider,
   type MixCodeCompletionSources,
   type MixCodeSkillCompletionSource,
-} from "./completion.js";
+} from "./components/completion.js";
 import { renderExtensionFooter, renderFooter } from "./rendering.js";
 import { InjectingTerminal, withMouseReporting } from "./terminal.js";
 import { installStdoutScreenGuard, withHostStdoutGuard } from "./stdout-screen-guard.js";
 import { noteActiveExtensionThemeId } from "../agent/runtime-extension-theme.js";
 import { setTheme, themeForId } from "./themes.js";
-import { workspaceNameCompletions } from "./workspace-overlay.js";
+import { workspaceNameCompletions } from "./workspace-actions.js";
 
 export { handleMixCodeKeyInput } from "./app-input.js";
 export { MixCodeRoot } from "./app-layout.js";
@@ -351,6 +356,7 @@ export function createMixCodeTui(
     const activeForEdit = state.activeTabId === HOME_TAB_ID ? undefined : getActiveTab(state);
     if (
       matchesKey(data, "ctrl+e") &&
+      !appOverlayHandlesInput(tui) &&
       !(activeForEdit?.extensionUi.waitingForInputs.length)
     ) {
       void editTextWithTuiPaused(tui, editor.getText(), options.externalEditor)

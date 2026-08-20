@@ -5,7 +5,7 @@ import {
   type AutocompleteSuggestions,
   type SlashCommand,
 } from "@earendil-works/pi-tui";
-import { LOCAL_COMMANDS } from "../core/commands.js";
+import { LOCAL_COMMANDS } from "../../core/commands.js";
 
 export type MixCodeCompletionCommand = Pick<
   SlashCommand,

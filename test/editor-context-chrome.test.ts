@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createTab } from "../src/core/defaults.js";
-import { buildLabeledTopBorder } from "../src/ui/editor-top-border.js";
+import { buildLabeledTopBorder } from "../src/ui/components/editor-top-border.js";
 import {
   contextBarAndPercentText,
   exactContextUsageText,

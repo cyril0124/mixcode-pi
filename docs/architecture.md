@@ -48,7 +48,8 @@ src/
     ├── app.ts                pi-tui Root, Editor, and global key handling
     ├── agent-tab-actions.ts  Tab lifecycle actions like openExistingAgentTab / closeExistingAgentTab
     ├── rendering.ts          Rendering for header/tab/status/panel/floating panel
-    └── completion.ts         Completion for / and @ ($skill completion provided by mpi-skill-refs extension)
+    └── components/           Self-contained widgets and overlays (selectors, settings panel, extension manager, ...)
+        └── completion.ts     Completion for / and @ ($skill completion provided by mpi-skill-refs extension)
 ```
 
 ## Runtime Mapping

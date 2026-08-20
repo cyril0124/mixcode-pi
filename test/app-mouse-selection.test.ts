@@ -14,7 +14,7 @@ import {
   handleTabJumpMouse,
 } from "../src/ui/app-mouse.js";
 import { resolveOverlayLayout } from "@earendil-works/pi-tui";
-import { hitTestListOverlay } from "../src/ui/list-overlay-mouse.js";
+import { hitTestListOverlay } from "../src/ui/components/list-overlay-mouse.js";
 import {
   closeAppOverlay,
   defaultOverlayOptions,

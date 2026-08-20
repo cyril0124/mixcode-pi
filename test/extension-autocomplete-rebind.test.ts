@@ -11,7 +11,7 @@ import { createSkillCompletionWrapper } from "../pi-packages/mpi-skill-refs/skil
 import { applyExtensionAutocompleteProviders } from "../src/agent/runtime-extension-ui.js";
 import { CompactPromptEditor, EditorSlot, editorThemeFor } from "../src/ui/app-editor.js";
 import { createActiveAutocompleteProvider } from "../src/ui/app-runtime.js";
-import { MixCodeCompletionProvider } from "../src/ui/completion.js";
+import { MixCodeCompletionProvider } from "../src/ui/components/completion.js";
 import { themeForId } from "../src/ui/themes.js";
 
 /**

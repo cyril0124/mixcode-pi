@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Skill } from "@earendil-works/pi-coding-agent";
 import { buildMixCodeSystemPromptSections } from "../src/core/system-prompt.js";
-import { renderSystemPromptSectionStats } from "../src/ui/system-prompt-stats.js";
+import { renderSystemPromptSectionStats } from "../src/ui/components/system-prompt-stats.js";
 
 const skill = (name: string): Skill =>
   ({

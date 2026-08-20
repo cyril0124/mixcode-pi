@@ -17,6 +17,7 @@ import {
   acceptCommandPaletteSelection,
   acceptTabJumpSelection,
   clearChatScrollAnchor,
+  closeActiveOverlay,
   moveCommandPaletteSelection,
   moveTabJumpSelection,
   openTabJump,
@@ -26,7 +27,7 @@ import {
 import { pushToast } from "../core/toast.js";
 import { createPicker } from "../core/pickers.js";
 import { activateTab } from "../core/tabs.js";
-import { closeTreeSelector } from "./tree-selector.js";
+import { closeTreeSelector } from "./components/tree-selector.js";
 import { HOME_TAB_ID, type MixCodeState } from "../core/types.js";
 import {
   closeAppOverlay,
@@ -40,7 +41,7 @@ import {
 } from "./app-overlays.js";
 import { activeExtensionCommands } from "./app-runtime.js";
 import type { CommandPaletteActions, MixCodeKeyRuntime, OverlayTui } from "./app-types.js";
-import { handleListOverlayMouse, hitTestListOverlay } from "./list-overlay-mouse.js";
+import { handleListOverlayMouse, hitTestListOverlay } from "./components/list-overlay-mouse.js";
 import {
   planCommandPaletteList,
   planTabJumpList,
@@ -368,6 +369,11 @@ function handleChromeMouse(
       // Re-click the active tab (Home or agent) → same as Ctrl+T Tab Jump.
       if (tabId === state.activeTabId) {
         if (state.treeSelector.open) closeTreeSelector(state, tui);
+        // Reset any tracked app overlay's routing flag before Tab Jump
+        // replaces it (showLinesOverlay hides the component without
+        // running its close path).
+        closeAppOverlay(tui);
+        closeActiveOverlay(state);
         openTabJump(state);
         showLinesOverlay(tui, (width) => renderTabJumpOverlay(state, width));
         return true;

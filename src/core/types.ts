@@ -1,8 +1,6 @@
-import type { SessionSelectorComponent, SettingsManager } from "@earendil-works/pi-coding-agent";
 import type { Model, ThinkingLevelMap } from "@earendil-works/pi-ai";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
-import type { MixCodeUiSettings, RawMixCodeSettings } from "./mixcode-settings.js";
-import type { ExtensionManagerEntry } from "./extension-manager.js";
+import type { MixCodeUiSettings } from "./mixcode-settings.js";
 
 /** Pi SettingsManager markdown.mermaid (not re-exported from package entry). */
 export type MermaidRenderingMode = "off" | "final" | "streaming";
@@ -61,26 +59,12 @@ export interface PickerState {
   customInputError?: string;
 }
 
-/** State for the /settings floating overlay panel. */
+/**
+ * Routing state for the settings panel. Filter/edit/enum state lives in the
+ * SettingsPanel component (src/ui/components/), not in app state.
+ */
 export interface SettingsPanelState {
   open: boolean;
-  selectedIndex: number;
-  /** Main-list filter; optional for restored/test state created before search existed. */
-  filterQuery?: string;
-  editMode: boolean;
-  editText: string;
-  /** Inline validation error shown in the settings footer while editing. */
-  editError?: string;
-  enumOpen: boolean;
-  enumIndex: number;
-  /** Snapshot of raw mixcode settings; mutated in place on write. */
-  mixcodeRaw: RawMixCodeSettings;
-  mixcodeFile: string;
-  /** Absolute path to Pi global settings.json (display only). */
-  piSettingsFile: string;
-  /** Bound at open time so key handlers can write Pi settings. */
-  settingsManager?: SettingsManager;
-  setHideThinkingBlock?: (hide: boolean) => Promise<void>;
 }
 
 export interface CommandPaletteState {
@@ -97,19 +81,14 @@ export interface CommandPaletteEntry {
   disabledReason: string;
 }
 
+/**
+ * Routing state for the extension manager panel. List/search/reload state
+ * lives in the ExtensionManagerPanel component (src/ui/components/), not in
+ * app state.
+ */
 export interface ExtensionManagerPanelState {
   open: boolean;
-  selectedIndex: number;
-  detailScrollOffset: number;
-  searchActive: boolean;
-  searchQuery: string;
-  entries: ExtensionManagerEntry[];
-  selectedKeys: string[];
-  message: string;
-  error: string;
-  working: boolean;
 }
-
 
 export interface MixCodeModelRef {
   provider: string;
@@ -372,50 +351,24 @@ export type SessionActionConfirm = {
   sessionId: string;
 };
 
-export interface ForkSelectorState {
-  open: boolean;
-  sessionId: string;
-  items: Array<{ entryId: string; text: string }>;
-  selectedIndex: number;
-}
-
-/** Host state for the session resume selector. List UI is Pi's SessionSelectorComponent. */
+/**
+ * Routing state for the session resume selector. List UI is Pi's
+ * SessionSelectorComponent; the live instance stays module-scoped in
+ * session-resume.ts (upstream mode-field parity), never in app state.
+ */
 export interface SessionSelectorState {
   open: boolean;
-  /** Active session file path when the selector opened (blocks self-delete / self-resume). */
-  currentSessionPath: string | null;
-  /** Live Pi component while open; cleared on close. */
-  component?: SessionSelectorComponent;
   /** Clear editor input slot / other host resources; set while open. */
   dispose?: () => void;
 }
 
-export type WorkspaceOverlayMode =
-  | "save"
-  | "save-confirm-overwrite"
-  | "restore"
-  | "restore-confirm-close"
-  | "restoring"
-  | "delete"
-  | "delete-confirm"
-  | "missing";
-
+/**
+ * Routing state for the workspace overlay. The mode state machine and list
+ * data live in the WorkspaceOverlay component (src/ui/components/), not in
+ * app state.
+ */
 export interface WorkspaceOverlayState {
   open: boolean;
-  mode: WorkspaceOverlayMode;
-  query: string;
-  selectedIndex: number;
-  workspaces: WorkspaceSnapshot[];
-  workdir: string;
-  message: string;
-  input: string;
-  pendingName?: string;
-  pendingWorkspace?: WorkspaceSnapshot;
-  extraTabCount: number;
-  restoredCount: number;
-  skippedMissing: string[];
-  progressCurrent: number;
-  progressTotal: number;
 }
 
 export interface MixCodeState {
@@ -435,7 +388,6 @@ export interface MixCodeState {
   settingsPanel: SettingsPanelState;
   extensionManager: ExtensionManagerPanelState;
   sessionSelector: SessionSelectorState;
-  forkSelector: ForkSelectorState;
   treeSelector: TreeSelectorState;
   workspaceOverlay: WorkspaceOverlayState;
   tabJumpOpen: boolean;

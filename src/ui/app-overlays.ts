@@ -3,8 +3,6 @@ import {
   type OverlayHandle,
   type OverlayOptions,
   resolveOverlayLayout,
-  visibleWidth,
-  wrapTextWithAnsi,
 } from "@earendil-works/pi-tui";
 import {
   type ChatSelectionState,
@@ -14,6 +12,11 @@ import {
 import { editTextInExternalEditor } from "../core/external-editor.js";
 import type { OverlayTui } from "./app-types.js";
 import { overlayPanel, padLine } from "./rendering.js";
+import {
+  noticeOverlayOptions,
+  renderNoticePanel,
+  type NoticeOptions,
+} from "./components/notice-panel.js";
 import { getCurrentUiTheme, renderWithTheme } from "./rendering/context.js";
 import type { MixCodeTheme } from "./themes.js";
 
@@ -103,6 +106,15 @@ export function showComponentOverlay(
     capturing: options.nonCapturing !== true,
   });
   return handle;
+}
+
+/**
+ * True when the tracked app overlay is an input-capable component. Such
+ * overlays own their key semantics (e.g. Esc steps a confirm mode back), so
+ * the generic Esc-closes-overlay fallback must not fire for them.
+ */
+export function appOverlayHandlesInput(tui: OverlayTui): boolean {
+  return typeof activeAppOverlays.get(tui)?.component.handleInput === "function";
 }
 
 export function closeAppOverlay(tui: OverlayTui): void {
@@ -232,17 +244,6 @@ export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-interface NoticeOptions {
-  /** Title rendered in the panel's top border. */
-  title: string;
-  /** Render the border and title in the danger color (used for errors). */
-  danger?: boolean;
-}
-
-const NOTICE_HINT = "c/y copy · Esc close";
-const NOTICE_MAX_WIDTH_RATIO = 0.6;
-const NOTICE_MAX_HEIGHT_RATIO = 0.6;
-const NOTICE_MIN_BOX_WIDTH = 24;
 
 // Bottom-centered, non-capturing notice/error panel. The message is wrapped to
 // the panel width (never per-line truncated) and the panel auto-fits its
@@ -343,53 +344,6 @@ function isConsoleNoticeBody(text: string): boolean {
   return text.split(/\r?\n/).every((line) => line.length === 0 || isConsoleNoticeLine(line));
 }
 
-// Resolve the overlay width/height in terminal-relative terms. The TUI overlay
-// engine has no maxWidth, only width/minWidth clamped to available space, so the
-// content-fit cap at 60% screen width is computed here against the live
-// terminal columns rather than expressed declaratively.
-function noticeOverlayOptions(text: string, title: string): OverlayOptions {
-  const termWidth = Math.max(1, process.stdout.columns || 80);
-  const termHeight = Math.max(1, process.stdout.rows || 24);
-  const cap = Math.max(NOTICE_MIN_BOX_WIDTH, Math.floor(termWidth * NOTICE_MAX_WIDTH_RATIO));
-  // +4: two border columns + one space of inner padding on each side.
-  const longestLine = Math.max(
-    visibleWidth(title) + 4,
-    visibleWidth(NOTICE_HINT) + 4,
-    ...text.split(/\r?\n/).map((line) => visibleWidth(line) + 4),
-  );
-  const width = Math.min(cap, Math.max(NOTICE_MIN_BOX_WIDTH, longestLine));
-  return {
-    anchor: "bottom-center",
-    width,
-    maxHeight: Math.max(6, Math.floor(termHeight * NOTICE_MAX_HEIGHT_RATIO)),
-    margin: 1,
-    offsetY: -4,
-    nonCapturing: true,
-  };
-}
-
-// Render a bordered notice/error panel: a titled box whose body is the
-// width-wrapped message followed by a dim copy/Esc hint.
-export function renderNoticePanel(
-  text: string,
-  width: number,
-  theme: MixCodeTheme,
-  options: NoticeOptions,
-): string[] {
-  return renderWithTheme(theme, () => {
-    const innerWidth = Math.max(1, width - 4);
-    const wrapped = text
-      .split(/\r?\n/)
-      .flatMap((line) => {
-        const rows = wrapTextWithAnsi(line, innerWidth);
-        return rows.length > 0 ? rows : [""];
-      })
-      .map((line) => theme.text(line));
-    const body = [...wrapped, "", theme.dim(NOTICE_HINT)];
-    const border = options.danger ? theme.error : undefined;
-    return overlayPanel(options.title, body, width, border);
-  });
-}
 
 export async function editTextWithTuiPaused(
   tui: OverlayTui,

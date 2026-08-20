@@ -8,14 +8,34 @@ import {
   syncExtensionManagerEntrySources,
 } from "../src/core/extension-manager.js";
 import { createInitialState, createTab } from "../src/core/defaults.js";
+import type { MixCodeState } from "../src/core/types.js";
+import type { ExtensionManagerEntry } from "../src/core/extension-manager.js";
 import {
-  handleExtensionManagerKey,
+  ExtensionManagerPanel,
   openExtensionManager,
-  renderExtensionManager,
-} from "../src/ui/extension-manager.js";
+} from "../src/ui/components/extension-manager.js";
 
 function stripAnsi(text: string): string {
   return text.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "");
+}
+
+const NOOP_TUI = {
+  requestRender: () => undefined,
+  showOverlay: () => ({ hide: () => undefined }) as never,
+};
+
+/** Standalone panel for render/key contract tests (no overlay host needed). */
+function testPanel(
+  state: MixCodeState,
+  entries: ExtensionManagerEntry[],
+  init?: Partial<Pick<ExtensionManagerPanel, "selectedIndex" | "searchActive" | "searchQuery">>,
+): ExtensionManagerPanel {
+  // Render/key contract tests never trigger reloads; only the entry provider
+  // is needed to satisfy the required runtime dependency.
+  const runtime = { getExtensionManagerEntries: () => entries } as never;
+  const panel = new ExtensionManagerPanel({ state, tui: NOOP_TUI, runtime }, entries);
+  Object.assign(panel, init);
+  return panel;
 }
 
 // Build a minimal Extension-like object with just the fields the entry mapper
@@ -149,9 +169,7 @@ test("syncExtensionManagerEntrySources restores package labels without rewriting
 test("extension manager names local extensions from their entry path", () => {
   const state = createInitialState("/repo");
   state.ui = { ...state.ui!, icons: { mode: "nerd" } };
-  state.extensionManager.open = true;
-  state.extensionManager.selectedIndex = 1;
-  state.extensionManager.entries = [
+  const entries: ExtensionManagerEntry[] = [
     {
       key: "user:auto:top-level:/home/user/.pi/agent/extensions/mpi-loop/index.ts",
       enabled: true,
@@ -182,7 +200,7 @@ test("extension manager names local extensions from their entry path", () => {
     },
   ];
 
-  const rendered = stripAnsi(renderExtensionManager(state, 100).join("\n"));
+  const rendered = stripAnsi(testPanel(state, entries, { selectedIndex: 1 }).render(100).join("\n"));
   assert.match(rendered, /● mpi-loop/);
   assert.match(rendered, /● pkg/);
 });
@@ -190,9 +208,7 @@ test("extension manager names local extensions from their entry path", () => {
 test("extension manager keeps its footer inside the default overlay height", () => {
   const state = createInitialState("/repo");
   state.ui = { ...state.ui!, icons: { mode: "nerd" } };
-  state.extensionManager.open = true;
-  state.extensionManager.selectedIndex = 29;
-  state.extensionManager.entries = Array.from({ length: 30 }, (_, index) => ({
+  const entries: ExtensionManagerEntry[] = Array.from({ length: 30 }, (_, index) => ({
     key: `extension-${index}`,
     enabled: true,
     path: `/extensions/extension-${index}/index.ts`,
@@ -209,7 +225,7 @@ test("extension manager keeps its footer inside the default overlay height", () 
   const rowsDescriptor = Object.getOwnPropertyDescriptor(process.stdout, "rows");
   Object.defineProperty(process.stdout, "rows", { configurable: true, value: 12 });
   try {
-    const rendered = renderExtensionManager(state, 60).map(stripAnsi);
+    const rendered = testPanel(state, entries, { selectedIndex: 29 }).render(60).map(stripAnsi);
     assert.ok(rendered.length <= Math.floor(12 * 0.8));
     assert.match(rendered.join("\n"), /\(30\/30\)/);
     assert.match(rendered.at(-1) ?? "", /^└─+┘$/);
@@ -244,16 +260,17 @@ test("closing the extension manager prevents a pending reload from restoring its
     reloadExtensionManagerTab: () => reload.promise,
   } as unknown as MixCodeRuntime;
 
-  openExtensionManager(state, runtime, tui);
-  handleExtensionManagerKey(state, "r", tui, runtime);
-  handleExtensionManagerKey(state, "\x1b", tui, runtime);
+  const panel = openExtensionManager(state, runtime, tui);
+  panel.handleInput("r");
+  panel.handleInput("\x1b");
   assert.equal(overlayOpen, false);
 
   reload.resolve({ sessionId: "s1", title: "Agent-01", status: "reloaded" });
   await Bun.sleep(0);
   assert.equal(state.extensionManager.open, false);
   assert.equal(overlayOpen, false);
-  assert.equal(showCount, 2);
+  assert.equal(showCount, 1);
+  assert.equal(panel.message, "");
 });
 
 test("a pending reload cannot update a newly opened extension manager", async () => {
@@ -279,25 +296,23 @@ test("a pending reload cannot update a newly opened extension manager", async ()
     reloadExtensionManagerTab: () => reload.promise,
   } as unknown as MixCodeRuntime;
 
-  openExtensionManager(state, runtime, tui);
-  handleExtensionManagerKey(state, "r", tui, runtime);
-  handleExtensionManagerKey(state, "\x1b", tui, runtime);
-  openExtensionManager(state, runtime, tui);
-  const reopenedManager = state.extensionManager;
+  const first = openExtensionManager(state, runtime, tui);
+  first.handleInput("r");
+  first.handleInput("\x1b");
+  const reopened = openExtensionManager(state, runtime, tui);
 
   reload.resolve({ sessionId: "s1", title: "Agent-01", status: "reloaded" });
   await Bun.sleep(0);
-  assert.equal(state.extensionManager, reopenedManager);
-  assert.equal(reopenedManager.message, "");
-  assert.equal(reopenedManager.working, false);
-  assert.equal(showCount, 3);
+  assert.equal(reopened.message, "");
+  assert.equal(reopened.working, false);
+  assert.equal(first.message, "", "stale reload must not surface a result");
+  assert.equal(showCount, 2);
 });
 
 test("extension manager detail paging reaches commands and paths after a long tool list", () => {
   const state = createInitialState("/repo");
   state.ui = { ...state.ui!, icons: { mode: "nerd" } };
-  state.extensionManager.open = true;
-  state.extensionManager.entries = [
+  const entries: ExtensionManagerEntry[] = [
     {
       key: "rich-extension",
       enabled: true,
@@ -312,30 +327,23 @@ test("extension manager detail paging reaches commands and paths after a long to
       commandNames: ["alpha", "omega"],
     },
   ];
-  let rendered = stripAnsi(renderExtensionManager(state, 100).join("\n"));
-  const tui = {
-    requestRender: () => undefined,
-    showOverlay: (component: { render: (width: number) => string[] }) => {
-      rendered = stripAnsi(component.render(100).join("\n"));
-      return { hide: () => undefined } as never;
-    },
-  };
+  const panel = testPanel(state, entries);
+  const render = () => stripAnsi(panel.render(100).join("\n"));
 
-  assert.doesNotMatch(rendered, /\/omega/);
-  assert.match(rendered, /details .*▼/);
-  handleExtensionManagerKey(state, "\x1b[6~", tui);
-  handleExtensionManagerKey(state, "\x1b[6~", tui);
-  assert.match(rendered, /\/omega/);
-  assert.match(rendered, /\/extensions\/rich-extension\/index\.ts/);
-  assert.match(rendered, /▲ details/);
+  assert.doesNotMatch(render(), /\/omega/);
+  assert.match(render(), /details .*▼/);
+  panel.handleInput("\x1b[6~");
+  panel.handleInput("\x1b[6~");
+  assert.match(render(), /\/omega/);
+  assert.match(render(), /\/extensions\/rich-extension\/index\.ts/);
+  assert.match(render(), /▲ details/);
 });
 
 test("extension manager preserves wide characters while wrapping paths", () => {
   const state = createInitialState("/repo");
   state.ui = { ...state.ui!, icons: { mode: "nerd" } };
-  state.extensionManager.open = true;
   const path = `/extensions/${"中文".repeat(30)}/终点😀.ts`;
-  state.extensionManager.entries = [
+  const entries: ExtensionManagerEntry[] = [
     {
       key: "wide-path",
       enabled: true,
@@ -354,7 +362,7 @@ test("extension manager preserves wide characters while wrapping paths", () => {
   const rowsDescriptor = Object.getOwnPropertyDescriptor(process.stdout, "rows");
   Object.defineProperty(process.stdout, "rows", { configurable: true, value: 40 });
   try {
-    const rendered = stripAnsi(renderExtensionManager(state, 100).join("\n"));
+    const rendered = stripAnsi(testPanel(state, entries).render(100).join("\n"));
     assert.match(rendered, /终点😀\.ts/);
     assert.doesNotMatch(rendered, /�/);
   } finally {
@@ -366,8 +374,7 @@ test("extension manager preserves wide characters while wrapping paths", () => {
 test("extension manager switches to two panes at 80 terminal columns", () => {
   const state = createInitialState("/repo");
   state.ui = { ...state.ui!, icons: { mode: "nerd" } };
-  state.extensionManager.open = true;
-  state.extensionManager.entries = [
+  const entries: ExtensionManagerEntry[] = [
     {
       key: "extension",
       enabled: true,
@@ -387,13 +394,13 @@ test("extension manager switches to two panes at 80 terminal columns", () => {
   try {
     Object.defineProperty(process.stdout, "columns", { configurable: true, value: 79 });
     const singlePane = stripAnsi(
-      renderExtensionManager(state, Math.floor(79 * 0.78)).join("\n"),
+      testPanel(state, entries).render(Math.floor(79 * 0.78)).join("\n"),
     );
     assert.doesNotMatch(singlePane, /status\s+enabled/);
 
     Object.defineProperty(process.stdout, "columns", { configurable: true, value: 80 });
     const doublePane = stripAnsi(
-      renderExtensionManager(state, Math.floor(80 * 0.78)).join("\n"),
+      testPanel(state, entries).render(Math.floor(80 * 0.78)).join("\n"),
     );
     assert.match(doublePane, /status\s+enabled/);
   } finally {
@@ -405,8 +412,7 @@ test("extension manager switches to two panes at 80 terminal columns", () => {
 test("extension manager search matches command names", () => {
   const state = createInitialState("/repo");
   state.ui = { ...state.ui!, icons: { mode: "nerd" } };
-  state.extensionManager.open = true;
-  state.extensionManager.entries = [
+  const entries: ExtensionManagerEntry[] = [
     {
       key: "rename",
       enabled: true,
@@ -434,9 +440,9 @@ test("extension manager search matches command names", () => {
       commandNames: ["inspect-context"],
     },
   ];
-  Object.assign(state.extensionManager, { searchActive: true, searchQuery: "inspect-context" });
+  const panel = testPanel(state, entries, { searchActive: true, searchQuery: "inspect-context" });
 
-  const rendered = stripAnsi(renderExtensionManager(state, 79).join("\n"));
+  const rendered = stripAnsi(panel.render(79).join("\n"));
   assert.match(rendered, /● context/);
   assert.doesNotMatch(rendered, /● rename/);
   assert.match(rendered, /1\/2 extensions/);
@@ -445,8 +451,7 @@ test("extension manager search matches command names", () => {
 test("extension manager search keyboard flow toggles the filtered entry", () => {
   const state = createInitialState("/repo");
   state.ui = { ...state.ui!, icons: { mode: "nerd" } };
-  state.extensionManager.open = true;
-  state.extensionManager.entries = [
+  const entries: ExtensionManagerEntry[] = [
     {
       key: "rename",
       enabled: true,
@@ -474,36 +479,39 @@ test("extension manager search keyboard flow toggles the filtered entry", () => 
       commandNames: [],
     },
   ];
-  let rendered = "";
-  let overlayOpen = true;
+  let overlayOpen = false;
   const tui = {
     requestRender: () => undefined,
-    showOverlay: (component: { render: (width: number) => string[] }) => {
+    showOverlay: () => {
       overlayOpen = true;
-      rendered = stripAnsi(component.render(79).join("\n"));
       return { hide: () => (overlayOpen = false) } as never;
     },
   };
+  state.tabs.push(createTab(1, "s1", "/repo"));
+  state.activeTabId = "s1";
+  const runtime = { getExtensionManagerEntries: () => entries } as unknown as MixCodeRuntime;
+  const panel = openExtensionManager(state, runtime, tui);
+  const render = () => stripAnsi(panel.render(79).join("\n"));
 
-  handleExtensionManagerKey(state, "\x1b[47u", tui);
-  handleExtensionManagerKey(state, "\x1b[115u", tui);
-  for (const char of "kill") handleExtensionManagerKey(state, char, tui);
-  assert.match(rendered, /● skill/);
-  assert.doesNotMatch(rendered, /● rename/);
+  panel.handleInput("\x1b[47u");
+  panel.handleInput("\x1b[115u");
+  for (const char of "kill") panel.handleInput(char);
+  assert.match(render(), /● skill/);
+  assert.doesNotMatch(render(), /● rename/);
 
-  handleExtensionManagerKey(state, "x", tui);
-  assert.match(rendered, /No extensions match "skillx"/);
-  handleExtensionManagerKey(state, "\x7f", tui);
-  assert.match(rendered, /● skill/);
+  panel.handleInput("x");
+  assert.match(render(), /No extensions match "skillx"/);
+  panel.handleInput("\x7f");
+  assert.match(render(), /● skill/);
 
-  handleExtensionManagerKey(state, "\r", tui);
-  handleExtensionManagerKey(state, " ", tui);
-  assert.equal(state.extensionManager.entries[0]!.enabled, true);
-  assert.equal(state.extensionManager.entries[1]!.enabled, false);
+  panel.handleInput("\r");
+  panel.handleInput(" ");
+  assert.equal(entries[0]!.enabled, true);
+  assert.equal(entries[1]!.enabled, false);
 
-  handleExtensionManagerKey(state, "\x1b", tui);
-  assert.match(rendered, /● rename/);
+  panel.handleInput("\x1b");
+  assert.match(render(), /● rename/);
   assert.equal(overlayOpen, true);
-  handleExtensionManagerKey(state, "\x1b", tui);
+  panel.handleInput("\x1b");
   assert.equal(overlayOpen, false);
 });

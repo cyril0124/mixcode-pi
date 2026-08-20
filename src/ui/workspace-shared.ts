@@ -1,8 +1,40 @@
 import { loadWorkspaces } from "../core/state-store.js";
-import type { MixCodeState, WorkspaceSnapshot } from "../core/types.js";
+import type { WorkspaceSnapshot } from "../core/types.js";
 import type { MixCodeRuntime } from "../agent/runtime.js";
 
 export type WorkspaceSelectorMode = "restore" | "delete";
+
+export type WorkspaceOverlayMode =
+  | "save"
+  | "save-confirm-overwrite"
+  | "restore"
+  | "restore-confirm-close"
+  | "restoring"
+  | "delete"
+  | "delete-confirm"
+  | "missing";
+
+/**
+ * Mutable view of the workspace overlay surface. Implemented by the
+ * WorkspaceOverlay component; rendering and the restore engine operate on
+ * this view instead of app state.
+ */
+export interface WorkspaceOverlayView {
+  mode: WorkspaceOverlayMode;
+  query: string;
+  selectedIndex: number;
+  workspaces: WorkspaceSnapshot[];
+  workdir: string;
+  message: string;
+  input: string;
+  pendingName?: string;
+  pendingWorkspace?: WorkspaceSnapshot;
+  extraTabCount: number;
+  restoredCount: number;
+  skippedMissing: string[];
+  progressCurrent: number;
+  progressTotal: number;
+}
 
 /** Narrow host surface for workspace restore/save (not a Partial kitchen sink). */
 export type WorkspaceRuntime = Pick<
@@ -34,13 +66,11 @@ export function workspaceTabCount(workspace: WorkspaceSnapshot | undefined): num
   return workspace?.tabs.length ?? 0;
 }
 
-export function selectedWorkspace(
-  overlay: MixCodeState["workspaceOverlay"],
-): WorkspaceSnapshot | undefined {
+export function selectedWorkspace(overlay: WorkspaceOverlayView): WorkspaceSnapshot | undefined {
   return filteredWorkspaces(overlay)[overlay.selectedIndex];
 }
 
-export function filteredWorkspaces(overlay: MixCodeState["workspaceOverlay"]): WorkspaceSnapshot[] {
+export function filteredWorkspaces(overlay: WorkspaceOverlayView): WorkspaceSnapshot[] {
   const query = overlay.query.trim().toLowerCase();
   const workspaces = [...overlay.workspaces].sort(compareWorkspaceUpdatedDesc);
   if (!query) return workspaces;
@@ -50,10 +80,7 @@ export function filteredWorkspaces(overlay: MixCodeState["workspaceOverlay"]): W
   });
 }
 
-export function moveWorkspaceSelection(
-  overlay: MixCodeState["workspaceOverlay"],
-  delta: number,
-): void {
+export function moveWorkspaceSelection(overlay: WorkspaceOverlayView, delta: number): void {
   const count = filteredWorkspaces(overlay).length;
   if (count === 0) {
     overlay.selectedIndex = 0;
@@ -62,7 +89,7 @@ export function moveWorkspaceSelection(
   overlay.selectedIndex = (overlay.selectedIndex + delta + count) % count;
 }
 
-export function clampWorkspaceSelection(overlay: MixCodeState["workspaceOverlay"]): void {
+export function clampWorkspaceSelection(overlay: WorkspaceOverlayView): void {
   overlay.selectedIndex = Math.min(
     overlay.selectedIndex,
     Math.max(0, filteredWorkspaces(overlay).length - 1),

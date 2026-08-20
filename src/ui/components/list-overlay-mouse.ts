@@ -1,6 +1,6 @@
 import { type OverlayOptions, resolveOverlayLayout } from "@earendil-works/pi-tui";
-import { parseSgrMouseInput, type SgrMouseInput } from "../core/mouse.js";
-import { defaultOverlayOptions } from "./app-overlays.js";
+import { parseSgrMouseInput, type SgrMouseInput } from "../../core/mouse.js";
+import { defaultOverlayOptions } from "../app-overlays.js";
 
 /** Geometry shared by center list overlays (Tab Jump, Command Palette, …). */
 export interface ListOverlayPlan {

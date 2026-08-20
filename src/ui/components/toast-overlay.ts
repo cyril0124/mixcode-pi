@@ -6,7 +6,7 @@ import {
 } from "@earendil-works/pi-tui";
 import type { ToastNotification, ToastType } from "../../core/toast.js";
 import type { MixCodeTheme } from "../themes.js";
-import { padLine } from "./primitives.js";
+import { padLine } from "../rendering/primitives.js";
 
 const TOAST_TOP_MARGIN = 1;
 const TOAST_RIGHT_MARGIN = 1;

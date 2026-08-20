@@ -9,7 +9,13 @@ import { HOME_TAB_ID, type MixCodeState, type MixCodeTabInfo, type WorkspaceSnap
 import { reindexWorkspaceTabs } from "../core/workspace.js";
 import { hydrateTabPromptHistory } from "./app-runtime.js";
 import type { OverlayTui } from "./app-types.js";
-import { closeWorkspaceOverlay, showWorkspaceOverlay, showWorkspaceToast } from "./workspace-overlay.js";
+import {
+  closeWorkspaceOverlay,
+  presentWorkspaceOverlay,
+  presentWorkspaceRestoreProgress,
+  type WorkspaceOverlay,
+} from "./components/workspace-overlay.js";
+import { showWorkspaceToast } from "./workspace-actions.js";
 import type { WorkspaceRuntime } from "./workspace-shared.js";
 
 interface RestoredWorkspaceTab {
@@ -23,6 +29,8 @@ export async function restoreWorkspace(
   tui: OverlayTui,
   workspace: WorkspaceSnapshot,
   onStateChanged?: (state: MixCodeState) => void | Promise<void>,
+  /** Presented overlay to reuse for progress; created when absent. */
+  progressOverlay?: WorkspaceOverlay,
 ): Promise<void> {
   assertConfiguredOpenTabsReadable();
   if (!runtime) {
@@ -33,17 +41,18 @@ export async function restoreWorkspace(
     return;
   }
   const items = workspace.tabs;
-  state.workspaceOverlay.mode = "restoring";
-  state.workspaceOverlay.pendingWorkspace = workspace;
-  state.workspaceOverlay.progressCurrent = 0;
-  state.workspaceOverlay.progressTotal = items.length;
-  showWorkspaceOverlay(state, tui);
+  const overlay = progressOverlay ?? presentWorkspaceRestoreProgress(state, tui, runtime);
+  overlay.mode = "restoring";
+  overlay.pendingWorkspace = workspace;
+  overlay.progressCurrent = 0;
+  overlay.progressTotal = items.length;
+  tui.requestRender();
   const restoredTabs: RestoredWorkspaceTab[] = [];
   const missing: string[] = [];
   const originalTabs = [...state.tabs];
   for (const [index, item] of items.entries()) {
-    state.workspaceOverlay.progressCurrent = index;
-    showWorkspaceOverlay(state, tui);
+    overlay.progressCurrent = index;
+    tui.requestRender();
     const existing = findOpenWorkspaceTab(state, runtime, item);
     if (existing) {
       applyWorkspaceTabMetadata(existing, item);
@@ -75,13 +84,13 @@ export async function restoreWorkspace(
     applyWorkspaceTabMetadata(created, item);
     restoredTabs.push({ item, tab: created });
   }
-  state.workspaceOverlay.progressCurrent = items.length;
-  showWorkspaceOverlay(state, tui);
+  overlay.progressCurrent = items.length;
+  tui.requestRender();
   for (const tab of originalTabs) {
     if (restoredTabs.some((restored) => restored.tab === tab)) continue;
     await runtime.closeTab(tab.sessionId);
   }
-  finishWorkspaceRestore(state, workspace, restoredTabs, missing);
+  finishWorkspaceRestore(state, overlay, workspace, restoredTabs, missing);
   hydrateTabPromptHistory(state, runtime);
   noteTabsReplaced(state.tabs.map((tab) => tab.sessionId));
   await onStateChanged?.(state);
@@ -94,8 +103,10 @@ export async function restoreWorkspace(
     "success",
   );
   if (missing.length) {
-    state.workspaceOverlay.mode = "missing";
-    showWorkspaceOverlay(state, tui);
+    overlay.mode = "missing";
+    // Re-present: a no-active-tab toast falls back to a notice overlay that
+    // hides this component (showComponentOverlay closes the previous one).
+    presentWorkspaceOverlay(state, tui, overlay);
   } else {
     closeWorkspaceOverlay(state, tui);
   }
@@ -137,6 +148,7 @@ function createWorkspaceRuntimeTab(
 
 function finishWorkspaceRestore(
   state: MixCodeState,
+  overlay: WorkspaceOverlay,
   workspace: WorkspaceSnapshot,
   restoredTabs: RestoredWorkspaceTab[],
   missing: string[],
@@ -148,8 +160,8 @@ function finishWorkspaceRestore(
     : undefined;
   activateTab(state, activeTab?.sessionId ?? state.tabs[0]?.sessionId ?? HOME_TAB_ID);
   clampHomeSelectedTabIndex(state);
-  state.workspaceOverlay.restoredCount = restoredTabs.length;
-  state.workspaceOverlay.skippedMissing = missing;
+  overlay.restoredCount = restoredTabs.length;
+  overlay.skippedMissing = missing;
 }
 
 function findOpenWorkspaceTab(

@@ -9,7 +9,7 @@ import { handleMixCodeKeyInput } from "../src/ui/app-input.js";
 import { handleSubmittedInput } from "../src/ui/app-submit.js";
 import type { MixCodeTheme } from "../src/ui/themes.js";
 import type { OverlayTui } from "../src/ui/app-types.js";
-import { buildLabeledTopBorder } from "../src/ui/editor-top-border.js";
+import { buildLabeledTopBorder } from "../src/ui/components/editor-top-border.js";
 import {
   renderTabBarSeparator,
   tabBarHitRegions,

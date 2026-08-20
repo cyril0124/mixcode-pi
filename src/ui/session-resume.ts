@@ -8,7 +8,7 @@ import {
 import { type Component, type Focusable, isKeyRelease } from "@earendil-works/pi-tui";
 
 import { applyMixCodeKeybindings } from "../agent/runtime-pi-tui-bridge.js";
-import { createSessionId, createSessionSelectorState, createTab } from "../core/defaults.js";
+import { createSessionId, createTab } from "../core/defaults.js";
 import {
   assertConfiguredOpenTabsReadable,
   noteTabClosed,
@@ -25,6 +25,19 @@ import type { SessionListProgress } from "../agent/runtime-session.js";
 export type { SessionListProgress };
 import type { MixCodeKeyRuntime, OverlayTui } from "./app-types.js";
 import type { AuthInputHost } from "./app-types.js";
+
+/**
+ * Live Pi selector while open, keyed by app state. The live component is a
+ * mode-instance concern (upstream InteractiveMode keeps it as an instance
+ * field); MixCodeState keeps only the routing flag and dispose hook.
+ */
+const liveSelectors = new WeakMap<MixCodeState, SessionSelectorComponent>();
+
+export function getSessionSelectorComponent(
+  state: MixCodeState,
+): SessionSelectorComponent | undefined {
+  return liveSelectors.get(state);
+}
 
 export function findOpenSessionTab(
   state: MixCodeState,
@@ -91,10 +104,7 @@ export async function openSessionSelector(
   // Drop any previous selector / input takeover before mounting.
   closeSessionSelector(state, tui);
 
-  const selectorState = createSessionSelectorState();
-  selectorState.open = true;
-  selectorState.currentSessionPath = currentSessionPath;
-  state.sessionSelector = selectorState;
+  state.sessionSelector = { open: true };
 
   const ownerSessionId = state.activeTabId;
   const close = () => closeSessionSelector(state, tui);
@@ -135,6 +145,7 @@ export async function openSessionSelector(
         sessionPath,
         nameAndId.name,
         nameAndId.id,
+        currentSessionPath,
         runtime as unknown as MixCodeKeyRuntime,
         onStateChanged,
       );
@@ -179,10 +190,11 @@ export async function openSessionSelector(
     invalidateSessionCatalog(path.dirname(sessionPath));
   };
 
-  selectorState.component = component;
+  liveSelectors.set(state, component);
   // Bridge app.session.* into nested+outer pi-tui getKeybindings for keyHint/matches.
   const host = wrapSessionSelectorWithKeybindings(component);
-  selectorState.dispose = () => {
+  state.sessionSelector.dispose = () => {
+    liveSelectors.delete(state);
     inputHost.clearInputComponent(ownerSessionId);
   };
   inputHost.setInputComponent(host, ownerSessionId);
@@ -193,7 +205,6 @@ export function closeSessionSelector(state: MixCodeState, tui: OverlayTui): void
   state.sessionSelector.dispose?.();
   state.sessionSelector.dispose = undefined;
   state.sessionSelector.open = false;
-  state.sessionSelector.component = undefined;
   tui.requestRender();
 }
 
@@ -208,7 +219,7 @@ export function handleSessionSelectorKey(
   _runtime?: MixCodeKeyRuntime,
   _onStateChanged?: (state: MixCodeState) => void | Promise<void>,
 ): boolean {
-  const component = state.sessionSelector.component;
+  const component = getSessionSelectorComponent(state);
   if (!state.sessionSelector.open || !component) return false;
   if (isKeyRelease(data)) return true;
   withSessionKeybindings(() => component.handleInput(data));
@@ -299,6 +310,8 @@ export function resumeSelectedSession(
   sessionName: string | undefined,
   /** Durable session id from SessionManager (filename embed). */
   targetSessionId: string | undefined,
+  /** Active session file when the selector opened (blocks self-resume). */
+  currentSessionPath: string | null,
   runtime?: MixCodeKeyRuntime,
   onStateChanged?: (state: MixCodeState) => void | Promise<void>,
 ): void {
@@ -314,10 +327,7 @@ export function resumeSelectedSession(
     return;
   }
   const active = getActiveTab(state);
-  if (
-    state.sessionSelector.currentSessionPath &&
-    sessionPath === state.sessionSelector.currentSessionPath
-  ) {
+  if (currentSessionPath && sessionPath === currentSessionPath) {
     if (active) {
       pushToast(active, { type: "info", message: "Already the active session" });
     }

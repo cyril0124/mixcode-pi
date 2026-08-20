@@ -1,7 +1,7 @@
 import { compositeTuiLine, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import type { FloatingPanelState, FloatingPanelThemeRole } from "../../core/types.js";
 import type { MixCodeTheme } from "../themes.js";
-import { padLine } from "./primitives.js";
+import { padLine } from "../rendering/primitives.js";
 
 const SCROLLBAR_SAFE_RIGHT_MARGIN = 2;
 const BOTTOM_GAP_ROWS = 1;

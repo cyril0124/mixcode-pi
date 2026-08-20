@@ -6,7 +6,7 @@ import { createInitialState, createTab } from "../src/core/defaults.js";
 import type { MixCodeTabInfo } from "../src/core/types.js";
 import type { MixCodeRuntime } from "../src/agent/runtime.js";
 import type { SessionTreeNode } from "../src/core/tree-selector.js";
-import { renderFloatingPanelOverlay } from "../src/ui/rendering/floating-panel.js";
+import { renderFloatingPanelOverlay } from "../src/ui/components/floating-panel.js";
 import { themeForId } from "../src/ui/themes.js";
 
 function stripAnsi(text: string): string {

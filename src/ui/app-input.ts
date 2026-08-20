@@ -44,6 +44,7 @@ import {
   handleEscapeKey,
 } from "./app-key-handlers.js";
 import {
+  appOverlayHandlesInput,
   closeAppOverlay,
   copyActiveNoticeText,
   hasAnyOverlay,
@@ -52,7 +53,6 @@ import {
   showErrorOverlay,
   showLinesOverlay,
 } from "./app-overlays.js";
-import { handleSettingsPanelKey } from "./settings-panel.js";
 import { activeExtensionCommands } from "./app-runtime.js";
 import type {
   CommandPaletteActions,
@@ -65,7 +65,6 @@ import { recordSubmittedHistory } from "../core/conversation-history.js";
 import { EXTENSION_PANEL_MIN_TERMINAL_WIDTH } from "./rendering/chrome.js";
 import { showSystemMessageOrToast } from "./app-actions.js";
 import { handleSubmittedInput } from "./app-submit.js";
-import { handleExtensionManagerKey } from "./extension-manager.js";
 import { errorMessage } from "./app-overlays.js";
 import { renderCommandPalette, renderTabJumpOverlay } from "./rendering.js";
 import {
@@ -74,13 +73,11 @@ import {
   isVimTranscriptSearchOpenKey,
   openVimTranscriptSearch,
 } from "./vim-transcript-search.js";
-import { handleSessionSelectorKey } from "./session-selector.js";
-import { handleForkSelectorKey } from "./fork-selector.js";
+import { handleSessionSelectorKey } from "./session-resume.js";
 import {
   closeTreeSelector,
   handleTreeSelectorKey,
-} from "./tree-selector.js";
-import { handleWorkspaceOverlayKey } from "./workspace-overlay.js";
+} from "./components/tree-selector.js";
 import type { MixCodeSubmitRuntime } from "./app-types.js";
 
 type KeyResult = { consume?: boolean; data?: string } | undefined;
@@ -180,20 +177,6 @@ export function handleMixCodeKeyInput(
       return { consume: true };
     }
   }
-  if (state.workspaceOverlay.open) {
-    if (
-      handleWorkspaceOverlayKey(
-        state,
-        data,
-        tui,
-        runtime,
-        onStateChanged,
-        workspaceOptions.workspaceFile,
-      )
-    ) {
-      return { consume: true };
-    }
-  }
   if (handleChromeMouseInput(state, active, data, tui)) {
     return { consume: true };
   }
@@ -212,11 +195,6 @@ export function handleMixCodeKeyInput(
   }
   if (state.treeSelector.open) {
     if (handleTreeSelectorKey(state, data, tui, runtime, onStateChanged)) {
-      return { consume: true };
-    }
-  }
-  if (state.forkSelector.open) {
-    if (handleForkSelectorKey(state, data, tui, runtime)) {
       return { consume: true };
     }
   }
@@ -321,6 +299,11 @@ export function handleMixCodeKeyInput(
   if (handleMouseInput(state, active, data, tui, undefined, runtime)) {
     return { consume: true };
   }
+  // Input-capable component overlays (settings panel / extension manager /
+  // workspace / fork selector) are modal: remaining keys belong to the
+  // focused component via TUI focus dispatch. Global editor/tab shortcuts
+  // must not consume keys or mutate the hidden editor beneath them.
+  if (appOverlayHandlesInput(tui)) return undefined;
   const overlayResult = handleModalOverlayKeys(
     state,
     active,
@@ -486,15 +469,6 @@ function handleModalOverlayKeys(
   ) {
     return { consume: true };
   }
-  if (state.settingsPanel.open && handleSettingsPanelKey(state, data, tui)) {
-    return { consume: true };
-  }
-  if (
-    state.extensionManager.open &&
-    handleExtensionManagerKey(state, data, tui, runtime, onStateChanged)
-  ) {
-    return { consume: true };
-  }
   if (state.tabJumpOpen && handleTabJumpKey(state, data, tui)) {
     return { consume: true };
   }
@@ -526,7 +500,9 @@ function handleModalOverlayKeys(
   // after the specific overlay handlers above (palette, tab-jump, quit-confirm,
   // selectors) so their own Esc semantics win first; handleEscapeKey skips
   // this case via its hasAnyOverlay guards.
-  if (matchesKey(data, "escape") && hasAppOverlay(tui)) {
+  // Overlay components with their own handleInput (workspace confirm modes,
+  // selectors) receive Esc via TUI focus dispatch and manage state themselves.
+  if (matchesKey(data, "escape") && hasAppOverlay(tui) && !appOverlayHandlesInput(tui)) {
     closeAppOverlay(tui);
     closeActiveOverlay(state);
     return { consume: true };

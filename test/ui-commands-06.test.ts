@@ -12,6 +12,7 @@ import {
 } from "./helpers/mixcode.js";
 import type { MixCodeRuntime } from "./helpers/mixcode.js";
 import { closeAppOverlay } from "../src/ui/app-overlays.js";
+import { ExtensionManagerPanel } from "../src/ui/components/extension-manager.js";
 
 function assertQuitOverlay(text: string | undefined): void {
   assert.match(text ?? "", /┌/);
@@ -55,6 +56,7 @@ test("global key input toggles MixCode overlays and passes through regular input
   const executedCommands: string[] = [];
   const extensionEnabledChanges: Array<{ key: string; enabled: boolean }> = [];
   let reloadedExtensionTab = "";
+  const shownComponents: unknown[] = [];
   const tui = {
     requestRender: (force?: boolean) => {
       renders++;
@@ -62,6 +64,7 @@ test("global key input toggles MixCode overlays and passes through regular input
     },
     showOverlay: (component: { render: (width: number) => string[] }) => {
       overlayOpen = true;
+      shownComponents.push(component);
       overlays.push(component.render(120).join("\n"));
       return {
         hide: () => {
@@ -420,22 +423,19 @@ test("global key input toggles MixCode overlays and passes through regular input
   assert.equal(state.extensionManager.open, true);
   assert.match(overlays.at(-1) ?? "", /Extension Manager/);
   assert.match(overlays.at(-1) ?? "", /<inline>/);
-  assert.deepEqual(handleMixCodeKeyInput(state, " ", tui, undefined, extensionRuntime), {
-    consume: true,
-  });
-  assert.equal(state.extensionManager.entries[0]?.enabled, false);
-  assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui, undefined, extensionRuntime), {
-    consume: true,
-  });
+  // Focused overlay component receives keys via TUI dispatch, not the pipeline.
+  const emPanel = shownComponents.at(-1) as ExtensionManagerPanel;
+  assert.ok(emPanel instanceof ExtensionManagerPanel);
+  emPanel.handleInput(" ");
+  assert.equal(emPanel.entries[0]?.enabled, false);
+  emPanel.handleInput("\r");
   await waitFor(async () => {
     assert.deepEqual(extensionEnabledChanges, [
       { key: "project:inline:top-level:<inline>", enabled: false },
     ]);
     assert.equal(reloadedExtensionTab, "s1");
   });
-  assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui, undefined, extensionRuntime), {
-    consume: true,
-  });
+  emPanel.handleInput("\x1b");
   assert.equal(state.extensionManager.open, false);
   state.activeTabId = "home";
   renderHome(state, 100);

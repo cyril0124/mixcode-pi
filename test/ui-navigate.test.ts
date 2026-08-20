@@ -10,7 +10,7 @@ import {
 } from "./helpers/mixcode.js";
 import { scrollChatToUserEntry } from "../src/ui/chat-scroll-target.js";
 import { renderAgentSurface } from "../src/ui/rendering/agent-surface.js";
-import { renderTreeSelector } from "../src/ui/tree-selector-render.js";
+import { renderTreeSelector } from "../src/ui/components/tree-selector-render.js";
 
 function stripAnsi(text: string): string {
   return text.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "");

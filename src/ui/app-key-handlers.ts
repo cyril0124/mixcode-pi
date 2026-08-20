@@ -63,8 +63,8 @@ import type {
 } from "./app-types.js";
 import { getConfiguredQuitOptions, quitMixCode } from "./quit.js";
 import { renderCommandPalette, renderPickerOverlay, renderTabJumpOverlay } from "./rendering.js";
-import { openTreeSelector, type TreeSelectorRuntime } from "./tree-selector.js";
-import { openForkSelector } from "./fork-selector.js";
+import { openTreeSelector, type TreeSelectorRuntime } from "./components/tree-selector.js";
+import { openForkSelector } from "./components/fork-selector.js";
 import { clearVimTranscriptSearch } from "./vim-transcript-search.js";
 export { handleVimUserMessageNavigation } from "./vim-user-message-navigation.js";
 

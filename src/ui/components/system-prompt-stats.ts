@@ -1,4 +1,4 @@
-import type { SystemPromptSection } from "../core/system-prompt.js";
+import type { SystemPromptSection } from "../../core/system-prompt.js";
 
 // No tokenizer dependency ships with the project; estimates only, labeled as
 // such in the output. CJK chars tokenize at roughly one per char vs ~4 chars

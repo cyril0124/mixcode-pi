@@ -12,7 +12,7 @@ import {
 import { type EditorFactory, MIXCODE_EXTENSION_KEYBINDINGS_MANAGER } from "../agent/runtime.js";
 import { HOME_TAB_ID, type MixCodeState, type VimTranscriptSearchState } from "../core/types.js";
 import type { MixCodeEditorActions } from "./app-types.js";
-import { buildLabeledTopBorder, isPlainBorderLine } from "./editor-top-border.js";
+import { buildLabeledTopBorder, isPlainBorderLine } from "./components/editor-top-border.js";
 import { exactContextUsageText } from "./rendering/chrome.js";
 import { padLine } from "./rendering.js";
 import { type MixCodeTheme, themeForId } from "./themes.js";

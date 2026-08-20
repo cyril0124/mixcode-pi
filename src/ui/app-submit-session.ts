@@ -28,13 +28,13 @@ import {
   openSessionActionConfirm,
 } from "./app-actions.js";
 import { type LocalCommandHandler, type MixCodeKeyRuntime, SKIP_FINALIZE } from "./app-types.js";
-import { renderSessionInfoText as formatSessionInfoText } from "./session-info.js";
+import { renderSessionInfoText as formatSessionInfoText } from "./components/session-info.js";
 import {
   openSessionSelector,
   resumeSelectedSession,
   type SessionSelectorRuntime,
-} from "./session-selector.js";
-import { openTreeSelector, type TreeSelectorRuntime } from "./tree-selector.js";
+} from "./session-resume.js";
+import { openTreeSelector, type TreeSelectorRuntime } from "./components/tree-selector.js";
 
 const handleFollowUp: LocalCommandHandler = async ({ active, args, runtime, tui }) => {
   // Queue as followUp (wait until idle). Do not send "/follow-up ..." as model text.
@@ -173,15 +173,13 @@ const handleResume: LocalCommandHandler = async ({
       tui.requestRender();
       return SKIP_FINALIZE;
     }
-    // The already-active guard in resumeSelectedSession reads this field; it is
-    // otherwise only refreshed when the selector opens.
-    state.sessionSelector.currentSessionPath = currentSessionPath;
     resumeSelectedSession(
       state,
       tui,
       target.path,
       target.name,
       target.id,
+      currentSessionPath,
       runtime as unknown as MixCodeKeyRuntime,
       onStateChanged,
     );

@@ -23,7 +23,6 @@ import {
   extensionPanelWidth,
   EXTENSION_PANEL_MIN_TERMINAL_WIDTH,
   formatElapsed,
-  renderFloatingPanelOverlay,
   renderFooter,
   renderInputMeta,
   renderTabBar,
@@ -33,6 +32,7 @@ import {
   setCurrentUiTheme,
   zenStatusMarkers,
 } from "./rendering.js";
+import { renderFloatingPanelOverlay } from "./components/floating-panel.js";
 import { themeForId, type MixCodeTheme } from "./themes.js";
 
 const WORKING_GAP_ROWS = 1;

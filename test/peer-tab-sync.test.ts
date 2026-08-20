@@ -30,7 +30,7 @@ import {
   openExistingAgentTab,
   prepareAgentTabClear,
 } from "../src/ui/agent-tab-actions.js";
-import { resumeSelectedSession } from "../src/ui/session-selector.js";
+import { resumeSelectedSession } from "../src/ui/session-resume.js";
 
 test("listTabsToReconcile opens missing and closes extras", () => {
   const plan = listTabsToReconcile({
@@ -637,7 +637,6 @@ test("resume publishes open_tabs before switch so reconcile keeps session title"
     reconcileDuringSwitch = () => sync.reconcileNow();
 
     state.sessionSelector = createSessionSelectorState();
-    state.sessionSelector.currentSessionPath = null;
 
     const tui = {
       requestRender: () => undefined,
@@ -653,6 +652,7 @@ test("resume publishes open_tabs before switch so reconcile keeps session title"
       sessionPath,
       "implement-zen-mode",
       durableId,
+      null,
       runtime as never,
     );
     // Allow async resume to publish durable id then hit switch gate.

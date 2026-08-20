@@ -7,26 +7,39 @@ import {
   filteredWorkspaces,
   formatWorkspaceDate,
   selectedWorkspace,
+  type WorkspaceOverlayView,
   workspaceTabCount,
 } from "./workspace-shared.js";
 
-export function renderWorkspaceOverlay(state: MixCodeState, width: number): string[] {
-  return renderWithTheme(themeForId(state.theme), () => renderWorkspaceOverlayInner(state, width));
+export function renderWorkspaceOverlay(
+  overlay: WorkspaceOverlayView,
+  state: MixCodeState,
+  width: number,
+): string[] {
+  return renderWithTheme(themeForId(state.theme), () =>
+    renderWorkspaceOverlayInner(overlay, state, width),
+  );
 }
 
-function renderWorkspaceOverlayInner(state: MixCodeState, width: number): string[] {
-  const overlay = state.workspaceOverlay;
-  if (overlay.mode === "save") return renderSaveOverlay(state, width);
-  if (overlay.mode === "save-confirm-overwrite") return renderSaveConfirmOverlay(state, width);
-  if (overlay.mode === "restore-confirm-close") return renderRestoreConfirmOverlay(state, width);
-  if (overlay.mode === "delete-confirm") return renderDeleteConfirmOverlay(state, width);
-  if (overlay.mode === "restoring") return renderRestoringOverlay(state, width);
-  if (overlay.mode === "missing") return renderMissingOverlay(state, width);
-  return renderWorkspaceSelector(state, width);
+function renderWorkspaceOverlayInner(
+  overlay: WorkspaceOverlayView,
+  state: MixCodeState,
+  width: number,
+): string[] {
+  if (overlay.mode === "save") return renderSaveOverlay(overlay, state, width);
+  if (overlay.mode === "save-confirm-overwrite") return renderSaveConfirmOverlay(overlay, state, width);
+  if (overlay.mode === "restore-confirm-close") return renderRestoreConfirmOverlay(overlay, width);
+  if (overlay.mode === "delete-confirm") return renderDeleteConfirmOverlay(overlay, width);
+  if (overlay.mode === "restoring") return renderRestoringOverlay(overlay, width);
+  if (overlay.mode === "missing") return renderMissingOverlay(overlay, width);
+  return renderWorkspaceSelector(overlay, state, width);
 }
 
-function renderSaveOverlay(state: MixCodeState, width: number): string[] {
-  const overlay = state.workspaceOverlay;
+function renderSaveOverlay(
+  overlay: WorkspaceOverlayView,
+  state: MixCodeState,
+  width: number,
+): string[] {
   const panelWidth = Math.max(60, width);
   const inputWidth = Math.max(20, Math.min(60, panelWidth - 6));
   const tabs = state.tabs.map((tab) => tab.title).join(", ") || "none";
@@ -59,8 +72,12 @@ function renderNameInputLines(value: string, width: number): string[] {
   ];
 }
 
-function renderSaveConfirmOverlay(state: MixCodeState, width: number): string[] {
-  const name = state.workspaceOverlay.pendingName ?? state.workspaceOverlay.input.trim();
+function renderSaveConfirmOverlay(
+  overlay: WorkspaceOverlayView,
+  state: MixCodeState,
+  width: number,
+): string[] {
+  const name = overlay.pendingName ?? overlay.input.trim();
   return overlayPanel(
     "Confirm Update Workspace",
     [
@@ -75,8 +92,7 @@ function renderSaveConfirmOverlay(state: MixCodeState, width: number): string[] 
   );
 }
 
-function renderRestoreConfirmOverlay(state: MixCodeState, width: number): string[] {
-  const overlay = state.workspaceOverlay;
+function renderRestoreConfirmOverlay(overlay: WorkspaceOverlayView, width: number): string[] {
   const workspace = overlay.pendingWorkspace;
   return overlayPanel(
     `Restore Workspace "${workspace?.name ?? ""}"?`,
@@ -92,8 +108,8 @@ function renderRestoreConfirmOverlay(state: MixCodeState, width: number): string
   );
 }
 
-function renderDeleteConfirmOverlay(state: MixCodeState, width: number): string[] {
-  const workspace = state.workspaceOverlay.pendingWorkspace;
+function renderDeleteConfirmOverlay(overlay: WorkspaceOverlayView, width: number): string[] {
+  const workspace = overlay.pendingWorkspace;
   return overlayPanel(
     `Delete Workspace "${workspace?.name ?? ""}"?`,
     [
@@ -106,8 +122,7 @@ function renderDeleteConfirmOverlay(state: MixCodeState, width: number): string[
   );
 }
 
-function renderRestoringOverlay(state: MixCodeState, width: number): string[] {
-  const overlay = state.workspaceOverlay;
+function renderRestoringOverlay(overlay: WorkspaceOverlayView, width: number): string[] {
   return overlayPanel(
     "Restoring Workspace",
     [
@@ -120,8 +135,7 @@ function renderRestoringOverlay(state: MixCodeState, width: number): string[] {
   );
 }
 
-function renderMissingOverlay(state: MixCodeState, width: number): string[] {
-  const overlay = state.workspaceOverlay;
+function renderMissingOverlay(overlay: WorkspaceOverlayView, width: number): string[] {
   return overlayPanel(
     "Missing Sessions",
     [
@@ -139,8 +153,11 @@ function renderMissingOverlay(state: MixCodeState, width: number): string[] {
   );
 }
 
-function renderWorkspaceSelector(state: MixCodeState, width: number): string[] {
-  const overlay = state.workspaceOverlay;
+function renderWorkspaceSelector(
+  overlay: WorkspaceOverlayView,
+  state: MixCodeState,
+  width: number,
+): string[] {
   const panelWidth = Math.max(60, width);
   const bodyWidth = Math.max(20, panelWidth - 2);
   if (!overlay.workspaces.length) {
@@ -162,7 +179,7 @@ function renderWorkspaceSelector(state: MixCodeState, width: number): string[] {
   const rightWidth = Math.max(20, bodyWidth - leftWidth - 3);
   const workspace = selectedWorkspace(overlay);
   const rows = workspaceSelectorRows(overlay.workspaces.length, workspace);
-  const left = renderWorkspaceList(state, leftWidth, rows);
+  const left = renderWorkspaceList(overlay, leftWidth, rows);
   const right = renderWorkspaceDetails(workspace, rightWidth, rows);
   const lines = [
     activeRenderTheme.dim(overlay.workdir || state.workdir),
@@ -180,8 +197,7 @@ function workspaceSelectorRows(workspaceCount: number, workspace: WorkspaceSnaps
   return Math.max(10, Math.min(18, Math.max(detailRows, listRows)));
 }
 
-function renderWorkspaceList(state: MixCodeState, width: number, rows: number): string[] {
-  const overlay = state.workspaceOverlay;
+function renderWorkspaceList(overlay: WorkspaceOverlayView, width: number, rows: number): string[] {
   const workspaces = filteredWorkspaces(overlay);
   const lines = [`filter: ${overlay.query}`, ""];
   const startIndex = windowStart(overlay.selectedIndex, workspaces.length, rows - 2);

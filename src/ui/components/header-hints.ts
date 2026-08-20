@@ -14,8 +14,8 @@
 import { visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { MIXCODE_KEYMAP } from "../../core/keymap.js";
 import type { MixCodeTabInfo } from "../../core/types.js";
-import { activeRenderTheme } from "./context.js";
-import { padLine } from "./primitives.js";
+import { activeRenderTheme } from "../rendering/context.js";
+import { padLine } from "../rendering/primitives.js";
 
 // Hand-curated compact line (like Pi's compactInstructions), sized to cover
 // the day-to-day keys — interrupt/undo, navigation, palette, editor, queue —

@@ -164,7 +164,6 @@ export function closeActiveOverlay(state: MixCodeState): void {
   state.sessionSelector.dispose?.();
   state.sessionSelector.dispose = undefined;
   state.sessionSelector.open = false;
-  state.sessionSelector.component = undefined;
   closeCommandPalette(state);
   state.settingsPanel.open = false;
   state.extensionManager.open = false;

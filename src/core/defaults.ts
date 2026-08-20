@@ -6,7 +6,6 @@ import {
 } from "./mixcode-settings.js";
 import {
   HOME_TAB_ID,
-  type ForkSelectorState,
   type MixCodeModelRef,
   type MixCodeState,
   type MixCodeTabInfo,
@@ -14,35 +13,12 @@ import {
   type WorkspaceOverlayState,
 } from "./types.js";
 
-export function createForkSelectorState(): ForkSelectorState {
-  return { open: false, sessionId: "", items: [], selectedIndex: 0 };
-}
-
 export function createSessionSelectorState(): SessionSelectorState {
-  return {
-    open: false,
-    currentSessionPath: null,
-  };
+  return { open: false };
 }
 
 export function createWorkspaceOverlayState(): WorkspaceOverlayState {
-  return {
-    open: false,
-    mode: "restore",
-    query: "",
-    selectedIndex: 0,
-    workspaces: [],
-    workdir: "",
-    message: "",
-    input: "",
-    pendingName: undefined,
-    pendingWorkspace: undefined,
-    extraTabCount: 0,
-    restoredCount: 0,
-    skippedMissing: [],
-    progressCurrent: 0,
-    progressTotal: 0,
-  };
+  return { open: false };
 }
 
 export const DEFAULT_THEME_ID = "claude-warm";
@@ -77,33 +53,9 @@ export function createInitialState(workdir: string, defaultThinkingLevel?: Think
     sessionActionConfirm: null,
     commandPaletteOpen: false,
     commandPalette: { query: "", selectedIndex: 0 },
-    settingsPanel: {
-      open: false,
-      selectedIndex: 0,
-      filterQuery: "",
-      editMode: false,
-      editText: "",
-      editError: undefined,
-      enumOpen: false,
-      enumIndex: 0,
-      mixcodeRaw: {},
-      mixcodeFile: "",
-      piSettingsFile: "",
-    },
-    extensionManager: {
-      open: false,
-      selectedIndex: 0,
-      detailScrollOffset: 0,
-      searchActive: false,
-      searchQuery: "",
-      entries: [],
-      selectedKeys: [],
-      message: "",
-      error: "",
-      working: false,
-    },
+    settingsPanel: { open: false },
+    extensionManager: { open: false },
     sessionSelector: createSessionSelectorState(),
-    forkSelector: createForkSelectorState(),
     treeSelector: createTreeSelectorState(),
     workspaceOverlay: createWorkspaceOverlayState(),
     tabJumpOpen: false,

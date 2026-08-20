@@ -1,11 +1,11 @@
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 import { type EditorComponent, isKeyRelease, matchesKey } from "@earendil-works/pi-tui";
 
-import type { ChatLine } from "../agent/runtime.js";
-import { applyMixCodeKeybindings } from "../agent/runtime-pi-tui-bridge.js";
+import type { ChatLine } from "../../agent/runtime.js";
+import { applyMixCodeKeybindings } from "../../agent/runtime-pi-tui-bridge.js";
 import { copyToClipboard } from "@earendil-works/pi-coding-agent";
-import { chatEnd } from "../core/overlays.js";
-import { pushToast } from "../core/toast.js";
+import { chatEnd } from "../../core/overlays.js";
+import { pushToast } from "../../core/toast.js";
 import {
   cancelCustomInstructions,
   cancelSummarizePrompt,
@@ -20,11 +20,11 @@ import {
   syncTreeSelectorSelection,
   type TreeFilterMode,
   type TreeSelectorMode,
-} from "../core/tree-selector.js";
-import type { MixCodeState } from "../core/types.js";
-import { showErrorOverlay } from "./app-overlays.js";
-import type { MixCodeKeyRuntime, OverlayTui, TreeSelectorDisplayHost } from "./app-types.js";
-import { scrollChatToUserEntry } from "./chat-scroll-target.js";
+} from "../../core/tree-selector.js";
+import type { MixCodeState } from "../../core/types.js";
+import { showErrorOverlay } from "../app-overlays.js";
+import type { MixCodeKeyRuntime, OverlayTui, TreeSelectorDisplayHost } from "../app-types.js";
+import { scrollChatToUserEntry } from "../chat-scroll-target.js";
 import { renderTreeSelector } from "./tree-selector-render.js";
 
 function getTreeSelectorDisplayHost(tui: OverlayTui): TreeSelectorDisplayHost | undefined {

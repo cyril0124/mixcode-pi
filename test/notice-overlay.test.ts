@@ -17,10 +17,10 @@ import {
   hasActiveNotice,
   hasAppOverlay,
   hasCapturingAppOverlay,
-  renderNoticePanel,
   showLinesOverlay,
   showNoticeTextOverlay,
 } from "../src/ui/app-overlays.js";
+import { renderNoticePanel } from "../src/ui/components/notice-panel.js";
 import { themeForId } from "../src/ui/themes.js";
 
 const stripAnsi = (text: string) => text.replace(/\x1b\[[0-9;]*m/g, "");

@@ -50,7 +50,7 @@ import {
 } from "../core/state-store.js";
 import { MIXCODE_SYSTEM_PROMPT, setGlobalConversationHistoryPrompt } from "../core/system-prompt.js";
 import { HOME_TAB_ID, type MixCodeModelRef, type MixCodeState } from "../core/types.js";
-import type { MixCodeCompletionSources } from "../ui/completion.js";
+import type { MixCodeCompletionSources } from "../ui/components/completion.js";
 import { applyHttpProxySettings, configureHttpDispatcher } from "@earendil-works/pi-coding-agent";
 
 export interface BootstrapOptions {

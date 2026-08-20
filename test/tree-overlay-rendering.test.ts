@@ -11,8 +11,8 @@ import {
   attachTreeSelectorDisplayHost,
   handleTreeSelectorKey,
   openTreeSelector,
-} from "../src/ui/tree-selector.js";
-import { renderTreeSelector } from "../src/ui/tree-selector-render.js";
+} from "../src/ui/components/tree-selector.js";
+import { renderTreeSelector } from "../src/ui/components/tree-selector-render.js";
 
 function stripAnsi(text: string): string {
   return text.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "");

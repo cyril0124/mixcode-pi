@@ -6,7 +6,7 @@ import { test } from "node:test";
 import { SettingsManager } from "@earendil-works/pi-coding-agent";
 import { stripTerminalSequences as stripAnsi } from "@earendil-works/pi-tui";
 import { createInitialState, createTab, loadMixCodeSettings } from "./helpers/mixcode.js";
-import { handleSettingsPanelKey, renderSettingsPanel } from "../src/ui/settings-panel.js";
+import { createSettingsPanel } from "./helpers/settings-panel.js";
 
 test("settings panel changes Pi mermaid mode and mirrors live state", async () => {
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-settings-mermaid-"));
@@ -15,30 +15,17 @@ test("settings panel changes Pi mermaid mode and mirrors live state", async () =
   try {
     const state = createInitialState(dir);
     const settingsManager = SettingsManager.inMemory();
-    state.settingsPanel = {
-      open: true,
-      selectedIndex: 8, // markdown.mermaid
-      editMode: false,
-      editText: "",
-      enumOpen: false,
-      enumIndex: 0,
-      mixcodeRaw: {},
+    const panel = createSettingsPanel(state, settingsManager, {
       mixcodeFile,
       piSettingsFile: path.join(dir, "settings.json"),
-      settingsManager,
-    };
-    const tui = {
-      requestRender: () => undefined,
-      showOverlay: () => ({ hide: () => undefined }) as never,
-      hasOverlay: () => true,
-      hideOverlay: () => undefined,
-    };
+    });
+    panel.selectedIndex = 8; // markdown.mermaid
 
-    assert.match(stripAnsi(renderSettingsPanel(state, 80).join("\n")), /Mermaid diagrams/);
+    assert.match(stripAnsi(panel.render(80).join("\n")), /Mermaid diagrams/);
     // Open enum (default streaming), pick off, confirm.
-    handleSettingsPanelKey(state, "\r", tui);
-    state.settingsPanel.enumIndex = 0; // off
-    handleSettingsPanelKey(state, "\r", tui);
+    panel.handleInput("\r");
+    panel.enumIndex = 0; // off
+    panel.handleInput("\r");
     await Bun.sleep(30);
 
     assert.equal(settingsManager.getMermaidRenderingMode(), "off");
@@ -184,33 +171,20 @@ test("settings panel cycles icons.mode and persists it", async () => {
   await fsPromises.writeFile(mixcodeFile, "{}\n");
   try {
     const state = createInitialState(dir);
-    state.settingsPanel = {
-      open: true,
-      selectedIndex: 11, // icons.mode
-      editMode: false,
-      editText: "",
-      enumOpen: false,
-      enumIndex: 0,
-      mixcodeRaw: {},
+    const panel = createSettingsPanel(state, SettingsManager.inMemory(), {
       mixcodeFile,
       piSettingsFile: path.join(dir, "settings.json"),
-      settingsManager: SettingsManager.inMemory(),
-    };
-    const tui = {
-      requestRender: () => undefined,
-      showOverlay: () => ({ hide: () => undefined }) as never,
-      hasOverlay: () => true,
-      hideOverlay: () => undefined,
-    };
+    });
+    panel.selectedIndex = 11; // icons.mode
 
-    assert.match(stripAnsi(renderSettingsPanel(state, 80).join("\n")), /Icon mode/);
+    assert.match(stripAnsi(panel.render(80).join("\n")), /Icon mode/);
     // Open enum, pick ascii (index 2), confirm.
-    handleSettingsPanelKey(state, "\r", tui);
-    state.settingsPanel.enumIndex = 2;
-    handleSettingsPanelKey(state, "\r", tui);
+    panel.handleInput("\r");
+    panel.enumIndex = 2;
+    panel.handleInput("\r");
     await Bun.sleep(30);
 
-    assert.equal(state.settingsPanel.mixcodeRaw.ui?.icons?.mode, "ascii");
+    assert.equal(panel.mixcodeRaw.ui?.icons?.mode, "ascii");
     assert.equal(state.ui?.icons?.mode, "ascii");
     assert.deepEqual(JSON.parse(await fsPromises.readFile(mixcodeFile, "utf8")), {
       ui: { icons: { mode: "ascii" } },
@@ -232,29 +206,15 @@ test("settings panel restores Pi values when persistence fails", async () => {
   };
   const settingsManager = SettingsManager.fromStorage(storage as never);
   const state = createInitialState("/repo");
-  state.settingsPanel = {
-    open: true,
-    selectedIndex: 0, // hideThinkingBlock
-    editMode: false,
-    editText: "",
-    enumOpen: false,
-    enumIndex: 0,
-    mixcodeRaw: {},
+  const panel = createSettingsPanel(state, settingsManager, {
     mixcodeFile: "/tmp/unused-mixcode-settings.json",
     piSettingsFile: "/tmp/unused-pi-settings.json",
-    settingsManager,
-  };
-  const tui = {
-    requestRender: () => undefined,
-    showOverlay: () => ({ hide: () => undefined }) as never,
-    hasOverlay: () => true,
-    hideOverlay: () => undefined,
-  };
+  });
 
-  handleSettingsPanelKey(state, "\r", tui);
+  panel.handleInput("\r"); // hideThinkingBlock at index 0
   await Bun.sleep(30);
 
-  assert.match(state.settingsPanel.editError ?? "", /settings disk is read-only/);
+  assert.match(panel.editError ?? "", /settings disk is read-only/);
   assert.equal(settingsManager.getHideThinkingBlock(), false);
   assert.equal(state.hideThinkingBlock ?? false, false);
 });
@@ -263,33 +223,20 @@ test("settings panel surfaces write failures without applying the new value", as
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-settings-write-error-"));
   try {
     const state = createInitialState(dir);
-    state.settingsPanel = {
-      open: true,
-      selectedIndex: 11, // icons.mode
-      editMode: false,
-      editText: "",
-      enumOpen: false,
-      enumIndex: 0,
-      mixcodeRaw: {},
+    const panel = createSettingsPanel(state, SettingsManager.inMemory(), {
       mixcodeFile: dir, // Writing JSON to a directory must fail.
       piSettingsFile: path.join(dir, "settings.json"),
-      settingsManager: SettingsManager.inMemory(),
-    };
-    const tui = {
-      requestRender: () => undefined,
-      showOverlay: () => ({ hide: () => undefined }) as never,
-      hasOverlay: () => true,
-      hideOverlay: () => undefined,
-    };
+    });
+    panel.selectedIndex = 11; // icons.mode
 
-    handleSettingsPanelKey(state, "\r", tui);
-    state.settingsPanel.enumIndex = 2;
-    handleSettingsPanelKey(state, "\r", tui);
+    panel.handleInput("\r");
+    panel.enumIndex = 2;
+    panel.handleInput("\r");
     await Bun.sleep(30);
 
-    assert.match(state.settingsPanel.editError ?? "", /Failed to save Icon mode/);
-    assert.equal(state.settingsPanel.enumOpen, true);
-    assert.equal(state.settingsPanel.mixcodeRaw.ui?.icons?.mode, undefined);
+    assert.match(panel.editError ?? "", /Failed to save Icon mode/);
+    assert.equal(panel.enumOpen, true);
+    assert.equal(panel.mixcodeRaw.ui?.icons?.mode, undefined);
     assert.equal(state.ui?.icons.mode, "nerd");
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
@@ -298,105 +245,66 @@ test("settings panel surfaces write failures without applying the new value", as
 
 test("settings panel wraps selection from the first item to the last", () => {
   const state = createInitialState("/repo");
-  state.settingsPanel = {
-    open: true,
-    selectedIndex: 0,
-    editMode: false,
-    editText: "",
-    enumOpen: false,
-    enumIndex: 0,
-    mixcodeRaw: {},
-    mixcodeFile: "/tmp/unused-mixcode-settings.json",
-    piSettingsFile: "/tmp/unused-pi-settings.json",
-    settingsManager: SettingsManager.inMemory(),
-  };
-  const tui = {
-    requestRender: () => undefined,
-    showOverlay: () => ({ hide: () => undefined }) as never,
-    hasOverlay: () => true,
-    hideOverlay: () => undefined,
-  };
+  const panel = createSettingsPanel(state, SettingsManager.inMemory());
 
-  handleSettingsPanelKey(state, "\x1b[A", tui);
-  assert.ok(state.settingsPanel.selectedIndex > 0);
-  const last = state.settingsPanel.selectedIndex;
-  handleSettingsPanelKey(state, "\x1b[B", tui);
-  assert.equal(state.settingsPanel.selectedIndex, 0);
-  handleSettingsPanelKey(state, "\x1b[A", tui);
-  assert.equal(state.settingsPanel.selectedIndex, last);
+  panel.handleInput("\x1b[A");
+  assert.ok(panel.selectedIndex > 0);
+  const last = panel.selectedIndex;
+  panel.handleInput("\x1b[B");
+  assert.equal(panel.selectedIndex, 0);
+  panel.handleInput("\x1b[A");
+  assert.equal(panel.selectedIndex, last);
 });
 
 test("settings panel filters the main list and activates the selected match", () => {
   const state = createInitialState("/repo");
-  state.settingsPanel = {
-    ...state.settingsPanel,
-    open: true,
-    mixcodeFile: "/tmp/unused-mixcode-settings.json",
-    piSettingsFile: "/tmp/unused-pi-settings.json",
-    settingsManager: SettingsManager.inMemory(),
-  };
-  const tui = {
-    requestRender: () => undefined,
-    showOverlay: () => ({ hide: () => undefined }) as never,
-    hasOverlay: () => true,
-    hideOverlay: () => undefined,
-  };
+  state.settingsPanel.open = true;
+  const panel = createSettingsPanel(state, SettingsManager.inMemory());
 
-  for (const char of "image") handleSettingsPanelKey(state, char, tui);
+  for (const char of "image") panel.handleInput(char);
 
-  const filtered = stripAnsi(renderSettingsPanel(state, 100).join("\n"));
+  const filtered = stripAnsi(panel.render(100).join("\n"));
   assert.match(filtered, /filter: image/i);
   assert.match(filtered, /Show images/);
   assert.match(filtered, /Image width \(cells\)/);
   assert.match(filtered, /Block images to model/);
   assert.doesNotMatch(filtered, /Hide thinking blocks/);
 
-  handleSettingsPanelKey(state, "\x1b[B", tui);
-  handleSettingsPanelKey(state, "\r", tui);
-  assert.equal(state.settingsPanel.editMode, true);
-  assert.equal(state.settingsPanel.selectedIndex, 6); // imageWidthCells in ITEMS
+  panel.handleInput("\x1b[B");
+  panel.handleInput("\r");
+  assert.equal(panel.editMode, true);
+  assert.equal(panel.selectedIndex, 6); // imageWidthCells in ITEMS
 
-  handleSettingsPanelKey(state, "\x1b", tui);
-  assert.equal(state.settingsPanel.editMode, false);
-  handleSettingsPanelKey(state, "\x7f", tui);
-  assert.equal(state.settingsPanel.filterQuery, "imag");
-  handleSettingsPanelKey(state, "\x1b", tui);
-  assert.equal(state.settingsPanel.filterQuery, "");
+  panel.handleInput("\x1b");
+  assert.equal(panel.editMode, false);
+  panel.handleInput("\x7f");
+  assert.equal(panel.filterQuery, "imag");
+  panel.handleInput("\x1b");
+  assert.equal(panel.filterQuery, "");
   assert.equal(state.settingsPanel.open, true);
 
-  for (const char of "markdown.mermaid") handleSettingsPanelKey(state, char, tui);
-  const keyFiltered = stripAnsi(renderSettingsPanel(state, 100).join("\n"));
+  for (const char of "markdown.mermaid") panel.handleInput(char);
+  const keyFiltered = stripAnsi(panel.render(100).join("\n"));
   assert.match(keyFiltered, /Mermaid diagrams/);
   assert.doesNotMatch(keyFiltered, /Show images/);
 
-  handleSettingsPanelKey(state, "\x1b", tui);
-  handleSettingsPanelKey(state, "\x1b", tui);
+  panel.handleInput("\x1b");
+  panel.handleInput("\x1b");
   assert.equal(state.settingsPanel.open, false);
 });
 
 test("settings panel handles a filter with no matching settings", () => {
   const state = createInitialState("/repo");
-  state.settingsPanel = {
-    ...state.settingsPanel,
-    open: true,
-    mixcodeFile: "/tmp/unused-mixcode-settings.json",
-    piSettingsFile: "/tmp/unused-pi-settings.json",
-    settingsManager: SettingsManager.inMemory(),
-  };
-  const tui = {
-    requestRender: () => undefined,
-    showOverlay: () => ({ hide: () => undefined }) as never,
-    hasOverlay: () => true,
-    hideOverlay: () => undefined,
-  };
+  state.settingsPanel.open = true;
+  const panel = createSettingsPanel(state, SettingsManager.inMemory());
 
-  for (const char of "zzzzz") handleSettingsPanelKey(state, char, tui);
-  assert.match(stripAnsi(renderSettingsPanel(state, 100).join("\n")), /No matching settings/);
+  for (const char of "zzzzz") panel.handleInput(char);
+  assert.match(stripAnsi(panel.render(100).join("\n")), /No matching settings/);
 
-  handleSettingsPanelKey(state, "\x1b[A", tui);
-  handleSettingsPanelKey(state, "\r", tui);
-  assert.equal(state.settingsPanel.editMode, false);
-  assert.equal(state.settingsPanel.enumOpen, false);
+  panel.handleInput("\x1b[A");
+  panel.handleInput("\r");
+  assert.equal(panel.editMode, false);
+  assert.equal(panel.enumOpen, false);
   assert.equal(state.settingsPanel.open, true);
 });
 
@@ -421,27 +329,14 @@ test("settings panel toggles inlineWidgets on live tabs and new tabs", async () 
     const state = createInitialState(dir);
     const tab = createTab(1, "s1", dir);
     state.tabs.push(tab);
-    state.settingsPanel = {
-      open: true,
-      selectedIndex: 17, // inlineWidgets
-      editMode: false,
-      editText: "",
-      enumOpen: false,
-      enumIndex: 0,
-      mixcodeRaw: {},
+    const panel = createSettingsPanel(state, SettingsManager.inMemory(), {
       mixcodeFile,
       piSettingsFile: path.join(dir, "settings.json"),
-      settingsManager: SettingsManager.inMemory(),
-    };
-    const tui = {
-      requestRender: () => undefined,
-      showOverlay: () => ({ hide: () => undefined }) as never,
-      hasOverlay: () => true,
-      hideOverlay: () => undefined,
-    };
+    });
+    panel.selectedIndex = 17; // inlineWidgets
 
-    assert.match(stripAnsi(renderSettingsPanel(state, 80).join("\n")), /Inline widgets/);
-    handleSettingsPanelKey(state, "\r", tui);
+    assert.match(stripAnsi(panel.render(80).join("\n")), /Inline widgets/);
+    panel.handleInput("\r");
     await Bun.sleep(30);
 
     assert.equal(JSON.parse(await fsPromises.readFile(mixcodeFile, "utf8")).ui.inlineWidgets, true);
