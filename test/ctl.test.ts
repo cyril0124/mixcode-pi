@@ -173,7 +173,7 @@ test("selectCtlInstance errors on zero or multiple matches", async () => {
       workdir: "/repo-a",
       activeTabId: "s1",
       updatedAt: new Date().toISOString(),
-      tabs: [],
+      tabs: [{ index: 0, sessionId: "s1", title: "Agent-01", workdir: "/repo-a", status: "idle", unreadDone: false, waitingForInputCount: 0 }],
     });
     const one = await selectCtlInstance({ op: "last-assistant-message", workdir: "/repo-a" }, { stateDir: root });
     assert.equal(one.pid, process.pid);
@@ -183,13 +183,21 @@ test("selectCtlInstance errors on zero or multiple matches", async () => {
         version: 1,
         pid: second.pid,
         workdir: "/repo-a",
-        activeTabId: "s1",
+        activeTabId: "home",
         updatedAt: new Date().toISOString(),
-        tabs: [],
+        tabs: [{ index: 0, sessionId: "s1", title: "Worker", workdir: "/repo-a", status: "idle", unreadDone: false, waitingForInputCount: 0 }],
       });
       await assert.rejects(
         selectCtlInstance({ op: "last-assistant-message", workdir: "/repo-a" }, { stateDir: root }),
-        /Multiple live mpi instances match/,
+        (error: unknown) => {
+          const message = error instanceof Error ? error.message : String(error);
+          return (
+            message.startsWith("Multiple live mpi instances match this workdir; pass --pid <n>:") &&
+            message.includes(`  ${process.pid}  tabs: 1  active: Agent-01`) &&
+            message.includes(`  ${second.pid}  tabs: 1  active: home`) &&
+            message.includes("MIXCODE_PID")
+          );
+        },
       );
     } finally {
       second.kill();

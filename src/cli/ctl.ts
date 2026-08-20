@@ -5,6 +5,7 @@ import * as path from "node:path";
 import { cwd, env as processEnv } from "node:process";
 import { stripTerminalSequences } from "@earendil-works/pi-tui";
 import {
+  activeTabTitleOf,
   instanceCtlSocketFile,
   loadLiveInstanceStatus,
   type InstanceStatusInstance,
@@ -89,7 +90,8 @@ Commands:
 Target:
   --pid <n>               Control this live instance (mutually exclusive with --workdir)
   --workdir <path>        Control the unique live instance in this workdir (mutually exclusive with --pid)
-  (default)               MIXCODE_PID env (bash tool children), else --workdir <cwd>; errors if 0 or >1 instances
+  (default)               MIXCODE_PID env (bash tool children), else --workdir <cwd>; errors if 0 or >1
+                          instances (>1 lists candidate pids with active tabs)
 
   --tab <title>           Target this tab title without changing UI focus
   --session <id>          Target this session id without changing UI focus (home for Home)
@@ -356,8 +358,16 @@ export async function selectCtlInstance(
     );
   }
   if (instances.length > 1) {
+    const candidates = instances
+      .map(
+        (instance) =>
+          `  ${instance.pid}  tabs: ${instance.tabs.length}  active: ${activeTabTitleOf(instance) ?? "unknown"}`,
+      )
+      .join("\n");
     throw new Error(
-      `Multiple live mpi instances match (${instances.map((i) => i.pid).join(", ")}); pass --pid.`,
+      `Multiple live mpi instances match this workdir; pass --pid <n>:\n${candidates}\n` +
+        "Tip: an mpi tab's bash tool already targets its own instance via MIXCODE_PID; " +
+        "from outside, re-run with --pid <n> (see `mpi status`).",
     );
   }
   return instances[0]!;

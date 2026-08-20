@@ -193,12 +193,18 @@ export function formatDisplayWorkdir(workdir: string, home = os.homedir()): stri
   return workdir;
 }
 
+/** Display title of the focused surface: active tab title, "home" for Home, undefined when unknown. */
+export function activeTabTitleOf(instance: InstanceStatusInstance): string | undefined {
+  return (
+    instance.tabs.find((tab) => tab.active)?.title ??
+    (instance.activeTabId === HOME_TAB_ID ? "home" : undefined)
+  );
+}
+
 export function formatInstanceStatusJson(report: InstanceStatusReport): string {
   const data = {
     instances: report.instances.map((instance) => {
-      const activeTab = instance.tabs.find((tab) => tab.active);
-      const activeTabTitle =
-        activeTab?.title ?? (instance.activeTabId === HOME_TAB_ID ? "home" : undefined);
+      const activeTabTitle = activeTabTitleOf(instance);
       return {
         pid: instance.pid,
         workdir: formatDisplayWorkdir(instance.workdir),
