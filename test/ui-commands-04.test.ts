@@ -476,6 +476,12 @@ test("submitted input marks done, exports state, imports sessions, and exits dir
     start: () => {
       lifecycle.push("start");
     },
+    pause: () => {
+      lifecycle.push("pause");
+    },
+    resume: () => {
+      lifecycle.push("resume");
+    },
   };
   const runtime = {
     appendSystemMessage: (_sessionId: string, text: string) => {
@@ -509,7 +515,9 @@ test("submitted input marks done, exports state, imports sessions, and exits dir
   await handleSubmittedInput(state, runtime, `/tui-state --editor=${editorScript}`, tui);
   assert.match(await fsPromises.readFile(captureFile, "utf8"), /"activeTabId": "s1"/);
   assert.deepEqual(tab.previewMessages, []);
-  assert.deepEqual(lifecycle, ["stop", "start"]);
+  // Editor handoff is renderer-only pause/resume; the shutdown stop()/start()
+  // path must stay untouched until the /exit below.
+  assert.deepEqual(lifecycle, ["pause", "resume"]);
   await handleSubmittedInput(state, runtime, `/import ${sessionFile} /repo`, tui);
   assert.equal(overlays.at(-1), `import:${sessionFile}:/repo`);
   assert.equal(tab.toast?.message, `Imported session: ${sessionFile}`);
@@ -531,7 +539,9 @@ test("submitted input marks done, exports state, imports sessions, and exits dir
   assert.equal(stopped, true);
   assert.equal(closedAll, 1);
   assert.equal(state.quitConfirmOpen, false);
-  assert.equal(renders.length, 7);
+  // 6, not 7: the editor handoff repaints via resume()'s renderNow, no longer
+  // through an extra requestRender(true).
+  assert.equal(renders.length, 6);
   await fsPromises.rm(dir, { recursive: true, force: true });
 });
 
@@ -585,6 +595,12 @@ test("submitted input opens system prompt in external editor by default", async 
       start: () => {
         lifecycle.push("start");
       },
+      pause: () => {
+        lifecycle.push("pause");
+      },
+      resume: () => {
+        lifecycle.push("resume");
+      },
     };
 
     process.env.EDITOR = editorScript;
@@ -596,7 +612,7 @@ test("submitted input opens system prompt in external editor by default", async 
       overlays.some((overlay) => /Opened system prompt in external editor/.test(overlay)),
       false,
     );
-    assert.deepEqual(lifecycle, ["stop", "start"]);
+    assert.deepEqual(lifecycle, ["pause", "resume"]);
   } finally {
     if (previousEditor === undefined) delete process.env.EDITOR;
     else process.env.EDITOR = previousEditor;
@@ -652,6 +668,12 @@ test("submitted input opens system tools in external editor by default", async (
       start: () => {
         lifecycle.push("start");
       },
+      pause: () => {
+        lifecycle.push("pause");
+      },
+      resume: () => {
+        lifecycle.push("resume");
+      },
     };
 
     process.env.EDITOR = editorScript;
@@ -668,7 +690,7 @@ test("submitted input opens system tools in external editor by default", async (
       overlays.some((overlay) => /Opened system tools in external editor/.test(overlay)),
       false,
     );
-    assert.deepEqual(lifecycle, ["stop", "start"]);
+    assert.deepEqual(lifecycle, ["pause", "resume"]);
   } finally {
     if (previousEditor === undefined) delete process.env.EDITOR;
     else process.env.EDITOR = previousEditor;

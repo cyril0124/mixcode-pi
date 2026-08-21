@@ -70,7 +70,12 @@ export interface MixCodeTuiOptions {
     piSettingsFile: string;
   };
 }
-export type MixCodeTui = TuiType & { injectInput(data: string): void };
+export type MixCodeTui = TuiType & {
+  injectInput(data: string): void;
+  /** Renderer-only terminal handoff (see OverlayTui.pause/resume). */
+  pause(): void;
+  resume(): void;
+};
 
 export function createMixCodeTui(
   state: MixCodeState,
@@ -402,6 +407,17 @@ export function createMixCodeTui(
     root.dispose();
     originalStop();
     uninstallStdoutGuard();
+  };
+  // Renderer-only pause for external-process handoff ($EDITOR). Must bypass
+  // the destructive stop() wrappers above and in interactive-app (they dispose
+  // the ctl server, clear the instance heartbeat, and kill peer tab sync —
+  // permanently, since nothing restarts them on tui.start()). While paused,
+  // background requestRender calls are no-ops inside pi-tui, so redraw timers
+  // may keep running without painting over the editor.
+  tui.pause = originalStop;
+  tui.resume = () => {
+    originalStart();
+    tui.renderNow(true);
   };
   tui.addChild(root);
   tui.setFocus(editor);

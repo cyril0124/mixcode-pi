@@ -62,6 +62,14 @@ export interface TreeSelectorDisplayHost {
 export type OverlayTui = Pick<TuiType, "requestRender" | "showOverlay"> &
   Partial<Pick<TuiType, "hideOverlay" | "hasOverlay" | "setFocus" | "start" | "stop">> & {
     treeSelectorDisplay?: TreeSelectorDisplayHost;
+    /**
+     * Renderer-only terminal handoff for external processes (e.g. $EDITOR).
+     * Unlike stop()/start() — the app-shutdown path that disposes the ctl
+     * server, instance heartbeat, and peer tab sync — pause()/resume() only
+     * release and re-take the terminal.
+     */
+    pause?: () => void;
+    resume?: () => void;
   };
 
 export interface MixCodeEditorActions {

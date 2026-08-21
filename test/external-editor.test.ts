@@ -4,6 +4,22 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
 import { editTextInExternalEditor } from "./helpers/mixcode.js";
+import { editTextWithTuiPaused } from "../src/ui/app-overlays.js";
+import type { OverlayTui } from "../src/ui/app-types.js";
+
+/** OverlayTui spy: records pause/resume and the shutdown stop()/start() path. */
+function createPauseSpyTui(): { tui: OverlayTui; calls: string[] } {
+  const calls: string[] = [];
+  const tui = {
+    requestRender: () => {},
+    showOverlay: () => {},
+    start: () => calls.push("start"),
+    stop: () => calls.push("stop"),
+    pause: () => calls.push("pause"),
+    resume: () => calls.push("resume"),
+  } as unknown as OverlayTui;
+  return { tui, calls };
+}
 
 test("external editor edits text through a real temporary file", async () => {
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-editor-"));
@@ -15,6 +31,39 @@ test("external editor edits text through a real temporary file", async () => {
       await editTextInExternalEditor("initial", { editor: script, tempRoot: dir }),
       "edited text\n",
     );
+  } finally {
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("external-editor pause uses pause/resume, never the shutdown stop/start", async () => {
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-editor-"));
+  try {
+    const script = path.join(dir, "editor.sh");
+    await fsPromises.writeFile(script, "#!/bin/sh\nprintf 'paused edit\\n' > \"$1\"\n", "utf8");
+    await fsPromises.chmod(script, 0o755);
+    const { tui, calls } = createPauseSpyTui();
+    assert.equal(await editTextWithTuiPaused(tui, "initial", script), "paused edit\n");
+    // stop() is the app-shutdown path (tears down ctl server + heartbeat);
+    // the editor handoff must only pause and resume the renderer.
+    assert.deepEqual(calls, ["pause", "resume"]);
+  } finally {
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("external-editor pause resumes the renderer when the editor fails", async () => {
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-editor-"));
+  try {
+    const script = path.join(dir, "fail.sh");
+    await fsPromises.writeFile(script, "#!/bin/sh\nexit 7\n", "utf8");
+    await fsPromises.chmod(script, 0o755);
+    const { tui, calls } = createPauseSpyTui();
+    await assert.rejects(
+      () => editTextWithTuiPaused(tui, "initial", script),
+      /External editor exited with 7/,
+    );
+    assert.deepEqual(calls, ["pause", "resume"]);
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }

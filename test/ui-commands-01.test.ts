@@ -310,6 +310,12 @@ test("submitted input opens TUI state JSON in external editor", async () => {
       start: () => {
         lifecycle.push("start");
       },
+      pause: () => {
+        lifecycle.push("pause");
+      },
+      resume: () => {
+        lifecycle.push("resume");
+      },
     };
 
     process.env.EDITOR = editorScript;
@@ -328,7 +334,7 @@ test("submitted input opens TUI state JSON in external editor", async () => {
       overlays.some((overlay) => /Opened TUI state in external editor/.test(overlay)),
       false,
     );
-    assert.deepEqual(lifecycle, ["stop", "start"]);
+    assert.deepEqual(lifecycle, ["pause", "resume"]);
   } finally {
     if (previousEditor === undefined) delete process.env.EDITOR;
     else process.env.EDITOR = previousEditor;

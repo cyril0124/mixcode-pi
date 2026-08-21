@@ -350,14 +350,13 @@ export async function editTextWithTuiPaused(
   text: string,
   editor?: string,
 ): Promise<string> {
-  const canPause = Boolean(tui.stop && tui.start);
-  if (canPause) tui.stop?.();
+  // pause/resume, never stop()/start(): stop() is the app-shutdown path and
+  // would permanently tear down the ctl server, heartbeat, and peer tab sync.
+  const canPause = Boolean(tui.pause && tui.resume);
+  if (canPause) tui.pause?.();
   try {
     return await editTextInExternalEditor(text, { editor });
   } finally {
-    if (canPause) {
-      tui.start?.();
-      tui.requestRender(true);
-    }
+    if (canPause) tui.resume?.();
   }
 }
