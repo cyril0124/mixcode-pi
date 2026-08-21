@@ -47,11 +47,6 @@ export const RECOMMENDED: RecommendedExtension[] = [
     hint: "side comments while the agent works",
   },
   {
-    source: "npm:pi-tool-display",
-    label: "pi-tool-display",
-    hint: "richer tool call rendering",
-  },
-  {
     source: "npm:pi-schedule-prompt",
     label: "pi-schedule-prompt",
     hint: "cron / delayed prompts",

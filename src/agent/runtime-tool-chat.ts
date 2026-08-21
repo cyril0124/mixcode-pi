@@ -1,17 +1,8 @@
 import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
-import type { AgentToolResult, ToolDefinition } from "@earendil-works/pi-coding-agent";
-import {
-  type Component,
-  getCapabilities,
-  Image,
-  TuiMainScreen as PiTui,
-} from "@earendil-works/pi-tui";
-import {
-  currentExtensionTheme,
-  ensureExtensionThemeInitialized,
-} from "./runtime-extension-theme.js";
+import { ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
+import type { TUI as PiTui } from "@earendil-works/pi-tui";
+import { ensureExtensionThemeInitialized } from "./runtime-extension-theme.js";
 import { applyMixCodeKeybindings } from "./runtime-pi-tui-bridge.js";
-import { NullTerminal } from "./runtime-null-terminal.js";
 import type { ChatLine, RuntimeTab, ToolResultLike } from "./runtime-types.js";
 
 export function contentText(content: string | Array<{ type: string; text?: string }>): string {
@@ -48,6 +39,14 @@ export function contentImages(
   return images;
 }
 
+function toolShowImages(runtimeTab: RuntimeTab): boolean {
+  return runtimeTab.agentSession.settingsManager.getShowImages();
+}
+
+function toolImageWidthCells(runtimeTab: RuntimeTab): number {
+  return runtimeTab.agentSession.settingsManager.getImageWidthCells();
+}
+
 export function toolExecutionToChatLine(
   runtimeTab: RuntimeTab,
   options: {
@@ -61,9 +60,52 @@ export function toolExecutionToChatLine(
     previous?: ChatLine;
   },
 ): ChatLine {
+  ensureExtensionThemeInitialized();
   const toolName = options.toolName || "unknown";
   const definition = runtimeTab.agentSession.getToolDefinition(toolName);
-  const rendererState = options.previous?.toolRendererState ?? {};
+  const previousComponent = options.previous?.toolExecutionComponent;
+  const ui = {
+    requestRender: () => runtimeTab.requestRender?.(),
+  } as unknown as PiTui;
+  const component =
+    previousComponent ??
+    new ToolExecutionComponent(
+      toolName,
+      options.toolCallId,
+      options.args,
+      {
+        showImages: toolShowImages(runtimeTab),
+        imageWidthCells: toolImageWidthCells(runtimeTab),
+      },
+      definition,
+      ui,
+      runtimeTab.tab.workdir,
+    );
+
+  const restoreKeybindings = applyMixCodeKeybindings();
+  try {
+    component.updateArgs(options.args);
+    const isStarted = options.status !== "pending";
+    if (isStarted) component.markExecutionStarted();
+    const isComplete = options.status !== "pending" && options.status !== "running";
+    if (isComplete) component.setArgsComplete();
+    if (options.result) {
+      component.updateResult(
+        {
+          content: options.result.content,
+          details: options.result.details,
+          isError: options.result.isError,
+        },
+        options.isPartial,
+      );
+    }
+    component.setExpanded(runtimeTab.tab.extensionUi.toolsExpanded);
+    component.setShowImages(toolShowImages(runtimeTab));
+    component.setImageWidthCells(toolImageWidthCells(runtimeTab));
+  } finally {
+    restoreKeybindings();
+  }
+
   const line: ChatLine = {
     role: "tool",
     title: toolName,
@@ -73,159 +115,24 @@ export function toolExecutionToChatLine(
     args: options.args,
     toolResult: options.result,
     toolIsPartial: options.isPartial,
-    toolRenderShell: definition?.renderShell ?? "default",
-    toolRendererState: rendererState,
-    toolCallRendererLastComponent: options.previous?.toolCallRendererLastComponent,
-    toolResultRendererLastComponent: options.previous?.toolResultRendererLastComponent,
+    // ToolExecutionComponent owns its own default/self shell and image strip.
+    toolRenderShell: "self",
+    toolExecutionComponent: component,
   };
-  if (definition?.renderCall) {
-    line.renderToolCall = (width) => renderToolCall(runtimeTab, line, definition, width);
-  }
-  if (options.result && definition?.renderResult) {
-    line.renderToolResult = (width) =>
-      renderToolResult(runtimeTab, line, definition, options.result!, options.isPartial, width);
-  }
+  line.renderToolCall = (width) => {
+    const restore = applyMixCodeKeybindings();
+    try {
+      // Ctrl+O and image settings can change after the final tool event. Keep
+      // the persistent Pi component synchronized on every outer TUI render.
+      component.setExpanded(runtimeTab.tab.extensionUi.toolsExpanded);
+      component.setShowImages(toolShowImages(runtimeTab));
+      component.setImageWidthCells(toolImageWidthCells(runtimeTab));
+      return component.render(Math.max(1, Math.floor(width)));
+    } finally {
+      restore();
+    }
+  };
   return line;
-}
-
-function renderToolCall(
-  runtimeTab: RuntimeTab,
-  line: ChatLine,
-  definition: ToolDefinition,
-  width: number,
-): string[] {
-  ensureExtensionThemeInitialized();
-  const terminal = new NullTerminal(Math.max(1, Math.floor(width)));
-  const tui = new PiTui(terminal);
-  const previousComponent = line.toolCallRendererLastComponent as
-    | (Component & { dispose?(): void })
-    | undefined;
-  // Apply mixcode keybindings on every pi-tui copy (top-level + nested) so
-  // upstream renderers resolve keyText against the same manager we do.
-  const restoreKeybindings = applyMixCodeKeybindings();
-  try {
-    const component = definition.renderCall?.(
-      line.args as never,
-      currentExtensionTheme(),
-      createToolRenderContext(
-        runtimeTab,
-        line,
-        previousComponent,
-        line.toolIsPartial ?? line.status === "running",
-      ),
-    ) as (Component & { dispose?(): void }) | undefined;
-    if (previousComponent && previousComponent !== component) previousComponent.dispose?.();
-    line.toolCallRendererLastComponent = component;
-    if (!component) return [];
-    return component.render(terminal.columns);
-  } catch (error) {
-    previousComponent?.dispose?.();
-    line.toolCallRendererLastComponent = undefined;
-    const detail = error instanceof Error ? error.message : String(error);
-    return [`tool call renderer error (${line.title ?? "tool"}): ${detail}`];
-  } finally {
-    restoreKeybindings();
-    tui.stop();
-  }
-}
-
-function renderToolResult(
-  runtimeTab: RuntimeTab,
-  line: ChatLine,
-  definition: ToolDefinition,
-  result: ToolResultLike,
-  isPartial: boolean,
-  width: number,
-): string[] {
-  ensureExtensionThemeInitialized();
-  const terminal = new NullTerminal(Math.max(1, Math.floor(width)));
-  const tui = new PiTui(terminal);
-  const previousComponent = line.toolResultRendererLastComponent as
-    | (Component & { dispose?(): void })
-    | undefined;
-  const restoreKeybindings = applyMixCodeKeybindings();
-  try {
-    const component = definition.renderResult?.(
-      { content: result.content, details: result.details } as AgentToolResult<unknown>,
-      { expanded: runtimeTab.tab.extensionUi.toolsExpanded, isPartial },
-      currentExtensionTheme(),
-      createToolRenderContext(runtimeTab, line, previousComponent, isPartial, result.isError),
-    ) as (Component & { dispose?(): void }) | undefined;
-    if (previousComponent && previousComponent !== component) previousComponent.dispose?.();
-    line.toolResultRendererLastComponent = component;
-    const body = component ? component.render(terminal.columns) : [];
-    // Pi ToolExecutionComponent appends Image children after the result body.
-    const images = renderToolResultImages(runtimeTab, result, width);
-    if (!body.length && !images.length) return [];
-    return images.length ? [...body, ...images] : body;
-  } catch (error) {
-    previousComponent?.dispose?.();
-    line.toolResultRendererLastComponent = undefined;
-    const detail = error instanceof Error ? error.message : String(error);
-    return [`tool renderer error (${line.title ?? "tool"}): ${detail}`];
-  } finally {
-    restoreKeybindings();
-    tui.stop();
-  }
-}
-
-function toolShowImages(runtimeTab: RuntimeTab): boolean {
-  return runtimeTab.agentSession.settingsManager.getShowImages();
-}
-
-function toolImageWidthCells(runtimeTab: RuntimeTab): number {
-  return runtimeTab.agentSession.settingsManager.getImageWidthCells();
-}
-
-/** Match Pi ToolExecutionComponent image strip after tool result renderers. */
-function renderToolResultImages(
-  runtimeTab: RuntimeTab,
-  result: ToolResultLike,
-  width: number,
-): string[] {
-  if (!toolShowImages(runtimeTab)) return [];
-  const caps = getCapabilities();
-  if (!caps.images) return [];
-  const maxWidthCells = Math.max(1, toolImageWidthCells(runtimeTab));
-  const theme = currentExtensionTheme();
-  const lines: string[] = [];
-  for (const block of result.content) {
-    if (block.type !== "image") continue;
-    if (!block.data || !block.mimeType) continue;
-    // Kitty only embeds PNG; skip other mime types like Pi.
-    if (caps.images === "kitty" && block.mimeType !== "image/png") continue;
-    const component = new Image(
-      block.data,
-      block.mimeType,
-      { fallbackColor: (s) => theme.fg("toolOutput", s) },
-      { maxWidthCells },
-    );
-    lines.push(...component.render(width));
-  }
-  return lines;
-}
-
-function createToolRenderContext(
-  runtimeTab: RuntimeTab,
-  line: ChatLine,
-  lastComponent: Component | undefined,
-  isPartial: boolean,
-  isError = false,
-) {
-  return {
-    args: line.args,
-    toolCallId: line.toolCallId ?? "",
-    invalidate: () => runtimeTab.requestRender?.(),
-    lastComponent,
-    state: line.toolRendererState ?? {},
-    cwd: runtimeTab.tab.workdir,
-    executionStarted: line.status !== "pending",
-    argsComplete: line.status !== "pending" && line.status !== "running",
-    isPartial,
-    expanded: runtimeTab.tab.extensionUi.toolsExpanded,
-    showImages: toolShowImages(runtimeTab),
-    isError,
-  };
 }
 
 export function summarizeToolResult(result: unknown, isError: boolean): string {

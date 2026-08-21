@@ -63,6 +63,25 @@ import chatViewIndex from "../../pi-packages/mpi-chat-view/index.ts" with { type
 import chatViewPackageJson from "../../pi-packages/mpi-chat-view/package.json" with { type: "text" };
 import bashDefaultTimeoutIndex from "../../pi-packages/mpi-bash-default-timeout/index.ts" with { type: "text" };
 import bashDefaultTimeoutPackageJson from "../../pi-packages/mpi-bash-default-timeout/package.json" with { type: "text" };
+import toolDisplayIndex from "../../pi-packages/mpi-tool-display/index.ts" with { type: "text" };
+import toolDisplayPackageJson from "../../pi-packages/mpi-tool-display/package.json" with { type: "text" };
+import toolDisplayTypes from "../../pi-packages/mpi-tool-display/types.ts" with { type: "text" };
+import toolDisplayAnsiUtils from "../../pi-packages/mpi-tool-display/ansi-utils.ts" with { type: "text" };
+import toolDisplayRenderUtils from "../../pi-packages/mpi-tool-display/render-utils.ts" with { type: "text" };
+import toolDisplayDiffPresentation from "../../pi-packages/mpi-tool-display/diff-presentation.ts" with { type: "text" };
+import toolDisplayLineWidthSafety from "../../pi-packages/mpi-tool-display/line-width-safety.ts" with { type: "text" };
+import toolDisplayWriteDisplayUtils from "../../pi-packages/mpi-tool-display/write-display-utils.ts" with { type: "text" };
+import toolDisplayPendingDiffPreview from "../../pi-packages/mpi-tool-display/pending-diff-preview.ts" with { type: "text" };
+import toolDisplayDiffRenderer from "../../pi-packages/mpi-tool-display/diff-renderer.ts" with { type: "text" };
+import toolDisplayBashDisplay from "../../pi-packages/mpi-tool-display/bash-display.ts" with { type: "text" };
+import toolDisplayDisposable from "../../pi-packages/mpi-tool-display/disposable.ts" with { type: "text" };
+import toolDisplayToolSummaries from "../../pi-packages/mpi-tool-display/tool-summaries.ts" with { type: "text" };
+import toolDisplayThinkingLabel from "../../pi-packages/mpi-tool-display/thinking-label.ts" with { type: "text" };
+import toolDisplayExtensionLifecycle from "../../pi-packages/mpi-tool-display/extension-lifecycle.ts" with { type: "text" };
+import toolDisplayToolExecutionAdapter from "../../pi-packages/mpi-tool-display/tool-execution-adapter.ts" with { type: "text" };
+import toolDisplayReadme from "../../pi-packages/mpi-tool-display/README.md" with { type: "text" };
+import toolDisplayReadmeZh from "../../pi-packages/mpi-tool-display/README.zh.md" with { type: "text" };
+import toolDisplayThirdPartyNotices from "../../pi-packages/mpi-tool-display/THIRD_PARTY_NOTICES.md" with { type: "text" };
 import herdrReportIndex from "../../pi-packages/mpi-herdr-report/index.ts" with { type: "text" };
 import herdrReportPackageJson from "../../pi-packages/mpi-herdr-report/package.json" with { type: "text" };
 import loopIndex from "../../pi-packages/mpi-loop/index.ts" with { type: "text" };
@@ -249,6 +268,27 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
     "mpi-bash-default-timeout": {
       "index.ts": bashDefaultTimeoutIndex,
       "package.json": bashDefaultTimeoutPackageJson,
+    },
+    "mpi-tool-display": {
+      "index.ts": toolDisplayIndex,
+      "package.json": toolDisplayPackageJson,
+      "types.ts": toolDisplayTypes,
+      "ansi-utils.ts": toolDisplayAnsiUtils,
+      "render-utils.ts": toolDisplayRenderUtils,
+      "diff-presentation.ts": toolDisplayDiffPresentation,
+      "line-width-safety.ts": toolDisplayLineWidthSafety,
+      "write-display-utils.ts": toolDisplayWriteDisplayUtils,
+      "pending-diff-preview.ts": toolDisplayPendingDiffPreview,
+      "diff-renderer.ts": toolDisplayDiffRenderer,
+      "bash-display.ts": toolDisplayBashDisplay,
+      "disposable.ts": toolDisplayDisposable,
+      "tool-summaries.ts": toolDisplayToolSummaries,
+      "thinking-label.ts": toolDisplayThinkingLabel,
+      "extension-lifecycle.ts": toolDisplayExtensionLifecycle,
+      "tool-execution-adapter.ts": toolDisplayToolExecutionAdapter,
+      "README.md": toolDisplayReadme,
+      "README.zh.md": toolDisplayReadmeZh,
+      "THIRD_PARTY_NOTICES.md": toolDisplayThirdPartyNotices,
     },
     "mpi-herdr-report": {
       "index.ts": herdrReportIndex,

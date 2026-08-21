@@ -18,6 +18,7 @@ import type {
   SessionShutdownEvent,
   TerminalInputHandler,
   Theme,
+  ToolExecutionComponent,
 } from "@earendil-works/pi-coding-agent";
 import type {
   AutocompleteItem,
@@ -107,9 +108,8 @@ export interface ChatLine {
   extensionRendererThemeId?: string;
   /** outputPad used when extensionRendererLastComponent was built; invalidate on settings change. */
   extensionRendererOutputPad?: number;
-  toolRendererState?: Record<string, unknown>;
-  toolCallRendererLastComponent?: Component & { dispose?(): void };
-  toolResultRendererLastComponent?: Component & { dispose?(): void };
+  /** Pi's real tool-row component; reused across streaming updates. */
+  toolExecutionComponent?: ToolExecutionComponent;
 }
 
 export interface CustomMessageLike {

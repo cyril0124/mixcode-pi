@@ -353,10 +353,7 @@ export function disposeChatRenderers(chat: ChatLine[]): void {
   for (const line of chat) {
     line.extensionRendererLastComponent?.dispose?.();
     line.extensionRendererLastComponent = undefined;
-    line.toolCallRendererLastComponent?.dispose?.();
-    line.toolCallRendererLastComponent = undefined;
-    line.toolResultRendererLastComponent?.dispose?.();
-    line.toolResultRendererLastComponent = undefined;
+    line.toolExecutionComponent = undefined;
   }
 }
 

@@ -1,0 +1,9 @@
+{
+  "name": "mpi-tool-display",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "pi": {
+    "extensions": ["./index.ts"]
+  }
+}
