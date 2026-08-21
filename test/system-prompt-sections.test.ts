@@ -86,6 +86,7 @@ test("all-disabled skills keep join equality with an empty Skills section", () =
 test("renderer totals 100% and skips empty sections", () => {
   const { prompt, sections } = buildMixCodeSystemPromptSections(richOptions);
   const out = renderSystemPromptSectionStats(sections, prompt);
+  assert.match(out, /^\n```\n[\s\S]*\n```\n$/);
   assert.match(out, /Total\s+\d+ chars\s+~\d+ tok\s+100\.0%/);
   assert.doesNotMatch(out, /extension override or format drift/);
   // Non-empty sections all appear; the Skills placeholder above is not empty here.

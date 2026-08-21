@@ -66,5 +66,5 @@ export function renderSystemPromptSectionStats(
     lines.push(row(section.name, section.text));
   }
   lines.push(row("Total", covered));
-  return `\n${lines.join("\n")}\n`;
+  return `\n\`\`\`\n${lines.join("\n")}\n\`\`\`\n`;
 }
