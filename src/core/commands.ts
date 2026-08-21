@@ -349,8 +349,8 @@ export const LOCAL_COMMANDS: Array<{
   },
   {
     name: "resume",
-    description: "Resume a different session (optional: /resume <session-id>)",
-    argumentHint: "[session-id]",
+    description: "Resume a different session (optional: /resume <session-id> or /resume N:<tab-name>)",
+    argumentHint: "[session-id | N:<tab-name>]",
     palette: { label: "Resume Session", scope: "both", requires: "session" },
   },
   {

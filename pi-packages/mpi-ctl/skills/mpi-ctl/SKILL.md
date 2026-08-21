@@ -81,13 +81,15 @@ Common MixCode session/tab commands:
 | `/delete-session [yes]` | Delete that tab's session file and close the tab. `yes` skips the Y/N overlay. |
 | `/close-all-sessions` | Close every agent tab; keep session files. Always Y/N — `--focus-tab` then `y`/`n`. |
 | `/delete-all-sessions` | Delete every open agent session and close those tabs. Always Y/N — `--focus-tab` then `y`/`n`. |
-| `/resume` | Bare: opens the session picker (needs `--focus-tab`; it is UI). `/resume <session-id>` (id or prefix) resumes directly via plain `send-prompt`, no focus. |
+| `/resume` | Bare: opens the session picker (needs `--focus-tab`; it is UI). `/resume <session-id>` (id or prefix) and `/resume N:<tab-name>` (exact open tab title first, then exact full session name, current folder first) resume directly via plain `send-prompt`, no focus. Duplicate names report candidate ids. |
 | `/clear` | Replace the tab's session with a fresh child (title resets). |
 | `/reset` | Reset the branch to session root; keep title and tab slot. |
 | `/compact` | Compact that tab's context. |
 | `/mark-done` | Mark that tab done. |
 
-Send these with `send-prompt` and `--tab`. Bare `/resume`, `/models`, close-all / delete-all, and other pickers still need `--focus-tab` plus `send-keys`; `/resume <session-id>` does not (no picker).
+Send these with `send-prompt` and `--tab`. Bare `/resume`, `/models`, close-all / delete-all, and other pickers still need `--focus-tab` plus `send-keys`; `/resume <session-id>` and `/resume N:<tab-name>` do not (no picker).
+
+Direct `/resume` commands return an ACK before asynchronous command handling finishes. Close the loop with `wait`, then use `dump-screen` on the target tab to read name-not-found or duplicate-name errors. Duplicate-name output includes candidate session ids; retry with `/resume <session-id>`.
 
 ## Discover instances
 

@@ -122,12 +122,19 @@ test("submitted /resume mounts SessionSelectorComponent in the editor input slot
   assert.notEqual(input.mounted, undefined);
 });
 
-function makeResumeByIdRuntime() {
+function makeResumeByIdRuntime(
+  currentSessions: SessionInfo[] = makeSessions(),
+  allSessions: SessionInfo[] = currentSessions,
+) {
   const switched: Array<{ id: string; path: string }> = [];
+  const systemMessages: Array<{ id: string; text: string; kind?: string }> = [];
   const runtime = {
-    appendSystemMessage: () => undefined,
-    listSessions: async () => makeSessions(),
-    listAllSessions: async () => makeSessions(),
+    appendSystemMessage: (id: string, text: string, kind?: string) => {
+      systemMessages.push({ id, text, kind });
+    },
+    listSessions: async () => currentSessions,
+    listAllSessions: async () => allSessions,
+
     extensionSwitchSession: async (sessionId: string, sessionPath: string) => {
       switched.push({ id: sessionId, path: sessionPath });
       return { cancelled: false };
@@ -135,11 +142,26 @@ function makeResumeByIdRuntime() {
     createTab: async () => undefined,
     getTab: (sessionId: string) => {
       if (sessionId === "s1") {
-        return { session: { getSessionFile: () => "/sessions/current.jsonl" } };
+        return {
+          session: {
+            getSessionFile: () => "/sessions/current.jsonl",
+            getSessionId: () => "current-session",
+          },
+        };
+      }
+      if (sessionId === "s2") {
+        return {
+          session: {
+            getSessionFile: () => "/sessions/session-b.jsonl",
+            getSessionId: () => "session-b",
+            getSessionName: () => "Agent-02",
+          },
+        };
       }
       return {
         session: {
           getSessionFile: () => "/sessions/session-a.jsonl",
+          getSessionId: () => "session-a",
           getSessionName: () => "My Session",
         },
       };
@@ -147,8 +169,88 @@ function makeResumeByIdRuntime() {
     closeTab: async () => undefined,
     prompt: async () => undefined,
   } as unknown as MixCodeRuntime;
-  return { runtime, switched };
+  return { runtime, switched, systemMessages };
 }
+
+test("/resume N:<tab-name> resumes the exact session name", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"));
+  state.activeTabId = "s1";
+  const tui = { requestRender: () => undefined, showOverlay: () => ({ hide: () => undefined }) };
+  const { runtime, switched } = makeResumeByIdRuntime();
+
+  await handleSubmittedInput(state, runtime, "/resume N:My Session", tui as never);
+  await Bun.sleep(30);
+
+  assert.equal(switched.length, 1);
+  assert.equal(switched[0]!.path, "/sessions/session-a.jsonl");
+  assert.equal(state.tabs.find((tab) => tab.sessionId === "session-a")?.title, "My Session");
+});
+
+test("/resume N:<tab-name> matches an open tab title", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"));
+  state.tabs.push(createTab(2, "s2", "/repo", { title: "Agent-02" }));
+  state.activeTabId = "s1";
+  const tui = { requestRender: () => undefined, showOverlay: () => ({ hide: () => undefined }) };
+  const { runtime, switched } = makeResumeByIdRuntime();
+
+  await handleSubmittedInput(state, runtime, "/resume N:Agent-02", tui as never);
+
+  assert.equal(switched.length, 0);
+  assert.equal(state.activeTabId, "s2");
+});
+
+test("/resume N:<tab-name> requires a complete name match", async () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo");
+  state.tabs.push(tab);
+  state.activeTabId = "s1";
+  const tui = { requestRender: () => undefined, showOverlay: () => ({ hide: () => undefined }) };
+  const { runtime, switched, systemMessages } = makeResumeByIdRuntime();
+
+  await handleSubmittedInput(state, runtime, "/resume N:My", tui as never);
+
+  assert.equal(switched.length, 0);
+  assert.equal(tab.toast?.type, "warning");
+  assert.match(tab.toast?.message ?? "", /No session found for name: My/);
+  assert.match(systemMessages[0]?.text ?? "", /No session found for name: My/);
+  assert.equal(systemMessages[0]?.kind, "error");
+});
+
+test("/resume N:<tab-name> reports duplicate names with candidate ids", async () => {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo");
+  state.tabs.push(tab);
+  state.activeTabId = "s1";
+  const duplicateSessions = makeSessions().map((session) => ({ ...session, name: "Duplicate" }));
+  const tui = { requestRender: () => undefined, showOverlay: () => ({ hide: () => undefined }) };
+  const { runtime, switched, systemMessages } = makeResumeByIdRuntime([], duplicateSessions);
+
+  await handleSubmittedInput(state, runtime, "/resume N:Duplicate", tui as never);
+
+  assert.equal(switched.length, 0);
+  assert.match(systemMessages[0]?.text ?? "", /Multiple sessions named "Duplicate"/);
+  assert.match(systemMessages[0]?.text ?? "", /session-a/);
+  assert.match(systemMessages[0]?.text ?? "", /session-b/);
+  assert.equal(systemMessages[0]?.kind, "error");
+});
+
+test("/resume N:<tab-name> prefers a current-folder match", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"));
+  state.activeTabId = "s1";
+  const current = makeSessions()[0]!;
+  const other = { ...current, path: "/other/session.jsonl", id: "other-session", cwd: "/other" };
+  const tui = { requestRender: () => undefined, showOverlay: () => ({ hide: () => undefined }) };
+  const { runtime, switched } = makeResumeByIdRuntime([current], [current, other]);
+
+  await handleSubmittedInput(state, runtime, "/resume N:My Session", tui as never);
+  await Bun.sleep(30);
+
+  assert.equal(switched.length, 1);
+  assert.equal(switched[0]!.path, "/sessions/session-a.jsonl");
+});
 
 test("/resume <session-id> resumes the session directly without opening the selector", async () => {
   const state = createInitialState("/repo");

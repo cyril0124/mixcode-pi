@@ -27,7 +27,12 @@ import {
   openDeleteAllSessionsConfirm,
   openSessionActionConfirm,
 } from "./app-actions.js";
-import { type LocalCommandHandler, type MixCodeKeyRuntime, SKIP_FINALIZE } from "./app-types.js";
+import {
+  type LocalCommandHandler,
+  type MixCodeKeyRuntime,
+  type OverlayTui,
+  SKIP_FINALIZE,
+} from "./app-types.js";
 import { renderSessionInfoText as formatSessionInfoText } from "./components/session-info.js";
 import {
   openSessionSelector,
@@ -138,6 +143,8 @@ const handleNewSession: LocalCommandHandler = async ({ state, args, runtime, tui
   return undefined;
 };
 
+type ResumeTarget = Pick<SessionInfo, "path" | "id" | "name"> & { cwd?: string };
+
 const handleResume: LocalCommandHandler = async ({
   state,
   active,
@@ -156,22 +163,67 @@ const handleResume: LocalCommandHandler = async ({
   const selectorRuntime = runtime as unknown as SessionSelectorRuntime;
   const token = args.trim();
   if (token) {
-    // `/resume <session-id>` — upstream `pi --resume <id>` resolution order:
-    // exact id then id prefix, current folder before all roots.
-    const byId = (sessions: SessionInfo[]) =>
-      sessions.find((s) => s.id === token) ?? sessions.find((s) => s.id.startsWith(token));
-    const target =
-      byId(await selectorRuntime.listSessions(cwd)) ??
-      byId(await selectorRuntime.listAllSessions());
-    if (!target) {
-      // Home has no tab to toast on; fail loud via the error overlay instead.
-      if (active) {
-        pushToast(active, { type: "warning", message: `No session found for id: ${token}` });
-      } else {
-        showErrorOverlay(tui, new Error(`No session found for id: ${token}`));
+    let target: ResumeTarget | undefined;
+    if (token.startsWith("N:")) {
+      const name = token.slice(2);
+      if (!name) {
+        reportResumeFailure(active, runtime, tui, "Session name cannot be empty");
+        return SKIP_FINALIZE;
       }
-      tui.requestRender();
-      return SKIP_FINALIZE;
+      const openMatches = uniqueSessionsByPath(
+        state.tabs.flatMap((tab) => {
+          if (tab.title !== name) return [];
+          const runtimeTab = runtime.getTab(tab.sessionId);
+          const sessionPath = runtimeTab?.session.getSessionFile();
+          const sessionId = runtimeTab?.session.getSessionId();
+          return sessionPath && sessionId
+            ? [{ path: sessionPath, id: sessionId, name, cwd: tab.workdir }]
+            : [];
+        }),
+      );
+      let matches = openMatches;
+      if (matches.length === 0) {
+        const currentMatches = uniqueSessionsByPath(
+          (await selectorRuntime.listSessions(cwd)).filter((session) => session.name === name),
+        );
+        matches =
+          currentMatches.length > 0
+            ? currentMatches
+            : uniqueSessionsByPath(
+                (await selectorRuntime.listAllSessions()).filter((session) => session.name === name),
+              );
+      }
+      if (matches.length > 1) {
+        reportResumeFailure(
+          active,
+          runtime,
+          tui,
+          [
+            `Multiple sessions named "${name}":`,
+            ...matches.map(
+              (session) => `  ${session.name} (${session.id}, ${session.cwd || "unknown cwd"})`,
+            ),
+          ].join("\n"),
+        );
+        return SKIP_FINALIZE;
+      }
+      target = matches[0];
+      if (!target) {
+        reportResumeFailure(active, runtime, tui, `No session found for name: ${name}`);
+        return SKIP_FINALIZE;
+      }
+    } else {
+      // `/resume <session-id>` — upstream `pi --resume <id>` resolution order:
+      // exact id then id prefix, current folder before all roots.
+      const byId = (sessions: SessionInfo[]) =>
+        sessions.find((s) => s.id === token) ?? sessions.find((s) => s.id.startsWith(token));
+      target =
+        byId(await selectorRuntime.listSessions(cwd)) ??
+        byId(await selectorRuntime.listAllSessions());
+      if (!target) {
+        reportResumeFailure(active, runtime, tui, `No session found for id: ${token}`);
+        return SKIP_FINALIZE;
+      }
     }
     resumeSelectedSession(
       state,
@@ -198,6 +250,31 @@ const handleResume: LocalCommandHandler = async ({
   tui.requestRender();
   return SKIP_FINALIZE;
 };
+
+function uniqueSessionsByPath(sessions: ResumeTarget[]): ResumeTarget[] {
+  const seen = new Set<string>();
+  return sessions.filter((session) => {
+    if (seen.has(session.path)) return false;
+    seen.add(session.path);
+    return true;
+  });
+}
+
+function reportResumeFailure(
+  active: MixCodeState["tabs"][number] | undefined,
+  runtime: MixCodeKeyRuntime,
+  tui: OverlayTui,
+  message: string,
+): void {
+  const text = `Resume failed: ${message}`;
+  if (active) {
+    runtime.appendSystemMessage(active.sessionId, text, "error");
+    pushToast(active, { type: "warning", message: text });
+  } else {
+    showErrorOverlay(tui, new Error(text));
+  }
+  tui.requestRender();
+}
 
 function sessionActionSkipsConfirm(args: string, command: "close-session" | "delete-session"): boolean {
   const token = args.trim().toLowerCase();
