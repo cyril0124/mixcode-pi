@@ -2,13 +2,11 @@ import type { SettingsManager } from "@earendil-works/pi-coding-agent";
 import { matchesKey, ProcessTerminal, TuiMainScreen, type TUI as TuiType } from "@earendil-works/pi-tui";
 import type { ExtensionCustomUiHost, MixCodeRuntime } from "../agent/runtime.js";
 import { scanSkillEntries } from "../core/attachments.js";
-import { recordSubmittedHistory } from "../core/conversation-history.js";
 import { applyDisabledModelFlags, buildAvailableModelRefs, modelRefId } from "../core/models.js";
 import { availableThinkingLevelsForModel } from "../core/thinking-levels.js";
 import { noteTabClosed } from "../core/open-tabs-store.js";
 import { HOME_TAB_ID, type MixCodeState } from "../core/types.js";
 import { closeAgentTab, getActiveTab, onActiveTabChange } from "../core/tabs.js";
-import { appendActiveSystemMessage } from "./app-actions.js";
 import { CompactPromptEditor, EditorSlot, editorThemeFor } from "./app-editor.js";
 import { stopChatSelectionAutoScroll } from "./app-mouse.js";
 import { handleMixCodeKeyInput } from "./app-input.js";
@@ -152,16 +150,6 @@ export function createMixCodeTui(
   editor.onSubmit = (text) => {
     const activeSessionId = state.activeTabId;
     editor.addToHistory(text, activeSessionId);
-    if (activeSessionId !== HOME_TAB_ID && options.rootStateDir) {
-      void recordSubmittedHistory({
-        rootStateDir: options.rootStateDir,
-        sessionId: activeSessionId,
-        text,
-      }).catch((error: unknown) => {
-        appendActiveSystemMessage(state, runtime, `History warning: ${errorMessage(error)}`);
-        tui.requestRender();
-      });
-    }
     void handleSubmittedInput(
       state,
       runtime,

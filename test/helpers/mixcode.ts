@@ -7,7 +7,6 @@ export * from "../../src/core/attachments.js";
 export * from "../../src/core/batch-lua.js";
 export * from "../../src/core/chat-selection.js";
 export * from "../../src/core/commands.js";
-export * from "../../src/core/conversation-history.js";
 export * from "../../src/core/defaults.js";
 export * from "../../src/core/escape.js";
 export * from "../../src/core/extension-manager.js";

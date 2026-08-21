@@ -155,51 +155,6 @@ test("bootstrap rejects an invalid persisted theme at the UI boundary", async ()
   }
 });
 
-test("bootstrap maintains global history files and exposes paths in prompt", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-bootstrap-history-"));
-  try {
-    const stateDir = path.join(dir, "state");
-    const agentDir = path.join(dir, "agent");
-    const repo = path.join(dir, "repo");
-    const sessionsRoot = defaultPiSessionDir(repo, agentDir);
-    await fsPromises.mkdir(repo, { recursive: true });
-    await fsPromises.mkdir(sessionsRoot, { recursive: true });
-    await fsPromises.writeFile(
-      path.join(sessionsRoot, "2026-06-20T00-00-00-000Z_s1.jsonl"),
-      [
-        JSON.stringify({ type: "session", id: "s1", cwd: repo, timestamp: "2026-06-20T00:00:00.000Z" }),
-        JSON.stringify({
-          type: "message",
-          id: "u1",
-          message: { role: "user", content: "hello boot", timestamp: Date.now() },
-        }),
-      ].join("\n") + "\n",
-      "utf8",
-    );
-
-    const boot = await bootstrapMixCode({
-      workdir: repo,
-      stateDir,
-      agentDir,
-      modelConfigPath: path.join(dir, "missing.jsonc"),
-    });
-    await boot.tabsReady;
-    await boot.historyReady;
-    const runtimeTab = boot.runtime.getTab(boot.state.tabs[0]!.sessionId);
-    assert.ok(runtimeTab);
-    assert.match(await fsPromises.readFile(path.join(stateDir, "history.jsonl"), "utf8"), /hello boot/);
-    assert.match(await fsPromises.readFile(path.join(stateDir, "session_index.jsonl"), "utf8"), /"id":"s1"/);
-    assert.equal((await fsPromises.stat(stateDir)).mode & 0o777, 0o700);
-    assert.equal((await fsPromises.stat(path.join(stateDir, "history.jsonl"))).mode & 0o777, 0o600);
-    assert.match(runtimeTab.agentSession.agent.state.systemPrompt, /Local conversation history:/);
-    assert.match(runtimeTab.agentSession.agent.state.systemPrompt, new RegExp(`${stateDir.replace(/[\\\\/]/g, "[\\\\/]")}[/\\\\]history\\.jsonl`));
-    assert.doesNotMatch(runtimeTab.agentSession.agent.state.systemPrompt, /stores full session transcripts under/);
-    assert.doesNotMatch(runtimeTab.agentSession.agent.state.systemPrompt, /hello boot/);
-  } finally {
-    await fsPromises.rm(dir, { recursive: true, force: true });
-  }
-});
-
 test("bootstrap builds completion sources from Pi-managed fd and skills", async () => {
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-bootstrap-completion-"));
   try {

@@ -23,18 +23,11 @@ export function detectSearchTools(): SearchToolAvailability {
   };
 }
 
-let globalConversationHistoryPrompt: string | undefined;
-
-export function setGlobalConversationHistoryPrompt(prompt: string | undefined): void {
-  globalConversationHistoryPrompt = prompt;
-}
-
 export const MIXCODE_SYSTEM_PROMPT =
   "You are an expert coding assistant operating inside MixCode (`mpi`), a Pi-compatible terminal coding agent harness. You help users by reading files, executing commands, editing code, and writing new files.";
 
 export type MixCodeSystemPromptPartsOptions = BuildSystemPromptOptions & {
   searchTools?: SearchToolAvailability;
-  conversationHistoryPrompt?: string;
 };
 
 /** One named contiguous fragment of the final system prompt. */
@@ -49,8 +42,8 @@ export interface SystemPromptSection {
  *
  * Always passes a customPrompt so Pi never injects its default "Pi documentation"
  * block. Tools/guidelines (incl. rg/fd search rules) stay MixCode-owned because
- * Pi's customPrompt path skips them; conversation history + Current date are
- * MixCode-only and layered around Pi's append/context/skills/cwd assembly.
+ * Pi's customPrompt path skips them; Current date is MixCode-only and layered
+ * around Pi's append/context/skills/cwd assembly.
  */
 export function buildMixCodeSystemPromptFromParts(
   options: MixCodeSystemPromptPartsOptions,
@@ -80,7 +73,6 @@ export function buildMixCodeSystemPromptSections(
     contextFiles,
     skills,
     searchTools,
-    conversationHistoryPrompt = globalConversationHistoryPrompt,
   } = options;
 
   const identity =
@@ -93,15 +85,10 @@ export function buildMixCodeSystemPromptSections(
   });
   const docsSection = buildDocsSection();
 
-  let append = appendSystemPrompt;
-  if (conversationHistoryPrompt) {
-    append = append ? `${append}\n\n${conversationHistoryPrompt}` : conversationHistoryPrompt;
-  }
-
   const prompt = buildSystemPrompt({
     customPrompt: identity + toolsSection + docsSection,
     selectedTools,
-    appendSystemPrompt: append,
+    appendSystemPrompt,
     cwd,
     contextFiles,
     skills,
@@ -125,9 +112,6 @@ export function buildMixCodeSystemPromptSections(
   if (docsSection) sections.push({ name: "Documentation", text: docsSection });
   if (appendSystemPrompt) {
     sections.push({ name: "Append (appendSystemPrompt)", text: `\n\n${appendSystemPrompt}` });
-  }
-  if (conversationHistoryPrompt) {
-    sections.push({ name: "Conversation history", text: `\n\n${conversationHistoryPrompt}` });
   }
 
   // Tail below mirrors Pi's buildSystemPrompt template (context files, skills,

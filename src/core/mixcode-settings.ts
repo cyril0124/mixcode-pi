@@ -1,5 +1,4 @@
 export const MIXCODE_SETTINGS_FILENAME = "mixcode_settings.json";
-export const DEFAULT_HISTORY_MAX_BYTES = 5 * 1024 * 1024;
 
 export const ICON_MODES = ["auto", "nerd", "ascii"] as const;
 export type IconMode = (typeof ICON_MODES)[number];
@@ -9,7 +8,6 @@ export const DEFAULT_ICON_MODE: IconMode = "nerd";
 export interface RawMixCodeSettings {
   /** UI theme id when explicitly set; omit to use DEFAULT_THEME_ID. */
   theme?: string;
-  history?: { maxBytes?: number };
   ui?: {
     oversizedAssistantMessage?: {
       enabled?: boolean;
@@ -30,14 +28,9 @@ export interface RawMixCodeSettings {
 export interface MixCodeSettings {
   /** Explicit theme id, or undefined when the file omits theme (caller applies default). */
   theme?: string;
-  history: HistorySettings;
   ui: MixCodeUiSettings;
   disabledProviders: string[];
   disabledModels: string[];
-}
-
-export interface HistorySettings {
-  maxBytes: number;
 }
 
 export interface MixCodeUiSettings {
@@ -63,7 +56,6 @@ export const DEFAULT_OVERSIZED_ASSISTANT_MESSAGE: OversizedAssistantMessageSetti
 function defaultMixCodeSettings(): MixCodeSettings {
   return {
     // theme omitted: unset, so UI can dim-display the runtime default
-    history: { maxBytes: DEFAULT_HISTORY_MAX_BYTES },
     ui: {
       oversizedAssistantMessage: { ...DEFAULT_OVERSIZED_ASSISTANT_MESSAGE },
       icons: { mode: DEFAULT_ICON_MODE },
@@ -101,15 +93,12 @@ async function readSettingsSource(
 export async function loadRawMixCodeSettings(settingsFile: string): Promise<RawMixCodeSettings> {
   const source = await readSettingsSource(settingsFile);
   if (!source) return {};
-  const history = objectRecord(source.history);
   const ui = objectRecord(source.ui);
   const oversized = objectRecord(ui.oversizedAssistantMessage);
   const result: RawMixCodeSettings = {};
   if (typeof source.theme === "string" && source.theme.trim()) {
     result.theme = source.theme.trim();
   }
-  const rawMaxBytes = positiveInteger(history.maxBytes);
-  if (rawMaxBytes !== undefined) result.history = { maxBytes: rawMaxBytes };
   const rawEnabled = typeof oversized.enabled === "boolean" ? oversized.enabled : undefined;
   const rawMaxLines = positiveInteger(oversized.maxLines);
   const rawOversizedBytes = positiveInteger(oversized.maxBytes);
@@ -148,8 +137,6 @@ export async function writeRawMixCodeSettings(
   const next: Record<string, unknown> = { ...(await readSettingsSource(settingsFile)) };
   if (raw.theme === undefined) delete next.theme;
   else next.theme = raw.theme;
-  if (raw.history === undefined) delete next.history;
-  else next.history = raw.history;
   if (raw.ui === undefined) delete next.ui;
   else next.ui = raw.ui;
   if (raw.disabledProviders === undefined) delete next.disabledProviders;
@@ -163,14 +150,10 @@ export async function writeRawMixCodeSettings(
 export async function loadMixCodeSettings(settingsFile: string): Promise<MixCodeSettings> {
   const source = await readSettingsSource(settingsFile);
   if (!source) return defaultMixCodeSettings();
-  const history = objectRecord(source.history);
   const theme =
     typeof source.theme === "string" && source.theme.trim() ? source.theme.trim() : undefined;
   return {
     ...(theme ? { theme } : {}),
-    history: {
-      maxBytes: positiveInteger(history.maxBytes) ?? DEFAULT_HISTORY_MAX_BYTES,
-    },
     ui: parseUiSettings(source.ui, settingsFile),
     disabledProviders: stringList(source.disabledProviders) ?? [],
     disabledModels: stringList(source.disabledModels) ?? [],

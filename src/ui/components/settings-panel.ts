@@ -8,7 +8,6 @@ import { matchesKey, truncateToWidth, visibleWidth, type Component } from "@eare
 import type { SettingsManager } from "@earendil-works/pi-coding-agent";
 import { homeDir } from "../../core/paths.js";
 import {
-  DEFAULT_HISTORY_MAX_BYTES,
   DEFAULT_ICON_MODE,
   DEFAULT_INLINE_WIDGETS,
   DEFAULT_OVERSIZED_ASSISTANT_MESSAGE,
@@ -214,20 +213,6 @@ const ITEMS: SettingItem[] = [
       replaceRaw(ctx.mixcodeRaw, next);
       // Live preview: apply default when clearing, else the chosen id.
       setTheme(ctx.state, v ?? DEFAULT_THEME_ID);
-    },
-  },
-  {
-    kind: "number",
-    label: "history.maxBytes",
-    section: "mixcode",
-    defaultValue: DEFAULT_HISTORY_MAX_BYTES,
-    getValue: ({ mixcodeRaw }) => mixcodeRaw.history?.maxBytes,
-    setValue: async (ctx, v) => {
-      const next: RawMixCodeSettings = { ...ctx.mixcodeRaw };
-      if (v === undefined) delete next.history;
-      else next.history = { ...next.history, maxBytes: v };
-      await writeRawMixCodeSettings(ctx.mixcodeFile, next);
-      replaceRaw(ctx.mixcodeRaw, next);
     },
   },
   {
@@ -514,7 +499,6 @@ const ITEM_LABELS: Record<string, string> = {
   imageWidthCells: "Image width (cells)",
   blockImages: "Block images to model",
   "markdown.mermaid": "Mermaid diagrams",
-  "history.maxBytes": "History max bytes",
   "icons.mode": "Icon mode",
   inlineWidgets: "Inline widgets",
   "oversized.enabled": "Collapse oversized messages",

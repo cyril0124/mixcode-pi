@@ -19,12 +19,8 @@ import {
   loadExtensionManagerConfig,
   saveExtensionManagerConfig,
 } from "../core/extension-manager.js";
-import {
-  buildConversationHistoryPromptForRoot,
-  conversationHistoryPaths,
-  ensureConversationHistoryState,
-} from "../core/conversation-history.js";
-import { loadMixCodeSettings } from "../core/mixcode-settings.js";
+import { listSessionsInBackground } from "../core/session-catalog.js";
+import { MIXCODE_SETTINGS_FILENAME, loadMixCodeSettings } from "../core/mixcode-settings.js";
 import { setTheme } from "../ui/themes.js";
 import {
   applyDisabledModelFlags,
@@ -48,7 +44,7 @@ import {
   scopedStateDir,
   stateFileForPort,
 } from "../core/state-store.js";
-import { MIXCODE_SYSTEM_PROMPT, setGlobalConversationHistoryPrompt } from "../core/system-prompt.js";
+import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import { HOME_TAB_ID, type MixCodeModelRef, type MixCodeState } from "../core/types.js";
 import type { MixCodeCompletionSources } from "../ui/components/completion.js";
 import { applyHttpProxySettings, configureHttpDispatcher } from "@earendil-works/pi-coding-agent";
@@ -100,12 +96,6 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
   packageUpdateCheck: () => Promise<string[]>;
   /** Resolves when all runtime tabs are fully initialized (extensions loaded). */
   tabsReady: Promise<void>;
-  /**
-   * Resolves when conversation history backfill and session-index rebuild
-   * finish. This scans every persisted session file, so it runs in the
-   * background after the TUI renders instead of blocking the first frame.
-   */
-  historyReady: Promise<{ warnings: string[] }>;
   settingsDeps: {
     settingsManager: SettingsManager;
     mixcodeFile: string;
@@ -132,7 +122,9 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
 
   const stateFile = stateFileForPort(stateDir, port);
   const workspaceFile = path.join(stateDir, "workspaces.json");
-  const mixCodeSettings = await loadMixCodeSettings(conversationHistoryPaths(rootStateDir).settingsFile);
+  const mixCodeSettings = await loadMixCodeSettings(
+    path.join(rootStateDir, MIXCODE_SETTINGS_FILENAME),
+  );
   let state: MixCodeState;
   let restoredFromDisk = true;
   try {
@@ -222,14 +214,18 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
   }
   state.activeTabId = HOME_TAB_ID;
   const modelRepairs = repairUnavailableTabModels(state);
-  // The history recall prompt is a static path string (no file scanning), so
-  // it is set synchronously to ensure every session's system prompt includes
-  // it. The actual backfill/index rebuild below is deferred to the background.
-  setGlobalConversationHistoryPrompt(buildConversationHistoryPromptForRoot(rootStateDir));
-  const historyReady = ensureConversationHistoryState({
-    rootStateDir,
-    activeSessionsRoot: sessionsRoot,
-  });
+  // Warm the worker-thread session catalog for this workdir. This replaces the
+  // warm-up that history backfill used to provide as a side effect, and serves
+  // the same consumers: listSessionsInBackground callers such as by-name and
+  // by-id session lookup (app-submit-session). The interactive picker passes an
+  // onProgress callback and therefore takes SessionManager.list on the main
+  // thread, which does not read this cache — before or after this change.
+  // Failure is harmless: every consumer falls back to its own scan.
+  void listSessionsInBackground({
+    mode: "current",
+    cwd: options.workdir,
+    sessionsRoot,
+  }).catch(() => undefined);
   const runtime = new MixCodeRuntime({
     sessionsRoot,
     agentDir,
@@ -291,10 +287,9 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
     completionSources,
     packageUpdateCheck: () => checkPiPackageUpdates({ workdir: state.workdir, agentDir }),
     tabsReady,
-    historyReady,
     settingsDeps: {
       settingsManager,
-      mixcodeFile: conversationHistoryPaths(rootStateDir).settingsFile,
+      mixcodeFile: path.join(rootStateDir, MIXCODE_SETTINGS_FILENAME),
       piSettingsFile: path.join(agentDir, "settings.json"),
     },
   };

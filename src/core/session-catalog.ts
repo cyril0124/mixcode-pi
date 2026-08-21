@@ -105,11 +105,6 @@ export function listSessionsInBackground(
   return listing.then(copySessions);
 }
 
-export function seedSessionCatalogRoot(root: string, sessions: SessionInfo[]): void {
-  invalidateSessionCatalog(root);
-  rootCache.set(root, sessions.map(restoreSessionDates));
-}
-
 export function invalidateSessionCatalog(root: string): void {
   rootCache.delete(root);
   for (const [key, entry] of cache) {

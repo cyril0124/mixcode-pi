@@ -54,56 +54,6 @@ function silentTerminal(): Terminal {
   };
 }
 
-test("createMixCodeTui submit hook persists prompt history", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-tui-history-"));
-  try {
-    const state = createInitialState("/repo");
-    const tab = createTab(1, "s1", "/repo");
-    state.tabs.push(tab);
-    state.activeTabId = "s1";
-    const prompts: string[] = [];
-    const runtime = {
-      onChange: () => () => undefined,
-      getTab: () => ({ tab, chat: [] }),
-      getPromptHistory: () => [],
-      onTabClosed: () => () => undefined,
-      onModelsChanged: () => () => undefined,
-      prompt: async (_sessionId: string, text: string) => {
-        prompts.push(text);
-      },
-      appendSystemMessage: () => undefined,
-      getExtensionCommands: () => [],
-      getAllExtensionCommands: () => [],
-      applyExtensionAutocompleteProviders: (_sessionId: string, base: AutocompleteProvider) => base,
-      setExtensionUiHost: () => undefined,
-    } as unknown as MixCodeRuntime;
-    const tui = createMixCodeTui(state, runtime, { terminal: silentTerminal(), rootStateDir: dir });
-    try {
-      const layout = (
-        tui as unknown as {
-          children: Array<{
-            editor: { setText: (text: string) => void; submitCurrentText: () => void };
-          }>;
-        }
-      ).children[0]!;
-      layout.editor.setText("hello tui-history  ");
-      layout.editor.submitCurrentText();
-      await waitFor(() => prompts.length === 1);
-      const historyFile = path.join(dir, "history.jsonl");
-      for (let i = 0; i < 25; i += 1) {
-        if (/hello tui-history/.test(await fsPromises.readFile(historyFile, "utf8").catch(() => ""))) break;
-        await Bun.sleep(10);
-      }
-      assert.deepEqual(prompts, ["hello tui-history"]);
-      assert.match(await fsPromises.readFile(historyFile, "utf8"), /"text":"hello tui-history"/);
-    } finally {
-      tui.stop();
-    }
-  } finally {
-    await fsPromises.rm(dir, { recursive: true, force: true });
-  }
-});
-
 test("createMixCodeTui editor submits prompts and surfaces slash errors", async () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo");

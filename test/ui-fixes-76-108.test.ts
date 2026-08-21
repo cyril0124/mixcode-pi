@@ -95,16 +95,17 @@ function toolResultTree(): SessionTreeNode[] {
 test("#76 settings number edit accepts unit suffixes and prefills compact form", async () => {
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-settings-unit-"));
   const mixcodeFile = path.join(dir, "mixcode_settings.json");
-  await fsPromises.writeFile(mixcodeFile, JSON.stringify({ history: { maxBytes: 5 * 1024 * 1024 } }));
+  const oversized = { ui: { oversizedAssistantMessage: { maxBytes: 5 * 1024 * 1024 } } };
+  await fsPromises.writeFile(mixcodeFile, JSON.stringify(oversized));
   try {
     const state = createInitialState(dir);
     const panel = createSettingsPanel(state, SettingsManager.inMemory(), {
-      mixcodeRaw: { history: { maxBytes: 5 * 1024 * 1024 } },
+      mixcodeRaw: structuredClone(oversized),
       mixcodeFile,
       piSettingsFile: path.join(dir, "settings.json"),
     });
 
-    selectSettingsItemByLabel(panel, "History max bytes");
+    selectSettingsItemByLabel(panel, "Oversized max bytes");
     panel.handleInput("\r"); // enter edit
     assert.equal(panel.editMode, true);
     assert.equal(panel.editText, "5mb");
@@ -116,7 +117,7 @@ test("#76 settings number edit accepts unit suffixes and prefills compact form",
     // setValue is async
     await Bun.sleep(30);
     assert.equal(panel.editMode, false);
-    assert.equal(panel.mixcodeRaw.history?.maxBytes, 2 * 1024);
+    assert.equal(panel.mixcodeRaw.ui?.oversizedAssistantMessage?.maxBytes, 2 * 1024);
 
     assert.match(stripAnsi(panel.render(80).join("\n")), /2 KB/);
   } finally {

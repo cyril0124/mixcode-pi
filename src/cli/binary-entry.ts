@@ -135,6 +135,10 @@ import mpiGoal_src_surface_ui_widget_ts from "../../pi-packages/mpi-goal/src/sur
 import mpiGoal_src_templates_discover_ts from "../../pi-packages/mpi-goal/src/templates/discover.ts" with { type: "text" };
 import promptHistoryIndex from "../../pi-packages/mpi-prompt-history/index.ts" with { type: "text" };
 import promptHistoryBrowser from "../../pi-packages/mpi-prompt-history/prompt-history-browser.ts" with { type: "text" };
+import promptHistoryStore from "../../pi-packages/mpi-prompt-history/history-store.ts" with { type: "text" };
+import promptHistoryPidLock from "../../pi-packages/mpi-prompt-history/pid-lock.ts" with { type: "text" };
+import promptHistoryConfigUi from "../../pi-packages/mpi-prompt-history/config-ui.ts" with { type: "text" };
+import promptHistorySchemaJson from "../../pi-packages/mpi-prompt-history/mpi-prompt-history.schema.json" with { type: "text" };
 import promptHistoryPackageJson from "../../pi-packages/mpi-prompt-history/package.json" with { type: "text" };
 import autoRenameIndex from "../../pi-packages/mpi-auto-rename/index.ts" with { type: "text" };
 import autoRenameConfig from "../../pi-packages/mpi-auto-rename/config.ts" with { type: "text" };
@@ -303,6 +307,10 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
     "mpi-prompt-history": {
       "index.ts": promptHistoryIndex,
       "prompt-history-browser.ts": promptHistoryBrowser,
+      "history-store.ts": promptHistoryStore,
+      "pid-lock.ts": promptHistoryPidLock,
+      "config-ui.ts": promptHistoryConfigUi,
+      "mpi-prompt-history.schema.json": promptHistorySchemaJson,
       "package.json": promptHistoryPackageJson,
     },
     "mpi-skill-refs": {

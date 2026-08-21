@@ -61,11 +61,8 @@ import type {
   OverlayTui,
   WorkspaceKeyOptions,
 } from "./app-types.js";
-import { recordSubmittedHistory } from "../core/conversation-history.js";
 import { EXTENSION_PANEL_MIN_TERMINAL_WIDTH } from "./rendering/chrome.js";
-import { showSystemMessageOrToast } from "./app-actions.js";
 import { handleSubmittedInput } from "./app-submit.js";
-import { errorMessage } from "./app-overlays.js";
 import { renderCommandPalette, renderTabJumpOverlay } from "./rendering.js";
 import {
   handleVimTranscriptSearchPromptKey,
@@ -384,22 +381,6 @@ function handleHomeAgentViewKey(
       editorActions.setText("");
       // Match agent-tab onSubmit: in-memory Up-history + optional disk history.
       editorActions.addToHistory?.(text, target.sessionId);
-      if (workspaceOptions.rootStateDir) {
-        void recordSubmittedHistory({
-          rootStateDir: workspaceOptions.rootStateDir,
-          sessionId: target.sessionId,
-          text,
-        }).catch((error: unknown) => {
-          // Same visibility as agent-tab history failures (system line or notice).
-          showSystemMessageOrToast(
-            state,
-            runtime,
-            tui,
-            `History warning: ${errorMessage(error)}`,
-          );
-          tui.requestRender();
-        });
-      }
       // Do not change activeTabId: that swaps the main surface to the agent.
       // Pass workspaceFile + selected tab so Home matches agent-tab submit plumbing.
       void handleSubmittedInput(

@@ -1,0 +1,20 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://mixcode.dev/schemas/mpi-prompt-history.json",
+  "title": "mpi-prompt-history configuration",
+  "description": "Configuration for the mpi-prompt-history package, read from <agentDir>/mpi-prompt-history.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Optional path or URL to this schema."
+    },
+    "maxBytes": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "default": 15728640,
+      "description": "Maximum size, in bytes, kept in history.jsonl. Oldest entries are trimmed once the file exceeds this size."
+    }
+  }
+}

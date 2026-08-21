@@ -128,7 +128,6 @@ export async function runInteractiveApp(args: MainArgs, selfRoot: string): Promi
     completionSources,
     packageUpdateCheck,
     tabsReady,
-    historyReady,
     settingsDeps,
   } = await bootstrapMixCode({
     workdir: args.workdir,
@@ -423,24 +422,6 @@ export async function runInteractiveApp(args: MainArgs, selfRoot: string): Promi
         })
         .catch(() => undefined);
     });
-  // Conversation history backfill / session-index rebuild scans every persisted
-  // session file, so it runs in the background after the first frame. Surface
-  // any warnings into the first tab once it completes.
-  void historyReady
-    .then(({ warnings }) => {
-      if (warnings.length === 0) return;
-      state.tabs[0]?.previewMessages.push({
-        role: "system",
-        text: `History warning: ${warnings.join("; ")}`,
-      });
-      tui.requestRender();
-    })
-    .catch((error: unknown) => {
-      const msg = error instanceof Error ? error.message : String(error);
-      showNoticeTextOverlay(tui, `History backfill failed: ${msg}`);
-      tui.requestRender();
-    });
-
   // Execute batch script after TUI is ready
   if (args.batch && batchPlan) {
     const batchHost = createBatchExecutorHost({ state, runtime, tui });

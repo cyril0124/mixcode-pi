@@ -21,7 +21,6 @@ const richOptions = {
   toolSnippets: { read: "Read files", bash: "Run commands" },
   promptGuidelines: ["Prefer rg over grep."],
   appendSystemPrompt: "APPEND-MARKER",
-  conversationHistoryPrompt: "HISTORY-MARKER",
   cwd: "/tmp/some-cwd",
   contextFiles: [
     { path: "/home/u/.pi/agent/AGENTS.md", content: "全局规则 中文内容".repeat(20) },
@@ -34,7 +33,6 @@ test("sections concatenate to the exact assembled prompt", () => {
   const { prompt, sections } = buildMixCodeSystemPromptSections(richOptions);
   assert.equal(sections.map((s) => s.text).join(""), prompt);
   assert.match(prompt, /APPEND-MARKER/);
-  assert.match(prompt, /HISTORY-MARKER/);
   assert.match(prompt, /<project_instructions path="\/home\/u\/\.pi\/agent\/AGENTS\.md">/);
   assert.match(prompt, /<available_skills>/);
   assert.match(prompt, /\nCurrent date: \d{4}-\d{2}-\d{2}\nCurrent working directory: \/tmp\/some-cwd\n?$/);
@@ -49,11 +47,10 @@ test("project context files get one section each, global and project distinct", 
   assert.equal(names.filter((n) => n === "Project context (frame)").length, 2);
 });
 
-test("appendSystemPrompt and conversation history are separate sections", () => {
+test("appendSystemPrompt lands in its own section", () => {
   const { sections } = buildMixCodeSystemPromptSections(richOptions);
   const byName = Object.fromEntries(sections.map((s) => [s.name, s]));
   assert.equal(byName["Append (appendSystemPrompt)"].text, "\n\nAPPEND-MARKER");
-  assert.equal(byName["Conversation history"].text, "\n\nHISTORY-MARKER");
 });
 
 test("skills section is gated on the read tool like Pi's assembler", () => {

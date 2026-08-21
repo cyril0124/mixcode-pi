@@ -20,6 +20,7 @@
 // ║    Enter      Select -> return prompt text                                   ║
 // ║    printable  Append to query (live filter)                                  ║
 // ║    Backspace  Delete last query char                                         ║
+// ║    Ctrl+G     Toggle Session <-> Global scope (keeps the query)              ║
 // ║    Esc        Clear query, or close                                          ║
 // ║                                                                              ║
 // ╚══════════════════════════════════════════════════════════════════════════════╝
@@ -36,10 +37,23 @@ interface PromptItem {
   timeDisplay: string; // Formatted time string
 }
 
+type Scope = "session" | "global";
+
 interface BrowserState {
   selectedIndex: number;
   query: string;
+  scope: Scope;
 }
+
+/**
+ * Global items come off disk, so the browser renders a placeholder instead of
+ * blocking a frame on a multi-megabyte parse.
+ */
+type GlobalLoad =
+  | { kind: "idle" }
+  | { kind: "loading" }
+  | { kind: "ready"; items: PromptItem[] }
+  | { kind: "error"; message: string };
 
 // ─── Data Preparation ────────────────────────────────────────────────────────
 
@@ -103,12 +117,13 @@ function filterItems(items: PromptItem[], rawQuery: string): PromptItem[] {
 
 // ─── Rendering ───────────────────────────────────────────────────────────────
 
-const HINT_TEXT = "Enter select · ↑/↓ navigate · Esc close";
+const HINT_TEXT = "Enter select · ↑/↓ navigate · Ctrl+G scope · Esc close";
 const POINTER_ACTIVE = "❯ ";
 const POINTER_INACTIVE = "  ";
 
-function renderTitle(count: number, theme: Theme, width: number): string[] {
-  const title = ` Prompt History (${count})`;
+function renderTitle(scope: Scope, count: string, theme: Theme, width: number): string[] {
+  const label = scope === "session" ? "Session" : "Global";
+  const title = ` Prompt History — ${label} (${count})`;
   return [truncateToWidth(theme.bold(title), width), ""];
 }
 
@@ -168,6 +183,11 @@ export interface PromptHistoryBrowserConfig {
   theme: Theme;
   items: Array<{ text: string; timestamp?: string }>;
   done: (result: string | null) => void;
+  /**
+   * Supplies every recorded prompt for the Global scope. Omit to disable the
+   * scope toggle entirely (Ctrl+G then does nothing).
+   */
+  loadGlobalItems?: () => Promise<Array<{ text: string; timestamp?: string }>>;
 }
 
 export function createPromptHistoryBrowserComponent(config: PromptHistoryBrowserConfig): {
@@ -175,11 +195,45 @@ export function createPromptHistoryBrowserComponent(config: PromptHistoryBrowser
   invalidate(): void;
   handleInput(data: string): void;
 } {
-  const { tui, theme, done } = config;
-  const allItems = buildItems(config.items);
-  const state: BrowserState = { selectedIndex: 0, query: "" };
+  const { tui, theme, done, loadGlobalItems } = config;
+  const sessionItems = buildItems(config.items);
+  const state: BrowserState = { selectedIndex: 0, query: "", scope: "session" };
+  let globalLoad: GlobalLoad = { kind: "idle" };
+  let closed = false;
 
-  const visibleItems = (): PromptItem[] => filterItems(allItems, state.query);
+  function finish(result: string | null): void {
+    closed = true;
+    done(result);
+  }
+
+  function scopeItems(): PromptItem[] {
+    if (state.scope === "session") return sessionItems;
+    return globalLoad.kind === "ready" ? globalLoad.items : [];
+  }
+
+  const visibleItems = (): PromptItem[] => filterItems(scopeItems(), state.query);
+
+  function startGlobalLoad(): void {
+    if (!loadGlobalItems) return;
+    globalLoad = { kind: "loading" };
+    // A load that lands after close must not build items for, or render into, a
+    // component the host has already torn down.
+    void loadGlobalItems().then(
+      (items) => {
+        if (closed) return;
+        globalLoad = { kind: "ready", items: buildItems(items) };
+        tui.requestRender();
+      },
+      (error: unknown) => {
+        if (closed) return;
+        globalLoad = {
+          kind: "error",
+          message: error instanceof Error ? error.message : String(error),
+        };
+        tui.requestRender();
+      },
+    );
+  }
 
   function selectedPrompt(): string | undefined {
     return visibleItems()[state.selectedIndex]?.text;
@@ -199,7 +253,7 @@ export function createPromptHistoryBrowserComponent(config: PromptHistoryBrowser
         state.selectedIndex = 0;
         tui.requestRender();
       } else {
-        done(null);
+        finish(null);
       }
       return;
     }
@@ -208,7 +262,7 @@ export function createPromptHistoryBrowserComponent(config: PromptHistoryBrowser
       const prompt = selectedPrompt();
       // Empty filter: stay open so the user can refine the query (Esc still closes).
       if (prompt === undefined) return;
-      done(prompt);
+      finish(prompt);
       return;
     }
 
@@ -219,6 +273,20 @@ export function createPromptHistoryBrowserComponent(config: PromptHistoryBrowser
         state.selectedIndex = (state.selectedIndex + delta + count) % count;
         tui.requestRender();
       }
+      return;
+    }
+
+    // Scope toggle keeps the query so a search can be carried across scopes.
+    if (matchesKey(data, Key.ctrl("g"))) {
+      if (!loadGlobalItems) return;
+      state.scope = state.scope === "session" ? "global" : "session";
+      state.selectedIndex = 0;
+      // Retry on re-entry after a failure, otherwise a single bad read would
+      // pin the frozen error until the browser is closed and reopened.
+      if (state.scope === "global" && (globalLoad.kind === "idle" || globalLoad.kind === "error")) {
+        startGlobalLoad();
+      }
+      tui.requestRender();
       return;
     }
 
@@ -244,8 +312,11 @@ export function createPromptHistoryBrowserComponent(config: PromptHistoryBrowser
       const border = new DynamicBorder((s: string) => theme.fg("accent", s));
       const lines: string[] = [];
 
+      const pending = state.scope === "global" && globalLoad.kind !== "ready";
       lines.push(...border.render(width));
-      lines.push(...renderTitle(allItems.length, theme, width));
+      lines.push(
+        ...renderTitle(state.scope, pending ? "…" : String(scopeItems().length), theme, width),
+      );
       lines.push(renderSearchLine(state.query, theme, width));
       lines.push("");
 
@@ -255,7 +326,13 @@ export function createPromptHistoryBrowserComponent(config: PromptHistoryBrowser
       const byRatio = Math.max(3, Math.floor(tui.terminal.rows * 0.6));
       const maxVisible = Math.min(byTerminal, byRatio);
 
-      lines.push(...renderList(visibleItems(), state.selectedIndex, theme, width, maxVisible));
+      if (state.scope === "global" && globalLoad.kind === "loading") {
+        lines.push(truncateToWidth(` ${theme.fg("dim", "Loading global history…")}`, width));
+      } else if (state.scope === "global" && globalLoad.kind === "error") {
+        lines.push(truncateToWidth(` ${theme.fg("error", globalLoad.message)}`, width));
+      } else {
+        lines.push(...renderList(visibleItems(), state.selectedIndex, theme, width, maxVisible));
+      }
       lines.push("");
       lines.push(...border.render(width));
       lines.push(` ${theme.fg("dim", truncateToWidth(HINT_TEXT, width - 2))}`);

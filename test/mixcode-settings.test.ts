@@ -37,11 +37,10 @@ test("settings panel changes Pi mermaid mode and mirrors live state", async () =
   }
 });
 
-test("mixcode settings default history and oversized assistant message policy", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-history-settings-"));
+test("mixcode settings defaults, oversized policy, and ignored unknown keys", async () => {
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-settings-defaults-"));
   try {
     assert.deepEqual(await loadMixCodeSettings(path.join(dir, "missing.json")), {
-      history: { maxBytes: 5 * 1024 * 1024 },
       ui: {
         oversizedAssistantMessage: { enabled: true, maxLines: 5000, maxBytes: 128 * 1024 },
         icons: { mode: "nerd" },
@@ -53,7 +52,8 @@ test("mixcode settings default history and oversized assistant message policy", 
     await fsPromises.writeFile(
       path.join(dir, "mixcode_settings.json"),
       JSON.stringify({
-        history: { persistence: "none", maxBytes: 128 },
+        // history moved to the mpi-prompt-history package; a stale key is ignored.
+        history: { maxBytes: 128 },
         ui: {
           oversizedAssistantMessage: { enabled: false, maxLines: 42, maxBytes: 2048 },
           // Legacy ui.renderMermaid is ignored (Pi markdown.mermaid owns mermaid now).
@@ -64,7 +64,6 @@ test("mixcode settings default history and oversized assistant message policy", 
       "utf8",
     );
     assert.deepEqual(await loadMixCodeSettings(path.join(dir, "mixcode_settings.json")), {
-      history: { maxBytes: 128 },
       ui: {
         oversizedAssistantMessage: { enabled: false, maxLines: 42, maxBytes: 2048 },
         icons: { mode: "ascii" },
@@ -79,14 +78,16 @@ test("mixcode settings default history and oversized assistant message policy", 
 });
 
 test("mixcode settings accept jsonc comments and trailing commas", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-history-jsonc-settings-"));
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-jsonc-settings-"));
   try {
     await fsPromises.writeFile(
       path.join(dir, "mixcode_settings.json"),
       `{
-        // Keep at most 256 bytes of prompt history.
-        "history": {
-          "maxBytes": 256,
+        // Cap oversized assistant messages.
+        "ui": {
+          "oversizedAssistantMessage": {
+            "maxLines": 256,
+          },
         },
       }`,
       "utf8",
@@ -94,9 +95,8 @@ test("mixcode settings accept jsonc comments and trailing commas", async () => {
 
     const file = path.join(dir, "mixcode_settings.json");
     assert.deepEqual(await loadMixCodeSettings(file), {
-      history: { maxBytes: 256 },
       ui: {
-        oversizedAssistantMessage: { enabled: true, maxLines: 5000, maxBytes: 128 * 1024 },
+        oversizedAssistantMessage: { enabled: true, maxLines: 256, maxBytes: 128 * 1024 },
         icons: { mode: "nerd" },
         inlineWidgets: false,
       },
@@ -137,7 +137,6 @@ test("legacy ui.renderMermaid in mixcode_settings is ignored", async () => {
     await fsPromises.writeFile(file, JSON.stringify({ ui: { renderMermaid: "yes" } }), "utf8");
     // Unknown / obsolete fields must not throw.
     assert.deepEqual(await loadMixCodeSettings(file), {
-      history: { maxBytes: 5 * 1024 * 1024 },
       ui: {
         oversizedAssistantMessage: { enabled: true, maxLines: 5000, maxBytes: 128 * 1024 },
         icons: { mode: "nerd" },
@@ -175,7 +174,7 @@ test("settings panel cycles icons.mode and persists it", async () => {
       mixcodeFile,
       piSettingsFile: path.join(dir, "settings.json"),
     });
-    panel.selectedIndex = 11; // icons.mode
+    panel.selectedIndex = 10; // icons.mode
 
     assert.match(stripAnsi(panel.render(80).join("\n")), /Icon mode/);
     // Open enum, pick ascii (index 2), confirm.
@@ -227,7 +226,7 @@ test("settings panel surfaces write failures without applying the new value", as
       mixcodeFile: dir, // Writing JSON to a directory must fail.
       piSettingsFile: path.join(dir, "settings.json"),
     });
-    panel.selectedIndex = 11; // icons.mode
+    panel.selectedIndex = 10; // icons.mode
 
     panel.handleInput("\r");
     panel.enumIndex = 2;
@@ -333,7 +332,7 @@ test("settings panel toggles inlineWidgets on live tabs and new tabs", async () 
       mixcodeFile,
       piSettingsFile: path.join(dir, "settings.json"),
     });
-    panel.selectedIndex = 17; // inlineWidgets
+    panel.selectedIndex = 16; // inlineWidgets
 
     assert.match(stripAnsi(panel.render(80).join("\n")), /Inline widgets/);
     panel.handleInput("\r");

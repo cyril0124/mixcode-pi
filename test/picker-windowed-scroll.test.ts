@@ -101,7 +101,7 @@ test("settings main list keeps the selected section visible on a very short term
   try {
     const state = createInitialState("/repo");
     const panel = createSettingsPanel(state, SettingsManager.inMemory());
-    panel.selectedIndex = 15; // disabledProviders, in the Mixcode section
+    panel.selectedIndex = 14; // disabledProviders, in the Mixcode section
 
     const plain = stripAnsi(panel.render(80).join("\n"));
     assert.match(plain, /Mixcode/);
