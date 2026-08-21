@@ -93,6 +93,39 @@ test("adapter dispose restores the exact native selectors", () => {
 	assert.equal(prototype.getRenderShell, originalShell);
 });
 
+test("re-install terminates when tracked rows re-enter patched getters from invalidate()", () => {
+	const prototype = createPrototype();
+	const resolver = {
+		call: (_name: string, native: CallRenderer | undefined) => native,
+		result: (_name: string, native: ResultRenderer | undefined) => native,
+		shell: (_name: string, native: "default" | "self") => native,
+	};
+	const first = installToolExecutionAdapter(prototype, resolver);
+	const rows: FakeRow[] = [];
+	for (let i = 0; i < 3; i += 1) {
+		const row = createRow(prototype, "bash");
+		// Mirror ToolExecutionComponent.invalidate(): it synchronously runs
+		// updateDisplay(), which re-invokes the patched renderer getters and
+		// therefore re-enters trackRow while invalidateRows is iterating.
+		row.invalidate = () => {
+			row.invalidated += 1;
+			row.getCallRenderer();
+		};
+		row.getCallRenderer(); // render pass tracks the row
+		rows.push(row);
+	}
+	// Re-own path must invalidate every live row exactly once and return.
+	const second = installToolExecutionAdapter(prototype, resolver);
+	try {
+		for (const row of rows) {
+			assert.equal(row.invalidated, 1);
+		}
+	} finally {
+		first.dispose();
+		second.dispose();
+	}
+});
+
 test("new installation replaces resolver ownership and stale dispose cannot remove it", () => {
 	const prototype = createPrototype();
 	const first = installToolExecutionAdapter(prototype, {

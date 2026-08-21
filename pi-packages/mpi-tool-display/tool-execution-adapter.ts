@@ -31,6 +31,8 @@ interface InstallationState {
   patchedShell: ShellSelector;
   resolver: ToolRowResolver;
   rows: Set<WeakRef<ToolRowHost>>;
+  /** Live-row dedupe: one WeakRef per row, and a reentry guard for trackRow. */
+  trackedRows: WeakSet<ToolRowHost>;
   addedSinceSweep: number;
   owner: object;
   active: boolean;
@@ -69,12 +71,20 @@ function sweepRows(state: InstallationState): void {
 }
 
 function trackRow(state: InstallationState, row: ToolRowHost): void {
+  // ToolExecutionComponent.invalidate() synchronously runs updateDisplay(),
+  // which re-invokes the patched getters and re-enters trackRow. Deduping via
+  // WeakSet keeps rows finite (one ref per row) and breaks the feedback that
+  // would otherwise grow the Set while invalidateRows iterates it.
+  if (state.trackedRows.has(row)) return;
+  state.trackedRows.add(row);
   state.rows.add(new WeakRef(row));
   if (state.addedSinceSweep++ > state.rows.size) sweepRows(state);
 }
 
 function invalidateRows(state: InstallationState): void {
-  for (const ref of state.rows) {
+  // Snapshot before iterating: invalidate() re-enters the patched getters,
+  // and Set iteration would visit entries appended mid-walk.
+  for (const ref of [...state.rows]) {
     ref.deref()?.invalidate?.();
   }
 }
@@ -175,6 +185,7 @@ export function installToolExecutionAdapter(
     shellDescriptor,
     resolver,
     rows: new Set<WeakRef<ToolRowHost>>(),
+    trackedRows: new WeakSet<ToolRowHost>(),
     addedSinceSweep: 0,
     owner,
     active: true,
