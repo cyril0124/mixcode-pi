@@ -1219,7 +1219,7 @@ function applyBackgroundToVisibleRange(
 			// Only a well-formed CSI sequence is invisible; anything else is
 			// visible text and must consume exactly one character so span math
 			// stays aligned.
-			const csi = /^\x1b\[[0-9;?]*[ -\/]*[@-~]/.exec(ansiText.slice(index));
+			const csi = /^\x1b\[[0-9;?]*[ -\x2f]*[@-~]/.exec(ansiText.slice(index));
 			if (csi) {
 				output += csi[0];
 				index += csi[0].length;

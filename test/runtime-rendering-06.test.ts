@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { visibleWidth } from "@earendil-works/pi-tui";
+import { syncAssistantBlocks } from "../src/agent/runtime-events.js";
 import {
   createTab,
   padLine,
@@ -97,6 +98,23 @@ test("custom tool renderers receive content width; self shell skips paint frame"
   );
   assert.match(self, /self call/);
   assert.match(self, /self result/);
+});
+
+test("consecutive thinking blocks render as one Pi thinking section", () => {
+  const runtimeTab = { chat: [], streamingAssistant: undefined } as never;
+  syncAssistantBlocks(runtimeTab, {
+    role: "assistant",
+    content: [
+      { type: "thinking", thinking: "first reasoning block" },
+      { type: "thinking", thinking: "second reasoning block" },
+      { type: "text", text: "answer" },
+    ],
+  } as never);
+
+  assert.deepEqual(runtimeTab.chat, [
+    { role: "thinking", text: "first reasoning block\n\nsecond reasoning block" },
+    { role: "assistant", text: "answer" },
+  ]);
 });
 
 test("error system messages show error text without a System label", () => {

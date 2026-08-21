@@ -8,7 +8,7 @@ const STYLE_RESET_PARAMS = [39, 22, 23, 24, 25, 27, 28, 29, 59] as const;
 // (unterminated OSC eats to end of string by design), CSI sequences, and any
 // other two-char ESC sequence.
 const ESCAPE_OR_CONTROL_PATTERN =
-  /[\x00-\x08\x0b\x0c\x0e-\x1a\x1c-\x1f\x7f]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)?|\x1b\[[0-9;?]*[ -\/]*[@-~]|\x1b./g;
+  /[\x00-\x08\x0b\x0c\x0e-\x1a\x1c-\x1f\x7f]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)?|\x1b\[[0-9;?]*[ -\x2f]*[@-~]|\x1b./g;
 const COMPLETE_SGR_PATTERN = /^\x1b\[[0-9;]*m$/;
 
 // Strips every escape and control character; use on untrusted strings before

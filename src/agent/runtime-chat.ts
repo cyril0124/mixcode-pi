@@ -508,14 +508,22 @@ function assistantMessageToChatLines(
   message: AssistantMessage,
   runtimeTab: RuntimeTab,
 ): ChatLine[] {
-  return message.content.flatMap((block): ChatLine[] => {
+  return message.content.flatMap((block, contentIndex): ChatLine[] => {
     if (block.type === "text") {
       const text = assistantText([block]);
       return text.trim() ? [{ role: "assistant", text }] : [];
     }
     if (block.type === "thinking") {
-      const text = block.redacted ? "[Reasoning redacted]" : block.thinking;
-      return text.trim() ? [{ role: "thinking", text }] : [];
+      if (contentIndex > 0 && message.content[contentIndex - 1]?.type === "thinking") return [];
+      const thinkingParts: string[] = [];
+      for (let index = contentIndex; index < message.content.length; index++) {
+        const thinkingBlock = message.content[index];
+        if (thinkingBlock?.type !== "thinking") break;
+        const thinking = thinkingBlock.redacted ? "[Reasoning redacted]" : thinkingBlock.thinking;
+        if (thinking.trim()) thinkingParts.push(thinking.trim());
+      }
+      const text = thinkingParts.join("\n\n");
+      return text ? [{ role: "thinking", text }] : [];
     }
     if (block.type === "toolCall") {
       return [

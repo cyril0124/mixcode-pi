@@ -434,17 +434,31 @@ export function syncAssistantBlocks(
       return;
     }
     if (block.type === "thinking") {
-      const thinking = block.redacted ? "[Reasoning redacted]" : block.thinking;
-      if (!thinking.trim()) return;
+      if (contentIndex > 0 && message.content[contentIndex - 1]?.type === "thinking") {
+        // Consecutive thinking blocks render as one Pi thinking section.
+        return;
+      }
+      const thinkingParts: string[] = [];
+      let end = contentIndex;
+      while (end < message.content.length) {
+        const thinkingBlock = message.content[end];
+        if (thinkingBlock?.type !== "thinking") break;
+        const thinking = thinkingBlock.redacted ? "[Reasoning redacted]" : thinkingBlock.thinking;
+        if (thinking.trim()) thinkingParts.push(thinking.trim());
+        end++;
+      }
+      const thinking = thinkingParts.join("\n\n");
+      if (!thinking) return;
       const existing = blockIndices.get(contentIndex);
       if (existing !== undefined && runtimeTab.chat[existing]?.role === "thinking") {
         runtimeTab.chat[existing] = { role: "thinking", text: thinking };
+        for (let index = contentIndex; index < end; index++) blockIndices.set(index, existing);
         return;
       }
-      blockIndices.set(
-        contentIndex,
-        runtimeTab.chat.push({ role: "thinking", text: thinking }) - 1,
-      );
+      const index = runtimeTab.chat.push({ role: "thinking", text: thinking }) - 1;
+      for (let blockIndex = contentIndex; blockIndex < end; blockIndex++) {
+        blockIndices.set(blockIndex, index);
+      }
       return;
     }
     if (block.type === "toolCall") {
