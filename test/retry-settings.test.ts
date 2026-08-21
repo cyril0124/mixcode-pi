@@ -7,18 +7,12 @@ import {
   configureMixCodeRetrySettings,
   MIXCODE_RETRY_DEFAULTS,
 } from "../src/agent/retry-settings.js";
-import { normalizeRuntimeProviderErrorMessage } from "../src/agent/runtime-provider.js";
 
 function classifyRetryable(message: {
   stopReason: AssistantMessage["stopReason"];
   errorMessage?: string;
 }): boolean {
-  return isRetryableAssistantError({
-    ...message,
-    errorMessage: message.errorMessage
-      ? normalizeRuntimeProviderErrorMessage(message.errorMessage)
-      : undefined,
-  } as AssistantMessage);
+  return isRetryableAssistantError(message as AssistantMessage);
 }
 
 test("configureMixCodeRetrySettings applies MixCode retry defaults over SDK defaults", () => {
@@ -82,19 +76,17 @@ test("applyRetryJitter applies Codex-style ±10% jitter", () => {
   assert.equal(applyRetryJitter(200, 1), 220);
 });
 
-test("the runtime maps proxy upstream errors to Pi's public retry classifier", () => {
+test("Pi's retry classifier treats proxy upstream errors as retryable without rewriting them", () => {
+  const upstreamJson =
+    '{"type":"error","error":{"type":"upstream_error","message":"上游: Upstream request failed"}}';
+  assert.equal(classifyRetryable({ stopReason: "error", errorMessage: upstreamJson }), true);
   assert.equal(
-    classifyRetryable({
-      stopReason: "error",
-      errorMessage:
-        '{"type":"error","error":{"type":"upstream_error","message":"上游: Upstream request failed"}}',
-    }),
+    classifyRetryable({ stopReason: "error", errorMessage: "Upstream request failed" }),
     true,
   );
 });
 
 test("Pi's public retry classifier preserves its allowlist and deny-list", () => {
-  // SDK allowlist still works through the wrapper.
   assert.equal(classifyRetryable({ stopReason: "error", errorMessage: "500 server error" }), true);
   // SDK deny-list (quota/billing) still wins when wrapped in an upstream error.
   assert.equal(

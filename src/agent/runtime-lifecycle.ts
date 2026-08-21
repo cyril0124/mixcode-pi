@@ -53,7 +53,6 @@ import {
 import {
   buildMixCodeSystemPromptOverride,
   registerMixCodeRuntimeProvider,
-  runtimeRetryNormalizationExtension,
 } from "./runtime-provider.js";
 import { refreshStartupHeader } from "./runtime-startup-header.js";
 
@@ -534,7 +533,6 @@ export async function createRuntimeServices(
       ...(options.additionalExtensionPaths ?? []),
     ],
     extensionFactories: [
-      runtimeRetryNormalizationExtension,
       ...(options.resourceLoaderOptions?.extensionFactories ?? []),
       ...(options.extensionFactories ?? []),
     ],

@@ -1,0 +1,15 @@
+diff --git a/node_modules/@earendil-works/pi-ai/dist/utils/retry.js b/node_modules/@earendil-works/pi-ai/dist/utils/retry.js
+index 65c7c9e..48ce5fc 100644
+--- a/node_modules/@earendil-works/pi-ai/dist/utils/retry.js
++++ b/node_modules/@earendil-works/pi-ai/dist/utils/retry.js
+@@ -34,6 +34,10 @@
+     // Wrapper/provider text for transient upstream failures, including OpenRouter
+     // "Provider returned error" responses (#2264).
+     "provider.?returned.?error",
++    // MIXCODE: proxy gateways wrap transients as upstream_error / "Upstream request failed"
++    // without an HTTP status, so they never matched the allowlist.
++    "upstream.?error",
++    "upstream request failed",
+     "exceeded request buffer limit while retrying upstream",
+     // Network, proxy, and fetch transport failures. This includes OpenAI Codex
+     // raw-fetch failures such as "upstream connect", "connection refused", and
