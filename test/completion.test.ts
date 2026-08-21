@@ -1,6 +1,17 @@
 import assert from "node:assert/strict";
+import * as fsPromises from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { test } from "node:test";
-import { MixCodeCompletionProvider } from "./helpers/mixcode.js";
+import { ensureTool } from "@earendil-works/pi-coding-agent";
+import type { AutocompleteProvider, Component, Terminal } from "@earendil-works/pi-tui";
+import {
+  MixCodeCompletionProvider,
+  createInitialState,
+  createMixCodeTui,
+  createTab,
+  type MixCodeRuntime,
+} from "./helpers/mixcode.js";
 
 const signal = new AbortController().signal;
 
@@ -140,4 +151,174 @@ test("skill completion source refreshes when cache is stale", async () => {
     description: "Beta skill",
   });
   assert.deepEqual(getSkills(), first);
+});
+
+test("@ completion lists current-instance tab mentions above file matches", async (t) => {
+  const fdPath = await ensureTool("fd");
+  if (!fdPath) {
+    t.skip("Pi could not provide fd");
+    return;
+  }
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-completion-tabs-"));
+  try {
+    await fsPromises.writeFile(path.join(dir, "agenda.md"), "");
+    const provider = new MixCodeCompletionProvider({
+      skills: [],
+      workdir: dir,
+      fdPath,
+      tabs: [
+        { title: "Agent-02", status: "idle" },
+        { title: "Review", status: "running" },
+      ],
+    });
+
+    const result = await provider.getSuggestions(["@age"], 0, 4, { signal });
+    assert.equal(result?.prefix, "@age");
+    assert.equal(result?.items[0]?.value, "@Agent-02");
+    assert.equal(result?.items[0]?.label, "Agent-02");
+    assert.equal(result?.items[0]?.description, "[tab] idle");
+    // Existing fd file completion stays available after tab mentions.
+    assert.ok(result?.items.some((item) => item.value === "@agenda.md"));
+    // Non-matching tab titles are filtered out.
+    assert.ok(!result?.items.some((item) => item.label === "Review"));
+  } finally {
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("@ completion quotes spaced tab titles and works without file matches", async () => {
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-completion-tabs-empty-"));
+  try {
+    const provider = new MixCodeCompletionProvider({
+      skills: [],
+      workdir: dir,
+      tabs: () => [{ title: "My Review Tab", status: "running" }],
+    });
+
+    const result = await provider.getSuggestions(["@rev"], 0, 4, { signal });
+    assert.equal(result?.prefix, "@rev");
+    assert.deepEqual(result?.items, [
+      { value: '@"My Review Tab"', label: "My Review Tab", description: "[tab] running" },
+    ]);
+
+    const applied = provider.applyCompletion(["@rev"], 0, 4, result!.items[0]!, result!.prefix);
+    assert.equal(applied.lines[0], '@"My Review Tab" ');
+    assert.equal(applied.cursorCol, '@"My Review Tab" '.length);
+
+    // No tab match and no file match keeps the upstream null contract.
+    assert.equal(await provider.getSuggestions(["@zzz"], 0, 4, { signal }), null);
+  } finally {
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("@ completion applies slash-ending tab titles as mentions", async () => {
+  const provider = new MixCodeCompletionProvider({
+    skills: [],
+    tabs: [{ title: "Review/" }, { title: "My Review/" }],
+  });
+
+  const result = await provider.getSuggestions(["@rev"], 0, 4, { signal });
+  const plain = result!.items.find((item) => item.label === "Review/")!;
+  const quoted = result!.items.find((item) => item.label === "My Review/")!;
+  assert.deepEqual(provider.applyCompletion(["@rev"], 0, 4, plain, result!.prefix), {
+    lines: ["@Review/ "],
+    cursorLine: 0,
+    cursorCol: "@Review/ ".length,
+  });
+  assert.deepEqual(provider.applyCompletion(["@rev"], 0, 4, quoted, result!.prefix), {
+    lines: ['@"My Review/" '],
+    cursorLine: 0,
+    cursorCol: '@"My Review/" '.length,
+  });
+});
+
+test("@ completion JSON-escapes quotes in tab titles", async () => {
+  const provider = new MixCodeCompletionProvider({
+    skills: [],
+    tabs: [{ title: 'A "Review"' }],
+  });
+
+  const result = await provider.getSuggestions(["@rev"], 0, 4, { signal });
+  assert.equal(result?.items[0]?.value, '@"A \\"Review\\""');
+  const applied = provider.applyCompletion(["@rev"], 0, 4, result!.items[0]!, result!.prefix);
+  assert.equal(applied.lines[0], '@"A \\"Review\\"" ');
+  assert.equal(applied.cursorCol, '@"A \\"Review\\"" '.length);
+});
+
+test("editor @ completion offers peer tabs, not the prompt-target tab itself", async () => {
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-completion-tabs-tui-"));
+  const state = createInitialState(dir);
+  const selfTab = createTab(1, "s1", dir, { title: "Self-Tab" });
+  const peerTab = createTab(2, "s2", dir, { title: "Peer-Tab/" });
+  state.tabs.push(selfTab, peerTab);
+  state.activeTabId = "s1";
+  const tabsById: Record<string, typeof selfTab> = { s1: selfTab, s2: peerTab };
+  const runtime = {
+    onChange: () => () => undefined,
+    getTab: (sessionId: string) => ({ tab: tabsById[sessionId] ?? selfTab, chat: [] }),
+    getExtensionCommands: () => [],
+    getAllExtensionCommands: () => [],
+    applyExtensionAutocompleteProviders: (_sessionId: string, base: AutocompleteProvider) => base,
+    getPromptHistory: () => [],
+    setExtensionUiHost: () => undefined,
+    onTabClosed: () => () => undefined,
+    onModelsChanged: () => () => undefined,
+    appendSystemMessage: () => undefined,
+    getSharedModelRuntime: () => undefined,
+    getExtensionTools: () => [],
+  } as unknown as MixCodeRuntime;
+  const terminal: Terminal = {
+    columns: 120,
+    rows: 40,
+    write: () => undefined,
+    onData: () => () => undefined,
+    start: () => undefined,
+    stop: () => undefined,
+    setRawMode: () => undefined,
+    hideCursor: () => undefined,
+    showCursor: () => undefined,
+    clearLine: () => undefined,
+    clearFromCursor: () => undefined,
+    clearScreen: () => undefined,
+    setTitle: () => undefined,
+    setProgress: () => undefined,
+  };
+  const stripAnsi = (text: string) =>
+    text
+      .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, "")
+      .replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "")
+      .replace(/\x1b[ -/]*[@-~]/g, "");
+  const tui = createMixCodeTui(state, runtime, {
+    terminal,
+    completionSources: { skills: [] },
+  });
+  try {
+    const layout = (
+      tui as unknown as {
+        children: Array<{
+          editor: {
+            current: Component;
+            handleInput: (data: string) => void;
+            getText: () => string;
+            isShowingAutocomplete: () => boolean;
+          };
+        }>;
+      }
+    ).children[0]!;
+
+    layout.editor.handleInput("@");
+    for (let i = 0; i < 100 && !layout.editor.isShowingAutocomplete(); i++) {
+      await Bun.sleep(10);
+    }
+    assert.ok(layout.editor.isShowingAutocomplete());
+    const rendered = stripAnsi(layout.editor.current.render(80).join("\n"));
+    assert.match(rendered, /Peer-Tab\//);
+    assert.doesNotMatch(rendered, /Self-Tab/);
+    layout.editor.handleInput("\r");
+    assert.equal(layout.editor.getText(), "@Peer-Tab/ ");
+  } finally {
+    tui.stop();
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  }
 });

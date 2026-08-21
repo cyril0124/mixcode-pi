@@ -1,5 +1,6 @@
 import {
   CombinedAutocompleteProvider,
+  fuzzyFilter,
   type AutocompleteItem,
   type AutocompleteProvider,
   type AutocompleteSuggestions,
@@ -31,6 +32,11 @@ export interface MixCodePromptTemplateCompletionSource {
   sourceInfo?: MixCodeSkillSourceInfo;
 }
 
+export interface MixCodeTabCompletionSource {
+  title: string;
+  status?: string;
+}
+
 export interface MixCodeCompletionSources {
   skills:
     | Array<string | MixCodeSkillCompletionSource>
@@ -41,6 +47,8 @@ export interface MixCodeCompletionSources {
     | (() => MixCodePromptTemplateCompletionSource[]);
   workdir?: string | (() => string);
   fdPath?: string;
+  /** Agent tabs of the current instance, offered as @-mention completions. */
+  tabs?: MixCodeTabCompletionSource[] | (() => MixCodeTabCompletionSource[]);
 }
 
 /**
@@ -49,10 +57,11 @@ export interface MixCodeCompletionSources {
  */
 export class MixCodeCompletionProvider implements AutocompleteProvider {
   private readonly completionDelegate = new CombinedAutocompleteProvider([], process.cwd());
+  private readonly tabCompletionItems = new WeakSet<AutocompleteItem>();
 
   constructor(private readonly sources: MixCodeCompletionSources) {}
 
-  getSuggestions(
+  async getSuggestions(
     lines: string[],
     cursorLine: number,
     cursorCol: number,
@@ -67,10 +76,21 @@ export class MixCodeCompletionProvider implements AutocompleteProvider {
       resolveWorkdir(this.sources.workdir),
       this.sources.fdPath,
     );
-    return provider.getSuggestions(lines, cursorLine, cursorCol, {
+    const suggestions = await provider.getSuggestions(lines, cursorLine, cursorCol, {
       ...options,
       signal: options.signal ?? new AbortController().signal,
     });
+    const atPrefix = extractAtMentionPrefix((lines[cursorLine] ?? "").slice(0, cursorCol));
+    if (!atPrefix) return suggestions;
+    const tabItems = tabMentionItems(resolveTabs(this.sources.tabs), atPrefix);
+    if (tabItems.length === 0) return suggestions;
+    for (const item of tabItems) this.tabCompletionItems.add(item);
+    // Pi's @ branch returns the same prefix it extracted; when it found no
+    // files it returns null, so fall back to the locally extracted prefix.
+    return {
+      items: [...tabItems, ...(suggestions?.items ?? [])],
+      prefix: suggestions?.prefix ?? atPrefix,
+    };
   }
 
   applyCompletion(
@@ -80,7 +100,18 @@ export class MixCodeCompletionProvider implements AutocompleteProvider {
     item: AutocompleteItem,
     prefix: string,
   ) {
-    return this.completionDelegate.applyCompletion(lines, cursorLine, cursorCol, item, prefix);
+    // Pi infers directories from labels; slash-ending tab titles remain mentions.
+    const delegateItem =
+      this.tabCompletionItems.has(item) && item.label.endsWith("/")
+        ? { ...item, label: item.label.slice(0, -1) }
+        : item;
+    return this.completionDelegate.applyCompletion(
+      lines,
+      cursorLine,
+      cursorCol,
+      delegateItem,
+      prefix,
+    );
   }
 
   shouldTriggerFileCompletion(lines: string[], cursorLine: number, cursorCol: number): boolean {
@@ -104,6 +135,71 @@ function resolvePromptTemplates(
 function resolveWorkdir(workdir: MixCodeCompletionSources["workdir"]): string {
   if (typeof workdir === "function") return workdir();
   return workdir ?? process.cwd();
+}
+
+function resolveTabs(tabs: MixCodeCompletionSources["tabs"]): MixCodeTabCompletionSource[] {
+  if (!tabs) return [];
+  return typeof tabs === "function" ? tabs() : tabs;
+}
+
+// Same delimiter set as pi-tui's private @-prefix extraction.
+const AT_TOKEN_DELIMITERS = new Set([" ", "\t", '"', "'", "="]);
+
+/**
+ * Extract the @-mention token before the cursor, mirroring pi-tui
+ * CombinedAutocompleteProvider's private extractAtPrefix (plain `@token`
+ * after a delimiter, or an unclosed `@"quoted` form). Keeping both
+ * extractions in lockstep guarantees tab items replace exactly the range
+ * upstream file completions replace, so one shared applyCompletion works.
+ */
+function extractAtMentionPrefix(text: string): string | null {
+  const quoteStart = findUnclosedQuoteStart(text);
+  if (
+    quoteStart !== null &&
+    quoteStart > 0 &&
+    text[quoteStart - 1] === "@" &&
+    (quoteStart === 1 || AT_TOKEN_DELIMITERS.has(text[quoteStart - 2] ?? ""))
+  ) {
+    return text.slice(quoteStart - 1);
+  }
+  let tokenStart = 0;
+  for (let i = text.length - 1; i >= 0; i--) {
+    if (AT_TOKEN_DELIMITERS.has(text[i] ?? "")) {
+      tokenStart = i + 1;
+      break;
+    }
+  }
+  return text[tokenStart] === "@" ? text.slice(tokenStart) : null;
+}
+
+function findUnclosedQuoteStart(text: string): number | null {
+  let inQuotes = false;
+  let quoteStart = -1;
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === '"') {
+      inQuotes = !inQuotes;
+      if (inQuotes) quoteStart = i;
+    }
+  }
+  return inQuotes ? quoteStart : null;
+}
+
+function tabMentionItems(
+  tabs: MixCodeTabCompletionSource[],
+  atPrefix: string,
+): AutocompleteItem[] {
+  if (tabs.length === 0) return [];
+  const isQuoted = atPrefix.startsWith('@"');
+  const rawQuery = atPrefix.slice(isQuoted ? 2 : 1);
+  return fuzzyFilter(tabs, rawQuery, (tab) => tab.title).map((tab) => ({
+    // Quote Pi token delimiters and JSON-escape embedded quotes.
+    value:
+      isQuoted || [...tab.title].some((character) => AT_TOKEN_DELIMITERS.has(character))
+        ? `@${JSON.stringify(tab.title)}`
+        : `@${tab.title}`,
+    label: tab.title,
+    description: tab.status ? `[tab] ${tab.status}` : "[tab]",
+  }));
 }
 
 function skillCompletionSources(

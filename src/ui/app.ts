@@ -198,6 +198,14 @@ export function createMixCodeTui(
     ...(options.completionSources ?? { skills: [] }),
     skills: createActiveSkillCompletionSource(state, runtime, options.completionSources?.skills),
     workdir: () => activeCompletionWorkdir(state),
+    // @-mention source: agent tabs of this instance, excluding the tab the
+    // prompt will be sent to (active tab; on Home, the selected tab).
+    tabs: () => {
+      const self = getActiveTab(state);
+      return state.tabs
+        .filter((tab) => tab.sessionId !== self?.sessionId)
+        .map((tab) => ({ title: tab.title, status: tab.status }));
+    },
     commands: () => {
       const active = getActiveTab(state);
       const extensionCommands =

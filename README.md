@@ -24,7 +24,7 @@ A **multi-tab**, terminal-native AI coding agent fully compatible with the [Pi](
 - 🧩 **100% Pi Extension Compatible** — the full Pi package catalog plus first-party `mpi-*` extensions, zero friction.
 - 🧘 **Zen & Inline Modes** — hide chrome for a distraction-free canvas, or move widgets into the chat stream.
 - 📱 **Mobile & Touch Optimized** — narrow terminals, split panes, and touch-friendly SSH clients (Termux, iOS Blink).
-- ⌨️ **Terminal-First Workflow** — Vim-style transcript navigation, command palette, `$skill` / `@file` autocomplete.
+- ⌨️ **Terminal-First Workflow** — Vim-style transcript navigation, command palette, `$skill` / `@file` / `@tab` autocomplete.
 - 📜 **Declarative Batch Automation** — script multi-agent workflows with embedded Lua and dry-run validation.
 
 ---
@@ -114,7 +114,7 @@ Core keys (not the full map — open **Help** / Command Palette in-app for every
 | `Escape` | Global | Smart Escape | Close overlay → exit Vim → abort/retract prompt. |
 | `!` | Editor | Bash Command | Single-line shell execution mode. |
 | `$` | Editor | Skill Autocomplete | Trigger project, global, and installed package skill completion. |
-| `@` | Editor | File Autocomplete | Trigger workspace file path completion. |
+| `@` | Editor | File / Tab Autocomplete | Complete workspace file paths and peer tab titles. |
 
 ---
 

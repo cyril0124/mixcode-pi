@@ -42,6 +42,8 @@ Tabs display live status glyphs: `●` (running/working), `-` (idle/ready), `!` 
 
 `/rename` and the session-selector rename refuse a title already used by another open tab (warning toast; no change). Resume, workspace restore, peer sync, and auto-rename keep the persisted session name even when it matches another open tab. `mpi ctl --tab` still errors when more than one open tab has the same title.
 
+In the prompt editor, `@` fuzzy-matches the open tab titles of this instance (excluding the prompt-target tab itself) above file results. Selecting one inserts a plain-text mention: `@Title` when quoting is unnecessary, or a JSON-quoted value such as `@"My Title"`; embedded quotes are escaped.
+
 ## Workspace Persistence
 
 Workspaces store multi-tab layouts, active tab focus, working directories, and model assignments for quick restoration.

@@ -38,7 +38,7 @@ Covers:
 │| [extension widgets above editor]  (hidden in inline / vim / side-panel)                        |│
 │|------------------------------------------------------------------------------------------------|│
 │| > prompt editor   CompactPromptEditor / EditorSlot                                             |│
-│|   / @ $ autocomplete  |  vim  |  bash-mode !                                                   |│
+│|   / @ $ autocomplete (@ files + peer tabs)  |  vim  |  bash-mode !                             |│
 │|------------------------------------------------------------------------------------------------|│
 │| meta: model | thinking | workdir | git   (omitted when extension footer is set)                |│
 │| extension footer widgets  (when set, replaces meta row fields)                                 |│
