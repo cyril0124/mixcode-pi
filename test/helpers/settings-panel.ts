@@ -23,6 +23,7 @@ export function createSettingsPanel(
     piSettingsFile?: string;
     tui?: OverlayTui;
     setHideThinkingBlock?: (hide: boolean) => Promise<void>;
+    setShowCacheMissNotices?: (show: boolean) => Promise<void>;
   },
 ): SettingsPanel {
   return new SettingsPanel(
@@ -31,6 +32,7 @@ export function createSettingsPanel(
       tui: init?.tui ?? NOOP_TUI,
       settingsManager,
       setHideThinkingBlock: init?.setHideThinkingBlock,
+      setShowCacheMissNotices: init?.setShowCacheMissNotices,
     },
     {
       mixcodeRaw: init?.mixcodeRaw ?? {},

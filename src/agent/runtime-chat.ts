@@ -2,7 +2,9 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { AssistantMessage, Usage } from "@earendil-works/pi-ai";
+import { CACHE_TTL_MS, collectCacheMisses, detectCacheMiss } from "@earendil-works/pi-coding-agent";
 import type {
+  CacheMiss,
   CustomEntry,
   EntryRenderer,
   MessageRenderer,
@@ -14,6 +16,7 @@ import { clearQueueEditToast } from "../core/toast.js";
 import type { MixCodeModel, MixCodeTabInfo, PreviewMessageRole } from "../core/types.js";
 import { clearPendingEscape } from "../core/escape.js";
 import { discardVimTranscriptSearch } from "../core/tabs.js";
+import { formatSessionTokens } from "../ui/components/session-info.js";
 import { syncWaitingForInput } from "./runtime-extension-custom.js";
 import {
   currentExtensionTheme,
@@ -83,6 +86,44 @@ export function appendSystemMessage(
   appendPreviewMessage(runtimeTab.tab, "system", text);
 }
 
+function cacheMissNoticeText(miss: CacheMiss): string | undefined {
+  if (miss.missedTokens < 20_000 && miss.missedCost < 0.1) return undefined;
+
+  const cost = miss.missedCost >= 0.01 ? ` (~$${miss.missedCost.toFixed(2)})` : "";
+  const reBilled = `${formatSessionTokens(miss.missedTokens)} tokens re-billed${cost}`;
+  let label = "Cache miss";
+  if (miss.modelChanged) {
+    label = "Cache miss after model switch";
+  } else if (miss.idleMs >= CACHE_TTL_MS) {
+    label = `Cache miss after ${Math.round(miss.idleMs / 60_000)}m idle`;
+  }
+  return `${label}: ${reBilled}`;
+}
+
+export function maybeAppendCacheMissNotice(
+  runtimeTab: RuntimeTab,
+  message: AssistantMessage,
+): void {
+  if (
+    !runtimeTab.agentSession.settingsManager.getShowCacheMissNotices() ||
+    message.stopReason === "aborted" ||
+    message.stopReason === "error"
+  ) {
+    return;
+  }
+
+  const miss = detectCacheMiss(
+    runtimeTab.session.getEntries(),
+    message,
+    runtimeTab.agentSession.modelRuntime,
+  );
+  const text = miss ? cacheMissNoticeText(miss) : undefined;
+  if (text) {
+    appendSystemMessage(runtimeTab, text, "warning");
+    runtimeTab.chat.at(-1)!.excludeFromRunOutput = true;
+  }
+}
+
 /**
  * True when the Pi SDK refused compaction because the session has nothing to
  * summarize (everything still fits the keep-recent window). SDK 0.80+ throws
@@ -96,7 +137,12 @@ export function isNothingToCompactError(message: string): boolean {
 // A tool line counts even with empty text: a running tool renders its call on
 // screen (name/args) before any partial result fills line.text.
 function hasVisibleRunLine(lines: ChatLine[]): boolean {
-  return lines.some((line) => line.role !== "user" && (line.role === "tool" || line.text.trim()));
+  return lines.some(
+    (line) =>
+      !line.excludeFromRunOutput &&
+      line.role !== "user" &&
+      (line.role === "tool" || line.text.trim()),
+  );
 }
 
 export function appendEmptyRunNotice(runtimeTab: RuntimeTab): void {
@@ -466,6 +512,10 @@ function bashExecutionToChatLine(
 export function entriesToChatLines(entries: SessionEntry[], runtimeTab: RuntimeTab): ChatLine[] {
   const chat: ChatLine[] = [];
   const toolCallIndices = new Map<string, number>();
+  // Match Pi: derive misses from the full session, then inject only for rendered entries.
+  const cacheMisses = runtimeTab.agentSession.settingsManager.getShowCacheMissNotices()
+    ? collectCacheMisses(runtimeTab.session.getEntries(), runtimeTab.agentSession.modelRuntime)
+    : new Map<AssistantMessage, CacheMiss>();
   for (const entry of entries) {
     if (entry.type === "message" && entry.message.role === "toolResult") {
       const message = entry.message;
@@ -500,6 +550,23 @@ export function entriesToChatLines(entries: SessionEntry[], runtimeTab: RuntimeT
         toolCallIndices.set(line.toolCallId, chat.length);
       }
       chat.push(line);
+    }
+    if (
+      entry.type === "message" &&
+      entry.message.role === "assistant" &&
+      entry.message.stopReason !== "aborted" &&
+      entry.message.stopReason !== "error"
+    ) {
+      const miss = cacheMisses.get(entry.message);
+      const text = miss ? cacheMissNoticeText(miss) : undefined;
+      if (text) {
+        chat.push({
+          role: "system",
+          text,
+          variant: "system-warning",
+          excludeFromRunOutput: true,
+        });
+      }
     }
   }
   return chat;

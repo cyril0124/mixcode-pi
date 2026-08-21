@@ -92,6 +92,8 @@ export interface ChatLine {
   compactionTokensBefore?: number;
   /** True for Pi-style transient status lines that coalesce when consecutive. */
   systemStatus?: boolean;
+  /** Display-only notices that must not suppress the empty-run notice. */
+  excludeFromRunOutput?: boolean;
   excludeFromContext?: boolean;
   /**
    * True while a user `!`/`!!` bash block should render in the pending zone

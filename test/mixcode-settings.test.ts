@@ -6,7 +6,7 @@ import { test } from "node:test";
 import { SettingsManager } from "@earendil-works/pi-coding-agent";
 import { stripTerminalSequences as stripAnsi } from "@earendil-works/pi-tui";
 import { createInitialState, createTab, loadMixCodeSettings } from "./helpers/mixcode.js";
-import { createSettingsPanel } from "./helpers/settings-panel.js";
+import { createSettingsPanel, selectSettingsItemByLabel } from "./helpers/settings-panel.js";
 
 test("settings panel changes Pi mermaid mode and mirrors live state", async () => {
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-settings-mermaid-"));
@@ -35,6 +35,26 @@ test("settings panel changes Pi mermaid mode and mirrors live state", async () =
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }
+});
+
+test("settings panel toggles Pi cache miss notices through the runtime callback", async () => {
+  const settingsManager = SettingsManager.inMemory();
+  const applied: boolean[] = [];
+  const panel = createSettingsPanel(createInitialState("/repo"), settingsManager, {
+    setShowCacheMissNotices: async (show) => {
+      applied.push(show);
+      settingsManager.setShowCacheMissNotices(show);
+    },
+  });
+
+  for (const char of "cache miss") panel.handleInput(char);
+  assert.match(stripAnsi(panel.render(80).join("\n")), /Cache miss notices/);
+
+  panel.handleInput("\r");
+  await Bun.sleep(30);
+
+  assert.deepEqual(applied, [true]);
+  assert.equal(settingsManager.getShowCacheMissNotices(), true);
 });
 
 test("mixcode settings defaults, oversized policy, and ignored unknown keys", async () => {
@@ -174,7 +194,7 @@ test("settings panel cycles icons.mode and persists it", async () => {
       mixcodeFile,
       piSettingsFile: path.join(dir, "settings.json"),
     });
-    panel.selectedIndex = 10; // icons.mode
+    selectSettingsItemByLabel(panel, "Icon mode");
 
     assert.match(stripAnsi(panel.render(80).join("\n")), /Icon mode/);
     // Open enum, pick ascii (index 2), confirm.
@@ -226,7 +246,7 @@ test("settings panel surfaces write failures without applying the new value", as
       mixcodeFile: dir, // Writing JSON to a directory must fail.
       piSettingsFile: path.join(dir, "settings.json"),
     });
-    panel.selectedIndex = 10; // icons.mode
+    selectSettingsItemByLabel(panel, "Icon mode");
 
     panel.handleInput("\r");
     panel.enumIndex = 2;
@@ -332,7 +352,7 @@ test("settings panel toggles inlineWidgets on live tabs and new tabs", async () 
       mixcodeFile,
       piSettingsFile: path.join(dir, "settings.json"),
     });
-    panel.selectedIndex = 16; // inlineWidgets
+    selectSettingsItemByLabel(panel, "Inline widgets");
 
     assert.match(stripAnsi(panel.render(80).join("\n")), /Inline widgets/);
     panel.handleInput("\r");

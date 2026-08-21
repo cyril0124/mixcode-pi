@@ -42,6 +42,7 @@ interface PanelCtx {
   mixcodeFile: string;
   piSettingsFile: string;
   setHideThinkingBlock?: (hide: boolean) => Promise<void>;
+  setShowCacheMissNotices?: (show: boolean) => Promise<void>;
   availableModels: MixCodeModelRef[];
 }
 
@@ -194,6 +195,17 @@ const ITEMS: SettingItem[] = [
       if (v === "off" || v === "final" || v === "streaming") {
         settingsManager.setMermaidRenderingMode(v);
       }
+    },
+  },
+  {
+    kind: "boolean",
+    label: "showCacheMissNotices",
+    section: "pi",
+    defaultValue: false,
+    getValue: ({ settingsManager }) => settingsManager.getGlobalSettings().showCacheMissNotices,
+    setValue: async ({ settingsManager, setShowCacheMissNotices }, v) => {
+      if (setShowCacheMissNotices) await setShowCacheMissNotices(v);
+      else settingsManager.setShowCacheMissNotices(v);
     },
   },
   // Theme is file-backed in mixcode_settings.json; live UI still uses state.theme.
@@ -375,8 +387,9 @@ export interface SettingsPanelDeps {
   state: MixCodeState;
   tui: OverlayTui;
   settingsManager: SettingsManager;
-  /** Production path for hideThinkingBlock so persistence errors surface. */
+  /** Production persistence paths so write errors surface and live state stays synchronized. */
   setHideThinkingBlock?: (hide: boolean) => Promise<void>;
+  setShowCacheMissNotices?: (show: boolean) => Promise<void>;
 }
 
 export class SettingsPanel implements Component {
@@ -432,11 +445,18 @@ export async function openSettingsPanel(
   piSettingsFile: string,
   runtimeRef: {
     setHideThinkingBlock?: (hide: boolean) => Promise<void>;
+    setShowCacheMissNotices?: (show: boolean) => Promise<void>;
   },
 ): Promise<SettingsPanel> {
   const mixcodeRaw = await loadRawMixCodeSettings(mixcodeFile);
   const panel = new SettingsPanel(
-    { state, tui, settingsManager, setHideThinkingBlock: runtimeRef.setHideThinkingBlock },
+    {
+      state,
+      tui,
+      settingsManager,
+      setHideThinkingBlock: runtimeRef.setHideThinkingBlock,
+      setShowCacheMissNotices: runtimeRef.setShowCacheMissNotices,
+    },
     { mixcodeRaw, mixcodeFile, piSettingsFile },
   );
   state.settingsPanel.open = true;
@@ -491,6 +511,7 @@ function applyLiveEffects(panel: SettingsPanel): void {
 const ITEM_LABELS: Record<string, string> = {
   theme: "Theme",
   hideThinkingBlock: "Hide thinking blocks",
+  showCacheMissNotices: "Cache miss notices",
   defaultProvider: "Default provider",
   defaultModel: "Default model",
   "retry.enabled": "Auto-retry",
@@ -879,7 +900,7 @@ export function formatSettingsPath(filePath: string, maxWidth: number): string {
 }
 
 function panelCtx(panel: SettingsPanel): PanelCtx {
-  const { state, settingsManager, setHideThinkingBlock } = panel.deps;
+  const { state, settingsManager, setHideThinkingBlock, setShowCacheMissNotices } = panel.deps;
   return {
     state,
     settingsManager,
@@ -887,6 +908,7 @@ function panelCtx(panel: SettingsPanel): PanelCtx {
     mixcodeFile: panel.mixcodeFile,
     piSettingsFile: panel.piSettingsFile,
     setHideThinkingBlock,
+    setShowCacheMissNotices,
     availableModels: state.availableModels,
   };
 }

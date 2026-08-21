@@ -106,7 +106,10 @@ const handleSettings: LocalCommandHandler = async ({
       settingsDeps.settingsManager,
       settingsDeps.mixcodeFile,
       settingsDeps.piSettingsFile,
-      { setHideThinkingBlock: runtime.setHideThinkingBlock.bind(runtime) },
+      {
+        setHideThinkingBlock: runtime.setHideThinkingBlock.bind(runtime),
+        setShowCacheMissNotices: runtime.setShowCacheMissNotices.bind(runtime),
+      },
     );
   } else {
     appendActiveSystemMessage(

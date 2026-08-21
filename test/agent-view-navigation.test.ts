@@ -517,7 +517,10 @@ test("Home Enter opens settings with the app configuration", async () => {
     "\r",
     tui,
     undefined,
-    { setHideThinkingBlock: () => undefined },
+    {
+      setHideThinkingBlock: () => undefined,
+      setShowCacheMissNotices: () => undefined,
+    },
     undefined,
     () => false,
     editorActions,

@@ -41,7 +41,7 @@ MixCode Pi 从其根状态目录读取 `mixcode_settings.json`。默认路径为
 | `disabledProviders` | provider id 字符串数组 | `[]` | 在 MixCode 会话以及扩展/子代理模型发现和执行中全局禁用对应 provider。模型仍会在 `/models` 中列出但呈置灰禁用状态且无法选择或使用。在 `/reload` 或重启后生效。可通过 `/settings` 编辑。 |
 | `disabledModels` | `provider/modelId` 字符串数组 | `[]` | 在相同路径下全局禁用单个模型。Provider 级别的禁用涵盖该 provider 下的所有模型。在 `/reload` 或重启后生效。可通过 `/settings` 编辑。 |
 
-图片显示与 Mermaid 模式**不**保存在此文件中。它们使用 Pi 全局 `settings.json`（与 `hideThinkingBlock` 相同存储），可通过 `/settings` 编辑：
+图片显示、Mermaid 渲染与 cache miss 提示**不**在此文件中配置。它们使用 Pi 全局 `settings.json`（与 `hideThinkingBlock` 相同存储），可通过 `/settings` 编辑：
 
 | Pi 配置项 | 可选值 | 默认值 | 效果 |
 | --- | --- | --- | --- |
@@ -49,6 +49,7 @@ MixCode Pi 从其根状态目录读取 `mixcode_settings.json`。默认路径为
 | `terminal.imageWidthCells` | 正整数 | `60` | 终端字符单元格中的最大图片宽度。 |
 | `images.blockImages` | 布尔值 | `false` | 在图片到达模型前予以剔除（SDK `convertToLlm`）。 |
 | `markdown.mermaid` | `off` \| `final` \| `streaming` | `streaming` | 何时将 ` ```mermaid ` 代码块转为终端图表。 |
+| `showCacheMissNotices` | 布尔值 | `false` | 在发生显著 prompt cache miss 时显示会话警告，包含重新计费的 token 数；估算额外成本至少为 `$0.01` 时同时显示成本。 |
 
 ## 解析规则
 
@@ -83,6 +84,6 @@ Prompt 历史不在此处配置。它属于 `mpi-prompt-history` 包，配置文
 }
 ```
 
-诸如 `retry.maxRetries` 和 `retry.baseDelayMs` 等重试配置，以及图片/mermaid 渲染（`terminal.showImages`、`terminal.imageWidthCells`、`images.blockImages`、`markdown.mermaid`）不由 `mixcode_settings.json` 读取；它们来自 Pi 正常的 SettingsManager 配置，可通过 `/settings`（Pi 全局 `settings.json`）进行编辑。
+诸如 `retry.maxRetries` 和 `retry.baseDelayMs` 等重试配置，以及图片/Mermaid 渲染和 cache miss 提示（`terminal.showImages`、`terminal.imageWidthCells`、`images.blockImages`、`markdown.mermaid`、`showCacheMissNotices`）不由 `mixcode_settings.json` 读取；它们来自 Pi 正常的 SettingsManager 配置，可通过 `/settings`（Pi 全局 `settings.json`）进行编辑。
 
 通过 `/settings` 编辑配置会将 `mixcode_settings.json` 重新写回为纯 JSON（注释不会保留）。

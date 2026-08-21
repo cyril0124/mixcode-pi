@@ -34,7 +34,7 @@ export type SessionNameSource = {
 
 const EMPTY_MODEL_PRICES: ModelPriceSource = { getModel: () => undefined };
 
-/** Compact token counts for cost breakdown lines (Pi footer formatTokens). */
+/** Compact token counts using Pi footer formatting. */
 export function formatSessionTokens(count: number): string {
   if (count < 1000) return count.toString();
   if (count < 10000) return `${(count / 1000).toFixed(1)}k`;

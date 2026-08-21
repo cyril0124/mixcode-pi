@@ -41,7 +41,7 @@ The file uses JSONC syntax: regular JSON plus comments and trailing commas. If t
 | `disabledProviders` | string array of provider ids | `[]` | Globally disable providers across MixCode sessions and extension/subagent model discovery and execution. Models stay listed in `/models` but are dimmed as disabled and cannot be selected or used. Takes effect on `/reload` or restart. Editable via `/settings`. |
 | `disabledModels` | string array of `provider/modelId` | `[]` | Globally disable individual models across the same paths as `disabledProviders`. Provider-level disable covers all of that provider's models. Takes effect on `/reload` or restart. Editable via `/settings`. |
 
-Image display and Mermaid modes are **not** in this file. They use Pi global `settings.json` (same store as `hideThinkingBlock`), editable via `/settings`:
+Image display, Mermaid rendering, and cache-miss notices are **not** configured in this file. They use Pi global `settings.json` (same store as `hideThinkingBlock`), editable via `/settings`:
 
 | Pi setting | Values | Default | Effect |
 | --- | --- | --- | --- |
@@ -49,6 +49,7 @@ Image display and Mermaid modes are **not** in this file. They use Pi global `se
 | `terminal.imageWidthCells` | positive integer | `60` | Max image width in terminal cells. |
 | `images.blockImages` | boolean | `false` | Strip images before they reach the model (SDK `convertToLlm`). |
 | `markdown.mermaid` | `off` \| `final` \| `streaming` | `streaming` | When to turn ` ```mermaid ` fences into terminal diagrams. |
+| `showCacheMissNotices` | boolean | `false` | Show transcript warnings for significant prompt-cache misses, including re-billed tokens and estimated excess cost when it is at least `$0.01`. |
 
 ## Parsing Rules
 
@@ -83,6 +84,6 @@ Use ASCII icons and keep inline widgets on:
 }
 ```
 
-Retry settings such as `retry.maxRetries` and `retry.baseDelayMs`, as well as image/mermaid rendering (`terminal.showImages`, `terminal.imageWidthCells`, `images.blockImages`, `markdown.mermaid`), are not read from `mixcode_settings.json`; they come from Pi's normal SettingsManager configuration and can be edited from `/settings` (Pi global `settings.json`).
+Retry settings such as `retry.maxRetries` and `retry.baseDelayMs`, as well as image/Mermaid rendering and cache-miss notices (`terminal.showImages`, `terminal.imageWidthCells`, `images.blockImages`, `markdown.mermaid`, `showCacheMissNotices`), are not read from `mixcode_settings.json`; they come from Pi's normal SettingsManager configuration and can be edited from `/settings` (Pi global `settings.json`).
 
 Editing settings through `/settings` rewrites `mixcode_settings.json` as pure JSON (comments are not preserved).

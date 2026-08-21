@@ -10,6 +10,7 @@ import {
   customMessageToChatLine,
   disposeChatRenderers,
   entriesToChatLines,
+  maybeAppendCacheMissNotice,
   surfaceAssistantStopReason,
   syncContextUsage,
   syncPreviewFromChat,
@@ -136,6 +137,7 @@ export function applyEvent(
       if (event.message.role === "assistant") {
         updateStreamingAssistant(runtimeTab, event.message, { final: true });
         surfaceAssistantStopReason(runtimeTab, event.message);
+        maybeAppendCacheMissNotice(runtimeTab, event.message);
       }
       break;
     case "turn_end":

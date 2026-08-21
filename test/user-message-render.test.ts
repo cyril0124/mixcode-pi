@@ -11,7 +11,10 @@ function fakeRuntimeTab(): RuntimeTab {
   return {
     chat: [],
     session: { getBranch: () => [] },
-    agentSession: { extensionRunner: { getMessageRenderer: () => undefined } },
+    agentSession: {
+      settingsManager: { getShowCacheMissNotices: () => false },
+      extensionRunner: { getMessageRenderer: () => undefined },
+    },
   } as unknown as RuntimeTab;
 }
 

@@ -450,6 +450,33 @@ export class MixCodeRuntime {
     }
   }
 
+  /** Persist cache-miss notices and apply the value to every open tab. */
+  async setShowCacheMissNotices(show: boolean): Promise<void> {
+    const settingsManager = this.settingsManager;
+    if (!settingsManager) throw new Error("Settings manager is not available");
+    settingsManager.setShowCacheMissNotices(show);
+    await settingsManager.flush();
+    const errors = settingsManager.drainErrors();
+    if (errors.length > 0) {
+      throw new Error(errors.map(({ scope, error }) => `${scope}: ${error.message}`).join("; "));
+    }
+    for (const runtimeTab of this.tabs.values()) {
+      const tabSettings = runtimeTab.agentSession.settingsManager;
+      const effectiveValue = tabSettings.getProjectSettings().showCacheMissNotices ?? show;
+      tabSettings.applyOverrides({ showCacheMissNotices: effectiveValue });
+      // Match Pi's settings callback: rebuild persisted transcript notices immediately.
+      // Busy tabs keep in-flight, unpersisted output; their next message uses the new value.
+      if (
+        !runtimeTab.agentSession.isStreaming &&
+        !runtimeTab.agentSession.isBashRunning &&
+        !runtimeTab.tab.activeCompactionReason
+      ) {
+        this.rebuildChatFromSession(runtimeTab.tab.sessionId);
+        syncPreviewFromChat(runtimeTab.tab, runtimeTab.chat);
+      }
+    }
+  }
+
   listTabs(): RuntimeTab[] {
     return [...this.tabs.values()].sort((a, b) => a.tab.index - b.tab.index);
   }

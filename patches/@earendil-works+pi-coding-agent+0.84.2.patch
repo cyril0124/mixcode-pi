@@ -475,7 +475,7 @@ index f43bc96..815ee4b 100644
 +    formatHttpIdleTimeoutMs,
 +    parseHttpIdleTimeoutMs,
 +} from "./core/http-dispatcher.ts";
-+export { computeCacheWaste, type ModelPriceSource } from "./core/cache-stats.ts";
++export { CACHE_TTL_MS, collectCacheMisses, computeCacheWaste, detectCacheMiss, type CacheMiss, type ModelPriceSource } from "./core/cache-stats.ts";
 +export { getUsageCostBreakdown } from "./core/usage-totals.ts";
 +export { buildSystemPrompt } from "./core/system-prompt.ts";
 +export { FooterDataProvider } from "./core/footer-data-provider.ts";
@@ -512,7 +512,7 @@ index 76d728e..5cf4512 100644
  // Clipboard utilities
  export { copyToClipboard } from "./utils/clipboard.js";
  export { parseFrontmatter, stripFrontmatter } from "./utils/frontmatter.js";
-@@ -44,4 +56,32 @@ export { convertToPng } from "./utils/image-convert.js";
+@@ -44,4 +56,37 @@ export { convertToPng } from "./utils/image-convert.js";
  export { formatDimensionNote, resizeImage } from "./utils/image-resize.js";
  // Shell utilities
  export { getShellConfig } from "./utils/shell.js";
@@ -528,7 +528,12 @@ index 76d728e..5cf4512 100644
 +    parseHttpIdleTimeoutMs,
 +} from "./core/http-dispatcher.js";
 +// Cache waste stats; used by MixCode /session dump
-+export { computeCacheWaste } from "./core/cache-stats.js";
++export {
++    CACHE_TTL_MS,
++    collectCacheMisses,
++    computeCacheWaste,
++    detectCacheMiss,
++} from "./core/cache-stats.js";
 +// Usage cost breakdown; used by MixCode /session dump
 +export { getUsageCostBreakdown } from "./core/usage-totals.js";
 +// System prompt builder; used by MixCode system-prompt assembly
