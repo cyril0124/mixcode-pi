@@ -136,7 +136,8 @@ export function handleMixCodeKeyInput(
       active &&
       state.activeTabId !== HOME_TAB_ID &&
       !hasAnyOverlay(tui) &&
-      !active.extensionUi.waitingForInputs.length
+      (!active.extensionUi.waitingForInputs.length ||
+        runtime?.hasHiddenExtensionOverlay?.(active.sessionId) === true)
     ) {
       runtime?.dispatchTerminalInput?.(active.sessionId, data);
     }
@@ -275,21 +276,14 @@ export function handleMixCodeKeyInput(
       return { consume: true };
     }
   }
-  // MixCode deviation from Pi: ctx.ui.onTerminalInput handlers are suppressed
-  // while a tui overlay or a pending extension interaction is active. In Pi,
-  // listeners run before the focused component and extensions self-guard by
-  // peeking the real TUI's focusedComponent; MixCode hands widget factories an
-  // isolated NullTerminal TUI whose focus is never set, so extensions cannot
-  // detect an open dialog (e.g. pi-subagents' fleet-list guard is a no-op
-  // here). Editor-slot dialogs (select/confirm/input) register no tui overlay
-  // — `hasAnyOverlay` is false for them — hence the pending-interaction guard,
-  // or a widget listener would steal the dialog's arrow keys (e.g. Up/Down
-  // during /agents). Home stays excluded: handlers belong to a session tab.
+  // Hidden custom overlays still own recovery shortcuts. Editor-slot takeovers
+  // must continue suppressing widget listeners such as Up/Down navigation.
   if (
     active &&
     state.activeTabId !== HOME_TAB_ID &&
     !hasAnyOverlay(tui) &&
-    !active.extensionUi.waitingForInputs.length
+    (!active.extensionUi.waitingForInputs.length ||
+      runtime?.hasHiddenExtensionOverlay?.(active.sessionId) === true)
   ) {
     const extensionInput = runtime?.dispatchTerminalInput?.(active.sessionId, data);
     if (extensionInput?.consume) return { consume: true };

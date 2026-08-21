@@ -1023,6 +1023,12 @@ export class MixCodeRuntime {
     return current === data ? undefined : { data: current };
   }
 
+  /** Whether a custom overlay is hidden but still awaiting its recovery key. */
+  hasHiddenExtensionOverlay(sessionId: string): boolean {
+    const handles = this.tabs.get(sessionId)?.extensionCustomOverlayHandles;
+    return handles ? [...handles].some((handle) => handle.isHidden()) : false;
+  }
+
   dispatchExtensionShortcut(sessionId: string, data: string): boolean {
     const runtimeTab = this.tabs.get(sessionId);
     if (!runtimeTab) return false;

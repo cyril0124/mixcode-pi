@@ -102,11 +102,13 @@ test("extension widget input handlers are suppressed while a modal dialog is act
     showOverlay: () => ({}) as never,
     hasOverlay: () => false,
   };
+  let hiddenOverlay = false;
   const runtime = {
     dispatchTerminalInput: () => {
       dispatched++;
       return { consume: true };
     },
+    hasHiddenExtensionOverlay: () => hiddenOverlay,
   } as unknown as Parameters<typeof handleMixCodeKeyInput>[4];
   const editor = { getText: () => "", setText: () => undefined };
 
@@ -114,10 +116,16 @@ test("extension widget input handlers are suppressed while a modal dialog is act
   handleMixCodeKeyInput(state, "\x1b[B", tui, undefined, runtime, undefined, () => false, editor);
   assert.equal(dispatched, 0);
 
+  // A hidden custom overlay must keep receiving its recovery shortcut.
+  hiddenOverlay = true;
+  handleMixCodeKeyInput(state, "\x1d", tui, undefined, runtime, undefined, () => false, editor);
+  assert.equal(dispatched, 1);
+
   // Without a pending interaction the widget listener runs normally.
+  hiddenOverlay = false;
   tab.extensionUi.waitingForInputs = [];
   handleMixCodeKeyInput(state, "\x1b[A", tui, undefined, runtime, undefined, () => false, editor);
-  assert.equal(dispatched, 1);
+  assert.equal(dispatched, 2);
 });
 
 test("expired double escape arm resets before stopping an active run", () => {
