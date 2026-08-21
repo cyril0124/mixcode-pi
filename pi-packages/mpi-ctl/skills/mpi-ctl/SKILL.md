@@ -178,21 +178,21 @@ Joins remaining args with spaces. TTY + no text errors (does not hang). Home fai
 Plain prompts (not `/…` or `!`/`!!`) are wrapped so the receiving tab can see they came from another MixCode tab via ctl, not the human:
 
 ```text
-This prompt came from another MixCode tab (Agent-01) via `mpi ctl`, not from the human user.
+This prompt came from another MixCode tab (Agent-01, pid 4242) via `mpi ctl`, not from the human user.
 
 Review the current diff for risks only.
 ```
 
-The tab name is `MIXCODE_TAB_TITLE`. If that env is unset (plain terminal), the prompt is submitted unchanged. Do **not** write “I am &lt;title&gt;” yourself. Slash and shell lines are never wrapped.
+The tab name is `MIXCODE_TAB_TITLE`; `pid` is the sender instance's `MIXCODE_PID` (omitted when unset). If that env is unset (plain terminal), the prompt is submitted unchanged. Do **not** write “I am &lt;title&gt;” yourself. Slash and shell lines are never wrapped.
 
 `--expect-response` (requires `MIXCODE_TAB_TITLE`; fails on `/` or `!`) adds the installed mpi-ctl skill path and the reply command:
 
 ```text
-This prompt came from another MixCode tab (Agent-01) via `mpi ctl`, not from the human user.
+This prompt came from another MixCode tab (Agent-01, pid 4242) via `mpi ctl`, not from the human user.
 When finished, follow the mpi-ctl skill at:
 <agentDir>/extensions/mpi-ctl/skills/mpi-ctl/SKILL.md
 Send your result back with `mpi ctl`:
-mpi ctl --tab 'Agent-01' send-prompt <<'EOF'
+mpi ctl --pid 4242 --tab 'Agent-01' send-prompt <<'EOF'
 <your result>
 EOF
 Do not pass --expect-response on that reply.
@@ -200,7 +200,7 @@ Do not pass --expect-response on that reply.
 Review the current diff for risks only.
 ```
 
-If you receive that block: read the skill at the given path, finish the request, then send the result with that `send-prompt` (do **not** add `--expect-response` unless asked). After that reply is ACKed, **end your turn** — do not `wait` on the requester; it may still be mid-turn, and your reply is already queued for it.
+If you receive that block: read the skill at the given path, finish the request, then send the result with that `send-prompt` (do **not** add `--expect-response` unless asked). Reply with the exact `--pid`/`--tab` shown in the block — the sender may live in another mpi instance. After that reply is ACKed, **end your turn** — do not `wait` on the requester; it may still be mid-turn, and your reply is already queued for it.
 
 **Close the loop — pick exactly one mode per prompt; never stop at ACK:**
 

@@ -643,13 +643,21 @@ test("parseCtlArgs and handleCtlRequest send-prompt", async () => {
   assert.match(expectedReply, /Do not pass --expect-response on that reply\.\n\nhello$/);
   assert.throws(() => wrapCtlSubmitText("hello", undefined, true), /MIXCODE_TAB_TITLE/);
   assert.throws(() => wrapCtlSubmitText("/compact", "Agent-01", true), /does not apply to \/ or !/);
+  const withPid = wrapCtlSubmitText("hello", "Agent-01", false, 4242);
+  assert.equal(
+    withPid,
+    "This prompt came from another MixCode tab (Agent-01, pid 4242) via `mpi ctl`, not from the human user.\n\nhello",
+  );
+  const expectedReplyPid = wrapCtlSubmitText("hello", "Agent-01", true, 4242);
+  assert.match(expectedReplyPid, /\(Agent-01, pid 4242\) via `mpi ctl`/);
+  assert.ok(expectedReplyPid.includes("mpi ctl --pid 4242 --tab 'Agent-01' send-prompt <<'EOF'"));
 
   const sent = await handleCtlRequest(
-    { op: "send-prompt", tabTitle: "Agent-01", prompt: "hello\nworld", fromTabTitle: "Sender" },
+    { op: "send-prompt", tabTitle: "Agent-01", prompt: "hello\nworld", fromTabTitle: "Sender", fromPid: 4242 },
     opts,
   );
   assert.equal(sent.ok, true);
-  assert.deepEqual(submitted, [`${originSender}\n\nhello\nworld`]);
+  assert.equal(submitted[0], wrapCtlSubmitText("hello\nworld", "Sender", false, 4242));
   submitted.length = 0;
   const slash = await handleCtlRequest(
     { op: "send-prompt", tabTitle: "Agent-01", prompt: "/compact", fromTabTitle: "Sender" },

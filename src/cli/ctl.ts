@@ -38,6 +38,8 @@ export interface CtlRequest {
   prompt?: string;
   /** Sender tab title from MIXCODE_TAB_TITLE; used to wrap non-slash submits. */
   fromTabTitle?: string;
+  /** Sender mpi instance pid from MIXCODE_PID; included in wrapped submits. */
+  fromPid?: number;
   /** send-prompt: ask the target to read mpi-ctl skill and send a result back. */
   expectResponse?: boolean;
   /** 1-based from the end; only with last-*-message / last-tool. Pair with `to`. */
@@ -504,6 +506,7 @@ export async function runCtlCommand(
   if (parsed.expectResponse && !fromTabTitle) {
     throw new Error("send-prompt --expect-response requires MIXCODE_TAB_TITLE");
   }
+  const fromPid = mixcodePidFromEnv();
   const stateDir = options.stateDir ?? resolveMixcodeStateDir();
   const instance = await selectCtlInstance(parsed, { stateDir });
   const response = await requestCtl(instanceCtlSocketFile(stateDir, instance.pid), {
@@ -515,6 +518,7 @@ export async function runCtlCommand(
     keys: parsed.keys,
     prompt,
     fromTabTitle,
+    fromPid,
     expectResponse: parsed.expectResponse,
     from: parsed.from,
     to: parsed.to,

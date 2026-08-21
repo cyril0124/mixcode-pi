@@ -158,6 +158,7 @@ export function wrapCtlSubmitText(
   text: string,
   fromTabTitle?: string,
   expectResponse = false,
+  fromPid?: number,
 ): string {
   const title = fromTabTitle?.trim();
   const trimmed = text.trimStart();
@@ -167,14 +168,16 @@ export function wrapCtlSubmitText(
     if (isCommand) throw new Error("send-prompt --expect-response does not apply to / or ! lines");
   }
   if (!title || isCommand) return text;
-  const origin = `This prompt came from another MixCode tab (${title}) via \`mpi ctl\`, not from the human user.`;
+  const senderLabel = fromPid ? `${title}, pid ${fromPid}` : title;
+  const origin = `This prompt came from another MixCode tab (${senderLabel}) via \`mpi ctl\`, not from the human user.`;
   if (!expectResponse) return `${origin}\n\n${text}`;
+  const target = fromPid ? `--pid ${fromPid} --tab ${shellSingleQuote(title)}` : `--tab ${shellSingleQuote(title)}`;
   return [
     origin,
     "When finished, follow the mpi-ctl skill at:",
     mpiCtlSkillPath(),
     "Send your result back with `mpi ctl`:",
-    `mpi ctl --tab ${shellSingleQuote(title)} send-prompt <<'EOF'`,
+    `mpi ctl ${target} send-prompt <<'EOF'`,
     "<your result>",
     "EOF",
     "Do not pass --expect-response on that reply.",
@@ -248,11 +251,12 @@ async function applyBackgroundSendKeys(
   keys: string[],
   options: Pick<StartInstanceCtlServerOptions, "submitToTab" | "requestRender">,
   fromTabTitle?: string,
+  fromPid?: number,
 ): Promise<void> {
   let pending = "";
   for (const chunk of keys) {
     if (chunk === "\r" || chunk === "\n") {
-      await options.submitToTab!(tab, wrapCtlSubmitText(pending, fromTabTitle));
+      await options.submitToTab!(tab, wrapCtlSubmitText(pending, fromTabTitle, false, fromPid));
       pending = "";
       continue;
     }
@@ -415,7 +419,7 @@ export async function handleCtlRequest(
         Promise.resolve(
           options.submitToTab(
             tab,
-            wrapCtlSubmitText(request.prompt, request.fromTabTitle, request.expectResponse === true),
+            wrapCtlSubmitText(request.prompt, request.fromTabTitle, request.expectResponse === true, request.fromPid),
           ),
         ),
       );
@@ -429,7 +433,7 @@ export async function handleCtlRequest(
         if (!tab) throw new Error(`Unknown session: ${sessionId}`);
         assertBackgroundSendKeys(request.keys, options);
         // ACK before submitToTab finishes; the client idle timeout must not wait on the agent turn.
-        const work = applyBackgroundSendKeys(tab, request.keys, options, request.fromTabTitle);
+        const work = applyBackgroundSendKeys(tab, request.keys, options, request.fromTabTitle, request.fromPid);
         if (request.keys.some((chunk) => chunk === "\r" || chunk === "\n")) {
           trackCtlSubmit(tab, work);
         } else {
