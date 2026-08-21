@@ -37,6 +37,8 @@ export type ErrorContinueOptions = {
   gate?: ContinueGate;
 };
 
+type RetryPhase = "invisible" | "visible" | "mid-work";
+
 type AssistantMessageLike = {
   role?: unknown;
   stopReason?: unknown;
@@ -211,6 +213,7 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
     let invisibleUsed = 0;
     let visibleUsed = 0;
     let retryCount = 0;
+    let retryPhase: RetryPhase | undefined;
     let pendingAutoContinue = false;
     let waitAbort: AbortController | undefined;
     let inFlight = false;
@@ -246,7 +249,20 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
     const syncStatus = (ctx: {
       ui: { setStatus: (key: string, text: string | undefined) => void };
     }) => {
-      ctx.ui.setStatus(STATUS_KEY, enabled ? `${STATUS_PREFIX} (${retryCount})` : undefined);
+      if (!enabled) {
+        ctx.ui.setStatus(STATUS_KEY, undefined);
+        return;
+      }
+      const phase =
+        retryPhase === "invisible"
+          ? `invisible ${invisibleUsed}/${MAX_INVISIBLE}`
+          : retryPhase === "visible"
+            ? `visible ${visibleUsed}/${MAX_VISIBLE}`
+            : retryPhase === "mid-work"
+              ? "mid-work"
+              : undefined;
+      const progress = phase ? ` · ${phase}` : "";
+      ctx.ui.setStatus(STATUS_KEY, `${STATUS_PREFIX}${progress} · total ${retryCount}`);
     };
 
     const noteRetry = (ctx: {
@@ -254,6 +270,13 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
     }) => {
       retryCount++;
       syncStatus(ctx);
+    };
+
+    const clearPhase = (ctx?: {
+      ui: { setStatus: (key: string, text: string | undefined) => void };
+    }) => {
+      retryPhase = undefined;
+      if (ctx) syncStatus(ctx);
     };
 
     const clearStatus = (ctx: {
@@ -284,8 +307,8 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
           midWorkArmed = false;
           pendingAutoContinue = false;
           abortWait();
+          clearPhase(ctx);
           persistEnabled(true);
-          syncStatus(ctx);
           ctx.ui.notify("Error continue enabled for this session.", "info");
           return;
         }
@@ -295,8 +318,8 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
           midWorkArmed = false;
           pendingAutoContinue = false;
           abortWait();
+          clearPhase(ctx);
           persistEnabled(false);
-          syncStatus(ctx);
           ctx.ui.notify("Error continue disabled for this session.", "info");
           return;
         }
@@ -309,7 +332,7 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
       if (messages.length !== event.messages.length) return { messages };
     });
 
-    pi.on("message_start", (event) => {
+    pi.on("message_start", (event, ctx) => {
       if (event.message.role !== "user") return;
       // Auto-sent visible "continue" must not reset phase counters.
       if (pendingAutoContinue && isVisibleContinueUserMessage(event.message)) {
@@ -320,6 +343,7 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
       retryArmed = false;
       midWorkArmed = false;
       clearPhaseCounters();
+      clearPhase(ctx);
       abortWait();
     });
 
@@ -332,7 +356,10 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
         midWorkArmed = false;
         pendingAutoContinue = false;
         abortWait();
-        if (ctx.signal?.aborted) clearPhaseCounters();
+        if (ctx.signal?.aborted) {
+          clearPhaseCounters();
+          clearPhase(ctx);
+        }
         return;
       }
       const last = lastAssistant(event.messages);
@@ -351,6 +378,7 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
         endsWithThinkingOrToolCall(last);
       if (!retryArmed) {
         clearPhaseCounters();
+        clearPhase(ctx);
       }
     });
 
@@ -359,14 +387,20 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
 
       if (midWorkArmed) {
         midWorkArmed = false;
+        retryPhase = "mid-work";
+        syncStatus(ctx);
         const decision = await runGate(
           ctx,
           "Agent stopped mid-work",
           `Send "${MIDWORK_CONTINUE_TEXT}"? Esc cancels.`,
           MIN_CONFIRM_MS,
         );
-        if (decision === "aborted") return;
+        if (decision === "aborted") {
+          clearPhase();
+          return;
+        }
         if (decision === "cancel") {
+          clearPhase(ctx);
           ctx.ui.notify("Mid-work continue cancelled.", "info");
           return;
         }
@@ -382,6 +416,7 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
       // error starts a fresh phase, and the extension stays enabled.
       const onCancel = () => {
         clearPhaseCounters();
+        clearPhase(ctx);
         ctx.ui.notify("Error continue cancelled; this retry loop is stopped.", "info");
       };
 
@@ -389,13 +424,18 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
         const attempt = invisibleUsed + 1;
         const delayMs = confirmDelayForAttempt(invisibleUsed);
         invisibleUsed++;
+        retryPhase = "invisible";
+        syncStatus(ctx);
         const decision = await runGate(
           ctx,
           `No response — invisible continue ${attempt}/${MAX_INVISIBLE}`,
           "Resume the agent? Esc stops this retry loop.",
           delayMs,
         );
-        if (decision === "aborted") return;
+        if (decision === "aborted") {
+          clearPhase();
+          return;
+        }
         if (decision === "cancel") return onCancel();
         pi.sendMessage(
           {
@@ -419,13 +459,18 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
         const attempt = visibleUsed + 1;
         const delayMs = confirmDelayForAttempt(visibleUsed);
         visibleUsed++;
+        retryPhase = "visible";
+        syncStatus(ctx);
         const decision = await runGate(
           ctx,
           `No response — visible continue ${attempt}/${MAX_VISIBLE}`,
           `Send "${VISIBLE_CONTINUE_TEXT}"? Esc stops this retry loop.`,
           delayMs,
         );
-        if (decision === "aborted") return;
+        if (decision === "aborted") {
+          clearPhase();
+          return;
+        }
         if (decision === "cancel") return onCancel();
         pendingAutoContinue = true;
         pi.sendUserMessage(VISIBLE_CONTINUE_TEXT, { deliverAs: "followUp" });
@@ -433,6 +478,7 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
         return;
       }
 
+      clearPhase(ctx);
       ctx.ui.notify(
         `Continue attempts exhausted (${MAX_INVISIBLE} invisible + ${MAX_VISIBLE} visible).`,
         "error",
@@ -445,6 +491,7 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
       midWorkArmed = false;
       pendingAutoContinue = false;
       retryCount = 0;
+      retryPhase = undefined;
       clearPhaseCounters();
       abortWait();
       inFlight = false;
@@ -455,6 +502,7 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
       retryArmed = false;
       midWorkArmed = false;
       pendingAutoContinue = false;
+      retryPhase = undefined;
       clearPhaseCounters();
       abortWait();
       inFlight = false;

@@ -17,8 +17,19 @@ trigger continues, even if the last assistant still looks like mid-work.
 ## Error backoff
 
 Up to **3 invisible continues** (hidden custom marker, filtered out of LLM context), then up to
-**5 visible** `continue` user prompts. Status bar shows `error-continue: on (N)`, the cumulative
-number of continues sent this session.
+**5 visible** `continue` user prompts. Status bar shows the current phase and the cumulative number
+of continues sent this session:
+
+```text
+error-continue: on · total 7
+error-continue: on · invisible 1/3 · total 7
+error-continue: on · visible 2/5 · total 8
+error-continue: on · mid-work · total 9
+```
+
+`invisible N/3` and `visible N/5` describe the current error-retry phase. `mid-work` identifies the
+`continue $simple-plan` wait. `total N` counts only continues actually sent; waiting, timeout,
+Esc/No cancellation, and external abort do not increase it.
 
 ## Mid-work
 
@@ -35,9 +46,9 @@ Each continue shows a confirm dialog before sending:
 | `Yes` | Send immediately, skipping the rest of the countdown |
 | `Esc` or `No` | Cancel. Error backoff: reset the phase counters and stop this retry loop. Mid-work: skip this one send |
 
-Cancelling never disables the extension: the status bar keeps `error-continue: on (N)`, `N` is not
-incremented, and the next settle that qualifies starts a fresh phase at invisible 1/3. Use
-`/error-continue off` to disable it for the session.
+Cancelling never disables the extension: the status bar keeps `error-continue: on · total N`,
+clears the current phase, and `N` is not incremented. The next settle that qualifies starts a fresh
+phase at invisible 1/3. Use `/error-continue off` to disable it for the session.
 
 The dialog is the only Esc-reachable surface for this wait. By the time `agent_settled` fires, the
 host has already marked the tab idle, so its Esc-abort path does not apply, and the host consumes

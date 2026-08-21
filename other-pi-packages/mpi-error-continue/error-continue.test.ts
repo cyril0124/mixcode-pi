@@ -27,6 +27,10 @@ import {
 
 type Handler = (event: any, ctx: ExtensionContext) => unknown;
 
+function statusText(total: number, phase?: string) {
+  return `${STATUS_PREFIX}${phase ? ` · ${phase}` : ""} · total ${total}`;
+}
+
 function createHarness(
   options?: {
     gate?: ContinueGate;
@@ -207,7 +211,7 @@ test("session_start shows status (0); shutdown clears it", async () => {
   await harness.emit("session_start");
   assert.deepEqual(harness.statuses.at(-1), {
     key: STATUS_KEY,
-    text: `${STATUS_PREFIX} (0)`,
+    text: statusText(0),
   });
   await harness.emit("session_shutdown");
   assert.deepEqual(harness.statuses.at(-1), {
@@ -229,7 +233,7 @@ test("error settle sends one invisible continue with confirm window and status (
   assert.deepEqual(harness.delays, [MIN_CONFIRM_MS]);
   assert.deepEqual(harness.statuses.at(-1), {
     key: STATUS_KEY,
-    text: `${STATUS_PREFIX} (1)`,
+    text: statusText(1, "invisible 1/3"),
   });
 });
 
@@ -265,13 +269,17 @@ test("MAX_INVISIBLE + MAX_VISIBLE error settles send all continues; extra sends 
   assert.deepEqual(harness.delays, [5000, 5000, 5000, 5000, 5000, 5000, 8000, 16000]);
   assert.deepEqual(harness.statuses.at(-1), {
     key: STATUS_KEY,
-    text: `${STATUS_PREFIX} (${MAX_INVISIBLE + MAX_VISIBLE})`,
+    text: statusText(MAX_INVISIBLE + MAX_VISIBLE, "visible 5/5"),
   });
 
   const before = harness.sent.length;
   await errorSettle(harness, "err-extra");
   assert.equal(harness.sent.length, before);
   assert.ok(harness.notices.some((n) => /exhausted/i.test(n.message) && n.level === "error"));
+  assert.deepEqual(harness.statuses.at(-1), {
+    key: STATUS_KEY,
+    text: statusText(MAX_INVISIBLE + MAX_VISIBLE),
+  });
 });
 
 test("successful settle resets phase counters but keeps cumulative status count", async () => {
@@ -281,16 +289,15 @@ test("successful settle resets phase counters but keeps cumulative status count"
   assert.equal(harness.sent.length, 1);
   assert.deepEqual(harness.statuses.at(-1), {
     key: STATUS_KEY,
-    text: `${STATUS_PREFIX} (1)`,
+    text: statusText(1, "invisible 1/3"),
   });
-
   await stopSettle(harness);
   await errorSettle(harness, "after-success");
   assert.equal(harness.sent.length, 2);
   assert.equal(harness.sent.at(-1)?.kind, "message");
   assert.deepEqual(harness.statuses.at(-1), {
     key: STATUS_KEY,
-    text: `${STATUS_PREFIX} (2)`,
+    text: statusText(2, "invisible 1/3"),
   });
   assert.deepEqual(harness.delays, [5000, 5000]);
 });
@@ -355,7 +362,7 @@ test("user abort resets phase counters but keeps session retry count", async () 
   assert.deepEqual(harness.delays, [MIN_CONFIRM_MS]);
   assert.deepEqual(harness.statuses.at(-1), {
     key: STATUS_KEY,
-    text: `${STATUS_PREFIX} (1)`,
+    text: statusText(1, "invisible 1/3"),
   });
 
   harness.abort();
@@ -369,7 +376,7 @@ test("user abort resets phase counters but keeps session retry count", async () 
   assert.deepEqual(harness.delays, [MIN_CONFIRM_MS, MIN_CONFIRM_MS]);
   assert.deepEqual(harness.statuses.at(-1), {
     key: STATUS_KEY,
-    text: `${STATUS_PREFIX} (2)`,
+    text: statusText(2, "invisible 1/3"),
   });
 });
 
@@ -398,7 +405,7 @@ test("empty response settle (stop, no content) sends invisible continue", async 
   assert.deepEqual(harness.delays, [MIN_CONFIRM_MS]);
   assert.deepEqual(harness.statuses.at(-1), {
     key: STATUS_KEY,
-    text: `${STATUS_PREFIX} (1)`,
+    text: statusText(1, "invisible 1/3"),
   });
 });
 
@@ -444,7 +451,7 @@ test("mid-work stop ending in thinking sends continue $simple-plan", async () =>
   assert.deepEqual(harness.sent[0]?.options, { deliverAs: "followUp" });
   assert.deepEqual(harness.statuses.at(-1), {
     key: STATUS_KEY,
-    text: `${STATUS_PREFIX} (1)`,
+    text: statusText(1, "mid-work"),
   });
 });
 
@@ -492,7 +499,7 @@ test("each mid-work stop sends its own continue and counts status", async () => 
   assert.ok(harness.sent.every((s) => s.kind === "user" && s.payload === MIDWORK_CONTINUE_TEXT));
   assert.deepEqual(harness.statuses.at(-1), {
     key: STATUS_KEY,
-    text: `${STATUS_PREFIX} (2)`,
+    text: statusText(2, "mid-work"),
   });
 });
 
@@ -572,7 +579,7 @@ test("slash command on/off persists state, toggles status, and blocks sends when
   assert.equal(harness.entries.at(-1)?.data.enabled, true);
   assert.deepEqual(harness.statuses.at(-1), {
     key: STATUS_KEY,
-    text: `${STATUS_PREFIX} (0)`,
+    text: statusText(0),
   });
   await errorSettle(harness, "after-on");
   assert.equal(harness.sent.length, 1);
@@ -638,7 +645,7 @@ test("cancelling a retry stops the loop but keeps error-continue enabled", async
   assert.equal(harness.sent.length, 0);
   assert.deepEqual(harness.statuses.at(-1), {
     key: STATUS_KEY,
-    text: `${STATUS_PREFIX} (0)`,
+    text: statusText(0),
   });
   assert.ok(harness.notices.some((n) => /cancelled/i.test(n.message)));
 
@@ -687,7 +694,7 @@ test("cancelling the mid-work wait does not send continue $simple-plan", async (
   assert.deepEqual(harness.delays, [MIN_CONFIRM_MS]);
   assert.deepEqual(harness.statuses.at(-1), {
     key: STATUS_KEY,
-    text: `${STATUS_PREFIX} (0)`,
+    text: statusText(0),
   });
 });
 
