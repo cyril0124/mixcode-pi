@@ -44,6 +44,13 @@ Tabs display live status glyphs: `●` (running/working), `-` (idle/ready), `!` 
 
 In the prompt editor, `@` fuzzy-matches the open tab titles of this instance (excluding the prompt-target tab itself) above file results. Selecting one inserts a plain-text mention: `@Title` when quoting is unnecessary, or a JSON-quoted value such as `@"My Title"`; embedded quotes are escaped.
 
+## Agent Tab Collaboration
+
+Tabs prompt peer tabs with `mpi status` / `mpi ctl` (same TUI, or another instance via `--pid` / `--workdir`). This is not the `open_tabs.json` peer-sync below — that only reconciles the open-tab set across processes.
+
+- CLI contract: [Ctl Subcommand](cli-and-flags.md#ctl-subcommand)
+- Agent cookbook: [mpi-ctl skill](../pi-packages/mpi-ctl/skills/mpi-ctl/SKILL.md)
+
 ## Workspace Persistence
 
 Workspaces store multi-tab layouts, active tab focus, working directories, and model assignments for quick restoration.

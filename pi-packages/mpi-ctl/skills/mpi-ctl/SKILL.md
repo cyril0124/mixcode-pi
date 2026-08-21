@@ -1,11 +1,11 @@
 ---
 name: mpi-ctl
-description: Control a live MixCode (mpi) TUI from the CLI. To send a user message or slash command, use mpi ctl send-prompt (not send-keys), then close the loop in one mode — poll (wait + last-message) or callback (--expect-response, end your turn) — never fire-and-forget. Also list instances, target a tab, send-keys only for real keypresses. Use when the user says mpi ctl, mpi status, another mpi, another tab, or remote-control the TUI.
+description: Agent Tab collaboration — control a live MixCode (mpi) TUI from the CLI. To send a user message or slash command, use mpi ctl send-prompt (not send-keys), then close the loop in one mode — poll (wait + last-message) or callback (--expect-response, end your turn) — never fire-and-forget. Also list instances, target a tab, send-keys only for real keypresses. Use when the user says mpi ctl, mpi status, another mpi, another tab, Agent Tab collaboration, Agent Tab 协作, or remote-control the TUI.
 ---
 
 # mpi status / ctl
 
-Drive a **live** MixCode TUI. Do not start a new TUI for this. The target process must already be running and listening on `<agentDir>/mixcode-pi/instances/<hostname>/<pid>.sock`.
+Agent Tab collaboration: drive a **live** MixCode TUI. Do not start a new TUI for this. The target process must already be running and listening on `<agentDir>/mixcode-pi/instances/<hostname>/<pid>.sock`.
 
 ## agentDir
 

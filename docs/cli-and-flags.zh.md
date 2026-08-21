@@ -40,7 +40,7 @@ mpi status --workdir /path/to/project
 
 ## `ctl` 子命令
 
-通过每个进程的 Unix socket（`<agentDir>/mixcode-pi/instances/<hostname>/<pid>.sock`）控制一台已打开的 MixCode TUI。
+Agent Tab 协作 CLI：通过每个进程的 Unix socket（`<agentDir>/mixcode-pi/instances/<hostname>/<pid>.sock`）控制一台已打开的 MixCode TUI。
 
 TUI 会在首帧渲染后立即启动该 ctl 服务。若启动失败（状态目录上的瞬时文件系统错误、bind 失败），TUI 会显示 `mpi ctl server unavailable: …` 通知并在无 socket 的状态下继续运行，直到重启；此时对该 pid 执行 `mpi ctl` 会连接失败。TUI 进入备用屏后抛出的致命启动错误还会追加写入 `<agentDir>/mixcode-pi/startup-crash.log`（此时仅有 stderr 是不可见的）。
 

@@ -2,7 +2,7 @@
   "name": "mpi-ctl",
   "version": "0.1.0",
   "type": "module",
-  "description": "Skill for controlling a live MixCode TUI via mpi status and mpi ctl.",
+  "description": "Agent Tab collaboration skill: prompt peer MixCode tabs via mpi status and mpi ctl.",
   "keywords": ["pi-package"],
   "pi": {
     "extensions": ["./index.ts"],

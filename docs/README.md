@@ -11,7 +11,7 @@ Documentation library for MixCode Pi, a multi-tab terminal AI coding agent built
 - **[Narrow & Mobile Terminal Optimizations](narrow-terminals-and-mobile.md)**: Progressive UI degradation, compact tab overflows, and mobile touch/mouse interactions.
 - **[Keybindings & Shortcuts](keybindings-and-escape.md)**: Core keyboard shortcuts, command palette, external editor, and Escape retraction.
 - **[Mouse Support & Clickable Surfaces](mouse-support.md)**: SGR 1006 mouse protocol, clickable tabs/pickers, scrollbar drag, and text drag-copy.
-- **[CLI & Flags](cli-and-flags.md)**: `mpi` options (`--workdir`, `--builtin-extensions-only`, `--batch`), `status` subcommand, and delegation rules.
+- **[CLI & Flags](cli-and-flags.md)**: `mpi` options (`--workdir`, `--builtin-extensions-only`, `--batch`), `status` / `ctl` (Agent Tab collaboration), and delegation rules.
 
 ## Core Features & Workflows
 
@@ -19,7 +19,7 @@ Documentation library for MixCode Pi, a multi-tab terminal AI coding agent built
 - **[Zen Mode & Ambient Status](zen-mode.md)**: Distraction-free view, ambient background status dots, and seamless mode migration.
 - **[Inline Widgets Mode (`[INL]`)](inline-widgets.md)**: Natural chat scroll integration for extension widgets and editor vertical space reclamation.
 - **[Vim Navigation & Transcript Search](vim-and-navigation.md)**: Buffer navigation, user message jumping, and regex search.
-- **[Workspace & Multi-Tab Sessions](workspace-and-tabs.md)**: Multi-tab workflows, `/reset` vs `/clear`, `/fork`, and workspace layout persistence.
+- **[Workspace & Multi-Tab Sessions](workspace-and-tabs.md)**: Multi-tab workflows, `/reset` vs `/clear`, `/fork`, workspace layout persistence, and Agent Tab collaboration (`mpi ctl`).
 - **[Steer & Follow-up Queue](queue-and-follow-up.md)**: Mid-turn prompt steering, next-turn follow-up queues, and `Ctrl+U` dequeue.
 - **[Batch Lua Execution](batch-lua.md)**: Post-launch monorepo automation scripts, API reference, and dry-run validation.
 

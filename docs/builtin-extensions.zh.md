@@ -29,7 +29,7 @@ MixCode 随附位于 `pi-packages/mpi-*` 的第一方内置 Pi 包。启动时�
 | `mpi-tool-display` | 工具行/Thinking 渲染时自动生效 | 通过 render-only `ToolExecutionComponent` adapter 提供紧凑 `bash`/`read`/`edit`/`write` 行与 bars/分栏 diff，并添加不会污染模型上下文的带主题色 `Thinking:` 标签；原生工具、ownership、execute 与 `PI_*` bash 会话环境完全不动。 |
 | `mpi-image-hoist` | 多模态输入时自动生效 | 提取并提升图片载荷，适配多模态模型与工具协议。 |
 | `mpi-herdr-report` | `HERDR_ENV=1` 环境生效 | 将 Agent 的运行状态（working / idle / waiting）同步上报至 Herdr 终端复用器窗格。 |
-| `mpi-ctl` | `$mpi-ctl`，`mpi status` / `mpi ctl` | Skill：用 `MIXCODE_*` 定位 tab，再用 `mpi status` / `mpi ctl` 控制正在跑的 TUI。 |
+| `mpi-ctl` | `$mpi-ctl`，`mpi status` / `mpi ctl` | Agent Tab 协作 skill：用 `MIXCODE_*` 定位 tab，再用 `mpi status` / `mpi ctl` 向同伴发 Prompt / 等待 / 读结果。 |
 
 ## 内置包加载生命周期
 

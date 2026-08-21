@@ -16,11 +16,12 @@
 </p>
 
 > **为什么选择 MixCode Pi？**
-> 传统终端 AI 编程助手通常受限于单会话模型——在模型生成代码、执行长任务或跑测试期间，终端会被完全占用，开发者无法同时开展探索、审查或多模块并行工作。MixCode 为终端带来了**原生多 Tab 并发**与**完整的 Pi 扩展生态兼容**：在单个终端中并行多个独立 Agent 会话，跨重启持久化工作区，零成本复用 Pi 官方及社区的海量扩展（`npm:…`、自定义工具、挂件与 Slash 指令）。
+> 传统终端 AI 编程助手通常受限于单会话模型——在模型生成代码、执行长任务或跑测试期间，终端会被完全占用，开发者无法同时开展探索、审查或多模块并行工作。MixCode 为终端带来了**原生多 Tab 并发**、**Agent Tab 协作**与**完整的 Pi 扩展生态兼容**：在单个终端中并行多个独立 Agent 会话，Tab 之间互相派活，跨重启持久化工作区，零成本复用 Pi 官方及社区的海量扩展（`npm:…`、自定义工具、挂件与 Slash 指令）。
 
 ## 核心亮点
 
 - 🗂️ **原生多 Tab 并发会话** — 多个 Agent 会话并行运行，实时状态指示一目了然。
+- 🤝 **Agent Tab 协作** — Tab 之间互发 Prompt、等待完成并收集回复（`mpi ctl`）。
 - 🧩 **100% 兼容 Pi 扩展生态** — 完整 Pi 包生态 + 第一方 `mpi-*` 扩展，开箱即用。
 - 🧘 **Zen 专注与内联挂件** — 隐藏界面元素获得沉浸画布，或将挂件移入对话流。
 - 📱 **窄屏与移动触控优化** — 深度适配窄终端、分屏与移动 SSH 客户端（Termux、iOS Blink）。
@@ -49,7 +50,10 @@ mpi
 ### 1. 多 Tab 工作区与跨实例协同
 用 `Tab` / `Shift+Tab` 快速切换，或按 `Ctrl+T` 全屏模糊跳转；后台 Tab 实时展示状态指示符（`●` 运行中、`!` 完成未读、`x` 错误）。各 Tab 维护独立的会话分支树、工具运行时与工作目录。工作区自动持久化 Tab 布局与焦点状态，跨进程原子文件锁（`open_tabs.json.lock`）支持在多个终端窗口或 tmux 窗格间安全协同。
 
-### 2. 完整 Pi 生态与内置第一方扩展
+### 2. Agent Tab 协作
+Tab 之间可以直接对话——同一 TUI，或其他 `mpi` 进程——无需抢键盘。一个 Tab 把审查或验证委派给同伴，等待完成后读取回复。内置 `mpi-ctl` 技能把 `mpi status` / `mpi ctl` 交给 agent 的 bash 工具。命令循环见 [Agent Tab 协作](#agent-tab-协作)。
+
+### 3. 完整 Pi 生态与内置第一方扩展
 直接通过 Pi 包配置（`settings.json` `packages`，如 `npm:pi-web-access`）安装社区扩展——含自定义工具、挂件与主题——或直接使用 MixCode 内置工具：
 - **`mpi-goal`**：自主目标追踪引擎，支持渐进式动态工具暴露与执行预算。
 - **`mpi-diff-viewer`**：终端视觉 Diff 查看器，支持行级评审批注与结构化 Prompt 生成（`/diff`）。
@@ -61,35 +65,35 @@ mpi
   <img src="assets/readme-right-widget.gif" alt="扩展侧栏" width="900">
 </p>
 
-### 3. 内联与停靠扩展挂件 (Inline & Docked Widgets)
+### 4. 内联与停靠扩展挂件 (Inline & Docked Widgets)
 使用 `/toggle-inline-widgets` 可动态在编辑器顶部停靠挂件与消息流内联挂件之间切换。内联模式下，挂件随对话内容自然滚动，不占用固定的编辑器高度。
 
 <p align="center">
   <img src="assets/readme-inline-widget.gif" alt="内联挂件模式" width="900">
 </p>
 
-### 4. Vim 模式与对话全文检索
+### 5. Vim 模式与对话全文检索
 将对话流作为 Vim 文本 Buffer 浏览：逐行滚动（`j`/`k`）、在关键用户提问间跳跃（`Right` / `Shift+Right`），并支持基于 WeakMap 缓存的高性能 `/` 正则搜索。通过 `/vim` 或空队列 `Ctrl+U` 再按 `u` 进入。
 
 <p align="center">
   <img src="assets/readme-vim.gif" alt="Vim 模式" width="900">
 </p>
 
-### 5. Zen 专注模式与后台感知
+### 6. Zen 专注模式与后台感知
 隐藏顶部 Tab 栏（`/toggle-zen-mode`），获得极致沉浸的编码画布。有状态变更的后台 Agent（运行中、等待输入、报错、完成）会在顶部边框紧凑显示为状态圆点（`●`）。圆点仅展示状态，不可点击。
 
 <p align="center">
   <img src="assets/readme-zen.gif" alt="Zen 模式" width="900">
 </p>
 
-### 6. Prompt 内联技能引用与补全
+### 7. Prompt 内联技能引用与补全
 在输入框中输入 `$` 触发项目、全局与已安装 package Skill 模糊自动补全，自动将技能规范内嵌至 Prompt 载荷中。
 
 <p align="center">
   <img src="assets/readme-skill.gif" alt="Skill 引用" width="900">
 </p>
 
-### 7. 命令面板 (Command Palette)
+### 8. 命令面板 (Command Palette)
 按 `Ctrl+P` 快速模糊检索并执行当前 Tab 语境下的 Slash 命令、模型切换与扩展指令。
 
 <p align="center">
@@ -152,9 +156,9 @@ mpi --batch script.lua          # 启动后执行 Lua 批量自动化脚本
 mpi status                      # 检视运行中的实例与 Tab 状态
 ```
 
-## 遥控运行中的 mpi（`mpi-ctl`）
+## Agent Tab 协作
 
-Agent Tab 无需碰键盘，即可驱动自己所在的 TUI——或任何其他 `mpi`。内置 `mpi-ctl` 技能把 `mpi status` / `mpi ctl` CLI 暴露给 agent 的 bash 工具：向任意 Tab 发送 Prompt 与 Slash 命令、等待完成、读取结果，并通过 `--pid` / `--workdir` 操作其他目录的实例。
+Agent Tab 用 `mpi status` / `mpi ctl` 驱动自己所在的 TUI——或任何其他 `mpi`。向同伴 Tab 发送 Prompt 与 Slash 命令、等待完成、读取结果；用 `--pid` / `--workdir` 操作其他目录的实例。
 
 ```bash
 mpi status --json                        # 列出存活实例、Tab 与状态

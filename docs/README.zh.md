@@ -11,7 +11,7 @@ MixCode Pi 官方技术文档库。记录核心架构、特色工作流、命令
 - **[窄屏与移动终端优化 (Narrow & Mobile)](narrow-terminals-and-mobile.zh.md)**：UI 逐级平滑降级、Tab 溢出压缩与移动端触控/点击交互。
 - **[快捷键与热键映射 (Keybindings)](keybindings-and-escape.zh.md)**：核心快捷键、命令面板、外部编辑器与 Escape 撤回流。
 - **[鼠标交互与可点击区域 (Mouse Support)](mouse-support.zh.md)**：SGR 1006 鼠标协议、Tab 标签/选择器点击、滚动条拖拽与文本划选复制。
-- **[CLI 命令行与参数 (CLI & Flags)](cli-and-flags.zh.md)**：`mpi` 参数选项 (`--workdir`, `--builtin-extensions-only`, `--batch`)、`status` 子命令与委托规则。
+- **[CLI 命令行与参数 (CLI & Flags)](cli-and-flags.zh.md)**：`mpi` 参数选项 (`--workdir`, `--builtin-extensions-only`, `--batch`)、`status` / `ctl`（Agent Tab 协作）与委托规则。
 
 ## 核心特色功能与工作流
 
@@ -19,7 +19,7 @@ MixCode Pi 官方技术文档库。记录核心架构、特色工作流、命令
 - **[Zen 专注模式与后台感知 (Zen Mode)](zen-mode.zh.md)**：极简专注视图、后台状态圆点感知与跨 Tab 模式自动迁移。
 - **[内联组件模式 (`[INL]`)](inline-widgets.zh.md)**：扩展组件随 Chat 消息流自然滚动与编辑器垂直空间扩展。
 - **[Vim 模式与对话流检索 (Vim & Search)](vim-and-navigation.zh.md)**：Buffer 级浏览、用户提问正反向跳转与正则全文检索。
-- **[多标签与工作区管理 (Workspace & Tabs)](workspace-and-tabs.zh.md)**：多 Tab 工作流、`/reset` 与 `/clear` 差异、`/fork` 及工作区布局持久化。
+- **[多标签与工作区管理 (Workspace & Tabs)](workspace-and-tabs.zh.md)**：多 Tab 工作流、`/reset` 与 `/clear` 差异、`/fork`、工作区布局持久化，以及 Agent Tab 协作（`mpi ctl`）。
 - **[转向与后续双队列 (Queue Management)](queue-and-follow-up.zh.md)**：轮次中 Steer 注入、轮次后 Follow-up 排队与 `Ctrl+U` 出队。
 - **[Batch Lua 批量自动化执行](batch-lua.zh.md)**：启动后 Monorepo 批量脚本、API 规范及 dry-run 校验。
 
