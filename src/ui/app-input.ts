@@ -8,7 +8,7 @@ import {
   openCommandPalette,
   openTabJump,
 } from "../core/overlays.js";
-import { pushToast } from "../core/toast.js";
+import { clearQueueEditToast, pushToast, QUEUE_EDIT_PROMPT } from "../core/toast.js";
 import { tabIsWaitingForInput } from "../core/tab-state.js";
 import {
   activateTab,
@@ -19,7 +19,7 @@ import {
   nextTabId,
   toggleHomeNonIdleOnly,
 } from "../core/tabs.js";
-import { HOME_TAB_ID, type MixCodeState } from "../core/types.js";
+import { HOME_TAB_ID, type MixCodeState, type QueueKind } from "../core/types.js";
 import { clearPendingEscape } from "../core/escape.js";
 import { openQuitConfirm } from "./app-actions.js";
 import { insertEditorText } from "./app-editor.js";
@@ -104,12 +104,48 @@ function activateTabClosingTree(
   activateTab(state, tabId);
 }
 
-// Empty-queue Ctrl+U arms enter-vim; confirm with u or second Ctrl+U in this window.
-// 1s: releasing Ctrl then pressing u is slower than same-key double-tap.
-const VIM_ENTER_ARM_WINDOW_MS = 1_000;
+// Ctrl+U chords allow enough time to release Ctrl before the mnemonic key.
+const CTRL_U_ARM_WINDOW_MS = 1_000;
 
 function isVimEnterConfirmKey(data: string): boolean {
   return matchesKey(data, "u") || matchesKey(data, "ctrl+u");
+}
+
+function queueKindForChoice(data: string): QueueKind | undefined {
+  if (matchesKey(data, "s")) return "steering";
+  if (matchesKey(data, "f")) return "followUp";
+  return undefined;
+}
+
+function popQueuedMessageIntoEditor(
+  active: ActiveTab,
+  kind: QueueKind,
+  runtime: MixCodeKeyRuntime | undefined,
+  editorActions: MixCodeEditorActions,
+): boolean {
+  const text =
+    runtime?.popPendingMessage?.(active.sessionId, kind) ??
+    (kind === "followUp" ? active.pendingFollowUps.pop() : active.pendingMessages.pop());
+  if (text === undefined) return false;
+
+  // Preserve an in-progress draft ahead of runtime-mirrored steering messages.
+  const draft = editorActions.getText();
+  if (draft.trim() && draft !== text) active.pendingMessages.unshift(draft);
+  editorActions.setText(text);
+  return true;
+}
+
+function armQueueEditChoice(active: ActiveTab, tui: OverlayTui): void {
+  const armedAt = Date.now();
+  active.queueEditArmedAt = armedAt;
+  pushToast(active, { type: "info", message: QUEUE_EDIT_PROMPT });
+  const timer = setTimeout(() => {
+    if (active.queueEditArmedAt !== armedAt) return;
+    active.queueEditArmedAt = undefined;
+    clearQueueEditToast(active);
+    tui.requestRender();
+  }, CTRL_U_ARM_WINDOW_MS);
+  timer.unref();
 }
 
 export function handleMixCodeKeyInput(
@@ -145,16 +181,53 @@ export function handleMixCodeKeyInput(
   // dialog) owns the input area: forward keys to it and bypass all global
   // key handling, mirroring Pi agent's editorContainer takeover.
   if (editorActions?.hasInputComponent?.()) {
+    if (active) {
+      active.queueEditArmedAt = undefined;
+      clearQueueEditToast(active);
+    }
     editorActions.forwardToInputComponent?.(data);
     return { consume: true };
   }
   // Vim search temporarily owns the existing editor row. Special keys stay in
   // the global listener; ordinary editing keys fall through to EditorSlot.
   if (active?.vimTranscriptSearch?.promptOpen && editorActions && !parseSgrMouseInput(data)) {
+    active.queueEditArmedAt = undefined;
+    clearQueueEditToast(active);
     if (handleVimTranscriptSearchPromptKey(active, data, tui, editorActions)) {
       return { consume: true };
     }
     return undefined;
+  }
+  // Resolve dual-queue Ctrl+U → S/F before Escape or editor dispatch.
+  if (active && active.queueEditArmedAt !== undefined) {
+    const armedAt = active.queueEditArmedAt;
+    active.queueEditArmedAt = undefined;
+    const canResolve =
+      state.activeTabId !== HOME_TAB_ID &&
+      !active.vimMode &&
+      !isEditorAutocompleteOpen() &&
+      !hasFocusedAppControl(state, active) &&
+      !hasAnyOverlay(tui) &&
+      Date.now() - armedAt <= CTRL_U_ARM_WINDOW_MS;
+    if (canResolve && matchesKey(data, "escape")) {
+      clearQueueEditToast(active);
+      pushToast(active, { type: "info", message: "Queue edit canceled" });
+      tui.requestRender();
+      return { consume: true };
+    }
+    const kind = canResolve ? queueKindForChoice(data) : undefined;
+    if (kind && editorActions) {
+      clearQueueEditToast(active);
+      if (!popQueuedMessageIntoEditor(active, kind, runtime, editorActions)) {
+        pushToast(active, {
+          type: "warning",
+          message: `${kind === "steering" ? "Steer" : "Follow-up"} queue is empty`,
+        });
+      }
+      tui.requestRender();
+      return { consume: true };
+    }
+    clearQueueEditToast(active);
   }
   // Resolve empty-queue Ctrl+U → (u|Ctrl+U) enter-vim arm before other dispatch.
   if (active && active.vimEnterArmedAt !== undefined) {
@@ -162,11 +235,14 @@ export function handleMixCodeKeyInput(
     active.vimEnterArmedAt = undefined;
     if (
       isVimEnterConfirmKey(data) &&
+      active.pendingMessages.length === 0 &&
+      active.pendingFollowUps.length === 0 &&
       state.activeTabId !== HOME_TAB_ID &&
       !active.vimMode &&
+      !isEditorAutocompleteOpen() &&
       !hasFocusedAppControl(state, active) &&
       !hasAnyOverlay(tui) &&
-      Date.now() - armedAt <= VIM_ENTER_ARM_WINDOW_MS
+      Date.now() - armedAt <= CTRL_U_ARM_WINDOW_MS
     ) {
       active.vimMode = true;
       active.vimPendingEscapeAt = undefined;
@@ -754,31 +830,32 @@ function handleEditorControlKeys(
     tui.requestRender();
     return { consume: true };
   }
-  if ((matchesKey(data, "alt+up") || matchesKey(data, "ctrl+u")) && editorActions && active) {
+  if (matchesKey(data, "ctrl+u") && editorActions && active) {
     // Temporary takeovers own Ctrl+U; permanent skins still dequeue / enter-vim.
     if (state.activeTabId !== HOME_TAB_ID && isPendingEditorTakeover(active, editorActions)) {
       return undefined;
     }
+    if (isEditorAutocompleteOpen()) return undefined;
     clearPendingEscape(active);
     // On Home, getActiveTab() is the selected agent — never dequeue that agent's queue here.
     if (state.activeTabId !== HOME_TAB_ID) {
-      const text =
-        runtime?.popPendingMessage?.(active.sessionId) ??
-        active.pendingFollowUps.pop() ??
-        active.pendingMessages.pop();
-      if (text) {
-        // Re-queue the in-progress draft so Ctrl+U (edit queued) does not discard it.
-        // unshift keeps it ahead of the runtime-steering tail (see pendingMessages sync).
-        // Draft re-queues into steer (local prefix), never into follow-up.
-        const draft = editorActions.getText();
-        if (draft.trim() && draft !== text) active.pendingMessages.unshift(draft);
-        editorActions.setText(text);
+      const hasSteering = active.pendingMessages.length > 0;
+      const hasFollowUp = active.pendingFollowUps.length > 0;
+      if (hasSteering && hasFollowUp) {
+        armQueueEditChoice(active, tui);
         tui.requestRender();
-      } else if (matchesKey(data, "ctrl+u") && !active.vimMode) {
-        // Empty queue: arm Ctrl+U → u enter-vim (Alt+Up does not arm).
+      } else if (hasSteering || hasFollowUp) {
+        const kind: QueueKind = hasFollowUp ? "followUp" : "steering";
+        if (!popQueuedMessageIntoEditor(active, kind, runtime, editorActions)) {
+          pushToast(active, {
+            type: "warning",
+            message: `${kind === "steering" ? "Steer" : "Follow-up"} queue is empty`,
+          });
+        }
+        tui.requestRender();
+      } else if (!active.vimMode) {
+        // Empty queue: arm Ctrl+U → u enter-vim.
         active.vimEnterArmedAt = Date.now();
-        // Toast, not meta row — avoids an orphan hint line under custom footers.
-        // First Ctrl+U already consumed; confirm within the arm window.
         pushToast(active, { type: "info", message: "Again: u or Ctrl+U → vim" });
         tui.requestRender();
       }

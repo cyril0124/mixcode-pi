@@ -16,6 +16,7 @@ import type { ToastNotification } from "./toast.js";
 import type { TreeSelectorState } from "./tree-selector.js";
 
 export type TabStatus = "Not Ready" | "idle" | "running" | "thinking" | "error" | "done";
+export type QueueKind = "steering" | "followUp";
 
 /** Sentinel `activeTabId` / tab-bar id for MixCode Home. */
 export const HOME_TAB_ID = "home";
@@ -166,6 +167,8 @@ export interface MixCodeTabInfo {
   vimPendingHome?: boolean;
   /** Timestamp when empty-queue Ctrl+U armed enter-via-u; cleared on next key. */
   vimEnterArmedAt?: number;
+  /** Timestamp when dual-queue Ctrl+U armed Steer/Follow-up selection. */
+  queueEditArmedAt?: number;
   /** Distraction-free chrome: hide tab bar; tab/shift-tab swallowed; ctrl+t transfers. */
   zenMode: boolean;
   /**

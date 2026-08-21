@@ -41,15 +41,15 @@ export const MIXCODE_KEYMAP: KeyAction[] = [
     scope: "global",
   },
   {
-    key: "alt+up",
+    key: "ctrl+u",
     action: "pop-queued-message",
-    description: "Pop last queued message into editor",
+    description: "Pop the sole queue or choose when Steer and Follow-up both have messages",
     scope: "global",
   },
   {
-    key: "ctrl+u",
-    action: "pop-queued-message",
-    description: "Pop last queued message into editor",
+    key: "ctrl+u s / ctrl+u f",
+    action: "pop-selected-queued-message",
+    description: "Pop Steer / Follow-up when both queues have messages",
     scope: "global",
   },
   {

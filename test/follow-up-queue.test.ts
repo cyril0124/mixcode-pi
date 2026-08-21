@@ -253,7 +253,7 @@ test("streaming steer and followUp land in separate queues and dual UI", async (
   });
 });
 
-test("pop prefers follow-up over steer", async () => {
+test("explicit Follow-up pop leaves Steer queued", async () => {
   await withSlowToolRuntime(async ({ runtime, tab, runtimeTab, releaseTool, toolRunning }) => {
     // Fire-and-forget turn; the tool blocks until releaseTool() below. The
     // deferred flush can race the test's final tmpdir cleanup under bun (the
@@ -268,7 +268,7 @@ test("pop prefers follow-up over steer", async () => {
       () => tab.pendingMessages.length === 1 && tab.pendingFollowUps.length === 1,
     );
 
-    const popped = runtime.popPendingMessage("s1");
+    const popped = runtime.popPendingMessage("s1", "followUp");
     assert.equal(popped, "follow later");
     assert.deepEqual(tab.pendingFollowUps, []);
     assert.deepEqual(tab.pendingMessages, ["steer now"]);

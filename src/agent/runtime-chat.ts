@@ -10,6 +10,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { type Component, TuiMainScreen as PiTui } from "@earendil-works/pi-tui";
 import { modelToRef } from "../core/models.js";
+import { clearQueueEditToast } from "../core/toast.js";
 import type { MixCodeModel, MixCodeTabInfo, PreviewMessageRole } from "../core/types.js";
 import { clearPendingEscape } from "../core/escape.js";
 import { discardVimTranscriptSearch } from "../core/tabs.js";
@@ -615,6 +616,8 @@ export function resetTabForNewSession(tab: MixCodeTabInfo, sessionId: string): v
   tab.currentContextTokens = undefined;
   tab.pendingMessages = [];
   tab.pendingFollowUps = [];
+  tab.queueEditArmedAt = undefined;
+  clearQueueEditToast(tab);
   tab.chatScrollOffset = 0;
   tab.chatScrollAnchorEntryId = undefined;
   tab.chatScrollAnchorIndex = undefined;

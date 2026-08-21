@@ -34,7 +34,17 @@ MixCode 通过双队列将二者的处理时机、中断表现与生命周期完
 | 触发方式 | Agent 运行中提交普通 Prompt | 执行 `/follow-up <text>` |
 | 消费时机 | 当前轮次中作为 Steering Message 注入 | 当前轮次结束且 Agent 空闲后触发新轮次 |
 | 中断表现 (`Esc`) | 刷新为新轮次立即发送 | 在中断与轮次交替中完整保留 |
-| 弹出编辑 | 按 `Ctrl+U`（弹出最新消息回编辑器） | 按 `Ctrl+U`（弹出最新消息回编辑器） |
+| 弹出编辑 | Follow-up 为空时按 `Ctrl+U`；两个队列都有消息时按 `Ctrl+U,S` | Steer 为空时按 `Ctrl+U`；两个队列都有消息时按 `Ctrl+U,F` |
+
+### 编辑排队消息
+
+`Ctrl+U` 根据可见队列状态工作：
+
+- 只有一个非空队列：直接将该队列的最新消息弹回编辑器。
+- 两个队列都非空：进入一秒选择状态，不修改任何队列。按 `S` 选择 Steer，按 `F` 选择 Follow-up，按 `Esc` 取消。
+- 两个队列都为空：预备进入 Vim；在一秒内按 `u` 或 `Ctrl+U` 确认。
+
+如果确认前所选队列变空，不会回退并弹出另一队列的消息。
 
 ## 并发门控保障 (`dispatchTurn`)
 
@@ -50,6 +60,7 @@ dispatchTurn(tab, send)
 
 ## TUI 队列可视化渲染
 
-排队消息以专属边框浮动在编辑器上方：
-- `┌ Steer ─┐`：展示排队中的转向消息，并提示 `Esc->send now` 与 `Ctrl+U->edit`。
-- `┌ Follow-up ─┐`：展示排队中的后续消息。
+排队消息以专属边框显示在编辑器上方：
+- 只有一个非空队列时，其编辑提示为 `Ctrl+U->edit`。
+- 两个队列都非空时，Steer 显示 `Ctrl+U,S->edit`，Follow-up 显示 `Ctrl+U,F->edit`。
+- Steer 还显示 `Esc->send now`；Follow-up 在中断后保留，因此不显示该提示。

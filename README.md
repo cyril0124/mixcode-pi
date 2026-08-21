@@ -113,7 +113,7 @@ Core keys (not the full map — open **Help** / Command Palette in-app for every
 | `Ctrl+T` | Global | Tab Jump | Interactive modal to jump to any open tab. |
 | `Ctrl+E` | Global | External Editor | Edit current draft in `$VISUAL` / `$EDITOR`. |
 | `Ctrl+Q` | Global | Quit | Safely persists workspace state and exits. |
-| `Ctrl+U` | Input / Queue | Dequeue / Vim | Pop queued message back to editor; empty queue arms Vim mode. |
+| `Ctrl+U` | Input / Queue | Dequeue / Choose / Vim | Pops the sole non-empty queue; when both contain messages, use `Ctrl+U,S/F`; when empty, arms Vim entry. See [queue management](docs/queue-and-follow-up.md). |
 | `Right` | Empty Input | Side Panel | Toggle right-hand extension widget panel. |
 | `Escape` | Global | Smart Escape | Close overlay → exit Vim → abort/retract prompt. |
 | `!` | Editor | Bash Command | Single-line shell execution mode. |

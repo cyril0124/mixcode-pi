@@ -1,4 +1,5 @@
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
+import type { QueueKind } from "../core/types.js";
 import {
   type RemovedQueuedMessage,
   removeQueuedMessages,
@@ -147,27 +148,24 @@ async function waitOutPostAbortCompactAndResume(agentSession: AgentSession): Pro
   }
 }
 
-/**
- * Pop one queued message for Ctrl+U edit. Prefer follow-up (user is more often
- * revising "do this after") then fall back to steer.
- */
-export function popRuntimePendingMessage(runtimeTab: RuntimeTab): string | undefined {
-  if (runtimeTab.tab.pendingFollowUps.length > 0) {
-    const wasRuntimeQueued = runtimeTab.queuedFollowUpCount > 0;
-    const message = runtimeTab.tab.pendingFollowUps.pop();
-    if (message !== undefined && wasRuntimeQueued) {
-      runtimeTab.queuedFollowUpCount = Math.max(0, runtimeTab.queuedFollowUpCount - 1);
-      removeQueuedMessages(runtimeTab, "followUp", [message]);
-    }
-    return message;
-  }
+/** Pop one queued message of the requested kind for editor revision. */
+export function popRuntimePendingMessage(
+  runtimeTab: RuntimeTab,
+  kind: QueueKind,
+): string | undefined {
+  const messages =
+    kind === "followUp" ? runtimeTab.tab.pendingFollowUps : runtimeTab.tab.pendingMessages;
+  const wasRuntimeQueued =
+    kind === "followUp" ? runtimeTab.queuedFollowUpCount > 0 : runtimeTab.queuedPromptCount > 0;
+  const message = messages.pop();
+  if (message === undefined || !wasRuntimeQueued) return message;
 
-  const wasRuntimeQueued = runtimeTab.queuedPromptCount > 0;
-  const message = runtimeTab.tab.pendingMessages.pop();
-  if (message !== undefined && wasRuntimeQueued) {
+  if (kind === "followUp") {
+    runtimeTab.queuedFollowUpCount = Math.max(0, runtimeTab.queuedFollowUpCount - 1);
+  } else {
     runtimeTab.queuedPromptCount = Math.max(0, runtimeTab.queuedPromptCount - 1);
-    removeQueuedMessages(runtimeTab, "steering", [message]);
   }
+  removeQueuedMessages(runtimeTab, kind, [message]);
   return message;
 }
 

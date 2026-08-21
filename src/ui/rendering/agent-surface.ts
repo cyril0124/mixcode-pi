@@ -1167,11 +1167,30 @@ export function renderQueuePreview(
 function renderQueuePreviewInner(tab: MixCodeTabInfo, width: number): string[] {
   const maxQueue = 5;
   const lines: string[] = [];
+  const dualQueues = tab.pendingMessages.length > 0 && tab.pendingFollowUps.length > 0;
   if (tab.pendingMessages.length > 0) {
-    lines.push(...renderOneQueueBox("Steer", tab.pendingMessages, width, maxQueue, true));
+    lines.push(
+      ...renderOneQueueBox(
+        "Steer",
+        tab.pendingMessages,
+        width,
+        maxQueue,
+        true,
+        dualQueues ? "Ctrl+U,S->edit" : "Ctrl+U->edit",
+      ),
+    );
   }
   if (tab.pendingFollowUps.length > 0) {
-    lines.push(...renderOneQueueBox("Follow-up", tab.pendingFollowUps, width, maxQueue, false));
+    lines.push(
+      ...renderOneQueueBox(
+        "Follow-up",
+        tab.pendingFollowUps,
+        width,
+        maxQueue,
+        false,
+        dualQueues ? "Ctrl+U,F->edit" : "Ctrl+U->edit",
+      ),
+    );
   }
   return lines;
 }
@@ -1182,6 +1201,7 @@ function renderOneQueueBox(
   width: number,
   maxQueue: number,
   escSendNow: boolean,
+  editShortcut: string,
 ): string[] {
   const innerWidth = Math.max(12, width - 2);
   const itemWidth = Math.max(8, innerWidth - 2);
@@ -1190,7 +1210,7 @@ function renderOneQueueBox(
     messages.length > maxQueue
       ? `${label} (${messages.length}, latest ${maxQueue})`
       : `${label} (${messages.length})`;
-  const shortcuts = escSendNow ? "Esc->send now  Ctrl+U->edit" : "Ctrl+U->edit";
+  const shortcuts = escSendNow ? `${editShortcut}  Esc->send now` : editShortcut;
   const body = [
     `${title}  ${shortcuts}`,
     ...shown.map((message) => `↳ ${normalizePendingMessage(message, itemWidth)}`),

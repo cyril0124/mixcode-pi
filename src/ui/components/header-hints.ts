@@ -91,8 +91,8 @@ function renderExpanded(width: number): string[] {
   return lines;
 }
 
-// Global-scope keymap rows with keys merged per action (alt+up and ctrl+u both
-// pop the queue → one "alt+up/ctrl+u" row), keeping the list short and factual.
+// Global-scope keymap rows merge keys that share one action, keeping the list
+// short while preserving distinct Ctrl+U queue-choice and Vim chords.
 function globalKeymapRows(): Array<[key: string, description: string]> {
   const byAction = new Map<string, { keys: string[]; description: string }>();
   for (const item of MIXCODE_KEYMAP) {

@@ -1,6 +1,7 @@
 import type { MixCodeTabInfo } from "./types.js";
 
 export type ToastType = "info" | "success" | "warning" | "error";
+export const QUEUE_EDIT_PROMPT = "S: Steer · F: Follow-up · Esc: cancel";
 
 export interface ToastNotification {
   type: ToastType;
@@ -17,6 +18,10 @@ const TOAST_DURATION_MS = 3_000;
 
 export function pushToast(tab: MixCodeTabInfo, toast: ToastRequest): void {
   tab.toast = { ...toast, createdAt: Date.now() };
+}
+
+export function clearQueueEditToast(tab: MixCodeTabInfo): void {
+  if (tab.toast?.message === QUEUE_EDIT_PROMPT) tab.toast = undefined;
 }
 
 export function activeToast(tab: MixCodeTabInfo): ToastNotification | undefined {

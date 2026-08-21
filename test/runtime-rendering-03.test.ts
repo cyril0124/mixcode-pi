@@ -24,7 +24,7 @@ test("queue preview shows count, shortcuts, and latest messages", () => {
     ).join("\n"),
   );
   assert.match(one, /Steer \(1\)/);
-  assert.match(one, /Esc->send now {2}Ctrl\+U->edit/);
+  assert.match(one, /Ctrl\+U->edit {2}Esc->send now/);
   assert.match(one, /first queued message/);
 
   const multi = stripAnsi(
@@ -51,9 +51,28 @@ test("queue preview shows count, shortcuts, and latest messages", () => {
   assert.match(dual, /steer me/);
   assert.match(dual, /after done/);
   assert.match(dual, /Esc->send now/);
+  const followIndex = dual.indexOf("Follow-up");
+  const steerBlock = dual.slice(dual.indexOf("Steer"), followIndex);
+  assert.match(steerBlock, /Ctrl\+U,S->edit/);
+  assert.doesNotMatch(steerBlock, /Ctrl\+U,F->edit/);
   // Follow-up box must not advertise Esc->send now.
-  const followBlock = dual.slice(dual.indexOf("Follow-up"));
+  const followBlock = dual.slice(followIndex);
   assert.doesNotMatch(followBlock, /Esc->send now/);
+  assert.match(followBlock, /Ctrl\+U,F->edit/);
+  assert.doesNotMatch(followBlock, /Ctrl\+U,S->edit/);
+
+  const narrowLines = renderQueuePreview(
+    createTab(4, "s4", "/repo", {
+      pendingMessages: ["steer me"],
+      pendingFollowUps: ["after done"],
+    }),
+    38,
+  );
+  const narrow = stripAnsi(narrowLines.join("\n"));
+
+  assert.equal(narrowLines.every((line) => visibleWidth(line) <= 38), true);
+  assert.match(narrow, /Ctrl\+U,S->edit/);
+  assert.match(narrow, /Ctrl\+U,F->edit/);
 });
 
 test("agent surface does not invent thinking when rebuilt chat has none", () => {

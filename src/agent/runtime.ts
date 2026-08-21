@@ -26,7 +26,7 @@ import {
   setTabStatus,
 } from "../core/tab-state.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
-import { HOME_TAB_ID, type AgentRuntimeConfig, type MixCodeModel, type MixCodeModelRef, type MixCodeTabInfo } from "../core/types.js";
+import { HOME_TAB_ID, type AgentRuntimeConfig, type MixCodeModel, type MixCodeModelRef, type MixCodeTabInfo, type QueueKind } from "../core/types.js";
 import { MIXCODE_EXTENSION_KEYBINDINGS } from "./runtime-extension-theme.js";
 import { getActiveToolInfos } from "./tools.js";
 
@@ -1089,9 +1089,9 @@ export class MixCodeRuntime {
     this.emitChange({ type: "extension_ui_update" }, runtimeTab);
   }
 
-  popPendingMessage(sessionId: string): string | undefined {
+  popPendingMessage(sessionId: string, kind: QueueKind): string | undefined {
     const runtimeTab = this.requireTab(sessionId);
-    return popRuntimePendingMessage(runtimeTab);
+    return popRuntimePendingMessage(runtimeTab, kind);
   }
 
   async forkSession(sourceSessionId: string, newSessionId: string): Promise<SessionManager> {

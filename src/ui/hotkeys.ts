@@ -65,9 +65,10 @@ function formatHotkey(key: string): string {
 
 function formatHotkeyChord(chord: string): string {
   return chord
-    .split("+")
-    .map((segment) => formatHotkeySegment(segment))
-    .join("+");
+    .trim()
+    .split(/\s+/)
+    .map((step) => step.split("+").map(formatHotkeySegment).join("+"))
+    .join(", ");
 }
 
 function formatHotkeySegment(segment: string): string {

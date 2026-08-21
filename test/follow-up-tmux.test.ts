@@ -28,7 +28,7 @@ test("tmux TUI shows separate Steer and Follow-up queues", {
     const cmd = [
       `MIXCODE_FOLLOWUP_HARNESS_DIR=${shellQuote(dir)}`,
       `MIXCODE_FOLLOWUP_MARKER=${shellQuote(marker)}`,
-      `npx tsx ${shellQuote(harness)}`,
+      `bun ${shellQuote(harness)}`,
     ].join(" ");
 
     await tmuxRun(tmux, label, [
@@ -69,9 +69,12 @@ test("tmux TUI shows separate Steer and Follow-up queues", {
     }
     assert.equal(ready, true, "harness did not report dual queues ready");
 
-    // Give the TUI a frame to paint queue boxes.
-    await delay(500);
-    const pane = await capturePane(tmux, label, session);
+    const pane = await waitForPane(
+      tmux,
+      label,
+      session,
+      (plain) => /Steer \(1\)/.test(plain) && /Follow-up \(1\)/.test(plain),
+    );
     await fsPromises.writeFile(capturePath, pane.plain);
 
     assert.match(pane.plain, /Steer/);
@@ -79,18 +82,79 @@ test("tmux TUI shows separate Steer and Follow-up queues", {
     assert.match(pane.plain, /steer now/);
     assert.match(pane.plain, /follow later/);
     assert.match(pane.plain, /Esc->send now/);
+    assert.match(pane.plain, /Ctrl\+U,S->edit/);
+    assert.match(pane.plain, /Ctrl\+U,F->edit/);
 
-    // Esc should flush steer only — send Escape and re-check Follow-up remains.
-    await tmuxRun(tmux, label, ["send-keys", "-t", session, "Escape"]);
-    await delay(1200);
-    const afterEsc = await capturePane(tmux, label, session);
-    assert.match(afterEsc.plain, /Follow-up|follow later/, "follow-up should survive Esc flush");
-    // Steer preview text should be gone (flushed or no longer queued).
-    assert.doesNotMatch(
-      afterEsc.plain,
-      /Steer \(1\)[\s\S]*steer now/,
-      "steer queue preview should clear after Esc flush",
+    // Ctrl+U alone only arms the dual-queue choice.
+    await tmuxRun(tmux, label, ["send-keys", "-t", session, "C-u"]);
+    const armed = await waitForPane(tmux, label, session, (plain) =>
+      /S: Steer.*F: Follow-up.*Esc: cancel/.test(plain),
     );
+    assert.match(armed.plain, /Steer \(1\)[\s\S]*steer now/);
+    assert.match(armed.plain, /Follow-up \(1\)[\s\S]*follow later/);
+
+    await tmuxRun(tmux, label, ["send-keys", "-t", session, "Escape"]);
+    const canceled = await waitForPane(
+      tmux,
+      label,
+      session,
+      (plain) =>
+        /Queue edit canceled/.test(plain) &&
+        /Steer \(1\)[\s\S]*steer now/.test(plain) &&
+        /Follow-up \(1\)[\s\S]*follow later/.test(plain),
+    );
+    assert.match(canceled.plain, /Queue edit canceled/);
+
+    // F edits Follow-up and leaves Steer queued.
+    await tmuxRun(tmux, label, ["send-keys", "-t", session, "C-u", "f"]);
+    const afterFollowUpEdit = await waitForPane(
+      tmux,
+      label,
+      session,
+      (plain) => /Steer \(1\)[\s\S]*steer now/.test(plain) && !/Follow-up \(1\)/.test(plain),
+    );
+    assert.match(afterFollowUpEdit.plain, /follow later/);
+
+    // Recreate a Follow-up, then S edits Steer and preserves Follow-up.
+    await tmuxRun(tmux, label, ["send-keys", "-t", session, "C-c"]);
+    await tmuxRun(tmux, label, ["send-keys", "-t", session, "-l", "/follow-up follow again"]);
+    await waitForPane(tmux, label, session, (plain) => /\/follow-up follow again/.test(plain));
+    await tmuxRun(tmux, label, ["send-keys", "-t", session, "Enter"]);
+    await waitForPane(
+      tmux,
+      label,
+      session,
+      (plain) => /Steer \(1\)/.test(plain) && /Follow-up \(1\)[\s\S]*follow again/.test(plain),
+    );
+    await tmuxRun(tmux, label, ["send-keys", "-t", session, "C-u", "s"]);
+    const afterSteerEdit = await waitForPane(
+      tmux,
+      label,
+      session,
+      (plain) => !/Steer \(1\)/.test(plain) && /Follow-up \(1\)[\s\S]*follow again/.test(plain),
+    );
+    assert.match(afterSteerEdit.plain, /steer now/);
+
+    // Recreate Steer and verify Esc still flushes only Steer.
+    await tmuxRun(tmux, label, ["send-keys", "-t", session, "C-c"]);
+    await tmuxRun(tmux, label, ["send-keys", "-t", session, "-l", "steer again"]);
+    await waitForPane(tmux, label, session, (plain) => /steer again/.test(plain));
+    await tmuxRun(tmux, label, ["send-keys", "-t", session, "Enter"]);
+    await waitForPane(
+      tmux,
+      label,
+      session,
+      (plain) => /Steer \(1\)[\s\S]*steer again/.test(plain) && /Follow-up \(1\)/.test(plain),
+    );
+    await tmuxRun(tmux, label, ["send-keys", "-t", session, "Escape"]);
+    const afterEsc = await waitForPane(
+      tmux,
+      label,
+      session,
+      (plain) =>
+        /Follow-up \(1\)[\s\S]*follow again/.test(plain) && !/Steer \(1\)/.test(plain),
+    );
+    assert.match(afterEsc.plain, /Follow-up \(1\)[\s\S]*follow again/);
 
     // Release the blocked tool so follow-up can deliver after idle.
     await fsPromises.writeFile(path.join(dir, "release"), "1");
@@ -143,6 +207,23 @@ async function capturePane(
 ): Promise<{ ansi: string; plain: string }> {
   const { stdout } = await tmuxRun(tmux, label, ["capture-pane", "-p", "-e", "-t", session]);
   return { ansi: stdout, plain: stripAnsi(stdout) };
+}
+
+async function waitForPane(
+  tmux: string,
+  label: string,
+  session: string,
+  matches: (plain: string) => boolean,
+  timeoutMs = 5_000,
+): Promise<{ ansi: string; plain: string }> {
+  const deadline = Date.now() + timeoutMs;
+  let pane = await capturePane(tmux, label, session);
+  while (Date.now() < deadline) {
+    if (matches(pane.plain)) return pane;
+    await delay(100);
+    pane = await capturePane(tmux, label, session);
+  }
+  assert.fail(`timed out waiting for pane state:\n${pane.plain}`);
 }
 
 function stripAnsi(text: string): string {

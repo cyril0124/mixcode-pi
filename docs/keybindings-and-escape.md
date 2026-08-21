@@ -16,7 +16,8 @@ MixCode Pi provides comprehensive global and context-sensitive keyboard shortcut
 | `Ctrl+E` | Global | External Editor | Opens the current input draft in `$VISUAL` / `$EDITOR`. |
 | `Ctrl+Q` | Global | Quit | Safely persists workspace state and exits. |
 | `Ctrl+C` | Global | Clear Input | Clears the editor. Does not abort a running turn (`Esc` does). |
-| `Ctrl+U` | Input / Queue | Dequeue / Vim | Pops queued messages back into editor; on empty queue arms entry to Vim mode. |
+| `Ctrl+U` | Input / Queue | Dequeue / Choose / Vim | Pops the sole non-empty queue; with both queues non-empty, arms an explicit choice; with both empty, arms Vim entry. |
+| `Ctrl+U,S` / `Ctrl+U,F` | Queue choice | Edit Steer / Follow-up | Pops the selected queue after dual-queue `Ctrl+U`. See [queue management](queue-and-follow-up.md). |
 | `Right` | Empty Input | Side Panel | Expands / collapses right-hand extension widget panel. |
 | `$` | Editor | Skill Completion | Triggers project, global, and installed package skill autocompletion. |
 | `@` | Editor | File / Tab Completion | Fuzzy-matches peer tab titles above workspace file paths. |
@@ -32,12 +33,13 @@ User presses Escape
         ├─ 1. Overlay Open? ─────────> Closes active Overlay (Tab Jump / Picker)
         ├─ 2. Autocomplete Active? ──> Closes candidate popup
         ├─ 3. In Vim Mode? ──────────> Exits Vim mode, focuses Editor
-        ├─ 4. Steer queue non-empty? ─> Flushes queued steer now (aborts current turn if streaming)
-        ├─ 5. Agent Running?
+        ├─ 4. Queue edit armed? ──────> Cancels queue choice; preserves both queues
+        ├─ 5. Steer queue non-empty? ─> Flushes queued steer now (aborts current turn if streaming)
+        ├─ 6. Agent Running?
         │      ├─ 1st press ─────────> Arms abort window (PENDING_ESCAPE_CONFIRM_WINDOW_MS = 1000ms)
         │      └─ 2nd press (Double) ─> Aborts turn / retracts prompt if the run produced no output
         │                               (no assistant/thinking text and no tool call) AND the run was
         │                               started by this turn's own user message (extension custom-message
         │                               runs always plain-abort)
-        └─ 6. Empty Editor (Idle) ───> Double-Esc within 500ms opens session tree (or fork)
+        └─ 7. Empty Editor (Idle) ───> Double-Esc within 500ms opens session tree (or fork)
 ```

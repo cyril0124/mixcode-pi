@@ -8,6 +8,37 @@ import {
   renderInputMeta,
 } from "./helpers/mixcode.js";
 
+function createDualQueueKeyFixture() {
+  const state = createInitialState("/repo");
+  const tab = createTab(1, "s1", "/repo", {
+    pendingMessages: ["steer queued"],
+    pendingFollowUps: ["follow-up queued"],
+  });
+  state.tabs.push(tab);
+  state.activeTabId = "s1";
+  let text = "draft";
+  const poppedKinds: Array<"steering" | "followUp"> = [];
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({}) as never,
+    hideOverlay: () => undefined,
+    hasOverlay: () => false,
+  };
+  const editorActions = {
+    getText: () => text,
+    setText: (next: string) => {
+      text = next;
+    },
+  };
+  const runtime = {
+    popPendingMessage: (_sessionId: string, kind: "steering" | "followUp") => {
+      poppedKinds.push(kind);
+      return kind === "steering" ? tab.pendingMessages.pop() : tab.pendingFollowUps.pop();
+    },
+  };
+  return { state, tab, tui, editorActions, runtime, poppedKinds, text: () => text };
+}
+
 test("global key input submits batched inline text ending with enter", () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"));
@@ -215,7 +246,7 @@ test("global key input pops queued messages back into editor", () => {
   assert.deepEqual(
     handleMixCodeKeyInput(
       state,
-      "\x1bp",
+      "\x15",
       tui,
       undefined,
       undefined,
@@ -264,6 +295,123 @@ test("global key input pops queued messages back into editor", () => {
     { consume: true },
   );
   assert.equal(text, "keep draft");
+});
+
+test("dual-queue Ctrl+U requires an explicit Steer or Follow-up choice", () => {
+  for (const choice of [
+    { key: "s", kind: "steering" as const, expected: "steer queued" },
+    { key: "f", kind: "followUp" as const, expected: "follow-up queued" },
+  ]) {
+    const fixture = createDualQueueKeyFixture();
+    const { state, tab, tui, runtime, editorActions, poppedKinds } = fixture;
+
+    assert.deepEqual(
+      handleMixCodeKeyInput(state, "\x15", tui, undefined, runtime, undefined, undefined, editorActions),
+      { consume: true },
+    );
+    assert.deepEqual(poppedKinds, []);
+    assert.equal(fixture.text(), "draft");
+    assert.deepEqual(tab.pendingMessages, ["steer queued"]);
+    assert.deepEqual(tab.pendingFollowUps, ["follow-up queued"]);
+    assert.ok(typeof tab.queueEditArmedAt === "number");
+    assert.match(tab.toast?.message ?? "", /S: Steer.*F: Follow-up/);
+
+    assert.deepEqual(
+      handleMixCodeKeyInput(state, choice.key, tui, undefined, runtime, undefined, undefined, editorActions),
+      { consume: true },
+    );
+    assert.deepEqual(poppedKinds, [choice.kind]);
+    assert.equal(fixture.text(), choice.expected);
+    assert.equal(tab.queueEditArmedAt, undefined);
+    assert.deepEqual(
+      tab.pendingMessages,
+      choice.kind === "steering" ? ["draft"] : ["draft", "steer queued"],
+    );
+    assert.deepEqual(
+      tab.pendingFollowUps,
+      choice.kind === "steering" ? ["follow-up queued"] : [],
+    );
+  }
+});
+
+test("dual-queue edit choice consumes Escape without changing either queue", () => {
+  const { state, tab, tui, runtime, editorActions, poppedKinds } = createDualQueueKeyFixture();
+  handleMixCodeKeyInput(state, "\x15", tui, undefined, runtime, undefined, undefined, editorActions);
+
+  assert.deepEqual(
+    handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime, undefined, undefined, editorActions),
+    { consume: true },
+  );
+  assert.deepEqual(poppedKinds, []);
+  assert.deepEqual(tab.pendingMessages, ["steer queued"]);
+  assert.deepEqual(tab.pendingFollowUps, ["follow-up queued"]);
+  assert.equal(tab.queueEditArmedAt, undefined);
+  assert.match(tab.toast?.message ?? "", /canceled/);
+});
+
+test("queue edit chords do not take over editor autocomplete", () => {
+  const { state, tab, tui, runtime, editorActions, poppedKinds } = createDualQueueKeyFixture();
+  const autocompleteOpen = () => true;
+
+  assert.equal(
+    handleMixCodeKeyInput(
+      state,
+      "\x15",
+      tui,
+      undefined,
+      runtime,
+      undefined,
+      autocompleteOpen,
+      editorActions,
+    ),
+    undefined,
+  );
+  assert.equal(tab.queueEditArmedAt, undefined);
+  assert.deepEqual(poppedKinds, []);
+});
+
+test("dual-queue edit choice expires without changing either queue", () => {
+  const { state, tab, tui, runtime, editorActions, poppedKinds } = createDualQueueKeyFixture();
+  handleMixCodeKeyInput(state, "\x15", tui, undefined, runtime, undefined, undefined, editorActions);
+  tab.queueEditArmedAt = Date.now() - 1_001;
+
+  assert.equal(
+    handleMixCodeKeyInput(state, "s", tui, undefined, runtime, undefined, undefined, editorActions),
+    undefined,
+  );
+  assert.deepEqual(poppedKinds, []);
+  assert.deepEqual(tab.pendingMessages, ["steer queued"]);
+  assert.deepEqual(tab.pendingFollowUps, ["follow-up queued"]);
+  assert.equal(tab.queueEditArmedAt, undefined);
+});
+
+test("dual-queue edit choice clears itself when the arm window expires", async () => {
+  const { state, tab, tui, runtime, editorActions } = createDualQueueKeyFixture();
+  handleMixCodeKeyInput(state, "\x15", tui, undefined, runtime, undefined, undefined, editorActions);
+
+  const deadline = Date.now() + 2_000;
+  while (tab.queueEditArmedAt !== undefined && Date.now() < deadline) {
+    await Bun.sleep(20);
+  }
+
+  assert.equal(tab.queueEditArmedAt, undefined);
+  assert.equal(tab.toast, undefined);
+  assert.deepEqual(tab.pendingMessages, ["steer queued"]);
+  assert.deepEqual(tab.pendingFollowUps, ["follow-up queued"]);
+});
+
+test("dual-queue edit choice never falls back when the selected queue disappears", () => {
+  const { state, tab, tui, runtime, editorActions, poppedKinds } = createDualQueueKeyFixture();
+  handleMixCodeKeyInput(state, "\x15", tui, undefined, runtime, undefined, undefined, editorActions);
+  tab.pendingMessages.length = 0;
+
+  assert.deepEqual(
+    handleMixCodeKeyInput(state, "s", tui, undefined, runtime, undefined, undefined, editorActions),
+    { consume: true },
+  );
+  assert.deepEqual(poppedKinds, ["steering"]);
+  assert.deepEqual(tab.pendingFollowUps, ["follow-up queued"]);
+  assert.match(tab.toast?.message ?? "", /Steer queue is empty/);
 });
 
 test("empty-queue Ctrl+U arms vim via toast, not input meta", () => {

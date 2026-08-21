@@ -4,6 +4,8 @@ import * as fsPromises from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
 import { test } from "node:test";
+import { resetTabForNewSession } from "../src/agent/runtime-chat.js";
+import { QUEUE_EDIT_PROMPT } from "../src/core/toast.js";
 import {
   Type,
   createAssistantMessageEventStream,
@@ -200,6 +202,24 @@ function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+test("session reset clears queue edit state without removing unrelated toast", () => {
+  const errorTab = createTab(1, "old", "/repo", {
+    queueEditArmedAt: Date.now(),
+    toast: { type: "error", message: "save failed", createdAt: Date.now() },
+  });
+  resetTabForNewSession(errorTab, "new");
+  assert.equal(errorTab.queueEditArmedAt, undefined);
+  assert.equal(errorTab.toast?.message, "save failed");
+
+  const queueTab = createTab(2, "old-queue", "/repo", {
+    queueEditArmedAt: Date.now(),
+    toast: { type: "info", message: QUEUE_EDIT_PROMPT, createdAt: Date.now() },
+  });
+  resetTabForNewSession(queueTab, "new-queue");
+  assert.equal(queueTab.queueEditArmedAt, undefined);
+  assert.equal(queueTab.toast, undefined);
+});
+
 test("runtime summarizes long tool results instead of flooding chat", async () => {
   const runtime = new MixCodeRuntime();
   const tab = createTab(1, "s1", process.cwd());
@@ -271,7 +291,7 @@ test("runtime queues prompts while busy, pops them, and flushes when idle", asyn
     await runtime.prompt("s1", "  ");
     assert.deepEqual(tab.pendingMessages, ["first queued", "second queued"]);
 
-    assert.equal(runtime.popPendingMessage("s1"), "second queued");
+    assert.equal(runtime.popPendingMessage("s1", "steering"), "second queued");
     assert.deepEqual(tab.pendingMessages, ["first queued"]);
     release();
     await prompt;
@@ -303,7 +323,7 @@ test("runtime pop removes matching Pi steering queue entries", async () => {
     await runtime.prompt("s1", "first queued");
     await runtime.prompt("s1", "second queued");
 
-    assert.equal(runtime.popPendingMessage("s1"), "second queued");
+    assert.equal(runtime.popPendingMessage("s1", "steering"), "second queued");
     assert.deepEqual(tab.pendingMessages, ["first queued"]);
     assert.equal(runtimeTab.queuedPromptCount, 1);
     assert.deepEqual([...runtimeTab.agentSession.getSteeringMessages()], ["first queued"]);
@@ -315,8 +335,8 @@ test("runtime pop removes matching Pi steering queue entries", async () => {
   }
 });
 
-test("runtime pop prefers follow-up over steer (Ctrl+U edit order)", async () => {
-  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-queue-pop-prefer-follow-up-"));
+test("runtime pop removes only the explicitly selected queue", async () => {
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-runtime-queue-pop-selected-"));
   const { runtime, release, model } = createBlockedQueueRuntime(dir);
   try {
     const tab = createTab(1, "s1", process.cwd());
@@ -330,19 +350,22 @@ test("runtime pop prefers follow-up over steer (Ctrl+U edit order)", async () =>
     await runtime.prompt("s1", "steer queued");
     await runtimeTab.agentSession.followUp("follow-up from extension");
 
-    // Ctrl+U edits the more-deferred follow-up first; steer stays queued.
-    assert.equal(runtime.popPendingMessage("s1"), "follow-up from extension");
-    assert.deepEqual(tab.pendingFollowUps, []);
-    assert.equal(runtimeTab.queuedFollowUpCount, 0);
-    assert.deepEqual([...runtimeTab.agentSession.getFollowUpMessages()], []);
-    assert.deepEqual(tab.pendingMessages, ["steer queued"]);
-    assert.equal(runtimeTab.queuedPromptCount, 1);
-    assert.deepEqual([...runtimeTab.agentSession.getSteeringMessages()], ["steer queued"]);
-
-    assert.equal(runtime.popPendingMessage("s1"), "steer queued");
+    assert.equal(runtime.popPendingMessage("s1", "steering"), "steer queued");
     assert.deepEqual(tab.pendingMessages, []);
     assert.equal(runtimeTab.queuedPromptCount, 0);
     assert.deepEqual([...runtimeTab.agentSession.getSteeringMessages()], []);
+    assert.deepEqual(tab.pendingFollowUps, ["follow-up from extension"]);
+    assert.equal(runtimeTab.queuedFollowUpCount, 1);
+    assert.deepEqual([...runtimeTab.agentSession.getFollowUpMessages()], ["follow-up from extension"]);
+
+    assert.equal(runtime.popPendingMessage("s1", "steering"), undefined);
+    assert.deepEqual(tab.pendingFollowUps, ["follow-up from extension"]);
+    assert.deepEqual([...runtimeTab.agentSession.getFollowUpMessages()], ["follow-up from extension"]);
+
+    assert.equal(runtime.popPendingMessage("s1", "followUp"), "follow-up from extension");
+    assert.deepEqual(tab.pendingFollowUps, []);
+    assert.equal(runtimeTab.queuedFollowUpCount, 0);
+    assert.deepEqual([...runtimeTab.agentSession.getFollowUpMessages()], []);
 
     release();
     await prompt;
@@ -370,7 +393,10 @@ test("runtime consecutive pops remove every returned steering message", async ()
     await runtime.prompt("s1", "third queued");
 
     assert.deepEqual(
-      [runtime.popPendingMessage("s1"), runtime.popPendingMessage("s1")],
+      [
+        runtime.popPendingMessage("s1", "steering"),
+        runtime.popPendingMessage("s1", "steering"),
+      ],
       ["third queued", "second queued"],
     );
     await new Promise<void>((resolve) => setImmediate(resolve));
@@ -410,7 +436,7 @@ test("runtime pop tolerates agent queue already drained for a tracked steer", as
     assert.equal(session.agent.steeringQueue.messages.length, 1);
     session.agent.steeringQueue.messages.splice(0); // simulate drain before message_start
 
-    assert.equal(runtime.popPendingMessage("s1"), "already drained");
+    assert.equal(runtime.popPendingMessage("s1", "steering"), "already drained");
     assert.deepEqual(tab.pendingMessages, []);
     assert.deepEqual(session._steeringMessages, []);
     assert.deepEqual(session.agent.steeringQueue.messages, []);
@@ -446,7 +472,7 @@ test("runtime pop preserves an unrelated custom follow-up", async () => {
     );
 
     assert.equal(runtimeTab.agentSession.agent.hasQueuedMessages(), true);
-    assert.equal(runtime.popPendingMessage("s1"), "edit me");
+    assert.equal(runtime.popPendingMessage("s1", "steering"), "edit me");
     assert.deepEqual([...runtimeTab.agentSession.getSteeringMessages()], []);
     assert.equal(runtimeTab.agentSession.agent.hasQueuedMessages(), true);
   } finally {

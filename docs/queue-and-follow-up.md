@@ -34,7 +34,17 @@ User Submits Message While Agent Is Running
 | Command / Trigger | Regular Prompt (while running) | `/follow-up <text>` |
 | Ingestion Point | Mid-turn context injection | Fresh user prompt turn after `waitForIdle` |
 | Interruption Behavior (`Esc`) | Flushes to start turn immediately | Preserved across turns and aborts |
-| Dequeue Key | `Ctrl+U` (pops newest back into editor) | `Ctrl+U` (pops newest back into editor) |
+| Dequeue Key | `Ctrl+U` when Follow-up is empty; `Ctrl+U,S` when both queues contain messages | `Ctrl+U` when Steer is empty; `Ctrl+U,F` when both queues contain messages |
+
+### Editing Queued Messages
+
+`Ctrl+U` uses the visible queue state:
+
+- Exactly one non-empty queue: pops its newest message directly into the editor.
+- Both queues non-empty: arms a one-second choice without changing either queue. Press `S` for Steer, `F` for Follow-up, or `Esc` to cancel.
+- Both queues empty: arms Vim entry; press `u` or `Ctrl+U` within one second.
+
+A queue choice never falls back to the other queue if the selected queue becomes empty before confirmation.
 
 ## Concurrency Protection (`dispatchTurn`)
 
@@ -51,5 +61,6 @@ dispatchTurn(tab, send)
 ## TUI Queue Rendering
 
 Queued items render directly above the prompt editor in distinctive themed borders:
-- `┌ Steer ─┐`: Displays queued steering messages with `Esc->send now` and `Ctrl+U->edit` hints.
-- `┌ Follow-up ─┐`: Displays pending next-turn follow-ups.
+- With one non-empty queue, its edit hint is `Ctrl+U->edit`.
+- With both queues non-empty, Steer shows `Ctrl+U,S->edit` and Follow-up shows `Ctrl+U,F->edit`.
+- Steer also shows `Esc->send now`; Follow-up does not because it survives interruption.
