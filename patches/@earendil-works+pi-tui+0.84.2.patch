@@ -5,7 +5,8 @@ index 50b5aeb..db86cd2 100644
 @@ -28,4 +28,6 @@ export { type Component, Container, CURSOR_MARKER, compositeTuiLine, type Focusa
  export { TuiAltScreen, type TuiAltScreenOptions } from "./tui-alt-screen.ts";
  export { TuiMainScreen, type TuiMainScreenRenderState } from "./tui-main-screen.ts";
- export { getOsc8LinkAtColumn, sliceByColumn, stripTerminalSequences, truncateToWidth, visibleWidth, wrapTextWithAnsi, } from "./utils.ts";
+-export { getOsc8LinkAtColumn, sliceByColumn, stripTerminalSequences, truncateToWidth, visibleWidth, wrapTextWithAnsi, } from "./utils.ts";
++export { getGraphemeCellRange, getOsc8LinkAtColumn, sliceByColumn, stripTerminalSequences, truncateToWidth, visibleWidth, wrapTextWithAnsi, } from "./utils.ts";
 +export { type AltScreenSearchMatch, type AltScreenSearchSegment, findAltScreenSearchMatches, getAltScreenSearchMatchKey, } from "./alt-screen-search.ts";
 +export { resolveOverlayLayout } from "./tui.ts";
  //# sourceMappingURL=index.d.ts.map
@@ -17,7 +18,8 @@ index 97acf77..75d25d1 100644
 @@ -39,4 +39,7 @@ export { TuiAltScreen } from "./tui-alt-screen.js";
  export { TuiMainScreen } from "./tui-main-screen.js";
  // Utilities
- export { getOsc8LinkAtColumn, sliceByColumn, stripTerminalSequences, truncateToWidth, visibleWidth, wrapTextWithAnsi, } from "./utils.js";
+-export { getOsc8LinkAtColumn, sliceByColumn, stripTerminalSequences, truncateToWidth, visibleWidth, wrapTextWithAnsi, } from "./utils.js";
++export { getGraphemeCellRange, getOsc8LinkAtColumn, sliceByColumn, stripTerminalSequences, truncateToWidth, visibleWidth, wrapTextWithAnsi, } from "./utils.js";
 +// MIXCODE_EXPORTS: upstream helpers surfaced for the MixCode host.
 +export { findAltScreenSearchMatches, getAltScreenSearchMatchKey } from "./alt-screen-search.js";
 +export { resolveOverlayLayout } from "./tui.js";

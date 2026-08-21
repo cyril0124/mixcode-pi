@@ -1,4 +1,9 @@
-import { sliceByColumn, stripTerminalSequences, visibleWidth } from "@earendil-works/pi-tui";
+import {
+  getGraphemeCellRange,
+  sliceByColumn,
+  stripTerminalSequences,
+  visibleWidth,
+} from "@earendil-works/pi-tui";
 
 export interface ChatSurfaceBounds {
   top: number;
@@ -119,15 +124,49 @@ export function isCollapsedChatSelection(selection: ChatSelectionState): boolean
   return selection.anchor.row === selection.focus.row && selection.anchor.col === selection.focus.col;
 }
 
+/** Visible [start, end) for `row`, snapped to grapheme cells like Pi TuiAltScreen.getSelectionColumns. */
+function chatSelectionColumns(
+  line: string,
+  row: number,
+  selection: ChatSelectionState,
+): { start: number; end: number } | undefined {
+  const normalized = normalizeChatSelection(selection);
+  if (row < normalized.start.row || row > normalized.end.row) return undefined;
+  const lineWidth = visibleWidth(line);
+  let start = 0;
+  let end = lineWidth;
+  if (row === normalized.start.row) {
+    start =
+      getGraphemeCellRange(line, normalized.start.col)?.start ??
+      Math.min(normalized.start.col, lineWidth);
+  }
+  if (row === normalized.end.row) {
+    end =
+      getGraphemeCellRange(line, normalized.end.col)?.end ??
+      Math.min(normalized.end.col + 1, lineWidth);
+  }
+  start = Math.max(0, start);
+  end = Math.min(lineWidth, end);
+  if (end <= start) return undefined;
+  return { start, end };
+}
+
 export function selectedChatText(lines: string[], selection: ChatSelectionState): string {
   if (isCollapsedChatSelection(selection)) return "";
   const normalized = normalizeChatSelection(selection);
   const parts: string[] = [];
   for (let row = normalized.start.row; row <= normalized.end.row; row++) {
-    const text = stripTerminalSequences(lines[row] ?? "").trimEnd();
-    const startCol = row === normalized.start.row ? normalized.start.col : 0;
-    const endCol = row === normalized.end.row ? normalized.end.col : visibleWidth(text);
-    parts.push(sliceByColumn(text, startCol, Math.max(0, endCol - startCol), true));
+    const line = lines[row] ?? "";
+    const columns = chatSelectionColumns(line, row, selection);
+    if (!columns) {
+      parts.push("");
+      continue;
+    }
+    parts.push(
+      stripTerminalSequences(
+        sliceByColumn(line, columns.start, columns.end - columns.start, true),
+      ).trimEnd(),
+    );
   }
   return parts.join("\n").replace(/[ \t]+$/gm, "");
 }
@@ -175,18 +214,30 @@ export function highlightChatSelectionLine(
   highlight: (text: string) => string,
 ): string {
   if (!selection || isCollapsedChatSelection(selection)) return line;
-  const normalized = normalizeChatSelection(selection);
-  if (row < normalized.start.row || row > normalized.end.row) return line;
-  const plain = stripTerminalSequences(line);
-  const lineWidth = visibleWidth(plain);
-  const startCol = row === normalized.start.row ? normalized.start.col : 0;
-  const endCol = row === normalized.end.row ? normalized.end.col : lineWidth;
-  if (endCol <= startCol) return line;
-  const before = sliceByColumn(plain, 0, startCol, true);
-  const selected = sliceByColumn(plain, startCol, endCol - startCol, true);
-  const after = sliceByColumn(plain, endCol, Math.max(0, lineWidth - endCol), true);
+  const columns = chatSelectionColumns(line, row, selection);
+  if (!columns) return line;
+  const lineWidth = visibleWidth(line);
+  const before = sliceByColumn(line, 0, columns.start, true);
+  const selected = sliceByColumn(line, columns.start, columns.end - columns.start, true);
+  const after = sliceByColumn(line, columns.end, Math.max(0, lineWidth - columns.end), true);
   if (!selected) return line;
-  return `${before}${highlight(selected)}${after}`;
+  return `${before}${applyChatSelectionHighlight(selected, highlight)}${after}`;
+}
+
+/** Re-apply selection after every SGR so tool/thinking block backgrounds cannot paint over it. */
+function applyChatSelectionHighlight(
+  text: string,
+  highlight: (text: string) => string,
+): string {
+  const open = highlightOpen(highlight);
+  if (!open || !text.includes("\x1b")) return highlight(text);
+  return highlight(text.replace(/\x1b\[[0-9;:]*m/g, (sequence) => `${sequence}${open}`));
+}
+
+function highlightOpen(highlight: (text: string) => string): string {
+  const marked = highlight("\x01");
+  const index = marked.indexOf("\x01");
+  return index > 0 ? marked.slice(0, index) : "";
 }
 
 function normalizeInputSelectionLine(line: string): string | undefined {
