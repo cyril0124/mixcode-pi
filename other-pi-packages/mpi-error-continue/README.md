@@ -1,17 +1,63 @@
 # mpi-error-continue
 
-When an agent turn **settles on `stopReason: "error"`** (Pi built-in auto-retry did not recover) or **settles with an empty response** (no text, thinking, or tool calls — the "Agent finished without a response." case), automatically:
+Automatically resumes an agent that stopped without finishing. Every continue is gated by a
+countdown confirmation dialog, so the user can always cancel before anything is sent.
 
-1. Up to **3 invisible continues** (hidden custom marker, filtered from LLM context), with exponential backoff `1s / 2s / 4s`
-2. Then up to **3 visible** `continue` user prompts, same backoff
-3. Status bar: `error-continue: on (N)` cumulative sends this session
+## Triggers
 
-Additionally, when a turn **settles without an error** but the last assistant message ends in a
-**thinking block or a tool call** (agent stopped mid-work), it immediately sends one visible user
-message `continue $simple-plan` so the simple-plan skill is loaded on resume. One send per stop;
-the error flow above is unaffected. User-initiated aborts (`stopReason: "aborted"` or
-`ctx.signal.aborted`) never trigger continues, even if the last assistant still looks like
-mid-work (`thinking` / `toolCall` with a non-`aborted` stopReason).
+| Settle condition | Flow |
+|---|---|
+| `stopReason: "error"` (Pi built-in auto-retry did not recover) | error backoff |
+| Empty response — no text, thinking, or tool calls (the "Agent finished without a response." case) | error backoff |
+| Non-error stop whose last assistant block is a `thinking` block or a `toolCall` (agent stopped mid-work) | mid-work |
+
+User-initiated aborts (`stopReason: "aborted"` or `ctx.signal.aborted` at `agent_end`) never
+trigger continues, even if the last assistant still looks like mid-work.
+
+## Error backoff
+
+Up to **3 invisible continues** (hidden custom marker, filtered out of LLM context), then up to
+**5 visible** `continue` user prompts. Status bar shows `error-continue: on (N)`, the cumulative
+number of continues sent this session.
+
+## Mid-work
+
+Sends one visible `continue $simple-plan` so the simple-plan skill is loaded on resume. One send
+per stop; phase counters are not involved.
+
+## Confirmation dialog
+
+Each continue shows a confirm dialog before sending:
+
+| Action | Result |
+|---|---|
+| Timeout (no key pressed) | Send the continue — unattended recovery is unchanged |
+| `Yes` | Send immediately, skipping the rest of the countdown |
+| `Esc` or `No` | Cancel. Error backoff: reset the phase counters and stop this retry loop. Mid-work: skip this one send |
+
+Cancelling never disables the extension: the status bar keeps `error-continue: on (N)`, `N` is not
+incremented, and the next settle that qualifies starts a fresh phase at invisible 1/3. Use
+`/error-continue off` to disable it for the session.
+
+The dialog is the only Esc-reachable surface for this wait. By the time `agent_settled` fires, the
+host has already marked the tab idle, so its Esc-abort path does not apply, and the host consumes
+Esc before extension shortcut dispatch.
+
+### Wait duration
+
+`max(exponential backoff, 5s)` — the dialog timeout doubles as the retry backoff, and a 1s dialog
+is not clickable.
+
+| Attempt | 1 | 2 | 3 | 4 | 5 |
+|---|---|---|---|---|---|
+| invisible | 5s | 5s | 5s | — | — |
+| visible | 5s | 5s | 5s | 8s | 16s |
+
+Mid-work uses a fixed 5s.
+
+When `ctx.hasUI` is false (print mode `-p`, JSON mode) no dialog is shown: the wait is a plain
+timer and the continue is sent on elapse. Nobody can press Esc there, and the no-op UI context
+resolves `confirm()` to `false`, which would otherwise be misread as a cancel.
 
 ## Commands
 

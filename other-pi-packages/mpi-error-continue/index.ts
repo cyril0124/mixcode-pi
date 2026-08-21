@@ -10,13 +10,31 @@ export const MIDWORK_CONTINUE_TEXT = "continue $simple-plan";
 export const STATUS_KEY = "error-continue";
 export const STATUS_PREFIX = "error-continue: on";
 export const COMMAND_NAME = "error-continue";
+/** Floor for the cancellable confirm window: a 1s dialog is not clickable. */
+export const MIN_CONFIRM_MS = 5000;
 
 const STATE_VERSION = 1;
 
-export type SleepFn = (ms: number, signal: AbortSignal) => Promise<void>;
+/**
+ * Outcome of one pre-send wait.
+ * - "continue": timed out, or the user accepted -> send the continue.
+ * - "cancel": the user dismissed the dialog (Esc / "No") -> stop this retry loop.
+ * - "aborted": an external signal fired (shutdown, real user message,
+ *   /error-continue on|off) -> send nothing and stay silent.
+ */
+export type ContinueDecision = "continue" | "cancel" | "aborted";
+
+export type ContinueGate = (params: {
+  ctx: ExtensionContext;
+  title: string;
+  message: string;
+  delayMs: number;
+  /** External cancel: shutdown, a real user message, or /error-continue on|off. */
+  signal: AbortSignal;
+}) => Promise<ContinueDecision>;
 
 export type ErrorContinueOptions = {
-  sleep?: SleepFn;
+  gate?: ContinueGate;
 };
 
 type AssistantMessageLike = {
@@ -35,6 +53,16 @@ type StateEvent = {
 /** Phase-local exponential backoff: base * 2^attemptIndex0 → 1s / 2s / 4s. */
 export function delayForAttempt(attemptIndex0: number, baseDelayMs = BASE_DELAY_MS): number {
   return baseDelayMs * 2 ** attemptIndex0;
+}
+
+/**
+ * Backoff raised to a floor the user can actually react to. The dialog timeout
+ * doubles as the retry backoff, so the raw 1s/2s attempts would flash past
+ * before Esc is reachable. Growth is preserved where it already exceeds the
+ * floor (8s / 16s).
+ */
+export function confirmDelayForAttempt(attemptIndex0: number): number {
+  return Math.max(delayForAttempt(attemptIndex0), MIN_CONFIRM_MS);
 }
 
 /** Latest state entry wins; no entry → enabled (default on). */
@@ -111,37 +139,69 @@ function isVisibleContinueUserMessage(message: { content?: unknown }): boolean {
   return text.trim() === VISIBLE_CONTINUE_TEXT;
 }
 
-export class SleepAbortError extends Error {
-  constructor() {
-    super("Aborted");
-    this.name = "SleepAbortError";
-  }
-}
-
-function isSleepAbort(error: unknown): boolean {
-  return error instanceof SleepAbortError || (error instanceof Error && error.name === "SleepAbortError");
-}
-
-export function defaultSleep(ms: number, signal: AbortSignal): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (signal.aborted) {
-      reject(new SleepAbortError());
-      return;
-    }
-    const timer = setTimeout(() => {
-      signal.removeEventListener("abort", onAbort);
-      resolve();
-    }, ms);
+/** Resolves true when the delay elapsed, false when `signal` aborted first. */
+function waitFor(ms: number, signal: AbortSignal): Promise<boolean> {
+  if (signal.aborted) return Promise.resolve(false);
+  return new Promise((resolve) => {
     const onAbort = () => {
       clearTimeout(timer);
-      reject(new SleepAbortError());
+      resolve(false);
     };
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve(true);
+    }, ms);
     signal.addEventListener("abort", onAbort, { once: true });
   });
 }
 
+/**
+ * Default gate: a countdown confirm dialog the user can dismiss with Esc.
+ *
+ * The dialog is the only Esc-reachable surface here. By the time `agent_settled`
+ * fires, Pi has already cleared its run flag and MixCode has set the tab to
+ * idle, so the host's Esc-abort branch does not apply and a plain timer would be
+ * uncancellable. Extension shortcuts do not help either: the host consumes Esc
+ * before extension shortcut dispatch.
+ *
+ * `confirm()` resolves false for all three of timeout, Esc, and "No", so
+ * `timedOut` and the external `signal` are what tell them apart.
+ */
+export const confirmContinueGate: ContinueGate = async ({
+  ctx,
+  title,
+  message,
+  delayMs,
+  signal,
+}) => {
+  if (signal.aborted) return "aborted";
+
+  // No dialog surface (print / JSON mode): nobody can press Esc, so just wait.
+  // Calling confirm() here would hit the no-op UI context, which resolves false
+  // and would be misread as a user cancel, silently killing auto-recovery.
+  if (!ctx.hasUI) return (await waitFor(delayMs, signal)) ? "continue" : "aborted";
+
+  const dismiss = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    dismiss.abort();
+  }, delayMs);
+  const forwardAbort = () => dismiss.abort();
+  signal.addEventListener("abort", forwardAbort, { once: true });
+  try {
+    const answer = await ctx.ui.confirm(title, message, { signal: dismiss.signal });
+    if (signal.aborted) return "aborted";
+    if (timedOut || answer) return "continue";
+    return "cancel";
+  } finally {
+    clearTimeout(timer);
+    signal.removeEventListener("abort", forwardAbort);
+  }
+};
+
 export function createErrorContinueExtension(options: ErrorContinueOptions = {}) {
-  const sleep = options.sleep ?? defaultSleep;
+  const gate = options.gate ?? confirmContinueGate;
 
   return function errorContinue(pi: ExtensionAPI): void {
     // Default on until /error-continue off or a session branch state entry says otherwise.
@@ -152,7 +212,7 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
     let visibleUsed = 0;
     let retryCount = 0;
     let pendingAutoContinue = false;
-    let sleepAbort: AbortController | undefined;
+    let waitAbort: AbortController | undefined;
     let inFlight = false;
 
     const clearPhaseCounters = () => {
@@ -160,9 +220,27 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
       visibleUsed = 0;
     };
 
-    const abortSleep = () => {
-      sleepAbort?.abort();
-      sleepAbort = undefined;
+    const abortWait = () => {
+      waitAbort?.abort();
+      waitAbort = undefined;
+    };
+
+    /** Own the wait window so external aborts (shutdown, user input) can cut it short. */
+    const runGate = async (
+      ctx: ExtensionContext,
+      title: string,
+      message: string,
+      delayMs: number,
+    ): Promise<ContinueDecision> => {
+      inFlight = true;
+      waitAbort = new AbortController();
+      const signal = waitAbort.signal;
+      try {
+        return await gate({ ctx, title, message, delayMs, signal });
+      } finally {
+        inFlight = false;
+        if (waitAbort?.signal === signal) waitAbort = undefined;
+      }
     };
 
     const syncStatus = (ctx: {
@@ -205,7 +283,7 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
           retryArmed = false;
           midWorkArmed = false;
           pendingAutoContinue = false;
-          abortSleep();
+          abortWait();
           persistEnabled(true);
           syncStatus(ctx);
           ctx.ui.notify("Error continue enabled for this session.", "info");
@@ -216,7 +294,7 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
           retryArmed = false;
           midWorkArmed = false;
           pendingAutoContinue = false;
-          abortSleep();
+          abortWait();
           persistEnabled(false);
           syncStatus(ctx);
           ctx.ui.notify("Error continue disabled for this session.", "info");
@@ -242,7 +320,7 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
       retryArmed = false;
       midWorkArmed = false;
       clearPhaseCounters();
-      abortSleep();
+      abortWait();
     });
 
     // Arm only from agent_end; fire on agent_settled so Pi auto-retry/compact finish first.
@@ -253,7 +331,7 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
         retryArmed = false;
         midWorkArmed = false;
         pendingAutoContinue = false;
-        abortSleep();
+        abortWait();
         if (ctx.signal?.aborted) clearPhaseCounters();
         return;
       }
@@ -281,7 +359,17 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
 
       if (midWorkArmed) {
         midWorkArmed = false;
-        ctx.ui.notify("Agent stopped mid-work; queued continue $simple-plan.", "info");
+        const decision = await runGate(
+          ctx,
+          "Agent stopped mid-work",
+          `Send "${MIDWORK_CONTINUE_TEXT}"? Esc cancels.`,
+          MIN_CONFIRM_MS,
+        );
+        if (decision === "aborted") return;
+        if (decision === "cancel") {
+          ctx.ui.notify("Mid-work continue cancelled.", "info");
+          return;
+        }
         pi.sendUserMessage(MIDWORK_CONTINUE_TEXT, { deliverAs: "followUp" });
         noteRetry(ctx);
         return;
@@ -290,69 +378,58 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
       if (!retryArmed) return;
       retryArmed = false;
 
+      // Cancel stops this backoff loop only: counters reset so the next real
+      // error starts a fresh phase, and the extension stays enabled.
+      const onCancel = () => {
+        clearPhaseCounters();
+        ctx.ui.notify("Error continue cancelled; this retry loop is stopped.", "info");
+      };
+
       if (invisibleUsed < MAX_INVISIBLE) {
         const attempt = invisibleUsed + 1;
-        const delayMs = delayForAttempt(invisibleUsed);
+        const delayMs = confirmDelayForAttempt(invisibleUsed);
         invisibleUsed++;
-        inFlight = true;
-        abortSleep();
-        sleepAbort = new AbortController();
-        const signal = sleepAbort.signal;
-        try {
-          ctx.ui.notify(
-            `No response; invisible continue ${attempt}/${MAX_INVISIBLE} after ${delayMs}ms.`,
-            "warning",
-          );
-          await sleep(delayMs, signal);
-          if (signal.aborted) return;
-          pi.sendMessage(
-            {
-              customType: RESUME_CUSTOM_TYPE,
-              content: [],
-              display: false,
-              details: {
-                phase: "invisible",
-                attempt,
-                maxAttempts: MAX_INVISIBLE,
-                delayMs,
-              },
+        const decision = await runGate(
+          ctx,
+          `No response — invisible continue ${attempt}/${MAX_INVISIBLE}`,
+          "Resume the agent? Esc stops this retry loop.",
+          delayMs,
+        );
+        if (decision === "aborted") return;
+        if (decision === "cancel") return onCancel();
+        pi.sendMessage(
+          {
+            customType: RESUME_CUSTOM_TYPE,
+            content: [],
+            display: false,
+            details: {
+              phase: "invisible",
+              attempt,
+              maxAttempts: MAX_INVISIBLE,
+              delayMs,
             },
-            { triggerTurn: true, deliverAs: "followUp" },
-          );
-          noteRetry(ctx);
-        } catch (error) {
-          if (!isSleepAbort(error)) throw error;
-        } finally {
-          inFlight = false;
-          if (sleepAbort?.signal === signal) sleepAbort = undefined;
-        }
+          },
+          { triggerTurn: true, deliverAs: "followUp" },
+        );
+        noteRetry(ctx);
         return;
       }
 
       if (visibleUsed < MAX_VISIBLE) {
         const attempt = visibleUsed + 1;
-        const delayMs = delayForAttempt(visibleUsed);
+        const delayMs = confirmDelayForAttempt(visibleUsed);
         visibleUsed++;
-        inFlight = true;
-        abortSleep();
-        sleepAbort = new AbortController();
-        const signal = sleepAbort.signal;
-        try {
-          ctx.ui.notify(
-            `No response; visible continue ${attempt}/${MAX_VISIBLE} after ${delayMs}ms.`,
-            "warning",
-          );
-          await sleep(delayMs, signal);
-          if (signal.aborted) return;
-          pendingAutoContinue = true;
-          pi.sendUserMessage(VISIBLE_CONTINUE_TEXT, { deliverAs: "followUp" });
-          noteRetry(ctx);
-        } catch (error) {
-          if (!isSleepAbort(error)) throw error;
-        } finally {
-          inFlight = false;
-          if (sleepAbort?.signal === signal) sleepAbort = undefined;
-        }
+        const decision = await runGate(
+          ctx,
+          `No response — visible continue ${attempt}/${MAX_VISIBLE}`,
+          `Send "${VISIBLE_CONTINUE_TEXT}"? Esc stops this retry loop.`,
+          delayMs,
+        );
+        if (decision === "aborted") return;
+        if (decision === "cancel") return onCancel();
+        pendingAutoContinue = true;
+        pi.sendUserMessage(VISIBLE_CONTINUE_TEXT, { deliverAs: "followUp" });
+        noteRetry(ctx);
         return;
       }
 
@@ -369,7 +446,7 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
       pendingAutoContinue = false;
       retryCount = 0;
       clearPhaseCounters();
-      abortSleep();
+      abortWait();
       inFlight = false;
       syncStatus(ctx);
     });
@@ -379,7 +456,7 @@ export function createErrorContinueExtension(options: ErrorContinueOptions = {})
       midWorkArmed = false;
       pendingAutoContinue = false;
       clearPhaseCounters();
-      abortSleep();
+      abortWait();
       inFlight = false;
       clearStatus(ctx);
     });

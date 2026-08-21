@@ -2,8 +2,11 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
-  BASE_DELAY_MS,
   COMMAND_NAME,
+  confirmContinueGate,
+  confirmDelayForAttempt,
+  type ContinueDecision,
+  type ContinueGate,
   createErrorContinueExtension,
   delayForAttempt,
   endsWithThinkingOrToolCall,
@@ -13,6 +16,7 @@ import {
   MAX_INVISIBLE,
   MAX_VISIBLE,
   MIDWORK_CONTINUE_TEXT,
+  MIN_CONFIRM_MS,
   readEnabledFromBranch,
   RESUME_CUSTOM_TYPE,
   STATE_CUSTOM_TYPE,
@@ -25,7 +29,7 @@ type Handler = (event: any, ctx: ExtensionContext) => unknown;
 
 function createHarness(
   options?: {
-    sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
+    gate?: ContinueGate;
     initialBranch?: unknown[];
   },
 ) {
@@ -69,13 +73,13 @@ function createHarness(
     registerCommand: (name: string, command: any) => commands.set(name, command),
   } as unknown as ExtensionAPI;
 
-  const sleep =
-    options?.sleep ??
-    (async (ms: number, _signal: AbortSignal) => {
-      delays.push(ms);
-    });
+  // Default gate stands in for "dialog timed out": record the window, continue.
+  const gate: ContinueGate = async (params) => {
+    delays.push(params.delayMs);
+    return options?.gate ? await options.gate(params) : "continue";
+  };
 
-  createErrorContinueExtension({ sleep })(pi);
+  createErrorContinueExtension({ gate })(pi);
 
   return {
     commands,
@@ -171,6 +175,13 @@ test("delayForAttempt uses exponential backoff from base", () => {
   assert.equal(delayForAttempt(0, 500), 500);
 });
 
+test("confirmDelayForAttempt floors short backoffs but keeps the long ones", () => {
+  assert.equal(confirmDelayForAttempt(0), MIN_CONFIRM_MS);
+  assert.equal(confirmDelayForAttempt(2), MIN_CONFIRM_MS);
+  assert.equal(confirmDelayForAttempt(3), 8000);
+  assert.equal(confirmDelayForAttempt(4), 16000);
+});
+
 test("lastAssistant and isResumeMarker helpers", () => {
   assert.equal(lastAssistant([]), undefined);
   assert.equal(lastAssistant([{ role: "user" }, assistantError()])?.stopReason, "error");
@@ -205,7 +216,7 @@ test("session_start shows status (0); shutdown clears it", async () => {
   });
 });
 
-test("error settle sends one invisible continue with base delay and status (1)", async () => {
+test("error settle sends one invisible continue with confirm window and status (1)", async () => {
   const harness = createHarness();
   await harness.emit("session_start");
   await errorSettle(harness);
@@ -215,7 +226,7 @@ test("error settle sends one invisible continue with base delay and status (1)",
   assert.equal(harness.sent[0]?.payload.customType, RESUME_CUSTOM_TYPE);
   assert.equal(harness.sent[0]?.payload.display, false);
   assert.deepEqual(harness.sent[0]?.options, { triggerTurn: true, deliverAs: "followUp" });
-  assert.deepEqual(harness.delays, [BASE_DELAY_MS]);
+  assert.deepEqual(harness.delays, [MIN_CONFIRM_MS]);
   assert.deepEqual(harness.statuses.at(-1), {
     key: STATUS_KEY,
     text: `${STATUS_PREFIX} (1)`,
@@ -231,14 +242,14 @@ test("three invisible continues use progressive delays then switch to visible", 
   }
   assert.equal(harness.sent.length, MAX_INVISIBLE);
   assert.ok(harness.sent.every((item) => item.kind === "message"));
-  assert.deepEqual(harness.delays, [1000, 2000, 4000]);
+  assert.deepEqual(harness.delays, [5000, 5000, 5000]);
 
   await errorSettle(harness, "err-vis-0");
   assert.equal(harness.sent.length, MAX_INVISIBLE + 1);
   assert.equal(harness.sent.at(-1)?.kind, "user");
   assert.equal(harness.sent.at(-1)?.payload, VISIBLE_CONTINUE_TEXT);
   assert.deepEqual(harness.sent.at(-1)?.options, { deliverAs: "followUp" });
-  assert.deepEqual(harness.delays, [1000, 2000, 4000, 1000]);
+  assert.deepEqual(harness.delays, [5000, 5000, 5000, 5000]);
 });
 
 test("MAX_INVISIBLE + MAX_VISIBLE error settles send all continues; extra sends nothing", async () => {
@@ -251,7 +262,7 @@ test("MAX_INVISIBLE + MAX_VISIBLE error settles send all continues; extra sends 
   assert.equal(harness.sent.length, MAX_INVISIBLE + MAX_VISIBLE);
   assert.equal(harness.sent.filter((s) => s.kind === "message").length, MAX_INVISIBLE);
   assert.equal(harness.sent.filter((s) => s.kind === "user").length, MAX_VISIBLE);
-  assert.deepEqual(harness.delays, [1000, 2000, 4000, 1000, 2000, 4000, 8000, 16000]);
+  assert.deepEqual(harness.delays, [5000, 5000, 5000, 5000, 5000, 5000, 8000, 16000]);
   assert.deepEqual(harness.statuses.at(-1), {
     key: STATUS_KEY,
     text: `${STATUS_PREFIX} (${MAX_INVISIBLE + MAX_VISIBLE})`,
@@ -281,7 +292,7 @@ test("successful settle resets phase counters but keeps cumulative status count"
     key: STATUS_KEY,
     text: `${STATUS_PREFIX} (2)`,
   });
-  assert.deepEqual(harness.delays, [1000, 1000]);
+  assert.deepEqual(harness.delays, [5000, 5000]);
 });
 
 test("endsWithThinkingOrToolCall helper", () => {
@@ -341,7 +352,7 @@ test("user abort resets phase counters but keeps session retry count", async () 
   const harness = createHarness();
   await harness.emit("session_start");
   await errorSettle(harness);
-  assert.deepEqual(harness.delays, [BASE_DELAY_MS]);
+  assert.deepEqual(harness.delays, [MIN_CONFIRM_MS]);
   assert.deepEqual(harness.statuses.at(-1), {
     key: STATUS_KEY,
     text: `${STATUS_PREFIX} (1)`,
@@ -355,7 +366,7 @@ test("user abort resets phase counters but keeps session retry count", async () 
   harness.resetSignal();
   await errorSettle(harness, "after-abort");
   assert.equal(harness.sent.length, 2);
-  assert.deepEqual(harness.delays, [BASE_DELAY_MS, BASE_DELAY_MS]);
+  assert.deepEqual(harness.delays, [MIN_CONFIRM_MS, MIN_CONFIRM_MS]);
   assert.deepEqual(harness.statuses.at(-1), {
     key: STATUS_KEY,
     text: `${STATUS_PREFIX} (2)`,
@@ -384,7 +395,7 @@ test("empty response settle (stop, no content) sends invisible continue", async 
   assert.equal(harness.sent.length, 1);
   assert.equal(harness.sent[0]?.kind, "message");
   assert.equal(harness.sent[0]?.payload.customType, RESUME_CUSTOM_TYPE);
-  assert.deepEqual(harness.delays, [BASE_DELAY_MS]);
+  assert.deepEqual(harness.delays, [MIN_CONFIRM_MS]);
   assert.deepEqual(harness.statuses.at(-1), {
     key: STATUS_KEY,
     text: `${STATUS_PREFIX} (1)`,
@@ -419,7 +430,7 @@ test("empty settles escalate from invisible to visible continues", async () => {
   assert.equal(harness.sent.length, MAX_INVISIBLE + 1);
   assert.equal(harness.sent.at(-1)?.kind, "user");
   assert.equal(harness.sent.at(-1)?.payload, VISIBLE_CONTINUE_TEXT);
-  assert.deepEqual(harness.delays, [1000, 2000, 4000, 1000]);
+  assert.deepEqual(harness.delays, [5000, 5000, 5000, 5000]);
 });
 
 test("mid-work stop ending in thinking sends continue $simple-plan", async () => {
@@ -589,32 +600,24 @@ test("off overwrites state so later resume stays off", async () => {
   assert.deepEqual(resumed.statuses.at(-1), { key: STATUS_KEY, text: undefined });
 });
 
-test("shutdown aborts in-flight sleep and does not send", async () => {
-  let resolveStarted: (() => void) | undefined;
-  const started = new Promise<void>((resolve) => {
-    resolveStarted = resolve;
-  });
+test("shutdown aborts the in-flight wait and does not send", async () => {
+  const { promise: started, resolve: markStarted } = Promise.withResolvers<void>();
 
   const harness = createHarness({
-    sleep: (_ms, signal) =>
-      new Promise((_resolve, reject) => {
-        resolveStarted?.();
-        const onAbort = () => {
-          const err = new Error("Aborted");
-          err.name = "SleepAbortError";
-          reject(err);
-        };
+    gate: ({ signal }) =>
+      new Promise<ContinueDecision>((resolve) => {
+        markStarted();
         if (signal.aborted) {
-          onAbort();
+          resolve("aborted");
           return;
         }
-        signal.addEventListener("abort", onAbort, { once: true });
+        signal.addEventListener("abort", () => resolve("aborted"), { once: true });
       }),
   });
 
   await harness.emit("session_start");
 
-  const settlePromise = errorSettle(harness, "during-sleep");
+  const settlePromise = errorSettle(harness, "during-wait");
   await started;
   await harness.emit("session_shutdown");
   await settlePromise;
@@ -624,4 +627,138 @@ test("shutdown aborts in-flight sleep and does not send", async () => {
     key: STATUS_KEY,
     text: undefined,
   });
+});
+
+test("cancelling a retry stops the loop but keeps error-continue enabled", async () => {
+  let decision: ContinueDecision = "cancel";
+  const harness = createHarness({ gate: async () => decision });
+  await harness.emit("session_start");
+
+  await errorSettle(harness, "cancelled");
+  assert.equal(harness.sent.length, 0);
+  assert.deepEqual(harness.statuses.at(-1), {
+    key: STATUS_KEY,
+    text: `${STATUS_PREFIX} (0)`,
+  });
+  assert.ok(harness.notices.some((n) => /cancelled/i.test(n.message)));
+
+  // Still enabled: the next error restarts the phase at invisible 1/3.
+  decision = "continue";
+  await errorSettle(harness, "after-cancel");
+  assert.equal(harness.sent.length, 1);
+  assert.equal(harness.sent[0]?.kind, "message");
+  assert.equal(harness.sent[0]?.payload.customType, RESUME_CUSTOM_TYPE);
+  assert.deepEqual(harness.delays, [MIN_CONFIRM_MS, MIN_CONFIRM_MS]);
+});
+
+test("cancelling a visible retry resets the phase back to invisible", async () => {
+  let decision: ContinueDecision = "continue";
+  const harness = createHarness({ gate: async () => decision });
+  await harness.emit("session_start");
+
+  for (let i = 0; i < MAX_INVISIBLE; i++) await errorSettle(harness, `inv-${i}`);
+  decision = "cancel";
+  await errorSettle(harness, "vis-cancelled");
+  assert.equal(harness.sent.length, MAX_INVISIBLE);
+
+  decision = "continue";
+  await errorSettle(harness, "after-cancel");
+  assert.equal(harness.sent.at(-1)?.kind, "message");
+});
+
+test("external abort during the wait sends nothing and reports no cancel", async () => {
+  const harness = createHarness({ gate: async () => "aborted" });
+  await harness.emit("session_start");
+  await errorSettle(harness, "externally-aborted");
+
+  assert.equal(harness.sent.length, 0);
+  assert.equal(
+    harness.notices.some((n) => /cancelled/i.test(n.message)),
+    false,
+  );
+});
+
+test("cancelling the mid-work wait does not send continue $simple-plan", async () => {
+  const harness = createHarness({ gate: async () => "cancel" });
+  await harness.emit("session_start");
+  await midWorkSettle(harness, assistantToolCall());
+
+  assert.equal(harness.sent.length, 0);
+  assert.deepEqual(harness.delays, [MIN_CONFIRM_MS]);
+  assert.deepEqual(harness.statuses.at(-1), {
+    key: STATUS_KEY,
+    text: `${STATUS_PREFIX} (0)`,
+  });
+});
+
+function dialogCtx(options: {
+  hasUI?: boolean;
+  confirm?: (signal?: AbortSignal) => Promise<boolean>;
+}) {
+  let confirmCalls = 0;
+  const ctx = {
+    hasUI: options.hasUI ?? true,
+    ui: {
+      confirm: async (_title: string, _message: string, opts?: { signal?: AbortSignal }) => {
+        confirmCalls++;
+        return options.confirm ? await options.confirm(opts?.signal) : false;
+      },
+    },
+  } as unknown as ExtensionContext;
+  return { ctx, confirmCalls: () => confirmCalls };
+}
+
+/** Dialog that only resolves when its own dismiss signal fires (timeout / external). */
+const dismissOnly = (signal?: AbortSignal) =>
+  new Promise<boolean>((resolve) => {
+    signal?.addEventListener("abort", () => resolve(false), { once: true });
+  });
+
+function gateParams(ctx: ExtensionContext, delayMs: number, signal: AbortSignal) {
+  return { ctx, title: "t", message: "m", delayMs, signal };
+}
+
+test("confirmContinueGate maps Esc, No, Yes, timeout, and external abort apart", async () => {
+  // confirm() resolves false for Esc, "No", and timeout alike; only the
+  // timeout/external markers can tell them apart.
+  const esc = dialogCtx({ confirm: async () => false });
+  assert.equal(
+    await confirmContinueGate(gateParams(esc.ctx, 60_000, new AbortController().signal)),
+    "cancel",
+  );
+
+  const yes = dialogCtx({ confirm: async () => true });
+  assert.equal(
+    await confirmContinueGate(gateParams(yes.ctx, 60_000, new AbortController().signal)),
+    "continue",
+  );
+
+  const timeout = dialogCtx({ confirm: dismissOnly });
+  assert.equal(
+    await confirmContinueGate(gateParams(timeout.ctx, 5, new AbortController().signal)),
+    "continue",
+  );
+
+  const external = new AbortController();
+  const pending = dialogCtx({ confirm: dismissOnly });
+  const decision = confirmContinueGate(gateParams(pending.ctx, 60_000, external.signal));
+  external.abort();
+  assert.equal(await decision, "aborted");
+});
+
+test("confirmContinueGate never calls confirm without a UI surface", async () => {
+  // The no-op UI context resolves confirm() to false; reading that as a cancel
+  // would silently disable auto-recovery in print/JSON mode.
+  const headless = dialogCtx({ hasUI: false });
+  assert.equal(
+    await confirmContinueGate(gateParams(headless.ctx, 5, new AbortController().signal)),
+    "continue",
+  );
+  assert.equal(headless.confirmCalls(), 0);
+
+  const external = new AbortController();
+  const aborted = dialogCtx({ hasUI: false });
+  const decision = confirmContinueGate(gateParams(aborted.ctx, 60_000, external.signal));
+  external.abort();
+  assert.equal(await decision, "aborted");
 });
