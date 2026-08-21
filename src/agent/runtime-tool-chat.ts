@@ -144,8 +144,12 @@ export function summarizeToolResult(result: unknown, isError: boolean): string {
 
 export function normalizeToolResult(result: unknown, isError: boolean): ToolResultLike | undefined {
   if (!isAgentToolResult(result)) return undefined;
+  // Tool result messages may contain plain text, while Pi's renderer requires content blocks.
   return {
-    content: result.content,
+    content:
+      typeof result.content === "string"
+        ? [{ type: "text", text: result.content }]
+        : result.content,
     details: "details" in result ? result.details : undefined,
     isError,
   };
@@ -178,8 +182,17 @@ export function summarizeUnknown(value: unknown): string {
 
 function isAgentToolResult(
   value: unknown,
-): value is { content: (TextContent | ImageContent)[]; details?: unknown; isError?: boolean } {
-  return value !== null && typeof value === "object" && "content" in value;
+): value is {
+  content: string | (TextContent | ImageContent)[];
+  details?: unknown;
+  isError?: boolean;
+} {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    "content" in value &&
+    (typeof value.content === "string" || Array.isArray(value.content))
+  );
 }
 
 function compactJson(value: unknown): string {
