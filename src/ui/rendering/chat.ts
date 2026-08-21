@@ -482,6 +482,11 @@ function renderToolBlock(line: ChatLine, width: number, tab?: MixCodeTabInfo): s
     const renderedResult = line.renderToolResult?.(renderedWidth) ?? [];
     const rendered = [...(line.renderToolCall?.(renderedWidth) ?? []), ...renderedResult];
     if (rendered.length) {
+      // Pi stacks chat components with no stream-level separator: each component owns
+      // its leading gap, so ToolExecutionComponent opens with a Spacer(1) blank row.
+      // MixCode owns spacing at the stream level instead (one separator between blocks),
+      // so keeping Pi's spacer double-counts the gap above every tool block.
+      if (rendered[0] === "") rendered.shift();
       if (selfRendered) return rendered.flatMap((part) => normalizeRenderedToolLine(part, width));
       return ["", ...rendered, ""].flatMap((part) => renderToolRenderedLine(line, part, width));
     }

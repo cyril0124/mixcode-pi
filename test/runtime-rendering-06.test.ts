@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { SettingsManager } from "@earendil-works/pi-coding-agent";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import { syncAssistantBlocks } from "../src/agent/runtime-events.js";
+import { toolExecutionToChatLine } from "../src/agent/runtime-tool-chat.js";
+import type { RuntimeTab } from "../src/agent/runtime-types.js";
 import {
   createTab,
   padLine,
@@ -98,6 +101,42 @@ test("custom tool renderers receive content width; self shell skips paint frame"
   );
   assert.match(self, /self call/);
   assert.match(self, /self result/);
+});
+
+test("tool block keeps exactly one blank row below the previous block", () => {
+  const sm = SettingsManager.inMemory();
+  const runtimeTab = {
+    chat: [],
+    tab: { workdir: "/tmp", extensionUi: { toolsExpanded: false } },
+    agentSession: {
+      settingsManager: sm,
+      getToolDefinition: () => ({
+        name: "agent",
+        label: "agent",
+        description: "test",
+        parameters: {} as never,
+        renderCall: () => ({ render: () => ["agent call"] }),
+      }),
+    },
+    requestRender: () => undefined,
+  } as unknown as RuntimeTab;
+  const toolLine = toolExecutionToChatLine(runtimeTab, {
+    toolCallId: "spacing",
+    toolName: "agent",
+    status: "success",
+    text: "done",
+    args: {},
+    isPartial: false,
+  });
+
+  const lines = renderChat([{ role: "assistant", text: "answer" }, toolLine], 40).map(stripAnsi);
+  const answerRow = lines.findIndex((line) => line.includes("answer"));
+  const callRow = lines.findIndex((line) => line.includes("agent call"));
+  assert.ok(answerRow >= 0 && callRow > answerRow, "both blocks must render");
+  const gap = lines.slice(answerRow + 1, callRow).filter((line) => line.trim() === "");
+  // One chat separator + one background pad row inside the tool frame.
+  assert.equal(gap.length, 2);
+  assert.equal(callRow - answerRow, 3);
 });
 
 test("consecutive thinking blocks render as one Pi thinking section", () => {
