@@ -83,7 +83,7 @@ export function activateTab(state: MixCodeState, tabId: string): void {
     const leaving = state.tabs.findIndex((tab) => tab.sessionId === state.activeTabId);
     if (leaving >= 0) state.homeSelectedTabIndex = leaving;
   }
-  // Transfer vim/zen/inline-widgets onto the destination agent. Source is the mode-owning
+  // Transfer vim/zen onto the destination agent. Source is the mode-owning
   // agent (any tab with the flag), not only activeTabId — on Home activeTabId
   // is HOME_TAB_ID while the highlighted agent still holds the mode.
   // Jumping to Home keeps flags on the agent (same as Left → Home).
@@ -105,13 +105,6 @@ export function activateTab(state: MixCodeState, tabId: string): void {
       if (zenSource) {
         zenSource.zenMode = false;
         next.zenMode = true;
-      }
-      const inlineSource = state.tabs.find(
-        (tab) => tab.inlineWidgets && tab.sessionId !== next.sessionId,
-      );
-      if (inlineSource) {
-        inlineSource.inlineWidgets = false;
-        next.inlineWidgets = true;
       }
     }
   }

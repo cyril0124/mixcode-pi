@@ -5,7 +5,7 @@ import { MixCodeRuntime } from "../src/agent/runtime.js";
 import { parseInput } from "../src/core/commands.js";
 import { createInitialState, createTab } from "../src/core/defaults.js";
 import { serializeState } from "../src/core/state-store.js";
-import { activateTab } from "../src/core/tabs.js";
+import { activateTab, closeAgentTab } from "../src/core/tabs.js";
 import { CompactPromptEditor, EditorSlot, editorThemeFor } from "../src/ui/app-editor.js";
 import {
   MixCodeFooterRoot,
@@ -175,15 +175,15 @@ test("/toggle-inline-widgets flips inlineWidgets on the active tab", async () =>
   assert.equal(tab.inlineWidgets, false);
 });
 
-test("activateTab transfers inlineWidgets to the destination agent", () => {
+test("activateTab keeps inlineWidgets scoped to each tab", () => {
   const state = createInitialState("/repo");
   const first = createTab(1, "s1", "/repo", { inlineWidgets: true });
   const second = createTab(2, "s2", "/repo");
   state.tabs.push(first, second);
   state.activeTabId = "s1";
   activateTab(state, "s2");
-  assert.equal(first.inlineWidgets, false);
-  assert.equal(second.inlineWidgets, true);
+  assert.equal(first.inlineWidgets, true);
+  assert.equal(second.inlineWidgets, false);
 });
 
 test("activateTab to Home keeps inlineWidgets on the agent", () => {
@@ -193,6 +193,20 @@ test("activateTab to Home keeps inlineWidgets on the agent", () => {
   state.activeTabId = "s1";
   activateTab(state, "home");
   assert.equal(first.inlineWidgets, true);
+});
+
+test("closing the active tab keeps the global inline-widgets default", () => {
+  const state = createInitialState("/repo");
+  state.ui = { ...state.ui!, inlineWidgets: true };
+  const first = createTab(1, "s1", "/repo", { inlineWidgets: true });
+  const second = createTab(2, "s2", "/repo", { inlineWidgets: true });
+  state.tabs.push(first, second);
+
+  activateTab(state, first.sessionId);
+  closeAgentTab(state, first.sessionId);
+
+  assert.equal(state.activeTabId, second.sessionId);
+  assert.equal(second.inlineWidgets, true);
 });
 
 test("new tabs inherit ui.inlineWidgets from mixcode settings", () => {
