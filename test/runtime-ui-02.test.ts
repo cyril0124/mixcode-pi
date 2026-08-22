@@ -46,7 +46,7 @@ test("MixCodeRoot renders config and agent views", () => {
   const state = createInitialState("/repo");
   const runtime = new MixCodeRuntime();
   const root = new MixCodeRoot(state, runtime);
-  assert.match(root.render(100).join("\n"), /MixCode Home/);
+  assert.match(stripAnsi(root.render(100).join("\n")), /MixCode Home/);
 
   const tab = createTab(1, "s1", "/repo");
   state.tabs.push(tab);
@@ -58,7 +58,7 @@ test("MixCodeRoot renders config and agent views", () => {
 
   const compactRoot = new MixCodeRoot(state, runtime, () => 8);
   const compactLines = compactRoot.render(100);
-  assert.match(compactLines.join("\n"), /MixCode Home/);
+  assert.match(stripAnsi(compactLines.join("\n")), /MixCode Home/);
   assert.ok(compactLines.length <= 7);
 
   state.activeTabId = "s1";
@@ -67,7 +67,7 @@ test("MixCodeRoot renders config and agent views", () => {
     text: `message ${index}`,
   }));
   const compactAgentLines = compactRoot.render(100);
-  assert.match(compactAgentLines[0] ?? "", /Agent-01/);
+  assert.match(stripAnsi(compactAgentLines[0] ?? ""), /Agent-01/);
   assert.match(stripAnsi(compactAgentLines[1] ?? ""), /^\u2500+$/);
   assert.match(stripAnsi(compactAgentLines[2] ?? ""), /↑ older above/);
   assert.equal(compactAgentLines.length, 6);
@@ -78,7 +78,7 @@ test("MixCodeRoot renders config and agent views", () => {
   const topOnlyRoot = new MixCodeRoot(state, runtime, () => 4);
   const topOnlyLines = topOnlyRoot.render(100);
   assert.equal(topOnlyLines.length, 2);
-  assert.match(topOnlyLines[0] ?? "", /Agent-01/);
+  assert.match(stripAnsi(topOnlyLines[0] ?? ""), /Agent-01/);
 });
 
 test("createMixCodeTui theme host updates state and notifies listeners", () => {

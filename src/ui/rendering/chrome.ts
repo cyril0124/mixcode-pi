@@ -1171,19 +1171,62 @@ function sanitizeWidgetLine(text: string): string {
 }
 
 const TAB_FOCUS_MARK = "▌";
+export const TAB_ACTIVE_SHIMMER_PERIOD_MS = 2000;
+export const TAB_ACTIVE_SHIMMER_SWEEP_MS = 1400;
 
 function withFocusMark(paint: (text: string) => string, body: string): string {
   return paintTabChip(paint, `${activeRenderTheme.vimBorder(TAB_FOCUS_MARK)}${body}`);
 }
 
+/**
+ * Apply a continuous left-to-right sweep/shimmer effect across text for active tab.
+ * Highlight wave sweeps across characters over TAB_ACTIVE_SHIMMER_SWEEP_MS,
+ * followed by a brief rest within TAB_ACTIVE_SHIMMER_PERIOD_MS.
+ */
+export function applyActiveTabShimmer(text: string, activatedAt: number | undefined, now = Date.now()): string {
+  const baseTime = activatedAt ?? 0;
+  const elapsed = (now - baseTime) % TAB_ACTIVE_SHIMMER_PERIOD_MS;
+  if (elapsed >= TAB_ACTIVE_SHIMMER_SWEEP_MS) return text;
+
+  // Calculate shimmer wave progress across visible characters.
+  const chars = Array.from(text);
+  const total = chars.length;
+  if (total === 0) return text;
+
+  const progress = elapsed / TAB_ACTIVE_SHIMMER_SWEEP_MS;
+  // Center of shimmer wave: sweeps smoothly from before first char to past last char
+  const waveCenter = progress * (total + 4) - 2;
+  const waveWidth = 3;
+
+  return chars
+    .map((char, index) => {
+      const dist = Math.abs(index - waveCenter);
+      if (dist < 1.0) {
+        // Core of the wave: bright bold text highlight
+        return activeRenderTheme.bold(activeRenderTheme.text(char));
+      }
+      if (dist < waveWidth) {
+        // Leading/trailing edge of the wave
+        return activeRenderTheme.accent(char);
+      }
+      return char;
+    })
+    .join("");
+}
+
 function tabBarSegments(state: MixCodeState): Array<{ id: string; text: string }> {
   const homeText = " MixCode Home ";
   const isHomeActive = state.activeTabId === HOME_TAB_ID;
-  const home = isHomeActive
-    ? withFocusMark(activeRenderTheme.homeTabActive, homeText.slice(1))
-    : activeRenderTheme.homeTab(homeText);
+  let homeBody = homeText;
+  if (isHomeActive) {
+    const rawRest = homeText.slice(1);
+    const shimmery = applyActiveTabShimmer(rawRest, state.homeActivatedAt);
+    homeBody = withFocusMark(activeRenderTheme.homeTabActive, shimmery);
+  } else {
+    homeBody = activeRenderTheme.homeTab(homeText);
+  }
   return [
-    { id: HOME_TAB_ID, text: home },
+    { id: HOME_TAB_ID, text: homeBody },
     ...state.tabs.map((tab) => ({
       id: tab.sessionId,
       text: renderTabSegmentText(
@@ -1229,7 +1272,8 @@ function renderTabSegmentText(
   const fg = tabStatusFg(tab);
   if (active) {
     const rest = raw.slice(1);
-    return withFocusMark(activeRenderTheme.activeTab, fg ? fg(rest) : rest);
+    const shimmery = applyActiveTabShimmer(rest, tab.activatedAt);
+    return withFocusMark(activeRenderTheme.activeTab, fg ? fg(shimmery) : shimmery);
   }
   const text = fg ? fg(raw) : raw;
   if (onHome) {

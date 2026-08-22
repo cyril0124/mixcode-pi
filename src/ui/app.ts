@@ -24,6 +24,7 @@ import {
 } from "./app-overlays.js";
 import {
   activeExtensionCommands,
+  bindActiveTabShimmerRedraw,
   bindLiveExtensionRedraw,
   bindLoadingRedraw,
   bindRuntimeRendering,
@@ -47,7 +48,12 @@ import { workspaceNameCompletions } from "./workspace-actions.js";
 
 export { handleMixCodeKeyInput } from "./app-input.js";
 export { MixCodeRoot } from "./app-layout.js";
-export { bindLiveExtensionRedraw, bindRuntimeRendering, bindWorkingRedraw } from "./app-runtime.js";
+export {
+  bindActiveTabShimmerRedraw,
+  bindLiveExtensionRedraw,
+  bindRuntimeRendering,
+  bindWorkingRedraw,
+} from "./app-runtime.js";
 export {
   handleSubmittedInput,
   renderSessionInfoText,
@@ -106,6 +112,7 @@ export function createMixCodeTui(
     if (title !== undefined) tui.terminal.setTitle(title);
   });
   const stopLiveExtensionRedraw = bindLiveExtensionRedraw(state, tui);
+  const stopActiveTabShimmerRedraw = bindActiveTabShimmerRedraw(state, tui);
   let editorRows = 0;
   let metaRows = state.activeTabId === HOME_TAB_ID ? 0 : 1;
   // Filled after EditorSlot construction; MixCodeRoot reads it lazily each render.
@@ -401,6 +408,7 @@ export function createMixCodeTui(
     stopWorkingRedraw();
     stopLoadingRedraw();
     stopLiveExtensionRedraw();
+    stopActiveTabShimmerRedraw();
     stopChatSelectionAutoScroll();
     stopExtensionTitleSync();
     root.dispose();

@@ -109,6 +109,13 @@ export function activateTab(state: MixCodeState, tabId: string): void {
     }
   }
   state.activeTabId = tabId;
+  const now = Date.now();
+  if (tabId === HOME_TAB_ID) {
+    state.homeActivatedAt = now;
+  } else {
+    const activeTabObj = state.tabs.find((item) => item.sessionId === tabId);
+    if (activeTabObj) activeTabObj.activatedAt = now;
+  }
   if (tabId !== HOME_TAB_ID) noteRecentAgentTab(state, tabId);
   for (const listener of activeTabListeners) listener(tabId);
   const tab = state.tabs.find((item) => item.sessionId === tabId);

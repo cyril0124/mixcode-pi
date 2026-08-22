@@ -136,7 +136,7 @@ test("MixCodeRoot caps agent view to keep header and tabs in the terminal viewpo
 
   const lines = root.render(80);
   assert.equal(lines.length <= 8, true);
-  assert.match(lines[0] ?? "", /Agent-01/);
+  assert.match(stripAnsi(lines[0] ?? ""), /Agent-01/);
   // Row under the tab bar is the horizontal rule (replaced the former blank gap).
   assert.match(stripAnsi(lines[1] ?? ""), /^\u2500+$/);
   assert.doesNotMatch(lines.join("\n"), /message-0/);
@@ -185,7 +185,7 @@ test("MixCodeRoot keeps every rendered row within a narrow terminal width", () =
     lines.every((line) => !/[\r\n]/.test(line) && visibleWidth(line) <= 55),
     true,
   );
-  assert.match(lines[0] ?? "", /Agent-01/);
+  assert.match(stripAnsi(lines[0] ?? ""), /Agent-01/);
   // Row under the tab bar is the horizontal rule (replaced the former blank gap).
   assert.match(stripAnsi(lines[1] ?? ""), /^\u2500+$/);
 });
@@ -209,7 +209,7 @@ test("MixCodeRoot applies chat scroll offset while keeping top rows fixed", () =
 
   const lines = root.render(80);
   assert.equal(lines.length <= 10, true);
-  assert.match(lines[0] ?? "", /Agent-01/);
+  assert.match(stripAnsi(lines[0] ?? ""), /Agent-01/);
   // Row under the tab bar is the horizontal rule (replaced the former blank gap).
   assert.match(stripAnsi(lines[1] ?? ""), /^\u2500+$/);
   assert.match(lines.join("\n"), /message-0/);
@@ -247,7 +247,7 @@ test("MixCodeRoot clips config view when viewport is smaller than static content
 
   const lines = root.render(80);
   assert.equal(lines.length, 5);
-  assert.match(lines[0] ?? "", /MixCode Home/);
+  assert.match(stripAnsi(lines[0] ?? ""), /MixCode Home/);
 });
 
 test("MixCodeRoot summarizes wrapped tabs to keep narrow Home content visible", () => {
@@ -512,7 +512,7 @@ test("createMixCodeTui pins input meta to the bottom without a trailing blank ro
   const plainLines = lines.map(stripAnsi);
 
   assert.equal(lines.length, 24);
-  assert.match(lines[0] ?? "", /Agent-01/);
+  assert.match(plainLines[0] ?? "", /Agent-01/);
   assert.match(plainLines.at(-1) ?? "", /faux\/faux-1/);
   assert.match(plainLines.at(-1) ?? "", /Medium/);
   assert.match(plainLines.at(-1) ?? "", /\?%/);

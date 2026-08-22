@@ -185,6 +185,8 @@ export interface MixCodeTabInfo {
   /** Retry state: present when auto-retry is in progress */
   retryInfo?: { attempt: number; maxAttempts: number; delayMs: number; startedAt: number };
   unreadDone: boolean;
+  /** Non-persisted: timestamp (Date.now()) when this tab became active, for title shimmer transition. */
+  activatedAt?: number;
   workingStartedAt?: string;
   /** Non-persisted: reason for the active Pi compaction operation. */
   activeCompactionReason?: CompactionReason;
@@ -434,6 +436,8 @@ export interface MixCodeState {
   homeSelectedTabIndex: number;
   /** Non-persisted: Home Agent View shows non-idle/attention tabs only. */
   homeNonIdleOnly: boolean;
+  /** Non-persisted: timestamp (Date.now()) when MixCode Home became active, for title shimmer transition. */
+  homeActivatedAt?: number;
 }
 
 export interface WorkspaceTabSnapshot {
