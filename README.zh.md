@@ -60,6 +60,19 @@ Tab 之间可以直接对话——同一 TUI，或其他 `mpi` 进程——无�
 - **`mpi-loop`**：定时循环任务调度器，支持冲突策略（`/loop 5m /review`）。
 - **`mpi-optimize-prompt`**：基于 Meta-prompt 的提示词结构化扩写与优化。
 - **`mpi-auto-rename`**：基于上下文自动生成会话标题（`/auto-rename`）。
+- **`mpi-ctl`**：Agent Tab 跨 Tab / 多实例协作命令行工具与技能（`mpi status` / `mpi ctl`）。
+- **`mpi-permission`**：细粒度工具调用权限管控（`/permission`）。
+- **`mpi-chat-view`**：在 `$EDITOR` 或内置编辑器中查看完整对话、Thinking 与最新回复（`/view`）。
+- **`mpi-prompt-history`**：Prompt 历史召回与交互式浏览面板（`/prompt-history`）。
+- **`mpi-tool-block`**：动态对模型屏蔽指定工具（`/tool-block`）。
+- **`mpi-tool-display`**：终端紧凑型工具调用与 Thinking 消息渲染优化。
+- **`mpi-model-skills` / `mpi-model-extensions`**：按模型动态切换 Skill 与扩展。
+- **`mpi-skill-refs`**：`$` 触发 Skill 自动补全与内嵌展开。
+- **`mpi-search-guard`**：高危/大范围目录搜索防护，避免无边界递归检索。
+- **`mpi-mid-turn-compact`**：多轮长推理过程中的会话上下文自动压缩。
+- **`mpi-herdr-report`**：向 Herdr 窗格上报 Agent 运行与就绪状态（`HERDR_ENV=1`）。
+- **`mpi-image-hoist`**：自动提升输入中的图片路径为原生多模态消息。
+- **`mpi-bash-default-timeout`**：为 Bash 工具调用提供可配置的安全默认超时。
 
 <p align="center">
   <img src="assets/readme-right-widget.gif" alt="扩展侧栏" width="900">

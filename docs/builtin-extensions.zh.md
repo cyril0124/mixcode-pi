@@ -18,7 +18,6 @@ MixCode 随附位于 `pi-packages/mpi-*` 的第一方内置 Pi 包。启动时�
 | `mpi-prompt-history` | `/prompt-history` | 交互式 Prompt 历史记录搜索、过滤及直接插入编辑器。 |
 | `mpi-chat-view` | `/view [chat\|thinking\|last\|user]` | 在外部编辑器（`$VISUAL` / `$EDITOR`）或内置查看器中检视完整对话、Thinking 推理或最近消息。 |
 | `mpi-diff-viewer` | `/diff [ref]` | 终端内交互式 Diff 查看器，支持 hunk 导航与行级评审注释。 |
-| `mpi-command-browser` | Slash `/` 自动补全 | 模糊检索与浏览所有已注册的 Slash 命令与第三方扩展指令。 |
 | `mpi-model-skills` | `/model-skills`，`<agentDir>/mpi-model-skills.json` | 按当前模型匹配规则动态挂载或卸载 Skill。 |
 | `mpi-model-extensions` | `/model-extensions`，`<agentDir>/mpi-model-extensions.json` | 按当前模型动态加载 Pi 扩展。 |
 | `mpi-mid-turn-compact` | Token 达到阈值时自动触发 | 轮次中上下文自动压缩策略，防止多工具连续调用耗尽上下文窗口。 |

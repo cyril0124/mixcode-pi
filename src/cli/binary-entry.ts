@@ -56,9 +56,6 @@ import diffViewerSessionDiff from "../../pi-packages/mpi-diff-viewer/session-dif
 import diffViewerComponent from "../../pi-packages/mpi-diff-viewer/diff-viewer.ts" with { type: "text" };
 import diffViewerReview from "../../pi-packages/mpi-diff-viewer/review.ts" with { type: "text" };
 import diffViewerPackageJson from "../../pi-packages/mpi-diff-viewer/package.json" with { type: "text" };
-import commandBrowserIndex from "../../pi-packages/mpi-command-browser/index.ts" with { type: "text" };
-import commandBrowserComponent from "../../pi-packages/mpi-command-browser/command-browser.ts" with { type: "text" };
-import commandBrowserPackageJson from "../../pi-packages/mpi-command-browser/package.json" with { type: "text" };
 import chatViewIndex from "../../pi-packages/mpi-chat-view/index.ts" with { type: "text" };
 import chatViewPackageJson from "../../pi-packages/mpi-chat-view/package.json" with { type: "text" };
 import bashDefaultTimeoutIndex from "../../pi-packages/mpi-bash-default-timeout/index.ts" with { type: "text" };
@@ -259,11 +256,6 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
       "diff-viewer.ts": diffViewerComponent,
       "review.ts": diffViewerReview,
       "package.json": diffViewerPackageJson,
-    },
-    "mpi-command-browser": {
-      "index.ts": commandBrowserIndex,
-      "command-browser.ts": commandBrowserComponent,
-      "package.json": commandBrowserPackageJson,
     },
     "mpi-chat-view": {
       "index.ts": chatViewIndex,

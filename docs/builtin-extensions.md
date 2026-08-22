@@ -18,7 +18,6 @@ Every package with a user-edited JSON config ships a JSON Schema next to its ext
 | `mpi-prompt-history` | `/prompt-history` | Interactive prompt history browser, filtering, and insertion into the active editor. |
 | `mpi-chat-view` | `/view [chat\|thinking\|last\|user]` | Views conversation transcripts, thinking blocks, or last messages in `$VISUAL` / `$EDITOR` or within the in-app viewer. |
 | `mpi-diff-viewer` | `/diff [ref]` | Terminal diff viewer with hunk navigation and inline review comments. |
-| `mpi-command-browser` | Slash `/` autocomplete | Fuzzy browser for discovering built-in slash commands and third-party extension actions. |
 | `mpi-model-skills` | `/model-skills`, `<agentDir>/mpi-model-skills.json` | Attaches or detaches skills from rules matched against the current model. |
 | `mpi-model-extensions` | `/model-extensions`, `<agentDir>/mpi-model-extensions.json` | Dynamically loads model-specific Pi extensions. |
 | `mpi-mid-turn-compact` | Auto on token threshold | Mid-turn compaction strategy preventing context window overflow during multi-turn tool loops. |

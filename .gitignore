@@ -6,3 +6,4 @@ tmp/
 package-lock.json
 bun.lockb
 .pi/
+.worktrees/

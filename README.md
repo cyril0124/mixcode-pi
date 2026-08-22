@@ -60,6 +60,19 @@ Install community extensions directly through Pi package declarations (`settings
 - **`mpi-loop`**: Recurring prompt scheduling with conflict handling (`/loop 5m /review`).
 - **`mpi-optimize-prompt`**: Metaprompt-based prompt expansion.
 - **`mpi-auto-rename`**: Context-derived session titles (`/auto-rename`).
+- **`mpi-ctl`**: Multi-agent / cross-tab collaboration (`mpi status`, `mpi ctl`).
+- **`mpi-permission`**: Fine-grained tool execution permission rules (`/permission`).
+- **`mpi-chat-view`**: View conversation, thinking, and replies in `$EDITOR` (`/view`).
+- **`mpi-prompt-history`**: Prompt recall log and interactive browser (`/prompt-history`).
+- **`mpi-tool-block`**: Selectively hide tools from model context (`/tool-block`).
+- **`mpi-tool-display`**: Compact terminal transcript presentation for tools and thinking.
+- **`mpi-model-skills` / `mpi-model-extensions`**: Per-model skill and extension dynamic switching.
+- **`mpi-skill-refs`**: `$skill` autocomplete and prompt expansion.
+- **`mpi-search-guard`**: Directory-scoped search protection for safe workspace navigation.
+- **`mpi-mid-turn-compact`**: Mid-turn context compaction during heavy agent execution.
+- **`mpi-herdr-report`**: Real-time status reporting to Herdr agent panes (`HERDR_ENV=1`).
+- **`mpi-image-hoist`**: Lift image paths into native multimodal message parts.
+- **`mpi-bash-default-timeout`**: Enforce configurable safety timeouts on bash executions.
 
 <p align="center">
   <img src="assets/readme-right-widget.gif" alt="Extension side panel" width="900">
