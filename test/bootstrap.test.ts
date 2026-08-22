@@ -113,6 +113,7 @@ test("bootstrap restores persisted tab order and runtime tabs", async () => {
     state.tabs.push(createTab(1, "s1", repo), createTab(2, "s2", repo));
     state.activeTabId = "s2";
     await saveStateFile(stateFileForPort(scopedStateDir(dir, "/fallback"), 0), state);
+    console.error("[dbg:t3] before bootstrap");
     const restored = await bootstrapMixCode({
       workdir: "/fallback",
       stateDir: dir,
@@ -123,11 +124,15 @@ test("bootstrap restores persisted tab order and runtime tabs", async () => {
       ["s1", "s2"],
     );
     assert.equal(restored.state.activeTabId, "home");
+    console.error("[dbg:t3] bootstrap done, before tabsReady");
     await restored.tabsReady;
+    console.error("[dbg:t3] tabsReady done");
     assert.ok(restored.runtime.getTab("s1"));
     assert.ok(restored.runtime.getTab("s2"));
   } finally {
+    console.error("[dbg:t3] finally rm");
     await fsPromises.rm(dir, { recursive: true, force: true });
+    console.error("[dbg:t3] finally rm done");
   }
 });
 
@@ -148,14 +153,18 @@ test("bootstrap ignores an unknown theme key in the state file", async () => {
       }, null, 2)}\n`,
     );
 
+    console.error("[dbg:t4] before bootstrap");
     const boot = await bootstrapMixCode({
       workdir: repo,
       stateDir,
       modelConfigPath: path.join(dir, "missing.jsonc"),
     });
     assert.equal(boot.state.theme, "claude-warm");
+    console.error("[dbg:t4] before tabsReady");
     await boot.tabsReady;
+    console.error("[dbg:t4] tabsReady done");
   } finally {
+    console.error("[dbg:t4] finally rm");
     await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
@@ -189,12 +198,14 @@ test("bootstrap builds completion sources from Pi-managed fd and skills", async 
     );
     await fsPromises.mkdir(path.join(dir, "src"), { recursive: true });
     await fsPromises.writeFile(path.join(dir, "src", "index.ts"), "", "utf8");
+    console.error("[dbg:t5] before bootstrap");
     const boot = await bootstrapMixCode({
       workdir: dir,
       stateDir: path.join(dir, "state"),
       homeDir: path.join(dir, "home"),
       modelConfigPath: path.join(dir, "missing.jsonc"),
     });
+    console.error("[dbg:t5] bootstrap done");
     assert.deepEqual(boot.completionSources.skills, [
       {
         name: "parallelize",
@@ -213,7 +224,9 @@ test("bootstrap builds completion sources from Pi-managed fd and skills", async 
       path.join(scopedStateDir(path.join(dir, "state"), dir), "workspaces.json"),
     );
   } finally {
+    console.error("[dbg:t5] finally rm");
     await fsPromises.rm(dir, { recursive: true, force: true });
+    console.error("[dbg:t5] finally rm done");
   }
 });
 

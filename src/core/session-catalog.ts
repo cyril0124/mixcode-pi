@@ -165,6 +165,7 @@ function runListingWorkerThread(
       eval: true,
       workerData: { request, sessionManagerUrl },
     });
+    console.error(`[dbg] listing worker started key=${JSON.stringify(requestKey(request))}`);
     let settled = false;
 
     const finish = (callback: () => void): void => {
@@ -178,6 +179,7 @@ function runListingWorkerThread(
 
     signal?.addEventListener("abort", onAbort, { once: true });
     worker.once("message", (message: WorkerResult) => {
+      console.error(`[dbg] listing worker message type=${message.type}`);
       finish(() => {
         if (message.type === "error") {
           reject(new Error(message.message));
@@ -188,6 +190,7 @@ function runListingWorkerThread(
     });
     worker.once("error", (error) => finish(() => reject(error)));
     worker.once("exit", (code) => {
+      console.error(`[dbg] listing worker exit code=${code}`);
       if (code !== 0)
         finish(() => reject(new Error(`Session listing worker exited with code ${code}`)));
     });

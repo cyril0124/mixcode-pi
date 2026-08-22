@@ -144,11 +144,13 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
   state.imageWidthCells = settingsManager.getImageWidthCells();
   state.mermaidRenderingMode = settingsManager.getMermaidRenderingMode();
   // Derive auth/models from the effective agent dir (PI_CODING_AGENT_DIR or default).
+  console.error(`[dbg] stateFile=${stateFile}`);
   const modelBundle = await createPiModelRegistryBundle(
     options.modelConfigPath ?? path.join(agentDir, "models.json"),
     path.join(agentDir, "auth.json"),
     { allowModelNetwork: true },
   );
+  console.error("[dbg] model bundle done");
   configureDisabledModelRuntime(
     modelBundle.modelRuntime,
     mixCodeSettings.disabledProviders,
@@ -215,6 +217,7 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
   // onProgress callback and therefore takes SessionManager.list on the main
   // thread, which does not read this cache — before or after this change.
   // Failure is harmless: every consumer falls back to its own scan.
+  console.error("[dbg] before listSessionsInBackground");
   void listSessionsInBackground({
     mode: "current",
     cwd: options.workdir,
@@ -236,18 +239,24 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
     getApiKey: modelBundle.runtimeAuth.getApiKey,
     streamFn: modelBundle.runtimeAuth.stream,
   });
+  console.error("[dbg] MixCodeRuntime constructed");
 
   // Apply HTTP proxy settings from SettingsManager after runtime is created but before any network requests
   applyHttpProxySettings(settingsManager.getGlobalSettings().httpProxy);
   configureHttpDispatcher(settingsManager.getHttpIdleTimeoutMs());
+  console.error("[dbg] before ensureTool");
   const fdPath = await ensureTool("fd");
+  console.error(`[dbg] ensureTool done fdPath=${String(fdPath)}`);
 
   await runtime.loadExtensionManagerConfig();
+  console.error("[dbg] loadExtensionManagerConfig done");
   const completionSources = {
     skills: await scanSkillEntries(state.workdir, options.homeDir),
     ...(fdPath ? { fdPath } : {}),
   };
+  console.error("[dbg] scanSkillEntries done");
   await saveStateFile(stateFile, state);
+  console.error("[dbg] saveStateFile done");
   // Return before tabs finish loading so the TUI can paint.
   // createTab fills chat, title, and model from the session.
   for (const tab of state.tabs) tab.status = "Not Ready";

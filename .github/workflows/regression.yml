@@ -51,6 +51,9 @@ jobs:
       - name: Lint
         run: bun run lint
 
+      - name: Root tests (bootstrap only, debug)
+        run: bun test --isolate --timeout=30000 test/bootstrap.test.ts
+
       - name: Root tests
         run: bun run test
 
