@@ -24,6 +24,20 @@ export function bindWorkingRedraw(
   return bindConditionalRedraw(state, tui, WORKING_REDRAW_INTERVAL_MS, activeTabNeedsWorkingRedraw);
 }
 
+export function bindLoadingRedraw(
+  state: MixCodeState,
+  tui: Pick<TuiType, "requestRender">,
+): () => void {
+  // Loading glyphs/phase chips are wall-clock driven; repaint while any tab is
+  // still Not Ready so tabStatusGlyph animates on Home cards and the tab bar.
+  return bindConditionalRedraw(
+    state,
+    tui,
+    WORKING_REDRAW_INTERVAL_MS,
+    (current) => current.tabs.some((tab) => tab.status === "Not Ready"),
+  );
+}
+
 export function bindLiveExtensionRedraw(
   state: MixCodeState,
   tui: Pick<TuiType, "requestRender">,

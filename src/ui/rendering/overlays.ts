@@ -379,6 +379,10 @@ function formatTabStatusChip(tab: MixCodeState["tabs"][number]): string {
   if (tab.status === "error") {
     return activeRenderTheme.error("[error]");
   }
+  // Loading tabs show the live phase instead of the generic status word.
+  if (tab.status === "Not Ready") {
+    return activeRenderTheme.dim(`[${tab.loadingPhase ?? "loading"}]`);
+  }
   const text = `[${tab.status}]`;
   switch (tab.status) {
     case "running":

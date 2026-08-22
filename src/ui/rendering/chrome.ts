@@ -1243,7 +1243,14 @@ function renderTabSegmentText(
 }
 
 export function tabStatusGlyph(tab: MixCodeTabInfo): string {
-  if (tab.status === "Not Ready") return "◌";
+  if (tab.status === "Not Ready") {
+    // Wall-clock driven braille frames: animation without per-tab state; needs a
+    // periodic requestRender while any tab is loading (bindLoadingRedraw).
+    return DEFAULT_WORKING_INDICATOR_FRAMES[
+      Math.floor(Date.now() / DEFAULT_WORKING_INDICATOR_INTERVAL_MS) %
+        DEFAULT_WORKING_INDICATOR_FRAMES.length
+    ]!;
+  }
   if (tab.status === "error") return "x";
   if (tabIsWaitingForInput(tab)) return "?";
   if (tab.status === "running" || tab.status === "thinking") return "●";

@@ -1,8 +1,7 @@
 diff --git a/node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session.d.ts b/node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session.d.ts
-index e5d84dd..7944a7a 100644
 --- a/node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session.d.ts
 +++ b/node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session.d.ts
-@@ -420,6 +420,29 @@ export declare class AgentSession {
+@@ -420,6 +420,29 @@
          steering: string[];
          followUp: string[];
      };
@@ -33,10 +32,9 @@ index e5d84dd..7944a7a 100644
      get pendingMessageCount(): number;
      /** Get pending steering messages (read-only) */
 diff --git a/node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session.js b/node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session.js
-index 4bcf0d4..c98d854 100644
 --- a/node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session.js
 +++ b/node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session.js
-@@ -736,8 +736,24 @@ export class AgentSession {
+@@ -736,8 +736,24 @@
              toolSnippets,
              promptGuidelines,
          };
@@ -61,7 +59,7 @@ index 4bcf0d4..c98d854 100644
      // =========================================================================
      // Prompting
      // =========================================================================
-@@ -1147,6 +1163,43 @@ export class AgentSession {
+@@ -1147,6 +1163,43 @@
          this._emitQueueUpdate();
          return { steering, followUp };
      }
@@ -105,7 +103,7 @@ index 4bcf0d4..c98d854 100644
      /** Number of pending messages (includes both steering and follow-up) */
      get pendingMessageCount() {
          return this._steeringMessages.length + this._followUpMessages.length;
-@@ -1944,13 +1997,29 @@ export class AgentSession {
+@@ -1944,13 +1997,29 @@
          const excludedToolNames = this._excludedToolNames;
          const isAllowedTool = (name) => (!allowedToolNames || allowedToolNames.has(name)) && !excludedToolNames?.has(name);
          const registeredTools = this._extensionRunner.getAllRegisteredTools();
@@ -136,7 +134,7 @@ index 4bcf0d4..c98d854 100644
          const definitionRegistry = new Map(Array.from(this._baseToolDefinitions.entries())
              .filter(([name]) => isAllowedTool(name))
              .map(([name, definition]) => [
-@@ -1960,7 +2029,7 @@ export class AgentSession {
+@@ -1960,7 +2029,7 @@
                  sourceInfo: createSyntheticSourceInfo(`<builtin:${name}>`, { source: "builtin" }),
              },
          ]));
@@ -145,7 +143,7 @@ index 4bcf0d4..c98d854 100644
              definitionRegistry.set(tool.definition.name, {
                  definition: tool.definition,
                  sourceInfo: tool.sourceInfo,
-@@ -1980,7 +2049,7 @@ export class AgentSession {
+@@ -1980,7 +2049,7 @@
          })
              .filter((entry) => entry !== undefined));
          const runner = this._extensionRunner;
@@ -154,7 +152,7 @@ index 4bcf0d4..c98d854 100644
          const wrappedBuiltInTools = wrapRegisteredTools(Array.from(this._baseToolDefinitions.values())
              .filter((definition) => isAllowedTool(definition.name))
              .map((definition) => ({
-@@ -2684,4 +2753,53 @@ export class AgentSession {
+@@ -2684,4 +2753,53 @@
          return this._extensionRunner;
      }
  }
@@ -210,10 +208,9 @@ index 4bcf0d4..c98d854 100644
  //# sourceMappingURL=agent-session.js.map
 \ No newline at end of file
 diff --git a/node_modules/@earendil-works/pi-coding-agent/dist/core/extensions/loader.js b/node_modules/@earendil-works/pi-coding-agent/dist/core/extensions/loader.js
-index 324d30a..5619a62 100644
 --- a/node_modules/@earendil-works/pi-coding-agent/dist/core/extensions/loader.js
 +++ b/node_modules/@earendil-works/pi-coding-agent/dist/core/extensions/loader.js
-@@ -54,6 +54,20 @@ const VIRTUAL_MODULES = {
+@@ -54,6 +54,20 @@
      "@mariozechner/pi-ai/providers/all": _bundledPiAiProviders,
      "@mariozechner/pi-coding-agent": _bundledPiCodingAgent,
  };
@@ -234,78 +231,10 @@ index 324d30a..5619a62 100644
  const require = createRequire(import.meta.url);
  const isTypeScriptSourceRuntime = !isBunBinary && path.extname(fileURLToPath(import.meta.url)) === ".ts";
  /**
-@@ -348,6 +362,24 @@ function isCurrentCacheToken(cacheToken) {
-         extensionCacheCwd === cacheToken.cwd &&
-         extensionCacheGeneration === cacheToken.generation);
- }
-+// MIXCODE_JITI_SHARED_CACHE: one jiti instance with moduleCache so loading
-+// many extensions does not re-transform shared modules on every factory load.
-+let _sharedJiti = null;
-+function getSharedJiti() {
-+    if (!_sharedJiti) {
-+        _sharedJiti = createJiti(import.meta.url, {
-+            moduleCache: true,
-+            // Bun uses modules embedded in the executable. Source TypeScript reuses the
-+            // host-resolved modules and root tsconfig paths. Built Node uses dist aliases.
-+            ...(isBunBinary
-+                ? { virtualModules: VIRTUAL_MODULES, tryNative: false }
-+                : isTypeScriptSourceRuntime
-+                    ? { virtualModules: VIRTUAL_MODULES, tsconfigPaths: true }
-+                    : { alias: getAliases() }),
-+        });
-+    }
-+    return _sharedJiti;
-+}
- async function loadExtensionModule(extensionPath, cacheToken) {
-     if (isCurrentCacheToken(cacheToken)) {
-         const cachedFactory = extensionCache.get(extensionPath);
-@@ -355,16 +387,7 @@ async function loadExtensionModule(extensionPath, cacheToken) {
-             return cachedFactory;
-         }
-     }
--    const jiti = createJiti(import.meta.url, {
--        moduleCache: false,
--        // Bun uses modules embedded in the executable. Source TypeScript reuses the
--        // host-resolved modules and root tsconfig paths. Built Node uses dist aliases.
--        ...(isBunBinary
--            ? { virtualModules: VIRTUAL_MODULES, tryNative: false }
--            : isTypeScriptSourceRuntime
--                ? { virtualModules: VIRTUAL_MODULES, tsconfigPaths: true }
--                : { alias: getAliases() }),
--    });
-+    const jiti = getSharedJiti();
-     const module = await jiti.import(extensionPath, { default: true });
-     const factory = module;
-     if (typeof factory !== "function") {
-@@ -430,6 +453,8 @@ export async function loadExtensionFromFactory(factory, cwd, eventBus, runtime,
-  * Load extensions from paths.
-  */
- async function loadExtensionsInternal(paths, cwd, eventBus, runtime, useCache = false) {
-+    // MIXCODE_JITI_SHARED_CACHE: reset so reloaded extensions pick up file changes
-+    _sharedJiti = null;
-     const extensions = [];
-     const errors = [];
-     const cacheToken = useCache ? useExtensionCacheCwd(cwd) : undefined;
-@@ -440,11 +465,12 @@ async function loadExtensionsInternal(paths, cwd, eventBus, runtime, useCache =
-         const { extension, error } = await loadExtension(extPath, resolvedCwd, resolvedEventBus, resolvedRuntime, cacheToken);
-         if (error) {
-             errors.push({ path: extPath, error });
--            continue;
-         }
--        if (extension) {
-+        else if (extension) {
-             extensions.push(extension);
-         }
-+        // MIXCODE_EXTENSION_LOAD_YIELD: yield between extensions so the TUI stays responsive
-+        await new Promise((resolve) => setImmediate(resolve));
-     }
-     return {
-         extensions,
 diff --git a/node_modules/@earendil-works/pi-coding-agent/dist/core/footer-data-provider.js b/node_modules/@earendil-works/pi-coding-agent/dist/core/footer-data-provider.js
-index 64a98f8..1f75df2 100644
 --- a/node_modules/@earendil-works/pi-coding-agent/dist/core/footer-data-provider.js
 +++ b/node_modules/@earendil-works/pi-coding-agent/dist/core/footer-data-provider.js
-@@ -279,59 +279,37 @@ export class FooterDataProvider {
+@@ -279,59 +279,37 @@
          this.scheduleGitWatcherRetry();
      }
      setupGitWatcher() {
@@ -387,10 +316,9 @@ index 64a98f8..1f75df2 100644
      }
  }
 diff --git a/node_modules/@earendil-works/pi-coding-agent/dist/core/keybindings.d.ts b/node_modules/@earendil-works/pi-coding-agent/dist/core/keybindings.d.ts
-index f1e83dc..9ae0111 100644
 --- a/node_modules/@earendil-works/pi-coding-agent/dist/core/keybindings.d.ts
 +++ b/node_modules/@earendil-works/pi-coding-agent/dist/core/keybindings.d.ts
-@@ -419,4 +419,5 @@ export declare class KeybindingsManager extends TuiKeybindingsManager {
+@@ -419,4 +419,5 @@
      private static loadFromFile;
  }
  export type { Keybinding, KeyId, KeybindingsConfig };
@@ -398,10 +326,9 @@ index f1e83dc..9ae0111 100644
  //# sourceMappingURL=keybindings.d.ts.map
 \ No newline at end of file
 diff --git a/node_modules/@earendil-works/pi-coding-agent/dist/core/keybindings.js b/node_modules/@earendil-works/pi-coding-agent/dist/core/keybindings.js
-index 3bf81e7..70a3c4b 100644
 --- a/node_modules/@earendil-works/pi-coding-agent/dist/core/keybindings.js
 +++ b/node_modules/@earendil-works/pi-coding-agent/dist/core/keybindings.js
-@@ -293,4 +293,9 @@ export class KeybindingsManager extends TuiKeybindingsManager {
+@@ -293,4 +293,9 @@
          return toKeybindingsConfig(migrateKeybindingsConfig(rawConfig).config);
      }
  }
@@ -413,10 +340,9 @@ index 3bf81e7..70a3c4b 100644
  //# sourceMappingURL=keybindings.js.map
 \ No newline at end of file
 diff --git a/node_modules/@earendil-works/pi-coding-agent/dist/core/session-manager.d.ts b/node_modules/@earendil-works/pi-coding-agent/dist/core/session-manager.d.ts
-index 8cdfbde..e28fb07 100644
 --- a/node_modules/@earendil-works/pi-coding-agent/dist/core/session-manager.d.ts
 +++ b/node_modules/@earendil-works/pi-coding-agent/dist/core/session-manager.d.ts
-@@ -165,6 +165,8 @@ export declare function buildContextEntries(entries: SessionEntry[], leafId?: st
+@@ -165,6 +165,8 @@
   */
  export declare function buildSessionContext(entries: SessionEntry[], leafId?: string | null, byId?: Map<string, SessionEntry>): SessionContext;
  export declare function getDefaultSessionDir(cwd: string, agentDir?: string): string;
@@ -426,10 +352,9 @@ index 8cdfbde..e28fb07 100644
  export declare function loadEntriesFromFile(filePath: string): FileEntry[];
  /** Exported for testing */
 diff --git a/node_modules/@earendil-works/pi-coding-agent/dist/core/session-manager.js b/node_modules/@earendil-works/pi-coding-agent/dist/core/session-manager.js
-index 92e8070..2a487a1 100644
 --- a/node_modules/@earendil-works/pi-coding-agent/dist/core/session-manager.js
 +++ b/node_modules/@earendil-works/pi-coding-agent/dist/core/session-manager.js
-@@ -239,7 +239,7 @@ export function buildSessionContext(entries, leafId, byId) {
+@@ -239,7 +239,7 @@
   * Compute the default session directory for a cwd.
   * Encodes cwd into a safe directory name under ~/.pi/agent/sessions/.
   */
@@ -439,10 +364,9 @@ index 92e8070..2a487a1 100644
      const resolvedAgentDir = resolvePath(agentDir);
      const safePath = `--${resolvedCwd.replace(/^[/\\]/, "").replace(/[/\\:]/g, "-")}--`;
 diff --git a/node_modules/@earendil-works/pi-coding-agent/dist/index.d.ts b/node_modules/@earendil-works/pi-coding-agent/dist/index.d.ts
-index f43bc96..815ee4b 100644
 --- a/node_modules/@earendil-works/pi-coding-agent/dist/index.d.ts
 +++ b/node_modules/@earendil-works/pi-coding-agent/dist/index.d.ts
-@@ -26,10 +26,42 @@ export { hasTrustRequiringProjectResources, type ProjectTrustDecision, ProjectTr
+@@ -26,10 +26,42 @@
  export { type MainOptions, main } from "./main.ts";
  export { InteractiveMode, type InteractiveModeOptions, type JsonAgentSessionEvent, type ModelInfo, type PrintModeOptions, RpcClient, type RpcClientOptions, type RpcCommand, type RpcEventListener, type RpcExtensionUIRequest, type RpcExtensionUIResponse, type RpcResponse, type RpcSessionState, runPrintMode, runRpcMode, } from "./modes/index.ts";
  export { ArminComponent, AssistantMessageComponent, BashExecutionComponent, BorderedLoader, BranchSummaryMessageComponent, CompactionSummaryMessageComponent, CustomEditor, CustomMessageComponent, DynamicBorder, ExtensionEditorComponent, ExtensionInputComponent, ExtensionSelectorComponent, FooterComponent, keyHint, keyText, LoginDialogComponent, ModelSelectorComponent, OAuthSelectorComponent, type RenderDiffOptions, rawKeyHint, renderDiff, SessionSelectorComponent, type SettingsCallbacks, type SettingsConfig, SettingsSelectorComponent, ShowImagesSelectorComponent, SkillInvocationMessageComponent, ThemeSelectorComponent, ThinkingSelectorComponent, ToolExecutionComponent, type ToolExecutionOptions, TreeSelectorComponent, truncateToVisualLines, UserMessageComponent, UserMessageSelectorComponent, type VisualTruncateResult, } from "./modes/interactive/components/index.ts";
@@ -488,10 +412,9 @@ index f43bc96..815ee4b 100644
  //# sourceMappingURL=index.d.ts.map
 \ No newline at end of file
 diff --git a/node_modules/@earendil-works/pi-coding-agent/dist/index.js b/node_modules/@earendil-works/pi-coding-agent/dist/index.js
-index 76d728e..5cf4512 100644
 --- a/node_modules/@earendil-works/pi-coding-agent/dist/index.js
 +++ b/node_modules/@earendil-works/pi-coding-agent/dist/index.js
-@@ -36,7 +36,19 @@ export { InteractiveMode, RpcClient, runPrintMode, runRpcMode, } from "./modes/i
+@@ -36,7 +36,19 @@
  // UI components for extensions
  export { ArminComponent, AssistantMessageComponent, BashExecutionComponent, BorderedLoader, BranchSummaryMessageComponent, CompactionSummaryMessageComponent, CustomEditor, CustomMessageComponent, DynamicBorder, ExtensionEditorComponent, ExtensionInputComponent, ExtensionSelectorComponent, FooterComponent, keyHint, keyText, LoginDialogComponent, ModelSelectorComponent, OAuthSelectorComponent, rawKeyHint, renderDiff, SessionSelectorComponent, SettingsSelectorComponent, ShowImagesSelectorComponent, SkillInvocationMessageComponent, ThemeSelectorComponent, ThinkingSelectorComponent, ToolExecutionComponent, TreeSelectorComponent, truncateToVisualLines, UserMessageComponent, UserMessageSelectorComponent, } from "./modes/interactive/components/index.js";
  // Theme utilities for custom tools and extensions
@@ -512,7 +435,7 @@ index 76d728e..5cf4512 100644
  // Clipboard utilities
  export { copyToClipboard } from "./utils/clipboard.js";
  export { parseFrontmatter, stripFrontmatter } from "./utils/frontmatter.js";
-@@ -44,4 +56,37 @@ export { convertToPng } from "./utils/image-convert.js";
+@@ -44,4 +56,37 @@
  export { formatDimensionNote, resizeImage } from "./utils/image-resize.js";
  // Shell utilities
  export { getShellConfig } from "./utils/shell.js";
@@ -552,7 +475,6 @@ index 76d728e..5cf4512 100644
  //# sourceMappingURL=index.js.map
 \ No newline at end of file
 diff --git a/node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/components/markdown-transform.d.ts b/node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/components/markdown-transform.d.ts
-index c819366..25c5fcb 100644
 --- a/node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/components/markdown-transform.d.ts
 +++ b/node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/components/markdown-transform.d.ts
 @@ -1,3 +1,4 @@
@@ -562,7 +484,6 @@ index c819366..25c5fcb 100644
  //# sourceMappingURL=markdown-transform.d.ts.map
 \ No newline at end of file
 diff --git a/node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/components/markdown-transform.js b/node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/components/markdown-transform.js
-index 5ac4c56..7e9caa7 100644
 --- a/node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/components/markdown-transform.js
 +++ b/node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/components/markdown-transform.js
 @@ -1,7 +1,7 @@

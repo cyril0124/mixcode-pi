@@ -292,7 +292,10 @@ export class MixCodeRuntime {
       preserveCallerTitle?: boolean;
     },
   ): Promise<RuntimeTab> {
+    // loadingPhase drives the Home-card chip while the tab is Not Ready.
+    tab.loadingPhase = "session";
     const session = await this.openOrCreateSession(tab.sessionId, config.workdir);
+    tab.loadingPhase = "resources";
     const runtimeTab = await createRuntimeTabWithFallback(
       tab,
       session,

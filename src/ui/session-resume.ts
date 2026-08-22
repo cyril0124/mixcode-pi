@@ -384,6 +384,7 @@ export function resumeSelectedSession(
         activateTab(state, durableId);
         identityPublished = true;
       }
+      newTab.loadingPhase = "transcript";
       const result = await runtimeRef.extensionSwitchSession(ephemeralSessionId, sessionPath);
       if (result.cancelled) {
         await runtimeRef.closeTab(ephemeralSessionId);

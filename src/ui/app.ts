@@ -25,6 +25,7 @@ import {
 import {
   activeExtensionCommands,
   bindLiveExtensionRedraw,
+  bindLoadingRedraw,
   bindRuntimeRendering,
   bindWorkingRedraw,
   createActiveAutocompleteProvider,
@@ -95,6 +96,7 @@ export function createMixCodeTui(
     options.exitProcessOnQuit === true;
   bindRuntimeRendering(runtime, tui, state, options.onStateChanged);
   const stopWorkingRedraw = bindWorkingRedraw(state, tui);
+  const stopLoadingRedraw = bindLoadingRedraw(state, tui);
   // Extension ctx.ui.setTitle owns the terminal title per tab: the active tab
   // writes immediately (runtime ui context); stored titles re-apply on switch.
   // Tabs without a title leave the current title untouched (Pi: persists until
@@ -397,6 +399,7 @@ export function createMixCodeTui(
   };
   tui.stop = () => {
     stopWorkingRedraw();
+    stopLoadingRedraw();
     stopLiveExtensionRedraw();
     stopChatSelectionAutoScroll();
     stopExtensionTitleSync();

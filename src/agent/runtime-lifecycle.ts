@@ -515,6 +515,7 @@ export async function syncRuntimeChatFromSession(runtimeTab: RuntimeTab): Promis
   runtimeTab.chat = entriesToChatLines(runtimeTab.session.getBranch(), runtimeTab);
   syncPreviewFromChat(runtimeTab.tab, runtimeTab.chat);
   runtimeTab.tab.status = runtimeTab.agentSession.isStreaming ? "running" : "idle";
+  runtimeTab.tab.loadingPhase = undefined;
 }
 
 export async function createRuntimeServices(

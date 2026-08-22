@@ -132,6 +132,8 @@ export interface MixCodeTabInfo {
   sessionId: string;
   title: string;
   status: TabStatus;
+  /** Loading phase label shown while status is "Not Ready" ("session", "resources", "transcript"). */
+  loadingPhase?: string;
   tokenInput: number;
   tokenOutput: number;
   contextLimit: number;
