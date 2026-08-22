@@ -1,4 +1,4 @@
-# MixCode Pi
+# MixCode Pi (`mpi`)
 
 [中文文档](README.zh.md)
 
@@ -172,6 +172,12 @@ mpi status                      # Inspect running instances and tab states
 ## Agent Tab Collaboration
 
 An agent tab drives its own TUI — or any other `mpi` — with `mpi status` / `mpi ctl`. Send a prompt or slash command to a peer tab, wait for completion, read the result. Target another directory with `--pid` / `--workdir`.
+
+Typical uses:
+
+- Hand a review, a question, or a long job to another tab and read the reply.
+- Split independent work across tabs and collect the results.
+- Talk to a tab in another `mpi` instance (`--pid` / `--workdir`).
 
 ```bash
 mpi status --json                        # List live instances, tabs, states
