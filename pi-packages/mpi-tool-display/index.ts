@@ -7,10 +7,10 @@
 // ║    edit  pending preview + bars / split / wrap result diff             ║
 // ║    write pending preview + pre-captured overwrite diff                 ║
 // ║                                                                        ║
-// ║  No tool is registered, replaced or wrapped. Native tool ownership,    ║
-// ║  execute, cwd, settings and PI_* session env behavior remain intact.   ║
-// ║  The public tool_call event captures write's previous content before   ║
-// ║  execution; every other concern stays in the display layer.            ║
+// ║  Tool definitions are never registered, replaced, or execute-wrapped. ║
+// ║  Native ownership, cwd, settings, and PI_* session env stay intact.    ║
+// ║  Optional global debugging appends raw JSON arguments after calls.     ║
+// ║  tool_call captures prior write content only for diff presentation.    ║
 // ╚══════════════════════════════════════════════════════════════════════╝
 
 import type { Component } from "@earendil-works/pi-tui";
@@ -18,13 +18,22 @@ import { Container, Spacer, Text } from "@earendil-works/pi-tui";
 import type {
 	EditToolDetails,
 	ExtensionAPI,
+	ExtensionCommandContext,
+	ExtensionContext,
 	ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 import {
 	formatSize,
+	getAgentDir,
 	ToolExecutionComponent,
 } from "@earendil-works/pi-coding-agent";
 import { renderBashCall } from "./bash-display.js";
+import {
+	loadToolDisplayRuntimeConfig,
+	type ToolDisplayRuntimeConfig,
+	writeToolDisplayRuntimeConfig,
+} from "./config.js";
+import { createToolDisplayConfigOverlay } from "./config-overlay.js";
 import { renderEditDiffResult, renderWriteDiffResult } from "./diff-renderer.js";
 import { disposeAll, resetDisposed } from "./disposable.js";
 import { onReloadShutdown } from "./extension-lifecycle.js";
@@ -35,6 +44,7 @@ import {
 	readWorkspaceUtf8File,
 } from "./pending-diff-preview.js";
 import { registerThinkingLabeling } from "./thinking-label.js";
+import { wrapToolCallRenderer } from "./tool-call-renderer.js";
 import {
 	installToolExecutionAdapter,
 	type CallRenderer,
@@ -59,6 +69,7 @@ import { DEFAULT_TOOL_DISPLAY_CONFIG, type ToolDisplayConfig } from "./types.js"
 
 /** Frozen display knobs. Values define the fixed package display profile. */
 const CONFIG: ToolDisplayConfig = DEFAULT_TOOL_DISPLAY_CONFIG;
+const CONFIG_SUBCOMMAND = "config";
 /** Bound for the write previous-content cache; entries drain on render. */
 const WRITE_EXECUTION_META_LIMIT = 64;
 
@@ -322,18 +333,116 @@ function rendererFor(
 	}
 }
 
+function loadRuntimeConfigOrThrow(agentDir: string): ToolDisplayRuntimeConfig {
+	const loaded = loadToolDisplayRuntimeConfig(agentDir);
+	if (!loaded.ok) {
+		throw new Error(`mpi-tool-display config error (${loaded.path}): ${loaded.error}`);
+	}
+	return loaded.config;
+}
+
+async function openToolDisplayConfig(
+	ctx: ExtensionCommandContext,
+	agentDir: string,
+	apply: (config: ToolDisplayRuntimeConfig) => void,
+): Promise<void> {
+	if (!ctx.hasUI) {
+		ctx.ui.notify("mpi-tool-display config requires interactive UI", "error");
+		return;
+	}
+	const loaded = loadToolDisplayRuntimeConfig(agentDir);
+	if (!loaded.ok) {
+		ctx.ui.notify(`mpi-tool-display config error (${loaded.path}): ${loaded.error}`, "error");
+		return;
+	}
+
+	await ctx.ui.custom<void>(
+		(tui, theme, _keybindings, done) =>
+			createToolDisplayConfigOverlay({
+				theme,
+				requestRender: () => tui.requestRender(),
+				done: () => done(undefined),
+				configPath: loaded.path,
+				initial: loaded.config,
+				persist: (next) => {
+					const written = writeToolDisplayRuntimeConfig(agentDir, next);
+					if (!written.ok) {
+						return {
+							ok: false,
+							error: `Failed to write ${written.path}: ${written.error}`,
+						};
+					}
+					apply(written.config);
+					return { ok: true, config: written.config };
+				},
+				onError: (message) => ctx.ui.notify(message, "error"),
+			}),
+		{
+			overlay: true,
+			overlayOptions: {
+				anchor: "center",
+				width: "72%",
+				maxHeight: "80%",
+				margin: 1,
+			},
+		},
+	);
+}
+
 export default function toolDisplayExtension(pi: ExtensionAPI): void {
 	// Initialize cleanup at extension activation because MixCode may load after session_start
 	// registry immediately. MixCode can load an extension after session_start.
 	resetDisposed();
+	const agentDir = getAgentDir();
+	let runtimeConfig = loadRuntimeConfigOrThrow(agentDir);
 	const writeExecutionMetaByToolCallId = new Map<string, WriteExecutionMeta>();
 	const catalog = createToolDisplayRenderers(writeExecutionMetaByToolCallId);
 	const installation = installToolExecutionAdapter(ToolExecutionComponent.prototype, {
-		call: (toolName, native) => rendererFor(catalog, toolName)?.renderCall ?? native,
+		call: (toolName, native) =>
+			wrapToolCallRenderer(
+				toolName,
+				rendererFor(catalog, toolName)?.renderCall ?? native,
+				runtimeConfig.showRawToolArguments,
+			),
 		result: (toolName, native) => rendererFor(catalog, toolName)?.renderResult ?? native,
 		shell: (toolName, native): RenderShell => (toolName === "edit" ? "default" : native),
+		showRawArguments: () => runtimeConfig.showRawToolArguments,
 	});
 
+	const applyRuntimeConfig = (next: ToolDisplayRuntimeConfig): void => {
+		runtimeConfig = next;
+	};
+	const refreshRuntimeConfig = (ctx: ExtensionContext): void => {
+		const loaded = loadToolDisplayRuntimeConfig(agentDir);
+		if (!loaded.ok) {
+			ctx.ui.notify(`mpi-tool-display config error (${loaded.path}): ${loaded.error}`, "error");
+			return;
+		}
+		applyRuntimeConfig(loaded.config);
+	};
+
+	pi.registerCommand("mpi-tool-display", {
+		description: "[global] Configure tool call rendering; config opens settings",
+		getArgumentCompletions: (prefix) => {
+			const option = {
+				value: CONFIG_SUBCOMMAND,
+				label: CONFIG_SUBCOMMAND,
+				description: "Open tool display settings",
+			};
+			return option.value.startsWith(prefix) ? [option] : null;
+		},
+		handler: async (args, ctx) => {
+			const subcommand = args.trim().toLowerCase();
+			if (subcommand !== CONFIG_SUBCOMMAND) {
+				ctx.ui.notify("Usage: /mpi-tool-display config", "error");
+				return;
+			}
+			await openToolDisplayConfig(ctx, agentDir, applyRuntimeConfig);
+		},
+	});
+
+	pi.on("session_start", (_event, ctx) => refreshRuntimeConfig(ctx));
+	pi.on("before_agent_start", (_event, ctx) => refreshRuntimeConfig(ctx));
 	pi.on("tool_call", (event, ctx) => {
 		if (event.toolName === "write") {
 			captureWritePreviousContent(

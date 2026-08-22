@@ -5,6 +5,11 @@ import * as os from "node:os";
 import * as path from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { initTheme, ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
+import { Text } from "@earendil-works/pi-tui";
+import {
+	loadToolDisplayRuntimeConfig,
+	writeToolDisplayRuntimeConfig,
+} from "./config.js";
 import { disposeAll, resetDisposed } from "./disposable.js";
 import toolDisplayExtension, { createToolDisplayRenderers } from "./index.js";
 
@@ -44,10 +49,28 @@ function renderContext(overrides: Record<string, unknown> = {}) {
 
 test("extension never registers or replaces tools", () => {
 	let registerToolCalls = 0;
+	let registeredCommand:
+		| {
+				name: string;
+				description: string;
+				getArgumentCompletions?: (prefix: string) => Array<{ value: string }> | null;
+			}
+		| undefined;
 	const handlers = new Map<string, Array<(event: unknown, ctx: unknown) => unknown>>();
+	const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+	process.env.PI_CODING_AGENT_DIR = workDir;
 	const pi = {
 		registerTool: () => {
 			registerToolCalls += 1;
+		},
+		registerCommand: (
+			name: string,
+			definition: {
+				description: string;
+				getArgumentCompletions?: (prefix: string) => Array<{ value: string }> | null;
+			},
+		) => {
+			registeredCommand = { name, ...definition };
 		},
 		on: (event: string, handler: (event: unknown, ctx: unknown) => unknown) => {
 			const current = handlers.get(event) ?? [];
@@ -56,11 +79,25 @@ test("extension never registers or replaces tools", () => {
 		},
 	} as unknown as ExtensionAPI;
 
-	toolDisplayExtension(pi);
-	assert.equal(registerToolCalls, 0);
+	try {
+		toolDisplayExtension(pi);
+		assert.equal(registerToolCalls, 0);
+		assert.equal(registeredCommand?.name, "mpi-tool-display");
+		assert.match(registeredCommand?.description ?? "", /^\[global\]/);
+		assert.deepEqual(registeredCommand?.getArgumentCompletions?.("con"), [
+			{
+				value: "config",
+				label: "config",
+				description: "Open tool display settings",
+			},
+		]);
 
-	for (const handler of handlers.get("session_shutdown") ?? []) {
-		void handler({ reason: "reload" }, {});
+		for (const handler of handlers.get("session_shutdown") ?? []) {
+			void handler({ reason: "reload" }, {});
+		}
+	} finally {
+		if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+		else process.env.PI_CODING_AGENT_DIR = previousAgentDir;
 	}
 });
 
@@ -273,6 +310,7 @@ test("write pre-capture renders overwrite and create diffs without wrapping exec
 		registerTool: () => {
 			registerToolCalls += 1;
 		},
+		registerCommand: () => undefined,
 		on: (event: string, handler: (event: unknown, ctx: unknown) => unknown) => {
 			const current = handlers.get(event) ?? [];
 			current.push(handler);
@@ -360,4 +398,189 @@ test("write pre-capture renders overwrite and create diffs without wrapping exec
 
 	// Teardown: reload shutdown restores the patched prototype.
 	emit("session_shutdown", { reason: "reload" }, {});
+});
+
+test("config controls every tool category on the next agent turn", async () => {
+	initTheme("dark");
+	const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "mpi-tool-display-all-tools-"));
+	const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+	process.env.PI_CODING_AGENT_DIR = agentDir;
+	const handlers = new Map<string, Array<(event: unknown, ctx: unknown) => unknown>>();
+	let command:
+		| {
+				handler: (args: string, ctx: unknown) => Promise<void>;
+			}
+		| undefined;
+	const pi = {
+		registerCommand: (_name: string, definition: typeof command) => {
+			command = definition;
+		},
+		on: (event: string, handler: (event: unknown, ctx: unknown) => unknown) => {
+			const current = handlers.get(event) ?? [];
+			current.push(handler);
+			handlers.set(event, current);
+		},
+	} as unknown as ExtensionAPI;
+
+	const secondHandlers = new Map<
+		string,
+		Array<(event: unknown, ctx: unknown) => unknown>
+	>();
+	const secondPi = {
+		registerCommand: () => undefined,
+		on: (event: string, handler: (event: unknown, ctx: unknown) => unknown) => {
+			const current = secondHandlers.get(event) ?? [];
+			current.push(handler);
+			secondHandlers.set(event, current);
+		},
+	} as unknown as ExtensionAPI;
+	const emit = (event: string, payload: unknown, ctx: unknown) => {
+		for (const handler of handlers.get(event) ?? []) void handler(payload, ctx);
+	};
+	const emitSecond = (event: string, payload: unknown, ctx: unknown) => {
+		for (const handler of secondHandlers.get(event) ?? []) void handler(payload, ctx);
+	};
+	const definition = (name: string, renderCall?: () => Text) =>
+		({
+			name,
+			label: name,
+			description: "",
+			parameters: {},
+			execute: async () => ({ content: [] }),
+			...(renderCall ? { renderCall } : {}),
+		}) as never;
+	const row = (
+		name: string,
+		args: Record<string, unknown>,
+		renderCall?: () => Text,
+		registered = true,
+	) => {
+		const component = new ToolExecutionComponent(
+			name,
+			`${name}-call`,
+			args,
+			{ showImages: false, imageWidthCells: 20 },
+			registered ? definition(name, renderCall) : undefined,
+			{ requestRender: () => undefined } as never,
+			agentDir,
+		);
+		component.updateResult(
+			{ content: [{ type: "text", text: `${name}-result` }], details: {}, isError: false },
+			false,
+		);
+		return component;
+	};
+
+	try {
+		toolDisplayExtension(pi);
+		// A second tab becomes the prototype adapter owner. The first tab's
+		// config command must still update and redraw rows through shared state.
+		toolDisplayExtension(secondPi);
+		const bash = row("bash", { command: "echo debug" });
+		const fallback = row("TaskUpdate", { taskId: "5", status: "in_progress" });
+		const native = row("native_tool", { payload: "value" }, () => new Text("native call", 0, 0));
+		const unknown = row("unknown_tool", { raw: "unknown" }, undefined, false);
+		const rendered = (component: ToolExecutionComponent) =>
+			stripAnsi(component.render(100).join("\n"));
+
+		assert.doesNotMatch(rendered(bash), /"command"/);
+		assert.doesNotMatch(rendered(fallback), /"taskId"/);
+		assert.match(rendered(native), /native call/);
+		assert.doesNotMatch(rendered(native), /"payload"/);
+		assert.match(rendered(unknown), /unknown_tool/);
+		assert.doesNotMatch(rendered(unknown), /"raw"/);
+
+		assert.ok(command);
+		const notices: string[] = [];
+		await command.handler("unknown", {
+			hasUI: true,
+			ui: { notify: (message: string) => notices.push(message) },
+		} as never);
+		await command.handler("config", {
+			hasUI: false,
+			ui: { notify: (message: string) => notices.push(message) },
+		} as never);
+		assert.deepEqual(notices, [
+			"Usage: /mpi-tool-display config",
+			"mpi-tool-display config requires interactive UI",
+		]);
+
+		await command.handler("config", {
+			hasUI: true,
+			ui: {
+				notify: () => undefined,
+				custom: async (factory: (tui: unknown, theme: unknown, kb: unknown, done: () => void) => { handleInput(data: string): void }) => {
+					let done = false;
+					const view = factory(
+						{ requestRender: () => undefined },
+						{
+							fg: (_color: string, text: string) => text,
+							bold: (text: string) => text,
+						},
+						{},
+						() => {
+							done = true;
+						},
+					);
+					view.handleInput("\r");
+					view.handleInput("\x1b");
+					assert.equal(done, true);
+				},
+			},
+		} as never);
+
+		emitSecond("before_agent_start", {}, { ui: { notify: () => undefined } });
+		const enabledBash = row("bash", { command: "echo enabled" });
+		const enabledFallback = row("TaskUpdate", { taskId: "6", status: "completed" });
+		const enabledNative = row(
+			"native_tool",
+			{ payload: "enabled" },
+			() => new Text("native call", 0, 0),
+		);
+		const enabledUnknown = row(
+			"unknown_tool",
+			{ raw: "enabled" },
+			undefined,
+			false,
+		);
+		assert.match(rendered(enabledBash), /"command": "echo enabled"/);
+		assert.match(rendered(enabledFallback), /"taskId": "6"/);
+		assert.match(rendered(enabledNative), /native call/);
+		assert.match(rendered(enabledNative), /"payload": "enabled"/);
+		assert.match(rendered(enabledNative), /native_tool-result/);
+		assert.match(rendered(enabledUnknown), /"raw": "enabled"/);
+		assert.match(rendered(enabledUnknown), /unknown_tool-result/);
+		const persisted = loadToolDisplayRuntimeConfig(agentDir);
+		assert.equal(persisted.ok && persisted.config.showRawToolArguments, true);
+
+		const disabled = writeToolDisplayRuntimeConfig(agentDir, {
+			showRawToolArguments: false,
+		});
+		assert.equal(disabled.ok, true);
+		emitSecond("before_agent_start", {}, { ui: { notify: () => undefined } });
+		const disabledBash = row("bash", { command: "echo disabled" });
+		const disabledFallback = row("TaskUpdate", { taskId: "7", status: "pending" });
+		const disabledNative = row(
+			"native_tool",
+			{ payload: "disabled" },
+			() => new Text("native call", 0, 0),
+		);
+		const disabledUnknown = row(
+			"unknown_tool",
+			{ raw: "disabled" },
+			undefined,
+			false,
+		);
+		assert.doesNotMatch(rendered(disabledBash), /"command"/);
+		assert.doesNotMatch(rendered(disabledFallback), /"taskId"/);
+		assert.match(rendered(disabledNative), /native call/);
+		assert.doesNotMatch(rendered(disabledNative), /"payload"/);
+		assert.doesNotMatch(rendered(disabledUnknown), /"raw"/);
+	} finally {
+		emit("session_shutdown", { reason: "reload" }, {});
+		emitSecond("session_shutdown", { reason: "reload" }, {});
+		if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+		else process.env.PI_CODING_AGENT_DIR = previousAgentDir;
+		fs.rmSync(agentDir, { recursive: true, force: true });
+	}
 });

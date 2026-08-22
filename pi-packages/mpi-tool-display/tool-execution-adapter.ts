@@ -1,5 +1,5 @@
 // Render-only ToolExecutionComponent adapter; license notices: ./THIRD_PARTY_NOTICES.md.
-// This package keeps only guarded renderer/shell selection.
+// This package keeps only guarded render-path selection.
 import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
 
 export type CallRenderer = NonNullable<ToolDefinition["renderCall"]>;
@@ -8,24 +8,29 @@ export type RenderShell = NonNullable<ToolDefinition["renderShell"]>;
 
 interface ToolRowHost {
   toolName?: string;
+  args?: unknown;
   invalidate?: () => void;
   toolDefinition?: { name?: string };
   builtInToolDefinition?: { name?: string };
 }
 
 type RendererSelector<T> = (this: ToolRowHost, ...args: unknown[]) => T | undefined;
+type GenericFormatter = (this: ToolRowHost, ...args: unknown[]) => string;
 type ShellSelector = (this: ToolRowHost, ...args: unknown[]) => RenderShell;
 
 export interface ToolRowResolver {
   call(toolName: string, native: CallRenderer | undefined): CallRenderer | undefined;
   result(toolName: string, native: ResultRenderer | undefined): ResultRenderer | undefined;
   shell(toolName: string, native: RenderShell): RenderShell;
+  showRawArguments(toolName: string): boolean;
 }
 
 interface InstallationState {
+  formatDescriptor: PropertyDescriptor;
   callDescriptor: PropertyDescriptor;
   resultDescriptor: PropertyDescriptor;
   shellDescriptor: PropertyDescriptor;
+  patchedFormat: GenericFormatter;
   patchedCall: RendererSelector<CallRenderer>;
   patchedResult: RendererSelector<ResultRenderer>;
   patchedShell: ShellSelector;
@@ -38,8 +43,9 @@ interface InstallationState {
   active: boolean;
 }
 
-const STATE = Symbol.for("mpi-tool-display.toolExecutionAdapter.v1");
+const STATE = Symbol.for("mpi-tool-display.toolExecutionAdapter.v3");
 type HostPrototype = ToolRowHost & {
+  formatToolExecution?: GenericFormatter;
   getCallRenderer?: RendererSelector<CallRenderer>;
   getResultRenderer?: RendererSelector<ResultRenderer>;
   getRenderShell?: ShellSelector;
@@ -48,6 +54,16 @@ type HostPrototype = ToolRowHost & {
 
 export interface ToolExecutionAdapterInstallation {
   dispose(): void;
+}
+
+function installationHandle(
+  prototype: HostPrototype,
+  state: InstallationState,
+  owner: object,
+): ToolExecutionAdapterInstallation {
+  return {
+    dispose: () => dispose(prototype, state, owner),
+  };
 }
 
 function toolName(instance: ToolRowHost): string {
@@ -98,7 +114,11 @@ function ownState(prototype: HostPrototype): InstallationState | undefined {
 
 function ownMethod(
   prototype: HostPrototype,
-  key: "getCallRenderer" | "getResultRenderer" | "getRenderShell",
+  key:
+    | "formatToolExecution"
+    | "getCallRenderer"
+    | "getResultRenderer"
+    | "getRenderShell",
 ): unknown {
   const descriptor = Object.getOwnPropertyDescriptor(prototype, key);
   return descriptor && "value" in descriptor ? descriptor.value : undefined;
@@ -121,6 +141,9 @@ function assertMethodDescriptor(prototype: HostPrototype, key: string): Property
 }
 
 function restore(prototype: HostPrototype, state: InstallationState): void {
+  if (ownMethod(prototype, "formatToolExecution") === state.patchedFormat) {
+    Object.defineProperty(prototype, "formatToolExecution", state.formatDescriptor);
+  }
   if (ownMethod(prototype, "getRenderShell") === state.patchedShell) {
     Object.defineProperty(prototype, "getRenderShell", state.shellDescriptor);
   }
@@ -131,6 +154,7 @@ function restore(prototype: HostPrototype, state: InstallationState): void {
     Object.defineProperty(prototype, "getCallRenderer", state.callDescriptor);
   }
   if (
+    ownMethod(prototype, "formatToolExecution") !== state.patchedFormat &&
     ownMethod(prototype, "getCallRenderer") !== state.patchedCall &&
     ownMethod(prototype, "getResultRenderer") !== state.patchedResult &&
     ownMethod(prototype, "getRenderShell") !== state.patchedShell &&
@@ -156,6 +180,7 @@ export function installToolExecutionAdapter(
   const existing = ownState(prototype);
   if (
     existing &&
+    ownMethod(prototype, "formatToolExecution") === existing.patchedFormat &&
     ownMethod(prototype, "getCallRenderer") === existing.patchedCall &&
     ownMethod(prototype, "getResultRenderer") === existing.patchedResult &&
     ownMethod(prototype, "getRenderShell") === existing.patchedShell
@@ -166,20 +191,23 @@ export function installToolExecutionAdapter(
     existing.active = true;
     sweepRows(existing);
     invalidateRows(existing);
-    return { dispose: () => dispose(prototype, existing, owner) };
+    return installationHandle(prototype, existing, owner);
   }
   if (existing) {
     throw new Error("mpi-tool-display found a stale ToolExecutionComponent adapter state");
   }
 
+  const formatDescriptor = assertMethodDescriptor(prototype, "formatToolExecution");
   const callDescriptor = assertMethodDescriptor(prototype, "getCallRenderer");
   const resultDescriptor = assertMethodDescriptor(prototype, "getResultRenderer");
   const shellDescriptor = assertMethodDescriptor(prototype, "getRenderShell");
+  const originalFormat = formatDescriptor.value as GenericFormatter;
   const originalCall = callDescriptor.value as RendererSelector<CallRenderer>;
   const originalResult = resultDescriptor.value as RendererSelector<ResultRenderer>;
   const originalShell = shellDescriptor.value as ShellSelector;
   const owner = {};
   const state = {
+    formatDescriptor,
     callDescriptor,
     resultDescriptor,
     shellDescriptor,
@@ -191,6 +219,21 @@ export function installToolExecutionAdapter(
     active: true,
   } as InstallationState;
 
+  const patchedFormat: GenericFormatter = function (...args) {
+    trackRow(state, this);
+    if (!state.active || state.resolver.showRawArguments(toolName(this))) {
+      return originalFormat.apply(this, args);
+    }
+    const originalArgs = this.args;
+    // Pi's generic formatter synchronously owns title/result/image text. Hide
+    // only its argument input so every other native byte remains unchanged.
+    this.args = undefined;
+    try {
+      return originalFormat.apply(this, args);
+    } finally {
+      this.args = originalArgs;
+    }
+  };
   const patchedCall: RendererSelector<CallRenderer> = function (...args) {
     const native = originalCall.apply(this, args);
     if (!state.active) return native;
@@ -209,12 +252,17 @@ export function installToolExecutionAdapter(
     trackRow(state, this);
     return state.resolver.shell(toolName(this), native);
   };
+  state.patchedFormat = patchedFormat;
   state.patchedCall = patchedCall;
   state.patchedResult = patchedResult;
   state.patchedShell = patchedShell;
 
   try {
     Object.defineProperty(prototype, STATE, { value: state, configurable: true });
+    Object.defineProperty(prototype, "formatToolExecution", {
+      ...formatDescriptor,
+      value: patchedFormat,
+    });
     Object.defineProperty(prototype, "getCallRenderer", {
       ...callDescriptor,
       value: patchedCall,
@@ -233,5 +281,5 @@ export function installToolExecutionAdapter(
   }
 
   invalidateRows(state);
-  return { dispose: () => dispose(prototype, state, owner) };
+  return installationHandle(prototype, state, owner);
 }

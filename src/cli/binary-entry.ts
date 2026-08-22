@@ -62,6 +62,8 @@ import bashDefaultTimeoutIndex from "../../pi-packages/mpi-bash-default-timeout/
 import bashDefaultTimeoutPackageJson from "../../pi-packages/mpi-bash-default-timeout/package.json" with { type: "text" };
 import toolDisplayIndex from "../../pi-packages/mpi-tool-display/index.ts" with { type: "text" };
 import toolDisplayPackageJson from "../../pi-packages/mpi-tool-display/package.json" with { type: "text" };
+import toolDisplayConfig from "../../pi-packages/mpi-tool-display/config.ts" with { type: "text" };
+import toolDisplayConfigOverlay from "../../pi-packages/mpi-tool-display/config-overlay.ts" with { type: "text" };
 import toolDisplayTypes from "../../pi-packages/mpi-tool-display/types.ts" with { type: "text" };
 import toolDisplayAnsiUtils from "../../pi-packages/mpi-tool-display/ansi-utils.ts" with { type: "text" };
 import toolDisplayRenderUtils from "../../pi-packages/mpi-tool-display/render-utils.ts" with { type: "text" };
@@ -76,6 +78,7 @@ import toolDisplayToolSummaries from "../../pi-packages/mpi-tool-display/tool-su
 import toolDisplayThinkingLabel from "../../pi-packages/mpi-tool-display/thinking-label.ts" with { type: "text" };
 import toolDisplayExtensionLifecycle from "../../pi-packages/mpi-tool-display/extension-lifecycle.ts" with { type: "text" };
 import toolDisplayToolExecutionAdapter from "../../pi-packages/mpi-tool-display/tool-execution-adapter.ts" with { type: "text" };
+import toolDisplayToolCallRenderer from "../../pi-packages/mpi-tool-display/tool-call-renderer.ts" with { type: "text" };
 import toolDisplayReadme from "../../pi-packages/mpi-tool-display/README.md" with { type: "text" };
 import toolDisplayReadmeZh from "../../pi-packages/mpi-tool-display/README.zh.md" with { type: "text" };
 import toolDisplayThirdPartyNotices from "../../pi-packages/mpi-tool-display/THIRD_PARTY_NOTICES.md" with { type: "text" };
@@ -298,6 +301,8 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
     "mpi-tool-display": {
       "index.ts": toolDisplayIndex,
       "package.json": toolDisplayPackageJson,
+      "config.ts": toolDisplayConfig,
+      "config-overlay.ts": toolDisplayConfigOverlay,
       "types.ts": toolDisplayTypes,
       "ansi-utils.ts": toolDisplayAnsiUtils,
       "render-utils.ts": toolDisplayRenderUtils,
@@ -312,6 +317,7 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
       "thinking-label.ts": toolDisplayThinkingLabel,
       "extension-lifecycle.ts": toolDisplayExtensionLifecycle,
       "tool-execution-adapter.ts": toolDisplayToolExecutionAdapter,
+      "tool-call-renderer.ts": toolDisplayToolCallRenderer,
       "README.md": toolDisplayReadme,
       "README.zh.md": toolDisplayReadmeZh,
       "THIRD_PARTY_NOTICES.md": toolDisplayThirdPartyNotices,
