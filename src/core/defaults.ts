@@ -13,6 +13,9 @@ import {
   type WorkspaceOverlayState,
 } from "./types.js";
 
+/** Fallback when Pi's getDefaultThinkingLevel() has no configured default. */
+export const DEFAULT_THINKING_LEVEL: ThinkingLevel = "medium";
+
 export function createSessionSelectorState(): SessionSelectorState {
   return { open: false };
 }
@@ -64,7 +67,7 @@ export function createInitialState(workdir: string, defaultThinkingLevel?: Think
     tabJumpNonIdleOnly: false,
     picker: undefined,
     model: { ...DEFAULT_MODEL_REF },
-    thinkingLevel: defaultThinkingLevel ?? "medium",
+    thinkingLevel: defaultThinkingLevel ?? DEFAULT_THINKING_LEVEL,
     theme: DEFAULT_THEME_ID,
     availableModels: [{ ...DEFAULT_MODEL_REF }],
     disabledProviders: [],

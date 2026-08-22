@@ -210,6 +210,36 @@ import { resolveMixcodeAgentDir } from "../core/paths.js";
 // pi-coding-agent which reads PI_PACKAGE_DIR eagerly (not yet set at this point).
 import * as nestedPiTuiKeybindings from "../../node_modules/@earendil-works/pi-tui/dist/keybindings.js";
 
+// jiti caches compiled extension modules to <os.tmpdir()>/jiti. On shared
+// hosts that directory can be owned by another user, which silently disables
+// the cache: every boot then re-transforms every extension in pure JS
+// (compiled binaries force tryNative:false). Detect the occupied directory
+// and redirect TMPDIR to a private sibling on the same (local) disk so jiti
+// and spawned children keep local-disk temp IO. Pre-setting any writable
+// TMPDIR skips the redirect entirely.
+function ensureJitiCacheWritable(): void {
+  const jitiDir = path.join(os.tmpdir(), "jiti");
+  try {
+    fs.mkdirSync(jitiDir, { recursive: true });
+    fs.accessSync(jitiDir, fs.constants.W_OK);
+    return;
+  } catch {
+    // Occupied by another user or otherwise unwritable — redirect below.
+  }
+  const fallback = path.join(os.tmpdir(), `${os.userInfo().username}-mixcode-tmp`);
+  try {
+    fs.mkdirSync(fallback, { recursive: true });
+    process.env.TMPDIR = fallback;
+    process.stderr.write(
+      `[mixcode] jiti cache dir ${jitiDir} is not writable; TMPDIR redirected to ${fallback}\n`,
+    );
+  } catch {
+    // No writable fallback either — keep the original TMPDIR; jiti then runs
+    // without its disk cache and re-transforms extensions on each boot.
+  }
+}
+ensureJitiCacheWritable();
+
 // Sync mkdtemp/rm for process-exit cleanup (no async allowed on exit handlers).
 const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "mixcode-pi-"));
 

@@ -13,7 +13,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { MixCodeRuntime } from "../agent/runtime.js";
 import { scanSkillEntries } from "../core/attachments.js";
-import { createInitialState, createSessionId, createTab, DEFAULT_MODEL_REF } from "../core/defaults.js";
+import { createInitialState, createSessionId, createTab, DEFAULT_MODEL_REF, DEFAULT_THINKING_LEVEL } from "../core/defaults.js";
 import {
   extensionManagerFile,
   loadExtensionManagerConfig,
@@ -193,7 +193,7 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
   }
 
   setStateModel(state, preferredModel);
-  state.thinkingLevel = settingsManager.getDefaultThinkingLevel();
+  state.thinkingLevel = settingsManager.getDefaultThinkingLevel() ?? DEFAULT_THINKING_LEVEL;
   for (const tab of state.tabs) {
     setTabModel(tab, state.model);
     tab.thinkingLevel = state.thinkingLevel;
