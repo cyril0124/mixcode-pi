@@ -164,7 +164,10 @@ export async function runInteractiveApp(args: MainArgs, selfRoot: string): Promi
     const message = error instanceof Error ? error.message : String(error);
     process.stderr.write(`mpi instance registry update failed: ${message}\n`);
   };
-  const writeRegistrySnapshot = async (): Promise<void> => {
+  /** Coalescing window for instance-registry snapshot writes (see scheduleRegistrySnapshot). */
+  const REGISTRY_SNAPSHOT_COALESCE_MS = 500;
+  let registrySnapshotTimer: NodeJS.Timeout | undefined;
+  const scheduleRegistrySnapshot = (): void => {
     // Registry writes are NFS temp+rename (~100ms each, measured under boot
     // load). Runtime/UI change events fire hundreds of times during tab
     // restore; an un-coalesced write per event serializes the whole boot on
@@ -190,17 +193,11 @@ export async function runInteractiveApp(args: MainArgs, selfRoot: string): Promi
   // a ctl socket lost to a transient NFS bind failure or external deletion is
   // rebound within one interval instead of staying dead for the process life.
   let ensureCtlServer: () => void = () => {};
-  /** Coalescing window for instance-registry snapshot writes (see writeRegistrySnapshot). */
-  const REGISTRY_SNAPSHOT_COALESCE_MS = 500;
-  let registrySnapshotTimer: NodeJS.Timeout | undefined;
   const heartbeat = setInterval(() => {
-    void writeRegistrySnapshot();
+    void scheduleRegistrySnapshot();
     ensureCtlServer();
   }, INSTANCE_HEARTBEAT_INTERVAL_MS);
   heartbeat.unref?.();
-  const scheduleRegistrySnapshot = () => {
-    void writeRegistrySnapshot();
-  };
   const removeRegistrySnapshot = () => {
     clearInterval(heartbeat);
     if (registrySnapshotTimer) clearTimeout(registrySnapshotTimer);
@@ -226,7 +223,7 @@ export async function runInteractiveApp(args: MainArgs, selfRoot: string): Promi
     settingsDeps,
     onStateChanged: async (nextState) => {
       await saveStateFile(stateFile, nextState);
-      await writeRegistrySnapshot();
+      await scheduleRegistrySnapshot();
     },
   });
   // Wire the console bridge to the TUI now that it exists: console output renders
@@ -252,7 +249,7 @@ export async function runInteractiveApp(args: MainArgs, selfRoot: string): Promi
     originalRequestRender(force);
   };
   runtime.onChange(() => {
-    void writeRegistrySnapshot();
+    void scheduleRegistrySnapshot();
   });
   // Enable cross-process session sync for the interactive TUI: watch this
   // workdir's sessionsRoot for appends by other instances and serialize this
@@ -275,13 +272,13 @@ export async function runInteractiveApp(args: MainArgs, selfRoot: string): Promi
         ...(candidate.title ? { title: candidate.title } : {}),
         workdir: candidate.workdir,
       });
-      await writeRegistrySnapshot();
+      await scheduleRegistrySnapshot();
       tui.requestRender();
     },
     closeTab: async (sessionId) => {
       // publishClose:false — open_tabs already dropped this id (we are reconciling).
       await closeExistingAgentTab(state, runtime, sessionId, { publishClose: false });
-      await writeRegistrySnapshot();
+      await scheduleRegistrySnapshot();
       tui.requestRender();
     },
     syncTabTitles: (titles) => {
@@ -321,7 +318,7 @@ export async function runInteractiveApp(args: MainArgs, selfRoot: string): Promi
         const nextHomeIndex = state.tabs.findIndex((tab) => tab.sessionId === homeSelectedId);
         if (nextHomeIndex >= 0) state.homeSelectedTabIndex = nextHomeIndex;
       }
-      await writeRegistrySnapshot();
+      await scheduleRegistrySnapshot();
       tui.requestRender();
     },
     onError: (error) => {
@@ -413,7 +410,7 @@ export async function runInteractiveApp(args: MainArgs, selfRoot: string): Promi
   void cleanupInstanceRegistry(stateRoot).catch((err: unknown) => {
     reportRegistryWriteError(err);
   });
-  void writeRegistrySnapshot();
+  void scheduleRegistrySnapshot();
   // Stagger package update checks until after tab extension cold-load (tabsReady).
   // Parallel jiti + npm view contends for CPU/network; finally keeps the check
   // even when extension loading fails. Still fire-and-forget for the first frame.

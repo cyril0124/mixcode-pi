@@ -17,15 +17,23 @@ const wireStateByPi = new WeakMap<ExtensionAPI, WireState>();
 // Module-graph singletons: the shell module is evaluated once per process, but
 // jiti re-evaluates dynamic imports on every call, so N tabs would re-evaluate
 // the gate/app graphs N times at boot. Memoize the import promises instead;
-// per-pi wiring below stays per tab.
+// per-pi wiring below stays per tab. A rejected import clears the memo so a
+// transient read failure (NFS hiccup) retries on the next call instead of
+// disabling the path for the process lifetime.
 let gateModulePromise: Promise<typeof import("./session-gate.js")> | undefined;
 function loadSessionGate(): Promise<typeof import("./session-gate.js")> {
-	gateModulePromise ??= import("./session-gate.js");
+	gateModulePromise ??= import("./session-gate.js").catch((error: unknown) => {
+		gateModulePromise = undefined;
+		throw error;
+	});
 	return gateModulePromise;
 }
 let appModulePromise: Promise<typeof import("./app.js")> | undefined;
 function loadGoalApp(): Promise<typeof import("./app.js")> {
-	appModulePromise ??= import("./app.js");
+	appModulePromise ??= import("./app.js").catch((error: unknown) => {
+		appModulePromise = undefined;
+		throw error;
+	});
 	return appModulePromise;
 }
 

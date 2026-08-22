@@ -231,7 +231,7 @@ diff --git a/dist/core/extensions/loader.js b/dist/core/extensions/loader.js
  const require = createRequire(import.meta.url);
  const isTypeScriptSourceRuntime = !isBunBinary && path.extname(fileURLToPath(import.meta.url)) === ".ts";
  /**
-@@ -113,8 +127,16 @@
+@@ -113,8 +127,18 @@
  let extensionCacheCwd;
  let extensionCacheGeneration = 0;
  const extensionCache = new Map();
@@ -239,8 +239,10 @@ diff --git a/dist/core/extensions/loader.js b/dist/core/extensions/loader.js
 +// tab at boot) race on the same extension paths; without sharing in-flight
 +// imports every tab misses the cache window and re-imports every module
 +// (measured: 13 tabs × 34 paths = 442 jiti imports, ~35s of duplicated work).
-+// Join identical in-flight imports so the first caller pays and the rest reuse.
-+// Cleared together with the factory cache so a clear still forces a re-import.
++// Only cache-token callers join/register: loadExtensions() (no token) keeps
++// upstream fresh-evaluation semantics. Cleared together with the factory cache
++// so a clear still forces a re-import; deletes are identity-checked so a stale
++// completion cannot evict a newer in-flight entry.
 +const inflightExtensionModules = new Map();
  export function clearExtensionCache() {
      extensionCache.clear();
@@ -248,19 +250,23 @@ diff --git a/dist/core/extensions/loader.js b/dist/core/extensions/loader.js
      extensionCacheCwd = undefined;
      extensionCacheGeneration++;
  }
-@@ -355,6 +377,18 @@
+@@ -354,7 +378,22 @@
+         if (cachedFactory) {
              return cachedFactory;
          }
++        const inflight = inflightExtensionModules.get(extensionPath);
++        if (inflight) {
++            return inflight;
++        }
      }
-+    // MIXCODE_EXTENSION_SINGLE_FLIGHT: join an identical in-flight import.
-+    const inflight = inflightExtensionModules.get(extensionPath);
-+    if (inflight) {
-+        return inflight;
-+    }
 +    const importPromise = importExtensionModuleUncached(extensionPath, cacheToken).finally(() => {
-+        inflightExtensionModules.delete(extensionPath);
++        if (inflightExtensionModules.get(extensionPath) === importPromise) {
++            inflightExtensionModules.delete(extensionPath);
++        }
 +    });
-+    inflightExtensionModules.set(extensionPath, importPromise);
++    if (isCurrentCacheToken(cacheToken)) {
++        inflightExtensionModules.set(extensionPath, importPromise);
++    }
 +    return importPromise;
 +}
 +async function importExtensionModuleUncached(extensionPath, cacheToken) {

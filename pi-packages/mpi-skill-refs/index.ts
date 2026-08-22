@@ -26,19 +26,20 @@ import {
 
 const CUSTOM_MESSAGE_TYPE = "skill-refs";
 
-// Shared scan dedup: one filesystem walk per cwd per TTL window instead of one
-// per tab attach (boot restores N tabs concurrently). Failures drop the cache
-// entry so the next attach retries. 30s keeps mid-session skill additions
-// visible on the next attach.
-const SCAN_TTL_MS = 30_000;
-const scanCache = new Map<string, { at: number; value: Promise<Map<string, SkillRefEntry>> }>();
+// Shared in-flight scan: boot restores N tabs concurrently; identical
+// concurrent attaches join the running filesystem walk instead of repeating
+// it per tab. No TTL — once idle, the next attach scans fresh, so newly added
+// skills appear immediately. The finally-delete is identity-checked so a
+// settled scan cannot evict a newer one.
+const inflightSkillScans = new Map<string, Promise<Map<string, SkillRefEntry>>>();
 
 function scanSkillDirsShared(cwd: string): Promise<Map<string, SkillRefEntry>> {
-  const hit = scanCache.get(cwd);
-  if (hit && Date.now() - hit.at < SCAN_TTL_MS) return hit.value;
-  const value = scanSkillDirs(cwd);
-  value.catch(() => scanCache.delete(cwd));
-  scanCache.set(cwd, { at: Date.now(), value });
+  const inflight = inflightSkillScans.get(cwd);
+  if (inflight) return inflight;
+  const value = scanSkillDirs(cwd).finally(() => {
+    if (inflightSkillScans.get(cwd) === value) inflightSkillScans.delete(cwd);
+  });
+  inflightSkillScans.set(cwd, value);
   return value;
 }
 

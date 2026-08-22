@@ -11,10 +11,11 @@ import {
 } from "../node_modules/@earendil-works/pi-coding-agent/dist/core/extensions/loader.js";
 
 /**
- * Contract: concurrent extension loads with the same cwd share in-flight module
- * imports (single-flight), so N racing loaders evaluate each extension module
- * once. clearExtensionCache() invalidates both the factory cache and the
- * in-flight joins.
+ * Contract: concurrent cache-token loads with the same cwd share in-flight
+ * module imports (single-flight), so N racing loaders evaluate each extension
+ * module once. loadExtensions() (no cache token) keeps upstream fresh-eval
+ * semantics and never joins. clearExtensionCache() invalidates both the
+ * factory cache and the in-flight joins.
  */
 
 async function makeCounterExtension(dir: string): Promise<string> {
@@ -48,11 +49,27 @@ test("concurrent same-cwd loads evaluate an extension module exactly once", asyn
       loadExtensionsCached([extPath], dir),
       loadExtensionsCached([extPath], dir),
       loadExtensionsCached([extPath], dir),
-      loadExtensions([extPath], dir),
     ]);
+    const uncached = await loadExtensions([extPath], dir);
 
     assert.equal(results.every((r) => r.extensions.length === 1), true);
-    // With single-flight the racing imports join the first evaluation.
+    assert.equal(uncached.extensions.length, 1);
+    // Cached racers share one evaluation; the uncached call re-evaluates.
+    assert.equal(evalCount(), 2);
+  } finally {
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("sequential cached loads after completion hit the factory cache", async () => {
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "single-flight-seq-"));
+  try {
+    const extPath = await makeCounterExtension(dir);
+    clearExtensionCache();
+    (globalThis as Record<string, unknown>).__singleFlightEvalCount = 0;
+
+    await loadExtensionsCached([extPath], dir);
+    await loadExtensionsCached([extPath], dir);
     assert.equal(evalCount(), 1);
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
