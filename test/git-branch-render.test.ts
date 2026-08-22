@@ -4,12 +4,14 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { execFileSync } from "node:child_process";
 import { test } from "node:test";
-import { createTab } from "../src/core/defaults.js";
-import { renderInputMeta } from "../src/ui/rendering/chrome.js";
 
-function stripAnsi(text: string): string {
-  return text.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "");
-}
+// This file must not mutate process.env.PATH: bun test --parallel runs many
+// test files concurrently inside one `--test-worker` process, and a swapped
+// PATH (with a slow fake git) poisons every concurrent file that spawns git
+// (footer-git-branch, bootstrap, …) — observed as 60s starvations and a
+// CPU-spinning worker with an unreaped zombie git child in CI. The
+// PATH-scoped render assertions run in a child bun process instead
+// (test/helpers/git-branch-render-scenario.ts).
 
 test("renderInputMeta does not block the event loop on git", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "mixcode-git-branch-"));
@@ -32,20 +34,19 @@ test("renderInputMeta does not block the event loop on git", async () => {
   );
   fs.chmodSync(path.join(bin, "git"), 0o755);
 
-  const prevPath = process.env.PATH;
-  process.env.PATH = `${bin}:${prevPath ?? ""}`;
-  try {
-    const tab = createTab(1, "s1", workdir);
-    const t0 = performance.now();
-    renderInputMeta(tab, 120);
-    const firstMs = performance.now() - t0;
-    assert.ok(firstMs < 80, `first paint blocked ${firstMs.toFixed(1)}ms (must not await git)`);
-
-    // Wait for async refresh, then paint should show the branch name.
-    await Bun.sleep(600);
-    const painted = stripAnsi(renderInputMeta(tab, 120).join("\n"));
-    assert.match(painted, /perf-branch/);
-  } finally {
-    process.env.PATH = prevPath;
-  }
+  const result = Bun.spawnSync(
+    [process.execPath, path.join(import.meta.dir, "helpers", "git-branch-render-scenario.ts"), workdir],
+    {
+      env: { ...process.env, PATH: `${bin}:${process.env.PATH ?? ""}` },
+      stdout: "pipe",
+      stderr: "inherit",
+    },
+  );
+  assert.equal(result.exitCode, 0, `scenario child failed: ${result.stderr?.toString() ?? ""}`);
+  const report = JSON.parse(result.stdout.toString().trim()) as { firstMs: number; painted: string };
+  assert.ok(
+    report.firstMs < 80,
+    `first paint blocked ${report.firstMs.toFixed(1)}ms (must not await git)`,
+  );
+  assert.match(report.painted, /perf-branch/);
 });
