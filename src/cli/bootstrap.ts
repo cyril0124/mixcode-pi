@@ -26,7 +26,6 @@ import {
   applyDisabledModelFlags,
   buildAvailableModelRefs,
   isModelRefAvailable,
-  modelRefId,
   modelToRef,
   normalizeModelRef,
   registerModels,
@@ -126,16 +125,12 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
     path.join(rootStateDir, MIXCODE_SETTINGS_FILENAME),
   );
   let state: MixCodeState;
-  let restoredFromDisk = true;
   try {
     state = await loadStateFile(stateFile, options.workdir);
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
     if (code !== "ENOENT") throw error;
-    // Read defaultThinkingLevel from settings when creating initial state
-    const defaultThinkingLevel = settingsManager.getDefaultThinkingLevel();
-    state = createInitialState(options.workdir, defaultThinkingLevel);
-    restoredFromDisk = false;
+    state = createInitialState(options.workdir, settingsManager.getDefaultThinkingLevel());
   }
   state.ui = mixCodeSettings.ui;
   for (const tab of state.tabs) tab.inlineWidgets = state.ui.inlineWidgets === true;
@@ -197,11 +192,11 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
     )[0]!;
   }
 
-  const savedStateModelAvailable = isModelRefAvailable(state.availableModels, state.model);
-  if (!restoredFromDisk || !savedStateModelAvailable) {
-    setStateModel(state, preferredModel);
-  } else {
-    setStateModel(state, normalizeModelRef(state.availableModels, state.model));
+  setStateModel(state, preferredModel);
+  state.thinkingLevel = settingsManager.getDefaultThinkingLevel();
+  for (const tab of state.tabs) {
+    setTabModel(tab, state.model);
+    tab.thinkingLevel = state.thinkingLevel;
   }
   if (state.tabs.length === 0) {
     const firstTab = createTab(1, createSessionId(), options.workdir, {
@@ -213,7 +208,6 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
     state.tabs.push(firstTab);
   }
   state.activeTabId = HOME_TAB_ID;
-  const modelRepairs = repairUnavailableTabModels(state);
   // Warm the worker-thread session catalog for this workdir. This replaces the
   // warm-up that history backfill used to provide as a side effect, and serves
   // the same consumers: listSessionsInBackground callers such as by-name and
@@ -254,14 +248,13 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
     ...(fdPath ? { fdPath } : {}),
   };
   await saveStateFile(stateFile, state);
-  // Defer tab creation: return immediately so the TUI can render the initial
-  // frame with persisted previewMessages. Extensions load in the background.
+  // Return before tabs finish loading so the TUI can paint.
+  // createTab fills chat, title, and model from the session.
   for (const tab of state.tabs) tab.status = "Not Ready";
   const tabsReady = Promise.all(
     state.tabs.map(async (tab) => {
       const runtimeTab = await runtime.createTab(tab, {
         systemPrompt: MIXCODE_SYSTEM_PROMPT,
-        thinkingLevel: tab.thinkingLevel,
         workdir: tab.workdir,
       });
       // session_start extensions may already have kicked off a turn while the
@@ -269,13 +262,6 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
       if (!runtimeTab.agentSession.isStreaming) tab.status = "idle";
       const sessionName = runtimeTab.session.getSessionName();
       if (sessionName) tab.title = sessionName;
-      const repair = modelRepairs.get(tab.sessionId);
-      if (repair) {
-        runtime.appendSystemMessage(
-          tab.sessionId,
-          `Saved model ${repair.from} is unavailable in Pi models; switched to ${repair.to}.`,
-        );
-      }
     }),
   ) as unknown as Promise<void>;
   return {
@@ -293,22 +279,6 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
       piSettingsFile: path.join(agentDir, "settings.json"),
     },
   };
-}
-
-function repairUnavailableTabModels(
-  state: MixCodeState,
-): Map<string, { from: string; to: string }> {
-  const repairs = new Map<string, { from: string; to: string }>();
-  for (const tab of state.tabs) {
-    if (isModelRefAvailable(state.availableModels, tab.model)) {
-      setTabModel(tab, normalizeModelRef(state.availableModels, tab.model));
-      continue;
-    }
-    const from = modelRefId(tab.model);
-    setTabModel(tab, state.model);
-    repairs.set(tab.sessionId, { from, to: modelRefId(state.model) });
-  }
-  return repairs;
 }
 
 export interface PackageUpdateCheckOptions {

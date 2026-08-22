@@ -72,8 +72,9 @@ import type {
 import { createMixCodeBashCustomTools } from "./mixcode-bash-env.js";
 import { activateMixCodeTools } from "./tools.js";
 
-export type RuntimeTabConfig = Omit<AgentRuntimeConfig, "sessionId" | "model"> & {
+export type RuntimeTabConfig = Omit<AgentRuntimeConfig, "sessionId" | "model" | "thinkingLevel"> & {
   model?: MixCodeModel;
+  thinkingLevel?: AgentRuntimeConfig["thinkingLevel"];
   reuseServicesFromSessionId?: string;
   reuseServices?: AgentSessionServices;
   /** Keep an explicit caller title instead of restoring the opened session name. */
@@ -142,9 +143,10 @@ export async function createRuntimeTab(
   config: RuntimeTabConfig,
   context: RuntimeLifecycleContext,
 ): Promise<RuntimeTab> {
+  // Caller omitted model: use the session's last model, then tab.model.
   const model = config.model
     ? config.model
-    : context.resolveModel(tab.model.provider, tab.model.modelId);
+    : context.resolveModelFromSession(session, tab.model);
   const reusedServices =
     config.reuseServices ??
     (config.reuseServicesFromSessionId

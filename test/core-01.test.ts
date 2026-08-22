@@ -257,23 +257,20 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
     const serialized = serializeState(state);
     assert.deepEqual(serialized.children, ["s1", "s2"]);
     assert.equal((serialized.workdirs as Record<string, string>).s1, "/repo");
-    assert.equal((serialized.tab_titles as Record<string, string>).s1, "Renamed Agent");
-    assert.deepEqual((serialized.tab_models as Record<string, unknown>).s2, tabTwoModel);
-    assert.equal((serialized.tab_variants as Record<string, string>).s2, "max");
+    assert.deepEqual(serialized.unseen_done, ["s1"]);
     const restored = deserializeState(serialized, "/fallback");
     assert.equal(restored.theme, "claude-warm");
     assert.equal(restored.activeTabId, "home");
     assert.equal(restored.tabs[0]?.sessionId, "s1");
-    assert.equal(restored.tabs[0]?.title, "Renamed Agent");
+    assert.equal(restored.tabs[0]?.title, "Agent-01");
     assert.equal(restored.tabs[0]?.workdir, "/repo");
-    assert.equal(restored.tabs[0]?.alias, "alpha");
+    assert.equal(restored.tabs[0]?.alias, "");
     assert.equal(restored.tabs[0]?.unreadDone, true);
-    assert.deepEqual(restored.tabs[0]?.previewMessages, [{ role: "assistant", text: "preview" }]);
-
-    assert.deepEqual(restored.tabs[0]?.pendingMessages, ["queued"]);
-    assert.equal(restored.tabs[1]?.model.modelId, "tab-two-model");
-    assert.equal(restored.tabs[1]?.contextLimit, 123_000);
-    assert.equal(restored.tabs[1]?.thinkingLevel, "max");
+    assert.deepEqual(restored.tabs[0]?.previewMessages, []);
+    assert.deepEqual(restored.tabs[0]?.pendingMessages, []);
+    assert.deepEqual(restored.tabs[0]?.pendingFollowUps, []);
+    assert.equal(restored.tabs[1]?.model.modelId, "faux-1");
+    assert.equal(restored.tabs[1]?.thinkingLevel, "medium");
 
     assert.equal(stateFileForPort(dir, 0), path.join(dir, "mixcode_state.json"));
     assert.equal(stateFileForPort(dir, 3010), path.join(dir, "mixcode_state_3010.json"));
@@ -294,7 +291,7 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
       /Invalid state file/,
     );
     const invalidTheme = deserializeState({ theme: "not-a-theme" }, "/fallback");
-    assert.equal(invalidTheme.theme, "not-a-theme");
+    assert.equal(invalidTheme.theme, "claude-warm");
     const fallback = deserializeState({ variant: "bad" }, "/fallback");
     assert.equal(fallback.workdir, "/fallback");
     assert.equal(fallback.activeTabId, "home");
@@ -318,13 +315,20 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
       minimal.tabs.map((tab) => tab.sessionId),
       ["x"],
     );
-    assert.equal(minimal.tabs[0]?.title, "Worker");
+    assert.equal(minimal.tabs[0]?.title, "Agent-01");
     assert.deepEqual(minimal.tabs[0]?.previewMessages, []);
     assert.equal(minimal.tabs[0]?.previewIndex, 0);
     assert.deepEqual(minimal.tabs[0]?.pendingMessages, []);
-    const normalizedPreview = deserializeState(
+    const extraFields = deserializeState(
       {
         children: ["x"],
+        theme: "not-a-theme",
+        model: { provider: "old", modelId: "gone" },
+        variant: "max",
+        tab_titles: { x: "Worker" },
+        tab_aliases: { x: "alpha" },
+        tab_models: { x: { provider: "old", modelId: "gone" } },
+        tab_variants: { x: "max" },
         preview_messages: {
           x: [
             { role: "shell", text: "cmd" },
@@ -334,14 +338,36 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
           ],
         },
         preview_indices: { x: 1 },
+        pending_messages: { x: ["queued"] },
+        pending_follow_ups: { x: ["later"] },
       },
       "/fallback",
     );
-    assert.deepEqual(normalizedPreview.tabs[0]?.previewMessages, [
-      { role: "shell", text: "cmd" },
-      { role: "user", text: "u" },
-    ]);
-    assert.equal(normalizedPreview.tabs[0]?.previewIndex, 1);
+    assert.equal(extraFields.theme, "claude-warm");
+    assert.equal(extraFields.tabs[0]?.title, "Agent-01");
+    assert.equal(extraFields.tabs[0]?.alias, "");
+    assert.equal(extraFields.tabs[0]?.model.modelId, "faux-1");
+    assert.equal(extraFields.tabs[0]?.thinkingLevel, "medium");
+    assert.deepEqual(extraFields.tabs[0]?.previewMessages, []);
+    assert.equal(extraFields.tabs[0]?.previewIndex, 0);
+    assert.deepEqual(extraFields.tabs[0]?.pendingMessages, []);
+    assert.deepEqual(extraFields.tabs[0]?.pendingFollowUps, []);
+    const fat = createInitialState("/repo");
+    fat.tabs.push(
+      createTab(1, "s1", "/repo", {
+        title: "Custom",
+        previewMessages: Array.from({ length: 200 }, () => ({
+          role: "assistant",
+          text: "x".repeat(1000),
+        })),
+        pendingMessages: ["queued"],
+        pendingFollowUps: ["later"],
+        model: tabTwoModel,
+      }),
+    );
+    const fatJson = JSON.stringify(serializeState(fat));
+    assert.equal(fatJson.includes("x".repeat(20)), false);
+    assert.ok(fatJson.length < 400);
 
     const workspaceFile = path.join(dir, "workspaces.json");
     await saveWorkspaces(workspaceFile, [

@@ -49,7 +49,7 @@ import { box, padLine } from "./primitives.js";
 import { applyToastOverlay } from "../components/toast-overlay.js";
 
 /**
- * Convert persisted previewMessages to lightweight ChatLine[] for rendering
+ * Convert in-memory previewMessages to lightweight ChatLine[] for rendering
  * before the full runtimeTab is ready (deferred extension loading).
  * Memoized on tab to avoid breaking the render cache's reference-equality check.
  */

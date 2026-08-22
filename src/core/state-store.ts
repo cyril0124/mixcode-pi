@@ -2,12 +2,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { createInitialState, createTab } from "./defaults.js";
 import { isKnownThinkingLevel } from "./thinking-levels.js";
-import type {
-  MixCodeState,
-  PreviewMessage,
-  PreviewMessageRole,
-  WorkspaceSnapshot,
-} from "./types.js";
+import type { MixCodeState, WorkspaceSnapshot } from "./types.js";
 
 export function stateFileForPort(stateDir: string, port: number): string {
   return port === 0
@@ -26,52 +21,11 @@ export function normalizeStartupWorkdir(workdir: string): string {
 }
 
 export function serializeState(state: MixCodeState): Record<string, unknown> {
-  // /context-limit is session-ephemeral: do not persist contextLimit / contextLimitOverridden.
+  // Open tabs, per-tab workdirs, and unread-done flags.
   return {
     children: state.tabs.map((tab) => tab.sessionId),
-    model: state.model,
-    variant: state.thinkingLevel,
     workdirs: Object.fromEntries(state.tabs.map((tab) => [tab.sessionId, tab.workdir])),
-    tab_titles: Object.fromEntries(
-      state.tabs
-        .filter((tab) => tab.title !== defaultTabTitle(tab.index))
-        .map((tab) => [tab.sessionId, tab.title]),
-    ),
-    tab_aliases: Object.fromEntries(
-      state.tabs.filter((tab) => tab.alias).map((tab) => [tab.sessionId, tab.alias]),
-    ),
-    tab_models: Object.fromEntries(
-      state.tabs
-        .filter((tab) => !sameModelRef(tab.model, state.model))
-        .map((tab) => [tab.sessionId, tab.model]),
-    ),
-    tab_variants: Object.fromEntries(
-      state.tabs
-        .filter((tab) => tab.thinkingLevel !== state.thinkingLevel)
-        .map((tab) => [tab.sessionId, tab.thinkingLevel]),
-    ),
-    preview_messages: Object.fromEntries(
-      state.tabs
-        .filter((tab) => tab.previewMessages.length > 0)
-        .map((tab) => [tab.sessionId, tab.previewMessages]),
-    ),
-    preview_indices: Object.fromEntries(
-      state.tabs
-        .filter((tab) => tab.previewIndex > 0)
-        .map((tab) => [tab.sessionId, tab.previewIndex]),
-    ),
-    pending_messages: Object.fromEntries(
-      state.tabs
-        .filter((tab) => tab.pendingMessages.length > 0)
-        .map((tab) => [tab.sessionId, tab.pendingMessages]),
-    ),
-    pending_follow_ups: Object.fromEntries(
-      state.tabs
-        .filter((tab) => tab.pendingFollowUps.length > 0)
-        .map((tab) => [tab.sessionId, tab.pendingFollowUps]),
-    ),
     startup_workdir: state.workdir,
-    theme: state.theme,
     unseen_done: state.tabs.filter((tab) => tab.unreadDone).map((tab) => tab.sessionId),
   };
 }
@@ -83,88 +37,22 @@ export function deserializeState(
   const state = createInitialState(
     typeof data.startup_workdir === "string" ? data.startup_workdir : fallbackWorkdir,
   );
-  if (typeof data.theme === "string") state.theme = data.theme;
-  if (data.model && typeof data.model === "object" && !Array.isArray(data.model)) {
-    state.model = normalizeModelRef(data.model, state.model);
-  }
-  if (typeof data.variant === "string" && isKnownThinkingLevel(data.variant)) {
-    state.thinkingLevel = data.variant;
-  }
   const workdirs = objectRecord(data.workdirs);
-  const titles = objectRecord(data.tab_titles);
-  const aliases = objectRecord(data.tab_aliases);
-  const tabModels = objectRecord(data.tab_models);
-  const tabVariants = objectRecord(data.tab_variants);
-  const previewMessages = objectRecord(data.preview_messages);
-  const previewIndices = objectRecord(data.preview_indices);
-  const pendingMessages = objectRecord(data.pending_messages);
-  const pendingFollowUps = objectRecord(data.pending_follow_ups);
   const unseen = new Set(Array.isArray(data.unseen_done) ? data.unseen_done.map(String) : []);
   if (Array.isArray(data.children)) {
     state.tabs = data.children
       .map(String)
       .filter((sessionId) => sessionId.trim())
-      .map((sessionId, index) => {
-        const model = normalizeModelRef(tabModels[sessionId], state.model);
-        const thinkingLevel = normalizeThinkingLevel(tabVariants[sessionId], state.thinkingLevel);
-        const overrides = {
-          alias: typeof aliases[sessionId] === "string" ? aliases[sessionId] : "",
-          unreadDone: unseen.has(sessionId),
-          previewMessages: normalizePreviewMessages(previewMessages[sessionId]),
-          previewIndex:
-            typeof previewIndices[sessionId] === "number" ? previewIndices[sessionId] : 0,
-          pendingMessages: normalizeStringList(pendingMessages[sessionId]),
-          pendingFollowUps: normalizeStringList(pendingFollowUps[sessionId]),
-          thinkingLevel,
-          model,
-          contextLimit: model.contextWindow,
-        };
-        return createTab(
+      .map((sessionId, index) =>
+        createTab(
           index + 1,
           sessionId,
           typeof workdirs[sessionId] === "string" ? workdirs[sessionId] : state.workdir,
-          typeof titles[sessionId] === "string"
-            ? { ...overrides, title: titles[sessionId] }
-            : overrides,
-        );
-      });
+          { unreadDone: unseen.has(sessionId) },
+        ),
+      );
   }
   return state;
-}
-
-function defaultTabTitle(index: number): string {
-  return `Agent-${String(index).padStart(2, "0")}`;
-}
-
-function sameModelRef(left: MixCodeState["model"], right: MixCodeState["model"]): boolean {
-  return left.provider === right.provider && left.modelId === right.modelId;
-}
-
-function normalizeModelRef(value: unknown, fallback: MixCodeState["model"]): MixCodeState["model"] {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return { ...fallback };
-  const data = value as Record<string, unknown>;
-  const provider = typeof data.provider === "string" ? data.provider : fallback.provider;
-  const modelId = typeof data.modelId === "string" ? data.modelId : fallback.modelId;
-  const sameModel = provider === fallback.provider && modelId === fallback.modelId;
-  return {
-    provider,
-    modelId,
-    displayName: typeof data.displayName === "string" ? data.displayName : fallback.displayName,
-    contextWindow:
-      typeof data.contextWindow === "number" && Number.isFinite(data.contextWindow)
-        ? data.contextWindow
-        : fallback.contextWindow,
-    reasoning:
-      typeof data.reasoning === "boolean"
-        ? data.reasoning
-        : sameModel
-          ? fallback.reasoning
-          : undefined,
-    thinkingLevelMap: normalizeThinkingLevelMap(
-      data.thinkingLevelMap,
-      sameModel ? fallback.thinkingLevelMap : undefined,
-    ),
-  };
 }
 
 function normalizeThinkingLevel(
@@ -187,36 +75,9 @@ function normalizeThinkingLevelMap(
   );
 }
 
-function normalizeStringList(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value.map(String).filter((item) => item.trim());
-}
-
 function objectRecord(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   return value as Record<string, unknown>;
-}
-
-function normalizePreviewMessages(value: unknown): PreviewMessage[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .filter(
-      (item): item is Record<string, unknown> =>
-        Boolean(item) && typeof item === "object" && !Array.isArray(item),
-    )
-    .map((item): PreviewMessage => {
-      const role: PreviewMessageRole =
-        item.role === "assistant" ||
-        item.role === "thinking" ||
-        item.role === "tool" ||
-        item.role === "system" ||
-        item.role === "shell" ||
-        item.role === "empty"
-          ? item.role
-          : "user";
-      return { role, text: String(item.text ?? "") };
-    })
-    .filter((item) => item.text);
 }
 
 export async function saveStateFile(

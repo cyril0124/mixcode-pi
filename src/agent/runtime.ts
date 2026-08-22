@@ -286,8 +286,9 @@ export class MixCodeRuntime {
 
   async createTab(
     tab: MixCodeTabInfo,
-    config: Omit<AgentRuntimeConfig, "sessionId" | "model"> & {
+    config: Omit<AgentRuntimeConfig, "sessionId" | "model" | "thinkingLevel"> & {
       model?: MixCodeModel;
+      thinkingLevel?: AgentRuntimeConfig["thinkingLevel"];
       reuseServicesFromSessionId?: string;
       preserveCallerTitle?: boolean;
     },
@@ -343,9 +344,8 @@ export class MixCodeRuntime {
     }
     this.tabs.delete(sessionId);
     resetTabForNewSession(runtimeTab.tab, newSession.getSessionId());
-    // Reset UI title so state-store tab_titles cannot re-persist a custom name
-    // under the new session id after restart: custom names fall back to the next
-    // free generic title. Generic Agent-NN names are kept — the tab's list
+    // Drop a custom title on the replacement session. Generic Agent-NN names
+    // are kept — the tab's list
     // position must never be used here: after closing/forking/restoring tabs the
     // position diverges from the title, and position-based retitling collides
     // with an existing tab (clearing the 4th tab renamed it "Agent-04" while an

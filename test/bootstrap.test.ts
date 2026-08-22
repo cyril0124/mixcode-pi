@@ -5,7 +5,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
 import { Type } from "@earendil-works/pi-ai";
-import { getAgentDir, type ExtensionFactory } from "@earendil-works/pi-coding-agent";
+import { getAgentDir, SessionManager, type ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import {
   bootstrapMixCode,
   createInitialState,
@@ -131,25 +131,30 @@ test("bootstrap restores persisted tab order and runtime tabs", async () => {
   }
 });
 
-test("bootstrap rejects an invalid persisted theme at the UI boundary", async () => {
+test("bootstrap ignores an unknown theme key in the state file", async () => {
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-bootstrap-theme-"));
   try {
     const repo = path.join(dir, "repo");
     const stateDir = path.join(dir, "state");
     const scopedDir = scopedStateDir(stateDir, repo);
     await fsPromises.mkdir(scopedDir, { recursive: true });
-    const state = createInitialState(repo);
-    state.theme = "not-a-theme";
-    await saveStateFile(stateFileForPort(scopedDir, 0), state);
-
-    await assert.rejects(
-      bootstrapMixCode({
-        workdir: repo,
-        stateDir,
-        modelConfigPath: path.join(dir, "missing.jsonc"),
-      }),
-      /Unknown theme: not-a-theme/,
+    await fsPromises.writeFile(
+      stateFileForPort(scopedDir, 0),
+      `${JSON.stringify({
+        children: [],
+        workdirs: {},
+        startup_workdir: repo,
+        theme: "not-a-theme",
+      }, null, 2)}\n`,
     );
+
+    const boot = await bootstrapMixCode({
+      workdir: repo,
+      stateDir,
+      modelConfigPath: path.join(dir, "missing.jsonc"),
+    });
+    assert.equal(boot.state.theme, "claude-warm");
+    await boot.tabsReady;
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }
@@ -271,7 +276,7 @@ test("bootstrap selects configured pi models from models.json", async () => {
   }
 });
 
-test("bootstrap keeps a restored configured model when it is still available", async () => {
+test("bootstrap ignores unknown model and thinking keys in the state file", async () => {
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-bootstrap-restored-model-"));
   const oldKey = process.env.MIXCODE_BOOTSTRAP_RESTORE_KEY;
   try {
@@ -302,30 +307,32 @@ test("bootstrap keeps a restored configured model when it is still available", a
       }),
       "utf8",
     );
-    const state = createInitialState(repo);
-    state.model = {
-      provider: "mixcode-bootstrap-restore",
-      modelId: "restore-model",
-      displayName: "old display",
-      contextWindow: 1,
-    };
-    state.availableModels = [state.model];
-    state.tabs.push(
-      createTab(1, "s1", repo, { model: state.model, contextLimit: state.model.contextWindow }),
-      createTab(2, "s2", repo, {
+    const scopedDir = scopedStateDir(stateDir, repo);
+    await fsPromises.mkdir(scopedDir, { recursive: true });
+    await fsPromises.writeFile(
+      stateFileForPort(scopedDir, 0),
+      `${JSON.stringify({
+        children: ["s1", "s2"],
+        workdirs: { s1: repo, s2: repo },
+        startup_workdir: repo,
         model: {
           provider: "mixcode-bootstrap-restore",
-          modelId: "tab-model",
-          displayName: "old tab display",
+          modelId: "restore-model",
+          displayName: "old display",
           contextWindow: 1,
-          reasoning: true,
-          thinkingLevelMap: { max: "max" },
         },
-        contextLimit: 1,
-        thinkingLevel: "max",
-      }),
+        tab_models: {
+          s2: {
+            provider: "mixcode-bootstrap-restore",
+            modelId: "tab-model",
+            displayName: "old tab display",
+            contextWindow: 1,
+          },
+        },
+        variant: "max",
+        tab_variants: { s2: "max" },
+      }, null, 2)}\n`,
     );
-    await saveStateFile(stateFileForPort(scopedStateDir(stateDir, repo), 0), state);
 
     const boot = await bootstrapMixCode({
       workdir: repo,
@@ -334,20 +341,71 @@ test("bootstrap keeps a restored configured model when it is still available", a
       modelConfigPath,
     });
 
-    assert.equal(boot.state.model.displayName, "mixcode-bootstrap-restore/restore-model");
-    assert.equal(boot.state.model.contextWindow, 99);
-    assert.equal(
-      boot.state.availableModels.filter((model) => model.modelId === "restore-model").length,
-      1,
-    );
-    assert.equal(boot.state.tabs[0]?.model.displayName, "mixcode-bootstrap-restore/restore-model");
+    assert.equal(boot.state.model.displayName, "mixcode-bootstrap-restore/tab-model");
+    assert.equal(boot.state.model.contextWindow, 123);
+    assert.equal(boot.state.tabs[0]?.model.displayName, "mixcode-bootstrap-restore/tab-model");
     assert.equal(boot.state.tabs[1]?.model.displayName, "mixcode-bootstrap-restore/tab-model");
-    assert.equal(boot.state.tabs[1]?.contextLimit, 123);
-    assert.equal(boot.state.tabs[1]?.thinkingLevel, "max");
+    assert.equal(boot.state.tabs[0]?.thinkingLevel, boot.state.thinkingLevel);
+    assert.equal(boot.state.tabs[1]?.thinkingLevel, boot.state.thinkingLevel);
     await boot.tabsReady;
   } finally {
     if (oldKey === undefined) delete process.env.MIXCODE_BOOTSTRAP_RESTORE_KEY;
     else process.env.MIXCODE_BOOTSTRAP_RESTORE_KEY = oldKey;
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("bootstrap hydrates a restored tab model from the session file", async () => {
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-bootstrap-session-model-"));
+  const oldKey = process.env.MIXCODE_BOOTSTRAP_SESSION_MODEL_KEY;
+  try {
+    process.env.MIXCODE_BOOTSTRAP_SESSION_MODEL_KEY = "secret";
+    const stateDir = path.join(dir, "state");
+    const repo = path.join(dir, "repo");
+    const modelConfigPath = path.join(dir, "models.json");
+    await fsPromises.mkdir(repo, { recursive: true });
+    await fsPromises.writeFile(
+      modelConfigPath,
+      JSON.stringify({
+        providers: {
+          "mixcode-bootstrap-session-model": {
+            baseUrl: "https://bootstrap-session-model.example/v1",
+            api: "openai-responses",
+            apiKey: "MIXCODE_BOOTSTRAP_SESSION_MODEL_KEY",
+            models: [
+              { id: "preferred-model", contextWindow: 50 },
+              { id: "session-model", contextWindow: 77 },
+            ],
+          },
+        },
+      }),
+      "utf8",
+    );
+    const session = SessionManager.create(repo, defaultPiSessionDir(repo));
+    session.newSession({ id: "s1" });
+    session.appendModelChange("mixcode-bootstrap-session-model", "session-model");
+    const scopedDir = scopedStateDir(stateDir, repo);
+    await fsPromises.mkdir(scopedDir, { recursive: true });
+    await fsPromises.writeFile(
+      stateFileForPort(scopedDir, 0),
+      `${JSON.stringify({
+        children: ["s1"],
+        workdirs: { s1: repo },
+        startup_workdir: repo,
+      }, null, 2)}\n`,
+    );
+    const boot = await bootstrapMixCode({
+      workdir: repo,
+      stateDir,
+      homeDir: path.join(dir, "home"),
+      modelConfigPath,
+    });
+    await boot.tabsReady;
+    assert.equal(boot.state.tabs[0]?.model.modelId, "session-model");
+    assert.equal(boot.state.tabs[0]?.model.contextWindow, 77);
+  } finally {
+    if (oldKey === undefined) delete process.env.MIXCODE_BOOTSTRAP_SESSION_MODEL_KEY;
+    else process.env.MIXCODE_BOOTSTRAP_SESSION_MODEL_KEY = oldKey;
     await fsPromises.rm(dir, { recursive: true, force: true });
   }
 });
@@ -466,7 +524,7 @@ test("bootstrap wires configured pi models into runtime auth streaming", async (
   }
 });
 
-test("bootstrap repairs persisted tabs that reference unavailable models", async () => {
+test("bootstrap selects an available model at startup", async () => {
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-bootstrap-unavailable-model-"));
   try {
     const stateDir = path.join(dir, "state");
@@ -493,9 +551,8 @@ test("bootstrap repairs persisted tabs that reference unavailable models", async
       modelConfigPath: path.join(dir, "missing.jsonc"),
     });
 
-    // Unavailable persisted models fall back to the preferred available model
-    // (configured ambient/models.json entry, else faux). Do not pin faux: ambient
-    // credentials can make built-in providers preferred.
+    // Prefer a configured models.json entry when present; otherwise faux.
+    // Do not pin faux: ambient credentials can make built-in providers preferred.
     assert.notEqual(boot.state.model.displayName, "missing-provider/missing-model");
     assert.notEqual(boot.state.tabs[0]?.model.displayName, "missing-provider/missing-model");
     assert.ok(
@@ -503,7 +560,7 @@ test("bootstrap repairs persisted tabs that reference unavailable models", async
         (model) =>
           model.provider === boot.state.model.provider && model.modelId === boot.state.model.modelId,
       ),
-      "repaired model should be present in availableModels",
+      "startup model should be present in availableModels",
     );
     assert.equal(boot.state.tabs[0]?.model.displayName, boot.state.model.displayName);
     assert.equal(boot.state.tabs[0]?.contextLimit, boot.state.model.contextWindow);
