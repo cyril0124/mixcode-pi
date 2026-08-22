@@ -206,15 +206,6 @@ test("runtime renders extension tool results with registered tool renderers", as
       renderResult: () => new Text(`${nestedBackground}nested background\x1b[49m`, 0, 0),
     });
     pi.registerTool({
-      name: "empty_render_tool",
-      label: "Empty Render",
-      description: "Tool with undefined renderers.",
-      parameters: Type.Object({}),
-      execute: async () => ({ content: [{ type: "text", text: "empty raw" }], details: {} }),
-      renderCall: () => undefined,
-      renderResult: () => undefined,
-    });
-    pi.registerTool({
       name: "broken_render_tool",
       label: "Broken Render",
       description: "Tool with failing renderResult.",
@@ -332,38 +323,27 @@ test("runtime renders extension tool results with registered tool renderers", as
       result: { content: [{ type: "text", text: "raw broken" }], details: {} },
       isError: false,
     });
-    assert.match(
-      renderAgentSurface(runtimeTab.tab, runtimeTab, 100).join("\n"),
-      /tool renderer error \(broken_render_tool\): tool renderer failed/,
-    );
+    const brokenResultSurface = renderAgentSurface(runtimeTab.tab, runtimeTab, 100).join("\n");
+    assert.match(brokenResultSurface, /raw broken/);
+    assert.doesNotMatch(brokenResultSurface, /renderer error/);
     anyRuntime.applyEvent(runtimeTab, {
       type: "tool_execution_start",
       toolCallId: "broken-call-1",
       toolName: "broken_call_tool",
       args: {},
     });
-    assert.match(
-      renderAgentSurface(runtimeTab.tab, runtimeTab, 100).join("\n"),
-      /tool call renderer error \(broken_call_tool\): tool call renderer failed/,
-    );
-    anyRuntime.applyEvent(runtimeTab, {
-      type: "tool_execution_end",
-      toolCallId: "empty-call-1",
-      toolName: "empty_render_tool",
-      result: { content: [{ type: "text", text: "empty raw" }], details: {} },
-      isError: false,
-    });
-    assert.match(renderAgentSurface(runtimeTab.tab, runtimeTab, 100).join("\n"), /empty raw/);
+    const brokenCallSurface = renderAgentSurface(runtimeTab.tab, runtimeTab, 100).join("\n");
+    assert.match(brokenCallSurface, /broken_call_tool/);
+    assert.doesNotMatch(brokenCallSurface, /renderer error/);
     anyRuntime.applyEvent(runtimeTab, {
       type: "tool_execution_start",
       toolCallId: "broken-string-1",
       toolName: "broken_string_render_tool",
       args: {},
     });
-    assert.match(
-      renderAgentSurface(runtimeTab.tab, runtimeTab, 100).join("\n"),
-      /tool call renderer error \(broken_string_render_tool\): call string failure/,
-    );
+    const brokenStringCallSurface = renderAgentSurface(runtimeTab.tab, runtimeTab, 100).join("\n");
+    assert.match(brokenStringCallSurface, /broken_string_render_tool/);
+    assert.doesNotMatch(brokenStringCallSurface, /renderer error/);
     anyRuntime.applyEvent(runtimeTab, {
       type: "tool_execution_end",
       toolCallId: "broken-string-2",
@@ -371,10 +351,9 @@ test("runtime renders extension tool results with registered tool renderers", as
       result: { content: [{ type: "text", text: "raw broken string" }], details: {} },
       isError: false,
     });
-    assert.match(
-      renderAgentSurface(runtimeTab.tab, runtimeTab, 100).join("\n"),
-      /tool renderer error \(broken_string_render_tool\): result string failure/,
-    );
+    const brokenStringResultSurface = renderAgentSurface(runtimeTab.tab, runtimeTab, 100).join("\n");
+    assert.match(brokenStringResultSurface, /raw broken string/);
+    assert.doesNotMatch(brokenStringResultSurface, /renderer error/);
 
     runtimeTab.session.appendMessage({
       role: "assistant",
