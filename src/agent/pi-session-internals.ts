@@ -6,7 +6,7 @@ import type { QueueKind } from "../core/types.js";
 import type { RuntimeTab } from "./runtime-types.js";
 
 // Single adapter over the MixCode patch exports on AgentSession
-// (patches/@earendil-works+pi-coding-agent+*.patch): targeted queue dequeue /
+// (patches/@earendil-works%2Fpi-coding-agent@*.patch): targeted queue dequeue /
 // restore and the system prompt assembler hook. If the patch is missing, these
 // calls throw at runtime (fail loud) instead of silently degrading.
 

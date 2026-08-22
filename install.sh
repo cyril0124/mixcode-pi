@@ -15,29 +15,6 @@ error() { printf '\033[1;31m[error]\033[0m %s\n' "$*" >&2; exit 1; }
 
 command_exists() { command -v "$1" >/dev/null 2>&1; }
 
-# Bun hardlink install + patch-package in-place edits share inodes with the
-# global cache. Purge cache entries for packages we patch so a retry can
-# re-fetch clean tarballs.
-purge_patch_caches() {
-  local cache patch base ver name scope_dir bare
-  cache="${BUN_INSTALL_CACHE_DIR:-$HOME/.bun/install/cache}"
-  [ -d "$cache" ] || return 0
-  for patch in patches/*.patch; do
-    [ -f "$patch" ] || continue
-    base="$(basename "$patch" .patch)"
-    ver="${base##*+}"
-    name="${base%+*}"
-    name="${name//+//}"
-    if [[ "$name" == @*/* ]]; then
-      scope_dir="$cache/${name%%/*}"
-      bare="${name#*/}"
-      rm -rf "$scope_dir/$bare" "$scope_dir/$bare@$ver"*
-    else
-      rm -rf "$cache/$name" "$cache/$name@$ver"*
-    fi
-  done
-}
-
 # --- Parse args ---
 
 PREFIX="${MIXCODE_INSTALL_PREFIX:-$HOME/.local}"
@@ -86,15 +63,7 @@ info "bun $(bun --version)"
 cd "$REPO_DIR"
 
 info "Installing dependencies..."
-# --backend=copyfile: do not hardlink node_modules to Bun's global cache, so
-# postinstall patch-package cannot pollute the cache. If the cache is already
-# polluted from an older install, purge + retry once.
-if ! bun install --backend=copyfile; then
-  warn "bun install failed (often polluted patch cache). Cleaning and retrying..."
-  rm -rf node_modules
-  purge_patch_caches
-  bun install --backend=copyfile || error "bun install failed after clean retry"
-fi
+bun install || error "bun install failed"
 
 # --- Compile ---
 

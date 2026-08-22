@@ -3,7 +3,7 @@
  *
  * MIXCODE_PID is host-process env (set once at startup in cli/main.ts) so every
  * child inherits it. The per-tab titles are applied per spawn by the
- * MIXCODE_SPAWN_ENV_BRACKET patch hunk (patches/@earendil-works+pi-coding-agent)
+ * MIXCODE_SPAWN_ENV_BRACKET patch hunk (patches/@earendil-works%2Fpi-coding-agent@*.patch)
  * around the winning "bash" tool's execute — MixCode's own tool, or an
  * extension override that displaced it. Neither reaches user `!` shells.
  */

@@ -12,7 +12,7 @@
     "url": "git+https://github.com/cyril0124/mixcode-pi.git"
   },
   "scripts": {
-    "postinstall": "patch-package --error-on-fail && bun run scripts/install-pi-extensions.ts --postinstall",
+    "postinstall": "bun run scripts/install-pi-extensions.ts --postinstall",
     "install:global": "bun install -g .",
     "install:extensions": "bun run scripts/install-pi-extensions.ts --yes",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -35,7 +35,6 @@
     "@silvia-odwyer/photon-node": "0.3.4",
     "fengari": "^0.1.5",
     "fengari-interop": "^0.1.4",
-    "patch-package": "^8.0.1",
     "typebox": "1.3.7"
   },
   "devDependencies": {
@@ -48,5 +47,10 @@
   },
   "engines": {
     "node": ">=22.19.0"
+  },
+  "patchedDependencies": {
+    "@earendil-works/pi-ai@0.84.2": "patches/@earendil-works%2Fpi-ai@0.84.2.patch",
+    "@earendil-works/pi-coding-agent@0.84.2": "patches/@earendil-works%2Fpi-coding-agent@0.84.2.patch",
+    "@earendil-works/pi-tui@0.84.2": "patches/@earendil-works%2Fpi-tui@0.84.2.patch"
   }
 }

@@ -1,8 +1,25 @@
-diff --git a/node_modules/@earendil-works/pi-tui/dist/index.d.ts b/node_modules/@earendil-works/pi-tui/dist/index.d.ts
-index 50b5aeb..db86cd2 100644
---- a/node_modules/@earendil-works/pi-tui/dist/index.d.ts
-+++ b/node_modules/@earendil-works/pi-tui/dist/index.d.ts
-@@ -28,4 +28,6 @@ export { type Component, Container, CURSOR_MARKER, compositeTuiLine, type Focusa
+diff --git a/dist/alt-screen-search.js b/dist/alt-screen-search.js
+index 3437d5aec954a672bc678c79e38cf6a78a8b52b7..2865acec4b1a03c59ebd6533fa47cdcff89d8bf0 100644
+--- a/dist/alt-screen-search.js
++++ b/dist/alt-screen-search.js
+@@ -44,7 +44,10 @@ export function findAltScreenSearchMatches(lines, query) {
+     if (!normalizedQuery)
+         return [];
+     const corpus = buildSearchCorpus(lines);
+-    const expression = new RegExp(escapeRegExp(normalizedQuery), "giu");
++    // MIXCODE_SMARTCASE: vim-style smartcase — any uppercase letter (incl.
++    // non-ASCII \p{Lu}) makes the query case-sensitive; all-lowercase stays
++    // case-insensitive.
++    const expression = new RegExp(escapeRegExp(normalizedQuery), /\p{Lu}/u.test(normalizedQuery) ? "gu" : "giu");
+     const matches = [];
+     for (const match of corpus.text.matchAll(expression)) {
+         const start = match.index;
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index 50b5aeb61f12011642978bc2c31d8a2eb36d17d3..3b7374e46e23f4c4cfb3c97cb5278554a7577980 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -27,5 +27,7 @@ export { allocateImageId, type CellDimensions, calculateImageRows, deleteAllKitt
+ export { type Component, Container, CURSOR_MARKER, compositeTuiLine, type Focusable, isFocusable, isViewportTUI, type OverlayAnchor, type OverlayHandle, type OverlayMargin, type OverlayOptions, type OverlayUnfocusOptions, type SizeValue, type TUI, type TuiInputListener, type TuiInputListenerResult, type TuiMode, type TuiStopOptions, type ViewportTUI, } from "./tui.ts";
  export { TuiAltScreen, type TuiAltScreenOptions } from "./tui-alt-screen.ts";
  export { TuiMainScreen, type TuiMainScreenRenderState } from "./tui-main-screen.ts";
 -export { getOsc8LinkAtColumn, sliceByColumn, stripTerminalSequences, truncateToWidth, visibleWidth, wrapTextWithAnsi, } from "./utils.ts";
@@ -11,11 +28,12 @@ index 50b5aeb..db86cd2 100644
 +export { resolveOverlayLayout } from "./tui.ts";
  //# sourceMappingURL=index.d.ts.map
 \ No newline at end of file
-diff --git a/node_modules/@earendil-works/pi-tui/dist/index.js b/node_modules/@earendil-works/pi-tui/dist/index.js
-index 97acf77..75d25d1 100644
---- a/node_modules/@earendil-works/pi-tui/dist/index.js
-+++ b/node_modules/@earendil-works/pi-tui/dist/index.js
-@@ -39,4 +39,7 @@ export { TuiAltScreen } from "./tui-alt-screen.js";
+diff --git a/dist/index.js b/dist/index.js
+index 97acf774699dded9c5e490f2441a93ec05b73be5..f6b086bdd55aad63d798004f0501862b0cbff745 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -38,5 +38,8 @@ export { Container, CURSOR_MARKER, compositeTuiLine, isFocusable, isViewportTUI,
+ export { TuiAltScreen } from "./tui-alt-screen.js";
  export { TuiMainScreen } from "./tui-main-screen.js";
  // Utilities
 -export { getOsc8LinkAtColumn, sliceByColumn, stripTerminalSequences, truncateToWidth, visibleWidth, wrapTextWithAnsi, } from "./utils.js";
@@ -25,10 +43,10 @@ index 97acf77..75d25d1 100644
 +export { resolveOverlayLayout } from "./tui.js";
  //# sourceMappingURL=index.js.map
 \ No newline at end of file
-diff --git a/node_modules/@earendil-works/pi-tui/dist/keybindings.js b/node_modules/@earendil-works/pi-tui/dist/keybindings.js
-index 3bb4668..dc0d9aa 100644
---- a/node_modules/@earendil-works/pi-tui/dist/keybindings.js
-+++ b/node_modules/@earendil-works/pi-tui/dist/keybindings.js
+diff --git a/dist/keybindings.js b/dist/keybindings.js
+index 3bb4668ad408707e6aee52f3549093d47e3fa2ed..dc0d9aa8a4e129ff1b5a0d2603f89ca42b313639 100644
+--- a/dist/keybindings.js
++++ b/dist/keybindings.js
 @@ -220,13 +220,18 @@ export class KeybindingsManager {
          return resolved;
      }
@@ -50,10 +68,10 @@ index 3bb4668..dc0d9aa 100644
      }
      return globalKeybindings;
  }
-diff --git a/node_modules/@earendil-works/pi-tui/dist/keys.js b/node_modules/@earendil-works/pi-tui/dist/keys.js
-index 46faf59..134345c 100644
---- a/node_modules/@earendil-works/pi-tui/dist/keys.js
-+++ b/node_modules/@earendil-works/pi-tui/dist/keys.js
+diff --git a/dist/keys.js b/dist/keys.js
+index 46faf595f6b007838c42fabfe2689aeb8ac7433c..134345c4d9ade944b73dd8d617cfae542eee280a 100644
+--- a/dist/keys.js
++++ b/dist/keys.js
 @@ -20,18 +20,27 @@
  // =============================================================================
  // Global Kitty Protocol State
@@ -99,10 +117,10 @@ index 46faf59..134345c 100644
      const kitty = parseKittySequence(data);
      if (kitty) {
          return formatParsedKey(kitty.codepoint, kitty.modifier, kitty.baseLayoutKey);
-diff --git a/node_modules/@earendil-works/pi-tui/dist/tui.d.ts b/node_modules/@earendil-works/pi-tui/dist/tui.d.ts
-index 5b9b224..91d84eb 100644
---- a/node_modules/@earendil-works/pi-tui/dist/tui.d.ts
-+++ b/node_modules/@earendil-works/pi-tui/dist/tui.d.ts
+diff --git a/dist/tui.d.ts b/dist/tui.d.ts
+index 5b9b224586c313d8e3d42c9a2f0f05b7a1107f40..91d84eb0cdf6317a7c1b9c7ab8ff84a85ef23030 100644
+--- a/dist/tui.d.ts
++++ b/dist/tui.d.ts
 @@ -305,4 +305,10 @@ export declare abstract class TuiBase extends Container implements TUI {
          timeoutMs: number;
      }): Promise<TerminalColorScheme | undefined>;
@@ -115,10 +133,10 @@ index 5b9b224..91d84eb 100644
 +};
  //# sourceMappingURL=tui.d.ts.map
 \ No newline at end of file
-diff --git a/node_modules/@earendil-works/pi-tui/dist/tui.js b/node_modules/@earendil-works/pi-tui/dist/tui.js
-index 94adbdc..f6b1931 100644
---- a/node_modules/@earendil-works/pi-tui/dist/tui.js
-+++ b/node_modules/@earendil-works/pi-tui/dist/tui.js
+diff --git a/dist/tui.js b/dist/tui.js
+index 94adbdcffd98b770d34ee55771f57ec8004df2eb..f6b19319539de3747f756455930cfd43edeaa5e4 100644
+--- a/dist/tui.js
++++ b/dist/tui.js
 @@ -938,4 +938,10 @@ export class TuiBase extends Container {
          });
      }
@@ -131,19 +149,3 @@ index 94adbdc..f6b1931 100644
 +}
  //# sourceMappingURL=tui.js.map
 \ No newline at end of file
-diff --git a/node_modules/@earendil-works/pi-tui/dist/alt-screen-search.js b/node_modules/@earendil-works/pi-tui/dist/alt-screen-search.js
-index 3437d5a..2865ace 100644
---- a/node_modules/@earendil-works/pi-tui/dist/alt-screen-search.js
-+++ b/node_modules/@earendil-works/pi-tui/dist/alt-screen-search.js
-@@ -44,7 +44,10 @@
-     if (!normalizedQuery)
-         return [];
-     const corpus = buildSearchCorpus(lines);
--    const expression = new RegExp(escapeRegExp(normalizedQuery), "giu");
-+    // MIXCODE_SMARTCASE: vim-style smartcase — any uppercase letter (incl.
-+    // non-ASCII \p{Lu}) makes the query case-sensitive; all-lowercase stays
-+    // case-insensitive.
-+    const expression = new RegExp(escapeRegExp(normalizedQuery), /\p{Lu}/u.test(normalizedQuery) ? "gu" : "giu");
-     const matches = [];
-     for (const match of corpus.text.matchAll(expression)) {
-         const start = match.index;

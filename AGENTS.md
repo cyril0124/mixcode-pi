@@ -66,7 +66,7 @@
 
 ### Third-party package load (compiled `mpi`)
 
-- Bun `--compile` + jiti `virtualModules` can break TypeBox when extensions import `Type` via `@earendil-works/pi-ai` re-exports (`Type4 is not defined`). The `patches/@earendil-works+pi-coding-agent+*.patch` re-binds `Type` from the bundled `typebox` module for those virtual entries.
+- Bun `--compile` + jiti `virtualModules` can break TypeBox when extensions import `Type` via `@earendil-works/pi-ai` re-exports (`Type4 is not defined`). The `patches/@earendil-works%2Fpi-coding-agent@*.patch` (`bun patch` / `patchedDependencies`) re-binds `Type` from the bundled `typebox` module for those virtual entries.
 - Separately, some npm packages declare `pi.extensions: ["./src/....ts"]` while shipping a working `dist/`. At `createRuntimeServices`, `preferDistExtensionEntries` rewrites those entries under `<agentDir>/npm/node_modules` to `./dist/....js` when the dist file exists (idempotent; only that path is scanned).
 
 ## Slash Commands
@@ -271,5 +271,5 @@ Test the contract the system exposes — not the easiest internal detail to asse
 - Root suite: `bun run test` (`test/*.test.ts` only; runs files in parallel workers via `--parallel=min(16, cores)` — capped because worker counts above the core count starve timing-sensitive tests)
 - Full sequential gate: `bun run check` (typecheck + build + root tests)
 - Parallel package-oriented gate: `./test-all.sh` (typecheck + build + lint + package tests; does **not** run full `test/*.test.ts`)
-- `postinstall` runs `patch-package`, then `bun run scripts/install-pi-extensions.ts --postinstall` (TTY: optional interactive install of missing recommended third-party Pi packages; CI/non-TTY: warn only; never fails the parent install). Manual: `bun run install:extensions` or `./install-pi-extensions.sh`.
+- `bun install` applies `patchedDependencies` from `patches/`. `postinstall` only runs `bun run scripts/install-pi-extensions.ts --postinstall` (TTY: optional interactive install of missing recommended third-party Pi packages; CI/non-TTY: warn only; never fails the parent install). Manual: `bun run install:extensions` or `./install-pi-extensions.sh`. To change a Pi patch: edit the package in `node_modules` after `bun patch <pkg>`, then `bun patch --commit <pkg>`.
 - Before finishing a TypeScript behavior change: run the focused test(s) you added or changed until green, then the narrowest gate that covers the touch surface (`test:packages` for package work, `bun run check` and/or `./test-all.sh` as appropriate). Fix until green.

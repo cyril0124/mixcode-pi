@@ -109,7 +109,7 @@ cd "$REPO_DIR"
 
 info "bun $(bun --version)"
 info "Installing dependencies..."
-# postinstall applies patches with --error-on-fail; a failed patch aborts here.
+# bun install applies patchedDependencies; a failed patch aborts here.
 bun install --frozen-lockfile
 
 mkdir -p "$OUT_DIR"

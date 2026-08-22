@@ -1,8 +1,8 @@
-diff --git a/node_modules/@earendil-works/pi-ai/dist/utils/retry.js b/node_modules/@earendil-works/pi-ai/dist/utils/retry.js
-index 65c7c9e..48ce5fc 100644
---- a/node_modules/@earendil-works/pi-ai/dist/utils/retry.js
-+++ b/node_modules/@earendil-works/pi-ai/dist/utils/retry.js
-@@ -34,6 +34,10 @@
+diff --git a/dist/utils/retry.js b/dist/utils/retry.js
+index 65c7c9efd7667445b711fcd43549062ee3eb5ecf..48ce5fccea23ba2571bea7a86ad37bdfefd42347 100644
+--- a/dist/utils/retry.js
++++ b/dist/utils/retry.js
+@@ -34,6 +34,10 @@ const RETRYABLE_PROVIDER_ERROR_PATTERN = buildProviderErrorPattern([
      // Wrapper/provider text for transient upstream failures, including OpenRouter
      // "Provider returned error" responses (#2264).
      "provider.?returned.?error",
