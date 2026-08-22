@@ -14,6 +14,21 @@ type WireState = {
 
 const wireStateByPi = new WeakMap<ExtensionAPI, WireState>();
 
+// Module-graph singletons: the shell module is evaluated once per process, but
+// jiti re-evaluates dynamic imports on every call, so N tabs would re-evaluate
+// the gate/app graphs N times at boot. Memoize the import promises instead;
+// per-pi wiring below stays per tab.
+let gateModulePromise: Promise<typeof import("./session-gate.js")> | undefined;
+function loadSessionGate(): Promise<typeof import("./session-gate.js")> {
+	gateModulePromise ??= import("./session-gate.js");
+	return gateModulePromise;
+}
+let appModulePromise: Promise<typeof import("./app.js")> | undefined;
+function loadGoalApp(): Promise<typeof import("./app.js")> {
+	appModulePromise ??= import("./app.js");
+	return appModulePromise;
+}
+
 function stateFor(pi: ExtensionAPI): WireState {
 	let state = wireStateByPi.get(pi);
 	if (!state) {
@@ -28,7 +43,7 @@ function ensureMpiGoalWired(pi: ExtensionAPI): Promise<void> {
 	const state = stateFor(pi);
 	if (state.wired) return Promise.resolve();
 	if (!state.promise) {
-		state.promise = import("./app.js").then(({ wireMpiGoal }) => {
+		state.promise = loadGoalApp().then(({ wireMpiGoal }) => {
 			wireMpiGoal(pi);
 			state.wired = true;
 		});
@@ -76,7 +91,7 @@ export function registerMpiGoalShell(pi: ExtensionAPI): void {
 
 	// Restore path: only pay full wire when this session already has goal/queue state.
 	pi.on("session_start", async (_event, ctx) => {
-		const { sessionNeedsGoalWire } = await import("./session-gate.js");
+		const { sessionNeedsGoalWire } = await loadSessionGate();
 		if (sessionNeedsGoalWire(ctx)) {
 			await ensureMpiGoalWired(pi);
 		}

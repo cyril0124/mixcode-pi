@@ -26,6 +26,22 @@ import {
 
 const CUSTOM_MESSAGE_TYPE = "skill-refs";
 
+// Shared scan dedup: one filesystem walk per cwd per TTL window instead of one
+// per tab attach (boot restores N tabs concurrently). Failures drop the cache
+// entry so the next attach retries. 30s keeps mid-session skill additions
+// visible on the next attach.
+const SCAN_TTL_MS = 30_000;
+const scanCache = new Map<string, { at: number; value: Promise<Map<string, SkillRefEntry>> }>();
+
+function scanSkillDirsShared(cwd: string): Promise<Map<string, SkillRefEntry>> {
+  const hit = scanCache.get(cwd);
+  if (hit && Date.now() - hit.at < SCAN_TTL_MS) return hit.value;
+  const value = scanSkillDirs(cwd);
+  value.catch(() => scanCache.delete(cwd));
+  scanCache.set(cwd, { at: Date.now(), value });
+  return value;
+}
+
 export default function (pi: ExtensionAPI) {
   // Authoritative list from Pi's resource loader; replaced every turn.
   let authoritative = new Map<string, SkillRefEntry>();
@@ -63,7 +79,7 @@ export default function (pi: ExtensionAPI) {
   pi.on("session_start", async (_event, ctx) => {
     // Refresh the cold-start scan on every (re)start so newly added skills
     // appear in completion without waiting for the first prompt.
-    scanned = await scanSkillDirs(ctx.cwd);
+    scanned = await scanSkillDirsShared(ctx.cwd);
     if (!autocompleteRegistered) {
       autocompleteRegistered = true;
       ctx.ui.addAutocompleteProvider((base) => createSkillCompletionWrapper(base, completionEntries));

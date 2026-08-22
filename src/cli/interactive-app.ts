@@ -164,7 +164,22 @@ export async function runInteractiveApp(args: MainArgs, selfRoot: string): Promi
     const message = error instanceof Error ? error.message : String(error);
     process.stderr.write(`mpi instance registry update failed: ${message}\n`);
   };
-  const writeRegistrySnapshot = async () => {
+  const writeRegistrySnapshot = async (): Promise<void> => {
+    // Registry writes are NFS temp+rename (~100ms each, measured under boot
+    // load). Runtime/UI change events fire hundreds of times during tab
+    // restore; an un-coalesced write per event serializes the whole boot on
+    // NFS. Coalesce to one trailing write per window — the write always
+    // serializes current state, and the 5s heartbeat keeps updatedAt well
+    // inside the 15s liveness threshold. Awaiters resolve after scheduling;
+    // saveStateFile remains the awaited persistence path for state changes.
+    if (registrySnapshotTimer) return;
+    registrySnapshotTimer = setTimeout(() => {
+      registrySnapshotTimer = undefined;
+      void flushRegistrySnapshot();
+    }, REGISTRY_SNAPSHOT_COALESCE_MS);
+    registrySnapshotTimer.unref?.();
+  };
+  const flushRegistrySnapshot = async (): Promise<void> => {
     try {
       await writeCurrentInstanceSnapshot(stateRoot, state);
     } catch (error) {
@@ -175,23 +190,20 @@ export async function runInteractiveApp(args: MainArgs, selfRoot: string): Promi
   // a ctl socket lost to a transient NFS bind failure or external deletion is
   // rebound within one interval instead of staying dead for the process life.
   let ensureCtlServer: () => void = () => {};
+  /** Coalescing window for instance-registry snapshot writes (see writeRegistrySnapshot). */
+  const REGISTRY_SNAPSHOT_COALESCE_MS = 500;
+  let registrySnapshotTimer: NodeJS.Timeout | undefined;
   const heartbeat = setInterval(() => {
     void writeRegistrySnapshot();
     ensureCtlServer();
   }, INSTANCE_HEARTBEAT_INTERVAL_MS);
   heartbeat.unref?.();
-  let scheduledRegistrySnapshot: NodeJS.Timeout | undefined;
   const scheduleRegistrySnapshot = () => {
-    if (scheduledRegistrySnapshot) return;
-    scheduledRegistrySnapshot = setTimeout(() => {
-      scheduledRegistrySnapshot = undefined;
-      void writeRegistrySnapshot();
-    }, 1_000);
-    scheduledRegistrySnapshot.unref?.();
+    void writeRegistrySnapshot();
   };
   const removeRegistrySnapshot = () => {
     clearInterval(heartbeat);
-    if (scheduledRegistrySnapshot) clearTimeout(scheduledRegistrySnapshot);
+    if (registrySnapshotTimer) clearTimeout(registrySnapshotTimer);
     removeInstanceSnapshotSync(stateRoot);
   };
   process.once("exit", (code) => {

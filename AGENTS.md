@@ -67,6 +67,7 @@
 ### Third-party package load (compiled `mpi`)
 
 - Bun `--compile` + jiti `virtualModules` can break TypeBox when extensions import `Type` via `@earendil-works/pi-ai` re-exports (`Type4 is not defined`). The `patches/@earendil-works%2Fpi-coding-agent@*.patch` (`bun patch` / `patchedDependencies`) re-binds `Type` from the bundled `typebox` module for those virtual entries.
+- The same patch also carries `MIXCODE_EXTENSION_SINGLE_FLIGHT`: concurrent services builds (one per restored tab at boot) join identical in-flight `jiti.import` calls instead of racing and re-importing every extension module per tab; the shared in-flight map is cleared together with the extension factory cache.
 - Separately, some npm packages declare `pi.extensions: ["./src/....ts"]` while shipping a working `dist/`. At `createRuntimeServices`, `preferDistExtensionEntries` rewrites those entries under `<agentDir>/npm/node_modules` to `./dist/....js` when the dist file exists (idempotent; only that path is scanned).
 
 ## Slash Commands
