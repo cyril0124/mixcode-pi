@@ -1,4 +1,4 @@
-# MixCode Pi
+# MixCode Pi (`mpi`)
 
 [English](README.md)
 
@@ -172,6 +172,12 @@ mpi status                      # 检视运行中的实例与 Tab 状态
 ## Agent Tab 协作
 
 Agent Tab 用 `mpi status` / `mpi ctl` 驱动自己所在的 TUI——或任何其他 `mpi`。向同伴 Tab 发送 Prompt 与 Slash 命令、等待完成、读取结果；用 `--pid` / `--workdir` 操作其他目录的实例。
+
+典型用法：
+
+- 把审查、提问或长任务交给另一个 Tab，再读它的回复。
+- 把互不依赖的工作拆到多个 Tab，再汇总结果。
+- 跟另一个 `mpi` 实例里的 Tab 说话（`--pid` / `--workdir`）。
 
 ```bash
 mpi status --json                        # 列出存活实例、Tab 与状态
