@@ -51,11 +51,26 @@ jobs:
       - name: Lint
         run: bun run lint
 
-      - name: Root tests (bootstrap only, debug)
-        run: bun test --isolate --timeout=30000 test/bootstrap.test.ts
-
       - name: Root tests
-        run: bun run test
+        run: |
+          chmod +x scripts/ci-observer.sh
+          nohup bash scripts/ci-observer.sh "$RUNNER_TEMP/observer.log" >/dev/null 2>&1 &
+          echo "observer pid $!"
+          bun run test
 
       - name: Package tests
         run: bun run test:packages
+
+      - name: Dump observer log
+        if: always()
+        run: |
+          pkill -f ci-observer.sh || true
+          tail -n 4000 "$RUNNER_TEMP/observer.log" || true
+
+      - name: Upload observer log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: observer-log
+          path: ${{ runner.temp }}/observer.log
+          if-no-files-found: ignore
