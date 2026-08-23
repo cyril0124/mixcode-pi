@@ -16,15 +16,15 @@ test("applyActiveTabShimmer applies highlight wave during sweep and returns plai
   assert.notEqual(resultMid, text);
   assert.ok(resultMid.includes("\x1b["));
 
-  // Rest phase: returns original text (period 2000ms, sweep 1400ms, rest 600ms)
+  // Rest phase: returns original text (period 2400ms, sweep 1400ms, rest 1000ms)
   const restPhase = start + TAB_ACTIVE_SHIMMER_SWEEP_MS + 100;
   const resultRest = applyActiveTabShimmer(text, start, restPhase);
   assert.equal(resultRest, text);
 
   // Exact period boundary checks
-  assert.equal(TAB_ACTIVE_SHIMMER_PERIOD_MS, 2000);
+  assert.equal(TAB_ACTIVE_SHIMMER_PERIOD_MS, 2400);
   assert.equal(TAB_ACTIVE_SHIMMER_SWEEP_MS, 1400);
-  assert.equal(TAB_ACTIVE_SHIMMER_PERIOD_MS - TAB_ACTIVE_SHIMMER_SWEEP_MS, 600);
+  assert.equal(TAB_ACTIVE_SHIMMER_PERIOD_MS - TAB_ACTIVE_SHIMMER_SWEEP_MS, 1000);
 
   // Next cycle sweep: active wave styling applied again (continuous)
   const nextCycleMid = start + TAB_ACTIVE_SHIMMER_PERIOD_MS + Math.floor(TAB_ACTIVE_SHIMMER_SWEEP_MS / 2);

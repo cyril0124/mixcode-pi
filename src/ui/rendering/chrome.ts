@@ -1171,7 +1171,7 @@ function sanitizeWidgetLine(text: string): string {
 }
 
 const TAB_FOCUS_MARK = "▌";
-export const TAB_ACTIVE_SHIMMER_PERIOD_MS = 2000;
+export const TAB_ACTIVE_SHIMMER_PERIOD_MS = 2400;
 export const TAB_ACTIVE_SHIMMER_SWEEP_MS = 1400;
 
 function withFocusMark(paint: (text: string) => string, body: string): string {
@@ -1180,8 +1180,8 @@ function withFocusMark(paint: (text: string) => string, body: string): string {
 
 /**
  * Apply a continuous left-to-right sweep/shimmer effect across text for active tab.
- * Highlight wave sweeps across characters over TAB_ACTIVE_SHIMMER_SWEEP_MS,
- * followed by a brief rest within TAB_ACTIVE_SHIMMER_PERIOD_MS.
+ * Highlight wave sweeps across characters over TAB_ACTIVE_SHIMMER_SWEEP_MS (1400ms),
+ * followed by a brief rest (1000ms) within TAB_ACTIVE_SHIMMER_PERIOD_MS (2400ms).
  */
 export function applyActiveTabShimmer(text: string, activatedAt: number | undefined, now = Date.now()): string {
   const baseTime = activatedAt ?? 0;
@@ -1194,7 +1194,7 @@ export function applyActiveTabShimmer(text: string, activatedAt: number | undefi
   if (total === 0) return text;
 
   const progress = elapsed / TAB_ACTIVE_SHIMMER_SWEEP_MS;
-  // Center of shimmer wave: sweeps smoothly from before first char to past last char
+  // Center of shimmer wave: sweeps smoothly from before first char (-2) to past last char (total + 2)
   const waveCenter = progress * (total + 4) - 2;
   const waveWidth = 3;
 
