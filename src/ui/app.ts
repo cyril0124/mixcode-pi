@@ -415,12 +415,11 @@ export function createMixCodeTui(
     originalStop();
     uninstallStdoutGuard();
   };
-  // Renderer-only pause for external-process handoff ($EDITOR). Must bypass
-  // the destructive stop() wrappers above and in interactive-app (they dispose
-  // the ctl server, clear the instance heartbeat, and kill peer tab sync —
-  // permanently, since nothing restarts them on tui.start()). While paused,
-  // background requestRender calls are no-ops inside pi-tui, so redraw timers
-  // may keep running without painting over the editor.
+  // Renderer-only pause for external-process handoff ($EDITOR). Must bypass the
+  // destructive stop() wrapper above: it disposes the component root and stops
+  // the redraw/title bindings, and nothing re-creates them on tui.start().
+  // While paused, background requestRender calls are no-ops inside pi-tui, so
+  // redraw timers may keep running without painting over the editor.
   tui.pause = originalStop;
   tui.resume = () => {
     originalStart();

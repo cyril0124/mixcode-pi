@@ -193,12 +193,22 @@ export async function runInteractiveApp(args: MainArgs, selfRoot: string): Promi
   // a ctl socket lost to a transient NFS bind failure or external deletion is
   // rebound within one interval instead of staying dead for the process life.
   let ensureCtlServer: () => void = () => {};
+  // Set once the ctl server and peer tab sync exist. Mutable binding: exit
+  // teardown can fire before those consts initialize (early bootstrap
+  // failure), so it must not capture them directly.
+  let disposeInstanceServices: () => void = () => {};
   const heartbeat = setInterval(() => {
     void scheduleRegistrySnapshot();
     ensureCtlServer();
   }, INSTANCE_HEARTBEAT_INTERVAL_MS);
   heartbeat.unref?.();
+  // Process-lifetime teardown, reachable only from exit/SIGINT/SIGTERM. Never
+  // attach it to tui.stop(): upstream pi treats stop()/start() as a reversible
+  // renderer handoff (external editor from an extension editor overlay,
+  // over-width render abort), and start() restores neither the heartbeat, the
+  // ctl socket, nor peer sync.
   const removeRegistrySnapshot = () => {
+    disposeInstanceServices();
     clearInterval(heartbeat);
     if (registrySnapshotTimer) clearTimeout(registrySnapshotTimer);
     removeInstanceSnapshotSync(stateRoot);
@@ -334,12 +344,9 @@ export async function runInteractiveApp(args: MainArgs, selfRoot: string): Promi
     },
   });
   let ctlServer: InstanceCtlServer | undefined;
-  const originalStop = tui.stop.bind(tui);
-  tui.stop = () => {
+  disposeInstanceServices = () => {
     peerTabSync.dispose();
     ctlServer?.dispose();
-    removeRegistrySnapshot();
-    originalStop();
   };
   tui.start();
   // Ctl server failures (transient NFS errors in the sync fs prep, async bind
