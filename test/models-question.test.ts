@@ -28,6 +28,7 @@ import {
   resolveRegisteredModel,
   setStateModel,
   setTabModel,
+  type MixCodeModel,
 } from "./helpers/mixcode.js";
 
 async function loadSources(modelsPath: string) {
@@ -118,7 +119,7 @@ test("proxy-gpt model loads through pi models.json registry as OpenAI Responses 
       getApiKey: bundle.runtimeAuth.getApiKey,
       streamFn: bundle.runtimeAuth.stream,
     });
-    assert.equal(runtime.resolveModel("proxy-gpt", "gpt-5.5").api, "openai-responses");
+    assert.equal(runtime.resolveModel("proxy-gpt", "gpt-5.5")?.api, "openai-responses");
   } finally {
     if (oldKey === undefined) delete process.env.MIXCODE_TEST_PROXY_KEY;
     else process.env.MIXCODE_TEST_PROXY_KEY = oldKey;
@@ -199,6 +200,7 @@ test("pi model defaults follow PI_CODING_AGENT_DIR and runtime auth preserves ex
   });
   const model = {
     id: "fallback-model",
+    name: "Fallback Model",
     provider: "mixcode-runtime-fallback",
     api: "mixcode-runtime-fallback-api",
     baseUrl: "https://fallback.example/v1",
@@ -207,7 +209,7 @@ test("pi model defaults follow PI_CODING_AGENT_DIR and runtime auth preserves ex
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     contextWindow: 1000,
     maxTokens: 100,
-  };
+  } satisfies MixCodeModel;
   // Register the fallback provider the way registerMixCodeRuntimeProvider does,
   // so runtimeAuth.stream routes through ModelRuntime (the non-deprecated path)
   // instead of the compat global api-registry.
@@ -235,7 +237,7 @@ test("pi model defaults follow PI_CODING_AGENT_DIR and runtime auth preserves ex
 
     const runtimeAuth = createPiModelRuntimeAuth(modelRuntime);
     const streamed = await runtimeAuth.stream(
-      model as never,
+      model,
       { systemPrompt: "", messages: [], tools: [] },
       { apiKey: "caller-key" },
     );
@@ -348,7 +350,12 @@ test("pi model runtime auth merges request headers and surfaces auth errors", as
     const missingModel = missingBundle.registry.find("mixcode-auth-test", "auth-model");
     assert.ok(missingModel);
     await assert.rejects(
-      missingBundle.runtimeAuth.stream(missingModel, { systemPrompt: "", messages: [], tools: [] }),
+      async () =>
+        await missingBundle.runtimeAuth.stream(missingModel, {
+          systemPrompt: "",
+          messages: [],
+          tools: [],
+        }),
       /Failed to resolve API key/,
     );
   } finally {
@@ -362,7 +369,18 @@ function streamSingleMessage(message: AssistantMessage) {
   const stream = createAssistantMessageEventStream();
   queueMicrotask(() => {
     stream.push({ type: "start", partial: { ...message, content: [] } });
-    stream.push({ type: "done", reason: message.stopReason, message });
+    switch (message.stopReason) {
+      case "error":
+      case "aborted":
+        // pi-ai terminates failures with an `error` event; `done` only accepts
+        // successful stop reasons.
+        stream.push({ type: "error", reason: message.stopReason, error: message });
+        break;
+      case "pending":
+        throw new Error("streamSingleMessage requires a terminal stopReason");
+      default:
+        stream.push({ type: "done", reason: message.stopReason, message });
+    }
     stream.end(message);
   });
   return stream;
@@ -412,7 +430,9 @@ test("pi model registry applies literal and minimal models.json fields", async (
     );
     assert.ok(source);
     assert.equal(source.model.baseUrl, "https://literal.example/v1");
-    assert.equal(source.model.compat?.sessionAffinityFormat, "openai-nosession");
+    const literalCompat = source.model.compat;
+    assert.ok(literalCompat && "sessionAffinityFormat" in literalCompat);
+    assert.equal(literalCompat.sessionAffinityFormat, "openai-nosession");
     assert.deepEqual(source.model.input, ["text", "image"]);
     const literalBundle = await createPiModelRegistryBundle(literalValidPath);
     assert.equal(
@@ -560,8 +580,11 @@ test("pi model registry applies per-model overrides over provider defaults", asy
     assert.equal(source.model.cost.cacheWrite, 0);
     assert.equal(source.model.contextWindow, 256000);
     assert.equal(source.model.maxTokens, 9);
-    assert.equal(source.model.compat?.sessionAffinityFormat, "openai");
-    assert.equal(source.model.compat?.supportsLongCacheRetention, true);
+    const overrideCompat = source.model.compat;
+    assert.ok(overrideCompat && "sessionAffinityFormat" in overrideCompat);
+    assert.equal(overrideCompat.sessionAffinityFormat, "openai");
+    assert.ok("supportsLongCacheRetention" in overrideCompat);
+    assert.equal(overrideCompat.supportsLongCacheRetention, true);
   } finally {
     if (oldApiKey === undefined) delete process.env.MIXCODE_TEST_API_KEY;
     else process.env.MIXCODE_TEST_API_KEY = oldApiKey;
@@ -681,7 +704,7 @@ test("runtime.reloadModelConfig re-reads models.json from disk after it changes"
       getApiKey: bundle.runtimeAuth.getApiKey,
       streamFn: bundle.runtimeAuth.stream,
     });
-    assert.equal(runtime.resolveModel("reload-proxy", "alpha").id, "alpha");
+    assert.equal(runtime.resolveModel("reload-proxy", "alpha")?.id, "alpha");
 
     // Replace the model on disk; before reload the registry still serves the old one.
     await fsPromises.writeFile(configPath, JSON.stringify(provider("beta")), "utf8");
@@ -695,7 +718,7 @@ test("runtime.reloadModelConfig re-reads models.json from disk after it changes"
       !configured.some((ref) => ref.modelId === "alpha"),
       "the removed alpha model should no longer be configured",
     );
-    assert.equal(runtime.resolveModel("reload-proxy", "beta").id, "beta");
+    assert.equal(runtime.resolveModel("reload-proxy", "beta")?.id, "beta");
   } finally {
     if (oldKey === undefined) delete process.env.MIXCODE_RELOAD_KEY;
     else process.env.MIXCODE_RELOAD_KEY = oldKey;

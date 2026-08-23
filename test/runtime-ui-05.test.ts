@@ -29,6 +29,8 @@ function delayedAssistantStream(text: string, ready: Promise<void>, options?: Si
       stream.end(aborted);
       return;
     }
+    const first = message.content[0];
+    if (first?.type !== "text") throw new Error("delayedAssistantStream expects a text content block");
     stream.push({ type: "start", partial: { ...message, content: [] } });
     stream.push({
       type: "text_start",
@@ -38,13 +40,13 @@ function delayedAssistantStream(text: string, ready: Promise<void>, options?: Si
     stream.push({
       type: "text_delta",
       contentIndex: 0,
-      delta: message.content[0]!.text,
+      delta: first.text,
       partial: message,
     });
     stream.push({
       type: "text_end",
       contentIndex: 0,
-      content: message.content[0]!.text,
+      content: first.text,
       partial: message,
     });
     stream.push({ type: "done", reason: "stop", message });

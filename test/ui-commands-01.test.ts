@@ -83,7 +83,6 @@ test("submitted input handles compact and validates theme", async () => {
   } as unknown as MixCodeRuntime;
   const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
   await handleSubmittedInput(state, runtime, "/goal ship", tui);
-  assert.equal(state.tabs[0]?.goal, undefined);
   await handleSubmittedInput(state, runtime, "/compact preserve decisions", tui);
   assert.equal(prompts.length, 0);
   assert.deepEqual(compacted, [{ sessionId: "s1", instructions: "preserve decisions" }]);

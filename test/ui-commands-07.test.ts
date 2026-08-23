@@ -8,7 +8,11 @@ import {
   renderInputMeta,
   PENDING_ESCAPE_CONFIRM_WINDOW_MS,
 } from "./helpers/mixcode.js";
+import { testRuntime } from "./helpers/runtime-stub.js";
+import { testRuntimeTab } from "./helpers/runtime-tab.js";
 
+// RuntimeTab double: member names/signatures stay checked against production;
+// agentSession/session are class instances, so they get their own Partial.
 test("double escape stops an active agent run", () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo", { status: "thinking" });
@@ -20,14 +24,15 @@ test("double escape stops an active agent run", () => {
     showOverlay: () => ({}) as never,
     hasOverlay: () => false,
   };
-  const runtime = {
-    getTab: () => ({ agent: { state: { isStreaming: true } } }),
+  const runtime = testRuntime({
+    getTab: () =>
+      testRuntimeTab({ agentSession: { isStreaming: true, getSteeringMessages: () => [] } }),
     abortTab: (sessionId: string) => {
       assert.equal(sessionId, "s1");
       aborts++;
       return true;
     },
-  };
+  });
 
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime), {
     consume: true,
@@ -55,8 +60,9 @@ test("double escape stop takes priority over extension terminal input handlers",
     showOverlay: () => ({}) as never,
     hasOverlay: () => false,
   };
-  const runtime = {
-    getTab: () => ({ agent: { state: { isStreaming: true } } }),
+  const runtime = testRuntime({
+    getTab: () =>
+      testRuntimeTab({ agentSession: { isStreaming: true, getSteeringMessages: () => [] } }),
     dispatchTerminalInput: () => {
       dispatched++;
       return { consume: true };
@@ -66,7 +72,7 @@ test("double escape stop takes priority over extension terminal input handlers",
       aborts++;
       return true;
     },
-  };
+  });
 
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime), {
     consume: true,
@@ -139,13 +145,14 @@ test("expired double escape arm resets before stopping an active run", () => {
     showOverlay: () => ({}) as never,
     hasOverlay: () => false,
   };
-  const runtime = {
-    getTab: () => ({ agent: { state: { isStreaming: true } } }),
+  const runtime = testRuntime({
+    getTab: () =>
+      testRuntimeTab({ agentSession: { isStreaming: true, getSteeringMessages: () => [] } }),
     abortTab: () => {
       aborts++;
       return true;
     },
-  };
+  });
 
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime), {
     consume: true,
@@ -169,10 +176,11 @@ test("single escape abort prompt is cleared by later non-abort actions", () => {
     showOverlay: () => ({}) as never,
     hasOverlay: () => false,
   };
-  const runtime = {
-    getTab: () => ({ agent: { state: { isStreaming: true } } }),
+  const runtime = testRuntime({
+    getTab: () =>
+      testRuntimeTab({ agentSession: { isStreaming: true, getSteeringMessages: () => [] } }),
     abortTab: () => true,
-  };
+  });
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime), {
     consume: true,
   });
@@ -366,13 +374,13 @@ test("global key input ignores Kitty key-release events", () => {
   };
 
   let terminalInputs = 0;
-  const runtime = {
+  const runtime = testRuntime({
     dispatchTerminalInput: (_sessionId: string, data: string) => {
       assert.equal(data, "\x1b[9;1:3u");
       terminalInputs++;
       return undefined;
     },
-  };
+  });
 
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[9;1:3u", tui, undefined, runtime), {
     consume: true,
@@ -534,11 +542,11 @@ test("vim mode consumes editor input, scrolls chat, and exits with q", async () 
     hideOverlay: () => undefined,
     hasOverlay: () => false,
   };
-  const runtime = {
+  const runtime = testRuntime({
     prompt: async (_sessionId: string, prompt: string) => {
       prompts.push(prompt);
     },
-  };
+  });
   let historyBrowsed = false;
   const editorActions = {
     getText: () => text,

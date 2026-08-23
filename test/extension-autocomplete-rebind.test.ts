@@ -94,13 +94,15 @@ test("custom editor skin keeps @ file completion after extension $ wrapper rebin
   editor.handleInput("@");
   // fd-backed fuzzy completion is async (subprocess + debounce); poll instead
   // of racing a fixed sleep so loaded (parallel/CI) runs cannot flake.
-  await waitFor(() => editor.isShowingAutocomplete?.() === true);
-  assert.equal(editor.isShowingAutocomplete?.(), true, "@ must open file completion on custom skin");
+  // Read through EditorSlot, the same typed accessor app.ts uses: pi-tui's
+  // published EditorComponent type does not expose isShowingAutocomplete.
+  await waitFor(() => slot.isShowingAutocomplete());
+  assert.equal(slot.isShowingAutocomplete(), true, "@ must open file completion on custom skin");
 
   editor.setText("");
   editor.handleInput("$");
-  await waitFor(() => editor.isShowingAutocomplete?.() === true);
-  assert.equal(editor.isShowingAutocomplete?.(), true, "$ must open skill completion on custom skin");
+  await waitFor(() => slot.isShowingAutocomplete());
+  assert.equal(slot.isShowingAutocomplete(), true, "$ must open skill completion on custom skin");
 });
 
 test("passthrough-rooted autocomplete chain breaks @ (regression guard)", async () => {

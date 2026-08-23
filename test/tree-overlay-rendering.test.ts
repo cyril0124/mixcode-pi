@@ -13,7 +13,12 @@ import {
   openTreeSelector,
 } from "../src/ui/components/tree-selector.js";
 import { renderTreeSelector } from "../src/ui/components/tree-selector-render.js";
+import { testTui } from "./helpers/tui.js";
+import { testRuntime } from "./helpers/runtime-stub.js";
+import { testRuntimeTab } from "./helpers/runtime-tab.js";
 
+// RuntimeTab double: member names/signatures stay checked against production;
+// session/agentSession are class instances, so they get their own Partial.
 function stripAnsi(text: string): string {
   return text.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "");
 }
@@ -59,6 +64,19 @@ function toolSearchTree(): SessionTreeNode[] {
           timestamp: "2026-05-14T00:00:00.000Z",
           message: {
             role: "assistant",
+            api: "tree-test",
+            provider: "tree-test",
+            model: "tree-test-model",
+            usage: {
+              input: 0,
+              output: 0,
+              cacheRead: 0,
+              cacheWrite: 0,
+              totalTokens: 0,
+              cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+            },
+            stopReason: "stop",
+            timestamp: 0,
             content: [
               { type: "toolCall", id: "call-1", name: "read", arguments: { path: "/tmp/a" } },
             ],
@@ -81,9 +99,9 @@ function toolSearchTree(): SessionTreeNode[] {
               },
             },
             children: [],
-          } as SessionTreeNode,
+          },
         ],
-      } as SessionTreeNode,
+      },
     ]),
   ];
 }
@@ -91,7 +109,7 @@ function toolSearchTree(): SessionTreeNode[] {
 test("Pi tree search keeps tool names without leaking search metadata into copy", () => {
   const state = createInitialState("/repo");
   initTreeSelector(state.treeSelector, toolSearchTree(), "tool-result");
-  const tui = { requestRender: () => undefined };
+  const tui = testTui();
 
   for (const key of "read") handleTreeSelectorKey(state, key, tui);
   const filtered = renderTreeSelector(state, 100).map(stripAnsi).join("\n");
@@ -156,15 +174,16 @@ test("Pi tree selection preserves custom branch summarization", async () => {
     entryId: string;
     options?: { summarize?: boolean; customInstructions?: string };
   }> = [];
-  const runtime = {
-    getTab: () => ({
-      session: {
-        getTree: () => sampleTree(),
-        getLeafId: () => "active",
-        appendLabelChange: () => "",
-      },
-      agentSession: { abortBranchSummary: () => undefined },
-    }),
+  const runtime = testRuntime({
+    getTab: () =>
+      testRuntimeTab({
+        session: {
+          getTree: () => sampleTree(),
+          getLeafId: () => "active",
+          appendLabelChange: () => "",
+        },
+        agentSession: { abortBranchSummary: () => undefined },
+      }),
     extensionNavigateTree: async (
       _sessionId: string,
       entryId: string,
@@ -174,23 +193,22 @@ test("Pi tree selection preserves custom branch summarization", async () => {
       return { cancelled: false };
     },
     appendSystemMessage: () => undefined,
-  };
-  const tui = {
-    requestRender: () => undefined,
+  });
+  const tui = testTui({
     treeSelectorDisplay: {
       open: () => undefined,
       refresh: () => undefined,
       close: () => undefined,
     },
-  };
+  });
 
-  handleTreeSelectorKey(state, "\r", tui, runtime as never);
+  handleTreeSelectorKey(state, "\r", tui, runtime);
   assert.match(renderTreeSelector(state, 80).map(stripAnsi).join("\n"), /Summarize Branch/);
-  handleTreeSelectorKey(state, "\x1b[B", tui, runtime as never);
-  handleTreeSelectorKey(state, "\x1b[B", tui, runtime as never);
-  handleTreeSelectorKey(state, "\r", tui, runtime as never);
-  for (const key of "focus on decisions") handleTreeSelectorKey(state, key, tui, runtime as never);
-  handleTreeSelectorKey(state, "\r", tui, runtime as never);
+  handleTreeSelectorKey(state, "\x1b[B", tui, runtime);
+  handleTreeSelectorKey(state, "\x1b[B", tui, runtime);
+  handleTreeSelectorKey(state, "\r", tui, runtime);
+  for (const key of "focus on decisions") handleTreeSelectorKey(state, key, tui, runtime);
+  handleTreeSelectorKey(state, "\r", tui, runtime);
   await Promise.resolve();
 
   assert.deepEqual(calls, [
@@ -206,8 +224,7 @@ test("tree selector opens in the editor input area instead of an overlay", () =>
   state.tabs.push({ ...state.tabs[0]!, sessionId: "s1" });
   state.activeTabId = "s1";
   const openedSessions: string[] = [];
-  const tui = {
-    requestRender: () => undefined,
+  const tui = testTui({
     showOverlay: () => {
       throw new Error("tree selector must not use overlay rendering");
     },
@@ -216,7 +233,7 @@ test("tree selector opens in the editor input area instead of an overlay", () =>
       refresh: () => undefined,
       close: () => undefined,
     },
-  };
+  });
   const runtime = {
     getTab: () => ({
       session: {
@@ -240,14 +257,14 @@ test("attached tree selector editor handles focused TUI input directly", () => {
   initTreeSelector(state.treeSelector, toolSearchTree(), "tool-result");
   let factory: (() => { handleInput?: (data: string) => void }) | undefined;
   let renders = 0;
-  const tui = {
+  const tui = testTui({
     requestRender: () => {
       renders++;
     },
     showOverlay: () => {
       throw new Error("tree selector key handling must not use overlay rendering");
     },
-  };
+  });
   attachTreeSelectorDisplayHost(tui, state, (nextFactory) => {
     factory = nextFactory;
   });
@@ -267,14 +284,14 @@ test("attached tree selector editor ignores Kitty key release events", () => {
   initTreeSelector(state.treeSelector, sampleTree(), "active");
   let factory: (() => { handleInput?: (data: string) => void }) | undefined;
   let renders = 0;
-  const tui = {
+  const tui = testTui({
     requestRender: () => {
       renders++;
     },
     showOverlay: () => {
       throw new Error("tree selector key handling must not use overlay rendering");
     },
-  };
+  });
   attachTreeSelectorDisplayHost(tui, state, (nextFactory) => {
     factory = nextFactory;
   });
@@ -373,14 +390,14 @@ test("tree selector input listener handles tree keys when no editor host is atta
 test("attached tree selector refresh requests a differential render", () => {
   const state = createInitialState("/repo");
   let rendered = false;
-  const tui = {
+  const tui = testTui({
     requestRender: () => {
       rendered = true;
     },
     showOverlay: () => {
       throw new Error("tree selector key handling must not use overlay rendering");
     },
-  };
+  });
   attachTreeSelectorDisplayHost(tui, state, () => undefined);
 
   tui.treeSelectorDisplay?.refresh();
@@ -405,12 +422,12 @@ test("tree selector keeps key priority over extension terminal input handlers be
     },
     hasOverlay: () => false,
   };
-  const runtime = {
+  const runtime = testRuntime({
     dispatchTerminalInput: () => {
       dispatches++;
       return { consume: true };
     },
-  };
+  });
 
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[B", tui, undefined, runtime), {
     consume: true,

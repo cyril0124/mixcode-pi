@@ -62,8 +62,8 @@ function widgetTab(
     extensionUi: {
       statuses: [],
       widgets: [
-        { id: "above", placement: "aboveEditor", lines: ["INLINE-ABOVE"] },
-        { id: "below", placement: "belowEditor", lines: ["INLINE-BELOW"] },
+        { key: "above", placement: "aboveEditor", lines: ["INLINE-ABOVE"] },
+        { key: "below", placement: "belowEditor", lines: ["INLINE-BELOW"] },
       ],
       toolsExpanded: false,
       waitingForInputs: [],
@@ -351,8 +351,8 @@ test("an open side panel keeps widgets out of the chat tail", () => {
 test("inline mode removes docked widgets and grows the chat surface", () => {
   const { layout, tab } = buildLayout(24);
   tab.extensionUi.widgets = [
-    { id: "above", placement: "aboveEditor", lines: ["INLINE-ABOVE"] },
-    { id: "below", placement: "belowEditor", lines: ["INLINE-BELOW"] },
+    { key: "above", placement: "aboveEditor", lines: ["INLINE-ABOVE"] },
+    { key: "below", placement: "belowEditor", lines: ["INLINE-BELOW"] },
   ];
 
   layout.render(80);
@@ -374,7 +374,7 @@ test("inline mode removes docked widgets and grows the chat surface", () => {
 test("inline widgets stay in the chat column, not the editor dock", () => {
   const { layout, main, tab } = buildLayout(24);
   tab.extensionUi.widgets = [
-    { id: "above", placement: "aboveEditor", lines: ["INLINE-ABOVE"] },
+    { key: "above", placement: "aboveEditor", lines: ["INLINE-ABOVE"] },
   ];
 
   const dockedMain = stripAnsi(main.render(80).join("\n"));
@@ -517,7 +517,7 @@ test("setInputComponent takeover hides [INL] on a permanent-skin separator", () 
 
 test("turning inline widgets off restores the dock and drops [INL]", () => {
   const { layout, main, tab } = buildLayout(24);
-  tab.extensionUi.widgets = [{ id: "above", placement: "aboveEditor", lines: ["INLINE-ABOVE"] }];
+  tab.extensionUi.widgets = [{ key: "above", placement: "aboveEditor", lines: ["INLINE-ABOVE"] }];
   tab.inlineWidgets = true;
   layout.render(80);
   assert.match(stripAnsi(main.render(80).join("\n")), /INLINE-ABOVE/);

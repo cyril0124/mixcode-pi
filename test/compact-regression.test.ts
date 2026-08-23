@@ -9,7 +9,6 @@ import {
   createAssistantMessageEventStream,
   type AssistantMessage,
   type Context,
-  type Model,
   type ToolCall,
 } from "@earendil-works/pi-ai";
 import {
@@ -17,6 +16,7 @@ import {
   MixCodeRuntime,
   createTab,
   renderWorkingIndicator,
+  type MixCodeModel,
 } from "./helpers/mixcode.js";
 
 function waitForRuntime(predicate: () => boolean, attempts = 50): Promise<void> {
@@ -184,7 +184,7 @@ test("pre-prompt auto-compaction starts a fresh working timer", async () => {
         },
       ],
     });
-    const model: Model<string> = {
+    const model: MixCodeModel = {
       ...MIXCODE_FAUX_MODEL,
       provider: "compact-test",
       api: "compact-test",
@@ -338,7 +338,7 @@ test("core does not terminate a tool loop for mid-turn compaction pressure", asy
     const runtime = new MixCodeRuntime({
       sessionsRoot: dir,
       agentDir: dir,
-      streamFn: (_model: Model<any>, context: Context) => {
+      streamFn: (_model: MixCodeModel, context: Context) => {
         seenContexts.push(context);
         if (context.messages.some((message) => message.role === "toolResult")) {
           postToolAssistantCalls += 1;
@@ -371,7 +371,7 @@ test("core does not terminate a tool loop for mid-turn compaction pressure", asy
         },
       ],
     });
-    const model: Model<string> = {
+    const model: MixCodeModel = {
       ...MIXCODE_FAUX_MODEL,
       provider: "compact-test",
       api: "compact-test",

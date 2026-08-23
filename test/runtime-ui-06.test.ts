@@ -6,7 +6,13 @@ import * as os from "node:os";
 import { test } from "node:test";
 import { Type } from "@earendil-works/pi-ai";
 import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
-import { Text, TuiMainScreen, type AutocompleteProvider, type Terminal } from "@earendil-works/pi-tui";
+import {
+  Text,
+  TuiMainScreen,
+  type AutocompleteProvider,
+  type Terminal,
+  type TUI,
+} from "@earendil-works/pi-tui";
 import {
   MixCodeCompletionProvider,
   MixCodeRuntime,
@@ -391,7 +397,9 @@ test("runtime extension reload resets host UI state and rebinds extension resour
       }));
       ctx.ui.onTerminalInput((data) => (data === "reload-key" ? { consume: true } : undefined));
     });
-    pi.on("session_shutdown", (event) => events.push(`shutdown:${event.reason}`));
+    pi.on("session_shutdown", (event) => {
+      events.push(`shutdown:${event.reason}`);
+    });
     pi.registerCommand("reload-smoke", {
       description: "Reload host state smoke",
       handler: async (_args, ctx) => {

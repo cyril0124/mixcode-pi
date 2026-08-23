@@ -4,13 +4,11 @@ import * as fsPromises from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
 import { test } from "node:test";
-import type {
-  Model,
-} from "@earendil-works/pi-ai";
 import {
   MIXCODE_FAUX_MODEL,
   MixCodeRuntime,
   createTab,
+  type MixCodeModel,
 } from "./helpers/mixcode.js";
 
 test("runtime lets Pi resource loader discover project system prompt before MixCode fallback", async () => {
@@ -38,7 +36,7 @@ test("runtime lets Pi resource loader discover project system prompt before MixC
 test("runtime creation and events sync tab model, usage, and done status", async () => {
   const runtime = new MixCodeRuntime();
   const tab = createTab(1, "s1", process.cwd(), { status: "done" });
-  const explicit: Model<string> = {
+  const explicit: MixCodeModel = {
     ...MIXCODE_FAUX_MODEL,
     id: "refresh-model",
     contextWindow: 1234,
@@ -82,7 +80,7 @@ test("runtime creation and events sync tab model, usage, and done status", async
 
 test("runtime tab reflects Pi thinking clamp after creation", async () => {
   const runtime = new MixCodeRuntime();
-  const model: Model<string> = {
+  const model: MixCodeModel = {
     ...MIXCODE_FAUX_MODEL,
     id: "no-reasoning-model",
     reasoning: false,
@@ -103,7 +101,7 @@ test("runtime tab reflects Pi thinking clamp after creation", async () => {
 test("runtime thinking update delegates to Pi agent session", async () => {
   const runtime = new MixCodeRuntime();
   const tab = createTab(1, "s1", process.cwd(), { thinkingLevel: "high" });
-  const model: Model<string> = {
+  const model: MixCodeModel = {
     ...MIXCODE_FAUX_MODEL,
     id: "max-model",
     reasoning: true,

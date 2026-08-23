@@ -12,11 +12,10 @@ import { test } from "node:test";
 import {
   type AssistantMessage,
   type Context,
-  type Model,
   type SimpleStreamOptions,
   createAssistantMessageEventStream,
 } from "@earendil-works/pi-ai";
-import { MIXCODE_FAUX_MODEL, MixCodeRuntime, createTab } from "./helpers/mixcode.js";
+import { MIXCODE_FAUX_MODEL, MixCodeRuntime, createTab, type MixCodeModel } from "./helpers/mixcode.js";
 import { renderAgentSurface } from "../src/ui/rendering/agent-surface.js";
 
 function stripAnsi(s: string): string {
@@ -86,7 +85,7 @@ test("startup summary survives retractCurrentTurn (double-Esc undo)", async () =
     });
     const runtime = new MixCodeRuntime({
       sessionsRoot: dir,
-      streamFn: (_m: Model<unknown>, _c: Context, options?: SimpleStreamOptions) =>
+      streamFn: (_m: MixCodeModel, _c: Context, options?: SimpleStreamOptions) =>
         pendingStream(released, options),
     });
     const tab = createTab(1, "s1", process.cwd());

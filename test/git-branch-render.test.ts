@@ -39,10 +39,11 @@ test("renderInputMeta does not block the event loop on git", async () => {
     {
       env: { ...process.env, PATH: `${bin}:${process.env.PATH ?? ""}` },
       stdout: "pipe",
-      stderr: "inherit",
+      // Piped, not inherited: the failure message below reports the child's stderr.
+      stderr: "pipe",
     },
   );
-  assert.equal(result.exitCode, 0, `scenario child failed: ${result.stderr?.toString() ?? ""}`);
+  assert.equal(result.exitCode, 0, `scenario child failed: ${result.stderr.toString()}`);
   const report = JSON.parse(result.stdout.toString().trim()) as { firstMs: number; painted: string };
   assert.ok(
     report.firstMs < 80,

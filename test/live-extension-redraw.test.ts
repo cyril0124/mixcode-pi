@@ -57,7 +57,6 @@ test("live extension redraw stays idle when active tab has only static extension
       requestRender: () => {
         renders += 1;
       },
-      stop: () => undefined,
     },
     5,
   );

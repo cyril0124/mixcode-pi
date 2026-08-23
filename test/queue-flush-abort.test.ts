@@ -9,11 +9,10 @@ import {
   createAssistantMessageEventStream,
   type AssistantMessage,
   type Context,
-  type Model,
   type SimpleStreamOptions,
   type ToolCall,
 } from "@earendil-works/pi-ai";
-import { MIXCODE_FAUX_MODEL, MixCodeRuntime, createTab } from "./helpers/mixcode.js";
+import { MIXCODE_FAUX_MODEL, MixCodeRuntime, createTab, type MixCodeModel } from "./helpers/mixcode.js";
 
 function waitForRuntime(predicate: () => boolean, attempts = 100): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -131,7 +130,7 @@ test("escape during a tool call flushes the queued message instead of dropping i
     });
 
     const seen: string[] = [];
-    const model: Model<string> = {
+    const model: MixCodeModel = {
       ...MIXCODE_FAUX_MODEL,
       provider: "queue-test",
       api: "queue-test",
@@ -140,7 +139,7 @@ test("escape during a tool call flushes the queued message instead of dropping i
 
     const runtime = new MixCodeRuntime({
       sessionsRoot: dir,
-      streamFn: (_model: Model<any>, context: Context, options?: SimpleStreamOptions) => {
+      streamFn: (_model: MixCodeModel, context: Context, options?: SimpleStreamOptions) => {
         const text = lastUserText(context);
         seen.push(text);
         // First user turn triggers a long-running tool call.

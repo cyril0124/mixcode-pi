@@ -14,7 +14,12 @@ import {
   writeOpenTabs,
 } from "./helpers/mixcode.js";
 import type { MixCodeRuntime } from "./helpers/mixcode.js";
+import { testOverlayHandle, testTui } from "./helpers/tui.js";
+import { testRuntime } from "./helpers/runtime-stub.js";
+import { testRuntimeTab } from "./helpers/runtime-tab.js";
 
+// RuntimeTab double: member names/signatures stay checked against production;
+// agentSession/session are class instances, so they get their own Partial.
 type TestChatLine = { role: "system"; text: string; kind?: string };
 
 function createOverlayCaptureTui() {
@@ -30,7 +35,9 @@ function createOverlayCaptureTui() {
           ? component
           : (component.render?.(100).join("\n") ?? String(component)),
       );
-      return { hide: () => { visible = false; } };
+      return testOverlayHandle(() => {
+        visible = false;
+      });
     },
     hasOverlay: () => visible,
     hideOverlay: () => { visible = false; },
@@ -59,12 +66,12 @@ test("global key input dispatches extension shortcuts only from the main editor 
     },
     hasOverlay: () => overlayOpen,
   };
-  const runtime = {
+  const runtime = testRuntime({
     dispatchExtensionShortcut: (sessionId: string, data: string) => {
       dispatched.push(`${sessionId}:${JSON.stringify(data)}`);
       return data === "\x18" || data === "\x1b[A";
     },
-  };
+  });
   let historyBrowsed = false;
   const editorActions = {
     getText: () => "",
@@ -111,13 +118,13 @@ test("global key input leaves extension custom overlay input to pi-tui focus", (
     },
     hasOverlay: () => true,
   };
-  const runtime = {
+  const runtime = testRuntime({
     hasExtensionCustomOverlay: (sessionId: string) => sessionId === "s1",
     dispatchExtensionShortcut: (sessionId: string, data: string) => {
       dispatched.push(`${sessionId}:${data}`);
       return true;
     },
-  };
+  });
   const _changes: string[] = [];
 
   assert.equal(handleMixCodeKeyInput(state, "x", tui, undefined, runtime), undefined);
@@ -138,8 +145,9 @@ test("global key input gives extension custom escape priority over streaming abo
     showOverlay: () => ({ hide: () => undefined }) as never,
     hasOverlay: () => false,
   };
-  const runtime = {
-    getTab: () => ({ agent: { state: { isStreaming: true } } }),
+  const runtime = testRuntime({
+    getTab: () =>
+      testRuntimeTab({ agentSession: { isStreaming: true, getSteeringMessages: () => [] } }),
     hasExtensionCustomOverlay: (sessionId: string) => sessionId === "s1",
     focusExtensionCustomOverlay: (sessionId: string) => {
       assert.equal(sessionId, "s1");
@@ -149,7 +157,7 @@ test("global key input gives extension custom escape priority over streaming abo
       aborts++;
       return true;
     },
-  };
+  });
 
   assert.equal(handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime), undefined);
   assert.equal(handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime), undefined);
@@ -328,10 +336,10 @@ test("workspace commands expose missing configuration and arguments", async () =
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"));
   state.activeTabId = "s1";
-  const runtime = {
+  const runtime = testRuntime({
     getTab: () => undefined,
-  } as unknown as MixCodeRuntime;
-  const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
+  });
+  const tui = testTui();
   await assert.rejects(
     () => handleSubmittedInput(state, runtime, "/save-workspace main", tui),
     /Workspace file is not configured/,
@@ -366,10 +374,10 @@ test("workspace save surfaces invalid workspace files instead of treating them a
     const state = createInitialState("/repo");
     state.tabs.push(createTab(1, "s1", "/repo"));
     state.activeTabId = "s1";
-    const runtime = {
+    const runtime = testRuntime({
       getTab: () => undefined,
-    } as unknown as MixCodeRuntime;
-    const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
+    });
+    const tui = testTui();
 
     await assert.rejects(
       () =>
@@ -396,12 +404,12 @@ test("submitted mark-done command rejects a busy tab with an error toast", async
     state.tabs.push(tab);
     state.activeTabId = "s1";
     let renders = 0;
-    const tui = {
+    const tui = testTui({
       requestRender: () => {
         renders++;
       },
-    };
-    await handleSubmittedInput(state, {} as MixCodeRuntime, "/mark-done", tui);
+    });
+    await handleSubmittedInput(state, testRuntime({}), "/mark-done", tui);
     assert.equal(tab.status, status);
     assert.equal(tab.unreadDone, false);
     assert.equal(tab.toast?.type, "error");

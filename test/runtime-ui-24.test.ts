@@ -19,12 +19,14 @@ import {
   createTab,
   mixcodeFauxStream,
   renderWorkingIndicator,
+  type MixCodeModel,
 } from "./helpers/mixcode.js";
 
 function delayedAssistantStream(text: string, ready: Promise<void>, options?: SimpleStreamOptions) {
   const stream = createAssistantMessageEventStream();
   queueMicrotask(async () => {
-    const message = runtimeAssistantMessage(`Echo: ${text}`);
+    const messageText = `Echo: ${text}`;
+    const message = runtimeAssistantMessage(messageText);
     await ready;
     if (options?.signal?.aborted) {
       const aborted = {
@@ -46,13 +48,13 @@ function delayedAssistantStream(text: string, ready: Promise<void>, options?: Si
     stream.push({
       type: "text_delta",
       contentIndex: 0,
-      delta: message.content[0]!.text,
+      delta: messageText,
       partial: message,
     });
     stream.push({
       type: "text_end",
       contentIndex: 0,
-      content: message.content[0]!.text,
+      content: messageText,
       partial: message,
     });
     stream.push({ type: "done", reason: "stop", message });
@@ -197,7 +199,7 @@ test("runtime drains queued prompts automatically after agent_end reaches idle",
         return delayedAssistantStream(text, Promise.resolve(), options);
       },
     });
-    const model: Model<string> = {
+    const model: MixCodeModel = {
       ...MIXCODE_FAUX_MODEL,
       provider: "queue-test",
       api: "queue-test",
@@ -250,7 +252,7 @@ test("runtime leaves restored pending messages queued when no runtime prompt was
         return delayedAssistantStream(text, Promise.resolve(), options);
       },
     });
-    const model: Model<string> = {
+    const model: MixCodeModel = {
       ...MIXCODE_FAUX_MODEL,
       provider: "queue-test",
       api: "queue-test",
@@ -469,7 +471,7 @@ test("core leaves long tool turns to Pi / packages (no mid-turn private continue
         },
       ],
     });
-    const model: Model<string> = {
+    const model: MixCodeModel = {
       ...MIXCODE_FAUX_MODEL,
       provider: "queue-test",
       api: "queue-test",
@@ -523,7 +525,7 @@ test("runtime keeps restored pending messages when they are not runtime-queued",
         return streamAssistantMessage(runtimeAssistantMessage(`ok:${lastRuntimeUserText(context)}`));
       },
     });
-    const model: Model<string> = {
+    const model: MixCodeModel = {
       ...MIXCODE_FAUX_MODEL,
       provider: "queue-test",
       api: "queue-test",

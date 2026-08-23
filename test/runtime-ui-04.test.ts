@@ -399,15 +399,14 @@ test("runtime enables Pi builtin tools", async () => {
       false,
     );
     assert.equal((await read.execute("1", { path: "a.txt" }, undefined)).content[0]?.type, "text");
-    assert.match(
-      (await bash.execute("2", { command: "printf ok" }, undefined)).content[0]?.text ?? "",
-      /ok/,
-    );
+    const bashOutput = (await bash.execute("2", { command: "printf ok" }, undefined)).content[0];
+    assert.match(bashOutput?.type === "text" ? bashOutput.text : "", /ok/);
     const editResult = await edit.execute("3", {
       path: "a.txt",
       edits: [{ oldText: "hello", newText: "hello\nworld" }],
     });
-    assert.match(editResult.content[0]?.text ?? "", /Successfully replaced/);
+    const editOutput = editResult.content[0];
+    assert.match(editOutput?.type === "text" ? editOutput.text : "", /Successfully replaced/);
     await write.execute("4", { path: "b.txt", content: "created" }, undefined);
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });

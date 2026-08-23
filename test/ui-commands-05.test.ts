@@ -3,6 +3,7 @@ import * as fsPromises from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
+import type { AutocompleteProvider } from "@earendil-works/pi-tui";
 import {
   configureOpenTabsPath,
   createInitialState,
@@ -358,7 +359,10 @@ test("submitted input /close-session yes and /delete-session yes skip confirmati
   await handleSubmittedInput(state, runtime, "/delete-session y", tui);
   assert.equal(overlayOpened, false);
   assert.deepEqual(deleted, ["s2"]);
-  assert.deepEqual(state.tabs, []);
+  // Read through a local: assert.deepEqual is `asserts actual is T`, so
+  // asserting on state.tabs directly would pin it to never[] below.
+  const tabsAfterDelete = state.tabs;
+  assert.deepEqual(tabsAfterDelete, []);
   assert.equal(state.activeTabId, "home");
 
   state.tabs.push(createTab(1, "s3", "/repo"));
@@ -410,7 +414,8 @@ test("single session close/delete confirmation cancel leaves tabs untouched", as
   assert.deepEqual(handleMixCodeKeyInput(state, "n", tui, undefined, runtime), {
     consume: true,
   });
-  assert.equal(state.sessionActionConfirm, null);
+  const confirmAfterCancel = state.sessionActionConfirm;
+  assert.equal(confirmAfterCancel, null);
   assert.equal(overlayOpen, false);
 
   await handleSubmittedInput(state, runtime, "/delete-session", tui);
@@ -1022,10 +1027,9 @@ test("config-scoped submitted input runs without an active agent tab", async () 
 
     workingStartedAt: "2026-05-10T00:00:00.000Z",
     lastWorkedDurationSeconds: 12,
-    todos: ["one", "two"],
     extensionUi: {
-      statuses: [{ label: "ext", status: "ok" }],
-      widgets: [{ id: "w1", placement: "aboveEditor", lines: ["widget"] }],
+      statuses: [{ key: "ext", text: "ok" }],
+      widgets: [{ key: "w1", placement: "aboveEditor", lines: ["widget"] }],
       toolsExpanded: true,
       waitingForInputs: [],
       workingVisible: false,

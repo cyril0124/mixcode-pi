@@ -25,6 +25,7 @@ test("custom() editor receives application-cursor and kitty arrows as CSI", asyn
       handler: async (_args, ctx) => {
         await ctx.ui.custom((_tui, _theme, _keys, done) => ({
           render: () => ["nav-probe"],
+          invalidate: () => undefined,
           handleInput(data: string) {
             received.push(data);
             if (data === "\x1b") done(undefined);

@@ -64,7 +64,9 @@ test("quitMixCode exits immediately after successful cleanup", async () => {
   await quitMixCode(
     {
       abortAllTabs: () => events.push("abort"),
-      closeAllTabs: async () => events.push("close"),
+      closeAllTabs: async () => {
+        events.push("close");
+      },
     },
     {
       stop: () => events.push("stop"),
@@ -93,7 +95,9 @@ test("quitMixCode preserves process.exitCode for failed batch/CI quit", async ()
     await quitMixCode(
       {
         abortAllTabs: () => events.push("abort"),
-        closeAllTabs: async () => events.push("close"),
+        closeAllTabs: async () => {
+          events.push("close");
+        },
       },
       {
         stop: () => events.push("stop"),

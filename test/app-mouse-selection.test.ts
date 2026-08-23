@@ -8,6 +8,8 @@ import {
   tabBarHitRegions,
 } from "./helpers/mixcode.js";
 import { handleMixCodeKeyInput } from "../src/ui/app-input.js";
+import { testOverlayHandle, testTui } from "./helpers/tui.js";
+import { testRuntime } from "./helpers/runtime-stub.js";
 import {
   handleCommandPaletteMouse,
   handleMouseInput,
@@ -33,7 +35,7 @@ function setup() {
   tab.chatSurfaceBounds = { top: 5, left: 1, width: 20, height: 3 };
   tab.lastRenderedChatLines = ["hello world", "again there", "done"];
   let renders = 0;
-  const tui = { requestRender: () => renders++ };
+  const tui = testTui({ requestRender: () => renders++ });
   return { state, tab, tui, renders: () => renders };
 }
 
@@ -83,7 +85,7 @@ test("handleMouseInput auto-scrolls a top-edge chat drag and copies off-screen r
       scrollable: true,
     };
   };
-  const tui = { requestRender: render };
+  const tui = testTui({ requestRender: render });
   render();
 
   assert.equal(
@@ -133,7 +135,7 @@ test("handleMouseInput scrolls chat wheel during extension user interaction over
   let renders = 0;
   const tui = {
     requestRender: () => renders++,
-    showOverlay: () => ({ hide: () => undefined }) as never,
+    showOverlay: () => testOverlayHandle(),
     hasOverlay: () => true,
   };
 
@@ -159,12 +161,12 @@ test("handleMixCodeKeyInput lets input selection run before extension terminal m
     "\x1b[<0;1;9M",
     tui,
     undefined,
-    {
+    testRuntime({
       dispatchTerminalInput: (_sessionId, data) => {
         consumedByRuntime.push(data);
         return { consume: true };
       },
-    },
+    }),
   );
 
   assert.deepEqual(result, { consume: true });
@@ -287,7 +289,7 @@ test("handleMouseInput drags and copies active Notice panel text", async () => {
     requestRender: tui.requestRender,
     showOverlay: (component: { render: (width: number) => string[] }, options: { width?: number }) => {
       component.render(typeof options.width === "number" ? options.width : 40);
-      return { hide: () => undefined };
+      return testOverlayHandle();
     },
     hasOverlay: () => true,
   };
@@ -331,7 +333,7 @@ test("handleMixCodeKeyInput consumes c while Notice is open", async () => {
     requestRender: tui.requestRender,
     showOverlay: (component: { render: (width: number) => string[] }, options: { width?: number }) => {
       component.render(typeof options.width === "number" ? options.width : 40);
-      return { hide: () => undefined };
+      return testOverlayHandle();
     },
     hasOverlay: () => true,
   };
@@ -355,7 +357,9 @@ test("tab clicks do not switch sessions through a modal command palette", () => 
     requestRender: () => undefined,
     showOverlay: () => {
       overlayOpen = true;
-      return { hide: () => (overlayOpen = false) } as never;
+      return testOverlayHandle(() => {
+        overlayOpen = false;
+      });
     },
     hasOverlay: () => overlayOpen,
   };
@@ -384,7 +388,7 @@ test("tab drag motion does not switch tabs", () => {
   state.activeTabId = "s1";
   state.tabBarTopRow = 1;
   state.lastRenderWidth = 120;
-  const tui = { requestRender: () => undefined };
+  const tui = testTui({ requestRender: () => undefined });
   const secondTab = tabBarHitRegions(state, 120).find((region) => region.id === "s2");
   assert.ok(secondTab);
   const y = state.tabBarTopRow + (secondTab.row ?? 0);
@@ -416,7 +420,9 @@ test("Command Palette wheel moves selection and click runs the row", () => {
     requestRender: () => undefined,
     showOverlay: () => {
       overlayOpen = true;
-      return { hide: () => (overlayOpen = false) } as never;
+      return testOverlayHandle(() => {
+        overlayOpen = false;
+      });
     },
     hasOverlay: () => overlayOpen,
   };
@@ -481,7 +487,9 @@ test("Tab Jump wheel moves selection and click jumps to the row", () => {
     requestRender: () => undefined,
     showOverlay: () => {
       overlayOpen = true;
-      return { hide: () => (overlayOpen = false) } as never;
+      return testOverlayHandle(() => {
+        overlayOpen = false;
+      });
     },
     hasOverlay: () => overlayOpen,
   };
@@ -532,7 +540,9 @@ test("re-clicking the active tab opens Tab Jump", () => {
     requestRender: () => undefined,
     showOverlay: () => {
       overlayOpen = true;
-      return { hide: () => (overlayOpen = false) } as never;
+      return testOverlayHandle(() => {
+        overlayOpen = false;
+      });
     },
     hasOverlay: () => overlayOpen,
   };
@@ -596,25 +606,29 @@ test("re-clicking the active tab opens Tab Jump", () => {
 test("input meta drag motion does not open pickers", () => {
   const { state, tab } = setup();
   state.activeTabId = "s1";
-  tab.inputMetaHitRegions = [{ action: "model", row: 20, startX: 5, endX: 20 }];
+  tab.inputMetaHitRegions = [{ action: "models", row: 20, startX: 5, endX: 20 }];
   const tui = {
     requestRender: () => undefined,
-    showOverlay: () => ({ hide: () => undefined }) as never,
+    showOverlay: () => testOverlayHandle(),
     hasOverlay: () => false,
   };
 
   handleMouseInput(state, tab, "\x1b[<32;10;20M", tui);
-  assert.equal(state.picker, undefined);
+  // Read through locals: assert.equal is `asserts actual is T`, so asserting on
+  // state.picker directly would pin it to undefined for the rest of the scope.
+  const afterMotion = state.picker;
+  assert.equal(afterMotion, undefined);
 
   assert.equal(handleMouseInput(state, tab, "\x1b[<0;10;20M", tui), true);
-  assert.equal(state.picker?.kind, "model");
+  const afterClick = state.picker;
+  assert.equal(afterClick?.kind, "models");
 });
 
 test("chat drag-select is blocked while a modal overlay is open", async () => {
   const { state, tab, tui } = setup();
   const overlayTui = {
     ...tui,
-    showOverlay: () => ({ hide: () => undefined }) as never,
+    showOverlay: () => testOverlayHandle(),
     hasOverlay: () => true,
   };
   // Open a modal-style overlay (picker path uses hasAnyOverlay).

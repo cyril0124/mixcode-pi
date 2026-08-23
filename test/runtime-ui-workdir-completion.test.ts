@@ -4,7 +4,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
 import { ensureTool } from "@earendil-works/pi-coding-agent";
-import type { Component, Terminal } from "@earendil-works/pi-tui";
+import type { AutocompleteProvider, Component, Terminal } from "@earendil-works/pi-tui";
 import {
   createInitialState,
   createMixCodeTui,
@@ -24,11 +24,12 @@ function silentTerminal(): Terminal {
   return {
     columns: 120,
     rows: 40,
+    kittyProtocolActive: false,
     write: () => undefined,
-    onData: () => () => undefined,
     start: () => undefined,
     stop: () => undefined,
-    setRawMode: () => undefined,
+    drainInput: async () => undefined,
+    moveBy: () => undefined,
     hideCursor: () => undefined,
     showCursor: () => undefined,
     clearLine: () => undefined,

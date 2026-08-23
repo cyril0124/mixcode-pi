@@ -51,7 +51,10 @@ test("host rebuildChatFromSession / clearTabChatProjection / showHiddenMessages"
       text: "ephemeral",
     } as never);
     runtime.clearTabChatProjection("s1");
-    assert.deepEqual(runtimeTab.chat, []);
+    // Read into a local first: assert.deepEqual is `asserts actual is T`, so
+    // asserting on runtimeTab.chat directly would pin it to never[] below.
+    const clearedChat = runtimeTab.chat;
+    assert.deepEqual(clearedChat, []);
 
     const originalGetBranch = runtimeTab.session.getBranch.bind(runtimeTab.session);
     runtimeTab.session.getBranch = () =>

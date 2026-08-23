@@ -16,11 +16,24 @@ import {
 import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import {
   MIXCODE_FAUX_MODEL,
+  type MixCodeModel,
   MixCodeRuntime,
   createInitialState,
   createTab,
   handleMixCodeKeyInput,
 } from "./helpers/mixcode.js";
+import type { ExtensionCustomUiHost, } from "../src/agent/runtime-types.js";
+import { testTui } from "./helpers/tui.js";
+import { testRuntime } from "./helpers/runtime-stub.js";
+import { testRuntimeTab } from "./helpers/runtime-tab.js";
+
+// RuntimeTab double: member names/signatures stay checked against production;
+// agentSession/session are class instances, so they get their own Partial.
+// Retract only reaches host.editor; `tui` is required by the interface but never
+// touched on this path, so the double omits it while keeping editor checked.
+function testExtensionUiHost(stub: Omit<ExtensionCustomUiHost, "tui">): ExtensionCustomUiHost {
+  return stub as ExtensionCustomUiHost;
+}
 
 // Stream that stays open (never produces text) until aborted or `release` resolves,
 // so the run is genuinely mid-flight with zero visible output when we abort it.
@@ -108,7 +121,7 @@ function delayedAbortStream(delayMs: number, options?: SimpleStreamOptions) {
   return stream;
 }
 
-function fauxModel(): Model<string> {
+function fauxModel(): MixCodeModel {
   return { ...MIXCODE_FAUX_MODEL, provider: "retract-test", api: "retract-test", id: "retract-test-model" };
 }
 
@@ -371,20 +384,17 @@ test("double escape with no assistant output retracts the message into an empty 
   state.activeTabId = "s1";
   let aborts = 0;
   let editorText = "";
-  const tui = {
-    requestRender: () => undefined,
-    showOverlay: () => ({}) as never,
-    hasOverlay: () => false,
-  };
-  const runtime = {
-    getTab: () => ({ agent: { state: { isStreaming: true } } }),
+  const tui = testTui({ hasOverlay: () => false });
+  const runtime = testRuntime({
+    getTab: () =>
+      testRuntimeTab({ agentSession: { isStreaming: true, getSteeringMessages: () => [] } }),
     abortTab: () => {
       aborts++;
       return true;
     },
     // Eligible: returns text. Retract owns the abort, so the handler must NOT abortTab.
     retractCurrentTurn: async () => ({ editorText: "please retract me" }),
-  };
+  });
   const editorActions = {
     getText: () => editorText,
     setText: (text: string) => {
@@ -408,20 +418,17 @@ test("double escape falls back to plain abort when the turn already has output",
   state.activeTabId = "s1";
   let aborts = 0;
   let editorText = "";
-  const tui = {
-    requestRender: () => undefined,
-    showOverlay: () => ({}) as never,
-    hasOverlay: () => false,
-  };
-  const runtime = {
-    getTab: () => ({ agent: { state: { isStreaming: true } } }),
+  const tui = testTui({ hasOverlay: () => false });
+  const runtime = testRuntime({
+    getTab: () =>
+      testRuntimeTab({ agentSession: { isStreaming: true, getSteeringMessages: () => [] } }),
     abortTab: () => {
       aborts++;
       return true;
     },
     // Not eligible: returns undefined, so the handler performs a normal abort.
     retractCurrentTurn: async () => undefined,
-  };
+  });
   const editorActions = {
     getText: () => editorText,
     setText: (text: string) => {
@@ -443,13 +450,10 @@ test("double escape does not clobber a non-empty editor draft on retract", async
   let aborts = 0;
   let retractCalls = 0;
   let editorText = "draft I am typing";
-  const tui = {
-    requestRender: () => undefined,
-    showOverlay: () => ({}) as never,
-    hasOverlay: () => false,
-  };
-  const runtime = {
-    getTab: () => ({ agent: { state: { isStreaming: true } } }),
+  const tui = testTui({ hasOverlay: () => false });
+  const runtime = testRuntime({
+    getTab: () =>
+      testRuntimeTab({ agentSession: { isStreaming: true, getSteeringMessages: () => [] } }),
     abortTab: () => {
       aborts++;
       return true;
@@ -458,7 +462,7 @@ test("double escape does not clobber a non-empty editor draft on retract", async
       retractCalls++;
       return { editorText: "please retract me" };
     },
-  };
+  });
   const editorActions = {
     getText: () => editorText,
     setText: (text: string) => {
@@ -484,14 +488,19 @@ test("retractCurrentTurn restores editor text before a delayed abort settles", a
       streamFn: (_model: Model<any>, _context: Context, options?: SimpleStreamOptions) =>
         delayedAbortStream(300, options),
     });
-    runtime.setExtensionUiHost({
-      editor: {
-        getText: () => editorText,
-        setText: (text: string) => {
-          editorText = text;
+    runtime.setExtensionUiHost(
+      testExtensionUiHost({
+        editor: {
+          getText: () => editorText,
+          setText: (text: string) => {
+            editorText = text;
+          },
+          pasteToEditor: (text: string) => {
+            editorText += text;
+          },
         },
-      },
-    });
+      }),
+    );
     const tab = createTab(1, "s1", process.cwd());
     const runtimeTab = await runtime.createTab(tab, {
       systemPrompt: "system",
@@ -538,17 +547,19 @@ test("double escape requests a render immediately when starting retract", () => 
   const retractStarted = new Promise<{ editorText: string }>((resolve) => {
     resolveRetract = resolve;
   });
-  const tui = {
-    requestRender: () => renders++,
-    showOverlay: () => ({}) as never,
+  const tui = testTui({
+    requestRender: () => {
+      renders++;
+    },
     hasOverlay: () => false,
-  };
-  const runtime = {
-    getTab: () => ({ agent: { state: { isStreaming: true } } }),
+  });
+  const runtime = testRuntime({
+    getTab: () =>
+      testRuntimeTab({ agentSession: { isStreaming: true, getSteeringMessages: () => [] } }),
     abortTab: () => true,
     // Stay pending so the immediate render cannot be credited to settle-time setText.
     retractCurrentTurn: () => retractStarted,
-  };
+  });
   const editorActions = {
     getText: () => "",
     setText: () => undefined,

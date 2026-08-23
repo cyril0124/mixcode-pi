@@ -1,10 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import {
-  createInitialState,
-  createTab,
-  handleMixCodeKeyInput,
-} from "./helpers/mixcode.js";
+import { createInitialState, createTab, handleMixCodeKeyInput } from "./helpers/mixcode.js";
+import { testRuntime } from "./helpers/runtime-stub.js";
+import { testRuntimeTab } from "./helpers/runtime-tab.js";
 
 test("Shift+Up/Down are not consumed as chat scroll during extension user interactions", () => {
   // C3: interaction-period Shift+Up/Down is free for extension overlay/widget
@@ -38,13 +36,13 @@ test("escape flushes queued messages immediately when the active tab is idle", a
     hasOverlay: () => false,
   };
   const flushed: string[] = [];
-  const runtime = {
+  const runtime = testRuntime({
     flushPendingMessage: async (sessionId: string) => {
       flushed.push(sessionId);
       tab.pendingMessages = [];
     },
     getTab: () => undefined,
-  };
+  });
 
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime), {
     consume: true,
@@ -68,8 +66,12 @@ test("escape aborts the active run and flushes queued messages before double-esc
     showOverlay: () => ({}) as never,
     hasOverlay: () => false,
   };
-  const runtime = {
-    getTab: () => ({ agent: { state: { isStreaming: true } } }),
+  const runtime = testRuntime({
+    // Production reads runtimeTab.agentSession.isStreaming, not `.agent`.
+    getTab: () =>
+      testRuntimeTab({
+        agentSession: { isStreaming: true, getSteeringMessages: () => [] },
+      }),
     abortTab: (sessionId: string) => {
       events.push(`abort:${sessionId}`);
       tab.status = "idle";
@@ -79,7 +81,7 @@ test("escape aborts the active run and flushes queued messages before double-esc
       events.push(`flush:${sessionId}`);
       tab.pendingMessages = [];
     },
-  };
+  });
 
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime), {
     consume: true,
@@ -101,12 +103,15 @@ test("escape flushes runtime queued messages even before tab queue state catches
     showOverlay: () => ({}) as never,
     hasOverlay: () => false,
   };
-  const runtime = {
-    getTab: () => ({
-      queuedPromptCount: 1,
-      agent: { state: { isStreaming: true } },
-      agentSession: { getSteeringMessages: () => ["queued request"] },
-    }),
+  const runtime = testRuntime({
+    getTab: () =>
+      testRuntimeTab({
+        queuedPromptCount: 1,
+        agentSession: {
+          isStreaming: true,
+          getSteeringMessages: () => ["queued request"],
+        },
+      }),
     abortTab: (sessionId: string) => {
       events.push(`abort:${sessionId}`);
       return true;
@@ -114,7 +119,7 @@ test("escape flushes runtime queued messages even before tab queue state catches
     flushPendingMessage: async (sessionId: string, count?: number) => {
       events.push(`flush:${sessionId}:${count ?? "all"}`);
     },
-  };
+  });
 
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime), {
     consume: true,
@@ -142,12 +147,12 @@ test("escape flush queued message errors are shown in an overlay", async () => {
     },
     hasOverlay: () => false,
   };
-  const runtime = {
+  const runtime = testRuntime({
     flushPendingMessage: async () => {
       throw new Error("flush failed");
     },
     getTab: () => undefined,
-  };
+  });
 
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui, undefined, runtime), {
     consume: true,

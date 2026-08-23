@@ -1,8 +1,32 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import type { Terminal } from "@earendil-works/pi-tui";
 import { createTab } from "../src/core/defaults.js";
 import type { MixCodeTabInfo } from "../src/core/types.js";
 import { bindRuntimeRendering } from "../src/ui/app.js";
+
+/** Terminal stub that records every escape sequence the bell path emits. */
+function recordingTerminal(writes: string[]): Terminal {
+  return {
+    columns: 80,
+    rows: 24,
+    kittyProtocolActive: false,
+    write: (data: string) => {
+      writes.push(data);
+    },
+    start: () => undefined,
+    stop: () => undefined,
+    drainInput: async () => undefined,
+    moveBy: () => undefined,
+    hideCursor: () => undefined,
+    showCursor: () => undefined,
+    clearLine: () => undefined,
+    clearFromCursor: () => undefined,
+    clearScreen: () => undefined,
+    setTitle: () => undefined,
+    setProgress: () => undefined,
+  };
+}
 
 test("runtime rendering rings terminal bell when a tab completes work", () => {
   let listener:
@@ -17,11 +41,7 @@ test("runtime rendering rings terminal bell when a tab completes work", () => {
   const compacted = createTab(2, "s2", "/repo", { status: "idle", unreadDone: true });
   const refreshOnly = createTab(3, "s3", "/repo", { status: "idle", unreadDone: true });
   const tui = {
-    terminal: {
-      write: (data: string) => {
-        writes.push(data);
-      },
-    },
+    terminal: recordingTerminal(writes),
     requestRender: () => {
       renders++;
     },
@@ -61,7 +81,7 @@ test("runtime rendering rings terminal bell when a new user interaction appears"
   const writes: string[] = [];
   const tab = createTab(1, "s1", "/repo", { status: "running" });
   const tui = {
-    terminal: { write: (data: string) => writes.push(data) },
+    terminal: recordingTerminal(writes),
     requestRender: () => {},
   };
   const unsubscribe = bindRuntimeRendering(

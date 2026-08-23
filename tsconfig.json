@@ -13,6 +13,6 @@
     "sourceMap": true,
     "types": ["bun-types", "node"]
   },
-  "include": ["src/**/*.ts", "pi-packages/**/*.ts"],
+  "include": ["src/**/*.ts", "pi-packages/**/*.ts", "test/**/*.ts", "scripts/**/*.ts"],
   "exclude": ["src/cli/binary-entry.ts"]
 }

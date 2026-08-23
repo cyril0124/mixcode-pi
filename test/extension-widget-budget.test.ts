@@ -69,12 +69,12 @@ test("many above/below editor widgets keep the tab bar on screen", () => {
 
   tab.extensionUi.widgets = [
     ...Array.from({ length: 12 }, (_, i) => ({
-      id: `above-${i}`,
+      key: `above-${i}`,
       placement: "aboveEditor" as const,
       lines: [`ABOVE-${i}`],
     })),
     ...Array.from({ length: 10 }, (_, i) => ({
-      id: `below-${i}`,
+      key: `below-${i}`,
       placement: "belowEditor" as const,
       lines: [`BELOW-${i}`],
     })),
@@ -99,12 +99,12 @@ test("widgets-truncated marker fits a 20-column terminal", () => {
 
   tab.extensionUi.widgets = [
     ...Array.from({ length: 12 }, (_, i) => ({
-      id: `above-${i}`,
+      key: `above-${i}`,
       placement: "aboveEditor" as const,
       lines: [`ABOVE-${i}`],
     })),
     ...Array.from({ length: 10 }, (_, i) => ({
-      id: `below-${i}`,
+      key: `below-${i}`,
       placement: "belowEditor" as const,
       lines: [`BELOW-${i}`],
     })),

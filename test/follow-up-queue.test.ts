@@ -10,13 +10,13 @@ import {
   createAssistantMessageEventStream,
   type AssistantMessage,
   type Context,
-  type Model,
   type SimpleStreamOptions,
   type ToolCall,
 } from "@earendil-works/pi-ai";
 import {
   MIXCODE_FAUX_MODEL,
   MixCodeRuntime,
+  type MixCodeModel,
   type RuntimeTab,
   createTab,
   parseInput,
@@ -152,7 +152,7 @@ async function withSlowToolRuntime(
       toolStarted = resolve;
     });
 
-    const model: Model<string> = {
+    const model: MixCodeModel = {
       ...MIXCODE_FAUX_MODEL,
       provider: "follow-up-test",
       api: "follow-up-test",
@@ -161,7 +161,7 @@ async function withSlowToolRuntime(
 
     const runtime = new MixCodeRuntime({
       sessionsRoot: dir,
-      streamFn: (_model: Model<any>, context: Context, options?: SimpleStreamOptions) => {
+      streamFn: (_model: MixCodeModel, context: Context, options?: SimpleStreamOptions) => {
         const text = lastUserText(context);
         if (text === "do work") {
           return streamMessage(

@@ -21,6 +21,7 @@ import {
   writeRawMixCodeSettings,
   type MixCodeModelRef,
 } from "./helpers/mixcode.js";
+import { testRuntime } from "./helpers/runtime-stub.js";
 import { pickerItems } from "../src/core/pickers.js";
 import { applyModelSelection, reloadRuntimeModels } from "../src/ui/app-actions.js";
 import { submitAgentInput } from "../src/ui/agent-tab-actions.js";
@@ -219,8 +220,8 @@ test("disabled model policy rejects the runtime auth stream path", async () => {
     configureDisabledModelRuntime(runtime, ["disabled-runtime-auth"], []);
 
     await assert.rejects(
-      () =>
-        createPiModelRuntimeAuth(runtime).stream(model, {
+      async () =>
+        await createPiModelRuntimeAuth(runtime).stream(model, {
           systemPrompt: "",
           messages: [],
           tools: [],
@@ -250,10 +251,10 @@ test("reloadRuntimeModels updates the shared extension model policy", async () =
     assert.deepEqual(
       await reloadRuntimeModels(
         state,
-        {
+        testRuntime({
           reloadModelConfig: async () => configured,
           getSharedModelRuntime: () => runtime,
-        },
+        }),
         { mixcodeFile: file },
       ),
       { ok: true },
@@ -266,10 +267,10 @@ test("reloadRuntimeModels updates the shared extension model policy", async () =
     await fsPromises.writeFile(file, "{}", "utf8");
     await reloadRuntimeModels(
       state,
-      {
+      testRuntime({
         reloadModelConfig: async () => configured,
         getSharedModelRuntime: () => runtime,
-      },
+      }),
       { mixcodeFile: file },
     );
     assert.equal(
@@ -299,10 +300,10 @@ test("reload applies disabled policy when models.json is invalid", async () => {
     assert.deepEqual(
       await reloadRuntimeModels(
         state,
-        {
+        testRuntime({
           reloadModelConfig: async () => [],
           getSharedModelRuntime: () => runtime,
-        },
+        }),
         { mixcodeFile: file },
       ),
       { ok: false, error: "Failed to parse models.json" },

@@ -342,6 +342,7 @@ test("extension custom editor keeps the widget side panel open", async () => {
       handler: async (_args, ctx) => {
         await ctx.ui.custom((_tui, _theme, _keys, done) => ({
           render: () => ["custom-open"],
+          invalidate: () => undefined,
           handleInput(data: string) {
             if (data === "q" || data === "\x1b") done(undefined);
           },

@@ -7,7 +7,13 @@ import {
   PENDING_ESCAPE_CONFIRM_WINDOW_MS,
 } from "./helpers/mixcode.js";
 import { hasAppOverlay, showErrorOverlay } from "../src/ui/app-overlays.js";
+import { testOverlayHandle, testTui } from "./helpers/tui.js";
+import { testRuntime } from "./helpers/runtime-stub.js";
+import { testRuntimeTab } from "./helpers/runtime-tab.js";
 
+// RuntimeTab double: only the members a test exercises are supplied, but their
+// names and signatures stay checked against the production interface.
+// agentSession/session are class instances, so they get their own Partial.
 // Baseline behavior contracts for Escape-key dispatch. These lock the observable
 // behavior before the dispatch is refactored into a single ordered entry point,
 // so a regression in ordering or in the working-state check fails loudly.
@@ -21,11 +27,7 @@ import { hasAppOverlay, showErrorOverlay } from "../src/ui/app-overlays.js";
 // but a working tab status) as abortable, not fall through to the tree.
 
 function silentTui() {
-  return {
-    requestRender: () => undefined,
-    showOverlay: () => ({}) as never,
-    hasOverlay: () => false,
-  };
+  return testTui({ hasOverlay: () => false });
 }
 
 const ESC = "\x1b";
@@ -42,16 +44,17 @@ test("escape clears bash-mode editor text without submitting", () => {
       text = next;
     },
   };
-  const runtime = {
-    getTab: () => ({
-      agentSession: {
-        isStreaming: false,
-        isBashRunning: false,
-        getSteeringMessages: () => [],
-      },
-      queuedPromptCount: 0,
-    }),
-  };
+  const runtime = testRuntime({
+    getTab: () =>
+      testRuntimeTab({
+        agentSession: {
+          isStreaming: false,
+          isBashRunning: false,
+          getSteeringMessages: () => [],
+        },
+        queuedPromptCount: 0,
+      }),
+  });
 
   const result = handleMixCodeKeyInput(
     state,
@@ -73,20 +76,21 @@ test("escape aborts standalone bash on first press (Pi parity)", () => {
   state.tabs.push(tab);
   state.activeTabId = "s1";
   let aborts = 0;
-  const runtime = {
-    getTab: () => ({
-      agentSession: {
-        isStreaming: false,
-        isBashRunning: true,
-        getSteeringMessages: () => [],
-      },
-      queuedPromptCount: 0,
-    }),
+  const runtime = testRuntime({
+    getTab: () =>
+      testRuntimeTab({
+        agentSession: {
+          isStreaming: false,
+          isBashRunning: true,
+          getSteeringMessages: () => [],
+        },
+        queuedPromptCount: 0,
+      }),
     abortTab: () => {
       aborts++;
       return true;
     },
-  };
+  });
 
   const first = handleMixCodeKeyInput(state, ESC, silentTui(), undefined, runtime);
   assert.deepEqual(first, { consume: true });
@@ -100,13 +104,14 @@ test("escape arms then aborts a normal streaming run", () => {
   state.tabs.push(tab);
   state.activeTabId = "s1";
   let aborts = 0;
-  const runtime = {
-    getTab: () => ({ agent: { state: { isStreaming: true } } }),
+  const runtime = testRuntime({
+    getTab: () =>
+      testRuntimeTab({ agentSession: { isStreaming: true, getSteeringMessages: () => [] } }),
     abortTab: () => {
       aborts++;
       return true;
     },
-  };
+  });
 
   handleMixCodeKeyInput(state, ESC, silentTui(), undefined, runtime);
   assert.equal(typeof tab.pendingEscapeArmedAt, "number", "first Esc arms abort");
@@ -120,13 +125,11 @@ test("escape uses AgentSession streaming state when low-level agent state is sta
   const tab = createTab(1, "s1", "/repo", { status: "idle" });
   state.tabs.push(tab);
   state.activeTabId = "s1";
-  const runtime = {
-    getTab: () => ({
-      agent: { state: { isStreaming: false } },
-      agentSession: { isStreaming: true, getSteeringMessages: () => [] },
-    }),
+  const runtime = testRuntime({
+    getTab: () =>
+      testRuntimeTab({ agentSession: { isStreaming: true, getSteeringMessages: () => [] } }),
     abortTab: () => true,
-  };
+  });
 
   handleMixCodeKeyInput(state, ESC, silentTui(), undefined, runtime);
   assert.equal(typeof tab.pendingEscapeArmedAt, "number");
@@ -145,13 +148,14 @@ test("escape aborts during retry when the agent is not streaming (regression gua
   state.tabs.push(tab);
   state.activeTabId = "s1";
   let aborts = 0;
-  const runtime = {
-    getTab: () => ({ agent: { state: { isStreaming: false } } }),
+  const runtime = testRuntime({
+    getTab: () =>
+      testRuntimeTab({ agentSession: { isStreaming: false, getSteeringMessages: () => [] } }),
     abortTab: () => {
       aborts++;
       return true;
     },
-  };
+  });
 
   // First Esc must arm the abort (be consumed by the abort branch), not fall
   // through to the double-escape tree branch.
@@ -171,13 +175,14 @@ test("expired abort arm re-arms instead of aborting", () => {
   state.tabs.push(tab);
   state.activeTabId = "s1";
   let aborts = 0;
-  const runtime = {
-    getTab: () => ({ agent: { state: { isStreaming: true } } }),
+  const runtime = testRuntime({
+    getTab: () =>
+      testRuntimeTab({ agentSession: { isStreaming: true, getSteeringMessages: () => [] } }),
     abortTab: () => {
       aborts++;
       return true;
     },
-  };
+  });
 
   handleMixCodeKeyInput(state, ESC, silentTui(), undefined, runtime);
   tab.pendingEscapeArmedAt = Date.now() - PENDING_ESCAPE_CONFIRM_WINDOW_MS - 1;
@@ -193,8 +198,9 @@ test("extension custom overlay takes escape before the abort branch", () => {
   state.activeTabId = "s1";
   let focused = 0;
   let aborts = 0;
-  const runtime = {
-    getTab: () => ({ agent: { state: { isStreaming: true } } }),
+  const runtime = testRuntime({
+    getTab: () =>
+      testRuntimeTab({ agentSession: { isStreaming: true, getSteeringMessages: () => [] } }),
     hasExtensionCustomOverlay: () => true,
     focusExtensionCustomOverlay: () => {
       focused++;
@@ -203,7 +209,7 @@ test("extension custom overlay takes escape before the abort branch", () => {
       aborts++;
       return true;
     },
-  };
+  });
 
   handleMixCodeKeyInput(state, ESC, silentTui(), undefined, runtime);
   assert.equal(focused, 1, "overlay is refocused");
@@ -222,18 +228,18 @@ test("queued-message flush wins over double-escape stop", () => {
   state.tabs.push(tab);
   state.activeTabId = "s1";
   let flushed = 0;
-  const runtime = {
-    getTab: () => ({
-      agent: { state: { isStreaming: true } },
-      queuedPromptCount: 1,
-      agentSession: { getSteeringMessages: () => ["queued prompt"] },
-    }),
+  const runtime = testRuntime({
+    getTab: () =>
+      testRuntimeTab({
+        queuedPromptCount: 1,
+        agentSession: { isStreaming: true, getSteeringMessages: () => ["queued prompt"] },
+      }),
     abortTab: () => true,
     flushPendingMessage: () => {
       flushed++;
       return Promise.resolve();
     },
-  };
+  });
 
   const result = handleMixCodeKeyInput(state, ESC, silentTui(), undefined, runtime);
   assert.deepEqual(result, { consume: true });
@@ -250,18 +256,18 @@ test("queued-message flush uses AgentSession streaming state", () => {
   state.tabs.push(tab);
   state.activeTabId = "s1";
   let aborts = 0;
-  const runtime = {
-    getTab: () => ({
-      agent: { state: { isStreaming: false } },
-      queuedPromptCount: 1,
-      agentSession: { isStreaming: true, getSteeringMessages: () => ["queued prompt"] },
-    }),
+  const runtime = testRuntime({
+    getTab: () =>
+      testRuntimeTab({
+        queuedPromptCount: 1,
+        agentSession: { isStreaming: true, getSteeringMessages: () => ["queued prompt"] },
+      }),
     abortTab: () => {
       aborts++;
       return true;
     },
     flushPendingMessage: () => Promise.resolve(),
-  };
+  });
 
   handleMixCodeKeyInput(state, ESC, silentTui(), undefined, runtime);
   assert.equal(aborts, 1);
@@ -278,14 +284,15 @@ test("escape closes a generic app overlay (error overlay 'Esc to close' contract
   // Overlay-capable tui: the returned handle tracks visibility so that
   // hasAppOverlay flips on show/hide.
   let visible = false;
-  const tui = {
-    requestRender: () => undefined,
+  const tui = testTui({
     showOverlay: () => {
       visible = true;
-      return { hide: () => { visible = false; } } as unknown as never;
+      return testOverlayHandle(() => {
+        visible = false;
+      });
     },
     hasOverlay: () => visible,
-  };
+  });
 
   showErrorOverlay(tui, new Error("boom"));
   assert.equal(hasAppOverlay(tui), true, "error overlay is registered");
@@ -303,18 +310,20 @@ test("double escape on an empty editor opens the tree for an idle tab", () => {
   let treeOpened = 0;
   // Tree open path calls getTab().session.getTree(); return empty tree so the
   // path is exercised but short-circuits before needing a display host.
-  const runtime = {
-    getTab: () => ({
-      agent: { state: { isStreaming: false } },
-      session: {
-        getTree: () => {
-          treeOpened++;
-          return [];
+  const runtime = testRuntime({
+    getTab: () =>
+      testRuntimeTab({
+        agentSession: { isStreaming: false, getSteeringMessages: () => [] },
+        session: {
+          getTree: () => {
+            treeOpened++;
+            return [];
+          },
+          // SessionManager.getLeafId returns string | null, never undefined.
+          getLeafId: () => null,
         },
-        getLeafId: () => undefined,
-      },
-    }),
-  };
+      }),
+  });
   const editor = { getText: () => "", setText: () => undefined };
 
   const first = handleMixCodeKeyInput(

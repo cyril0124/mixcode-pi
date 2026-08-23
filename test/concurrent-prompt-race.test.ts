@@ -6,9 +6,14 @@ import * as os from "node:os";
 import { test } from "node:test";
 import type { Context, Model, SimpleStreamOptions } from "@earendil-works/pi-ai";
 import { createAssistantMessageEventStream } from "@earendil-works/pi-ai";
-import { MIXCODE_FAUX_MODEL, MixCodeRuntime, createTab } from "./helpers/mixcode.js";
+import {
+  MIXCODE_FAUX_MODEL,
+  MixCodeRuntime,
+  createTab,
+  type MixCodeModel,
+} from "./helpers/mixcode.js";
 
-function fauxModel(): Model<string> {
+function fauxModel(): MixCodeModel {
   return {
     ...MIXCODE_FAUX_MODEL,
     provider: "concurrent-test",
@@ -46,7 +51,14 @@ function controlledStream(signal: Promise<void>, options?: SimpleStreamOptions) 
       stream.end(aborted);
       return;
     }
-    stream.push({ type: "content", content: message.content });
+    // pi-ai has no `content` event: a text block is start/delta/end.
+    stream.push({
+      type: "text_start",
+      contentIndex: 0,
+      partial: { ...message, content: [{ type: "text", text: "" }] },
+    });
+    stream.push({ type: "text_delta", contentIndex: 0, delta: "response", partial: message });
+    stream.push({ type: "text_end", contentIndex: 0, content: "response", partial: message });
     stream.push({ type: "done", reason: "stop", message });
     stream.end(message);
   });
@@ -105,7 +117,13 @@ for (const [scenario, firstMessage, secondMessage] of [
               timestamp: Date.now(),
             };
             stream.push({ type: "start", partial: { ...msg, content: [] } });
-            stream.push({ type: "content", content: msg.content });
+            stream.push({
+              type: "text_start",
+              contentIndex: 0,
+              partial: { ...msg, content: [{ type: "text", text: "" }] },
+            });
+            stream.push({ type: "text_delta", contentIndex: 0, delta: "follow-up", partial: msg });
+            stream.push({ type: "text_end", contentIndex: 0, content: "follow-up", partial: msg });
             stream.push({ type: "done", reason: "stop", message: msg });
             stream.end(msg);
           });

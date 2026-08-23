@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import type { UserMessage } from "@earendil-works/pi-ai";
 import { entriesToChatLines } from "../src/agent/runtime-chat.js";
 import type { RuntimeTab } from "../src/agent/runtime-types.js";
 import { stripTerminalSequences as stripAnsi } from "@earendil-works/pi-tui";
@@ -22,28 +23,30 @@ function fakeRuntimeTab(): RuntimeTab {
 const TINY_PNG_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
 
+// Typed as the real UserMessage payload so the fixtures stay pinned to the
+// production content shape instead of the helpers' structural parameter types.
+const MIXED_CONTENT: UserMessage["content"] = [
+  { type: "text", text: "hello" },
+  { type: "image", data: "abc", mimeType: "image/png" },
+  { type: "text", text: " world" },
+];
+const IMAGE_ONLY_CONTENT: UserMessage["content"] = [
+  { type: "image", data: "abc", mimeType: "image/png" },
+];
+
 test("userMessageText keeps only text blocks (Pi getUserMessageText)", () => {
   assert.equal(userMessageText("plain"), "plain");
-  assert.equal(
-    userMessageText([
-      { type: "text", text: "hello" },
-      { type: "image", data: "abc", mimeType: "image/png" },
-      { type: "text", text: " world" },
-    ]),
-    "hello world",
-  );
-  assert.equal(
-    userMessageText([{ type: "image", data: "abc", mimeType: "image/png" }]),
-    "",
-  );
+  assert.equal(userMessageText(MIXED_CONTENT), "hello world");
+  assert.equal(userMessageText(IMAGE_ONLY_CONTENT), "");
 });
 
 test("contentImages extracts image blocks", () => {
-  const images = contentImages([
+  const content: UserMessage["content"] = [
     { type: "text", text: "look" },
     { type: "image", data: TINY_PNG_BASE64, mimeType: "image/png" },
     { type: "image", data: "nope", mimeType: "image/jpeg" },
-  ]);
+  ];
+  const images = contentImages(content);
   assert.equal(images.length, 2);
   assert.equal(images[0]?.mimeType, "image/png");
   assert.equal(images[1]?.data, "nope");

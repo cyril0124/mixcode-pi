@@ -8,6 +8,7 @@ import {
   handleMixCodeKeyInput,
   handleSubmittedInput,
 } from "./helpers/mixcode.js";
+import { testTui } from "./helpers/tui.js";
 import { scrollChatToUserEntry } from "../src/ui/chat-scroll-target.js";
 import { renderAgentSurface } from "../src/ui/rendering/agent-surface.js";
 import { renderTreeSelector } from "../src/ui/components/tree-selector-render.js";
@@ -92,14 +93,15 @@ test("/navigate opens the Session Tree view filtered to current-chat user messag
   state.tabs.push(tab);
   state.activeTabId = "s1";
   const openedSessions: string[] = [];
-  const tui = {
-    requestRender: () => undefined,
+  const tui = testTui({
     treeSelectorDisplay: {
-      open: (sessionId: string) => openedSessions.push(sessionId),
+      open: (sessionId: string) => {
+        openedSessions.push(sessionId);
+      },
       refresh: () => undefined,
       close: () => undefined,
     },
-  };
+  });
 
   await handleSubmittedInput(state, runtimeWithTree(), "/navigate", tui);
 
@@ -129,14 +131,13 @@ test("/navigate moves with arrows and j/k, then scrolls current chat", async () 
   state.tabs.push(tab);
   state.activeTabId = "s1";
   const runtime = runtimeWithTree();
-  const tui = {
-    requestRender: () => undefined,
+  const tui = testTui({
     treeSelectorDisplay: {
       open: () => undefined,
       refresh: () => undefined,
       close: () => undefined,
     },
-  };
+  });
 
   await handleSubmittedInput(state, runtime, "/navigate", tui);
   assert.equal(state.treeSelector.selectedEntryId, "u2");
@@ -211,14 +212,13 @@ test("vim Right jumps to next user message and then NEWEST", async () => {
   state.tabs.push(tab);
   state.activeTabId = "s1";
   const runtime = runtimeWithTree();
-  const tui = {
-    requestRender: () => undefined,
+  const tui = testTui({
     treeSelectorDisplay: {
       open: () => undefined,
       refresh: () => undefined,
       close: () => undefined,
     },
-  };
+  });
 
   await handleSubmittedInput(state, runtime, "/navigate", tui);
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[A", tui, undefined, runtime), {
@@ -285,7 +285,7 @@ test("vim Shift+Right walks backward through user messages", () => {
   state.tabs.push(tab);
   state.activeTabId = "s1";
   const runtime = runtimeWithTree();
-  const tui = { requestRender: () => undefined };
+  const tui = testTui();
 
   assert.deepEqual(
     handleMixCodeKeyInput(
@@ -345,7 +345,7 @@ test("vim Shift+Right treats a stale anchor as the newest position", () => {
   state.tabs.push(tab);
   state.activeTabId = "s1";
   const runtime = runtimeWithTree();
-  const tui = { requestRender: () => undefined };
+  const tui = testTui();
 
   assert.deepEqual(
     handleMixCodeKeyInput(
@@ -450,7 +450,7 @@ test("/navigate warns instead of throwing when runtime tab is missing", async ()
     prompt: async () => undefined,
     getTab: () => undefined,
   } as unknown as MixCodeRuntime;
-  const tui = { requestRender: () => undefined };
+  const tui = testTui();
 
   await handleSubmittedInput(state, runtime, "/navigate", tui);
 

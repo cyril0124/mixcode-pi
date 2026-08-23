@@ -12,11 +12,19 @@ import {
   clampHomeSelectedTabIndex,
   reindexWorkspaceTabs,
 } from "./helpers/mixcode.js";
+import { testOverlayHandle } from "./helpers/tui.js";
+import { testRuntime } from "./helpers/runtime-stub.js";
+import { testRuntimeTab } from "./helpers/runtime-tab.js";
 
 function stripAnsi(text: string): string {
   return text.replace(/\x1b\[[0-9;:]*m/g, "");
 }
 
+/**
+ * RuntimeTab double: only the members the exercised production path reads are
+ * supplied, but the `Partial` still checks their names and types against the
+ * real RuntimeTab.
+ */
 function makeTui() {
   let renders = 0;
   const overlays: string[] = [];
@@ -28,7 +36,7 @@ function makeTui() {
       overlays.push(
         typeof component === "string" ? component : (component.render?.(80).join("\n") ?? ""),
       );
-      return { hide: () => undefined } as never;
+      return testOverlayHandle();
     },
     hideOverlay: () => undefined,
     hasOverlay: () => false,
@@ -51,7 +59,7 @@ function makeEditorActions(text = "", expanded?: string) {
     insertTextAtCursor: (next: string) => {
       text += next;
     },
-    addToHistory: () => undefined,
+    addToHistory: (_text: string, _sessionId?: string) => undefined,
     submitCurrentText: () => undefined,
   };
 }
@@ -305,12 +313,12 @@ test("Home navigation takes priority over extension terminal input handlers", ()
   state.homeSelectedTabIndex = 0;
   const tui = makeTui();
   let dispatches = 0;
-  const runtime = {
+  const runtime = testRuntime({
     dispatchTerminalInput: () => {
       dispatches++;
       return { consume: true };
     },
-  };
+  });
 
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[B", tui, undefined, runtime), {
     consume: true,
@@ -337,11 +345,11 @@ test("Home Enter expands paste markers before sending", async () => {
   state.homeSelectedTabIndex = 0;
   const tui = makeTui();
   const prompted: string[] = [];
-  const runtime = {
+  const runtime = testRuntime({
     prompt: async (_sessionId: string, text: string) => {
       prompted.push(text);
     },
-  };
+  });
   const editorActions = makeEditorActions(
     "[paste #1 +16 lines]",
     "PASTE-LINE-1\nPASTE-LINE-2\nPASTE-LINE-3",
@@ -363,11 +371,11 @@ test("Home Ctrl+J inserts newline instead of submitting", () => {
   state.homeSelectedTabIndex = 0;
   const tui = makeTui();
   let prompted = false;
-  const runtime = {
+  const runtime = testRuntime({
     prompt: async () => {
       prompted = true;
     },
-  };
+  });
   const editorActions = makeEditorActions("line-one");
 
   // Ctrl+J is "\n", which also matchesKey("enter") — must not submit on Home.
@@ -387,11 +395,11 @@ test("Home Enter with whitespace-only input does not clear the editor", () => {
   state.homeSelectedTabIndex = 0;
   const tui = makeTui();
   let prompted = false;
-  const runtime = {
+  const runtime = testRuntime({
     prompt: async () => {
       prompted = true;
     },
-  };
+  });
   const editorActions = makeEditorActions("   \t  ");
 
   assert.deepEqual(
@@ -476,13 +484,13 @@ test("Home Enter with text sends message to selected agent and stays on Home", a
   let prompted: { sessionId: string; text: string } | undefined;
   const history: Array<{ text: string; sessionId?: string }> = [];
   let activeWhilePrompt: string | undefined;
-  const runtime = {
+  const runtime = testRuntime({
     prompt: (sessionId: string, text: string) => {
       prompted = { sessionId, text };
       activeWhilePrompt = state.activeTabId;
       return Promise.resolve();
     },
-  };
+  });
   const editorActions = makeEditorActions("fix the bug");
   editorActions.addToHistory = (text, sessionId) => {
     history.push({ text, sessionId });
@@ -517,10 +525,10 @@ test("Home Enter opens settings with the app configuration", async () => {
     "\r",
     tui,
     undefined,
-    {
-      setHideThinkingBlock: () => undefined,
-      setShowCacheMissNotices: () => undefined,
-    },
+    testRuntime({
+      setHideThinkingBlock: async () => undefined,
+      setShowCacheMissNotices: async () => undefined,
+    }),
     undefined,
     () => false,
     editorActions,
@@ -545,11 +553,11 @@ test("Home Enter runs local slash commands on selected agent (not as model promp
   state.homeSelectedTabIndex = 0;
   const tui = makeTui();
   let prompted = false;
-  const runtime = {
+  const runtime = testRuntime({
     prompt: async () => {
       prompted = true;
     },
-  };
+  });
   const editorActions = makeEditorActions("/mark-done");
 
   const result = handleMixCodeKeyInput(state, "\r", tui, undefined, runtime, undefined, () => false, editorActions);
@@ -575,9 +583,9 @@ test("Home Enter send does not clear unread ! badge without viewing the tab", as
   state.activeTabId = "home";
   state.homeSelectedTabIndex = 0;
   const tui = makeTui();
-  const runtime = {
+  const runtime = testRuntime({
     prompt: async () => undefined,
-  };
+  });
   const editorActions = makeEditorActions("follow-up from home");
 
   handleMixCodeKeyInput(state, "\r", tui, undefined, runtime, undefined, () => false, editorActions);
@@ -595,9 +603,9 @@ test("Home Enter restores text and shows transient error when selected agent rej
   state.activeTabId = "home";
   state.homeSelectedTabIndex = 0;
   const tui = makeTui();
-  const runtime = {
+  const runtime = testRuntime({
     prompt: () => Promise.reject(new Error("Cannot prompt while compaction is running")),
-  };
+  });
   const editorActions = makeEditorActions("fix the bug");
 
   const result = handleMixCodeKeyInput(state, "\r", tui, undefined, runtime, undefined, () => false, editorActions);
@@ -619,10 +627,10 @@ test("Home Enter passes workspaceFile so /save-workspace works", async () => {
     state.activeTabId = "home";
     state.homeSelectedTabIndex = 0;
     const tui = makeTui();
-    const runtime = {
+    const runtime = testRuntime({
       prompt: async () => undefined,
       getTab: () => undefined,
-    };
+    });
     const editorActions = makeEditorActions("/save-workspace from-home");
 
     const result = handleMixCodeKeyInput(
@@ -660,15 +668,15 @@ test("Home /clear stays on Home after session replacement", async () => {
   state.activeTabId = "home";
   state.homeSelectedTabIndex = 0;
   const tui = makeTui();
-  const runtime = {
+  const runtime = testRuntime({
     prompt: async () => undefined,
     getTab: () => undefined,
     clearTab: async (sessionId: string) => {
       assert.equal(sessionId, "s1");
       tab.sessionId = "s1-cleared";
-      return { tab };
+      return testRuntimeTab({ tab });
     },
-  };
+  });
   const editorActions = makeEditorActions("/clear");
 
   handleMixCodeKeyInput(

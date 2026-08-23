@@ -17,16 +17,12 @@ import { createTab } from "../src/core/defaults.js";
 import { MIXCODE_FAUX_MODEL } from "../src/agent/faux-stream.js";
 import { MixCodeRuntime } from "../src/agent/runtime.js";
 
+// Built from the production factory so the fixture always carries every
+// required MixCodeTabInfo field.
 function createMockTab(overrides: Partial<MixCodeTabInfo> = {}): MixCodeTabInfo {
-  return {
-    index: 0,
-    sessionId: "test-session",
+  return createTab(0, "test-session", "/tmp", {
     title: "Test",
-    status: "idle",
-    tokenInput: 0,
-    tokenOutput: 0,
     contextLimit: 131_072,
-    currentContextTokens: undefined,
     model: {
       provider: "anthropic",
       modelId: "claude-sonnet-4-20250514",
@@ -34,17 +30,6 @@ function createMockTab(overrides: Partial<MixCodeTabInfo> = {}): MixCodeTabInfo 
       contextWindow: 131_072,
     },
     thinkingLevel: "off",
-    workdir: "/tmp",
-    alias: "",
-    pendingMessages: [],
-    pendingFollowUps: [],
-    promptHistory: [],
-    draftInput: "",
-    chatScrollOffset: 0,
-    previewMessages: [],
-    previewIndex: 0,
-    vimMode: false,
-    unreadDone: false,
     extensionUi: {
       statuses: [],
       widgets: [],
@@ -53,7 +38,7 @@ function createMockTab(overrides: Partial<MixCodeTabInfo> = {}): MixCodeTabInfo 
       workingVisible: false,
     },
     ...overrides,
-  };
+  });
 }
 
 describe("parseContextLimitValue", () => {

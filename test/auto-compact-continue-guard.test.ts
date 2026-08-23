@@ -11,10 +11,9 @@ import {
   createAssistantMessageEventStream,
   type AssistantMessage,
   type Context,
-  type Model,
   type ToolCall,
 } from "@earendil-works/pi-ai";
-import { MIXCODE_FAUX_MODEL, MixCodeRuntime, createTab } from "./helpers/mixcode.js";
+import { MIXCODE_FAUX_MODEL, MixCodeRuntime, createTab, type MixCodeModel } from "./helpers/mixcode.js";
 
 function waitForRuntime(predicate: () => boolean, attempts = 80): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -92,7 +91,7 @@ test("manual compact after assistant stop does not report continue failure", asy
     const runtime = new MixCodeRuntime({
       sessionsRoot: dir,
       agentDir,
-      streamFn: (_model: Model<any>, context: Context) => {
+      streamFn: (_model: MixCodeModel, context: Context) => {
         if (context.messages.some((message) => message.role === "toolResult")) {
           return streamAssistantMessage(runtimeAssistantMessage("FINAL_ANSWER", 900));
         }
@@ -136,7 +135,7 @@ test("manual compact after assistant stop does not report continue failure", asy
       ],
     });
 
-    const model: Model<string> = {
+    const model: MixCodeModel = {
       ...MIXCODE_FAUX_MODEL,
       provider: "compact-test",
       api: "compact-test",

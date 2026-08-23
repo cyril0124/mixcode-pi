@@ -4,10 +4,8 @@ import * as fsPromises from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
 import { test } from "node:test";
-import {
-  MixCodeRuntime,
-  createTab,
-} from "./helpers/mixcode.js";
+import { MixCodeRuntime, createTab } from "./helpers/mixcode.js";
+import { applyAssistantUsage } from "../src/agent/runtime-events.js";
 
 test("runtime restores redacted thinking and unknown assistant content explicitly", async () => {
   const runtime = new MixCodeRuntime();
@@ -242,45 +240,19 @@ test("runtime applies assistant usage outside streaming state", async () => {
     thinkingLevel: "medium",
     workdir: process.cwd(),
   });
-  (
-    runtime as unknown as {
-      applyEvent: (
-        runtimeTab: typeof runtimeTab,
-        event: Parameters<Parameters<typeof runtimeTab.agentSession.agent.subscribe>[0]>[0],
-      ) => void;
-    }
-  ).applyEvent(runtimeTab, {
-    type: "message_start",
-    message: {
-      role: "assistant",
-      content: [{ type: "text", text: "usage only" }],
-      usage: { input: 4, output: 2 },
-      provider: "faux",
-      model: "faux-1",
-      timestamp: Date.now(),
-    },
-  });
+  // Precondition for the branch under test: applyAssistantUsage only takes the
+  // non-streaming path while runtimeTab.streamingAssistant is unset. Driving it
+  // through message_start could not reach that path, because appendMessageStart
+  // installs streamingAssistant before forwarding the usage.
+  const streamingBefore = runtimeTab.streamingAssistant;
+  assert.equal(streamingBefore, undefined);
+
+  applyAssistantUsage(runtimeTab, { input: 4, output: 2 });
   assert.equal(tab.tokenInput, 4);
   assert.equal(tab.tokenOutput, 2);
-  (
-    runtime as unknown as {
-      applyEvent: (
-        runtimeTab: typeof runtimeTab,
-        event: Parameters<Parameters<typeof runtimeTab.agentSession.agent.subscribe>[0]>[0],
-      ) => void;
-    }
-  ).applyEvent(runtimeTab, {
-    type: "message_start",
-    message: {
-      role: "assistant",
-      content: [{ type: "text", text: "usage defaults" }],
-      usage: {},
-      provider: "faux",
-      model: "faux-1",
-      timestamp: Date.now(),
-    },
-  });
+
+  // Partial usage without token fields defaults to 0 and leaves counters intact.
+  applyAssistantUsage(runtimeTab, {});
   assert.equal(tab.tokenInput, 4);
   assert.equal(tab.tokenOutput, 2);
 });
-

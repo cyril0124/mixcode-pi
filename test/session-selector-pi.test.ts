@@ -474,6 +474,8 @@ async function openMountedSelector(runtime: {
         undefined,
         () => false,
         {
+          getText: () => "",
+          setText: () => undefined,
           hasInputComponent: () => mounted !== undefined,
           forwardToInputComponent: (key) => mounted?.handleInput(key),
         },

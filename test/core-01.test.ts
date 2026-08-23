@@ -215,7 +215,9 @@ test("commands parse prompts, slash commands, shell commands, and suggestions", 
     command: "unknown",
     args: "x",
   });
-  const names = LOCAL_COMMANDS.map((command) => command.name);
+  // string[] rather than the LocalCommand name union: the negative assertion
+  // below names an unregistered command, which must stay a runtime check.
+  const names: string[] = LOCAL_COMMANDS.map((command) => command.name);
   assert.ok(names.includes("settings"));
   assert.ok(names.includes("system-tools"));
   assert.ok(names.includes("session"));

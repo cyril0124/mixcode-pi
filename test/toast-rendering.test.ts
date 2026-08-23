@@ -15,15 +15,14 @@ test("pushToast stores explicit toast type with message", () => {
 });
 
 test("renderAgentSurface overlays a typed toast card with right margin", () => {
-  const tab = createTab(1, "s1", "/repo");
+  const tab = createTab(1, "s1", "/repo", {
+    previewMessages: [{ role: "assistant", text: "hello" }],
+  });
   pushToast(tab, { type: "success", message: "Copied 11 chars." });
 
-  const lines = renderAgentSurface(
-    tab,
-    { chat: [{ role: "assistant", text: "hello" }] },
-    60,
-    8,
-  ).map(stripAnsi);
+  // No RuntimeTab: the surface projects tab.previewMessages, which is the real
+  // pre-runtime render path and keeps this a pure rendering test.
+  const lines = renderAgentSurface(tab, undefined, 60, 8).map(stripAnsi);
   const toastTop = lines.find((line) => line.includes("╭") && line.includes("╮"));
   const toastMid = lines.find((line) => line.includes("✓ Copied 11 chars."));
   const toastBottom = lines.find((line) => line.includes("╰") && line.includes("╯"));
@@ -37,19 +36,16 @@ test("renderAgentSurface overlays a typed toast card with right margin", () => {
 });
 
 test("renderAgentSurface wraps long toast messages to at most three rows", () => {
-  const tab = createTab(1, "s1", "/repo");
+  const tab = createTab(1, "s1", "/repo", {
+    previewMessages: [{ role: "assistant", text: "hello" }],
+  });
   pushToast(tab, {
     type: "error",
     message:
       "Copy failed: clipboard provider returned a very long diagnostic path /tmp/example/that/keeps/going/forever with extra details",
   });
 
-  const lines = renderAgentSurface(
-    tab,
-    { chat: [{ role: "assistant", text: "hello" }] },
-    80,
-    10,
-  ).map(stripAnsi);
+  const lines = renderAgentSurface(tab, undefined, 80, 10).map(stripAnsi);
   const toastRows = lines.filter((line) => /[╭╰]─|│ .*│/.test(line));
 
   assert.equal(toastRows.length, 5);
@@ -58,17 +54,12 @@ test("renderAgentSurface wraps long toast messages to at most three rows", () =>
 });
 
 test("renderAgentSurface skips toast card when viewport is too small", () => {
-  const tab = createTab(1, "s1", "/repo");
+  const tab = createTab(1, "s1", "/repo", {
+    previewMessages: [{ role: "assistant", text: "hello" }],
+  });
   pushToast(tab, { type: "info", message: "Too narrow" });
 
-  const output = renderAgentSurface(
-    tab,
-    { chat: [{ role: "assistant", text: "hello" }] },
-    20,
-    4,
-  )
-    .map(stripAnsi)
-    .join("\n");
+  const output = renderAgentSurface(tab, undefined, 20, 4).map(stripAnsi).join("\n");
 
   assert.doesNotMatch(output, /Too narrow/);
 });

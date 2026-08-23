@@ -52,12 +52,11 @@ test("deleting a session via the selector invokes trash exactly once", async () 
       { createInitialState, createTab },
       { openSessionSelector, getSessionSelectorComponent },
       { SessionSelectorComponent },
-    ] =
-      await Promise.all([
-        import("./helpers/mixcode.js"),
-        import("../src/ui/session-resume.js"),
-        import("@earendil-works/pi-coding-agent"),
-      ]);
+    ] = await Promise.all([
+      import("./helpers/mixcode.js"),
+      import("../src/ui/session-resume.js"),
+      import("@earendil-works/pi-coding-agent"),
+    ]);
 
     const state = createInitialState("/repo");
     state.tabs.push(createTab(1, "s1", "/repo"));
@@ -111,7 +110,11 @@ test("deleting a session via the selector invokes trash exactly once", async () 
       typeof SessionSelectorComponent
     >;
     assert.ok(component);
-    await component.getSessionList().onDeleteSession(sessionPath);
+    const sessionList = component.getSessionList();
+    // Pi types onDeleteSession as optional; MixCode installs its own wrapper
+    // (src/ui/session-resume.ts), so a missing handler is a real regression.
+    assert.ok(sessionList.onDeleteSession, "session list must expose onDeleteSession");
+    await sessionList.onDeleteSession(sessionPath);
 
     const trashInvocations = trashCalls.filter((args) => args[0] === "trash").length;
     assert.equal(

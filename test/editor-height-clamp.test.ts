@@ -257,7 +257,7 @@ test("btw-style pager receives available height when widgets and working status 
     active.workingStartedAt = new Date().toISOString();
     active.extensionUi.widgets = [
       {
-        id: "goals",
+        key: "goals",
         placement: "aboveEditor",
         lines: ["goal", "todo-1", "todo-2", "todo-3", "todo-4"],
       },
@@ -284,7 +284,7 @@ test("tree selector sizes list to available editor rows with widgets and worked 
   active.lastWorkedDurationSeconds = 2;
   active.extensionUi.widgets = [
     {
-      id: "goals",
+      key: "goals",
       placement: "aboveEditor",
       lines: ["goal", "time", "tokens", "floor", "next"],
     },

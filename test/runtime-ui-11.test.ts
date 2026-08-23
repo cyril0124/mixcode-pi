@@ -63,13 +63,21 @@ test("runtime merges resource loader and runtime extension factories across work
   const events: string[] = [];
   const first: ExtensionFactory = (pi) => {
     pi.registerCommand("first", { description: "First command", handler: async () => undefined });
-    pi.on("session_start", (event) => events.push(`first:${event.reason}`));
-    pi.on("session_shutdown", (event) => events.push(`first-shutdown:${event.reason}`));
+    pi.on("session_start", (event) => {
+      events.push(`first:${event.reason}`);
+    });
+    pi.on("session_shutdown", (event) => {
+      events.push(`first-shutdown:${event.reason}`);
+    });
   };
   const second: ExtensionFactory = (pi) => {
     pi.registerCommand("second", { description: "Second command", handler: async () => undefined });
-    pi.on("session_start", (event) => events.push(`second:${event.reason}`));
-    pi.on("session_shutdown", (event) => events.push(`second-shutdown:${event.reason}`));
+    pi.on("session_start", (event) => {
+      events.push(`second:${event.reason}`);
+    });
+    pi.on("session_shutdown", (event) => {
+      events.push(`second-shutdown:${event.reason}`);
+    });
   };
 
   try {

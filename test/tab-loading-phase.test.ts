@@ -10,7 +10,7 @@ function stripAnsi(text: string): string {
 }
 
 test("Not Ready tab card shows its loading phase in the status chip", () => {
-  const state = createInitialState();
+  const state = createInitialState("/repo");
   const tab = createTab(1, "session-loading-phase", state.workdir, {
     model: { ...state.model },
     status: "Not Ready",
@@ -24,7 +24,7 @@ test("Not Ready tab card shows its loading phase in the status chip", () => {
 });
 
 test("Not Ready tab without a phase falls back to [loading]", () => {
-  const state = createInitialState();
+  const state = createInitialState("/repo");
   const tab = createTab(1, "session-loading-fallback", state.workdir, {
     model: { ...state.model },
     status: "Not Ready",
@@ -36,7 +36,7 @@ test("Not Ready tab without a phase falls back to [loading]", () => {
 });
 
 test("ready tabs never show a loading chip", () => {
-  const state = createInitialState();
+  const state = createInitialState("/repo");
   const tab = createTab(1, "session-loading-done", state.workdir, {
     model: { ...state.model },
   });

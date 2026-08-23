@@ -116,8 +116,8 @@ test("extension commands work after clearTab without stale ctx error", async () 
   const extension: ExtensionFactory = (pi) => {
     pi.registerCommand("ping", {
       description: "Ping test",
-      handler: () => {
-        pi.sendMessage({ content: "pong", display: false });
+      handler: async () => {
+        pi.sendMessage({ customType: "ping-ack", content: "pong", display: false });
         events.push("pong");
       },
     });
@@ -157,8 +157,8 @@ test("extension commands work after clearTab on a forked session", async () => {
   const extension: ExtensionFactory = (pi) => {
     pi.registerCommand("ping", {
       description: "Ping test",
-      handler: () => {
-        pi.sendMessage({ content: "pong", display: false });
+      handler: async () => {
+        pi.sendMessage({ customType: "ping-ack", content: "pong", display: false });
         events.push("pong");
       },
     });

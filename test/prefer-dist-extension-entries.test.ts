@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { preferDistExtensionEntries } from "../src/core/prefer-dist-extension-entries.ts";
+import { preferDistExtensionEntries } from "../src/core/prefer-dist-extension-entries.js";
 
 const dirs: string[] = [];
 afterEach(() => {

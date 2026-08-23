@@ -6,6 +6,7 @@ import { handleMouseInput } from "../src/ui/app-mouse.js";
 import { createInitialState, createTab } from "../src/core/defaults.js";
 import type { MixCodeState } from "../src/core/types.js";
 import type { MixCodeRuntime } from "../src/agent/runtime.js";
+import { testRuntime } from "./helpers/runtime-stub.js";
 import { renderExtensionPanel } from "../src/ui/rendering/chrome.js";
 import { renderHotkeysText } from "../src/ui/hotkeys.js";
 
@@ -100,12 +101,12 @@ test("Right panel toggle has priority over extension shortcuts", () => {
   const tab = state.tabs[0]!;
   const tui = fakeTui();
   let dispatched = false;
-  const runtime = {
+  const runtime = testRuntime({
     dispatchExtensionShortcut: () => {
       dispatched = true;
       return true;
     },
-  };
+  });
 
   assert.deepEqual(
     handleMixCodeKeyInput(state, RIGHT, tui, undefined, runtime, undefined, undefined, emptyEditor()),

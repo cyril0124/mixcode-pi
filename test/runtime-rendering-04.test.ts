@@ -83,6 +83,7 @@ test("extension status text keeps SGR colors and never leaks bare CSI", () => {
         statuses: [{ key: "ponytail", text: colored }],
         widgets: [],
         toolsExpanded: false,
+        waitingForInputs: [],
         workingVisible: false,
       },
     }),

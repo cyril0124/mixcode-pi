@@ -7,7 +7,7 @@
 // streaming block only appends below the anchor.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createTab, scrollChat, type ChatLine, } from "./helpers/mixcode.js";
+import { createTab, scrollChat, type ChatLine, type RuntimeTab } from "./helpers/mixcode.js";
 import { renderAgentSurface } from "../src/ui/rendering/agent-surface.js";
 
 const WIDTH = 96;
@@ -86,13 +86,17 @@ test("seeded scroll-freeze property sweep holds the top visible line", () => {
       status: "running",
       chatScrollOffset: 0,
     });
-    const runtimeTab = {
+    // streamingAssistant borrows the production type so it stays clearable when
+    // the fuzz scenario ends the stream.
+    const runtimeTab: { tab: typeof tab; chat: ChatLine[] } & Pick<RuntimeTab, "streamingAssistant"> = {
       tab,
       chat,
       streamingAssistant: {
         chatIndex: streamingIndex,
         blockIndices: new Map([[0, streamingIndex]]),
         toolCallIndices: new Map<string, number>(),
+        tokenInput: 0,
+        tokenOutput: 0,
       },
     };
     const render = (height: number) => renderAgentSurface(tab, runtimeTab as never, WIDTH, height);

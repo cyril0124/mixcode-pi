@@ -37,11 +37,17 @@ export function createBatchExecutorHost(options: {
         : state.model;
       assertModelEnabled(model);
       const thinkingLevel = (request.thinking as ThinkingLevel | undefined) ?? state.thinkingLevel;
+      // createAgentTab treats a missing runtimeModel as "use the default", so an
+      // unresolvable selection would silently start the batch tab on the wrong
+      // model instead of failing the batch request.
+      const runtimeModel = runtime.resolveModel(model.provider, model.modelId);
+      if (!runtimeModel)
+        throw new Error(`Model is not registered in runtime: ${model.provider}/${model.modelId}`);
       const tab = await createAgentTab(state, runtime, {
         title: request.name,
         workdir: request.workdir,
         model,
-        runtimeModel: runtime.resolveModel(model.provider, model.modelId),
+        runtimeModel,
         thinkingLevel,
         systemPrompt: request.systemPrompt,
       });

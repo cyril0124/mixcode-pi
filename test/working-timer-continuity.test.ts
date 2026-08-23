@@ -24,10 +24,9 @@ import {
   type AssistantMessage,
   type AssistantMessageEventStream,
   type Context,
-  type Model,
   type ToolCall,
 } from "@earendil-works/pi-ai";
-import { MIXCODE_FAUX_MODEL, MixCodeRuntime, createTab } from "./helpers/mixcode.js";
+import { MIXCODE_FAUX_MODEL, MixCodeRuntime, createTab, type MixCodeModel } from "./helpers/mixcode.js";
 
 function waitForRuntime(predicate: () => boolean, attempts = 200): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -104,13 +103,13 @@ function lastUserText(context: Context): string {
 
 type TraceEntry = { type: string; status: string; workingStartedAt: string | undefined };
 
-const TIMER_MODEL: Model<string> = {
+const TIMER_MODEL: MixCodeModel = {
   ...MIXCODE_FAUX_MODEL,
   provider: "timer-test",
   api: "timer-test",
   id: "timer-test-model",
   contextWindow: 1000,
-} as Model<string>;
+};
 
 function timerTabConfig() {
   return {
@@ -232,7 +231,7 @@ test("overflow compact-and-retry continuation preserves the working timer stamp"
     const runtime = new MixCodeRuntime({
       sessionsRoot: dir,
       agentDir: dir,
-      streamFn: (_model: Model<never>, context: Context) => {
+      streamFn: (_model: MixCodeModel, context: Context) => {
         const text = lastUserText(context);
         if (text.includes("start") && !overflowFired) {
           overflowFired = true;

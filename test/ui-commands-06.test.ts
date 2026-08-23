@@ -119,7 +119,10 @@ test("global key input toggles MixCode overlays and passes through regular input
   assert.equal(renders, 1);
   renderInputMeta(tab, 120, 31);
   assert.equal(handleMixCodeKeyInput(state, "\x1b[<0;2;30M", tui), undefined);
-  assert.equal(state.picker, undefined);
+  // Read into a local: assert.equal is `asserts actual is T`, so asserting on
+  // state.picker directly would pin it to undefined for the rest of this test.
+  const pickerAfterMiss = state.picker;
+  assert.equal(pickerAfterMiss, undefined);
   const workdirRegion = tab.inputMetaHitRegions?.find((region) => region.action === "workdir");
   assert.ok(workdirRegion);
   assert.deepEqual(handleMixCodeKeyInput(state, `\x1b[<0;${workdirRegion.startX};31M`, tui), {

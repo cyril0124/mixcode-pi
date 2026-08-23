@@ -184,7 +184,7 @@ test("runtime custom overlay exposes host and delayed-close paths", async () => 
           }),
           {
             overlay: true,
-            overlayOptions: () => ({ anchor: "bottom", width: 33 }),
+            overlayOptions: () => ({ anchor: "bottom-center", width: 33 }),
           },
         );
         events.push(`factory:${result}`);
@@ -242,7 +242,7 @@ test("runtime custom overlay exposes host and delayed-close paths", async () => 
     const factoryTask = runtime.prompt("s1", "/custom-options-factory");
     // Wait for THIS prompt's showOverlay, not a leftover component from delayed.
     await waitFor(() => overlayOptions.length > optionsBeforeFactory);
-    assert.deepEqual(overlayOptions.at(-1), { anchor: "bottom", width: 33 });
+    assert.deepEqual(overlayOptions.at(-1), { anchor: "bottom-center", width: 33 });
     overlayComponent!.handleInput?.("x");
     await factoryTask;
     assert.ok(events.includes("factory:ok"));

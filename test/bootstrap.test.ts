@@ -422,7 +422,9 @@ test("bootstrap wires pi model registry and extension options into runtime", asy
       parameters: Type.Object({}),
       execute: async () => ({ content: [{ type: "text", text: "ok" }], details: {} }),
     });
-    pi.on("session_start", (event) => events.push(event.reason));
+    pi.on("session_start", (event) => {
+      events.push(event.reason);
+    });
   };
 
   try {

@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { Type, fauxAssistantMessage } from "@earendil-works/pi-ai";
 import { SettingsManager } from "@earendil-works/pi-coding-agent";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import { syncAssistantBlocks } from "../src/agent/runtime-events.js";
 import { toolExecutionToChatLine } from "../src/agent/runtime-tool-chat.js";
-import type { RuntimeTab } from "../src/agent/runtime-types.js";
 import {
   createTab,
   padLine,
@@ -12,6 +12,7 @@ import {
   renderInputMeta,
   renderWorkingIndicator,
 } from "./helpers/mixcode.js";
+import { testRuntimeTab } from "./helpers/runtime-tab.js";
 
 function stripAnsi(text: string): string {
   return text
@@ -56,7 +57,10 @@ test("tool chat lines stay within width and drop clear-screen controls", () => {
     ],
     48,
   );
-  assert.equal(toolBlock.every((line) => visibleWidth(line) === 48), true);
+  assert.equal(
+    toolBlock.every((line) => visibleWidth(line) === 48),
+    true,
+  );
 });
 
 test("custom tool renderers receive content width; self shell skips paint frame", () => {
@@ -105,21 +109,22 @@ test("custom tool renderers receive content width; self shell skips paint frame"
 
 test("tool block keeps exactly one blank row below the previous block", () => {
   const sm = SettingsManager.inMemory();
-  const runtimeTab = {
+  const runtimeTab = testRuntimeTab({
     chat: [],
-    tab: { workdir: "/tmp", extensionUi: { toolsExpanded: false } },
+    tab: createTab(1, "s1", "/tmp"),
     agentSession: {
       settingsManager: sm,
       getToolDefinition: () => ({
         name: "agent",
         label: "agent",
         description: "test",
-        parameters: {} as never,
-        renderCall: () => ({ render: () => ["agent call"] }),
+        parameters: Type.Object({}),
+        execute: () => assert.fail("rendering must not execute the tool"),
+        renderCall: () => ({ render: () => ["agent call"], invalidate: () => undefined }),
       }),
     },
     requestRender: () => undefined,
-  } as unknown as RuntimeTab;
+  });
   const toolLine = toolExecutionToChatLine(runtimeTab, {
     toolCallId: "spacing",
     toolName: "agent",
@@ -140,15 +145,15 @@ test("tool block keeps exactly one blank row below the previous block", () => {
 });
 
 test("consecutive thinking blocks render as one Pi thinking section", () => {
-  const runtimeTab = { chat: [], streamingAssistant: undefined } as never;
+  const runtimeTab = testRuntimeTab({ chat: [], streamingAssistant: undefined });
   syncAssistantBlocks(runtimeTab, {
-    role: "assistant",
+    ...fauxAssistantMessage(""),
     content: [
       { type: "thinking", thinking: "first reasoning block" },
       { type: "thinking", thinking: "second reasoning block" },
       { type: "text", text: "answer" },
     ],
-  } as never);
+  });
 
   assert.deepEqual(runtimeTab.chat, [
     { role: "thinking", text: "first reasoning block\n\nsecond reasoning block" },
@@ -174,9 +179,13 @@ test("system markdown tables render as visible table text", () => {
       [
         {
           role: "system",
-          text: ["**Hotkeys**", "", "| Key | Action |", "|-----|--------|", "| `/` | Slash commands |"].join(
-            "\n",
-          ),
+          text: [
+            "**Hotkeys**",
+            "",
+            "| Key | Action |",
+            "|-----|--------|",
+            "| `/` | Slash commands |",
+          ].join("\n"),
         },
       ],
       60,
@@ -196,6 +205,7 @@ test("narrow input meta stays width-bounded and keeps a models hit region", () =
   const line = renderInputMeta(tab, 28).join("\n");
   assert.equal(visibleWidth(line), 27);
   const regions = tab.inputMetaHitRegions;
+  assert.ok(regions);
   assert.ok(regions.some((region) => region.action === "models"));
   // Which chips survive the narrow-width compactor is layout policy, but every
   // emitted hit target must sit inside the line it was painted on: a region
@@ -212,6 +222,7 @@ test("blank custom working message still shows Working duration", () => {
           statuses: [],
           widgets: [],
           toolsExpanded: false,
+          waitingForInputs: [],
           workingVisible: true,
           workingMessage: "   ",
         },

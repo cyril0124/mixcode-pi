@@ -71,7 +71,10 @@ test("applyWorkdirSelection without runtime updates workdir or toasts same-dir",
 
     applyWorkdirSelection(tab, next);
     assert.equal(tab.workdir, next);
-    assert.equal(tab.toast, undefined);
+    // Read into a local: assert.equal is `asserts actual is T`, so asserting on
+    // tab.toast directly would pin it to undefined for the rest of this test.
+    const toastAfterMove = tab.toast;
+    assert.equal(toastAfterMove, undefined);
 
     applyWorkdirSelection(tab, next);
     assert.equal(tab.workdir, next);

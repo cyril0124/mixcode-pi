@@ -7,7 +7,16 @@ import { test } from "node:test";
 import { InMemoryCredentialStore } from "@earendil-works/pi-ai";
 import { ModelRegistry, ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { MixCodeRuntime, createInitialState, createTab } from "./helpers/mixcode.js";
+import { testRuntime } from "./helpers/runtime-stub.js";
 import { openPiLogin, openPiLogout } from "../src/ui/pi-auth.js";
+
+async function offlineModelRuntime(): Promise<ModelRuntime> {
+  return await ModelRuntime.create({
+    credentials: new InMemoryCredentialStore(),
+    modelsPath: null,
+    allowModelNetwork: false,
+  });
+}
 
 test("MixCodeRuntime shares the provided ModelRuntime across tabs", async () => {
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-auth-shared-"));
@@ -48,13 +57,12 @@ test("openPiLogin surfaces missing runtime and missing input host as toasts", as
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"));
 
-  await openPiLogin(state, { getSharedModelRuntime: () => undefined }, undefined);
+  await openPiLogin(state, testRuntime({ getSharedModelRuntime: () => undefined }), undefined);
   assert.equal(state.tabs[0]?.toast?.type, "error");
   assert.match(state.tabs[0]?.toast?.message ?? "", /Auth not available \(no model runtime\)/);
 
-  const runtime = {
-    getSharedModelRuntime: () => ({}) as never,
-  };
+  const modelRuntime = await offlineModelRuntime();
+  const runtime = testRuntime({ getSharedModelRuntime: () => modelRuntime });
   await openPiLogin(state, runtime, undefined);
   assert.equal(state.tabs[0]?.toast?.type, "error");
   assert.match(state.tabs[0]?.toast?.message ?? "", /Auth UI not available/);
@@ -64,13 +72,12 @@ test("openPiLogout surfaces missing runtime and missing input host as toasts", a
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo"));
 
-  await openPiLogout(state, { getSharedModelRuntime: () => undefined }, undefined);
+  await openPiLogout(state, testRuntime({ getSharedModelRuntime: () => undefined }), undefined);
   assert.equal(state.tabs[0]?.toast?.type, "error");
   assert.match(state.tabs[0]?.toast?.message ?? "", /Auth not available \(no model runtime\)/);
 
-  const runtime = {
-    getSharedModelRuntime: () => ({}) as never,
-  };
+  const modelRuntime = await offlineModelRuntime();
+  const runtime = testRuntime({ getSharedModelRuntime: () => modelRuntime });
   await openPiLogout(state, runtime, undefined);
   assert.equal(state.tabs[0]?.toast?.type, "error");
   assert.match(state.tabs[0]?.toast?.message ?? "", /Auth UI not available/);

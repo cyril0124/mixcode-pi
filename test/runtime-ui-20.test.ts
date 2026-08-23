@@ -8,7 +8,6 @@ import {
   createAssistantMessageEventStream,
   type AssistantMessage,
   type Context,
-  type Model,
   type SimpleStreamOptions,
 } from "@earendil-works/pi-ai";
 import { defaultPiSessionDir } from "../src/cli/bootstrap.js";
@@ -16,12 +15,14 @@ import {
   MIXCODE_FAUX_MODEL,
   MixCodeRuntime,
   createTab,
+  type MixCodeModel,
 } from "./helpers/mixcode.js";
 
 function delayedAssistantStream(text: string, ready: Promise<void>, options?: SimpleStreamOptions) {
   const stream = createAssistantMessageEventStream();
   queueMicrotask(async () => {
-    const message = runtimeAssistantMessage(`Echo: ${text}`);
+    const messageText = `Echo: ${text}`;
+    const message = runtimeAssistantMessage(messageText);
     await ready;
     if (options?.signal?.aborted) {
       const aborted = {
@@ -43,13 +44,13 @@ function delayedAssistantStream(text: string, ready: Promise<void>, options?: Si
     stream.push({
       type: "text_delta",
       contentIndex: 0,
-      delta: message.content[0]!.text,
+      delta: messageText,
       partial: message,
     });
     stream.push({
       type: "text_end",
       contentIndex: 0,
-      content: message.content[0]!.text,
+      content: messageText,
       partial: message,
     });
     stream.push({ type: "done", reason: "stop", message });
@@ -109,7 +110,7 @@ function createBlockedRuntime(sessionsRoot?: string, initialOptions: { getApiKey
     release = resolve;
   });
   const suffix = ++blockedRuntimeSequence;
-  const model: Model<string> = {
+  const model: MixCodeModel = {
     ...MIXCODE_FAUX_MODEL,
     provider: `blocked-${suffix}`,
     api: `blocked-${suffix}`,
@@ -340,7 +341,7 @@ test("runtime deletes all tracked tabs", async () => {
 test("runtime accepts an explicit model and renders pi content blocks as separate UI messages", async () => {
   const runtime = new MixCodeRuntime();
   const tab = createTab(1, "s1", process.cwd());
-  const explicit: Model<string> = { ...MIXCODE_FAUX_MODEL, id: "explicit" };
+  const explicit: MixCodeModel = { ...MIXCODE_FAUX_MODEL, id: "explicit" };
   const runtimeTab = await runtime.createTab(tab, {
     systemPrompt: "system",
     thinkingLevel: "medium",
@@ -467,7 +468,7 @@ test("runtime updates tab model and rejects changes while streaming", async () =
     workdir: process.cwd(),
     model: initialModel,
   });
-  const model: Model<string> = {
+  const model: MixCodeModel = {
     ...initialModel,
     id: "custom-model",
     contextWindow: 12345,

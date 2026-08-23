@@ -21,6 +21,7 @@ import {
   showNoticeTextOverlay,
 } from "../src/ui/app-overlays.js";
 import { renderNoticePanel } from "../src/ui/components/notice-panel.js";
+import { testOverlayHandle, testTui } from "./helpers/tui.js";
 import { themeForId } from "../src/ui/themes.js";
 
 const stripAnsi = (text: string) => text.replace(/\x1b\[[0-9;]*m/g, "");
@@ -74,14 +75,13 @@ test("renderNoticePanel pads every line to the requested width", () => {
 });
 
 test("showNoticeTextOverlay tracks active notice and clears on close", () => {
-  const tui = {
-    requestRender: () => undefined,
-    showOverlay: (component: { render: (width: number) => string[] }, options: { width?: number }) => {
-      component.render(typeof options.width === "number" ? options.width : 40);
-      return { hide: () => undefined };
+  const tui = testTui({
+    showOverlay: (component, options) => {
+      component.render(typeof options?.width === "number" ? options.width : 40);
+      return testOverlayHandle();
     },
     hasOverlay: () => true,
-  };
+  });
   showNoticeTextOverlay(tui, "hello notice body");
   assert.equal(hasActiveNotice(), true);
   assert.equal(getActiveNotice()?.text, "hello notice body");
@@ -92,11 +92,10 @@ test("showNoticeTextOverlay tracks active notice and clears on close", () => {
 });
 
 test("notices are app overlays but do not count as capturing wait-for-input", () => {
-  const tui = {
-    requestRender: () => undefined,
-    showOverlay: () => ({ hide: () => undefined }),
+  const tui = testTui({
+    showOverlay: () => testOverlayHandle(),
     hasOverlay: () => true,
-  };
+  });
   showNoticeTextOverlay(tui, "console leftover");
   assert.equal(hasAppOverlay(tui), true);
   assert.equal(hasCapturingAppOverlay(tui), false);
@@ -108,14 +107,13 @@ test("notices are app overlays but do not count as capturing wait-for-input", ()
 });
 
 test("copyActiveNoticeText copies full body via injected writer", async () => {
-  const tui = {
-    requestRender: () => undefined,
-    showOverlay: (component: { render: (width: number) => string[] }, options: { width?: number }) => {
-      component.render(typeof options.width === "number" ? options.width : 40);
-      return { hide: () => undefined };
+  const tui = testTui({
+    showOverlay: (component, options) => {
+      component.render(typeof options?.width === "number" ? options.width : 40);
+      return testOverlayHandle();
     },
     hasOverlay: () => true,
-  };
+  });
   showNoticeTextOverlay(tui, "full notice payload");
   const copied: string[] = [];
   const result = await copyActiveNoticeText(async (text) => {
@@ -147,27 +145,24 @@ test("closeAppOverlay only hides tracked app handles, never hideOverlay stack to
   type StackEntry = { name: string };
   const stack: StackEntry[] = [];
   let hideOverlayCalls = 0;
-  const tui = {
-    requestRender: () => undefined,
-    showOverlay: (_component: unknown) => {
+  const tui = testTui({
+    showOverlay: () => {
       const entry: StackEntry = { name: stack.length === 0 ? "extension" : "app" };
       stack.push(entry);
-      return {
-        hide: () => {
-          const index = stack.indexOf(entry);
-          if (index !== -1) stack.splice(index, 1);
-        },
-      };
+      return testOverlayHandle(() => {
+        const index = stack.indexOf(entry);
+        if (index !== -1) stack.splice(index, 1);
+      });
     },
     hasOverlay: () => stack.length > 0,
     hideOverlay: () => {
       hideOverlayCalls++;
       stack.pop();
     },
-  };
+  });
 
   // Extension overlay is shown outside app overlay tracking.
-  tui.showOverlay({ render: () => ["ext"] });
+  tui.showOverlay({ render: () => ["ext"], invalidate: () => undefined });
   assert.equal(stack.map((e) => e.name).join(","), "extension");
 
   closeAppOverlay(tui);

@@ -7,6 +7,7 @@ import {
   handleMixCodeKeyInput,
   renderInputMeta,
 } from "./helpers/mixcode.js";
+import { testRuntime } from "./helpers/runtime-stub.js";
 
 function createDualQueueKeyFixture() {
   const state = createInitialState("/repo");
@@ -30,12 +31,12 @@ function createDualQueueKeyFixture() {
       text = next;
     },
   };
-  const runtime = {
+  const runtime = testRuntime({
     popPendingMessage: (_sessionId: string, kind: "steering" | "followUp") => {
       poppedKinds.push(kind);
       return kind === "steering" ? tab.pendingMessages.pop() : tab.pendingFollowUps.pop();
     },
-  };
+  });
   return { state, tab, tui, editorActions, runtime, poppedKinds, text: () => text };
 }
 
@@ -199,12 +200,12 @@ test("Home Ctrl+U does not dequeue the selected agent queue", () => {
     },
   };
   let popped = 0;
-  const runtime = {
+  const runtime = testRuntime({
     popPendingMessage: () => {
       popped++;
       return "should-not-pop";
     },
-  };
+  });
 
   assert.deepEqual(
     handleMixCodeKeyInput(
@@ -258,9 +259,9 @@ test("global key input pops queued messages back into editor", () => {
   );
   assert.equal(text, "second");
   assert.deepEqual(tab.pendingMessages, ["first"]);
-  const runtime = {
+  const runtime = testRuntime({
     popPendingMessage: (sessionId: string) => (sessionId === "s1" ? "runtime queued" : undefined),
-  };
+  });
   // In-progress draft must be re-queued, not discarded, when popping.
   text = "keep me draft";
   assert.deepEqual(

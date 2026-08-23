@@ -17,6 +17,7 @@ import {
 } from "./helpers/mixcode.js";
 import { UUIDV7_SESSION_ID_PATTERN } from "./helpers/session-id.js";
 import { restoreWorkspace } from "../src/ui/workspace-restore.js";
+import { testOverlayHandle } from "./helpers/tui.js";
 
 function stripAnsi(text: string): string {
   return text
@@ -43,11 +44,9 @@ function createOverlayTui() {
           ? component
           : (component.render?.(100).join("\n") ?? String(component)),
       );
-      return {
-        hide: () => {
-          hasOverlay = false;
-        },
-      };
+      return testOverlayHandle(() => {
+        hasOverlay = false;
+      });
     },
     hasOverlay: () => hasOverlay,
     hideOverlay: () => {

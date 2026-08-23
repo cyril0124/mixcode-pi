@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createInitialState, createTab, handleMixCodeKeyInput, type MixCodeState } from "./helpers/mixcode.js";
+import {
+  createInitialState,
+  createTab,
+  handleMixCodeKeyInput,
+  type MixCodeState,
+} from "./helpers/mixcode.js";
 import type { MixCodeEditorActions } from "../src/ui/app-types.js";
+import { testRuntime } from "./helpers/runtime-stub.js";
 
 // Regression guard for the paste-newline heuristic swallowing Enter while an
 // extension custom component owns the editor slot.
@@ -50,8 +56,26 @@ function makeEditorActions(overrides: Partial<MixCodeEditorActions>): {
 function feedRapidInput(state: MixCodeState, actions: MixCodeEditorActions): void {
   // Two printable keys within the 5ms paste window prime the detector so the
   // following Enter is classified as part of a paste burst.
-  handleMixCodeKeyInput(state, "x", silentTui(), undefined, undefined, undefined, undefined, actions);
-  handleMixCodeKeyInput(state, "y", silentTui(), undefined, undefined, undefined, undefined, actions);
+  handleMixCodeKeyInput(
+    state,
+    "x",
+    silentTui(),
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    actions,
+  );
+  handleMixCodeKeyInput(
+    state,
+    "y",
+    silentTui(),
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    actions,
+  );
 }
 
 test("paste-newline heuristic keeps intercepting Enter on the default editor", () => {
@@ -227,7 +251,11 @@ test("Ctrl+J and Shift+Enter do not insert/consume while a pending extension int
       undefined,
       actions,
     );
-    assert.equal(result, undefined, `${JSON.stringify(data)} must pass through to the custom component`);
+    assert.equal(
+      result,
+      undefined,
+      `${JSON.stringify(data)} must pass through to the custom component`,
+    );
   }
   assert.deepEqual(inserted, [], "no newline is injected into the replaced editor");
 });
@@ -286,7 +314,11 @@ test("PgUp/PgDn do not scroll/consume while a pending extension interaction owns
       undefined,
       actions,
     );
-    assert.equal(result, undefined, `${JSON.stringify(key)} must pass through to the custom component`);
+    assert.equal(
+      result,
+      undefined,
+      `${JSON.stringify(key)} must pass through to the custom component`,
+    );
   }
   assert.equal(tab.chatScrollOffset, 0, "main chat must not scroll under a pending interaction");
 });
@@ -360,12 +392,12 @@ test("Ctrl+U is not consumed while a pending extension interaction owns input", 
     "\x15",
     silentTui(),
     undefined,
-    {
+    testRuntime({
       popPendingMessage: () => {
         popped++;
         return "runtime queued";
       },
-    },
+    }),
     undefined,
     undefined,
     actions,
@@ -401,7 +433,11 @@ test("Up/Down do not browse prompt history while a pending extension interaction
       undefined,
       actions,
     );
-    assert.equal(result, undefined, `${JSON.stringify(key)} must pass through to the custom component`);
+    assert.equal(
+      result,
+      undefined,
+      `${JSON.stringify(key)} must pass through to the custom component`,
+    );
   }
   assert.equal(historyBrowsed, 0, "pending custom UI must not enter prompt history");
 });
@@ -450,7 +486,11 @@ test("vim Up/Down do not scroll chat while a pending extension interaction owns 
       undefined,
       actions,
     );
-    assert.equal(result, undefined, `${JSON.stringify(key)} must pass through to the custom component`);
+    assert.equal(
+      result,
+      undefined,
+      `${JSON.stringify(key)} must pass through to the custom component`,
+    );
   }
   assert.equal(tab.chatScrollOffset, 0, "vim must not scroll chat under a pending interaction");
 });

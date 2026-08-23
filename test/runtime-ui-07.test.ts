@@ -124,16 +124,20 @@ test("runtime wires extension command session actions into MixCode sessions", as
         events.push(`switch:${result.cancelled}`);
       },
     });
-    pi.on("session_start", (event) => events.push(`start:${event.reason}`));
-    pi.on("session_before_switch", (event) => events.push(`before-switch:${event.reason}`));
-    pi.on("session_before_fork", (event) =>
-      events.push(`before-fork:${event.entryId}:${event.position}`),
-    );
-    pi.on("session_shutdown", (event, ctx) =>
+    pi.on("session_start", (event) => {
+      events.push(`start:${event.reason}`);
+    });
+    pi.on("session_before_switch", (event) => {
+      events.push(`before-switch:${event.reason}`);
+    });
+    pi.on("session_before_fork", (event) => {
+      events.push(`before-fork:${event.entryId}:${event.position}`);
+    });
+    pi.on("session_shutdown", (event, ctx) => {
       events.push(
         `shutdown:${event.reason}:${event.targetSessionFile ? "target" : "none"}:${ctx.sessionManager.getSessionId()}`,
-      ),
-    );
+      );
+    });
     pi.registerMessageRenderer(
       "replacement-note",
       (message) => new Text(`replacement ${message.content}`, 0, 0),

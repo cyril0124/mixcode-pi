@@ -169,10 +169,13 @@ test("createMixCodeTui external editor rewrites focused draft and surfaces exit 
           handleInput: (data: string) => void;
         }
       ).children[0]!;
+      tui.start();
       layout.editor.setText("initial");
-      tui.handleTerminalInput("\x05");
+      // Public input seam: injectInput feeds the same terminal callback the TUI
+      // registers on start(), so the external-editor key travels the real path.
+      tui.injectInput("\x05");
       await waitFor(() => layout.editor.getText() === "changed");
-      assert.equal(capture, "stop;start;");
+      assert.equal(capture, "start;stop;start;");
     } finally {
       tui.stop();
     }

@@ -3,6 +3,7 @@ import * as fsPromises from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
+import { fauxAssistantMessage } from "@earendil-works/pi-ai";
 import { SettingsManager } from "@earendil-works/pi-coding-agent";
 import { stripTerminalSequences as stripAnsi } from "@earendil-works/pi-tui";
 import {
@@ -22,6 +23,7 @@ import { closeAppOverlay, showNoticeTextOverlay } from "../src/ui/app-overlays.j
 import { handleTreeSelectorKey } from "../src/ui/components/tree-selector.js";
 import { renderTreeSelector } from "../src/ui/components/tree-selector-render.js";
 import { createSettingsPanel, selectSettingsItemByLabel } from "./helpers/settings-panel.js";
+import { testOverlayHandle } from "./helpers/tui.js";
 
 function messageNode(
   id: string,
@@ -52,7 +54,7 @@ function toolResultTree(): SessionTreeNode[] {
           parentId: "root",
           timestamp: "2026-05-14T00:00:00.000Z",
           message: {
-            role: "assistant",
+            ...fauxAssistantMessage(""),
             content: [
               { type: "toolCall", id: "call-1", name: "read", arguments: { path: "/tmp/a" } },
             ],
@@ -75,9 +77,9 @@ function toolResultTree(): SessionTreeNode[] {
               },
             },
             children: [],
-          } as SessionTreeNode,
+          },
         ],
-      } as SessionTreeNode,
+      },
     ]),
   ];
 }
@@ -231,7 +233,7 @@ test("#99 expanded user-bash still offers collapse when overflow exists", () => 
           role: "tool",
           title: "bash",
           variant: "user-bash",
-          status: "done",
+          status: "success",
           text: lines.join("\n"),
           args: { command: "seq 25" },
           toolExpanded: true,
@@ -291,7 +293,7 @@ test("#102 wheel still scrolls chat while Notice is open", () => {
     requestRender: () => renders++,
     showOverlay: (component: { render: (width: number) => string[] }, options: { width?: number }) => {
       component.render(typeof options.width === "number" ? options.width : 40);
-      return { hide: () => undefined };
+      return testOverlayHandle();
     },
     hasOverlay: () => true,
   };

@@ -110,7 +110,7 @@ export interface RuntimeLifecycleContext {
     agentSession: RuntimeTab["agentSession"],
   ) => void;
   createServices: (workdir: string, systemPrompt?: string) => Promise<AgentSessionServices>;
-  resolveModel: (provider: string, modelId: string) => MixCodeModel;
+  resolveModel: (provider: string, modelId: string) => MixCodeModel | undefined;
   resolveModelFromSession: (
     session: SessionManager,
     fallback: MixCodeTabInfo["model"] | MixCodeModel | undefined,

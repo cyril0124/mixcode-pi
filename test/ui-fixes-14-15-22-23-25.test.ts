@@ -94,9 +94,14 @@ test("theme enum browse applies live preview and Esc restores previous theme", (
 test("defaultModel enum only lists models for the selected defaultProvider", () => {
   const state = createInitialState("/repo");
   state.availableModels = [
-    { provider: "openai", modelId: "gpt-4o", displayName: "openai/gpt-4o" },
-    { provider: "openai", modelId: "o3", displayName: "openai/o3" },
-    { provider: "anthropic", modelId: "claude-opus-4-5", displayName: "anthropic/claude-opus-4-5" },
+    { provider: "openai", modelId: "gpt-4o", displayName: "openai/gpt-4o", contextWindow: 128_000 },
+    { provider: "openai", modelId: "o3", displayName: "openai/o3", contextWindow: 200_000 },
+    {
+      provider: "anthropic",
+      modelId: "claude-opus-4-5",
+      displayName: "anthropic/claude-opus-4-5",
+      contextWindow: 200_000,
+    },
   ];
   const settingsManager = SettingsManager.inMemory();
   settingsManager.setDefaultProvider("openai");

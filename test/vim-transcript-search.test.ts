@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { stripTerminalSequences, type TUI as TuiType } from "@earendil-works/pi-tui";
-import type { MixCodeRuntime, RuntimeTab } from "../src/agent/runtime.js";
+import type { ChatLine, MixCodeRuntime, RuntimeTab } from "../src/agent/runtime.js";
+import { testTui } from "./helpers/tui.js";
 import { createInitialState, createTab } from "../src/core/defaults.js";
 import { activateTab, discardVimTranscriptSearch } from "../src/core/tabs.js";
 import { CompactPromptEditor, EditorSlot } from "../src/ui/app-editor.js";
@@ -216,18 +217,19 @@ test("transcript search indexes rendered extension output once across query chan
     promptOpen: false,
   };
   let renderCalls = 0;
-  const runtimeTab = {
-    chat: [
-      {
-        role: "extension",
-        text: "semantic source text",
-        renderExtension: () => {
-          renderCalls++;
-          return ["rendered needle"];
-        },
+  // Typed as ChatLine[]: an inline literal narrows `chat` past RuntimeTab["chat"],
+  // which makes the RuntimeTab assertion non-comparable.
+  const chat: ChatLine[] = [
+    {
+      role: "extension",
+      text: "semantic source text",
+      renderExtension: () => {
+        renderCalls++;
+        return ["rendered needle"];
       },
-    ],
-  } as RuntimeTab;
+    },
+  ];
+  const runtimeTab = { chat } as RuntimeTab;
 
   renderAgentSurface(tab, runtimeTab, 60, 6);
   assert.equal(tab.vimTranscriptSearch.resultCount, 1);
@@ -390,7 +392,10 @@ test("only slash reuses the Vim editor row without opening an overlay", () => {
   harness.slot.setText("saved draft");
 
   harness.dispatch("\x1b[102;6u");
-  assert.equal(tab.vimTranscriptSearch, undefined);
+  // Read into a local: assert.equal is `asserts actual is T`, so asserting on
+  // tab.vimTranscriptSearch directly would pin it to undefined below.
+  const searchAfterKitty = tab.vimTranscriptSearch;
+  assert.equal(searchAfterKitty, undefined);
   assert.equal(harness.slot.getText(), "saved draft");
 
   const result = harness.dispatch("/");
@@ -660,7 +665,7 @@ test("leaving Vim search keeps the selected viewport when windowed rendering res
     })),
   } as RuntimeTab;
   const runtime = { getTab: () => runtimeTab } as unknown as MixCodeRuntime;
-  const tui = { requestRender: () => undefined, hasOverlay: () => false };
+  const tui = testTui({ requestRender: () => undefined, hasOverlay: () => false });
   const editor = { getText: () => "", setText: () => undefined };
 
   renderAgentSurface(tab, runtimeTab, 60, 8);

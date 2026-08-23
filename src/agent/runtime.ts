@@ -1394,7 +1394,8 @@ export class MixCodeRuntime {
     return tab;
   }
 
-  resolveModel(provider: string, modelId: string): MixCodeModel {
+  /** Undefined when provider/model is registered nowhere; callers must handle it. */
+  resolveModel(provider: string, modelId: string): MixCodeModel | undefined {
     return resolveRuntimeModel(provider, modelId, this.modelRuntime ?? this.modelRegistry);
   }
 

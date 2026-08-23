@@ -40,7 +40,9 @@ test("open_tabs lock wait yields CPU under contention", async () => {
   const readyPath = path.join(dir, "waiter-ready");
   const goPath = path.join(dir, "waiter-go");
   let worker: Worker | undefined;
-  let child: ReturnType<typeof Bun.spawn> | undefined;
+  // Pin the stdio generics so child.stdout/stderr are ReadableStreams, matching
+  // the `stdout: "pipe", stderr: "pipe"` options passed to Bun.spawn below.
+  let child: Bun.Subprocess<"ignore", "pipe", "pipe"> | undefined;
   try {
     writeOpenTabs(filePath, []);
     configureOpenTabsPath(filePath);

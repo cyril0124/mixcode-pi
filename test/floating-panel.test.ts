@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { Terminal } from "@earendil-works/pi-tui";
+import type { AutocompleteProvider, Terminal } from "@earendil-works/pi-tui";
 import { createMixCodeTui, handleMixCodeKeyInput } from "../src/ui/app.js";
 import { createInitialState, createTab } from "../src/core/defaults.js";
 import type { MixCodeTabInfo } from "../src/core/types.js";
@@ -81,11 +81,18 @@ function makeRuntime(tab: MixCodeTabInfo): MixCodeRuntime {
   ];
   const chat = branch
     .filter((entry) => entry.type === "message")
-    .map((entry) => ({
-      role: entry.message.role as "user" | "assistant",
-      text: entry.message.content[0]?.type === "text" ? entry.message.content[0].text : "",
-      entryId: entry.id,
-    }));
+    .map((entry) => {
+      const { message } = entry;
+      // AgentMessage covers custom entries without `content`, and UserMessage.content
+      // may be a bare string — indexing it would yield a single character, not a block.
+      const content = "content" in message ? message.content : "";
+      const first = typeof content === "string" ? undefined : content[0];
+      return {
+        role: message.role as "user" | "assistant",
+        text: typeof content === "string" ? content : first?.type === "text" ? first.text : "",
+        entryId: entry.id,
+      };
+    });
   return {
     getTab: () => ({
       tab,

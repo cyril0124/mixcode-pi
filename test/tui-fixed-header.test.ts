@@ -683,7 +683,13 @@ test("working indicator requests periodic renders while the active tab is busy",
   const state = createInitialState("/repo");
   state.tabs.push(
     createTab(1, "s1", "/repo", {
-      extensionUi: { statuses: [], widgets: [], toolsExpanded: false, workingVisible: false },
+      extensionUi: {
+        statuses: [],
+        widgets: [],
+        toolsExpanded: false,
+        waitingForInputs: [],
+        workingVisible: false,
+      },
     }),
   );
   state.activeTabId = "s1";

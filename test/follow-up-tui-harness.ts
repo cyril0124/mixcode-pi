@@ -13,7 +13,6 @@ import {
   createAssistantMessageEventStream,
   type AssistantMessage,
   type Context,
-  type Model,
   type SimpleStreamOptions,
   type ToolCall,
 } from "@earendil-works/pi-ai";
@@ -23,6 +22,7 @@ import {
   createInitialState,
   createMixCodeTui,
   createTab,
+  type MixCodeModel,
 } from "./helpers/mixcode.js";
 
 const root = process.env.MIXCODE_FOLLOWUP_HARNESS_DIR;
@@ -129,7 +129,7 @@ function lastUserText(context: Context): string {
   return last.content.map((b) => (b.type === "text" ? b.text : "")).join("\n");
 }
 
-const model: Model<string> = {
+const model: MixCodeModel = {
   ...MIXCODE_FAUX_MODEL,
   provider: "follow-up-tui",
   api: "follow-up-tui",

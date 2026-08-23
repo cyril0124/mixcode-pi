@@ -94,30 +94,30 @@ test("submitted input opens local pickers and picker keys apply selections", asy
   } as unknown as MixCodeRuntime;
   const changes: string[] = [];
 
-  await handleSubmittedInput(state, runtime, "/models", tui, (next) =>
-    changes.push(next.picker?.kind ?? "none"),
-  );
+  await handleSubmittedInput(state, runtime, "/models", tui, (next) => {
+    changes.push(next.picker?.kind ?? "none");
+  });
   assert.equal(state.picker?.kind, "models");
   assert.match(overlays.at(-1) ?? "", /Choose Model/);
   assert.match(renderPickerOverlay(state, 80).join("\n"), /faux\/faux-1/);
   assert.deepEqual(
-    handleMixCodeKeyInput(state, "\t", tui, undefined, undefined, (next) =>
-      changes.push(next.picker?.kind ?? "none"),
-    ),
+    handleMixCodeKeyInput(state, "\t", tui, undefined, undefined, (next) => {
+      changes.push(next.picker?.kind ?? "none");
+    }),
     { consume: true },
   );
   assert.equal(state.picker?.selectedIndex, 1);
   assert.deepEqual(
-    handleMixCodeKeyInput(state, "\x1b[Z", tui, undefined, undefined, (next) =>
-      changes.push(next.picker?.kind ?? "none"),
-    ),
+    handleMixCodeKeyInput(state, "\x1b[Z", tui, undefined, undefined, (next) => {
+      changes.push(next.picker?.kind ?? "none");
+    }),
     { consume: true },
   );
   assert.equal(state.picker?.selectedIndex, 0);
   assert.deepEqual(
-    handleMixCodeKeyInput(state, "g", tui, undefined, undefined, (next) =>
-      changes.push(next.picker?.kind ?? "none"),
-    ),
+    handleMixCodeKeyInput(state, "g", tui, undefined, undefined, (next) => {
+      changes.push(next.picker?.kind ?? "none");
+    }),
     { consume: true },
   );
   assert.deepEqual(handleMixCodeKeyInput(state, "p", tui), { consume: true });
@@ -125,7 +125,10 @@ test("submitted input opens local pickers and picker keys apply selections", asy
   assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui), { consume: true });
   await Bun.sleep(0);
   assert.equal(tab.model.modelId, "gpt-4.1");
-  assert.equal(state.picker, undefined);
+  // Read through a local: assert.equal is `asserts actual is T`, so asserting on
+  // state.picker directly would pin it to undefined for the rest of the scope.
+  const afterModelApply = state.picker;
+  assert.equal(afterModelApply, undefined);
 
   await handleSubmittedInput(state, runtime, "/thinking", tui, async (next) => {
     changes.push(`async:${next.picker?.kind ?? "none"}`);

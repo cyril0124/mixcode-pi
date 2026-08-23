@@ -3,7 +3,7 @@ import * as fsPromises from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
-import { SessionManager } from "@earendil-works/pi-coding-agent";
+import { createSyntheticSourceInfo, SessionManager } from "@earendil-works/pi-coding-agent";
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { InMemoryCredentialStore } from "@earendil-works/pi-ai";
 import type { AutocompleteItem, AutocompleteProvider } from "@earendil-works/pi-tui";
@@ -37,10 +37,13 @@ test("extension theme lookup and apply reject unknown or hostless switches", () 
   assert.equal(extensionThemeByName("mixcode-dark"), MIXCODE_EXTENSION_THEME);
   assert.equal(extensionThemeByName("missing"), undefined);
 
-  assert.deepEqual(applyExtensionTheme("mixcode-dark", undefined, () => undefined), {
-    success: false,
-    error: "Pi extension theme switching requires an active MixCode TUI host",
-  });
+  assert.deepEqual(
+    applyExtensionTheme("mixcode-dark", undefined, () => undefined),
+    {
+      success: false,
+      error: "Pi extension theme switching requires an active MixCode TUI host",
+    },
+  );
 
   const setThemes: string[] = [];
   assert.deepEqual(
@@ -54,7 +57,10 @@ test("extension theme lookup and apply reject unknown or hostless switches", () 
     ),
     { success: false, error: "Unknown theme: not-a-real-theme" },
   );
-  assert.deepEqual(setThemes, []);
+  // Read through a copy: assert.deepEqual is `asserts actual is T`, so asserting
+  // on setThemes directly would pin it to never[] for the rest of the scope.
+  const themesAfterUnknown = [...setThemes];
+  assert.deepEqual(themesAfterUnknown, []);
 
   // Pi built-in light is loadable and switches when a host is present.
   assert.deepEqual(
@@ -79,7 +85,12 @@ test("model selection rejects unregistered models and commits registered ones", 
 
   const model = { provider: "p", modelId: "m", displayName: "p/m", contextWindow: 123 };
   await assert.rejects(
-    async () => applyModelSelection(state, tab, model, { resolveModel: () => undefined }),
+    async () =>
+      applyModelSelection(state, tab, model, {
+        resolveModel: () => undefined,
+        updateTabModel: async () =>
+          assert.fail("updateTabModel must not run for an unresolvable model"),
+      }),
     /Model is not registered/,
   );
 
@@ -120,22 +131,31 @@ test("system messages go to the active tab; config falls back to overlay toast",
     hasOverlay: () => false,
   };
 
-  showSystemMessageOrToast({ ...state, activeTabId: "home" }, {}, tui, "toast");
+  showSystemMessageOrToast(
+    { ...state, activeTabId: "home" },
+    { appendSystemMessage: () => assert.fail("home tab must toast, not append") },
+    tui,
+    "toast",
+  );
   assert.match(overlays.at(-1) ?? "", /toast/);
 
   const systemMessages: string[] = [];
   appendActiveSystemMessage(
     state,
     {
-      appendSystemMessage: (_sessionId, message) => systemMessages.push(message),
-    } as never,
+      appendSystemMessage: (_sessionId, message) => {
+        systemMessages.push(message);
+      },
+    },
     "system",
   );
   showSystemMessageOrToast(
     state,
     {
-      appendSystemMessage: (_sessionId, message) => systemMessages.push(message),
-    } as never,
+      appendSystemMessage: (_sessionId, message) => {
+        systemMessages.push(message);
+      },
+    },
     tui,
     "notice",
   );
@@ -143,7 +163,7 @@ test("system messages go to the active tab; config falls back to overlay toast",
 
   state.tabs.length = 0;
   assert.throws(
-    () => appendActiveSystemMessage(state, { appendSystemMessage: () => undefined } as never, "x"),
+    () => appendActiveSystemMessage(state, { appendSystemMessage: () => undefined }, "x"),
     /No active tab/,
   );
 });
@@ -154,19 +174,28 @@ test("active extension commands come from the active tab, or all tabs on config"
   state.tabs.push(tab);
   state.activeTabId = "s1";
 
+  const command = (name: string) => ({
+    name,
+    description: undefined,
+    getArgumentCompletions: undefined,
+    sourceInfo: createSyntheticSourceInfo("test", { source: "test" }),
+  });
+
   assert.deepEqual(
     activeExtensionCommands(state, {
-      getExtensionCommands: (sessionId) => [{ name: sessionId }],
-    } as never),
-    [{ name: "s1" }],
+      getExtensionCommands: (sessionId) => [command(sessionId)],
+      getAllExtensionCommands: () => assert.fail("active tab must not query all tabs"),
+    }).map((entry) => entry.name),
+    ["s1"],
   );
 
   state.activeTabId = "home";
   assert.deepEqual(
     activeExtensionCommands(state, {
-      getAllExtensionCommands: () => [{ name: "all" }],
-    } as never),
-    [{ name: "all" }],
+      getExtensionCommands: () => assert.fail("home tab must not query one session"),
+      getAllExtensionCommands: () => [command("all")],
+    }).map((entry) => entry.name),
+    ["all"],
   );
 });
 
@@ -284,10 +313,7 @@ test("live autocomplete proxy keeps per-active-tab extension wrappers after rebi
   const live = createActiveAutocompleteProvider(state, runtime as never, base);
   // Warm cache for s1 (boot path reads triggerCharacters).
   assert.ok(live.triggerCharacters?.includes("$"));
-  assert.equal(
-    (await live.getSuggestions([""], 0, 0, {} as never))?.items[0]?.value,
-    "from-s1",
-  );
+  assert.equal((await live.getSuggestions([""], 0, 0, {} as never))?.items[0]?.value, "from-s1");
 
   // addAutocompleteProvider rebind signal: invalidate + keep the same live proxy.
   runtimeTabs.s1.extensionAutocompleteProviderCache = undefined;
@@ -304,7 +330,6 @@ test("live autocomplete proxy keeps per-active-tab extension wrappers after rebi
   assert.ok(s2Triggers.includes("@"));
   assert.ok(!s2Triggers.includes("$"), "tab B must not inherit tab A $ trigger from live resolve");
 });
-
 
 test("runtime session reopens non-persisted sessions in a new cwd", async () => {
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-reopen-session-"));
@@ -340,7 +365,7 @@ test("prompt history dedupes consecutive repeats and caps at 100", () => {
 });
 
 test("runtime model resolution falls back to faux when registry has no match", () => {
-  assert.equal(resolveRuntimeModel("faux", "", undefined).id, MIXCODE_FAUX_MODEL.id);
+  assert.equal(resolveRuntimeModel("faux", "", undefined)?.id, MIXCODE_FAUX_MODEL.id);
   const session = SessionManager.inMemory("/repo");
   assert.equal(
     resolveRuntimeModelFromSession(session, undefined, undefined).id,
