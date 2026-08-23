@@ -825,16 +825,12 @@ function mergeSpans(spans: DiffSpan[]): DiffSpan[] {
 	}
 
 	const sorted = [...spans].sort((a, b) => a.start - b.start);
-	const merged: DiffSpan[] = [sorted[0]];
+	const merged: DiffSpan[] = [];
 
-	for (let index = 1; index < sorted.length; index++) {
-		const current = sorted[index];
-		const previous = merged[merged.length - 1];
-		if (!current || !previous) {
-			continue;
-		}
-
-		if (current.start <= previous.end) {
+	for (const current of sorted) {
+		// `at(-1)` is undefined only on the first iteration, where the span always starts a new run.
+		const previous = merged.at(-1);
+		if (previous && current.start <= previous.end) {
 			previous.end = Math.max(previous.end, current.end);
 			continue;
 		}
@@ -924,20 +920,27 @@ function computeInlineDiffSpans(leftLine: string, rightLine: string): { left: Di
 		};
 	}
 
-	const table: number[][] = Array.from({ length: leftCount + 1 }, () => Array<number>(rightCount + 1).fill(0));
+	// LCS table built row by row so the current and previous rows stay in hand,
+	// instead of re-indexing a pre-allocated matrix.
+	const firstRow = Array<number>(rightCount + 1).fill(0);
+	const table: number[][] = [firstRow];
+	let previousRow = firstRow;
 
 	for (let leftIndex = 1; leftIndex <= leftCount; leftIndex++) {
+		const row = Array<number>(rightCount + 1).fill(0);
 		const leftToken = leftTokens[leftIndex - 1];
 		for (let rightIndex = 1; rightIndex <= rightCount; rightIndex++) {
 			const rightToken = rightTokens[rightIndex - 1];
 			if (leftToken?.value === rightToken?.value) {
-				table[leftIndex][rightIndex] = (table[leftIndex - 1]?.[rightIndex - 1] ?? 0) + 1;
+				row[rightIndex] = (previousRow[rightIndex - 1] ?? 0) + 1;
 			} else {
-				const top = table[leftIndex - 1]?.[rightIndex] ?? 0;
-				const side = table[leftIndex]?.[rightIndex - 1] ?? 0;
-				table[leftIndex][rightIndex] = Math.max(top, side);
+				const top = previousRow[rightIndex] ?? 0;
+				const side = row[rightIndex - 1] ?? 0;
+				row[rightIndex] = Math.max(top, side);
 			}
 		}
+		table.push(row);
+		previousRow = row;
 	}
 
 	const changedLeft = new Set<number>();

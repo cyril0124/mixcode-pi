@@ -15,8 +15,8 @@ import { applyMixCodeKeybindings } from "../agent/runtime-pi-tui-bridge.js";
 import { ensureExtensionThemeInitialized } from "../agent/runtime-extension-theme.js";
 import type { MixCodeRuntime } from "../agent/runtime.js";
 import { reloadRuntimeModels } from "./app-actions.js";
-import type { MixCodeState } from "../core/types.js";
-import { pushToast } from "../core/toast.js";
+import type { MixCodeState, MixCodeTabInfo } from "../core/types.js";
+import { pushToast, type ToastRequest } from "../core/toast.js";
 import { getActiveTab } from "../core/tabs.js";
 import type { AuthInputHost } from "./app-types.js";
 
@@ -25,6 +25,14 @@ type AuthSelectorProvider = {
   name: string;
   authType: AuthType;
 };
+
+/**
+ * Toasts paint on an agent tab surface (Home paints the selected agent's toast).
+ * /login and /logout are reachable with zero agent tabs open, where no surface exists.
+ */
+function notifyTab(tab: MixCodeTabInfo | undefined, toast: ToastRequest): void {
+  if (tab) pushToast(tab, toast);
+}
 
 /**
  * Open /login flow: replace input area with provider selector → auth type → OAuth or API key input.
@@ -46,12 +54,12 @@ export async function openPiLogin(
   const active = getActiveTab(state);
 
   if (!modelRuntime) {
-    pushToast(state.tabs[0], { type: "error", message: "Auth not available (no model runtime)" });
+    notifyTab(active, { type: "error", message: "Auth not available (no model runtime)" });
     return;
   }
 
   if (!inputHost) {
-    pushToast(state.tabs[0], { type: "error", message: "Auth UI not available" });
+    notifyTab(active, { type: "error", message: "Auth UI not available" });
     return;
   }
 
@@ -61,7 +69,7 @@ export async function openPiLogin(
   try {
     const providers = await getLoginProviders(modelRuntime);
     if (providers.length === 0) {
-      pushToast(state.tabs[0], { type: "warning", message: "No login providers available" });
+      notifyTab(active, { type: "warning", message: "No login providers available" });
       return;
     }
 
@@ -73,7 +81,7 @@ export async function openPiLogin(
         (p) => p.id.toLowerCase() === normalized || p.name.toLowerCase() === normalized,
       );
       if (!selectedProvider) {
-        pushToast(state.tabs[0], {
+        notifyTab(active, {
           type: "error",
           message: `Provider not found: ${providerRef}`,
         });
@@ -87,14 +95,14 @@ export async function openPiLogin(
     await performLogin(inputHost, modelRuntime, selectedProvider);
 
     await reloadRuntimeModels(state, runtime);
-    pushToast(state.tabs[0], {
+    notifyTab(active, {
       type: "success",
       message: `Logged in to ${selectedProvider.name}`,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (message !== "Login cancelled" && message !== "Cancelled") {
-      pushToast(state.tabs[0], { type: "error", message: `Login failed: ${message}` });
+      notifyTab(active, { type: "error", message: `Login failed: ${message}` });
     }
   } finally {
     restoreKeys();
@@ -121,12 +129,12 @@ export async function openPiLogout(
   const active = getActiveTab(state);
 
   if (!modelRuntime) {
-    pushToast(state.tabs[0], { type: "error", message: "Auth not available (no model runtime)" });
+    notifyTab(active, { type: "error", message: "Auth not available (no model runtime)" });
     return;
   }
 
   if (!inputHost) {
-    pushToast(state.tabs[0], { type: "error", message: "Auth UI not available" });
+    notifyTab(active, { type: "error", message: "Auth UI not available" });
     return;
   }
 
@@ -136,7 +144,7 @@ export async function openPiLogout(
   try {
     const providers = await getLogoutProviders(modelRuntime);
     if (providers.length === 0) {
-      pushToast(state.tabs[0], { type: "warning", message: "No stored credentials to logout" });
+      notifyTab(active, { type: "warning", message: "No stored credentials to logout" });
       return;
     }
 
@@ -145,14 +153,14 @@ export async function openPiLogout(
 
     await modelRuntime.logout(selected.id);
     await reloadRuntimeModels(state, runtime);
-    pushToast(state.tabs[0], {
+    notifyTab(active, {
       type: "success",
       message: `Logged out from ${selected.name}`,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (message !== "Cancelled") {
-      pushToast(state.tabs[0], { type: "error", message: `Logout failed: ${message}` });
+      notifyTab(active, { type: "error", message: `Logout failed: ${message}` });
     }
   } finally {
     restoreKeys();

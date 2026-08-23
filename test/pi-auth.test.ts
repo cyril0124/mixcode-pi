@@ -7,6 +7,7 @@ import { test } from "node:test";
 import { InMemoryCredentialStore } from "@earendil-works/pi-ai";
 import { ModelRegistry, ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { MixCodeRuntime, createInitialState, createTab } from "./helpers/mixcode.js";
+import { activateTab } from "../src/core/tabs.js";
 import { testRuntime } from "./helpers/runtime-stub.js";
 import { openPiLogin, openPiLogout } from "../src/ui/pi-auth.js";
 
@@ -66,6 +67,23 @@ test("openPiLogin surfaces missing runtime and missing input host as toasts", as
   await openPiLogin(state, runtime, undefined);
   assert.equal(state.tabs[0]?.toast?.type, "error");
   assert.match(state.tabs[0]?.toast?.message ?? "", /Auth UI not available/);
+});
+
+test("openPiLogin routes its toast to the active tab, and is a no-op with zero tabs", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo"), createTab(2, "s2", "/repo"));
+  activateTab(state, "s2");
+
+  const noRuntime = testRuntime({ getSharedModelRuntime: () => undefined });
+  await openPiLogin(state, noRuntime, undefined);
+  assert.equal(state.tabs[1]?.toast?.type, "error");
+  assert.equal(state.tabs[0]?.toast, undefined, "toast must not land on the first tab");
+
+  // /login is reachable from Home with no agent tab open; there is no toast surface then.
+  const empty = createInitialState("/repo");
+  await openPiLogin(empty, noRuntime, undefined);
+  await openPiLogout(empty, noRuntime, undefined);
+  assert.equal(empty.tabs.length, 0);
 });
 
 test("openPiLogout surfaces missing runtime and missing input host as toasts", async () => {
