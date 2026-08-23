@@ -5,120 +5,17 @@ import * as path from "node:path";
 import * as os from "node:os";
 import { test } from "node:test";
 import {
-  Type,
-  createAssistantMessageEventStream,
-  type AssistantMessage,
-  type Context,
-  type Model,
-  type SimpleStreamOptions,
-} from "@earendil-works/pi-ai";
-import {
   getMarkdownTheme,
-  SettingsManager,
   type ExtensionFactory,
 } from "@earendil-works/pi-coding-agent";
-import { Markdown, Text, TuiMainScreen, visibleWidth, type AutocompleteProvider, type Component, type OverlayOptions, type Terminal } from "@earendil-works/pi-tui";
+import { Markdown, TuiMainScreen, type Component, type OverlayOptions, type Terminal } from "@earendil-works/pi-tui";
 import {
-  MIXCODE_FAUX_MODEL,
-  MixCodeCompletionProvider,
-  MixCodeRoot,
   MixCodeRuntime,
-  box,
   createInitialState,
   createTab,
   createMixCodeTui,
-  handleSubmittedInput,
-  mixcodeFauxStream,
-  padLine,
-  renderChat,
-  renderCommandPalette,
-  renderHome,
-  renderSystemToolsText,
-  renderExtensionFooter,
-  renderExtensionHeader,
-  renderExtensionWidgets,
-  renderInputMeta,
-  renderAgentSurface,
-  renderPickerOverlay,
-  renderQueuePreview,
   renderTabBar,
-  renderTabJumpOverlay,
-  renderWorkingIndicator,
-  fitHeadLines,
-  fitTailLines,
-  themeForId,
 } from "./helpers/mixcode.js";
-
-function delayedAssistantStream(text: string, ready: Promise<void>, options?: SimpleStreamOptions) {
-  const stream = createAssistantMessageEventStream();
-  queueMicrotask(async () => {
-    const message = runtimeAssistantMessage(`Echo: ${text}`);
-    await ready;
-    if (options?.signal?.aborted) {
-      const aborted = {
-        ...message,
-        content: [],
-        stopReason: "aborted" as const,
-        errorMessage: "Request was aborted",
-      };
-      stream.push({ type: "error", reason: "aborted", error: aborted });
-      stream.end(aborted);
-      return;
-    }
-    stream.push({ type: "start", partial: { ...message, content: [] } });
-    stream.push({
-      type: "text_start",
-      contentIndex: 0,
-      partial: { ...message, content: [{ type: "text", text: "" }] },
-    });
-    stream.push({
-      type: "text_delta",
-      contentIndex: 0,
-      delta: message.content[0]!.text,
-      partial: message,
-    });
-    stream.push({
-      type: "text_end",
-      contentIndex: 0,
-      content: message.content[0]!.text,
-      partial: message,
-    });
-    stream.push({ type: "done", reason: "stop", message });
-    stream.end(message);
-  });
-  return stream;
-}
-
-function runtimeAssistantMessage(text: string): AssistantMessage {
-  return {
-    role: "assistant",
-    content: [{ type: "text", text }],
-    api: "queue-test",
-    provider: "queue-test",
-    model: "queue-test-model",
-    usage: {
-      input: 1,
-      output: 1,
-      cacheRead: 0,
-      cacheWrite: 0,
-      totalTokens: 2,
-      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-    },
-    stopReason: "stop",
-    timestamp: Date.now(),
-  };
-}
-
-function lastRuntimeUserText(context: Context): string {
-  for (const message of [...context.messages].reverse()) {
-    if (message.role !== "user") continue;
-    if (typeof message.content === "string") return message.content;
-    return message.content
-      .map((block) => (block.type === "text" ? block.text : "[image]"))
-      .join("\n");
-  }
-  return "";
-}
 
 async function waitForRuntime(predicate: () => boolean, attempts = 25): Promise<void> {
   for (let i = 0; i < attempts; i += 1) {
@@ -163,10 +60,6 @@ function silentTerminal(): Terminal {
     setTitle: () => undefined,
     setProgress: () => undefined,
   };
-}
-
-function escapeRegExp(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 test("runtime initializes pi theme before rendering extension custom markdown overlays", async () => {

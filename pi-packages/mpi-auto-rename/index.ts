@@ -16,7 +16,6 @@ import {
 } from "@earendil-works/pi-ai/compat";
 import {
   getAgentDir,
-  type ExtensionAPI,
   type ExtensionCommandContext,
   type ExtensionContext,
   type ExtensionFactory,

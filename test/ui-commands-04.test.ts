@@ -9,19 +9,11 @@ import {
   configureOpenTabsPath,
   handleMixCodeKeyInput,
   handleSubmittedInput,
-  renderHome,
   renderHotkeysText,
-  renderInputMeta,
-  renderPickerOverlay,
   readOpenTabs,
-  setTheme,
-  tabBarHitRegions,
   writeOpenTabs,
-  themeForId,
 } from "./helpers/mixcode.js";
 import type { MixCodeRuntime } from "./helpers/mixcode.js";
-import type { Model } from "@earendil-works/pi-ai";
-import { MIXCODE_FAUX_MODEL } from "./helpers/mixcode.js";
 
 type TestChatLine = { role: "system"; text: string; kind?: string };
 
@@ -43,25 +35,6 @@ function createOverlayCaptureTui() {
     hasOverlay: () => visible,
     hideOverlay: () => { visible = false; },
   };
-}
-
-function assertQuitOverlay(text: string | undefined): void {
-  assert.match(text ?? "", /┌/);
-  assert.match(text ?? "", /Quit MixCode/);
-  assert.match(text ?? "", /\[Y\] Quit/);
-}
-
-async function waitFor<T>(read: () => Promise<T>, attempts = 25): Promise<T> {
-  let lastError: unknown;
-  for (let index = 0; index < attempts; index++) {
-    try {
-      return await read();
-    } catch (error) {
-      lastError = error;
-      await Bun.sleep(10);
-    }
-  }
-  throw lastError;
 }
 
 test("global key input dispatches extension shortcuts only from the main editor surface", () => {
@@ -145,7 +118,7 @@ test("global key input leaves extension custom overlay input to pi-tui focus", (
       return true;
     },
   };
-  const changes: string[] = [];
+  const _changes: string[] = [];
 
   assert.equal(handleMixCodeKeyInput(state, "x", tui, undefined, runtime), undefined);
   assert.equal(handleMixCodeKeyInput(state, "\r", tui, undefined, runtime), undefined);

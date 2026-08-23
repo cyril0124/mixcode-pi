@@ -5,7 +5,6 @@ import * as path from "node:path";
 import { test } from "node:test";
 import {
   formatCommandCatalog,
-  formatCommandUsage,
   isCommandsCliArgs,
   loadCommandCatalog,
   mergeCommandCatalog,

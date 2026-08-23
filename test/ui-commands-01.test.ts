@@ -6,14 +6,9 @@ import { test } from "node:test";
 import {
   createInitialState,
   createTab,
-  handleMixCodeKeyInput,
   handleSubmittedInput,
-  renderHome,
-  renderInputMeta,
-  renderPickerOverlay,
   setStateModel,
   setTabModel,
-  tabBarHitRegions,
   setTheme,
   themeForId,
   listThemeInfos,
@@ -22,28 +17,8 @@ import type { MixCodeRuntime } from "./helpers/mixcode.js";
 import { allKnownThinkingLevels } from "../src/core/thinking-levels.js";
 import { InMemoryCredentialStore, type Model } from "@earendil-works/pi-ai";
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
-import { MIXCODE_FAUX_MODEL } from "./helpers/mixcode.js";
 
 type TestChatLine = { role: "system"; text: string };
-
-function assertQuitOverlay(text: string | undefined): void {
-  assert.match(text ?? "", /┌/);
-  assert.match(text ?? "", /Quit MixCode/);
-  assert.match(text ?? "", /\[Y\] Quit/);
-}
-
-async function waitFor<T>(read: () => Promise<T>, attempts = 25): Promise<T> {
-  let lastError: unknown;
-  for (let index = 0; index < attempts; index++) {
-    try {
-      return await read();
-    } catch (error) {
-      lastError = error;
-      await Bun.sleep(10);
-    }
-  }
-  throw lastError;
-}
 
 test("theme registry validates and suggests themes", () => {
   const state = createInitialState("/repo");
@@ -279,7 +254,9 @@ test("submitted input opens TUI state JSON in external editor", async () => {
   const editorScript = path.join(dir, "editor.sh");
   const previousEditor = process.env.EDITOR;
   try {
-    await fsPromises.writeFile(editorScript, `#!/bin/sh\ncp "$1" "${captureFile}"\n`, { mode: 0o755 });
+    await fsPromises.writeFile(editorScript, `#!/bin/sh\ncp "$1" "${captureFile}"\n`, {
+      mode: 0o755,
+    });
     const state = createInitialState("/repo");
     const tab = createTab(1, "s1", "/repo");
     state.tabs.push(tab);

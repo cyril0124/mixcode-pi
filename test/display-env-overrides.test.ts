@@ -1,6 +1,5 @@
 import "./helpers/isolated-agent-dir.js";
 import assert from "node:assert/strict";
-import * as path from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import { createTab } from "../src/core/defaults.js";
 import { renderInputMeta } from "../src/ui/rendering/chrome.js";

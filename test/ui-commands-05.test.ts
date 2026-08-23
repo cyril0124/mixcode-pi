@@ -11,26 +11,12 @@ import {
   handleSubmittedInput,
   openTabsFile,
   readOpenTabs,
-  renderHome,
-  renderInputMeta,
-  renderPickerOverlay,
-  tabBarHitRegions,
-  setTheme,
-  themeForId,
   writeOpenTabs,
 } from "./helpers/mixcode.js";
 import { UUIDV7_SESSION_ID_PATTERN } from "./helpers/session-id.js";
 import type { MixCodeRuntime } from "./helpers/mixcode.js";
-import type { Model } from "@earendil-works/pi-ai";
-import { MIXCODE_FAUX_MODEL } from "./helpers/mixcode.js";
 
 type TestChatLine = { role: "system"; text: string; kind?: string };
-
-function assertQuitOverlay(text: string | undefined): void {
-  assert.match(text ?? "", /┌/);
-  assert.match(text ?? "", /Quit MixCode/);
-  assert.match(text ?? "", /\[Y\] Quit/);
-}
 
 async function waitFor<T>(read: () => Promise<T>, attempts = 25): Promise<T> {
   let lastError: unknown;

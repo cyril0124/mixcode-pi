@@ -37,7 +37,7 @@ export function notifyWarning(ctx: ExtensionContext, message: string): void {
 	ctx.ui.notify(message, "warning");
 }
 
-export async function promptResumePausedGoal(ctx: ExtensionContext, goal: GoalState): Promise<boolean> {
+export async function promptResumePausedGoal(ctx: ExtensionContext, _goal: GoalState): Promise<boolean> {
 	const choice = await ctx.ui.select("Resume paused goal?", ["Resume goal", "Leave paused"]);
 	return choice === "Resume goal";
 }

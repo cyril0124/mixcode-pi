@@ -39,9 +39,8 @@ import {
   showErrorOverlay,
   showLinesOverlay,
 } from "./app-overlays.js";
-import { activeExtensionCommands } from "./app-runtime.js";
 import type { CommandPaletteActions, MixCodeKeyRuntime, OverlayTui } from "./app-types.js";
-import { handleListOverlayMouse, hitTestListOverlay } from "./components/list-overlay-mouse.js";
+import { handleListOverlayMouse, } from "./components/list-overlay-mouse.js";
 import {
   planCommandPaletteList,
   planTabJumpList,

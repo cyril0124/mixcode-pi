@@ -4,7 +4,7 @@ import type {
   AuthPrompt,
   AuthType,
 } from "@earendil-works/pi-ai";
-import type { Component, TUI } from "@earendil-works/pi-tui";
+import type { TUI } from "@earendil-works/pi-tui";
 import {
   LoginDialogComponent,
   OAuthSelectorComponent,

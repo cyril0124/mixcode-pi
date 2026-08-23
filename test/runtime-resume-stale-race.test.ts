@@ -152,7 +152,7 @@ test("resume keeps a session-start turn visibly running", async () => {
         },
       ],
     });
-    const initial = await runtime.createTab(createTab(1, "s1", process.cwd()), {
+    const _initial = await runtime.createTab(createTab(1, "s1", process.cwd()), {
       systemPrompt: "system",
       thinkingLevel: "medium",
       workdir: process.cwd(),

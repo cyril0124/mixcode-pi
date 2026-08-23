@@ -5,11 +5,9 @@ import * as os from "node:os";
 import { test } from "node:test";
 import { CURSOR_MARKER, visibleWidth, type AutocompleteProvider, type Component, type OverlayOptions, type Terminal } from "@earendil-works/pi-tui";
 import {
-  MixCodeCompletionProvider,
   createInitialState,
   createTab,
   createMixCodeTui,
-  handleSubmittedInput,
   type MixCodeRuntime,
 } from "./helpers/mixcode.js";
 

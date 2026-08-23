@@ -58,7 +58,7 @@ const ansiRed = (text: string) => `\x1b[31m${text}\x1b[39m`;
 const ansiGreen = (text: string) => `\x1b[32m${text}\x1b[39m`;
 const ansiYellow = (text: string) => `\x1b[33m${text}\x1b[39m`;
 const ansiBlue = (text: string) => `\x1b[34m${text}\x1b[39m`;
-const ansiMagenta = (text: string) => `\x1b[35m${text}\x1b[39m`;
+const _ansiMagenta = (text: string) => `\x1b[35m${text}\x1b[39m`;
 const ansiCyan = (text: string) => `\x1b[36m${text}\x1b[39m`;
 const dim = (text: string) => `\x1b[2m${text}\x1b[22m`;
 

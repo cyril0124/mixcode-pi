@@ -406,7 +406,7 @@ export function handleMixCodeKeyInput(
 /** Home (Agent View) table nav + attach/submit. Returns undefined to fall through. */
 function handleHomeAgentViewKey(
   state: MixCodeState,
-  active: ActiveTab | undefined,
+  _active: ActiveTab | undefined,
   data: string,
   tui: OverlayTui,
   runtime: MixCodeKeyRuntime | undefined,
@@ -591,7 +591,7 @@ function handleAgentSurfaceKeys(
   runtime: MixCodeKeyRuntime | undefined,
   isEditorAutocompleteOpen: () => boolean,
   editorActions: MixCodeEditorActions | undefined,
-  onStateChanged?: (state: MixCodeState) => void | Promise<void>,
+  _onStateChanged?: (state: MixCodeState) => void | Promise<void>,
 ): KeyResult {
   // Right on empty input toggles the extension widget side panel. Mirrors the
   // Left-returns-Home guard so it never steals the editor's cursor-right when

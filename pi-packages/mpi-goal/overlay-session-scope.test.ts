@@ -51,7 +51,7 @@ test("overlay-style getSnapshot must re-enter session key or it shows No active 
 			setStatus() {},
 			setWidget() {},
 			// Capture the factory's getSnapshot the way openGoalOverlay wires it.
-			async custom(factory: (tui: unknown, theme: unknown, kb: unknown, done: (v: undefined) => void) => { getSnapshot?: () => { goal: unknown } }) {
+			async custom(_factory: (tui: unknown, theme: unknown, kb: unknown, done: (v: undefined) => void) => { getSnapshot?: () => { goal: unknown } }) {
 				// We don't use real GoalManagementView; instead mirror the bug:
 				// command sets state under ALS, then later getSnapshot runs without ALS.
 				return undefined as undefined;

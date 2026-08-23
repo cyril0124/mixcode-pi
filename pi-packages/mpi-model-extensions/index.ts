@@ -19,7 +19,6 @@ import {
   ruleMatches,
   setModelExtensionsEnabled,
   type ModelExtensionsConfig,
-  type ModelExtensionsRule,
   type ModelLike,
   type PlanWarning,
 } from "./model-extensions-core.js";

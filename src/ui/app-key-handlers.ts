@@ -478,7 +478,7 @@ export function handleEscapeKey(
   runtime: MixCodeKeyRuntime | undefined,
   editorActions: MixCodeEditorActions | undefined,
   isEditorAutocompleteOpen: () => boolean,
-  onStateChanged?: (state: MixCodeState) => void | Promise<void>,
+  _onStateChanged?: (state: MixCodeState) => void | Promise<void>,
 ): { consume: true } | undefined {
   // 1. Extension custom overlay takes escape before any other dispatch
   //    (passthrough). Focus restoration happens in the shared lazy-refocus

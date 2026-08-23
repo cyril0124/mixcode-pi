@@ -22,7 +22,6 @@ import {
   type ReviewDraft,
   type ReviewIntent,
   type ReviewTarget,
-  reviewTargetKey,
   saveReviewComment,
   sortedReviewComments,
 } from "./review.js";

@@ -67,7 +67,7 @@ test("working active tab keeps the title readable", () => {
   const line = renderTabBar(state, 80, themeForId("mixcode-dark"))[0] ?? "";
   const plain = stripAnsi(line);
   assert.match(plain, /● Worker/);
-  const theme = themeForId("mixcode-dark");
+  const _theme = themeForId("mixcode-dark");
   assert.ok(plain.includes("● Worker "), "working displays the chip text after the focus mark");
 });
 
@@ -79,7 +79,7 @@ test("waiting tab keeps a colored ? without washing out the title", () => {
   state.tabs.push(tab);
   activateTab(state, "s1");
   const line = renderTabBar(state, 80, themeForId("mixcode-dark"))[0] ?? "";
-  const theme = themeForId("mixcode-dark");
+  const _theme = themeForId("mixcode-dark");
   assert.match(stripAnsi(line), /\? Asker/);
   assert.ok(stripAnsi(line).includes("? Asker "), "waiting displays the chip text after the focus mark");
 });

@@ -14,40 +14,11 @@ import {
   type ToolCall,
 } from "@earendil-works/pi-ai";
 import {
-  getMarkdownTheme,
-  SettingsManager,
-  type ExtensionFactory,
-} from "@earendil-works/pi-coding-agent";
-import { Markdown, Text, TuiMainScreen, visibleWidth, type AutocompleteProvider, type Component, type OverlayOptions, type Terminal } from "@earendil-works/pi-tui";
-import {
   MIXCODE_FAUX_MODEL,
-  MixCodeCompletionProvider,
-  MixCodeRoot,
   MixCodeRuntime,
-  box,
-  createInitialState,
   createTab,
-  createMixCodeTui,
-  handleSubmittedInput,
   mixcodeFauxStream,
-  padLine,
-  renderChat,
-  renderCommandPalette,
-  renderHome,
-  renderSystemToolsText,
-  renderExtensionFooter,
-  renderExtensionHeader,
-  renderExtensionWidgets,
-  renderInputMeta,
-  renderAgentSurface,
-  renderPickerOverlay,
-  renderQueuePreview,
-  renderTabBar,
-  renderTabJumpOverlay,
   renderWorkingIndicator,
-  fitHeadLines,
-  fitTailLines,
-  themeForId,
 } from "./helpers/mixcode.js";
 
 function delayedAssistantStream(text: string, ready: Promise<void>, options?: SimpleStreamOptions) {
@@ -197,47 +168,6 @@ async function waitForRuntime(predicate: () => boolean, attempts = 25): Promise<
     await Bun.sleep(10);
   }
   assert.equal(predicate(), true);
-}
-
-async function waitFor(predicate: () => boolean, attempts = 25): Promise<void> {
-  await waitForRuntime(predicate, attempts);
-}
-
-function stripAnsi(text: string): string {
-  return text
-    .replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "")
-    .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, "")
-    .replace(/\x1b_[^\x07]*(?:\x07|\x1b\\)/g, "");
-}
-
-function silentTerminal(): Terminal {
-  return {
-    start: () => undefined,
-    stop: () => undefined,
-    drainInput: async () => undefined,
-    write: () => undefined,
-    get columns() {
-      return 80;
-    },
-    get rows() {
-      return 24;
-    },
-    get kittyProtocolActive() {
-      return false;
-    },
-    moveBy: () => undefined,
-    hideCursor: () => undefined,
-    showCursor: () => undefined,
-    clearLine: () => undefined,
-    clearFromCursor: () => undefined,
-    clearScreen: () => undefined,
-    setTitle: () => undefined,
-    setProgress: () => undefined,
-  };
-}
-
-function escapeRegExp(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 test("runtime drains queued prompts automatically after agent_end reaches idle", async () => {

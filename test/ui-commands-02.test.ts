@@ -9,24 +9,11 @@ import {
   createTab,
   handleMixCodeKeyInput,
   handleSubmittedInput,
-  renderHome,
-  renderInputMeta,
   renderPickerOverlay,
-  tabBarHitRegions,
-  setTheme,
-  themeForId,
 } from "./helpers/mixcode.js";
 import type { MixCodeRuntime } from "./helpers/mixcode.js";
 import type { Model } from "@earendil-works/pi-ai";
 import { MIXCODE_FAUX_MODEL } from "./helpers/mixcode.js";
-
-type TestChatLine = { role: "system"; text: string };
-
-function assertQuitOverlay(text: string | undefined): void {
-  assert.match(text ?? "", /┌/);
-  assert.match(text ?? "", /Quit MixCode/);
-  assert.match(text ?? "", /\[Y\] Quit/);
-}
 
 async function waitFor<T>(read: () => Promise<T>, attempts = 25): Promise<T> {
   let lastError: unknown;
@@ -57,7 +44,7 @@ test("submitted input opens local pickers and picker keys apply selections", asy
   const overlays: string[] = [];
   let overlayOpen = false;
   let renders = 0;
-  const editorText = "";
+  const _editorText = "";
   const tui = {
     requestRender: () => renders++,
     showOverlay: (component: { render?: (width: number) => string[] } | string) => {

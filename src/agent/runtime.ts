@@ -46,7 +46,6 @@ import {
   inspectSessionImport,
   isNothingToCompactError,
   resetTabForNewSession,
-  syncContextUsage,
   syncPreviewFromChat,
   type SystemMessageKind,
 } from "./runtime-chat.js";

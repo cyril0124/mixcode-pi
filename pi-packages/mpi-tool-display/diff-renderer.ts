@@ -1,7 +1,7 @@
 // License notices: ./THIRD_PARTY_NOTICES.md.
 import { Text, truncateToWidth, visibleWidth, wrapTextWithAnsi, type Component } from "@earendil-works/pi-tui";
 import { getLanguageFromPath, highlightCode, type EditToolDetails } from "@earendil-works/pi-coding-agent";
-import { ANSI_SGR_PATTERN, STYLE_RESET_PARAMS, filterSgrSequences, toSgrParams, readSgrColorSequence, isFiniteSgrParam, expandSgrReset } from "./ansi-utils.js";
+import { ANSI_SGR_PATTERN, filterSgrSequences, toSgrParams, readSgrColorSequence, expandSgrReset } from "./ansi-utils.js";
 import {
 	buildCollapsedDiffHintText,
 	clampRenderedLineToWidth,

@@ -37,7 +37,12 @@ export function isMixcodeProcess(env: NodeJS.ProcessEnv = process.env): boolean 
 }
 
 export function herdrBridgeEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  return isMixcodeProcess(env) && env.HERDR_ENV === "1" && !!env.HERDR_SOCKET_PATH?.trim() && !!env.HERDR_PANE_ID?.trim();
+  return (
+    isMixcodeProcess(env) &&
+    env.HERDR_ENV === "1" &&
+    !!env.HERDR_SOCKET_PATH?.trim() &&
+    !!env.HERDR_PANE_ID?.trim()
+  );
 }
 
 export function resolveHerdrPaneId(env: NodeJS.ProcessEnv = process.env): string | undefined {
@@ -45,7 +50,10 @@ export function resolveHerdrPaneId(env: NodeJS.ProcessEnv = process.env): string
   return env.HERDR_PANE_ID?.trim() || undefined;
 }
 
-export function socketEndpoint(socketPath: string, platform: NodeJS.Platform = process.platform): string {
+export function socketEndpoint(
+  socketPath: string,
+  platform: NodeJS.Platform = process.platform,
+): string {
   return platform === "win32" ? `\\\\.\\pipe\\${socketPath}` : socketPath;
 }
 
@@ -55,7 +63,6 @@ export function desiredState(agentActive: boolean, blockedCount: number): HerdrR
   if (agentActive) return "working";
   return "idle";
 }
-
 
 export function isStaleCtxError(error: unknown): boolean {
   return /stale after session replacement/.test(String(error));
@@ -141,7 +148,8 @@ export function ledgerState(ledger: HerdrLedger): HerdrReportState {
 export function parseWaitingForInputPayload(raw: unknown): WaitingForInputEventPayload {
   if (!raw || typeof raw !== "object") return { count: 0 };
   const count = (raw as { count?: unknown }).count;
-  const n = typeof count === "number" && Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0;
+  const n =
+    typeof count === "number" && Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0;
   return { count: n };
 }
 
@@ -213,8 +221,9 @@ function nextReportSeq(): number {
 }
 
 function sessionFieldsFrom(ctx: unknown): Record<string, unknown> {
-  const sessionManager = (ctx as { sessionManager?: { getSessionFile?: () => unknown; getSessionId?: () => unknown } })
-    ?.sessionManager;
+  const sessionManager = (
+    ctx as { sessionManager?: { getSessionFile?: () => unknown; getSessionId?: () => unknown } }
+  )?.sessionManager;
   try {
     const file = sessionManager?.getSessionFile?.();
     if (typeof file === "string" && file.startsWith("/")) return { agent_session_path: file };
@@ -302,7 +311,11 @@ async function drainStateQueue(): Promise<void> {
   }
 }
 
-function queueState(state: HerdrReportState, message?: string, extra: Record<string, unknown> = {}): void {
+function queueState(
+  state: HerdrReportState,
+  message?: string,
+  extra: Record<string, unknown> = {},
+): void {
   queuedState = { state, message, extra, seq: nextReportSeq() };
   if (!sendInFlight) void drainStateQueue();
 }
@@ -378,7 +391,7 @@ const herdrReportExtension: ExtensionFactory = (pi) => {
     });
   });
 
-  pi.on("session_shutdown", (event: SessionShutdownEvent) => {
+  pi.on("session_shutdown", (_event: SessionShutdownEvent) => {
     const last = releaseSession(processLedger, sessionKey);
     rootSession = false;
     sessionKey = undefined;

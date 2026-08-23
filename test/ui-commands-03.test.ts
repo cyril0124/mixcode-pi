@@ -1,43 +1,12 @@
 import assert from "node:assert/strict";
-import * as fsPromises from "node:fs/promises";
-import * as path from "node:path";
-import * as os from "node:os";
 import { test } from "node:test";
-import {
-  createInitialState,
-  createTab,
-  handleMixCodeKeyInput,
-  handleSubmittedInput,
-  renderHome,
-  renderInputMeta,
-  renderPickerOverlay,
-  tabBarHitRegions,
-  setTheme,
-  themeForId,
-} from "./helpers/mixcode.js";
+import { createInitialState, createTab, handleMixCodeKeyInput } from "./helpers/mixcode.js";
 import type { MixCodeRuntime } from "./helpers/mixcode.js";
-import type { Model } from "@earendil-works/pi-ai";
-import { MIXCODE_FAUX_MODEL } from "./helpers/mixcode.js";
-
-type TestChatLine = { role: "system"; text: string };
 
 function assertQuitOverlay(text: string | undefined): void {
   assert.match(text ?? "", /┌/);
   assert.match(text ?? "", /Quit MixCode/);
   assert.match(text ?? "", /\[Y\] Quit/);
-}
-
-async function waitFor<T>(read: () => Promise<T>, attempts = 25): Promise<T> {
-  let lastError: unknown;
-  for (let index = 0; index < attempts; index++) {
-    try {
-      return await read();
-    } catch (error) {
-      lastError = error;
-      await Bun.sleep(10);
-    }
-  }
-  throw lastError;
 }
 
 test("global @ input stays in editor", () => {

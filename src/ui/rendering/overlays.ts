@@ -42,7 +42,7 @@ export function renderHome(
 function renderHomeInner(
   state: MixCodeState,
   width: number,
-  rowOffset: number,
+  _rowOffset: number,
   maxRows?: number,
 ): string[] {
   const logo = [

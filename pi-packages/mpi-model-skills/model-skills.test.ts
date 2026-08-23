@@ -94,7 +94,7 @@ describe("isPathRef / expandEnvPath", () => {
 
     const rel = expandEnvPath("$HOME/../nope-not-how-we-check");
     // Still absolute after expand — ok. Relative without abs fails:
-    const pureRel = expandEnvPath("relative/path");
+    const _pureRel = expandEnvPath("relative/path");
     // isPathRef false so expand not used for names; if forced:
     assert.equal(expandEnvPath("relative/path").ok, false);
     void rel;
@@ -259,7 +259,7 @@ describe("applyModelSkillRules", () => {
 
   test("path with $HOME", () => {
     const root = tmpDir();
-    const skillDir = writeSkill(root, "from-home", "From home path");
+    const _skillDir = writeSkill(root, "from-home", "From home path");
     // Point HOME at tmp parent so $HOME/... resolves into our skill.
     const prev = process.env.HOME;
     process.env.HOME = root;

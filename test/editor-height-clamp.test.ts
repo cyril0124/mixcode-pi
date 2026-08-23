@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { Component } from "@earendil-works/pi-tui";
 import { initTreeSelector, type SessionTreeNode } from "../src/core/tree-selector.js";
 import { renderTreeSelector } from "../src/ui/components/tree-selector-render.js";
 import {

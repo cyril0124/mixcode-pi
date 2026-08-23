@@ -42,16 +42,6 @@ function messageNode(
   } as SessionTreeNode;
 }
 
-function sampleTree(): SessionTreeNode[] {
-  return [
-    messageNode("root", null, "user", "start", [
-      messageNode("assistant", "root", "assistant", "answer", [
-        messageNode("active", "assistant", "user", "current branch"),
-      ]),
-    ]),
-  ];
-}
-
 function toolResultTree(): SessionTreeNode[] {
   return [
     messageNode("root", null, "user", "start", [

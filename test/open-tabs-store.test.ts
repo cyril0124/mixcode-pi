@@ -9,7 +9,6 @@ import { Worker } from "node:worker_threads";
 import {
   addOpenTab,
   configureOpenTabsPath,
-  noteTabOpened,
   openTabsFile,
   readOpenTabs,
   writeOpenTabs,

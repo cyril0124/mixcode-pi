@@ -43,7 +43,7 @@ import {
 import { ensurePackageExtensions } from "../core/ensure-package-extensions.js";
 import { installConsoleTuiBridge, wireConsoleSink } from "./console-tui-bridge.js";
 import { showNoticeTextOverlay } from "../ui/app-overlays.js";
-import { configureHttpDispatcher, getAgentDir } from "@earendil-works/pi-coding-agent";
+import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import type { MainArgs } from "./main.js";
 import { isBuiltinExtensionsOnlyEnabled, resolveMixcodePackageRoot } from "./main.js";
 

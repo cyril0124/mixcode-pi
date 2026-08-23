@@ -427,7 +427,7 @@ test("applyBatchRequests runs all prompts in parallel", async () => {
   const order: string[] = [];
   const host = createMockHost();
   // Override submitInput to track execution order with delays
-  host.submitInput = async (sessionId, input) => {
+  host.submitInput = async (sessionId, _input) => {
     order.push(`start-${sessionId}`);
     await Bun.sleep(10);
     order.push(`end-${sessionId}`);
