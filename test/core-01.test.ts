@@ -259,12 +259,15 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
     const serialized = serializeState(state);
     assert.deepEqual(serialized.children, ["s1", "s2"]);
     assert.equal((serialized.workdirs as Record<string, string>).s1, "/repo");
+    assert.equal((serialized.tab_titles as Record<string, string>).s1, "Renamed Agent");
+    // Default Agent-NN titles stay out of the snapshot; deserialize regenerates them by index.
+    assert.equal((serialized.tab_titles as Record<string, string>).s2, undefined);
     assert.deepEqual(serialized.unseen_done, ["s1"]);
     const restored = deserializeState(serialized, "/fallback");
     assert.equal(restored.theme, "claude-warm");
     assert.equal(restored.activeTabId, "home");
     assert.equal(restored.tabs[0]?.sessionId, "s1");
-    assert.equal(restored.tabs[0]?.title, "Agent-01");
+    assert.equal(restored.tabs[0]?.title, "Renamed Agent");
     assert.equal(restored.tabs[0]?.workdir, "/repo");
     assert.equal(restored.tabs[0]?.alias, "");
     assert.equal(restored.tabs[0]?.unreadDone, true);
@@ -317,7 +320,7 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
       minimal.tabs.map((tab) => tab.sessionId),
       ["x"],
     );
-    assert.equal(minimal.tabs[0]?.title, "Agent-01");
+    assert.equal(minimal.tabs[0]?.title, "Worker");
     assert.deepEqual(minimal.tabs[0]?.previewMessages, []);
     assert.equal(minimal.tabs[0]?.previewIndex, 0);
     assert.deepEqual(minimal.tabs[0]?.pendingMessages, []);
@@ -346,7 +349,7 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
       "/fallback",
     );
     assert.equal(extraFields.theme, "claude-warm");
-    assert.equal(extraFields.tabs[0]?.title, "Agent-01");
+    assert.equal(extraFields.tabs[0]?.title, "Worker");
     assert.equal(extraFields.tabs[0]?.alias, "");
     assert.equal(extraFields.tabs[0]?.model.modelId, "faux-1");
     assert.equal(extraFields.tabs[0]?.thinkingLevel, "medium");

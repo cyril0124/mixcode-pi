@@ -263,7 +263,11 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
       const sessionName = runtimeTab.session.getSessionName();
       if (sessionName) tab.title = sessionName;
     }),
-  ) as unknown as Promise<void>;
+  ).then(async () => {
+    // Persist restored session titles so subsequent startups show custom
+    // titles on the initial paint without waiting for tabsReady.
+    await saveStateFile(stateFile, state);
+  });
   return {
     state,
     runtime,

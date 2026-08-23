@@ -77,6 +77,11 @@ export function createInitialState(workdir: string, defaultThinkingLevel?: Think
   };
 }
 
+/** Default tab title for a 1-based tab index (`Agent-01`, `Agent-02`, …). */
+export function defaultTabTitle(index: number): string {
+  return `Agent-${String(index).padStart(2, "0")}`;
+}
+
 export function createTab(
   index: number,
   sessionId: string,
@@ -86,7 +91,7 @@ export function createTab(
   return {
     index,
     sessionId,
-    title: `Agent-${String(index).padStart(2, "0")}`,
+    title: defaultTabTitle(index),
     status: "idle",
     tokenInput: 0,
     tokenOutput: 0,

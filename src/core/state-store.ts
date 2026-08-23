@@ -1,8 +1,8 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { createInitialState, createTab } from "./defaults.js";
+import { createInitialState, createTab, defaultTabTitle } from "./defaults.js";
 import { isKnownThinkingLevel } from "./thinking-levels.js";
-import type { MixCodeState, WorkspaceSnapshot } from "./types.js";
+import type { MixCodeState, MixCodeTabInfo, WorkspaceSnapshot } from "./types.js";
 
 export function stateFileForPort(stateDir: string, port: number): string {
   return port === 0
@@ -21,10 +21,15 @@ export function normalizeStartupWorkdir(workdir: string): string {
 }
 
 export function serializeState(state: MixCodeState): Record<string, unknown> {
-  // Open tabs, per-tab workdirs, and unread-done flags.
+  // Open tabs, per-tab workdirs, custom titles, and unread-done flags.
   return {
     children: state.tabs.map((tab) => tab.sessionId),
     workdirs: Object.fromEntries(state.tabs.map((tab) => [tab.sessionId, tab.workdir])),
+    tab_titles: Object.fromEntries(
+      state.tabs
+        .filter((tab) => tab.title !== defaultTabTitle(tab.index))
+        .map((tab) => [tab.sessionId, tab.title]),
+    ),
     startup_workdir: state.workdir,
     unseen_done: state.tabs.filter((tab) => tab.unreadDone).map((tab) => tab.sessionId),
   };
@@ -38,19 +43,26 @@ export function deserializeState(
     typeof data.startup_workdir === "string" ? data.startup_workdir : fallbackWorkdir,
   );
   const workdirs = objectRecord(data.workdirs);
+  const titles = objectRecord(data.tab_titles);
   const unseen = new Set(Array.isArray(data.unseen_done) ? data.unseen_done.map(String) : []);
   if (Array.isArray(data.children)) {
     state.tabs = data.children
       .map(String)
       .filter((sessionId) => sessionId.trim())
-      .map((sessionId, index) =>
-        createTab(
+      .map((sessionId, index) => {
+        const storedTitle = titles[sessionId];
+        const title = typeof storedTitle === "string" ? storedTitle.trim() : "";
+        const overrides: Partial<MixCodeTabInfo> = {
+          unreadDone: unseen.has(sessionId),
+          ...(title ? { title } : {}),
+        };
+        return createTab(
           index + 1,
           sessionId,
           typeof workdirs[sessionId] === "string" ? workdirs[sessionId] : state.workdir,
-          { unreadDone: unseen.has(sessionId) },
-        ),
-      );
+          overrides,
+        );
+      });
   }
   return state;
 }
