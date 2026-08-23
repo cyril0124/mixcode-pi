@@ -291,16 +291,6 @@ export async function runInteractiveApp(args: MainArgs, selfRoot: string): Promi
       await scheduleRegistrySnapshot();
       tui.requestRender();
     },
-    syncTabTitles: (titles) => {
-      let changed = false;
-      for (const { sessionId, title } of titles) {
-        const tab = state.tabs.find((candidate) => candidate.sessionId === sessionId);
-        if (!tab || tab.title === title) continue;
-        tab.title = title;
-        changed = true;
-      }
-      if (changed) tui.requestRender();
-    },
     reorderTabs: async (orderedSessionIds) => {
       const currentIds = state.tabs.map((tab) => tab.sessionId);
       const desired = new Set(orderedSessionIds);

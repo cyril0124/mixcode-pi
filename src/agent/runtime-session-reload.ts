@@ -3,7 +3,7 @@
 // When another mixcode-pi instance appends to the same session JSONL, this
 // re-reads the file through the Pi SDK (SessionManager.setSessionFile), then
 // re-derives everything downstream: the agent's LLM context messages, the chat
-// line model, the preview, and context-usage stats. It deliberately does NOT
+// line model, the preview, context-usage stats, and the tab title. It deliberately does NOT
 // rebuild the AgentSession/services/extensions — only the session-derived view
 // changes, so this stays cheap relative to a full session replacement.
 import * as fs from "node:fs";
@@ -50,6 +50,12 @@ export function reloadRuntimeSessionFromDisk(runtimeTab: RuntimeTab): ReloadSess
 
   // Re-read the JSONL. Any external appends are now visible.
   runtimeTab.session.setSessionFile(file);
+
+  // The session file owns the tab title across instances: a rename in any
+  // instance appends a session_info entry, and this reload is where the others
+  // observe it. An unnamed session leaves the local Agent-NN title in place.
+  const reloadedName = runtimeTab.session.getSessionName();
+  if (reloadedName) runtimeTab.tab.title = reloadedName;
 
   const reloadedEntries = runtimeTab.session.getEntries();
   const byId = new Map(reloadedEntries.map((entry) => [entry.id, entry]));

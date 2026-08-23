@@ -91,8 +91,6 @@ export interface StartPeerTabSyncOptions {
   openTab: (candidate: PeerTabCandidate) => Promise<void>;
   closeTab: (sessionId: string) => Promise<void>;
   reorderTabs?: (orderedSessionIds: string[]) => void | Promise<void>;
-  /** Apply peer registry titles onto already-open local tabs (e.g. after /rename). */
-  syncTabTitles?: (titles: Array<{ sessionId: string; title: string }>) => void | Promise<void>;
   onError?: (error: unknown) => void;
   /** Poll cadence. Default 2000ms. */
   pollIntervalMs?: number;
@@ -192,35 +190,10 @@ export function startPeerTabSync(options: StartPeerTabSyncOptions): {
       }
     }
 
-    // Titles are only set on open; refresh already-open tabs from live peer registry.
-    if (options.syncTabTitles) {
-      const local = new Set(options.getLocalSessionIds());
-      const localWorkdir = normalizeWorkdir(options.workdir);
-      // Freshest registry wins so a local /rename is not clobbered by a peer
-      // still advertising the previous title (instances are sorted by pid).
-      const best = new Map<string, { title: string; updatedAt: number }>();
-      for (const peer of peerHints) {
-        if (normalizeWorkdir(peer.workdir) !== localWorkdir) continue;
-        const peerUpdatedAt = Date.parse(peer.updatedAt ?? "");
-        const stamp = Number.isFinite(peerUpdatedAt) ? peerUpdatedAt : 0;
-        for (const tab of peer.tabs) {
-          if (normalizeWorkdir(tab.workdir) !== localWorkdir) continue;
-          if (!local.has(tab.sessionId)) continue;
-          const clean = tab.title?.trim();
-          if (!clean) continue;
-          const prev = best.get(tab.sessionId);
-          if (!prev || stamp >= prev.updatedAt) {
-            best.set(tab.sessionId, { title: clean, updatedAt: stamp });
-          }
-        }
-      }
-      const titles = [...best.entries()].map(([sessionId, value]) => ({
-        sessionId,
-        title: value.title,
-      }));
-      if (titles.length > 0) await options.syncTabTitles(titles);
-    }
-
+    // Registry titles seed tabs only at open time. Titles of already-open tabs
+    // follow the session file (session_info entry) through session sync, which
+    // carries a per-rename record; registry snapshots only carry a heartbeat
+    // timestamp and cannot order two instances' titles against each other.
     await options.reorderTabs?.(plan.desiredOrder);
   };
 

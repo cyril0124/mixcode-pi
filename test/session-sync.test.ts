@@ -172,6 +172,41 @@ test("second instance syncs another instance's appended conversation", async () 
   }
 });
 
+test("sync applies another instance's rename to the local tab title", async () => {
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-sync-rename-"));
+  const sessionsRoot = path.join(dir, "sessions");
+  const runtimeA = new MixCodeRuntime({ sessionsRoot });
+  const runtimeB = new MixCodeRuntime({ sessionsRoot });
+  try {
+    await runtimeA.createTab(createTab(1, "s-rename", dir), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: dir,
+      model: MIXCODE_FAUX_MODEL,
+    });
+    await runtimeA.prompt("s-rename", "hello from A");
+    await waitFor(() => runtimeA.getTab("s-rename")?.agentSession.isStreaming === false);
+
+    const tabB = await runtimeB.createTab(createTab(1, "s-rename", dir), {
+      systemPrompt: "system",
+      thinkingLevel: "medium",
+      workdir: dir,
+      model: MIXCODE_FAUX_MODEL,
+    });
+    const originalTitle = tabB.tab.title;
+
+    runtimeA.renameSession("s-rename", "renamed-by-a");
+    assert.equal(tabB.tab.title, originalTitle, "B must not see the rename before syncing");
+
+    assert.equal(runtimeB.syncSessionFromDisk("s-rename"), true);
+    assert.equal(tabB.tab.title, "renamed-by-a");
+  } finally {
+    await runtimeA.closeAllTabs();
+    await runtimeB.closeAllTabs();
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("reload status survives the local session writes performed by reload", async () => {
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-sync-reload-status-"));
   const sessionsRoot = path.join(dir, "sessions");

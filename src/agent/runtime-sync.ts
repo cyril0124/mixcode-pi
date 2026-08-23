@@ -28,7 +28,7 @@ export class RuntimeSyncManager {
 
   constructor(
     private readonly sessionsRoot: string,
-    private readonly onExternalChange: (sessionId: string) => void,
+    private readonly onExternalChange: (sessionId: string) => boolean,
   ) {}
 
   get enabled(): boolean {

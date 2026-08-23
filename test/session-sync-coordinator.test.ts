@@ -38,7 +38,10 @@ test("a real fingerprint change triggers exactly one debounced reload", async ()
   const changed: string[] = [];
   const coord = new SessionSyncCoordinator({
     sessionsRoot: "/root",
-    onExternalChange: (id) => changed.push(id),
+    onExternalChange: (id) => {
+      changed.push(id);
+      return true;
+    },
     statFingerprint: stat.stat,
     debounceMs: 5,
     pollIntervalMs: POLL_MS,
@@ -61,7 +64,10 @@ test("multiple registered sessions are all polled", async () => {
   const changed: string[] = [];
   const coord = new SessionSyncCoordinator({
     sessionsRoot: "/root",
-    onExternalChange: (id) => changed.push(id),
+    onExternalChange: (id) => {
+      changed.push(id);
+      return true;
+    },
     statFingerprint: stat.stat,
     debounceMs: 0,
     pollIntervalMs: POLL_MS,
@@ -89,7 +95,10 @@ test("same size and mtime with replaced content still reloads", async () => {
     await fsPromises.utimes(sessionPath, fixedTime, fixedTime);
     const coord = new SessionSyncCoordinator({
       sessionsRoot: dir,
-      onExternalChange: (id) => changed.push(id),
+      onExternalChange: (id) => {
+      changed.push(id);
+      return true;
+    },
       debounceMs: 5,
       pollIntervalMs: POLL_MS,
     });
@@ -111,7 +120,10 @@ test("poll ticks with an unchanged fingerprint do not reload", async () => {
   const changed: string[] = [];
   const coord = new SessionSyncCoordinator({
     sessionsRoot: "/root",
-    onExternalChange: (id) => changed.push(id),
+    onExternalChange: (id) => {
+      changed.push(id);
+      return true;
+    },
     statFingerprint: stat.stat,
     debounceMs: 5,
     pollIntervalMs: POLL_MS,
@@ -129,7 +141,10 @@ test("markLocalWrite suppresses the echo reload of our own write", async () => {
   const changed: string[] = [];
   const coord = new SessionSyncCoordinator({
     sessionsRoot: "/root",
-    onExternalChange: (id) => changed.push(id),
+    onExternalChange: (id) => {
+      changed.push(id);
+      return true;
+    },
     statFingerprint: stat.stat,
     debounceMs: 5,
     pollIntervalMs: POLL_MS,
@@ -149,7 +164,10 @@ test("unregister stops reloads and clears pending timers", async () => {
   const changed: string[] = [];
   const coord = new SessionSyncCoordinator({
     sessionsRoot: "/root",
-    onExternalChange: (id) => changed.push(id),
+    onExternalChange: (id) => {
+      changed.push(id);
+      return true;
+    },
     statFingerprint: stat.stat,
     debounceMs: 20,
     pollIntervalMs: POLL_MS,
@@ -169,7 +187,10 @@ test("dispose stops polling so no reloads fire after shutdown", async () => {
   const changed: string[] = [];
   const coord = new SessionSyncCoordinator({
     sessionsRoot: "/root",
-    onExternalChange: (id) => changed.push(id),
+    onExternalChange: (id) => {
+      changed.push(id);
+      return true;
+    },
     statFingerprint: stat.stat,
     debounceMs: 5,
     pollIntervalMs: POLL_MS,
@@ -180,4 +201,34 @@ test("dispose stops polling so no reloads fire after shutdown", async () => {
   stat.set("a.jsonl", { size: 20, mtimeMs: 200 });
   await Bun.sleep(20);
   assert.deepEqual(changed, []);
+});
+
+test("a refused reload stays pending until one succeeds", async () => {
+  const stat = makeStatTable();
+  const changed: string[] = [];
+  let applied = false;
+  const coord = new SessionSyncCoordinator({
+    sessionsRoot: "/root",
+    // Mirrors syncSessionFromDisk refusing while the local agent streams.
+    onExternalChange: (id) => {
+      changed.push(id);
+      return applied;
+    },
+    statFingerprint: stat.stat,
+    debounceMs: 5,
+    pollIntervalMs: POLL_MS,
+  });
+  stat.set("a.jsonl", { size: 10, mtimeMs: 100 });
+  coord.register("sa", "/root/a.jsonl");
+  stat.set("a.jsonl", { size: 20, mtimeMs: 200 });
+  await waitFor(() => changed.length >= 2);
+  assert.ok(changed.length >= 2, "a refused reload must be retried on later polls");
+
+  applied = true;
+  const beforeApply = changed.length;
+  await waitFor(() => changed.length > beforeApply);
+  const settled = changed.length;
+  await Bun.sleep(50);
+  assert.equal(changed.length, settled, "an applied reload must consume the change");
+  coord.dispose();
 });

@@ -27,8 +27,12 @@ export type StatFingerprintFn = (filePath: string) => FileFingerprint | undefine
 
 export interface SessionSyncCoordinatorOptions {
   sessionsRoot: string;
-  /** Called (debounced) when a registered session's file changed externally. */
-  onExternalChange: (sessionId: string) => void;
+  /**
+   * Called (debounced) when a registered session's file changed externally.
+   * Returns false when the reload was refused (local agent streaming or
+   * compacting); the change then stays pending for the next poll.
+   */
+  onExternalChange: (sessionId: string) => boolean;
   debounceMs?: number;
   /** Fingerprint poll cadence. Default 2s. */
   pollIntervalMs?: number;
@@ -56,7 +60,7 @@ interface TrackedSession {
 
 export class SessionSyncCoordinator {
   private readonly sessionsRoot: string;
-  private readonly onExternalChange: (sessionId: string) => void;
+  private readonly onExternalChange: (sessionId: string) => boolean;
   private readonly debounceMs: number;
   private readonly pollIntervalMs: number;
   private readonly statFingerprint: StatFingerprintFn;
@@ -130,8 +134,12 @@ export class SessionSyncCoordinator {
     tracked.debounceTimer = setTimeout(() => {
       tracked.debounceTimer = undefined;
       // Capture the fingerprint at fire time; the reload itself only reads.
-      tracked.fingerprint = this.statFingerprint(path.join(this.sessionsRoot, tracked.fileName));
-      this.onExternalChange(tracked.sessionId);
+      const atFireTime = this.statFingerprint(path.join(this.sessionsRoot, tracked.fileName));
+      // Consume the change only once the reload applied it. A refused reload
+      // must leave the fingerprint stale, or the peer append behind it (a new
+      // turn, or a rename carried by session_info) is dropped until the file
+      // happens to change again.
+      if (this.onExternalChange(tracked.sessionId)) tracked.fingerprint = atFireTime;
     }, this.debounceMs);
     tracked.debounceTimer.unref?.();
   }
