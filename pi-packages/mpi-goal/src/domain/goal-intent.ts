@@ -21,7 +21,9 @@ const TRAILING_DIRECTIVE = /(?:\s+and\s+(summarize|clear)(?:\s+the)?\s+context)\
 export function parseTrailingPostCompletionDirective(input: string): ParsedDirectiveResult {
 	const match = input.match(TRAILING_DIRECTIVE);
 	if (!match) return { objective: input.trim() };
-	const mode: ContextResetMode = match[1].toLowerCase() === "clear" ? "clear" : "summarize";
+	// The capture is always present on a match; "clear" and "summarize" are its only alternatives.
+	const [, directive] = match;
+	const mode: ContextResetMode = directive?.toLowerCase() === "clear" ? "clear" : "summarize";
 	return { objective: input.slice(0, match.index).trim(), action: { type: "context.reset", mode } };
 }
 

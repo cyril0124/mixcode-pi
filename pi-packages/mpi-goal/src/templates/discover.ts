@@ -71,9 +71,9 @@ export function listGoalTemplateMetadata(root = process.cwd()): GoalTemplateMeta
 
 export function resolveGoalTemplateByName(nameOrAlias: string, flags: Record<string, string>, args = "", root = process.cwd()): TemplateResolution {
 	const matches = findTemplates(nameOrAlias, root);
-	if (matches.length === 0) return { ok: false, notTemplate: true };
 	if (matches.length > 1) return { ok: false, error: `Ambiguous goal template '${nameOrAlias}' matches: ${matches.map((template) => template.name).join(", ")}.` };
 	const template = matches[0];
+	if (!template) return { ok: false, notTemplate: true };
 	try {
 		const values = { ...flags, args };
 		const interpolated = interpolate(template.body, values);
@@ -145,8 +145,9 @@ function parseFrontmatter(raw: string): { frontmatter: Frontmatter; body: string
 	if (end < 0) return { frontmatter: {}, body: raw };
 	const frontmatter: Frontmatter = {};
 	for (const line of raw.slice(4, end).split(/\r?\n/)) {
-		const match = line.match(/^([A-Za-z0-9_-]+):\s*(.*)$/);
-		if (match) frontmatter[match[1]] = stripQuotes(match[2].trim());
+		const [, key, value] = line.match(/^([A-Za-z0-9_-]+):\s*(.*)$/) ?? [];
+		// A line without both captures is not a frontmatter entry and is skipped.
+		if (key !== undefined && value !== undefined) frontmatter[key] = stripQuotes(value.trim());
 	}
 	return { frontmatter, body: raw.slice(end + 4).replace(/^\r?\n/, "") };
 }
@@ -154,10 +155,10 @@ function parseFrontmatter(raw: string): { frontmatter: Frontmatter; body: string
 export function parseGoalTemplateInvocation(input: string): GoalTemplateInvocation | undefined {
 	const trimmed = input.trim();
 	if (!trimmed) return undefined;
-	const match = trimmed.match(/^(\S+)(?:\s+([\s\S]*))?$/);
-	if (!match) return undefined;
-	const name = match[1];
-	let rest = match[2] ?? "";
+	const [, name, remainder] = trimmed.match(/^(\S+)(?:\s+([\s\S]*))?$/) ?? [];
+	// Without a leading name token the invocation is unusable.
+	if (name === undefined) return undefined;
+	let rest = remainder ?? "";
 	let args = "";
 	if (rest.startsWith("-- ")) {
 		args = rest.slice(3).trim();
@@ -175,31 +176,45 @@ export function parseGoalTemplateInvocation(input: string): GoalTemplateInvocati
 function parseFlags(input: string): Record<string, string> {
 	const values: Record<string, string> = {};
 	const tokens = input.match(/"[^"]*"|'[^']*'|\S+/g) ?? [];
-	for (let i = 0; i < tokens.length; i++) {
-		const token = unquote(tokens[i]);
+	let consumedByPreviousFlag = false;
+	for (const [index, raw] of tokens.entries()) {
+		if (consumedByPreviousFlag) {
+			consumedByPreviousFlag = false;
+			continue;
+		}
+		const token = unquote(raw);
 		if (!token.startsWith("--")) continue;
 		const eq = token.indexOf("=");
 		if (eq > 2) {
 			values[token.slice(2, eq)] = token.slice(eq + 1);
 			continue;
 		}
-		const next = tokens[i + 1] && !tokens[i + 1].startsWith("--") ? unquote(tokens[++i]) : "true";
-		values[token.slice(2)] = next;
+		const lookahead = tokens[index + 1];
+		// A following non-flag token is the flag value; otherwise the flag is a boolean switch.
+		if (lookahead !== undefined && !lookahead.startsWith("--")) {
+			values[token.slice(2)] = unquote(lookahead);
+			consumedByPreviousFlag = true;
+		} else {
+			values[token.slice(2)] = "true";
+		}
 	}
 	return values;
 }
 
 function interpolate(text: string, values: Record<string, string>): string {
 	return text.replace(/\{\{\s*([A-Za-z0-9_-]+)\s*\}\}/g, (_match, key: string) => {
-		if (values[key] === undefined) throw new Error(`Missing template value for {{${key}}}.`);
-		return values[key];
+		const value = values[key];
+		if (value === undefined) throw new Error(`Missing template value for {{${key}}}.`);
+		return value;
 	});
 }
 
 function findRequiredPlaceholders(text: string): string[] {
-	return Array.from(text.matchAll(/\{\{\s*([A-Za-z0-9_-]+)\s*\}\}/g), (match) => match[1])
-		.filter((placeholder, index, all) => all.indexOf(placeholder) === index)
-		.sort();
+	const placeholders = new Set<string>();
+	for (const [, name] of text.matchAll(/\{\{\s*([A-Za-z0-9_-]+)\s*\}\}/g)) {
+		if (name !== undefined) placeholders.add(name);
+	}
+	return [...placeholders].sort();
 }
 
 function resolveInlineCommands(text: string, template: GoalTemplate, cwd: string): string {

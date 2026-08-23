@@ -12,7 +12,8 @@ type OrderedMarkerCandidate = {
 	style: OrderedMarkerStyle;
 	number: number;
 	lineIndex: number;
-	markerLength: number;
+	/** Marker line with its marker prefix removed. */
+	content: string;
 	marker: string;
 };
 
@@ -20,7 +21,8 @@ type BulletMarkerCandidate = {
 	kind: "bullet";
 	style: BulletMarkerStyle;
 	lineIndex: number;
-	markerLength: number;
+	/** Marker line with its marker prefix removed. */
+	content: string;
 	marker: string;
 };
 
@@ -44,15 +46,15 @@ export function parseQueueBlockItems(input: string): QueueBlockItem[] | null {
 
 function parseMarkerCandidate(line: string, lineIndex: number): MarkerCandidate | null {
 	const bracket = line.match(/^\s*\[(\d+)\]\s*/);
-	if (bracket) return { kind: "ordered", style: "bracket", number: Number(bracket[1]), lineIndex, markerLength: bracket[0].length, marker: `[${bracket[1]}]` };
+	if (bracket) return { kind: "ordered", style: "bracket", number: Number(bracket[1]), lineIndex, content: line.slice(bracket[0].length), marker: `[${bracket[1]}]` };
 	const dot = line.match(/^\s*(\d+)\.\s*/);
-	if (dot) return { kind: "ordered", style: "dot", number: Number(dot[1]), lineIndex, markerLength: dot[0].length, marker: `${dot[1]}.` };
+	if (dot) return { kind: "ordered", style: "dot", number: Number(dot[1]), lineIndex, content: line.slice(dot[0].length), marker: `${dot[1]}.` };
 	const paren = line.match(/^\s*(\d+)\)\s*/);
-	if (paren) return { kind: "ordered", style: "paren", number: Number(paren[1]), lineIndex, markerLength: paren[0].length, marker: `${paren[1]})` };
+	if (paren) return { kind: "ordered", style: "paren", number: Number(paren[1]), lineIndex, content: line.slice(paren[0].length), marker: `${paren[1]})` };
 	const dash = line.match(/^\s*-\s+/);
-	if (dash) return { kind: "bullet", style: "dash", lineIndex, markerLength: dash[0].length, marker: "-" };
+	if (dash) return { kind: "bullet", style: "dash", lineIndex, content: line.slice(dash[0].length), marker: "-" };
 	const star = line.match(/^\s*\*\s+/);
-	if (star) return { kind: "bullet", style: "star", lineIndex, markerLength: star[0].length, marker: "*" };
+	if (star) return { kind: "bullet", style: "star", lineIndex, content: line.slice(star[0].length), marker: "*" };
 	return null;
 }
 
@@ -94,15 +96,8 @@ function sumLineIndexes(candidates: OrderedMarkerCandidate[]): number {
 function buildQueueBlockItems(lines: string[], accepted: MarkerCandidate[]): QueueBlockItem[] {
 	return accepted.map((candidate, index) => {
 		const nextLineIndex = accepted[index + 1]?.lineIndex ?? lines.length;
-		const itemLines = [lines[candidate.lineIndex].slice(candidate.markerLength), ...lines.slice(candidate.lineIndex + 1, nextLineIndex)];
-		return { objectiveInput: trimOuterBlankLines(itemLines).join("\n").trim(), marker: candidate.marker, lineIndex: candidate.lineIndex };
+		const itemLines = [candidate.content, ...lines.slice(candidate.lineIndex + 1, nextLineIndex)];
+		// Trailing trim() already drops outer blank lines, so no separate blank-line pass is needed.
+		return { objectiveInput: itemLines.join("\n").trim(), marker: candidate.marker, lineIndex: candidate.lineIndex };
 	});
-}
-
-function trimOuterBlankLines(lines: string[]): string[] {
-	let start = 0;
-	let end = lines.length;
-	while (start < end && lines[start].trim().length === 0) start++;
-	while (end > start && lines[end - 1].trim().length === 0) end--;
-	return lines.slice(start, end);
 }

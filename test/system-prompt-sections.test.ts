@@ -49,8 +49,9 @@ test("project context files get one section each, global and project distinct", 
 
 test("appendSystemPrompt lands in its own section", () => {
   const { sections } = buildMixCodeSystemPromptSections(richOptions);
-  const byName = Object.fromEntries(sections.map((s) => [s.name, s]));
-  assert.equal(byName["Append (appendSystemPrompt)"].text, "\n\nAPPEND-MARKER");
+  const appendSection = sections.find((s) => s.name === "Append (appendSystemPrompt)");
+  assert.ok(appendSection, "append section exists");
+  assert.equal(appendSection.text, "\n\nAPPEND-MARKER");
 });
 
 test("skills section is gated on the read tool like Pi's assembler", () => {

@@ -248,7 +248,9 @@ export function parseCtlArgs(args: string[], fallbackWorkdir: string): CtlArgs {
       timeout = parsed;
       continue;
     }
-    rest.push(arg);
+    // In bounds by the loop condition: flag branches that consume `args[++index]` always
+    // `continue`, so `index < args.length` still holds for this element.
+    rest.push(arg!);
   }
   if (pid !== undefined && workdir !== undefined) {
     throw new Error("--pid and --workdir are mutually exclusive");

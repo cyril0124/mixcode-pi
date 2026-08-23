@@ -136,8 +136,8 @@ function collectThinking(entries: SessionEntry[]): string[] {
 
 /** Last assistant text reply (thinking/tool-only turns are skipped). */
 function latestAgentReply(entries: SessionEntry[]): string | undefined {
-  for (let i = entries.length - 1; i >= 0; i--) {
-    const msg = messageOf(entries[i]);
+  for (const entry of entries.toReversed()) {
+    const msg = messageOf(entry);
     if (msg?.role !== "assistant") continue;
     const text = blockText(msg.content);
     if (text.trim()) return text;
@@ -147,8 +147,8 @@ function latestAgentReply(entries: SessionEntry[]): string | undefined {
 
 /** Last user message text. */
 function latestUserMessage(entries: SessionEntry[]): string | undefined {
-  for (let i = entries.length - 1; i >= 0; i--) {
-    const msg = messageOf(entries[i]);
+  for (const entry of entries.toReversed()) {
+    const msg = messageOf(entry);
     if (msg?.role !== "user") continue;
     const text = blockText(msg.content);
     if (text.trim()) return text;

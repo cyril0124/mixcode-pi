@@ -134,7 +134,8 @@ function handleGoalControlCommand(
 	ctx: ExtensionCommandContext,
 	runtime: GoalCommandRuntime,
 ): boolean {
-	const firstToken = trimmed.split(/\s+/, 1)[0].toLowerCase();
+	// split() yields "" for an empty command, which matches none of the branches below.
+	const firstToken = (trimmed.split(/\s+/, 1)[0] ?? "").toLowerCase();
 	if (firstToken === "queue") {
 		handleQueueCommand(pi, trimmed, ctx);
 		return true;
@@ -352,8 +353,7 @@ function truncateObjective(objective: string): string {
 
 function resolveAndValidateQueueItems(items: QueueBlockItem[], ctx: ExtensionCommandContext): ResolvedObjectiveInput[] | null {
 	const resolvedItems: ResolvedObjectiveInput[] = [];
-	for (let i = 0; i < items.length; i++) {
-		const item = items[i];
+	for (const [i, item] of items.entries()) {
 		const resolved = resolveTemplateOrObjectiveDetails(item.objectiveInput, ctx);
 		if (!resolved) {
 			notifyWarning(ctx, `Queue item ${i + 1} (${item.marker} on line ${item.lineIndex + 1}) could not be resolved. No goals were queued.`);

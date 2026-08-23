@@ -154,9 +154,8 @@ function renderList(
   start = Math.max(0, end - maxVisible);
 
   const lines: string[] = [];
-  for (let i = start; i < end; i++) {
-    const item = items[i];
-    const selected = i === clampedIndex;
+  for (const [offset, item] of items.slice(start, end).entries()) {
+    const selected = start + offset === clampedIndex;
     const num = theme.fg("dim", `#${item.index.toString().padStart(2, " ")}`);
     const pointer = selected ? theme.fg("accent", POINTER_ACTIVE) : POINTER_INACTIVE;
 

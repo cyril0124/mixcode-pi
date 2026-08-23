@@ -88,20 +88,10 @@ function extractImagesFromToolResult(
  */
 export function hoistImages(payload: AnthropicPayload): number {
   const messages = payload.messages;
-  if (!messages || messages.length === 0) return 0;
+  if (!messages) return 0;
 
-  // Find the last user message
-  let lastUserIdx = -1;
-  for (let i = messages.length - 1; i >= 0; i--) {
-    if (messages[i].role === "user") {
-      lastUserIdx = i;
-      break;
-    }
-  }
-  if (lastUserIdx === -1) return 0;
-
-  const userMsg = messages[lastUserIdx];
-  if (!Array.isArray(userMsg.content)) return 0;
+  const userMsg = messages.findLast((message) => message.role === "user");
+  if (!userMsg || !Array.isArray(userMsg.content)) return 0;
 
   const hoisted: ImageBlock[] = [];
 

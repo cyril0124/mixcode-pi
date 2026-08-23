@@ -64,32 +64,21 @@ export function inspectBashCommand(command: string, cwd: string): string | null 
  * Also handles <<- (tab-stripped) variants.
  */
 function stripHeredocs(input: string): string {
-  const lines = input.split("\n");
   const result: string[] = [];
-  let i = 0;
+  // Non-null while inside a heredoc body; those lines are dropped up to and including the delimiter.
+  let openDelimiter: string | null = null;
 
-  while (i < lines.length) {
-    const line = lines[i];
+  for (const line of input.split("\n")) {
+    if (openDelimiter !== null) {
+      if (line.trim() === openDelimiter) openDelimiter = null;
+      continue;
+    }
     // Match heredoc start: ... <<[-] ['"]?DELIM['"]?
     const heredocMatch = line.match(/<<-?\s*['"]?(\w+)['"]?/);
-    if (heredocMatch) {
-      const delimiter = heredocMatch[1];
-      // Keep the line that starts the heredoc (the command part)
-      result.push(line);
-      i++;
-      // Skip lines until we find the delimiter on its own line
-      while (i < lines.length) {
-        const trimmed = lines[i].trim();
-        if (trimmed === delimiter) {
-          i++;
-          break;
-        }
-        i++;
-      }
-    } else {
-      result.push(line);
-      i++;
-    }
+    // An unterminated heredoc leaves openDelimiter set, so the rest of the script stays stripped.
+    openDelimiter = heredocMatch?.[1] ?? null;
+    // Keep the line that starts the heredoc (the command part)
+    result.push(line);
   }
   return result.join("\n");
 }
@@ -135,7 +124,8 @@ function stripLineComment(line: string): string {
     if (ch === '"' && !inSingle) { inDouble = !inDouble; continue; }
     if (ch === "#" && !inSingle && !inDouble) {
       // A # is a comment if preceded by whitespace or at start of line
-      if (i === 0 || /\s/.test(line[i - 1])) {
+      // charAt returns "" past the start of the line, which is not whitespace.
+      if (i === 0 || /\s/.test(line.charAt(i - 1))) {
         return line.slice(0, i);
       }
     }
@@ -176,16 +166,15 @@ function checkSegment(segment: string, cwd: string): string | null {
   if (cleaned.length === 0) return null;
 
   // Skip leading env assignments and sudo
-  let i = 0;
-  while (i < cleaned.length && (cleaned[i].includes("=") || cleaned[i] === "sudo" || cleaned[i] === "env")) {
-    i++;
-  }
-  if (i >= cleaned.length) return null;
+  const cmdIndex = cleaned.findIndex((token) => !token.includes("=") && token !== "sudo" && token !== "env");
+  const cmdToken = cmdIndex < 0 ? undefined : cleaned[cmdIndex];
+  // Nothing but env assignments / sudo means there is no command to inspect.
+  if (cmdToken === undefined) return null;
 
-  const cmd = basename(cleaned[i]);
+  const cmd = basename(cmdToken);
   if (!SEARCH_CMDS.has(cmd)) return null;
 
-  const args = cleaned.slice(i + 1);
+  const args = cleaned.slice(cmdIndex + 1);
   if (cmd === "find") return checkFindPath(args, cwd);
   if (cmd === "fd") return checkFdPath(args, cwd);
   return checkGrepPath(args, cwd);
@@ -194,19 +183,22 @@ function checkSegment(segment: string, cwd: string): string | null {
 /** Strip shell redirections from the token list. */
 function stripRedirections(tokens: string[]): string[] {
   const result: string[] = [];
-  for (let i = 0; i < tokens.length; i++) {
-    const t = tokens[i];
+  // Set when the previous token was a standalone redirect operator whose target follows.
+  let skipTarget = false;
+  for (const t of tokens) {
+    if (skipTarget) {
+      skipTarget = false;
+      continue;
+    }
     // Patterns: 2>/dev/null, >/file, 2>&1, &>/file, 1>/file
     if (/^[0-9]*>[>&]?/.test(t) || /^&>/.test(t)) {
       // If the redirect operator is standalone (e.g. ">" or "2>"), skip next token too
-      if (t === ">" || t === "2>" || t === "&>" || t === "1>" || t === ">>" || t === "2>>") {
-        i++; // skip the target
-      }
+      skipTarget = t === ">" || t === "2>" || t === "&>" || t === "1>" || t === ">>" || t === "2>>";
       continue;
     }
     // Also handle: < /dev/null, << (but heredocs already stripped)
     if (t === "<" || t === "<<" || t === "<<<") {
-      i++; // skip the target
+      skipTarget = true;
       continue;
     }
     result.push(t);

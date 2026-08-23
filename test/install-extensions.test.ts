@@ -35,7 +35,10 @@ test("missingExtensions reports all recommended when settings.json is absent", a
 
 test("missingExtensions skips sources already present in settings.packages", async () => {
   await withAgentDir(async (env) => {
-    const installed = [RECOMMENDED[0].source, RECOMMENDED[2].source];
+    const [firstRecommended, , thirdRecommended] = RECOMMENDED;
+    assert.ok(firstRecommended, "RECOMMENDED has a first entry");
+    assert.ok(thirdRecommended, "RECOMMENDED has a third entry");
+    const installed = [firstRecommended.source, thirdRecommended.source];
     await fsPromises.writeFile(
       path.join(env.PI_CODING_AGENT_DIR as string, "settings.json"),
       JSON.stringify({ packages: installed }),

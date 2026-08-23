@@ -360,8 +360,8 @@ export class GoalManagementView implements Component {
 			Math.max(0, this.queueIndex - maxVisible + 1),
 			Math.max(0, snap.queue.length - maxVisible),
 		);
-		for (let i = start; i < Math.min(snap.queue.length, start + maxVisible); i++) {
-			const item = snap.queue[i];
+		for (const [offset, item] of snap.queue.slice(start, start + maxVisible).entries()) {
+			const i = start + offset;
 			const selected = i === this.queueIndex;
 			const marker = selected ? this.theme.fg("accent", "› ") : "  ";
 			const idx = this.theme.fg("dim", String(i + 1).padStart(2, " "));

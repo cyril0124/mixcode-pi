@@ -200,10 +200,10 @@ function getShortPath(fullPath: string, sourceInfo: SourceInfo | undefined): str
     }
   }
   const source = sourceInfo?.source ?? "";
-  const npmMatch = fullPath.match(/node_modules\/(@?[^/]+(?:\/[^/]+)?)\/(.*)/);
-  if (npmMatch && source.startsWith("npm:")) return npmMatch[2];
-  const gitMatch = fullPath.match(/git\/[^/]+\/[^/]+\/(.*)/);
-  if (gitMatch && source.startsWith("git:")) return gitMatch[1];
+  const npmRelative = fullPath.match(/node_modules\/(@?[^/]+(?:\/[^/]+)?)\/(.*)/)?.[2];
+  if (npmRelative !== undefined && source.startsWith("npm:")) return npmRelative;
+  const gitRelative = fullPath.match(/git\/[^/]+\/[^/]+\/(.*)/)?.[1];
+  if (gitRelative !== undefined && source.startsWith("git:")) return gitRelative;
   return formatDisplayPath(fullPath);
 }
 
@@ -262,10 +262,10 @@ function getExtensionShortPath(entry: ExtensionDisplayEntry): string {
       return relativePath.replace(/\\/g, "/");
     }
   }
-  const npmMatch = normalizedFullPath.match(/node_modules\/(@?[^/]+(?:\/[^/]+)?)\/(.*)/);
-  if (npmMatch && entry.source.startsWith("npm:")) return npmMatch[2];
-  const gitMatch = normalizedFullPath.match(/git\/[^/]+\/[^/]+\/(.*)/);
-  if (gitMatch && entry.source.startsWith("git:")) return gitMatch[1];
+  const npmRelative = normalizedFullPath.match(/node_modules\/(@?[^/]+(?:\/[^/]+)?)\/(.*)/)?.[2];
+  if (npmRelative !== undefined && entry.source.startsWith("npm:")) return npmRelative;
+  const gitRelative = normalizedFullPath.match(/git\/[^/]+\/[^/]+\/(.*)/)?.[1];
+  if (gitRelative !== undefined && entry.source.startsWith("git:")) return gitRelative;
   return formatDisplayPath(entry.path);
 }
 

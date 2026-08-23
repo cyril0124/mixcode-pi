@@ -33,6 +33,7 @@ describe("image-hoist: hoistImages", () => {
 
     // Image should be at top level of last user message
     const lastUser = payload.messages[2];
+    assert.ok(lastUser, "third message exists");
     assert.equal(Array.isArray(lastUser.content), true);
     const content = lastUser.content as any[];
     assert.equal(content.length, 2); // tool_result + hoisted image
@@ -116,7 +117,9 @@ describe("image-hoist: hoistImages", () => {
     const count = hoistImages(payload as any);
     assert.equal(count, 2);
 
-    const content = payload.messages[0].content as any[];
+    const [userMsg] = payload.messages;
+    assert.ok(userMsg, "user message exists");
+    const content = userMsg.content as any[];
     assert.equal(content.length, 3); // tool_result + 2 images
     assert.equal(content[1].source.data, "IMG1");
     assert.equal(content[2].source.data, "IMG2");
@@ -153,7 +156,9 @@ describe("image-hoist: hoistImages", () => {
     const count = hoistImages(payload as any);
     assert.equal(count, 2);
 
-    const content = payload.messages[0].content as any[];
+    const [userMsg] = payload.messages;
+    assert.ok(userMsg, "user message exists");
+    const content = userMsg.content as any[];
     // 2 tool_results + 2 hoisted images
     assert.equal(content.length, 4);
     assert.equal(content[2].type, "image");
@@ -198,11 +203,15 @@ describe("image-hoist: hoistImages", () => {
     assert.equal(count, 1);
 
     // First user message should be untouched
-    const firstUser = payload.messages[0].content as any[];
+    const firstUserMsg = payload.messages[0];
+    const lastUserMsg = payload.messages[2];
+    assert.ok(firstUserMsg, "first message exists");
+    assert.ok(lastUserMsg, "third message exists");
+    const firstUser = firstUserMsg.content as any[];
     assert.equal(firstUser[0].content.length, 2); // still has image inside
 
     // Last user message should have image hoisted
-    const lastUser = payload.messages[2].content as any[];
+    const lastUser = lastUserMsg.content as any[];
     assert.equal(lastUser.length, 2); // tool_result + hoisted image
     assert.equal(lastUser[1].source.data, "NEW");
   });
@@ -229,7 +238,9 @@ describe("image-hoist: hoistImages", () => {
     const count = hoistImages(payload as any);
     assert.equal(count, 1);
 
-    const content = payload.messages[0].content as any[];
+    const [userMsg] = payload.messages;
+    assert.ok(userMsg, "user message exists");
+    const content = userMsg.content as any[];
     const tr = content[0];
     assert.equal(tr.content.length, 1);
     assert.equal(tr.content[0].type, "text");
