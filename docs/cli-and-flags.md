@@ -42,7 +42,7 @@ mpi status --workdir /path/to/project
 
 Agent Tab collaboration CLI: control one live MixCode TUI over a per-process Unix socket at `<agentDir>/mixcode-pi/instances/<hostname>/<pid>.sock`.
 
-The TUI starts this ctl server right after the first frame. If it cannot (transient fs error on the state dir, bind failure), the TUI shows a `mpi ctl server unavailable: …` notice and keeps running without a socket until restarted; `mpi ctl` then fails to connect for that pid. Fatal startup errors thrown after the TUI entered the alternate screen are also appended to `<agentDir>/mixcode-pi/startup-crash.log` (stderr alone is invisible there).
+The TUI starts this ctl server right after the first frame. If it cannot (transient fs error on the state dir, bind failure), the TUI shows a `mpi ctl server unavailable: …` notice and keeps running without a socket until restarted; `mpi ctl` then fails to connect for that pid. Fatal errors are also appended to `<agentDir>/mixcode-pi/crash.log` (stderr alone is invisible once the TUI entered the alternate screen): startup failures, plus `uncaughtException` / `unhandledRejection` raised while the TUI runs. A runtime crash stops the TUI, removes this instance's `instances/<hostname>/<pid>.{json,sock}` entry, writes the stack to stderr and to that log, and exits 1.
 
 ```bash
 mpi ctl last-message

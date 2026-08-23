@@ -115,7 +115,7 @@ mpi ctl [--pid <n> | --workdir <path>] [--tab <title> | --session <id> | --focus
 - `home` is Home (`--session home` or `--focus-session home`).
 - Omit all four: live UI focus; header includes `reason: no --tab/--session/--focus-tab/--focus-session; using live UI focus`.
 
-If the **target** agent tab is `Not Ready`, that ctl command fails: `Tab is still loading extensions. Please wait a moment.` Other tabs (and Home) stay usable. Restart a TUI that predates the ctl socket or whose ctl server failed to start (it showed a `mpi ctl server unavailable: …` notice; `<agentDir>/mixcode-pi/startup-crash.log` may hold the trace); compiled `mpi` must include the server.
+If the **target** agent tab is `Not Ready`, that ctl command fails: `Tab is still loading extensions. Please wait a moment.` Other tabs (and Home) stay usable. Restart a TUI that predates the ctl socket or whose ctl server failed to start (it showed a `mpi ctl server unavailable: …` notice; `<agentDir>/mixcode-pi/crash.log` may hold the trace); compiled `mpi` must include the server.
 
 ## Commands
 

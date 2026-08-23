@@ -42,7 +42,7 @@ mpi status --workdir /path/to/project
 
 Agent Tab 协作 CLI：通过每个进程的 Unix socket（`<agentDir>/mixcode-pi/instances/<hostname>/<pid>.sock`）控制一台已打开的 MixCode TUI。
 
-TUI 会在首帧渲染后立即启动该 ctl 服务。若启动失败（状态目录上的瞬时文件系统错误、bind 失败），TUI 会显示 `mpi ctl server unavailable: …` 通知并在无 socket 的状态下继续运行，直到重启；此时对该 pid 执行 `mpi ctl` 会连接失败。TUI 进入备用屏后抛出的致命启动错误还会追加写入 `<agentDir>/mixcode-pi/startup-crash.log`（此时仅有 stderr 是不可见的）。
+TUI 会在首帧渲染后立即启动该 ctl 服务。若启动失败（状态目录上的瞬时文件系统错误、bind 失败），TUI 会显示 `mpi ctl server unavailable: …` 通知并在无 socket 的状态下继续运行，直到重启；此时对该 pid 执行 `mpi ctl` 会连接失败。致命错误还会追加写入 `<agentDir>/mixcode-pi/crash.log`（TUI 进入备用屏后仅有 stderr 是不可见的）：既包括启动期错误，也包括 TUI 运行期的 `uncaughtException` / `unhandledRejection`。运行期崩溃会先停掉 TUI，删除本实例的 `instances/<hostname>/<pid>.{json,sock}` 条目，再把调用栈写入 stderr 和该日志，并以退出码 1 退出。
 
 ```bash
 mpi ctl last-message

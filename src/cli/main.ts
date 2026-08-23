@@ -12,7 +12,7 @@ import {
   runStatusCommand as executeStatusCommand,
   takeWorkdirFlag,
 } from "./status.js";
-import { resolveMixcodeStateDir } from "../core/paths.js";
+import { appendCrashLog, describeCrash } from "./crash-guard.js";
 import { MIXCODE_PID_ENV } from "../core/tab-env.js";
 
 function hasMixcodePackages(dir: string): boolean {
@@ -317,30 +317,14 @@ export async function main(): Promise<void> {
   await runInteractiveApp(args, selfRoot);
 }
 
-/**
- * Persist a fatal startup error to <stateDir>/startup-crash.log. Once the TUI
- * has entered the alternate screen, stderr is invisible and repainted over,
- * while live TUI handles keep the event loop (and a half-initialized app)
- * running — without this file such crashes leave no recoverable trace.
- */
-function appendStartupCrashLog(message: string): void {
-  const stateDir = resolveMixcodeStateDir();
-  try {
-    fs.mkdirSync(stateDir, { recursive: true });
-    fs.appendFileSync(path.join(stateDir, "startup-crash.log"), `[${new Date().toISOString()}] ${message}\n\n`);
-  } catch {
-    // Best-effort crash log (EACCES/EROFS/full disk): stderr already carries the trace.
-  }
-}
-
 if (isDirectCliEntry(import.meta.url)) {
   main().catch((error) => {
     // Bypass the console bridge here: a startup crash can happen after the bridge
     // is installed but before the TUI sink is wired, which would queue this fatal
     // error into a buffer that never flushes. Write straight to the real stderr.
-    const message = error instanceof Error ? (error.stack ?? error.message) : String(error);
+    const message = describeCrash(error);
     process.stderr.write(`${message}\n`);
-    appendStartupCrashLog(message);
+    appendCrashLog(message);
     process.exitCode = 1;
   });
 }

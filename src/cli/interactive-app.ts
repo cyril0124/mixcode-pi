@@ -42,6 +42,7 @@ import {
 } from "./bootstrap.js";
 import { ensurePackageExtensions } from "../core/ensure-package-extensions.js";
 import { installConsoleTuiBridge, wireConsoleSink } from "./console-tui-bridge.js";
+import { installCrashGuard } from "./crash-guard.js";
 import { showNoticeTextOverlay } from "../ui/app-overlays.js";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import type { MainArgs } from "./main.js";
@@ -339,6 +340,13 @@ export async function runInteractiveApp(args: MainArgs, selfRoot: string): Promi
     ctlServer?.dispose();
   };
   tui.start();
+  // From here a fault that escapes the event loop is the only exit path with no
+  // teardown: it must leave a crash log behind and drop this instance's ctl
+  // socket and registry entry, like a signal exit does.
+  installCrashGuard(() => {
+    tui.stop();
+    removeRegistrySnapshot();
+  });
   // Ctl server failures (transient NFS errors in the sync fs prep, async bind
   // errors) must neither crash the TUI nor degrade it silently: without this
   // guard a sync throw here unwinds past tui.start() into main().catch, which
