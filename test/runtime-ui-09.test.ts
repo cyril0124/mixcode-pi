@@ -108,7 +108,7 @@ test("runtime maps extension select, confirm, and input UI primitives into edito
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir, extensionFactories: [extension] });
     runtime.setExtensionUiHost(mockEditorHost as any);
-    const _runtimeTab = await runtime.createTab(createTab(1, "s1", process.cwd()), {
+    await runtime.createTab(createTab(1, "s1", process.cwd()), {
       systemPrompt: "system",
       thinkingLevel: "medium",
       workdir: process.cwd(),

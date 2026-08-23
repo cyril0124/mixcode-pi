@@ -295,7 +295,7 @@ test("runtime maps pi extension custom overlay into a live TUI overlay", async (
   try {
     const runtime = new MixCodeRuntime({ sessionsRoot: dir, extensionFactories: [extension] });
     runtime.setExtensionUiHost({ tui });
-    const _runtimeTab = await runtime.createTab(createTab(1, "s1", process.cwd()), {
+    await runtime.createTab(createTab(1, "s1", process.cwd()), {
       systemPrompt: "system",
       thinkingLevel: "medium",
       workdir: process.cwd(),

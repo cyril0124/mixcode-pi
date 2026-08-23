@@ -153,7 +153,6 @@ export function createToolBlockOverlay(options: ToolBlockOverlayOptions): {
       const inner = Math.max(1, width - 2);
       const clip = (text: string) => truncateToWidth(text, inner, "…");
       const dim = (text: string) => theme.fg("dim", text);
-      const _accent = (text: string) => theme.fg("accent", text);
 
       const filterLine = clip(
         query

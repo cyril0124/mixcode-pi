@@ -125,7 +125,6 @@ test("global key input leaves extension custom overlay input to pi-tui focus", (
       return true;
     },
   });
-  const _changes: string[] = [];
 
   assert.equal(handleMixCodeKeyInput(state, "x", tui, undefined, runtime), undefined);
   assert.equal(handleMixCodeKeyInput(state, "\r", tui, undefined, runtime), undefined);

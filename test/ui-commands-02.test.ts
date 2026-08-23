@@ -44,7 +44,6 @@ test("submitted input opens local pickers and picker keys apply selections", asy
   const overlays: string[] = [];
   let overlayOpen = false;
   let renders = 0;
-  const _editorText = "";
   const tui = {
     requestRender: () => renders++,
     showOverlay: (component: { render?: (width: number) => string[] } | string) => {

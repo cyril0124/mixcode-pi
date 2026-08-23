@@ -742,7 +742,6 @@ test("mpi-loop refresh and timer tolerate stale ctx after session replacement", 
   let stale = false;
   let setWidgetCalls = 0;
   const sent: string[] = [];
-  let _overlay: TestOverlay | undefined;
 
   const makeCtx = (): TestCommandContext => ({
     ui: {
@@ -752,7 +751,7 @@ test("mpi-loop refresh and timer tolerate stale ctx after session replacement", 
         setWidgetCalls++;
       },
       custom: async (factory) => {
-        _overlay = factory(
+        factory(
           { terminal: { rows: 30 }, requestRender: () => {} },
           { fg: (_color, text) => text, bg: (_color, text) => text },
           {},
