@@ -37,6 +37,8 @@ src/
 │   ├── tabs.ts               tab 增删改与前后环绕切换
 │   ├── overlays.ts           tab jump、command palette、overlay 路由等纯状态逻辑
 │   ├── open-tabs-store.ts    open_tabs.json 读写与跨实例 tab 集合变更
+│   ├── batch-lua.ts          --batch 计划收集（.lua 走 fengari）与共用校验/应用
+│   ├── batch-ts.ts           --batch 计划收集（.ts/.mts/.js/.mjs 脚本模块）
 │   ├── peer-tab-sync.ts      跨实例 tab 监听与对账（open/close 协调）
 │   ├── state-store.ts        TUI 状态与 workspace 持久化
 │   └── system-prompt.ts        通过 Pi resource loader 构建 system prompt

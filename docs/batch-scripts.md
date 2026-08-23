@@ -1,14 +1,16 @@
-# Batch Lua
+# Batch Scripts
 
-[中文文档](batch-lua.zh.md)
+[中文文档](batch-scripts.zh.md)
 
-Run Lua scripts to batch-open agent tabs and dispatch prompts after launch. Ideal for monorepo parallel workflows, model comparisons, and resuming conversations in existing tabs.
+Run Lua or TypeScript scripts to batch-open agent tabs and dispatch prompts after launch. Ideal for monorepo parallel workflows, model comparisons, and resuming conversations in existing tabs.
+
+Script language is chosen by file extension: `.lua` runs under fengari, `.ts` / `.mts` / `.js` / `.mjs` are imported as ES modules. Both produce the same execution plan and share every validation, dry-run, and dispatch path.
 
 ## Design Motivation
 
 In large multi-package repositories (monorepos) or comparative evaluation tasks, manually opening dozens of tabs, switching working directories, configuring models/thinking tiers, and dispatching prompts is repetitive, error-prone, and non-reproducible.
 
-Batch Lua acts as a **programmable, declarative dispatch language**:
+Batch scripting acts as a **programmable, declarative dispatch language**:
 - **Scriptable Automation**: Parameterize runs with CLI flags (`-- <args...>`) and environment variables (`os.getenv`).
 - **Fail-Fast Validation**: Pre-validates model and thinking compatibility before dispatching work.
 - **Dry-Run Predictability**: Inspects execution plans without spinning up TUI instances or mutating disk state.
@@ -16,21 +18,22 @@ Batch Lua acts as a **programmable, declarative dispatch language**:
 ## Running
 
 ```bash
-# Launch TUI and execute script
+# Launch TUI and execute script (Lua or TypeScript)
 mpi --batch examples/batch/simple.lua
+mpi --batch examples/batch/simple.ts
 
 # Pass arguments to the script (everything after `--` belongs to the script)
-mpi --batch script.lua -- packages/core packages/cli
+mpi --batch script.ts -- packages/core packages/cli
 
 # Validate and print execution plan only: no TUI, no runtime bootstrap, no state/session writes
-mpi --batch script.lua --batch-dry-run -- packages/core
+mpi --batch script.ts --batch-dry-run -- packages/core
 ```
 
 Execution model:
 
 ```text
-Lua script completes
-   │  collect open_tab calls
+script completes (.lua via fengari | .ts/.js via dynamic import)
+   │  collect open_tab / openTab calls
    v
 validate (model / thinking / mode)
    │
@@ -45,7 +48,7 @@ apply
 
 **Not an orchestration engine**: Scripts cannot `wait` for agent results, nor branch based on responses. Single collect pass, single apply pass.
 
-## API (`mixcode` Global Table)
+## Lua API (`mixcode` Global Table)
 
 | API | Purpose |
 |-----|---------|
@@ -105,6 +108,48 @@ mixcode.open_tab({ name = "scratch" })
 
 See [`examples/batch/`](../examples/batch/) for more examples.
 
+## TypeScript API
+
+A TypeScript/JavaScript script default-exports a function that receives the same API as an object. The function may be `async`; the plan is collected after it resolves.
+
+```ts
+/// <reference path="/path/to/mixcode-batch.d.ts" />
+
+const script: MixCodeBatchScript = async (mixcode) => {
+  for (const pkg of mixcode.args()) {
+    mixcode.openTab({
+      name: `lint-${pkg}`,
+      workdir: pkg,
+      thinking: "low",
+      prompt: `Run lint and typecheck in ${pkg}. Fix errors only.`,
+    });
+  }
+};
+
+export default script;
+```
+
+Type stub: [`mixcode-batch.d.ts`](../mixcode-batch.d.ts) at repository root (the TypeScript counterpart of `mixcode.lua`). It declares globals, so a `/// <reference path="..." />` line is enough; scripts also run untyped without it.
+
+Names map one-to-one; TypeScript uses camelCase:
+
+| Lua | TypeScript |
+|-----|------------|
+| `mixcode.open_tab(opts)` | `mixcode.openTab(opts)` |
+| `opts.system_prompt` | `opts.systemPrompt` |
+| `mixcode.args()` (1-indexed table) | `mixcode.args()` (`string[]`) |
+| `mixcode.current_workdir()` | `mixcode.currentWorkdir()` |
+| `mixcode.tab_exists(name)` | `mixcode.tabExists(name)` |
+| `mixcode.list_tabs()` → `session_id`, `model` | `mixcode.listTabs()` → `sessionId`, `model` |
+| `mixcode.list_models()` → `model_id`, `display_name`, `context_window` | `mixcode.listModels()` → `modelId`, `displayName`, `contextWindow` |
+| `mixcode.render(tpl, vars)` / global `render` | `mixcode.render(tpl, vars)` (or template literals) |
+
+Field semantics, `mode`, the `systemPrompt` fresh-session rule, prompt support, and validation are identical to the Lua tables above.
+
+Errors thrown for malformed scripts: missing or non-function default export, `name` missing or not a non-empty string, any non-string option field, and unknown `openTab` fields (for example the Lua spelling `system_prompt`). Script load and runtime failures are wrapped as `Batch script error in <path>`.
+
+**No sandbox**: a TypeScript script runs in the MixCode process with full host privileges (file system, network, `process`). Treat batch scripts as trusted local code, exactly like the shell commands you would run yourself.
+
 ## Dry-run Output
 
 ```text
@@ -124,6 +169,7 @@ Performs model and thinking validation; invalid configurations fail and exit.
 | Batch dispatch tabs + prompts | Wait for agent completion / inspect responses |
 | Introspection snapshot at startup | Live `list_tabs` during execution |
 | Parallel across distinct tabs + serial per tab | Concurrency limit / DAG / dependency edges |
-| CLI arguments + environment variables (`os.getenv`) | Second configuration format (JSON/YAML) |
+| CLI arguments + environment variables (`os.getenv`, `process.env`) | Second configuration format (JSON/YAML) |
+| Lua (`.lua`) and TypeScript/JavaScript (`.ts`/`.mts`/`.js`/`.mjs`) | Sandboxing TypeScript scripts |
 
-Errors: Lua syntax/runtime errors, unknown models, invalid thinking/mode throw errors; apply failures write to stderr and set `exitCode=1`.
+Errors: script syntax/runtime errors, unknown models, invalid thinking/mode throw errors; apply failures write to stderr and set `exitCode=1`.

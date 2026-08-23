@@ -20,7 +20,7 @@ mpi install-extensions [--yes]
 |---|---|---|---|
 | `--workdir <path>` | string | 当前工作目录 (`process.cwd()`) | 指定工作目录。也接受 `--workdir=<path>`。没有 `-w` 短选项。 |
 | `--builtin-extensions-only` | boolean | `false` | 禁用 `settings.json` `packages` 中配置的第三方扩展，仅加载 `pi-packages/mpi-*` 下的第一方内置扩展。 |
-| `--batch <script.lua>` | string | 未设置 | 启动运行时后执行指定的 Lua 批量自动化脚本。 |
+| `--batch <script>` | string | 未设置 | 启动运行时后执行指定的批量自动化脚本。语言由扩展名决定：`.lua`，或 `.ts` / `.mts` / `.js` / `.mjs`。 |
 | `--batch-dry-run` | boolean | `false` | 仅校验模型与思考配置并打印批量执行计划，不启动 TUI，不写入任何状态文件。 |
 | `--help`, `-h` | boolean | `false` | 打印命令行帮助文本并立即退出。 |
 

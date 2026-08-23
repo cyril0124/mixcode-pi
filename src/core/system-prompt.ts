@@ -242,7 +242,7 @@ function buildDocsSection(): string {
   const mixcodeDocs = findMixcodeDocsPath();
   if (mixcodeDocs) {
     lines.push(
-      `- MixCode docs: ${mixcodeDocs} (architecture, tabs, batch Lua, slash commands, settings, environment)`,
+      `- MixCode docs: ${mixcodeDocs} (architecture, tabs, batch scripts, slash commands, settings, environment)`,
     );
   }
 

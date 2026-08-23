@@ -21,7 +21,7 @@ Documentation library for MixCode Pi, a multi-tab terminal AI coding agent built
 - **[Vim Navigation & Transcript Search](vim-and-navigation.md)**: Buffer navigation, user message jumping, and regex search.
 - **[Workspace & Multi-Tab Sessions](workspace-and-tabs.md)**: Multi-tab workflows, `/reset` vs `/clear`, `/fork`, workspace layout persistence, and Agent Tab collaboration (`mpi ctl`).
 - **[Steer & Follow-up Queue](queue-and-follow-up.md)**: Mid-turn prompt steering, next-turn follow-up queues, and `Ctrl+U` dequeue.
-- **[Batch Lua Execution](batch-lua.md)**: Post-launch monorepo automation scripts, API reference, and dry-run validation.
+- **[Batch Script Execution](batch-scripts.md)**: Post-launch monorepo automation scripts in Lua or TypeScript, API reference, and dry-run validation.
 
 ## Configuration & Integration
 

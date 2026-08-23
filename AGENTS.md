@@ -33,6 +33,7 @@
 - **Contracts Over Reasoning**: Comments, JSDoc, and docs must state complete caller/callee contracts (inputs, side effects, throw conditions, concurrency, ownership), not step-by-step code narratives.
 - **Change-Synchronized Documentation (Zero Drift)**: Any code change that alters public behavior, configuration keys, or commands must update affected documentation and JSDoc in the same task. Delete obsolete documentation alongside obsolete code.
 - Changes to `mpi status`, `mpi ctl`, or the MixCode env contracts the `mpi-ctl` skill uses (`MIXCODE`, `MIXCODE_PID`, `MIXCODE_TAB_TITLE`, `MIXCODE_FOCUSED_TAB_TITLE`) must update `pi-packages/mpi-ctl/skills/mpi-ctl/SKILL.md` in the same task (and the package README pair if the package description changes).
+- The batch script API spans five artifacts that must change together: the executors (`src/core/batch-lua.ts` for `.lua`, `src/core/batch-ts.ts` for `.ts`/`.mts`/`.js`/`.mjs`), both root stubs (`mixcode.lua` snake_case, `mixcode-batch.d.ts` camelCase globals), and the `docs/batch-scripts.md` + `.zh.md` pair. `test/batch-ts.test.ts` guards the TS stub against the runtime API at compile time; the Lua stub and the docs have no guard, so update them by hand. `examples/**/*.ts` is in `tsconfig.json` `include`, so example scripts must pass `bun run typecheck`.
 
 ## TUI & E2E Validation
 

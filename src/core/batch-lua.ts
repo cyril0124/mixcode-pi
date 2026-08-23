@@ -86,20 +86,36 @@ export interface BatchExecutorHost {
   resolveModel(query: string): MixCodeModelRef;
 }
 
+/** Script extensions loaded through the TypeScript/JavaScript executor. */
+const TS_SCRIPT_EXTENSIONS = new Set([".ts", ".mts", ".js", ".mjs"]);
+
 /**
- * Execute a Lua batch script file.
- * Collects all open_tab calls, validates them, then applies them to the host.
+ * Execute a batch script file, dispatching on extension: `.lua` runs under
+ * fengari, `.ts` / `.mts` / `.js` / `.mjs` run as a dynamically imported module.
+ * Both executors collect the same BatchTabRequest list.
  *
- * Throws on any failure (file not found, Lua syntax error, runtime error,
- * tab not found for reuse, unknown model, etc.).
+ * Throws on any failure (file not found, syntax error, runtime error,
+ * unsupported extension, malformed open_tab options, etc.).
  */
 export async function loadBatchRequests(
   scriptPath: string,
   context?: BatchLuaContext,
 ): Promise<BatchPlan> {
   const absPath = path.resolve(scriptPath);
-  const source = await Bun.file(absPath).text();
-  return runLuaScript(source, absPath, context);
+  const extension = path.extname(absPath).toLowerCase();
+  if (extension === ".lua") {
+    const source = await Bun.file(absPath).text();
+    return runLuaScript(source, absPath, context);
+  }
+  if (TS_SCRIPT_EXTENSIONS.has(extension)) {
+    // Lazy: keeps the TS executor (and fengari above) off the no-batch startup path.
+    const { runTsScript } = await import("./batch-ts.js");
+    return runTsScript(absPath, context);
+  }
+  throw new Error(
+    `Unsupported batch script extension '${extension || "(none)"}': ${absPath} ` +
+      `(expected .lua, .ts, .mts, .js, or .mjs)`,
+  );
 }
 
 /**

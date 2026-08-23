@@ -20,7 +20,7 @@ mpi install-extensions [--yes]
 |---|---|---|---|
 | `--workdir <path>` | string | Current working directory (`process.cwd()`) | Target working directory. Also accepts `--workdir=<path>`. There is no `-w` short flag. |
 | `--builtin-extensions-only` | boolean | `false` | Disables third-party package discovery under `settings.json` `packages` and loads only first-party built-in extensions under `pi-packages/mpi-*`. |
-| `--batch <script.lua>` | string | unset | Executes a Lua batch automation script after bootstrapping runtime. |
+| `--batch <script>` | string | unset | Executes a batch automation script after bootstrapping runtime. Language follows the extension: `.lua`, or `.ts` / `.mts` / `.js` / `.mjs`. |
 | `--batch-dry-run` | boolean | `false` | Validates model/thinking configurations and prints the batch execution plan without starting TUI or modifying state files. |
 | `--help`, `-h` | boolean | `false` | Prints CLI usage text and exits immediately. |
 

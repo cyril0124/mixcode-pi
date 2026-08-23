@@ -1,14 +1,16 @@
-# Batch Lua
+# Batch Scripts
 
-[English Documentation](batch-lua.md)
+[English Documentation](batch-scripts.md)
 
-用 Lua 脚本在启动后批量开 agent tab、发 prompt。适合 monorepo 并行任务、模型对比、复用已有 tab 续聊。
+用 Lua 或 TypeScript 脚本在启动后批量开 agent tab、发 prompt。适合 monorepo 并行任务、模型对比、复用已有 tab 续聊。
+
+脚本语言由扩展名决定：`.lua` 走 fengari，`.ts` / `.mts` / `.js` / `.mjs` 以 ES module 形式动态导入。两者产出同一份执行计划，共用全部校验、dry-run 与派发链路。
 
 ## 设计意图与动机
 
 在大型多子包工程（Monorepo）或横向评测场景下，手动打开十几个 Tab、频繁切换工作目录、逐一调整模型/思考档位并重复粘贴 Prompt，不仅极其繁琐，且不可复现。
 
-Batch Lua 定位为**声明式可编程启动派发语言**：
+批处理脚本定位为**声明式可编程启动派发语言**：
 - **脚本化参数控制**：支持通过 CLI 参数透传（`-- <args...>`）与环境变量（`os.getenv`）进行动态参数化。
 - **快速失败校验 (Fail-Fast)**：在实际派发执行前，预先完成模型与思考档位的合法性校验。
 - **静态计划可预测 (Dry-Run)**：支持在不启动 TUI、不修改任何状态文件的状态下快速预览派发执行计划。
@@ -16,21 +18,22 @@ Batch Lua 定位为**声明式可编程启动派发语言**：
 ## 运行
 
 ```bash
-# 启动 TUI 后执行脚本
+# 启动 TUI 后执行脚本（Lua 或 TypeScript）
 mpi --batch examples/batch/simple.lua
+mpi --batch examples/batch/simple.ts
 
 # 把参数传给脚本（`--` 之后全部归脚本）
-mpi --batch script.lua -- packages/core packages/cli
+mpi --batch script.ts -- packages/core packages/cli
 
 # 只校验并打印计划：不启 TUI、不 bootstrap runtime、不写 state/session
-mpi --batch script.lua --batch-dry-run -- packages/core
+mpi --batch script.ts --batch-dry-run -- packages/core
 ```
 
 执行模型：
 
 ```text
-Lua 脚本跑完
-   │  收集 open_tab
+脚本跑完（.lua 走 fengari | .ts/.js 走动态导入）
+   │  收集 open_tab / openTab
    v
 validate (model / thinking / mode)
    │
@@ -45,7 +48,7 @@ apply
 
 **不是编排引擎**：脚本不能 `wait` agent 结果，也不能根据回复再分支。一次 collect、一次 apply。
 
-## API（`mixcode` 全局表）
+## Lua API（`mixcode` 全局表）
 
 | API | 作用 |
 |-----|------|
@@ -105,6 +108,48 @@ mixcode.open_tab({ name = "scratch" })
 
 更多见 [`examples/batch/`](../examples/batch/)。
 
+## TypeScript API
+
+TypeScript/JavaScript 脚本默认导出一个函数，参数是同一套 API 对象。函数可以是 `async`，完成后才收集计划。
+
+```ts
+/// <reference path="/path/to/mixcode-batch.d.ts" />
+
+const script: MixCodeBatchScript = async (mixcode) => {
+  for (const pkg of mixcode.args()) {
+    mixcode.openTab({
+      name: `lint-${pkg}`,
+      workdir: pkg,
+      thinking: "low",
+      prompt: `Run lint and typecheck in ${pkg}. Fix errors only.`,
+    });
+  }
+};
+
+export default script;
+```
+
+类型桩：仓库根目录 [`mixcode-batch.d.ts`](../mixcode-batch.d.ts)（对应 Lua 的 `mixcode.lua`）。它声明的是全局类型，一行 `/// <reference path="..." />` 即可；不引用也能直接跑。
+
+命名一一对应，TypeScript 侧用 camelCase：
+
+| Lua | TypeScript |
+|-----|------------|
+| `mixcode.open_tab(opts)` | `mixcode.openTab(opts)` |
+| `opts.system_prompt` | `opts.systemPrompt` |
+| `mixcode.args()`（1-indexed table） | `mixcode.args()`（`string[]`） |
+| `mixcode.current_workdir()` | `mixcode.currentWorkdir()` |
+| `mixcode.tab_exists(name)` | `mixcode.tabExists(name)` |
+| `mixcode.list_tabs()` → `session_id`、`model` | `mixcode.listTabs()` → `sessionId`、`model` |
+| `mixcode.list_models()` → `model_id`、`display_name`、`context_window` | `mixcode.listModels()` → `modelId`、`displayName`、`contextWindow` |
+| `mixcode.render(tpl, vars)` / 全局 `render` | `mixcode.render(tpl, vars)`（或直接用模板字符串） |
+
+字段语义、`mode`、`systemPrompt` 的新会话规则、prompt 支持范围与校验都与上方 Lua 一致。
+
+脚本写错时抛错：缺少默认导出或默认导出不是函数、`name` 缺失或非非空字符串、任意选项字段非字符串、`openTab` 传入未知字段（如误写 Lua 的 `system_prompt`）。脚本加载与运行失败会包装为 `Batch script error in <path>`。
+
+**无沙箱**：TypeScript 脚本在 MixCode 进程内以完整宿主权限运行（文件系统、网络、`process`）。把批处理脚本当作你亲自执行的本地可信代码。
+
 ## dry-run 输出
 
 ```text
@@ -124,6 +169,7 @@ Batch dry-run: 2 request(s)
 | 批量派发 tab + prompt | 等 agent 完成 / 读回复 |
 | 启动时 introspection | 运行中 live `list_tabs` |
 | 不同 tab 并行 + 同 tab 串行 | 并发上限 / DAG / 依赖边 |
-| CLI 参数 + 环境变量（`os.getenv`） | 第二套配置格式（JSON/YAML） |
+| CLI 参数 + 环境变量（`os.getenv`、`process.env`） | 第二套配置格式（JSON/YAML） |
+| Lua（`.lua`）与 TypeScript/JavaScript（`.ts`/`.mts`/`.js`/`.mjs`） | 为 TypeScript 脚本做沙箱 |
 
-出错时：Lua 语法/运行错误、未知 model、非法 thinking/mode → 抛错；apply 失败写 stderr 并设 `exitCode=1`。
+出错时：脚本语法/运行错误、未知 model、非法 thinking/mode → 抛错；apply 失败写 stderr 并设 `exitCode=1`。

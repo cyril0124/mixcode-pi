@@ -76,7 +76,7 @@ const HELP_TEXT = `Usage: mpi [options] [-- <script-args...>]
 
 Options:
   --workdir <path>           Set working directory (default: cwd)
-  --batch <file>             Execute a Lua batch script after TUI startup
+  --batch <file>             Execute a batch script after TUI startup (.lua, or .ts/.mts/.js/.mjs)
   --batch-dry-run            Load/validate batch script and print plan (no TUI, no session writes)
   --builtin-extensions-only  Load MixCode built-in extensions without discovering third-party extensions
   --help, -h                 Show this help message

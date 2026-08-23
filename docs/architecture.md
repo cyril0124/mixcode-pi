@@ -37,6 +37,8 @@ src/
 │   ├── tabs.ts               Tab creation, deletion, modification, and cycling
 │   ├── overlays.ts           Pure state logic for tab jump, command palette, and overlay routing
 │   ├── open-tabs-store.ts    open_tabs.json I/O and cross-instance tab set mutations
+│   ├── batch-lua.ts          --batch plan collection (.lua via fengari) plus shared validate/apply
+│   ├── batch-ts.ts           --batch plan collection for .ts/.mts/.js/.mjs script modules
 │   ├── peer-tab-sync.ts      Cross-instance tab listener and reconciliation (open/close)
 │   ├── state-store.ts        TUI state and workspace persistence
 │   └── system-prompt.ts      Construct system prompt via Pi resource loader

@@ -17,6 +17,13 @@
     "sourceMap": true,
     "types": ["bun-types", "node"]
   },
-  "include": ["src/**/*.ts", "pi-packages/**/*.ts", "test/**/*.ts", "scripts/**/*.ts"],
+  "include": [
+    "src/**/*.ts",
+    "pi-packages/**/*.ts",
+    "test/**/*.ts",
+    "scripts/**/*.ts",
+    "examples/**/*.ts",
+    "mixcode-batch.d.ts"
+  ],
   "exclude": ["src/cli/binary-entry.ts"]
 }

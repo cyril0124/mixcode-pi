@@ -26,7 +26,7 @@
 - 🧘 **Zen 专注与内联挂件** — 隐藏界面元素获得沉浸画布，或将挂件移入对话流。
 - 📱 **窄屏与移动触控优化** — 深度适配窄终端、分屏与移动 SSH 客户端（Termux、iOS Blink）。
 - ⌨️ **终端优先交互流** — Vim 式对话导航、命令面板、`$skill` / `@file` / `@tab` 自动补全。
-- 📜 **声明式 Batch Lua 自动化** — 嵌入式 Lua 脚本批量派发多 Agent 任务，支持 Dry-run 预览。
+- 📜 **声明式 Batch 自动化** — 用 Lua 或 TypeScript 脚本批量派发多 Agent 任务，支持 Dry-run 预览。
 
 ---
 
@@ -165,7 +165,7 @@ bun run install:global       # 从当前源码全局软链 `mpi`
 mpi                             # 在当前目录启动
 mpi --workdir ~/project         # 在指定工作区目录启动
 mpi --builtin-extensions-only   # 仅加载 mpi-* 第一方扩展，禁用第三方包
-mpi --batch script.lua          # 启动后执行 Lua 批量自动化脚本
+mpi --batch script.ts           # 启动后执行批量自动化脚本（.lua 或 .ts）
 mpi status                      # 检视运行中的实例与 Tab 状态
 ```
 
@@ -204,7 +204,7 @@ mpi 开发 mpi 正是如此：一个 Tab 把审查或验证任务委派给其他
 - [Zen 专注模式](docs/zen-mode.zh.md)
 - [内联挂件模式 (`[INL]`)](docs/inline-widgets.zh.md)
 - [Vim 模式与检索](docs/vim-and-navigation.zh.md)
-- [Batch Lua 批量自动化](docs/batch-lua.zh.md)
+- [Batch 批量自动化](docs/batch-scripts.zh.md)
 - [Pi 扩展兼容性规范](docs/extension-compatibility.zh.md)
 - [Slash 命令完整手册](docs/commands.zh.md)
 - [配置管理 (`mixcode_settings.json`)](docs/mixcode-settings.zh.md)

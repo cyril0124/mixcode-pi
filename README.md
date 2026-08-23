@@ -26,7 +26,7 @@ A **multi-tab**, terminal-native AI coding agent fully compatible with the [Pi](
 - 🧘 **Zen & Inline Modes** — hide chrome for a distraction-free canvas, or move widgets into the chat stream.
 - 📱 **Mobile & Touch Optimized** — narrow terminals, split panes, and touch-friendly SSH clients (Termux, iOS Blink).
 - ⌨️ **Terminal-First Workflow** — Vim-style transcript navigation, command palette, `$skill` / `@file` / `@tab` autocomplete.
-- 📜 **Declarative Batch Automation** — script multi-agent workflows with embedded Lua and dry-run validation.
+- 📜 **Declarative Batch Automation** — script multi-agent workflows in Lua or TypeScript, with dry-run validation.
 
 ---
 
@@ -165,7 +165,7 @@ bun run install:global       # global `mpi` linked from this repo
 mpi                             # Start in current directory
 mpi --workdir ~/project         # Start in specific directory
 mpi --builtin-extensions-only   # Disable 3rd-party packages; load only mpi-*
-mpi --batch script.lua          # Run batch automation script
+mpi --batch script.ts           # Run batch automation script (.lua or .ts)
 mpi status                      # Inspect running instances and tab states
 ```
 
@@ -204,7 +204,7 @@ Full architectural specifications, guides, and manuals are available in the [`do
 - [Zen Mode](docs/zen-mode.md)
 - [Inline Widgets Mode](docs/inline-widgets.md)
 - [Vim Mode & Navigation](docs/vim-and-navigation.md)
-- [Batch Lua Automation](docs/batch-lua.md)
+- [Batch Script Automation](docs/batch-scripts.md)
 - [Pi Extension Compatibility](docs/extension-compatibility.md)
 - [Slash Commands Reference](docs/commands.md)
 - [MixCode Settings](docs/mixcode-settings.md)

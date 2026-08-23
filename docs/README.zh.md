@@ -21,7 +21,7 @@ MixCode Pi 官方技术文档库。记录核心架构、特色工作流、命令
 - **[Vim 模式与对话流检索 (Vim & Search)](vim-and-navigation.zh.md)**：Buffer 级浏览、用户提问正反向跳转与正则全文检索。
 - **[多标签与工作区管理 (Workspace & Tabs)](workspace-and-tabs.zh.md)**：多 Tab 工作流、`/reset` 与 `/clear` 差异、`/fork`、工作区布局持久化，以及 Agent Tab 协作（`mpi ctl`）。
 - **[转向与后续双队列 (Queue Management)](queue-and-follow-up.zh.md)**：轮次中 Steer 注入、轮次后 Follow-up 排队与 `Ctrl+U` 出队。
-- **[Batch Lua 批量自动化执行](batch-lua.zh.md)**：启动后 Monorepo 批量脚本、API 规范及 dry-run 校验。
+- **[Batch 批量自动化执行](batch-scripts.zh.md)**：启动后 Monorepo 批量脚本（Lua / TypeScript）、API 规范及 dry-run 校验。
 
 ## 配置、模型与生态集成
 

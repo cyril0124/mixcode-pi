@@ -182,7 +182,7 @@ import toolBlockSchemaJson from "../../pi-packages/mpi-tool-block/mpi-tool-block
 // package tree on disk, so these are installed to <agentDir>/mixcode-docs.
 import mixcodeDoc_README_md from "../../docs/README.md" with { type: "text" };
 import mixcodeDoc_architecture_md from "../../docs/architecture.md" with { type: "text" };
-import mixcodeDoc_batch_lua_md from "../../docs/batch-lua.md" with { type: "text" };
+import mixcodeDoc_batch_scripts_md from "../../docs/batch-scripts.md" with { type: "text" };
 import mixcodeDoc_builtin_extensions_md from "../../docs/builtin-extensions.md" with { type: "text" };
 import mixcodeDoc_cli_and_flags_md from "../../docs/cli-and-flags.md" with { type: "text" };
 import mixcodeDoc_commands_md from "../../docs/commands.md" with { type: "text" };
@@ -452,7 +452,7 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
 await installMixcodeDocs(resolveMixcodeAgentDir(), {
   "README.md": mixcodeDoc_README_md,
   "architecture.md": mixcodeDoc_architecture_md,
-  "batch-lua.md": mixcodeDoc_batch_lua_md,
+  "batch-scripts.md": mixcodeDoc_batch_scripts_md,
   "builtin-extensions.md": mixcodeDoc_builtin_extensions_md,
   "cli-and-flags.md": mixcodeDoc_cli_and_flags_md,
   "commands.md": mixcodeDoc_commands_md,
