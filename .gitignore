@@ -7,3 +7,4 @@ package-lock.json
 bun.lockb
 .pi/
 .worktrees/
+.test-timings.json
