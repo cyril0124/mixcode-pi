@@ -58,8 +58,11 @@ import diffViewerReview from "../../pi-packages/mpi-diff-viewer/review.ts" with 
 import diffViewerPackageJson from "../../pi-packages/mpi-diff-viewer/package.json" with { type: "text" };
 import chatViewIndex from "../../pi-packages/mpi-chat-view/index.ts" with { type: "text" };
 import chatViewPackageJson from "../../pi-packages/mpi-chat-view/package.json" with { type: "text" };
-import bashDefaultTimeoutIndex from "../../pi-packages/mpi-bash-default-timeout/index.ts" with { type: "text" };
-import bashDefaultTimeoutPackageJson from "../../pi-packages/mpi-bash-default-timeout/package.json" with { type: "text" };
+import bashExec from "../../pi-packages/mpi-bash/exec.ts" with { type: "text" };
+import bashIndex from "../../pi-packages/mpi-bash/index.ts" with { type: "text" };
+import bashLogView from "../../pi-packages/mpi-bash/log-view.ts" with { type: "text" };
+import bashPackageJson from "../../pi-packages/mpi-bash/package.json" with { type: "text" };
+import bashWidget from "../../pi-packages/mpi-bash/widget.ts" with { type: "text" };
 import toolDisplayIndex from "../../pi-packages/mpi-tool-display/index.ts" with { type: "text" };
 import toolDisplayPackageJson from "../../pi-packages/mpi-tool-display/package.json" with { type: "text" };
 import toolDisplayConfig from "../../pi-packages/mpi-tool-display/config.ts" with { type: "text" };
@@ -294,9 +297,12 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
       "index.ts": chatViewIndex,
       "package.json": chatViewPackageJson,
     },
-    "mpi-bash-default-timeout": {
-      "index.ts": bashDefaultTimeoutIndex,
-      "package.json": bashDefaultTimeoutPackageJson,
+    "mpi-bash": {
+      "index.ts": bashIndex,
+      "exec.ts": bashExec,
+      "widget.ts": bashWidget,
+      "log-view.ts": bashLogView,
+      "package.json": bashPackageJson,
     },
     "mpi-tool-display": {
       "index.ts": toolDisplayIndex,

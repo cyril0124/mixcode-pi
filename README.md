@@ -74,7 +74,7 @@ Install community extensions directly through Pi package declarations (`settings
 - **`mpi-mid-turn-compact`**: Mid-turn context compaction during heavy agent execution.
 - **`mpi-herdr-report`**: Real-time status reporting to Herdr agent panes (`HERDR_ENV=1`).
 - **`mpi-image-hoist`**: Lift image paths into native multimodal message parts.
-- **`mpi-bash-default-timeout`**: Enforce configurable safety timeouts on bash executions.
+- **`mpi-bash`**: Default bash timeout plus a foreground window that detaches long commands to the background and reports their exit code when they finish; `/bash-logs` opens any background command's full log.
 
 <p align="center">
   <img src="assets/readme-right-widget.gif" alt="Extension side panel" width="900">
