@@ -74,7 +74,7 @@ Tab 之间可以直接对话——同一 TUI，或其他 `mpi` 进程——无�
 - **`mpi-mid-turn-compact`**：多轮长推理过程中的会话上下文自动压缩。
 - **`mpi-herdr-report`**：向 Herdr 窗格上报 Agent 运行与就绪状态（`HERDR_ENV=1`）。
 - **`mpi-image-hoist`**：自动提升输入中的图片路径为原生多模态消息。
-- **`mpi-bash`**：为 Bash 工具调用注入默认超时，并在前台窗口到期后把长命令转入后台，结束时自动回报退出码；`/bash-logs` 可查看任意后台命令的完整日志。
+- **`mpi-bash`**：为 Bash 工具调用注入默认超时，并在前台窗口到期后把长命令转入后台，结束时自动回报退出码；`/bash-jobs` 可查看任意后台命令的完整日志。
 
 <p align="center">
   <img src="assets/readme-right-widget.gif" alt="扩展侧栏" width="900">

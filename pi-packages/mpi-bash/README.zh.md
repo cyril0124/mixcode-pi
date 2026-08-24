@@ -2,7 +2,7 @@
 
 [English](README.md)
 
-Bash 执行策略：默认超时、前台窗口、到期自动转后台、结束自动回报，以及用 `/bash-logs` 读后台命令的完整日志。
+Bash 执行策略：默认超时、前台窗口、到期自动转后台、结束自动回报，以及用 `/bash-jobs` 读后台命令的完整日志。
 
 扩展用 Pi 的 `createBashToolDefinition` 配合自定义 `BashOperations` 注册自己的 `bash` 工具定义。工具参数、渲染、输出截断、`commandPrefix`、`shellPath` 以及 MixCode 的每次 spawn 注入的 tab 环境变量均保持不变，只替换命令的执行方式。
 
@@ -59,16 +59,16 @@ Bash 执行策略：默认超时、前台窗口、到期自动转后台、结束
 | `<tmpdir>/mpi-bash-<pid>-<n>.log` | **全部输出**，包含前台那一段。要读全就读它。 |
 | 完成回报 | 最后 2000 字节，附日志路径。 |
 
-转后台命令的日志在命令结束后仍然保留，`/bash-logs` 才能继续打开它；超过七天的日志会在会话启动时清理。若日志写不进去，完成回报会写明失败原因，命令本身继续运行。
+转后台命令的日志在命令结束后仍然保留，`/bash-jobs` 才能继续打开它；超过七天的日志会在会话启动时清理。若日志写不进去，完成回报会写明失败原因，命令本身继续运行。
 
 前台那一段由内存回放写入，缓冲上限 4 MB。命令在转后台前打印超过这个量时，最早的输出会丢失，日志首行为 `[mpi-bash] earlier output dropped`。
 
-## `/bash-logs`
+## `/bash-jobs`
 
 列出本会话所有转入后台的命令：先运行中，再是最近 50 条已结束的。
 
 ```text
-Background command logs
+Background jobs
 → ● running     10s  printf "FOREGROUND-OUTPUT"; sleep 12; printf 'd…   #1258366
   ✓ exit 0      22s  bun run build                                     #1260309
   ✗ exit 1       3s  cargo test                                        #1260501

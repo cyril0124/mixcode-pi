@@ -53,7 +53,7 @@ function detachNotice(text: string): string {
   return text.slice(text.indexOf("[mpi-bash]"));
 }
 
-test("/bash-logs lists this session's runs and opens the full log", async () => {
+test("/bash-jobs lists this session's runs and opens the full log", async () => {
   const handlers: Record<string, Array<(event: unknown, ctx: unknown) => unknown>> = {};
   const commands: Record<string, (args: string, ctx: unknown) => Promise<void>> = {};
   const notices: string[] = [];
@@ -113,11 +113,11 @@ test("/bash-logs lists this session's runs and opens the full log", async () => 
       sendMessage: (message: { content: string }) => exits.push(message.content),
     } as never);
 
-    const bashLogs = commands["bash-logs"];
-    assert.ok(bashLogs, "the extension must register /bash-logs");
+    const bashJobs = commands["bash-jobs"];
+    assert.ok(bashJobs, "the extension must register /bash-jobs");
 
     // Nothing has run yet: the command must say so instead of opening a picker.
-    await bashLogs("", { ui });
+    await bashJobs("", { ui });
     assert.equal(selected.length, 0, "an empty history must not open a picker");
     assert.match(notices[0] ?? "", /No command has been sent to the background/);
 
@@ -132,7 +132,7 @@ test("/bash-logs lists this session's runs and opens the full log", async () => 
     assert.ok(logPath, `the detach notice must name the log: ${started?.content[0]?.text}`);
 
     // While it runs, the picker offers it as running.
-    await bashLogs("", { ui });
+    await bashJobs("", { ui });
     assert.match(selected[0]?.options[0] ?? "", /^● running +\d+s {2}printf "early/);
 
     // The log opens in a read-only pager: it carries the log's name and its own
@@ -146,7 +146,7 @@ test("/bash-logs lists this session's runs and opens the full log", async () => 
     await waitFor(() => exits[0]);
 
     // A finished run stays reachable, labelled with its exit code.
-    await bashLogs("", { ui });
+    await bashJobs("", { ui });
     assert.match(selected[1]?.options[0] ?? "", /^✓ exit 0 +\d+s {2}printf "early/);
     // The log carries both halves; the transcript stopped at the detach point.
     const finished = (opened[1]?.lines ?? []).join("\n");
@@ -232,7 +232,7 @@ test("the pager follows a live log and leaves a finished one alone", async () =>
     const logPath = /(\/\S*mpi-bash-[\w-]+\.log)/.exec(started?.content[0]?.text ?? "")?.[1];
     assert.ok(logPath, `the detach notice must name the log: ${started?.content[0]?.text}`);
 
-    void commands["bash-logs"]?.("", { ui });
+    void commands["bash-jobs"]?.("", { ui });
     await waitFor(() => (screen().includes("first") ? true : undefined));
     assert.doesNotMatch(screen(), /second/, "the command has not printed it yet");
 
@@ -242,7 +242,7 @@ test("the pager follows a live log and leaves a finished one alone", async () =>
     // A finished run's log is read once: later writes must not appear.
     pager = undefined;
     await waitFor(() => (backgroundLogs().length > 0 ? true : undefined));
-    void commands["bash-logs"]?.("", { ui });
+    void commands["bash-jobs"]?.("", { ui });
     await waitFor(() => (screen().includes("second") ? true : undefined));
     fs.appendFileSync(logPath, "appended after the run ended\n");
     // Twice the pager's one-second refresh: long enough for a re-read to land.
@@ -344,7 +344,7 @@ test("the widget lists every run, oldest first, one line each", () => {
   );
 });
 
-test("/bash-logs rows line up in columns and stay unique per run", () => {
+test("/bash-jobs rows line up in columns and stay unique per run", () => {
   const now = 100_000;
   const rows = [
     formatRunChoice({ id: 111, command: "bun run check", startedAt: now - 8_000, logPath: "/tmp/a.log" }, now),
@@ -553,7 +553,7 @@ test("two detached runs never share a log file", async () => {
   await waitFor(() => (runs.length === 2 ? runs : undefined));
 
   // Pids are reused, so the pid alone would let a new command truncate a
-  // finished run's log while `/bash-logs` still points at it.
+  // finished run's log while `/bash-jobs` still points at it.
   assert.notEqual(runs[0]?.logPath, runs[1]?.logPath);
   assert.match(runs[0]?.tail ?? "", /first/);
   assert.match(runs[1]?.tail ?? "", /second/);

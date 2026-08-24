@@ -2,7 +2,7 @@
 
 [中文文档](README.zh.md)
 
-Bash execution policy: a default timeout, a foreground window, automatic detach to the background, an automatic completion notice, and `/bash-logs` for reading a background command's full log.
+Bash execution policy: a default timeout, a foreground window, automatic detach to the background, an automatic completion notice, and `/bash-jobs` for reading a background command's full log.
 
 The extension registers its own `bash` tool definition, built from Pi's `createBashToolDefinition` with custom `BashOperations`. Tool arguments, rendering, output truncation, `commandPrefix`, `shellPath`, and MixCode's per-spawn tab environment are unchanged — only command execution is replaced.
 
@@ -59,16 +59,16 @@ A command that finishes in the foreground never touches the disk: its whole outp
 | `<tmpdir>/mpi-bash-<pid>-<n>.log` | **Everything**, foreground part included. Read it to see the full output. |
 | Completion notice | The last 2000 bytes, plus the log path. |
 
-A detached command's log outlives it, so `/bash-logs` can still open it; logs older than seven days are removed when a session starts. If the log cannot be written, the failure is named in the completion notice and the command keeps running.
+A detached command's log outlives it, so `/bash-jobs` can still open it; logs older than seven days are removed when a session starts. If the log cannot be written, the failure is named in the completion notice and the command keeps running.
 
 The foreground part is replayed from memory, which is capped at 4 MB. A command that prints more than that before detaching loses its earliest output, and the log opens with `[mpi-bash] earlier output dropped`.
 
-## `/bash-logs`
+## `/bash-jobs`
 
 Opens a picker of every command this session sent to the background: running ones first, then the last 50 finished ones.
 
 ```text
-Background command logs
+Background jobs
 → ● running     10s  printf "FOREGROUND-OUTPUT"; sleep 12; printf 'd…   #1258366
   ✓ exit 0      22s  bun run build                                     #1260309
   ✗ exit 1       3s  cargo test                                        #1260501

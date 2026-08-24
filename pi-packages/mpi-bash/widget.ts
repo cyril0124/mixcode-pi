@@ -5,10 +5,10 @@ import type { DetachedRun, DetachedStart } from "./exec.js";
 
 /**
  * Surfaces for background commands: the widget above the editor, the rows of
- * the `/bash-logs` picker, and the session's record of what has been detached.
+ * the `/bash-jobs` picker, and the session's record of what has been detached.
  */
 
-/** Marks a still-running command in the `/bash-logs` picker. */
+/** Marks a still-running command in the `/bash-jobs` picker. */
 const RUNNING_DOT = "●";
 
 const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"] as const;
@@ -111,7 +111,7 @@ export function renderCompletionMessage(
   return container.render(width).map((line) => truncateToWidth(line, Math.max(1, width)));
 }
 
-/** A detached run that has ended; kept so `/bash-logs` can still reach its log. */
+/** A detached run that has ended; kept so `/bash-jobs` can still reach its log. */
 export interface FinishedRun extends DetachedStart {
   exitCode: number | null;
   timedOut: boolean;
@@ -122,16 +122,16 @@ function hasEnded(run: DetachedStart | FinishedRun): run is FinishedRun {
   return "endedAt" in run;
 }
 
-/** Detached runs remembered per session for `/bash-logs`. */
+/** Detached runs remembered per session for `/bash-jobs`. */
 const HISTORY_LIMIT = 50;
-/** Log bytes shown by `/bash-logs`; the file itself keeps everything. */
+/** Log bytes shown by `/bash-jobs`; the file itself keeps everything. */
 const LOG_VIEW_BYTES = 200_000;
 
-/** Command column of a `/bash-logs` row; the rest is fixed-width. */
+/** Command column of a `/bash-jobs` row; the rest is fixed-width. */
 const CHOICE_COMMAND_WIDTH = 48;
 
 /**
- * One `/bash-logs` picker row, laid out in fixed columns so the list reads as a
+ * One `/bash-jobs` picker row, laid out in fixed columns so the list reads as a
  * table: `<icon> <state> <time>  <command>  #<pid>`.
  *
  * The pid also keeps rows unique when the same command is run twice.
@@ -184,7 +184,7 @@ const STATUS_REFRESH_MS = SPINNER_INTERVAL_MS;
  */
 export class BackgroundStatus {
   private readonly runs = new Map<number, DetachedStart>();
-  /** Detached runs of this session, newest last, for `/bash-logs`. */
+  /** Detached runs of this session, newest last, for `/bash-jobs`. */
   private readonly history: FinishedRun[] = [];
   private ticker: ReturnType<typeof setInterval> | undefined;
   private ctx: ExtensionContext | undefined;

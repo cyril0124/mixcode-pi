@@ -371,7 +371,7 @@ export function createDetachingBashOperations(options: {
       detached = true;
 
       // The name carries a sequence number: pids are reused, and a new command
-      // must never truncate a finished run's log that `/bash-logs` still lists.
+      // must never truncate a finished run's log that `/bash-jobs` still lists.
       const logPath = path.join(
         os.tmpdir(),
         `mpi-bash-${child.pid ?? "nopid"}-${nextLogSequence()}.log`,

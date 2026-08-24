@@ -80,8 +80,8 @@ const bashExtension: ExtensionFactory = (pi) => {
     systemPrompt: appendBashTimeoutNote(event.systemPrompt),
   }));
 
-  pi.registerCommand("bash-logs", {
-    description: "Read the full log of a command bash sent to the background",
+  pi.registerCommand("bash-jobs", {
+    description: "List background bash jobs and open a job's full log",
     handler: async (_args, ctx) => {
       const runs = backgroundStatus.list();
       if (runs.length === 0) {
@@ -93,7 +93,7 @@ const bashExtension: ExtensionFactory = (pi) => {
       const byChoice = new Map<string, DetachedStart | FinishedRun>(
         runs.map((run) => [formatRunChoice(run), run]),
       );
-      const choice = await ctx.ui.select("Background command logs", [...byChoice.keys()]);
+      const choice = await ctx.ui.select("Background jobs", [...byChoice.keys()]);
       const run = choice === undefined ? undefined : byChoice.get(choice);
       if (!run) return;
       let text: string;

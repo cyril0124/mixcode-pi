@@ -2,7 +2,7 @@
   "name": "mpi-bash",
   "version": "0.1.0",
   "type": "module",
-  "description": "Bash execution policy: default timeout, foreground window with auto-detach to the background, completion notices, and /bash-logs",
+  "description": "Bash execution policy: default timeout, foreground window with auto-detach to the background, completion notices, and /bash-jobs",
   "pi": {
     "extensions": ["./index.ts"]
   }
