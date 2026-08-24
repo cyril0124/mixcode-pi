@@ -182,6 +182,41 @@ test("agent_end fallback continues if agent_settled never fires", async () => {
 	assert.equal(continuationMessages().length, 1, "fallback must kick auto-continue");
 });
 
+test("failed compaction releases goal continuation without duplicating the prequeue", async () => {
+	seedActiveGoal();
+
+	await emit("session_before_compact", {
+		type: "session_before_compact",
+		reason: "threshold",
+		willRetry: false,
+	});
+	assert.equal(continuationMessages().length, 1, "busy compaction must prequeue one continuation");
+
+	await emit("session_compact_failed", {
+		type: "session_compact_failed",
+		reason: "threshold",
+		errorMessage: "Auto-compaction failed: provider unavailable",
+		aborted: false,
+		willRetry: false,
+		fromExtension: false,
+	});
+	assert.equal(
+		continuationMessages().length,
+		1,
+		"failure handling must not duplicate the prequeued continuation",
+	);
+
+	// The prequeued turn completed; an active goal must be able to continue again.
+	await emit("agent_end", { type: "agent_end", messages: [] });
+	idle = true;
+	await emit("agent_settled", { type: "agent_settled" });
+	assert.equal(
+		continuationMessages().length,
+		2,
+		"failed compaction must not leave goal continuation stuck as compacting",
+	);
+});
+
 // Avoid leaking timers if a future change reintroduces delayed retries.
 test.after(() => {
 	resetContinuationRuntime();

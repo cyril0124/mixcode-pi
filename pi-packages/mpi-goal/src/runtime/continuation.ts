@@ -117,6 +117,14 @@ export function finishGoalCompaction(pi: ExtensionAPI, ctx: ExtensionContext): v
 	scheduleCompactionFallbackRetry(pi, ctx, work);
 }
 
+export function failGoalCompaction(): void {
+	const state = contState();
+	// Manual validation can fail before session_before_compact; preserve unrelated fallback work.
+	if (!state.compactionActive) return;
+	state.compactionActive = false;
+	clearCompactionRuntime();
+}
+
 export function scheduleMaybeContinueGoal(
 	pi: ExtensionAPI,
 	ctx: ExtensionContext,

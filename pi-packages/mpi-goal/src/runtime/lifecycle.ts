@@ -47,6 +47,7 @@ import { evaluateBudgetPressure, isBudgetHardStop, isBudgetReached, isBudgetWarn
 import {
 	beginGoalCompaction,
 	cancelGoalContinuation,
+	failGoalCompaction,
 	finishGoalCompaction,
 	interruptActiveGoalTurn,
 	openApiGate,
@@ -164,6 +165,9 @@ export function registerGoalLifecycle(
 			flushGoalActiveTime(pi, "compact");
 			beginGoalCompaction(pi, ctx);
 		});
+	});
+	pi.on("session_compact_failed", (_event, ctx) => {
+		withGoalSessionFromCtx(ctx, failGoalCompaction);
 	});
 	pi.on("session_compact", async (_event, ctx) => {
 		await withGoalSessionFromCtx(ctx, async () => {
