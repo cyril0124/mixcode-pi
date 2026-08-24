@@ -8,20 +8,20 @@ import type { DetachedRun, DetachedStart } from "./exec.js";
  * the `/bash-logs` picker, and the session's record of what has been detached.
  */
 
-/** Marks a still-running command in the widget. */
+/** Marks a still-running command in the `/bash-logs` picker. */
 const RUNNING_DOT = "●";
+
+const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"] as const;
+const SPINNER_INTERVAL_MS = 80;
 
 export function formatElapsed(ms: number): string {
   const total = Math.max(0, Math.round(ms / 1000));
   const minutes = Math.floor(total / 60);
-  // Zero-pad the seconds so the footer does not jitter between 1m3s and 1m13s.
+  // Zero-pad seconds so 1m3s and 1m13s stay the same width.
   return minutes > 0 ? `${minutes}m${String(total % 60).padStart(2, "0")}s` : `${total}s`;
 }
 
-/**
- * Widget body: one `[command, elapsed]` pair per background command, oldest
- * first. Commands are flattened to one line; the caller lays out the columns.
- */
+/** Oldest first. Each command is flattened to one line. */
 export function backgroundRows(runs: readonly DetachedStart[], now = Date.now()): string[][] {
   return [...runs]
     .sort((a, b) => a.startedAt - b.startedAt)
@@ -32,8 +32,7 @@ export function backgroundRows(runs: readonly DetachedStart[], now = Date.now())
  * One line per background command, no chrome: the widget sits directly above
  * the editor, so every extra row costs transcript space.
  *
- * Colour carries the hierarchy - warning dot (running), accent elapsed (the
- * value that changes), dim command (context).
+ * Colour carries the hierarchy - warning spinner, accent elapsed, dim command.
  */
 export function renderBackgroundWidget(
   runs: readonly DetachedStart[],
@@ -41,25 +40,74 @@ export function renderBackgroundWidget(
   width: number,
   now = Date.now(),
 ): string[] {
-  const rows = backgroundRows(runs, now);
-  if (rows.length === 0) return [];
+  if (runs.length === 0) return [];
 
   const container = new Container();
   // Usable width inside the Text container's indent and padding; a row wider
   // than this wraps and silently doubles the widget's height.
   const inner = Math.max(24, width - 3);
-  const body = rows
-    .map(([command, elapsed]) => {
-      const time = elapsed ?? "";
-      const text = truncateToWidth(command ?? "", Math.max(4, inner - 4 - time.length), "…");
-      // Pad between the command and the clock so every time ends on the same
-      // column, whatever the commands look like.
-      const gap = Math.max(2, inner - 2 - visibleWidth(text) - time.length);
-      return `${theme.fg("warning", RUNNING_DOT)} ${theme.fg("dim", text)}${" ".repeat(gap)}${theme.bold(theme.fg("accent", time))}`;
+  const body = [...runs]
+    .sort((a, b) => a.startedAt - b.startedAt)
+    .map((run) => {
+      const time = formatElapsed(now - run.startedAt);
+      const spin =
+        SPINNER_FRAMES[
+          Math.floor(Math.max(0, now - run.startedAt) / SPINNER_INTERVAL_MS) % SPINNER_FRAMES.length
+        ]!;
+      const command = run.command.replace(/\s+/g, " ").trim();
+      const text = truncateToWidth(command, Math.max(4, inner - 3 - time.length), "…");
+      return `${theme.fg("warning", spin)} ${theme.bold(theme.fg("accent", time))} ${theme.fg("dim", text)}`;
     })
     .join("\n");
   container.addChild(new Text(body, 1, 0));
 
+  return container.render(width).map((line) => truncateToWidth(line, Math.max(1, width)));
+}
+
+/** Structured fields on the `bash-detached-exit` custom message. */
+export interface DetachedExitDetails {
+  command: string;
+  exitCode: number | null;
+  timedOut: boolean;
+  tail: string;
+  logPath: string;
+  logError?: string;
+}
+
+/** Last non-empty lines of output shown under the status row. */
+const COMPLETION_TAIL_LINES = 3;
+
+/** Chat render of a finished background command: status row, then a short tail. */
+export function renderCompletionMessage(
+  details: DetachedExitDetails,
+  theme: Theme,
+  width: number,
+): string[] {
+  const command = details.command.replace(/\s+/g, " ").trim();
+  const [icon, color, right] = details.timedOut
+    ? (["⏱", "warning", "timeout"] as const)
+    : details.exitCode === 0
+      ? (["✓", "success", ""] as const)
+      : (["✗", "error", String(details.exitCode ?? "?")] as const);
+
+  const container = new Container();
+  const inner = Math.max(24, width - 3);
+  const text = truncateToWidth(command, Math.max(4, inner - 4 - right.length), "…");
+  const gap = right ? Math.max(2, inner - 2 - visibleWidth(text) - right.length) : 0;
+  const status =
+    `${theme.fg(color, icon)} ${theme.fg("dim", text)}` +
+    (right ? `${" ".repeat(gap)}${theme.fg(color, right)}` : "");
+
+  const tail = details.logError
+    ? [theme.fg("error", truncateToWidth(details.logError, inner, "…"))]
+    : details.tail
+        .trim()
+        .split(/\r?\n/)
+        .filter(Boolean)
+        .slice(-COMPLETION_TAIL_LINES)
+        .map((line) => theme.fg("dim", truncateToWidth(line, inner, "…")));
+
+  container.addChild(new Text([status, ...tail].join("\n"), 1, 0));
   return container.render(width).map((line) => truncateToWidth(line, Math.max(1, width)));
 }
 
@@ -125,8 +173,8 @@ export async function readLogForView(logPath: string, limit = LOG_VIEW_BYTES): P
 
 /** Status key for the background-command footer entry. */
 const BACKGROUND_WIDGET_KEY = "mpi-bash-background";
-/** Status refresh cadence; the entry shows the oldest run's elapsed time. */
-const STATUS_REFRESH_MS = 1000;
+/** Widget refresh cadence; matches the spinner interval so the glyph moves. */
+const STATUS_REFRESH_MS = SPINNER_INTERVAL_MS;
 
 /**
  * Footer entry listing the commands this session left running in the background.

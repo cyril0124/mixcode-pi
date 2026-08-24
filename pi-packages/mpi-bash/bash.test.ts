@@ -15,6 +15,7 @@ import bashExtension, {
   pruneOldLogs,
   readLogForView,
   renderBackgroundWidget,
+  renderCompletionMessage,
   resolveForegroundSeconds,
 } from "./index.js";
 
@@ -108,6 +109,7 @@ test("/bash-logs lists this session's runs and opens the full log", async () => 
       registerTool: (tool: BashTool) => {
         bash = tool;
       },
+      registerMessageRenderer: () => {},
       sendMessage: (message: { content: string }) => exits.push(message.content),
     } as never);
 
@@ -218,6 +220,7 @@ test("the pager follows a live log and leaves a finished one alone", async () =>
       registerTool: (tool: BashTool) => {
         bash = tool;
       },
+      registerMessageRenderer: () => {},
       sendMessage: () => {},
     } as never);
     await handlers.session_start?.[0]?.({}, { cwd: process.cwd(), ui });
@@ -289,6 +292,7 @@ test("bash tool calls get the default timeout only when it is missing", async ()
       handlers[event].push(handler);
     },
     registerCommand: () => {},
+    registerMessageRenderer: () => {},
   } as never);
 
   const event: BashToolCall = {
@@ -398,9 +402,75 @@ test("the widget spends one line per run at any width", () => {
   }
 
   const [first, second] = renderBackgroundWidget(runs, theme, 40, now);
-  // The clock sits at the right edge, on the same column for every row.
-  assert.match(first ?? "", /^ ● bun run check {2,}1m12s\s*$/);
-  assert.match(second ?? "", /^ ● printf "x+\u001b\[0m…\u001b\[0m {2,}5s\s*$/);
+  // Spinner then elapsed, then the command. Frame comes from each run's age.
+  assert.match(first ?? "", /^ ⠋ 1m12s bun run check\s*$/);
+  assert.match(second ?? "", /^ ⠹ 5s printf "x+/);
+});
+
+test("the chat line is a status row plus a short tail", () => {
+  const theme = {
+    fg: (_color: string, text: string) => text,
+    bold: (text: string) => text,
+  } as unknown as Parameters<typeof renderCompletionMessage>[1];
+
+  const ok = renderCompletionMessage(
+    {
+      command: 'sleep 1; printf "late\\n"',
+      exitCode: 0,
+      timedOut: false,
+      tail: "late\n",
+      logPath: "/tmp/x.log",
+    },
+    theme,
+    80,
+  );
+  assert.match(ok.join("\n"), /✓/);
+  assert.match(ok.join("\n"), /late/);
+  assert.doesNotMatch(ok.join("\n"), /extension bash-detached-exit|Complete output|\[mpi-bash\]/);
+
+  const fail = renderCompletionMessage(
+    {
+      command: "make -j8",
+      exitCode: 2,
+      timedOut: false,
+      tail: "*** [main] Error 1\n",
+      logPath: "/tmp/x.log",
+    },
+    theme,
+    80,
+  );
+  assert.match(fail.join("\n"), /✗/);
+  assert.match(fail.join("\n"), /Error 1/);
+  assert.match(fail.at(0) ?? "", / 2\s*$/);
+
+  const timedOut = renderCompletionMessage(
+    {
+      command: "sleep 300",
+      exitCode: null,
+      timedOut: true,
+      tail: "",
+      logPath: "/tmp/x.log",
+    },
+    theme,
+    80,
+  );
+  assert.equal(timedOut.length, 1);
+  assert.match(timedOut[0] ?? "", /⏱/);
+  assert.match(timedOut[0] ?? "", /timeout\s*$/);
+
+  const empty = renderCompletionMessage(
+    {
+      command: "sleep 1",
+      exitCode: 0,
+      timedOut: false,
+      tail: "",
+      logPath: "/tmp/x.log",
+    },
+    theme,
+    80,
+  );
+  assert.equal(empty.length, 1);
+  assert.match(empty[0] ?? "", /✓/);
 });
 
 test("a command finishing inside the window streams output and reports its exit code", async () => {
@@ -623,8 +693,14 @@ test("the registered bash tool detaches, shows the widget, and reports without w
   const handlers: Record<string, Array<(event: unknown, ctx: unknown) => unknown>> = {};
   const messages: Array<{ customType: string; content: string; triggerTurn: unknown }> = [];
   type WidgetFactory = (tui: unknown, theme: unknown) => { render(width: number): string[] };
+  type MessageRenderer = (
+    message: { details?: unknown },
+    options: unknown,
+    theme: unknown,
+  ) => { render(width: number): string[] } | undefined;
   const widgets: Array<WidgetFactory | undefined> = [];
   const plainTheme = { fg: (_c: string, t: string) => t, bold: (t: string) => t };
+  let renderer: MessageRenderer | undefined;
   let bash: BashTool | undefined;
 
   const previousWindow = process.env.MPI_BASH_FOREGROUND_SECONDS;
@@ -639,8 +715,11 @@ test("the registered bash tool detaches, shows the widget, and reports without w
       registerTool: (tool: BashTool) => {
         bash = tool;
       },
+      registerMessageRenderer: (_type: string, registered: MessageRenderer) => {
+        renderer = registered;
+      },
       sendMessage: (
-        message: { customType: string; content: string },
+        message: { customType: string; content: string; details?: unknown },
         options?: { triggerTurn?: boolean },
       ) => {
         messages.push({ ...message, triggerTurn: options?.triggerTurn });
@@ -677,6 +756,10 @@ test("the registered bash tool detaches, shows the widget, and reports without w
     // whole delivery path exists to avoid.
     assert.equal(notice.triggerTurn, false);
     assert.match(notice.content, /exited with code 0/);
+    const shown = renderer?.(notice, {}, plainTheme)?.render(80).join("\n") ?? "";
+    assert.match(shown, /✓/);
+    assert.match(shown, /late/);
+    assert.doesNotMatch(shown, /extension bash-detached-exit|Complete output/);
     assert.equal(widgets.at(-1), undefined, "the widget must clear with the last run");
 
     const logPath = /Complete output \(foreground and background\): (\S+)/.exec(notice.content)?.[1];

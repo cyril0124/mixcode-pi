@@ -31,11 +31,23 @@ The injected default `timeout` is `300` seconds and applies only when the model 
 While at least one command runs in the background, a widget above the editor lists every one of them, oldest first, one line per run:
 
 ```text
- ● bun run check                                          1m12s
- ● printf "FOREGROUND-OUTPUT"; sleep 12; printf 'done'        5s
+ ⠋ 1m12s bun run check
+ ⠹ 5s printf "FOREGROUND-OUTPUT"; sleep 12; printf 'done'
 ```
 
-A `warning` dot marks a running command, the elapsed time is bold `accent`, and the command is `dim`. Times are flushed right so they form a single column whatever the commands look like; a command too wide for the terminal is elided so every run costs exactly one line. The widget repaints once per second and disappears when the last run finishes.
+Each row is a `warning` spinner, bold `accent` elapsed time, and a `dim` command. A command too wide for the terminal is elided so every run costs exactly one line. The widget disappears when the last run finishes.
+
+When a background command ends, the chat shows one status line and, if there is output, its last few lines:
+
+```text
+ ✓  printf "FOREGROUND-OUTPUT"; sleep 12; printf 'done'
+ done
+
+ ✗  cargo test                                              1
+ FAILED tests/retry.rs
+
+ ⏱  pytest -k slow                                    timeout
+```
 
 ## Background output
 

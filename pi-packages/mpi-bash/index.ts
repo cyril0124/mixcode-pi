@@ -25,9 +25,11 @@ import {
 import { LogView, openInExternalEditor, type SuspendableTui } from "./log-view.js";
 import {
   BackgroundStatus,
+  type DetachedExitDetails,
   type FinishedRun,
   formatRunChoice,
   readLogForView,
+  renderCompletionMessage,
 } from "./widget.js";
 
 export * from "./exec.js";
@@ -56,6 +58,18 @@ async function reloadLogIfChanged(
 
 const bashExtension: ExtensionFactory = (pi) => {
   const backgroundStatus = new BackgroundStatus();
+
+  pi.registerMessageRenderer<DetachedExitDetails>(
+    BASH_DETACHED_EXIT_CUSTOM_TYPE,
+    (message, _options, theme) => {
+      const details = message.details;
+      if (!details) return undefined;
+      return {
+        render: (width: number) => renderCompletionMessage(details, theme, width),
+        invalidate: () => {},
+      };
+    },
+  );
 
   pi.on("tool_call", (event: ToolCallEvent) => {
     if (event.toolName !== "bash") return;
@@ -173,7 +187,14 @@ const bashExtension: ExtensionFactory = (pi) => {
                   customType: BASH_DETACHED_EXIT_CUSTOM_TYPE,
                   content: formatCompletionNotice(run),
                   display: true,
-                  details: { exitCode: run.exitCode, logPath: run.logPath },
+                  details: {
+                    command: run.command,
+                    exitCode: run.exitCode,
+                    timedOut: run.timedOut,
+                    tail: run.tail,
+                    logPath: run.logPath,
+                    logError: run.logError,
+                  } satisfies DetachedExitDetails,
                 },
                 { triggerTurn: false },
               );

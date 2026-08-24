@@ -31,11 +31,23 @@ Bash 执行策略：默认超时、前台窗口、到期自动转后台、结束
 只要还有命令在后台运行，编辑器上方就会出现一个组件，按开始先后列出全部后台命令，一行一条：
 
 ```text
- ● bun run check                                          1m12s
- ● printf "FOREGROUND-OUTPUT"; sleep 12; printf 'done'        5s
+ ⠋ 1m12s bun run check
+ ⠹ 5s printf "FOREGROUND-OUTPUT"; sleep 12; printf 'done'
 ```
 
-`warning` 色圆点表示运行中，时长用 `accent` 加粗，命令用 `dim`。时长靠右对齐成一列，不受命令长短影响；超出终端宽度的命令会省略，因此每条命令恰好占一行。组件每秒重绘，最后一条结束后自动消失。
+每一行是 `warning` 色 spinner、`accent` 加粗的时长，以及 `dim` 的命令。超出终端宽度的命令会省略，每条恰好一行。最后一条结束后组件消失。
+
+后台命令结束后，聊天里只显示一行状态，有输出时再跟最后几行：
+
+```text
+ ✓  printf "FOREGROUND-OUTPUT"; sleep 12; printf 'done'
+ done
+
+ ✗  cargo test                                              1
+ FAILED tests/retry.rs
+
+ ⏱  pytest -k slow                                    timeout
+```
 
 ## 后台输出
 
