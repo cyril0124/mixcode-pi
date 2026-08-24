@@ -541,7 +541,7 @@ function handleModalOverlayKeys(
   ) {
     return { consume: true };
   }
-  if (matchesKey(data, "ctrl+q")) {
+  if (MIXCODE_EXTENSION_KEYBINDINGS_MANAGER.matches(data, "app.exit")) {
     if (active) clearPendingEscape(active);
     openQuitConfirm(state, tui);
     return { consume: true };
@@ -714,7 +714,7 @@ function handleAgentSurfaceKeys(
     tui.requestRender();
     return { consume: true };
   }
-  if (matchesKey(data, "ctrl+t")) {
+  if (MIXCODE_EXTENSION_KEYBINDINGS_MANAGER.matches(data, "app.model.cycleBackward")) {
     if (active) clearPendingEscape(active);
     // Navigate installs a tree editor that falls through Ctrl+T; close it first
     // so Tab Jump is the only layer and Esc dismisses it (not the tree under it).
@@ -723,7 +723,7 @@ function handleAgentSurfaceKeys(
     showLinesOverlay(tui, (width) => renderTabJumpOverlay(state, width));
     return { consume: true };
   }
-  if (matchesKey(data, "ctrl+p")) {
+  if (MIXCODE_EXTENSION_KEYBINDINGS_MANAGER.matches(data, "app.model.cycleForward")) {
     if (active) clearPendingEscape(active);
     const extensionCommands = activeExtensionCommands(state, runtime);
     if (!canOpenCommandPalette(state, active, tui, isEditorAutocompleteOpen, extensionCommands))
@@ -799,7 +799,7 @@ function handleEditorControlKeys(
       });
     return { consume: true };
   }
-  if (matchesKey(data, "ctrl+c") && editorActions) {
+  if (MIXCODE_EXTENSION_KEYBINDINGS_MANAGER.matches(data, "app.clear") && editorActions) {
     if (isPendingEditorTakeover(active, editorActions)) return undefined;
     if (active) clearPendingEscape(active);
     const text = editorActions.getText();
@@ -819,7 +819,7 @@ function handleEditorControlKeys(
   // Pending interactions (e.g. /btw) may bind Ctrl+R as bring-to-main.
   // Permanent setEditorComponent skins still get MixCode /rename prefill.
   if (
-    matchesKey(data, "ctrl+r") &&
+    MIXCODE_EXTENSION_KEYBINDINGS_MANAGER.matches(data, "app.thinking.toggle") &&
     editorActions &&
     active &&
     state.activeTabId !== HOME_TAB_ID &&

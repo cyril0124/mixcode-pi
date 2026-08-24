@@ -23,6 +23,42 @@ MixCode Pi provides comprehensive global and context-sensitive keyboard shortcut
 | `@` | Editor | File / Tab Completion | Fuzzy-matches peer tab titles above workspace file paths. |
 | `!` | Editor | Bash Execution | Enters single-line inline bash command mode. |
 
+## Custom Keybindings (`keybindings.json`)
+
+MixCode supports custom keybindings configured in `~/.pi/agent/keybindings.json` (or `$PI_CODING_AGENT_DIR/keybindings.json`).
+
+### Common Action Identifiers
+
+| Action ID | Default Key | Action |
+|---|---|---|
+| `"app.model.cycleForward"` | `ctrl+p` | Open command palette |
+| `"app.model.cycleBackward"` | `ctrl+t` | Open tab jump overlay |
+| `"app.thinking.toggle"` | `ctrl+r` | Prepare tab rename command |
+| `"app.editor.external"` | `ctrl+e` | Open input draft in external editor |
+| `"app.tools.expand"` | `ctrl+o` | Toggle tool output expand/collapse |
+| `"app.interrupt"` | `escape` | Cancel or abort current operation |
+| `"app.clear"` | `ctrl+c` | Clear editor input |
+| `"app.exit"` | `ctrl+q` | Quit MixCode |
+| `"app.thinking.cycle"` | `shift+tab` | Cycle thinking level |
+| `"app.message.followUp"` | `alt+enter` | Queue follow-up message |
+| `"app.clipboard.pasteImage"` | `ctrl+v` (`alt+v`) | Paste image/text from clipboard |
+
+### Configuration Example
+
+Add your overrides to `~/.pi/agent/keybindings.json`:
+
+```json
+{
+  "app.model.cycleForward": "ctrl+f",
+  "app.model.cycleBackward": "ctrl+g",
+  "app.thinking.toggle": "ctrl+w",
+  "app.editor.external": "ctrl+alt+e"
+}
+```
+
+- Each action accepts a single key string (e.g. `"ctrl+f"`) or an array of keys (e.g. `["ctrl+f", "alt+f"]`).
+- Run `/reload` inside MixCode to hot-reload changes without restarting.
+
 ## Escape Dispatch & Retraction Flow (`src/core/escape.ts`)
 
 Pressing `Escape` executes prioritized state-aware operations:

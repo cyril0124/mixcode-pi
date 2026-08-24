@@ -23,6 +23,42 @@ MixCode Pi 提供完整的全局与局部快捷键映射系统（`src/core/keyma
 | `@` | 编辑器 | 文件 / Tab 补全 | 在工作区文件路径之上模糊匹配其它 Tab 标题。 |
 | `!` | 编辑器 | Bash 命令 | 进入单行 Shell 命令快速执行模式。 |
 
+## 自定义按键配置 (`keybindings.json`)
+
+MixCode 支持通过 `~/.pi/agent/keybindings.json`（或 `$PI_CODING_AGENT_DIR/keybindings.json`）自定义快捷键。
+
+### 常用 Action 标识符
+
+| Action ID | 默认按键 | 功能 |
+|---|---|---|
+| `"app.model.cycleForward"` | `ctrl+p` | 打开全局命令面板 |
+| `"app.model.cycleBackward"` | `ctrl+t` | 打开 Tab 跳转浮层 |
+| `"app.thinking.toggle"` | `ctrl+r` | 预备重命名 Tab 命令 |
+| `"app.editor.external"` | `ctrl+e` | 在外部编辑器中打开当前草稿 |
+| `"app.tools.expand"` | `ctrl+o` | 折叠 / 展开工具输出 |
+| `"app.interrupt"` | `escape` | 取消 / 中断当前操作 |
+| `"app.clear"` | `ctrl+c` | 清空编辑器输入 |
+| `"app.exit"` | `ctrl+q` | 退出程序 |
+| `"app.thinking.cycle"` | `shift+tab` | 循环切换 Thinking 等级 |
+| `"app.message.followUp"` | `alt+enter` | 加入 Follow-up 队列 |
+| `"app.clipboard.pasteImage"` | `ctrl+v` (`alt+v`) | 从剪贴板粘贴图片/文本 |
+
+### 配置示例
+
+在 `~/.pi/agent/keybindings.json` 中配置自定义键位：
+
+```json
+{
+  "app.model.cycleForward": "ctrl+f",
+  "app.model.cycleBackward": "ctrl+g",
+  "app.thinking.toggle": "ctrl+w",
+  "app.editor.external": "ctrl+alt+e"
+}
+```
+
+- 每个 Action 支持配置单个按键字符串（如 `"ctrl+f"`）或按键数组（如 `["ctrl+f", "alt+f"]`）。
+- 修改配置文件后，在终端中执行 `/reload` 即可立即热重载生效，无需重启。
+
 ## Escape 优先级分发流 (`src/core/escape.ts`)
 
 按 `Escape` 键时遵循确定性的优先级逻辑：

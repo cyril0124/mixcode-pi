@@ -1,5 +1,5 @@
 import type { SettingsManager } from "@earendil-works/pi-coding-agent";
-import { matchesKey, ProcessTerminal, TuiMainScreen, type TUI as TuiType } from "@earendil-works/pi-tui";
+import { ProcessTerminal, TuiMainScreen, type TUI as TuiType } from "@earendil-works/pi-tui";
 import type { ExtensionCustomUiHost, MixCodeRuntime } from "../agent/runtime.js";
 import { scanSkillEntries } from "../core/attachments.js";
 import { applyDisabledModelFlags, buildAvailableModelRefs, modelRefId } from "../core/models.js";
@@ -8,6 +8,7 @@ import { noteTabClosed } from "../core/open-tabs-store.js";
 import { HOME_TAB_ID, type MixCodeState } from "../core/types.js";
 import { closeAgentTab, getActiveTab, onActiveTabChange } from "../core/tabs.js";
 import { CompactPromptEditor, EditorSlot, editorThemeFor } from "./app-editor.js";
+import { MIXCODE_EXTENSION_KEYBINDINGS_MANAGER } from "../agent/runtime.js";
 import { stopChatSelectionAutoScroll } from "./app-mouse.js";
 import { handleMixCodeKeyInput } from "./app-input.js";
 import {
@@ -365,7 +366,7 @@ export function createMixCodeTui(
     // setEditorComponent skins still use MixCode external-edit on active text.
     const activeForEdit = state.activeTabId === HOME_TAB_ID ? undefined : getActiveTab(state);
     if (
-      matchesKey(data, "ctrl+e") &&
+      MIXCODE_EXTENSION_KEYBINDINGS_MANAGER.matches(data, "app.editor.external") &&
       !appOverlayHandlesInput(tui) &&
       !(activeForEdit?.extensionUi.waitingForInputs.length)
     ) {
