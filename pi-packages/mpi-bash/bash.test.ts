@@ -691,7 +691,12 @@ test("pi's timeout and cwd validation still rejects before spawning", async () =
 
 test("the registered bash tool detaches, shows the widget, and reports without waking the agent", async () => {
   const handlers: Record<string, Array<(event: unknown, ctx: unknown) => unknown>> = {};
-  const messages: Array<{ customType: string; content: string; triggerTurn: unknown }> = [];
+  const messages: Array<{
+    customType: string;
+    content: string;
+    triggerTurn: unknown;
+    details?: unknown;
+  }> = [];
   type WidgetFactory = (tui: unknown, theme: unknown) => { render(width: number): string[] };
   type MessageRenderer = (
     message: { details?: unknown },
