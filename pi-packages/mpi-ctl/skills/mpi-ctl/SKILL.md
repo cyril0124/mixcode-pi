@@ -81,8 +81,8 @@ Common MixCode session/tab commands:
 | `/delete-session [yes]` | Delete that tab's session file and close the tab. `yes` skips the Y/N overlay. |
 | `/close-all-sessions` | Close every agent tab; keep session files. Always Y/N — `--focus-tab` then `y`/`n`. |
 | `/delete-all-sessions` | Delete every open agent session and close those tabs. Always Y/N — `--focus-tab` then `y`/`n`. |
-| `/models [model]` | Set model directly (e.g. `/models openai/gpt-4.1`, `/models gpt-4.1`). Bare `/models` opens picker (needs `--focus-tab`). |
-| `/thinking [level]` | Set thinking tier directly (e.g. `/thinking high`, `/thinking off`). Bare `/thinking` opens picker (needs `--focus-tab`). |
+| `/models [model]` | Set model directly (e.g. `/models openai/gpt-4.1`, `/models gpt-4.1`). Run `mpi --list-models` first for the valid ids. Bare `/models` opens picker (needs `--focus-tab`). |
+| `/thinking [level]` | Set thinking tier directly (e.g. `/thinking high`, `/thinking off`). Tiers differ per model — run `mpi --list-models` first. Bare `/thinking` opens picker (needs `--focus-tab`). |
 | `/context-limit [value]` | Set context limit directly (e.g. `/context-limit 32k`, `/context-limit reset`). Bare opens picker. |
 | `/workdir [path]` | Change workdir directly (e.g. `/workdir /path/to/dir`). Bare opens picker. |
 | `/resume` | Bare: opens the session picker (needs `--focus-tab`; it is UI). `/resume <session-id>` (id or prefix) and `/resume N:<tab-name>` (exact open tab title first, then exact full session name, current folder first) resume directly via plain `send-prompt`, no focus. Duplicate names report candidate ids. |
@@ -107,7 +107,7 @@ deepseek  deepseek-v4-flash  1M       off,low,high,max
 deepseek  deepseek-v4-pro    1M       off,high,max                 (disabled)
 ```
 
-The `thinking` column is that model's accepted `/thinking` values — tiers vary per model, so check here before `send-prompt '/thinking <level>'`. Rows marked `(disabled)` are refused by `/models`. Providers a third-party extension registers at runtime are not listed. Then set it on the target tab:
+Run this before every `send-prompt '/models <id>'` or `send-prompt '/thinking <level>'`: the `model` column is what `/models` accepts, and the `thinking` column is that model's accepted `/thinking` values, which differ per model. Rows marked `(disabled)` are refused by `/models`. Providers a third-party extension registers at runtime are not listed. Then set it on the target tab:
 
 ```text
 mpi ctl --tab Agent-01 send-prompt '/models deepseek/deepseek-v4-flash'
