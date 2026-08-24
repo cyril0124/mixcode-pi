@@ -32,14 +32,16 @@
 
 ## 快速开始
 
-需要 [Bun](https://bun.sh)。从 GitHub 全局安装：
+需要 [Bun](https://bun.sh)。通过克隆仓库并执行安装脚本进行安装：
 
 ```bash
-bun install -g github:cyril0124/mixcode-pi
+git clone https://github.com/cyril0124/mixcode-pi.git
+cd mixcode-pi
+./install.sh
 mpi
 ```
 
-请确保 `~/.bun/bin` 在 `PATH` 中。升级用同一条命令；卸载：`bun remove -g mixcode-pi`。
+如果偏好直接软链本地开发源码，也可在克隆目录下运行 `bun run install:global`。请确保 `~/.local/bin`（或开发软链对应的 `~/.bun/bin`）在 `PATH` 中。后续升级在仓库目录下执行 `git pull && ./install.sh` 即可。
 
 模型与凭证直接复用 Pi 的标准配置：`~/.pi/agent/models.json`（模型与自定义端点）加 `auth.json`（API 密钥）。内置 provider 直接在 mpi（或 pi）里执行 `/login`，支持订阅 OAuth 登录或录入 API 密钥，无需手写配置；凭证与 Pi 共享，已有 Pi 配置开箱即用——详见 [模型管理](docs/model-management.zh.md)。
 
@@ -137,25 +139,25 @@ Tab 之间可以直接对话——同一 TUI，或其他 `mpi` 进程——无�
 
 ## 安装说明
 
-### 从 GitHub 安装（推荐）
+### 推荐方式：编译为独立二进制（通过 git clone）
 
 ```bash
-bun install -g github:cyril0124/mixcode-pi
-mpi
-```
-
-升级使用相同命令。卸载：`bun remove -g mixcode-pi`。
-
-### 从源码构建（独立二进制）
-
-```bash
+git clone https://github.com/cyril0124/mixcode-pi.git
+cd mixcode-pi
 ./install.sh                 # 独立二进制 → ~/.local/bin/mpi
 ./install.sh --prefix /opt/mixcode
+```
+
+升级方式：在仓库内执行 `git pull && ./install.sh`。
+
+### 本地开发软链
+
+```bash
 bun run install:global       # 从当前源码全局软链 `mpi`
 ```
 
-- `bun install -g github:…` — 基于 Bun 运行时执行 TypeScript 入口。
 - `./install.sh` — 编译为单个独立二进制文件（`bun build --compile`），运行时无需 `node_modules`。
+- `bun run install:global` — 从当前本地仓库软链，基于 Bun 运行时执行 TypeScript 入口。
 
 ---
 

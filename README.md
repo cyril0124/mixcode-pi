@@ -32,14 +32,16 @@ A **multi-tab**, terminal-native AI coding agent fully compatible with the [Pi](
 
 ## Quick start
 
-Requires [Bun](https://bun.sh). Install globally from GitHub:
+Requires [Bun](https://bun.sh). Install via clone and build script:
 
 ```bash
-bun install -g github:cyril0124/mixcode-pi
+git clone https://github.com/cyril0124/mixcode-pi.git
+cd mixcode-pi
+./install.sh
 mpi
 ```
 
-Ensure `~/.bun/bin` is on your `PATH`. Upgrade with the same command; remove with `bun remove -g mixcode-pi`.
+Or run `bun run install:global` inside the cloned directory if you prefer linking the development source. Ensure `~/.local/bin` (or `~/.bun/bin` for linked source) is on your `PATH`. Upgrade via `git pull && ./install.sh`.
 
 Models and credentials use Pi's standard config: `~/.pi/agent/models.json` (models & custom endpoints) and `auth.json` (API keys). For built-in providers just run `/login` inside mpi (or pi) and authenticate via subscription OAuth or an API key — no manual config needed. Credentials are shared with Pi, so an existing Pi setup is picked up as-is; see [Model Management](docs/model-management.md).
 
@@ -137,25 +139,25 @@ Core keys (not the full map — open **Help** / Command Palette in-app for every
 
 ## Installation
 
-### From GitHub (recommended)
+### Recommended: Standalone Binary (via git clone)
 
 ```bash
-bun install -g github:cyril0124/mixcode-pi
-mpi
-```
-
-Upgrade by re-running the same command. Uninstall: `bun remove -g mixcode-pi`.
-
-### From Local Checkout (Binary Build)
-
-```bash
+git clone https://github.com/cyril0124/mixcode-pi.git
+cd mixcode-pi
 ./install.sh                 # standalone binary → ~/.local/bin/mpi
 ./install.sh --prefix /opt/mixcode
+```
+
+Upgrade by running `git pull && ./install.sh` in the repository directory.
+
+### From Local Checkout (Development / Linked)
+
+```bash
 bun run install:global       # global `mpi` linked from this repo
 ```
 
-- `bun install -g github:…` — Runs via Bun runtime (`mpi`).
 - `./install.sh` — Compiles into a single standalone binary (`bun build --compile`); requires no `node_modules` at runtime.
+- `bun run install:global` — Runs via Bun runtime linked from this repository.
 
 ---
 

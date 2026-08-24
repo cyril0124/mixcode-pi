@@ -53,7 +53,21 @@ BIN_DIR="$PREFIX/bin"
 info "Checking prerequisites..."
 
 if ! command_exists bun; then
-  error "bun is required to compile. Install: curl -fsSL https://bun.sh/install | bash"
+  info "bun not found. Installing bun..."
+  if command_exists curl; then
+    curl -fsSL https://bun.sh/install | bash || error "Failed to install bun"
+  elif command_exists wget; then
+    wget -qO- https://bun.sh/install | bash || error "Failed to install bun"
+  else
+    error "Neither curl nor wget found. Please install curl or wget, or install bun manually: https://bun.sh"
+  fi
+
+  export BUN_INSTALL="${BUN_INSTALL:-$HOME/.bun}"
+  export PATH="$BUN_INSTALL/bin:$PATH"
+
+  if ! command_exists bun; then
+    error "bun was installed but is not found in PATH ($BUN_INSTALL/bin)"
+  fi
 fi
 
 info "bun $(bun --version)"
