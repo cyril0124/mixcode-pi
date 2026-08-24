@@ -107,9 +107,9 @@ Target:
   --literal, -l           send-keys: join tokens as literal text (no Enter/C-p mapping)
 
 Output larger than 8192 bytes for last-message, last-assistant-message, last-user-message, last-tool, and
-dump-screen is truncated to 4096 bytes on stdout; the full text is written to
+dump-screen is truncated to 4096 bytes (tail) on stdout; the full text is written to
 /tmp/mpi-ctl-<pid>-<command>-<ms>.txt (mode 0600). Notice:
-[Full output: <path>. Truncated: N lines shown (4.0KB limit)]
+[Full output: <path>. Truncated: showing last N lines (4.0KB tail limit)]
 `;
 
 export function isCtlCliArgs(args: string[]): boolean {
@@ -437,15 +437,17 @@ function formatCtlSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
 }
 
-function sliceUtf8Prefix(text: string, maxBytes: number): string {
+function sliceUtf8Suffix(text: string, maxBytes: number): string {
   const encoder = new TextEncoder();
   if (encoder.encode(text).byteLength <= maxBytes) return text;
+  const units = Array.from(text);
   let out = "";
   let used = 0;
-  for (const unit of text) {
+  for (let i = units.length - 1; i >= 0; i--) {
+    const unit = units[i]!;
     const size = encoder.encode(unit).byteLength;
     if (used + size > maxBytes) break;
-    out += unit;
+    out = unit + out;
     used += size;
   }
   return out;
@@ -468,10 +470,10 @@ export async function truncateCtlStdout(
   } finally {
     await handle.close();
   }
-  const preview = sliceUtf8Prefix(text, CTL_STDOUT_PREVIEW_BYTES);
+  const preview = sliceUtf8Suffix(text, CTL_STDOUT_PREVIEW_BYTES);
   const linesShown = preview.length === 0 ? 0 : preview.split("\n").length;
   return {
-    text: `${preview}\n\n[Full output: ${overflowPath}. Truncated: ${linesShown} lines shown (${formatCtlSize(CTL_STDOUT_PREVIEW_BYTES)} limit)]\n`,
+    text: `[Full output: ${overflowPath}. Truncated: showing last ${linesShown} lines (${formatCtlSize(CTL_STDOUT_PREVIEW_BYTES)} tail limit)]\n\n${preview}`,
     overflowPath,
   };
 }

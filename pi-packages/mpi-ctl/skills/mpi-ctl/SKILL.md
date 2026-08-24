@@ -69,7 +69,7 @@ mpi ctl --tab Agent-01 send-prompt '/new-session Worker'
 
 `--tab` does not steal UI focus. **Default to `--tab` / `--session`.** Do not use `--focus-tab` / `--focus-session` unless the next action is UI keys on a picker or overlay that `--tab` cannot drive. **Always close the loop:** ACK from `send-prompt` only means accept, not done. Poll with `wait` then `last-message` (or `last-tool` / `dump-screen`) — unless you requested a reply (callback mode, see `send-prompt`).
 
-Use **`send-keys` + `--focus-tab`** only after `dump-screen` shows a picker/overlay you must click (`/resume`, `/models`, `/close-all-sessions`, `/delete-all-sessions`, extension question UI, `C-q`). Single-tab close/delete: `send-prompt /close-session yes` — do not focus.
+Use **`send-keys` + `--focus-tab`** only after `dump-screen` shows an interactive picker/overlay that cannot take direct arguments (bare `/resume`, `/models` or `/thinking` without arguments, `/close-all-sessions`, `/delete-all-sessions`, extension question UI, `C-q`). For commands that accept arguments, **prefer passing arguments directly with `send-prompt`** (e.g. `send-prompt '/models gpt-4.1'`, `send-prompt '/thinking high'`, `send-prompt '/close-session yes'`, `send-prompt '/resume <session-id>'`) to avoid opening pickers and needing `dump-screen` / `send-keys`.
 
 Common MixCode session/tab commands:
 
@@ -81,13 +81,17 @@ Common MixCode session/tab commands:
 | `/delete-session [yes]` | Delete that tab's session file and close the tab. `yes` skips the Y/N overlay. |
 | `/close-all-sessions` | Close every agent tab; keep session files. Always Y/N — `--focus-tab` then `y`/`n`. |
 | `/delete-all-sessions` | Delete every open agent session and close those tabs. Always Y/N — `--focus-tab` then `y`/`n`. |
+| `/models [model]` | Set model directly (e.g. `/models openai/gpt-4.1`, `/models gpt-4.1`). Bare `/models` opens picker (needs `--focus-tab`). |
+| `/thinking [level]` | Set thinking tier directly (e.g. `/thinking high`, `/thinking off`). Bare `/thinking` opens picker (needs `--focus-tab`). |
+| `/context-limit [value]` | Set context limit directly (e.g. `/context-limit 32k`, `/context-limit reset`). Bare opens picker. |
+| `/workdir [path]` | Change workdir directly (e.g. `/workdir /path/to/dir`). Bare opens picker. |
 | `/resume` | Bare: opens the session picker (needs `--focus-tab`; it is UI). `/resume <session-id>` (id or prefix) and `/resume N:<tab-name>` (exact open tab title first, then exact full session name, current folder first) resume directly via plain `send-prompt`, no focus. Duplicate names report candidate ids. |
 | `/clear` | Replace the tab's session with a fresh child (title resets). |
 | `/reset` | Reset the branch to session root; keep title and tab slot. |
 | `/compact` | Compact that tab's context. |
 | `/mark-done` | Mark that tab done. |
 
-Send these with `send-prompt` and `--tab`. Bare `/resume`, `/models`, close-all / delete-all, and other pickers still need `--focus-tab` plus `send-keys`; `/resume <session-id>` and `/resume N:<tab-name>` do not (no picker).
+Send these with `send-prompt` and `--tab`. **Prefer direct arguments** (e.g. `/models <model>`, `/thinking <level>`, `/resume <session-id>`, `/close-session yes`) so no picker opens. Bare `/resume`, bare `/models`, bare `/thinking`, close-all / delete-all, and other interactive overlays still need `--focus-tab` plus `send-keys`.
 
 Direct `/resume` commands return an ACK before asynchronous command handling finishes. Close the loop with `wait`, then use `dump-screen` on the target tab to read name-not-found or duplicate-name errors. Duplicate-name output includes candidate session ids; retry with `/resume <session-id>`.
 
@@ -221,7 +225,7 @@ mpi ctl --tab <title> wait --timeout 90
 
 ## Output / truncation
 
-`last-message`, `last-*-message`, `last-tool`, `dump-screen`: over 8192 bytes, stdout keeps 4096; full text at `/tmp/mpi-ctl-<pid>-<command>-<ms>.txt` (mode `0600`). Notice: `[Full output: <path>. Truncated: N lines shown (4.0KB limit)]`. `send-keys`, `send-prompt`, and `wait` are never truncated.
+`last-message`, `last-*-message`, `last-tool`, `dump-screen`: over 8192 bytes, stdout keeps the last 4096 bytes (tail); full text at `/tmp/mpi-ctl-<pid>-<command>-<ms>.txt` (mode `0600`). Notice: `[Full output: <path>. Truncated: showing last N lines (4.0KB tail limit)]`. `send-keys`, `send-prompt`, and `wait` are never truncated.
 
 ## JSON schemas
 

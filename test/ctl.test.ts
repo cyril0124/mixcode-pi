@@ -760,7 +760,7 @@ test("truncateCtlStdout leaves short output unchanged and dumps long output to t
 
   const tmp = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mpi-ctl-trunc-"));
   try {
-    const full = `${"x".repeat(9000)}\u4e2d`;
+    const full = `\u4e2d${"x".repeat(9000)}`;
     const long = await truncateCtlStdout(full, {
       op: "last-user-message",
       pid: 99,
@@ -773,10 +773,10 @@ test("truncateCtlStdout leaves short output unchanged and dumps long output to t
     assert.equal(st.mode & 0o777, 0o600);
     assert.match(
       long.text,
-      /\[Full output: .*mpi-ctl-99-last-user-message-123\.txt\. Truncated: \d+ lines shown \(4\.0KB limit\)\]/,
+      /\[Full output: .*mpi-ctl-99-last-user-message-123\.txt\. Truncated: showing last \d+ lines \(4\.0KB tail limit\)\]/,
     );
-    assert.ok(!long.text.includes("\u4e2d"), "preview must not split the trailing CJK code point");
-    const preview = long.text.split("\n\n[Full output:")[0]!;
+    assert.ok(!long.text.includes("\u4e2d"), "preview must not split the leading CJK code point when taking tail");
+    const preview = long.text.split("\n\n")[1]!;
     assert.ok(Buffer.byteLength(preview, "utf8") <= 4096);
   } finally {
     await fsPromises.rm(tmp, { recursive: true, force: true });
