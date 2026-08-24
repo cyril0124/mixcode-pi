@@ -43,7 +43,7 @@ mpi
 
 Or run `bun run install:global` inside the cloned directory if you prefer linking the development source. Ensure `~/.local/bin` (or `~/.bun/bin` for linked source) is on your `PATH`. Upgrade via `git pull && ./install.sh`.
 
-Models and credentials use Pi's standard config: `~/.pi/agent/models.json` (models & custom endpoints) and `auth.json` (API keys). For built-in providers just run `/login` inside mpi (or pi) and authenticate via subscription OAuth or an API key — no manual config needed. Credentials are shared with Pi, so an existing Pi setup is picked up as-is; see [Model Management](docs/model-management.md).
+Models and credentials use Pi's standard config: `~/.pi/agent/models.json` (models & custom endpoints) and `auth.json` (API keys). For built-in providers just run `/login` inside `mpi` (or `pi`) and authenticate via subscription OAuth or an API key — no manual config needed. Credentials are shared with Pi, so an existing Pi setup is picked up as-is; see [Model Management](docs/model-management.md).
 
 ---
 
@@ -188,7 +188,7 @@ mpi ctl --workdir ~/other-proj --tab Reviewer send-prompt 'review the diff'
 mpi ctl --tab Agent-01 wait && mpi ctl --tab Agent-01 last-message
 ```
 
-This is how mpi develops mpi: one tab delegates review or verification tasks to tabs of other instances and collects their replies. Full command reference: [pi-packages/mpi-ctl/skills/mpi-ctl/SKILL.md](pi-packages/mpi-ctl/skills/mpi-ctl/SKILL.md) — at runtime the skill is installed at `<agentDir>/extensions/mpi-ctl/skills/mpi-ctl/SKILL.md` (default `~/.pi/agent/…`).
+This is how `mpi` develops `mpi`: one tab delegates review or verification tasks to tabs of other instances and collects their replies. Full command reference: [pi-packages/mpi-ctl/skills/mpi-ctl/SKILL.md](pi-packages/mpi-ctl/skills/mpi-ctl/SKILL.md) — at runtime the skill is installed at `<agentDir>/extensions/mpi-ctl/skills/mpi-ctl/SKILL.md` (default `~/.pi/agent/…`).
 
 Inspired by [Herdr](https://herdr.dev), a terminal multiplexer for coding agents that exposes session control to the agents running inside it.
 
@@ -217,7 +217,7 @@ Full architectural specifications, guides, and manuals are available in the [`do
 
 ## About This Project
 
-This is an AI-developed project. My daily development now happens entirely in mpi — including developing mpi itself. The code quality may be poor, but please experience mpi for yourself.
+This is an AI-developed project. My daily development now happens entirely in `mpi` — including developing `mpi` itself. The code quality may be poor, but please experience `mpi` for yourself.
 
 Not interested in this project? Take a look at [`pi-packages/`](pi-packages/) instead — a set of high-quality Pi extensions that also work on plain [Pi](https://pi.dev).
 

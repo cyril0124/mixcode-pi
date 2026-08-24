@@ -43,7 +43,7 @@ mpi
 
 如果偏好直接软链本地开发源码，也可在克隆目录下运行 `bun run install:global`。请确保 `~/.local/bin`（或开发软链对应的 `~/.bun/bin`）在 `PATH` 中。后续升级在仓库目录下执行 `git pull && ./install.sh` 即可。
 
-模型与凭证直接复用 Pi 的标准配置：`~/.pi/agent/models.json`（模型与自定义端点）加 `auth.json`（API 密钥）。内置 provider 直接在 mpi（或 pi）里执行 `/login`，支持订阅 OAuth 登录或录入 API 密钥，无需手写配置；凭证与 Pi 共享，已有 Pi 配置开箱即用——详见 [模型管理](docs/model-management.zh.md)。
+模型与凭证直接复用 Pi 的标准配置：`~/.pi/agent/models.json`（模型与自定义端点）加 `auth.json`（API 密钥）。内置 provider 直接在 `mpi`（或 `pi`）里执行 `/login`，支持订阅 OAuth 登录或录入 API 密钥，无需手写配置；凭证与 Pi 共享，已有 Pi 配置开箱即用——详见 [模型管理](docs/model-management.zh.md)。
 
 ---
 
@@ -188,7 +188,7 @@ mpi ctl --workdir ~/other-proj --tab Reviewer send-prompt 'review the diff'
 mpi ctl --tab Agent-01 wait && mpi ctl --tab Agent-01 last-message
 ```
 
-mpi 开发 mpi 正是如此：一个 Tab 把审查或验证任务委派给其他实例的 Tab，再收集它们的回复。完整命令参考：[pi-packages/mpi-ctl/skills/mpi-ctl/SKILL.md](pi-packages/mpi-ctl/skills/mpi-ctl/SKILL.md)——运行时该技能安装于 `<agentDir>/extensions/mpi-ctl/skills/mpi-ctl/SKILL.md`（默认 `~/.pi/agent/…`）。
+`mpi` 开发 `mpi` 正是如此：一个 Tab 把审查或验证任务委派给其他实例的 Tab，再收集它们的回复。完整命令参考：[pi-packages/mpi-ctl/skills/mpi-ctl/SKILL.md](pi-packages/mpi-ctl/skills/mpi-ctl/SKILL.md)——运行时该技能安装于 `<agentDir>/extensions/mpi-ctl/skills/mpi-ctl/SKILL.md`（默认 `~/.pi/agent/…`）。
 
 灵感来自 [Herdr](https://herdr.dev)——一个面向编程 Agent 的终端复用器，它把会话控制能力暴露给运行其中的 Agent。
 
@@ -217,7 +217,7 @@ mpi 开发 mpi 正是如此：一个 Tab 把审查或验证任务委派给其他
 
 ## 关于本项目
 
-这是一个 AI 开发的项目。我现在的日常开发已完全使用 mpi——包括开发 mpi 本身。代码质量可能很差，但请亲自感受 mpi。
+这是一个 AI 开发的项目。我现在的日常开发已完全使用 `mpi`——包括开发 `mpi` 本身。代码质量可能很差，但请亲自感受 `mpi`。
 
 如果你对当前项目不感兴趣，也可以看看 [`pi-packages/`](pi-packages/)，里面都是高质量的 Pi 扩展插件，在原生 [Pi](https://pi.dev) 上也能正常使用。
 
