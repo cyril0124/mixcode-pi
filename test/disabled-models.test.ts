@@ -254,6 +254,7 @@ test("reloadRuntimeModels updates the shared extension model policy", async () =
         testRuntime({
           reloadModelConfig: async () => configured,
           getSharedModelRuntime: () => runtime,
+          refreshScopedModels: () => {},
         }),
         { mixcodeFile: file },
       ),
@@ -270,6 +271,7 @@ test("reloadRuntimeModels updates the shared extension model policy", async () =
       testRuntime({
         reloadModelConfig: async () => configured,
         getSharedModelRuntime: () => runtime,
+        refreshScopedModels: () => {},
       }),
       { mixcodeFile: file },
     );
@@ -303,6 +305,7 @@ test("reload applies disabled policy when models.json is invalid", async () => {
         testRuntime({
           reloadModelConfig: async () => [],
           getSharedModelRuntime: () => runtime,
+          refreshScopedModels: () => {},
         }),
         { mixcodeFile: file },
       ),

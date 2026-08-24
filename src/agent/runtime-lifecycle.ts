@@ -29,6 +29,7 @@ import {
   extensionManagerEntriesFromResult,
   filterDisabledExtensions,
 } from "../core/extension-manager.js";
+import { mixcodeScopedModels } from "../core/pi-models.js";
 import { preferDistExtensionEntries } from "../core/prefer-dist-extension-entries.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import type { AgentRuntimeConfig, MixCodeModel, MixCodeTabInfo } from "../core/types.js";
@@ -190,6 +191,7 @@ async function createRuntimeTabWithServices(
     sessionManager: session,
     model: { ...model },
     thinkingLevel: config.thinkingLevel,
+    scopedModels: mixcodeScopedModels(services.modelRuntime),
     customTools: mixcodeBashCustomTools(services, () => tab.title, context),
   });
   const runtimeTab: RuntimeTab = {
@@ -334,6 +336,7 @@ async function createAgentSessionForReplacementWithServices(
     model: { ...model },
     thinkingLevel: config.thinkingLevel,
     sessionStartEvent: config.sessionStartEvent,
+    scopedModels: mixcodeScopedModels(services.modelRuntime),
     customTools: mixcodeBashCustomTools(
       services,
       config.getTabTitle ?? (() => ""),
@@ -660,6 +663,7 @@ export async function reloadRuntimeTabWithFreshServices(
     model,
     thinkingLevel: runtimeTab.tab.thinkingLevel,
     sessionStartEvent: { type: "session_start", reason: "reload" },
+    scopedModels: mixcodeScopedModels(services.modelRuntime),
     customTools: mixcodeBashCustomTools(services, () => runtimeTab.tab.title, context),
   });
   bindRuntimeSessionCore(runtimeTab, {
@@ -720,6 +724,7 @@ export async function updateRuntimeTabWorkdir(
     model,
     thinkingLevel: runtimeTab.tab.thinkingLevel,
     sessionStartEvent: { type: "session_start", reason: "reload" },
+    scopedModels: mixcodeScopedModels(services.modelRuntime),
     customTools: mixcodeBashCustomTools(services, () => runtimeTab.tab.title, context),
   });
   activateMixCodeTools(agentSession);

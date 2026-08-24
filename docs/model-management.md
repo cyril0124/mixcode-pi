@@ -48,6 +48,8 @@ Scope, identical to what `/models` offers:
 
 Disablement lives in [`mixcode_settings.json`](mixcode-settings.md) (`disabledProviders` / `disabledModels`). Do not duplicate the schema here.
 
+The surviving catalogue is also the session's model scope: extensions read it as `ctx.scopedModels`. With nothing disabled the scope is empty, which is Pi's "unscoped" contract.
+
 ## Per-Model Dynamic Rules
 
 ### 1. Dynamic Skills (`mpi-model-skills`)

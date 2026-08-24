@@ -100,6 +100,23 @@ export function configureDisabledModelRuntime(
   }) as ModelRuntime["completeSimple"];
 }
 
+/**
+ * Session model scope for pi's `scopedModels` / extension `ctx.scopedModels`.
+ *
+ * MixCode scopes models with its own denylist (`disabledProviders` /
+ * `disabledModels`), so the scope is the surviving catalogue. Returns `[]` when
+ * nothing is disabled, matching pi's "empty means unscoped" contract.
+ * `getAvailableSnapshot` is already denylist-filtered by
+ * `configureDisabledModelRuntime`.
+ */
+export function mixcodeScopedModels(modelRuntime: ModelRuntime): { model: MixCodeModel }[] {
+  const policy = disabledModelRuntimePolicies.get(modelRuntime);
+  if (!policy || (policy.disabledProviders.size === 0 && policy.disabledModels.size === 0)) {
+    return [];
+  }
+  return modelRuntime.getAvailableSnapshot().map((model) => ({ model }));
+}
+
 function filterDisabledModels(
   models: readonly MixCodeModel[],
   policy: DisabledModelRuntimePolicy,

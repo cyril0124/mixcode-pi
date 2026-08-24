@@ -151,7 +151,10 @@ test("mpi-loop queues immediate and overlay fires when the agent is busy", async
   assert.ok(commandHandler);
   await commandHandler("10m busy prompt", ctx);
   assert.deepEqual(sent, [
-    { prompt: "busy prompt", options: { deliverAs: "followUp" } },
+    {
+      prompt: "busy prompt",
+      options: { deliverAs: "followUp", expandPromptTemplates: true },
+    },
   ]);
 
   sent.length = 0;
@@ -161,7 +164,10 @@ test("mpi-loop queues immediate and overlay fires when the agent is busy", async
   await shutdownHandler?.({}, ctx);
 
   assert.deepEqual(sent, [
-    { prompt: "busy prompt", options: { deliverAs: "followUp" } },
+    {
+      prompt: "busy prompt",
+      options: { deliverAs: "followUp", expandPromptTemplates: true },
+    },
   ]);
 });
 
@@ -224,7 +230,9 @@ test("mpi-loop defer coalesces busy ticks and flushes once on agent_settled", as
 
     idle = true;
     await agentSettledHandler?.({ type: "agent_settled" }, ctx);
-    assert.deepEqual(sent, [{ prompt: "defer prompt", options: undefined }]);
+    assert.deepEqual(sent, [
+      { prompt: "defer prompt", options: { expandPromptTemplates: true } },
+    ]);
 
     sent.length = 0;
     await agentSettledHandler?.({ type: "agent_settled" }, ctx);

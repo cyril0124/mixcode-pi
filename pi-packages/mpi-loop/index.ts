@@ -245,10 +245,13 @@ export default function (pi: ExtensionAPI) {
     return undefined;
   };
 
+  // A loop prompt is scheduled user input, so it expands like typed input:
+  // `/cmd` dispatches, `/skill:x` and prompt templates expand. Without
+  // expandPromptTemplates (pi defaults it to false) they reach the model as literal text.
   const deliverPrompt = (prompt: string, idle: boolean): boolean => {
     try {
-      if (idle) pi.sendUserMessage(prompt);
-      else pi.sendUserMessage(prompt, { deliverAs: "followUp" });
+      if (idle) pi.sendUserMessage(prompt, { expandPromptTemplates: true });
+      else pi.sendUserMessage(prompt, { deliverAs: "followUp", expandPromptTemplates: true });
       return true;
     } catch (e) {
       if (!isStaleCtxError(e)) throw e;

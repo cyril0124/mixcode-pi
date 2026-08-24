@@ -44,6 +44,7 @@ export async function openPiLogin(
     MixCodeRuntime,
     | "getSharedModelRuntime"
     | "reloadModelConfig"
+    | "refreshScopedModels"
     | "resolveModel"
     | "updateTabModel"
   >,
@@ -120,6 +121,7 @@ export async function openPiLogout(
     MixCodeRuntime,
     | "getSharedModelRuntime"
     | "reloadModelConfig"
+    | "refreshScopedModels"
     | "resolveModel"
     | "updateTabModel"
   >,

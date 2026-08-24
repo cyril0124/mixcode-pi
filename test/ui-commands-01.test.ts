@@ -13,7 +13,8 @@ import {
   themeForId,
   listThemeInfos,
 } from "./helpers/mixcode.js";
-import type { MixCodeRuntime } from "./helpers/mixcode.js";
+import type { MixCodeModel, MixCodeRuntime } from "./helpers/mixcode.js";
+import { testRuntime } from "./helpers/runtime-stub.js";
 import { allKnownThinkingLevels } from "../src/core/thinking-levels.js";
 import { InMemoryCredentialStore, type Model } from "@earendil-works/pi-ai";
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
@@ -193,14 +194,18 @@ test("/reload keeps model selection when models.json fails to load", async () =>
     allowModelNetwork: false,
   });
   modelRuntime.getError = () => "Failed to parse models.json: Unexpected token";
-  const runtime = {
+  // testRuntime type-checks each member against MixCodeRuntime, so a production
+  // call added to this path fails at compile time instead of at run time.
+  const runtime = testRuntime({
     extensionReload: async () => {},
     reloadModelConfig: async () => [],
     getSharedModelRuntime: () => modelRuntime,
+    refreshScopedModels: () => {},
     resolveModel: () => undefined,
-    updateTabModel: (sessionId: string, model: { id: string }) =>
-      updatedTabModels.push({ sessionId, modelId: model.id }),
-  } as unknown as MixCodeRuntime;
+    updateTabModel: async (sessionId: string, model: MixCodeModel) => {
+      updatedTabModels.push({ sessionId, modelId: model.id });
+    },
+  });
   const tui = { requestRender: () => {}, showOverlay: () => ({}) as never };
 
   await handleSubmittedInput(state, runtime, "/reload", tui);

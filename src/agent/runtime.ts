@@ -17,6 +17,7 @@ import {
 import { type AutocompleteProvider, matchesKey as matchesPiKey } from "@earendil-works/pi-tui";
 import { contentText } from "./runtime-tool-chat.js";
 import { modelToRef, replaceRegisteredModels } from "../core/models.js";
+import { mixcodeScopedModels } from "../core/pi-models.js";
 import { nextAvailableAgentTitle } from "../core/defaults.js";
 import { onActiveTabChange } from "../core/tabs.js";
 import { clearPendingEscape } from "../core/escape.js";
@@ -1251,6 +1252,19 @@ export class MixCodeRuntime {
 
   getSharedModelRuntime(): ModelRuntime | undefined {
     return this.modelRuntime;
+  }
+
+  /**
+   * Publish the current model scope to every live tab. Sessions snapshot
+   * `scopedModels` when they are created, so a denylist change needs this push for
+   * `ctx.scopedModels` to agree with what the runtime actually allows.
+   */
+  refreshScopedModels(): void {
+    if (!this.modelRuntime) return;
+    const scoped = mixcodeScopedModels(this.modelRuntime);
+    for (const runtimeTab of this.tabs.values()) {
+      runtimeTab.agentSession.setScopedModels(scoped);
+    }
   }
 
   async closeTab(sessionId: string): Promise<void> {

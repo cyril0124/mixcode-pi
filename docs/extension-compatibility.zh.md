@@ -128,6 +128,7 @@ MixCodeRuntime
 - `ctx.switchSession()`
 - `ctx.navigateTree()`
 - `ctx.reload()`
+- `ctx.scopedModels`（由 MixCode 模型禁用列表解析而来，见[模型管理](model-management.zh.md)）
 - `/import <jsonl-path> [cwdOverride]` 的 MixCode 等价实现
 
 AGENTS / project context / system prompt 走 Pi resource loader 链路，不再靠 prompt injection 拼 workdir instructions。

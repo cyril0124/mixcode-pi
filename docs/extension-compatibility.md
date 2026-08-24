@@ -128,6 +128,7 @@ Supported:
 - `ctx.switchSession()`
 - `ctx.navigateTree()`
 - `ctx.reload()`
+- `ctx.scopedModels` (resolved from MixCode's model denylist, see [model management](model-management.md))
 - `/import <jsonl-path> [cwdOverride]` equivalent in MixCode
 
 System prompts, AGENTS, and project context flow directly through the Pi resource loader pipeline.

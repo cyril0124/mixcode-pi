@@ -17,6 +17,7 @@ MixCode built-in recurring prompt execution engine with timer conflict handling,
 - **Intervals**: `s`, `m`, `h`, `d` (e.g. `10s`, `5m`, `1h`). Minimum is `10s`, defaults to `10m`.
 - **Total runs**: Open `/loop`, select a loop, press `Enter`, then press `c`. Enter a positive integer, or leave it blank for unlimited execution. The immediate first run counts toward the total.
 - **Conflict Modes**: `skip` (drops timer tick if agent is busy) or `defer` (coalesces and executes when agent becomes idle).
+- **Prompt expansion**: a loop prompt is delivered like typed input — slash commands are dispatched, and `/skill:<name>` and prompt templates are expanded, exactly as if you had typed them into the editor.
 
 ## Overlay Keybindings
 

@@ -136,7 +136,11 @@ export async function reloadRuntimeModels(
   state: MixCodeState,
   runtime: Pick<
     MixCodeRuntime,
-    "reloadModelConfig" | "resolveModel" | "updateTabModel" | "getSharedModelRuntime"
+    | "reloadModelConfig"
+    | "resolveModel"
+    | "updateTabModel"
+    | "getSharedModelRuntime"
+    | "refreshScopedModels"
   >,
   options?: { mixcodeFile?: string },
 ): Promise<ModelReloadResult> {
@@ -151,6 +155,8 @@ export async function reloadRuntimeModels(
   }
   if (modelRuntime) {
     configureDisabledModelRuntime(modelRuntime, state.disabledProviders, state.disabledModels);
+    // Live sessions hold a scope snapshot; hand them the reloaded denylist.
+    runtime.refreshScopedModels();
   }
   const modelError = modelRuntime?.getError?.();
   if (modelError) {

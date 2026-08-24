@@ -48,6 +48,8 @@ deepseek  deepseek-v4-pro    1M       off,high,max                 (disabled)
 
 禁用规则的权威说明见 [`mixcode_settings.json`](mixcode-settings.zh.md)（`disabledProviders` / `disabledModels`）。此处不重复展开 schema。
 
+禁用后剩下的模型集合同时就是会话的模型作用域：扩展通过 `ctx.scopedModels` 读取它。未禁用任何模型时作用域为空，即 Pi 的“未限定作用域”语义。
+
 ## 基于模型的动态规则
 
 ### 1. 动态 Skill 挂载 (`mpi-model-skills`)
