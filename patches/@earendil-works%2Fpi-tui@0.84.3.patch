@@ -44,7 +44,7 @@ index 97acf774699dded9c5e490f2441a93ec05b73be5..f6b086bdd55aad63d798004f0501862b
  //# sourceMappingURL=index.js.map
 \ No newline at end of file
 diff --git a/dist/keybindings.js b/dist/keybindings.js
-index 3bb4668ad408707e6aee52f3549093d47e3fa2ed..dc0d9aa8a4e129ff1b5a0d2603f89ca42b313639 100644
+index aac8bf7598bd205e6ee5733c78e0ff5fd507341c..72ad558072abbeebae00f91172ab1f3e35440007 100644
 --- a/dist/keybindings.js
 +++ b/dist/keybindings.js
 @@ -220,13 +220,18 @@ export class KeybindingsManager {
