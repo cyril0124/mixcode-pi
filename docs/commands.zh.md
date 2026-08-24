@@ -21,7 +21,7 @@ MixCode 在 `src/core/commands.ts` 中注册了内置本地 Slash 命令。这�
 | `/context-limit` | `<tokens\|reset>` | Session | 人为设置上下文窗口上限（用于测试或压缩调优）。 |
 | `/workdir` | `[path]` | Workdir | 切换当前 Agent 工作目录并更新文件监听。 |
 | `/new-session` | `[title]` | Workdir | 新建 Agent Tab，可指定自定义标题。已占用的标题变为 `title-N`。见 [Tab 标题](workspace-and-tabs.zh.md#tab-标题)。 |
-| `/fork` | - | Workdir | 将当前会话分支复制到新 Tab，复用底层运行时服务。标题为 `{source}-fork`，已被占用则为 `{source}-fork-N`。见 [Tab 标题](workspace-and-tabs.zh.md#tab-标题)。 |
+| `/fork` | - | Workdir | 将当前会话分支复制到新 Tab，新 Tab 拥有独立的运行时服务。标题为 `{source}-fork`，已被占用则为 `{source}-fork-N`。见 [Tab 标题](workspace-and-tabs.zh.md#tab-标题)。 |
 | `/follow-up` | `<text>` | Session | 向 Follow-up 队列添加消息，在当前轮次完成后优先执行。 |
 | `/compact` | `[custom instructions]` | Session | 手动触发当前分支的上下文压缩（Compaction）。 |
 | `/reset` | - | Session | 将会话重置回根节点，保留 Session 文件与 Tab 标题。 |

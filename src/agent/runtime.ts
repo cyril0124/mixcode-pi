@@ -288,7 +288,6 @@ export class MixCodeRuntime {
     config: Omit<AgentRuntimeConfig, "sessionId" | "model" | "thinkingLevel"> & {
       model?: MixCodeModel;
       thinkingLevel?: AgentRuntimeConfig["thinkingLevel"];
-      reuseServicesFromSessionId?: string;
       preserveCallerTitle?: boolean;
     },
   ): Promise<RuntimeTab> {

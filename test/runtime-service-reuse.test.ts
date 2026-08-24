@@ -183,7 +183,6 @@ test("extension commands work after clearTab on a forked session", async () => {
         systemPrompt: "system",
         thinkingLevel: "medium",
         workdir: process.cwd(),
-        reuseServicesFromSessionId: "source",
       },
     );
 
@@ -205,8 +204,8 @@ test("extension commands work after clearTab on a forked session", async () => {
   }
 });
 
-test("createTab can reuse another tab's services for slash fork", async () => {
-  await withRuntime("mixcode-fork-reuse-services-", async (runtime) => {
+test("a forked tab never shares services with its still-live source tab", async () => {
+  await withRuntime("mixcode-fork-private-services-", async (runtime) => {
     const source = await runtime.createTab(createTab(1, "source", process.cwd()), {
       systemPrompt: "system",
       thinkingLevel: "medium",
@@ -222,15 +221,72 @@ test("createTab can reuse another tab's services for slash fork", async () => {
         systemPrompt: "system",
         thinkingLevel: "medium",
         workdir: process.cwd(),
-        reuseServicesFromSessionId: "source",
       },
     );
 
-    assert.equal(forked.services, source.services);
+    assert.notEqual(forked.services, source.services);
+    assert.notEqual(forked.services.settingsManager, source.services.settingsManager);
     assert.notEqual(forked.agentSession, source.agentSession);
     assert.equal(runtime.getTab("source"), source);
     assert.equal(runtime.getTab("forked"), forked);
   });
+});
+
+test("slash fork isolates the extension event bus from the source tab", async () => {
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-fork-bus-isolation-"));
+  const CHANNEL = "mpi-test:fork-bus";
+  const deliveries: string[] = [];
+  let instanceSeq = 0;
+  // One factory invocation per bound session: instanceId identifies which
+  // session's extension closure received the event.
+  const extension: ExtensionFactory = (pi) => {
+    const instanceId = ++instanceSeq;
+    pi.events.on(CHANNEL, (payload) => {
+      deliveries.push(`${instanceId}<-${(payload as { from: number }).from}`);
+    });
+    pi.registerCommand("emit-bus-ping", {
+      description: "Emit a test event on the session event bus",
+      handler: async () => {
+        pi.events.emit(CHANNEL, { from: instanceId });
+      },
+    });
+  };
+  try {
+    configureOpenTabsPath(openTabsFile(dir));
+    const runtime = new MixCodeRuntime({
+      sessionsRoot: path.join(dir, "sessions"),
+      extensionFactories: [extension],
+    });
+    try {
+      const state = createInitialState(dir);
+      const source = createTab(1, "source", dir);
+      state.tabs.push(source);
+      state.activeTabId = source.sessionId;
+      await runtime.createTab(source, {
+        systemPrompt: "system",
+        thinkingLevel: "medium",
+        workdir: dir,
+      });
+      const sourceInstanceId = instanceSeq;
+
+      await handleSubmittedInput(state, runtime, "/fork", {
+        requestRender: () => undefined,
+        showOverlay: () => ({}) as never,
+      });
+      const forked = state.tabs[1]!;
+      assert.ok(runtime.getTab(forked.sessionId));
+
+      await runtime.prompt(source.sessionId, "/emit-bus-ping");
+      await Bun.sleep(0);
+
+      assert.deepEqual(deliveries, [`${sourceInstanceId}<-${sourceInstanceId}`]);
+    } finally {
+      await runtime.closeAllTabs();
+    }
+  } finally {
+    configureOpenTabsPath(undefined);
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  }
 });
 
 test("slash fork keeps and persists the fork suffix for a named source tab", async () => {
@@ -311,35 +367,36 @@ test("service reuse failure falls back to fresh services with a target system me
       thinkingLevel: "medium",
       workdir: process.cwd(),
     });
-    const registry = source.services.modelRuntime as unknown as {
+    const previousServices = source.services;
+    const registry = previousServices.modelRuntime as unknown as {
       registerProvider: (...args: unknown[]) => unknown;
     };
     registry.registerProvider = () => {
       throw new Error("reuse boom");
     };
-    await runtime.forkSession("source", "forked");
 
-    const forked = await runtime.createTab(createTab(2, "forked", process.cwd()), {
+    // /clear carries services across a session replacement inside one tab.
+    const cleared = await runtime.clearTab("source", {
       systemPrompt: "system",
       thinkingLevel: "medium",
       workdir: process.cwd(),
-      reuseServicesFromSessionId: "source",
+      newSessionId: "source-clear",
     });
 
-    assert.notEqual(forked.services, source.services);
-    assert.equal(forked.tab.sessionId, "forked");
+    assert.notEqual(cleared.services, previousServices);
+    assert.equal(cleared.tab.sessionId, "source-clear");
     assert.ok(
-      forked.chat.some((line) => line.role === "system" && line.text.includes("reuse boom")),
+      cleared.chat.some((line) => line.role === "system" && line.text.includes("reuse boom")),
     );
   });
 });
 
 test("service reuse startup failure falls back with a system message", async () => {
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-reuse-startup-fallback-"));
-  let failAfterForkStart = false;
+  let failAfterClearStart = false;
   const extension: ExtensionFactory = (pi) => {
     pi.on("session_start", (_event, ctx) => {
-      if (ctx.sessionManager?.getSessionId() === "forked") failAfterForkStart = true;
+      if (ctx.sessionManager?.getSessionId() === "source-clear") failAfterClearStart = true;
     });
   };
   try {
@@ -357,83 +414,25 @@ test("service reuse startup failure falls back with a system message", async () 
     };
     const originalGetSkills = resourceLoader.getSkills.bind(source.services.resourceLoader);
     resourceLoader.getSkills = () => {
-      if (failAfterForkStart) throw new Error("startup boom");
+      if (failAfterClearStart) throw new Error("startup boom");
       return originalGetSkills();
     };
-    await runtime.forkSession("source", "forked");
+    const previousServices = source.services;
 
-    const forked = await runtime.createTab(createTab(2, "forked", process.cwd()), {
+    const cleared = await runtime.clearTab("source", {
       systemPrompt: "system",
       thinkingLevel: "medium",
       workdir: process.cwd(),
-      reuseServicesFromSessionId: "source",
+      newSessionId: "source-clear",
     });
 
-    assert.notEqual(forked.services, source.services);
+    assert.notEqual(cleared.services, previousServices);
     assert.ok(
-      forked.chat.some((line) => line.role === "system" && line.text.includes("startup boom")),
+      cleared.chat.some((line) => line.role === "system" && line.text.includes("startup boom")),
     );
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }
-});
-
-test("reload gives one tab private fresh services after fork reuse", async () => {
-  await withRuntime("mixcode-reload-private-services-", async (runtime) => {
-    const source = await runtime.createTab(createTab(1, "source", process.cwd()), {
-      systemPrompt: "system",
-      thinkingLevel: "medium",
-      workdir: process.cwd(),
-    });
-    await runtime.forkSession("source", "forked");
-    const forked = await runtime.createTab(createTab(2, "forked", process.cwd()), {
-      systemPrompt: "system",
-      thinkingLevel: "medium",
-      workdir: process.cwd(),
-      reuseServicesFromSessionId: "source",
-    });
-    assert.equal(forked.services, source.services);
-
-    await runtime.extensionReload("forked");
-
-    assert.notEqual(forked.services, source.services);
-    assert.equal(runtime.getTab("source")?.services, source.services);
-  });
-});
-
-test("slash fork requests service reuse from the source tab", async () => {
-  const state = createInitialState("/repo");
-  const source = createTab(1, "source", "/repo", { title: "Worker" });
-  state.tabs.push(source);
-  state.activeTabId = "source";
-  const createConfigs: unknown[] = [];
-  const runtime = {
-    appendSystemMessage: () => undefined,
-    prompt: async () => undefined,
-    getTab: () => undefined,
-    forkSession: async () => undefined,
-    createTab: async (_tab: unknown, config: unknown) => {
-      createConfigs.push(config);
-    },
-    closeTab: async () => undefined,
-    closeAllTabs: async () => undefined,
-    deleteTab: async () => undefined,
-    deleteAllTabs: async () => undefined,
-    executeShellCommand: async () => undefined,
-    extensionReload: async () => undefined,
-    compactSession: async () => undefined,
-    setExtensionEnabled: async () => undefined,
-    renameSession: () => undefined,
-  } as unknown as Parameters<typeof handleSubmittedInput>[1];
-  const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
-
-  await handleSubmittedInput(state, runtime, "/fork", tui);
-
-  assert.equal(createConfigs.length, 1);
-  assert.equal(
-    (createConfigs[0] as { reuseServicesFromSessionId?: string }).reuseServicesFromSessionId,
-    "source",
-  );
 });
 
 test("reload recomputes the startup header and keeps conversation", async () => {
@@ -444,6 +443,7 @@ test("reload recomputes the startup header and keeps conversation", async () => 
       workdir: process.cwd(),
     });
     assert.match(tab.tab.startupSummary ?? "", /\[Context\]/);
+    const servicesBeforeReload = tab.services;
 
     await runtime.prompt("s1", "hello");
     assert.ok(
@@ -457,5 +457,8 @@ test("reload recomputes the startup header and keeps conversation", async () => 
       afterReload.chat.some((line) => line.role === "user" && line.text === "hello"),
     );
     assert.match(afterReload.tab.startupSummary ?? "", /\[Context\]/);
+    // Reload swaps in fresh services; the disposed session's runtime must not
+    // survive into the reloaded tab.
+    assert.notEqual(afterReload.services, servicesBeforeReload);
   });
 });

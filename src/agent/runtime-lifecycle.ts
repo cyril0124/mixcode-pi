@@ -75,7 +75,12 @@ import { activateMixCodeTools } from "./tools.js";
 export type RuntimeTabConfig = Omit<AgentRuntimeConfig, "sessionId" | "model" | "thinkingLevel"> & {
   model?: MixCodeModel;
   thinkingLevel?: AgentRuntimeConfig["thinkingLevel"];
-  reuseServicesFromSessionId?: string;
+  /**
+   * Services carried over from the session this one replaces. Legal only within
+   * one tab, after the previous session has been shut down (`/clear`, `/new`,
+   * resume, entry fork). Two live sessions must never share a services object:
+   * it carries one extension EventBus and one SettingsManager.
+   */
   reuseServices?: AgentSessionServices;
   /** Keep an explicit caller title instead of restoring the opened session name. */
   preserveCallerTitle?: boolean;
@@ -147,19 +152,11 @@ export async function createRuntimeTab(
   const model = config.model
     ? config.model
     : context.resolveModelFromSession(session, tab.model);
-  const reusedServices =
-    config.reuseServices ??
-    (config.reuseServicesFromSessionId
-      ? context.tabs.get(config.reuseServicesFromSessionId)?.services
-      : undefined);
+  const reusedServices = config.reuseServices;
   // Reload extensions on reused services so this tab gets a fresh
-  // extensionsResult (fresh runtime + fresh pi closures). Without this,
-  // multiple tabs sharing the same resourceLoader would share a mutable
-  // runtime object — invalidating one (dispose) would break the others.
-  // Note: reused services also share the same SettingsManager, so a
-  // /context-limit override on one same-source (fork/reuse) tab affects the
-  // others' compaction budgets. Independent tabs each get their own manager
-  // (see createRuntimeServices), so cross-tab isolation holds for them.
+  // extensionsResult (fresh runtime + fresh pi closures). Without this, the
+  // replacement session would share a mutable runtime object with the disposed
+  // one — invalidating one (dispose) would break the other.
   if (reusedServices && !config.skipExtensionReload) {
     await reusedServices.resourceLoader.reload();
   }
@@ -278,11 +275,11 @@ export async function createRuntimeTabWithFallback(
   try {
     return await createRuntimeTab(tab, session, config, context);
   } catch (error) {
-    if (!config.reuseServicesFromSessionId && !config.reuseServices) throw error;
+    if (!config.reuseServices) throw error;
     const rebuilt = await createRuntimeTab(
       tab,
       session,
-      { ...config, reuseServicesFromSessionId: undefined, reuseServices: undefined },
+      { ...config, reuseServices: undefined },
       context,
     );
     appendSystemMessage(
@@ -301,11 +298,7 @@ export async function createAgentSessionForReplacement(
   const model = config.model
     ? config.model
     : context.resolveModelFromSession(sessionManager, config.model);
-  const services =
-    config.reuseServices ??
-    (config.reuseServicesFromSessionId
-      ? context.tabs.get(config.reuseServicesFromSessionId)?.services
-      : undefined);
+  const services = config.reuseServices;
   // Same invariant as createRuntimeTab: a disposed AgentSession invalidates the
   // shared extensionsResult.runtime. Reusing services without reload would make
   // the next session_start see stale ctx (pi-subagents scheduler warn).

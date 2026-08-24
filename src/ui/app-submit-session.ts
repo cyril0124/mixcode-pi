@@ -371,7 +371,9 @@ const handleFork: LocalCommandHandler = async ({ state, active, runtime }) => {
       systemPrompt: MIXCODE_SYSTEM_PROMPT,
       thinkingLevel: tab.thinkingLevel,
       workdir: tab.workdir,
-      reuseServicesFromSessionId: active!.sessionId,
+      // The forked tab runs alongside its source, so it needs its own services:
+      // one services object carries one extension EventBus (cross-session
+      // extension events) and one SettingsManager (/context-limit budgets).
       preserveCallerTitle: true,
     });
   } catch (error) {

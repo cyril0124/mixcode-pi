@@ -38,9 +38,10 @@ export interface CreateAgentTabOptions {
  * fail after the tab is already visible, so rollback must restore both the tab
  * list and the previously active id for every caller, including batch mode.
  *
- * Intentionally does NOT pass reuseServicesFromSessionId: /new-session is an
- * independent tab and must keep its own SettingsManager (/context-limit
- * isolation). Service reuse remains /fork and clearTab only.
+ * Every tab builds its own services: a services object owns one SettingsManager
+ * (/context-limit isolation) and one extension EventBus (cross-session extension
+ * events). Service reuse is legal only for same-tab session replacement, where
+ * the previous session is already shut down — clearTab and the replacement path.
  */
 export async function createAgentTab(
   state: MixCodeState,
