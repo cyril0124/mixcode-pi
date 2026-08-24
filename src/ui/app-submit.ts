@@ -84,7 +84,7 @@ export async function handleSubmittedInput(
     });
     if (result === SKIP_FINALIZE) return;
   } else {
-    appendActiveSystemMessage(state, runtime, `Unknown slash command: /${parsed.command}`.trim());
+    appendActiveSystemMessage(state, runtime, `Error: Unknown slash command: /${parsed.command}`.trim());
   }
   await onStateChanged?.(state);
   tui.requestRender();

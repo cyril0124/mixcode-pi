@@ -932,7 +932,7 @@ export function themeForId(themeId: string): MixCodeTheme {
   const cached = mixCodeThemeCache.get(canonical);
   if (cached) return cached;
   const piTheme = resolvePiTheme(canonical);
-  if (!piTheme) throw new Error(`Unknown theme: ${themeId}`);
+  if (!piTheme) throw new Error(`Error: Unknown theme: ${themeId}`);
   const adapted = mixCodeThemeFromPi(piTheme);
   mixCodeThemeCache.set(canonical, adapted);
   return adapted;
@@ -952,11 +952,11 @@ export function getActiveExtensionThemeId(): string {
 export function setTheme(state: MixCodeState, themeId: string): void {
   const normalized = normalizeThemeId(themeId);
   if (!normalized) {
-    throw new Error(`Unknown theme: ${themeId}`);
+    throw new Error(`Error: Unknown theme: ${themeId}`);
   }
   const piTheme = resolvePiTheme(normalized);
   if (!piTheme) {
-    throw new Error(`Unknown theme: ${themeId}`);
+    throw new Error(`Error: Unknown theme: ${themeId}`);
   }
   state.theme = normalized;
   // Keep extension UI (footer/widget/custom/message renderers) on the same palette.

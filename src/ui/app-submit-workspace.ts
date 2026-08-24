@@ -151,7 +151,7 @@ const handleExport: LocalCommandHandler = async ({ state, active, args, runtime 
     pushToast(active!, { type: "success", message: `Session exported to: ${filePath}` });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    pushToast(active!, { type: "error", message: `Failed to export session: ${message}` });
+    pushToast(active!, { type: "error", message: `Error: Failed to export session: ${message}` });
   }
 };
 

@@ -782,3 +782,42 @@ test("truncateCtlStdout leaves short output unchanged and dumps long output to t
     await fsPromises.rm(tmp, { recursive: true, force: true });
   }
 });
+
+test("ctl send-prompt reports a failed slash command on the target tab", async () => {
+  // ACK is sent before the submit settles, so a throwing slash command has no
+  // ctl response channel left; the tab surface is the only place `dump-screen`
+  // can still see it.
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo", { title: "Agent-01" }));
+  state.activeTabId = "s1";
+  const appended: Array<{ sessionId: string; message: string; kind?: string }> = [];
+  let renders = 0;
+  const response = await handleCtlRequest(
+    { op: "send-prompt", tabTitle: "Agent-01", prompt: "/models bogus" },
+    {
+      state,
+      runtime: {
+        getTab: () => ({ chat: [] }),
+        appendSystemMessage: (sessionId: string, message: string, kind?: string) => {
+          appended.push({ sessionId, message, kind });
+        },
+      } as unknown as MixCodeRuntime,
+      injectInput: () => undefined,
+      submitToTab: async () => {
+        throw new Error("Error: Unknown model: bogus");
+      },
+      requestRender: () => {
+        renders += 1;
+      },
+      screenWidth: () => 80,
+    },
+  );
+
+  assert.equal(response.ok, true);
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.deepEqual(appended, [
+    { sessionId: "s1", message: "Error: Unknown model: bogus", kind: "error" },
+  ]);
+  assert.equal(renders > 0, true);
+});

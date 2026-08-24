@@ -138,7 +138,7 @@ const handleHotkeys: LocalCommandHandler = ({ state, active, runtime }) => {
 };
 
 const handleSystemPrompt: LocalCommandHandler = async ({ active, args, runtime, tui }) => {
-  if (args.trim()) throw new Error("Usage: /system-prompt");
+  if (args.trim()) throw new Error("Error: Usage: /system-prompt");
   const runtimeTab = runtime.getTab(active!.sessionId);
   if (!runtimeTab) throw new Error(`Unknown tab session: ${active!.sessionId}`);
   let text = runtimeTab.agentSession.systemPrompt;

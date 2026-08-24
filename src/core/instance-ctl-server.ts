@@ -188,15 +188,40 @@ export function wrapCtlSubmitText(
 
 const pendingCtlSubmits = new WeakMap<MixCodeTabInfo, number>();
 
-function trackCtlSubmit(tab: MixCodeTabInfo, work: Promise<unknown>): void {
+function trackCtlSubmit(
+  tab: MixCodeTabInfo,
+  work: Promise<unknown>,
+  options: Pick<StartInstanceCtlServerOptions, "runtime" | "requestRender">,
+): void {
   pendingCtlSubmits.set(tab, (pendingCtlSubmits.get(tab) ?? 0) + 1);
   void work.then(
     () => finishCtlSubmit(tab),
-    () => {
-      // submit failed after ACK; no ctl response channel left.
+    (error: unknown) => {
+      reportCtlSubmitFailure(tab, error, options);
       finishCtlSubmit(tab);
     },
   );
+}
+
+/**
+ * The ctl client already got its ACK, so a failed submit has no response
+ * channel left; the tab's chat surface is the only place a caller can still
+ * observe it (`mpi ctl dump-screen`). Staying silent here reports a slash
+ * command that threw (unknown model, bad usage) as success.
+ */
+function reportCtlSubmitFailure(
+  tab: MixCodeTabInfo,
+  error: unknown,
+  options: Pick<StartInstanceCtlServerOptions, "runtime" | "requestRender">,
+): void {
+  // A tab whose runtime was torn down (closed mid-submit) has no chat to append to.
+  if (!options.runtime.getTab(tab.sessionId)) return;
+  options.runtime.appendSystemMessage(
+    tab.sessionId,
+    error instanceof Error ? error.message : String(error),
+    "error",
+  );
+  options.requestRender?.();
 }
 
 function finishCtlSubmit(tab: MixCodeTabInfo): void {
@@ -422,6 +447,7 @@ export async function handleCtlRequest(
             wrapCtlSubmitText(request.prompt, request.fromTabTitle, request.expectResponse === true, request.fromPid),
           ),
         ),
+        options,
       );
       return { ok: true, text: wrap("") };
     }
@@ -435,7 +461,7 @@ export async function handleCtlRequest(
         // ACK before submitToTab finishes; the client idle timeout must not wait on the agent turn.
         const work = applyBackgroundSendKeys(tab, request.keys, options, request.fromTabTitle, request.fromPid);
         if (request.keys.some((chunk) => chunk === "\r" || chunk === "\n")) {
-          trackCtlSubmit(tab, work);
+          trackCtlSubmit(tab, work, options);
         } else {
           void work.catch(() => {
             // draft update failed after ACK; no ctl response channel left.

@@ -227,7 +227,7 @@ export async function deleteWorkspace(filePath: string, name: string): Promise<v
   const workspaces = await loadWorkspaces(filePath);
   const remaining = workspaces.filter((item) => item.name !== name);
   if (remaining.length === workspaces.length) {
-    throw new Error(`Unknown workspace: ${name}`);
+    throw new Error(`Error: Unknown workspace: ${name}`);
   }
   if (remaining.length === 0) {
     await fs.rm(filePath, { force: true });

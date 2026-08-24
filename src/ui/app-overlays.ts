@@ -237,7 +237,13 @@ export function showNoticeTextOverlay(tui: OverlayTui, text: string): void {
 }
 
 export function showErrorOverlay(tui: OverlayTui, error: unknown): void {
-  showNoticeOverlay(tui, errorMessage(error), { title: "Error", danger: true });
+  // Command errors carry the standard `Error:` prefix so they read correctly in
+  // chat and ctl output; the panel title already says Error, so drop it here
+  // instead of rendering "Error" above "Error: ...".
+  showNoticeOverlay(tui, errorMessage(error).replace(/^Error:\s*/, ""), {
+    title: "Error",
+    danger: true,
+  });
 }
 
 export function errorMessage(error: unknown): string {

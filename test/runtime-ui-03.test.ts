@@ -120,7 +120,7 @@ test("createMixCodeTui editor submits prompts and surfaces slash errors", async 
     layout.editor.setText("/does-not-exist");
     layout.editor.submitCurrentText();
     await waitFor(() =>
-      chat.some((message) => message.text === "Unknown slash command: /does-not-exist"),
+      chat.some((message) => message.text === "Error: Unknown slash command: /does-not-exist"),
     );
   } finally {
     tui.stop();

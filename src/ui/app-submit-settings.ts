@@ -76,7 +76,7 @@ const handleContextLimit: LocalCommandHandler = async ({
   if (value === undefined) {
     pushToast(active!, {
       type: "error",
-      message: `Invalid context limit: "${args}". Use a number (e.g. 32k, 40000) or "reset".`,
+      message: `Error: Invalid context limit: "${args}". Use a number (e.g. 32k, 40000) or "reset".`,
     });
   } else {
     // Drive UI + live model.contextWindow + SDK compaction budgets so Pi and

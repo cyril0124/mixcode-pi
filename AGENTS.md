@@ -77,6 +77,7 @@
 - Persistence has three tiers: global (Pi's `<agentDir>/settings.json`, survives restart, shared across workdirs and with Pi), workdir (`mixcode_state.json`, per-workdir), and session (in-memory or `applyOverrides`, dropped on reload/restart).
 - Any command that persists to Pi's global `settings.json` MUST prefix its `description` with `[global]`, so users can see the global-persistence effect before running it. Example: `/hide-thinking`.
 - Do not add the `[global]` prefix to workdir-level or session-level commands; the absence of a prefix means the command is not a globally-persisted setting.
+- **Command Error Formatting**: User-facing command failures — slash dispatch, argument parsing, and command execution (e.g. unknown model, unknown thinking level, unknown theme or workspace, invalid slash command, invalid usage, failed export) — must carry the standard `Error:` prefix (e.g. `Error: Unknown model: <query>`, `Error: Usage: /<command> [yes]`), whether they are thrown, appended as a system message, or pushed as a toast, so `mpi ctl dump-screen` and the TUI surfaces share one recognizable marker. Internal invariant violations that no user input can trigger (e.g. `Unknown tab session: <id>`) are not command errors and keep their bare message. `showErrorOverlay` strips the prefix because its panel title already says Error.
 
 ## Settings Management
 

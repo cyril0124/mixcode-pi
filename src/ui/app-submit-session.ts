@@ -47,7 +47,7 @@ const handleFollowUp: LocalCommandHandler = async ({ active, args, runtime, tui 
   if (!message) {
     pushToast(active!, {
       type: "warning",
-      message: "Usage: /follow-up <message>",
+      message: "Error: Usage: /follow-up <message>",
     });
     tui.requestRender();
     return SKIP_FINALIZE;
@@ -280,7 +280,7 @@ function sessionActionSkipsConfirm(args: string, command: "close-session" | "del
   const token = args.trim().toLowerCase();
   if (!token) return false;
   if (token === "yes" || token === "y") return true;
-  throw new Error(`Usage: /${command} [yes]`);
+  throw new Error(`Error: Usage: /${command} [yes]`);
 }
 
 const handleCloseSession: LocalCommandHandler = async ({

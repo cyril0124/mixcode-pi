@@ -41,7 +41,7 @@ export function applyThinkingLevel(
 ): void {
   if (!isThinkingLevelAvailable(level, active.model)) {
     throw new Error(
-      `Unknown thinking level: ${level}. Valid values: ${validThinkingLevelsMessage(active.model)}`,
+      `Error: Unknown thinking level: ${level}. Valid values: ${validThinkingLevelsMessage(active.model)}`,
     );
   }
   const effectiveLevel = runtime

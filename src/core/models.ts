@@ -105,7 +105,7 @@ export function findModelRef(models: MixCodeModelRef[], query: string): MixCodeM
       model.modelId === normalized ||
       modelRefId(model) === normalized,
   );
-  if (!found) throw new Error(`Unknown model: ${query}`);
+  if (!found) throw new Error(`Error: Unknown model: ${query}`);
   return found;
 }
 
