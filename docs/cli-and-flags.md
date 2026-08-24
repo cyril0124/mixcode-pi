@@ -8,6 +8,7 @@ This document describes the CLI interface, command-line arguments, and Pi delega
 
 ```bash
 mpi [options] [-- <script-args...>]
+mpi --list-models [search] [--json]
 mpi status [--json] [--workdir <path>]
 mpi ctl [--pid <n> | --workdir <path>] [--tab <title> | --session <id> | --focus-tab <title> | --focus-session <id>] <command>
 mpi commands [--json] [--workdir <path>]
@@ -19,6 +20,7 @@ mpi install-extensions [--yes]
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `--workdir <path>` | string | Current working directory (`process.cwd()`) | Target working directory. Also accepts `--workdir=<path>`. There is no `-w` short flag. |
+| `--list-models [search]` | boolean + optional string | unset | Lists models with configured auth plus the thinking levels each model accepts, then exits. Optional `search` filters case-insensitively on `provider/modelId`. Add `--json` for entries of `{ id, provider, modelId, displayName, contextWindow, reasoning, disabled, thinking }`. Runs on the same lightweight path as `status`: no TUI, no extension loading, no network, so providers registered through `pi.registerProvider` are absent. Scope details: [Model Management](model-management.md#listing-models-from-the-cli). |
 | `--builtin-extensions-only` | boolean | `false` | Disables third-party package discovery under `settings.json` `packages` and loads only first-party built-in extensions under `pi-packages/mpi-*`. |
 | `--batch <script>` | string | unset | Executes a batch automation script after bootstrapping runtime. Language follows the extension: `.lua`, or `.ts` / `.mts` / `.js` / `.mjs`. |
 | `--batch-dry-run` | boolean | `false` | Validates model/thinking configurations and prints the batch execution plan without starting TUI or modifying state files. |

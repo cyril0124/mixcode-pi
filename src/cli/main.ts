@@ -5,6 +5,7 @@ import { cwd } from "node:process";
 import { fileURLToPath } from "node:url";
 import { isBinaryEntry, isDirectCliEntry } from "./direct-cli-entry.js";
 import { isCommandsCliArgs, runCommandsCommand } from "./commands-list.js";
+import { isListModelsCliArgs, runListModelsCommand } from "./models-list.js";
 import { isInstallExtensionsCliArgs } from "./install-extensions.js";
 import { isCtlCliArgs, runCtlCommand } from "./ctl.js";
 import {
@@ -76,6 +77,9 @@ const HELP_TEXT = `Usage: mpi [options] [-- <script-args...>]
 
 Options:
   --workdir <path>           Set working directory (default: cwd)
+  --list-models [search]     List models with configured auth and their thinking
+                             levels, then exit; add --json for machine output.
+                             Excludes providers registered by extensions.
   --batch <file>             Execute a batch script after TUI startup (.lua, or .ts/.mts/.js/.mjs)
   --batch-dry-run            Load/validate batch script and print plan (no TUI, no session writes)
   --builtin-extensions-only  Load MixCode built-in extensions without discovering third-party extensions
@@ -268,6 +272,19 @@ export async function main(): Promise<void> {
       await runCommandsCommand(rawArgs.slice(1), {
         packageRoot: resolveMixcodePackageRoot(selfRoot),
       });
+    } catch (error) {
+      process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+      process.exitCode = 1;
+    }
+    return;
+  }
+
+  // Model listing fast path: reads models.json/auth.json only, so it must not
+  // pull in the TUI, runtime services, or the network.
+  if (isListModelsCliArgs(rawArgs)) {
+    process.env.MIXCODE ??= "1";
+    try {
+      await runListModelsCommand(rawArgs.slice(1));
     } catch (error) {
       process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
       process.exitCode = 1;

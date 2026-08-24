@@ -91,6 +91,30 @@ Common MixCode session/tab commands:
 | `/compact` | Compact that tab's context. |
 | `/mark-done` | Mark that tab done. |
 
+### Which model / thinking level is valid (`mpi --list-models`)
+
+Read the options with `mpi --list-models`, not by opening the `/models` or `/thinking` picker. It takes no `--pid` / `--tab` and touches no TUI instance: it reads `models.json`, whatever auth resolves (`auth.json`, `models.json` `apiKey`, or provider env vars), and the `mixcode_settings` disable lists. No network, no extensions.
+
+```text
+mpi --list-models
+mpi --list-models deepseek       # case-insensitive filter on provider/modelId
+mpi --list-models --json         # [{ id, provider, modelId, displayName, contextWindow, reasoning, disabled, thinking }]
+```
+
+```text
+provider  model              context  thinking
+deepseek  deepseek-v4-flash  1M       off,low,high,max
+deepseek  deepseek-v4-pro    1M       off,high,max                 (disabled)
+```
+
+The `thinking` column is that model's accepted `/thinking` values — tiers vary per model, so check here before `send-prompt '/thinking <level>'`. Rows marked `(disabled)` are refused by `/models`. Providers a third-party extension registers at runtime are not listed. Then set it on the target tab:
+
+```text
+mpi ctl --tab Agent-01 send-prompt '/models deepseek/deepseek-v4-flash'
+mpi ctl --tab Agent-01 send-prompt '/thinking high'
+mpi ctl --tab Agent-01 dump-screen        # confirm no `Error:` at the tail
+```
+
 Send these with `send-prompt` and `--tab`. **Prefer direct arguments** (e.g. `/models <model>`, `/thinking <level>`, `/resume <session-id>`, `/close-session yes`) so no picker opens. Bare `/resume`, bare `/models`, bare `/thinking`, close-all / delete-all, and other interactive overlays still need `--focus-tab` plus `send-keys`.
 
 **Inspect slash command outcomes via `dump-screen`**: Slash commands execute asynchronously and report parameter or execution failures on the tab's chat surface / toast (prefixed with `Error:`). After `send-prompt /...` and `wait`, run `dump-screen` on the target tab and check the tail for any `Error: ...` lines (e.g. `Error: Unknown model: <name>`, `Error: Unknown thinking level: ...`, `Error: Unknown slash command: /...`). Do not assume a slash command succeeded merely because `send-prompt` returned an ACK.
@@ -305,6 +329,7 @@ Callback variant (`--expect-response` / reply requested): stop after the `send-p
 - **Check `dump-screen` for `Error:` on slash commands.** Slash commands do not generate assistant chat turns, so `last-message` will not reflect slash errors. Always run `dump-screen` on the target tab after running a slash command to verify it took effect and check for `Error:` notices at the tail.
 - **On `wait-for-input`, `dump-screen` first and start from the tail.** The confirm or question is at the end. If truncated, read `/tmp/mpi-ctl-…` from the end. Single-tab close/delete: `send-prompt /close-session yes` (or `/delete-session yes`). close-all / delete-all and pickers: `--focus-tab` + `send-keys`. Do not answer from `last-message` alone.
 - **Do not preface prompts with “I am &lt;tab&gt;”.** ctl already wraps plain text with the MixCode-tab preface. Slash/`!` are not wrapped. If the preface includes `--expect-response` instructions, follow the skill path and reply with the given `send-prompt`; do not add `--expect-response` on that reply. After replying, end your turn — do not `wait` on the requester.
+- **Read model / thinking options with `mpi --list-models`** (add `--json` for parsing), not by opening a picker: it needs no focus, no running instance, and no network. `--focus-tab` + picker is for driving UI, not for reading it.
 - **`mpi commands` is TUI slashes (`/compact`), not CLI subcommands (`mpi ctl`).** Slash commands: `send-prompt /compact`, not `send-keys '/compact' Enter`. `send-keys` is for real keypresses (pickers, `down`/`Enter` on a question, `C-q`). `--tab` send-keys is text+Enter only; multi-line body uses `send-prompt <<'EOF'`. `--literal` makes `Enter` the letters E-n-t-e-r.
 - **`--from` and `--to` must both be present.** One alone errors. `1` is newest, print is oldest-first. `last-message` is user+assistant only; tools are `last-tool`.
 - **`wait` always has a timeout** (default 60s). Client waits `--timeout`+5s; `ctl socket timed out` before that is a bug. `wait-for-input` means a question/dialog — do not keep waiting. `finished` is idle/done. Home: `Home has no agent run`.

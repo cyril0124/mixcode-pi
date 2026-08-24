@@ -17,7 +17,32 @@ MixCode Pi provides model discovery, selection, thinking tier adjustments, provi
 ## Model Selection & Thinking
 
 - **Select Model**: Run `/models [provider/modelId]` or press `Ctrl+P` → **Choose Model**.
-- **Thinking Tier**: Run `/thinking [tier]` (`off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`).
+- **Thinking Tier**: Run `/thinking [tier]`. The accepted tiers are per model — a model's `thinkingLevelMap` may hide any of `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. `/thinking <unknown>` answers with that model's valid values.
+
+## Listing Models From the CLI
+
+```bash
+mpi --list-models [search] [--json]
+```
+
+Prints one row per model with configured auth, plus the thinking tiers that model accepts:
+
+```text
+provider  model              context  thinking
+faux      faux-1             200K     off,minimal,low,medium,high
+deepseek  deepseek-v4-flash  1M       off,low,high,max
+deepseek  deepseek-v4-pro    1M       off,high,max                 (disabled)
+```
+
+`search` filters case-insensitively on `provider/modelId`. `--json` emits an array of
+`{ id, provider, modelId, displayName, contextWindow, reasoning, disabled, thinking }`.
+
+Scope, identical to what `/models` offers:
+
+- Only providers whose auth resolves (`auth.json`, `models.json` `apiKey`, or environment variables) appear; the rest are absent, as in the picker.
+- The faux default heads the list; entries matched by `disabledProviders` / `disabledModels` are kept and marked `(disabled)`.
+- Providers registered at runtime by extensions (`pi.registerProvider`) are **not** covered: the command reads `models.json` and the built-in catalog without loading extensions.
+- No TUI, no network, no running instance required, so it is safe to call from scripts and from another agent tab.
 
 ## Global Model & Provider Disablement
 

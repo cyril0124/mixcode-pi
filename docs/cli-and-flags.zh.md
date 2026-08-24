@@ -8,6 +8,7 @@
 
 ```bash
 mpi [options] [-- <script-args...>]
+mpi --list-models [search] [--json]
 mpi status [--json] [--workdir <path>]
 mpi ctl [--pid <n> | --workdir <path>] [--tab <title> | --session <id> | --focus-tab <title> | --focus-session <id>] <command>
 mpi commands [--json] [--workdir <path>]
@@ -19,6 +20,7 @@ mpi install-extensions [--yes]
 | 参数 | 类型 | 默认值 | 作用说明 |
 |---|---|---|---|
 | `--workdir <path>` | string | 当前工作目录 (`process.cwd()`) | 指定工作目录。也接受 `--workdir=<path>`。没有 `-w` 短选项。 |
+| `--list-models [search]` | boolean + 可选 string | 未设置 | 列出已配置鉴权的模型及每个模型接受的 thinking 档位后退出。可选 `search` 按 `provider/modelId` 做大小写不敏感过滤；`--json` 输出 `{ id, provider, modelId, displayName, contextWindow, reasoning, disabled, thinking }` 条目。与 `status` 同为轻量路径：不启动 TUI、不加载扩展、不联网，因此不含通过 `pi.registerProvider` 注册的 provider。口径详见[模型管理](model-management.zh.md)。 |
 | `--builtin-extensions-only` | boolean | `false` | 禁用 `settings.json` `packages` 中配置的第三方扩展，仅加载 `pi-packages/mpi-*` 下的第一方内置扩展。 |
 | `--batch <script>` | string | 未设置 | 启动运行时后执行指定的批量自动化脚本。语言由扩展名决定：`.lua`，或 `.ts` / `.mts` / `.js` / `.mjs`。 |
 | `--batch-dry-run` | boolean | `false` | 仅校验模型与思考配置并打印批量执行计划，不启动 TUI，不写入任何状态文件。 |
