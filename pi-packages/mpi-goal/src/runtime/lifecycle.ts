@@ -602,7 +602,7 @@ function shouldPauseForSafety(telemetry: GoalTelemetrySnapshot | null): boolean 
 function handleBudgetPressure(pi: ExtensionAPI, ctx: ExtensionContext, goal: GoalState, telemetry: GoalTelemetrySnapshot | null) {
 	const pressure = evaluateBudgetPressure(goal);
 	if (isBudgetHardStop(pressure.kind)) return enforceBudgetHardStop(pi, ctx, goal, pressure, telemetry);
-	if (isBudgetReached(pressure.kind)) return markBudgetReached(pi, ctx, goal, pressure, telemetry);
+	if (isBudgetReached(pressure.kind)) return markBudgetReached(pi, ctx, goal, telemetry);
 	if (isBudgetWarning(pressure.kind)) warnBudgetPressure(pi, ctx, pressure, telemetry);
 	return { ok: true, goal, telemetry };
 }
@@ -628,7 +628,7 @@ function enforceBudgetHardStop(pi: ExtensionAPI, ctx: ExtensionContext, goal: Go
 	return result;
 }
 
-function markBudgetReached(pi: ExtensionAPI, ctx: ExtensionContext, goal: GoalState, pressure: BudgetPressure, telemetry: GoalTelemetrySnapshot | null) {
+function markBudgetReached(pi: ExtensionAPI, ctx: ExtensionContext, goal: GoalState, telemetry: GoalTelemetrySnapshot | null) {
 	cancelGoalContinuation(goal.goalId);
 	const limited: GoalState = { ...goal, status: "budgetLimited", updatedAt: Date.now() };
 	const result = persistUpdateGoal(pi, limited, noteBudgetLimit(telemetry), "budget");
