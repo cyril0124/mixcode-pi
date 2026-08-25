@@ -444,6 +444,62 @@ test("j/k wrap around the navigator tree", () => {
   assert.match(output, /c-before/);
 });
 
+test("Enter collapses and expands a navigator folder", () => {
+  const a = file("src/a.ts", [
+    {
+      kind: "replace",
+      oldLineNumber: 1,
+      newLineNumber: 1,
+      oldText: "a-before",
+      newText: "a-after",
+    },
+  ]);
+  const b = file("test/b.ts", [
+    {
+      kind: "replace",
+      oldLineNumber: 1,
+      newLineNumber: 1,
+      oldText: "b-before",
+      newText: "b-after",
+    },
+  ]);
+  const c = file("src/c.ts", [
+    {
+      kind: "replace",
+      oldLineNumber: 1,
+      newLineNumber: 1,
+      oldText: "c-before",
+      newText: "c-after",
+    },
+  ]);
+  const { component } = createViewer({
+    files: [a, b, c],
+    additions: 3,
+    deletions: 3,
+    trackedFiles: 3,
+  });
+
+  component.handleInput("k");
+  let output = stripTerminalSequences(component.render(120).join("\n"));
+  assert.match(output, / a\.ts/);
+  assert.match(output, / c\.ts/);
+
+  component.handleInput("\r");
+  output = stripTerminalSequences(component.render(120).join("\n"));
+  assert.doesNotMatch(output, / a\.ts/);
+  assert.doesNotMatch(output, / c\.ts/);
+  assert.match(output, / src/);
+  assert.match(output, /src\/a\.ts/);
+  assert.match(output, /src\/c\.ts/);
+  assert.match(output, / b\.ts/);
+
+  component.handleInput("\r");
+  output = stripTerminalSequences(component.render(120).join("\n"));
+  assert.match(output, / a\.ts/);
+  assert.match(output, / c\.ts/);
+  assert.match(output, / src/);
+});
+
 test("selecting a directory shows every descendant file diff with path headers", () => {
   const a = file("src/a.ts", [
     {

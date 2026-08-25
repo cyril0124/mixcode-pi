@@ -26,5 +26,5 @@ MixCode built-in terminal-native interactive diff inspection and code review com
 | `j` / `k` or `Down` / `Up` | Scroll lines within the active diff pane. |
 | `n` / `p` | Jump to next / previous diff hunk. |
 | `c` | Add / edit inline review comment on current line (`fix` / `discuss`). |
-| `Enter` | Submit composed review comments as a new structured agent prompt. |
+| `Enter` | Collapse or expand the selected navigator folder. |
 | `Escape` / `q` | Close Diff Viewer overlay without submitting comments. |

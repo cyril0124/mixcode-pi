@@ -476,6 +476,7 @@ function createCommentEditor(tui: ViewerTui, theme: Theme): ReviewEditor {
 
 export class DiffViewer {
   private selectedNavigatorIndex = 0;
+  private collapsedPaths = new Set<string>();
   private viewMode: ViewMode;
   private navigatorVisible = true;
   private navigatorScroll = 0;
@@ -597,7 +598,34 @@ export class DiffViewer {
   }
 
   private navigatorRows(): NavigatorRow[] {
-    return buildNavigatorRows(this.config.diff.files, this.visibleFileIndexes());
+    const rows = buildNavigatorRows(this.config.diff.files, this.visibleFileIndexes());
+    if (this.collapsedPaths.size === 0) return rows;
+    return rows.filter((row) => !this.isCollapsedDescendant(row));
+  }
+
+  private folderPath(row: NavigatorRow): string | undefined {
+    if (row.kind === "root") return "/";
+    if (row.kind === "directory") return row.path;
+    return undefined;
+  }
+
+  private isCollapsedDescendant(row: NavigatorRow): boolean {
+    if (row.kind === "root") return false;
+    if (this.collapsedPaths.has("/")) return true;
+    const path = row.path;
+    for (const key of this.collapsedPaths) {
+      if (path.startsWith(`${key}/`)) return true;
+    }
+    return false;
+  }
+
+  private toggleNavigatorFolder(): void {
+    const row = this.selectedNavigatorRow();
+    const path = row ? this.folderPath(row) : undefined;
+    if (!path) return;
+    if (this.collapsedPaths.has(path)) this.collapsedPaths.delete(path);
+    else this.collapsedPaths.add(path);
+    this.requestRender();
   }
 
   private selectedNavigatorRow(): NavigatorRow | undefined {
@@ -1065,6 +1093,10 @@ export class DiffViewer {
       this.moveFile(-1);
       return;
     }
+    if (matchesKey(data, Key.enter)) {
+      this.toggleNavigatorFolder();
+      return;
+    }
     if (matchesKey(data, Key.ctrl("d"))) {
       this.scrollDiff(Math.max(1, Math.floor(this.diffPageSize / 2)));
       return;
@@ -1507,15 +1539,17 @@ export class DiffViewer {
       const absoluteIndex = this.navigatorScroll + offset;
       const selected = absoluteIndex === this.selectedNavigatorIndex;
       if (row.kind === "root") {
-        const rendered = fit(this.config.theme.bold(this.config.theme.fg("accent", " /")), width);
+        const icon = this.collapsedPaths.has("/") ? "" : "";
+        const rendered = fit(this.config.theme.bold(this.config.theme.fg("accent", `${icon} /`)), width);
         lines.push(selected ? this.config.theme.bg("selectedBg", rendered) : rendered);
         return;
       }
 
       const connector = this.config.theme.fg("borderMuted", "│".repeat(row.depth));
       if (row.kind === "directory") {
+        const icon = this.collapsedPaths.has(row.path) ? "" : "";
         const rendered = fit(
-          `${connector}${this.config.theme.fg("accent", ` ${row.label}`)}`,
+          `${connector}${this.config.theme.fg("accent", `${icon} ${row.label}`)}`,
           width,
         );
         lines.push(selected ? this.config.theme.bg("selectedBg", rendered) : rendered);
@@ -1589,6 +1623,7 @@ export class DiffViewer {
     const help = [
       "j/k or ↑/↓       next / previous tree node",
       "n / p            next / previous file",
+      "Enter             collapse / expand folder",
       "Ctrl+D/U          diff down / up",
       "PageUp/PageDown   diff page",
       "g / G             first / last diff row",
