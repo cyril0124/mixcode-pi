@@ -13,6 +13,9 @@ import {
   chatHome,
   closeCommandPalette,
   closeTabJump,
+  pickerIsLive,
+  sessionActionConfirmIsLive,
+  sessionSelectorIsLive,
   commandPaletteEntriesWithExtensions,
   selectableCommandPaletteEntries,
   moveCommandPaletteSelection,
@@ -51,9 +54,11 @@ import {
 } from "../core/escape.js";
 import {
   closeAppOverlay,
+  dispatchAppOverlayInput,
   hasAnyOverlay,
   showErrorOverlay,
   showLinesOverlay,
+  syncOwnedAppOverlay,
 } from "./app-overlays.js";
 import type {
   CommandPaletteActions,
@@ -62,7 +67,7 @@ import type {
   OverlayTui,
 } from "./app-types.js";
 import { getConfiguredQuitOptions, quitMixCode } from "./quit.js";
-import { renderCommandPalette, renderPickerOverlay, renderTabJumpOverlay } from "./rendering.js";
+import { renderCommandPalette, renderTabJumpOverlay } from "./rendering.js";
 import { openTreeSelector, type TreeSelectorRuntime } from "./components/tree-selector.js";
 import { openForkSelector } from "./components/fork-selector.js";
 import { clearVimTranscriptSearch } from "./vim-transcript-search.js";
@@ -77,6 +82,9 @@ export {
   handleTabJumpMouse,
 } from "./app-mouse.js";
 import { handleCommandPaletteMouse, handleTabJumpMouse } from "./app-mouse.js";
+import { handleSessionSelectorKey } from "./session-resume.js";
+import { getSettingsPanelComponent } from "./components/settings-panel.js";
+import { handleTreeSelectorKey } from "./components/tree-selector.js";
 // Try a retract (no-output rewind); if the turn is ineligible, abort normally.
 // Refills the editor only when it is still empty, so a draft typed during the
 // async hop is never clobbered.
@@ -256,8 +264,9 @@ export function handleSessionActionConfirmKey(
   const confirm = state.sessionActionConfirm;
   if (!confirm) return false;
   if (matchesKey(data, "escape") || data.toLowerCase() === "n") {
+    const wasLive = sessionActionConfirmIsLive(state);
     state.sessionActionConfirm = null;
-    closeAppOverlay(tui);
+    if (wasLive) closeAppOverlay(tui);
     tui.requestRender();
     return true;
   }
@@ -265,8 +274,9 @@ export function handleSessionActionConfirmKey(
     if (!runtime) throw new Error("Session close/delete requires runtime support");
     const confirmedRuntime = runtime;
     const { action, sessionId } = confirm;
+    const wasLive = sessionActionConfirmIsLive(state);
     state.sessionActionConfirm = null;
-    closeAppOverlay(tui);
+    if (wasLive) closeAppOverlay(tui);
     void (async () => {
       if (action === "close") {
         await closeExistingAgentTab(state, confirmedRuntime!, sessionId);
@@ -290,7 +300,7 @@ export function canOpenCommandPalette(
 ): boolean {
   if (isEditorAutocompleteOpen()) return false;
   if (hasAnyOverlay(tui)) return false;
-  if (state.picker || state.sessionSelector.open || state.treeSelector.open || state.tabJumpOpen)
+  if (pickerIsLive(state) || sessionSelectorIsLive(state) || state.treeSelector.open || state.tabJumpOpen)
     return false;
   // Home only highlights a send target; that agent's extension dialog is not on this surface.
   if (state.activeTabId !== HOME_TAB_ID && active && tabIsWaitingForInput(active)) return false;
@@ -611,30 +621,31 @@ export function handlePickerKey(
       picker.customInputMode = false;
       picker.customInputError = undefined;
       picker.query = "";
-      showLinesOverlay(tui, (width) => renderPickerOverlay(state, width));
+      syncOwnedAppOverlay(state, tui);
       return true;
     }
+    const wasLive = pickerIsLive(state);
     state.picker = undefined;
-    closeAppOverlay(tui);
+    if (wasLive) closeAppOverlay(tui);
     tui.requestRender();
     return true;
   }
   if (picker.kind === "workdir" && matchesKey(data, "ctrl+u")) {
     updatePickerQuery(picker, "");
-    showLinesOverlay(tui, (width) => renderPickerOverlay(state, width));
+    syncOwnedAppOverlay(state, tui);
     return true;
   }
   // Workdir picker: left arrow navigates to parent directory
   if (picker.kind === "workdir" && matchesKey(data, "left")) {
     if (navigatePickerToParent(picker)) {
-      showLinesOverlay(tui, (width) => renderPickerOverlay(state, width));
+      syncOwnedAppOverlay(state, tui);
     }
     return true;
   }
   // Workdir picker: Ctrl+H toggles hidden directories
   if (picker.kind === "workdir" && matchesKey(data, "ctrl+h")) {
     togglePickerHidden(picker);
-    showLinesOverlay(tui, (width) => renderPickerOverlay(state, width));
+    syncOwnedAppOverlay(state, tui);
     return true;
   }
   if (matchesKey(data, "tab") || matchesKey(data, "shift+tab")) {
@@ -644,12 +655,12 @@ export function handlePickerKey(
       matchesKey(data, "tab") &&
       completeWorkdirPickerSelection(picker)
     ) {
-      showLinesOverlay(tui, (width) => renderPickerOverlay(state, width));
+      syncOwnedAppOverlay(state, tui);
       return true;
     }
     if (picker.kind !== "workdir") {
       movePickerSelection(picker, matchesKey(data, "shift+tab") ? -1 : 1);
-      showLinesOverlay(tui, (width) => renderPickerOverlay(state, width));
+      syncOwnedAppOverlay(state, tui);
     }
     return true;
   }
@@ -659,23 +670,24 @@ export function handlePickerKey(
       const value = parseContextLimitValue(picker.query);
       if (value === undefined) {
         picker.customInputError = "Invalid: enter a number (e.g. 32k, 40000)";
-        showLinesOverlay(tui, (width) => renderPickerOverlay(state, width));
+        syncOwnedAppOverlay(state, tui);
         return true;
       }
-      const active = getActiveTab(state);
-      if (active) {
-        const runtimeTab = runtime?.getTab?.(active.sessionId);
+      const owner = pickerOwnerTab(state);
+      if (owner) {
+        const runtimeTab = runtime?.getTab?.(owner.sessionId);
         if (runtimeTab) {
-          applyContextLimitToSession(active, value, {
+          applyContextLimitToSession(owner, value, {
             model: runtimeTab.agentSession.model,
             settingsManager: runtimeTab.agentSession.settingsManager,
           });
         } else {
-          applyContextLimit(active, value);
+          applyContextLimit(owner, value);
         }
       }
+      const wasLive = pickerIsLive(state);
       state.picker = undefined;
-      closeAppOverlay(tui);
+      if (wasLive) closeAppOverlay(tui);
       void onStateChanged?.(state);
       tui.requestRender();
       return true;
@@ -709,13 +721,14 @@ export function handlePickerKey(
       picker.customInputMode = true;
       picker.customInputError = undefined;
       picker.query = "";
-      showLinesOverlay(tui, (width) => renderPickerOverlay(state, width));
+      syncOwnedAppOverlay(state, tui);
       return true;
     }
 
     const finish = () => {
+      const wasLive = pickerIsLive(state);
       state.picker = undefined;
-      closeAppOverlay(tui);
+      if (wasLive) closeAppOverlay(tui);
       void onStateChanged?.(state);
       tui.requestRender();
     };
@@ -738,29 +751,35 @@ export function handlePickerKey(
   if (matchesKey(data, "down")) {
     if (picker.customInputMode) return true;
     movePickerSelection(picker, 1);
-    showLinesOverlay(tui, (width) => renderPickerOverlay(state, width));
+    syncOwnedAppOverlay(state, tui);
     return true;
   }
   if (matchesKey(data, "up")) {
     if (picker.customInputMode) return true;
     movePickerSelection(picker, -1);
-    showLinesOverlay(tui, (width) => renderPickerOverlay(state, width));
+    syncOwnedAppOverlay(state, tui);
     return true;
   }
   if (data === "\u007f") {
     updatePickerQuery(picker, picker.query.slice(0, -1));
     if (picker.customInputMode) picker.customInputError = undefined;
-    showLinesOverlay(tui, (width) => renderPickerOverlay(state, width));
+    syncOwnedAppOverlay(state, tui);
     return true;
   }
   if (data.length > 0 && !/[\x00-\x1f\x7f]/.test(data)) {
     updatePickerQuery(picker, picker.query + data);
     if (picker.customInputMode) picker.customInputError = undefined;
-    showLinesOverlay(tui, (width) => renderPickerOverlay(state, width));
+    syncOwnedAppOverlay(state, tui);
     return true;
   }
   // Modal: swallow unbound keys so they cannot fall through.
   return true;
+}
+
+function pickerOwnerTab(state: MixCodeState): MixCodeState["tabs"][number] | undefined {
+  const ownerId = state.picker?.ownerSessionId;
+  if (ownerId) return state.tabs.find((tab) => tab.sessionId === ownerId);
+  return getActiveTab(state);
 }
 
 function applyPickerSelection(
@@ -768,29 +787,29 @@ function applyPickerSelection(
   selectedId: string,
   runtime?: MixCodeKeyRuntime,
 ): void | Promise<void> {
-  const active = getActiveTab(state);
-  if (!state.picker) return;
-  if (state.picker.kind === "models" && active) {
+  const owner = pickerOwnerTab(state);
+  if (!state.picker || !owner) return;
+  if (state.picker.kind === "models") {
     const model = findModelRef(state.availableModels, selectedId);
-    return applyModelSelection(state, active, model, runtime);
-  } else if (state.picker.kind === "thinking" && active) {
-    applyThinkingLevel(state, active, selectedId, runtime);
-  } else if (state.picker.kind === "context-limit" && active) {
+    return applyModelSelection(state, owner, model, runtime);
+  } else if (state.picker.kind === "thinking") {
+    applyThinkingLevel(state, owner, selectedId, runtime);
+  } else if (state.picker.kind === "context-limit") {
     // "reset" item or a numeric preset
     const value = selectedId === "reset" ? ("reset" as const) : parseInt(selectedId, 10);
     if (value === "reset" || (typeof value === "number" && value > 0)) {
-      const runtimeTab = runtime?.getTab?.(active.sessionId);
+      const runtimeTab = runtime?.getTab?.(owner.sessionId);
       if (runtimeTab) {
-        applyContextLimitToSession(active, value, {
+        applyContextLimitToSession(owner, value, {
           model: runtimeTab.agentSession.model,
           settingsManager: runtimeTab.agentSession.settingsManager,
         });
       } else {
-        applyContextLimit(active, value);
+        applyContextLimit(owner, value);
       }
     }
-  } else if (state.picker.kind === "workdir" && active) {
-    return applyWorkdirSelection(active, selectedId, runtime);
+  } else if (state.picker.kind === "workdir") {
+    return applyWorkdirSelection(owner, selectedId, runtime);
   }
 }
 
@@ -800,4 +819,48 @@ function isPromiseLike(value: unknown): value is PromiseLike<void> {
     value !== null &&
     typeof (value as PromiseLike<void>).then === "function"
   );
+}
+
+/** Drive a tab-owned or instance overlay without changing UI focus. */
+export function dispatchOwnedOverlayKey(
+  state: MixCodeState,
+  tab: MixCodeState["tabs"][number],
+  data: string,
+  tui: OverlayTui,
+  runtime?: MixCodeKeyRuntime,
+  onStateChanged?: (state: MixCodeState) => void | Promise<void>,
+): boolean {
+  if (state.picker?.ownerSessionId === tab.sessionId) {
+    return handlePickerKey(state, data, tui, runtime, onStateChanged);
+  }
+  if (state.sessionActionConfirm?.sessionId === tab.sessionId) {
+    return handleSessionActionConfirmKey(state, data, tui, runtime, onStateChanged);
+  }
+  if (state.sessionSelector.open && state.sessionSelector.ownerSessionId === tab.sessionId) {
+    return handleSessionSelectorKey(state, data, tui, runtime, onStateChanged);
+  }
+  if (state.settingsPanel.open && state.settingsPanel.ownerSessionId === tab.sessionId) {
+    const panel = getSettingsPanelComponent(state);
+    if (!panel) return false;
+    panel.handleInput(data);
+    tui.requestRender();
+    return true;
+  }
+  if (runtime?.dispatchExtensionOverlayInput?.(tab.sessionId, data)) {
+    tui.requestRender();
+    return true;
+  }
+  if (state.commandPaletteOpen) return handleCommandPaletteKey(state, data, tui);
+  if (state.tabJumpOpen) return handleTabJumpKey(state, data, tui);
+  if (state.quitConfirmOpen) return handleQuitConfirmKey(state, data, tui, runtime);
+  if (state.deleteAllSessionsConfirmOpen) {
+    return handleDeleteAllSessionsConfirmKey(state, data, tui, runtime, onStateChanged);
+  }
+  if (state.closeAllSessionsConfirmOpen) {
+    return handleCloseAllSessionsConfirmKey(state, data, tui, runtime, onStateChanged);
+  }
+  if (state.treeSelector.open) {
+    return handleTreeSelectorKey(state, data, tui, runtime, onStateChanged);
+  }
+  return dispatchAppOverlayInput(tui, data);
 }

@@ -58,6 +58,8 @@ export interface PickerState {
   customInputMode?: boolean;
   /** Validation error message for custom input mode */
   customInputError?: string;
+  /** Tab that opened this picker. Absent = live on whatever tab is focused. */
+  ownerSessionId?: string;
 }
 
 /**
@@ -66,6 +68,8 @@ export interface PickerState {
  */
 export interface SettingsPanelState {
   open: boolean;
+  /** Tab that opened the panel. Absent = live on the focused tab. */
+  ownerSessionId?: string;
 }
 
 export interface CommandPaletteState {
@@ -365,6 +369,8 @@ export type SessionActionConfirm = {
  */
 export interface SessionSelectorState {
   open: boolean;
+  /** Tab whose editor slot hosts the selector. Absent = live on the focused tab. */
+  ownerSessionId?: string;
   /** Clear editor input slot / other host resources; set while open. */
   dispose?: () => void;
 }

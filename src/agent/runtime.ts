@@ -810,6 +810,15 @@ export class MixCodeRuntime {
     handle.focus();
   }
 
+  dispatchExtensionOverlayInput(sessionId: string, data: string): boolean {
+    const components = this.tabs.get(sessionId)?.extensionCustomOverlayComponents;
+    if (!components || components.size === 0) return false;
+    const component = [...components].at(-1) as { handleInput?: (data: string) => void } | undefined;
+    if (!component?.handleInput) return false;
+    component.handleInput(data);
+    return true;
+  }
+
   async prompt(
     sessionId: string,
     text: string,

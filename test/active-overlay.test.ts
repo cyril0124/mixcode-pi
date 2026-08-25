@@ -9,12 +9,14 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createInitialState } from "../src/core/defaults.js";
+import { createInitialState, createTab } from "../src/core/defaults.js";
 import {
   activeOverlay,
   closeActiveOverlay,
   isOverlayActive,
   openOverlay,
+  pickerIsLive,
+  tabOwnsWaitingAppOverlay,
   type FlagOverlayKind,
 } from "../src/core/overlays.js";
 
@@ -76,6 +78,27 @@ test("closeActiveOverlay clears whichever overlay is active, including picker", 
   confirming.sessionActionConfirm = { action: "close", sessionId: "s1" };
   closeActiveOverlay(confirming);
   assert.equal(activeOverlay(confirming), "none");
+});
+
+test("a picker owned by an unfocused tab is not the live overlay", () => {
+  const s = state();
+  s.tabs.push(createTab(1, "s1", "/tmp"), createTab(2, "s2", "/tmp"));
+  s.activeTabId = "s2";
+  s.picker = {
+    kind: "models",
+    title: "Choose Model",
+    query: "",
+    selectedIndex: 0,
+    items: [],
+    ownerSessionId: "s1",
+  };
+  assert.equal(pickerIsLive(s), false);
+  assert.equal(isOverlayActive(s), false);
+  assert.equal(tabOwnsWaitingAppOverlay(s, "s1"), true);
+  assert.equal(tabOwnsWaitingAppOverlay(s, "s2"), false);
+  s.activeTabId = "s1";
+  assert.equal(pickerIsLive(s), true);
+  assert.equal(activeOverlay(s), "picker");
 });
 
 test("activeOverlay follows the fixed priority when multiple flags are set", () => {

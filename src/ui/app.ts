@@ -22,6 +22,7 @@ import {
   editTextWithTuiPaused,
   errorMessage,
   showErrorOverlay,
+  syncOwnedAppOverlay,
 } from "./app-overlays.js";
 import {
   activeExtensionCommands,
@@ -34,6 +35,7 @@ import {
   hydrateTabPromptHistory,
 } from "./app-runtime.js";
 import { handleSubmittedInput } from "./app-submit.js";
+import { presentSettingsPanel } from "./components/settings-panel.js";
 import { attachTreeSelectorDisplayHost } from "./components/tree-selector.js";
 import {
   MixCodeCompletionProvider,
@@ -111,6 +113,8 @@ export function createMixCodeTui(
   const stopExtensionTitleSync = onActiveTabChange((tabId) => {
     const title = state.tabs.find((tab) => tab.sessionId === tabId)?.extensionUi.title;
     if (title !== undefined) tui.terminal.setTitle(title);
+    syncOwnedAppOverlay(state, tui);
+    presentSettingsPanel(state, tui);
   });
   const stopLiveExtensionRedraw = bindLiveExtensionRedraw(state, tui);
   const stopActiveTabShimmerRedraw = bindActiveTabShimmerRedraw(state, tui);

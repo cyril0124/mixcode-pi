@@ -26,9 +26,9 @@ import {
   renderCloseAllSessionsConfirm,
   renderDeleteAllSessionsConfirm,
   renderQuitConfirm,
-  renderSessionActionConfirm,
   showLinesOverlay,
   showNoticeTextOverlay,
+  syncOwnedAppOverlay,
 } from "./app-overlays.js";
 import type { OverlayTui } from "./app-types.js";
 import { themeForId } from "./themes.js";
@@ -97,11 +97,7 @@ export function openSessionActionConfirm(
   closeTreeSelectorIfOpen(state, tui);
   closeActiveOverlay(state);
   state.sessionActionConfirm = { action, sessionId: tab.sessionId };
-  showLinesOverlay(
-    tui,
-    (width) => renderSessionActionConfirm(width, themeForId(state.theme), action, tab.title),
-    quitOverlayOptions(),
-  );
+  syncOwnedAppOverlay(state, tui);
 }
 
 export async function applyModelSelection(

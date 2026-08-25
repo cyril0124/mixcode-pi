@@ -24,6 +24,7 @@ export function createPicker(
     workdirBase: browsingDir,
     browsingDir,
     showHidden: false,
+    ownerSessionId: active?.sessionId ?? state.activeTabId,
   };
 }
 

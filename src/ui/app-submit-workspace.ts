@@ -4,10 +4,9 @@ import { createPicker } from "../core/pickers.js";
 import { activateTab } from "../core/tabs.js";
 import { pushToast } from "../core/toast.js";
 import { applyWorkdirSelection } from "./app-actions.js";
-import { showLinesOverlay } from "./app-overlays.js";
+import { syncOwnedAppOverlay } from "./app-overlays.js";
 import { HOME_TAB_ID } from "../core/types.js";
 import { type LocalCommandHandler, type MixCodeSubmitRuntime, SKIP_FINALIZE } from "./app-types.js";
-import { renderPickerOverlay } from "./rendering.js";
 import { openSaveWorkspaceOverlay, openWorkspaceSelector } from "./components/workspace-overlay.js";
 import {
   deleteWorkspaceByName,
@@ -25,7 +24,7 @@ const handleWorkdir: LocalCommandHandler = async ({
 }) => {
   if (!args.trim()) {
     state.picker = createPicker("workdir", state, active);
-    showLinesOverlay(tui, (width) => renderPickerOverlay(state, width));
+    syncOwnedAppOverlay(state, tui);
     await onStateChanged?.(state);
     tui.requestRender();
     return SKIP_FINALIZE;

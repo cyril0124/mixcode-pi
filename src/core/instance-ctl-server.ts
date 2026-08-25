@@ -4,10 +4,15 @@ import * as path from "node:path";
 import type { MixCodeRuntime } from "../agent/runtime.js";
 import { resolveMixcodeAgentDir } from "./paths.js";
 import type { CtlRequest, CtlResponse } from "../cli/ctl.js";
+import { renderSessionActionConfirm } from "../ui/app-overlays.js";
 import { renderAgentSurface } from "../ui/rendering/agent-surface.js";
-import { renderHome } from "../ui/rendering/overlays.js";
+import { renderHome, renderPickerOverlay } from "../ui/rendering/overlays.js";
+import { getSessionSelectorComponent } from "../ui/session-resume.js";
+import { getSettingsPanelComponent } from "../ui/components/settings-panel.js";
+import { themeForId } from "../ui/themes.js";
 import { activateTab, getActiveTab } from "./tabs.js";
 import { tabIsWaitingForInput } from "./tab-state.js";
+import { isInstanceOverlayOpen, tabOwnsWaitingAppOverlay } from "./overlays.js";
 import { HOME_TAB_ID, type MixCodeState, type MixCodeTabInfo } from "./types.js";
 import { instanceCtlSocketFile, instanceRegistryDir } from "./instance-registry.js";
 
@@ -31,6 +36,8 @@ export interface StartInstanceCtlServerOptions {
   /** MixCode showLinesOverlay / showComponentOverlay is open. */
   hasAppOverlay?: () => boolean;
   renderAppOverlay?: (width: number) => string[];
+  /** Drive a tab-owned overlay without changing UI focus. */
+  dispatchTabOverlayKeys?: (tab: MixCodeTabInfo, data: string) => boolean;
   /**
    * Async socket failures (e.g. bind errors after `listen` returns). Without
    * this hook an unhandled 'error' event would kill the whole process.
@@ -139,6 +146,31 @@ function renderCtlOverlayDump(
   return lines;
 }
 
+function renderOwnedAppOverlayDump(state: MixCodeState, sessionId: string, width: number): string[] {
+  const lines: string[] = [];
+  if (state.picker?.ownerSessionId === sessionId) {
+    lines.push(...renderPickerOverlay(state, width));
+  }
+  const confirm = state.sessionActionConfirm;
+  if (confirm?.sessionId === sessionId) {
+    const tab = state.tabs.find((item) => item.sessionId === sessionId);
+    if (tab) {
+      lines.push(
+        ...renderSessionActionConfirm(width, themeForId(state.theme), confirm.action, tab.title),
+      );
+    }
+  }
+  if (state.sessionSelector.open && state.sessionSelector.ownerSessionId === sessionId) {
+    const selector = getSessionSelectorComponent(state);
+    if (selector) lines.push(...selector.render(width));
+  }
+  if (state.settingsPanel.open && state.settingsPanel.ownerSessionId === sessionId) {
+    const panel = getSettingsPanelComponent(state);
+    if (panel) lines.push(...panel.render(width));
+  }
+  return lines;
+}
+
 export function mpiCtlSkillPath(env: NodeJS.ProcessEnv = process.env): string {
   return path.join(
     resolveMixcodeAgentDir(env),
@@ -234,13 +266,21 @@ function hasPendingCtlSubmit(tab: MixCodeTabInfo): boolean {
   return (pendingCtlSubmits.get(tab) ?? 0) > 0;
 }
 
+function tabIsWaitingForOverlay(
+  tab: MixCodeTabInfo,
+  options: Pick<StartInstanceCtlServerOptions, "hasAppOverlay" | "state">,
+): boolean {
+  if (tabOwnsWaitingAppOverlay(options.state, tab.sessionId) || tabIsWaitingForInput(tab)) return true;
+  if (isInstanceOverlayOpen(options.state)) return true;
+  return options.hasAppOverlay?.() === true && options.state.activeTabId === tab.sessionId;
+}
+
 function isCtlWaitSettled(
   tab: MixCodeTabInfo,
-  options: Pick<StartInstanceCtlServerOptions, "hasAppOverlay">,
+  options: Pick<StartInstanceCtlServerOptions, "hasAppOverlay" | "state">,
 ): boolean {
   return (
-    options.hasAppOverlay?.() === true ||
-    tabIsWaitingForInput(tab) ||
+    tabIsWaitingForOverlay(tab, options) ||
     (!CTL_WAIT_BUSY.has(tab.status) && !hasPendingCtlSubmit(tab))
   );
 }
@@ -252,19 +292,33 @@ function isBackgroundSendKeysText(chunk: string): boolean {
   return true;
 }
 
+function tabHasDriveableOverlay(
+  tab: MixCodeTabInfo,
+  options: Pick<StartInstanceCtlServerOptions, "state" | "runtime">,
+): boolean {
+  if (tabOwnsWaitingAppOverlay(options.state, tab.sessionId)) return true;
+  if (tabIsWaitingForInput(tab)) return true;
+  if (isInstanceOverlayOpen(options.state)) return true;
+  return options.runtime.hasExtensionCustomOverlay?.(tab.sessionId) === true;
+}
+
 function assertBackgroundSendKeys(
+  tab: MixCodeTabInfo,
   keys: string[],
-  options: Pick<StartInstanceCtlServerOptions, "submitToTab">,
+  options: Pick<StartInstanceCtlServerOptions, "submitToTab" | "state" | "runtime" | "dispatchTabOverlayKeys">,
 ): void {
   let needsSubmit = false;
+  let needsOverlay = false;
   for (const chunk of keys) {
     if (chunk === "\r" || chunk === "\n") {
       needsSubmit = true;
       continue;
     }
-    if (!isBackgroundSendKeysText(chunk)) {
-      throw new Error("send-keys --tab/--session only supports text and Enter; use --focus-tab for UI keys");
-    }
+    if (!isBackgroundSendKeysText(chunk)) needsOverlay = true;
+  }
+  if (tabHasDriveableOverlay(tab, options) && options.dispatchTabOverlayKeys) return;
+  if (needsOverlay) {
+    throw new Error("send-keys --tab/--session only supports text and Enter; use --focus-tab for UI keys");
   }
   if (needsSubmit && !options.submitToTab) {
     throw new Error("send-keys --tab/--session requires submitToTab");
@@ -274,10 +328,21 @@ function assertBackgroundSendKeys(
 async function applyBackgroundSendKeys(
   tab: MixCodeTabInfo,
   keys: string[],
-  options: Pick<StartInstanceCtlServerOptions, "submitToTab" | "requestRender">,
+  options: Pick<
+    StartInstanceCtlServerOptions,
+    "submitToTab" | "requestRender" | "state" | "runtime" | "dispatchTabOverlayKeys"
+  >,
   fromTabTitle?: string,
   fromPid?: number,
 ): Promise<void> {
+  if (tabHasDriveableOverlay(tab, options) && options.dispatchTabOverlayKeys) {
+    for (const chunk of keys) {
+      if (!options.dispatchTabOverlayKeys(tab, chunk)) {
+        throw new Error("send-keys --tab/--session only supports text and Enter; use --focus-tab for UI keys");
+      }
+    }
+    return;
+  }
   let pending = "";
   for (const chunk of keys) {
     if (chunk === "\r" || chunk === "\n") {
@@ -372,9 +437,9 @@ function lastChatTools(
 
 function ctlWaitStatus(
   tab: MixCodeTabInfo,
-  options: Pick<StartInstanceCtlServerOptions, "hasAppOverlay"> = {},
+  options: Pick<StartInstanceCtlServerOptions, "hasAppOverlay" | "state">,
 ): string {
-  if (options.hasAppOverlay?.() === true || tabIsWaitingForInput(tab)) return "wait-for-input";
+  if (tabIsWaitingForOverlay(tab, options)) return "wait-for-input";
   if (CTL_WAIT_BUSY.has(tab.status)) return tab.status;
   if (hasPendingCtlSubmit(tab)) return "running";
   if (tab.status === "idle" || tab.status === "done") return "finished";
@@ -384,7 +449,7 @@ function ctlWaitStatus(
 async function waitForTabIdle(
   tab: MixCodeTabInfo,
   timeoutSec: number,
-  options: Pick<StartInstanceCtlServerOptions, "hasAppOverlay"> = {},
+  options: Pick<StartInstanceCtlServerOptions, "hasAppOverlay" | "state">,
 ): Promise<{ status: string; timedOut: boolean }> {
   const deadline = Date.now() + timeoutSec * 1000;
   for (;;) {
@@ -457,14 +522,17 @@ export async function handleCtlRequest(
         if (sessionId === HOME_TAB_ID) throw new Error("Home has no agent run");
         const tab = options.state.tabs.find((candidate) => candidate.sessionId === sessionId);
         if (!tab) throw new Error(`Unknown session: ${sessionId}`);
-        assertBackgroundSendKeys(request.keys, options);
+        assertBackgroundSendKeys(tab, request.keys, options);
         // ACK before submitToTab finishes; the client idle timeout must not wait on the agent turn.
         const work = applyBackgroundSendKeys(tab, request.keys, options, request.fromTabTitle, request.fromPid);
-        if (request.keys.some((chunk) => chunk === "\r" || chunk === "\n")) {
+        const submitsPrompt =
+          !tabHasDriveableOverlay(tab, options) &&
+          request.keys.some((chunk) => chunk === "\r" || chunk === "\n");
+        if (submitsPrompt) {
           trackCtlSubmit(tab, work, options);
         } else {
           void work.catch(() => {
-            // draft update failed after ACK; no ctl response channel left.
+            // draft/overlay update failed after ACK; no ctl response channel left.
           });
         }
       } else {
@@ -571,9 +639,14 @@ export async function handleCtlRequest(
                 if (!tab) throw new Error(`Unknown session: ${sessionId}`);
                 return renderAgentSurface(tab, options.runtime.getTab(sessionId), dumpWidth);
               })();
+      const ownedOverlay = renderOwnedAppOverlayDump(options.state, sessionId, overlayWidth);
+      const includeLiveOverlay =
+        options.state.activeTabId === sessionId &&
+        !tabOwnsWaitingAppOverlay(options.state, sessionId);
       const overlay = [
         ...renderCtlOverlayDump(options.runtime.getTab(sessionId), overlayWidth),
-        ...(options.renderAppOverlay?.(overlayWidth) ?? []),
+        ...ownedOverlay,
+        ...(includeLiveOverlay ? (options.renderAppOverlay?.(overlayWidth) ?? []) : []),
       ];
       const body = overlay.length === 0 ? base.join("\n") : `${base.join("\n")}\n${overlay.join("\n")}`;
       return { ok: true, text: wrap(body) };

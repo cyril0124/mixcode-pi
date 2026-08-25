@@ -31,6 +31,7 @@ import { startPeerTabSync } from "../core/peer-tab-sync.js";
 import { loadStateFile, saveStateFile, scopedStateDir, stateFileForPort } from "../core/state-store.js";
 import type { MixCodeState } from "../core/types.js";
 import { createMixCodeTui } from "../ui/app.js";
+import { dispatchOwnedOverlayKey } from "../ui/app-key-handlers.js";
 import { hasCapturingAppOverlay, renderAppOverlay } from "../ui/app-overlays.js";
 import { handleSubmittedInput } from "../ui/app-submit.js";
 import { closeExistingAgentTab, openExistingAgentTab } from "../ui/agent-tab-actions.js";
@@ -387,6 +388,10 @@ export async function runInteractiveApp(args: MainArgs, selfRoot: string): Promi
       renderTui: (width) => tui.render(width),
       hasAppOverlay: () => hasCapturingAppOverlay(tui),
       renderAppOverlay: (width) => renderAppOverlay(tui, width),
+      dispatchTabOverlayKeys: (tab, data) =>
+        dispatchOwnedOverlayKey(state, tab, data, tui, runtime, async (nextState) => {
+          await saveStateFile(stateFile, nextState);
+        }),
     });
   ensureCtlServer = () => {
     // A live server whose socket is still on disk is healthy. The socket file

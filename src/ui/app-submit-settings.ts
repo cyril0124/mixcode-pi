@@ -14,10 +14,10 @@ import {
   applyThinkingLevel,
   reloadRuntimeModels,
 } from "./app-actions.js";
-import { showLinesOverlay } from "./app-overlays.js";
+import { syncOwnedAppOverlay } from "./app-overlays.js";
 import { type LocalCommandHandler, SKIP_FINALIZE } from "./app-types.js";
 import { openExtensionManager } from "./components/extension-manager.js";
-import { clearConversationCache, renderPickerOverlay } from "./rendering.js";
+import { clearConversationCache } from "./rendering.js";
 import { openSettingsPanel } from "./components/settings-panel.js";
 
 const handleModels: LocalCommandHandler = async ({
@@ -30,7 +30,7 @@ const handleModels: LocalCommandHandler = async ({
 }) => {
   if (!args.trim()) {
     state.picker = createPicker("models", state, active);
-    showLinesOverlay(tui, (width) => renderPickerOverlay(state, width));
+    syncOwnedAppOverlay(state, tui);
     await onStateChanged?.(state);
     tui.requestRender();
     return SKIP_FINALIZE;
@@ -49,7 +49,7 @@ const handleThinking: LocalCommandHandler = async ({
 }) => {
   if (!args.trim()) {
     state.picker = createPicker("thinking", state, active);
-    showLinesOverlay(tui, (width) => renderPickerOverlay(state, width));
+    syncOwnedAppOverlay(state, tui);
     await onStateChanged?.(state);
     tui.requestRender();
     return SKIP_FINALIZE;
@@ -67,7 +67,7 @@ const handleContextLimit: LocalCommandHandler = async ({
 }) => {
   if (!args.trim()) {
     state.picker = createPicker("context-limit", state, active);
-    showLinesOverlay(tui, (width) => renderPickerOverlay(state, width));
+    syncOwnedAppOverlay(state, tui);
     await onStateChanged?.(state);
     tui.requestRender();
     return SKIP_FINALIZE;
@@ -95,6 +95,7 @@ const handleContextLimit: LocalCommandHandler = async ({
 
 const handleSettings: LocalCommandHandler = async ({
   state,
+  active,
   runtime,
   tui,
   settingsDeps,
@@ -110,6 +111,7 @@ const handleSettings: LocalCommandHandler = async ({
         setHideThinkingBlock: runtime.setHideThinkingBlock.bind(runtime),
         setShowCacheMissNotices: runtime.setShowCacheMissNotices.bind(runtime),
       },
+      active?.sessionId ?? state.activeTabId,
     );
   } else {
     appendActiveSystemMessage(

@@ -38,6 +38,7 @@ import {
   setActiveNoticeSelection,
   showErrorOverlay,
   showLinesOverlay,
+  syncOwnedAppOverlay,
 } from "./app-overlays.js";
 import type { CommandPaletteActions, MixCodeKeyRuntime, OverlayTui } from "./app-types.js";
 import { handleListOverlayMouse, } from "./components/list-overlay-mouse.js";
@@ -45,7 +46,6 @@ import {
   planCommandPaletteList,
   planTabJumpList,
   renderCommandPalette,
-  renderPickerOverlay,
   renderTabJumpOverlay,
   tabBarHitRegions,
 } from "./rendering.js";
@@ -398,7 +398,7 @@ function handleChromeMouse(
     )?.action;
     if (action) {
       state.picker = createPicker(action, state, active);
-      showLinesOverlay(tui, (width) => renderPickerOverlay(state, width));
+      syncOwnedAppOverlay(state, tui);
       tui.requestRender();
       return true;
     }

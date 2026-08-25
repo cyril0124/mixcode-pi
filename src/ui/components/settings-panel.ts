@@ -19,7 +19,7 @@ import {
 } from "../../core/mixcode-settings.js";
 import type { MixCodeModelRef, MixCodeState } from "../../core/types.js";
 import type { OverlayTui } from "../app-types.js";
-import { closeAppOverlay, showComponentOverlay } from "../app-overlays.js";
+import { appOverlayComponent, closeAppOverlay, showComponentOverlay } from "../app-overlays.js";
 import { clearConversationCache } from "../rendering/agent-surface.js";
 import { activeRenderTheme, renderWithTheme } from "../rendering/context.js";
 import { overlayPanel, padLine } from "../rendering/primitives.js";
@@ -437,6 +437,25 @@ export class SettingsPanel implements Component {
   }
 }
 
+const liveSettingsPanels = new WeakMap<MixCodeState, SettingsPanel>();
+
+export function getSettingsPanelComponent(state: MixCodeState): SettingsPanel | undefined {
+  return liveSettingsPanels.get(state);
+}
+
+export function presentSettingsPanel(state: MixCodeState, tui: OverlayTui): void {
+  const panel = liveSettingsPanels.get(state);
+  if (!panel || !state.settingsPanel.open) return;
+  const owner = state.settingsPanel.ownerSessionId;
+  const live = !owner || owner === state.activeTabId;
+  if (live) {
+    showComponentOverlay(tui, panel);
+    tui.requestRender();
+    return;
+  }
+  if (appOverlayComponent(tui) === panel) closeAppOverlay(tui);
+}
+
 export async function openSettingsPanel(
   state: MixCodeState,
   tui: OverlayTui,
@@ -447,6 +466,7 @@ export async function openSettingsPanel(
     setHideThinkingBlock?: (hide: boolean) => Promise<void>;
     setShowCacheMissNotices?: (show: boolean) => Promise<void>;
   },
+  ownerSessionId = state.activeTabId,
 ): Promise<SettingsPanel> {
   const mixcodeRaw = await loadRawMixCodeSettings(mixcodeFile);
   const panel = new SettingsPanel(
@@ -459,15 +479,18 @@ export async function openSettingsPanel(
     },
     { mixcodeRaw, mixcodeFile, piSettingsFile },
   );
-  state.settingsPanel.open = true;
-  showComponentOverlay(tui, panel);
-  tui.requestRender();
+  state.settingsPanel = { open: true, ownerSessionId };
+  liveSettingsPanels.set(state, panel);
+  presentSettingsPanel(state, tui);
   return panel;
 }
 
 export function closeSettingsPanel(state: MixCodeState, tui: OverlayTui): void {
+  const panel = liveSettingsPanels.get(state);
   state.settingsPanel.open = false;
-  closeAppOverlay(tui);
+  state.settingsPanel.ownerSessionId = undefined;
+  liveSettingsPanels.delete(state);
+  if (panel && appOverlayComponent(tui) === panel) closeAppOverlay(tui);
   tui.requestRender();
 }
 

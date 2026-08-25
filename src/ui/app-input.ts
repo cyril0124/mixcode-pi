@@ -5,6 +5,9 @@ import { parseSgrMouseInput } from "../core/mouse.js";
 import {
   closeActiveOverlay,
   isOverlayActive,
+  pickerIsLive,
+  sessionActionConfirmIsLive,
+  sessionSelectorIsLive,
   openCommandPalette,
   openTabJump,
 } from "../core/overlays.js";
@@ -505,11 +508,11 @@ function handleModalOverlayKeys(
   onStateChanged: ((state: MixCodeState) => void | Promise<void>) | undefined,
   commandPaletteActions: CommandPaletteActions | undefined,
 ): KeyResult {
-  if (state.picker && handlePickerKey(state, data, tui, runtime, onStateChanged)) {
+  if (pickerIsLive(state) && handlePickerKey(state, data, tui, runtime, onStateChanged)) {
     return { consume: true };
   }
   if (
-    state.sessionSelector.open &&
+    sessionSelectorIsLive(state) &&
     handleSessionSelectorKey(state, data, tui, runtime, onStateChanged)
   ) {
     return { consume: true };
@@ -523,7 +526,10 @@ function handleModalOverlayKeys(
   if (state.tabJumpOpen && handleTabJumpKey(state, data, tui)) {
     return { consume: true };
   }
-  if (state.sessionActionConfirm && handleSessionActionConfirmKey(state, data, tui, runtime, onStateChanged)) {
+  if (
+    sessionActionConfirmIsLive(state) &&
+    handleSessionActionConfirmKey(state, data, tui, runtime, onStateChanged)
+  ) {
     return { consume: true };
   }
   if (state.quitConfirmOpen && handleQuitConfirmKey(state, data, tui, runtime)) {

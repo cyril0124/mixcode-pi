@@ -395,3 +395,36 @@ test("picker key handling covers no-match, empty selection, and no active tab", 
   assert.deepEqual(handleMixCodeKeyInput(state, "\x00", tui), { consume: true });
   assert.equal(state.picker?.kind, "models");
 });
+
+test("unfocused /models does not consume focused-tab keys", async () => {
+  const state = createInitialState("/repo");
+  const owner = createTab(1, "s1", "/repo", { title: "Agent-01" });
+  const focused = createTab(2, "s2", "/repo", { title: "Agent-02" });
+  state.tabs.push(owner, focused);
+  state.activeTabId = "s2";
+  let overlayOpen = false;
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => {
+      overlayOpen = true;
+      return { hide: () => {
+        overlayOpen = false;
+      } };
+    },
+    hideOverlay: () => {
+      overlayOpen = false;
+    },
+    hasOverlay: () => overlayOpen,
+  };
+  const runtime = {
+    getTab: () => undefined,
+    appendSystemMessage: () => undefined,
+  } as unknown as MixCodeRuntime;
+  await handleSubmittedInput(state, runtime, "/models", tui as never, undefined, undefined, undefined, owner);
+  assert.equal(state.activeTabId, "s2");
+  assert.equal(state.picker?.ownerSessionId, "s1");
+  assert.equal(overlayOpen, false);
+  const typed = handleMixCodeKeyInput(state, "x", tui as never);
+  assert.notEqual(typed?.consume, true);
+  assert.equal(state.picker?.query, "");
+});

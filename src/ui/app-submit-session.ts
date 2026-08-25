@@ -245,6 +245,7 @@ const handleResume: LocalCommandHandler = async ({
     currentSessionPath,
     onStateChanged,
     authInputHost,
+    active?.sessionId ?? state.activeTabId,
   );
   await onStateChanged?.(state);
   tui.requestRender();

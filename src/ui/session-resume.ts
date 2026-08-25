@@ -93,6 +93,7 @@ export async function openSessionSelector(
   currentSessionPath: string | null,
   onStateChanged?: (state: MixCodeState) => void | Promise<void>,
   inputHost?: AuthInputHost,
+  ownerSessionId = state.activeTabId,
 ): Promise<void> {
   if (!inputHost?.setInputComponent || !inputHost.clearInputComponent) {
     throw new Error("Resume requires editor input host (setInputComponent)");
@@ -104,9 +105,7 @@ export async function openSessionSelector(
   // Drop any previous selector / input takeover before mounting.
   closeSessionSelector(state, tui);
 
-  state.sessionSelector = { open: true };
-
-  const ownerSessionId = state.activeTabId;
+  state.sessionSelector = { open: true, ownerSessionId };
   const close = () => closeSessionSelector(state, tui);
 
   // Pi keeps the previous scope's rows until the All loader resolves. On large
@@ -205,6 +204,7 @@ export function closeSessionSelector(state: MixCodeState, tui: OverlayTui): void
   state.sessionSelector.dispose?.();
   state.sessionSelector.dispose = undefined;
   state.sessionSelector.open = false;
+  state.sessionSelector.ownerSessionId = undefined;
   tui.requestRender();
 }
 

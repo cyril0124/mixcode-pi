@@ -10,20 +10,28 @@ import {
   highlightChatSelectionLine,
 } from "../core/chat-selection.js";
 import { editTextInExternalEditor } from "../core/external-editor.js";
+import {
+  pickerIsLive,
+  sessionActionConfirmIsLive,
+} from "../core/overlays.js";
+import type { MixCodeState } from "../core/types.js";
 import type { OverlayTui } from "./app-types.js";
-import { overlayPanel, padLine } from "./rendering.js";
+import { overlayPanel, padLine, renderPickerOverlay } from "./rendering.js";
 import {
   noticeOverlayOptions,
   renderNoticePanel,
   type NoticeOptions,
 } from "./components/notice-panel.js";
 import { getCurrentUiTheme, renderWithTheme } from "./rendering/context.js";
-import type { MixCodeTheme } from "./themes.js";
+import { themeForId, type MixCodeTheme } from "./themes.js";
 
 const activeAppOverlays = new WeakMap<
   object,
   { handle: OverlayHandle; component: Component; capturing: boolean }
 >();
+
+type OwnedPresentation = "picker" | "confirm";
+const presentedOwnedOverlay = new WeakMap<object, OwnedPresentation>();
 
 export const DEFAULT_OVERLAY_MAX_HEIGHT_PERCENT = 80;
 
@@ -117,6 +125,16 @@ export function appOverlayHandlesInput(tui: OverlayTui): boolean {
   return typeof activeAppOverlays.get(tui)?.component.handleInput === "function";
 }
 
+/** Feed a key to the live component overlay (settings / workspace / extension manager). */
+export function dispatchAppOverlayInput(tui: OverlayTui, data: string): boolean {
+  const active = activeAppOverlays.get(tui);
+  const handleInput = active?.component.handleInput;
+  if (!active || typeof handleInput !== "function") return false;
+  handleInput.call(active.component, data);
+  tui.requestRender();
+  return true;
+}
+
 export function closeAppOverlay(tui: OverlayTui): void {
   // Only hide overlays we registered via showLinesOverlay/showComponentOverlay.
   // Never fall back to tui.hideOverlay(): that pops the stack top and can
@@ -127,10 +145,56 @@ export function closeAppOverlay(tui: OverlayTui): void {
   if (!active) return;
   active.handle.hide();
   activeAppOverlays.delete(tui);
+  presentedOwnedOverlay.delete(tui);
+}
+
+function instanceOverlayBlocksOwned(state: MixCodeState): boolean {
+  return (
+    state.workspaceOverlay.open ||
+    state.treeSelector.open ||
+    state.commandPaletteOpen ||
+    state.extensionManager.open ||
+    state.tabJumpOpen ||
+    state.quitConfirmOpen ||
+    state.deleteAllSessionsConfirmOpen ||
+    state.closeAllSessionsConfirmOpen
+  );
+}
+
+/** Show or hide the tab-owned picker/confirm to match the focused tab. */
+export function syncOwnedAppOverlay(state: MixCodeState, tui: OverlayTui): void {
+  if (instanceOverlayBlocksOwned(state)) return;
+  if (pickerIsLive(state)) {
+    if (presentedOwnedOverlay.get(tui) !== "picker" || !hasAppOverlay(tui)) {
+      showLinesOverlay(tui, (width) => renderPickerOverlay(state, width));
+      presentedOwnedOverlay.set(tui, "picker");
+    }
+    tui.requestRender();
+    return;
+  }
+  const confirm = state.sessionActionConfirm;
+  if (confirm && sessionActionConfirmIsLive(state)) {
+    const tab = state.tabs.find((item) => item.sessionId === confirm.sessionId);
+    if (tab && (presentedOwnedOverlay.get(tui) !== "confirm" || !hasAppOverlay(tui))) {
+      showLinesOverlay(
+        tui,
+        (width) => renderSessionActionConfirm(width, themeForId(state.theme), confirm.action, tab.title),
+        quitOverlayOptions(),
+      );
+      presentedOwnedOverlay.set(tui, "confirm");
+    }
+    tui.requestRender();
+    return;
+  }
+  if (presentedOwnedOverlay.has(tui)) closeAppOverlay(tui);
 }
 
 export function hasAppOverlay(tui: OverlayTui): boolean {
   return activeAppOverlays.has(tui);
+}
+
+export function appOverlayComponent(tui: OverlayTui): Component | undefined {
+  return activeAppOverlays.get(tui)?.component;
 }
 
 export function hasCapturingAppOverlay(tui: OverlayTui): boolean {

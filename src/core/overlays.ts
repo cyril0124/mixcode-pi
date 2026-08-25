@@ -127,17 +127,62 @@ export type OverlayKind =
   | "delete-all-sessions-confirm"
   | "close-all-sessions-confirm";
 
+/** Unscoped overlays stay live; owned ones are live only on that tab. */
+function overlayOwnerIsActive(state: MixCodeState, ownerSessionId: string | undefined): boolean {
+  return !ownerSessionId || ownerSessionId === state.activeTabId;
+}
+
+export function pickerIsLive(state: MixCodeState): boolean {
+  return state.picker !== undefined && overlayOwnerIsActive(state, state.picker.ownerSessionId);
+}
+
+export function sessionSelectorIsLive(state: MixCodeState): boolean {
+  return state.sessionSelector.open && overlayOwnerIsActive(state, state.sessionSelector.ownerSessionId);
+}
+
+export function sessionActionConfirmIsLive(state: MixCodeState): boolean {
+  return (
+    state.sessionActionConfirm !== null && overlayOwnerIsActive(state, state.sessionActionConfirm.sessionId)
+  );
+}
+
+export function settingsPanelIsLive(state: MixCodeState): boolean {
+  return state.settingsPanel.open && overlayOwnerIsActive(state, state.settingsPanel.ownerSessionId);
+}
+
+/** True when this tab opened a MixCode picker, confirm, or resume selector. */
+export function tabOwnsWaitingAppOverlay(state: MixCodeState, sessionId: string): boolean {
+  if (state.picker?.ownerSessionId === sessionId) return true;
+  if (state.sessionActionConfirm?.sessionId === sessionId) return true;
+  if (state.settingsPanel.open && state.settingsPanel.ownerSessionId === sessionId) return true;
+  return state.sessionSelector.open && state.sessionSelector.ownerSessionId === sessionId;
+}
+
+/** Process-global overlays that are not owned by one tab. */
+export function isInstanceOverlayOpen(state: MixCodeState): boolean {
+  return (
+    state.workspaceOverlay.open ||
+    state.treeSelector.open ||
+    state.commandPaletteOpen ||
+    state.extensionManager.open ||
+    state.tabJumpOpen ||
+    state.quitConfirmOpen ||
+    state.deleteAllSessionsConfirmOpen ||
+    state.closeAllSessionsConfirmOpen
+  );
+}
+
 // Predicate per kind, evaluated in priority order by activeOverlay.
 const OVERLAY_PREDICATES: ReadonlyArray<readonly [OverlayKind, (s: MixCodeState) => boolean]> = [
   ["workspace", (s) => s.workspaceOverlay.open],
   ["tree-selector", (s) => s.treeSelector.open],
-  ["picker", (s) => s.picker !== undefined],
-  ["session-selector", (s) => s.sessionSelector.open],
+  ["picker", pickerIsLive],
+  ["session-selector", sessionSelectorIsLive],
   ["command-palette", (s) => s.commandPaletteOpen],
-  ["settings-panel", (s) => s.settingsPanel.open],
+  ["settings-panel", settingsPanelIsLive],
   ["extension-manager", (s) => s.extensionManager.open],
   ["tab-jump", (s) => s.tabJumpOpen],
-  ["session-action-confirm", (s) => s.sessionActionConfirm !== null],
+  ["session-action-confirm", sessionActionConfirmIsLive],
   ["quit-confirm", (s) => s.quitConfirmOpen],
   ["delete-all-sessions-confirm", (s) => s.deleteAllSessionsConfirmOpen],
   ["close-all-sessions-confirm", (s) => s.closeAllSessionsConfirmOpen],

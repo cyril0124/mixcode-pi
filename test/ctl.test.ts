@@ -27,6 +27,10 @@ import {
 } from "../src/core/instance-ctl-server.js";
 import { instanceRegistryDir, writeInstanceSnapshot } from "../src/core/instance-registry.js";
 import { createInitialState, createTab } from "../src/core/defaults.js";
+import { createPicker } from "../src/core/pickers.js";
+import { dispatchOwnedOverlayKey } from "../src/ui/app-key-handlers.js";
+import { openSettingsPanel } from "../src/ui/components/settings-panel.js";
+import { SettingsManager } from "@earendil-works/pi-coding-agent";
 import { InjectingTerminal } from "../src/ui/terminal.js";
 import type { Terminal } from "@earendil-works/pi-tui";
 
@@ -820,4 +824,145 @@ test("ctl send-prompt reports a failed slash command on the target tab", async (
     { sessionId: "s1", message: "Error: Unknown model: bogus", kind: "error" },
   ]);
   assert.equal(renders > 0, true);
+});
+
+test("handleCtlRequest drives an unfocused tab picker without changing activeTabId", async () => {
+  const state = createInitialState("/repo");
+  const owner = createTab(1, "s1", "/repo", { title: "Agent-01" });
+  const focused = createTab(2, "s2", "/repo", { title: "Agent-02" });
+  state.availableModels.push({
+    provider: "openai",
+    modelId: "gpt-4.1",
+    displayName: "openai/gpt-4.1",
+    contextWindow: 1_000_000,
+    reasoning: true,
+  });
+  state.tabs.push(owner, focused);
+  state.activeTabId = "s2";
+  state.picker = createPicker("models", state, owner);
+  let overlayOpen = false;
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => {
+      overlayOpen = true;
+      return { hide: () => {
+        overlayOpen = false;
+      } };
+    },
+    hideOverlay: () => {
+      overlayOpen = false;
+    },
+    hasOverlay: () => overlayOpen,
+  };
+  const opts = {
+    state,
+    runtime: { getTab: () => ({ chat: [] }) } as unknown as MixCodeRuntime,
+    injectInput: () => undefined,
+    dispatchTabOverlayKeys: (tab: { sessionId: string }, data: string) => {
+      const target = state.tabs.find((item) => item.sessionId === tab.sessionId);
+      if (!target) return false;
+      return dispatchOwnedOverlayKey(state, target, data, tui as never);
+    },
+  };
+  const waitOwner = await handleCtlRequest({ op: "wait", tabTitle: "Agent-01", timeout: 0 }, opts);
+  assert.match(waitOwner.text ?? "", /status: wait-for-input/);
+  const waitOther = await handleCtlRequest({ op: "wait", tabTitle: "Agent-02", timeout: 0 }, opts);
+  assert.match(waitOther.text ?? "", /status: finished/);
+  const dump = await handleCtlRequest({ op: "dump-screen", tabTitle: "Agent-01" }, opts);
+  assert.match(dump.text ?? "", /Choose Model/);
+  assert.equal(state.activeTabId, "s2");
+  const down = await handleCtlRequest(
+    { op: "send-keys", tabTitle: "Agent-01", keys: ["\x1b[B"] },
+    opts,
+  );
+  assert.equal(down.ok, true);
+  assert.equal(state.activeTabId, "s2");
+  assert.equal(overlayOpen, false);
+  assert.ok((state.picker?.selectedIndex ?? 0) > 0);
+  const enter = await handleCtlRequest(
+    { op: "send-keys", tabTitle: "Agent-01", keys: ["\r"] },
+    opts,
+  );
+  assert.equal(enter.ok, true);
+  assert.equal(state.activeTabId, "s2");
+  assert.equal(state.picker, undefined);
+  assert.equal(owner.model.modelId, "gpt-4.1");
+  assert.equal(focused.model.modelId, "faux-1");
+});
+
+test("handleCtlRequest drives instance overlays without changing activeTabId", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(
+    createTab(1, "s1", "/repo", { title: "Agent-01" }),
+    createTab(2, "s2", "/repo", { title: "Agent-02" }),
+  );
+  state.activeTabId = "s2";
+  state.closeAllSessionsConfirmOpen = true;
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => ({ hide: () => undefined }),
+    hideOverlay: () => undefined,
+    hasOverlay: () => false,
+  };
+  const opts = {
+    state,
+    runtime: { getTab: () => ({ chat: [] }) } as unknown as MixCodeRuntime,
+    injectInput: () => undefined,
+    dispatchTabOverlayKeys: (tab: { sessionId: string }, data: string) => {
+      const target = state.tabs.find((item) => item.sessionId === tab.sessionId);
+      if (!target) return false;
+      return dispatchOwnedOverlayKey(state, target, data, tui as never);
+    },
+  };
+  const wait = await handleCtlRequest({ op: "wait", tabTitle: "Agent-01", timeout: 0 }, opts);
+  assert.match(wait.text ?? "", /status: wait-for-input/);
+  const cancel = await handleCtlRequest({ op: "send-keys", tabTitle: "Agent-01", keys: ["n"] }, opts);
+  assert.equal(cancel.ok, true);
+  assert.equal(state.activeTabId, "s2");
+  assert.equal(state.closeAllSessionsConfirmOpen, false);
+});
+
+test("openSettingsPanel on an unfocused tab does not render on the focused TUI", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(
+    createTab(1, "s1", "/repo", { title: "Agent-01" }),
+    createTab(2, "s2", "/repo", { title: "Agent-02" }),
+  );
+  state.activeTabId = "s2";
+  let overlayOpen = false;
+  const tui = {
+    requestRender: () => undefined,
+    showOverlay: () => {
+      overlayOpen = true;
+      return { hide: () => {
+        overlayOpen = false;
+      } };
+    },
+    hideOverlay: () => {
+      overlayOpen = false;
+    },
+    hasOverlay: () => overlayOpen,
+  };
+  await openSettingsPanel(
+    state,
+    tui as never,
+    SettingsManager.inMemory(),
+    "/tmp/mixcode-settings-missing.json",
+    "/tmp/pi-settings-missing.json",
+    {},
+    "s1",
+  );
+  assert.equal(state.activeTabId, "s2");
+  assert.equal(state.settingsPanel.open, true);
+  assert.equal(state.settingsPanel.ownerSessionId, "s1");
+  assert.equal(overlayOpen, false);
+  const dump = await handleCtlRequest(
+    { op: "dump-screen", tabTitle: "Agent-01" },
+    {
+      state,
+      runtime: { getTab: () => ({ chat: [] }) } as unknown as MixCodeRuntime,
+      injectInput: () => undefined,
+    },
+  );
+  assert.match(dump.text ?? "", /Settings/);
 });
