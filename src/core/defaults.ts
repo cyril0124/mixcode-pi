@@ -105,7 +105,6 @@ export function createTab(
     chatScrollOffset: 0,
     vimMode: false,
     vimTranscriptSearch: undefined,
-    vimPendingEscapeAt: undefined,
     vimPendingHome: false,
     vimEnterArmedAt: undefined,
     zenMode: false,

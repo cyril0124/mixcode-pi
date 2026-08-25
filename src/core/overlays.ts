@@ -449,15 +449,6 @@ export function updateCommandPaletteQuery(state: MixCodeState, query: string): v
   state.commandPalette.selectedIndex = 0;
 }
 
-export function updateCommandPaletteQueryWithExtensions(
-  state: MixCodeState,
-  query: string,
-  extensionCommands: Array<{ name: string; description?: string }> = [],
-): void {
-  updateCommandPaletteQuery(state, query);
-  void extensionCommands;
-}
-
 export function moveCommandPaletteSelection(
   state: MixCodeState,
   delta: number,

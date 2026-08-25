@@ -460,6 +460,3 @@ export default function toolDisplayExtension(pi: ExtensionAPI): void {
 	onReloadShutdown(pi, () => installation.dispose());
 	registerThinkingLabeling(pi);
 }
-
-export { CONFIG as TOOL_DISPLAY_CONFIG };
-export type { RenderResultOptions, RenderTheme };

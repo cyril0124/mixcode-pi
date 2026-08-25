@@ -165,7 +165,6 @@ export interface MixCodeTabInfo {
   vimTranscriptSearch?: VimTranscriptSearchState;
   /** Restore draftInput into the live editor after a non-editor lifecycle clears search. */
   vimSearchDraftRestorePending?: boolean;
-  vimPendingEscapeAt?: number;
   vimPendingHome?: boolean;
   /** Timestamp when empty-queue Ctrl+U armed enter-via-u; cleared on next key. */
   vimEnterArmedAt?: number;

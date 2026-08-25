@@ -22,7 +22,7 @@ import {
   moveTabJumpSelection,
   scrollChat,
   toggleTabJumpNonIdleOnly,
-  updateCommandPaletteQueryWithExtensions,
+  updateCommandPaletteQuery,
   updateTabJumpQuery,
 } from "../core/overlays.js";
 import {
@@ -361,20 +361,12 @@ export function handleCommandPaletteKey(
     return true;
   }
   if (data === "\u007f") {
-    updateCommandPaletteQueryWithExtensions(
-      state,
-      state.commandPalette.query.slice(0, -1),
-      extensionCommands,
-    );
+    updateCommandPaletteQuery(state, state.commandPalette.query.slice(0, -1));
     showLinesOverlay(tui, (width) => renderCommandPalette(state, width, extensionCommands));
     return true;
   }
   if (data.length > 0 && !/[\x00-\x1f\x7f]/.test(data)) {
-    updateCommandPaletteQueryWithExtensions(
-      state,
-      state.commandPalette.query + data,
-      extensionCommands,
-    );
+    updateCommandPaletteQuery(state, state.commandPalette.query + data);
     showLinesOverlay(tui, (width) => renderCommandPalette(state, width, extensionCommands));
     return true;
   }
@@ -438,11 +430,9 @@ export function handleVimModeKey(active: MixCodeState["tabs"][number], data: str
   if (data === "q") {
     active.vimMode = false;
     clearVimTranscriptSearch(active);
-    active.vimPendingEscapeAt = undefined;
     active.vimPendingHome = false;
     return true;
   }
-  active.vimPendingEscapeAt = undefined;
   if (data === "g" && active.vimPendingHome) {
     active.vimPendingHome = false;
     return chatHome(active);

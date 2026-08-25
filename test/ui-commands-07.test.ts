@@ -615,7 +615,6 @@ test("vim mode consumes editor input, scrolls chat, and exits with q", async () 
 
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b", tui), { consume: true });
   assert.equal(tab.vimMode, true);
-  assert.equal(tab.vimPendingEscapeAt, undefined);
   assert.deepEqual(handleMixCodeKeyInput(state, "q", tui), { consume: true });
   assert.equal(tab.vimMode, false);
 });

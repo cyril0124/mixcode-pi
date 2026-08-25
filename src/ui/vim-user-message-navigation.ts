@@ -22,7 +22,6 @@ export function handleVimUserMessageNavigation(
   const jumpNext = matchesKey(data, "right");
   if (!jumpPrevious && !jumpNext) return false;
 
-  active.vimPendingEscapeAt = undefined;
   active.vimPendingHome = false;
 
   const runtimeTab = runtime?.getTab?.(active.sessionId);

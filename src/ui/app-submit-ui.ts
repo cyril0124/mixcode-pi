@@ -55,7 +55,6 @@ const handleMarkDone: LocalCommandHandler = ({ active, tui }) => {
 
 const handleVim: LocalCommandHandler = ({ active }) => {
   active!.vimMode = true;
-  active!.vimPendingEscapeAt = undefined;
   active!.vimPendingHome = false;
   return undefined;
 };

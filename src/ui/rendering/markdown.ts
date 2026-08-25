@@ -71,10 +71,6 @@ export function renderMarkdown(
   return markdown.render(width).map((line) => padRenderedMarkdownLine(line, width));
 }
 
-// Pi's transformer pipeline itself (patch export): sequential apply; non-string
-// / thrown results keep the current markdown and continue.
-export { applyMarkdownTransformers };
-
 function getMarkdownTheme(): MarkdownTheme {
   // Sync global Pi theme once, then use Pi md* tokens so third-party themes apply.
   ensureExtensionThemeInitialized();

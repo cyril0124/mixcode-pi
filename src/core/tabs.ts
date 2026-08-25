@@ -94,11 +94,9 @@ export function activateTab(state: MixCodeState, tabId: string): void {
       if (vimSource) {
         vimSource.vimMode = false;
         discardVimTranscriptSearch(vimSource);
-        vimSource.vimPendingEscapeAt = undefined;
         vimSource.vimPendingHome = false;
         next.vimMode = true;
         discardVimTranscriptSearch(next);
-        next.vimPendingEscapeAt = undefined;
         next.vimPendingHome = false;
       }
       const zenSource = state.tabs.find((tab) => tab.zenMode && tab.sessionId !== next.sessionId);

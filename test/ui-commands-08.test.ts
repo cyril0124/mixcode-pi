@@ -950,12 +950,10 @@ test("vim mode allows ctrl-t tab jump and transfers vim mode to selected tab", (
   const alpha = createTab(1, "s1", "/repo", {
     title: "Alpha",
     vimMode: true,
-    vimPendingEscapeAt: Date.now(),
     vimPendingHome: true,
   });
   const beta = createTab(2, "s2", "/repo", {
     title: "Beta",
-    vimPendingEscapeAt: Date.now(),
     vimPendingHome: true,
   });
   state.tabs.push(alpha, beta);
@@ -993,10 +991,8 @@ test("vim mode allows ctrl-t tab jump and transfers vim mode to selected tab", (
   assert.deepEqual(handleMixCodeKeyInput(state, "\r", tui), { consume: true });
   assert.equal(state.activeTabId, "s2");
   assert.equal(alpha.vimMode, false);
-  assert.equal(alpha.vimPendingEscapeAt, undefined);
   assert.equal(alpha.vimPendingHome, false);
   assert.equal(beta.vimMode, true);
-  assert.equal(beta.vimPendingEscapeAt, undefined);
   assert.equal(beta.vimPendingHome, false);
   assert.equal(state.tabJumpOpen, false);
   assert.equal(overlayOpen, false);

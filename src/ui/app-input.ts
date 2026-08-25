@@ -235,7 +235,6 @@ export function handleMixCodeKeyInput(
       Date.now() - armedAt <= CTRL_U_ARM_WINDOW_MS
     ) {
       active.vimMode = true;
-      active.vimPendingEscapeAt = undefined;
       active.vimPendingHome = false;
       tui.requestRender();
       return { consume: true };

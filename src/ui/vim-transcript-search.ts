@@ -7,7 +7,6 @@ import type { MixCodeEditorActions, OverlayTui } from "./app-types.js";
 // the vim prompt/repeat state machine below is MixCode-specific.
 export {
   type AltScreenSearchMatch as TranscriptSearchMatch,
-  type AltScreenSearchSegment as TranscriptSearchSegment,
   findAltScreenSearchMatches as findTranscriptSearchMatches,
   getAltScreenSearchMatchKey as transcriptSearchMatchKey,
 } from "@earendil-works/pi-tui";

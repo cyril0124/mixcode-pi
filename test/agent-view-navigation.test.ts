@@ -441,7 +441,6 @@ test("Home attach transfers vimMode to selected agent", () => {
   const state = createInitialState("/repo");
   const first = createTab(1, "s1", "/repo", {
     vimMode: true,
-    vimPendingEscapeAt: 123,
     vimPendingHome: true,
   });
   const second = createTab(2, "s2", "/repo");
@@ -460,10 +459,8 @@ test("Home attach transfers vimMode to selected agent", () => {
   assert.deepEqual(handleMixCodeKeyInput(state, "\x1b[C", tui), { consume: true });
   assert.equal(state.activeTabId, "s2");
   assert.equal(first.vimMode, false);
-  assert.equal(first.vimPendingEscapeAt, undefined);
   assert.equal(first.vimPendingHome, false);
   assert.equal(second.vimMode, true);
-  assert.equal(second.vimPendingEscapeAt, undefined);
   assert.equal(second.vimPendingHome, false);
 });
 
