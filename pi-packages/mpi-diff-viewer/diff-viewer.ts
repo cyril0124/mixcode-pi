@@ -761,10 +761,8 @@ export class DiffViewer {
   private moveNavigator(delta: number): void {
     const rows = this.navigatorRows();
     if (rows.length === 0) return;
-    this.selectedNavigatorIndex = Math.max(
-      0,
-      Math.min(rows.length - 1, this.selectedNavigatorIndex + delta),
-    );
+    this.selectedNavigatorIndex =
+      (this.selectedNavigatorIndex + delta + rows.length) % rows.length;
     this.selectedLineIndex = 0;
     this.rangeAnchorIndex = undefined;
     this.commentMode = false;
