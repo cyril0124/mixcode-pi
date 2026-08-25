@@ -74,17 +74,13 @@ test("custom tool renderers receive content width; self shell skips paint frame"
         text: "fallback",
         renderToolCall: (width) => {
           widths.push(width);
-          return ["call one"];
-        },
-        renderToolResult: (width) => {
-          widths.push(width);
-          return ["result one"];
+          return ["call one", "result one"];
         },
       },
     ],
     24,
   );
-  assert.deepEqual(widths, [22, 22]);
+  assert.deepEqual(widths, [22]);
   assert.match(stripAnsi(custom.join("\n")), /call one[\s\S]*result one/);
 
   const self = stripAnsi(
@@ -96,8 +92,7 @@ test("custom tool renderers receive content width; self shell skips paint frame"
           status: "success",
           text: "fallback",
           toolRenderShell: "self",
-          renderToolCall: () => ["self call"],
-          renderToolResult: () => ["self result"],
+          renderToolCall: () => ["self call", "self result"],
         },
       ],
       24,

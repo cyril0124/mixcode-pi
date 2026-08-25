@@ -82,11 +82,9 @@ export interface ChatLine {
   args?: unknown;
   renderExtension?: (width: number) => string[];
   renderToolCall?: (width: number) => string[];
-  renderToolResult?: (width: number) => string[];
   toolRenderShell?: "default" | "self";
   toolResult?: ToolResultLike;
   toolIsPartial?: boolean;
-  toolExpanded?: boolean;
   branchSummary?: boolean;
   compactionSummary?: boolean;
   compactionTokensBefore?: number;

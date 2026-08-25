@@ -229,6 +229,8 @@ test("#88 tree ctrl+d resets filter to default", () => {
 
 test("#99 expanded user-bash still offers collapse when overflow exists", () => {
   const lines = Array.from({ length: 25 }, (_, i) => `line-${i}`);
+  const tab = createTab(1, "s1", "/repo");
+  tab.extensionUi.toolsExpanded = true;
   const rendered = stripAnsi(
     renderConversation(
       [
@@ -239,10 +241,10 @@ test("#99 expanded user-bash still offers collapse when overflow exists", () => 
           status: "success",
           text: lines.join("\n"),
           args: { command: "seq 25" },
-          toolExpanded: true,
         },
       ],
       80,
+      tab,
     ).join("\n"),
   );
   assert.match(rendered, /ctrl\+o to collapse/);

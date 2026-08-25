@@ -893,7 +893,7 @@ test("global key input lets editor handle Home and End while input is focused", 
 test("tab jump overlay filters and activates selected tab from keyboard", () => {
   const state = createInitialState("/repo");
   const beta = createTab(2, "s2", "/repo", { title: "Beta", unreadDone: true });
-  state.tabs.push(createTab(1, "s1", "/repo", { alias: "alpha" }), beta);
+  state.tabs.push(createTab(1, "s1", "/repo", { title: "alpha" }), beta);
   state.activeTabId = "s1";
   const overlays: string[] = [];
   let overlayOpen = false;

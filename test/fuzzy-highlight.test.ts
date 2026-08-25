@@ -80,7 +80,7 @@ test("command palette highlights matched query characters in label and command c
 
 test("tab jump highlights matched characters in the tab title", () => {
   const state = createInitialState("/repo");
-  state.tabs.push(createTab(1, "s1", "/repo", { alias: "alpha" }));
+  state.tabs.push(createTab(1, "s1", "/repo", { title: "alpha" }));
   openTabJump(state);
   updateTabJumpQuery(state, "al");
   const raw = renderTabJumpOverlay(state, 80).join("\n");

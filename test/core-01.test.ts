@@ -262,7 +262,6 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
     state.tabs.push(
       createTab(1, "s1", "/repo", {
         title: "Renamed Agent",
-        alias: "alpha",
         unreadDone: true,
         pendingMessages: ["queued"],
       }),
@@ -285,7 +284,6 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
     assert.equal(restored.tabs[0]?.sessionId, "s1");
     assert.equal(restored.tabs[0]?.title, "Renamed Agent");
     assert.equal(restored.tabs[0]?.workdir, "/repo");
-    assert.equal(restored.tabs[0]?.alias, "");
     assert.equal(restored.tabs[0]?.unreadDone, true);
     assert.deepEqual(restored.tabs[0]?.pendingMessages, []);
     assert.deepEqual(restored.tabs[0]?.pendingFollowUps, []);
@@ -362,7 +360,6 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
     );
     assert.equal(extraFields.theme, "claude-warm");
     assert.equal(extraFields.tabs[0]?.title, "Worker");
-    assert.equal(extraFields.tabs[0]?.alias, "");
     assert.equal(extraFields.tabs[0]?.model.modelId, "faux-1");
     assert.equal(extraFields.tabs[0]?.thinkingLevel, "medium");
     assert.deepEqual(extraFields.tabs[0]?.pendingMessages, []);

@@ -19,7 +19,6 @@ export interface TreeSelectorState {
   open: boolean;
   ownerSessionId?: string;
   mode: TreeSelectorMode;
-  tree: SessionTreeNode[];
   displayTree: SessionTreeNode[];
   currentLeafId: string | null;
   initialSelectedId?: string;
@@ -41,7 +40,6 @@ export function createTreeSelectorState(): TreeSelectorState {
     open: false,
     ownerSessionId: undefined,
     mode: "tree",
-    tree: [],
     displayTree: [],
     currentLeafId: null,
     initialSelectedId: undefined,
@@ -70,7 +68,6 @@ export function initTreeSelector(
 ): void {
   state.open = true;
   state.mode = mode;
-  state.tree = tree;
   state.currentLeafId = currentLeafId;
   state.filterMode = initialFilterMode ?? "default";
   state.allowedEntryIds = allowedEntryIds ?? null;

@@ -150,7 +150,6 @@ export interface MixCodeTabInfo {
    * `system_prompt`). UI shows a [sys] badge next to the editor title.
    */
   customBasePrompt?: boolean;
-  alias: string;
   pendingMessages: string[];
   /** Follow-up queue (delivered after the agent is fully idle). Separate from steer pendingMessages. */
   pendingFollowUps: string[];

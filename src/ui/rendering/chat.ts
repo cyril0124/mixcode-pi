@@ -366,7 +366,7 @@ function chatLineRenderCacheKey(
   options: RenderChatBlockOptions = {},
 ): string | undefined {
   // Dynamic renderers must execute every frame for lifecycle correctness.
-  if (line.renderExtension || line.renderToolCall || line.renderToolResult) return undefined;
+  if (line.renderExtension || line.renderToolCall) return undefined;
   const themeName = activeRenderTheme.name;
   const role = line.role;
 
@@ -399,11 +399,11 @@ function chatLineRenderCacheKey(
   if (role === "tool") {
     if (line.variant === "user-bash") {
       // user-bash branch reads almost every bash-related field plus the
-      // global toolsExpanded toggle and per-line toolExpanded fallback.
-      // Esc-hint also depends on whether the agent is busy (Esc aborts agent).
+      // global toolsExpanded toggle. Esc-hint also depends on whether the
+      // agent is busy (Esc aborts agent).
       const agentBusy =
         tab?.status === "running" || tab?.status === "thinking" ? 1 : 0;
-      return `ub${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${line.status ?? ""}${KEY_SEP}${line.title ?? ""}${KEY_SEP}${commandFromArgs(line.args)}${KEY_SEP}${line.excludeFromContext === true ? 1 : 0}${KEY_SEP}${line.pendingBash === true ? 1 : 0}${KEY_SEP}${line.bashExitCode ?? ""}${KEY_SEP}${line.bashCancelled === true ? 1 : 0}${KEY_SEP}${line.bashTruncated === true ? 1 : 0}${KEY_SEP}${line.bashFullOutputPath ?? ""}${KEY_SEP}${line.toolExpanded === true ? 1 : 0}${KEY_SEP}${expanded ? 1 : 0}${KEY_SEP}${agentBusy}${KEY_SEP}${line.text}`;
+      return `ub${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${line.status ?? ""}${KEY_SEP}${line.title ?? ""}${KEY_SEP}${commandFromArgs(line.args)}${KEY_SEP}${line.excludeFromContext === true ? 1 : 0}${KEY_SEP}${line.pendingBash === true ? 1 : 0}${KEY_SEP}${line.bashExitCode ?? ""}${KEY_SEP}${line.bashCancelled === true ? 1 : 0}${KEY_SEP}${line.bashTruncated === true ? 1 : 0}${KEY_SEP}${line.bashFullOutputPath ?? ""}${KEY_SEP}${expanded ? 1 : 0}${KEY_SEP}${agentBusy}${KEY_SEP}${line.text}`;
     }
     // Generic (non-renderer) tool block: depends on status/title/args/text.
     return `t${KEY_SEP}${themeName}${KEY_SEP}${width}${KEY_SEP}${line.status ?? ""}${KEY_SEP}${line.title ?? ""}${KEY_SEP}${stableArgs(line.args)}${KEY_SEP}${line.text}`;
@@ -467,11 +467,10 @@ function stableArgs(args: unknown): string {
 
 function renderToolBlock(line: ChatLine, width: number, tab?: MixCodeTabInfo): string[] {
   if (line.variant === "user-bash") return renderUserBashBlock(line, width, tab);
-  if (line.renderToolCall || line.renderToolResult) {
+  if (line.renderToolCall) {
     const selfRendered = line.toolRenderShell === "self";
     const renderedWidth = selfRendered ? width : Math.max(1, width - 2);
-    const renderedResult = line.renderToolResult?.(renderedWidth) ?? [];
-    const rendered = [...(line.renderToolCall?.(renderedWidth) ?? []), ...renderedResult];
+    const rendered = line.renderToolCall(renderedWidth);
     if (rendered.length) {
       // Pi stacks chat components with no stream-level separator: each component owns
       // its leading gap, so ToolExecutionComponent opens with a Spacer(1) blank row.
@@ -515,7 +514,7 @@ function renderUserBashBlock(line: ChatLine, width: number, tab?: MixCodeTabInfo
   const title = color(activeRenderTheme.bold(toolDisplayTitle(line)));
   const output = line.text.trimEnd();
   const outputLines = output ? output.split(/\r?\n/) : [];
-  const expanded = tab?.extensionUi.toolsExpanded ?? line.toolExpanded === true;
+  const expanded = tab?.extensionUi.toolsExpanded === true;
   // Overflow count is relative to the collapsed preview budget, not the currently
   // visible slice — so expanded views can still show "ctrl+o to collapse".
   const overflowLineCount = Math.max(0, outputLines.length - USER_BASH_PREVIEW_LINES);

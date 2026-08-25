@@ -97,7 +97,6 @@ export function createTab(
     model: { ...DEFAULT_MODEL_REF },
     thinkingLevel: "medium",
     workdir,
-    alias: "",
     pendingMessages: [],
     pendingFollowUps: [],
     promptHistory: [],

@@ -83,11 +83,6 @@ export interface MixCodeEditorActions {
   submitCurrentText?: () => void;
   browsePromptHistory?: (data: string) => boolean;
   /**
-   * Permanent setEditorComponent skin. Visual only — does not mean MixCode
-   * should cede editor shortcuts (history, clear, scroll, …).
-   */
-  hasCustomEditorSkin?: () => boolean;
-  /**
    * True when a non-editor input component (e.g. the /login provider selector
    * or login dialog) currently owns the input area. When true, all keys must
    * be forwarded to it verbatim, bypassing global key handling — mirroring

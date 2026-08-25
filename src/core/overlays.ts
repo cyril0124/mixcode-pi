@@ -54,7 +54,7 @@ export function tabJumpEntries(
     { id: HOME_TAB_ID, label: "MixCode Home", busy: false, done: false, waitingForInput: false },
     ...state.tabs.map((tab) => ({
       id: tab.sessionId,
-      label: tab.alias || tab.title,
+      label: tab.title,
       busy: tab.status === "running" || tab.status === "thinking",
       done: tab.unreadDone,
       waitingForInput: tabIsWaitingForInput(tab),

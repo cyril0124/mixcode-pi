@@ -1129,7 +1129,6 @@ test("config-scoped submitted input runs without an active agent tab", async () 
   await handleSubmittedInput(state, runtime, "/tui-state --editor=false", tui);
   const debugTab = createTab(1, "debug", "/repo", {
     status: "running",
-    alias: "debugger",
     chatScrollOffset: 2,
     unreadDone: true,
 

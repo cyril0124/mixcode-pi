@@ -48,7 +48,7 @@ test("command palette derives every palette-visible LOCAL_COMMANDS entry", () =>
 test("tab jump entries expose busy, done, question, and fuzzy filtering", () => {
   const state = createInitialState("/repo");
   state.tabs.push(
-    createTab(1, "s1", "/repo", { alias: "alpha", status: "running", unreadDone: true }),
+    createTab(1, "s1", "/repo", { title: "alpha", status: "running", unreadDone: true }),
     createTab(2, "s2", "/repo", {
       title: "Beta",
       extensionUi: {
@@ -77,7 +77,7 @@ test("tab jump entries expose busy, done, question, and fuzzy filtering", () => 
 
 test("tab jump state opens, filters, moves, accepts, and closes", () => {
   const state = createInitialState("/repo");
-  const alpha = createTab(1, "s1", "/repo", { alias: "alpha", unreadDone: true });
+  const alpha = createTab(1, "s1", "/repo", { title: "alpha", unreadDone: true });
   state.tabs.push(alpha, createTab(2, "s2", "/repo", { title: "Beta" }));
   const longId = "019eb998-93ad-73cb-9a84-2f129ae26b41";
   state.tabs.push(createTab(3, longId, "/repo", { title: "Gamma session" }));
@@ -134,7 +134,7 @@ test("tab jump state opens, filters, moves, accepts, and closes", () => {
 test("tab jump ctrl+f toggles non-idle filter and resets on reopen", () => {
   const state = createInitialState("/repo");
   state.tabs.push(
-    createTab(1, "s1", "/repo", { alias: "alpha", status: "running" }),
+    createTab(1, "s1", "/repo", { title: "alpha", status: "running" }),
     createTab(2, "s2", "/repo", { title: "Beta", status: "idle" }),
     createTab(3, "s3", "/repo", { title: "Gamma", status: "idle", unreadDone: true }),
     createTab(4, "s4", "/repo", { title: "Delta", status: "error" }),

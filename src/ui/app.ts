@@ -339,8 +339,6 @@ export function createMixCodeTui(
         insertTextAtCursor: (text) => editor.insertTextAtCursor(text),
         submitCurrentText: () => editor.submitCurrentText(),
         browsePromptHistory: (input) => editor.browsePromptHistory(input),
-        // Skin vs takeover: permanent setEditorComponent is visual only.
-        hasCustomEditorSkin: () => editor.getEditorComponent() !== undefined,
         hasInputComponent: () => editor.hasInputComponent(),
         forwardToInputComponent: (data) => editor.handleInput(data),
         setInputComponent: (component, sessionId) => editor.setInputComponent(component, sessionId),

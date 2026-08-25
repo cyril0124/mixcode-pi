@@ -474,9 +474,9 @@ test("Command Palette wheel moves selection and click runs the row", () => {
 test("Tab Jump wheel moves selection and click jumps to the row", () => {
   const state = createInitialState("/repo");
   state.tabs.push(
-    createTab(1, "s1", "/repo", { alias: "alpha" }),
-    createTab(2, "s2", "/repo", { alias: "beta" }),
-    createTab(3, "s3", "/repo", { alias: "gamma" }),
+    createTab(1, "s1", "/repo", { title: "alpha" }),
+    createTab(2, "s2", "/repo", { title: "beta" }),
+    createTab(3, "s3", "/repo", { title: "gamma" }),
   );
   state.activeTabId = "s1";
   openTabJump(state);

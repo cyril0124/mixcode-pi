@@ -47,7 +47,7 @@ test("listTabsToReconcile opens missing and closes extras", () => {
   });
   assert.deepEqual(plan.toClose, ["drop-me"]);
   assert.deepEqual(plan.toOpen, [
-    { sessionId: "new-one", title: "Peer New", workdir: "/repo", peerPid: 2 },
+    { sessionId: "new-one", title: "Peer New", workdir: "/repo" },
   ]);
   assert.deepEqual(plan.desiredOrder, ["keep", "new-one"]);
 });

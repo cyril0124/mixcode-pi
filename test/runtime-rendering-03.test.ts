@@ -122,7 +122,7 @@ test("extension-rendered tool lines with tabs stay within terminal width", () =>
           title: "grep",
           text: "",
           status: "success",
-          renderToolResult: () => [
+          renderToolCall: () => [
             `path.lua:11: \t${"MakeReadUnique = 0x01 + lshift(1, 6),".repeat(8)}`,
           ],
         },

@@ -18,7 +18,6 @@ export interface PeerTabCandidate {
   /** Present only when a live peer registry advertised a title. */
   title?: string;
   workdir: string;
-  peerPid?: number;
 }
 
 export interface TabReconcilePlan {
@@ -35,8 +34,6 @@ export interface ListTabsToReconcileInput {
   peerHints?: Array<{
     pid: number;
     workdir: string;
-    /** Registry snapshot time; fresher titles win when multiple peers advertise one id. */
-    updatedAt?: string;
     tabs: Array<{ sessionId: string; title: string; workdir: string }>;
   }>;
 }
@@ -59,7 +56,6 @@ export function listTabsToReconcile(input: ListTabsToReconcileInput): TabReconci
           sessionId: tab.sessionId,
           title: tab.title,
           workdir: tab.workdir,
-          peerPid: peer.pid,
         });
       }
     }
