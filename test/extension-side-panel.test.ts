@@ -184,6 +184,21 @@ test("open panel renders widgets on the right and removes them from around the e
   assert.ok(aboveRow !== -1 && belowRow !== -1 && aboveRow < belowRow);
 });
 
+test("each panel widget is headed by a section rule naming its key", () => {
+  const tab = makeTab({ panelOpen: true });
+  const rows = renderExtensionPanel(tab, 40, 12).map(stripAnsi);
+  const headerFor = (key: string) =>
+    rows.findIndex((row) => new RegExp(`\u2500 ${key} \u2500+`).test(row));
+  const todosHeader = headerFor("todos");
+  const fleetHeader = headerFor("fleet");
+  assert.ok(todosHeader !== -1, "todos section header present");
+  assert.ok(fleetHeader !== -1, "fleet section header present");
+  // Header sits directly above its own widget content, before the next section.
+  const aboveRow = rows.findIndex((row) => row.includes(WIDGET_ABOVE));
+  const belowRow = rows.findIndex((row) => row.includes(WIDGET_BELOW));
+  assert.ok(todosHeader < aboveRow && aboveRow < fleetHeader && fleetHeader < belowRow);
+});
+
 test("open panel shows a dim hint on how to close it", () => {
   const open = renderPlain(true);
   const closed = renderPlain(false);

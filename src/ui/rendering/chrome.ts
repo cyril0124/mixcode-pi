@@ -1090,6 +1090,9 @@ function renderExtensionPanelInner(
   const content: string[] = [];
   ordered.forEach((widget, index) => {
     if (index > 0) content.push(blank);
+    // Name each section by its widget key so stacked widgets from different
+    // extensions stay distinguishable inside the panel.
+    content.push(padLine(`${border} ${widgetSectionHeader(widget.key, bodyWidth)}`, panelWidth));
     // The panel scrolls, so pass a generous line budget that no real widget
     // reaches; the scroll window below bounds what is actually shown.
     const widgetLines =
@@ -1132,6 +1135,16 @@ function renderExtensionPanelInner(
     visible.push(padLine(`${border} ${activeRenderTheme.dim(hint)}`, panelWidth));
   }
   return visible;
+}
+
+/**
+ * Dim `─ key ───` rule heading one panel section. The label is the widget's
+ * extension-chosen key, truncated to fit; the rule fills the body width.
+ */
+function widgetSectionHeader(key: string, bodyWidth: number): string {
+  const label = truncateToWidth(sanitizeWidgetLine(key), Math.max(1, bodyWidth - 4), "...");
+  const rule = "\u2500".repeat(Math.max(0, bodyWidth - visibleWidth(label) - 3));
+  return activeRenderTheme.dim(`\u2500 ${label} ${rule}`);
 }
 
 export function renderFooter(width: number): string[] {
