@@ -6,7 +6,6 @@ import { test } from "node:test";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import bashExtension, {
   appendBashTimeoutNote,
-  backgroundRows,
   createDetachingBashOperations,
   formatCompletionNotice,
   formatRunChoice,
@@ -320,27 +319,6 @@ test("foreground window rejects a malformed value instead of defaulting", () => 
   assert.throws(
     () => resolveForegroundSeconds({ MPI_BASH_FOREGROUND_SECONDS: "soon" }),
     /MPI_BASH_FOREGROUND_SECONDS/,
-  );
-});
-
-test("the widget lists every run, oldest first, one line each", () => {
-  const now = 100_000;
-  assert.deepEqual(backgroundRows([], now), []);
-  assert.deepEqual(
-    backgroundRows(
-      [
-        { id: 1, command: "sleep 30", startedAt: now - 5_000, logPath: "/tmp/a.log" },
-        { id: 2, command: "bun run check", startedAt: now - 72_000, logPath: "/tmp/b.log" },
-        { id: 3, command: "pytest  -k \n slow", startedAt: now - 63_000, logPath: "/tmp/c.log" },
-      ],
-      now,
-    ),
-    [
-      // Oldest first; a newline inside a command would otherwise break the row.
-      ["bun run check", "1m12s"],
-      ["pytest -k slow", "1m03s"],
-      ["sleep 30", "5s"],
-    ],
   );
 });
 

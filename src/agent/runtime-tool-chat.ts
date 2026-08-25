@@ -165,15 +165,6 @@ export function summarizeToolContent(
   return `${lead} ${compactMultiline(text, 6, 640)}`;
 }
 
-export function formatToolPreview(
-  toolName: string,
-  content: string | Array<{ type: string; text?: string }>,
-  isError: boolean,
-): string {
-  const status = isError ? "error" : "ok";
-  return [`tool ${toolName}: ${status}`, "", contentText(content)].join("\n");
-}
-
 export function summarizeUnknown(value: unknown): string {
   if (typeof value === "string") return compactMultiline(value, 4, 480);
   if (isAgentToolResult(value)) return summarizeToolContent(value.content, Boolean(value.isError));

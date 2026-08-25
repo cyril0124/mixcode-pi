@@ -170,10 +170,6 @@ export function isLikelyQuietCommand(command: string | undefined): boolean {
   return false;
 }
 
-export function countNonEmptyLines(lines: string[]): number {
-  return lines.filter((line) => line.trim().length > 0).length;
-}
-
 export function pluralize(
   count: number,
   singular: string,

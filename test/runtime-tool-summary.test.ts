@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  formatToolPreview,
   normalizeToolResult,
   summarizeToolContent,
   summarizeToolResult,
@@ -16,14 +15,6 @@ test("summarizeToolContent uses ok/error lead and prefixes non-empty text", () =
   assert.equal(
     summarizeToolContent([{ type: "text", text: "from blocks" }], false),
     "ok from blocks",
-  );
-});
-
-test("formatToolPreview first line is tool status then blank then content", () => {
-  assert.equal(formatToolPreview("bash", "stdout", false), "tool bash: ok\n\nstdout");
-  assert.equal(
-    formatToolPreview("read", [{ type: "text", text: "file body" }], true),
-    "tool read: error\n\nfile body",
   );
 });
 

@@ -14,13 +14,6 @@ const RUNNING_DOT = "●";
 const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"] as const;
 const SPINNER_INTERVAL_MS = 80;
 
-/** Oldest first. Each command is flattened to one line. */
-export function backgroundRows(runs: readonly DetachedStart[], now = Date.now()): string[][] {
-  return [...runs]
-    .sort((a, b) => a.startedAt - b.startedAt)
-    .map((run) => [run.command.replace(/\s+/g, " ").trim(), formatElapsed(now - run.startedAt)]);
-}
-
 /**
  * Tree above the editor: a `Jobs` header, then one branch per run.
  * A wrapped row would silently double the widget's height.

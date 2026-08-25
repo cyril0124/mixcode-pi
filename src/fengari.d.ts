@@ -5,7 +5,3 @@ declare module "fengari" {
   export function to_luastring(str: string): Uint8Array;
   export function to_jsstring(str: Uint8Array): string;
 }
-
-declare module "fengari-interop" {
-  export function luaopen_js(L: any): number;
-}
