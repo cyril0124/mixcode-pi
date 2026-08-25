@@ -251,9 +251,10 @@ export function ensureSessionCatalogPoll(root: string, intervalMs = DEFAULT_CATA
     if (!names) return; // Root may not exist yet; keep polling.
     const current = rootSnapshots.get(root);
     if (!current) return;
-    // First snapshot only seeds the baseline; later changes invalidate.
     if (current.names === undefined) {
+      // Drop listings that raced in before this baseline existed.
       current.names = names;
+      invalidateSessionCatalog(root);
       return;
     }
     if (current.names.join("\0") !== names.join("\0")) {

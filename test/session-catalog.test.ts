@@ -9,6 +9,20 @@ import {
 } from "../src/core/session-catalog.js";
 
 const POLL_MS = 5;
+const WAIT_MS = 2_000;
+
+async function waitForSessions(
+  request: Parameters<typeof listSessionsInBackground>[0],
+  check: (sessions: Awaited<ReturnType<typeof listSessionsInBackground>>) => boolean,
+) {
+  const deadline = Date.now() + WAIT_MS;
+  let sessions = await listSessionsInBackground(request);
+  while (!check(sessions) && Date.now() < deadline) {
+    await Bun.sleep(POLL_MS);
+    sessions = await listSessionsInBackground(request);
+  }
+  return sessions;
+}
 
 function sessionHeader(cwd: string, id: string): string {
   return JSON.stringify({
@@ -36,9 +50,8 @@ test("catalog poll invalidates the cache when session files appear in the root",
       sessionHeader(dir, "catalog-poll-session"),
       "utf8",
     );
-    await Bun.sleep(30);
 
-    const after = await listSessionsInBackground(request);
+    const after = await waitForSessions(request, (sessions) => sessions.length === 1);
     assert.equal(after.length, 1, "new external session must appear in the listing");
     assert.equal(after[0]?.id, "catalog-poll-session");
     assert.equal(after[0]?.cwd, dir);
@@ -74,7 +87,6 @@ test("catalog poll invalidates the cache when an existing session file grows", a
     const before = await listSessionsInBackground(request);
     assert.equal(before.length, 1);
     assert.equal(before[0]?.messageCount, 0);
-    await Bun.sleep(15); // let the first poll seed the baseline snapshot
 
     await fsPromises.appendFile(
       file,
@@ -86,9 +98,8 @@ test("catalog poll invalidates the cache when an existing session file grows", a
         message: { role: "user", content: [{ type: "text", text: "hello from peer" }], timestamp: Date.now() },
       })}\n`,
     );
-    await Bun.sleep(30);
 
-    const after = await listSessionsInBackground(request);
+    const after = await waitForSessions(request, (sessions) => sessions[0]?.messageCount === 1);
     assert.equal(after[0]?.messageCount, 1);
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
