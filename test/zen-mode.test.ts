@@ -250,7 +250,7 @@ test("zen mode hides the tab bar but keeps agent chrome", () => {
   assert.doesNotMatch(zen, /Beta/);
   assert.match(zen, /Alpha/);
   assert.match(zen, /\[ZEN\]/);
-  assert.match(zenWithWorkingSibling, /^── ● ─/);
+  assert.match(zenWithWorkingSibling, /^── [⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] ─/);
 });
 
 test("zen mode swallows tab and shift-tab without switching agents", () => {
@@ -532,22 +532,23 @@ test("zen separator keeps status dots when agentChrome is also present", () => {
       zenMode: true,
       zenStatusMarkers: ["working", "done"],
       agentChrome: { title: "Agent-17", contextText: "12k/200k*" },
+      now: 0,
     },
     theme,
   )[0]!;
   const bare = stripAnsi(line);
-  assert.match(bare, /^── ● ● /);
+  assert.match(bare, /^── ⠋ ● /);
   assert.match(bare, /Agent-17/);
   assert.match(bare, /12k\/200k\*/);
-  assert.ok(line.includes(`${esc}[34m●${esc}[39m`));
+  assert.ok(line.includes(`${esc}[34m⠋${esc}[39m`));
   assert.ok(line.includes(`${esc}[32m●${esc}[39m`));
 });
 
-test("zen separator uses colored solid dots for every background state", () => {
+test("zen separator uses animated braille spinner for working state in nerd/auto iconMode and static dot in ascii mode", () => {
   const esc = "\x1b";
   const theme = {
-    vimBorder: (s: string) => `${esc}[36m${s}${esc}[39m`,
-    thinkingBorder: () => (s: string) => `${esc}[36m${s}${esc}[39m`,
+    vimBorder: (s: string) => s,
+    thinkingBorder: () => (s: string) => s,
     accent: (s: string) => `${esc}[34m${s}${esc}[39m`,
     warning: (s: string) => `${esc}[33m${s}${esc}[39m`,
     done: (s: string) => `${esc}[32m${s}${esc}[39m`,
@@ -555,17 +556,33 @@ test("zen separator uses colored solid dots for every background state", () => {
     text: (s: string) => s,
     dim: (s: string) => s,
   } as unknown as MixCodeTheme;
-  const line = renderTabBarSeparator(
+
+  // Frame 0 at t=0: '⠋'
+  const line0 = renderTabBarSeparator(
     40,
-    { iconMode: "nerd", zenMode: true, zenStatusMarkers: ["working", "waiting", "done", "error"] },
+    { iconMode: "nerd", zenMode: true, zenStatusMarkers: ["working", "done"], now: 0 },
     theme,
   )[0]!;
+  assert.match(stripAnsi(line0), /^── ⠋ ● ─/);
+  assert.ok(line0.includes(`${esc}[34m⠋${esc}[39m`));
 
-  assert.match(stripAnsi(line), /^── ● ● ● ● ─/);
-  assert.ok(line.includes(`${esc}[34m●${esc}[39m`));
-  assert.ok(line.includes(`${esc}[33m●${esc}[39m`));
-  assert.ok(line.includes(`${esc}[32m●${esc}[39m`));
-  assert.ok(line.includes(`${esc}[31m●${esc}[39m`));
+  // Frame 1 at t=80ms: '⠙'
+  const line1 = renderTabBarSeparator(
+    40,
+    { iconMode: "nerd", zenMode: true, zenStatusMarkers: ["working", "done"], now: 80 },
+    theme,
+  )[0]!;
+  assert.match(stripAnsi(line1), /^── ⠙ ● ─/);
+  assert.ok(line1.includes(`${esc}[34m⠙${esc}[39m`));
+
+  // Ascii mode falls back to static status dot '*'
+  const lineAscii = renderTabBarSeparator(
+    40,
+    { iconMode: "ascii", zenMode: true, zenStatusMarkers: ["working", "done"], now: 80 },
+    theme,
+  )[0]!;
+  assert.match(stripAnsi(lineAscii), /^── \* \* ─/);
+  assert.ok(lineAscii.includes(`${esc}[34m*${esc}[39m`));
 });
 
 test("zen separator left-anchors done markers and caps at 5 with [+N]", () => {

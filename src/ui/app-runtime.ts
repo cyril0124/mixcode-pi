@@ -89,7 +89,11 @@ function bindConditionalRedraw(
 function activeTabNeedsWorkingRedraw(state: MixCodeState): boolean {
   if (state.activeTabId === HOME_TAB_ID) return state.tabs.some((tab) => isWorkingStatus(tab.status));
   const active = getActiveTab(state);
-  return isWorkingStatus(active?.status);
+  if (isWorkingStatus(active?.status)) return true;
+  if (active?.zenMode === true && state.tabs.some((tab) => isWorkingStatus(tab.status))) {
+    return true;
+  }
+  return false;
 }
 
 function activeTabNeedsLiveExtensionRedraw(state: MixCodeState): boolean {

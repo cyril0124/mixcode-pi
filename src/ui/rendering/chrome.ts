@@ -16,7 +16,7 @@ import { HOME_TAB_ID, type MixCodeState, type MixCodeTabInfo } from "../../core/
 import { buildLabeledTopBorder } from "../components/editor-top-border.js";
 import type { MixCodeTheme } from "../themes.js";
 import { activeRenderTheme, renderWithTheme } from "./context.js";
-import { resolveGlyphs, type IconGlyphs } from "./icons.js";
+import { resolveGlyphs, resolveIconMode, type IconGlyphs } from "./icons.js";
 import { padLine, sanitizeTerminalText } from "./primitives.js";
 
 const DEFAULT_WORKING_INDICATOR_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
@@ -124,6 +124,7 @@ export function renderTabBarSeparator(
     /** Meaningful states from other agents, ordered by tab position. */
     zenStatusMarkers?: readonly ZenStatusMarker[];
     iconMode?: IconMode;
+    now?: number;
     /** Right-anchored agent labels for custom input-editor skins. */
     agentChrome?: {
       title: string;
@@ -144,7 +145,13 @@ export function renderTabBarSeparator(
       options.zenMode === true ? (options.zenStatusMarkers ?? []) : ([] as readonly ZenStatusMarker[]);
     const zenLeft =
       markers.length > 0
-        ? paintZenStatusMarkerCluster(markers, frame, options.iconMode ?? DEFAULT_ICON_MODE, width)
+        ? paintZenStatusMarkerCluster(
+            markers,
+            frame,
+            options.iconMode ?? DEFAULT_ICON_MODE,
+            width,
+            options.now,
+          )
         : undefined;
 
     if (options.agentChrome) {
@@ -188,11 +195,21 @@ function paintZenStatusMarkerCluster(
   frame: (text: string) => string,
   iconMode: IconMode,
   maxWidth: number,
+  now = Date.now(),
 ): { painted: string; width: number } | undefined {
   const statusDot = resolveGlyphs(iconMode).statusOn;
+  const isAscii = resolveIconMode(iconMode) === "ascii";
+  const workingGlyph = isAscii
+    ? statusDot
+    : DEFAULT_WORKING_INDICATOR_FRAMES[
+        Math.floor(now / DEFAULT_WORKING_INDICATOR_INTERVAL_MS) %
+          DEFAULT_WORKING_INDICATOR_FRAMES.length
+      ]!;
   const shownMarkers = markers.slice(0, ZEN_STATUS_MARKER_CAP);
   const overflow = markers.length - shownMarkers.length;
-  const markerText = shownMarkers.map(() => statusDot).join(" ");
+  const markerText = shownMarkers
+    .map((marker) => (marker === "working" ? workingGlyph : statusDot))
+    .join(" ");
   // Prefer full "── ● ● ● [+N] "; drop [+N] then the cluster when width is tight.
   const bareWithOverflow =
     overflow > 0 ? `\u2500\u2500 ${markerText} [+${overflow}] ` : `\u2500\u2500 ${markerText} `;
@@ -206,7 +223,7 @@ function paintZenStatusMarkerCluster(
   if (visibleWidth(bareLeft) > maxWidth) return undefined;
   const paintedMarkers = shownMarkers
     .map((marker) => {
-      if (marker === "working") return activeRenderTheme.accent(statusDot);
+      if (marker === "working") return activeRenderTheme.accent(workingGlyph);
       if (marker === "waiting") return activeRenderTheme.warning(statusDot);
       if (marker === "error") return activeRenderTheme.error(statusDot);
       return activeRenderTheme.done(statusDot);
