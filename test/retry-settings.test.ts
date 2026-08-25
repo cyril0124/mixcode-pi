@@ -7,6 +7,19 @@ import {
   configureMixCodeRetrySettings,
   MIXCODE_RETRY_DEFAULTS,
 } from "../src/agent/retry-settings.js";
+import { applyMixCodeSessionDefaults } from "../src/agent/runtime-lifecycle.js";
+
+// Pi reads these modes via syncQueueModesFromSettings(getSteeringMode /
+// getFollowUpMode). "all" keeps a queued user message and its extension
+// companion messages (e.g. mpi-skill-refs' hidden $ref block) in one
+// delivery batch; one-at-a-time splits them across separate runs.
+test("applyMixCodeSessionDefaults drains both message queues in 'all' mode", () => {
+  const settings = SettingsManager.inMemory();
+  applyMixCodeSessionDefaults(settings);
+
+  assert.equal(settings.getSteeringMode(), "all");
+  assert.equal(settings.getFollowUpMode(), "all");
+});
 
 function classifyRetryable(message: {
   stopReason: AssistantMessage["stopReason"];

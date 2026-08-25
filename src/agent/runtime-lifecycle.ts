@@ -139,7 +139,11 @@ function mixcodeBashCustomTools(
 }
 
 export function applyMixCodeSessionDefaults(settingsManager: SettingsManager): void {
-  settingsManager.applyOverrides({ steeringMode: "all" }); // Settings reloads discard overrides.
+  // Settings reloads discard overrides. Both queues drain "all" so a queued
+  // user message and its extension companion messages (e.g. mpi-skill-refs'
+  // hidden $ref block, enqueued via the input event) arrive in one batch;
+  // one-at-a-time would split them across separate runs.
+  settingsManager.applyOverrides({ steeringMode: "all", followUpMode: "all" });
   configureMixCodeRetrySettings(settingsManager);
 }
 export async function createRuntimeTab(
