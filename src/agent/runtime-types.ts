@@ -230,7 +230,6 @@ export interface RuntimeTab {
     chatIndex?: number;
     blockIndices: Map<number, number>;
     toolCallIndices: Map<string, number>;
-    previewIndex?: number;
     tokenInput: number;
     tokenOutput: number;
   };

@@ -62,10 +62,13 @@ test("MixCodeRoot renders config and agent views", () => {
   assert.ok(compactLines.length <= 7);
 
   state.activeTabId = "s1";
-  tab.previewMessages = Array.from({ length: 50 }, (_, index) => ({
+  const compactChat = Array.from({ length: 50 }, (_, index) => ({
     role: "assistant" as const,
     text: `message ${index}`,
   }));
+  (runtime as unknown as { getTab: () => { chat: typeof compactChat } }).getTab = () => ({
+    chat: compactChat,
+  });
   const compactAgentLines = compactRoot.render(100);
   assert.match(stripAnsi(compactAgentLines[0] ?? ""), /Agent-01/);
   assert.match(stripAnsi(compactAgentLines[1] ?? ""), /^\u2500+$/);

@@ -176,7 +176,6 @@ test("submitted hotkeys command shows built-in and extension shortcuts", async (
     appendSystemMessage: (sessionId: string, text: string, kind?: string) => {
       assert.equal(sessionId, "s1");
       chat.push({ role: "system", text, kind });
-      tab.previewMessages.push({ role: "system", text });
     },
     getTab: (sessionId: string) => {
       assert.equal(sessionId, "s1");
@@ -225,7 +224,6 @@ test("submitted hotkeys command shows built-in and extension shortcuts", async (
   assert.match(message, /\| `\/` \| Slash commands \|/);
   assert.match(message, /Extensions/);
   assert.match(message, /\| `Ctrl\+Alt\+W` \| Toggle BTW overlay focus \|/);
-  assert.equal(tab.previewMessages.at(-1)?.text, message);
   assert.equal(renders, 1);
 });
 
@@ -464,10 +462,7 @@ test("submitted input marks done, exports state, imports sessions, and exits dir
     },
   };
   const runtime = {
-    appendSystemMessage: (_sessionId: string, text: string) => {
-      tab.previewMessages.push({ role: "system", text });
-      tab.previewIndex = tab.previewMessages.length - 1;
-    },
+    appendSystemMessage: (_sessionId: string, _text: string) => undefined,
     getTab: () => undefined,
     previewSessionImport: async (path: string) => ({
       resolvedPath: path,
@@ -494,7 +489,6 @@ test("submitted input marks done, exports state, imports sessions, and exits dir
   assert.equal(tab.unreadDone, true);
   await handleSubmittedInput(state, runtime, `/tui-state --editor=${editorScript}`, tui);
   assert.match(await fsPromises.readFile(captureFile, "utf8"), /"activeTabId": "s1"/);
-  assert.deepEqual(tab.previewMessages, []);
   // Editor handoff is renderer-only pause/resume; the shutdown stop()/start()
   // path must stay untouched until the /exit below.
   assert.deepEqual(lifecycle, ["pause", "resume"]);
@@ -554,9 +548,7 @@ test("submitted input opens system prompt in external editor by default", async 
     const overlays: string[] = [];
     const lifecycle: string[] = [];
     const runtime = {
-      appendSystemMessage: (_sessionId: string, text: string) => {
-        tab.previewMessages.push({ role: "system", text });
-      },
+      appendSystemMessage: (_sessionId: string, _text: string) => undefined,
       getTab: () => ({ agentSession: { systemPrompt: "system from runtime" } }),
     } as unknown as MixCodeRuntime;
     const tui = {
@@ -587,7 +579,6 @@ test("submitted input opens system prompt in external editor by default", async 
     await handleSubmittedInput(state, runtime, "/system-prompt", tui);
 
     assert.match(await fsPromises.readFile(captureFile, "utf8"), /system from runtime/);
-    assert.deepEqual(tab.previewMessages, []);
     assert.equal(
       overlays.some((overlay) => /Opened system prompt in external editor/.test(overlay)),
       false,
@@ -614,9 +605,7 @@ test("submitted input opens system tools in external editor by default", async (
     const overlays: string[] = [];
     const lifecycle: string[] = [];
     const runtime = {
-      appendSystemMessage: (_sessionId: string, text: string) => {
-        tab.previewMessages.push({ role: "system", text });
-      },
+      appendSystemMessage: (_sessionId: string, _text: string) => undefined,
       getTab: () => ({ agentSession: { getAllTools: () => [] } }),
       getExtensionTools: () => [
         {
@@ -665,7 +654,6 @@ test("submitted input opens system tools in external editor by default", async (
     assert.match(exported, /Echo extension input/);
     assert.match(exported, /npm:example-extension@1\.0\.0/);
     assert.match(exported, /parameters:/);
-    assert.deepEqual(tab.previewMessages, []);
     assert.equal(
       overlays.some((overlay) => /Opened system tools in external editor/.test(overlay)),
       false,

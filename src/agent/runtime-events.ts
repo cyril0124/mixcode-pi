@@ -2,9 +2,7 @@ import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { AssistantMessage, Usage } from "@earendil-works/pi-ai";
 import {
   appendEmptyRunNotice,
-  appendPreviewMessage,
   appendSystemMessage,
-  assistantText,
   contextTokensFromUsage,
   customEntryToChatLine,
   customMessageToChatLine,
@@ -13,8 +11,6 @@ import {
   maybeAppendCacheMissNotice,
   surfaceAssistantStopReason,
   syncContextUsage,
-  syncPreviewFromChat,
-  updatePreviewMessage,
 } from "./runtime-chat.js";
 import { clearPendingEscape } from "../core/escape.js";
 import {
@@ -27,7 +23,6 @@ import {
 import {
   contentImages,
   userMessageText,
-  formatToolPreview,
   normalizeToolResult,
   summarizeToolContent,
   summarizeToolResult,
@@ -180,7 +175,6 @@ export function applyEvent(
         // Rebuild chat from session entries (which now include the compaction entry)
         disposeChatRenderers(runtimeTab.chat);
         runtimeTab.chat = entriesToChatLines(runtimeTab.session.getBranch(), runtimeTab);
-        syncPreviewFromChat(runtimeTab.tab, runtimeTab.chat);
         syncContextUsage(runtimeTab);
         if (!sdkWillContinue) {
           runtimeTab.tab.unreadDone = true;
@@ -202,11 +196,6 @@ export function applyEvent(
         const line = customEntryToChatLine(event.entry, runtimeTab);
         if (line) {
           runtimeTab.chat.push(line);
-          appendPreviewMessage(
-            runtimeTab.tab,
-            "system",
-            line.text || line.title || "extension entry",
-          );
         }
       }
       break;
@@ -326,21 +315,16 @@ export function appendMessageStart(runtimeTab: RuntimeTab, message: AgentMessage
         ? { timestamp: message.timestamp }
         : {}),
     });
-    appendPreviewMessage(runtimeTab.tab, "user", text.trim() || "[image]");
   } else if (message.role === "custom") {
     const line = customMessageToChatLine(message, runtimeTab);
     if (!line) return;
     runtimeTab.chat.push(line);
-    appendPreviewMessage(runtimeTab.tab, "system", line.text || line.title || "extension message");
   } else if (message.role === "assistant") {
     const indices = syncAssistantBlocks(runtimeTab, message);
-    const text = assistantText(message.content);
-    const previewIndex = appendPreviewMessage(runtimeTab.tab, "assistant", text);
     runtimeTab.streamingAssistant = {
       chatIndex: indices.chatIndex,
       blockIndices: indices.blockIndices,
       toolCallIndices: indices.toolCallIndices,
-      previewIndex,
       tokenInput: 0,
       tokenOutput: 0,
     };
@@ -354,11 +338,6 @@ export function appendMessageStart(runtimeTab: RuntimeTab, message: AgentMessage
       summarizeToolContent(message.content, message.isError),
       normalizeToolResult(message, message.isError),
     );
-    appendPreviewMessage(
-      runtimeTab.tab,
-      "tool",
-      formatToolPreview(message.toolName, message.content, message.isError),
-    );
   }
 }
 
@@ -367,16 +346,13 @@ export function updateStreamingAssistant(
   message: AssistantMessage,
   options: { final?: boolean } = {},
 ): void {
-  const text = assistantText(message.content);
   let streaming = runtimeTab.streamingAssistant;
   if (!streaming) {
     const indices = syncAssistantBlocks(runtimeTab, message);
-    const previewIndex = appendPreviewMessage(runtimeTab.tab, "assistant", text);
     streaming = {
       chatIndex: indices.chatIndex,
       blockIndices: indices.blockIndices,
       toolCallIndices: indices.toolCallIndices,
-      previewIndex,
       tokenInput: 0,
       tokenOutput: 0,
     };
@@ -386,12 +362,6 @@ export function updateStreamingAssistant(
     streaming.chatIndex = indices.chatIndex;
     streaming.blockIndices = indices.blockIndices;
     streaming.toolCallIndices = indices.toolCallIndices;
-    streaming.previewIndex = updatePreviewMessage(
-      runtimeTab.tab,
-      streaming.previewIndex,
-      "assistant",
-      text,
-    );
   }
   applyAssistantUsage(runtimeTab, message.usage);
   if (options.final) {

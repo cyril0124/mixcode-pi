@@ -269,7 +269,6 @@ test("submitted input opens TUI state JSON in external editor", async () => {
     const runtime = {
       appendSystemMessage: (_sessionId: string, text: string) => {
         chat.push({ role: "system", text });
-        tab.previewMessages.push({ role: "system", text });
       },
       getTab: () => undefined,
     } as unknown as MixCodeRuntime;
@@ -310,7 +309,6 @@ test("submitted input opens TUI state JSON in external editor", async () => {
     assert.doesNotMatch(exported, /previewMessages/);
     assert.doesNotMatch(exported, /pendingMessages/);
     assert.deepEqual(chat, []);
-    assert.deepEqual(tab.previewMessages, []);
     assert.equal(
       overlays.some((overlay) => /Opened TUI state in external editor/.test(overlay)),
       false,

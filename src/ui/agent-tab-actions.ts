@@ -188,8 +188,6 @@ export function prepareAgentTabClear(
     throw new Error("Cannot clear a session while bash is running");
   }
   if (runtimeTab) runtime.clearTabChatProjection(sessionId);
-  tab.previewMessages = [];
-  tab.previewIndex = 0;
   tab.chatScrollOffset = 0;
   tab.chatScrollAnchorEntryId = undefined;
   tab.chatScrollAnchorIndex = undefined;

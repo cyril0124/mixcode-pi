@@ -37,13 +37,6 @@ test("global key input toggles MixCode overlays and passes through regular input
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo", {
     unreadDone: true,
-    previewMessages: [
-      { role: "user", text: "one" },
-      {
-        role: "assistant",
-        text: Array.from({ length: 8 }, (_, index) => `line-${index}`).join("\n"),
-      },
-    ],
   });
   state.tabs.push(tab);
   state.activeTabId = "s1";

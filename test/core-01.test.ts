@@ -264,8 +264,6 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
         title: "Renamed Agent",
         alias: "alpha",
         unreadDone: true,
-        previewMessages: [{ role: "assistant", text: "preview" }],
-        previewIndex: 0,
         pendingMessages: ["queued"],
       }),
       createTab(2, "s2", "/repo", {
@@ -289,7 +287,6 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
     assert.equal(restored.tabs[0]?.workdir, "/repo");
     assert.equal(restored.tabs[0]?.alias, "");
     assert.equal(restored.tabs[0]?.unreadDone, true);
-    assert.deepEqual(restored.tabs[0]?.previewMessages, []);
     assert.deepEqual(restored.tabs[0]?.pendingMessages, []);
     assert.deepEqual(restored.tabs[0]?.pendingFollowUps, []);
     assert.equal(restored.tabs[1]?.model.modelId, "faux-1");
@@ -338,8 +335,6 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
       ["x"],
     );
     assert.equal(minimal.tabs[0]?.title, "Worker");
-    assert.deepEqual(minimal.tabs[0]?.previewMessages, []);
-    assert.equal(minimal.tabs[0]?.previewIndex, 0);
     assert.deepEqual(minimal.tabs[0]?.pendingMessages, []);
     const extraFields = deserializeState(
       {
@@ -370,18 +365,12 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
     assert.equal(extraFields.tabs[0]?.alias, "");
     assert.equal(extraFields.tabs[0]?.model.modelId, "faux-1");
     assert.equal(extraFields.tabs[0]?.thinkingLevel, "medium");
-    assert.deepEqual(extraFields.tabs[0]?.previewMessages, []);
-    assert.equal(extraFields.tabs[0]?.previewIndex, 0);
     assert.deepEqual(extraFields.tabs[0]?.pendingMessages, []);
     assert.deepEqual(extraFields.tabs[0]?.pendingFollowUps, []);
     const fat = createInitialState("/repo");
     fat.tabs.push(
       createTab(1, "s1", "/repo", {
         title: "Custom",
-        previewMessages: Array.from({ length: 200 }, () => ({
-          role: "assistant",
-          text: "x".repeat(1000),
-        })),
         pendingMessages: ["queued"],
         pendingFollowUps: ["later"],
         model: tabTwoModel,

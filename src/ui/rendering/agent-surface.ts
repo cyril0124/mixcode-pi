@@ -48,27 +48,6 @@ import { fitScrolledLinesWithInfo, type ScrolledLinesResult } from "./layout.js"
 import { box, padLine } from "./primitives.js";
 import { applyToastOverlay } from "../components/toast-overlay.js";
 
-/**
- * Convert in-memory previewMessages to lightweight ChatLine[] for rendering
- * before the full runtimeTab is ready (deferred extension loading).
- * Memoized on tab to avoid breaking the render cache's reference-equality check.
- */
-const previewChatCache = new WeakMap<MixCodeTabInfo, ChatLine[]>();
-function previewMessagesToChat(tab: MixCodeTabInfo): ChatLine[] {
-  const cached = previewChatCache.get(tab);
-  if (cached) return cached;
-  if (!tab.previewMessages.length) return [];
-  const chat: ChatLine[] = tab.previewMessages
-    .filter((msg) => msg.role !== "empty")
-    .map((msg) => ({
-      role: (msg.role === "shell" ? "user" : msg.role) as ChatLine["role"],
-      text: msg.text,
-      ...(msg.role === "shell" ? { variant: "user-bash" as const } : {}),
-    }));
-  previewChatCache.set(tab, chat);
-  return chat;
-}
-
 // Above this many chat blocks we switch from "render everything, then slice"
 // to the windowed renderer. The windowed path has more bookkeeping overhead
 // per call, so for short chats it's faster to just render the whole thing.
@@ -264,7 +243,7 @@ function renderAgentSurfaceInner(
   // through to the legacy full-render path otherwise (legacy callers pass
   // maxHeight=undefined, e.g. tests measuring full layout).
   if (maxHeight !== undefined) {
-    const chat = runtimeTab?.chat ?? previewMessagesToChat(tab);
+    const chat = runtimeTab?.chat ?? [];
     if (canUseWindowedRender(tab, chat, options.oversizedAssistantMessage)) {
       return renderAgentSurfaceWindowed(
         tab,
@@ -981,7 +960,7 @@ function getCachedConversationLines(
   width: number,
   options: AgentSurfaceRenderOptions,
 ): string[] {
-  const chat = runtimeTab?.chat ?? previewMessagesToChat(tab);
+  const chat = runtimeTab?.chat ?? [];
 
   // Skip cache when the tab is actively running or any tool is mid-execution.
   // Tool renderers may have component lifecycle side effects (dispose/create)

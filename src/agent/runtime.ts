@@ -47,7 +47,6 @@ import {
   inspectSessionImport,
   isNothingToCompactError,
   resetTabForNewSession,
-  syncPreviewFromChat,
   type SystemMessageKind,
 } from "./runtime-chat.js";
 import { applyEvent } from "./runtime-events.js";
@@ -474,7 +473,6 @@ export class MixCodeRuntime {
         !runtimeTab.tab.activeCompactionReason
       ) {
         this.rebuildChatFromSession(runtimeTab.tab.sessionId);
-        syncPreviewFromChat(runtimeTab.tab, runtimeTab.chat);
       }
     }
   }

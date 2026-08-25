@@ -105,8 +105,6 @@ export function createTab(
     promptHistory: [],
     draftInput: "",
     chatScrollOffset: 0,
-    previewMessages: [],
-    previewIndex: 0,
     vimMode: false,
     vimTranscriptSearch: undefined,
     vimPendingEscapeAt: undefined,

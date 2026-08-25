@@ -107,7 +107,6 @@ import mpiGoal_src_domain_session_scope_ts from "../../pi-packages/mpi-goal/src/
 import mpiGoal_src_domain_budget_ts from "../../pi-packages/mpi-goal/src/domain/budget.ts" with { type: "text" };
 import mpiGoal_src_domain_completion_gate_ts from "../../pi-packages/mpi-goal/src/domain/completion-gate.ts" with { type: "text" };
 import mpiGoal_src_domain_constants_ts from "../../pi-packages/mpi-goal/src/domain/constants.ts" with { type: "text" };
-import mpiGoal_src_domain_feature_flags_ts from "../../pi-packages/mpi-goal/src/domain/feature-flags.ts" with { type: "text" };
 import mpiGoal_src_domain_floor_steering_ts from "../../pi-packages/mpi-goal/src/domain/floor-steering.ts" with { type: "text" };
 import mpiGoal_src_domain_floor_ts from "../../pi-packages/mpi-goal/src/domain/floor.ts" with { type: "text" };
 import mpiGoal_src_domain_format_ts from "../../pi-packages/mpi-goal/src/domain/format.ts" with { type: "text" };
@@ -368,7 +367,6 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
       "src/domain/budget.ts": mpiGoal_src_domain_budget_ts,
       "src/domain/completion-gate.ts": mpiGoal_src_domain_completion_gate_ts,
       "src/domain/constants.ts": mpiGoal_src_domain_constants_ts,
-      "src/domain/feature-flags.ts": mpiGoal_src_domain_feature_flags_ts,
       "src/domain/floor-steering.ts": mpiGoal_src_domain_floor_steering_ts,
       "src/domain/floor.ts": mpiGoal_src_domain_floor_ts,
       "src/domain/format.ts": mpiGoal_src_domain_format_ts,

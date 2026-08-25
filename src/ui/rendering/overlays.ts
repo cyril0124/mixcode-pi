@@ -12,7 +12,8 @@ import {
 } from "../../core/overlays.js";
 import { filteredPickerItems, workdirBreadcrumb } from "../../core/pickers.js";
 import { activeToast } from "../../core/toast.js";
-import type { MixCodeState, PreviewMessage } from "../../core/types.js";
+import type { ChatLine } from "../../agent/runtime-types.js";
+import type { MixCodeState } from "../../core/types.js";
 import { homeVisibleTabIndices } from "../../core/tabs.js";
 import { tabIsWaitingForInput } from "../../core/tab-state.js";
 import { type MixCodeTheme, themeForId } from "../themes.js";
@@ -35,15 +36,19 @@ export function renderHome(
   theme: MixCodeTheme = activeRenderTheme,
   rowOffset = 0,
   maxRows?: number,
+  chatForTab?: (sessionId: string) => readonly ChatLine[] | undefined,
 ): string[] {
-  return renderWithTheme(theme, () => renderHomeInner(state, width, rowOffset, maxRows));
+  return renderWithTheme(theme, () =>
+    renderHomeInner(state, width, rowOffset, maxRows, chatForTab),
+  );
 }
 
 function renderHomeInner(
   state: MixCodeState,
   width: number,
   _rowOffset: number,
-  maxRows?: number,
+  maxRows: number | undefined,
+  chatForTab: ((sessionId: string) => readonly ChatLine[] | undefined) | undefined,
 ): string[] {
   const logo = [
     "███╗   ███╗██╗██╗  ██╗ ██████╗ ██████╗ ██████╗ ███████╗",
@@ -69,7 +74,7 @@ function renderHomeInner(
   // configPanelBox adds a leading spacer, top border, and bottom border around body rows.
   const maxAgentRows =
     maxRows === undefined ? undefined : Math.max(0, maxRows - 3 - staticBodyRows);
-  const agentTableRows = renderAgentViewTable(state, bodyWidth, maxAgentRows);
+  const agentTableRows = renderAgentViewTable(state, bodyWidth, maxAgentRows, chatForTab);
   const lines = [
     ...logoLines,
     ...updateRows.map((line) => `  ${line}`),
@@ -118,7 +123,12 @@ const DEFAULT_PREVIEW_ROWS = 6;
 const AGENT_VIEW_SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 const AGENT_VIEW_SPINNER_INTERVAL_MS = 80;
 
-function renderAgentViewTable(state: MixCodeState, width: number, maxRows?: number): string[] {
+function renderAgentViewTable(
+  state: MixCodeState,
+  width: number,
+  maxRows: number | undefined,
+  chatForTab: ((sessionId: string) => readonly ChatLine[] | undefined) | undefined,
+): string[] {
   const budget = maxRows === undefined ? undefined : Math.max(0, Math.floor(maxRows));
   const heading = state.homeNonIdleOnly
     ? `${activeRenderTheme.bold(" Agents  · ")}${activeRenderTheme.selectedBg(" non-idle ")}`
@@ -185,7 +195,7 @@ function renderAgentViewTable(state: MixCodeState, width: number, maxRows?: numb
     const fallbackIndex = visible[selectedVisiblePos] ?? visible[0]!;
     pushAgentRows(
       lines,
-      renderAgentCard(state.tabs[fallbackIndex]!, width, true, now),
+      renderAgentCard(state.tabs[fallbackIndex]!, width, true, now, chatForTab),
       cardBudget,
     );
   } else {
@@ -196,6 +206,7 @@ function renderAgentViewTable(state: MixCodeState, width: number, maxRows?: numb
         width,
         tabIndex === selectedIndex,
         now,
+        chatForTab,
       );
       if (listBudget !== undefined && lines.length + card.length > listBudget) break;
       lines.push(...card);
@@ -215,7 +226,7 @@ function renderAgentViewTable(state: MixCodeState, width: number, maxRows?: numb
     }
   }
   if (selectedTab && previewRows > 0) {
-    pushAgentRows(lines, renderPreviewPanel(selectedTab, width, previewRows), budget);
+    pushAgentRows(lines, renderPreviewPanel(selectedTab, width, previewRows, chatForTab), budget);
   }
   pushAgentRows(lines, [hint], budget);
   if (budget !== undefined) {
@@ -264,6 +275,7 @@ function renderAgentCard(
   width: number,
   selected: boolean,
   now: number,
+  chatForTab: ((sessionId: string) => readonly ChatLine[] | undefined) | undefined,
 ): string[] {
   const border = selected ? activeRenderTheme.accent : activeRenderTheme.borderMuted;
   const innerWidth = Math.max(0, width - 2);
@@ -283,7 +295,11 @@ function renderAgentCard(
   const titleFill = Math.max(0, innerWidth - visibleWidth(title) - visibleWidth(statusGroup) - 2);
   const top = `${border("┌")}${title} ${border("─".repeat(titleFill))} ${statusGroup}${border("┐")}`;
   const meta = truncateToWidth(` ${formatAgentCardMeta(tab, new Date(now))}`, innerWidth, "...");
-  const preview = truncateToWidth(` ⎿ ${latestAssistantPreview(tab)}`, innerWidth, "...");
+  const preview = truncateToWidth(
+    ` ⎿ ${latestAssistantPreview(chatForTab?.(tab.sessionId) ?? [])}`,
+    innerWidth,
+    "...",
+  );
   const lines = [
     top,
     `${border("│")}${padLine(meta, innerWidth)}${border("│")}`,
@@ -297,12 +313,13 @@ function renderPreviewPanel(
   tab: MixCodeState["tabs"][number],
   width: number,
   maxRows: number,
+  chatForTab: ((sessionId: string) => readonly ChatLine[] | undefined) | undefined,
 ): string[] {
   if (maxRows <= 0) return [];
   const innerWidth = Math.max(0, width - 2);
   const divider = `${activeRenderTheme.borderMuted("─".repeat(width))}`;
   if (maxRows === 1) return [divider];
-  const messages = previewPanelMessages(tab.previewMessages);
+  const messages = previewPanelMessages(chatForTab?.(tab.sessionId) ?? []);
   if (messages.length === 0) {
     return [divider, activeRenderTheme.dim("  No messages yet")].slice(0, maxRows);
   }
@@ -324,7 +341,7 @@ type PreviewPanelMessage =
   | { role: "user" | "assistant"; text: string }
   | { role: "tools"; count: number };
 
-function previewPanelMessages(messages: PreviewMessage[]): PreviewPanelMessage[] {
+function previewPanelMessages(messages: readonly ChatLine[]): PreviewPanelMessage[] {
   const rows: PreviewPanelMessage[] = [];
   for (const message of messages) {
     if (message.role === "tool") {
@@ -417,12 +434,17 @@ function formatTabUpdated(tab: MixCodeState["tabs"][number], now = new Date()): 
   return `${Math.floor(secs / 86400)}d ago`;
 }
 
-function latestAssistantPreview(tab: MixCodeState["tabs"][number]): string {
-  // Prefer assistant, then fall back to shell/system so Home cards don't stay
-  // stuck on "No output yet" after bash or error-only turns.
-  const roles: Array<PreviewMessage["role"]> = ["assistant", "shell", "system", "user"];
-  for (const role of roles) {
-    const latest = [...tab.previewMessages].reverse().find((message) => message.role === role);
+function latestAssistantPreview(chat: readonly ChatLine[]): string {
+  // Prefer assistant, then bash/system so Home cards don't stay stuck on
+  // "No output yet" after bash or error-only turns.
+  const picks: Array<(line: ChatLine) => boolean> = [
+    (line) => line.role === "assistant",
+    (line) => line.role === "user" && line.variant === "user-bash",
+    (line) => line.role === "system",
+    (line) => line.role === "user",
+  ];
+  for (const pred of picks) {
+    const latest = [...chat].reverse().find(pred);
     const text = singleLinePreview(latest?.text);
     if (text) return text;
   }

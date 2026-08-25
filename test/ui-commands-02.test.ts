@@ -66,10 +66,7 @@ test("submitted input opens local pickers and picker keys apply selections", asy
   };
   const thinkingUpdates: Array<{ sessionId: string; level: string }> = [];
   const runtime = {
-    appendSystemMessage: (_sessionId: string, text: string) => {
-      tab.previewMessages.push({ role: "system", text });
-      tab.previewIndex = tab.previewMessages.length - 1;
-    },
+    appendSystemMessage: (_sessionId: string, _text: string) => undefined,
     getTab: () => undefined,
     resolveModel: (provider: string, modelId: string) => ({
       ...MIXCODE_FAUX_MODEL,

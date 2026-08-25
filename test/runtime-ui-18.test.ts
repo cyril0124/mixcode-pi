@@ -197,10 +197,6 @@ test("runtime keeps assistant thinking out of chat assistant text", async () => 
       runtimeTab.chat.filter((line) => line.role === "assistant").map((line) => line.text),
       ["public answer"],
     );
-    assert.deepEqual(
-      tab.previewMessages.filter((line) => line.role === "assistant").map((line) => line.text),
-      ["public answer"],
-    );
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }

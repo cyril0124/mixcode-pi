@@ -501,6 +501,23 @@ test("handleCtlRequest last-assistant-message send-keys and dump-screen", async 
   assert.match(home.error ?? "", /Home has no assistant message/);
 });
 
+test("dump-screen on Home shows agent chat previews", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo", { title: "Agent-01" }));
+  state.activeTabId = "home";
+  const opts = {
+    state,
+    runtime: {
+      getTab: (sessionId: string) =>
+        sessionId === "s1" ? { chat: [{ role: "assistant", text: "latest preview text" }] } : undefined,
+    } as unknown as MixCodeRuntime,
+    injectInput: () => undefined,
+  };
+  const screen = await handleCtlRequest({ op: "dump-screen", sessionId: "home" }, opts);
+  assert.equal(screen.ok, true);
+  assert.match(screen.text ?? "", /latest preview text/);
+});
+
 test("ctl socket server answers a client request", async () => {
   const root = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mpi-ctl-sock-"));
   const injected: string[] = [];

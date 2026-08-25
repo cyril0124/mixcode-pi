@@ -187,7 +187,6 @@ test("runtime creates sessions, streams responses, restores chat, and supports c
     assert.equal(runtime.listTabs().length, 1);
     await runtime.prompt("s1", "hello");
     assert.equal(tab.status, "idle");
-    assert.ok(tab.previewMessages.some((message) => message.text.includes("hello")));
     assert.match(runtimeTab.chat.map((line) => line.text).join("\n"), /hello/);
 
     const reopened = new MixCodeRuntime({ sessionsRoot: dir });

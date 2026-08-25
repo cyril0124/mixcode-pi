@@ -13,7 +13,7 @@ import type {
 import { type Component, TuiMainScreen as PiTui } from "@earendil-works/pi-tui";
 import { modelToRef } from "../core/models.js";
 import { clearQueueEditToast } from "../core/toast.js";
-import type { MixCodeModel, MixCodeTabInfo, PreviewMessageRole } from "../core/types.js";
+import type { MixCodeModel, MixCodeTabInfo } from "../core/types.js";
 import { clearPendingEscape } from "../core/escape.js";
 import { discardVimTranscriptSearch } from "../core/tabs.js";
 import { formatSessionTokens } from "../ui/components/session-info.js";
@@ -57,14 +57,6 @@ export function appendSystemMessage(
     if (last?.role === "system" && last.systemStatus) {
       last.text = text;
       last.variant = undefined;
-      const preview = runtimeTab.tab.previewMessages;
-      const lastPreview = preview.at(-1);
-      if (lastPreview?.role === "system") {
-        lastPreview.text = text;
-        runtimeTab.tab.previewIndex = preview.length - 1;
-      } else {
-        appendPreviewMessage(runtimeTab.tab, "system", text);
-      }
       return;
     }
   }
@@ -83,7 +75,6 @@ export function appendSystemMessage(
     variant,
     systemStatus: kind === "status" ? true : undefined,
   });
-  appendPreviewMessage(runtimeTab.tab, "system", text);
 }
 
 function cacheMissNoticeText(miss: CacheMiss): string | undefined {
@@ -609,40 +600,6 @@ function assistantMessageToChatLines(
   });
 }
 
-export function appendPreviewMessage(
-  tab: MixCodeTabInfo,
-  role: PreviewMessageRole,
-  text: string,
-): number | undefined {
-  if (!text.trim()) return undefined;
-  const index = tab.previewMessages.push({ role, text }) - 1;
-  tab.previewIndex = index;
-  return index;
-}
-
-export function updatePreviewMessage(
-  tab: MixCodeTabInfo,
-  index: number | undefined,
-  role: PreviewMessageRole,
-  text: string,
-): number | undefined {
-  if (!text.trim()) return index;
-  if (index !== undefined && tab.previewMessages[index]) {
-    tab.previewMessages[index] = { role, text };
-    tab.previewIndex = index;
-    return index;
-  }
-  return appendPreviewMessage(tab, role, text);
-}
-
-export function syncPreviewFromChat(tab: MixCodeTabInfo, chat: ChatLine[]): void {
-  tab.previewMessages = chat.map((line) => ({
-    role: previewRoleForChatLine(line),
-    text: line.text,
-  }));
-  tab.previewIndex = Math.max(0, tab.previewMessages.length - 1);
-}
-
 export function syncContextUsage(runtimeTab: RuntimeTab): void {
   // Context usage is a display-only metric. A degenerate/restored history entry
   // (e.g. a toolCall block with no arguments) can make the SDK's token
@@ -671,10 +628,6 @@ export function contextTokensFromUsage(usage: Partial<Usage>): number | undefine
   return total > 0 ? total : undefined;
 }
 
-function previewRoleForChatLine(line: ChatLine): PreviewMessageRole {
-  return line.role === "extension" ? "system" : line.role;
-}
-
 export function resetTabForNewSession(tab: MixCodeTabInfo, sessionId: string): void {
   tab.sessionId = sessionId;
   tab.status = "idle";
@@ -690,8 +643,6 @@ export function resetTabForNewSession(tab: MixCodeTabInfo, sessionId: string): v
   tab.chatScrollAnchorIndex = undefined;
   tab.chatScrollAnchorText = undefined;
   discardVimTranscriptSearch(tab);
-  tab.previewMessages = [];
-  tab.previewIndex = 0;
   clearPendingEscape(tab);
   tab.unreadDone = false;
   tab.workingStartedAt = undefined;

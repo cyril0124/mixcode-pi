@@ -23,8 +23,6 @@ test("consecutive status messages replace the last status line (Pi showStatus)",
   assert.equal(runtimeTab.chat[0]?.role, "system");
   assert.equal(runtimeTab.chat[0]?.text, "Model: claude");
   assert.equal(runtimeTab.chat[0]?.systemStatus, true);
-  assert.equal(runtimeTab.tab.previewMessages.length, 1);
-  assert.equal(runtimeTab.tab.previewMessages[0]?.text, "Model: claude");
 });
 
 test("error and warning system messages always append and break status coalesce", () => {

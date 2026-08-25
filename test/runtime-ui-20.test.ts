@@ -206,8 +206,6 @@ test("runtime clear replaces the active pi session and resets tab state", async 
     const runtime = new MixCodeRuntime({ sessionsRoot: dir });
     const tab = createTab(1, "s1", process.cwd(), {
       pendingMessages: ["queued"],
-      previewMessages: [{ role: "assistant", text: "old preview" }],
-      previewIndex: 0,
       unreadDone: true,
       status: "done",
     });
@@ -239,7 +237,6 @@ test("runtime clear replaces the active pi session and resets tab state", async 
       false,
     );
     assert.deepEqual(tab.pendingMessages, []);
-    assert.deepEqual(tab.previewMessages, []);
     assert.equal(tab.unreadDone, false);
     assert.equal(tab.status, "idle");
     await assert.rejects(runtime.prompt("s1", "after clear"), /Unknown tab session/);

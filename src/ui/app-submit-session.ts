@@ -60,8 +60,6 @@ const handleReset: LocalCommandHandler = ({ state, active, runtime, tui }) => {
   try {
     const result = runtime.resetTabToRoot(active!.sessionId);
     // Same-file reset: keep title/sessionId; only drop ephemeral view state.
-    active!.previewMessages = [];
-    active!.previewIndex = 0;
     active!.chatScrollOffset = 0;
     active!.chatScrollAnchorEntryId = undefined;
     active!.chatScrollAnchorIndex = undefined;

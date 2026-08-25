@@ -15,9 +15,16 @@ import {
 import { testOverlayHandle } from "./helpers/tui.js";
 import { testRuntime } from "./helpers/runtime-stub.js";
 import { testRuntimeTab } from "./helpers/runtime-tab.js";
+import type { ChatLine } from "../src/agent/runtime-types.js";
 
 function stripAnsi(text: string): string {
   return text.replace(/\x1b\[[0-9;:]*m/g, "");
+}
+
+function chatFor(
+  chats: Record<string, ChatLine[]>,
+): (sessionId: string) => ChatLine[] | undefined {
+  return (sessionId) => chats[sessionId];
 }
 
 /**
@@ -884,20 +891,26 @@ test("renderHome shows spinner for working agent cards", () => {
 
 test("renderHome shows preview panel below card list for selected agent", () => {
   const state = createInitialState("/repo");
-  state.tabs.push(
-    createTab(1, "s1", "/repo", {
-      title: "Previewer",
-      previewMessages: [
-        { role: "user", text: "please explain" },
-        { role: "tool", text: "read file" },
-        { role: "tool", text: "run tests" },
-        { role: "assistant", text: "Here is the latest assistant output\nwith details" },
-        { role: "tool", text: "check diff" },
-      ],
-    }),
-  );
+  state.tabs.push(createTab(1, "s1", "/repo", { title: "Previewer" }));
   state.homeSelectedTabIndex = 0;
-  const output = stripAnsi(renderHome(state, 100).join("\n"));
+  const output = stripAnsi(
+    renderHome(
+      state,
+      100,
+      undefined,
+      0,
+      undefined,
+      chatFor({
+        s1: [
+          { role: "user", text: "please explain" },
+          { role: "tool", text: "read file" },
+          { role: "tool", text: "run tests" },
+          { role: "assistant", text: "Here is the latest assistant output\nwith details" },
+          { role: "tool", text: "check diff" },
+        ],
+      }),
+    ).join("\n"),
+  );
 
   // Consecutive tool calls collapse to middle dots plus an exact count.
   assert.match(output, /user:.*please explain/);
@@ -909,15 +922,17 @@ test("renderHome shows preview panel below card list for selected agent", () => 
 
 test("renderHome respects row budget for compact Agent View", () => {
   const state = createInitialState("/repo");
-  state.tabs.push(
-    createTab(1, "s1", "/repo", {
-      title: "Previewer",
-      previewMessages: [{ role: "assistant", text: "Long preview ".repeat(50) }],
-    }),
-  );
+  state.tabs.push(createTab(1, "s1", "/repo", { title: "Previewer" }));
   state.homeSelectedTabIndex = 0;
 
-  const lines = renderHome(state, 100, undefined, 0, 9);
+  const lines = renderHome(
+    state,
+    100,
+    undefined,
+    0,
+    9,
+    chatFor({ s1: [{ role: "assistant", text: "Long preview ".repeat(50) }] }),
+  );
   const output = stripAnsi(lines.join("\n"));
 
   assert.equal(lines.length, 9);
@@ -943,18 +958,24 @@ test("renderHome fills a short viewport so the editor is not separated by a blan
 
 test("renderHome hides the message preview on a short viewport and keeps the hint", () => {
   const state = createInitialState("/repo");
-  state.tabs.push(
-    createTab(1, "s1", "/repo", {
-      title: "Previewer",
-      previewMessages: [
-        { role: "user", text: "please explain" },
-        { role: "assistant", text: "Here is the latest assistant output" },
-      ],
-    }),
-  );
+  state.tabs.push(createTab(1, "s1", "/repo", { title: "Previewer" }));
   state.homeSelectedTabIndex = 0;
 
-  const output = stripAnsi(renderHome(state, 100, undefined, 0, 12).join("\n"));
+  const output = stripAnsi(
+    renderHome(
+      state,
+      100,
+      undefined,
+      0,
+      12,
+      chatFor({
+        s1: [
+          { role: "user", text: "please explain" },
+          { role: "assistant", text: "Here is the latest assistant output" },
+        ],
+      }),
+    ).join("\n"),
+  );
   assert.match(output, /Previewer/);
   assert.match(output, /↑\/↓: select|Ctrl\+F/);
   assert.doesNotMatch(output, /user:.*please explain/);
@@ -963,18 +984,22 @@ test("renderHome hides the message preview on a short viewport and keeps the hin
 
 test("renderHome pins the message preview above the hint when the viewport is tall", () => {
   const state = createInitialState("/repo");
-  state.tabs.push(
-    createTab(1, "s1", "/repo", {
-      title: "Previewer",
-      previewMessages: Array.from({ length: 7 }, (_, index) => ({
+  state.tabs.push(createTab(1, "s1", "/repo", { title: "Previewer" }));
+  state.homeSelectedTabIndex = 0;
+
+  const lines = renderHome(
+    state,
+    100,
+    undefined,
+    0,
+    48,
+    chatFor({
+      s1: Array.from({ length: 7 }, (_, index) => ({
         role: "assistant" as const,
         text: `message ${index + 1}`,
       })),
     }),
-  );
-  state.homeSelectedTabIndex = 0;
-
-  const lines = renderHome(state, 100, undefined, 0, 48).map((line) => stripAnsi(line));
+  ).map((line) => stripAnsi(line));
   const output = lines.join("\n");
   const hintIndex = lines.findIndex((line) => line.includes("↑/↓: select"));
   const previewIndex = lines.findIndex((line) => line.includes("assistant: message"));
@@ -988,17 +1013,16 @@ test("renderHome pins the message preview above the hint when the viewport is ta
 
 test("renderHome does not leave a blank gap between windowed cards and preview", () => {
   const state = createInitialState("/repo");
+  const chats: Record<string, ChatLine[]> = {};
   for (let i = 1; i <= 8; i++) {
-    state.tabs.push(
-      createTab(i, `s${i}`, "/repo", {
-        title: `Agent-${i}`,
-        previewMessages: [{ role: "assistant", text: `message ${i}` }],
-      }),
-    );
+    state.tabs.push(createTab(i, `s${i}`, "/repo", { title: `Agent-${i}` }));
+    chats[`s${i}`] = [{ role: "assistant", text: `message ${i}` }];
   }
   state.homeSelectedTabIndex = 3;
 
-  const lines = renderHome(state, 100, undefined, 0, 48).map((line) => stripAnsi(line).trim());
+  const lines = renderHome(state, 100, undefined, 0, 48, chatFor(chats)).map((line) =>
+    stripAnsi(line).trim(),
+  );
   const newer = lines.findIndex((line) => line.includes("newer below"));
   const older = lines.findIndex((line) => line.includes("older above"));
   const preview = lines.findIndex((line) => line.includes("assistant: message"));
@@ -1012,21 +1036,23 @@ test("renderHome does not leave a blank gap between windowed cards and preview",
 test("renderHome shows compact preview for all cards including selected", () => {
   const state = createInitialState("/repo");
   state.tabs.push(
-    createTab(1, "s1", "/repo", {
-      title: "First",
-      previewMessages: [
-        { role: "assistant", text: "First output" },
-      ],
-    }),
-    createTab(2, "s2", "/repo", {
-      title: "Second",
-      previewMessages: [
-        { role: "assistant", text: "Second output" },
-      ],
-    }),
+    createTab(1, "s1", "/repo", { title: "First" }),
+    createTab(2, "s2", "/repo", { title: "Second" }),
   );
   state.homeSelectedTabIndex = 0;
-  const output = stripAnsi(renderHome(state, 100).join("\n"));
+  const output = stripAnsi(
+    renderHome(
+      state,
+      100,
+      undefined,
+      0,
+      undefined,
+      chatFor({
+        s1: [{ role: "assistant", text: "First output" }],
+        s2: [{ role: "assistant", text: "Second output" }],
+      }),
+    ).join("\n"),
+  );
 
   // Both cards show compact ⎿ preview
   assert.match(output, /⎿ First output/);
@@ -1040,7 +1066,6 @@ test("renderHome uses the same 4-row card for selected and unselected agents", (
       title: "First",
       currentContextTokens: 21_000,
       lastWorkedAt: new Date(Date.now() - 5_000).toISOString(),
-      previewMessages: [{ role: "assistant", text: "First output" }],
     }),
     createTab(2, "s2", "/repo", {
       title: "Second",
@@ -1052,11 +1077,20 @@ test("renderHome uses the same 4-row card for selected and unselected agents", (
       },
       contextLimit: 500_000,
       currentContextTokens: 8_000,
-      previewMessages: [{ role: "assistant", text: "Second output" }],
     }),
   );
   state.homeSelectedTabIndex = 0;
-  const rendered = renderHome(state, 100);
+  const rendered = renderHome(
+    state,
+    100,
+    undefined,
+    0,
+    undefined,
+    chatFor({
+      s1: [{ role: "assistant", text: "First output" }],
+      s2: [{ role: "assistant", text: "Second output" }],
+    }),
+  );
   const plainLines = rendered.map((line) => stripAnsi(line));
   const plain = plainLines.join("\n");
 

@@ -10,7 +10,7 @@ import type { RuntimeTab } from "../src/agent/runtime-types.js";
 function emptyTab(): RuntimeTab {
   return {
     chat: [],
-    tab: { previewMessages: [], previewIndex: 0 },
+    tab: {},
   } as unknown as RuntimeTab;
 }
 

@@ -468,8 +468,7 @@ test("prepareAgentTabClear rejects corrupt open_tabs before wiping the tab", asy
     await fsPromises.mkdir(path.join(dir, "state"), { recursive: true });
     await fsPromises.writeFile(openTabsPath, '{"version":1,"sessionIds":[', "utf8");
     const state = createInitialState(dir);
-    const tab = createTab(1, "keep-session", dir, { status: "idle" });
-    tab.previewMessages = [{ role: "user", text: "keep this message" }];
+    const tab = createTab(1, "keep-session", dir, { status: "idle", unreadDone: true });
     state.tabs.push(tab);
     state.activeTabId = tab.sessionId;
     let projectionClears = 0;
@@ -487,7 +486,7 @@ test("prepareAgentTabClear rejects corrupt open_tabs before wiping the tab", asy
       SyntaxError,
     );
     assert.equal(projectionClears, 0);
-    assert.deepEqual(tab.previewMessages, [{ role: "user", text: "keep this message" }]);
+    assert.equal(tab.unreadDone, true);
     assert.equal(tab.sessionId, "keep-session");
   } finally {
     configureOpenTabsPath(undefined);

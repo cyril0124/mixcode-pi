@@ -629,7 +629,9 @@ export async function handleCtlRequest(
         useLiveTui
           ? options.renderTui!(dumpWidth)
           : sessionId === HOME_TAB_ID
-            ? renderHome(options.state, dumpWidth)
+            ? renderHome(options.state, dumpWidth, undefined, 0, undefined, (tabSessionId) =>
+                options.runtime.getTab(tabSessionId)?.chat,
+              )
             : (() => {
                 const tab =
                   options.state.tabs.find((candidate) => candidate.sessionId === sessionId) ??

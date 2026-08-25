@@ -7,7 +7,7 @@
 // rebuild the AgentSession/services/extensions — only the session-derived view
 // changes, so this stays cheap relative to a full session replacement.
 import * as fs from "node:fs";
-import { disposeChatRenderers, entriesToChatLines, syncContextUsage, syncPreviewFromChat } from "./runtime-chat.js";
+import { disposeChatRenderers, entriesToChatLines, syncContextUsage } from "./runtime-chat.js";
 import type { ChatLine, RuntimeTab } from "./runtime-types.js";
 
 export interface ReloadSessionResult {
@@ -101,7 +101,6 @@ export function reloadRuntimeSessionFromDisk(runtimeTab: RuntimeTab): ReloadSess
     const nextChat: ChatLine[] = entriesToChatLines(runtimeTab.session.getBranch(), runtimeTab);
     disposeChatRenderers(runtimeTab.chat);
     runtimeTab.chat = nextChat;
-    syncPreviewFromChat(runtimeTab.tab, runtimeTab.chat);
     syncContextUsage(runtimeTab);
   }
   return { reloaded: true };

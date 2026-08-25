@@ -162,8 +162,6 @@ export interface MixCodeTabInfo {
   chatScrollAnchorEntryId?: string;
   chatScrollAnchorIndex?: number;
   chatScrollAnchorText?: string;
-  previewMessages: PreviewMessage[];
-  previewIndex: number;
   vimMode: boolean;
   /** Non-persisted Vim transcript search state; rendered corpus lives in a WeakMap cache. */
   vimTranscriptSearch?: VimTranscriptSearchState;
@@ -341,20 +339,6 @@ export interface InputMetaHitRegion {
   row: number;
   startX: number;
   endX: number;
-}
-
-export type PreviewMessageRole =
-  | "user"
-  | "assistant"
-  | "thinking"
-  | "tool"
-  | "system"
-  | "shell"
-  | "empty";
-
-export interface PreviewMessage {
-  role: PreviewMessageRole;
-  text: string;
 }
 
 export type SessionActionConfirm = {

@@ -138,7 +138,6 @@ test("submitted input shows session info from pi runtime", async () => {
   const runtime = {
     appendSystemMessage: (_sessionId: string, text: string, kind?: string) => {
       chat.push({ role: "system", text, kind });
-      tab.previewMessages.push({ role: "system", text });
     },
     getTab: () => ({
       agentSession: {
@@ -224,7 +223,6 @@ test("submitted input shows session info from pi runtime", async () => {
   assert.match(message, /Total: \$1\.235/);
   assert.equal(tab.currentContextTokens, 9_801);
   assert.equal(tab.contextLimit, 256_000);
-  assert.equal(tab.previewMessages.at(-1)?.text, message);
   await assert.rejects(
     () => handleSubmittedInput(state, {} as unknown as MixCodeRuntime, "/session", tui),
     /runtime.getTab is not a function/,
@@ -1022,7 +1020,6 @@ test("config-scoped submitted input runs without an active agent tab", async () 
     status: "running",
     alias: "debugger",
     chatScrollOffset: 2,
-    previewIndex: 1,
     unreadDone: true,
 
     workingStartedAt: "2026-05-10T00:00:00.000Z",

@@ -62,7 +62,6 @@ const TARGETS = [
 
 type TargetId = (typeof TARGETS)[number]["id"];
 
-/** Accept the canonical ids plus the historical long aliases. */
 function normalizeTarget(raw: string): TargetId | undefined {
   const value = raw.trim().toLowerCase();
   switch (value) {
@@ -71,10 +70,8 @@ function normalizeTarget(raw: string): TargetId | undefined {
     case "thinking":
       return "thinking";
     case "latest-agent":
-    case "latest-agent-reply":
       return "latest-agent";
     case "latest-user":
-    case "latest-user-message":
       return "latest-user";
     default:
       return undefined;

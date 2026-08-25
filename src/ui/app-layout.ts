@@ -109,7 +109,12 @@ export class MixCodeRoot implements Component {
     if (!active || this.state.activeTabId === HOME_TAB_ID) {
       const homeRows = limit === undefined ? undefined : Math.max(0, limit - top.length);
       return this.fitRootLines(
-        [...top, ...renderHome(this.state, width, theme, top.length, homeRows)],
+        [
+          ...top,
+          ...renderHome(this.state, width, theme, top.length, homeRows, (sessionId) =>
+            this.runtime.getTab(sessionId)?.chat,
+          ),
+        ],
         width,
       );
     }

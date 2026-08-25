@@ -120,11 +120,6 @@ test("live assistant completion appends the Pi-compatible model-switch cache war
     tab.chat.at(-1)?.text,
     "Cache miss after model switch: 50k tokens re-billed (~$0.45)",
   );
-  assert.equal(tab.tab.previewMessages.at(-1)?.role, "system");
-  assert.equal(
-    tab.tab.previewMessages.at(-1)?.text,
-    "Cache miss after model switch: 50k tokens re-billed (~$0.45)",
-  );
 });
 
 test("cache warnings do not suppress the empty-run notice", () => {
@@ -252,8 +247,6 @@ test("runtime cache notice setting updates open tabs without overriding project 
     assert.equal(tabA.agentSession.settingsManager.getShowCacheMissNotices(), true);
     assert.equal(tabB.agentSession.settingsManager.getShowCacheMissNotices(), false);
     assert.equal(tabA.chat.at(-1)?.variant, "system-warning");
-    assert.equal(tabA.tab.previewMessages.at(-1)?.role, "system");
-    assert.match(tabA.tab.previewMessages.at(-1)?.text ?? "", /Cache miss/);
     assert.equal(tabB.chat.some((line) => line.variant === "system-warning"), false);
     assert.deepEqual(
       tabA.agentSession.settingsManager.getCompactionSettings(),
@@ -267,10 +260,6 @@ test("runtime cache notice setting updates open tabs without overriding project 
     assert.equal(settingsManager.getShowCacheMissNotices(), false);
     assert.equal(tabA.agentSession.settingsManager.getShowCacheMissNotices(), false);
     assert.equal(tabA.chat.some((line) => line.variant === "system-warning"), false);
-    assert.equal(
-      tabA.tab.previewMessages.some((message) => message.text.includes("Cache miss")),
-      false,
-    );
     persisted = await Bun.file(path.join(agentDir, "settings.json")).json();
     assert.equal(persisted.showCacheMissNotices, false);
   } finally {

@@ -168,11 +168,14 @@ test("#78 Home card shows unread-done chip and non-assistant preview", () => {
     title: "Agent-01",
     status: "idle",
     unreadDone: true,
-    previewMessages: [{ role: "shell", text: "hello from bash" }],
   });
   state.tabs.push(tab);
   state.activeTabId = "home";
-  const plain = stripAnsi(renderHome(state, 100).join("\n"));
+  const plain = stripAnsi(
+    renderHome(state, 100, undefined, 0, undefined, () => [
+      { role: "user", text: "hello from bash", variant: "user-bash" },
+    ]).join("\n"),
+  );
   assert.match(plain, /\[done\]/);
   assert.match(plain, /hello from bash/);
 });

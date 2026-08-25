@@ -135,6 +135,7 @@ test("submitted input handles prompt, shell, local commands, clear, and missing 
   const closed: string[] = [];
   const created: string[] = [];
   const forked: string[] = [];
+  const notices: string[] = [];
   const runtime = {
     prompt: async (_sessionId: string, text: string) => {
       prompts.push(text);
@@ -147,8 +148,7 @@ test("submitted input handles prompt, shell, local commands, clear, and missing 
       shellCommands.push({ command, excludeFromContext: options?.excludeFromContext });
     },
     appendSystemMessage: (_sessionId: string, text: string) => {
-      tab.previewMessages.push({ role: "system", text });
-      tab.previewIndex = tab.previewMessages.length - 1;
+      notices.push(text);
     },
     getTab: () => ({
       chat: [{ role: "user", text: "old" }],
@@ -254,7 +254,7 @@ test("submitted input handles prompt, shell, local commands, clear, and missing 
     assert.equal(tab.title, "Renamed");
     assert.equal(tab.model.modelId, "faux-1");
     assert.equal(state.theme, "mixcode-dark");
-    assert.ok(tab.previewMessages.some((msg) => msg.text.includes("Keyboard Shortcuts")));
+    assert.ok(notices.some((msg) => msg.includes("Keyboard Shortcuts")));
     state.tabs.length = 0;
     await handleSubmittedInput(state, runtime, "ignored", tui);
   } finally {

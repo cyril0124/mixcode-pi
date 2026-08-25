@@ -765,50 +765,25 @@ test("idle chats with stale pending tool tail still use windowed rendering", () 
   assert.equal(historicalRendered, 0);
 });
 
-test("preview chat uses windowed rendering before runtime tab is ready", () => {
-  const smallTab = createTab(17, "s17-small", "/repo", {
-    previewMessages: buildPreviewMessages(100),
-  });
-  const largeTab = createTab(18, "s17-large", "/repo", {
-    previewMessages: buildPreviewMessages(5000),
-  });
+test("huge assistant block is folded on tab switch", () => {
+  const hugeTab = createTab(23, "s23-huge", "/repo");
+  const chat: ChatLine[] = [
+    { role: "assistant", text: `huge-start\n\n${"card\n\n".repeat(20_000)}huge-end` },
+  ];
 
-  const lines = renderAgentSurface(largeTab, undefined, WIDTH, HEIGHT);
-  const text = lines.map(stripAnsi).join("\n");
-  assert.equal(lines.length, HEIGHT);
-  assert.match(text, /preview-4999/);
-  assert.match(text, /↑ older above/);
-
-  const smallMs = measurePreviewRenderMs(smallTab, 50);
-  const largeMs = measurePreviewRenderMs(largeTab, 50);
-  assert.ok(
-    largeMs < smallMs * 10,
-    `expected 5000-preview render to stay windowed; 5000=${largeMs.toFixed(
-      3,
-    )}ms 100=${smallMs.toFixed(3)}ms ratio=${(largeMs / smallMs).toFixed(1)}x`,
+  const lines = renderAgentSurface(
+    hugeTab,
+    { chat } as never,
+    WIDTH,
+    HEIGHT,
+    undefined,
+    DEFAULT_SURFACE_OPTIONS,
   );
-});
-
-test("huge preview assistant block is folded on tab switch", () => {
-  const hugeTab = createTab(23, "s23-huge", "/repo", {
-    previewMessages: [
-      { role: "assistant", text: `huge-start\n\n${"card\n\n".repeat(20_000)}huge-end` },
-    ],
-  });
-
-  const lines = renderAgentSurface(hugeTab, undefined, WIDTH, HEIGHT, undefined, DEFAULT_SURFACE_OPTIONS);
   const text = lines.map(stripAnsi).join("\n");
   assert.equal(lines.length, HEIGHT);
   assert.match(text, /Oversized provider output/);
   assert.match(text, /huge-end/);
 });
-
-function buildPreviewMessages(count: number) {
-  return Array.from({ length: count }, (_, index) => ({
-    role: "assistant" as const,
-    text: `preview-${index} ${"preview words wrap markdown **bold** ".repeat(30)}`,
-  }));
-}
 
 test("windowed rendering scales sublinearly with block count", () => {
   // Verify that windowed rendering with 5000 blocks is not dramatically
@@ -880,17 +855,6 @@ test("deep scroll paint stays near bottom paint cost (no unshift O(n^2))", () =>
     )}ms ratio=${(deepMs / Math.max(0.001, bottomMs)).toFixed(1)}x`,
   );
 });
-
-function measurePreviewRenderMs(tab: MixCodeTabInfo, iterations: number): number {
-  for (let i = 0; i < 5; i++) {
-    renderAgentSurface(tab, undefined, 120, 30);
-  }
-  const start = performance.now();
-  for (let i = 0; i < iterations; i++) {
-    renderAgentSurface(tab, undefined, 120, 30);
-  }
-  return (performance.now() - start) / iterations;
-}
 
 function measureRenderMs(
   tab: MixCodeTabInfo,

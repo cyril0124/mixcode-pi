@@ -42,7 +42,6 @@ import {
   entriesToChatLines,
   resetTabForNewSession,
   syncContextUsage,
-  syncPreviewFromChat,
 } from "./runtime-chat.js";
 import type { ExtensionCommandRuntime } from "./runtime-extension-actions.js";
 import {
@@ -223,9 +222,6 @@ async function createRuntimeTabWithServices(
     activateMixCodeTools(agentSession);
     applyMixCodeSystemPrompt(agentSession, cachedSearchTools);
     const restoredChat = entriesToChatLines(runtimeTab.session.getBranch(), runtimeTab);
-    if (tab.previewMessages.length === 0) {
-      syncPreviewFromChat(tab, restoredChat);
-    }
     runtimeTab.chat = restoredChat;
     await bindRuntimeExtensions(runtimeTab, context);
     activateMixCodeTools(agentSession);
@@ -471,7 +467,6 @@ async function replaceRuntimeTabSessionUnlocked(
   // Rebuild chat and bind extensions BEFORE mutating tab identity.
   // If either throws, the caller's state is still intact — no orphaned tab.
   runtimeTab.chat = entriesToChatLines(runtimeTab.session.getBranch(), runtimeTab);
-  syncPreviewFromChat(runtimeTab.tab, runtimeTab.chat);
   // Resume title before bind so the tab bar never flashes Agent-NN if bind is slow
   // or a session_start handler races a UI render. new/fork keep the caller title.
   if (reason === "resume") {
@@ -497,8 +492,6 @@ async function replaceRuntimeTabSessionUnlocked(
   }
   context.tabs.delete(previousSessionId);
   context.tabs.set(runtimeTab.tab.sessionId, runtimeTab);
-  // Repopulate preview after identity-switch reset cleared previewMessages
-  syncPreviewFromChat(runtimeTab.tab, runtimeTab.chat);
   activateMixCodeTools(created.session);
   applyMixCodeSystemPrompt(created.session, cachedSearchTools);
   applyRuntimeTabModel(runtimeTab, created.session.agent.state.model);
@@ -511,7 +504,6 @@ async function replaceRuntimeTabSessionUnlocked(
 export async function syncRuntimeChatFromSession(runtimeTab: RuntimeTab): Promise<void> {
   disposeChatRenderers(runtimeTab.chat);
   runtimeTab.chat = entriesToChatLines(runtimeTab.session.getBranch(), runtimeTab);
-  syncPreviewFromChat(runtimeTab.tab, runtimeTab.chat);
   runtimeTab.tab.status = runtimeTab.agentSession.isStreaming ? "running" : "idle";
   runtimeTab.tab.loadingPhase = undefined;
 }
@@ -672,7 +664,6 @@ export async function reloadRuntimeTabWithFreshServices(
   });
   activateMixCodeTools(agentSession);
   runtimeTab.chat = entriesToChatLines(runtimeTab.session.getBranch(), runtimeTab);
-  syncPreviewFromChat(runtimeTab.tab, runtimeTab.chat);
   await bindRuntimeExtensions(runtimeTab, context);
   activateMixCodeTools(agentSession);
   // Pi refreshes the same loadedResourcesContainer on session_start and /reload;

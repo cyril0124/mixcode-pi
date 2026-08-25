@@ -268,7 +268,6 @@ test("runtime surfaces an empty agent run as a system message", async () => {
   anyRuntime.applyEvent(runtimeTab, { type: "agent_end" });
   assert.equal(runtimeTab.chat.at(-1)?.role, "system");
   assert.equal(runtimeTab.chat.at(-1)?.text, "Agent finished without a response.");
-  assert.equal(tab.previewMessages.at(-1)?.text, "Agent finished without a response.");
 });
 
 test("runtime aborts an active pi agent run", async () => {

@@ -303,7 +303,6 @@ interface MixCodeTuiDebugState {
     alias: string;
     thinkingLevel: string;
     chatScrollOffset: number;
-    previewIndex: number;
     unreadDone: boolean;
     pendingEscapeArmedAt?: number;
     workingStartedAt?: string;
@@ -363,7 +362,6 @@ function createTuiDebugState(state: MixCodeState): MixCodeTuiDebugState {
       alias: tab.alias,
       thinkingLevel: tab.thinkingLevel,
       chatScrollOffset: tab.chatScrollOffset,
-      previewIndex: tab.previewIndex,
       unreadDone: tab.unreadDone,
       pendingEscapeArmedAt: tab.pendingEscapeArmedAt,
       workingStartedAt: tab.workingStartedAt,
