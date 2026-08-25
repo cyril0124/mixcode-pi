@@ -232,7 +232,7 @@ test("runtime updates existing streaming thinking and tool call blocks", async (
   assert.deepEqual(toolLines[0]?.args, { command: "ls" });
 });
 
-test("runtime applies assistant usage outside streaming state", async () => {
+test("applyAssistantUsage sets context tokens from usage totals", async () => {
   const runtime = new MixCodeRuntime();
   const tab = createTab(1, "s1", process.cwd());
   const runtimeTab = await runtime.createTab(tab, {
@@ -240,19 +240,10 @@ test("runtime applies assistant usage outside streaming state", async () => {
     thinkingLevel: "medium",
     workdir: process.cwd(),
   });
-  // Precondition for the branch under test: applyAssistantUsage only takes the
-  // non-streaming path while runtimeTab.streamingAssistant is unset. Driving it
-  // through message_start could not reach that path, because appendMessageStart
-  // installs streamingAssistant before forwarding the usage.
-  const streamingBefore = runtimeTab.streamingAssistant;
-  assert.equal(streamingBefore, undefined);
-
   applyAssistantUsage(runtimeTab, { input: 4, output: 2 });
-  assert.equal(tab.tokenInput, 4);
-  assert.equal(tab.tokenOutput, 2);
+  assert.equal(tab.currentContextTokens, 6);
 
-  // Partial usage without token fields defaults to 0 and leaves counters intact.
+  // Usage without token totals leaves the existing context count intact.
   applyAssistantUsage(runtimeTab, {});
-  assert.equal(tab.tokenInput, 4);
-  assert.equal(tab.tokenOutput, 2);
+  assert.equal(tab.currentContextTokens, 6);
 });

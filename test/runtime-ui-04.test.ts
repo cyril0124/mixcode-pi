@@ -17,7 +17,7 @@ import {
   handleMixCodeKeyInput,
   openTabsFile,
   readOpenTabs,
-  renderChat,
+  renderConversation,
   type MixCodeRuntime as RuntimeType,
 } from "./helpers/mixcode.js";
 import { UUIDV7_SESSION_ID_PATTERN } from "./helpers/session-id.js";
@@ -428,10 +428,10 @@ test("submitted bang command streams Pi bash locally instead of prompting the mo
     });
     const snapshots: string[] = [];
     runtime.onChange((_event, changedTab) => {
-      snapshots.push(renderChat(changedTab.chat, 80).map(stripAnsi).join("\n"));
+      snapshots.push(renderConversation(changedTab.chat, 80).map(stripAnsi).join("\n"));
     });
     const tui = {
-      requestRender: () => snapshots.push(renderChat(runtimeTab.chat, 80).map(stripAnsi).join("\n")),
+      requestRender: () => snapshots.push(renderConversation(runtimeTab.chat, 80).map(stripAnsi).join("\n")),
       showOverlay: () => ({}) as never,
     };
 

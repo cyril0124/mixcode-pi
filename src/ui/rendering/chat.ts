@@ -84,15 +84,6 @@ interface RenderConversationOptions {
 
 const chatLineRenderCache = new WeakMap<ChatLine, { key: string; lines: string[] }>();
 
-export function renderChat(
-  chat: ChatLine[],
-  width: number,
-  theme = activeRenderTheme,
-  tab?: MixCodeTabInfo,
-): string[] {
-  return renderWithTheme(theme, () => renderChatStream(chat, width, tab));
-}
-
 export function renderConversation(
   chat: ChatLine[],
   width: number,

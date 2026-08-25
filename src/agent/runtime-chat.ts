@@ -631,8 +631,6 @@ export function contextTokensFromUsage(usage: Partial<Usage>): number | undefine
 export function resetTabForNewSession(tab: MixCodeTabInfo, sessionId: string): void {
   tab.sessionId = sessionId;
   tab.status = "idle";
-  tab.tokenInput = 0;
-  tab.tokenOutput = 0;
   tab.currentContextTokens = undefined;
   tab.pendingMessages = [];
   tab.pendingFollowUps = [];

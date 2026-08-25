@@ -93,8 +93,6 @@ export function createTab(
     sessionId,
     title: defaultTabTitle(index),
     status: "idle",
-    tokenInput: 0,
-    tokenOutput: 0,
     contextLimit: DEFAULT_MODEL_REF.contextWindow,
     model: { ...DEFAULT_MODEL_REF },
     thinkingLevel: "medium",

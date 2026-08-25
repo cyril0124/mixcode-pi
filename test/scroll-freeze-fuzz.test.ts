@@ -95,8 +95,6 @@ test("seeded scroll-freeze property sweep holds the top visible line", () => {
         chatIndex: streamingIndex,
         blockIndices: new Map([[0, streamingIndex]]),
         toolCallIndices: new Map<string, number>(),
-        tokenInput: 0,
-        tokenOutput: 0,
       },
     };
     const render = (height: number) => renderAgentSurface(tab, runtimeTab as never, WIDTH, height);

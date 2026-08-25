@@ -16,7 +16,7 @@ import {
   type MixCodeTabInfo,
 } from "./helpers/mixcode.js";
 import { renderAgentSurface } from "../src/ui/rendering/agent-surface.js";
-import { renderChat } from "../src/ui/rendering/chat.js";
+import { renderConversation } from "../src/ui/rendering/chat.js";
 
 const WIDTH = 100;
 const HEIGHT = 20;
@@ -556,7 +556,7 @@ test("running chats with historical tool renderers still use windowed rendering"
 
 test("complete long assistant messages render full text outside TUI oversized policy", () => {
   const text = `START ${"x".repeat(9000)} END`;
-  const rendered = renderChat([{ role: "assistant", text }], WIDTH).map(stripAnsi).join("\n");
+  const rendered = renderConversation([{ role: "assistant", text }], WIDTH).map(stripAnsi).join("\n");
 
   assert.match(rendered, /START/);
   assert.match(rendered, /END/);

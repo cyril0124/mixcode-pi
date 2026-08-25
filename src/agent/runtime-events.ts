@@ -14,7 +14,6 @@ import {
 } from "./runtime-chat.js";
 import { clearPendingEscape } from "../core/escape.js";
 import {
-  addTabTokens,
   setTabContextTokens,
   setPendingFollowUps,
   setPendingMessages,
@@ -325,8 +324,6 @@ export function appendMessageStart(runtimeTab: RuntimeTab, message: AgentMessage
       chatIndex: indices.chatIndex,
       blockIndices: indices.blockIndices,
       toolCallIndices: indices.toolCallIndices,
-      tokenInput: 0,
-      tokenOutput: 0,
     };
     applyAssistantUsage(runtimeTab, message.usage);
   } else if (message.role === "toolResult") {
@@ -353,8 +350,6 @@ export function updateStreamingAssistant(
       chatIndex: indices.chatIndex,
       blockIndices: indices.blockIndices,
       toolCallIndices: indices.toolCallIndices,
-      tokenInput: 0,
-      tokenOutput: 0,
     };
     runtimeTab.streamingAssistant = streaming;
   } else {
@@ -530,23 +525,6 @@ function updateExistingToolExecution(
 }
 
 export function applyAssistantUsage(runtimeTab: RuntimeTab, usage: Partial<Usage>): void {
-  const streaming = runtimeTab.streamingAssistant;
-  if (!streaming) {
-    addTabTokens(runtimeTab.tab, { input: usage.input ?? 0, output: usage.output ?? 0 });
-    setTabContextTokens(
-      runtimeTab.tab,
-      contextTokensFromUsage(usage) ?? runtimeTab.tab.currentContextTokens,
-    );
-    return;
-  }
-  const nextInput = usage.input ?? 0;
-  const nextOutput = usage.output ?? 0;
-  addTabTokens(runtimeTab.tab, {
-    input: nextInput - streaming.tokenInput,
-    output: nextOutput - streaming.tokenOutput,
-  });
-  streaming.tokenInput = nextInput;
-  streaming.tokenOutput = nextOutput;
   setTabContextTokens(
     runtimeTab.tab,
     contextTokensFromUsage(usage) ?? runtimeTab.tab.currentContextTokens,

@@ -18,9 +18,8 @@ import {
   createTab,
   handleSubmittedInput,
   isBashAlreadyRunningError,
-  renderChat,
+  renderConversation,
 } from "./helpers/mixcode.js";
-import { renderConversation } from "../src/ui/rendering/chat.js";
 
 function stripAnsi(text: string): string {
   return text.replace(/\x1b\[[0-9;]*m/g, "");
@@ -140,7 +139,7 @@ test("concurrent !shell restores editor text and warns (Pi parity)", async () =>
 
 test("user-bash running status shows Esc cancel hint", () => {
   const rendered = stripAnsi(
-    renderChat(
+    renderConversation(
       [
         {
           role: "tool",

@@ -11,7 +11,7 @@ import {
   type Model,
   type SimpleStreamOptions,
 } from "@earendil-works/pi-ai";
-import { MIXCODE_FAUX_MODEL, MixCodeRuntime, createTab, renderChat } from "./helpers/mixcode.js";
+import { MIXCODE_FAUX_MODEL, MixCodeRuntime, createTab, renderConversation } from "./helpers/mixcode.js";
 
 function delayedAssistantStream(text: string, ready: Promise<void>, options?: SimpleStreamOptions) {
   const stream = createAssistantMessageEventStream();
@@ -226,7 +226,7 @@ test("runtime creates sessions, streams responses, restores chat, and supports c
       thinkingLevel: "medium",
       workdir: process.cwd(),
     });
-    const rendered = renderChat(reopenedBashTab.chat, 80).join("\n");
+    const rendered = renderConversation(reopenedBashTab.chat, 80).join("\n");
     assert.match(rendered, /\$ pwd/);
     assert.match(rendered, /bash output/);
 

@@ -7,7 +7,7 @@ import { test } from "node:test";
 import {
   MixCodeRuntime,
   createTab,
-  renderChat,
+  renderConversation,
 } from "./helpers/mixcode.js";
 
 function stripAnsi(text: string): string {
@@ -130,7 +130,7 @@ test("runtime restores bash tool results through assistant tool call args", asyn
       workdir: process.cwd(),
     });
     restored.tab.extensionUi.toolsExpanded = true;
-    const rendered = stripAnsi(renderChat(restored.chat, 80).join("\n"));
+    const rendered = stripAnsi(renderConversation(restored.chat, 80).join("\n"));
     assert.match(rendered, /bash output/);
     assert.match(rendered, /\$ pwd/);
     assert.doesNotMatch(rendered, /\$ \.\.\./);
@@ -181,7 +181,7 @@ test("runtime ignores restored orphan tool results like pi interactive rendering
       thinkingLevel: "medium",
       workdir: process.cwd(),
     });
-    const rendered = stripAnsi(renderChat(restored.chat, 80).join("\n"));
+    const rendered = stripAnsi(renderConversation(restored.chat, 80).join("\n"));
     assert.doesNotMatch(rendered, /\$ \.\.\./);
     assert.doesNotMatch(rendered, /orphan output/);
   } finally {
@@ -242,7 +242,7 @@ test("runtime restores bash execution status details", async () => {
       thinkingLevel: "medium",
       workdir: process.cwd(),
     });
-    const rendered = stripAnsi(renderChat(restored.chat, 80).join("\n"));
+    const rendered = stripAnsi(renderConversation(restored.chat, 80).join("\n"));
     assert.ok(restored.chat.every((line) => line.role !== "tool" || line.variant === "user-bash"));
     assert.match(rendered, /^─+$/m);
     assert.match(rendered, /\$ sleep 10/);

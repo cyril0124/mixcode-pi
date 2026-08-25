@@ -138,8 +138,6 @@ export interface MixCodeTabInfo {
   status: TabStatus;
   /** Loading phase label shown while status is "Not Ready" ("session", "resources", "transcript"). */
   loadingPhase?: string;
-  tokenInput: number;
-  tokenOutput: number;
   contextLimit: number;
   /** True when contextLimit was explicitly overridden by the user via /context-limit */
   contextLimitOverridden?: boolean;

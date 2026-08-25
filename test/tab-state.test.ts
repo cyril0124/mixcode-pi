@@ -5,13 +5,12 @@
 //   - entering a working status stamps workingStartedAt
 //   - leaving a working status computes lastWorkedDurationSeconds and clears the stamp
 //   - the "preserve" path (auto-compaction continuation) keeps an existing stamp
-// plus the token accumulation and pending-queue primitives.
+// plus the pending-queue primitives.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createTab } from "../src/core/defaults.js";
 import {
-  addTabTokens,
   retryStatusMessage,
   setTabContextTokens,
   setTabStatus,
@@ -117,14 +116,6 @@ test("setTabStatus: discardTimer drops the stamp without recording a duration", 
   assert.equal(t.status, "idle");
   assert.equal(t.workingStartedAt, undefined);
   assert.equal(t.lastWorkedDurationSeconds, undefined, "no duration recorded on discard");
-});
-
-test("addTabTokens accumulates input/output", () => {
-  const t = tab();
-  addTabTokens(t, { input: 10, output: 5 });
-  addTabTokens(t, { input: 3, output: 7 });
-  assert.equal(t.tokenInput, 13);
-  assert.equal(t.tokenOutput, 12);
 });
 
 test("setTabContextTokens distinguishes a real count from cleared (undefined)", () => {

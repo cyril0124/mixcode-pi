@@ -8,7 +8,7 @@ import { toolExecutionToChatLine } from "../src/agent/runtime-tool-chat.js";
 import {
   createTab,
   padLine,
-  renderChat,
+  renderConversation,
   renderInputMeta,
   renderWorkingIndicator,
 } from "./helpers/mixcode.js";
@@ -30,7 +30,7 @@ test("padLine strips control sequences, expands tabs, and fits width", () => {
 });
 
 test("tool chat lines stay within width and drop clear-screen controls", () => {
-  const cleared = renderChat(
+  const cleared = renderConversation(
     [
       {
         role: "tool",
@@ -45,7 +45,7 @@ test("tool chat lines stay within width and drop clear-screen controls", () => {
   assert.equal(cleared.includes("\x1b[2J"), false);
   assert.match(stripAnsi(cleared), /ok/);
 
-  const toolBlock = renderChat(
+  const toolBlock = renderConversation(
     [
       {
         role: "tool",
@@ -65,7 +65,7 @@ test("tool chat lines stay within width and drop clear-screen controls", () => {
 
 test("custom tool renderers receive content width; self shell skips paint frame", () => {
   const widths: number[] = [];
-  const custom = renderChat(
+  const custom = renderConversation(
     [
       {
         role: "tool",
@@ -88,7 +88,7 @@ test("custom tool renderers receive content width; self shell skips paint frame"
   assert.match(stripAnsi(custom.join("\n")), /call one[\s\S]*result one/);
 
   const self = stripAnsi(
-    renderChat(
+    renderConversation(
       [
         {
           role: "tool",
@@ -134,7 +134,7 @@ test("tool block keeps exactly one blank row below the previous block", () => {
     isPartial: false,
   });
 
-  const lines = renderChat([{ role: "assistant", text: "answer" }, toolLine], 40).map(stripAnsi);
+  const lines = renderConversation([{ role: "assistant", text: "answer" }, toolLine], 40).map(stripAnsi);
   const answerRow = lines.findIndex((line) => line.includes("answer"));
   const callRow = lines.findIndex((line) => line.includes("agent call"));
   assert.ok(answerRow >= 0 && callRow > answerRow, "both blocks must render");
@@ -163,19 +163,19 @@ test("consecutive thinking blocks render as one Pi thinking section", () => {
 
 test("error system messages show error text without a System label", () => {
   const error = stripAnsi(
-    renderChat([{ role: "system", text: "Error: 503 Service Unavailable" }], 60).join("\n"),
+    renderConversation([{ role: "system", text: "Error: 503 Service Unavailable" }], 60).join("\n"),
   );
   assert.match(error, /Error: 503 Service Unavailable/);
   assert.doesNotMatch(error, /\[System\]:/);
 
-  const plain = stripAnsi(renderChat([{ role: "system", text: "Just a note" }], 60).join("\n"));
+  const plain = stripAnsi(renderConversation([{ role: "system", text: "Just a note" }], 60).join("\n"));
   assert.match(plain, /Just a note/);
   assert.doesNotMatch(plain, /\[System\]:/);
 });
 
 test("system markdown tables render as visible table text", () => {
   const plain = stripAnsi(
-    renderChat(
+    renderConversation(
       [
         {
           role: "system",

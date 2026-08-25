@@ -541,11 +541,11 @@ test("extension notify matches Pi info/warning/error rendering", async () => {
       ],
     );
 
-    const { renderChat } = await import("../src/ui/rendering/chat.js");
+    const { renderConversation } = await import("../src/ui/rendering/chat.js");
     const { MIXCODE_DARK_THEME } = await import("../src/ui/themes.js");
     const { renderWithTheme } = await import("../src/ui/rendering/context.js");
     const rendered = renderWithTheme(MIXCODE_DARK_THEME, () =>
-      renderChat(runtimeTab.chat, 80).join("\n"),
+      renderConversation(runtimeTab.chat, 80).join("\n"),
     );
     const plainLines = stripAnsi(rendered)
       .split("\n")

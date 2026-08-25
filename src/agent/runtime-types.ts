@@ -230,8 +230,6 @@ export interface RuntimeTab {
     chatIndex?: number;
     blockIndices: Map<number, number>;
     toolCallIndices: Map<string, number>;
-    tokenInput: number;
-    tokenOutput: number;
   };
   /** Start time from the just-ended run, reused if SDK post-run compaction starts immediately. */
   postRunWorkingStartedAt?: string;

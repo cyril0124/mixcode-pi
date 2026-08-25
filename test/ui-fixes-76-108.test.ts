@@ -9,7 +9,7 @@ import { stripTerminalSequences as stripAnsi } from "@earendil-works/pi-tui";
 import {
   createInitialState,
   createTab,
-  renderChat,
+  renderConversation,
   renderHome,
   selectedNoticeText,
 } from "./helpers/mixcode.js";
@@ -230,7 +230,7 @@ test("#88 tree ctrl+d resets filter to default", () => {
 test("#99 expanded user-bash still offers collapse when overflow exists", () => {
   const lines = Array.from({ length: 25 }, (_, i) => `line-${i}`);
   const rendered = stripAnsi(
-    renderChat(
+    renderConversation(
       [
         {
           role: "tool",
@@ -257,11 +257,11 @@ test("#101 running bash label differs when agent is busy", () => {
     text: "",
     args: { command: "sleep 1" },
   };
-  const idle = stripAnsi(renderChat([line], 80).join("\n"));
+  const idle = stripAnsi(renderConversation([line], 80).join("\n"));
   assert.match(idle, /Running\.\.\. \(Esc to cancel\)/);
 
   const tab = createTab(1, "s1", "/repo", { status: "running" });
-  const busy = stripAnsi(renderChat([line], 80, undefined, tab).join("\n"));
+  const busy = stripAnsi(renderConversation([line], 80, tab).join("\n"));
   assert.match(busy, /agent Esc aborts run/);
 });
 

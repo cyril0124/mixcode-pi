@@ -102,15 +102,6 @@ function elapsedSeconds(startedAt: string | undefined, now: Date): number | unde
   return Math.max(0, Math.floor((now.getTime() - start) / 1000));
 }
 
-/** Accumulate token usage onto the tab counters, treating missing fields as zero. */
-export function addTabTokens(
-  tab: MixCodeTabInfo,
-  usage: { input?: number; output?: number },
-): void {
-  tab.tokenInput += usage.input ?? 0;
-  tab.tokenOutput += usage.output ?? 0;
-}
-
 /** Set or clear the current context token count. */
 export function setTabContextTokens(tab: MixCodeTabInfo, tokens: number | undefined): void {
   tab.currentContextTokens = tokens;

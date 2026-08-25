@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { entriesToChatLines } from "../src/agent/runtime-chat.js";
 import type { RuntimeTab } from "../src/agent/runtime-types.js";
-import { renderChat } from "../src/ui/rendering/chat.js";
+import { renderConversation } from "../src/ui/rendering/chat.js";
 
 function stripAnsi(text: string): string {
   return text
@@ -34,7 +34,7 @@ function fakeRuntimeTab(): RuntimeTab {
 test("user message puts local send time on the first body line", () => {
   const timestamp = Date.UTC(2026, 7, 9, 9, 7, 0);
   const clock = expectedClock(timestamp);
-  const plain = renderChat(
+  const plain = renderConversation(
     [{ role: "user", text: "hello there", timestamp }],
     40,
   ).map(stripAnsi);
@@ -48,7 +48,7 @@ test("user message puts local send time on the first body line", () => {
 });
 
 test("user message without timestamp keeps a blank top pad", () => {
-  const plain = renderChat([{ role: "user", text: "hello there" }], 40).map(stripAnsi);
+  const plain = renderConversation([{ role: "user", text: "hello there" }], 40).map(stripAnsi);
   assert.equal((plain[0] ?? "").trim(), "");
   assert.match(plain.join("\n"), /hello there/);
   assert.doesNotMatch(plain[1] ?? "", /\d{1,2}:\d{2}/);
@@ -58,7 +58,7 @@ test("narrow width still renders without overflowing the clock", () => {
   const timestamp = Date.UTC(2026, 7, 9, 21, 45, 0);
   const clock = expectedClock(timestamp);
   const width = 12;
-  const plain = renderChat(
+  const plain = renderConversation(
     [{ role: "user", text: "hi", timestamp }],
     width,
   ).map(stripAnsi);

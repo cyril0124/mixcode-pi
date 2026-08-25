@@ -154,7 +154,7 @@ test("renderSessionInfoText shows multi-model cost breakdown and cache re-bill",
 });
 
 test("system-plain session dump uses bold headers and dim labels", async () => {
-  const { renderChat } = await import("../src/ui/rendering/chat.js");
+  const { renderConversation } = await import("../src/ui/rendering/chat.js");
   const { MIXCODE_DARK_THEME } = await import("../src/ui/themes.js");
   const { renderWithTheme } = await import("../src/ui/rendering/context.js");
   const text = renderSessionInfoText(
@@ -163,7 +163,7 @@ test("system-plain session dump uses bold headers and dim labels", async () => {
     { tabTitle: "Agent-01", workdir: "/repo" },
   );
   const rendered = renderWithTheme(MIXCODE_DARK_THEME, () =>
-    renderChat([{ role: "system", text, variant: "system-plain" }], 80).join("\n"),
+    renderConversation([{ role: "system", text, variant: "system-plain" }], 80).join("\n"),
   );
   assert.match(rendered, new RegExp(escapeRegExp(MIXCODE_DARK_THEME.bold("Session Info"))));
   assert.match(rendered, new RegExp(escapeRegExp(MIXCODE_DARK_THEME.bold("Messages"))));

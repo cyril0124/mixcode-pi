@@ -251,7 +251,5 @@ test("runtime updates streaming assistant content in place", async () => {
     runtimeTab.chat.filter((line) => line.role === "assistant").map((line) => line.text),
     ["final answer"],
   );
-  assert.equal(tab.tokenInput, 5);
-  assert.equal(tab.tokenOutput, 6);
   assert.equal(tab.currentContextTokens, 11);
 });

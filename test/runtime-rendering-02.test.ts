@@ -4,7 +4,7 @@ import * as fsPromises from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
 import { test } from "node:test";
-import { createTab, MixCodeRuntime, renderChat } from "./helpers/mixcode.js";
+import { createTab, MixCodeRuntime, renderConversation } from "./helpers/mixcode.js";
 
 function stripAnsi(text: string): string {
   return text
@@ -14,12 +14,12 @@ function stripAnsi(text: string): string {
 }
 
 test("chat renders user text without a role label and keeps tool/system content", () => {
-  const user = stripAnsi(renderChat([{ role: "user", text: "hello" }], 40).join("\n"));
+  const user = stripAnsi(renderConversation([{ role: "user", text: "hello" }], 40).join("\n"));
   assert.match(user, /hello/);
   assert.doesNotMatch(user, /\buser\b/);
 
   const mixed = stripAnsi(
-    renderChat(
+    renderConversation(
       [
         { role: "assistant", text: "agent reply" },
         { role: "tool", title: "bash", status: "success", text: "tool output", args: { command: "pwd" } },
@@ -47,14 +47,14 @@ test("user-bash collapses long output and expands when toolsExpanded", () => {
     args: { command: "printf lines" },
   };
 
-  const collapsed = stripAnsi(renderChat([entry], 80).join("\n"));
+  const collapsed = stripAnsi(renderConversation([entry], 80).join("\n"));
   assert.match(collapsed, /\$ printf lines/);
   assert.doesNotMatch(collapsed, /bash-line-4\b/);
   assert.match(collapsed, /bash-line-5[\s\S]*bash-line-24/);
   assert.match(collapsed, /5 more lines/);
 
   const expanded = stripAnsi(
-    renderChat([entry], 80, undefined, {
+    renderConversation([entry], 80, {
       ...tab,
       extensionUi: { ...tab.extensionUi, toolsExpanded: true },
     }).join("\n"),
@@ -63,7 +63,7 @@ test("user-bash collapses long output and expands when toolsExpanded", () => {
 });
 
 test("chat strips terminal control sequences from tool output", () => {
-  const rendered = renderChat(
+  const rendered = renderConversation(
     [
       {
         role: "tool",
@@ -82,7 +82,7 @@ test("chat strips terminal control sequences from tool output", () => {
 
 test("assistant markdown renders structure without raw markers", () => {
   const plain = stripAnsi(
-    renderChat(
+    renderConversation(
       [
         {
           role: "assistant",
@@ -101,7 +101,7 @@ test("assistant markdown renders structure without raw markers", () => {
 
 test("extension messages use custom renderers and fall back to text", () => {
   const plain = stripAnsi(
-    renderChat(
+    renderConversation(
       [
         { role: "extension", title: "extension note", customType: "note", text: "fallback text" },
         {
@@ -131,9 +131,9 @@ test("extension messages use custom renderers and fall back to text", () => {
 test("stable assistant markdown stays visible when only streaming text changes", () => {
   const stable = { role: "assistant" as const, text: "stable **history**" };
   const streaming = { role: "assistant" as const, text: "partial one" };
-  renderChat([stable, streaming], 80);
+  renderConversation([stable, streaming], 80);
   streaming.text = "partial two";
-  const out = stripAnsi(renderChat([stable, streaming], 80).join("\n"));
+  const out = stripAnsi(renderConversation([stable, streaming], 80).join("\n"));
   assert.match(out, /stable history/);
   assert.match(out, /partial two/);
 });
@@ -172,7 +172,7 @@ test("edit tool results render old and new file content", async () => {
       isError: false,
     });
 
-    const plain = stripAnsi(renderChat(runtimeTab.chat, 100).join("\n"));
+    const plain = stripAnsi(renderConversation(runtimeTab.chat, 100).join("\n"));
     assert.match(plain, /edit run\.sh/);
     assert.match(plain, /echo old/);
     assert.match(plain, /echo new/);

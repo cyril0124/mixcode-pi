@@ -25,14 +25,14 @@ test("parseInput still routes other / commands as local-command", () => {
   assert.equal(result.command, "models");
 });
 
-test("renderChat shows skill block collapsed by default", async () => {
+test("renderConversation shows skill block collapsed by default", async () => {
   // Dynamically import to avoid circular issues
-  const { renderChat } = await import("../src/ui/rendering/chat.js");
+  const { renderConversation } = await import("../src/ui/rendering/chat.js");
   const stripAnsi = (s: string) => s.replace(/\x1b\[[0-9;]*m/g, "");
   const skillText =
     '<skill name="my-skill" location="/tmp/my-skill/SKILL.md">\nReferences are relative to /tmp/my-skill.\n\n# My Skill\n\nDo something.\n</skill>\n\nfix the bug';
   const chat = [{ role: "user" as const, text: skillText }];
-  const rendered = stripAnsi(renderChat(chat, 80).join("\n"));
+  const rendered = stripAnsi(renderConversation(chat, 80).join("\n"));
   // Collapsed: should show [skill] name and ctrl+o hint
   assert.match(rendered, /\[skill\]/);
   assert.match(rendered, /my-skill/);
@@ -43,14 +43,14 @@ test("renderChat shows skill block collapsed by default", async () => {
   assert.doesNotMatch(rendered, /Do something\./);
 });
 
-test("renderChat shows skill block expanded when toolsExpanded is true", async () => {
-  const { renderChat } = await import("../src/ui/rendering/chat.js");
+test("renderConversation shows skill block expanded when toolsExpanded is true", async () => {
+  const { renderConversation } = await import("../src/ui/rendering/chat.js");
   const stripAnsi = (s: string) => s.replace(/\x1b\[[0-9;]*m/g, "");
   const skillText =
     '<skill name="my-skill" location="/tmp/my-skill/SKILL.md">\nReferences are relative to /tmp/my-skill.\n\n# My Skill\n\nDo something.\n</skill>\n\nfix the bug';
   const chat = [{ role: "user" as const, text: skillText }];
   const tab = { extensionUi: { toolsExpanded: true } } as any;
-  const rendered = stripAnsi(renderChat(chat, 80, undefined, tab).join("\n"));
+  const rendered = stripAnsi(renderConversation(chat, 80, tab).join("\n"));
   // Expanded: should show skill content
   assert.match(rendered, /\[skill\]/);
   assert.match(rendered, /my-skill/);
