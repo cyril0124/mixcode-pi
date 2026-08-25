@@ -52,6 +52,11 @@ BIN_DIR="$PREFIX/bin"
 
 info "Checking prerequisites..."
 
+# Prepend bun's default install dir so an existing bun is found even when the
+# shell profile has not added it to PATH.
+export BUN_INSTALL="${BUN_INSTALL:-$HOME/.bun}"
+export PATH="$BUN_INSTALL/bin:$PATH"
+
 if ! command_exists bun; then
   info "bun not found. Installing bun..."
   if command_exists curl; then
@@ -62,15 +67,23 @@ if ! command_exists bun; then
     error "Neither curl nor wget found. Please install curl or wget, or install bun manually: https://bun.sh"
   fi
 
-  export BUN_INSTALL="${BUN_INSTALL:-$HOME/.bun}"
-  export PATH="$BUN_INSTALL/bin:$PATH"
-
   if ! command_exists bun; then
     error "bun was installed but is not found in PATH ($BUN_INSTALL/bin)"
   fi
 fi
 
 info "bun $(bun --version)"
+
+# npm and pi are only needed for Pi extension install and headless
+# `mpi --print/-p` delegation, not for the binary build — soft dependencies.
+if command_exists npm; then
+  if ! command_exists pi; then
+    info "Installing pi CLI..."
+    npm install -g @earendil-works/pi-coding-agent || warn "Failed to install the pi CLI"
+  fi
+else
+  warn "npm not found. Extension install and 'mpi --print/-p' need Node.js/npm: https://nodejs.org"
+fi
 
 # --- Install deps ---
 
