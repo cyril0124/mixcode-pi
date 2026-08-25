@@ -171,7 +171,7 @@ test("buildViewText chatlog: renders tool call arguments as a JSON block", () =>
     toolResultEntry("call-3", "clean"),
   ];
   const text = buildViewText("chatlog", entries);
-  assert.match(text, /```json\n\{\n  "command": "git status",\n  "timeout": 60\n\}\n```/);
+  assert.match(text, /```json\n\{\n {2}"command": "git status",\n {2}"timeout": 60\n\}\n```/);
 });
 
 test("buildViewText chatlog: omits the JSON block when arguments are empty", () => {
