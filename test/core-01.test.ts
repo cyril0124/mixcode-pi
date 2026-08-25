@@ -23,7 +23,7 @@ import {
   saveWorkspaces,
   scopedStateDir,
   serializeState,
-  stateFileForPort,
+  stateFilePath,
   withMouseReporting,
 } from "./helpers/mixcode.js";
 import type { Terminal } from "@earendil-works/pi-tui";
@@ -295,16 +295,15 @@ test("state serializes, persists, normalizes workspaces, and deletes empty works
     assert.equal(restored.tabs[1]?.model.modelId, "faux-1");
     assert.equal(restored.tabs[1]?.thinkingLevel, "medium");
 
-    assert.equal(stateFileForPort(dir, 0), path.join(dir, "mixcode_state.json"));
-    assert.equal(stateFileForPort(dir, 3010), path.join(dir, "mixcode_state_3010.json"));
+    assert.equal(stateFilePath(dir), path.join(dir, "mixcode_state.json"));
     assert.notEqual(scopedStateDir(dir, "/repo-a"), scopedStateDir(dir, "/repo-b"));
     assert.equal(scopedStateDir(dir, "/repo-a///"), scopedStateDir(dir, "/repo-a"));
 
-    const stateFile = stateFileForPort(dir, 3010);
+    const stateFile = stateFilePath(dir);
     await saveStateFile(stateFile, state);
     assert.equal((await loadStateFile(stateFile, "/fallback")).workdir, "/repo/");
     const concurrentState = createInitialState("/repo");
-    const concurrentFile = stateFileForPort(dir, 4010);
+    const concurrentFile = path.join(dir, "mixcode_state_concurrent.json");
     await Promise.all(
       Array.from({ length: 8 }, () => saveStateFile(concurrentFile, concurrentState)),
     );

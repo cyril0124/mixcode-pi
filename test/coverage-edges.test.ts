@@ -18,7 +18,6 @@ import { clearPendingEscape } from "../src/core/escape.js";
 import {
   appendActiveSystemMessage,
   applyModelSelection,
-  showSystemMessageOrToast,
 } from "../src/ui/app-actions.js";
 import {
   activeExtensionCommands,
@@ -112,32 +111,11 @@ test("clearPendingEscape clears an armed abort confirm", () => {
   assert.equal(tab.pendingEscapeArmedAt, undefined);
 });
 
-test("system messages go to the active tab; config falls back to overlay toast", () => {
+test("system messages go to the active tab and fail without one", () => {
   const state = createInitialState("/repo");
   const tab = createTab(1, "s1", "/repo");
   state.tabs.push(tab);
   state.activeTabId = "s1";
-
-  const overlays: string[] = [];
-  const tui = {
-    requestRender: () => undefined,
-    showOverlay: (component: { render?: (width: number) => string[] } | string) => {
-      overlays.push(
-        typeof component === "string" ? component : (component.render?.(80).join("\n") ?? ""),
-      );
-      return {} as never;
-    },
-    hideOverlay: () => undefined,
-    hasOverlay: () => false,
-  };
-
-  showSystemMessageOrToast(
-    { ...state, activeTabId: "home" },
-    { appendSystemMessage: () => assert.fail("home tab must toast, not append") },
-    tui,
-    "toast",
-  );
-  assert.match(overlays.at(-1) ?? "", /toast/);
 
   const systemMessages: string[] = [];
   appendActiveSystemMessage(
@@ -149,17 +127,7 @@ test("system messages go to the active tab; config falls back to overlay toast",
     },
     "system",
   );
-  showSystemMessageOrToast(
-    state,
-    {
-      appendSystemMessage: (_sessionId, message) => {
-        systemMessages.push(message);
-      },
-    },
-    tui,
-    "notice",
-  );
-  assert.deepEqual(systemMessages, ["system", "notice"]);
+  assert.deepEqual(systemMessages, ["system"]);
 
   state.tabs.length = 0;
   assert.throws(

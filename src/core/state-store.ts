@@ -4,10 +4,8 @@ import { createInitialState, createTab, defaultTabTitle } from "./defaults.js";
 import { isKnownThinkingLevel } from "./thinking-levels.js";
 import type { MixCodeState, MixCodeTabInfo, WorkspaceSnapshot } from "./types.js";
 
-export function stateFileForPort(stateDir: string, port: number): string {
-  return port === 0
-    ? path.join(stateDir, "mixcode_state.json")
-    : path.join(stateDir, `mixcode_state_${port}.json`);
+export function stateFilePath(stateDir: string): string {
+  return path.join(stateDir, "mixcode_state.json");
 }
 
 export function scopedStateDir(stateDir: string, workdir: string): string {

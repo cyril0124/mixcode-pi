@@ -17,7 +17,7 @@ import {
   resolveSessionsRoot,
   saveStateFile,
   scopedStateDir,
-  stateFileForPort,
+  stateFilePath,
 } from "./helpers/mixcode.js";
 import { UUIDV7_SESSION_ID_PATTERN } from "./helpers/session-id.js";
 import { delegateToRealPiCli, exposeLocalPiCli, parseMainArgs, shouldDelegateToRealPiCli } from "../src/cli/main.js";
@@ -28,14 +28,13 @@ test("bootstrap creates initial state and persists it when no state exists", asy
     const { state, runtime, stateFile, tabsReady } = await bootstrapMixCode({
       workdir: dir,
       stateDir: dir,
-      port: 7,
       modelConfigPath: path.join(dir, "missing.jsonc"),
     });
     assert.equal(state.tabs.length, 1);
     assert.match(state.tabs[0]!.sessionId, UUIDV7_SESSION_ID_PATTERN);
     await tabsReady;
     assert.ok(runtime.getTab(state.tabs[0]!.sessionId));
-    assert.equal(stateFile, stateFileForPort(scopedStateDir(dir, dir), 7));
+    assert.equal(stateFile, stateFilePath(scopedStateDir(dir, dir)));
     assert.deepEqual(state.packageUpdates, []);
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
@@ -112,7 +111,7 @@ test("bootstrap restores persisted tab order and runtime tabs", async () => {
     const state = createInitialState(repo);
     state.tabs.push(createTab(1, "s1", repo), createTab(2, "s2", repo));
     state.activeTabId = "s2";
-    await saveStateFile(stateFileForPort(scopedStateDir(dir, "/fallback"), 0), state);
+    await saveStateFile(stateFilePath(scopedStateDir(dir, "/fallback")), state);
     const restored = await bootstrapMixCode({
       workdir: "/fallback",
       stateDir: dir,
@@ -139,7 +138,7 @@ test("bootstrap ignores an unknown theme key in the state file", async () => {
     const scopedDir = scopedStateDir(stateDir, repo);
     await fsPromises.mkdir(scopedDir, { recursive: true });
     await fsPromises.writeFile(
-      stateFileForPort(scopedDir, 0),
+      stateFilePath(scopedDir),
       `${JSON.stringify({
         children: [],
         workdirs: {},
@@ -310,7 +309,7 @@ test("bootstrap ignores unknown model and thinking keys in the state file", asyn
     const scopedDir = scopedStateDir(stateDir, repo);
     await fsPromises.mkdir(scopedDir, { recursive: true });
     await fsPromises.writeFile(
-      stateFileForPort(scopedDir, 0),
+      stateFilePath(scopedDir),
       `${JSON.stringify({
         children: ["s1", "s2"],
         workdirs: { s1: repo, s2: repo },
@@ -387,7 +386,7 @@ test("bootstrap hydrates a restored tab model from the session file", async () =
     const scopedDir = scopedStateDir(stateDir, repo);
     await fsPromises.mkdir(scopedDir, { recursive: true });
     await fsPromises.writeFile(
-      stateFileForPort(scopedDir, 0),
+      stateFilePath(scopedDir),
       `${JSON.stringify({
         children: ["s1"],
         workdirs: { s1: repo },
@@ -545,7 +544,7 @@ test("bootstrap selects an available model at startup", async () => {
       createTab(1, "s1", repo, { model: unavailable, contextLimit: unavailable.contextWindow }),
     );
     state.activeTabId = "s1";
-    await saveStateFile(stateFileForPort(scopedStateDir(stateDir, repo), 0), state);
+    await saveStateFile(stateFilePath(scopedStateDir(stateDir, repo)), state);
 
     const boot = await bootstrapMixCode({
       workdir: repo,
@@ -644,7 +643,7 @@ test("bootstrap surfaces invalid persisted state errors", async () => {
     const stateDir = path.join(dir, "state");
     const scopedDir = scopedStateDir(stateDir, dir);
     await fsPromises.mkdir(scopedDir, { recursive: true });
-    await fsPromises.writeFile(stateFileForPort(scopedDir, 0), "not-json", "utf8");
+    await fsPromises.writeFile(stateFilePath(scopedDir), "not-json", "utf8");
     await assert.rejects(
       bootstrapMixCode({ workdir: dir, stateDir, modelConfigPath: path.join(dir, "missing.jsonc") }),
       /Unexpected token|JSON/,

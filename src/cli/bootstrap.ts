@@ -41,7 +41,7 @@ import {
   loadStateFile,
   saveStateFile,
   scopedStateDir,
-  stateFileForPort,
+  stateFilePath,
 } from "../core/state-store.js";
 import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import { HOME_TAB_ID, type MixCodeModelRef, type MixCodeState } from "../core/types.js";
@@ -52,15 +52,12 @@ export interface BootstrapOptions {
   workdir: string;
   stateDir?: string;
   homeDir?: string;
-  port?: number;
   modelConfigPath?: string;
   agentDir?: string;
   extensionFactories?: ExtensionFactory[];
   additionalExtensionPaths?: string[];
   resourceLoaderOptions?: CreateAgentSessionServicesOptions["resourceLoaderOptions"];
 }
-
-export const DEFAULT_STATE_PORT = 0;
 
 export function defaultStateDir(): string {
   return resolveMixcodeStateDir();
@@ -113,13 +110,12 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
     envSessionDir: process.env.PI_CODING_AGENT_SESSION_DIR,
     settingsSessionDir: settingsManager.getSessionDir(),
   });
-  const port = options.port ?? DEFAULT_STATE_PORT;
   await fs.mkdir(rootStateDir, { recursive: true, mode: 0o700 });
   await fs.chmod(rootStateDir, 0o700);
   await fs.mkdir(stateDir, { recursive: true, mode: 0o700 });
   await fs.chmod(stateDir, 0o700);
 
-  const stateFile = stateFileForPort(stateDir, port);
+  const stateFile = stateFilePath(stateDir);
   const workspaceFile = path.join(stateDir, "workspaces.json");
   const mixCodeSettings = await loadMixCodeSettings(
     path.join(rootStateDir, MIXCODE_SETTINGS_FILENAME),

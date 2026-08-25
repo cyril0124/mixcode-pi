@@ -28,7 +28,7 @@ import {
 } from "../core/open-tabs-store.js";
 import { startInstanceCtlServer, type InstanceCtlServer } from "../core/instance-ctl-server.js";
 import { startPeerTabSync } from "../core/peer-tab-sync.js";
-import { loadStateFile, saveStateFile, scopedStateDir, stateFileForPort } from "../core/state-store.js";
+import { loadStateFile, saveStateFile, scopedStateDir, stateFilePath } from "../core/state-store.js";
 import type { MixCodeState } from "../core/types.js";
 import { createMixCodeTui } from "../ui/app.js";
 import { dispatchOwnedOverlayKey } from "../ui/app-key-handlers.js";
@@ -38,7 +38,6 @@ import { closeExistingAgentTab, openExistingAgentTab } from "../ui/agent-tab-act
 import { createBatchExecutorHost } from "./batch-host.js";
 import {
   bootstrapMixCode,
-  DEFAULT_STATE_PORT,
   defaultStateDir,
 } from "./bootstrap.js";
 import { ensurePackageExtensions } from "../core/ensure-package-extensions.js";
@@ -59,7 +58,7 @@ export async function runBatchDryRun(args: MainArgs): Promise<void> {
   const agentDir = getAgentDir();
   const rootStateDir = defaultStateDir();
   const stateDir = scopedStateDir(rootStateDir, args.workdir);
-  const stateFile = stateFileForPort(stateDir, DEFAULT_STATE_PORT);
+  const stateFile = stateFilePath(stateDir);
 
   let state: MixCodeState;
   try {

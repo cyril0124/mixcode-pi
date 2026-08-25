@@ -43,17 +43,8 @@ export interface SystemPromptSection {
  * Always passes a customPrompt so Pi never injects its default "Pi documentation"
  * block. Tools/guidelines (incl. rg/fd search rules) stay MixCode-owned because
  * Pi's customPrompt path skips them; Current date is MixCode-only and layered
- * around Pi's append/context/skills/cwd assembly.
- */
-export function buildMixCodeSystemPromptFromParts(
-  options: MixCodeSystemPromptPartsOptions,
-): string {
-  return buildMixCodeSystemPromptSections(options).prompt;
-}
-
-/**
- * Same assembly as buildMixCodeSystemPromptFromParts, plus an exact section
- * breakdown for display (/system-prompt token stats). MixCode-owned fragments
+ * around Pi's append/context/skills/cwd assembly. Also returns an exact
+ * section breakdown for display (/system-prompt token stats). MixCode-owned fragments
  * are captured directly; the Pi-assembled tail (project context, skills, cwd)
  * is reconstructed with the same template Pi's buildSystemPrompt uses, so
  * sections.concatenate === prompt by construction. Extension contributions

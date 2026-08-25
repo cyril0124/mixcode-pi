@@ -20,14 +20,13 @@ import { MIXCODE_SYSTEM_PROMPT } from "../core/system-prompt.js";
 import { getActiveTab } from "../core/tabs.js";
 import { isThinkingLevelAvailable, validThinkingLevelsMessage } from "../core/thinking-levels.js";
 import { pushToast } from "../core/toast.js";
-import { HOME_TAB_ID, type MixCodeState } from "../core/types.js";
+import type { MixCodeState } from "../core/types.js";
 import {
   quitOverlayOptions,
   renderCloseAllSessionsConfirm,
   renderDeleteAllSessionsConfirm,
   renderQuitConfirm,
   showLinesOverlay,
-  showNoticeTextOverlay,
   syncOwnedAppOverlay,
 } from "./app-overlays.js";
 import type { OverlayTui } from "./app-types.js";
@@ -255,20 +254,5 @@ export function appendActiveSystemMessage(
 ): void {
   const active = getActiveTab(state);
   if (!active) throw new Error("No active tab for system message");
-  runtime.appendSystemMessage(active.sessionId, message, kind);
-}
-
-export function showSystemMessageOrToast(
-  state: MixCodeState,
-  runtime: Pick<MixCodeRuntime, "appendSystemMessage">,
-  tui: OverlayTui,
-  message: string,
-  kind?: Parameters<MixCodeRuntime["appendSystemMessage"]>[2],
-): void {
-  const active = getActiveTab(state);
-  if (!active || state.activeTabId === HOME_TAB_ID) {
-    showNoticeTextOverlay(tui, message);
-    return;
-  }
   runtime.appendSystemMessage(active.sessionId, message, kind);
 }

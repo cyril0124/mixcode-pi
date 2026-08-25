@@ -7,7 +7,7 @@ import * as path from "node:path";
 import { test } from "node:test";
 import { Type } from "@earendil-works/pi-ai";
 import { SettingsManager, type ExtensionFactory } from "@earendil-works/pi-coding-agent";
-import { buildMixCodeSystemPromptFromParts, createTab, MixCodeRuntime } from "./helpers/mixcode.js";
+import { buildMixCodeSystemPromptSections, createTab, MixCodeRuntime } from "./helpers/mixcode.js";
 
 const GUIDELINE = "Always call frobnicate before defrobbing.";
 
@@ -77,10 +77,10 @@ test("MixCode system prompt includes active tool promptGuidelines", async () => 
 });
 
 test("edit guidelines stay complete even without forwarded tool metadata", () => {
-  const prompt = buildMixCodeSystemPromptFromParts({
+  const prompt = buildMixCodeSystemPromptSections({
     selectedTools: ["edit"],
     cwd: process.cwd(),
-  });
+  }).prompt;
   assert.match(prompt, /Use edit for precise changes \(edits\[\]\.oldText must match exactly\)/);
   assert.match(
     prompt,
@@ -97,7 +97,7 @@ test("edit guidelines stay complete even without forwarded tool metadata", () =>
 });
 
 test("documentation pointers never reference a path that is missing on disk", () => {
-  const prompt = buildMixCodeSystemPromptFromParts({ selectedTools: ["read"], cwd: process.cwd() });
+  const prompt = buildMixCodeSystemPromptSections({ selectedTools: ["read"], cwd: process.cwd() }).prompt;
   const section = /\nDocumentation \([^\n]*\n((?:- [^\n]*\n?)+)/.exec(prompt)?.[1] ?? "";
   const paths = [...section.matchAll(/^- [^:]+: (\S+)/gm)].map((m) => m[1] as string);
 
@@ -122,10 +122,10 @@ test("an unrelated docs directory is not reported as Pi's documentation", async 
     await fsPromises.writeFile(path.join(dir, "docs", "something.md"), "not pi");
     await fsPromises.writeFile(path.join(dir, "README.md"), "not pi");
 
-    const prompt = buildMixCodeSystemPromptFromParts({
+    const prompt = buildMixCodeSystemPromptSections({
       selectedTools: ["read"],
       cwd: process.cwd(),
-    });
+    }).prompt;
     assert.doesNotMatch(prompt, new RegExp(`Pi docs: ${dir}`));
     assert.doesNotMatch(prompt, new RegExp(`Pi overview: ${dir}`));
   } finally {
@@ -141,10 +141,10 @@ test("Pi documentation is resolved from disk when PI_PACKAGE_DIR lacks docs", as
   const previous = process.env.PI_PACKAGE_DIR;
   process.env.PI_PACKAGE_DIR = emptyRuntimeDir;
   try {
-    const prompt = buildMixCodeSystemPromptFromParts({
+    const prompt = buildMixCodeSystemPromptSections({
       selectedTools: ["read"],
       cwd: process.cwd(),
-    });
+    }).prompt;
     // Should still resolve Pi docs from the installed Pi package on disk
     assert.match(prompt, /Pi docs: .*\/docs/);
     assert.doesNotMatch(prompt, new RegExp(`Pi docs: ${emptyRuntimeDir}`));
