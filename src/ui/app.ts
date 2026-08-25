@@ -42,7 +42,7 @@ import {
   type MixCodeCompletionSources,
   type MixCodeSkillCompletionSource,
 } from "./components/completion.js";
-import { renderExtensionFooter, renderFooter } from "./rendering.js";
+import { renderExtensionFooter } from "./rendering.js";
 import { InjectingTerminal, withMouseReporting } from "./terminal.js";
 import { installStdoutScreenGuard, withHostStdoutGuard } from "./stdout-screen-guard.js";
 import { noteActiveExtensionThemeId } from "../agent/runtime-extension-theme.js";
@@ -135,8 +135,7 @@ export function createMixCodeTui(
       return (
         editorRows +
         metaRows +
-        renderExtensionFooter(active, tui.terminal.columns).length +
-        renderFooter(tui.terminal.columns).length
+        renderExtensionFooter(active, tui.terminal.columns).length
       );
     },
     // Custom input skins only (setEditorComponent), not temporary dialog overrides.

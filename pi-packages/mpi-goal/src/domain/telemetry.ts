@@ -3,10 +3,7 @@ import { currentGoalSessionKey } from "./session-scope.js";
 import type {
 	ApiGateState,
 	BudgetHardStopReason,
-	BudgetLimitReason,
 	BudgetWarningReason,
-	CompactionContinuationAction,
-	ContinuationReason,
 	ContinuationSkipReason,
 	FloorValuePassId,
 	GoalTelemetrySnapshot,
@@ -33,9 +30,6 @@ export function createTelemetry(goalId: string, now = Date.now()): GoalTelemetry
 	return {
 		version: TELEMETRY_SCHEMA_VERSION,
 		goalId,
-		totalTurns: 0,
-		userTurns: 0,
-		autoTurns: 0,
 		consecutiveAutoTurns: 0,
 		consecutiveNoProgressTurns: 0,
 		updatedAt: now,
@@ -50,11 +44,10 @@ export function isTelemetry(value: unknown): value is GoalTelemetrySnapshot {
 
 export function noteContinuationScheduled(
 	telemetry: GoalTelemetrySnapshot | null,
-	reason: ContinuationReason,
 	now = Date.now(),
 ): GoalTelemetrySnapshot | null {
 	if (!telemetry) return null;
-	return { ...telemetry, lastContinuationReason: reason, lastSkipReason: undefined, updatedAt: now };
+	return { ...telemetry, lastSkipReason: undefined, updatedAt: now };
 }
 
 export function noteContinuationSkipped(
@@ -84,33 +77,23 @@ export function noteBudgetWrapUpSent(
 	now = Date.now(),
 ): GoalTelemetrySnapshot | null {
 	if (!telemetry) return null;
-	return { ...telemetry, budgetWrapUpSent: true, updatedAt: now };
+	return { ...telemetry, updatedAt: now };
 }
 
 export function noteCompactionContinuation(
 	telemetry: GoalTelemetrySnapshot | null,
-	action: CompactionContinuationAction,
-	input: { key?: string; attempts?: number; finalReason?: string } = {},
 	now = Date.now(),
 ): GoalTelemetrySnapshot | null {
 	if (!telemetry) return null;
-	return {
-		...telemetry,
-		lastCompactionContinuationAction: action,
-		lastCompactionContinuationKey: input.key,
-		lastCompactionContinuationAttempts: input.attempts,
-		lastCompactionContinuationFinalReason: input.finalReason,
-		updatedAt: now,
-	};
+	return { ...telemetry, updatedAt: now };
 }
 
 export function noteBudgetLimit(
 	telemetry: GoalTelemetrySnapshot | null,
-	reason: BudgetLimitReason,
 	now = Date.now(),
 ): GoalTelemetrySnapshot | null {
 	if (!telemetry) return null;
-	return { ...telemetry, lastBudgetLimitReason: reason, updatedAt: now };
+	return { ...telemetry, updatedAt: now };
 }
 
 export function noteBudgetWarning(
@@ -121,7 +104,6 @@ export function noteBudgetWarning(
 	if (!telemetry) return null;
 	return {
 		...telemetry,
-		lastBudgetWarningReason: reason,
 		tokenBudgetWarningSent: telemetry.tokenBudgetWarningSent || reason === "tokenWarning",
 		timeBudgetWarningSent: telemetry.timeBudgetWarningSent || reason === "timeWarning",
 		updatedAt: now,
@@ -170,16 +152,12 @@ export function applyTurnTelemetry(
 	const auto = turn.origin === "auto" || turn.origin === "budgetWrapUp";
 	return {
 		...telemetry,
-		totalTurns: telemetry.totalTurns + 1,
-		userTurns: telemetry.userTurns + (turn.origin === "user" ? 1 : 0),
-		autoTurns: telemetry.autoTurns + (auto ? 1 : 0),
 		consecutiveAutoTurns: auto ? telemetry.consecutiveAutoTurns + 1 : 0,
 		consecutiveNoProgressTurns: auto && !madeProgress ? telemetry.consecutiveNoProgressTurns + 1 : 0,
 		lastTurnOrigin: turn.origin,
 		lastTurnToolCallCount: turn.toolCallCount,
 		lastTurnToolResultCount: turn.toolResultCount,
 		lastTurnCompletedGoal: turn.completedGoal,
-		lastProgressAt: madeProgress ? now : telemetry.lastProgressAt,
 		updatedAt: now,
 	};
 }

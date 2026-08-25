@@ -8,7 +8,7 @@ import {
   MixCodeRoot,
 } from "../src/ui/app-layout.js";
 import type { EditorSlot } from "../src/ui/app-editor.js";
-import { renderExtensionFooter, renderFooter } from "../src/ui/rendering.js";
+import { renderExtensionFooter } from "../src/ui/rendering.js";
 import { createInitialState, createTab } from "../src/core/defaults.js";
 import type { MixCodeState } from "../src/core/types.js";
 import { getActiveTab } from "../src/core/tabs.js";
@@ -98,8 +98,7 @@ function buildRealLayoutWithEditor(editorLines: string[], viewportRows: number, 
     () =>
       editorRows +
       metaRows +
-      renderExtensionFooter(getActiveTab(state), width).length +
-      renderFooter(width).length
+      renderExtensionFooter(getActiveTab(state), width).length
     );
   const editor = fakeEditor(editorLines);
   const layout = new MixCodeLayoutRoot(
@@ -148,8 +147,7 @@ function buildRealLayoutWithDynamicEditor(
     () =>
       editorRows +
       metaRows +
-      renderExtensionFooter(getActiveTab(state), width).length +
-      renderFooter(width).length
+      renderExtensionFooter(getActiveTab(state), width).length
     );
   const layout = new MixCodeLayoutRoot(
     state,

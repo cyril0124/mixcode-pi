@@ -1147,11 +1147,6 @@ function widgetSectionHeader(key: string, bodyWidth: number): string {
   return activeRenderTheme.dim(`\u2500 ${label} ${rule}`);
 }
 
-export function renderFooter(width: number): string[] {
-  void width;
-  return [];
-}
-
 export function renderExtensionFooter(tab: MixCodeTabInfo | undefined, width: number): string[] {
   const footer = tab?.extensionUi.footer;
   return renderExtensionComponentSlot(footer?.render ? footer.render(width) : footer?.lines, width);

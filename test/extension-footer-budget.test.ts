@@ -6,7 +6,7 @@ import {
   MixCodeRoot,
 } from "../src/ui/app-layout.js";
 import type { EditorSlot } from "../src/ui/app-editor.js";
-import { renderExtensionFooter, renderFooter } from "../src/ui/rendering.js";
+import { renderExtensionFooter } from "../src/ui/rendering.js";
 import { createInitialState, createTab } from "../src/core/defaults.js";
 import { MixCodeRuntime } from "../src/agent/runtime.js";
 import { getActiveTab } from "../src/core/tabs.js";
@@ -43,8 +43,7 @@ function buildLayout(viewportRows: number, width = 100) {
       return (
         editorRows +
         metaRows +
-        renderExtensionFooter(active, width).length +
-        renderFooter(width).length
+        renderExtensionFooter(active, width).length
       );
     },
   );

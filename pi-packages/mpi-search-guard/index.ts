@@ -171,7 +171,7 @@ function checkSegment(segment: string, cwd: string): string | null {
   // Nothing but env assignments / sudo means there is no command to inspect.
   if (cmdToken === undefined) return null;
 
-  const cmd = basename(cmdToken);
+  const cmd = path.posix.basename(cmdToken);
   if (!SEARCH_CMDS.has(cmd)) return null;
 
   const args = cleaned.slice(cmdIndex + 1);
@@ -300,11 +300,6 @@ function checkGrepPath(args: string[], cwd: string): string | null {
     patternFlagsSupplyPattern: true,
   });
   return checkPatternThenPaths(positionals, patternFromFlag, cwd);
-}
-
-function basename(token: string): string {
-  const slash = token.lastIndexOf("/");
-  return slash >= 0 ? token.slice(slash + 1) : token;
 }
 
 /** Minimal shell tokenizer: splits on whitespace, respects single/double quotes. */

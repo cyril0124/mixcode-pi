@@ -68,7 +68,7 @@ Covers:
 │            |                |                |            (working)                              │
 │            |                v                v                                                   │
 │            |        CompactPromptEditor   extension footer                                       │
-│            |        + MixCodeCompletion     + renderFooter                                       │
+│            |        + MixCodeCompletion     renderExtensionFooter                                │
 │            v                                                                                     │
 │   +---------------- chrome (chrome.ts) ----------------+                                         │
 │   | header | tab bar | separator | status | input meta |                                         │

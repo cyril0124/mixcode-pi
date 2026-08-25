@@ -23,7 +23,6 @@ import {
   extensionPanelWidth,
   EXTENSION_PANEL_MIN_TERMINAL_WIDTH,
   formatElapsed,
-  renderFooter,
   renderInputMeta,
   renderTabBar,
   renderTabBarSeparator,
@@ -266,9 +265,9 @@ export class MixCodeFooterRoot implements Component {
   render(width: number): string[] {
     // Home uses getActiveTab() as the selected agent for previews/toasts, but
     // extension footer is per-agent chrome and must not paint on Home.
-    if (this.state.activeTabId === HOME_TAB_ID) return [...renderFooter(width)];
+    if (this.state.activeTabId === HOME_TAB_ID) return [];
     const active = getActiveTab(this.state);
-    return [...renderExtensionFooter(active, width), ...renderFooter(width)];
+    return renderExtensionFooter(active, width);
   }
 }
 
@@ -322,9 +321,7 @@ export class MixCodeLayoutRoot implements Component {
     const workingLines = isAgentTab ? this.renderWorkingLoader(active, width, theme) : [];
     const viewportRowsForClamp = this.getViewportRows?.();
     const activeForFooter = this.state.activeTabId === HOME_TAB_ID ? undefined : active;
-    // Count real extension footer lines (renderFooter is intentionally empty).
-    const footerRows =
-      renderExtensionFooter(activeForFooter, width).length + renderFooter(width).length;
+    const footerRows = renderExtensionFooter(activeForFooter, width).length;
     // Shared budget for above+below editor widgets so tab bar + chat/editor stay on screen.
     // Include the tab-bar separator: MixCodeRoot emits tabs + separator as fixedTop.
     const mainTopReserve = (this.state.tabBarHitRow ?? 1) + TAB_BAR_SEPARATOR_ROWS;

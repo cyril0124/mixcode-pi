@@ -19,7 +19,6 @@ import {
   renderAgentSurface,
   renderExtensionFooter,
   renderExtensionWidgets,
-  renderFooter,
 } from "../src/ui/rendering.js";
 import { renderTabBarSeparator } from "../src/ui/rendering/chrome.js";
 import { themeForId } from "../src/ui/themes.js";
@@ -98,8 +97,7 @@ function buildLayout(viewportRows: number, width = 80) {
     () =>
       editorRows +
       metaRows +
-      renderExtensionFooter(tab, width).length +
-      renderFooter(width).length
+      renderExtensionFooter(tab, width).length
     );
   const layout = new MixCodeLayoutRoot(
     state,

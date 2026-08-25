@@ -75,7 +75,6 @@ import {
 import { notifyWarning, promptContinueActiveGoal, promptResumePausedGoal, syncGoalUi } from "../surface/ui/notify.js";
 import type {
 	BudgetHardStopReason,
-	BudgetLimitReason,
 	BudgetPressure,
 	GoalState,
 	GoalTelemetrySnapshot,
@@ -416,7 +415,7 @@ function handleMessageUpdate(pi: ExtensionAPI, event: MessageUpdateEvent, ctx: E
 		flushGoalActiveTime(pi, "budget");
 		const billed = getGoal() ?? goal;
 		const stopped: GoalState = { ...billed, status: "budgetLimited", updatedAt: Date.now() };
-		const nextTelemetry = noteBudgetHardStop(noteBudgetLimit(getTelemetry(), pressureBudgetLimitReason(pressure)), budgetHardStopReason(pressure));
+		const nextTelemetry = noteBudgetHardStop(noteBudgetLimit(getTelemetry()), budgetHardStopReason(pressure));
 		persistUpdateGoal(pi, stopped, nextTelemetry, "budget");
 		syncGoalUi(ctx, stopped);
 		notifyWarning(ctx, `${budgetResourceText(pressure)} budget hard stop enforced. Goal work stopped.`);
@@ -618,7 +617,7 @@ function enforceBudgetHardStop(pi: ExtensionAPI, ctx: ExtensionContext, goal: Go
 	}
 	cancelGoalContinuation(goal.goalId);
 	const stopped: GoalState = { ...goal, status: "budgetLimited", updatedAt: Date.now() };
-	const nextTelemetry = noteBudgetHardStop(noteBudgetLimit(telemetry, pressureBudgetLimitReason(pressure)), budgetHardStopReason(pressure));
+	const nextTelemetry = noteBudgetHardStop(noteBudgetLimit(telemetry), budgetHardStopReason(pressure));
 	const result = persistUpdateGoal(pi, stopped, nextTelemetry, "budget");
 	syncGoalUi(ctx, result.goal);
 	notifyWarning(ctx, `${budgetResourceText(pressure)} budget hard stop enforced. Goal work stopped.`);
@@ -632,7 +631,7 @@ function enforceBudgetHardStop(pi: ExtensionAPI, ctx: ExtensionContext, goal: Go
 function markBudgetReached(pi: ExtensionAPI, ctx: ExtensionContext, goal: GoalState, pressure: BudgetPressure, telemetry: GoalTelemetrySnapshot | null) {
 	cancelGoalContinuation(goal.goalId);
 	const limited: GoalState = { ...goal, status: "budgetLimited", updatedAt: Date.now() };
-	const result = persistUpdateGoal(pi, limited, noteBudgetLimit(telemetry, pressureBudgetLimitReason(pressure)), "budget");
+	const result = persistUpdateGoal(pi, limited, noteBudgetLimit(telemetry), "budget");
 	if (result.goal) {
 		const handedOff = sendQueueHandoff(pi, "goal-budget-limited", { goalId: result.goal.goalId });
 		if (!handedOff) scheduleBudgetLimitWrapUp(pi, ctx, result.goal);
@@ -651,10 +650,6 @@ function warningAlreadySent(pressure: BudgetPressure, telemetry: GoalTelemetrySn
 	if (pressure.kind === "tokenWarning") return Boolean(telemetry?.tokenBudgetWarningSent);
 	if (pressure.kind === "timeWarning") return Boolean(telemetry?.timeBudgetWarningSent);
 	return true;
-}
-
-function pressureBudgetLimitReason(pressure: BudgetPressure): BudgetLimitReason {
-	return pressure.kind.startsWith("time") ? "timeBudget" : "tokenBudget";
 }
 
 function budgetHardStopReason(pressure: BudgetPressure): BudgetHardStopReason {

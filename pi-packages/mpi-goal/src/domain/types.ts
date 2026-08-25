@@ -62,30 +62,19 @@ export type FloorQualityState = "steering" | "overriddenByMaxBudget";
 
 export type NoMoreValuableWorkReason = "no_safe_autonomous_work" | "max_budget_requires_wrap_up";
 
-
-export type CompactionContinuationAction = "prequeue" | "fallbackRetry" | "fallbackFinished";
-
 export type GoalTelemetrySnapshot = {
 	version: 1;
 	goalId: string;
-	totalTurns: number;
-	userTurns: number;
-	autoTurns: number;
 	consecutiveAutoTurns: number;
 	consecutiveNoProgressTurns: number;
 	lastTurnOrigin?: TurnOrigin;
-	lastContinuationReason?: ContinuationReason;
 	lastSkipReason?: ContinuationSkipReason;
 	/** When blocked, agentEnd auto-continue is suppressed until user resume or a successful stop. */
 	apiGate?: ApiGateState;
 	lastTurnToolCallCount?: number;
 	lastTurnToolResultCount?: number;
 	lastTurnCompletedGoal?: boolean;
-	budgetWrapUpSent?: boolean;
-	lastProgressAt?: number;
 	lastSafetyPauseReason?: SafetyPauseReason;
-	lastBudgetLimitReason?: BudgetLimitReason;
-	lastBudgetWarningReason?: BudgetWarningReason;
 	lastBudgetHardStopReason?: BudgetHardStopReason;
 	tokenBudgetWarningSent?: boolean;
 	timeBudgetWarningSent?: boolean;
@@ -93,10 +82,6 @@ export type GoalTelemetrySnapshot = {
 	floorSteerCount?: number;
 	floorQualityState?: FloorQualityState;
 	noMoreValuableWorkReason?: NoMoreValuableWorkReason;
-	lastCompactionContinuationAction?: CompactionContinuationAction;
-	lastCompactionContinuationKey?: string;
-	lastCompactionContinuationAttempts?: number;
-	lastCompactionContinuationFinalReason?: string;
 	updatedAt: number;
 };
 

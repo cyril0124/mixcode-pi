@@ -92,7 +92,7 @@ export function beginGoalCompaction(pi: ExtensionAPI, ctx: ExtensionContext): vo
 	if (!work) return;
 	skip(pi, "compacting");
 	if (ctx.isIdle()) {
-		finishCompactionTelemetry(pi, "prequeue", work.key, 0, "prequeueSkippedIdle");
+		finishCompactionTelemetry(pi);
 		return;
 	}
 	const prequeued = prequeueCompactionWork(pi, work);
@@ -110,7 +110,7 @@ export function finishGoalCompaction(pi: ExtensionAPI, ctx: ExtensionContext): v
 		return;
 	}
 	if (contState().prequeuedCompactionKey === work.key) {
-		finishCompactionTelemetry(pi, "fallbackFinished", work.key, 0, "prequeued");
+		finishCompactionTelemetry(pi);
 		clearCompactionRuntime({ keepPrequeueKey: true });
 		return;
 	}
@@ -149,7 +149,7 @@ export function scheduleMaybeContinueGoal(
 		return;
 	}
 	cancelGoalContinuation(goal.goalId);
-	const telemetry = noteContinuationScheduled(getTelemetry(), reason);
+	const telemetry = noteContinuationScheduled(getTelemetry());
 	if (telemetry) persistTelemetry(pi, telemetry, "continuation");
 	const goalId = goal.goalId;
 	// Every ContinuationReason dispatches immediately. User-confirmed starts are
@@ -310,7 +310,7 @@ function prequeueCompactionWork(pi: ExtensionAPI, work: CompactionContinuationWo
 			return false;
 		}
 		sendContinuationMessage(pi, goal, getTelemetry(), "compacted", false);
-		finishCompactionTelemetry(pi, "prequeue", work.key, 0, "sent");
+		finishCompactionTelemetry(pi);
 		return true;
 	}
 	const ticket = decideCompactionQueueHandoffTicket(work, {
@@ -319,7 +319,7 @@ function prequeueCompactionWork(pi: ExtensionAPI, work: CompactionContinuationWo
 		force: true,
 	});
 	const sent = ticket.kind === "queueHandoff" && dispatchContinuationTicket(pi, ticket);
-	if (sent) finishCompactionTelemetry(pi, "prequeue", work.key, 0, "sent");
+	if (sent) finishCompactionTelemetry(pi);
 	return sent;
 }
 
@@ -344,14 +344,14 @@ async function runCompactionFallbackAttempt(
 	ctx: ExtensionContext,
 	work: CompactionContinuationWork,
 ): Promise<void> {
-	if (!compactionWorkStillApplies(work)) return finishAndClear(pi, work.key, "workChanged");
+	if (!compactionWorkStillApplies(work)) return finishAndClear(pi);
 	contState().fallbackAttempts++;
-	finishCompactionTelemetry(pi, "fallbackRetry", work.key, contState().fallbackAttempts);
+	finishCompactionTelemetry(pi);
 	const result =
 		work.kind === "activeGoal"
 			? attemptContinueGoal(pi, ctx, "compacted", work.goalId)
 			: attemptQueueHandoff(pi, ctx, work);
-	if (result.kind === "sent") return finishAndClear(pi, work.key, "sent");
+	if (result.kind === "sent") return finishAndClear(pi);
 	if (
 		result.kind === "transientSkip" &&
 		contState().fallbackAttempts < contState().fallbackRetryDelaysMs.length
@@ -359,8 +359,7 @@ async function runCompactionFallbackAttempt(
 		scheduleCompactionFallbackRetry(pi, ctx, work);
 		return;
 	}
-	const reason = result.kind === "transientSkip" ? "retryExhausted" : result.reason;
-	finishAndClear(pi, work.key, reason);
+	finishAndClear(pi);
 }
 
 function attemptQueueHandoff(
@@ -438,23 +437,13 @@ function queueKey(queueId: string): string {
 	return `queue:${queueId}`;
 }
 
-function finishAndClear(pi: ExtensionAPI, key: string, reason: string): void {
-	finishCompactionTelemetry(pi, "fallbackFinished", key, contState().fallbackAttempts, reason);
+function finishAndClear(pi: ExtensionAPI): void {
+	finishCompactionTelemetry(pi);
 	clearCompactionRuntime();
 }
 
-function finishCompactionTelemetry(
-	pi: ExtensionAPI,
-	action: "prequeue" | "fallbackRetry" | "fallbackFinished",
-	key: string,
-	attempts: number,
-	finalReason?: string,
-): void {
-	const telemetry = noteCompactionContinuation(getTelemetry(), action, {
-		key,
-		attempts,
-		finalReason,
-	});
+function finishCompactionTelemetry(pi: ExtensionAPI): void {
+	const telemetry = noteCompactionContinuation(getTelemetry());
 	if (telemetry) persistTelemetry(pi, telemetry, "continuation");
 }
 
