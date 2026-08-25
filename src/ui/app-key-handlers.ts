@@ -830,27 +830,46 @@ export function dispatchOwnedOverlayKey(
   runtime?: MixCodeKeyRuntime,
   onStateChanged?: (state: MixCodeState) => void | Promise<void>,
 ): boolean {
-  if (state.picker?.ownerSessionId === tab.sessionId) {
-    return handlePickerKey(state, data, tui, runtime, onStateChanged);
-  }
-  if (state.sessionActionConfirm?.sessionId === tab.sessionId) {
-    return handleSessionActionConfirmKey(state, data, tui, runtime, onStateChanged);
-  }
-  if (state.sessionSelector.open && state.sessionSelector.ownerSessionId === tab.sessionId) {
-    return handleSessionSelectorKey(state, data, tui, runtime, onStateChanged);
-  }
-  if (state.settingsPanel.open && state.settingsPanel.ownerSessionId === tab.sessionId) {
+  return dispatchOverlayKey(state, data, tui, runtime, onStateChanged, { tab });
+}
+
+/** Shared overlay key chain for the live TUI (`tab` omitted) and ctl send-keys. */
+export function dispatchOverlayKey(
+  state: MixCodeState,
+  data: string,
+  tui: OverlayTui,
+  runtime?: MixCodeKeyRuntime,
+  onStateChanged?: (state: MixCodeState) => void | Promise<void>,
+  options: {
+    tab?: MixCodeState["tabs"][number];
+    commandPaletteActions?: CommandPaletteActions;
+  } = {},
+): boolean {
+  const tab = options.tab;
+  const pickerOpen = tab ? state.picker?.ownerSessionId === tab.sessionId : pickerIsLive(state);
+  if (pickerOpen) return handlePickerKey(state, data, tui, runtime, onStateChanged);
+  const confirmOpen = tab
+    ? state.sessionActionConfirm?.sessionId === tab.sessionId
+    : sessionActionConfirmIsLive(state);
+  if (confirmOpen) return handleSessionActionConfirmKey(state, data, tui, runtime, onStateChanged);
+  const selectorOpen = tab
+    ? Boolean(state.sessionSelector.open && state.sessionSelector.ownerSessionId === tab.sessionId)
+    : sessionSelectorIsLive(state);
+  if (selectorOpen) return handleSessionSelectorKey(state, data, tui, runtime, onStateChanged);
+  if (tab && state.settingsPanel.open && state.settingsPanel.ownerSessionId === tab.sessionId) {
     const panel = getSettingsPanelComponent(state);
     if (!panel) return false;
     panel.handleInput(data);
     tui.requestRender();
     return true;
   }
-  if (runtime?.dispatchExtensionOverlayInput?.(tab.sessionId, data)) {
+  if (tab && runtime?.dispatchExtensionOverlayInput?.(tab.sessionId, data)) {
     tui.requestRender();
     return true;
   }
-  if (state.commandPaletteOpen) return handleCommandPaletteKey(state, data, tui);
+  if (state.commandPaletteOpen) {
+    return handleCommandPaletteKey(state, data, tui, options.commandPaletteActions);
+  }
   if (state.tabJumpOpen) return handleTabJumpKey(state, data, tui);
   if (state.quitConfirmOpen) return handleQuitConfirmKey(state, data, tui, runtime);
   if (state.deleteAllSessionsConfirmOpen) {
@@ -859,8 +878,8 @@ export function dispatchOwnedOverlayKey(
   if (state.closeAllSessionsConfirmOpen) {
     return handleCloseAllSessionsConfirmKey(state, data, tui, runtime, onStateChanged);
   }
-  if (state.treeSelector.open) {
+  if (tab && state.treeSelector.open) {
     return handleTreeSelectorKey(state, data, tui, runtime, onStateChanged);
   }
-  return dispatchAppOverlayInput(tui, data);
+  return tab ? dispatchAppOverlayInput(tui, data) : false;
 }

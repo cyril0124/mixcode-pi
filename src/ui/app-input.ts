@@ -5,9 +5,6 @@ import { parseSgrMouseInput } from "../core/mouse.js";
 import {
   closeActiveOverlay,
   isOverlayActive,
-  pickerIsLive,
-  sessionActionConfirmIsLive,
-  sessionSelectorIsLive,
   openCommandPalette,
   openTabJump,
 } from "../core/overlays.js";
@@ -30,18 +27,12 @@ import { clipboardPasteForEditor } from "../core/pi-private.js";
 import { pasteDetector } from "./paste-detect.js";
 import {
   canOpenCommandPalette,
+  dispatchOverlayKey,
   handleChatScrollKey,
   handleChromeMouseInput,
-  handleCloseAllSessionsConfirmKey,
-  handleCommandPaletteKey,
   handleChatSelectionMouseInput,
-  handleDeleteAllSessionsConfirmKey,
   handleInputSelectionMouseInput,
   handleMouseInput,
-  handlePickerKey,
-  handleQuitConfirmKey,
-  handleSessionActionConfirmKey,
-  handleTabJumpKey,
   handleVimModeKey,
   handleVimUserMessageNavigation,
   handleEscapeKey,
@@ -73,11 +64,7 @@ import {
   isVimTranscriptSearchOpenKey,
   openVimTranscriptSearch,
 } from "./vim-transcript-search.js";
-import { handleSessionSelectorKey } from "./session-resume.js";
-import {
-  closeTreeSelector,
-  handleTreeSelectorKey,
-} from "./components/tree-selector.js";
+import { closeTreeSelector, handleTreeSelectorKey } from "./components/tree-selector.js";
 import type { MixCodeSubmitRuntime } from "./app-types.js";
 
 type KeyResult = { consume?: boolean; data?: string } | undefined;
@@ -508,42 +495,10 @@ function handleModalOverlayKeys(
   onStateChanged: ((state: MixCodeState) => void | Promise<void>) | undefined,
   commandPaletteActions: CommandPaletteActions | undefined,
 ): KeyResult {
-  if (pickerIsLive(state) && handlePickerKey(state, data, tui, runtime, onStateChanged)) {
-    return { consume: true };
-  }
   if (
-    sessionSelectorIsLive(state) &&
-    handleSessionSelectorKey(state, data, tui, runtime, onStateChanged)
-  ) {
-    return { consume: true };
-  }
-  if (
-    state.commandPaletteOpen &&
-    handleCommandPaletteKey(state, data, tui, commandPaletteActions)
-  ) {
-    return { consume: true };
-  }
-  if (state.tabJumpOpen && handleTabJumpKey(state, data, tui)) {
-    return { consume: true };
-  }
-  if (
-    sessionActionConfirmIsLive(state) &&
-    handleSessionActionConfirmKey(state, data, tui, runtime, onStateChanged)
-  ) {
-    return { consume: true };
-  }
-  if (state.quitConfirmOpen && handleQuitConfirmKey(state, data, tui, runtime)) {
-    return { consume: true };
-  }
-  if (
-    state.deleteAllSessionsConfirmOpen &&
-    handleDeleteAllSessionsConfirmKey(state, data, tui, runtime, onStateChanged)
-  ) {
-    return { consume: true };
-  }
-  if (
-    state.closeAllSessionsConfirmOpen &&
-    handleCloseAllSessionsConfirmKey(state, data, tui, runtime, onStateChanged)
+    dispatchOverlayKey(state, data, tui, runtime, onStateChanged, {
+      commandPaletteActions,
+    })
   ) {
     return { consume: true };
   }
