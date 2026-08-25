@@ -26,7 +26,7 @@ Tabs display live status glyphs: `●` (running/working), `-` (idle/ready), `!` 
 
 | Action | Key / Command | Behavior |
 |---|---|---|
-| New Tab | `/new-session [title]` | Spawns a clean agent tab with an optional custom title. |
+| New Tab | `/new-session [--focus\|--no-focus] [title]` | Spawns a clean agent tab with an optional custom title. Default focuses the new tab; `--no-focus` leaves the current tab focused. |
 | Close Tab | `/close-session [yes]` | Closes the current tab and cleans up its in-memory runtime. `yes` skips confirmation. |
 | Reset Session | `/reset` | Resets tree leaf back to root in the same tab, retaining title and session ID. |
 | Clear Session | `/clear` | Generates a fresh session file in the same tab, resetting the title. |

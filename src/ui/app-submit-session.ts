@@ -124,14 +124,38 @@ const handleClear: LocalCommandHandler = ({ state, active, runtime, tui }) => {
   }, 32);
 };
 
+const NEW_SESSION_USAGE = "Error: Usage: /new-session [--focus|--no-focus] [title]";
+
+function parseNewSessionArgs(args: string): { focus: boolean; title?: string } {
+  const parts = args.trim().split(/\s+/).filter(Boolean);
+  let focus: boolean | undefined;
+  const titleParts: string[] = [];
+  for (const part of parts) {
+    if (part === "--focus") {
+      if (focus === false) throw new Error(NEW_SESSION_USAGE);
+      focus = true;
+      continue;
+    }
+    if (part === "--no-focus") {
+      if (focus === true) throw new Error(NEW_SESSION_USAGE);
+      focus = false;
+      continue;
+    }
+    titleParts.push(part);
+  }
+  const requested = titleParts.join(" ");
+  return { focus: focus ?? true, ...(requested ? { title: requested } : {}) };
+}
+
 const handleNewSession: LocalCommandHandler = async ({ state, args, runtime, tui }) => {
   // Paint Not Ready immediately; createAgentTab still awaits full runtime startup.
   // Do not reuse services here — independent SettingsManager isolation.
-  // Optional args: `/new-session Name` sets a caller title; collisions get `-N`.
-  const requested = args.trim();
-  const title = requested ? uniqueTabTitle(requested, state.tabs) : undefined;
+  // `--no-focus` keeps the current tab; remaining tokens are the title (`-N` on collision).
+  const parsed = parseNewSessionArgs(args);
+  const title = parsed.title ? uniqueTabTitle(parsed.title, state.tabs) : undefined;
   const tab = await createAgentTab(state, runtime, {
     onQueued: () => tui.requestRender(),
+    focus: parsed.focus,
     ...(title ? { title } : {}),
   });
   if (title) {

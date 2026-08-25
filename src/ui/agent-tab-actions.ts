@@ -26,17 +26,23 @@ export interface CreateAgentTabOptions {
   /** Base/identity system prompt; defaults to MIXCODE_SYSTEM_PROMPT. */
   systemPrompt?: string;
   /**
-   * Called after the UI tab is queued (Not Ready + activated) but before
-   * runtime.createTab finishes. Use for an immediate TUI render so the user
-   * sees loading instead of a frozen input path.
+   * When true (default), switch UI focus to the new tab. When false, leave
+   * `activeTabId` unchanged. Failure rollback only restores the previous
+   * active id when this call focused the new tab.
+   */
+  focus?: boolean;
+  /**
+   * Called after the UI tab is queued (Not Ready; focused unless `focus` is
+   * false) but before runtime.createTab finishes. Use for an immediate TUI
+   * render so the user sees loading instead of a frozen input path.
    */
   onQueued?: (tab: MixCodeTabInfo) => void;
 }
 
 /**
  * Create the UI tab and Pi runtime tab as one transaction. Runtime startup can
- * fail after the tab is already visible, so rollback must restore both the tab
- * list and the previously active id for every caller, including batch mode.
+ * fail after the tab is already visible, so rollback must restore the tab list
+ * and, when this call focused the new tab, the previously active id.
  *
  * Every tab builds its own services: a services object owns one SettingsManager
  * (/context-limit isolation) and one extension EventBus (cross-session extension
@@ -50,6 +56,7 @@ export async function createAgentTab(
 ): Promise<MixCodeTabInfo> {
   const sessionId = createSessionId();
   const previousActiveId = state.activeTabId;
+  const focus = options.focus !== false;
   const workdir = options.workdir ?? state.workdir;
   const model = options.model ?? state.model;
   const thinkingLevel = options.thinkingLevel ?? state.thinkingLevel;
@@ -68,7 +75,7 @@ export async function createAgentTab(
   // in-progress tab as an extra (same order as /fork). Rollback on failure.
   noteTabOpened(sessionId);
   state.tabs.push(tab);
-  activateTab(state, sessionId);
+  if (focus) activateTab(state, sessionId);
   options.onQueued?.(tab);
   try {
     await runtime.createTab(tab, {
@@ -90,7 +97,7 @@ export async function createAgentTab(
     }
     const index = state.tabs.findIndex((item) => item.sessionId === sessionId);
     if (index >= 0) state.tabs.splice(index, 1);
-    activateTab(state, previousActiveId);
+    if (focus) activateTab(state, previousActiveId);
     if (publicationFailed) {
       throw new AggregateError(
         [error, publicationError],

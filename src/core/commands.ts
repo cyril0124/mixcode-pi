@@ -81,6 +81,16 @@ function sessionActionYesCompletions(
   return [{ value: "yes", label: "yes", description: "Skip confirmation" }];
 }
 
+function newSessionFocusCompletions(
+  prefix: string,
+): Array<{ value: string; label: string; description?: string }> {
+  const needle = prefix.trim().toLowerCase();
+  return [
+    { value: "--focus", label: "--focus", description: "Switch UI to the new tab (default)" },
+    { value: "--no-focus", label: "--no-focus", description: "Create the tab without switching UI" },
+  ].filter((item) => !needle || item.value.startsWith(needle));
+}
+
 export const LOCAL_COMMANDS: Array<{
   name: LocalCommand;
   description: string;
@@ -341,11 +351,12 @@ export const LOCAL_COMMANDS: Array<{
   },
   {
     name: "new-session",
-    description: "Create a session (optional name: /new-session Title)",
-    argumentHint: "[title]",
+    description: "Create a session (optional name; --no-focus keeps current tab)",
+    argumentHint: "[--focus|--no-focus] [title]",
+    getArgumentCompletions: newSessionFocusCompletions,
     palette: {
       label: "New Session",
-      description: "Create a new pi agent session; optional title becomes the tab name",
+      description: "Create a new pi agent session; optional title becomes the tab name; default focuses the new tab",
       scope: "both",
       requires: "session",
     },

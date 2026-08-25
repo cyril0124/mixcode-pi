@@ -827,6 +827,117 @@ test("/new-session <name> suffixes a title already used by an open tab", async (
   assert.deepEqual(renamed, [{ sessionId: created.sessionId, title: "Worker-1" }]);
 });
 
+test("/new-session --no-focus creates a tab without switching UI focus", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo", { status: "done", title: "Agent-01" }));
+  state.activeTabId = "s1";
+  const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
+
+  await handleSubmittedInput(state, commandRuntime(), "/new-session --no-focus", tui);
+
+  const created = state.tabs.find((tab) => tab.sessionId !== "s1");
+  assert.ok(created, "new tab was created");
+  assert.equal(state.activeTabId, "s1");
+  assert.notEqual(created.sessionId, "s1");
+});
+
+test("/new-session --no-focus Title names the tab and keeps current focus", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo", { status: "done", title: "Agent-01" }));
+  state.activeTabId = "s1";
+  const renamed: Array<{ sessionId: string; title: string }> = [];
+  const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
+
+  await handleSubmittedInput(
+    state,
+    commandRuntime({
+      renameSession: (sessionId: string, title: string) => {
+        renamed.push({ sessionId, title });
+      },
+    }),
+    "/new-session --no-focus API Gateway",
+    tui,
+  );
+
+  const created = state.tabs.find((tab) => tab.sessionId !== "s1");
+  assert.ok(created, "new tab was created");
+  assert.equal(created.title, "API Gateway");
+  assert.equal(state.activeTabId, "s1");
+  assert.deepEqual(renamed, [{ sessionId: created.sessionId, title: "API Gateway" }]);
+});
+
+test("/new-session Title --no-focus names Title and keeps current focus", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo", { title: "Agent-01" }));
+  state.activeTabId = "s1";
+  const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
+
+  await handleSubmittedInput(state, commandRuntime(), "/new-session Worker --no-focus", tui);
+
+  const created = state.tabs.find((tab) => tab.sessionId !== "s1");
+  assert.ok(created, "new tab was created");
+  assert.equal(created.title, "Worker");
+  assert.equal(state.activeTabId, "s1");
+});
+
+test("/new-session --focus Title focuses the new tab", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo", { title: "Agent-01" }));
+  state.activeTabId = "s1";
+  const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
+
+  await handleSubmittedInput(state, commandRuntime(), "/new-session --focus Worker", tui);
+
+  const created = state.tabs.find((tab) => tab.sessionId !== "s1");
+  assert.ok(created, "new tab was created");
+  assert.equal(created.title, "Worker");
+  assert.equal(state.activeTabId, created.sessionId);
+});
+
+test("/new-session rejects --focus and --no-focus together", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo", { title: "Agent-01" }));
+  state.activeTabId = "s1";
+  const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
+
+  await assert.rejects(
+    () => handleSubmittedInput(state, commandRuntime(), "/new-session --no-focus --focus Worker", tui),
+    /Error: Usage: \/new-session \[--focus\|--no-focus\] \[title\]/,
+  );
+  assert.deepEqual(
+    state.tabs.map((tab) => tab.sessionId),
+    ["s1"],
+  );
+  assert.equal(state.activeTabId, "s1");
+});
+
+test("/new-session --no-focus rolls back the tab and leaves the previous active id", async () => {
+  const state = createInitialState("/repo");
+  state.tabs.push(createTab(1, "s1", "/repo", { status: "done" }));
+  state.activeTabId = "s1";
+  const tui = { requestRender: () => undefined, showOverlay: () => ({}) as never };
+
+  await assert.rejects(
+    () =>
+      handleSubmittedInput(
+        state,
+        commandRuntime({
+          createTab: async () => {
+            throw new Error("create failed");
+          },
+        }),
+        "/new-session --no-focus Worker",
+        tui,
+      ),
+    /create failed/,
+  );
+  assert.deepEqual(
+    state.tabs.map((tab) => tab.sessionId),
+    ["s1"],
+  );
+  assert.equal(state.activeTabId, "s1");
+});
+
 test("/fork of the same source a second time suffixes -1", async () => {
   const state = createInitialState("/repo");
   state.tabs.push(createTab(1, "s1", "/repo", { title: "Worker" }));

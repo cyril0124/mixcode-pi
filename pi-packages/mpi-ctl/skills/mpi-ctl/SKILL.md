@@ -64,16 +64,16 @@ Use **`send-prompt`**, not `send-keys`. Same path as typing `/…` in the editor
 ```text
 mpi ctl --tab Agent-01 send-prompt /compact
 mpi ctl --tab Agent-01 send-prompt '/rename New Title'
-mpi ctl --tab Agent-01 send-prompt '/new-session Worker'
+mpi ctl --tab Agent-01 send-prompt '/new-session --no-focus Worker'
 ```
 
-`--tab` does not change UI focus. **Default to `--tab` / `--session`.** Open overlays (bare `/models`, `/thinking`, `/resume`, close-all, settings, extension questions) with `send-prompt`, then drive them with `--tab send-keys` after `dump-screen`. Prefer arguments on the slash so no overlay opens (`send-prompt '/models gpt-4.1'`, `'/thinking high'`, `'/close-session yes'`, `'/resume <session-id>'`). Use `--focus-tab` / `--focus-session` to leave the UI on that tab, or to inject keys when no overlay is waiting (`C-q`). **Always close the loop:** ACK from `send-prompt` only means accept, not done. Poll with `wait` then `last-message` (or `last-tool` / `dump-screen`) — unless you requested a reply (callback mode, see `send-prompt`).
+`--tab` does not change UI focus. **Default to `--tab` / `--session`.** For a new tab, send `/new-session --no-focus [Title]`; `--focus` leaves the UI on the new tab. Open overlays (bare `/models`, `/thinking`, `/resume`, close-all, settings, extension questions) with `send-prompt`, then drive them with `--tab send-keys` after `dump-screen`. Prefer arguments on the slash so no overlay opens (`send-prompt '/models gpt-4.1'`, `'/thinking high'`, `'/close-session yes'`, `'/resume <session-id>'`). Use `--focus-tab` / `--focus-session` to leave the UI on that tab, or to inject keys when no overlay is waiting (`C-q`). **Always close the loop:** ACK from `send-prompt` only means accept, not done. Poll with `wait` then `last-message` (or `last-tool` / `dump-screen`) — unless you requested a reply (callback mode, see `send-prompt`).
 
 Common MixCode session/tab commands:
 
 | Command | Effect |
 |---|---|
-| `/new-session` | Create a new agent tab. `/new-session Title` also names it. |
+| `/new-session [--focus\|--no-focus] [title]` | Create a new agent tab. Use `--no-focus` so UI stays put; `--focus` switches to the new tab. Optional Title names it. |
 | `/rename Title` | Rename the **target** tab (the one `--tab` / `--focus-tab` selected). |
 | `/close-session [yes]` | Close that tab; session file stays on disk. `yes` skips the Y/N overlay. |
 | `/delete-session [yes]` | Delete that tab's session file and close the tab. `yes` skips the Y/N overlay. |
@@ -333,6 +333,6 @@ Callback variant (`--expect-response` / reply requested): stop after the `send-p
 - **`wait` always has a timeout** (default 60s). Client waits `--timeout`+5s; `ctl socket timed out` before that is a bug. `wait-for-input` means a question/dialog — do not keep waiting. `finished` is idle/done. Home: `Home has no agent run`.
 - **Not Ready / no sock:** only the target tab still loading fails that ctl command. No `.sock` means that TUI predates ctl or its ctl server failed to start (the TUI showed a `mpi ctl server unavailable` notice) — restart it. `status` 0 or >1 instance without `--pid` fails; same workdir with two TUIs needs `--pid` or `MIXCODE_PID` (the >1 error lists candidate pids with active tab titles — pick from there or `mpi status`).
 - **Env:** the tab titles exist only in the **bash tool**, not `!` shells; `MIXCODE` / `MIXCODE_PID` are host env and show up everywhere. Do not `--tab`/`--focus-tab` yourself (`MIXCODE_TAB_TITLE`) when the user asked about another tab. `MIXCODE_FOCUSED_TAB_TITLE` is empty on Home. Wrong `PI_CODING_AGENT_DIR` lists the wrong instances.
-- **`/close-session` keeps the file; `/delete-session` removes it.** Pass `yes` to skip the single-tab Y/N overlay. **Do not** pass `yes` to `/close-all-sessions` or `/delete-all-sessions` — those always confirm; `--tab send-keys` `y`/`n`. `/clear` makes a new child session; `/reset` stays on the same file. `/new-session Title` creates a **new** tab; `/rename Title` renames the target tab.
+- **`/close-session` keeps the file; `/delete-session` removes it.** Pass `yes` to skip the single-tab Y/N overlay. **Do not** pass `yes` to `/close-all-sessions` or `/delete-all-sessions` — those always confirm; `--tab send-keys` `y`/`n`. `/clear` makes a new child session; `/reset` stays on the same file. `/new-session --no-focus Title` creates a **new** tab and keeps UI focus. `--focus` switches to the new tab. `/rename Title` renames the target tab.
 - **`dump-screen` is for overlays/drafts/streaming**, not history. **Start from the tail.** Default is no ANSI; `--ansi` keeps color. Huge output is truncated to `/tmp/mpi-ctl-…` — read that file from the end.
 - **Home** has no last-message / last-tool / wait / `--tab` send-keys. `--session home` is Home, not `config`.

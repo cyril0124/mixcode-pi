@@ -20,7 +20,7 @@ Commands operate across three distinct persistence tiers:
 | `/thinking` | `[off\|minimal\|low\|medium\|high\|xhigh\|max]` | Session | Sets model reasoning/thinking effort level. |
 | `/context-limit` | `<tokens\|reset>` | Session | Sets artificial context window limit for testing or compaction tuning. |
 | `/workdir` | `[path]` | Workdir | Switches active agent working directory and updates file watchers. |
-| `/new-session` | `[title]` | Workdir | Opens a new agent tab with an optional custom title. A taken title becomes `title-N`. See [Tab titles](workspace-and-tabs.md#tab-titles). |
+| `/new-session` | `[--focus\|--no-focus] [title]` | Workdir | Opens a new agent tab with an optional custom title. Default focuses the new tab; `--no-focus` leaves the current tab focused. A taken title becomes `title-N`. See [Tab titles](workspace-and-tabs.md#tab-titles). |
 | `/fork` | - | Workdir | Clones current conversation branch into a new tab that owns its runtime services. Title is `{source}-fork`, or `{source}-fork-N` if taken. See [Tab titles](workspace-and-tabs.md#tab-titles). |
 | `/follow-up` | `<text>` | Session | Enqueues prompt into follow-up queue, prioritized after current turn finishes. |
 | `/compact` | `[custom instructions]` | Session | Manually triggers context compaction on the current branch. |
