@@ -218,6 +218,36 @@ function renderPanel(
   return lines;
 }
 
+function renderSplitBox(
+  left: string[] | undefined,
+  right: string[],
+  leftInner: number,
+  width: number,
+  height: number,
+  theme: Theme,
+): string[] {
+  const border = (text: string) => theme.fg("border", text);
+  const bodyHeight = Math.max(0, height - 2);
+  if (!left) {
+    const inner = Math.max(1, width - 2);
+    return [
+      `${border("┌")}${border("─".repeat(inner))}${border("┐")}`,
+      ...Array.from({ length: bodyHeight }, (_, index) =>
+        `${border("│")}${fit(right[index] ?? "", inner)}${border("│")}`,
+      ),
+      border(`└${"─".repeat(inner)}┘`),
+    ];
+  }
+  const rightInner = Math.max(1, width - leftInner - 3);
+  return [
+    `${border("┌")}${border("─".repeat(leftInner))}${border("┬")}${border("─".repeat(rightInner))}${border("┐")}`,
+    ...Array.from({ length: bodyHeight }, (_, index) =>
+      `${border("│")}${fit(left[index] ?? "", leftInner)}${border("│")}${fit(right[index] ?? "", rightInner)}${border("│")}`,
+    ),
+    `${border("└")}${border("─".repeat(leftInner))}${border("┴")}${border("─".repeat(rightInner))}${border("┘")}`,
+  ];
+}
+
 function renderCenteredOverlay(base: string[], overlay: string[], width: number): string[] {
   const overlayWidth = Math.min(width, Math.max(...overlay.map(visibleWidth), 0));
   const left = Math.max(0, Math.floor((width - overlayWidth) / 2));
@@ -1512,21 +1542,13 @@ export class DiffViewer {
 
   private renderNavigatorContent(width: number, height: number): string[] {
     const indexes = this.visibleFileIndexes();
-    const header = this.searchMode
-      ? `Filter: ${this.searchQuery}_`
-      : this.searchQuery
-        ? `Filter: ${this.searchQuery}`
-        : `${indexes.length} file${indexes.length === 1 ? "" : "s"}`;
-    const lines = [
-      this.config.theme.fg(this.searchMode ? "accent" : "muted", header),
-      "─".repeat(width),
-    ];
+    const lines: string[] = [];
     const treeRows = this.navigatorRows();
     this.selectedNavigatorIndex = Math.max(
       0,
       Math.min(Math.max(0, treeRows.length - 1), this.selectedNavigatorIndex),
     );
-    const pageSize = Math.max(1, height - lines.length);
+    const pageSize = Math.max(1, height);
     const activePosition = this.selectedNavigatorIndex;
     if (activePosition < this.navigatorScroll) this.navigatorScroll = activePosition;
     if (activePosition >= this.navigatorScroll + pageSize) {
@@ -1668,35 +1690,17 @@ export class DiffViewer {
     const indexes = this.activeFileIndexes();
     if (indexes.length === 0) return [this.config.theme.fg("warning", "No file selected")];
 
-    const bodyHeight = Math.max(1, height - 3);
+    const bodyHeight = Math.max(1, height);
     const contentWidth = Math.max(1, width - 1);
     const rowWidth = Math.max(1, contentWidth - 2);
-    const selectedRow = this.selectedNavigatorRow();
     const rows: VisualDiffRow[] = [];
-    let additions = 0;
-    let deletions = 0;
     for (const [offset, fileIndex] of indexes.entries()) {
       const file = this.config.diff.files[fileIndex];
       if (!file) continue;
-      additions += file.additions;
-      deletions += file.deletions;
       if (indexes.length > 1) {
         if (offset > 0) rows.push({ text: "", targets: [] });
         rows.push({
-          text: fit(
-            this.config.theme.underline(this.config.theme.fg("warning", file.path)),
-            rowWidth,
-          ),
-          targets: [],
-        });
-        rows.push({
-          text: fit(
-            `${this.config.theme.fg("success", `+${file.additions}`)} ${this.config.theme.fg(
-              "error",
-              `-${file.deletions}`,
-            )}`,
-            rowWidth,
-          ),
+          text: fit(this.config.theme.fg("muted", file.path), rowWidth),
           targets: [],
         });
       }
@@ -1724,78 +1728,56 @@ export class DiffViewer {
       }
     }
     this.diffScroll = Math.max(0, Math.min(maximum, this.diffScroll));
-    const firstRow = rows.length === 0 ? 0 : this.diffScroll + 1;
-    const lastRow = Math.min(rows.length, this.diffScroll + bodyHeight);
-    const title =
-      selectedRow?.kind === "file"
-        ? selectedRow.path
-        : selectedRow?.kind === "directory"
-          ? selectedRow.path
-          : "/";
-    const summary =
-      indexes.length === 1
-        ? `${this.config.theme.fg("success", `+${additions}`)} ${this.config.theme.fg(
-            "error",
-            `-${deletions}`,
-          )} • ${this.viewMode} • rows ${firstRow}-${lastRow}/${rows.length}`
-        : `${this.config.theme.fg("success", `+${additions}`)} ${this.config.theme.fg(
-            "error",
-            `-${deletions}`,
-          )} • ${indexes.length} files • ${this.viewMode} • rows ${firstRow}-${lastRow}/${rows.length}`;
-
-    return [
-      this.config.theme.underline(this.config.theme.fg("warning", title)),
-      summary,
-      this.config.theme.fg("borderMuted", "─".repeat(width)),
-      ...this.addScrollbar(rows, width, bodyHeight),
-    ];
+    return this.addScrollbar(rows, width, bodyHeight);
   }
 
   render(width: number): string[] {
     const terminalRows = this.config.tui.terminal.rows;
     const totalHeight = Math.max(8, terminalRows);
-    const panelHeight = Math.max(5, totalHeight - 3);
+    const boxHeight = Math.max(5, totalHeight - 2);
     const showNavigator = this.navigatorVisible && width >= 64;
-    const navigatorWidth = showNavigator ? Math.min(36, Math.max(24, Math.floor(width * 0.26))) : 0;
-    const diffWidth = showNavigator ? width - navigatorWidth - 1 : width;
+    const leftInner = showNavigator ? Math.min(36, Math.max(24, Math.floor(width * 0.26))) : 0;
+    const rightInner = showNavigator ? Math.max(1, width - leftInner - 3) : Math.max(1, width - 2);
     const theme = this.config.theme;
+    const selectedRow = this.selectedNavigatorRow();
+    const path =
+      selectedRow?.kind === "file" || selectedRow?.kind === "directory" ? selectedRow.path : "/";
+    let additions = 0;
+    let deletions = 0;
+    let hunks = 0;
+    for (const fileIndex of this.activeFileIndexes()) {
+      const file = this.config.diff.files[fileIndex];
+      if (!file) continue;
+      additions += file.additions;
+      deletions += file.deletions;
+      hunks += file.hunks.length;
+    }
+    const fileCount = this.visibleFileIndexes().length;
+    const filter = this.searchMode
+      ? `  Filter: ${this.searchQuery}_`
+      : this.searchQuery
+        ? `  Filter: ${this.searchQuery}`
+        : "";
     const header = fit(
-      `${theme.bold(theme.fg("accent", "SESSION DIFF"))}  ${this.config.diff.files.length} files  ${theme.fg(
-        "success",
-        `+${this.config.diff.additions}`,
-      )} ${theme.fg("error", `-${this.config.diff.deletions}`)}${
+      `${theme.bold(theme.fg("accent", "SESSION DIFF"))}  ${theme.underline(
+        theme.fg("warning", path),
+      )}  ${theme.fg("success", `+${additions}`)} ${theme.fg("error", `-${deletions}`)}  ${fileCount} file${
+        fileCount === 1 ? "" : "s"
+      }  ${hunks} hunk${hunks === 1 ? "" : "s"}${
         this.reviewDraft.comments.length > 0
           ? `  ${theme.fg("accent", `${this.reviewDraft.comments.length} comments`)}`
           : ""
-      }`,
+      }${filter}`,
       width,
     );
-    const separator = theme.fg("border", "─".repeat(width));
-    const diffPanel = renderPanel(
-      this.helpMode
-        ? "Help"
-        : this.editTarget
-          ? `Edit ${this.editIntent.toUpperCase()} comment`
-          : this.activeFileIndexes().length === 1
-            ? `Diff (${this.activeFile()?.hunks.length ?? 0} hunks)`
-            : `Diff (${this.activeFileIndexes().length} files)`,
-      diffWidth,
-      panelHeight,
+    const body = renderSplitBox(
+      showNavigator ? this.renderNavigatorContent(leftInner, boxHeight - 2) : undefined,
+      this.renderDiffContent(rightInner, boxHeight - 2),
+      leftInner,
+      width,
+      boxHeight,
       theme,
-      this.renderDiffContent(Math.max(1, diffWidth - 2), Math.max(1, panelHeight - 2)),
     );
-
-    let body = diffPanel;
-    if (showNavigator) {
-      const navigator = renderPanel(
-        "Navigator",
-        navigatorWidth,
-        panelHeight,
-        theme,
-        this.renderNavigatorContent(Math.max(1, navigatorWidth - 2), Math.max(1, panelHeight - 2)),
-      );
-      body = navigator.map((line, index) => `${line} ${diffPanel[index] ?? ""}`);
-    }
 
     const selected = this.selectedLine();
     const footerText = this.editTarget
@@ -1809,7 +1791,7 @@ export class DiffViewer {
             : this.searchMode
               ? "Type to filter • Enter apply • Esc clear"
               : "j/k tree • n/p files • c line • l file • a all • r review • v view • s submit • ? help • q close";
-    let rendered = [header, separator, ...body, fit(theme.fg("dim", footerText), width)];
+    let rendered = [header, ...body, fit(theme.fg("dim", footerText), width)];
     if (this.reviewMode && !this.editTarget) {
       const modalWidth = Math.max(24, Math.min(width - 4, Math.floor(width * 0.72)));
       const modalHeight = Math.max(

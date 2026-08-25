@@ -320,6 +320,25 @@ test("navigator renders changed files as a compact diffnav-style tree", () => {
   assert.doesNotMatch(output, / src\/features\/diff\/alpha\.ts/);
 });
 
+test("compact chrome puts the selected path on the title and starts the diff immediately", () => {
+  const { component } = createViewer();
+  const lines = component.render(120);
+  const output = stripTerminalSequences(lines.join("\n"));
+
+  assert.match(
+    stripTerminalSequences(lines[0] ?? ""),
+    /SESSION DIFF\s+src\/alpha\.ts\s+\+1\s+-1\s+2 files\s+1 hunk\b/,
+  );
+  assert.match(lines[1] ?? "", /┌.*┬.*┐/);
+  assert.doesNotMatch(output, /Navigator/);
+  assert.doesNotMatch(output, /Diff \(/);
+  assert.doesNotMatch(output, /side-by-side • rows|unified • rows/);
+
+  const body = stripTerminalSequences(lines[2] ?? "");
+  assert.match(body, / \//);
+  assert.match(body, /Deleted \/ Old/);
+});
+
 test("Tab is ignored instead of switching pane focus", () => {
   const { component, renders } = createViewer();
   const before = component.render(120);
@@ -710,7 +729,7 @@ test("v switches between side-by-side and unified diff", () => {
   component.handleInput("v");
   const output = component.render(120).join("\n");
 
-  assert.match(output, /unified/);
+  assert.match(output, /@@ -1,2 \+1,2 @@/);
   assert.doesNotMatch(output, /Deleted \/ Old/);
 });
 
