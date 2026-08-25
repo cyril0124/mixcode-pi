@@ -1,7 +1,7 @@
 import type { ExtensionCommandContext, ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import { createDiffViewerComponent } from "./diff-viewer.js";
 import { composeReviewPrompt, type ReviewDraft } from "./review.js";
-import { buildSessionDiff, type SessionEntry } from "./session-diff.js";
+import { buildGitDiff, buildSessionDiff, type SessionDiff, type SessionEntry } from "./session-diff.js";
 
 function userMessageIndexes(entries: SessionEntry[]): number[] {
   const indexes: number[] = [];
@@ -27,24 +27,17 @@ function getRangeTurnSlice(
   return { baseline: entries.slice(0, start), scope: entries.slice(start, end) };
 }
 
-async function showDiff(
-  entries: SessionEntry[],
-  cwd: string,
+async function openDiff(
+  diff: SessionDiff,
   ctx: Pick<ExtensionCommandContext, "ui">,
-  baselineEntries: SessionEntry[] = [],
+  emptyMessage: string,
 ): Promise<void> {
-  if (entries.length === 0) {
-    ctx.ui.notify("No entries found for the specified range.", "info");
-    return;
-  }
-
-  const diff = buildSessionDiff(entries, cwd, baselineEntries);
   if (diff.trackedFiles === 0) {
-    ctx.ui.notify("No file modifications found in this session.", "info");
+    ctx.ui.notify(emptyMessage, "info");
     return;
   }
   if (diff.files.length === 0) {
-    ctx.ui.notify("Files were modified but have no effective changes.", "info");
+    ctx.ui.notify("Files were modified but have no text changes to display.", "info");
     return;
   }
 
@@ -71,15 +64,49 @@ async function showDiff(
   ctx.ui.notify("Inserted review feedback into the editor.", "info");
 }
 
+async function showDiff(
+  entries: SessionEntry[],
+  cwd: string,
+  ctx: Pick<ExtensionCommandContext, "ui">,
+  baselineEntries: SessionEntry[] = [],
+): Promise<void> {
+  if (entries.length === 0) {
+    ctx.ui.notify("No entries found for the specified range.", "info");
+    return;
+  }
+  await openDiff(
+    buildSessionDiff(entries, cwd, baselineEntries),
+    ctx,
+    "No file modifications found in this session.",
+  );
+}
+
+async function showGitDiff(
+  cwd: string,
+  ref: string,
+  ctx: Pick<ExtensionCommandContext, "ui">,
+): Promise<void> {
+  let diff: SessionDiff;
+  try {
+    diff = buildGitDiff(cwd, ref);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    ctx.ui.notify(`Error: ${message}`, "error");
+    return;
+  }
+  await openDiff(diff, ctx, `No file modifications found against ${ref}.`);
+}
+
 const extension: ExtensionFactory = (pi) => {
   pi.registerCommand("diff", {
-    description: "Show session file changes in the built-in diff viewer",
+    description: "Show session or git file changes in the built-in diff viewer",
     getArgumentCompletions: (prefix: string) => {
       const items = [
         { value: "last", label: "last", description: "Last turn (= /diff 1)" },
         { value: "1", label: "1", description: "Last turn" },
         { value: "2", label: "2", description: "2nd-to-last turn" },
         { value: "3", label: "3", description: "3rd-to-last turn" },
+        { value: "HEAD", label: "HEAD", description: "Uncommitted text changes against HEAD" },
       ];
       return items.filter((item) => item.value.startsWith(prefix));
     },
@@ -99,7 +126,7 @@ const extension: ExtensionFactory = (pi) => {
         const [first, last] = value.split("-").map(Number);
         ({ baseline, scope } = getRangeTurnSlice(entries, first!, last!));
       } else {
-        ctx.ui.notify("Usage: /diff, /diff last, /diff N, /diff N-M", "info");
+        await showGitDiff(ctx.cwd, value, ctx);
         return;
       }
 

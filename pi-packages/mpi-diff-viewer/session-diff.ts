@@ -1,3 +1,4 @@
+import * as childProcess from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { generateUnifiedPatch } from "@earendil-works/pi-coding-agent";
@@ -439,5 +440,131 @@ export function buildSessionDiff(
     additions: files.reduce((count, file) => count + file.additions, 0),
     deletions: files.reduce((count, file) => count + file.deletions, 0),
     trackedFiles: tracked.size,
+  };
+}
+
+function countRowDeltas(hunks: DiffHunk[]): { additions: number; deletions: number } {
+  let additions = 0;
+  let deletions = 0;
+  for (const hunk of hunks) {
+    for (const row of hunk.rows) {
+      if (row.kind === "insert" || row.kind === "replace") additions += 1;
+      if (row.kind === "delete" || row.kind === "replace") deletions += 1;
+    }
+  }
+  return { additions, deletions };
+}
+
+function gitDiffChunks(patch: string): string[] {
+  return patch
+    .split(/^(?=diff --git )/m)
+    .filter((chunk) => chunk.startsWith("diff --git "));
+}
+
+const GIT_PATH_ESCAPES: Readonly<Record<string, number>> = {
+  a: 7,
+  b: 8,
+  t: 9,
+  n: 10,
+  v: 11,
+  f: 12,
+  r: 13,
+  '"': 34,
+  "\\": 92,
+};
+
+function decodeGitPath(raw: string): string {
+  // Git C-quotes path bytes; decode octal escapes before interpreting UTF-8.
+  if (!raw.startsWith('"')) return raw;
+  if (!raw.endsWith('"')) throw new Error(`Invalid Git path: ${raw}`);
+
+  const bytes: number[] = [];
+  for (let index = 1; index < raw.length - 1; index++) {
+    const char = raw[index]!;
+    if (char !== "\\") {
+      const codePoint = raw.codePointAt(index)!;
+      bytes.push(...Buffer.from(String.fromCodePoint(codePoint), "utf8"));
+      if (codePoint > 0xffff) index += 1;
+      continue;
+    }
+
+    const escaped = raw[++index];
+    if (escaped === undefined || index >= raw.length - 1) {
+      throw new Error(`Invalid Git path escape: ${raw}`);
+    }
+    if (/^[0-7]$/.test(escaped)) {
+      let octal = escaped;
+      while (
+        octal.length < 3 &&
+        index + 1 < raw.length - 1 &&
+        /^[0-7]$/.test(raw[index + 1]!)
+      ) {
+        octal += raw[++index]!;
+      }
+      bytes.push(Number.parseInt(octal, 8));
+      continue;
+    }
+    const byte = GIT_PATH_ESCAPES[escaped];
+    if (byte === undefined) throw new Error(`Invalid Git path escape: \\${escaped}`);
+    bytes.push(byte);
+  }
+  return Buffer.from(bytes).toString("utf8");
+}
+
+function gitHeaderPath(raw: string, prefix: "a" | "b"): string {
+  const decoded = decodeGitPath(raw);
+  return decoded.startsWith(`${prefix}/`) ? decoded.slice(2) : decoded;
+}
+
+function gitDiffPath(chunk: string): { path: string; status: DiffFile["status"] } | undefined {
+  if (/^Binary files /m.test(chunk)) return undefined;
+  const plus = /^\+\+\+ (.+)$/m.exec(chunk);
+  const minus = /^--- (.+)$/m.exec(chunk);
+  const plusPath = plus ? gitHeaderPath(plus[1]!, "b") : undefined;
+  const minusPath = minus ? gitHeaderPath(minus[1]!, "a") : undefined;
+  const added = /^new file mode /m.test(chunk) || minusPath === "/dev/null";
+  const deleted = /^deleted file mode /m.test(chunk) || plusPath === "/dev/null";
+  const path = deleted ? minusPath : plusPath;
+  if (!path || path === "/dev/null") return undefined;
+  return { path, status: added ? "added" : deleted ? "deleted" : "modified" };
+}
+
+function parseGitUnifiedDiffChunks(chunks: string[]): DiffFile[] {
+  const files: DiffFile[] = [];
+  for (const chunk of chunks) {
+    const meta = gitDiffPath(chunk);
+    if (!meta) continue;
+    const hunks = parseUnifiedPatch(chunk);
+    if (hunks.length === 0) continue;
+    const { additions, deletions } = countRowDeltas(hunks);
+    files.push({ ...meta, additions, deletions, hunks });
+  }
+  return files;
+}
+
+export function parseGitUnifiedDiff(patch: string): DiffFile[] {
+  return parseGitUnifiedDiffChunks(gitDiffChunks(patch));
+}
+
+export function buildGitDiff(cwd: string, ref: string): SessionDiff {
+  if (ref === "" || ref.startsWith("-")) {
+    throw new Error(`Invalid git ref: ${ref}`);
+  }
+  const result = childProcess.spawnSync(
+    "git",
+    ["-C", cwd, "diff", "--no-ext-diff", "--no-textconv", "--no-color", ref, "--"],
+    { encoding: "utf8", maxBuffer: Infinity },
+  );
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    throw new Error(result.stderr.trim() || `git diff ${ref} failed`);
+  }
+  const chunks = gitDiffChunks(result.stdout);
+  const files = parseGitUnifiedDiff(result.stdout);
+  return {
+    files,
+    additions: files.reduce((count, file) => count + file.additions, 0),
+    deletions: files.reduce((count, file) => count + file.deletions, 0),
+    trackedFiles: chunks.length,
   };
 }

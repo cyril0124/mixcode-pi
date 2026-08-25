@@ -7,7 +7,7 @@ MixCode built-in terminal-native interactive diff inspection and code review com
 ## Core Capabilities
 
 - **Unified Session Diffing**: Reconstructs file modifications across tool calls (`edit`, `write`, unified patch hunks) across the active session branch.
-- **Git Reference Inspection**: Compares current workspace status against Git refs (`HEAD`, branches, commits, or working tree).
+- **Git Reference Inspection**: Compares tracked text changes in the working tree and index against Git refs (`HEAD`, branches, or commits).
 - **In-TUI Interactive Code Review**: Attach inline review comments (`fix` / `discuss`) to specific hunk lines and compose structured follow-up prompts back to the agent.
 
 ## Usage
@@ -15,8 +15,13 @@ MixCode built-in terminal-native interactive diff inspection and code review com
 | Command | Description |
 |---|---|
 | `/diff` | Opens interactive Diff Viewer comparing current session modifications. |
-| `/diff HEAD` | Inspects uncommitted Git working tree modifications against `HEAD`. |
-| `/diff <ref>` | Inspects git diff against a specific branch or commit hash. |
+| `/diff last` | Last user turn only (`/diff 1`). |
+| `/diff N` / `/diff N-M` | Session changes from the Nth-to-last turn, or a turn range. |
+| `/diff HEAD` | Uncommitted tracked text changes against `HEAD`. |
+| `/diff <ref>` | Tracked text changes in the working tree and index against a branch or commit. |
+
+Refs named `last`, digits, or `N-M` must use a full name such as `refs/heads/last`; those short forms select session turns.
+Invalid Git refs are reported as `Error: ...` notifications.
 
 ## Keybindings
 
