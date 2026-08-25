@@ -90,7 +90,7 @@ function normalizeTarget(raw: string): TargetId | undefined {
 // with one blank line separating the header from the body.
 
 export function formatViewText(title: string, body: string[]): string {
-  return [`# ${title}`, ...body].join("\n\n");
+  return [`# ${title}`, ...body].join("\n\n").replace(/[ \t]+$/gm, "");
 }
 
 // ─── Content reconstruction from the session branch ───────────────────────────

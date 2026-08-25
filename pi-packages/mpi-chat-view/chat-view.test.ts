@@ -15,6 +15,11 @@ test("formatViewText with a single body item has no trailing blank lines", () =>
   assert.equal(text, "# Latest User Message\n\nhi");
 });
 
+test("formatViewText strips trailing spaces and tabs from every line", () => {
+  const text = formatViewText("Chat Export", ["hello  \nworld\t", "> \n> keep"]);
+  assert.equal(text, "# Chat Export\n\nhello\nworld\n\n>\n> keep");
+});
+
 // ─── buildViewText: session-branch reconstruction ──────────────────────────────
 
 function userEntry(text: string): SessionEntry {
