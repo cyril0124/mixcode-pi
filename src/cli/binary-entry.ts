@@ -56,8 +56,8 @@ import diffViewerSessionDiff from "../../pi-packages/mpi-diff-viewer/session-dif
 import diffViewerComponent from "../../pi-packages/mpi-diff-viewer/diff-viewer.ts" with { type: "text" };
 import diffViewerReview from "../../pi-packages/mpi-diff-viewer/review.ts" with { type: "text" };
 import diffViewerPackageJson from "../../pi-packages/mpi-diff-viewer/package.json" with { type: "text" };
-import chatViewIndex from "../../pi-packages/mpi-chat-view/index.ts" with { type: "text" };
-import chatViewPackageJson from "../../pi-packages/mpi-chat-view/package.json" with { type: "text" };
+import transcriptIndex from "../../pi-packages/mpi-transcript/index.ts" with { type: "text" };
+import transcriptPackageJson from "../../pi-packages/mpi-transcript/package.json" with { type: "text" };
 import bashExec from "../../pi-packages/mpi-bash/exec.ts" with { type: "text" };
 import bashIndex from "../../pi-packages/mpi-bash/index.ts" with { type: "text" };
 import bashLogView from "../../pi-packages/mpi-bash/log-view.ts" with { type: "text" };
@@ -292,9 +292,9 @@ await materializeBinaryRuntimeAssets(runtimeDir, {
       "review.ts": diffViewerReview,
       "package.json": diffViewerPackageJson,
     },
-    "mpi-chat-view": {
-      "index.ts": chatViewIndex,
-      "package.json": chatViewPackageJson,
+    "mpi-transcript": {
+      "index.ts": transcriptIndex,
+      "package.json": transcriptPackageJson,
     },
     "mpi-bash": {
       "index.ts": bashIndex,

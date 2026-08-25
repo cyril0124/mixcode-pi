@@ -1,0 +1,328 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import type { SessionEntry } from "@earendil-works/pi-coding-agent";
+import { buildViewText, formatViewText } from "./index.js";
+
+// ─── formatViewText: markdown heading ──────────────────────────────────────────
+
+test("formatViewText renders a markdown h1 title followed by body sections", () => {
+  const text = formatViewText("Thinking Export", ["line one", "line two"]);
+  assert.equal(text, "# Thinking Export\n\nline one\n\nline two");
+});
+
+test("formatViewText with a single body item has no trailing blank lines", () => {
+  const text = formatViewText("Latest User Message", ["hi"]);
+  assert.equal(text, "# Latest User Message\n\nhi");
+});
+
+test("formatViewText strips trailing spaces and tabs from every line", () => {
+  const text = formatViewText("Chat Export", ["hello  \nworld\t", "> \n> keep"]);
+  assert.equal(text, "# Chat Export\n\nhello\nworld\n\n>\n> keep");
+});
+
+// ─── buildViewText: session-branch reconstruction ──────────────────────────────
+
+function userEntry(text: string): SessionEntry {
+  return {
+    type: "message",
+    id: `u-${text}`,
+    parentId: null,
+    timestamp: new Date().toISOString(),
+    message: { role: "user", content: text, timestamp: Date.now() },
+  } as unknown as SessionEntry;
+}
+
+function assistantEntry(
+  content: Array<{ type: string; text?: string; thinking?: string; redacted?: boolean; id?: string; name?: string; arguments?: Record<string, unknown> }>,
+  opts?: { stopReason?: string; errorMessage?: string },
+): SessionEntry {
+  return {
+    type: "message",
+    id: `a-${Math.random()}`,
+    parentId: null,
+    timestamp: new Date().toISOString(),
+    message: {
+      role: "assistant",
+      content,
+      api: "messages",
+      provider: "anthropic",
+      model: "test",
+      usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+      stopReason: opts?.stopReason ?? "stop",
+      errorMessage: opts?.errorMessage,
+      timestamp: Date.now(),
+    },
+  } as unknown as SessionEntry;
+}
+
+function toolResultEntry(toolCallId: string, text: string, isError = false): SessionEntry {
+  return {
+    type: "message",
+    id: `r-${toolCallId}`,
+    parentId: null,
+    timestamp: new Date().toISOString(),
+    message: {
+      role: "toolResult",
+      toolCallId,
+      toolName: "bash",
+      content: [{ type: "text", text }],
+      isError,
+      timestamp: Date.now(),
+    },
+  } as unknown as SessionEntry;
+}
+
+test("buildViewText thinking: collects all thinking blocks in order", () => {
+  const entries: SessionEntry[] = [
+    userEntry("hi"),
+    assistantEntry([
+      { type: "thinking", thinking: "first thought" },
+      { type: "text", text: "answer" },
+    ]),
+    assistantEntry([{ type: "thinking", thinking: "second thought" }]),
+  ];
+  const text = buildViewText("thinking", entries);
+  assert.match(text, /first thought[\s\S]*second thought/);
+});
+
+test("buildViewText thinking: redacted blocks render a placeholder", () => {
+  const entries: SessionEntry[] = [assistantEntry([{ type: "thinking", redacted: true }])];
+  assert.match(buildViewText("thinking", entries), /\[Reasoning redacted\]/);
+});
+
+test("buildViewText thinking: empty branch yields the placeholder", () => {
+  assert.match(buildViewText("thinking", []), /No thinking entries\./);
+});
+
+test("buildViewText latest-agent: returns the last assistant text reply", () => {
+  const entries: SessionEntry[] = [
+    assistantEntry([{ type: "text", text: "first answer" }]),
+    userEntry("follow up"),
+    assistantEntry([{ type: "text", text: "second answer" }]),
+  ];
+  assert.match(buildViewText("latest-agent", entries), /second answer/);
+});
+
+test("buildViewText latest-agent: skips thinking-only turns to find the last text", () => {
+  const entries: SessionEntry[] = [
+    assistantEntry([{ type: "text", text: "real answer" }]),
+    assistantEntry([{ type: "thinking", thinking: "no visible text here" }]),
+  ];
+  assert.match(buildViewText("latest-agent", entries), /real answer/);
+});
+
+test("buildViewText latest-user: returns the last user message", () => {
+  const entries: SessionEntry[] = [
+    userEntry("first question"),
+    assistantEntry([{ type: "text", text: "reply" }]),
+    userEntry("second question"),
+  ];
+  assert.match(buildViewText("latest-user", entries), /second question/);
+});
+
+test("buildViewText chatlog: renders user/assistant/thinking/tool lines with paired results", () => {
+  const entries: SessionEntry[] = [
+    userEntry("run the tests"),
+    assistantEntry([
+      { type: "thinking", thinking: "let me run it" },
+      { type: "toolCall", id: "call-1", name: "bash", arguments: {} },
+    ]),
+    toolResultEntry("call-1", "all tests passed"),
+    assistantEntry([{ type: "text", text: "Tests passed." }]),
+  ];
+  const text = buildViewText("chatlog", entries);
+  assert.match(text, /## 👤 User[\s\S]*run the tests/);
+  assert.match(text, /💭 Thinking[\s\S]*let me run it/);
+  assert.match(text, /🔧 Tool: `bash`[\s\S]*✅ success[\s\S]*all tests passed/);
+  assert.match(text, /## 🤖 Assistant[\s\S]*Tests passed\./);
+});
+
+test("buildViewText chatlog: numbers user and assistant sections by round", () => {
+  const entries: SessionEntry[] = [
+    userEntry("first question"),
+    assistantEntry([{ type: "text", text: "first answer" }]),
+    userEntry("second question"),
+    assistantEntry([{ type: "text", text: "second answer" }]),
+  ];
+  const text = buildViewText("chatlog", entries);
+  assert.match(text, /## 👤 User · #1\n\nfirst question/);
+  assert.match(text, /## 🤖 Assistant · #1\n\nfirst answer/);
+  assert.match(text, /## 👤 User · #2\n\nsecond question/);
+  assert.match(text, /## 🤖 Assistant · #2\n\nsecond answer/);
+});
+
+test("buildViewText thinking: labels each block with its round", () => {
+  const entries: SessionEntry[] = [
+    userEntry("q1"),
+    assistantEntry([{ type: "thinking", thinking: "first thought" }]),
+    userEntry("q2"),
+    assistantEntry([{ type: "thinking", thinking: "second thought" }]),
+  ];
+  const text = buildViewText("thinking", entries);
+  assert.match(text, /\*\*Turn 1\*\*\n\nfirst thought/);
+  assert.match(text, /\*\*Turn 2\*\*\n\nsecond thought/);
+});
+
+test("buildViewText chatlog: renders tool call arguments as a JSON block", () => {
+  const entries: SessionEntry[] = [
+    assistantEntry([
+      { type: "toolCall", id: "call-3", name: "bash", arguments: { command: "git status", timeout: 60 } },
+    ]),
+    toolResultEntry("call-3", "clean"),
+  ];
+  const text = buildViewText("chatlog", entries);
+  assert.match(text, /```json\n\{\n  "command": "git status",\n  "timeout": 60\n\}\n```/);
+});
+
+test("buildViewText chatlog: omits the JSON block when arguments are empty", () => {
+  const entries: SessionEntry[] = [
+    assistantEntry([{ type: "toolCall", id: "call-4", name: "bash", arguments: {} }]),
+    toolResultEntry("call-4", "ok"),
+  ];
+  assert.doesNotMatch(buildViewText("chatlog", entries), /```json/);
+});
+
+function customMessageEntry(customType: string, text: string, display: boolean): SessionEntry {
+  return {
+    type: "custom_message",
+    id: `c-${customType}-${display}`,
+    parentId: null,
+    timestamp: new Date().toISOString(),
+    customType,
+    content: text,
+    display,
+  } as unknown as SessionEntry;
+}
+
+test("buildViewText chatlog: renders injected custom messages, marking hidden ones", () => {
+  const entries: SessionEntry[] = [
+    userEntry("hi"),
+    customMessageEntry("skill-loader", "skill content here", false),
+    customMessageEntry("goal-tracker", "visible injected note", true),
+    assistantEntry([{ type: "text", text: "ok" }]),
+  ];
+  const text = buildViewText("chatlog", entries);
+  assert.match(text, /## 📥 Injected · `skill-loader` · _hidden_\n\nskill content here/);
+  assert.match(text, /## 📥 Injected · `goal-tracker`\n\nvisible injected note/);
+  assert.match(text, /## 🤖 Assistant · #1\n\nok/);
+});
+
+test("buildViewText chatlog: renders compaction and branch summary entries", () => {
+  const entries: SessionEntry[] = [
+    {
+      type: "compaction",
+      id: "comp-1",
+      parentId: null,
+      timestamp: new Date().toISOString(),
+      summary: "earlier work summarized",
+      firstKeptEntryId: "u-x",
+      tokensBefore: 54321,
+    } as unknown as SessionEntry,
+    {
+      type: "branch_summary",
+      id: "br-1",
+      parentId: null,
+      timestamp: new Date().toISOString(),
+      fromId: "a-x",
+      summary: "summary of the other branch",
+    } as unknown as SessionEntry,
+    userEntry("continue"),
+  ];
+  const text = buildViewText("chatlog", entries);
+  assert.match(text, /## 🗜️ Compaction · 54,321 tokens before\n\nearlier work summarized/);
+  assert.match(text, /## 🌿 Branch Summary\n\nsummary of the other branch/);
+});
+
+test("buildViewText chatlog: surfaces assistant errorMessage on error stops", () => {
+  const entries: SessionEntry[] = [
+    userEntry("do it"),
+    assistantEntry([{ type: "text", text: "partial" }], { stopReason: "error", errorMessage: "rate limited" }),
+  ];
+  assert.match(buildViewText("chatlog", entries), /\*\*⚠️ error\*\*: rate limited/);
+});
+
+test("buildViewText chatlog: renders an aborted turn even without content", () => {
+  const entries: SessionEntry[] = [userEntry("go"), assistantEntry([], { stopReason: "aborted" })];
+  assert.match(buildViewText("chatlog", entries), /## 🤖 Assistant · #1\n\n\*\*⚠️ aborted\*\*/);
+});
+
+test("buildViewText chatlog: renders tool calls as h3 headings", () => {
+  const entries: SessionEntry[] = [
+    assistantEntry([{ type: "toolCall", id: "call-6", name: "bash", arguments: {} }]),
+    toolResultEntry("call-6", "done"),
+  ];
+  assert.match(buildViewText("chatlog", entries), /### 🔧 Tool: `bash` — ✅ success\n/);
+});
+
+test("buildViewText chatlog: tool call without a paired result shows no result", () => {
+  const entries: SessionEntry[] = [
+    assistantEntry([{ type: "toolCall", id: "call-5", name: "bash", arguments: {} }]),
+  ];
+  const text = buildViewText("chatlog", entries);
+  assert.match(text, /🔧 Tool: `bash`[\s\S]*⏳ no result/);
+  assert.doesNotMatch(text, /✅ success/);
+});
+
+test("buildViewText chatlog: lastTurns keeps only the last N rounds with global numbering", () => {
+  const entries: SessionEntry[] = [
+    userEntry("q1"),
+    assistantEntry([{ type: "text", text: "a1" }]),
+    userEntry("q2"),
+    assistantEntry([{ type: "text", text: "a2" }]),
+    userEntry("q3"),
+    assistantEntry([{ type: "text", text: "a3" }]),
+  ];
+  const text = buildViewText("chatlog", entries, 2);
+  assert.doesNotMatch(text, /q1|a1/);
+  assert.match(text, /_… earlier 1 turn omitted_/);
+  assert.match(text, /## 👤 User · #2\n\nq2/);
+  assert.match(text, /## 🤖 Assistant · #3\n\na3/);
+});
+
+test("buildViewText chatlog: lastTurns >= total rounds renders everything without a notice", () => {
+  const entries: SessionEntry[] = [userEntry("q1"), assistantEntry([{ type: "text", text: "a1" }])];
+  const text = buildViewText("chatlog", entries, 5);
+  assert.match(text, /## 👤 User · #1\n\nq1/);
+  assert.doesNotMatch(text, /omitted/);
+});
+
+test("buildViewText thinking: lastTurns keeps only thinking from the last N rounds", () => {
+  const entries: SessionEntry[] = [
+    userEntry("q1"),
+    assistantEntry([{ type: "thinking", thinking: "old thought" }]),
+    userEntry("q2"),
+    assistantEntry([{ type: "thinking", thinking: "new thought" }]),
+  ];
+  const text = buildViewText("thinking", entries, 1);
+  assert.doesNotMatch(text, /old thought/);
+  assert.match(text, /\*\*Turn 2\*\*\n\nnew thought/);
+});
+
+test("buildViewText chatlog: truncates long tool output to 20 lines with a notice", () => {
+  const lines = Array.from({ length: 25 }, (_, i) => `line${i + 1}`).join("\n");
+  const entries: SessionEntry[] = [
+    assistantEntry([{ type: "toolCall", id: "call-7", name: "bash", arguments: {} }]),
+    toolResultEntry("call-7", lines),
+  ];
+  const text = buildViewText("chatlog", entries);
+  assert.match(text, /line20/);
+  assert.doesNotMatch(text, /line21/);
+  assert.match(text, /_… \+5 more lines_/);
+});
+
+test("buildViewText chatlog: tool output containing fences gets a longer fence", () => {
+  const entries: SessionEntry[] = [
+    assistantEntry([{ type: "toolCall", id: "call-8", name: "bash", arguments: {} }]),
+    toolResultEntry("call-8", "before\n```js\ncode\n```\nafter"),
+  ];
+  const text = buildViewText("chatlog", entries);
+  assert.match(text, /````\nbefore\n```js\ncode\n```\nafter\n````/);
+});
+
+test("buildViewText chatlog: marks a failed tool result as error", () => {
+  const entries: SessionEntry[] = [
+    assistantEntry([{ type: "toolCall", id: "call-2", name: "bash", arguments: {} }]),
+    toolResultEntry("call-2", "command not found", true),
+  ];
+  assert.match(buildViewText("chatlog", entries), /🔧 Tool: `bash`[\s\S]*❌ error[\s\S]*command not found/);
+});

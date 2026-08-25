@@ -580,7 +580,7 @@ test("TUI surface folds oversized assistant provider output", () => {
   assert.match(text, /raw preview:/);
   assert.match(text, /huge-start/);
   assert.match(text, /huge-end/);
-  assert.match(text, /use \/view to inspect it/);
+  assert.match(text, /use \/transcript to inspect it/);
 });
 
 test("TUI surface restores full assistant markdown rendering when oversized policy is disabled", () => {

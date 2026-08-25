@@ -73,6 +73,18 @@ export function ensurePackageExtensions(
       installedExtensionPaths.add(destDir);
     }
   }
+
+  // Prune stale built-in installs (e.g. left behind by a package rename).
+  // Only directories carrying the hash marker were installed by us;
+  // third-party extensions never have it and are left untouched.
+  for (const entry of fs.readdirSync(extensionsDir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const dir = path.join(extensionsDir, entry.name);
+    if (installedExtensionPaths.has(dir)) continue;
+    if (fs.existsSync(path.join(dir, PACKAGE_HASH_FILE))) {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
   return [...installedExtensionPaths].sort();
 }
 

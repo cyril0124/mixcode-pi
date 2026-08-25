@@ -130,6 +130,45 @@ test("binary runtime built-in packages are installed as Pi extensions", async ()
   }
 });
 
+test("ensurePackageExtensions prunes renamed built-ins but keeps third-party extensions", async () => {
+  const rootDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-prune-"));
+  const agentDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-prune-agent-"));
+  const writePackage = async (name: string) => {
+    const dir = path.join(rootDir, "pi-packages", name);
+    await fsPromises.mkdir(dir, { recursive: true });
+    await fsPromises.writeFile(
+      path.join(dir, "package.json"),
+      JSON.stringify({ name, version: "0.0.0", type: "module", pi: { extensions: ["./index.ts"] } }),
+      "utf8",
+    );
+    await fsPromises.writeFile(path.join(dir, "index.ts"), "export default 0;\n", "utf8");
+    return dir;
+  };
+  try {
+    // Third-party extension (no hash marker) must survive pruning.
+    const thirdParty = path.join(agentDir, "extensions", "third-party-ext");
+    await fsPromises.mkdir(thirdParty, { recursive: true });
+    await fsPromises.writeFile(path.join(thirdParty, "index.ts"), "export default 2;\n", "utf8");
+
+    const oldDir = await writePackage("probe-old-name");
+    ensurePackageExtensions(rootDir, { agentDir });
+    const oldInstalled = path.join(agentDir, "extensions", "probe-old-name");
+    await fsPromises.stat(oldInstalled);
+
+    // Simulate a rename: the source package disappears, a new name appears.
+    await fsPromises.rm(oldDir, { recursive: true, force: true });
+    await writePackage("probe-new-name");
+    ensurePackageExtensions(rootDir, { agentDir });
+
+    await assert.rejects(fsPromises.stat(oldInstalled), /ENOENT/);
+    await fsPromises.stat(path.join(agentDir, "extensions", "probe-new-name", "index.ts"));
+    await fsPromises.stat(path.join(thirdParty, "index.ts"));
+  } finally {
+    await fsPromises.rm(rootDir, { recursive: true, force: true });
+    await fsPromises.rm(agentDir, { recursive: true, force: true });
+  }
+});
+
 test("ensurePackageExtensions uses the same hash sync for source and binary package roots", async () => {
   for (const packageRootName of ["pi-packages", "packages"]) {
     const rootDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), `mixcode-${packageRootName}-`));

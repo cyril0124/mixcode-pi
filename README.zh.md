@@ -64,7 +64,7 @@ Tab 之间可以直接对话——同一 TUI，或其他 `mpi` 进程——无�
 - **`mpi-auto-rename`**：基于上下文自动生成会话标题（`/auto-rename`）。
 - **`mpi-ctl`**：Agent Tab 跨 Tab / 多实例协作命令行工具与技能（`mpi status` / `mpi ctl`）。
 - **`mpi-permission`**：细粒度工具调用权限管控（`/permission`）。
-- **`mpi-chat-view`**：在 `$EDITOR` 或内置编辑器中查看完整对话、Thinking 与最新回复（`/view`）。
+- **`mpi-transcript`**：在 `$EDITOR` 或内置编辑器中查看会话转录切片——完整对话、Thinking、最新回复（`/transcript`）。
 - **`mpi-prompt-history`**：Prompt 历史召回与交互式浏览面板（`/prompt-history`）。
 - **`mpi-tool-block`**：动态对模型屏蔽指定工具（`/tool-block`）。
 - **`mpi-tool-display`**：终端紧凑型工具调用与 Thinking 消息渲染优化。

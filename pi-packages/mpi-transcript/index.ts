@@ -1,8 +1,8 @@
 // ╔══════════════════════════════════════════════════════════════════╗
-// ║          chat-view: View conversation content in the editor        ║
+// ║      transcript: View session transcript slices in the editor      ║
 // ╠══════════════════════════════════════════════════════════════════╣
 // ║                                                                    ║
-// ║  /view [target]                                                    ║
+// ║  /transcript [target] [N]   N = last N rounds (chatlog/thinking)  ║
 // ║                                                                    ║
 // ║  Rebuilds the requested slice of the current session branch and    ║
 // ║  opens it in the user's external editor ($VISUAL/$EDITOR), falling  ║
@@ -10,7 +10,8 @@
 // ║  configured. For scrolling and copying; nothing is written to disk. ║
 // ║                                                                    ║
 // ║  Targets:                                                          ║
-// ║    chatlog       Full transcript (user/assistant/thinking/tools)   ║
+// ║    chatlog       Full transcript (user/assistant/thinking/tools/   ║
+// ║                  injected/compaction/branch summaries/errors)      ║
 // ║    thinking      All reasoning/thinking blocks                     ║
 // ║    latest-agent  Last assistant text reply                         ║
 // ║    latest-user   Last user message                                 ║
@@ -47,6 +48,7 @@ interface ToolCallBlock {
   type: "toolCall";
   id?: string;
   name?: string;
+  arguments?: Record<string, unknown>;
 }
 type AssistantBlock = TextBlock | ThinkingBlock | ToolCallBlock | { type: string };
 
@@ -78,17 +80,12 @@ function normalizeTarget(raw: string): TargetId | undefined {
   }
 }
 
-// ─── Title formatting ───────────────────────────────────────────────────────
-//
-//   ---------------
-//   Thinking Export
-//   ---------------
-//
-//   <content>
-//
-// The divider width equals the title's character length (per product choice),
-// with one blank line separating the header from the body.
+// ─── Output assembly ───────────────────────────────────────────────────────
 
+/**
+ * Markdown output: `# <title>` followed by blank-line-separated sections,
+ * with trailing whitespace stripped from every line.
+ */
 export function formatViewText(title: string, body: string[]): string {
   return [`# ${title}`, ...body].join("\n\n").replace(/[ \t]+$/gm, "");
 }
@@ -114,18 +111,28 @@ function blockText(content: unknown): string {
     .join("\n");
 }
 
-/** All thinking blocks across every assistant message, in order. */
-function collectThinking(entries: SessionEntry[]): string[] {
+/** Thinking block text with the redacted placeholder applied. */
+function thinkingText(block: ThinkingBlock): string {
+  return block.redacted ? "[Reasoning redacted]" : (block.thinking ?? "");
+}
+
+/**
+ * All thinking blocks across every assistant message, in order. Each block is
+ * labeled with its round (1-based count of non-empty user messages so far) so
+ * long exports stay navigable; blocks before any user message are unlabeled.
+ */
+function collectThinking(entries: SessionEntry[], turnOffset = 0): string[] {
   const out: string[] = [];
+  let turn = turnOffset;
   for (const entry of entries) {
     const msg = messageOf(entry);
+    if (msg?.role === "user" && blockText(msg.content).trim()) turn += 1;
     if (msg?.role !== "assistant" || !Array.isArray(msg.content)) continue;
     for (const block of msg.content as AssistantBlock[]) {
       if (block.type !== "thinking") continue;
-      const t = block as ThinkingBlock;
-      const text = t.redacted ? "[Reasoning redacted]" : (t.thinking ?? "");
-      // Indent each line so vim renders it as a blockquote-style indented block
-      if (text.trim()) out.push(`---\n\n${text.trim()}`);
+      const text = thinkingText(block as ThinkingBlock);
+      const label = turn > 0 ? `**Turn ${turn}**\n\n` : "";
+      if (text.trim()) out.push(`---\n\n${label}${text.trim()}`);
     }
   }
   return out;
@@ -153,10 +160,19 @@ function latestUserMessage(entries: SessionEntry[]): string | undefined {
   return undefined;
 }
 
-// Full transcript. Tool calls and their results are paired by toolCallId so
-// each tool line shows its final status/output, matching the host's prior
-// chatlog output ([role] text, [tool:name:status] result).
-function collectChatlog(entries: SessionEntry[]): string[] {
+/** Tool result output is capped at this many lines; the rest is summarized. */
+const TOOL_RESULT_MAX_LINES = 20;
+
+/** Shortest backtick fence that safely wraps `text` (which may contain fences). */
+function fenceFor(text: string): string {
+  const runs = text.match(/`{3,}/g);
+  return "`".repeat(runs ? Math.max(3, ...runs.map((r) => r.length)) + 1 : 3);
+}
+
+// Full transcript as markdown sections: numbered user/assistant rounds,
+// injected context, compaction/branch summaries, tool calls (paired to their
+// results by toolCallId), thinking quotes, and error/abort markers.
+function collectChatlog(entries: SessionEntry[], turnOffset = 0): string[] {
   const resultById = new Map<string, { status: string; text: string }>();
   for (const entry of entries) {
     const msg = messageOf(entry) as
@@ -171,12 +187,43 @@ function collectChatlog(entries: SessionEntry[]): string[] {
   }
 
   const sections: string[] = [];
+  // Round counter: each non-empty user message starts a new round; assistant
+  // sections carry the round of the user message they answer.
+  let turn = turnOffset;
   for (const entry of entries) {
-    const msg = messageOf(entry) as { role: string; content?: unknown } | undefined;
+    // Compaction replaces all prior context with its summary; branch summaries
+    // stand in for another branch. Both are LLM-visible, so the chatlog must
+    // show them or the transcript reads as if context appeared from nowhere.
+    if (entry.type === "compaction") {
+      const tokens = entry.tokensBefore.toLocaleString("en-US");
+      sections.push(`---\n\n## 🗜️ Compaction · ${tokens} tokens before\n\n${entry.summary.trim()}`);
+      continue;
+    }
+    if (entry.type === "branch_summary") {
+      sections.push(`---\n\n## 🌿 Branch Summary\n\n${entry.summary.trim()}`);
+      continue;
+    }
+    // Extension-injected context messages. They join LLM context as user
+    // messages but are not real user turns, so they do not advance the round
+    // counter. display:false means hidden in the TUI — surfaced here with a
+    // marker since this view exists to reveal them.
+    if (entry.type === "custom_message") {
+      const text = blockText(entry.content);
+      const hidden = entry.display ? "" : " · _hidden_";
+      if (text.trim())
+        sections.push(`---\n\n## 📥 Injected · \`${entry.customType}\`${hidden}\n\n${text.trim()}`);
+      continue;
+    }
+    const msg = messageOf(entry) as
+      | { role: string; content?: unknown; stopReason?: string; errorMessage?: string }
+      | undefined;
     if (!msg) continue;
     if (msg.role === "user") {
       const text = blockText(msg.content);
-      if (text.trim()) sections.push(`---\n\n## 👤 User\n\n${text.trim()}`);
+      if (text.trim()) {
+        turn += 1;
+        sections.push(`---\n\n## 👤 User · #${turn}\n\n${text.trim()}`);
+      }
     } else if (msg.role === "assistant" && Array.isArray(msg.content)) {
       const parts: string[] = [];
       for (const block of msg.content as AssistantBlock[]) {
@@ -184,9 +231,8 @@ function collectChatlog(entries: SessionEntry[]): string[] {
           const text = (block as TextBlock).text ?? "";
           if (text.trim()) parts.push(text.trim());
         } else if (block.type === "thinking") {
-          const t = block as ThinkingBlock;
-          const text = t.redacted ? "[Reasoning redacted]" : (t.thinking ?? "");
-          // Render thinking as a collapsed blockquote section
+          const text = thinkingText(block as ThinkingBlock);
+          // Render thinking as a labeled blockquote
           if (text.trim())
             parts.push(
               `> **💭 Thinking**\n>\n> ${text.trim().replace(/\n/g, "\n> ")}`,
@@ -195,28 +241,76 @@ function collectChatlog(entries: SessionEntry[]): string[] {
           const call = block as ToolCallBlock;
           const result = call.id ? resultById.get(call.id) : undefined;
           const name = call.name ?? "(unknown)";
-          const status = result?.status === "error" ? "❌ error" : "✅ success";
+          // No paired result means the call never completed (e.g. aborted).
+          const status = result ? (result.status === "error" ? "❌ error" : "✅ success") : "⏳ no result";
+          // Tool call arguments as a fenced JSON block; empty/missing args render nothing.
+          const args = call.arguments && Object.keys(call.arguments).length ? call.arguments : undefined;
+          let argsBlock = "";
+          if (args) {
+            const json = JSON.stringify(args, null, 2);
+            const f = fenceFor(json);
+            argsBlock = `\n\n${f}json\n${json}\n${f}`;
+          }
+          // Tool output in a fence sized past any fence inside it, truncated so
+          // one big read/bash result cannot drown the transcript.
           const resultText = result?.text.trim() ?? "";
-          // Use indented code block for tool output
-          const body = resultText ? `\n\n    ${resultText.replace(/\n/g, "\n    ")}` : "";
-          parts.push(`**🔧 Tool: \`${name}\`** — _${status}_${body}`);
+          let body = "";
+          if (resultText) {
+            const lines = resultText.split("\n");
+            const kept = lines.slice(0, TOOL_RESULT_MAX_LINES).join("\n");
+            const f = fenceFor(kept);
+            const more = lines.length - TOOL_RESULT_MAX_LINES;
+            body = `\n\n${f}\n${kept}\n${f}${more > 0 ? `\n\n_… +${more} more lines_` : ""}`;
+          }
+          parts.push(`### 🔧 Tool: \`${name}\` — ${status}${argsBlock}${body}`);
         }
       }
-      if (parts.length) sections.push(`---\n\n## 🤖 Assistant\n\n${parts.join("\n\n")}`);
+      // Surface failed/interrupted turns; without this an errored turn with no
+      // text would vanish from the transcript.
+      if (msg.stopReason === "error" || msg.stopReason === "aborted") {
+        parts.push(`**⚠️ ${msg.stopReason}**${msg.errorMessage ? `: ${msg.errorMessage}` : ""}`);
+      }
+      if (parts.length)
+        sections.push(`---\n\n## 🤖 Assistant${turn > 0 ? ` · #${turn}` : ""}\n\n${parts.join("\n\n")}`);
     }
   }
   return sections;
 }
 
-/** Build the final editor text for a target from the session branch. */
-export function buildViewText(target: TargetId, entries: SessionEntry[]): string {
-  const meta = TARGETS.find((t) => t.id === target)!;
-  if (target === "thinking") {
-    const thinking = collectThinking(entries);
-    return formatViewText(meta.title, thinking.length ? thinking : ["No thinking entries."]);
+// Cut the branch down to its last N rounds (a round starts at a non-empty
+// user message). Returns the retained tail plus the number of omitted rounds,
+// so turn numbering stays global across the cut.
+function cutForLastTurns(
+  entries: SessionEntry[],
+  lastTurns: number | undefined,
+): { sliced: SessionEntry[]; turnOffset: number } {
+  if (!lastTurns) return { sliced: entries, turnOffset: 0 };
+  const starts: number[] = [];
+  for (let i = 0; i < entries.length; i++) {
+    const msg = messageOf(entries[i]!);
+    if (msg?.role === "user" && blockText(msg.content).trim()) starts.push(i);
   }
-  if (target === "chatlog") {
-    return formatViewText(meta.title, collectChatlog(entries));
+  if (starts.length <= lastTurns) return { sliced: entries, turnOffset: 0 };
+  const omitted = starts.length - lastTurns;
+  return { sliced: entries.slice(starts[omitted]!), turnOffset: omitted };
+}
+
+/**
+ * Build the final editor text for a target from the session branch.
+ * `lastTurns` (chatlog/thinking only) restricts output to the last N rounds;
+ * omitted rounds are announced in a leading notice line.
+ */
+export function buildViewText(target: TargetId, entries: SessionEntry[], lastTurns?: number): string {
+  const meta = TARGETS.find((t) => t.id === target)!;
+  if (target === "thinking" || target === "chatlog") {
+    const { sliced, turnOffset } = cutForLastTurns(entries, lastTurns);
+    const note =
+      turnOffset > 0 ? [`_… earlier ${turnOffset} turn${turnOffset === 1 ? "" : "s"} omitted_`] : [];
+    if (target === "thinking") {
+      const thinking = collectThinking(sliced, turnOffset);
+      return formatViewText(meta.title, [...note, ...(thinking.length ? thinking : ["No thinking entries."])]);
+    }
+    return formatViewText(meta.title, [...note, ...collectChatlog(sliced, turnOffset)]);
   }
   if (target === "latest-agent") {
     return formatViewText(meta.title, [latestAgentReply(entries) ?? "No assistant message."]);
@@ -243,7 +337,7 @@ function openInExternalEditor(
   return ctx.ui.custom<boolean>((tui, _theme, _keybindings, done) => {
     const t = tui as unknown as { stop: () => void; start: () => void; requestRender: (f?: boolean) => void };
     t.stop();
-    const tmpFile = path.join(os.tmpdir(), `chat-view-${process.pid}-${Date.now()}.md`);
+    const tmpFile = path.join(os.tmpdir(), `transcript-${process.pid}-${Date.now()}.md`);
     // Split so `EDITOR="code -w"` style commands keep their flags.
     const [cmd, ...cmdArgs] = editorCmd.split(" ").filter(Boolean);
     // Resume exactly once (a double start leaks a resize listener).
@@ -279,17 +373,50 @@ function openInExternalEditor(
 // ─── Extension entry point ────────────────────────────────────────────────────
 
 const extension: ExtensionFactory = (pi) => {
-  // Resolve the target: explicit arg (canonical or alias) or the select chooser.
-  // Returns undefined when the user cancels the chooser or passes an unknown id.
-  const resolveTarget = async (
+  type UiCtx = {
+    ui: {
+      select(title: string, options: string[]): Promise<string | undefined>;
+      notify(message: string, type?: "info" | "warning" | "error"): void;
+    };
+  };
+
+  // Parse "/transcript [target] [N]" (or bare "/transcript N"). Returns undefined after
+  // notifying on any invalid token — no silent recovery.
+  const parseArgs = (
     args: string,
-    ctx: { ui: { select(title: string, options: string[]): Promise<string | undefined>; notify(message: string, type?: "info" | "warning" | "error"): void } },
-  ): Promise<TargetId | undefined> => {
-    const trimmed = (args ?? "").trim();
-    if (trimmed) {
-      const target = normalizeTarget(trimmed);
+    ctx: UiCtx,
+  ): { targetToken?: string; lastTurns?: number } | undefined => {
+    const tokens = (args ?? "").trim().split(/\s+/).filter(Boolean);
+    if (tokens.length > 2) {
+      ctx.ui.notify("Error: Usage: /transcript [target] [N]", "error");
+      return undefined;
+    }
+    let targetToken: string | undefined;
+    let countToken: string | undefined;
+    if (tokens.length === 2) [targetToken, countToken] = tokens as [string, string];
+    else if (tokens.length === 1) {
+      if (/^\d+$/.test(tokens[0]!)) countToken = tokens[0];
+      else targetToken = tokens[0];
+    }
+    let lastTurns: number | undefined;
+    if (countToken !== undefined) {
+      const n = Number(countToken);
+      if (!Number.isInteger(n) || n < 1) {
+        ctx.ui.notify(`Error: Invalid turn count: ${countToken}. Expected a positive integer.`, "error");
+        return undefined;
+      }
+      lastTurns = n;
+    }
+    return { targetToken, lastTurns };
+  };
+
+  // Resolve the target: explicit token, or the select chooser when absent.
+  // Returns undefined when the user cancels or passes an unknown id.
+  const resolveTarget = async (targetToken: string | undefined, ctx: UiCtx): Promise<TargetId | undefined> => {
+    if (targetToken) {
+      const target = normalizeTarget(targetToken);
       if (!target) {
-        ctx.ui.notify(`Unknown view target: ${trimmed}. Try: ${TARGETS.map((t) => t.id).join(", ")}`, "error");
+        ctx.ui.notify(`Error: Unknown transcript target: ${targetToken}. Try: ${TARGETS.map((t) => t.id).join(", ")}`, "error");
       }
       return target;
     }
@@ -303,6 +430,7 @@ const extension: ExtensionFactory = (pi) => {
   // in-app multi-line editor when none is configured or it fails to launch.
   const openView = async (
     target: TargetId,
+    lastTurns: number | undefined,
     ctx: {
       sessionManager: { getBranch: () => SessionEntry[] };
       ui: {
@@ -313,22 +441,29 @@ const extension: ExtensionFactory = (pi) => {
   ): Promise<void> => {
     const entries = ctx.sessionManager.getBranch();
     const meta = TARGETS.find((t) => t.id === target)!;
-    const content = buildViewText(target, entries);
+    const content = buildViewText(target, entries, lastTurns);
     const editorCmd = externalEditorCommand();
     if (editorCmd && (await openInExternalEditor(ctx, editorCmd, content))) return;
     await ctx.ui.editor(meta.title, content);
   };
 
-  pi.registerCommand("view", {
-    description: "View chatlog, thinking, latest-agent, or latest-user text (external editor, else in-app)",
+  pi.registerCommand("transcript", {
+    description:
+      "View chatlog, thinking, latest-agent, or latest-user text; trailing N limits chatlog/thinking to the last N turns",
     getArgumentCompletions: (prefix: string) =>
       TARGETS.map((t) => ({ value: t.id, label: t.id, description: t.label })).filter((item) =>
         item.value.startsWith(prefix.trim()),
       ),
     handler: async (args, ctx) => {
-      const target = await resolveTarget(args, ctx);
+      const parsed = parseArgs(args, ctx);
+      if (!parsed) return;
+      const target = await resolveTarget(parsed.targetToken, ctx);
       if (!target) return;
-      await openView(target, ctx);
+      if (parsed.lastTurns !== undefined && (target === "latest-agent" || target === "latest-user")) {
+        ctx.ui.notify(`Error: Turn count is not supported for ${target}.`, "error");
+        return;
+      }
+      await openView(target, parsed.lastTurns, ctx);
     },
   });
 };

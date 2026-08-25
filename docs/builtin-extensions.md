@@ -16,7 +16,7 @@ Every package with a user-edited JSON config ships a JSON Schema next to its ext
 | `mpi-auto-rename` | Optional auto on first message, `/auto-rename` | Generates a kebab-case session title; enable `onFirstMessage` in `<agentDir>/mpi-auto-rename.json`. |
 | `mpi-skill-refs` | `$` completion trigger | Project and global skill autocomplete and in-prompt expansion. |
 | `mpi-prompt-history` | `/prompt-history` | Interactive prompt history browser, filtering, and insertion into the active editor. |
-| `mpi-chat-view` | `/view [chat\|thinking\|last\|user]` | Views conversation transcripts, thinking blocks, or last messages in `$VISUAL` / `$EDITOR` or within the in-app viewer. |
+| `mpi-transcript` | `/transcript [chatlog\|thinking\|latest-agent\|latest-user] [N]` | Views transcript slices (full chatlog, thinking, latest messages; optional trailing `N` = last N turns) in `$VISUAL` / `$EDITOR` or the in-app viewer. |
 | `mpi-diff-viewer` | `/diff [ref]` | Terminal diff viewer with hunk navigation and inline review comments. |
 | `mpi-model-skills` | `/model-skills`, `<agentDir>/mpi-model-skills.json` | Attaches or detaches skills from rules matched against the current model. |
 | `mpi-model-extensions` | `/model-extensions`, `<agentDir>/mpi-model-extensions.json` | Dynamically loads model-specific Pi extensions. |

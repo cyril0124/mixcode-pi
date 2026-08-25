@@ -40,12 +40,12 @@ export function renderOversizedAssistantMessageBlock(
     ` role: ${role}`,
     ` size: ${formatBytes(info.bytes)} / ${info.lineCount.toLocaleString()} lines`,
     ` threshold: ${formatBytes(info.maxBytes)} OR ${info.maxLines.toLocaleString()} lines`,
-    " full content is kept in the session; use /view to inspect it.",
+    " full content is kept in the session; use /transcript to inspect it.",
     "",
     " raw preview:",
     ...renderRawPreviewLines(info, width),
     "",
-    ` ${activeRenderTheme.warning("[Oversized provider output folded]")} full content kept; use /view`,
+    ` ${activeRenderTheme.warning("[Oversized provider output folded]")} full content kept; use /transcript`,
     "",
   ];
   return rows.map((part) => renderBackgroundLine(part, width, activeRenderTheme.systemBackground));
