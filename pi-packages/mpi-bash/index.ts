@@ -179,9 +179,7 @@ const bashExtension: ExtensionFactory = (pi) => {
           onDetachedExit: (run) => {
             backgroundStatus.finish(run);
             try {
-              // Not a turn trigger: the result joins the context and is read on
-              // the next model call, so a finished command never wakes an idle
-              // agent.
+              // Starts a turn so the model can act on the exit code.
               pi.sendMessage(
                 {
                   customType: BASH_DETACHED_EXIT_CUSTOM_TYPE,
@@ -192,11 +190,12 @@ const bashExtension: ExtensionFactory = (pi) => {
                     exitCode: run.exitCode,
                     timedOut: run.timedOut,
                     tail: run.tail,
+                    lineCount: run.lineCount,
                     logPath: run.logPath,
                     logError: run.logError,
                   } satisfies DetachedExitDetails,
                 },
-                { triggerTurn: false },
+                { triggerTurn: true },
               );
             } catch {
               // The session was replaced or closed while the command ran, so the

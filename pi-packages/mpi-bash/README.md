@@ -13,7 +13,7 @@ The extension registers its own `bash` tool definition, built from Pi's `createB
 | `0` → foreground window | Output streams into the transcript as the command produces it. |
 | Command ends first | The tool result carries its output and exit code, matching Pi's builtin bash. |
 | Window expires | The command keeps running in the background. The tool result gains a handle (pid + log path) and succeeds, so the turn continues. |
-| Background command ends | A `bash-detached-exit` message with the exit code and the last output is appended to the session **without triggering a turn**. |
+| Background command ends | A `bash-detached-exit` message with the exit code and the last output is appended to the session and **starts a new turn**. |
 | `timeout` reached | The command's process group is killed, in the foreground (Pi's `Command timed out after N seconds` error) or in the background (reported in the completion notice). |
 
 `timeout` bounds the command's total life, foreground plus background. When the model passes a `timeout` shorter than the foreground window, the command is killed before it can ever detach.
@@ -22,7 +22,7 @@ The extension registers its own `bash` tool definition, built from Pi's `createB
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `MPI_BASH_FOREGROUND_SECONDS` | `60` | Foreground blocking window in seconds. `0` disables detaching entirely: bash blocks until the command ends or its timeout kills it. A non-numeric or negative value fails loudly at session start. |
+| `MPI_BASH_FOREGROUND_SECONDS` | `30` | Foreground blocking window in seconds. `0` disables detaching entirely: bash blocks until the command ends or its timeout kills it. A non-numeric or negative value fails loudly at session start. |
 
 The injected default `timeout` is `300` seconds and applies only when the model omits `timeout`.
 
@@ -37,15 +37,23 @@ While at least one command runs in the background, a widget above the editor lis
 
 Each row is a `warning` spinner, bold `accent` elapsed time, and a `dim` command. A command too wide for the terminal is elided so every run costs exactly one line. The widget disappears when the last run finishes.
 
-When a background command ends, the chat shows one status line and, if there is output, its last few lines:
+When a background command ends, the chat shows a `Background job finished` heading, the command, and, if there is output, a rule then the last 10 lines with their log line numbers. Earlier output is marked `… N lines omitted (full log at <path>)`.
 
 ```text
+ Background job finished
  ✓  printf "FOREGROUND-OUTPUT"; sleep 12; printf 'done'
- done
+ ────────────────────────────────
+ … 16 lines omitted (full log at /tmp/mpi-bash-1258366-1.log)
+ 24 │ tick 23/24 at 21:16:43
+ 25 │ tick 24/24 at 21:16:44
+ 26 │ done
 
+ Background job finished
  ✗  cargo test                                              1
- FAILED tests/retry.rs
+ ────────────────────────────────
+ 18 │ FAILED tests/retry.rs
 
+ Background job finished
  ⏱  pytest -k slow                                    timeout
 ```
 

@@ -70,14 +70,50 @@ export interface DetachedExitDetails {
   exitCode: number | null;
   timedOut: boolean;
   tail: string;
+  /** Total output lines; used to number the tail and to mark a cut. */
+  lineCount: number;
   logPath: string;
   logError?: string;
 }
 
-/** Last non-empty lines of output shown under the status row. */
-const COMPLETION_TAIL_LINES = 3;
+/** Last lines of output shown under the status row. */
+const COMPLETION_TAIL_LINES = 10;
 
-/** Chat render of a finished background command: status row, then a short tail. */
+function completionLogLines(
+  details: DetachedExitDetails,
+  theme: Theme,
+  inner: number,
+): string[] {
+  if (details.logError) {
+    return [theme.fg("error", truncateToWidth(details.logError, inner, "…"))];
+  }
+  const lines = details.tail.split(/\r?\n/);
+  if (lines.at(-1) === "") lines.pop();
+  const shown = lines.slice(-COMPLETION_TAIL_LINES);
+  if (shown.length === 0) return [];
+  const total = details.lineCount;
+  const start = Math.max(1, total - shown.length + 1);
+  const gutter = String(Math.max(total, start + shown.length - 1)).length;
+  const textWidth = Math.max(4, inner - gutter - 3);
+  const body = shown.map((line, index) => {
+    const number = theme.fg("dim", String(start + index).padStart(gutter));
+    return `${number} │ ${theme.fg("dim", truncateToWidth(line, textWidth, "…"))}`;
+  });
+  const omitted = total - shown.length;
+  if (omitted > 0) {
+    const label = omitted === 1 ? "1 line omitted" : `${omitted} lines omitted`;
+    return [
+      theme.fg(
+        "dim",
+        truncateToWidth(`… ${label} (full log at ${details.logPath})`, inner, "…"),
+      ),
+      ...body,
+    ];
+  }
+  return body;
+}
+
+/** Chat render of a finished background command. */
 export function renderCompletionMessage(
   details: DetachedExitDetails,
   theme: Theme,
@@ -94,20 +130,15 @@ export function renderCompletionMessage(
   const inner = Math.max(24, width - 3);
   const text = truncateToWidth(command, Math.max(4, inner - 4 - right.length), "…");
   const gap = right ? Math.max(2, inner - 2 - visibleWidth(text) - right.length) : 0;
+  const title = theme.bold(theme.fg("accent", "Background job finished"));
   const status =
-    `${theme.fg(color, icon)} ${theme.fg("dim", text)}` +
+    `${theme.fg(color, icon)} ${theme.fg("text", text)}` +
     (right ? `${" ".repeat(gap)}${theme.fg(color, right)}` : "");
 
-  const tail = details.logError
-    ? [theme.fg("error", truncateToWidth(details.logError, inner, "…"))]
-    : details.tail
-        .trim()
-        .split(/\r?\n/)
-        .filter(Boolean)
-        .slice(-COMPLETION_TAIL_LINES)
-        .map((line) => theme.fg("dim", truncateToWidth(line, inner, "…")));
+  const tail = completionLogLines(details, theme, inner);
+  const rule = tail.length > 0 ? [theme.fg("dim", "─".repeat(inner))] : [];
 
-  container.addChild(new Text([status, ...tail].join("\n"), 1, 0));
+  container.addChild(new Text([title, status, ...rule, ...tail].join("\n"), 1, 0));
   return container.render(width).map((line) => truncateToWidth(line, Math.max(1, width)));
 }
 

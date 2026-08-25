@@ -13,7 +13,7 @@ Bash 执行策略：默认超时、前台窗口、到期自动转后台、结束
 | `0` → 前台窗口 | 命令产生输出即实时流入对话。 |
 | 命令先结束 | 工具结果携带输出与退出码，与 Pi 内置 bash 完全一致。 |
 | 窗口到期 | 命令转入后台继续运行；工具结果追加句柄（pid + 日志路径）并以成功返回，本轮继续。 |
-| 后台命令结束 | 一条带退出码与末尾输出的 `bash-detached-exit` 消息追加进会话，**不触发新一轮**。 |
+| 后台命令结束 | 一条带退出码与末尾输出的 `bash-detached-exit` 消息追加进会话，并**开启新一轮**。 |
 | 到达 `timeout` | 命令所在进程组被杀死：前台阶段表现为 Pi 的 `Command timed out after N seconds` 错误，后台阶段则写入完成回报。 |
 
 `timeout` 约束命令的总生命周期，含前台与后台两段。当模型传入的 `timeout` 小于前台窗口时，命令在有机会转后台之前就被杀死。
@@ -22,7 +22,7 @@ Bash 执行策略：默认超时、前台窗口、到期自动转后台、结束
 
 | 变量 | 默认值 | 含义 |
 | --- | --- | --- |
-| `MPI_BASH_FOREGROUND_SECONDS` | `60` | 前台阻塞窗口秒数。`0` 表示完全关闭转后台：bash 一直阻塞到命令结束或被超时杀死。非数字或负数会在会话启动时直接报错。 |
+| `MPI_BASH_FOREGROUND_SECONDS` | `30` | 前台阻塞窗口秒数。`0` 表示完全关闭转后台：bash 一直阻塞到命令结束或被超时杀死。非数字或负数会在会话启动时直接报错。 |
 
 注入的默认 `timeout` 为 `300` 秒，仅在模型省略 `timeout` 时生效。
 
@@ -37,15 +37,23 @@ Bash 执行策略：默认超时、前台窗口、到期自动转后台、结束
 
 每一行是 `warning` 色 spinner、`accent` 加粗的时长，以及 `dim` 的命令。超出终端宽度的命令会省略，每条恰好一行。最后一条结束后组件消失。
 
-后台命令结束后，聊天里只显示一行状态，有输出时再跟最后几行：
+后台命令结束后，聊天里先是一行 `Background job finished` 标题，再是命令本身；有输出时中间一条分隔线，下面是带行号的最后 10 行。上面还有输出时写 `… N lines omitted (full log at <路径>)`。
 
 ```text
+ Background job finished
  ✓  printf "FOREGROUND-OUTPUT"; sleep 12; printf 'done'
- done
+ ────────────────────────────────
+ … 16 lines omitted (full log at /tmp/mpi-bash-1258366-1.log)
+ 24 │ tick 23/24 at 21:16:43
+ 25 │ tick 24/24 at 21:16:44
+ 26 │ done
 
+ Background job finished
  ✗  cargo test                                              1
- FAILED tests/retry.rs
+ ────────────────────────────────
+ 18 │ FAILED tests/retry.rs
 
+ Background job finished
  ⏱  pytest -k slow                                    timeout
 ```
 

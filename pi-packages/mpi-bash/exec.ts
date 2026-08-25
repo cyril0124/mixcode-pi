@@ -16,7 +16,7 @@ import { type BashOperations, getShellConfig } from "@earendil-works/pi-coding-a
 export const BASH_DEFAULT_TIMEOUT_SECONDS = 300;
 
 /** Foreground blocking window before a command is handed to the background. */
-export const DEFAULT_FOREGROUND_SECONDS = 60;
+export const DEFAULT_FOREGROUND_SECONDS = 30;
 
 /** Output kept in memory after detaching, to quote in the completion notice. */
 const NOTICE_TAIL_BYTES = 2000;
@@ -235,6 +235,8 @@ export interface DetachedRun {
   /** Set when the background log could not be written; reported to the model. */
   logError?: string;
   tail: string;
+  /** Total output lines, including a last line that has no trailing newline. */
+  lineCount: number;
 }
 
 export interface DetachedStart {
@@ -299,6 +301,8 @@ export function createDetachingBashOperations(options: {
       let timedOut = false;
       let logError: string | undefined;
       let tail = Buffer.alloc(0);
+      let lineCount = 0;
+      let danglingLine = false;
       // Held in memory until the command detaches, then flushed to the log so
       // the file is still the complete record. A command that finishes in the
       // foreground never touches the disk: its output is in the tool result.
@@ -318,6 +322,14 @@ export function createDetachingBashOperations(options: {
         }
         logStream?.write(data);
         tail = Buffer.concat([tail, data]).subarray(-NOTICE_TAIL_BYTES);
+        for (const byte of data) {
+          if (byte === 0x0a) {
+            lineCount++;
+            danglingLine = false;
+          } else {
+            danglingLine = true;
+          }
+        }
         // Past detach the tool result is finalized, so it stops receiving output.
         if (!detached) onData(data);
       };
@@ -416,6 +428,7 @@ export function createDetachingBashOperations(options: {
           logPath,
           logError,
           tail: tail.toString("utf8"),
+          lineCount: lineCount + (danglingLine ? 1 : 0),
         });
       };
       // Both settlements must report: a rejected wait (stdio failure after

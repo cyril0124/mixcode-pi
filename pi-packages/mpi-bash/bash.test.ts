@@ -315,7 +315,7 @@ test("bash tool calls get the default timeout only when it is missing", async ()
 });
 
 test("foreground window rejects a malformed value instead of defaulting", () => {
-  assert.equal(resolveForegroundSeconds({}), 60);
+  assert.equal(resolveForegroundSeconds({}), 30);
   assert.equal(resolveForegroundSeconds({ MPI_BASH_FOREGROUND_SECONDS: "0" }), 0);
   assert.throws(
     () => resolveForegroundSeconds({ MPI_BASH_FOREGROUND_SECONDS: "soon" }),
@@ -419,13 +419,16 @@ test("the chat line is a status row plus a short tail", () => {
       exitCode: 0,
       timedOut: false,
       tail: "late\n",
+      lineCount: 1,
       logPath: "/tmp/x.log",
     },
     theme,
     80,
   );
+  assert.match(ok.join("\n"), /Background job finished/);
   assert.match(ok.join("\n"), /✓/);
-  assert.match(ok.join("\n"), /late/);
+  assert.match(ok.join("\n"), /printf[\s\S]*─[\s\S]*1 │ late/);
+  assert.doesNotMatch(ok.join("\n"), /…/);
   assert.doesNotMatch(ok.join("\n"), /extension bash-detached-exit|Complete output|\[mpi-bash\]/);
 
   const fail = renderCompletionMessage(
@@ -434,6 +437,7 @@ test("the chat line is a status row plus a short tail", () => {
       exitCode: 2,
       timedOut: false,
       tail: "*** [main] Error 1\n",
+      lineCount: 1,
       logPath: "/tmp/x.log",
     },
     theme,
@@ -441,7 +445,7 @@ test("the chat line is a status row plus a short tail", () => {
   );
   assert.match(fail.join("\n"), /✗/);
   assert.match(fail.join("\n"), /Error 1/);
-  assert.match(fail.at(0) ?? "", / 2\s*$/);
+  assert.match(fail.at(1) ?? "", / 2\s*$/);
 
   const timedOut = renderCompletionMessage(
     {
@@ -449,14 +453,16 @@ test("the chat line is a status row plus a short tail", () => {
       exitCode: null,
       timedOut: true,
       tail: "",
+      lineCount: 0,
       logPath: "/tmp/x.log",
     },
     theme,
     80,
   );
-  assert.equal(timedOut.length, 1);
-  assert.match(timedOut[0] ?? "", /⏱/);
-  assert.match(timedOut[0] ?? "", /timeout\s*$/);
+  assert.equal(timedOut.length, 2);
+  assert.match(timedOut[0] ?? "", /Background job finished/);
+  assert.match(timedOut[1] ?? "", /⏱/);
+  assert.match(timedOut[1] ?? "", /timeout\s*$/);
 
   const empty = renderCompletionMessage(
     {
@@ -464,13 +470,33 @@ test("the chat line is a status row plus a short tail", () => {
       exitCode: 0,
       timedOut: false,
       tail: "",
+      lineCount: 0,
       logPath: "/tmp/x.log",
     },
     theme,
     80,
   );
-  assert.equal(empty.length, 1);
-  assert.match(empty[0] ?? "", /✓/);
+  assert.equal(empty.length, 2);
+  assert.match(empty[0] ?? "", /Background job finished/);
+  assert.match(empty[1] ?? "", /✓/);
+  assert.doesNotMatch(empty.join("\n"), /─/);
+
+  const cut = renderCompletionMessage(
+    {
+      command: "seq 15",
+      exitCode: 0,
+      timedOut: false,
+      tail: `${Array.from({ length: 10 }, (_, i) => String(i + 6)).join("\n")}\n`,
+      lineCount: 15,
+      logPath: "/tmp/x.log",
+    },
+    theme,
+    80,
+  );
+  assert.match(cut.join("\n"), /… 5 lines omitted \(full log at \/tmp\/x\.log\)/);
+  assert.match(cut.join("\n"), /6 │ 6/);
+  assert.match(cut.join("\n"), /15 │ 15/);
+  assert.doesNotMatch(cut.join("\n"), /^\s*5 │ /m);
 });
 
 test("a command finishing inside the window streams output and reports its exit code", async () => {
@@ -689,7 +715,7 @@ test("pi's timeout and cwd validation still rejects before spawning", async () =
   );
 });
 
-test("the registered bash tool detaches, shows the widget, and reports without waking the agent", async () => {
+test("the registered bash tool detaches, shows the widget, and reports by starting a turn", async () => {
   const handlers: Record<string, Array<(event: unknown, ctx: unknown) => unknown>> = {};
   const messages: Array<{
     customType: string;
@@ -757,11 +783,10 @@ test("the registered bash tool detaches, shows the widget, and reports without w
 
     const notice = await waitFor(() => messages[0]);
     assert.equal(notice.customType, "bash-detached-exit");
-    // Waking an idle agent for a finished background command is the hazard this
-    // whole delivery path exists to avoid.
-    assert.equal(notice.triggerTurn, false);
+    assert.equal(notice.triggerTurn, true);
     assert.match(notice.content, /exited with code 0/);
     const shown = renderer?.(notice, {}, plainTheme)?.render(80).join("\n") ?? "";
+    assert.match(shown, /Background job finished/);
     assert.match(shown, /✓/);
     assert.match(shown, /late/);
     assert.doesNotMatch(shown, /extension bash-detached-exit|Complete output/);
