@@ -2,6 +2,11 @@ import { visibleWidth } from "@earendil-works/pi-tui";
 import { activeRenderTheme } from "./context.js";
 import { padLine } from "./primitives.js";
 
+// Column isolation: a left-column row may end with SGR state still open
+// (e.g. after in-pane overlay compositing). Reset explicitly so the separator
+// and the right column never inherit styling from the left column.
+const SGR_RESET = "\x1b[0m";
+
 export function centerLine(text: string, width: number): string {
   const left = Math.max(0, Math.floor((width - visibleWidth(text)) / 2));
   return `${" ".repeat(left)}${text}`;
@@ -17,7 +22,7 @@ export function joinColumns(
   return Array.from(
     { length: height },
     (_, index) =>
-      `${padLine(left[index] ?? "", leftWidth)} ${padLine(right[index] ?? "", rightWidth)}`,
+      `${padLine(left[index] ?? "", leftWidth)}${SGR_RESET} ${padLine(right[index] ?? "", rightWidth)}`,
   );
 }
 

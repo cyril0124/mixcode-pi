@@ -8,6 +8,12 @@ import type { ToastNotification, ToastType } from "../../core/toast.js";
 import type { MixCodeTheme } from "../themes.js";
 import { padLine } from "../rendering/primitives.js";
 
+// compositeTuiLine can drop the base line's trailing SGR reset (its "after"
+// segment re-opens the styling active at the overlay edge but stops at the
+// last visible column). Terminate every composited row explicitly so no open
+// state leaks into content appended after the row (scrollbar cell, sidebar).
+const SGR_RESET = "\x1b[0m";
+
 const TOAST_TOP_MARGIN = 1;
 const TOAST_RIGHT_MARGIN = 1;
 const TOAST_MIN_BOX_WIDTH = 24;
@@ -41,13 +47,13 @@ export function applyToastOverlay(
   while (result.length < requiredRows) result.push("");
   for (let index = 0; index < overlay.length; index++) {
     const row = TOAST_TOP_MARGIN + index;
-    result[row] = compositeTuiLine(
+    result[row] = `${compositeTuiLine(
       result[row] ?? "",
       overlay[index]!,
       startCol,
       boxWidth,
       lineWidth,
-    );
+    )}${SGR_RESET}`;
   }
   return result;
 }
