@@ -30,6 +30,9 @@ test("command palette derives every palette-visible LOCAL_COMMANDS entry", () =>
   const commands = new Set(commandPaletteEntriesWithExtensions(state).map((entry) => entry.command));
   // Newly registered local commands must appear without touching overlays.ts.
   assert.ok(commands.has("/toggle-hidden-messages"), "palette derives /toggle-hidden-messages");
+  assert.ok(commands.has("/jump"), "palette derives /jump");
+  assert.ok(commands.has("/editor"), "palette derives /editor");
+  assert.equal(commands.has("/palette"), false, "command palette omits /palette");
   // Config-scoped view must also derive from the same source.
   const configState = createInitialState("/repo");
   openCommandPalette(configState);
@@ -37,6 +40,9 @@ test("command palette derives every palette-visible LOCAL_COMMANDS entry", () =>
     commandPaletteEntriesWithExtensions(configState).map((entry) => entry.command),
   );
   assert.ok(configCommands.has("/save-workspace"), "config palette keeps workspace commands");
+  assert.ok(configCommands.has("/jump"), "config palette keeps /jump");
+  assert.ok(configCommands.has("/editor"), "config palette keeps /editor");
+  assert.equal(configCommands.has("/palette"), false, "config palette omits /palette");
 });
 
 test("tab jump entries expose busy, done, question, and fuzzy filtering", () => {

@@ -475,7 +475,7 @@ function handleHomeAgentViewKey(
         workspaceOptions.workspaceFile,
         target,
         workspaceOptions.settingsDeps,
-        { setText: (value) => editorActions.setText(value) },
+        { getText: () => editorActions.getText(), setText: (value) => editorActions.setText(value) },
       ).catch((error: unknown) => {
         editorActions.setText(text);
         showErrorOverlay(tui, error);

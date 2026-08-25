@@ -2,11 +2,13 @@ import { getSystemPromptSections } from "../agent/pi-session-internals.js";
 import type { RuntimeTab } from "../agent/runtime.js";
 import { MIXCODE_EXTENSION_KEYBINDINGS } from "../agent/runtime-extension-theme.js";
 import type { LocalCommand } from "../core/commands.js";
+import { openCommandPalette, openTabJump } from "../core/overlays.js";
 import { pushToast } from "../core/toast.js";
 import { HOME_TAB_ID, type MixCodeState } from "../core/types.js";
 import { emitMarkDone } from "../core/extension-event-bus.js";
 import { appendActiveSystemMessage } from "./app-actions.js";
-import { editTextWithTuiPaused, showTextOverlay } from "./app-overlays.js";
+import { editTextWithTuiPaused, showLinesOverlay, showTextOverlay } from "./app-overlays.js";
+import { activeExtensionCommands } from "./app-runtime.js";
 import {
   type LocalCommandHandler,
   type MixCodeSubmitRuntime,
@@ -17,10 +19,10 @@ import {
 import { userMessageEntryIdsInBranch } from "./chat-scroll-target.js";
 import { renderHotkeysText } from "./hotkeys.js";
 import { getConfiguredQuitOptions, quitMixCode } from "./quit.js";
-import { clearConversationCache } from "./rendering.js";
+import { clearConversationCache, renderCommandPalette, renderTabJumpOverlay } from "./rendering.js";
 import { renderSystemToolsText } from "./system-tools.js";
 import { renderSystemPromptSectionStats } from "./components/system-prompt-stats.js";
-import { openTreeSelector, type TreeSelectorRuntime } from "./components/tree-selector.js";
+import { closeTreeSelector, openTreeSelector, type TreeSelectorRuntime } from "./components/tree-selector.js";
 
 /** Delay before bell + external done signals so the user can leave the pane first. */
 const MARK_DONE_SIGNAL_DELAY_MS = 5_000;
@@ -129,6 +131,31 @@ const handleNavigate: LocalCommandHandler = async ({
   return SKIP_FINALIZE;
 };
 
+const handlePalette: LocalCommandHandler = ({ state, args, runtime, tui }) => {
+  if (args.trim()) throw new Error("Error: Usage: /palette");
+  const extensionCommands = activeExtensionCommands(state, runtime);
+  openCommandPalette(state);
+  showLinesOverlay(tui, (width) => renderCommandPalette(state, width, extensionCommands));
+  return undefined;
+};
+
+const handleJump: LocalCommandHandler = ({ state, args, tui }) => {
+  if (args.trim()) throw new Error("Error: Usage: /jump");
+  if (state.treeSelector.open) closeTreeSelector(state, tui);
+  openTabJump(state);
+  showLinesOverlay(tui, (width) => renderTabJumpOverlay(state, width));
+  return undefined;
+};
+
+const handleEditor: LocalCommandHandler = async ({ args, tui, editorActions }) => {
+  if (args.trim()) throw new Error("Error: Usage: /editor");
+  if (!editorActions?.getText || !editorActions.setText) {
+    throw new Error("Error: /editor requires the input editor");
+  }
+  editorActions.setText(await editTextWithTuiPaused(tui, editorActions.getText()));
+  return undefined;
+};
+
 const handleHotkeys: LocalCommandHandler = ({ state, active, runtime }) => {
   // Agent-tab only: Home has no chat surface for permanent shortcut dumps.
   if (state.activeTabId === HOME_TAB_ID) return SKIP_FINALIZE;
@@ -188,6 +215,9 @@ export const UI_COMMAND_HANDLERS = {
   navigate: handleNavigate,
   help: handleHotkeys,
   hotkeys: handleHotkeys,
+  palette: handlePalette,
+  jump: handleJump,
+  editor: handleEditor,
   "tui-state": handleTuiState,
   quit: handleQuit,
   exit: handleQuit,

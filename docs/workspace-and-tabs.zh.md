@@ -32,7 +32,7 @@ Tab 实时展示运行状态指示符：`●`（运行中/工作中）、`-`（�
 | 清空会话 | `/clear` | 在当前 Tab 内生成全新的 Session 文件（重置标题）。 |
 | 分支复制 | `/fork` | 将当前对话历史克隆到新 Tab 中，新 Tab 拥有独立的运行时服务。 |
 | 重命名 Tab | `/rename <title>` | 设置当前 Tab 标题。 |
-| Tab 跳转 | `Ctrl+T` | 打开全屏 Tab 检索面板，支持模糊搜索与快速切换。 |
+| Tab 跳转 | `Ctrl+T` / `/jump` | 打开全屏 Tab 检索面板，支持模糊搜索与快速切换。 |
 | Tab 轮转 | `Tab` / `Shift+Tab` | 补全关闭时轮转 Tab。Zen 模式下被吞掉（用 `Ctrl+T`）。 |
 | Zen 模式 | `/toggle-zen-mode` | 隐藏顶部 Tab 栏，获得专注的 Agent 会话视图。 |
 

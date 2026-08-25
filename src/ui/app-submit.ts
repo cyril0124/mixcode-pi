@@ -34,8 +34,8 @@ export async function handleSubmittedInput(
   activeTabOverride?: MixCodeTabInfo,
   /** Settings panel dependencies — required to open /settings overlay. */
   settingsDeps?: SettingsPanelDependencies,
-  /** Optional editor restore hook for Pi-parity bash-already-running conflicts. */
-  editorActions?: Pick<MixCodeEditorActions, "setText">,
+  /** Input editor: restore text after a bash-already-running conflict; /editor reads and writes the draft. */
+  editorActions?: Pick<MixCodeEditorActions, "setText"> & Partial<Pick<MixCodeEditorActions, "getText">>,
 ): Promise<void> {
   const parsed = parseInput(text);
   const active = activeTabOverride ?? getActiveTab(state);
@@ -81,6 +81,7 @@ export async function handleSubmittedInput(
       authInputHost,
       workspaceFile,
       settingsDeps,
+      editorActions,
     });
     if (result === SKIP_FINALIZE) return;
   } else {
@@ -114,6 +115,9 @@ const CONFIG_SCOPED_COMMANDS: ReadonlySet<LocalCommand> = new Set([
   "toggle-inline-widgets",
   "login",
   "logout",
+  "palette",
+  "jump",
+  "editor",
   "quit",
   "exit",
 ]);

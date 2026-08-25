@@ -37,6 +37,9 @@ export type LocalCommand =
   | "logout"
   | "help"
   | "hotkeys"
+  | "palette"
+  | "jump"
+  | "editor"
   | "rename"
   | "tui-state"
   | "quit"
@@ -362,6 +365,28 @@ export const LOCAL_COMMANDS: Array<{
     name: "hotkeys",
     description: "Show all keyboard shortcuts",
     palette: { label: "Hotkeys", requires: "session" },
+  },
+  {
+    name: "palette",
+    description: "Open command palette",
+  },
+  {
+    name: "jump",
+    description: "Open tab jump overlay",
+    palette: {
+      label: "Tab Jump",
+      description: "Jump to an open tab",
+      scope: "both",
+    },
+  },
+  {
+    name: "editor",
+    description: "Edit input in $VISUAL / $EDITOR",
+    palette: {
+      label: "Edit Input",
+      description: "Open the input draft in the external editor",
+      scope: "both",
+    },
   },
   {
     name: "rename",

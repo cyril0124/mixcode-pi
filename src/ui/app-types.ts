@@ -33,6 +33,7 @@ export interface LocalCommandContext {
   authInputHost?: AuthInputHost;
   workspaceFile?: string;
   settingsDeps?: SettingsPanelDependencies;
+  editorActions?: Pick<MixCodeEditorActions, "setText"> & Partial<Pick<MixCodeEditorActions, "getText">>;
 }
 
 export type LocalCommandHandler = (

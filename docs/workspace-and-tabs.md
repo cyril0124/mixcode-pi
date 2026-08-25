@@ -32,7 +32,7 @@ Tabs display live status glyphs: `●` (running/working), `-` (idle/ready), `!` 
 | Clear Session | `/clear` | Generates a fresh session file in the same tab, resetting the title. |
 | Fork Tab | `/fork` | Clones conversation history into a new tab with its own runtime services. |
 | Rename Tab | `/rename <title>` | Sets the active tab title. |
-| Tab Jump | `Ctrl+T` | Displays an interactive modal to jump to any open tab. |
+| Tab Jump | `Ctrl+T` / `/jump` | Displays an interactive modal to jump to any open tab. |
 | Tab Cycle | `Tab` / `Shift+Tab` | Cycles tabs when autocomplete is closed. Swallowed in Zen mode (use `Ctrl+T`). |
 | Zen Mode | `/toggle-zen-mode` | Toggles the top tab bar for an uncluttered focus view. |
 

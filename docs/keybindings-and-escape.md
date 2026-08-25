@@ -10,10 +10,10 @@ MixCode Pi provides comprehensive global and context-sensitive keyboard shortcut
 |---|---|---|---|
 | `Tab` | Global | Next Tab | Next tab. No-op when autocomplete is open, and swallowed in Zen mode (use `Ctrl+T`). |
 | `Shift+Tab` | Global | Previous Tab | Previous tab. Same autocomplete / Zen exceptions as `Tab`. |
-| `Ctrl+P` | Global | Command Palette | Opens fuzzy searchable command palette. |
-| `Ctrl+T` | Global | Tab Jump | Opens interactive full-screen tab switcher. |
+| `Ctrl+P` | Global | Command Palette | Opens fuzzy searchable command palette. Same as `/palette`. |
+| `Ctrl+T` | Global | Tab Jump | Opens interactive full-screen tab switcher. Same as `/jump`. |
 | `Ctrl+F` | Home | Non-idle filter | Toggles Agent View to non-idle agents only. Same rule as Tab Jump `Ctrl+F`. |
-| `Ctrl+E` | Global | External Editor | Opens the current input draft in `$VISUAL` / `$EDITOR`. |
+| `Ctrl+E` | Global | External Editor | Opens the current input draft in `$VISUAL` / `$EDITOR`. Same as `/editor`. |
 | `Ctrl+Q` | Global | Quit | Safely persists workspace state and exits. |
 | `Ctrl+C` | Global | Clear Input | Clears the editor. Does not abort a running turn (`Esc` does). |
 | `Ctrl+U` | Input / Queue | Dequeue / Choose / Vim | Pops the sole non-empty queue; with both queues non-empty, arms an explicit choice; with both empty, arms Vim entry. |

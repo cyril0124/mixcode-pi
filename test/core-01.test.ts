@@ -205,6 +205,21 @@ test("commands parse prompts, slash commands, shell commands, and suggestions", 
     command: "vim",
     args: "",
   });
+  assert.deepEqual(parseInput("/palette"), {
+    kind: "local-command",
+    command: "palette",
+    args: "",
+  });
+  assert.deepEqual(parseInput("/jump"), {
+    kind: "local-command",
+    command: "jump",
+    args: "",
+  });
+  assert.deepEqual(parseInput("/editor"), {
+    kind: "local-command",
+    command: "editor",
+    args: "",
+  });
   assert.deepEqual(parseInput("/hotkeys"), {
     kind: "local-command",
     command: "hotkeys",
@@ -224,6 +239,9 @@ test("commands parse prompts, slash commands, shell commands, and suggestions", 
   assert.ok(names.includes("reload"));
   assert.ok(names.includes("vim"));
   assert.ok(names.includes("hotkeys"));
+  assert.ok(names.includes("palette"));
+  assert.ok(names.includes("jump"));
+  assert.ok(names.includes("editor"));
   assert.equal(names.includes("toggle-todo"), false);
   assert.ok(names.includes("import"));
 });
