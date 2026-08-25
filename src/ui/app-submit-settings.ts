@@ -1,5 +1,6 @@
 import { reloadMixCodeUserKeybindings } from "../agent/runtime-extension-theme.js";
 import type { LocalCommand } from "../core/commands.js";
+import { HOME_TAB_ID } from "../core/types.js";
 import {
   applyContextLimit,
   applyContextLimitToSession,
@@ -111,7 +112,9 @@ const handleSettings: LocalCommandHandler = async ({
         setHideThinkingBlock: runtime.setHideThinkingBlock.bind(runtime),
         setShowCacheMissNotices: runtime.setShowCacheMissNotices.bind(runtime),
       },
-      active?.sessionId ?? state.activeTabId,
+      // Home Enter /settings is app-level: keep the panel on Home. Agent-tab
+      // and ctl --tab submits stay owned by the target session.
+      state.activeTabId === HOME_TAB_ID ? HOME_TAB_ID : (active?.sessionId ?? state.activeTabId),
     );
   } else {
     appendActiveSystemMessage(
