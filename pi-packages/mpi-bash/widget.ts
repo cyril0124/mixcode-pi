@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import type { ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
 import { Container, Text, truncateToWidth, type TUI, visibleWidth } from "@earendil-works/pi-tui";
-import type { DetachedRun, DetachedStart } from "./exec.js";
+import { type DetachedRun, type DetachedStart, formatElapsed } from "./exec.js";
 
 /**
  * Surfaces for background commands: the widget above the editor, the rows of
@@ -14,13 +14,6 @@ const RUNNING_DOT = "●";
 const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"] as const;
 const SPINNER_INTERVAL_MS = 80;
 
-export function formatElapsed(ms: number): string {
-  const total = Math.max(0, Math.round(ms / 1000));
-  const minutes = Math.floor(total / 60);
-  // Zero-pad seconds so 1m3s and 1m13s stay the same width.
-  return minutes > 0 ? `${minutes}m${String(total % 60).padStart(2, "0")}s` : `${total}s`;
-}
-
 /** Oldest first. Each command is flattened to one line. */
 export function backgroundRows(runs: readonly DetachedStart[], now = Date.now()): string[][] {
   return [...runs]
@@ -29,10 +22,8 @@ export function backgroundRows(runs: readonly DetachedStart[], now = Date.now())
 }
 
 /**
- * One line per background command, no chrome: the widget sits directly above
- * the editor, so every extra row costs transcript space.
- *
- * Colour carries the hierarchy - warning spinner, accent elapsed, dim command.
+ * Tree above the editor: a `Jobs` header, then one branch per run.
+ * A wrapped row would silently double the widget's height.
  */
 export function renderBackgroundWidget(
   runs: readonly DetachedStart[],
@@ -43,22 +34,31 @@ export function renderBackgroundWidget(
   if (runs.length === 0) return [];
 
   const container = new Container();
-  // Usable width inside the Text container's indent and padding; a row wider
-  // than this wraps and silently doubles the widget's height.
   const inner = Math.max(24, width - 3);
-  const body = [...runs]
-    .sort((a, b) => a.startedAt - b.startedAt)
-    .map((run) => {
-      const time = formatElapsed(now - run.startedAt);
-      const spin =
-        SPINNER_FRAMES[
-          Math.floor(Math.max(0, now - run.startedAt) / SPINNER_INTERVAL_MS) % SPINNER_FRAMES.length
-        ]!;
-      const command = run.command.replace(/\s+/g, " ").trim();
-      const text = truncateToWidth(command, Math.max(4, inner - 3 - time.length), "…");
-      return `${theme.fg("warning", spin)} ${theme.bold(theme.fg("accent", time))} ${theme.fg("dim", text)}`;
-    })
-    .join("\n");
+  const sorted = [...runs].sort((a, b) => a.startedAt - b.startedAt);
+  const rows = sorted.map((run, index) => {
+    const time = formatElapsed(now - run.startedAt);
+    const spin =
+      SPINNER_FRAMES[
+        Math.floor(Math.max(0, now - run.startedAt) / SPINNER_INTERVAL_MS) % SPINNER_FRAMES.length
+      ]!;
+    const branch = index === sorted.length - 1 ? "└" : "├";
+    const command = run.command.replace(/\s+/g, " ").trim();
+    const suffix = ` · #${run.id}`;
+    const text = truncateToWidth(
+      command,
+      Math.max(4, inner - 6 - time.length - suffix.length),
+      "…",
+    );
+    return `${theme.fg("dim", branch)} ${theme.fg("warning", spin)} ${theme.bold(theme.fg("accent", time))} ${theme.fg("dim", text)}${theme.fg("dim", suffix)}`;
+  });
+  const count = sorted.length === 1 ? "1 running" : `${sorted.length} running`;
+  const header = truncateToWidth(
+    `${theme.fg("dim", "○")} ${theme.fg("muted", "Jobs")} ${theme.fg("dim", `· ${count} · /bash-jobs to inspect`)}`,
+    inner,
+    "…",
+  );
+  const body = [header, ...rows].join("\n");
   container.addChild(new Text(body, 1, 0));
 
   return container.render(width).map((line) => truncateToWidth(line, Math.max(1, width)));
@@ -72,6 +72,7 @@ export interface DetachedExitDetails {
   tail: string;
   /** Total output lines; used to number the tail and to mark a cut. */
   lineCount: number;
+  elapsedMs: number;
   logPath: string;
   logError?: string;
 }
@@ -128,11 +129,12 @@ export function renderCompletionMessage(
 
   const container = new Container();
   const inner = Math.max(24, width - 3);
-  const text = truncateToWidth(command, Math.max(4, inner - 4 - right.length), "…");
-  const gap = right ? Math.max(2, inner - 2 - visibleWidth(text) - right.length) : 0;
+  const time = formatElapsed(details.elapsedMs);
+  const text = truncateToWidth(command, Math.max(4, inner - 5 - time.length - right.length), "…");
+  const gap = right ? Math.max(2, inner - 3 - time.length - visibleWidth(text) - right.length) : 0;
   const title = theme.bold(theme.fg("accent", "Background job finished"));
   const status =
-    `${theme.fg(color, icon)} ${theme.fg("text", text)}` +
+    `${theme.fg(color, icon)} ${theme.bold(theme.fg("accent", time))} ${theme.fg("text", text)}` +
     (right ? `${" ".repeat(gap)}${theme.fg(color, right)}` : "");
 
   const tail = completionLogLines(details, theme, inner);

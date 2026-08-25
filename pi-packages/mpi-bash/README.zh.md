@@ -28,20 +28,21 @@ Bash 执行策略：默认超时、前台窗口、到期自动转后台、结束
 
 ## 可见性
 
-只要还有命令在后台运行，编辑器上方就会出现一个组件，按开始先后列出全部后台命令，一行一条：
+只要还有命令在后台运行，编辑器上方就会出现一棵树，按开始先后列出全部后台命令：
 
 ```text
- ⠋ 1m12s bun run check
- ⠹ 5s printf "FOREGROUND-OUTPUT"; sleep 12; printf 'done'
+ ○ Jobs · 2 running · /bash-jobs to inspect
+ ├ ⠋ 1m12s bun run check · #111
+ └ ⠹ 5s printf "FOREGROUND-OUTPUT"; sleep 12; printf 'done' · #222
 ```
 
-每一行是 `warning` 色 spinner、`accent` 加粗的时长，以及 `dim` 的命令。超出终端宽度的命令会省略，每条恰好一行。最后一条结束后组件消失。
+标题行给出正在运行的条数，并标明 `/bash-jobs` 可打开日志。每一条是 `warning` 色 spinner、`accent` 加粗的时长、`dim` 的命令，以及 pid。超出终端宽度的命令会省略，每条恰好一行。最后一条结束后组件消失。
 
-后台命令结束后，聊天里先是一行 `Background job finished` 标题，再是命令本身；有输出时中间一条分隔线，下面是带行号的最后 10 行。上面还有输出时写 `… N lines omitted (full log at <路径>)`。
+后台命令结束后，聊天里先是一行 `Background job finished` 标题，再是运行时长和命令本身；有输出时中间一条分隔线，下面是带行号的最后 10 行。上面还有输出时写 `… N lines omitted (full log at <路径>)`。
 
 ```text
  Background job finished
- ✓  printf "FOREGROUND-OUTPUT"; sleep 12; printf 'done'
+ ✓ 12s printf "FOREGROUND-OUTPUT"; sleep 12; printf 'done'
  ────────────────────────────────
  … 16 lines omitted (full log at /tmp/mpi-bash-1258366-1.log)
  24 │ tick 23/24 at 21:16:43
@@ -49,12 +50,12 @@ Bash 执行策略：默认超时、前台窗口、到期自动转后台、结束
  26 │ done
 
  Background job finished
- ✗  cargo test                                              1
+ ✗ 3s cargo test                                            1
  ────────────────────────────────
  18 │ FAILED tests/retry.rs
 
  Background job finished
- ⏱  pytest -k slow                                    timeout
+ ⏱ 5m00s pytest -k slow                               timeout
 ```
 
 ## 后台输出

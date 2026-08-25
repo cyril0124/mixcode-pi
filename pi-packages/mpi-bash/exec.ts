@@ -72,6 +72,13 @@ export function formatDetachNotice(options: {
   );
 }
 
+export function formatElapsed(ms: number): string {
+  const total = Math.max(0, Math.round(ms / 1000));
+  const minutes = Math.floor(total / 60);
+  // Zero-pad seconds so 1m3s and 1m13s stay the same width.
+  return minutes > 0 ? `${minutes}m${String(total % 60).padStart(2, "0")}s` : `${total}s`;
+}
+
 export function formatCompletionNotice(run: {
   command: string;
   exitCode: number | null;
@@ -79,10 +86,12 @@ export function formatCompletionNotice(run: {
   logPath: string;
   logError?: string;
   tail: string;
+  elapsedMs: number;
 }): string {
+  const lasted = formatElapsed(run.elapsedMs);
   const outcome = run.timedOut
-    ? "was killed after reaching its timeout"
-    : `exited with code ${run.exitCode ?? "unknown"}`;
+    ? `was killed after reaching its timeout (ran ${lasted})`
+    : `exited with code ${run.exitCode ?? "unknown"} after ${lasted}`;
   const log = run.logError
     ? `\nIts output could not be written to ${run.logPath}: ${run.logError}`
     : `\nComplete output (foreground and background): ${run.logPath} - read that file when the tail below is not enough.`;
@@ -237,6 +246,8 @@ export interface DetachedRun {
   tail: string;
   /** Total output lines, including a last line that has no trailing newline. */
   lineCount: number;
+  startedAt: number;
+  elapsedMs: number;
 }
 
 export interface DetachedStart {
@@ -429,6 +440,8 @@ export function createDetachingBashOperations(options: {
           logError,
           tail: tail.toString("utf8"),
           lineCount: lineCount + (danglingLine ? 1 : 0),
+          startedAt,
+          elapsedMs: Date.now() - startedAt,
         });
       };
       // Both settlements must report: a rejected wait (stdio failure after

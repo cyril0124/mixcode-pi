@@ -394,17 +394,24 @@ test("the widget spends one line per run at any width", () => {
   // its height and push the transcript up.
   for (const width of [30, 40, 80, 200]) {
     const lines = renderBackgroundWidget(runs, theme, width, now);
-    assert.equal(lines.length, runs.length, `width ${width} wrapped: ${JSON.stringify(lines)}`);
+    assert.equal(
+      lines.length,
+      runs.length + 1,
+      `width ${width} wrapped: ${JSON.stringify(lines)}`,
+    );
     assert.ok(
       lines.every((line) => visibleWidth(line) <= width),
       `width ${width} overflowed: ${JSON.stringify(lines)}`,
     );
   }
 
-  const [first, second] = renderBackgroundWidget(runs, theme, 40, now);
-  // Spinner then elapsed, then the command. Frame comes from each run's age.
-  assert.match(first ?? "", /^ ⠋ 1m12s bun run check\s*$/);
-  assert.match(second ?? "", /^ ⠹ 5s printf "x+/);
+  const [header] = renderBackgroundWidget(runs, theme, 80, now);
+  const [, first, second] = renderBackgroundWidget(runs, theme, 40, now);
+  assert.match(header ?? "", /○ Jobs · 2 running · \/bash-jobs to inspect/);
+  assert.match(first ?? "", /├ ⠋ 1m12s bun run check/);
+  assert.match(first ?? "", /#2/);
+  assert.match(second ?? "", /└ ⠹ 5s printf "x+/);
+  assert.match(second ?? "", /#1/);
 });
 
 test("the chat line is a status row plus a short tail", () => {
@@ -420,6 +427,7 @@ test("the chat line is a status row plus a short tail", () => {
       timedOut: false,
       tail: "late\n",
       lineCount: 1,
+      elapsedMs: 12_000,
       logPath: "/tmp/x.log",
     },
     theme,
@@ -427,6 +435,7 @@ test("the chat line is a status row plus a short tail", () => {
   );
   assert.match(ok.join("\n"), /Background job finished/);
   assert.match(ok.join("\n"), /✓/);
+  assert.match(ok.join("\n"), /12s/);
   assert.match(ok.join("\n"), /printf[\s\S]*─[\s\S]*1 │ late/);
   assert.doesNotMatch(ok.join("\n"), /…/);
   assert.doesNotMatch(ok.join("\n"), /extension bash-detached-exit|Complete output|\[mpi-bash\]/);
@@ -438,6 +447,7 @@ test("the chat line is a status row plus a short tail", () => {
       timedOut: false,
       tail: "*** [main] Error 1\n",
       lineCount: 1,
+      elapsedMs: 3_000,
       logPath: "/tmp/x.log",
     },
     theme,
@@ -454,6 +464,7 @@ test("the chat line is a status row plus a short tail", () => {
       timedOut: true,
       tail: "",
       lineCount: 0,
+      elapsedMs: 300_000,
       logPath: "/tmp/x.log",
     },
     theme,
@@ -471,6 +482,7 @@ test("the chat line is a status row plus a short tail", () => {
       timedOut: false,
       tail: "",
       lineCount: 0,
+      elapsedMs: 1_000,
       logPath: "/tmp/x.log",
     },
     theme,
@@ -488,6 +500,7 @@ test("the chat line is a status row plus a short tail", () => {
       timedOut: false,
       tail: `${Array.from({ length: 10 }, (_, i) => String(i + 6)).join("\n")}\n`,
       lineCount: 15,
+      elapsedMs: 8_000,
       logPath: "/tmp/x.log",
     },
     theme,
@@ -656,7 +669,7 @@ test("a detached command killed by its timeout says so in its notice", async () 
 
   const run = await finished.promise;
   assert.equal(run.timedOut, true);
-  assert.match(formatCompletionNotice(run), /was killed after reaching its timeout/);
+  assert.match(formatCompletionNotice(run), /was killed after reaching its timeout \(ran /);
   fs.rmSync(run.logPath, { force: true });
 });
 

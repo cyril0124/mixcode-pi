@@ -191,6 +191,7 @@ const bashExtension: ExtensionFactory = (pi) => {
                     timedOut: run.timedOut,
                     tail: run.tail,
                     lineCount: run.lineCount,
+                    elapsedMs: run.elapsedMs,
                     logPath: run.logPath,
                     logError: run.logError,
                   } satisfies DetachedExitDetails,

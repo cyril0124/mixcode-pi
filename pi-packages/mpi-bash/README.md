@@ -28,20 +28,21 @@ The injected default `timeout` is `300` seconds and applies only when the model 
 
 ## Visibility
 
-While at least one command runs in the background, a widget above the editor lists every one of them, oldest first, one line per run:
+While at least one command runs in the background, a widget above the editor lists them as a tree, oldest first:
 
 ```text
- ⠋ 1m12s bun run check
- ⠹ 5s printf "FOREGROUND-OUTPUT"; sleep 12; printf 'done'
+ ○ Jobs · 2 running · /bash-jobs to inspect
+ ├ ⠋ 1m12s bun run check · #111
+ └ ⠹ 5s printf "FOREGROUND-OUTPUT"; sleep 12; printf 'done' · #222
 ```
 
-Each row is a `warning` spinner, bold `accent` elapsed time, and a `dim` command. A command too wide for the terminal is elided so every run costs exactly one line. The widget disappears when the last run finishes.
+The header shows how many jobs are running and that `/bash-jobs` opens their logs. Each run is a `warning` spinner, bold `accent` elapsed time, a `dim` command, and its pid. A command too wide for the terminal is elided so every run costs exactly one line. The widget disappears when the last run finishes.
 
-When a background command ends, the chat shows a `Background job finished` heading, the command, and, if there is output, a rule then the last 10 lines with their log line numbers. Earlier output is marked `… N lines omitted (full log at <path>)`.
+When a background command ends, the chat shows a `Background job finished` heading, how long it ran, the command, and, if there is output, a rule then the last 10 lines with their log line numbers. Earlier output is marked `… N lines omitted (full log at <path>)`.
 
 ```text
  Background job finished
- ✓  printf "FOREGROUND-OUTPUT"; sleep 12; printf 'done'
+ ✓ 12s printf "FOREGROUND-OUTPUT"; sleep 12; printf 'done'
  ────────────────────────────────
  … 16 lines omitted (full log at /tmp/mpi-bash-1258366-1.log)
  24 │ tick 23/24 at 21:16:43
@@ -49,12 +50,12 @@ When a background command ends, the chat shows a `Background job finished` headi
  26 │ done
 
  Background job finished
- ✗  cargo test                                              1
+ ✗ 3s cargo test                                            1
  ────────────────────────────────
  18 │ FAILED tests/retry.rs
 
  Background job finished
- ⏱  pytest -k slow                                    timeout
+ ⏱ 5m00s pytest -k slow                               timeout
 ```
 
 ## Background output
