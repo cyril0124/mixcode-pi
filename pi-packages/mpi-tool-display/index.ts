@@ -74,7 +74,6 @@ const CONFIG_SUBCOMMAND = "config";
 const WRITE_EXECUTION_META_LIMIT = 64;
 
 type RenderTheme = Parameters<NonNullable<ToolDefinition["renderResult"]>>[2];
-type RenderResultOptions = Parameters<NonNullable<ToolDefinition["renderResult"]>>[1];
 /** Structural subset of Pi's ToolRenderContext consumed by this package. */
 type ToolRenderContext = Parameters<NonNullable<ToolDefinition["renderResult"]>>[3];
 
