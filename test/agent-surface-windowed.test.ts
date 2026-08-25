@@ -871,8 +871,10 @@ test("deep scroll paint stays near bottom paint cost (no unshift O(n^2))", () =>
   const bottomMs = measureRenderMs(bottomTab, chat, 8);
   const deepMs = measureRenderMs(deepTab, chat, 6);
 
+  // Floor absorbs GHA noise (deep ~16ms vs a 0.2ms bottom pin). O(n^2) unshift
+  // was hundreds of ms, so 30ms still fails that regression.
   assert.ok(
-    deepMs < Math.max(15, bottomMs * 40),
+    deepMs < Math.max(30, bottomMs * 40),
     `deep scroll paint too slow vs bottom; deep=${deepMs.toFixed(3)}ms bottom=${bottomMs.toFixed(
       3,
     )}ms ratio=${(deepMs / Math.max(0.001, bottomMs)).toFixed(1)}x`,
