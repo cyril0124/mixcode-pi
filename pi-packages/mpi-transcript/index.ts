@@ -369,6 +369,17 @@ function externalEditorCommand(): string | undefined {
   return process.env.VISUAL || process.env.EDITOR || undefined;
 }
 
+/**
+ * Extra CLI flags for vim/nvim (matched on the binary's basename): readonly
+ * (the buffer is a throwaway view, nothing is written back), no swap file,
+ * no shada/viminfo writes (the tmp file must not pollute oldfiles/marks),
+ * and jump to the end where the latest content lives. Other editors get none.
+ */
+export function editorExtraArgs(cmd: string): string[] {
+  const base = path.basename(cmd);
+  return base === "nvim" || base === "vim" ? ["-R", "-n", "-i", "NONE", "+normal G"] : [];
+}
+
 // Open `content` in the user's $VISUAL/$EDITOR. Follows the diff-tracker
 // pattern: pause the TUI via ctx.ui.custom, spawn the editor on the inherited
 // tty, and resume once it exits. Resolves true on success, false if the editor
@@ -400,7 +411,7 @@ function openInExternalEditor(
     void (async () => {
       try {
         await fs.writeFile(tmpFile, `${content}\n`);
-        const child = spawn(cmd!, [...cmdArgs, tmpFile], { stdio: "inherit" });
+        const child = spawn(cmd!, [...cmdArgs, ...editorExtraArgs(cmd!), tmpFile], { stdio: "inherit" });
         await new Promise<void>((resolve, reject) => {
           child.once("error", reject);
           child.once("close", () => resolve());

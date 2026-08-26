@@ -1,7 +1,19 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
-import { buildViewText, formatViewText } from "./index.js";
+import { buildViewText, editorExtraArgs, formatViewText } from "./index.js";
+
+// ─── editorExtraArgs: vim/nvim flags ─────────────────────────────────────────
+
+test("editorExtraArgs adds readonly/no-swap/no-shada/jump-to-end flags for vim and nvim", () => {
+  assert.deepEqual(editorExtraArgs("nvim"), ["-R", "-n", "-i", "NONE", "+normal G"]);
+  assert.deepEqual(editorExtraArgs("/usr/bin/vim"), ["-R", "-n", "-i", "NONE", "+normal G"]);
+});
+
+test("editorExtraArgs leaves non-vim editors untouched", () => {
+  assert.deepEqual(editorExtraArgs("code"), []);
+  assert.deepEqual(editorExtraArgs("/usr/local/bin/emacs"), []);
+});
 
 // ─── formatViewText: markdown heading ──────────────────────────────────────────
 
