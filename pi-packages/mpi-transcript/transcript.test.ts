@@ -264,7 +264,7 @@ test("buildViewText chatlog: renders compaction and branch summary entries", () 
     userEntry("continue"),
   ];
   const text = buildViewText("chatlog", entries);
-  assert.match(text, /## 🗜️ Compaction · 54,321 tokens before\n\nearlier work summarized/);
+  assert.match(text, /## 📦 Compaction · 54,321 tokens before\n\nearlier work summarized/);
   assert.match(text, /## 🌿 Branch Summary\n\nsummary of the other branch/);
 });
 
@@ -273,7 +273,7 @@ test("buildViewText chatlog: surfaces assistant errorMessage on error stops", ()
     userEntry("do it"),
     assistantEntry([{ type: "text", text: "partial" }], { stopReason: "error", errorMessage: "rate limited" }),
   ];
-  assert.match(buildViewText("chatlog", entries), /\*\*⚠️ error\*\*: rate limited/);
+  assert.match(buildViewText("chatlog", entries), /\*\*❗ error\*\*: rate limited/);
 });
 
 test("buildViewText chatlog: multi-line errorMessage renders as a fenced block", () => {
@@ -286,7 +286,7 @@ test("buildViewText chatlog: multi-line errorMessage renders as a fenced block",
   ];
   assert.match(
     buildViewText("chatlog", entries),
-    /\*\*⚠️ error\*\*\n\n```\nAPI failure\n {2}at request \(client\.ts:10\)\n```/,
+    /\*\*❗ error\*\*\n\n```\nAPI failure\n {2}at request \(client\.ts:10\)\n```/,
   );
 });
 
@@ -304,7 +304,7 @@ test("buildViewText chatlog: failed tool output keeps the tail, not the head", (
 
 test("buildViewText chatlog: renders an aborted turn even without content", () => {
   const entries: SessionEntry[] = [userEntry("go"), assistantEntry([], { stopReason: "aborted" })];
-  assert.match(buildViewText("chatlog", entries), /## 🤖 Assistant · #1\n\n_[^\n]+_\n\n\*\*⚠️ aborted\*\*/);
+  assert.match(buildViewText("chatlog", entries), /## 🤖 Assistant · #1\n\n_[^\n]+_\n\n\*\*❗ aborted\*\*/);
 });
 
 test("buildViewText chatlog: renders tool calls as h3 headings", () => {
@@ -397,7 +397,7 @@ test("buildViewText context: renders context entries as chatlog sections under i
   ];
   const text = buildViewText("context", entries);
   assert.match(text, /^# LLM Context\n/);
-  assert.match(text, /## 🗜️ Compaction · 1,000 tokens before\n\nsummary of dropped history/);
+  assert.match(text, /## 📦 Compaction · 1,000 tokens before\n\nsummary of dropped history/);
   assert.match(text, /## 👤 User · #1\n\n_[^\n]+_\n\nkept question/);
 });
 
@@ -418,7 +418,7 @@ test("buildViewText chatlog: renders a placeholder for image content", () => {
       },
     } as unknown as SessionEntry,
   ];
-  assert.match(buildViewText("chatlog", entries), /look at this\n🖼️ \[image\]/);
+  assert.match(buildViewText("chatlog", entries), /look at this\n📷 \[image\]/);
 });
 
 test("buildViewText chatlog: renders model and thinking level change events", () => {
@@ -441,8 +441,8 @@ test("buildViewText chatlog: renders model and thinking level change events", ()
     userEntry("hi"),
   ];
   const text = buildViewText("chatlog", entries);
-  assert.match(text, /_⚙️ model → anthropic\/claude-x_/);
-  assert.match(text, /_⚙️ thinking → high_/);
+  assert.match(text, /_🔄 model → anthropic\/claude-x_/);
+  assert.match(text, /_🔄 thinking → high_/);
 });
 
 test("buildViewText chatlog: assistant meta line shows model, tokens, cost, and time", () => {
@@ -529,7 +529,7 @@ test("buildViewText chatlog: flags a significant cache miss only on the paying a
   const text = buildViewText("chatlog", entries, undefined, undefined, {
     getModel: () => ({ cost: { cacheRead: 0.3 } }),
   });
-  assert.match(text, /\*\*⚠️ Cache miss: 140k tokens re-billed\*\*/);
+  assert.match(text, /\*\*❗ Cache miss: 140k tokens re-billed\*\*/);
   assert.equal(text.match(/Cache miss/g)?.length, 1);
 });
 

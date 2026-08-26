@@ -117,7 +117,7 @@ function messageOf(entry: SessionEntry): { role: string; content: unknown } | un
 
 /**
  * Flatten a message's content (string or block array) to plain text.
- * Image blocks render as a `🖼️ [image]` placeholder.
+ * Image blocks render as a `📷 [image]` placeholder.
  */
 function blockText(content: unknown): string {
   if (typeof content === "string") return content;
@@ -125,7 +125,7 @@ function blockText(content: unknown): string {
   return content
     .map((block) => {
       const b = block as { type: string; text?: string };
-      if (b.type === "image") return "🖼️ [image]";
+      if (b.type === "image") return "📷 [image]";
       return b.text !== undefined ? b.text : "";
     })
     .filter((text) => text.trim())
@@ -254,11 +254,11 @@ function collectChatlog(
     // One-line timeline events: model / thinking level switches explain why
     // the conversation's behavior changed mid-session.
     if (entry.type === "model_change") {
-      sections.push(`---\n\n_⚙️ model → ${entry.provider}/${entry.modelId}_`);
+      sections.push(`---\n\n_🔄 model → ${entry.provider}/${entry.modelId}_`);
       continue;
     }
     if (entry.type === "thinking_level_change") {
-      sections.push(`---\n\n_⚙️ thinking → ${entry.thinkingLevel}_`);
+      sections.push(`---\n\n_🔄 thinking → ${entry.thinkingLevel}_`);
       continue;
     }
     // Compaction replaces all prior context with its summary; branch summaries
@@ -266,7 +266,7 @@ function collectChatlog(
     // show them or the transcript reads as if context appeared from nowhere.
     if (entry.type === "compaction") {
       const tokens = entry.tokensBefore.toLocaleString("en-US");
-      sections.push(`---\n\n## 🗜️ Compaction · ${tokens} tokens before\n\n${entry.summary.trim()}`);
+      sections.push(`---\n\n## 📦 Compaction · ${tokens} tokens before\n\n${entry.summary.trim()}`);
       continue;
     }
     if (entry.type === "branch_summary") {
@@ -366,16 +366,16 @@ function collectChatlog(
         // inline bold marker; give them a fenced block instead.
         if (em.includes("\n")) {
           const f = fenceFor(em);
-          parts.push(`**⚠️ ${msg.stopReason}**\n\n${f}\n${em}\n${f}`);
+          parts.push(`**❗ ${msg.stopReason}**\n\n${f}\n${em}\n${f}`);
         } else {
-          parts.push(`**⚠️ ${msg.stopReason}**${em ? `: ${em}` : ""}`);
+          parts.push(`**❗ ${msg.stopReason}**${em ? `: ${em}` : ""}`);
         }
       }
       // messageOf returns the entry's message by reference, so the miss map
       // (keyed by assistant message identity) resolves directly.
       const miss = cacheMisses?.get(msg as unknown as AssistantMessage);
       const notice = miss ? cacheMissNotice(miss) : undefined;
-      if (notice) parts.push(`**⚠️ ${notice}**`);
+      if (notice) parts.push(`**❗ ${notice}**`);
       if (parts.length) {
         // Meta line: model, token/cost totals (omitted when zero), timestamp.
         const meta: string[] = [];
