@@ -517,6 +517,32 @@ test("buildViewText chatlog: meta line omits cache rate when no cache tokens", (
   assert.doesNotMatch(buildViewText("chatlog", entries), /cache /);
 });
 
+test("buildViewText chatlog: flags a significant cache miss only on the paying assistant turn", () => {
+  const entries: SessionEntry[] = [
+    userEntry("q1"),
+    // Seeds the cache: 150k prompt tokens written.
+    assistantEntry([{ type: "text", text: "a1" }], { cacheWrite: 150000 }),
+    userEntry("q2"),
+    // Re-bills 145k prompt tokens with only 5k read back → 140k missed.
+    assistantEntry([{ type: "text", text: "a2" }], { input: 140000, cacheRead: 5000 }),
+  ];
+  const text = buildViewText("chatlog", entries, undefined, undefined, {
+    getModel: () => ({ cost: { cacheRead: 0.3 } }),
+  });
+  assert.match(text, /\*\*⚠️ Cache miss: 140k tokens re-billed\*\*/);
+  assert.equal(text.match(/Cache miss/g)?.length, 1);
+});
+
+test("buildViewText chatlog: omits cache-miss notices without a price source", () => {
+  const entries: SessionEntry[] = [
+    userEntry("q1"),
+    assistantEntry([{ type: "text", text: "a1" }], { cacheWrite: 150000 }),
+    userEntry("q2"),
+    assistantEntry([{ type: "text", text: "a2" }], { input: 140000, cacheRead: 5000 }),
+  ];
+  assert.doesNotMatch(buildViewText("chatlog", entries), /Cache miss/);
+});
+
 test("buildViewText chatlog: marks a failed tool result as error", () => {
   const entries: SessionEntry[] = [
     assistantEntry([{ type: "toolCall", id: "call-2", name: "bash", arguments: {} }]),

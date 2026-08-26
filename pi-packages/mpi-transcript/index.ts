@@ -12,7 +12,8 @@
 // ║  Targets:                                                          ║
 // ║    context       Effective LLM context (what the model sees)       ║
 // ║    chatlog       Full transcript (user/assistant/thinking/tools/   ║
-// ║                  injected/compaction/branch summaries/errors)      ║
+// ║                  injected/compaction/branch summaries/errors/      ║
+// ║                  cache-miss notices)                               ║
 // ║    thinking      All reasoning/thinking blocks                     ║
 // ║    latest-agent  Last assistant text reply                         ║
 // ║    latest-user   Last user message                                 ║
@@ -27,7 +28,14 @@ import { spawn } from "node:child_process";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { ExtensionFactory, SessionEntry } from "@earendil-works/pi-coding-agent";
+import { CACHE_TTL_MS, collectCacheMisses } from "@earendil-works/pi-coding-agent";
+import type {
+  CacheMiss,
+  ExtensionFactory,
+  ModelPriceSource,
+  SessionEntry,
+} from "@earendil-works/pi-coding-agent";
+import type { AssistantMessage } from "@earendil-works/pi-ai";
 import type { Component, TUI } from "@earendil-works/pi-tui";
 
 // ─── Session content types (subset of SDK AgentMessage we consume) ────────────
@@ -203,10 +211,25 @@ function fmtTokens(n: number): string {
 /** Resolves a model's context window in tokens; undefined when unknown. */
 type ContextWindowLookup = (provider: string, modelId: string) => number | undefined;
 
+/**
+ * One-line warning for a counted cache miss, or undefined when it is noise:
+ * below 20k missed tokens and $0.10 excess cost nothing is shown. The label
+ * attributes the miss to a model switch or a cache-TTL idle gap when it can.
+ */
+function cacheMissNotice(miss: CacheMiss): string | undefined {
+  if (miss.missedTokens < 20_000 && miss.missedCost < 0.1) return undefined;
+  const cost = miss.missedCost >= 0.01 ? ` (~$${miss.missedCost.toFixed(2)})` : "";
+  let label = "Cache miss";
+  if (miss.modelChanged) label = "Cache miss after model switch";
+  else if (miss.idleMs >= CACHE_TTL_MS) label = `Cache miss after ${Math.round(miss.idleMs / 60_000)}m idle`;
+  return `${label}: ${fmtTokens(miss.missedTokens)} tokens re-billed${cost}`;
+}
+
 function collectChatlog(
   entries: SessionEntry[],
   turnOffset = 0,
   contextWindowFor?: ContextWindowLookup,
+  cacheMisses?: Map<AssistantMessage, CacheMiss>,
 ): string[] {
   const resultById = new Map<string, { status: string; text: string }>();
   for (const entry of entries) {
@@ -348,6 +371,11 @@ function collectChatlog(
           parts.push(`**⚠️ ${msg.stopReason}**${em ? `: ${em}` : ""}`);
         }
       }
+      // messageOf returns the entry's message by reference, so the miss map
+      // (keyed by assistant message identity) resolves directly.
+      const miss = cacheMisses?.get(msg as unknown as AssistantMessage);
+      const notice = miss ? cacheMissNotice(miss) : undefined;
+      if (notice) parts.push(`**⚠️ ${notice}**`);
       if (parts.length) {
         // Meta line: model, token/cost totals (omitted when zero), timestamp.
         const meta: string[] = [];
@@ -423,6 +451,7 @@ export function buildViewText(
   entries: SessionEntry[],
   lastTurns?: number,
   contextWindowFor?: ContextWindowLookup,
+  priceSource?: ModelPriceSource,
 ): string {
   const meta = TARGETS.find((t) => t.id === target)!;
   if (target === "thinking" || target === "chatlog" || target === "context") {
@@ -435,7 +464,13 @@ export function buildViewText(
     }
     // chatlog and context share the section renderer; they differ only in
     // which entry set the caller feeds in (full branch vs effective context).
-    return formatViewText(meta.title, [...note, ...collectChatlog(sliced, turnOffset, contextWindowFor)]);
+    // Misses are computed on the unsliced entries so the first assistant
+    // message in a lastTurns cut still sees its previous request.
+    const cacheMisses = priceSource ? collectCacheMisses(entries, priceSource) : undefined;
+    return formatViewText(meta.title, [
+      ...note,
+      ...collectChatlog(sliced, turnOffset, contextWindowFor, cacheMisses),
+    ]);
   }
   if (target === "latest-agent") {
     return formatViewText(meta.title, [latestAgentReply(entries) ?? "No assistant message."]);
@@ -569,7 +604,12 @@ const extension: ExtensionFactory = (pi) => {
     lastTurns: number | undefined,
     ctx: {
       sessionManager: { getBranch: () => SessionEntry[]; buildContextEntries: () => SessionEntry[] };
-      modelRegistry: { find(provider: string, modelId: string): { contextWindow: number } | undefined };
+      modelRegistry: {
+        find(
+          provider: string,
+          modelId: string,
+        ): { contextWindow: number; cost: { cacheRead: number } } | undefined;
+      };
       ui: {
         editor(title: string, prefill?: string): Promise<string | undefined>;
         custom<T>(factory: (tui: TUI, theme: unknown, keybindings: unknown, done: (result: T) => void) => Component): Promise<T>;
@@ -581,8 +621,12 @@ const extension: ExtensionFactory = (pi) => {
     const entries =
       target === "context" ? ctx.sessionManager.buildContextEntries() : ctx.sessionManager.getBranch();
     const meta = TARGETS.find((t) => t.id === target)!;
-    const content = buildViewText(target, entries, lastTurns, (provider, modelId) =>
-      ctx.modelRegistry.find(provider, modelId)?.contextWindow,
+    const content = buildViewText(
+      target,
+      entries,
+      lastTurns,
+      (provider, modelId) => ctx.modelRegistry.find(provider, modelId)?.contextWindow,
+      { getModel: (provider, modelId) => ctx.modelRegistry.find(provider, modelId) },
     );
     const editorCmd = externalEditorCommand();
     if (editorCmd && (await openInExternalEditor(ctx, editorCmd, content))) return;
