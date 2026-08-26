@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import * as fs from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { test } from "node:test";
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
-import { buildViewText, editorExtraArgs, formatViewText } from "./index.js";
+import { buildViewText, editorExtraArgs, formatViewText, NVIM_TRANSCRIPT_LUA } from "./index.js";
 
 // ─── editorExtraArgs: vim/nvim flags ─────────────────────────────────────────
 
@@ -13,6 +17,146 @@ test("editorExtraArgs adds readonly/no-swap/no-shada/jump-to-end flags for vim a
 test("editorExtraArgs leaves non-vim editors untouched", () => {
   assert.deepEqual(editorExtraArgs("code"), []);
   assert.deepEqual(editorExtraArgs("/usr/local/bin/emacs"), []);
+});
+
+test("editorExtraArgs sources transcript lua only for nvim", () => {
+  assert.deepEqual(editorExtraArgs("nvim", "/tmp/t.lua"), [
+    "-R",
+    "-n",
+    "-i",
+    "NONE",
+    "+normal G",
+    "-c",
+    "luafile /tmp/t.lua",
+  ]);
+  assert.deepEqual(editorExtraArgs("/usr/bin/vim", "/tmp/t.lua"), ["-R", "-n", "-i", "NONE", "+normal G"]);
+});
+
+test("nvim transcript lua sets wrap/conceal, heading winbar, and heading matches", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "transcript-nvim-"));
+  try {
+    const md = path.join(dir, "t.md");
+    const lua = path.join(dir, "t.lua");
+    await fs.writeFile(
+      md,
+      [
+        "# LLM Context",
+        "",
+        "---",
+        "",
+        "## 👤 User · #1",
+        "",
+        "_2026-08-26 10:00:00_",
+        "",
+        "q",
+        "",
+        "---",
+        "",
+        "## 🤖 Assistant · #1",
+        "",
+        "_anthropic/test · 12s · 2026-08-26 10:00:12_",
+        "",
+        "hello",
+        "",
+        "## Fake heading from the model",
+        "",
+        "```js",
+        "decoy",
+        "still",
+        "```",
+        "",
+        "### 🔧 Tool: `bash` — ✅ success",
+        "",
+        "```json",
+        "{",
+        '  "cmd": "x"',
+        "}",
+        "```",
+        "",
+        "```text",
+        "world",
+        "more",
+        "```",
+        "",
+        "after tool prose",
+        "",
+        "```js",
+        "nope",
+        "stillnope",
+        "```",
+        "",
+      ].join("\n"),
+    );
+    await fs.writeFile(lua, NVIM_TRANSCRIPT_LUA);
+    const dump = path.join(dir, "dump.lua");
+    await fs.writeFile(
+      dump,
+      [
+        "local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)",
+        "local function line_of(text)",
+        "  for i, l in ipairs(lines) do if l == text then return i end end",
+        "  return -1",
+        "end",
+        'local fake = line_of("## Fake heading from the model")',
+        'local ft = vim.fn.foldtextresult(line_of("world"))',
+        'local ftin = vim.fn.foldtextresult(line_of("{"))',
+        'local dimns = vim.api.nvim_get_namespaces()["mpi_transcript_dim"]',
+        "local dmarks = dimns and vim.api.nvim_buf_get_extmarks(0, dimns, 0, -1, { details = true }) or {}",
+        "local nconceal = 0",
+        "for _, m in ipairs(dmarks) do if m[4] and m[4].conceal == \"\" then nconceal = nconceal + 1 end end",
+        'vim.api.nvim_win_set_cursor(0, { line_of("hello"), 0 })',
+        'vim.cmd("normal [t")',
+        "local jumped = vim.api.nvim_win_get_cursor(0)[1]",
+        "vim.api.nvim_win_set_cursor(0, { fake, 0 })",
+        "vim.api.nvim_exec_autocmds(\"CursorMoved\", { buffer = 0 })",
+        "local nsigns = 0",
+        "local buf = vim.api.nvim_get_current_buf()",
+        'local sp = vim.fn.sign_getplaced(buf, { group = "MpiTranscript" })',
+        "if sp[1] then nsigns = vim.tbl_count(sp[1].signs) end",
+        "local span = _G.MpiTranscriptTurn",
+        "io.stdout:write(table.concat({",
+        "  tostring(vim.wo.conceallevel), tostring(vim.wo.wrap), tostring(vim.wo.linebreak),",
+        "  vim.wo.winbar, tostring(vim.tbl_count(vim.fn.getmatches())), vim.wo.foldmethod,",
+        '  tostring(vim.fn.foldclosed(line_of("world"))),',
+        '  tostring(vim.fn.foldclosed(line_of("decoy"))),',
+        '  tostring(vim.fn.foldclosed(line_of("nope"))),',
+        "  tostring(nsigns), tostring(span.s), tostring(line_of(\"## 🤖 Assistant · #1\")),",
+        '  tostring(span.e), tostring(line_of("## Fake heading from the model")),',
+        "  ft, ftin, tostring(jumped), tostring(line_of(\"## 🤖 Assistant · #1\")), tostring(nconceal)",
+        '}, string.char(10)))',
+      ].join("\n"),
+    );
+    const r = spawnSync(
+      "nvim",
+      ["--headless", "-u", "NONE", "-n", md, "+normal G", "-c", `luafile ${lua}`, "-c", `luafile ${dump}`, "-c", "qa"],
+      { encoding: "utf8" },
+    );
+    assert.equal(r.status, 0, r.stderr);
+    const out = r.stdout.trim().split("\n");
+    assert.equal(out[0], "2");
+    assert.equal(out[1], "true");
+    assert.equal(out[2], "true");
+    assert.match(out[3] ?? "", /Assistant · #1/);
+    assert.match(out[3] ?? "", /12s/);
+    assert.match(out[3] ?? "", /\[t/);
+    assert.doesNotMatch(out[3] ?? "", /Fake/);
+    assert.equal(out[4], "6");
+    assert.equal(out[5], "manual");
+    assert.notEqual(out[6], "-1");
+    assert.equal(out[7], "-1");
+    assert.equal(out[8], "-1");
+    assert.ok(Number(out[9]) >= 3);
+    assert.equal(out[10], out[11]);
+    assert.ok(Number(out[12]) >= Number(out[13]));
+    assert.match(out[14] ?? "", /bash/);
+    assert.match(out[14] ?? "", /out/);
+    assert.match(out[15] ?? "", /bash/);
+    assert.match(out[15] ?? "", /in/);
+    assert.equal(out[16], out[17]);
+    assert.ok(Number(out[18]) >= 2);
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
 });
 
 // ─── formatViewText: markdown heading ──────────────────────────────────────────

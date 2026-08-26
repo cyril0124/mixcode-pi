@@ -523,12 +523,231 @@ function externalEditorCommand(): string | undefined {
  * Extra CLI flags for vim/nvim (matched on the binary's basename): readonly
  * (the buffer is a throwaway view, nothing is written back), no swap file,
  * no shada/viminfo writes (the tmp file must not pollute oldfiles/marks),
- * and jump to the end where the latest content lives. Other editors get none.
+ * and jump to the end where the latest content lives. nvim also sources
+ * `luafile` (winbar, heading colors, wrap/conceal) when a path is given.
+ * Other editors get none.
  */
-export function editorExtraArgs(cmd: string): string[] {
+export function editorExtraArgs(cmd: string, luafile?: string): string[] {
   const base = path.basename(cmd);
-  return base === "nvim" || base === "vim" ? ["-R", "-n", "-i", "NONE", "+normal G"] : [];
+  if (base !== "nvim" && base !== "vim") return [];
+  const args = ["-R", "-n", "-i", "NONE", "+normal G"];
+  if (base === "nvim" && luafile) args.push("-c", `luafile ${luafile}`);
+  return args;
 }
+
+/** Sourced into nvim after the transcript buffer loads (`-c luafile`). */
+export const NVIM_TRANSCRIPT_LUA = `
+vim.opt_local.conceallevel = 2
+vim.opt_local.wrap = true
+vim.opt_local.linebreak = true
+vim.opt_local.signcolumn = "auto"
+vim.opt_local.foldmethod = "manual"
+vim.opt_local.foldenable = true
+vim.opt_local.fillchars:append({ fold = " " })
+
+vim.api.nvim_set_hl(0, "MpiTranscriptTurn", { default = true, link = "Identifier" })
+
+vim.fn.matchadd("Title", [[^## 👤 User.*]])
+vim.fn.matchadd("Identifier", [[^## 🤖 Assistant.*]])
+vim.fn.matchadd("Statement", [[^### 🔧 Tool.*]])
+vim.fn.matchadd("Special", [[^## 📥 Injected.*]])
+vim.fn.matchadd("WarningMsg", [[^## 📦 Compaction.*]])
+vim.fn.matchadd("Type", [[^## 🌿 Branch Summary.*]])
+
+local buf = vim.api.nvim_get_current_buf()
+local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+local tick3 = string.rep(string.char(96), 3)
+
+local function role_heading(line)
+  if line:match([[^## 👤 User]]) then return "user" end
+  if line:match([[^## 🤖 Assistant]]) then return "assistant" end
+  if line:match([[^## 📥 Injected]]) then return "injected" end
+  if line:match([[^## 📦 Compaction]]) then return "compaction" end
+  if line:match([[^## 🌿 Branch Summary]]) then return "branch" end
+  return nil
+end
+
+local function tool_heading(line)
+  return line:match([[^### 🔧 Tool]]) ~= nil
+end
+
+local function fence_open(line)
+  return line:match("^(" .. tick3 .. "+)")
+end
+
+function _G.MpiTranscriptFoldtext()
+  local s, e = vim.v.foldstart, vim.v.foldend
+  local name = "tool"
+  for k = s, 1, -1 do
+    local line = vim.fn.getline(k)
+    if tool_heading(line) then
+      local raw = line:match("Tool:%s*(.-)%s*—") or line:match("Tool:%s*(.+)$") or ""
+      name = raw:gsub(tick3:sub(1, 1), ""):gsub("^%s+", ""):gsub("%s+$", "")
+      if name == "" then name = "tool" end
+      break
+    end
+  end
+  local open = vim.fn.getline(math.max(1, s - 1))
+  local lang = open:match(tick3 .. "+(%w*)") or ""
+  local io = lang == "json" and "in" or "out"
+  return "  ▸ " .. name .. " " .. io .. " · " .. (e - s + 1) .. " lines"
+end
+vim.opt_local.foldtext = "v:lua.MpiTranscriptFoldtext()"
+
+vim.fn.sign_define("MpiTranscriptU", { text = "U ", texthl = "Title" })
+vim.fn.sign_define("MpiTranscriptA", { text = "A ", texthl = "Identifier" })
+vim.fn.sign_define("MpiTranscriptT", { text = "T ", texthl = "Statement" })
+vim.fn.sign_define("MpiTranscriptE", { text = "E ", texthl = "ErrorMsg" })
+vim.fn.sign_define("MpiTranscriptI", { text = "I ", texthl = "Special" })
+vim.fn.sign_define("MpiTranscriptC", { text = "C ", texthl = "WarningMsg" })
+vim.fn.sign_define("MpiTranscriptB", { text = "B ", texthl = "Type" })
+
+for i, line in ipairs(lines) do
+  local name
+  if line:match([[^## 👤 User]]) then
+    name = "MpiTranscriptU"
+  elseif line:match([[^## 🤖 Assistant]]) then
+    name = "MpiTranscriptA"
+  elseif line:match([[^### 🔧 Tool]]) then
+    name = line:match("❌") and "MpiTranscriptE" or "MpiTranscriptT"
+  elseif line:match([[^## 📥 Injected]]) then
+    name = "MpiTranscriptI"
+  elseif line:match([[^## 📦 Compaction]]) then
+    name = "MpiTranscriptC"
+  elseif line:match([[^## 🌿 Branch Summary]]) then
+    name = "MpiTranscriptB"
+  end
+  if name then
+    vim.fn.sign_place(0, "MpiTranscript", name, buf, { lnum = i })
+  end
+end
+
+local dim_ns = vim.api.nvim_create_namespace("mpi_transcript_dim")
+local t = 1
+while t <= #lines do
+  local line = lines[t]
+  local dim = line:match("^_🔄") or line:match("^_%d%d%d%d%-") or line:match("^_.+ · %d%d%d%d%-")
+  if dim then
+    vim.api.nvim_buf_set_extmark(0, dim_ns, t - 1, 0, { line_hl_group = "Comment" })
+    if line:sub(1, 1) == "_" and line:sub(-1) == "_" and #line >= 2 then
+      vim.api.nvim_buf_set_extmark(0, dim_ns, t - 1, 0, { end_col = 1, conceal = "" })
+      vim.api.nvim_buf_set_extmark(0, dim_ns, t - 1, #line - 1, { end_col = #line, conceal = "" })
+    end
+    t = t + 1
+  elseif line:match("^>") and line:match("💭 Thinking") then
+    while t <= #lines and lines[t]:match("^>") do
+      vim.api.nvim_buf_set_extmark(0, dim_ns, t - 1, 0, { line_hl_group = "Comment" })
+      t = t + 1
+    end
+  else
+    t = t + 1
+  end
+end
+
+-- Only the fences that sit directly under a Tool heading (args + result).
+-- Stop at the first non-blank, non-fence line so model-written markdown is left alone.
+local i = 1
+while i <= #lines do
+  if not tool_heading(lines[i]) then
+    i = i + 1
+  else
+    i = i + 1
+    while i <= #lines do
+      if lines[i]:match("^%s*$") then
+        i = i + 1
+      else
+        local ticks = fence_open(lines[i])
+        if not ticks then break end
+        local j = i + 1
+        while j <= #lines and not lines[j]:match("^" .. ticks) do
+          j = j + 1
+        end
+        if j <= #lines and j - i > 1 then
+          vim.cmd(("silent %d,%dfold"):format(i + 1, j - 1))
+        end
+        i = math.max(j, i) + 1
+      end
+    end
+  end
+end
+
+local turns = {}
+for n, line in ipairs(lines) do
+  local kind = role_heading(line)
+  if kind == "user" or kind == "assistant" then
+    turns[#turns + 1] = { lnum = n, text = line }
+  end
+end
+
+local function turn_at(lnum)
+  local s, e, info = 1, #lines, nil
+  for i, t in ipairs(turns) do
+    if t.lnum <= lnum then
+      info = t
+      s = t.lnum
+      e = turns[i + 1] and (turns[i + 1].lnum - 1) or #lines
+    else
+      break
+    end
+  end
+  return s, e, info
+end
+
+local function heading_label(info)
+  if not info then return "" end
+  local h = info.text:gsub("^#+%s+", "")
+  local below = lines[info.lnum + 1] or ""
+  if below == "" then below = lines[info.lnum + 2] or "" end
+  local dur = below:match([[· ([%d%.]+s) · %d%d%d%d%-]]) or below:match([[· (%d+m %d+s) · %d%d%d%d%-]])
+  if dur then h = h .. " · " .. dur end
+  return h
+end
+
+_G.MpiTranscriptTurn = { s = 1, e = 1 }
+function _G.MpiTranscriptTurnBar()
+  local t = _G.MpiTranscriptTurn
+  local l = vim.v.lnum
+  if t and l > t.s and l <= t.e then return "│" end
+  return " "
+end
+vim.opt_local.statuscolumn = "%s%#MpiTranscriptTurn#%{v:lua.MpiTranscriptTurnBar()}%#LineNr#%l "
+
+local function refresh()
+  local s, e, info = turn_at(vim.api.nvim_win_get_cursor(0)[1])
+  _G.MpiTranscriptTurn.s = s
+  _G.MpiTranscriptTurn.e = e
+  local h = heading_label(info)
+  local keys = "%=[t prev  ]t next"
+  vim.wo.winbar = h == "" and keys or (" " .. h:gsub("%%", "%%%%") .. keys)
+end
+
+local function jump_role(dir)
+  local lnum = vim.api.nvim_win_get_cursor(0)[1]
+  if dir > 0 then
+    for _, t in ipairs(turns) do
+      if t.lnum > lnum then
+        vim.api.nvim_win_set_cursor(0, { t.lnum, 0 })
+        return
+      end
+    end
+  else
+    for i = #turns, 1, -1 do
+      if turns[i].lnum < lnum then
+        vim.api.nvim_win_set_cursor(0, { turns[i].lnum, 0 })
+        return
+      end
+    end
+  end
+end
+vim.keymap.set("n", "]t", function() jump_role(1) end, { buffer = true, silent = true })
+vim.keymap.set("n", "[t", function() jump_role(-1) end, { buffer = true, silent = true })
+
+vim.api.nvim_create_autocmd("CursorMoved", {
+  buffer = 0,
+  callback = refresh,
+})
+refresh()
+`;
 
 // Open `content` in the user's $VISUAL/$EDITOR. Follows the diff-tracker
 // pattern: pause the TUI via ctx.ui.custom, spawn the editor on the inherited
@@ -543,6 +762,7 @@ function openInExternalEditor(
     const t = tui as unknown as { stop: () => void; start: () => void; requestRender: (f?: boolean) => void };
     t.stop();
     const tmpFile = path.join(os.tmpdir(), `transcript-${process.pid}-${Date.now()}.md`);
+    let luaFile: string | undefined;
     // Split so `EDITOR="code -w"` style commands keep their flags.
     const [cmd, ...cmdArgs] = editorCmd.split(" ").filter(Boolean);
     // Resume exactly once (a double start leaks a resize listener).
@@ -552,8 +772,13 @@ function openInExternalEditor(
       resumed = true;
       // node:fs — pure pi runs on Node; Bun.file is unavailable there.
       void fs.unlink(tmpFile).catch(() => {
-        /* best effort */
+        /* ENOENT: tmp already gone */
       });
+      if (luaFile) {
+        void fs.unlink(luaFile).catch(() => {
+          /* ENOENT: tmp already gone */
+        });
+      }
       t.start();
       t.requestRender(true);
       done(ok);
@@ -561,7 +786,11 @@ function openInExternalEditor(
     void (async () => {
       try {
         await fs.writeFile(tmpFile, `${content}\n`);
-        const child = spawn(cmd!, [...cmdArgs, ...editorExtraArgs(cmd!), tmpFile], { stdio: "inherit" });
+        if (path.basename(cmd!) === "nvim") {
+          luaFile = tmpFile.replace(/\.md$/, ".lua");
+          await fs.writeFile(luaFile, NVIM_TRANSCRIPT_LUA);
+        }
+        const child = spawn(cmd!, [...cmdArgs, ...editorExtraArgs(cmd!, luaFile), tmpFile], { stdio: "inherit" });
         await new Promise<void>((resolve, reject) => {
           child.once("error", reject);
           child.once("close", () => resolve());
