@@ -29,11 +29,11 @@ In multi-tab workflows, the top tab bar occupies a vertical row and visual atten
 
 When the tab bar is hidden, other background agents that require attention or have notable state transitions render as compact status dots on the top separator:
 
-- **Status Indicators**: Represent active background states: working agents show an animated Braille spinner (falling back to static dot in ASCII mode), while waiting (`?`), done (`!`), and error (`x`) display colored status dots.
+- **Status Indicators**: Working agents show an animated Braille spinner (falling back to static dot in ASCII mode); waiting (`?`), done (`!`), and error (`x`) display colored status dots.
 - **Overflow Counter (`[+N]`)**: Groups excess background indicators when terminal width is constrained.
-- **Mouse Clickable**: Clicking a background marker switches focus directly to that agent tab.
+- **Mouse Click**: Clicking a background marker switches focus to that agent tab.
 
-### 2. Seamless Mode Migration
+### 2. Mode Migration
 
 Zen mode is per-window state that automatically migrates with user navigation:
 - Switching tabs via `Ctrl+T` (Tab Jump) transfers Zen mode to the newly focused agent tab. `Tab` / `Shift+Tab` are swallowed in Zen mode.

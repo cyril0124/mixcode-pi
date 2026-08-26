@@ -10,10 +10,10 @@ Script language is chosen by file extension: `.lua` runs under fengari, `.ts` / 
 
 In large multi-package repositories (monorepos) or comparative evaluation tasks, manually opening dozens of tabs, switching working directories, configuring models/thinking tiers, and dispatching prompts is repetitive, error-prone, and non-reproducible.
 
-Batch scripting acts as a **programmable, declarative dispatch language**:
-- **Scriptable Automation**: Parameterize runs with CLI flags (`-- <args...>`) and environment variables (`os.getenv`).
-- **Fail-Fast Validation**: Pre-validates model and thinking compatibility before dispatching work.
-- **Dry-Run Predictability**: Inspects execution plans without spinning up TUI instances or mutating disk state.
+Batch scripting is a **programmable, declarative dispatch language**:
+- Parameterize runs with CLI flags (`-- <args...>`) and environment variables (`os.getenv`).
+- Validate model and thinking compatibility before any work is dispatched.
+- Dry-run the execution plan without starting TUI instances or touching disk state.
 
 ## Running
 

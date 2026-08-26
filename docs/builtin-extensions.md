@@ -48,9 +48,9 @@ Startup (MixCode Interactive / TUI or independent Pi subagent)
 `ensurePackageExtensions` computes a deterministic SHA-256 over each package's relative file paths and contents. The installed package records the hash in `<agentDir>/extensions/<package>/.mixcode-package-hash`; matching hashes skip writes, while changed hashes replace the installed package tree before publishing the new marker. Package-contained skills stay under the extension directory and are loaded through `resources_discover`.
 
 `installMixcodeDocs` runs only in the compiled binary, which has no source tree
-on disk. It writes MixCode's own `docs/*.md` to `<agentDir>/mixcode-docs/` — a
-stable sibling of `<agentDir>/extensions/`, not the per-process runtime dir — so
-the system prompt can point the model at them. Source and npm installs skip it
+on disk. It writes MixCode's own `docs/*.md` to `<agentDir>/mixcode-docs/`, a
+stable sibling of `<agentDir>/extensions/` rather than the per-process runtime
+dir, so the system prompt can point the model at them. Source and npm installs skip it
 and resolve the repository's `docs/` directly. Pi's own documentation is never
 copied here; it is resolved from the pi package by Pi's `config.ts` helpers.
 

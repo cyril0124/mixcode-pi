@@ -46,7 +46,7 @@ In the prompt editor, `@` fuzzy-matches the open tab titles of this instance (ex
 
 ## Agent Tab Collaboration
 
-Tabs prompt peer tabs with `mpi status` / `mpi ctl` (same TUI, or another instance via `--pid` / `--workdir`). This is not the `open_tabs.json` peer-sync below — that only reconciles the open-tab set across processes.
+Tabs prompt peer tabs with `mpi status` / `mpi ctl` (same TUI, or another instance via `--pid` / `--workdir`). This is not the `open_tabs.json` peer-sync below. That only reconciles the open-tab set across processes.
 
 - CLI contract: [Ctl Subcommand](cli-and-flags.md#ctl-subcommand)
 - Agent cookbook: [mpi-ctl skill](../pi-packages/mpi-ctl/skills/mpi-ctl/SKILL.md)

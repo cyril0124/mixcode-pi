@@ -3,12 +3,12 @@
 [中文文档](environment.zh.md)
 
 User-facing MixCode product environment variables owned or set by `src/`.
-Not listed here: `run.sh` / test / GIF tooling knobs, or upstream Pi (`PI_*`) — see Pi docs for those.
+Not listed here: `run.sh` / test / GIF tooling knobs, or upstream Pi (`PI_*`). See Pi docs for those.
 
 **Conventions**
 
 - Product / host vars use the `MIXCODE` / `MIXCODE_*` prefix.
-- Unless noted, “set” means a non-empty string. Boolean-style flags treat `0`, `false`, and `off` (case-insensitive) as off when the code normalizes them that way.
+- Unless noted, "set" means a non-empty string. Boolean-style flags treat `0`, `false`, and `off` (case-insensitive) as off when the code normalizes them that way.
 
 ## Host Identity
 
@@ -18,7 +18,7 @@ Not listed here: `run.sh` / test / GIF tooling knobs, or upstream Pi (`PI_*`) �
 
 ## Agent Bash Tool (Per Spawn)
 
-Tab titles are injected into the **agent bash tool** child environment only (same surface as Pi `PI_SESSION_*`); they survive extensions that re-register the bash tool. `MIXCODE_PID` lives on the host process env, so every child — including user `!` / `!!` shells — inherits it.
+Tab titles are injected into the **agent bash tool** child environment only (same surface as Pi `PI_SESSION_*`); they survive extensions that re-register the bash tool. `MIXCODE_PID` lives on the host process env, so every child, including user `!` / `!!` shells, inherits it.
 
 | Variable | Set by | Meaning |
 | --- | --- | --- |

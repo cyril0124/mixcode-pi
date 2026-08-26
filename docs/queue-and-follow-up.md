@@ -8,7 +8,7 @@ MixCode Pi provides dual-queue execution semantics for queuing messages while an
 
 When an agent is actively streaming output or executing a multi-tool loop, user inputs have distinct intentions that single-queue models conflate:
 1. **Urgent Intervention (Steer)**: The user spots an incorrect command or wrong file and needs the agent to pivot immediately without throwing away work already accomplished.
-2. **Queued Next Step (Follow-up)**: The user wants to plan the next phase of work (e.g. "now run tests") to execute cleanly only after the current agent step completes.
+2. **Queued Next Step (Follow-up)**: The user wants to plan the next phase of work (e.g. "now run tests") to run only after the current agent step completes.
 
 MixCode separates these into dedicated queues with distinct lifecycle, delivery, and persistence rules.
 

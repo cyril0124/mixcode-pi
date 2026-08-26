@@ -17,7 +17,7 @@ MixCode Pi provides model discovery, selection, thinking tier adjustments, provi
 ## Model Selection & Thinking
 
 - **Select Model**: Run `/models [provider/modelId]` or press `Ctrl+P` → **Choose Model**.
-- **Thinking Tier**: Run `/thinking [tier]`. The accepted tiers are per model — a model's `thinkingLevelMap` may hide any of `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. `/thinking <unknown>` answers with that model's valid values.
+- **Thinking Tier**: Run `/thinking [tier]`. The accepted tiers are per model. A model's `thinkingLevelMap` may hide any of `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. `/thinking <unknown>` answers with that model's valid values.
 
 ## Listing Models From the CLI
 

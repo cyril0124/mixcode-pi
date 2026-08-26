@@ -54,7 +54,7 @@ ctx.ui.select / confirm / input
      (mid-dialog setEditorText writes survive, matching Pi)
 ```
 
-`ctx.ui.onTerminalInput` handlers fire before the focused editor and may consume or rewrite the input, but — deviating from Pi — MixCode suppresses them while a tui overlay or a pending extension interaction (`select`/`confirm`/`input` dialog, pending `custom()`) is active. Pi extensions self-guard by peeking the real TUI's focused component; MixCode widget factories receive an isolated `NullTerminal` TUI without focus state, so the host suppresses dispatch instead to keep an open dialog's keys.
+`ctx.ui.onTerminalInput` handlers fire before the focused editor and may consume or rewrite the input, but, deviating from Pi, MixCode suppresses them while a tui overlay or a pending extension interaction (`select`/`confirm`/`input` dialog, pending `custom()`) is active. Pi extensions self-guard by peeking the real TUI's focused component; MixCode widget factories receive an isolated `NullTerminal` TUI without focus state, so the host suppresses dispatch instead to keep an open dialog's keys.
 
 Exception: when a custom overlay is hidden (`handle.hide()` called by the extension itself), dispatch stays enabled even while other interactions are pending, so the overlay can still receive its recovery shortcut (e.g. ask_user_question's collapse toggle). Editor-slot takeovers without a hidden overlay remain fully suppressed.
 

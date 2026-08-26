@@ -34,9 +34,9 @@ Extensions mount UI components into four dedicated layout zones:
 
 ## 2. Widget Side Panel
 
-The side panel is a display mode, not a mount zone — there is no dedicated extension API for it. Pressing `Right` on an empty editor splits the chat viewport and relocates every `aboveEditor`/`belowEditor` widget into a scrollable right-hand column; pressing `Right` again (or following the `→ to close` hint) restores the docks.
+The side panel is a display mode, not a mount zone. There is no dedicated extension API for it. Pressing `Right` on an empty editor splits the chat viewport and relocates every `aboveEditor`/`belowEditor` widget into a scrollable right-hand column; pressing `Right` again (or following the `→ to close` hint) restores the docks.
 
-- Rendering: `renderExtensionPanel` (`src/ui/rendering/chrome.ts`) — pinned `Widgets` title, one dim `─ {key} ─` section rule per widget, scroll window with `↑ more`/`↓ more` markers.
+- Rendering: `renderExtensionPanel` (`src/ui/rendering/chrome.ts`) draws a pinned `Widgets` title, one dim `─ {key} ─` section rule per widget, and a scroll window with `↑ more`/`↓ more` markers.
 - The toggle refuses to open below 80 terminal columns or when the tab has no dock widgets (a toast explains why).
 - Extensions cannot open the panel or mount components into it directly; it always mirrors the current `setWidget` content.
 

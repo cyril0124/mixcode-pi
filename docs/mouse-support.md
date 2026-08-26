@@ -63,7 +63,7 @@ Modal overlays support direct mouse navigation:
 ## 4. Mouse Drag Text Selection & Auto-Copy
 
 Dragging with the left mouse button across the Chat surface, Input Editor, or Notice dialog highlights visible text:
-- **Automatic Clipboard Copy**: Releasing the mouse button copies the selected text cleanly to the system clipboard.
+- **Automatic Clipboard Copy**: Releasing the mouse button copies the selected text to the system clipboard.
 - **ANSI-Clean Extraction**: Strips syntax highlighting and background colors, copying plain text.
 - **Wide-Character (CJK) Boundary Safe**: `src/core/chat-selection.ts` snaps the start column to `getGraphemeCellRange(line, col).start` and the end column to `.end`, so a full-width grapheme under the pointer is never split.
 - **Block Background Overlay**: The same helper reapplies `theme.selectedBg` after every SGR in the selected slice so tool/thinking card backgrounds cannot hide the highlight.
