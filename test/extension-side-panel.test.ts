@@ -199,6 +199,34 @@ test("each panel widget is headed by a section rule naming its key", () => {
   assert.ok(todosHeader < aboveRow && aboveRow < fleetHeader && fleetHeader < belowRow);
 });
 
+test("panel pins a Widgets title on its top row, even while scrolled", () => {
+  const tab = makeTab({ panelOpen: true });
+  const rows = renderExtensionPanel(tab, 40, 12).map(stripAnsi);
+  assert.match(rows[0]!, /Widgets/);
+
+  // The title stays pinned while the content window scrolls.
+  const tall = makeTab({
+    panelOpen: true,
+    extensionUi: {
+      statuses: [],
+      widgets: [
+        {
+          key: "big",
+          placement: "aboveEditor",
+          lines: Array.from({ length: 30 }, (_, i) => `panel-item-${i + 1}`),
+        },
+      ],
+      toolsExpanded: false,
+      waitingForInputs: [],
+      workingVisible: true,
+    },
+  });
+  tall.panelScrollOffset = 5;
+  const scrolled = renderExtensionPanel(tall, 40, 10).map(stripAnsi);
+  assert.match(scrolled[0]!, /Widgets/);
+  assert.match(scrolled[1]!, /\u2191 more/);
+});
+
 test("open panel shows a dim hint on how to close it", () => {
   const open = renderPlain(true);
   const closed = renderPlain(false);

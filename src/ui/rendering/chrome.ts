@@ -1049,7 +1049,9 @@ export function extensionPanelWidth(terminalWidth: number): number {
  * widgets, separated by a blank row, framed with a left vertical border so it
  * reads as a distinct column. Content taller than the panel scrolls at
  * `tab.panelScrollOffset` (clamped here) with "↑ more"/"↓ more" markers on the
- * hidden edges. The final row is a dim hint on how to close the panel. The
+ * hidden edges. The first row is a dim pinned "Widgets" title and the final
+ * row is a dim hint on how to close the panel; both collapse on tiny panels
+ * (content wins). The
  * returned rows are the raw rendered lines used for both display and mouse
  * text selection.
  */
@@ -1062,6 +1064,8 @@ export function renderExtensionPanel(
   return renderWithTheme(theme, () => renderExtensionPanelInner(tab, panelWidth, panelHeight));
 }
 
+// Dim pinned title naming the panel, symmetric with the close hint below.
+const EXTENSION_PANEL_TITLE = "Widgets";
 // Dim footer hint telling the user how to dismiss the panel (Right toggles it).
 const EXTENSION_PANEL_CLOSE_HINT = "\u2192 to close";
 // Generous per-widget line budget for the scrolling panel: high enough that no
@@ -1083,10 +1087,12 @@ function renderExtensionPanelInner(
     ...tab.extensionUi.widgets.filter((widget) => widget.placement === "aboveEditor"),
     ...tab.extensionUi.widgets.filter((widget) => widget.placement === "belowEditor"),
   ];
-  // Reserve the bottom row for a dim close hint when there is room for at least
-  // one content row above it; on a 1-row panel the content wins.
+  // Reserve the bottom row for a dim close hint, then the top row for the
+  // panel title, each only when at least one content row remains; on a 1-row
+  // panel the content wins.
   const hasHint = height >= 2;
-  const contentHeight = hasHint ? height - 1 : height;
+  const hasTitle = height >= 3;
+  const contentHeight = height - (hasHint ? 1 : 0) - (hasTitle ? 1 : 0);
   const content: string[] = [];
   ordered.forEach((widget, index) => {
     if (index > 0) content.push(blank);
@@ -1130,6 +1136,10 @@ function renderExtensionPanelInner(
   }
   // Pad to full content height with border-only rows so the column stays rectangular.
   while (visible.length < contentHeight) visible.push(blank);
+  if (hasTitle) {
+    const title = truncateToWidth(EXTENSION_PANEL_TITLE, bodyWidth, "...");
+    visible.unshift(padLine(`${border} ${activeRenderTheme.dim(title)}`, panelWidth));
+  }
   if (hasHint) {
     const hint = truncateToWidth(EXTENSION_PANEL_CLOSE_HINT, bodyWidth, "...");
     visible.push(padLine(`${border} ${activeRenderTheme.dim(hint)}`, panelWidth));
