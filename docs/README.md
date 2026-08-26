@@ -31,4 +31,4 @@ Documentation library for MixCode Pi, a multi-tab terminal AI coding agent built
 - **[Environment Variables](environment.md)**: Product-level `MIXCODE_*` variables and tool child process injection.
 - **[Pi Extension Compatibility](extension-compatibility.md)**: Compatibility levels (L0–L3) and Pi ecosystem package discovery.
 - **[Instance Registry & Status](instance-registry.md)**: `mpi status` monitoring and cross-process instance tracking.
-- **[Extension UI & Widgets](extension-ui-and-widgets.md)**: 5-zone widget mounting and inline widget mode (`/toggle-inline-widgets`).
+- **[Extension UI & Widgets](extension-ui-and-widgets.md)**: 4-zone widget mounting, the widget side panel, and inline widget mode (`/toggle-inline-widgets`).

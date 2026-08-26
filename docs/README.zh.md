@@ -31,4 +31,4 @@ MixCode Pi 官方技术文档库。记录核心架构、特色工作流、命令
 - **[环境变量清单 (Environment Variables)](environment.zh.md)**：面向用户的产品级 `MIXCODE_*` 变量及工具子进程注入规则。
 - **[Pi 扩展生态兼容性 (Pi Compatibility)](extension-compatibility.zh.md)**：L0–L3 兼容分级与 Pi Packages 生命周期对接。
 - **[实例监控与注册表 (Instance Registry)](instance-registry.zh.md)**：`mpi status` 监控与跨进程实例追踪。
-- **[扩展 UI 体系与组件 (Extension UI)](extension-ui-and-widgets.zh.md)**：5 大专属挂载区与内联组件模式 (`/toggle-inline-widgets`)。
+- **[扩展 UI 体系与组件 (Extension UI)](extension-ui-and-widgets.zh.md)**：4 大专属挂载区、widget 侧边面板与内联组件模式 (`/toggle-inline-widgets`)。
