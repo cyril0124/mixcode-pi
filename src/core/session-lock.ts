@@ -14,13 +14,8 @@ import * as path from "node:path";
 import { currentProcessIdentity, type ProcessIdentity } from "./instance-registry.js";
 import { acquirePidFileLock } from "./pid-file-lock.js";
 
-export const SESSION_LOCK_VERSION = 1;
-
 export interface SessionLockRecord {
-  version: typeof SESSION_LOCK_VERSION;
-  sessionId: string;
   pid: number;
-  acquiredAt: string;
 }
 
 export interface SessionLockHandle {
@@ -75,7 +70,6 @@ function lockIsStale(
 
 export interface AcquireSessionTurnLockOptions {
   pid?: number;
-  now?: Date;
   processInfo?: (pid: number) => ProcessIdentity;
 }
 
@@ -92,12 +86,7 @@ export function acquireSessionTurnLock(
   const processInfo = options.processInfo ?? ((p: number) => currentProcessIdentity(p));
   const filePath = sessionLockFile(sessionsRoot, sessionId);
 
-  const record: SessionLockRecord = {
-    version: SESSION_LOCK_VERSION,
-    sessionId,
-    pid,
-    acquiredAt: (options.now ?? new Date()).toISOString(),
-  };
+  const record: SessionLockRecord = { pid };
   const payload = `${JSON.stringify(record)}\n`;
   const lock = acquirePidFileLock({
     lockPath: filePath,

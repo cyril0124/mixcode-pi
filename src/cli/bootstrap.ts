@@ -60,10 +60,6 @@ export interface BootstrapOptions {
   resourceLoaderOptions?: CreateAgentSessionServicesOptions["resourceLoaderOptions"];
 }
 
-export function defaultStateDir(): string {
-  return resolveMixcodeStateDir();
-}
-
 export function defaultPiSessionDir(workdir: string, agentDir = getAgentDir()): string {
   // Pi's cwd->dir encoding (patch export of the pure variant; no mkdir side effect).
   return getDefaultSessionDirPath(workdir, agentDir);
@@ -99,7 +95,7 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
     piSettingsFile: string;
   };
 }> {
-  const rootStateDir = options.stateDir ?? defaultStateDir();
+  const rootStateDir = options.stateDir ?? resolveMixcodeStateDir();
   const stateDir = scopedStateDir(rootStateDir, options.workdir);
   const agentDir = options.agentDir ?? getAgentDir();
   // Create SettingsManager early so its sessionDir/httpProxy settings can be

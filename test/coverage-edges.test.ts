@@ -12,8 +12,8 @@ import { reopenSessionInWorkdir } from "../src/agent/runtime-session.js";
 import {
   applyExtensionTheme,
   extensionThemeByName,
-  MIXCODE_EXTENSION_THEME,
 } from "../src/agent/runtime-extension-theme.js";
+import { MIXCODE_EXTENSION_THEME } from "../src/ui/themes.js";
 import { clearPendingEscape } from "../src/core/escape.js";
 import {
   appendActiveSystemMessage,

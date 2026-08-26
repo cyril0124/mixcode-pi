@@ -82,7 +82,6 @@ export interface StartPeerTabSyncOptions {
   openTabsPath: string;
   rootStateDir: string;
   workdir: string;
-  selfPid?: number;
   getLocalSessionIds: () => Iterable<string>;
   openTab: (candidate: PeerTabCandidate) => Promise<void>;
   closeTab: (sessionId: string) => Promise<void>;

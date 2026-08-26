@@ -171,7 +171,6 @@ export function mutateOpenTabs(
 
 interface OpenTabsLockRecord {
   pid: number;
-  acquiredAt: string;
 }
 
 function parseOpenTabsLockRecord(raw: string): OpenTabsLockRecord | undefined {
@@ -190,7 +189,6 @@ function withOpenTabsLock<T>(filePath: string, fn: () => T): T {
     lockPath: `${filePath}.lock`,
     payload: `${JSON.stringify({
       pid: process.pid,
-      acquiredAt: new Date().toISOString(),
     } satisfies OpenTabsLockRecord)}\n`,
     parseRecord: parseOpenTabsLockRecord,
     isStale: (record) => !record || !currentProcessIdentity(record.pid).alive,

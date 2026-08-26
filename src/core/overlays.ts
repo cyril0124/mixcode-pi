@@ -360,14 +360,12 @@ function paletteEntryFromCommand(
   flags: PaletteFlags,
 ): CommandPaletteEntry {
   const requires = view === "agent" ? meta.requires : meta.configRequires;
-  const { enabled, disabledReason } = resolvePaletteRequirement(requires, flags);
   return commandEntry(
     `${view}.${name}`,
     meta.label,
     `/${name}`,
     meta.description ?? commandDescription,
-    enabled,
-    disabledReason,
+    resolvePaletteRequirement(requires, flags),
   );
 }
 
@@ -375,21 +373,16 @@ function paletteEntryFromCommand(
 function resolvePaletteRequirement(
   requires: PaletteRequirement | undefined,
   flags: PaletteFlags,
-): { enabled: boolean; disabledReason: string } {
+): boolean {
   switch (requires) {
     case "session":
-      return { enabled: flags.hasSession, disabledReason: "Current tab has no active session" };
+      return flags.hasSession;
     case "session+models":
-      return {
-        enabled: flags.hasSession && flags.hasModels,
-        disabledReason: !flags.hasSession
-          ? "Current tab has no active session"
-          : "No models loaded",
-      };
+      return flags.hasSession && flags.hasModels;
     case "tabs":
-      return { enabled: flags.hasTabs, disabledReason: "No open Agent Tabs" };
+      return flags.hasTabs;
     default:
-      return { enabled: true, disabledReason: "" };
+      return true;
   }
 }
 
@@ -421,7 +414,6 @@ function commandEntry(
   command: string,
   description: string,
   enabled = true,
-  disabledReason = "",
 ): CommandPaletteEntry {
   return {
     id,
@@ -429,7 +421,6 @@ function commandEntry(
     command,
     description,
     enabled,
-    disabledReason: enabled ? "" : disabledReason,
   };
 }
 

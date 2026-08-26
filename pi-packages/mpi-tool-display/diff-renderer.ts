@@ -1374,14 +1374,6 @@ function renderChangeMarker(
 	return colorizeSegment(theme, "dim", glyph, rowBg);
 }
 
-function usesHashlineGutter(showHashlineAnchors: boolean): boolean {
-	return showHashlineAnchors;
-}
-
-function getHashlineGutterMarkerWidth(_indicatorMode: DiffIndicatorMode): number {
-	return 0;
-}
-
 function getLineDividerPlainWidth(indicatorMode: DiffIndicatorMode, hashlineGutter = false): number {
 	if (hashlineGutter) {
 		return 2;
@@ -1419,7 +1411,7 @@ function renderLineNumberSegment(
 
 function getLinePrefixPlainWidth(lineNumberWidth: number, indicatorMode: DiffIndicatorMode, hashlineGutter = false): number {
 	if (hashlineGutter) {
-		return getHashlineGutterMarkerWidth(indicatorMode) + lineNumberWidth;
+		return lineNumberWidth;
 	}
 	return indicatorMode === "bars"
 		? visibleWidth(`▌ ${" ".repeat(lineNumberWidth)} `)
@@ -1672,7 +1664,7 @@ function renderUnified(
 		return renderLineCell(
 			buildLineCellParams(entry.lineKind, highlighted, ctx.width, rowBg, ctx.containerBgAnsi, ctx.theme, ctx.wordWrap, ctx.indicatorMode),
 			lineNumber,
-			usesHashlineGutter(ctx.showHashlineAnchors),
+			ctx.showHashlineAnchors,
 		);
 	});
 }
@@ -1737,7 +1729,7 @@ function renderSplitCell(
 	indicatorMode: DiffIndicatorMode,
 	showHashlineAnchors: boolean,
 ): string[] {
-	const hashlineGutter = usesHashlineGutter(showHashlineAnchors);
+	const hashlineGutter = showHashlineAnchors;
 	if (!line) {
 		return [renderSplitBlankCell(columnWidth, lineNumberWidth, theme, indicatorMode, hashlineGutter)];
 	}
@@ -1792,7 +1784,7 @@ function renderSplitHeaderCell(
 	hashlineGutter = false,
 ): string {
 	const markerPad = hashlineGutter
-		? " ".repeat(getHashlineGutterMarkerWidth(indicatorMode))
+		? ""
 		: indicatorMode === "bars" ? "  " : "";
 	const lineNumberLabel = fitToWidth(label, lineNumberWidth);
 	const lineNumberSpacer = hashlineGutter ? "" : " ";
@@ -1825,7 +1817,7 @@ function renderSplit(
 	const leftWidth = Math.max(MIN_SPLIT_COLUMN_WIDTH, Math.floor((width - separatorWidth) / 2));
 	const rightWidth = Math.max(MIN_SPLIT_COLUMN_WIDTH, width - separatorWidth - leftWidth);
 	const splitLineNumberWidth = Math.max(3, lineNumberWidth);
-	const hashlineGutter = usesHashlineGutter(showHashlineAnchors);
+	const hashlineGutter = showHashlineAnchors;
 	const separator = renderSplitDivider(theme, containerBgAnsi);
 	const topSeparator = renderSplitDivider(theme, containerBgAnsi, "─┬─");
 	const output: RenderedRow[] = [];

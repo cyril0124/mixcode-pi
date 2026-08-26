@@ -438,7 +438,7 @@ function telemetryForUpdate(goal: GoalState, completionDecision: CompletionDecis
 	if (goal.status === "budgetLimited" && isBudgetExhausted(goal)) return noteBudgetLimit(getTelemetry());
 	if (completionDecision.kind !== "allow_with_reason") return getTelemetry();
 	const telemetry = getTelemetry();
-	return telemetry ? { ...telemetry, noMoreValuableWorkReason: completionDecision.reason === "max_budget_requires_wrap_up" ? "max_budget_requires_wrap_up" : completionDecision.reason, floorQualityState: completionDecision.reason === "max_budget_requires_wrap_up" ? "overriddenByMaxBudget" : telemetry.floorQualityState, updatedAt: Date.now() } : telemetry;
+	return telemetry ? { ...telemetry, noMoreValuableWorkReason: completionDecision.reason === "max_budget_requires_wrap_up" ? "max_budget_requires_wrap_up" : completionDecision.reason, updatedAt: Date.now() } : telemetry;
 }
 
 function parseToolStatus(status: string): GoalStatus | undefined {

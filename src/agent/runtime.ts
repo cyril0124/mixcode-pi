@@ -112,7 +112,6 @@ import type {
   TerminalInputResult,
 } from "./runtime-types.js";
 
-export type { SessionInfo } from "@earendil-works/pi-coding-agent";
 export type {
   ChatLine,
   EditorFactory,
@@ -197,7 +196,7 @@ export class MixCodeRuntime {
       createServices: (workdir, systemPrompt) => this.createServices(workdir, systemPrompt),
       resolveModel: (provider, modelId) => this.resolveModel(provider, modelId),
       resolveModelFromSession: (session, fallback) =>
-        this.resolveModelFromSession(session, fallback),
+        resolveRuntimeModelFromSession(session, fallback, this.modelRuntime ?? this.modelRegistry),
       streamFn: this.streamFn,
       getApiKey: this.getApiKey,
       getDisabledExtensionKeys: () => this.disabledExtensionKeys(),
@@ -221,10 +220,10 @@ export class MixCodeRuntime {
         this.createSession(cwd, sessionId, parentSession),
       replaceRuntimeTabSession: (runtimeTab, sessionManager, reason) =>
         this.replaceRuntimeTabSession(runtimeTab, sessionManager, reason),
-      syncChatFromSession: (runtimeTab) => this.syncChatFromSession(runtimeTab),
+      syncChatFromSession: (runtimeTab) => syncRuntimeChatFromSession(runtimeTab),
       emitChange: (event, runtimeTab) => this.emitChange(event, runtimeTab),
       extensionUiHost: () => this.extensionUiHost,
-      setLiveEditorText: (text) => this.setLiveEditorText(text),
+      setLiveEditorText: (text) => this.extensionUiHost?.editor?.setText(text),
     };
   }
 
@@ -1519,10 +1518,6 @@ export class MixCodeRuntime {
     return replaced;
   }
 
-  private async syncChatFromSession(runtimeTab: RuntimeTab): Promise<void> {
-    await syncRuntimeChatFromSession(runtimeTab);
-  }
-
   /**
    * Reload a tab's session from disk to pick up appends made by another
    * mixcode-pi instance sharing this sessionsRoot, then notify listeners so the
@@ -1535,17 +1530,6 @@ export class MixCodeRuntime {
     const result = reloadRuntimeSessionFromDisk(runtimeTab);
     if (result.reloaded) this.emitChange({ type: "extension_ui_update" }, runtimeTab);
     return result.reloaded;
-  }
-
-  private resolveModelFromSession(
-    session: SessionManager,
-    fallback: MixCodeTabInfo["model"] | MixCodeModel | undefined,
-  ): MixCodeModel {
-    return resolveRuntimeModelFromSession(session, fallback, this.modelRuntime ?? this.modelRegistry);
-  }
-
-  private setLiveEditorText(text: string): void {
-    this.extensionUiHost?.editor?.setText(text);
   }
 
   private async createServices(

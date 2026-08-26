@@ -260,7 +260,6 @@ test("command palette filters, accepts, disables, and closes without OpenCode en
   openCommandPalette(state);
   const modelEntry = commandPaletteEntriesWithExtensions(state).find((entry) => entry.command === "/models");
   assert.equal(modelEntry?.enabled, false);
-  assert.equal(modelEntry?.disabledReason, "No models loaded");
   // Disabled rows are omitted from selection; Enter runs the first visible command.
   const firstVisible = commandPaletteEntriesWithExtensions(state).find((entry) => entry.enabled);
   assert.ok(firstVisible);
@@ -273,10 +272,6 @@ test("command palette filters, accepts, disables, and closes without OpenCode en
   openCommandPalette(state);
   const sessionEntries = commandPaletteEntriesWithExtensions(state);
   assert.equal(sessionEntries.find((entry) => entry.command === "/thinking")?.enabled, false);
-  assert.equal(
-    sessionEntries.find((entry) => entry.command === "/thinking")?.disabledReason,
-    "Current tab has no active session",
-  );
   assert.equal(
     sessionEntries.find((entry) => entry.command === "/delete-all-sessions")?.enabled,
     true,

@@ -13,7 +13,6 @@ import {
   defaultPiAuthPath,
   defaultPiModelsPath,
   defaultPiSessionDir,
-  defaultStateDir,
   resolveSessionsRoot,
   saveStateFile,
   scopedStateDir,
@@ -21,6 +20,7 @@ import {
 } from "./helpers/mixcode.js";
 import { UUIDV7_SESSION_ID_PATTERN } from "./helpers/session-id.js";
 import { delegateToRealPiCli, exposeLocalPiCli, parseMainArgs, shouldDelegateToRealPiCli } from "../src/cli/main.js";
+import { resolveMixcodeStateDir } from "../src/core/paths.js";
 
 test("bootstrap creates initial state and persists it when no state exists", async () => {
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "mixcode-bootstrap-"));
@@ -578,7 +578,7 @@ test("default state dir lives under Pi agent dir and ignores XDG_CONFIG_HOME", (
   process.env.XDG_CONFIG_HOME = "/tmp/xdg-test";
   process.env.PI_CODING_AGENT_DIR = "/tmp/pi-agent";
   try {
-    assert.equal(defaultStateDir(), "/tmp/pi-agent/mixcode-pi");
+    assert.equal(resolveMixcodeStateDir(), "/tmp/pi-agent/mixcode-pi");
   } finally {
     if (oldXdg === undefined) delete process.env.XDG_CONFIG_HOME;
     else process.env.XDG_CONFIG_HOME = oldXdg;

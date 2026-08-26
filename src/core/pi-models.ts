@@ -32,8 +32,6 @@ export interface PiModelRegistryBundle {
   registry: ModelRegistry;
   sources: PiModelSource[];
   runtimeAuth: PiModelRuntimeAuth;
-  modelsPath: string;
-  loadError?: string;
 }
 
 interface DisabledModelRuntimePolicy {
@@ -174,7 +172,6 @@ export async function createPiModelRegistryBundle(
     registry,
     sources,
     runtimeAuth: createPiModelRuntimeAuth(modelRuntime, registry),
-    modelsPath,
   };
 }
 

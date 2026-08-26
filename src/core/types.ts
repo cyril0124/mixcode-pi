@@ -83,7 +83,6 @@ export interface CommandPaletteEntry {
   command: string;
   description: string;
   enabled: boolean;
-  disabledReason: string;
 }
 
 /**

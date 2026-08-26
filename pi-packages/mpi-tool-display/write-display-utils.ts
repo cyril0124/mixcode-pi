@@ -1,9 +1,4 @@
 // License notices: ./THIRD_PARTY_NOTICES.md.
-export interface WriteCallSummaryOptions {
-  hasContent: boolean;
-  hasDetailedResultHeader: boolean;
-}
-
 export function splitWriteContentLines(content: string): string[] {
   if (!content) {
     return [];
@@ -23,10 +18,4 @@ export function countWriteContentLines(value: unknown): number {
 
 export function getWriteContentSizeBytes(value: unknown): number {
   return typeof value === "string" ? Buffer.byteLength(value, "utf8") : 0;
-}
-
-export function shouldRenderWriteCallSummary(
-  options: WriteCallSummaryOptions,
-): boolean {
-  return options.hasContent && !options.hasDetailedResultHeader;
 }

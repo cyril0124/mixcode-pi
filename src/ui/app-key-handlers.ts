@@ -76,10 +76,8 @@ export { handleVimUserMessageNavigation } from "./vim-user-message-navigation.js
 export {
   handleChatSelectionMouseInput,
   handleChromeMouseInput,
-  handleCommandPaletteMouse,
   handleInputSelectionMouseInput,
   handleMouseInput,
-  handleTabJumpMouse,
 } from "./app-mouse.js";
 import { handleCommandPaletteMouse, handleTabJumpMouse } from "./app-mouse.js";
 import { handleSessionSelectorKey } from "./session-resume.js";

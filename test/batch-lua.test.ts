@@ -787,7 +787,7 @@ test("runBatchDryRun prints plan without writing state file", async () => {
     }
     assert.match(out, /name=only/);
     assert.match(out, /prompt: hi/);
-    // defaultStateDir is <agentDir>/mixcode-pi — must stay absent (no mkdir/save).
+    // State dir is <agentDir>/mixcode-pi — must stay absent (no mkdir/save).
     const { access } = await import("node:fs/promises");
     await assert.rejects(() => access(path.join(dir, "agent", "mixcode-pi")), /ENOENT/);
   } finally {

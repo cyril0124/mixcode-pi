@@ -28,7 +28,6 @@ import type { ExtensionThemeHost } from "./runtime-types.js";
 
 export {
   getActiveExtensionThemeId,
-  MIXCODE_EXTENSION_THEME,
   noteActiveExtensionThemeId,
   registerMixCodeThemes,
 };

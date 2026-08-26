@@ -9,20 +9,10 @@ import {
   type MixCodeModelRef,
   type MixCodeState,
   type MixCodeTabInfo,
-  type SessionSelectorState,
-  type WorkspaceOverlayState,
 } from "./types.js";
 
 /** Fallback when Pi's getDefaultThinkingLevel() has no configured default. */
 export const DEFAULT_THINKING_LEVEL: ThinkingLevel = "medium";
-
-export function createSessionSelectorState(): SessionSelectorState {
-  return { open: false };
-}
-
-export function createWorkspaceOverlayState(): WorkspaceOverlayState {
-  return { open: false };
-}
 
 export const DEFAULT_THEME_ID = "claude-warm";
 
@@ -58,9 +48,9 @@ export function createInitialState(workdir: string, defaultThinkingLevel?: Think
     commandPalette: { query: "", selectedIndex: 0 },
     settingsPanel: { open: false },
     extensionManager: { open: false },
-    sessionSelector: createSessionSelectorState(),
+    sessionSelector: { open: false },
     treeSelector: createTreeSelectorState(),
-    workspaceOverlay: createWorkspaceOverlayState(),
+    workspaceOverlay: { open: false },
     tabJumpOpen: false,
     tabJumpQuery: "",
     tabJumpIndex: 0,

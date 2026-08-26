@@ -50,7 +50,6 @@ export interface InstanceStatusWarning {
 }
 
 export interface InstanceStatusReport {
-  generatedAt: string;
   instances: InstanceStatusInstance[];
   warnings: InstanceStatusWarning[];
 }
@@ -167,7 +166,7 @@ export async function loadLiveInstanceStatus(
     instances.push(resolveStatusInstance(snapshot));
   }
   instances.sort((a, b) => a.workdir.localeCompare(b.workdir) || a.pid - b.pid);
-  return { generatedAt: now.toISOString(), instances, warnings };
+  return { instances, warnings };
 }
 
 export async function cleanupInstanceRegistry(

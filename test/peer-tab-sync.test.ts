@@ -12,7 +12,6 @@ import {
   configureOpenTabsPath,
   replaceOpenTab,
   createInitialState,
-  createSessionSelectorState,
   createTab,
   listTabsToReconcile,
   nextAvailableAgentTitle,
@@ -174,7 +173,6 @@ test("startPeerTabSync opens and closes against shared open_tabs", async () => {
       openTabsPath,
       rootStateDir: path.join(dir, "root"),
       workdir,
-      selfPid: 2002,
       pollIntervalMs: 60_000,
       getLocalSessionIds: () => stateB.tabs.map((tab) => tab.sessionId),
       openTab: async (candidate) => {
@@ -635,7 +633,7 @@ test("resume publishes open_tabs before switch so reconcile keeps session title"
     });
     reconcileDuringSwitch = () => sync.reconcileNow();
 
-    state.sessionSelector = createSessionSelectorState();
+    state.sessionSelector = { open: false };
 
     const tui = {
       requestRender: () => undefined,

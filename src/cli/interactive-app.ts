@@ -36,10 +36,8 @@ import { hasCapturingAppOverlay, renderAppOverlay } from "../ui/app-overlays.js"
 import { handleSubmittedInput } from "../ui/app-submit.js";
 import { closeExistingAgentTab, openExistingAgentTab } from "../ui/agent-tab-actions.js";
 import { createBatchExecutorHost } from "./batch-host.js";
-import {
-  bootstrapMixCode,
-  defaultStateDir,
-} from "./bootstrap.js";
+import { bootstrapMixCode } from "./bootstrap.js";
+import { resolveMixcodeStateDir } from "../core/paths.js";
 import { ensurePackageExtensions } from "../core/ensure-package-extensions.js";
 import { installConsoleTuiBridge, wireConsoleSink } from "./console-tui-bridge.js";
 import { installCrashGuard } from "./crash-guard.js";
@@ -56,7 +54,7 @@ export async function runBatchDryRun(args: MainArgs): Promise<void> {
   if (!args.batch) throw new Error("--batch-dry-run requires --batch <file>");
 
   const agentDir = getAgentDir();
-  const rootStateDir = defaultStateDir();
+  const rootStateDir = resolveMixcodeStateDir();
   const stateDir = scopedStateDir(rootStateDir, args.workdir);
   const stateFile = stateFilePath(stateDir);
 
@@ -155,7 +153,7 @@ export async function runInteractiveApp(args: MainArgs, selfRoot: string): Promi
           : (state.tabs.find((tab) => tab.title === request.name)?.model ?? state.model),
     );
   }
-  const stateRoot = defaultStateDir();
+  const stateRoot = resolveMixcodeStateDir();
   let registryWriteErrorReported = false;
   // Assigned after the TUI exists so registry failures render as a notice
   // instead of corrupting the frame via raw stderr.

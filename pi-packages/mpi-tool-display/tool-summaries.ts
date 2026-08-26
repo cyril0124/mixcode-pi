@@ -17,10 +17,9 @@ import type { ToolDisplayConfig } from "./types.js";
 import {
 	countWriteContentLines,
 	getWriteContentSizeBytes,
-	shouldRenderWriteCallSummary,
 } from "./write-display-utils.js";
 
-export { countWriteContentLines, getWriteContentSizeBytes };
+export { countWriteContentLines };
 
 export interface RenderThemeLike {
 	fg(color: string, text: string): string;
@@ -453,10 +452,7 @@ export function buildWriteCallSummaryText(
 	const lineCount = countWriteContentLines(content);
 	const sizeBytes = getWriteContentSizeBytes(content);
 	const path = shortenPath(getToolPathArg(args));
-	const suffix = shouldRenderWriteCallSummary({
-		hasContent: content !== undefined,
-		hasDetailedResultHeader: false,
-	})
+	const suffix = content !== undefined
 		? formatWriteCallSuffix(lineCount, sizeBytes, theme, formatSize)
 		: "";
 	return `${theme.fg("toolTitle", theme.bold("write"))} ${theme.fg("accent", path || "...")}${suffix}`;

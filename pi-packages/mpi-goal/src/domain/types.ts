@@ -58,8 +58,6 @@ export type FloorValuePassId =
 	| "compatibility_review"
 	| "docs_handoff_evidence";
 
-export type FloorQualityState = "steering" | "overriddenByMaxBudget";
-
 export type NoMoreValuableWorkReason = "no_safe_autonomous_work" | "max_budget_requires_wrap_up";
 
 export type GoalTelemetrySnapshot = {
@@ -80,7 +78,6 @@ export type GoalTelemetrySnapshot = {
 	timeBudgetWarningSent?: boolean;
 	lastFloorCardId?: FloorValuePassId;
 	floorSteerCount?: number;
-	floorQualityState?: FloorQualityState;
 	noMoreValuableWorkReason?: NoMoreValuableWorkReason;
 	updatedAt: number;
 };

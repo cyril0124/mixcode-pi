@@ -172,7 +172,6 @@ export function noteFloorCompletionDeferred(
 		...telemetry,
 		lastFloorCardId: cardId,
 		floorSteerCount: (telemetry.floorSteerCount ?? 0) + 1,
-		floorQualityState: "steering",
 		updatedAt: now,
 	};
 }
