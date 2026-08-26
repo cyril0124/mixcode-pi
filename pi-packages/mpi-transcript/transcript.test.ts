@@ -32,7 +32,11 @@ test("editorExtraArgs sources transcript lua only for nvim", () => {
   assert.deepEqual(editorExtraArgs("/usr/bin/vim", "/tmp/t.lua"), ["-R", "-n", "-i", "NONE", "+normal G"]);
 });
 
-test("nvim transcript lua sets wrap/conceal, heading winbar, and heading matches", async () => {
+const nvimAvailable = spawnSync("nvim", ["--version"], { encoding: "utf8" }).status === 0;
+
+test("nvim transcript lua sets wrap/conceal, heading winbar, and heading matches", {
+  skip: nvimAvailable ? false : "nvim not on PATH",
+}, async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "transcript-nvim-"));
   try {
     const md = path.join(dir, "t.md");
@@ -131,7 +135,7 @@ test("nvim transcript lua sets wrap/conceal, heading winbar, and heading matches
       ["--headless", "-u", "NONE", "-n", md, "+normal G", "-c", `luafile ${lua}`, "-c", `luafile ${dump}`, "-c", "qa"],
       { encoding: "utf8" },
     );
-    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.status, 0, r.error?.message ?? r.stderr);
     const out = r.stdout.trim().split("\n");
     assert.equal(out[0], "2");
     assert.equal(out[1], "true");
