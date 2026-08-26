@@ -27,6 +27,13 @@ test("formatViewText with a single body item has no trailing blank lines", () =>
   assert.equal(text, "# Latest User Message\n\nhi");
 });
 
+test("formatViewText strips ANSI escape sequences from the output", () => {
+  const text = formatViewText("Thinking Export", [
+    "\u001b[38;2;138;190;183mThinking:\u001b[39m \u001b[38;2;128;128;128mdone\u001b[39m",
+  ]);
+  assert.equal(text, "# Thinking Export\n\nThinking: done");
+});
+
 test("formatViewText strips trailing spaces and tabs from every line", () => {
   const text = formatViewText("Chat Export", ["hello  \nworld\t", "> \n> keep"]);
   assert.equal(text, "# Chat Export\n\nhello\nworld\n\n>\n> keep");
@@ -46,7 +53,16 @@ function userEntry(text: string): SessionEntry {
 
 function assistantEntry(
   content: Array<{ type: string; text?: string; thinking?: string; redacted?: boolean; id?: string; name?: string; arguments?: Record<string, unknown> }>,
-  opts?: { stopReason?: string; errorMessage?: string; totalTokens?: number; costTotal?: number },
+  opts?: {
+    stopReason?: string;
+    errorMessage?: string;
+    totalTokens?: number;
+    costTotal?: number;
+    input?: number;
+    output?: number;
+    cacheRead?: number;
+    cacheWrite?: number;
+  },
 ): SessionEntry {
   return {
     type: "message",
@@ -60,10 +76,10 @@ function assistantEntry(
       provider: "anthropic",
       model: "test",
       usage: {
-        input: 0,
-        output: 0,
-        cacheRead: 0,
-        cacheWrite: 0,
+        input: opts?.input ?? 0,
+        output: opts?.output ?? 0,
+        cacheRead: opts?.cacheRead ?? 0,
+        cacheWrite: opts?.cacheWrite ?? 0,
         totalTokens: opts?.totalTokens ?? 0,
         cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: opts?.costTotal ?? 0 },
       },
@@ -260,6 +276,32 @@ test("buildViewText chatlog: surfaces assistant errorMessage on error stops", ()
   assert.match(buildViewText("chatlog", entries), /\*\*⚠️ error\*\*: rate limited/);
 });
 
+test("buildViewText chatlog: multi-line errorMessage renders as a fenced block", () => {
+  const entries: SessionEntry[] = [
+    userEntry("go"),
+    assistantEntry([{ type: "text", text: "partial" }], {
+      stopReason: "error",
+      errorMessage: "API failure\n  at request (client.ts:10)",
+    }),
+  ];
+  assert.match(
+    buildViewText("chatlog", entries),
+    /\*\*⚠️ error\*\*\n\n```\nAPI failure\n  at request \(client\.ts:10\)\n```/,
+  );
+});
+
+test("buildViewText chatlog: failed tool output keeps the tail, not the head", () => {
+  const lines = Array.from({ length: 25 }, (_, i) => `line${i + 1}`).join("\n");
+  const entries: SessionEntry[] = [
+    assistantEntry([{ type: "toolCall", id: "call-9", name: "bash", arguments: {} }]),
+    toolResultEntry("call-9", lines, true),
+  ];
+  const text = buildViewText("chatlog", entries);
+  assert.match(text, /_… \+5 earlier lines_\n\n```\nline6\n/);
+  assert.match(text, /line25/);
+  assert.doesNotMatch(text, /line5\n/);
+});
+
 test("buildViewText chatlog: renders an aborted turn even without content", () => {
   const entries: SessionEntry[] = [userEntry("go"), assistantEntry([], { stopReason: "aborted" })];
   assert.match(buildViewText("chatlog", entries), /## 🤖 Assistant · #1\n\n_[^\n]+_\n\n\*\*⚠️ aborted\*\*/);
@@ -409,7 +451,58 @@ test("buildViewText chatlog: assistant meta line shows model, tokens, cost, and 
     assistantEntry([{ type: "text", text: "a" }], { totalTokens: 8432, costTotal: 0.021 }),
   ];
   const text = buildViewText("chatlog", entries);
-  assert.match(text, /## 🤖 Assistant · #1\n\n_test · 8,432 tok · \$0\.0210 · \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}_\n\na/);
+  assert.match(
+    text,
+    /## 🤖 Assistant · #1\n\n_anthropic\/test · 8,432 tok · \$0\.0210 · \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}_\n\na/,
+  );
+});
+
+test("buildViewText chatlog: shows used/window in k units with percentage when a window is known", () => {
+  const entries: SessionEntry[] = [
+    userEntry("q"),
+    assistantEntry([{ type: "text", text: "a" }], { totalTokens: 8432, costTotal: 0.021 }),
+  ];
+  const text = buildViewText("chatlog", entries, undefined, (provider, modelId) =>
+    provider === "anthropic" && modelId === "test" ? 200000 : undefined,
+  );
+  assert.match(text, /8\.4k\/200k \(4\.2%\)/);
+});
+
+test("buildViewText chatlog: meta line shows cache hit rate when caching was used", () => {
+  const entries: SessionEntry[] = [
+    userEntry("q"),
+    assistantEntry([{ type: "text", text: "a" }], { input: 1000, cacheRead: 9000, cacheWrite: 0 }),
+  ];
+  assert.match(buildViewText("chatlog", entries), /cache 90\.0%/);
+});
+
+test("buildViewText chatlog: meta line shows raw prompt-in and completion-out tokens", () => {
+  const entries: SessionEntry[] = [
+    userEntry("q"),
+    assistantEntry([{ type: "text", text: "a" }], { input: 1000, cacheRead: 9000, output: 500 }),
+  ];
+  assert.match(buildViewText("chatlog", entries), /in 10,000 · out 500/);
+});
+
+test("buildViewText chatlog: meta line shows the prompt-in delta from the previous turn", () => {
+  const entries: SessionEntry[] = [
+    userEntry("q1"),
+    assistantEntry([{ type: "text", text: "a1" }], { input: 10000, output: 200 }),
+    userEntry("q2"),
+    assistantEntry([{ type: "text", text: "a2" }], { input: 12000, output: 300 }),
+  ];
+  const text = buildViewText("chatlog", entries);
+  assert.match(text, /in 10,000 · out 200/);
+  assert.doesNotMatch(text, /in 10,000 \(/);
+  assert.match(text, /in 12,000 \(\+2,000\) · out 300/);
+});
+
+test("buildViewText chatlog: meta line omits cache rate when no cache tokens", () => {
+  const entries: SessionEntry[] = [
+    userEntry("q"),
+    assistantEntry([{ type: "text", text: "a" }], { input: 1000 }),
+  ];
+  assert.doesNotMatch(buildViewText("chatlog", entries), /cache /);
 });
 
 test("buildViewText chatlog: marks a failed tool result as error", () => {

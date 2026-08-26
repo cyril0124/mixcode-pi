@@ -87,11 +87,16 @@ function normalizeTarget(raw: string): TargetId | undefined {
 // ─── Output assembly ───────────────────────────────────────────────────────
 
 /**
- * Markdown output: `# <title>` followed by blank-line-separated sections,
- * with trailing whitespace stripped from every line.
+ * Markdown output: `# <title>` followed by blank-line-separated sections.
+ * ANSI escape sequences are stripped — session entries may carry terminal-
+ * styled text, which renders as raw bytes in an editor — and so is trailing
+ * whitespace on every line.
  */
 export function formatViewText(title: string, body: string[]): string {
-  return [`# ${title}`, ...body].join("\n\n").replace(/[ \t]+$/gm, "");
+  return [`# ${title}`, ...body]
+    .join("\n\n")
+    .replace(/\u001b\[[0-9;]*m/g, "")
+    .replace(/[ \t]+$/gm, "");
 }
 
 // ─── Content reconstruction from the session branch ───────────────────────────
@@ -188,7 +193,21 @@ function fenceFor(text: string): string {
 // Full transcript as markdown sections: numbered user/assistant rounds,
 // injected context, compaction/branch summaries, tool calls (paired to their
 // results by toolCallId), thinking quotes, and error/abort markers.
-function collectChatlog(entries: SessionEntry[], turnOffset = 0): string[] {
+/** Tokens as a compact k-suffixed figure: 8432 → "8.4k", 200000 → "200k". */
+function fmtTokens(n: number): string {
+  if (n < 1000) return String(n);
+  const k = n / 1000;
+  return `${k >= 100 ? Math.round(k) : Math.round(k * 10) / 10}k`;
+}
+
+/** Resolves a model's context window in tokens; undefined when unknown. */
+type ContextWindowLookup = (provider: string, modelId: string) => number | undefined;
+
+function collectChatlog(
+  entries: SessionEntry[],
+  turnOffset = 0,
+  contextWindowFor?: ContextWindowLookup,
+): string[] {
   const resultById = new Map<string, { status: string; text: string }>();
   for (const entry of entries) {
     const msg = messageOf(entry) as
@@ -206,6 +225,8 @@ function collectChatlog(entries: SessionEntry[], turnOffset = 0): string[] {
   // Round counter: each non-empty user message starts a new round; assistant
   // sections carry the round of the user message they answer.
   let turn = turnOffset;
+  // Previous assistant turn's full prompt size, for the in-token delta.
+  let prevPrompt: number | undefined;
   for (const entry of entries) {
     // One-line timeline events: model / thinking level switches explain why
     // the conversation's behavior changed mid-session.
@@ -246,8 +267,16 @@ function collectChatlog(entries: SessionEntry[], turnOffset = 0): string[] {
           content?: unknown;
           stopReason?: string;
           errorMessage?: string;
+          provider?: string;
           model?: string;
-          usage?: { totalTokens?: number; cost?: { total?: number } };
+          usage?: {
+            totalTokens?: number;
+            input?: number;
+            output?: number;
+            cacheRead?: number;
+            cacheWrite?: number;
+            cost?: { total?: number };
+          };
         }
       | undefined;
     if (!msg) continue;
@@ -285,15 +314,23 @@ function collectChatlog(entries: SessionEntry[], turnOffset = 0): string[] {
             argsBlock = `\n\n${f}json\n${json}\n${f}`;
           }
           // Tool output in a fence sized past any fence inside it, truncated so
-          // one big read/bash result cannot drown the transcript.
+          // one big read/bash result cannot drown the transcript. Successful
+          // output keeps the head; failed output keeps the tail, where stack
+          // traces and error summaries usually live.
           const resultText = result?.text.trim() ?? "";
           let body = "";
           if (resultText) {
             const lines = resultText.split("\n");
-            const kept = lines.slice(0, TOOL_RESULT_MAX_LINES).join("\n");
+            const isError = result?.status === "error";
+            const kept = (
+              isError ? lines.slice(-TOOL_RESULT_MAX_LINES) : lines.slice(0, TOOL_RESULT_MAX_LINES)
+            ).join("\n");
             const f = fenceFor(kept);
             const more = lines.length - TOOL_RESULT_MAX_LINES;
-            body = `\n\n${f}\n${kept}\n${f}${more > 0 ? `\n\n_… +${more} more lines_` : ""}`;
+            const block = `${f}\n${kept}\n${f}`;
+            if (more <= 0) body = `\n\n${block}`;
+            else if (isError) body = `\n\n_… +${more} earlier lines_\n\n${block}`;
+            else body = `\n\n${block}\n\n_… +${more} more lines_`;
           }
           parts.push(`### 🔧 Tool: \`${name}\` — ${status}${argsBlock}${body}`);
         }
@@ -301,13 +338,50 @@ function collectChatlog(entries: SessionEntry[], turnOffset = 0): string[] {
       // Surface failed/interrupted turns; without this an errored turn with no
       // text would vanish from the transcript.
       if (msg.stopReason === "error" || msg.stopReason === "aborted") {
-        parts.push(`**⚠️ ${msg.stopReason}**${msg.errorMessage ? `: ${msg.errorMessage}` : ""}`);
+        const em = msg.errorMessage ?? "";
+        // Multi-line messages (API error bodies, stack traces) would break the
+        // inline bold marker; give them a fenced block instead.
+        if (em.includes("\n")) {
+          const f = fenceFor(em);
+          parts.push(`**⚠️ ${msg.stopReason}**\n\n${f}\n${em}\n${f}`);
+        } else {
+          parts.push(`**⚠️ ${msg.stopReason}**${em ? `: ${em}` : ""}`);
+        }
       }
       if (parts.length) {
         // Meta line: model, token/cost totals (omitted when zero), timestamp.
         const meta: string[] = [];
-        if (msg.model) meta.push(msg.model);
-        if (msg.usage?.totalTokens) meta.push(`${msg.usage.totalTokens.toLocaleString("en-US")} tok`);
+        if (msg.model) meta.push(msg.provider ? `${msg.provider}/${msg.model}` : msg.model);
+        if (msg.usage?.totalTokens) {
+          // With a known context window: used/window in k units plus percent;
+          // otherwise the raw token count.
+          const tok = msg.usage.totalTokens;
+          const cw = msg.provider && msg.model ? contextWindowFor?.(msg.provider, msg.model) : undefined;
+          meta.push(
+            cw
+              ? `${fmtTokens(tok)}/${fmtTokens(cw)} (${((tok / cw) * 100).toFixed(1)}%)`
+              : `${tok.toLocaleString("en-US")} tok`,
+          );
+        }
+        {
+          const { input = 0, output = 0, cacheRead = 0, cacheWrite = 0 } = msg.usage ?? {};
+          // in = full prompt (uncached input + cache read/write), out = completion.
+          // The in-delta tracks context growth between turns; it goes negative
+          // after compaction, which is exactly the signal worth spotting.
+          const prompt = input + cacheRead + cacheWrite;
+          if (prompt > 0 || output > 0) {
+            const num = (n: number) => n.toLocaleString("en-US");
+            const delta = prevPrompt !== undefined ? prompt - prevPrompt : 0;
+            const deltaPart = delta !== 0 ? ` (${delta > 0 ? "+" : "-"}${num(Math.abs(delta))})` : "";
+            meta.push(`in ${num(prompt)}${deltaPart}`, `out ${num(output)}`);
+            prevPrompt = prompt;
+          }
+          // Cache hit rate = cacheRead / all prompt tokens; shown only when the
+          // request touched the cache at all (read or write).
+          if (prompt > 0 && cacheRead + cacheWrite > 0) {
+            meta.push(`cache ${((cacheRead / prompt) * 100).toFixed(1)}%`);
+          }
+        }
         if (msg.usage?.cost?.total) meta.push(`$${msg.usage.cost.total.toFixed(4)}`);
         meta.push(formatTime(entry.timestamp));
         sections.push(
@@ -340,9 +414,15 @@ function cutForLastTurns(
 /**
  * Build the final editor text for a target from the session branch.
  * `lastTurns` (chatlog/thinking only) restricts output to the last N rounds;
- * omitted rounds are announced in a leading notice line.
+ * omitted rounds are announced in a leading notice line. `contextWindowFor`
+ * enables per-turn context-usage percentages next to token counts.
  */
-export function buildViewText(target: TargetId, entries: SessionEntry[], lastTurns?: number): string {
+export function buildViewText(
+  target: TargetId,
+  entries: SessionEntry[],
+  lastTurns?: number,
+  contextWindowFor?: ContextWindowLookup,
+): string {
   const meta = TARGETS.find((t) => t.id === target)!;
   if (target === "thinking" || target === "chatlog" || target === "context") {
     const { sliced, turnOffset } = cutForLastTurns(entries, lastTurns);
@@ -354,7 +434,7 @@ export function buildViewText(target: TargetId, entries: SessionEntry[], lastTur
     }
     // chatlog and context share the section renderer; they differ only in
     // which entry set the caller feeds in (full branch vs effective context).
-    return formatViewText(meta.title, [...note, ...collectChatlog(sliced, turnOffset)]);
+    return formatViewText(meta.title, [...note, ...collectChatlog(sliced, turnOffset, contextWindowFor)]);
   }
   if (target === "latest-agent") {
     return formatViewText(meta.title, [latestAgentReply(entries) ?? "No assistant message."]);
@@ -488,6 +568,7 @@ const extension: ExtensionFactory = (pi) => {
     lastTurns: number | undefined,
     ctx: {
       sessionManager: { getBranch: () => SessionEntry[]; buildContextEntries: () => SessionEntry[] };
+      modelRegistry: { find(provider: string, modelId: string): { contextWindow: number } | undefined };
       ui: {
         editor(title: string, prefill?: string): Promise<string | undefined>;
         custom<T>(factory: (tui: TUI, theme: unknown, keybindings: unknown, done: (result: T) => void) => Component): Promise<T>;
@@ -499,7 +580,9 @@ const extension: ExtensionFactory = (pi) => {
     const entries =
       target === "context" ? ctx.sessionManager.buildContextEntries() : ctx.sessionManager.getBranch();
     const meta = TARGETS.find((t) => t.id === target)!;
-    const content = buildViewText(target, entries, lastTurns);
+    const content = buildViewText(target, entries, lastTurns, (provider, modelId) =>
+      ctx.modelRegistry.find(provider, modelId)?.contextWindow,
+    );
     const editorCmd = externalEditorCommand();
     if (editorCmd && (await openInExternalEditor(ctx, editorCmd, content))) return;
     await ctx.ui.editor(meta.title, content);
