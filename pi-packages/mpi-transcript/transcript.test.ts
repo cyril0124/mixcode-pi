@@ -286,7 +286,7 @@ test("buildViewText chatlog: multi-line errorMessage renders as a fenced block",
   ];
   assert.match(
     buildViewText("chatlog", entries),
-    /\*\*⚠️ error\*\*\n\n```\nAPI failure\n  at request \(client\.ts:10\)\n```/,
+    /\*\*⚠️ error\*\*\n\n```\nAPI failure\n {2}at request \(client\.ts:10\)\n```/,
   );
 });
 
