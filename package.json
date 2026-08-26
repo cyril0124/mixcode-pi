@@ -18,7 +18,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "build": "tsup",
     "test": "bun test --parallel=$(bun -e 'console.log(Math.min(16, navigator.hardwareConcurrency))') --timeout=60000 --timings=.test-timings.json --update-timings test/*.test.ts",
-    "test:packages": "bun test --isolate --timeout=60000 pi-packages/*/*.test.ts",
+    "test:packages": "NO_COLOR=1 bun test --isolate --timeout=60000 pi-packages/*/*.test.ts",
     "test:changed": "bun test --parallel=$(bun -e 'console.log(Math.min(16, navigator.hardwareConcurrency))') --isolate --timeout=60000 --changed",
     "check": "bun run typecheck && bun run lint && bun run build && bun run test",
     "format": "biome format --write .",
