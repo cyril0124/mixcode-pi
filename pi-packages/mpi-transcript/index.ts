@@ -2,7 +2,9 @@
 // ║      transcript: View session transcript slices in the editor      ║
 // ╠══════════════════════════════════════════════════════════════════╣
 // ║                                                                    ║
-// ║  /transcript [target] [N]   N = last N rounds (chatlog/thinking)  ║
+// ║  /transcript [target] [N] [full]                                  ║
+// ║      N = last N rounds (chatlog/thinking)                         ║
+// ║      full = untruncated tool output (chatlog/context)             ║
 // ║                                                                    ║
 // ║  Rebuilds the requested slice of the current session branch and    ║
 // ║  opens it in the user's external editor ($VISUAL/$EDITOR), falling  ║
@@ -234,12 +236,16 @@ function cacheMissNotice(miss: CacheMiss): string | undefined {
   return `${label}: ${fmtTokens(miss.missedTokens)} tokens re-billed${cost}`;
 }
 
-function collectChatlog(
-  entries: SessionEntry[],
-  turnOffset = 0,
-  contextWindowFor?: ContextWindowLookup,
-  cacheMisses?: Map<AssistantMessage, CacheMiss>,
-): string[] {
+interface ChatlogOptions {
+  turnOffset?: number;
+  contextWindowFor?: ContextWindowLookup;
+  cacheMisses?: Map<AssistantMessage, CacheMiss>;
+  /** Render complete tool results instead of the 20-line cap. */
+  fullToolOutput?: boolean;
+}
+
+function collectChatlog(entries: SessionEntry[], options: ChatlogOptions = {}): string[] {
+  const { turnOffset = 0, contextWindowFor, cacheMisses, fullToolOutput } = options;
   const resultById = new Map<string, { status: string; text: string }>();
   for (const entry of entries) {
     const msg = messageOf(entry) as
@@ -357,11 +363,12 @@ function collectChatlog(
           if (resultText) {
             const lines = resultText.split("\n");
             const isError = result?.status === "error";
-            const kept = (
-              isError ? lines.slice(-TOOL_RESULT_MAX_LINES) : lines.slice(0, TOOL_RESULT_MAX_LINES)
-            ).join("\n");
+            // Infinity cap keeps every line and yields a negative `more`,
+            // which the notice branches below treat as "nothing hidden".
+            const cap = fullToolOutput ? Infinity : TOOL_RESULT_MAX_LINES;
+            const kept = (isError ? lines.slice(-cap) : lines.slice(0, cap)).join("\n");
             const f = fenceFor(kept);
-            const more = lines.length - TOOL_RESULT_MAX_LINES;
+            const more = lines.length - cap;
             const block = `${f}\n${kept}\n${f}`;
             if (more <= 0) body = `\n\n${block}`;
             else if (isError) body = `\n\n_… +${more} earlier lines_\n\n${block}`;
@@ -459,19 +466,27 @@ function cutForLastTurns(
   return { sliced: entries.slice(starts[omitted]!), turnOffset: omitted };
 }
 
-/**
- * Build the final editor text for a target from the session branch.
- * `lastTurns` (chatlog/thinking only) restricts output to the last N rounds;
- * omitted rounds are announced in a leading notice line. `contextWindowFor`
- * enables per-turn context-usage percentages next to token counts.
- */
+export interface BuildViewOptions {
+  /**
+   * Restrict chatlog/thinking/context to the last N rounds; omitted rounds
+   * are announced in a leading notice line.
+   */
+  lastTurns?: number;
+  /** Enables per-turn context-usage percentages next to token counts. */
+  contextWindowFor?: ContextWindowLookup;
+  /** Enables cache-miss notices in chatlog/context when provided. */
+  priceSource?: ModelPriceSource;
+  /** Render complete tool results instead of the 20-line cap. */
+  fullToolOutput?: boolean;
+}
+
+/** Build the final editor text for a target from the session branch. */
 export function buildViewText(
   target: TargetId,
   entries: SessionEntry[],
-  lastTurns?: number,
-  contextWindowFor?: ContextWindowLookup,
-  priceSource?: ModelPriceSource,
+  options: BuildViewOptions = {},
 ): string {
+  const { lastTurns, contextWindowFor, priceSource, fullToolOutput } = options;
   const meta = TARGETS.find((t) => t.id === target)!;
   if (target === "thinking" || target === "chatlog" || target === "context") {
     const { sliced, turnOffset } = cutForLastTurns(entries, lastTurns);
@@ -488,7 +503,7 @@ export function buildViewText(
     const cacheMisses = priceSource ? collectCacheMisses(entries, priceSource) : undefined;
     return formatViewText(meta.title, [
       ...note,
-      ...collectChatlog(sliced, turnOffset, contextWindowFor, cacheMisses),
+      ...collectChatlog(sliced, { turnOffset, contextWindowFor, cacheMisses, fullToolOutput }),
     ]);
   }
   if (target === "latest-agent") {
@@ -570,15 +585,18 @@ const extension: ExtensionFactory = (pi) => {
     };
   };
 
-  // Parse "/transcript [target] [N]" (or bare "/transcript N"). Returns undefined after
-  // notifying on any invalid token — no silent recovery.
+  // Parse "/transcript [target] [N] [full]" (or bare "/transcript N"). Returns undefined
+  // after notifying on any invalid token — no silent recovery.
   const parseArgs = (
     args: string,
     ctx: UiCtx,
-  ): { targetToken?: string; lastTurns?: number } | undefined => {
-    const tokens = (args ?? "").trim().split(/\s+/).filter(Boolean);
+  ): { targetToken?: string; lastTurns?: number; fullToolOutput?: boolean } | undefined => {
+    const allTokens = (args ?? "").trim().split(/\s+/).filter(Boolean);
+    // "full" is positionless: strip every occurrence before positional parsing.
+    const tokens = allTokens.filter((t) => t.toLowerCase() !== "full");
+    const fullToolOutput = tokens.length < allTokens.length;
     if (tokens.length > 2) {
-      ctx.ui.notify("Error: Usage: /transcript [target] [N]", "error");
+      ctx.ui.notify("Error: Usage: /transcript [target] [N] [full]", "error");
       return undefined;
     }
     let targetToken: string | undefined;
@@ -597,7 +615,7 @@ const extension: ExtensionFactory = (pi) => {
       }
       lastTurns = n;
     }
-    return { targetToken, lastTurns };
+    return { targetToken, lastTurns, fullToolOutput };
   };
 
   // Resolve the target: explicit token, or the select chooser when absent.
@@ -621,6 +639,7 @@ const extension: ExtensionFactory = (pi) => {
   const openView = async (
     target: TargetId,
     lastTurns: number | undefined,
+    fullToolOutput: boolean | undefined,
     ctx: {
       sessionManager: { getBranch: () => SessionEntry[]; buildContextEntries: () => SessionEntry[] };
       modelRegistry: {
@@ -640,13 +659,12 @@ const extension: ExtensionFactory = (pi) => {
     const entries =
       target === "context" ? ctx.sessionManager.buildContextEntries() : ctx.sessionManager.getBranch();
     const meta = TARGETS.find((t) => t.id === target)!;
-    const content = buildViewText(
-      target,
-      entries,
+    const content = buildViewText(target, entries, {
       lastTurns,
-      (provider, modelId) => ctx.modelRegistry.find(provider, modelId)?.contextWindow,
-      { getModel: (provider, modelId) => ctx.modelRegistry.find(provider, modelId) },
-    );
+      fullToolOutput,
+      contextWindowFor: (provider, modelId) => ctx.modelRegistry.find(provider, modelId)?.contextWindow,
+      priceSource: { getModel: (provider, modelId) => ctx.modelRegistry.find(provider, modelId) },
+    });
     const editorCmd = externalEditorCommand();
     if (editorCmd && (await openInExternalEditor(ctx, editorCmd, content))) return;
     await ctx.ui.editor(meta.title, content);
@@ -654,11 +672,12 @@ const extension: ExtensionFactory = (pi) => {
 
   pi.registerCommand("transcript", {
     description:
-      "View context (effective LLM view), chatlog, thinking, latest-agent, or latest-user text; trailing N = last N turns",
+      "View context (effective LLM view), chatlog, thinking, latest-agent, or latest-user text; N = last N turns, full = untruncated tool output",
     getArgumentCompletions: (prefix: string) =>
-      TARGETS.map((t) => ({ value: t.id, label: t.id, description: t.label })).filter((item) =>
-        item.value.startsWith(prefix.trim()),
-      ),
+      [
+        ...TARGETS.map((t) => ({ value: t.id, label: t.id, description: t.label })),
+        { value: "full", label: "full", description: "Untruncated tool output" },
+      ].filter((item) => item.value.startsWith(prefix.trim())),
     handler: async (args, ctx) => {
       const parsed = parseArgs(args, ctx);
       if (!parsed) return;
@@ -668,7 +687,11 @@ const extension: ExtensionFactory = (pi) => {
         ctx.ui.notify(`Error: Turn count is not supported for ${target}.`, "error");
         return;
       }
-      await openView(target, parsed.lastTurns, ctx);
+      if (parsed.fullToolOutput && target !== "chatlog" && target !== "context") {
+        ctx.ui.notify(`Error: full is not supported for ${target}.`, "error");
+        return;
+      }
+      await openView(target, parsed.lastTurns, parsed.fullToolOutput, ctx);
     },
   });
 };

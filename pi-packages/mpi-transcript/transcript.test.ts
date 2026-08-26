@@ -334,7 +334,7 @@ test("buildViewText chatlog: lastTurns keeps only the last N rounds with global 
     userEntry("q3"),
     assistantEntry([{ type: "text", text: "a3" }]),
   ];
-  const text = buildViewText("chatlog", entries, 2);
+  const text = buildViewText("chatlog", entries, { lastTurns: 2 });
   assert.doesNotMatch(text, /q1|a1/);
   assert.match(text, /_… earlier 1 turn omitted_/);
   assert.match(text, /## 👤 User · #2\n\n_[^\n]+_\n\nq2/);
@@ -343,7 +343,7 @@ test("buildViewText chatlog: lastTurns keeps only the last N rounds with global 
 
 test("buildViewText chatlog: lastTurns >= total rounds renders everything without a notice", () => {
   const entries: SessionEntry[] = [userEntry("q1"), assistantEntry([{ type: "text", text: "a1" }])];
-  const text = buildViewText("chatlog", entries, 5);
+  const text = buildViewText("chatlog", entries, { lastTurns: 5 });
   assert.match(text, /## 👤 User · #1\n\n_[^\n]+_\n\nq1/);
   assert.doesNotMatch(text, /omitted/);
 });
@@ -355,7 +355,7 @@ test("buildViewText thinking: lastTurns keeps only thinking from the last N roun
     userEntry("q2"),
     assistantEntry([{ type: "thinking", thinking: "new thought" }]),
   ];
-  const text = buildViewText("thinking", entries, 1);
+  const text = buildViewText("thinking", entries, { lastTurns: 1 });
   assert.doesNotMatch(text, /old thought/);
   assert.match(text, /\*\*Turn 2\*\*\n\nnew thought/);
 });
@@ -370,6 +370,18 @@ test("buildViewText chatlog: truncates long tool output to 20 lines with a notic
   assert.match(text, /line20/);
   assert.doesNotMatch(text, /line21/);
   assert.match(text, /_… \+5 more lines_/);
+});
+
+test("buildViewText chatlog: fullToolOutput renders every line without a truncation notice", () => {
+  const lines = Array.from({ length: 25 }, (_, i) => `line${i + 1}`).join("\n");
+  const entries: SessionEntry[] = [
+    assistantEntry([{ type: "toolCall", id: "call-10", name: "bash", arguments: {} }]),
+    toolResultEntry("call-10", lines),
+  ];
+  const text = buildViewText("chatlog", entries, { fullToolOutput: true });
+  assert.match(text, /line1\n/);
+  assert.match(text, /line25/);
+  assert.doesNotMatch(text, /more lines|earlier lines/);
 });
 
 test("buildViewText chatlog: tool output containing fences gets a longer fence", () => {
@@ -463,9 +475,10 @@ test("buildViewText chatlog: shows used/window in k units with percentage when a
     userEntry("q"),
     assistantEntry([{ type: "text", text: "a" }], { totalTokens: 8432, costTotal: 0.021 }),
   ];
-  const text = buildViewText("chatlog", entries, undefined, (provider, modelId) =>
-    provider === "anthropic" && modelId === "test" ? 200000 : undefined,
-  );
+  const text = buildViewText("chatlog", entries, {
+    contextWindowFor: (provider, modelId) =>
+      provider === "anthropic" && modelId === "test" ? 200000 : undefined,
+  });
   assert.match(text, /8\.4k\/200k \(4\.2%\)/);
 });
 
@@ -505,7 +518,7 @@ test("buildViewText chatlog: context delta joins the percentage when a window is
     userEntry("q2"),
     assistantEntry([{ type: "text", text: "a2" }], { totalTokens: 12000 }),
   ];
-  const text = buildViewText("chatlog", entries, undefined, () => 200000);
+  const text = buildViewText("chatlog", entries, { contextWindowFor: () => 200000 });
   assert.match(text, /10k\/200k \(5\.0%\)/);
   assert.match(text, /12k\/200k \(6\.0%, \+2,000\)/);
 });
@@ -527,8 +540,8 @@ test("buildViewText chatlog: flags a significant cache miss only on the paying a
     // Re-bills 145k prompt tokens with only 5k read back → 140k missed.
     assistantEntry([{ type: "text", text: "a2" }], { input: 140000, cacheRead: 5000 }),
   ];
-  const text = buildViewText("chatlog", entries, undefined, undefined, {
-    getModel: () => ({ cost: { cacheRead: 0.3 } }),
+  const text = buildViewText("chatlog", entries, {
+    priceSource: { getModel: () => ({ cost: { cacheRead: 0.3 } }) },
   });
   assert.match(text, /\*\*❗ Cache miss: 140k tokens re-billed\*\*/);
   assert.equal(text.match(/Cache miss/g)?.length, 1);
