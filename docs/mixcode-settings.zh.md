@@ -52,6 +52,13 @@ MixCode Pi 从其根状态目录读取 `mixcode_settings.json`。默认路径为
 | `markdown.codeBlockIndent` | 字符串 | 两个空格（`"  "`） | 渲染代码块每一行时的前缀。空字符串使代码与围栏对齐，复制后仍是顶格 Markdown。需直接编辑 `settings.json`，`/settings` 不暴露该项。 |
 | `showCacheMissNotices` | 布尔值 | `false` | 在发生显著 prompt cache miss 时显示会话警告，包含重新计费的 token 数；估算额外成本至少为 `$0.01` 时同时显示成本。 |
 | `defaultTools` | 工具名字符串数组 | 未设置（`read`、`bash`、`edit`、`write`） | 会话启动时激活的内置工具集。收窄该列表会在所有新会话中移除对应内置工具（包括 MixCode 自己包装的 `bash`）；扩展注册的工具保持激活，与 Pi 一致。需直接编辑 `settings.json`，`/settings` 不暴露该项。 |
+| `externalEditor` | 命令字符串 | 未设置 → `$VISUAL`/`$EDITOR`，再未设置 → `nano`（Windows 为 `notepad`） | 所有外部编辑入口的编辑器命令：Ctrl+G、`/editor`、`/system-prompt`、`/system-tools`。 |
+| `editorPaddingX` | 非负整数 | 未设置 → `1` | 输入编辑器的水平内边距。 |
+| `autocompleteMaxVisible` | 正整数 | 未设置 → `8` | 输入编辑器与扩展编辑器浮层中补全列表的最大可见行数。 |
+| `treeFilterMode` | `default` \| `no-tools` \| `user-only` \| `labeled-only` \| `all` | `default` | 会话树选择器（双 Esc、`/tree`）的初始过滤模式。 |
+| `showHardwareCursor` | 布尔值 | `false`（或 `PI_HARDWARE_CURSOR=1`） | 显示终端硬件光标而非绘制光标。 |
+| `terminal.clearOnShrink` | 布尔值 | `false`（或 `PI_CLEAR_ON_SHRINK=1`） | 内容变矮时整帧重绘并清除空出的行。 |
+| `terminal.showTerminalProgress` | 布尔值 | `false` | 任一 tab 工作期间驱动终端进度指示（OSC 9;4）。 |
 
 ## 解析规则
 

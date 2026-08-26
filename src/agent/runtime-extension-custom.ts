@@ -315,10 +315,10 @@ export function createExtensionEditorOverlay(
       editor.getEmbeddedTerminalRows?.(sessionId),
     );
     // ExtensionEditorComponent bakes its hint row (including the "external
-    // editor" ctrl+e label) in its constructor via keyHint(), which reads the
-    // pi-tui GLOBAL keybindings. Construct it inside the MixCode keybindings
-    // scope so app.editor.external resolves; renderWithPiExtensionContext only
-    // covers later render/input, not this one-time construction.
+    // editor" app.editor.external label) in its constructor via keyHint(), which
+    // reads the pi-tui GLOBAL keybindings. Construct it inside the MixCode
+    // keybindings scope so the MixCode chord resolves; renderWithPiExtensionContext
+    // only covers later render/input, not this one-time construction.
     const restoreKeybindings = applyMixCodeKeybindings();
     try {
       component = new ExtensionEditorComponent(
@@ -328,7 +328,14 @@ export function createExtensionEditorOverlay(
         prefill,
         finish,
         cancel,
-        { autocompleteMaxVisible: 8 },
+        {
+          // Explicit autocompleteMaxVisible only; unset keeps MixCode 8 (same
+          // rule as createMixCodeTui). Getters would inject 5.
+          autocompleteMaxVisible:
+            runtimeTab.services.settingsManager?.getProjectSettings().autocompleteMaxVisible ??
+            runtimeTab.services.settingsManager?.getGlobalSettings().autocompleteMaxVisible ??
+            8,
+        },
       );
     } finally {
       restoreKeybindings();

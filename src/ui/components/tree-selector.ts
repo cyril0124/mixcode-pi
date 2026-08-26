@@ -120,6 +120,7 @@ export interface TreeSelectorRuntime {
         };
         chat?: ChatLine[];
         agentSession: { abortBranchSummary: () => void };
+        services?: { settingsManager?: { getTreeFilterMode: () => TreeFilterMode } };
       }
     | undefined;
   extensionNavigateTree: (
@@ -160,7 +161,8 @@ export function openTreeSelector(
     tree,
     runtimeTab.session.getLeafId(),
     initialSelectedId,
-    initialFilterMode,
+    // settings.json treeFilterMode; explicit initialFilterMode (navigate) wins.
+    initialFilterMode ?? runtimeTab.services?.settingsManager?.getTreeFilterMode(),
     mode,
     allowedEntryIds,
   );

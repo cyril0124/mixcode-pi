@@ -13,7 +13,7 @@ MixCode Pi provides comprehensive global and context-sensitive keyboard shortcut
 | `Ctrl+P` | Global | Command Palette | Opens fuzzy searchable command palette. Same as `/palette`. |
 | `Ctrl+T` | Global | Tab Jump | Opens interactive full-screen tab switcher. Same as `/jump`. |
 | `Ctrl+F` | Home | Non-idle filter | Toggles Agent View to non-idle agents only. Same rule as Tab Jump `Ctrl+F`. |
-| `Ctrl+E` | Global | External Editor | Opens the current input draft in `$VISUAL` / `$EDITOR`. Same as `/editor`. |
+| `Ctrl+G` | Global | External Editor | Opens the current input draft in `$VISUAL` / `$EDITOR`. Same as `/editor`. |
 | `Ctrl+Q` | Global | Quit | Safely persists workspace state and exits. |
 | `Ctrl+C` | Global | Clear Input | Clears the editor. Does not abort a running turn (`Esc` does). |
 | `Ctrl+U` | Input / Queue | Dequeue / Choose / Vim | Pops the sole non-empty queue; with both queues non-empty, arms an explicit choice; with both empty, arms Vim entry. |
@@ -34,7 +34,7 @@ MixCode supports custom keybindings configured in `~/.pi/agent/keybindings.json`
 | `"app.model.cycleForward"` | `ctrl+p` | Open command palette |
 | `"app.model.cycleBackward"` | `ctrl+t` | Open tab jump overlay |
 | `"app.thinking.toggle"` | `ctrl+r` | Prepare tab rename command |
-| `"app.editor.external"` | `ctrl+e` | Open input draft in external editor |
+| `"app.editor.external"` | `ctrl+g` | Open input draft in external editor |
 | `"app.tools.expand"` | `ctrl+o` | Toggle tool output expand/collapse |
 | `"app.interrupt"` | `escape` | Cancel or abort current operation |
 | `"app.clear"` | `ctrl+c` | Clear editor input |

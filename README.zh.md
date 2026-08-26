@@ -126,7 +126,7 @@ Tab 之间可以直接对话——同一 TUI，或其他 `mpi` 进程——无�
 | `Tab` / `Shift+Tab` | 全局 | 下一个 / 上一个 Tab | 切换 Tab 标签。补全打开或 Zen 模式下不切换（用 `Ctrl+T`）。 |
 | `Ctrl+P` | 全局 | Command Palette | 模糊检索并执行 Slash 命令。 |
 | `Ctrl+T` | 全局 | Tab 跳转面板 | 打开全屏 Tab 快速跳转检索面板。 |
-| `Ctrl+E` | 全局 | 外部编辑器 | 在 `$VISUAL` / `$EDITOR` 中编辑当前草稿。 |
+| `Ctrl+G` | 全局 | 外部编辑器 | 在 `$VISUAL` / `$EDITOR` 中编辑当前草稿。 |
 | `Ctrl+Q` | 全局 | 退出 | 安全保存工作区状态并退出程序。 |
 | `Ctrl+U` | 输入框/队列 | 出队 / 选择 / Vim | 只有一个非空队列时直接弹出；两个队列都有消息时使用 `Ctrl+U,S/F`；队列为空时预备进入 Vim。详见[队列管理](docs/queue-and-follow-up.zh.md)。 |
 | `Right` | 空输入框 | 扩展侧边栏 | 展开 / 折叠右侧扩展组件侧边栏。 |

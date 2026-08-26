@@ -3,6 +3,7 @@ import * as fsPromises from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
 import { test } from "node:test";
+import { SettingsManager } from "@earendil-works/pi-coding-agent";
 import { CURSOR_MARKER, visibleWidth, type AutocompleteProvider, type Component, type OverlayOptions, type Terminal } from "@earendil-works/pi-tui";
 import {
   createInitialState,
@@ -24,6 +25,16 @@ function stripAnsi(text: string): string {
     .replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "")
     .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, "")
     .replace(/\x1b_[^\x07]*(?:\x07|\x1b\\)/g, "");
+}
+
+// Production path for the external editor command: settings.json externalEditor
+// via SettingsManager (createMixCodeTui reads settingsDeps.settingsManager).
+function editorSettingsDeps(externalEditor: string) {
+  return {
+    settingsManager: SettingsManager.inMemory({ externalEditor }),
+    mixcodeFile: "/dev/null",
+    piSettingsFile: "/dev/null",
+  };
 }
 
 function silentTerminal(): Terminal {
@@ -160,7 +171,7 @@ test("createMixCodeTui external editor rewrites focused draft and surfaces exit 
           capture += "stop;";
         },
       },
-      externalEditor: editorScript,
+      settingsDeps: editorSettingsDeps(editorScript),
     });
     try {
       const layout = (
@@ -173,7 +184,7 @@ test("createMixCodeTui external editor rewrites focused draft and surfaces exit 
       layout.editor.setText("initial");
       // Public input seam: injectInput feeds the same terminal callback the TUI
       // registers on start(), so the external-editor key travels the real path.
-      tui.injectInput("\x05");
+      tui.injectInput("\x07");
       await waitFor(() => layout.editor.getText() === "changed");
       assert.equal(capture, "start;stop;start;");
     } finally {
@@ -188,7 +199,7 @@ test("createMixCodeTui external editor rewrites focused draft and surfaces exit 
     failureState.activeTabId = "s2";
     const failureTui = createMixCodeTui(failureState, runtime, {
       terminal: silentTerminal(),
-      externalEditor: failureScript,
+      settingsDeps: editorSettingsDeps(failureScript),
     });
     const overlays: string[] = [];
     const originalShowOverlay = failureTui.showOverlay.bind(failureTui);
@@ -197,7 +208,7 @@ test("createMixCodeTui external editor rewrites focused draft and surfaces exit 
       return originalShowOverlay(component, options);
     }) as typeof failureTui.showOverlay;
     try {
-      (failureTui as unknown as { handleTerminalInput: (data: string) => void }).handleTerminalInput("\x05");
+      (failureTui as unknown as { handleTerminalInput: (data: string) => void }).handleTerminalInput("\x07");
       await waitFor(() => overlays.some((overlay) => /External editor exited with 7/.test(overlay)));
     } finally {
       failureTui.stop();

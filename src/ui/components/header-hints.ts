@@ -30,7 +30,7 @@ const COMPACT_HINTS: ReadonlyArray<readonly [key: string, label: string]> = [
   ["tab", "tabs"],
   ["ctrl+p", "commands"],
   ["ctrl+t", "jump"],
-  ["ctrl+e", "editor"],
+  ["ctrl+g", "editor"],
   ["ctrl+u", "dequeue"],
   ["!", "bash"],
   ["ctrl+o", "more"],

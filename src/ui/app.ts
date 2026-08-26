@@ -20,6 +20,7 @@ import {
 import {
   appOverlayHandlesInput,
   editTextWithTuiPaused,
+  setDefaultExternalEditorResolver,
   errorMessage,
   showErrorOverlay,
   syncOwnedAppOverlay,
@@ -30,6 +31,7 @@ import {
   bindLiveExtensionRedraw,
   bindLoadingRedraw,
   bindRuntimeRendering,
+  bindTerminalProgress,
   bindWorkingRedraw,
   createActiveAutocompleteProvider,
   hydrateTabPromptHistory,
@@ -67,7 +69,6 @@ export interface MixCodeTuiOptions {
   completionSources?: MixCodeCompletionSources;
   onStateChanged?: (state: MixCodeState) => void | Promise<void>;
   workspaceFile?: string;
-  externalEditor?: string;
   terminal?: ConstructorParameters<typeof TuiMainScreen>[0];
   exitProcessOnQuit?: boolean;
   rootStateDir?: string;
@@ -98,6 +99,14 @@ export function createMixCodeTui(
   );
   const tui = new TuiMainScreen(injecting) as unknown as MixCodeTui;
   tui.injectInput = (data) => injecting.inject(data);
+  // settings.json showHardwareCursor / terminal.clearOnShrink.
+  const settingsManager = options.settingsDeps?.settingsManager;
+  if (settingsManager) {
+    tui.setShowHardwareCursor(settingsManager.getShowHardwareCursor());
+    tui.setClearOnShrink(settingsManager.getClearOnShrink());
+  }
+  // Default command for every external-edit surface; explicit args still win.
+  setDefaultExternalEditorResolver(() => settingsManager?.getExternalEditorCommand());
   // Strip only: extension clears never hit the wire, so the previous frame is still
   // valid. Do not requestRender/clearScreen on block — that reintroduces the flash.
   const uninstallStdoutGuard = installStdoutScreenGuard({});
@@ -106,6 +115,11 @@ export function createMixCodeTui(
   bindRuntimeRendering(runtime, tui, state, options.onStateChanged);
   const stopWorkingRedraw = bindWorkingRedraw(state, tui);
   const stopLoadingRedraw = bindLoadingRedraw(state, tui);
+  const stopTerminalProgress = bindTerminalProgress(
+    state,
+    tui.terminal,
+    () => settingsManager?.getShowTerminalProgress() === true,
+  );
   // Extension ctx.ui.setTitle owns the terminal title per tab: the active tab
   // writes immediately (runtime ui context); stored titles re-apply on switch.
   // Tabs without a title leave the current title untouched (Pi: persists until
@@ -142,15 +156,26 @@ export function createMixCodeTui(
     () => editorSlot?.getEditorComponent() !== undefined,
     () => editorSlot?.hasInputComponent() === true,
   );
+  // settings.json editorPaddingX / autocompleteMaxVisible, explicit keys only.
+  // Unset keeps MixCode 1 / 8; SettingsManager getters would inject 0 / 5.
   const defaultEditor = new CompactPromptEditor(
     tui,
     {
       ...editorThemeFor(themeForId(state.theme)),
     },
-    { paddingX: 1 },
+    {
+      paddingX:
+        settingsManager?.getProjectSettings().editorPaddingX ??
+        settingsManager?.getGlobalSettings().editorPaddingX ??
+        1,
+    },
     state,
   );
-  defaultEditor.setAutocompleteMaxVisible(8);
+  defaultEditor.setAutocompleteMaxVisible(
+    settingsManager?.getProjectSettings().autocompleteMaxVisible ??
+      settingsManager?.getGlobalSettings().autocompleteMaxVisible ??
+      8,
+  );
   const editor = new EditorSlot(tui, defaultEditor, state);
   editorSlot = editor;
   attachTreeSelectorDisplayHost(
@@ -363,7 +388,7 @@ export function createMixCodeTui(
       { workspaceFile: options.workspaceFile, rootStateDir: options.rootStateDir, settingsDeps: options.settingsDeps },
     );
     if (result?.consume) return result;
-    // Global Ctrl+E opens the active input editor in an external editor.
+    // app.editor.external (Ctrl+G) opens the input in an external editor.
     // Pending extension interactions (e.g. /view dialog) own the key; permanent
     // setEditorComponent skins still use MixCode external-edit on active text.
     const activeForEdit = state.activeTabId === HOME_TAB_ID ? undefined : getActiveTab(state);
@@ -372,7 +397,7 @@ export function createMixCodeTui(
       !appOverlayHandlesInput(tui) &&
       !(activeForEdit?.extensionUi.waitingForInputs.length)
     ) {
-      void editTextWithTuiPaused(tui, editor.getText(), options.externalEditor)
+      void editTextWithTuiPaused(tui, editor.getText())
         .then((text) => {
           editor.setText(text);
           tui.requestRender();
@@ -410,6 +435,7 @@ export function createMixCodeTui(
   tui.stop = () => {
     stopWorkingRedraw();
     stopLoadingRedraw();
+    stopTerminalProgress();
     stopLiveExtensionRedraw();
     stopActiveTabShimmerRedraw();
     stopChatSelectionAutoScroll();

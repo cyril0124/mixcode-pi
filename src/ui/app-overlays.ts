@@ -415,6 +415,17 @@ function isConsoleNoticeBody(text: string): boolean {
 }
 
 
+// settings.json externalEditor is the default for Ctrl+G, /editor,
+// /system-prompt, and /system-tools. Explicit `editor` wins; no resolver
+// falls back to $VISUAL/$EDITOR.
+let resolveDefaultExternalEditor: (() => string | undefined) | undefined;
+
+export function setDefaultExternalEditorResolver(
+  resolver: (() => string | undefined) | undefined,
+): void {
+  resolveDefaultExternalEditor = resolver;
+}
+
 export async function editTextWithTuiPaused(
   tui: OverlayTui,
   text: string,
@@ -425,7 +436,7 @@ export async function editTextWithTuiPaused(
   const canPause = Boolean(tui.pause && tui.resume);
   if (canPause) tui.pause?.();
   try {
-    return await editTextInExternalEditor(text, { editor });
+    return await editTextInExternalEditor(text, { editor: editor ?? resolveDefaultExternalEditor?.() });
   } finally {
     if (canPause) tui.resume?.();
   }

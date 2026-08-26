@@ -47,7 +47,7 @@ const MIXCODE_EXTENSION_KEYBINDING_DEFINITIONS = {
   "app.model.cycleBackward": { defaultKeys: "ctrl+t", description: "Open tab jump" },
   "app.tools.expand": { defaultKeys: "ctrl+o", description: "Toggle tool output" },
   "app.thinking.toggle": { defaultKeys: "ctrl+r", description: "Prepare rename command" },
-  "app.editor.external": { defaultKeys: "ctrl+e", description: "Open external editor" },
+  "app.editor.external": { defaultKeys: "ctrl+g", description: "Open external editor" },
   "app.message.followUp": { defaultKeys: "alt+enter", description: "Queue follow-up message" },
   "app.clipboard.pasteImage": {
     defaultKeys: process.platform === "win32" ? "alt+v" : "ctrl+v",

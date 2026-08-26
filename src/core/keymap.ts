@@ -16,7 +16,7 @@ export const MIXCODE_KEYMAP: KeyAction[] = [
   },
   { key: "ctrl+t", action: "jump-tab", description: "Open tab jump overlay", scope: "global" },
   {
-    key: "ctrl+e",
+    key: "ctrl+g",
     action: "external-editor",
     description: "Edit input in external editor",
     scope: "global",

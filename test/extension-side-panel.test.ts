@@ -514,10 +514,10 @@ function silentTerminal(columns: number, rows = 24): Terminal {
   };
 }
 
-// Regression: Ctrl+E must reach a pending extension editor (e.g. /view), NOT
+// Regression: Ctrl+G must reach a pending extension editor (e.g. /view), NOT
 // the global main-input external-editor handler. Permanent setEditorComponent
-// skins still use MixCode Ctrl+E; only pending interactions own the key.
-test("Ctrl+E defers to the extension editor component when a pending interaction owns the slot", () => {
+// skins still use MixCode Ctrl+G; only pending interactions own the key.
+test("Ctrl+G defers to the extension editor component when a pending interaction owns the slot", () => {
   const state = makeState();
   state.tabs[0]!.extensionUi.waitingForInputs.push({
     id: "extension-editor-1",
@@ -557,11 +557,11 @@ test("Ctrl+E defers to the extension editor component when a pending interaction
     assert.ok(capturedHost?.editor?.setEditorComponent, "extension UI host must expose editor replacement");
     capturedHost.editor.setEditorComponent(stubFactory, "s1");
 
-    // Ctrl+E (0x05) fed through the real tui input pipeline.
-    (tui as unknown as { handleTerminalInput(data: string): void }).handleTerminalInput("\x05");
+    // Ctrl+G (0x07) fed through the real tui input pipeline.
+    (tui as unknown as { handleTerminalInput(data: string): void }).handleTerminalInput("\x07");
 
-    // Pending interaction owns Ctrl+E: falls through to the focused EditorSlot stub.
-    assert.deepEqual(received, ["\x05"]);
+    // Pending interaction owns Ctrl+G: falls through to the focused EditorSlot stub.
+    assert.deepEqual(received, ["\x07"]);
   } finally {
     tui.stop();
   }

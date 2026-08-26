@@ -13,7 +13,7 @@ MixCode Pi 提供完整的全局与局部快捷键映射系统（`src/core/keyma
 | `Ctrl+P` | 全局 | 命令面板 | 打开支持模糊搜索的全局命令面板。与 `/palette` 相同。 |
 | `Ctrl+T` | 全局 | Tab 跳转 | 打开全屏 Tab 快速跳转浮层。与 `/jump` 相同。 |
 | `Ctrl+F` | Home | 非 Idle 过滤 | 切换 Agent View 只显示非 Idle agent。判定与 Tab 跳转的 `Ctrl+F` 相同。 |
-| `Ctrl+E` | 全局 | 外部编辑器 | 在 `$VISUAL` / `$EDITOR` 中编辑当前草稿。与 `/editor` 相同。 |
+| `Ctrl+G` | 全局 | 外部编辑器 | 在 `$VISUAL` / `$EDITOR` 中编辑当前草稿。与 `/editor` 相同。 |
 | `Ctrl+Q` | 全局 | 退出 | 安全保存工作区状态并退出程序。 |
 | `Ctrl+C` | 全局 | 清空输入 | 清空编辑器。不会中断正在跑的轮次（中断用 `Esc`）。 |
 | `Ctrl+U` | 输入框/队列 | 出队 / 选择 / Vim | 只有一个非空队列时直接弹出；两个队列都非空时预备显式选择；都为空时预备进入 Vim。 |
@@ -34,7 +34,7 @@ MixCode 支持通过 `~/.pi/agent/keybindings.json`（或 `$PI_CODING_AGENT_DIR/
 | `"app.model.cycleForward"` | `ctrl+p` | 打开全局命令面板 |
 | `"app.model.cycleBackward"` | `ctrl+t` | 打开 Tab 跳转浮层 |
 | `"app.thinking.toggle"` | `ctrl+r` | 预备重命名 Tab 命令 |
-| `"app.editor.external"` | `ctrl+e` | 在外部编辑器中打开当前草稿 |
+| `"app.editor.external"` | `ctrl+g` | 在外部编辑器中打开当前草稿 |
 | `"app.tools.expand"` | `ctrl+o` | 折叠 / 展开工具输出 |
 | `"app.interrupt"` | `escape` | 取消 / 中断当前操作 |
 | `"app.clear"` | `ctrl+c` | 清空编辑器输入 |

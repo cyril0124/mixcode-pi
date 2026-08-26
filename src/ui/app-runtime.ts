@@ -30,6 +30,32 @@ export function bindWorkingRedraw(
   return bindConditionalRedraw(state, tui, WORKING_REDRAW_INTERVAL_MS, activeTabNeedsWorkingRedraw);
 }
 
+/**
+ * Drive OSC 9;4 from tab working state when `terminal.showTerminalProgress`
+ * is on. Progress is on while any tab is working. Writes only on flips.
+ * The stop function forces the indicator off (OSC state outlives the TUI).
+ */
+export function bindTerminalProgress(
+  state: MixCodeState,
+  terminal: Pick<TuiType["terminal"], "setProgress">,
+  isEnabled: () => boolean,
+): () => void {
+  let active = false;
+  const setProgress = (next: boolean) => {
+    if (next === active) return;
+    active = next;
+    terminal.setProgress(next);
+  };
+  const interval = setInterval(() => {
+    setProgress(isEnabled() && state.tabs.some((tab) => isWorkingStatus(tab.status)));
+  }, WORKING_REDRAW_INTERVAL_MS);
+  interval.unref?.();
+  return () => {
+    clearInterval(interval);
+    setProgress(false);
+  };
+}
+
 export function bindLoadingRedraw(
   state: MixCodeState,
   tui: Pick<TuiType, "requestRender">,
