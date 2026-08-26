@@ -319,6 +319,27 @@ test("buildViewText chatlog: tool output containing fences gets a longer fence",
   assert.match(text, /````\nbefore\n```js\ncode\n```\nafter\n````/);
 });
 
+test("buildViewText context: renders context entries as chatlog sections under its own title", () => {
+  // Simulates buildContextEntries() output: compaction summary + kept tail.
+  const entries: SessionEntry[] = [
+    {
+      type: "compaction",
+      id: "comp-2",
+      parentId: null,
+      timestamp: new Date().toISOString(),
+      summary: "summary of dropped history",
+      firstKeptEntryId: "u-kept",
+      tokensBefore: 1000,
+    } as unknown as SessionEntry,
+    userEntry("kept question"),
+    assistantEntry([{ type: "text", text: "kept answer" }]),
+  ];
+  const text = buildViewText("context", entries);
+  assert.match(text, /^# LLM Context\n/);
+  assert.match(text, /## 🗜️ Compaction · 1,000 tokens before\n\nsummary of dropped history/);
+  assert.match(text, /## 👤 User · #1\n\nkept question/);
+});
+
 test("buildViewText chatlog: marks a failed tool result as error", () => {
   const entries: SessionEntry[] = [
     assistantEntry([{ type: "toolCall", id: "call-2", name: "bash", arguments: {} }]),

@@ -2,7 +2,7 @@
   "name": "mpi-transcript",
   "version": "0.1.0",
   "type": "module",
-  "description": "View session transcript slices (chatlog, thinking, latest agent reply, latest user message) via /transcript — opens in $VISUAL/$EDITOR, falling back to the in-app editor.",
+  "description": "View session transcript slices (chatlog, post-compaction LLM context, thinking, latest agent reply, latest user message) via /transcript — opens in $VISUAL/$EDITOR, falling back to the in-app editor.",
   "pi": {
     "extensions": ["./index.ts"]
   }

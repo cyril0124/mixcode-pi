@@ -12,6 +12,7 @@
 // ║  Targets:                                                          ║
 // ║    chatlog       Full transcript (user/assistant/thinking/tools/   ║
 // ║                  injected/compaction/branch summaries/errors)      ║
+// ║    context       Effective LLM context (post-compaction view)      ║
 // ║    thinking      All reasoning/thinking blocks                     ║
 // ║    latest-agent  Last assistant text reply                         ║
 // ║    latest-user   Last user message                                 ║
@@ -57,6 +58,7 @@ type AssistantBlock = TextBlock | ThinkingBlock | ToolCallBlock | { type: string
 /** Canonical target ids plus the human title rendered above the content. */
 const TARGETS = [
   { id: "chatlog", title: "Chat Export", label: "Chatlog" },
+  { id: "context", title: "LLM Context", label: "Context (post-compaction)" },
   { id: "thinking", title: "Thinking Export", label: "Thinking" },
   { id: "latest-agent", title: "Latest Agent Reply", label: "Latest agent reply" },
   { id: "latest-user", title: "Latest User Message", label: "Latest user message" },
@@ -69,6 +71,8 @@ function normalizeTarget(raw: string): TargetId | undefined {
   switch (value) {
     case "chatlog":
       return "chatlog";
+    case "context":
+      return "context";
     case "thinking":
       return "thinking";
     case "latest-agent":
@@ -302,7 +306,7 @@ function cutForLastTurns(
  */
 export function buildViewText(target: TargetId, entries: SessionEntry[], lastTurns?: number): string {
   const meta = TARGETS.find((t) => t.id === target)!;
-  if (target === "thinking" || target === "chatlog") {
+  if (target === "thinking" || target === "chatlog" || target === "context") {
     const { sliced, turnOffset } = cutForLastTurns(entries, lastTurns);
     const note =
       turnOffset > 0 ? [`_… earlier ${turnOffset} turn${turnOffset === 1 ? "" : "s"} omitted_`] : [];
@@ -310,6 +314,8 @@ export function buildViewText(target: TargetId, entries: SessionEntry[], lastTur
       const thinking = collectThinking(sliced, turnOffset);
       return formatViewText(meta.title, [...note, ...(thinking.length ? thinking : ["No thinking entries."])]);
     }
+    // chatlog and context share the section renderer; they differ only in
+    // which entry set the caller feeds in (full branch vs effective context).
     return formatViewText(meta.title, [...note, ...collectChatlog(sliced, turnOffset)]);
   }
   if (target === "latest-agent") {
@@ -432,14 +438,16 @@ const extension: ExtensionFactory = (pi) => {
     target: TargetId,
     lastTurns: number | undefined,
     ctx: {
-      sessionManager: { getBranch: () => SessionEntry[] };
+      sessionManager: { getBranch: () => SessionEntry[]; buildContextEntries: () => SessionEntry[] };
       ui: {
         editor(title: string, prefill?: string): Promise<string | undefined>;
         custom<T>(factory: (tui: TUI, theme: unknown, keybindings: unknown, done: (result: T) => void) => Component): Promise<T>;
       };
     },
   ): Promise<void> => {
-    const entries = ctx.sessionManager.getBranch();
+    // context = what the LLM sees now (compaction applied); others = full branch.
+    const entries =
+      target === "context" ? ctx.sessionManager.buildContextEntries() : ctx.sessionManager.getBranch();
     const meta = TARGETS.find((t) => t.id === target)!;
     const content = buildViewText(target, entries, lastTurns);
     const editorCmd = externalEditorCommand();
@@ -449,7 +457,7 @@ const extension: ExtensionFactory = (pi) => {
 
   pi.registerCommand("transcript", {
     description:
-      "View chatlog, thinking, latest-agent, or latest-user text; trailing N limits chatlog/thinking to the last N turns",
+      "View chatlog, context (post-compaction), thinking, latest-agent, or latest-user text; trailing N = last N turns",
     getArgumentCompletions: (prefix: string) =>
       TARGETS.map((t) => ({ value: t.id, label: t.id, description: t.label })).filter((item) =>
         item.value.startsWith(prefix.trim()),
