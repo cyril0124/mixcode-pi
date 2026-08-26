@@ -73,6 +73,7 @@ import {
   flushRuntimePendingMessage,
   popRuntimePendingMessage,
   scheduleRuntimePendingMessageFlush,
+  waitForCompactionIdle,
 } from "./runtime-follow-up.js";
 import {
   createRuntimeServices,
@@ -1610,21 +1611,4 @@ function upsertUserBashLine(
     return;
   }
   runtimeTab.chat.push(line);
-}
-
-async function waitForCompactionIdle(
-  agentSession: RuntimeTab["agentSession"],
-): Promise<void> {
-  if (!agentSession.isCompacting) return;
-  await new Promise<void>((resolve) => {
-    const unsubscribe = agentSession.subscribe((event) => {
-      if (event.type !== "compaction_end") return;
-      unsubscribe();
-      resolve();
-    });
-    if (!agentSession.isCompacting) {
-      unsubscribe();
-      resolve();
-    }
-  });
 }

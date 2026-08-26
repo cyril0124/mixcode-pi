@@ -144,5 +144,4 @@ export type MutationResult = {
 	ok: boolean;
 	goal: GoalState | null;
 	telemetry: GoalTelemetrySnapshot | null;
-	message?: string;
 };

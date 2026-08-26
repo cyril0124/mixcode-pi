@@ -115,7 +115,7 @@ function nextMacrotask(): Promise<void> {
 // start on compact onComplete. Fixed 1–2 macrotasks lose that race — poll a short window.
 const POST_ABORT_CLAIM_TICKS = 8;
 
-async function waitForCompactionIdle(agentSession: AgentSession): Promise<void> {
+export async function waitForCompactionIdle(agentSession: AgentSession): Promise<void> {
   if (!agentSession.isCompacting) return;
   await new Promise<void>((resolve) => {
     const unsubscribe = agentSession.subscribe((event) => {

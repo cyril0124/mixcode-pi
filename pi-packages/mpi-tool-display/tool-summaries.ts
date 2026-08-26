@@ -2,7 +2,6 @@
 // Scope excludes optional optimizer-specific hints and alternative output modes.
 // collapsed to the frozen "summary" output modes.
 import { Text } from "@earendil-works/pi-tui";
-import type { BashToolDetails, ReadToolDetails } from "@earendil-works/pi-coding-agent";
 import {
 	compactOutputLines,
 	extractTextOutput,
@@ -160,10 +159,6 @@ function formatExpandedPreviewCapHint(
 	return `\n${theme.fg("warning", `(display capped at ${cap} lines by tool-display setting)`)}`;
 }
 
-function truncationHint(details: { truncation?: { truncated?: boolean } } | undefined): string {
-	return details?.truncation?.truncated ? " • truncated" : "";
-}
-
 function renderPreviewText(
 	lines: string[],
 	config: ToolDisplayConfig,
@@ -183,19 +178,12 @@ interface PreviewHintContext {
 	config: ToolDisplayConfig;
 	theme: RenderThemeLike;
 	options: ToolRenderResultOptionsLike;
-	details: unknown;
 }
 
 function appendPreviewHints(preview: string, ctx: PreviewHintContext): string {
-	const { config, theme, details, lines, options } = ctx;
-	let next = preview;
-	if (config.showTruncationHints && toRecord(toRecord(details).truncation).truncated) {
-		next += `\n${theme.fg("warning", "(truncated by backend limits)")}`;
-	}
-	if (options.expanded) {
-		next += formatExpandedPreviewCapHint(lines, config, theme);
-	}
-	return next;
+	const { config, theme, lines, options } = ctx;
+	if (!options.expanded) return preview;
+	return preview + formatExpandedPreviewCapHint(lines, config, theme);
 }
 
 function renderContentPreview(ctx: PreviewHintContext, expandedOnly = false): Text {
@@ -218,26 +206,6 @@ function formatBashSummary(lines: string[], theme: RenderThemeLike): string {
 	return theme.fg("muted", `↳ ${lineCount} ${pluralize(lineCount, "line")} returned`);
 }
 
-function formatBashTruncationHints(
-	details: BashToolDetails | undefined,
-	theme: RenderThemeLike,
-): string {
-	if (!details) {
-		return "";
-	}
-	const hints: string[] = [];
-	if (details.truncation?.truncated) {
-		hints.push("output truncated");
-	}
-	if (details.fullOutputPath) {
-		hints.push(`full output: ${details.fullOutputPath}`);
-	}
-	if (hints.length === 0) {
-		return "";
-	}
-	return `\n${theme.fg("warning", `(${hints.join(" • ")})`)}`;
-}
-
 /** Configured bash output mode: live/expanded previews use previewLines. */
 function getBashPreviewLineLimit(
 	lines: string[],
@@ -256,12 +224,8 @@ function renderBashPreviewWithHints(
 	config: ToolDisplayConfig,
 	theme: RenderThemeLike,
 	options: ToolRenderResultOptionsLike,
-	details: BashToolDetails | undefined,
 ): Text {
 	let preview = buildPreviewText(lines, maxLines, theme, options.expanded);
-	if (config.showTruncationHints) {
-		preview += formatBashTruncationHints(details, theme);
-	}
 	if (options.expanded) {
 		preview += formatExpandedPreviewCapHint(lines, config, theme);
 	}
@@ -273,7 +237,6 @@ function renderBashLivePreview(
 	options: ToolRenderResultOptionsLike,
 	config: ToolDisplayConfig,
 	theme: RenderThemeLike,
-	details: BashToolDetails | undefined,
 ): Text {
 	const lines = prepareOutputLines(rawOutput, options);
 	if (lines.length === 0) {
@@ -283,7 +246,7 @@ function renderBashLivePreview(
 	if (!options.expanded && maxLines === 0) {
 		return textResult("");
 	}
-	return renderBashPreviewWithHints(lines, maxLines, config, theme, options, details);
+	return renderBashPreviewWithHints(lines, maxLines, config, theme, options);
 }
 
 function renderBashErrorResult(
@@ -291,7 +254,6 @@ function renderBashErrorResult(
 	options: ToolRenderResultOptionsLike,
 	config: ToolDisplayConfig,
 	theme: RenderThemeLike,
-	details: BashToolDetails | undefined,
 ): Text {
 	const lines = prepareOutputLines(rawOutput, options);
 	let text = theme.fg("error", "↳ command failed");
@@ -307,9 +269,6 @@ function renderBashErrorResult(
 		}
 	}
 
-	if (config.showTruncationHints) {
-		text += formatBashTruncationHints(details, theme);
-	}
 	if (options.expanded && lines.length > 0) {
 		text += formatExpandedPreviewCapHint(lines, config, theme);
 	}
@@ -324,36 +283,26 @@ export function renderBashDisplayResult(
 	theme: RenderThemeLike,
 	context: { args?: unknown; isError?: boolean } | undefined,
 ): Text {
-	const details = result.details as BashToolDetails | undefined;
 	const rawOutput = extractTextOutput(result);
 
 	if (options.isPartial) {
-		return renderBashLivePreview(rawOutput, options, config, theme, details);
+		return renderBashLivePreview(rawOutput, options, config, theme);
 	}
 	if (isToolError(result, context)) {
-		return renderBashErrorResult(rawOutput, options, config, theme, details);
+		return renderBashErrorResult(rawOutput, options, config, theme);
 	}
 
 	const lines = prepareOutputLines(rawOutput, options);
 	if (lines.length === 0) {
-		let text = formatBashNoOutputLine(getStringField(context?.args, "command"), theme);
-		if (config.showTruncationHints) {
-			text += formatBashTruncationHints(details, theme);
-		}
-		return textResult(text);
+		return textResult(formatBashNoOutputLine(getStringField(context?.args, "command"), theme));
 	}
 
 	if (options.expanded) {
 		const maxLines = getExpandedPreviewLineLimit(lines, config);
-		return renderBashPreviewWithHints(lines, maxLines, config, theme, options, details);
+		return renderBashPreviewWithHints(lines, maxLines, config, theme, options);
 	}
 
-	let summary = formatBashSummary(lines, theme);
-	summary += formatExpandHint(theme);
-	if (config.showTruncationHints) {
-		summary += formatBashTruncationHints(details, theme);
-	}
-	return textResult(summary);
+	return textResult(formatBashSummary(lines, theme) + formatExpandHint(theme));
 }
 
 // ---------------------------------------------------------------------------
@@ -374,16 +323,9 @@ export function renderReadDisplayCall(args: unknown, theme: RenderThemeLike): Te
 	return textResult(line);
 }
 
-function formatReadSummary(
-	lines: string[],
-	details: ReadToolDetails | undefined,
-	theme: RenderThemeLike,
-	showTruncationHints: boolean,
-): string {
+function formatReadSummary(lines: string[], theme: RenderThemeLike): string {
 	const lineCount = lines.length;
-	let summary = theme.fg("muted", `↳ loaded ${lineCount} ${pluralize(lineCount, "line")}`);
-	summary += theme.fg("warning", showTruncationHints ? truncationHint(details) : "");
-	return summary;
+	return theme.fg("muted", `↳ loaded ${lineCount} ${pluralize(lineCount, "line")}`);
 }
 
 /** Read result renderer with the output mode frozen to "summary". */
@@ -397,19 +339,16 @@ export function renderReadDisplayResult(
 		return partialResultText(theme, "reading...");
 	}
 
-	const details = result.details as ReadToolDetails | undefined;
 	const rawOutput = extractTextOutput(result);
 	const lines = prepareOutputLines(rawOutput, options);
-	const hintCtx: PreviewHintContext = { lines, config, theme, options, details };
+	const hintCtx: PreviewHintContext = { lines, config, theme, options };
 
 	if (options.expanded) {
 		return renderContentPreview(hintCtx, true);
 	}
 
 	const summaryLines = compactOutputLines(splitLines(rawOutput), { expanded: true });
-	let summary = formatReadSummary(summaryLines, details, theme, config.showTruncationHints);
-	summary += formatExpandHint(theme);
-	return textResult(summary);
+	return textResult(formatReadSummary(summaryLines, theme) + formatExpandHint(theme));
 }
 
 // ---------------------------------------------------------------------------

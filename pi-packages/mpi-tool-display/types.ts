@@ -16,8 +16,6 @@ export interface ToolDisplayConfig {
 	expandedPreviewMaxLines: number;
 	/** Live/expanded preview line budget for bash and read (configured `previewLines`). */
 	previewLines: number;
-	/** Surface backend truncation notices (configured `showTruncationHints`). */
-	showTruncationHints: boolean;
 }
 
 export const DEFAULT_TOOL_DISPLAY_CONFIG: ToolDisplayConfig = {
@@ -28,5 +26,4 @@ export const DEFAULT_TOOL_DISPLAY_CONFIG: ToolDisplayConfig = {
 	diffWordWrap: true,
 	expandedPreviewMaxLines: 4000,
 	previewLines: 8,
-	showTruncationHints: false,
 };

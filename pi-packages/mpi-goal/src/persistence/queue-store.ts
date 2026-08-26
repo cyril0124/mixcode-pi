@@ -203,7 +203,7 @@ function toQueueEventRecord(entry: unknown): QueueEventRecord | null {
 	if (typeof data !== "object" || data === null) return null;
 	const raw = data as Record<string, unknown>;
 	if (raw.version !== 1) return null;
-	const reason = toRequiredString(raw.reason);
+	const reason = toOptionalString(raw.reason);
 	const at = toFiniteNumber(raw.at);
 	if (!reason || at === undefined) return null;
 	return {
@@ -250,8 +250,8 @@ function parseQueueOpEvent(raw: QueueEventRecord): GoalQueueEvent | null {
 function toQueuedGoal(value: unknown): QueuedGoal | null {
 	if (typeof value !== "object" || value === null) return null;
 	const raw = value as Record<string, unknown>;
-	const queueId = toRequiredString(raw.queueId);
-	const objective = toRequiredString(raw.objective);
+	const queueId = toOptionalString(raw.queueId);
+	const objective = toOptionalString(raw.objective);
 	const source = toQueueSource(raw.source);
 	const createdAt = toFiniteNumber(raw.createdAt);
 	if (!queueId || !objective || !source || createdAt === undefined) return null;
@@ -328,10 +328,6 @@ function parseOptionalActionSpecs(value: unknown): ParsedOptionalField<PostCompl
 		actions.push({ type: "context.reset", mode: action.mode });
 	}
 	return { ok: true, value: actions };
-}
-
-function toRequiredString(value: unknown): string | undefined {
-	return typeof value === "string" ? value : undefined;
 }
 
 function toQueueSource(value: unknown): "command" | "tool" | undefined {

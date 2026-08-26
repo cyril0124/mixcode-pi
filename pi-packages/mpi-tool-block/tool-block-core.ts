@@ -35,7 +35,7 @@ export type ToolBlockRow =
   | { kind: "layer" }
   | { kind: "enabled" }
   | { kind: "header"; plugin: string }
-  | { kind: "tool"; name: string; plugin: string; hidden: boolean; inactive?: boolean; orphan?: boolean };
+  | { kind: "tool"; name: string; plugin: string; hidden: boolean; inactive?: boolean };
 
 export type ToolBlockToolState = "hidden" | "visible" | "inactive";
 
@@ -295,7 +295,7 @@ export function buildToolBlockRows(
       orphanPlugin = plugin;
       rows.push({ kind: "header", plugin });
     }
-    rows.push({ kind: "tool", name: item.tool, plugin, hidden: true, inactive: false, orphan: true });
+    rows.push({ kind: "tool", name: item.tool, plugin, hidden: true, inactive: false });
   }
   return rows;
 }

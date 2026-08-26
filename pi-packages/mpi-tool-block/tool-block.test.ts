@@ -264,7 +264,6 @@ describe("pluginTag / items / toggle", () => {
     const orphan = rows.find((row) => row.kind === "tool" && row.name === "gone_tool");
     assert.ok(orphan && orphan.kind === "tool");
     assert.equal(orphan.hidden, true);
-    assert.equal(orphan.orphan, true);
     assert.ok(rows.some((row) => row.kind === "header" && row.plugin === "old-plugin"));
   });
 

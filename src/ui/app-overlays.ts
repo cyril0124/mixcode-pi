@@ -11,6 +11,7 @@ import {
 } from "../core/chat-selection.js";
 import { editTextInExternalEditor } from "../core/external-editor.js";
 import {
+  isInstanceOverlayOpen,
   pickerIsLive,
   sessionActionConfirmIsLive,
 } from "../core/overlays.js";
@@ -148,22 +149,9 @@ export function closeAppOverlay(tui: OverlayTui): void {
   presentedOwnedOverlay.delete(tui);
 }
 
-function instanceOverlayBlocksOwned(state: MixCodeState): boolean {
-  return (
-    state.workspaceOverlay.open ||
-    state.treeSelector.open ||
-    state.commandPaletteOpen ||
-    state.extensionManager.open ||
-    state.tabJumpOpen ||
-    state.quitConfirmOpen ||
-    state.deleteAllSessionsConfirmOpen ||
-    state.closeAllSessionsConfirmOpen
-  );
-}
-
 /** Show or hide the tab-owned picker/confirm to match the focused tab. */
 export function syncOwnedAppOverlay(state: MixCodeState, tui: OverlayTui): void {
-  if (instanceOverlayBlocksOwned(state)) return;
+  if (isInstanceOverlayOpen(state)) return;
   if (pickerIsLive(state)) {
     if (presentedOwnedOverlay.get(tui) !== "picker" || !hasAppOverlay(tui)) {
       showLinesOverlay(tui, (width) => renderPickerOverlay(state, width));

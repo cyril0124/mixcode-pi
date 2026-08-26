@@ -113,15 +113,11 @@ export const MIXCODE_EXTENSION_KEYBINDINGS: KeybindingsConfig = Object.fromEntri
   ]),
 );
 
-function mixcodeAgentDir(): string {
-  return getAgentDir();
-}
-
 /** User overrides from `~/.pi/agent/keybindings.json` (Pi-native path). */
-function loadUserKeybindingsFile(agentDir = mixcodeAgentDir()): KeybindingsConfig {
+function loadUserKeybindingsFile(): KeybindingsConfig {
   // Pi-parity load (patch export): raw JSON -> legacy-name migration ->
   // string/string[] filter, so old-format configs Pi accepts also work here.
-  return loadKeybindingsConfigFile(path.join(agentDir, "keybindings.json"));
+  return loadKeybindingsConfigFile(path.join(getAgentDir(), "keybindings.json"));
 }
 
 function buildMixCodeUserBindings(): KeybindingsConfig {

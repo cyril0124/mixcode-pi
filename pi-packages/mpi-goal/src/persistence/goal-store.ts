@@ -105,7 +105,7 @@ export function persistUpdateGoal(
 ): MutationResult {
 	const current = getMutableRuntimeState();
 	if (current.goal && current.goal.goalId !== goal.goalId) {
-		return { ok: false, goal: current.goal, telemetry: current.telemetry, message: "Stale goal update ignored." };
+		return { ok: false, goal: current.goal, telemetry: current.telemetry };
 	}
 	return persistEvent(pi, { kind: "update", goalId: goal.goalId, goal, telemetry, reason });
 }
@@ -118,7 +118,7 @@ export function persistTelemetry(
 	const current = getMutableRuntimeState();
 	const goal = current.goal;
 	if (!goal || !telemetry || telemetry.goalId !== goal.goalId) {
-		return { ok: false, goal, telemetry: current.telemetry, message: "Stale telemetry update ignored." };
+		return { ok: false, goal, telemetry: current.telemetry };
 	}
 	return persistEvent(pi, { kind: "telemetry", goalId: goal.goalId, goal, telemetry, reason });
 }
@@ -132,7 +132,7 @@ export function persistAccountGoal(
 ): MutationResult {
 	const current = getMutableRuntimeState().goal;
 	if (!current || current.goalId !== goalId) {
-		return { ok: false, goal: current, telemetry: getMutableRuntimeState().telemetry, message: "Stale accounting ignored." };
+		return { ok: false, goal: current, telemetry: getMutableRuntimeState().telemetry };
 	}
 	const goal: GoalState = {
 		...current,
