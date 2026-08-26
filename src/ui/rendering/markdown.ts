@@ -14,6 +14,16 @@ import { getMarkdownTheme as getPiMarkdownTheme, highlightCode } from "../pi-the
 import { activeRenderTheme } from "./context.js";
 import { padLine } from "./primitives.js";
 
+// Pi parity (InteractiveMode.getMarkdownThemeWithSettings): settings.json
+// `markdown.codeBlockIndent` controls the prefix of rendered code block lines.
+// Bootstrap injects the value from Pi SettingsManager; undefined keeps the
+// pi-tui default ("  ").
+let codeBlockIndent: string | undefined;
+
+export function setMarkdownCodeBlockIndent(indent: string): void {
+  codeBlockIndent = indent;
+}
+
 export function renderMarkdown(
   text: string,
   width: number,
@@ -77,6 +87,7 @@ function getMarkdownTheme(): MarkdownTheme {
   const pi = getPiMarkdownTheme();
   return {
     ...pi,
+    ...(codeBlockIndent !== undefined ? { codeBlockIndent } : {}),
     // Keep highlight on the same initialized global Theme instance.
     highlightCode: (code: string, lang?: string) => {
       ensureExtensionThemeInitialized();

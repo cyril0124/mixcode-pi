@@ -41,7 +41,7 @@ The file uses JSONC syntax: regular JSON plus comments and trailing commas. If t
 | `disabledProviders` | string array of provider ids | `[]` | Globally disable providers across MixCode sessions and extension/subagent model discovery and execution. Models stay listed in `/models` but are dimmed as disabled and cannot be selected or used. Takes effect on `/reload` or restart. Editable via `/settings`. |
 | `disabledModels` | string array of `provider/modelId` | `[]` | Globally disable individual models across the same paths as `disabledProviders`. Provider-level disable covers all of that provider's models. Takes effect on `/reload` or restart. Editable via `/settings`. |
 
-Image display, Mermaid rendering, cache-miss notices, and the startup tool set are **not** configured in this file. They live in Pi global `settings.json` (same store as `hideThinkingBlock`):
+Image display, Mermaid rendering, code-block indent, cache-miss notices, and the startup tool set are **not** configured in this file. They live in Pi global `settings.json` (same store as `hideThinkingBlock`):
 
 | Pi setting | Values | Default | Effect |
 | --- | --- | --- | --- |
@@ -49,6 +49,7 @@ Image display, Mermaid rendering, cache-miss notices, and the startup tool set a
 | `terminal.imageWidthCells` | positive integer | `60` | Max image width in terminal cells. |
 | `images.blockImages` | boolean | `false` | Strip images before they reach the model (SDK `convertToLlm`). |
 | `markdown.mermaid` | `off` \| `final` \| `streaming` | `streaming` | When to turn ` ```mermaid ` fences into terminal diagrams. |
+| `markdown.codeBlockIndent` | string | two spaces (`"  "`) | Prefix on each rendered code-block line. Empty string aligns code with the fence so a copied block stays flush Markdown. Edit `settings.json` directly; `/settings` does not expose this row. |
 | `showCacheMissNotices` | boolean | `false` | Show transcript warnings for significant prompt-cache misses, including re-billed tokens and estimated excess cost when it is at least `$0.01`. |
 | `defaultTools` | string array of tool names | unset (`read`, `bash`, `edit`, `write`) | Built-in tools active at session start. Narrowing it removes built-ins — including MixCode's own `bash` wrapper — from every new session; extension-registered tools stay active, matching Pi. Edit `settings.json` directly; `/settings` does not expose this row. |
 

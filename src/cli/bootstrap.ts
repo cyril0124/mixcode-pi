@@ -21,6 +21,7 @@ import {
 } from "../core/extension-manager.js";
 import { listSessionsInBackground } from "../core/session-catalog.js";
 import { MIXCODE_SETTINGS_FILENAME, loadMixCodeSettings } from "../core/mixcode-settings.js";
+import { setMarkdownCodeBlockIndent } from "../ui/rendering/markdown.js";
 import { setTheme } from "../ui/themes.js";
 import {
   applyDisabledModelFlags,
@@ -139,6 +140,7 @@ export async function bootstrapMixCode(options: BootstrapOptions): Promise<{
   state.showImages = settingsManager.getShowImages();
   state.imageWidthCells = settingsManager.getImageWidthCells();
   state.mermaidRenderingMode = settingsManager.getMermaidRenderingMode();
+  setMarkdownCodeBlockIndent(settingsManager.getCodeBlockIndent());
   // Derive auth/models from the effective agent dir (PI_CODING_AGENT_DIR or default).
   const modelBundle = await createPiModelRegistryBundle(
     options.modelConfigPath ?? path.join(agentDir, "models.json"),
