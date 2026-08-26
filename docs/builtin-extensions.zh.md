@@ -16,7 +16,7 @@ MixCode 随附位于 `pi-packages/mpi-*` 的第一方内置 Pi 包。启动时�
 | `mpi-auto-rename` | 可选首条消息自动触发, `/auto-rename` | 生成短横线风格会话标题；在 `<agentDir>/mpi-auto-rename.json` 将 `onFirstMessage` 设为 `true` 以启用。 |
 | `mpi-skill-refs` | `$` 补全触发符 | 项目和全局 Skill 自动补全及 Prompt 内联展开。 |
 | `mpi-prompt-history` | `/prompt-history` | 交互式 Prompt 历史记录搜索、过滤及直接插入编辑器。 |
-| `mpi-transcript` | `/transcript [chatlog\|context\|thinking\|latest-agent\|latest-user] [N]` | 在外部编辑器（`$VISUAL` / `$EDITOR`）或内置查看器中检视会话转录切片（完整对话、压缩后的 LLM 上下文、Thinking、最近消息；末尾 `N` 限制为最后 N 轮）。 |
+| `mpi-transcript` | `/transcript [chatlog\|context\|thinking\|latest-agent\|latest-user] [N]` | 在外部编辑器（`$VISUAL` / `$EDITOR`）或内置查看器中检视会话转录切片（完整对话、LLM 实际上下文、Thinking、最近消息；末尾 `N` 限制为最后 N 轮）。 |
 | `mpi-diff-viewer` | `/diff [ref]` | 终端内交互式 Diff 查看器，支持 hunk 导航与行级评审注释。 |
 | `mpi-model-skills` | `/model-skills`，`<agentDir>/mpi-model-skills.json` | 按当前模型匹配规则动态挂载或卸载 Skill。 |
 | `mpi-model-extensions` | `/model-extensions`，`<agentDir>/mpi-model-extensions.json` | 按当前模型动态加载 Pi 扩展。 |

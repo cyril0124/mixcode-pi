@@ -64,7 +64,7 @@ Install community extensions directly through Pi package declarations (`settings
 - **`mpi-auto-rename`**: Context-derived session titles (`/auto-rename`).
 - **`mpi-ctl`**: Multi-agent / cross-tab collaboration (`mpi status`, `mpi ctl`).
 - **`mpi-permission`**: Fine-grained tool execution permission rules (`/permission`).
-- **`mpi-transcript`**: View transcript slices — chatlog, post-compaction context, thinking, latest replies — in `$EDITOR` (`/transcript`).
+- **`mpi-transcript`**: View transcript slices — chatlog, effective LLM context, thinking, latest replies — in `$EDITOR` (`/transcript`).
 - **`mpi-prompt-history`**: Prompt recall log and interactive browser (`/prompt-history`).
 - **`mpi-tool-block`**: Selectively hide tools from model context (`/tool-block`).
 - **`mpi-tool-display`**: Compact terminal transcript presentation for tools and thinking.

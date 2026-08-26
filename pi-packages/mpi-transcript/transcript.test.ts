@@ -34,7 +34,7 @@ function userEntry(text: string): SessionEntry {
 
 function assistantEntry(
   content: Array<{ type: string; text?: string; thinking?: string; redacted?: boolean; id?: string; name?: string; arguments?: Record<string, unknown> }>,
-  opts?: { stopReason?: string; errorMessage?: string },
+  opts?: { stopReason?: string; errorMessage?: string; totalTokens?: number; costTotal?: number },
 ): SessionEntry {
   return {
     type: "message",
@@ -47,7 +47,14 @@ function assistantEntry(
       api: "messages",
       provider: "anthropic",
       model: "test",
-      usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+      usage: {
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        totalTokens: opts?.totalTokens ?? 0,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: opts?.costTotal ?? 0 },
+      },
       stopReason: opts?.stopReason ?? "stop",
       errorMessage: opts?.errorMessage,
       timestamp: Date.now(),
@@ -145,10 +152,10 @@ test("buildViewText chatlog: numbers user and assistant sections by round", () =
     assistantEntry([{ type: "text", text: "second answer" }]),
   ];
   const text = buildViewText("chatlog", entries);
-  assert.match(text, /## 👤 User · #1\n\nfirst question/);
-  assert.match(text, /## 🤖 Assistant · #1\n\nfirst answer/);
-  assert.match(text, /## 👤 User · #2\n\nsecond question/);
-  assert.match(text, /## 🤖 Assistant · #2\n\nsecond answer/);
+  assert.match(text, /## 👤 User · #1\n\n_[^\n]+_\n\nfirst question/);
+  assert.match(text, /## 🤖 Assistant · #1\n\n_[^\n]+_\n\nfirst answer/);
+  assert.match(text, /## 👤 User · #2\n\n_[^\n]+_\n\nsecond question/);
+  assert.match(text, /## 🤖 Assistant · #2\n\n_[^\n]+_\n\nsecond answer/);
 });
 
 test("buildViewText thinking: labels each block with its round", () => {
@@ -204,7 +211,7 @@ test("buildViewText chatlog: renders injected custom messages, marking hidden on
   const text = buildViewText("chatlog", entries);
   assert.match(text, /## 📥 Injected · `skill-loader` · _hidden_\n\nskill content here/);
   assert.match(text, /## 📥 Injected · `goal-tracker`\n\nvisible injected note/);
-  assert.match(text, /## 🤖 Assistant · #1\n\nok/);
+  assert.match(text, /## 🤖 Assistant · #1\n\n_[^\n]+_\n\nok/);
 });
 
 test("buildViewText chatlog: renders compaction and branch summary entries", () => {
@@ -243,7 +250,7 @@ test("buildViewText chatlog: surfaces assistant errorMessage on error stops", ()
 
 test("buildViewText chatlog: renders an aborted turn even without content", () => {
   const entries: SessionEntry[] = [userEntry("go"), assistantEntry([], { stopReason: "aborted" })];
-  assert.match(buildViewText("chatlog", entries), /## 🤖 Assistant · #1\n\n\*\*⚠️ aborted\*\*/);
+  assert.match(buildViewText("chatlog", entries), /## 🤖 Assistant · #1\n\n_[^\n]+_\n\n\*\*⚠️ aborted\*\*/);
 });
 
 test("buildViewText chatlog: renders tool calls as h3 headings", () => {
@@ -275,14 +282,14 @@ test("buildViewText chatlog: lastTurns keeps only the last N rounds with global 
   const text = buildViewText("chatlog", entries, 2);
   assert.doesNotMatch(text, /q1|a1/);
   assert.match(text, /_… earlier 1 turn omitted_/);
-  assert.match(text, /## 👤 User · #2\n\nq2/);
-  assert.match(text, /## 🤖 Assistant · #3\n\na3/);
+  assert.match(text, /## 👤 User · #2\n\n_[^\n]+_\n\nq2/);
+  assert.match(text, /## 🤖 Assistant · #3\n\n_[^\n]+_\n\na3/);
 });
 
 test("buildViewText chatlog: lastTurns >= total rounds renders everything without a notice", () => {
   const entries: SessionEntry[] = [userEntry("q1"), assistantEntry([{ type: "text", text: "a1" }])];
   const text = buildViewText("chatlog", entries, 5);
-  assert.match(text, /## 👤 User · #1\n\nq1/);
+  assert.match(text, /## 👤 User · #1\n\n_[^\n]+_\n\nq1/);
   assert.doesNotMatch(text, /omitted/);
 });
 
@@ -337,7 +344,60 @@ test("buildViewText context: renders context entries as chatlog sections under i
   const text = buildViewText("context", entries);
   assert.match(text, /^# LLM Context\n/);
   assert.match(text, /## 🗜️ Compaction · 1,000 tokens before\n\nsummary of dropped history/);
-  assert.match(text, /## 👤 User · #1\n\nkept question/);
+  assert.match(text, /## 👤 User · #1\n\n_[^\n]+_\n\nkept question/);
+});
+
+test("buildViewText chatlog: renders a placeholder for image content", () => {
+  const entries: SessionEntry[] = [
+    {
+      type: "message",
+      id: "u-img",
+      parentId: null,
+      timestamp: new Date().toISOString(),
+      message: {
+        role: "user",
+        content: [
+          { type: "text", text: "look at this" },
+          { type: "image", data: "...", mimeType: "image/png" },
+        ],
+        timestamp: Date.now(),
+      },
+    } as unknown as SessionEntry,
+  ];
+  assert.match(buildViewText("chatlog", entries), /look at this\n🖼️ \[image\]/);
+});
+
+test("buildViewText chatlog: renders model and thinking level change events", () => {
+  const entries: SessionEntry[] = [
+    {
+      type: "model_change",
+      id: "m-1",
+      parentId: null,
+      timestamp: new Date().toISOString(),
+      provider: "anthropic",
+      modelId: "claude-x",
+    } as unknown as SessionEntry,
+    {
+      type: "thinking_level_change",
+      id: "t-1",
+      parentId: null,
+      timestamp: new Date().toISOString(),
+      thinkingLevel: "high",
+    } as unknown as SessionEntry,
+    userEntry("hi"),
+  ];
+  const text = buildViewText("chatlog", entries);
+  assert.match(text, /_⚙️ model → anthropic\/claude-x_/);
+  assert.match(text, /_⚙️ thinking → high_/);
+});
+
+test("buildViewText chatlog: assistant meta line shows model, tokens, cost, and time", () => {
+  const entries: SessionEntry[] = [
+    userEntry("q"),
+    assistantEntry([{ type: "text", text: "a" }], { totalTokens: 8432, costTotal: 0.021 }),
+  ];
+  const text = buildViewText("chatlog", entries);
+  assert.match(text, /## 🤖 Assistant · #1\n\n_test · 8,432 tok · \$0\.0210 · \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}_\n\na/);
 });
 
 test("buildViewText chatlog: marks a failed tool result as error", () => {

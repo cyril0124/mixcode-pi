@@ -12,7 +12,7 @@
 // ║  Targets:                                                          ║
 // ║    chatlog       Full transcript (user/assistant/thinking/tools/   ║
 // ║                  injected/compaction/branch summaries/errors)      ║
-// ║    context       Effective LLM context (post-compaction view)      ║
+// ║    context       Effective LLM context (what the model sees)       ║
 // ║    thinking      All reasoning/thinking blocks                     ║
 // ║    latest-agent  Last assistant text reply                         ║
 // ║    latest-user   Last user message                                 ║
@@ -58,7 +58,7 @@ type AssistantBlock = TextBlock | ThinkingBlock | ToolCallBlock | { type: string
 /** Canonical target ids plus the human title rendered above the content. */
 const TARGETS = [
   { id: "chatlog", title: "Chat Export", label: "Chatlog" },
-  { id: "context", title: "LLM Context", label: "Context (post-compaction)" },
+  { id: "context", title: "LLM Context", label: "Context (as the LLM sees it)" },
   { id: "thinking", title: "Thinking Export", label: "Thinking" },
   { id: "latest-agent", title: "Latest Agent Reply", label: "Latest agent reply" },
   { id: "latest-user", title: "Latest User Message", label: "Latest user message" },
@@ -102,17 +102,29 @@ function messageOf(entry: SessionEntry): { role: string; content: unknown } | un
   return entry.message as unknown as { role: string; content: unknown };
 }
 
-/** Flatten a message's content (string or block array) to plain text. */
+/**
+ * Flatten a message's content (string or block array) to plain text.
+ * Image blocks render as a `🖼️ [image]` placeholder.
+ */
 function blockText(content: unknown): string {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return "";
   return content
     .map((block) => {
       const b = block as { type: string; text?: string };
+      if (b.type === "image") return "🖼️ [image]";
       return b.text !== undefined ? b.text : "";
     })
     .filter((text) => text.trim())
     .join("\n");
+}
+
+/** Entry timestamp as local `YYYY-MM-DD HH:mm:ss`; raw value if unparsable. */
+function formatTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
 /** Thinking block text with the redacted placeholder applied. */
@@ -195,6 +207,16 @@ function collectChatlog(entries: SessionEntry[], turnOffset = 0): string[] {
   // sections carry the round of the user message they answer.
   let turn = turnOffset;
   for (const entry of entries) {
+    // One-line timeline events: model / thinking level switches explain why
+    // the conversation's behavior changed mid-session.
+    if (entry.type === "model_change") {
+      sections.push(`---\n\n_⚙️ model → ${entry.provider}/${entry.modelId}_`);
+      continue;
+    }
+    if (entry.type === "thinking_level_change") {
+      sections.push(`---\n\n_⚙️ thinking → ${entry.thinkingLevel}_`);
+      continue;
+    }
     // Compaction replaces all prior context with its summary; branch summaries
     // stand in for another branch. Both are LLM-visible, so the chatlog must
     // show them or the transcript reads as if context appeared from nowhere.
@@ -219,14 +241,21 @@ function collectChatlog(entries: SessionEntry[], turnOffset = 0): string[] {
       continue;
     }
     const msg = messageOf(entry) as
-      | { role: string; content?: unknown; stopReason?: string; errorMessage?: string }
+      | {
+          role: string;
+          content?: unknown;
+          stopReason?: string;
+          errorMessage?: string;
+          model?: string;
+          usage?: { totalTokens?: number; cost?: { total?: number } };
+        }
       | undefined;
     if (!msg) continue;
     if (msg.role === "user") {
       const text = blockText(msg.content);
       if (text.trim()) {
         turn += 1;
-        sections.push(`---\n\n## 👤 User · #${turn}\n\n${text.trim()}`);
+        sections.push(`---\n\n## 👤 User · #${turn}\n\n_${formatTime(entry.timestamp)}_\n\n${text.trim()}`);
       }
     } else if (msg.role === "assistant" && Array.isArray(msg.content)) {
       const parts: string[] = [];
@@ -274,8 +303,17 @@ function collectChatlog(entries: SessionEntry[], turnOffset = 0): string[] {
       if (msg.stopReason === "error" || msg.stopReason === "aborted") {
         parts.push(`**⚠️ ${msg.stopReason}**${msg.errorMessage ? `: ${msg.errorMessage}` : ""}`);
       }
-      if (parts.length)
-        sections.push(`---\n\n## 🤖 Assistant${turn > 0 ? ` · #${turn}` : ""}\n\n${parts.join("\n\n")}`);
+      if (parts.length) {
+        // Meta line: model, token/cost totals (omitted when zero), timestamp.
+        const meta: string[] = [];
+        if (msg.model) meta.push(msg.model);
+        if (msg.usage?.totalTokens) meta.push(`${msg.usage.totalTokens.toLocaleString("en-US")} tok`);
+        if (msg.usage?.cost?.total) meta.push(`$${msg.usage.cost.total.toFixed(4)}`);
+        meta.push(formatTime(entry.timestamp));
+        sections.push(
+          `---\n\n## 🤖 Assistant${turn > 0 ? ` · #${turn}` : ""}\n\n_${meta.join(" · ")}_\n\n${parts.join("\n\n")}`,
+        );
+      }
     }
   }
   return sections;
@@ -445,7 +483,8 @@ const extension: ExtensionFactory = (pi) => {
       };
     },
   ): Promise<void> => {
-    // context = what the LLM sees now (compaction applied); others = full branch.
+    // context = the effective LLM context (branch resolution, compaction,
+    // summaries applied); other targets read the full branch.
     const entries =
       target === "context" ? ctx.sessionManager.buildContextEntries() : ctx.sessionManager.getBranch();
     const meta = TARGETS.find((t) => t.id === target)!;
@@ -457,7 +496,7 @@ const extension: ExtensionFactory = (pi) => {
 
   pi.registerCommand("transcript", {
     description:
-      "View chatlog, context (post-compaction), thinking, latest-agent, or latest-user text; trailing N = last N turns",
+      "View chatlog, context (effective LLM view), thinking, latest-agent, or latest-user text; trailing N = last N turns",
     getArgumentCompletions: (prefix: string) =>
       TARGETS.map((t) => ({ value: t.id, label: t.id, description: t.label })).filter((item) =>
         item.value.startsWith(prefix.trim()),
