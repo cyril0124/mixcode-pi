@@ -31,10 +31,6 @@ export class RuntimeSyncManager {
     private readonly onExternalChange: (sessionId: string) => boolean,
   ) {}
 
-  get enabled(): boolean {
-    return this.coordinator !== undefined;
-  }
-
   enable(): void {
     if (this.coordinator) return;
     this.coordinator = new SessionSyncCoordinator({
