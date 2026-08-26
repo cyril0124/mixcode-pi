@@ -10,9 +10,9 @@
 // ║  configured. For scrolling and copying; nothing is written to disk. ║
 // ║                                                                    ║
 // ║  Targets:                                                          ║
+// ║    context       Effective LLM context (what the model sees)       ║
 // ║    chatlog       Full transcript (user/assistant/thinking/tools/   ║
 // ║                  injected/compaction/branch summaries/errors)      ║
-// ║    context       Effective LLM context (what the model sees)       ║
 // ║    thinking      All reasoning/thinking blocks                     ║
 // ║    latest-agent  Last assistant text reply                         ║
 // ║    latest-user   Last user message                                 ║
@@ -57,8 +57,8 @@ type AssistantBlock = TextBlock | ThinkingBlock | ToolCallBlock | { type: string
 
 /** Canonical target ids plus the human title rendered above the content. */
 const TARGETS = [
-  { id: "chatlog", title: "Chat Export", label: "Chatlog" },
   { id: "context", title: "LLM Context", label: "Context (as the LLM sees it)" },
+  { id: "chatlog", title: "Chat Export", label: "Chatlog" },
   { id: "thinking", title: "Thinking Export", label: "Thinking" },
   { id: "latest-agent", title: "Latest Agent Reply", label: "Latest agent reply" },
   { id: "latest-user", title: "Latest User Message", label: "Latest user message" },
@@ -591,7 +591,7 @@ const extension: ExtensionFactory = (pi) => {
 
   pi.registerCommand("transcript", {
     description:
-      "View chatlog, context (effective LLM view), thinking, latest-agent, or latest-user text; trailing N = last N turns",
+      "View context (effective LLM view), chatlog, thinking, latest-agent, or latest-user text; trailing N = last N turns",
     getArgumentCompletions: (prefix: string) =>
       TARGETS.map((t) => ({ value: t.id, label: t.id, description: t.label })).filter((item) =>
         item.value.startsWith(prefix.trim()),
