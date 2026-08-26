@@ -476,25 +476,37 @@ test("buildViewText chatlog: meta line shows cache hit rate when caching was use
   assert.match(buildViewText("chatlog", entries), /cache 90\.0%/);
 });
 
-test("buildViewText chatlog: meta line shows raw prompt-in and completion-out tokens", () => {
+test("buildViewText chatlog: meta line shows uncached-in and completion-out tokens", () => {
   const entries: SessionEntry[] = [
     userEntry("q"),
     assistantEntry([{ type: "text", text: "a" }], { input: 1000, cacheRead: 9000, output: 500 }),
   ];
-  assert.match(buildViewText("chatlog", entries), /in 10,000 · out 500/);
+  assert.match(buildViewText("chatlog", entries), /in 1,000 · out 500/);
 });
 
-test("buildViewText chatlog: meta line shows the prompt-in delta from the previous turn", () => {
+test("buildViewText chatlog: context tokens carry the delta from the previous turn", () => {
   const entries: SessionEntry[] = [
     userEntry("q1"),
-    assistantEntry([{ type: "text", text: "a1" }], { input: 10000, output: 200 }),
+    assistantEntry([{ type: "text", text: "a1" }], { totalTokens: 10000 }),
     userEntry("q2"),
-    assistantEntry([{ type: "text", text: "a2" }], { input: 12000, output: 300 }),
+    assistantEntry([{ type: "text", text: "a2" }], { totalTokens: 12000 }),
   ];
   const text = buildViewText("chatlog", entries);
-  assert.match(text, /in 10,000 · out 200/);
-  assert.doesNotMatch(text, /in 10,000 \(/);
-  assert.match(text, /in 12,000 \(\+2,000\) · out 300/);
+  assert.match(text, /10,000 tok · /);
+  assert.doesNotMatch(text, /10,000 tok \(/);
+  assert.match(text, /12,000 tok \(\+2,000\)/);
+});
+
+test("buildViewText chatlog: context delta joins the percentage when a window is known", () => {
+  const entries: SessionEntry[] = [
+    userEntry("q1"),
+    assistantEntry([{ type: "text", text: "a1" }], { totalTokens: 10000 }),
+    userEntry("q2"),
+    assistantEntry([{ type: "text", text: "a2" }], { totalTokens: 12000 }),
+  ];
+  const text = buildViewText("chatlog", entries, undefined, () => 200000);
+  assert.match(text, /10k\/200k \(5\.0%\)/);
+  assert.match(text, /12k\/200k \(6\.0%, \+2,000\)/);
 });
 
 test("buildViewText chatlog: meta line omits cache rate when no cache tokens", () => {

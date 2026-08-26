@@ -225,8 +225,8 @@ function collectChatlog(
   // Round counter: each non-empty user message starts a new round; assistant
   // sections carry the round of the user message they answer.
   let turn = turnOffset;
-  // Previous assistant turn's full prompt size, for the in-token delta.
-  let prevPrompt: number | undefined;
+  // Previous assistant turn's context size, for the context-growth delta.
+  let prevContext: number | undefined;
   for (const entry of entries) {
     // One-line timeline events: model / thinking level switches explain why
     // the conversation's behavior changed mid-session.
@@ -352,32 +352,33 @@ function collectChatlog(
         // Meta line: model, token/cost totals (omitted when zero), timestamp.
         const meta: string[] = [];
         if (msg.model) meta.push(msg.provider ? `${msg.provider}/${msg.model}` : msg.model);
-        if (msg.usage?.totalTokens) {
-          // With a known context window: used/window in k units plus percent;
-          // otherwise the raw token count.
-          const tok = msg.usage.totalTokens;
-          const cw = msg.provider && msg.model ? contextWindowFor?.(msg.provider, msg.model) : undefined;
-          meta.push(
-            cw
-              ? `${fmtTokens(tok)}/${fmtTokens(cw)} (${((tok / cw) * 100).toFixed(1)}%)`
-              : `${tok.toLocaleString("en-US")} tok`,
-          );
-        }
         {
+          const num = (n: number) => n.toLocaleString("en-US");
           const { input = 0, output = 0, cacheRead = 0, cacheWrite = 0 } = msg.usage ?? {};
-          // in = full prompt (uncached input + cache read/write), out = completion.
-          // The in-delta tracks context growth between turns; it goes negative
-          // after compaction, which is exactly the signal worth spotting.
-          const prompt = input + cacheRead + cacheWrite;
-          if (prompt > 0 || output > 0) {
-            const num = (n: number) => n.toLocaleString("en-US");
-            const delta = prevPrompt !== undefined ? prompt - prevPrompt : 0;
-            const deltaPart = delta !== 0 ? ` (${delta > 0 ? "+" : "-"}${num(Math.abs(delta))})` : "";
-            meta.push(`in ${num(prompt)}${deltaPart}`, `out ${num(output)}`);
-            prevPrompt = prompt;
+          // Context size follows the host's calculateContextTokens semantics.
+          // Its per-turn delta tracks context growth; negative after compaction,
+          // which is exactly the signal worth spotting.
+          const ctxTokens = msg.usage?.totalTokens || input + output + cacheRead + cacheWrite;
+          if (ctxTokens > 0) {
+            const delta = prevContext !== undefined ? ctxTokens - prevContext : 0;
+            const deltaPart = delta !== 0 ? `${delta > 0 ? "+" : "-"}${num(Math.abs(delta))}` : "";
+            const cw = msg.provider && msg.model ? contextWindowFor?.(msg.provider, msg.model) : undefined;
+            if (cw) {
+              const inner = [`${((ctxTokens / cw) * 100).toFixed(1)}%`, deltaPart].filter(Boolean).join(", ");
+              meta.push(`${fmtTokens(ctxTokens)}/${fmtTokens(cw)} (${inner})`);
+            } else {
+              meta.push(`${num(ctxTokens)} tok${deltaPart ? ` (${deltaPart})` : ""}`);
+            }
+            prevContext = ctxTokens;
+          }
+          // in = newly billed uncached input, out = completion — matching the
+          // usage-normalized semantics (usage.input excludes cache read/write).
+          if (input > 0 || output > 0) {
+            meta.push(`in ${num(input)}`, `out ${num(output)}`);
           }
           // Cache hit rate = cacheRead / all prompt tokens; shown only when the
           // request touched the cache at all (read or write).
+          const prompt = input + cacheRead + cacheWrite;
           if (prompt > 0 && cacheRead + cacheWrite > 0) {
             meta.push(`cache ${((cacheRead / prompt) * 100).toFixed(1)}%`);
           }
