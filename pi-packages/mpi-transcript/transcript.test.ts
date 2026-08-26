@@ -41,12 +41,12 @@ test("formatViewText strips trailing spaces and tabs from every line", () => {
 
 // ─── buildViewText: session-branch reconstruction ──────────────────────────────
 
-function userEntry(text: string): SessionEntry {
+function userEntry(text: string, at?: string): SessionEntry {
   return {
     type: "message",
     id: `u-${text}`,
     parentId: null,
-    timestamp: new Date().toISOString(),
+    timestamp: at ?? new Date().toISOString(),
     message: { role: "user", content: text, timestamp: Date.now() },
   } as unknown as SessionEntry;
 }
@@ -62,13 +62,14 @@ function assistantEntry(
     output?: number;
     cacheRead?: number;
     cacheWrite?: number;
+    at?: string;
   },
 ): SessionEntry {
   return {
     type: "message",
     id: `a-${Math.random()}`,
     parentId: null,
-    timestamp: new Date().toISOString(),
+    timestamp: opts?.at ?? new Date().toISOString(),
     message: {
       role: "assistant",
       content,
@@ -541,6 +542,24 @@ test("buildViewText chatlog: omits cache-miss notices without a price source", (
     assistantEntry([{ type: "text", text: "a2" }], { input: 140000, cacheRead: 5000 }),
   ];
   assert.doesNotMatch(buildViewText("chatlog", entries), /Cache miss/);
+});
+
+test("buildViewText chatlog: meta line shows the elapsed time since the previous message", () => {
+  const entries: SessionEntry[] = [
+    userEntry("q", "2026-08-26T10:00:00.000Z"),
+    assistantEntry([{ type: "text", text: "a" }], { at: "2026-08-26T10:00:12.000Z" }),
+    userEntry("q2", "2026-08-26T10:05:00.000Z"),
+    assistantEntry([{ type: "text", text: "b" }], { at: "2026-08-26T10:01:23.000Z" }),
+  ];
+  const text = buildViewText("chatlog", entries);
+  assert.match(text, /· 12s · /);
+  // Clock going backwards (entry 4 predates entry 3) must not render a duration.
+  assert.doesNotMatch(text, /· -/);
+});
+
+test("buildViewText chatlog: no duration on the first assistant turn without a prior message", () => {
+  const entries: SessionEntry[] = [assistantEntry([{ type: "text", text: "a" }])];
+  assert.doesNotMatch(buildViewText("chatlog", entries), /s · \d{4}-/);
 });
 
 test("buildViewText chatlog: marks a failed tool result as error", () => {

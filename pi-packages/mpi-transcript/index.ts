@@ -132,6 +132,15 @@ function blockText(content: unknown): string {
     .join("\n");
 }
 
+/** Elapsed time as `3.2s` (<10s), `42s` (<60s), or `2m 5s`. */
+function fmtDuration(ms: number): string {
+  const s = ms / 1000;
+  if (s < 10) return `${s.toFixed(1)}s`;
+  if (s < 60) return `${Math.round(s)}s`;
+  const m = Math.floor(s / 60);
+  return `${m}m ${Math.round(s - m * 60)}s`;
+}
+
 /** Entry timestamp as local `YYYY-MM-DD HH:mm:ss`; raw value if unparsable. */
 function formatTime(iso: string): string {
   const d = new Date(iso);
@@ -250,6 +259,8 @@ function collectChatlog(
   let turn = turnOffset;
   // Previous assistant turn's context size, for the context-growth delta.
   let prevContext: number | undefined;
+  // Previous message entry's epoch ms, for the assistant elapsed-time display.
+  let prevMsgAt: number | undefined;
   for (const entry of entries) {
     // One-line timeline events: model / thinking level switches explain why
     // the conversation's behavior changed mid-session.
@@ -303,6 +314,7 @@ function collectChatlog(
         }
       | undefined;
     if (!msg) continue;
+    const entryAt = Date.parse(entry.timestamp);
     if (msg.role === "user") {
       const text = blockText(msg.content);
       if (text.trim()) {
@@ -412,12 +424,19 @@ function collectChatlog(
           }
         }
         if (msg.usage?.cost?.total) meta.push(`$${msg.usage.cost.total.toFixed(4)}`);
+        // Elapsed since the previous message (usually the user prompt or the
+        // prior tool-loop step); skipped when clocks are missing or go backwards.
+        if (prevMsgAt !== undefined && !Number.isNaN(entryAt) && entryAt > prevMsgAt) {
+          meta.push(fmtDuration(entryAt - prevMsgAt));
+        }
         meta.push(formatTime(entry.timestamp));
         sections.push(
           `---\n\n## 🤖 Assistant${turn > 0 ? ` · #${turn}` : ""}\n\n_${meta.join(" · ")}_\n\n${parts.join("\n\n")}`,
         );
       }
     }
+    // Every message entry (any role) advances the elapsed-time reference.
+    if (!Number.isNaN(entryAt)) prevMsgAt = entryAt;
   }
   return sections;
 }
