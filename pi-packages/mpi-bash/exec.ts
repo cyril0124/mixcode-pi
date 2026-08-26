@@ -402,11 +402,12 @@ export function createDetachingBashOperations(options: {
       try {
         // Written synchronously: the detach notice hands out this path, and a
         // reader opening it immediately must not race the stream's async open.
+        const header = Buffer.from(`$ ${command}\n\n`);
         const replay = Buffer.concat(buffered ?? []);
-        fs.writeFileSync(
-          logPath,
-          bufferedDropped ? Buffer.concat([Buffer.from(REPLAY_DROPPED_MARKER), replay]) : replay,
-        );
+        const body = bufferedDropped
+          ? Buffer.concat([Buffer.from(REPLAY_DROPPED_MARKER), replay])
+          : replay;
+        fs.writeFileSync(logPath, Buffer.concat([header, body]));
         logStream = fs.createWriteStream(logPath, { flags: "a" });
         // An unhandled stream error would take down the host process; an
         // unwritable tmpdir must only cost the log, and it is reported in the

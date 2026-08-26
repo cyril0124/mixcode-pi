@@ -153,7 +153,7 @@ test("/bash-jobs lists this session's runs and opens the full log", async () => 
     assert.match(finished, /late/);
 
     assert.match(finished, new RegExp(logPath.split("/").pop() ?? ""), "the pager must name the log");
-    assert.equal(fs.readFileSync(logPath, "utf8"), "early\nlate\n");
+    assert.equal(fs.readFileSync(logPath, "utf8"), '$ printf "early\\n"; sleep 1; printf "late\\n"\n\nearly\nlate\n');
     fs.rmSync(logPath, { force: true });
   } finally {
     if (previousWindow === undefined) delete process.env.MPI_BASH_FOREGROUND_SECONDS;
@@ -186,6 +186,7 @@ test("the pager follows a live log and leaves a finished one alone", async () =>
   /** The pager currently on screen; the fake overlay keeps it open. */
   let pager: { render(width: number): string[] } | undefined;
 
+  const exits: string[] = [];
   const ui = {
     setWidget: () => {},
     notify: () => {},
@@ -220,29 +221,29 @@ test("the pager follows a live log and leaves a finished one alone", async () =>
         bash = tool;
       },
       registerMessageRenderer: () => {},
-      sendMessage: () => {},
+      sendMessage: (message: { content: string }) => exits.push(message.content),
     } as never);
     await handlers.session_start?.[0]?.({}, { cwd: process.cwd(), ui });
 
     const started = await bash?.execute("call-1", {
-      command: 'printf "first\\n"; sleep 2; printf "second\\n"',
+      command: 'printf "alpha\\n"; sleep 2; printf "beta\\n"',
       timeout: 30,
     });
     const logPath = /(\/\S*mpi-bash-[\w-]+\.log)/.exec(started?.content[0]?.text ?? "")?.[1];
     assert.ok(logPath, `the detach notice must name the log: ${started?.content[0]?.text}`);
 
     void commands["bash-jobs"]?.("", { ui });
-    await waitFor(() => (screen().includes("first") ? true : undefined));
-    assert.doesNotMatch(screen(), /second/, "the command has not printed it yet");
+    await waitFor(() => (screen().includes("alpha\n") || screen().includes("3  alpha") ? true : undefined));
+    assert.doesNotMatch(screen(), /\b4  beta|\b3  beta/, "the command has not printed it yet");
 
     // The command keeps writing; the pager must pick it up on its own.
-    await waitFor(() => (screen().includes("second") ? true : undefined));
+    await waitFor(() => (screen().includes("beta") ? true : undefined));
 
-    // A finished run's log is read once: later writes must not appear.
+    // Wait until the command finishes and reports exit before opening the finished log.
     pager = undefined;
-    await waitFor(() => (backgroundLogs().length > 0 ? true : undefined));
+    await waitFor(() => (exits.length > 0 ? true : undefined));
     void commands["bash-jobs"]?.("", { ui });
-    await waitFor(() => (screen().includes("second") ? true : undefined));
+    await waitFor(() => (screen().includes("beta") ? true : undefined));
     fs.appendFileSync(logPath, "appended after the run ended\n");
     // Twice the pager's one-second refresh: long enough for a re-read to land.
     await new Promise((resolve) => setTimeout(resolve, 2000));
@@ -526,7 +527,10 @@ test("a command outliving the window detaches, then reports its exit code out of
   assert.doesNotMatch(output.text(), /^after$/m);
   // The log is the one place the whole command can be read: the tool result
   // stops at detach, so the log must also carry what was already streamed.
-  assert.equal(fs.readFileSync(run.logPath, "utf8"), "before\nafter\n");
+  assert.equal(
+    fs.readFileSync(run.logPath, "utf8"),
+    '$ printf "before\\n"; sleep 1; printf "after\\n"\n\nbefore\nafter\n',
+  );
   fs.rmSync(run.logPath, { force: true });
 });
 
@@ -785,7 +789,7 @@ test("the registered bash tool detaches, shows the widget, and reports by starti
 
     const logPath = /Complete output \(foreground and background\): (\S+)/.exec(notice.content)?.[1];
     assert.ok(logPath, `the notice must name the complete log: ${notice.content}`);
-    assert.equal(fs.readFileSync(logPath, "utf8"), "late\n");
+    assert.equal(fs.readFileSync(logPath, "utf8"), '$ sleep 1; printf "late\\n"\n\nlate\n');
     fs.rmSync(logPath, { force: true });
   } finally {
     if (previousWindow === undefined) delete process.env.MPI_BASH_FOREGROUND_SECONDS;

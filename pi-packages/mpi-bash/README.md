@@ -89,12 +89,14 @@ The pid doubles as the row's identity, so running the same command twice still y
 Selecting a row opens the log in a read-only pager:
 
 ```text
-┌ mpi-bash-473568.log · following 4 lines ───────────────────┐
+┌ mpi-bash-473568.log · following 6 lines ───────────────────┐
 │                                                            │
-│ 1  tick 04/24 at 21:16:43                                  │
-│ 2  npm warn deprecated inflight@1.0.6: This module is not  │
+│ 1  $ printf "FOREGROUND-OUTPUT"; sleep 12; printf 'done'   │
+│ 2                                                          │
+│ 3  tick 04/24 at 21:16:43                                  │
+│ 4  npm warn deprecated inflight@1.0.6: This module is not  │
 │    supported, and leaks memory.                            │
-│ 3  tick 06/24 at 21:16:44                                  │
+│ 5  tick 06/24 at 21:16:44                                  │
 │                                                            │
 ├────────────────────────────────────────────────────────────┤
 │  ↑↓/jk scroll  g/G top/bottom  ^e/v editor  q/esc close    │

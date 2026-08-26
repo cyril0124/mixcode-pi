@@ -89,12 +89,14 @@ pid 同时充当行的身份，所以同一条命令跑两次也是两行。
 选中一行即在只读分页器里打开它的日志：
 
 ```text
-┌ mpi-bash-473568.log · following 4 lines ───────────────────┐
+┌ mpi-bash-473568.log · following 6 lines ───────────────────┐
 │                                                            │
-│ 1  tick 04/24 at 21:16:43                                  │
-│ 2  npm warn deprecated inflight@1.0.6: This module is not  │
+│ 1  $ printf "FOREGROUND-OUTPUT"; sleep 12; printf 'done'   │
+│ 2                                                          │
+│ 3  tick 04/24 at 21:16:43                                  │
+│ 4  npm warn deprecated inflight@1.0.6: This module is not  │
 │    supported, and leaks memory.                            │
-│ 3  tick 06/24 at 21:16:44                                  │
+│ 5  tick 06/24 at 21:16:44                                  │
 │                                                            │
 ├────────────────────────────────────────────────────────────┤
 │  ↑↓/jk scroll  g/G top/bottom  ^e/v editor  q/esc close    │
