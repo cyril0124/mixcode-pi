@@ -1,0 +1,11 @@
+# Mirrors the CI lint gate (biome --error-on-warnings). Uses the repo's own
+# biome from node_modules so rule versions match CI; whole-repo run is ~1s,
+# cheaper than per-file filtering.
+repos:
+  - repo: local
+    hooks:
+      - id: biome-lint
+        name: biome lint --error-on-warnings
+        entry: bun run lint
+        language: system
+        pass_filenames: false
