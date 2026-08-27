@@ -11,6 +11,7 @@ import {
   type Context,
   type ToolCall,
 } from "@earendil-works/pi-ai";
+import type { ContextUsage } from "@earendil-works/pi-coding-agent";
 import {
   MIXCODE_FAUX_MODEL,
   MixCodeRuntime,
@@ -18,6 +19,13 @@ import {
   renderWorkingIndicator,
   type MixCodeModel,
 } from "./helpers/mixcode.js";
+import { syncContextUsage } from "../src/agent/runtime-chat.js";
+import { contextBarAndPercentText, exactContextUsageText } from "../src/ui/rendering/chrome.js";
+import { testRuntimeTab } from "./helpers/runtime-tab.js";
+
+function stripAnsi(text: string): string {
+  return text.replace(/\x1b\[[0-9;:]*m/g, "");
+}
 
 function waitForRuntime(predicate: () => boolean, attempts = 50): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -422,4 +430,42 @@ test("core does not terminate a tool loop for mid-turn compaction pressure", asy
   } finally {
     await fsPromises.rm(dir, { recursive: true, force: true });
   }
+});
+
+// Pi's interactive footer re-reads getContextUsage() every frame and prints `?`
+// when tokens is null. MixCode caches the count on the tab, so the null must be
+// written through or the meter keeps showing the stale pre-compaction number.
+test("post-compaction null usage clears the meter until real usage returns", () => {
+  const tab = createTab(1, "s1", "/repo", { currentContextTokens: 152_000, contextLimit: 200_000 });
+  let usage: ContextUsage | undefined = { tokens: null, contextWindow: 200_000, percent: null };
+  const runtimeTab = testRuntimeTab({
+    tab,
+    agentSession: { getContextUsage: () => usage },
+  });
+
+  syncContextUsage(runtimeTab);
+  assert.equal(exactContextUsageText(tab), "?/200k");
+  assert.match(stripAnsi(contextBarAndPercentText(tab, "ascii")), /\?%$/);
+
+  usage = { tokens: 4_100, contextWindow: 200_000, percent: 2.05 };
+  syncContextUsage(runtimeTab);
+  assert.equal(exactContextUsageText(tab), "4.10k/200k");
+  assert.match(stripAnsi(contextBarAndPercentText(tab, "ascii")), /2\.1%$/);
+});
+
+// A throw is "cannot compute", not "the number is void" — the two must not
+// collapse into the same branch, or a degenerate history entry would blank the meter.
+test("unavailable usage keeps the last known count", () => {
+  const tab = createTab(1, "s1", "/repo", { currentContextTokens: 152_000, contextLimit: 200_000 });
+  const runtimeTab = testRuntimeTab({
+    tab,
+    agentSession: {
+      getContextUsage: () => {
+        throw new Error("degenerate toolCall block");
+      },
+    },
+  });
+
+  syncContextUsage(runtimeTab);
+  assert.equal(exactContextUsageText(tab), "152k/200k");
 });

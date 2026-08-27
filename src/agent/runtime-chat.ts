@@ -604,7 +604,7 @@ export function syncContextUsage(runtimeTab: RuntimeTab): void {
   // Context usage is a display-only metric. A degenerate/restored history entry
   // (e.g. a toolCall block with no arguments) can make the SDK's token
   // estimator throw; that must not make the tab uncreatable or break a render.
-  // When the SDK can't compute usage we keep whatever the last event set —
+  // A throw means the count is unavailable, so keep whatever the last event set —
   // clobbering to undefined would discard data from applyAssistantUsage.
   let usage: ReturnType<RuntimeTab["agentSession"]["getContextUsage"]>;
   try {
@@ -616,7 +616,12 @@ export function syncContextUsage(runtimeTab: RuntimeTab): void {
   if (!runtimeTab.tab.contextLimitOverridden) {
     runtimeTab.tab.contextLimit = usage?.contextWindow ?? runtimeTab.tab.contextLimit;
   }
-  if (usage?.tokens != null && usage.tokens > 0) {
+  if (usage?.tokens === null) {
+    // Pi parity (interactive footer): an explicit null means the cached number is
+    // void, not merely unavailable — the last assistant usage predates the latest
+    // compaction. Show `?` until the next LLM response reports real usage.
+    runtimeTab.tab.currentContextTokens = undefined;
+  } else if (usage?.tokens != null && usage.tokens > 0) {
     runtimeTab.tab.currentContextTokens = usage.tokens;
   }
 }
