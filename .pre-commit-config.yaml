@@ -1,9 +1,18 @@
-# Mirrors the CI lint gate (biome --error-on-warnings). Uses the repo's own
-# biome from node_modules so rule versions match CI; whole-repo run is ~1s,
-# cheaper than per-file filtering.
+# biome format + lint, using the repo's own biome from node_modules so rule
+# versions match. Lint mirrors the CI gate; format has no CI counterpart and
+# exists only here. A whole-repo run takes about 1s, cheaper than filtering per
+# file. `biome format --write` exits 0 even when it rewrites, so the commit is
+# failed by pre-commit's own "files were modified by this hook" check; re-stage
+# the rewritten files and commit again.
 repos:
   - repo: local
     hooks:
+      - id: biome-format
+        name: biome format --write
+        entry: bun run format
+        language: system
+        pass_filenames: false
+
       - id: biome-lint
         name: biome lint --error-on-warnings
         entry: bun run lint
