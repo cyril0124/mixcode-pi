@@ -10,6 +10,7 @@ Render-only transcript presentation for `bash`, `read`, `edit`, `write`, and Thi
 | --- | --- | --- |
 | `bash` | `↳ N lines returned • Ctrl+O to expand` | 10-frame spinner with elapsed time; live output remains uncollapsed; expanded preview is capped at 4000 lines |
 | `read` | `↳ loaded N lines • Ctrl+O to expand` | Expanded preview is capped at 4000 lines |
+| `read` of `SKILL.md` | `[skill] <parent directory>`; collapsed result is empty | File body |
 | `edit` | Diff capped at 24 lines with a remainder hint | Pending diff preview while running; full diff when expanded |
 | `write` | Overwrite diff against pre-execution content; new files render as additions | Pending diff preview while running; full diff when expanded |
 | Thinking | Themed `Thinking:` prefix | Streaming updates remain labeled |
@@ -40,7 +41,7 @@ Before each model call, the `context` handler removes the label and ANSI present
 
 ## Execution contract
 
-The package does not call `registerTool`, create tool definitions, wrap `execute`, read shell settings, or claim tool ownership. A guarded, reload-safe adapter selects call/result renderers through Pi's `ToolExecutionComponent` for `bash`, `read`, `edit`, and `write`; all other defined tools retain their native renderers. The call wrapper preserves each renderer's `lastComponent` state while optionally appending raw arguments. Tools without a definition keep Pi's generic formatter, including its native result text. With `showRawToolArguments` off, that formatter receives no argument object.
+The package does not call `registerTool`, create tool definitions, wrap `execute`, read shell settings, or claim tool ownership. A guarded, reload-safe adapter selects call/result renderers through Pi's `ToolExecutionComponent` for `bash`, `read`, `edit`, and `write`. When `read` targets `SKILL.md`, the adapter uses the tool definition's native renderer, which draws `[skill] <parent directory>` when collapsed. Other defined tools use their own renderers. The call wrapper preserves each renderer's `lastComponent` state while optionally appending raw arguments. Tools without a definition keep Pi's generic formatter, including its native result text. With `showRawToolArguments` off, that formatter receives no argument object.
 
 Native definitions preserve cwd, shell path/prefix, permission wrappers, and the bash child environment (`PI_SESSION_ID`, `PI_SESSION_FILE`, `PI_PROVIDER`, `PI_MODEL`, `PI_REASONING_LEVEL`). The public `tool_call` event captures write's previous file content for display only; it does not block or mutate tool input.
 

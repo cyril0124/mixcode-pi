@@ -10,6 +10,7 @@
 | --- | --- | --- |
 | `bash` | `↳ N lines returned • Ctrl+O to expand` | 10 帧 spinner + 运行耗时；实时输出不折叠；展开预览上限 4000 行 |
 | `read` | `↳ loaded N lines • Ctrl+O to expand` | 展开预览上限 4000 行 |
+| `read` 指向 `SKILL.md` | `[skill] <父目录>`；折叠结果为空 | 文件正文 |
 | `edit` | diff 折叠上限 24 行，超出部分给出提示 | 运行中显示 pending diff；展开后显示完整 diff |
 | `write` | 基于执行前内容显示覆写 diff；新文件显示为纯新增 | 运行中显示 pending diff；展开后显示完整 diff |
 | Thinking | 带主题色的 `Thinking:` 前缀 | 流式更新持续保留标签 |
@@ -40,7 +41,7 @@ Thinking 块通过 Pi 的 `message_update` 与 `message_end` extension events �
 
 ## 执行契约
 
-包不调用 `registerTool`，不创建工具定义、不包装 `execute`、不读取 shell settings、不抢工具 ownership。带形状守卫且 reload 可恢复的 adapter 通过 Pi `ToolExecutionComponent` 为 `bash`、`read`、`edit`、`write` 选择 call/result renderer；其他有定义工具保留原生 renderer。call wrapper 在可选地追加原始参数时仍保持每个 renderer 的 `lastComponent` 状态。没有定义的工具继续使用 Pi generic formatter，并保留其原生结果文本。`showRawToolArguments` 为 off 时，该 formatter 收不到参数对象。
+包不调用 `registerTool`，不创建工具定义、不包装 `execute`、不读取 shell settings、不抢工具 ownership。带形状守卫且 reload 可恢复的 adapter 通过 Pi `ToolExecutionComponent` 为 `bash`、`read`、`edit`、`write` 选择 call/result renderer。当 `read` 目标为 `SKILL.md` 时，adapter 交回工具定义的原生 renderer；折叠时渲染 `[skill] <父目录>`。其他有定义工具使用各自的 renderer。call wrapper 在可选地追加原始参数时仍保持每个 renderer 的 `lastComponent` 状态。没有定义的工具继续使用 Pi generic formatter，并保留其原生结果文本。`showRawToolArguments` 为 off 时，该 formatter 收不到参数对象。
 
 原生定义继续负责 cwd、shell path/prefix、permission wrapper 和 bash 子进程环境（`PI_SESSION_ID`、`PI_SESSION_FILE`、`PI_PROVIDER`、`PI_MODEL`、`PI_REASONING_LEVEL`）。公开 `tool_call` 事件只为显示而捕获 write 执行前的文件内容，不 block、不修改工具输入。
 

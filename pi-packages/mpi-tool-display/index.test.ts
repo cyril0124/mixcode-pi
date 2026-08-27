@@ -4,7 +4,11 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { initTheme, ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
+import {
+  createReadToolDefinition,
+  initTheme,
+  ToolExecutionComponent,
+} from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { loadToolDisplayRuntimeConfig, writeToolDisplayRuntimeConfig } from "./config.js";
 import { disposeAll, resetDisposed } from "./disposable.js";
@@ -240,6 +244,64 @@ test("read result and tool calls use configured summaries", () => {
     200,
   ).join("");
   assert.ok(writeCall.includes("write src/foo.ts (2 lines"));
+});
+
+test("SKILL.md reads render as compact [skill] rows", () => {
+  initTheme("dark");
+  const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+  process.env.PI_CODING_AGENT_DIR = workDir;
+  const handlers = new Map<string, Array<(event: unknown, ctx: unknown) => unknown>>();
+  const pi = {
+    registerTool: () => undefined,
+    registerCommand: () => undefined,
+    on: (event: string, handler: (event: unknown, ctx: unknown) => unknown) => {
+      const current = handlers.get(event) ?? [];
+      current.push(handler);
+      handlers.set(event, current);
+    },
+  } as unknown as ExtensionAPI;
+  try {
+    toolDisplayExtension(pi);
+    const definition = createReadToolDefinition(workDir);
+    const renderRead = (filePath: string, body: string): string => {
+      const component = new ToolExecutionComponent(
+        "read",
+        `read-${filePath}`,
+        { path: filePath },
+        { showImages: false, imageWidthCells: 20 },
+        definition,
+        { requestRender: () => undefined } as never,
+        workDir,
+      );
+      component.markExecutionStarted();
+      component.setArgsComplete();
+      component.updateResult(
+        { content: [{ type: "text", text: body }], details: {}, isError: false } as never,
+        false,
+      );
+      return stripAnsi(component.render(100).join("\n"));
+    };
+
+    const skillText = renderRead(
+      path.join(workDir, "find-skills", "SKILL.md"),
+      "---\nname: find-skills\n---\n# Find Skills\n",
+    );
+    assert.match(skillText, /\[skill\] find-skills/);
+    assert.match(skillText, /to expand/);
+    assert.doesNotMatch(skillText, /↳ loaded/);
+    assert.doesNotMatch(skillText, /Find Skills/);
+
+    const sourceText = renderRead(path.join(workDir, "src", "foo.ts"), "a\nb\nc\n");
+    assert.match(sourceText, /read /);
+    assert.match(sourceText, /↳ loaded 3 lines/);
+    assert.doesNotMatch(sourceText, /\[skill\]/);
+  } finally {
+    for (const handler of handlers.get("session_shutdown") ?? []) {
+      void handler({ reason: "reload" }, {});
+    }
+    if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+    else process.env.PI_CODING_AGENT_DIR = previousAgentDir;
+  }
 });
 
 test("edit partial result shows the progress line", () => {

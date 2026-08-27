@@ -4,6 +4,7 @@
 // ║  ToolExecutionComponent selects the compact display profile: ║
 // ║    bash  `$ command`, spinner, `↳ N lines returned`, live preview      ║
 // ║    read  `read path[:range]`, `↳ loaded N lines`                      ║
+// ║          SKILL.md → `[skill] <dir>`; collapsed result empty           ║
 // ║    edit  pending preview + bars / split / wrap result diff             ║
 // ║    write pending preview + pre-captured overwrite diff                 ║
 // ║                                                                        ║
@@ -13,6 +14,7 @@
 // ║  tool_call captures prior write content only for diff presentation.    ║
 // ╚══════════════════════════════════════════════════════════════════════╝
 
+import * as path from "node:path";
 import type { Component } from "@earendil-works/pi-tui";
 import { Container, Spacer, Text } from "@earendil-works/pi-tui";
 import type {
@@ -327,6 +329,32 @@ function rendererFor(
   }
 }
 
+function isSkillReadArgs(args: unknown): boolean {
+  return path.basename(getToolPathArg(args) ?? "") === "SKILL.md";
+}
+
+/** `read` of `SKILL.md` uses the tool definition's native call and result renderers. */
+function selectCallRenderer(
+  catalog: ToolDisplayRendererCatalog,
+  toolName: string,
+  native: CallRenderer | undefined,
+): CallRenderer | undefined {
+  const custom = rendererFor(catalog, toolName)?.renderCall;
+  if (toolName !== "read" || !custom || !native) return custom ?? native;
+  return (args, theme, context) => (isSkillReadArgs(args) ? native : custom)(args, theme, context);
+}
+
+function selectResultRenderer(
+  catalog: ToolDisplayRendererCatalog,
+  toolName: string,
+  native: ResultRenderer | undefined,
+): ResultRenderer | undefined {
+  const custom = rendererFor(catalog, toolName)?.renderResult;
+  if (toolName !== "read" || !custom || !native) return custom ?? native;
+  return (result, options, theme, context) =>
+    (isSkillReadArgs(context.args) ? native : custom)(result, options, theme, context);
+}
+
 function loadRuntimeConfigOrThrow(agentDir: string): ToolDisplayRuntimeConfig {
   const loaded = loadToolDisplayRuntimeConfig(agentDir);
   if (!loaded.ok) {
@@ -395,10 +423,10 @@ export default function toolDisplayExtension(pi: ExtensionAPI): void {
     call: (toolName, native) =>
       wrapToolCallRenderer(
         toolName,
-        rendererFor(catalog, toolName)?.renderCall ?? native,
+        selectCallRenderer(catalog, toolName, native),
         runtimeConfig.showRawToolArguments,
       ),
-    result: (toolName, native) => rendererFor(catalog, toolName)?.renderResult ?? native,
+    result: (toolName, native) => selectResultRenderer(catalog, toolName, native),
     shell: (toolName, native): RenderShell => (toolName === "edit" ? "default" : native),
     showRawArguments: () => runtimeConfig.showRawToolArguments,
   });
