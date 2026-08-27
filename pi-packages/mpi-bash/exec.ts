@@ -402,7 +402,7 @@ export function createDetachingBashOperations(options: {
       try {
         // Written synchronously: the detach notice hands out this path, and a
         // reader opening it immediately must not race the stream's async open.
-        const header = Buffer.from(`$ ${command}\n\n`);
+        const header = Buffer.from(`# Command: ${command}\n# ---\n`);
         const replay = Buffer.concat(buffered ?? []);
         const body = bufferedDropped
           ? Buffer.concat([Buffer.from(REPLAY_DROPPED_MARKER), replay])

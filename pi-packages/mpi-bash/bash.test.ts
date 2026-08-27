@@ -153,7 +153,10 @@ test("/bash-jobs lists this session's runs and opens the full log", async () => 
     assert.match(finished, /late/);
 
     assert.match(finished, new RegExp(logPath.split("/").pop() ?? ""), "the pager must name the log");
-    assert.equal(fs.readFileSync(logPath, "utf8"), '$ printf "early\\n"; sleep 1; printf "late\\n"\n\nearly\nlate\n');
+    assert.equal(
+      fs.readFileSync(logPath, "utf8"),
+      '# Command: printf "early\\n"; sleep 1; printf "late\\n"\n# ---\nearly\nlate\n',
+    );
     fs.rmSync(logPath, { force: true });
   } finally {
     if (previousWindow === undefined) delete process.env.MPI_BASH_FOREGROUND_SECONDS;
@@ -527,9 +530,9 @@ test("a command outliving the window detaches, then reports its exit code out of
   assert.doesNotMatch(output.text(), /^after$/m);
   // The log is the one place the whole command can be read: the tool result
   // stops at detach, so the log must also carry what was already streamed.
-  assert.equal(
+    assert.equal(
     fs.readFileSync(run.logPath, "utf8"),
-    '$ printf "before\\n"; sleep 1; printf "after\\n"\n\nbefore\nafter\n',
+    '# Command: printf "before\\n"; sleep 1; printf "after\\n"\n# ---\nbefore\nafter\n',
   );
   fs.rmSync(run.logPath, { force: true });
 });
@@ -789,7 +792,7 @@ test("the registered bash tool detaches, shows the widget, and reports by starti
 
     const logPath = /Complete output \(foreground and background\): (\S+)/.exec(notice.content)?.[1];
     assert.ok(logPath, `the notice must name the complete log: ${notice.content}`);
-    assert.equal(fs.readFileSync(logPath, "utf8"), '$ sleep 1; printf "late\\n"\n\nlate\n');
+    assert.equal(fs.readFileSync(logPath, "utf8"), '# Command: sleep 1; printf "late\\n"\n# ---\nlate\n');
     fs.rmSync(logPath, { force: true });
   } finally {
     if (previousWindow === undefined) delete process.env.MPI_BASH_FOREGROUND_SECONDS;

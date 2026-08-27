@@ -8,3 +8,4 @@ bun.lockb
 .pi/
 .worktrees/
 .test-timings.json
+__pycache__

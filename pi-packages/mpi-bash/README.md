@@ -91,8 +91,8 @@ Selecting a row opens the log in a read-only pager:
 ```text
 ┌ mpi-bash-473568.log · following 6 lines ───────────────────┐
 │                                                            │
-│ 1  $ printf "FOREGROUND-OUTPUT"; sleep 12; printf 'done'   │
-│ 2                                                          │
+│ 1  # Command: printf "FOREGROUND-OUTPUT"; sleep 12; pri... │
+│ 2  # ---                                                   │
 │ 3  tick 04/24 at 21:16:43                                  │
 │ 4  npm warn deprecated inflight@1.0.6: This module is not  │
 │    supported, and leaks memory.                            │
